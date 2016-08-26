@@ -782,12 +782,15 @@ private:
                     InferSchemaFromInputOrdered();
                 } else {
                     ValidateOutputSchemaOrdered();
-
-                    ValidateTableSchemaCompatibility(
-                        InputTables[0].Schema,
-                        table.TableUploadOptions.TableSchema,
-                        /* ignoreSortOrder */ true)
-                        .ThrowOnError();
+                    for (const auto& inputTable : InputTables) {
+                        if (inputTable.SchemaMode == ETableSchemaMode::Strong) {
+                            ValidateTableSchemaCompatibility(
+                                inputTable.Schema,
+                                table.TableUploadOptions.TableSchema,
+                                /* ignoreSortOrder */ true)
+                                .ThrowOnError();
+                        }
+                    }
                 }
                 break;
 
@@ -955,11 +958,13 @@ private:
                 if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
                     InferSchemaFromInputOrdered();
                 } else {
-                    ValidateTableSchemaCompatibility(
-                        InputTables[0].Schema,
-                        table.TableUploadOptions.TableSchema,
-                        /* ignoreSortOrder */ false)
-                        .ThrowOnError();
+                    if (InputTables[0].SchemaMode == ETableSchemaMode::Strong) {
+                        ValidateTableSchemaCompatibility(
+                            InputTables[0].Schema,
+                            table.TableUploadOptions.TableSchema,
+                            /* ignoreSortOrder */ false)
+                            .ThrowOnError();
+                    }
                 }
                 break;
 
@@ -1577,11 +1582,13 @@ private:
                     validateOutputKeyColumns();
 
                     for (const auto& inputTable : InputTables) {
-                        ValidateTableSchemaCompatibility(
-                            inputTable.Schema,
-                            table.TableUploadOptions.TableSchema,
-                            /* ignoreSortOrder */ true)
-                            .ThrowOnError();
+                        if (inputTable.SchemaMode == ETableSchemaMode::Strong) {
+                            ValidateTableSchemaCompatibility(
+                                inputTable.Schema,
+                                table.TableUploadOptions.TableSchema,
+                                /* ignoreSortOrder */ true)
+                                .ThrowOnError();
+                        }
                     }
                 }
                 break;

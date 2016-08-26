@@ -1860,11 +1860,13 @@ private:
                         table.TableUploadOptions.TableSchema.ToSorted(Spec->SortBy);
 
                     for (const auto& inputTable : InputTables) {
-                        ValidateTableSchemaCompatibility(
-                            inputTable.Schema,
-                            table.TableUploadOptions.TableSchema,
-                            /* ignoreSortOrder */ true)
-                        .ThrowOnError();
+                        if (inputTable.SchemaMode == ETableSchemaMode::Strong) {
+                            ValidateTableSchemaCompatibility(
+                                inputTable.Schema,
+                                table.TableUploadOptions.TableSchema,
+                                /* ignoreSortOrder */ true)
+                            .ThrowOnError();
+                        }
                     }
                 }
                 break;
