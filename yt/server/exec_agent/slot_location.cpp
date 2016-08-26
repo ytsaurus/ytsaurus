@@ -13,11 +13,13 @@
 
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/proc.h>
+#include <yt/core/misc/singleton.h>
 
 #include <yt/core/yson/writer.h>
 #include <yt/core/ytree/convert.h>
 
 #include <yt/core/tools/tools.h>
+
 
 #include <util/system/fs.h>
 
@@ -28,6 +30,34 @@ using namespace NConcurrency;
 using namespace NTools;
 using namespace NYson;
 using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMountPointsProvider
+{
+public:
+    ~TMountPointsProvider()
+    { }
+
+    static TMountPointsProvider* Get()
+    {
+        return Singleton<TMountPointsProvider>();
+    }
+
+    std::vector<NFS::TMountPoint> GetMountPoints()
+    {
+        auto invoker = Thread_->GetInvoker();
+        auto asyncResult = BIND(NFS::GetMountPoints)
+            .AsyncVia(invoker)
+            .Run("/proc/mounts");
+        auto result = WaitFor(asyncResult)
+            .ValueOrThrow();
+        return result;
+    }
+
+private:
+    const TActionQueuePtr Thread_ = New<TActionQueue>("MountPoints");
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -294,11 +324,14 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
                 LOG_DEBUG("Cleaning sandbox directory (Path: %v)", sandboxPath);
 
                 auto sandboxFullPath = NFS::CombinePaths(~NFs::CurrentWorkingDirectory(), sandboxPath);
+                auto isInsideSandbox = [&] (const Stroka& path) {
+                    return path == sandboxFullPath || (sandboxFullPath + "/").is_prefix(path);
+                };
 
                 // Unmount all known tmpfs.
                 std::vector<Stroka> tmpfsPaths;
                 for (const auto& tmpfsPath : TmpfsPaths_) {
-                    if (sandboxFullPath.is_prefix(tmpfsPath)) {
+                    if (isInsideSandbox(tmpfsPath)) {
                         tmpfsPaths.push_back(tmpfsPath);
                     }
                 }
@@ -317,9 +350,9 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
                 // we always try to remove it several times.
                 for (int attempt = 0; attempt < TmpfsRemoveAttemptCount; ++attempt) {
                     // Look mount points inside sandbox and unmount it.
-                    auto mountPoints = NFS::GetMountPoints();
+                    auto mountPoints = TMountPointsProvider::Get()->GetMountPoints();
                     for (const auto& mountPoint : mountPoints) {
-                        if (sandboxFullPath.is_prefix(mountPoint.Path)) {
+                        if (isInsideSandbox(mountPoint.Path)) {
                             LOG_DEBUG("Remove unknown mount point (Path: %v)", mountPoint.Path);
                             removeMountPoint(mountPoint.Path);
                         }
