@@ -342,6 +342,11 @@ public:
         return Timeout_.Get(Owner_->Config_->DefaultTransactionTimeout);
     }
 
+    TTimestamp GetCommitTimestamp() const
+    {
+        return CommitTimestamp_;
+    }
+
 
     void AddParticipant(const TCellId& cellId)
     {
@@ -423,6 +428,7 @@ private:
     TError Error_;
 
     TTimestamp StartTimestamp_ = NullTimestamp;
+    TTimestamp CommitTimestamp_ = NullTimestamp;
     TTransactionId Id_;
 
 
@@ -636,7 +642,7 @@ private:
         Committed_.Fire();
     }
 
-    void SetTransactionCommitted()
+    void SetTransactionCommitted(TTimestamp commitTimestamp)
     {
         {
             auto guard = Guard(SpinLock_);
@@ -644,6 +650,7 @@ private:
                 THROW_ERROR Error_;
             }
             State_ = ETransactionState::Committed;
+            CommitTimestamp_ = commitTimestamp;
         }
 
         FireCommitted();
@@ -655,7 +662,7 @@ private:
     TFuture<void> DoCommitAtomic(const TTransactionCommitOptions& options)
     {
         if (ParticiapantCellIds_.empty()) {
-            SetTransactionCommitted();
+            SetTransactionCommitted(NullTimestamp);
             return VoidFuture;
         }
 
@@ -687,7 +694,7 @@ private:
 
     TFuture<void> DoCommitNonAtomic()
     {
-        SetTransactionCommitted();
+        SetTransactionCommitted(NullTimestamp);
         return VoidFuture;
     }
 
@@ -722,7 +729,8 @@ private:
             THROW_ERROR error;
         }
 
-        SetTransactionCommitted();
+        const auto& rsp = rspOrError.Value();
+        SetTransactionCommitted(rsp->commit_timestamp());
     }
 
 
@@ -1014,6 +1022,11 @@ EDurability TTransaction::GetDurability() const
 TDuration TTransaction::GetTimeout() const
 {
     return Impl_->GetTimeout();
+}
+
+TTimestamp TTransaction::GetCommitTimestamp() const
+{
+    return Impl_->GetCommitTimestamp();
 }
 
 void TTransaction::AddParticipant(const TCellId& cellId)

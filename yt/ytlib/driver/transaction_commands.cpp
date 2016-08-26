@@ -64,6 +64,10 @@ void TCommitTransactionCommand::Execute(ICommandContextPtr context)
     auto transaction = AttachTransaction(context, true);
     WaitFor(transaction->Commit(Options))
         .ThrowOnError();
+    //context->ProduceOutputValue(BuildYsonStringFluently()
+    //    .BeginMap()
+    //        .Item("commit_timestamp").Value(transaction->GetId())
+    //    .EndMap());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
