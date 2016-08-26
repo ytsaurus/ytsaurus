@@ -459,7 +459,6 @@ def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, copy_spec_t
                             src)
                 read_iterator = yamr_client.get_read_iterator(
                     src,
-                    fastbone=fastbone,
                     transaction_id=transaction_id,
                     timeout=job_timeout)
                 try:
