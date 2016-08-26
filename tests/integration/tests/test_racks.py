@@ -146,8 +146,8 @@ class TestRacks(YTEnvSetup):
         write_journal("//tmp/j", self.JOURNAL_DATA)
 
     def test_unsafely_placed(self):
-        create("file", "//tmp/file", file_writer={"upload_replication_factor": 3})
-        write_file("//tmp/file", self.FILE_DATA)
+        create("file", "//tmp/file")
+        write_file("//tmp/file", self.FILE_DATA, file_writer={"upload_replication_factor": 3})
 
         chunk_ids = get("//tmp/file/@chunk_ids")
         assert len(chunk_ids) == 1
@@ -155,13 +155,9 @@ class TestRacks(YTEnvSetup):
         assert not get("#" + chunk_id + "/@replication_status/unsafely_placed")
 
         self._init_n_racks(1)
-
-        time.sleep(1.0)
         assert get("#" + chunk_id + "/@replication_status/unsafely_placed")
 
         self._reset_all_racks()
-
-        time.sleep(1.0)
         assert not get("#" + chunk_id + "/@replication_status/unsafely_placed")
 
     def test_regular_move_to_safe_place(self):
