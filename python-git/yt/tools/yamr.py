@@ -278,10 +278,9 @@ class Yamr(object):
             error.inner_errors = [YamrError(stderr, proc.returncode)]
             raise error
 
-    def get_read_iterator(self, table, fastbone, chunk_size=128 * MB, transaction_id=None, timeout=None):
+    def get_read_iterator(self, table, chunk_size=128 * MB, transaction_id=None, timeout=None):
         command_pattern = '{opts} MR_USER={mr_user} USER=yt {binary} '\
                           '-server {server} ' \
-                          '{fastbone_option} '\
                           '-read "{table}" -lenval -subkey {shared_tx}'
 
         if transaction_id is None:
@@ -294,7 +293,6 @@ class Yamr(object):
             mr_user=self.mr_user,
             binary=self.binary,
             server=self.server,
-            fastbone_option=self._make_fastbone(fastbone),
             table=table,
             shared_tx=shared_tx_str)
 
