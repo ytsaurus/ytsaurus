@@ -1,7 +1,7 @@
 include helpers.py
 include VERSION
-include yt/wrapper/yt
-include yt/wrapper/yt2
-include yt/wrapper/mapreduce
-include yt/wrapper/mapreduce-yt
-include yt/wrapper/yt-fuse
+include yt/wrapper/bin/yt
+include yt/wrapper/bin/yt2
+include yt/wrapper/bin/mapreduce
+include yt/wrapper/bin/mapreduce-yt
+include yt/wrapper/bin/yt-fuse
