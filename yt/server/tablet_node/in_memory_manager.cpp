@@ -241,20 +241,22 @@ private:
         Logger.AddTag("TabletId: %v, StoreId: %v",
             tablet->GetId(),
             store->GetId());
+
+        auto invoker = tablet->GetEpochAutomatonInvoker();
+
         try {
             auto finalizer = Finally(
-                [&, invoker = tablet->GetEpochAutomatonInvoker()] {
-                    SwitchTo(invoker);
-                    storeManager->BackoffStorePreload(store);
+                [&] () {
+                LOG_WARNING("Backing off tablet store preload");
+                    BIND(&IStoreManager::BackoffStorePreload, storeManager, store)
+                        .Via(invoker)
+                        .Run();
                 });
             GuardedPreloadStore(tablet, store, Logger);
             finalizer.Release();
             storeManager->EndStorePreload(store);
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error preloading tablet store, backed off");
-        } catch (...) {
-            LOG_ERROR("Error preloading tablet store for unknown reason, backing off");
-            throw;
         }
 
         auto slotManager = Bootstrap_->GetTabletSlotManager();
