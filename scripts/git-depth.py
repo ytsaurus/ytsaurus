@@ -23,14 +23,6 @@ _seeds = {
     "cada334f4e7d9cef222612748d8510da771f270f": 15000,  # round number to prune search space
     "71eba9ebd4f582603d0f87e5070632c6049c719e": 20000,  # round number to prune search space
     "b5f2820594ec6a5859dd24fe7fb26d4936f16f38": 20000,  # round number to prune search space
-    "e894f3638299b75c9251f5d1fcb81b19fdc9e18d": 1,  # rootless commit
-    "c5605d44efde66b90366bdbcc4fd511276f57d3b": 1,  # rootless commit
-    "7dcfc452fa0ca5f60dd3755ac154945d61b7b385": 1,  # rootless commit
-    "7842db634296e5d70cce4a6cdb7114f921ca1081": 1,  # rootless commit
-    "fa3a02ad37c5a7bac734051615442a0f5f96e61a": 1,  # rootless commit
-    "8ca18d293d4df3cd548b6bd874035486094c1506": 1,  # zstd subtree update commit
-    "9b6843d82eff222a9ae20af284eb2d9a5d291588": 1,  # zstd subtree update commit
-    "d1eb750837a4538d301c59397a4b8d4b1ceda14b": 1,  # 18.4 init commit of YT in Arcadia
 }
 
 
@@ -69,7 +61,7 @@ def get_depth_subprocess(path):
         if commit not in cache:
             parents = graph.get(commit, None)
             if not parents:
-                raise RuntimeError("Not enough seeds: missing information for commit %s" % commit)
+                depth = 0
             else:
                 depth = max(_impl(parent) for parent in parents)
             cache[commit] = 1 + depth

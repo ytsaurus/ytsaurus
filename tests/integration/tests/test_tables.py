@@ -174,14 +174,14 @@ class TestTables(YTEnvSetup):
             [{"key": 0}, {"key": 1}, {"key": 2}, {"key": 3}])
         assert read_table("//tmp/table") == [{"key": i} for i in xrange(4)]
 
-        with pytest.raises(YtError):
-            # different schema, fails
-            write_table("<schema=[{name=key; type=any}]>//tmp/table", 
-                [{"key": 4}, {"key": 5}])
-
         write_table("<append=true>//tmp/table", [{"key": 4}, {"key": 5}])
         assert get("//tmp/table/@schema_mode") == "strong"
         assert read_table("//tmp/table") == [{"key": i} for i in xrange(6)]
+
+        # data is overwritten, schema is reset
+        write_table("<schema=[{name=key; type=any}]>//tmp/table", 
+            [{"key": 4}, {"key": 5}])
+        assert get("//tmp/table/@row_count") == 2
 
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_sorted_unique(self, optimize_for):

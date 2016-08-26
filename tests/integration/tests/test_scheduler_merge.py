@@ -605,9 +605,29 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert get("//tmp/output_loose/@schema_mode") == "strong"
         assert not get("//tmp/output_loose/@schema/@strict")
 
+        merge(in_=["//tmp/input_weak", "//tmp/input_loose"], out="//tmp/output_loose")
+
+    def test_auto_schema_inference_ordered(self):
+        output_schema = make_schema([{"name" : "key", "type" : "int64"}, {"name" : "value", "type" : "string"}])
+        good_schema = make_schema([{"name" : "key", "type" : "int64"}])
+        bad_schema = make_schema([{"name" : "key", "type" : "int64"}, {"name" : "bad", "type" : "int64"}])
+
+        create("table", "//tmp/input_good", attributes={"schema" : good_schema})
+        create("table", "//tmp/input_bad", attributes={"schema" : bad_schema})
+        create("table", "//tmp/input_weak")
+        create("table", "//tmp/output_strong", attributes={"schema" : output_schema})
+        create("table", "//tmp/output_weak")
+
+        merge(in_=["//tmp/input_weak", "//tmp/input_good"], out="//tmp/output_strong")
+
         with pytest.raises(YtError):
-            # schema validation must fail
-            merge(in_="//tmp/input_weak", out="//tmp/output_strong")
+            merge(in_=["//tmp/input_weak", "//tmp/input_bad"], out="//tmp/output_strong")
+
+        with pytest.raises(YtError):
+            merge(in_=["//tmp/input_weak", "//tmp/input_good"], out="//tmp/output_weak")
+
+        with pytest.raises(YtError):
+            merge(in_=["//tmp/input_bad", "//tmp/input_good"], out="//tmp/output_weak")
 
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_schema_validation_unordered(self, optimize_for):

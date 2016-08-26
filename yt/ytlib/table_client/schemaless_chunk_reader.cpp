@@ -926,8 +926,7 @@ private:
         if (readSchemalessColumns) {
             SchemalessReader_ = CreateSchemalessColumnReader(
                 ChunkMeta_->ColumnMeta().columns(ChunkMeta_->ChunkSchema().Columns().size()),
-                schemalessIdMapping,
-                SchemaColumnReaders_.size());
+                schemalessIdMapping);
 
             Columns_.emplace_back(
                 SchemalessReader_.get(),

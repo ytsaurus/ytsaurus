@@ -68,7 +68,7 @@ TEST(TSchemalessColumnTest, Simple)
         idMapping.push_back({index, index});
     }
 
-    auto reader = CreateSchemalessColumnReader(columnMeta, idMapping, 0);
+    auto reader = CreateSchemalessColumnReader(columnMeta, idMapping);
     reader->ResetBlock(columnData, 0);
 
     EXPECT_EQ(expected.size(), reader->GetReadyUpperRowIndex());

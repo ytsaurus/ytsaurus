@@ -151,6 +151,7 @@ public:
         switch (chunkFormat) {
             case ETableChunkFormat::Old:
             case ETableChunkFormat::SchemalessHorizontal:
+            case ETableChunkFormat::UnversionedColumnar:
             case ETableChunkFormat::VersionedSimple:
                 break;
             default:

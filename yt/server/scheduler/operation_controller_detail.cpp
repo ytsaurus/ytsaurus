@@ -4227,7 +4227,14 @@ void TOperationControllerBase::InitUserJobSpec(
 {
     ToProto(jobSpec->mutable_async_scheduler_transaction_id(), AsyncSchedulerTransactionId);
 
-    jobSpec->set_memory_reserve(joblet->EstimatedResourceUsage.GetUserJobMemory() * joblet->UserJobMemoryReserveFactor);
+    i64 memoryReserve = joblet->EstimatedResourceUsage.GetUserJobMemory() * joblet->UserJobMemoryReserveFactor;
+    // Memory reserve should greater than or equal to tmpfs_size (see YT-5518 for more details).
+    // This is ensured by adjusting memory reserve factor in user job config as initialization,
+    // but just in case we also limit the actual memory_reserve value here.
+    if (jobSpec->has_tmpfs_size()) {
+        memoryReserve = std::max(memoryReserve, jobSpec->tmpfs_size());
+    }
+    jobSpec->set_memory_reserve(memoryReserve);
 
     jobSpec->add_environment(Format("YT_JOB_INDEX=%v", joblet->JobIndex));
     jobSpec->add_environment(Format("YT_JOB_ID=%v", joblet->JobId));

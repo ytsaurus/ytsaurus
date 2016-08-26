@@ -323,6 +323,11 @@ public:
                     << TErrorAttribute("tmpfs_size", *TmpfsSize)
                     << TErrorAttribute("memory_limit", MemoryLimit);
             }
+            // Memory reserve should greater than or equal to tmpfs_size (see YT-5518 for more details).
+            if (TmpfsPath) {
+                i64 tmpfsSize = TmpfsSize ? *TmpfsSize : MemoryLimit;
+                MemoryReserveFactor = std::min(1.0, std::max(MemoryReserveFactor, double(tmpfsSize) / MemoryLimit));
+            }
         });
     }
 
