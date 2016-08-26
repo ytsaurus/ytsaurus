@@ -146,15 +146,22 @@ class TestRacks(YTEnvSetup):
         write_journal("//tmp/j", self.JOURNAL_DATA)
 
     def test_unsafely_placed(self):
+        create_rack("r1")
+        create_rack("r2")
+
+        nodes = ls("//sys/nodes")
+        self._set_rack(nodes[0], "r1")
+        for i in xrange(1, len(nodes)):
+            self._set_rack(nodes[i], "r2")
+
         create("file", "//tmp/file")
         write_file("//tmp/file", self.FILE_DATA, file_writer={"upload_replication_factor": 3})
 
         chunk_ids = get("//tmp/file/@chunk_ids")
         assert len(chunk_ids) == 1
         chunk_id = chunk_ids[0]
-        assert not get("#" + chunk_id + "/@replication_status/unsafely_placed")
 
-        self._init_n_racks(1)
+        self._set_rack(nodes[0], "r2")
         assert get("#" + chunk_id + "/@replication_status/unsafely_placed")
 
         self._reset_all_racks()
