@@ -130,6 +130,17 @@ public:
             UserName_))
     { }
 
+    ~TExecuteSession()
+    {
+        if (EpochAutomatonInvoker_ && RequestQueueSizeIncreased_) {
+            // NB: DoDecreaseRequestQueueSize must be static since the session instance is dying.
+            EpochAutomatonInvoker_->Invoke(
+                BIND(&TExecuteSession::DoDecreaseRequestQueueSize,
+                SecurityManager_,
+                UserName_));
+        }
+    }
+
     void Run()
     {
         auto codicilGuard = MakeCodicilGuard();
@@ -298,6 +309,10 @@ private:
     {
         auto batchStartTime = NProfiling::GetCpuInstant();
         auto batchDeadlineTime = batchStartTime + NProfiling::DurationToCpuDuration(Owner_->Config_->YieldTimeout);
+
+        if (Context_->IsCanceled()) {
+            return;
+        }
 
         if (!EpochAutomatonInvoker_) {
             EpochAutomatonInvoker_ = HydraFacade_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ObjectService);
@@ -482,11 +497,6 @@ private:
         NRpc::TDispatcher::Get()
             ->GetInvoker()
             ->Invoke(BIND(&TExecuteSession::DoReply, MakeStrong(this), error));
-
-        if (RequestQueueSizeIncreased_) {
-            EpochAutomatonInvoker_->Invoke(
-                BIND(&TExecuteSession::DoDecreaseRequestQueueSize, MakeStrong(this)));
-        }
     }
 
     void DoReply(const TError& error)
@@ -513,11 +523,13 @@ private:
         Context_->Reply(error);
     }
 
-    void DoDecreaseRequestQueueSize()
+    static void DoDecreaseRequestQueueSize(
+        const TSecurityManagerPtr& securityManager,
+        const Stroka& userName)
     {
-        auto* user = SecurityManager_->FindUserByName(UserName_);
+        auto* user = securityManager->FindUserByName(userName);
         if (user) {
-            SecurityManager_->DecreaseRequestQueueSize(user);
+            securityManager->DecreaseRequestQueueSize(user);
         }
     }
 
