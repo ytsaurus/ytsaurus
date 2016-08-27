@@ -124,13 +124,14 @@ def main():
                 # To avoid removing twice
                 dir_sizes[str(dir)] = -1
                 try:
-                    yt.remove(dir, force=True)
-                    dir_sizes[os.path.dirname(dir)] -= 1
-                except yt.YtResponseError as error:
-                    if not error.is_concurrent_transaction_lock_conflict():
-                        raise
+                    try:
+                        yt.remove(dir, force=True)
+                        dir_sizes[os.path.dirname(dir)] -= 1
+                    except yt.YtResponseError as error:
+                        if not error.is_concurrent_transaction_lock_conflict():
+                            raise
                 except yt.YtError:
-                    logger.info("Failed to remove dir %s", dir)
+                    logger.exception("Failed to remove dir %s", dir)
 
 if __name__ == "__main__":
     main()
