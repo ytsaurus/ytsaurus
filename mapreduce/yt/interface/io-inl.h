@@ -41,7 +41,7 @@ struct TRowTraits<Message>
 };
 
 template <class T>
-struct TRowTraits<T, TEnableIf<TIsBaseOf<Message, T>::Value>>
+struct TRowTraits<T, std::enable_if_t<TIsBaseOf<Message, T>::Value>>
 {
     using TRowType = T;
     using IReaderImpl = IProtoReaderImpl;
@@ -160,7 +160,7 @@ public:
         : Reader_(reader)
     { }
 
-    template <class U, TEnableIf<TIsBaseOf<Message, U>::Value>* = nullptr>
+    template <class U, std::enable_if_t<TIsBaseOf<Message, U>::Value>* = nullptr>
     const U& GetRow() const
     {
         auto guard = Guard(Lock_);
@@ -205,7 +205,7 @@ private:
 };
 
 template <class T>
-class TTableReader<T, TEnableIf<TIsBaseOf<Message, T>::Value>>
+class TTableReader<T, std::enable_if_t<TIsBaseOf<Message, T>::Value>>
     : public TTableReader<Message>
 {
 public:
@@ -236,7 +236,7 @@ inline TTableReaderPtr<TYaMRRow> IIOClient::CreateTableReader<TYaMRRow>(
     return new TTableReader<TYaMRRow>(CreateYaMRReader(path, options));
 }
 
-template <class T, class = TEnableIf<TIsBaseOf<Message, T>::Value>>
+template <class T, class = std::enable_if_t<TIsBaseOf<Message, T>::Value>>
 struct TReaderCreator
 {
     static TTableReaderPtr<T> Create(TIntrusivePtr<IProtoReaderImpl> reader)
@@ -357,7 +357,7 @@ public:
         }
     }
 
-    template <class U, TEnableIf<std::is_base_of<Message, U>::value>* = nullptr>
+    template <class U, std::enable_if_t<std::is_base_of<Message, U>::value>* = nullptr>
     void AddRow(const U& row, size_t tableIndex = 0)
     {
         Writer_->AddRow(row, tableIndex);
@@ -373,7 +373,7 @@ private:
 };
 
 template <class T>
-class TTableWriter<T, TEnableIf<TIsBaseOf<Message, T>::Value>>
+class TTableWriter<T, std::enable_if_t<TIsBaseOf<Message, T>::Value>>
     : public TTableWriter<Message>
 {
 public:
@@ -404,7 +404,7 @@ inline TTableWriterPtr<TYaMRRow> IIOClient::CreateTableWriter<TYaMRRow>(
     return new TTableWriter<TYaMRRow>(CreateYaMRWriter(path, options));
 }
 
-template <class T, class = TEnableIf<TIsBaseOf<Message, T>::Value>>
+template <class T, class = std::enable_if_t<TIsBaseOf<Message, T>::Value>>
 struct TWriterCreator
 {
     static TTableWriterPtr<T> Create(TIntrusivePtr<IProtoWriterImpl> writer)
