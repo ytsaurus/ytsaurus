@@ -88,7 +88,7 @@ template <class T, class = void>
 struct TProtoWriterCreator;
 
 template <class T>
-struct TProtoWriterCreator<T, TEnableIf<TIsBaseOf<Message, T>::Value>>
+struct TProtoWriterCreator<T, std::enable_if_t<TIsBaseOf<Message, T>::Value>>
 {
     static TTableWriterPtr<T> Create(TIntrusivePtr<IProtoWriterImpl> writer)
     {
@@ -126,7 +126,7 @@ struct TFormatDescTraits<Message>
 };
 
 template <class T>
-struct TFormatDescTraits<T, TEnableIf<TIsBaseOf<Message, T>::Value>>
+struct TFormatDescTraits<T, std::enable_if_t<TIsBaseOf<Message, T>::Value>>
 {
     static const TMultiFormatDesc::EFormat Format = TMultiFormatDesc::F_PROTO;
 };
@@ -146,7 +146,7 @@ struct TOperationIOSpecBase::TFormatAdder
 };
 
 template <class T>
-struct TOperationIOSpecBase::TFormatAdder<T, TEnableIf<TIsBaseOf<Message, T>::Value>>
+struct TOperationIOSpecBase::TFormatAdder<T, std::enable_if_t<TIsBaseOf<Message, T>::Value>>
 {
     static void Add(TMultiFormatDesc& desc)
     {
