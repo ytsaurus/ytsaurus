@@ -75,8 +75,8 @@ public:
      */
     void EndRequest(const TMutationId& id, TSharedRefArray response);
 
-    //! Marks a request for which #TryBeginRequest has previously returned null as canceled.
-    void CancelRequest(const TMutationId& id);
+    //! Forgets the request, which was previously registered via #TryBeginRequest.
+    void CancelRequest(const TMutationId& id, const TError& error);
 
     //! Combines #TryBeginRequest and #EndBeginRequest.
     /*!
