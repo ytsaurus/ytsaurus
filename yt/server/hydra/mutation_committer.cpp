@@ -314,13 +314,9 @@ TFuture<TMutationResponse> TLeaderCommitter::Commit(const TMutationRequest& requ
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    if (Options_.ResponseKeeper && request.MutationId) {
-        auto asyncResponseData = Options_.ResponseKeeper->TryBeginRequest(request.MutationId, request.Retry);
-        if (asyncResponseData) {
-            return asyncResponseData.Apply(BIND([] (const TSharedRefArray& data) {
-                return TMutationResponse{data};
-            }));
-        }
+    auto keptResponse = DecoratedAutomaton_->TryBeginKeptRequest(request);
+    if (keptResponse) {
+        return keptResponse;
     }
 
     NTracing::TNullTraceContextGuard guard;
