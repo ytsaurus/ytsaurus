@@ -187,7 +187,7 @@ private:
 
     std::atomic<bool> Replied_ = {false};
     std::atomic<int> SubresponseCount_ = {0};
-    int LastMutatingSubRequestIndex_ = -1;
+    int LastMutatingSubrequestIndex_ = -1;
 
     const NLogging::TLogger& Logger = ObjectServerLogger;
 
@@ -332,7 +332,7 @@ private:
             RequestQueueSizeIncreased_ = true;
         }
 
-        while (CurrentSubrequestIndex_ < SubrequestCount_ ) {
+        while (CurrentSubrequestIndex_ < SubrequestCount_) {
             while (CurrentSubrequestIndex_ > ThrottledSubrequestIndex_) {
                 ++ThrottledSubrequestIndex_;
                 auto result = SecurityManager_->ThrottleUser(user, 1);
@@ -355,11 +355,11 @@ private:
 
             if (subrequest.Mutation) {
                 ExecuteWriteSubrequest(&subrequest, user);
-                LastMutatingSubRequestIndex_ = CurrentSubrequestIndex_;
+                LastMutatingSubrequestIndex_ = CurrentSubrequestIndex_;
             } else {
                 // Cannot serve new read requests before previous write ones are done.
-                if (LastMutatingSubRequestIndex_ >= 0) {
-                    auto& lastCommitResult = Subrequests_[LastMutatingSubRequestIndex_].AsyncResponseMessage;
+                if (LastMutatingSubrequestIndex_ >= 0) {
+                    auto& lastCommitResult = Subrequests_[LastMutatingSubrequestIndex_].AsyncResponseMessage;
                     if (!lastCommitResult.IsSet()) {
                         lastCommitResult.Subscribe(
                             BIND(&TExecuteSession::CheckAndContinue<TSharedRefArray>, MakeStrong(this))
