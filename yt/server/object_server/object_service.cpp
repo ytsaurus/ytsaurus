@@ -132,7 +132,7 @@ public:
 
     ~TExecuteSession()
     {
-        if (EpochAutomatonInvoker_ && RequestQueueSizeIncreased_) {
+        if (RequestQueueSizeIncreased_) {
             // NB: DoDecreaseRequestQueueSize must be static since the session instance is dying.
             EpochAutomatonInvoker_->Invoke(
                 BIND(&TExecuteSession::DoDecreaseRequestQueueSize,
