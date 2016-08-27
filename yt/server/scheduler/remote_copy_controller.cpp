@@ -262,17 +262,8 @@ private:
     void InitializeTransactions() override
     {
         StartAsyncSchedulerTransaction();
-        if (CleanStart) {
-            StartInputTransaction(TTransactionId());
-            auto userTransactionId =
-                Operation->GetUserTransaction()
-                ? Operation->GetUserTransaction()->GetId()
-                : TTransactionId();
-            StartOutputTransaction(userTransactionId);
-        } else {
-            InputTransactionId = Operation->GetInputTransaction()->GetId();
-            OutputTransactionId = Operation->GetOutputTransaction()->GetId();
-        }
+        StartInputTransaction(NullTransactionId);
+        StartOutputTransaction(UserTransactionId);
     }
 
     virtual void DoInitialize() override
@@ -388,7 +379,7 @@ private:
             TObjectServiceProxy proxy(channel);
 
             auto req = TObjectYPathProxy::Get(path + "/@");
-            SetTransactionId(req, InputTransactionId);
+            SetTransactionId(req, InputTransaction->GetId());
 
             auto rspOrError = WaitFor(proxy.Execute(req));
             THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting attributes of input table %v",
@@ -423,7 +414,7 @@ private:
             for (const auto& key : attributeKeys) {
                 auto req = TYPathProxy::Set(path + "/@" + key);
                 req->set_value(InputTableAttributes_->GetYson(key).Data());
-                SetTransactionId(req, OutputTransactionId);
+                SetTransactionId(req, OutputTransaction->GetId());
                 batchReq->AddRequest(req);
             }
 
@@ -509,7 +500,7 @@ private:
             TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransactionId);
+        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).Data());
 
         auto clusterDirectory = Host->GetClusterDirectory();
