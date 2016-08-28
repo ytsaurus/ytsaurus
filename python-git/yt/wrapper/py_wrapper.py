@@ -3,10 +3,9 @@ from __future__ import print_function
 from . import config
 from .config import get_config
 from .pickling import Pickler
-from .cypress_commands import get
 from .common import get_python_version, YtError, chunk_iter_stream, chunk_iter_string, get_value, which
-from .errors import YtResponseError
 from .py_runner_helpers import process_rows
+from .local_mode import is_local_mode
 
 from yt.zip import ZipFile
 import yt.logger as logger
@@ -24,7 +23,6 @@ import string
 import inspect
 import os
 import shutil
-import socket
 import tempfile
 import hashlib
 import sys
@@ -100,20 +98,6 @@ def is_running_interactively():
     else:
         # Old IPython (0.12 at least) has no sys.ps1 defined
         return "__IPYTHON__" in globals()
-
-def is_local_mode(client):
-    local_mode = get_config(client)["pickling"]["local_mode"]
-    if local_mode is not None:
-        return local_mode
-
-    fqdn = None
-    try:
-        fqdn = get("//sys/@local_mode_fqdn", client=client)
-    except YtResponseError as err:
-        if not err.is_resolve_error():
-            raise
-
-    return fqdn == socket.getfqdn()
 
 class TempfilesManager(object):
     def __init__(self, remove_temp_files, directory):

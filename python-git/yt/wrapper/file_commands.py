@@ -9,6 +9,7 @@ from .heavy_commands import make_write_request, make_read_request
 from .cypress_commands import remove, exists, set_attribute, mkdir, find_free_subpath, \
                               create, link, get, set, ypath_join
 from .table import to_table
+from .local_mode import is_local_mode
 
 from yt.yson import to_yson_type
 
@@ -207,7 +208,11 @@ def upload_file_to_cache(filename, hash=None, client=None):
     else:
         logger.debug("Link %s of file %s missing, uploading file", destination, filename)
         prefix = ypath_join(get_config(client)["remote_temp_files_directory"], last_two_digits_of_hash, os.path.basename(filename))
-        replication_factor = get_config(client)["file_cache"]["replication_factor"]
+        # NB: In local mode we have only one node and default replication factor equal to one for all tables and files.
+        if is_local_mode(client):
+            replication_factor = get_config(client)["file_cache"]["replication_factor"]
+        else:
+            replication_factor = 1
         real_destination = find_free_subpath(prefix, client=client)
         attributes = {
             "hash": hash,
