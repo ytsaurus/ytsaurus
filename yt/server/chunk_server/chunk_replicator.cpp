@@ -180,12 +180,13 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
     TChunkStatistics result;
 
     int replicationFactor = chunk->ComputeReplicationFactor();
+    int maxReplicasPerRack = std::min(Config_->MaxReplicasPerRack, chunk->GetMaxReplicasPerRack(Null));
 
     int replicaCount = 0;
     int decommissionedReplicaCount = 0;
     TNodePtrWithIndexList decommissionedReplicas;
-    TRackSet usedRacks;
-    int usedRackCount = 0;
+    std::array<ui8, MaxRackCount + 1> perRackReplicaCounters{};
+    bool hasUnsafelyPlacedReplicas = false;
 
     for (auto replica : chunk->StoredReplicas()) {
         if (IsReplicaDecommissioned(replica)) {
@@ -195,10 +196,11 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
             ++replicaCount;
         }
         const auto* rack = replica.GetPtr()->GetRack();
-        int rackIndex = rack ? rack->GetIndex() : NullRackIndex;
-        if (!usedRacks.test(rackIndex)) {
-            usedRacks.set(rackIndex);
-            ++usedRackCount;
+        if (rack) {
+            int rackIndex = rack->GetIndex();
+            if (++perRackReplicaCounters[rackIndex] > maxReplicasPerRack) {
+                hasUnsafelyPlacedReplicas = true;
+            }
         }
     }
 
@@ -223,11 +225,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
         result.BalancingRemovalIndexes.push_back(GenericChunkReplicaIndex);
     }
 
-    TRackSet nullRackMask;
-    nullRackMask.set(NullRackIndex);
-    if (replicationFactor > 1 && usedRackCount == 1 && usedRacks != nullRackMask) {
-        // A regular chunk is considered placed unsafely if all of its replicas are placed in
-        // one non-null rack. Also, for RF=1 rack awareness is effectively off.
+    if (replicationFactor > 1 && hasUnsafelyPlacedReplicas && None(result.Status & EChunkStatus::Overreplicated)) {
         result.Status |= EChunkStatus::UnsafelyPlaced;
     }
 
@@ -248,7 +246,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
     auto* codec = NErasure::GetCodec(chunk->GetErasureCodec());
     int totalPartCount = codec->GetTotalPartCount();
     int dataPartCount = codec->GetDataPartCount();
-    int maxReplicasPerRack = chunk->GetMaxReplicasPerRack(Null);
+    int maxReplicasPerRack = std::min(Config_->MaxReplicasPerRack, codec->GetGuaranteedRepairablePartCount());
     std::array<TNodePtrWithIndexList, ChunkReplicaIndexBound> decommissionedReplicas{};
     std::array<ui8, MaxRackCount + 1> perRackReplicaCounters{};
     int unsafelyPlacedReplicaIndex = -1; // an arbitrary replica collocated with too may others within a single rack
@@ -311,7 +309,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
         result.Status |= EChunkStatus::Lost;
     }
 
-    if (unsafelyPlacedReplicaIndex != -1) {
+    if (unsafelyPlacedReplicaIndex != -1 && None(result.Status & EChunkStatus::Overreplicated)) {
         result.Status |= EChunkStatus::UnsafelyPlaced;
         if (None(result.Status & EChunkStatus::Overreplicated) && result.ReplicationIndexes.empty()) {
             result.ReplicationIndexes.push_back(unsafelyPlacedReplicaIndex);

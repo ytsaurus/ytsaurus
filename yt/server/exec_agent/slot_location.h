@@ -25,34 +25,34 @@ public:
         const TSlotLocationConfigPtr& config,
         const NCellNode::TBootstrap* bootstrap,
         const Stroka& id,
-        IInvokerPtr invoker);
+        bool detachedTmpfsUmount);
 
-    void CreateSandboxDirectories(int slotIndex);
+    TFuture<void> CreateSandboxDirectories(int slotIndex);
 
-    void MakeSandboxCopy(
+    TFuture<void> MakeSandboxCopy(
         int slotIndex,
         ESandboxKind kind,
         const Stroka& sourcePath,
         const Stroka& destinationName,
         bool executable);
 
-    void MakeSandboxLink(
+    TFuture<void> MakeSandboxLink(
         int slotIndex,
         ESandboxKind kind,
         const Stroka& targetPath,
         const Stroka& linkName,
         bool executable);
 
-    Stroka MakeSandboxTmpfs(
+    TFuture<Stroka> MakeSandboxTmpfs(
         int slotIndex,
         ESandboxKind kind,
         i64 size,
         int userId,
         const Stroka& path);
 
-    void MakeConfig(int slotIndex, NYTree::INodePtr config);
+    TFuture<void> MakeConfig(int slotIndex, NYTree::INodePtr config);
 
-    void CleanSandboxes(int slotIndex);
+    TFuture<void> CleanSandboxes(int slotIndex);
 
     Stroka GetSlotPath(int slotIndex) const;
 
@@ -63,8 +63,11 @@ private:
     const TSlotLocationConfigPtr Config_;
     const NCellNode::TBootstrap* Bootstrap_;
 
+    NConcurrency::TActionQueuePtr LocationQueue_;
+
+    const bool DetachedTmpfsUmount_;
+
     bool HasRootPermissions_;
-    IInvokerPtr Invoker_;
 
     yhash_set<Stroka> TmpfsPaths_;
 

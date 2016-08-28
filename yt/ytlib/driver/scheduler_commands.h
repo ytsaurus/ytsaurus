@@ -240,6 +240,12 @@ class TSuspendOperationCommand
     : public TSimpleOperationCommandBase<NApi::TSuspendOperationOptions>
 {
 public:
+    TSuspendOperationCommand()
+    {
+        RegisterParameter("abort_running_jobs", Options.AbortRunningJobs)
+            .Default(false);
+    }
+
     void Execute(ICommandContextPtr context);
 
 };

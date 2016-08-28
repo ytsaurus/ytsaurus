@@ -1,11 +1,65 @@
 #include "pipe.h"
+#include "private.h"
 #include "async_reader.h"
 #include "async_writer.h"
 
 #include <yt/core/misc/proc.h>
+#include <yt/core/misc/fs.h>
+
+#include <sys/types.h>
+#include <sys/stat.h>
 
 namespace NYT {
 namespace NPipes {
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = PipesLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TNamedPipe::TNamedPipe(const Stroka& path)
+    : Path_(path)
+{ }
+
+TNamedPipe::~TNamedPipe()
+{
+    if (unlink(Path_.c_str()) == -1) {
+        LOG_INFO(TError::FromSystem(), "Failed to unlink pipe %v", Path_);
+    }
+}
+
+TNamedPipePtr TNamedPipe::Create(const Stroka& path)
+{
+    auto pipe = New<TNamedPipe>(path);
+    pipe->Open();
+    return pipe;
+}
+
+void TNamedPipe::Open()
+{
+    if (mkfifo(Path_.c_str(), 0660) == -1) {
+        THROW_ERROR_EXCEPTION("Failed to create named pipe %v", Path_)
+            << TError::FromSystem();
+    }
+}
+
+TAsyncReaderPtr TNamedPipe::CreateAsyncReader()
+{
+    YCHECK(!Path_.empty());
+    return New<TAsyncReader>(MakeStrong(this));
+}
+
+TAsyncWriterPtr TNamedPipe::CreateAsyncWriter()
+{
+    YCHECK(!Path_.empty());
+    return New<TAsyncWriter>(MakeStrong(this));
+}
+
+Stroka TNamedPipe::GetPath() const
+{
+    return Path_;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -94,7 +148,9 @@ int TPipe::GetWriteFD() const
 
 void TPipe::CloseReadFD()
 {
-    YCHECK(ReadFD_ != InvalidFD);
+    if (ReadFD_ == InvalidFD) {
+        return;
+    }
     auto fd = ReadFD_;
     ReadFD_ = InvalidFD;
     SafeClose(fd, false);
@@ -102,7 +158,9 @@ void TPipe::CloseReadFD()
 
 void TPipe::CloseWriteFD()
 {
-    YCHECK(WriteFD_ != InvalidFD);
+    if (WriteFD_ == InvalidFD) {
+        return;
+    }
     auto fd = WriteFD_;
     WriteFD_ = InvalidFD;
     SafeClose(fd, false);

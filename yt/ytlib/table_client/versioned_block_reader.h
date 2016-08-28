@@ -58,8 +58,6 @@ public:
 
     virtual i64 GetRowIndex() const override;
 
-    static const ETableChunkFormat FormatVersion = ETableChunkFormat::VersionedSimple;
-
 private:
     const TSharedRef Block_;
     typedef TReadOnlyBitmap<ui64> TBitmap;

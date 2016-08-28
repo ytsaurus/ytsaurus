@@ -54,8 +54,18 @@ public:
         JobEnvironment_->CleanProcesses(SlotIndex_);
 
         // After that clean the filesystem.
-        Location_->CleanSandboxes(SlotIndex_);
+        WaitFor(Location_->CleanSandboxes(SlotIndex_))
+            .ThrowOnError();
         Location_->DecreaseSessionCount();
+    }
+
+    virtual void CancelPreparation() override
+    {
+        PreparationCanceled_ = true;
+
+        for (auto future : PreparationFutures_) {
+            future.Cancel();
+        }
     }
 
     virtual TFuture<void> RunJobProxy(
@@ -63,48 +73,65 @@ public:
         const TJobId& jobId,
         const TOperationId& operationId) override
     {
-        try {
-            Location_->MakeConfig(SlotIndex_, ConvertToNode(config));
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Failed to create job proxy config") << ex;
-        }
+        return RunPrepareAction<void>([&] () {
+            auto error = WaitFor(Location_->MakeConfig(SlotIndex_, ConvertToNode(config)));
+            THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to create job proxy config")
 
-        return JobEnvironment_->RunJobProxy(
-            SlotIndex_,
-            Location_->GetSlotPath(SlotIndex_),
-            jobId,
-            operationId);
+            return JobEnvironment_->RunJobProxy(
+                SlotIndex_,
+                Location_->GetSlotPath(SlotIndex_),
+                jobId,
+                operationId);
+        });
     }
 
-    virtual void MakeLink(
+    virtual TFuture<void> MakeLink(
         ESandboxKind sandboxKind,
         const Stroka& targetPath,
         const Stroka& linkName,
         bool executable) override
     {
-        Location_->MakeSandboxLink(SlotIndex_, sandboxKind, targetPath, linkName, executable);
+        return RunPrepareAction<void>([&] () {
+            return Location_->MakeSandboxLink(
+                SlotIndex_, 
+                sandboxKind, 
+                targetPath, 
+                linkName, 
+                executable);
+        });
     }
 
-    virtual void MakeCopy(
+    virtual TFuture<void> MakeCopy(
         ESandboxKind sandboxKind,
         const Stroka& sourcePath,
         const Stroka& destinationName,
         bool executable) override
     {
-        Location_->MakeSandboxCopy(SlotIndex_, sandboxKind, sourcePath, destinationName, executable);
+        return RunPrepareAction<void>([&] () {
+            return Location_->MakeSandboxCopy(
+                SlotIndex_, 
+                sandboxKind, 
+                sourcePath, 
+                destinationName, 
+                executable);
+        });
     }
 
-    virtual Stroka PrepareTmpfs(
+    virtual TFuture<Stroka> PrepareTmpfs(
         ESandboxKind sandboxKind,
         i64 size,
         Stroka path) override
     {
-        return Location_->MakeSandboxTmpfs(
-            SlotIndex_,
-            sandboxKind,
-            size,
-            JobEnvironment_->GetUserId(SlotIndex_),
-            path);
+        return RunPrepareAction<Stroka>([&] () {
+            return Location_->MakeSandboxTmpfs(
+                SlotIndex_,
+                sandboxKind,
+                size,
+                JobEnvironment_->GetUserId(SlotIndex_),
+                path);
+        }, 
+        // Tmpfs mounting is uncancelable since it includes tool invokation in separate process.
+        true);
     }
 
     virtual TJobProberServiceProxy GetJobProberProxy() override
@@ -129,9 +156,11 @@ public:
         return TTcpBusServerConfig::CreateUnixDomain(unixDomainName);
     }
 
-    void Initialize()
+    virtual TFuture<void> CreateSandboxDirectories()
     {
-        Location_->CreateSandboxDirectories(SlotIndex_);
+        return RunPrepareAction<void>([&] () {
+            return Location_->CreateSandboxDirectories(SlotIndex_);
+        });
     }
 
 private:
@@ -145,11 +174,30 @@ private:
 
     TNullable<TJobProberServiceProxy> JobProberProxy_;
 
+    std::vector<TFuture<void>> PreparationFutures_;
+    bool PreparationCanceled_ = false;
+
 
     TTcpBusClientConfigPtr GetRpcClientConfig() const
     {
         auto unixDomainName = Format("%v-job-proxy-%v", NodeTag_, SlotIndex_);
         return TTcpBusClientConfig::CreateUnixDomain(unixDomainName);
+    }
+
+    template <class T>
+    TFuture<T> RunPrepareAction(std::function<TFuture<T>()> action, bool uncancelable = false)
+    {
+        if (PreparationCanceled_) {
+            return MakeFuture<T>(TError("Slot preparation canceled") 
+                << TErrorAttribute("slot_index", SlotIndex_));
+        } else {
+            auto future = action();
+            auto preparationFuture = future.template As<void>();
+            PreparationFutures_.push_back(uncancelable 
+                ? preparationFuture.ToUncancelable() 
+                : preparationFuture);
+            return future;
+        }
     }
 };
 
@@ -167,7 +215,6 @@ ISlotPtr CreateSlot(
         std::move(environment),
         nodeTag);
 
-    slot->Initialize();
     return slot;
 }
 

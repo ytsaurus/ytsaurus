@@ -86,14 +86,17 @@ private:
         DeclareMutating();
 
         const auto& name = request->name();
+        auto ignoreExisting = request->ignore_existing();
 
-        context->SetRequestInfo("Name: %v", name);
+        context->SetRequestInfo("Name: %v, IgnoreExisting: %v",
+            name,
+            ignoreExisting);
 
         auto* member = GetSubject(name);
         auto* group = GetThisImpl();
 
         auto securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->AddMember(group, member);
+        securityManager->AddMember(group, member, ignoreExisting);
 
         context->Reply();
 
@@ -109,14 +112,17 @@ private:
         DeclareMutating();
 
         const auto& name = request->name();
+        bool ignoreMissing = request->ignore_missing();
 
-        context->SetRequestInfo("Name: %v", name);
+        context->SetRequestInfo("Name: %v, IgnoreMissing: %v",
+            name,
+            ignoreMissing);
 
         auto* member = GetSubject(name);
         auto* group = GetThisImpl();
 
         auto securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->RemoveMember(group, member);
+        securityManager->RemoveMember(group, member, ignoreMissing);
 
         context->Reply();
 

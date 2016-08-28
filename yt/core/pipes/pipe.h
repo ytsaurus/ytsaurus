@@ -2,8 +2,63 @@
 
 #include "public.h"
 
+#include <yt/core/ytree/yson_serializable.h>
+
 namespace NYT {
 namespace NPipes {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TNamedPipe
+    : public TRefCounted
+{
+public:
+    ~TNamedPipe();
+    static TNamedPipePtr Create(const Stroka& path);
+    TAsyncReaderPtr CreateAsyncReader();
+    TAsyncWriterPtr CreateAsyncWriter();
+    Stroka GetPath() const;
+
+private:
+    const Stroka Path_;
+
+    explicit TNamedPipe(const Stroka& path);
+    void Open();
+    DECLARE_NEW_FRIEND();
+};
+
+DEFINE_REFCOUNTED_TYPE(TNamedPipe);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TNamedPipeConfig
+    : public NYTree::TYsonSerializableLite
+{
+    Stroka Path;
+    int FD;
+    bool Write;
+
+    TNamedPipeConfig()
+        : TNamedPipeConfig(Stroka(), 0, false)
+    { }
+
+    TNamedPipeConfig(TNamedPipeConfig&& other)
+    {
+        Path = std::move(other.Path);
+        FD = std::move(other.FD);
+        Write = std::move(other.Write);
+    }
+
+    TNamedPipeConfig(const Stroka& path, int fd, bool write)
+        : Path(path)
+        , FD(fd)
+        , Write(write)
+    {
+        RegisterParameter("path", Path);
+        RegisterParameter("fd", FD);
+        RegisterParameter("write", Write);
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

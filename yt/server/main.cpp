@@ -8,6 +8,7 @@
 #include <yt/server/cell_scheduler/config.h>
 
 #include <yt/server/job_proxy/job_proxy.h>
+#include <yt/server/job_proxy/user_job.h>
 
 #include <yt/server/hydra/private.h>
 
@@ -31,6 +32,8 @@
 #include <yt/core/misc/proc.h>
 #include <yt/core/misc/address.h>
 
+#include <yt/core/pipes/pipe.h>
+
 #include <yt/core/profiling/profile_manager.h>
 
 #include <yt/core/tools/tools.h>
@@ -43,10 +46,13 @@
 
 #include <contrib/tclap/yt_helpers.h>
 
+#include <iostream>
+
 #ifdef _unix_
     #include <sys/resource.h>
 #endif
 #ifdef _linux_
+    #include <sys/prctl.h>
     #include <grp.h>
 #endif
 
@@ -99,11 +105,13 @@ public:
 #endif
         , Executor("", "executor", "start a user job")
         , Shell("", "shell", "start a shell in job sandbox, agrument is FD for PTY", false, -1, "NUM")
-        , PreparePipes("", "prepare-pipe", "prepare pipe descriptor  (for executor mode)", false, "FD")
+        , PreparePipes("", "prepare-named-pipe", "prepare pipe descriptor/path pair  (for executor mode)", false, "FD")
         , EnableCoreDump("", "enable-core-dump", "enable core dump (for executor mode)")
         , Uid("", "uid", "set uid  (for executor and shell mode)", false, -1, "NUM")
         , Environment("", "env", "set environment variable  (for executor and shell mode)", false, "ENV")
         , Command("", "command", "command (for executor mode)", false, "", "COMMAND")
+        , ParentDeathSignal("", "pdeath-signal", "parent death signal", false, 0, "PDEATH_SIG")
+        , ControlPipe("", "control-pipe", "executor to jobproxy pipe (for executor mode)", false, "", "CONTROLPIPE")
 #endif
     {
         CmdLine.add(WorkingDirectory);
@@ -130,6 +138,8 @@ public:
         CmdLine.add(Uid);
         CmdLine.add(Environment);
         CmdLine.add(Command);
+        CmdLine.add(ParentDeathSignal);
+        CmdLine.add(ControlPipe);
 #endif
     }
 
@@ -155,11 +165,13 @@ public:
 #endif
     TCLAP::SwitchArg Executor;
     TCLAP::ValueArg<int> Shell;
-    TCLAP::MultiArg<int> PreparePipes;
+    TCLAP::MultiArg<Stroka> PreparePipes;
     TCLAP::SwitchArg EnableCoreDump;
     TCLAP::ValueArg<int> Uid;
     TCLAP::MultiArg<Stroka> Environment;
     TCLAP::ValueArg<Stroka> Command;
+    TCLAP::ValueArg<int> ParentDeathSignal;
+    TCLAP::ValueArg<Stroka> ControlPipe;
 #endif
 
 };
@@ -232,6 +244,18 @@ EExitCode GuardedMain(int argc, const char* argv[])
         return EExitCode::OptionsError;
     }
 
+#ifdef _linux_
+    // Setting parent death signal used by tests to prevent hanged up instances of ytserver on teamcity machines.
+    // Unfortunately setting pdeath_sig from preexec_fn in subprocess call is not working since ytserver binary has
+    // suid bit and pdeath_sig resetted to zero after exec() call.
+    // More details can be found in http://linux.die.net/man/2/prctl and
+    //  http://www.isec.pl/vulnerabilities/isec-0024-death-signal.txt
+    auto parentDeathSignal = parser.ParentDeathSignal.getValue();
+    if (parentDeathSignal) {
+        YCHECK(prctl(PR_SET_PDEATHSIG, parentDeathSignal) == 0);
+    }
+#endif
+
     if (!workingDirectory.empty()) {
         NFs::SetCurrentWorkingDirectory(workingDirectory);
     }
@@ -256,7 +280,8 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
     if (isExecutor || isShell) {
         // Don't start any other singleton or parse config in executor mode.
-        NLogging::TLogManager::Get()->Configure(NLogging::TLogConfig::CreateQuiet());
+        // Explicitly shut down log manager to ensure it doesn't spoil dup-ed descriptors.
+        NLogging::TLogManager::StaticShutdown();
     } else if (!printConfigTemplate) {
         if (configFileName.empty()) {
             THROW_ERROR_EXCEPTION("Missing --config option");
@@ -325,29 +350,69 @@ EExitCode GuardedMain(int argc, const char* argv[])
 #endif
 
 #ifdef _unix_
+    TError executorError;
     if (isExecutor) {
         TThread::CurrentThreadSetName("ExecutorMain");
         if (parser.Command.getValue().empty()) {
             THROW_ERROR_EXCEPTION("Missing or empty --command option");
         }
 
-        const int permissions = S_IRUSR | S_IRGRP | S_IROTH | S_IWUSR | S_IWGRP | S_IWOTH;
-        for (auto fd : parser.PreparePipes.getValue()) {
-            SetPermissions(fd, permissions);
-        }
+        try {
+            const int permissions = S_IRUSR | S_IRGRP | S_IROTH | S_IWUSR | S_IWGRP | S_IWOTH;
+            for (auto pipeYson : parser.PreparePipes.getValue()) {
+                auto pipeConfig = ConvertTo<NPipes::TNamedPipeConfig>(TYsonString(pipeYson));
+                const int streamFd = pipeConfig.FD;
+                const auto& path = pipeConfig.Path;
 
-        if (!parser.EnableCoreDump.getValue()) {
-            // Disable core dump for user jobs when option is not present.
-            struct rlimit rlimit = {0, 0};
+                try {
+                    // Behaviour of named pipe:
+                    // reader blocks on open if no writer and O_NONBLOCK is not set,
+                    // writer blocks on open if no reader and O_NONBLOCK is not set.
+                    const int flags = (pipeConfig.Write) ? O_WRONLY : O_RDONLY;
+                    auto fd = HandleEintr(::open, path.c_str(), flags);
+                    if (fd == -1) {
+                        THROW_ERROR_EXCEPTION("Failed to open named pipe")
+                            << TErrorAttribute("path", path)
+                            << TError::FromSystem();
+                    }
 
-            auto res = setrlimit(RLIMIT_CORE, &rlimit);
-            if (res) {
-                auto errorMessage = Format("Failed to disable core dumps\n%v", TError::FromSystem());
-                fprintf(stderr, "%s", errorMessage.c_str());
-                return EExitCode::ExecutorError;
+                    if (streamFd != fd) {
+                        SafeDup2(fd, streamFd);
+                        SafeClose(fd, false);
+                    }
+                    SetPermissions(streamFd, permissions);
+                } catch (const std::exception& ex) {
+                    THROW_ERROR_EXCEPTION("Failed to prepare named pipe")
+                        << TErrorAttribute("path", path)
+                        << TErrorAttribute("fd", streamFd)
+                        << ex;
+                }
             }
+
+            const auto& controlPipePath = parser.ControlPipe.getValue();
+            try {
+                SetPermissions(controlPipePath, permissions);
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Failed to prepare control pipe")
+                    << TErrorAttribute("path", controlPipePath)
+                    << ex;
+            }
+
+            if (!parser.EnableCoreDump.getValue()) {
+                // Disable core dump for user jobs when option is not present.
+                struct rlimit rlimit = {0, 0};
+
+                auto res = setrlimit(RLIMIT_CORE, &rlimit);
+                if (res) {
+                    THROW_ERROR_EXCEPTION("Failed to disable core dumps %v")
+                        << TError::FromSystem();
+                }
+            }
+        } catch (const std::exception& ex) {
+            executorError = ex;
         }
     }
+
     if (isShell) {
         TThread::CurrentThreadSetName("ShellMain");
         auto pty = parser.Shell.getValue();
@@ -392,7 +457,28 @@ EExitCode GuardedMain(int argc, const char* argv[])
             args.push_back(command.c_str());
         }
         args.push_back(nullptr);
+        // We are ready to execute user code, send signal to JobProxy
+        auto controlPipePath = parser.ControlPipe.getValue();
+        auto ysonData = ConvertToYsonString(executorError, EYsonFormat::Text).Data();
 
+        if (isExecutor) {
+            int fd = HandleEintr(::open, controlPipePath.c_str(), O_WRONLY | O_CLOEXEC);
+            if (fd == -1) {
+                // Logging is explicitly disabled, try to dump as much diagnostics as possible.
+                fprintf(stderr, "Failed to open control pipe\n%s\n%s", ~ToString(TError::FromSystem()), ~ysonData);
+                Y_UNREACHABLE();
+            }
+            if (HandleEintr(::write, fd, ysonData.c_str(), ysonData.size()) != ysonData.size()) {
+                // Logging is explicitly disabled, try dump as much diagnostics as possible.
+                fprintf(stderr, "Failed to write to control pipe\n%s\n%s", ~ToString(TError::FromSystem()), ~ysonData);
+                Y_UNREACHABLE();
+            }
+        }
+
+        if (!executorError.IsOK()) {
+            return EExitCode::ExecutorError;
+        }
+ 
         TryExecve(
             "/bin/bash",
             args.data(),
@@ -480,7 +566,6 @@ EExitCode GuardedMain(int argc, const char* argv[])
             THROW_ERROR_EXCEPTION("Error parsing job id")
                 << ex;
         }
-
 
         // NB: There are some cyclic references here:
         // JobProxy <-> Job

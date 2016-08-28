@@ -2,12 +2,14 @@
 #include "finally.h"
 
 #include <yt/core/logging/log.h>
+#include <yt/core/misc/ref_counted.h>
 
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/proc.h>
 
 #include <util/folder/dirut.h>
 #include <util/folder/filelist.h>
+#include <util/system/shellcommand.h>
 
 #include <array>
 
@@ -515,16 +517,35 @@ void MountTmpfs(const Stroka& path, int userId, i64 size)
 #endif
 }
 
-void Umount(const Stroka& path)
+void Umount(const Stroka& path, bool detach)
 {
 #ifdef _linux_
-    int result = ::umount(~path);
+    int flags = 0;
+    if (detach) {
+        flags |= MNT_DETACH;
+    }
+    int result = ::umount2(~path, flags);
     // EINVAL for ::umount means that nothing mounted at this point.
     // ENOENT means 'No such file or directory'.
     if (result < 0 && LastSystemError() != EINVAL && LastSystemError() != ENOENT) {
-        THROW_ERROR_EXCEPTION("Failed to umount %v", path)
+        auto error = TError("Failed to umount %v", path)
             << TError::FromSystem();
+        if (LastSystemError() == EBUSY) {
+            auto lsofOutput = TShellCommand(Format("lsof %v", path))
+                .Run()
+                .Wait()
+                .GetOutput();
+            auto findOutput = TShellCommand(Format("find %v -name '*'", path))
+                .Run()
+                .Wait()
+                .GetOutput();
+            error = error
+                << TErrorAttribute("lsof_output", lsofOutput)
+                << TErrorAttribute("find_output", findOutput);
+        }
+        THROW_ERROR error;
     }
+
 #else
     ThrowNotSupported();
 #endif
@@ -536,7 +557,11 @@ void ExpectIOErrors(std::function<void()> func)
         func();
     } catch (const TSystemError& ex) {
         auto status = ex.Status();
-        if (status == EIO || status == ENOSPC || status == EROFS) {
+        if (status == EIO ||
+            status == ENOSPC ||
+            status == EROFS ||
+            status == ENOMEM)
+        {
             throw;
         }
         TError error(ex);
@@ -559,6 +584,32 @@ void Chmod(const Stroka& path, int mode)
 #else
     ThrowNotSupported();
 #endif
+}
+
+void ChunkedCopy(
+    const Stroka& existingPath, 
+    const Stroka& newPath, 
+    i64 chunkSize) 
+{
+    struct TChunkedCopyTag { };
+
+    TFileInput src(existingPath);
+
+    auto dstFile = TFile(newPath, CreateAlways | WrOnly | Seq | CloseOnExec);
+    dstFile.Flock(LOCK_EX);
+
+    TFileOutput dst(dstFile);
+    TBlob buffer(TChunkedCopyTag(), chunkSize, false);
+
+    while (true) {
+        auto size = src.Load(buffer.Begin(), buffer.Size());
+        dst.Write(buffer.Begin(), size);
+
+        if (size < buffer.Size()) {
+            break;
+        }
+        NConcurrency::Yield();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

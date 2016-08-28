@@ -253,8 +253,8 @@ typedef ICustomPersistent<TPersistenceContext> IPersistent;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
 } // namespace NPhoenix
+} // namespace NYT
 
 #define PHOENIX_INL_H_
 #include "phoenix-inl.h"

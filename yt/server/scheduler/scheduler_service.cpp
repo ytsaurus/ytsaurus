@@ -124,8 +124,10 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, SuspendOperation)
     {
         auto operationId = FromProto<TOperationId>(request->operation_id());
+        bool abortRunningJobs = request->abort_running_jobs();
 
         context->SetRequestInfo("OperationId: %v", operationId);
+        context->SetRequestInfo("AbortRunningJobs: %v", abortRunningJobs);
 
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
@@ -136,7 +138,8 @@ private:
         auto operation = scheduler->GetOperationOrThrow(operationId);
         auto asyncResult = scheduler->SuspendOperation(
             operation,
-            context->GetUser());
+            context->GetUser(),
+            abortRunningJobs);
 
         context->ReplyFrom(asyncResult);
     }

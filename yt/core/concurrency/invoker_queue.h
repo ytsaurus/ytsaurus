@@ -7,14 +7,19 @@
 
 #include <yt/core/profiling/profiler.h>
 
-#include <util/thread/lfqueue.h>
-
 #include <atomic>
 
 namespace NYT {
 namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EInvokerQueueType,
+    (SingleLockFreeQueue)
+    (MultiLockQueue)
+);
+
+struct IActionQueue;
 
 class TInvokerQueue
     : public IInvoker
@@ -25,11 +30,14 @@ public:
         std::shared_ptr<TEventCount> callbackEventCount,
         const NProfiling::TTagIdList& tagIds,
         bool enableLogging,
-        bool enableProfiling);
+        bool enableProfiling,
+        EInvokerQueueType type = EInvokerQueueType::SingleLockFreeQueue);
 
     ~TInvokerQueue();
 
     void SetThreadId(TThreadId threadId);
+
+    void Configure(int threads);
 
     virtual void Invoke(const TClosure& callback) override;
 
@@ -42,7 +50,7 @@ public:
 
     void Drain();
 
-    EBeginExecuteResult BeginExecute(TEnqueuedAction* action);
+    EBeginExecuteResult BeginExecute(TEnqueuedAction* action, int index = 0);
     void EndExecute(TEnqueuedAction* action);
 
     int GetSize() const;
@@ -59,7 +67,7 @@ private:
 
     std::atomic<bool> Running = {true};
 
-    std::unique_ptr<TLockFreeQueue<TEnqueuedAction>> Queue;
+    std::unique_ptr<IActionQueue> Queue;
     std::atomic<int> QueueSize = {0};
 
     NProfiling::TProfiler Profiler;

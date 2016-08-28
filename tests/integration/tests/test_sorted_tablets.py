@@ -78,6 +78,17 @@ class TestSortedTablets(YTEnvSetup):
         leader_peer = list(x for x in peers if x["state"] == "leading")[0]
         return leader_peer["address"]
 
+    def _get_recursive(self, path, result=None):
+        if result is None or result.attributes.get("opaque", False):
+            result = get(path, attributes=["opaque"])
+        if isinstance(result, dict):
+            for key, value in result.iteritems():
+                result[key] = self._get_recursive(path + "/" + key, value)
+        if isinstance(result, list):
+            for index, value in enumerate(result):
+                result[index] = self._get_recursive(path + "/" + str(index), value)
+        return result
+
     def _find_tablet_orchid(self, address, tablet_id):
         path = "//sys/nodes/" + address + "/orchid/tablet_cells"
         cells = ls(path)
@@ -85,7 +96,7 @@ class TestSortedTablets(YTEnvSetup):
             if get(path + "/" + cell_id + "/state") == "leading":
                 tablets = ls(path + "/" + cell_id + "/tablets")
                 if tablet_id in tablets:
-                    return get(path + "/" + cell_id + "/tablets/" + tablet_id, ignore_opaque=True)
+                    return self._get_recursive(path + "/" + cell_id + "/tablets/" + tablet_id)
         return None
 
     def _get_pivot_keys(self, path):
@@ -183,6 +194,33 @@ class TestSortedTablets(YTEnvSetup):
 
         with pytest.raises(YtError): reshard_table("//tmp/t", [[], [100, 200]])
         assert self._get_pivot_keys("//tmp/t") == [[], [100], [150], [200]]
+
+    def test_force_unmount_on_remove(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        address = self._get_tablet_leader_address(tablet_id)
+        assert self._find_tablet_orchid(address, tablet_id) is not None
+
+        remove("//tmp/t")
+        sleep(1)
+        assert self._find_tablet_orchid(address, tablet_id) is None
+
+    def test_lookup_repeated_keys(self):
+        self.sync_create_cells(1)
+
+        self._create_simple_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": str(i)} for i in xrange(10)]
+        insert_rows("//tmp/t", rows)
+
+        keys = [{"key": i % 2} for i in xrange(10)]
+        expected = [{"key": i % 2, "value": str(i % 2)} for i in xrange(10)]
+
+        assert lookup_rows("//tmp/t", keys) == expected
 
     def test_read_invalid_limits(self):
         self.sync_create_cells(1)
@@ -968,7 +1006,7 @@ class TestSortedTablets(YTEnvSetup):
         self._create_simple_table("//tmp/t")
         with pytest.raises(YtError): set("//tmp/t/@key_columns", [])
 
-    def test_update_schema_fails(self):
+    def test_alter_table_fails(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
@@ -1007,6 +1045,14 @@ class TestSortedTablets(YTEnvSetup):
             {"name": "key2", "type": "int64", "expression": "key1 * 100 + 3", "sort_order": "ascending"},
             {"name": "key3", "type": "int64", "expression": "key1 * 100 + 3", "sort_order": "ascending"},
             {"name": "value", "type": "string"}])
+
+        create("table", "//tmp/t2", attributes={"schema": [
+            {"name": "key", "type": "int64", "sort_order": "ascending"}]})
+        with pytest.raises(YtError): alter_table("//tmp/t2", dynamic=True)
+        alter_table("//tmp/t2", schema=[
+            {"name": "key", "type": "any", "sort_order": "ascending"},
+            {"name": "value", "type": "string"}])
+        with pytest.raises(YtError): alter_table("//tmp/t2", dynamic=True)
 
     def _test_update_key_columns_success(self, optimize_for):
         self.sync_create_cells(1)
@@ -1072,10 +1118,10 @@ class TestSortedTablets(YTEnvSetup):
         snapshots = ls("//sys/tablet_cells/" + cell_id + "/snapshots")
         assert len(snapshots) == 1
 
-        self.Env.kill_service("node")
+        self.Env.kill_nodes()
         # Wait to make sure all leases have expired
         time.sleep(3.0)
-        self.Env.start_nodes("node")
+        self.Env.start_nodes()
 
         self.wait_for_cells()
 

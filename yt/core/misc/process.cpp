@@ -5,6 +5,7 @@
 
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/fs.h>
+#include <yt/core/pipes/pipe.h>
 
 #include <util/system/execpath.h>
 
@@ -130,6 +131,7 @@ TProcess::TProcess(const Stroka& path, bool copyEnv, TDuration pollPeriod)
     : Path_(path)
     , PollPeriod_(pollPeriod)
     , ProcessId_(InvalidProcessId)
+    , PipeFactory_(3)
 {
     AddArgument(NFS::GetFileName(path));
 
@@ -188,6 +190,30 @@ void TProcess::AddDup2FileAction(int oldFD, int newFD)
 
     MaxSpawnActionFD_ = std::max(MaxSpawnActionFD_, newFD);
     SpawnActions_.push_back(action);
+}
+
+TAsyncReaderPtr TProcess::GetStdOutReader()
+{
+    auto& pipe = StdPipes_[STDOUT_FILENO];
+    pipe = PipeFactory_.Create();
+    AddDup2FileAction(pipe.GetWriteFD(), STDOUT_FILENO);
+    return pipe.CreateAsyncReader();
+}
+
+TAsyncReaderPtr TProcess::GetStdErrReader()
+{
+    auto& pipe = StdPipes_[STDERR_FILENO];
+    pipe = PipeFactory_.Create();
+    AddDup2FileAction(pipe.GetWriteFD(), STDERR_FILENO);
+    return pipe.CreateAsyncReader();
+}
+
+TAsyncWriterPtr TProcess::GetStdInWriter()
+{
+    auto& pipe = StdPipes_[STDIN_FILENO];
+    pipe = PipeFactory_.Create();
+    AddDup2FileAction(pipe.GetReadFD(), STDIN_FILENO);
+    return pipe.CreateAsyncWriter();
 }
 
 TFuture<void> TProcess::Spawn()
@@ -393,6 +419,11 @@ void TProcess::AsyncPeriodicTryWait()
     WaitidOrDie(P_PID, ProcessId_, &processInfo, WEXITED | WNOHANG);
 
     Finished_ = true;
+    PipeFactory_.Clear();
+    StdPipes_[STDIN_FILENO].CloseReadFD();
+    StdPipes_[STDOUT_FILENO].CloseWriteFD();
+    StdPipes_[STDERR_FILENO].CloseWriteFD();
+
     LOG_DEBUG("Process finished (Pid: %v)", ProcessId_);
 
     FinishedPromise_.Set(ProcessInfoToError(processInfo));

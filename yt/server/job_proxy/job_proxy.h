@@ -125,6 +125,8 @@ private:
 
     virtual NApi::INativeClientPtr GetClient() const override;
 
+    virtual void OnPrepared() override;
+
     virtual NChunkClient::IBlockCachePtr GetBlockCache() const override;
 
     virtual NNodeTrackerClient::TNodeDirectoryPtr GetInputNodeDirectory() const override;

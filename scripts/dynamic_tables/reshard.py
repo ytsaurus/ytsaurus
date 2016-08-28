@@ -142,7 +142,7 @@ def process_many(args):
 
         sizes = [tablet["statistics"]["%s_data_size" % desired_size_kind] for tablet in tablets]
 
-        if all(size < 3 * desired_size_gbs * GB / 2 for size in sizes):
+        if all(size < 5 * desired_size_gbs * GB / 4 for size in sizes):
             logging.info("Table %s is well-enough balanced; skipping", table)
             continue
 

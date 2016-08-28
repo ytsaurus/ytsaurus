@@ -57,6 +57,8 @@ public:
 
                 const auto& error = session.ReadyEvent->Get();
                 if (!error.IsOK()) {
+                    TWriterGuard guard(SpinLock_);
+                    ReadyEvent_ = MakePromise<void>(error);
                     return true;
                 }
 

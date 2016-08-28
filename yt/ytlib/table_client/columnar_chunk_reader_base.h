@@ -21,21 +21,21 @@ class TColumnarChunkMeta
     : public TIntrinsicRefCounted
 {
 public:
+    DEFINE_BYVAL_RO_PROPERTY(NChunkClient::EChunkType, ChunkType);
+    DEFINE_BYVAL_RO_PROPERTY(NTableClient::ETableChunkFormat, ChunkFormat);
     DEFINE_BYREF_RO_PROPERTY(NProto::TBlockMetaExt, BlockMeta);
     DEFINE_BYREF_RO_PROPERTY(NProto::TColumnMetaExt, ColumnMeta);
-    DEFINE_BYREF_RO_PROPERTY(NChunkClient::NProto::TChunkMeta, ChunkMeta);
     DEFINE_BYREF_RO_PROPERTY(NChunkClient::NProto::TMiscExt, Misc);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TOwningKey>, BlockLastKeys);
+    DEFINE_BYREF_RO_PROPERTY(TTableSchema, ChunkSchema);
 
 public:
-    TColumnarChunkMeta(NChunkClient::NProto::TChunkMeta&& chunkMeta);
-
+    TColumnarChunkMeta(const NChunkClient::NProto::TChunkMeta& chunkMeta);
     void InitBlockLastKeys(int keyColumnCount);
 
 protected:
     TColumnarChunkMeta() = default;
-
-    void InitExtensions();
+    void InitExtensions(const NChunkClient::NProto::TChunkMeta& chunkMeta);
 };
 
 DEFINE_REFCOUNTED_TYPE(TColumnarChunkMeta)
@@ -68,11 +68,11 @@ protected:
     {
         TColumn(NTableChunkFormat::IColumnReaderBase* reader, int chunkSchemaIndex)
             : ColumnReader(reader)
-            , ChunkSchemaIndex(chunkSchemaIndex)
+            , ColumnMetaIndex(chunkSchemaIndex)
         { }
 
         NTableChunkFormat::IColumnReaderBase* ColumnReader;
-        int ChunkSchemaIndex;
+        int ColumnMetaIndex;
         std::vector<int> BlockIndexSequence;
         int PendingBlockIndex_ = 0;
     };
@@ -110,7 +110,7 @@ protected:
     void InitLowerRowIndex();
     void InitUpperRowIndex();
 
-    void Initialize(std::vector<std::unique_ptr<NTableChunkFormat::IUnversionedColumnReader>>& keyReaders);
+    void Initialize(TRange<std::unique_ptr<NTableChunkFormat::IUnversionedColumnReader>> keyReaders);
 
     void InitBlockFetcher();
     TFuture<void> RequestFirstBlocks();

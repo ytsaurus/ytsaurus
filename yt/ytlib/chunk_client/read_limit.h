@@ -38,20 +38,20 @@ public:
 
     const NTableClient::TOwningKey& GetKey() const;
     bool HasKey() const;
-    void SetKey(const NTableClient::TOwningKey& key);
-    void SetKey(NTableClient::TOwningKey&& key);
+    TReadLimit& SetKey(const NTableClient::TOwningKey& key);
+    TReadLimit& SetKey(NTableClient::TOwningKey&& key);
 
     i64 GetRowIndex() const;
     bool HasRowIndex() const;
-    void SetRowIndex(i64 rowIndex);
+    TReadLimit& SetRowIndex(i64 rowIndex);
 
     i64 GetOffset() const;
     bool HasOffset() const;
-    void SetOffset(i64 offset);
+    TReadLimit& SetOffset(i64 offset);
 
     i64 GetChunkIndex() const;
     bool HasChunkIndex() const;
-    void SetChunkIndex(i64 chunkIndex);
+    TReadLimit& SetChunkIndex(i64 chunkIndex);
 
     bool IsTrivial() const;
 

@@ -751,6 +751,49 @@ TEST_F(TSuspendableInvokerTest, ResumeInApply)
     EXPECT_TRUE(suspendFuture.Get().IsOK());
 }
 
+TEST_F(TSuspendableInvokerTest, VerifySerializedActionsOrder)
+{
+    auto suspendableInvoker = CreateSuspendableInvoker(Queue1->GetInvoker());
+
+    suspendableInvoker->Suspend()
+        .Get();
+
+    const int totalActionCount = 100000;
+
+    std::atomic<int> actionIndex = {0};
+    std::atomic<int> reorderingCount = {0};
+
+    for (int i = 0; i < totalActionCount / 2; ++i) {
+        BIND([&actionIndex, &reorderingCount, i] () {
+            reorderingCount += (actionIndex != i);
+            ++actionIndex;
+        })
+        .Via(suspendableInvoker)
+        .Run();
+    }
+
+    TDelayedExecutor::Submit(
+        BIND([&] () {
+            suspendableInvoker->Resume();
+        }),
+        SleepQuantum / 10);
+
+    for (int i = totalActionCount / 2; i < totalActionCount; ++i) {
+        BIND([&actionIndex, &reorderingCount, i] () {
+            reorderingCount += (actionIndex != i);
+            ++actionIndex;
+        })
+        .Via(suspendableInvoker)
+        .Run();
+    }
+
+    while (actionIndex < totalActionCount) {
+        Sleep(SleepQuantum);
+    }
+    EXPECT_EQ(actionIndex, totalActionCount);
+    EXPECT_EQ(reorderingCount, 0);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

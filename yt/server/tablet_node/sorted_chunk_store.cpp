@@ -224,7 +224,6 @@ void TSortedChunkStore::SetInMemoryMode(EInMemoryMode mode)
 
         switch (PreloadState_) {
             case EStorePreloadState::Disabled:
-            case EStorePreloadState::Failed:
             case EStorePreloadState::Running:
             case EStorePreloadState::Complete:
                 PreloadState_ = EStorePreloadState::None;

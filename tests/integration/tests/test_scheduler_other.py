@@ -2,6 +2,7 @@
 import pytest
 
 from yt_env_setup import YTEnvSetup, make_ace
+from yt.environment.helpers import assert_almost_equal
 from yt_commands import *
 
 import time
@@ -59,14 +60,13 @@ class TestSchedulerOther(YTEnvSetup):
         op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 3")
 
         time.sleep(2)
-        self.Env.kill_service("scheduler")
-        self.Env.start_schedulers("scheduler")
+        self.Env.kill_schedulers()
+        self.Env.start_schedulers()
 
         op.track()
 
         assert read_table("//tmp/t_out") == [ {"foo" : "bar"} ]
 
-    @pytest.mark.skipif("True")
     def test_disconnect_during_revive(self):
         op_count = 20
 
@@ -79,7 +79,8 @@ class TestSchedulerOther(YTEnvSetup):
         for i in xrange(1, op_count):
             ops.append(
                 map(dont_track=True,
-                    command="cat",
+                    # Sleep is necessary since we not support revive for completing operations.
+                    command="sleep 2; cat",
                     in_=["//tmp/t_in"],
                     out="//tmp/t_out" + str(i)))
 
@@ -97,8 +98,6 @@ class TestSchedulerOther(YTEnvSetup):
 
         for i in xrange(1, op_count):
             assert read_table("//tmp/t_out" + str(i)) == [ {"foo" : "bar"} ]
-
-
 
     @pytest.mark.skipif("True")
     def test_aborting(self):
@@ -120,7 +119,7 @@ class TestSchedulerOther(YTEnvSetup):
 
         assert "aborting" == get("//sys/operations/" + op.id + "/@state")
 
-        self.Env.start_schedulers("scheduler")
+        self.Env.start_schedulers()
 
         time.sleep(1)
 
@@ -530,8 +529,8 @@ class TestSchedulerOperationLimits(YTEnvSetup):
 
         time.sleep(1.5)
 
-        self.Env.kill_service("scheduler")
-        self.Env.start_schedulers("scheduler")
+        self.Env.kill_schedulers()
+        self.Env.start_schedulers()
 
         op1.track()
         op2.track()
@@ -637,8 +636,8 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         for i in xrange(3, 5):
             run(i, "research_subpool", True)
 
-        self.Env.kill_service("scheduler")
-        self.Env.start_schedulers("scheduler")
+        self.Env.kill_schedulers()
+        self.Env.start_schedulers()
 
         for i in xrange(3, 5):
             run(i, "research", True)
@@ -677,17 +676,19 @@ class TestSchedulingTags(YTEnvSetup):
     def test_failed_cases(self):
         self._prepare()
 
-        map(command="cat", in_="//tmp/t_in", out="//tmp/t_out")
-        with pytest.raises(YtError):
-            map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"scheduling_tag": "tagC"})
+        # TODO(acid): Enable this when scheduling tag prechecks will be added on operation start
+        # map(command="cat", in_="//tmp/t_in", out="//tmp/t_out")
+        # with pytest.raises(YtError):
+            # map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"scheduling_tag": "tagC"})
 
         map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"scheduling_tag": "tagA"})
         assert read_table("//tmp/t_out") == [ {"foo" : "bar"} ]
 
-        set("//sys/nodes/{0}/@user_tags".format(self.node), [])
-        time.sleep(1.0)
-        with pytest.raises(YtError):
-            map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"scheduling_tag": "tagA"})
+        # TODO(acid): Enable this when scheduling tag prechecks will be added on operation start
+        # set("//sys/nodes/{0}/@user_tags".format(self.node), [])
+        # time.sleep(1.0)
+        # with pytest.raises(YtError):
+            # map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"scheduling_tag": "tagA"})
 
 
     def test_pools(self):
@@ -736,7 +737,7 @@ class TestSchedulingTags(YTEnvSetup):
         set("//sys/pools{0}/@acl/0/action".format(acl_path), "deny")
         with pytest.raises(YtError):
             _run_op()
-    
+
     def test_global_pool_acl(self):
         self._test_pool_acl_prologue()
         create("map_node", "//sys/pools/p", attributes={
@@ -970,6 +971,9 @@ class TestSchedulerSnapshots(YTEnvSetup):
             assert len(read_file(snapshot_backup_path, verbose=False)) > 0
             op.resume_jobs()
 
+        for op in ops:
+            op.track()
+
 class TestSchedulerPreemption(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -1051,8 +1055,6 @@ class TestSchedulerPreemption(YTEnvSetup):
 
             op.resume_jobs()
             op.track()
-
-
 
     def test_recursive_preemption_settings(self):
         create("map_node", "//sys/pools/p1", attributes={"fair_share_starvation_tolerance_limit": 0.6})
@@ -1136,13 +1138,12 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
         }
     }
 
-    def modify_node_config(self, config):
+    @classmethod
+    def modify_node_config(cls, config):
         for resource in ["cpu", "user_slots"]:
             config["exec_agent"]["job_controller"]["resource_limits"][resource] = 2
 
     def test_aggressive_preemption(self):
-        eps = 0.0001
-
         create("table", "//tmp/t_in")
         for i in xrange(3):
             write_table("<append=true>//tmp/t_in", {"foo": "bar"})
@@ -1151,6 +1152,15 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
 
         create("map_node", "//sys/pools/special_pool")
         set("//sys/pools/special_pool/@aggressive_starvation_enabled", True)
+
+        get_fair_share_ratio = lambda op_id: \
+            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/fair_share_ratio".format(op_id))
+
+        get_usage_ratio = lambda op_id: \
+            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/usage_ratio".format(op_id))
+
+        get_running_job_count = lambda op_id: \
+            len(get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)))
 
         ops = []
         for index in xrange(2):
@@ -1161,30 +1171,95 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
         time.sleep(3)
 
         for op in ops:
-            running_jobs = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
-            assert len(running_jobs) == 3
-
-            assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/fair_share_ratio".format(op.id)) >= 1.0 / 2.0 - eps
-            assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/usage_ratio".format(op.id)) >= 1.0 / 2.0 - eps
+            assert assert_almost_equal(get_fair_share_ratio(op.id), 1.0 / 2.0)
+            assert assert_almost_equal(get_usage_ratio(op.id), 1.0 / 2.0)
+            assert get_running_job_count(op.id) == 3
 
         op = map(dont_track=True, command="sleep 1000; cat", in_=["//tmp/t_in"], out="//tmp/t_out",
                  spec={"pool": "special_pool", "job_count": 1, "locality_timeout": 0, "mapper": {"cpu_limit": 2}})
         time.sleep(3)
 
-        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/fair_share_ratio".format(op.id)) >= 1.0 / 3.0 - eps
-        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/usage_ratio".format(op.id)) >= 1.0 / 3.0 - eps
-        assert len(get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))) == 1
+        assert assert_almost_equal(get_fair_share_ratio(op.id), 1.0 / 3.0)
+        assert assert_almost_equal(get_usage_ratio(op.id), 1.0 / 3.0)
+        assert get_running_job_count(op.id) == 1
+
+class TestSchedulerGuaranteedResources(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "fair_share_update_period": 100
+        }
+    }
+
+    def test_scheduler_guaranteed_resources_ratio(self):
+        create("map_node", "//sys/pools/big_pool", attributes={"min_share_ratio": 1.0})
+        create("map_node", "//sys/pools/big_pool/subpool_1", attributes={"weight": 1.0})
+        create("map_node", "//sys/pools/big_pool/subpool_2", attributes={"weight": 3.0})
+        create("map_node", "//sys/pools/small_pool", attributes={"weight": 100.0})
+        create("map_node", "//sys/pools/small_pool/subpool_3", attributes={"min_share_ratio": 1.0})
+        create("map_node", "//sys/pools/small_pool/subpool_4", attributes={"min_share_ratio": 1.0})
+
+        total_resource_limit = get("//sys/scheduler/orchid/scheduler/cell/resource_limits")
+
+        # Wait for fair share update.
+        time.sleep(0.2)
+
+        get_pool_guaranteed_resources = lambda pool: \
+            get("//sys/scheduler/orchid/scheduler/pools/{0}/guaranteed_resources".format(pool))
+
+        get_pool_guaranteed_resources_ratio = lambda pool: \
+            get("//sys/scheduler/orchid/scheduler/pools/{0}/guaranteed_resources_ratio".format(pool))
+
+        assert assert_almost_equal(get_pool_guaranteed_resources_ratio("big_pool"), 1.0)
+        assert get_pool_guaranteed_resources("big_pool") == total_resource_limit
+
+        assert assert_almost_equal(get_pool_guaranteed_resources_ratio("small_pool"), 0)
+        assert assert_almost_equal(get_pool_guaranteed_resources_ratio("subpool_3"), 0)
+        assert assert_almost_equal(get_pool_guaranteed_resources_ratio("subpool_4"), 0)
+
+        assert assert_almost_equal(get_pool_guaranteed_resources_ratio("subpool_1"), 1.0 / 4.0)
+        assert assert_almost_equal(get_pool_guaranteed_resources_ratio("subpool_2"), 3.0 / 4.0)
+
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", {"foo": "bar"})
+        create("table", "//tmp/t_out")
+
+        get_operation_guaranteed_resources_ratio = lambda op_id: \
+            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/guaranteed_resources_ratio".format(op_id))
+
+        op = map(
+            dont_track=True,
+            waiting_jobs=True,
+            command="cat",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out",
+            spec={"pool": "big_pool"})
+
+        # Wait for fair share update.
+        time.sleep(0.2)
+
+        assert assert_almost_equal(get_operation_guaranteed_resources_ratio(op.id), 1.0 / 5.0)
+        assert assert_almost_equal(get_pool_guaranteed_resources_ratio("subpool_1"), 1.0 / 5.0)
+        assert assert_almost_equal(get_pool_guaranteed_resources_ratio("subpool_2"), 3.0 / 5.0)
+
+        op.resume_jobs()
+        op.track()
+
 
 class TestSchedulerHeterogeneousConfiguration(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
-    def modify_node_config(self, config):
-        if not hasattr(self, "node_counter"):
-            self.node_counter = 0
-        self.node_counter += 1
-        if self.node_counter == 1:
+    @classmethod
+    def modify_node_config(cls, config):
+        if not hasattr(cls, "node_counter"):
+            cls.node_counter = 0
+        cls.node_counter += 1
+        if cls.node_counter == 1:
             config["exec_agent"]["job_controller"]["resource_limits"]["user_slots"] = 0
 
     def test_job_count(self):
@@ -1321,18 +1396,23 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
+    # This is a mix of options for 18.4 and 18.5
     DELTA_NODE_CONFIG = {
         "exec_agent": {
-            "scheduler_connector": {
-                "heartbeat_period": 100 # 100 msec
-            },
-            "slot_manager" : {
-                "enforce_job_control" : True,
+            "enable_cgroups": True,                                       # <= 18.4
+            "supported_cgroups": ["cpuacct", "blkio", "memory", "cpu"],   # <= 18.4
+            "slot_manager": {
+                "enforce_job_control": True,                              # <= 18.4
+                "memory_watchdog_period" : 100,                           # <= 18.4
                 "job_environment" : {
-                    "type": "cgroups",
-                    "memory_watchdog_period": 100,
-                    "supported_cgroups" : [ "cpuacct", "blkio", "memory", "cpu" ],
-                }
+                    "type" : "cgroups",                                   # >= 18.5
+                    "memory_watchdog_period" : 100,                       # >= 18.5
+                    "supported_cgroups": [                                # >= 18.5
+                        "cpuacct",
+                        "blkio",
+                        "memory",
+                        "cpu"],
+                },
             }
         }
     }
@@ -1348,13 +1428,13 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t", [{"foo": i} for i in xrange(10)])
-        
+
         op1 = map(
             dont_track=True,
             command='echo -ne "x = 1\nwhile True:\n    x = (x * x + 1) % 424243" | python',
             in_="//tmp/t",
             out="//tmp/t1")
-        
+
         op2 = map(
             dont_track=True,
             command='sleep 1000',
@@ -1369,10 +1449,10 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
                 time.sleep(1)
             else:
                 break
-        
+
         job1_id = running_jobs1.keys()[0]
         job2_id = running_jobs2.keys()[0]
-      
+
         for i in xrange(200):
             suspicious1 = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/suspicious".format(op1.id, job1_id))
             get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}".format(op1.id, job1_id))
@@ -1388,6 +1468,77 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
         suspicious_jobs = get("//sys/scheduler/orchid/scheduler/suspicious_jobs")
         assert len(suspicious_jobs) == 1
         assert job2_id in suspicious_jobs
-        
+
         op1.abort()
         op2.abort()
+
+class TestSchedulerAlerts(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "alerts_update_period": 100,
+            "watchers_update_period": 100,
+            "fair_share_update_period": 100,
+        }
+    }
+
+    def test_pools(self):
+        assert get("//sys/scheduler/@alerts") == []
+
+        # Incorrect pool configuration.
+        create("map_node", "//sys/pools/poolA", attributes={"min_share_ratio": 2.0})
+
+        time.sleep(0.5)
+        assert len(get("//sys/scheduler/@alerts")) == 1
+
+        set("//sys/pools/poolA/@min_share_ratio", 0.8)
+
+        time.sleep(0.5)
+        assert get("//sys/scheduler/@alerts") == []
+
+        # Total min_share_ratio > 1.
+        create("map_node", "//sys/pools/poolB", attributes={"min_share_ratio": 0.8})
+
+        time.sleep(0.5)
+        assert len(get("//sys/scheduler/@alerts")) == 1
+
+        set("//sys/pools/poolA/@min_share_ratio", 0.1)
+
+        time.sleep(0.5)
+        assert get("//sys/scheduler/@alerts") == []
+
+    def test_config(self):
+        assert get("//sys/scheduler/@alerts") == []
+
+        set("//sys/scheduler/config", {"fair_share_update_period": -100})
+
+        time.sleep(0.5)
+        assert len(get("//sys/scheduler/@alerts")) == 1
+
+        set("//sys/scheduler/config", {})
+
+        time.sleep(0.5)
+        assert get("//sys/scheduler/@alerts") == []
+
+class TestSchedulerCaching(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100,
+            "get_exec_nodes_information_delay": 3000,
+        }
+    }
+
+    def test_exec_node_descriptors_caching(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        write_table("//tmp/t_in", [{"foo": i} for i in xrange(10)])
+
+        op = map(dont_track=True, command='cat', in_="//tmp/t_in", out="//tmp/t_out")
+        op.track()

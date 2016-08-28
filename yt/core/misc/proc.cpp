@@ -18,6 +18,8 @@
 
 #include <util/system/info.h>
 #include <util/system/yield.h>
+#include <util/system/fstat.h>
+#include <util/folder/iterator.h>
 
 #ifdef _unix_
     #include <stdio.h>
@@ -42,6 +44,8 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 static const NLogging::TLogger Logger("Proc");
+
+const int RemoveAsRootAttemptCount = 5;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -150,16 +154,69 @@ void RemoveDirAsRoot(const Stroka& path)
         path) << TError::FromSystem();
 }
 
+void RemoveDirContentAsRoot(const Stroka& path)
+{
+    // Child process
+    SafeSetUid(0);
+
+    if (!TFileStat(path).IsDir()) {
+        THROW_ERROR_EXCEPTION("Path %Qv is not directory",
+            path);
+    }
+
+    bool foundUnremovedItems = false;
+    for (int attempt = 0; attempt < RemoveAsRootAttemptCount; ++attempt) {
+        foundUnremovedItems = false;
+        TDirIterator dir(path);
+        for (auto it = dir.Begin(); it != dir.End(); ++it) {
+            if (it->fts_info == FTS_DOT || it->fts_info == FTS_D) {
+                continue;
+            }
+            if (path.has_prefix(it->fts_path)) {
+                continue;
+            }
+
+            foundUnremovedItems = true;
+            try {
+                ::remove(it->fts_path);
+            } catch (const std::exception& ex) {
+                // Ignores any error while remove.
+            }
+        }
+
+        if (!foundUnremovedItems) {
+            break;
+        }
+    }
+
+    if (foundUnremovedItems) {
+        std::vector<Stroka> unremovableItems;
+        TDirIterator dir(path);
+        for (auto it = dir.Begin(); it != dir.End(); ++it) {
+            if (it->fts_info == FTS_DOT || it->fts_info == FTS_D) {
+                continue;
+            }
+            if (path.has_prefix(it->fts_path)) {
+                continue;
+            }
+            unremovableItems.push_back(it->fts_path);
+        }
+        THROW_ERROR_EXCEPTION("Failed to remove items %Qv in the directory %Qv",
+            unremovableItems,
+            path);
+    }
+}
+
 void MountTmpfsAsRoot(TMountTmpfsConfigPtr config)
 {
     SafeSetUid(0);
     NFS::MountTmpfs(config->Path, config->UserId, config->Size);
 }
 
-void UmountAsRoot(const Stroka& path)
+void UmountAsRoot(TUmountConfigPtr config)
 {
     SafeSetUid(0);
-    NFS::Umount(path);
+    NFS::Umount(config->Path, config->Detach);
 }
 
 TError StatusToError(int status)
@@ -274,19 +331,24 @@ void SafeSetCloexec(int fd)
     }
 }
 
-void SetPermissions(int fd, int permissions)
+void SetPermissions(const Stroka& path, int permissions)
 {
 #ifdef _linux_
-    auto procPath = Format("/proc/self/fd/%v", fd);
-    auto res = chmod(~procPath, permissions);
+    auto res = HandleEintr(::chmod, ~path, permissions);
 
     if (res == -1) {
         THROW_ERROR_EXCEPTION("Failed to set permissions for descriptor")
-            << TErrorAttribute("fd", fd)
+            << TErrorAttribute("path", path)
             << TErrorAttribute("permissions", permissions)
             << TError::FromSystem();
     }
 #endif
+}
+
+void SetPermissions(int fd, int permissions)
+{
+    const auto& procPath = Format("/proc/self/fd/%v", fd);
+    SetPermissions(procPath, permissions);
 }
 
 void SafePipe(int fd[2])
@@ -504,6 +566,16 @@ void RemoveDirAsRoot(const Stroka& /* path */)
     Y_UNIMPLEMENTED();
 }
 
+void RemoveDirContentAsRoot(const Stroka& /* path */)
+{
+    YUNIMPLEMENTED();
+}
+
+void KillAllByUid(int /* uid */)
+{
+    YUNIMPLEMENTED();
+}
+
 void MountTmpfsAsRoot(TMountTmpfsConfigPtr /* config */)
 {
     Y_UNIMPLEMENTED();
@@ -649,6 +721,15 @@ REGISTER_TOOL(TRemoveDirAsRootTool);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TRemoveDirContentAsRootTool::operator()(const Stroka& arg) const
+{
+    RemoveDirContentAsRoot(arg);
+}
+
+REGISTER_TOOL(TRemoveDirContentAsRootTool);
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TMountTmpfsAsRootTool::operator()(TMountTmpfsConfigPtr arg) const
 {
     MountTmpfsAsRoot(arg);
@@ -658,7 +739,7 @@ REGISTER_TOOL(TMountTmpfsAsRootTool);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TUmountAsRootTool::operator()(const Stroka& arg) const
+void TUmountAsRootTool::operator()(TUmountConfigPtr arg) const
 {
     UmountAsRoot(arg);
 }

@@ -29,10 +29,11 @@ set(SRCS
   ${BASE}/util/valgrind.cc
 )
 
-include_directories(${CMAKE_SOURCE_DIR} ${BASE})
+include_directories(
+  ${CMAKE_SOURCE_DIR}
+  ${BASE}
+)
 
 add_library(${NAME} STATIC ${SRCS})
 
-target_link_libraries(${NAME}
-  ytext-arcadia-util
-)
+target_link_libraries(${NAME} deps-arcadia-util)

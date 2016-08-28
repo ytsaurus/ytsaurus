@@ -17,6 +17,8 @@
 namespace NYT {
 namespace NScheduler {
 
+////////////////////////////////////////////////////////////////////
+
 using namespace NYTree;
 using namespace NYPath;
 using namespace NYson;
@@ -25,6 +27,10 @@ using namespace NTransactionClient;
 using namespace NConcurrency;
 using namespace NSecurityClient;
 using namespace NChunkClient;
+
+////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = SchedulerLogger;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -56,7 +62,7 @@ void BuildRunningOperationAttributes(TOperationPtr operation, NYson::IYsonConsum
         .Item("output_transaction_id").Value(outputTransaction ? outputTransaction->GetId() : NullTransactionId);
 }
 
-void BuildJobAttributes(TJobPtr job, const TNullable<NYson::TYsonString>& inputPaths, NYson::IYsonConsumer* consumer)
+void BuildJobAttributes(TJobPtr job, NYson::IYsonConsumer* consumer)
 {
     auto state = job->GetState();
     BuildYsonMapFluently(consumer)
@@ -64,7 +70,7 @@ void BuildJobAttributes(TJobPtr job, const TNullable<NYson::TYsonString>& inputP
         .Item("state").Value(FormatEnum(state))
         .Item("address").Value(job->GetNode()->GetDefaultAddress())
         .Item("start_time").Value(job->GetStartTime())
-        .Item("account").Value(TmpAccountName)
+        .Item("account").Value(job->GetAccount())
         .Item("progress").Value(job->GetProgress())
         .DoIf(static_cast<bool>(job->GetBriefStatistics()), [=] (TFluentMap fluent) {
             fluent.Item("brief_statistics").Value(*job->GetBriefStatistics());
@@ -74,11 +80,8 @@ void BuildJobAttributes(TJobPtr job, const TNullable<NYson::TYsonString>& inputP
             fluent.Item("finish_time").Value(job->GetFinishTime().Get());
         })
         .DoIf(state == EJobState::Failed, [=] (TFluentMap fluent) {
-            auto error = FromProto<TError>(job->Status()->result().error());
+            auto error = FromProto<TError>(job->Status().result().error());
             fluent.Item("error").Value(error);
-        })
-        .DoIf(static_cast<bool>(inputPaths), [=] (TFluentMap fluent) {
-            fluent.Item("input_paths").Value(*inputPaths);
         });
         // XXX(babenko): YT-4948
         //.DoIf(job->Status() && job->Status()->has_statistics(), [=] (TFluentMap fluent) {
@@ -189,7 +192,25 @@ Stroka TrimCommandForBriefSpec(const Stroka& command)
 EAbortReason GetAbortReason(const NJobTrackerClient::NProto::TJobResult& result)
 {
     auto error = FromProto<TError>(result.error());
-    return error.Attributes().Get<EAbortReason>("abort_reason", EAbortReason::Scheduler);
+    try {
+        return error.Attributes().Get<EAbortReason>("abort_reason", EAbortReason::Scheduler);
+    } catch (const std::exception& ex) {
+        // Process unknown abort reason from node.
+        LOG_WARNING(ex, "Found unknown abort_reason in job result");
+        return EAbortReason::Unknown;
+    }
+}
+
+////////////////////////////////////////////////////////////////////
+
+Stroka MakeOperationCodicilString(const TOperationId& operationId)
+{
+    return Format("OperationId: %v", operationId);
+}
+
+TCodicilGuard MakeOperationCodicilGuard(const TOperationId& operationId)
+{
+    return TCodicilGuard(MakeOperationCodicilString(operationId));
 }
 
 ////////////////////////////////////////////////////////////////////

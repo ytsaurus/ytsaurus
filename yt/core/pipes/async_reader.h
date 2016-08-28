@@ -17,6 +17,8 @@ public:
     // Takes ownership of #fd.
     explicit TAsyncReader(int fd);
 
+    explicit TAsyncReader(TNamedPipePtr ptr);
+
     virtual ~TAsyncReader();
 
     int GetHandle() const;
@@ -28,6 +30,7 @@ public:
 
 private:
     NDetail::TAsyncReaderImplPtr Impl_;
+    TNamedPipePtr NamedPipeHolder_;
 
 };
 

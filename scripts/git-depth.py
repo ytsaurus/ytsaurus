@@ -69,7 +69,7 @@ def get_depth_subprocess(path):
         if commit not in cache:
             parents = graph.get(commit, None)
             if not parents:
-                raise RuntimeError("Not enough seeds: missing information for commit %s" % commit)
+                depth = 0
             else:
                 depth = max(_impl(parent) for parent in parents)
             cache[commit] = 1 + depth

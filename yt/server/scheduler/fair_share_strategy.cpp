@@ -58,18 +58,7 @@ public:
         , Host(host)
         , NonPreemptiveProfilingCounters("/non_preemptive")
         , PreemptiveProfilingCounters("/preemptive")
-        , ScheduleJobsThreadPool_(New<TThreadPool>(Config->StrategyScheduleJobsThreadCount, "ScheduleJob"))
     {
-        Host->SubscribeOperationRegistered(BIND(&TFairShareStrategy::OnOperationRegistered, MakeWeak(this)));
-        Host->SubscribeOperationUnregistered(BIND(&TFairShareStrategy::OnOperationUnregistered, MakeWeak(this)));
-
-        Host->SubscribeJobFinished(BIND(&TFairShareStrategy::OnJobFinished, MakeWeak(this)));
-        Host->SubscribeJobUpdated(BIND(&TFairShareStrategy::OnJobUpdated, MakeWeak(this)));
-        Host->SubscribePoolsUpdated(BIND(&TFairShareStrategy::OnPoolsUpdated, MakeWeak(this)));
-
-        Host->SubscribeOperationRuntimeParamsUpdated(
-            BIND(&TFairShareStrategy::OnOperationRuntimeParamsUpdated, MakeWeak(this)));
-
         RootElement = New<TRootElement>(Host, config);
 
         FairShareUpdateExecutor_ = New<TPeriodicExecutor>(
@@ -85,16 +74,22 @@ public:
 
     virtual TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
         auto asyncGuard = TAsyncLockReaderGuard::Acquire(&ScheduleJobsLock);
+
+        TRootElementSnapshotPtr rootElementSnapshot;
+        {
+            TReaderGuard guard(RootElementSnapshotLock);
+            rootElementSnapshot = RootElementSnapshot;
+        }
+
         auto jobScheduler =
             BIND(
                 &TFairShareStrategy::DoScheduleJobs,
                 MakeStrong(this),
                 schedulingContext,
-                RootElementSnapshot)
-            .AsyncVia(ScheduleJobsThreadPool_->GetInvoker());
+                rootElementSnapshot);
         return asyncGuard.Apply(jobScheduler);
     }
 
@@ -123,6 +118,253 @@ public:
         return BIND(&TFairShareStrategy::DoValidateOperationStart, MakeStrong(this))
             .AsyncVia(GetCurrentInvoker())
             .Run(operation);
+    }
+
+    void RegisterOperation(const TOperationPtr& operation) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto spec = ParseSpec(operation, operation->GetSpec());
+        auto params = BuildInitialRuntimeParams(spec);
+        auto operationElement = New<TOperationElement>(
+            Config,
+            spec,
+            params,
+            Host,
+            operation);
+        YCHECK(OperationIdToElement.insert(std::make_pair(operation->GetId(), operationElement)).second);
+
+        auto poolName = spec->Pool ? *spec->Pool : operation->GetAuthenticatedUser();
+        auto pool = FindPool(poolName);
+        if (!pool) {
+            pool = New<TPool>(Host, poolName, Config);
+            RegisterPool(pool);
+        }
+        if (!pool->GetParent()) {
+            SetPoolDefaultParent(pool);
+        }
+
+        IncreaseOperationCount(pool.Get(), 1);
+
+        pool->AddChild(operationElement, false);
+        pool->IncreaseResourceUsage(operationElement->GetResourceUsage());
+        operationElement->SetParent(pool.Get());
+
+        if (CanAddOperationToPool(pool.Get())) {
+            ActivateOperation(operation->GetId());
+        } else {
+            OperationQueue.push_back(operation);
+        }
+    }
+
+    void UnregisterOperation(const TOperationPtr& operation) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto operationElement = GetOperationElement(operation->GetId());
+        auto* pool = static_cast<TPool*>(operationElement->GetParent());
+
+        YCHECK(OperationIdToElement.erase(operation->GetId()) == 1);
+        operationElement->SetAlive(false);
+        pool->RemoveChild(operationElement);
+        pool->IncreaseResourceUsage(-operationElement->GetResourceUsage());
+        IncreaseOperationCount(pool, -1);
+
+        LOG_INFO("Operation removed from pool (OperationId: %v, Pool: %v)",
+            operation->GetId(),
+            pool->GetId());
+
+        bool isPending = false;
+        for (auto it = OperationQueue.begin(); it != OperationQueue.end(); ++it) {
+            if (*it == operation) {
+                isPending = true;
+                OperationQueue.erase(it);
+                break;
+            }
+        }
+
+        if (!isPending) {
+            IncreaseRunningOperationCount(pool, -1);
+
+            // Try to run operations from queue.
+            auto it = OperationQueue.begin();
+            while (it != OperationQueue.end() && RootElement->RunningOperationCount() < Config->MaxRunningOperationCount) {
+                const auto& operation = *it;
+                auto* operationPool = GetOperationElement(operation->GetId())->GetParent();
+                if (CanAddOperationToPool(operationPool)) {
+                    ActivateOperation(operation->GetId());
+                    auto toRemove = it++;
+                    OperationQueue.erase(toRemove);
+                } else {
+                    ++it;
+                }
+            }
+        }
+
+        if (pool->IsEmpty() && pool->IsDefaultConfigured()) {
+            UnregisterPool(pool);
+        }
+    }
+
+    void ProcessUpdatedAndCompletedJobs(
+        const std::vector<TUpdatedJob>& updatedJobs,
+        const std::vector<TCompletedJob>& completedJobs)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        TRootElementSnapshotPtr rootElementSnapshot;
+        {
+            TReaderGuard guard(RootElementSnapshotLock);
+            rootElementSnapshot = RootElementSnapshot;
+        }
+
+        for (const auto& job : updatedJobs) {
+            auto* operationElement = rootElementSnapshot->FindOperationElement(job.OperationId);
+            if (operationElement) {
+                operationElement->IncreaseJobResourceUsage(job.JobId, job.Delta);
+            }
+        }
+
+        for (const auto& job : completedJobs) {
+            auto* operationElement = rootElementSnapshot->FindOperationElement(job.OperationId);
+            if (operationElement) {
+                operationElement->OnJobFinished(job.JobId);
+            }
+        }
+    }
+
+    void UpdatePools(const INodePtr& poolsNode) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (LastPoolsNodeUpdate && AreNodesEqual(LastPoolsNodeUpdate, poolsNode)) {
+            LOG_INFO("Pools are not changed, skipping update");
+            return;
+        }
+        LastPoolsNodeUpdate = poolsNode;
+
+        auto guard = WaitFor(TAsyncLockWriterGuard::Acquire(&ScheduleJobsLock)).Value();
+
+        std::vector<TError> errors;
+
+        try {
+            // Build the set of potential orphans.
+            yhash_set<Stroka> orphanPoolIds;
+            for (const auto& pair : Pools) {
+                YCHECK(orphanPoolIds.insert(pair.first).second);
+            }
+
+            // Track ids appearing in various branches of the tree.
+            yhash_map<Stroka, TYPath> poolIdToPath;
+
+            // NB: std::function is needed by parseConfig to capture itself.
+            std::function<void(INodePtr, TCompositeSchedulerElementPtr)> parseConfig =
+                [&] (INodePtr configNode, TCompositeSchedulerElementPtr parent) {
+                    auto configMap = configNode->AsMap();
+                    for (const auto& pair : configMap->GetChildren()) {
+                        const auto& childId = pair.first;
+                        const auto& childNode = pair.second;
+                        auto childPath = childNode->GetPath();
+                        if (!poolIdToPath.insert(std::make_pair(childId, childPath)).second) {
+                            errors.emplace_back(
+                                "Pool %Qv is defined both at %v and %v; skipping second occurrence",
+                                childId,
+                                poolIdToPath[childId],
+                                childPath);
+                            continue;
+                        }
+
+                        // Parse config.
+                        auto configNode = ConvertToNode(childNode->Attributes());
+                        TPoolConfigPtr config;
+                        try {
+                            config = ConvertTo<TPoolConfigPtr>(configNode);
+                        } catch (const std::exception& ex) {
+                            errors.emplace_back(
+                                TError(
+                                    "Error parsing configuration of pool %Qv; using defaults",
+                                    childPath)
+                                << ex);
+                            config = New<TPoolConfig>();
+                        }
+
+                        auto pool = FindPool(childId);
+                        if (pool) {
+                            // Reconfigure existing pool.
+                            pool->SetConfig(config);
+                            YCHECK(orphanPoolIds.erase(childId) == 1);
+                        } else {
+                            // Create new pool.
+                            pool = New<TPool>(Host, childId, Config);
+                            pool->SetConfig(config);
+                            RegisterPool(pool, parent);
+                        }
+                        SetPoolParent(pool, parent);
+
+                        // Parse children.
+                        parseConfig(childNode, pool.Get());
+                    }
+                };
+
+            // Run recursive descent parsing.
+            parseConfig(poolsNode, RootElement);
+
+            // Unregister orphan pools.
+            for (const auto& id : orphanPoolIds) {
+                auto pool = GetPool(id);
+                if (pool->IsEmpty()) {
+                    UnregisterPool(pool);
+                } else {
+                    pool->SetDefaultConfig();
+                    SetPoolDefaultParent(pool);
+                }
+            }
+
+            RootElement->Update(GlobalDynamicAttributes_);
+            auto rootElementSnapshot = CreateRootElementSnapshot();
+            {
+                TWriterGuard guard(RootElementSnapshotLock);
+                RootElementSnapshot = rootElementSnapshot;
+            }
+        } catch (const std::exception& ex) {
+            auto error = TError("Error updating pools")
+                << ex;
+            Host->RegisterAlert(EAlertType::UpdatePools, error);
+            return;
+        }
+
+        if (!errors.empty()) {
+            auto combinedError = TError("Found pool configuration issues");
+            combinedError.InnerErrors() = std::move(errors);
+            Host->RegisterAlert(EAlertType::UpdatePools, combinedError);
+        } else {
+            Host->UnregisterAlert(EAlertType::UpdatePools);
+            LOG_INFO("Pools updated");
+        }
+    }
+
+    void UpdateOperationRuntimeParams(
+        const TOperationPtr& operation,
+        const INodePtr& update) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        const auto& element = FindOperationElement(operation->GetId());
+        if (!element)
+            return;
+
+        NLogging::TLogger Logger(SchedulerLogger);
+        Logger.AddTag("OperationId: %v", operation->GetId());
+
+        try {
+            auto newRuntimeParams = CloneYsonSerializable(element->GetRuntimeParams());
+            if (ReconfigureYsonSerializable(newRuntimeParams, update)) {
+                element->SetRuntimeParams(newRuntimeParams);
+                LOG_INFO("Operation runtime parameters updated");
+            }
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Error parsing operation runtime parameters");
+        }
     }
 
     virtual TStatistics GetOperationTimeStatistics(const TOperationId& operationId) override
@@ -182,6 +424,10 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         BuildPoolsInformation(consumer);
+        BuildYsonMapFluently(consumer)
+            .Item("fair_share_info").BeginMap()
+                .Do(BIND(&TFairShareStrategy::BuildFairShareInfo, Unretained(this)))
+            .EndMap();
     }
 
     virtual Stroka GetOperationLoggingProgress(const TOperationId& operationId) override
@@ -195,6 +441,7 @@ public:
         return Format(
             "Scheduling = {Status: %v, DominantResource: %v, Demand: %.4lf, "
             "Usage: %.4lf, FairShare: %.4lf, Satisfaction: %.4lg, AdjustedMinShare: %.4lf, "
+            "GuaranteedResourcesRatio: %.4lf, "
             "MaxPossibleUsage: %.4lf,  BestAllocation: %.4lf, "
             "Starving: %v, Weight: %v, "
             "PreemptableRunningJobs: %v, "
@@ -206,6 +453,7 @@ public:
             attributes.FairShareRatio,
             dynamicAttributes.SatisfactionRatio,
             attributes.AdjustedMinShareRatio,
+            attributes.GuaranteedResourcesRatio,
             attributes.MaxPossibleUsageRatio,
             attributes.BestAllocationRatio,
             element->GetStarving(),
@@ -233,8 +481,24 @@ public:
             // The root element gets the whole cluster.
             RootElement->Update(GlobalDynamicAttributes_);
 
+            // Collect alerts after update.
+            std::vector<TError> alerts;
+            for (const auto& pair : Pools) {
+                const auto& poolAlerts = pair.second->UpdateFairShareAlerts();
+                alerts.insert(alerts.end(), poolAlerts.begin(), poolAlerts.end());
+            }
+            const auto& rootElementAlerts = RootElement->UpdateFairShareAlerts();
+            alerts.insert(alerts.end(), rootElementAlerts.begin(), rootElementAlerts.end());
+            if (alerts.empty()) {
+                Host->UnregisterAlert(EAlertType::UpdateFairShare);
+            } else {
+                auto error = TError("Found pool configuration issues during fair share update");
+                error.InnerErrors() = std::move(alerts);
+                Host->RegisterAlert(EAlertType::UpdateFairShare, error);
+            }
+
             // Update starvation flags for all operations.
-            for (const auto& pair : OperationToElement) {
+            for (const auto& pair : OperationIdToElement) {
                 pair.second->CheckForStarvation(now);
             }
 
@@ -245,19 +509,29 @@ public:
                 }
             }
 
-            RootElementSnapshot = RootElement->CloneRoot();
+            auto rootElementSnapshot = CreateRootElementSnapshot();
+            {
+                TWriterGuard guard(RootElementSnapshotLock);
+                RootElementSnapshot = rootElementSnapshot;
+            }
 
             // Profiling.
             for (const auto& pair : Pools) {
-                const auto& tag = pair.second->GetProfilingTag();
+                const auto& pool = pair.second;
+                const auto& tag = pool->GetProfilingTag();
                 Profiler.Enqueue(
                     "/pools/fair_share_ratio_x100000",
-                    static_cast<i64>(pair.second->Attributes().FairShareRatio * 1e5),
+                    static_cast<i64>(pool->Attributes().FairShareRatio * 1e5),
                     EMetricType::Gauge,
                     {tag});
                 Profiler.Enqueue(
                     "/pools/usage_ratio_x100000",
-                    static_cast<i64>(pair.second->GetResourceUsageRatio() * 1e5),
+                    static_cast<i64>(pool->GetResourceUsageRatio() * 1e5),
+                    EMetricType::Gauge,
+                    {tag});
+                Profiler.Enqueue(
+                    "/operation_count",
+                    pool->RunningOperationCount(),
                     EMetricType::Gauge,
                     {tag});
             }
@@ -271,18 +545,11 @@ public:
 
         PROFILE_TIMING ("/fair_share_log_time") {
             // Log pools information.
-            Host->LogEventFluently(ELogEventType::FairShareInfo, now)
-                .Do(BIND(&TFairShareStrategy::BuildPoolsInformation, Unretained(this)))
-                .Item("operations").DoMapFor(OperationToElement, [=] (TFluentMap fluent, const TOperationMap::value_type& pair) {
-                    const auto& operationId = pair.first;
-                    BuildYsonMapFluently(fluent)
-                        .Item(ToString(operationId))
-                        .BeginMap()
-                            .Do(BIND(&TFairShareStrategy::BuildOperationProgress, Unretained(this), operationId))
-                        .EndMap();
-                });
 
-            for (const auto& pair : OperationToElement) {
+            Host->LogEventFluently(ELogEventType::FairShareInfo, now)
+                .Do(BIND(&TFairShareStrategy::BuildFairShareInfo, Unretained(this)));
+
+            for (const auto& pair : OperationIdToElement) {
                 const auto& operationId = pair.first;
                 LOG_DEBUG("FairShareInfo: %v (OperationId: %v)",
                     GetOperationLoggingProgress(operationId),
@@ -299,13 +566,30 @@ private:
     typedef yhash_map<Stroka, TPoolPtr> TPoolMap;
     TPoolMap Pools;
 
-    typedef yhash_map<TOperationId, TOperationElementPtr> TOperationMap;
-    TOperationMap OperationToElement;
+    typedef yhash_map<TOperationId, TOperationElementPtr> TOperationElementPtrByIdMap;
+    TOperationElementPtrByIdMap OperationIdToElement;
 
     std::list<TOperationPtr> OperationQueue;
 
     TRootElementPtr RootElement;
-    TRootElementPtr RootElementSnapshot;
+
+    struct TRootElementSnapshot
+        : public TIntrinsicRefCounted
+    {
+        TRootElementPtr RootElement;
+        TOperationElementByIdMap OperationIdToElement;
+
+        TOperationElement* FindOperationElement(const TOperationId& operationId) const
+        {
+            auto it = OperationIdToElement.find(operationId);
+            return it != OperationIdToElement.end() ? it->second : nullptr;
+        }
+    };
+
+    typedef TIntrusivePtr<TRootElementSnapshot> TRootElementSnapshotPtr;
+
+    TReaderWriterSpinLock RootElementSnapshotLock;
+    TRootElementSnapshotPtr RootElementSnapshot;
 
     TAsyncReaderWriterLock ScheduleJobsLock;
 
@@ -343,8 +627,6 @@ private:
     TPeriodicExecutorPtr FairShareUpdateExecutor_;
     TPeriodicExecutorPtr FairShareLoggingExecutor_;
 
-    TThreadPoolPtr ScheduleJobsThreadPool_;
-
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
     TDynamicAttributes GetGlobalDynamicAttributes(const ISchedulerElementPtr& element) const
@@ -369,11 +651,11 @@ private:
 
     void DoScheduleJobs(
         const ISchedulingContextPtr& schedulingContext,
-        const TRootElementPtr& rootElement,
+        const TRootElementSnapshotPtr& rootElementSnapshot,
         const TIntrusivePtr<TAsyncLockReaderGuard>& /*guard*/)
     {
+        auto& rootElement = rootElementSnapshot->RootElement;
         auto context = TFairShareContext(schedulingContext, rootElement->GetTreeSize());
-        rootElement->BuildJobToOperationMapping(context);
 
         auto profileTimings = [&] (
             TProfilingCounters& counters,
@@ -424,12 +706,11 @@ private:
 
         // Compute discount to node usage.
         LOG_DEBUG("Looking for preemptable jobs");
-        // TODO(acid): Put raw pointers here.
         yhash_set<TCompositeSchedulerElementPtr> discountedPools;
         std::vector<TJobPtr> preemptableJobs;
         PROFILE_TIMING ("/analyze_preemptable_jobs_time") {
             for (const auto& job : schedulingContext->RunningJobs()) {
-                const auto& operationElement = context.JobToOperationElement.at(job);
+                auto* operationElement = rootElementSnapshot->FindOperationElement(job->GetOperationId());
                 if (!operationElement || !operationElement->IsJobExisting(job->GetId())) {
                     LOG_DEBUG("Dangling running job found (JobId: %v, OperationId: %v)",
                         job->GetId(),
@@ -503,7 +784,7 @@ private:
             });
 
         auto poolLimitsViolated = [&] (const TJobPtr& job) -> bool {
-            const auto& operationElement = context.JobToOperationElement.at(job);
+            auto* operationElement = rootElementSnapshot->FindOperationElement(job->GetOperationId());
             if (!operationElement) {
                 return false;
             }
@@ -531,9 +812,9 @@ private:
         bool poolsLimitsViolated = true;
 
         for (const auto& job : preemptableJobs) {
-            const auto& operationElement = context.JobToOperationElement.at(job);
+            auto* operationElement = rootElementSnapshot->FindOperationElement(job->GetOperationId());
             if (!operationElement || !operationElement->IsJobExisting(job->GetId())) {
-                LOG_INFO("Dangling preemptable job found (JobId: %v, OperationId: %v)",
+                LOG_DEBUG("Dangling preemptable job found (JobId: %v, OperationId: %v)",
                     job->GetId(),
                     job->GetOperationId());
                 continue;
@@ -638,43 +919,6 @@ private:
         return true;
     }
 
-    void OnOperationRegistered(const TOperationPtr& operation)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto spec = ParseSpec(operation, operation->GetSpec());
-        auto params = BuildInitialRuntimeParams(spec);
-        auto operationElement = New<TOperationElement>(
-            Config,
-            spec,
-            params,
-            Host,
-            operation);
-        YCHECK(OperationToElement.insert(std::make_pair(operation->GetId(), operationElement)).second);
-
-        auto poolName = spec->Pool ? *spec->Pool : operation->GetAuthenticatedUser();
-        auto pool = FindPool(poolName);
-        if (!pool) {
-            pool = New<TPool>(Host, poolName, Config);
-            RegisterPool(pool);
-        }
-        if (!pool->GetParent()) {
-            SetPoolDefaultParent(pool);
-        }
-
-        IncreaseOperationCount(pool.Get(), 1);
-
-        pool->AddChild(operationElement, false);
-        pool->IncreaseResourceUsage(operationElement->GetResourceUsage());
-        operationElement->SetParent(pool.Get());
-
-        if (CanAddOperationToPool(pool.Get())) {
-            ActivateOperation(operation->GetId());
-        } else {
-            OperationQueue.push_back(operation);
-        }
-    }
-
     TCompositeSchedulerElementPtr FindPoolWithViolatedOperationCountLimit(const TCompositeSchedulerElementPtr& element)
     {
         auto current = element;
@@ -717,96 +961,6 @@ private:
         LOG_INFO("Operation added to pool (OperationId: %v, Pool: %v)",
             operationId,
             parent->GetId());
-    }
-
-    void OnOperationUnregistered(const TOperationPtr& operation)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto operationElement = GetOperationElement(operation->GetId());
-        auto* pool = static_cast<TPool*>(operationElement->GetParent());
-
-        YCHECK(OperationToElement.erase(operation->GetId()) == 1);
-        operationElement->SetAlive(false);
-        pool->RemoveChild(operationElement);
-        pool->IncreaseResourceUsage(-operationElement->GetResourceUsage());
-        IncreaseOperationCount(pool, -1);
-
-        LOG_INFO("Operation removed from pool (OperationId: %v, Pool: %v)",
-            operation->GetId(),
-            pool->GetId());
-
-        bool isPending = false;
-        for (auto it = OperationQueue.begin(); it != OperationQueue.end(); ++it) {
-            if (*it == operation) {
-                isPending = true;
-                OperationQueue.erase(it);
-                break;
-            }
-        }
-
-        if (!isPending) {
-            IncreaseRunningOperationCount(pool, -1);
-
-            // Try to run operations from queue.
-            auto it = OperationQueue.begin();
-            while (it != OperationQueue.end() && RootElement->RunningOperationCount() < Config->MaxRunningOperationCount) {
-                const auto& operation = *it;
-                auto* operationPool = GetOperationElement(operation->GetId())->GetParent();
-                if (CanAddOperationToPool(operationPool)) {
-                    ActivateOperation(operation->GetId());
-                    auto toRemove = it++;
-                    OperationQueue.erase(toRemove);
-                } else {
-                    ++it;
-                }
-            }
-        }
-
-        if (pool->IsEmpty() && pool->IsDefaultConfigured()) {
-            UnregisterPool(pool);
-        }
-    }
-
-    void OnOperationRuntimeParamsUpdated(
-        const TOperationPtr& operation,
-        const INodePtr& update)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        const auto& element = FindOperationElement(operation->GetId());
-        if (!element)
-            return;
-
-        NLogging::TLogger Logger(SchedulerLogger);
-        Logger.AddTag("OperationId: %v", operation->GetId());
-
-        try {
-            auto newRuntimeParams = CloneYsonSerializable(element->GetRuntimeParams());
-            if (ReconfigureYsonSerializable(newRuntimeParams, update)) {
-                element->SetRuntimeParams(newRuntimeParams);
-                LOG_INFO("Operation runtime parameters updated");
-            }
-        } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error parsing operation runtime parameters");
-        }
-    }
-
-
-    void OnJobFinished(const TJobPtr& job)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        const auto& element = GetOperationElement(job->GetOperationId());
-        element->OnJobFinished(job->GetId());
-    }
-
-    void OnJobUpdated(const TJobPtr& job, const TJobResources& resourcesDelta)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        const auto& element = GetOperationElement(job->GetOperationId());
-        element->IncreaseJobResourceUsage(job->GetId(), resourcesDelta);
     }
 
     void RegisterPool(const TPoolPtr& pool)
@@ -904,8 +1058,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto it = OperationToElement.find(operationId);
-        return it == OperationToElement.end() ? nullptr : it->second;
+        auto it = OperationIdToElement.find(operationId);
+        return it == OperationIdToElement.end() ? nullptr : it->second;
     }
 
     TOperationElementPtr GetOperationElement(const TOperationId& operationId)
@@ -915,94 +1069,12 @@ private:
         return element;
     }
 
-    void OnPoolsUpdated(const INodePtr& poolsNode)
+    TRootElementSnapshotPtr CreateRootElementSnapshot()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        if (LastPoolsNodeUpdate && AreNodesEqual(LastPoolsNodeUpdate, poolsNode)) {
-            LOG_INFO("Pools are not changed, skipping update");
-            return;
-        }
-        LastPoolsNodeUpdate = poolsNode;
-
-        auto guard = WaitFor(TAsyncLockWriterGuard::Acquire(&ScheduleJobsLock)).Value();
-
-        try {
-            // Build the set of potential orphans.
-            yhash_set<Stroka> orphanPoolIds;
-            for (const auto& pair : Pools) {
-                YCHECK(orphanPoolIds.insert(pair.first).second);
-            }
-
-            // Track ids appearing in various branches of the tree.
-            yhash_map<Stroka, TYPath> poolIdToPath;
-
-            // NB: std::function is needed by parseConfig to capture itself.
-            std::function<void(INodePtr, TCompositeSchedulerElementPtr)> parseConfig =
-                [&] (INodePtr configNode, TCompositeSchedulerElementPtr parent) {
-                    auto configMap = configNode->AsMap();
-                    for (const auto& pair : configMap->GetChildren()) {
-                        const auto& childId = pair.first;
-                        const auto& childNode = pair.second;
-                        auto childPath = childNode->GetPath();
-                        if (!poolIdToPath.insert(std::make_pair(childId, childPath)).second) {
-                            LOG_ERROR("Pool %Qv is defined both at %v and %v; skipping second occurrence",
-                                childId,
-                                poolIdToPath[childId],
-                                childPath);
-                            continue;
-                        }
-
-                        // Parse config.
-                        auto configNode = ConvertToNode(childNode->Attributes());
-                        TPoolConfigPtr config;
-                        try {
-                            config = ConvertTo<TPoolConfigPtr>(configNode);
-                        } catch (const std::exception& ex) {
-                            LOG_ERROR(ex, "Error parsing configuration of pool %Qv; using defaults",
-                                childPath);
-                            config = New<TPoolConfig>();
-                        }
-
-                        auto pool = FindPool(childId);
-                        if (pool) {
-                            // Reconfigure existing pool.
-                            pool->SetConfig(config);
-                            YCHECK(orphanPoolIds.erase(childId) == 1);
-                        } else {
-                            // Create new pool.
-                            pool = New<TPool>(Host, childId, Config);
-                            pool->SetConfig(config);
-                            RegisterPool(pool, parent);
-                        }
-                        SetPoolParent(pool, parent);
-
-                        // Parse children.
-                        parseConfig(childNode, pool.Get());
-                    }
-                };
-
-            // Run recursive descent parsing.
-            parseConfig(poolsNode, RootElement);
-
-            // Unregister orphan pools.
-            for (const auto& id : orphanPoolIds) {
-                auto pool = GetPool(id);
-                if (pool->IsEmpty()) {
-                    UnregisterPool(pool);
-                } else {
-                    pool->SetDefaultConfig();
-                    SetPoolDefaultParent(pool);
-                }
-            }
-
-            RootElement->Update(GlobalDynamicAttributes_);
-            RootElementSnapshot = RootElement->CloneRoot();
-
-            LOG_INFO("Pools updated");
-        } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error updating pools");
-        }
+        auto snapshot = New<TRootElementSnapshot>();
+        snapshot->RootElement = RootElement->CloneRoot();
+        snapshot->RootElement->BuildOperationToElementMapping(&snapshot->OperationIdToElement);
+        return snapshot;
     }
 
     void BuildPoolsInformation(IYsonConsumer* consumer)
@@ -1033,10 +1105,27 @@ private:
             });
     }
 
+    void BuildFairShareInfo(IYsonConsumer* consumer)
+    {
+        BuildYsonMapFluently(consumer)
+            .Do(BIND(&TFairShareStrategy::BuildPoolsInformation, Unretained(this)))
+            .Item("operations").DoMapFor(
+                OperationIdToElement,
+                [=] (TFluentMap fluent, const TOperationElementPtrByIdMap::value_type& pair) {
+                    const auto& operationId = pair.first;
+                    BuildYsonMapFluently(fluent)
+                        .Item(ToString(operationId)).BeginMap()
+                            .Do(BIND(&TFairShareStrategy::BuildOperationProgress, Unretained(this), operationId))
+                        .EndMap();
+                });
+    }
+
     void BuildElementYson(const ISchedulerElementPtr& element, IYsonConsumer* consumer)
     {
         const auto& attributes = element->Attributes();
         auto dynamicAttributes = GetGlobalDynamicAttributes(element);
+
+        auto guaranteedResources = Host->GetTotalResourceLimits() * attributes.GuaranteedResourcesRatio;
 
         BuildYsonMapFluently(consumer)
             .Item("scheduling_status").Value(element->GetStatus())
@@ -1055,6 +1144,8 @@ private:
             .Item("min_share_ratio").Value(element->GetMinShareRatio())
             .Item("max_share_ratio").Value(element->GetMaxShareRatio())
             .Item("adjusted_min_share_ratio").Value(attributes.AdjustedMinShareRatio)
+            .Item("guaranteed_resources_ratio").Value(attributes.GuaranteedResourcesRatio)
+            .Item("guaranteed_resources").Value(guaranteedResources)
             .Item("max_possible_usage_ratio").Value(attributes.MaxPossibleUsageRatio)
             .Item("usage_ratio").Value(element->GetResourceUsageRatio())
             .Item("demand_ratio").Value(attributes.DemandRatio)

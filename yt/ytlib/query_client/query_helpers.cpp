@@ -633,6 +633,8 @@ bool AreAllReferencesInSchema(TConstExpressionPtr expr, const TTableSchema& tabl
         return true;
     } else if (auto binaryOpExpr = expr->As<TBinaryOpExpression>()) {
         return AreAllReferencesInSchema(binaryOpExpr->Lhs, tableSchema) && AreAllReferencesInSchema(binaryOpExpr->Rhs, tableSchema);
+    } else if (auto unaryOpExpr = expr->As<TUnaryOpExpression>()) {
+        return AreAllReferencesInSchema(unaryOpExpr->Operand, tableSchema);
     } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
         bool result = true;
         for (const auto& argument : functionExpr->Arguments) {
@@ -676,6 +678,48 @@ TConstExpressionPtr ExtractPredicateForColumnSubset(
     return New<TLiteralExpression>(
         EValueType::Boolean,
         MakeUnversionedBooleanValue(true));
+}
+
+void CollectOperands(std::vector<TConstExpressionPtr>* operands, TConstExpressionPtr expr)
+{
+    if (!expr) {
+        return;
+    }
+
+    if (auto binaryOpExpr = expr->As<TBinaryOpExpression>()) {
+        auto opcode = binaryOpExpr->Opcode;
+        if (opcode == EBinaryOp::And) {
+            CollectOperands(operands, binaryOpExpr->Lhs);
+            CollectOperands(operands, binaryOpExpr->Rhs);
+        } else {
+            operands->push_back(expr);
+        }
+    } else {
+        operands->push_back(expr);
+    }
+}
+
+std::pair<TConstExpressionPtr, TConstExpressionPtr> SplitPredicateByColumnSubset(
+    TConstExpressionPtr root,
+    const TTableSchema& tableSchema)
+{
+    // collect AND operands
+    std::vector<TConstExpressionPtr> operands;
+
+    CollectOperands(&operands, root);
+    TConstExpressionPtr projected = New<TLiteralExpression>(
+        EValueType::Boolean,
+        MakeUnversionedBooleanValue(true));
+    TConstExpressionPtr remaining = New<TLiteralExpression>(
+        EValueType::Boolean,
+        MakeUnversionedBooleanValue(true));
+
+    for (auto expr : operands) {
+        auto& target = AreAllReferencesInSchema(expr, tableSchema) ? projected : remaining;
+        target = MakeAndExpression(target, expr);
+    }
+
+    return std::make_pair(projected, remaining);
 }
 
 std::vector<TMutableRowRange> MergeOverlappingRanges(

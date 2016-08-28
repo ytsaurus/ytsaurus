@@ -13,13 +13,9 @@ set(SRCS
   ${BASE}/print.cpp
 )
 
-include_directories(
-  ${BASE}
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-)
+include_directories(${CMAKE_SOURCE_DIR})
 
 add_library(${NAME} STATIC ${SRCS})
 
-target_link_libraries(${NAME} ytext-arcadia-util)
+target_link_libraries(${NAME} deps-arcadia-util)
 

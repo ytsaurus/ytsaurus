@@ -130,7 +130,7 @@ private:
         {
             LOG_INFO("Fetching journal chunks");
 
-            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower, cellTag);
+            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag);
             TObjectServiceProxy proxy(channel);
 
             auto req = TJournalYPathProxy::Fetch(objectIdPath);

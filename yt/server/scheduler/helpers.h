@@ -19,7 +19,7 @@ namespace NScheduler {
 
 void BuildInitializingOperationAttributes(TOperationPtr operation, NYson::IYsonConsumer* consumer);
 void BuildRunningOperationAttributes(TOperationPtr operation, NYson::IYsonConsumer* consumer);
-void BuildJobAttributes(TJobPtr job, const TNullable<NYson::TYsonString>& inputPaths, NYson::IYsonConsumer* consumer);
+void BuildJobAttributes(TJobPtr job, NYson::IYsonConsumer* consumer);
 void BuildExecNodeAttributes(TExecNodePtr node, NYson::IYsonConsumer* consumer);
 NYson::TYsonString BuildInputPaths(
     const std::vector<NYPath::TRichYPath>& inputPaths,
@@ -38,6 +38,11 @@ TIntrusivePtr<TSpec> ParseOperationSpec(NYTree::IMapNodePtr specNode);
 ////////////////////////////////////////////////////////////////////
 
 EAbortReason GetAbortReason(const NJobTrackerClient::NProto::TJobResult& result);
+
+////////////////////////////////////////////////////////////////////
+
+Stroka MakeOperationCodicilString(const TOperationId& operationId);
+TCodicilGuard MakeOperationCodicilGuard(const TOperationId& operationId);
 
 ////////////////////////////////////////////////////////////////////
 

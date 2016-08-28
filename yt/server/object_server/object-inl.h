@@ -1,3 +1,4 @@
+#pragma once
 #include "object.h"
 
 #ifndef OBJECT_INL_H_

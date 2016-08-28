@@ -135,12 +135,12 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
     TCachedVersionedChunkMetaPtr chunkMeta,
     TKeyComparer keyComparer)
 {
-    if (ETableChunkFormat(chunkMeta->ChunkMeta().version()) != ETableChunkFormat::VersionedSimple &&
-        ETableChunkFormat(chunkMeta->ChunkMeta().version()) != ETableChunkFormat::SchemalessHorizontal)
+    if (chunkMeta->GetChunkFormat() != ETableChunkFormat::VersionedSimple &&
+        chunkMeta->GetChunkFormat() != ETableChunkFormat::SchemalessHorizontal)
     {
         LOG_INFO("Cannot create lookup hash table for %Qlv chunk format (ChunkId: %v)",
             chunkMeta->GetChunkId(),
-            ETableChunkFormat(chunkMeta->ChunkMeta().version()));
+            chunkMeta->GetChunkFormat());
         return nullptr;
     }
 
@@ -170,7 +170,7 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
 
         std::unique_ptr<IVersionedBlockReader> blockReader;
 
-        switch(ETableChunkFormat(chunkMeta->ChunkMeta().version())) {
+        switch(chunkMeta->GetChunkFormat()) {
             case ETableChunkFormat::VersionedSimple:
                 blockReader = std::make_unique<TSimpleVersionedBlockReader>(
                     uncompressedBlock,
@@ -572,7 +572,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
     TKeyComparer keyComparer,
     TTimestamp timestamp)
 {
-    switch (ETableChunkFormat(chunkMeta->ChunkMeta().version())) {
+    switch (chunkMeta->GetChunkFormat()) {
         case ETableChunkFormat::SchemalessHorizontal:
             YCHECK(chunkMeta->Schema().GetUniqueKeys());
             return New<TCacheBasedSimpleVersionedLookupChunkReader<THorizontalSchemalessVersionedBlockReader>>(
@@ -715,7 +715,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
     TChunkReaderPerformanceCountersPtr performanceCounters,
     TTimestamp timestamp)
 {
-    switch (ETableChunkFormat(chunkMeta->ChunkMeta().version())) {
+    switch (chunkMeta->GetChunkFormat()) {
         case ETableChunkFormat::SchemalessHorizontal:
             return New<TSimpleCacheBasedVersionedRangeChunkReader<THorizontalSchemalessVersionedBlockReader>>(
                 std::move(chunkMeta),

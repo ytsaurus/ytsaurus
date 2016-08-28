@@ -1,15 +1,17 @@
-#pragma once
+#include "private.h"
 
-#include "public.h"
+#include <yt/core/misc/common.h>
 
 namespace NYT {
-namespace NScheduler {
+namespace NCodegen {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchedulerStrategyPtr CreateNullStrategy(ISchedulerStrategyHost* host);
+const NLogging::TLogger CompressionLogger("Compression");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NCodegen
 } // namespace NYT
+
+

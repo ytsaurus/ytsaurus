@@ -3,9 +3,12 @@
 #include "public.h"
 
 #include <yt/ytlib/formats/format.h>
+#include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
+#include <yt/ytlib/cypress_client/public.h>
 
 #include <yt/core/yson/lexer.h>
 #include <yt/core/yson/public.h>
+#include <yt/core/misc/phoenix.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -59,6 +62,24 @@ TUnversionedValue MakeUnversionedValue(
 void ValidateKeyColumns(const TKeyColumns& keyColumns, const TKeyColumns& chunkKeyColumns, bool requireUniqueKeys);
 TColumnFilter CreateColumnFilter(const NChunkClient::TChannel& protoChannel, TNameTablePtr nameTable);
 int GetSystemColumnCount(TChunkReaderOptionsPtr options);
+
+//////////////////////////////////////////////////////////////////////////////////
+
+struct TTableUploadOptions
+{
+    NChunkClient::EUpdateMode UpdateMode;
+    NCypressClient::ELockMode LockMode;
+    TTableSchema TableSchema;
+    ETableSchemaMode SchemaMode;
+
+    void Persist(NPhoenix::TPersistenceContext& context);
+};
+
+TTableUploadOptions GetTableUploadOptions(
+    const NYPath::TRichYPath& path,
+    const TTableSchema& schema,
+    ETableSchemaMode schemaMode,
+    i64 rowCount);
 
 //////////////////////////////////////////////////////////////////////////////////
 

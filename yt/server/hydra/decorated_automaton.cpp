@@ -803,6 +803,29 @@ void TDecoratedAutomaton::LogLeaderMutation(
     YCHECK(EpochContext_->ReachableVersion < LoggedVersion_);
 }
 
+TFuture<TMutationResponse> TDecoratedAutomaton::TryBeginKeptRequest(const TMutationRequest& request)
+{
+    YCHECK(State_ == EPeerState::Leading);
+
+    if (!Options_.ResponseKeeper) {
+        return TFuture<TMutationResponse>();
+    }
+
+    if (!request.MutationId) {
+        return TFuture<TMutationResponse>();
+    }
+
+    auto asyncResponseData = Options_.ResponseKeeper->TryBeginRequest(request.MutationId, request.Retry);
+    if (!asyncResponseData) {
+        PendingMutationIds_.push(request.MutationId);
+        return TFuture<TMutationResponse>();
+    }
+
+    return asyncResponseData.Apply(BIND([] (const TSharedRefArray& data) {
+        return TMutationResponse{data};
+    }));
+}
+
 void TDecoratedAutomaton::LogFollowerMutation(
     const TSharedRef& recordData,
     TFuture<void>* logResult)
@@ -1009,9 +1032,10 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
     const auto& request = context->Request();
     auto automatonVersion = GetAutomatonVersion();
 
-    LOG_DEBUG_UNLESS(IsRecovery(), "Applying mutation (Version: %v, MutationType: %v)",
+    LOG_DEBUG_UNLESS(IsRecovery(), "Applying mutation (Version: %v, MutationType: %v, MutationId: %v)",
         automatonVersion,
-        request.Type);
+        request.Type,
+        request.MutationId);
 
     TMutationContextGuard contextGuard(context);
 
@@ -1030,6 +1054,10 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
         NProfiling::DurationToValue(timer.GetElapsed()));
 
     if (Options_.ResponseKeeper && request.MutationId) {
+        if (State_ == EPeerState::Leading) {
+            YCHECK(request.MutationId == PendingMutationIds_.front());
+            PendingMutationIds_.pop();
+        }
         const auto& response = context->Response();
         Options_.ResponseKeeper->EndRequest(request.MutationId, response.Data);
     }
@@ -1171,12 +1199,18 @@ void TDecoratedAutomaton::StartEpoch(TEpochContextPtr epochContext)
 void TDecoratedAutomaton::StopEpoch()
 {
     auto error = TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped");
+
     while (!PendingMutations_.empty()) {
         auto& pendingMutation = PendingMutations_.front();
         if (pendingMutation.CommitPromise) {
             pendingMutation.CommitPromise.Set(error);
         }
         PendingMutations_.pop();
+    }
+
+    while (!PendingMutationIds_.empty()) {
+        Options_.ResponseKeeper->CancelRequest(PendingMutationIds_.front(), error);
+        PendingMutationIds_.pop();
     }
 
     RotatingChangelog_ = false;

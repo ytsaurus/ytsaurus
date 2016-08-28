@@ -141,7 +141,10 @@ private:
                     }
                     ++currentNodeCount;
                 } else if (childIndex < entry.TrunkChildren.size()) {
-                    PushEntry(entry.TrunkChildren[childIndex]);
+                    auto* child = entry.TrunkChildren[childIndex];
+                    if (IsObjectAlive(child)) {
+                        PushEntry(child);
+                    }
                     ++currentNodeCount;
                 } else {
                     ReleaseEntry(entry);
