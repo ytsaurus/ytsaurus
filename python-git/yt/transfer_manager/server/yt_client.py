@@ -3,6 +3,7 @@ from yt.wrapper.client import Yt
 from yt.packages.six import iteritems
 
 import types
+from copy import deepcopy
 
 def run_and_notify(func, self, *args, **kwargs):
     sync = kwargs.get("sync", True)
@@ -53,3 +54,5 @@ class YtClientWithNotifications(Yt):
         super(YtClientWithNotifications, self).__init__(*args, **kwargs)
         self.config["operation_tracker"]["stderr_logging_level"] = "DEBUG"
 
+def clone_client(yt_client):
+    return type(yt_client)(config=deepcopy(yt_client.config))

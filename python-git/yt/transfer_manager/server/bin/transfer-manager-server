@@ -3,6 +3,7 @@
 from __future__ import print_function
 
 from yt.transfer_manager.server.logger import TaskIdLogger
+from yt.transfer_manager.server.yt_client import clone_client
 from yt.transfer_manager.server.flask_helpers import process_gzip
 from yt.transfer_manager.server.pattern_matching import match_copy_pattern
 from yt.transfer_manager.server.message_queue import MessageReader
@@ -371,7 +372,7 @@ class Application(object):
         return decorator
 
     def _take_lock(self):
-        yt_client = deepcopy(self._yt)
+        yt_client = clone_client(self._yt)
         with yt_client.Transaction(attributes={"title": "Transfer manager lock"}) as tx:
             while True:
                 try:
@@ -534,7 +535,7 @@ class Application(object):
     def _create_pool(self, yt_client, destination_cluster_name):
         pool_name = "transfer_" + destination_cluster_name
         pool_path = "//sys/pools/transfer_manager/" + pool_name
-        yt_client = deepcopy(yt_client)
+        yt_client = clone_client(yt_client)
         yt_client.config["token"] = self._yt.config["token"]
         try:
             if not yt_client.exists(pool_path):
@@ -866,7 +867,7 @@ class Application(object):
                                clusters[cluster_name]._type, task_id)
                 return
 
-            cluster_client = deepcopy(clusters[cluster_name])
+            cluster_client = clone_client(clusters[cluster_name])
             if cluster_name == task.source_cluster:
                 cluster_client.config["token"] = task.source_cluster_token
             else:
@@ -1206,7 +1207,7 @@ class Application(object):
         clusters_configuration = self._get_clusters_configuration()
         if source_cluster not in clusters_configuration.clusters:
             raise yt.YtError("Unknown cluster " + source_cluster)
-        client = deepcopy(clusters_configuration.clusters[source_cluster])
+        client = clone_client(clusters_configuration.clusters[source_cluster])
         if client._type == "yt":
             token, _ = get_token_and_user(request, Yt(**self._config["yt_backend_options"]))
             client.config["token"] = get_value(params.get("source_cluster_token"), token)
