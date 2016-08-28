@@ -320,6 +320,7 @@ describe("YtCommand - command descriptors", function() {
             'erase',
             'exists',
             'execute_batch',
+            'generate_timestamp',
             'get',
             'get_job_stderr',
             'get_version',
