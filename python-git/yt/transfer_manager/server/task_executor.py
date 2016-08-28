@@ -1,10 +1,10 @@
-from . import traceback_helpers
-from .task_types import Task
-from .logger import TaskIdLogger
-from .helpers import log_yt_exception, configure_logging
-from .message_queue import MessageWriter
-from .precheck import perform_precheck
-from .clusters_configuration import get_clusters_configuration_from_config
+from yt.transfer_manager.server import traceback_helpers
+from yt.transfer_manager.server.task_types import Task
+from yt.transfer_manager.server.logger import TaskIdLogger
+from yt.transfer_manager.server.helpers import log_yt_exception, configure_logging
+from yt.transfer_manager.server.message_queue import MessageWriter
+from yt.transfer_manager.server.precheck import perform_precheck
+from yt.transfer_manager.server.clusters_configuration import get_clusters_configuration_from_config
 
 from yt.tools.yamr import YamrError
 from yt.tools.remote_copy_tools import \
@@ -236,7 +236,7 @@ def run_executor(config_path):
         executor_path = executor_path[:-1]
 
     return subprocess.Popen(["/usr/bin/env", "python", executor_path, "--config-path", config_path],
-                            stdout=subprocess.PIPE, stdin=subprocess.PIPE,
+                            stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=sys.stderr,
                             preexec_fn=lambda: prctl.set_pdeathsig(signal.SIGINT), close_fds=True)
 
 if __name__ == "__main__":
