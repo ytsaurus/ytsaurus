@@ -354,7 +354,7 @@ void ValidateClientKey(TKey key);
 void ValidateClientKey(
     TKey key,
     const TTableSchema& schema,
-    const TNameTableToSchemaIdMapping& idMappingPtr);
+    const TNameTableToSchemaIdMapping& idMapping);
 
 //! Checks that #key is a valid server-side key. Throws on failure.
 /*! The key must obey the following properties:
