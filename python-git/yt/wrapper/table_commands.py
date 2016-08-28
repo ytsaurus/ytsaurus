@@ -261,34 +261,12 @@ def _prepare_destination_tables(tables, replication_factor, compression_codec, c
         return []
     tables = map(lambda name: to_table(name, client=client), flatten(tables))
     for table in tables:
-        if get_config(client)["yamr_mode"]["check_codec_and_replication_factor"] and exists(table.name, client=client):
-            create_table_attributes = get_config(client)["create_table_attributes"]
-            compression_codec_actual = get_value(
-                compression_codec,
-                get_value(create_table_attributes, {}).get("compression_codec"))
-            compression_codec_ok = (compression_codec_actual is None) or \
-                                   (compression_codec_actual == get_attribute(table.name,
-                                                                              "compression_codec",
-                                                                              client=client))
-
-
-            replication_factor_actual = get_value(
-                replication_factor,
-                get_value(create_table_attributes, {}).get("replication_factor"))
-            replication_factor_ok = (replication_factor_actual is None) or \
-                                    (replication_factor_actual == get_attribute(table.name,
-                                                                         "replication_factor",
-                                                                         client=client))
-            require(compression_codec_ok and replication_factor_ok,
-                    lambda: YtError("Cannot append to table %s and set replication factor "
-                                    "or compression codec" % table))
-        else:
-            attributes = {}
-            if replication_factor is not None:
-                attributes["replication_factor"] = replication_factor
-            if compression_codec is not None:
-                attributes["compression_codec"] = compression_codec
-            create_table(table.name, ignore_existing=True, attributes=attributes, client=client)
+        attributes = {}
+        if replication_factor is not None:
+            attributes["replication_factor"] = replication_factor
+        if compression_codec is not None:
+            attributes["compression_codec"] = compression_codec
+        create_table(table.name, ignore_existing=True, attributes=attributes, client=client)
     return tables
 
 def _remove_locks(table, client=None):
@@ -578,24 +556,12 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
     def prepare_table(path):
         if not force_create:
             return
-        if get_config(client)["yamr_mode"]["check_codec_and_replication_factor"] and exists(path, client=client):
-            create_table_attributes = get_config(client)["create_table_attributes"]
-            replication_factor_actual = get_value(
-                replication_factor,
-                get_value(create_table_attributes, {}).get("replication_factor"))
-            compression_codec_actual = get_value(
-                compression_codec,
-                get_value(create_table_attributes, {}).get("compression_codec"))
-            require(replication_factor_actual is None and compression_codec_actual is None,
-                    lambda: YtError("Cannot write to existing path %s "
-                                    "with set replication factor or compression codec" % path))
-        else:
-            attributes = {}
-            if replication_factor is not None:
-                attributes["replication_factor"] = replication_factor
-            if compression_codec is not None:
-                attributes["compression_codec"] = compression_codec
-            create_table(path, ignore_existing=True, attributes=attributes, client=client)
+        attributes = {}
+        if replication_factor is not None:
+            attributes["replication_factor"] = replication_factor
+        if compression_codec is not None:
+            attributes["compression_codec"] = compression_codec
+        create_table(path, ignore_existing=True, attributes=attributes, client=client)
 
     can_split_input = isinstance(input_stream, types.ListType) or format.is_raw_load_supported()
     enable_retries = get_config(client)["write_retries"]["enable"] and \
