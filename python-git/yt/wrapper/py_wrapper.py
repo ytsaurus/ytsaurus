@@ -436,7 +436,7 @@ def do_wrap(function, operation_type, tempfiles_manager, input_format, output_fo
         shutil.copy(function_source_filename, main_filename)
 
     files = map(os.path.abspath, [
-        os.path.join(LOCATION, "bin", "_py_runner.py"),
+        os.path.join(LOCATION, "_py_runner.py"),
         function_filename,
         config_filename,
         modules_info_filename,

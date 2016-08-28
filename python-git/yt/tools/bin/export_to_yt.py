@@ -5,7 +5,7 @@ from yt.tools.common import update_args
 from yt.tools.remote_copy_tools import copy_yt_to_yt_through_proxy
 from yt.wrapper.cli_helpers import die
 from yt.wrapper.client import Yt
-from yt.wrapper.http import get_token
+from yt.wrapper.http_helpers import get_token
 
 import yt.logger as logger
 import yt.wrapper as yt

@@ -1,6 +1,6 @@
 from yt.common import YtError
 from yt.wrapper.common import get_value, require, update, run_with_retries, generate_uuid, bool_to_string
-from yt.wrapper.http import get_retriable_errors, get_token, configure_ip
+from yt.wrapper.http_helpers import get_retriable_errors, get_token, configure_ip
 from yt.wrapper.errors import hide_token
 import yt.logger as logger
 

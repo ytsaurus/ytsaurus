@@ -1,7 +1,7 @@
 from .helpers import ENABLE_JOB_CONTROL, TEST_DIR, TESTS_SANDBOX
 
 from yt.wrapper.job_shell import JobShell
-from yt.wrapper.http import get_api_commands
+from yt.wrapper.http_helpers import get_api_commands
 
 import yt.wrapper as yt
 
