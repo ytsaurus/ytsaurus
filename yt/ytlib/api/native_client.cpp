@@ -3482,7 +3482,7 @@ private:
                         THROW_ERROR_EXCEPTION("Cannot delete rows from a non-sorted table %v",
                             tableInfo->Path);
                     }
-                    ValidateClientKey(modification.Row);
+                    ValidateClientKey(modification.Row, schema, idMapping);
                     break;
 
                 default:
