@@ -32,8 +32,8 @@ set( HDRS
 add_executable( yt_old ${SRCS} ${HDRS} )
 
 target_link_libraries( yt_old
-  ytlib
-  ytext-arcadia-library-lfalloc
+  yt-library-client
+  deps-arcadia-library-lfalloc
 )
 
 if (NOT WIN32)

@@ -123,6 +123,8 @@ TJobResult TSimpleJobBase::Run()
     PROFILE_TIMING ("/job_time") {
         LOG_INFO("Initializing");
 
+        Host_->OnPrepared();
+
         const auto& jobSpec = Host_->GetJobSpec().GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         if (jobSpec.has_input_query_spec()) {
             RunQuery(jobSpec.input_query_spec(), ReaderFactory_, WriterFactory_);

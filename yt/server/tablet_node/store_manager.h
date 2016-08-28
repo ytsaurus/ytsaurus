@@ -72,7 +72,7 @@ struct IStoreManager
     virtual IChunkStorePtr PeekStoreForPreload() = 0;
     virtual void BeginStorePreload(
         IChunkStorePtr store,
-        TFuture<void> future) = 0;
+        TCallback<TFuture<void>()> callbackFuture) = 0;
     virtual void EndStorePreload(IChunkStorePtr store) = 0;
     virtual void BackoffStorePreload(IChunkStorePtr store) = 0;
 

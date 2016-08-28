@@ -19,11 +19,11 @@ public:
         TNameTablePtr nameTable,
         const TKeyColumns& keyColumns);
 
-    TUnversionedRow ReorderRow(TUnversionedRow row, TChunkedMemoryPool* memoryPool);
+    TMutableUnversionedRow ReorderRow(TUnversionedRow row, TChunkedMemoryPool* memoryPool);
     TUnversionedOwningRow ReorderRow(TUnversionedRow row);
 
     //! Preserves only key columns, non-key column are ignored.
-    TUnversionedRow ReorderKey(TUnversionedRow row, TChunkedMemoryPool* memoryPool);
+    TMutableUnversionedRow ReorderKey(TUnversionedRow row, TChunkedMemoryPool* memoryPool);
 
 private:
     const TKeyColumns KeyColumns_;

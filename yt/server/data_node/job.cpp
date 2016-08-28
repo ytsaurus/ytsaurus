@@ -185,7 +185,7 @@ public:
     {
         Y_UNREACHABLE();
     }
-   
+
     virtual TNullable<TDuration> GetPrepareDuration() const override
     {
         return Null;
@@ -194,12 +194,6 @@ public:
     virtual TNullable<TDuration> GetExecDuration() const override
     {
         return Null;
-    }
-
-    virtual bool ShouldSendStatistics() const override
-    {
-        // Chunk jobs should not send statistics.
-        return false;
     }
 
     virtual TInstant GetStatisticsLastSendTime() const override
@@ -230,6 +224,11 @@ public:
     virtual TYsonString PollJobShell(const TYsonString& /*parameters*/) override
     {
         THROW_ERROR_EXCEPTION("Job shell is not supported");
+    }
+
+    virtual void OnJobPrepared() override
+    {
+        Y_UNREACHABLE();
     }
 
 protected:
@@ -695,7 +694,7 @@ private:
 
             WaitFor(changelog->Flush())
                 .ThrowOnError();
-        
+
             LOG_INFO("Finished downloading missing journal chunk rows");
         }
 

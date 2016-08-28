@@ -1,3 +1,4 @@
+#pragma once
 #ifndef FORMAT_INL_H_
 #error "Direct inclusion of this file is not allowed, include format.h"
 #endif
@@ -331,15 +332,13 @@ struct TValueFormatter<TEnumIndexedVector<T, E>>
     }
 };
 
-// Pointers
-template <class T>
-void FormatValue(TStringBuilder* builder, T* value, const TStringBuf& format)
+// TGuid
+inline void FormatValue(TStringBuilder* builder, const TGuid& value, const TStringBuf& /*format*/)
 {
-    FormatValueStd(builder, value, format, STRINGBUF("p"));
+    char* begin = builder->Preallocate(8 * 4 + 3);
+    char* end = WriteGuidToBuffer(begin, value);
+    builder->Advance(end - begin);
 }
-
-// TGuid (specialize for performance reasons)
-void FormatValue(TStringBuilder* builder, const TGuid& value, const TStringBuf& format);
 
 // TNullable
 inline void FormatValue(TStringBuilder* builder, TNull, const TStringBuf& /*format*/)
@@ -367,12 +366,16 @@ void FormatValue(TStringBuilder* builder, const TValue& value, const TStringBuf&
 }
 
 template <class TValue>
-void FormatValueStd(TStringBuilder* builder, TValue value, const TStringBuf& format, const TStringBuf& genericSpec)
+void FormatValueViaSprintf(
+    TStringBuilder* builder,
+    TValue value,
+    const TStringBuf& format,
+    const TStringBuf& genericSpec)
 {
     const int MaxFormatSize = 64;
     const int SmallResultSize = 64;
 
-    auto copyFormat = [ ](char* destination, const char* source, int length) {
+    auto copyFormat = [] (char* destination, const char* source, int length) {
         int position = 0;
         for (int index = 0; index < length; ++index) {
             if (IsQuotationSpecSymbol(source[index])) {
@@ -405,28 +408,57 @@ void FormatValueStd(TStringBuilder* builder, TValue value, const TStringBuf& for
     builder->Advance(resultSize);
 }
 
-#define IMPLEMENT_FORMAT_VALUE_STD(valueType, castType, genericSpec) \
+template <class TValue>
+char* WriteIntToBufferBackwards(char* buffer, TValue value);
+
+template <class TValue>
+void FormatValueViaHelper(TStringBuilder* builder, TValue value, const TStringBuf& format, const TStringBuf& genericSpec)
+{
+    if (format == STRINGBUF("v")) {
+        const int MaxResultSize = 64;
+        char buffer[MaxResultSize];
+        char* end = buffer + MaxResultSize;
+        char* start = WriteIntToBufferBackwards(end, value);
+        builder->AppendString(TStringBuf(start, end));
+    } else {
+        FormatValueViaSprintf(builder, value, format, genericSpec);
+    }
+}
+
+#define XX(valueType, castType, genericSpec) \
     inline void FormatValue(TStringBuilder* builder, valueType value, const TStringBuf& format) \
     { \
-        FormatValueStd(builder, static_cast<castType>(value), format, genericSpec); \
+        FormatValueViaHelper(builder, static_cast<castType>(value), format, genericSpec); \
     }
 
-IMPLEMENT_FORMAT_VALUE_STD(i8,              int,                STRINGBUF("d"))
-IMPLEMENT_FORMAT_VALUE_STD(ui8,             unsigned int,       STRINGBUF("u"))
-IMPLEMENT_FORMAT_VALUE_STD(i16,             int,                STRINGBUF("d"))
-IMPLEMENT_FORMAT_VALUE_STD(ui16,            unsigned int,       STRINGBUF("u"))
-IMPLEMENT_FORMAT_VALUE_STD(i32,             int,                STRINGBUF("d"))
-IMPLEMENT_FORMAT_VALUE_STD(ui32,            unsigned int,       STRINGBUF("u"))
-IMPLEMENT_FORMAT_VALUE_STD(long,            long,               STRINGBUF("ld"))
-IMPLEMENT_FORMAT_VALUE_STD(unsigned long,   unsigned long,      STRINGBUF("lu"))
-#ifdef _win_
-IMPLEMENT_FORMAT_VALUE_STD(i64,             i64,                STRINGBUF(PRId64))
-IMPLEMENT_FORMAT_VALUE_STD(ui64,            ui64,               STRINGBUF(PRIu64))
-#endif
-IMPLEMENT_FORMAT_VALUE_STD(double,          double,             STRINGBUF("lf"))
-IMPLEMENT_FORMAT_VALUE_STD(float,           float,              STRINGBUF("f"))
+XX(i8,              int,                STRINGBUF("d"))
+XX(ui8,             unsigned int,       STRINGBUF("u"))
+XX(i16,             int,                STRINGBUF("d"))
+XX(ui16,            unsigned int,       STRINGBUF("u"))
+XX(i32,             int,                STRINGBUF("d"))
+XX(ui32,            unsigned int,       STRINGBUF("u"))
+XX(long,            long,               STRINGBUF("ld"))
+XX(unsigned long,   unsigned long,      STRINGBUF("lu"))
 
-#undef IMPLEMENT_STD_FORMAT_VALUE
+#undef XX
+
+#define XX(valueType, castType, genericSpec) \
+    inline void FormatValue(TStringBuilder* builder, valueType value, const TStringBuf& format) \
+    { \
+        FormatValueViaSprintf(builder, static_cast<castType>(value), format, genericSpec); \
+    }
+
+XX(double,          double,             STRINGBUF("lf"))
+XX(float,           float,              STRINGBUF("f"))
+
+#undef XX
+
+// Pointers
+template <class T>
+void FormatValue(TStringBuilder* builder, T* value, const TStringBuf& format)
+{
+    FormatValueViaSprintf(builder, value, format, STRINGBUF("p"));
+}
 
 // TDuration (specialize for performance reasons)
 inline void FormatValue(TStringBuilder* builder, const TDuration& value, const TStringBuf& format)

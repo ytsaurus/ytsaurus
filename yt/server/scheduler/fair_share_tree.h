@@ -28,6 +28,8 @@ typedef TIntrusivePtr<TRootElement> TRootElementPtr;
 
 struct TFairShareContext;
 
+typedef yhash_map<TOperationId, TOperationElement*> TOperationElementByIdMap;
+
 ////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ESchedulableStatus,
@@ -44,8 +46,10 @@ struct TSchedulableAttributes
     double DemandRatio = 0.0;
     double FairShareRatio = 0.0;
     double AdjustedMinShareRatio = 0.0;
+    double RecursiveMinShareRatio = 0.0;
     double MaxPossibleUsageRatio = 1.0;
     double BestAllocationRatio = 1.0;
+    double GuaranteedResourcesRatio = 0.0;
     i64 DominantLimit = 0;
 
     double AdjustedFairShareStarvationTolerance = 1.0;
@@ -79,7 +83,6 @@ struct ISchedulerElement
 
     virtual void UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList) = 0;
 
-    virtual void BuildJobToOperationMapping(TFairShareContext& context) = 0;
     virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly) = 0;
     virtual bool ScheduleJob(TFairShareContext& context) = 0;
 
@@ -100,6 +103,7 @@ struct ISchedulerElement
 
     virtual double GetWeight() const = 0;
     virtual double GetMinShareRatio() const = 0;
+    virtual TJobResources GetMinShareResources() const = 0;
     virtual double GetMaxShareRatio() const = 0;
 
     virtual double GetFairShareStarvationTolerance() const = 0;
@@ -123,6 +127,8 @@ struct ISchedulerElement
 
     virtual TCompositeSchedulerElement* GetParent() const = 0;
     virtual void SetParent(TCompositeSchedulerElement* parent) = 0;
+
+    virtual void BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap) = 0;
 
     virtual ISchedulerElementPtr Clone() = 0;
     virtual void SetCloned(bool cloned) = 0;
@@ -288,6 +294,7 @@ protected:
 
     DEFINE_BYREF_RW_PROPERTY(int, RunningOperationCount);
     DEFINE_BYREF_RW_PROPERTY(int, OperationCount);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TError>, UpdateFairShareAlerts);
 
     DEFINE_BYREF_RO_PROPERTY(double, AdjustedFairShareStarvationToleranceLimit);
     DEFINE_BYREF_RO_PROPERTY(TDuration, AdjustedMinSharePreemptionTimeoutLimit);
@@ -317,7 +324,6 @@ public:
 
     virtual void UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList) override;
 
-    virtual void BuildJobToOperationMapping(TFairShareContext& context) override;
     virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly) override;
     virtual bool ScheduleJob(TFairShareContext& context) override;
 
@@ -335,6 +341,8 @@ public:
 
     virtual int GetMaxOperationCount() const = 0;
     virtual int GetMaxRunningOperationCount() const = 0;
+
+    virtual void BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap) override;
 
 protected:
     yhash_set<ISchedulerElementPtr> Children;
@@ -385,6 +393,7 @@ public:
 
     virtual double GetWeight() const override;
     virtual double GetMinShareRatio() const override;
+    virtual TJobResources GetMinShareResources() const override;
     virtual double GetMaxShareRatio() const override;
 
     virtual ESchedulableStatus GetStatus() const override;
@@ -646,7 +655,6 @@ public:
 
     virtual void UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList) override;
 
-    virtual void BuildJobToOperationMapping(TFairShareContext& context) override;
     virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly) override;
     virtual bool ScheduleJob(TFairShareContext& context) override;
 
@@ -654,6 +662,7 @@ public:
 
     virtual double GetWeight() const override;
     virtual double GetMinShareRatio() const override;
+    virtual TJobResources GetMinShareResources() const override;
     virtual double GetMaxShareRatio() const override;
 
     virtual TNullable<Stroka> GetNodeTag() const override;
@@ -679,6 +688,8 @@ public:
     void OnJobFinished(const TJobId& jobId);
 
     NJobTrackerClient::TStatistics GetControllerTimeStatistics();
+
+    virtual void BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap) override;
 
     virtual ISchedulerElementPtr Clone() override;
 
@@ -710,7 +721,6 @@ class TRootElementFixedState
 {
 protected:
     DEFINE_BYVAL_RO_PROPERTY(int, TreeSize);
-
 };
 
 class TRootElement
@@ -730,6 +740,7 @@ public:
 
     virtual double GetWeight() const override;
     virtual double GetMinShareRatio() const override;
+    virtual TJobResources GetMinShareResources() const override;
     virtual double GetMaxShareRatio() const override;
 
     virtual double GetFairShareStarvationTolerance() const override;

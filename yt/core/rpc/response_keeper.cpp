@@ -159,7 +159,7 @@ public:
         OnProfiling();
     }
 
-    void CancelRequest(const TMutationId& id)
+    void CancelRequest(const TMutationId& id, const TError& error)
     {
         Y_ASSERT(id);
 
@@ -169,7 +169,14 @@ public:
             if (!Started_)
                 return;
 
-            PendingResponses_.erase(id);
+            auto it = PendingResponses_.find(id);
+            if (it == PendingResponses_.end())
+                return;
+
+            it->second.Set(error);
+            PendingResponses_.erase(it);
+
+            LOG_DEBUG(error, "Pending request canceled (MutationId: %v)", id);
         }
     }
 
@@ -186,8 +193,9 @@ public:
             return true;
         } else {
             context->GetAsyncResponseMessage().Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TSharedRefArray>&) {
-                if (context->GetError().GetCode() == NRpc::EErrorCode::Unavailable) {
-                    CancelRequest(mutationId);
+                const auto& error = context->GetError();
+                if (error.GetCode() == NRpc::EErrorCode::Unavailable) {
+                    CancelRequest(mutationId, error);
                 } else {
                     EndRequest(mutationId, context->GetResponseMessage());
                 }
@@ -307,9 +315,9 @@ void TResponseKeeper::EndRequest(const TMutationId& id, TSharedRefArray response
     Impl_->EndRequest(id, std::move(response));
 }
 
-void TResponseKeeper::CancelRequest(const TMutationId& id)
+void TResponseKeeper::CancelRequest(const TMutationId& id, const TError& error)
 {
-    Impl_->CancelRequest(id);
+    Impl_->CancelRequest(id, error);
 }
 
 bool TResponseKeeper::TryReplyFrom(IServiceContextPtr context)

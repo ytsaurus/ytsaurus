@@ -1,5 +1,5 @@
 #include "framework.h"
-#include "versioned_table_client_ut.h"
+#include "table_client_helpers.h"
 
 #include <yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/ytlib/chunk_client/memory_reader.h>
@@ -36,7 +36,7 @@ Stroka B("b");
 
 // ToDo(psushin): rewrite this legacy test.
 class TVersionedChunksLookupTestBase
-    : public TVersionedTableClientTestBase
+    : public ::testing::Test
 {
 protected:
     TTableSchema Schema;
@@ -284,7 +284,7 @@ TEST_F(TColumnarVersionedChunksLookupTest, Test)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVersionedChunksHeavyTest
-    : public TVersionedTableClientTestBase
+    : public ::testing::Test
 {
 public:
     TVersionedChunksHeavyTest()

@@ -1,3 +1,4 @@
+#pragma once
 #ifndef HELPERS_INL_H_
 #error "Direct inclusion of this file is not allowed, include helpers.h"
 #endif
@@ -35,7 +36,7 @@ void GetUserObjectBasicAttributes(
 
     LOG_INFO("Getting basic attributes of user objects");
 
-    auto channel = client->GetMasterChannelOrThrow(NApi::EMasterChannelKind::LeaderOrFollower);
+    auto channel = client->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Follower);
     NObjectClient::TObjectServiceProxy proxy(channel);
 
     auto batchReq = proxy.ExecuteBatch();

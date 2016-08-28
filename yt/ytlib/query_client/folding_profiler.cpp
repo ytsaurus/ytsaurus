@@ -242,6 +242,7 @@ TCodegenSource TQueryProfiler::Profile(TConstQueryPtr query)
     TCodegenSource codegenSource = &CodegenScanOp;
 
     auto schema = query->GetRenamedSchema();
+    auto whereClause = query->WhereClause;
 
     for (const auto& joinClause : query->JoinClauses) {
         Fold(static_cast<int>(EFoldingObjectType::JoinOp));
@@ -258,7 +259,10 @@ TCodegenSource TQueryProfiler::Profile(TConstQueryPtr query)
             selfKeys.emplace_back(TExpressionProfiler::Profile(expression, schema), isKey);
         }
 
-        if (auto selfFilter = ExtractPredicateForColumnSubset(query->WhereClause, schema)) {
+        TConstExpressionPtr selfFilter;
+        std::tie(selfFilter, whereClause) = SplitPredicateByColumnSubset(whereClause, schema);
+
+        if (selfFilter) {
             codegenSource = MakeCodegenFilterOp(
                 TExpressionProfiler::Profile(selfFilter, schema),
                 std::move(codegenSource));
@@ -270,9 +274,18 @@ TCodegenSource TQueryProfiler::Profile(TConstQueryPtr query)
             joinBatchSize = query->Limit;
         }
 
+        TConstExpressionPtr foreignFilter;
+        if (!joinClause->IsLeft) {
+            std::tie(foreignFilter, whereClause) = SplitPredicateByColumnSubset(
+                whereClause,
+                joinClause->GetRenamedSchema());
+        } else {
+            foreignFilter = ExtractPredicateForColumnSubset(whereClause, joinClause->GetRenamedSchema());
+        }
+
         int index = Variables_->AddObject<TJoinParameters>(GetJoinEvaluator(
             *joinClause,
-            ExtractPredicateForColumnSubset(query->WhereClause, joinClause->GetRenamedSchema()),
+            foreignFilter,
             schema,
             query->InputRowLimit,
             query->OutputRowLimit,
@@ -287,10 +300,10 @@ TCodegenSource TQueryProfiler::Profile(TConstQueryPtr query)
         schema = joinClause->GetTableSchema(schema);
     }
 
-    if (query->WhereClause) {
+    if (whereClause) {
         Fold(static_cast<int>(EFoldingObjectType::FilterOp));
         codegenSource = MakeCodegenFilterOp(
-            TExpressionProfiler::Profile(query->WhereClause, schema),
+            TExpressionProfiler::Profile(whereClause, schema),
             std::move(codegenSource));
     }
 

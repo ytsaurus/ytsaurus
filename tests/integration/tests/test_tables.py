@@ -148,6 +148,42 @@ class TestTables(YTEnvSetup):
         with pytest.raises(YtError): read_table("//tmp/file") 
 
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_schemaful_write(self, optimize_for):
+        create("table", "//tmp/table",
+            attributes={"optimize_for" : optimize_for})
+
+        assert get("//tmp/table/@optimize_for") == optimize_for
+        assert get("//tmp/table/@schema_mode") == "weak"
+
+        with pytest.raises(YtError):
+            # append and schema are not compatible
+            write_table("<append=true; schema=[{name=key; type=int64; sort_order=ascending}]>//tmp/table", [{"key": 1}])
+
+        with pytest.raises(YtError):
+            # sorted_by and schema are not compatible
+            write_table("<sorted_by=[a]; schema=[{name=key; type=int64; sort_order=ascending}]>//tmp/table", [{"key": 2}])
+
+        write_table("<schema=[{name=key; type=int64; sort_order=ascending}]>//tmp/table", 
+            [{"key": 0}, {"key": 1}])
+
+        assert get("//tmp/table/@schema_mode") == "strong"
+        assert read_table("//tmp/table") == [{"key": i} for i in xrange(2)]
+
+        # schemas are equal so this must work; data is overwritten
+        write_table("<schema=[{name=key; type=int64; sort_order=ascending}]>//tmp/table", 
+            [{"key": 0}, {"key": 1}, {"key": 2}, {"key": 3}])
+        assert read_table("//tmp/table") == [{"key": i} for i in xrange(4)]
+
+        write_table("<append=true>//tmp/table", [{"key": 4}, {"key": 5}])
+        assert get("//tmp/table/@schema_mode") == "strong"
+        assert read_table("//tmp/table") == [{"key": i} for i in xrange(6)]
+
+        # data is overwritten, schema is reset
+        write_table("<schema=[{name=key; type=any}]>//tmp/table", 
+            [{"key": 4}, {"key": 5}])
+        assert get("//tmp/table/@row_count") == 2
+
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_sorted_unique(self, optimize_for):
         create("table", "//tmp/table",
             attributes={
@@ -157,7 +193,7 @@ class TestTables(YTEnvSetup):
                     unique_keys=True)
             })
 
-        assert get("//tmp/table/@preserve_schema_on_write")
+        assert get("//tmp/table/@schema_mode") == "strong"
 
         write_table("//tmp/table", [{"key": 0}, {"key": 1}])
 
@@ -169,7 +205,7 @@ class TestTables(YTEnvSetup):
 
         write_table("<append=true>//tmp/table", [{"key": 2}])
 
-        assert get("//tmp/table/@preserve_schema_on_write")
+        assert get("//tmp/table/@schema_mode") == "strong"
         assert get("//tmp/table/@schema/@unique_keys")
         assert read_table("//tmp/table") == [{"key": i} for i in xrange(3)]
 
@@ -227,8 +263,9 @@ class TestTables(YTEnvSetup):
 
         assert d == {"a" : 0, "b" : 1, "c" : 2, "d" : 3, "e" : 4, "f" : 5, "g" : 6, "h" : 7}
 
-    def test_row_key_selector(self):
-        create("table", "//tmp/table")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_row_key_selector(self, optimize_for):
+        create("table", "//tmp/table",  attributes={"optimize_for" : optimize_for})
 
         v1 = {"s" : "a", "i": 0,    "d" : 15.5}
         v2 = {"s" : "a", "i": 10,   "d" : 15.2}
@@ -259,10 +296,10 @@ class TestTables(YTEnvSetup):
         assert read_table("//tmp/table[a,c]") == [v1, v2, v5]
 
         # combination of row and key selectors
-        assert read_table('//tmp/table{i}[aa: (b, 10)]') == [{'i' : 5}]
+        assert read_table('//tmp/table{s, i, d}[aa: (b, 10)]') == [{"s" : "b", "i" : 5, "d" : 20.}]
 
         # limits of different types
-        assert read_table("//tmp/table[#0:zz]") == [v1, v2, v3, v4, v5]
+        assert read_table("//tmp/table[#0:c]") == [v1, v2, v3, v4]
 
 
     def test_column_selector(self):
@@ -850,7 +887,7 @@ class TestTables(YTEnvSetup):
             init_table("//tmp/t", schema)
             write_table("<append=%true>//tmp/t", rows)
             assert read_table("//tmp/t") == rows
-            assert get("//tmp/t/@preserve_schema_on_write")
+            assert get("//tmp/t/@schema_mode") == "strong"
             assert get("//tmp/t/@schema") == schema
 
         def test_negative(schema, rows):

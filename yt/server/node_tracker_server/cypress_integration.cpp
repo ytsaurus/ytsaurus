@@ -159,6 +159,10 @@ private:
         descriptors->push_back("used_space");
         descriptors->push_back("chunk_replica_count");
         descriptors->push_back("online_node_count");
+        descriptors->push_back("offline_node_count");
+        descriptors->push_back("banned_node_count");
+        descriptors->push_back("decommissioned_node_count");
+        descriptors->push_back("with_alerts_node_count");
         descriptors->push_back("full_node_count");
         descriptors->push_back("chunk_replicator_enabled");
     }
@@ -206,6 +210,30 @@ private:
         if (key == "online_node_count") {
             BuildYsonFluently(consumer)
                 .Value(statistics.OnlineNodeCount);
+            return true;
+        }
+
+        if (key == "offline_node_count") {
+            BuildYsonFluently(consumer)
+                .Value(statistics.OfflineNodeCount);
+            return true;
+        }
+
+        if (key == "banned_node_count") {
+            BuildYsonFluently(consumer)
+                .Value(statistics.BannedNodeCount);
+            return true;
+        }
+
+        if (key == "decommissioned_node_count") {
+            BuildYsonFluently(consumer)
+                .Value(statistics.DecommissinedNodeCount);
+            return true;
+        }
+
+        if (key == "with_alerts_node_count") {
+            BuildYsonFluently(consumer)
+                .Value(statistics.WithAlertsNodeCount);
             return true;
         }
 

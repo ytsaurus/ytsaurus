@@ -45,7 +45,7 @@ TNetworkAddress GetUnixDomainAddress(const Stroka& name)
         sizeof (char) +
         name.length());
 #else
-    THROW_ERROR_EXCEPTION("Local bus transport is not supported under this platform");
+    Y_UNREACHABLE();
 #endif
 }
 
@@ -55,20 +55,11 @@ TNetworkAddress GetLocalBusAddress(int port)
     return GetUnixDomainAddress(name);
 }
 
-bool IsLocalServiceAddress(const Stroka& address)
+bool IsLocalBusTransportEnabled()
 {
 #ifdef _linux_
-    TStringBuf hostName;
-    int port;
-    try {
-        ParseServiceAddress(address, &hostName, &port);
-        return TAddressResolver::Get()->IsLocalServiceAddress(Stroka(hostName));
-    } catch (...) {
-        return false;
-    }
+    return true;
 #else
-    // Abstract unix sockets (domain sockets) are supported only on Linux.
-    Y_UNUSED(address);
     return false;
 #endif
 }

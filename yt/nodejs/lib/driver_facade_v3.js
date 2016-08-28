@@ -75,10 +75,6 @@ function YtDriverFacadeV3(logger, driver)
         return application_operations.get(parameters);
     });
 
-    defineCustomCommand("_get_scheduling_information", function(parameters) {
-        return application_operations.get_scheduling_information();
-    });
-
     this.custom_commands = custom_commands;
 
     this.logger = logger;

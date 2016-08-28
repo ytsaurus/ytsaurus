@@ -46,7 +46,7 @@ static ATTRIBUTE_NO_SANITIZE_ADDRESS inline __m128i AlignedPrefixLoad(const void
     }
 }
 
-static inline const char* FindNextSymbol(
+static ATTRIBUTE_NO_SANITIZE_ADDRESS inline const char* FindNextSymbol(
     const char* begin,
     const char* end,
     __m128i symbols,
@@ -103,6 +103,8 @@ static inline const char* FindNextSymbol(
         }
 
         if (length > 0) {
+            // We may load more bytes than needed (but within memory page, due to 16-byte alignment)
+            // but subsequent call to _mm_cmpestri compares only appropriate bytes.
             value = _mm_load_si128((__m128i*)current);
             tmp = Min(16, length);
         } else {

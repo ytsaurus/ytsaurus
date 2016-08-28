@@ -1,6 +1,6 @@
 IF(YMAKE)
   SET(CMAKE_CURRENT_LIST_DIR .)
-  SET(YT_ABI 18_4)
+  SET(YT_ABI 18_5)
 ENDIF()
 
 SET(PROTO_NAMESPACE yt/${YT_ABI})
@@ -47,6 +47,9 @@ END()
 ELSE()
 ################################################################################
 
+execute_process(COMMAND lsb_release --codename --short
+                OUTPUT_VARIABLE LSB_RELEASE)
+
 set(PYTHON_LINK_FLAGS "-static-libstdc++")
 
 if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
@@ -73,11 +76,26 @@ foreach(PYTHON_KIND IN LISTS PYTHON_KINDS)
   string(REPLACE "_" "-" PYTHON_KIND_DASHED ${PYTHON_KIND_LOWER})
   set(TARGET_NAME_PREFIX "yt-python-${PYTHON_KIND_DASHED}-")
 
+  set(IS_NATIVE_SYSTEM_PYTHON False)
+  if(${PYTHON_KIND} MATCHES "^2_7$")
+    if(${LSB_RELEASE} MATCHES "precise")
+      set(IS_NATIVE_SYSTEM_PYTHON True)
+    endif()
+    if(${LSB_RELEASE} MATCHES "trusty")
+      set(IS_NATIVE_SYSTEM_PYTHON True)
+    endif()
+  endif()
+  if(${PYTHON_KIND} MATCHES "^2_6$")
+    if(${LSB_RELEASE} MATCHES "lucid")
+      set(IS_NATIVE_SYSTEM_PYTHON True)
+    endif()
+  endif()
+
   add_library(${TARGET_NAME_PREFIX}pycxx STATIC ${PYCXX_SRCS})
   target_include_directories(${TARGET_NAME_PREFIX}pycxx PUBLIC ${PYCXX_BASE} ${PYTHON_${PYTHON_KIND}_INCLUDE_DIR})
 
   add_library(${TARGET_NAME_PREFIX}common STATIC ${YT_SRCS})
-  target_link_libraries(${TARGET_NAME_PREFIX}common ytlib ${TARGET_NAME_PREFIX}pycxx)
+  target_link_libraries(${TARGET_NAME_PREFIX}common yt-library-client ${TARGET_NAME_PREFIX}pycxx)
 
   foreach(COMPONENT "yson" "driver")
     set(TARGET_NAME "${TARGET_NAME_PREFIX}${COMPONENT}")
@@ -100,7 +118,7 @@ foreach(PYTHON_KIND IN LISTS PYTHON_KINDS)
       COMPONENT ${TARGET_NAME}
     )
 
-    if(${PYTHON_KIND} MATCHES "^2_7$")
+    if(${IS_NATIVE_SYSTEM_PYTHON})
       exec_program(
         ${CMAKE_COMMAND} ARGS -E create_symlink
         ${LIBRARY_OUTPUT_PATH}/pyshared-${PYTHON_KIND_DASHED}/${COMPONENT}_lib${CMAKE_SHARED_MODULE_SUFFIX}
@@ -108,14 +126,6 @@ foreach(PYTHON_KIND IN LISTS PYTHON_KINDS)
       )
     endif()
   endforeach()
-
-  install(
-    FILES
-      ${CMAKE_SOURCE_DIR}/python/yt_yson_bindings/__init__.py
-    DESTINATION
-      lib/pyshared-${PYTHON_KIND_DASHED}/yt_yson_bindings
-      COMPONENT ${TARGET_NAME_PREFIX}yson
-  )
 
   install(
     FILES

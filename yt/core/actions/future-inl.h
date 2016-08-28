@@ -1,3 +1,4 @@
+#pragma once
 #ifndef FUTURE_INL_H_
 #error "Direct inclusion of this file is not allowed, include future.h"
 #endif

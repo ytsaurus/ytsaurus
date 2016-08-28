@@ -145,11 +145,11 @@ private:
         {
             LOG_INFO("Requesting extended file attributes");
 
-            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
+            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
             TObjectServiceProxy proxy(channel);
 
-            auto req = TCypressYPathProxy::Get(objectIdPath);
-            SetTransactionId(req, UploadTransaction_);
+            auto req = TCypressYPathProxy::Get(objectIdPath + "/@");
+            SetTransactionId(req, Transaction_);
             std::vector<Stroka> attributeKeys{
                 "replication_factor",
                 "account",
@@ -165,12 +165,11 @@ private:
                 Path_);
 
             auto rsp = rspOrError.Value();
-            auto node = ConvertToNode(TYsonString(rsp->value()));
-            const auto& attributes = node->Attributes();
-            writerOptions->ReplicationFactor = attributes.Get<int>("replication_factor");
-            writerOptions->Account = attributes.Get<Stroka>("account");
-            writerOptions->CompressionCodec = attributes.Get<NCompression::ECodec>("compression_codec");
-            writerOptions->ErasureCodec = attributes.Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
+            auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+            writerOptions->ReplicationFactor = attributes->Get<int>("replication_factor");
+            writerOptions->Account = attributes->Get<Stroka>("account");
+            writerOptions->CompressionCodec = attributes->Get<NCompression::ECodec>("compression_codec");
+            writerOptions->ErasureCodec = attributes->Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
 
             LOG_INFO("Extended file attributes received (Account: %v)",
                 writerOptions->Account);
@@ -231,7 +230,7 @@ private:
         {
             LOG_INFO("Requesting file upload parameters");
 
-            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower, CellTag_);
+            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, CellTag_);
             TObjectServiceProxy proxy(channel);
 
             auto req = TFileYPathProxy::GetUploadParams(objectIdPath);

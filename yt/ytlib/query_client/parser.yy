@@ -601,7 +601,7 @@ const-value
                     break;
                 }
                 default:
-                    YUNREACHABLE();
+                    Y_UNREACHABLE();
             }
 
         }

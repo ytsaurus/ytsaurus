@@ -3,6 +3,8 @@
 #include <yt/ytlib/formats/json_writer.h>
 #include <yt/ytlib/formats/config.h>
 
+#include <yt/core/yson/consumer.h>
+
 namespace NYT {
 namespace NFormats {
 namespace {
@@ -516,10 +518,13 @@ TEST(TJsonWriterTest, TestAnnotateWithTypesStringify)
     consumer->OnBeginMap();
         consumer->OnKeyedItem("hello");
         consumer->OnUint64Scalar(-1);
+        consumer->OnKeyedItem("world");
+        consumer->OnDoubleScalar(1.7976931348623157e+308);
     consumer->OnEndMap();
     consumer->Flush();
 
-    Stroka output = "{\"hello\":{\"$type\":\"uint64\",\"$value\":\"18446744073709551615\"}}";
+    Stroka output = "{\"hello\":{\"$type\":\"uint64\",\"$value\":\"18446744073709551615\"},"
+        "\"world\":{\"$type\":\"double\",\"$value\":\"1.7976931348623157e+308\"}}";
     EXPECT_EQ(output, outputStream.Str());
 }
 

@@ -26,7 +26,7 @@ namespace {
 TLogEvent GetBannerEvent()
 {
     TLogEvent event;
-    event.DateTime = TInstant::Now();
+    event.Instant = NProfiling::GetCpuInstant();
     event.Category = SystemLoggingCategory;
     event.Level = ELogLevel::Info;
     event.Message = Format("Logging started (Version: %v, BuildHost: %v, BuildTime: %v)",
@@ -43,28 +43,28 @@ class TStreamLogWriterBase::TCachingDateFormatter
 public:
     TCachingDateFormatter()
     {
-        Update(TInstant::Now());
+        Update(NProfiling::GetCpuInstant());
     }
 
-    void Format(TMessageBuffer* out, TInstant dateTime)
+    void Format(TMessageBuffer* out, NProfiling::TCpuInstant instant)
     {
-        if (dateTime.MicroSeconds() >= Deadline_) {
-            Update(dateTime);
+        if (instant >= Deadline_) {
+            Update(instant);
         }
         out->AppendString(Cached_.GetData());
     }
 
 private:
-    void Update(TInstant dateTime)
+    void Update(NProfiling::TCpuInstant instant)
     {
         Cached_.Reset();
-        FormatDateTime(&Cached_, dateTime);
+        FormatDateTime(&Cached_,  NProfiling::CpuInstantToInstant(instant));
         Cached_.AppendChar('\0');
-        Deadline_ = dateTime.MicroSeconds() + 1000 - (dateTime.MicroSeconds() % 1000);
+        Deadline_ = instant + NProfiling::DurationToCpuDuration(TDuration::MicroSeconds(500));
     }
 
     TMessageBuffer Cached_;
-    ui64 Deadline_;
+    NProfiling::TCpuInstant Deadline_;
 };
 
 TStreamLogWriterBase::TStreamLogWriterBase()
@@ -84,7 +84,7 @@ void TStreamLogWriterBase::Write(const TLogEvent& event)
     auto* buffer = Buffer_.get();
     buffer->Reset();
 
-    CachingDateFormatter_->Format(buffer, event.DateTime);
+    CachingDateFormatter_->Format(buffer, event.Instant);
     buffer->AppendChar('\t');
 
     FormatLevel(buffer, event.Level);

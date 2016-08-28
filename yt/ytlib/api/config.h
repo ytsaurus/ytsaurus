@@ -85,7 +85,6 @@ public:
     std::vector<TMasterConnectionConfigPtr> SecondaryMasters;
     TMasterConnectionConfigPtr MasterCache;
     bool EnableReadFromFollowers;
-    bool ForceReadFromFollowers;
     NTransactionClient::TRemoteTimestampProviderConfigPtr TimestampProvider;
     NHiveClient::TCellDirectoryConfigPtr CellDirectory;
     NScheduler::TSchedulerConnectionConfigPtr Scheduler;
@@ -120,6 +119,8 @@ public:
 
     int LightPoolSize;
     int HeavyPoolSize;
+
+    int MaxConcurrentRequests;
 
     TNativeConnectionConfig();
 

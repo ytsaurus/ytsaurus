@@ -35,7 +35,8 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedColumnReader(
         case EValueType::Boolean:
             return CreateUnversionedBooleanColumnReader(meta, columnIndex, columnId);
 
-        // Unversioned columns of any type are not supported.
+        case EValueType::Any:
+            return CreateUnversionedAnyColumnReader(meta, columnIndex, columnId);
 
         default:
             Y_UNREACHABLE();

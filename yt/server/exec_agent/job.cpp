@@ -93,6 +93,7 @@ public:
         }
 
         Invoker_ = Bootstrap_->GetControlInvoker();
+        InitializeArtifacts();
 
         Logger.AddTag("JobId: %v, OperationId: %v, JobType: %v",
             Id_,
@@ -103,46 +104,83 @@ public:
     virtual void Start() override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
-        YCHECK(JobState_ == EJobState::Waiting);
 
-        auto slotManager = Bootstrap_->GetExecSlotManager();
-        try {
-            Slot_ = slotManager->AcquireSlot();
-        } catch (const std::exception& ex) {
-            YCHECK(!slotManager->IsEnabled());
+        switch (JobPhase_) {
+            case EJobPhase::Created:
+                break;
 
-            DoSetResult(TError(ex));
-            FinalizeJob();
-            return;
+            default:
+                LOG_DEBUG("Cannot start job (JobState: %lv, JobPhase: %lv)", JobState_, JobPhase_);
+                return;
         }
 
-        JobState_ = EJobState::Running;
+        GuardedAction([&] () {
+            JobState_ = EJobState::Running;
+            PrepareTime_ = TInstant::Now();
 
-        auto invoker = CancelableContext_->CreateInvoker(Invoker_);
-        BIND(&TJob::DoStart, MakeWeak(this))
-            .Via(invoker)
-            .Run();
+            auto slotManager = Bootstrap_->GetExecSlotManager();
+            Slot_ = slotManager->AcquireSlot();
+
+            JobPhase_ = EJobPhase::DownloadingArtifacts;
+            auto artifactsFuture = DownloadArtifacts();
+            artifactsFuture.Subscribe(BIND(
+                &TJob::OnArtifactsDownloaded,
+                MakeWeak(this))
+            .Via(Invoker_));
+            ArtifactsFuture_ = artifactsFuture.As<void>();
+        });
     }
 
     virtual void Abort(const TError& error) override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
-        LOG_INFO("Aborting job");
+        LOG_INFO(error, "Job abort requested");
 
-        CancelableContext_->Cancel();
+        switch (JobPhase_) {
+            case EJobPhase::Created:
+            case EJobPhase::DownloadingArtifacts:
+            case EJobPhase::Running:
+                JobState_ = EJobState::Aborting;
+                ArtifactsFuture_.Cancel();
+                DoSetResult(error);
+                Cleanup();
+                break;
 
-        // Do not start cleanup if preparation is still in progress.
-        WaitFor(PrepareResult_);
+            case EJobPhase::PreparingDirectories:
+            case EJobPhase::PreparingArtifacts:
+            case EJobPhase::PreparingProxy:
+                // Wait for the next event handler to complete the abortion.
+                JobState_ = EJobState::Aborting;
+                JobPhase_ = EJobPhase::WaitingAbort;
+                DoSetResult(error);
+                Slot_->CancelPreparation();
+                break;
 
-        if (JobState_ != EJobState::Waiting && JobState_ != EJobState::Running) {
-            return;
+            default:
+                LOG_DEBUG("Cannot abort job (JobState: %v, JobPhase: %v)", JobState_, JobPhase_);
+                break;
         }
+    }
 
-        LOG_INFO("Finalize aborted job");
-        DoSetResult(error);
+    virtual void OnJobPrepared() override
+    {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
 
-        Cleanup();
+        GuardedAction([&] () {
+            ValidateJobPhase(EJobPhase::PreparingProxy);
+            JobPhase_ = EJobPhase::Running;
+        });
+    }
+
+    virtual void SetResult(const TJobResult& jobResult) override
+    {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+
+        GuardedAction([&] () {
+            JobPhase_ = EJobPhase::FinalizingProxy;
+            DoSetResult(jobResult);
+        });
     }
 
     virtual const TJobId& GetId() const override
@@ -187,7 +225,7 @@ public:
         }
     }
 
-    virtual TNullable<TDuration> GetExecDuration() const override 
+    virtual TNullable<TDuration> GetExecDuration() const override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
         if (!ExecTime_) {
@@ -198,7 +236,7 @@ public:
             return *FinishTime_ - *ExecTime_;
         }
     }
-    
+
     virtual EJobPhase GetPhase() const override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
@@ -226,26 +264,17 @@ public:
     virtual void SetResourceUsage(const TNodeResources& newUsage) override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
-        if (JobState_ == EJobState::Running) {
+        if (JobPhase_ == EJobPhase::Running) {
             auto delta = newUsage - ResourceUsage_;
             ResourceUsage_ = newUsage;
             ResourcesUpdated_.Fire(delta);
-        }
-
-    }
-
-    virtual void SetResult(const TJobResult& jobResult) override
-    {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
-        if (JobState_ == EJobState::Running) {
-            DoSetResult(jobResult);
         }
     }
 
     virtual void SetProgress(double progress) override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
-        if (JobState_ == EJobState::Running) {
+        if (JobPhase_ == EJobPhase::Running) {
             Progress_ = progress;
         }
     }
@@ -255,7 +284,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControllerThread);
         return Statistics_;
     }
-    
+
     virtual TInstant GetStatisticsLastSendTime() const override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
@@ -271,15 +300,9 @@ public:
     virtual void SetStatistics(const TYsonString& statistics) override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
-        if (JobState_ == EJobState::Running) {
+        if (JobPhase_ == EJobPhase::Running || JobPhase_ == EJobPhase::FinalizingProxy) {
             Statistics_ = statistics;
         }
-    }
-
-    virtual bool ShouldSendStatistics() const override 
-    {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
-        return true;
     }
 
     virtual std::vector<TChunkId> DumpInputContext() override
@@ -355,15 +378,14 @@ private:
     IInvokerPtr Invoker_;
     TJobSpec JobSpec_;
 
-    TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();
-
-    TFuture<void> PrepareResult_ = VoidFuture;
+    // Used to terminate artifacts downloading in case of cancelation.
+    TFuture<void> ArtifactsFuture_ = VoidFuture;
 
     double Progress_ = 0.0;
 
     TYsonString Statistics_;
     TInstant StatisticsLastSendTime_ = TInstant::Now();
-    
+
     bool Signaled_ = false;
 
     TNullable<TJobResult> JobResult_;
@@ -376,7 +398,17 @@ private:
     ISlotPtr Slot_;
     TNullable<Stroka> TmpfsPath_;
 
-    std::vector<NDataNode::IChunkPtr> CachedChunks_;
+    struct TArtifact
+    {
+        ESandboxKind SandboxKind;
+        Stroka Name;
+        bool IsExecutable;
+        TArtifactKey Key;
+        NDataNode::IChunkPtr Chunk;
+    };
+
+    std::vector<TArtifact> Artifacts_;
+
     TNodeDirectoryPtr AuxNodeDirectory_ = New<TNodeDirectory>();
 
     TNodeResources ResourceUsage_;
@@ -390,9 +422,10 @@ private:
 
     void ValidateJobRunning() const
     {
-        if (GetState() != EJobState::Running) {
+        if (JobPhase_ != EJobPhase::Running) {
             THROW_ERROR_EXCEPTION("Job %v is not running", Id_)
-                << TErrorAttribute("job_state", FormatEnum(JobState_));
+                << TErrorAttribute("job_state", JobState_)
+                << TErrorAttribute("job_phase", JobPhase_);
         }
     }
 
@@ -418,67 +451,162 @@ private:
         FinishTime_ = TInstant::Now();
     }
 
-    void DoStart()
+    bool HandleFinishingPhase()
+    {
+        switch (JobPhase_) {
+            case EJobPhase::WaitingAbort:
+                Cleanup();
+                return true;
+
+            case EJobPhase::Cleanup:
+            case EJobPhase::Finished:
+                return true;
+
+            case EJobPhase::Created:
+                YCHECK(JobState_ == EJobState::Waiting);
+                return false;
+
+            default:
+                YCHECK(JobState_ == EJobState::Running);
+                return false;
+        }
+    }
+
+    void ValidateJobPhase(EJobPhase expectedPhase)
+    {
+        if (JobPhase_ != expectedPhase) {
+            THROW_ERROR_EXCEPTION("Unexpected job phase")
+                << TErrorAttribute("expected_phase", expectedPhase)
+                << TErrorAttribute("actual_phase", JobPhase_);
+        }
+    }
+
+    // Event handlers.
+
+    void OnArtifactsDownloaded(const TErrorOr<std::vector<NDataNode::IChunkPtr>>& errorOrArtifacts)
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
-        try {
-            JobState_ = EJobState::Running;
 
-            // Preparation involves tools invocation which is uncancelable,
-            // so we do it outside of the cancellable invoker.
-            PrepareResult_ = BIND(&TJob::Prepare, MakeWeak(this))
-                .AsyncVia(Invoker_)
-                .Run();
+        GuardedAction([&] () {
+            ValidateJobPhase(EJobPhase::DownloadingArtifacts);
+            THROW_ERROR_EXCEPTION_IF_FAILED(errorOrArtifacts, "Failed to download artifacts")
+            const auto& chunks = errorOrArtifacts.Value();
 
-            WaitFor(PrepareResult_)
-                .ThrowOnError();
-
-            JobPhase_ = EJobPhase::Running;
-            ExecTime_ = TInstant::Now();
-
-            auto jobProxyError = BuildJobProxyError(WaitFor(Slot_->RunJobProxy(
-                CreateConfig(),
-                Id_,
-                OperationId_)));
-
-            THROW_ERROR_EXCEPTION_IF_FAILED(jobProxyError, "Job proxy failed");
-        } catch (const std::exception& ex) {
-            if (JobState_ != EJobState::Running) {
-                YCHECK(JobState_ == EJobState::Aborting);
-                return;
+            for (size_t index = 0; index < Artifacts_.size(); ++index) {
+                Artifacts_[index].Chunk = chunks[index];
             }
 
-            LOG_ERROR(ex, "Scheduler job failed");
-            DoSetResult(ex);
+            JobPhase_ = EJobPhase::PreparingDirectories;
+            BIND(&TJob::PrepareDirectories, MakeStrong(this))
+                .AsyncVia(Invoker_)
+                .Run()
+                .Subscribe(BIND(
+                    &TJob::OnDirectoriesPrepared,
+                    MakeWeak(this))
+                .Via(Invoker_));
+        });
+    }
+
+    void OnDirectoriesPrepared(const TError& error)
+    {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+
+        GuardedAction([&] () {
+            ValidateJobPhase(EJobPhase::PreparingDirectories);
+            THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to prepare sandbox directories");
+
+            JobPhase_ = EJobPhase::PreparingArtifacts;
+            BIND(&TJob::PrepareArtifacts, MakeWeak(this))
+                .AsyncVia(Invoker_)
+                .Run()
+                .Subscribe(BIND(
+                    &TJob::OnArtifactsPrepared,
+                    MakeWeak(this))
+                .Via(Invoker_));
+        });
+    }
+
+    void OnArtifactsPrepared(const TError& error)
+    {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+
+        GuardedAction([&] () {
+            ValidateJobPhase(EJobPhase::PreparingArtifacts);
+            THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to prepare artifacts");
+
+            ExecTime_ = TInstant::Now();
+            JobPhase_ = EJobPhase::PreparingProxy;
+
+            BIND(
+                &ISlot::RunJobProxy,
+                Slot_,
+                CreateConfig(),
+                Id_,
+                OperationId_)
+            .AsyncVia(Invoker_)
+            .Run()
+            .Subscribe(BIND(
+                &TJob::OnJobProxyFinished,
+                MakeWeak(this))
+            .Via(Invoker_));
+        });
+    }
+
+    void OnJobProxyFinished(const TError& error)
+    {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+
+        if (HandleFinishingPhase()) {
+            return;
         }
 
-        // Do cleanup in separate action since Run can be cancelled.
-        BIND(&TJob::Cleanup, MakeStrong(this))
-            .Via(Invoker_)
-            .Run();
+        if (!error.IsOK()) {
+            DoSetResult(TError("Job proxy failed") << error);
+        }
+
+        Cleanup();
+    }
+
+    void GuardedAction(std::function<void()> action)
+    {
+        if (HandleFinishingPhase()) {
+            return;
+        }
+
+        try {
+            TContextSwitchedGuard contextSwitchGuard(BIND([] { Y_UNREACHABLE(); }));
+            action();
+        } catch (const std::exception& ex) {
+            DoSetResult(ex);
+            Cleanup();
+        }
     }
 
     // Finalization.
-
     void Cleanup()
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
+
         if (JobPhase_ == EJobPhase::Cleanup || JobPhase_ == EJobPhase::Finished) {
             return;
         }
 
+        FinishTime_ = TInstant::Now();
         JobPhase_ = EJobPhase::Cleanup;
-        try {
-            Slot_->Cleanup();
+
+        if (Slot_) {
+            try {
+                Slot_->Cleanup();
+            } catch (const std::exception& ex) {
+                // Errors during cleanup phase do not affect job outcome.
+                LOG_ERROR(ex, "Failed to clean up slot %v", Slot_->GetSlotIndex());
+            }
+
             Bootstrap_->GetExecSlotManager()->ReleaseSlot(Slot_->GetSlotIndex());
-        } catch (const std::exception& ex) {
-            // Errors during cleanup phase do not affert job outcome.
-            LOG_ERROR(ex, "Failed to clean up slot %v", Slot_->GetSlotIndex());
         }
 
-        FinalizeJob();
-
         JobPhase_ = EJobPhase::Finished;
+        FinalizeJob();
     }
 
     void FinalizeJob()
@@ -488,7 +616,10 @@ private:
 
         auto resourceDelta = ZeroNodeResources() - ResourceUsage_;
         ResourceUsage_ = ZeroNodeResources();
-        ResourcesUpdated_.Fire(resourceDelta);
+
+        if (JobState_ != EJobState::Waiting) {
+            ResourcesUpdated_.Fire(resourceDelta);
+        }
 
         auto error = FromProto<TError>(JobResult_->error());
 
@@ -516,21 +647,6 @@ private:
     }
 
     // Preparation.
-
-    void Prepare()
-    {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
-        YCHECK(JobPhase_ == EJobPhase::Created);
-
-        // We prepare tmpfs before user files, since files may be linked/copied into tmpfs.
-        JobPhase_ = EJobPhase::PreparingTmpfs;
-        PrepareTmpfs();
-        YCHECK(JobPhase_ == EJobPhase::PreparingTmpfs);
-
-        JobPhase_ = EJobPhase::PreparingFiles;
-        PrepareUserFiles();
-        YCHECK(JobPhase_ == EJobPhase::PreparingFiles);
-    }
 
     TJobProxyConfigPtr CreateConfig()
     {
@@ -561,36 +677,41 @@ private:
         return proxyConfig;
     }
 
-    void PrepareTmpfs()
+    void PrepareDirectories()
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
+
+        WaitFor(Slot_->CreateSandboxDirectories())
+            .ThrowOnError();
+
         const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         if (schedulerJobSpecExt.has_user_job_spec()) {
             const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
-            if (userJobSpec.has_tmpfs_path()) {
-                Slot_->PrepareTmpfs(ESandboxKind::User, userJobSpec.tmpfs_size(), userJobSpec.tmpfs_path());
+            if (userJobSpec.has_tmpfs_path() && Bootstrap_->GetConfig()->ExecAgent->SlotManager->EnableTmpfs) {
+                TmpfsPath_ = WaitFor(Slot_->PrepareTmpfs(
+                    ESandboxKind::User,
+                    userJobSpec.tmpfs_size(),
+                    userJobSpec.tmpfs_path()))
+                .ValueOrThrow();
             }
         }
     }
 
-    void PrepareUserFiles()
+    void InitializeArtifacts()
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
         const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
         if (schedulerJobSpecExt.has_user_job_spec()) {
             const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
-
-            std::vector<TArtifactInfo> infos;
             for (const auto& descriptor : userJobSpec.files()) {
-                infos.push_back(TArtifactInfo{
+                Artifacts_.push_back(TArtifact{
+                    ESandboxKind::User,
                     descriptor.file_name(),
                     descriptor.executable(),
-                    TArtifactKey(descriptor)});
-
+                    TArtifactKey(descriptor),
+                    nullptr});
             }
-
-            PrepareFiles(ESandboxKind::User, infos);
         }
 
         if (schedulerJobSpecExt.has_input_query_spec()) {
@@ -598,35 +719,33 @@ private:
 
             AuxNodeDirectory_->MergeFrom(querySpec.node_directory());
 
-            std::vector<TArtifactInfo> infos;
             for (const auto& function : querySpec.external_functions()) {
                 TArtifactKey key;
                 key.set_type(static_cast<int>(NObjectClient::EObjectType::File));
                 key.mutable_chunks()->MergeFrom(function.chunk_specs());
 
-                infos.push_back(TArtifactInfo{
+                Artifacts_.push_back(TArtifact{
+                    ESandboxKind::Udf,
                     function.name(),
                     false,
-                    key});
+                    key,
+                    nullptr});
             }
-
-            PrepareFiles(ESandboxKind::Udf, infos);
         }
     }
 
-    void PrepareFiles(ESandboxKind sandboxKind, const std::vector<TArtifactInfo>& infos)
+    TFuture<std::vector<NDataNode::IChunkPtr>> DownloadArtifacts()
     {
-        VERIFY_THREAD_AFFINITY(ControllerThread);
         auto chunkCache = Bootstrap_->GetChunkCache();
 
         std::vector<TFuture<IChunkPtr>> asyncChunks;
-        for (const auto& info : infos) {
-            LOG_INFO("Preparing user file (FileName: %v, Executable: %v)",
-                info.Name,
-                info.IsExecutable);
+        for (const auto& artifact : Artifacts_) {
+            LOG_INFO("Downloading user file (FileName: %v, SandboxKind: %v)",
+                artifact.Name,
+                artifact.SandboxKind);
 
-            auto asyncChunk = chunkCache->PrepareArtifact(info.Key, AuxNodeDirectory_)
-                .Apply(BIND([fileName = info.Name] (const TErrorOr<IChunkPtr>& chunkOrError) {
+            auto asyncChunk = chunkCache->PrepareArtifact(artifact.Key, AuxNodeDirectory_)
+                .Apply(BIND([fileName = artifact.Name] (const TErrorOr<IChunkPtr>& chunkOrError) {
                     THROW_ERROR_EXCEPTION_IF_FAILED(chunkOrError,
                         "Failed to prepare user file %Qv",
                         fileName);
@@ -638,48 +757,47 @@ private:
             asyncChunks.push_back(asyncChunk);
         }
 
-        auto chunks = WaitFor(Combine(asyncChunks))
-            .ValueOrThrow();
+        return Combine(asyncChunks);
+    }
 
-        CachedChunks_.insert(CachedChunks_.end(), chunks.begin(), chunks.end());
-
+    //! Putting files to sandbox.
+    void PrepareArtifacts()
+    {
         const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         bool copyFiles = schedulerJobSpecExt.has_user_job_spec() && schedulerJobSpecExt.user_job_spec().copy_files();
 
-        for (size_t index = 0; index < chunks.size(); ++index) {
-            const auto& info = infos[index];
-            const auto& chunk = chunks[index];
+        for (const auto& artifact : Artifacts_) {
+            YCHECK(artifact.Chunk);
 
             if (copyFiles) {
-                try {
-                    Slot_->MakeCopy(
-                        sandboxKind,
-                        chunk->GetFileName(),
-                        info.Name,
-                        info.IsExecutable);
-                } catch (const std::exception& ex) {
-                    THROW_ERROR_EXCEPTION(
-                        "Failed to create a copy of user file %Qv",
-                        info.Name)
-                        << ex;
-                }
+                LOG_INFO("Copying artifact (FileName: %v, IsExecutable: %v, SandboxKind: %v)",
+                    artifact.Name,
+                    artifact.IsExecutable,
+                    artifact.SandboxKind);
+
+                WaitFor(Slot_->MakeCopy(
+                    artifact.SandboxKind,
+                    artifact.Chunk->GetFileName(),
+                    artifact.Name,
+                    artifact.IsExecutable))
+                .ThrowOnError();
             } else {
-                try {
-                    Slot_->MakeLink(
-                        sandboxKind,
-                        chunk->GetFileName(),
-                        info.Name,
-                        info.IsExecutable);
-                } catch (const std::exception& ex) {
-                    THROW_ERROR_EXCEPTION(
-                        "Failed to create a symlink for user file %Qv",
-                        info.Name)
-                        << ex;
-                }
+                LOG_INFO("Making symlink for artifact (FileName: %v, IsExecutable: %v, SandboxKind: %v)",
+                    artifact.Name,
+                    artifact.IsExecutable,
+                    artifact.SandboxKind);
+
+                WaitFor(Slot_->MakeLink(
+                    artifact.SandboxKind,
+                    artifact.Chunk->GetFileName(),
+                    artifact.Name,
+                    artifact.IsExecutable))
+                .ThrowOnError();
             }
 
-            LOG_INFO("User file prepared successfully (FileName: %v)",
-                info.Name);
+            LOG_INFO("Artifact prepared successfully (FileName: %v, SandboxKind: %v)",
+                artifact.Name,
+                artifact.SandboxKind);
         }
     }
 
@@ -717,6 +835,10 @@ private:
         auto resultError = FromProto<TError>(jobResult.error());
         if (resultError.FindMatching(NExecAgent::EErrorCode::ResourceOverdraft)) {
             return EAbortReason::ResourceOverdraft;
+        }
+
+        if (resultError.FindMatching(NExecAgent::EErrorCode::WaitingJobTimeout)) {
+            return EAbortReason::WaitingTimeout;
         }
 
         if (resultError.FindMatching(NExecAgent::EErrorCode::AbortByScheduler)) {

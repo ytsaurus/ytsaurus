@@ -1,3 +1,4 @@
+#pragma once
 #ifndef PARTITION_CHUNK_READER_INL_H_
 #error "Direct inclusion of this file is not allowed, include partition_chunk_reader.h"
 #endif

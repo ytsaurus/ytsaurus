@@ -24,6 +24,7 @@ std::vector<Stroka> GetProcessCommandLine(int pid);
 TError StatusToError(int status);
 
 void RemoveDirAsRoot(const Stroka& path);
+void RemoveDirContentAsRoot(const Stroka& path);
 
 bool TryClose(int fd, bool ignoreBadFD = true);
 void SafeClose(int fd, bool ignoreBadFD = true);
@@ -54,6 +55,7 @@ void SafeSetUid(int uid);
 
 Stroka SafeGetUsernameByUid(int uid);
 
+void SetPermissions(const Stroka& path, int permissions);
 void SetPermissions(int fd, int permissions);
 
 void CloseAllDescriptors(const std::vector<int>& exceptFor = std::vector<int>());
@@ -78,6 +80,13 @@ struct TRemoveDirAsRootTool
 struct TKillAllByUidTool
 {
     void operator()(int uid) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TRemoveDirContentAsRootTool
+{
+    void operator()(const Stroka& arg) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -111,9 +120,27 @@ struct TMountTmpfsAsRootTool
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TUmountConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    Stroka Path;
+    bool Detach;
+
+    TUmountConfig()
+    {
+        RegisterParameter("path", Path);
+        RegisterParameter("detach", Detach);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TUmountConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TUmountAsRootTool
 {
-    void operator()(const Stroka& arg) const;
+    void operator()(TUmountConfigPtr config) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

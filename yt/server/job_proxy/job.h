@@ -39,6 +39,8 @@ struct IJobHost
 
     virtual NApi::INativeClientPtr GetClient() const = 0;
 
+    virtual void OnPrepared() = 0;
+
     virtual NChunkClient::IBlockCachePtr GetBlockCache() const = 0;
 
     virtual NNodeTrackerClient::TNodeDirectoryPtr GetInputNodeDirectory() const = 0;

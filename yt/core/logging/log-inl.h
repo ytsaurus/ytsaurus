@@ -1,7 +1,10 @@
+#pragma once
 #ifndef LOG_INL_H_
 #error "Direct inclusion of this file is not allowed, include log.h"
 #endif
 #undef LOG_INL_H_
+
+#include <yt/core/profiling/timing.h>
 
 namespace NYT {
 namespace NLogging {
@@ -47,13 +50,13 @@ void LogEventImpl(
     int line,
     const char* function,
     ELogLevel level,
-    const Stroka& message)
+    Stroka message)
 {
     TLogEvent event;
-    event.DateTime = TInstant::Now();
+    event.Instant = NProfiling::GetCpuInstant();
     event.Category = logger.GetCategory();
     event.Level = level;
-    event.Message = message;
+    event.Message = std::move(message);
     event.FileName = fileName;
     event.Line = line;
     event.ThreadId = TThread::CurrentThreadId();

@@ -43,7 +43,7 @@ DEFINE_REFCOUNTED_TYPE(TPartitionSnapshot)
 
 class TPartition
     : public TObjectBase
-    , public TRefTracked<TTablet>
+    , public TRefTracked<TPartition>
 {
 public:
     static const int EdenIndex = -1;

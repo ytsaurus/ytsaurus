@@ -49,11 +49,7 @@ void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
         ? MakeNullable(request->limit())
         : Null;
 
-    bool ignoreOpaque = request->ignore_opaque();
-
-    context->SetRequestInfo("Limit: %v, IgnoreOpaque: %v",
-        limit,
-        ignoreOpaque);
+    context->SetRequestInfo("Limit: %v", limit);
 
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
 
@@ -63,8 +59,7 @@ void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
         this,
         &writer,
         attributeKeys,
-        false,
-        ignoreOpaque);
+        false);
 
     writer.Finish().Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
         if (resultOrError.IsOK()) {

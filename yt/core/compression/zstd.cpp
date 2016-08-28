@@ -5,7 +5,7 @@
 #include <yt/core/misc/finally.h>
 
 #define ZSTD_STATIC_LINKING_ONLY
-#include <yt/contrib/zstd/lib/common/zstd.h>
+#include <contrib/libs/zstd07/common/zstd.h>
 
 namespace NYT {
 namespace NCompression {

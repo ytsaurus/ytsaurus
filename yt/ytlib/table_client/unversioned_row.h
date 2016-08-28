@@ -413,6 +413,9 @@ void Serialize(const TOwningKey& key, NYson::IYsonConsumer* consumer);
 
 void Deserialize(TOwningKey& key, NYTree::INodePtr node);
 
+size_t GetYsonSize(const TUnversionedValue& value);
+size_t WriteYson(char* buffer, const TUnversionedValue& unversionedValue);
+
 Stroka ToString(TUnversionedRow row);
 Stroka ToString(TMutableUnversionedRow row);
 Stroka ToString(const TUnversionedOwningRow& row);
@@ -683,6 +686,8 @@ TUnversionedOwningRow BuildRow(
     const Stroka& yson,
     const TTableSchema& tableSchema,
     bool treatMissingAsNull = true);
+
+TUnversionedOwningRow BuildKey(const Stroka& yson);
 
 ////////////////////////////////////////////////////////////////////////////////
 

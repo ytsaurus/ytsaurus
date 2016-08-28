@@ -4,6 +4,7 @@
 
 #include <yt/server/cell_node/public.h>
 
+#include <yt/core/actions/public.h>
 #include <yt/core/concurrency/public.h>
 
 namespace NYT {
@@ -37,7 +38,6 @@ private:
     const NCellNode::TBootstrap* Bootstrap_;
     const Stroka NodeTag_;
 
-    NConcurrency::TActionQueuePtr LocationQueue_;
     std::vector<TSlotLocationPtr> Locations_;
     std::vector<TSlotLocationPtr> AliveLocations_;
 

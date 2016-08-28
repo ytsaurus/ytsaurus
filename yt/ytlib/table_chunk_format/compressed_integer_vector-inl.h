@@ -1,4 +1,5 @@
 #pragma once
+#pragma once
 
 #if !defined(INCLUDE_COMPRESSED_INTEGER_VECTOR_INL_H)
 #error "you should never include compressed_integer_vector-inl.h directly"
@@ -265,6 +266,10 @@ void TCompressedUnsignedVectorReader<T, Scan>::UnpackValuesAligned()
 template <class T, bool Scan>
 void TCompressedUnsignedVectorReader<T, Scan>::UnpackValues()
 {
+    if (Size_ == 0) {
+        return;
+    }
+
     // Zero-copy path.
     if (Width_ ==  8 && sizeof(T) == 1 ||
         Width_ == 16 && sizeof(T) == 2 ||

@@ -1,7 +1,6 @@
 #include "samples_fetcher.h"
 
 #include <yt/ytlib/chunk_client/config.h>
-#include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/input_chunk.h>
 
@@ -100,12 +99,12 @@ const std::vector<TSample>& TSamplesFetcher::GetSamples() const
 
 TFuture<void> TSamplesFetcher::FetchFromNode(TNodeId nodeId, std::vector<int> chunkIndexes)
 {
-    return BIND(&TSamplesFetcher::DoFetchFromNode, MakeWeak(this), nodeId, Passed(std::move(chunkIndexes)))
+    return BIND(&TSamplesFetcher::DoFetchFromNode, MakeStrong(this), nodeId, Passed(std::move(chunkIndexes)))
         .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
         .Run();
 }
 
-void TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, std::vector<int> chunkIndexes)
+TFuture<void> TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector<int>& chunkIndexes)
 {
     TDataNodeServiceProxy proxy(GetNodeChannel(nodeId));
     proxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
@@ -144,11 +143,20 @@ void TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, std::vector<int> chunkInde
         }
     }
 
-    if (req->sample_requests_size() == 0)
-        return;
+    if (req->sample_requests_size() == 0) {
+        return VoidFuture;
+    }
 
-    auto rspOrError = WaitFor(req->Invoke());
+    return req->Invoke().Apply(
+        BIND(&TSamplesFetcher::OnResponse, MakeStrong(this), nodeId, Passed(std::move(requestedChunkIndexes)))
+            .AsyncVia(Invoker_));
+}
 
+void TSamplesFetcher::OnResponse(
+    TNodeId nodeId,
+    const std::vector<int>& requestedChunkIndexes,
+    const TDataNodeServiceProxy::TErrorOrRspGetTableSamplesPtr& rspOrError)
+{
     if (!rspOrError.IsOK()) {
         LOG_WARNING("Failed to get samples from node (Address: %v, NodeId: %v)",
             NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),

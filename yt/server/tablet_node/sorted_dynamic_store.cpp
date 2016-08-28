@@ -157,10 +157,12 @@ class TSortedDynamicStore::TReaderBase
 public:
     explicit TReaderBase(
         TSortedDynamicStorePtr store,
+        TTabletSnapshotPtr tabletSnapshot,
         TTimestamp timestamp,
         ui32 revision,
         const TColumnFilter& columnFilter)
         : Store_(std::move(store))
+        , TabletSnapshot_(std::move(tabletSnapshot))
         , Timestamp_(timestamp)
         , Revision_(revision)
         , ColumnFilter_(columnFilter)
@@ -184,6 +186,7 @@ public:
 
 protected:
     const TSortedDynamicStorePtr Store_;
+    const TTabletSnapshotPtr TabletSnapshot_;
     const TTimestamp Timestamp_;
     const ui32 Revision_;
     const TColumnFilter ColumnFilter_;
@@ -248,42 +251,41 @@ protected:
         // Prepare values.
         VersionedValues_.clear();
 
-        {
-            const auto& schema = Store_->GetTablet()->Schema();
+        const auto& schemaColumns = TabletSnapshot_->TableSchema.Columns();
 
-            auto fillValue = [&] (int index) {
-                // NB: Inserting a new item into value list and adding a new write revision cannot
-                // be done atomically. We always append values before revisions but in the middle of these
-                // two steps there might be "phantom" values present in the row.
-                // To work this around, we cap the value lists by #latestWriteTimestamp to make sure that
-                // no "phantom" value is listed.
-                auto list = dynamicRow.GetFixedValueList(index, KeyColumnCount_, ColumnLockCount_);
-                if (schema.Columns()[index].Aggregate) {
-                    ExtractByTimestamp(
-                        list,
-                        latestDeleteTimestamp,
-                        latestWriteTimestamp,
-                            [&] (const TDynamicValue& value) {
-                            VersionedValues_.push_back(TVersionedValue());
-                            ProduceVersionedValue(&VersionedValues_.back(), index, value);
-                        });
-                } else {
-                    const auto* value = SearchByTimestamp(list, latestWriteTimestamp);
-                    if (value && Store_->TimestampFromRevision(value->Revision) > latestDeleteTimestamp) {
+        auto fillValue = [&] (int index) {
+            // NB: Inserting a new item into value list and adding a new write revision cannot
+            // be done atomically. We always append values before revisions but in the middle of these
+            // two steps there might be "phantom" values present in the row.
+            // To work this around, we cap the value lists by #latestWriteTimestamp to make sure that
+            // no "phantom" value is listed.
+            auto list = dynamicRow.GetFixedValueList(index, KeyColumnCount_, ColumnLockCount_);
+            if (schemaColumns[index].Aggregate) {
+                ExtractByTimestamp(
+                    list,
+                    latestDeleteTimestamp,
+                    latestWriteTimestamp,
+                        [&] (const TDynamicValue& value) {
                         VersionedValues_.push_back(TVersionedValue());
-                        ProduceVersionedValue(&VersionedValues_.back(), index, *value);
-                    }
-                }
-            };
-            if (ColumnFilter_.All) {
-                for (int index = KeyColumnCount_; index < SchemaColumnCount_; ++index) {
-                    fillValue(index);
-                }
+                        ProduceVersionedValue(&VersionedValues_.back(), index, value);
+                    });
             } else {
-                for (int index : ColumnFilter_.Indexes) {
-                    if (index >= KeyColumnCount_) {
-                        fillValue(index);
-                    }
+                const auto* value = SearchByTimestamp(list, latestWriteTimestamp);
+                if (value && Store_->TimestampFromRevision(value->Revision) > latestDeleteTimestamp) {
+                    VersionedValues_.push_back(TVersionedValue());
+                    ProduceVersionedValue(&VersionedValues_.back(), index, *value);
+                }
+            }
+        };
+
+        if (ColumnFilter_.All) {
+            for (int index = KeyColumnCount_; index < SchemaColumnCount_; ++index) {
+                fillValue(index);
+            }
+        } else {
+            for (int index : ColumnFilter_.Indexes) {
+                if (index >= KeyColumnCount_) {
+                    fillValue(index);
                 }
             }
         }
@@ -523,6 +525,7 @@ class TSortedDynamicStore::TRangeReader
 public:
     TRangeReader(
         TSortedDynamicStorePtr store,
+        TTabletSnapshotPtr tabletSnapshot,
         TOwningKey lowerKey,
         TOwningKey upperKey,
         TTimestamp timestamp,
@@ -530,6 +533,7 @@ public:
         const TColumnFilter& columnFilter)
         : TReaderBase(
             std::move(store),
+            std::move(tabletSnapshot),
             timestamp,
             revision,
             columnFilter)
@@ -613,7 +617,6 @@ private:
             ? ProduceAllRowVersions(dynamicRow)
             : ProduceSingleRowVersion(dynamicRow);
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -625,11 +628,13 @@ class TSortedDynamicStore::TLookupReader
 public:
     TLookupReader(
         TSortedDynamicStorePtr store,
+        TTabletSnapshotPtr tabletSnapshot,
         const TSharedRange<TKey>& keys,
         TTimestamp timestamp,
         const TColumnFilter& columnFilter)
         : TReaderBase(
             std::move(store),
+            std::move(tabletSnapshot),
             timestamp,
             MaxRevision,
             columnFilter)
@@ -750,6 +755,7 @@ IVersionedReaderPtr TSortedDynamicStore::CreateFlushReader()
     YCHECK(FlushRevision_ != InvalidRevision);
     return New<TRangeReader>(
         this,
+        nullptr,
         MinKey(),
         MaxKey(),
         AllCommittedTimestamp,
@@ -761,6 +767,7 @@ IVersionedReaderPtr TSortedDynamicStore::CreateSnapshotReader()
 {
     return New<TRangeReader>(
         this,
+        nullptr,
         MinKey(),
         MaxKey(),
         AllCommittedTimestamp,
@@ -1686,7 +1693,7 @@ TTimestamp TSortedDynamicStore::GetMaxTimestamp() const
 }
 
 IVersionedReaderPtr TSortedDynamicStore::CreateReader(
-    const TTabletSnapshotPtr& /*tabletSnapshot*/,
+    const TTabletSnapshotPtr& tabletSnapshot,
     TOwningKey lowerKey,
     TOwningKey upperKey,
     TTimestamp timestamp,
@@ -1696,6 +1703,7 @@ IVersionedReaderPtr TSortedDynamicStore::CreateReader(
     YCHECK(timestamp != AllCommittedTimestamp);
     return New<TRangeReader>(
         this,
+        tabletSnapshot,
         std::move(lowerKey),
         std::move(upperKey),
         timestamp,
@@ -1704,7 +1712,7 @@ IVersionedReaderPtr TSortedDynamicStore::CreateReader(
 }
 
 IVersionedReaderPtr TSortedDynamicStore::CreateReader(
-    const TTabletSnapshotPtr& /*tabletSnapshot*/,
+    const TTabletSnapshotPtr& tabletSnapshot,
     const TSharedRange<TKey>& keys,
     TTimestamp timestamp,
     const TColumnFilter& columnFilter,
@@ -1713,6 +1721,7 @@ IVersionedReaderPtr TSortedDynamicStore::CreateReader(
     YCHECK(timestamp != AllCommittedTimestamp);
     return New<TLookupReader>(
         this,
+        tabletSnapshot,
         keys,
         timestamp,
         columnFilter);

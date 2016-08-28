@@ -10,6 +10,8 @@
 #include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/helpers.h>
 
+#include <yt/ytlib/security_client/public.h>
+
 #include <yt/ytlib/ypath/rich.h>
 
 #include <yt/core/rpc/config.h>
@@ -103,6 +105,9 @@ public:
     //! Acl used for intermediate tables and stderrs.
     NYTree::IListNodePtr IntermediateDataAcl;
 
+    //! Account for job nodes and operation files (stderrs and input contexts of failed jobs).
+    Stroka JobNodeAccount;
+
     //! What to do during initialization if some chunks are unavailable.
     EUnavailableChunkAction UnavailableChunkStrategy;
 
@@ -156,6 +161,9 @@ public:
                         .EndList()
                     .EndMap()
                 .EndList()->AsList());
+
+        RegisterParameter("job_node_account", JobNodeAccount)
+            .Default(NSecurityClient::TmpAccountName);
 
         RegisterParameter("unavailable_chunk_strategy", UnavailableChunkStrategy)
             .Default(EUnavailableChunkAction::Wait);
@@ -275,7 +283,8 @@ public:
         RegisterParameter("cpu_limit", CpuLimit)
             .Default(1);
         RegisterParameter("memory_limit", MemoryLimit)
-            .Default((i64) 512 * 1024 * 1024);
+            .Default((i64) 512 * 1024 * 1024)
+            .GreaterThan(0);
         RegisterParameter("memory_reserve_factor", MemoryReserveFactor)
             .Default(0.5)
             .GreaterThan(0.)
@@ -313,6 +322,11 @@ public:
                 THROW_ERROR_EXCEPTION("Size of tmpfs must be less than or equal to memory limit")
                     << TErrorAttribute("tmpfs_size", *TmpfsSize)
                     << TErrorAttribute("memory_limit", MemoryLimit);
+            }
+            // Memory reserve should greater than or equal to tmpfs_size (see YT-5518 for more details).
+            if (TmpfsPath) {
+                i64 tmpfsSize = TmpfsSize ? *TmpfsSize : MemoryLimit;
+                MemoryReserveFactor = std::min(1.0, std::max(MemoryReserveFactor, double(tmpfsSize) / MemoryLimit));
             }
         });
     }
@@ -364,6 +378,7 @@ public:
     i64 DataSizePerJob;
 
     TNullable<int> JobCount;
+    TNullable<int> MaxJobCount;
 
     TDuration LocalityTimeout;
     TJobIOConfigPtr JobIO;
@@ -378,6 +393,9 @@ public:
             .Default((i64) 256 * 1024 * 1024)
             .GreaterThan(0);
         RegisterParameter("job_count", JobCount)
+            .Default()
+            .GreaterThan(0);
+        RegisterParameter("max_job_count", MaxJobCount)
             .Default()
             .GreaterThan(0);
         RegisterParameter("locality_timeout", LocalityTimeout)
@@ -460,6 +478,7 @@ public:
     NYPath::TRichYPath OutputTablePath;
     bool CombineChunks;
     bool ForceTransform;
+    ESchemaInferenceMode SchemaInferenceMode;
 
     TUnorderedMergeOperationSpec()
     {
@@ -468,6 +487,8 @@ public:
             .Default(false);
         RegisterParameter("force_transform", ForceTransform)
             .Default(false);
+        RegisterParameter("schema_inference_mode", SchemaInferenceMode)
+            .Default(ESchemaInferenceMode::Auto);
     }
 
     virtual void OnLoaded() override
@@ -497,6 +518,8 @@ public:
     bool ForceTransform;
     NTableClient::TKeyColumns MergeBy;
 
+    ESchemaInferenceMode SchemaInferenceMode;
+
     TMergeOperationSpec()
     {
         RegisterParameter("input_table_paths", InputTablePaths)
@@ -510,6 +533,8 @@ public:
             .Default(false);
         RegisterParameter("merge_by", MergeBy)
             .Default();
+        RegisterParameter("schema_inference_mode", SchemaInferenceMode)
+            .Default(ESchemaInferenceMode::Auto);
     }
 
     virtual void OnLoaded() override
@@ -538,12 +563,15 @@ class TEraseOperationSpec
 public:
     NYPath::TRichYPath TablePath;
     bool CombineChunks;
+    ESchemaInferenceMode SchemaInferenceMode;
 
     TEraseOperationSpec()
     {
         RegisterParameter("table_path", TablePath);
         RegisterParameter("combine_chunks", CombineChunks)
             .Default(false);
+        RegisterParameter("schema_inference_mode", SchemaInferenceMode)
+            .Default(ESchemaInferenceMode::Auto);
     }
 
     virtual void OnLoaded() override
@@ -778,6 +806,8 @@ public:
     // For sorted_merge and unordered_merge jobs.
     TLogDigestConfigPtr MergeJobProxyMemoryDigest;
 
+    ESchemaInferenceMode SchemaInferenceMode;
+
     TSortOperationSpec()
     {
         RegisterParameter("output_table_path", OutputTablePath);
@@ -809,6 +839,8 @@ public:
 
         RegisterParameter("merge_job_proxy_memory_digest", MergeJobProxyMemoryDigest)
             .Default(New<TLogDigestConfig>(0.5, 2.0, 1.0));
+        RegisterParameter("schema_inference_mode", SchemaInferenceMode)
+            .Default(ESchemaInferenceMode::Auto);
 
         RegisterInitializer([&] () {
             PartitionJobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
@@ -961,11 +993,14 @@ public:
     std::vector<NYPath::TRichYPath> InputTablePaths;
     NYPath::TRichYPath OutputTablePath;
     TNullable<int> JobCount;
+    TNullable<int> MaxJobCount;
     i64 DataSizePerJob;
     TJobIOConfigPtr JobIO;
     int MaxChunkCountPerJob;
     bool CopyAttributes;
     TNullable<std::vector<Stroka>> AttributeKeys;
+
+    ESchemaInferenceMode SchemaInferenceMode;
 
     // For remote_copy jobs.
     TLogDigestConfigPtr JobProxyMemoryDigest;
@@ -978,6 +1013,9 @@ public:
             .NonEmpty();
         RegisterParameter("output_table_path", OutputTablePath);
         RegisterParameter("job_count", JobCount)
+            .Default()
+            .GreaterThan(0);
+        RegisterParameter("max_job_count", MaxJobCount)
             .Default()
             .GreaterThan(0);
         RegisterParameter("data_size_per_job", DataSizePerJob)
@@ -997,6 +1035,8 @@ public:
             .Default();
         RegisterParameter("job_proxy_memory_digest", JobProxyMemoryDigest)
             .Default(New<TLogDigestConfig>(0.5, 2.0, 1.0));
+        RegisterParameter("schema_inference_mode", SchemaInferenceMode)
+            .Default(ESchemaInferenceMode::Auto);
     }
 
     virtual void OnLoaded() override

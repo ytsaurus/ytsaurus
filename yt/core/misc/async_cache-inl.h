@@ -1,3 +1,4 @@
+#pragma once
 #ifndef ASYNC_CACHE_INL_H_
 #error "Direct inclusion of this file is not allowed, include async_cache.h"
 #endif

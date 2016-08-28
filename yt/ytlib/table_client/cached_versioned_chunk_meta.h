@@ -28,11 +28,10 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NChunkClient::TChunkId, ChunkId);
     DEFINE_BYREF_RO_PROPERTY(TOwningKey, MinKey);
     DEFINE_BYREF_RO_PROPERTY(TOwningKey, MaxKey);
-    DEFINE_BYREF_RO_PROPERTY(TTableSchema, ChunkSchema);
-    DEFINE_BYREF_RO_PROPERTY(TTableSchema, Schema);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TColumnIdMapping>, SchemaIdMapping);
     DEFINE_BYVAL_RO_PROPERTY(int, ChunkKeyColumnCount);
     DEFINE_BYVAL_RO_PROPERTY(int, KeyColumnCount);
+    DEFINE_BYREF_RO_PROPERTY(TTableSchema, Schema);
 
     static TCachedVersionedChunkMetaPtr Create(
         const NChunkClient::TChunkId& chunkId,
@@ -59,7 +58,9 @@ private:
 
     void ValidateChunkMeta();
     void ValidateSchema(const TTableSchema& readerSchema);
-    void BuildSchemalessIdMapping(const TTableSchema& readerSchema);
+    void BuildSchemalessIdMapping(
+        const TTableSchema& readerSchema,
+        const NChunkClient::NProto::TChunkMeta& chunkMeta);
 
     DECLARE_NEW_FRIEND();
 };

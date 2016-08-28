@@ -209,7 +209,7 @@ bool TNode::AddReplica(TChunkPtrWithIndex replica, bool cached)
             RemoveStoredReplica(TChunkPtrWithIndex(chunk, ActiveChunkReplicaIndex));
             RemoveStoredReplica(TChunkPtrWithIndex(chunk, UnsealedChunkReplicaIndex));
             RemoveStoredReplica(TChunkPtrWithIndex(chunk, SealedChunkReplicaIndex));
-        } 
+        }
         // NB: For journal chunks result is always true.
         return AddStoredReplica(replica);
     }

@@ -1,4 +1,5 @@
 #pragma once
+#pragma once
 
 #ifdef _linux_
     #include <linux/futex.h>

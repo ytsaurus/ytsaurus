@@ -75,6 +75,12 @@ extern const Stroka TimestampColumnName;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Do not change these values since they are stored in the master snapshot.
+DEFINE_ENUM(ETableSchemaMode,
+    ((Weak)      (0))
+    ((Strong)    (1))
+);
+
 DEFINE_ENUM(EOptimizeFor,
     ((Lookup)  (0))
     ((Scan)    (1))

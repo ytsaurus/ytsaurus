@@ -9,6 +9,8 @@
 
 #include <yt/ytlib/formats/parser.h>
 
+#include <yt/ytlib/ypath/rich.h>
+
 #include <yt/core/concurrency/scheduler.h>
 #include <yt/core/concurrency/async_stream.h>
 
@@ -18,8 +20,11 @@ namespace NTableClient {
 using namespace NConcurrency;
 using namespace NFormats;
 using namespace NYson;
+using namespace NCypressClient;
+using namespace NChunkClient;
 
 using NChunkClient::TChannel;
+using NYPath::TRichYPath;
 
 //////////////////////////////////////////////////////////////////////////////////
 
@@ -150,6 +155,9 @@ TUnversionedValue MakeUnversionedValue(const TStringBuf& ysonString, int id, TSt
         case ETokenType::Double:
             return MakeUnversionedDoubleValue(token.GetDoubleValue(), id);
 
+        case ETokenType::Boolean:
+            return MakeUnversionedBooleanValue(token.GetBooleanValue(), id);
+
         case ETokenType::Hash:
             return MakeUnversionedSentinelValue(EValueType::Null, id);
 
@@ -220,6 +228,145 @@ TColumnFilter CreateColumnFilter(const NChunkClient::TChannel& channel, TNameTab
     }
 
     return columnFilter;
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+
+void TTableUploadOptions::Persist(NPhoenix::TPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, UpdateMode);
+    Persist(context, LockMode);
+    Persist(context, TableSchema);
+    Persist(context, SchemaMode);
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+
+void ValidateKeyColumnsEqual(const TKeyColumns& keyColumns, const TTableSchema& schema)
+{
+     if (keyColumns != schema.GetKeyColumns()) {
+         THROW_ERROR_EXCEPTION("YPath attribute \"sorted_by\" must be compatible with table schema for a \"strong\" schema mode")
+             << TErrorAttribute("key_columns", keyColumns)
+             << TErrorAttribute("table_schema", schema);
+     }
+}
+
+void ValidateAppendKeyColumns(const TKeyColumns& keyColumns, const TTableSchema& schema, i64 rowCount)
+{
+    ValidateKeyColumns(keyColumns);
+
+    if (rowCount == 0) {
+        return;
+    }
+
+    auto tableKeyColumns = schema.GetKeyColumns();
+    bool areKeyColumnsCompatible = true;
+    if (tableKeyColumns.size() < keyColumns.size()) {
+        areKeyColumnsCompatible = false;
+    } else {
+        for (int i = 0; i < keyColumns.size(); ++i) {
+            if (tableKeyColumns[i] != keyColumns[i]) {
+                areKeyColumnsCompatible = false;
+                break;
+            }
+        }
+    }
+
+    if (!areKeyColumnsCompatible) {
+        THROW_ERROR_EXCEPTION("Key columns mismatch while trying to append sorted data into a non-empty table")
+            << TErrorAttribute("append_key_columns", keyColumns)
+            << TErrorAttribute("current_key_columns", tableKeyColumns);
+    }
+}
+
+TTableUploadOptions GetTableUploadOptions(
+    const TRichYPath& path,
+    const TTableSchema& schema,
+    ETableSchemaMode schemaMode,
+    i64 rowCount)
+{
+    // Some ypath attributes are not compatible with attribute "schema".
+    if (path.GetAppend() && path.GetSchema()) {
+        THROW_ERROR_EXCEPTION("YPath attributes \"append\" and \"schema\" are not compatible")
+            << TErrorAttribute("path", path);
+    }
+
+    if (!path.GetSortedBy().empty() && path.GetSchema()) {
+        THROW_ERROR_EXCEPTION("YPath attributes \"sorted_by\" and \"schema\" are not compatible")
+            << TErrorAttribute("path", path);
+    }
+
+    TTableUploadOptions result;
+    if (path.GetAppend() && !path.GetSortedBy().empty() && (schemaMode == ETableSchemaMode::Strong)) {
+        ValidateKeyColumnsEqual(path.GetSortedBy(), schema);
+
+        result.LockMode = ELockMode::Exclusive;
+        result.UpdateMode = EUpdateMode::Append;
+        result.SchemaMode = ETableSchemaMode::Strong;
+        result.TableSchema = schema;
+    } else if (path.GetAppend() && !path.GetSortedBy().empty() && (schemaMode == ETableSchemaMode::Weak)) {
+        // Old behaviour.
+        ValidateAppendKeyColumns(path.GetSortedBy(), schema, rowCount);
+
+        result.LockMode = ELockMode::Exclusive;
+        result.UpdateMode = EUpdateMode::Append;
+        result.SchemaMode = ETableSchemaMode::Weak;
+        result.TableSchema = TTableSchema::FromKeyColumns(path.GetSortedBy());
+    } else if (path.GetAppend() && path.GetSortedBy().empty() && (schemaMode == ETableSchemaMode::Strong)) {
+        result.LockMode = schema.IsSorted() ? ELockMode::Exclusive : ELockMode::Shared;
+        result.UpdateMode = EUpdateMode::Append;
+        result.SchemaMode = ETableSchemaMode::Strong;
+        result.TableSchema = schema;
+    } else if (path.GetAppend() && path.GetSortedBy().empty() && (schemaMode == ETableSchemaMode::Weak)) {
+        // Old behaviour - reset key columns if there were any.
+        result.LockMode = ELockMode::Shared;
+        result.UpdateMode = EUpdateMode::Append;
+        result.SchemaMode = ETableSchemaMode::Weak;
+        result.TableSchema = TTableSchema();
+    } else if (!path.GetAppend() && !path.GetSortedBy().empty() && (schemaMode == ETableSchemaMode::Strong)) {
+        ValidateKeyColumnsEqual(path.GetSortedBy(), schema);
+
+        result.LockMode = ELockMode::Exclusive;
+        result.UpdateMode = EUpdateMode::Overwrite;
+        result.SchemaMode = ETableSchemaMode::Strong;
+        result.TableSchema = schema;
+    } else if (!path.GetAppend() && !path.GetSortedBy().empty() && (schemaMode == ETableSchemaMode::Weak)) {
+        result.LockMode = ELockMode::Exclusive;
+        result.UpdateMode = EUpdateMode::Overwrite;
+        result.SchemaMode = ETableSchemaMode::Weak;
+        result.TableSchema = TTableSchema::FromKeyColumns(path.GetSortedBy());
+    } else if (!path.GetAppend() && path.GetSchema() && (schemaMode == ETableSchemaMode::Strong)) {
+        result.LockMode = ELockMode::Exclusive;
+        result.UpdateMode = EUpdateMode::Overwrite;
+        result.SchemaMode = ETableSchemaMode::Strong;
+        result.TableSchema = *path.GetSchema();
+    } else if (!path.GetAppend() && path.GetSchema() && (schemaMode == ETableSchemaMode::Weak)) {
+        // Change from Weak to Strong schema mode.
+        result.LockMode = ELockMode::Exclusive;
+        result.UpdateMode = EUpdateMode::Overwrite;
+        result.SchemaMode = ETableSchemaMode::Strong;
+        result.TableSchema = *path.GetSchema();
+    } else if (!path.GetAppend() && path.GetSortedBy().empty() && (schemaMode == ETableSchemaMode::Strong)) {
+        result.LockMode = ELockMode::Exclusive;
+        result.UpdateMode = EUpdateMode::Overwrite;
+        result.SchemaMode = ETableSchemaMode::Strong;
+        result.TableSchema = schema;
+    } else if (!path.GetAppend() && path.GetSortedBy().empty() && (schemaMode == ETableSchemaMode::Weak)) {
+        result.LockMode = ELockMode::Exclusive;
+        result.UpdateMode = EUpdateMode::Overwrite;
+        result.SchemaMode = ETableSchemaMode::Weak;
+        result.TableSchema = TTableSchema();
+    } else {
+        // Do not use Y_UNREACHABLE here, since this code is executed inside scheduler.
+        THROW_ERROR_EXCEPTION("Failed to define upload parameters")
+            << TErrorAttribute("path", path)
+            << TErrorAttribute("schema_mode", schemaMode)
+            << TErrorAttribute("schema", schema);
+    }
+
+    return result;
 }
 
 //////////////////////////////////////////////////////////////////////////////////

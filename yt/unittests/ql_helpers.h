@@ -1,7 +1,6 @@
 #pragma once
 
 #include "framework.h"
-#include "versioned_table_client_ut.h"
 
 #include <yt/ytlib/chunk_client/chunk_spec.pb.h>
 

@@ -16,18 +16,16 @@ TExecNode::TExecNode(
     TNodeId id,
     const TNodeDescriptor& nodeDescriptor)
     : Id_(id)
+    , NodeDescriptor_(nodeDescriptor)
     , MasterState_(ENodeState::Offline)
     , HasOngoingHeartbeat_(false)
     , HasOngoingJobsScheduling_(false)
     , HasPendingUnregistration_(false)
-    , NodeDescriptor_(nodeDescriptor)
-    , DefaultAddress_(NodeDescriptor_.GetDefaultAddress())
 { }
 
 const Stroka& TExecNode::GetDefaultAddress() const
 {
-    TReaderGuard guard(SpinLock_);
-    return DefaultAddress_;
+    return NodeDescriptor_.GetDefaultAddress();
 }
 
 bool TExecNode::CanSchedule(const TNullable<Stroka>& tag) const
@@ -42,7 +40,8 @@ TExecNodeDescriptor TExecNode::BuildExecDescriptor() const
         Id_,
         GetDefaultAddress(),
         IOWeight_,
-        ResourceLimits_
+        ResourceLimits_,
+        Tags_
     };
 }
 
@@ -80,34 +79,28 @@ void TExecNode::SetResourceUsage(const TJobResources& value)
     ResourceUsage_ = value;
 }
 
-TNodeDescriptor TExecNode::GetNodeDescriptor() const
-{
-    TReaderGuard guard(SpinLock_);
-    return NodeDescriptor_;
-}
-
-void TExecNode::SetNodeDescriptor(const NNodeTrackerClient::TNodeDescriptor& descriptor)
-{
-    TWriterGuard guard(SpinLock_);
-    YCHECK(DefaultAddress_ == descriptor.GetDefaultAddress());
-    NodeDescriptor_ = descriptor;
-}
-
 ////////////////////////////////////////////////////////////////////
 
 TExecNodeDescriptor::TExecNodeDescriptor()
 { }
 
 TExecNodeDescriptor::TExecNodeDescriptor(
-    NNodeTrackerClient::TNodeId id,
-    Stroka address,
+    const NNodeTrackerClient::TNodeId& id,
+    const Stroka& address,
     double ioWeight,
-    TJobResources resourceLimits)
+    const TJobResources& resourceLimits,
+    const yhash_set<Stroka>& tags)
     : Id(id)
     , Address(address)
     , IOWeight(ioWeight)
     , ResourceLimits(resourceLimits)
+    , Tags(tags)
 { }
+
+bool TExecNodeDescriptor::CanSchedule(const TNullable<Stroka>& tag) const
+{
+    return !tag || Tags.find(*tag) != Tags.end();
+}
 
 void TExecNodeDescriptor::Persist(TStreamPersistenceContext& context)
 {
@@ -117,6 +110,7 @@ void TExecNodeDescriptor::Persist(TStreamPersistenceContext& context)
     Persist(context, Address);
     Persist(context, IOWeight);
     Persist(context, ResourceLimits);
+    Persist(context, Tags);
 }
 
 ////////////////////////////////////////////////////////////////////

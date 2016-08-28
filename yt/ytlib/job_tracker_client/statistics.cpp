@@ -18,7 +18,7 @@ using namespace NChunkClient::NProto;
 ////////////////////////////////////////////////////////////////////
 
 TSummary::TSummary()
-{ 
+{
     Reset();
 }
 
@@ -75,9 +75,9 @@ void Serialize(const TSummary& summary, NYson::IYsonConsumer* consumer)
 
 bool TSummary::operator ==(const TSummary& other) const
 {
-    return 
-        Sum_ == other.Sum_ && 
-        Count_ == other.Count_ && 
+    return
+        Sum_ == other.Sum_ &&
+        Count_ == other.Count_ &&
         Min_ == other.Min_ &&
         Max_ == other.Max_;
 }
@@ -179,6 +179,38 @@ void Serialize(const TStatistics& statistics, NYson::IYsonConsumer* consumer)
     Serialize(*root, consumer);
 }
 
+// Helper function for GetNumericValue.
+i64 GetSum(const TSummary& summary)
+{
+    return summary.GetSum();
+}
+
+i64 GetNumericValue(const TStatistics& statistics, const Stroka& path)
+{
+    auto value = FindNumericValue(statistics, path);
+    if (!value) {
+        THROW_ERROR_EXCEPTION("Statistics %v is not present",
+            path);
+    } else {
+        return *value;
+    }
+}
+
+TNullable<i64> FindNumericValue(const TStatistics& statistics, const Stroka& path)
+{
+    const auto& data = statistics.Data();
+    auto iterator = data.lower_bound(path);
+    if (iterator != data.end() && iterator->first != path && HasPrefix(iterator->first, path)) {
+        THROW_ERROR_EXCEPTION("Invalid statistics type: can't get numeric value of %v since it is a map",
+            path);
+    } else if (iterator == data.end() || iterator->first != path) {
+        return Null;
+    } else {
+        return iterator->second.GetSum();
+    }
+}
+
+
 ////////////////////////////////////////////////////////////////////
 
 class TStatisticsBuildingConsumer
@@ -188,7 +220,7 @@ class TStatisticsBuildingConsumer
 public:
     virtual void OnStringScalar(const TStringBuf& value) override
     {
-        Y_UNREACHABLE();
+        THROW_ERROR_EXCEPTION("String scalars are not allowed for statistics");
     }
 
     virtual void OnInt64Scalar(i64 value) override
@@ -203,44 +235,45 @@ public:
         } else if (LastKey_ == "max") {
             CurrentSummary_.Max_ = value;
         } else {
-            Y_UNREACHABLE();
+            THROW_ERROR_EXCEPTION("Invalid summary key for statistics")
+                << TErrorAttribute("key", LastKey_);
         }
         ++FilledSummaryFields_;
     }
-    
+
     virtual void OnUint64Scalar(ui64 value) override
     {
-        Y_UNREACHABLE();
+        THROW_ERROR_EXCEPTION("Uint64 scalars are not allowed for statistics");
     }
-    
+
     virtual void OnDoubleScalar(double value) override
     {
-        Y_UNREACHABLE();
+        THROW_ERROR_EXCEPTION("Double scalars are not allowed for statistics");
     }
-    
+
     virtual void OnBooleanScalar(bool value) override
     {
-        Y_UNREACHABLE();
+        THROW_ERROR_EXCEPTION("Boolean scalars are not allowed for statistics");
     }
-    
+
     virtual void OnEntity() override
     {
-        Y_UNREACHABLE();
+        THROW_ERROR_EXCEPTION("Entities are not allowed for statistics");
     }
-    
+
     virtual void OnBeginList() override
     {
-        Y_UNREACHABLE();
+        THROW_ERROR_EXCEPTION("Lists are not allowed for statistics");
     }
-    
+
     virtual void OnListItem() override
     {
-        Y_UNREACHABLE();
+        THROW_ERROR_EXCEPTION("Lists are not allowed for statistics");
     }
 
     virtual void OnEndList() override
     {
-        Y_UNREACHABLE();
+        THROW_ERROR_EXCEPTION("Lists are not allowed for statistics");
     }
 
     virtual void OnBeginMap() override
@@ -254,9 +287,11 @@ public:
             CurrentPath_.append(LastKey_);
             LastKey_.clear();
         } else {
-            YCHECK(CurrentPath_.empty());
+            if (!CurrentPath_.empty()) {
+                THROW_ERROR_EXCEPTION("Empty keys are not allowed for statistics");
+            }
         }
-    }  
+    }
 
     virtual void OnKeyedItem(const TStringBuf& key) override
     {
@@ -264,29 +299,31 @@ public:
     }
 
     virtual void OnEndMap() override
-    { 
+    {
         if (AtSummaryMap_) {
-            YCHECK(FilledSummaryFields_ == 4);
+            if (FilledSummaryFields_ != 4) {
+                THROW_ERROR_EXCEPTION("All four summary fields should be filled for statistics");
+            }
             Statistics_.Data_[CurrentPath_] = CurrentSummary_;
             FilledSummaryFields_ = 0;
             AtSummaryMap_ = false;
         }
-        
+
         if (!CurrentPath_.empty()) {
             // We need to go to the parent.
             CurrentPath_.resize(CurrentPath_.size() - DirectoryNameLengths_.back() - 1);
             DirectoryNameLengths_.pop_back();
         }
     }
-    
+
     virtual void OnBeginAttributes() override
     {
-        Y_UNREACHABLE();
+        THROW_ERROR_EXCEPTION("Attributes are not allowed for statistics");
     }
 
     virtual void OnEndAttributes() override
     {
-        Y_UNREACHABLE();
+        THROW_ERROR_EXCEPTION("Attributes are not allowed for statistics");
     }
 
     virtual TStatistics Finish() override
@@ -296,7 +333,7 @@ public:
 
 private:
     TStatistics Statistics_;
-    
+
     Stroka CurrentPath_;
     std::vector<int> DirectoryNameLengths_;
 

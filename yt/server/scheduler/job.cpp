@@ -54,14 +54,17 @@ private:
 bool CompareBriefJobStatistics(
     const TBriefJobStatisticsPtr& lhs,
     const TBriefJobStatisticsPtr& rhs,
-    i64 userJobCpuUsageThreshold)
+    i64 userJobCpuUsageThreshold,
+    i64 userJobIOReadThreshold)
 {
     return lhs->ProcessedInputRowCount < rhs->ProcessedInputRowCount ||
         lhs->ProcessedInputDataSize < rhs->ProcessedInputDataSize ||
         lhs->ProcessedOutputRowCount < rhs->ProcessedOutputRowCount ||
         lhs->ProcessedOutputDataSize < rhs->ProcessedOutputDataSize ||
         (lhs->UserJobCpuUsage && rhs->UserJobCpuUsage &&
-        *lhs->UserJobCpuUsage + userJobCpuUsageThreshold < *rhs->UserJobCpuUsage);
+        *lhs->UserJobCpuUsage + userJobCpuUsageThreshold < *rhs->UserJobCpuUsage) ||
+        (lhs->UserJobBlockIORead && rhs->UserJobBlockIORead &&
+        *lhs->UserJobBlockIORead + userJobIOReadThreshold < *rhs->UserJobBlockIORead);
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -73,6 +76,9 @@ void Serialize(const TBriefJobStatistics& briefJobStatistics, IYsonConsumer* con
             .Item("processed_input_row_count").Value(briefJobStatistics.ProcessedInputRowCount)
             .Item("processed_input_data_size").Value(briefJobStatistics.ProcessedInputDataSize)
             .Item("processed_output_data_size").Value(briefJobStatistics.ProcessedOutputDataSize)
+            .DoIf(static_cast<bool>(briefJobStatistics.UserJobBlockIORead), [&] (TFluentMap fluent) {
+                fluent.Item("user_job_io_read").Value(*briefJobStatistics.UserJobBlockIORead);
+            })
             .DoIf(static_cast<bool>(briefJobStatistics.UserJobCpuUsage), [&] (TFluentMap fluent) {
                 fluent.Item("user_job_cpu_usage").Value(*briefJobStatistics.UserJobCpuUsage);
             })
@@ -89,7 +95,8 @@ TJob::TJob(
     TInstant startTime,
     const TJobResources& resourceLimits,
     bool restarted,
-    TJobSpecBuilder specBuilder)
+    TJobSpecBuilder specBuilder,
+    const Stroka& account)
     : Id_(id)
     , Type_(type)
     , OperationId_(operationId)
@@ -101,6 +108,7 @@ TJob::TJob(
     , ResourceLimits_(resourceLimits)
     , SpecBuilder_(std::move(specBuilder))
     , LastActivityTime_(startTime)
+    , Account_(account)
 { }
 
 TDuration TJob::GetDuration() const
@@ -108,44 +116,37 @@ TDuration TJob::GetDuration() const
     return *FinishTime_ - StartTime_;
 }
 
-TBriefJobStatisticsPtr TJob::BuildBriefStatistics() const
+TBriefJobStatisticsPtr TJob::BuildBriefStatistics(const TYsonString& statisticsYson) const
 {
-    auto statistics = ConvertTo<NJobTrackerClient::TStatistics>(*StatisticsYson_);
-
-    auto getValue = [] (const TSummary& summary) {
-        return summary.GetSum();
-    };
+    auto statistics = ConvertTo<NJobTrackerClient::TStatistics>(statisticsYson);
 
     auto briefStatistics = New<TBriefJobStatistics>();
-
-    briefStatistics->ProcessedInputRowCount = GetValues<i64>(statistics, "/data/input/row_count", getValue);
-    briefStatistics->ProcessedInputDataSize = GetValues<i64>(statistics, "/data/input/uncompressed_data_size", getValue);
-
-    if (std::any_of(
-        statistics.Data().begin(),
-        statistics.Data().end(),
-        [] (const auto& pair) {
-            return HasPrefix(pair.first, "/user_job/cpu");
-        }))
-    {
-        briefStatistics->UserJobCpuUsage = GetValues<i64>(statistics, "/user_job/cpu/user", getValue);
-    }
+    briefStatistics->ProcessedInputRowCount = GetNumericValue(statistics, "/data/input/row_count");
+    briefStatistics->ProcessedInputDataSize = GetNumericValue(statistics, "/data/input/uncompressed_data_size");
+    briefStatistics->UserJobCpuUsage = FindNumericValue(statistics, "/user_job/cpu/user");
+    briefStatistics->UserJobBlockIORead = FindNumericValue(statistics, "/user_job/block_io/io_read");
 
     auto outputDataStatistics = GetTotalOutputDataStatistics(statistics);
-
     briefStatistics->ProcessedOutputDataSize = outputDataStatistics.uncompressed_data_size();
     briefStatistics->ProcessedOutputRowCount = outputDataStatistics.row_count();
+
     return briefStatistics;
 }
 
 void TJob::AnalyzeBriefStatistics(
     TDuration suspiciousInactivityTimeout,
     i64 suspiciousUserJobCpuUsageThreshold,
+    i64 suspiciousUserJobBlockIOReadThreshold,
     const TBriefJobStatisticsPtr& briefStatistics)
 {
     bool wasActive = false;
 
-    if (!BriefStatistics_ || CompareBriefJobStatistics(BriefStatistics_, briefStatistics, suspiciousUserJobCpuUsageThreshold)) {
+    if (!BriefStatistics_ || CompareBriefJobStatistics(
+        BriefStatistics_,
+        briefStatistics,
+        suspiciousUserJobCpuUsageThreshold,
+        suspiciousUserJobBlockIOReadThreshold))
+    {
         wasActive = true;
     }
     BriefStatistics_ = briefStatistics;
@@ -153,7 +154,7 @@ void TJob::AnalyzeBriefStatistics(
     bool wasSuspicious = Suspicious_;
     Suspicious_ = (!wasActive && TInstant::Now() - LastActivityTime_ > suspiciousInactivityTimeout);
     if (!wasSuspicious && Suspicious_) {
-        LOG_WARNING("Found a suspicious job (JobId: %v, LastActivityTime: %v, SuspiciousInactivityTimeout: %v)",
+        LOG_DEBUG("Found a suspicious job (JobId: %v, LastActivityTime: %v, SuspiciousInactivityTimeout: %v)",
             Id_,
             LastActivityTime_,
             suspiciousInactivityTimeout);
@@ -164,11 +165,13 @@ void TJob::AnalyzeBriefStatistics(
     }
 }
 
-void TJob::SetStatus(TRefCountedJobStatusPtr status)
+void TJob::SetStatus(TJobStatus* status)
 {
-    Status_ = std::move(status);
-    if (Status_->has_statistics()) {
-        StatisticsYson_ = TYsonString(Status_->statistics());
+    if (status) {
+        Status_.Swap(status);
+    }
+    if (Status_.has_statistics()) {
+        StatisticsYson_ = TYsonString(Status_.statistics());
     }
 }
 
@@ -182,19 +185,19 @@ const Stroka& TJob::GetStatisticsSuffix() const
 ////////////////////////////////////////////////////////////////////
 
 TJobSummary::TJobSummary(const TJobPtr& job)
-    : Result(New<TRefCountedJobResult>(job->Status()->result()))
+    : Result(job->Status().result())
     , Id(job->GetId())
     , StatisticsSuffix(job->GetStatisticsSuffix())
     , FinishTime(*job->GetFinishTime())
     , ShouldLog(true)
 {
     const auto& status = job->Status();
-    if (status->has_prepare_duration()) {
-        PrepareDuration = FromProto<TDuration>(status->prepare_duration());
+    if (status.has_prepare_duration()) {
+        PrepareDuration = FromProto<TDuration>(status.prepare_duration());
     }
-    if (status->has_exec_duration()) {
+    if (status.has_exec_duration()) {
         ExecDuration.Emplace();
-        FromProto(ExecDuration.GetPtr(), status->exec_duration());
+        FromProto(ExecDuration.GetPtr(), status.exec_duration());
     }
     StatisticsYson = job->StatisticsYson();
 }
@@ -229,15 +232,15 @@ TAbortedJobSummary::TAbortedJobSummary(const TJobId& id, EAbortReason abortReaso
 
 TAbortedJobSummary::TAbortedJobSummary(const TJobPtr& job)
     : TJobSummary(job)
-    , AbortReason(GetAbortReason(job->Status()->result()))
+    , AbortReason(GetAbortReason(job->Status().result()))
 { }
 
 ////////////////////////////////////////////////////////////////////
 
-TRefCountedJobStatusPtr JobStatusFromError(const TError& error)
+TJobStatus JobStatusFromError(const TError& error)
 {
-    auto status = New<TRefCountedJobStatus>();
-    ToProto(status->mutable_result()->mutable_error(), error);
+    auto status = TJobStatus();
+    ToProto(status.mutable_result()->mutable_error(), error);
     return status;
 }
 
@@ -248,12 +251,14 @@ TJobStartRequest::TJobStartRequest(
     EJobType type,
     const TJobResources& resourceLimits,
     bool restarted,
-    const TJobSpecBuilder& specBuilder)
+    TJobSpecBuilder specBuilder,
+    const Stroka& account)
     : Id(id)
     , Type(type)
     , ResourceLimits(resourceLimits)
     , Restarted(restarted)
-    , SpecBuilder(specBuilder)
+    , SpecBuilder(std::move(specBuilder))
+    , Account(account)
 { }
 
 ////////////////////////////////////////////////////////////////////

@@ -128,15 +128,18 @@ class TestSchedulerEraseCommands(YTEnvSetup):
 
 
     def test_by_key(self):
-        v = [{"key": -100, "value": 20},
+        v1 = [{"key": -100, "value": 20},
              {"key": -5, "value": 1},
              {"key": 0, "value": 76},
              {"key": 10, "value": 10},
-             {"key": 42, "value": 124},
-             {"key": 100500, "value": -20}]
+             {"key": 42, "value": 124}]
+
+        v2 = [{"key": 100500, "value": -20}]
+        v = v1 + v2 
 
         create("table", "//tmp/table")
-        write_table("//tmp/table", v, sorted_by="key")
+        write_table("//tmp/table", v1, sorted_by="key")
+        write_table("<append=%true>//tmp/table", v2, sorted_by="key")
 
         erase("//tmp/table[0:42]")
         assert read_table("//tmp/table") == v[0:2] + v[4:6]
@@ -162,7 +165,7 @@ class TestSchedulerEraseCommands(YTEnvSetup):
         erase("//tmp/table[5:]")
 
         assert get("//tmp/table/@schema/@strict")
-        assert get("//tmp/table/@preserve_schema_on_write")
+        assert get("//tmp/table/@schema_mode") == "strong"
         assert read_table("//tmp/table") == [{"key": i, "value": "foo"} for i in xrange(5)]
 
 ##################################################################

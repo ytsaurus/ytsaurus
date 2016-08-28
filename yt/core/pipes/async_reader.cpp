@@ -37,10 +37,19 @@ public:
         : FD_(fd)
     {
         BIND([=, this_ = MakeStrong(this)] () {
-            FDWatcher_.set(FD_, ev::READ);
-            FDWatcher_.set(TIODispatcher::Get()->GetEventLoop());
-            FDWatcher_.set<TAsyncReaderImpl, &TAsyncReaderImpl::OnRead>(this);
-            FDWatcher_.start();
+            InitWatcher();
+        })
+        .Via(TIODispatcher::Get()->GetInvoker())
+        .Run();
+    }
+
+    explicit TAsyncReaderImpl(const Stroka& str)
+    {
+        BIND([=, this_ = MakeStrong(this)] () {
+            if (!InitFD(str)) {
+                return;
+            }
+            InitWatcher();
         })
         .Via(TIODispatcher::Get()->GetInvoker())
         .Run();
@@ -116,7 +125,7 @@ public:
     }
 
 private:
-    int FD_;
+    int FD_ = -1;
 
     //! \note Thread-unsafe. Must be accessed from ev-thread only.
     ev::io FDWatcher_;
@@ -137,7 +146,6 @@ private:
     {
         VERIFY_THREAD_AFFINITY(EventLoop);
         YCHECK((eventType & ev::READ) == ev::READ);
-
         YCHECK(State_ == EReaderState::Active);
 
         while (!ReadResultPromise_.IsSet()) {
@@ -197,6 +205,27 @@ private:
 #endif
     }
 
+    bool InitFD(const Stroka& str)
+    {
+        FD_ = HandleEintr(::open, str.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+        if (FD_ == -1) {
+            State_ = EReaderState::Failed;
+            Error_ = TError("Open failed")
+                << TErrorAttribute("path", str)
+                << TError::FromSystem();
+            LOG_ERROR(Error_);
+            return false;
+        }
+        return true;
+    }
+
+    void InitWatcher()
+    {
+        FDWatcher_.set(FD_, ev::READ);
+        FDWatcher_.set(TIODispatcher::Get()->GetEventLoop());
+        FDWatcher_.set<TAsyncReaderImpl, &TAsyncReaderImpl::OnRead>(this);
+    }
+
     void Close()
     {
         YCHECK(TryClose(FD_, false));
@@ -214,6 +243,11 @@ DEFINE_REFCOUNTED_TYPE(TAsyncReaderImpl);
 
 TAsyncReader::TAsyncReader(int fd)
     : Impl_(New<NDetail::TAsyncReaderImpl>(fd))
+{ }
+
+TAsyncReader::TAsyncReader(TNamedPipePtr ptr)
+    : Impl_(New<NDetail::TAsyncReaderImpl>(ptr->GetPath()))
+    , NamedPipeHolder_(ptr)
 { }
 
 TAsyncReader::~TAsyncReader()
