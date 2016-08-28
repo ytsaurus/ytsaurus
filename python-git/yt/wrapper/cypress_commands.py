@@ -353,7 +353,8 @@ def find_free_subpath(path, client=None):
 def search(root="", node_type=None,
            path_filter=None, object_filter=None, subtree_filter=None,
            map_node_order=None, list_node_order=None,
-           attributes=None, exclude=None, depth_bound=None, client=None):
+           attributes=None, exclude=None, depth_bound=None,
+           follow_links=False, client=None):
     """Search for some nodes in Cypress subtree.
 
     :param root: (string or `TablePath`) path to search
@@ -362,6 +363,7 @@ def search(root="", node_type=None,
     :param attributes: (list of string) these attributes will be added to result objects
     :param exclude: (list of string) excluded paths
     :param depth_bound: (int) recursion depth
+    :param follow_links: (bool) follow links
     :return: (list of YsonString) result paths
     """
     # Deprecated. Default value "/" should be removed.
@@ -405,6 +407,11 @@ def search(root="", node_type=None,
             return
 
         object_type = object.attributes["type"]
+        if object_type == "link" and follow_links:
+            for obj in walk(path, safe_get(path), depth):
+                yield obj
+            return
+
         if (node_type is None or object_type in flatten(node_type)) and \
            (object_filter is None or object_filter(object)) and \
            (path_filter is None or path_filter(path)):

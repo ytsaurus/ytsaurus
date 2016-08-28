@@ -64,7 +64,7 @@ def remove_prefix(table):
         return table[len(config["prefix"]):]
     return table
 
-def list_entities(type, prefix, exact, jsonoutput, user):
+def list_entities(type, prefix, exact, jsonoutput, user, follow_links):
     if config["prefix"] is None:
         die("You should specify PREFIX for list command")
     if exact is not None and prefix is not None and config["yamr_mode"]["use_yamr_style_prefix"]:
@@ -117,7 +117,8 @@ def list_entities(type, prefix, exact, jsonoutput, user):
                            path_filter=lambda path: path.startswith(request_prefix),
                            subtree_filter=lambda path, _: (str(path) == request_prefix) or path.startswith(prefix),
                            object_filter=object_filter,
-                           attributes=attributes)
+                           attributes=attributes,
+                           follow_links=follow_links)
         tables = filter(lambda table: table.startswith(prefix), tables)
 
     if jsonoutput:
@@ -286,7 +287,7 @@ Examples:
 
     add_bool_args(parser, action_flags + ["subkey", "lenval", "append", "dynallocmode", "dsv", "pingtx",
                                           "smartformat", "force", "executable", "waitable", "failonemptysrctable", "nocreatetmptable",
-                                          "jsonoutput", "tableindex", "tablerecordindex"])
+                                          "jsonoutput", "tableindex", "tablerecordindex", "followlinks"])
     parser.add_argument(*arg_to_names("sort"), const=True, default=False, nargs="?")
 
     add_maybe_missing_value_args(parser, action_maybe_stores)
@@ -683,9 +684,9 @@ Examples:
 
 
     if args.list:
-        write_silently(imap(add_eoln, list_entities(type="table", prefix=args.prefix, exact=args.exact, jsonoutput=args.jsonoutput, user=args.user)))
+        write_silently(imap(add_eoln, list_entities(type="table", prefix=args.prefix, exact=args.exact, jsonoutput=args.jsonoutput, user=args.user, follow_links=args.followlinks)))
     if args.listfiles:
-        write_silently(imap(add_eoln, list_entities(type="file", prefix=args.prefix, exact=args.exact, jsonoutput=args.jsonoutput, user=args.user)))
+        write_silently(imap(add_eoln, list_entities(type="file", prefix=args.prefix, exact=args.exact, jsonoutput=args.jsonoutput, user=args.user, follow_links=args.followlinks)))
     if args.read is not None:
         write_silently(
             chunk_iter_stream(

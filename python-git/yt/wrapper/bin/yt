@@ -282,7 +282,8 @@ def find(**args):
                        path_filter=path_filter,
                        attributes=__builtin__.list(attributes),
                        object_filter=object_filter,
-                       depth_bound=args["depth"])
+                       depth_bound=args["depth"],
+                       follow_links=args["follow_links"])
 
     for elem in result:
         formatted_print(elem, elem, args["long_format"])
@@ -294,6 +295,7 @@ def add_find_parser(add_parser):
     add_type_argument(parser, "--type")
     parser.add_argument("--account")
     parser.add_argument("--owner")
+    parser.add_argument("--follow-links", action="store_true", help="follow links")
     parser.add_argument("--attribute-filter", help="yson map fragment with filtering attributes, e.g. k1=v1;k2=v2")
     parser.add_argument("--depth", type=int, help="recursion depth (infinite by default)")
     parser.add_argument("-l", "--long-format", action="store_true", help="print some extra information about nodes")
