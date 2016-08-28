@@ -22,7 +22,6 @@ struct INativeConnection
 
     virtual NQueryClient::TEvaluatorPtr GetQueryEvaluator() = 0;
     virtual NQueryClient::TColumnEvaluatorCachePtr GetColumnEvaluatorCache() = 0;
-    virtual NTransactionClient::ITimestampProviderPtr GetTimestampProvider() = 0;
     virtual NHiveClient::TCellDirectoryPtr GetCellDirectory() = 0;
     virtual NChunkClient::IBlockCachePtr GetBlockCache() = 0;
 

@@ -158,6 +158,11 @@ public:
         return TableMountCache_;
     }
 
+    virtual ITimestampProviderPtr GetTimestampProvider() override
+    {
+        return TimestampProvider_;
+    }
+
     virtual IInvokerPtr GetLightInvoker() override
     {
         return LightPool_->GetInvoker();
@@ -236,11 +241,6 @@ public:
     virtual IBlockCachePtr GetBlockCache() override
     {
         return BlockCache_;
-    }
-
-    virtual ITimestampProviderPtr GetTimestampProvider() override
-    {
-        return TimestampProvider_;
     }
 
     virtual TCellDirectoryPtr GetCellDirectory() override

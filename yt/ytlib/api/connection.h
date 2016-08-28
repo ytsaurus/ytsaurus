@@ -53,6 +53,7 @@ struct IConnection
     virtual NObjectClient::TCellTag GetCellTag() = 0;
 
     virtual NTabletClient::ITableMountCachePtr GetTableMountCache() = 0;
+    virtual NTransactionClient::ITimestampProviderPtr GetTimestampProvider() = 0;
 
     virtual IInvokerPtr GetLightInvoker() = 0;
     virtual IInvokerPtr GetHeavyInvoker() = 0;
