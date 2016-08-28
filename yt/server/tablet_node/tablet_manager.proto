@@ -32,7 +32,8 @@ message TTableReplicaDescriptor
     required NYT.NProto.TGuid replica_id = 1;
     required string cluster_name = 2;
     required string replica_path = 3;
-    required TTableReplicaStatistics statistics = 4;
+    required uint64 start_replication_timestamp = 4;
+    required TTableReplicaStatistics statistics = 5;
 }
 
 message TReqMountTablet

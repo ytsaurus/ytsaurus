@@ -42,6 +42,7 @@ DEFINE_REFCOUNTED_TYPE(TRuntimeTableReplicaData)
 struct TTableReplicaSnapshot
     : public TIntrinsicRefCounted
 {
+    NTransactionClient::TTimestamp StartReplicationTimestamp;
     TRuntimeTableReplicaDataPtr RuntimeData;
 };
 
@@ -168,6 +169,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TTableReplicaId, Id);
     DEFINE_BYVAL_RW_PROPERTY(Stroka, ClusterName);
     DEFINE_BYVAL_RW_PROPERTY(NYPath::TYPath, ReplicaPath);
+    DEFINE_BYVAL_RW_PROPERTY(TTimestamp, StartReplicationTimestamp, NullTimestamp);
 
     DEFINE_BYVAL_RW_PROPERTY(ETableReplicaState, State);
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, CurrentReplicationTimestamp, NullTimestamp);

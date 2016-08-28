@@ -3,6 +3,7 @@ import pytest
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 from time import sleep
+from yt.yson import YsonEntity
 
 ##################################################################
 
@@ -199,6 +200,25 @@ class TestReplicatedDynamicTables(YTEnvSetup):
 
         assert get("#{0}/@tablets/{1}/current_replication_row_index".format(replica_id, tablet_id)) == 1
 
+    def test_start_replication_timestamp(self):
+        self.sync_create_cells(1)
+        self._create_simple_replicated_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+
+        self._create_simple_replica_table("//tmp/r")
+        self.sync_mount_table("//tmp/r")
+
+        insert_rows("//tmp/t", [{"key": 1, "value1": "test"}])
+
+        replica_id = create_table_replica("//tmp/t", "r1", "//tmp/r", attributes={
+            "start_replication_timestamp": generate_timestamp()
+        })
+        enable_table_replica(replica_id)
+
+        insert_rows("//tmp/t", [{"key": 2, "value1": "test"}])
+
+        sleep(1.0)
+        assert select_rows("* from [//tmp/r]") == [{"key": 2, "value1": "test", "value2": YsonEntity()}]
 
 ##################################################################
 

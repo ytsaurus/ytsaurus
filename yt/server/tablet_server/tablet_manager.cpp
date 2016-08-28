@@ -356,7 +356,8 @@ public:
     TTableReplica* CreateTableReplica(
         TReplicatedTableNode* table,
         const Stroka& clusterName,
-        const TYPath& replicaPath)
+        const TYPath& replicaPath,
+        TTimestamp startReplicationTimestamp)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -366,6 +367,7 @@ public:
         replicaHolder->SetTable(table);
         replicaHolder->SetClusterName(clusterName);
         replicaHolder->SetReplicaPath(replicaPath);
+        replicaHolder->SetStartReplicationTimestamp(startReplicationTimestamp);
         replicaHolder->SetState(ETableReplicaState::Disabled);
 
         auto* replica = TableReplicaMap_.Insert(id, std::move(replicaHolder));
@@ -373,9 +375,10 @@ public:
 
         YCHECK(table->Replicas().insert(replica).second);
 
-        LOG_INFO_UNLESS(IsRecovery(), "Table replica created (TableId: %v, ReplicaId: %v)",
+        LOG_INFO_UNLESS(IsRecovery(), "Table replica created (TableId: %v, ReplicaId: %v, StartReplicationTimestamp: %v)",
             table->GetId(),
-            replica->GetId());
+            replica->GetId(),
+            startReplicationTimestamp);
 
         auto hiveManager = Bootstrap_->GetHiveManager();
         for (auto* tablet : table->Tablets()) {
@@ -3023,6 +3026,7 @@ private:
         ToProto(descriptor->mutable_replica_id(), replica->GetId());
         descriptor->set_cluster_name(replica->GetClusterName());
         descriptor->set_replica_path(replica->GetReplicaPath());
+        descriptor->set_start_replication_timestamp(replica->GetStartReplicationTimestamp());
         PopulateTableReplicaStatisticsFromInfo(descriptor->mutable_statistics(), info);
     }
 
@@ -3251,12 +3255,14 @@ void TTabletManager::DestroyTabletCellBundle(TTabletCellBundle* cellBundle)
 TTableReplica* TTabletManager::CreateTableReplica(
     TReplicatedTableNode* table,
     const Stroka& clusterName,
-    const TYPath& replicaPath)
+    const TYPath& replicaPath,
+    TTimestamp startReplicationTimestamp)
 {
     return Impl_->CreateTableReplica(
         table,
         clusterName,
-        replicaPath);
+        replicaPath,
+        startReplicationTimestamp);
 }
 
 void TTabletManager::DestroyTableReplica(TTableReplica* replica)

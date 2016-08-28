@@ -141,7 +141,8 @@ private:
     TTableReplica* CreateTableReplica(
         NTableServer::TReplicatedTableNode* table,
         const Stroka& clusterName,
-        const NYPath::TYPath& replicaPath);
+        const NYPath::TYPath& replicaPath,
+        NTransactionClient::TTimestamp startReplicationTimestamp);
     void DestroyTableReplica(TTableReplica* replica);
 
     const TIntrusivePtr<TImpl> Impl_;

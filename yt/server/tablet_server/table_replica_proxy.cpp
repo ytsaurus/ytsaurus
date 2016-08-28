@@ -45,6 +45,7 @@ private:
         attributes->push_back("cluster_name");
         attributes->push_back("replica_path");
         attributes->push_back("table_path");
+        attributes->push_back("start_replication_timestamp");
         attributes->push_back("state");
         attributes->push_back(TAttributeDescriptor("tablets")
             .SetOpaque(true));
@@ -66,6 +67,12 @@ private:
         if (key == "replica_path") {
             BuildYsonFluently(consumer)
                 .Value(replica->GetReplicaPath());
+            return true;
+        }
+
+        if (key == "start_replication_timestamp") {
+            BuildYsonFluently(consumer)
+                .Value(replica->GetStartReplicationTimestamp());
             return true;
         }
 
