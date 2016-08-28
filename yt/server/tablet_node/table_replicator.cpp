@@ -46,6 +46,7 @@ using namespace NApi;
 static const auto MountConfigUpdatePeriod = TDuration::Seconds(3);
 static const auto ReplicationTickPeriod = TDuration::MilliSeconds(100);
 static const int TabletRowsPerRead = 1024;
+static const auto HardErrorAttribute = TErrorAttribute("hard", true);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -160,152 +161,83 @@ private:
 
     void FiberIteration()
     {
-        auto mountConfig = GetMountConfig();
-        if (!mountConfig) {
-            DoSoftBackoff(TError("No mount configuration is available"));
-            return;
-        }
-
-        auto remoteConnection = ClusterDirectory_->FindConnection(ClusterName_);
-        if (!remoteConnection) {
-            DoHardBackoff(TError("Replica cluster %Qv is not known", ClusterName_));
-            return;
-        }
-
-        auto tabletSnapshot = SlotManager_->FindTabletSnapshot(TabletId_);
-        if (!tabletSnapshot) {
-            DoHardBackoff(TError("No tablet snapshot is available"));
-            return;
-        }
-
-        auto replicaSnapshot = tabletSnapshot->FindReplicaSnapshot(ReplicaId_);
-        if (!replicaSnapshot) {
-            DoHardBackoff(TError("No table replica snapshot is available"));
-            return;
-        }
-
-        const auto& tabletRuntimeData = tabletSnapshot->RuntimeData;
-        const auto& replicaRuntimeData = replicaSnapshot->RuntimeData;
-        auto startRowIndex = replicaRuntimeData->CurrentReplicationRowIndex.load();
-        if (tabletRuntimeData->TotalRowCount <= startRowIndex) {
-            return;
-        }
-        if (replicaRuntimeData->PreparedReplicationRowIndex > startRowIndex) {
-            return;
-        }
-
-        INativeTransactionPtr localTransaction;
-        ITransactionPtr remoteTransaction;
         try {
+            auto mountConfig = GetMountConfig();
+            if (!mountConfig) {
+                THROW_ERROR_EXCEPTION("No mount configuration is available");
+            }
+
+            auto remoteConnection = ClusterDirectory_->FindConnection(ClusterName_);
+            if (!remoteConnection) {
+                THROW_ERROR_EXCEPTION("Replica cluster %Qv is not known", ClusterName_)
+                    << HardErrorAttribute;
+            }
+
+            auto tabletSnapshot = SlotManager_->FindTabletSnapshot(TabletId_);
+            if (!tabletSnapshot) {
+                THROW_ERROR_EXCEPTION("No tablet snapshot is available")
+                    << HardErrorAttribute;
+            }
+
+            auto replicaSnapshot = tabletSnapshot->FindReplicaSnapshot(ReplicaId_);
+            if (!replicaSnapshot) {
+                THROW_ERROR_EXCEPTION("No table replica snapshot is available")
+                    << HardErrorAttribute;
+            }
+
+            const auto& tabletRuntimeData = tabletSnapshot->RuntimeData;
+            const auto& replicaRuntimeData = replicaSnapshot->RuntimeData;
+            auto lastReplicationRowIndex = replicaRuntimeData->CurrentReplicationRowIndex.load();
+            if (tabletRuntimeData->TotalRowCount <= lastReplicationRowIndex) {
+                return;
+            }
+            if (replicaRuntimeData->PreparedReplicationRowIndex > lastReplicationRowIndex) {
+                return;
+            }
+
             LOG_DEBUG("Starting replication transactions");
 
             // TODO(babenko): use "replicator" user
             auto localClient = LocalConnection_->CreateNativeClient(TClientOptions(NSecurityClient::RootUserName));
-            localTransaction = WaitFor(localClient->StartNativeTransaction(ETransactionType::Tablet))
+            auto localTransaction = WaitFor(localClient->StartNativeTransaction(ETransactionType::Tablet))
                 .ValueOrThrow();
 
             // TODO(babenko): use "replicator" user
             auto remoteClient = remoteConnection->CreateClient(TClientOptions(NSecurityClient::RootUserName));
-            remoteTransaction = WaitFor(localTransaction->StartSlaveTransaction(remoteClient))
+            auto remoteTransaction = WaitFor(localTransaction->StartSlaveTransaction(remoteClient))
                 .ValueOrThrow();
 
             YCHECK(localTransaction->GetId() == remoteTransaction->GetId());
             LOG_DEBUG("Replication transactions started (TransactionId: %v)",
                 localTransaction->GetId());
-        } catch (const std::exception& ex) {
-            DoSoftBackoff(ex);
-            return;
-        }
-        
-        LOG_DEBUG("Started building replication batch (StartRowIndex: %v)",
-            startRowIndex);
 
-        auto reader = CreateSchemafulTabletReader(
-            tabletSnapshot,
-            TColumnFilter(),
-            MakeLowerBound(startRowIndex),
-            MakeUpperBound(),
-            NullTimestamp,
-            TWorkloadDescriptor(EWorkloadCategory::SystemReplication));
+            TRowBufferPtr rowBuffer;
+            std::vector<TRowModification> modifications;
 
-        int rowCount = 0;
-        i64 currentRowIndex = startRowIndex;
-        i64 dataWeight = 0;
-        TTimestamp newReplicationTimestamp;
+            i64 startRowIndex = lastReplicationRowIndex;
+            i64 newReplicationRowIndex;
+            TTimestamp newReplicationTimestamp;
 
-        std::vector<TUnversionedRow> readerRows;
-        readerRows.reserve(TabletRowsPerRead);
-
-        auto rowBuffer = New<TRowBuffer>();
-        std::vector<TRowModification> modifications;
-
-        bool tooMuch = false;
-
-        while (!tooMuch) {
-            try {
-                if (!reader->Read(&readerRows)) {
-                    break;
-                }
-                
-                if (readerRows.empty()) {
-                    LOG_DEBUG("Waiting for replicated rows from tablet reader (StartRowIndex: %v)",
-                        currentRowIndex);
-                    WaitFor(reader->GetReadyEvent())
-                        .ThrowOnError();
-                    continue;
-                }
-            } catch (const std::exception& ex) {
-                DoSoftBackoff(ex);
-                return;
-            }
- 
-            LOG_DEBUG("Got replicated rows from tablet reader (StartRowIndex: %v, RowCount: %v)",
-                currentRowIndex,
-                readerRows.size());
-
-            for (auto row : readerRows) {
-                i64 actualRowIndex;
-                ParseLogRow(
-                    tabletSnapshot,
+            auto readReplicationBatch = [&] () {
+                return ReadReplicationBatch(
                     mountConfig,
-                    row,
-                    rowBuffer,
+                    tabletSnapshot,
+                    replicaSnapshot,
+                    startRowIndex,
                     &modifications,
-                    &actualRowIndex,
+                    &rowBuffer,
+                    &newReplicationRowIndex,
                     &newReplicationTimestamp);
+            };
 
-                if (currentRowIndex != actualRowIndex) {
-                    DoHardBackoff(TError("Log row index mismatch: expected %v, got %v",
-                        currentRowIndex,
-                        actualRowIndex));
-                    return;
-                }
-
-                ++currentRowIndex;
-                ++rowCount;
-                dataWeight += GetDataWeight(row);
-
-                if (rowCount >= mountConfig->MaxRowsPerReplicationCommit ||
-                    dataWeight >= mountConfig->MaxDataWeightPerReplicationCommit)
-                {
-                    tooMuch = true;
-                    break;
-                }
+            if (!readReplicationBatch()) {
+                startRowIndex = ComputeStartRowIndex(
+                    mountConfig,
+                    tabletSnapshot,
+                    replicaSnapshot);
+                YCHECK(readReplicationBatch());
             }
-        }
 
-        YCHECK(rowCount > 0);
-        auto newReplicationRowIndex = startRowIndex + rowCount;
-
-        LOG_DEBUG("Finished building replication batch (StartRowIndex: %v, RowCount: %v, DataWeight: %v, "
-            "NewReplicationRowIndex: %v, NewReplicationTimestamp: %v)",
-            currentRowIndex,
-            rowCount,
-            dataWeight,
-            newReplicationRowIndex,
-            newReplicationTimestamp);
-
-        try {
             remoteTransaction->ModifyRows(
                 ReplicaPath_,
                 TNameTable::FromSchema(TableSchema_),
@@ -330,9 +262,227 @@ private:
             }
             LOG_DEBUG("Finished committing replication transaction");
         } catch (const std::exception& ex) {
-            DoSoftBackoff(ex);
-            return;
+            TError error(ex);
+            if (error.Attributes().Get<bool>("hard", false)) {
+                DoHardBackoff(error);
+            } else {
+                DoSoftBackoff(error);
+            }
         }
+    }
+
+    TTimestamp ReadLogRowTimestamp(
+        const TTableMountConfigPtr& mountConfig,
+        const TTabletSnapshotPtr& tabletSnapshot,
+        i64 rowIndex)
+    {
+        auto reader = CreateSchemafulTabletReader(
+            tabletSnapshot,
+            TColumnFilter(),
+            MakeRowBound(rowIndex),
+            MakeRowBound(rowIndex + 1),
+            NullTimestamp,
+            TWorkloadDescriptor(EWorkloadCategory::SystemReplication));
+
+        std::vector<TUnversionedRow> readerRows;
+        readerRows.reserve(1);
+
+        while (true) {
+            if (!reader->Read(&readerRows)) {
+                THROW_ERROR_EXCEPTION("Missing row %v in replication log of tablet %v",
+                    rowIndex,
+                    tabletSnapshot->TabletId)
+                    << HardErrorAttribute;
+            }
+
+            if (readerRows.empty()) {
+                LOG_DEBUG(
+                    "Waiting for log row from tablet reader (RowIndex: %v)",
+                    rowIndex);
+                WaitFor(reader->GetReadyEvent())
+                    .ThrowOnError();
+                continue;
+            }
+
+            // One row is enough.
+            break;
+        }
+
+        YCHECK(readerRows.size() == 1);
+
+        i64 actualRowIndex;
+        TTimestamp timestamp;
+        ParseLogRow(
+            tabletSnapshot,
+            mountConfig,
+            readerRows[0],
+            nullptr,
+            nullptr,
+            &actualRowIndex,
+            &timestamp);
+
+        YCHECK(actualRowIndex == rowIndex);
+
+        LOG_DEBUG("Replication log row timestamp is read (RowIndex: %v, Timestamp: %v)",
+            rowIndex,
+            timestamp);
+
+        return timestamp;
+    }
+
+    i64 ComputeStartRowIndex(
+        const TTableMountConfigPtr& mountConfig,
+        const TTabletSnapshotPtr& tabletSnapshot,
+        const TTableReplicaSnapshotPtr& replicaSnapshot)
+    {
+        auto trimmedRowCount = tabletSnapshot->RuntimeData->TrimmedRowCount.load();
+        auto totalRowCount = tabletSnapshot->RuntimeData->TotalRowCount.load();
+
+        auto rowIndexLo = trimmedRowCount;
+        auto rowIndexHi = totalRowCount;
+        if (rowIndexLo == rowIndexHi) {
+            THROW_ERROR_EXCEPTION("No replication log rows are available")
+                << HardErrorAttribute;
+        }
+
+        auto startReplicationTimestamp = replicaSnapshot->StartReplicationTimestamp;
+
+        LOG_DEBUG("Started computing replication start row index (StartReplicationTimestamp: %v, RowIndexLo: %v, RowIndexHi: %v)",
+            startReplicationTimestamp,
+            rowIndexLo,
+            rowIndexHi);
+
+        while (rowIndexLo < rowIndexHi - 1) {
+            auto rowIndexMid = rowIndexLo + (rowIndexHi - rowIndexLo) / 2;
+            auto timestampMid = ReadLogRowTimestamp(mountConfig, tabletSnapshot, rowIndexMid);
+            if (timestampMid <= startReplicationTimestamp) {
+                rowIndexLo = rowIndexMid;
+            } else {
+                rowIndexHi = rowIndexMid;
+            }
+        }
+
+        auto startRowIndex = rowIndexLo;
+        TTimestamp startTimestamp;
+        while (true) {
+            startTimestamp = ReadLogRowTimestamp(mountConfig, tabletSnapshot, startRowIndex);
+            if (startTimestamp > startReplicationTimestamp) {
+                break;
+            }
+            if (startRowIndex == totalRowCount - 1) {
+                break;
+            }
+            ++startRowIndex;
+        }
+
+        LOG_DEBUG("Finished computing replication start row index (StartRowIndex: %v, StartTimestamp: %v)",
+            startRowIndex,
+            startTimestamp);
+
+        return startRowIndex;
+    }
+
+    bool ReadReplicationBatch(
+        const TTableMountConfigPtr& mountConfig,
+        const TTabletSnapshotPtr& tabletSnapshot,
+        const TTableReplicaSnapshotPtr& replicaSnapshot,
+        i64 startRowIndex,
+        std::vector<TRowModification>* modifications,
+        TRowBufferPtr* rowBuffer,
+        i64* newReplicationRowIndex,
+        TTimestamp* newReplicationTimestamp)
+    {
+        LOG_DEBUG("Started building replication batch (StartRowIndex: %v)",
+            startRowIndex);
+
+        auto reader = CreateSchemafulTabletReader(
+            tabletSnapshot,
+            TColumnFilter(),
+            MakeRowBound(startRowIndex),
+            MakeRowBound(std::numeric_limits<i64>::max()),
+            NullTimestamp,
+            TWorkloadDescriptor(EWorkloadCategory::SystemReplication));
+
+        int rowCount = 0;
+        i64 currentRowIndex = startRowIndex;
+        i64 dataWeight = 0;
+
+        *rowBuffer = New<TRowBuffer>();
+        modifications->clear();
+
+        std::vector<TUnversionedRow> readerRows;
+        readerRows.reserve(TabletRowsPerRead);
+
+        bool tooMuch = false;
+        while (!tooMuch) {
+            if (!reader->Read(&readerRows)) {
+                break;
+            }
+
+            if (readerRows.empty()) {
+                LOG_DEBUG("Waiting for replicated rows from tablet reader (StartRowIndex: %v)",
+                    currentRowIndex);
+                WaitFor(reader->GetReadyEvent())
+                    .ThrowOnError();
+                continue;
+            }
+
+            LOG_DEBUG("Got replicated rows from tablet reader (StartRowIndex: %v, RowCount: %v)",
+                currentRowIndex,
+                readerRows.size());
+
+            for (auto row : readerRows) {
+                i64 actualRowIndex;
+                ParseLogRow(
+                    tabletSnapshot,
+                    mountConfig,
+                    row,
+                    *rowBuffer,
+                    modifications,
+                    &actualRowIndex,
+                    newReplicationTimestamp);
+
+                if (*newReplicationTimestamp <= replicaSnapshot->StartReplicationTimestamp) {
+                    YCHECK(row == readerRows[0]);
+                    LOG_INFO("Replication log row violates timestamp bound (StartReplicationTimstamp: %v, LogRecordTimestamp: %v)",
+                        replicaSnapshot->StartReplicationTimestamp,
+                        *newReplicationTimestamp);
+                    return false;
+                }
+
+                if (currentRowIndex != actualRowIndex) {
+                    THROW_ERROR_EXCEPTION("Replication log row index mismatch in tablet %v: expected %v, got %v",
+                        tabletSnapshot->TabletId,
+                        currentRowIndex,
+                        actualRowIndex)
+                        << HardErrorAttribute;
+                }
+
+                ++currentRowIndex;
+                ++rowCount;
+                dataWeight += GetDataWeight(row);
+
+                if (rowCount >= mountConfig->MaxRowsPerReplicationCommit ||
+                    dataWeight >= mountConfig->MaxDataWeightPerReplicationCommit)
+                {
+                    tooMuch = true;
+                    break;
+                }
+            }
+        }
+
+        YCHECK(rowCount > 0);
+        *newReplicationRowIndex = startRowIndex + rowCount;
+
+        LOG_DEBUG("Finished building replication batch (StartRowIndex: %v, RowCount: %v, DataWeight: %v, "
+            "NewReplicationRowIndex: %v, NewReplicationTimestamp: %v)",
+            currentRowIndex,
+            rowCount,
+            dataWeight,
+            *newReplicationRowIndex,
+            *newReplicationTimestamp);
+
+        return true;
     }
 
 
@@ -363,6 +513,10 @@ private:
 
         Y_ASSERT(logRow[2].Type == EValueType::Uint64);
         *timestamp = logRow[2].Data.Uint64;
+
+        if (!modifications) {
+            return;
+        }
 
         Y_ASSERT(logRow[3].Type == EValueType::Int64);
         auto changeType = ERowModificationType(logRow[3].Data.Int64);
@@ -404,7 +558,7 @@ private:
                 }
                 modification.Type = ERowModificationType::Write;
                 modification.Row = row;
-                LOG_DEBUG_IF(MountConfig_->EnableReplicationLogging, "Replicating write (Row: %v)", row);
+                LOG_DEBUG_IF(mountConfig->EnableReplicationLogging, "Replicating write (Row: %v)", row);
                 break;
             }
 
@@ -417,7 +571,7 @@ private:
                 }
                 modification.Type = ERowModificationType::Delete;
                 modification.Row = key;
-                LOG_DEBUG_IF(MountConfig_->EnableReplicationLogging, "Replicating delete (Key: %v)", key);
+                LOG_DEBUG_IF(mountConfig->EnableReplicationLogging, "Replicating delete (Key: %v)", key);
                 break;
             }
 
@@ -427,19 +581,11 @@ private:
         modifications->push_back(modification);
     }
 
-    static TOwningKey MakeLowerBound(i64 startRowIndex)
+    static TOwningKey MakeRowBound(i64 rowIndex)
     {
         TUnversionedOwningRowBuilder builder;
         builder.AddValue(MakeUnversionedInt64Value(-1, 0)); // tablet id, fake
-        builder.AddValue(MakeUnversionedInt64Value(startRowIndex, 1)); // row index
-        return builder.FinishRow();
-    }
-
-    static TOwningKey MakeUpperBound()
-    {
-        TUnversionedOwningRowBuilder builder;
-        builder.AddValue(MakeUnversionedInt64Value(-1, 0)); // tablet id, fake
-        builder.AddValue(MakeUnversionedSentinelValue(EValueType::Max, 1)); // row index
+        builder.AddValue(MakeUnversionedInt64Value(rowIndex, 1)); // row index
         return builder.FinishRow();
     }
 };

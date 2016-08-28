@@ -133,6 +133,7 @@ void TTableReplicaInfo::Save(TSaveContext& context) const
     Save(context, Id_);
     Save(context, ClusterName_);
     Save(context, ReplicaPath_);
+    Save(context, StartReplicationTimestamp_);
     Save(context, State_);
     Save(context, RuntimeData_->CurrentReplicationRowIndex);
     Save(context, RuntimeData_->PreparedReplicationRowIndex);
@@ -145,6 +146,7 @@ void TTableReplicaInfo::Load(TLoadContext& context)
     Load(context, Id_);
     Load(context, ClusterName_);
     Load(context, ReplicaPath_);
+    Load(context, StartReplicationTimestamp_);
     Load(context, State_);
     Load(context, RuntimeData_->CurrentReplicationRowIndex);
     Load(context, RuntimeData_->PreparedReplicationRowIndex);
@@ -174,6 +176,7 @@ void TTableReplicaInfo::SetPreparedReplicationRowIndex(i64 value)
 TTableReplicaSnapshotPtr TTableReplicaInfo::BuildSnapshot() const
 {
     auto snapshot = New<TTableReplicaSnapshot>();
+    snapshot->StartReplicationTimestamp = StartReplicationTimestamp_;
     snapshot->RuntimeData = RuntimeData_;
     return snapshot;
 }

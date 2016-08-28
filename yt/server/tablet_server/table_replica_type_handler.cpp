@@ -52,6 +52,7 @@ public:
         auto tablePath = attributes->GetAndRemove<Stroka>("table_path");
         auto clusterName = attributes->GetAndRemove<Stroka>("cluster_name");
         auto replicaPath = attributes->GetAndRemove<Stroka>("replica_path");
+        auto startReplicationTimestamp = attributes->GetAndRemove<NTransactionClient::TTimestamp>("start_replication_timestamp", NTransactionClient::MinTimestamp);
 
         auto cypressManager = Bootstrap_->GetCypressManager();
         auto resolver = cypressManager->CreateResolver(nullptr);
@@ -70,7 +71,8 @@ public:
         return tabletManager->CreateTableReplica(
             table,
             clusterName,
-            replicaPath);
+            replicaPath,
+            startReplicationTimestamp);
     }
 
 private:

@@ -2396,6 +2396,7 @@ private:
 
         replicaInfo.SetClusterName(descriptor.cluster_name());
         replicaInfo.SetReplicaPath(descriptor.replica_path());
+        replicaInfo.SetStartReplicationTimestamp(descriptor.start_replication_timestamp());
         replicaInfo.SetState(ETableReplicaState::Disabled);
         PopulateTableReplicaInfoFromStatistics(&replicaInfo, descriptor.statistics());
 
@@ -2406,11 +2407,12 @@ private:
         UpdateTabletSnapshot(tablet);
 
         LOG_INFO_UNLESS(IsRecovery(), "Table replica added (TabletId: %v, ReplicaId: %v, ClusterName: %v, ReplicaPath: %v, "
-            "CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %x)",
+            "StartReplicationTimestamp: %v, CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %x)",
             tablet->GetId(),
             replicaId,
             replicaInfo.GetClusterName(),
             replicaInfo.GetReplicaPath(),
+            replicaInfo.GetStartReplicationTimestamp(),
             replicaInfo.GetCurrentReplicationRowIndex(),
             replicaInfo.GetCurrentReplicationTimestamp());
     }

@@ -24,6 +24,7 @@ void TTableReplica::Save(NCellMaster::TSaveContext& context) const
     using NYT::Save;
     Save(context, ClusterName_);
     Save(context, ReplicaPath_);
+    Save(context, StartReplicationTimestamp_);
     Save(context, Table_);
     Save(context, DisablingTablets_);
 }
@@ -35,6 +36,7 @@ void TTableReplica::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, ClusterName_);
     Load(context, ReplicaPath_);
+    Load(context, StartReplicationTimestamp_);
     Load(context, Table_);
     Load(context, DisablingTablets_);
 }

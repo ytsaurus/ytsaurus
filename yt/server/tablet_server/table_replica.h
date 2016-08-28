@@ -6,6 +6,8 @@
 
 #include <yt/server/table_server/public.h>
 
+#include <yt/ytlib/transaction_client/public.h>
+
 #include <yt/core/misc/ref_tracked.h>
 #include <yt/core/misc/enum.h>
 
@@ -23,6 +25,7 @@ class TTableReplica
 public:
     DEFINE_BYVAL_RW_PROPERTY(Stroka, ClusterName);
     DEFINE_BYVAL_RW_PROPERTY(NYPath::TYPath, ReplicaPath);
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, StartReplicationTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(NTableServer::TReplicatedTableNode*, Table);
     DEFINE_BYVAL_RW_PROPERTY(ETableReplicaState, State);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TTablet*>, DisablingTablets)
