@@ -154,7 +154,8 @@ test_list()
 test_codec()
 {
     ./mapreduce -write "ignat/temp" <table_file
-    check_failed './mapreduce -write "ignat/temp" -codec "none" <table_file'
+    # Checking that we appending with new codec is disabled.
+    #check_failed './mapreduce -write "ignat/temp" -codec "none" <table_file'
 
     # We cannot write to existing table with replication factor
     ./mapreduce -drop "ignat/temp"
