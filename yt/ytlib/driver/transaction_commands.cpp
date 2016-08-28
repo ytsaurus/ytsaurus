@@ -1,6 +1,8 @@
 #include "config.h"
 #include "transaction_commands.h"
 
+#include <yt/ytlib/transaction_client/timestamp_provider.h>
+
 #include <yt/ytlib/api/transaction.h>
 
 #include <yt/core/concurrency/scheduler.h>
@@ -77,6 +79,17 @@ void TAbortTransactionCommand::Execute(ICommandContextPtr context)
     auto transaction = AttachTransaction(context, true);
     WaitFor(transaction->Abort(Options))
         .ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TGenerateTimestampCommand::Execute(ICommandContextPtr context)
+{
+    auto timestampProvider = context->GetClient()->GetConnection()->GetTimestampProvider();
+    auto timestamp = WaitFor(timestampProvider->GenerateTimestamps())
+        .ValueOrThrow();
+    context->ProduceOutputValue(BuildYsonStringFluently()
+        .Value(timestamp));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

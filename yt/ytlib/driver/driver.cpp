@@ -109,6 +109,7 @@ public:
         REGISTER(TPingTransactionCommand,      "ping_tx",                 Null,       Null,       true,  false);
         REGISTER(TCommitTransactionCommand,    "commit_tx",               Null,       Null,       true,  false);
         REGISTER(TAbortTransactionCommand,     "abort_tx",                Null,       Null,       true,  false);
+        REGISTER(TGenerateTimestampCommand,    "generate_timestamp",      Null,       Structured, false, false);
 
         REGISTER(TCreateCommand,               "create",                  Null,       Structured, true,  false);
         REGISTER(TRemoveCommand,               "remove",                  Null,       Null,       true,  false);
