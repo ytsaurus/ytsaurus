@@ -291,8 +291,7 @@ def lookup_rows(path, data, **kwargs):
     return execute_command_with_output_format("lookup_rows", kwargs, input_stream=_prepare_rows_stream(data))
 
 def start_transaction(**kwargs):
-    out = execute_command("start_tx", kwargs)
-    return out.replace('"', '').strip("\n")
+    return yson.loads(execute_command("start_tx", kwargs))
 
 def commit_transaction(tx, **kwargs):
     kwargs["transaction_id"] = tx
@@ -305,6 +304,9 @@ def ping_transaction(tx, **kwargs):
 def abort_transaction(tx, **kwargs):
     kwargs["transaction_id"] = tx
     return execute_command("abort_tx", kwargs)
+
+def generate_timestamp(**kwargs):
+    return yson.loads(execute_command("generate_timestamp", kwargs))
 
 def mount_table(path, **kwargs):
     clear_metadata_caches()
