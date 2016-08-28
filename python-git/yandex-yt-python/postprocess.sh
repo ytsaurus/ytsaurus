@@ -38,17 +38,23 @@ if [ -z "$FOUND_EGG" ] || [ -n "$FORCE_DEPLOY" ]; then
     make_link "$DEST/$EGG_FILE" "$DEST/yandex-yt.egg"
 fi
 
-# Upload self-contained binaries
-for name in yt mapreduce-yt yt-fuse; do
-    if [ -n "$(echo "$FILES" | silent_grep "${name}_${VERSION}_${UBUNTU_VERSION}")" ] && [ -z "$FORCE_DEPLOY" ]; then
-        continue
-    fi
-    rm -rf build dist
-    pyinstaller/pyinstaller.py --noconfirm --onefile yt/wrapper/$name
-    pyinstaller/pyinstaller.py --noconfirm "${name}.spec"
-    cat dist/$name | $YT upload "$DEST/${name}_${VERSION}_${UBUNTU_VERSION}"
-    make_link "$DEST/${name}_${VERSION}_${UBUNTU_VERSION}" "$DEST/${name}_${UBUNTU_VERSION}"
-done
+PYTHON_VERSION="$(python --version | awk '{print $2}')"
+
+# If we use python2.7 then...
+# NB: pyinstaller does not work correctly with python <= 2.6.
+if [ "$PYTHON_VERSION" != "${PYTHON_VERSION/2.7/}" ]; then
+    # Upload self-contained binaries
+    for name in yt mapreduce-yt yt-fuse; do
+        if [ -n "$(echo "$FILES" | silent_grep "${name}_${VERSION}_${UBUNTU_VERSION}")" ] && [ -z "$FORCE_DEPLOY" ]; then
+            continue
+        fi
+        rm -rf build dist
+        pyinstaller/pyinstaller.py --noconfirm --onefile yt/wrapper/$name
+        pyinstaller/pyinstaller.py --noconfirm "${name}.spec"
+        cat dist/$name | $YT upload "$DEST/${name}_${VERSION}_${UBUNTU_VERSION}"
+        make_link "$DEST/${name}_${VERSION}_${UBUNTU_VERSION}" "$DEST/${name}_${UBUNTU_VERSION}"
+    done
+fi
 
 
 if [ -n "$CREATE_CONDUCTOR_TICKET" ]; then
