@@ -235,7 +235,7 @@ default_config = {
         # Log level used for printing operation progress.
         "progress_logging_level": "INFO",
         # Ignore failures during stderr downloads.
-        "ignore_stderr_if_download_failed": False,
+        "ignore_stderr_if_download_failed": True,
         # Abort operation when SIGINT is received while waiting for the operation to finish.
         "abort_on_sigint": True,
         # Log job statistics on operation complete.
