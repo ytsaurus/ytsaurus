@@ -2,7 +2,7 @@
 
 from yt.wrapper.cli_helpers import run_main
 from yt.wrapper.client import Yt
-from yt.wrapper.http import get_token
+from yt.wrapper.http_helpers import get_token
 from yt.common import YtError, get_value, remove_file
 from yt.tools.yamr import Yamr
 from yt.transfer_manager.client import TransferManager

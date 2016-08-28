@@ -2,7 +2,7 @@ from .helpers import TEST_DIR, set_config_option
 
 from yt.wrapper.client import Yt
 from yt.wrapper.table import TablePath
-import yt.wrapper.http as http
+import yt.wrapper.http_helpers as http
 
 import yt.wrapper as yt
 

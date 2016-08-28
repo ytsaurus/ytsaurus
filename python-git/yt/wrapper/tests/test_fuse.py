@@ -1,7 +1,7 @@
 from .helpers import TEST_DIR
 
 from yt.wrapper.cypress_fuse import CachedYtClient, Cypress
-from yt.wrapper.http import get_proxy_url
+from yt.wrapper.http_helpers import get_proxy_url
 
 from yt.packages.fuse import fuse_file_info, FuseOSError
 from yt.packages.six import iterkeys

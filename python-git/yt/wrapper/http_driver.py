@@ -1,9 +1,9 @@
 from . import yson
 from .config import get_config, get_option
-from .compression_wrapper import create_zlib_generator
+from .compression import create_zlib_generator
 from .common import require, generate_uuid, bool_to_string, get_version, total_seconds, forbidden_inside_job
 from .errors import YtError, YtHttpResponseError, YtProxyUnavailable, YtConcurrentOperationsLimitExceeded, YtRequestTimedOut
-from .http import make_get_request_with_retries, make_request_with_retries, get_token, get_api_version, get_api_commands, get_proxy_url, parse_error_from_headers, get_header_format
+from .http_helpers import make_get_request_with_retries, make_request_with_retries, get_token, get_api_version, get_api_commands, get_proxy_url, parse_error_from_headers, get_header_format
 from .response_stream import ResponseStream
 
 import yt.logger as logger
