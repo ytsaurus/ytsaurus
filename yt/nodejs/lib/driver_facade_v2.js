@@ -68,6 +68,8 @@ function YtDriverFacadeV2(logger, driver)
 
     // Remove new commands that are not part of V2.
 
+    delete descriptors.generate_timestamp;
+
     delete descriptors.read_file;
     delete descriptors.read_journal;
     delete descriptors.read_table;
