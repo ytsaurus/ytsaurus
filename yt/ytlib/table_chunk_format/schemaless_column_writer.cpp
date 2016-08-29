@@ -109,12 +109,13 @@ private:
             }
         }
 
+        ui32 base = DataBuffer_->GetSize();
         char* begin = DataBuffer_->Preallocate(cumulativeSize);
         char* current = begin;
 
         for (auto row : rows) {
             ++RowCount_;
-            Offsets_.push_back(current - begin);
+            Offsets_.push_back(base + current - begin);
 
             i32 valueCount = row.GetCount() - SchemaColumnCount_;
             if (valueCount <= 0) {

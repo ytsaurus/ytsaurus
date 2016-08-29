@@ -54,7 +54,9 @@ TEST(TSchemalessColumnTest, Simple)
     TDataBlockWriter blockWriter;
     auto columnWriter = CreateSchemalessColumnWriter(0, &blockWriter);
 
-    columnWriter->WriteUnversionedValues(MakeRange(expected));
+    // Make two separate writes.
+    columnWriter->WriteUnversionedValues(MakeRange(expected.data(), 2));
+    columnWriter->WriteUnversionedValues(MakeRange(expected.data() + 2, 2));
     columnWriter->FinishCurrentSegment();
 
     auto block = blockWriter.DumpBlock(0, 8);
@@ -88,7 +90,7 @@ TEST(TSchemalessColumnTest, Simple)
 
     reader->ReadValues(TMutableRange<TMutableUnversionedRow>(actual.data(), actual.size()));
     CheckSchemafulResult(expected, actual);
- }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
