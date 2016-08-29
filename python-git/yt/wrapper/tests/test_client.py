@@ -196,11 +196,15 @@ class TestClient(object):
         client = Yt(token="a" * 32)
         client.config["enable_token"] = True
 
-        assert http.get_token(client) == "a" * 32
+        assert http.get_token(client=client) == "a" * 32
 
         _, filename = tempfile.mkstemp()
         with open(filename, "w") as fout:
             fout.write("b" * 32)
         client.config["token"] = None
         client.config["token_path"] = filename
-        assert http.get_token(client) == "b" * 32
+        assert http.get_token(client=client) == "b" * 32
+        assert http.get_token(token="abacaba") == "abacaba"
+        with pytest.raises(yt.YtTokenError):
+            assert http.get_token(token="\x01\x02")
+        assert http.get_token(token="", client=client) == "b" * 32

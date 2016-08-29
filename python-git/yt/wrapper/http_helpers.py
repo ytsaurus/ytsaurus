@@ -279,21 +279,22 @@ def get_api_commands(client=None):
 
     return commands
 
-def get_token(client=None):
-    if not get_config(client)["enable_token"]:
-        return None
+def get_token(token=None, client=None):
+    if not token:
+        if not get_config(client)["enable_token"]:
+            return None
 
-    token = get_config(client)["token"]
-    if token is None:
-        token_path = get_config(client=client)["token_path"]
-        if token_path is None:
-            token_path = os.path.join(os.path.expanduser("~"), ".yt/token")
-        if os.path.isfile(token_path):
-            with open(token_path, "rb") as token_file:
-                token = token_file.read().strip()
-            logger.debug("Token got from %s", token_path)
-    else:
-        logger.debug("Token got from environment variable or config")
+        token = get_config(client)["token"]
+        if token is None:
+            token_path = get_config(client=client)["token_path"]
+            if token_path is None:
+                token_path = os.path.join(os.path.expanduser("~"), ".yt/token")
+            if os.path.isfile(token_path):
+                with open(token_path, "rb") as token_file:
+                    token = token_file.read().strip()
+                logger.debug("Token got from %s", token_path)
+        else:
+            logger.debug("Token got from environment variable or config")
     if token is not None:
         require(all(33 <= ord(c) <= 126 for c in token),
                 lambda: YtTokenError("You have an improper authentication token"))
@@ -307,7 +308,7 @@ def get_user_name(token=None, headers=None, client=None):
         raise YtError("Function 'get_user_name' cannot be implemented for not http clients")
 
     if token is None and headers is None:
-        token = get_token(client)
+        token = get_token(client=client)
 
     version = get_api_version(client=client)
     proxy = get_proxy_url(None, client=client)
