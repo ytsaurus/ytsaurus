@@ -198,27 +198,26 @@ private:
 
 void TExecuteBatchCommand::Execute(ICommandContextPtr context)
 {
-    TAsyncYsonWriter writer;
-
-    writer.OnBeginList();
-
     auto mutationId = Options.GetOrGenerateMutationId();
 
+    std::vector<TCallback<TFuture<TYsonString>()>> callbacks;
     for (const auto& request : Requests) {
         auto executor = New<TRequestExecutor>(
             context,
             request,
             mutationId,
             Options.Retry);
-        writer.OnRaw(executor->Run());
         ++mutationId.Parts32[0];
+        callbacks.push_back(BIND(&TRequestExecutor::Run, executor));
     }
 
-    writer.OnEndList();
-
-    auto result = WaitFor(writer.Finish())
+    auto results = WaitFor(RunWithBoundedConcurrency(callbacks, Options.Concurrency))
         .ValueOrThrow();
-    context->ProduceOutputValue(result);
+
+    context->ProduceOutputValue(BuildYsonStringFluently()
+        .DoListFor(results, [&] (TFluentList fluent, const TErrorOr<TYsonString>& result) {
+            fluent.Item().Value(result.ValueOrThrow());
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

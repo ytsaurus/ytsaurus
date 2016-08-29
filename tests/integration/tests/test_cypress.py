@@ -1135,6 +1135,19 @@ class TestCypress(YTEnvSetup):
         assert get_batch_output(get_results[0]) == "a"
         assert get_batch_output(get_results[1]) == "b"
 
+    def test_batch_with_concurrency_failure(self):
+        with pytest.raises(YtError): execute_batch([], concurrency=-1)
+
+    def test_batch_with_concurrency_success(self):
+        for i in xrange(10):
+            set("//tmp/{0}".format(i), i)
+        get_results = execute_batch([
+            make_batch_request("get", path="//tmp/{0}".format(i)) for i in xrange(10)
+        ], concurrency=2)
+        assert len(get_results) == 10
+        for i in xrange(10):
+            assert get_batch_output(get_results[i]) == i
+
     def test_recursive_resource_usage_map(self):
         create("map_node", "//tmp/m")
         for i in xrange(10):
