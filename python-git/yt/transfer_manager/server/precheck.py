@@ -88,11 +88,6 @@ def perform_precheck(task, clusters_configuration, ignore_timeout=False, yamr_ti
         if (source_client._type in ["hive", "hdfs", "hbase"]) and clusters_configuration.hadoop_transmitter is None:
             raise yt.YtError("Hadoop transmitter (airflow client) should be configured for transfer from {0} to {1}"
                              .format(source_client._type, destination_client._type))
-
-        if task.skip_if_destination_exists and (
-                (destination_client._type == "yamr" and not destination_client.is_empty(task.destination_table)) or \
-                (destination_client._type == "yt" and destination_client.exists(task.destination_table))):
-            task.state = "skipped"
     except TimeoutExpired:
         custom_logger.info("Precheck timed out")
         if not ignore_timeout:

@@ -58,6 +58,7 @@ from collections import defaultdict, deque
 from threading import RLock
 from multiprocessing import Process
 from itertools import chain
+from subprocess32 import TimeoutExpired
 import Queue
 
 OS_PAGE_SIZE = os.sysconf("SC_PAGE_SIZE")
@@ -944,6 +945,16 @@ class Application(object):
                                  ignore_timeout=True, yamr_timeout=5.0, custom_logger=TaskIdLogger(task.id))
             except yt.YtError as error:
                 raise RequestFailed("Precheck of task {} failed".format(task.id), inner_errors=[error]), None, sys.exc_info()[2]
+
+        if task.skip_if_destination_exists:
+            destination_client = task.get_destination_client(clusters_configuration.clusters)
+            try:
+                if (destination_client._type == "yamr" and not destination_client.is_empty(task.destination_table)) or \
+                        (destination_client._type == "yt" and destination_client.exists(task.destination_table)):
+                    task.state = "skipped"
+            except TimeoutExpired:
+                raise RequestFailed("Cannot check if destination table exists: request to YAMR cluster timed out",
+                                    http_code=500)
 
         if not dry_run:
             self._initialize_pool(task, clusters_configuration)
