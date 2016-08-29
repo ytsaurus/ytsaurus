@@ -487,7 +487,7 @@ struct TFutureCombineTraits<void>
  */
 template <class T>
 TFuture<typename TFutureCombineTraits<T>::TCombined> Combine(
-    const std::vector<TFuture<T>>& futures);
+    std::vector<TFuture<T>> futures);
 
 //! Same as #Combine but only wait for #quorum successful results.
 /*!
@@ -496,19 +496,25 @@ TFuture<typename TFutureCombineTraits<T>::TCombined> Combine(
  */
 template <class T>
 TFuture<typename TFutureCombineTraits<T>::TCombined> CombineQuorum(
-    const std::vector<TFuture<T>>& futures,
+    std::vector<TFuture<T>> futures,
     int quorum);
 
 //! A variant of |Combine| that accepts future holders instead of futures.
 template <class T>
 TFuture<typename TFutureCombineTraits<T>::TCombined> Combine(
-    const std::vector<TFutureHolder<T>>& holders);
+    std::vector<TFutureHolder<T>> holders);
 
 //! Similar to #Combine but waits for the results in all components, i.e.
 //! errors occurring in components will not cause early termination.
 template <class T>
 TFuture<std::vector<TErrorOr<T>>> CombineAll(
-    const std::vector<TFuture<T>>& futures);
+    std::vector<TFuture<T>> futures);
+
+//! Executes given #callbacks, allowing up to #concurrencyLimit simultaneous invocations.
+template <class T>
+TFuture<std::vector<TErrorOr<T>>> RunWithBoundedConcurrency(
+    std::vector<TCallback<TFuture<T>()>> callbacks,
+    int concurrencyLimit);
 
 ////////////////////////////////////////////////////////////////////////////////
 
