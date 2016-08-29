@@ -354,6 +354,8 @@ def build_python_packages(options):
                 "yandex-yt-python-fennel", "yandex-yt-local"]
 
     for package in packages:
+        if package == "yandex-yt-python-fennel" and not options.build_enable_python_2_7:
+            continue
         with cwd(options.checkout_directory, "python", package):
             package_version = run_captured(
                 "dpkg-parsechangelog | grep Version | awk '{print $2}'", shell=True).strip()
