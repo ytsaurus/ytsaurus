@@ -9,7 +9,7 @@ import os
 import argparse
 import logging
 
-logger.set_formatter(logging.Formatter('%(asctime)-15s\t{}\t%(message)s'.format(yt.config.http.PROXY)))
+logger.set_formatter(logging.Formatter('%(asctime)-15s\t{}\t%(message)s'.format(yt.config["proxy"]["url"])))
 
 def get_time(obj):
     return obj.attributes["modification_time"]
