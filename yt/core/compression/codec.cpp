@@ -24,11 +24,6 @@ class TCodecBase
     : public ICodec
 {
 protected:
-    static size_t ZeroSizeEstimator(const std::vector<int>&)
-    {
-        return 0;
-    }
-
     template <class TCodec>
     TSharedRef Run(
         TConverter converter,
