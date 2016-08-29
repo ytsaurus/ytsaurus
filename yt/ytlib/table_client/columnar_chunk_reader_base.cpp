@@ -57,7 +57,11 @@ void TColumnarChunkMeta::InitBlockLastKeys(int keyColumnCount)
     for (const auto& block : BlockMeta_.blocks()) {
         YCHECK(block.has_last_key());
         auto key = FromProto<TOwningKey>(block.last_key());
-        BlockLastKeys_.push_back(WidenKey(key, keyColumnCount));
+        if (key.GetCount() > keyColumnCount) {
+            BlockLastKeys_.push_back(key);
+        } else {
+            BlockLastKeys_.push_back(WidenKey(key, keyColumnCount));
+        }
     }
 }
 
