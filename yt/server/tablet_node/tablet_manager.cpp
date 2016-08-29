@@ -284,7 +284,7 @@ private:
             if (auto owner = Owner_.Lock()) {
                 if (auto tablet = owner->FindTablet(TTabletId::FromString(key))) {
                     auto producer = BIND(&TImpl::BuildTabletOrchidYson, owner, tablet);
-                    return IYPathService::FromProducer(producer);
+                    return ConvertToNode(producer);
                 }
             }
             return nullptr;
