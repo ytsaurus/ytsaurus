@@ -680,6 +680,7 @@ public:
             return false;
         }
 
+        i64 DataWeight = 0;
         while (rows->size() < rows->capacity()) {
             ResetExhaustedColumns();
 
@@ -765,6 +766,8 @@ public:
                         RowIndexId_);
                     row.SetCount(row.GetCount() + 1);
                 }
+
+                DataWeight += GetDataWeight(row);
             }
 
             if (RowIndex_ + rowLimit > SafeUpperRowIndex_) {
@@ -787,7 +790,7 @@ public:
             }
 
             RowIndex_ += range.Size();
-            if (Completed_ || !TryFetchNextRow()) {
+            if (Completed_ || !TryFetchNextRow() || DataWeight > TSchemalessChunkReaderBase::Config_->MaxDataSizePerRead) {
                 break;
             }
         }
