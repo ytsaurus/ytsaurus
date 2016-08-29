@@ -224,6 +224,12 @@ def get_node_config(enable_debug_logging=True):
 
     tablet_node = {
         slot_scan_period = 100;
+
+        hive_manager = {
+            ping_period = 1000;
+            idle_post_period = 1000;
+            rpc_timeout = 1000;
+        };
     };
 
     logging = {
