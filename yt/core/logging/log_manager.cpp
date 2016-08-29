@@ -358,8 +358,9 @@ public:
             return;
         }
 
-        auto enqueuedEvents = EnqueuedEvents_.load();
+        // Order matters here; inherent race may lead to negative backlog and integer overflow.
         auto writtenEvents = WrittenEvents_.load();
+        auto enqueuedEvents = EnqueuedEvents_.load();
         auto backlogEvents = enqueuedEvents - writtenEvents;
 
         // NB: This is somewhat racy but should work fine as long as more messages keep coming.
