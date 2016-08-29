@@ -2,7 +2,8 @@ PYTHON ?= `which python`
 PROJECT = $(shell dpkg-parsechangelog | awk -F': ' '$$1 == "Source" { print $$2; }')
 BUILDIR = $(CURDIR)/debian/$(PROJECT)
 VERSION = $(shell dpkg-parsechangelog -l$(PROJECT)/debian/changelog | grep "Version:" | awk '{print $$2}')
-WRAPPER_VERSION=$(shell dpkg-parsechangelog -lyandex-yt-python/debian/changelog | grep "Version:" | awk '{print $$2}')
+WRAPPER_VERSION = $(shell dpkg-parsechangelog -lyandex-yt-python/debian/changelog | grep "Version:" | awk '{print $$2}')
+CWD = $(shell pwd)
 
 all:
 	@echo "make source - Create source package"
@@ -24,7 +25,7 @@ test: deb_clean
 docs:
 	rm -rf docs
 	mkdir docs
-	sphinx-apidoc -F -o docs yt
+	sphinx-apidoc -F -o docs yt $(CWD)/yt/packages
 	sphinx-build -b html docs docs/_build/ 
 
 deb:
