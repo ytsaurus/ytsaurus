@@ -1584,13 +1584,20 @@ private:
         IClientRequestPtr request,
         const TPrerequisiteOptions& options)
     {
-        if (options.PrerequisiteTransactionIds.empty())
+        if (options.PrerequisiteTransactionIds.empty() && options.PrerequisiteRevisions.empty()) {
             return;
+        }
 
         auto* prerequisitesExt = request->Header().MutableExtension(TPrerequisitesExt::prerequisites_ext);
         for (const auto& id : options.PrerequisiteTransactionIds) {
             auto* prerequisiteTransaction = prerequisitesExt->add_transactions();
             ToProto(prerequisiteTransaction->mutable_transaction_id(), id);
+        }
+        for (const auto& revision : options.PrerequisiteRevisions) {
+            auto* prerequisiteRevision = prerequisitesExt->add_revisions();
+            prerequisiteRevision->set_path(revision->Path);
+            ToProto(prerequisiteRevision->mutable_transaction_id(), revision->TransactionId);
+            prerequisiteRevision->set_revision(revision->Revision);
         }
     }
 
