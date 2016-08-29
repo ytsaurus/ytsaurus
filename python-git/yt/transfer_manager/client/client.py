@@ -161,7 +161,7 @@ class TransferManager(object):
         self.session = requests.Session()
         configure_ip(self.session, force_ipv4=force_ipv4, force_ipv6=force_ipv6)
 
-        self.token = get_value(token, get_token())
+        self.token = get_token(token=token)
 
         self.http_request_timeout = http_request_timeout
         self.enable_retries = enable_retries

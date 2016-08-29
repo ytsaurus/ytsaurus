@@ -223,7 +223,7 @@ def main():
     configure_logger()
     args = parse_arguments()
 
-    token = get_value(args.token, get_token())
+    token = get_token(token=args.token)
     init_tm_client(args.url, token)
 
     backend_config = get_tm_client().get_backend_config()
