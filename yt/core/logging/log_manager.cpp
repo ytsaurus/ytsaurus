@@ -252,6 +252,7 @@ public:
     {
         if (!LoggingThread_->IsShutdown()) {
             auto config = TLogConfig::CreateFromNode(node, path);
+            ++EnqueuedEvents_;
             LoggerQueue_.Enqueue(std::move(config));
             EventCount_->NotifyOne();
         }
@@ -272,6 +273,7 @@ public:
     void Configure(TLogConfigPtr&& config)
     {
         if (!LoggingThread_->IsShutdown()) {
+            ++EnqueuedEvents_;
             LoggerQueue_.Enqueue(std::move(config));
             EventCount_->NotifyOne();
         }
@@ -711,8 +713,8 @@ private:
 
     void PushLogEvent(TLogEvent&& event)
     {
-        LoggerQueue_.Enqueue(std::move(event));
         ++EnqueuedEvents_;
+        LoggerQueue_.Enqueue(std::move(event));
 
         bool expected = false;
         if (Notified_.compare_exchange_strong(expected, true)) {
