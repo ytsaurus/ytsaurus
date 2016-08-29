@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from yt.wrapper.http import get_token
+from yt.wrapper.http_helpers import get_token
 from yt.wrapper.cli_helpers import die
 from yt.wrapper.client import Yt
 import yt.packages.requests as requests

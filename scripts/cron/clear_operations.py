@@ -3,7 +3,7 @@
 import prepare_operation_tablets
 import yt.tools.operations_archive as operations_archive
 
-from yt.wrapper.http import get_session
+from yt.wrapper.http_helpers import get_session
 import yt.packages.requests.adapters as requests_adapters
 
 from yt.wrapper.common import run_with_retries
@@ -25,7 +25,7 @@ import time
 
 Operation = namedtuple("Operation", ["start_time", "finish_time", "id", "user", "state", "spec"])
 
-logger.set_formatter(Formatter("%(asctime)-15s\t{}\t%(message)s".format(yt.config.http.PROXY)))
+logger.set_formatter(Formatter("%(asctime)-15s\t{}\t%(message)s".format(yt.config["proxy"]["url"])))
 
 class Try(object):
     def __init__(self, exc, obj):

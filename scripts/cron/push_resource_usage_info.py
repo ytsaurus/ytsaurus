@@ -2,7 +2,7 @@
 
 from yt.wrapper.client import Yt
 from yt.wrapper.common import get_backoff
-from yt.wrapper.http import get_retriable_errors
+from yt.wrapper.http_helpers import get_retriable_errors
 from yt.common import YtError
 import yt.packages.requests as requests
 
