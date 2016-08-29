@@ -42,8 +42,6 @@ import time
 import sys
 import collections
 
-yt.wrapper.config.RETRY_READ = True
-
 log = logging.getLogger("Fennel")
 
 
