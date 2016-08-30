@@ -382,7 +382,6 @@ TQueryStatistics DoExecuteQuery(
 
     auto readerMock = New<StrictMock<TReaderMock>>();
 
-    TKeyColumns emptyKeyColumns;
     for (const auto& row : source) {
         owningSource.push_back(NTableClient::BuildRow(row, query->GetReadSchema()));
     }
@@ -401,8 +400,6 @@ TQueryStatistics DoExecuteQuery(
     if (failureLocation != EFailureLocation::Codegen) {
         EXPECT_CALL(*readerMock, Read(_));
     }
-
-    std::vector<TExecuteQueryCallback> executeCallbacks;
 
     auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
 
