@@ -5,6 +5,7 @@
 
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/fs.h>
+#include <yt/core/misc/finally.h>
 #include <yt/core/pipes/pipe.h>
 
 #include <util/system/execpath.h>
@@ -229,6 +230,13 @@ TFuture<void> TProcess::Spawn()
 void TProcess::DoSpawn()
 {
 #ifdef _unix_
+    auto finally = Finally([&] () {
+        StdPipes_[STDIN_FILENO].CloseReadFD();
+        StdPipes_[STDOUT_FILENO].CloseWriteFD();
+        StdPipes_[STDERR_FILENO].CloseWriteFD();
+        PipeFactory_.Clear();
+    });
+
     YCHECK(ProcessId_ == InvalidProcessId && !Finished_);
 
     // Make sure no spawn action closes Pipe_.WriteFD
@@ -287,6 +295,7 @@ void TProcess::DoSpawn()
     YCHECK(TrySetSignalMask(&oldSignals, nullptr));
 
     Pipe_.CloseWriteFD();
+
     ValidateSpawnResult();
 
     AsyncWaitExecutor_ = New<TPeriodicExecutor>(
@@ -419,11 +428,6 @@ void TProcess::AsyncPeriodicTryWait()
     WaitidOrDie(P_PID, ProcessId_, &processInfo, WEXITED | WNOHANG);
 
     Finished_ = true;
-    PipeFactory_.Clear();
-    StdPipes_[STDIN_FILENO].CloseReadFD();
-    StdPipes_[STDOUT_FILENO].CloseWriteFD();
-    StdPipes_[STDERR_FILENO].CloseWriteFD();
-
     LOG_DEBUG("Process finished (Pid: %v)", ProcessId_);
 
     FinishedPromise_.Set(ProcessInfoToError(processInfo));
