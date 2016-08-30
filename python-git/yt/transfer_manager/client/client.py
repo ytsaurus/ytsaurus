@@ -2,6 +2,7 @@ from yt.common import YtError
 from yt.wrapper.common import get_value, require, update, run_with_retries, generate_uuid, bool_to_string
 from yt.wrapper.http_helpers import get_retriable_errors, get_token, configure_ip
 from yt.wrapper.errors import hide_token
+from yt.wrapper.client import YtClient
 import yt.logger as logger
 
 import yt.packages.requests as requests
@@ -170,6 +171,8 @@ class TransferManager(object):
         self._backend_config = self.get_backend_config()
 
     def add_task(self, source_cluster, source_table, destination_cluster, destination_table=None, **kwargs):
+        if "enable_early_skip_if_destination_exists" in kwargs:
+            raise YtError('Argument "enable_early_skip_if_destination_exists" is not supported for single table copying')
         src_dst_pairs = [(source_table, destination_table)]
         return self.add_tasks_from_src_dst_pairs(src_dst_pairs, source_cluster, destination_cluster, **kwargs)[0]
 
@@ -290,7 +293,8 @@ class TransferManager(object):
                                   data=json.dumps(data)).content
 
     def add_tasks_from_src_dst_pairs(self, src_dst_pairs, source_cluster, destination_cluster, params=None,
-                                     sync=None, poll_period=None, attached=False, running_tasks_limit=None):
+                                     sync=None, poll_period=None, attached=False, running_tasks_limit=None,
+                                     enable_early_skip_if_destination_exists=False):
         poll_period = get_value(poll_period, 5)
         running_tasks_limit = get_value(running_tasks_limit, 10)
 
@@ -304,6 +308,22 @@ class TransferManager(object):
             poller = Poller(poll_period, running_tasks_limit, self.ping_task_and_get)
 
         for source_table, destination_table in src_dst_pairs:
+            if enable_early_skip_if_destination_exists and params.get("skip_if_destination_exists", False):
+                cluster_info = self._backend_config["clusters"].get(destination_cluster)
+                if cluster_info is None:
+                    logger.warning("Cannot perform early task skipping: "
+                                   "failed to retrieve cluster %s info from backend", destination_cluster)
+                else:
+                    if cluster_info["type"] != "yt":
+                        logger.warning("Cannot perform early task skipping: it is supported only for YT clusters")
+                    else:
+                        client = YtClient(proxy=cluster_info["options"]["proxy"],
+                                          token=params.get("destination_cluster_token", self.token))
+                        if client.exists(destination_table):
+                            logger.info("Skipped %s table since skip_if_destination_exists is set "
+                                        "and destination table exists", destination_table)
+                            continue
+
             if sync:
                 while not poller.acquire_task_slot():
                     if poller.exc_info is not None:
