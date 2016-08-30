@@ -1095,47 +1095,6 @@ protected:
 
 DEFINE_REFCOUNTED_TYPE(TSchemaProxy)
 
-class TFixedSchemaProxy
-    : public TSchemaProxy
-{
-public:
-    TFixedSchemaProxy(
-        const TTableSchema& sourceTableSchema,
-        const Stroka& tableName = Stroka())
-        : SourceTableSchema_(sourceTableSchema)
-        , TableName_(tableName)
-    { }
-
-    virtual TNullable<TBaseColumn> ProvideColumn(const Stroka& name, const Stroka& tableName) override
-    {
-        if (tableName != TableName_) {
-            return Null;
-        }
-
-        auto column = SourceTableSchema_.FindColumn(name);
-
-        if (column) {
-            auto columnName = NAst::FormatColumn(name, tableName);
-            return TBaseColumn(columnName, column->Type);
-        } else {
-            return Null;
-        }
-    }
-
-    virtual void Finish() override
-    {
-        for (const auto& column : SourceTableSchema_.Columns()) {
-            GetColumnPtr(column.Name, TableName_);
-        }
-    }
-
-private:
-    const TTableSchema SourceTableSchema_;
-    Stroka TableName_;
-
-    DECLARE_NEW_FRIEND();
-};
-
 class TScanSchemaProxy
     : public TSchemaProxy
 {
