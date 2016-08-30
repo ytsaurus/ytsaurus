@@ -1669,9 +1669,10 @@ private:
     void BuildTabletOrchidYson(TTablet* tablet, IYsonConsumer* consumer)
     {
         BuildYsonFluently(consumer)
-            .BeginAttributes()
-                .Item("opaque").Value(true)
-            .EndAttributes()
+            //XXX(savrus): see YT-5543
+            //.BeginAttributes()
+            //    .Item("opaque").Value(true)
+            //.EndAttributes()
             .BeginMap()
                 .Item("table_id").Value(tablet->GetTableId())
                 .Item("state").Value(tablet->GetState())
