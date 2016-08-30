@@ -27,10 +27,7 @@ THorizontalSchemalessBlockReader::THorizontalSchemalessBlockReader(
 
     auto keyDataSize = GetUnversionedRowByteSize(KeyColumnCount_);
     KeyBuffer_.reserve(keyDataSize);
-    auto header = reinterpret_cast<TUnversionedRowHeader*>(KeyBuffer_.data());
-    header->Capacity = KeyColumnCount_;
-    header->Count = KeyColumnCount_;
-    Key_ = TMutableKey(header);
+    Key_ = TMutableKey::Create(KeyBuffer_.data(), KeyColumnCount_);
 
     for (int index = 0; index < KeyColumnCount_; ++index) {
         auto& value = Key_[index];

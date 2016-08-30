@@ -461,6 +461,10 @@ public:
         TChunkedMemoryPool* pool,
         int valueCount);
 
+    static TMutableUnversionedRow Create(
+        void* buffer,
+        int valueCount);
+
     TUnversionedRowHeader* GetHeader()
     {
         return const_cast<TUnversionedRowHeader*>(TUnversionedRow::GetHeader());
