@@ -9,9 +9,11 @@
 
 #include <library/json/json_reader.h>
 
-#include <util/generic/buffer.h>
+#include <util/random//normal.h>
 #include <util/stream/file.h>
 #include <util/string/printf.h>
+#include <util/generic/buffer.h>
+#include <util/generic/ymath.h>
 
 namespace NYT {
 
@@ -197,7 +199,16 @@ Stroka GetProxyForHeavyRequest(const TAuth& auth)
             Sleep(TConfig::Get()->RetryInterval);
         }
     }
-    return hosts.front();
+    if (hosts.size() < 3) {
+        return hosts.front();
+    }
+    size_t hostIdx = -1;
+    do {
+        hostIdx = Abs<double>(NormalRandom<double>(0, hosts.size() / 2));
+    } while (hostIdx >= hosts.size());
+
+    return hosts[hostIdx];
+//    return hosts.front();
 }
 
 Stroka RetryRequest(
