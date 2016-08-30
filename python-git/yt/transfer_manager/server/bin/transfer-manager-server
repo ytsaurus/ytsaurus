@@ -948,6 +948,8 @@ class Application(object):
 
         if task.skip_if_destination_exists:
             destination_client = task.get_destination_client(clusters_configuration.clusters)
+            if destination_client._type == "yamr":
+                destination_client._light_command_timeout = 5.0
             try:
                 if (destination_client._type == "yamr" and not destination_client.is_empty(task.destination_table)) or \
                         (destination_client._type == "yt" and destination_client.exists(task.destination_table)):
