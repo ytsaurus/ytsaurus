@@ -868,7 +868,7 @@ class Application(object):
                                clusters[cluster_name]._type, task_id)
                 return
 
-            cluster_client = clone_client(clusters[cluster_name])
+            cluster_client = clusters[cluster_name]
             if cluster_name == task.source_cluster:
                 cluster_client.config["token"] = task.source_cluster_token
             else:
@@ -1220,10 +1220,14 @@ class Application(object):
         clusters_configuration = self._get_clusters_configuration()
         if source_cluster not in clusters_configuration.clusters:
             raise yt.YtError("Unknown cluster " + source_cluster)
-        client = clone_client(clusters_configuration.clusters[source_cluster])
+        client = clusters_configuration.clusters[source_cluster]
         if client._type == "yt":
             token, _ = get_token_and_user(request, Yt(**self._config["yt_backend_options"]))
-            client.config["token"] = get_value(params.get("source_cluster_token"), token)
+            new_client = clone_client(client)
+            new_client.config["token"] = get_value(params.get("source_cluster_token"), token)
+            client = new_client
+        else:
+            client = deepcopy(client)
 
         matchings = match_copy_pattern(client, source_pattern, destination_pattern)
         return Response(json.dumps(matchings), mimetype="application/json")
