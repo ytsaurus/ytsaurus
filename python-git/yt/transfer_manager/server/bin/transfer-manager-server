@@ -1225,6 +1225,7 @@ class Application(object):
             token, _ = get_token_and_user(request, Yt(**self._config["yt_backend_options"]))
             new_client = clone_client(client)
             new_client.config["token"] = get_value(params.get("source_cluster_token"), token)
+            new_client._type = client._type
             client = new_client
         else:
             client = deepcopy(client)
