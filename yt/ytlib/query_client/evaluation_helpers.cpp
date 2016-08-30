@@ -264,7 +264,12 @@ TJoinEvaluator GetJoinEvaluator(
         dataSource.Id = foreignDataId;
         dataSource.Ranges = MakeSharedRange(std::move(ranges), std::move(permanentBuffer));
 
-        context->ExecuteCallback(subquery, dataSource, pipe->GetWriter());
+        context->ExecuteCallback(subquery, dataSource, pipe->GetWriter())
+            .Subscribe(BIND([pipe] (const TError& error) {
+                if (!error.IsOK()) {
+                    pipe->Fail(error);
+                }
+            }));
 
         // Join rowsets.
         // allRows have format (join key... , other columns...)
