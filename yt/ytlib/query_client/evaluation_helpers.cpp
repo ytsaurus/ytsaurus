@@ -265,7 +265,7 @@ TJoinEvaluator GetJoinEvaluator(
         dataSource.Ranges = MakeSharedRange(std::move(ranges), std::move(permanentBuffer));
 
         context->ExecuteCallback(subquery, dataSource, pipe->GetWriter())
-            .Subscribe(BIND([pipe] (const TError& error) {
+            .Subscribe(BIND([pipe] (const TErrorOr<TQueryStatistics>& error) {
                 if (!error.IsOK()) {
                     pipe->Fail(error);
                 }
