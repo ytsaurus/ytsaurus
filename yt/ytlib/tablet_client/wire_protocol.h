@@ -35,7 +35,6 @@ DEFINE_ENUM(EWireProtocolCommand,
     // Inserts a new row or completely replaces an existing one with matching key.
     //
     // Input:
-    //   * TReqWriteRow
     //   * Unversioned row
     // Output:
     //   None
@@ -44,7 +43,6 @@ DEFINE_ENUM(EWireProtocolCommand,
     // Deletes a row with a given key, if it exists.
     //
     // Input:
-    //   * TReqDeleteRow
     //   * Key
     // Output:
     //   None

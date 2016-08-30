@@ -3699,24 +3699,6 @@ private:
             ++batch->RowCount;
             auto& writer = batch->Writer;
             writer.WriteCommand(submittedRow.Command);
-
-            switch (submittedRow.Command) {
-                case EWireProtocolCommand::DeleteRow: {
-                    auto req = TReqDeleteRow();
-                    writer.WriteMessage(req);
-                    break;
-                }
-
-                case EWireProtocolCommand::WriteRow: {
-                    auto req = TReqWriteRow();
-                    writer.WriteMessage(req);
-                    break;
-                }
-
-                default:
-                    Y_UNREACHABLE();
-            }
-
             writer.WriteUnversionedRow(submittedRow.Row);
         }
 
