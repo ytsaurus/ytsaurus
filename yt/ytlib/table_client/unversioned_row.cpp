@@ -603,7 +603,12 @@ size_t GetDataWeight(TUnversionedRow row)
 TMutableUnversionedRow TMutableUnversionedRow::Allocate(TChunkedMemoryPool* pool, int valueCount)
 {
     size_t byteSize = GetUnversionedRowByteSize(valueCount);
-    auto* header = reinterpret_cast<TUnversionedRowHeader*>(pool->AllocateAligned(byteSize));
+    return Create(pool->AllocateAligned(byteSize), valueCount);
+}
+
+TMutableUnversionedRow TMutableUnversionedRow::Create(void* buffer, int valueCount)
+{
+    auto* header = reinterpret_cast<TUnversionedRowHeader*>(buffer);
     header->Count = valueCount;
     header->Capacity = valueCount;
     return TMutableUnversionedRow(header);
