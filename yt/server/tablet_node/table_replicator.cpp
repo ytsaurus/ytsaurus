@@ -413,6 +413,8 @@ private:
         std::vector<TUnversionedRow> readerRows;
         readerRows.reserve(TabletRowsPerRead);
 
+        auto prevTimestamp = NullTimestamp;
+
         bool tooMuch = false;
         while (!tooMuch) {
             if (!reader->Read(&readerRows)) {
@@ -432,47 +434,55 @@ private:
                 readerRows.size());
 
             for (auto row : readerRows) {
-                i64 actualRowIndex;
+                TRowModification modification;
+                i64 rowIndex;
+                TTimestamp timestamp;
                 ParseLogRow(
                     tabletSnapshot,
                     mountConfig,
                     row,
                     *rowBuffer,
-                    modifications,
-                    &actualRowIndex,
-                    newReplicationTimestamp);
+                    &modification,
+                    &rowIndex,
+                    &timestamp);
 
-                if (*newReplicationTimestamp <= replicaSnapshot->StartReplicationTimestamp) {
+                if (timestamp <= replicaSnapshot->StartReplicationTimestamp) {
                     YCHECK(row == readerRows[0]);
                     LOG_INFO("Replication log row violates timestamp bound (StartReplicationTimstamp: %v, LogRecordTimestamp: %v)",
                         replicaSnapshot->StartReplicationTimestamp,
-                        *newReplicationTimestamp);
+                        timestamp);
                     return false;
                 }
 
-                if (currentRowIndex != actualRowIndex) {
+                if (currentRowIndex != rowIndex) {
                     THROW_ERROR_EXCEPTION("Replication log row index mismatch in tablet %v: expected %v, got %v",
                         tabletSnapshot->TabletId,
                         currentRowIndex,
-                        actualRowIndex)
+                        rowIndex)
                         << HardErrorAttribute;
+                }
+
+                if ((rowCount >= mountConfig->MaxRowsPerReplicationCommit ||
+                    dataWeight >= mountConfig->MaxDataWeightPerReplicationCommit) &&
+                    timestamp != prevTimestamp)
+                {
+                    tooMuch = true;
+                    break;
                 }
 
                 ++currentRowIndex;
                 ++rowCount;
                 dataWeight += GetDataWeight(row);
-
-                if (rowCount >= mountConfig->MaxRowsPerReplicationCommit ||
-                    dataWeight >= mountConfig->MaxDataWeightPerReplicationCommit)
-                {
-                    tooMuch = true;
-                    break;
-                }
+                modifications->push_back(modification);
+                prevTimestamp = timestamp;
             }
         }
 
         YCHECK(rowCount > 0);
         *newReplicationRowIndex = startRowIndex + rowCount;
+
+        YCHECK(prevTimestamp != NullTimestamp);
+        *newReplicationTimestamp = prevTimestamp;
 
         LOG_DEBUG("Finished building replication batch (StartRowIndex: %v, RowCount: %v, DataWeight: %v, "
             "NewReplicationRowIndex: %v, NewReplicationTimestamp: %v)",
@@ -504,7 +514,7 @@ private:
         const TTableMountConfigPtr& mountConfig,
         TUnversionedRow logRow,
         const TRowBufferPtr& rowBuffer,
-        std::vector<TRowModification>* modifications,
+        TRowModification* modification,
         i64* rowIndex,
         TTimestamp* timestamp)
     {
@@ -514,7 +524,7 @@ private:
         Y_ASSERT(logRow[2].Type == EValueType::Uint64);
         *timestamp = logRow[2].Data.Uint64;
 
-        if (!modifications) {
+        if (!modification) {
             return;
         }
 
@@ -526,7 +536,6 @@ private:
 
         Y_ASSERT(logRow.GetCount() == keyColumnCount + valueColumnCount* 2 + 4);
 
-        TRowModification modification;
         switch (changeType) {
             case ERowModificationType::Write: {
                 Y_ASSERT(logRow.GetCount() >= keyColumnCount + 4);
@@ -556,8 +565,8 @@ private:
                         row[currentIndex++] = dataValue;
                     }
                 }
-                modification.Type = ERowModificationType::Write;
-                modification.Row = row;
+                modification->Type = ERowModificationType::Write;
+                modification->Row = row;
                 LOG_DEBUG_IF(mountConfig->EnableReplicationLogging, "Replicating write (Row: %v)", row);
                 break;
             }
@@ -569,8 +578,8 @@ private:
                     value.Id = index;
                     key[index] = value;
                 }
-                modification.Type = ERowModificationType::Delete;
-                modification.Row = key;
+                modification->Type = ERowModificationType::Delete;
+                modification->Row = key;
                 LOG_DEBUG_IF(mountConfig->EnableReplicationLogging, "Replicating delete (Key: %v)", key);
                 break;
             }
@@ -578,7 +587,6 @@ private:
             default:
                 Y_UNREACHABLE();
         }
-        modifications->push_back(modification);
     }
 
     static TOwningKey MakeRowBound(i64 rowIndex)
