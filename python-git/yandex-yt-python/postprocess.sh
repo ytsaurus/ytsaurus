@@ -58,9 +58,17 @@ fi
 
 
 if [ -n "$CREATE_CONDUCTOR_TICKET" ]; then
-    # Create ticket in coductor
-    COMMENT=$(urlencode $(dpkg-parsechangelog))
-    curl --verbose --show-error \
-        -H "Cookie: conductor_auth=419fb75155c27d44f1d110ec833400fa" \
-        "http://c.yandex-team.ru/auth_update/ticket_add?package\[0\]=yandex-yt-python&version\[0\]=$VERSION&ticket\[branch\]=unstable&ticket\[comment\]=$COMMENT"
+    HEADER="Cookie: conductor_auth=419fb75155c27d44f1d110ec833400fa"
+    RESULT=$(curl --verbose --show-error \
+        -H "$HEADER" \
+        "http://c.yandex-team.ru/api/generator/package_version_ticket?package=yandex-yt-python&version=$VERSION&branch=unstable")
+    PYTHON_SCRIPT='import json, sys; sys.stdout.write(str("unstable" in json.loads('"'${RESULT}'"')))'
+    IS_TICKET_EXISTS="$(python -c "$PYTHON_SCRIPT")"
+    if [ "$IS_TICKET_EXISTS" = "False" ]; then
+        # Create ticket in coductor
+        COMMENT=$(urlencode $(dpkg-parsechangelog))
+        curl --verbose --show-error \
+            -H "$HEADER" \
+            "http://c.yandex-team.ru/auth_update/ticket_add?package\[0\]=yandex-yt-python&version\[0\]=$VERSION&ticket\[branch\]=unstable&ticket\[comment\]=$COMMENT"
+    fi
 fi
