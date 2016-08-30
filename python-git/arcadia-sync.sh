@@ -58,7 +58,7 @@ LATEST_FILES="$(find . -name "*")"
 popd
 
 for file in $LATEST_FILES; do
-    if [ ! -e "$VERSION/$file" ]; then
+    if [ ! -e "$VERSION/$file" ] && [ -e "$LATEST/$file" ]; then
         svn rm "$LATEST/$file"
     fi
 done
