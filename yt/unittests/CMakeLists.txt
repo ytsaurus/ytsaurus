@@ -99,6 +99,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/tools_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tree_builder_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/udf/invalid_ir.h
+  ${CMAKE_CURRENT_LIST_DIR}/unordered_reader_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/url_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/variant_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/varint_ut.cpp
