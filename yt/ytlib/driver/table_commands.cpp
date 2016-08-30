@@ -17,6 +17,7 @@
 #include <yt/ytlib/tablet_client/table_mount_cache.h>
 
 #include <yt/ytlib/formats/config.h>
+#include <yt/ytlib/formats/parser.h>
 
 namespace NYT {
 namespace NDriver {
@@ -117,9 +118,12 @@ void TWriteTableCommand::Execute(ICommandContextPtr context)
         .ThrowOnError();
 
     TWritingValueConsumer valueConsumer(writer);
-    TTableConsumer tableConsumer(&valueConsumer);
 
-    TTableOutput output(context->GetInputFormat(), &tableConsumer);
+    std::vector<IValueConsumer*> valueConsumers(1, &valueConsumer);
+    TTableOutput output(CreateParserForFormat(
+        context->GetInputFormat(),
+        valueConsumers,
+        0));
 
     PipeInputToOutput(context->Request().InputStream, &output, config->BlockSize);
 
@@ -244,8 +248,12 @@ std::vector<TUnversionedRow> ParseRows(
     TTableWriterConfigPtr config,
     TBuildingValueConsumer* valueConsumer)
 {
-    TTableConsumer tableConsumer(valueConsumer);
-    TTableOutput output(context->GetInputFormat(), &tableConsumer);
+    std::vector<IValueConsumer*> valueConsumers(1, valueConsumer);
+    TTableOutput output(CreateParserForFormat(
+        context->GetInputFormat(),
+        valueConsumers,
+        0));
+
     auto input = CreateSyncAdapter(context->Request().InputStream);
     PipeInputToOutput(input.get(), &output, config->BlockSize);
     return valueConsumer->GetRows();

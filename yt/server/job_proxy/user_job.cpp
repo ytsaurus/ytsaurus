@@ -4,7 +4,6 @@
 #include "job_detail.h"
 #include "stracer.h"
 #include "stderr_writer.h"
-#include "table_output.h"
 #include "user_job_io.h"
 
 #include <yt/server/exec_agent/public.h>
@@ -308,6 +307,7 @@ private:
 
     std::unique_ptr<TFileChunkOutput> ErrorOutput_;
     std::unique_ptr<TTableOutput> StatisticsOutput_;
+    std::unique_ptr<IYsonConsumer> StatisticsConsumer_;
 
     std::vector<TAsyncReaderPtr> TablePipeReaders_;
     std::vector<TAsyncWriterPtr> TablePipeWriters_;
@@ -419,10 +419,13 @@ private:
 
     TOutputStream* CreateStatisticsOutput()
     {
-        auto consumer = std::make_unique<TStatisticsConsumer>(
-            BIND(&TUserJob::AddCustomStatistics, Unretained(this)));
-        auto parser = CreateParserForFormat(TFormat(EFormatType::Yson), EDataType::Tabular, consumer.get());
-        StatisticsOutput_.reset(new TTableOutput(std::move(parser), std::move(consumer)));
+        StatisticsConsumer_.reset(new TStatisticsConsumer(
+            BIND(&TUserJob::AddCustomStatistics, Unretained(this))));
+        auto parser = CreateParserForFormat(
+            TFormat(EFormatType::Yson),
+            EDataType::Tabular,
+            StatisticsConsumer_.get());
+        StatisticsOutput_.reset(new TTableOutput(std::move(parser)));
         return StatisticsOutput_.get();
     }
 
@@ -624,11 +627,8 @@ private:
         TableOutputs_.resize(writers.size());
         for (int i = 0; i < writers.size(); ++i) {
             auto valueConsumers = CreateValueConsumers();
-            std::unique_ptr<IYsonConsumer> consumer(new TTableConsumer(valueConsumers, i));
-            auto parser = CreateParserForFormat(format, EDataType::Tabular, consumer.get());
-            TableOutputs_[i].reset(new TTableOutput(
-                std::move(parser),
-                std::move(consumer)));
+            auto parser = CreateParserForFormat(format, valueConsumers, i);
+            TableOutputs_[i].reset(new TTableOutput(std::move(parser)));
 
             int jobDescriptor = UserJobSpec_.use_yamr_descriptors()
                 ? 3 + i
