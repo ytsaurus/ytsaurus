@@ -78,8 +78,6 @@ void TReplicatedSortedStoreManager::ExecuteAtomicWrite(
     auto command = reader->ReadCommand();
     switch (command) {
         case EWireProtocolCommand::WriteRow: {
-            TReqWriteRow req;
-            reader->ReadMessage(&req);
             auto row = reader->ReadUnversionedRow();
             WriteRow(
                 transaction,
@@ -89,8 +87,6 @@ void TReplicatedSortedStoreManager::ExecuteAtomicWrite(
         }
 
         case EWireProtocolCommand::DeleteRow: {
-            TReqDeleteRow req;
-            reader->ReadMessage(&req);
             auto key = reader->ReadUnversionedRow();
             DeleteRow(
                 transaction,

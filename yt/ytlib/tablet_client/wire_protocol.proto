@@ -12,10 +12,4 @@ message TReqLookupRows
     optional TColumnFilter column_filter = 1;
 }
 
-message TReqWriteRow
-{ }
-
-message TReqDeleteRow
-{ }
-
 ////////////////////////////////////////////////////////////////////////////////
