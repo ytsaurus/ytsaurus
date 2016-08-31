@@ -12,6 +12,11 @@ def set_yamr_mode(client=None):
                       "use_yamr_defaults", "ignore_empty_tables_in_mapreduce_list"]:
             continue
         config["yamr_mode"][option] = True
+
+        env_name = "YT_" + option.upper()
+        if env_name in os.environ:
+            config["yamr_mode"][option] = bool(int(os.environ[env_name]))
+
     if "MR_TABLE_PREFIX" in os.environ:
         config["prefix"] = get_value(config["prefix"], "") + os.environ["MR_TABLE_PREFIX"]
     config["tabular_data_format"] = YamrFormat(has_subkey=True, lenval=False)
