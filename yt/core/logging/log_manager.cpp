@@ -722,12 +722,12 @@ private:
 
     void OnProfiling()
     {
-        auto enqueuedEvents = EnqueuedEvents_.load();
         auto writtenEvents = WrittenEvents_.load();
-
+        auto enqueuedEvents = EnqueuedEvents_.load();
+        
         Profiler.Enqueue("/enqueued_events", enqueuedEvents, EMetricType::Counter);
         Profiler.Enqueue("/written_events", writtenEvents, EMetricType::Counter);
-        Profiler.Enqueue("/backlog_events", std::max(static_cast<i64>(0), enqueuedEvents - writtenEvents), EMetricType::Counter);
+        Profiler.Enqueue("/backlog_events", enqueuedEvents - writtenEvents, EMetricType::Counter);
     }
 
 
@@ -756,8 +756,8 @@ private:
 
     TMultipleProducerSingleConsumerLockFreeStack<TLoggerQueueItem> LoggerQueue_;
 
-    std::atomic<i64> EnqueuedEvents_ = {0};
-    std::atomic<i64> WrittenEvents_ = {0};
+    std::atomic<ui64> EnqueuedEvents_ = {0};
+    std::atomic<ui64> WrittenEvents_ = {0};
 
     yhash_map<Stroka, ILogWriterPtr> Writers_;
     yhash_map<std::pair<Stroka, ELogLevel>, std::vector<ILogWriterPtr>> CachedWriters_;
