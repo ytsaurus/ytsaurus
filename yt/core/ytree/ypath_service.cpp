@@ -227,7 +227,7 @@ private:
 
     static IInvokerPtr GetWorkerInvoker()
     {
-        return NRpc::TDispatcher::Get()->GetInvoker();
+        return NRpc::TDispatcher::Get()->GetHeavyInvoker();
     }
 };
 
