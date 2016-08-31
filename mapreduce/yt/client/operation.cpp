@@ -22,6 +22,7 @@
 #include <mapreduce/yt/io/node_table_writer.h>
 #include <mapreduce/yt/io/proto_table_reader.h>
 #include <mapreduce/yt/io/proto_table_writer.h>
+#include <mapreduce/yt/io/proto_helpers.h>
 #include <mapreduce/yt/io/file_reader.h>
 
 #include <util/string/printf.h>
@@ -510,8 +511,7 @@ void BuildUserJobFluently(
     // TODO: tables as files
     fluent
     .Item("file_paths").List(preparer.GetFiles())
-    .DoIf(inputDesc.Format == TMultiFormatDesc::F_YSON
-        || inputDesc.Format == TMultiFormatDesc::F_PROTO, [] (TFluentMap fluent)
+    .DoIf(inputDesc.Format == TMultiFormatDesc::F_YSON, [] (TFluentMap fluent)
     {
         fluent
         .Item("input_format").BeginAttributes()
@@ -532,8 +532,20 @@ void BuildUserJobFluently(
             fluent.Item("input_format").Value(format.GetRef());
         }
     })
-    .DoIf(outputDesc.Format == TMultiFormatDesc::F_YSON
-        || outputDesc.Format == TMultiFormatDesc::F_PROTO, [] (TFluentMap fluent)
+    .DoIf(inputDesc.Format == TMultiFormatDesc::F_PROTO, [&] (TFluentMap fluent)
+    {
+        if (TConfig::Get()->UseClientProtobuf) {
+            fluent
+            .Item("input_format").BeginAttributes()
+                .Item("format").Value("binary")
+            .EndAttributes()
+            .Value("yson");
+        } else {
+            auto config = MakeProtoFormatConfig(inputDesc.ProtoDescriptors);
+            fluent.Item("input_format").Value(config);
+        }
+    })
+    .DoIf(outputDesc.Format == TMultiFormatDesc::F_YSON, [] (TFluentMap fluent)
     {
         fluent
         .Item("output_format").BeginAttributes()
@@ -548,6 +560,19 @@ void BuildUserJobFluently(
             .Item("has_subkey").Value(true)
         .EndAttributes()
         .Value("yamr");
+    })
+    .DoIf(outputDesc.Format == TMultiFormatDesc::F_PROTO, [&] (TFluentMap fluent)
+    {
+        if (TConfig::Get()->UseClientProtobuf) {
+            fluent
+            .Item("output_format").BeginAttributes()
+                .Item("format").Value("binary")
+            .EndAttributes()
+            .Value("yson");
+        } else {
+            auto config = MakeProtoFormatConfig(outputDesc.ProtoDescriptors);
+            fluent.Item("output_format").Value(config);
+        }
     })
     .Item("command").Value(preparer.GetCommand())
     .Item("class_name").Value(preparer.GetClassName())
@@ -1102,7 +1127,11 @@ TIntrusivePtr<IYaMRReaderImpl> CreateJobYaMRReader()
 
 TIntrusivePtr<IProtoReaderImpl> CreateJobProtoReader()
 {
-    return new TProtoTableReader(MakeHolder<TJobReader>(0));
+    if (TConfig::Get()->UseClientProtobuf) {
+        return new TProtoTableReader(MakeHolder<TJobReader>(0));
+    } else {
+        return new TLenvalProtoTableReader(MakeHolder<TJobReader>(0));
+    }
 }
 
 TIntrusivePtr<INodeWriterImpl> CreateJobNodeWriter(size_t outputTableCount)
@@ -1117,7 +1146,11 @@ TIntrusivePtr<IYaMRWriterImpl> CreateJobYaMRWriter(size_t outputTableCount)
 
 TIntrusivePtr<IProtoWriterImpl> CreateJobProtoWriter(size_t outputTableCount)
 {
-    return new TProtoTableWriter(MakeHolder<TJobWriter>(outputTableCount));
+    if (TConfig::Get()->UseClientProtobuf) {
+        return new TProtoTableWriter(MakeHolder<TJobWriter>(outputTableCount));
+    } else {
+        return new TLenvalProtoTableWriter(MakeHolder<TJobWriter>(outputTableCount));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

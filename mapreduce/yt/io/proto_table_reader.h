@@ -1,5 +1,7 @@
 #pragma once
 
+#include "lenval_table_reader.h"
+
 #include <mapreduce/yt/interface/io.h>
 
 namespace NYT {
@@ -17,7 +19,7 @@ public:
     ~TProtoTableReader() override;
 
     void ReadRow(Message* row) override;
-    void SkipRow() override;
+
     bool IsValid() const override;
     void Next() override;
     ui32 GetTableIndex() const override;
@@ -25,7 +27,32 @@ public:
     void NextKey() override;
 
 private:
-    THolder<TNodeTableReader> NodeReader_; // proto over yson
+    THolder<TNodeTableReader> NodeReader_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLenvalProtoTableReader
+    : public IProtoReaderImpl
+    , public TLenvalTableReader
+{
+public:
+    explicit TLenvalProtoTableReader(THolder<TProxyInput> input);
+    ~TLenvalProtoTableReader() override;
+
+    void ReadRow(Message* row) override;
+
+    bool IsValid() const override;
+    void Next() override;
+    ui32 GetTableIndex() const override;
+    ui64 GetRowIndex() const override;
+    void NextKey() override;
+
+protected:
+    void OnRowStart() override;
+
+private:
+    bool RowTaken_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

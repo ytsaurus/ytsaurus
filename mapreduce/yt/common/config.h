@@ -44,6 +44,8 @@ struct TConfig
     Stroka RemoteTempFilesDirectory;
     Stroka RemoteTempTablesDirectory;
 
+    bool UseClientProtobuf;
+
     // common wrapper
 
     TDuration TxClientTimeout;

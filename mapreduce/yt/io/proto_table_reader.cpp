@@ -25,10 +25,7 @@ void ReadMessageFromNode(const TNode& node, Message* row)
         Stroka columnName = fieldDesc->options().GetExtension(column_name);
         if (columnName.empty()) {
             const auto& keyColumnName = fieldDesc->options().GetExtension(key_column_name);
-            if (keyColumnName.empty()) {
-                continue; // cannot be read from table
-            }
-            columnName = keyColumnName;
+            columnName = keyColumnName.empty() ? fieldDesc->name() : keyColumnName;
         }
 
         const auto& nodeMap = node.AsMap();
@@ -56,18 +53,24 @@ void ReadMessageFromNode(const TNode& node, Message* row)
                 reflection->SetString(row, fieldDesc, it->second.AsString());
                 break;
             case FieldDescriptor::TYPE_INT64:
+            case FieldDescriptor::TYPE_SINT64:
+            case FieldDescriptor::TYPE_SFIXED64:
                 checkType(TNode::INT64, actualType);
                 reflection->SetInt64(row, fieldDesc, it->second.AsInt64());
                 break;
             case FieldDescriptor::TYPE_INT32:
+            case FieldDescriptor::TYPE_SINT32:
+            case FieldDescriptor::TYPE_SFIXED32:
                 checkType(TNode::INT64, actualType);
                 reflection->SetInt32(row, fieldDesc, it->second.AsInt64());
                 break;
             case FieldDescriptor::TYPE_UINT64:
+            case FieldDescriptor::TYPE_FIXED64:
                 checkType(TNode::UINT64, actualType);
                 reflection->SetUInt64(row, fieldDesc, it->second.AsUint64());
                 break;
             case FieldDescriptor::TYPE_UINT32:
+            case FieldDescriptor::TYPE_FIXED32:
                 checkType(TNode::UINT64, actualType);
                 reflection->SetUInt32(row, fieldDesc, it->second.AsUint64());
                 break;
@@ -93,10 +96,10 @@ void ReadMessageFromNode(const TNode& node, Message* row)
                                         << "\" as " << fieldDesc->enum_type()->full_name();
                 }
                 break;
-            } case FieldDescriptor::TYPE_MESSAGE:
-            {
+            }
+            case FieldDescriptor::TYPE_MESSAGE: {
                 checkType(TNode::STRING, actualType);
-                google::protobuf::Message* message = reflection->MutableMessage(row, fieldDesc);
+                Message* message = reflection->MutableMessage(row, fieldDesc);
                 if (!message->ParseFromArray(~it->second.AsString(), +it->second.AsString())) {
                     ythrow yexception() << "Failed to parse protobuf message";
                 }
@@ -125,9 +128,6 @@ void TProtoTableReader::ReadRow(Message* row)
     ReadMessageFromNode(node, row);
 }
 
-void TProtoTableReader::SkipRow()
-{ }
-
 bool TProtoTableReader::IsValid() const
 {
     return NodeReader_->IsValid();
@@ -151,6 +151,59 @@ ui64 TProtoTableReader::GetRowIndex() const
 void TProtoTableReader::NextKey()
 {
     NodeReader_->NextKey();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TLenvalProtoTableReader::TLenvalProtoTableReader(THolder<TProxyInput> input)
+    : TLenvalTableReader(std::move(input))
+{
+    TLenvalTableReader::Next();
+}
+
+TLenvalProtoTableReader::~TLenvalProtoTableReader()
+{ }
+
+void TLenvalProtoTableReader::ReadRow(Message* row)
+{
+    TLengthLimitedInput stream(Input_.Get(), Length_);
+    row->ParseFromStream(&stream);
+    RowTaken_ = true;
+}
+
+bool TLenvalProtoTableReader::IsValid() const
+{
+    return TLenvalTableReader::IsValid();
+}
+
+void TLenvalProtoTableReader::Next()
+{
+    if (!RowTaken_) {
+        Input_->Skip(Length_);
+    }
+    RowTaken_ = false;
+    TLenvalTableReader::Next();
+}
+
+ui32 TLenvalProtoTableReader::GetTableIndex() const
+{
+    return TLenvalTableReader::GetTableIndex();
+}
+
+ui64 TLenvalProtoTableReader::GetRowIndex() const
+{
+    return TLenvalTableReader::GetRowIndex();
+}
+
+void TLenvalProtoTableReader::NextKey()
+{
+    TLenvalTableReader::NextKey();
+    RowTaken_ = true;
+}
+
+void TLenvalProtoTableReader::OnRowStart()
+{
+    AtStart_ = false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

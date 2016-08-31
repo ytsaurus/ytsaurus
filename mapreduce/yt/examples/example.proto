@@ -27,19 +27,19 @@ message TJoinInputLeft
 
 message TJoinInputRight
 {
-    optional int64 key = 1 [(NYT.column_name) = "key"];
-    optional double right = 2 [(NYT.column_name) = "right"];
+    optional int64 key = 3 [(NYT.column_name) = "key"];
+    optional double right = 4 [(NYT.column_name) = "right"];
 }
 
 message TJoinOutputSum
 {
-    optional int64 key = 1 [(NYT.column_name) = "key"];
-    optional double sum = 2 [(NYT.column_name) = "sum"];
+    optional int64 key = 5 [(NYT.column_name) = "key"];
+    optional double sum = 6 [(NYT.column_name) = "sum"];
 }
 
 message TJoinOutputProduct
 {
-    optional int64 key = 1 [(NYT.column_name) = "key"];
-    optional double product = 2 [(NYT.column_name) = "product"];
+    optional int64 key = 7;
+    optional double product = 8;
 }
 

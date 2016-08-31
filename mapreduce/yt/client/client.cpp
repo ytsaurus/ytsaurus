@@ -21,6 +21,7 @@
 #include <mapreduce/yt/io/node_table_writer.h>
 #include <mapreduce/yt/io/proto_table_reader.h>
 #include <mapreduce/yt/io/proto_table_writer.h>
+#include <mapreduce/yt/io/proto_helpers.h>
 #include <mapreduce/yt/io/file_reader.h>
 #include <mapreduce/yt/io/file_writer.h>
 
@@ -400,60 +401,83 @@ private:
     THolder<TClientReader> CreateClientReader(
         const TRichYPath& path,
         EDataStreamFormat format,
-        const TTableReaderOptions& options)
+        const TTableReaderOptions& options,
+        const Stroka& formatConfig = Stroka())
     {
         return MakeHolder<TClientReader>(
-            AddPathPrefix(path), Auth_, TransactionId_, format, options);
+            AddPathPrefix(path), Auth_, TransactionId_, format, formatConfig, options);
     }
 
     THolder<TClientWriter> CreateClientWriter(
         const TRichYPath& path,
         EDataStreamFormat format,
-        const TTableWriterOptions& options)
+        const TTableWriterOptions& options,
+        const Stroka& formatConfig = Stroka())
     {
         auto realPath = AddPathPrefix(path);
         if (!NYT::Exists(Auth_, TransactionId_, realPath.Path_)) {
             NYT::Create(Auth_, TransactionId_, realPath.Path_, "table");
         }
-        return MakeHolder<TClientWriter>(realPath, Auth_, TransactionId_, format, options);
+        return MakeHolder<TClientWriter>(
+            realPath, Auth_, TransactionId_, format, formatConfig, options);
     }
 
     TIntrusivePtr<INodeReaderImpl> CreateNodeReader(
         const TRichYPath& path, const TTableReaderOptions& options) override
     {
-        return new TNodeTableReader(CreateClientReader(path, DSF_YSON_BINARY, options));
+        return new TNodeTableReader(
+            CreateClientReader(path, DSF_YSON_BINARY, options));
     }
 
     TIntrusivePtr<IYaMRReaderImpl> CreateYaMRReader(
         const TRichYPath& path, const TTableReaderOptions& options) override
     {
-        return new TYaMRTableReader(CreateClientReader(path, DSF_YAMR_LENVAL, options));
+        return new TYaMRTableReader(
+            CreateClientReader(path, DSF_YAMR_LENVAL, options));
     }
 
     TIntrusivePtr<IProtoReaderImpl> CreateProtoReader(
-        const TRichYPath& path, const TTableReaderOptions& options) override
+        const TRichYPath& path,
+        const TTableReaderOptions& options,
+        const Message* prototype) override
     {
-        return new TProtoTableReader(CreateClientReader(path, DSF_YSON_BINARY, options));
-        // later: DSF_PROTO
+        if (TConfig::Get()->UseClientProtobuf) {
+            return new TProtoTableReader(
+                CreateClientReader(path, DSF_YSON_BINARY, options));
+        } else {
+            auto formatConfig = NodeToYsonString(MakeProtoFormatConfig(prototype));
+            return new TLenvalProtoTableReader(
+                CreateClientReader(path, DSF_PROTO, options, formatConfig));
+        }
     }
 
     TIntrusivePtr<INodeWriterImpl> CreateNodeWriter(
         const TRichYPath& path, const TTableWriterOptions& options) override
     {
-        return new TNodeTableWriter(CreateClientWriter(path, DSF_YSON_BINARY, options));
+        return new TNodeTableWriter(
+            CreateClientWriter(path, DSF_YSON_BINARY, options));
     }
 
     TIntrusivePtr<IYaMRWriterImpl> CreateYaMRWriter(
         const TRichYPath& path, const TTableWriterOptions& options) override
     {
-        return new TYaMRTableWriter(CreateClientWriter(path, DSF_YAMR_LENVAL, options));
+        return new TYaMRTableWriter(
+            CreateClientWriter(path, DSF_YAMR_LENVAL, options));
     }
 
     TIntrusivePtr<IProtoWriterImpl> CreateProtoWriter(
-        const TRichYPath& path, const TTableWriterOptions& options) override
+        const TRichYPath& path,
+        const TTableWriterOptions& options,
+        const Message* prototype) override
     {
-        return new TProtoTableWriter(CreateClientWriter(path, DSF_YSON_BINARY, options));
-        // later: DSF_PROTO
+        if (TConfig::Get()->UseClientProtobuf) {
+            return new TProtoTableWriter(
+                CreateClientWriter(path, DSF_YSON_BINARY, options));
+        } else {
+            auto formatConfig = NodeToYsonString(MakeProtoFormatConfig(prototype));
+            return new TLenvalProtoTableWriter(
+                CreateClientWriter(path, DSF_PROTO, options, formatConfig));
+        }
     }
 };
 

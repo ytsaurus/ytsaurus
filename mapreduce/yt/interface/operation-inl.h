@@ -6,13 +6,9 @@
 #undef OPERATION_INL_H_
 
 #include <util/generic/type_name.h>
-
-#include <contrib/libs/protobuf/message.h>
-
+#include <util/generic/bt_exception.h>
 #include <util/stream/file.h>
 #include <util/stream/buffer.h>
-
-#include <util/generic/bt_exception.h>
 
 namespace NYT {
 
@@ -155,7 +151,8 @@ struct TOperationIOSpecBase::TFormatAdder<T, std::enable_if_t<TIsBaseOf<Message,
             ythrow yexception() << "Invalid format"; // TODO: more info
         }
         desc.Format = TMultiFormatDesc::F_PROTO;
-        desc.ProtoFormats.push_back(TProtoFormat());
+        TAutoPtr<T> prototype(new T);
+        desc.ProtoDescriptors.push_back(prototype->GetDescriptor());
     }
 };
 

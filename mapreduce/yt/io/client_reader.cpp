@@ -29,11 +29,13 @@ TClientReader::TClientReader(
     const TAuth& auth,
     const TTransactionId& transactionId,
     EDataStreamFormat format,
+    const Stroka& formatConfig,
     const TTableReaderOptions& options)
     : Path_(path)
     , Auth_(auth)
     , TransactionId_(transactionId)
     , Format_(format)
+    , FormatConfig_(formatConfig)
     , Options_(options)
     , ReadTransaction_(new TPingableTransaction(auth, transactionId))
     , RetriesLeft_(TConfig::Get()->RetryCount)
@@ -85,8 +87,10 @@ void TClientReader::CreateRequest(bool keepRanges, ui32 rangeIndex, ui64 rowInde
             if (Format_ == DSF_YAMR_LENVAL) {
                 auto format = GetTableFormat(Auth_, TransactionId_, Path_);
                 if (format) {
-                    header.SetFormat(NodeToYsonString(format.GetRef()));
+                    header.SetOutputFormat(NodeToYsonString(format.GetRef()));
                 }
+            } else if (Format_ == DSF_PROTO) {
+                header.SetOutputFormat(FormatConfig_);
             }
 
             if (!keepRanges) {

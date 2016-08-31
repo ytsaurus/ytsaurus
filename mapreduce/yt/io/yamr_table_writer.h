@@ -16,11 +16,12 @@ public:
     ~TYaMRTableWriter() override;
 
     void AddRow(const TYaMRRow& row, size_t tableIndex) override;
-    void Finish() override;
+
+    size_t GetStreamCount() const override;
+    TOutputStream* GetStream(size_t tableIndex) const override;
 
 private:
     THolder<TProxyOutput> Output_;
-    yvector<TMutex> Locks_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

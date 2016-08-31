@@ -62,6 +62,10 @@ void TBlockWriter::Send(const TBuffer& buffer)
     header.SetDataStreamFormat(Format_);
     header.SetParameters(Parameters_);
 
+    if (Format_ == DSF_PROTO) {
+        header.SetInputFormat(FormatConfig_);
+    }
+
     auto streamMaker = [&buffer] () {
         return new TBufferInput(buffer);
     };

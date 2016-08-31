@@ -17,10 +17,30 @@ public:
     ~TProtoTableWriter() override;
 
     void AddRow(const Message& row, size_t tableIndex) override;
-    void Finish() override;
+
+    size_t GetStreamCount() const override;
+    TOutputStream* GetStream(size_t tableIndex) const override;
 
 private:
-    THolder<TNodeTableWriter> NodeWriter_; // proto over yson
+    THolder<TNodeTableWriter> NodeWriter_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLenvalProtoTableWriter
+    : public IProtoWriterImpl
+{
+public:
+    explicit TLenvalProtoTableWriter(THolder<TProxyOutput> output);
+    ~TLenvalProtoTableWriter() override;
+
+    void AddRow(const Message& row, size_t tableIndex) override;
+
+    size_t GetStreamCount() const override;
+    TOutputStream* GetStream(size_t tableIndex) const override;
+
+private:
+    THolder<TProxyOutput> Output_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

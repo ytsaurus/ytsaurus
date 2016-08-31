@@ -9,17 +9,6 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRetryException
-    : public yexception
-{ };
-
-const i32 CONTROL_ATTR_TABLE_INDEX = -1;
-const i32 CONTROL_ATTR_KEY_SWITCH = -2;
-const i32 CONTROL_ATTR_RANGE_INDEX = -3;
-const i32 CONTROL_ATTR_ROW_INDEX = -4;
-
-////////////////////////////////////////////////////////////////////////////////
-
 TMaybe<TNode> GetTableFormat(
     const TAuth& auth,
     const TTransactionId& transactionId,
@@ -94,72 +83,14 @@ TMaybe<TNode> GetTableFormats(
 ////////////////////////////////////////////////////////////////////////////////
 
 TYaMRTableReader::TYaMRTableReader(THolder<TProxyInput> input)
-    : Input_(std::move(input))
+    : TLenvalTableReader(std::move(input))
 {
-    Next();
+    TLenvalTableReader::Next();
 }
 
 TYaMRTableReader::~TYaMRTableReader()
 { }
 
-void TYaMRTableReader::CheckValidity() const
-{
-    if (!IsValid()) {
-        ythrow yexception() << "Iterator is not valid";
-    }
-}
-
-size_t TYaMRTableReader::Load(void *buf, size_t len)
-{
-    size_t count = 0;
-    bool hasError = false;
-    yexception ex;
-
-    try {
-        count = Input_->Load(buf, len);
-    } catch (yexception& e) {
-        hasError = true;
-        ex = e;
-    }
-
-    if (hasError) {
-        if (Input_->OnStreamError(ex, !RowIndex_.Defined(),
-            RangeIndex_.GetOrElse(0ul), RowIndex_.GetOrElse(0ull)))
-        {
-            RowIndex_.Clear();
-            RangeIndex_.Clear();
-            throw TRetryException();
-        } else {
-            ythrow ex;
-        }
-    }
-
-    return count;
-}
-
-template <class T>
-bool TYaMRTableReader::ReadInteger(T* result, bool acceptEndOfStream)
-{
-    size_t count = Load(result, sizeof(T));
-    if (acceptEndOfStream && count == 0) {
-        Finished_ = true;
-        Valid_ = false;
-        return false;
-    }
-    if (count != sizeof(T)) {
-        ythrow yexception() << "Premature end of YaMR stream";
-    }
-    return true;
-}
-
-void TYaMRTableReader::ReadField(Stroka* result, i32 length)
-{
-    result->resize(length);
-    size_t count = Load(result->begin(), length);
-    if (count != static_cast<size_t>(length)) {
-        ythrow yexception() << "Premature end of YaMR stream";
-    }
-}
 
 const TYaMRRow& TYaMRTableReader::GetRow() const
 {
@@ -174,116 +105,49 @@ bool TYaMRTableReader::IsValid() const
 
 void TYaMRTableReader::Next()
 {
-    CheckValidity();
-
-    if (RowIndex_) {
-        ++*RowIndex_;
-    }
-
-    while (true) {
-        try {
-            i32 value = 0;
-            if (!ReadInteger(&value, true)) {
-                return;
-            }
-
-            TMaybe<ui64> rowIndex;
-            TMaybe<ui32> rangeIndex;
-
-            while (value < 0) {
-                switch (value) {
-                    case CONTROL_ATTR_KEY_SWITCH:
-                        if (!AtStart_) {
-                            Valid_ = false;
-                            return;
-                        }
-                        break;
-
-                    case CONTROL_ATTR_TABLE_INDEX: {
-                        ui32 tmp = 0;
-                        ReadInteger(&tmp);
-                        TableIndex_ = tmp;
-                        ReadInteger(&value);
-                        break;
-                    }
-                    case CONTROL_ATTR_ROW_INDEX: {
-                        ui64 tmp = 0;
-                        ReadInteger(&tmp);
-                        rowIndex = tmp;
-                        ReadInteger(&value);
-                        break;
-                    }
-                    case CONTROL_ATTR_RANGE_INDEX: {
-                        ui32 tmp = 0;
-                        ReadInteger(&tmp);
-                        rangeIndex = tmp;
-                        ReadInteger(&value);
-                        break;
-                    }
-                    default:
-                        ythrow yexception() <<
-                            Sprintf("Invalid control integer %d in YaMR stream", value);
-                }
-            }
-
-            if (rowIndex) {
-                if (Input_->HasRangeIndices()) {
-                    if (rangeIndex) {
-                        RowIndex_ = rowIndex;
-                        RangeIndex_ = rangeIndex;
-                    }
-                } else {
-                    RowIndex_ = rowIndex;
-                }
-            }
-
-            ReadField(&Key_, value);
-            Row_.Key = Key_;
-
-            ReadInteger(&value);
-            ReadField(&SubKey_, value);
-            Row_.SubKey = SubKey_;
-
-            ReadInteger(&value);
-            ReadField(&Value_, value);
-            Row_.Value = Value_;
-
-            AtStart_ = false;
-
-        } catch (TRetryException& e) {
-            continue;
-        }
-        break;
-    }
+    TLenvalTableReader::Next();
 }
 
 void TYaMRTableReader::NextKey()
 {
-    while (Valid_) {
-        Next();
-    }
-
-    if (Finished_) {
-        return;
-    }
-
-    Valid_ = true;
-
-    if (RowIndex_) {
-        --*RowIndex_;
-    }
+    TLenvalTableReader::NextKey();
 }
 
 ui32 TYaMRTableReader::GetTableIndex() const
 {
-    CheckValidity();
-    return TableIndex_;
+    return TLenvalTableReader::GetTableIndex();
 }
 
 ui64 TYaMRTableReader::GetRowIndex() const
 {
-    CheckValidity();
-    return RowIndex_.GetOrElse(0UL);
+    return TLenvalTableReader::GetRowIndex();
+}
+
+void TYaMRTableReader::ReadField(Stroka* result, i32 length)
+{
+    result->resize(length);
+    size_t count = Load(result->begin(), length);
+    if (count != static_cast<size_t>(length)) {
+        ythrow yexception() << "Premature end of stream";
+    }
+}
+
+void TYaMRTableReader::OnRowStart()
+{
+    i32 value = static_cast<i32>(Length_);
+
+    ReadField(&Key_, value);
+    Row_.Key = Key_;
+
+    ReadInteger(&value);
+    ReadField(&SubKey_, value);
+    Row_.SubKey = SubKey_;
+
+    ReadInteger(&value);
+    ReadField(&Value_, value);
+    Row_.Value = Value_;
+
+    AtStart_ = false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

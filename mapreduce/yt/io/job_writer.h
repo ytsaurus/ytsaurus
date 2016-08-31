@@ -19,7 +19,7 @@ public:
     explicit TJobWriter(size_t outputTableCount);
 
     size_t GetStreamCount() const override;
-    TOutputStream* GetStream(size_t tableIndex) override;
+    TOutputStream* GetStream(size_t tableIndex) const override;
     void OnRowFinished(size_t tableIndex) override;
 
 private:

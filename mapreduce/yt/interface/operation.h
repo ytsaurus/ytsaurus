@@ -12,11 +12,6 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TProtoFormat
-{
-    // TODO: descriptors for fields
-};
-
 struct TMultiFormatDesc
 {
     enum EFormat {
@@ -27,7 +22,7 @@ struct TMultiFormatDesc
     };
 
     EFormat Format = F_NONE;
-    yvector<TProtoFormat> ProtoFormats;
+    yvector<const ::google::protobuf::Descriptor*> ProtoDescriptors;
 };
 
 struct TOperationIOSpecBase

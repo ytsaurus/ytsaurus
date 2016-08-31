@@ -13,3 +13,36 @@ message TSampleProto
     optional string e = 5 [(NYT.column_name) = "column_e"];
 };
 
+message TTypeProto
+{
+    message TMessage
+    {
+        optional int64  Foo = 1;
+        optional string Bar = 2;
+    }
+
+    enum EEnum
+    {
+        FOO = 15;
+        BAR = 255;
+    }
+
+    optional double   Double   = 1  [(NYT.key_column_name) = "Double"];
+    optional float    Float    = 2  [(NYT.key_column_name) = "Float"];
+    optional int64    Int64    = 3  [(NYT.column_name) = "Int64"];
+    optional uint64   UInt64   = 4  [(NYT.column_name) = "UInt64"];
+    optional int32    Int32    = 5  [(NYT.column_name) = "Int32"];
+    optional fixed64  Fixed64  = 6  [(NYT.column_name) = "Fixed64"];
+    optional fixed32  Fixed32  = 7  [(NYT.column_name) = "Fixed32"];
+    optional bool     Bool     = 8  [(NYT.column_name) = "Boolean"];
+    optional string   String   = 9  [(NYT.column_name) = "Stroka"];
+// group = 10
+    optional TMessage Message  = 11 [(NYT.column_name) = "Message"];
+    optional bytes    Bytes    = 12 [(NYT.column_name) = "Bytes"];
+    optional uint32   UInt32   = 13 [(NYT.column_name) = "UInt32"];
+    optional EEnum    Enum     = 14 [(NYT.column_name) = "Enum"];
+    optional sfixed32 SFixed32 = 15;
+    optional sfixed64 SFixed64 = 16;
+    optional sint32   SInt32   = 17;
+    optional sint64   SInt64   = 18;
+};

@@ -198,6 +198,8 @@ TConfig::TConfig()
     RemoteTempTablesDirectory = GetEnv("YT_TEMP_TABLES_STORAGE",
         "//tmp/yt_wrapper/table_storage");
 
+    UseClientProtobuf = GetBool("YT_USE_CLIENT_PROTOBUF", true);
+
     OrderGuarantees = GetBool("YT_STRICTLY_TESTABLE") // common
         ? OG_STRICTLY_TESTABLE
         : GetBool("YT_TESTABLE") ? OG_TESTABLE : OG_STANDARD;
