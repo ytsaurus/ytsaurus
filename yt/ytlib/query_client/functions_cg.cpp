@@ -183,17 +183,13 @@ TCodegenExpression TSimpleCallingConvention::MakeCodegenFunctionCall(
     EValueType type,
     const Stroka& name) const
 {
+    std::reverse(codegenArgs.begin(), codegenArgs.end());
     return [
-        this_ = MakeStrong(this),
         type,
         name,
         MOVE(codegenArgs),
         MOVE(codegenBody)
-    ] (TCGContext& builder, Value* row) mutable {
-        std::reverse(
-            codegenArgs.begin(),
-            codegenArgs.end());
-
+    ] (TCGContext& builder, Value* row) {
         auto llvmArgs = std::vector<Value*>();
         PushExecutionContext(builder, llvmArgs);
 
