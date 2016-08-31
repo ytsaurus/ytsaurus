@@ -1,5 +1,6 @@
 #include "dispatcher.h"
 
+#include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/thread_pool.h>
 
 #include <yt/core/misc/singleton.h>
@@ -16,29 +17,36 @@ class TDispatcher::TImpl
 public:
     void Configure(int poolSize)
     {
-        Pool_->Configure(poolSize);
+        HeavyPool_->Configure(poolSize);
     }
 
-    const IInvokerPtr& GetInvoker()
+    const IInvokerPtr& GetLightInvoker()
     {
-        return Pool_->GetInvoker();
+        return LightQueue_->GetInvoker();
+    }
+
+    const IInvokerPtr& GetHeavyInvoker()
+    {
+        return HeavyPool_->GetInvoker();
     }
 
     void Shutdown()
     {
-        Pool_->Shutdown();
+        LightQueue_->Shutdown();
+        HeavyPool_->Shutdown();
     }
 
 private:
-    const TThreadPoolPtr Pool_ = New<TThreadPool>(16, "Rpc");
+    const TActionQueuePtr LightQueue_ = New<TActionQueue>("RpcLight");
+    const TThreadPoolPtr HeavyPool_ = New<TThreadPool>(16, "RpcHeavy");
+
 };
 
 TDispatcher::TDispatcher()
     : Impl_(new TImpl())
 { }
 
-TDispatcher::~TDispatcher()
-{ }
+TDispatcher::~TDispatcher() = default;
 
 TDispatcher* TDispatcher::Get()
 {
@@ -60,9 +68,14 @@ void TDispatcher::Shutdown()
     Impl_->Shutdown();
 }
 
-const IInvokerPtr& TDispatcher::GetInvoker()
+const IInvokerPtr& TDispatcher::GetLightInvoker()
 {
-    return Impl_->GetInvoker();
+    return Impl_->GetLightInvoker();
+}
+
+const IInvokerPtr& TDispatcher::GetHeavyInvoker()
+{
+    return Impl_->GetHeavyInvoker();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

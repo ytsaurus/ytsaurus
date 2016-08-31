@@ -476,7 +476,7 @@ TServiceBase::TServiceBase(
     ServiceTagId_ = NProfiling::TProfileManager::Get()->RegisterTag("service", ServiceId_.ServiceName);
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Discover)
-        .SetInvoker(TDispatcher::Get()->GetInvoker())
+        .SetInvoker(TDispatcher::Get()->GetLightInvoker())
         .SetSystem(true));
 }
 
@@ -690,7 +690,7 @@ void TServiceBase::RunRequest(const TServiceContextPtr& context)
     const auto& options = runtimeInfo->Descriptor.Options;
     if (options.Heavy) {
         runtimeInfo->Descriptor.HeavyHandler
-            .AsyncVia(TDispatcher::Get()->GetInvoker())
+            .AsyncVia(TDispatcher::Get()->GetHeavyInvoker())
             .Run(context, options)
             .Subscribe(BIND(&TServiceContext::Run, context));
     } else {

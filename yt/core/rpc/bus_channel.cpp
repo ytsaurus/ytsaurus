@@ -302,7 +302,7 @@ private:
 
             if (request->IsHeavy()) {
                 BIND(&IClientRequest::Serialize, request)
-                    .AsyncVia(TDispatcher::Get()->GetInvoker())
+                    .AsyncVia(TDispatcher::Get()->GetHeavyInvoker())
                     .Run()
                     .Subscribe(BIND(
                         &TSession::OnRequestSerialized,
@@ -735,7 +735,7 @@ private:
         {
             // YT-1639: Avoid calling TSession::Cancel directly as this may lead
             // to an extremely long chain of recursive calls.
-            TDispatcher::Get()->GetInvoker()->Invoke(
+            TDispatcher::Get()->GetLightInvoker()->Invoke(
                 BIND(&TSession::Cancel, Session_, MakeStrong(this)));
         }
 
