@@ -1522,12 +1522,11 @@ class TestSortedDynamicTables(YTEnvSetup):
         set("//tmp/t2/@forced_compaction_revision", revision)
         remount_table("//tmp/t2")
 
-        sleep(4.0)
-
+        wait(lambda: len(__builtin__.set(get("//tmp/t1/@chunk_ids")).intersection(original_chunk_ids1)) == 0)
+        wait(lambda: len(__builtin__.set(get("//tmp/t2/@chunk_ids")).intersection(original_chunk_ids2)) == 0)
+        
         compacted_chunk_ids1 = __builtin__.set(get("//tmp/t1/@chunk_ids"))
         compacted_chunk_ids2 = __builtin__.set(get("//tmp/t2/@chunk_ids"))
-        assert len(compacted_chunk_ids1.intersection(original_chunk_ids1)) == 0
-        assert len(compacted_chunk_ids2.intersection(original_chunk_ids2)) == 0
         assert len(compacted_chunk_ids1.intersection(compacted_chunk_ids2)) == 0
         
         assert_items_equal(select_rows("key from [//tmp/t1]"), rows + ext_rows1)
