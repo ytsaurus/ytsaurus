@@ -418,6 +418,16 @@ test_create_table()
     check '"my_value"' "`./mapreduce -get "ignat/empty_table/@xxx"`"
 }
 
+test_do_not_delete_empty_table()
+{
+    export YT_DELETE_EMPTY_TABLES=0
+    ./mapreduce -drop "ignat/empty_table"
+    ./mapreduce -createtable "ignat/empty_table"
+    ./mapreduce -write "ignat/empty_table" </dev/null
+    check "0" "`./mapreduce -get "ignat/empty_table/@row_count"`"
+    unset YT_DELETE_EMPTY_TABLES
+}
+
 test_sortby_reduceby()
 {
     # It calculates sum of c2 grouped by c2
@@ -756,6 +766,7 @@ test_spec
 test_smart_format
 test_drop
 test_create_table
+test_do_not_delete_empty_table
 test_empty_destination
 test_dsv_reduce
 test_slow_write
