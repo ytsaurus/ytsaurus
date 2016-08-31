@@ -1,0 +1,7 @@
+{
+    "type" = "map_node";
+    "attributes" = {
+        "prune_empty_map_nodes" = %false;
+        "prune_empty_tables" = %true;
+    }
+}
