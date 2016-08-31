@@ -365,7 +365,7 @@ def build_python_packages(options):
     for package in packages:
         if package == "yandex-yt-python-fennel" and not options.build_enable_python_2_7:
             continue
-        if package == "yandex-yt-local" and not options.codename == "lucid":
+        if package == "yandex-yt-local" and options.codename == "lucid":
             continue
         with cwd(options.checkout_directory, "python", package):
             package_version = run_captured(
