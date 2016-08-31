@@ -82,8 +82,6 @@ struct TYaMRRow
     TStringBuf Value;
 };
 
-using ::google::protobuf::Message;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TDerived>
@@ -136,17 +134,25 @@ public:
 private:
     virtual TIntrusivePtr<INodeReaderImpl> CreateNodeReader(
         const TRichYPath& path, const TTableReaderOptions& options) = 0;
+
     virtual TIntrusivePtr<IYaMRReaderImpl> CreateYaMRReader(
         const TRichYPath& path, const TTableReaderOptions& options) = 0;
+
     virtual TIntrusivePtr<IProtoReaderImpl> CreateProtoReader(
-        const TRichYPath& path, const TTableReaderOptions& options) = 0;
+        const TRichYPath& path,
+        const TTableReaderOptions& options,
+        const ::google::protobuf::Message* prototype) = 0;
 
     virtual TIntrusivePtr<INodeWriterImpl> CreateNodeWriter(
         const TRichYPath& path, const TTableWriterOptions& options) = 0;
+
     virtual TIntrusivePtr<IYaMRWriterImpl> CreateYaMRWriter(
         const TRichYPath& path, const TTableWriterOptions& options) = 0;
+
     virtual TIntrusivePtr<IProtoWriterImpl> CreateProtoWriter(
-        const TRichYPath& path, const TTableWriterOptions& options) = 0;
+        const TRichYPath& path,
+        const TTableWriterOptions& options,
+        const ::google::protobuf::Message* prototype) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

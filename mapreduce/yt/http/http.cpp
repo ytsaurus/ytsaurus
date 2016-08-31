@@ -95,9 +95,14 @@ void THttpHeader::SetChunkedEncoding()
     ChunkedEncoding = true;
 }
 
-void THttpHeader::SetFormat(const Stroka& format)
+void THttpHeader::SetInputFormat(const Stroka& format)
 {
-    Format = format;
+    InputFormat = format;
+}
+
+void THttpHeader::SetOutputFormat(const Stroka& format)
+{
+    OutputFormat = format;
 }
 
 void THttpHeader::SetParameters(const Stroka& parameters)
@@ -188,13 +193,19 @@ Stroka THttpHeader::GetHeader(const Stroka& hostName, const Stroka& requestId) c
         case DSF_BYTES:
             header << "Accept: application/octet-stream\r\n";
             header << "Content-Type: application/octet-stream\r\n";
+        default:
+            break;
     }
 
-    if (!Format.empty()) {
-        header << "X-YT-Output-Format: " << Format << "\r\n";
+    if (InputFormat) {
+        header << "X-YT-Input-Format: " << InputFormat << "\r\n";
     }
 
-    if (!Parameters.empty()) {
+    if (OutputFormat) {
+        header << "X-YT-Output-Format: " << OutputFormat << "\r\n";
+    }
+
+    if (Parameters) {
         header << "X-YT-Parameters: " << Parameters << "\r\n";
     }
 

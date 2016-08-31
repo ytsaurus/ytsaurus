@@ -18,6 +18,7 @@ TFileWriter::TFileWriter(
         transactionId,
         GetWriteFileCommand(),
         DSF_BYTES,
+        "",
         path,
         BUFFER_SIZE,
         options)

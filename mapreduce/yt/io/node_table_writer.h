@@ -17,12 +17,13 @@ public:
     ~TNodeTableWriter() override;
 
     void AddRow(const TNode& row, size_t tableIndex) override;
-    void Finish() override;
+
+    size_t GetStreamCount() const override;
+    TOutputStream* GetStream(size_t tableIndex) const override;
 
 private:
     THolder<TProxyOutput> Output_;
     yvector<THolder<TYsonWriter>> Writers_;
-    yvector<TMutex> Locks_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,9 +1,9 @@
 #include "job_writer.h"
 
+#include <mapreduce/yt/interface/io.h>
+
 #include <util/stream/pipe.h>
 #include <util/stream/buffered.h>
-
-#include <mapreduce/yt/common/log.h>
 
 namespace NYT {
 
@@ -26,10 +26,12 @@ size_t TJobWriter::GetStreamCount() const
     return Streams_.size();
 }
 
-TOutputStream* TJobWriter::GetStream(size_t tableIndex)
+TOutputStream* TJobWriter::GetStream(size_t tableIndex) const
 {
     if (tableIndex >= Streams_.size()) {
-        Y_FAIL("Table index %" PRISZT " is out of range", tableIndex);
+        ythrow TIOException() <<
+            "Table index " << tableIndex <<
+            " is out of range [0, " << Streams_.size() << ")";
     }
     return Streams_[tableIndex].BufferedOutput.Get();
 }

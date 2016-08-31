@@ -1,5 +1,4 @@
 #include <mapreduce/yt/tests/native/sample.pb.h>
-
 #include <mapreduce/yt/tests/lib/lib.h>
 
 #include <mapreduce/yt/interface/client.h>
@@ -198,6 +197,85 @@ YT_TEST(TOperation, IdMapperProto)
             ", d = " << row.d() <<
             ", e = " << row.e() <<
         Endl;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TIdMapperTypeProto
+    : public IMapper<TTableReader<TTypeProto>, TTableWriter<TTypeProto>>
+{
+public:
+    virtual void Do(
+        TTableReader<TTypeProto>* input,
+        TTableWriter<TTypeProto>* output) override
+    {
+        for (; input->IsValid(); input->Next()) {
+            output->AddRow(input->GetRow());
+        }
+    }
+};
+REGISTER_MAPPER(TIdMapperTypeProto);
+
+YT_TEST(TOperation, IdMapperTypeProto)
+{
+    auto writer = Client()->CreateTableWriter<TTypeProto>(Input());
+
+    TTypeProto row;
+    row.SetDouble(0.25);
+    row.SetFloat(4.0);
+    row.SetInt64(345ll);
+    row.SetUInt64(27346ull);
+    row.SetInt32(39485734);
+    row.SetFixed64(8324765ull);
+    row.SetFixed32(298734u);
+    row.SetBool(true);
+    row.SetString("abcdefgh");
+
+    auto* message = row.MutableMessage();
+    message->SetFoo(83610);
+    message->SetBar("qwerty");
+
+    row.SetBytes("xyz");
+    row.SetUInt32(9428u);
+    row.SetEnum(TTypeProto::BAR);
+    row.SetSFixed32(20562);
+    row.SetSFixed64(65587ll);
+    row.SetSInt32(1572);
+    row.SetSInt64(944825ll);
+
+    writer->AddRow(row);
+    writer->Finish();
+
+    Client()->Map(
+        TMapOperationSpec()
+            .AddInput<TTypeProto>(Input())
+            .AddOutput<TTypeProto>(Output()),
+        new TIdMapperTypeProto
+    );
+
+    auto reader = Client()->CreateTableReader<TTypeProto>(Output());
+    for (; reader->IsValid(); reader->Next()) {
+        const auto& row = reader->GetRow();
+        Cout <<
+            "Double = " << row.GetDouble() << Endl <<
+            "Float = " << row.GetFloat() << Endl <<
+            "Int64 = " << row.GetInt64() << Endl <<
+            "UInt64 = " << row.GetUInt64() << Endl <<
+            "Int32 = " << row.GetInt32() << Endl <<
+            "Fixed64 = " << row.GetFixed64() << Endl <<
+            "Fixed32 = " << row.GetFixed32() << Endl <<
+            "Bool = " << row.GetBool() << Endl <<
+            "String = " << row.GetString() << Endl <<
+            "Message.Foo = " << row.GetMessage().GetFoo() << Endl <<
+            "Message.Bar = " << row.GetMessage().GetBar() << Endl <<
+            "Bytes = " << row.GetBytes() << Endl <<
+            "UInt32 = " << row.GetUInt32() << Endl <<
+            "Enum = " << static_cast<int>(row.GetEnum()) << Endl <<
+            "SFixed32 = " << row.GetSFixed32() << Endl <<
+            "SFixed64 = " << row.GetSFixed64() << Endl <<
+            "SInt32 = " << row.GetSInt32() << Endl <<
+            "SInt64 = " << row.GetSInt64() << Endl;
     }
 }
 

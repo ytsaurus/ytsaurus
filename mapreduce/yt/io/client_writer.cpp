@@ -14,12 +14,14 @@ TClientWriter::TClientWriter(
     const TAuth& auth,
     const TTransactionId& transactionId,
     EDataStreamFormat format,
+    const Stroka& formatConfig,
     const TTableWriterOptions& options)
     : BlockWriter_(new TBlockWriter(
         auth,
         transactionId,
         GetWriteTableCommand(),
         format,
+        formatConfig,
         path,
         BUFFER_SIZE,
         options))
@@ -30,7 +32,7 @@ size_t TClientWriter::GetStreamCount() const
     return 1;
 }
 
-TOutputStream* TClientWriter::GetStream(size_t tableIndex)
+TOutputStream* TClientWriter::GetStream(size_t tableIndex) const
 {
     Y_UNUSED(tableIndex);
     return BlockWriter_.Get();

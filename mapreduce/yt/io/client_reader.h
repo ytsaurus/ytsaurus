@@ -22,6 +22,7 @@ public:
         const TAuth& auth,
         const TTransactionId& transactionId,
         EDataStreamFormat format,
+        const Stroka& formatConfig,
         const TTableReaderOptions& options);
 
     bool OnStreamError(
@@ -40,6 +41,7 @@ private:
     TAuth Auth_;
     TTransactionId TransactionId_;
     EDataStreamFormat Format_;
+    Stroka FormatConfig_;
     TTableReaderOptions Options_;
 
     THolder<TPingableTransaction> ReadTransaction_;

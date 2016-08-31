@@ -26,12 +26,14 @@ public:
         const TTransactionId& parentId,
         const Stroka& command,
         EDataStreamFormat format,
+        const Stroka& formatConfig,
         const TRichYPath& path,
         size_t bufferSize,
         const TWriterOptions& options)
         : Auth_(auth)
         , Command_(command)
         , Format_(format)
+        , FormatConfig_(formatConfig)
         , BufferSize_(bufferSize)
         , WriteTransaction_(auth, parentId)
         , Buffer_(BufferSize_ * 2)
@@ -55,6 +57,7 @@ private:
     TAuth Auth_;
     Stroka Command_;
     EDataStreamFormat Format_;
+    Stroka FormatConfig_;
     size_t BufferSize_;
 
     Stroka Parameters_;

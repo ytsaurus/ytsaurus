@@ -65,6 +65,7 @@ public:
     ~TNodeTableReader() override;
 
     const TNode& GetRow() const override;
+
     bool IsValid() const override;
     void Next() override;
     ui32 GetTableIndex() const override;
@@ -72,7 +73,16 @@ public:
     void NextKey() override;
 
 private:
+    void OnStreamError();
+    void CheckValidity() const;
+    void PrepareParsing();
+
+    void FetchThread();
+    static void* FetchThread(void* opaque);
+
+private:
     THolder<TProxyInput> Input_;
+
     bool Valid_ = true;
     bool Finished_ = false;
     ui32 TableIndex_ = 0;
@@ -91,14 +101,6 @@ private:
     volatile bool Running_;
     TAutoEvent RetryPrepared_;
     THolder<TThread> Thread_;
-
-private:
-    void OnStreamError();
-    void CheckValidity() const;
-    void PrepareParsing();
-
-    void FetchThread();
-    static void* FetchThread(void* opaque);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

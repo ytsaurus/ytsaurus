@@ -11,6 +11,8 @@
 
 namespace NYT {
 
+using ::google::protobuf::Message;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T, class = void>
@@ -75,8 +77,7 @@ struct IYaMRReaderImpl
 struct IProtoReaderImpl
     : public IReaderImplBase
 {
-    virtual void SkipRow() = 0;
-    virtual void ReadRow(Message* row) = 0; // currently proto over yson
+    virtual void ReadRow(Message* row) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -167,6 +168,7 @@ public:
         if (CachedRow_) {
             return *dynamic_cast<U*>(CachedRow_.Get());
         }
+
         auto* row = new U;
         CachedRow_.Reset(row);
         Reader_->ReadRow(row);
@@ -181,9 +183,6 @@ public:
     void Next()
     {
         auto guard = Guard(Lock_);
-        if (!CachedRow_) {
-            Reader_->SkipRow();
-        }
         Reader_->Next();
         CachedRow_.Reset(nullptr);
     }
@@ -222,6 +221,7 @@ public:
     }
 };
 
+
 template <>
 inline TTableReaderPtr<TNode> IIOClient::CreateTableReader<TNode>(
     const TRichYPath& path, const TTableReaderOptions& options)
@@ -249,7 +249,8 @@ template <class T>
 inline TTableReaderPtr<T> IIOClient::CreateTableReader(
     const TRichYPath& path, const TTableReaderOptions& options)
 {
-    return TReaderCreator<T>::Create(CreateProtoReader(path, options));
+    TAutoPtr<T> prototype(new T);
+    return TReaderCreator<T>::Create(CreateProtoReader(path, options, prototype.Get()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -257,26 +258,29 @@ inline TTableReaderPtr<T> IIOClient::CreateTableReader(
 struct IWriterImplBase
     : public TThrRefBase
 {
-    virtual void Finish() = 0;
+    virtual size_t GetStreamCount() const = 0;
+    virtual TOutputStream* GetStream(size_t tableIndex) const = 0;
 };
 
 struct INodeWriterImpl
     : public IWriterImplBase
 {
-    virtual void AddRow(const TNode& row, size_t tableIndex = 0) = 0;
+    virtual void AddRow(const TNode& row, size_t tableIndex) = 0;
 };
 
 struct IYaMRWriterImpl
     : public IWriterImplBase
 {
-    virtual void AddRow(const TYaMRRow& row, size_t tableIndex = 0) = 0;
+    virtual void AddRow(const TYaMRRow& row, size_t tableIndex) = 0;
 };
 
 struct IProtoWriterImpl
     : public IWriterImplBase
 {
-    virtual void AddRow(const Message& row, size_t tableIndex = 0) = 0;
+    virtual void AddRow(const Message& row, size_t tableIndex) = 0;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
 class TTableWriterBase
@@ -288,6 +292,7 @@ public:
 
     explicit TTableWriterBase(TIntrusivePtr<IWriterImpl> writer)
         : Writer_(writer)
+        , Locks_(writer->GetStreamCount())
     { }
 
     ~TTableWriterBase() override
@@ -301,16 +306,21 @@ public:
 
     void AddRow(const T& row, size_t tableIndex = 0)
     {
+        auto guard = Guard(Locks_[tableIndex]);
         Writer_->AddRow(row, tableIndex);
     }
 
     void Finish()
     {
-        Writer_->Finish();
+        for (size_t i = 0; i < Writer_->GetStreamCount(); ++i) {
+            auto guard = Guard(Locks_[i]);
+            Writer_->GetStream(i)->Finish();
+        }
     }
 
 private:
     TIntrusivePtr<IWriterImpl> Writer_;
+    yvector<TMutex> Locks_;
 };
 
 template <>
@@ -346,6 +356,7 @@ public:
 
     explicit TTableWriter(TIntrusivePtr<IProtoWriterImpl> writer)
         : Writer_(writer)
+        , Locks_(writer->GetStreamCount())
     { }
 
     ~TTableWriter() override
@@ -360,16 +371,21 @@ public:
     template <class U, std::enable_if_t<std::is_base_of<Message, U>::value>* = nullptr>
     void AddRow(const U& row, size_t tableIndex = 0)
     {
+        auto guard = Guard(Locks_[tableIndex]);
         Writer_->AddRow(row, tableIndex);
     }
 
     void Finish()
     {
-        Writer_->Finish();
+        for (size_t i = 0; i < Writer_->GetStreamCount(); ++i) {
+            auto guard = Guard(Locks_[i]);
+            Writer_->GetStream(i)->Finish();
+        }
     }
 
 private:
     TIntrusivePtr<IProtoWriterImpl> Writer_;
+    yvector<TMutex> Locks_;
 };
 
 template <class T>
@@ -417,9 +433,10 @@ template <class T>
 inline TTableWriterPtr<T> IIOClient::CreateTableWriter(
     const TRichYPath& path, const TTableWriterOptions& options)
 {
-    return TWriterCreator<T>::Create(CreateProtoWriter(path, options));
+    TAutoPtr<T> prototype(new T);
+    return TWriterCreator<T>::Create(CreateProtoWriter(path, options, prototype.Get()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
+} // namespace NYT

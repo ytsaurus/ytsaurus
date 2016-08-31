@@ -10,6 +10,8 @@ namespace NYT {
 
 using ::google::protobuf::FieldDescriptor;
 
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
 TNode MakeNodeFromMessage(const Message& row)
@@ -17,6 +19,7 @@ TNode MakeNodeFromMessage(const Message& row)
     TNode node;
     TNodeBuilder builder(&node);
     builder.OnBeginMap();
+
     auto* descriptor = row.GetDescriptor();
     auto* reflection = row.GetReflection();
 
@@ -30,10 +33,7 @@ TNode MakeNodeFromMessage(const Message& row)
         Stroka columnName = fieldDesc->options().GetExtension(column_name);
         if (columnName.empty()) {
             const auto& keyColumnName = fieldDesc->options().GetExtension(key_column_name);
-            if (keyColumnName.empty()) {
-                ythrow yexception() << "column_name or key_column_name extension must be set for field " << fieldDesc->name();
-            }
-            columnName = keyColumnName;
+            columnName = keyColumnName.empty() ? fieldDesc->name() : keyColumnName;
         }
 
         builder.OnKeyedItem(columnName);
@@ -44,15 +44,21 @@ TNode MakeNodeFromMessage(const Message& row)
                 builder.OnStringScalar(reflection->GetString(row, fieldDesc));
                 break;
             case FieldDescriptor::TYPE_INT64:
+            case FieldDescriptor::TYPE_SINT64:
+            case FieldDescriptor::TYPE_SFIXED64:
                 builder.OnInt64Scalar(reflection->GetInt64(row, fieldDesc));
                 break;
             case FieldDescriptor::TYPE_INT32:
+            case FieldDescriptor::TYPE_SINT32:
+            case FieldDescriptor::TYPE_SFIXED32:
                 builder.OnInt64Scalar(reflection->GetInt32(row, fieldDesc));
                 break;
             case FieldDescriptor::TYPE_UINT64:
+            case FieldDescriptor::TYPE_FIXED64:
                 builder.OnUint64Scalar(reflection->GetUInt64(row, fieldDesc));
                 break;
             case FieldDescriptor::TYPE_UINT32:
+            case FieldDescriptor::TYPE_FIXED32:
                 builder.OnUint64Scalar(reflection->GetUInt32(row, fieldDesc));
                 break;
             case FieldDescriptor::TYPE_DOUBLE:
@@ -75,11 +81,12 @@ TNode MakeNodeFromMessage(const Message& row)
                 break;
         }
     }
+
     builder.OnEndMap();
     return node;
 }
 
-}
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -90,14 +97,47 @@ TProtoTableWriter::TProtoTableWriter(THolder<TProxyOutput> output)
 TProtoTableWriter::~TProtoTableWriter()
 { }
 
+size_t TProtoTableWriter::GetStreamCount() const
+{
+    return NodeWriter_->GetStreamCount();
+}
+
+TOutputStream* TProtoTableWriter::GetStream(size_t tableIndex) const
+{
+    return NodeWriter_->GetStream(tableIndex);
+}
+
 void TProtoTableWriter::AddRow(const Message& row, size_t tableIndex)
 {
     NodeWriter_->AddRow(MakeNodeFromMessage(row), tableIndex);
 }
 
-void TProtoTableWriter::Finish()
+////////////////////////////////////////////////////////////////////////////////
+
+TLenvalProtoTableWriter::TLenvalProtoTableWriter(THolder<TProxyOutput> output)
+    : Output_(std::move(output))
+{ }
+
+TLenvalProtoTableWriter::~TLenvalProtoTableWriter()
+{ }
+
+size_t TLenvalProtoTableWriter::GetStreamCount() const
 {
-    NodeWriter_->Finish();
+    return Output_->GetStreamCount();
+}
+
+TOutputStream* TLenvalProtoTableWriter::GetStream(size_t tableIndex) const
+{
+    return Output_->GetStream(tableIndex);
+}
+
+void TLenvalProtoTableWriter::AddRow(const Message& row, size_t tableIndex)
+{
+    auto* stream = GetStream(tableIndex);
+
+    i32 size = row.ByteSize();
+    stream->Write(&size, sizeof(size));
+    row.SerializeToStream(stream);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

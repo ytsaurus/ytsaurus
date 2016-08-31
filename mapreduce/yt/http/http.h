@@ -20,9 +20,8 @@ enum EDataStreamFormat
     DSF_YSON_TEXT,
     DSF_YSON_BINARY,
     DSF_YAMR_LENVAL,
-    DSF_BYTES
-// TODO:
-//    DSF_PROTO,
+    DSF_BYTES,
+    DSF_PROTO
 };
 
 class THttpHeader
@@ -49,7 +48,8 @@ public:
     void SetDataStreamFormat(EDataStreamFormat format);
     EDataStreamFormat GetDataStreamFormat() const;
 
-    void SetFormat(const Stroka& format);
+    void SetInputFormat(const Stroka& format);
+    void SetOutputFormat(const Stroka& format);
 
     void SetParameters(const Stroka& parameters);
     Stroka GetParameters() const;
@@ -76,7 +76,8 @@ private:
 
     EDataStreamFormat DataStreamFormat = DSF_YSON_TEXT;
 
-    Stroka Format;
+    Stroka InputFormat;
+    Stroka OutputFormat;
     Stroka Parameters;
 
     Stroka RequestCompression = "identity";

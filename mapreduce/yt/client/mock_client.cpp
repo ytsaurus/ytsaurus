@@ -72,21 +72,16 @@ namespace {
         const TNode& GetRow() const override {
             return Default;
         }
-
         bool IsValid() const override {
             return false;
         }
-
         void Next() override {}
-
         ui32 GetTableIndex() const override {
             return 0;
         }
-
         ui64 GetRowIndex() const override {
             return 0;
         }
-
         void NextKey() override {}
     private:
         TNode Default;
@@ -100,7 +95,12 @@ namespace {
         ~TMockNodeTableWriter() override {}
 
         void AddRow(const TNode&, size_t) override {}
-        void Finish() override {}
+        size_t GetStreamCount() const override {
+            return 0;
+        }
+        TOutputStream* GetStream(size_t) const override {
+            return nullptr;
+        }
     };
 
     class TMockProtoTableReader
@@ -110,7 +110,6 @@ namespace {
         ~TMockProtoTableReader() override {}
 
         void ReadRow(Message*) override {}
-        void SkipRow() override {}
         bool IsValid() const override {
             return false;
         }
@@ -131,7 +130,12 @@ namespace {
         ~TMockProtoTableWriter() override {}
 
         void AddRow(const Message&, size_t) override {}
-        void Finish() override {}
+        size_t GetStreamCount() const override {
+            return 0;
+        }
+        TOutputStream* GetStream(size_t) const override {
+            return nullptr;
+        }
     };
 
     class TMockYaMRTableReader
@@ -166,7 +170,12 @@ namespace {
         ~TMockYaMRTableWriter() override {}
 
         void AddRow(const TYaMRRow&, size_t) override {}
-        void Finish() override {}
+        size_t GetStreamCount() const override {
+            return 0;
+        }
+        TOutputStream* GetStream(size_t) const override {
+            return nullptr;
+        }
     };
 
 } // namespace
@@ -224,7 +233,7 @@ TIntrusivePtr<IYaMRReaderImpl> TMockClient::CreateYaMRReader(const TRichYPath&, 
     return new TMockYaMRTableReader();
 }
 
-TIntrusivePtr<IProtoReaderImpl> TMockClient::CreateProtoReader(const TRichYPath&, const TTableReaderOptions&) {
+TIntrusivePtr<IProtoReaderImpl> TMockClient::CreateProtoReader(const TRichYPath&, const TTableReaderOptions&, const ::google::protobuf::Message*) {
     return new TMockProtoTableReader();
 }
 
@@ -236,7 +245,7 @@ TIntrusivePtr<IYaMRWriterImpl> TMockClient::CreateYaMRWriter(const TRichYPath&, 
     return new TMockYaMRTableWriter();
 }
 
-TIntrusivePtr<IProtoWriterImpl> TMockClient::CreateProtoWriter(const TRichYPath&, const TTableWriterOptions&) {
+TIntrusivePtr<IProtoWriterImpl> TMockClient::CreateProtoWriter(const TRichYPath&, const TTableWriterOptions&, const ::google::protobuf::Message*) {
     return new TMockProtoTableWriter();
 }
 

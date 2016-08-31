@@ -12,7 +12,6 @@ namespace NYT {
 
 TNodeTableWriter::TNodeTableWriter(THolder<TProxyOutput> output)
     : Output_(std::move(output))
-    , Locks_(Output_->GetStreamCount())
 {
     for (size_t i = 0; i < Output_->GetStreamCount(); ++i) {
         Writers_.push_back(
@@ -23,14 +22,18 @@ TNodeTableWriter::TNodeTableWriter(THolder<TProxyOutput> output)
 TNodeTableWriter::~TNodeTableWriter()
 { }
 
+size_t TNodeTableWriter::GetStreamCount() const
+{
+    return Output_->GetStreamCount();
+}
+
+TOutputStream* TNodeTableWriter::GetStream(size_t tableIndex) const
+{
+    return Output_->GetStream(tableIndex);
+}
+
 void TNodeTableWriter::AddRow(const TNode& row, size_t tableIndex)
 {
-    if (tableIndex >= Writers_.size()) {
-        ythrow TIOException() <<
-            Sprintf("Table index %" PRISZT " is out of range [0, %" PRISZT ")",
-                tableIndex, Writers_.size());
-    }
-
     if (row.HasAttributes()) {
         ythrow TIOException() << "Row cannot have attributes";
     }
@@ -45,21 +48,13 @@ void TNodeTableWriter::AddRow(const TNode& row, size_t tableIndex)
         }
     }
 
-    auto guard = Guard(Locks_[tableIndex]);
-
     auto* writer = Writers_[tableIndex].Get();
     writer->OnListItem();
+
     TNodeVisitor visitor(writer);
     visitor.Visit(*outRow);
-    Output_->OnRowFinished(tableIndex);
-}
 
-void TNodeTableWriter::Finish()
-{
-    for (size_t i = 0; i < Output_->GetStreamCount(); ++i) {
-        auto guard = Guard(Locks_[i]);
-        Output_->GetStream(i)->Finish();
-    }
+    Output_->OnRowFinished(tableIndex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -36,13 +36,13 @@ public:
 
     TIntrusivePtr<IYaMRReaderImpl> CreateYaMRReader(const TRichYPath&, const TTableReaderOptions&);
 
-    TIntrusivePtr<IProtoReaderImpl> CreateProtoReader(const TRichYPath&, const TTableReaderOptions&);
+    TIntrusivePtr<IProtoReaderImpl> CreateProtoReader(const TRichYPath&, const TTableReaderOptions&, const ::google::protobuf::Message*);
 
     TIntrusivePtr<INodeWriterImpl> CreateNodeWriter(const TRichYPath&, const TTableWriterOptions&);
 
     TIntrusivePtr<IYaMRWriterImpl> CreateYaMRWriter(const TRichYPath&, const TTableWriterOptions&);
 
-    TIntrusivePtr<IProtoWriterImpl> CreateProtoWriter(const TRichYPath&, const TTableWriterOptions&);
+    TIntrusivePtr<IProtoWriterImpl> CreateProtoWriter(const TRichYPath&, const TTableWriterOptions&, const ::google::protobuf::Message*);
 
     TOperationId Sort(const TSortOperationSpec&, const TOperationOptions&);
 
