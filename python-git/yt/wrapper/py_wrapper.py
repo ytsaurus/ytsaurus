@@ -44,7 +44,7 @@ TMPFS_SIZE_ADDEND = 1024 * 1024
 # Modules below are imported to force their addition to modules archive.
 OPERATION_REQUIRED_MODULES = ["yt.wrapper.py_runner_helpers"]
 
-SINGLE_INDEPENDENT_BINARY_CASE = False
+SINGLE_INDEPENDENT_BINARY_CASE = None
 
 # Md5 tools.
 def init_md5():
@@ -368,7 +368,7 @@ def do_wrap(function, operation_type, tempfiles_manager, input_format, output_fo
     with open(config_filename, "wb") as fout:
         Pickler(config.DEFAULT_PICKLING_FRAMEWORK).dump(get_config(client), fout)
 
-    if SINGLE_INDEPENDENT_BINARY_CASE:
+    if SINGLE_INDEPENDENT_BINARY_CASE or (SINGLE_INDEPENDENT_BINARY_CASE is None and getattr(sys, "is_standalone_binary", False)):
         files = map(os.path.abspath, [
             sys.argv[0],
             function_filename,

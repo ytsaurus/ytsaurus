@@ -309,7 +309,7 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
         environment["YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB"] = allow_requests_to_yt_from_job
         environment["YT_WRAPPER_IS_INSIDE_JOB"] = "1"
         if getattr(sys, "is_standalone_binary", False):
-            environment["Y_PYTHON_ENTRY_POINT"] = "yt.__yt_entry_point__"
+            environment["Y_PYTHON_ENTRY_POINT"] = "__yt_entry_point__"
 
     binary, additional_files, additional_local_files_to_remove, tmpfs_size = \
         _prepare_binary(binary, op_type, input_format, output_format,
