@@ -198,38 +198,43 @@ public:
     }
 
 
-    void CreateJobNode(
-        TJobPtr job,
-        const TChunkId& stderrChunkId,
-        const TChunkId& failContextChunkId,
-        TFuture<TYsonString> inputPaths = Null)
+    void CreateJobNode(const TCreateJobNodeRequest& createJobNodeRequest)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
 
-        LOG_DEBUG("Creating job node (OperationId: %v, JobId: %v, StdErrChunkId: %v, FailContextChunkId: %v)",
-            job->GetOperationId(),
-            job->GetId(),
-            stderrChunkId,
-            failContextChunkId);
+        LOG_DEBUG("Creating job node (OperationId: %v, JobId: %v, StderrChunkId: %v, FailContextChunkId: %v)",
+            createJobNodeRequest.OperationId,
+            createJobNodeRequest.JobId,
+            createJobNodeRequest.StderrChunkId,
+            createJobNodeRequest.FailContextChunkId);
 
-        auto* list = GetUpdateList(job->GetOperationId());
-        TJobRequest request;
-        request.Job = job;
-        request.StderrChunkId = stderrChunkId;
-        request.FailContextChunkId = failContextChunkId;
-        request.InputPaths = inputPaths;
-        list->JobRequests.push_back(request);
+        auto* list = GetUpdateList(createJobNodeRequest.OperationId);
+        list->JobRequests.push_back(createJobNodeRequest);
+    }
+
+    void RegisterAlert(EAlertType alertType, const TError& alert)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        Alerts[alertType] = alert;
+    }
+
+    void UnregisterAlert(EAlertType alertType)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        Alerts[alertType] = TError();
     }
 
     TFuture<void> AttachToLivePreview(
-        TOperationPtr operation,
+        const TOperationId& operationId,
         const TNodeId& tableId,
         const std::vector<TChunkTreeId>& childIds)
     {
         return BIND(&TImpl::DoAttachToLivePreview, MakeStrong(this))
             .AsyncVia(CancelableControlInvoker)
-            .Run(operation, tableId, childIds);
+            .Run(operationId, tableId, childIds);
     }
 
     TFuture<TSharedRef> DownloadSnapshot(const TOperationId& operationId)
@@ -275,25 +280,22 @@ public:
     void AttachJobContext(
         const TYPath& path,
         const TChunkId& chunkId,
-        TJobPtr job)
+        const TOperationId& operationId,
+        const TJobId& jobId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(chunkId);
 
-        auto client = Bootstrap->GetMasterClient();
-
         try {
             TJobFile file{
-                job->GetId(),
+                jobId,
                 path,
                 chunkId,
                 "input_context"
             };
-            SaveJobFiles(job->GetOperationId(), { file });
+            SaveJobFiles(operationId, { file });
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error saving input context for job %v into %v",
-                job->GetId(),
-                path)
+            THROW_ERROR_EXCEPTION("Error saving input context for job %v into %v", jobId, path)
                 << ex;
         }
     }
@@ -322,18 +324,13 @@ private:
     TPeriodicExecutorPtr OperationNodesUpdateExecutor;
     TPeriodicExecutorPtr WatchersExecutor;
     TPeriodicExecutorPtr SnapshotExecutor;
+    TPeriodicExecutorPtr AlertsExecutor;
     TPeriodicExecutorPtr ClusterDirectoryUpdateExecutor;
 
     std::vector<TWatcherRequester> GlobalWatcherRequesters;
     std::vector<TWatcherHandler>   GlobalWatcherHandlers;
 
-    struct TJobRequest
-    {
-        TJobPtr Job;
-        TChunkId StderrChunkId;
-        TChunkId FailContextChunkId;
-        TFuture<TYsonString> InputPaths;
-    };
+    TEnumIndexedVector<TError, EAlertType> Alerts;
 
     struct TLivePreviewRequest
     {
@@ -348,7 +345,7 @@ private:
         { }
 
         TOperationPtr Operation;
-        std::vector<TJobRequest> JobRequests;
+        std::vector<TCreateJobNodeRequest> JobRequests;
         std::vector<TLivePreviewRequest> LivePreviewRequests;
         TFuture<void> LastUpdateFuture = VoidFuture;
     };
@@ -775,7 +772,6 @@ private:
         operation->SetAsyncSchedulerTransaction(asyncTransaction);
         operation->SetInputTransaction(inputTransaction);
         operation->SetOutputTransaction(outputTransaction);
-        operation->SetHasActiveTransactions(true);
 
         return operation;
     }
@@ -817,6 +813,13 @@ private:
             Config->SnapshotPeriod,
             EPeriodicExecutorMode::Automatic);
         SnapshotExecutor->Start();
+
+        AlertsExecutor = New<TPeriodicExecutor>(
+            CancelableControlInvoker,
+            BIND(&TImpl::UpdateAlerts, MakeWeak(this)),
+            Config->AlertsUpdatePeriod,
+            EPeriodicExecutorMode::Automatic);
+        AlertsExecutor->Start();
     }
 
     void StopPeriodicActivities()
@@ -844,6 +847,11 @@ private:
         if (SnapshotExecutor) {
             SnapshotExecutor->Stop();
             SnapshotExecutor.Reset();
+        }
+
+        if (AlertsExecutor) {
+            AlertsExecutor->Stop();
+            AlertsExecutor.Reset();
         }
     }
 
@@ -883,7 +891,7 @@ private:
                 if (!connection) {
                     continue;
                 }
-                auto channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
+                auto channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
                 auto authenticatedChannel = CreateAuthenticatedChannel(channel, SchedulerUserName);
                 TObjectServiceProxy proxy(authenticatedChannel);
                 batchReqs[cellTag] = proxy.ExecuteBatch();
@@ -1218,34 +1226,40 @@ private:
 
     void CreateJobNodes(
         TOperationPtr operation,
-        const std::vector<TJobRequest>& jobRequests)
+        const std::vector<TCreateJobNodeRequest>& jobRequests)
     {
         auto batchReq = StartObjectBatchRequest();
 
         for (const auto& request : jobRequests) {
-            auto job = request.Job;
-            auto jobPath = GetJobPath(operation->GetId(), job->GetId());
+            const auto& jobId = request.JobId;
+            auto jobPath = GetJobPath(operation->GetId(), jobId);
             auto req = TYPathProxy::Set(jobPath);
             TNullable<TYsonString> inputPaths;
-            if (request.InputPaths) {
-                auto inputPathsOrError = WaitFor(request.InputPaths);
+            if (request.InputPathsFuture) {
+                auto inputPathsOrError = WaitFor(request.InputPathsFuture);
                 if (!inputPathsOrError.IsOK()) {
                     LOG_WARNING(
                         inputPathsOrError,
                         "Error obtaining input paths for failed job (JobId: %v)",
-                        job->GetId());
+                        jobId);
                 } else {
                     inputPaths = inputPathsOrError.Value();
                 }
             }
-            req->set_value(
-                BuildYsonStringFluently()
-                    .BeginAttributes()
-                        .Do(BIND(&BuildJobAttributes, job, inputPaths))
-                    .EndAttributes()
-                    .BeginMap()
-                    .EndMap()
-                    .Data());
+
+            req->set_value(BuildYsonStringFluently()
+                .BeginAttributes()
+                    .Do(BIND([=] (IYsonConsumer* consumer) {
+                        consumer->OnRaw(request.Attributes);
+                    }))
+                    .DoIf(static_cast<bool>(inputPaths), BIND([=] (IYsonConsumer* consumer) {
+                        consumer->OnKeyedItem("input_paths");
+                        consumer->OnRaw(*inputPaths);
+                    }))
+                .EndAttributes()
+                .BeginMap()
+                .EndMap()
+                .Data());
             batchReq->AddRequest(req, "create");
         }
 
@@ -1325,7 +1339,6 @@ private:
                         }
                         attributes->Set("vital", false);
                         attributes->Set("replication_factor", 1);
-                        attributes->Set("account", TmpAccountName);
                         attributes->Set(
                             "description", BuildYsonStringFluently()
                                 .BeginMap()
@@ -1593,15 +1606,21 @@ private:
 
     void DoUpdateOperationNode(
         TOperationPtr operation,
-        const std::vector<TJobRequest>& jobRequests,
+        const std::vector<TCreateJobNodeRequest>& jobRequests,
         const std::vector<TLivePreviewRequest>& livePreviewRequests)
     {
         try {
             CreateJobNodes(operation, jobRequests);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error creating job nodes for operation %v",
+            auto error = TError("Error creating job nodes for operation %v",
                 operation->GetId())
                 << ex;
+            if (error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded)) {
+                LOG_DEBUG(error);
+                return;
+            } else {
+                THROW_ERROR error;
+            }
         }
 
         try {
@@ -1609,16 +1628,16 @@ private:
             for (const auto& request : jobRequests) {
                 if (request.StderrChunkId) {
                     files.push_back({
-                        request.Job->GetId(),
-                        GetStderrPath(operation->GetId(), request.Job->GetId()),
+                        request.JobId,
+                        GetStderrPath(operation->GetId(), request.JobId),
                         request.StderrChunkId,
                         "stderr"
                     });
                 }
                 if (request.FailContextChunkId) {
                     files.push_back({
-                        request.Job->GetId(),
-                        GetFailContextPath(operation->GetId(), request.Job->GetId()),
+                        request.JobId,
+                        GetFailContextPath(operation->GetId(), request.JobId),
                         request.FailContextChunkId,
                         "fail_context"
                     });
@@ -1816,6 +1835,30 @@ private:
             operation->GetId());
     }
 
+    void UpdateAlerts()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected);
+
+        std::vector<TError> alerts;
+        for (auto alertType : TEnumTraits<EAlertType>::GetDomainValues()) {
+            const auto& alert = Alerts[alertType];
+            if (!alert.IsOK()) {
+                alerts.push_back(alert);
+            }
+        }
+
+        TObjectServiceProxy proxy(Bootstrap
+            ->GetMasterClient()
+            ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTag));
+        auto req = TYPathProxy::Set("//sys/scheduler/@alerts");
+        req->set_value(ConvertToYsonString(alerts).Data());
+
+        auto rspOrError = WaitFor(proxy.Execute(req));
+        if (!rspOrError.IsOK()) {
+            LOG_WARNING(rspOrError, "Error updating scheduler alerts");
+        }
+    }
 
     void BuildSnapshot()
     {
@@ -1878,22 +1921,22 @@ private:
     }
 
     void DoAttachToLivePreview(
-        TOperationPtr operation,
+        const TOperationId& operationId,
         const TNodeId& tableId,
         const std::vector<TChunkTreeId>& childIds)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
 
-        auto* list = FindUpdateList(operation->GetId());
+        auto* list = FindUpdateList(operationId);
         if (!list) {
             LOG_DEBUG("Operation node is not registered, omitting live preview attach (OperationId: %v)",
-                operation->GetId());
+                operationId);
             return;
         }
 
         LOG_DEBUG("Attaching live preview chunk trees (OperationId: %v, TableId: %v, ChildCount: %v)",
-            operation->GetId(),
+            operationId,
             tableId,
             childIds.size());
 
@@ -1954,29 +1997,36 @@ TFuture<void> TMasterConnector::RemoveSnapshot(const TOperationId& operationId)
     return Impl->RemoveSnapshot(operationId);
 }
 
-void TMasterConnector::CreateJobNode(
-    TJobPtr job,
-    const TChunkId& stderrChunkId,
-    const TChunkId& failContextChunkId,
-    TFuture<TYsonString> inputPaths)
+void TMasterConnector::CreateJobNode(const TCreateJobNodeRequest& createJobNodeRequest)
 {
-    return Impl->CreateJobNode(job, stderrChunkId, failContextChunkId, inputPaths);
+    return Impl->CreateJobNode(createJobNodeRequest);
+}
+
+void TMasterConnector::RegisterAlert(EAlertType alertType, const TError& alert)
+{
+    Impl->RegisterAlert(alertType, alert);
+}
+
+void TMasterConnector::UnregisterAlert(EAlertType alertType)
+{
+    Impl->UnregisterAlert(alertType);
 }
 
 void TMasterConnector::AttachJobContext(
     const TYPath& path,
     const TChunkId& chunkId,
-    TJobPtr job)
+    const TOperationId& operationId,
+    const TJobId& jobId)
 {
-    return Impl->AttachJobContext(path, chunkId, job);
+    return Impl->AttachJobContext(path, chunkId, operationId, jobId);
 }
 
 TFuture<void> TMasterConnector::AttachToLivePreview(
-    TOperationPtr operation,
+    const TOperationId& operationId,
     const TNodeId& tableId,
     const std::vector<TChunkTreeId>& childIds)
 {
-    return Impl->AttachToLivePreview(operation, tableId, childIds);
+    return Impl->AttachToLivePreview(operationId, tableId, childIds);
 }
 
 void TMasterConnector::AddGlobalWatcherRequester(TWatcherRequester requester)

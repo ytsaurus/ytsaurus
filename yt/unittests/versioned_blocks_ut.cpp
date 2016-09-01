@@ -1,5 +1,5 @@
 #include "framework.h"
-#include "versioned_table_client_ut.h"
+#include "table_client_helpers.h"
 
 #include <yt/ytlib/table_client/schema.h>
 #include <yt/ytlib/table_client/versioned_block_reader.h>
@@ -19,7 +19,7 @@ using namespace NCompression;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVersionedBlocksTestBase
-    : public TVersionedTableClientTestBase
+    : public ::testing::Test
 {
 protected:
     void CheckResult(TSimpleVersionedBlockReader& reader, const std::vector<TVersionedRow>& rows)
@@ -28,7 +28,7 @@ protected:
         do {
             EXPECT_LT(i, rows.size());
             auto row = reader.GetRow(&MemoryPool);
-            ExpectRowsEqual(rows[i], row);
+            ExpectSchemafulRowsEqual(rows[i], row);
         } while (reader.NextRow());
     }
 

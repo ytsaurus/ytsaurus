@@ -46,29 +46,9 @@ TSubprocessResult TSubprocess::Execute()
 #ifdef _unix_
     TFuture<void> finished;
     TAsyncReaderPtr outputStream, errorStream;
-    {
-        std::array<TPipe, 3> pipes;
-
-        {
-            TPipeFactory pipeFactory(3);
-            for (auto& pipe: pipes) {
-                pipe = pipeFactory.Create();
-            }
-            pipeFactory.Clear();
-        }
-
-        for (int index = 0; index < pipes.size(); ++index) {
-            const auto& pipe = pipes[index];
-
-            auto fd = index == 0 ? pipe.GetReadFD() : pipe.GetWriteFD();
-            Process_->AddDup2FileAction(fd, index);
-        }
-
-        finished = Process_->Spawn();
-
-        outputStream = pipes[1].CreateAsyncReader();
-        errorStream = pipes[2].CreateAsyncReader();
-    }
+    outputStream = Process_->GetStdOutReader();
+    errorStream = Process_->GetStdErrReader();
+    finished = Process_->Spawn();
 
     auto readIntoBlob = [] (IAsyncInputStreamPtr stream) {
         TBlob output;

@@ -395,7 +395,7 @@ class Operation(object):
         self._tmpdir = ""
         self._poll_frequency = 0.1
 
-    def ensure_jobs_running(self, timeout=10.0):
+    def ensure_jobs_running(self, timeout=20.0):
         print >>sys.stderr, "Ensure operation jobs are running %s" % self.id
 
         jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(self.id)
@@ -467,6 +467,8 @@ class Operation(object):
 
     def get_job_count(self, state):
         path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs/{1}".format(self.id, state)
+        if not exists(path):
+            return 0
         return get(path, verbose=False)
 
     def get_state(self, **kwargs):
@@ -765,3 +767,8 @@ def get_last_profiling_values(orchid_path, metrics):
     for metric in metrics:
         values[metric] = get(orchid_path + "/" + metric, verbose=False)[-1]["value"]
     return values
+
+#########################################
+
+def total_seconds(td):
+    return float(td.microseconds + (td.seconds + td.days * 24 * 3600) * 10 ** 6) / 10 ** 6

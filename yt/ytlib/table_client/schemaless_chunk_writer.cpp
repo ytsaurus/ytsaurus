@@ -12,6 +12,7 @@
 #include <yt/ytlib/api/transaction.h>
 
 #include <yt/ytlib/table_chunk_format/column_writer.h>
+#include <yt/ytlib/table_chunk_format/schemaless_column_writer.h>
 #include <yt/ytlib/table_chunk_format/data_block_writer.h>
 
 #include <yt/ytlib/chunk_client/chunk_writer.h>
@@ -94,11 +95,7 @@ public:
               Logger))
           , RandomGenerator_(RandomNumber<ui64>())
           , SamplingThreshold_(static_cast<ui64>(std::numeric_limits<ui64>::max() * Config_->SampleRate))
-    {
-        for (const auto& columnSchema : Schema_.Columns()) {
-            ChunkNameTable_->GetIdOrRegisterName(columnSchema.Name);
-        }
-    }
+    { }
 
     virtual TFuture<void> Open() override
     {
@@ -425,7 +422,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// NB (psushin) : only strict schema for now.
 class TColumnUnversionedChunkWriter
     : public TUnversionedChunkWriterBase
 {
@@ -471,6 +467,14 @@ public:
                 column,
                 columnIndex,
                 getBlockWriter(column)));
+        }
+
+        if (!Schema_.GetStrict()) {
+             auto blockWriter = std::make_unique<TDataBlockWriter>();
+             ValueColumnWriters_.emplace_back(CreateSchemalessColumnWriter(
+                Schema_.Columns().size(), 
+                blockWriter.get()));
+             BlockWriters_.emplace_back(std::move(blockWriter));
         }
 
         YCHECK(BlockWriters_.size() > 0);
@@ -606,7 +610,7 @@ ISchemalessChunkWriterPtr CreateSchemalessChunkWriter(
     IChunkWriterPtr chunkWriter,
     IBlockCachePtr blockCache)
 {
-    if (options->OptimizeFor == EOptimizeFor::Lookup || !schema.GetStrict()) {
+    if (options->OptimizeFor == EOptimizeFor::Lookup) {
         return New<TSchemalessChunkWriter>(
             config,
             options,
@@ -1249,7 +1253,7 @@ public:
 
     virtual const TTableSchema& GetSchema() const override
     {
-        return TableSchema_;
+        return TableUploadOptions_.TableSchema;
     }
 
 private:
@@ -1264,8 +1268,7 @@ private:
     const IThroughputThrottlerPtr Throttler_;
     const IBlockCachePtr BlockCache_;
 
-    TTableSchema TableSchema_;
-    bool PreserveSchemaOnWrite_;
+    TTableUploadOptions TableUploadOptions_;
 
     TTransactionId TransactionId_;
 
@@ -1282,10 +1285,6 @@ private:
     void DoOpen()
     {
         const auto& path = RichPath_.GetPath();
-        bool append = RichPath_.GetAppend();
-        auto keyColumns = RichPath_.GetSortedBy();
-        bool sorted = !keyColumns.empty();
-
         TUserObject userObject;
         userObject.Path = path;
 
@@ -1312,7 +1311,7 @@ private:
         {
             LOG_INFO("Requesting extended table attributes");
 
-            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
+            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
             TObjectServiceProxy proxy(channel);
 
             auto req = TCypressYPathProxy::Get(objectIdPath);
@@ -1321,7 +1320,7 @@ private:
                 "account",
                 "compression_codec",
                 "erasure_codec",
-                "preserve_schema_on_write",
+                "schema_mode",
                 "replication_factor",
                 "row_count",
                 "schema",
@@ -1339,49 +1338,21 @@ private:
             const auto& rsp = rspOrError.Value();
             auto node = ConvertToNode(TYsonString(rsp->value()));
             const auto& attributes = node->Attributes();
-            auto schema = attributes.Get<TTableSchema>("schema");
-            PreserveSchemaOnWrite_ = attributes.Get<bool>("preserve_schema_on_write");
 
-            if (PreserveSchemaOnWrite_) {
-                TableSchema_ = schema;
-                keyColumns = schema.GetKeyColumns();
-                sorted = !keyColumns.empty();
-            } else {
-                TableSchema_ = TTableSchema::FromKeyColumns(keyColumns);
-
-                if (append && attributes.Get<i64>("row_count") > 0) {
-                    auto tableKeyColumns = schema.GetKeyColumns();
-
-                    bool areKeyColumnsCompatible = true;
-                    if (tableKeyColumns.size() < keyColumns.size()) {
-                        areKeyColumnsCompatible = false;
-                    } else {
-                        for (int i = 0; i < keyColumns.size(); ++i) {
-                            if (tableKeyColumns[i] != keyColumns[i]) {
-                                areKeyColumnsCompatible = false;
-                                break;
-                            }
-                        }
-                    }
-
-                    if (!areKeyColumnsCompatible) {
-                        THROW_ERROR_EXCEPTION(
-                            "Key columns mismatch while trying to append sorted data into a non-empty table %v",
-                             path)
-                             << TErrorAttribute("append_key_columns", keyColumns)
-                             << TErrorAttribute("current_key_columns", tableKeyColumns);
-                    }
-                }
-            }
+            TableUploadOptions_ = GetTableUploadOptions(
+                RichPath_,
+                attributes.Get<TTableSchema>("schema"),
+                attributes.Get<ETableSchemaMode>("schema_mode"),
+                attributes.Get<i64>("row_count"));
 
             Options_->ReplicationFactor = attributes.Get<int>("replication_factor");
             Options_->CompressionCodec = attributes.Get<NCompression::ECodec>("compression_codec");
             Options_->ErasureCodec = attributes.Get<NErasure::ECodec>("erasure_codec");
             Options_->Account = attributes.Get<Stroka>("account");
             Options_->ChunksVital = attributes.Get<bool>("vital");
-            Options_->ValidateSorted = sorted;
-            Options_->ValidateUniqueKeys = TableSchema_.GetUniqueKeys();
-            Options_->OptimizeFor = attributes.Get<EOptimizeFor>("optimize_for");
+            Options_->ValidateSorted = TableUploadOptions_.TableSchema.IsSorted();
+            Options_->ValidateUniqueKeys = TableUploadOptions_.TableSchema.GetUniqueKeys();
+            Options_->OptimizeFor = attributes.Get<EOptimizeFor>("optimize_for", EOptimizeFor::Lookup);
 
             LOG_INFO("Extended attributes received (Account: %v, CompressionCodec: %v, ErasureCodec: %v)",
                 Options_->Account,
@@ -1399,8 +1370,8 @@ private:
 
             {
                 auto req = TTableYPathProxy::BeginUpload(objectIdPath);
-                req->set_update_mode(static_cast<int>(append ? EUpdateMode::Append : EUpdateMode::Overwrite));
-                req->set_lock_mode(static_cast<int>((append && !sorted) ? ELockMode::Shared : ELockMode::Exclusive));
+                req->set_update_mode(static_cast<int>(TableUploadOptions_.UpdateMode));
+                req->set_lock_mode(static_cast<int>(TableUploadOptions_.LockMode));
                 req->set_upload_transaction_title(Format("Upload to %v", path));
                 SetTransactionId(req, Transaction_);
                 GenerateMutationId(req);
@@ -1432,13 +1403,13 @@ private:
         {
             LOG_INFO("Requesting table upload parameters");
 
-            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower, CellTag_);
+            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, CellTag_);
             TObjectServiceProxy proxy(channel);
 
             auto req =  TTableYPathProxy::GetUploadParams(objectIdPath);
-            if (append && sorted) {
-                req->set_fetch_last_key(true);
-            }
+            req->set_fetch_last_key(TableUploadOptions_.UpdateMode == EUpdateMode::Append &&
+                TableUploadOptions_.TableSchema.IsSorted());
+
             SetTransactionId(req, UploadTransaction_);
 
             auto rspOrError = WaitFor(proxy.Execute(req));
@@ -1451,8 +1422,10 @@ private:
             ChunkListId_ = FromProto<TChunkListId>(rsp->chunk_list_id());
             auto lastKey = FromProto<TOwningKey>(rsp->last_key());
             if (lastKey) {
-                YCHECK(lastKey.GetCount() >= keyColumns.size());
-                LastKey_ = TOwningKey(lastKey.Begin(), lastKey.Begin() + keyColumns.size());
+                YCHECK(lastKey.GetCount() >= TableUploadOptions_.TableSchema.GetKeyColumnCount());
+                LastKey_ = TOwningKey(
+                    lastKey.Begin(),
+                    lastKey.Begin() + TableUploadOptions_.TableSchema.GetKeyColumnCount());
             }
 
             LOG_INFO("Table upload parameters received (ChunkListId: %v, HasLastKey: %v)",
@@ -1464,7 +1437,7 @@ private:
             Config_,
             Options_,
             NameTable_,
-            TableSchema_,
+            TableUploadOptions_.TableSchema,
             LastKey_,
             Client_,
             CellTag_,
@@ -1501,8 +1474,8 @@ private:
         {
             auto req = TTableYPathProxy::EndUpload(objectIdPath);
             *req->mutable_statistics() = UnderlyingWriter_->GetDataStatistics();
-            ToProto(req->mutable_table_schema(), TableSchema_);
-            req->set_preserve_schema_on_write(PreserveSchemaOnWrite_);
+            ToProto(req->mutable_table_schema(), TableUploadOptions_.TableSchema);
+            req->set_schema_mode(static_cast<int>(TableUploadOptions_.SchemaMode));
             SetTransactionId(req, UploadTransaction_);
             GenerateMutationId(req);
             batchReq->AddRequest(req, "end_upload");

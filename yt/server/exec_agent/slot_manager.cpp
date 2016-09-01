@@ -32,7 +32,6 @@ TSlotManager::TSlotManager(
     : Config_(config)
     , Bootstrap_(bootstrap)
     , NodeTag_(Format("yt-node-%v", bootstrap->GetConfig()->RpcPort))
-    , LocationQueue_(New<TActionQueue>("SlotLocations"))
 { }
 
 void TSlotManager::Initialize(int slotCount)
@@ -53,7 +52,7 @@ void TSlotManager::Initialize(int slotCount)
             std::move(locationConfig),
             Bootstrap_,
             Format("slots%v", locationIndex),
-            LocationQueue_->GetInvoker()));
+            Config_->DetachedTmpfsUmount));
 
         if (Locations_.back()->IsEnabled()) {
             AliveLocations_.push_back(Locations_.back());
@@ -68,7 +67,7 @@ void TSlotManager::Initialize(int slotCount)
             JobEnviroment_->CleanProcesses(slotIndex);
         }
     } catch (const std::exception& ex) {
-        LOG_WARNING("Failed do clean up processes on slot manager initialization");
+        LOG_WARNING(ex, "Failed to clean up processes on slot manager initialization");
     }
 
     if (!JobEnviroment_->IsEnabled()) {
@@ -79,10 +78,11 @@ void TSlotManager::Initialize(int slotCount)
     for (auto& location : AliveLocations_) {
         try {
             for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
-                location->CleanSandboxes(slotIndex);
+                WaitFor(location->CleanSandboxes(slotIndex))
+                    .ThrowOnError();
             }
         } catch (const std::exception& ex) {
-            LOG_WARNING("Failed do clean up processes on slot manager initialization");
+            LOG_WARNING(ex, "Failed to clean up sandboxes on slot manager initialization");
         }
     }
 
@@ -105,7 +105,7 @@ ISlotPtr TSlotManager::AcquireSlot()
 
     if (AliveLocations_.empty()) {
         THROW_ERROR_EXCEPTION(
-            EErrorCode::AllLocationsDisabled, 
+            EErrorCode::AllLocationsDisabled,
             "Cannot acquire slot: all slot locations are disabled");
     }
 
@@ -135,8 +135,9 @@ int TSlotManager::GetSlotCount() const
 
 bool TSlotManager::IsEnabled() const
 {
-    return SlotCount_ > 0 && 
-        !AliveLocations_.empty() && 
+    return 
+        SlotCount_ > 0 &&
+        !AliveLocations_.empty() &&
         JobEnviroment_->IsEnabled();
 }
 

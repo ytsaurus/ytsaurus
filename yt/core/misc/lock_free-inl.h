@@ -1,3 +1,4 @@
+#pragma once
 #ifndef LOCK_FREE_INL_H_
 #error "Direct inclusion of this file is not allowed, include lock_free.h"
 #endif
@@ -64,30 +65,18 @@ bool TMultipleProducerSingleConsumerLockFreeStack<T>::Dequeue(T* value)
 }
 
 template <class T>
-std::vector<T> TMultipleProducerSingleConsumerLockFreeStack<T>::DequeueAll()
+std::vector<T> TMultipleProducerSingleConsumerLockFreeStack<T>::DequeueAll(bool reverse)
 {
     std::vector<T> results;
-
-    TNode* expected;
-    do {
-        expected = Head.load(std::memory_order_relaxed);
-        if (!expected) {
-            return results;
-        }
-    } while (!Head.compare_exchange_weak(expected, nullptr));
-
-    auto* current = expected;
-    while (current) {
-        results.push_back(std::move(current->Value));
-        auto* next = current->Next;
-        delete current;
-        current = next;
-    }
+    DequeueAll(reverse, [&results] (T& value) {
+        results.push_back(std::move(value));
+    });
     return results;
 }
 
 template <class T>
-bool TMultipleProducerSingleConsumerLockFreeStack<T>::DequeueAll(bool reverse, std::function<void(T&)> functor)
+template <class F>
+bool TMultipleProducerSingleConsumerLockFreeStack<T>::DequeueAll(bool reverse, F functor)
 {
     TNode* expected;
     do {

@@ -103,7 +103,9 @@ configure_arcadia_mirror library-lwtrace
 configure_arcadia_mirror library-malloc-api
 configure_arcadia_mirror library-messagebus
 configure_arcadia_mirror library-streams-lz
+configure_arcadia_mirror library-streams-lzop
 configure_arcadia_mirror library-threading-future
+configure_arcadia_mirror library-string_utils-base64
 
 configure_arcadia_mirror util
 

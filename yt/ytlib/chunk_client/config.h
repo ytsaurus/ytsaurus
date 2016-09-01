@@ -73,6 +73,10 @@ public:
     //! If peer ban counter exceeds #MaxBanCount, peer is banned forever.
     int MaxBanCount;
 
+    //! Factors to calculate peer load as linear combination of disk queue and net queue.
+    double NetQueueSizeFactor;
+    double DiskQueueSizeFactor;
+
     TReplicationReaderConfig()
     {
         RegisterParameter("block_rpc_timeout", BlockRpcTimeout)
@@ -109,6 +113,10 @@ public:
             .Default(false);
         RegisterParameter("max_ban_count", MaxBanCount)
             .Default(5);
+        RegisterParameter("disk_queue_size_factor", DiskQueueSizeFactor)
+            .Default(1.0);
+        RegisterParameter("net_queue_size_factor", NetQueueSizeFactor)
+            .Default(0.5);
     }
 };
 

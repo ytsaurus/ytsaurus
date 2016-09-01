@@ -1,6 +1,6 @@
 #include "stream_stack.h"
 
-#include <yt/core/utilex/lzop.h>
+#include <library/streams/lzop/lzop.h>
 
 #include <library/streams/lz/lz.h>
 

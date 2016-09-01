@@ -384,6 +384,11 @@ TJobResult TJobProxy::DoRun()
 
 void TJobProxy::ReportResult(const TJobResult& result, const TNullable<TYsonString>& statistics)
 {
+    if (!SupervisorProxy_) {
+        LOG_ERROR("Supervisor channel is not available");
+        Exit(EJobProxyExitCode::ResultReportFailed);
+    }
+
     auto req = SupervisorProxy_->OnJobFinished();
     ToProto(req->mutable_job_id(), JobId_);
     *req->mutable_result() = result;
@@ -468,6 +473,15 @@ void TJobProxy::ReleaseNetwork()
     LOG_DEBUG("Releasing network");
     NetworkUsage_ = 0;
     UpdateResourceUsage();
+}
+
+void TJobProxy::OnPrepared()
+{
+    LOG_DEBUG("Job prepared");
+
+    auto req = SupervisorProxy_->OnJobPrepared();
+    ToProto(req->mutable_job_id(), JobId_);
+    req->Invoke();
 }
 
 NApi::INativeClientPtr TJobProxy::GetClient() const

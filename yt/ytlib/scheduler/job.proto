@@ -73,6 +73,8 @@ message TUserJobSpec
     optional string tmpfs_path = 23;
 
     optional bool copy_files = 24 [default = false];
+
+    optional string file_account = 25;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

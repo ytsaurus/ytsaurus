@@ -53,6 +53,12 @@ DEFINE_ENUM(EUnavailableChunkAction,
     (Wait)
 );
 
+DEFINE_ENUM(ESchemaInferenceMode,
+    (Auto)
+    (FromInput)
+    (FromOutput)
+);
+
 DEFINE_ENUM(EAbortReason,
     (Scheduler)
     (FailedChunks)
@@ -62,6 +68,9 @@ DEFINE_ENUM(EAbortReason,
     (SchedulingTimeout)
     (SchedulingResourceOvercommit)
     (UserRequest)
+    (NodeOffline)
+    (WaitingTimeout)
+    (Unknown)
 );
 
 DEFINE_ENUM(EJobFinalState,

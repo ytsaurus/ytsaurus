@@ -421,7 +421,7 @@ class TestJobProber(YTEnvSetup):
         op.track()
 
     def get_job_count_profiling(self):
-        time.sleep(1)
+        time.sleep(1.2)
         profiling_info = {}
         for value in reversed(get("//sys/scheduler/orchid/profiling/scheduler/job_count", verbose=False)):
             key = tuple(sorted(value["tags"].items()))
@@ -619,7 +619,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert read_table("//tmp/t1") == [{"foo": "bar"}, {"foo": "bar"}]
 
-    # check that stderr is captured for successfull job
     @unix_only
     def test_stderr_ok(self):
         create("table", "//tmp/t1")
@@ -633,7 +632,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert read_table("//tmp/t2") == [{"operation" : op.id}, {"job_index" : 0}]
         check_all_stderrs(op, "stderr\n", 1)
 
-    # check that stderr is captured for failed jobs
     @unix_only
     def test_stderr_failed(self):
         create("table", "//tmp/t1")
@@ -650,7 +648,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         check_all_stderrs(op, "stderr\n", 10)
 
-    # check max_stderr_count
     @unix_only
     def test_stderr_limit(self):
         create("table", "//tmp/t1")
@@ -669,6 +666,29 @@ class TestSchedulerMapCommands(YTEnvSetup):
             op.track()
 
         check_all_stderrs(op, "stderr\n", 5)
+
+    @unix_only
+    def test_stderr_max_size(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"foo": "bar"})
+
+        op = map(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="cat > /dev/null; python -c 'print \"head\" + \"0\" * 10000000; print \"1\" * 10000000 + \"tail\"' >&2;",
+            spec={"max_failed_job_count": 1, "mapper": {"max_stderr_size": 1000000}})
+
+        jobs_path = "//sys/operations/{0}/jobs".format(op.id)
+        assert get(jobs_path + "/@count") == 1
+        stderr_path = "{0}/{1}/stderr".format(jobs_path, ls(jobs_path)[0])
+        stderr = read_file(stderr_path, verbose=False).strip()
+
+        # Stderr buffer size is equal to 1000000, we should add it to limit
+        assert len(stderr) <= 4000000
+        assert stderr[:1004] == "head" + "0" * 1000
+        assert stderr[-1004:] == "1" * 1000 + "tail"
+        assert "skipped" in stderr
 
     @unix_only
     def test_stderr_of_failed_jobs(self):
@@ -704,6 +724,38 @@ class TestSchedulerMapCommands(YTEnvSetup):
         # The default number of stderr is 100. We check that we have 101-st stderr of failed job,
         # that is last one.
         check_all_stderrs(op, "stderr\n", 101)
+
+    @unix_only
+    def test_stderr_with_missing_tmp_quota(self):
+        create_account("test_account")
+
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"foo": "bar"} for i in xrange(5)])
+
+        op = map(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="cat > /dev/null; echo 'stderr' >&2;",
+            spec={"max_failed_job_count": 1, "job_node_account": "test_account"})
+        check_all_stderrs(op, "stderr\n", 1)
+
+        resource_usage = get("//sys/accounts/test_account/@resource_usage")
+        assert resource_usage["node_count"] >= 2
+        assert resource_usage["chunk_count"] >= 1
+        assert resource_usage["disk_space"] > 0
+
+        jobs = ls("//sys/operations/{0}/jobs".format(op.id))
+        assert get("//sys/operations/{0}/jobs/{1}/@recursive_resource_usage".format(op.id, jobs[0])) == resource_usage
+
+        set("//sys/accounts/test_account/@resource_limits/chunk_count", 0)
+        set("//sys/accounts/test_account/@resource_limits/node_count", 0)
+        op = map(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="cat > /dev/null; echo 'stderr' >&2;",
+            spec={"max_failed_job_count": 1, "job_node_account": "test_account"})
+        check_all_stderrs(op, "stderr\n", 0)
 
     def test_job_progress(self):
         create("table", "//tmp/t1")
@@ -1585,7 +1637,7 @@ print row + table_index
             out="//tmp/output",
             command="cat")
 
-        assert get("//tmp/output/@preserve_schema_on_write")
+        assert get("//tmp/output/@schema_mode") == "strong"
         assert get("//tmp/output/@schema/@strict")
         assert_items_equal(read_table("//tmp/output"), [{"key": i, "value": "foo"} for i in xrange(10)])
 
@@ -2039,7 +2091,7 @@ class TestSandboxTmpfs(YTEnvSetup):
             out="//tmp/t_output",
             spec={
                 "mapper": {
-                    "tmpfs_size": 1024 * 1024 + 1000,
+                    "tmpfs_size": 1024 * 1024 + 10000,
                     "tmpfs_path": ".",
                     "file_paths": ["//tmp/test_file"],
                     "copy_files": True,
@@ -2085,7 +2137,7 @@ class TestSandboxTmpfs(YTEnvSetup):
                 })
 
 
-    def test_remove_failed(self):
+    def test_tmpfs_remove_failed(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
         write_table("//tmp/t_input", {"foo": "bar"})
@@ -2117,3 +2169,75 @@ class TestSandboxTmpfs(YTEnvSetup):
                     },
                     "max_failed_job_count": 1
                 })
+
+    def test_memory_reserve_and_tmpfs(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        op = map(command="python -c 'import time; x = \"0\" * (200 * 1000 * 1000); time.sleep(2)'",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={
+                "mapper": {
+                    "tmpfs_path": "tmpfs",
+                    "memory_limit": 250 * 1000 * 1000
+                },
+                "max_failed_job_count": 1
+            })
+
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op.id)) == 0
+
+
+class TestFilesInSandbox(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 5
+    NUM_SCHEDULERS = 1
+
+    def test_operation_abort_with_lost_file(self):
+        create("file", "//tmp/script", attributes={"replication_factor": 1, "executable": True})
+        write_file("//tmp/script", "#!/bin/bash\ncat")
+
+        chunk_ids = get("//tmp/script/@chunk_ids")
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
+
+        replicas = get("#{0}/@stored_replicas".format(chunk_id))
+        assert len(replicas) == 1
+        replica_to_ban = replicas[0]
+
+        banned = False
+        for node in ls("//sys/nodes"):
+            if node == replica_to_ban:
+                set("//sys/nodes/{0}/@banned".format(node), True)
+                banned = True
+        assert banned
+
+        time.sleep(1)
+        assert get("#{0}/@replication_status/lost".format(chunk_id))
+
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+        op = map(dont_track=True,
+                 command="./script",
+                 in_="//tmp/t_input",
+                 out="//tmp/t_output",
+                 spec={
+                     "mapper": {
+                         "file_paths": ["//tmp/script"]
+                     }
+                 })
+
+        while True:
+            if op.get_job_count("running") == 1:
+                break
+            time.sleep(0.5)
+
+        time.sleep(1)
+        op.abort()
+
+        time.sleep(1)
+        assert op.get_state() == "aborted"
+        assert get("//sys/scheduler/orchid/scheduler/cell/resource_usage/cpu") == 0
+

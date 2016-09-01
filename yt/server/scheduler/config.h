@@ -74,9 +74,6 @@ public:
     double PreemptionSatisfactionThreshold;
     double AggressivePreemptionSatisfactionThreshold;
 
-    //! Number of concurrent threads to serve schedule jobs requests.
-    int StrategyScheduleJobsThreadCount;
-
     TFairShareStrategyConfig()
     {
         RegisterParameter("min_share_preemption_timeout", MinSharePreemptionTimeout)
@@ -149,10 +146,6 @@ public:
 
         RegisterParameter("aggressive_preemption_satisfaction_threshold", AggressivePreemptionSatisfactionThreshold)
             .Default(0.5)
-            .GreaterThan(0);
-
-        RegisterParameter("strategy_schedule_jobs_thread_count", StrategyScheduleJobsThreadCount)
-            .Default(4)
             .GreaterThan(0);
 
         RegisterValidator([&] () {
@@ -382,6 +375,9 @@ public:
     //! Number of parallel operation snapshot builders.
     int ParallelSnapshotBuilderCount;
 
+    //! Number of shards the nodes are split into.
+    int NodeShardCount;
+
     TDuration ConnectRetryBackoffTime;
 
     //! Timeout for node expiration.
@@ -392,6 +388,8 @@ public:
     TDuration OperationsUpdatePeriod;
 
     TDuration WatchersUpdatePeriod;
+
+    TDuration AlertsUpdatePeriod;
 
     TDuration ClusterDirectoryUpdatePeriod;
 
@@ -407,6 +405,8 @@ public:
 
     TDuration PendingEventLogRowsFlushPeriod;
 
+    TDuration UpdateExecNodeDescriptorsPeriod;
+
     TDuration OperationTimeLimitCheckPeriod;
 
     TDuration TaskUpdatePeriod;
@@ -417,6 +417,9 @@ public:
     //! Statistics and resource usages of jobs running on a node are updated
     //! not more often then this period.
     TDuration RunningJobsUpdatePeriod;
+
+    //! Missing jobs are checked not more often then this period.
+    TDuration CheckMissingJobsPeriod;
 
     //! Maximum allowed running time of operation. Null value is interpreted as infinity.
     TNullable<TDuration> OperationTimeLimit;
@@ -553,6 +556,11 @@ public:
 
     // User job cpu usage delta that is considered insignificant when checking if job is suspicious.
     i64 SuspiciousUserJobCpuUsageThreshold;
+    // User job block IO read value that is considered insignificant when checking if job is suspicious.
+    i64 SuspiciousUserJobBlockIOReadThreshold;
+
+    // Testing option that enables snapshot build/load cycle after operation materialization.
+    bool EnableSnapshotCycleAfterMaterialization;
 
     TSchedulerConfig()
     {
@@ -568,6 +576,10 @@ public:
         RegisterParameter("parallel_snapshot_builder_count", ParallelSnapshotBuilderCount)
             .Default(4)
             .GreaterThan(0);
+        RegisterParameter("node_shard_count", NodeShardCount)
+            .Default(4)
+            .GreaterThan(0);
+
         RegisterParameter("connect_retry_backoff_time", ConnectRetryBackoffTime)
             .Default(TDuration::Seconds(15));
         RegisterParameter("node_heartbeat_timeout", NodeHeartbeatTimeout)
@@ -578,6 +590,8 @@ public:
             .Default(TDuration::Seconds(3));
         RegisterParameter("watchers_update_period", WatchersUpdatePeriod)
             .Default(TDuration::Seconds(3));
+        RegisterParameter("alerts_update_period", AlertsUpdatePeriod)
+            .Default(TDuration::Seconds(1));
         RegisterParameter("cluster_directory_update_period", ClusterDirectoryUpdatePeriod)
             .Default(TDuration::Seconds(3));
         RegisterParameter("resource_demand_sanity_check_period", ResourceDemandSanityCheckPeriod)
@@ -598,6 +612,10 @@ public:
         RegisterParameter("pending_event_log_rows_flush_period", PendingEventLogRowsFlushPeriod)
             .Default(TDuration::Seconds(1));
 
+        RegisterParameter("update_exec_node_descriptors_period", UpdateExecNodeDescriptorsPeriod)
+            .Default(TDuration::Seconds(1));
+
+
         RegisterParameter("operation_time_limit_check_period", OperationTimeLimitCheckPeriod)
             .Default(TDuration::Seconds(1));
 
@@ -605,6 +623,9 @@ public:
             .Default(TDuration::Seconds(30));
 
         RegisterParameter("running_jobs_update_period", RunningJobsUpdatePeriod)
+            .Default(TDuration::Seconds(10));
+
+        RegisterParameter("check_missing_jobs_period", CheckMissingJobsPeriod)
             .Default(TDuration::Seconds(10));
 
         RegisterParameter("operation_time_limit", OperationTimeLimit)
@@ -767,6 +788,11 @@ public:
             .Default(TDuration::Minutes(1));
         RegisterParameter("suspicious_user_job_cpu_usage_threshold", SuspiciousUserJobCpuUsageThreshold)
             .Default(10);
+        RegisterParameter("suspicious_user_job_block_io_read_threshold", SuspiciousUserJobBlockIOReadThreshold)
+            .Default(20);
+
+        RegisterParameter("enable_snapshot_cycle_after_materialization", EnableSnapshotCycleAfterMaterialization)
+            .Default(false);
 
         RegisterInitializer([&] () {
             ChunkLocationThrottler->Limit = 10000;

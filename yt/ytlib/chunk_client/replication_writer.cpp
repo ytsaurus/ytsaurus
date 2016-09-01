@@ -575,7 +575,7 @@ void TReplicationWriter::StartChunk(TChunkReplica target)
     LOG_DEBUG("Starting write session (Address: %v)", address);
 
     auto lightChannel = CreateRetryingNodeChannel(
-        Client_->GetNodeChannelFactory(),
+        Client_->GetLightChannelFactory(),
         address);
     auto heavyChannel = CreateRetryingNodeChannel(
         Client_->GetHeavyChannelFactory(),

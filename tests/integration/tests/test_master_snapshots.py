@@ -13,7 +13,7 @@ class TestSnapshot(YTEnvSetup):
 
         build_snapshot(cell_id=None)
 
-        self.Env.kill_service("master")
-        self.Env.start_masters("master")
+        self.Env.kill_master_cell()
+        self.Env.start_master_cell()
 
         assert get("//tmp/a") == 42

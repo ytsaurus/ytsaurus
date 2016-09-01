@@ -40,8 +40,6 @@ TNativeConnectionConfig::TNativeConnectionConfig()
         .Default();
     RegisterParameter("enable_read_from_followers", EnableReadFromFollowers)
         .Default(true);
-    RegisterParameter("force_read_from_followers", ForceReadFromFollowers)
-        .Default(false);
     RegisterParameter("timestamp_provider", TimestampProvider)
         .Default();
     RegisterParameter("cell_directory", CellDirectory)
@@ -114,6 +112,11 @@ TNativeConnectionConfig::TNativeConnectionConfig()
     RegisterParameter("heavy_pool_size", HeavyPoolSize)
         .Describe("Number of threads handling heavy requests")
         .Default(4);
+
+    RegisterParameter("max_concurrent_requests", MaxConcurrentRequests)
+        .Describe("Maximum concurrent requests in client")
+        .GreaterThan(0)
+        .Default(1000);
 
     RegisterInitializer([&] () {
         FunctionImplCache->Capacity = 100;

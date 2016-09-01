@@ -1,7 +1,7 @@
 #:yt-updatable
 set( SRCS
-  ${CMAKE_CURRENT_LIST_DIR}/address_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/any_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/any_column_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/async_rw_lock_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/async_yson_writer_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/attributes_ut.cpp
@@ -32,6 +32,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/erasure_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/expiring_cache_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/file_changelog_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/finally_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/fls_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/format_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/framework.cpp
@@ -81,6 +82,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/schemaful_dsv_writer_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/schemaless_blocks_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/schemaless_chunks_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/schemaless_column_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/serialize_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/skip_list_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/small_string_ut.cpp
@@ -94,6 +96,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/subprocess_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/sync_file_changelog_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_consumer_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_schema_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/timestamp_column_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/thread_affinity_ut.cpp
@@ -170,7 +173,7 @@ add_executable(unittester
 )
 
 target_link_libraries(unittester
-  ytlib
-  ytserver_lib
-  ytext-arcadia-library-lfalloc
+  yt-library-client
+  yt-library-server
+  deps-arcadia-library-lfalloc
 )

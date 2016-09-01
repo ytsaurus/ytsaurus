@@ -121,3 +121,6 @@ chai.Assertion.addMethod("yt_error", function() {
     rsp.body.should.be.yt_error;
 });
 
+var bluebird = require("bluebird");
+
+bluebird.onPossiblyUnhandledRejection(function() {});

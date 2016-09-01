@@ -163,6 +163,8 @@ public:
 
     void ApplyMutationDuringRecovery(const TSharedRef& recordData);
 
+    TFuture<TMutationResponse> TryBeginKeptRequest(const TMutationRequest& request);
+
     void LogLeaderMutation(
         const TMutationRequest& request,
         TSharedRef* recordData,
@@ -237,6 +239,8 @@ private:
 
     NProto::TMutationHeader MutationHeader_; // pooled instance
     TRingQueue<TPendingMutation> PendingMutations_;
+
+    TRingQueue<NRpc::TMutationId> PendingMutationIds_;
 
     NProfiling::TAggregateCounter BatchCommitTimeCounter_;
 

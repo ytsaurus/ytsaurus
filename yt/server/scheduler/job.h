@@ -29,6 +29,7 @@ struct TBriefJobStatistics
     i64 ProcessedInputDataSize = 0;
     i64 ProcessedOutputRowCount = 0;
     i64 ProcessedOutputDataSize = 0;
+    TNullable<i64> UserJobBlockIORead = Null;
     TNullable<i64> UserJobCpuUsage = Null;
 };
 
@@ -44,7 +45,7 @@ void Serialize(const TBriefJobStatistics& briefJobStatistics, NYson::IYsonConsum
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJob
-    : public TRefCounted
+    : public TIntrinsicRefCounted
 {
     DEFINE_BYVAL_RO_PROPERTY(TJobId, Id);
 
@@ -66,7 +67,7 @@ class TJob
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, FinishTime);
 
     //! Job status returned by node.
-    DEFINE_BYREF_RO_PROPERTY(TRefCountedJobStatusPtr, Status);
+    DEFINE_BYREF_RO_PROPERTY(TJobStatus, Status);
 
     //! Yson containing statistics produced by the job.
     DEFINE_BYREF_RO_PROPERTY(TNullable<NYson::TYsonString>, StatisticsYson);
@@ -100,6 +101,9 @@ class TJob
     //! Last time when brief statistics changed in comparison to their previous values.
     DEFINE_BYVAL_RO_PROPERTY(TInstant, LastActivityTime);
 
+    //! Account for node in cypress.
+    DEFINE_BYVAL_RO_PROPERTY(Stroka, Account);
+
 public:
     TJob(
         const TJobId& id,
@@ -109,19 +113,21 @@ public:
         TInstant startTime,
         const TJobResources& resourceLimits,
         bool restarted,
-        TJobSpecBuilder specBuilder);
+        TJobSpecBuilder specBuilder,
+        const Stroka& account);
 
     //! The difference between |FinishTime| and |StartTime|.
     TDuration GetDuration() const;
 
     void AnalyzeBriefStatistics(
         TDuration suspiciousInactivityTimeout,
-        i64 suspiciousCpuUsageThreshold,
+        i64 suspiciousUserJobCpuUsageThreshold,
+        i64 suspiciousUserJobIOReadThreshold,
         const TBriefJobStatisticsPtr& briefStatistics);
 
-    TBriefJobStatisticsPtr BuildBriefStatistics() const;
+    TBriefJobStatisticsPtr BuildBriefStatistics(const NYson::TYsonString& statisticsYson) const;
 
-    void SetStatus(TRefCountedJobStatusPtr status);
+    void SetStatus(TJobStatus* status);
 
     const Stroka& GetStatisticsSuffix() const;
 };
@@ -137,7 +143,7 @@ struct TJobSummary
 
     void ParseStatistics();
 
-    const TRefCountedJobResultPtr Result;
+    const TJobResult Result;
     const TJobId Id;
     const Stroka StatisticsSuffix;
     const TInstant FinishTime;
@@ -172,7 +178,7 @@ struct TAbortedJobSummary
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRefCountedJobStatusPtr JobStatusFromError(const TError& error);
+TJobStatus JobStatusFromError(const TError& error);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -183,13 +189,15 @@ struct TJobStartRequest
         EJobType type,
         const TJobResources& resourceLimits,
         bool restarted,
-        const TJobSpecBuilder& specBuilder);
+        TJobSpecBuilder specBuilder,
+        const Stroka& account);
 
     const TJobId Id;
     const EJobType Type;
     const TJobResources ResourceLimits;
     const bool Restarted;
     const TJobSpecBuilder SpecBuilder;
+    const Stroka Account;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

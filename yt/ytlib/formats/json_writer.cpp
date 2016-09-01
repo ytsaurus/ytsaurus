@@ -3,11 +3,7 @@
 #include "helpers.h"
 #include "utf8_decoder.h"
 
-#ifdef YT_IN_ARCADIA
 #include <contrib/libs/yajl/api/yajl_gen.h>
-#else
-#include <yajl/yajl_gen.h>
-#endif
 
 namespace NYT {
 namespace NFormats {
@@ -381,7 +377,9 @@ void TJsonConsumer::OnDoubleScalar(double value)
         }
         EnterNode();
         if (Config->Stringify) {
-            WriteStringScalar(::ToString(value));
+            char buf[256];
+            auto str = TStringBuf(buf, FloatToString(value, buf, sizeof(buf)));
+            WriteStringScalar(str);
         } else {
             JsonWriter->Write(value);
         }

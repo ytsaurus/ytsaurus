@@ -7,6 +7,8 @@
 
 #include "common.h"
 
+#include <yt/core/actions/public.h>
+
 namespace NYT {
 namespace NFS {
 
@@ -119,7 +121,7 @@ std::vector<TMountPoint> GetMountPoints(const Stroka& mountsFile = "/proc/mounts
 void MountTmpfs(const Stroka& path, int userId, i64 size);
 
 //! Unmount given path.
-void Umount(const Stroka& path);
+void Umount(const Stroka& path, bool detach);
 
 //! Wraps a given #func in with try/catch; makes sure that only IO-related
 //! exceptions are being thrown. For all other exceptions, immediately terminates
@@ -128,6 +130,12 @@ void ExpectIOErrors(std::function<void()> func);
 
 //! Sets a given mode on the path.
 void Chmod(const Stroka& path, int mode);
+
+//! Copies file chunk after chunk, releasing thread between chunks.
+void ChunkedCopy(
+    const Stroka& existingPath, 
+    const Stroka& newPath, 
+    i64 chunkSize);
 
 ////////////////////////////////////////////////////////////////////////////////
 

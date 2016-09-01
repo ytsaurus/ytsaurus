@@ -972,7 +972,7 @@ echo {v = 2} >&7
             reduce_by="key",
             command="cat")
 
-        assert get("//tmp/output/@preserve_schema_on_write")
+        assert get("//tmp/output/@schema_mode") == "strong"
         assert get("//tmp/output/@schema/@strict")
         assert_items_equal(read_table("//tmp/output"), [{"key": i, "value": "foo"} for i in xrange(10)])
 

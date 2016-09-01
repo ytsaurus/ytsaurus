@@ -89,16 +89,18 @@ bool TReadLimit::HasKey() const
     return ReadLimit_.has_key();
 }
 
-void TReadLimit::SetKey(const TOwningKey& key)
+TReadLimit& TReadLimit::SetKey(const TOwningKey& key)
 {
     Key_ = key;
     ToProto(ReadLimit_.mutable_key(), Key_);
+    return *this;
 }
 
-void TReadLimit::SetKey(TOwningKey&& key)
+TReadLimit& TReadLimit::SetKey(TOwningKey&& key)
 {
     swap(Key_, key);
     ToProto(ReadLimit_.mutable_key(), Key_);
+    return *this;
 }
 
 i64 TReadLimit::GetRowIndex() const
@@ -112,9 +114,10 @@ bool TReadLimit::HasRowIndex() const
     return ReadLimit_.has_row_index();
 }
 
-void TReadLimit::SetRowIndex(i64 rowIndex)
+TReadLimit& TReadLimit::SetRowIndex(i64 rowIndex)
 {
     ReadLimit_.set_row_index(rowIndex);
+    return *this;
 }
 
 i64 TReadLimit::GetOffset() const
@@ -128,9 +131,10 @@ bool TReadLimit::HasOffset() const
     return ReadLimit_.has_offset();
 }
 
-void TReadLimit::SetOffset(i64 offset)
+TReadLimit& TReadLimit::SetOffset(i64 offset)
 {
     ReadLimit_.set_offset(offset);
+    return *this;
 }
 
 i64 TReadLimit::GetChunkIndex() const
@@ -144,9 +148,10 @@ bool TReadLimit::HasChunkIndex() const
     return ReadLimit_.has_chunk_index();
 }
 
-void TReadLimit::SetChunkIndex(i64 chunkIndex)
+TReadLimit& TReadLimit::SetChunkIndex(i64 chunkIndex)
 {
     ReadLimit_.set_chunk_index(chunkIndex);
+    return *this;
 }
 
 bool TReadLimit::IsTrivial() const

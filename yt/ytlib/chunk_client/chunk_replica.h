@@ -56,7 +56,6 @@ struct TChunkIdWithIndex
 ///////////////////////////////////////////////////////////////////////////////
 
 const int GenericChunkReplicaIndex = 16;  // no specific replica; the default one for regular chunks
-const int AllChunkReplicasIndex    = 17;  // passed to various APIs to indicate that any replica is OK
 
 // Journal chunks only:
 const int ActiveChunkReplicaIndex   = 0; // the replica is currently being written

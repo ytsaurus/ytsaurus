@@ -316,14 +316,34 @@ private:
 
     virtual void PrepareOutputTables() override
     {
-        if (InputTables.size() == 1) {
-            OutputTables[0].PreserveSchemaOnWrite = InputTables[0].PreserveSchemaOnWrite;
-            OutputTables[0].Schema = InputTables[0].Schema;
-        }
+        auto& table = OutputTables[0];
 
-        for (const auto& inputTable : InputTables) {
-            ValidateTableSchemaCompatibility(inputTable.Schema, OutputTables[0].Schema)
-                .ThrowOnError();
+        switch (Spec_->SchemaInferenceMode) {
+            case ESchemaInferenceMode::Auto:
+                if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
+                    InferSchemaFromInputOrdered();
+                } else {
+                    ValidateOutputSchemaOrdered();
+
+                    for (const auto& inputTable : InputTables) {
+                        ValidateTableSchemaCompatibility(
+                            inputTable.Schema,
+                            table.TableUploadOptions.TableSchema,
+                            /* ignoreSortOrder */ true)
+                        .ThrowOnError();
+                    }
+                }
+                break;
+
+            case ESchemaInferenceMode::FromInput:
+                InferSchemaFromInputOrdered();
+                break;
+
+            case ESchemaInferenceMode::FromOutput:
+                break;
+
+            default:
+                Y_UNREACHABLE();
         }
     }
 
@@ -347,7 +367,7 @@ private:
             TotalEstimatedInputDataSize,
             Spec_->DataSizePerJob,
             Spec_->JobCount,
-            Options_->MaxJobCount);
+            GetMaxJobCount(Spec_->MaxJobCount, Options_->MaxJobCount));
         jobCount = std::min(jobCount, static_cast<int>(stripes.size()));
 
         if (stripes.size() > Spec_->MaxChunkCountPerJob * jobCount) {

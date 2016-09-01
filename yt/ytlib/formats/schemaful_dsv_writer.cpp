@@ -3,6 +3,7 @@
 #include <yt/ytlib/table_client/name_table.h>
 
 #include <yt/core/misc/error.h>
+#include <yt/core/misc/string.h>
 
 #include <yt/core/yson/format.h>
 
@@ -17,19 +18,7 @@ using namespace NConcurrency;
 using namespace NYTree;
 using namespace NTableClient;
 
-static ui16 DigitPairs[100] = {
-    12336,  12592,  12848,  13104,  13360,  13616,  13872,  14128,  14384,  14640,
-    12337,  12593,  12849,  13105,  13361,  13617,  13873,  14129,  14385,  14641,
-    12338,  12594,  12850,  13106,  13362,  13618,  13874,  14130,  14386,  14642,
-    12339,  12595,  12851,  13107,  13363,  13619,  13875,  14131,  14387,  14643,
-    12340,  12596,  12852,  13108,  13364,  13620,  13876,  14132,  14388,  14644,
-    12341,  12597,  12853,  13109,  13365,  13621,  13877,  14133,  14389,  14645,
-    12342,  12598,  12854,  13110,  13366,  13622,  13878,  14134,  14390,  14646,
-    12343,  12599,  12855,  13111,  13367,  13623,  13879,  14135,  14391,  14647,
-    12344,  12600,  12856,  13112,  13368,  13624,  13880,  14136,  14392,  14648,
-    12345,  12601,  12857,  13113,  13369,  13625,  13881,  14137,  14393,  14649,
-};
-
+////////////////////////////////////////////////////////////////////////////////
 
 // This class contains methods common for TSchemafulWriterForSchemafulDsv and TSchemalessWriterForSchemafulDsv.
 class TSchemafulDsvWriterBase
@@ -65,34 +54,25 @@ protected:
             case EValueType::Null:
                 break;
 
-            case EValueType::Int64: {
-                WriteInt64(value.Data.Int64);
+            case EValueType::Int64:
+                WriteInt(value.Data.Int64);
                 break;
-            }
 
-            case EValueType::Uint64: {
-                WriteUint64(value.Data.Uint64);
+            case EValueType::Uint64:
+                WriteInt(value.Data.Uint64);
                 break;
-            }
 
-            case EValueType::Double: {
-                // TODO(babenko): optimize
-                char buf[64];
-                char* begin = buf;
-                int length = sprintf(buf, "%lg", value.Data.Double);
-                BlobOutput_->Write(begin, length);
+            case EValueType::Double:
+                WriteDouble(value.Data.Double);
                 break;
-            }
 
-            case EValueType::Boolean: {
+            case EValueType::Boolean:
                 WriteRaw(FormatBool(value.Data.Boolean));
                 break;
-            }
 
-            case EValueType::String: {
+            case EValueType::String:
                 EscapeAndWrite(TStringBuf(value.Data.String, value.Length));
                 break;
-            }
 
             default: {
                 WriteRaw('?');
@@ -101,20 +81,21 @@ protected:
         }
     }
 
-    void WriteInt64(i64 value) 
+    template <class T>
+    void WriteInt(T value) 
     {
         char buf[64];
         char* end = buf + 64;
-        char* start = WriteInt64ToBufferBackwards(end, value);
+        char* start = WriteIntToBufferBackwards(end, value);
         BlobOutput_->Write(start, end - start);
     }
 
-    void WriteUint64(ui64 value) 
+    void WriteDouble(double value)
     {
         char buf[64];
-        char* end = buf + 64;
-        char* start = WriteUint64ToBufferBackwards(end, value);
-        BlobOutput_->Write(start, end - start);
+        char* begin = buf;
+        auto length = FloatToString(value, buf, sizeof(buf));
+        BlobOutput_->Write(begin, length);        
     }
     
     void WriteRaw(const TStringBuf& str)
@@ -155,76 +136,6 @@ protected:
 private:
     TSchemafulDsvTable Table_;
     
-    // This function fills a specific range in the memory with a decimal representation
-    // of value in backwards, meaning that the resulting representation will occupy
-    // range [ptr - length, ptr). Return value is ptr - length, i. e. the pointer to the
-    // beginning of the result.
-    static char* WriteInt64ToBufferBackwards(char* ptr, i64 value)
-    {
-        if (value == 0) {
-            --ptr;
-            *ptr = '0';
-            return ptr;
-        }
-
-        // The negative value handling code below works incorrectly for value = -2^63.
-        if (value == std::numeric_limits<i64>::min()) {
-            ptr -= 20;
-            memcpy(ptr, "-9223372036854775808", 20);
-            return ptr;
-        }
-
-        bool negative = false;
-        if (value < 0) {
-            negative = true;
-            value = -value;
-        }
-
-        while (value >= 10) {
-            i64 rem = value % 100;
-            i64 quot = value / 100;
-            ptr -= 2;
-            *reinterpret_cast<ui16*>(ptr) = DigitPairs[rem];
-            value = quot;
-        }
-
-        if (value > 0) {
-            --ptr;
-            *ptr = ('0' + value);
-        }
-
-        if (negative) {
-            --ptr;
-            *ptr = '-';
-        }
-
-        return ptr;
-    }
-
-    // Same as WriteInt64Backwards for ui64.
-    static char* WriteUint64ToBufferBackwards(char* ptr, ui64 value)
-    {
-        if (value == 0) {
-            --ptr;
-            *ptr = '0';
-            return ptr;
-        }
-
-        while (value >= 10) {
-            i64 rem = value % 100;
-            i64 quot = value / 100;
-            ptr -= 2;
-            *reinterpret_cast<ui16*>(ptr) = DigitPairs[rem];
-            value = quot;
-        }
-
-        if (value > 0) {
-            --ptr;
-            *ptr = ('0' + value);
-        }
-
-        return ptr;
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

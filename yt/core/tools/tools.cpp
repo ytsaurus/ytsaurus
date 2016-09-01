@@ -74,8 +74,6 @@ void InitLogging()
     config->Rules.push_back(std::move(rule));
 
     config->MinDiskSpace = 0;
-    config->HighBacklogWatermark = 0;
-    config->LowBacklogWatermark = 0;
 
     auto stderrWriter = New<NLogging::TWriterConfig>();
     stderrWriter->Type = NLogging::EWriterType::Stderr;

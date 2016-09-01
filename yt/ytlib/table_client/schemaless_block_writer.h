@@ -27,8 +27,6 @@ public:
 
     i64 GetCapacity() const;
 
-    static const ETableChunkFormat FormatVersion = ETableChunkFormat::SchemalessHorizontal;
-
     static const i64 MinReserveSize;
     static const i64 MaxReserveSize;
 

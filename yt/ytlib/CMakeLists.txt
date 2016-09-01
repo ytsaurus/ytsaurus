@@ -1,6 +1,6 @@
 IF(YMAKE)
   SET(CMAKE_CURRENT_LIST_DIR .)
-  SET(YT_ABI 18_4)
+  SET(YT_ABI 18_5)
 ENDIF()
 
 SET(PROTO_NAMESPACE yt/${YT_ABI})
@@ -241,6 +241,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/integer_column_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/integer_column_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/null_column_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/schemaless_column_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/schemaless_column_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/string_column_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/string_column_reader.cpp
@@ -369,18 +370,15 @@ ELSE()
 set(YT_SOURCE_FILES)
 include(query_client/CMakeLists.txt)
 
-set(YT_SRCS
-  ${YT_SRCS}
-)
-
 resolve_srcs(YT_SRCS YT_SRCS_RESOLVED)
 list(APPEND YT_SRCS_RESOLVED ${YT_SOURCE_FILES})
 
-add_library(ytlib STATIC ${YT_SRCS_RESOLVED})
+add_library(yt-library-client STATIC ${YT_SRCS_RESOLVED})
 
-target_link_libraries(ytlib
-  ytcore
+target_link_libraries(yt-library-client
   deps-arcadia-contrib-libs-re2
+  deps-arcadia-contrib-libs-yajl
+  yt-core
 )
 
 ################################################################################

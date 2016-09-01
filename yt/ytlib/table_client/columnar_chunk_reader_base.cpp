@@ -23,21 +23,31 @@ using NChunkClient::TReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TColumnarChunkMeta::TColumnarChunkMeta(NChunkClient::NProto::TChunkMeta&& chunkMeta)
-    : ChunkMeta_(std::move(chunkMeta))
+TColumnarChunkMeta::TColumnarChunkMeta(const TChunkMeta& chunkMeta)
 { 
-    InitExtensions();
+    InitExtensions(chunkMeta);
 }
 
-void TColumnarChunkMeta::InitExtensions()
+void TColumnarChunkMeta::InitExtensions(const TChunkMeta& chunkMeta)
 {
-    Misc_ = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
-    BlockMeta_ = GetProtoExtension<TBlockMetaExt>(ChunkMeta_.extensions());
+    ChunkType_ = EChunkType(chunkMeta.type());
+    ChunkFormat_ = ETableChunkFormat(chunkMeta.version());
+
+    Misc_ = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
+    BlockMeta_ = GetProtoExtension<TBlockMetaExt>(chunkMeta.extensions());
 
     // This is for old horizontal versioned chunks, since TCachedVersionedChunkMeta use this call.
-    auto columnMeta = FindProtoExtension<TColumnMetaExt>(ChunkMeta_.extensions());
+    auto columnMeta = FindProtoExtension<TColumnMetaExt>(chunkMeta.extensions());
     if (columnMeta) {
         ColumnMeta_.Swap(&*columnMeta);
+    }
+
+    auto maybeKeyColumnsExt = FindProtoExtension<TKeyColumnsExt>(chunkMeta.extensions());
+    auto tableSchemaExt = GetProtoExtension<TTableSchemaExt>(chunkMeta.extensions());
+    if (maybeKeyColumnsExt) {
+        FromProto(&ChunkSchema_, tableSchemaExt, *maybeKeyColumnsExt);
+    } else {
+        FromProto(&ChunkSchema_, tableSchemaExt);
     }
 }
 
@@ -128,7 +138,7 @@ TBlockFetcher::TBlockInfo TColumnarChunkReaderBase::CreateBlockInfo(int blockInd
 i64 TColumnarChunkReaderBase::GetSegmentIndex(const TColumn& column, i64 rowIndex) const
 {
     YCHECK(ChunkMeta_);
-    const auto& columnMeta = ChunkMeta_->ColumnMeta().columns(column.ChunkSchemaIndex);
+    const auto& columnMeta = ChunkMeta_->ColumnMeta().columns(column.ColumnMetaIndex);
     auto it = std::lower_bound(
         columnMeta.segments().begin(),
         columnMeta.segments().end(),
@@ -204,7 +214,7 @@ void TColumnarRangeChunkReaderBase::InitUpperRowIndex()
     }
 }
 
-void TColumnarRangeChunkReaderBase::Initialize(std::vector<std::unique_ptr<IUnversionedColumnReader>>& keyReaders)
+void TColumnarRangeChunkReaderBase::Initialize(NYT::TRange<std::unique_ptr<IUnversionedColumnReader>> keyReaders)
 {
     for (auto& column : Columns_) {
         column.ColumnReader->SkipToRowIndex(LowerRowIndex_);
@@ -214,9 +224,11 @@ void TColumnarRangeChunkReaderBase::Initialize(std::vector<std::unique_ptr<IUnve
         return;
     }
 
+    YCHECK(keyReaders.Size() > 0);
+
     i64 lowerRowIndex = keyReaders[0]->GetCurrentRowIndex();
     i64 upperRowIndex = keyReaders[0]->GetBlockUpperRowIndex();
-    int count = std::min(LowerLimit_.GetKey().GetCount(), static_cast<int>(keyReaders.size()));
+    int count = std::min(LowerLimit_.GetKey().GetCount(), static_cast<int>(keyReaders.Size()));
     for (int i = 0; i < count; ++i) {
         std::tie(lowerRowIndex, upperRowIndex) = keyReaders[i]->GetEqualRange(
             LowerLimit_.GetKey().Begin()[i],
@@ -238,7 +250,7 @@ void TColumnarRangeChunkReaderBase::InitBlockFetcher()
     std::vector<TBlockFetcher::TBlockInfo> blockInfos;
 
     for (auto& column : Columns_) {
-        const auto& columnMeta = ChunkMeta_->ColumnMeta().columns(column.ChunkSchemaIndex);
+        const auto& columnMeta = ChunkMeta_->ColumnMeta().columns(column.ColumnMetaIndex);
         i64 segmentIndex = GetSegmentIndex(column, LowerRowIndex_);
         column.BlockIndexSequence.push_back(columnMeta.segments(segmentIndex).block_index());
 

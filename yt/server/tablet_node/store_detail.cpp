@@ -323,6 +323,16 @@ IDynamicStorePtr TDynamicStoreBase::AsDynamic()
     return this;
 }
 
+TInstant TDynamicStoreBase::GetLastFlushAttemptTimestamp() const
+{
+    return LastFlushAttemptTimestamp_;
+}
+
+void TDynamicStoreBase::UpdateFlushAttemptTimestamp()
+{
+    LastFlushAttemptTimestamp_ = Now();
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 
 TChunkStoreBase::TChunkStoreBase(
@@ -586,6 +596,26 @@ void TChunkStoreBase::OnChunkReaderExpired()
 void TChunkStoreBase::PrecacheProperties()
 {
     MiscExt_ = GetProtoExtension<TMiscExt>(ChunkMeta_->extensions());
+}
+
+TInstant TChunkStoreBase::GetLastPreloadAttemptTimestamp() const
+{
+    return LastPreloadAttemptTimestamp_;
+}
+
+void TChunkStoreBase::UpdatePreloadAttemptTimestamp()
+{
+    LastPreloadAttemptTimestamp_ = Now();
+}
+
+TInstant TChunkStoreBase::GetLastCompactionAttemptTimestamp() const
+{
+    return LastCompactionAttemptTimestamp_;
+}
+
+void TChunkStoreBase::UpdateCompactionAttemptTimestamp()
+{
+    LastCompactionAttemptTimestamp_ = Now();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

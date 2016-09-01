@@ -25,7 +25,7 @@ namespace NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOperation
-    : public TRefCounted
+    : public TIntrinsicRefCounted
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(TOperationId, Id);
@@ -95,9 +95,6 @@ public:
     //! Scheduling tag.
     DEFINE_BYVAL_RW_PROPERTY(TNullable<Stroka>, SchedulingTag);
 
-    //! Currently existing jobs in the operation.
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);
-
     //! Controller that owns the operation.
     DEFINE_BYVAL_RW_PROPERTY(IOperationControllerPtr, Controller);
 
@@ -137,10 +134,6 @@ public:
 
     //! Returns the codicil guard holding the operation id.
     TCodicilGuard MakeCodicilGuard();
-
-    //! Start building YSON representaion of all input paths with all ranges processed
-    //! for specified job.
-    TFuture<NYson::TYsonString> MakeInputPathsYson(const TJobPtr& job) const;
 
     TOperation(
         const TOperationId& operationId,

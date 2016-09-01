@@ -38,7 +38,7 @@ struct TShellParameters
         RegisterParameter("width", Width)
             .Default(0);
         RegisterParameter("inactivity_timeout", InactivityTimeout)
-            .Default(TDuration::Seconds(60));
+            .Default(TDuration::Seconds(5 * 60));
 
         RegisterValidator([&] () {
             if (Operation != EShellOperation::Spawn && !ShellId) {

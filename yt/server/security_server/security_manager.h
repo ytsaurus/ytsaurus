@@ -149,10 +149,10 @@ public:
     TSubject* GetSubjectByNameOrThrow(const Stroka& name);
 
     //! Adds a new member into the group. Throws on failure.
-    void AddMember(TGroup* group, TSubject* member);
+    void AddMember(TGroup* group, TSubject* member, bool ignoreExisting);
 
     //! Removes an existing member from the group. Throws on failure.
-    void RemoveMember(TGroup* group, TSubject* member);
+    void RemoveMember(TGroup* group, TSubject* member, bool ignoreMissing);
 
 
     //! Updates the name of the subject.

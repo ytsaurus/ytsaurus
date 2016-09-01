@@ -1,7 +1,7 @@
 import yt_commands
 
-from yt.environment import YTEnv
-from yt.common import makedirp
+from yt.environment import YTInstance
+from yt.common import makedirp, update
 import yt_driver_bindings
 
 import yt.yson as yson
@@ -66,7 +66,7 @@ def make_ace(action, subjects, permissions, inheritance_mode="object_and_descend
 
 def _pytest_finalize_func(environment, process_call_args):
     print >>sys.stderr, 'Process run by command "{0}" is dead!'.format(" ".join(process_call_args))
-    environment.clear_environment()
+    environment.stop()
 
     print >>sys.stderr, "Killing pytest process"
     os._exit(42)
@@ -94,7 +94,32 @@ class Checker(Thread):
         self._active = False
         self.join()
 
-class YTEnvSetup(YTEnv):
+class YTEnvSetup(object):
+    NUM_MASTERS = 3
+    NUM_NONVOTING_MASTERS = 0
+    NUM_SECONDARY_MASTER_CELLS = 0
+    START_SECONDARY_MASTER_CELLS = True
+    NUM_NODES = 5
+    NUM_SCHEDULERS = 0
+
+    DELTA_DRIVER_CONFIG = {}
+    DELTA_MASTER_CONFIG = {}
+    DELTA_NODE_CONFIG = {}
+    DELTA_SCHEDULER_CONFIG = {}
+
+    # To be redefined in successors
+    @classmethod
+    def modify_master_config(cls, config):
+        pass
+
+    @classmethod
+    def modify_scheduler_config(cls, config):
+        pass
+
+    @classmethod
+    def modify_node_config(cls, config):
+        pass
+
     @classmethod
     def setup_class(cls, test_name=None):
         logging.basicConfig(level=logging.INFO)
@@ -111,19 +136,27 @@ class YTEnvSetup(YTEnv):
         # For running in parallel
         cls.run_id = "run_" + uuid.uuid4().hex[:8]
         cls.path_to_run = os.path.join(path_to_test, cls.run_id)
-        pids_filename = os.path.join(cls.path_to_run, "pids.txt")
 
-        cls.Env = cls()
-        cls.Env.start(cls.path_to_run, pids_filename, kill_child_processes=True,
-                      port_locks_path=os.path.join(SANDBOX_ROOTDIR, "ports"), fqdn="localhost")
+        cls.Env = YTInstance(
+            cls.path_to_run,
+            master_count=cls.NUM_MASTERS,
+            nonvoting_master_count=cls.NUM_NONVOTING_MASTERS,
+            secondary_master_cell_count=cls.NUM_SECONDARY_MASTER_CELLS,
+            node_count=cls.NUM_NODES,
+            scheduler_count=cls.NUM_SCHEDULERS,
+            kill_child_processes=True,
+            port_locks_path=os.path.join(SANDBOX_ROOTDIR, "ports"),
+            fqdn="localhost",
+            modify_configs_func=cls.apply_config_patches)
+        cls.Env.start(start_secondary_master_cells=cls.START_SECONDARY_MASTER_CELLS)
 
         yt_commands.path_to_run_tests = cls.path_to_run
 
         if cls.Env.configs["driver"]:
             secondary_driver_configs = [cls.Env.configs["driver_secondary_{0}".format(i)]
-                                        for i in xrange(cls.Env.NUM_SECONDARY_MASTER_CELLS)]
+                                        for i in xrange(cls.NUM_SECONDARY_MASTER_CELLS)]
             yt_commands.init_driver(cls.Env.configs["driver"], secondary_driver_configs)
-            yt_commands.is_multicell = (cls.Env.NUM_SECONDARY_MASTER_CELLS > 0)
+            yt_commands.is_multicell = (cls.NUM_SECONDARY_MASTER_CELLS > 0)
             yt_driver_bindings.configure_logging(cls.Env.driver_logging_config)
 
         # To avoid strange hangups.
@@ -133,11 +166,26 @@ class YTEnvSetup(YTEnv):
             cls.liveness_checker.start()
 
     @classmethod
+    def apply_config_patches(cls, configs, ytserver_version):
+        for tag in [configs["master"]["primary_cell_tag"]] + configs["master"]["secondary_cell_tags"]:
+            for config in configs["master"][tag]:
+                update(config, cls.DELTA_MASTER_CONFIG)
+                cls.modify_master_config(config)
+        for config in configs["scheduler"]:
+            update(config, cls.DELTA_SCHEDULER_CONFIG)
+            cls.modify_scheduler_config(config)
+        for config in configs["node"]:
+            update(config, cls.DELTA_NODE_CONFIG)
+            cls.modify_node_config(config)
+        for config in configs["driver"].values():
+            update(config, cls.DELTA_DRIVER_CONFIG)
+
+    @classmethod
     def teardown_class(cls):
         if cls.liveness_checker is not None:
             cls.liveness_checker.stop()
 
-        cls.Env.clear_environment()
+        cls.Env.stop()
         yt_commands.driver = None
         gc.collect()
 
@@ -151,6 +199,9 @@ class YTEnvSetup(YTEnv):
             subprocess.check_call(["sudo", "chown", "-R", "{0}:{1}".format(os.getuid(), os.getgid()),
                                    cls.path_to_run])
 
+            # XXX(dcherednik): Detete named pipes
+            subprocess.check_call(["find", cls.path_to_run, "-type", "p", "-delete"])
+
             destination_path = os.path.join(SANDBOX_STORAGE_ROOTDIR, cls.test_name, cls.run_id)
             if os.path.exists(destination_path):
                 shutil.rmtree(destination_path)
@@ -158,27 +209,19 @@ class YTEnvSetup(YTEnv):
             shutil.move(cls.path_to_run, destination_path)
 
     def setup_method(self, method):
-        if self.Env.NUM_MASTERS > 0:
+        if self.NUM_MASTERS > 0:
             self.transactions_at_start = set(yt_commands.get_transactions())
             self.wait_for_nodes()
             self.wait_for_chunk_replicator()
 
     def teardown_method(self, method):
         self.Env.check_liveness(callback_func=_pytest_finalize_func)
-        if self.Env.NUM_MASTERS > 0:
-            for tx in yt_commands.ls("//sys/transactions", attributes=["title"]):
-                title = tx.attributes.get("title", "")
-                if "Scheduler lock" in title or "Lease for node" in title:
-                    continue
-                try:
-                    yt_commands.abort_transaction(tx)
-                except:
-                    pass
-
+        if self.NUM_MASTERS > 0:
+            self._abort_transactions()
             yt_commands.set('//tmp', {})
+            self._remove_operations()
             yt_commands.gc_collect()
             yt_commands.clear_metadata_caches()
-
             self._reset_nodes()
             self._reenable_chunk_replicator()
             self._remove_accounts()
@@ -267,10 +310,16 @@ class YTEnvSetup(YTEnv):
         print "Waiting for tablets to become compacted..."
         wait(lambda: len(chunk_ids.intersection(__builtin__.set(yt_commands.get(path + "/@chunk_ids")))) == 0)
 
-    def _abort_transactions(self, txs):
-        for tx in txs:
+    def _abort_transactions(self):
+         for tx in yt_commands.ls("//sys/transactions", attributes=["title"]):
+            title = tx.attributes.get("title", "")
+            id = str(tx)
+            if "Scheduler lock" in title:
+                continue
+            if "Lease for node" in title:
+                continue
             try:
-                yt_commands.abort_transaction(tx)
+                yt_commands.abort_transaction(id)
             except:
                 pass
 
@@ -285,26 +334,31 @@ class YTEnvSetup(YTEnv):
             if node.attributes["user_tags"] != []:
                 yt_commands.set("//sys/nodes/%s/@user_tags" % node_name, [])
 
+    def _remove_operations(self):
+        for operation in yt_commands.ls("//sys/operations"):
+            yt_commands.remove("//sys/operations/" + operation, recursive=True)
+
     def _reenable_chunk_replicator(self):
         if yt_commands.exists("//sys/@disable_chunk_replicator"):
             yt_commands.remove("//sys/@disable_chunk_replicator")
 
     def _remove_accounts(self):
-        accounts = yt_commands.ls('//sys/accounts', attributes=['builtin'])
+        accounts = yt_commands.ls("//sys/accounts", attributes=["builtin", "resource_usage"])
         for account in accounts:
-            if not account.attributes['builtin']:
+            if not account.attributes["builtin"]:
+                print >>sys.stderr, account.attributes["resource_usage"]
                 yt_commands.remove_account(str(account))
 
     def _remove_users(self):
-        users = yt_commands.ls('//sys/users', attributes=['builtin'])
+        users = yt_commands.ls("//sys/users", attributes=["builtin"])
         for user in users:
-            if not user.attributes['builtin']:
+            if not user.attributes["builtin"]:
                 yt_commands.remove_user(str(user))
 
     def _remove_groups(self):
-        groups = yt_commands.ls('//sys/groups', attributes=['builtin'])
+        groups = yt_commands.ls("//sys/groups", attributes=["builtin"])
         for group in groups:
-            if not group.attributes['builtin']:
+            if not group.attributes["builtin"]:
                 yt_commands.remove_group(str(group))
 
     def _remove_tablet_cells(self):

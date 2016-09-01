@@ -46,8 +46,8 @@ TTcpDispatcherStatistics& operator += (
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ETcpInterfaceType,
-    (Local)  // UNIX domain socket or local TCP socket
-    (Remote) // remote TCP socket
+    (Local)       // UNIX domain socket or local TCP socket
+    (Remote)      // remote TCP socket
 );
 
 ////////////////////////////////////////////////////////////////////////////////

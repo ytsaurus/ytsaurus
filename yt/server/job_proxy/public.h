@@ -29,12 +29,12 @@ DEFINE_ENUM(EJobProxyExitCode,
     ((SetRLimitFailed)        (23))
     ((ExecFailed)             (24))
     ((UncaughtException)      (25))
-    ((GetJobSpecFailed)  (26))
+    ((GetJobSpecFailed)       (26))
 );
 
 DEFINE_ENUM(EErrorCode,
-    ((MemoryLimitExceeded)  (1200))
-    ((MemoryCheckFailed)    (1201))
+    ((MemoryLimitExceeded)     (1200))
+    ((MemoryCheckFailed)       (1201))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
