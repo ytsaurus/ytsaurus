@@ -81,6 +81,8 @@ def add_new_tasks_subparser(subparsers):
                                                      "(using source and destination table name patterns)")
     parser.add_argument("--src-pattern", required=True, help="source table name with placeholders")
     parser.add_argument("--dst-pattern", required=True, help="destination table name with placeholders")
+    parser.add_argument("--enable-early-skip-if-destination-exists", action="store_true", default=False,
+                        help="enable client-side tasks skipping (only for YT destination clusters)")
     _add_new_task_parameters(parser)
 
 def add_abort_task_subparser(subparsers):
