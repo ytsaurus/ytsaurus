@@ -292,6 +292,18 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         assert get("//tmp/t/@sorted")
         assert read_table("//tmp/t") == [{"key" : "a"}, {"key" : "b"}]
+    
+    def test_inplace_sort_with_schema(self):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "key", "type": "string"}]})
+        write_table("//tmp/t", [{"key" : "b"}, {"key" : "a"}])
+
+        sort(in_="//tmp/t",
+             out="//tmp/t",
+             sort_by="key")
+
+        assert get("//tmp/t/@sorted")
+        assert get("//tmp/t/@schema") == [{"name": "key", "type": "string", "sort_order": "ascending"}]
+        assert read_table("//tmp/t") == [{"key" : "a"}, {"key" : "b"}]
 
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_auto_schema_inference(self, optimize_for):
