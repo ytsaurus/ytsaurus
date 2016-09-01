@@ -104,7 +104,7 @@ public:
         , ChangelogCodec_(GetCodec(Config_->ChangelogCodec))
         , TabletContext_(this)
         , TabletMap_(TTabletMapTraits(this))
-        , OrchidService_(TOrchidService::Create(MakeWeak(this), Slot_->GetAutomatonInvoker()))
+        , OrchidService_(TOrchidService::Create(MakeWeak(this), Slot_->GetGuardedAutomatonInvoker()))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
 
@@ -284,7 +284,7 @@ private:
             if (auto owner = Owner_.Lock()) {
                 if (auto tablet = owner->FindTablet(TTabletId::FromString(key))) {
                     auto producer = BIND(&TImpl::BuildTabletOrchidYson, owner, tablet);
-                    return IYPathService::FromProducer(producer);
+                    return ConvertToNode(producer);
                 }
             }
             return nullptr;
@@ -1669,9 +1669,6 @@ private:
     void BuildTabletOrchidYson(TTablet* tablet, IYsonConsumer* consumer)
     {
         BuildYsonFluently(consumer)
-            .BeginAttributes()
-                .Item("opaque").Value(true)
-            .EndAttributes()
             .BeginMap()
                 .Item("table_id").Value(tablet->GetTableId())
                 .Item("state").Value(tablet->GetState())

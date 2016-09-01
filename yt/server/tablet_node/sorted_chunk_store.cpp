@@ -168,7 +168,6 @@ TSortedChunkStore::TSortedChunkStore(
         localDescriptor)
     , TSortedStoreBase(config, id, tablet)
     , KeyComparer_(tablet->GetRowKeyComparer())
-    , RequireChunkPreload_(tablet->GetConfig()->RequireChunkPreload)
 {
     LOG_DEBUG("Sorted chunk store created");
 }
@@ -506,14 +505,16 @@ void TSortedChunkStore::PrecacheProperties()
 
 bool TSortedChunkStore::ValidateBlockCachePreloaded()
 {
-    if (!PreloadedBlockCache_ || !PreloadedBlockCache_->IsPreloaded()) {
-        if (RequireChunkPreload_) {
-            THROW_ERROR_EXCEPTION("Chunk data is not preloaded yet")
-                << TErrorAttribute("tablet_id", TabletId_)
-                << TErrorAttribute("store_id", StoreId_);
-        }
+    if (InMemoryMode_ == EInMemoryMode::None) {
         return false;
     }
+
+    if (!PreloadedBlockCache_ || !PreloadedBlockCache_->IsPreloaded()) {
+        THROW_ERROR_EXCEPTION("Chunk data is not preloaded yet")
+            << TErrorAttribute("tablet_id", TabletId_)
+            << TErrorAttribute("store_id", StoreId_);
+    }
+
     return true;
 }
 

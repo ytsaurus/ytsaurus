@@ -176,7 +176,7 @@ void TVirtualMulticellMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtx
                 limit,
                 str.length());
             context->Reply();
-        }).Via(NRpc::TDispatcher::Get()->GetInvoker()));
+        }).Via(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
 }
 
 void TVirtualMulticellMapBase::ListSelf(TReqList* request, TRspList* response, TCtxListPtr context)
@@ -233,7 +233,7 @@ void TVirtualMulticellMapBase::ListSelf(TReqList* request, TRspList* response, T
                 limit,
                 str.length());
             context->Reply();
-        }).Via(NRpc::TDispatcher::Get()->GetInvoker()));
+        }).Via(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
 }
 
 void TVirtualMulticellMapBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
@@ -478,7 +478,7 @@ void TVirtualMulticellMapBase::FetchItemsFromRemote(
 
             // Proceed to the next remote.
             FetchItemsFromAnywhere(session, promise);
-        }).Via(NRpc::TDispatcher::Get()->GetInvoker()));
+        }).Via(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
 }
 
 TFuture<TYsonString> TVirtualMulticellMapBase::GetOwningNodeAttributes(const TNullable<std::vector<Stroka>>& attributeKeys)

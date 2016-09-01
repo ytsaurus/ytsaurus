@@ -187,7 +187,7 @@ public:
         // Force the assignment to a local variable of TTypedInvokeFunction
         // so the compiler will typecheck that the passed in Run() method has
         // the correct type.
-        auto invokeFunction = &NYT::NDetail::TBindState<TRunnable, TSignature, TBoundArgs>::TInvokerType::Run;
+        TTypedInvokeFunction invokeFunction = &NYT::NDetail::TBindState<TRunnable, TSignature, TBoundArgs>::TInvokerType::Run;
         UntypedInvoke = reinterpret_cast<TUntypedInvokeFunction>(invokeFunction);
     }
 
@@ -195,8 +195,9 @@ public:
     operator TCallback<R2(TArgs2...)>() const
     {
         typedef NYT::NDetail::TCallbackRunnableAdapter<R(TArgs...), R2(TArgs2...)> TRunnable;
+        typedef R2(TSignature2)(TArgs2...);
         return TCallback<R2(TArgs2...)>(
-            New<NYT::NDetail::TBindState<TRunnable,TSignature, void()>>(
+            New<NYT::NDetail::TBindState<TRunnable, TSignature2, void()>>(
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
                 BindState->Location,
 #endif

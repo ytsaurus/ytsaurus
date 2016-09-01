@@ -81,7 +81,7 @@ public:
             .SetMaxQueueSize(10000)
             .SetMaxConcurrency(10000)
             .SetCancelable(true)
-            .SetInvoker(NRpc::TDispatcher::Get()->GetInvoker()));
+            .SetInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GCCollect));
     }
 
@@ -495,7 +495,7 @@ private:
         }
 
         NRpc::TDispatcher::Get()
-            ->GetInvoker()
+            ->GetHeavyInvoker()
             ->Invoke(BIND(&TExecuteSession::DoReply, MakeStrong(this), error));
     }
 
