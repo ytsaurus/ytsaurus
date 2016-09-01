@@ -14,7 +14,7 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TExecuteQuery = std::function<void(
+using TExecuteQuery = std::function<TFuture<TQueryStatistics>(
     const TQueryPtr& query,
     TDataRanges dataRanges,
     ISchemafulWriterPtr writer)>;

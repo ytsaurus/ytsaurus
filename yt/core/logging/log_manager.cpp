@@ -358,8 +358,9 @@ public:
             return;
         }
 
-        auto enqueuedEvents = EnqueuedEvents_.load();
+        // Order matters here; inherent race may lead to negative backlog and integer overflow.
         auto writtenEvents = WrittenEvents_.load();
+        auto enqueuedEvents = EnqueuedEvents_.load();
         auto backlogEvents = enqueuedEvents - writtenEvents;
 
         // NB: This is somewhat racy but should work fine as long as more messages keep coming.
@@ -710,8 +711,8 @@ private:
 
     void PushLogEvent(TLogEvent&& event)
     {
-        LoggerQueue_.Enqueue(std::move(event));
         ++EnqueuedEvents_;
+        LoggerQueue_.Enqueue(std::move(event));
 
         bool expected = false;
         if (Notified_.compare_exchange_strong(expected, true)) {
@@ -721,12 +722,12 @@ private:
 
     void OnProfiling()
     {
-        auto enqueuedEvents = EnqueuedEvents_.load();
         auto writtenEvents = WrittenEvents_.load();
-
+        auto enqueuedEvents = EnqueuedEvents_.load();
+        
         Profiler.Enqueue("/enqueued_events", enqueuedEvents, EMetricType::Counter);
         Profiler.Enqueue("/written_events", writtenEvents, EMetricType::Counter);
-        Profiler.Enqueue("/backlog_events", std::max(static_cast<ui64>(0), enqueuedEvents - writtenEvents), EMetricType::Counter);
+        Profiler.Enqueue("/backlog_events", enqueuedEvents - writtenEvents, EMetricType::Counter);
     }
 
 

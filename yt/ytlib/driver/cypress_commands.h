@@ -79,7 +79,7 @@ public:
     {
         RegisterParameter("path", Path);
         RegisterParameter("attributes", Options.Attributes)
-            .Optional();
+            .Default(std::vector<Stroka>());
         // TODO(babenko): rename to "limit"
         RegisterParameter("max_size", Options.MaxSize)
             .Optional();
