@@ -210,9 +210,9 @@ def upload_file_to_cache(filename, hash=None, client=None):
         prefix = ypath_join(get_config(client)["remote_temp_files_directory"], last_two_digits_of_hash, os.path.basename(filename))
         # NB: In local mode we have only one node and default replication factor equal to one for all tables and files.
         if is_local_mode(client):
-            replication_factor = get_config(client)["file_cache"]["replication_factor"]
-        else:
             replication_factor = 1
+        else:
+            replication_factor = get_config(client)["file_cache"]["replication_factor"]
         real_destination = find_free_subpath(prefix, client=client)
         attributes = {
             "hash": hash,
