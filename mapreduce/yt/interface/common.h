@@ -176,6 +176,7 @@ struct TRichYPath
     FLUENT_FIELD_OPTION(Stroka, FileName);
     FLUENT_FIELD_OPTION(bool, Executable);
     FLUENT_FIELD_OPTION(TNode, Format);
+    FLUENT_FIELD_OPTION(TNode, Schema);
 
     TRichYPath()
     { }
