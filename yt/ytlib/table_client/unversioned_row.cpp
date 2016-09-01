@@ -228,6 +228,75 @@ void Load(TStreamLoadContext& context, TUnversionedValue& value, TChunkedMemoryP
     }
 }
 
+size_t GetYsonSize(const TUnversionedValue& value)
+{
+    switch (value.Type) {
+        case EValueType::Any:
+            return value.Length;
+
+        case EValueType::Null:
+            // Marker type.
+            return 1;
+
+        case EValueType::Int64:
+        case EValueType::Uint64:
+            // Type marker + size;
+            return 1 + MaxVarInt64Size;
+
+        case EValueType::Double:
+            // Type marker + sizeof double.
+            return 1 + 8;
+
+        case EValueType::String:
+            // Type marker + length + string bytes.
+            return 1 + MaxVarInt32Size + value.Length;
+
+        case EValueType::Boolean:
+            // Type marker + value.
+            return 1 + 1;
+
+        default:
+            Y_UNREACHABLE();
+    }
+}
+
+size_t WriteYson(char* buffer, const TUnversionedValue& unversionedValue)
+{
+    // TODO(psushin): get rid of output stream.
+    TMemoryOutput output(buffer, GetYsonSize(unversionedValue));
+    TYsonWriter writer(&output, EYsonFormat::Binary);
+    switch (unversionedValue.Type) {
+        case EValueType::Int64:
+            writer.OnInt64Scalar(unversionedValue.Data.Int64);
+            break;
+        case EValueType::Uint64:
+            writer.OnUint64Scalar(unversionedValue.Data.Uint64);
+            break;
+
+        case EValueType::Double:
+            writer.OnDoubleScalar(unversionedValue.Data.Double);
+            break;
+
+        case EValueType::String:
+            writer.OnStringScalar(TStringBuf(unversionedValue.Data.String, unversionedValue.Length));
+            break;
+
+        case EValueType::Boolean:
+            writer.OnBooleanScalar(unversionedValue.Data.Boolean);
+            break;
+
+        case EValueType::Null:
+            writer.OnEntity();
+            break;
+
+        default:
+            Y_UNREACHABLE();
+    }
+
+    return output.Buf() - buffer;
+
+}
+
 Stroka ToString(const TUnversionedValue& value)
 {
     switch (value.Type) {
@@ -1459,6 +1528,51 @@ TUnversionedOwningRow BuildRow(
     }
 
     return rowBuilder.FinishRow();
+}
+
+TUnversionedOwningRow BuildKey(const Stroka& yson)
+{
+    TUnversionedOwningRowBuilder keyBuilder;
+    auto keyParts = ConvertTo<std::vector<INodePtr>>(
+        TYsonString(yson, EYsonType::ListFragment));
+
+    for (int id = 0; id < keyParts.size(); ++id) {
+        const auto& keyPart = keyParts[id];
+        switch (keyPart->GetType()) {
+            case ENodeType::Int64:
+                keyBuilder.AddValue(MakeUnversionedInt64Value(
+                    keyPart->GetValue<i64>(),
+                    id));
+                break;
+            case ENodeType::Uint64:
+                keyBuilder.AddValue(MakeUnversionedUint64Value(
+                    keyPart->GetValue<ui64>(),
+                    id));
+                break;
+            case ENodeType::Double:
+                keyBuilder.AddValue(MakeUnversionedDoubleValue(
+                    keyPart->GetValue<double>(),
+                    id));
+                break;
+            case ENodeType::String:
+                keyBuilder.AddValue(MakeUnversionedStringValue(
+                    keyPart->GetValue<Stroka>(),
+                    id));
+                break;
+            case ENodeType::Entity:
+                keyBuilder.AddValue(MakeUnversionedSentinelValue(
+                    keyPart->Attributes().Get<EValueType>("type"),
+                    id));
+                break;
+            default:
+                keyBuilder.AddValue(MakeUnversionedAnyValue(
+                    ConvertToYsonString(keyPart).Data(),
+                    id));
+                break;
+        }
+    }
+
+    return keyBuilder.FinishRow();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

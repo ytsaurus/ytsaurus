@@ -14,13 +14,16 @@ namespace NApi {
 DEFINE_ENUM(EMasterChannelKind,
     (Leader)
     (Follower)
-    (LeaderOrFollower)
     (Cache)
 );
 
 DEFINE_ENUM(EUserWorkloadCategory,
     (Batch)
     (Realtime)
+);
+
+DEFINE_ENUM(EErrorCode,
+    ((TooManyConcurrentRequests)                         (1800))
 );
 
 ///////////////////////////////////////////////////////////////////////////////

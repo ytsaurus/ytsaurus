@@ -204,6 +204,9 @@ YtCommand.prototype.dispatch = function(req, rsp) {
         })
         .then(self._execute.bind(self))
         .catch(function(err) {
+            if (!(err instanceof YtError)) {
+                self.rsp.statusCode = 500;
+            }
             var error = YtError.ensureWrapped(
                 err,
                 "Unhandled error in the command pipeline");
@@ -446,15 +449,26 @@ YtCommand.prototype._redirectHeavyRequests = function() {
     this.__DBG("_redirectHeavyRequests");
 
     if (this.descriptor.is_heavy && this.coordinator.getSelf().role === "control") {
+        if (this.descriptor.input_type_as_integer !== binding.EDataType_Null) {
+            this.rsp.statusCode = 503;
+            this.rsp.setHeader("Retry-After", "60");
+            throw new YtError(
+                "Control proxy may not serve heavy requests with input data");
+        }
         var target = this.coordinator.allocateProxy("data");
         if (target) {
-            var is_ssl;
-            is_ssl = this.req.connection.getCipher && this.req.connection.getCipher();
-            is_ssl = !!is_ssl;
-            var url =
-                (is_ssl ? "https://" : "http://") +
-                target.host +
-                this.req.originalUrl;
+            var proto = "http://";
+            if (this.req.connection.getCipher && this.req.connection.getCipher()) {
+                proto = "https://";
+            }
+            var target_host = target.host;
+            var source_host = this.req.headers.host;
+            if (typeof(source_host) === "string") {
+                if (/yandex-team\.ru$/.test(source_host)) {
+                    target_host = target_host.replace("yandex.net", "yandex-team.ru");
+                }
+            }
+            var url = proto + target_host + this.req.originalUrl;
             utils.redirectTo(this.rsp, url, 307);
             throw new YtError();
         } else {

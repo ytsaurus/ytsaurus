@@ -183,8 +183,6 @@ public:
 
     TFuture<void> Commit(const TTransactionCommitOptions& options)
     {
-        VERIFY_THREAD_AFFINITY(ClientThread);
-
         try {
 
             {
@@ -283,8 +281,6 @@ public:
 
     void Detach()
     {
-        VERIFY_THREAD_AFFINITY(ClientThread);
-
         if (Type_ != ETransactionType::Master) {
             THROW_ERROR_EXCEPTION("Cannot detach a %Qlv transaction",
                 Type_);
@@ -300,11 +296,11 @@ public:
             TGuard<TSpinLock> guard(SpinLock_);
             switch (State_) {
                 case ETransactionState::Committed:
-                    THROW_ERROR_EXCEPTION("Transaction is already committed (TransactionId: %v)", Id_);
+                    THROW_ERROR_EXCEPTION("Transaction %v is already committed", Id_);
                     break;
 
                 case ETransactionState::Aborted:
-                    THROW_ERROR_EXCEPTION("Transaction is already aborted (TransactionId: %v)", Id_);
+                    THROW_ERROR_EXCEPTION("Transaction %v is already aborted", Id_);
                     break;
 
                 case ETransactionState::Active:
@@ -370,6 +366,7 @@ public:
     void AddTabletParticipant(const TCellId& cellId)
     {
         YCHECK(TypeFromId(cellId) == EObjectType::TabletCell);
+
 
         if (Atomicity_ != EAtomicity::Full) {
             return;
@@ -445,8 +442,6 @@ private:
 
     TTimestamp StartTimestamp_ = NullTimestamp;
     TTransactionId Id_;
-
-    DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
 
 
 

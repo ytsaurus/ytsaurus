@@ -34,6 +34,9 @@ using TJobSpecBuilder = TCallback<void(NJobTrackerClient::NProto::TJobSpec* jobS
 
 class TJobResources;
 
+struct TUpdatedJob;
+struct TCompletedJob;
+
 struct TExecNodeDescriptor;
 DECLARE_REFCOUNTED_CLASS(TExecNode)
 
@@ -69,13 +72,18 @@ DECLARE_REFCOUNTED_STRUCT(IOperationController);
 
 class TMasterConnector;
 
-using TRefCountedJobResult = TRefCountedProto<NJobTrackerClient::NProto::TJobResult>;
-DECLARE_REFCOUNTED_TYPE(TRefCountedJobResult);
-
-using TRefCountedJobStatus = TRefCountedProto<NJobTrackerClient::NProto::TJobStatus>;
-DECLARE_REFCOUNTED_TYPE(TRefCountedJobStatus);
+using NJobTrackerClient::NProto::TJobResult;
+using NJobTrackerClient::NProto::TJobStatus;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EAlertType,
+    (UpdatePools)
+    (UpdateConfig)
+    (UpdateFairShare)
+);
+
+////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler
 } // namespace NYT

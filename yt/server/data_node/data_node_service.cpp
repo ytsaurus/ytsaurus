@@ -713,6 +713,7 @@ private:
                     break;
 
                 case ETableChunkFormat::SchemalessHorizontal:
+                case ETableChunkFormat::UnversionedColumnar:
                     ProcessUnversionedChunkSamples(sampleRequest, sampleResponse, keyColumns, maxSampleSize, meta);
                     break;
 

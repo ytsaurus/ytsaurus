@@ -31,25 +31,28 @@ struct ISlot
     //! Kill all possibly running processes and clean sandboxes.
     virtual void Cleanup() = 0;
 
+    virtual void CancelPreparation() = 0;
+
     virtual TFuture<void> RunJobProxy(
         NJobProxy::TJobProxyConfigPtr config,
-        const TJobId& jobId, 
+        const TJobId& jobId,
         const TOperationId& operationId) = 0;
 
-    virtual void MakeLink(
+    virtual TFuture<void> CreateSandboxDirectories() = 0;
+
+    virtual TFuture<void> MakeLink(
         ESandboxKind sandboxKind,
         const Stroka& targetPath,
         const Stroka& linkName,
         bool isExecutable) = 0;
 
-    virtual void MakeCopy(
+    virtual TFuture<void> MakeCopy(
         ESandboxKind sandboxKind,
         const Stroka& sourcePath,
         const Stroka& destinationName,
         bool isExecutable) = 0;
 
-    //! Returns tmpfs path.
-    virtual Stroka PrepareTmpfs(
+    virtual TFuture<Stroka> PrepareTmpfs(
         ESandboxKind sandboxKind,
         i64 size,
         Stroka path) = 0;

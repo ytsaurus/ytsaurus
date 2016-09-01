@@ -262,6 +262,14 @@ TStringBuf FormatBool(bool value);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Implemented for |[u]i(32|64)|.
+template <class T>
+char* WriteIntToBufferBackwards(char* ptr, T value);
+
+char* WriteGuidToBuffer(char* ptr, const TGuid& value);
+
+////////////////////////////////////////////////////////////////////////////////
+
 Stroka DecodeEnumValue(const Stroka& value);
 Stroka EncodeEnumValue(const Stroka& value);
 

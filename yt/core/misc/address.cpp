@@ -3,6 +3,7 @@
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/rw_spinlock.h>
 
 #include <yt/core/logging/log.h>
 
@@ -83,55 +84,6 @@ TStringBuf GetServiceHostName(const TStringBuf& address)
     TStringBuf result;
     ParseServiceAddress(address, &result, nullptr);
     return result;
-}
-
-Stroka StripInterconnectFromAddress(const Stroka& localHostName, const Stroka& remoteHostName)
-{
-    // Extract DC name and interconnect from address.
-    auto parse = [] (const Stroka& hostName) -> std::pair<TNullable<Stroka>, bool>  {
-        auto dotPosition = hostName.find(".");
-        if (dotPosition == Stroka::npos) {
-            return std::make_pair(Null, false);
-        }
-
-        auto firstPart = hostName.substr(0, dotPosition);
-        bool hasInterconnect = firstPart.substr(firstPart.length() - 2) == "-i";
-        if (hasInterconnect) {
-            firstPart = firstPart.substr(0, firstPart.length() - 2);
-        }
-
-        auto dashPosition = firstPart.rfind("-");
-        return std::make_pair(
-            dashPosition == Stroka::npos
-            ? Null
-            : MakeNullable(firstPart.substr(dashPosition + 1)),
-            hasInterconnect);
-    };
-
-    auto stripInterconnect = [] (const Stroka& hostName) {
-        auto dotPosition = hostName.find(".");
-        YCHECK(dotPosition != Stroka::npos);
-
-        auto firstPart = hostName.substr(0, dotPosition);
-        auto remaining = hostName.substr(dotPosition);
-        YCHECK(firstPart.substr(firstPart.length() - 2) == "-i");
-
-        return firstPart.substr(0, firstPart.length() - 2) + remaining;
-    };
-
-    TNullable<Stroka> localDCName;
-    bool hasLocalInterconnect;
-    std::tie(localDCName, hasLocalInterconnect) = parse(localHostName);
-
-    TNullable<Stroka> remoteDCName;
-    bool hasRemoteInterconnect;
-    std::tie(remoteDCName, hasRemoteInterconnect) = parse(remoteHostName);
-
-    if (hasRemoteInterconnect && localDCName && remoteDCName && *localDCName != *remoteDCName) {
-        return stripInterconnect(remoteHostName);
-    } else {
-        return remoteHostName;
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -353,12 +305,12 @@ class TAddressResolver::TImpl
 public:
     void Shutdown();
 
-    TFuture<TNetworkAddress> Resolve(const Stroka& address);
+    TFuture<TNetworkAddress> Resolve(const Stroka& hostName);
 
     Stroka GetLocalHostName();
     bool IsLocalHostNameOK();
 
-    bool IsLocalServiceAddress(const Stroka& address);
+    bool IsLocalAddress(const TNetworkAddress& address);
 
     void PurgeCache();
 
@@ -367,8 +319,14 @@ public:
 private:
     TAddressResolverConfigPtr Config_ = New<TAddressResolverConfig>();
 
-    TSpinLock CacheLock_;
-    yhash_map<Stroka, TNetworkAddress> Cache_;
+    struct TCacheEntry
+    {
+        TNetworkAddress Address;
+        TInstant Instant;
+    };
+
+    TReaderWriterSpinLock CacheLock_;
+    yhash_map<Stroka, TCacheEntry> Cache_;
 
     std::atomic<bool> HasCachedLocalAddresses_ = {false};
     std::vector<TNetworkAddress> CachedLocalAddresses_;
@@ -398,37 +356,48 @@ void TAddressResolver::TImpl::Shutdown()
     Queue_->Shutdown();
 }
 
-TFuture<TNetworkAddress> TAddressResolver::TImpl::Resolve(const Stroka& address)
+TFuture<TNetworkAddress> TAddressResolver::TImpl::Resolve(const Stroka& hostName)
 {
     // Check if |address| parses into a valid IPv4 or IPv6 address.
     {
-        auto result = TNetworkAddress::TryParse(address);
+        auto result = TNetworkAddress::TryParse(hostName);
         if (result.IsOK()) {
             return MakeFuture(result);
         }
     }
 
+    auto runAsyncResolve = [&] () {
+        return BIND(&TAddressResolver::TImpl::DoResolve, MakeStrong(this), hostName)
+            .AsyncVia(Queue_->GetInvoker())
+            .Run();
+    };
+
     // Lookup cache.
     {
-        TGuard<TSpinLock> guard(CacheLock_);
-        auto it = Cache_.find(address);
+        TReaderGuard guard(CacheLock_);
+        auto it = Cache_.find(hostName);
         if (it != Cache_.end()) {
-            auto result = it->second;
+            auto entry = it->second;
             guard.Release();
+
             LOG_DEBUG("Address cache hit: %v -> %v",
-                address,
-                result);
-            return MakeFuture(result);
+                hostName,
+                entry.Address);
+
+            // Re-run resolve for expired entries.
+            if (entry.Instant + Config_->AddressExpirationTime > TInstant::Now()) {
+                runAsyncResolve();
+            }
+
+            return MakeFuture(entry.Address);
         }
     }
 
     // Run async resolution.
-    return BIND(&TAddressResolver::TImpl::DoResolve, MakeStrong(this), address)
-        .AsyncVia(Queue_->GetInvoker())
-        .Run();
+    return runAsyncResolve();
 }
 
-TNetworkAddress TAddressResolver::TImpl::DoResolve(const Stroka& hostName_)
+TNetworkAddress TAddressResolver::TImpl::DoResolve(const Stroka& hostName)
 {
     try {
         addrinfo hints;
@@ -446,13 +415,6 @@ TNetworkAddress TAddressResolver::TImpl::DoResolve(const Stroka& hostName_)
         hints.ai_socktype = SOCK_STREAM;
 
         addrinfo* addrInfo = nullptr;
-
-        Stroka hostName = hostName_;
-        auto strippedHostName = StripInterconnectFromAddress(GetLocalHostName(), hostName_);
-        if (strippedHostName != hostName) {
-            LOG_DEBUG("Interconnect suffix was stripped from address %v", hostName);
-            hostName = strippedHostName;
-        }
 
         LOG_DEBUG("Started resolving host %v", hostName);
 
@@ -496,8 +458,10 @@ TNetworkAddress TAddressResolver::TImpl::DoResolve(const Stroka& hostName_)
         if (result) {
             // Put result into the cache.
             {
-                TGuard<TSpinLock> guard(CacheLock_);
-                Cache_[hostName] = *result;
+                TWriterGuard guard(CacheLock_);
+                auto& entry = Cache_[hostName];
+                entry.Address = *result;
+                entry.Instant = TInstant::Now();
             }
             LOG_DEBUG("Host resolved: %v -> %v",
                 hostName,
@@ -567,10 +531,10 @@ bool TAddressResolver::TImpl::IsLocalHostNameOK()
     return !GetLocalHostNameFailed_;
 }
 
-bool TAddressResolver::TImpl::IsLocalServiceAddress(const Stroka& address)
+bool TAddressResolver::TImpl::IsLocalAddress(const TNetworkAddress& address)
 {
     const auto& localAddresses = GetLocalAddresses();
-    return std::find(localAddresses.begin(), localAddresses.end(), DoResolve(address)) != localAddresses.end();
+    return std::find(localAddresses.begin(), localAddresses.end(), address) != localAddresses.end();
 }
 
 const std::vector<TNetworkAddress>& TAddressResolver::TImpl::GetLocalAddresses()
@@ -602,7 +566,7 @@ const std::vector<TNetworkAddress>& TAddressResolver::TImpl::GetLocalAddresses()
     }
 
     {
-        TGuard<TSpinLock> guard(CacheLock_);
+        TWriterGuard guard(CacheLock_);
         // NB: Only update CachedLocalAddresses_ once.
         if (!HasCachedLocalAddresses_) {
             CachedLocalAddresses_ = std::move(localAddresses);
@@ -679,7 +643,7 @@ void TAddressResolver::TImpl::CheckLocalHostResolution()
 void TAddressResolver::TImpl::PurgeCache()
 {
     {
-        TGuard<TSpinLock> guard(CacheLock_);
+        TWriterGuard guard(CacheLock_);
         Cache_.clear();
     }
     LOG_INFO("Address cache purged");
@@ -735,9 +699,9 @@ bool TAddressResolver::IsLocalHostNameOK()
     return Impl_->IsLocalHostNameOK();
 }
 
-bool TAddressResolver::IsLocalServiceAddress(const Stroka& address)
+bool TAddressResolver::IsLocalAddress(const TNetworkAddress& address)
 {
-    return Impl_->IsLocalServiceAddress(address);
+    return Impl_->IsLocalAddress(address);
 }
 
 void TAddressResolver::PurgeCache()

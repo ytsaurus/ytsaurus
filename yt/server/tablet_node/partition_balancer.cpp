@@ -86,20 +86,52 @@ private:
         if (!tablet->IsSorted()) {
             return;
         }
-        
+
+        int currentMaxOverlappingStoreCount = tablet->GetEden()->Stores().size();
         for (const auto& partition : tablet->PartitionList()) {
-            ScanPartition(slot, partition.get());
+            currentMaxOverlappingStoreCount = std::max(
+                currentMaxOverlappingStoreCount,
+                int(partition->Stores().size()));
+        }
+        int estimatedMaxOverlappingStoreCount = currentMaxOverlappingStoreCount;
+
+        for (const auto& partition : tablet->PartitionList()) {
+            ScanPartitionToSplit(slot, partition.get(), estimatedMaxOverlappingStoreCount);
+        }
+
+        int maxAllowedOverlappingStoreCount = tablet->GetConfig()->MaxOverlappingStoreCount -
+            (estimatedMaxOverlappingStoreCount - currentMaxOverlappingStoreCount);
+        for (const auto& partition : tablet->PartitionList()) {
+            ScanPartitionToMerge(slot, partition.get(), maxAllowedOverlappingStoreCount);
+            ScanPartitionToSample(slot, partition.get());
         }
     }
 
-    void ScanPartition(TTabletSlotPtr slot, TPartition* partition)
+    void ScanPartitionToSplit(TTabletSlotPtr slot, TPartition* partition, int& estimatedMaxOverlappingStoreCount)
     {
         auto* tablet = partition->GetTablet();
-
         const auto& config = tablet->GetConfig();
-
         int partitionCount = tablet->PartitionList().size();
+        i64 actualDataSize = partition->GetUncompressedDataSize();
+        int estimatedStoresDelta = partition->Stores().size();
 
+        if (estimatedStoresDelta + estimatedMaxOverlappingStoreCount <= config->MaxOverlappingStoreCount &&
+            actualDataSize > config->MaxPartitionDataSize) {
+            int splitFactor = std::min(std::min(
+                actualDataSize / config->DesiredPartitionDataSize + 1,
+                actualDataSize / config->MinPartitioningDataSize),
+                static_cast<i64>(config->MaxPartitionCount - partitionCount));
+            if (splitFactor > 1 && RunSplit(slot, partition, splitFactor)) {
+                estimatedMaxOverlappingStoreCount += estimatedStoresDelta;
+            }
+        }
+    }
+
+    void ScanPartitionToMerge(TTabletSlotPtr slot, TPartition* partition, int maxAllowedOverlappingStoreCount)
+    {
+        auto* tablet = partition->GetTablet();
+        const auto& config = tablet->GetConfig();
+        int partitionCount = tablet->PartitionList().size();
         i64 actualDataSize = partition->GetUncompressedDataSize();
 
         // Maximum data size the partition might have if all chunk stores from Eden go here.
@@ -110,16 +142,6 @@ private:
             }
         }
 
-        if (actualDataSize > config->MaxPartitionDataSize) {
-            int splitFactor = std::min(std::min(
-                actualDataSize / config->DesiredPartitionDataSize + 1,
-                actualDataSize / config->MinPartitioningDataSize),
-                static_cast<i64>(config->MaxPartitionCount - partitionCount));
-            if (splitFactor > 1) {
-                RunSplit(slot, partition, splitFactor);
-            }
-        }
-        
         if (maxPotentialDataSize < config->MinPartitionDataSize && partitionCount > 1) {
             int firstPartitionIndex = partition->GetIndex();
             int lastPartitionIndex = firstPartitionIndex + 1;
@@ -127,26 +149,33 @@ private:
                 --firstPartitionIndex;
                 --lastPartitionIndex;
             }
-            RunMerge(slot, partition, firstPartitionIndex, lastPartitionIndex);
-        }
+            int estimatedOverlappingStoreCount = tablet->GetEden()->Stores().size() +
+                tablet->PartitionList()[firstPartitionIndex]->Stores().size() +
+                tablet->PartitionList()[lastPartitionIndex]->Stores().size();
 
+            if (estimatedOverlappingStoreCount <= maxAllowedOverlappingStoreCount) {
+                RunMerge(slot, partition, firstPartitionIndex, lastPartitionIndex);
+            }
+        }
+    }
+
+    void ScanPartitionToSample(TTabletSlotPtr slot, TPartition* partition)
+    {
         if (partition->GetSamplingRequestTime() > partition->GetSamplingTime() &&
-            partition->GetSamplingTime() < TInstant::Now() - Config_->ResamplingPeriod)
-        {
+            partition->GetSamplingTime() < TInstant::Now() - Config_->ResamplingPeriod) {
             RunSample(slot, partition);
         }
     }
 
-
-    void RunSplit(TTabletSlotPtr slot, TPartition* partition, int splitFactor)
+    bool RunSplit(TTabletSlotPtr slot, TPartition* partition, int splitFactor)
     {
         if (partition->GetState() != EPartitionState::Normal) {
-            return;
+            return false;
         }
 
         for (const auto& store : partition->Stores()) {
             if (store->GetStoreState() != EStoreState::Persistent) {
-                return;
+                return false;
             }
         }
 
@@ -155,6 +184,7 @@ private:
         BIND(&TPartitionBalancer::DoRunSplit, MakeStrong(this))
             .AsyncVia(partition->GetTablet()->GetEpochAutomatonInvoker())
             .Run(slot, partition, splitFactor);
+        return true;
     }
 
     void DoRunSplit(TTabletSlotPtr slot, TPartition* partition, int splitFactor)
@@ -208,7 +238,7 @@ private:
     }
 
 
-    void RunMerge(
+    bool RunMerge(
         TTabletSlotPtr slot,
         TPartition* partition,
         int firstPartitionIndex,
@@ -218,7 +248,7 @@ private:
 
         for (int index = firstPartitionIndex; index <= lastPartitionIndex; ++index) {
             if (tablet->PartitionList()[index]->GetState() != EPartitionState::Normal) {
-                return;
+                return false;
             }
         }
 
@@ -247,18 +277,19 @@ private:
 
         CreateMutation(hydraManager, request)
             ->CommitAndLog(Logger);
+        return true;
     }
 
 
-    void RunSample(TTabletSlotPtr slot, TPartition* partition)
+    bool RunSample(TTabletSlotPtr slot, TPartition* partition)
     {
         if (partition->GetState() != EPartitionState::Normal) {
-            return;
+            return false;
         }
 
         auto guard = TAsyncSemaphoreGuard::TryAcquire(Semaphore_);
         if (!guard) {
-            return;
+            return false;
         }
 
         partition->CheckedSetState(EPartitionState::Normal, EPartitionState::Sampling);
@@ -266,6 +297,7 @@ private:
         BIND(&TPartitionBalancer::DoRunSample, MakeStrong(this), Passed(std::move(guard)))
             .AsyncVia(partition->GetTablet()->GetEpochAutomatonInvoker())
             .Run(slot, partition);
+        return true;
     }
 
     void DoRunSample(
@@ -338,7 +370,7 @@ private:
         {
             // XXX(babenko): multicell
             auto channel = Bootstrap_->GetMasterClient()->GetMasterChannelOrThrow(
-                NApi::EMasterChannelKind::LeaderOrFollower);
+                NApi::EMasterChannelKind::Follower);
             TChunkServiceProxy proxy(channel);
 
             auto req = proxy.LocateChunks();

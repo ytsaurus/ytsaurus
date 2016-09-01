@@ -221,14 +221,9 @@ YtDriver.prototype.execute = function YtDriver$execute(
     process.nextTick(function() { pause.unpause(); });
 
     return Q
-        .settle([driver_promise, input_pipe_promise, output_pipe_promise])
+        .all([driver_promise, input_pipe_promise, output_pipe_promise])
         .spread(function spread(result, ir, or) {
-            debug("execute -> settle barrier");
-            if (result.isRejected()) {
-                return Q.reject(result.error());
-            } else {
-                return Q.resolve(result.value());
-            }
+            return result;
         });
 };
 
@@ -236,14 +231,20 @@ YtDriver.prototype.executeSimple = function(name, parameters, data)
 {
     this.__DBG("executeSimple");
 
-    var input_stream = new utils.MemoryInputStream(data && JSON.stringify(data));
+    var descriptor = this.find_command_descriptor(name);
+
+    if (descriptor.input_type === "tabular") {
+        data = data && _.map(data, JSON.stringify).join("\n");
+    } else {
+        data = data && JSON.stringify(data);
+    }
+
+    var input_stream = new utils.MemoryInputStream(data);
     var output_stream = new utils.MemoryOutputStream();
     var pause = utils.Pause(input_stream);
 
-    parameters.input_format = "json";
+    parameters.input_format = parameters.input_format || "json";
     parameters.output_format = parameters.output_format || "json";
-
-    var descriptor = this.find_command_descriptor(name);
 
     return this.execute(name, _SIMPLE_EXECUTE_USER,
         input_stream, binding.ECompression_None,

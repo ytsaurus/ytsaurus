@@ -384,6 +384,55 @@ TTableSchema TTableSchema::ToUniqueKeys() const
     return TTableSchema(Columns_, Strict_, true);
 }
 
+TTableSchema TTableSchema::ToStrippedColumnAttributes() const
+{
+    std::vector<TColumnSchema> strippedColumns;
+    for (auto& column : Columns_) {
+        strippedColumns.emplace_back(column.Name, column.Type);
+    }
+    return TTableSchema(strippedColumns, Strict_, UniqueKeys_);
+}
+
+TTableSchema TTableSchema::ToCanonical() const
+{
+    auto columns = Columns();
+    std::sort(
+        columns.begin() + KeyColumnCount_,
+        columns.end(),
+        [] (const TColumnSchema& lhs, const TColumnSchema& rhs) {
+            return lhs.Name < rhs.Name;
+        });
+    return TTableSchema(columns, Strict_, UniqueKeys_);
+}
+
+TTableSchema TTableSchema::ToSorted(const TKeyColumns& keyColumns) const
+{
+    auto columns = Columns();
+    for (int index = 0; index < keyColumns.size(); ++index) {
+        auto it = std::find_if(
+            columns.begin() + index,
+            columns.end(),
+            [&] (const TColumnSchema& column) {
+                return column.Name == keyColumns[index];
+            });
+
+        if (it == columns.end()) {
+            THROW_ERROR_EXCEPTION("Column %Qv is not found in schema", keyColumns[index])
+                << TErrorAttribute("schema", *this)
+                << TErrorAttribute("key_columns", keyColumns);
+        }
+
+        std::swap(columns[index], *it);
+        columns[index].SetSortOrder(ESortOrder::Ascending);
+    }
+
+    for (auto it = columns.begin() + keyColumns.size(); it != columns.end(); ++it) {
+        it->SetSortOrder(Null);
+    }
+
+    return TTableSchema(columns, Strict_, UniqueKeys_);
+}
+
 void TTableSchema::Save(TStreamSaveContext& context) const
 {
     using NYT::Save;
@@ -644,7 +693,14 @@ void ValidateDynamicTableConstraints(const TTableSchema& schema)
     }
 
     if (schema.GetKeyColumnCount() == schema.Columns().size()) {
-        THROW_ERROR_EXCEPTION("There must be at least one non-key column");
+       THROW_ERROR_EXCEPTION("There must be at least one non-key column");
+    }
+
+    for (const auto& column : schema.Columns()) {
+        if (column.SortOrder && column.Type == EValueType::Any) {
+            THROW_ERROR_EXCEPTION("Invalid dynamic table key column type: %Qv",
+                column.Type);
+        }
     }
 }
 
@@ -1041,7 +1097,7 @@ TTableSchema InferInputSchema(const std::vector<TTableSchema>& schemas, bool dis
 }
 
 //! Validates that read schema is consistent with existing table schema.
-/*! 
+/*!
  *  Validates that:
  *  - If a column is present in both schemas, column types should be the same.
  *  - Either one of two possibilties holds:
@@ -1052,7 +1108,7 @@ TTableSchema InferInputSchema(const std::vector<TTableSchema>& schemas, bool dis
 void ValidateReadSchema(const TTableSchema& readSchema, const TTableSchema& tableSchema)
 {
     for (int readColumnIndex = 0;
-         readColumnIndex < static_cast<int>(tableSchema.Columns().size()); 
+         readColumnIndex < static_cast<int>(tableSchema.Columns().size());
          ++readColumnIndex) {
         const auto& readColumn = readSchema.Columns()[readColumnIndex];
         const auto* tableColumnPtr = tableSchema.FindColumn(readColumn.Name);
@@ -1064,7 +1120,7 @@ void ValidateReadSchema(const TTableSchema& readSchema, const TTableSchema& tabl
         const auto& tableColumn = *tableColumnPtr;
         if (readColumn.Type != EValueType::Any &&
             tableColumn.Type != EValueType::Any &&
-            readColumn.Type != tableColumn.Type) 
+            readColumn.Type != tableColumn.Type)
         {
             THROW_ERROR_EXCEPTION(
                 "Mismatched type of column %Qv in read schema: expected %Qlv, found %Qlv",
@@ -1075,9 +1131,9 @@ void ValidateReadSchema(const TTableSchema& readSchema, const TTableSchema& tabl
 
         // Validate that order of key columns intersection hasn't been changed.
         int tableColumnIndex = tableSchema.GetColumnIndex(tableColumn);
-        if (readColumnIndex < readSchema.GetKeyColumnCount() && 
+        if (readColumnIndex < readSchema.GetKeyColumnCount() &&
             tableColumnIndex < readSchema.GetKeyColumnCount() &&
-            readColumnIndex != tableColumnIndex) 
+            readColumnIndex != tableColumnIndex)
         {
             THROW_ERROR_EXCEPTION(
                 "Key column %Qv position mismatch: its position is %v in table schema and %v in read schema",
@@ -1088,7 +1144,7 @@ void ValidateReadSchema(const TTableSchema& readSchema, const TTableSchema& tabl
 
         // Validate that a non-key column in tableSchema can't become a key column in readSchema.
         if (readColumnIndex < readSchema.GetKeyColumnCount() &&
-            tableColumnIndex >= tableSchema.GetKeyColumnCount()) 
+            tableColumnIndex >= tableSchema.GetKeyColumnCount())
         {
             THROW_ERROR_EXCEPTION(
                 "Column %Qv is declared as non-key in table schema and as a key in read schema",
@@ -1106,7 +1162,8 @@ void ValidateReadSchema(const TTableSchema& readSchema, const TTableSchema& tabl
 
 TError ValidateTableSchemaCompatibility(
     const TTableSchema& inputSchema,
-    const TTableSchema& outputSchema)
+    const TTableSchema& outputSchema,
+    bool ignoreSortOrder)
 {
     auto addAttributes = [&] (TError error) {
         return error
@@ -1136,6 +1193,10 @@ TError ValidateTableSchemaCompatibility(
                     inputColumn->Name));
             }
         }
+    }
+
+    if (ignoreSortOrder) {
+        return TError();
     }
 
     // Check that output key columns form a proper prefix of input key columns.

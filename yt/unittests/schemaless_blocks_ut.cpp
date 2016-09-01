@@ -1,5 +1,5 @@
 #include "framework.h"
-#include "versioned_table_client_ut.h"
+#include "table_client_helpers.h"
 
 #include <yt/ytlib/table_client/schemaless_block_reader.h>
 #include <yt/ytlib/table_client/schemaless_block_writer.h>
@@ -14,7 +14,7 @@ using namespace NCompression;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemalessBlocksTestBase
-    : public TVersionedTableClientTestBase
+    : public ::testing::Test
 {
 protected:
     void CheckResult(THorizontalSchemalessBlockReader& reader, const std::vector<TUnversionedRow>& rows)
@@ -23,7 +23,7 @@ protected:
         do {
             EXPECT_LT(i, rows.size());
             auto row = reader.GetRow(&MemoryPool);
-            ExpectRowsEqual(rows[i], row);
+            ExpectSchemafulRowsEqual(rows[i], row);
             ++i;
         } while (reader.NextRow());
     }
@@ -78,7 +78,7 @@ TEST_F(TSchemalessBlocksTestOneRow, ReadColumnFilter)
 
     auto row = TMutableUnversionedRow::Allocate(&MemoryPool, 2);
     row[0] = MakeUnversionedDoubleValue(1.5, 0);
-    row[1] = MakeVersionedInt64Value(7, 1);
+    row[1] = MakeUnversionedInt64Value(7, 1);
 
     std::vector<TUnversionedRow> rows;
     rows.push_back(row);

@@ -81,36 +81,37 @@ void TCachedVersionedChunkMeta::Init(
     const TTableSchema& schema)
 {
     ChunkId_ = chunkId;
-    ChunkMeta_ = chunkMeta;
 
     auto keyColumns = schema.GetKeyColumns();
     KeyColumnCount_ = keyColumns.size();
 
+    TColumnarChunkMeta::InitExtensions(chunkMeta);
+    TColumnarChunkMeta::InitBlockLastKeys(GetKeyColumnCount());
+
     ValidateChunkMeta();
     //FIXME(savrus) Dirty hack here. In future we will read schema from meta.
-    if (ETableChunkFormat(ChunkMeta_.version()) == ETableChunkFormat::SchemalessHorizontal) {
-        BuildSchemalessIdMapping(schema);
+    if (ETableChunkFormat(chunkMeta.version()) == ETableChunkFormat::SchemalessHorizontal) {
+        BuildSchemalessIdMapping(schema, chunkMeta);
     } else {
         ValidateSchema(schema);
     }
 
     Schema_ = schema;
 
-    auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(ChunkMeta_.extensions());
+    auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(chunkMeta.extensions());
     MinKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), GetKeyColumnCount());
     MaxKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), GetKeyColumnCount());
-
-    TColumnarChunkMeta::InitExtensions();
-    TColumnarChunkMeta::InitBlockLastKeys(GetKeyColumnCount());
 }
 
-void TCachedVersionedChunkMeta::BuildSchemalessIdMapping(const TTableSchema& readerSchema)
+void TCachedVersionedChunkMeta::BuildSchemalessIdMapping(
+    const TTableSchema& readerSchema,
+    const NChunkClient::NProto::TChunkMeta& chunkMeta)
 {
-    auto keyColumnsExt = GetProtoExtension<TKeyColumnsExt>(ChunkMeta_.extensions());
+    auto keyColumnsExt = GetProtoExtension<TKeyColumnsExt>(chunkMeta.extensions());
     auto keyColumns = FromProto<TKeyColumns>(keyColumnsExt);
     ChunkKeyColumnCount_ = keyColumns.size();
 
-    auto nameTableExt = GetProtoExtension<TNameTableExt>(ChunkMeta_.extensions());
+    auto nameTableExt = GetProtoExtension<TNameTableExt>(chunkMeta.extensions());
     auto nameTable = FromProto<TNameTablePtr>(nameTableExt);
 
     for (int readerIndex = 0; readerIndex < readerSchema.Columns().size(); ++readerIndex) {
@@ -127,37 +128,24 @@ void TCachedVersionedChunkMeta::BuildSchemalessIdMapping(const TTableSchema& rea
 
 void TCachedVersionedChunkMeta::ValidateChunkMeta()
 {
-    auto type = EChunkType(ChunkMeta_.type());
-    if (type != EChunkType::Table) {
+    if (ChunkType_ != EChunkType::Table) {
         THROW_ERROR_EXCEPTION("Incorrect chunk type: actual %Qlv, expected %Qlv",
-            type,
+            ChunkType_,
             EChunkType::Table);
     }
 
-    auto formatVersion = ETableChunkFormat(ChunkMeta_.version());
-    if (formatVersion != ETableChunkFormat::VersionedSimple &&
-        formatVersion != ETableChunkFormat::VersionedColumnar &&
-        formatVersion != ETableChunkFormat::SchemalessHorizontal)
+    if (ChunkFormat_ != ETableChunkFormat::VersionedSimple &&
+        ChunkFormat_ != ETableChunkFormat::VersionedColumnar &&
+        ChunkFormat_ != ETableChunkFormat::SchemalessHorizontal)
     {
-        THROW_ERROR_EXCEPTION("Incorrect chunk format version: actual %Qlv, expected %Qlv or %Qlv",
-            formatVersion,
-            ETableChunkFormat::VersionedSimple,
-            ETableChunkFormat::VersionedColumnar);
+        THROW_ERROR_EXCEPTION("Incorrect chunk format %Qlv",
+            ChunkFormat_);
     }
 }
 
 void TCachedVersionedChunkMeta::ValidateSchema(const TTableSchema& readerSchema)
 {
-    auto maybeKeyColumnsExt = FindProtoExtension<TKeyColumnsExt>(ChunkMeta_.extensions());
-    auto tableSchemaExt = GetProtoExtension<TTableSchemaExt>(ChunkMeta_.extensions());
-    if (maybeKeyColumnsExt) {
-        FromProto(&ChunkSchema_, tableSchemaExt, *maybeKeyColumnsExt);
-    } else {
-        FromProto(&ChunkSchema_, tableSchemaExt);
-    }
-
     ChunkKeyColumnCount_ = ChunkSchema_.GetKeyColumnCount();
-
     auto throwIncompatibleKeyColumns = [&] () {
         THROW_ERROR_EXCEPTION(
             "Reader key columns %v are incompatible with chunk key columns %v",

@@ -19,6 +19,8 @@ public:
     //! Takes ownership of #fd.
     explicit TAsyncWriter(int fd);
 
+    explicit TAsyncWriter(TNamedPipePtr ptr);
+
     virtual ~TAsyncWriter();
 
     int GetHandle() const;
@@ -32,7 +34,7 @@ public:
 
 private:
     NDetail::TAsyncWriterImplPtr Impl_;
-
+    TNamedPipePtr NamedPipeHolder_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TAsyncWriter);

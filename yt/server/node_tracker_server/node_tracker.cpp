@@ -525,9 +525,16 @@ public:
         TotalNodeStatistics_ = TTotalNodeStatistics();
         for (const auto& pair : NodeMap_) {
             const auto* node = pair.second;
+            TotalNodeStatistics_.BannedNodeCount += node->GetBanned();
+            TotalNodeStatistics_.DecommissinedNodeCount += node->GetDecommissioned();
+            TotalNodeStatistics_.WithAlertsNodeCount += !node->Alerts().empty();
+
             if (node->GetAggregatedState() != ENodeState::Online) {
+                ++TotalNodeStatistics_.OfflineNodeCount;
                 continue;
             }
+            TotalNodeStatistics_.OnlineNodeCount += 1;
+
             const auto& statistics = node->Statistics();
             if (!node->GetDecommissioned()) {
                 TotalNodeStatistics_.AvailableSpace += statistics.total_available_space();
@@ -535,7 +542,6 @@ public:
             TotalNodeStatistics_.UsedSpace += statistics.total_used_space();
             TotalNodeStatistics_.ChunkReplicaCount += statistics.total_stored_chunk_count();
             TotalNodeStatistics_.FullNodeCount += statistics.full() ? 1 : 0;
-            TotalNodeStatistics_.OnlineNodeCount += 1;
         }
         TotalNodeStatisticsUpdateDeadline_ = now + DurationToCpuDuration(TotalNodeStatisticsUpdatePeriod);
         return TotalNodeStatistics_;
@@ -1354,7 +1360,7 @@ private:
 
     void OnProfiling()
     {
-        if (!IsLeader()) {
+        if (!Bootstrap_->IsPrimaryMaster() || !IsLeader()) {
             return;
         }
 
@@ -1362,7 +1368,12 @@ private:
         Profiler.Enqueue("/available_space", statistics.AvailableSpace, EMetricType::Gauge);
         Profiler.Enqueue("/used_space", statistics.UsedSpace, EMetricType::Gauge);
         Profiler.Enqueue("/chunk_replica_count", statistics.ChunkReplicaCount, EMetricType::Gauge);
+
         Profiler.Enqueue("/online_node_count", statistics.OnlineNodeCount, EMetricType::Gauge);
+        Profiler.Enqueue("/offline_node_count", statistics.OfflineNodeCount, EMetricType::Gauge);
+        Profiler.Enqueue("/banned_node_count", statistics.BannedNodeCount, EMetricType::Gauge);
+        Profiler.Enqueue("/decommissioned_node_count", statistics.DecommissinedNodeCount, EMetricType::Gauge);
+        Profiler.Enqueue("/with_alerts_node_count", statistics.WithAlertsNodeCount, EMetricType::Gauge);
         Profiler.Enqueue("/full_node_count", statistics.FullNodeCount, EMetricType::Gauge);
     }
 };

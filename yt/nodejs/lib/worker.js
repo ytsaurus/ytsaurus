@@ -39,6 +39,8 @@ process.on("exit", function() {
 var __DBG = require("./debug").that("C", "Cluster Worker");
 var __PROFILE = false;
 
+var HEAP_LIMIT = 320;
+
 // Load configuration.
 var config = JSON.parse(process.env.YT_PROXY_CONFIGURATION);
 
@@ -262,11 +264,11 @@ setInterval(function() {
         return;
     }
     var statistics = binding.GetHeapStatistics();
-    if (statistics.used_heap_size > 128 * 1024 * 1024) {
-        console.error("[" + process.pid + "] Heap is >128MB; gracefully restarting");
+    if (statistics.used_heap_size > HEAP_LIMIT * 1024 * 1024) {
+        console.error("[" + process.pid + "] Heap is >" + HEAP_LIMIT + "MB; gracefully restarting");
         gracefullyDie();
         setTimeout(function() {
-            console.error("[" + process.pid + "] Heap is >128MB; violently restarting");
+            console.error("[" + process.pid + "] Heap is >" + HEAP_LIMIT + "MB; violently restarting");
             violentlyDie();
         }, 5000);
     }

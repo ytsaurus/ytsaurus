@@ -11,6 +11,7 @@ namespace NNodeTrackerClient {
 
 using namespace NYson;
 using namespace NYTree;
+using namespace NProfiling;
 using namespace NObjectClient;
 using namespace NNodeTrackerClient::NProto;
 
@@ -80,6 +81,13 @@ Stroka FormatResources(const TNodeResources& resources)
         resources.repair_slots(),
         resources.repair_data_size() / (1024 * 1024),
         resources.seal_slots());
+}
+
+void ProfileResources(TProfiler& profiler, const TNodeResources& resources)
+{
+    #define XX(name, Name) profiler.Enqueue("/" #name, resources.name(), EMetricType::Gauge);
+    ITERATE_NODE_RESOURCES(XX)
+    #undef XX
 }
 
 TNodeResources GetZeroNodeResources()

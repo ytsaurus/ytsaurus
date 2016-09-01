@@ -1,3 +1,4 @@
+var crypto = require("crypto");
 var lru_cache = require("lru-cache");
 var Q = require("bluebird");
 
@@ -78,6 +79,9 @@ function YtAuthority$authenticateByToken(logger, profiler, party, token)
 {
     this.__DBG("authenticateByToken");
 
+    var md5sum = crypto.createHash("md5")
+        .update(token + "").digest("hex");
+
     // This structure represents an immutable request state.
     // It is passed to all subsequent calls.
     var context = {
@@ -86,6 +90,8 @@ function YtAuthority$authenticateByToken(logger, profiler, party, token)
         profiler: profiler,
         party: party,
         cache_key: "T" + token,
+        kind: "token",
+        md5sum: md5sum,
         token: token,
         domain: false,
     };
@@ -110,6 +116,9 @@ function YtAuthority$authenticateByCookie(logger, profiler, party, sessionid, ss
 {
     this.__DBG("authenticateByCookie");
 
+    var md5sum = crypto.createHash("md5")
+        .update(sessionid + "").update(sslsessionid + "").digest("hex");
+
     // This structure represents an immutable request state.
     // It is passed to all subsequent calls.
     var context = {
@@ -118,6 +127,8 @@ function YtAuthority$authenticateByCookie(logger, profiler, party, sessionid, ss
         profiler: profiler,
         party: party,
         cache_key: "C" + sessionid + "/" + sslsessionid,
+        kind: "cookie",
+        md5sum: md5sum,
         sessionid: sessionid,
         sslsessionid: sslsessionid,
         domain: false,
@@ -223,13 +234,18 @@ YtAuthority.prototype._syncCheckCache = function(context, result)
         // We can't do something like |*result = cached_result;|.
         context.logger.debug("Authentication cache hit", {
             login: cached_result.login,
-            realm: cached_result.realm
+            realm: cached_result.realm,
+            kind: context.kind,
+            md5sum: context.md5sum,
         });
         result.login = cached_result.login;
         result.realm = cached_result.realm;
         return true;
     } else {
-        context.logger.debug("Authentication cache miss");
+        context.logger.debug("Authentication cache miss", {
+            kind: context.kind,
+            md5sum: context.md5sum,
+        });
     }
 };
 
@@ -350,24 +366,34 @@ YtAuthority.prototype._syncFinalize = function(context, result)
     if (result.isAuthenticated) {
         context.logger.debug("Authentication succeeded", {
             authentication_time: dt,
+            kind: context.kind,
+            md5sum: context.md5sum,
         });
         success = 1;
         this.authentication_cache.set(context.cache_key, result);
     } else {
         context.logger.info("Authentication failed", {
             authentication_time: dt,
+            kind: context.kind,
+            md5sum: context.md5sum,
         });
         success = 0;
         this.authentication_cache.del(context.cache_key);
     }
 
-    var tags = {
+    var count_tags = {
         success: success,
         authenticated_user: result.login,
         authenticated_from: result.realm
     };
-    context.profiler.inc("yt.http_proxy.authentication_count", tags, 1);
-    context.profiler.upd("yt.http_proxy.authentication_time", tags, dt);
+
+    var time_tags = {
+        success: success,
+        authenticated_from: result.realm
+    };
+
+    context.profiler.inc("yt.http_proxy.authentication_count", count_tags, 1);
+    context.profiler.upd("yt.http_proxy.authentication_time", time_tags, dt);
 
     return result;
 };

@@ -63,6 +63,7 @@
 #include <yt/core/compression/helpers.h>
 
 #include <yt/core/concurrency/scheduler.h>
+#include <yt/core/concurrency/async_semaphore.h>
 #include <yt/core/concurrency/action_queue.h>
 
 #include <yt/core/profiling/scoped_timer.h>
@@ -136,7 +137,7 @@ TUserWorkloadDescriptor::operator TWorkloadDescriptor() const
 }
 
 struct TSerializableUserWorkloadDescriptor
-    : public TYsonSerializable
+    : public TYsonSerializableLite
 {
     TUserWorkloadDescriptor Underlying;
 
@@ -903,7 +904,7 @@ private:
                 Stroka address;
                 std::tie(dataSources, address) = getSubsources(index);
 
-                LOG_DEBUG("Delegating subquery (SubqueryId: %v, Address: %v, MaxSubqueries %v)",
+                LOG_DEBUG("Delegating subquery (SubQueryId: %v, Address: %v, MaxSubqueries: %v)",
                     subquery->Id,
                     address,
                     options.MaxSubqueries);
@@ -1089,6 +1090,7 @@ public:
         const TClientOptions& options)
         : Connection_(std::move(connection))
         , Options_(options)
+        , ConcurrentRequestsSemaphore_(New<TAsyncSemaphore>(Connection_->GetConfig()->MaxConcurrentRequests))
     {
         auto wrapChannel = [&] (IChannelPtr channel) {
             channel = CreateAuthenticatedChannel(channel, options.User);
@@ -1134,7 +1136,7 @@ public:
 
         QueryHelper_ = New<TQueryHelper>(
             Connection_,
-            GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower),
+            GetMasterChannelOrThrow(EMasterChannelKind::Follower),
             HeavyChannelFactory_,
             CreateFunctionImplCache(
                 Connection_->GetConfig()->FunctionImplCache,
@@ -1178,7 +1180,7 @@ public:
         return SchedulerChannel_;
     }
 
-    virtual INodeChannelFactoryPtr GetNodeChannelFactory() override
+    virtual INodeChannelFactoryPtr GetLightChannelFactory() override
     {
         return LightChannelFactory_;
     }
@@ -1470,6 +1472,8 @@ private:
     std::unique_ptr<TSchedulerServiceProxy> SchedulerProxy_;
     std::unique_ptr<TJobProberServiceProxy> JobProberProxy_;
 
+    TAsyncSemaphorePtr ConcurrentRequestsSemaphore_;
+
     NLogging::TLogger Logger = ApiLogger;
 
 
@@ -1479,8 +1483,13 @@ private:
         const TTimeoutOptions& options,
         TCallback<T()> callback)
     {
+        auto guard = TAsyncSemaphoreGuard::TryAcquire(ConcurrentRequestsSemaphore_);
+        if (!guard) {
+            return MakeFuture<T>(TError(EErrorCode::TooManyConcurrentRequests, "Too many concurrent requests"));
+        }
+
         return
-            BIND([commandName, callback = std::move(callback), this_ = MakeWeak(this)] () {
+            BIND([commandName, callback = std::move(callback), this_ = MakeWeak(this), guard = std::move(guard)] () {
                 auto client = this_.Lock();
                 if (!client) {
                     THROW_ERROR_EXCEPTION("Client was abandoned");
@@ -1626,6 +1635,14 @@ private:
         }
     }
 
+    static void SetCachingHeader(
+        IClientRequestPtr request,
+        const TCacheOptions& options)
+    {
+        auto* cachingHeaderExt = request->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
+        cachingHeaderExt->set_success_expiration_time(ToProto(options.ExpireAfterSuccessfulUpdateTime));
+        cachingHeaderExt->set_failure_expiration_time(ToProto(options.ExpireAfterFailedUpdateTime));
+    }
 
     template <class TProxy>
     std::unique_ptr<TProxy> CreateReadProxy(
@@ -1856,27 +1873,32 @@ private:
         }
 
         std::sort(sortedKeys.begin(), sortedKeys.end());
+        std::vector<int> keyIndexToResultIndex(keys.Size());
+        int currentResultIndex = -1;
 
         yhash_map<TCellId, TTabletCellLookupSessionPtr> cellIdToSession;
 
-        for (const auto& pair : sortedKeys) {
-            int index = pair.second;
-            auto key = pair.first;
-            auto tabletInfo = GetSortedTabletForRow(tableInfo, key);
-            const auto& cellId = tabletInfo->CellId;
-            auto it = cellIdToSession.find(cellId);
-            if (it == cellIdToSession.end()) {
-                it = cellIdToSession.insert(std::make_pair(
-                    cellId,
-                    New<TTabletCellLookupSession>(
-                        Connection_->GetConfig(),
+        for (int index = 0; index < sortedKeys.size(); ++index) {
+            if (index == 0 || sortedKeys[index].first != sortedKeys[index - 1].first) {
+                auto key = sortedKeys[index].first;
+                auto tabletInfo = GetSortedTabletForRow(tableInfo, key);
+                const auto& cellId = tabletInfo->CellId;
+                auto it = cellIdToSession.find(cellId);
+                if (it == cellIdToSession.end()) {
+                    it = cellIdToSession.insert(std::make_pair(
                         cellId,
-                        options,
-                        tableInfo)))
-                    .first;
+                        New<TTabletCellLookupSession>(
+                            Connection_->GetConfig(),
+                            cellId,
+                            options,
+                            tableInfo)))
+                        .first;
+                }
+                const auto& session = it->second;
+                session->AddKey(++currentResultIndex, std::move(tabletInfo), key);
             }
-            const auto& session = it->second;
-            session->AddKey(index, std::move(tabletInfo), key);
+
+            keyIndexToResultIndex[sortedKeys[index].second] = currentResultIndex;
         }
 
         std::vector<TFuture<void>> asyncResults;
@@ -1890,14 +1912,21 @@ private:
         WaitFor(Combine(asyncResults))
             .ThrowOnError();
 
-        std::vector<TUnversionedRow> resultRows;
-        resultRows.resize(keys.Size());
+        std::vector<TUnversionedRow> uniqueResultRows;
+        uniqueResultRows.resize(currentResultIndex + 1);
 
         std::vector<std::unique_ptr<TWireProtocolReader>> readers;
 
         for (const auto& pair : cellIdToSession) {
             const auto& session = pair.second;
-            session->ParseResponse(&resultRows, &readers);
+            session->ParseResponse(&uniqueResultRows, &readers);
+        }
+
+        std::vector<TUnversionedRow> resultRows;
+        resultRows.resize(keys.Size());
+
+        for (int index = 0; index < keys.Size(); ++index) {
+            resultRows[index] = uniqueResultRows[keyIndexToResultIndex[index]];
         }
 
         if (!options.KeepMissingRows) {
@@ -2189,13 +2218,15 @@ private:
         SetTransactionId(req, options, true);
         SetSuppressAccessTracking(req, options);
 
+        if (options.ReadFrom == EMasterChannelKind::Cache) {
+            SetCachingHeader(req, options);
+        }
         if (options.Attributes) {
             ToProto(req->mutable_attributes()->mutable_keys(), *options.Attributes);
         }
         if (options.MaxSize) {
             req->set_limit(*options.MaxSize);
         }
-        req->set_ignore_opaque(options.IgnoreOpaque);
         if (options.Options) {
             ToProto(req->mutable_options(), *options.Options);
         }
@@ -2257,6 +2288,9 @@ private:
         SetTransactionId(req, options, true);
         SetSuppressAccessTracking(req, options);
 
+        if (options.ReadFrom == EMasterChannelKind::Cache) {
+            SetCachingHeader(req, options);
+        }
         if (options.Attributes) {
             ToProto(req->mutable_attributes()->mutable_keys(), *options.Attributes);
         }
@@ -2765,10 +2799,11 @@ private:
 
     void DoSuspendOperation(
         const TOperationId& operationId,
-        const TSuspendOperationOptions& /*options*/)
+        const TSuspendOperationOptions& options)
     {
         auto req = SchedulerProxy_->SuspendOperation();
         ToProto(req->mutable_operation_id(), operationId);
+        req->set_abort_running_jobs(options.AbortRunningJobs);
 
         WaitFor(req->Invoke())
             .ThrowOnError();
@@ -2950,18 +2985,30 @@ public:
 
     virtual TFuture<void> Commit(const TTransactionCommitOptions& options) override
     {
-        if (!Outcome_) {
-            return BIND(&TTransaction::DoCommit, MakeStrong(this))
-                .AsyncVia(CommitInvoker_)
-                .Run(options);
+        {
+            auto guard = Guard(SpinLock_);
+            if (!Active_) {
+                return MakeFuture<void>(TError("Transaction %v is not active", GetId()));
+            }
+            Active_ = false;
         }
-        return Outcome_;
+
+        return BIND(&TTransaction::DoCommit, MakeStrong(this))
+            .AsyncVia(CommitInvoker_)
+            .Run(options);
     }
 
     virtual TFuture<void> Abort(const TTransactionAbortOptions& options) override
     {
-        Outcome_ = Transaction_->Abort(options);
-        return Outcome_;
+        {
+            auto guard = Guard(SpinLock_);
+            if (!Active_) {
+                return MakeFuture<void>(TError("Transaction %v is not active", GetId()));
+            }
+            Active_ = false;
+        }
+
+        return Transaction_->Abort(options);
     }
 
     virtual void Detach() override
@@ -3010,6 +3057,11 @@ public:
         const TWriteRowsOptions& options) override
     {
         ValidateTabletTransaction();
+
+        auto guard = Guard(SpinLock_);
+        if (!Active_) {
+            THROW_ERROR_EXCEPTION("Transaction %v is not active", GetId());
+        }
         auto rowCount = rows.Size();
         Requests_.push_back(std::make_unique<TWriteRequest>(
             this,
@@ -3028,6 +3080,11 @@ public:
         const TDeleteRowsOptions& options) override
     {
         ValidateTabletTransaction();
+
+        auto guard = Guard(SpinLock_);
+        if (!Active_) {
+            THROW_ERROR_EXCEPTION("Transaction %v is not active", GetId());
+        }
         auto keyCount = keys.Size();
         Requests_.push_back(std::make_unique<TDeleteRequest>(
             this,
@@ -3179,7 +3236,8 @@ private:
 
     const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TTransactionBufferTag());
 
-    TFuture<void> Outcome_;
+    TSpinLock SpinLock_;
+    bool Active_ = true;
 
 
 

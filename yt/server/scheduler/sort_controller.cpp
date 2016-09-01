@@ -475,7 +475,8 @@ protected:
 
             Controller->PartitionJobCounter.Completed(1);
 
-            auto* resultExt = jobSummary.Result->MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+            auto& result = const_cast<TJobResult&>(jobSummary.Result);
+            auto* resultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
             auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_output_chunks());
 
             RegisterIntermediate(
@@ -560,7 +561,7 @@ protected:
             }
 
             if (Controller->Spec->EnablePartitionedDataBalancing) {
-                auto nodeDescriptors = Controller->Host->GetExecNodeDescriptors(Controller->Operation->GetSchedulingTag());
+                auto nodeDescriptors = Controller->GetExecNodeDescriptors();
                 yhash_map<TNodeId, TExecNodeDescriptor> idToNodeDescriptor;
                 for (const auto& descriptor : nodeDescriptors) {
                     YCHECK(idToNodeDescriptor.insert(std::make_pair(descriptor.Id, descriptor)).second);
@@ -775,7 +776,8 @@ protected:
 
                 // Sort outputs in large partitions are queued for further merge.
                 // Construct a stripe consisting of sorted chunks and put it into the pool.
-                auto* resultExt = jobSummary.Result->MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+                auto& result = const_cast<TJobResult&>(jobSummary.Result);
+                auto* resultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
                 auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_output_chunks());
 
                 RegisterIntermediate(
@@ -1847,16 +1849,43 @@ private:
     virtual void PrepareOutputTables() override
     {
         auto& table = OutputTables[0];
-        table.UpdateMode = EUpdateMode::Overwrite;
-        table.LockMode = ELockMode::Exclusive;
+        table.TableUploadOptions.LockMode = ELockMode::Exclusive;
 
-        if (!table.PreserveSchemaOnWrite) {
-            table.Schema = TTableSchema::FromKeyColumns(Spec->SortBy);
-        } else if (!CheckKeyColumnsCompatible(Spec->SortBy, table.Schema.GetKeyColumns())) {
-            THROW_ERROR_EXCEPTION("Table %v is expected to be sorted by columns [%v], but sort operation key columns are [%v]",
-                table.Path,
-                JoinToString(table.Schema.GetKeyColumns()),
-                JoinToString(Spec->SortBy));
+        switch (Spec->SchemaInferenceMode) {
+            case ESchemaInferenceMode::Auto:
+                if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
+                    InferSchemaFromInputSorted(Spec->SortBy);
+                } else {
+                    table.TableUploadOptions.TableSchema =
+                        table.TableUploadOptions.TableSchema.ToSorted(Spec->SortBy);
+
+                    for (const auto& inputTable : InputTables) {
+                        if (inputTable.SchemaMode == ETableSchemaMode::Strong) {
+                            ValidateTableSchemaCompatibility(
+                                inputTable.Schema,
+                                table.TableUploadOptions.TableSchema,
+                                /* ignoreSortOrder */ true)
+                            .ThrowOnError();
+                        }
+                    }
+                }
+                break;
+
+            case ESchemaInferenceMode::FromInput:
+                InferSchemaFromInputSorted(Spec->SortBy);
+                break;
+
+            case ESchemaInferenceMode::FromOutput:
+                if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
+                    table.TableUploadOptions.TableSchema = TTableSchema::FromKeyColumns(Spec->SortBy);
+                } else {
+                    table.TableUploadOptions.TableSchema =
+                        table.TableUploadOptions.TableSchema.ToSorted(Spec->SortBy);
+                }
+                break;
+
+            default:
+                Y_UNREACHABLE();
         }
     }
 
@@ -2667,7 +2696,8 @@ private:
                 InitUserJobSpecTemplate(
                     schedulerJobSpecExt->mutable_user_job_spec(),
                     Spec->Mapper,
-                    MapperFiles);
+                    MapperFiles,
+                    Spec->JobNodeAccount);
             }
         }
 
@@ -2688,7 +2718,8 @@ private:
                 InitUserJobSpecTemplate(
                     schedulerJobSpecExt->mutable_user_job_spec(),
                     Spec->ReduceCombiner,
-                    ReduceCombinerFiles);
+                    ReduceCombinerFiles,
+                    Spec->JobNodeAccount);
             } else {
                 IntermediateSortJobSpecTemplate.set_type(static_cast<int>(EJobType::IntermediateSort));
                 auto* sortJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
@@ -2714,7 +2745,8 @@ private:
             InitUserJobSpecTemplate(
                 schedulerJobSpecExt->mutable_user_job_spec(),
                 Spec->Reducer,
-                ReducerFiles);
+                ReducerFiles,
+                Spec->JobNodeAccount);
         }
 
         {
@@ -2735,7 +2767,8 @@ private:
             InitUserJobSpecTemplate(
                 schedulerJobSpecExt->mutable_user_job_spec(),
                 Spec->Reducer,
-                ReducerFiles);
+                ReducerFiles,
+                Spec->JobNodeAccount);
         }
     }
 

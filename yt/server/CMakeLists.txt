@@ -1,6 +1,6 @@
 IF(YMAKE)
   SET(CMAKE_CURRENT_LIST_DIR .)
-  SET(YT_ABI 18_4)
+  SET(YT_ABI 18_5)
 ENDIF()
 
 SET(PROTO_NAMESPACE yt/${YT_ABI})
@@ -182,6 +182,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/simple_sort_job.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/sorted_merge_job.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/sorted_reduce_job_io.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/stderr_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/stracer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/table_output.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/user_job.cpp
@@ -249,7 +250,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/map_controller.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/master_connector.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/merge_controller.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/scheduler/null_strategy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/node_shard.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/operation.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/operation_controller_detail.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/private.cpp
@@ -393,17 +394,15 @@ add_executable(ytserver
   ${CMAKE_CURRENT_LIST_DIR}/main.cpp
 )
 
-add_library(ytserver_lib
-  ${YT_SRCS_RESOLVED}
-)
+add_library(yt-library-server ${YT_SRCS_RESOLVED})
 
-target_link_libraries(ytserver_lib
-  ytlib
+target_link_libraries(yt-library-server
+  yt-library-client
 )
 
 target_link_libraries(ytserver
-  ytserver_lib
-  ytext-arcadia-library-lfalloc
+  yt-library-server
+  deps-arcadia-library-lfalloc
 )
 
 set_target_properties(ytserver
@@ -412,9 +411,7 @@ set_target_properties(ytserver
 )
 
 if(YT_BUILD_ENABLE_GDB_INDEX AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-    add_gdb_index(
-      ytserver
-    )
+  add_gdb_index(ytserver)
 endif()
 
 install(

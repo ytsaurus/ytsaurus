@@ -11,6 +11,9 @@
 #include <yt/ytlib/query_client/functions_cg.h>
 #include <yt/ytlib/query_client/coordinator.h>
 
+#include <yt/core/yson/string.h>
+#include <yt/core/ytree/convert.h>
+
 // Tests:
 // TCompareExpressionTest
 // TEliminateLookupPredicateTest
@@ -24,6 +27,9 @@
 namespace NYT {
 namespace NQueryClient {
 namespace {
+
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -94,6 +100,106 @@ protected:
         return true;
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TExtractSubexpressionPredicateTest
+    : public ::testing::Test
+    , public ::testing::WithParamInterface<std::tuple<
+        const char*,
+        const char*,
+        const char*,
+        const char*>>
+    , public TCompareExpressionTest
+{
+protected:
+    virtual void SetUp() override
+    { }
+
+};
+
+TEST_P(TExtractSubexpressionPredicateTest, Simple)
+{
+    const auto& args = GetParam();
+    const auto& schemaString = std::get<0>(args);
+    const auto& subschemaString = std::get<1>(args);
+    const auto& predicateString = std::get<2>(args);
+    const auto& extractedString = std::get<3>(args);
+
+    TTableSchema tableSchema;
+    TTableSchema tableSubschema;
+    Deserialize(tableSchema, ConvertToNode(TYsonString(schemaString)));
+    Deserialize(tableSubschema, ConvertToNode(TYsonString(subschemaString)));
+
+    auto predicate = PrepareExpression(predicateString, tableSchema);
+    auto expected = PrepareExpression(extractedString, tableSubschema);
+
+    auto extracted = ExtractPredicateForColumnSubset(predicate, tableSubschema);
+
+    TConstExpressionPtr extracted2;
+    TConstExpressionPtr remaining;
+    std::tie(extracted2, remaining) = SplitPredicateByColumnSubset(predicate, tableSubschema);
+
+    EXPECT_TRUE(Equal(extracted, expected))
+        << "schema: " << schemaString << std::endl
+        << "subschema: " << subschemaString << std::endl
+        << "predicate: " << ::testing::PrintToString(predicate) << std::endl
+        << "extracted: " << ::testing::PrintToString(extracted) << std::endl
+        << "expected: " << ::testing::PrintToString(expected);
+
+    EXPECT_TRUE(Equal(extracted2, expected))
+        << "schema: " << schemaString << std::endl
+        << "subschema: " << subschemaString << std::endl
+        << "predicate: " << ::testing::PrintToString(predicate) << std::endl
+        << "extracted2: " << ::testing::PrintToString(extracted2) << std::endl
+        << "expected: " << ::testing::PrintToString(expected);
+}
+
+INSTANTIATE_TEST_CASE_P(
+    TExtractSubexpressionPredicateTest,
+    TExtractSubexpressionPredicateTest,
+    ::testing::Values(
+        std::make_tuple(
+            "[{name=a;type=boolean;}; {name=b;type=boolean}; {name=c;type=boolean}]",
+            "[{name=a;type=boolean;}]",
+            "a and b and c",
+            "a"),
+        std::make_tuple(
+            "[{name=a;type=boolean;}; {name=b;type=boolean}; {name=c;type=boolean}]",
+            "[{name=a;type=boolean;}]",
+            "not a and b and c",
+            "not a"),
+        std::make_tuple(
+            "[{name=a;type=int64;}; {name=b;type=boolean}; {name=c;type=boolean}]",
+            "[{name=a;type=int64;}]",
+            "not is_null(a) and b and c",
+            "not is_null(a)"),
+        std::make_tuple(
+            "[{name=a;type=int64;}; {name=b;type=boolean}; {name=c;type=boolean}]",
+            "[{name=a;type=int64;}]",
+            "a in (1, 2, 3) and b and c",
+            "a in (1, 2, 3)"),
+        std::make_tuple(
+            "[{name=a;type=int64;}; {name=b;type=boolean}; {name=c;type=boolean}]",
+            "[{name=a;type=int64;}]",
+            "a = 1 and b and c",
+            "a = 1"),
+        std::make_tuple(
+            "[{name=a;type=int64;}; {name=b;type=int64}; {name=c;type=boolean}]",
+            "[{name=a;type=int64;}; {name=b;type=int64}]",
+            "a = b and c",
+            "a = b"),
+        std::make_tuple(
+            "[{name=a;type=boolean;}; {name=b;type=int64}; {name=c;type=boolean}]",
+            "[{name=a;type=boolean;}; {name=b;type=int64}]",
+            "if(a, b = 1, false) and c",
+            "if(a, b = 1, false)"),
+        std::make_tuple(
+            "[{name=a;type=boolean;}; {name=b;type=boolean}]",
+            "[{name=a;type=boolean;};]",
+            "a or b",
+            "true")
+));
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -165,7 +165,7 @@ void TChunkListPool::AllocateMore(TCellTag cellTag)
         return;
     }
 
-    LOG_INFO("Allocating more chunk lists for pool (CellTag: %v, Count: %v)",
+    LOG_DEBUG("Allocating more chunk lists for pool (CellTag: %v, Count: %v)",
         cellTag,
         count);
 
@@ -208,7 +208,7 @@ void TChunkListPool::OnChunkListsCreated(
     data.Ids.insert(data.Ids.end(), ids.begin(), ids.end());
     data.LastSuccessCount = ids.size();
 
-    LOG_INFO("Allocated more chunk lists for pool (CellTag: %v, Count: %v)",
+    LOG_DEBUG("Allocated more chunk lists for pool (CellTag: %v, Count: %v)",
         cellTag,
         data.LastSuccessCount);
 }

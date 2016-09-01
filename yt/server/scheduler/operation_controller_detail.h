@@ -133,7 +133,7 @@ public:
     virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildMemoryDigestStatistics(NYson::IYsonConsumer* consumer) const override;
 
-    TFuture<NYson::TYsonString> BuildInputPathYson(const TJobId& jobId) const override;
+    NYson::TYsonString BuildInputPathYson(const TJobId& jobId) const override;
 
     virtual void Persist(TPersistenceContext& context) override;
 
@@ -216,9 +216,8 @@ protected:
         //! Number of chunks in the whole table (without range selectors).
         int ChunkCount = -1;
         std::vector<NChunkClient::TInputChunkPtr> Chunks;
-        NTableClient::TKeyColumns KeyColumns;
         NTableClient::TTableSchema Schema;
-        bool PreserveSchemaOnWrite;
+        NTableClient::ETableSchemaMode SchemaMode;
 
         bool IsForeign() const
         {
@@ -250,12 +249,8 @@ protected:
         : public NChunkClient::TUserObject
         , public TLivePreviewTableBase
     {
-        bool AppendRequested = false;
-        NChunkClient::EUpdateMode UpdateMode = NChunkClient::EUpdateMode::Overwrite;
-        NCypressClient::ELockMode LockMode = NCypressClient::ELockMode::Exclusive;
         NTableClient::TTableWriterOptionsPtr Options = New<NTableClient::TTableWriterOptions>();
-        NTableClient::TTableSchema Schema;
-        bool PreserveSchemaOnWrite;
+        NTableClient::TTableUploadOptions TableUploadOptions;
         bool ChunkPropertiesUpdateNeeded = false;
 
         // Server-side upload transaction.
@@ -649,7 +644,9 @@ protected:
 
     // Jobs in progress management.
     void RegisterJoblet(TJobletPtr joblet);
+    TJobletPtr FindJoblet(const TJobId& jobId) const;
     TJobletPtr GetJoblet(const TJobId& jobId) const;
+    TJobletPtr GetJobletOrThrow(const TJobId& jobId) const;
     void RemoveJoblet(const TJobId& jobId);
 
 
@@ -880,6 +877,10 @@ protected:
     std::vector<TChunkStripePtr> SliceInputChunks(
         i64 maxSliceDataSize,
         int* jobCount);
+    
+    int GetMaxJobCount(
+        TNullable<int> userMaxJobCount,
+        int maxJobCount);
 
     int SuggestJobCount(
         i64 totalDataSize,
@@ -890,7 +891,8 @@ protected:
     void InitUserJobSpecTemplate(
         NScheduler::NProto::TUserJobSpec* proto,
         TUserJobSpecPtr config,
-        const std::vector<TUserFile>& files);
+        const std::vector<TUserFile>& files,
+        const Stroka& fileAccount);
 
     void InitUserJobSpec(
         NScheduler::NProto::TUserJobSpec* proto,
@@ -922,6 +924,11 @@ protected:
     const IDigest* GetJobProxyMemoryDigest(EJobType jobType) const;
 
     i64 ComputeUserJobMemoryReserve(EJobType jobType, TUserJobSpecPtr jobSpec) const;
+
+    void InferSchemaFromInputUnordered();
+    void InferSchemaFromInputOrdered();
+    void InferSchemaFromInputSorted(const NTableClient::TKeyColumns& keyColumns);
+    void ValidateOutputSchemaOrdered() const;
 
 private:
     typedef TOperationControllerBase TThis;
@@ -1009,8 +1016,6 @@ private:
     virtual NYson::IYsonConsumer* GetEventLogConsumer() override;
 
     TCodicilGuard MakeCodicilGuard() const;
-
-    NYson::TYsonString DoBuildInputPathYson(const TJobId& jobId) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

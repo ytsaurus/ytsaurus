@@ -176,8 +176,8 @@ TVersionedChunkReaderBase::TVersionedChunkReaderBase(
     , PerformanceCounters_(std::move(performanceCounters))
 {
     YCHECK(ChunkMeta_->Misc().sorted());
-    YCHECK(EChunkType(ChunkMeta_->ChunkMeta().type()) == EChunkType::Table);
-    YCHECK(ETableChunkFormat(ChunkMeta_->ChunkMeta().version()) == ETableChunkFormat::VersionedSimple);
+    YCHECK(ChunkMeta_->GetChunkType() == EChunkType::Table);
+    YCHECK(ChunkMeta_->GetChunkFormat() == ETableChunkFormat::VersionedSimple);
     YCHECK(Timestamp_ != AllCommittedTimestamp || columnFilter.All);
     YCHECK(PerformanceCounters_);
 }
@@ -551,8 +551,8 @@ public:
         , PerformanceCounters_(std::move(performanceCounters))
     {
         YCHECK(VersionedChunkMeta_->Misc().sorted());
-        YCHECK(EChunkType(VersionedChunkMeta_->ChunkMeta().type()) == EChunkType::Table);
-        YCHECK(ETableChunkFormat(VersionedChunkMeta_->ChunkMeta().version()) == ETableChunkFormat::VersionedColumnar);
+        YCHECK(VersionedChunkMeta_->GetChunkType() == EChunkType::Table);
+        YCHECK(VersionedChunkMeta_->GetChunkFormat() == ETableChunkFormat::VersionedColumnar);
         YCHECK(Timestamp_ != AllCommittedTimestamp || columnFilter.All);
         YCHECK(PerformanceCounters_);
 
@@ -946,7 +946,7 @@ public:
 
         if (!Initialized_) {
             ResetExhaustedColumns();
-            Initialize(KeyColumnReaders_);
+            Initialize(MakeRange(KeyColumnReaders_.data(), KeyColumnReaders_.size()));
             Initialized_ = true;
             RowIndex_ = LowerRowIndex_;
         }
@@ -1055,7 +1055,7 @@ public:
         for (auto& column : Columns_) {
             for (auto rowIndex : RowIndexes_) {
                 if (rowIndex < VersionedChunkMeta_->Misc().row_count()) {
-                    const auto& columnMeta = VersionedChunkMeta_->ColumnMeta().columns(column.ChunkSchemaIndex);
+                    const auto& columnMeta = VersionedChunkMeta_->ColumnMeta().columns(column.ColumnMetaIndex);
                     auto segmentIndex = GetSegmentIndex(column, rowIndex);
                     const auto& segment = columnMeta.segments(segmentIndex);
                     column.BlockIndexSequence.push_back(segment.block_index());
@@ -1273,8 +1273,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     TChunkReaderPerformanceCountersPtr performanceCounters,
     TTimestamp timestamp)
 {
-    auto formatVersion = ETableChunkFormat(chunkMeta->ChunkMeta().version());
-    switch (formatVersion) {
+    switch (chunkMeta->GetChunkFormat()) {
         case ETableChunkFormat::VersionedSimple:
             return New<TSimpleVersionedRangeChunkReader>(
                 std::move(config),
@@ -1315,7 +1314,11 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         case ETableChunkFormat::SchemalessHorizontal: {
             auto schemalessReaderFactory = [&] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) {
                 TChunkSpec chunkSpec;
-                chunkSpec.mutable_chunk_meta()->CopyFrom(chunkMeta->ChunkMeta());
+                auto* protoMeta = chunkSpec.mutable_chunk_meta();
+                protoMeta->set_type(static_cast<int>(chunkMeta->GetChunkType()));
+                protoMeta->set_version(static_cast<int>(chunkMeta->GetChunkFormat()));
+                SetProtoExtension(protoMeta->mutable_extensions(), chunkMeta->Misc());
+
                 auto options = New<TTableReaderOptions>();
                 options->DynamicTable = true;
 
@@ -1357,8 +1360,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     // Lookup doesn't support reading all values.
     YCHECK(timestamp != AllCommittedTimestamp);
 
-    auto formatVersion = ETableChunkFormat(chunkMeta->ChunkMeta().version());
-    switch (formatVersion) {
+    switch (chunkMeta->GetChunkFormat()) {
         case ETableChunkFormat::VersionedSimple:
             return New<TSimpleVersionedLookupChunkReader>(
                 std::move(config),
@@ -1387,7 +1389,11 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
             auto schemalessReaderFactory = [&] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) {
                 TChunkSpec chunkSpec;
-                chunkSpec.mutable_chunk_meta()->MergeFrom(chunkMeta->ChunkMeta());
+                auto* protoMeta = chunkSpec.mutable_chunk_meta();
+                protoMeta->set_type(static_cast<int>(chunkMeta->GetChunkType()));
+                protoMeta->set_version(static_cast<int>(chunkMeta->GetChunkFormat()));
+                SetProtoExtension(protoMeta->mutable_extensions(), chunkMeta->Misc());
+                
                 auto options = New<TTableReaderOptions>();
                 options->DynamicTable = true;
 

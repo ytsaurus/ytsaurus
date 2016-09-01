@@ -167,10 +167,10 @@ void TSchemalessTableReader::DoOpen()
     {
         LOG_INFO("Requesting table schema");
 
-        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
+        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
         TObjectServiceProxy proxy(channel);
 
-        auto req = TYPathProxy::Get(objectIdPath);
+        auto req = TYPathProxy::Get(objectIdPath + "/@");
         SetTransactionId(req, Transaction_);
         SetSuppressAccessTracking(req, Config_->SuppressAccessTracking);
         std::vector<Stroka> attributeKeys{
@@ -184,13 +184,12 @@ void TSchemalessTableReader::DoOpen()
             path);
 
         const auto& rsp = rspOrError.Value();
-        auto node = ConvertToNode(TYsonString(rsp->value()));
-        const auto& attributes = node->Attributes();
+        auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
 
-        dynamic = attributes.Get<bool>("dynamic");
+        dynamic = attributes->Get<bool>("dynamic");
 
         if (dynamic) {
-            schema = attributes.Get<TTableSchema>("schema");
+            schema = attributes->Get<TTableSchema>("schema");
             if (!schema.IsSorted()) {
                 THROW_ERROR_EXCEPTION("Table is not sorted");
             }
@@ -203,7 +202,7 @@ void TSchemalessTableReader::DoOpen()
     {
         LOG_INFO("Fetching table chunks");
 
-        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower, tableCellTag);
+        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, tableCellTag);
         TObjectServiceProxy proxy(channel);
 
         auto req = TTableYPathProxy::Fetch(objectIdPath);

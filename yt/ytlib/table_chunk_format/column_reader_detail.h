@@ -158,7 +158,6 @@ public:
         return DoReadValues(rows);
     }
 
-
 private:
     TValueExtractor ValueExtractor_;
 
@@ -243,8 +242,6 @@ public:
                 }) - 1;
         }
     }
-
-
 
     virtual NTableClient::TUnversionedValue GetLastValue() const override
     {
@@ -339,8 +336,8 @@ private:
         i64 rangeRowIndex = 0;
         while (rangeRowIndex < rows.Size() && SegmentRowIndex_ < Meta_.row_count()) {
             i64 valueRowCount = ValueIndex_ + 1 == ValueExtractor_.GetValueCount()
-                                ? Meta_.row_count()
-                                : ValueExtractor_.GetRowIndex(ValueIndex_ + 1);
+                ? Meta_.row_count()
+                : ValueExtractor_.GetRowIndex(ValueIndex_ + 1);
 
             NTableClient::TUnversionedValue value;
             SetValue(&value);
@@ -432,8 +429,8 @@ public:
     virtual TNullable<int> GetNextBlockIndex() const override
     {
         return LastBlockSegmentIndex_ == ColumnMeta_.segments_size()
-               ? Null
-               : MakeNullable(static_cast<int>(ColumnMeta_.segments(LastBlockSegmentIndex_ + 1).block_index()));
+           ? Null
+           : MakeNullable(static_cast<int>(ColumnMeta_.segments(LastBlockSegmentIndex_ + 1).block_index()));
     }
 
 protected:

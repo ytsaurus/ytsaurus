@@ -6,9 +6,14 @@
 #include "schemaless_row_reorderer.h"
 
 #include <yt/core/misc/chunked_memory_pool.h>
+#include <yt/core/misc/blob_output.h>
+
+#include <yt/core/yson/writer.h>
 
 namespace NYT {
 namespace NTableClient {
+
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,8 +57,21 @@ public:
             for (int i = 0; i < rows->size(); ++i) {
                 auto row = RowReorderer_.ReorderKey(rows_[i], &MemoryPool_);
                 for (int valueIndex = 0; valueIndex < ReaderSchema_.Columns().size(); ++valueIndex) {
-                    ValidateDataValue(row[valueIndex]);
-                    ValidateValueType(row[valueIndex], ReaderSchema_, valueIndex);
+                    const auto& value = row[valueIndex];
+                    ValidateDataValue(value);
+                    // XXX(babenko)
+                    // The underlying schemaless reader may unpack typed scalar values even
+                    // if the schema has "any" type. For schemaful reader, this is not an expected behavior
+                    // so we have to convert such values back into YSON.
+                    // Cf. YT-5396
+                    if (ReaderSchema_.Columns()[valueIndex].Type == EValueType::Any &&
+                        value.Type != EValueType::Any &&
+                        value.Type != EValueType::Null)
+                    {
+                        row[valueIndex] = MakeAnyFromScalar(value);
+                    } else {
+                        ValidateValueType(value, ReaderSchema_, valueIndex);
+                    }
                 }
                 rows_[i] = row;
             }
@@ -75,15 +93,48 @@ public:
     }
 
 private:
-    ISchemalessReaderPtr UnderlyingReader_;
-
-    TTableSchema ReaderSchema_;
+    const ISchemalessReaderPtr UnderlyingReader_;
+    const TTableSchema ReaderSchema_;
 
     TSchemalessRowReorderer RowReorderer_;
     TChunkedMemoryPool MemoryPool_;
+    TBlobOutput ValueBuffer_;
 
     TPromise<void> ErrorPromise_ = NewPromise<void>();
 
+
+    TUnversionedValue MakeAnyFromScalar(const TUnversionedValue& value)
+    {
+        ValueBuffer_.Clear();
+        TBufferedBinaryYsonWriter writer(&ValueBuffer_);
+        switch (value.Type) {
+            case EValueType::Int64:
+                writer.OnInt64Scalar(value.Data.Int64);
+                break;
+            case EValueType::Uint64:
+                writer.OnUint64Scalar(value.Data.Uint64);
+                break;
+            case EValueType::Double:
+                writer.OnDoubleScalar(value.Data.Double);
+                break;
+            case EValueType::Boolean:
+                writer.OnBooleanScalar(value.Data.Boolean);
+                break;
+            case EValueType::String:
+                writer.OnStringScalar(TStringBuf(value.Data.String, value.Length));
+                break;
+            case EValueType::Null:
+                writer.OnEntity();
+                break;
+            default:
+                Y_UNREACHABLE();
+        }
+        writer.Flush();
+        auto ysonSize = ValueBuffer_.Size();
+        auto* ysonBuffer = MemoryPool_.AllocateUnaligned(ysonSize);
+        ::memcpy(ysonBuffer, ValueBuffer_.Begin(), ysonSize);
+        return MakeUnversionedAnyValue(TStringBuf(ysonBuffer, ysonSize), value.Id);
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchemafulReaderAdapter)

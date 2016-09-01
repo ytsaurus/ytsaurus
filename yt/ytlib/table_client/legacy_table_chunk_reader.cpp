@@ -532,12 +532,12 @@ TLegacyTableChunkReader::TLegacyTableChunkReader(
 bool TLegacyTableChunkReader::Read(std::vector<TUnversionedRow> *rows)
 {
     YCHECK(rows->capacity() > 0);
+    MemoryPool_.Clear();
+    rows->clear();
+
     if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
         return true;
     }
-
-    MemoryPool_.Clear();
-    rows->clear();
 
     if (!ReadyEvent_.IsSet()) {
         return true;
@@ -560,7 +560,7 @@ bool TLegacyTableChunkReader::Read(std::vector<TUnversionedRow> *rows)
     i64 dataWeight = 0;
     while (rows->size() < rows->capacity() && dataWeight < Config_->MaxDataSizePerRead) {
         if (!RowSampler_ || RowSampler_->ShouldTakeRow(GetTableRowIndex())) {
-            auto row = TMutableUnversionedRow::Allocate(&MemoryPool_, CurrentRow_.size());
+            auto row = TMutableUnversionedRow::Allocate(&MemoryPool_, CurrentRow_.size() + SystemColumnCount_);
             std::copy(CurrentRow_.begin(), CurrentRow_.end(), row.Begin());
 
             int valueIndex = CurrentRow_.size();

@@ -27,6 +27,7 @@
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/schema.h>
 #include <yt/ytlib/table_client/table_consumer.h>
+#include <yt/ytlib/table_client/helpers.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 
@@ -88,9 +89,8 @@ void TOperationControllerBase::TInputTable::Persist(TPersistenceContext& context
     using NYT::Persist;
     Persist(context, ChunkCount);
     Persist(context, Chunks);
-    Persist(context, KeyColumns);
     Persist(context, Schema);
-    Persist(context, PreserveSchemaOnWrite);
+    Persist(context, SchemaMode);
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -111,12 +111,8 @@ void TOperationControllerBase::TOutputTable::Persist(TPersistenceContext& contex
     TLivePreviewTableBase::Persist(context);
 
     using NYT::Persist;
-    Persist(context, AppendRequested);
-    Persist(context, UpdateMode);
-    Persist(context, LockMode);
+    Persist(context, TableUploadOptions);
     Persist(context, Options);
-    Persist(context, Schema);
-    Persist(context, PreserveSchemaOnWrite);
     Persist(context, ChunkPropertiesUpdateNeeded);
     Persist(context, UploadTransactionId);
     Persist(context, OutputChunkListId);
@@ -456,7 +452,8 @@ void TOperationControllerBase::TTask::ScheduleJob(
         jobType,
         neededResources,
         restarted,
-        jobSpecBuilder);
+        jobSpecBuilder,
+        Controller->Spec->JobNodeAccount);
 
     joblet->JobType = jobType;
     joblet->NodeDescriptor = context->GetNodeDescriptor();
@@ -657,12 +654,11 @@ bool TOperationControllerBase::TTask::CanScheduleJob(
 void TOperationControllerBase::TTask::DoCheckResourceDemandSanity(
     const TJobResources& neededResources)
 {
-    int execNodeCount = Controller->GetExecNodeCount();
-    if (execNodeCount < Controller->Config->SafeOnlineNodeCount) {
+    const auto& nodeDescriptors = Controller->GetExecNodeDescriptors();
+    if (nodeDescriptors.size() < Controller->Config->SafeOnlineNodeCount) {
         return;
     }
 
-    const auto& nodeDescriptors = Controller->GetExecNodeDescriptors();
     for (const auto& descriptor : nodeDescriptors) {
         if (Dominates(descriptor.ResourceLimits, neededResources)) {
             return;
@@ -791,7 +787,7 @@ void TOperationControllerBase::TTask::AddFinalOutputSpecs(
         const auto& table = Controller->OutputTables[index];
         auto* outputSpec = schedulerJobSpecExt->add_output_specs();
         outputSpec->set_table_writer_options(ConvertToYsonString(table.Options).Data());
-        ToProto(outputSpec->mutable_table_schema(), table.Schema);
+        ToProto(outputSpec->mutable_table_schema(), table.TableUploadOptions.TableSchema);
         ToProto(outputSpec->mutable_chunk_list_id(), joblet->ChunkListIds[index]);
     }
 }
@@ -1155,6 +1151,13 @@ void TOperationControllerBase::Materialize()
 
         AddAllTaskPendingHints();
 
+        if (Config->EnableSnapshotCycleAfterMaterialization) {
+            TStringStream stringStream;
+            SaveSnapshot(&stringStream);
+            auto sharedRef = TSharedRef::FromString(stringStream.Str());
+            DoLoadSnapshot(sharedRef);
+        }
+
         // Input chunk scraper initialization should be the last step to avoid races,
         // because input chunk scraper works in control thread.
         InitInputChunkScraper();
@@ -1243,7 +1246,7 @@ void TOperationControllerBase::CheckTransactions()
             if (!transaction) {
                 if (required) {
                     CleanStart = true;
-                    LOG_INFO("Operation is missing required transaction, will use clean start");
+                    LOG_INFO("Operation transaction is missing, will use clean start");
                 }
                 return;
             }
@@ -1290,8 +1293,7 @@ void TOperationControllerBase::CheckTransactions()
         }
 
         if (CleanStart) {
-            LOG_INFO("Aborting operation transactions (OperationId: %v)",
-                Operation->GetId());
+            LOG_INFO("Aborting operation transactions");
 
             Operation->SetHasActiveTransactions(false);
 
@@ -1305,8 +1307,7 @@ void TOperationControllerBase::CheckTransactions()
             scheduleAbort(Operation->GetOutputTransaction());
             Operation->SetOutputTransaction(nullptr);
         } else {
-            LOG_INFO("Reusing operation transactions (OperationId: %v)",
-                Operation->GetId());
+            LOG_INFO("Reusing operation transactions");
         }
 
         WaitFor(Combine(asyncResults))
@@ -1483,7 +1484,7 @@ void TOperationControllerBase::ReinstallLivePreview()
                 childIds.push_back(pair.second);
             }
             masterConnector->AttachToLivePreview(
-                Operation,
+                OperationId,
                 table.LivePreviewTableId,
                 childIds);
         }
@@ -1498,7 +1499,7 @@ void TOperationControllerBase::ReinstallLivePreview()
             }
         }
         masterConnector->AttachToLivePreview(
-            Operation,
+            OperationId,
             IntermediateTable.LivePreviewTableId,
             childIds);
     }
@@ -1645,7 +1646,7 @@ void TOperationControllerBase::AttachOutputChunks()
             ToProto(req->add_child_ids(), chunkTreeId);
         };
 
-        if (table.Schema.IsSorted() && ShouldVerifySortedOutput()) {
+        if (table.TableUploadOptions.TableSchema.IsSorted() && ShouldVerifySortedOutput()) {
             // Sorted output generated by user operation requires rearranging.
             LOG_DEBUG("Sorting %v boundary key pairs", table.BoundaryKeys.size());
             std::sort(
@@ -1715,14 +1716,14 @@ void TOperationControllerBase::EndUploadOutputTables()
 
         LOG_INFO("Finishing upload to output table (Path: %v, Schema: %v)",
             path,
-            table.Schema);
+            table.TableUploadOptions.TableSchema);
 
         {
             auto req = TTableYPathProxy::EndUpload(objectIdPath);
             *req->mutable_statistics() = table.DataStatistics;
             req->set_chunk_properties_update_needed(table.ChunkPropertiesUpdateNeeded);
-            ToProto(req->mutable_table_schema(), table.Schema);
-            req->set_preserve_schema_on_write(table.PreserveSchemaOnWrite);
+            ToProto(req->mutable_table_schema(), table.TableUploadOptions.TableSchema);
+            req->set_schema_mode(static_cast<int>(table.TableUploadOptions.SchemaMode));
             SetTransactionId(req, table.UploadTransactionId);
             GenerateMutationId(req);
             batchReq->AddRequest(req, "end_upload");
@@ -1744,7 +1745,7 @@ void TOperationControllerBase::OnJobStarted(const TJobId& jobId, TInstant startT
 
     LogEventFluently(ELogEventType::JobStarted)
         .Item("job_id").Value(jobId)
-        .Item("operation_id").Value(Operation->GetId())
+        .Item("operation_id").Value(OperationId)
         .Item("resource_limits").Value(joblet->ResourceLimits)
         .Item("node_address").Value(joblet->NodeDescriptor.Address)
         .Item("job_type").Value(joblet->JobType);
@@ -1753,33 +1754,33 @@ void TOperationControllerBase::OnJobStarted(const TJobId& jobId, TInstant startT
 void TOperationControllerBase::UpdateMemoryDigests(TJobletPtr joblet, TStatistics statistics)
 {
     auto jobType = joblet->JobType;
-    auto getValue = [] (const TSummary& summary) {
-        return summary.GetSum();
-    };
     bool taskUpdateNeeded = false;
-    if (statistics.Data().find("/user_job/max_memory") != statistics.Data().end()) {
-        i64 userJobMaxMemoryUsage = GetValues<i64>(statistics, "/user_job/max_memory", getValue);
+
+    auto userJobMaxMemoryUsage = FindNumericValue(statistics, "/user_job/max_memory");
+    if (userJobMaxMemoryUsage) {
         auto* digest = GetUserJobMemoryDigest(jobType);
-        double actualFactor = static_cast<double>(userJobMaxMemoryUsage) / joblet->EstimatedResourceUsage.GetUserJobMemory();
-        LOG_DEBUG("Adding sample to the job proxy memory digest (JobType: %v, Sample: %v, JobId: %v)",
+        double actualFactor = static_cast<double>(*userJobMaxMemoryUsage) / joblet->EstimatedResourceUsage.GetUserJobMemory();
+        LOG_TRACE("Adding sample to the job proxy memory digest (JobType: %v, Sample: %v, JobId: %v)",
             jobType,
             actualFactor,
             joblet->JobId);
         digest->AddSample(actualFactor);
         taskUpdateNeeded = true;
     }
-    if (statistics.Data().find("/job_proxy/max_memory") != statistics.Data().end()) {
-        i64 jobProxyMaxMemoryUsage = GetValues<i64>(statistics, "/job_proxy/max_memory", getValue);
+
+    auto jobProxyMaxMemoryUsage = FindNumericValue(statistics, "/job_proxy/max_memory");
+    if (jobProxyMaxMemoryUsage) {
         auto* digest = GetJobProxyMemoryDigest(jobType);
-        double actualFactor = static_cast<double>(jobProxyMaxMemoryUsage) /
+        double actualFactor = static_cast<double>(*jobProxyMaxMemoryUsage) /
             (joblet->EstimatedResourceUsage.GetJobProxyMemory() + joblet->EstimatedResourceUsage.GetFootprintMemory());
-        LOG_DEBUG("Adding sample to the user job memory digest (JobType: %v, Sample: %v, JobId: %v)",
+        LOG_TRACE("Adding sample to the user job memory digest (JobType: %v, Sample: %v, JobId: %v)",
             jobType,
             actualFactor,
             joblet->JobId);
         digest->AddSample(actualFactor);
         taskUpdateNeeded = true;
     }
+
     if (taskUpdateNeeded) {
         UpdateAllTasksIfNeeded();
     }
@@ -1807,7 +1808,7 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
 
     UpdateJobStatistics(*jobSummary);
 
-    const auto& schedulerResultExt = result->GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+    const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
     // Populate node directory by adding additional nodes returned from the job.
     // NB: Job's output may become some other job's input.
@@ -1830,11 +1831,8 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
             case EJobType::OrderedMap:
             case EJobType::SortedReduce:
             case EJobType::PartitionReduce: {
-                auto getValue = [] (const TSummary& summary) {
-                    return summary.GetSum();
-                };
-                auto path = Format("/data/output/%d/row_count%s", *RowCountLimitTableIndex, jobSummary->StatisticsSuffix);
-                i64 count = GetValues<i64>(JobStatistics, path, getValue);
+                auto path = Format("/data/output/%v/row_count%v", *RowCountLimitTableIndex, jobSummary->StatisticsSuffix);
+                i64 count = GetNumericValue(JobStatistics, path);
                 if (count >= RowCountLimit) {
                     OnOperationCompleted(true /* interrupted */);
                 }
@@ -1857,7 +1855,7 @@ void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jo
     const auto& jobId = jobSummary->Id;
     const auto& result = jobSummary->Result;
 
-    auto error = FromProto<TError>(result->error());
+    auto error = FromProto<TError>(result.error());
 
     JobCounter.Failed(1);
 
@@ -1919,7 +1917,7 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
 
     if (abortReason == EAbortReason::FailedChunks) {
         const auto& result = jobSummary->Result;
-        const auto& schedulerResultExt = result->GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+        const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
         for (const auto& chunkId : schedulerResultExt.failed_chunk_ids()) {
             OnChunkFailed(FromProto<TChunkId>(chunkId));
         }
@@ -1955,7 +1953,7 @@ TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(
 {
     return LogEventFluently(eventType)
         .Item("job_id").Value(joblet->JobId)
-        .Item("operation_id").Value(Operation->GetId())
+        .Item("operation_id").Value(OperationId)
         .Item("start_time").Value(joblet->StartTime)
         .Item("finish_time").Value(joblet->FinishTime)
         .Item("resource_limits").Value(joblet->ResourceLimits)
@@ -2927,7 +2925,8 @@ void TOperationControllerBase::FetchInputTables()
             ranges.size());
 
         auto channel = AuthenticatedInputMasterClient->GetMasterChannelOrThrow(
-            EMasterChannelKind::LeaderOrFollower, table.CellTag);
+            EMasterChannelKind::Follower,
+            table.CellTag);
         TObjectServiceProxy proxy(channel);
 
         auto batchReq = proxy.ExecuteBatch();
@@ -3021,7 +3020,7 @@ void TOperationControllerBase::LockInputTables()
     LOG_INFO("Getting input tables attributes");
 
     {
-        auto channel = AuthenticatedInputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
+        auto channel = AuthenticatedInputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
         TObjectServiceProxy proxy(channel);
 
         auto batchReq = proxy.ExecuteBatch();
@@ -3033,7 +3032,7 @@ void TOperationControllerBase::LockInputTables()
                 std::vector<Stroka> attributeKeys{
                     "dynamic",
                     "chunk_count",
-                    "preserve_schema_on_write",
+                    "schema_mode",
                     "schema"
                 };
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
@@ -3061,8 +3060,7 @@ void TOperationControllerBase::LockInputTables()
                 }
 
                 table.Schema = attributes->Get<TTableSchema>("schema");
-                table.PreserveSchemaOnWrite = attributes->Get<bool>("preserve_schema_on_write");
-                table.KeyColumns = table.Schema.GetKeyColumns();
+                table.SchemaMode = attributes->Get<ETableSchemaMode>("schema_mode");
 
                 table.ChunkCount = attributes->Get<int>("chunk_count");
             }
@@ -3079,7 +3077,7 @@ void TOperationControllerBase::GetOutputTablesSchema()
     LOG_INFO("Getting output tables schema");
 
     {
-        auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
+        auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
         TObjectServiceProxy proxy(channel);
         auto batchReq = proxy.ExecuteBatch();
 
@@ -3088,7 +3086,7 @@ void TOperationControllerBase::GetOutputTablesSchema()
             {
                 auto req = TTableYPathProxy::Get(objectIdPath + "/@");
                 std::vector<Stroka> attributeKeys{
-                    "preserve_schema_on_write",
+                    "schema_mode",
                     "schema"
                 };
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
@@ -3105,29 +3103,15 @@ void TOperationControllerBase::GetOutputTablesSchema()
         for (int index = 0; index < OutputTables.size(); ++index) {
             auto& table = OutputTables[index];
             const auto& path = table.Path;
-            {
-                const auto& rsp = getOutAttributesRspsOrError[index].Value();
-                auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
 
-                table.PreserveSchemaOnWrite = attributes->Get<bool>("preserve_schema_on_write");
+            const auto& rsp = getOutAttributesRspsOrError[index].Value();
+            auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
 
-                if (table.PreserveSchemaOnWrite) {
-                    table.Schema = attributes->Get<TTableSchema>("schema");
-                } else {
-                    table.Schema = TTableSchema::FromKeyColumns(path.GetSortedBy());
-                }
-
-                if (path.GetAppend()) {
-                    table.AppendRequested = true;
-                    table.UpdateMode = EUpdateMode::Append;
-                    table.LockMode = ELockMode::Shared;
-                }
-
-                if (table.Schema.IsSorted()) {
-                    table.UpdateMode = EUpdateMode::Overwrite;
-                    table.LockMode = ELockMode::Exclusive;
-                }
-            }
+            table.TableUploadOptions = GetTableUploadOptions(
+                path,
+                attributes->Get<TTableSchema>("schema"),
+                attributes->Get<ETableSchemaMode>("schema_mode"),
+                0); // Here we assume zero row count, we will do additional check later.
         }
     }
 }
@@ -3148,14 +3132,16 @@ void TOperationControllerBase::BeginUploadOutputTables()
             for (const auto& table : OutputTables) {
                 auto objectIdPath = FromObjectId(table.ObjectId);
                 auto req = TTableYPathProxy::Lock(objectIdPath);
-                req->set_mode(static_cast<int>(table.LockMode));
+                req->set_mode(static_cast<int>(table.TableUploadOptions.LockMode));
                 GenerateMutationId(req);
                 SetTransactionId(req, OutputTransactionId);
                 batchReq->AddRequest(req, "lock");
             }
 
             auto batchRspOrError = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error locking output tables");
+            THROW_ERROR_EXCEPTION_IF_FAILED(
+                GetCumulativeError(batchRspOrError),
+                "Error locking output tables");
         }
 
         {
@@ -3165,12 +3151,14 @@ void TOperationControllerBase::BeginUploadOutputTables()
                 auto req = TTableYPathProxy::BeginUpload(objectIdPath);
                 SetTransactionId(req, OutputTransactionId);
                 GenerateMutationId(req);
-                req->set_update_mode(static_cast<int>(table.UpdateMode));
-                req->set_lock_mode(static_cast<int>(table.LockMode));
+                req->set_update_mode(static_cast<int>(table.TableUploadOptions.UpdateMode));
+                req->set_lock_mode(static_cast<int>(table.TableUploadOptions.LockMode));
                 batchReq->AddRequest(req, "begin_upload");
             }
             auto batchRspOrError = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error starting upload transactions for output tables");
+            THROW_ERROR_EXCEPTION_IF_FAILED(
+                GetCumulativeError(batchRspOrError),
+                "Error starting upload transactions for output tables");
             const auto& batchRsp = batchRspOrError.Value();
 
             auto beginUploadRspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspBeginUpload>("begin_upload");
@@ -3182,13 +3170,12 @@ void TOperationControllerBase::BeginUploadOutputTables()
                 }
             }
         }
-
     }
 
     LOG_INFO("Getting output tables attributes");
 
     {
-        auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
+        auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
         TObjectServiceProxy proxy(channel);
         auto batchReq = proxy.ExecuteBatch();
 
@@ -3214,7 +3201,9 @@ void TOperationControllerBase::BeginUploadOutputTables()
         }
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting attributes of output tables");
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            GetCumulativeError(batchRspOrError),
+            "Error getting attributes of output tables");
         const auto& batchRsp = batchRspOrError.Value();
 
         auto getOutAttributesRspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspGet>("get_attributes");
@@ -3226,16 +3215,16 @@ void TOperationControllerBase::BeginUploadOutputTables()
                 auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
 
                 if (attributes->Get<i64>("row_count") > 0 &&
-                    table.AppendRequested &&
-                    table.UpdateMode == EUpdateMode::Overwrite)
+                    table.TableUploadOptions.TableSchema.IsSorted() &&
+                    table.TableUploadOptions.UpdateMode == EUpdateMode::Append)
                 {
                     THROW_ERROR_EXCEPTION("Cannot append sorted data to non-empty output table %v",
                         path);
                 }
 
-                if (table.Schema.IsSorted()) {
+                if (table.TableUploadOptions.TableSchema.IsSorted()) {
                     table.Options->ValidateSorted = true;
-                    table.Options->ValidateUniqueKeys = table.Schema.GetUniqueKeys();
+                    table.Options->ValidateUniqueKeys = table.TableUploadOptions.TableSchema.GetUniqueKeys();
                 } else {
                     table.Options->ValidateSorted = false;
                 }
@@ -3244,7 +3233,7 @@ void TOperationControllerBase::BeginUploadOutputTables()
                 table.Options->ReplicationFactor = attributes->Get<int>("replication_factor");
                 table.Options->Account = attributes->Get<Stroka>("account");
                 table.Options->ChunksVital = attributes->Get<bool>("vital");
-                table.Options->OptimizeFor = attributes->Get<EOptimizeFor>("optimize_for");
+                table.Options->OptimizeFor = attributes->Get<EOptimizeFor>("optimize_for", EOptimizeFor::Lookup);
 
                 table.EffectiveAcl = attributes->GetYson("effective_acl");
             }
@@ -3270,7 +3259,7 @@ void TOperationControllerBase::GetOutputTablesUploadParams()
         LOG_INFO("Getting output tables upload parameters (CellTag: %v)", cellTag);
 
         auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(
-            EMasterChannelKind::LeaderOrFollower,
+            EMasterChannelKind::Follower,
             cellTag);
         TObjectServiceProxy proxy(channel);
 
@@ -3318,7 +3307,7 @@ void TOperationControllerBase::FetchUserFiles(std::vector<TUserFile>* files)
             path);
 
         auto channel = AuthenticatedInputMasterClient->GetMasterChannelOrThrow(
-            EMasterChannelKind::LeaderOrFollower,
+            EMasterChannelKind::Follower,
             file.CellTag);
         TObjectServiceProxy proxy(channel);
 
@@ -3395,7 +3384,7 @@ void TOperationControllerBase::LockUserFiles(std::vector<TUserFile>* files)
     LOG_INFO("Getting user files attributes");
 
     {
-        auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
+        auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
         TObjectServiceProxy proxy(channel);
         auto batchReq = proxy.ExecuteBatch();
 
@@ -3758,37 +3747,57 @@ TKeyColumns TOperationControllerBase::CheckInputTablesSorted(
     YCHECK(!InputTables.empty());
 
     for (const auto& table : InputTables) {
-        if (inputTableFilter(table) && table.KeyColumns.empty()) {
+        if (inputTableFilter(table) && !table.Schema.IsSorted()) {
             THROW_ERROR_EXCEPTION("Input table %v is not sorted",
                 table.Path.GetPath());
         }
     }
 
+    auto validateColumnFilter = [] (const TInputTable& table, const TKeyColumns& keyColumns) {
+        for (const auto& keyColumn : keyColumns) {
+            if (!table.Path.GetChannel().Contains(keyColumn)) {
+                THROW_ERROR_EXCEPTION("Columm filter for input table %v doesn't include key column %Qv",
+                    table.Path.GetPath(),
+                    keyColumn);
+            }
+        }
+    };
+
     if (!keyColumns.empty()) {
         for (const auto& table : InputTables) {
-            if (inputTableFilter(table) && !CheckKeyColumnsCompatible(table.KeyColumns, keyColumns)) {
+            if (!inputTableFilter(table)) {
+                continue;
+            }
+
+            if (!CheckKeyColumnsCompatible(table.Schema.GetKeyColumns(), keyColumns)) {
                 THROW_ERROR_EXCEPTION("Input table %v is sorted by columns %v that are not compatible "
                     "with the requested columns %v",
                     table.Path.GetPath(),
-                    table.KeyColumns,
+                    table.Schema.GetKeyColumns(),
                     keyColumns);
             }
+            validateColumnFilter(table, keyColumns);
         }
         return keyColumns;
     } else {
         for (const auto& referenceTable : InputTables) {
             if (inputTableFilter(referenceTable)) {
                 for (const auto& table : InputTables) {
-                    if (inputTableFilter(table) && table.KeyColumns != referenceTable.KeyColumns) {
+                    if (!inputTableFilter(table)) {
+                        continue;
+                    }
+
+                    if (table.Schema.GetKeyColumns() != referenceTable.Schema.GetKeyColumns()) {
                         THROW_ERROR_EXCEPTION("Key columns do not match: input table %v is sorted by columns %v "
                             "while input table %v is sorted by columns %v",
                             table.Path.GetPath(),
-                            table.KeyColumns,
+                            table.Schema.GetKeyColumns(),
                             referenceTable.Path.GetPath(),
-                            referenceTable.KeyColumns);
+                            referenceTable.Schema.GetKeyColumns());
                     }
+                    validateColumnFilter(table, referenceTable.Schema.GetKeyColumns());
                 }
-                return referenceTable.KeyColumns;
+                return referenceTable.Schema.GetKeyColumns();
             }
         }
     }
@@ -3843,7 +3852,7 @@ void TOperationControllerBase::RegisterOutput(
     if (IsOutputLivePreviewSupported()) {
         auto masterConnector = Host->GetMasterConnector();
         masterConnector->AttachToLivePreview(
-            Operation,
+            OperationId,
             table.LivePreviewTableId,
             {chunkTreeId});
     }
@@ -3870,13 +3879,13 @@ void TOperationControllerBase::RegisterBoundaryKeys(
     auto maxKey = FromProto<TOwningKey>(boundaryKeys.max());
 
     // NB: This can happen for a teleported chunk from a table with a wider key in sorted (but not unique_keys) mode.
-    if (minKey.GetCount() > outputTable->Schema.GetKeyColumnCount() ||
-        maxKey.GetCount() > outputTable->Schema.GetKeyColumnCount())
+    if (minKey.GetCount() > outputTable->TableUploadOptions.TableSchema.GetKeyColumnCount() ||
+        maxKey.GetCount() > outputTable->TableUploadOptions.TableSchema.GetKeyColumnCount())
     {
         YCHECK(!outputTable->Options->ValidateUniqueKeys);
 
-        int minKeyLength = std::min(minKey.GetCount(), static_cast<int>(outputTable->Schema.GetKeyColumnCount()));
-        int maxKeyLength = std::min(maxKey.GetCount(), static_cast<int>(outputTable->Schema.GetKeyColumnCount()));
+        int minKeyLength = std::min(minKey.GetCount(), static_cast<int>(outputTable->TableUploadOptions.TableSchema.GetKeyColumnCount()));
+        int maxKeyLength = std::min(maxKey.GetCount(), static_cast<int>(outputTable->TableUploadOptions.TableSchema.GetKeyColumnCount()));
         minKey = TOwningRow(minKey.Begin(), minKey.Begin() + minKeyLength);
         maxKey = TOwningRow(maxKey.Begin(), maxKey.Begin() + maxKeyLength);
     }
@@ -3891,7 +3900,7 @@ void TOperationControllerBase::RegisterOutput(
 {
     auto& table = OutputTables[tableIndex];
 
-    if (table.Schema.IsSorted() && ShouldVerifySortedOutput()) {
+    if (table.TableUploadOptions.TableSchema.IsSorted() && ShouldVerifySortedOutput()) {
         YCHECK(chunkSpec->BoundaryKeys());
 
         TOutputResult resultBoundaryKeys;
@@ -3915,13 +3924,13 @@ void TOperationControllerBase::RegisterOutput(
     const TCompletedJobSummary& jobSummary)
 {
     const auto& result = jobSummary.Result;
-    const auto& schedulerResultExt = result->GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+    const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
     for (int tableIndex = 0; tableIndex < OutputTables.size(); ++tableIndex) {
         auto& table = OutputTables[tableIndex];
         RegisterOutput(joblet->ChunkListIds[tableIndex], key, tableIndex, table);
 
-        if (table.Schema.IsSorted() && ShouldVerifySortedOutput() && !jobSummary.Abandoned) {
+        if (table.TableUploadOptions.TableSchema.IsSorted() && ShouldVerifySortedOutput() && !jobSummary.Abandoned) {
             YCHECK(tableIndex < schedulerResultExt.output_boundary_keys_size());
             const auto& boundaryKeys = schedulerResultExt.output_boundary_keys(tableIndex);
             RegisterBoundaryKeys(boundaryKeys, joblet->ChunkListIds[tableIndex], &table);
@@ -3972,7 +3981,7 @@ void TOperationControllerBase::RegisterIntermediate(
         if (attachToLivePreview && IsIntermediateLivePreviewSupported()) {
             auto masterConnector = Host->GetMasterConnector();
             masterConnector->AttachToLivePreview(
-                Operation,
+                OperationId,
                 IntermediateTable.LivePreviewTableId,
                 {chunkId});
         }
@@ -4008,11 +4017,26 @@ void TOperationControllerBase::RegisterJoblet(TJobletPtr joblet)
     YCHECK(JobletMap.insert(std::make_pair(joblet->JobId, joblet)).second);
 }
 
-TOperationControllerBase::TJobletPtr TOperationControllerBase::GetJoblet(const TJobId& jobId) const
+TOperationControllerBase::TJobletPtr TOperationControllerBase::FindJoblet(const TJobId& jobId) const
 {
     auto it = JobletMap.find(jobId);
-    YCHECK(it != JobletMap.end());
-    return it->second;
+    return it == JobletMap.end() ? nullptr : it->second;
+}
+
+TOperationControllerBase::TJobletPtr TOperationControllerBase::GetJoblet(const TJobId& jobId) const
+{
+    auto joblet = FindJoblet(jobId);
+    YCHECK(joblet);
+    return joblet;
+}
+
+TOperationControllerBase::TJobletPtr TOperationControllerBase::GetJobletOrThrow(const TJobId& jobId) const
+{
+    auto joblet = FindJoblet(jobId);
+    if (!joblet) {
+        THROW_ERROR_EXCEPTION("No such job %v", jobId);
+    }
+    return joblet;
 }
 
 void TOperationControllerBase::RemoveJoblet(const TJobId& jobId)
@@ -4070,7 +4094,7 @@ void TOperationControllerBase::UpdateJobStatistics(const TJobSummary& jobSummary
 {
     // NB: There is a copy happening here that can be eliminated.
     auto statistics = jobSummary.Statistics;
-    LOG_DEBUG("Job data statistics (JobId: %v, Input: %v, Output: %v)",
+    LOG_TRACE("Job data statistics (JobId: %v, Input: %v, Output: %v)",
         jobSummary.Id,
         GetTotalInputDataStatistics(statistics),
         GetTotalOutputDataStatistics(statistics));
@@ -4092,24 +4116,13 @@ void TOperationControllerBase::BuildBriefSpec(IYsonConsumer* consumer) const
         .Item("output_table_paths").ListLimited(GetOutputTablePaths(), 1);
 }
 
-TFuture<TYsonString> TOperationControllerBase::BuildInputPathYson(const TJobId& jobId) const
-{
-    return
-        BIND(
-            &TOperationControllerBase::DoBuildInputPathYson,
-            MakeStrong(this),
-            jobId)
-        .AsyncVia(CancelableInvoker)
-        .Run();
-}
-
-TYsonString TOperationControllerBase::DoBuildInputPathYson(const TJobId& jobId) const
+TYsonString TOperationControllerBase::BuildInputPathYson(const TJobId& jobId) const
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
     return BuildInputPaths(
         GetInputTablePaths(),
-        GetJoblet(jobId)->InputStripeList);
+        GetJobletOrThrow(jobId)->InputStripeList);
 }
 
 std::vector<TOperationControllerBase::TPathWithStage> TOperationControllerBase::GetFilePaths() const
@@ -4120,6 +4133,16 @@ std::vector<TOperationControllerBase::TPathWithStage> TOperationControllerBase::
 bool TOperationControllerBase::IsRowCountPreserved() const
 {
     return false;
+}
+
+int TOperationControllerBase::GetMaxJobCount(
+    TNullable<int> userMaxJobCount,
+    int maxJobCount)
+{
+    if (userMaxJobCount) {
+        maxJobCount = std::min(maxJobCount, *userMaxJobCount);
+    }
+    return maxJobCount;
 }
 
 int TOperationControllerBase::SuggestJobCount(
@@ -4139,7 +4162,8 @@ int TOperationControllerBase::SuggestJobCount(
 void TOperationControllerBase::InitUserJobSpecTemplate(
     NScheduler::NProto::TUserJobSpec* jobSpec,
     TUserJobSpecPtr config,
-    const std::vector<TUserFile>& files)
+    const std::vector<TUserFile>& files,
+    const Stroka& fileAccount)
 {
     jobSpec->set_shell_command(config->Command);
     jobSpec->set_memory_limit(config->MemoryLimit);
@@ -4151,6 +4175,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_enable_core_dump(config->EnableCoreDump);
     jobSpec->set_custom_statistics_count_limit(config->CustomStatisticsCountLimit);
     jobSpec->set_copy_files(config->CopyFiles);
+    jobSpec->set_file_account(fileAccount);
 
     if (config->TmpfsPath && Config->EnableTmpfs) {
         auto tmpfsSize = config->TmpfsSize
@@ -4223,7 +4248,14 @@ void TOperationControllerBase::InitUserJobSpec(
 {
     ToProto(jobSpec->mutable_async_scheduler_transaction_id(), AsyncSchedulerTransactionId);
 
-    jobSpec->set_memory_reserve(joblet->EstimatedResourceUsage.GetUserJobMemory() * joblet->UserJobMemoryReserveFactor);
+    i64 memoryReserve = joblet->EstimatedResourceUsage.GetUserJobMemory() * joblet->UserJobMemoryReserveFactor;
+    // Memory reserve should greater than or equal to tmpfs_size (see YT-5518 for more details).
+    // This is ensured by adjusting memory reserve factor in user job config as initialization,
+    // but just in case we also limit the actual memory_reserve value here.
+    if (jobSpec->has_tmpfs_size()) {
+        memoryReserve = std::max(memoryReserve, jobSpec->tmpfs_size());
+    }
+    jobSpec->set_memory_reserve(memoryReserve);
 
     jobSpec->add_environment(Format("YT_JOB_INDEX=%v", joblet->JobIndex));
     jobSpec->add_environment(Format("YT_JOB_ID=%v", joblet->JobId));
@@ -4395,6 +4427,81 @@ void TOperationControllerBase::RegisterJobProxyMemoryDigest(EJobType jobType, co
 {
     YCHECK(JobProxyMemoryDigests_.find(jobType) == JobProxyMemoryDigests_.end());
     JobProxyMemoryDigests_[jobType] = CreateLogDigest(config);
+}
+
+void TOperationControllerBase::InferSchemaFromInputSorted(const TKeyColumns& keyColumns)
+{
+    // We infer schema only for operations with one output table.
+    YCHECK(OutputTables.size() == 1);
+    YCHECK(InputTables.size() >= 1);
+
+    InferSchemaFromInputUnordered();
+
+    if (OutputTables[0].TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
+        OutputTables[0].TableUploadOptions.TableSchema = TTableSchema::FromKeyColumns(keyColumns);
+    } else {
+        OutputTables[0].TableUploadOptions.TableSchema =
+            OutputTables[0].TableUploadOptions.TableSchema.ToSorted(keyColumns);
+    }
+}
+
+void TOperationControllerBase::InferSchemaFromInputUnordered()
+{
+    // We infer schema only for operations with one output table.
+    YCHECK(OutputTables.size() == 1);
+    YCHECK(InputTables.size() >= 1);
+
+    OutputTables[0].TableUploadOptions.SchemaMode = InputTables[0].SchemaMode;
+    for (const auto& table : InputTables) {
+        if (table.SchemaMode != OutputTables[0].TableUploadOptions.SchemaMode) {
+            THROW_ERROR_EXCEPTION("Cannot infer output schema from input, tables have different schema modes");
+        }
+    }
+
+    if (OutputTables[0].TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
+        OutputTables[0].TableUploadOptions.TableSchema = TTableSchema();
+    } else {
+        auto schema = InputTables[0].Schema
+            .ToStrippedColumnAttributes()
+            .ToCanonical();
+
+        for (const auto& table : InputTables) {
+            if (table.Schema.ToStrippedColumnAttributes().ToCanonical() != schema) {
+                THROW_ERROR_EXCEPTION("Cannot infer output schema from input in strong schema mode, tables have incompatible schemas");
+            }
+        }
+
+        OutputTables[0].TableUploadOptions.TableSchema = schema;
+    }
+}
+
+void TOperationControllerBase::InferSchemaFromInputOrdered()
+{
+    // We infer schema only for operations with one output table.
+    YCHECK(OutputTables.size() == 1);
+    YCHECK(InputTables.size() >= 1);
+
+    auto& outputUploadOptions = OutputTables[0].TableUploadOptions;
+
+    if (InputTables.size() == 1 && outputUploadOptions.UpdateMode == EUpdateMode::Overwrite) {
+        // If only only one input table given, we inherit the whole schema including column attributes.
+        outputUploadOptions.SchemaMode = InputTables[0].SchemaMode;
+        outputUploadOptions.TableSchema = InputTables[0].Schema;
+        return;
+    }
+
+    InferSchemaFromInputUnordered();
+}
+
+void TOperationControllerBase::ValidateOutputSchemaOrdered() const
+{
+    YCHECK(OutputTables.size() == 1);
+    YCHECK(InputTables.size() >= 1);
+
+    if (InputTables.size() > 1 && OutputTables[0].TableUploadOptions.TableSchema.IsSorted()) {
+        THROW_ERROR_EXCEPTION("Cannot generate sorted output for ordered operation with multiple input tables")
+            << TErrorAttribute("output_schema", OutputTables[0].TableUploadOptions.TableSchema);
+    }
 }
 
 IDigest* TOperationControllerBase::GetJobProxyMemoryDigest(EJobType jobType)
@@ -4681,7 +4788,7 @@ public:
         Underlying_->BuildBriefSpec(consumer);
     }
 
-    virtual TFuture<TYsonString> BuildInputPathYson(const TJobId& jobId) const override
+    virtual TYsonString BuildInputPathYson(const TJobId& jobId) const override
     {
         return Underlying_->BuildInputPathYson(jobId);
     }

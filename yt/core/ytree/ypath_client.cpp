@@ -327,14 +327,12 @@ void ExecuteVerb(
 TFuture<TYsonString> AsyncYPathGet(
     const IYPathServicePtr& service,
     const TYPath& path,
-    const TNullable<std::vector<Stroka>>& attributeKeys,
-    bool ignoreOpaque)
+    const TNullable<std::vector<Stroka>>& attributeKeys)
 {
     auto request = TYPathProxy::Get(path);
     if (attributeKeys) {
         ToProto(request->mutable_attributes()->mutable_keys(), *attributeKeys);
     }
-    request->set_ignore_opaque(ignoreOpaque);
     return ExecuteVerb(service, request)
         .Apply(BIND([] (TYPathProxy::TRspGetPtr response) {
             return TYsonString(response->value());
@@ -352,15 +350,13 @@ Stroka SyncYPathGetKey(const IYPathServicePtr& service, const TYPath& path)
 TYsonString SyncYPathGet(
     const IYPathServicePtr& service,
     const TYPath& path,
-    const TNullable<std::vector<Stroka>>& attributeKeys,
-    bool ignoreOpaque)
+    const TNullable<std::vector<Stroka>>& attributeKeys)
 {
     return
         AsyncYPathGet(
             service,
             path,
-            attributeKeys,
-            ignoreOpaque)
+            attributeKeys)
         .Get()
         .ValueOrThrow();
 }

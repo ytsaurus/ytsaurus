@@ -24,6 +24,7 @@ import socket
 import tempfile
 import shutil
 import xml.etree.ElementTree as etree
+import xml.parsers.expat
 
 @build_step
 def prepare(options):
@@ -39,6 +40,7 @@ def prepare(options):
         cwd=options.checkout_directory)
 
     options.build_enable_nodejs = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_NODEJS", "YES"))
+    options.build_enable_python_2_6 = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PYTHON_2_6", "YES"))
     options.build_enable_python_2_7 = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PYTHON_2_7", "YES"))
     options.build_enable_python_skynet = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PYTHON_SKYNET", "YES"))
     options.build_enable_perl = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PERL", "YES"))
@@ -51,6 +53,11 @@ def prepare(options):
 
     if codename not in ["lucid", "precise", "trusty"]:
         raise RuntimeError("Unknown LSB distribution code name: {0}".format(codename))
+
+    if codename == "lucid":
+        options.build_enable_python = options.build_enable_python_2_6
+    elif codename in ["precise", "trusty"]:
+        options.build_enable_python = options.build_enable_python_2_7
 
     options.codename = codename
     options.repositories = ["yt-" + codename]
@@ -123,6 +130,7 @@ def configure(options):
         "-DYT_BUILD_VCS_NUMBER={0}".format(options.build_vcs_number[0:7]),
         "-DYT_BUILD_GIT_DEPTH={0}".format(options.build_git_depth),
         "-DYT_BUILD_ENABLE_NODEJS={0}".format(format_yes_no(options.build_enable_nodejs)),
+        "-DYT_BUILD_ENABLE_PYTHON_2_6={0}".format(format_yes_no(options.build_enable_python_2_6)),
         "-DYT_BUILD_ENABLE_PYTHON_2_7={0}".format(format_yes_no(options.build_enable_python_2_7)),
         "-DYT_BUILD_ENABLE_PYTHON_SKYNET={0}".format(format_yes_no(options.build_enable_python_skynet)),
         "-DYT_BUILD_ENABLE_PERL={0}".format(format_yes_no(options.build_enable_perl)),
@@ -211,7 +219,7 @@ def run_unit_tests(options):
             "--gtest_death_test_style=threadsafe",
             "--gtest_output=xml:" + os.path.join(options.working_directory, "gtest_unittester.xml")],
             cwd=sandbox_current,
-            timeout=10 * 60)
+            timeout=15 * 60)
     except ChildHasNonZeroExitCode as err:
         teamcity_message('Copying unit tests sandbox from "{0}" to "{1}"'.format(
             sandbox_current, sandbox_archive), status="WARNING")
@@ -240,7 +248,7 @@ def run_javascript_tests(options):
 
 
 def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
-    if not options.build_enable_python_2_7:
+    if not options.build_enable_python:
         return
 
     if pytest_args is None:
@@ -269,7 +277,7 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
                 "--verbose",
                 "--capture=fd",
                 "--tb=native",
-                "--timeout=600",
+                "--timeout=3000",
                 "--debug",
                 "--junitxml={0}".format(handle.name)]
                 + pytest_args,
@@ -289,6 +297,7 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
             # Lucid case.
             ParseError = TypeError
 
+
         try:
             result = etree.parse(handle)
             for node in (result.iter() if hasattr(result, "iter") else result.getiterator()):
@@ -303,7 +312,7 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
             with open("{0}/junit_python_{1}.xml".format(options.working_directory, suite_name), "w+b") as handle:
                 result.write(handle, encoding="utf-8")
 
-        except (UnicodeDecodeError, ParseError):
+        except (UnicodeDecodeError, ParseError, xml.parsers.expat.ExpatError):
             failed = True
             teamcity_message("Failed to parse pytest output:\n" + open(handle.name).read())
 

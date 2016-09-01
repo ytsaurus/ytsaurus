@@ -22,21 +22,21 @@ class TestSchedulerMemoryLimits(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
-    # This is a mix of options for 18.3 and 18.4
+    # This is a mix of options for 18.4 and 18.5
     DELTA_NODE_CONFIG = {
         "exec_agent": {
-            "enable_cgroups": True,                                       # <= 18.3
-            "supported_cgroups": ["cpuacct", "blkio", "memory", "cpu"],   # <= 18.3
+            "enable_cgroups": True,                                       # <= 18.4
+            "supported_cgroups": ["cpuacct", "blkio", "memory", "cpu"],   # <= 18.4
             "slot_manager": {
-                "enforce_job_control": True,                              # <= 18.3
-                "memory_watchdog_period" : 100,                           # <= 18.3
+                "enforce_job_control": True,                              # <= 18.4
+                "memory_watchdog_period" : 100,                           # <= 18.4
                 "job_environment" : {
-                    "type" : "cgroups",                                   # >= 18.4
-                    "memory_watchdog_period" : 100,                       # >= 18.4
-                    "supported_cgroups": [                                # >= 18.4
-                        "cpuacct", 
-                        "blkio", 
-                        "memory", 
+                    "type" : "cgroups",                                   # >= 18.5
+                    "memory_watchdog_period" : 100,                       # >= 18.5
+                    "supported_cgroups": [                                # >= 18.5
+                        "cpuacct",
+                        "blkio",
+                        "memory",
                         "cpu"],
                 },
             }
@@ -90,20 +90,21 @@ class TestMemoryReserveFactor(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
+    # This is a mix of options for 18.4 and 18.5
     DELTA_NODE_CONFIG = {
-        "exec_agent" : {
-            "enable_cgroups" : True,
-            "supported_cgroups" : [ "cpuacct", "blkio", "memory", "cpu" ],
-            "slot_manager" : {
-                "enforce_job_control"  : True,
-                "memory_watchdog_period" : 100,
+        "exec_agent": {
+            "enable_cgroups": True,                                       # <= 18.4
+            "supported_cgroups": ["cpuacct", "blkio", "memory", "cpu"],   # <= 18.4
+            "slot_manager": {
+                "enforce_job_control": True,                              # <= 18.4
+                "memory_watchdog_period" : 100,                           # <= 18.4
                 "job_environment" : {
-                    "type" : "cgroups",                                   # >= 18.4
-                    "memory_watchdog_period" : 100,                       # >= 18.4
-                    "supported_cgroups": [                                # >= 18.4
-                        "cpuacct", 
-                        "blkio", 
-                        "memory", 
+                    "type" : "cgroups",                                   # >= 18.5
+                    "memory_watchdog_period" : 100,                       # >= 18.5
+                    "supported_cgroups": [                                # >= 18.5
+                        "cpuacct",
+                        "blkio",
+                        "memory",
                         "cpu"],
                 },
             }
@@ -150,14 +151,19 @@ while len(a) * 100000 < 7e7:
             out="//tmp/t_out",
             command="python mapper.py",
             file="//tmp/mapper.py",
-            spec={"job_count" : job_count, "mapper" : {"memory_limit": 10**8, "user_slots": 1}})
+            spec={ "resource_limits" : {"cpu" : 1},
+                   "job_count" : job_count,
+                   "mapper" : {"memory_limit": 10**8}})
 
         time.sleep(1)
         event_log = read_table("//sys/scheduler/event_log")
         last_memory_reserve = None
         for event in event_log:
             if event["event_type"] == "job_completed" and event["operation_id"] == op.id:
-                print >>sys.stderr, event["job_id"], event["statistics"]["user_job"]["memory_reserve"]["sum"]
+                print >>sys.stderr, \
+                    event["job_id"], \
+                    event["statistics"]["user_job"]["memory_reserve"]["sum"], \
+                    event["statistics"]["user_job"]["max_memory"]["sum"]
                 last_memory_reserve = int(event["statistics"]["user_job"]["memory_reserve"]["sum"])
         assert not last_memory_reserve is None
         assert 6e7 <= last_memory_reserve <= 8e7

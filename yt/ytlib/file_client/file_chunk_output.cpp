@@ -45,12 +45,12 @@ TFileChunkOutput::TFileChunkOutput(
     INativeClientPtr client,
     const TTransactionId& transactionId,
     i64 sizeLimit)
-    : Config_(config)
+    : Logger(FileClientLogger)
+    , Config_(config)
     , Options_(options)
     , Client_(client)
     , TransactionId_(transactionId)
     , SizeLimit_(sizeLimit)
-    , Logger(FileClientLogger)
 {
     YCHECK(Config_);
     YCHECK(Client_);

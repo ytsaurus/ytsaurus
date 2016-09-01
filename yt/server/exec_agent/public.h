@@ -27,14 +27,16 @@ DEFINE_ENUM(EErrorCode,
     ((ConfigCreationFailed)   (1100))
     ((AbortByScheduler)       (1101))
     ((ResourceOverdraft)      (1102))
-    ((AllLocationsDisabled)   (1103))
-    ((JobEnvironmentDisabled) (1104))
+    ((WaitingJobTimeout)      (1103))
+    ((AllLocationsDisabled)   (1104))
+    ((JobEnvironmentDisabled) (1105))
 );
 
 DEFINE_ENUM(ESandboxKind,
     (User)
     (Udf)
     (Home)
+    (Pipes)
 );
 
 DEFINE_ENUM(EJobEnvironmentType,

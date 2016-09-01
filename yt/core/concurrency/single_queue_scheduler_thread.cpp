@@ -11,7 +11,8 @@ TSingleQueueSchedulerThread::TSingleQueueSchedulerThread(
     const Stroka& threadName,
     const NProfiling::TTagIdList& tagIds,
     bool enableLogging,
-    bool enableProfiling)
+    bool enableProfiling,
+    int index)
     : TSchedulerThread(
         std::move(callbackEventCount),
         threadName,
@@ -19,10 +20,11 @@ TSingleQueueSchedulerThread::TSingleQueueSchedulerThread(
         enableLogging,
         enableProfiling)
     , Queue(std::move(queue))
-{ }
+    , Index(index)
+{
+}
 
-TSingleQueueSchedulerThread::~TSingleQueueSchedulerThread()
-{ }
+TSingleQueueSchedulerThread::~TSingleQueueSchedulerThread() = default;
 
 IInvokerPtr TSingleQueueSchedulerThread::GetInvoker()
 {
@@ -31,7 +33,7 @@ IInvokerPtr TSingleQueueSchedulerThread::GetInvoker()
 
 EBeginExecuteResult TSingleQueueSchedulerThread::BeginExecute()
 {
-    return Queue->BeginExecute(&CurrentAction);
+    return Queue->BeginExecute(&CurrentAction, Index);
 }
 
 void TSingleQueueSchedulerThread::EndExecute()
