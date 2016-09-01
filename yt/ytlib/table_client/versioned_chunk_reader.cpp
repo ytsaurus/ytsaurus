@@ -951,7 +951,10 @@ public:
                 keyColumnReader->ReadValues(range);
             }
 
-            if (RowIndex_ + rowLimit > SafeUpperRowIndex_) {
+            YCHECK(RowIndex_ + rowLimit <= HardUpperRowIndex_);
+            if (RowIndex_ + rowLimit == HardUpperRowIndex_) {
+                Completed_ = true;
+            } else if (RowIndex_ + rowLimit > SafeUpperRowIndex_) {
                 i64 index = std::max(SafeUpperRowIndex_ - RowIndex_, i64(0));
                 for (; index < rowLimit; ++index) {
                     if (CompareRows(
@@ -966,8 +969,6 @@ public:
                         break;
                     }
                 }
-            } else if (RowIndex_ + rowLimit == HardUpperRowIndex_) {
-                Completed_ = true;
             }
             
             RowBuilder_.ReadValues(range, RowIndex_);
