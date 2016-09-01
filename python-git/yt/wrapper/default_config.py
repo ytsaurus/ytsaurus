@@ -207,6 +207,9 @@ default_config = {
 
         # Enables ignoring empty tables in mapreduce -list command.
         "ignore_empty_tables_in_mapreduce_list": False,
+
+        # Enables setting schema on new tables.
+        "create_schema_on_tables": False,
     },
 
     # Run sorted merge instead of sort if input tables are sorted by sort_by prefix.

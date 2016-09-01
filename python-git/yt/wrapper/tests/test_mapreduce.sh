@@ -2,6 +2,14 @@
 
 export YT_PREFIX="//home/wrapper_tests/"
 
+set +u
+if [ -z "$ENABLE_SCHEMA" ]; then
+    ENABLE_SCHEMA=""
+else
+    export YT_CONFIG_PATCHES="{yamr_mode={create_schema_on_tables=%true}};$YT_CONFIG_PATCHES"
+fi
+set -u
+
 timeout() {
     local time_to_sleep=$1 && shift
     $@ &
@@ -753,29 +761,23 @@ test_copy_move
 test_list
 test_codec
 test_many_output_tables
-test_sortby_reduceby
 test_chunksize
 test_mapreduce
-test_input_output_format
 test_transactions
 test_range_map
 test_uploaded_files
 test_ignore_positional_arguments
 test_stderr
 test_spec
-test_smart_format
 test_drop
 test_create_table
 test_do_not_delete_empty_table
 test_empty_destination
-test_dsv_reduce
 test_slow_write
 test_many_dst_write
 test_dstsorted
 test_custom_fs_rs
 test_write_with_tx
-test_table_file
-test_unexisting_input_tables
 test_copy_files
 test_write_lenval
 test_force_drop
@@ -784,7 +786,17 @@ test_many_to_many_copy_move
 test_missing_prefix
 test_table_record_index
 test_opts
-test_defrag
 test_archive_and_transform
+
+if [ -z "$ENABLE_SCHEMA" ]; then
+    test_sortby_reduceby
+    test_input_output_format
+    test_smart_format
+    test_dsv_reduce
+    test_table_file
+    test_unexisting_input_tables
+    # Fix problem with merge_by and move this test outside.
+    test_defrag
+fi
 
 cleanup

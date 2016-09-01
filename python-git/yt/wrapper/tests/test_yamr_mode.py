@@ -110,6 +110,14 @@ class TestYamrMode(object):
 
         test_binary = os.path.join(TESTS_LOCATION, "test_mapreduce.sh")
         binaries_dir = os.path.join(os.path.dirname(TESTS_LOCATION), "bin")
+
+        yt.remove("//home/wrapper_tests", recursive=True)
+        proc = subprocess.Popen([test_binary], env=env, cwd=binaries_dir)
+        proc.communicate()
+        assert proc.returncode == 0
+
+        env["ENABLE_SCHEMA"] = "1"
+        yt.remove("//home/wrapper_tests", recursive=True)
         proc = subprocess.Popen([test_binary], env=env, cwd=binaries_dir)
         proc.communicate()
         assert proc.returncode == 0

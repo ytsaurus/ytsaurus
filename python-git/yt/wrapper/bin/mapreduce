@@ -675,6 +675,9 @@ Examples:
     if args.codec is not None:
         attributes["compression_codec"] = args.codec
 
+    if config["yamr_mode"]["create_schema_on_tables"]:
+        attributes["schema"] = [{"name": name, "type": "string"} for name in ["key", "subkey", "value"]]
+
     config["create_table_attributes"] = attributes
 
     if args.tablewriter is not None:
@@ -718,7 +721,15 @@ Examples:
                                    table_writer=args.tablewriter)
 
     if args.writesorted is not None:
-        table = yt.TablePath(args.writesorted, append=args.append, sorted_by=["key", "subkey"])
+        attributes = {}
+        if config["yamr_mode"]["create_schema_on_tables"] and not args.append:
+            attributes["schema"] = [
+                {"name": "key", "type": "string", "sort_order": "ascending"},
+                {"name": "subkey", "type": "string", "sort_order": "ascending"},
+                {"name": "value", "type": "string"}]
+        else:
+            attributes["sorted_by"] = ["key", "subkey"]
+        table = yt.TablePath(args.writesorted, append=args.append, attributes=attributes)
         yt.write_table(table, sys.stdin, format=outputformat, raw=True)
     if mapreduce_case:
         map_input_format = inputformat
