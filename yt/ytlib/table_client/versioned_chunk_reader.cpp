@@ -903,7 +903,7 @@ public:
         InitLowerRowIndex();
         InitUpperRowIndex();
 
-        if (LowerRowIndex_ < VersionedChunkMeta_->Misc().row_count()) {
+        if (LowerRowIndex_ < HardUpperRowIndex_) {
             InitBlockFetcher();
             ReadyEvent_ = RequestFirstBlocks();
         } else {
@@ -952,9 +952,7 @@ public:
             }
 
             YCHECK(RowIndex_ + rowLimit <= HardUpperRowIndex_);
-            if (RowIndex_ + rowLimit == HardUpperRowIndex_) {
-                Completed_ = true;
-            } else if (RowIndex_ + rowLimit > SafeUpperRowIndex_) {
+            if (RowIndex_ + rowLimit > SafeUpperRowIndex_ && UpperLimit_.HasKey()) {
                 i64 index = std::max(SafeUpperRowIndex_ - RowIndex_, i64(0));
                 for (; index < rowLimit; ++index) {
                     if (CompareRows(
@@ -969,6 +967,10 @@ public:
                         break;
                     }
                 }
+            }
+
+            if (RowIndex_ + rowLimit == HardUpperRowIndex_) {
+                Completed_ = true; 
             }
             
             RowBuilder_.ReadValues(range, RowIndex_);

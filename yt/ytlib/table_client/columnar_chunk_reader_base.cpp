@@ -203,7 +203,7 @@ void TColumnarRangeChunkReaderBase::InitUpperRowIndex()
             UpperLimit_.GetKey());
 
         if (it == ChunkMeta_->BlockLastKeys().end()) {
-            SafeUpperRowIndex_ = HardUpperRowIndex_ = std::min(HardUpperRowIndex_, UpperLimit_.GetRowIndex());
+            SafeUpperRowIndex_ = HardUpperRowIndex_ = std::min(HardUpperRowIndex_, ChunkMeta_->Misc().row_count());
         } else {
             int blockIndex = std::distance(ChunkMeta_->BlockLastKeys().begin(), it);
             const auto& blockMeta = ChunkMeta_->BlockMeta().blocks(blockIndex);
