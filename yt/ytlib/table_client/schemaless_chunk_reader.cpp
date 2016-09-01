@@ -771,9 +771,7 @@ public:
             }
 
             YCHECK(RowIndex_ + rowLimit <= HardUpperRowIndex_);
-            if (RowIndex_ + rowLimit == HardUpperRowIndex_) {
-                Completed_ = true;
-            } else if (RowIndex_ + rowLimit > SafeUpperRowIndex_) {
+            if (RowIndex_ + rowLimit > SafeUpperRowIndex_ && UpperLimit_.HasKey()) {
                 i64 index = std::max(SafeUpperRowIndex_ - RowIndex_, i64(0));
                 for (; index < rowLimit; ++index) {
                     if (CompareRows(
@@ -788,6 +786,10 @@ public:
                         break;
                     }
                 }
+            }
+
+            if (RowIndex_ + rowLimit == HardUpperRowIndex_) {
+                Completed_ = true;
             }
 
             RowIndex_ += range.Size();
