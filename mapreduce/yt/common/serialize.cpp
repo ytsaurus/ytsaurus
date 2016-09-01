@@ -150,6 +150,9 @@ void Serialize(const TRichYPath& path, IYsonConsumer* consumer)
         .DoIf(path.Format_.Defined(), [&] (TFluentAttributes fluent) {
             fluent.Item("format").Value(path.Format_.GetRef());
         })
+        .DoIf(path.Schema_.Defined(), [&] (TFluentAttributes fluent) {
+            fluent.Item("schema").Value(path.Schema_.GetRef());
+        })
     .EndAttributes()
     .Value(path.Path_);
 }
