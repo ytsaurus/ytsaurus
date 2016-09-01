@@ -142,7 +142,8 @@ def get_operation_progress(operation, client=None):
     try:
         attributes = get_operation_attributes(operation, client=client)
         progress = attributes.get("progress", {}).get("jobs", {})
-        if isinstance(progress["aborted"], dict):
+        # Fix aborted progress counter
+        if progress and isinstance(progress["aborted"], dict):
             progress["aborted"] = progress["aborted"]["total"]
     except YtResponseError as err:
         if err.is_resolve_error():
