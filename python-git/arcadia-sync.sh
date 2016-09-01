@@ -35,9 +35,11 @@ rm -rf "$TMP_DIR" && mkdir "$TMP_DIR"
 
 pushd "$TMP_DIR"
 
-mkdir "$ARCADIA_DIR"
+mkdir -p "$ARCADIA_DIR"
 
-svn checkout "svn+ssh://arcadia.yandex.ru/arc/trunk/arcadia/$ARCADIA_PATH/" "$ARCADIA_DIR"
+if [ "$SPECIFIED_ARCADIA_DIR" = "0" ]; then
+    svn checkout "svn+ssh://arcadia.yandex.ru/arc/trunk/arcadia/$ARCADIA_PATH/" "$ARCADIA_DIR"
+fi
 
 ARCADIA="$ARCADIA_DIR/$VERSION"
 
@@ -46,7 +48,7 @@ if [ -e "$ARCADIA" ]; then
     exit 0
 fi
 
-mkdir "$ARCADIA"
+mkdir -p "$ARCADIA"
 
 apt-get download "${PACKAGE_NAME}=${VERSION}"
 
@@ -63,7 +65,7 @@ LATEST_FILES="$(find . -name "*")"
 popd
 
 for file in $LATEST_FILES; do
-    if [ ! -e "$VERSION/$file" ] && [ -e "$LATEST/$file" ]; then
+    if [ ! -e "$VERSION/$file" -a -e "$LATEST/$file" ]; then
         svn rm "$LATEST/$file"
     fi
 done
