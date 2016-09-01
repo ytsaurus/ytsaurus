@@ -164,10 +164,11 @@ public:
         auto operationElement = GetOperationElement(operation->GetId());
         auto* pool = static_cast<TPool*>(operationElement->GetParent());
 
+        auto finalResourceUsage = operationElement->Finalize();
         YCHECK(OperationIdToElement.erase(operation->GetId()) == 1);
         operationElement->SetAlive(false);
         pool->RemoveChild(operationElement);
-        pool->IncreaseResourceUsage(-operationElement->GetResourceUsage());
+        pool->IncreaseResourceUsage(-finalResourceUsage);
         IncreaseOperationCount(pool, -1);
 
         LOG_INFO("Operation removed from pool (OperationId: %v, Pool: %v)",

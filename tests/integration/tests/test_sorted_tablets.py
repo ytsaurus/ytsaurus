@@ -992,6 +992,8 @@ class TestSortedTablets(YTEnvSetup):
         # check that everything survives after recovery
         self.sync_unmount_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
+        # ensure data is preloaded
+        sleep(3)
         assert lookup_rows("//tmp/t", _keys(0, 50)) == _rows(10, 30)
         self.sync_unmount_table("//tmp/t")
 
@@ -1002,6 +1004,8 @@ class TestSortedTablets(YTEnvSetup):
             {"name": "key2", "type": "int64", "sort_order": "ascending"},
             {"name": "value", "type": "string"}]);
         self.sync_mount_table("//tmp/t")
+        # ensure data is preloaded
+        sleep(3)
         assert lookup_rows("//tmp/t", _keys(0, 50), column_names=["key", "value"]) == _rows(10, 30)
 
     def test_update_key_columns_fail1(self):

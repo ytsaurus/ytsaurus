@@ -187,7 +187,7 @@ public:
     virtual void Reply(const TError& error) override
     {
         if (this->Options_.Heavy) {
-            TDispatcher::Get()->GetInvoker()->Invoke(BIND(
+            TDispatcher::Get()->GetHeavyInvoker()->Invoke(BIND(
                 &TThis::DoReply,
                 MakeStrong(this),
                 error));

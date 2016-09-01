@@ -43,7 +43,7 @@ DECLARE_REFCOUNTED_CLASS(TJournalReaderConfig)
 DECLARE_REFCOUNTED_CLASS(TJournalWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TPersistentQueuePollerConfig)
 
-DECLARE_REFCOUNTED_CLASS(TPrerequisiteRevisionConfig)
+DECLARE_REFCOUNTED_STRUCT(TPrerequisiteRevisionConfig)
 
 ///////////////////////////////////////////////////////////////////////////////
 
