@@ -990,6 +990,8 @@ class TestSortedTablets(YTEnvSetup):
 
         self.sync_unmount_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
+        # ensure data is preloaded
+        self._wait_for_in_memory_stores_preload("//tmp/t")
 
         # check that stores are rotated on-demand
         insert_rows("//tmp/t", _rows(10, 20))
@@ -1000,6 +1002,8 @@ class TestSortedTablets(YTEnvSetup):
 
         self.sync_unmount_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
+        # ensure data is preloaded
+        self._wait_for_in_memory_stores_preload("//tmp/t")
 
         # check that we can delete rows
         delete_rows("//tmp/t", _keys(0, 10))
