@@ -15,6 +15,8 @@
 #include <yt/server/hydra/hydra_manager.h>
 #include <yt/server/hydra/mutation.h>
 
+#include <yt/server/tablet_node/transaction_manager.pb.h>
+
 #include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/timestamp_provider.h>
 #include <yt/ytlib/transaction_client/action.h>
@@ -29,6 +31,8 @@
 #include <yt/core/logging/log.h>
 
 #include <yt/core/ytree/fluent.h>
+
+#include <yt/core/misc/heap.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -52,6 +56,7 @@ public:
     DEFINE_SIGNAL(void(TTransaction*), TransactionStarted);
     DEFINE_SIGNAL(void(TTransaction*), TransactionPrepared);
     DEFINE_SIGNAL(void(TTransaction*), TransactionCommitted);
+    DEFINE_SIGNAL(void(TTransaction*), TransactionSerialized);
     DEFINE_SIGNAL(void(TTransaction*), TransactionAborted);
     DEFINE_SIGNAL(void(TTransaction*), TransactionTransientReset);
 
@@ -102,6 +107,7 @@ public:
             BIND(&TImpl::SaveAsync, Unretained(this)));
 
         RegisterMethod(BIND(&TImpl::HydraRegisterTransactionActions, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraHandleTransactionBarrier, Unretained(this)));
 
         OrchidService_ = IYPathService::FromProducer(BIND(&TImpl::BuildOrchidYson, MakeStrong(this)))
             ->Via(Slot_->GetGuardedAutomatonInvoker())
@@ -150,17 +156,24 @@ public:
         auto& map = transient ? TransientTransactionMap_ : PersistentTransactionMap_;
         auto* transaction = map.Insert(transactionId, std::move(transactionHolder));
 
+        if (IsLeader()) {
+            transaction->SetBarrierEpoch(CurrentBarrierEpoch_ + 1);
+            ++NextBarrierEpochTransactionCount_;
+            MaybeEnableBarrierGeneration();
+        }
+
         if (!transient && IsLeader()) {
             CreateLeases(transaction);
         }
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, StartTimestamp: %v, StartTime: %v, "
-            "Timeout: %v, Transient: %v)",
+            "Timeout: %v, Transient: %v, BarrierEpoch: %v)",
             transactionId,
             startTimestamp,
             TimestampToInstant(startTimestamp).first,
             timeout,
-            transient);
+            transient,
+            transaction->GetBarrierEpoch());
 
         return transaction;
     }
@@ -301,11 +314,15 @@ public:
         TransactionCommitted_.Fire(transaction);
         RunCommitTransactionActions(transaction);
 
+        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %v, BarrierEpoch: %v, CommitTimestamp: %v)",
+            transactionId,
+            transaction->GetBarrierEpoch(),
+            commitTimestamp);
+
         FinishTransaction(transaction);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %v, CommitTimestamp: %v)",
-            transactionId,
-            commitTimestamp);
+        SerializingTransactionHeap_.push_back(transaction);
+        AdjustHeapBack(SerializingTransactionHeap_.begin(), SerializingTransactionHeap_.end(), SerializingTransactionHeapComparer);
     }
 
     void AbortTransaction(const TTransactionId& transactionId, bool force)
@@ -328,11 +345,17 @@ public:
         TransactionAborted_.Fire(transaction);
         RunAbortTransactionActions(transaction);
 
-        FinishTransaction(transaction);
-
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %v, Force: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %v, BarrierEpoch: %v, Force: %v)",
             transactionId,
+            transaction->GetBarrierEpoch(),
             force);
+
+        FinishTransaction(transaction);
+        PersistentTransactionMap_.Remove(transactionId);
+
+        if (IsLeader()) {
+            MaybeDisableBarrierGeneration();
+        }
     }
 
     void PingTransaction(const TTransactionId& transactionId, bool pingAncestors)
@@ -347,6 +370,14 @@ private:
     const TTransactionLeaseTrackerPtr LeaseTracker_;
 
     TEntityMap<TTransaction> TransientTransactionMap_;
+    std::vector<TTransaction*> SerializingTransactionHeap_;
+    TTimestamp LastSerializedCommitTimestamp_ = MinTimestamp;
+
+    bool BarrierGenerationEnabled_ = false;
+    ui32 CurrentBarrierEpoch_ = 0;
+    TTimestamp BarrierTimestamp_;
+    int CurrentBarrierEpochTransactionCount_;
+    int NextBarrierEpochTransactionCount_;
 
     IYPathServicePtr OrchidService_;
 
@@ -454,10 +485,34 @@ private:
 
     void FinishTransaction(TTransaction* transaction)
     {
-        transaction->SetFinished();
-        PersistentTransactionMap_.Remove(transaction->GetId());
+        if (IsLeader()) {
+            if (transaction->GetBarrierEpoch() == CurrentBarrierEpoch_) {
+                YCHECK(--CurrentBarrierEpochTransactionCount_ >= 0);
+                CheckForBarrier();
+            } else if (transaction->GetBarrierEpoch() == CurrentBarrierEpoch_ + 1) {
+                YCHECK(--NextBarrierEpochTransactionCount_ >= 0);
+            } else {
+                Y_UNREACHABLE();
+            }
+        }
     }
 
+
+    virtual void OnAfterSnapshotLoaded() override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TTabletAutomatonPart::OnAfterSnapshotLoaded();
+
+        SerializingTransactionHeap_.clear();
+        for (const auto& pair : PersistentTransactionMap_) {
+            auto* transaction = pair.second;
+            if (transaction->GetState() == ETransactionState::Committed) {
+                SerializingTransactionHeap_.push_back(transaction);
+            }
+        }
+        MakeHeap(SerializingTransactionHeap_.begin(), SerializingTransactionHeap_.end(), SerializingTransactionHeapComparer);
+    }
 
     virtual void OnLeaderActive() override
     {
@@ -467,7 +522,8 @@ private:
 
         YCHECK(TransientTransactionMap_.GetSize() == 0);
 
-        // Recreate leases for all active transactions.
+        // Recreate leases and resets barrier epochs for all active transactions.
+        // Add all transactions to NextBarrierTransactions_;
         for (const auto& pair : PersistentTransactionMap_) {
             auto* transaction = pair.second;
             if (transaction->GetState() == ETransactionState::Active ||
@@ -475,7 +531,12 @@ private:
             {
                 CreateLeases(transaction);
             }
+            transaction->SetBarrierEpoch(1);
         }
+        CurrentBarrierEpoch_ = 0;
+        CurrentBarrierEpochTransactionCount_ = 0;
+        NextBarrierEpochTransactionCount_ = PersistentTransactionMap_.GetSize();
+        MaybeEnableBarrierGeneration();
 
         LeaseTracker_->Start();
     }
@@ -498,13 +559,17 @@ private:
 
         // Reset all transiently prepared persistent transactions back into active state.
         // Mark all transactions as finished to release pending readers.
+        // Cleanup barrier epochs.
         for (const auto& pair : PersistentTransactionMap_) {
             auto* transaction = pair.second;
             transaction->SetState(transaction->GetPersistentState());
             transaction->SetTransientSignature(transaction->GetPersistentSignature());
             transaction->ResetFinished();
+            transaction->SetBarrierEpoch(0);
             TransactionTransientReset_.Fire(transaction);
         }
+
+        DisableBarrierGeneration();
     }
 
 
@@ -519,7 +584,9 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        using NYT::Save;
         PersistentTransactionMap_.SaveValues(context);
+        Save(context, LastSerializedCommitTimestamp_);
     }
 
     TCallback<void(TSaveContext&)> SaveAsync()
@@ -534,7 +601,6 @@ private:
 
         return BIND([capturedTransactions = std::move(capturedTransactions)] (TSaveContext& context) {
                 using NYT::Save;
-
                 // NB: This is not stable.
                 for (const auto& pair : capturedTransactions) {
                     Save(context, pair.first);
@@ -555,7 +621,9 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        using NYT::Load;
         PersistentTransactionMap_.LoadValues(context);
+        Load(context, LastSerializedCommitTimestamp_);
     }
 
     void LoadAsync(TLoadContext& context)
@@ -584,6 +652,8 @@ private:
 
         TransientTransactionMap_.Clear();
         PersistentTransactionMap_.Clear();
+        SerializingTransactionHeap_.clear();
+        LastSerializedCommitTimestamp_ = MinTimestamp;
     }
 
 
@@ -615,6 +685,153 @@ private:
         }
 
         transaction->SetPersistentSignature(transaction->GetPersistentSignature() + signature);
+    }
+
+    void HydraHandleTransactionBarrier(NTabletNode::NProto::TReqHandleTransactionBarrier* request)
+    {
+        auto barrierTimestamp = request->timestamp();
+
+        LOG_DEBUG("Handling transaction barrier (Timestamp: %v)",
+            barrierTimestamp);
+
+        while (!SerializingTransactionHeap_.empty()) {
+            auto* transaction = SerializingTransactionHeap_.front();
+            auto commitTimestamp = transaction->GetCommitTimestamp();
+            if (commitTimestamp > barrierTimestamp) {
+                break;
+            }
+
+            YCHECK(commitTimestamp > LastSerializedCommitTimestamp_);
+            LastSerializedCommitTimestamp_ = commitTimestamp;
+
+            const auto& transactionId = transaction->GetId();
+            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction serialized (TransactionId: %v, CommitTimestamp: %v)",
+                transaction->GetId(),
+                commitTimestamp);
+
+            transaction->SetState(ETransactionState::Serialized);
+            TransactionSerialized_.Fire(transaction);
+
+            PersistentTransactionMap_.Remove(transactionId);
+
+            ExtractHeap(SerializingTransactionHeap_.begin(), SerializingTransactionHeap_.end(), SerializingTransactionHeapComparer);
+            SerializingTransactionHeap_.resize(SerializingTransactionHeap_.size() - 1);
+        }
+
+        if (IsLeader()) {
+            if (IsBarrierGenerationNeeded()) {
+                GenerateBarrierTimestamp(EpochAutomatonInvoker_);
+            } else {
+                DisableBarrierGeneration();
+            }
+        }
+    }
+
+
+    void GenerateBarrierTimestamp(const IInvokerPtr& epochInvoker)
+    {
+        LOG_DEBUG("Generating transaction barrier timestamp");
+
+        auto timestampProvider = Bootstrap_
+            ->GetMasterClient()
+            ->GetConnection()
+            ->GetTimestampProvider();
+        timestampProvider->GenerateTimestamps(1).Subscribe(
+            BIND(&TImpl::OnBarrierTimestampGenerated, MakeWeak(this), epochInvoker)
+                .Via(epochInvoker));
+    }
+
+    void OnBarrierTimestampGenerated(const IInvokerPtr& epochInvoker, const TErrorOr<TTimestamp>& timestampOrError)
+    {
+        if (!timestampOrError.IsOK()) {
+            LOG_DEBUG(timestampOrError, "Error generating transaction barrier timestamp");
+            TDelayedExecutor::Submit(
+                BIND(&TImpl::GenerateBarrierTimestamp, MakeWeak(this), epochInvoker),
+                Config_->BarrierBackoffTime);
+            return;
+        }
+
+        BarrierTimestamp_ = timestampOrError.Value();
+        ++CurrentBarrierEpoch_;
+        CurrentBarrierEpochTransactionCount_ = NextBarrierEpochTransactionCount_;
+        NextBarrierEpochTransactionCount_ = 0;
+
+        LOG_DEBUG("Waiting for transaction barrier (Timestamp: %v, TransactionCount: %v)",
+            BarrierTimestamp_,
+            CurrentBarrierEpochTransactionCount_);
+
+        CheckForBarrier();
+    }
+
+    void CheckForBarrier()
+    {
+        if (CurrentBarrierEpochTransactionCount_ > 0) {
+            return;
+        }
+
+        LOG_DEBUG("Committing transaction barrier (Timestamp: %v)",
+            BarrierTimestamp_);
+
+        NTabletNode::NProto::TReqHandleTransactionBarrier request;
+        request.set_timestamp(BarrierTimestamp_);
+        CreateMutation(HydraManager_, request)
+            ->CommitAndLog(Logger);
+    }
+
+    bool IsBarrierGenerationNeeded()
+    {
+        return
+            TransientTransactionMap_.GetSize() > 0 ||
+            PersistentTransactionMap_.GetSize() > 0 ||
+            SerializingTransactionHeap_.size() > 0;
+    }
+
+    void MaybeEnableBarrierGeneration()
+    {
+        if (BarrierGenerationEnabled_) {
+            return;
+        }
+
+        if (!IsBarrierGenerationNeeded()) {
+            return;
+        }
+
+        BarrierGenerationEnabled_ = true;
+        LOG_DEBUG("Transaction barrier generation enabled");
+
+        GenerateBarrierTimestamp(EpochAutomatonInvoker_);
+    }
+
+    void MaybeDisableBarrierGeneration()
+    {
+        if (!BarrierGenerationEnabled_) {
+            return;
+        }
+
+        if (IsBarrierGenerationNeeded()) {
+            return;
+        }
+
+        DisableBarrierGeneration();
+    }
+
+    void DisableBarrierGeneration()
+    {
+        if (!BarrierGenerationEnabled_) {
+            return;
+        }
+
+        BarrierGenerationEnabled_ = false;
+        LOG_DEBUG("Transaction barrier generation disabled");
+    }
+
+    static bool SerializingTransactionHeapComparer(
+        const TTransaction* lhs,
+        const TTransaction* rhs)
+    {
+        Y_ASSERT(lhs->GetState() == ETransactionState::Committed);
+        Y_ASSERT(rhs->GetState() == ETransactionState::Committed);
+        return lhs->GetCommitTimestamp() < rhs->GetCommitTimestamp();
     }
 };
 
@@ -711,6 +928,7 @@ void TTransactionManager::PingTransaction(const TTransactionId& transactionId, b
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionStarted, *Impl_);
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionPrepared, *Impl_);
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionCommitted, *Impl_);
+DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionSerialized, *Impl_);
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionAborted, *Impl_);
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionTransientReset, *Impl_)
 

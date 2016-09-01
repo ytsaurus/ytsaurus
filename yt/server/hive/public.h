@@ -60,6 +60,7 @@ DEFINE_ENUM(ETransactionState,
     ((TransientCommitPrepared)    (1))
     ((PersistentCommitPrepared)   (2))
     ((Committed)                  (3))
+    ((Serialized)                 (6))
     ((TransientAbortPrepared)     (4))
     ((Aborted)                    (5))
 );
