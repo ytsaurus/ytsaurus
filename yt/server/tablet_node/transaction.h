@@ -55,6 +55,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TTransactionWriteLog, WriteLog);
     DEFINE_BYVAL_RW_PROPERTY(TTransactionSignature, PersistentSignature);
     DEFINE_BYVAL_RW_PROPERTY(TTransactionSignature, TransientSignature);
+    DEFINE_BYVAL_RW_PROPERTY(ui32, BarrierEpoch);
 
 public:
     explicit TTransaction(const TTransactionId& id);

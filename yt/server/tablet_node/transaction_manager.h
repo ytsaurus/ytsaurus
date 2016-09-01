@@ -31,6 +31,9 @@ public:
     //! Raised when a transaction is committed.
     DECLARE_SIGNAL(void(TTransaction*), TransactionCommitted);
 
+    //! Raised when a transaction is serialized by a barrier.
+    DECLARE_SIGNAL(void(TTransaction*), TransactionSerialized);
+
     //! Raised when a transaction is aborted.
     DECLARE_SIGNAL(void(TTransaction*), TransactionAborted);
 

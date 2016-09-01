@@ -326,6 +326,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/tablet_node/tablet_slot.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_node/transaction.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_node/transaction_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_node/transaction_manager.proto
   ${CMAKE_CURRENT_LIST_DIR}/tablet_node/replicated_sorted_store_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_node/table_replicator.cpp
 
