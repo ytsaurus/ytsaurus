@@ -8,7 +8,7 @@ die() {
 usage() {
     echo "Usage: $0 {package_name} {arcadia_path} [{version}]"
 }
-    
+
 [ -n "$1" ] || (usage && die)
 PACKAGE_NAME="$1" && shift
 
@@ -23,7 +23,12 @@ else
     VERSION="$(dpkg-parsechangelog | grep Version | awk '{print $2}')"
 fi
 
-ARCADIA_DIR="arcadia_dir"
+if [ -n "$ARCADIA_DIR" ]; then
+    SPECIFIED_ARCADIA_DIR="1"
+else
+    SPECIFIED_ARCADIA_DIR="0"
+    ARCADIA_DIR="arcadia_dir"
+fi
 
 TMP_DIR="$(pwd)/tmp_dir"
 rm -rf "$TMP_DIR" && mkdir "$TMP_DIR"
@@ -51,7 +56,7 @@ cp -r "${VERSION}/usr/share/pyshared/"* "$ARCADIA/"
 rm -rf "$ARCADIA/*egg-info"
 cp -r "${VERSION}/usr/bin" "$ARCADIA/"
 
-pushd "$ARCADIA_DIR" 
+pushd "$ARCADIA_DIR"
 
 pushd latest
 LATEST_FILES="$(find . -name "*")"
@@ -62,10 +67,14 @@ for file in $LATEST_FILES; do
         svn rm "$LATEST/$file"
     fi
 done
-cp -r "$VERSION"/* latest 
+cp -r "$VERSION"/* latest
 svn add latest --force
 #svn add "$VERSION"
-svn ci -m "Updated $ARCADIA_PATH to version $VERSION"
+if [ "$SPECIFIED_ARCADIA_DIR" = "0" ]; then
+    svn ci -m "Updated $ARCADIA_PATH to version $VERSION"
+else
+    echo "Make checks and then manually commit with message \"Updated $ARCADIA_PATH to version $VERSION\""
+fi
 
 popd # $ARCADIA_DIR
 
