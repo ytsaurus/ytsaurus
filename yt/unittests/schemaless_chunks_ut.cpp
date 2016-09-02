@@ -368,8 +368,264 @@ INSTANTIATE_TEST_CASE_P(Sorted,
 //  1. Test sampling.
 //  2. Test system columns.
 
-// FIXME(savrus):
-// Test lookup readers
+////////////////////////////////////////////////////////////////////////////////
+
+class TSchemalessChunksLookupTest
+    : public ::testing::TestWithParam<std::tuple<EOptimizeFor, TTableSchema>>
+{
+protected:
+    TUnversionedValue CreateInt64(int rowIndex, int id)
+    {
+        if (rowIndex % 20 == 0) {
+            return MakeUnversionedSentinelValue(EValueType::Null, id);
+        } else {
+            return MakeUnversionedInt64Value((rowIndex << 10) ^ rowIndex, id);
+        }
+    }
+
+    TUnversionedValue CreateUint64(int rowIndex, int id)
+    {
+        if (rowIndex % 20 == 0) {
+            return MakeUnversionedSentinelValue(EValueType::Null, id);
+        } else {
+            return MakeUnversionedUint64Value((rowIndex << 10) ^ rowIndex, id);
+        }
+    }
+
+    TUnversionedValue CreateDouble(int rowIndex, int id)
+    {
+        if (rowIndex % 20 == 0) {
+            return MakeUnversionedSentinelValue(EValueType::Null, id);
+        } else {
+            return MakeUnversionedDoubleValue(static_cast<double>((rowIndex << 10) ^ rowIndex), id);
+        }
+    }
+
+    TUnversionedValue CreateBoolean(int rowIndex, int id)
+    {
+        if (rowIndex % 20 == 0) {
+            return MakeUnversionedSentinelValue(EValueType::Null, id);
+        } else {
+            return MakeUnversionedInt64Value(static_cast<bool>(rowIndex % 3), id);
+        }
+    }
+
+    TUnversionedValue CreateString(int rowIndex, int id)
+    {
+        if (rowIndex % 20 == 0) {
+            return MakeUnversionedSentinelValue(EValueType::Null, id);
+        } else {
+            return MakeUnversionedStringValue(StringValue, id);
+        }
+    }
+
+    TUnversionedValue CreateAny(int rowIndex, int id)
+    {
+        if (rowIndex % 20 == 0) {
+            return MakeUnversionedSentinelValue(EValueType::Null, id);
+        } else if (rowIndex % 20 < 11) {
+            return MakeUnversionedAnyValue(AnyValueList, id);
+        } else {
+            return MakeUnversionedAnyValue(AnyValueMap, id);
+        }
+    }
+
+    TUnversionedValue CreateValue(int rowIndex, int id, const TColumnSchema& columnSchema)
+    {
+        switch (columnSchema.Type) {
+            case EValueType::Int64:
+                return CreateInt64(rowIndex, id);
+            case EValueType::Uint64:
+                return CreateUint64(rowIndex, id);
+            case EValueType::Double:
+                return CreateDouble(rowIndex, id);
+            case EValueType::Boolean:
+                return CreateBoolean(rowIndex, id);
+            case EValueType::String:
+                return CreateString(rowIndex, id);
+            case EValueType::Any:
+                return CreateAny(rowIndex, id);
+            default:
+                Y_UNREACHABLE();
+        }
+    }
+
+    TUnversionedRow CreateRow(int rowIndex, const TTableSchema& schema, TNameTablePtr nameTable)
+    {
+        auto row = TMutableUnversionedRow::Allocate(&Pool_, schema.Columns().size());
+        for (int index = 0; index < schema.Columns().size(); ++index) {
+            const auto& column = schema.Columns()[index];
+            row[index] = CreateValue(rowIndex, nameTable->GetIdOrRegisterName(column.Name), column);
+        }
+        return row;
+    }
+
+    void InitRows(int rowCount, const TTableSchema& schema, TNameTablePtr nameTable)
+    {
+        std::vector<TUnversionedRow> rows;
+
+        for (int index = 0; index < rowCount; ++index) {
+            rows.push_back(CreateRow(index, schema, nameTable));
+        }
+
+        std::sort(
+            rows.begin(),
+            rows.end(), [&] (const TUnversionedRow& lhs, const TUnversionedRow& rhs) {
+                return CompareRows(lhs, rhs, schema.GetKeyColumnCount()) < 0;
+            });
+        rows.erase(
+            std::unique(
+                rows.begin(),
+                rows.end(), [&] (const TUnversionedRow& lhs, const TUnversionedRow& rhs) {
+                    return CompareRows(lhs, rhs, schema.GetKeyColumnCount()) == 0;
+                }),
+            rows.end());
+
+        Rows_ = std::move(rows);
+    }
+
+    void InitChunk(int rowCount, EOptimizeFor optimizeFor, const TTableSchema& schema)
+    {
+        auto memoryWriter = New<TMemoryWriter>();
+
+        auto config = New<TChunkWriterConfig>();
+        config->BlockSize = 2 * 1024;
+
+        auto options = New<TChunkWriterOptions>();
+        options->OptimizeFor = optimizeFor;
+        options->ValidateSorted = true;
+        options->ValidateUniqueKeys = true;
+        auto chunkWriter = CreateSchemalessChunkWriter(
+            config,
+            options,
+            schema,
+            memoryWriter);
+
+        WriteNameTable_ = chunkWriter->GetNameTable();
+        InitRows(rowCount, schema, WriteNameTable_);
+
+        EXPECT_TRUE(chunkWriter->Open().Get().IsOK());
+        chunkWriter->Write(Rows_);
+        EXPECT_TRUE(chunkWriter->Close().Get().IsOK());
+
+        MemoryReader_ = CreateMemoryReader(
+            std::move(memoryWriter->GetChunkMeta()),
+            std::move(memoryWriter->GetBlocks()));
+
+        ToProto(Spec_.mutable_chunk_id(), NullChunkId);
+        Spec_.mutable_chunk_meta()->MergeFrom(memoryWriter->GetChunkMeta());
+        Spec_.set_table_row_index(42);
+    }
+
+    ISchemalessChunkReaderPtr LookupRows(
+        TSharedRange<TKey> keys,
+        const TKeyColumns& keyColumns)
+    {
+        auto options = New<TChunkReaderOptions>();
+        options->DynamicTable = true;
+
+        return CreateSchemalessChunkReader(
+            Spec_,
+            New<TChunkReaderConfig>(),
+            options,
+            MemoryReader_,
+            WriteNameTable_,
+            GetNullBlockCache(),
+            keyColumns,
+            TColumnFilter(),
+            keys);
+    }
+
+    virtual void SetUp() override
+    {
+        auto optimizeFor = std::get<0>(GetParam());
+        Schema_ = std::get<1>(GetParam());
+        InitChunk(1000, optimizeFor, Schema_);
+    }
+
+    TTableSchema Schema_;
+    IChunkReaderPtr MemoryReader_;
+    TNameTablePtr WriteNameTable_;
+    TChunkSpec Spec_;
+
+    TChunkedMemoryPool Pool_;
+    std::vector<TUnversionedRow> Rows_;
+};
+
+TEST_P(TSchemalessChunksLookupTest, Simple)
+{
+    std::vector<TUnversionedRow> expected;
+    std::vector<TUnversionedRow> keys;
+
+    for (int index = 0; index < Rows_.size(); ++index) {
+        if (index % 10 != 0) {
+            continue;
+        }
+
+        auto row = Rows_[index];
+        expected.push_back(row);
+
+        auto key = TMutableUnversionedRow::Allocate(&Pool_, Schema_.GetKeyColumnCount());
+        for (int valueIndex = 0; valueIndex < Schema_.GetKeyColumnCount(); ++valueIndex) {
+            key[valueIndex] = row[valueIndex];
+        }
+        keys.push_back(key);
+    }
+
+    auto reader = LookupRows(MakeSharedRange(keys), TKeyColumns());
+    CheckSchemalessResult(expected, reader, Schema_.GetKeyColumnCount());
+}
+
+TEST_P(TSchemalessChunksLookupTest, WiderKeyColumns)
+{
+    std::vector<TUnversionedRow> expected;
+    std::vector<TUnversionedRow> keys;
+
+    TKeyColumns keyColumns = Schema_.GetKeyColumns();
+    keyColumns.push_back("w1");
+    keyColumns.push_back("w2");
+
+    for (int index = 0; index < Rows_.size(); ++index) {
+        if (index % 10 != 0) {
+            continue;
+        }
+
+        auto row = Rows_[index];
+        expected.push_back(row);
+
+        auto key = TMutableUnversionedRow::Allocate(&Pool_, keyColumns.size());
+        for (int valueIndex = 0; valueIndex < Schema_.GetKeyColumnCount(); ++valueIndex) {
+            key[valueIndex] = row[valueIndex];
+        }
+        for (int valueIndex = Schema_.GetKeyColumnCount(); valueIndex < key.GetCount(); ++valueIndex) {
+            key[valueIndex] = MakeUnversionedSentinelValue(EValueType::Null, valueIndex);
+        }
+        keys.push_back(key);
+    }
+
+    auto reader = LookupRows(MakeSharedRange(keys), keyColumns);
+    CheckSchemalessResult(expected, reader, Schema_.GetKeyColumnCount());
+}
+
+INSTANTIATE_TEST_CASE_P(Sorted,
+    TSchemalessChunksLookupTest,
+    ::testing::Combine(
+        ::testing::Values(
+            //TODO: support lookup for unversionedColumnar format
+            //EOptimizeFor::Scan,
+            EOptimizeFor::Lookup),
+        ::testing::Values(
+            ConvertTo<TTableSchema>(TYsonString("<strict=%true>["
+                "{name = c1; type = boolean; sort_order = ascending};"
+                "{name = c2; type = uint64; sort_order = ascending};"
+                "{name = c3; type = int64; sort_order = ascending};"
+                "{name = c4; type = double};]")),
+            ConvertTo<TTableSchema>(TYsonString("<strict=%true>["
+                "{name = c1; type = int64; sort_order = ascending};"
+                "{name = c2; type = uint64; sort_order = ascending};"
+                "{name = c3; type = string; sort_order = ascending};"
+                "{name = c4; type = boolean; sort_order = ascending};"
+                "{name = c5; type = any};]")))));
 
 ////////////////////////////////////////////////////////////////////////////////
 
