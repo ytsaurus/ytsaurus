@@ -112,7 +112,7 @@ TOrderedDynamicRowRef TOrderedStoreManager::WriteRow(
     }
 
     auto dynamicRow = ActiveStore_->WriteRow(transaction, row);
-    auto dynamicRowRef = TOrderedDynamicRowRef(ActiveStore_.Get(), this, dynamicRow);
+    auto dynamicRowRef = TOrderedDynamicRowRef(ActiveStore_.Get(), this, dynamicRow, Tablet_->IsImmediatelyCommittable());
     LockRow(transaction, prelock, dynamicRowRef);
     return dynamicRowRef;
 }

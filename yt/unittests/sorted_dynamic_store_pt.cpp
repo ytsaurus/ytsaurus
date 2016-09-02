@@ -62,7 +62,7 @@ public:
                 transaction.get(),
                 row,
                 TSortedDynamicRow::PrimaryLockMask);
-            transaction->LockedSortedRows().push_back(TSortedDynamicRowRef(Store_.Get(), nullptr, dynamicRow));
+            transaction->LockedSortedRows().push_back(TSortedDynamicRowRef(Store_.Get(), nullptr, dynamicRow, true));
 
             PrepareTransaction(transaction.get());
             Store_->PrepareRow(transaction.get(), dynamicRow);

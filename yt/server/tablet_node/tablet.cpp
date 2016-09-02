@@ -728,6 +728,11 @@ bool TTablet::IsReplicated() const
     return TypeFromId(TableId_) == EObjectType::ReplicatedTable;
 }
 
+bool TTablet::IsImmediatelyCommittable() const
+{
+    return IsPhysicallySorted() || Serializability_ == ESerializability::None;
+}
+
 int TTablet::GetColumnLockCount() const
 {
     return ColumnLockCount_;

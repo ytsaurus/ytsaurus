@@ -85,17 +85,21 @@ void TTransaction::Load(TLoadContext& context)
 
 TCallback<void(TSaveContext&)> TTransaction::AsyncSave()
 {
-    auto writeLogSnapshot = WriteLog_.MakeSnapshot();
-    return BIND([writeLogSnapshot = std::move(writeLogSnapshot)] (TSaveContext& context) {
+    return BIND([
+        immediateWriteLogSnapshot = ImmediateWriteLog_.MakeSnapshot(),
+        delayedWriteLogSnapshot = DelayedWriteLog_.MakeSnapshot()
+    ] (TSaveContext& context) {
         using NYT::Save;
-        Save(context, writeLogSnapshot);
+        Save(context, immediateWriteLogSnapshot);
+        Save(context, delayedWriteLogSnapshot);
     });
 }
 
 void TTransaction::AsyncLoad(TLoadContext& context)
 {
     using NYT::Load;
-    Load(context, WriteLog_);
+    Load(context, ImmediateWriteLog_);
+    Load(context, DelayedWriteLog_);
 }
 
 TFuture<void> TTransaction::GetFinished() const

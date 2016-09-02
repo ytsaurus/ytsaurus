@@ -481,6 +481,7 @@ struct TDynamicRowRef
         : Store(nullptr)
         , StoreManager(nullptr)
         , Row()
+        , Immediate(true)
     { }
 
     TDynamicRowRef(const TDynamicRowRef& other) = default;
@@ -488,10 +489,12 @@ struct TDynamicRowRef
     TDynamicRowRef(
         TStore* store,
         TStoreManager* storeManager,
-        TRow row)
+        TRow row,
+        bool immediate)
         : Store(store)
         , StoreManager(storeManager)
         , Row(row)
+        , Immediate(immediate)
     { }
 
 
@@ -517,6 +520,7 @@ struct TDynamicRowRef
     TStore* Store;
     TStoreManager* StoreManager;
     TRow Row;
+    bool Immediate;
 };
 
 using TSortedDynamicRowRef = TDynamicRowRef<

@@ -155,7 +155,7 @@ TSortedDynamicRowRef TSortedStoreManager::WriteRowAtomic(
     }
 
     auto dynamicRow = ActiveStore_->WriteRowAtomic(transaction, row, lockMask);
-    auto dynamicRowRef = TSortedDynamicRowRef(ActiveStore_.Get(), this, dynamicRow);
+    auto dynamicRowRef = TSortedDynamicRowRef(ActiveStore_.Get(), this, dynamicRow, true);
     LockRow(transaction, prelock, dynamicRowRef);
     return dynamicRowRef;
 }
@@ -185,7 +185,7 @@ TSortedDynamicRowRef TSortedStoreManager::DeleteRowAtomic(
     }
 
     auto dynamicRow = ActiveStore_->DeleteRowAtomic(transaction, key);
-    auto dynamicRowRef = TSortedDynamicRowRef(ActiveStore_.Get(), this, dynamicRow);
+    auto dynamicRowRef = TSortedDynamicRowRef(ActiveStore_.Get(), this, dynamicRow, true);
     LockRow(transaction, prelock, dynamicRowRef);
     return dynamicRowRef;
 }

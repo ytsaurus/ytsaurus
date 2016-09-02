@@ -294,6 +294,7 @@ public:
     bool IsPhysicallySorted() const;
     bool IsPhysicallyOrdered() const;
     bool IsReplicated() const;
+    bool IsImmediatelyCommittable() const;
 
     int GetColumnLockCount() const;
 
