@@ -25,7 +25,12 @@ TRowQueue::TRowQueue()
 
 void TRowQueue::Enqueue(TRowElementPtr row)
 {
-    while (!Stopped_ && Size_ && Size_ + row->Size > SizeLimit_) {
+    // move into lambda for 1 AtomicGet() instead of 2
+    auto sizeOverLimit = [&]() {
+        auto size = AtomicGet(Size_);
+        return size && size + row->Size > SizeLimit_;
+    };
+    while (!Stopped_ && sizeOverLimit()) {
         DequeueEvent_.Wait();
     }
     if (Stopped_) {
