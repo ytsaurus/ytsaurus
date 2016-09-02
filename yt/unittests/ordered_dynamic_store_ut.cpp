@@ -22,7 +22,7 @@ protected:
 
     void ConfirmRow(TTransaction* transaction, TOrderedDynamicRow row)
     {
-        transaction->LockedOrderedRows().push_back(TOrderedDynamicRowRef(Store_.Get(), nullptr, row));
+        transaction->LockedOrderedRows().push_back(TOrderedDynamicRowRef(Store_.Get(), nullptr, row, true));
     }
 
     void PrepareRow(TTransaction* transaction, TOrderedDynamicRow row)
@@ -129,7 +129,7 @@ private:
 
     void LockRow(TTransaction* transaction, bool prelock, TOrderedDynamicRow row)
     {
-        auto rowRef = TOrderedDynamicRowRef(Store_.Get(), nullptr, row);
+        auto rowRef = TOrderedDynamicRowRef(Store_.Get(), nullptr, row, true);
         TOrderedStoreManager::LockRow(transaction, prelock, rowRef);
     }
 };

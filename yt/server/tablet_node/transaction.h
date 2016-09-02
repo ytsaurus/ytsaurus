@@ -52,7 +52,8 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TRingQueue<TSortedDynamicRowRef>, PrelockedSortedRows);
     DEFINE_BYREF_RW_PROPERTY(std::vector<TOrderedDynamicRowRef>, LockedOrderedRows);
     DEFINE_BYREF_RW_PROPERTY(TRingQueue<TOrderedDynamicRowRef>, PrelockedOrderedRows);
-    DEFINE_BYREF_RW_PROPERTY(TTransactionWriteLog, WriteLog);
+    DEFINE_BYREF_RW_PROPERTY(TTransactionWriteLog, ImmediateWriteLog);
+    DEFINE_BYREF_RW_PROPERTY(TTransactionWriteLog, DelayedWriteLog);
     DEFINE_BYVAL_RW_PROPERTY(TTransactionSignature, PersistentSignature);
     DEFINE_BYVAL_RW_PROPERTY(TTransactionSignature, TransientSignature);
     DEFINE_BYVAL_RW_PROPERTY(ui32, BarrierEpoch);

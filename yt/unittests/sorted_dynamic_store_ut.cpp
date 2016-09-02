@@ -19,7 +19,7 @@ protected:
 
     void ConfirmRow(TTransaction* transaction, TSortedDynamicRow row)
     {
-        transaction->LockedSortedRows().push_back(TSortedDynamicRowRef(Store_.Get(), nullptr, row));
+        transaction->LockedSortedRows().push_back(TSortedDynamicRowRef(Store_.Get(), nullptr, row, true));
     }
 
     void PrepareRow(TTransaction* transaction, TSortedDynamicRow row)
@@ -216,7 +216,7 @@ private:
 
     void LockRow(TTransaction* transaction, bool prelock, TSortedDynamicRow row)
     {
-        auto rowRef = TSortedDynamicRowRef(Store_.Get(), nullptr, row);
+        auto rowRef = TSortedDynamicRowRef(Store_.Get(), nullptr, row, true);
         TSortedStoreManager::LockRow(transaction, prelock, rowRef);
     }
 };

@@ -165,6 +165,7 @@ public:
 
         transactionManager->SubscribeTransactionPrepared(BIND(&TImpl::OnTransactionPrepared, MakeStrong(this)));
         transactionManager->SubscribeTransactionCommitted(BIND(&TImpl::OnTransactionCommitted, MakeStrong(this)));
+        transactionManager->SubscribeTransactionSerialized(BIND(&TImpl::OnTransactionSerialized, MakeStrong(this)));
         transactionManager->SubscribeTransactionAborted(BIND(&TImpl::OnTransactionAborted, MakeStrong(this)));
         transactionManager->SubscribeTransactionTransientReset(BIND(&TImpl::OnTransactionTransientReset, MakeStrong(this)));
 
@@ -523,24 +524,34 @@ private:
         auto transactions = transactionManager->GetTransactions();
         for (auto* transaction : transactions) {
             YCHECK(!transaction->GetTransient());
-            int rowCount = 0;
-            for (const auto& record : transaction->WriteLog()) {
-                auto* tablet = FindTablet(record.TabletId);
-                if (!tablet) {
-                    // NB: Tablet could be missing if it was e.g. forcefully removed.
-                    continue;
-                }
 
-                TWireProtocolReader reader(record.Data);
-                const auto& storeManager = tablet->GetStoreManager();
-                while (!reader.IsFinished()) {
-                    storeManager->ExecuteAtomicWrite(transaction, &reader, false);
-                    ++rowCount;
+            auto applyWriteLog = [&] (const TTransactionWriteLog& writeLog) {
+                int rowCount = 0;
+                for (const auto& record : writeLog) {
+                    auto* tablet = FindTablet(record.TabletId);
+                    if (!tablet) {
+                        // NB: Tablet could be missing if it was e.g. forcefully removed.
+                        continue;
+                    }
+
+                    TWireProtocolReader reader(record.Data);
+                    const auto& storeManager = tablet->GetStoreManager();
+                    while (!reader.IsFinished()) {
+                        storeManager->ExecuteAtomicWrite(transaction, &reader, false);
+                        ++rowCount;
+                    }
                 }
-            }
-            LOG_DEBUG_IF(rowCount > 0, "Transaction write log applied (TransactionId: %v, RowCount: %v)",
+                return rowCount;
+            };
+
+            int immediateRowCount = applyWriteLog(transaction->ImmediateWriteLog());
+            int delayedRowCount = applyWriteLog(transaction->ImmediateWriteLog());
+
+            LOG_DEBUG_IF(immediateRowCount + delayedRowCount > 0, "Transaction write log applied (TransactionId: %v, "
+                "ImmediateRowCount: %v, DelayedRowCount: %v)",
                 transaction->GetId(),
-                rowCount);
+                immediateRowCount,
+                delayedRowCount);
 
             if (transaction->GetState() == ETransactionState::PersistentCommitPrepared) {
                 OnTransactionPrepared(transaction);
@@ -925,6 +936,7 @@ private:
 
     void HydraLeaderExecuteWriteAtomic(
         const TTransactionId& transactionId,
+        const TTabletId& tabletId,
         TTransactionSignature signature,
         int sortedRowCount,
         int orderedRowCount,
@@ -934,19 +946,24 @@ private:
         auto transactionManager = Slot_->GetTransactionManager();
         auto* transaction = transactionManager->MakeTransactionPersistent(transactionId);
 
+        auto* tablet = FindTablet(tabletId);
+        bool immediate = !tablet || tablet->IsImmediatelyCommittable();
+
         HandleRowsOnLeaderExecuteWriteAtomic(transaction, transaction->PrelockedSortedRows(), sortedRowCount);
         HandleRowsOnLeaderExecuteWriteAtomic(transaction, transaction->PrelockedOrderedRows(), orderedRowCount);
 
-        transaction->WriteLog().Enqueue(writeRecord);
+        auto& writeLog = immediate ? transaction->ImmediateWriteLog() : transaction->DelayedWriteLog();
+        writeLog.Enqueue(writeRecord);
         transaction->SetPersistentSignature(transaction->GetPersistentSignature() + signature);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Rows confirmed (TabletId: %v, TransactionId: %v, "
-            "SortedRows: %v, OrderedRows: %v, WriteRecordSize: %v)",
+            "SortedRows: %v, OrderedRows: %v, WriteRecordSize: %v, Immediate: %v)",
             writeRecord.TabletId,
             transactionId,
             sortedRowCount,
             orderedRowCount,
-            writeRecord.Data.Size());
+            writeRecord.Data.Size(),
+            immediate);
     }
 
     void HydraLeaderExecuteWriteNonAtomic(
@@ -1024,7 +1041,8 @@ private:
                     ++rowCount;
                 }
 
-                transaction->WriteLog().Enqueue(TTransactionWriteRecord{tabletId, recordData});
+                auto& writeLog = tablet->IsImmediatelyCommittable() ? transaction->ImmediateWriteLog() : transaction->DelayedWriteLog();
+                writeLog.Enqueue(TTransactionWriteRecord{tabletId, recordData});
                 transaction->SetPersistentSignature(transaction->GetPersistentSignature() + signature);
             }
 
@@ -1585,7 +1603,7 @@ private:
 
 
     template <class TRef>
-    void HandleRowOnTransactionPrepare(TTransaction* transaction, const TRef& rowRef)
+    void PrepareRow(TTransaction* transaction, const TRef& rowRef)
     {
         // NB: Don't call ValidateAndDiscardRowRef, row refs are just scanned.
         if (ValidateRowRef(rowRef)) {
@@ -1594,17 +1612,17 @@ private:
     }
 
     template <class TLockedRows, class TPrelockedRows>
-    void HandleRowsOnTransactionPrepare(TTransaction* transaction, TLockedRows& lockedRows, TPrelockedRows& prelockedRows)
+    void PrepareRows(TTransaction* transaction, TLockedRows& lockedRows, TPrelockedRows& prelockedRows)
     {
         for (const auto& rowRef : lockedRows) {
-            HandleRowOnTransactionPrepare(transaction, rowRef);
+            PrepareRow(transaction, rowRef);
         }
 
         for (auto it = prelockedRows.begin();
              it != prelockedRows.end();
              prelockedRows.move_forward(it))
         {
-            HandleRowOnTransactionPrepare(transaction, *it);
+            PrepareRow(transaction, *it);
         }
     }
 
@@ -1615,8 +1633,8 @@ private:
         auto lockedOrderedRowCount = transaction->LockedOrderedRows().size();
         auto prelockedOrderedRowCount = transaction->PrelockedOrderedRows().size();
 
-        HandleRowsOnTransactionPrepare(transaction, transaction->LockedSortedRows(), transaction->PrelockedSortedRows());
-        HandleRowsOnTransactionPrepare(transaction, transaction->LockedOrderedRows(), transaction->PrelockedOrderedRows());
+        PrepareRows(transaction, transaction->LockedSortedRows(), transaction->PrelockedSortedRows());
+        PrepareRows(transaction, transaction->LockedOrderedRows(), transaction->PrelockedOrderedRows());
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows prepared (TransactionId: %v, "
             "SortedLockedRows: %v, SortedPrelockedRows: %v, "
@@ -1630,37 +1648,78 @@ private:
 
 
     template <class TLockedRows, class TPrelockedRows>
-    void HandleRowsOnTransactionCommit(TTransaction* transaction, TLockedRows& lockedRows, TPrelockedRows& prelockedRows)
+    int CommitRows(TTransaction* transaction, TLockedRows& lockedRows, TPrelockedRows& prelockedRows, bool immediate)
     {
         YCHECK(prelockedRows.empty());
-        for (const auto& rowRef : lockedRows) {
-            if (ValidateAndDiscardRowRef(rowRef)) {
-                rowRef.StoreManager->CommitRow(transaction, rowRef);
+        auto it = lockedRows.begin();
+        auto jt = it;
+        int count = 0;
+        while (it != lockedRows.end()) {
+            const auto& rowRef = *it++;
+            if (!ValidateAndDiscardRowRef(rowRef)) {
+                continue;
             }
+            if (rowRef.Immediate != immediate) {
+                *jt++ = rowRef;
+                continue;
+            }
+            ++count;
+            rowRef.StoreManager->CommitRow(transaction, rowRef);
         }
-        lockedRows.clear();
+        lockedRows.erase(jt, lockedRows.end());
+        return count;
     }
 
     void OnTransactionCommitted(TTransaction* transaction)
     {
-        auto lockedSortedRowCount = transaction->LockedSortedRows().size();
-        auto lockedOrderedRowCount = transaction->LockedOrderedRows().size();
+        int sortedRowCount = CommitRows(
+            transaction,
+            transaction->LockedSortedRows(),
+            transaction->PrelockedSortedRows(),
+            true);
+        int orderedRowCount = CommitRows(
+            transaction,
+            transaction->LockedOrderedRows(),
+            transaction->PrelockedOrderedRows(),
+            true);
 
-        HandleRowsOnTransactionCommit(transaction, transaction->LockedSortedRows(), transaction->PrelockedSortedRows());
-        HandleRowsOnTransactionCommit(transaction, transaction->LockedOrderedRows(), transaction->PrelockedOrderedRows());
+        YCHECK(transaction->LockedSortedRows().empty());
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows committed (TransactionId: %v, "
-            "SortedRows: %v, OrderedRows: %v)",
+        transaction->ImmediateWriteLog().Clear();
+
+        LOG_DEBUG_UNLESS(IsRecovery() || (sortedRowCount + orderedRowCount == 0),
+            "Immediate locked rows committed (TransactionId: %v, SortedRows: %v, OrderedRows: %v)",
             transaction->GetId(),
-            lockedSortedRowCount,
-            lockedOrderedRowCount);
+            sortedRowCount,
+            orderedRowCount);
+
+        OnTransactionFinished(transaction);
+    }
+
+    void OnTransactionSerialized(TTransaction* transaction)
+    {
+        int orderedRowCount = CommitRows(
+            transaction,
+            transaction->LockedOrderedRows(),
+            transaction->PrelockedOrderedRows(),
+            false);
+
+        YCHECK(transaction->LockedSortedRows().empty());
+        YCHECK(transaction->LockedOrderedRows().empty());
+
+        transaction->DelayedWriteLog().Clear();
+
+        LOG_DEBUG_UNLESS(IsRecovery() || orderedRowCount == 0,
+            "Delayed locked rows committed (TransactionId: %v, OrderedRows: %v)",
+            transaction->GetId(),
+            orderedRowCount);
 
         OnTransactionFinished(transaction);
     }
 
 
     template <class TLockedRows, class TPrelockedRows>
-    void HandleRowsOnTransactionAbort(TTransaction* transaction, TLockedRows& lockedRows, TPrelockedRows& prelockedRows)
+    void AbortRows(TTransaction* transaction, TLockedRows& lockedRows, TPrelockedRows& prelockedRows)
     {
         YCHECK(prelockedRows.empty());
         for (const auto& rowRef : lockedRows) {
@@ -1676,8 +1735,8 @@ private:
         auto lockedSortedRowCount = transaction->LockedSortedRows().size();
         auto lockedOrderedRowCount = transaction->LockedOrderedRows().size();
 
-        HandleRowsOnTransactionAbort(transaction, transaction->LockedSortedRows(), transaction->PrelockedSortedRows());
-        HandleRowsOnTransactionAbort(transaction, transaction->LockedOrderedRows(), transaction->PrelockedOrderedRows());
+        AbortRows(transaction, transaction->LockedSortedRows(), transaction->PrelockedSortedRows());
+        AbortRows(transaction, transaction->LockedOrderedRows(), transaction->PrelockedOrderedRows());
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows aborted (TransactionId: %v, "
             "SortedRows: %v, OrderedRows: %v)",
@@ -1689,7 +1748,7 @@ private:
     }
 
     template <class TPrelockedRows>
-    void HandleRowsOnTransactionTransientReset(TTransaction* transaction, TPrelockedRows& rows)
+    void TransientResetRows(TTransaction* transaction, TPrelockedRows& rows)
     {
         while (!rows.empty()) {
             auto rowRef = rows.front();
@@ -1702,8 +1761,8 @@ private:
 
     void OnTransactionTransientReset(TTransaction* transaction)
     {
-        HandleRowsOnTransactionTransientReset(transaction, transaction->PrelockedSortedRows());
-        HandleRowsOnTransactionTransientReset(transaction, transaction->PrelockedOrderedRows());
+        TransientResetRows(transaction, transaction->PrelockedSortedRows());
+        TransientResetRows(transaction, transaction->PrelockedOrderedRows());
     }
 
     void OnTransactionFinished(TTransaction* /*transaction*/)
@@ -1873,6 +1932,7 @@ private:
                     &TImpl::HydraLeaderExecuteWriteAtomic,
                     MakeStrong(this),
                     transactionId,
+                    tabletId,
                     signature,
                     prelockedSortedDelta,
                     prelockedOrderedDelta,
