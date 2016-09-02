@@ -189,6 +189,7 @@ static void GenericBlockDecompress(StreamSource* source, TBlob* sink, TDecompres
 
     ui64 totalUncompressedSize = 0;
     bool oldStyle = false;
+    bool hasBlockHeader = false;
 
     TBlockHeader blockHeader;
 
@@ -209,7 +210,8 @@ static void GenericBlockDecompress(StreamSource* source, TBlob* sink, TDecompres
                 blockHeader.CompressedSize = header.Signature;
                 blockHeader.UncompressedSize = header.Size;
                 oldStyle = true;
-                totalUncompressedSize = blockHeader.UncompressedSize;
+                hasBlockHeader = true;
+                totalUncompressedSize = 0;
                 break;
         }
     }
@@ -220,8 +222,8 @@ static void GenericBlockDecompress(StreamSource* source, TBlob* sink, TDecompres
     auto inputBuffer = TBlob(TTag(), 0, false);
 
     while (source->Available() > 0) {
-        if (Y_UNLIKELY(oldStyle)) {
-            oldStyle = false;
+        if (Y_UNLIKELY(hasBlockHeader)) {
+            hasBlockHeader = false;
         } else {
             ReadPod(source, blockHeader);
         }
@@ -252,7 +254,9 @@ static void GenericBlockDecompress(StreamSource* source, TBlob* sink, TDecompres
         }
     }
 
-    YCHECK(sink->Size() == totalUncompressedSize);
+    if (!oldStyle) {
+        YCHECK(sink->Size() == totalUncompressedSize);
+    }
 }
 
 void Lz4Compress(bool highCompression, StreamSource* source, TBlob* sink)
