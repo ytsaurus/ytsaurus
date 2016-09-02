@@ -334,7 +334,9 @@ bool TTableNodeProxy::SetBuiltinAttribute(const Stroka& key, const TYsonString& 
         if (table->IsSorted()) {
             THROW_ERROR_EXCEPTION("Cannot change table serializability mode for sorted table");
         }
-        if (table->GetTabletState() != ETabletState::Unmounted) {
+
+        auto tabletState = table->GetTabletState();
+        if (tabletState != ETabletState::Unmounted && tabletState != ETabletState::None) {
             THROW_ERROR_EXCEPTION("Cannot change table serializability mode since not all of its tablets are in %Qlv state",
                 ETabletState::Unmounted);
         }

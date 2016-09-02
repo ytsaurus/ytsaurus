@@ -432,6 +432,13 @@ class TestOrderedDynamicTables(YTEnvSetup):
         self.sync_mount_table("//tmp/t")
         with pytest.raises(YtError): set("//tmp/t/@serializability", "none")
 
+    def test_set_serializability_upon_construction(self):
+        create("table", "//tmp/t",
+               attributes={
+                   "serializability": "none"
+               })
+        assert get("//tmp/t/@serializability") == "none"
+
 ##################################################################
 
 class TestOrderedDynamicTablesMulticell(TestOrderedDynamicTables):
