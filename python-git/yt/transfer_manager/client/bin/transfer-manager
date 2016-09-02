@@ -69,6 +69,12 @@ def _add_new_task_parameters(parser):
     parser.add_argument("--attached", action="store_true", help="run task in attached mode", default=False)
     parser.add_argument("--running-tasks-limit", type=int,
                         help="in sync mode: maximum number of simultaneously running tasks (default: 10)")
+    parser.add_argument("--enable-failed-tasks-restarting", action="store_true", default=False,
+                        help="in sync mode: if True failed tasks will be automatically restarted if error is restartable")
+    parser.add_argument("--max-failed-tasks-restart-count", type=int, default=3,
+                        help="specifies restart count limit if --enable-failed-tasks-restarting flag is passed (default: 3)")
+    parser.add_argument("--failed-tasks-restart-sleep", type=int, default=15,
+                        help="specifies time in minutes between consequent failed task restarts (default: 15)")
 
 def add_new_task_subparser(subparsers):
     parser = subparsers.add_parser("add-task", help="add new transfer task")

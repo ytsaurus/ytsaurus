@@ -15,6 +15,7 @@ def _wait_task(task_id, client):
         assert info["state"] not in ["failed", "aborted"]
         if info["state"] in ["completed", "skipped"]:
             break
+        time.sleep(0.3)
 
 def test_copy_between_clusters(backend_url):
     client = TransferManager(url=backend_url)
