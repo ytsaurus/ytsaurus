@@ -823,11 +823,7 @@ def copy_table(source_table, destination_table, replace=True, client=None):
                 to_name(source_tables[0], client=client) != to_name(destination_table, client=client):
             # in copy destination should be missing
             remove(destination_table.name, client=client)
-        # TODO(ignat): implement dirname for cypress paths.
-        dirname = os.path.dirname(destination_table.name)
-        if dirname != "//":
-            mkdir(dirname, recursive=True, client=client)
-        copy(source_tables[0].name, destination_table.name, client=client)
+        copy(source_tables[0].name, destination_table.name, recursive=True, client=client)
     else:
         source_names = [table.name for table in source_tables]
         mode = "sorted" if (all(map(lambda t: is_sorted(t, client=client), source_names)) and not destination_table.append) \
@@ -859,10 +855,7 @@ def move_table(source_table, destination_table, replace=True, client=None):
             return
         if replace and exists(destination_table.name, client=client):
             remove(destination_table.name, client=client)
-        dirname = os.path.dirname(destination_table.name)
-        if dirname != "//":
-            mkdir(dirname, recursive=True, client=client)
-        move(source_tables[0].name, destination_table.name, client=client)
+        move(source_tables[0].name, destination_table.name, recursive=True, client=client)
     else:
         copy_table(source_table, destination_table, client=client)
         for table in source_tables:
