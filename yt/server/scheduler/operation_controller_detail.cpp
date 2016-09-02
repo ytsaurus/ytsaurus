@@ -4166,6 +4166,9 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     const Stroka& fileAccount)
 {
     jobSpec->set_shell_command(config->Command);
+    if (config->JobTimeLimit) {
+        jobSpec->set_job_time_limit(config->JobTimeLimit.Get().MilliSeconds());
+    }
     jobSpec->set_memory_limit(config->MemoryLimit);
     jobSpec->set_include_memory_mapped_files(config->IncludeMemoryMappedFiles);
     jobSpec->set_iops_threshold(config->IopsThreshold);
