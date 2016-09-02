@@ -89,7 +89,11 @@ protected:
 template <class T, size_t ChunkSize>
 class TPersistentQueueSnapshot
     : public TPersistentQueueBase<T, ChunkSize>
-{ };
+{
+public:
+    template <class C>
+    void Save(C& context) const;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 // Interface.
@@ -111,6 +115,9 @@ public:
 
     using TSnapshot = TPersistentQueueSnapshot<T, ChunkSize>;
     TSnapshot MakeSnapshot() const;
+
+    template <class C>
+    void Load(C& context);
 
 private:
     using TChunk = TPersistentQueueChunk<T, ChunkSize>;
