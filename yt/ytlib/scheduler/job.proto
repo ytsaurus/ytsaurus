@@ -75,6 +75,9 @@ message TUserJobSpec
     optional bool copy_files = 24 [default = false];
 
     optional string file_account = 25;
+
+    // Time after which job will be failed, in milliseconds.
+    optional int64 job_time_limit = 26;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
