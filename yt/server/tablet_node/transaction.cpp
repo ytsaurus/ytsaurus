@@ -88,24 +88,14 @@ TCallback<void(TSaveContext&)> TTransaction::AsyncSave()
     auto writeLogSnapshot = WriteLog_.MakeSnapshot();
     return BIND([writeLogSnapshot = std::move(writeLogSnapshot)] (TSaveContext& context) {
         using NYT::Save;
-
-        TSizeSerializer::Save(context, writeLogSnapshot.Size());
-        for (const auto& record : writeLogSnapshot) {
-            Save(context, record);
-        }
+        Save(context, writeLogSnapshot);
     });
 }
 
 void TTransaction::AsyncLoad(TLoadContext& context)
 {
     using NYT::Load;
-
-    YCHECK(WriteLog_.Empty());
-
-    int recordCount = TSizeSerializer::Load(context);
-    for (int index = 0; index < recordCount; ++index) {
-        WriteLog_.Enqueue(Load<TTransactionWriteRecord>(context));
-    }
+    Load(context, WriteLog_);
 }
 
 TFuture<void> TTransaction::GetFinished() const

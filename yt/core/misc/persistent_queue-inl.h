@@ -3,6 +3,8 @@
 #error "Direct inclusion of this file is not allowed, include persistent_queue.h"
 #endif
 
+#include <yt/core/misc/serialize.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -101,6 +103,19 @@ auto TPersistentQueueBase<T, ChunkSize>::end() const -> TIterator
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T, size_t ChunkSize>
+template <class C>
+void TPersistentQueueSnapshot<T, ChunkSize>::Save(C& context) const
+{
+    using NYT::Save;
+    TSizeSerializer::Save(context, this->Size());
+    for (const auto& value : *this) {
+        Save(context, value);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T, size_t ChunkSize>
 void TPersistentQueue<T, ChunkSize>::Enqueue(T value)
 {
     auto& head = this->Head_;
@@ -151,6 +166,18 @@ auto TPersistentQueue<T, ChunkSize>::MakeSnapshot() const -> TSnapshot
     snapshot.Tail_ = this->Tail_;
     snapshot.Size_ = this->Size_;
     return snapshot;
+}
+
+template <class T, size_t ChunkSize>
+template <class C>
+void TPersistentQueue<T, ChunkSize>::Load(C& context)
+{
+    using NYT::Load;
+    YCHECK(this->Empty());
+    auto size = TSizeSerializer::Load(context);
+    for (size_t index = 0; index < size; ++index) {
+        Enqueue(Load<T>(context));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
