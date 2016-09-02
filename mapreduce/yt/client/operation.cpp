@@ -230,11 +230,16 @@ private:
     template <class TSource>
     Stroka UploadToCache(const TSource& source)
     {
-        char buf[33];
+        constexpr size_t md5Size = 32;
+        char buf[md5Size + 1];
         CalculateMD5(source, buf);
 
+        Stroka twoDigits(buf + md5Size - 2, 2);
+
         Stroka cypressPath = TStringBuilder() <<
-            TConfig::Get()->RemoteTempFilesDirectory << "/hash/" << buf;
+            TConfig::Get()->RemoteTempFilesDirectory <<
+            "/hash/" << twoDigits << "/" << buf;
+
         if (Exists(Auth_, TTransactionId(), cypressPath)) {
             Set(Auth_, TTransactionId(), cypressPath + "/@touched", "\"true\"");
             try {
@@ -248,7 +253,8 @@ private:
         }
 
         Stroka uniquePath = TStringBuilder() <<
-            TConfig::Get()->RemoteTempFilesDirectory << "/cpp_" << CreateGuidAsString();
+            TConfig::Get()->RemoteTempFilesDirectory <<
+            "/" << twoDigits << "/cpp_" << CreateGuidAsString();
 
         Create(Auth_, TTransactionId(), uniquePath, "file", true, true);
         {
