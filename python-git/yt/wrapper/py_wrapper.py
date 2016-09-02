@@ -99,6 +99,15 @@ def is_running_interactively():
         # Old IPython (0.12 at least) has no sys.ps1 defined
         return "__IPYTHON__" in globals()
 
+def is_arcadia_python():
+    try:
+        import __res
+        return True
+    except ImportError:
+        pass
+
+    return hasattr(sys, "extra_modules")
+
 class TempfilesManager(object):
     def __init__(self, remove_temp_files, directory):
         self._remove_temp_files = remove_temp_files
@@ -442,16 +451,31 @@ def do_wrap(function, operation_type, tempfiles_manager, input_format, output_fo
         modules_info_filename,
         main_filename])
 
+    python_binary = get_config(client)["pickling"]["python_binary"]
+    use_local_python_in_jobs = get_config(client)["pickling"]["use_local_python_in_jobs"]
+    if use_local_python_in_jobs is None:
+        if python_binary == "python":
+            use_local_python_in_jobs = is_arcadia_python()
+        else:
+            use_local_python_in_jobs = False
+
     if local_mode:
+        if use_local_python_in_jobs:
+            python_binary = os.path.abspath(sys.executable)
         file_args = files
         uploaded_files = []
         local_files_to_remove = tempfiles_manager._tempfiles_pool
     else:
+        files_to_upload = []
+        if use_local_python_in_jobs:
+            python_binary = "./" + os.path.basename(sys.executable)
+            files_to_upload.append(os.path.abspath(sys.executable))
         file_args = map(os.path.basename, files)
-        uploaded_files = uploader(files + modules_filenames)
+        files_to_upload += files + modules_filenames
+        uploaded_files = uploader(files_to_upload)
         local_files_to_remove = []
 
-    cmd = " ".join([get_config(client)["pickling"]["python_binary"]] + file_args + ["_main_module", main_module_type])
+    cmd = " ".join([python_binary] + file_args + ["_main_module", main_module_type])
 
     return cmd, uploaded_files, local_files_to_remove, tmpfs_size
 

@@ -146,6 +146,8 @@ default_config = {
         # Check that python version on local machine is the same as on cluster nodes.
         # Turn it off at your own risk.
         "check_python_version": False,
+        # Enables uploading local python to jobs and using it to run job.
+        "use_local_python_in_jobs": None,
         # Path to python binary that would be used in jobs.
         "python_binary": "python",
         # Enable wrapping of stdin and stdout streams to avoid their unintentional usage.

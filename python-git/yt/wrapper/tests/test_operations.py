@@ -412,6 +412,20 @@ class TestOperations(object):
         assert sorted(files_in_cache) == sorted(files_in_cache_again)
 
     @add_failed_operation_stderrs_to_error_message
+    def test_python_operations_with_local_python(self):
+        def func(row):
+            yield row
+
+        input = TEST_DIR + "/input"
+        output = TEST_DIR + "/output"
+        yt.write_table(input, [{"x": 1}, {"y": 2}])
+
+        with set_config_option("pickling/use_local_python_in_jobs", True):
+            yt.run_map(func, input, output)
+
+        check(yt.read_table(output), [{"x": 1}, {"y": 2}], ordered=False)
+
+    @add_failed_operation_stderrs_to_error_message
     def test_python_operations_in_local_mode(self):
         old_value = yt.config["pickling"]["local_mode"]
         yt.config["pickling"]["local_mode"] = True
