@@ -278,7 +278,7 @@ private:
 
     static ui64 RoundUpFileSize(ui64 size)
     {
-        constexpr ui64 roundUpTo = 4ll << 10;
+        constexpr ui64 roundUpTo = 4ull << 10;
         return (size + roundUpTo - 1) & ~(roundUpTo - 1);
     }
 
