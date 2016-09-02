@@ -13,24 +13,44 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = CompressionLogger;
+/*
+ * V0 wire format has no header at all.
+ * Wire format goes simply as a sequence of blocks, each block is annotated
+ * with a header of type TBlockHeader.
+ *
+ * V1 wire format has a preceding header which stores total uncompressed size
+ * in 31-bit integer (sic!). Header structure is:
+ *
+ *   { i32 Signature; i32 Size; }
+ *
+ * V2 wire format has a preceding header which stores total uncompressed size
+ * in 64-bit integer. Header structure is:
+ *
+ *   { ui32 Signature; ui32 Padding; ui64 Size; }
+ *
+ */
 
 struct THeader
 {
-    i32 Signature;
-    i32 InputSize;
+    static constexpr ui32 SignatureV1 = (1 << 30) + 1;
+    static constexpr ui32 SignatureV2 = (1 << 30) + 2;
 
-    static const i32 CorrectSignature = (1 << 30) + 1;
+    ui32 Signature = static_cast<ui32>(-1);
+    ui32 Size = 0;
 };
 
 struct TBlockHeader
 {
-    i32 OutputSize;
-    i32 InputSize;
+    ui32 CompressedSize = 0;
+    ui32 UncompressedSize = 0;
 };
 
-static_assert(sizeof(THeader) == sizeof(TBlockHeader),
-    "Header and block header whould have the same size for compatibility reasons");
+static_assert(
+    sizeof(THeader) == sizeof(TBlockHeader),
+    "Header and block header must be same size for backward compatibility.");
+
+// TODO(sandello): Deprecate global MaxBlockSize.
+static constexpr size_t MaxLzBlockSize = MaxBlockSize;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,164 +66,246 @@ namespace NCompression {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TLzCompressedTag { };
+struct TLz4CompressedTag
+{ };
 
-size_t Lz4CompressionBound(const std::vector<int>& lengths)
+struct TQuickLzCompressedTag
+{ };
+
+static inline bool ExtendedHeader(size_t totalUncompressedSize)
 {
-    size_t bound = sizeof(THeader);
-    for (auto length : lengths) {
-        bound += sizeof(TBlockHeader);
-        bound += LZ4_compressBound(length);
-    }
-    return bound;
+    return totalUncompressedSize > std::numeric_limits<i32>::max();
 }
 
-void Lz4Compress(bool highCompression, StreamSource* source, TBlob* output)
+template <class TEstimateCompressedSizeFn>
+static size_t GenericEstimateTotalCompressedSize(
+    size_t totalUncompressedSize,
+    TEstimateCompressedSizeFn&& estimateCompressedSizeFn)
 {
-    output->Resize(sizeof(THeader));
-    size_t currentPos = output->Size();
+    size_t result = sizeof(THeader);
+    if (ExtendedHeader(totalUncompressedSize)) {
+        result += sizeof(ui64);
+    }
+    // Estimate number of blocks, assuming that source feeds data in large chunks.
+    size_t quotient = totalUncompressedSize / MaxLzBlockSize;
+    if (quotient > 0) {
+        result += quotient * (sizeof(TBlockHeader) + estimateCompressedSizeFn(MaxLzBlockSize));
+    }
+    size_t remainder = totalUncompressedSize - quotient * MaxLzBlockSize;
+    if (remainder > 0) {
+        result += sizeof(TBlockHeader) + estimateCompressedSizeFn(remainder);
+    }
+    return result;
+}
 
-    {
+template <class TEstimateCompressedSizeFn, class TCompressFn>
+static void GenericBlockCompress(
+    StreamSource* source,
+    TBlob* sink,
+    TEstimateCompressedSizeFn&& estimateCompressedSizeFn,
+    TCompressFn&& compressFn)
+{
+    size_t totalUncompressedSize = source->Available();
+    size_t totalCompressedSizeBound = GenericEstimateTotalCompressedSize(totalUncompressedSize, estimateCompressedSizeFn);
+
+    sink->Reserve(totalCompressedSizeBound);
+    Y_ASSERT(sink->IsEmpty());
+
+    size_t currentPosition = 0;
+
+    // Write out header.
+    if (ExtendedHeader(totalUncompressedSize)) {
         THeader header;
-        header.Signature = THeader::CorrectSignature;
-        LOG_FATAL_IF(source->Available() > MaxBlockSize, "Input size is too large");
-        header.InputSize = static_cast<i32>(source->Available());
-
-        TMemoryOutput memoryOutput(output->Begin(), sizeof(THeader));
+        header.Signature = THeader::SignatureV2;
+        header.Size = 0;
+        TMemoryOutput memoryOutput(sink->Begin() + currentPosition, sizeof(THeader) + sizeof(ui64));
         WritePod(memoryOutput, header);
+        WritePod(memoryOutput, static_cast<ui64>(totalUncompressedSize)); // Force serialization type.
+        currentPosition += sizeof(THeader) + sizeof(ui64);
+    } else {
+        THeader header;
+        header.Signature = THeader::SignatureV1;
+        header.Size = static_cast<ui32>(totalUncompressedSize);
+        TMemoryOutput memoryOutput(sink->Begin() + currentPosition, sizeof(THeader));
+        WritePod(memoryOutput, header);
+        currentPosition += sizeof(THeader);
     }
 
-    while (source->Available() > 0) {
-        size_t inputLen;
-        const char* input = source->Peek(&inputLen);
+    // Write out body.
+    while (totalUncompressedSize > 0) {
+        YCHECK(source->Available() == totalUncompressedSize);
 
-        YCHECK(inputLen <= MaxBlockSize);
-        i32 len = inputLen;
+        size_t inputSize = 0, inputOffset = 0;
+        const char* input = source->Peek(&inputSize);
 
-        size_t bound =
-            currentPos +
-            sizeof(TBlockHeader) +
-            LZ4_compressBound(len);
-        output->Resize(bound, false);
+        inputSize = std::min(inputSize, totalUncompressedSize);
 
-        size_t headerPos = currentPos;
-        currentPos += sizeof(TBlockHeader);
+        while (inputSize > 0) {
+            ui32 uncompressedSize = static_cast<ui32>(std::min(MaxLzBlockSize, inputSize));
+            ui32 compressedSizeBound = estimateCompressedSizeFn(uncompressedSize);
 
-        TBlockHeader header;
-        header.InputSize = len;
-        if (highCompression) {
-            header.OutputSize = LZ4_compressHC(input, output->Begin() + currentPos, len);
-        } else {
-            header.OutputSize = LZ4_compress(input, output->Begin() + currentPos, len);
+            // XXX(sandello): We can underestimate output buffer size if source feeds data in tiny chunks.
+            sink->Reserve(currentPosition + sizeof(TBlockHeader) + compressedSizeBound);
+
+            auto compressedSize = compressFn(
+                input + inputOffset,
+                sink->Begin() + currentPosition + sizeof(TBlockHeader),
+                uncompressedSize);
+            // Non-positive return values indicate an error during compression.
+            YCHECK(compressedSize > 0);
+            // COMPAT(sandello): Since block header may be interpreted as global header we have to make sure
+            // that we never produce forward-incompatible signature (which aliases to compressed size).
+            // Currently we treat all values <= 2^30 as proper sizes and all other values as signatures.
+            YCHECK(compressedSize <= MaxLzBlockSize);
+
+            TBlockHeader header;
+            header.CompressedSize = static_cast<ui32>(compressedSize);
+            header.UncompressedSize = static_cast<ui32>(uncompressedSize);
+
+            TMemoryOutput memoryOutput(sink->Begin() + currentPosition, sizeof(TBlockHeader));
+            WritePod(memoryOutput, header);
+
+            currentPosition += sizeof(TBlockHeader);
+            currentPosition += header.CompressedSize;
+            sink->Resize(currentPosition, false);
+
+            inputSize -= uncompressedSize;
+            inputOffset += uncompressedSize;
         }
-        YCHECK(header.OutputSize >= 0);
 
-        currentPos += header.OutputSize;
-        output->Resize(currentPos);
-
-        TMemoryOutput memoryOutput(output->Begin() + headerPos, sizeof(TBlockHeader));
-        WritePod(memoryOutput, header);
-
-        source->Skip(len);
+        source->Skip(inputOffset);
+        totalUncompressedSize -= inputOffset;
     }
+
+    YCHECK(source->Available() == 0);
 }
 
-void Lz4Decompress(StreamSource* source, TBlob* output)
+template <class TTag, class TDecompressFn>
+static void GenericBlockDecompress(StreamSource* source, TBlob* sink, TDecompressFn&& decompressFn)
 {
     if (source->Available() == 0) {
         return;
     }
 
-    TBlockHeader startHeader;
+    ui64 totalUncompressedSize = 0;
     bool oldStyle = false;
+
+    TBlockHeader blockHeader;
 
     {
         THeader header;
         ReadPod(source, header);
-        // COMPAT(ignat): for reading old-style blocks
-        if (header.Signature != THeader::CorrectSignature) {
-            oldStyle = true;
-            startHeader.InputSize = header.InputSize;
-            startHeader.OutputSize = header.Signature;
-        } else {
-            output->Reserve(header.InputSize);
+        switch (header.Signature) {
+            case THeader::SignatureV1:
+                totalUncompressedSize = header.Size;
+                break;
+
+            case THeader::SignatureV2:
+                ReadPod(source, totalUncompressedSize);
+                break;
+
+            default:
+                // COMPAT(ignat): Needed to read old-style blocks.
+                blockHeader.CompressedSize = header.Signature;
+                blockHeader.UncompressedSize = header.Size;
+                oldStyle = true;
+                totalUncompressedSize = blockHeader.UncompressedSize;
+                break;
         }
     }
 
-    bool firstIter = true;
+    sink->Reserve(totalUncompressedSize);
+    Y_ASSERT(sink->IsEmpty());
+
+    auto inputBuffer = TBlob(TTag(), 0, false);
+
     while (source->Available() > 0) {
-        TBlockHeader header;
-        if (oldStyle && firstIter) {
-            header = startHeader;
-            firstIter = false;
+        if (Y_UNLIKELY(oldStyle)) {
+            oldStyle = false;
         } else {
-            ReadPod(source, header);
+            ReadPod(source, blockHeader);
         }
 
-        size_t outputPos = output->Size();
-        size_t newSize = outputPos + header.InputSize;
-        output->Resize(newSize, false);
+        size_t oldSize = sink->Size();
+        size_t newSize = oldSize + blockHeader.UncompressedSize;
+        sink->Resize(newSize, false);
 
-        auto input = TBlob(TLzCompressedTag(), header.OutputSize, false);
-        Read(source, input.Begin(), input.Size());
+        size_t inputSize;
+        const char* input = source->Peek(&inputSize);
 
-        YCHECK(LZ4_uncompress(input.Begin(), output->Begin() + outputPos, header.InputSize) >= 0);
+        inputSize = std::min(inputSize, source->Available());
+
+        // Fast-path; omit extra copy and feed data directly from source buffer.
+        const bool hasCompleteBlock = inputSize >= blockHeader.CompressedSize;
+
+        if (!hasCompleteBlock) {
+            // Slow-path; coalesce input into a single slice.
+            inputBuffer.Resize(blockHeader.CompressedSize, false);
+            Read(source, inputBuffer.Begin(), inputBuffer.Size());
+            input = inputBuffer.Begin();
+        }
+
+        decompressFn(input, blockHeader.CompressedSize, sink->Begin() + oldSize, blockHeader.UncompressedSize);
+
+        if (hasCompleteBlock) {
+            source->Skip(blockHeader.CompressedSize);
+        }
     }
+
+    YCHECK(sink->Size() == totalUncompressedSize);
+}
+
+void Lz4Compress(bool highCompression, StreamSource* source, TBlob* sink)
+{
+    const auto compressFn = highCompression ? LZ4_compressHC : LZ4_compress;
+
+    GenericBlockCompress(
+        source,
+        sink,
+        [] (size_t size) -> size_t {
+            return static_cast<size_t>(LZ4_compressBound(static_cast<int>(size)));
+        },
+        compressFn);
+}
+
+void Lz4Decompress(StreamSource* source, TBlob* sink)
+{
+    GenericBlockDecompress<TLz4CompressedTag>(
+        source,
+        sink,
+        [] (const char* input, size_t inputSize, char* output, size_t outputSize) {
+            int rv = LZ4_uncompress(input, output, static_cast<int>(outputSize));
+            YCHECK(rv > 0 && rv == inputSize);
+        }
+    );
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void QuickLzCompress(StreamSource* source, TBlob* output)
-{
-    size_t currentPos = 0;
-    while (source->Available() > 0) {
-        qlz_state_compress state;
-
-        size_t len;
-        const char* input = source->Peek(&len);
-
-        size_t bound =
-            currentPos +
-            sizeof(TBlockHeader) +
-            /* compressed bound */(len + 400);
-        output->Resize(bound, false);
-
-        size_t headerPos = currentPos;
-        currentPos += sizeof(TBlockHeader);
-
-        TBlockHeader header;
-        LOG_FATAL_IF(len > MaxBlockSize, "Input size is too large");
-        header.InputSize = len;
-        header.OutputSize = qlz_compress(input, output->Begin() + currentPos, len, &state);
-        YCHECK(header.OutputSize >= 0);
-
-        currentPos += header.OutputSize;
-        output->Resize(currentPos);
-
-        TMemoryOutput memoryOutput(output->Begin() + headerPos, sizeof(TBlockHeader));
-        WritePod(memoryOutput, header);
-
-        source->Skip(len);
-    }
+void QuickLzCompress(StreamSource* source, TBlob* sink) {
+    GenericBlockCompress(
+        source,
+        sink,
+        [] (size_t size) -> size_t {
+            return size + 400; // See QuickLZ implementation.
+        },
+        [] (const char *input, char *output, size_t inputSize) {
+            qlz_state_compress state;
+            return qlz_compress(input, output, inputSize, &state);
+        });
 }
 
-void QuickLzDecompress(StreamSource* source, TBlob* output)
+void QuickLzDecompress(StreamSource* source, TBlob* sink)
 {
-    while (source->Available() > 0) {
-        qlz_state_decompress state;
-
-        TBlockHeader header;
-        ReadPod(source, header);
-
-        size_t outputPos = output->Size();
-        size_t newSize = outputPos + header.InputSize;
-        output->Resize(newSize, false);
-
-        auto input = TBlob(TLzCompressedTag(), header.OutputSize, false);
-        Read(source, input.Begin(), input.Size());
-
-        qlz_decompress(input.Begin(), output->Begin() + outputPos, &state);
-    }
+    GenericBlockDecompress<TQuickLzCompressedTag>(
+        source,
+        sink,
+        [] (const char* input, size_t inputSize, char* output, size_t outputSize) {
+            qlz_state_decompress state;
+            auto rv = qlz_decompress(input, output, &state);
+            YCHECK(rv > 0 && rv == outputSize);
+        }
+    );
 }
 
 ////////////////////////////////////////////////////////////////////////////////
