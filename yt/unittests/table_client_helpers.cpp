@@ -56,6 +56,7 @@ void ExpectSchemalessRowsEqual(TUnversionedRow expected, TUnversionedRow actual,
         return;
     }
 
+    ASSERT_TRUE(actual) << ADD_DIAGNOSTIC;
     EXPECT_EQ(expected.GetCount(), actual.GetCount()) << ADD_DIAGNOSTIC;
     for (int valueIndex = 0; valueIndex < keyColumnCount; ++valueIndex) {
         EXPECT_TRUE(AreUnversionedValuesEqual(expected[valueIndex], actual[valueIndex])) << ADD_DIAGNOSTIC;

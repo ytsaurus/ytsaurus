@@ -674,7 +674,7 @@ void THorizontalSchemalessLookupChunkReader::DoInitializeBlockSequence()
         TReadLimit readLimit;
         readLimit.SetKey(TOwningKey(key));
 
-        int index = ApplyLowerRowLimit(BlockMetaExt_,  readLimit);
+        int index = ApplyLowerKeyLimit(BlockMetaExt_, readLimit, KeyColumns_.size());
 
         if (BlockIndexes_.empty() || BlockIndexes_.back() != index) {
             BlockIndexes_.push_back(index);
