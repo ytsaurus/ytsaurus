@@ -185,6 +185,19 @@ def get_node_config(enable_debug_logging=True):
 
         incremental_heartbeat_period = 100;
         register_retry_period = 100;
+
+        block_cache = {
+            compressed_data = {
+                capacity = 0;
+            };
+            uncompressed_data = {
+                capacity = 0;
+            };
+        };
+
+        chunk_meta_cache = {
+            capacity = 0;
+        };
     };
 
     exec_agent = {
