@@ -111,6 +111,22 @@ TEST(TPersistentQueue, Snapshot2)
     }
 }
 
+TEST(TPersistentQueue, Clear)
+{
+    TQueue queue;
+
+    queue.Enqueue(1);
+
+    EXPECT_EQ(1, queue.Size());
+
+    queue.Clear();
+
+    EXPECT_EQ(0, queue.Size());
+
+    auto snapshot = queue.MakeSnapshot();
+    EXPECT_EQ(snapshot.Begin(), snapshot.End());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
