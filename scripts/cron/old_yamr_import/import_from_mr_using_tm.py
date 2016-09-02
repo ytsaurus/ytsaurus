@@ -79,7 +79,7 @@ def main():
         }
         headers = {
             "Content-Type": "application/json",
-            "Authorization": "OAuth " + get_token(yt_client)
+            "Authorization": "OAuth " + get_token(client=yt_client)
         }
         result = start_transfer_manager_task(
             args.transfer_manager_url, args.source_cluster, destination_cluster, src, dst,

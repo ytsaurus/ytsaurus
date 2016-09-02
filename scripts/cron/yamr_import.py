@@ -139,7 +139,7 @@ class TaskRunner(object):
 
         headers = {
             "Content-Type": "application/json",
-            "Authorization": "OAuth " + get_token(self.yt_client)
+            "Authorization": "OAuth " + get_token(client=self.yt_client)
         }
 
         params = update(default_params, params)
