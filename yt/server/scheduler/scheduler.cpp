@@ -1652,7 +1652,8 @@ private:
 
         auto controller = operation->GetController();
         BIND(&TImpl::DoReviveOperation, MakeStrong(this), operation, controllerTransactions)
-            .Via(controller->GetCancelableControlInvoker());
+            .Via(controller->GetCancelableControlInvoker())
+            .Run();
     }
 
     void DoReviveOperation(TOperationPtr operation, TControllerTransactionsPtr controllerTransactions)
