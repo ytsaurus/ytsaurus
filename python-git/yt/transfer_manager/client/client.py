@@ -1,4 +1,4 @@
-from yt.common import YtError
+from yt.common import YtError, YtResponseError
 from yt.wrapper.common import get_value, require, update, run_with_retries, generate_uuid, bool_to_string
 from yt.wrapper.http_helpers import get_retriable_errors, get_token, configure_ip
 from yt.wrapper.errors import hide_token
@@ -21,6 +21,8 @@ TM_HEADERS = {
     "Accept-Type": "application/json",
     "Content-Type": "application/json"
 }
+
+FAILED_TASKS_SHARE_TO_DISABLE_AUTORESTART = 0.6
 
 def get_version():
     try:
@@ -58,22 +60,30 @@ def _raise_for_status(response):
     raise YtError(**response_json)
 
 class Poller(object):
-    def __init__(self, poll_period, running_tasks_limit, ping_task_and_get_func):
-        self.poll_period = poll_period
-        self.ping_task_and_get_func = ping_task_and_get_func
-
+    def __init__(self, client, poll_period, running_tasks_limit,
+                 enable_failed_tasks_restarting, max_failed_tasks_restart_count,
+                 failed_tasks_restart_sleep):
         self.exc_info = None
+
+        self._client = client
+        self._poll_period = poll_period
 
         self._thread = Thread(target=self._poll_tasks)
         self._thread.daemon = True
         self._thread.start()
 
         self._queue = Queue.Queue()
+        self._restart_queue = Queue.Queue()
         self._semaphore = Semaphore(running_tasks_limit)
 
-    def stop(self):
-        self._queue.put({"type": "stop", "value": None})
+        self._enable_failed_tasks_restarting = enable_failed_tasks_restarting
+        self._max_failed_tasks_restart_count = max_failed_tasks_restart_count
+        self._failed_tasks_restart_sleep_in_sec = 60.0 * failed_tasks_restart_sleep
 
+    def notify_all_tasks_started(self):
+        self._queue.put({"type": "all_started", "value": None})
+
+    def join(self):
         # XXX(asaitgalin): join() can't be interrupted with KeyboardInterrupt
         # so it is better to use polling with timeout.
         while self._thread.is_alive():
@@ -86,50 +96,103 @@ class Poller(object):
         return aborted_task_count, failed_task_count
 
     def acquire_task_slot(self):
-        return self._semaphore.acquire(False)
+        while not self._semaphore.acquire(False):
+            if self.exc_info is not None:
+                raise self.exc_info[0], self.exc_info[1], self.exc_info[2]
+            time.sleep(0.5)
 
     def notify_task_started(self, task_id):
         self._queue.put({"type": "task", "value": task_id})
 
+    def fetch_tasks_for_restart(self):
+        tasks = []
+        finished = False
+
+        while True:
+            try:
+                task = self._restart_queue.get_nowait()
+                if task is None:
+                    finished = True
+                tasks.append(task)
+            except Queue.Empty:
+                break
+
+        return tasks, finished
+
+    def _is_task_restartable(self, error):
+        error = YtResponseError(error)
+        if error.contains_text("died silently"):
+            return True
+        if error.contains_text("Failed jobs limit exceeded"):
+            return True
+        if error.contains_text("Master is not responding"):
+            return True
+        return False
+
     def _poll_tasks(self):
         logger.info("Polling thread started...")
 
-        is_running = True
+        local_task_id_to_task_id = {}
+
+        all_started = False
         running_tasks = []
+
+        failed_tasks_infos = {}
 
         aborted_task_count = 0
         failed_task_count = 0
 
-        while is_running or running_tasks:
+        while not all_started or running_tasks or failed_tasks_infos:
             tasks_to_remove = []
 
-            for task in running_tasks:
+            for local_task_id in running_tasks:
+                task_id = local_task_id_to_task_id[local_task_id]
                 try:
-                    state = self.ping_task_and_get_func(task)["state"]
+                    task_dict = self._client.ping_task_and_get(task_id)
                 except:
                     self.exc_info = sys.exc_info()
                     return
 
+                state = task_dict["state"]
+
                 if state == "completed":
-                    logger.info("Task %s completed", task)
+                    logger.info("Task %s completed", task_id)
+                    failed_tasks_infos.pop(local_task_id, None)
                 elif state == "skipped":
-                    logger.info("Task %s skipped", task)
+                    logger.info("Task %s skipped", task_id)
+                    failed_tasks_infos.pop(local_task_id, None)
                 elif state == "aborted":
-                    logger.warning("Task {0} was aborted".format(task))
+                    logger.warning("Task %s was aborted", task_id)
+                    failed_tasks_infos.pop(local_task_id, None)
                     aborted_task_count += 1
                 elif state == "failed":
-                    logger.warning("Task {0} failed. Use get_task_info for more info".format(task))
-                    failed_task_count += 1
+                    logger.warning("Task %s failed", task_id)
+                    if self._enable_failed_tasks_restarting and self._is_task_restartable(task_dict["error"]):
+                        if local_task_id in failed_tasks_infos:
+                            attempts_made = failed_tasks_infos[local_task_id][0]
+                        else:
+                            attempts_made = 0
+
+                        if attempts_made >= self._max_failed_tasks_restart_count:
+                            logger.info("Task %s failed (and restart count limit exceeded)", task_id)
+                            del failed_tasks_infos[local_task_id]
+                            failed_task_count += 1
+                        else:
+                            logger.info("Task %s will be restarted with new id (attempt %d of %d)",
+                                        task_id, attempts_made + 1, self._max_failed_tasks_restart_count)
+                            failed_tasks_infos[local_task_id] = (attempts_made + 1, time.time(), True)
+                    else:
+                        failed_task_count += 1
                 else:
                     continue
 
-                tasks_to_remove.append(task)
+                tasks_to_remove.append(local_task_id)
                 self._semaphore.release()
 
-            time.sleep(self.poll_period)
+            time.sleep(self._poll_period)
 
-            for task in tasks_to_remove:
-                running_tasks.remove(task)
+            for local_task_id in tasks_to_remove:
+                running_tasks.remove(local_task_id)
 
             while True:
                 try:
@@ -137,13 +200,29 @@ class Poller(object):
                 except Queue.Empty:
                     break
 
-                if msg["type"] == "stop":
-                    is_running = False
+                if msg["type"] == "all_started":
+                    all_started = True
                 elif msg["type"] == "task":
-                    running_tasks.append(msg["value"])
+                    local_task_id, task_id = msg["value"]
+                    running_tasks.append(local_task_id)
+                    local_task_id_to_task_id[local_task_id] = task_id
                 else:
                     assert False, "Unknown message type {0}".format(msg["type"])
 
+            for local_task_id, last_fail_info in failed_tasks_infos.items():
+                attempt, last_fail_time, need_restart = last_fail_info
+                if not need_restart:
+                    continue
+
+                if time.time() - last_fail_time < self._failed_tasks_restart_sleep_in_sec:
+                    continue
+
+                self._restart_queue.put((local_task_id, local_task_id_to_task_id[local_task_id]))
+                failed_tasks_infos[local_task_id] = (attempt, last_fail_time, False)
+
+        if self._enable_failed_tasks_restarting:
+            # Special flag indicating all tasks were restarted.
+            self._restart_queue.put(None)
         # Send tasks statistics to main thread.
         self._queue.put({"type": "stats", "value": (aborted_task_count, failed_task_count)})
 
@@ -169,6 +248,7 @@ class TransferManager(object):
         self.retry_count = retry_count
 
         self._backend_config = self.get_backend_config()
+        self._backend_tag = self._backend_config["backend_tag"]
 
     def add_task(self, source_cluster, source_table, destination_cluster, destination_table=None, **kwargs):
         if "enable_early_skip_if_destination_exists" in kwargs:
@@ -294,7 +374,8 @@ class TransferManager(object):
 
     def add_tasks_from_src_dst_pairs(self, src_dst_pairs, source_cluster, destination_cluster, params=None,
                                      sync=None, poll_period=None, attached=False, running_tasks_limit=None,
-                                     enable_early_skip_if_destination_exists=False):
+                                     enable_early_skip_if_destination_exists=False, enable_failed_tasks_restarting=False,
+                                     max_failed_tasks_restart_count=3, failed_tasks_restart_sleep=15):
         poll_period = get_value(poll_period, 5)
         running_tasks_limit = get_value(running_tasks_limit, 10)
 
@@ -303,9 +384,11 @@ class TransferManager(object):
             params["lease_timeout"] = max(120, 2 * poll_period)
 
         tasks = []
+        task_to_src_dst_pair = {}
 
         if sync:
-            poller = Poller(poll_period, running_tasks_limit, self.ping_task_and_get)
+            poller = Poller(self, poll_period, running_tasks_limit, enable_failed_tasks_restarting,
+                            max_failed_tasks_restart_count, failed_tasks_restart_sleep)
 
         for source_table, destination_table in src_dst_pairs:
             if enable_early_skip_if_destination_exists and params.get("skip_if_destination_exists", False):
@@ -325,10 +408,7 @@ class TransferManager(object):
                             continue
 
             if sync:
-                while not poller.acquire_task_slot():
-                    if poller.exc_info is not None:
-                        raise poller.exc_info[0], poller.exc_info[1], poller.exc_info[2]
-                    time.sleep(0.5)
+                poller.acquire_task_slot()
 
             task_id = self._start_one_task(
                 source_table,
@@ -337,16 +417,52 @@ class TransferManager(object):
                 destination_cluster,
                 params=params)
 
+            # Generating local task id because during restart below task will be
+            # started with new id.
+            local_task_id = generate_uuid()
+            task_to_src_dst_pair[local_task_id] = (source_table, destination_table)
+
             tasks.append(task_id)
 
             logger.info("Transfer task started: %s", TM_TASK_URL_PATTERN.format(
-                id=task_id, backend_tag=self._backend_config["backend_tag"]))
+                id=task_id, backend_tag=self._backend_tag))
 
             if sync:
-                poller.notify_task_started(task_id)
+                poller.notify_task_started((local_task_id, task_id))
 
         if sync:
-            aborted_task_count, failed_task_count = poller.stop()
+            poller.notify_all_tasks_started()
+
+        if sync and enable_failed_tasks_restarting:
+            failed_tasks, finished = poller.fetch_tasks_for_restart()
+
+            share = FAILED_TASKS_SHARE_TO_DISABLE_AUTORESTART
+            if len(src_dst_pairs) >= 100 and len(failed_tasks) >= int(share * len(src_dst_pairs)):
+                raise YtError("More than {0:.1%} of tasks failed (failed count: {1}, total count: {2}), "
+                              "restart will not be performed".format(share, len(failed_tasks), len(src_dst_pairs)))
+
+            while not finished:
+                for local_task_id, old_task_id in failed_tasks:
+                    poller.acquire_task_slot()
+
+                    source_table, destination_table = task_to_src_dst_pair[local_task_id]
+                    task_id = self._start_one_task(
+                        source_table,
+                        source_cluster,
+                        destination_table,
+                        destination_cluster,
+                        params=params)
+
+                    tasks.append(task_id)
+
+                    poller.notify_task_started((local_task_id, task_id))
+                    logger.info("Task %s was restarted as new task with id %s: %s", old_task_id, task_id,
+                                TM_TASK_URL_PATTERN.format(id=task_id, backend_tag=self._backend_tag))
+
+                failed_tasks, finished = poller.fetch_tasks_for_restart()
+
+        if sync:
+            aborted_task_count, failed_task_count = poller.join()
 
             if aborted_task_count or failed_task_count:
                 raise YtError("All tasks done but there are {0} failed and {1} aborted tasks"
@@ -355,4 +471,3 @@ class TransferManager(object):
                 logger.info("All tasks successfully finished")
 
         return tasks
-
