@@ -15,7 +15,7 @@ def write_silently(strings):
     except IOError as err:
         # Trying to detect case of broken pipe
         if err.errno == 32:
-            sys.exit(1)
+            sys.exit(0)
         raise
     except Exception:
         raise
