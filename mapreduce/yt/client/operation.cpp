@@ -132,6 +132,7 @@ public:
         const TOperationOptions& options)
         : Auth_(auth)
         , Spec_(spec)
+        , Options_(options)
     {
         CreateStorage();
         UploadFilesFromSpec(spec);
@@ -176,13 +177,26 @@ public:
         return Spec_;
     }
 
+    const TOperationOptions& GetOptions() const
+    {
+        return Options_;
+    }
+
+    ui64 GetTotalFileSize() const
+    {
+        return TotalFileSize_;
+    }
+
 private:
     TAuth Auth_;
     TUserJobSpec Spec_;
+    TOperationOptions Options_;
+
     yvector<TRichYPath> Files_;
     bool HasState_ = false;
     Stroka ClassName_;
     Stroka Command_;
+    ui64 TotalFileSize_ = 0;
 
     static void CalculateMD5(const Stroka& localFileName, char* buf)
     {
@@ -262,8 +276,26 @@ private:
         return cypressPath;
     }
 
+    static ui64 RoundUpFileSize(ui64 size)
+    {
+        constexpr ui64 roundUpTo = 4ll << 10;
+        return (size + roundUpTo - 1) & ~(roundUpTo - 1);
+    }
+
     void UploadFilesFromSpec(const TUserJobSpec& spec)
     {
+        for (const auto& file : spec.Files_) {
+            if (!Exists(Auth_, TTransactionId(), file.Path_)) {
+                ythrow yexception() << "File " << file.Path_ << " does not exist";
+            }
+
+            if (Options_.MountSandboxInTmpfs_) {
+                auto size = NodeFromYsonString(
+                    Get(Auth_, TTransactionId(), file.Path_ + "/@uncompressed_data_size")).AsInt64();
+                TotalFileSize_ += RoundUpFileSize(static_cast<ui64>(size));
+            }
+        }
+
         Files_ = spec.Files_;
 
         for (const auto& localFile : spec.LocalFiles_) {
@@ -281,13 +313,27 @@ private:
             if (isExecutable) {
                 cypressPath.Executable(true);
             }
+
+            if (Options_.MountSandboxInTmpfs_) {
+                TotalFileSize_ += RoundUpFileSize(stat.Size);
+            }
+
             Files_.push_back(cypressPath);
         }
     }
 
     void UploadBinary()
     {
-        auto cachePath = UploadToCache(GetExecPath());
+        auto binaryPath = GetExecPath();
+
+        if (Options_.MountSandboxInTmpfs_) {
+            TFsPath path(binaryPath);
+            TFileStat stat;
+            path.Stat(stat);
+            TotalFileSize_ += RoundUpFileSize(stat.Size);
+        }
+
+        auto cachePath = UploadToCache(binaryPath);
         Files_.push_back(TRichYPath(cachePath).FileName("cppbinary").Executable(true));
     }
 
@@ -295,10 +341,15 @@ private:
     {
         TBufferOutput output(1 << 20);
         job->Save(output);
+
         if (output.Buffer().Size()) {
             auto cachePath = UploadToCache(output.Buffer());
             Files_.push_back(TRichYPath(cachePath).FileName("jobstate"));
             HasState_ = true;
+
+            if (Options_.MountSandboxInTmpfs_) {
+                TotalFileSize_ += output.Buffer().Size();
+            }
         }
     }
 };
@@ -508,6 +559,12 @@ void BuildUserJobFluently(
     const TMultiFormatDesc& outputDesc,
     TFluentMap fluent)
 {
+    bool mountSandboxInTmpfs = preparer.GetOptions().MountSandboxInTmpfs_;
+    TMaybe<i64> memoryLimit = preparer.GetSpec().MemoryLimit_;
+    if (mountSandboxInTmpfs) {
+        memoryLimit = memoryLimit.GetOrElse(512ll << 20) + preparer.GetTotalFileSize();
+    }
+
     // TODO: tables as files
     fluent
     .Item("file_paths").List(preparer.GetFiles())
@@ -576,8 +633,12 @@ void BuildUserJobFluently(
     })
     .Item("command").Value(preparer.GetCommand())
     .Item("class_name").Value(preparer.GetClassName())
-    .DoIf(preparer.GetSpec().MemoryLimit_.Defined(), [&] (TFluentMap fluent) {
-        fluent.Item("memory_limit").Value(*preparer.GetSpec().MemoryLimit_);
+    .DoIf(memoryLimit.Defined(), [&] (TFluentMap fluent) {
+        fluent.Item("memory_limit").Value(*memoryLimit);
+    })
+    .DoIf(mountSandboxInTmpfs, [] (TFluentMap fluent) {
+        fluent.Item("tmpfs_path").Value(".");
+        fluent.Item("copy_files").Value(true);
     });
 }
 
