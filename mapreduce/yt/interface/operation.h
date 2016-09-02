@@ -232,6 +232,7 @@ struct TOperationOptions
     FLUENT_FIELD_DEFAULT(bool, UseTableFormats, false);
     FLUENT_FIELD(Stroka, JobCommandPrefix);
     FLUENT_FIELD(Stroka, JobCommandSuffix);
+    FLUENT_FIELD_DEFAULT(bool, MountSandboxInTmpfs, false);
 };
 
 struct IOperationClient
