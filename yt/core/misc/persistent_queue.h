@@ -112,6 +112,7 @@ class TPersistentQueue
 public:
     void Enqueue(T value);
     T Dequeue();
+    void Clear();
 
     using TSnapshot = TPersistentQueueSnapshot<T, ChunkSize>;
     TSnapshot MakeSnapshot() const;

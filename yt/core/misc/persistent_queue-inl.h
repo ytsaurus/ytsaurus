@@ -159,6 +159,14 @@ T TPersistentQueue<T, ChunkSize>::Dequeue()
 }
 
 template <class T, size_t ChunkSize>
+void TPersistentQueue<T, ChunkSize>::Clear()
+{
+    this->Head_ = TPersistentQueueIterator<T, ChunkSize>();
+    this->Tail_ = TPersistentQueueIterator<T, ChunkSize>();
+    this->Size_ = 0;
+}
+
+template <class T, size_t ChunkSize>
 auto TPersistentQueue<T, ChunkSize>::MakeSnapshot() const -> TSnapshot
 {
     TSnapshot snapshot;
