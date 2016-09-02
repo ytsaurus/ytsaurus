@@ -10,7 +10,6 @@
 #include <contrib/libs/snappy/snappy-sinksource.h>
 #include <contrib/libs/snappy/snappy.h>
 
-#include <array>
 #include <vector>
 
 namespace NYT {
@@ -68,33 +67,45 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline void Read(StreamSource* source, char* buffer, size_t length)
+inline void Read(StreamSource* source, char* data, size_t len)
 {
-    YCHECK(source->Available() >= length);
-    size_t offset = 0;
+    YCHECK(source->Available() >= len);
+    size_t current = 0;
     do {
-        size_t inputLength;
-        const char* input = source->Peek(&inputLength);
-
-        inputLength = std::min(length - offset, inputLength);
-        std::copy(input, input + inputLength, buffer + offset);
-
-        source->Skip(inputLength);
-        offset += inputLength;
-    } while (offset < length);
+        size_t inputLen;
+        const char* input = source->Peek(&inputLen);
+        size_t copyLen = std::min(len - current, inputLen);
+        std::copy(input, input + copyLen , data + current);
+        source->Skip(copyLen);
+        current += copyLen;
+    } while (current < len);
 }
 
 inline void Read(StreamSource* source, TBlob& output)
 {
-    size_t length = source->Available();
-    output.Resize(length);
-    Read(source, output.Begin(), length);
+    output.Reserve(source->Available());
+    while (source->Available() > 0) {
+        size_t inputLen;
+        const char* input = source->Peek(&inputLen);
+        output.Append(input, inputLen);
+        source->Skip(inputLen);
+    }
 }
 
 template <class T>
 void ReadPod(StreamSource* source, T& value)
 {
-    Read(source, reinterpret_cast<char*>(&value), sizeof(T));
+    YCHECK(source->Available() >= sizeof(T));
+    
+    char data[sizeof(T)];
+    for (size_t i = 0; i < sizeof(T); ++i) {
+        size_t len;
+        data[i] = *(source->Peek(&len));
+        source->Skip(1);
+    }
+
+    TMemoryInput memoryInput(data, sizeof(T));
+    NYT::ReadPod(memoryInput, value);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
