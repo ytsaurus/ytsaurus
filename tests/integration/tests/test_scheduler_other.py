@@ -1646,3 +1646,39 @@ class TestSchedulerCaching(YTEnvSetup):
 
         op = map(dont_track=True, command='cat', in_="//tmp/t_in", out="//tmp/t_out")
         op.track()
+
+
+class TestSchedulerJobTimeLimit(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    def test_exceed_job_time_limit(self):
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", {"foo": "bar"})
+        create("table", "//tmp/t_out")
+        op = map(
+            dont_track=True,
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="sleep 2 ; cat",
+            spec={"max_failed_job_count": 1, "mapper": {"job_time_limit": 2000}})
+        # if all jobs failed then operation is also failed
+        with pytest.raises(YtError):
+            op.track()
+        jobs_path = "//sys/operations/" + op.id + "/jobs"
+        for job_id in ls(jobs_path):
+            inner_errors = get(jobs_path + "/" + job_id + "/@error/inner_errors")
+            assert "Job time limit exceeded" in inner_errors[0]["message"]
+
+    def test_within_job_time_limit(self):
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", {"foo": "bar"})
+        create("table", "//tmp/t_out")
+        op = map(
+            dont_track=True,
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="sleep 1 ; cat",
+            spec={"max_failed_job_count": 1, "mapper": {"job_time_limit": 2000}})
+        op.track()
