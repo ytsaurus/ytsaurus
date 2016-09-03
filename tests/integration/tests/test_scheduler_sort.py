@@ -302,7 +302,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
              sort_by="key")
 
         assert get("//tmp/t/@sorted")
-        assert get("//tmp/t/@schema") == [{"name": "key", "type": "string", "sort_order": "ascending"}]
+        assert get("//tmp/t/@schema") == make_schema([{"name": "key", "type": "string", "sort_order": "ascending"}], strict = True, unique_keys = False) 
         assert read_table("//tmp/t") == [{"key" : "a"}, {"key" : "b"}]
 
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
