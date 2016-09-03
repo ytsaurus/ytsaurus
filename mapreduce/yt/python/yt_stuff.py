@@ -151,7 +151,9 @@ class YtStuff(object):
                 "--sync",
                 "--id", self.yt_id,
                 "--path", self.yt_work_dir,
-                "--fqdn", self.config.fqdn
+                "--fqdn", self.config.fqdn,
+                # Fix normally in YT-5572
+                "--operations-memory-limit", 25 * 1024 * 1024 * 1024,
             ]
 
             if self.config.proxy_port is not None:
