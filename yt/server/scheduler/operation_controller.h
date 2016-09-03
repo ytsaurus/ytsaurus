@@ -37,6 +37,19 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TControllerTransactions
+    : public TIntrinsicRefCounted
+{
+    NApi::ITransactionPtr Sync;
+    NApi::ITransactionPtr Async;
+    NApi::ITransactionPtr Input;
+    NApi::ITransactionPtr Output;
+};
+
+DEFINE_REFCOUNTED_TYPE(TControllerTransactions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IOperationHost
 {
     virtual ~IOperationHost() = default;
@@ -114,14 +127,23 @@ struct IOperationHost
 struct IOperationController
     : public virtual TRefCounted
 {
-    //! Performs controller inner state initialization. Check and start all operation transactions.
+    //! Performs controller inner state initialization. Starts all controller transactions.
     /*
      *  If an exception is thrown then the operation fails immediately.
      *  The diagnostics is returned to the client, no Cypress node is created.
      *
      *  \note Invoker affinity: Control invoker
      */
-    virtual void Initialize(bool cleanStart) = 0;
+    virtual void Initialize() = 0;
+
+    //! Performs controller inner state initialization for reviving operation.
+    /*
+     *  If an exception is thrown then the operation fails immediately.
+     *  The diagnostics is returned to the client, no Cypress node is created.
+     *
+     *  \note Invoker affinity: Control invoker
+     */
+    virtual void InitializeReviving(TControllerTransactionsPtr operationTransactions) = 0;
 
     /*!
      *  \note Invoker affinity: Controller invoker
@@ -135,22 +157,18 @@ struct IOperationController
     //! Performs a possibly lengthy materialization.
     virtual void Materialize() = 0;
 
+    //! Reactivates an already running operation, possibly restoring its progress.
+    /*!
+     *  This method is called during scheduler state recovery for each existing operation.
+     *  Must be called after InitializeReviving().
+     */
+    virtual void Revive() = 0;
+
     //! Called by a scheduler in response to IOperationHost::OnOperationCompleted.
     /*!
      *  The controller must commit the transactions related to the operation.
      */
     virtual void Commit() = 0;
-
-    //! Called from a forked copy of the scheduler to make a snapshot of operation's progress.
-    virtual void SaveSnapshot(TOutputStream* stream) = 0;
-
-    //! Reactivates an already running operation, possibly restoring its progress.
-    /*!
-     *  This method is called during scheduler state recovery for each existing operation.
-     *  The controller may try to recover its state from the snapshot, if any
-     *  (see TOperation::Snapshot).
-     */
-    virtual void Revive(const TSharedRef& snapshot) = 0;
 
     //! Notifies the controller that the operation has been aborted.
     /*!
@@ -166,6 +184,11 @@ struct IOperationController
      */
     virtual void Complete() = 0;
 
+    //! Called from a forked copy of the scheduler to make a snapshot of operation's progress.
+    virtual void SaveSnapshot(TOutputStream* stream) = 0;
+
+    //! Returns the list of all active controller transactions.
+    virtual std::vector<NApi::ITransactionPtr> GetTransactions() = 0;
 
     //! Returns the context that gets invalidated by #Abort.
     virtual TCancelableContextPtr GetCancelableContext() const = 0;
@@ -198,13 +221,6 @@ struct IOperationController
      *  \note Invoker affinity: Control invoker
      */
     virtual void Resume() = 0;
-
-    /*!
-     *  Indicates that controller should be initialized from scratch.
-     *
-     *  \note Invoker affinity: Control invoker
-     */
-    virtual bool GetCleanStart() const = 0;
 
     /*!
      *  \note Thread affinity: any
@@ -259,6 +275,9 @@ struct IOperationController
     //! Updates internal copy of scheduler config used by controller.
     virtual void UpdateConfig(TSchedulerConfigPtr config) = 0;
 
+    //! Called to construct a YSON representing the controller part of operation attributes.
+    virtual void BuildOperationAttributes(NYson::IYsonConsumer* consumer) const = 0;
+
     /*!
      *  \note Invoker affinity: Controller invoker
      */
@@ -279,12 +298,6 @@ struct IOperationController
      */
     //! Provides a string describing operation status and statistics.
     virtual Stroka GetLoggingProgress() const = 0;
-
-    /*!
-     *  \note Invoker affinity: Control invoker
-     */
-    //! Called for finished operations to construct a YSON representing the result.
-    virtual void BuildResult(NYson::IYsonConsumer* consumer) const = 0;
 
     //! Called to construct a YSON representing the current state of memory digests for jobs of each type.
     virtual void BuildMemoryDigestStatistics(NYson::IYsonConsumer* consumer) const = 0;

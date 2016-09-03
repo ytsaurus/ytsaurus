@@ -47,34 +47,6 @@ public:
     //! User-supplied transaction where the operation resides.
     DEFINE_BYVAL_RO_PROPERTY(NApi::ITransactionPtr, UserTransaction);
 
-    //! Transaction used for maintaining operation inputs and outputs.
-    /*!
-     *  SyncSchedulerTransaction is nested inside UserTransaction, if any.
-     *  Input and output transactions are nested inside SyncSchedulerTransaction.
-     */
-    DEFINE_BYVAL_RW_PROPERTY(NApi::ITransactionPtr, SyncSchedulerTransaction);
-
-    //! Transaction used for internal housekeeping, e.g. generating stderrs.
-    /*!
-     *  Not nested inside any other transaction.
-     */
-    DEFINE_BYVAL_RW_PROPERTY(NApi::ITransactionPtr, AsyncSchedulerTransaction);
-
-    //! Transaction used for taking snapshot of operation input.
-    /*!
-     *  InputTransaction is nested inside SyncSchedulerTransaction.
-     */
-    DEFINE_BYVAL_RW_PROPERTY(NApi::ITransactionPtr, InputTransaction);
-
-    //! Transaction used for locking and writing operation output.
-    /*!
-     *  OutputTransaction is nested inside SyncSchedulerTransaction.
-     */
-    DEFINE_BYVAL_RW_PROPERTY(NApi::ITransactionPtr, OutputTransaction);
-
-    //! |true| if transactions are initialized and should be refreshed.
-    DEFINE_BYVAL_RW_PROPERTY(bool, HasActiveTransactions);
-
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, Spec);
 
     DEFINE_BYVAL_RO_PROPERTY(Stroka, AuthenticatedUser);
