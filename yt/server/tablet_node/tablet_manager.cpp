@@ -651,7 +651,7 @@ private:
         auto mountConfig = DeserializeTableMountConfig((TYsonString(request->mount_config())), tabletId);
         auto writerOptions = DeserializeTabletWriterOptions(TYsonString(request->writer_options()), tabletId);
         auto atomicity = EAtomicity(request->atomicity());
-        auto serializability = ESerializability(request->serializability());
+        auto commitOrdering = ECommitOrdering(request->commit_ordering());
         auto storeDescriptors = FromProto<std::vector<TAddStoreDescriptor>>(request->stores());
         bool freeze = request->freeze();
         auto replicaDescriptors = FromProto<std::vector<TTableReplicaDescriptor>>(request->replicas());
@@ -667,7 +667,7 @@ private:
             pivotKey,
             nextPivotKey,
             atomicity,
-            serializability);
+            commitOrdering);
         auto* tablet = TabletMap_.Insert(tabletId, std::move(tabletHolder));
 
         if (!tablet->IsPhysicallySorted()) {
@@ -682,7 +682,8 @@ private:
         tablet->SetState(freeze ? ETabletState::Frozen : ETabletState::Mounted);
 
         LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %v, MountRevision: %x, TableId: %v, Keys: %v .. %v, "
-            "StoreCount: %v, PartitionCount: %v, TotalRowCount: %v, TrimmedRowCount: %v, Atomicity: %v, Serializability: %v, Frozen: %v)",
+            "StoreCount: %v, PartitionCount: %v, TotalRowCount: %v, TrimmedRowCount: %v, Atomicity: %v, "
+            "CommitOrdering: %v, Frozen: %v)",
             tabletId,
             mountRevision,
             tableId,
@@ -693,7 +694,7 @@ private:
             tablet->IsPhysicallySorted() ? Null : MakeNullable(tablet->GetTotalRowCount()),
             tablet->IsPhysicallySorted() ? Null : MakeNullable(tablet->GetTrimmedRowCount()),
             tablet->GetAtomicity(),
-            tablet->GetSerializability(),
+            tablet->GetCommitOrdering(),
             freeze);
 
         for (const auto& descriptor : request->replicas()) {
@@ -947,7 +948,7 @@ private:
         auto* transaction = transactionManager->MakeTransactionPersistent(transactionId);
 
         auto* tablet = FindTablet(tabletId);
-        bool immediate = !tablet || tablet->IsImmediatelyCommittable();
+        bool immediate = !tablet || tablet->GetCommitOrdering() == ECommitOrdering::Weak;
 
         HandleRowsOnLeaderExecuteWriteAtomic(transaction, transaction->PrelockedSortedRows(), sortedRowCount);
         HandleRowsOnLeaderExecuteWriteAtomic(transaction, transaction->PrelockedOrderedRows(), orderedRowCount);
@@ -1041,7 +1042,9 @@ private:
                     ++rowCount;
                 }
 
-                auto& writeLog = tablet->IsImmediatelyCommittable() ? transaction->ImmediateWriteLog() : transaction->DelayedWriteLog();
+                auto& writeLog = tablet->GetCommitOrdering() == ECommitOrdering::Weak
+                    ? transaction->ImmediateWriteLog()
+                    : transaction->DelayedWriteLog();
                 writeLog.Enqueue(TTransactionWriteRecord{tabletId, recordData});
                 transaction->SetPersistentSignature(transaction->GetPersistentSignature() + signature);
             }

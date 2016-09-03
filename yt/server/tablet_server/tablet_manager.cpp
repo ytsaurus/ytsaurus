@@ -669,7 +669,7 @@ public:
                 req.set_mount_config(serializedMountConfig.Data());
                 req.set_writer_options(serializedWriterOptions.Data());
                 req.set_atomicity(static_cast<int>(table->GetAtomicity()));
-                req.set_serializability(static_cast<int>(table->GetSerializability()));
+                req.set_commit_ordering(static_cast<int>(table->GetCommitOrdering()));
                 req.set_freeze(freeze);
                 if (table->IsReplicated()) {
                     auto* replicatedTable = static_cast<TReplicatedTableNode*>(table);
@@ -693,13 +693,13 @@ public:
                 }
 
                 LOG_INFO_UNLESS(IsRecovery(), "Mounting tablet (TableId: %v, TabletId: %v, CellId: %v, ChunkCount: %v, "
-                    "Atomicity: %v, Serializability: %v, Freeze: %v)",
+                    "Atomicity: %v, CommitOrdering: %v, Freeze: %v)",
                     table->GetId(),
                     tablet->GetId(),
                     cell->GetId(),
                     chunks.size(),
                     table->GetAtomicity(),
-                    table->GetSerializability(),
+                    table->GetCommitOrdering(),
                     freeze);
 
                 hiveManager->PostMessage(mailbox, req);

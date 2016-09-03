@@ -118,7 +118,7 @@ protected:
             sorted ? MinKey() : TOwningKey(),
             sorted ? MaxKey() : TOwningKey(),
             GetAtomicity(),
-            GetSerializability());
+            GetCommitOrdering());
 
         auto storeManager = CreateStoreManager(Tablet_.get());
         Tablet_->SetStoreManager(storeManager);
@@ -143,9 +143,9 @@ protected:
         return EAtomicity::Full;
     }
 
-    virtual ESerializability GetSerializability() const
+    virtual ECommitOrdering GetCommitOrdering() const
     {
-        return ESerializability::Full; 
+        return ECommitOrdering::Weak;
     }
 
 
