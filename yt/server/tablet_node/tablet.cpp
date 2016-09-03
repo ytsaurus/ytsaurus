@@ -203,7 +203,7 @@ TTablet::TTablet(
     TOwningKey pivotKey,
     TOwningKey nextPivotKey,
     EAtomicity atomicity,
-    ESerializability serializability)
+    ECommitOrdering commitOrdering)
     : TObjectBase(tabletId)
     , MountRevision_(mountRevision)
     , TableId_(tableId)
@@ -212,7 +212,7 @@ TTablet::TTablet(
     , NextPivotKey_(std::move(nextPivotKey))
     , State_(ETabletState::Mounted)
     , Atomicity_(atomicity)
-    , Serializability_(serializability)
+    , CommitOrdering_(commitOrdering)
     , HashTableSize_(config->EnableLookupHashTable ? config->MaxDynamicStoreRowCount : 0)
     , Config_(config)
     , WriterOptions_(writerOptions)
@@ -287,7 +287,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, GetPersistentState());
     Save(context, TableSchema_);
     Save(context, Atomicity_);
-    Save(context, Serializability_);
+    Save(context, CommitOrdering_);
     Save(context, HashTableSize_);
     Save(context, RuntimeData_->TotalRowCount);
     Save(context, RuntimeData_->TrimmedRowCount);
@@ -327,7 +327,7 @@ void TTablet::Load(TLoadContext& context)
     Load(context, State_);
     Load(context, TableSchema_);
     Load(context, Atomicity_);
-    Load(context, Serializability_);
+    Load(context, CommitOrdering_);
     Load(context, HashTableSize_);
     Load(context, RuntimeData_->TotalRowCount);
     Load(context, RuntimeData_->TrimmedRowCount);
@@ -726,11 +726,6 @@ bool TTablet::IsPhysicallyOrdered() const
 bool TTablet::IsReplicated() const
 {
     return TypeFromId(TableId_) == EObjectType::ReplicatedTable;
-}
-
-bool TTablet::IsImmediatelyCommittable() const
-{
-    return IsPhysicallySorted() || Serializability_ == ESerializability::None;
 }
 
 int TTablet::GetColumnLockCount() const

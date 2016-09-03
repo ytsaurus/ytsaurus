@@ -92,6 +92,12 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     auto* node = nodeHolder.get();
 
     try {
+        if (node->IsReplicated()) {
+            // NB: This setting is not visible in attributes but crucial for replication
+            // to work properly.
+            node->SetCommitOrdering(NTransactionClient::ECommitOrdering::Strong);
+        }
+
         if (maybeSchema) {
             node->TableSchema() = *maybeSchema;
             node->SetSchemaMode(ESchemaMode::Strong);

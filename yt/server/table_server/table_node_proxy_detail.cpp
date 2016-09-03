@@ -104,7 +104,8 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(TAttributeDescriptor("tablet_cell_bundle")
         .SetPresent(table->GetTabletCellBundle() != nullptr));
     descriptors->push_back("atomicity");
-    descriptors->push_back("serializability");
+    descriptors->push_back(TAttributeDescriptor("commit_ordering")
+        .SetPresent(!table->IsSorted()));
     descriptors->push_back(TAttributeDescriptor("optimize_for")
         .SetCustom(true));
     descriptors->push_back(TAttributeDescriptor("schema_mode"));
@@ -238,9 +239,9 @@ bool TTableNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* cons
         return true;
     }
 
-    if (key == "serializability") {
+    if (key == "commit_ordering") {
         BuildYsonFluently(consumer)
-            .Value(trunkTable->GetSerializability());
+            .Value(trunkTable->GetCommitOrdering());
         return true;
     }
 
@@ -301,6 +302,8 @@ void TTableNodeProxy::AlterTable(
 
 bool TTableNodeProxy::SetBuiltinAttribute(const Stroka& key, const TYsonString& value)
 {
+    const auto* table = GetThisImpl();
+
     if (key == "tablet_cell_bundle") {
         ValidateNoTransaction();
 
@@ -308,41 +311,37 @@ bool TTableNodeProxy::SetBuiltinAttribute(const Stroka& key, const TYsonString& 
         auto tabletManager = Bootstrap_->GetTabletManager();
         auto* cellBundle = tabletManager->GetTabletCellBundleByNameOrThrow(name);
 
-        auto* table = LockThisImpl();
-        tabletManager->SetTabletCellBundle(table, cellBundle);
+        auto* lockedTable = LockThisImpl();
+        tabletManager->SetTabletCellBundle(lockedTable, cellBundle);
         return true;
     }
 
     if (key == "atomicity") {
         ValidateNoTransaction();
 
-        auto* table = LockThisImpl();
+        auto* lockedTable = LockThisImpl();
         if (table->GetTabletState() != ETabletState::Unmounted) {
             THROW_ERROR_EXCEPTION("Cannot change table atomicity mode since not all of its tablets are in %Qlv state",
                 ETabletState::Unmounted);
         }
 
         auto atomicity = ConvertTo<NTransactionClient::EAtomicity>(value);
-        table->SetAtomicity(atomicity);
+        lockedTable->SetAtomicity(atomicity);
         return true;
     }
 
-    if (key == "serializability") {
+    if (key == "commit_ordering" && !table->IsSorted()) {
         ValidateNoTransaction();
-
-        auto* table = LockThisImpl();
-        if (table->IsSorted()) {
-            THROW_ERROR_EXCEPTION("Cannot change table serializability mode for sorted table");
-        }
 
         auto tabletState = table->GetTabletState();
         if (tabletState != ETabletState::Unmounted && tabletState != ETabletState::None) {
-            THROW_ERROR_EXCEPTION("Cannot change table serializability mode since not all of its tablets are in %Qlv state",
+            THROW_ERROR_EXCEPTION("Cannot change table commit ordering mode since not all of its tablets are in %Qlv state",
                 ETabletState::Unmounted);
         }
 
-        auto serializability = ConvertTo<NTransactionClient::ESerializability>(value);
-        table->SetSerializability(serializability);
+        auto* lockedTable = LockThisImpl();
+        auto ordering = ConvertTo<NTransactionClient::ECommitOrdering>(value);
+        lockedTable->SetCommitOrdering(ordering);
         return true;
     }
 

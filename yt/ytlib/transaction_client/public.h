@@ -34,9 +34,9 @@ DEFINE_ENUM(EDurability,
 );
 
 //! Only applies to ordered tables.
-DEFINE_ENUM(ESerializability,
-    ((None)            (0)) // Rows are appended to tablet in order of participant commits
-    ((Full)            (1)) // Rows are appended to tablet in order of timestamps
+DEFINE_ENUM(ECommitOrdering,
+    ((Weak)            (0)) // Rows are appended to tablet in order of participant commits
+    ((Strong)          (1)) // Rows are appended to tablet in order of timestamps
 );
 
 DEFINE_ENUM(EErrorCode,

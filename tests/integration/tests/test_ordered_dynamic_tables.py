@@ -25,11 +25,12 @@ class TestOrderedDynamicTables(YTEnvSetup):
         "max_rows_per_write_request": 2
     }
     
-    def _create_simple_table(self, path, dynamic=True):
+    def _create_simple_table(self, path, dynamic=True, commit_ordering="weak"):
         create("table", path,
             attributes={
                 "dynamic": dynamic,
                 "external": False,
+                "commit_ordering": commit_ordering,
                 "schema": [
                     {"name": "a", "type": "int64"},
                     {"name": "b", "type": "double"},
@@ -420,24 +421,21 @@ class TestOrderedDynamicTables(YTEnvSetup):
         self.sync_unfreeze_table("//tmp/t")
         self.sync_unmount_table("//tmp/t")
 
-    def test_change_serializability(self):
+    def test_change_commit_ordering(self):
         self._create_simple_table("//tmp/t")
-        set("//tmp/t/@serializability", "none")
-        set("//tmp/t/@serializability", "full")
-        with pytest.raises(YtError): set("//tmp/t/@serializability", "cool")
+        set("//tmp/t/@commit_ordering", "weak")
+        set("//tmp/t/@commit_ordering", "strong")
+        with pytest.raises(YtError): set("//tmp/t/@commit_ordering", "cool")
 
-    def test_no_serializability_change_for_mounted(self):
+    def test_no_commit_ordering_change_for_mounted(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
-        with pytest.raises(YtError): set("//tmp/t/@serializability", "none")
+        with pytest.raises(YtError): set("//tmp/t/@commit_ordering", "strong")
 
-    def test_set_serializability_upon_construction(self):
-        create("table", "//tmp/t",
-               attributes={
-                   "serializability": "none"
-               })
-        assert get("//tmp/t/@serializability") == "none"
+    def test_set_commit_ordering_upon_construction(self):
+        self._create_simple_table("//tmp/t", commit_ordering="strong")
+        assert get("//tmp/t/@commit_ordering") == "strong"
 
 ##################################################################
 

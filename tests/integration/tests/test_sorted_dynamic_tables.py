@@ -1622,10 +1622,9 @@ class TestSortedDynamicTables(YTEnvSetup):
         self._test_mount_static_table("uncompressed", True)
 
 
-    def test_cannot_change_serializability(self):
+    def test_no_commit_ordering(self):
         self._create_simple_table("//tmp/t")
-        assert get("//tmp/t/@serializability") == "full"
-        with pytest.raises(YtError): set("//tmp/t/@serializability", "none")
+        assert not exists("//tmp/t/@commit_ordering")
 
 ##################################################################
 

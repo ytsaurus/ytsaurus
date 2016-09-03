@@ -31,6 +31,7 @@ using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTabletClient::NProto;
 using namespace NObjectClient;
+using namespace NTransactionClient;
 
 using NTabletNode::NProto::TAddStoreDescriptor;
 
@@ -112,7 +113,11 @@ TOrderedDynamicRowRef TOrderedStoreManager::WriteRow(
     }
 
     auto dynamicRow = ActiveStore_->WriteRow(transaction, row);
-    auto dynamicRowRef = TOrderedDynamicRowRef(ActiveStore_.Get(), this, dynamicRow, Tablet_->IsImmediatelyCommittable());
+    auto dynamicRowRef = TOrderedDynamicRowRef(
+        ActiveStore_.Get(),
+        this,
+        dynamicRow,
+        Tablet_->GetCommitOrdering() == ECommitOrdering::Weak);
     LockRow(transaction, prelock, dynamicRowRef);
     return dynamicRowRef;
 }

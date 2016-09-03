@@ -223,7 +223,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::deque<TStoreId>, PreloadStoreIds);
 
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::EAtomicity, Atomicity);
-    DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::ESerializability, Serializability);
+    DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::ECommitOrdering, CommitOrdering);
 
     DEFINE_BYVAL_RO_PROPERTY(int, HashTableSize);
 
@@ -249,7 +249,7 @@ public:
         TOwningKey pivotKey,
         TOwningKey nextPivotKey,
         NTransactionClient::EAtomicity atomicity,
-        NTransactionClient::ESerializability serializability);
+        NTransactionClient::ECommitOrdering commitOrdering);
 
     ETabletState GetPersistentState() const;
 
@@ -294,7 +294,6 @@ public:
     bool IsPhysicallySorted() const;
     bool IsPhysicallyOrdered() const;
     bool IsReplicated() const;
-    bool IsImmediatelyCommittable() const;
 
     int GetColumnLockCount() const;
 

@@ -27,7 +27,7 @@ TTableNode::TTableNode(const TVersionedNodeId& id)
     , LastCommitTimestamp_(NullTimestamp)
     , TabletCellBundle_(nullptr)
     , Atomicity_(NTransactionClient::EAtomicity::Full)
-    , Serializability_(NTransactionClient::ESerializability::Full)
+    , CommitOrdering_(NTransactionClient::ECommitOrdering::Weak)
 { }
 
 EObjectType TTableNode::GetObjectType() const
@@ -98,7 +98,7 @@ void TTableNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, SchemaMode_);
     Save(context, Tablets_);
     Save(context, Atomicity_);
-    Save(context, Serializability_);
+    Save(context, CommitOrdering_);
     Save(context, TabletCellBundle_);
     Save(context, LastCommitTimestamp_);
 }
@@ -137,7 +137,7 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
 
     // COMPAT(babenko)
     if (context.GetVersion() >= 500) {
-        Load(context, Serializability_);
+        Load(context, CommitOrdering_);
     }
 
     // COMPAT(savrus)
