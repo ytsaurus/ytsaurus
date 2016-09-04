@@ -33,6 +33,8 @@
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/nullable.h>
 
+#include <yt/core/ytree/yson_serializable.h>
+
 #include <yt/core/rpc/public.h>
 
 #include <yt/core/ytree/permission.h>
@@ -58,12 +60,6 @@ void Deserialize(TUserWorkloadDescriptor& workloadDescriptor, NYTree::INodePtr n
 struct TTimeoutOptions
 {
     TNullable<TDuration> Timeout;
-};
-
-struct TCacheOptions
-{
-    TDuration ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(15);
-    TDuration ExpireAfterFailedUpdateTime = TDuration::Seconds(15);
 };
 
 struct TTabletRangeOptions
@@ -98,11 +94,31 @@ struct TMutatingOptions
 struct TMasterReadOptions
 {
     EMasterChannelKind ReadFrom = EMasterChannelKind::Follower;
+    TDuration ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(15);
+    TDuration ExpireAfterFailedUpdateTime = TDuration::Seconds(15);
 };
+
+struct TPrerequisiteRevisionConfig
+    : public NYTree::TYsonSerializable
+{
+    NYTree::TYPath Path;
+    NTransactionClient::TTransactionId TransactionId;
+    i64 Revision;
+
+    TPrerequisiteRevisionConfig()
+    {
+        RegisterParameter("path", Path);
+        RegisterParameter("transaction_id", TransactionId);
+        RegisterParameter("revision", Revision);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TPrerequisiteRevisionConfig)
 
 struct TPrerequisiteOptions
 {
     std::vector<NTransactionClient::TTransactionId> PrerequisiteTransactionIds;
+    std::vector<TPrerequisiteRevisionConfigPtr> PrerequisiteRevisions;
 };
 
 struct TMountTableOptions
@@ -264,7 +280,6 @@ struct TSelectRowsOptions
 
 struct TGetNodeOptions
     : public TTimeoutOptions
-    , public TCacheOptions
     , public TTransactionalOptions
     , public TMasterReadOptions
     , public TSuppressableAccessTrackingOptions
@@ -295,7 +310,6 @@ struct TRemoveNodeOptions
 
 struct TListNodeOptions
     : public TTimeoutOptions
-    , public TCacheOptions
     , public TTransactionalOptions
     , public TMasterReadOptions
     , public TSuppressableAccessTrackingOptions
@@ -369,7 +383,6 @@ struct TLinkNodeOptions
 struct TConcatenateNodesOptions
     : public TTimeoutOptions
     , public TTransactionalOptions
-    , public TMasterReadOptions
     , public TMutatingOptions
 {
     bool Append = false;

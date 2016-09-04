@@ -452,7 +452,9 @@ class TOperationElementSharedState
 public:
     TOperationElementSharedState();
 
-    void IncreaseJobResourceUsage(const TJobId& jobId, const TJobResources& resourcesDelta);
+    TJobResources IncreaseJobResourceUsage(
+        const TJobId& jobId,
+        const TJobResources& resourcesDelta);
 
     void UpdatePreemptableJobsList(
         double fairShareRatio,
@@ -467,7 +469,7 @@ public:
     int GetPreemptableJobCount() const;
     int GetAggressivelyPreemptableJobCount() const;
 
-    void AddJob(const TJobId& jobId, const TJobResources resourceUsage);
+    TJobResources AddJob(const TJobId& jobId, const TJobResources resourceUsage);
     TJobResources RemoveJob(const TJobId& jobId);
 
     bool IsBlocked(
@@ -487,6 +489,8 @@ public:
         TInstant now);
 
     NJobTrackerClient::TStatistics GetControllerTimeStatistics();
+
+    TJobResources Finalize();
 
 private:
     template <typename T>
@@ -618,6 +622,8 @@ private:
     bool BackingOff_ = false;
     NConcurrency::TReaderWriterSpinLock ConcurrentScheduleJobCallsLock_;
 
+    bool Finalized_ = false;
+
     DEFINE_BYREF_RW_PROPERTY(NJobTrackerClient::TStatistics, ControllerTimeStatistics);
 
     bool IsBlockedImpl(
@@ -692,6 +698,8 @@ public:
     virtual void BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap) override;
 
     virtual ISchedulerElementPtr Clone() override;
+
+    TJobResources Finalize();
 
     DEFINE_BYVAL_RW_PROPERTY(TOperationRuntimeParamsPtr, RuntimeParams);
 
