@@ -99,31 +99,37 @@ class TestSchedulerOther(YTEnvSetup):
         for i in xrange(1, op_count):
             assert read_table("//tmp/t_out" + str(i)) == [ {"foo" : "bar"} ]
 
-    @pytest.mark.skipif("True")
-    def test_aborting(self):
-        # To run this test you must insert sleep into scheduler.cpp:TerminateOperation.
-        # And then you must manually kill scheduler while scheduler handling this sleep after abort command.
-
+    def test_user_transaction_abort_when_scheduler_is_down(self):
         self._prepare_tables()
 
-        op = map(dont_track=True, in_='//tmp/t_in', out='//tmp/t_out', command='cat; sleep 3')
+        transaction_id = start_transaction(timeout=300 * 1000)
+        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 3", transaction_id=transaction_id)
 
         time.sleep(2)
-        assert "running" == get("//sys/operations/" + op.id + "/@state")
+        self.Env.kill_schedulers()
 
-        try:
-            op.abort()
-            # Here you must kill scheduler manually
-        except:
-            pass
-
-        assert "aborting" == get("//sys/operations/" + op.id + "/@state")
+        abort_transaction(transaction_id)
 
         self.Env.start_schedulers()
 
-        time.sleep(1)
+        with pytest.raises(YtError):
+            op.track()
 
-        assert "aborted" == get("//sys/operations/" + op.id + "/@state")
+    def test_scheduler_transaction_abort_when_scheduler_is_down(self):
+        self._prepare_tables()
+
+        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 3")
+
+        time.sleep(2)
+        self.Env.kill_schedulers()
+
+        abort_transaction(get("//sys/operations/{0}/@sync_scheduler_transaction_id".format(op.id)))
+
+        self.Env.start_schedulers()
+
+        op.track()
+
+        assert read_table("//tmp/t_out") == [ {"foo" : "bar"} ]
 
     def test_operation_time_limit(self):
         self._create_table("//tmp/in")
@@ -242,6 +248,103 @@ class TestSchedulerOther(YTEnvSetup):
         assert op.get_state() == "aborted"
         assert get("//sys/operations/{0}/@result/error/inner_errors/0/message".format(op.id)) == "Test abort"
 
+
+class TestSchedulerRevive(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "operation_time_limit_check_period" : 100,
+            "connect_retry_backoff_time": 100,
+            "fair_share_update_period": 100,
+            "finish_operation_transition_delay": 2000,
+        }
+    }
+
+    def _create_table(self, table):
+        create("table", table)
+        set(table + "/@replication_factor", 1)
+
+    def _prepare_tables(self):
+        self._create_table("//tmp/t_in")
+        write_table("//tmp/t_in", {"foo": "bar"})
+
+        self._create_table("//tmp/t_out")
+
+    def _wait_state(self, op, state):
+        iter = 0
+        backoff = 0.1
+        while True:
+            if state == get("//sys/operations/" + op.id + "/@state"):
+                break
+            time.sleep(backoff)
+
+            iter += 1
+            assert iter < 50, "Operation %s do not comes to %s state after %f seconds" % (op.id, state, iter * backoff)
+
+    def test_aborting(self):
+        self._prepare_tables()
+
+        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 10")
+
+        self._wait_state(op, "running")
+
+        op.abort(ignore_result=True)
+
+        self._wait_state(op, "aborting")
+
+        self.Env.kill_schedulers()
+
+        assert "aborting" == get("//sys/operations/" + op.id + "/@state")
+
+        self.Env.start_schedulers()
+
+        with pytest.raises(YtError):
+            op.track()
+
+        assert "aborted" == get("//sys/operations/" + op.id + "/@state")
+
+    def test_completing(self):
+        self._prepare_tables()
+
+        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 10")
+
+        self._wait_state(op, "running")
+
+        op.complete(ignore_result=True)
+
+        self._wait_state(op, "completing")
+
+        self.Env.kill_schedulers()
+
+        assert "completing" == get("//sys/operations/" + op.id + "/@state")
+
+        self.Env.start_schedulers()
+
+        with pytest.raises(YtError):
+            op.track()
+
+        assert "failed" == get("//sys/operations/" + op.id + "/@state")
+
+    def test_failing(self):
+        self._prepare_tables()
+
+        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="exit 1", spec={"max_failed_job_count": 1})
+
+        self._wait_state(op, "failing")
+
+        self.Env.kill_schedulers()
+
+        assert "failing" == get("//sys/operations/" + op.id + "/@state")
+
+        self.Env.start_schedulers()
+
+        with pytest.raises(YtError):
+            op.track()
+
+        assert "failed" == get("//sys/operations/" + op.id + "/@state")
 
 class TestStrategies(YTEnvSetup):
     NUM_MASTERS = 1

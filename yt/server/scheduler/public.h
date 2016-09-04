@@ -65,6 +65,8 @@ struct IEventLogHost;
 DECLARE_REFCOUNTED_STRUCT(ISchedulerStrategy)
 struct ISchedulerStrategyHost;
 
+DECLARE_REFCOUNTED_STRUCT(TControllerTransactions);
+
 struct IOperationHost;
 
 DECLARE_REFCOUNTED_STRUCT(ISchedulingContext);

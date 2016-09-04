@@ -91,18 +91,23 @@ public:
         IOperationHost* host,
         TOperation* operation);
 
-    virtual void Initialize(bool cleanStart) override;
+    virtual void Initialize() override final;
     virtual void Prepare() override;
     virtual void Materialize() override;
-    virtual void SaveSnapshot(TOutputStream* output) override;
-    virtual void Revive(const TSharedRef& snapshot) override;
-    virtual void Commit() override;
+
+    virtual void InitializeReviving(TControllerTransactionsPtr operationTransactions) override final;
+    virtual void Revive() override;
 
     virtual void OnJobStarted(const TJobId& jobId, TInstant startTime) override;
     virtual void OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary) override;
     virtual void OnJobFailed(std::unique_ptr<TFailedJobSummary> jobSummary) override;
     virtual void OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary) override;
 
+    virtual void SaveSnapshot(TOutputStream* output) override;
+
+    virtual std::vector<NApi::ITransactionPtr> GetTransactions() override;
+
+    virtual void Commit() override;
     virtual void Abort() override;
     virtual void Complete() override;
 
@@ -120,16 +125,15 @@ public:
     virtual TFuture<void> Suspend() override;
     virtual void Resume() override;
 
-    virtual bool GetCleanStart() const override;
     virtual int GetPendingJobCount() const override;
     virtual int GetTotalJobCount() const override;
     virtual TJobResources GetNeededResources() const override;
 
     virtual bool HasProgress() const override;
 
+    virtual void BuildOperationAttributes(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildProgress(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildBriefProgress(NYson::IYsonConsumer* consumer) const override;
-    virtual void BuildResult(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildMemoryDigestStatistics(NYson::IYsonConsumer* consumer) const override;
 
@@ -158,9 +162,13 @@ protected:
 
     const TOperationId OperationId;
 
+    TInstant StartTime;
+    Stroka AuthenticatedUser;
+
     NApi::INativeClientPtr AuthenticatedMasterClient;
     NApi::INativeClientPtr AuthenticatedInputMasterClient;
     NApi::INativeClientPtr AuthenticatedOutputMasterClient;
+
 
     mutable NLogging::TLogger Logger;
 
@@ -185,8 +193,6 @@ protected:
     int ChunkLocatedCallCount = 0;
     int UnavailableInputChunkCount = 0;
 
-    bool CleanStart = true;
-
     // Job counters.
     TProgressCounter JobCounter;
 
@@ -195,12 +201,14 @@ protected:
     // Maps node ids to descriptors for job auxiliary chunks.
     NNodeTrackerClient::TNodeDirectoryPtr AuxNodeDirectory;
 
-    // Operation transactions ids are stored here to avoid their retrieval from
-    // potentially dangling Operation pointer.
-    NObjectClient::TTransactionId AsyncSchedulerTransactionId;
-    NObjectClient::TTransactionId SyncSchedulerTransactionId;
-    NObjectClient::TTransactionId InputTransactionId;
-    NObjectClient::TTransactionId OutputTransactionId;
+    NObjectClient::TTransactionId UserTransactionId;
+
+    NApi::ITransactionPtr SyncSchedulerTransaction;
+    NApi::ITransactionPtr AsyncSchedulerTransaction;
+    NApi::ITransactionPtr InputTransaction;
+    NApi::ITransactionPtr OutputTransaction;
+
+    TSharedRef Snapshot;
 
     struct TLivePreviewTableBase
     {
@@ -592,8 +600,13 @@ protected:
 
     NApi::ITransactionPtr StartTransaction(
         const Stroka& transactionName,
+<<<<<<< HEAD
         NApi::INativeClientPtr client,
         const TNullable<NTransactionClient::TTransactionId>& parentTransactionId);
+=======
+        NApi::IClientPtr client,
+        const NTransactionClient::TTransactionId& parentTransactionId);
+>>>>>>> origin/prestable/18.5
 
     //! All task groups declared by calling #RegisterTaskGroup, in the order of decreasing priority.
     std::vector<TTaskGroupPtr> TaskGroups;
@@ -654,7 +667,8 @@ protected:
     virtual void DoInitialize();
     virtual void InitializeConnections();
     virtual void InitializeTransactions();
-    void CheckTransactions();
+    virtual void InitializeStructures();
+    //void CheckTransactions();
 
 
     // Preparation.
@@ -691,6 +705,7 @@ protected:
     void TeleportOutputChunks();
     void AttachOutputChunks();
     void EndUploadOutputTables();
+    void CommitTransactions();
     virtual void CustomCommit();
 
     // Revival.
@@ -877,7 +892,7 @@ protected:
     std::vector<TChunkStripePtr> SliceInputChunks(
         i64 maxSliceDataSize,
         int* jobCount);
-    
+
     int GetMaxJobCount(
         TNullable<int> userMaxJobCount,
         int maxJobCount);
@@ -990,6 +1005,10 @@ private:
     typedef yhash_map<EJobType, std::unique_ptr<IDigest>> TMemoryDigestMap;
     TMemoryDigestMap JobProxyMemoryDigests_;
     TMemoryDigestMap UserJobMemoryDigests_;
+
+    const Stroka CodicilData_;
+
+    std::atomic<bool> AreTransactionsActive = {false};
 
     void UpdateMemoryDigests(TJobletPtr joblet, NJobTrackerClient::TStatistics statistics);
 

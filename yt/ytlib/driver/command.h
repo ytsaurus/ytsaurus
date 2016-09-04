@@ -144,6 +144,12 @@ protected:
     {
         this->RegisterParameter("read_from", this->Options.ReadFrom)
             .Optional();
+        this->RegisterParameter("expire_after_successful_update_time", this->Options.ExpireAfterSuccessfulUpdateTime)
+            .Alias("success_expiration_time")
+            .Optional();
+        this->RegisterParameter("expire_after_failed_update_time", this->Options.ExpireAfterFailedUpdateTime)
+            .Alias("failure_expiration_time")
+            .Optional();
     }
 };
 
@@ -211,6 +217,8 @@ protected:
     {
         this->RegisterParameter("prerequisite_transaction_ids", this->Options.PrerequisiteTransactionIds)
             .Optional();
+        this->RegisterParameter("prerequisite_revisions", this->Options.PrerequisiteRevisions)
+            .Optional();
     }
 };
 
@@ -237,6 +245,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+<<<<<<< HEAD
 struct TTabletReadOptions
 {
     NTransactionClient::TTransactionId TransactionId;
@@ -350,6 +359,8 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+=======
+>>>>>>> origin/prestable/18.5
 template <class TOptions>
 class TTypedCommand
     : public virtual TTypedCommandBase<TOptions>
@@ -362,7 +373,6 @@ class TTypedCommand
     , public TSuppressableAccessTrackingCommmandBase<TOptions>
     , public TPrerequisiteCommandBase<TOptions>
     , public TTimeoutCommandBase<TOptions>
-    , public TCacheCommandBase<TOptions>
 { };
 
 ////////////////////////////////////////////////////////////////////////////////

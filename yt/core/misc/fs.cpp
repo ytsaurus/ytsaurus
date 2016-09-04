@@ -559,8 +559,7 @@ void ExpectIOErrors(std::function<void()> func)
         auto status = ex.Status();
         if (status == EIO ||
             status == ENOSPC ||
-            status == EROFS ||
-            status == ENOMEM)
+            status == EROFS)
         {
             throw;
         }

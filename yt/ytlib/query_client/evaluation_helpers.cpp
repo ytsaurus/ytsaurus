@@ -293,7 +293,128 @@ TJoinParameters GetJoinEvaluator(
         dataSource.Id = foreignDataId;
         dataSource.Ranges = MakeSharedRange(std::move(ranges), std::move(permanentBuffer));
 
+<<<<<<< HEAD
         executeCallback(subquery, dataSource, writer);
+=======
+        context->ExecuteCallback(subquery, dataSource, pipe->GetWriter())
+            .Subscribe(BIND([pipe] (const TErrorOr<TQueryStatistics>& error) {
+                if (!error.IsOK()) {
+                    pipe->Fail(error);
+                }
+            }));
+
+        // Join rowsets.
+        // allRows have format (join key... , other columns...)
+
+        LOG_DEBUG("Joining started");
+
+        std::vector<TRow> foreignRows;
+        foreignRows.reserve(RowsetProcessingSize);
+
+        auto reader = pipe->GetReader();
+
+        std::vector<TRow> joinedRows;
+        TRowBufferPtr intermediateBuffer = context->IntermediateBuffer;
+
+        auto consumeJoinedRows = [&] () {
+            // Consume joined rows.
+            consumeRows(consumeRowsClosure, joinedRows.data(), joinedRows.size());
+            joinedRows.clear();
+            intermediateBuffer->Clear();
+        };
+
+        while (true) {
+            bool hasMoreData = reader->Read(&foreignRows);
+            bool shouldWait = foreignRows.empty();
+
+            for (auto foreignRow : foreignRows) {
+                auto it = joinLookup.find(foreignRow);
+
+                if (it == joinLookup.end()) {
+                    continue;
+                }
+
+                int startIndex = it->second.first;
+                bool& isJoined = it->second.second;
+
+                for (
+                    int chainedRowIndex = startIndex;
+                    chainedRowIndex >= 0;
+                    chainedRowIndex = chainedRows[chainedRowIndex].second)
+                {
+                    auto row = chainedRows[chainedRowIndex].first;
+                    auto joinedRow = intermediateBuffer->Allocate(columnMapping.size());
+
+                    for (size_t column = 0; column < columnMapping.size(); ++column) {
+                        const auto& joinedColumn = columnMapping[column];
+
+                        joinedRow[column] = joinedColumn.first
+                            ? row[joinedColumn.second]
+                            : foreignRow[joinedColumn.second];
+                    }
+
+                    joinedRows.push_back(joinedRow);
+
+                    if (joinedRows.size() >= RowsetProcessingSize) {
+                        consumeJoinedRows();
+                    }
+                }
+                isJoined = true;
+            }
+
+            consumeJoinedRows();
+
+            foreignRows.clear();
+
+            if (!hasMoreData) {
+                break;
+            }
+
+            if (shouldWait) {
+                NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
+                WaitFor(reader->GetReadyEvent())
+                    .ThrowOnError();
+            }
+        }
+
+        if (isLeft) {
+            for (auto lookup : joinLookup) {
+                int startIndex = lookup.second.first;
+                bool isJoined = lookup.second.second;
+
+                if (isJoined) {
+                    continue;
+                }
+
+                for (
+                    int chainedRowIndex = startIndex;
+                    chainedRowIndex >= 0;
+                    chainedRowIndex = chainedRows[chainedRowIndex].second)
+                {
+                    auto row = chainedRows[chainedRowIndex].first;
+                    auto joinedRow = intermediateBuffer->Allocate(columnMapping.size());
+
+                    for (size_t column = 0; column < columnMapping.size(); ++column) {
+                        const auto& joinedColumn = columnMapping[column];
+
+                        joinedRow[column] = joinedColumn.first
+                            ? row[joinedColumn.second]
+                            : MakeUnversionedSentinelValue(EValueType::Null);
+                    }
+
+                    joinedRows.push_back(joinedRow);
+                }
+
+                if (joinedRows.size() >= RowsetProcessingSize) {
+                    consumeJoinedRows();
+                }
+            }
+        }
+
+        consumeJoinedRows();
+
+        LOG_DEBUG("Joining finished");
+>>>>>>> origin/prestable/18.5
     };
 
     return TJoinParameters{isOrdered, isLeft, selfColumns, foreignColumns, executeForeign, batchSize};

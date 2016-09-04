@@ -60,17 +60,20 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NTracing::TTraceContext, TraceContext);
     DEFINE_BYVAL_RO_PROPERTY(Stroka, Service);
     DEFINE_BYVAL_RO_PROPERTY(Stroka, Method);
+    DEFINE_BYVAL_RO_PROPERTY(bool, Heavy);
 
 public:
     TClientContext(
         const TRequestId& requestId,
         const NTracing::TTraceContext& traceContext,
         const Stroka& service,
-        const Stroka& method)
+        const Stroka& method,
+        bool heavy)
         : RequestId_(requestId)
         , TraceContext_(traceContext)
         , Service_(service)
         , Method_(method)
+        , Heavy_(heavy)
     { }
 };
 
