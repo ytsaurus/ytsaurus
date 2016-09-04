@@ -22,9 +22,13 @@ import itertools
 from cStringIO import StringIO
 
 try:
-    import statbox_bindings.tskv
+    from statbox_bindings2.string_utils import (
+        simple_parsers as sb_simple_parsers,
+        misc as sb_misc
+    )
 except ImportError:
-    statbox_bindings = None
+    sb_simple_parsers = None
+    sb_misc = None
 
 
 class YtFormatError(YtError):
@@ -216,8 +220,8 @@ class DsvFormat(Format):
             return None
         if self._is_raw(raw):
             return line
-        if statbox_bindings is not None:
-            parsed_line = statbox_bindings.tskv.unpack_dict(line.rstrip("\n"))
+        if sb_simple_parsers is not None:
+            parsed_line = sb_simple_parsers.parse_tskv_chomp(line)
         else:
             parsed_line = self._parse(line)
         if self.enable_table_index:
@@ -242,8 +246,8 @@ class DsvFormat(Format):
                 return string
             return self._escape(string, {'\n': '\\n', '\r': '\\r', '\t': '\\t', '\0': '\\0'})
 
-        if statbox_bindings is not None:
-            stream.write(statbox_bindings.tskv.pack_dict(row))
+        if sb_misc is not None:
+            stream.write(sb_misc.tskv_encode(row))
             stream.write("\n")
         else:
             length = len(row)
@@ -258,8 +262,8 @@ class DsvFormat(Format):
             self.dump_row(row, stream)
 
     def loads_row(self, string):
-        if statbox_bindings is not None:
-            return statbox_bindings.tskv.unpack_dict(string.rstrip("\n"))
+        if sb_simple_parsers is not None:
+            return sb_simple_parsers.parse_tskv_chomp(string)
         return self._parse(string)
 
     def _parse(self, string):
