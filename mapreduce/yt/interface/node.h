@@ -494,13 +494,10 @@ private:
 
     void Move(TNode&& rhs)
     {
-        if (Attributes_) {
-            delete Attributes_;
-        }
+        Clear();
+
         memcpy(this, &rhs, sizeof(TNode));
-        if (rhs.Attributes_) {
-            rhs.Attributes_ = nullptr;
-        }
+        rhs.Attributes_ = nullptr;
         rhs.Type_ = UNDEFINED;
     }
 
