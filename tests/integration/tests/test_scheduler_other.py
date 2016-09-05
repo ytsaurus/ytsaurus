@@ -1309,7 +1309,7 @@ class TestSchedulerGuaranteedResources(YTEnvSetup):
         total_resource_limit = get("//sys/scheduler/orchid/scheduler/cell/resource_limits")
 
         # Wait for fair share update.
-        time.sleep(0.2)
+        time.sleep(1)
 
         get_pool_guaranteed_resources = lambda pool: \
             get("//sys/scheduler/orchid/scheduler/pools/{0}/guaranteed_resources".format(pool))
@@ -1343,7 +1343,7 @@ class TestSchedulerGuaranteedResources(YTEnvSetup):
             spec={"pool": "big_pool"})
 
         # Wait for fair share update.
-        time.sleep(0.2)
+        time.sleep(1)
 
         assert assert_almost_equal(get_operation_guaranteed_resources_ratio(op.id), 1.0 / 5.0)
         assert assert_almost_equal(get_pool_guaranteed_resources_ratio("subpool_1"), 1.0 / 5.0)
@@ -1568,6 +1568,9 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
                 break
             time.sleep(1.0)
         assert suspicious2
+
+        # Wait while static scheduler Orchid part (containing /suspicious_jobs) is being updated.
+        time.sleep(1.0)
 
         suspicious_jobs = get("//sys/scheduler/orchid/scheduler/suspicious_jobs")
         assert len(suspicious_jobs) == 1
