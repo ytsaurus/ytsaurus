@@ -600,13 +600,8 @@ protected:
 
     NApi::ITransactionPtr StartTransaction(
         const Stroka& transactionName,
-<<<<<<< HEAD
         NApi::INativeClientPtr client,
-        const TNullable<NTransactionClient::TTransactionId>& parentTransactionId);
-=======
-        NApi::IClientPtr client,
         const NTransactionClient::TTransactionId& parentTransactionId);
->>>>>>> origin/prestable/18.5
 
     //! All task groups declared by calling #RegisterTaskGroup, in the order of decreasing priority.
     std::vector<TTaskGroupPtr> TaskGroups;
