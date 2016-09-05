@@ -493,8 +493,8 @@ function YtApplicationOperations$list(parameters)
             path: OPERATIONS_CYPRESS_PATH, 
             attributes: OPERATION_ATTRIBUTES,
             read_from: "cache",
-            success_expiration_time: CYPRESS_OPERATIONS_SUCCESS_EXPIRATION_TIME,
-            failure_expiration_time: CYPRESS_OPERATIONS_FAILURE_EXPIRATION_TIME
+            expire_after_successful_update_time: CYPRESS_OPERATIONS_SUCCESS_EXPIRATION_TIME,
+            expire_after_failed_update_time: CYPRESS_OPERATIONS_FAILURE_EXPIRATION_TIME
         })
         .catch(makeErrorHandler("Failed to fetch operations from Cypress"))
         .finally(function() {
