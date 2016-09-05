@@ -266,11 +266,19 @@ void JoinOpHelper(
         if (!isOrdered) {
             auto pipe = New<NTableClient::TSchemafulPipe>();
 
-            parameters->ExecuteForeign(
-                pipe->GetWriter(),
+            TQueryPtr foreignQuery;
+            TDataRanges dataSource;
+
+            std::tie(foreignQuery, dataSource) = parameters->GetForeignQuery(
                 std::move(closure.Keys),
-                closure.Buffer,
-                context->ExecuteCallback);
+                closure.Buffer);
+
+            context->ExecuteCallback(foreignQuery, dataSource, pipe->GetWriter())
+                .Subscribe(BIND([pipe] (const TErrorOr<TQueryStatistics>& error) {
+                    if (!error.IsOK()) {
+                        pipe->Fail(error);
+                    }
+                }));
 
             LOG_DEBUG("Joining started");
 
@@ -342,19 +350,25 @@ void JoinOpHelper(
             NApi::IRowsetPtr rowset;
 
             {
+                TQueryPtr foreignQuery;
+                TDataRanges dataSource;
+
+                std::tie(foreignQuery, dataSource) = parameters->GetForeignQuery(
+                    std::move(closure.Keys),
+                    closure.Buffer);
+
                 ISchemafulWriterPtr writer;
                 TFuture<NApi::IRowsetPtr> rowsetFuture;
                 // Any schema, it is not used.
                 std::tie(writer, rowsetFuture) = NApi::CreateSchemafulRowsetWriter(TTableSchema());
                 NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
 
-                parameters->ExecuteForeign(
-                    writer,
-                    std::move(closure.Keys),
-                    closure.Buffer,
-                    context->ExecuteCallback);
+                WaitFor(context->ExecuteCallback(foreignQuery, dataSource, writer))
+                    .ThrowOnError();
 
-                rowset = WaitFor(rowsetFuture).ValueOrThrow();
+                YCHECK(rowsetFuture.IsSet());
+                rowset = rowsetFuture.Get()
+                    .ValueOrThrow();
             }
 
             const auto& foreignRows = rowset->Rows();
