@@ -1338,7 +1338,7 @@ void TOperationControllerBase::InitializeTransactions()
 ITransactionPtr TOperationControllerBase::StartTransaction(
     const Stroka& transactionName,
     INativeClientPtr client,
-    const TTransactionId& parentTransactionId)
+    const TTransactionId& parentTransactionId = NullTransactionId)
 {
     LOG_INFO("Starting %v transaction", transactionName);
 
