@@ -236,15 +236,6 @@ void TTableUploadOptions::Persist(NPhoenix::TPersistenceContext& context)
 
 //////////////////////////////////////////////////////////////////////////////////
 
-void ValidatePathSchemaEqual(const TTableSchema& pathSchema, const TTableSchema& tableSchema)
-{
-    if (pathSchema != tableSchema) {
-        THROW_ERROR_EXCEPTION("YPath attribute \"schema\" must be equal to table schema for a \"strong\" schema mode")
-            << TErrorAttribute("path_schema", pathSchema)
-            << TErrorAttribute("table_schema", tableSchema);
-    }
-}
-
 void ValidateKeyColumnsEqual(const TKeyColumns& keyColumns, const TTableSchema& schema)
 {
      if (keyColumns != schema.GetKeyColumns()) {
@@ -339,12 +330,10 @@ TTableUploadOptions GetTableUploadOptions(
         result.SchemaMode = ETableSchemaMode::Weak;
         result.TableSchema = TTableSchema::FromKeyColumns(path.GetSortedBy());
     } else if (!path.GetAppend() && path.GetSchema() && (schemaMode == ETableSchemaMode::Strong)) {
-        ValidatePathSchemaEqual(*path.GetSchema(), schema);
-
         result.LockMode = ELockMode::Exclusive;
         result.UpdateMode = EUpdateMode::Overwrite;
         result.SchemaMode = ETableSchemaMode::Strong;
-        result.TableSchema = schema;
+        result.TableSchema = *path.GetSchema();
     } else if (!path.GetAppend() && path.GetSchema() && (schemaMode == ETableSchemaMode::Weak)) {
         // Change from Weak to Strong schema mode.
         result.LockMode = ELockMode::Exclusive;
@@ -362,7 +351,7 @@ TTableUploadOptions GetTableUploadOptions(
         result.SchemaMode = ETableSchemaMode::Weak;
         result.TableSchema = TTableSchema();
     } else {
-        // Do not set YUNREACHABLE here, since this code is executed inside scheduler.
+        // Do not use YUNREACHABLE here, since this code is executed inside scheduler.
         THROW_ERROR_EXCEPTION("Failed to define upload parameters")
             << TErrorAttribute("path", path)
             << TErrorAttribute("schema_mode", schemaMode)

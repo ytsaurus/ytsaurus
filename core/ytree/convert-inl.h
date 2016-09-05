@@ -185,8 +185,9 @@ const NYson::TToken& SkipAttributes(NYson::TTokenizer* tokenizer);
             case NYson::ETokenType::Uint64: \
                 return CheckedIntegralCast<type>(token.GetUint64Value()); \
             default: \
-                THROW_ERROR_EXCEPTION("Cannot parse \"" #type "\" value from %Qv", \
-                    str.Data()); \
+                THROW_ERROR_EXCEPTION("Cannot parse \"" #type "\" from %Qlv value", \
+                    token.GetType()) \
+                    << TErrorAttribute("data", str.Data()); \
         } \
     }
 
@@ -214,8 +215,9 @@ inline double ConvertTo(const NYson::TYsonString& str)
         case NYson::ETokenType::Boolean:
             return token.GetBooleanValue();
         default:
-            THROW_ERROR_EXCEPTION("Cannot parse number from %Qv",
-                str.Data());
+            THROW_ERROR_EXCEPTION("Cannot parse \"number\" from %Qlv value",
+                token.GetType())
+                << TErrorAttribute("data", str.Data());
     }
 }
 
@@ -228,8 +230,9 @@ inline Stroka ConvertTo(const NYson::TYsonString& str)
         case NYson::ETokenType::String:
             return Stroka(token.GetStringValue());
         default:
-            THROW_ERROR_EXCEPTION("Cannot parse string from %Qv",
-                str.Data());
+            THROW_ERROR_EXCEPTION("Cannot parse \"string\" from %Qlv value",
+                token.GetType())
+                << TErrorAttribute("data", str.Data());
     }
 }
 

@@ -13,11 +13,13 @@
 
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/proc.h>
+#include <yt/core/misc/singleton.h>
 
 #include <yt/core/yson/writer.h>
 #include <yt/core/ytree/convert.h>
 
 #include <yt/core/tools/tools.h>
+
 
 #include <util/system/fs.h>
 
@@ -28,6 +30,45 @@ using namespace NConcurrency;
 using namespace NTools;
 using namespace NYson;
 using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMounter
+{
+public:
+    ~TMounter()
+    { }
+
+    static TMounter* Get()
+    {
+        return Singleton<TMounter>();
+    }
+
+    std::vector<NFS::TMountPoint> GetMountPoints()
+    {
+        auto invoker = Thread_->GetInvoker();
+        auto asyncResult = BIND(NFS::GetMountPoints)
+            .AsyncVia(invoker)
+            .Run("/proc/mounts");
+        auto result = WaitFor(asyncResult)
+            .ValueOrThrow();
+        return result;
+    }
+
+    void Mount(TMountTmpfsConfigPtr config)
+    {
+        RunTool<TMountTmpfsAsRootTool>(config);
+    }
+
+    void Umount(TUmountConfigPtr config)
+    {
+        RunTool<TUmountAsRootTool>(config);
+    }
+
+
+private:
+    const TActionQueuePtr Thread_ = New<TActionQueue>("Mounter");
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -116,8 +157,8 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
         }
 
         auto logErrorAndDisableLocation = [&] (const std::exception& ex) {
-            auto error = TError("Failed to make a copy for file %Qv into sandbox %v", 
-                destinationName, 
+            auto error = TError("Failed to make a copy for file %Qv into sandbox %v",
+                destinationName,
                 sandboxPath) << ex;
             Disable(error);
             THROW_ERROR error;
@@ -125,15 +166,15 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
 
         try {
             NFS::ChunkedCopy(
-                sourcePath, 
-                destinationPath, 
+                sourcePath,
+                destinationPath,
                 Bootstrap_->GetConfig()->ExecAgent->SlotManager->FileCopyChunkSize);
             EnsureNotInUse(destinationPath);
             NFS::SetExecutableMode(destinationPath, executable);
         } catch (const TSystemError& systemError) {
             if (IsInsideTmpfs(destinationPath) && systemError.Status() == ENOSPC) {
-                THROW_ERROR_EXCEPTION("Failed to make a copy for file %Qv into sandbox %v: tmpfs is too small", 
-                    destinationName, 
+                THROW_ERROR_EXCEPTION("Failed to make a copy for file %Qv into sandbox %v: tmpfs is too small",
+                    destinationName,
                     sandboxPath) << TError(systemError);
             } else {
                 logErrorAndDisableLocation(systemError);
@@ -229,7 +270,7 @@ TFuture<Stroka> TSlotLocation::MakeSandboxTmpfs(
             LOG_DEBUG("Mounting tmpfs %v", ConvertToYsonString(config, EYsonFormat::Text));
 
             NFS::ForcePath(tmpfsPath);
-            RunTool<TMountTmpfsAsRootTool>(config);
+            TMounter::Get()->Mount(config);
             if (isSandbox) {
                 // We must give user full access to his sandbox.
                 NFS::Chmod(tmpfsPath, 0777);
@@ -245,7 +286,7 @@ TFuture<Stroka> TSlotLocation::MakeSandboxTmpfs(
         }
     })
     .AsyncVia(LocationQueue_->GetInvoker())
-    .Run(); 
+    .Run();
 }
 
 TFuture<void> TSlotLocation::MakeConfig(int slotIndex, INodePtr config)
@@ -281,7 +322,7 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
             config->Detach = DetachedTmpfsUmount_;
 
             RunTool<TRemoveDirContentAsRootTool>(path);
-            RunTool<TUmountAsRootTool>(config);
+            TMounter::Get()->Umount(config);
         };
 
         for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
@@ -294,11 +335,14 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
                 LOG_DEBUG("Cleaning sandbox directory (Path: %v)", sandboxPath);
 
                 auto sandboxFullPath = NFS::CombinePaths(~NFs::CurrentWorkingDirectory(), sandboxPath);
+                auto isInsideSandbox = [&] (const Stroka& path) {
+                    return path == sandboxFullPath || (sandboxFullPath + "/").is_prefix(path);
+                };
 
                 // Unmount all known tmpfs.
                 std::vector<Stroka> tmpfsPaths;
                 for (const auto& tmpfsPath : TmpfsPaths_) {
-                    if (sandboxFullPath.is_prefix(tmpfsPath)) {
+                    if (isInsideSandbox(tmpfsPath)) {
                         tmpfsPaths.push_back(tmpfsPath);
                     }
                 }
@@ -317,9 +361,9 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
                 // we always try to remove it several times.
                 for (int attempt = 0; attempt < TmpfsRemoveAttemptCount; ++attempt) {
                     // Look mount points inside sandbox and unmount it.
-                    auto mountPoints = NFS::GetMountPoints();
+                    auto mountPoints = TMounter::Get()->GetMountPoints();
                     for (const auto& mountPoint : mountPoints) {
-                        if (sandboxFullPath.is_prefix(mountPoint.Path)) {
+                        if (isInsideSandbox(mountPoint.Path)) {
                             LOG_DEBUG("Remove unknown mount point (Path: %v)", mountPoint.Path);
                             removeMountPoint(mountPoint.Path);
                         }

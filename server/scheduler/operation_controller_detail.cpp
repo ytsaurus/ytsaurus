@@ -939,6 +939,8 @@ TOperationControllerBase::TOperationControllerBase(
     , Host(host)
     , Operation(operation)
     , OperationId(Operation->GetId())
+    , StartTime(Operation->GetStartTime())
+    , AuthenticatedUser(Operation->GetAuthenticatedUser())
     , AuthenticatedMasterClient(CreateClient())
     , AuthenticatedInputMasterClient(AuthenticatedMasterClient)
     , AuthenticatedOutputMasterClient(AuthenticatedMasterClient)
@@ -949,6 +951,7 @@ TOperationControllerBase::TOperationControllerBase(
     , SuspendableInvoker(CreateSuspendableInvoker(Invoker))
     , CancelableInvoker(CancelableContext->CreateInvoker(SuspendableInvoker))
     , JobCounter(0)
+    , UserTransactionId(Operation->GetUserTransaction() ? Operation->GetUserTransaction()->GetId() : NullTransactionId)
     , Spec(spec)
     , Options(options)
     , CachedNeededResources(ZeroJobResources())
@@ -958,14 +961,126 @@ TOperationControllerBase::TOperationControllerBase(
         Config->OperationTimeLimitCheckPeriod))
     , EventLogValueConsumer_(Host->CreateLogConsumer())
     , EventLogTableConsumer_(new TTableConsumer(EventLogValueConsumer_.get()))
+    , CodicilData_(MakeOperationCodicilString(OperationId))
 {
-    Logger.AddTag("OperationId: %v", operation->GetId());
+    Logger.AddTag("OperationId: %v", OperationId);
 }
 
 void TOperationControllerBase::InitializeConnections()
 { }
 
-void TOperationControllerBase::Initialize(bool cleanStart)
+void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr controllerTransactions)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    auto codicilGuard = MakeCodicilGuard();
+
+    LOG_INFO("Initializing operation for revive");
+
+    InitializeConnections();
+
+    std::atomic<bool> cleanStart = {false};
+
+    // Check transactions.
+    if (!cleanStart) {
+        std::vector<TFuture<void>> asyncResults;
+
+        auto checkTransaction = [&] (ITransactionPtr transaction) {
+            if (cleanStart) {
+                return;
+            }
+            if (!transaction) {
+                cleanStart = true;
+                LOG_INFO("Operation transaction is missing, will use clean start");
+                return;
+            }
+
+            asyncResults.push_back(transaction->Ping().Apply(
+                BIND([transaction, this, this_=MakeStrong(this), &cleanStart] (const TError& error) {
+                    if (!error.IsOK() && !cleanStart) {
+                        cleanStart = true;
+                        LOG_INFO(error,
+                            "Error renewing operation transaction, will use clean start (TransactionId: %v)",
+                            transaction->GetId());
+                    }
+                })));
+        };
+
+        // NB: Async transaction is not checked.
+        checkTransaction(controllerTransactions->Sync);
+        checkTransaction(controllerTransactions->Input);
+        checkTransaction(controllerTransactions->Output);
+
+        WaitFor(Combine(asyncResults))
+            .ThrowOnError();
+    }
+
+    // Downloading snapshot.
+    if (!cleanStart)
+    {
+        auto snapshotOrError = WaitFor(Host->GetMasterConnector()->DownloadSnapshot(OperationId));
+        if (!snapshotOrError.IsOK()) {
+            LOG_INFO(snapshotOrError, "Failed to download snapshot, will use clean start");
+            cleanStart = true;
+        } else {
+            LOG_INFO("Snapshot succesfully downloaded");
+            Snapshot = snapshotOrError.Value();
+        }
+    }
+
+    // Abort transactions if needed.
+    {
+        std::vector<TFuture<void>> asyncResults;
+
+        auto scheduleAbort = [&] (ITransactionPtr transaction) {
+            if (transaction) {
+                asyncResults.push_back(transaction->Abort());
+            }
+        };
+
+        // NB: Async transaction is always aborted.
+        scheduleAbort(controllerTransactions->Async);
+
+        if (cleanStart) {
+            LOG_INFO("Aborting operation transactions");
+            // NB: Don't touch user transaction.
+            scheduleAbort(controllerTransactions->Sync);
+            scheduleAbort(controllerTransactions->Input);
+            scheduleAbort(controllerTransactions->Output);
+        } else {
+            LOG_INFO("Reusing operation transactions");
+            SyncSchedulerTransaction = controllerTransactions->Sync;
+            InputTransaction = controllerTransactions->Input;
+            OutputTransaction = controllerTransactions->Output;
+
+            StartAsyncSchedulerTransaction();
+
+            AreTransactionsActive = true;
+        }
+
+        WaitFor(Combine(asyncResults))
+            .ThrowOnError();
+    }
+
+
+    if (cleanStart) {
+        LOG_INFO("Using clean start instead of revive");
+
+        Snapshot = TSharedRef();
+        auto error = WaitFor(Host->GetMasterConnector()->RemoveSnapshot(OperationId));
+        if (!error.IsOK()) {
+            LOG_WARNING(error, "Failed to remove snapshot");
+        }
+
+        InitializeTransactions();
+        InitializeStructures();
+    }
+
+    LOG_INFO("Operation initialized");
+}
+
+
+void TOperationControllerBase::Initialize()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -974,70 +1089,55 @@ void TOperationControllerBase::Initialize(bool cleanStart)
     LOG_INFO("Initializing operation (Title: %v)",
         Spec->Title);
 
-    CleanStart = cleanStart;
-
     InitializeConnections();
-
-    // NB: CleanStart may be changed from false to true in this function.
-    CheckTransactions();
     InitializeTransactions();
-    Operation->SetHasActiveTransactions(true);
-
-    if (Operation->GetState() != EOperationState::Initializing &&
-        Operation->GetState() != EOperationState::Reviving)
-    {
-        throw TFiberCanceledException();
-    }
-
-    // NB: CleanStart should not be changed since this point.
-    // Initialize inner state of controller if needed.
-    if (CleanStart) {
-        InputNodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
-        AuxNodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
-
-        for (const auto& path : GetInputTablePaths()) {
-            TInputTable table;
-            table.Path = path;
-            InputTables.push_back(table);
-        }
-
-        for (const auto& path : GetOutputTablePaths()) {
-            TOutputTable table;
-            table.Path = path;
-
-            auto rowCountLimit = path.GetRowCountLimit();
-            if (rowCountLimit) {
-                if (RowCountLimitTableIndex) {
-                    THROW_ERROR_EXCEPTION("Only one output table with row_count_limit is supported");
-                }
-                RowCountLimitTableIndex = OutputTables.size();
-                RowCountLimit = rowCountLimit.Get();
-            }
-
-            OutputTables.push_back(table);
-        }
-
-        for (const auto& pair : GetFilePaths()) {
-            TUserFile file;
-            file.Path = pair.first;
-            file.Stage = pair.second;
-            Files.push_back(file);
-        }
-
-        if (InputTables.size() > Config->MaxInputTableCount) {
-            THROW_ERROR_EXCEPTION(
-                "Too many input tables: maximum allowed %v, actual %v",
-                Config->MaxInputTableCount,
-                InputTables.size());
-        }
-
-        DoInitialize();
-    }
-
-    Operation->SetMaxStderrCount(Spec->MaxStderrCount);
-    Operation->SetSchedulingTag(Spec->SchedulingTag);
+    InitializeStructures();
 
     LOG_INFO("Operation initialized");
+}
+
+void TOperationControllerBase::InitializeStructures()
+{
+    InputNodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
+    AuxNodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
+
+    for (const auto& path : GetInputTablePaths()) {
+        TInputTable table;
+        table.Path = path;
+        InputTables.push_back(table);
+    }
+
+    for (const auto& path : GetOutputTablePaths()) {
+        TOutputTable table;
+        table.Path = path;
+
+        auto rowCountLimit = path.GetRowCountLimit();
+        if (rowCountLimit) {
+            if (RowCountLimitTableIndex) {
+                THROW_ERROR_EXCEPTION("Only one output table with row_count_limit is supported");
+            }
+            RowCountLimitTableIndex = OutputTables.size();
+            RowCountLimit = rowCountLimit.Get();
+        }
+
+        OutputTables.push_back(table);
+    }
+
+    for (const auto& pair : GetFilePaths()) {
+        TUserFile file;
+        file.Path = pair.first;
+        file.Stage = pair.second;
+        Files.push_back(file);
+    }
+
+    if (InputTables.size() > Config->MaxInputTableCount) {
+        THROW_ERROR_EXCEPTION(
+            "Too many input tables: maximum allowed %v, actual %v",
+            Config->MaxInputTableCount,
+            InputTables.size());
+    }
+
+    DoInitialize();
 }
 
 void TOperationControllerBase::DoInitialize()
@@ -1052,7 +1152,7 @@ void TOperationControllerBase::Prepare()
     GetUserObjectBasicAttributes<TInputTable>(
         AuthenticatedInputMasterClient,
         InputTables,
-        InputTransactionId,
+        InputTransaction->GetId(),
         Logger,
         EPermission::Read);
 
@@ -1068,7 +1168,7 @@ void TOperationControllerBase::Prepare()
     GetUserObjectBasicAttributes<TOutputTable>(
         AuthenticatedOutputMasterClient,
         OutputTables,
-        OutputTransactionId,
+        OutputTransaction->GetId(),
         Logger,
         EPermission::Write);
 
@@ -1091,7 +1191,7 @@ void TOperationControllerBase::Prepare()
     GetUserObjectBasicAttributes<TUserFile>(
         AuthenticatedMasterClient,
         Files,
-        InputTransactionId,
+        InputTransaction->GetId(),
         Logger,
         EPermission::Read);
 
@@ -1121,6 +1221,11 @@ void TOperationControllerBase::Materialize()
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
     auto codicilGuard = MakeCodicilGuard();
+
+    if (State == EControllerState::Running) {
+        // Operation is successfully revived, skipping materialization.
+        return;
+    }
 
     try {
         FetchInputTables();
@@ -1190,15 +1295,20 @@ void TOperationControllerBase::DoSaveSnapshot(TOutputStream* output)
     Save(context, this);
 }
 
-void TOperationControllerBase::Revive(const TSharedRef& snapshot)
+void TOperationControllerBase::Revive()
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
     auto codicilGuard = MakeCodicilGuard();
 
+    if (!Snapshot) {
+        Prepare();
+        return;
+    }
+
     InitChunkListPool();
 
-    DoLoadSnapshot(snapshot);
+    DoLoadSnapshot(Snapshot);
 
     LockLivePreviewTables();
 
@@ -1219,106 +1329,16 @@ void TOperationControllerBase::Revive(const TSharedRef& snapshot)
 void TOperationControllerBase::InitializeTransactions()
 {
     StartAsyncSchedulerTransaction();
-    if (CleanStart) {
-        StartSyncSchedulerTransaction();
-        StartInputTransaction(SyncSchedulerTransactionId);
-        StartOutputTransaction(SyncSchedulerTransactionId);
-    } else {
-        InputTransactionId = Operation->GetInputTransaction()->GetId();
-        OutputTransactionId = Operation->GetOutputTransaction()->GetId();
-    }
-}
-
-void TOperationControllerBase::CheckTransactions()
-{
-    if (Operation->GetState() != EOperationState::Reviving) {
-        return;
-    }
-
-    // Check transactions.
-    {
-        std::vector<TFuture<void>> asyncResults;
-
-        auto checkTransaction = [&] (ITransactionPtr transaction, bool required) {
-            if (CleanStart) {
-                return;
-            }
-            if (!transaction) {
-                if (required) {
-                    CleanStart = true;
-                    LOG_INFO("Operation transaction is missing, will use clean start");
-                }
-                return;
-            }
-
-            asyncResults.push_back(transaction->Ping().Apply(
-                BIND([=] (const TError& error) {
-                    if (!error.IsOK() && !CleanStart) {
-                        CleanStart = true;
-                        LOG_INFO(error,
-                            "Error renewing operation transaction, will use clean start (TransactionId: %v)",
-                            transaction->GetId());
-                    }
-                })));
-        };
-
-        // NB: Async transaction is not checked.
-        checkTransaction(Operation->GetUserTransaction(), false);
-        checkTransaction(Operation->GetSyncSchedulerTransaction(), true);
-        checkTransaction(Operation->GetInputTransaction(), true);
-        checkTransaction(Operation->GetOutputTransaction(), true);
-
-        WaitFor(Combine(asyncResults))
-            .ThrowOnError();
-    }
-
-    if (Operation->GetState() != EOperationState::Reviving) {
-        return;
-    }
-
-    // Abort transactions if needed.
-    {
-        std::vector<TFuture<void>> asyncResults;
-
-        auto scheduleAbort = [&] (ITransactionPtr transaction) {
-            if (transaction) {
-                asyncResults.push_back(transaction->Abort());
-            }
-        };
-
-        // NB: Async transaction is always aborted.
-        {
-            scheduleAbort(Operation->GetAsyncSchedulerTransaction());
-            Operation->SetAsyncSchedulerTransaction(nullptr);
-        }
-
-        if (CleanStart) {
-            LOG_INFO("Aborting operation transactions");
-
-            Operation->SetHasActiveTransactions(false);
-
-            // NB: Don't touch user transaction.
-            scheduleAbort(Operation->GetSyncSchedulerTransaction());
-            Operation->SetSyncSchedulerTransaction(nullptr);
-
-            scheduleAbort(Operation->GetInputTransaction());
-            Operation->SetInputTransaction(nullptr);
-
-            scheduleAbort(Operation->GetOutputTransaction());
-            Operation->SetOutputTransaction(nullptr);
-        } else {
-            LOG_INFO("Reusing operation transactions");
-        }
-
-        WaitFor(Combine(asyncResults))
-            .ThrowOnError();
-    }
+    StartSyncSchedulerTransaction();
+    StartInputTransaction(SyncSchedulerTransaction->GetId());
+    StartOutputTransaction(SyncSchedulerTransaction->GetId());
+    AreTransactionsActive = true;
 }
 
 ITransactionPtr TOperationControllerBase::StartTransaction(
     const Stroka& transactionName,
     IClientPtr client,
-    const TNullable<TTransactionId>& parentTransactionId = Null)
+    const TTransactionId& parentTransactionId = NullTransactionId)
 {
     LOG_INFO("Starting %v transaction", transactionName);
 
@@ -1334,9 +1354,7 @@ ITransactionPtr TOperationControllerBase::StartTransaction(
         attributes->Set("operation_title", Spec->Title);
     }
     options.Attributes = std::move(attributes);
-    if (parentTransactionId) {
-        options.ParentId = parentTransactionId.Get();
-    }
+    options.ParentId = parentTransactionId;
     options.Timeout = Config->OperationTransactionTimeout;
 
     auto transactionOrError = WaitFor(
@@ -1347,61 +1365,45 @@ ITransactionPtr TOperationControllerBase::StartTransaction(
         transactionName);
     auto transaction = transactionOrError.Value();
 
-    if (Operation->GetState() != EOperationState::Initializing &&
-        Operation->GetState() != EOperationState::Reviving)
-        throw TFiberCanceledException();
-
     return transaction;
 }
 
 void TOperationControllerBase::StartSyncSchedulerTransaction()
 {
-    TNullable<TTransactionId> userTransactionId;
-    if (Operation->GetUserTransaction()) {
-        userTransactionId = Operation->GetUserTransaction()->GetId();
-    }
-    auto transaction = StartTransaction("sync", AuthenticatedMasterClient, userTransactionId);
-    Operation->SetSyncSchedulerTransaction(transaction);
-    SyncSchedulerTransactionId = transaction->GetId();
+    SyncSchedulerTransaction = StartTransaction("sync", AuthenticatedMasterClient, UserTransactionId);
 
     LOG_INFO("Scheduler sync transaction started (SyncTransactionId: %v)",
-        transaction->GetId());
+        SyncSchedulerTransaction->GetId());
 }
 
 void TOperationControllerBase::StartAsyncSchedulerTransaction()
 {
-    auto transaction = StartTransaction("async", AuthenticatedMasterClient);
-    Operation->SetAsyncSchedulerTransaction(transaction);
-    AsyncSchedulerTransactionId = transaction->GetId();
+    AsyncSchedulerTransaction = StartTransaction("async", AuthenticatedMasterClient);
 
     LOG_INFO("Scheduler async transaction started (AsyncTransactionId: %v)",
-        transaction->GetId());
+        AsyncSchedulerTransaction->GetId());
 }
 
 void TOperationControllerBase::StartInputTransaction(const TTransactionId& parentTransactionId)
 {
-    auto transaction = StartTransaction(
+    InputTransaction = StartTransaction(
         "input",
         AuthenticatedInputMasterClient,
         parentTransactionId);
-    Operation->SetInputTransaction(transaction);
-    InputTransactionId = transaction->GetId();
 
     LOG_INFO("Input transaction started (InputTransactionId: %v)",
-        transaction->GetId());
+        InputTransaction->GetId());
 }
 
 void TOperationControllerBase::StartOutputTransaction(const TTransactionId& parentTransactionId)
 {
-    auto transaction = StartTransaction(
+    OutputTransaction = StartTransaction(
         "output",
         AuthenticatedOutputMasterClient,
         parentTransactionId);
-    Operation->SetOutputTransaction(transaction);
-    OutputTransactionId = transaction->GetId();
 
     LOG_INFO("Output transaction started (OutputTransactionId: %v)",
-        transaction->GetId());
+        OutputTransaction->GetId());
 }
 
 void TOperationControllerBase::PickIntermediateDataCell()
@@ -1420,7 +1422,7 @@ void TOperationControllerBase::InitChunkListPool()
         AuthenticatedOutputMasterClient,
         CancelableInvoker,
         OperationId,
-        OutputTransactionId);
+        OutputTransaction->GetId());
 
     for (const auto& table : OutputTables) {
         ++CellTagToOutputTableCount[table.CellTag];
@@ -1485,6 +1487,7 @@ void TOperationControllerBase::ReinstallLivePreview()
             }
             masterConnector->AttachToLivePreview(
                 OperationId,
+                AsyncSchedulerTransaction->GetId(),
                 table.LivePreviewTableId,
                 childIds);
         }
@@ -1500,6 +1503,7 @@ void TOperationControllerBase::ReinstallLivePreview()
         }
         masterConnector->AttachToLivePreview(
             OperationId,
+            AsyncSchedulerTransaction->GetId(),
             IntermediateTable.LivePreviewTableId,
             childIds);
     }
@@ -1567,7 +1571,33 @@ void TOperationControllerBase::Commit()
     EndUploadOutputTables();
     CustomCommit();
 
+    CommitTransactions();
+
     LOG_INFO("Results committed");
+}
+
+void TOperationControllerBase::CommitTransactions()
+{
+    LOG_INFO("Committing scheduler transactions");
+
+    auto commitTransaction = [&] (ITransactionPtr transaction) {
+        if (!transaction) {
+            return;
+        }
+        auto result = WaitFor(transaction->Commit());
+        THROW_ERROR_EXCEPTION_IF_FAILED(result, "Operation has failed to commit");
+    };
+
+    AreTransactionsActive = false;
+
+    commitTransaction(InputTransaction);
+    commitTransaction(OutputTransaction);
+    commitTransaction(SyncSchedulerTransaction);
+
+    LOG_INFO("Scheduler transactions committed");
+
+    // NB: Never commit async transaction since it's used for writing Live Preview tables.
+    AsyncSchedulerTransaction->Abort();
 }
 
 void TOperationControllerBase::TeleportOutputChunks()
@@ -1576,7 +1606,7 @@ void TOperationControllerBase::TeleportOutputChunks()
         Config,
         AuthenticatedOutputMasterClient,
         CancelableInvoker,
-        Operation->GetOutputTransaction()->GetId(),
+        OutputTransaction->GetId(),
         Logger);
 
     for (auto& table : OutputTables) {
@@ -2135,6 +2165,15 @@ bool TOperationControllerBase::IsIntermediateLivePreviewSupported() const
     return false;
 }
 
+std::vector<ITransactionPtr> TOperationControllerBase::GetTransactions()
+{
+    if (AreTransactionsActive) {
+        return {AsyncSchedulerTransaction, SyncSchedulerTransaction, InputTransaction, OutputTransaction};
+    } else {
+        return {};
+    }
+}
+
 void TOperationControllerBase::Abort()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -2142,6 +2181,20 @@ void TOperationControllerBase::Abort()
     auto codicilGuard = MakeCodicilGuard();
 
     LOG_INFO("Aborting operation");
+
+    auto abortTransaction = [&] (ITransactionPtr transaction) {
+        if (transaction) {
+            // Fire-and-forget.
+            transaction->Abort();
+        }
+    };
+
+    AreTransactionsActive = false;
+
+    abortTransaction(InputTransaction);
+    abortTransaction(OutputTransaction);
+    abortTransaction(SyncSchedulerTransaction);
+    abortTransaction(AsyncSchedulerTransaction);
 
     State = EControllerState::Finished;
 
@@ -2169,7 +2222,7 @@ void TOperationControllerBase::CheckTimeLimit()
     }
 
     if (timeLimit) {
-        if (TInstant::Now() - Operation->GetStartTime() > *timeLimit) {
+        if (TInstant::Now() - StartTime > *timeLimit) {
             OnOperationFailed(TError("Operation is running for too long, aborted")
                 << TErrorAttribute("time_limit", *timeLimit));
         }
@@ -2651,13 +2704,6 @@ void TOperationControllerBase::Resume()
     SuspendableInvoker->Resume();
 }
 
-bool TOperationControllerBase::GetCleanStart() const
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    return CleanStart;
-}
-
 int TOperationControllerBase::GetPendingJobCount() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -2863,7 +2909,7 @@ void TOperationControllerBase::LockLivePreviewTables()
     auto addRequest = [&] (const TLivePreviewTableBase& table, const Stroka& key) {
         auto req = TCypressYPathProxy::Lock(FromObjectId(table.LivePreviewTableId));
         req->set_mode(static_cast<int>(ELockMode::Exclusive));
-        SetTransactionId(req, AsyncSchedulerTransactionId);
+        SetTransactionId(req, AsyncSchedulerTransaction->GetId());
         batchReq->AddRequest(req, key);
     };
 
@@ -2935,7 +2981,7 @@ void TOperationControllerBase::FetchInputTables()
                     req->add_extension_tags(TProtoExtensionTag<TOldBoundaryKeysExt>::Value);
                 }
                 req->set_fetch_parity_replicas(IsParityReplicasFetchEnabled());
-                SetTransactionId(req, InputTransactionId);
+                SetTransactionId(req, InputTransaction->GetId());
                 batchReq->AddRequest(req, "fetch");
             }
         }
@@ -2986,7 +3032,7 @@ void TOperationControllerBase::LockInputTables()
             {
                 auto req = TTableYPathProxy::Lock(objectIdPath);
                 req->set_mode(static_cast<int>(ELockMode::Snapshot));
-                SetTransactionId(req, InputTransactionId);
+                SetTransactionId(req, InputTransaction->GetId());
                 GenerateMutationId(req);
                 batchReq->AddRequest(req, "lock");
             }
@@ -3015,7 +3061,7 @@ void TOperationControllerBase::LockInputTables()
                     "schema"
                 };
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                SetTransactionId(req, InputTransactionId);
+                SetTransactionId(req, InputTransaction->GetId());
                 batchReq->AddRequest(req, "get_attributes");
             }
         }
@@ -3069,7 +3115,7 @@ void TOperationControllerBase::GetOutputTablesSchema()
                     "schema"
                 };
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                SetTransactionId(req, OutputTransactionId);
+                SetTransactionId(req, OutputTransaction->GetId());
                 batchReq->AddRequest(req, "get_attributes");
             }
         }
@@ -3113,7 +3159,7 @@ void TOperationControllerBase::BeginUploadOutputTables()
                 auto req = TTableYPathProxy::Lock(objectIdPath);
                 req->set_mode(static_cast<int>(table.TableUploadOptions.LockMode));
                 GenerateMutationId(req);
-                SetTransactionId(req, OutputTransactionId);
+                SetTransactionId(req, OutputTransaction->GetId());
                 batchReq->AddRequest(req, "lock");
             }
 
@@ -3128,7 +3174,7 @@ void TOperationControllerBase::BeginUploadOutputTables()
             for (const auto& table : OutputTables) {
                 auto objectIdPath = FromObjectId(table.ObjectId);
                 auto req = TTableYPathProxy::BeginUpload(objectIdPath);
-                SetTransactionId(req, OutputTransactionId);
+                SetTransactionId(req, OutputTransaction->GetId());
                 GenerateMutationId(req);
                 req->set_update_mode(static_cast<int>(table.TableUploadOptions.UpdateMode));
                 req->set_lock_mode(static_cast<int>(table.TableUploadOptions.LockMode));
@@ -3174,7 +3220,7 @@ void TOperationControllerBase::BeginUploadOutputTables()
                     "optimize_for"
                 };
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                SetTransactionId(req, OutputTransactionId);
+                SetTransactionId(req, OutputTransaction->GetId());
                 batchReq->AddRequest(req, "get_attributes");
             }
         }
@@ -3308,7 +3354,7 @@ void TOperationControllerBase::FetchUserFiles(std::vector<TUserFile>* files)
                 default:
                     YUNREACHABLE();
             }
-            SetTransactionId(req, InputTransactionId);
+            SetTransactionId(req, InputTransaction->GetId());
             batchReq->AddRequest(req, "fetch");
         }
 
@@ -3351,7 +3397,7 @@ void TOperationControllerBase::LockUserFiles(std::vector<TUserFile>* files)
                 auto req = TCypressYPathProxy::Lock(objectIdPath);
                 req->set_mode(static_cast<int>(ELockMode::Snapshot));
                 GenerateMutationId(req);
-                SetTransactionId(req, InputTransactionId);
+                SetTransactionId(req, InputTransaction->GetId());
                 batchReq->AddRequest(req, "lock");
             }
         }
@@ -3371,7 +3417,7 @@ void TOperationControllerBase::LockUserFiles(std::vector<TUserFile>* files)
             auto objectIdPath = FromObjectId(file.ObjectId);
             {
                 auto req = TYPathProxy::Get(objectIdPath + "/@");
-                SetTransactionId(req, InputTransactionId);
+                SetTransactionId(req, InputTransaction->GetId());
                 std::vector<Stroka> attributeKeys;
                 attributeKeys.push_back("file_name");
                 switch (file.Type) {
@@ -3395,7 +3441,7 @@ void TOperationControllerBase::LockUserFiles(std::vector<TUserFile>* files)
 
             {
                 auto req = TYPathProxy::Get(file.Path.GetPath() + "&/@");
-                SetTransactionId(req, InputTransactionId);
+                SetTransactionId(req, InputTransaction->GetId());
                 std::vector<Stroka> attributeKeys;
                 attributeKeys.push_back("key");
                 attributeKeys.push_back("file_name");
@@ -3832,6 +3878,7 @@ void TOperationControllerBase::RegisterOutput(
         auto masterConnector = Host->GetMasterConnector();
         masterConnector->AttachToLivePreview(
             OperationId,
+            AsyncSchedulerTransaction->GetId(),
             table.LivePreviewTableId,
             {chunkTreeId});
     }
@@ -3961,6 +4008,7 @@ void TOperationControllerBase::RegisterIntermediate(
             auto masterConnector = Host->GetMasterConnector();
             masterConnector->AttachToLivePreview(
                 OperationId,
+                AsyncSchedulerTransaction->GetId(),
                 IntermediateTable.LivePreviewTableId,
                 {chunkId});
         }
@@ -4028,6 +4076,17 @@ bool TOperationControllerBase::HasProgress() const
     return IsPrepared();
 }
 
+void TOperationControllerBase::BuildOperationAttributes(IYsonConsumer* consumer) const
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    BuildYsonMapFluently(consumer)
+        .Item("sync_scheduler_transaction_id").Value(SyncSchedulerTransaction ? SyncSchedulerTransaction->GetId() : NullTransactionId)
+        .Item("async_scheduler_transaction_id").Value(AsyncSchedulerTransaction ? AsyncSchedulerTransaction->GetId() : NullTransactionId)
+        .Item("input_transaction_id").Value(InputTransaction ? InputTransaction->GetId() : NullTransactionId)
+        .Item("output_transaction_id").Value(OutputTransaction ? OutputTransaction->GetId() : NullTransactionId);
+}
+
 void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
 {
     VERIFY_INVOKER_AFFINITY(Invoker);
@@ -4055,18 +4114,6 @@ void TOperationControllerBase::BuildBriefProgress(IYsonConsumer* consumer) const
 
     BuildYsonMapFluently(consumer)
         .Item("jobs").Value(JobCounter);
-}
-
-void TOperationControllerBase::BuildResult(IYsonConsumer* consumer) const
-{
-    // TODO(acid): Think about correct affinity here.
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    auto error = FromProto<TError>(Operation->Result().error());
-    BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("error").Value(error)
-        .EndMap();
 }
 
 void TOperationControllerBase::UpdateJobStatistics(const TJobSummary& jobSummary)
@@ -4145,6 +4192,9 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     const Stroka& fileAccount)
 {
     jobSpec->set_shell_command(config->Command);
+    if (config->JobTimeLimit) {
+        jobSpec->set_job_time_limit(config->JobTimeLimit.Get().MilliSeconds());
+    }
     jobSpec->set_memory_limit(config->MemoryLimit);
     jobSpec->set_include_memory_mapped_files(config->IncludeMemoryMappedFiles);
     jobSpec->set_iops_threshold(config->IopsThreshold);
@@ -4225,9 +4275,16 @@ void TOperationControllerBase::InitUserJobSpec(
     NScheduler::NProto::TUserJobSpec* jobSpec,
     TJobletPtr joblet)
 {
-    ToProto(jobSpec->mutable_async_scheduler_transaction_id(), AsyncSchedulerTransactionId);
+    ToProto(jobSpec->mutable_async_scheduler_transaction_id(), AsyncSchedulerTransaction->GetId());
 
-    jobSpec->set_memory_reserve(joblet->EstimatedResourceUsage.GetUserJobMemory() * joblet->UserJobMemoryReserveFactor);
+    i64 memoryReserve = joblet->EstimatedResourceUsage.GetUserJobMemory() * joblet->UserJobMemoryReserveFactor;
+    // Memory reserve should greater than or equal to tmpfs_size (see YT-5518 for more details).
+    // This is ensured by adjusting memory reserve factor in user job config as initialization,
+    // but just in case we also limit the actual memory_reserve value here.
+    if (jobSpec->has_tmpfs_size()) {
+        memoryReserve = std::max(memoryReserve, jobSpec->tmpfs_size());
+    }
+    jobSpec->set_memory_reserve(memoryReserve);
 
     jobSpec->add_environment(Format("YT_JOB_INDEX=%v", joblet->JobIndex));
     jobSpec->add_environment(Format("YT_JOB_ID=%v", joblet->JobId));
@@ -4304,7 +4361,7 @@ NTableClient::TTableReaderOptionsPtr TOperationControllerBase::CreateIntermediat
 IClientPtr TOperationControllerBase::CreateClient()
 {
     TClientOptions options;
-    options.User = Operation->GetAuthenticatedUser();
+    options.User = AuthenticatedUser;
     return Host
         ->GetMasterClient()
         ->GetConnection()
@@ -4329,7 +4386,7 @@ void TOperationControllerBase::GetExecNodesInformation()
     }
 
     ExecNodeCount_ = Host->GetExecNodeCount();
-    ExecNodesDescriptors_ = Host->GetExecNodeDescriptors(Operation->GetSchedulingTag());
+    ExecNodesDescriptors_ = Host->GetExecNodeDescriptors(Spec->SchedulingTag);
 
     LastGetExecNodesInformationTime_ = TInstant::Now();
 }
@@ -4572,7 +4629,7 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
 
 TCodicilGuard TOperationControllerBase::MakeCodicilGuard() const
 {
-    return Operation->MakeCodicilGuard();
+    return TCodicilGuard(CodicilData_);
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -4603,9 +4660,14 @@ public:
         }));
     }
 
-    virtual void Initialize(bool cleanStart) override
+    virtual void Initialize() override
     {
-        Underlying_->Initialize(cleanStart);
+        Underlying_->Initialize();
+    }
+
+    virtual void InitializeReviving(TControllerTransactionsPtr controllerTransactions) override
+    {
+        Underlying_->InitializeReviving(controllerTransactions);
     }
 
     virtual void Prepare() override
@@ -4628,14 +4690,19 @@ public:
         Underlying_->SaveSnapshot(stream);
     }
 
-    virtual void Revive(const TSharedRef& snapshot) override
+    virtual void Revive() override
     {
-        Underlying_->Revive(snapshot);
+        Underlying_->Revive();
     }
 
     virtual void Abort() override
     {
         Underlying_->Abort();
+    }
+
+    virtual std::vector<ITransactionPtr> GetTransactions() override
+    {
+        return Underlying_->GetTransactions();
     }
 
     virtual void Complete() override
@@ -4671,11 +4738,6 @@ public:
     virtual void Resume() override
     {
         Underlying_->Resume();
-    }
-
-    virtual bool GetCleanStart() const override
-    {
-        return Underlying_->GetCleanStart();
     }
 
     virtual int GetPendingJobCount() const override
@@ -4730,6 +4792,11 @@ public:
         return Underlying_->HasProgress();
     }
 
+    virtual void BuildOperationAttributes(NYson::IYsonConsumer* consumer) const override
+    {
+        Underlying_->BuildOperationAttributes(consumer);
+    }
+
     virtual void BuildProgress(IYsonConsumer* consumer) const override
     {
         Underlying_->BuildProgress(consumer);
@@ -4743,11 +4810,6 @@ public:
     virtual Stroka GetLoggingProgress() const override
     {
         return Underlying_->GetLoggingProgress();
-    }
-
-    virtual void BuildResult(IYsonConsumer* consumer) const override
-    {
-        Underlying_->BuildResult(consumer);
     }
 
     virtual void BuildMemoryDigestStatistics(IYsonConsumer* consumer) const override

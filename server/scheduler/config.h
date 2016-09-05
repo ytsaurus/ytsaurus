@@ -573,6 +573,11 @@ public:
     // Testing option that enables snapshot build/load cycle after operation materialization.
     bool EnableSnapshotCycleAfterMaterialization;
 
+    // Testing option that enables sleeping between intermediate and final states of operation.
+    TNullable<TDuration> FinishOperationTransitionDelay;
+
+    TDuration StaticOrchidCacheUpdatePeriod;
+
     TSchedulerConfig()
     {
         RegisterParameter("controller_thread_count", ControllerThreadCount)
@@ -799,6 +804,11 @@ public:
 
         RegisterParameter("enable_snapshot_cycle_after_materialization", EnableSnapshotCycleAfterMaterialization)
             .Default(false);
+        RegisterParameter("static_orchid_cache_update_period", StaticOrchidCacheUpdatePeriod)
+            .Default(TDuration::Seconds(1));
+
+        RegisterParameter("finish_operation_transition_delay", FinishOperationTransitionDelay)
+            .Default(Null);
 
         RegisterInitializer([&] () {
             ChunkLocationThrottler->Limit = 10000;

@@ -1584,13 +1584,20 @@ private:
         IClientRequestPtr request,
         const TPrerequisiteOptions& options)
     {
-        if (options.PrerequisiteTransactionIds.empty())
+        if (options.PrerequisiteTransactionIds.empty() && options.PrerequisiteRevisions.empty()) {
             return;
+        }
 
         auto* prerequisitesExt = request->Header().MutableExtension(TPrerequisitesExt::prerequisites_ext);
         for (const auto& id : options.PrerequisiteTransactionIds) {
             auto* prerequisiteTransaction = prerequisitesExt->add_transactions();
             ToProto(prerequisiteTransaction->mutable_transaction_id(), id);
+        }
+        for (const auto& revision : options.PrerequisiteRevisions) {
+            auto* prerequisiteRevision = prerequisitesExt->add_revisions();
+            prerequisiteRevision->set_path(revision->Path);
+            ToProto(prerequisiteRevision->mutable_transaction_id(), revision->TransactionId);
+            prerequisiteRevision->set_revision(revision->Revision);
         }
     }
 
@@ -1609,11 +1616,13 @@ private:
 
     static void SetCachingHeader(
         IClientRequestPtr request,
-        const TCacheOptions& options)
+        const TMasterReadOptions& options)
     {
-        auto* cachingHeaderExt = request->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
-        cachingHeaderExt->set_success_expiration_time(ToProto(options.ExpireAfterSuccessfulUpdateTime));
-        cachingHeaderExt->set_failure_expiration_time(ToProto(options.ExpireAfterFailedUpdateTime));
+        if (options.ReadFrom == EMasterChannelKind::Cache) {
+            auto* cachingHeaderExt = request->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
+            cachingHeaderExt->set_success_expiration_time(ToProto(options.ExpireAfterSuccessfulUpdateTime));
+            cachingHeaderExt->set_failure_expiration_time(ToProto(options.ExpireAfterFailedUpdateTime));
+        }
     }
 
     template <class TProxy>
@@ -2141,10 +2150,8 @@ private:
         auto req = TYPathProxy::Get(path);
         SetTransactionId(req, options, true);
         SetSuppressAccessTracking(req, options);
+        SetCachingHeader(req, options);
 
-        if (options.ReadFrom == EMasterChannelKind::Cache) {
-            SetCachingHeader(req, options);
-        }
         if (options.Attributes) {
             ToProto(req->mutable_attributes()->mutable_keys(), *options.Attributes);
         }
@@ -2211,10 +2218,8 @@ private:
         auto req = TYPathProxy::List(path);
         SetTransactionId(req, options, true);
         SetSuppressAccessTracking(req, options);
+        SetCachingHeader(req, options);
 
-        if (options.ReadFrom == EMasterChannelKind::Cache) {
-            SetCachingHeader(req, options);
-        }
         if (options.Attributes) {
             ToProto(req->mutable_attributes()->mutable_keys(), *options.Attributes);
         }
@@ -2380,7 +2385,7 @@ private:
             TObjectId dstId;
             TCellTag dstCellTag;
             {
-                auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
+                auto proxy = CreateWriteProxy<TObjectServiceProxy>();
                 auto batchReq = proxy->ExecuteBatch();
 
                 for (const auto& path : srcPaths) {
@@ -2458,7 +2463,7 @@ private:
                     auto srcCellTag = pair.first;
                     const auto& srcIndexes = pair.second;
 
-                    auto proxy = CreateReadProxy<TObjectServiceProxy>(options, srcCellTag);
+                    auto proxy = CreateWriteProxy<TObjectServiceProxy>(srcCellTag);
                     auto batchReq = proxy->ExecuteBatch();
 
                     for (int localIndex = 0; localIndex < srcIndexes.size(); ++localIndex) {
@@ -2544,7 +2549,7 @@ private:
             // Get upload params.
             TChunkListId chunkListId;
             {
-                auto proxy = CreateReadProxy<TObjectServiceProxy>(options, dstCellTag);
+                auto proxy = CreateWriteProxy<TObjectServiceProxy>(dstCellTag);
 
                 auto req = TChunkOwnerYPathProxy::GetUploadParams(dstIdPath);
                 NCypressClient::SetTransactionId(req, uploadTransactionId);
@@ -2605,6 +2610,7 @@ private:
     {
         auto req = TYPathProxy::Exists(path);
         SetTransactionId(req, options, true);
+        SetCachingHeader(req, options);
 
         auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
         auto rsp = WaitFor(proxy->Execute(req))
@@ -2675,6 +2681,7 @@ private:
         req->set_user(user);
         req->set_permission(static_cast<int>(permission));
         SetTransactionId(req, options, true);
+        SetCachingHeader(req, options);
 
         auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
         auto rsp = WaitFor(proxy->Execute(req))

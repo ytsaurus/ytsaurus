@@ -48,18 +48,10 @@ void BuildInitializingOperationAttributes(TOperationPtr operation, NYson::IYsonC
 void BuildRunningOperationAttributes(TOperationPtr operation, NYson::IYsonConsumer* consumer)
 {
     auto userTransaction = operation->GetUserTransaction();
-    auto syncTransaction = operation->GetSyncSchedulerTransaction();
-    auto asyncTransaction = operation->GetAsyncSchedulerTransaction();
-    auto inputTransaction = operation->GetInputTransaction();
-    auto outputTransaction = operation->GetOutputTransaction();
     BuildYsonMapFluently(consumer)
         .Item("state").Value(operation->GetState())
         .Item("suspended").Value(operation->GetSuspended())
-        .Item("user_transaction_id").Value(userTransaction ? userTransaction->GetId() : NullTransactionId)
-        .Item("sync_scheduler_transaction_id").Value(syncTransaction ? syncTransaction->GetId() : NullTransactionId)
-        .Item("async_scheduler_transaction_id").Value(asyncTransaction ? asyncTransaction->GetId() : NullTransactionId)
-        .Item("input_transaction_id").Value(inputTransaction ? inputTransaction->GetId() : NullTransactionId)
-        .Item("output_transaction_id").Value(outputTransaction ? outputTransaction->GetId() : NullTransactionId);
+        .Item("user_transaction_id").Value(userTransaction ? userTransaction->GetId() : NullTransactionId);
 }
 
 void BuildJobAttributes(TJobPtr job, NYson::IYsonConsumer* consumer)
