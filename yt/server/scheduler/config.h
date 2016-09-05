@@ -550,8 +550,8 @@ public:
     // Duration of no activity by job to be considered as suspicious.
     TDuration SuspiciousInactivityTimeout;
 
-    // User job cpu usage delta that is considered insignificant when checking if job is suspicious.
-    i64 SuspiciousUserJobCpuUsageThreshold;
+    // Cpu usage delta that is considered insignificant when checking if job is suspicious.
+    i64 SuspiciousCpuUsageThreshold;
     // User job block IO read value that is considered insignificant when checking if job is suspicious.
     i64 SuspiciousUserJobBlockIOReadThreshold;
 
@@ -783,8 +783,8 @@ public:
 
         RegisterParameter("suspicious_inactivity_timeout", SuspiciousInactivityTimeout)
             .Default(TDuration::Minutes(1));
-        RegisterParameter("suspicious_user_job_cpu_usage_threshold", SuspiciousUserJobCpuUsageThreshold)
-            .Default(10);
+        RegisterParameter("suspicious_cpu_usage_threshold", SuspiciousCpuUsageThreshold)
+            .Default(300);
         RegisterParameter("suspicious_user_job_block_io_read_threshold", SuspiciousUserJobBlockIOReadThreshold)
             .Default(20);
 

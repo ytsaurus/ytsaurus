@@ -1151,7 +1151,7 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status)
                 &TJob::AnalyzeBriefStatistics,
                 job,
                 Config_->SuspiciousInactivityTimeout,
-                Config_->SuspiciousUserJobCpuUsageThreshold,
+                Config_->SuspiciousCpuUsageThreshold,
                 Config_->SuspiciousUserJobBlockIOReadThreshold)
                 .Via(GetInvoker()));
         }
