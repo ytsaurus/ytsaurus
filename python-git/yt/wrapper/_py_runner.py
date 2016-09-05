@@ -45,8 +45,11 @@ def main():
                                       __main_filename,
                                       ('', 'rb', imp.__dict__[__main_module_type]))
 
+        main_module_dict = globals()
+        if "__main__" in sys.modules:
+            main_module_dict = sys.modules["__main__"].__dict__
         for name in dir(main_module):
-            globals()[name] = main_module.__dict__[name]
+            main_module_dict[name] = main_module.__dict__[name]
 
 
     import yt.wrapper
