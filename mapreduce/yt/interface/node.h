@@ -111,8 +111,10 @@ public:
 
     TNode& operator=(const TNode& rhs)
     {
-        Clear();
-        Copy(rhs);
+        if (this != &rhs) {
+            Clear();
+            Copy(rhs);
+        }
         return *this;
     }
 
