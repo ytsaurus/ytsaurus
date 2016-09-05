@@ -66,7 +66,7 @@ TNode MakeProtoFormatConfig(const yvector<const Descriptor*>& descriptors)
         .Item("file_indices").List(fileIndices)
         .Item("message_indices").List(messageIndices)
         .Item("enums_as_strings").Value(true)
-        .Item("embedded_messages").Value(true)
+        .Item("nested_messages_mode").Value("protobuf")
     .EndAttributes()
     .Value("protobuf");
 }
