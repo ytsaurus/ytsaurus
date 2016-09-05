@@ -11,6 +11,7 @@ from yt.wrapper.errors import YtResponseError
 import yt.yson as yson
 
 from yt.packages.six import itervalues
+import yt.packages.requests as requests
 
 import logging
 import os
@@ -18,7 +19,6 @@ import re
 import uuid
 import time
 import signal
-import requests
 import socket
 import shutil
 import sys

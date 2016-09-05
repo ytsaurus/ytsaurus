@@ -1,8 +1,8 @@
 from .http_helpers import get_api_version
 
 import yt.yson
-from yt.yson import *
 from yt.common import YtError
+from yt.yson import *
 
 def _fix_boolean_as_string(kwargs):
     if "boolean_as_string" in kwargs:
