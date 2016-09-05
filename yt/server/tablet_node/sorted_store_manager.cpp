@@ -5,11 +5,12 @@
 #include "tablet.h"
 #include "tablet_slot.h"
 #include "transaction_manager.h"
-#include "chunk_writer_pool.h"
 
 #include <yt/server/tablet_node/tablet_manager.pb.h>
 
-#include <yt/ytlib/chunk_client/block_cache.h>
+#include <yt/ytlib/chunk_client/confirming_writer.h>
+
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/schemaful_reader.h>
@@ -18,12 +19,15 @@
 #include <yt/ytlib/table_client/versioned_reader.h>
 #include <yt/ytlib/table_client/versioned_row.h>
 #include <yt/ytlib/table_client/versioned_writer.h>
+#include <yt/ytlib/table_client/chunk_meta_extensions.h>
 
 #include <yt/ytlib/tablet_client/wire_protocol.h>
 #include <yt/ytlib/tablet_client/wire_protocol.pb.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 
+#include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/native_connection.h>
 #include <yt/ytlib/api/transaction.h>
 
 namespace NYT {
@@ -39,6 +43,7 @@ using namespace NTransactionClient;
 using namespace NTabletClient;
 using namespace NTabletClient::NProto;
 using namespace NObjectClient;
+using namespace NNodeTrackerClient;
 using namespace NTabletNode::NProto;
 using namespace NHydra;
 
@@ -393,7 +398,8 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
     IDynamicStorePtr store,
     TTabletSnapshotPtr tabletSnapshot)
 {
-    auto reader = store->AsSortedDynamic()->CreateFlushReader();
+    auto sortedDynamicStore = store->AsSortedDynamic();
+    auto reader = sortedDynamicStore->CreateFlushReader();
     // NB: Memory store reader is always synchronous.
     YCHECK(reader->Open().Get().IsOK());
 
@@ -401,21 +407,28 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
         writerOptions->ChunksEden = true;
 
-        TChunkWriterPool writerPool(
-            InMemoryManager_,
-            tabletSnapshot,
-            1,
+        auto chunkWriter = CreateConfirmingWriter(
             Config_->ChunkWriter,
-            writerOptions,
-            Client_,
-            transaction->GetId());
-        auto writer = writerPool.AllocateWriter();
+            tabletSnapshot->WriterOptions,
+            Client_->GetNativeConnection()->GetPrimaryMasterCellTag(),
+            transaction->GetId(),
+            NullChunkListId,
+            New<TNodeDirectory>(),
+            Client_);
 
-        WaitFor(writer->Open())
+        auto tableWriter = CreateVersionedChunkWriter(
+            Config_->ChunkWriter,
+            tabletSnapshot->WriterOptions,
+            tabletSnapshot->PhysicalSchema,
+            chunkWriter);
+
+        WaitFor(tableWriter->Open())
             .ThrowOnError();
 
         std::vector<TVersionedRow> rows;
         rows.reserve(MaxRowsPerFlushRead);
+
+        i64 rowCount = 0;
 
         while (true) {
             // NB: Memory store reader is always synchronous.
@@ -423,25 +436,26 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             if (rows.empty()) {
                 break;
             }
-            if (!writer->Write(rows)) {
-                WaitFor(writer->GetReadyEvent())
+
+            rowCount += rows.size();
+            if (!tableWriter->Write(rows)) {
+                WaitFor(tableWriter->GetReadyEvent())
                     .ThrowOnError();
             }
         }
 
-        WaitFor(writer->Close())
+        if (rowCount == 0) {
+            return std::vector<TAddStoreDescriptor>();
+        }
+
+        WaitFor(tableWriter->Close())
             .ThrowOnError();
 
-        std::vector<TAddStoreDescriptor> result;
-        for (const auto& chunkSpec : writer->GetWrittenChunksMasterMeta()) {
-            TAddStoreDescriptor descriptor;
-            descriptor.set_store_type(static_cast<int>(EStoreType::SortedChunk));
-            descriptor.mutable_store_id()->CopyFrom(chunkSpec.chunk_id());
-            descriptor.mutable_chunk_meta()->CopyFrom(chunkSpec.chunk_meta());
-            ToProto(descriptor.mutable_backing_store_id(), store->GetId());
-            result.push_back(descriptor);
-        }
-        return result;
+        TAddStoreDescriptor descriptor;
+        descriptor.set_store_type(static_cast<int>(EStoreType::SortedChunk));
+        ToProto(descriptor.mutable_store_id(), chunkWriter->GetChunkId());
+        descriptor.mutable_chunk_meta()->CopyFrom(tableWriter->GetMasterMeta());
+        return std::vector<TAddStoreDescriptor>{descriptor};
     });
 }
 
