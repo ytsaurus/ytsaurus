@@ -97,6 +97,7 @@ def main():
         except yt.YtResponseError as error:
             if not error.is_resolve_error():
                 raise
+            continue
         if get_age(new_obj_info) <= safe_age:
             continue
         info = ""
