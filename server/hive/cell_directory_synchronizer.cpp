@@ -31,7 +31,7 @@ public:
         , CellDirectory_(cellDirectory)
         , PrimaryCellId_(primaryCellId)
         , SyncExecutor_(New<TPeriodicExecutor>(
-            NRpc::TDispatcher::Get()->GetInvoker(),
+            NRpc::TDispatcher::Get()->GetLightInvoker(),
             BIND(&TImpl::OnSync, MakeWeak(this)),
             Config_->SyncPeriod))
     { }

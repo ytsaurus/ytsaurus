@@ -81,7 +81,7 @@ public:
             .SetMaxQueueSize(10000)
             .SetMaxConcurrency(10000)
             .SetCancelable(true)
-            .SetInvoker(NRpc::TDispatcher::Get()->GetInvoker()));
+            .SetInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GCCollect));
     }
 
@@ -129,6 +129,17 @@ public:
             RequestId_,
             UserName_))
     { }
+
+    ~TExecuteSession()
+    {
+        if (RequestQueueSizeIncreased_) {
+            // NB: DoDecreaseRequestQueueSize must be static since the session instance is dying.
+            EpochAutomatonInvoker_->Invoke(
+                BIND(&TExecuteSession::DoDecreaseRequestQueueSize,
+                SecurityManager_,
+                UserName_));
+        }
+    }
 
     void Run()
     {
@@ -187,7 +198,7 @@ private:
 
     std::atomic<bool> Replied_ = {false};
     std::atomic<int> SubresponseCount_ = {0};
-    int LastMutatingSubRequestIndex_ = -1;
+    int LastMutatingSubrequestIndex_ = -1;
 
     const NLogging::TLogger& Logger = ObjectServerLogger;
 
@@ -299,6 +310,10 @@ private:
         auto batchStartTime = NProfiling::GetCpuInstant();
         auto batchDeadlineTime = batchStartTime + NProfiling::DurationToCpuDuration(Owner_->Config_->YieldTimeout);
 
+        if (Context_->IsCanceled()) {
+            return;
+        }
+
         if (!EpochAutomatonInvoker_) {
             EpochAutomatonInvoker_ = HydraFacade_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ObjectService);
         }
@@ -332,7 +347,7 @@ private:
             RequestQueueSizeIncreased_ = true;
         }
 
-        while (CurrentSubrequestIndex_ < SubrequestCount_ ) {
+        while (CurrentSubrequestIndex_ < SubrequestCount_) {
             while (CurrentSubrequestIndex_ > ThrottledSubrequestIndex_) {
                 ++ThrottledSubrequestIndex_;
                 auto result = SecurityManager_->ThrottleUser(user, 1);
@@ -355,11 +370,11 @@ private:
 
             if (subrequest.Mutation) {
                 ExecuteWriteSubrequest(&subrequest, user);
-                LastMutatingSubRequestIndex_ = CurrentSubrequestIndex_;
+                LastMutatingSubrequestIndex_ = CurrentSubrequestIndex_;
             } else {
                 // Cannot serve new read requests before previous write ones are done.
-                if (LastMutatingSubRequestIndex_ >= 0) {
-                    auto& lastCommitResult = Subrequests_[LastMutatingSubRequestIndex_].AsyncResponseMessage;
+                if (LastMutatingSubrequestIndex_ >= 0) {
+                    auto& lastCommitResult = Subrequests_[LastMutatingSubrequestIndex_].AsyncResponseMessage;
                     if (!lastCommitResult.IsSet()) {
                         lastCommitResult.Subscribe(
                             BIND(&TExecuteSession::CheckAndContinue<TSharedRefArray>, MakeStrong(this))
@@ -480,13 +495,8 @@ private:
         }
 
         NRpc::TDispatcher::Get()
-            ->GetInvoker()
+            ->GetHeavyInvoker()
             ->Invoke(BIND(&TExecuteSession::DoReply, MakeStrong(this), error));
-
-        if (RequestQueueSizeIncreased_) {
-            EpochAutomatonInvoker_->Invoke(
-                BIND(&TExecuteSession::DoDecreaseRequestQueueSize, MakeStrong(this)));
-        }
     }
 
     void DoReply(const TError& error)
@@ -513,11 +523,13 @@ private:
         Context_->Reply(error);
     }
 
-    void DoDecreaseRequestQueueSize()
+    static void DoDecreaseRequestQueueSize(
+        const TSecurityManagerPtr& securityManager,
+        const Stroka& userName)
     {
-        auto* user = SecurityManager_->FindUserByName(UserName_);
+        auto* user = securityManager->FindUserByName(userName);
         if (user) {
-            SecurityManager_->DecreaseRequestQueueSize(user);
+            securityManager->DecreaseRequestQueueSize(user);
         }
     }
 

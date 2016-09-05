@@ -151,6 +151,7 @@ public:
         switch (chunkFormat) {
             case ETableChunkFormat::Old:
             case ETableChunkFormat::SchemalessHorizontal:
+            case ETableChunkFormat::UnversionedColumnar:
             case ETableChunkFormat::VersionedSimple:
                 break;
             default:
@@ -168,11 +169,10 @@ public:
 
         YCHECK(chunkRowCount > 0);
 
+        i64 dataSizePerRow = std::max((i64)1, chunkDataSize / chunkRowCount);
+
         if (chunkFormat == ETableChunkFormat::Old) {
             auto indexExt = GetProtoExtension<TIndexExt>(Meta_.extensions());
-
-            i64 dataSizePerRow = chunkDataSize / chunkRowCount;
-            YCHECK(dataSizePerRow > 0);
 
             IndexKeys_.reserve(indexExt.items_size() + 1);
             for (int i = 0; i < indexExt.items_size(); ++i) {
@@ -204,11 +204,16 @@ public:
             for (int i = 0; i < blockMetaExt.blocks_size(); ++i) {
                 YCHECK(i == blockMetaExt.blocks(i).block_index());
                 auto indexKey = FromProto<TOwningKey>(blockMetaExt.blocks(i).last_key());
+                i64 chunkRowCount = blockMetaExt.blocks(i).chunk_row_count();
+                i64 rowCount = IndexKeys_.empty() 
+                    ? chunkRowCount
+                    : chunkRowCount - IndexKeys_.back().ChunkRowCount;
+
                 IndexKeys_.push_back({
                     indexKey,
-                    blockMetaExt.blocks(i).row_count(),
-                    blockMetaExt.blocks(i).chunk_row_count(),
-                    blockMetaExt.blocks(i).uncompressed_size()});
+                    rowCount,
+                    chunkRowCount,
+                    rowCount * dataSizePerRow});
             }
         }
 

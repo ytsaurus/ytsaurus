@@ -7,6 +7,8 @@
 #include "map_controller.h"
 #include "operation_controller_detail.h"
 
+#include <yt/ytlib/api/transaction.h>
+
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
 #include <yt/ytlib/chunk_client/input_slice.h>
@@ -706,7 +708,7 @@ private:
 
         AuxNodeDirectory->DumpTo(schedulerJobSpecExt->mutable_aux_node_directory());
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransactionId);
+        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
 
         InitUserJobSpecTemplate(
@@ -782,12 +784,15 @@ private:
                     InferSchemaFromInputOrdered();
                 } else {
                     ValidateOutputSchemaOrdered();
-
-                    ValidateTableSchemaCompatibility(
-                        InputTables[0].Schema,
-                        table.TableUploadOptions.TableSchema,
-                        /* ignoreSortOrder */ true)
-                        .ThrowOnError();
+                    for (const auto& inputTable : InputTables) {
+                        if (inputTable.SchemaMode == ETableSchemaMode::Strong) {
+                            ValidateTableSchemaCompatibility(
+                                inputTable.Schema,
+                                table.TableUploadOptions.TableSchema,
+                                /* ignoreSortOrder */ true)
+                                .ThrowOnError();
+                        }
+                    }
                 }
                 break;
 
@@ -846,7 +851,7 @@ private:
 
         AuxNodeDirectory->DumpTo(schedulerJobSpecExt->mutable_aux_node_directory());
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransactionId);
+        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
     }
 
@@ -955,11 +960,13 @@ private:
                 if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
                     InferSchemaFromInputOrdered();
                 } else {
-                    ValidateTableSchemaCompatibility(
-                        InputTables[0].Schema,
-                        table.TableUploadOptions.TableSchema,
-                        /* ignoreSortOrder */ false)
-                        .ThrowOnError();
+                    if (InputTables[0].SchemaMode == ETableSchemaMode::Strong) {
+                        ValidateTableSchemaCompatibility(
+                            InputTables[0].Schema,
+                            table.TableUploadOptions.TableSchema,
+                            /* ignoreSortOrder */ false)
+                            .ThrowOnError();
+                    }
                 }
                 break;
 
@@ -981,7 +988,7 @@ private:
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransactionId);
+        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
 
         auto* jobSpecExt = JobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
@@ -1577,11 +1584,13 @@ private:
                     validateOutputKeyColumns();
 
                     for (const auto& inputTable : InputTables) {
-                        ValidateTableSchemaCompatibility(
-                            inputTable.Schema,
-                            table.TableUploadOptions.TableSchema,
-                            /* ignoreSortOrder */ true)
-                            .ThrowOnError();
+                        if (inputTable.SchemaMode == ETableSchemaMode::Strong) {
+                            ValidateTableSchemaCompatibility(
+                                inputTable.Schema,
+                                table.TableUploadOptions.TableSchema,
+                                /* ignoreSortOrder */ true)
+                                .ThrowOnError();
+                        }
                     }
                 }
                 break;
@@ -1610,7 +1619,7 @@ private:
         auto* mergeJobSpecExt = JobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
 
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransactionId);
+        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
 
         ToProto(mergeJobSpecExt->mutable_key_columns(), SortKeyColumns);
@@ -1868,7 +1877,7 @@ protected:
 
         AuxNodeDirectory->DumpTo(schedulerJobSpecExt->mutable_aux_node_directory());
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransactionId);
+        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
 
         InitUserJobSpecTemplate(

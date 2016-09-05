@@ -44,11 +44,9 @@ void TSubprocess::AddArguments(std::initializer_list<TStringBuf> args)
 TSubprocessResult TSubprocess::Execute()
 {
 #ifdef _unix_
-    TFuture<void> finished;
-    TAsyncReaderPtr outputStream, errorStream;
-    outputStream = Process_->GetStdOutReader();
-    errorStream = Process_->GetStdErrReader();
-    finished = Process_->Spawn();
+    auto outputStream = Process_->GetStdOutReader();
+    auto errorStream = Process_->GetStdErrReader();
+    auto finished = Process_->Spawn();
 
     auto readIntoBlob = [] (IAsyncInputStreamPtr stream) {
         TBlob output;
@@ -73,7 +71,9 @@ TSubprocessResult TSubprocess::Execute()
 
     try {
         auto outputsOrError = WaitFor(Combine(futures));
-        THROW_ERROR_EXCEPTION_IF_FAILED(outputsOrError, "IO error occured during subprocess call");
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            outputsOrError, 
+            "IO error occured during subprocess call");
 
         const auto& outputs = outputsOrError.Value();
         YCHECK(outputs.size() == 2);

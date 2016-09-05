@@ -167,6 +167,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
         chunk,
         desiredCount,
         minCount,
+        sessionType == ESessionType::Replication,
         replicationFactorOverride,
         forbiddenNodes,
         preferredHostName);
@@ -216,6 +217,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
     TChunk* chunk,
     int desiredCount,
     int minCount,
+    bool forceRackAwareness,
     TNullable<int> replicationFactorOverride,
     const TNodeList* forbiddenNodes,
     const TNullable<Stroka>& preferredHostName)
@@ -247,7 +249,9 @@ TNodeList TChunkPlacement::GetWriteTargets(
     }
 
     tryAddAll(true);
-    tryAddAll(false);
+    if (!forceRackAwareness) {
+        tryAddAll(false);
+    }
 
     const auto& nodes = collector.GetAddedNodes();
     return nodes.size() < minCount ? TNodeList() : nodes;
@@ -264,6 +268,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
         chunk,
         desiredCount,
         minCount,
+        sessionType == ESessionType::Replication,
         replicationFactorOverride);
 
     for (auto* target : targetNodes) {

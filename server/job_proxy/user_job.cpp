@@ -42,6 +42,7 @@
 #include <yt/ytlib/transaction_client/public.h>
 
 #include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/thread_pool.h>
 #include <yt/core/concurrency/periodic_executor.h>
 
@@ -186,7 +187,18 @@ public:
                 BlockIOWatchdogExecutor_->Start();
             }
 
+            TDelayedExecutorCookie timeLimitCookie;
+            if (UserJobSpec_.has_job_time_limit()) {
+                const TDuration timeLimit = TDuration::MilliSeconds(UserJobSpec_.job_time_limit());
+                LOG_INFO("Setting job time limit to %v", timeLimit);
+                timeLimitCookie = TDelayedExecutor::Submit(
+                    BIND(&TUserJob::OnJobTimeLimitExceeded, MakeWeak(this)).Via(AuxQueue_->GetInvoker()),
+                    timeLimit);
+            }
+
             DoJobIO();
+
+            TDelayedExecutor::CancelAndClear(timeLimitCookie);
 
             if (!JobErrorPromise_.IsSet())  {
                 FinalizeJobIO();
@@ -1202,6 +1214,16 @@ private:
         }
 
         LastServicedIOs_ = servicedIOs;
+    }
+
+    void OnJobTimeLimitExceeded()
+    {
+        auto error = TError(
+            NJobProxy::EErrorCode::JobTimeLimitExceeded,
+            "Job time limit exceeded")
+            << TErrorAttribute("limit", UserJobSpec_.job_time_limit());
+        JobErrorPromise_.TrySet(error);
+        CleanupUserProcesses(error);
     }
 };
 

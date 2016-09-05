@@ -308,6 +308,14 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, TableIndex)
     EXPECT_EQ(expectedOutput, OutputStream_.Str());
 }
 
+
+TEST_F(TSchemalessWriterForSchemafulDsvTest, ValidateDuplicateNames)
+{
+    Config_->Columns = {"column_a", "column_b", "column_a"};
+    Config_->EnableTableIndex = true;
+    EXPECT_THROW(CreateStandardWriter(), TErrorException);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

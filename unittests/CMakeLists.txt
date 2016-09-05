@@ -103,6 +103,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/tools_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tree_builder_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/udf/invalid_ir.h
+  ${CMAKE_CURRENT_LIST_DIR}/unordered_reader_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/url_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/variant_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/varint_ut.cpp
@@ -113,6 +114,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/yamred_dsv_writer_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/yamr_parser_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/yamr_writer_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ypath_service_combiner_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ypath_tokenizer_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ypath_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/yson_parser_ut.cpp

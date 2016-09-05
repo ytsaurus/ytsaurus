@@ -680,6 +680,7 @@ public:
             return false;
         }
 
+        i64 DataWeight = 0;
         while (rows->size() < rows->capacity()) {
             ResetExhaustedColumns();
 
@@ -765,9 +766,12 @@ public:
                         RowIndexId_);
                     row.SetCount(row.GetCount() + 1);
                 }
+
+                DataWeight += GetDataWeight(row);
             }
 
-            if (RowIndex_ + rowLimit > SafeUpperRowIndex_) {
+            YCHECK(RowIndex_ + rowLimit <= HardUpperRowIndex_);
+            if (RowIndex_ + rowLimit > SafeUpperRowIndex_ && UpperLimit_.HasKey()) {
                 i64 index = std::max(SafeUpperRowIndex_ - RowIndex_, i64(0));
                 for (; index < rowLimit; ++index) {
                     if (CompareRows(
@@ -782,12 +786,14 @@ public:
                         break;
                     }
                 }
-            } else if (RowIndex_ + rowLimit == HardUpperRowIndex_) {
+            }
+
+            if (RowIndex_ + rowLimit == HardUpperRowIndex_) {
                 Completed_ = true;
             }
 
             RowIndex_ += range.Size();
-            if (Completed_ || !TryFetchNextRow()) {
+            if (Completed_ || !TryFetchNextRow() || DataWeight > TSchemalessChunkReaderBase::Config_->MaxDataSizePerRead) {
                 break;
             }
         }
@@ -853,15 +859,25 @@ private:
 
         ChunkMeta_ = New<TColumnarChunkMeta>(std::move(chunkMeta));
 
-        bool sortedRead = UpperLimit_.HasKey() ||
-                          LowerLimit_.HasKey() ||
-                          !KeyColumns_.empty();
+        // Minimum prefix of key columns, that must be included in column filter.
+        int minKeyColumnCount = KeyColumns_.size();
+        if (UpperLimit_.HasKey()) {
+            minKeyColumnCount = std::max(minKeyColumnCount, UpperLimit_.GetKey().GetCount());
+        }
+        if (LowerLimit_.HasKey()) {
+            minKeyColumnCount = std::max(minKeyColumnCount, LowerLimit_.GetKey().GetCount());
+        }
+        bool sortedRead = minKeyColumnCount > 0;
 
         if (sortedRead && !ChunkMeta_->Misc().sorted()) {
             THROW_ERROR_EXCEPTION("Requested a sorted read for an unsorted chunk");
         }
 
         ValidateKeyColumns(KeyColumns_, ChunkMeta_->ChunkSchema().GetKeyColumns());
+
+        // Cannot read more key columns than stored in chunk, even if range keys are longer.
+        minKeyColumnCount = std::min(minKeyColumnCount, ChunkMeta_->ChunkSchema().GetKeyColumnCount());
+
         if (sortedRead && KeyColumns_.empty()) {
             KeyColumns_ = ChunkMeta_->ChunkSchema().GetKeyColumns();
         }
@@ -904,8 +920,8 @@ private:
                         schemalessIdMapping[chunkColumnId].ReaderSchemaIndex = nameTableIndex;
 
                     }
-                } else if (chunkColumnId < KeyColumns_.size()) {
-                    THROW_ERROR_EXCEPTION("All key columns must be included in column filter for sorted read");
+                } else if (chunkColumnId < minKeyColumnCount) {
+                    THROW_ERROR_EXCEPTION("At least %v key columns must be included in column filter for sorted read", minKeyColumnCount);
                 }
             }
         }
