@@ -1019,17 +1019,13 @@ private:
             THROW_ERROR_EXCEPTION("Requested a sorted read for an unsorted chunk");
         }
 
-<<<<<<< HEAD
         ValidateKeyColumns(
             KeyColumns_, 
             ChunkMeta_->ChunkSchema().GetKeyColumns(), 
             false /* require unique keys */);
-=======
-        ValidateKeyColumns(KeyColumns_, ChunkMeta_->ChunkSchema().GetKeyColumns());
 
         // Cannot read more key columns than stored in chunk, even if range keys are longer.
         minKeyColumnCount = std::min(minKeyColumnCount, ChunkMeta_->ChunkSchema().GetKeyColumnCount());
->>>>>>> origin/prestable/18.5
 
         if (sortedRead && KeyColumns_.empty()) {
             KeyColumns_ = ChunkMeta_->ChunkSchema().GetKeyColumns();
