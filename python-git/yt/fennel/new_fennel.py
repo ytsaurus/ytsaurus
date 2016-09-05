@@ -22,12 +22,22 @@ try:
 except ImportError:
     SentryHandler = None
 
+# Brief description.
+# Attributes on table:
+# processed_row_count - number of rows in current table pushed to logbroker.
+# archived_row_count - number of archived rows.
+# last_saved_ts - timestamp of last record pushed to logbroker.
+# table_start_row_index - number of processed rows before the beginning of table.
+# Should be correctly recalculated by rotation script.
+#
+# Each row in table should have 'timestamp' column
+
+# ================= Common stuff ===============================================
+
 class FennelError(Exception):
     pass
 
-logger = logging.getLogger("fennel")
-logger.addHandler(logging.StreamHandler())
-logger.setLevel(logging.INFO)
+logger = logging.getLogger("Fennel")
 
 # ================= StringIO wrapper ===========================================
 

@@ -1,12 +1,30 @@
 #!/usr/bin/env python
 
-from yt.common import update
+from yt.common import update, get_value
 import yt.yson as yson
 
 from yt.fennel.new_fennel import LogBroker, monitor, push_to_logbroker
 import yt.wrapper as yt
 
+import logging
 import argparse
+
+def configure_logging(args):
+    if args.log_file is not None:
+        handler = logging.handlers.WatchedFileHandler(args.log_file)
+    else:
+        handler = logging.StreamHandler()
+    level = logging.__dict__[get_value(args.log_level, "INFO")]
+
+    def configure_logger(logger):
+        logger.propagate = False
+        logger.setLevel(level)
+        logger.handlers = [handler]
+        logger.handlers[0].setFormatter(logging.Formatter("%(asctime)-15s %(process)s %(levelname)s\t%(message)s"))
+
+    configure_logger(logging.getLogger("Fennel"))
+    configure_logger(logging.getLogger("Yt"))
+
 
 def make_yt_client(args):
     config = {"read_retries": {"allow_multiple_ranges": True}}
@@ -26,6 +44,7 @@ def make_logbroker_client(args):
 
 def parse_monitor(args):
     client = make_yt_client(args)
+    configure_logging(args)
     monitor(client, args.threshold)
 
 def add_monitor_parser(subparsers, parent_parser):
@@ -36,6 +55,7 @@ def add_monitor_parser(subparsers, parent_parser):
 def parse_push_to_logbroker(args):
     yt_client = make_yt_client(args)
     logbroker = make_logbroker_client(args)
+    configure_logging(args)
 
     with yt_client.Transaction():
         push_to_logbroker(yt_client,
@@ -87,6 +107,8 @@ def main():
     parent_parser = argparse.ArgumentParser(add_help=False)
     parent_parser.add_argument("--yt-proxy", required=True, help="yt proxy")
     parent_parser.add_argument("--yt-config", default={}, help="yt config")
+    parent_parser.add_argument("--log-file", help="path to log file, stderr if not specified")
+    parent_parser.add_argument("--log-level", help="log level")
 
     subparsers = parser.add_subparsers(help="Command: monitor or push-to-logbroker", metavar="command")
     add_monitor_parser(subparsers, parent_parser)
@@ -94,15 +116,6 @@ def main():
 
     args, other = parser.parse_known_args()
     args.func(args)
-
-    # Attributes on table:
-    # processed_row_count - number of rows in current table pushed to logbroker.
-    # archived_row_count - number of archived rows.
-    # last_saved_ts - timestamp of last record pushed to logbroker.
-    # table_start_row_index - number of processed rows before the beginning of table.
-    # Should be correctly recalculated by rotation script.
-    #
-    # Each row in table should have 'timestamp' column
 
 if __name__ == "__main__":
     main()
