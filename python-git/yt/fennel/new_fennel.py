@@ -323,6 +323,7 @@ def push_to_logbroker_one_portion(yt_client, logbroker, table_path, session_coun
 
 def acquire_yt_lock(yt_client, lock_path, timeout, queue):
     try:
+        yt_client.create(lock_path, ignore_existing=False)
         with yt_client.Transaction() as tx:
             logger.info("Acquiring lock under tx %s", tx.transaction_id)
             while True:
