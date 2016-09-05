@@ -120,13 +120,16 @@ public:
 
     TNode(TNode&& rhs)
     {
-        Move(std::move(rhs));
+        if (this != &rhs) {
+            Move(std::move(rhs));
+        }
     }
 
     TNode& operator=(TNode&& rhs)
     {
-        Clear();
-        Move(std::move(rhs));
+        if (this != &rhs) {
+            Move(std::move(rhs));
+        }
         return *this;
     }
 
