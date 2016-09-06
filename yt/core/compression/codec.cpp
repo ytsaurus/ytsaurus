@@ -1,6 +1,7 @@
 #include "codec.h"
 #include "details.h"
 #include "lz.h"
+#include "lzma.h"
 #include "snappy.h"
 #include "zlib.h"
 #include "zstd.h"
@@ -389,6 +390,53 @@ private:
     const int Level_;
 };
 
+class TLzmaCodec
+    : public TCodecBase
+{
+public:
+    TLzmaCodec(int level)
+        : Compressor_(std::bind(NCompression::LzmaCompress, level, std::placeholders::_1, std::placeholders::_2))
+        , Level_(level)
+    { }
+
+    virtual TSharedRef Compress(const TSharedRef& block) override
+    {
+        return Run<TLzmaCodec>(Compressor_, true, block);
+    }
+
+    virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) override
+    {
+        return Run<TLzmaCodec>(Compressor_, true, blocks);
+    }
+
+    virtual TSharedRef Decompress(const TSharedRef& block) override
+    {
+        return Run<TLzmaCodec>(NCompression::LzmaDecompress, false, block);
+    }
+
+    virtual TSharedRef Decompress(const std::vector<TSharedRef>& blocks) override
+    {
+        return Run<TLzmaCodec>(NCompression::LzmaDecompress, false, blocks);
+    }
+
+    virtual ECodec GetId() const override
+    {
+        switch (Level_) {
+
+#define CASE(level) case level: return PP_CONCAT(ECodec::Lzma_, level);
+            PP_FOR_EACH(CASE, (0)(1)(2)(3)(4)(5)(6)(7)(8)(9))
+#undef CASE
+
+            default:
+                YUNREACHABLE();
+        }
+    }
+
+private:
+    const NCompression::TConverter Compressor_;
+    const int Level_;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 ICodec* GetCodec(ECodec id)
@@ -437,6 +485,10 @@ ICodec* GetCodec(ECodec id)
 
 #define CODEC Brotli
         PP_FOR_EACH(CASE, (1)(2)(3)(4)(5)(6)(7)(8)(9)(10)(11))
+#undef CODEC
+
+#define CODEC Lzma
+        PP_FOR_EACH(CASE, (0)(1)(2)(3)(4)(5)(6)(7)(8)(9))
 #undef CODEC
 
 #define CODEC Zstd
