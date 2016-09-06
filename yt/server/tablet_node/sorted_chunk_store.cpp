@@ -269,16 +269,6 @@ TOwningKey TSortedChunkStore::GetMaxKey() const
     return MaxKey_;
 }
 
-TTimestamp TSortedChunkStore::GetMinTimestamp() const
-{
-    return MiscExt_.min_timestamp();
-}
-
-TTimestamp TSortedChunkStore::GetMaxTimestamp() const
-{
-    return MiscExt_.max_timestamp();
-}
-
 IVersionedReaderPtr TSortedChunkStore::CreateReader(
     const TTabletSnapshotPtr& tabletSnapshot,
     TOwningKey lowerKey,

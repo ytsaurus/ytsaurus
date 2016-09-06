@@ -113,6 +113,8 @@ public:
     i64 Unlock();
 
     // IStore implementation.
+    virtual TTimestamp GetMinTimestamp() const override;
+    virtual TTimestamp GetMaxTimestamp() const override;
 
     //! Sets the store state, as expected.
     //! Additionally, when the store transitions from |ActiveDynamic| to |PassiveDynamic|,
@@ -145,6 +147,9 @@ protected:
     const NTransactionClient::EAtomicity Atomicity_;
 
     const NTableClient::TRowBufferPtr RowBuffer_;
+
+    TTimestamp MinTimestamp_ = NTransactionClient::MaxTimestamp;
+    TTimestamp MaxTimestamp_ = NTransactionClient::MinTimestamp;
 
     EStoreFlushState FlushState_ = EStoreFlushState::None;
     TInstant LastFlushAttemptTimestamp_;
@@ -179,6 +184,9 @@ public:
     const NChunkClient::NProto::TChunkMeta& GetChunkMeta() const;
 
     // IStore implementation.
+    virtual TTimestamp GetMinTimestamp() const override;
+    virtual TTimestamp GetMaxTimestamp() const override;
+
     virtual i64 GetUncompressedDataSize() const override;
     virtual i64 GetRowCount() const override;
 

@@ -82,21 +82,23 @@ public:
         TChunkWriterOptionsPtr options,
         IChunkWriterPtr chunkWriter,
         IBlockCachePtr blockCache,
-        const TTableSchema& schema)
+        const TTableSchema& schema,
+        const TChunkTimestamps& chunkTimestamps)
         : Logger(TableClientLogger)
-          , Schema_(schema)
-          , ChunkNameTable_(TNameTable::FromSchema(schema))
-          , Config_(config)
-          , Options_(options)
-          , EncodingChunkWriter_(New<TEncodingChunkWriter>(
-              config,
-              options,
-              chunkWriter,
-              blockCache,
-              Logger))
-          , RandomGenerator_(RandomNumber<ui64>())
-          , SamplingThreshold_(static_cast<ui64>(std::numeric_limits<ui64>::max() * Config_->SampleRate))
-    { }
+        , Schema_(schema)
+        , ChunkTimestamps_(chunkTimestamps)
+        , ChunkNameTable_(TNameTable::FromSchema(schema))
+        , Config_(config)
+        , Options_(options)
+        , EncodingChunkWriter_(New<TEncodingChunkWriter>(
+            config,
+            options,
+            chunkWriter,
+            blockCache,
+            Logger))
+        , RandomGenerator_(RandomNumber<ui64>())
+        , SamplingThreshold_(static_cast<ui64>(std::numeric_limits<ui64>::max() * Config_->SampleRate))
+    { Ъ
 
     virtual TFuture<void> Open() override
     {
@@ -179,6 +181,7 @@ public:
 protected:
     NLogging::TLogger Logger;
     const TTableSchema Schema_;
+    const TChunkTimestamps ChunkTimestamps_;
 
     TNameTablePtr ChunkNameTable_;
 
@@ -239,6 +242,13 @@ protected:
         miscExt.set_unique_keys(Options_->ValidateUniqueKeys);
         miscExt.set_row_count(RowCount_);
         miscExt.set_data_weight(DataWeight_);
+
+        if (ChunkTimestamps_.MinTimestamp != NullTimestamp) {
+            miscExt.set_min_timestamp(ChunkTimestamps_.MinTimestamp);
+        }
+        if (ChunkTimestamps_.MaxTimestamp != NullTimestamp) {
+            miscExt.set_max_timestamp(ChunkTimestamps_.MaxTimestamp);
+        }
 
         auto& meta = EncodingChunkWriter_->Meta();
         FillCommonMeta(&meta);
@@ -358,13 +368,15 @@ public:
         TChunkWriterOptionsPtr options,
         IChunkWriterPtr chunkWriter,
         IBlockCachePtr blockCache,
-        const TTableSchema& schema)
+        const TTableSchema& schema,
+        const TChunkTimestamps& chunkTimestamps)
         : TUnversionedChunkWriterBase(
             config,
             options,
             chunkWriter,
             blockCache,
-            schema)
+            schema,
+            chunkTimestamps)
     {
         Logger.AddTag("HorizontalUnversionedChunkWriter: %p", this);
         BlockWriter_.reset(new THorizontalSchemalessBlockWriter);
@@ -432,13 +444,15 @@ public:
         TChunkWriterOptionsPtr options,
         IChunkWriterPtr chunkWriter,
         IBlockCachePtr blockCache,
-        const TTableSchema& schema)
+        const TTableSchema& schema,
+        const TChunkTimestamps& chunkTimestamps)
         : TUnversionedChunkWriterBase(
             config,
             options,
             chunkWriter,
             blockCache,
-            schema)
+            schema,
+            chunkTimestamps)
         , DataToBlockFlush_(Config_->BlockSize)
     {
         Logger.AddTag("ColumnUnversionedChunkWriter: %p", this);
@@ -609,6 +623,7 @@ ISchemalessChunkWriterPtr CreateSchemalessChunkWriter(
     TChunkWriterOptionsPtr options,
     const TTableSchema& schema,
     IChunkWriterPtr chunkWriter,
+    const TChunkTimestamps& chunkTimestamps,
     IBlockCachePtr blockCache)
 {
     if (options->OptimizeFor == EOptimizeFor::Lookup) {
@@ -617,14 +632,16 @@ ISchemalessChunkWriterPtr CreateSchemalessChunkWriter(
             options,
             chunkWriter,
             blockCache,
-            schema);
+            schema,
+            chunkTimestamps);
     } else {
         return New<TColumnUnversionedChunkWriter>(
             config,
             options,
             chunkWriter,
             blockCache,
-            schema);
+            schema,
+            chunkTimestamps);
     }
 }
 
@@ -646,7 +663,8 @@ public:
             options,
             chunkWriter,
             blockCache,
-            schema)
+            schema,
+            TChunkTimestamps())
         , Partitioner_(partitioner)
     {
         Logger.AddTag("PartitionChunkWriter: %p", this);
@@ -1119,6 +1137,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
             options,
             schema,
             underlyingWriter,
+            TChunkTimestamps(),
             blockCache);
     };
 
