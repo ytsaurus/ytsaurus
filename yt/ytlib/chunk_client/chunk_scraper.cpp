@@ -73,16 +73,16 @@ public:
     }
 
     //! Stops periodic polling.
-    void Stop()
+    TFuture<void> Stop()
     {
         if (!Started_) {
-            return;
+            return VoidFuture;
         }
         LOG_DEBUG("Stopping scraper task (ChunkCount: %v)",
             ChunkIds_.size());
 
         Started_ = false;
-        PeriodicExecutor_->Stop();
+        return PeriodicExecutor_->Stop();
     }
 
 private:
@@ -195,17 +195,19 @@ void TChunkScraper::DoStart()
 }
 
 //! Stops periodic polling.
-void TChunkScraper::Stop()
+TFuture<void> TChunkScraper::Stop()
 {
     TGuard<TSpinLock> guard(SpinLock_);
-    DoStop();
+    return DoStop();
 }
 
-void TChunkScraper::DoStop()
+TFuture<void> TChunkScraper::DoStop()
 {
+    std::vector<TFuture<void>> futures;
     for (auto& task : ScraperTasks_) {
-        task->Stop();
+        futures.push_back(task->Stop());
     }
+    return Combine(futures);
 }
 
 //! Reset a set of chunks scraper and start/stop scraper if necessary.

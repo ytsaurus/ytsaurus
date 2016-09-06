@@ -104,7 +104,8 @@ private:
         YCHECK(UnavailableFetcherChunkCount_ >= 0);
 
         if (UnavailableFetcherChunkCount_ == 0) {
-            Scraper_->Stop();
+            // Wait for all scraper callbacks to finish before session completion.
+            WaitFor(Scraper_->Stop());
             BatchLocatedPromise_.Set();
         }
     }
