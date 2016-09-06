@@ -1296,10 +1296,11 @@ class Finalizer(object):
     """Entity for operation finalizing: checking size of result chunks, deleting of \
     empty output tables and temporary local files.
     """
-    def __init__(self, local_files_to_remove, output_tables, client=None):
+    def __init__(self, local_files_to_remove, output_tables, spec, client=None):
         self.local_files_to_remove = local_files_to_remove
         self.output_tables = output_tables
         self.client = client
+        self.spec = spec
 
     def __call__(self, state):
         if get_config(self.client)["clear_local_temp_files"]:
@@ -1342,9 +1343,10 @@ class Finalizer(object):
             table = TablePath(table, client=self.client)
             table.attributes.clear()
             try:
-                run_merge(source_table=table, destination_table=table, mode=mode,
-                          spec={"combine_chunks": bool_to_string(True), "data_size_per_job": data_size_per_job},
-                          client=self.client)
+                spec = {"combine_chunks": bool_to_string(True), "data_size_per_job": data_size_per_job}
+                if "pool" in self.spec:
+                    spec["pool"] = self.spec["pool"]
+                run_merge(source_table=table, destination_table=table, mode=mode, spec=spec, client=self.client)
             except YtOperationFailedError:
                 logger.warning("Failed to merge table %s", table.name)
         else:
@@ -1465,7 +1467,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
     )(spec)
 
     return _make_operation_request("map_reduce", spec, sync,
-                                   finalizer=Finalizer(local_files_to_remove, destination_table, client=client),
+                                   finalizer=Finalizer(local_files_to_remove, destination_table, spec, client=client),
                                    client=client)
 
 @forbidden_inside_job
@@ -1609,7 +1611,7 @@ def _run_operation(binary, source_table, destination_table,
         )(spec)
 
         return _make_operation_request(op_name, spec, sync,
-                                       finalizer=Finalizer(local_files_to_remove, destination_table, client=client),
+                                       finalizer=Finalizer(local_files_to_remove, destination_table, spec, client=client),
                                        client=client)
     finally:
         if finalize is not None:
