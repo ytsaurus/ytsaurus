@@ -221,6 +221,8 @@ private:
 
     int AllocateWriteTargetsRetryIndex_ = 0;
 
+    std::vector<Stroka> BannedNodes_;
+
     NLogging::TLogger Logger = ChunkClientLogger;
 
 
@@ -538,6 +540,8 @@ TChunkReplicaList TReplicationWriter::AllocateTargets()
         forbiddenAddresses.push_back(node->Descriptor.GetDefaultAddress());
     }
 
+    forbiddenAddresses.insert(forbiddenAddresses.begin(), BannedNodes_.begin(), BannedNodes_.end());
+
     return AllocateWriteTargets(
         Client_,
         ChunkId_,
@@ -791,6 +795,10 @@ void TReplicationWriter::OnNodeFailed(TNodePtr node, const TError& error)
         node->Descriptor.GetDefaultAddress())
         << error;
     LOG_ERROR(wrappedError);
+
+    if (Config_->BanFailedNodes) {
+        BannedNodes_.push_back(node->Descriptor.GetDefaultAddress());
+    }
 
     node->Error = wrappedError;
     --AliveNodeCount_;
