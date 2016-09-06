@@ -44,9 +44,6 @@ public:
     virtual TOwningKey GetMinKey() const override;
     virtual TOwningKey GetMaxKey() const override;
 
-    virtual TTimestamp GetMinTimestamp() const override;
-    virtual TTimestamp GetMaxTimestamp() const override;
-
     virtual NTableClient::IVersionedReaderPtr CreateReader(
         const TTabletSnapshotPtr& tabletSnapshot,
         TOwningKey lowerKey,

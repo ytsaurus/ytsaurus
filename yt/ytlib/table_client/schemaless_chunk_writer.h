@@ -30,11 +30,20 @@ DEFINE_REFCOUNTED_TYPE(ISchemalessChunkWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TChunkTimestamps
+{
+    NTransactionClient::TTimestamp MinTimestamp = NTransactionClient::NullTimestamp;
+    NTransactionClient::TTimestamp MaxTimestamp = NTransactionClient::NullTimestamp;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 ISchemalessChunkWriterPtr CreateSchemalessChunkWriter(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
     const TTableSchema& schema,
     NChunkClient::IChunkWriterPtr chunkWriter,
+    const TChunkTimestamps& chunkTimestamps = TChunkTimestamps(),
     NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
 
 ISchemalessChunkWriterPtr CreatePartitionChunkWriter(

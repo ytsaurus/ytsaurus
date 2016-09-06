@@ -32,6 +32,12 @@ struct IStore
 
     virtual EStoreType GetType() const = 0;
 
+    //! Returns the minimum timestamp of changes recorded in the store.
+    virtual TTimestamp GetMinTimestamp() const = 0;
+
+    //! Returns the maximum timestamp of changes recorded in the store.
+    virtual TTimestamp GetMaxTimestamp() const = 0;
+
     virtual EStoreState GetStoreState() const = 0;
     virtual void SetStoreState(EStoreState state) = 0;
 
@@ -138,12 +144,6 @@ struct ISortedStore
 
     //! Returns the maximum key in the store, inclusive.
     virtual TOwningKey GetMaxKey() const = 0;
-
-    //! Returns the minimum timestamp of changes recorded in the store.
-    virtual TTimestamp GetMinTimestamp() const = 0;
-
-    //! Returns the maximum timestamp of changes recorded in the store.
-    virtual TTimestamp GetMaxTimestamp() const = 0;
 
     //! Creates a reader for the range from |lowerKey| (inclusive) to |upperKey| (exclusive).
     /*!

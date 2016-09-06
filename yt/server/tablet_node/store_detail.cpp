@@ -154,7 +154,9 @@ void TStoreBase::Load(TLoadContext& context)
 void TStoreBase::BuildOrchidYson(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
-        .Item("store_state").Value(StoreState_);
+        .Item("store_state").Value(StoreState_)
+        .Item("min_timestamp").Value(GetMaxTimestamp())
+        .Item("max_timestamp").Value(GetMaxTimestamp());
 }
 
 bool TStoreBase::IsDynamic() const
@@ -260,6 +262,16 @@ i64 TDynamicStoreBase::Unlock()
     LOG_TRACE("Store unlocked (Count: %v)",
         result);
     return result;
+}
+
+TTimestamp TDynamicStoreBase::GetMinTimestamp() const
+{
+    return MinTimestamp_;
+}
+
+TTimestamp TDynamicStoreBase::GetMaxTimestamp() const
+{
+    return MaxTimestamp_;
 }
 
 void TDynamicStoreBase::SetStoreState(EStoreState state)
@@ -382,6 +394,16 @@ i64 TChunkStoreBase::GetUncompressedDataSize() const
 i64 TChunkStoreBase::GetRowCount() const
 {
     return MiscExt_.row_count();
+}
+
+TTimestamp TChunkStoreBase::GetMinTimestamp() const
+{
+    return MiscExt_.min_timestamp();
+}
+
+TTimestamp TChunkStoreBase::GetMaxTimestamp() const
+{
+    return MiscExt_.max_timestamp();
 }
 
 TCallback<void(TSaveContext&)> TChunkStoreBase::AsyncSave()

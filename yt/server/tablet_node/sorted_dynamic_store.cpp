@@ -1682,16 +1682,6 @@ TOwningKey TSortedDynamicStore::GetMaxKey() const
     return MaxKey();
 }
 
-TTimestamp TSortedDynamicStore::GetMinTimestamp() const
-{
-    return MinTimestamp_;
-}
-
-TTimestamp TSortedDynamicStore::GetMaxTimestamp() const
-{
-    return MaxTimestamp_;
-}
-
 IVersionedReaderPtr TSortedDynamicStore::CreateReader(
     const TTabletSnapshotPtr& tabletSnapshot,
     TOwningKey lowerKey,

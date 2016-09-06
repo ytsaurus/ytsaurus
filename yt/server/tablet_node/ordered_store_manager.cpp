@@ -253,11 +253,16 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
             New<TNodeDirectory>(),
             Client_);
 
+        TChunkTimestamps chunkTimestamps;
+        chunkTimestamps.MinTimestamp = orderedDynamicStore->GetMinTimestamp();
+        chunkTimestamps.MaxTimestamp = orderedDynamicStore->GetMaxTimestamp();
+
         auto tableWriter = CreateSchemalessChunkWriter(
             Config_->ChunkWriter,
             tabletSnapshot->WriterOptions,
             tabletSnapshot->PhysicalSchema,
-            chunkWriter);
+            chunkWriter,
+            chunkTimestamps);
 
         WaitFor(tableWriter->Open())
             .ThrowOnError();
