@@ -993,6 +993,7 @@ private:
 
         LOG_ERROR(error, "%v", message);
 
+        WaitForActiveShellProcesses(error);
         CleanupUserProcesses(error);
 
         ControlPipeReader_->Abort();
