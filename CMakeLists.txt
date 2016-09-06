@@ -191,6 +191,7 @@ endif()
 
 add_subdirectory(cmake/deps-protobuf)
 add_subdirectory(cmake/deps-arcadia-util)
+add_subdirectory(cmake/deps-arcadia-contrib-libs-lzmasdk)
 add_subdirectory(cmake/deps-arcadia-contrib-libs-minilzo)
 add_subdirectory(cmake/deps-arcadia-contrib-libs-re2)
 add_subdirectory(cmake/deps-arcadia-contrib-libs-snappy)
