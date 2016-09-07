@@ -49,7 +49,7 @@ struct INodeShardHost
         NYson::TYsonString jobAttributes,
         const NChunkClient::TChunkId& stderrChunkId,
         const NChunkClient::TChunkId& failContextChunkId,
-        TFuture<NYson::TYsonString> inputPathsFuture) = 0;
+        TFuture<TNullable<NYson::TYsonString>> inputPathsFuture) = 0;
 
     virtual TFuture<void> AttachJobContext(
         const NYTree::TYPath& path,

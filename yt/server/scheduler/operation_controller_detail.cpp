@@ -4146,7 +4146,7 @@ void TOperationControllerBase::BuildBriefSpec(IYsonConsumer* consumer) const
         .Item("output_table_paths").ListLimited(GetOutputTablePaths(), 1);
 }
 
-TYsonString TOperationControllerBase::BuildInputPathYson(const TJobId& jobId) const
+TNullable<TYsonString> TOperationControllerBase::BuildInputPathYson(const TJobId& jobId) const
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
@@ -4829,7 +4829,7 @@ public:
         Underlying_->BuildBriefSpec(consumer);
     }
 
-    virtual TYsonString BuildInputPathYson(const TJobId& jobId) const override
+    virtual TNullable<TYsonString> BuildInputPathYson(const TJobId& jobId) const override
     {
         return Underlying_->BuildInputPathYson(jobId);
     }
