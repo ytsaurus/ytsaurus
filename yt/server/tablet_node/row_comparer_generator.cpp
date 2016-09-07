@@ -73,7 +73,7 @@ private:
     void BuildCmp(Value* lhs, Value* rhs, EValueType type);
     void BuildStringCmp(Value* lhsLength, Value* lhsData, Value* rhsLength, Value* rhsData);
     void BuildIterationLimitCheck(Value* length, int index);
-    void BuildNullTypeCheck(Value* type);
+    void BuildSentinelTypeCheck(Value* type);
     void BuildMainLoop(
         IValueBuilder& lhsBuilder,
         IValueBuilder& rhsBuilder,
@@ -379,12 +379,16 @@ void TComparerBuilder::BuildUUComparer(Stroka& functionName)
     SetInsertPoint(CreateBB("entry"));
     auto args = Function_->arg_begin();
     Value* lhsKeys = args;
+    Value* lhsLength = ++args;
     Value* rhsKeys = ++args;
+    Value* rhsLength = ++args;
     YCHECK(++args == Function_->arg_end());
+    auto length = CreateMin(lhsLength, rhsLength, EValueType::Int64);
     auto lhsBuilder = TUnversionedValueBuilder(*this, lhsKeys);
     auto rhsBuilder = TUnversionedValueBuilder(*this, rhsKeys);
-    BuildMainLoop(lhsBuilder, rhsBuilder);
-    CreateRet(getInt32(0));
+    BuildMainLoop(lhsBuilder, rhsBuilder, length);
+    auto lengthDifference = CreateSub(lhsLength, rhsLength);
+    CreateRet(lengthDifference);
 }
 
 BasicBlock* TComparerBuilder::CreateBB(const Twine& name)
@@ -468,14 +472,20 @@ void TComparerBuilder::BuildIterationLimitCheck(Value* iterationsLimit, int inde
     }
 }
 
-void TComparerBuilder::BuildNullTypeCheck(Value* type)
+void TComparerBuilder::BuildSentinelTypeCheck(Value* type)
 {
-    auto* falseBB = CreateBB("type.is.not.null");
+    auto* upperBB = CreateBB("type.is.greater.than.null");
+    auto* lowerBB = CreateBB("type.is.less.than.max");
     CreateCondBr(
-        CreateICmpEQ(type, ConstantInt::get(type->getType(), static_cast<int>(EValueType::Null))),
+        CreateICmpULE(type, ConstantInt::get(type->getType(), static_cast<int>(EValueType::Null))),
         NextBB_,
-        falseBB);
-    SetInsertPoint(falseBB);
+        upperBB);
+    SetInsertPoint(upperBB);
+    CreateCondBr(
+        CreateICmpUGE(type, ConstantInt::get(type->getType(), static_cast<int>(EValueType::Max))),
+        NextBB_,
+        lowerBB);
+    SetInsertPoint(lowerBB);
 }
 
 void TComparerBuilder::BuildMainLoop(
@@ -491,7 +501,7 @@ void TComparerBuilder::BuildMainLoop(
         auto* lhsType = lhsBuilder.GetType(index);
         auto* rhsType = rhsBuilder.GetType(index);
         BuildCmp(lhsType, rhsType, EValueType::Uint64);
-        BuildNullTypeCheck(lhsType);
+        BuildSentinelTypeCheck(lhsType);
 
         auto type = columnIt->Type;
         if (type == EValueType::String) {

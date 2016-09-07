@@ -493,6 +493,19 @@ protected:
         return schema;
     }
 
+    int Sign(int value) {
+        return value != 0 ? value > 0 ? 1 : -1 : 0;
+    }
+
+    bool HasSentinels(TUnversionedOwningRow row) {
+        for (int index = 0; index < row.GetCount(); ++index) {
+            if (IsSentinelType(row[index].Type)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     std::unique_ptr<TTransaction> Transaction_;
     TStaticComparer StaticComparer_;
     TSortedDynamicRowKeyComparer LlvmComparer_;
@@ -506,17 +519,27 @@ TEST_P(TSortedDynamicRowKeyComparerTest, Test)
     auto urow1 = BuildRow(str1, false);
     auto urow2 = BuildRow(str2, false);
 
+    EXPECT_EQ(
+        Sign(StaticComparer_(urow1.Begin(), urow1.End(), urow2.Begin(), urow2.End())),
+        Sign(LlvmComparer_(urow1.Begin(), urow1.End(), urow2.Begin(), urow2.End())))
+        << "row1: " << ToString(urow1) << std::endl
+        << "row2: " << ToString(urow2);
+
     int keyColumnCount = GetSchema().GetKeyColumnCount();
 
-    if (urow1.GetCount() == keyColumnCount) {
+    if (urow1.GetCount() == keyColumnCount && !HasSentinels(urow1) && !HasSentinels(urow2)) {
         auto drow1 = BuildDynamicRow(urow1);
         EXPECT_EQ(
             StaticComparer_(drow1, TKeyWrapper{urow2}),
-            LlvmComparer_(drow1, TKeyWrapper{urow2}));
+            LlvmComparer_(drow1, TKeyWrapper{urow2}))
+            << "row1: " << ToString(urow1) << std::endl
+            << "row2: " << ToString(urow2);
 
         if (urow2.GetCount() == keyColumnCount) {
             auto drow2 = BuildDynamicRow(urow2);
-            EXPECT_EQ(StaticComparer_(drow1, drow2), LlvmComparer_(drow1, drow2));
+            EXPECT_EQ(StaticComparer_(drow1, drow2), LlvmComparer_(drow1, drow2))
+                << "row1: " << ToString(urow1) << std::endl
+                << "row2: " << ToString(urow2);
         }
     }
 }
@@ -533,7 +556,17 @@ auto comparerTestParams = ::testing::Values(
     "a=10;b=18446744073709551615u;c=%true",
     "a=10;b=18446744073709551614u",
     "a=12",
-    "a=10");
+    "a=10",
+    "a=<\"type\"=\"min\">#",
+    "a=<\"type\"=\"max\">#",
+    "a=12;b=<\"type\"=\"min\">#",
+    "a=12;b=<\"type\"=\"max\">#",
+    "a=10;b=<\"type\"=\"min\">#",
+    "a=10;b=<\"type\"=\"max\">#",
+    "a=10;b=<\"type\"=\"min\">#;c=<\"type\"=\"min\">#",
+    "a=10;b=<\"type\"=\"max\">#;c=<\"type\"=\"max\">#",
+    "c=<\"type\"=\"min\">#",
+    "c=<\"type\"=\"max\">#");
 
 INSTANTIATE_TEST_CASE_P(
     CodeGenerationTest,
