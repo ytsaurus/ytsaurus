@@ -105,8 +105,7 @@ private:
 
         if (UnavailableFetcherChunkCount_ == 0) {
             // Wait for all scraper callbacks to finish before session completion.
-            WaitFor(Scraper_->Stop());
-            BatchLocatedPromise_.Set();
+            BatchLocatedPromise_.SetFrom(Scraper_->Stop());
         }
     }
 
