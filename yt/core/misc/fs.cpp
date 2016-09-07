@@ -607,7 +607,8 @@ void ChunkedCopy(
         if (size < buffer.Size()) {
             break;
         }
-        NConcurrency::Yield();
+        // Yield woudn't work here, see st/YT-5601.
+        WaitFor(VoidFuture);
     }
 }
 
