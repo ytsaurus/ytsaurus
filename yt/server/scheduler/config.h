@@ -489,9 +489,6 @@ public:
     //! Maximum number of files per user job.
     int MaxUserFileCount;
 
-    //! blkio.weight set on user job cgroup.
-    TNullable<int> UserJobBlkioWeight;
-
     //! Maximum number of jobs to start within a single heartbeat.
     TNullable<int> MaxStartedJobsPerHeartbeat;
 
@@ -575,6 +572,10 @@ public:
 
     // Testing option that enables sleeping between intermediate and final states of operation.
     TNullable<TDuration> FinishOperationTransitionDelay;
+
+    // If user job iops threshold is exceeded, iops throttling is enabled via cgroups.
+    TNullable<i32> IopsThreshold;
+    TNullable<i32> IopsThrottlerLimit;
 
     TDuration StaticOrchidCacheUpdatePeriod;
 
@@ -696,9 +697,6 @@ public:
             .Default(1000)
             .GreaterThan(0);
 
-        RegisterParameter("user_job_blkio_weight", UserJobBlkioWeight)
-            .Default(Null);
-
         RegisterParameter("max_output_tables_times_jobs_count", MaxOutputTablesTimesJobsCount)
             .Default(20 * 100000)
             .GreaterThanOrEqual(100000);
@@ -808,6 +806,11 @@ public:
             .Default(TDuration::Seconds(1));
 
         RegisterParameter("finish_operation_transition_delay", FinishOperationTransitionDelay)
+            .Default(Null);
+
+        RegisterParameter("iops_threshold", IopsThreshold)
+            .Default(Null);
+        RegisterParameter("iops_throttler_limit", IopsThrottlerLimit)
             .Default(Null);
 
         RegisterInitializer([&] () {

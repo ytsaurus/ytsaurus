@@ -4218,8 +4218,11 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         jobSpec->set_tmpfs_path(*config->TmpfsPath);
     }
 
-    if (Config->UserJobBlkioWeight) {
-        jobSpec->set_blkio_weight(*Config->UserJobBlkioWeight);
+    if (Config->IopsThreshold) {
+        jobSpec->set_iops_threshold(*Config->IopsThreshold);
+        if (Config->IopsThrottlerLimit) {
+            jobSpec->set_iops_throttler_limit(*Config->IopsThrottlerLimit);
+        }
     }
 
     {
