@@ -86,6 +86,7 @@ private:
 
     // NB: temporary data which may change during the building process.
     BasicBlock* NextBB_;
+    BasicBlock* LastBB_;
     Function* Function_;
 };
 
@@ -458,16 +459,13 @@ void TComparerBuilder::BuildStringCmp(Value* lhsLength, Value* lhsData, Value* r
 void TComparerBuilder::BuildIterationLimitCheck(Value* iterationsLimit, int index)
 {
     if (iterationsLimit != nullptr) {
-        auto* trueBB = CreateBB("limit.check.true");
         auto* falseBB = CreateBB("limit.check.false");
         CreateCondBr(
             CreateICmpEQ(
                 iterationsLimit,
                 ConstantInt::get(iterationsLimit->getType(), index)),
-            trueBB,
+            LastBB_,
             falseBB);
-        SetInsertPoint(trueBB);
-        CreateRet(getInt32(0));
         SetInsertPoint(falseBB);
     }
 }
@@ -493,6 +491,7 @@ void TComparerBuilder::BuildMainLoop(
     IValueBuilder& rhsBuilder,
     Value* iterationsLimit)
 {
+    LastBB_ = CreateBB("epilogue");
     NextBB_ = CreateBB("iteration");
     auto columnIt = Schema_.Columns().begin();
     for (int index = 0; index < KeyColumnCount_; ++index, ++columnIt) {
@@ -520,6 +519,8 @@ void TComparerBuilder::BuildMainLoop(
         NextBB_ = CreateBB("iteration");
     }
     NextBB_->removeFromParent();
+    CreateBr(LastBB_);
+    SetInsertPoint(LastBB_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
