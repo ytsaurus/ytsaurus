@@ -385,7 +385,7 @@ TFuture<TNetworkAddress> TAddressResolver::TImpl::Resolve(const Stroka& hostName
                 entry.Address);
 
             // Re-run resolve for expired entries.
-            if (entry.Instant + Config_->AddressExpirationTime > TInstant::Now()) {
+            if (entry.Instant + Config_->AddressExpirationTime < TInstant::Now()) {
                 runAsyncResolve();
             }
 
