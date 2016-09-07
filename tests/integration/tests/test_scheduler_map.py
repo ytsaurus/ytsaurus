@@ -203,17 +203,14 @@ class TestJobProber(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"foo": "bar"})
 
-        command = ('trap "echo got=SIGUSR1" USR1\n'
-                   'trap "echo got=SIGUSR2" USR2\n'
-                   "cat\n")
-
         op = map(
             dont_track=True,
             waiting_jobs=True,
             label="signal_job_with_no_job_restart",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command=command,
+            precommand='trap "echo got=SIGUSR1" USR1\ntrap "echo got=SIGUSR2" USR2\n',
+            command="cat\n",
             spec={
                 "mapper": {
                     "format": "dsv"
@@ -243,7 +240,8 @@ class TestJobProber(YTEnvSetup):
             label="signal_job_with_job_restart",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command='trap "echo got=SIGUSR1; echo stderr >&2; exit 1" USR1\ncat\n',
+            precommand='trap "echo got=SIGUSR1; echo stderr >&2; exit 1" USR1\n',
+            command='cat\n',
             spec={
                 "mapper": {
                     "format": "dsv"
