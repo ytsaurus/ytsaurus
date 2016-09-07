@@ -19,6 +19,7 @@ using TTransactionId = TGUID;
 using TNodeId = TGUID;
 using TLockId = TGUID;
 using TOperationId = TGUID;
+using TTabletCellId = TGUID;
 
 using TYPath = Stroka;
 using TLocalFilePath = Stroka;
@@ -131,6 +132,46 @@ using TKeyColumns = TKeyBase<Stroka>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+enum EValueType
+{
+    VT_INT64,
+    VT_UINT64,
+    VT_DOUBLE,
+    VT_BOOLEAN,
+    VT_STRING,
+    VT_ANY
+};
+
+enum ESortOrder
+{
+    SO_ASCENDING,
+    SO_DESCENDING
+};
+
+struct TColumnSchema
+{
+    using TSelf = TColumnSchema;
+
+    FLUENT_FIELD(Stroka, Name);
+    FLUENT_FIELD(EValueType, Type);
+    FLUENT_FIELD_OPTION(ESortOrder, SortOrder);
+    FLUENT_FIELD_OPTION(Stroka, Lock);
+    FLUENT_FIELD_OPTION(Stroka, Expression);
+    FLUENT_FIELD_OPTION(Stroka, Aggregate);
+    FLUENT_FIELD_OPTION(Stroka, Group);
+};
+
+struct TTableSchema
+{
+    using TSelf = TTableSchema;
+
+    FLUENT_VECTOR_FIELD(TColumnSchema, Column);
+    FLUENT_FIELD_DEFAULT(bool, Strict, true);
+    FLUENT_FIELD_DEFAULT(bool, UniqueKeys, false);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TReadLimit
 {
     using TSelf = TReadLimit;
@@ -176,7 +217,7 @@ struct TRichYPath
     FLUENT_FIELD_OPTION(Stroka, FileName);
     FLUENT_FIELD_OPTION(bool, Executable);
     FLUENT_FIELD_OPTION(TNode, Format);
-    FLUENT_FIELD_OPTION(TNode, Schema);
+    FLUENT_FIELD_OPTION(TTableSchema, Schema);
 
     TRichYPath()
     { }

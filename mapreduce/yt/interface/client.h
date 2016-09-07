@@ -35,6 +35,40 @@ struct TLockOptions
     FLUENT_FIELD_DEFAULT(bool, Waitable, false);
 };
 
+template <class TDerived>
+struct TTabletOptions
+{
+    using TSelf = TDerived;
+
+    FLUENT_FIELD_OPTION(i64, FirstTabletIndex);
+    FLUENT_FIELD_OPTION(i64, LastTabletIndex);
+};
+
+struct TMountTableOptions
+    : public TTabletOptions<TMountTableOptions>
+{
+    FLUENT_FIELD_OPTION(TTabletCellId, CellId);
+    FLUENT_FIELD_DEFAULT(bool, Freeze, false);
+};
+
+struct TUnmountTableOptions
+    : public TTabletOptions<TUnmountTableOptions>
+{
+    FLUENT_FIELD_DEFAULT(bool, Force, false);
+};
+
+struct TRemountTableOptions
+    : public TTabletOptions<TRemountTableOptions>
+{ };
+
+struct TAlterTableOptions
+{
+    using TSelf = TAlterTableOptions;
+
+    FLUENT_FIELD_OPTION(TTableSchema, Schema);
+    FLUENT_FIELD_OPTION(bool, Dynamic);
+};
+
 struct TLookupRowsOptions
 {
     using TSelf = TLookupRowsOptions;
@@ -79,6 +113,10 @@ class IClientBase
 public:
     virtual ITransactionPtr StartTransaction(
         const TStartTransactionOptions& options = TStartTransactionOptions()) = 0;
+
+    virtual void AlterTable(
+        const TYPath& path,
+        const TAlterTableOptions& options = TAlterTableOptions()) = 0;
 };
 
 class ITransaction
@@ -102,6 +140,18 @@ class IClient
 public:
     virtual ITransactionPtr AttachTransaction(
         const TTransactionId& transactionId) = 0;
+
+    virtual void MountTable(
+        const TYPath& path,
+        const TMountTableOptions& options = TMountTableOptions()) = 0;
+
+    virtual void UnmountTable(
+        const TYPath& path,
+        const TUnmountTableOptions& options = TUnmountTableOptions()) = 0;
+
+    virtual void RemountTable(
+        const TYPath& path,
+        const TRemountTableOptions& options = TRemountTableOptions()) = 0;
 
     // TODO: move to transaction
     virtual void InsertRows(

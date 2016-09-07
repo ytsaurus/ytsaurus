@@ -38,7 +38,7 @@ Stroka ToString(ELockMode mode)
         case LM_SHARED: return "shared";
         case LM_SNAPSHOT: return "snapshot";
         default:
-            LOG_FATAL("Invalid lock mode %i", static_cast<int>(mode));
+            ythrow yexception() << "Invalid lock mode " << static_cast<int>(mode);
     }
 }
 
@@ -56,7 +56,7 @@ Stroka ToString(ENodeType type)
         case NT_TABLE: return "table";
         case NT_DOCUMENT: return "document";
         default:
-            LOG_FATAL("Invalid node type %i", static_cast<int>(type));
+            ythrow yexception() << "Invalid node type " << static_cast<int>(type);
     }
 }
 
@@ -393,6 +393,28 @@ public:
         NYT::WaitForOperation(Auth_, TransactionId_, operationId);
     }
 
+    // schema
+
+    void AlterTable(
+        const TYPath& path,
+        const TAlterTableOptions& options = TAlterTableOptions())
+    {
+        THttpHeader header("POST", "alter_table");
+        header.AddTransactionId(TransactionId_);
+        header.AddPath(AddPathPrefix(path));
+
+        if (options.Dynamic_) {
+            header.AddParam("dynamic", *options.Dynamic_);
+        }
+        if (options.Schema_) {
+            header.SetParameters(BuildYsonStringFluently().BeginMap()
+                .Item("schema")
+                .Value(*options.Schema_)
+            .EndMap());
+        }
+        RetryRequest(Auth_, header);
+    }
+
 protected:
     const TAuth Auth_;
     TTransactionId TransactionId_;
@@ -574,6 +596,38 @@ public:
         return CreateTransactionObject(Auth_, transactionId, false);
     }
 
+    void MountTable(
+        const TYPath& path,
+        const TMountTableOptions& options = TMountTableOptions()) override
+    {
+        THttpHeader header("POST", "mount_table");
+        SetTabletParams(header, path, options);
+        if (options.CellId_) {
+            header.AddParam("cell_id", GetGuidAsString(*options.CellId_));
+        }
+        header.AddParam("freeze", options.Freeze_);
+        RetryRequest(Auth_, header);
+    }
+
+    void UnmountTable(
+        const TYPath& path,
+        const TUnmountTableOptions& options = TUnmountTableOptions()) override
+    {
+        THttpHeader header("POST", "unmount_table");
+        SetTabletParams(header, path, options);
+        header.AddParam("force", options.Force_);
+        RetryRequest(Auth_, header);
+    }
+
+    void RemountTable(
+        const TYPath& path,
+        const TRemountTableOptions& options = TRemountTableOptions()) override
+    {
+        THttpHeader header("POST", "remount_table");
+        SetTabletParams(header, path, options);
+        RetryRequest(Auth_, header);
+    }
+
     void InsertRows(
         const TYPath& path,
         const TNode::TList& rows) override
@@ -639,6 +693,21 @@ public:
     }
 
 private:
+    template <class TOptions>
+    void SetTabletParams(
+        THttpHeader& header,
+        const TYPath& path,
+        const TOptions& options)
+    {
+        header.AddPath(AddPathPrefix(path));
+        if (options.FirstTabletIndex_) {
+            header.AddParam("first_tablet_index", *options.FirstTabletIndex_);
+        }
+        if (options.LastTabletIndex_) {
+            header.AddParam("last_tablet_index", *options.LastTabletIndex_);
+        }
+    }
+
     void ModifyRows(
         const Stroka& command,
         const TYPath& path,

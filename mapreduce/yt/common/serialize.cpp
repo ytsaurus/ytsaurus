@@ -79,6 +79,66 @@ void Serialize(const TKeyColumns& keyColumns, IYsonConsumer* consumer)
     BuildYsonFluently(consumer).List(keyColumns.Parts_);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+Stroka ToString(EValueType type)
+{
+    switch (type) {
+        case VT_INT64: return "int64";
+        case VT_UINT64: return "uint64";
+        case VT_DOUBLE: return "double";
+        case VT_BOOLEAN: return "boolean";
+        case VT_STRING: return "string";
+        case VT_ANY: return "any";
+        default:
+            ythrow yexception() << "Invalid value type " << static_cast<int>(type);
+    }
+}
+
+Stroka ToString(ESortOrder sortOrder)
+{
+    switch (sortOrder) {
+        case SO_ASCENDING: return "ascending";
+        case SO_DESCENDING: return "descending";
+        default:
+            ythrow yexception() << "Invalid sort order " << static_cast<int>(sortOrder);
+    }
+}
+
+void Serialize(const TColumnSchema& columnSchema, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer).BeginMap()
+        .Item("name").Value(columnSchema.Name_)
+        .Item("type").Value(ToString(columnSchema.Type_))
+        .DoIf(columnSchema.SortOrder_.Defined(), [&] (TFluentMap fluent) {
+            fluent.Item("sort_order").Value(ToString(*columnSchema.SortOrder_));
+        })
+        .DoIf(columnSchema.Lock_.Defined(), [&] (TFluentMap fluent) {
+            fluent.Item("lock").Value(*columnSchema.Lock_);
+        })
+        .DoIf(columnSchema.Expression_.Defined(), [&] (TFluentMap fluent) {
+            fluent.Item("expression").Value(*columnSchema.Expression_);
+        })
+        .DoIf(columnSchema.Aggregate_.Defined(), [&] (TFluentMap fluent) {
+            fluent.Item("aggregate").Value(*columnSchema.Aggregate_);
+        })
+        .DoIf(columnSchema.Group_.Defined(), [&] (TFluentMap fluent) {
+            fluent.Item("group").Value(*columnSchema.Group_);
+        })
+    .EndMap();
+}
+
+void Serialize(const TTableSchema& tableSchema, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer).BeginAttributes()
+        .Item("strict").Value(tableSchema.Strict_)
+        .Item("unique_keys").Value(tableSchema.UniqueKeys_)
+    .EndAttributes()
+    .List(tableSchema.Columns_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void Serialize(const TReadLimit& readLimit, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer).BeginMap()
@@ -124,34 +184,34 @@ void Serialize(const TRichYPath& path, IYsonConsumer* consumer)
             fluent.Item("columns").Value(path.Columns_);
         })
         .DoIf(path.Append_.Defined(), [&] (TFluentAttributes fluent) {
-            fluent.Item("append").Value(path.Append_.GetRef());
+            fluent.Item("append").Value(*path.Append_);
         })
         .DoIf(!path.SortedBy_.Parts_.empty(), [&] (TFluentAttributes fluent) {
             fluent.Item("sorted_by").Value(path.SortedBy_);
         })
         .DoIf(path.Teleport_.Defined(), [&] (TFluentAttributes fluent) {
-            fluent.Item("teleport").Value(path.Teleport_.GetRef());
+            fluent.Item("teleport").Value(*path.Teleport_);
         })
         .DoIf(path.Primary_.Defined(), [&] (TFluentAttributes fluent) {
-            fluent.Item("primary").Value(path.Primary_.GetRef());
+            fluent.Item("primary").Value(*path.Primary_);
         })
         .DoIf(path.Foreign_.Defined(), [&] (TFluentAttributes fluent) {
-            fluent.Item("foreign").Value(path.Foreign_.GetRef());
+            fluent.Item("foreign").Value(*path.Foreign_);
         })
         .DoIf(path.RowCountLimit_.Defined(), [&] (TFluentAttributes fluent) {
-            fluent.Item("row_count_limit").Value(path.RowCountLimit_.GetRef());
+            fluent.Item("row_count_limit").Value(*path.RowCountLimit_);
         })
         .DoIf(path.FileName_.Defined(), [&] (TFluentAttributes fluent) {
-            fluent.Item("file_name").Value(path.FileName_.GetRef());
+            fluent.Item("file_name").Value(*path.FileName_);
         })
         .DoIf(path.Executable_.Defined(), [&] (TFluentAttributes fluent) {
-            fluent.Item("executable").Value(path.Executable_.GetRef());
+            fluent.Item("executable").Value(*path.Executable_);
         })
         .DoIf(path.Format_.Defined(), [&] (TFluentAttributes fluent) {
-            fluent.Item("format").Value(path.Format_.GetRef());
+            fluent.Item("format").Value(*path.Format_);
         })
         .DoIf(path.Schema_.Defined(), [&] (TFluentAttributes fluent) {
-            fluent.Item("schema").Value(path.Schema_.GetRef());
+            fluent.Item("schema").Value(*path.Schema_);
         })
     .EndAttributes()
     .Value(path.Path_);

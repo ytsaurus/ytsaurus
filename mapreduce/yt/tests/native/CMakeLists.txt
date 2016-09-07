@@ -7,6 +7,8 @@ SRCS(
     cypress.cpp
     io.cpp
     operations.cpp
+    schema.cpp
+    tablets.cpp
     main.cpp
 )
 
