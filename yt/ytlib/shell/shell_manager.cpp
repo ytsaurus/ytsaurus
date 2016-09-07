@@ -1,4 +1,4 @@
-#include "manager.h"
+#include "shell_manager.h"
 #include "private.h"
 #include "config.h"
 

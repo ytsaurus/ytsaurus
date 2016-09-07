@@ -28,7 +28,7 @@
 #include <yt/ytlib/query_client/query_statistics.h>
 #include <yt/ytlib/query_client/functions_cache.h>
 
-#include <yt/ytlib/shell/manager.h>
+#include <yt/ytlib/shell/shell_manager.h>
 
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/name_table.h>
