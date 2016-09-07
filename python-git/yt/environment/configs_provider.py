@@ -362,6 +362,7 @@ class ConfigsProvider_17(ConfigsProvider):
             config["rpc_port"] = next(ports_generator)
             config["monitoring_port"] = next(ports_generator)
             set_at(config, "scheduler/snapshot_temp_path", os.path.join(scheduler_dirs[i], "snapshots"))
+            set_at(config, "scheduler/orchid_cache_update_period", 0)
 
             config["logging"] = init_logging(config.get("logging"), scheduler_dirs[i], "scheduler-" + str(i),
                                              provision["enable_debug_logging"])
@@ -595,6 +596,7 @@ class ConfigsProvider_18(ConfigsProvider):
             config["rpc_port"] = next(ports_generator)
             config["monitoring_port"] = next(ports_generator)
             set_at(config, "scheduler/snapshot_temp_path", os.path.join(scheduler_dirs[i], "snapshots"))
+            set_at(config, "scheduler/orchid_cache_update_period", 0)
 
             config["logging"] = init_logging(config.get("logging"), scheduler_dirs[i], "scheduler-" + str(i),
                                              provision["enable_debug_logging"])
@@ -773,6 +775,19 @@ class ConfigsProvider_18_5(ConfigsProvider_18):
                 ("interconnect", provision["fqdn"]),
                 ("default", provision["fqdn"])
             ]
+
+        return configs
+
+    def _build_scheduler_configs(self, provision, scheduler_dirs, master_connection_configs,
+                                 ports_generator):
+        configs = super(ConfigsProvider_18_5, self)._build_scheduler_configs(
+                provision, scheduler_dirs, master_connection_configs, ports_generator)
+
+        for config in configs:
+            # Since 18.5 scheduler Orchid consists of a static part (that is periodically cached)
+            # and a dynamic part, so the name of the option was changed.
+            del config["scheduler"]["orchid_cache_update_period"]
+            set_at(config, "scheduler/static_orchid_cache_update_period", 0)
 
         return configs
 
