@@ -487,8 +487,8 @@ protected:
                 .SetSortOrder(ESortOrder::Ascending),
             TColumnSchema("d", EValueType::Double)
                 .SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("e", EValueType::String).
-                SetSortOrder(ESortOrder::Ascending)
+            TColumnSchema("e", EValueType::String)
+                .SetSortOrder(ESortOrder::Ascending)
         });
         return schema;
     }
@@ -558,20 +558,24 @@ auto comparerTestParams = ::testing::Values(
     "a=12",
     "a=10",
     "a=<\"type\"=\"min\">#",
-    "a=<\"type\"=\"max\">#",
-    "a=12;b=<\"type\"=\"min\">#",
-    "a=12;b=<\"type\"=\"max\">#",
-    "a=10;b=<\"type\"=\"min\">#",
-    "a=10;b=<\"type\"=\"max\">#",
-    "a=10;b=<\"type\"=\"min\">#;c=<\"type\"=\"min\">#",
-    "a=10;b=<\"type\"=\"max\">#;c=<\"type\"=\"max\">#",
-    "c=<\"type\"=\"min\">#",
-    "c=<\"type\"=\"max\">#");
+    "a=<\"type\"=\"max\">#");
 
 INSTANTIATE_TEST_CASE_P(
     CodeGenerationTest,
     TSortedDynamicRowKeyComparerTest,
     ::testing::Combine(comparerTestParams, comparerTestParams));
+
+TEST_F(TSortedDynamicRowKeyComparerTest, DifferentLength)
+{
+    auto row1 = BuildKey("1");
+    auto row2 = BuildKey("1;<\"type\"=\"min\">#");
+
+    EXPECT_EQ(
+        Sign(StaticComparer_(row1.Begin(), row1.End(), row2.Begin(), row2.End())),
+        Sign(LlvmComparer_(row1.Begin(), row1.End(), row2.Begin(), row2.End())))
+        << "row1: " << ToString(row1) << std::endl
+        << "row2: " << ToString(row2);
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 
