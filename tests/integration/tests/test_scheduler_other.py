@@ -1546,8 +1546,15 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
             out="//tmp/t2")
 
         while True:
-            running_jobs1 = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op1.id))
-            running_jobs2 = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op2.id))
+            if not exists("//sys/scheduler/orchid/scheduler/operations/" + op1.id):
+                running_jobs1 = []
+            else:
+                running_jobs1 = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op1.id))
+
+            if not exists("//sys/scheduler/orchid/scheduler/operations/" + op2.id):
+                running_jobs2 = []
+            else:
+                running_jobs2 = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op2.id))
 
             if len(running_jobs1) == 0 or len(running_jobs2) == 0:
                 time.sleep(1)
