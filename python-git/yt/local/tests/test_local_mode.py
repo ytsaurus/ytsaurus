@@ -225,3 +225,10 @@ class TestLocalMode(object):
         finally:
             remove_file(node_config.name, force=True)
             remove_file(config.name, force=True)
+
+    def test_tablet_cell_initialization(self):
+        with local_yt(wait_tablet_cell_initialization=True) as environment:
+            client = environment.create_client()
+            tablet_cells = client.list("//sys/tablet_cells")
+            assert len(tablet_cells) == 1
+            assert client.get("//sys/tablet_cells/{0}/@health".format(tablet_cells[0])) == "good"

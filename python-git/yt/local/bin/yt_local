@@ -127,6 +127,8 @@ def add_start_subparser(subparsers):
                         help="Only prepare environment, but don't start.")
     parser.add_argument("--operations-memory-limit", type=int, default=16 * GB,
                         help="memory limit for operations in bytes")
+    parser.add_argument("--wait-tablet-cell-initialization", action="store_true", default=False,
+                        help="wait until tablet cell (created during world initialization) health is good")
 
     # Compatibility options
     parser.add_argument("--masters-count", type=int, help=argparse.SUPPRESS)

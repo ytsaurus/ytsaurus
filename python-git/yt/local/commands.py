@@ -14,6 +14,7 @@ import errno
 import logging
 import shutil
 import socket
+import time
 from functools import partial
 
 logger = logging.getLogger("Yt.local")
@@ -152,7 +153,7 @@ def _safe_kill(pid):
             # (EINVAL, EPERM, ESRCH)
             raise
 
-def _initialize_world(client, cluster_connection):
+def _initialize_world(client, cluster_connection, wait_tablet_cell_initialization):
     initialize_world(client)
     # Create tablet cell.
     attributes = {
@@ -160,7 +161,12 @@ def _initialize_world(client, cluster_connection):
         "changelog_read_quorum": 1,
         "changelog_write_quorum": 1
     }
-    client.create("tablet_cell", attributes=attributes)
+    tablet_cell_id = client.create("tablet_cell", attributes=attributes)
+    if wait_tablet_cell_initialization:
+        logger.info("Waiting tablet cell initialization...")
+        while client.get("//sys/tablet_cells/{0}/@health".format(tablet_cell_id)) != "good":
+            time.sleep(0.3)
+        logger.info("Tablet cell is ready")
     # Used to automatically determine local mode from python wrapper.
     client.set("//sys/@local_mode_fqdn", socket.getfqdn())
     # Cluster connection.
@@ -170,7 +176,7 @@ def start(master_count=1, node_count=1, scheduler_count=1, start_proxy=True,
           master_config=None, node_config=None, scheduler_config=None, proxy_config=None,
           proxy_port=None, id=None, local_cypress_dir=None, use_proxy_from_yt_source=False,
           enable_debug_logging=False, tmpfs_path=None, port_range_start=None, fqdn=None, path=None,
-          prepare_only=False, operations_memory_limit=16 * GB):
+          prepare_only=False, operations_memory_limit=16 * GB, wait_tablet_cell_initialization=False):
 
     require(master_count >= 1, lambda: YtError("Cannot start local YT instance without masters"))
 
@@ -238,7 +244,7 @@ def start(master_count=1, node_count=1, scheduler_count=1, start_proxy=True,
         if not environment._load_existing_environment:
             client = environment.create_client()
 
-            _initialize_world(client, environment.configs["driver"])
+            _initialize_world(client, environment.configs["driver"], wait_tablet_cell_initialization)
             if local_cypress_dir is not None:
                 _synchronize_cypress_with_local_dir(local_cypress_dir, client)
 
