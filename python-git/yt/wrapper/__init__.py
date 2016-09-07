@@ -8,7 +8,7 @@ Be ready to catch :py:exc:`yt.wrapper.errors.YtError` after all commands!
 from .client_api import *
 from .client import YtClient
 
-from .errors import YtError, YtOperationFailedError, YtResponseError, \
+from .errors import YtError, YtOperationFailedError, YtResponseError, YtHttpResponseError, \
                     YtProxyUnavailable, YtTokenError, YtTimeoutError, YtTransactionPingError
 from .yamr_record import Record
 from .format import DsvFormat, YamrFormat, YsonFormat, JsonFormat, SchemafulDsvFormat,\
