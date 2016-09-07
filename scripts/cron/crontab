@@ -1,6 +1,6 @@
 */10 * * * * TITLE="clear operations on alyx" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=alyx.yt.yandex.net yt_lock.py --conflict-exit-code 0 //sys/cron/clear_operations_lock "/opt/cron/clear_operations.py --log /opt/cron/operations_spec_alyx --robot crawler --robot odin --robot cron --robot statbox_push_daemon --archive-timeout 7 --archive"' >>/opt/cron/clear_operations_alyx.log 2>&1
 */10 * * * * TITLE="clear operations on smith" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=smith.yt.yandex.net yt_lock.py --conflict-exit-code 0 //sys/cron/clear_operations_lock "/opt/cron/clear_operations.py --log /opt/cron/operations_spec_smith --robot crawler --robot odin --robot cron --robot statbox_push_daemon --archive-timeout 7 --archive"' >>/opt/cron/clear_operations_smith.log 2>&1
-*/10 * * * * TITLE="clear operations on marx" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN=!!INSERT_MARX_TOKEN_HERE!! YT_PROXY=marx.yt.yandex.net yt_lock.py --conflict-exit-code 0 //sys/cron/clear_operations_lock "/opt/cron/clear_operations.py --robot cron --archive-timeout 7 --max-operations-per-user 1500 --soft-limit 200"' >>/opt/cron/clear_operations_marx.log 2>&1
+*/10 * * * * TITLE="clear operations on marx" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=marx.yt.yandex.net yt_lock.py --conflict-exit-code 0 //sys/cron/clear_operations_lock "/opt/cron/clear_operations.py --robot cron --archive-timeout 7 --max-operations-per-user 1500 --soft-limit 200"' >>/opt/cron/clear_operations_marx.log 2>&1
 */10 * * * * TITLE="clear operations on quine" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=quine.yt.yandex.net yt_lock.py --conflict-exit-code 0 //sys/cron/clear_operations_lock "/opt/cron/clear_operations.py --robot cron --robot statbox_kafka_push --archive-timeout 7 --archive"' >>/opt/cron/clear_operations_quine.log 2>&1
 */10 * * * * TITLE="clear operations on barney" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=barney.yt.yandex.net yt_lock.py --conflict-exit-code 0 //sys/cron/clear_operations_lock "/opt/cron/clear_operations.py --archive-timeout 7 --archive"' >>/opt/cron/clear_operations_barney.log 2>&1
 */10 * * * * TITLE="clear operations on seneca_sas" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=seneca-sas.yt.yandex.net yt_lock.py --conflict-exit-code 0 //sys/cron/clear_operations_lock "/opt/cron/clear_operations.py --archive-timeout 7 --archive"' >>/opt/cron/clear_operations_seneca-sas.log 2>&1
@@ -11,8 +11,8 @@
 */10 * * * * TITLE="clear operations on banach" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=banach.yt.yandex.net yt_lock.py --conflict-exit-code 0 //sys/cron/clear_operations_lock "/opt/cron/clear_operations.py --archive-timeout 7 --archive"' >>/opt/cron/clear_operations_banach.log 2>&1
 */10 * * * * TITLE="clear operations on socrates" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=socrates.yt.yandex.net yt_lock.py --conflict-exit-code 0 //sys/cron/clear_operations_lock "/opt/cron/clear_operations.py --archive-timeout 7"' >>/opt/cron/clear_operations_socrates.log 2>&1
 */10 * * * * TITLE="clear operations on vanga" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=vanga.yt.yandex.net yt_lock.py --conflict-exit-code 0 //sys/cron/clear_operations_lock "/opt/cron/clear_operations.py --archive-timeout 7 --archive"' >>/opt/cron/clear_operations_vanga.log 2>&1
-*/5 * * * * TITLE="clear operations on hahn" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=hahn.yt.yandex.net yt_lock.py --conflict-exit-code 0 //sys/cron/clear_operations_lock "/opt/cron/clear_operations.py --archive-timeout 7 --archive"' >>/opt/cron/clear_operations_hahn.log 2>&1
-*/10 * * * * TITLE="clear operations on hume" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=hume.yt.yandex.net yt_lock.py --conflict-exit-code 0 //sys/cron/clear_operations_lock "/opt/cron/clear_operations.py --archive-timeout 7"' >>/opt/cron/clear_operations_hume.log 2>&1
+*/5 * * * * TITLE="clear operations on hahn" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=hahn.yt.yandex.net yt_lock.py --conflict-exit-code 0 //sys/cron/clear_operations_lock "/opt/cron/clear_operations.py --archive-timeout 7 --archive --thread-count 50"' >>/opt/cron/clear_operations_hahn.log 2>&1
+*/10 * * * * TITLE="clear operations on hume" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=hume.yt.yandex.net yt_lock.py --conflict-exit-code 0 //sys/cron/clear_operations_lock "/opt/cron/clear_operations.py --archive-timeout 7 --archive"' >>/opt/cron/clear_operations_hume.log 2>&1
 */10 * * * * TITLE="clear operations on flux" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=flux.yt.yandex.net yt_lock.py --conflict-exit-code 0 //sys/cron/clear_operations_lock "/opt/cron/clear_operations.py --archive-timeout 7 --max-operations-per-user 1500 --soft-limit 200"' >>/opt/cron/clear_operations_flux.log 2>&1
 
 # Merge tables
@@ -21,6 +21,7 @@
 0 3,15 * * * TITLE="merge on banach" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=banach.yt.yandex.net /opt/cron/run_merge.sh >>/opt/cron/run_merge.log 2>&1
 0 3,15 * * * TITLE="merge on vanga" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=vanga.yt.yandex.net /opt/cron/run_merge.sh >>/opt/cron/run_merge.log 2>&1
 0 3,15 * * * TITLE="merge on hahn" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=hahn.yt.yandex.net /opt/cron/run_merge.sh >>/opt/cron/run_merge.log 2>&1
+0 3,15 * * * TITLE="merge on marx" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=marx.yt.yandex.net /opt/cron/run_merge.sh >>/opt/cron/run_merge.log 2>&1
 
 
 # Nightly compression
@@ -31,7 +32,7 @@
 
 
 # Nightly tests
-0 5 * * * YT_PROXY=quine.yt.yandex.net  /opt/cron/nightly_tests/synth/cron.sh /opt/cron/nightly_tests/logs >>/opt/cron/nightly_tests_log 2>&1
+0 5 * * * YT_PROXY=quine.yt.yandex.net  /opt/cron/nightly_tests/synth/cron.sh /opt/cron/nightly_tests/logs >>/opt/cron/nightly_tests.log 2>&1
 #0 5 * * * YT_PROXY=smith.yt.yandex.net /opt/cron/nightly_tests/synth/cron.sh /opt/cron/nightly_tests/logs >>/opt/cron/nightly_tests_log 2>&1
 
 # Check parent id
@@ -43,7 +44,8 @@
 0 * * * * TITLE="clear tmp on quine" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=quine.yt.yandex.net /opt/cron/clear_tmp.py >>/opt/cron/clear_tmp_quine.log 2>&1
 0 * * * * TITLE="clear tmp on freud" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=freud.yt.yandex.net /opt/cron/clear_tmp.py >>/opt/cron/clear_tmp_freud.log 2>&1
 0 * * * * TITLE="clear tmp on banach" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=banach.yt.yandex.net /opt/cron/clear_tmp.py >>/opt/cron/clear_tmp_banach.log 2>&1
-0 * * * * TITLE="clear tmp on hahn" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=hahn.yt.yandex.net /opt/cron/clear_tmp.py >>/opt/cron/clear_tmp_hahn.log 2>&1
+0 * * * * TITLE="clear tmp on hahn" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=hahn.yt.yandex.net /opt/cron/clear_full_tmp.py >>/opt/cron/clear_tmp_hahn.log 2>&1
+*/15 * * * * TITLE="clear tmp files on hahn" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=hahn.yt.yandex.net /opt/cron/clear_tmp_files.py >>/opt/cron/clear_tmp_files_hahn.log 2>&1
 0 * * * * TITLE="clear tmp on vanga" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=vanga.yt.yandex.net /opt/cron/clear_tmp.py >>/opt/cron/clear_tmp_vanga.log 2>&1
 0 * * * * TITLE="clear tmp on hume" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=hume.yt.yandex.net /opt/cron/clear_tmp.sh >>/opt/cron/clear_tmp_hume.log 2>&1
 0 * * * * TITLE="clear tmp on popper" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=popper.yt.yandex.net /opt/cron/clear_tmp.py >>/opt/cron/clear_tmp_popper.log 2>&1
@@ -54,13 +56,12 @@
 # Import tables from redwood
 */10 * * * * TITLE="yamr import to freud" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=freud.yt.yandex.net yt_lock.py --conflict-exit-code 0 //sys/cron/yamr_import_lock "/opt/cron/import_to_freud.py"' >>/opt/cron/import_to_freud.log 2>&1
 */10 * * * * TITLE="yamr import to hahn" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=hahn.yt.yandex.net yt_lock.py --conflict-exit-code 0 //sys/cron/yamr_import_lock "/opt/cron/import_to_hahn.py"' >>/opt/cron/import_to_hahn.log 2>&1
- 
 
 # Setting opaques
-0 * * * * /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=smith.yt.yandex.net /opt/cron/set_opaque.py >>/opt/cron/set_opaque_log 2>&1
-0 * * * * /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=freud.yt.yandex.net /opt/cron/set_opaque.py >>/opt/cron/set_opaque_log 2>&1
-0 * * * * /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=hahn.yt.yandex.net /opt/cron/set_opaque.py >>/opt/cron/set_opaque_log 2>&1
-0 * * * * /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=banach.yt.yandex.net /opt/cron/set_opaque.py >>/opt/cron/set_opaque_log 2>&1
+0 * * * * /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=smith.yt.yandex.net /opt/cron/set_opaque.py >>/opt/cron/set_opaque_smith.log 2>&1
+0 * * * * /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=freud.yt.yandex.net /opt/cron/set_opaque.py >>/opt/cron/set_opaque_freud.log 2>&1
+0 * * * * /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=hahn.yt.yandex.net /opt/cron/set_opaque.py >>/opt/cron/set_opaque_hahn.log 2>&1
+0 * * * * /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=banach.yt.yandex.net /opt/cron/set_opaque.py >>/opt/cron/set_opaque_banach.log 2>&1
 
 # Clear transfer manager tasks
 0 * * * * TITLE="clear transfer manager tasks" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru /opt/cron/clear_transfer_manager_tasks.py http://transfer-manager.yt.yandex.net/api/v1 --token !!INSERT_TRANSFER_MANAGER_TOKEN_HERE!! --total-count 1500 >>/opt/cron/clear_transfer_manager_tasks.log 2>&1
@@ -89,3 +90,6 @@
 # BS clusters:
 */2 * * * * TITLE="sending notification via mail" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN=!!INSERT_TOKEN_HERE!! /opt/cron/send_notifications_via_mail.py alyx seneca-sas seneca-fin -r yt-announces@yandex-team.ru yt-ops@yandex-team.ru yt-yabs@yandex-team.ru' >>/opt/cron/send_notifications_via_mail.log 2>&1
 */2 * * * * TITLE="sending notification via mail" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN=!!INSERT_TOKEN_HERE!! /opt/cron/send_notifications_via_mail.py barney pareto-man pareto-myt -r yt-testing-announces@yandex-team.ru yt-ops@yandex-team.ru yt-yabs@yandex-team.ru' >>/opt/cron/send_testing_notifications_via_mail.log 2>&1
+
+# Prune empty tables and map nodes
+0 3 * * * TITLE="empty tables and map nodes pruning" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=smith.yt.yandex.net /opt/cron/prune_empty_nodes.py >>/opt/cron/prune_empty_nodes.log 2>&1
