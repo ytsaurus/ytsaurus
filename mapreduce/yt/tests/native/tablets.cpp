@@ -28,6 +28,28 @@ public:
     IClientPtr Client() { return Client_; }
     const char* Input() { return "tmp/input"; }
 
+    void CreateDynamicTable()
+    {
+        TNode schema;
+        schema.Add(TNode()("name", "a")("type", "int64")("sort_order", "ascending"));
+        schema.Add(TNode()("name", "b")("type", "int64"));
+
+        Client()->Create(
+            Input(),
+            NT_TABLE,
+            TCreateOptions().Attributes(TNode()
+                ("dynamic", true)
+                ("schema", schema))
+        );
+    }
+
+    void WaitForTabletState(const TYPath& path, const char* state)
+    {
+        while (Client()->Get(path) != state) {
+            Sleep(TDuration::MilliSeconds(500));
+        }
+    }
+
 private:
     void RemoveTables()
     {
@@ -62,33 +84,51 @@ private:
 
 YT_TEST(TTablet, MountUnmount)
 {
-    TNode schema;
-    schema.Add(TNode()("name", "a")("type", "int64"));
+    CreateDynamicTable();
 
-    Client()->Create(
-        Input(),
-        NT_TABLE,
-        TCreateOptions().Attributes(TNode()
-            ("dynamic", true)
-            ("schema", schema))
-    );
+    Stroka tabletStatePath = TStringBuilder() << Input() << "/@tablets/0/state";
 
     Client()->MountTable(Input());
+    WaitForTabletState(tabletStatePath, "mounted");
 
-    Stroka tabletStatePath = TStringBuilder() <<
-        //AddPathPrefix(TYPath(Input())) <<
-        Input() <<
-        "/@tablets/0/state";
-
-    while (Client()->Get(tabletStatePath) != "mounted") {
-        Sleep(TDuration::MilliSeconds(500));
-    }
+    Client()->RemountTable(Input());
+    WaitForTabletState(tabletStatePath, "mounted");
 
     Client()->UnmountTable(Input());
+    WaitForTabletState(tabletStatePath, "unmounted");
+}
 
-    while (Client()->Get(tabletStatePath) != "unmounted") {
-        Sleep(TDuration::MilliSeconds(500));
+////////////////////////////////////////////////////////////////////////////////
+
+YT_TEST(TTablet, Reshard)
+{
+    CreateDynamicTable();
+
+    Stroka tabletStatePath = TStringBuilder() << Input() << "/@tablets/0/state";
+
+    Client()->MountTable(Input());
+    WaitForTabletState(tabletStatePath, "mounted");
+
+    TNode::TList rows;
+    for (int i = 0; i < 16; ++i) {
+        rows.push_back(TNode()("a", i));
     }
+
+    Client()->InsertRows(Input(), rows);
+
+    Client()->UnmountTable(Input());
+    WaitForTabletState(tabletStatePath, "unmounted");
+
+    yvector<TKey> pivotKeys;
+    pivotKeys.push_back(TKey());
+    pivotKeys.push_back(4);
+    pivotKeys.push_back(8);
+    pivotKeys.push_back(12);
+
+    Client()->ReshardTable(Input(), pivotKeys);
+
+    Stroka tabletsPath = TStringBuilder() << Input() << "/@tablets";
+    EXPECT_EQ(Client()->Get(tabletsPath).Size(), 4);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

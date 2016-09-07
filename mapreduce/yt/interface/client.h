@@ -61,6 +61,10 @@ struct TRemountTableOptions
     : public TTabletOptions<TRemountTableOptions>
 { };
 
+struct TReshardTableOptions
+    : public TTabletOptions<TReshardTableOptions>
+{ };
+
 struct TAlterTableOptions
 {
     using TSelf = TAlterTableOptions;
@@ -152,6 +156,16 @@ public:
     virtual void RemountTable(
         const TYPath& path,
         const TRemountTableOptions& options = TRemountTableOptions()) = 0;
+
+    virtual void ReshardTable(
+        const TYPath& path,
+        const yvector<TKey>& pivotKeys,
+        const TReshardTableOptions& options = TReshardTableOptions()) = 0;
+
+    virtual void ReshardTable(
+        const TYPath& path,
+        i32 tabletCount,
+        const TReshardTableOptions& options = TReshardTableOptions()) = 0;
 
     // TODO: move to transaction
     virtual void InsertRows(

@@ -314,6 +314,12 @@ void TMockClient::UnmountTable(const TYPath&, const TUnmountTableOptions&) {
 void TMockClient::RemountTable(const TYPath&, const TRemountTableOptions&) {
 }
 
+void TMockClient::ReshardTable(const TYPath&, const yvector<TKey>&, const TReshardTableOptions&) {
+}
+
+void TMockClient::ReshardTable(const TYPath&, i32, const TReshardTableOptions&) {
+}
+
 void TMockClient::InsertRows(const TYPath&, const TNode::TList&) {
 }
 
