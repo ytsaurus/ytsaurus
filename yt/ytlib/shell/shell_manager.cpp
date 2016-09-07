@@ -40,6 +40,7 @@ static const char* Bashrc =
     "alias cp='cp -i'\n"
     "alias mv='mv -i'\n"
     "alias rm='rm -i'\n"
+    "alias perf_top='sudo /usr/bin/perf top -u \"$USER\"'\n"
     "export TMPDIR=\"$HOME/tmp\"\n"
     "mkdir -p \"$TMPDIR\"\n"
     "export G_HOME=\"$HOME\"\n"
