@@ -276,7 +276,7 @@ protected:
             return;
         }
 
-        THROW_ERROR_EXCEPTION("Row weight is too large")
+        THROW_ERROR_EXCEPTION(EErrorCode::RowWeightLimitExceeded, "Row weight is too large")
             << TErrorAttribute("row_weight", weight)
             << TErrorAttribute("row_weight_limit", Config_->MaxRowWeight);
     }
