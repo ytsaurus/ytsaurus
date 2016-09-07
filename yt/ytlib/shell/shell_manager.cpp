@@ -99,8 +99,12 @@ public:
                 if (options->Width != 0) {
                     options->Width = parameters.Width;
                 }
-                Environment_.emplace_back(Format("HOME=%v", WorkingDir_));
                 options->CGroupBasePath = FreezerFullPath_;
+                Environment_.insert(
+                    Environment_.end(),
+                    parameters.Environment.begin(),
+                    parameters.Environment.end());
+                Environment_.emplace_back(Format("HOME=%v", WorkingDir_));
                 options->Environment = Environment_;
                 options->WorkingDir = WorkingDir_;
                 options->Bashrc = Bashrc;
