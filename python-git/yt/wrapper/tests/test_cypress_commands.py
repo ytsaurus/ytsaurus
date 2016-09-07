@@ -31,7 +31,7 @@ class TestCypressCommands(object):
         assert str(path) == "#123"
         assert repr(path) == "#123"
         assert path.append is None
-        assert path.attributes == {"append": "false", "ranges": []}
+        assert path.attributes == {"ranges": []}
 
     def test_get_set_exists(self):
         assert yt.get("/")

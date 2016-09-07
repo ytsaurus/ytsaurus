@@ -164,7 +164,10 @@ class TablePath(object):
 
     @property
     def append(self):
-        return parse_bool(self._append)
+        if self._append is not None:
+            return parse_bool(self._append)
+        else:
+            return None
 
     @append.setter
     def append(self, value):
