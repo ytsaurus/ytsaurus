@@ -84,9 +84,6 @@ public:
 
     TTableSchema Filter(const TColumnFilter& columnFilter) const;
 
-    // TODO(babenko): this function is deprecated
-    void AppendColumn(const TColumnSchema& column);
-
     bool HasComputedColumns() const;
     bool IsSorted() const;
     bool IsUniqueKeys() const;
