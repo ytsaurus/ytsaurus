@@ -17,11 +17,6 @@ from itertools import starmap
 from threading import Thread
 from Queue import Queue
 
-try:
-    from raven.handlers.logging import SentryHandler
-except ImportError:
-    SentryHandler = None
-
 # Brief description.
 # Attributes on table:
 # processed_row_count - number of rows in current table pushed to logbroker.
@@ -202,6 +197,9 @@ def make_read_tasks(yt_client, table_path, session_count, range_row_count, max_r
     processed_row_count = attributes["processed_row_count"]
     table_start_row_index = attributes["table_start_row_index"]
 
+    logger.info("Building tasks (row_count: %d, processed_row_count: %d, table_start_row_index: %d)",
+                row_count, processed_row_count, table_start_row_index)
+
     tasks = []
     all_ranges = []
     for session_index in xrange(session_count):
@@ -286,6 +284,8 @@ class PushMapper(object):
 
     def __call__(self, row):
         del row["@table_index"]
+        logger.handlers = [logging.StreamHandler()]
+        logger.setLevel(logging.INFO)
         pipe_from_yt_to_logbroker(self.yt_client, self.logbroker, **row)
         if False:
             yield
@@ -296,6 +296,9 @@ def push_to_logbroker_one_portion(yt_client, logbroker, table_path, session_coun
         yt_client.lock(table_path, mode="snapshot")
 
         tasks, pushed_row_count = make_read_tasks(yt_client, table_path, session_count, range_row_count, max_range_count)
+        if not tasks:
+            return
+
         if session_count == 1:
             assert len(tasks) == 1
             session_index, seqno, ranges = tasks[0]
@@ -310,6 +313,7 @@ def push_to_logbroker_one_portion(yt_client, logbroker, table_path, session_coun
 
                 logger.info("Starting push operation (input: %s, output: %s)", input_table, output_table)
                 yt_client.config["allow_http_requests_to_yt_from_job"] = True
+                yt_client.config["pickling"]["module_filter"] = lambda module: hasattr(module, "__file__") and not "raven" in module.__file__
                 yt_client.run_map(PushMapper(yt_client, logbroker), input_table, output_table, spec={"data_size_per_job": 1})
 
     with yt_client.Transaction():
@@ -350,6 +354,11 @@ def acquire_yt_lock(yt_client, lock_path, timeout, queue):
 
 
 def push_to_logbroker(yt_client, logbroker, daemon, table_path, session_count, range_row_count, max_range_count, sentry_endpoint, lock_path):
+    try:
+        from raven.handlers.logging import SentryHandler
+    except ImportError:
+        SentryHandler = None
+
     if sentry_endpoint and SentryHandler is not None:
         root_logger = logging.getLogger("")
         sentry_handler = SentryHandler(sentry_endpoint)
