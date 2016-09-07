@@ -71,7 +71,7 @@ class TablePath(object):
         .. note:: don't specify lower_key (upper_key) and start_index (end_index) simultaneously
         .. note:: param `simplify` will be removed
         """
-        self._append = append
+        self._append = None
         if simplify:
             self.name = parse_ypath(name, client=client)
             for key, value in iteritems(self.name.attributes):
@@ -103,8 +103,8 @@ class TablePath(object):
             del attributes["channel"]
         if append is not None:
             self.append = append
-        else:
-            self.append = attributes.get("append", False)
+        elif "append" in attributes:
+            self.append = attributes["append"]
         if sorted_by is not None:
             attributes["sorted_by"] = sorted_by
         if columns is not None:
@@ -169,7 +169,11 @@ class TablePath(object):
     @append.setter
     def append(self, value):
         self._append = value
-        self.name.attributes["append"] = bool_to_string(self._append)
+        if self._append is not None:
+            self.name.attributes["append"] = bool_to_string(self._append)
+        else:
+            if "append" in self.name.attributes:
+                del self.name.attributes["append"]
 
     def has_delimiters(self):
         """Check attributes for delimiters (channel, lower or upper limits)"""
