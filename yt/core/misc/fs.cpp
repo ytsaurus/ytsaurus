@@ -608,7 +608,7 @@ void ChunkedCopy(
             break;
         }
         // Yield woudn't work here, see st/YT-5601.
-        WaitFor(VoidFuture);
+        NConcurrency::WaitFor(VoidFuture);
     }
 }
 
