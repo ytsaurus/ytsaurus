@@ -1,5 +1,6 @@
 #!/bin/bash -eux
 
+yt2 remove //tmp/fennel_test --force --proxy hahn
 echo -e "key=1\nkey=2\nkey=3\nkey=4\nkey=5" | yt2 write //tmp/fennel_test --format dsv --proxy hahn
 
 random_suffix="$(cat /dev/urandom | tr -cd 'a-f0-9' | head -c 4)"
