@@ -483,7 +483,7 @@ def create_table(path, recursive=None, ignore_existing=False,
     if get_config(client)["create_table_attributes"] is not None:
         attributes = update(get_config(client)["create_table_attributes"], attributes)
     if get_config(client)["yamr_mode"]["use_yamr_defaults"]:
-        attributes = update(attributes, {"compression_codec": "zlib_6"})
+        attributes = update({"compression_codec": "zlib_6"}, attributes)
     create("table", table.name, recursive=recursive, ignore_existing=ignore_existing,
            attributes=attributes, client=client)
 
