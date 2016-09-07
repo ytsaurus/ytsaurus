@@ -44,9 +44,13 @@ class JobShell(object):
         self.sync = HTTPClient()
         self.async = AsyncHTTPClient()
 
+        proxy_url = get_proxy_url(client=client)
         proxy = "http://{0}/api/{1}"\
-            .format(get_proxy_url(client=client), get_api_version(client=client))
+            .format(proxy_url, get_api_version(client=client))
+        self.environment = ["YT_PROXY=" + proxy_url]
         token = get_token(client=client)
+        if token is not None:
+            self.environment.append("YT_TOKEN=" + token)
 
         headers = HTTPHeaders()
         if token:
@@ -71,8 +75,10 @@ class JobShell(object):
         parameters = {
             "operation": operation,
         }
-        if operation == "spawn" and self.inactivity_timeout is not None:
-            parameters["inactivity_timeout"] = self.inactivity_timeout
+        if operation == "spawn":
+            if self.inactivity_timeout is not None:
+                parameters["inactivity_timeout"] = self.inactivity_timeout
+            parameters["environment"] = self.environment
         if height is not None:
             parameters["height"] = height
         if width is not None:
