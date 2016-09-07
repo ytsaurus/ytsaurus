@@ -628,6 +628,30 @@ public:
         RetryRequest(Auth_, header);
     }
 
+    void ReshardTable(
+        const TYPath& path,
+        const yvector<TKey>& keys,
+        const TReshardTableOptions& options = TReshardTableOptions()) override
+    {
+        THttpHeader header("POST", "reshard_table");
+        SetTabletParams(header, path, options);
+        header.SetParameters(BuildYsonStringFluently().BeginMap()
+            .Item("pivot_keys").List(keys)
+        .EndMap());
+        RetryRequest(Auth_, header);
+    }
+
+    void ReshardTable(
+        const TYPath& path,
+        i32 tabletCount,
+        const TReshardTableOptions& options = TReshardTableOptions()) override
+    {
+        THttpHeader header("POST", "reshard_table");
+        SetTabletParams(header, path, options);
+        header.AddParam("tablet_count", static_cast<i64>(tabletCount));
+        RetryRequest(Auth_, header);
+    }
+
     void InsertRows(
         const TYPath& path,
         const TNode::TList& rows) override
@@ -649,7 +673,7 @@ public:
     {
         Y_UNUSED(options);
         THttpHeader header("PUT", "lookup_rows");
-        header.AddPath(path);
+        header.AddPath(AddPathPrefix(path));
         header.SetDataStreamFormat(DSF_YSON_BINARY);
 
         header.SetParameters(BuildYsonStringFluently().BeginMap()
@@ -714,7 +738,7 @@ private:
         const TNode::TList& rows)
     {
         THttpHeader header("PUT", command);
-        header.AddPath(path);
+        header.AddPath(AddPathPrefix(path));
         header.SetDataStreamFormat(DSF_YSON_BINARY);
 
         auto body = NodeListToYsonString(rows);

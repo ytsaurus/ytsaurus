@@ -76,6 +76,10 @@ public:
 
     void RemountTable(const TYPath&, const TRemountTableOptions&);
 
+    void ReshardTable(const TYPath&, const yvector<TKey>&, const TReshardTableOptions&);
+
+    void ReshardTable(const TYPath&, i32, const TReshardTableOptions&);
+
     void InsertRows(const TYPath&, const TNode::TList&);
 
     void DeleteRows(const TYPath&, const TNode::TList&);
