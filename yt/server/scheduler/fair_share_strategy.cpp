@@ -531,8 +531,13 @@ public:
                     EMetricType::Gauge,
                     {tag});
                 Profiler.Enqueue(
-                    "/operation_count",
+                    "/running_operation_count",
                     pool->RunningOperationCount(),
+                    EMetricType::Gauge,
+                    {tag});
+                Profiler.Enqueue(
+                    "/total_operation_count",
+                    pool->OperationCount(),
                     EMetricType::Gauge,
                     {tag});
             }
