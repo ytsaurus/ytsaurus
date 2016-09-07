@@ -36,6 +36,12 @@ namespace {
         {
             return GetDefaultGuid();
         }
+
+        void AlterTable(
+            const TYPath&,
+            const TAlterTableOptions&) override
+        { }
+
         void Commit() override {}
         void Abort() override {}
 
@@ -294,6 +300,18 @@ ITransactionPtr TMockClient::StartTransaction(const TStartTransactionOptions&) {
 
 ITransactionPtr TMockClient::AttachTransaction(const TTransactionId&) {
     return new TMockTransaction();
+}
+
+void TMockClient::AlterTable(const TYPath&, const TAlterTableOptions&) {
+}
+
+void TMockClient::MountTable(const TYPath&, const TMountTableOptions&) {
+}
+
+void TMockClient::UnmountTable(const TYPath&, const TUnmountTableOptions&) {
+}
+
+void TMockClient::RemountTable(const TYPath&, const TRemountTableOptions&) {
 }
 
 void TMockClient::InsertRows(const TYPath&, const TNode::TList&) {

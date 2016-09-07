@@ -68,6 +68,14 @@ public:
 
     ITransactionPtr AttachTransaction(const TTransactionId&);
 
+    void AlterTable(const TYPath&, const TAlterTableOptions&);
+
+    void MountTable(const TYPath&, const TMountTableOptions&);
+
+    void UnmountTable(const TYPath&, const TUnmountTableOptions&);
+
+    void RemountTable(const TYPath&, const TRemountTableOptions&);
+
     void InsertRows(const TYPath&, const TNode::TList&);
 
     void DeleteRows(const TYPath&, const TNode::TList&);

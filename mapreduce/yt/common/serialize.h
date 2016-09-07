@@ -35,6 +35,9 @@ void Serialize(const TReadRange& readRange, IYsonConsumer* consumer);
 void Serialize(const TRichYPath& path, IYsonConsumer* consumer);
 void Serialize(const TAttributeFilter& filter, IYsonConsumer* consumer);
 
+void Serialize(const TColumnSchema& columnSchema, IYsonConsumer* consumer);
+void Serialize(const TTableSchema& tableSchema, IYsonConsumer* consumer);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
