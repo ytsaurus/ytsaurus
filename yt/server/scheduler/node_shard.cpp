@@ -1301,14 +1301,17 @@ void TNodeShard::ProcessFinishedJobResult(const TJobPtr& job)
     }
 
     auto* operationState = FindOperationState(job->GetOperationId());
-    TFuture<TYsonString> inputPathsFuture;
+    TFuture<TNullable<TYsonString>> inputPathsFuture;
     if (operationState) {
         auto& controller = operationState->Controller;
+        auto cb = BIND(&IOperationController::BuildInputPathYson, controller);
+        cb.AsyncVia(controller->GetCancelableInvoker());
         inputPathsFuture = BIND(&IOperationController::BuildInputPathYson, controller)
             .AsyncVia(controller->GetCancelableInvoker())
             .Run(job->GetId());
     } else {
-        inputPathsFuture = MakeFuture<TYsonString>(TError("No controller for operation %v", job->GetOperationId()));
+        inputPathsFuture = MakeFuture<TNullable<TYsonString>>(
+            TError("No controller for operation %v", job->GetOperationId()));
     }
 
     auto asyncResult = Host_->UpdateOperationWithFinishedJob(

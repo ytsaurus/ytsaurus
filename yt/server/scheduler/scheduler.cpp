@@ -863,7 +863,7 @@ public:
         NYson::TYsonString jobAttributes,
         const TChunkId& stderrChunkId,
         const TChunkId& failContextChunkId,
-        TFuture<TYsonString> inputPathsFuture) override
+        TFuture<TNullable<TYsonString>> inputPathsFuture) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1024,7 +1024,7 @@ private:
         NYson::TYsonString jobAttributes,
         const TChunkId& stderrChunkId,
         const TChunkId& failContextChunkId,
-        TFuture<TYsonString> inputPathsFuture)
+        TFuture<TNullable<TYsonString>> inputPathsFuture)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 

@@ -314,7 +314,7 @@ struct IOperationController
      */
     //! Start building YSON representaion of all input paths with all ranges processed
     //! by the job with specified ID.
-    virtual NYson::TYsonString BuildInputPathYson(const TJobId& jobId) const = 0;
+    virtual TNullable<NYson::TYsonString> BuildInputPathYson(const TJobId& jobId) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)

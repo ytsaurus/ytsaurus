@@ -104,17 +104,22 @@ static void BuildReadLimit(const TInputSlicePtr& slice, const TReadLimit& limit,
         .EndMap();
 }
 
-TYsonString BuildInputPaths(
+TNullable<TYsonString> BuildInputPaths(
     const std::vector<TRichYPath>& inputPaths,
     const TChunkStripeListPtr& inputStripeList)
 {
+    bool hasSlices = false;
     std::vector<std::vector<TInputSlicePtr>> slicesByTable(inputPaths.size());
     for (const auto& stripe : inputStripeList->Stripes) {
         for (const auto& slice : stripe->ChunkSlices) {
             if (slice->GetInputChunk()->GetTableIndex() >= 0) {
                 slicesByTable[slice->GetInputChunk()->GetTableIndex()].push_back(slice);
+                hasSlices = true;
             }
         }
+    }
+    if (!hasSlices) {
+        return Null;
     }
 
     std::vector<std::vector<std::pair<TInputSlicePtr, TInputSlicePtr>>> rangesByTable(inputPaths.size());
