@@ -16,7 +16,7 @@ namespace NTabletNode {
 
 typedef int(TDDComparerSignature)(ui32, const TDynamicValueData*, ui32, const TDynamicValueData*);
 typedef int(TDUComparerSignature)(ui32, const TDynamicValueData*, const TUnversionedValue*, int);
-typedef int(TUUComparerSignature)(const TUnversionedValue*, const TUnversionedValue*);
+typedef int(TUUComparerSignature)(const TUnversionedValue*, i32, const TUnversionedValue*, i32);
 
 ////////////////////////////////////////////////////////////////////////////////
 
