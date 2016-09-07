@@ -55,17 +55,9 @@ message TUserJobSpec
 
     optional bool enable_core_dump = 12 [default = false];
 
-    // Deprecated = 13.
-
-    // Deprecated = 15.
-
     optional bool check_input_fully_consumed = 16 [default = false];
 
     required int64 custom_statistics_count_limit = 18;
-
-    optional int32 iops_threshold = 19 [default = 1000];
-
-    optional int32 blkio_weight = 20;
 
     optional bool include_memory_mapped_files = 21 [default = true];
 
@@ -78,6 +70,9 @@ message TUserJobSpec
 
     // Time after which job will be failed, in milliseconds.
     optional int64 job_time_limit = 26;
+
+    optional int32 iops_threshold = 27 [default = 1000];
+    optional int32 iops_throttler_limit = 28;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
