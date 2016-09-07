@@ -254,17 +254,6 @@ TTableSchema TTableSchema::Filter(const TColumnFilter& columnFilter) const
     return TTableSchema(std::move(columns));
 }
 
-void TTableSchema::AppendColumn(const TColumnSchema& column)
-{
-    Columns_.push_back(column);
-    if (column.SortOrder) {
-        ++KeyColumnCount_;
-    }
-    // XXX(babenko): this line below was commented out since we must allow
-    // system columns in query schema
-    // ValidateTableSchema(temp);
-}
-
 bool TTableSchema::HasComputedColumns() const
 {
     for (const auto& column : Columns()) {
