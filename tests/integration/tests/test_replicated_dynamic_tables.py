@@ -42,8 +42,8 @@ class TestReplicatedDynamicTables(YTEnvSetup):
             ]
         }
     
-    def _create_simple_replicated_table(self, path):
-        attributes = self._get_simple_table_attributes()
+    def _create_simple_replicated_table(self, path, attributes={}):
+        attributes.update(self._get_simple_table_attributes())
         attributes["enable_replication_logging"] = True
         create("replicated_table", path, attributes=attributes)
 
@@ -219,6 +219,40 @@ class TestReplicatedDynamicTables(YTEnvSetup):
 
         sleep(1.0)
         assert select_rows("* from [//tmp/r]") == [{"key": 2, "value1": "test", "value2": YsonEntity()}]
+
+    @pytest.mark.parametrize("ttl, chunk_count, trimmed_row_count", [
+        (0, 1, 1),
+        (60000, 2, 0)
+    ])
+    def test_replication_trim(self, ttl, chunk_count, trimmed_row_count):
+        self.sync_create_cells(1)
+        self._create_simple_replicated_table("//tmp/t", attributes={"min_replication_log_ttl": ttl})
+        self.sync_mount_table("//tmp/t")
+
+        self._create_simple_replica_table("//tmp/r")
+        self.sync_mount_table("//tmp/r")
+
+        replica_id = create_table_replica("//tmp/t", "r1", "//tmp/r")
+        enable_table_replica(replica_id)
+
+        insert_rows("//tmp/t", [{"key": 1, "value1": "test1"}])
+        sleep(1.0)
+        assert select_rows("* from [//tmp/r]") == [{"key": 1, "value1": "test1", "value2": YsonEntity()}]
+
+        self.sync_unmount_table("//tmp/t")
+        assert get("//tmp/t/@chunk_count") == 1
+        assert get("//tmp/t/@tablets/0/flushed_row_count") == 1
+        assert get("//tmp/t/@tablets/0/trimmed_row_count") == 0
+        
+        self.sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 2, "value1": "test2"}])
+        sleep(1.0)
+        assert select_rows("* from [//tmp/r]") == [{"key": 1, "value1": "test1", "value2": YsonEntity()}, {"key": 2, "value1": "test2", "value2": YsonEntity()}]
+        self.sync_unmount_table("//tmp/t")
+
+        assert get("//tmp/t/@chunk_count") == chunk_count
+        assert get("//tmp/t/@tablets/0/flushed_row_count") == 2
+        assert get("//tmp/t/@tablets/0/trimmed_row_count") == trimmed_row_count        
 
 ##################################################################
 

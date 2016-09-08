@@ -1084,26 +1084,8 @@ private:
         }
 
         auto trimmedRowCount = request->trimmed_row_count();
-        if (trimmedRowCount <= tablet->GetTrimmedRowCount()) {
-            return;
-        }
 
-        tablet->SetTrimmedRowCount(trimmedRowCount);
-
-        auto hiveManager = Slot_->GetHiveManager();
-        auto* masterMailbox = Slot_->GetMasterMailbox();
-
-        {
-            TReqUpdateTabletTrimmedRowCount masterRequest;
-            ToProto(masterRequest.mutable_tablet_id(), tabletId);
-            masterRequest.set_mount_revision(mountRevision);
-            masterRequest.set_trimmed_row_count(trimmedRowCount);
-            hiveManager->PostMessage(masterMailbox, masterRequest);
-        }
-
-        LOG_DEBUG_UNLESS(IsRecovery(), "Rows trimmed (TabletId: %v, TrimmedRowCount: %v)",
-            tablet->GetId(),
-            trimmedRowCount);
+        UpdateTrimmedRowCount(tablet, trimmedRowCount);
     }
 
     void HydraRotateStore(TReqRotateStore* request)
@@ -1548,7 +1530,7 @@ private:
 
     }
 
-    void HydraCommitReplicateRows(TTransaction* /*transaction*/, TReqReplicateRows* request)
+    void HydraCommitReplicateRows(TTransaction* transaction, TReqReplicateRows* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
@@ -1565,17 +1547,25 @@ private:
         YCHECK(replicaInfo->GetPreparedReplicationRowIndex() == request->new_replication_row_index());
         replicaInfo->SetPreparedReplicationRowIndex(-1);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Replicated rows committed (TabletId: %v, ReplicaId: %v, "
-            "CurrentReplicationRowIndex: %v->%v, CurrentReplicationTimestamp: %v->%v)",
-            tabletId,
-            replicaId,
-            replicaInfo->GetCurrentReplicationRowIndex(),
-            request->new_replication_row_index(),
-            replicaInfo->GetCurrentReplicationTimestamp(),
-            request->new_replication_timestamp());
+        auto prevCurrentReplicationRowIndex = replicaInfo->GetCurrentReplicationRowIndex();
+        auto prevCurrentReplicationTimestamp = replicaInfo->GetCurrentReplicationTimestamp();
+        auto prevTrimmedRowCount = tablet->GetTrimmedRowCount();
 
         replicaInfo->SetCurrentReplicationRowIndex(request->new_replication_row_index());
         replicaInfo->SetCurrentReplicationTimestamp(request->new_replication_timestamp());
+
+        AdvanceReplicatedTrimmedRowCount(transaction, tablet);
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Replicated rows committed (TabletId: %v, ReplicaId: %v, "
+            "CurrentReplicationRowIndex: %v->%v, CurrentReplicationTimestamp: %v->%v, TrimmedRowCount: %v->%v)",
+            tabletId,
+            replicaId,
+            prevCurrentReplicationRowIndex,
+            replicaInfo->GetCurrentReplicationRowIndex(),
+            prevCurrentReplicationTimestamp,
+            replicaInfo->GetCurrentReplicationTimestamp(),
+            prevTrimmedRowCount,
+            tablet->GetTrimmedRowCount());
     }
 
     void HydraAbortReplicateRows(TTransaction* /*transaction*/, TReqReplicateRows* request)
@@ -2554,6 +2544,75 @@ private:
         request.set_mount_revision(tablet->GetMountRevision());
         PopulateTableReplicaStatisticsFromInfo(request.mutable_statistics(), replicaInfo);
         PostMasterMutation(request);
+    }
+
+
+    void UpdateTrimmedRowCount(TTablet* tablet, i64 trimmedRowCount)
+    {
+        auto prevTrimmedRowCount = tablet->GetTrimmedRowCount();
+        if (trimmedRowCount <= prevTrimmedRowCount) {
+            return;
+        }
+        tablet->SetTrimmedRowCount(trimmedRowCount);
+
+        auto hiveManager = Slot_->GetHiveManager();
+        auto* masterMailbox = Slot_->GetMasterMailbox();
+
+        {
+            TReqUpdateTabletTrimmedRowCount masterRequest;
+            ToProto(masterRequest.mutable_tablet_id(), tablet->GetId());
+            masterRequest.set_mount_revision(tablet->GetMountRevision());
+            masterRequest.set_trimmed_row_count(trimmedRowCount);
+            hiveManager->PostMessage(masterMailbox, masterRequest);
+        }
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Rows trimmed (TabletId: %v, TrimmedRowCount: %v->%v)",
+            tablet->GetId(),
+            prevTrimmedRowCount,
+            trimmedRowCount);
+    }
+
+    void AdvanceReplicatedTrimmedRowCount(TTransaction* transaction, TTablet* tablet)
+    {
+        YCHECK(tablet->IsReplicated());
+
+        if (tablet->Replicas().empty()) {
+            return;
+        }
+
+        auto minReplicationRowIndex = std::numeric_limits<i64>::max();
+        for (const auto& pair : tablet->Replicas()) {
+            const auto& replicaInfo = pair.second;
+            minReplicationRowIndex = replicaInfo.GetCurrentReplicationRowIndex();
+        }
+
+        const auto& storeRowIndexMap = tablet->StoreRowIndexMap();
+        if (storeRowIndexMap.empty()) {
+            return;
+        }
+
+        const auto& config = tablet->GetConfig();
+        auto retentionDeadline = TimestampToInstant(transaction->GetCommitTimestamp()).first - config->MinReplicationLogTtl;
+        auto it = storeRowIndexMap.find(tablet->GetTrimmedRowCount());
+        YCHECK(it != storeRowIndexMap.end());
+        while (it != storeRowIndexMap.end()) {
+            const auto& store = it->second;
+            if (store->IsDynamic()) {
+                break;
+            }
+            if (minReplicationRowIndex < store->GetStartingRowIndex() + store->GetRowCount()) {
+                break;
+            }
+            if (TimestampToInstant(store->GetMaxTimestamp()).first > retentionDeadline) {
+                break;
+            }
+            ++it;
+        }
+
+        YCHECK(it != storeRowIndexMap.end());
+        auto trimmedRowCount = it->second->GetStartingRowIndex();
+        YCHECK(tablet->GetTrimmedRowCount() <= trimmedRowCount);
+        UpdateTrimmedRowCount(tablet, trimmedRowCount);
     }
 
 
