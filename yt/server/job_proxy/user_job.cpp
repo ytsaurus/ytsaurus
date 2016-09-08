@@ -28,7 +28,7 @@
 #include <yt/ytlib/query_client/query_statistics.h>
 #include <yt/ytlib/query_client/functions_cache.h>
 
-#include <yt/ytlib/shell/manager.h>
+#include <yt/ytlib/shell/shell_manager.h>
 
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/name_table.h>
@@ -42,6 +42,7 @@
 #include <yt/ytlib/transaction_client/public.h>
 
 #include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/thread_pool.h>
 #include <yt/core/concurrency/periodic_executor.h>
 
@@ -186,7 +187,18 @@ public:
                 BlockIOWatchdogExecutor_->Start();
             }
 
+            TDelayedExecutorCookie timeLimitCookie;
+            if (UserJobSpec_.has_job_time_limit()) {
+                const TDuration timeLimit = TDuration::MilliSeconds(UserJobSpec_.job_time_limit());
+                LOG_INFO("Setting job time limit to %v", timeLimit);
+                timeLimitCookie = TDelayedExecutor::Submit(
+                    BIND(&TUserJob::OnJobTimeLimitExceeded, MakeWeak(this)).Via(AuxQueue_->GetInvoker()),
+                    timeLimit);
+            }
+
             DoJobIO();
+
+            TDelayedExecutor::CancelAndClear(timeLimitCookie);
 
             if (!JobErrorPromise_.IsSet())  {
                 FinalizeJobIO();
@@ -330,8 +342,6 @@ private:
     TPeriodicExecutorPtr BlockIOWatchdogExecutor_;
 
     const NLogging::TLogger Logger;
-
-    std::vector<TBlockIO::TStatisticsItem> LastServicedIOs_;
 
     TSpinLock StatisticsLock_;
     TStatistics CustomStatistics_;
@@ -873,9 +883,6 @@ private:
 
             if (CGroupsConfig_->IsCGroupSupported(TBlockIO::Name)) {
                 BlockIO_.Create();
-                if (UserJobSpec_.has_blkio_weight()) {
-                    BlockIO_.SetWeight(UserJobSpec_.blkio_weight());
-                }
                 Process_->AddArguments({ "--cgroup", BlockIO_.GetFullPath() });
                 Environment_.emplace_back(Format("YT_CGROUP_BLKIO=%v", BlockIO_.GetFullPath()));
             }
@@ -981,6 +988,7 @@ private:
 
         LOG_ERROR(error, "%v", message);
 
+        WaitForActiveShellProcesses(error);
         CleanupUserProcesses(error);
 
         ControlPipeReader_->Abort();
@@ -1166,9 +1174,6 @@ private:
             return;
         }
 
-        // NB: currently these checks are only used for diagnostics.
-
-        auto period = CGroupsConfig_->BlockIOWatchdogPeriod;
         auto servicedIOs = BlockIO_.GetIOServiced();
 
         for (const auto& item : servicedIOs) {
@@ -1177,31 +1182,29 @@ private:
                 item.Type,
                 item.DeviceId);
 
-            auto previousItemIt = std::find_if(
-                LastServicedIOs_.begin(),
-                LastServicedIOs_.end(),
-                [&] (const TBlockIO::TStatisticsItem& other) {
-                    return item.DeviceId == other.DeviceId  && item.Type == other.Type;
-                });
-
-            i64 deltaOperations = item.Value;
-            if (previousItemIt != LastServicedIOs_.end()) {
-                deltaOperations -= previousItemIt->Value;
-            }
-
-            if (deltaOperations < 0) {
-                LOG_WARNING("%v < 0 IO operations were serviced since the last check (DeviceId: %v)",
-                    deltaOperations,
-                    item.DeviceId);
-            }
-
-            if (deltaOperations > UserJobSpec_.iops_threshold() * period.Seconds()) {
+            if (UserJobSpec_.has_iops_threshold() && 
+                item.Type == "read" &&
+                !IsWoodpecker_ &&
+                item.Value > UserJobSpec_.iops_threshold()) 
+            {
                 LOG_DEBUG("Woodpecker detected (DeviceId: %v)", item.DeviceId);
                 IsWoodpecker_ = true;
+
+                if (UserJobSpec_.has_iops_throttler_limit()) {
+                    BlockIO_.ThrottleOperations(item.DeviceId, UserJobSpec_.iops_throttler_limit());
+                }
             }
         }
+    }
 
-        LastServicedIOs_ = servicedIOs;
+    void OnJobTimeLimitExceeded()
+    {
+        auto error = TError(
+            NJobProxy::EErrorCode::JobTimeLimitExceeded,
+            "Job time limit exceeded")
+            << TErrorAttribute("limit", UserJobSpec_.job_time_limit());
+        JobErrorPromise_.TrySet(error);
+        CleanupUserProcesses(error);
     }
 };
 

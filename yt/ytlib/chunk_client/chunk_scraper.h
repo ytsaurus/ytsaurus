@@ -42,7 +42,7 @@ public:
     void Start();
 
     //! Stops periodic polling.
-    void Stop();
+    TFuture<void> Stop();
 
     //! Reset a set of chunks scraper and start/stop scraper if necessary.
     void Reset(const yhash_set<TChunkId>& chunkIds);
@@ -60,7 +60,7 @@ private:
     std::vector<TScraperTaskPtr> ScraperTasks_;
 
     void DoStart();
-    void DoStop();
+    TFuture<void> DoStop();
     void CreateTasks(const yhash_set<TChunkId>& chunkIds);
 };
 

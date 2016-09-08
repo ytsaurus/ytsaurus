@@ -55,22 +55,30 @@ TJob::TJob(IJobHostPtr host)
 
 std::vector<NChunkClient::TChunkId> TJob::DumpInputContext()
 {
-    THROW_ERROR_EXCEPTION("Dumping input context is not supported for built-in jobs");
+    THROW_ERROR_EXCEPTION(
+        EErrorCode::UnsupportedJobType,
+        "Dumping input context is not supported for built-in jobs");
 }
 
 TYsonString TJob::StraceJob()
 {
-    THROW_ERROR_EXCEPTION("Stracing is not supported for built-in jobs");
+    THROW_ERROR_EXCEPTION(
+        EErrorCode::UnsupportedJobType,
+        "Stracing is not supported for built-in jobs");
 }
 
 void TJob::SignalJob(const Stroka& /*signalName*/)
 {
-    THROW_ERROR_EXCEPTION("Signaling is not supported for built-in jobs");
+    THROW_ERROR_EXCEPTION(
+        EErrorCode::UnsupportedJobType,
+        "Signaling is not supported for built-in jobs");
 }
 
 TYsonString TJob::PollJobShell(const TYsonString& /*parameters*/)
 {
-    THROW_ERROR_EXCEPTION("Job shell is not supported for built-in jobs");
+    THROW_ERROR_EXCEPTION(
+        EErrorCode::UnsupportedJobType,
+        "Job shell is not supported for built-in jobs");
 }
 
 void RunQuery(

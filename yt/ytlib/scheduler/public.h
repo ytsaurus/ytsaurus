@@ -45,6 +45,7 @@ DEFINE_ENUM(EErrorCode,
     ((NoSuchOperation)      (200))
     ((InvalidOperationState)(201))
     ((TooManyOperations)    (202))
+    ((NoSuchJob)            (203))
 );
 
 DEFINE_ENUM(EUnavailableChunkAction,

@@ -76,9 +76,7 @@ int TSortedDynamicRowKeyComparer::operator()(
     const TUnversionedValue* rhsBegin,
     const TUnversionedValue* rhsEnd) const
 {
-    YCHECK(lhsEnd - lhsBegin == KeyColumnCount_);
-    YCHECK(rhsEnd - rhsBegin == KeyColumnCount_);
-    return UUComparer_(lhsBegin, rhsBegin);
+    return UUComparer_(lhsBegin, lhsEnd - lhsBegin, rhsBegin, rhsEnd - rhsBegin);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

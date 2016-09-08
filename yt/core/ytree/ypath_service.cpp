@@ -156,9 +156,12 @@ public:
             updatePeriod))
     {
         YCHECK(UnderlyingService_);
+        // NB: we explicitly build cache in constructor in order to have
+        // CachedTreeOrError_ set at moment of first request invocation.
+        RebuildCache();
         PeriodicExecutor_->Start();
     }
-    
+
     virtual TResolveResult Resolve(const TYPath& path, IServiceContextPtr /*context*/) override
     {
         return TResolveResult::Here(path);
@@ -170,7 +173,6 @@ private:
 
     TSpinLock SpinLock_;
     TErrorOr<INodePtr> CachedTreeOrError_;
-
 
     virtual bool DoInvoke(IServiceContextPtr context) override
     {

@@ -108,6 +108,7 @@ void ProcessFetchResponse(
     TCellTag fetchCellTag,
     TNodeDirectoryPtr nodeDirectory,
     int maxChunksPerLocateRequest,
+    TNullable<int> rangeIndex,
     const NLogging::TLogger& logger,
     std::vector<NProto::TChunkSpec>* chunkSpecs)
 {
@@ -117,6 +118,9 @@ void ProcessFetchResponse(
 
     yhash_map<TCellTag, std::vector<NProto::TChunkSpec*>> foreignChunkMap;
     for (auto& chunkSpec : *fetchResponse->mutable_chunks()) {
+        if (rangeIndex) {
+            chunkSpec.set_range_index(*rangeIndex);
+        }
         auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
         auto chunkCellTag = CellTagFromId(chunkId);
         if (chunkCellTag != fetchCellTag) {

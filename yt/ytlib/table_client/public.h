@@ -96,6 +96,7 @@ DEFINE_ENUM(EErrorCode,
     ((CorruptedNameTable)         (305))
     ((UniqueKeyViolation)         (306))
     ((SchemaViolation)            (307))
+    ((RowWeightLimitExceeded)     (308))
 );
 
 DEFINE_ENUM(ETableChunkFormat,

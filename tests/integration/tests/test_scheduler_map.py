@@ -203,17 +203,14 @@ class TestJobProber(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"foo": "bar"})
 
-        command = ('trap "echo got=SIGUSR1" USR1\n'
-                   'trap "echo got=SIGUSR2" USR2\n'
-                   "cat\n")
-
         op = map(
             dont_track=True,
             waiting_jobs=True,
             label="signal_job_with_no_job_restart",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command=command,
+            precommand='trap "echo got=SIGUSR1" USR1\ntrap "echo got=SIGUSR2" USR2\n',
+            command="cat\n",
             spec={
                 "mapper": {
                     "format": "dsv"
@@ -243,7 +240,8 @@ class TestJobProber(YTEnvSetup):
             label="signal_job_with_job_restart",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command='trap "echo got=SIGUSR1; echo stderr >&2; exit 1" USR1\ncat\n',
+            precommand='trap "echo got=SIGUSR1; echo stderr >&2; exit 1" USR1\n',
+            command='cat\n',
             spec={
                 "mapper": {
                     "format": "dsv"
@@ -1354,6 +1352,43 @@ print row + table_index
         expected = [{"key": "a", "value": "value0"},
                     {"key": "b", "value": "value1"}]
         assert_items_equal(read_table("//tmp/out"), expected)
+
+    @unix_only
+    def test_range_index(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/out")
+
+        for i in xrange(1, 3):
+            write_table(
+                "<append=true>//tmp/t_in",
+                [
+                    {"key": "%05d" % i, "value": "value"},
+                ],
+                sorted_by = ["key", "value"])
+
+        t_in = '<ranges=[{lower_limit={key=["00002"]};upper_limit={key=["00003"]}};{lower_limit={key=["00002"]};upper_limit={key=["00003"]}}]>//tmp/t_in'
+
+        op = map(
+            dont_track=True,
+            in_=[t_in],
+            out="//tmp/out",
+            command="cat >& 2",
+            spec={
+                "job_io": {
+                    "control_attributes": {
+                        "enable_range_index": True,
+                        "enable_row_index": True,
+                    }
+                },
+                "mapper": {
+                    "input_format": yson.loads("<format=text>yson"),
+                    "output_format": "dsv",
+                }
+            })
+
+        op.track()
+        check_all_stderrs(op, '"range_index"=0;', 1, substring=True)
+        check_all_stderrs(op, '"range_index"=1;', 1, substring=True)
 
     def test_insane_demand(self):
         create("table", "//tmp/t_in")
