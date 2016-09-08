@@ -91,6 +91,7 @@ private:
 
     std::vector<TOrderedChunkStorePtr> PickStoresForTrimming(TTablet* tablet)
     {
+        i64 trimmedRowCount = tablet->GetTrimmedRowCount();
         std::vector<TOrderedChunkStorePtr> result;
         for (const auto& pair : tablet->StoreRowIndexMap()) {
             const auto& store = pair.second;
@@ -101,7 +102,7 @@ private:
             if (chunkStore->GetCompactionState() != EStoreCompactionState::None) {
                 break;
             }
-            if (chunkStore->GetStartingRowIndex() + chunkStore->GetRowCount() > tablet->GetTrimmedRowCount()) {
+            if (chunkStore->GetStartingRowIndex() + chunkStore->GetRowCount() > trimmedRowCount) {
                 break;
             }
             result.push_back(chunkStore);
