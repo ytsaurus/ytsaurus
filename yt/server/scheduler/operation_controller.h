@@ -73,7 +73,7 @@ struct IOperationHost
     /*!
      *  \note Thread affinity: any
      */
-    virtual IInvokerPtr GetControlInvoker() = 0;
+    virtual IInvokerPtr GetControlInvoker() const = 0;
 
     //! Returns invoker for operation controller.
     /*!

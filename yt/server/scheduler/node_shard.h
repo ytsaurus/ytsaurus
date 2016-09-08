@@ -119,6 +119,8 @@ public:
 
     NYson::TYsonString StraceJob(const TJobId& jobId, const Stroka& user);
 
+    TNullable<NYson::TYsonString> GetJobStatistics(const TJobId& jobId);
+
     void DumpJobInputContext(const TJobId& jobId, const NYTree::TYPath& path, const Stroka& user);
 
     void SignalJob(const TJobId& jobId, const Stroka& signalName, const Stroka& user);
@@ -131,6 +133,7 @@ public:
 
     void BuildNodesYson(NYson::IYsonConsumer* consumer);
     void BuildOperationJobsYson(const TOperationId& operationId, NYson::IYsonConsumer* consumer);
+    void BuildJobYson(const TJobId& job, NYson::IYsonConsumer* consumer);
     void BuildSuspiciousJobsYson(NYson::IYsonConsumer* consumer);
 
     TJobResources GetTotalResourceLimits();
@@ -276,7 +279,6 @@ private:
     TOperationState& GetOperationState(const TOperationId& operationId);
 
     void BuildNodeYson(TExecNodePtr node, NYson::IYsonConsumer* consumer);
-    void BuildJobYson(const TJobPtr& job, NYson::IYsonConsumer* consumer);
     void BuildSuspiciousJobYson(const TJobPtr& job, NYson::IYsonConsumer* consumer);
 
 };
