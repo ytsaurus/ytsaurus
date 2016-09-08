@@ -345,6 +345,17 @@ void TDynamicStoreBase::UpdateFlushAttemptTimestamp()
     LastFlushAttemptTimestamp_ = Now();
 }
 
+void TDynamicStoreBase::UpdateTimestampRange(TTimestamp commitTimestamp)
+{
+    // NB: Don't update min/max timestamps for passive stores since
+    // others are relying on these values to remain constant.
+    // See, e.g., TSortedStoreManager::MaxTimestampToStore_.
+    if (StoreState_ == EStoreState::ActiveDynamic) {
+        MinTimestamp_ = std::min(MinTimestamp_, commitTimestamp);
+        MaxTimestamp_ = std::max(MaxTimestamp_, commitTimestamp);
+    }
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 
 TChunkStoreBase::TChunkStoreBase(

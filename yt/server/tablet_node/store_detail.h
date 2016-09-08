@@ -158,6 +158,8 @@ protected:
     i64 StoreValueCount_ = 0;
 
 
+    void UpdateTimestampRange(TTimestamp commitTimestamp);
+
     virtual void OnSetPassive() = 0;
 
 };
