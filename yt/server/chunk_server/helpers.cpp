@@ -116,6 +116,9 @@ void DetachFromChunkList(
         } else {
             chunkList->SetTrimmedChildCount(newTrimmedChildCount);
         }
+
+        // NB: Do not change row count.
+        statisticsDelta.RowCount = 0;
     } else {
         // Can handle arbitrary children.
         // Used in sorted tablet compaction..
