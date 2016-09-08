@@ -11,16 +11,16 @@ namespace NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TProto, class... TArgs>
-TTransactionActionHandlerDescriptor<TCallback<void(const Stroka&, TArgs...)>> MakeTransactionActionHandlerDescriptor(
-    TCallback<void(TProto*, TArgs...)> handler)
+template <class TTransaction, class TProto, class... TArgs>
+TTransactionActionHandlerDescriptor<TCallback<void(TTransaction*, const Stroka&, TArgs...)>> MakeTransactionActionHandlerDescriptor(
+    TCallback<void(TTransaction*, TProto*, TArgs...)> handler)
 {
     return {
         TProto::default_instance().GetTypeName(),
-        BIND([=] (const Stroka& value, TArgs... args) {
+        BIND([=] (TTransaction* transaction, const Stroka& value, TArgs... args) {
             TProto typedValue;
             DeserializeFromProto(&typedValue, TRef::FromString(value));
-            handler.Run(&typedValue, args...);
+            handler.Run(transaction, &typedValue, args...);
         })
     };
 }

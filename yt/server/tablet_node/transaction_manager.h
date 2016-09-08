@@ -73,9 +73,9 @@ public:
     //! Returns the full list of transactions, including transient and persistent.
     std::vector<TTransaction*> GetTransactions();
 
-    void RegisterPrepareActionHandler(const NHiveServer::TTransactionPrepareActionHandlerDescriptor& descriptor);
-    void RegisterCommitActionHandler(const NHiveServer::TTransactionCommitActionHandlerDescriptor& descriptor);
-    void RegisterAbortActionHandler(const NHiveServer::TTransactionAbortActionHandlerDescriptor& descriptor);
+    void RegisterPrepareActionHandler(const NHiveServer::TTransactionPrepareActionHandlerDescriptor<TTransaction>& descriptor);
+    void RegisterCommitActionHandler(const NHiveServer::TTransactionCommitActionHandlerDescriptor<TTransaction>& descriptor);
+    void RegisterAbortActionHandler(const NHiveServer::TTransactionAbortActionHandlerDescriptor<TTransaction>& descriptor);
 
     NYTree::IYPathServicePtr GetOrchidService();
 

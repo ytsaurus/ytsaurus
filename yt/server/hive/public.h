@@ -33,15 +33,21 @@ DECLARE_REFCOUNTED_CLASS(TCellDirectorySynchronizer)
 DECLARE_ENTITY_TYPE(TMailbox, TCellId, ::THash<TCellId>)
 DECLARE_ENTITY_TYPE(TCommit, TTransactionId, ::THash<TTransactionId>)
 
-using TTransactionPrepareActionHandler = TCallback<void(const Stroka&, bool persistent)>;
-using TTransactionCommitActionHandler = TCallback<void(const Stroka&)>;
-using TTransactionAbortActionHandler = TCallback<void(const Stroka&)>;
+template <class TTransaction>
+using TTransactionPrepareActionHandler = TCallback<void(TTransaction*, const Stroka&, bool persistent)>;
+template <class TTransaction>
+using TTransactionCommitActionHandler = TCallback<void(TTransaction*, const Stroka&)>;
+template <class TTransaction>
+using TTransactionAbortActionHandler = TCallback<void(TTransaction*, const Stroka&)>;
 
 template <class TCallback>
 struct TTransactionActionHandlerDescriptor;
-using TTransactionPrepareActionHandlerDescriptor = TTransactionActionHandlerDescriptor<TTransactionPrepareActionHandler>;
-using TTransactionCommitActionHandlerDescriptor = TTransactionActionHandlerDescriptor<TTransactionCommitActionHandler>;
-using TTransactionAbortActionHandlerDescriptor = TTransactionActionHandlerDescriptor<TTransactionAbortActionHandler>;
+template <class TTransaction>
+using TTransactionPrepareActionHandlerDescriptor = TTransactionActionHandlerDescriptor<TTransactionPrepareActionHandler<TTransaction>>;
+template <class TTransaction>
+using TTransactionCommitActionHandlerDescriptor = TTransactionActionHandlerDescriptor<TTransactionCommitActionHandler<TTransaction>>;
+template <class TTransaction>
+using TTransactionAbortActionHandlerDescriptor = TTransactionActionHandlerDescriptor<TTransactionAbortActionHandler<TTransaction>>;
 
 DECLARE_REFCOUNTED_STRUCT(ITransactionManager)
 DECLARE_REFCOUNTED_STRUCT(ITransactionParticipantProvider)

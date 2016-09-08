@@ -42,21 +42,21 @@ void TTransactionManagerBase<TTransaction>::RegisterAction(
 
 template <class TTransaction>
 void TTransactionManagerBase<TTransaction>::RegisterPrepareActionHandler(
-    const TTransactionPrepareActionHandlerDescriptor& descriptor)
+    const TTransactionPrepareActionHandlerDescriptor<TTransaction>& descriptor)
 {
     YCHECK(PrepareActionHandlerMap_.emplace(descriptor.Type, descriptor.Handler).second);
 }
 
 template <class TTransaction>
 void TTransactionManagerBase<TTransaction>::RegisterCommitActionHandler(
-    const TTransactionCommitActionHandlerDescriptor& descriptor)
+    const TTransactionCommitActionHandlerDescriptor<TTransaction>& descriptor)
 {
     YCHECK(CommitActionHandlerMap_.emplace(descriptor.Type, descriptor.Handler).second);
 }
 
 template <class TTransaction>
 void TTransactionManagerBase<TTransaction>::RegisterAbortActionHandler(
-    const TTransactionAbortActionHandlerDescriptor& descriptor)
+    const TTransactionAbortActionHandlerDescriptor<TTransaction>& descriptor)
 {
     YCHECK(AbortActionHandlerMap_.emplace(descriptor.Type, descriptor.Handler).second);
 }
@@ -86,7 +86,7 @@ void TTransactionManagerBase<TTransaction>::RunPrepareTransactionActions(
             transaction->GetId(),
             action.Type,
             persistent);
-        it->second.Run(action.Value, persistent);
+        it->second.Run(transaction, action.Value, persistent);
     }
 }
 
@@ -101,7 +101,7 @@ void TTransactionManagerBase<TTransaction>::RunCommitTransactionActions(TTransac
         LOG_DEBUG_UNLESS(IsRecovery(), "Running commit action handler (TransactionId: %v, ActionType: %v)",
             transaction->GetId(),
             action.Type);
-        it->second.Run(action.Value);
+        it->second.Run(transaction, action.Value);
     }
 }
 
@@ -116,7 +116,7 @@ void TTransactionManagerBase<TTransaction>::RunAbortTransactionActions(TTransact
         LOG_DEBUG_UNLESS(IsRecovery(), "Running abort action handler (TransactionId: %v, ActionType: %v)",
             transaction->GetId(),
             action.Type);
-        it->second.Run(action.Value);
+        it->second.Run(transaction, action.Value);
     }
 }
 
