@@ -1,92 +1,216 @@
 #!/usr/bin/python
 
-import prepare_operation_tablets
 import yt.tools.operations_archive as operations_archive
 
-from yt.wrapper.http_helpers import get_session
+from yt.wrapper.http_helpers import get_session, get_token, get_proxy_url
+from yt.wrapper.common import run_with_retries
+from yt.common import datetime_to_string, update
 import yt.packages.requests.adapters as requests_adapters
 
-from yt.wrapper.common import run_with_retries
 import yt.logger as logger
 import yt.wrapper as yt
 import yt.yson as yson
+import yt.json as json
+
 
 from dateutil.parser import parse
 from collections import namedtuple, Counter
 # Import is necessary due to: http://bugs.python.org/issue7980
 import _strptime
 from datetime import datetime, timedelta
-from threading import Thread
+from threading import Thread, Lock
 from logging import Formatter
 
 import argparse
-import sys
-import time
+from time import sleep, mktime
+from collections import deque
+
+import yt.packages.requests as requests
+
+# Temporally set these paths here
+operations_archive.STDERRS = "{}/stderrs".format(operations_archive.OPERATIONS_ARCHIVE_PATH)
+operations_archive.JOBS = "{}/jobs".format(operations_archive.OPERATIONS_ARCHIVE_PATH)
+
+STDERR_THREAD_FACTOR = 8
 
 Operation = namedtuple("Operation", ["start_time", "finish_time", "id", "user", "state", "spec"])
 
 logger.set_formatter(Formatter("%(asctime)-15s\t{}\t%(message)s".format(yt.config["proxy"]["url"])))
 
-class Try(object):
-    def __init__(self, exc, obj):
-        self.exc = exc
-        self.obj = obj
+class Timer(object):
+    def __init__(self):
+        self.elapsed = timedelta(0)
+        self.start = None
 
-    @property
+    def __str__(self):
+        return "{0:.3f}s".format(self.elapsed.total_seconds())
+
     def value(self):
-        if self.exc:
-            # In this case self.obj represents exc_info, which is tuple (type, value, traceback)
-            raise self.obj[0], self.obj[1], self.obj[2]
+        return self.elapsed.total_seconds()
+
+    def __enter__(self):
+        if self.start is not None:
+            raise Exception("Recursive usage of class Timer")
         else:
-            return self.obj
+            self.start = datetime.utcnow()
 
-    @staticmethod
-    def success(value):
-        return Try(False, value)
+    def __exit__(self, type, value, traceback):
+        self.elapsed += datetime.utcnow() - self.start
+        self.start = None
 
-    @staticmethod
-    def failure(value):
-        return Try(True, value)
+class ThreadSafeCounter(object):
+    def __init__(self, counter):
+        self.counter = counter
+        self.mutex = Lock()
 
+    def add(self, name, count):
+        with self.mutex:
+            self.counter[name] += count
 
-def parallel_map_impl(fn, kwargs, result, items, failure_limit=1):
-    failures_count = 0
-    for item in items:
-        try:
-            local_result = Try.success(fn(item, **kwargs))
-        except:
-            logger.exception("Handled exception")
-            local_result = Try.failure(sys.exc_info())
-            failures_count += 1
-            if failures_count == failure_limit:
-                return
+# Standard python Queues have thread blocking methods such as join.
+class NonBlockingQueue(object):
+    def __init__(self, iterable=None):
+        self.data = deque(iterable) if iterable is not None else deque()
+        self.executing_count = 0
+        self.closed = False
+        self.mutex = Lock()
 
-        result.append(local_result)
+    def put(self, value):
+        self.put_many([value])
 
+    def put_many(self, values):
+        if self.closed:
+            raise Exception("Call put on closed queue")
+        with self.mutex:
+            self.data.extend(values)
 
-def parallel_map(fn, kwargs, items, thread_count):
-    items_per_thread = 1 + (len(items) / thread_count)
+    def get(self, default=None):
+        with self.mutex:
+            if not self.data:
+                return default
+            else:
+                self.executing_count += 1
+                return self.data.pop()
 
-    results = []
-    threads = []
+    def task_done(self, count=1):
+        with self.mutex:
+            if self.executing_count >= count:
+                self.executing_count -= count
+            else:
+                raise ValueError("Extra task_done called")
 
-    for thread_index in range(thread_count):
-        begin_index = thread_index * items_per_thread
-        end_index = min(len(items), (thread_index + 1) * items_per_thread)
-        if begin_index >= end_index:
-            break
+    def __len__(self):
+        return len(self.data)
 
+    def close(self):
+        self.closed = True
+
+    def is_done(self):
+        with self.mutex:
+            return self.executing_count == 0 and len(self.data) == 0 and self.closed
+
+    def clear(self):
         result = []
-        thread = Thread(target=parallel_map_impl, args=(fn, kwargs, result, items[begin_index:end_index]))
-        thread.start()
+        with self.mutex:
+            while len(self.data) > 0:
+                result.append(self.data.pop())
+        return result
 
-        results.append(result)
-        threads.append(thread)
+def queue_worker(queue, worker_cls, args=()):
+    worker = worker_cls(*args)
+    while not queue.is_done():
+        value = queue.get()
+        if value is None:
+            sleep(0.1)
+        else:
+            try:
+                worker(value)
+            except:
+                logger.exception("Exception caught")
+            finally:
+                queue.task_done()
 
-    for thread in threads:
-        thread.join()
+def batching_queue_worker(queue, worker_cls, args=(), batch_size=32):
+    worker = worker_cls(*args)
+    while not queue.is_done():
+        values = []
+        while len(values) < batch_size:
+            value = queue.get()
+            if value is None:
+                break
+            else:
+                values.append(value)
+        if not values:
+            sleep(0.1)
+        else:
+            try:
+                worker(values[:])
+            except:
+                logger.exception("Exception caught")
+            finally:
+                queue.task_done(len(values))
 
-    return [item.value for result in results for item in result]
+def run_workers(worker, args, thread_count):
+    for _ in range(thread_count):
+       thread = Thread(target=worker, args=args)
+       thread.daemon = True
+       thread.start()
+
+def run_queue_workers(queue, worker_cls, thread_count, args=()):
+    run_workers(queue_worker, (queue, worker_cls, args), thread_count)
+
+def run_batching_queue_workers(queue, worker_cls, thread_count, args=(), batch_size=32):
+    run_workers(batching_queue_worker, (queue, worker_cls, args, batch_size), thread_count)
+
+def wait_for_queue(queue, name, end_time=None, sleep_timeout=0.2):
+    queue.close()
+    counter = 0
+    result = []
+    while True:
+        if queue.is_done():
+            break
+        else:
+            sleep(sleep_timeout)
+            if counter % max(int(1.0 / sleep_timeout), 1) == 0:
+                logger.info(
+                    "Waiting for processing items in queue '%s' (left items: %d, items in progress: %d)",
+                    name,
+                    len(queue),
+                    queue.executing_count)
+        counter += 1
+        if not result and end_time is not None and datetime.utcnow() > end_time:
+            logger.info("Waiting timeout is expired for queue '%s'", name)
+            result = queue.clear()
+    logger.info("Joined queue '%s'", name)
+    return result
+
+# Push metrics
+
+def push_to_solomon(values_map, cluster, ts):
+    data = {
+        "commonLabels": {
+            "project": "yt",
+            "cluster": cluster,
+            "service": "operations_archive",
+            "host": "none"
+        },
+        "sensors": [{
+            "labels": {
+                "sensor": name
+            },
+            "ts": datetime_to_string(ts),
+            "value": value
+        } for name, value in values_map.iteritems()]
+    }
+
+    try:
+        rsp = requests.post("http://api.solomon.search.yandex.net/push/json", headers={"Content-Type": "application/json"}, data=json.dumps(data), allow_redirects=True, timeout=10)
+        if not rsp.ok:
+            logger.info(rsp.content)
+    except:
+        logger.exception("Failed to push metrics to Solomon")
+
+# Clear operations scpecific
 
 def get_filter_factors(op, attributes):
     brief_spec = attributes.get("brief_spec", {})
@@ -98,76 +222,279 @@ def get_filter_factors(op, attributes):
         attributes.get("operation_type", ""),
         brief_spec.get("pool", ""),
         brief_spec.get("title", ""),
-        str(brief_spec.get('input_table_paths', [''])[0]),
-        str(brief_spec.get('input_table_paths', [''])[0])
+        str(brief_spec.get("input_table_paths", [""])[0]),
+        str(brief_spec.get("input_table_paths", [""])[0])
     ]).lower()
-
-def clean_operation(op_id):
-    logger.info("Removing operation %s", op_id)
-    try:
-        yt.remove("//sys/operations/{}".format(op_id), recursive=True)
-    except yt.YtResponseError as err:
-        if not err.is_resolve_error():
-            raise
 
 def datestr_to_timestamp_legacy(time_str):
     dt = datetime.strptime(time_str, "%Y-%m-%dT%H:%M:%S.%fZ")
-    return int(time.mktime(dt.timetuple()) * 1000000 + dt.microsecond)
+    return int(mktime(dt.timetuple()) * 1000000 + dt.microsecond)
 
-def archive_operation(op_id, version):
-    if not yt.exists(operations_archive.BY_ID_ARCHIVE) or not yt.exists(operations_archive.BY_START_TIME_ARCHIVE):
-        raise Exception("Operations archive tables do not exist")
-
-    logger.info("Archiving operation %s", op_id)
-    data = yt.get("//sys/operations/{}/@".format(op_id))
-
-    index_columns = ["state", "authenticated_user", "operation_type"]
-    value_columns = ["progress", "brief_progress", "spec", "brief_spec", "result"]
-
-    by_id_row = {}
-    for key in index_columns + value_columns:
-        if key in data:
-            by_id_row[key] = data[key]
-
-    id_parts = op_id.split("-")
-
+def id_to_parts(id):
+    id_parts = id.split("-")
     id_hi = long(id_parts[3], 16) << 32 | int(id_parts[2], 16)
     id_lo = long(id_parts[1], 16) << 32 | int(id_parts[0], 16)
+    return id_hi, id_lo
 
-    if version == 0:
-        datestr_to_timestamp = datestr_to_timestamp_legacy
-    else:
-        datestr_to_timestamp = operations_archive.datestr_to_timestamp
+class JobsCountGetter(object):
+    def __init__(self, operations_with_job_counts):
+        self.operations_with_job_counts = operations_with_job_counts
+        self.yt = yt.YtClient(config=yt.config.config)
 
-    by_id_row["id_hi"] = yson.YsonUint64(id_hi)
-    by_id_row["id_lo"] = yson.YsonUint64(id_lo)
-    by_id_row["start_time"] = datestr_to_timestamp(data["start_time"])
-    by_id_row["finish_time"] = datestr_to_timestamp(data["finish_time"])
-    by_id_row["filter_factors"] = get_filter_factors(op_id, data)
+    def __call__(self, operations):
+        responses = self.yt.execute_batch(requests=[{
+                "command": "get",
+                "parameters": {
+                    "path": "//sys/operations/{}/jobs/@count".format(op.id)
+                }
+            } for op in operations])
 
-    by_start_time_row = {
-        "id_hi": by_id_row["id_hi"],
-        "id_lo": by_id_row["id_lo"],
-        "start_time": by_id_row["start_time"]
+        for op, rsp in zip(operations, responses):
+            self.operations_with_job_counts.append((op, 0 if "error" in rsp else rsp["output"]))
+
+class OperationCleaner(object):
+    def __init__(self):
+        self.yt = yt.YtClient(config=yt.config.config)
+
+    def __call__(self, op_ids):
+        for op_id in op_ids:
+            logger.info("Removing operation %s", op_id)
+
+        responses = self.yt.execute_batch(requests=[{
+                "command": "remove",
+                "parameters": {
+                    "path": "//sys/operations/{}".format(op_id),
+                    "recursive": True
+                }
+            } for op_id in op_ids])
+
+        errors = []
+        for rsp in responses:
+            if "error" in rsp:
+                errors.append(yt.YtResponseError(rsp["error"]))
+                raise yt.YtResponseError(rsp["error"])
+
+        if errors:
+            raise yt.YtError("Failed to remove operations", inner_errors=[errors])
+
+class OperationArchiver(object):
+    def __init__(self, clean_queue, version, metrics):
+        self.clean_queue = clean_queue
+        self.version = version
+        self.metrics = metrics
+        self.yt = yt.YtClient(config=yt.config.config)
+
+        if not self.yt.exists(operations_archive.BY_ID_ARCHIVE) or not self.yt.exists(operations_archive.BY_START_TIME_ARCHIVE):
+            raise Exception("Operations archive tables do not exist")
+
+    def get_archive_rows(self, op_id, data):
+        logger.info("Archiving operation %s", op_id)
+
+        index_columns = ["state", "authenticated_user", "operation_type"]
+        value_columns = ["progress", "brief_progress", "spec", "brief_spec", "result"]
+
+        by_id_row = {}
+        for key in index_columns + value_columns:
+            if key in data:
+                by_id_row[key] = data[key]
+
+        id_hi, id_lo = id_to_parts(op_id)
+
+        if self.version == 0:
+            datestr_to_timestamp = datestr_to_timestamp_legacy
+        else:
+            datestr_to_timestamp = operations_archive.datestr_to_timestamp
+
+        by_id_row["id_hi"] = yson.YsonUint64(id_hi)
+        by_id_row["id_lo"] = yson.YsonUint64(id_lo)
+        by_id_row["start_time"] = datestr_to_timestamp(data["start_time"])
+        by_id_row["finish_time"] = datestr_to_timestamp(data["finish_time"])
+        by_id_row["filter_factors"] = get_filter_factors(op_id, data)
+
+        by_start_time_row = {
+            "id_hi": by_id_row["id_hi"],
+            "id_lo": by_id_row["id_lo"],
+            "start_time": by_id_row["start_time"]
+        }
+
+        if self.version <= 1:
+            by_start_time_row["dummy"] = 0
+        elif self.version == 2:
+            by_start_time_row["filter_factors"] = get_filter_factors(op_id, data)
+            for key in index_columns:
+                if key in data:
+                    by_start_time_row[key] = data[key]
+        else:
+            raise Exception("Unsupported version of operations archive")
+
+        return by_id_row, by_start_time_row
+
+    def __call__(self, op_ids):
+        responses = self.yt.execute_batch(requests=[{
+                "command": "get",
+                "parameters": {
+                    "path": "//sys/operations/{}/@".format(op_id)
+                }
+            } for op_id in op_ids])
+
+        by_id_rows = []
+        by_start_time_rows = []
+        archived_op_ids = []
+        failed_count = 0
+        for op_id, rsp in zip(op_ids, responses):
+            if "error" in rsp:
+                failed_count += 1
+                logger.info("Failed to get attributes of operations %s", op_id)
+            else:
+                by_id_row, by_start_time_row = self.get_archive_rows(op_id, rsp["output"])
+                by_id_rows.append(by_id_row)
+                by_start_time_rows.append(by_start_time_row)
+                archived_op_ids.append(op_id)
+
+        try:
+            run_with_retries(lambda: self.yt.insert_rows(operations_archive.BY_ID_ARCHIVE, by_id_rows))
+            run_with_retries(lambda: self.yt.insert_rows(operations_archive.BY_START_TIME_ARCHIVE, by_start_time_rows))
+        except:
+            failed_count += len(by_id_rows)
+            raise
+        finally:
+            self.metrics.add("failed_to_archive_count", failed_count)
+
+        self.metrics.add("archived_count", len(archived_op_ids))
+        self.clean_queue.put_many(archived_op_ids)
+
+class JobInfoFetcher(object):
+    ATTRIBUTES = [
+        "brief_statistics",
+        "error",
+        "job_type",
+        "state",
+        "address",
+        "uncompressed_data_size",
+        "error",
+        "size",
+        "start_time",
+        "finish_time"
+    ]
+
+    def __init__(self, stderr_queue, clean_queue, metrics):
+        self.stderr_queue = stderr_queue
+        self.clean_queue = clean_queue
+        self.metrics = metrics
+        self.yt = yt.YtClient(config=yt.config.config)
+
+    def get_insert_rows(self, op_id, jobs):
+        op_id_hi, op_id_lo = id_to_parts(op_id)
+        rows = []
+        for job_id, value in jobs.iteritems():
+            job_id_hi, job_id_lo = id_to_parts(job_id)
+            attributes = value.attributes
+
+            row = {}
+            row["operation_id_hi"] = yson.YsonUint64(op_id_hi)
+            row["operation_id_lo"] = yson.YsonUint64(op_id_lo)
+            row["job_id_hi"] = yson.YsonUint64(job_id_hi)
+            row["job_id_lo"] = yson.YsonUint64(job_id_lo)
+            row["error"] = attributes.get("error", None)
+            row["job_type"] = attributes["job_type"]
+            row["state"] = attributes["state"]
+            row["start_time"] = operations_archive.datestr_to_timestamp(attributes["start_time"])
+            row["finish_time"] = operations_archive.datestr_to_timestamp(attributes["finish_time"])
+            rows.append(row)
+
+            if "stderr" in value:
+                self.stderr_queue.put((op_id, job_id))
+        return rows
+
+    def __call__(self, op_ids):
+        responses = self.yt.execute_batch(requests=[{
+                "command": "get",
+                "parameters": {
+                    "path": "//sys/operations/{}/jobs".format(op_id),
+                    "attributes": self.ATTRIBUTES
+                }
+            } for op_id in op_ids])
+
+        archived_op_ids = []
+        rows = []
+        failed_count = 0
+        for op_id, rsp in zip(op_ids, responses):
+            if "error" in rsp:
+                failed_count += 1
+                logger.info("Failed to get jobs for operations %s", op_id)
+            else:
+                archived_op_ids.append(op_id)
+                rows.extend(self.get_insert_rows(op_id, rsp["output"]))
+
+        logger.info("Inserting %d jobs", len(rows))
+
+        try:
+            run_with_retries(lambda: self.yt.insert_rows(operations_archive.JOBS, rows))
+        except:
+            failed_count += len(rows)
+            raise
+        finally:
+            self.metrics.add("failed_to_archive_job_count", failed_count)
+
+        self.metrics.add("archived_job_count", len(rows))
+        self.clean_queue.put_many(archived_op_ids)
+
+class StderrInserter(object):
+    def __init__(self, metrics):
+        self.metrics = metrics
+        self.yt = yt.YtClient(config=yt.config.config)
+
+    def __call__(self, rowset):
+        logger.info("Inserting %d stderrs", len(rowset))
+
+        try:
+            run_with_retries(lambda: self.yt.insert_rows(operations_archive.STDERRS, rowset))
+        except:
+            self.metrics.add("failed_to_archive_stderr_count", 1)
+            raise
+
+        self.metrics.add("archived_stderr_count", len(rowset))
+        self.metrics.add("archived_stderr_size", sum(len(row["stderr"]) for row in rowset))
+
+class StderrDownloader(object):
+    CONFIG = {
+        "read_retries": {
+            "enable": False
+        },
+        "proxy": {
+            "request_retry_enable": False,
+            "request_retry_count": 1,
+            "heavy_request_retry_timeout": 10000
+        }
     }
 
-    if version <= 1:
-        by_start_time_row["dummy"] = 0
-    elif version == 2:
-        by_start_time_row["filter_factors"] = get_filter_factors(op_id, data)
-        for key in index_columns:
-            if key in data:
-                by_start_time_row[key] = data[key]
-    else:
-        raise Exception("Unsupported version of operations archive")
+    def __init__(self, insert_queue, metrics):
+        self.insert_queue = insert_queue
+        self.metrics = metrics
+        self.yt = yt.YtClient(config=update(yt.config.config, self.CONFIG))
 
-    run_with_retries(lambda: yt.insert_rows(operations_archive.BY_ID_ARCHIVE, [by_id_row], raw=False))
-    run_with_retries(lambda: yt.insert_rows(operations_archive.BY_START_TIME_ARCHIVE, [by_start_time_row], raw=False))
+    def __call__(self, element):
+        (op_id, job_id) = element
 
-    clean_operation(op_id);
+        try:
+            content = self.yt.read_file(yt.YPath("//sys/operations/{}/jobs/{}/stderr".format(op_id, job_id), simplify=False)).read()
+        except:
+            self.metrics.add("failed_to_archive_stderr_count", 1)
+            raise
 
-def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout,
-                     max_operations_per_user, robots, log, archive, thread_count):
+        op_id_hi, op_id_lo = id_to_parts(op_id)
+        id_hi, id_lo = id_to_parts(job_id)
+
+        row = {}
+        row["operation_id_hi"] = yson.YsonUint64(op_id_hi)
+        row["operation_id_lo"] = yson.YsonUint64(op_id_lo)
+        row["job_id_hi"] = yson.YsonUint64(id_hi)
+        row["job_id_lo"] = yson.YsonUint64(id_lo)
+        row["stderr"] = content
+        self.insert_queue.put(row)
+
+def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, archiving_timeout,
+                     max_operations_per_user, robots, log, archive, archive_stderrs, thread_count, push_metrics):
 
     #
     # Step 1: Fetch data from Cypress.
@@ -175,9 +502,6 @@ def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout,
 
     # XXX(ignat): Hack to increase requests connection pool size.
     get_session().mount("http://", requests_adapters.HTTPAdapter(pool_connections=thread_count, pool_maxsize=thread_count))
-
-    if archive:
-        yt.config.VERSION = "v3"
 
     def maybe_parse_time(value):
         if value is None:
@@ -187,9 +511,15 @@ def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout,
 
     now = datetime.utcnow()
 
-    operations = yt.list("//sys/operations",
-                         max_size=100000,
-                         attributes=["state", "start_time", "finish_time", "spec", "authenticated_user"])
+    metrics = Counter()
+    timers = {}
+
+    timer = timers["getting_operations_list"] = Timer()
+    with timer:
+        operations = yt.list(
+            "//sys/operations",
+            max_size=100000,
+            attributes=["state", "start_time", "finish_time", "spec", "authenticated_user"])
     operations = [Operation(
         maybe_parse_time(op.attributes.get("start_time", None)),
         maybe_parse_time(op.attributes.get("finish_time", None)),
@@ -198,6 +528,8 @@ def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout,
         op.attributes["state"],
         op.attributes["spec"]) for op in operations]
     operations.sort(key=lambda op: op.start_time, reverse=True)
+
+    metrics["initial_count"] = len(operations)
 
     #
     # Step 2: Filter out irrelevant operations.
@@ -213,21 +545,19 @@ def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout,
         return True
 
     operations_to_consider = filter(can_consider_archiving, operations)
+    metrics["considered_count"] = len(operations_to_consider)
 
     #
     # Step 3: Select operations to archive.
     #
 
-    def get_number_of_jobs(op):
-        try:
-            return yt.get("//sys/operations/{}/jobs/@count".format(op.id))
-        except yt.YtResponseError as err:
-            if err.is_resolve_error():
-                return 0
-            else:
-                raise
+    operations_with_job_counts = []
+    timer = timers["getting_job_counts"] = Timer()
+    with timer:
+        consider_queue = NonBlockingQueue(operations_to_consider)
+        run_batching_queue_workers(consider_queue, JobsCountGetter, thread_count, (operations_with_job_counts,))
+        wait_for_queue(consider_queue, "get_job_count")
 
-    job_counts = parallel_map(get_number_of_jobs, {}, operations_to_consider, thread_count)
     user_counts = Counter()
     number_of_retained_operations = 0
 
@@ -245,41 +575,97 @@ def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout,
         return False
 
     operations_to_archive = []
-    for op, job_count in zip(operations_to_consider, job_counts):
-        if not can_consider_archiving(op):
-            continue
+    for op, job_count in operations_with_job_counts:
         user_counts[op.user] += 1
         if can_archive(op, job_count):
             operations_to_archive.append(op.id)
         else:
             number_of_retained_operations += 1
 
+    metrics["approved_to_archive_count"] = len(operations_to_archive)
+
     now_before_clean = datetime.utcnow()
 
     if archive:
+        end_time_limit = datetime.utcnow() + archiving_timeout
+
+        logger.info("Archiving %d operations", len(operations_to_archive))
+        after_archive_queue = NonBlockingQueue()
         version = yt.get("{}/@".format(operations_archive.OPERATIONS_ARCHIVE_PATH)).get("version", 0)
-        parallel_map(archive_operation, {"version": version}, operations_to_archive, thread_count)
+
+        thread_safe_metrics = ThreadSafeCounter(metrics)
+        timer = timers["archiving_operations"] = Timer()
+        with timer:
+            archive_queue = NonBlockingQueue(operations_to_archive)
+            run_batching_queue_workers(archive_queue, OperationArchiver, thread_count, (after_archive_queue, version, thread_safe_metrics))
+            after_archive_queue.put_many(wait_for_queue(archive_queue, "archive_operation", end_time_limit))
+
+        if archive_stderrs:
+            logger.info("Fetching job lists for %d operations", len(operations_to_archive))
+            stderr_queue = NonBlockingQueue()
+
+            remove_queue = NonBlockingQueue()
+            timer = timers["archiving_jobs"] = Timer()
+            with timer:
+                job_info_queue = after_archive_queue
+                run_batching_queue_workers(job_info_queue, JobInfoFetcher, thread_count, (stderr_queue, remove_queue, thread_safe_metrics))
+                remove_queue.put_many(wait_for_queue(job_info_queue, "archive_job_info", end_time_limit))
+
+            logger.info("Archiving %d stderrs", len(stderr_queue))
+
+            timer = timers["archiving_stderrs"] = Timer()
+            with timer:
+                insert_queue = NonBlockingQueue()
+                run_queue_workers(stderr_queue, StderrDownloader, thread_count * STDERR_THREAD_FACTOR, (insert_queue, thread_safe_metrics))
+                run_batching_queue_workers(insert_queue, StderrInserter, thread_count, (thread_safe_metrics,))
+
+                wait_for_queue(stderr_queue, "fetch_stderr", end_time_limit)
+                wait_for_queue(insert_queue, "insert_jobs", end_time_limit)
+        else:
+            remove_queue = after_archive_queue
     else:
-        parallel_map(clean_operation, {}, operations_to_archive, thread_count)
+        remove_queue = NonBlockingQueue(operations_to_archive)
+
+    remove_count = len(remove_queue)
+    logger.info("Removing %d operations", len(remove_queue))
+    timer = timers["removing_operations"] = Timer()
+    with timer:
+        run_batching_queue_workers(remove_queue, OperationCleaner, thread_count)
+        wait_for_queue(remove_queue, "remove_operations")
 
     now_after_clean = datetime.utcnow()
+
+    total_time = (now_after_clean - now).total_seconds()
 
     logger.info(
         "; ".join([
             "Done",
             "processed %s operations in %.2fs",
-            "%s were considered %s",
+            "%s were considered %s in %.2fs",
             "%s were %s in %.2fs",
             "%s were retained"]),
         len(operations),
-        (now_before_clean - now).total_seconds(),
+        total_time,
         len(operations_to_consider),
         "archiving" if archive else "removing",
-        len(operations_to_archive),
+        (now_before_clean - now).total_seconds(),
+        remove_count,
         "archived" if archive else "removed",
         (now_after_clean - now_before_clean).total_seconds(),
         number_of_retained_operations)
 
+    logger.info("Times: (%s)", "; ".join(["{}: {}".format(name, str(timer)) for name, timer in timers.iteritems()]))
+    logger.info("Metrics: (%s)", "; ".join(["{}: {}".format(name, value) for name, value in metrics.iteritems()]))
+
+    metrics["total_time_ms"] = total_time * 1000
+    metrics["per_operation_time_ms"] = total_time * 1000 / len(operations)
+
+    if push_metrics:
+        for name, timer in timers.iteritems():
+            metrics["{}_time_ms".format(name)] = timer.value() * 1000
+
+        cluster_name = yt.config.config["proxy"]["url"].split(".")[0]
+        push_to_solomon(metrics, cluster_name, now)
 
 def main():
     parser = argparse.ArgumentParser(description="Clean operations from cypress.")
@@ -291,6 +677,8 @@ def main():
                         help="do not touch operations within N seconds of their completion to avoid races")
     parser.add_argument("--archive-timeout", metavar="N", type=int, default=2,
                         help="remove all failed operation older than N days")
+    parser.add_argument("--archiving-timeout", metavar="N", type=int, default=240,
+                        help="archiving wait time N seconds")
     parser.add_argument("--max-operations-per-user", metavar="N", type=int, default=200,
                         help="remove old operations of user if limit exceeded")
     parser.add_argument("--robot", action="append",
@@ -298,10 +686,15 @@ def main():
     parser.add_argument("--log", help="file to save operation specs")
     parser.add_argument("--archive", action="store_true", default=False,
                         help="whether save cleared operations to tablets")
+    parser.add_argument("--stderrs", action="store_true", default=False,
+                        help="whether save stderrs to tablets")
+    parser.add_argument("--push-metrics", action="store_true", default=False,
+                        help="whether push metrics to solomon")
     parser.add_argument("--scheme-type", default="old",
                         help="(deprecated) scheme type of operations archive, possible values: 'old', 'new'")
     parser.add_argument("--thread-count", metavar="N", type=int, default=24,
                         help="parallelism level for operation cleansing")
+
 
     args = parser.parse_args()
 
@@ -310,11 +703,14 @@ def main():
         args.hard_limit,
         timedelta(seconds=args.grace_timeout),
         timedelta(days=args.archive_timeout),
+        timedelta(seconds=args.archiving_timeout),
         args.max_operations_per_user,
         args.robot if args.robot is not None else [],
         args.log,
         args.archive,
-        args.thread_count)
+        args.stderrs,
+        args.thread_count,
+        args.push_metrics)
 
 if __name__ == "__main__":
     main()
