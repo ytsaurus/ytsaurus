@@ -117,6 +117,7 @@ public:
 
 private:
     std::unique_ptr<NYson::IFlushableYsonConsumer> Consumer_;
+    bool SkipNullValues_;
 
     template <class T>
     void WriteControlAttribute(

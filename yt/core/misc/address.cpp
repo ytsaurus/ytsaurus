@@ -322,7 +322,8 @@ private:
     struct TCacheEntry
     {
         TNetworkAddress Address;
-        TInstant Instant;
+        TInstant Deadline;
+        std::atomic<bool> Refreshing = {false};
     };
 
     TReaderWriterSpinLock CacheLock_;
@@ -377,19 +378,25 @@ TFuture<TNetworkAddress> TAddressResolver::TImpl::Resolve(const Stroka& hostName
         TReaderGuard guard(CacheLock_);
         auto it = Cache_.find(hostName);
         if (it != Cache_.end()) {
-            auto entry = it->second;
+            auto& entry = it->second;
+
+            // Re-run resolve for expired entries.
+            bool expectedRefreshing = false;
+            if (entry.Deadline < TInstant::Now() &&
+                entry.Refreshing.compare_exchange_strong(expectedRefreshing, true))
+            {
+                runAsyncResolve();
+            }
+
+            auto address = entry.Address;
+
             guard.Release();
 
             LOG_DEBUG("Address cache hit: %v -> %v",
                 hostName,
-                entry.Address);
+                address);
 
-            // Re-run resolve for expired entries.
-            if (entry.Instant + Config_->AddressExpirationTime > TInstant::Now()) {
-                runAsyncResolve();
-            }
-
-            return MakeFuture(entry.Address);
+            return MakeFuture(address);
         }
     }
 
@@ -461,7 +468,8 @@ TNetworkAddress TAddressResolver::TImpl::DoResolve(const Stroka& hostName)
                 TWriterGuard guard(CacheLock_);
                 auto& entry = Cache_[hostName];
                 entry.Address = *result;
-                entry.Instant = TInstant::Now();
+                entry.Deadline = TInstant::Now() + Config_->AddressExpirationTime;
+                entry.Refreshing = false;
             }
             LOG_DEBUG("Host resolved: %v -> %v",
                 hostName,

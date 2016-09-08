@@ -518,24 +518,9 @@ public:
 
             // Profiling.
             for (const auto& pair : Pools) {
-                const auto& pool = pair.second;
-                const auto& tag = pool->GetProfilingTag();
-                Profiler.Enqueue(
-                    "/pools/fair_share_ratio_x100000",
-                    static_cast<i64>(pool->Attributes().FairShareRatio * 1e5),
-                    EMetricType::Gauge,
-                    {tag});
-                Profiler.Enqueue(
-                    "/pools/usage_ratio_x100000",
-                    static_cast<i64>(pool->GetResourceUsageRatio() * 1e5),
-                    EMetricType::Gauge,
-                    {tag});
-                Profiler.Enqueue(
-                    "/operation_count",
-                    pool->RunningOperationCount(),
-                    EMetricType::Gauge,
-                    {tag});
+                ProfileSchedulerElement(pair.second);
             }
+            ProfileSchedulerElement(RootElementSnapshot->RootElement);
         }
     }
 
@@ -1212,6 +1197,31 @@ private:
         const auto& user = operation->GetAuthenticatedUser();
         WaitFor(Host->CheckPoolPermission(poolPath, user, EPermission::Use))
             .ThrowOnError();
+    }
+
+    void ProfileSchedulerElement(TCompositeSchedulerElementPtr element)
+    {
+        const auto& tag = element->GetProfilingTag();
+        Profiler.Enqueue(
+            "/pools/fair_share_ratio_x100000",
+            static_cast<i64>(element->Attributes().FairShareRatio * 1e5),
+            EMetricType::Gauge,
+            {tag});
+        Profiler.Enqueue(
+            "/pools/usage_ratio_x100000",
+            static_cast<i64>(element->GetResourceUsageRatio() * 1e5),
+            EMetricType::Gauge,
+            {tag});
+        Profiler.Enqueue(
+            "/running_operation_count",
+            element->RunningOperationCount(),
+            EMetricType::Gauge,
+            {tag});
+        Profiler.Enqueue(
+            "/total_operation_count",
+            element->OperationCount(),
+            EMetricType::Gauge,
+            {tag});
     }
 };
 

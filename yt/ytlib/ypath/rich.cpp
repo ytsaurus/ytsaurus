@@ -360,7 +360,7 @@ auto RunAttributeAccessor(const TRichYPath& path, const Stroka& key, TFunc acces
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error parsing attribute %Qv of rich YPath %v",
             key,
-            path.GetPath());
+            path.GetPath()) << ex;
     }
 }
 

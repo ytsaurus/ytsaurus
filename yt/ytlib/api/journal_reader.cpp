@@ -164,6 +164,7 @@ private:
                 cellTag,
                 NodeDirectory_,
                 std::numeric_limits<int>::max(), // no foreign chunks are possible anyway
+                Null,
                 Logger,
                 &ChunkSpecs_);
         }
