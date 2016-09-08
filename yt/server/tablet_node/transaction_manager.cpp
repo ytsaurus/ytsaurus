@@ -883,17 +883,20 @@ std::vector<TTransaction*> TTransactionManager::GetTransactions()
     return Impl_->GetTransactions();
 }
 
-void TTransactionManager::RegisterPrepareActionHandler(const TTransactionPrepareActionHandlerDescriptor& descriptor)
+void TTransactionManager::RegisterPrepareActionHandler(
+    const TTransactionPrepareActionHandlerDescriptor<TTransaction>& descriptor)
 {
     Impl_->RegisterPrepareActionHandler(descriptor);
 }
 
-void TTransactionManager::RegisterCommitActionHandler(const TTransactionCommitActionHandlerDescriptor& descriptor)
+void TTransactionManager::RegisterCommitActionHandler(
+    const TTransactionCommitActionHandlerDescriptor<TTransaction>& descriptor)
 {
     Impl_->RegisterCommitActionHandler(descriptor);
 }
 
-void TTransactionManager::RegisterAbortActionHandler(const TTransactionAbortActionHandlerDescriptor& descriptor)
+void TTransactionManager::RegisterAbortActionHandler(
+    const TTransactionAbortActionHandlerDescriptor<TTransaction>& descriptor)
 {
     Impl_->RegisterAbortActionHandler(descriptor);
 }

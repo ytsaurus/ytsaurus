@@ -27,16 +27,16 @@ public:
         TTimestamp transactionStartTimestamp,
         TDuration transactionTimeout,
         const TTransactionActionData& data);
-    void RegisterPrepareActionHandler(const TTransactionPrepareActionHandlerDescriptor& descriptor);
-    void RegisterCommitActionHandler(const TTransactionCommitActionHandlerDescriptor& descriptor);
-    void RegisterAbortActionHandler(const TTransactionAbortActionHandlerDescriptor& descriptor);
+    void RegisterPrepareActionHandler(const TTransactionPrepareActionHandlerDescriptor<TTransaction>& descriptor);
+    void RegisterCommitActionHandler(const TTransactionCommitActionHandlerDescriptor<TTransaction>& descriptor);
+    void RegisterAbortActionHandler(const TTransactionAbortActionHandlerDescriptor<TTransaction>& descriptor);
 
 protected:
     NHydra::TEntityMap<TTransaction> PersistentTransactionMap_;
 
-    yhash_map<Stroka, TTransactionPrepareActionHandler> PrepareActionHandlerMap_;
-    yhash_map<Stroka, TTransactionCommitActionHandler> CommitActionHandlerMap_;
-    yhash_map<Stroka, TTransactionAbortActionHandler> AbortActionHandlerMap_;
+    yhash_map<Stroka, TTransactionPrepareActionHandler<TTransaction>> PrepareActionHandlerMap_;
+    yhash_map<Stroka, TTransactionCommitActionHandler<TTransaction>> CommitActionHandlerMap_;
+    yhash_map<Stroka, TTransactionAbortActionHandler<TTransaction>> AbortActionHandlerMap_;
 
 
     TTransactionManagerBase(

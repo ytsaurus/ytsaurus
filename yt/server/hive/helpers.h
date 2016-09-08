@@ -21,10 +21,10 @@ struct TTransactionActionHandlerDescriptor
     TCallback Handler;
 };
 
-template <class TProto, class... TArgs>
-TTransactionActionHandlerDescriptor<TCallback<void(const Stroka&, TArgs...)>>
+template <class TTransaction*, class TProto, class... TArgs>
+TTransactionActionHandlerDescriptor<TCallback<void(TTransaction*, const Stroka&, TArgs...)>>
 MakeTransactionActionHandlerDescriptor(
-    TCallback<void(TProto*, TArgs...)> handler);
+    TCallback<void(TTransaction*, TProto*, TArgs...)> handler);
 
 ////////////////////////////////////////////////////////////////////////////////
 

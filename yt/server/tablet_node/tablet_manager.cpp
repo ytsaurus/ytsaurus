@@ -1505,7 +1505,7 @@ private:
         DisableTableReplica(tablet, replicaInfo);
     }
 
-    void HydraPrepareReplicateRows(TReqReplicateRows* request, bool persistent)
+    void HydraPrepareReplicateRows(TTransaction* /*transaction*/, TReqReplicateRows* request, bool persistent)
     {
         YCHECK(persistent);
 
@@ -1548,7 +1548,7 @@ private:
 
     }
 
-    void HydraCommitReplicateRows(TReqReplicateRows* request)
+    void HydraCommitReplicateRows(TTransaction* /*transaction*/, TReqReplicateRows* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
@@ -1578,7 +1578,7 @@ private:
         replicaInfo->SetCurrentReplicationTimestamp(request->new_replication_timestamp());
     }
 
-    void HydraAbortReplicateRows(TReqReplicateRows* request)
+    void HydraAbortReplicateRows(TTransaction* /*transaction*/, TReqReplicateRows* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
