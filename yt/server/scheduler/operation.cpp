@@ -28,7 +28,8 @@ TOperation::TOperation(
     const std::vector<Stroka>& owners,
     TInstant startTime,
     EOperationState state,
-    bool suspended)
+    bool suspended,
+    const std::vector<TOperationEvent>& events)
     : Id_(id)
     , Type_(type)
     , MutationId_(mutationId)
@@ -41,6 +42,7 @@ TOperation::TOperation(
     , AuthenticatedUser_(authenticatedUser)
     , Owners_(owners)
     , StartTime_(startTime)
+    , Events_(events)
     , StderrCount_(0)
     , JobNodeCount_(0)
     , CodicilData_(MakeOperationCodicilString(Id_))
@@ -107,6 +109,28 @@ bool TOperation::HasControllerProgress() const
 TCodicilGuard TOperation::MakeCodicilGuard() const
 {
     return TCodicilGuard(CodicilData_);
+}
+
+void TOperation::SetState(EOperationState state)
+{
+    State_ = state;
+    Events_.emplace_back(TOperationEvent({TInstant::Now(), state}));
+}
+
+void Serialize(const TOperationEvent& event, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("time").Value(event.Time)
+            .Item("state").Value(event.State)
+        .EndMap();
+}
+
+void Deserialize(TOperationEvent& event, INodePtr node)
+{
+    auto mapNode = node->AsMap();
+    event.Time = ConvertTo<TInstant>(mapNode->GetChild("time"));
+    event.State = ConvertTo<EOperationState>(mapNode->GetChild("state"));
 }
 
 ////////////////////////////////////////////////////////////////////

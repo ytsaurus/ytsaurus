@@ -51,7 +51,8 @@ void BuildRunningOperationAttributes(TOperationPtr operation, NYson::IYsonConsum
     BuildYsonMapFluently(consumer)
         .Item("state").Value(operation->GetState())
         .Item("suspended").Value(operation->GetSuspended())
-        .Item("user_transaction_id").Value(userTransaction ? userTransaction->GetId() : NullTransactionId);
+        .Item("user_transaction_id").Value(userTransaction ? userTransaction->GetId() : NullTransactionId)
+        .Item("events").Value(operation->GetEvents());
 }
 
 void BuildJobAttributes(TJobPtr job, NYson::IYsonConsumer* consumer)
