@@ -104,30 +104,18 @@ public:
             .InRange(0.0, 1.0)
             .Default(0.05);
 
-        // COMPAT(ignat): deprecated.
-        RegisterParameter("max_running_operations", MaxRunningOperationCount)
-            .Default(200)
-            .GreaterThan(0);
-
         RegisterParameter("max_running_operation_count", MaxRunningOperationCount)
+            .Alias("max_running_operations")
             .Default(200)
-            .GreaterThan(0);
-
-        // COMPAT(ignat): deprecated.
-        RegisterParameter("max_running_operations_per_pool", MaxRunningOperationCountPerPool)
-            .Default(50)
             .GreaterThan(0);
 
         RegisterParameter("max_running_operation_count_per_pool", MaxRunningOperationCountPerPool)
-            .Default(50)
-            .GreaterThan(0);
-
-        // COMPAT(ignat): deprecated.
-        RegisterParameter("max_operations_per_pool", MaxOperationCountPerPool)
+            .Alias("max_running_operations_per_pool")
             .Default(50)
             .GreaterThan(0);
 
         RegisterParameter("max_operation_count_per_pool", MaxOperationCountPerPool)
+            .Alias("max_operations_per_pool")
             .Default(50)
             .GreaterThan(0);
 
