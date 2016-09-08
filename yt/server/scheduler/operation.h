@@ -105,7 +105,7 @@ public:
     bool HasControllerProgress() const;
 
     //! Returns the codicil guard holding the operation id.
-    TCodicilGuard MakeCodicilGuard();
+    TCodicilGuard MakeCodicilGuard() const;
 
     TOperation(
         const TOperationId& operationId,

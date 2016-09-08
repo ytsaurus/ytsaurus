@@ -212,6 +212,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/ytree/tree_builder.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ytree/tree_visitor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ytree/virtual.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ytree/service_combiner.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ytree/ypath.proto
   ${CMAKE_CURRENT_LIST_DIR}/ytree/ypath_client.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ytree/ypath_detail.cpp

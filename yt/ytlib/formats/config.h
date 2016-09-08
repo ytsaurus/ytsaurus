@@ -35,11 +35,16 @@ public:
     NYson::EYsonFormat Format;
     bool BooleanAsString;
 
+    //! Only works for tabular data.
+    bool SkipNullValues;
+
     TYsonFormatConfig()
     {
         RegisterParameter("format", Format)
             .Default(NYson::EYsonFormat::Binary);
         RegisterParameter("boolean_as_string", BooleanAsString)
+            .Default(false);
+        RegisterParameter("skip_null_values", SkipNullValues)
             .Default(false);
     }
 };
@@ -82,6 +87,9 @@ public:
     // Therefore parsing long strings works faster with larger buffer.
     int BufferSize;
 
+    //! Only works for tabular data.
+    bool SkipNullValues;
+
     TJsonFormatConfig()
     {
         RegisterParameter("format", Format)
@@ -102,6 +110,8 @@ public:
             .Default(false);
         RegisterParameter("buffer_size", BufferSize)
             .Default(16 * 1024 * 1024);
+        RegisterParameter("skip_null_values", SkipNullValues)
+            .Default(false);
 
         // NB: yajl can consume two times more memory than row size.
         MemoryLimit = 2 * NTableClient::MaxRowWeightLimit;

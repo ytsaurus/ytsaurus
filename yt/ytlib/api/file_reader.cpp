@@ -168,6 +168,7 @@ private:
                 cellTag,
                 nodeDirectory,
                 Config_->MaxChunksPerLocateRequest,
+                Null,
                 Logger,
                 &chunkSpecs);
         }
