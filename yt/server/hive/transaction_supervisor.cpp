@@ -166,7 +166,7 @@ private:
             , CellDirectory_(owner->CellDirectory_)
             , Config_(owner->Config_)
             , ProbationExecutor_(New<TPeriodicExecutor>(
-                NRpc::TDispatcher::Get()->GetInvoker(),
+                NRpc::TDispatcher::Get()->GetLightInvoker(),
                 BIND(&TParticipant::OnProbation, MakeWeak(this)),
                 Config_->ParticipantProbationPeriod))
             , Logger(NLogging::TLogger(owner->Logger)

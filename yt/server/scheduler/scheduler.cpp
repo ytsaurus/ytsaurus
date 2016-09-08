@@ -342,7 +342,7 @@ public:
             TReaderGuard guard(ExecNodeDescriptorsByTagLock_);
 
             auto it = CachedExecNodeDescriptorsByTag_.find(*tag);
-            if (it != CachedExecNodeDescriptorsByTag_.end() && 
+            if (it != CachedExecNodeDescriptorsByTag_.end() &&
                 now <= it->second.first + Config_->UpdateExecNodeDescriptorsPeriod)
             {
                 it->second.first = now;
@@ -750,22 +750,19 @@ public:
     void MaterializeOperation(TOperationPtr operation)
     {
         auto controller = operation->GetController();
-        if (controller->GetCleanStart()) {
-            operation->SetState(EOperationState::Materializing);
-            BIND(&IOperationController::Materialize, controller)
-                .AsyncVia(controller->GetCancelableInvoker())
-                .Run()
-                .Subscribe(BIND([operation] (const TError& error) {
-                    if (error.IsOK()) {
-                        if (operation->GetState() == EOperationState::Materializing) {
-                            operation->SetState(EOperationState::Running);
-                        }
+        // TODO(ignat): avoid non-necessary async call here if operation is successfully revived.
+        operation->SetState(EOperationState::Materializing);
+        BIND(&IOperationController::Materialize, controller)
+            .AsyncVia(controller->GetCancelableInvoker())
+            .Run()
+            .Subscribe(BIND([operation] (const TError& error) {
+                if (error.IsOK()) {
+                    if (operation->GetState() == EOperationState::Materializing) {
+                        operation->SetState(EOperationState::Running);
                     }
-                })
-                .Via(controller->GetCancelableControlInvoker()));
-        } else {
-            operation->SetState(EOperationState::Running);
-        }
+                }
+            })
+            .Via(controller->GetCancelableControlInvoker()));
     }
 
 
@@ -1176,8 +1173,18 @@ private:
         LogEventFluently(ELogEventType::MasterConnected)
             .Item("address").Value(ServiceAddress_);
 
-        AbortAbortingOperations(result.AbortingOperations);
-        ReviveOperations(result.RevivingOperations);
+        for (const auto& operationReport : result.OperationReports) {
+            const auto& operation = operationReport.Operation;
+            if (operation->GetState() == EOperationState::Aborting) {
+                AbortAbortingOperation(operation, operationReport.ControllerTransactions);
+            } else {
+                if (operationReport.UserTransactionAborted) {
+                    OnUserTransactionAborted(operation);
+                } else {
+                    ReviveOperation(operation, operationReport.ControllerTransactions);
+                }
+            }
+        }
 
         Strategy_->StartPeriodicActivity();
     }
@@ -1512,7 +1519,7 @@ private:
             RegisterOperation(operation);
             registered = true;
 
-            controller->Initialize(/* cleanStart */ true);
+            controller->Initialize();
 
             WaitFor(MasterConnector_->CreateOperationNode(operation))
                 .ThrowOnError();
@@ -1606,25 +1613,11 @@ private:
         // #OnOperationFailed to inform the scheduler about the outcome.
     }
 
-    void AbortAbortingOperations(const std::vector<TOperationPtr>& operations)
-    {
-        for (const auto& operation : operations) {
-            AbortAbortingOperation(operation);
-        }
-    }
-
-    void ReviveOperations(const std::vector<TOperationPtr>& operations)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        for (const auto& operation : operations) {
-            ReviveOperation(operation);
-        }
-    }
-
-    void ReviveOperation(TOperationPtr operation)
+    void ReviveOperation(const TOperationPtr& operation, const TControllerTransactionsPtr& controllerTransactions)
     {
         auto codicilGuard = operation->MakeCodicilGuard();
+
+        operation->SetState(EOperationState::Reviving);
 
         const auto& operationId = operation->GetId();
 
@@ -1659,12 +1652,12 @@ private:
         RegisterOperation(operation);
 
         auto controller = operation->GetController();
-        BIND(&TImpl::DoReviveOperation, MakeStrong(this), operation)
-            .AsyncVia(controller->GetCancelableControlInvoker())
+        BIND(&TImpl::DoReviveOperation, MakeStrong(this), operation, controllerTransactions)
+            .Via(controller->GetCancelableControlInvoker())
             .Run();
     }
 
-    void DoReviveOperation(TOperationPtr operation)
+    void DoReviveOperation(TOperationPtr operation, TControllerTransactionsPtr controllerTransactions)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1676,30 +1669,8 @@ private:
 
         try {
             auto controller = operation->GetController();
-            TSharedRef snapshot;
 
-            {
-                bool cleanStart = false;
-
-                auto snapshotOrError = WaitFor(MasterConnector_->DownloadSnapshot(operation->GetId()));
-                if (!snapshotOrError.IsOK()) {
-                    LOG_INFO(snapshotOrError, "Failed to download snapshot, will use clean start (OperationId: %v)", operation->GetId());
-                    cleanStart = true;
-                    auto error = WaitFor(MasterConnector_->RemoveSnapshot(operation->GetId()));
-                    if (!error.IsOK()) {
-                        LOG_WARNING(error, "Failed to remove snapshot (OperationId: %v)", operation->GetId());
-                    }
-                } else {
-                    LOG_INFO("Snapshot succesfully downloaded (OperationId: %v)", operation->GetId());
-                    snapshot = snapshotOrError.Value();
-                }
-
-                controller->Initialize(cleanStart);
-            }
-
-            if (operation->GetState() != EOperationState::Reviving) {
-                throw TFiberCanceledException();
-            }
+            controller->InitializeReviving(controllerTransactions);
 
             {
                 auto error = WaitFor(MasterConnector_->ResetRevivingOperationNode(operation));
@@ -1708,15 +1679,9 @@ private:
 
             {
                 auto asyncResult = VoidFuture;
-                if (controller->GetCleanStart()) {
-                    asyncResult = BIND(&IOperationController::Prepare, controller)
-                        .AsyncVia(controller->GetCancelableInvoker())
-                        .Run();
-                } else {
-                    asyncResult = BIND(&IOperationController::Revive, controller, snapshot)
-                        .AsyncVia(controller->GetCancelableInvoker())
-                        .Run();
-                }
+                asyncResult = BIND(&IOperationController::Revive, controller)
+                    .AsyncVia(controller->GetCancelableInvoker())
+                    .Run();
                 auto error = WaitFor(asyncResult);
                 THROW_ERROR_EXCEPTION_IF_FAILED(error);
             }
@@ -1823,54 +1788,6 @@ private:
         operation->SetState(state);
         operation->SetFinishTime(TInstant::Now());
         ToProto(operation->Result().mutable_error(), error);
-    }
-
-
-    void CommitSchedulerTransactions(TOperationPtr operation)
-    {
-        YCHECK(operation->GetState() == EOperationState::Completing);
-
-        LOG_INFO("Committing scheduler transactions (OperationId: %v)",
-            operation->GetId());
-
-        auto commitTransaction = [&] (ITransactionPtr transaction) {
-            if (!transaction) {
-                return;
-            }
-            auto result = WaitFor(transaction->Commit());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result, "Operation has failed to commit");
-            if (operation->GetState() != EOperationState::Completing) {
-                throw TFiberCanceledException();
-            }
-        };
-
-        operation->SetHasActiveTransactions(false);
-        commitTransaction(operation->GetInputTransaction());
-        commitTransaction(operation->GetOutputTransaction());
-        commitTransaction(operation->GetSyncSchedulerTransaction());
-
-        LOG_INFO("Scheduler transactions committed (OperationId: %v)",
-            operation->GetId());
-
-        // NB: Never commit async transaction since it's used for writing Live Preview tables.
-        operation->GetAsyncSchedulerTransaction()->Abort();
-    }
-
-    // TODO(ignat): unify with aborting transactions in controller.
-    void AbortSchedulerTransactions(TOperationPtr operation)
-    {
-        auto abortTransaction = [&] (ITransactionPtr transaction) {
-            if (transaction) {
-                // Fire-and-forget.
-                transaction->Abort();
-            }
-        };
-
-        operation->SetHasActiveTransactions(false);
-        abortTransaction(operation->GetInputTransaction());
-        abortTransaction(operation->GetOutputTransaction());
-        abortTransaction(operation->GetSyncSchedulerTransaction());
-        abortTransaction(operation->GetAsyncSchedulerTransaction());
     }
 
     void FinishOperation(TOperationPtr operation)
@@ -2009,7 +1926,9 @@ private:
                 }
             }
 
-            CommitSchedulerTransactions(operation);
+            if (Config_->FinishOperationTransitionDelay) {
+                Sleep(*Config_->FinishOperationTransitionDelay);
+            }
 
             YCHECK(operation->GetState() == EOperationState::Completing);
             SetOperationFinalState(operation, EOperationState::Completed, TError());
@@ -2085,9 +2004,18 @@ private:
                 return;
         }
 
-        SetOperationFinalState(operation, finalState, error);
+        if (Config_->FinishOperationTransitionDelay) {
+            Sleep(*Config_->FinishOperationTransitionDelay);
+        }
 
-        AbortSchedulerTransactions(operation);
+        {
+            auto controller = operation->GetController();
+            if (controller) {
+                controller->Abort();
+            }
+        }
+
+        SetOperationFinalState(operation, finalState, error);
 
         // Second flush: ensure that the state is changed to its final value.
         {
@@ -2097,17 +2025,12 @@ private:
                 return;
         }
 
-        auto controller = operation->GetController();
-        if (controller) {
-            controller->Abort();
-        }
-
         FinishOperation(operation);
 
         LogOperationFinished(operation, logEventType, error);
     }
 
-    void AbortAbortingOperation(TOperationPtr operation)
+    void AbortAbortingOperation(TOperationPtr operation, TControllerTransactionsPtr controllerTransactions)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -2116,9 +2039,18 @@ private:
         LOG_INFO("Aborting operation (OperationId: %v)",
              operation->GetId());
 
-        YCHECK(operation->GetState() == EOperationState::Aborting);
+        auto abortTransaction = [&] (ITransactionPtr transaction) {
+            if (transaction) {
+                // Fire-and-forget.
+                transaction->Abort();
+            }
+        };
 
-        AbortSchedulerTransactions(operation);
+        abortTransaction(controllerTransactions->Sync);
+        abortTransaction(controllerTransactions->Async);
+        abortTransaction(controllerTransactions->Input);
+        abortTransaction(controllerTransactions->Output);
+
         SetOperationFinalState(operation, EOperationState::Aborted, TError());
 
         WaitFor(MasterConnector_->FlushOperationNode(operation));
@@ -2184,11 +2116,13 @@ private:
         auto codicilGuard = operation->MakeCodicilGuard();
 
         auto controller = operation->GetController();
+
         bool hasControllerProgress = operation->HasControllerProgress();
         BuildYsonMapFluently(consumer)
             .Item(ToString(operation->GetId())).BeginMap()
                 // Include the complete list of attributes.
                 .Do(BIND(&NScheduler::BuildInitializingOperationAttributes, operation))
+                .DoIf(static_cast<bool>(controller), BIND(&IOperationController::BuildOperationAttributes, controller))
                 .Item("progress").BeginMap()
                     .DoIf(hasControllerProgress, BIND([=] (IYsonConsumer* consumer) {
                         WaitFor(

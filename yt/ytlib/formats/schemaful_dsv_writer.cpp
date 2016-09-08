@@ -95,7 +95,7 @@ protected:
         char buf[64];
         char* begin = buf;
         auto length = FloatToString(value, buf, sizeof(buf));
-        BlobOutput_->Write(begin, length);        
+        BlobOutput_->Write(begin, length);
     }
     
     void WriteRaw(const TStringBuf& str)
@@ -151,7 +151,7 @@ public:
         bool enableContextSaving,
         TControlAttributesConfigPtr controlAttributesConfig,
         TSchemafulDsvFormatConfigPtr config,
-        std::vector<int> IdToIndexInRow)
+        std::vector<int> idToIndexInRow)
         : TSchemalessFormatWriterBase(
             nameTable,
             std::move(output),
@@ -160,7 +160,7 @@ public:
             0 /* keyColumnCount */)
         , TSchemafulDsvWriterBase(
             config,
-            IdToIndexInRow)
+            idToIndexInRow)
         , TableIndexColumnId_(Config_->EnableTableIndex && controlAttributesConfig->EnableTableIndex
             ? nameTable->GetId(TableIndexColumnName)
             : -1)
@@ -324,6 +324,19 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ValidateDuplicateColumns(const std::vector<Stroka>& columns)
+{
+    yhash_set<Stroka> names;
+    for (const auto& name : columns) {
+        if (!names.insert(name).second) {
+            THROW_ERROR_EXCEPTION("Duplicate column name %Qv in schemaful DSV config",
+                name);
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 ISchemalessFormatWriterPtr CreateSchemalessWriterForSchemafulDsv(
     TSchemafulDsvFormatConfigPtr config,
     TNameTablePtr nameTable,
@@ -354,6 +367,8 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForSchemafulDsv(
     if (config->EnableTableIndex && controlAttributesConfig->EnableTableIndex) {
         columns.insert(columns.begin(), TableIndexColumnName);
     }
+
+    ValidateDuplicateColumns(columns);
 
     try {
         for (int columnIndex = 0; columnIndex < static_cast<int>(columns.size()); ++columnIndex) {
@@ -405,6 +420,7 @@ ISchemafulWriterPtr CreateSchemafulWriterForSchemafulDsv(
 {
     std::vector<int> idToIndexInRow(schema.Columns().size(), -1);
     if (config->Columns) {
+        ValidateDuplicateColumns(*config->Columns);
         for (int columnIndex = 0; columnIndex < static_cast<int>(config->Columns->size()); ++columnIndex) {
             idToIndexInRow[schema.GetColumnIndexOrThrow((*config->Columns)[columnIndex])] = columnIndex;
         }

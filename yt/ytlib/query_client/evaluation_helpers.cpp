@@ -252,12 +252,10 @@ TJoinParameters GetJoinEvaluator(
         }
     };
 
-    auto executeForeign = [subquery, canUseSourceRanges, keyPrefix, joinKeyExprs, foreignDataId, foreignPredicate] (
-            ISchemafulWriterPtr writer,
-            std::vector<TRow> keys,
-            TRowBufferPtr permanentBuffer,
-            TExecuteQueryCallback executeCallback)
-        {
+    auto getForeignQuery = [subquery, canUseSourceRanges, keyPrefix, joinKeyExprs, foreignDataId, foreignPredicate] (
+        std::vector<TRow> keys,
+        TRowBufferPtr permanentBuffer)
+    {
         // TODO: keys should be joined with allRows: [(key, sourceRow)]
         TRowRanges ranges;
 
@@ -293,10 +291,10 @@ TJoinParameters GetJoinEvaluator(
         dataSource.Id = foreignDataId;
         dataSource.Ranges = MakeSharedRange(std::move(ranges), std::move(permanentBuffer));
 
-        executeCallback(subquery, dataSource, writer);
+        return std::make_pair(subquery, dataSource);
     };
 
-    return TJoinParameters{isOrdered, isLeft, selfColumns, foreignColumns, executeForeign, batchSize};
+    return TJoinParameters{isOrdered, isLeft, selfColumns, foreignColumns, getForeignQuery, batchSize};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -144,7 +144,8 @@ TClientContextPtr TClientRequest::CreateClientContext()
         GetRequestId(),
         traceContext,
         GetService(),
-        GetMethod());
+        GetMethod(),
+        Heavy_);
 }
 
 void TClientRequest::TraceRequest(const NTracing::TTraceContext& traceContext)
@@ -182,7 +183,7 @@ void TClientResponseBase::HandleError(const TError& error)
         return;
     }
 
-    TDispatcher::Get()->GetInvoker()->Invoke(
+    TDispatcher::Get()->GetLightInvoker()->Invoke(
         BIND(&TClientResponseBase::DoHandleError, MakeStrong(this), error));
 }
 
@@ -249,7 +250,10 @@ void TClientResponse::HandleResponse(TSharedRefArray message)
     auto prevState = State_.exchange(EState::Done);
     Y_ASSERT(prevState == EState::Sent || prevState == EState::Ack);
 
-    TDispatcher::Get()->GetInvoker()->Invoke(
+    const auto& invoker = ClientContext_->GetHeavy()
+        ? TDispatcher::Get()->GetHeavyInvoker()
+        : TDispatcher::Get()->GetLightInvoker();
+    invoker->Invoke(
         BIND(&TClientResponse::DoHandleResponse, MakeStrong(this), Passed(std::move(message))));
 }
 

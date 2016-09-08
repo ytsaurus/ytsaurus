@@ -144,6 +144,10 @@ protected:
     {
         this->RegisterParameter("read_from", this->Options.ReadFrom)
             .Optional();
+        this->RegisterParameter("expire_after_successful_update_time", this->Options.ExpireAfterSuccessfulUpdateTime)
+            .Optional();
+        this->RegisterParameter("expire_after_failed_update_time", this->Options.ExpireAfterFailedUpdateTime)
+            .Optional();
     }
 };
 
@@ -210,6 +214,8 @@ protected:
     TPrerequisiteCommandBase()
     {
         this->RegisterParameter("prerequisite_transaction_ids", this->Options.PrerequisiteTransactionIds)
+            .Optional();
+        this->RegisterParameter("prerequisite_revisions", this->Options.PrerequisiteRevisions)
             .Optional();
     }
 };
@@ -327,29 +333,6 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TOptions, class = void>
-class TCacheCommandBase
-{ };
-
-template <class TOptions>
-class TCacheCommandBase<
-    TOptions,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, NApi::TCacheOptions&>>::TType
->
-    : public virtual TTypedCommandBase<TOptions>
-{
-protected:
-    TCacheCommandBase()
-    {
-        this->RegisterParameter("expire_after_successful_update_time", this->Options.ExpireAfterSuccessfulUpdateTime)
-            .Optional();
-        this->RegisterParameter("expire_after_failed_update_time", this->Options.ExpireAfterFailedUpdateTime)
-            .Optional();
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 template <class TOptions>
 class TTypedCommand
     : public virtual TTypedCommandBase<TOptions>
@@ -362,7 +345,6 @@ class TTypedCommand
     , public TSuppressableAccessTrackingCommmandBase<TOptions>
     , public TPrerequisiteCommandBase<TOptions>
     , public TTimeoutCommandBase<TOptions>
-    , public TCacheCommandBase<TOptions>
 { };
 
 ////////////////////////////////////////////////////////////////////////////////

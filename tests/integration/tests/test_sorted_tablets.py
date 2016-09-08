@@ -99,6 +99,22 @@ class TestSortedTablets(YTEnvSetup):
                     return self._get_recursive(path + "/" + cell_id + "/tablets/" + tablet_id)
         return None
 
+    def _wait_for_in_memory_stores_preload(self, table):
+        for tablet in get(table + "/@tablets"):
+            tablet_id = tablet["tablet_id"]
+            address = self._get_tablet_leader_address(tablet_id)
+            def all_preloaded():
+                orchid = self._find_tablet_orchid(address, tablet_id)
+                for store in orchid["eden"]["stores"].itervalues():
+                    if store["store_state"] == "persistent" and store["preload_state"] != "complete":
+                        return False
+                for partition in orchid["partitions"]:
+                    for store in partition["stores"].itervalues():
+                        if store["preload_state"] != "complete":
+                            return False
+                return True
+            wait(lambda: all_preloaded())
+
     def _get_pivot_keys(self, path):
         tablets = get(path + "/@tablets")
         return [tablet["pivot_key"] for tablet in tablets]
@@ -961,6 +977,8 @@ class TestSortedTablets(YTEnvSetup):
 
         self.sync_unmount_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
+        # ensure data is preloaded
+        self._wait_for_in_memory_stores_preload("//tmp/t")
 
         # check that stores are rotated on-demand
         insert_rows("//tmp/t", _rows(10, 20))
@@ -971,6 +989,8 @@ class TestSortedTablets(YTEnvSetup):
 
         self.sync_unmount_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
+        # ensure data is preloaded
+        self._wait_for_in_memory_stores_preload("//tmp/t")
 
         # check that we can delete rows
         delete_rows("//tmp/t", _keys(0, 10))
@@ -979,6 +999,8 @@ class TestSortedTablets(YTEnvSetup):
         # check that everything survives after recovery
         self.sync_unmount_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
+        # ensure data is preloaded
+        self._wait_for_in_memory_stores_preload("//tmp/t")
         assert lookup_rows("//tmp/t", _keys(0, 50)) == _rows(10, 30)
 
         # check that we can extend key
@@ -988,6 +1010,8 @@ class TestSortedTablets(YTEnvSetup):
             {"name": "key2", "type": "int64", "sort_order": "ascending"},
             {"name": "value", "type": "string"}]);
         self.sync_mount_table("//tmp/t")
+        # ensure data is preloaded
+        self._wait_for_in_memory_stores_preload("//tmp/t")
         assert lookup_rows("//tmp/t", _keys(0, 50), column_names=["key", "value"]) == _rows(10, 30)
 
     def test_update_key_columns_fail1(self):

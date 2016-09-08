@@ -7,8 +7,6 @@
 #include "zstd_legacy.h"
 #include "brotli.h"
 
-#include <yt/core/tracing/trace_context.h>
-
 namespace NYT {
 namespace NCompression {
 
@@ -38,23 +36,12 @@ protected:
         bool compress,
         const TSharedRef& ref)
     {
-        // XXX(sandello): Disable tracing to due excessive output.
-        // auto guard = CreateTraceContextGuard(compress);
-
         ByteArraySource input(ref.Begin(), ref.Size());
-        // TRACE_ANNOTATION("input_size", ref.Size());
-
-        if (ref.Size() > MaxBlockSize) {
-            THROW_ERROR_EXCEPTION("Too large block for compression");
-        }
-
         auto blobCookie = compress
              ? GetRefCountedTypeCookie<TCompressedBlockTag<TCodec>>()
              : GetRefCountedTypeCookie<TDecompressedBlockTag<TCodec>>();
-        auto outputBlob = TBlob(blobCookie, 0, false);
+        auto outputBlob = TBlob(std::move(blobCookie), 0, false);
         converter(&input, &outputBlob);
-        // TRACE_ANNOTATION("output_size", output.Size());
-
         return TSharedRef::FromBlob(std::move(outputBlob));
     }
 
@@ -62,12 +49,8 @@ protected:
     TSharedRef Run(
         TConverter converter,
         bool compress,
-        const std::vector<TSharedRef>& refs,
-        std::function<size_t(const std::vector<int>&)> outputSizeEstimator = ZeroSizeEstimator)
+        const std::vector<TSharedRef>& refs)
     {
-        // XXX(sandello): Disable tracing to due excessive output.
-        // auto guard = CreateTraceContextGuard(compress);
-
         if (refs.size() == 1) {
             return Run<TCodec>(
                 converter,
@@ -75,37 +58,13 @@ protected:
                 refs.front());
         }
 
-        std::vector<int> inputSizes;
-        size_t totalInputSize = 0;
-        for (const auto& ref : refs) {
-            inputSizes.push_back(ref.Size());
-            totalInputSize += ref.Size();
-        }
-        // TRACE_ANNOTATION("input_size", totalInputSize);
-
-        if (totalInputSize > MaxBlockSize) {
-            THROW_ERROR_EXCEPTION("Too large block for compression");
-        }
-
+        TVectorRefsSource input(refs);
         auto blobCookie = compress
               ? GetRefCountedTypeCookie<TCompressedBlockTag<TCodec>>()
               : GetRefCountedTypeCookie<TDecompressedBlockTag<TCodec>>();
         auto outputBlob = TBlob(blobCookie, 0, false);
-        outputBlob.Reserve(outputSizeEstimator(inputSizes));
-
-        TVectorRefsSource input(refs);
         converter(&input, &outputBlob);
-        // TRACE_ANNOTATION("output_size", output.Size());
-
         return TSharedRef::FromBlob(std::move(outputBlob));
-    }
-
-private:
-    static NTracing::TChildTraceContextGuard CreateTraceContextGuard(bool compress)
-    {
-        return NTracing::TChildTraceContextGuard(
-            "Compression",
-            compress ? "Compress" : "Decompress");
     }
 };
 
@@ -240,7 +199,7 @@ public:
 
     virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) override
     {
-        return Run<TLz4Codec>(Compressor_, true, blocks, Lz4CompressionBound);
+        return Run<TLz4Codec>(Compressor_, true, blocks);
     }
 
     virtual TSharedRef Decompress(const TSharedRef& block) override

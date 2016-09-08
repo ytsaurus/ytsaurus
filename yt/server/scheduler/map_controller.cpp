@@ -11,6 +11,8 @@
 
 #include <yt/ytlib/table_client/config.h>
 
+#include <yt/ytlib/api/transaction.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -342,7 +344,7 @@ protected:
 
         AuxNodeDirectory->DumpTo(schedulerJobSpecExt->mutable_aux_node_directory());
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransactionId);
+        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
     }
 };
