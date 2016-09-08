@@ -7,6 +7,7 @@ from yt.fennel.new_fennel import LogBroker, monitor, push_to_logbroker
 import yt.wrapper as yt
 
 import logging
+import logging.handlers
 import argparse
 
 def configure_logging(args):
