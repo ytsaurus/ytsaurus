@@ -255,6 +255,13 @@ class TestSchedulerOther(YTEnvSetup):
         assert get("//sys/operations/{0}/@pool".format(op.id)) == "root"
         assert get("//sys/operations/{0}/@brief_spec/pool".format(op.id)) == "root"
 
+    def test_operation_events_attribute(self):
+        self._prepare_tables()
+
+        op = map(in_="//tmp/t_in", out="//tmp/t_out", command="cat")
+        events = get("//sys/operations/{0}/@events".format(op.id))
+        assert ["initializing", "preparing", "pending", "materializing", "running", "completing", "completed"] == [event["state"] for event in events]
+
 
 class TestSchedulerRevive(YTEnvSetup):
     NUM_MASTERS = 3
