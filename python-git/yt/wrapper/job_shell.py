@@ -23,7 +23,7 @@ import termios
 import fcntl
 import struct
 import signal
-from datetime import timedelta
+import time
 
 class JobShell(object):
     def __init__(self, job_id, interactive=True, timeout=None, client=None):
@@ -41,6 +41,7 @@ class JobShell(object):
             self.width, self.height = self._terminal_size()
         self.key_buffer = ""
         self.input_offset = 0
+        self.ioloop = IOLoop.current() if hasattr(IOLoop, "current") else IOLoop.instance()
         self.sync = HTTPClient()
         self.async = AsyncHTTPClient()
 
@@ -132,7 +133,7 @@ class JobShell(object):
             print("Error:", err)
 
         if self.interactive:
-            IOLoop.current().stop()
+            self.ioloop.stop()
 
     def _on_update_response(self, rsp):
         if rsp.error:
@@ -179,13 +180,12 @@ class JobShell(object):
             self._update_shell()
 
     def _on_timer(self):
-        ioloop = IOLoop.current()
-        ioloop.add_callback(self._resize_window)
-        ioloop.add_timeout(timedelta(seconds=5), self._on_timer)
+        self.ioloop.add_callback(self._resize_window)
+        self.ioloop.add_timeout(time.time() + 5, self._on_timer)
 
     def _terminate(self, reason=None):
         self.terminating = True
-        IOLoop.current().stop()
+        self.ioloop.stop()
 
         self._restore_termios()
         print("")
@@ -195,13 +195,12 @@ class JobShell(object):
         self._terminate_shell()
 
     def _on_signal(self, sig, frame):
-        ioloop = IOLoop.current()
         if sig == signal.SIGWINCH:
-            ioloop.add_callback_from_signal(self._resize_window)
+            self.ioloop.add_callback_from_signal(self._resize_window)
         if sig == signal.SIGHUP:
-            ioloop.add_callback_from_signal(self._terminate, "Connection lost")
+            self.ioloop.add_callback_from_signal(self._terminate, "Connection lost")
         if sig == signal.SIGTERM:
-            ioloop.add_callback_from_signal(self._terminate, "Terminated by signal")
+            self.ioloop.add_callback_from_signal(self._terminate, "Terminated by signal")
 
     def _on_keyboard_input(self, fd, events):
         try:
@@ -229,15 +228,14 @@ class JobShell(object):
             stdin = sys.stdin.fileno()
             fcntl.fcntl(stdin, fcntl.F_SETFL, fcntl.fcntl(stdin, fcntl.F_GETFL) | os.O_NONBLOCK)
 
-            ioloop = IOLoop.current()
-            ioloop.add_handler(stdin, self._on_keyboard_input, IOLoop.READ)
-            ioloop.add_timeout(timedelta(seconds=1), self._on_timer)
+            self.ioloop.add_handler(stdin, self._on_keyboard_input, IOLoop.READ)
+            self.ioloop.add_timeout(time.time() + 1, self._on_timer)
             signal.signal(signal.SIGWINCH, self._on_signal)
             signal.signal(signal.SIGHUP, self._on_signal)
             signal.signal(signal.SIGTERM, self._on_signal)
             self._poll_shell()
 
-            IOLoop.current().start()
+            self.ioloop.start()
         finally:
             self._restore_termios()
-            IOLoop.current().stop()
+            self.ioloop.stop()
