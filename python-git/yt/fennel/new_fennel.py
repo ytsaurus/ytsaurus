@@ -303,7 +303,7 @@ def update_table_attributes(yt_client, table_path, pushed_row_count):
         processed_row_count = yt_client.get(table_path + "/@processed_row_count")
         yt_client.set(table_path + "/@processed_row_count", processed_row_count + pushed_row_count)
 
-        last_row = yt_client.read_table(yt.TablePath(table_path, exact_index=processed_row_count + pushed_row_count - 1)).next()
+        last_row = yt_client.read_table(yt.TablePath(table_path, exact_index=processed_row_count + pushed_row_count - 1, simplify=False)).next()
         if "timestamp" in last_row:
             yt_client.set(table_path + "/@last_saved_ts", last_row["timestamp"])
 
@@ -348,7 +348,7 @@ def push_to_logbroker_one_portion(yt_client, logbroker, table_path, session_coun
 
 def acquire_yt_lock(yt_client, lock_path, queue):
     try:
-        yt_client.create(lock_path, ignore_existing=False)
+        yt_client.create("map_node", lock_path, ignore_existing=True)
         with yt_client.Transaction() as tx:
             logger.info("Acquiring lock under tx %s", tx.transaction_id)
             while True:
@@ -371,6 +371,7 @@ def acquire_yt_lock(yt_client, lock_path, queue):
             while True:
                 time.sleep(LOCK_ACQUIRE_BACKOFF)
     except:
+        logger.exception("Lock thread failed")
         os._exit(1)
 
 
