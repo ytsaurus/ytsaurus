@@ -104,30 +104,18 @@ public:
             .InRange(0.0, 1.0)
             .Default(0.05);
 
-        // COMPAT(ignat): deprecated.
-        RegisterParameter("max_running_operations", MaxRunningOperationCount)
-            .Default(200)
-            .GreaterThan(0);
-
         RegisterParameter("max_running_operation_count", MaxRunningOperationCount)
+            .Alias("max_running_operations")
             .Default(200)
-            .GreaterThan(0);
-
-        // COMPAT(ignat): deprecated.
-        RegisterParameter("max_running_operations_per_pool", MaxRunningOperationCountPerPool)
-            .Default(50)
             .GreaterThan(0);
 
         RegisterParameter("max_running_operation_count_per_pool", MaxRunningOperationCountPerPool)
-            .Default(50)
-            .GreaterThan(0);
-
-        // COMPAT(ignat): deprecated.
-        RegisterParameter("max_operations_per_pool", MaxOperationCountPerPool)
+            .Alias("max_running_operations_per_pool")
             .Default(50)
             .GreaterThan(0);
 
         RegisterParameter("max_operation_count_per_pool", MaxOperationCountPerPool)
+            .Alias("max_operations_per_pool")
             .Default(50)
             .GreaterThan(0);
 
@@ -489,9 +477,6 @@ public:
     //! Maximum number of files per user job.
     int MaxUserFileCount;
 
-    //! blkio.weight set on user job cgroup.
-    TNullable<int> UserJobBlkioWeight;
-
     //! Maximum number of jobs to start within a single heartbeat.
     TNullable<int> MaxStartedJobsPerHeartbeat;
 
@@ -565,8 +550,8 @@ public:
     // Duration of no activity by job to be considered as suspicious.
     TDuration SuspiciousInactivityTimeout;
 
-    // User job cpu usage delta that is considered insignificant when checking if job is suspicious.
-    i64 SuspiciousUserJobCpuUsageThreshold;
+    // Cpu usage delta that is considered insignificant when checking if job is suspicious.
+    i64 SuspiciousCpuUsageThreshold;
     // User job block IO read value that is considered insignificant when checking if job is suspicious.
     i64 SuspiciousUserJobBlockIOReadThreshold;
 
@@ -575,6 +560,12 @@ public:
 
     // Testing option that enables sleeping between intermediate and final states of operation.
     TNullable<TDuration> FinishOperationTransitionDelay;
+
+    // If user job iops threshold is exceeded, iops throttling is enabled via cgroups.
+    TNullable<i32> IopsThreshold;
+    TNullable<i32> IopsThrottlerLimit;
+
+    TDuration StaticOrchidCacheUpdatePeriod;
 
     TSchedulerConfig()
     {
@@ -694,9 +685,6 @@ public:
             .Default(1000)
             .GreaterThan(0);
 
-        RegisterParameter("user_job_blkio_weight", UserJobBlkioWeight)
-            .Default(Null);
-
         RegisterParameter("max_output_tables_times_jobs_count", MaxOutputTablesTimesJobsCount)
             .Default(20 * 100000)
             .GreaterThanOrEqual(100000);
@@ -795,15 +783,22 @@ public:
 
         RegisterParameter("suspicious_inactivity_timeout", SuspiciousInactivityTimeout)
             .Default(TDuration::Minutes(1));
-        RegisterParameter("suspicious_user_job_cpu_usage_threshold", SuspiciousUserJobCpuUsageThreshold)
-            .Default(10);
+        RegisterParameter("suspicious_cpu_usage_threshold", SuspiciousCpuUsageThreshold)
+            .Default(300);
         RegisterParameter("suspicious_user_job_block_io_read_threshold", SuspiciousUserJobBlockIOReadThreshold)
             .Default(20);
 
         RegisterParameter("enable_snapshot_cycle_after_materialization", EnableSnapshotCycleAfterMaterialization)
             .Default(false);
+        RegisterParameter("static_orchid_cache_update_period", StaticOrchidCacheUpdatePeriod)
+            .Default(TDuration::Seconds(1));
 
         RegisterParameter("finish_operation_transition_delay", FinishOperationTransitionDelay)
+            .Default(Null);
+
+        RegisterParameter("iops_threshold", IopsThreshold)
+            .Default(Null);
+        RegisterParameter("iops_throttler_limit", IopsThrottlerLimit)
             .Default(Null);
 
         RegisterInitializer([&] () {

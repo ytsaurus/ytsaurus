@@ -21,6 +21,8 @@ struct TShellParameters
     int Width;
     //! Timeout for inactive shell after failed or completed job.
     TDuration InactivityTimeout;
+    //! Environment variables passed to job shell.
+    std::vector<Stroka> Environment;
 
     TShellParameters()
     {
@@ -39,6 +41,8 @@ struct TShellParameters
             .Default(0);
         RegisterParameter("inactivity_timeout", InactivityTimeout)
             .Default(TDuration::Seconds(5 * 60));
+        RegisterParameter("environment", Environment)
+            .Default();
 
         RegisterValidator([&] () {
             if (Operation != EShellOperation::Spawn && !ShellId) {

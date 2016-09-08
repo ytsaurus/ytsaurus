@@ -409,13 +409,27 @@ void SyncYPathRemove(
 
 std::vector<Stroka> SyncYPathList(
     const IYPathServicePtr& service,
-    const TYPath& path)
+    const TYPath& path,
+    TNullable<i64> limit)
 {
-    auto request = TYPathProxy::List(path);
-    auto response = ExecuteVerb(service, request)
+    return AsyncYPathList(service, path, limit)
         .Get()
         .ValueOrThrow();
-    return ConvertTo<std::vector<Stroka>>(TYsonString(response->value()));
+}
+
+TFuture<std::vector<Stroka>> AsyncYPathList(
+    const IYPathServicePtr& service,
+    const TYPath& path,
+    TNullable<i64> limit)
+{
+    auto request = TYPathProxy::List(path);
+    if (limit) {
+        request->set_limit(*limit);
+    }
+    return ExecuteVerb(service, request)
+        .Apply(BIND([] (TYPathProxy::TRspListPtr response) {
+            return ConvertTo<std::vector<Stroka>>(TYsonString(response->value()));
+        }));
 }
 
 void ApplyYPathOverride(
