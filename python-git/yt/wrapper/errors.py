@@ -48,6 +48,7 @@ class YtResponseError(yt.common.YtResponseError):
             self.__class__ = YtNoSuchTransaction
 
 class YtHttpResponseError(YtResponseError):
+    """Reponse error recieved from http proxy with additional http request information."""
     def __init__(self, error, url, headers, params):
         def dumps(obj):
             return json.dumps(hide_token(obj), indent=4, sort_keys=True)
