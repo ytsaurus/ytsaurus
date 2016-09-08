@@ -787,6 +787,7 @@ test_missing_prefix
 test_table_record_index
 test_opts
 test_archive_and_transform
+test_defrag
 
 if [ -z "$ENABLE_SCHEMA" ]; then
     test_sortby_reduceby
@@ -795,8 +796,6 @@ if [ -z "$ENABLE_SCHEMA" ]; then
     test_dsv_reduce
     test_table_file
     test_unexisting_input_tables
-    # Fix problem with merge_by and move this test outside.
-    test_defrag
 fi
 
 cleanup
