@@ -248,6 +248,13 @@ class TestSchedulerOther(YTEnvSetup):
         assert op.get_state() == "aborted"
         assert get("//sys/operations/{0}/@result/error/inner_errors/0/message".format(op.id)) == "Test abort"
 
+    def test_operation_pool_attributes(self):
+        self._prepare_tables()
+
+        op = map(in_="//tmp/t_in", out="//tmp/t_out", command="cat")
+        assert get("//sys/operations/{0}/@pool".format(op.id)) == "root"
+        assert get("//sys/operations/{0}/@brief_spec/pool".format(op.id)) == "root"
+
 
 class TestSchedulerRevive(YTEnvSetup):
     NUM_MASTERS = 3
