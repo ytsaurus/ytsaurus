@@ -104,11 +104,14 @@ public:
             auto owners = operation->GetOwners();
             owners.push_back(operation->GetAuthenticatedUser());
 
+            auto controller = operation->GetController();
+
             auto req = TYPathProxy::Set(path);
             req->set_value(BuildYsonStringFluently()
                 .BeginAttributes()
                     .Do(BIND(&ISchedulerStrategy::BuildOperationAttributes, strategy, operationId))
                     .Do(BIND(&BuildInitializingOperationAttributes, operation))
+                    .DoIf(static_cast<bool>(controller), BIND(&IOperationController::BuildOperationAttributes, controller))
                     .Item("brief_spec").BeginMap()
                         .Do(BIND(&IOperationController::BuildBriefSpec, operation->GetController()))
                         .Do(BIND(&ISchedulerStrategy::BuildBriefSpec, strategy, operationId))
@@ -229,12 +232,13 @@ public:
 
     TFuture<void> AttachToLivePreview(
         const TOperationId& operationId,
+        const TTransactionId& transactionId,
         const TNodeId& tableId,
         const std::vector<TChunkTreeId>& childIds)
     {
         return BIND(&TImpl::DoAttachToLivePreview, MakeStrong(this))
             .AsyncVia(CancelableControlInvoker)
-            .Run(operationId, tableId, childIds);
+            .Run(operationId, transactionId, tableId, childIds);
     }
 
     TFuture<TSharedRef> DownloadSnapshot(const TOperationId& operationId)
@@ -345,6 +349,7 @@ private:
         { }
 
         TOperationPtr Operation;
+        TTransactionId TransactionId;
         std::vector<TCreateJobNodeRequest> JobRequests;
         std::vector<TLivePreviewRequest> LivePreviewRequests;
         TFuture<void> LastUpdateFuture = VoidFuture;
@@ -404,8 +409,8 @@ private:
         CancelableControlInvoker = CancelableContext->CreateInvoker(Bootstrap->GetControlInvoker());
 
         const auto& result = resultOrError.Value();
-        for (auto operation : result.Operations) {
-            CreateUpdateList(operation);
+        for (auto operationReport : result.OperationReports) {
+            CreateUpdateList(operationReport.Operation);
         }
         for (auto handler : GlobalWatcherHandlers) {
             handler.Run(result.WatcherResponses);
@@ -579,7 +584,7 @@ private:
                 for (auto operationNode : operationsList->GetChildren()) {
                     auto id = TOperationId::FromString(operationNode->GetValue<Stroka>());
                     auto state = operationNode->Attributes().Get<EOperationState>("state");
-                    if (IsOperationInProgress(state) || state == EOperationState::Aborting) {
+                    if (IsOperationInProgress(state)) {
                         OperationIds.push_back(id);
                     }
                 }
@@ -628,14 +633,10 @@ private:
                     const auto& operationId = OperationIds[index];
                     auto rsp = rsps[index].Value();
                     auto attributesNode = ConvertToAttributes(TYsonString(rsp->value()));
-                    auto operation = Owner->CreateOperationFromAttributes(operationId, *attributesNode);
 
-                    Result.Operations.push_back(operation);
-                    if (operation->GetState() == EOperationState::Aborting) {
-                        Result.AbortingOperations.push_back(operation);
-                    } else {
-                        Result.RevivingOperations.push_back(operation);
-                        operation->SetState(EOperationState::Reviving);
+                    auto operationReport = Owner->CreateOperationFromAttributes(operationId, *attributesNode);
+                    if (operationReport.Operation) {
+                        Result.OperationReports.push_back(operationReport);
                     }
                 }
             }
@@ -704,7 +705,9 @@ private:
     }
 
 
-    TOperationPtr CreateOperationFromAttributes(const TOperationId& operationId, const IAttributeDictionary& attributes)
+    TOperationReport CreateOperationFromAttributes(
+        const TOperationId& operationId,
+        const IAttributeDictionary& attributes)
     {
         auto getTransaction = [&] (const TTransactionId& transactionId, bool ping) -> ITransactionPtr {
             if (!transactionId) {
@@ -726,23 +729,24 @@ private:
             }
         };
 
+        TOperationReport result;
+
+        auto userTransactionId = attributes.Get<TTransactionId>("user_transaction_id");
         auto userTransaction = getTransaction(
             attributes.Get<TTransactionId>("user_transaction_id"),
             false);
 
-        auto syncTransaction = getTransaction(
+        result.ControllerTransactions = New<TControllerTransactions>();
+        result.ControllerTransactions->Sync = getTransaction(
             attributes.Get<TTransactionId>("sync_scheduler_transaction_id"),
             true);
-
-        auto asyncTransaction = getTransaction(
+        result.ControllerTransactions->Async = getTransaction(
             attributes.Get<TTransactionId>("async_scheduler_transaction_id"),
             true);
-
-        auto inputTransaction = getTransaction(
+        result.ControllerTransactions->Input = getTransaction(
             attributes.Get<TTransactionId>("input_transaction_id"),
             true);
-
-        auto outputTransaction = getTransaction(
+        result.ControllerTransactions->Output = getTransaction(
             attributes.Get<TTransactionId>("output_transaction_id"),
             true);
 
@@ -753,10 +757,10 @@ private:
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error parsing operation spec (OperationId: %v)",
                 operationId);
-            return nullptr;
+            return TOperationReport();
         }
 
-        auto operation = New<TOperation>(
+        result.Operation = New<TOperation>(
             operationId,
             attributes.Get<EOperationType>("operation_type"),
             attributes.Get<TMutationId>("mutation_id"),
@@ -768,12 +772,9 @@ private:
             attributes.Get<EOperationState>("state"),
             attributes.Get<bool>("suspended"));
 
-        operation->SetSyncSchedulerTransaction(syncTransaction);
-        operation->SetAsyncSchedulerTransaction(asyncTransaction);
-        operation->SetInputTransaction(inputTransaction);
-        operation->SetOutputTransaction(outputTransaction);
+        result.UserTransactionAborted = !userTransaction && userTransactionId;
 
-        return operation;
+        return result;
     }
 
 
@@ -871,15 +872,13 @@ private:
 
         auto operations = Bootstrap->GetScheduler()->GetOperations();
         for (auto operation : operations) {
-            if (!operation->GetHasActiveTransactions()) {
-                continue;
+            auto controller = operation->GetController();
+            if (controller) {
+                for (const auto& transaction : controller->GetTransactions()) {
+                    watchTransaction(transaction);
+                }
             }
-
             watchTransaction(operation->GetUserTransaction());
-            watchTransaction(operation->GetSyncSchedulerTransaction());
-            watchTransaction(operation->GetAsyncSchedulerTransaction());
-            watchTransaction(operation->GetInputTransaction());
-            watchTransaction(operation->GetOutputTransaction());
         }
 
         yhash_map<TCellTag, TObjectServiceProxy::TReqExecuteBatchPtr> batchReqs;
@@ -969,20 +968,19 @@ private:
 
         // Check every operation's transactions and raise appropriate notifications.
         for (auto operation : operations) {
-            if (!operation->GetHasActiveTransactions()) {
+            if (!isUserTransactionAlive(operation, operation->GetUserTransaction())) {
+                UserTransactionAborted_.Fire(operation);
                 continue;
             }
 
-            if (!isUserTransactionAlive(operation, operation->GetUserTransaction())) {
-                UserTransactionAborted_.Fire(operation);
-            }
-
-            if (!isSchedulerTransactionAlive(operation, operation->GetSyncSchedulerTransaction()) ||
-                !isSchedulerTransactionAlive(operation, operation->GetAsyncSchedulerTransaction()) ||
-                !isSchedulerTransactionAlive(operation, operation->GetInputTransaction()) ||
-                !isSchedulerTransactionAlive(operation, operation->GetOutputTransaction()))
-            {
-                SchedulerTransactionAborted_.Fire(operation);
+            auto controller = operation->GetController();
+            if (controller) {
+                for (const auto& transaction : controller->GetTransactions()) {
+                    if (!isSchedulerTransactionAlive(operation, transaction)) {
+                        SchedulerTransactionAborted_.Fire(operation);
+                        break;
+                    }
+                }
             }
         }
     }
@@ -1146,11 +1144,14 @@ private:
         }
 
         // Set result.
-        if (operation->IsFinishedState() && controller) {
+        if (operation->IsFinishedState()) {
             auto req = TYPathProxy::Set(operationPath + "/@result");
-            req->set_value(ConvertToYsonString(BIND(
-                &IOperationController::BuildResult,
-                controller)).Data());
+            auto error = FromProto<TError>(operation->Result().error());
+            auto errorString = BuildYsonStringFluently()
+                .BeginMap()
+                    .Item("error").Value(error)
+                .EndMap();
+            req->set_value(errorString.Data());
             batchReq->AddRequest(req, "update_op_node");
         }
 
@@ -1450,6 +1451,7 @@ private:
 
     void AttachLivePreviewChunks(
         TOperationPtr operation,
+        const TTransactionId& transactionId,
         const std::vector<TLivePreviewRequest>& livePreviewRequests)
     {
         struct TTableInfo
@@ -1493,7 +1495,7 @@ private:
                     req->set_lock_mode(static_cast<int>(ELockMode::Shared));
                     req->set_upload_transaction_title(Format("Attaching live preview chunks of operation %v",
                         operation->GetId()));
-                    SetTransactionId(req, operation->GetAsyncSchedulerTransaction()->GetId());
+                    SetTransactionId(req, transactionId);
                     GenerateMutationId(req);
                     batchReq->AddRequest(req, "begin_upload");
                 }
@@ -1606,6 +1608,7 @@ private:
 
     void DoUpdateOperationNode(
         TOperationPtr operation,
+        const TTransactionId& transactionId,
         const std::vector<TCreateJobNodeRequest>& jobRequests,
         const std::vector<TLivePreviewRequest>& livePreviewRequests)
     {
@@ -1652,7 +1655,7 @@ private:
         }
 
         try {
-            AttachLivePreviewChunks(operation, livePreviewRequests);
+            AttachLivePreviewChunks(operation, transactionId, livePreviewRequests);
         } catch (const std::exception& ex) {
             // NB: Don' treat this as a critical error.
             // Some of these chunks could go missing for a number of reasons.
@@ -1681,6 +1684,7 @@ private:
                 &TImpl::DoUpdateOperationNode,
                 MakeStrong(this),
                 operation,
+                list->TransactionId,
                 std::move(list->JobRequests),
                 std::move(list->LivePreviewRequests))
             .AsyncVia(CancelableControlInvoker));
@@ -1922,6 +1926,7 @@ private:
 
     void DoAttachToLivePreview(
         const TOperationId& operationId,
+        const TTransactionId& transactionId,
         const TNodeId& tableId,
         const std::vector<TChunkTreeId>& childIds)
     {
@@ -1933,6 +1938,13 @@ private:
             LOG_DEBUG("Operation node is not registered, omitting live preview attach (OperationId: %v)",
                 operationId);
             return;
+        }
+
+        if (!list->TransactionId) {
+            list->TransactionId = transactionId;
+        } else {
+            // NB: Controller must attach all live preview chunks under the same transaction.
+            YCHECK(list->TransactionId == transactionId);
         }
 
         LOG_DEBUG("Attaching live preview chunk trees (OperationId: %v, TableId: %v, ChildCount: %v)",
@@ -2023,10 +2035,11 @@ void TMasterConnector::AttachJobContext(
 
 TFuture<void> TMasterConnector::AttachToLivePreview(
     const TOperationId& operationId,
+    const TTransactionId& transactionId,
     const TNodeId& tableId,
     const std::vector<TChunkTreeId>& childIds)
 {
-    return Impl->AttachToLivePreview(operationId, tableId, childIds);
+    return Impl->AttachToLivePreview(operationId, transactionId, tableId, childIds);
 }
 
 void TMasterConnector::AddGlobalWatcherRequester(TWatcherRequester requester)

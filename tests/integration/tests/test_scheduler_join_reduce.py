@@ -189,8 +189,14 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
 """
 
     @unix_only
-    def test_join_reduce_cat_two_output(self):
-        create("table", "//tmp/in1")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_join_reduce_cat_two_output(self, optimize_for):
+        schema = [
+            {"name" : "key", "type" : "int64", "sort_order" : "ascending"}, 
+            {"name" : "value", "type" : "int64", "sort_order" : "ascending"}
+        ]
+
+        create("table", "//tmp/in1", attributes={"schema" : schema, "optimize_for" : optimize_for})
         write_table(
             "//tmp/in1",
             [
@@ -198,29 +204,25 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
                 {"key": 2, "value": 2},
                 {"key": 4, "value": 3},
                 {"key": 8, "value": 4}
-            ],
-            sorted_by = ["key", "value"])
+            ])
 
-        create("table", "//tmp/in2")
+        create("table", "//tmp/in2", attributes={"schema" : schema, "optimize_for" : optimize_for})
         write_table(
             "//tmp/in2",
             [
                 {"key": 2, "value": 5},
                 {"key": 3, "value": 6},
-            ],
-            sorted_by = ["key", "value"])
+            ])
 
-        create("table", "//tmp/in3")
+        create("table", "//tmp/in3", attributes={"schema" : schema, "optimize_for" : optimize_for})
         write_table(
             "//tmp/in3",
-            [ {"key": 2, "value": 1}, ],
-            sorted_by = ["key", "value"])
+            [ {"key": 2, "value": 1}, ])
 
-        create("table", "//tmp/in4")
+        create("table", "//tmp/in4", attributes={"schema" : schema, "optimize_for" : optimize_for})
         write_table(
             "//tmp/in4",
-            [ {"key": 3, "value": 7}, ],
-            sorted_by = ["key", "value"])
+            [ {"key": 3, "value": 7}, ])
 
         create("table", "//tmp/out1")
         create("table", "//tmp/out2")
@@ -256,6 +258,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
 
         assert get("//tmp/out1/@sorted")
         assert get("//tmp/out2/@sorted")
+
 
     @unix_only
     def test_join_reduce_empty_in(self):
@@ -338,12 +341,17 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
                 join_by = "subkey")
 
     @unix_only
-    def test_join_reduce_short_limits(self):
-        create("table", "//tmp/in1")
-        create("table", "//tmp/in2")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_join_reduce_short_limits(self, optimize_for):
+        schema = [
+            {"name" : "key", "type" : "string", "sort_order" : "ascending"}, 
+            {"name" : "subkey", "type" : "string", "sort_order" : "ascending"}
+        ]
+        create("table", "//tmp/in1", attributes={"schema" : schema, "optimize_for" : optimize_for})
+        create("table", "//tmp/in2", attributes={"schema" : schema, "optimize_for" : optimize_for})
         create("table", "//tmp/out")
-        write_table("//tmp/in1", [{"key": "1", "subkey": "2"}, {"key": "3"}], sorted_by=["key", "subkey"])
-        write_table("//tmp/in2", [{"key": "1", "subkey": "3"}, {"key": "2"}], sorted_by=["key", "subkey"])
+        write_table("//tmp/in1", [{"key": "1", "subkey": "2"}, {"key": "3"}])
+        write_table("//tmp/in2", [{"key": "1", "subkey": "3"}, {"key": "2"}])
 
         join_reduce(
             in_ = ['//tmp/in1["1":"3"]', "<foreign=true>//tmp/in2"],

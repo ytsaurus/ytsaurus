@@ -73,11 +73,16 @@ def prepare_parameters(parameters):
     change(parameters, "ping_ancestor_txs", "ping_ancestor_transactions")
     return parameters
 
-def execute_command(command_name, parameters, input_stream=None, output_stream=None, verbose=None):
+def execute_command(command_name, parameters, input_stream=None, output_stream=None, verbose=None, ignore_result=False):
     if "verbose" in parameters:
         verbose = parameters["verbose"]
         del parameters["verbose"]
     verbose = verbose is None or verbose
+
+    if "ignore_result" in parameters:
+        ignore_result = parameters["ignore_result"]
+        del parameters["ignore_result"]
+    ignore_result = ignore_result is None or ignore_result
 
     if "driver" in parameters:
         driver = parameters["driver"]
@@ -113,6 +118,10 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
                 input_stream=input_stream,
                 output_stream=output_stream,
                 user=authenticated_user))
+
+    if ignore_result:
+        return
+
     response.wait()
     if not response.is_ok():
         error = YtResponseError(response.error())

@@ -5,6 +5,7 @@
 #include "operation_controller.h"
 
 #include <yt/ytlib/scheduler/helpers.h>
+#include <yt/ytlib/scheduler/config.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -36,16 +37,18 @@ TOperation::TOperation(
     , Activated_(false)
     , Prepared_(false)
     , UserTransaction_(userTransaction)
-    , HasActiveTransactions_(false)
     , Spec_(spec)
     , AuthenticatedUser_(authenticatedUser)
     , Owners_(owners)
     , StartTime_(startTime)
     , StderrCount_(0)
     , JobNodeCount_(0)
-    , MaxStderrCount_(0)
     , CodicilData_(MakeOperationCodicilString(Id_))
-{ }
+{
+    auto parsedSpec = ConvertTo<TOperationSpecBasePtr>(Spec_);
+    MaxStderrCount_ = parsedSpec->MaxStderrCount;
+    SchedulingTag_ = parsedSpec->SchedulingTag;
+}
 
 TFuture<TOperationPtr> TOperation::GetStarted()
 {

@@ -283,12 +283,16 @@ private:
                     subqueryOptions.Timestamp = Options_.Timestamp;
                     subqueryOptions.VerboseLogging = Options_.VerboseLogging;
 
-                    asyncSubqueryResults->push_back(remoteExecutor->Execute(
+                    auto asyncResult = remoteExecutor->Execute(
                         subquery,
                         externalCGInfo,
                         std::move(dataRanges),
                         writer,
-                        subqueryOptions));
+                        subqueryOptions);
+
+                    asyncSubqueryResults->push_back(asyncResult);
+
+                    return asyncResult;
                 };
 
                 auto asyncStatistics = BIND(&TEvaluator::RunWithExecutor, Evaluator_)

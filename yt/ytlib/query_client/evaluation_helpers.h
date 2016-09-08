@@ -107,8 +107,8 @@ struct TJoinParameters
     std::vector<size_t> SelfColumns;
     std::vector<size_t> ForeignColumns;
 
-    std::function<void(ISchemafulWriterPtr, std::vector<TRow>, TRowBufferPtr, TExecuteQueryCallback)>
-        ExecuteForeign;
+    std::function<std::pair<TQueryPtr, TDataRanges>(std::vector<TRow>, TRowBufferPtr)>
+        GetForeignQuery;
 
     size_t BatchSize;
 };

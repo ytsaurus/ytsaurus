@@ -82,7 +82,6 @@ private:
     EInMemoryMode InMemoryMode_ = EInMemoryMode::None;
 
     const NTableClient::TKeyComparer KeyComparer_;
-    const bool RequireChunkPreload_;
 
 
     NTableClient::IVersionedReaderPtr CreateCacheBasedReader(

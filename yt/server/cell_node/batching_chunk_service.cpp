@@ -52,7 +52,7 @@ public:
         TMasterConnectionConfigPtr connectionConfig,
         IChannelFactoryPtr channelFactory)
         : TServiceBase(
-            NRpc::TDispatcher::Get()->GetInvoker(),
+            NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             TServiceId(TChunkServiceProxy::GetServiceName(), cellId),
             CellNodeLogger,
             TChunkServiceProxy::GetProtocolVersion())

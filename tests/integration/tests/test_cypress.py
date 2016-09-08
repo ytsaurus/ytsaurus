@@ -957,7 +957,7 @@ class TestCypress(YTEnvSetup):
 
 
     def _now(self):
-        return datetime.now(tzlocal()) 
+        return datetime.now(tzlocal())
 
     def test_expiration_time_validation(self):
         create("table", "//tmp/t")
@@ -1023,7 +1023,7 @@ class TestCypress(YTEnvSetup):
         commit_transaction(tx)
         time.sleep(0.1)
         assert not exists("//tmp/t")
-        
+
     def test_expiration_time_removal1(self):
         create("table", "//tmp/t", attributes={"expiration_time": str(self._now())})
         time.sleep(0.1)
@@ -1088,7 +1088,7 @@ class TestCypress(YTEnvSetup):
         time.sleep(0.1)
         assert not exists("//tmp/t2")
 
-    
+
     def test_ignore_ampersand1(self):
         set("//tmp/map", {})
         set("//tmp&/map&/a", "b")
@@ -1125,7 +1125,7 @@ class TestCypress(YTEnvSetup):
         assert len(set_results) == 2
         assert get_batch_output(set_results[0]) == None
         assert get_batch_output(set_results[1]) == None
-        
+
         get_results = execute_batch([
             make_batch_request("get", path="//tmp/a"),
             make_batch_request("get", path="//tmp/b")
@@ -1145,6 +1145,25 @@ class TestCypress(YTEnvSetup):
         for i in xrange(10):
             set("//tmp/l/end", i)
         assert get("//tmp/l/@recursive_resource_usage/node_count") == 11
+
+    def test_prerequisite_transactions(self):
+        with pytest.raises(YtError):
+            set("//tmp/test_node", {}, prerequisite_transaction_ids=["a-b-c-d"])
+
+        tx = start_transaction()
+        set("//tmp/test_node", {}, prerequisite_transaction_ids=[tx])
+        remove("//tmp/test_node", prerequisite_transaction_ids=[tx])
+
+    def test_prerequisite_revisions(self):
+        create("map_node", "//tmp/test_node")
+        revision = get("//tmp/test_node/@revision")
+
+        with pytest.raises(YtError):
+            create("map_node", "//tmp/test_node/inner_node",
+                   prerequisite_revisions=[{"path": "//tmp/test_node", "transaction_id": "0-0-0-0", "revision": revision + 1}])
+
+        create("map_node", "//tmp/test_node/inner_node",
+               prerequisite_revisions=[{"path": "//tmp/test_node", "transaction_id": "0-0-0-0", "revision": revision}])
 
 
 ##################################################################

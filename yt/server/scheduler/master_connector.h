@@ -31,12 +31,17 @@ struct TCreateJobNodeRequest
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TOperationReport
+{
+    TOperationPtr Operation;
+    TControllerTransactionsPtr ControllerTransactions;
+    bool UserTransactionAborted = false;
+};
+
 //! Information retrieved during scheduler-master handshake.
 struct TMasterHandshakeResult
 {
-    std::vector<TOperationPtr> Operations;
-    std::vector<TOperationPtr> RevivingOperations;
-    std::vector<TOperationPtr> AbortingOperations;
+    std::vector<TOperationReport> OperationReports;
     NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr WatcherResponses;
 };
 
@@ -78,6 +83,7 @@ public:
 
     TFuture<void> AttachToLivePreview(
         const TOperationId& operationId,
+        const NObjectClient::TTransactionId& transactionId,
         const NCypressClient::TNodeId& tableId,
         const std::vector<NChunkClient::TChunkTreeId>& childIds);
 
