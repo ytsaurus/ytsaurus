@@ -681,7 +681,7 @@ public:
 
                 auto* chunkList = chunkLists[tabletIndex]->AsChunkList();
                 auto chunks = EnumerateChunksInChunkTree(chunkList);
-                auto storeType = table->IsSorted() ? EStoreType::SortedChunk : EStoreType::OrderedChunk;
+                auto storeType = table->IsPhysicallySorted() ? EStoreType::SortedChunk : EStoreType::OrderedChunk;
                 i64 startingRowIndex = tablet->GetTrimmedStoresRowCount();
                 for (const auto* chunk : chunks) {
                     auto* descriptor = req.add_stores();
