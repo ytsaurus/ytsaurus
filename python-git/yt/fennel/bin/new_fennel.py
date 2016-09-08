@@ -20,7 +20,7 @@ def configure_logging(args):
         logger.propagate = False
         logger.setLevel(level)
         logger.handlers = [handler]
-        logger.handlers[0].setFormatter(logging.Formatter("%(asctime)-15s %(process)s %(levelname)s\t%(message)s"))
+        logger.handlers[0].setFormatter(logging.Formatter("%(asctime)-15s\t%(levelname)s\t%(name)s\t%(message)s"))
 
     configure_logger(logging.getLogger("Fennel"))
     configure_logger(logging.getLogger("Yt"))
