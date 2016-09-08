@@ -795,7 +795,7 @@ def _are_valid_nodes(source_tables, destination_table):
     return len(source_tables) == 1 and \
            not source_tables[0].has_delimiters() and \
            not destination_table.append and \
-           destination_table.name != source_tables[0].name
+           destination_table != source_tables[0]
 
 def copy_table(source_table, destination_table, replace=True, client=None):
     """Copy table(s).
@@ -820,7 +820,7 @@ def copy_table(source_table, destination_table, replace=True, client=None):
     if _are_valid_nodes(source_tables, destination_table):
         if replace and \
                 exists(destination_table.name, client=client) and \
-                to_name(source_tables[0], client=client) != to_name(destination_table, client=client):
+                source_tables[0] != destination_table:
             # in copy destination should be missing
             remove(destination_table.name, client=client)
         copy(source_tables[0].name, destination_table.name, recursive=True, client=client)
@@ -859,7 +859,7 @@ def move_table(source_table, destination_table, replace=True, client=None):
     else:
         copy_table(source_table, destination_table, client=client)
         for table in source_tables:
-            if to_name(table, client=client) == to_name(destination_table, client=client):
+            if table == destination_table:
                 continue
             if table == DEFAULT_EMPTY_TABLE:
                 continue

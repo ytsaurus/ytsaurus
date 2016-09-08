@@ -194,6 +194,9 @@ class TablePath(object):
     def __eq__(self, other):
         return str(self.name) == str(other.name)
 
+    def __ne__(self, other):
+        return not (self == other)
+
     def __hash__(self):
         return hash(self.name)
 
