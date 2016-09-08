@@ -200,7 +200,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* cons
                             fluent
                                 .Item("pivot_key").Value(tablet->GetPivotKey());
                         })
-                        .DoIf(!table->IsSorted(), [&] (TFluentMap fluent) {
+                        .DoIf(!table->IsPhysicallySorted(), [&] (TFluentMap fluent) {
                             auto* chunkList = table->GetChunkList()->Children()[tablet->GetIndex()]->AsChunkList();
                             fluent
                                 .Item("trimmed_row_count").Value(tablet->GetTrimmedRowCount())
