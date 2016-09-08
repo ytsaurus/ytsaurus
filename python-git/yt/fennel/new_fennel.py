@@ -27,6 +27,13 @@ from Queue import Queue
 #
 # Each row in table should have 'timestamp' column
 
+# ================= Global options =============================================
+
+ATTRIBUTES_UPDATE_ATTEMPTS = 10
+ATTRIBUTES_UPDATE_FAILURE_BACKOFF = 20
+PUSH_FAILURE_BACKOFF = 20
+LOCK_ACQUIRE_BACKOFF = 10
+
 # ================= Common stuff ===============================================
 
 class FennelError(Exception):
@@ -290,6 +297,16 @@ class PushMapper(object):
         if False:
             yield
 
+def update_table_attributes(yt_client, table_path, pushed_row_count):
+    with yt_client.Transaction():
+        yt_client.lock(table_path, mode="exclusive")
+        processed_row_count = yt_client.get(table_path + "/@processed_row_count")
+        yt_client.set(table_path + "/@processed_row_count", processed_row_count + pushed_row_count)
+
+        last_row = yt_client.read_table(yt.TablePath(table_path, exact_index=processed_row_count + pushed_row_count - 1)).next()
+        if "timestamp" in last_row:
+            yt_client.set(table_path + "/@last_saved_ts", last_row["timestamp"])
+
 def push_to_logbroker_one_portion(yt_client, logbroker, table_path, session_count, range_row_count, max_range_count):
     pushed_row_count = 0
     with yt_client.Transaction():
@@ -300,6 +317,7 @@ def push_to_logbroker_one_portion(yt_client, logbroker, table_path, session_coun
             return
 
         if session_count == 1:
+            logger.info("Push data locally")
             assert len(tasks) == 1
             session_index, seqno, ranges = tasks[0]
             pipe_from_yt_to_logbroker(yt_client, logbroker, table_path, ranges, session_index, session_count, seqno)
@@ -311,21 +329,24 @@ def push_to_logbroker_one_portion(yt_client, logbroker, table_path, session_coun
                     rows.append({"table_path": table_path, "ranges": ranges, "session_index": session_index, "session_count": session_count, "seqno": seqno})
                 yt_client.write_table(input_table, rows)
 
-                logger.info("Starting push operation (input: %s, output: %s)", input_table, output_table)
+                logger.info("Starting push operation (input: %s, output: %s, task_count: %d)", input_table, output_table, len(tasks))
                 yt_client.config["allow_http_requests_to_yt_from_job"] = True
                 yt_client.config["pickling"]["module_filter"] = lambda module: hasattr(module, "__file__") and not "raven" in module.__file__
                 yt_client.run_map(PushMapper(yt_client, logbroker), input_table, output_table, spec={"data_size_per_job": 1})
+                logger.info("Push operation successfully finished (pushed_row_count: %d)", pushed_row_count)
 
-    with yt_client.Transaction():
-        yt_client.lock(table_path, mode="exclusive")
-        processed_row_count = yt_client.get(table_path + "/@processed_row_count")
-        yt_client.set(table_path + "/@processed_row_count", processed_row_count + pushed_row_count)
+    for iter in xrange(ATTRIBUTES_UPDATE_ATTEMPTS):
+        try:
+            update_table_attributes(yt_client, table_path, pushed_row_count)
+            break
+        except yt.YtResponseError as err:
+            if not err.is_concurrent_transaction_lock_conflict():
+                raise
+            logger.info("Failed to update attributes of %s since lock conflict (attempt: %d, backoff: %d seconds)",
+                        table_path, iter, ATTRIBUTES_UPDATE_FAILURE_BACKOFF)
+            time.sleep(ATTRIBUTES_UPDATE_FAILURE_BACKOFF)
 
-        last_row = yt_client.read_table(yt.TablePath(table_path, exact_index=processed_row_count + pushed_row_count - 1)).next()
-        if "timestamp" in last_row:
-            yt_client.set(table_path + "/@last_saved_ts", last_row["timestamp"])
-
-def acquire_yt_lock(yt_client, lock_path, timeout, queue):
+def acquire_yt_lock(yt_client, lock_path, queue):
     try:
         yt_client.create(lock_path, ignore_existing=False)
         with yt_client.Transaction() as tx:
@@ -337,7 +358,7 @@ def acquire_yt_lock(yt_client, lock_path, timeout, queue):
                 except yt.YtError as err:
                     if err.is_concurrent_transaction_lock_conflict():
                         logger.info("Failed to take lock")
-                        time.sleep(timeout)
+                        time.sleep(LOCK_ACQUIRE_BACKOFF)
                         continue
                     logger.exception(str(err))
                     raise
@@ -348,7 +369,7 @@ def acquire_yt_lock(yt_client, lock_path, timeout, queue):
 
             # Sleep infinitely long
             while True:
-                time.sleep(timeout)
+                time.sleep(LOCK_ACQUIRE_BACKOFF)
     except:
         os._exit(1)
 
@@ -367,7 +388,7 @@ def push_to_logbroker(yt_client, logbroker, daemon, table_path, session_count, r
     
     if lock_path:
         lock_queue = Queue()
-        lock_args = dict(yt_client=yt_client, lock_path=lock_path, queue=lock_queue, timeout=10)
+        lock_args = dict(yt_client=yt_client, lock_path=lock_path, queue=lock_queue)
         lock_thread = Thread(target=acquire_yt_lock, kwargs=lock_args, name="LockProcess")
         lock_thread.daemon = True
         lock_thread.start()
@@ -381,7 +402,7 @@ def push_to_logbroker(yt_client, logbroker, daemon, table_path, session_count, r
                 push_to_logbroker_one_portion(**options)
             except (yt.YtError, FennelError):
                 logger.exception("Push failed, sleep and try again")
-                time.sleep(10)
+                time.sleep(PUSH_FAILURE_BACKOFF)
     else:
         push_to_logbroker_one_portion(**options)
 
