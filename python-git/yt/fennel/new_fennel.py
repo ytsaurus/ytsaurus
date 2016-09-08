@@ -299,13 +299,20 @@ class PushMapper(object):
 
 def update_table_attributes(yt_client, table_path, pushed_row_count):
     with yt_client.Transaction():
+        logger.info("Updating attributes")
         yt_client.lock(table_path, mode="exclusive")
         processed_row_count = yt_client.get(table_path + "/@processed_row_count")
-        yt_client.set(table_path + "/@processed_row_count", processed_row_count + pushed_row_count)
+        new_processed_row_count = processed_row_count + pushed_row_count
+        yt_client.set(table_path + "/@processed_row_count", new_processed_row_count)
 
-        last_row = yt_client.read_table(yt.TablePath(table_path, exact_index=processed_row_count + pushed_row_count - 1, simplify=False)).next()
+        last_row = yt_client.read_table(yt.TablePath(table_path, exact_index=new_processed_row_count - 1, simplify=False)).next()
+        last_saved_ts_message = ""
         if "timestamp" in last_row:
             yt_client.set(table_path + "/@last_saved_ts", last_row["timestamp"])
+            last_saved_ts_message = ", last_saved_ts: " + last_row["timestamp"]
+
+        logger.info("Attributes updated (processed_row_count: %d%s)",
+                    new_processed_row_count, last_saved_ts_message)
 
 def push_to_logbroker_one_portion(yt_client, logbroker, table_path, session_count, range_row_count, max_range_count):
     pushed_row_count = 0
