@@ -364,6 +364,15 @@ TYsonString TNodeShard::StraceJob(const TJobId& jobId, const Stroka& user)
     return TYsonString(rsp->trace());
 }
 
+TNullable<TYsonString> TNodeShard::GetJobStatistics(const TJobId& jobId)
+{
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    auto job = GetJobOrThrow(jobId);
+
+    return job->StatisticsYson();
+}
+
 void TNodeShard::DumpJobInputContext(const TJobId& jobId, const TYPath& path, const Stroka& user)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
@@ -529,8 +538,22 @@ void TNodeShard::BuildOperationJobsYson(const TOperationId& operationId, IYsonCo
     }
 
     for (const auto& job : operationState->Jobs) {
-        BuildJobYson(job.second, consumer);
+        BuildYsonMapFluently(consumer)
+            .Item(ToString(job.first)).BeginMap()
+                .Do(BIND(BuildJobAttributes, job.second))
+            .EndMap();
     }
+}
+
+void TNodeShard::BuildJobYson(const TJobId& jobId, IYsonConsumer* consumer)
+{
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    auto job = GetJobOrThrow(jobId);
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Do(BIND(BuildJobAttributes, job))
+        .EndMap();
 }
 
 void TNodeShard::BuildSuspiciousJobsYson(IYsonConsumer* consumer)
@@ -1476,16 +1499,6 @@ void TNodeShard::BuildNodeYson(TExecNodePtr node, IYsonConsumer* consumer)
         .Item(node->GetDefaultAddress()).BeginMap()
             .Do([=] (TFluentMap fluent) {
                 BuildExecNodeAttributes(node, fluent);
-            })
-        .EndMap();
-}
-
-void TNodeShard::BuildJobYson(const TJobPtr& job, IYsonConsumer* consumer)
-{
-    BuildYsonMapFluently(consumer)
-        .Item(ToString(job->GetId())).BeginMap()
-            .Do([=] (TFluentMap fluent) {
-                BuildJobAttributes(job, fluent);
             })
         .EndMap();
 }

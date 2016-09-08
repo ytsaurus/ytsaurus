@@ -791,7 +791,7 @@ public:
         return Bootstrap_->GetClusterDirectory();
     }
 
-    virtual IInvokerPtr GetControlInvoker() override
+    virtual IInvokerPtr GetControlInvoker() const override
     {
         return Bootstrap_->GetControlInvoker();
     }
@@ -995,12 +995,12 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
 
-    TNodeShardPtr GetNodeShard(TNodeId nodeId)
+    TNodeShardPtr GetNodeShard(TNodeId nodeId) const
     {
         return NodeShards_[GetNodeShardId(nodeId)];
     }
 
-    TNodeShardPtr GetNodeShardByJobId(TJobId jobId)
+    TNodeShardPtr GetNodeShardByJobId(TJobId jobId) const
     {
         auto nodeId = NodeIdFromJobId(jobId);
         return GetNodeShard(nodeId);
@@ -2180,6 +2180,7 @@ private:
     {
         auto dynamicOrchidService = New<TCompositeMapService>();
         dynamicOrchidService->AddChild("operations", New<TOperationsService>(this));
+        dynamicOrchidService->AddChild("job_by_id", New<TJobByIdService>(this));
         return dynamicOrchidService;
     }
 
@@ -2187,7 +2188,7 @@ private:
         : public TVirtualMapBase
     {
     public:
-        TOperationsService(const TScheduler::TImpl* scheduler)
+        explicit TOperationsService(const TScheduler::TImpl* scheduler)
             : TVirtualMapBase(nullptr /* owningNode */)
             , Scheduler_(scheduler)
         { }
@@ -2220,6 +2221,64 @@ private:
 
             return IYPathService::FromProducer(
                 BIND(&TScheduler::TImpl::BuildOperationYson, MakeStrong(Scheduler_), iterator->second));
+        }
+
+    private:
+        const TScheduler::TImpl* Scheduler_;
+    };
+
+    class TJobByIdService
+        : public TVirtualMapBase
+    {
+    public:
+        explicit TJobByIdService(const TScheduler::TImpl* scheduler)
+            : TVirtualMapBase(nullptr /* owningNode */)
+            , Scheduler_(scheduler)
+        { }
+
+        virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context) override
+        {
+            THROW_ERROR_EXCEPTION("Methods Get and List are not supported by this node, query `job_by_id/${job_id}` instead");
+        }
+
+        virtual void ListSelf(TReqList* request, TRspList* response, TCtxListPtr context) override
+        {
+            THROW_ERROR_EXCEPTION("Methods Get and List are not supported by this node, query `job_by_id/${job_id}` instead");
+        }
+
+        virtual i64 GetSize() const override
+        {
+            YUNREACHABLE();
+        }
+
+        virtual std::vector<Stroka> GetKeys(i64 limit) const override
+        {
+            YUNREACHABLE();
+        }
+
+        virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
+        {
+            TJobId jobId = TJobId::FromString(key);
+            auto nodeShard = Scheduler_->GetNodeShardByJobId(jobId);
+
+            auto jobYsonCallback = BIND(&TNodeShard::BuildJobYson, nodeShard, jobId);
+            auto jobYPathService = IYPathService::FromProducer(jobYsonCallback)
+                ->Via(nodeShard->GetInvoker());
+
+            auto statisticsYsonCallback = BIND([=] (IYsonConsumer* consumer) {
+                auto statistics = nodeShard->GetJobStatistics(jobId);
+                auto statisticsYson = statistics ? std::move(*statistics) : TYsonString("{}");
+                consumer->OnRaw(statisticsYson);
+            });
+
+            auto statisticsYPathService = New<TCompositeMapService>()
+                ->AddChild("statistics", IYPathService::FromProducer(statisticsYsonCallback)
+                    ->Via(nodeShard->GetInvoker()));
+
+            return New<TServiceCombiner>(std::vector<IYPathServicePtr> {
+                jobYPathService,
+                statisticsYPathService
+            });
         }
 
     private:
