@@ -243,7 +243,6 @@ private:
 
     ui32 GetLatestRevision() const;
     ui32 RegisterRevision(TTimestamp timestamp);
-    void UpdateTimestampRange(TTimestamp commitTimestamp);
 
     void OnMemoryUsageUpdated();
 

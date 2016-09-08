@@ -225,6 +225,7 @@ void TOrderedDynamicStore::CommitRow(TTransaction* transaction, TOrderedDynamicR
     }
     DoCommitRow(row);
     Unlock();
+    UpdateTimestampRange(transaction->GetCommitTimestamp());
 }
 
 void TOrderedDynamicStore::AbortRow(TTransaction* /*transaction*/, TOrderedDynamicRow /*row*/)

@@ -1884,17 +1884,6 @@ ui32 TSortedDynamicStore::RegisterRevision(TTimestamp timestamp)
     return GetLatestRevision();
 }
 
-void TSortedDynamicStore::UpdateTimestampRange(TTimestamp commitTimestamp)
-{
-    // NB: Don't update min/max timestamps for passive stores since
-    // others are relying on these values to remain constant.
-    // See, e.g., TSortedStoreManager::MaxTimestampToStore_.
-    if (StoreState_ == EStoreState::ActiveDynamic) {
-        MinTimestamp_ = std::min(MinTimestamp_, commitTimestamp);
-        MaxTimestamp_ = std::max(MaxTimestamp_, commitTimestamp);
-    }
-}
-
 void TSortedDynamicStore::OnMemoryUsageUpdated()
 {
     auto hashTableSize = LookupHashTable_ ? LookupHashTable_->GetByteSize() : 0;
