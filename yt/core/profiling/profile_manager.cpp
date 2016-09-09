@@ -32,17 +32,19 @@ using namespace NConcurrency;
 static NLogging::TLogger Logger("Profiling");
 static TProfiler ProfilingProfiler("/profiling", EmptyTagIds, true);
 // TODO(babenko): make configurable
-static const TDuration MaxKeepInterval = TDuration::Minutes(5);
+static const auto MaxKeepInterval = TDuration::Minutes(5);
+static const auto DequeuePeriod = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TProfileManager::TImpl
+    : public TRefCounted
 {
 public:
     TImpl()
         : WasStarted(false)
         , WasShutdown(false)
-        , Queue(New<TInvokerQueue>(
+        , EventQueue(New<TInvokerQueue>(
             EventCount,
             EmptyTagIds,
             true,
@@ -61,9 +63,18 @@ public:
     {
         YCHECK(!WasStarted);
         YCHECK(!WasShutdown);
+
         WasStarted = true;
+
         Thread->Start();
-        Queue->SetThreadId(Thread->GetId());
+        EventQueue->SetThreadId(Thread->GetId());
+
+        DequeueExecutor = New<TPeriodicExecutor>(
+            EventQueue,
+            BIND(&TImpl::OnDequeue, MakeStrong(this)),
+            DequeuePeriod);
+        DequeueExecutor->Start();
+
 #ifdef _linux_
         ResourceTracker->Start();
 #endif
@@ -72,7 +83,7 @@ public:
     void Shutdown()
     {
         WasShutdown = true;
-        Queue->Shutdown();
+        EventQueue->Shutdown();
         Thread->Shutdown();
     }
 
@@ -88,17 +99,12 @@ public:
         }
 
         SampleQueue.Enqueue(sample);
-
-        bool expected = false;
-        if (Notified_.compare_exchange_strong(expected, true)) {
-            EventCount->NotifyOne();
-        }
     }
 
 
     IInvokerPtr GetInvoker() const
     {
-        return Queue;
+        return EventQueue;
     }
 
     IMapNodePtr GetRoot() const
@@ -204,7 +210,7 @@ private:
 
             // Run binary search to find the proper position.
             TStoredSample lastSample;
-            lastSample.Time = lastTime.Get();
+            lastSample.Time = *lastTime;
             auto it = std::upper_bound(
                 Samples.begin(),
                 Samples.end(),
@@ -225,12 +231,12 @@ private:
 
         static TNullable<TInstant> ParseInstant(TNullable<i64> value)
         {
-            return value ? MakeNullable(TInstant::MicroSeconds(value.Get())) : Null;
+            return value ? MakeNullable(TInstant::MicroSeconds(*value)) : Null;
         }
 
         virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
         {
-            auto* profilingManager = TProfileManager::Get()->Impl_.get();
+            auto profilingManager = TProfileManager::Get()->Impl_;
             TGuard<TForkAwareSpinLock> tagGuard(profilingManager->GetTagSpinLock());
 
             context->SetRequestInfo();
@@ -292,12 +298,13 @@ private:
     };
 
     const std::shared_ptr<TEventCount> EventCount = std::make_shared<TEventCount>();
-    std::atomic<bool> Notified_ = {false};
     volatile bool WasStarted;
     volatile bool WasShutdown;
-    TInvokerQueuePtr Queue;
+    TInvokerQueuePtr EventQueue;
     TIntrusivePtr<TThread> Thread;
     TEnqueuedAction CurrentAction;
+
+    TPeriodicExecutorPtr DequeueExecutor;
 
     IMapNodePtr Root;
     TSimpleCounter EnqueuedCounter;
@@ -319,36 +326,27 @@ private:
 
     EBeginExecuteResult BeginExecute()
     {
-        // Handle pending callbacks first.
-        auto result = Queue->BeginExecute(&CurrentAction);
-        if (result != EBeginExecuteResult::QueueEmpty) {
-            return result;
-        }
+        return EventQueue->BeginExecute(&CurrentAction);
+    }
 
+    void EndExecute()
+    {
+        EventQueue->EndExecute(&CurrentAction);
+    }
+
+
+    void OnDequeue()
+    {
         // Process all pending samples in a row.
         int samplesProcessed = 0;
 
-        Notified_ = false;
         while (SampleQueue.DequeueAll(true, [&] (TQueuedSample& sample) {
-                if (samplesProcessed == 0) {
-                    EventCount->CancelWait();
-                }
-
                 ProcessSample(sample);
                 ++samplesProcessed;
             }))
         { }
 
         ProfilingProfiler.Increment(DequeuedCounter, samplesProcessed);
-
-        return samplesProcessed > 0
-            ? EBeginExecuteResult::Success
-            : EBeginExecuteResult::QueueEmpty;
-    }
-
-    void EndExecute()
-    {
-        Queue->EndExecute(&CurrentAction);
     }
 
 
@@ -384,13 +382,12 @@ private:
         bucket->AddSample(storedSample);
         bucket->TrimSamples(MaxKeepInterval);
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TProfileManager::TProfileManager()
-    : Impl_(new TImpl())
+    : Impl_(New<TImpl>())
 { }
 
 TProfileManager::~TProfileManager() = default;
