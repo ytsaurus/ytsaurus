@@ -310,6 +310,9 @@ def update_table_attributes(yt_client, table_path, pushed_row_count):
         if "timestamp" in last_row:
             yt_client.set(table_path + "/@last_saved_ts", last_row["timestamp"])
             last_saved_ts_message = ", last_saved_ts: " + last_row["timestamp"]
+        else:
+            logger.info("Column 'timestamp' is not found in last saved row of %s (columns: %r)",
+                        table_path, list(last_row))
 
         logger.info("Attributes updated (processed_row_count: %d%s)",
                     new_processed_row_count, last_saved_ts_message)
