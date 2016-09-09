@@ -77,7 +77,7 @@ private:
                     return false;
                 }
             }
-            Value_.Assign(std::forward<U>(value));
+            Value_.Assign(TErrorOr<T>(std::forward<U>(value)));
             Set_ = true;
             canceled = Canceled_;
             readyEvent = ReadyEvent_.get();
