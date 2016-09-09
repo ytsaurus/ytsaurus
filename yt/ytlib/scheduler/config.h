@@ -1168,16 +1168,12 @@ public:
         RegisterParameter("mode", Mode)
             .Default(ESchedulingMode::FairShare);
 
-        // COMPAT(ignat): deprecated use max_running_operation_count instead.
-        RegisterParameter("max_running_operations", MaxRunningOperationCount)
-            .Default();
         RegisterParameter("max_running_operation_count", MaxRunningOperationCount)
+            .Alias("max_running_operations")
             .Default();
 
-        // COMPAT(ignat): deprecated use max_operation_count instead.
-        RegisterParameter("max_operations", MaxOperationCount)
-            .Default();
         RegisterParameter("max_operation_count", MaxOperationCount)
+            .Alias("max_operations")
             .Default();
 
         RegisterParameter("fifo_sort_parameters", FifoSortParameters)
