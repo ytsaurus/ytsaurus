@@ -15,4 +15,9 @@ bin/new_fennel.py push-to-logbroker \
     --session-count 2 \
     --range-row-count 2
 
+processed_row_count="$(yt2 get //tmp/fennel_test/@processed_row_count --proxy hahn)"
+if [ "5" != "$processed_row_count" ]; then
+    die "/@processed_row_count mismatch (received: ${processed_row_count}, expected: 5)"
+fi
+
 # TODO(ignat): read from logbroker and check data
