@@ -359,9 +359,9 @@ void TLeaderCommitter::Flush()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    TGuard<TSpinLock> guard(BatchSpinLock_);
+    auto guard = Guard(BatchSpinLock_);
     if (CurrentBatch_) {
-        FlushCurrentBatch();
+        FlushCurrentBatch(&guard);
     }
 }
 
@@ -369,7 +369,7 @@ TFuture<void> TLeaderCommitter::GetQuorumFlushResult()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    TGuard<TSpinLock> guard(BatchSpinLock_);
+    auto guard = Guard(BatchSpinLock_);
     return CurrentBatch_
         ? CurrentBatch_->GetQuorumFlushResult()
         : PrevBatchQuorumFlushResult_;
@@ -424,28 +424,31 @@ void TLeaderCommitter::AddToBatch(
     const TSharedRef& recordData,
     TFuture<void> localFlushResult)
 {
-    TGuard<TSpinLock> guard(BatchSpinLock_);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    auto guard = Guard(BatchSpinLock_);
     auto batch = GetOrCreateBatch(version);
     batch->AddMutation(
         request,
         recordData,
         std::move(localFlushResult));
     if (batch->GetMutationCount() >= Config_->MaxCommitBatchRecordCount) {
-        FlushCurrentBatch();
+        FlushCurrentBatch(&guard);
     }
 }
 
-void TLeaderCommitter::FlushCurrentBatch()
+void TLeaderCommitter::FlushCurrentBatch(TGuard<TSpinLock>* guard)
 {
     VERIFY_SPINLOCK_AFFINITY(BatchSpinLock_);
-    YCHECK(CurrentBatch_);
 
-    CurrentBatch_->Flush();
-    PrevBatchQuorumFlushResult_ = CurrentBatch_->GetQuorumFlushResult();
-
-    CurrentBatch_.Reset();
-
+    TBatchPtr currentBatch;
+    std::swap(currentBatch, CurrentBatch_);
+    PrevBatchQuorumFlushResult_ = currentBatch->GetQuorumFlushResult();
     TDelayedExecutor::CancelAndClear(BatchTimeoutCookie_);
+
+    guard->Release();
+
+    currentBatch->Flush();
 
     Profiler.Increment(FlushCounter_);
 }
@@ -475,11 +478,10 @@ void TLeaderCommitter::OnBatchTimeout(TBatchPtr batch)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    TGuard<TSpinLock> guard(BatchSpinLock_);
-    if (batch != CurrentBatch_)
-        return;
-
-    FlushCurrentBatch();
+    auto guard = Guard(BatchSpinLock_);
+    if (batch == CurrentBatch_) {
+        FlushCurrentBatch(&guard);
+    }
 }
 
 void TLeaderCommitter::OnBatchCommitted(TBatchPtr batch, const TError& error)
