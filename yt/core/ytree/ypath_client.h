@@ -230,7 +230,14 @@ void SyncYPathRemove(
 //! Synchronously executes |List| verb. Throws if an error has occurred.
 std::vector<Stroka> SyncYPathList(
     const IYPathServicePtr& service,
-    const TYPath& path);
+    const TYPath& path,
+    TNullable<i64> limit = Null);
+
+//! Asynchronously executes |List| verb.
+TFuture<std::vector<Stroka>> AsyncYPathList(
+    const IYPathServicePtr& service,
+    const TYPath& path,
+    TNullable<i64> limit = Null);
 
 //! Overrides a part of #root tree.
 /*!

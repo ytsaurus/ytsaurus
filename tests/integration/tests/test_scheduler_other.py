@@ -1308,7 +1308,7 @@ class TestSchedulerGuaranteedResources(YTEnvSetup):
         total_resource_limit = get("//sys/scheduler/orchid/scheduler/cell/resource_limits")
 
         # Wait for fair share update.
-        time.sleep(0.2)
+        time.sleep(1)
 
         get_pool_guaranteed_resources = lambda pool: \
             get("//sys/scheduler/orchid/scheduler/pools/{0}/guaranteed_resources".format(pool))
@@ -1342,7 +1342,7 @@ class TestSchedulerGuaranteedResources(YTEnvSetup):
             spec={"pool": "big_pool"})
 
         # Wait for fair share update.
-        time.sleep(0.2)
+        time.sleep(1)
 
         assert assert_almost_equal(get_operation_guaranteed_resources_ratio(op.id), 1.0 / 5.0)
         assert assert_almost_equal(get_pool_guaranteed_resources_ratio("subpool_1"), 1.0 / 5.0)
@@ -1545,8 +1545,15 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
             out="//tmp/t2")
 
         while True:
-            running_jobs1 = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op1.id))
-            running_jobs2 = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op2.id))
+            if not exists("//sys/scheduler/orchid/scheduler/operations/" + op1.id):
+                running_jobs1 = []
+            else:
+                running_jobs1 = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op1.id))
+
+            if not exists("//sys/scheduler/orchid/scheduler/operations/" + op2.id):
+                running_jobs2 = []
+            else:
+                running_jobs2 = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op2.id))
 
             if len(running_jobs1) == 0 or len(running_jobs2) == 0:
                 time.sleep(1)
@@ -1567,6 +1574,9 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
                 break
             time.sleep(1.0)
         assert suspicious2
+
+        # Wait while static scheduler Orchid part (containing /suspicious_jobs) is being updated.
+        time.sleep(1.0)
 
         suspicious_jobs = get("//sys/scheduler/orchid/scheduler/suspicious_jobs")
         assert len(suspicious_jobs) == 1

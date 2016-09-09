@@ -810,6 +810,14 @@ class TestTables(YTEnvSetup):
         write_table('//tmp/t', '{"x":"0"}\n{"x":"1"}', input_format="json", is_raw=True)
         assert '{"x":"0"}\n{"x":"1"}\n' == read_table("//tmp/t", output_format="json")
 
+    def test_yson_skip_nulls(self):
+        create("table", "//tmp/t")
+        write_table('//tmp/t', [{"x" : 0, "y" : None}, {"x" : None, "y" : 1}])
+        format = yson.loads("<skip_null_values=%true; format=text>yson")
+        assert '{"x"=0;};\n{"y"=1;};\n' == read_table("//tmp/t", output_format=format)
+        del format.attributes["skip_null_values"]
+        assert '{"y"=#;"x"=0;};\n{"y"=1;"x"=#;};\n' == read_table("//tmp/t", output_format=format)
+
     def test_boolean(self):
         create("table", "//tmp/t")
         format = yson.loads("<boolean_as_string=false;format=text>yson")

@@ -45,6 +45,7 @@ void ProcessFetchResponse(
     NObjectClient::TCellTag fetchCellTag,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     int maxChunksPerLocateRequest,
+    TNullable<int> rangeIndex,
     const NLogging::TLogger& logger,
     std::vector<NProto::TChunkSpec>* chunkSpecs);
 

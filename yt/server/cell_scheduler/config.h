@@ -19,9 +19,6 @@ class TCellSchedulerConfig
     : public TServerConfig
 {
 public:
-    //! Interval between Orchid cache rebuilds.
-    TDuration OrchidCacheUpdatePeriod;
-
     //! Node-to-master connection.
     NApi::TNativeConnectionConfigPtr ClusterConnection;
 
@@ -34,8 +31,6 @@ public:
 
     TCellSchedulerConfig()
     {
-        RegisterParameter("orchid_cache_update_period", OrchidCacheUpdatePeriod)
-            .Default(TDuration::Seconds(1));
         RegisterParameter("cluster_connection", ClusterConnection);
         RegisterParameter("scheduler", Scheduler)
             .DefaultNew();

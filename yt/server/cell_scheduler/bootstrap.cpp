@@ -157,6 +157,8 @@ void TBootstrap::DoRun()
 
     LFAllocProfiler_ = std::make_unique<NLFAlloc::TLFAllocProfiler>();
 
+    Scheduler_->Initialize();
+
     auto orchidRoot = NYTree::GetEphemeralNodeFactory(true)->CreateMap();
     SetNodeByYPath(
         orchidRoot,
@@ -175,9 +177,7 @@ void TBootstrap::DoRun()
         "/scheduler",
         CreateVirtualNode(
             Scheduler_
-            ->GetOrchidService()
-            ->Via(GetControlInvoker())
-            ->Cached(Config_->OrchidCacheUpdatePeriod)));
+            ->GetOrchidService()));
 
     SetBuildAttributes(orchidRoot, "scheduler");
 
@@ -199,8 +199,6 @@ void TBootstrap::DoRun()
     LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
     RpcServer_->Configure(Config_->RpcServer);
     RpcServer_->Start();
-
-    Scheduler_->Initialize();
 }
 
 TCellSchedulerConfigPtr TBootstrap::GetConfig() const
