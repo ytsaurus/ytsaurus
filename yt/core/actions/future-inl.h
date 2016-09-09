@@ -16,7 +16,7 @@
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
-// Forward declrations
+// Forward declarations
 
 // invoker_util.h.
 IInvokerPtr GetFinalizerInvoker();
@@ -45,6 +45,8 @@ public:
     typedef SmallVector<TCancelHandler, 8> TCancelHandlers;
 
 private:
+    const bool WellKnown_;
+
     //! Number of promises.
     std::atomic<int> StrongRefCount_;
     //! Number of futures plus one if there's at least one promise.
@@ -123,15 +125,17 @@ private:
 
 protected:
     TFutureState(int strongRefCount, int weakRefCount)
-        : StrongRefCount_(strongRefCount)
+        : WellKnown_(false)
+        , StrongRefCount_(strongRefCount)
         , WeakRefCount_(weakRefCount)
         , Canceled_(false)
         , Set_(false)
     { }
 
     template <class U>
-    TFutureState(int strongRefCount, int weakRefCount, U&& value)
-        : StrongRefCount_(strongRefCount)
+    TFutureState(bool wellKnown, int strongRefCount, int weakRefCount, U&& value)
+        : WellKnown_(wellKnown)
+        , StrongRefCount_(strongRefCount)
         , WeakRefCount_(weakRefCount)
         , Canceled_ (false)
         , Set_(true)
@@ -141,12 +145,18 @@ protected:
 public:
     void RefFuture()
     {
+        if (WellKnown_) {
+            return;
+        }
         auto oldWeakCount = WeakRefCount_++;
         Y_ASSERT(oldWeakCount > 0);
     }
 
     void UnrefFuture()
     {
+        if (WellKnown_) {
+            return;
+        }
         auto oldWeakCount = WeakRefCount_--;
         Y_ASSERT(oldWeakCount > 0);
         if (oldWeakCount == 1) {
@@ -156,15 +166,16 @@ public:
 
     void RefPromise()
     {
+        Y_ASSERT(!WellKnown_);
         auto oldStrongCount = StrongRefCount_++;
         Y_ASSERT(oldStrongCount > 0 && WeakRefCount_ > 0);
     }
 
     void UnrefPromise()
     {
+        Y_ASSERT(!WellKnown_);
         auto oldStrongCount = StrongRefCount_--;
         Y_ASSERT(oldStrongCount > 0);
-
         if (oldStrongCount == 1) {
             Dispose();
         }
@@ -316,8 +327,8 @@ public:
     { }
 
     template <class U>
-    TPromiseState(int strongRefCount, int weakRefCount, U&& value)
-        : TFutureState<T>(strongRefCount, weakRefCount, std::forward<U>(value))
+    TPromiseState(bool wellKnown, int strongRefCount, int weakRefCount, U&& value)
+        : TFutureState<T>(wellKnown, strongRefCount, weakRefCount, std::forward<U>(value))
     { }
 };
 
@@ -440,25 +451,31 @@ TPromise<T> NewPromise()
 template <class T>
 TPromise<T> MakePromise(TErrorOr<T> value)
 {
-    return TPromise<T>(New<NYT::NDetail::TPromiseState<T>>(1, 1, std::move(value)));
+    return TPromise<T>(New<NYT::NDetail::TPromiseState<T>>(false, 1, 1, std::move(value)));
 }
 
 template <class T>
 TPromise<T> MakePromise(T value)
 {
-    return TPromise<T>(New<NYT::NDetail::TPromiseState<T>>(1, 1, std::move(value)));
+    return TPromise<T>(New<NYT::NDetail::TPromiseState<T>>(false, 1, 1, std::move(value)));
 }
 
 template <class T>
 TFuture<T> MakeFuture(TErrorOr<T> value)
 {
-    return TFuture<T>(New<NYT::NDetail::TPromiseState<T>>(0, 1, std::move(value)));
+    return TFuture<T>(New<NYT::NDetail::TPromiseState<T>>(false, 0, 1, std::move(value)));
 }
 
 template <class T>
 TFuture<T> MakeFuture(T value)
 {
-    return TFuture<T>(New<NYT::NDetail::TPromiseState<T>>(0, 1, std::move(value)));
+    return TFuture<T>(New<NYT::NDetail::TPromiseState<T>>(false, 0, 1, std::move(value)));
+}
+
+template <class T>
+TFuture<T> MakeWellKnownFuture(TErrorOr<T> value)
+{
+    return TFuture<T>(New<NYT::NDetail::TPromiseState<T>>(true, -1, -1, std::move(value)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
