@@ -474,7 +474,7 @@ TLeaderCommitter::TBatchPtr TLeaderCommitter::GetOrCreateBatch(TVersion version)
     return CurrentBatch_;
 }
 
-void TLeaderCommitter::OnBatchTimeout(TBatchPtr batch)
+void TLeaderCommitter::OnBatchTimeout(const TBatchPtr& batch)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -484,12 +484,13 @@ void TLeaderCommitter::OnBatchTimeout(TBatchPtr batch)
     }
 }
 
-void TLeaderCommitter::OnBatchCommitted(TBatchPtr batch, const TError& error)
+void TLeaderCommitter::OnBatchCommitted(const TBatchPtr& batch, const TError& error)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    if (!error.IsOK())
+    if (!error.IsOK()) {
         return;
+    }
 
     DecoratedAutomaton_->CommitMutations(batch->GetCommittedVersion(), true);
 }
