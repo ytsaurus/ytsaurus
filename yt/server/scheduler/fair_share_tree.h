@@ -342,6 +342,8 @@ public:
     virtual int GetMaxOperationCount() const = 0;
     virtual int GetMaxRunningOperationCount() const = 0;
 
+    virtual NProfiling::TTagId GetProfilingTag() const = 0;
+
     virtual void BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap) override;
 
 protected:
@@ -418,7 +420,7 @@ public:
 
     virtual ISchedulerElementPtr Clone() override;
 
-    NProfiling::TTagId GetProfilingTag() const;
+    virtual NProfiling::TTagId GetProfilingTag() const override;
 
 private:
     TPoolConfigPtr Config_;
@@ -760,9 +762,14 @@ public:
     virtual int GetMaxRunningOperationCount() const override;
     virtual int GetMaxOperationCount() const override;
 
+    virtual NProfiling::TTagId GetProfilingTag() const override;
+
     virtual ISchedulerElementPtr Clone() override;
 
     TRootElementPtr CloneRoot();
+
+private:
+    NProfiling::TTagId ProfilingTag_;
 
 };
 

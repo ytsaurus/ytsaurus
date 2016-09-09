@@ -175,7 +175,7 @@ void TTcpConnection::SyncCheck()
         SyncClose(TError(
             NRpc::EErrorCode::TransportError,
             "Socket write stalled")
-            << TErrorAttribute("timeout", Config_->ReadStallTimeout));
+            << TErrorAttribute("timeout", Config_->WriteStallTimeout));
         return;
     }
 
@@ -186,7 +186,7 @@ void TTcpConnection::SyncCheck()
         SyncClose(TError(
             NRpc::EErrorCode::TransportError,
             "Socket read stalled")
-            << TErrorAttribute("timeout", Config_->WriteStallTimeout));
+            << TErrorAttribute("timeout", Config_->ReadStallTimeout));
         return;
     }
 }

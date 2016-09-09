@@ -36,6 +36,7 @@ DEFINE_ENUM(EErrorCode,
     ((MemoryLimitExceeded)     (1200))
     ((MemoryCheckFailed)       (1201))
     ((JobTimeLimitExceeded)    (1202))
+    ((UnsupportedJobType)      (1203))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

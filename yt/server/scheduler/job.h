@@ -31,14 +31,10 @@ struct TBriefJobStatistics
     i64 ProcessedOutputDataSize = 0;
     TNullable<i64> UserJobBlockIORead = Null;
     TNullable<i64> UserJobCpuUsage = Null;
+    TNullable<i64> JobProxyCpuUsage = Null;
 };
 
 DEFINE_REFCOUNTED_TYPE(TBriefJobStatistics)
-
-bool CompareBriefJobStatistics(
-    const TBriefJobStatisticsPtr& lhs,
-    const TBriefJobStatisticsPtr& rhs,
-    i64 userJobCpuUsageThreshold);
 
 void Serialize(const TBriefJobStatistics& briefJobStatistics, NYson::IYsonConsumer* consumer);
 
@@ -121,7 +117,7 @@ public:
 
     void AnalyzeBriefStatistics(
         TDuration suspiciousInactivityTimeout,
-        i64 suspiciousUserJobCpuUsageThreshold,
+        i64 suspiciousCpuUsageThreshold,
         i64 suspiciousUserJobIOReadThreshold,
         const TBriefJobStatisticsPtr& briefStatistics);
 

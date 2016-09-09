@@ -238,6 +238,7 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
                 cellTag,
                 nodeDirectory,
                 10000,
+                Null,
                 Logger,
                 &result[resultIndex].Chunks);
 

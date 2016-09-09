@@ -1567,12 +1567,17 @@ private:
         auto& table = OutputTables[0];
         table.TableUploadOptions.LockMode = ELockMode::Exclusive;
 
-        auto validateOutputKeyColumns = [&] () {
-            if (table.TableUploadOptions.TableSchema.GetKeyColumns() != SortKeyColumns) {
-                THROW_ERROR_EXCEPTION("Merge key columns do not match output table schema in \"strong\" schema mode")
-                        << TErrorAttribute("output_schema", table.TableUploadOptions.TableSchema)
-                        << TErrorAttribute("merge_by", SortKeyColumns)
-                        << TErrorAttribute("schema_inference_mode", Spec->SchemaInferenceMode);
+        auto prepareOutputKeyColumns = [&] () {
+            if (table.TableUploadOptions.TableSchema.IsSorted()) { 
+                if (table.TableUploadOptions.TableSchema.GetKeyColumns() != SortKeyColumns) {
+                    THROW_ERROR_EXCEPTION("Merge key columns do not match output table schema in \"strong\" schema mode")
+                            << TErrorAttribute("output_schema", table.TableUploadOptions.TableSchema)
+                            << TErrorAttribute("merge_by", SortKeyColumns)
+                            << TErrorAttribute("schema_inference_mode", Spec->SchemaInferenceMode);
+                }
+            } else {
+                table.TableUploadOptions.TableSchema = 
+                    table.TableUploadOptions.TableSchema.ToSorted(SortKeyColumns);
             }
         };
 
@@ -1581,7 +1586,7 @@ private:
                 if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
                     InferSchemaFromInputSorted(SortKeyColumns);
                 } else {
-                    validateOutputKeyColumns();
+                    prepareOutputKeyColumns();
 
                     for (const auto& inputTable : InputTables) {
                         if (inputTable.SchemaMode == ETableSchemaMode::Strong) {
@@ -1603,7 +1608,7 @@ private:
                 if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
                     table.TableUploadOptions.TableSchema = TTableSchema::FromKeyColumns(SortKeyColumns);
                 } else {
-                    validateOutputKeyColumns();
+                    prepareOutputKeyColumns();
                 }
                 break;
 

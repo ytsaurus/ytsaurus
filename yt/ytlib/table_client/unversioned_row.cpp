@@ -1491,6 +1491,9 @@ TUnversionedOwningRow BuildRow(
             case ENodeType::String:
                 rowBuilder.AddValue(MakeUnversionedStringValue(value->GetValue<Stroka>(), id));
                 break;
+            case ENodeType::Entity:
+                rowBuilder.AddValue(MakeUnversionedSentinelValue(value->Attributes().Get<EValueType>("type"), id));
+                break;
             default:
                 rowBuilder.AddValue(MakeUnversionedAnyValue(ConvertToYsonString(value).Data(), id));
                 break;

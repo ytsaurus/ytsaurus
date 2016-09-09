@@ -54,6 +54,9 @@
 #include <yt/core/profiling/scoped_timer.h>
 #include <yt/core/profiling/profile_manager.h>
 
+#include <yt/core/ytree/service_combiner.h>
+#include <yt/core/ytree/virtual.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -239,8 +242,18 @@ public:
 
     IYPathServicePtr GetOrchidService()
     {
-        auto producer = BIND(&TImpl::BuildOrchid, MakeStrong(this));
-        return IYPathService::FromProducer(producer);
+        auto staticOrchidProducer = BIND(&TImpl::BuildStaticOrchid, MakeStrong(this));
+        auto staticOrchidService = IYPathService::FromProducer(staticOrchidProducer)
+            ->Via(GetControlInvoker())
+            ->Cached(Config_->StaticOrchidCacheUpdatePeriod);
+
+        auto dynamicOrchidService = GetDynamicOrchidService()
+            ->Via(GetControlInvoker());
+
+        return New<TServiceCombiner>(std::vector<IYPathServicePtr> {
+            staticOrchidService,
+            dynamicOrchidService
+        });
     }
 
     std::vector<TOperationPtr> GetOperations()
@@ -426,7 +439,9 @@ public:
 
         const auto& result = resultOrError.Value();
         if (result.Action == ESecurityAction::Deny) {
-            THROW_ERROR_EXCEPTION("User %Qv has been denied access to operation %v",
+            THROW_ERROR_EXCEPTION(
+                NSecurityClient::EErrorCode::AuthorizationError,
+                "User %Qv has been denied access to operation %v",
                 user,
                 operationId);
         }
@@ -2058,7 +2073,7 @@ private:
         LogOperationFinished(operation, ELogEventType::OperationCompleted, TError());
     }
 
-    void BuildOrchid(IYsonConsumer* consumer)
+    void BuildStaticOrchid(IYsonConsumer* consumer)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -2071,11 +2086,6 @@ private:
                     .Item("exec_node_count").Value(GetExecNodeCount())
                     .Item("total_node_count").Value(GetTotalNodeCount())
                 .EndMap()
-                .Item("operations").DoMapFor(GetOperations(), [=] (TFluentMap fluent, const TOperationPtr& operation) {
-                    if (FindOperation(operation->GetId())) {
-                        BuildOperationYson(operation, fluent);
-                    }
-                })
                 .Item("suspicious_jobs").BeginMap()
                     .Do(BIND([=] (IYsonConsumer* consumer) {
                         for (auto nodeShard : NodeShards_) {
@@ -2111,15 +2121,15 @@ private:
             .Value(GetClusterDirectory()->GetConnection(clusterName)->GetConfig());
     }
 
-    void BuildOperationYson(TOperationPtr operation, IYsonConsumer* consumer)
+    void BuildOperationYson(TOperationPtr operation, IYsonConsumer* consumer) const
     {
         auto codicilGuard = operation->MakeCodicilGuard();
 
         auto controller = operation->GetController();
 
         bool hasControllerProgress = operation->HasControllerProgress();
-        BuildYsonMapFluently(consumer)
-            .Item(ToString(operation->GetId())).BeginMap()
+        BuildYsonFluently(consumer)
+            .BeginMap()
                 // Include the complete list of attributes.
                 .Do(BIND(&NScheduler::BuildInitializingOperationAttributes, operation))
                 .DoIf(static_cast<bool>(controller), BIND(&IOperationController::BuildOperationAttributes, controller))
@@ -2162,6 +2172,56 @@ private:
                     }))
             .EndMap();
     }
+
+    IYPathServicePtr GetDynamicOrchidService()
+    {
+        auto dynamicOrchidService = New<TCompositeMapService>();
+        dynamicOrchidService->AddChild("operations", New<TOperationsService>(this));
+        return dynamicOrchidService;
+    }
+
+    class TOperationsService
+        : public TVirtualMapBase
+    {
+    public:
+        TOperationsService(const TScheduler::TImpl* scheduler)
+            : TVirtualMapBase(nullptr /* owningNode */)
+            , Scheduler_(scheduler)
+        { }
+
+        virtual i64 GetSize() const override
+        {
+            return Scheduler_->IdToOperation_.size();
+        }
+
+        virtual std::vector<Stroka> GetKeys(i64 limit) const override
+        {
+            std::vector<Stroka> keys;
+            keys.reserve(limit);
+            for (const auto& pair : Scheduler_->IdToOperation_) {
+                if (static_cast<i64>(keys.size()) >= limit) {
+                    break;
+                }
+                keys.emplace_back(ToString(pair.first));
+            }
+            return keys;
+        }
+
+        virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
+        {
+            TOperationId operationId = TOperationId::FromString(key);
+            auto iterator = Scheduler_->IdToOperation_.find(operationId);
+            if (iterator == Scheduler_->IdToOperation_.end()) {
+                return nullptr;
+            }
+
+            return IYPathService::FromProducer(
+                BIND(&TScheduler::TImpl::BuildOperationYson, MakeStrong(Scheduler_), iterator->second));
+        }
+
+    private:
+        const TScheduler::TImpl* const Scheduler_;
+    };
 };
 
 ////////////////////////////////////////////////////////////////////

@@ -1975,6 +1975,7 @@ TRootElement::TRootElement(
     ISchedulerStrategyHost* host,
     TFairShareStrategyConfigPtr strategyConfig)
     : TCompositeSchedulerElement(host, strategyConfig)
+    , ProfilingTag_(NProfiling::TProfileManager::Get()->RegisterTag("pool", RootPoolName))
 {
     Attributes_.FairShareRatio = 1.0;
     Attributes_.GuaranteedResourcesRatio = 1.0;
@@ -2061,6 +2062,11 @@ int TRootElement::GetMaxRunningOperationCount() const
 int TRootElement::GetMaxOperationCount() const
 {
     return StrategyConfig_->MaxOperationCount;
+}
+
+NProfiling::TTagId TRootElement::GetProfilingTag() const
+{
+    return ProfilingTag_;
 }
 
 ISchedulerElementPtr TRootElement::Clone()

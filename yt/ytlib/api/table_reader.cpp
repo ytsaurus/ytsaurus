@@ -223,6 +223,7 @@ void TSchemalessTableReader::DoOpen()
             tableCellTag,
             nodeDirectory,
             Config_->MaxChunksPerLocateRequest,
+            Null,
             Logger,
             &chunkSpecs);
 
