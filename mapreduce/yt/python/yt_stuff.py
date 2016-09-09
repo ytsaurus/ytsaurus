@@ -29,6 +29,9 @@ class YtConfig(object):
         self.scheduler_config = kwargs.get("scheduler_config")
         self.yt_path = kwargs.get("yt_path")
 
+        self.wait_tablet_cell_initialization = kwargs.get("wait_tablet_cell_initialization")
+        self.operations_memory_limit = kwargs.get("operations_memory_limit") or (25 * 1024 * 1024 * 1024)
+
 
 class YtStuff(object):
     def __init__(self, config=None):
@@ -152,9 +155,11 @@ class YtStuff(object):
                 "--id", self.yt_id,
                 "--path", self.yt_work_dir,
                 "--fqdn", self.config.fqdn,
-                # Fix normally in YT-5572
-                "--operations-memory-limit", str(25 * 1024 * 1024 * 1024),
+                "--operations-memory-limit", str(self.config.operations_memory_limit),
             ]
+
+            if self.config.wait_tablet_cell_initialization:
+                args += ["--wait-tablet-cell-initialization"]
 
             if self.config.proxy_port is not None:
                 self.yt_proxy_port = self.config.proxy_port
