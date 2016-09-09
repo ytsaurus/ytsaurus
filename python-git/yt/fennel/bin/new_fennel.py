@@ -58,16 +58,15 @@ def parse_push_to_logbroker(args):
     logbroker = make_logbroker_client(args)
     configure_logging(args)
 
-    with yt_client.Transaction():
-        push_to_logbroker(yt_client,
-                          logbroker,
-                          daemon=args.daemon,
-                          lock_path=args.lock_path,
-                          sentry_endpoint=args.sentry_endpoint,
-                          table_path=args.table_path,
-                          session_count=args.session_count,
-                          range_row_count=args.range_row_count,
-                          max_range_count=args.max_range_count)
+    push_to_logbroker(yt_client,
+                      logbroker,
+                      daemon=args.daemon,
+                      lock_path=args.lock_path,
+                      sentry_endpoint=args.sentry_endpoint,
+                      table_path=args.table_path,
+                      session_count=args.session_count,
+                      range_row_count=args.range_row_count,
+                      max_range_count=args.max_range_count)
 
 def add_push_to_logbroker_parser(subparsers, parent_parser):
     parser = subparsers.add_parser("push-to-logbroker",
