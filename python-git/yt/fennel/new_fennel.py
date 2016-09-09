@@ -10,6 +10,7 @@ import time
 import socket
 import logging
 import struct
+from copy import deepcopy
 from datetime import datetime
 from cStringIO import StringIO
 from gzip import GzipFile
@@ -195,6 +196,7 @@ def create_global_ranges_for_session(start_row_index, end_row_index, range_size,
 def make_read_tasks(yt_client, table_path, session_count, range_row_count, max_range_count):
     attributes = yt_client.get(table_path + "/@")
     if "processed_row_count" not in attributes:
+        logger.info("Reset attributes since processed_row_count attribute is missing")
         with yt_client.Transaction(transaction_id="0-0-0-0"):
             yt_client.set("{0}/@{1}".format(table_path, "processed_row_count"), 0)
             yt_client.set("{0}/@{1}".format(table_path, "table_start_row_index"), 0)
@@ -299,7 +301,7 @@ class PushMapper(object):
 
 def update_table_attributes(yt_client, table_path, pushed_row_count):
     with yt_client.Transaction():
-        logger.info("Updating attributes")
+        logger.info("Updating attributes of table %s", table_path)
         yt_client.lock(table_path, mode="exclusive")
         processed_row_count = yt_client.get(table_path + "/@processed_row_count")
         new_processed_row_count = processed_row_count + pushed_row_count
@@ -399,7 +401,7 @@ def push_to_logbroker(yt_client, logbroker, daemon, table_path, session_count, r
     
     if lock_path:
         lock_queue = Queue()
-        lock_args = dict(yt_client=yt_client, lock_path=lock_path, queue=lock_queue)
+        lock_args = dict(yt_client=deepcopy(yt_client), lock_path=lock_path, queue=lock_queue)
         lock_thread = Thread(target=acquire_yt_lock, kwargs=lock_args, name="LockProcess")
         lock_thread.daemon = True
         lock_thread.start()
