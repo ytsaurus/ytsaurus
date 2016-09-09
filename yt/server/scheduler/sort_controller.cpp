@@ -1069,6 +1069,11 @@ protected:
             return Controller->GetSortedMergeJobType();
         }
 
+        virtual TUserJobSpecPtr GetUserJobSpec() const override
+        {
+            return Controller->GetSortedMergeUserJobSpec();
+        }
+
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->SortedMergeJobSpecTemplate);
@@ -1790,6 +1795,8 @@ protected:
     virtual EJobType GetIntermediateSortJobType() const = 0;
     virtual EJobType GetFinalSortJobType() const = 0;
     virtual EJobType GetSortedMergeJobType() const = 0;
+
+    virtual TUserJobSpecPtr GetSortedMergeUserJobSpec() const = 0;
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortControllerBase::TPartitionTask);
@@ -2179,6 +2186,11 @@ private:
     virtual EJobType GetSortedMergeJobType() const override
     {
         return EJobType::SortedMerge;
+    }
+
+    virtual TUserJobSpecPtr GetSortedMergeUserJobSpec() const override
+    {
+        return nullptr;
     }
 
     void InitJobSpecTemplates()
@@ -2668,6 +2680,11 @@ private:
     virtual EJobType GetSortedMergeJobType() const override
     {
         return EJobType::SortedReduce;
+    }
+
+    virtual TUserJobSpecPtr GetSortedMergeUserJobSpec() const override
+    {
+        return Spec->Reducer;
     }
 
     void InitJobSpecTemplates()

@@ -381,7 +381,8 @@ public:
         const auto& element = GetOperationElement(operationId);
         auto serializedParams = ConvertToAttributes(element->GetRuntimeParams());
         BuildYsonMapFluently(consumer)
-            .Items(*serializedParams);
+            .Items(*serializedParams)
+            .Item("pool").Value(element->GetParent()->GetId());
     }
 
     virtual void BuildOperationProgress(const TOperationId& operationId, IYsonConsumer* consumer) override
