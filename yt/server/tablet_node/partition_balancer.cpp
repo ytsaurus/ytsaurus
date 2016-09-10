@@ -223,7 +223,7 @@ private:
                 int j = (i + 1) * sampleCount / splitFactor - 1;
                 auto key = samples[j];
                 if (key > pivotKeys.back()) {
-                    pivotKeys.push_back(TOwningKey(key));
+                    pivotKeys.push_back(key);
                 }
             }
 
