@@ -658,7 +658,9 @@ private:
     };
 
 
-    TObjectServiceProxy::TReqExecuteBatchPtr StartObjectBatchRequest(TCellTag cellTag = PrimaryMasterCellTag)
+    TObjectServiceProxy::TReqExecuteBatchPtr StartObjectBatchRequest(
+        EMasterChannelKind channelKind = EMasterChannelKind::Leader,
+        TCellTag cellTag = PrimaryMasterCellTag)
     {
         TObjectServiceProxy proxy(Bootstrap
             ->GetMasterClient()
@@ -1385,7 +1387,7 @@ private:
             }
 
             {
-                auto batchReq = StartObjectBatchRequest(cellTag);
+                auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower, cellTag);
 
                 for (const auto& info : infos) {
                     auto req = TFileYPathProxy::GetUploadParams(FromObjectId(info.NodeId));
@@ -1527,7 +1529,7 @@ private:
             auto cellTag = pair.first;
             auto& tableInfos = pair.second;
 
-            auto batchReq = StartObjectBatchRequest(cellTag);
+            auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower, cellTag);
             for (const auto* tableInfo : tableInfos) {
                 auto req = TTableYPathProxy::GetUploadParams(FromObjectId(tableInfo->TableId));
                 SetTransactionId(req, tableInfo->UploadTransactionId);
@@ -1757,7 +1759,7 @@ private:
 
         // Global watchers.
         {
-            auto batchReq = StartObjectBatchRequest();
+            auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
             for (auto requester : GlobalWatcherRequesters) {
                 requester.Run(batchReq);
             }
@@ -1785,7 +1787,7 @@ private:
             if (operation->GetState() != EOperationState::Running)
                 continue;
 
-            auto batchReq = StartObjectBatchRequest();
+            auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
             for (auto requester : list.WatcherRequesters) {
                 requester.Run(batchReq);
             }
