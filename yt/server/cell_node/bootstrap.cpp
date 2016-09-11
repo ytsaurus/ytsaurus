@@ -415,14 +415,12 @@ void TBootstrap::DoRun()
     RpcServer->RegisterService(CreateTimestampProxyService(
         MasterConnection->GetTimestampProvider()));
 
-    auto directMasterChannel = CreatePeerChannel(
-        Config->ClusterConnection->PrimaryMaster,
-        GetBusChannelFactory(),
-        EPeerKind::Leader);
-
     RpcServer->RegisterService(CreateMasterCacheService(
         Config->MasterCacheService,
-        directMasterChannel,
+        CreatePeerChannel(
+            Config->ClusterConnection->PrimaryMaster,
+            GetBusChannelFactory(),
+            EPeerKind::Follower),
         GetCellId()));
 
     CellDirectorySynchronizer->Start();
