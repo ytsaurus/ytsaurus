@@ -835,7 +835,7 @@ private:
                 continue;
 
             UpdateNodeCounters(node, -1);
-            node->MulticellStates()[cellTag] = ENodeState(entry.state());
+            node->SetState(cellTag, ENodeState(entry.state()));
             UpdateNodeCounters(node, +1);
         }
     }
@@ -971,21 +971,7 @@ private:
 
     void InitializeNodeStates(TNode* node)
     {
-        auto cellTag = Bootstrap_->GetCellTag();
-        const auto& secondaryCellTags = Bootstrap_->GetSecondaryCellTags();
-
-        auto& multicellStates = node->MulticellStates();
-        if (multicellStates.find(cellTag) == multicellStates.end()) {
-            multicellStates[cellTag] = ENodeState::Offline;
-        }
-
-        for (auto secondaryCellTag : secondaryCellTags) {
-            if (multicellStates.find(secondaryCellTag) == multicellStates.end()) {
-                multicellStates[secondaryCellTag] = ENodeState::Offline;
-            }
-        }
-
-        node->SetLocalStatePtr(&multicellStates[cellTag]);
+        node->InitializeStates(Bootstrap_->GetCellTag(), Bootstrap_->GetSecondaryCellTags());
     }
 
     void UpdateNodeCounters(TNode* node, int delta)
