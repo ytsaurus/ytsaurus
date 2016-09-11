@@ -99,9 +99,35 @@ TNodeDescriptor TNode::GetDescriptor() const
         Rack_ ? MakeNullable(Rack_->GetName()) : Null);
 }
 
+void TNode::InitializeStates(TCellTag cellTag, const TCellTagList& secondaryCellTags)
+{
+    auto addCell = [&] (TCellTag someTag) {
+        if (MulticellStates_.find(someTag) == MulticellStates_.end()) {
+            YCHECK(MulticellStates_.emplace(someTag, ENodeState::Offline).second);
+        }
+    };
+
+    addCell(cellTag);
+    for (auto secondaryCellTag : secondaryCellTags) {
+        addCell(secondaryCellTag);
+    }
+
+    LocalStatePtr_ = &MulticellStates_[cellTag];
+}
+
 ENodeState TNode::GetLocalState() const
 {
     return *LocalStatePtr_;
+}
+
+void TNode::SetLocalState(ENodeState state) const
+{
+    *LocalStatePtr_ = state;
+}
+
+void TNode::SetState(TCellTag cellTag, ENodeState state)
+{
+    MulticellStates_[cellTag] = state;
 }
 
 ENodeState TNode::GetAggregatedState() const
@@ -118,12 +144,6 @@ ENodeState TNode::GetAggregatedState() const
     }
     return *result;
 }
-
-void TNode::SetLocalState(ENodeState state) const
-{
-    *LocalStatePtr_ = state;
-}
-
 
 std::vector<Stroka> TNode::GetTags() const
 {

@@ -56,8 +56,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(double, IOWeight);
 
     using TMulticellStates = yhash_map<NObjectClient::TCellTag, ENodeState>;
-    DEFINE_BYREF_RW_PROPERTY(TMulticellStates, MulticellStates);
-    DEFINE_BYVAL_RW_PROPERTY(ENodeState*, LocalStatePtr);
+    DEFINE_BYREF_RO_PROPERTY(TMulticellStates, MulticellStates);
 
     DEFINE_BYREF_RW_PROPERTY(std::vector<Stroka>, UserTags);
     DEFINE_BYREF_RW_PROPERTY(std::vector<Stroka>, NodeTags);
@@ -131,13 +130,19 @@ public:
     void SetAddresses(const TAddressMap& addresses);
     const Stroka& GetDefaultAddress() const;
 
+    //! Prepares per-cell state map.
+    //! Inserts new entries into the map, fills missing onces with ENodeState::Offline value.
+    void InitializeStates(NObjectClient::TCellTag cellTag, const NObjectClient::TCellTagList& secondaryCellTags);
     //! Gets the local state by dereferencing local state pointer.
     ENodeState GetLocalState() const;
+    //! Sets the local state by dereferencing local state pointer.
+    void SetLocalState(ENodeState state) const;
+
+    //! Sets the state for the given cell.
+    void SetState(NObjectClient::TCellTag cellTag, ENodeState state);
     //! If states are same for all cells then returns this common value.
     //! Otherwise returns "mixed" state.
     ENodeState GetAggregatedState() const;
-    //! Sets the local state by dereferencing local state pointer.
-    void SetLocalState(ENodeState state) const;
 
     std::vector<Stroka> GetTags() const;
 
@@ -202,6 +207,8 @@ private:
     int HintedRepairSessionCount_;
 
     TReplicaSet::iterator RandomReplicaIt_;
+
+    ENodeState* LocalStatePtr_;
 
     void Init();
 
