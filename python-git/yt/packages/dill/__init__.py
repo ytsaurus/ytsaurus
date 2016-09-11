@@ -96,4 +96,5 @@ def citation():
 
 del odict
 
+load_types()
 # end of file

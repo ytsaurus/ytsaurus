@@ -49,6 +49,7 @@ if PY3: #XXX: get types from dill.objtypes ?
     TypeType = type # 'new-style' classes #XXX: unregistered
     XRangeType = range
     DictProxyType = type(object.__dict__)
+    # TODO(ignat): Support StaticMethodType and ClassMethodType
 else:
     import __builtin__
     from pickle import Pickler as StockPickler, Unpickler as StockUnpickler
@@ -57,6 +58,14 @@ else:
          GeneratorType, DictProxyType, XRangeType, SliceType, TracebackType, \
          NotImplementedType, EllipsisType, FrameType, ModuleType, \
          BufferType, BuiltinMethodType, TypeType
+
+    class _class:
+        def _method(self):
+            pass
+    _method = _class._method
+    StaticMethodType = type(staticmethod(_method))
+    ClassMethodType = type(classmethod(_method))
+
 from pickle import HIGHEST_PROTOCOL, PicklingError, UnpicklingError
 try:
     from pickle import DEFAULT_PROTOCOL
@@ -759,6 +768,15 @@ def save_classobj(pickler, obj): #FIXME: enable pickler._byref
         log.info("C2: %s" % obj)
         StockPickler.save_global(pickler, obj)
     return
+
+@register(StaticMethodType)
+def save_staticmethod(self, obj):
+    self.save_reduce(staticmethod, (obj.__func__,), obj=obj)
+
+@register(ClassMethodType)
+def save_classmethod(self, obj):
+    self.save_reduce(classmethod, (obj.__func__,), obj=obj)
+
 
 @register(LockType)
 def save_lock(pickler, obj):
