@@ -67,9 +67,25 @@ void TNode::Init()
     Rack_ = nullptr;
     LeaseTransaction_ = nullptr;
     LocalStatePtr_ = nullptr;
+    AggregatedState_ = ENodeState::Offline;
     ChunkReplicationQueues_.resize(ReplicationPriorityCount);
     RandomReplicaIt_ = StoredReplicas_.end();
     ClearSessionHints();
+}
+
+void TNode::RecomputeAggregatedState()
+{
+    TNullable<ENodeState> result;
+    for (const auto& pair : MulticellStates_) {
+        if (result) {
+            if (*result != pair.second) {
+                result = ENodeState::Mixed;
+            }
+        } else {
+            result = pair.second;
+        }
+    }
+    AggregatedState_ = *result;
 }
 
 TNodeId TNode::GetId() const
@@ -120,29 +136,21 @@ ENodeState TNode::GetLocalState() const
     return *LocalStatePtr_;
 }
 
-void TNode::SetLocalState(ENodeState state) const
+void TNode::SetLocalState(ENodeState state)
 {
     *LocalStatePtr_ = state;
+    RecomputeAggregatedState();
 }
 
 void TNode::SetState(TCellTag cellTag, ENodeState state)
 {
     MulticellStates_[cellTag] = state;
+    RecomputeAggregatedState();
 }
 
 ENodeState TNode::GetAggregatedState() const
 {
-    TNullable<ENodeState> result;
-    for (const auto& pair : MulticellStates_) {
-        if (result) {
-            if (*result != pair.second) {
-                result = ENodeState::Mixed;
-            }
-        } else {
-            result = pair.second;
-        }
-    }
-    return *result;
+    return AggregatedState_;
 }
 
 std::vector<Stroka> TNode::GetTags() const

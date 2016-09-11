@@ -136,7 +136,7 @@ public:
     //! Gets the local state by dereferencing local state pointer.
     ENodeState GetLocalState() const;
     //! Sets the local state by dereferencing local state pointer.
-    void SetLocalState(ENodeState state) const;
+    void SetLocalState(ENodeState state);
 
     //! Sets the state for the given cell.
     void SetState(NObjectClient::TCellTag cellTag, ENodeState state);
@@ -209,8 +209,11 @@ private:
     TReplicaSet::iterator RandomReplicaIt_;
 
     ENodeState* LocalStatePtr_;
+    ENodeState AggregatedState_;
 
     void Init();
+
+    void RecomputeAggregatedState();
 
     static TChunkPtrWithIndex ToGeneric(TChunkPtrWithIndex replica);
     static NChunkClient::TChunkIdWithIndex ToGeneric(const NChunkClient::TChunkIdWithIndex& replica);
