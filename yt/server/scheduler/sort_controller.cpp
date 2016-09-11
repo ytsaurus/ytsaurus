@@ -1588,12 +1588,12 @@ protected:
     {
         YCHECK(TotalEstimatedInputDataSize > 0);
         i64 dataSizeAfterPartition = 1 + static_cast<i64>(TotalEstimatedInputDataSize * Spec->MapSelectivityFactor);
-
-        int result;
+        // Use int64 during the initial stage to avoid overflow issues.
+        i64 result;
         if (Spec->PartitionCount) {
-            result = Spec->PartitionCount.Get();
+            result = *Spec->PartitionCount;
         } else if (Spec->PartitionDataSize) {
-            result = 1 + dataSizeAfterPartition / Spec->PartitionDataSize.Get();
+            result = 1 + dataSizeAfterPartition / *Spec->PartitionDataSize;
         } else {
             // Rationale and details are on the wiki.
             // https://wiki.yandex-team.ru/yt/design/partitioncount/
@@ -1604,11 +1604,11 @@ protected:
             double partitionDataSize = sqrt(dataSizeAfterPartition) * sqrt(uncompressedBlockSize);
             partitionDataSize = std::max(partitionDataSize, static_cast<double>(Options->MinPartitionSize));
 
-            int maxPartitionCount = GetMaxPartitionJobBufferSize() / uncompressedBlockSize;
-            result = std::min(static_cast<int>(dataSizeAfterPartition / partitionDataSize), maxPartitionCount);
+            i64 maxPartitionCount = GetMaxPartitionJobBufferSize() / uncompressedBlockSize;
+            result = std::min(static_cast<i64>(dataSizeAfterPartition / partitionDataSize), maxPartitionCount);
         }
-
-        return std::max(result, 1);
+        // Cast to int32 is safe since MaxPartitionCount is int32.
+        return static_cast<int>(Clamp(result, 1, Options->MaxPartitionCount));
     }
 
     int SuggestPartitionJobCount() const
