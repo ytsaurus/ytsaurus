@@ -1686,6 +1686,10 @@ private:
 
             controller->InitializeReviving(controllerTransactions);
 
+            if (operation->GetState() != EOperationState::Reviving) {
+                throw TFiberCanceledException();
+            }
+
             {
                 auto error = WaitFor(MasterConnector_->ResetRevivingOperationNode(operation));
                 THROW_ERROR_EXCEPTION_IF_FAILED(error);
