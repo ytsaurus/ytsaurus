@@ -2,8 +2,8 @@
 
 #include "cypress.h"
 #include "io.h"
-#include "operation.h"
 #include "node.h"
+#include "operation.h"
 
 #include <util/datetime/base.h>
 #include <util/generic/maybe.h>

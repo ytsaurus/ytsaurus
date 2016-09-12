@@ -1,5 +1,7 @@
 #pragma once
 
+#include "error.h"
+
 #include <mapreduce/yt/interface/common.h>
 #include <mapreduce/yt/interface/node.h>
 
@@ -8,6 +10,7 @@
 #include <util/generic/strbuf.h>
 #include <util/generic/guid.h>
 #include <util/network/socket.h>
+#include <util/stream/input.h>
 #include <util/system/rwlock.h>
 #include <util/generic/ptr.h>
 
@@ -102,6 +105,36 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//
+// Input stream that handles YT-specific header/trailer errors
+// and throws TErrorResponse if it finds any.
+class TYtHttpResponse
+    : public TInputStream
+{
+public:
+    // 'requestId' and 'proxyHostName' are provided for debug reasons
+    // (they will appear in some error messages).
+    explicit TYtHttpResponse(
+        TInputStream* socketStream,
+        const Stroka& requestId,
+        const Stroka& proxyHostName);
+
+private:
+    size_t DoRead(void* buf, size_t len) override;
+    size_t DoSkip(size_t len) override;
+
+    void CheckTrailers(const THttpHeaders& trailers);
+    TMaybe<TErrorResponse> ParseError(const THttpHeaders& headers);
+
+private:
+    THttpInput HttpInput_;
+    Stroka RequestId_;
+    Stroka ProxyHostName_;
+    int HttpCode_ = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class THttpRequest
 {
 public:
@@ -112,7 +145,7 @@ public:
     void Connect(TDuration socketTimeout = TDuration::Zero());
     THttpOutput* StartRequest(const THttpHeader& request);
     void FinishRequest();
-    THttpInput* GetResponseStream();
+    TYtHttpResponse* GetResponseStream();
 
     Stroka GetResponse();
 
@@ -130,7 +163,7 @@ private:
     THolder<THttpOutput> Output;
 
     THolder<TSocketInput> SocketInput;
-    THolder<THttpInput> Input;
+    THolder<TYtHttpResponse> Input;
 
     bool LogResponse = false;
 };

@@ -42,6 +42,9 @@ class TErrorResponse
 public:
     TErrorResponse(int httpCode, const Stroka& requestId);
 
+    // Check if response is actually not a error.
+    bool IsOk() const;
+
     const char* what() const throw () override;
 
     void SetRawError(const Stroka& rawError);
@@ -60,6 +63,7 @@ private:
     int HttpCode_;
     Stroka RequestId_;
     Stroka RawError_;
+    mutable Stroka What_;
     TError Error_;
 
     bool Retriable_;

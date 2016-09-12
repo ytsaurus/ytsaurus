@@ -10,6 +10,7 @@
 #include <util/string/quote.h>
 #include <util/string/printf.h>
 #include <util/string/cast.h>
+#include <util/string/builder.h>
 
 namespace NYT {
 
@@ -247,6 +248,111 @@ TAddressCache::TAddressPtr TAddressCache::Resolve(const Stroka& hostName)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TYtHttpResponse::TYtHttpResponse(
+    TInputStream* socketStream,
+    const Stroka& requestId,
+    const Stroka& proxyHostName)
+    : HttpInput_(socketStream)
+    , RequestId_(requestId)
+    , ProxyHostName_(proxyHostName)
+{
+    HttpCode_ = ParseHttpRetCode(HttpInput_.FirstLine());
+    if (HttpCode_ == 200 || HttpCode_ == 202) {
+        return;
+    }
+
+    TErrorResponse errorResponse(HttpCode_, RequestId_);
+
+    auto logAndSetError = [&] (const Stroka& rawError) {
+        LOG_ERROR(
+            "RSP %s - HTTP %d - %s",
+            ~RequestId_, HttpCode_, ~rawError);
+        errorResponse.SetRawError(rawError);
+    };
+
+    switch (HttpCode_) {
+        case 401:
+            logAndSetError("authentication error");
+            break;
+
+        case 429:
+            logAndSetError("request rate limit exceeded");
+            break;
+
+        case 500:
+            logAndSetError(TStringBuilder() << "internal error in proxy " << ProxyHostName_);
+            break;
+
+        case 503:
+            logAndSetError(TStringBuilder() << "proxy " << ProxyHostName_ << " is unavailable");
+            break;
+
+        default: {
+            TStringStream httpHeaders;;
+            httpHeaders << "HTTP headers (";
+            for (const auto& header : HttpInput_.Headers()) {
+                httpHeaders << header.Name() << ": " << header.Value() << "; ";
+            }
+            httpHeaders << ")";
+            LOG_ERROR(
+                "RSP %s - HTTP %d - %s",
+                ~RequestId_, HttpCode_, ~httpHeaders.Str());
+
+            if (auto parsedResponse = ParseError(HttpInput_.Headers())) {
+                errorResponse = parsedResponse.GetRef();
+            } else {
+                errorResponse.SetRawError("X-YT-Error is missing in headers");
+            }
+            break;
+        }
+    }
+
+    ythrow errorResponse;
+}
+
+TMaybe<TErrorResponse> TYtHttpResponse::ParseError(const THttpHeaders& headers)
+{
+    for (const auto& header : headers) {
+        if (header.Name() == "X-YT-Error") {
+            TErrorResponse errorResponse(HttpCode_, RequestId_);
+            errorResponse.ParseFromJsonError(header.Value());
+            if (errorResponse.IsOk()) {
+                return Nothing();
+            }
+            return errorResponse;
+        }
+    }
+    return Nothing();
+}
+
+size_t TYtHttpResponse::DoRead(void* buf, size_t len)
+{
+    size_t read = HttpInput_.Read(buf, len);
+    if (read == 0 && len != 0) {
+        CheckTrailers(HttpInput_.Trailers().GetRef());
+    }
+    return read;
+}
+
+size_t TYtHttpResponse::DoSkip(size_t len)
+{
+    size_t skipped = HttpInput_.Skip(len);
+    if (skipped == 0 && len != 0) {
+        CheckTrailers(HttpInput_.Trailers().GetRef());
+    }
+    return skipped;
+}
+
+void TYtHttpResponse::CheckTrailers(const THttpHeaders& trailers)
+{
+    if (auto errorResponse = ParseError(trailers)) {
+        LOG_ERROR("%s", errorResponse.GetRef().what());
+        ythrow errorResponse.GetRef();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 THttpRequest::THttpRequest(const Stroka& hostName)
     : HostName(hostName)
 {
@@ -357,67 +463,11 @@ void THttpRequest::FinishRequest()
     Output->Finish();
 }
 
-THttpInput* THttpRequest::GetResponseStream()
+TYtHttpResponse* THttpRequest::GetResponseStream()
 {
     SocketInput.Reset(new TSocketInput(*Socket.Get()));
-    Input.Reset(new THttpInput(SocketInput.Get()));
-
-    auto httpCode = ParseHttpRetCode(Input->FirstLine());
-    if (httpCode == 200 || httpCode == 202) {
-        return Input.Get();
-    }
-
-    TErrorResponse errorResponse(httpCode, RequestId);
-
-    auto logAndSetError = [&] (const Stroka& rawError) {
-        LOG_ERROR(
-            "RSP %s - HTTP %d - %s",
-            ~RequestId, httpCode, ~rawError);
-        errorResponse.SetRawError(rawError);
-    };
-
-    switch (httpCode) {
-        case 401:
-            logAndSetError("authentication error");
-            break;
-
-        case 429:
-            logAndSetError("request rate limit exceeded");
-            break;
-
-        case 500:
-            logAndSetError(Sprintf("internal error in proxy %s", ~HostName));
-            break;
-
-        case 503:
-            logAndSetError(Sprintf("proxy %s is unavailable", ~HostName));
-            break;
-
-        default: {
-            Stroka ytError;
-            Stroka httpHeaders("HTTP headers (");
-            for (auto i = Input->Headers().Begin(); i != Input->Headers().End(); ++i) {
-                httpHeaders += i->Name();
-                httpHeaders += ": ";
-                httpHeaders += i->Value();
-                httpHeaders += "; ";
-                if (i->Name() == "X-YT-Error") {
-                    ytError = i->Value();
-                    errorResponse.ParseFromJsonError(ytError);
-                }
-            }
-            httpHeaders += ")";
-            if (!ytError) {
-                errorResponse.SetRawError("X-YT-Error is missing in headers");
-            }
-            LOG_ERROR(
-                "RSP %s - HTTP %d - %s",
-                ~RequestId, httpCode, ~httpHeaders);
-            break;
-        }
-    }
-
-    ythrow errorResponse;
+    Input.Reset(new TYtHttpResponse(SocketInput.Get(), RequestId, HostName));
+    return Input.Get();
 }
 
 Stroka THttpRequest::GetResponse()

@@ -2,6 +2,10 @@
 
 #include <mapreduce/yt/interface/client.h>
 
+#include <mapreduce/yt/http/error.h>
+
+#include <util/random/fast.h>
+
 namespace NYT {
 namespace NNativeTest {
 
@@ -109,6 +113,46 @@ YT_TEST(TIo, ReadMultipleRangesYaMR)
         const auto& row = reader->GetRow();
         Cout << row.Key << ", " << reader->GetRowIndex() << Endl;
     }
+}
+
+namespace {
+
+Stroka RandomBytes() {
+    static TReallyFastRng32 RNG(42);
+    ui64 value = RNG.GenRand64();
+    return Stroka((const char*)&value, sizeof(value));
+}
+
+} // namespace
+
+
+YT_TEST(TIo, ReadErrorInTrailers)
+{
+    {
+        auto writer = Client()->CreateTableWriter<NYT::TNode>(Input());
+        for (int i = 0; i != 10000; ++i) {
+            NYT::TNode node;
+            node["key"] = RandomBytes();
+            node["subkey"] = RandomBytes();
+            node["value"] = RandomBytes();
+            writer->AddRow(node);
+        }
+        NYT::TNode brokenNode;
+        brokenNode["not_a_yamr_key"] = "ПЫЩ";
+        writer->AddRow(brokenNode);
+    }
+
+    auto reader = Client()->CreateTableReader<NYT::TYaMRRow>(Input());
+
+    // we expect first record to be read ok and error will come only later
+    // in http trailer
+    ASSERT_TRUE(reader->IsValid());
+
+    auto readRemaining = [&]() {
+        for (; reader->IsValid() ; reader->Next()) {
+        }
+    };
+    ASSERT_THROW(readRemaining(), NYT::TErrorResponse);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
