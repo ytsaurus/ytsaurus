@@ -2330,10 +2330,10 @@ private:
                     const auto& descriptor = request->stores_to_add(0);
                     auto storeId = FromProto<TStoreId>(descriptor.store_id());
                     YCHECK(descriptor.has_starting_row_index());
-                    if (tabletChunkList->Statistics().RowCount != descriptor.starting_row_index()) {
+                    if (tabletChunkList->Statistics().LogicalRowCount != descriptor.starting_row_index()) {
                         THROW_ERROR_EXCEPTION("Attempted to attach store %v with invalid starting row index: expected %v, got %v",
                             storeId,
-                            tabletChunkList->Statistics().RowCount,
+                            tabletChunkList->Statistics().LogicalRowCount,
                             descriptor.starting_row_index());
                     }
                 }

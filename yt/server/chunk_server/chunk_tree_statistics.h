@@ -18,6 +18,10 @@ struct TChunkTreeStatistics
     //! Total number of rows in the tree.
     i64 RowCount = 0;
 
+    //! Number of addressable rows in the tree. Typically equals to #RowCount but can be
+    //! larger if some initial prefix of the rowset was trimmed.
+    i64 LogicalRowCount = 0;
+
     //! Sum of uncompressed data sizes of chunks in the tree.
     i64 UncompressedDataSize = 0;
 
@@ -35,6 +39,10 @@ struct TChunkTreeStatistics
 
     //! Total number of chunks in the tree.
     int ChunkCount = 0;
+
+    //! Number of addressable chunks in the tree. Typically equals to #ChunkCount but can be
+    //! larger if some initial prefix of the rowset was trimmed.
+    i64 LogicalChunkCount = 0;
 
     //! Total number of chunk lists in the tree.
     int ChunkListCount = 0;

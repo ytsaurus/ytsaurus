@@ -84,12 +84,14 @@ void TChunkTreeBalancer::Rebalance(TChunkList* root)
 
     const auto& newStatistics = root->Statistics();
     YCHECK(newStatistics.RowCount == oldStatistics.RowCount);
+    YCHECK(newStatistics.LogicalRowCount == oldStatistics.LogicalRowCount);
     YCHECK(newStatistics.UncompressedDataSize == oldStatistics.UncompressedDataSize);
     YCHECK(newStatistics.CompressedDataSize == oldStatistics.CompressedDataSize);
     YCHECK(newStatistics.DataWeight == oldStatistics.DataWeight);
     YCHECK(newStatistics.RegularDiskSpace == oldStatistics.RegularDiskSpace);
     YCHECK(newStatistics.ErasureDiskSpace == oldStatistics.ErasureDiskSpace);
     YCHECK(newStatistics.ChunkCount == oldStatistics.ChunkCount);
+    YCHECK(newStatistics.LogicalChunkCount == oldStatistics.LogicalChunkCount);
 }
 
 void TChunkTreeBalancer::AppendChunkTree(

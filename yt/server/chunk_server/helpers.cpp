@@ -117,8 +117,9 @@ void DetachFromChunkList(
             chunkList->SetTrimmedChildCount(newTrimmedChildCount);
         }
 
-        // NB: Do not change row count.
-        statisticsDelta.RowCount = 0;
+        // NB: Do not change logical row and chunk count.
+        statisticsDelta.LogicalRowCount = 0;
+        statisticsDelta.LogicalChunkCount = 0;
     } else {
         // Can handle arbitrary children.
         // Used in sorted tablet compaction..
@@ -201,8 +202,8 @@ void AppendChunkTreeChild(
     if (chunkList->GetOrdered()) {
         if (!chunkList->Children().empty()) {
             chunkList->CumulativeStatistics().push_back({
-                chunkList->Statistics().RowCount + statistics->RowCount,
-                chunkList->Statistics().ChunkCount + statistics->ChunkCount,
+                chunkList->Statistics().LogicalRowCount + statistics->LogicalRowCount,
+                chunkList->Statistics().LogicalChunkCount + statistics->LogicalChunkCount,
                 chunkList->Statistics().UncompressedDataSize + statistics->UncompressedDataSize
             });
         }
@@ -432,7 +433,7 @@ TFuture<TYsonString> GetMulticellOwningNodes(
 
 bool IsEmpty(const TChunkList* chunkList)
 {
-    return !chunkList || chunkList->Statistics().ChunkCount == 0;
+    return !chunkList || chunkList->Statistics().LogicalChunkCount == 0;
 }
 
 bool IsEmpty(const TChunkTree* chunkTree)
