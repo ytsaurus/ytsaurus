@@ -575,7 +575,7 @@ class Application(object):
         if user is None:
             _, user = get_token_and_user(request, client)
         if client.check_permission(user, "administer", self._auth_path)["action"] != "allow":
-            raise RequestFailed("{0} task is not permitted".format(action_name))
+            raise RequestFailed("{0} task is not permitted".format(action_name), http_code=403)
 
     def _set_defaults(self, task, clusters_configuration):
         source_client = task.get_source_client(clusters_configuration.clusters)
