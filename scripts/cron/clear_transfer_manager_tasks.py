@@ -36,7 +36,10 @@ def remove_tasks(tasks_to_remove, url, token):
     if str(rsp.status_code).startswith("5"):
         logger.error("Batch deletion failed. Transfer Manager is not available")
     elif str(rsp.status_code).startswith("4"):
-        logger.error("Batch deletion failed with error: %s", rsp.json()["message"])
+        error_message = rsp.json()["message"]
+        logger.error("Batch deletion failed with error: %s", error_message)
+        if "is not permitted" in error_message:
+            raise RuntimeError("Not enough permissions to delete Transfer Manager tasks")
     else:
         logger.info("Successfully deleted %d tasks", len(tasks_to_remove))
 
@@ -116,8 +119,8 @@ def main():
                         help="leave no more than N completed (without stderr) or aborted tasks")
     parser.add_argument("--total-count", metavar="N", type=int, default=2000,
                         help="leave no more that N tasks totally")
-    parser.add_argument("--failed-timeout", metavar="N", type=int, default=30,
-                        help="remove all failed task older than N days")
+    parser.add_argument("--failed-timeout", metavar="N", type=int, default=8,
+                        help="remove all failed task older than N hours")
     parser.add_argument("--max-regular-tasks-per-user", metavar="N", type=int, default=50,
                         help="remove old task of user if limit exceeded")
     parser.add_argument("--max-failed-tasks-per-user", metavar="N", type=int, default=50,
@@ -127,7 +130,7 @@ def main():
                         help="number of tasks to remove per one delete request")
 
     args = dict(vars(parser.parse_args()))
-    args["failed_timeout"] = timedelta(days=args["failed_timeout"])
+    args["failed_timeout"] = timedelta(hours=args["failed_timeout"])
     args["robots"] = args.pop("robot")
 
     clean_tasks(**args)
