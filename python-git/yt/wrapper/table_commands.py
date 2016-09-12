@@ -393,10 +393,15 @@ def _add_job_io_spec(job_types, job_io, table_writer, spec):
 def _make_operation_request(command_name, spec, sync,
                             finalizer=None, client=None):
     def _manage_operation(finalizer):
+        def log_backoff_message(error, iter_number, sleep_backoff):
+            logger.warning("Failed to start operation since concurrent operation limit exceeded. "
+                           "Sleep for %.2lf seconds before next (%d) retry.",
+                           sleep_backoff, iter_number)
         operation_id = run_with_retries(
             action=lambda: _make_formatted_transactional_request(command_name, {"spec": spec}, format=None, client=client),
             retry_count=get_config(client)["start_operation_retries"]["retry_count"],
             backoff=get_config(client)["start_operation_retries"]["retry_timeout"] / 1000.0,
+            backoff_action=log_backoff_message,
             exceptions=(YtConcurrentOperationsLimitExceeded,))
 
         operation = Operation(command_name, operation_id, finalize=finalizer, client=client)
