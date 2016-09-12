@@ -44,7 +44,7 @@ class YtError(Exception):
 
     @staticmethod
     def _get_fqdn():
-        if not hasattr(YtError, "cached_fqdn"):
+        if not hasattr(YtError, "_cached_fqdn"):
             YtError._cached_fqdn = socket.getfqdn()
         return YtError._cached_fqdn
 
