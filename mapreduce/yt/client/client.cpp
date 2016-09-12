@@ -397,7 +397,7 @@ public:
 
     void AlterTable(
         const TYPath& path,
-        const TAlterTableOptions& options = TAlterTableOptions())
+        const TAlterTableOptions& options = TAlterTableOptions()) override
     {
         THttpHeader header("POST", "alter_table");
         header.AddTransactionId(TransactionId_);
