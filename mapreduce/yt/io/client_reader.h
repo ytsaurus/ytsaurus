@@ -47,7 +47,7 @@ private:
     THolder<TPingableTransaction> ReadTransaction_;
 
     THolder<THttpRequest> Request_;
-    TInputStream* Input_;
+    TYtHttpResponse* Input_;
 
     int RetriesLeft_;
 

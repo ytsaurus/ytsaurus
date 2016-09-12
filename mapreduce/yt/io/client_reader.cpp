@@ -116,8 +116,7 @@ void TClientReader::CreateRequest(bool keepRanges, ui32 rangeIndex, ui64 rowInde
             Request_->StartRequest(header);
             Request_->FinishRequest();
 
-            THttpInput* httpInput = Request_->GetResponseStream();
-            Input_ = httpInput;
+            Input_ = Request_->GetResponseStream();
 
             LOG_DEBUG("RSP %s - table stream", ~requestId);
 

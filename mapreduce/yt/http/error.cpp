@@ -2,6 +2,7 @@
 
 #include <mapreduce/yt/common/config.h>
 
+#include <util/string/builder.h>
 #include <util/stream/str.h>
 
 namespace NYT {
@@ -98,9 +99,15 @@ TErrorResponse::TErrorResponse(int httpCode, const Stroka& requestId)
     , RequestId_(requestId)
 { }
 
+bool TErrorResponse::IsOk() const
+{
+    return Error_.GetCode() == 0;
+}
+
 const char* TErrorResponse::what() const throw ()
 {
-    return ~RawError_;
+    What_ = TStringBuilder() << Error_.GetMessage() << ". Raw error: " << RawError_;
+    return ~What_;
 }
 
 void TErrorResponse::SetRawError(const Stroka& rawError)

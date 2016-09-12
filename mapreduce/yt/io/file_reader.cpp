@@ -44,7 +44,6 @@ TFileReader::TFileReader(
         Input_ = Request_->GetResponseStream();
 
         LOG_DEBUG("RSP %s - file stream", ~requestId);
-
     } catch (TErrorResponse& e) {
         LOG_ERROR("RSP %s - failed", ~requestId);
         throw;
