@@ -6,6 +6,7 @@ import yt.zip as zip
 import yt.wrapper.py_wrapper as py_wrapper
 from yt.wrapper.table import TablePath, TempTable
 from yt.wrapper.client import Yt
+from yt.wrapper.common import parse_bool
 
 import yt.wrapper as yt
 
@@ -60,7 +61,7 @@ class TestTableCommands(object):
         with set_config_option("tabular_data_format", yt.DsvFormat()):
             yt.write_table(table, ["x=1\n"], raw=True)
 
-    def test_table_path(self):
+    def test_table_path(self, yt_env):
         path = yt.TablePath("//path/to/table", attributes={"my_attr": 10})
         assert path.attributes["my_attr"] == 10
         assert str(path) == "//path/to/table"
@@ -69,6 +70,20 @@ class TestTableCommands(object):
             path = yt.TablePath("to/table", attributes={"my_attr": 10})
             assert path.attributes["my_attr"] == 10
             assert str(path) == "//path/to/table"
+
+        if yt_env.version.startswith("18.5"):
+            def mapper(rec):
+                yield {"x": 1, "y": 2}
+
+            table = TEST_DIR + "/table"
+            yt.write_table(table, [{"key": "value"}])
+
+            schema = [{"name": "x", "type": "int64"}, {"name": "y", "type": "int64"}]
+            output_path = yt.TablePath(TEST_DIR + "/output", schema=schema)
+            yt.run_map(mapper, table, output_path, format="yson")
+
+            assert sorted([column["name"] for column in yt.get(TEST_DIR + "/output/@schema")]) == ["x", "y"]
+            assert parse_bool(yt.get(TEST_DIR + "/output/@schema").attributes["strict"]) == True
 
     def test_read_write_with_retries(self):
         with set_config_option("write_retries/enable", True):

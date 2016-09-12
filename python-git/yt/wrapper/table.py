@@ -48,6 +48,7 @@ class TablePath(object):
                  start_index=None,
                  end_index=None,
                  ranges=None,
+                 schema=None,
                  simplify=True,
                  attributes=None,
                  client=None):
@@ -63,6 +64,7 @@ class TablePath(object):
         :param start_index: (int) lower bound of rows
         :param end_index: (int) upper bound of rows
         :param ranges: (list) list of ranges of rows. It overwrites all other row limits.
+        :param schema: (list) table schema description.
         :param attributes: (dict) attributes, it updates attributes specified in name.
 
 
@@ -109,6 +111,8 @@ class TablePath(object):
             attributes["sorted_by"] = sorted_by
         if columns is not None:
             attributes["columns"] = columns
+        if schema is not None:
+            attributes["schema"] = schema
 
 
         if ranges is not None:
