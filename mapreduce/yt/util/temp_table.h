@@ -12,7 +12,8 @@ public:
     explicit TTempTable(
         IClientBasePtr client,
         const Stroka& prefix = {},
-        const TYPath& path = {});
+        const TYPath& path = {},
+        const TCreateOptions& options = {});
 
     ~TTempTable();
 

@@ -9,7 +9,8 @@ namespace NYT {
 TTempTable::TTempTable(
     IClientBasePtr client,
     const Stroka& prefix,
-    const TYPath& path)
+    const TYPath& path,
+    const TCreateOptions& options)
     : Client_(client)
 {
     if (path) {
@@ -28,7 +29,7 @@ TTempTable::TTempTable(
     Name_ += prefix;
     Name_ += CreateGuidAsString();
 
-    Client_->Create(Name_, NT_TABLE);
+    Client_->Create(Name_, NT_TABLE, options);
 }
 
 TTempTable::~TTempTable()
