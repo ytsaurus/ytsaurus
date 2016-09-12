@@ -54,6 +54,7 @@ TChunkTreeStatistics TChunk::GetStatistics() const
     TChunkTreeStatistics result;
     if (IsSealed()) {
         result.RowCount = MiscExt_.row_count();
+        result.LogicalRowCount = MiscExt_.row_count();
         result.UncompressedDataSize = MiscExt_.uncompressed_data_size();
         result.CompressedDataSize = MiscExt_.compressed_data_size();
         result.DataWeight = MiscExt_.data_weight();
@@ -65,6 +66,7 @@ TChunkTreeStatistics TChunk::GetStatistics() const
         }
 
         result.ChunkCount = 1;
+        result.LogicalChunkCount = 1;
         result.Rank = 0;
         result.Sealed = IsSealed();
     } else {

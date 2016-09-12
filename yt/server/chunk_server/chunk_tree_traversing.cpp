@@ -165,7 +165,7 @@ protected:
                             continue;
                         }
                         childLowerBound.SetRowIndex(childLimit);
-                        i64 totalRowCount = statistics.Sealed ? statistics.RowCount : std::numeric_limits<i64>::max();
+                        i64 totalRowCount = statistics.Sealed ? statistics.LogicalRowCount : std::numeric_limits<i64>::max();
                         childUpperBound.SetRowIndex(fetchCurrentSum(RowCountMember, totalRowCount));
                     } else if (entry.LowerBound.HasRowIndex()) {
                         childLowerBound.SetRowIndex(childLimit);
@@ -181,7 +181,7 @@ protected:
                             continue;
                         }
                         childLowerBound.SetChunkIndex(childLimit);
-                        childUpperBound.SetChunkIndex(fetchCurrentSum(ChunkCountMember, statistics.ChunkCount));
+                        childUpperBound.SetChunkIndex(fetchCurrentSum(ChunkCountMember, statistics.LogicalChunkCount));
                     } else if (entry.LowerBound.HasChunkIndex()) {
                         childLowerBound.SetChunkIndex(childLimit);
                     }
@@ -293,13 +293,13 @@ protected:
 
         // Row Index
         if (lowerBound.HasRowIndex()) {
-            i64 totalRowCount = statistics.Sealed ? statistics.RowCount : std::numeric_limits<i64>::max();
+            i64 totalRowCount = statistics.Sealed ? statistics.LogicalRowCount : std::numeric_limits<i64>::max();
             adjustResult(RowCountMember, lowerBound.GetRowIndex(), totalRowCount);
         }
 
         // Chunk index
         if (lowerBound.HasChunkIndex()) {
-            adjustResult(ChunkCountMember, lowerBound.GetChunkIndex(), statistics.ChunkCount);
+            adjustResult(ChunkCountMember, lowerBound.GetChunkIndex(), statistics.LogicalChunkCount);
         }
 
         // Offset

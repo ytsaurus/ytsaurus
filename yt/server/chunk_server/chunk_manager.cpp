@@ -1633,8 +1633,8 @@ private:
 
                 if (childIndex + 1 < childCount) {
                     cumulativeStatistics.push_back({
-                        statistics.RowCount + childStatistics.RowCount,
-                        statistics.ChunkCount + childStatistics.ChunkCount,
+                        statistics.LogicalRowCount + childStatistics.LogicalRowCount,
+                        statistics.LogicalChunkCount + childStatistics.LogicalChunkCount,
                         statistics.UncompressedDataSize + childStatistics.UncompressedDataSize
                     });
                 }
