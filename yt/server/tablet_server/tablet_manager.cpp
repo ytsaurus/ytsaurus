@@ -974,6 +974,10 @@ public:
         auto& tablets = table->Tablets();
         YCHECK(tablets.size() == table->GetChunkList()->Children().size());
 
+        if (newTabletCount <= 0) {
+            THROW_ERROR_EXCEPTION("Tablet count must be positive");
+        }
+
         int oldTabletCount = lastTabletIndex - firstTabletIndex + 1;
         if (tablets.size() - oldTabletCount + newTabletCount > MaxTabletCount) {
             THROW_ERROR_EXCEPTION("Tablet count cannot exceed the limit of %v",
@@ -983,6 +987,12 @@ public:
         if (table->IsPhysicallySorted()) {
             if (pivotKeys.empty()) {
                 THROW_ERROR_EXCEPTION("Table is sorted; must provide pivot keys");
+            }
+
+            if (pivotKeys.size() != newTabletCount) {
+                THROW_ERROR_EXCEPTION("Wrong pivot key count: %v instead of %v",
+                    pivotKeys.size(),
+                    newTabletCount);
             }
 
             if (pivotKeys[0] != tablets[firstTabletIndex]->GetPivotKey()) {
