@@ -70,7 +70,7 @@ private:
     {
         const auto* tablet = GetThisImpl();
         const auto* table = tablet->GetTable();
-        const auto* chunkList = table->GetChunkList()->Children()[tablet->GetIndex()]->AsChunkList();
+        const auto* chunkList = tablet->GetChunkList();
 
         auto tabletManager = Bootstrap_->GetTabletManager();
 
@@ -132,7 +132,7 @@ private:
 
         if (key == "chunk_list_id") {
             BuildYsonFluently(consumer)
-                .Value(table->GetChunkList()->Children()[tablet->GetIndex()]->GetId());
+                .Value(tablet->GetChunkList()->GetId());
             return true;
         }
 
