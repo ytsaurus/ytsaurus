@@ -3,7 +3,8 @@ from .errors import YtResponseError
 from .config import get_config
 from .cypress_commands import get, set, list, exists, create
 from .table_commands import run_merge
-from .table import TablePath, TempTable, to_name
+from .ypath import TablePath
+from .table import TempTable
 
 import yt.logger as logger
 
@@ -41,10 +42,10 @@ def transform(source_table, destination_table=None, erasure_codec=None, compress
 
     spec = get_value(spec, {})
 
-    src = to_name(source_table, client=client)
+    src = TablePath(source_table, client=client).to_yson_type()
     dst = None
     if destination_table is not None:
-        dst = to_name(destination_table, client=client)
+        dst = TablePath(destination_table, client=client).to_yson_type()
 
     if desired_chunk_size is None:
         desired_chunk_size = get_config(client)["transform_options"]["desired_chunk_size"]

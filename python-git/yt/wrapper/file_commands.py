@@ -7,8 +7,8 @@ from .errors import YtError, YtResponseError
 from .http_helpers import get_api_version
 from .heavy_commands import make_write_request, make_read_request
 from .cypress_commands import remove, exists, set_attribute, mkdir, find_free_subpath, \
-                              create, link, get, set, ypath_join
-from .table import to_table
+                              create, link, get, set
+from .ypath import FilePath, ypath_join
 from .local_mode import is_local_mode
 
 from yt.yson import to_yson_type
@@ -40,15 +40,15 @@ def md5sum(filename):
 def read_file(path, file_reader=None, offset=None, length=None, client=None):
     """Download file from path in Cypress to local machine.
 
-    :param path: (string of `TablePath`) path to file in Cypress
+    :param path: (string of `FilePath`) path to file in Cypress
     :param response_type: (string) Deprecated! It means the output format. By default it is line generator.
     :param file_reader: (dict) spec of download command
     :param offset: (int) offset in input file in bytes, 0 by default
     :param length: (int) length in bytes of desired part of input file, all file without offset by default
     :return: some stream over downloaded file, string generator by default
     """
-    path = to_table(path, client=client)
-    params = {"path": path.to_yson_type()}
+    path = FilePath(path, client=client)
+    params = {"path": path}
     if file_reader is not None:
         params["file_reader"] = file_reader
     if length is not None:
@@ -100,7 +100,7 @@ def download_file(path, file_reader=None, offset=None, length=None, client=None)
 def write_file(destination, stream, file_writer=None, is_stream_compressed=False, force_create=None, client=None):
     """Upload file to destination path from stream on local machine.
 
-    :param destination: (string or `TablePath`) destination path in Cypress
+    :param destination: (string or `FilePath`) destination path in Cypress
     :param stream: some stream, string generator or 'yt.wrapper.string_iter_io.StringIterIO' for example
     :param file_writer: (dict) spec of upload operation
     :param is_stream_compressed: (bool) expect stream to contain compressed data. \

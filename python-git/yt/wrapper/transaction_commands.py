@@ -28,7 +28,7 @@ def start_transaction(parent_transaction=None, timeout=None, attributes=None, ty
     :param sticky: EXPERIMENTAL, do not use it, unless you have been told to do so
     :param attributes: (dict)
     :return: (string) new transaction id
-    .. seealso:: `start_tx on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#starttx>`_
+    .. seealso:: `start_tx on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#starttx>`_
     """
     params = transaction_params(parent_transaction, client=client)
     timeout = get_value(timeout, get_config(client)["transaction_timeout"])
@@ -43,7 +43,7 @@ def abort_transaction(transaction, sticky=False, client=None):
     """Abort transaction. All changes will be lost.
 
     :param transaction: (string) transaction id
-    .. seealso:: `abort_tx on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#aborttx>`_
+    .. seealso:: `abort_tx on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#aborttx>`_
     """
     params = transaction_params(transaction, client=client)
     params["sticky"] = sticky
@@ -53,7 +53,7 @@ def commit_transaction(transaction, sticky=False, client=None):
     """Save all transaction changes.
 
     :param transaction: (string) transaction id
-    .. seealso:: `commit_tx on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#committx>`_
+    .. seealso:: `commit_tx on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#committx>`_
     """
     params = transaction_params(transaction, client=client)
     params["sticky"] = sticky
@@ -63,6 +63,6 @@ def ping_transaction(transaction, client=None):
     """Prolong transaction lifetime.
 
     :param transaction: (string) transaction id
-    .. seealso:: `ping_tx on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#pingtx>`_
+    .. seealso:: `ping_tx on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#pingtx>`_
     """
     make_request("ping_tx", transaction_params(transaction, client=client), client=client)

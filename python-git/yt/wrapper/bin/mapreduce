@@ -115,7 +115,7 @@ def list_entities(type, prefix, exact, jsonoutput, user, follow_links):
         request_prefix = prefix.rsplit("/", 1)[0]
         tables = yt.search(request_prefix, type,
                            path_filter=lambda path: path.startswith(request_prefix),
-                           subtree_filter=lambda path, _: (str(path) == request_prefix) or path.startswith(prefix),
+                           subtree_filter=lambda path, _: (str(path) == request_prefix) or str(path).startswith(prefix),
                            object_filter=object_filter,
                            attributes=attributes,
                            follow_links=follow_links)

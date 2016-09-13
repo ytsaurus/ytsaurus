@@ -287,7 +287,7 @@ class CachedYtClient(yt.wrapper.client.Yt):
 
     @log_calls(_logger, "%(__name__)s(%(path)r)", _statistics)
     def create_transaction_and_take_snapshot_lock(self, path):
-        title = "FUSE: read {0}".format(yt.wrapper.to_name(path, client=self))
+        title = "FUSE: read {0}".format(yt.wrapper.TablePath(path, client=self))
         tx = self.Transaction(attributes={"title": title})
         with self.Transaction(transaction_id=tx.transaction_id):
             self.lock(path, mode="snapshot")

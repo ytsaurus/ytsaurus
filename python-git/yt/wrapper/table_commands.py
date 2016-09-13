@@ -19,7 +19,7 @@ Common operations parameters
 * **spec** : (dict) universal method to set operation parameters
 
 * **job_io** : (dict) spec for job io of all stages of operation \
-<https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#write>`_.
+<https://wiki.yandex-team.ru/yt/userdoc/api#write>`_.
 
 * **replication_factor** : (Deprecated!) (integer) number of output data replicas
 
@@ -28,10 +28,10 @@ Common operations parameters
 algorithm for output data
 
 * **table_writer** : (dict) spec of `"write_table" operation \
-<https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#write>`_.
+<https://wiki.yandex-team.ru/yt/userdoc/api#writetable>`_.
 
 * **table_reader** : (dict) spec of `"read_table" operation \
-<https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#read>`_.
+<https://wiki.yandex-team.ru/yt/userdoc/api#readtable>`_.
 
 * **format** : (string or descendant of `yt.wrapper.format.Format`) format of input and output \
 data of operation
@@ -50,10 +50,10 @@ from .common import flatten, require, unlist, update, parse_bool, is_prefix, get
 from .errors import YtIncorrectResponse, YtError, YtOperationFailedError, YtConcurrentOperationsLimitExceeded
 from .driver import make_request
 from .exceptions_catcher import KeyboardInterruptsCatcher
-from .table import TablePath, to_table, to_name, prepare_path
+from .ypath import TablePath, ypath_join
 from .cypress_commands import exists, remove, remove_with_empty_dirs, get_attribute, copy, \
                               move, mkdir, find_free_subpath, create, get, get_type, \
-                              _make_formatted_transactional_request, has_attribute, ypath_join
+                              _make_formatted_transactional_request, has_attribute
 from .file_commands import upload_file_to_cache, is_executable
 from .operation_commands import Operation
 from .transaction_commands import _make_transactional_request, abort_transaction
@@ -116,16 +116,16 @@ def _to_chunk_stream(stream, format, raw, split_rows, chunk_size):
             yield format.dumps_row(row)
 
 def _prepare_source_tables(tables, replace_unexisting_by_empty=True, client=None):
-    result = [to_table(table, client=client) for table in flatten(tables)]
+    result = [TablePath(table, client=client) for table in flatten(tables)]
     if not result:
         raise YtError("You must specify non-empty list of source tables")
     if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"]:
         filtered_result = []
         for table in result:
-            if exists(table.name, client=client):
+            if exists(table, client=client):
                 filtered_result.append(table)
             else:
-                logger.warning("Warning: input table '%s' does not exist", table.name)
+                logger.warning("Warning: input table '%s' does not exist", table)
                 if replace_unexisting_by_empty:
                     filtered_result.append(DEFAULT_EMPTY_TABLE)
         result = filtered_result
@@ -268,14 +268,14 @@ def _prepare_destination_tables(tables, replication_factor, compression_codec, c
         if get_config(client)["yamr_mode"]["throw_on_missing_destination"]:
             raise YtError("Destination tables are missing")
         return []
-    tables = map(lambda name: to_table(name, client=client), flatten(tables))
+    tables = map(lambda name: TablePath(name, client=client), flatten(tables))
     for table in tables:
         attributes = {}
         if replication_factor is not None:
             attributes["replication_factor"] = replication_factor
         if compression_codec is not None:
             attributes["compression_codec"] = compression_codec
-        create_table(table.name, ignore_existing=True, attributes=attributes, client=client)
+        create_table(table, ignore_existing=True, attributes=attributes, client=client)
     return tables
 
 def _remove_locks(table, client=None):
@@ -337,7 +337,7 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
                 "output_format": output_format.to_yson_type(),
                 "command": binary,
                 "file_paths":
-                    flatten(files + additional_files + map(lambda path: prepare_path(path, client=client), file_paths)),
+                    flatten(files + additional_files + map(lambda path: TablePath(path, client=client), file_paths)),
                 "use_yamr_descriptors": bool_to_string(get_config(client)["yamr_mode"]["use_yamr_style_destination_fds"]),
                 "check_input_fully_consumed": bool_to_string(get_config(client)["yamr_mode"]["check_input_fully_consumed"])
             }
@@ -460,7 +460,7 @@ def _get_format_from_tables(tables, ignore_unexisting_tables):
     not_none_tables = filter(None, flatten(tables))
 
     if ignore_unexisting_tables:
-        tables_to_extract = filter(lambda x: exists(to_name(x)), not_none_tables)
+        tables_to_extract = filter(lambda x: exists(TablePath(x)), not_none_tables)
     else:
         tables_to_extract = not_none_tables
 
@@ -468,13 +468,13 @@ def _get_format_from_tables(tables, ignore_unexisting_tables):
         return None
 
     def extract_format(table):
-        table_name = to_table(table).name
+        table = TablePath(table)
 
-        if not exists(table_name):
+        if not exists(table):
             return None
 
-        if has_attribute(table_name, "_format"):
-            format_name = get(table_name + "/@_format", format=YsonFormat())
+        if has_attribute(table, "_format"):
+            format_name = get(table + "/@_format", format=YsonFormat())
             return create_format(format_name)
         return None
 
@@ -503,13 +503,13 @@ def create_table(path, recursive=None, ignore_existing=False,
                             Python Wrapper raises `YtResponseError`.
     :param attributes: (dict)
     """
-    table = to_table(path, client=client)
+    table = TablePath(path, client=client)
     attributes = get_value(attributes, {})
     if get_config(client)["create_table_attributes"] is not None:
         attributes = update(get_config(client)["create_table_attributes"], attributes)
     if get_config(client)["yamr_mode"]["use_yamr_defaults"]:
         attributes = update({"compression_codec": "zlib_6"}, attributes)
-    create("table", table.name, recursive=recursive, ignore_existing=ignore_existing,
+    create("table", table, recursive=recursive, ignore_existing=ignore_existing,
            attributes=attributes, client=client)
 
 def create_temp_table(path=None, prefix=None, client=None):
@@ -524,7 +524,7 @@ def create_temp_table(path=None, prefix=None, client=None):
         path = get_config(client)["remote_temp_tables_directory"]
         mkdir(path, recursive=True, client=client)
     else:
-        path = to_name(path, client=client)
+        path = str(TablePath(path, client=client))
     require(exists(path, client=client), lambda: YtError("You cannot create table in unexisting path"))
     if prefix is not None:
         path = ypath_join(path, prefix)
@@ -569,7 +569,7 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
     if is_stream_compressed and not raw:
         raise YtError("Compressed stream is only supported for raw tabular data")
 
-    table = to_table(table, client=client)
+    table = TablePath(table, client=client)
     format = _prepare_format(format, raw, client)
     table_writer = _prepare_table_writer(table_writer, client)
 
@@ -632,11 +632,11 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
     if raw is None:
         raw = get_config(client)["default_value_of_raw_option"]
 
-    table = to_table(table, client=client)
+    table = TablePath(table, client=client)
     format = _prepare_format(format, raw, client)
-    if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and not exists(table.name, client=client):
+    if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and not exists(table, client=client):
         return StringIO() if raw else EMPTY_GENERATOR
-    attributes = get(table.name + "/@", client=client)
+    attributes = get(table + "/@", client=client)
     if attributes.get("type") != "table":
         raise YtError("Command read is supported only for tables")
     if  attributes["chunk_count"] > 100 and attributes["compressed_data_size"] // attributes["chunk_count"] < MB:
@@ -644,10 +644,10 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
                     "yt merge --proxy {1} --src {0} --dst {0} "
                     "--spec '{{"
                        "combine_chunks=true;"
-                    "}}'".format(table.name, get_config(client)["proxy"]["url"]))
+                    "}}'".format(table, get_config(client)["proxy"]["url"]))
 
     params = {
-        "path": table.to_yson_type(),
+        "path": table,
         "output_format": format.to_yson_type()
     }
     if table_reader is not None:
@@ -697,11 +697,11 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
                 raise YtError("Unordered read cannot be performed with retries, try ordered read or disable retries")
 
         def prepare_params_for_retry(self):
-            if "ranges" not in table.name.attributes:
+            if "ranges" not in table.attributes:
                 if self.started:
-                    table.name.attributes["lower_limit"] = {"row_index": self.next_row_index}
+                    table.attributes["lower_limit"] = {"row_index": self.next_row_index}
             else:
-                if len(table.name.attributes["ranges"]) > 1:
+                if len(table.attributes["ranges"]) > 1:
                     if get_config(client)["read_retries"]["allow_multiple_ranges"]:
                         if "control_attributes" not in params:
                             params["control_attributes"] = {}
@@ -715,11 +715,11 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
                     if format.name() == "json" and format.attributes.get("format") == "pretty":
                         raise YtError("Read table with multiple ranges using retries is not supported for pretty JSON format")
 
-                if self.range_started and table.name.attributes["ranges"]:
-                    table.name.attributes["ranges"][0]["lower_limit"] = {"row_index": self.next_row_index}
+                if self.range_started and table.attributes["ranges"]:
+                    table.attributes["ranges"][0]["lower_limit"] = {"row_index": self.next_row_index}
                 self.range_started = False
 
-            params["path"] = table.to_yson_type()
+            params["path"] = table
 
             return params
 
@@ -768,7 +768,7 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
                     if hasattr(row, "attributes") and "range_index" in row.attributes:
                         self.range_started = False
                         ranges_to_skip = row.attributes["range_index"] - range_index
-                        table.name.attributes["ranges"] = table.name.attributes["ranges"][ranges_to_skip:]
+                        table.attributes["ranges"] = table.attributes["ranges"][ranges_to_skip:]
                         self.current_range_index += ranges_to_skip
                         range_index = row.attributes["range_index"]
                         if not self.is_range_index_initially_enabled:
@@ -836,22 +836,21 @@ def copy_table(source_table, destination_table, replace=True, client=None):
     if get_config(client)["yamr_mode"]["replace_tables_on_copy_and_move"]:
         replace = True
     source_tables = _prepare_source_tables(source_table, client=client)
-    destination_table = to_table(destination_table, client=client)
+    destination_table = TablePath(destination_table, client=client)
     if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and \
             _are_default_empty_table(source_tables) and \
             not destination_table.append:
-        remove(destination_table.name, client=client, force=True)
+        remove(destination_table, client=client, force=True)
         return
     if _are_valid_nodes(source_tables, destination_table):
         if replace and \
-                exists(destination_table.name, client=client) and \
+                exists(destination_table, client=client) and \
                 source_tables[0] != destination_table:
             # in copy destination should be missing
-            remove(destination_table.name, client=client)
-        copy(source_tables[0].name, destination_table.name, recursive=True, client=client)
+            remove(destination_table, client=client)
+        copy(source_tables[0], destination_table, recursive=True, client=client)
     else:
-        source_names = [table.name for table in source_tables]
-        mode = "sorted" if (all(map(lambda t: is_sorted(t, client=client), source_names)) and not destination_table.append) \
+        mode = "sorted" if (all(map(lambda t: is_sorted(t, client=client), source_tables)) and not destination_table.append) \
                else "ordered"
         run_merge(source_tables, destination_table, mode, client=client)
 
@@ -869,18 +868,18 @@ def move_table(source_table, destination_table, replace=True, client=None):
     if get_config(client)["yamr_mode"]["replace_tables_on_copy_and_move"]:
         replace = True
     source_tables = _prepare_source_tables(source_table, client=client)
-    destination_table = to_table(destination_table, client=client)
+    destination_table = TablePath(destination_table, client=client)
     if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and \
             _are_default_empty_table(source_tables) and \
             not destination_table.append:
-        remove(to_table(destination_table).name, client=client, force=True)
+        remove(destination_table, client=client, force=True)
         return
     if _are_valid_nodes(source_tables, destination_table):
         if source_tables[0] == destination_table:
             return
-        if replace and exists(destination_table.name, client=client):
-            remove(destination_table.name, client=client)
-        move(source_tables[0].name, destination_table.name, recursive=True, client=client)
+        if replace and exists(destination_table, client=client):
+            remove(destination_table, client=client)
+        move(source_tables[0], destination_table, recursive=True, client=client)
     else:
         copy_table(source_table, destination_table, client=client)
         for table in source_tables:
@@ -888,7 +887,7 @@ def move_table(source_table, destination_table, replace=True, client=None):
                 continue
             if table == DEFAULT_EMPTY_TABLE:
                 continue
-            remove(table.name, client=client, force=True)
+            remove(table, client=client, force=True)
 
 
 def records_count(table, client=None):
@@ -907,7 +906,7 @@ def row_count(table, client=None):
     :param table: string or `TablePath`
     :return: integer
     """
-    table = to_name(table, client=client)
+    table = TablePath(table, client=client)
     if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and not exists(table, client=client):
         return 0
     return get_attribute(table, "row_count", client=client)
@@ -918,7 +917,7 @@ def is_empty(table, client=None):
     :param table: (string or `TablePath`)
     :return: (bool)
     """
-    return row_count(to_name(table, client=client), client=client) == 0
+    return row_count(TablePath(table, client=client), client=client) == 0
 
 def get_sorted_by(table, default=None, client=None):
     """Get 'sorted_by' table attribute or `default` if attribute doesn't exist.
@@ -929,7 +928,7 @@ def get_sorted_by(table, default=None, client=None):
     """
     if default is None:
         default = [] if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] else None
-    return get_attribute(to_name(table, client=client), "sorted_by", default=default, client=client)
+    return get_attribute(TablePath(table, client=client), "sorted_by", default=default, client=client)
 
 def is_sorted(table, client=None):
     """Is table sorted?
@@ -941,7 +940,7 @@ def is_sorted(table, client=None):
         return get_sorted_by(table, [], client=client) == ["key", "subkey"]
     else:
         return parse_bool(
-            get_attribute(to_name(table, client=client),
+            get_attribute(TablePath(table, client=client),
                           "sorted",
                           default="false",
                           client=client))
@@ -952,7 +951,7 @@ def mount_table(path, first_tablet_index=None, last_tablet_index=None, cell_id=N
 
     TODO
     """
-    params = {"path": prepare_path(path, client=client)}
+    params = {"path": TablePath(path, client=client)}
     if first_tablet_index is not None:
         params["first_tablet_index"] = first_tablet_index
     if last_tablet_index is not None:
@@ -971,7 +970,7 @@ def alter_table(path, schema=None, dynamic=None, client=None):
     :param dynamic: (bool)
     """
 
-    params = {"path": prepare_path(path, client=client)}
+    params = {"path": TablePath(path, client=client)}
     if schema is not None:
         params["schema"] = schema
     if dynamic is not None:
@@ -984,7 +983,7 @@ def unmount_table(path, first_tablet_index=None, last_tablet_index=None, force=N
 
     TODO
     """
-    params = {"path": prepare_path(path, client=client)}
+    params = {"path": TablePath(path, client=client)}
     if first_tablet_index is not None:
         params["first_tablet_index"] = first_tablet_index
     if last_tablet_index is not None:
@@ -1012,7 +1011,7 @@ def freeze_table(path, first_tablet_index=None, last_tablet_index=None, client=N
 
     TODO
     """
-    params = {"path": prepare_path(path, client=client)}
+    params = {"path": TablePath(path, client=client)}
     if first_tablet_index is not None:
         params["first_tablet_index"] = first_tablet_index
     if last_tablet_index is not None:
@@ -1025,7 +1024,7 @@ def unfreeze_table(path, first_tablet_index=None, last_tablet_index=None, client
 
     TODO
     """
-    params = {"path": prepare_path(path, client=client)}
+    params = {"path": TablePath(path, client=client)}
     if first_tablet_index is not None:
         params["first_tablet_index"] = first_tablet_index
     if last_tablet_index is not None:
@@ -1038,7 +1037,7 @@ def reshard_table(path, pivot_keys=None, tablet_count=None, first_tablet_index=N
 
     TODO
     """
-    params = {"path": prepare_path(path, client=client)}
+    params = {"path": TablePath(path, client=client)}
 
     _set_option(params, "pivot_keys", pivot_keys)
     _set_option(params, "tablet_count", tablet_count)
@@ -1100,11 +1099,11 @@ def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_mis
     if raw is None:
         raw = get_config(client)["default_value_of_raw_option"]
 
-    table = to_table(table, client=client)
+    table = TablePath(table, client=client)
     format = _prepare_format(format, raw, client)
 
     params = {}
-    params["path"] = table.to_yson_type()
+    params["path"] = table
     params["input_format"] = format.to_yson_type()
     params["output_format"] = format.to_yson_type()
     _set_option(params, "timestamp", timestamp)
@@ -1143,11 +1142,11 @@ def insert_rows(table, input_stream, update=None, aggregate=None, atomicity=None
     if raw is None:
         raw = get_config(client)["default_value_of_raw_option"]
 
-    table = to_table(table, client=client)
+    table = TablePath(table, client=client)
     format = _prepare_format(format, raw, client)
 
     params = {}
-    params["path"] = table.to_yson_type()
+    params["path"] = table
     params["input_format"] = format.to_yson_type()
     _set_option(params, "update", update, transform=bool_to_string)
     _set_option(params, "aggregate", aggregate, transform=bool_to_string)
@@ -1178,11 +1177,11 @@ def delete_rows(table, input_stream, atomicity=None, durability=None, format=Non
     if raw is None:
         raw = get_config(client)["default_value_of_raw_option"]
 
-    table = to_table(table, client=client)
+    table = TablePath(table, client=client)
     format = _prepare_format(format, raw, client)
 
     params = {}
-    params["path"] = table.to_yson_type()
+    params["path"] = table
     params["input_format"] = format.to_yson_type()
     _set_option(params, "atomicity", atomicity)
     _set_option(params, "durability", durability)
@@ -1210,10 +1209,10 @@ def run_erase(table, spec=None, sync=True, client=None):
 
     .. seealso::  :ref:`operation_parameters`.
     """
-    table = to_table(table, client=client)
-    if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and not exists(table.name, client=client):
+    table = TablePath(table, client=client)
+    if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and not exists(table, client=client):
         return
-    spec = update({"table_path": table.to_yson_type()}, get_value(spec, {}))
+    spec = update({"table_path": table}, get_value(spec, {}))
     spec = _configure_spec(spec, client)
     return _make_operation_request("erase", spec, sync, client=client)
 
@@ -1244,7 +1243,7 @@ def run_merge(source_table, destination_table, mode=None,
                                                            compression_codec, client=client))
 
     def is_sorted(table):
-        sort_attributes = get(to_name(table) + "/@", attributes=["sorted", "sorted_by"], client=client)
+        sort_attributes = get(TablePath(table, client=client) + "/@", attributes=["sorted", "sorted_by"], client=client)
         if not parse_bool(sort_attributes["sorted"]):
             return False
         if "columns" in table.attributes and not is_prefix(sort_attributes["sorted_by"], table.attributes["columns"]):
@@ -1285,7 +1284,7 @@ def run_sort(source_table, destination_table=None, sort_by=None,
     sort_by = _prepare_sort_by(sort_by, client)
     source_table = _prepare_source_tables(source_table, replace_unexisting_by_empty=False, client=client)
     for table in source_table:
-        require(exists(table.name, client=client), lambda: YtError("Table %s should exist" % table))
+        require(exists(table, client=client), lambda: YtError("Table %s should exist" % table))
 
     if destination_table is None:
         if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and not source_table:
@@ -1302,7 +1301,7 @@ def run_sort(source_table, destination_table=None, sort_by=None,
         return
 
     if get_config(client)["run_merge_instead_of_sort_if_input_tables_are_sorted"] \
-            and all(sort_by == get_sorted_by(table.name, [], client=client) for table in source_table):
+            and all(sort_by == get_sorted_by(table, [], client=client) for table in source_table):
         return run_merge(source_table, destination_table, "sorted",
                          job_io=job_io, table_writer=table_writer, sync=sync, spec=spec, client=client)
 
@@ -1332,10 +1331,10 @@ class Finalizer(object):
             for file in self.local_files_to_remove:
                 os.remove(file)
         if state == "completed":
-            for table in map(lambda table: to_name(table, client=self.client), self.output_tables):
+            for table in map(lambda table: TablePath(table, client=self.client), self.output_tables):
                 self.check_for_merge(table)
         if get_config(self.client)["yamr_mode"]["delete_empty_tables"]:
-            for table in map(lambda table: to_name(table, client=self.client), self.output_tables):
+            for table in map(lambda table: TablePath(table, client=self.client), self.output_tables):
                 if is_empty(table, client=self.client):
                     remove_with_empty_dirs(table, client=self.client)
 
@@ -1373,7 +1372,7 @@ class Finalizer(object):
                     spec["pool"] = self.spec["pool"]
                 run_merge(source_table=table, destination_table=table, mode=mode, spec=spec, client=self.client)
             except YtOperationFailedError:
-                logger.warning("Failed to merge table %s", table.name)
+                logger.warning("Failed to merge table %s", table)
         else:
             logger.info("Chunks of output table {0} are too small. "
                         "This may cause suboptimal system performance. "
@@ -1552,7 +1551,7 @@ def _run_operation(binary, source_table, destination_table,
         if get_config(client)["yamr_mode"]["run_map_reduce_if_source_is_not_sorted"]:
             are_input_tables_not_properly_sorted = False
             for table in source_table:
-                sorted_by = get_sorted_by(table.name, [], client=client)
+                sorted_by = get_sorted_by(table, [], client=client)
                 if not sorted_by or not is_prefix(sort_by, sorted_by):
                     are_input_tables_not_properly_sorted = True
                     continue
@@ -1750,7 +1749,7 @@ def run_remote_copy(source_table, destination_table,
         lambda _: _set_option(_, "cluster_connection", cluster_connection),
         lambda _: _set_option(_, "copy_attributes", copy_attributes),
         lambda _: update({"input_table_paths": map(get_input_name, source_table),
-                          "output_table_path": destination_table.to_yson_type()},
+                          "output_table_path": destination_table},
                           _),
         lambda _: get_value(spec, {})
     )(spec)

@@ -7,8 +7,22 @@ from .format import create_format
 
 import yt.logger as logger
 import yt.yson as yson
-from yt.yson.convert import json_to_yson
 import yt.json as json
+from yt.yson.convert import json_to_yson
+
+from yt.packages.six import iteritems
+from yt.packages.six.moves import map as imap
+
+def process_params(obj):
+    if isinstance(obj, list):
+        obj = list(imap(process_params, obj))
+    elif isinstance(obj, dict):
+        obj = dict((k, process_params(v)) for k, v in iteritems(obj))
+    elif hasattr(obj, "to_yson_type"):
+        obj = obj.to_yson_type()
+    elif obj is True or obj is False:
+        obj = bool_to_string(obj)
+    return obj
 
 def make_request(command_name, params,
                  data=None,
@@ -22,6 +36,7 @@ def make_request(command_name, params,
                  client=None):
     backend = get_backend_type(client)
 
+    params = process_params(params)
     if get_option("MUTATION_ID", client) is not None:
         params["mutation_id"] = get_option("MUTATION_ID", client)
     if get_option("TRACE", client) is not None and get_option("TRACE", client):

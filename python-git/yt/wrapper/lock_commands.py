@@ -1,5 +1,5 @@
 from .common import bool_to_string, get_value, YtError
-from .table import prepare_path
+from .ypath import YPath
 from .cypress_commands import get
 from .transaction_commands import _make_formatted_transactional_request
 
@@ -20,7 +20,7 @@ def lock(path, mode=None, waitable=False, wait_for=None, child_key=None, attribu
         wait_for = timedelta(milliseconds=wait_for)
 
     params = {
-        "path": prepare_path(path, client=client),
+        "path": YPath(path, client=client),
         "mode": get_value(mode, "exclusive"),
         "waitable": bool_to_string(waitable)}
 

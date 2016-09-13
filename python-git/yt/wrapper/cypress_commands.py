@@ -4,7 +4,7 @@ from .common import parse_bool, flatten, get_value, bool_to_string, YtError
 from .errors import YtResponseError
 from .transaction_commands import _make_transactional_request, \
                                   _make_formatted_transactional_request
-from .table import prepare_path, to_name
+from .ypath import YPath, escape_ypath_literal
 from .format import create_format
 
 import yt.logger as logger
@@ -21,56 +21,10 @@ from copy import deepcopy
 # is passed and is None from case when default is not passed.
 _KWARG_SENTINEL = object()
 
-def ypath_join(*paths):
-    """ Join parts of cypress paths.
-    """
-    def ends_with_slash(part):
-        if part.endswith("/"):
-            if part.endswith("\\/"):
-                raise YtError("Path with \\\\/ found, failed to join it")
-            return True
-        return False
-
-    result = []
-    for path in paths:
-        if path.startswith("//") or path == "/":
-            result = []
-
-        slash_count = 0
-        if path != "/":
-            if path.startswith("/"):
-                slash_count += 1
-            if result and ends_with_slash(result[-1]):
-                slash_count += 1
-
-        if slash_count == 2:
-            result.append(path[1:])
-        else: # slash_count <= 1
-            if (slash_count == 0 and result) or result == ["/"]:
-                result.append("/")
-            result.append(path)
-
-    return "".join(result)
-
-def escape_ypath_literal(literal):
-    """ Escapes string to use it as key in ypath.
-    """
-    def escape_char(ch):
-        if ch in ["\\", "/", "@", "&", "[", "{"]:
-            return "\\" + ch
-        num = ord(ch)
-        if num >= 256:
-            raise YtError("YPath literals should consist of bytes with code in [0, 255]")
-        if num < 32: # or num >= 128:
-            return "\\x" + string.hexdigits[num // 16] + string.hexdigits[num % 16]
-        return ch
-
-    return "".join(map(escape_char, literal))
-
 def get(path, attributes=None, format=None, ignore_opaque=False, client=None):
     """Get Cypress node content (attribute tree).
 
-    :param path: (string or `yt.wrapper.table.TablePath`) path to tree, it must exist!
+    :param path: (string or `yt.wrapper.YPath`) path to tree, it must exist!
     :param attributes: (list) desired node attributes in the response.
     :param format: (string or descendant of `yt.wrapper.format.Format`) output format \
         (by default python dict automatically parsed from YSON).
@@ -78,10 +32,10 @@ def get(path, attributes=None, format=None, ignore_opaque=False, client=None):
     Be careful: attributes have specific representation in JSON format.
 
     :return: node tree content in `format`
-    .. seealso:: `get on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#get>`_
+    .. seealso:: `get on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#get>`_
     """
     params = {
-        "path": prepare_path(path, client=client),
+        "path": YPath(path, client=client),
         "ignore_opaque": bool_to_string(ignore_opaque)}
     if attributes is not None:
         params["attributes"] = attributes
@@ -94,9 +48,9 @@ def get(path, attributes=None, format=None, ignore_opaque=False, client=None):
 def set(path, value, format=None, client=None):
     """Set new value to Cypress node.
 
-    :param path: (string or `yt.wrapper.table.TablePath`)
+    :param path: (string or `yt.wrapper.YPath`)
     :param value: json-able object.
-    .. seealso:: `set on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#set>`_
+    .. seealso:: `set on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#set>`_
     :param format: format of the value. If format is None than value should be object that can be dumped to JSON of YSON.
     Otherwise it should be string.
     """
@@ -110,7 +64,7 @@ def set(path, value, format=None, client=None):
     return _make_transactional_request(
         "set",
         {
-            "path": prepare_path(path, client=client),
+            "path": YPath(path, client=client),
             "input_format": format.to_yson_type()
         },
         data=value,
@@ -119,15 +73,15 @@ def set(path, value, format=None, client=None):
 def copy(source_path, destination_path, recursive=None, preserve_account=None, force=None, client=None):
     """Copy Cypress node.
 
-    :param source_path: (string or `yt.wrapper.table.TablePath`)
-    :param destination_path: (string or `yt.wrapper.table.TablePath`)
+    :param source_path: (string or `yt.wrapper.YPath`)
+    :param destination_path: (string or `yt.wrapper.YPath`)
     :param recursive: (bool) `config["yamr_mode"]["create_recursive"]` by default
     :param preserve_account: (bool)
     :param force: (bool)
-    .. seealso:: `copy on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#copy>`_
+    .. seealso:: `copy on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#copy>`_
     """
-    params = {"source_path": prepare_path(source_path, client=client),
-              "destination_path": prepare_path(destination_path, client=client)}
+    params = {"source_path": YPath(source_path, client=client),
+              "destination_path": YPath(destination_path, client=client)}
 
     recursive = get_value(recursive, get_config(client)["yamr_mode"]["create_recursive"])
     params["recursive"] = bool_to_string(recursive)
@@ -141,15 +95,15 @@ def copy(source_path, destination_path, recursive=None, preserve_account=None, f
 def move(source_path, destination_path, recursive=None, preserve_account=None, force=None, client=None):
     """Move (rename) Cypress node.
 
-    :param source_path: (string or `yt.wrapper.table.TablePath`)
-    :param destination_path: (string or `yt.wrapper.table.TablePath`)
+    :param source_path: (string or `yt.wrapper.YPath`)
+    :param destination_path: (string or `yt.wrapper.YPath`)
     :param recursive: (bool) `config["yamr_mode"]["create_recursive"]` by default
     :param preserve_account: (bool)
     :param force: (bool)
-    .. seealso:: `move on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#move>`_
+    .. seealso:: `move on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#move>`_
     """
-    params = {"source_path": prepare_path(source_path, client=client),
-              "destination_path": prepare_path(destination_path, client=client)}
+    params = {"source_path": YPath(source_path, client=client),
+              "destination_path": YPath(destination_path, client=client)}
 
     recursive = get_value(recursive, get_config(client)["yamr_mode"]["create_recursive"])
     params["recursive"] = bool_to_string(recursive)
@@ -163,11 +117,11 @@ def move(source_path, destination_path, recursive=None, preserve_account=None, f
 def concatenate(source_paths, destination_path, client=None):
     """Concatenate cypress nodes. This command applicable only to files and tables.
 
-    :param source_path: (string or `yt.wrapper.table.TablePath`)
-    :param destination_path: (string or `yt.wrapper.table.TablePath`)
+    :param source_path: (string or `yt.wrapper.YPath`)
+    :param destination_path: (string or `yt.wrapper.YPath`)
     """
-    source_paths = map(lambda path: prepare_path(path, client=client), source_paths)
-    destination_path = prepare_path(destination_path, client=client)
+    source_paths = map(lambda path: YPath(path, client=client), source_paths)
+    destination_path = YPath(destination_path, client=client)
     if not source_paths:
         raise YtError("Source paths must be non-empty")
     type = get(source_paths[0] + "/@type", client=client)
@@ -181,15 +135,15 @@ def concatenate(source_paths, destination_path, client=None):
 def link(target_path, link_path, recursive=False, ignore_existing=False, attributes=None, client=None):
     """Make link to Cypress node.
 
-    :param target_path: (string or `yt.wrapper.table.TablePath`)
-    :param link_path: (string or `yt.wrapper.table.TablePath`)
+    :param target_path: (string or `yt.wrapper.YPath`)
+    :param link_path: (string or `yt.wrapper.YPath`)
     :param recursive: (bool)
     :param ignore_existing: (bool)
-    .. seealso:: `link on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#link>`_
+    .. seealso:: `link on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#link>`_
     """
     params = {
-        "target_path": prepare_path(target_path, client=client),
-        "link_path": prepare_path(link_path, client=client),
+        "target_path": YPath(target_path, client=client),
+        "link_path": YPath(link_path, client=client),
         "recursive": bool_to_string(recursive),
         "ignore_existing": bool_to_string(ignore_existing)}
     if attributes is not None:
@@ -205,13 +159,13 @@ def list(path, max_size=1000, format=None, absolute=None, attributes=None, clien
     """List directory (map_node) content.
 
     Node type must be 'map_node'.
-    :param path: (string or `TablePath`)
+    :param path: (string or `YPath`)
     :param max_size: (int)
     :param attributes: (list) desired node attributes in the response.
     :param format: (descendant of `Format`) command response format, by default - None.
     :param absolute: (bool) convert relative paths to absolute. Works only if format isn't specified.
     :return: raw YSON (string) by default, parsed YSON or JSON if format is not specified (=None).
-    .. seealso:: `list on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#list>`_
+    .. seealso:: `list on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#list>`_
     """
     if format is not None and absolute is not None:
         raise YtError("Option 'absolute' is supported only for non-specified format")
@@ -222,7 +176,7 @@ def list(path, max_size=1000, format=None, absolute=None, attributes=None, clien
             elem.attributes)
 
     params = {
-        "path": prepare_path(path, client=client),
+        "path": YPath(path, client=client),
         "max_size": max_size}
     if attributes is not None:
         params["attributes"] = get_value(attributes, [])
@@ -238,28 +192,28 @@ def list(path, max_size=1000, format=None, absolute=None, attributes=None, clien
 def exists(path, client=None):
     """Check Cypress node exists.
 
-    :param path: (string or `TablePath`)
-    .. seealso:: `exists on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#exists>`_
+    :param path: (string or `YPath`)
+    .. seealso:: `exists on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#exists>`_
     """
     return parse_bool(
         _make_formatted_transactional_request(
             "exists",
-            {"path": prepare_path(path, client=client)},
+            {"path": YPath(path, client=client)},
             format=None,
             client=client))
 
 def remove(path, recursive=False, force=False, client=None):
     """Remove Cypress node.
 
-    :param path: (string or `TablePath`)
+    :param path: (string or `YPath`)
     :param recursive: (bool)
     :param force: (bool)
-    .. seealso:: `remove on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#remove>`_
+    .. seealso:: `remove on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#remove>`_
     """
     _make_transactional_request(
         "remove",
         {
-            "path": prepare_path(path, client=client),
+            "path": YPath(path, client=client),
             "recursive": bool_to_string(recursive),
             "force": bool_to_string(force)
         },
@@ -269,10 +223,10 @@ def create(type, path=None, recursive=False, ignore_existing=False, attributes=N
     """Create Cypress node.
 
     :param type: (one of "table", "file", "map_node", "list_node"...)
-    :param path: (string or `TablePath`)
+    :param path: (string or `YPath`)
     :param recursive: (bool) `config["yamr_mode"]["create_recursive"]` by default
     :param attributes: (dict)
-    .. seealso:: `create on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#create>`_
+    .. seealso:: `create on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#create>`_
     """
     recursive = get_value(recursive, get_config(client)["yamr_mode"]["create_recursive"])
     params = {
@@ -282,12 +236,12 @@ def create(type, path=None, recursive=False, ignore_existing=False, attributes=N
         "attributes": get_value(attributes, {})
     }
     if path is not None:
-        params["path"] = prepare_path(path, client=client)
+        params["path"] = YPath(path, client=client)
     return _make_formatted_transactional_request("create", params, format=None, client=client)
 
 def mkdir(path, recursive=None, client=None):
     """Make directory (Cypress node of map_node type).
-    :param path: (string or `TablePath`)
+    :param path: (string or `YPath`)
     :param recursive: (bool) `config["yamr_mode"]["create_recursive"]` by default
     """
     recursive = get_value(recursive, get_config(client)["yamr_mode"]["create_recursive"])
@@ -356,7 +310,7 @@ def search(root="", node_type=None,
            follow_links=False, client=None):
     """Search for some nodes in Cypress subtree.
 
-    :param root: (string or `TablePath`) path to search
+    :param root: (string or `YPath`) path to search
     :param node_type: (list of string)
     :param object_filter: (predicate)
     :param attributes: (list of string) these attributes will be added to result objects
@@ -368,7 +322,6 @@ def search(root="", node_type=None,
     # Deprecated. Default value "/" should be removed.
     if not root and not get_config(client)["prefix"]:
         root = "/"
-    root = to_name(root, client=client)
     attributes = get_value(attributes, [])
 
     request_attributes = deepcopy(flatten(attributes))
@@ -445,10 +398,10 @@ def search(root="", node_type=None,
 def remove_with_empty_dirs(path, force=True, client=None):
     """Remove path and all empty dirs that appear after deletion.
 
-    :param path: (string or `TablePath`)
+    :param path: (string or `YPath`)
     :param force: (bool)
     """
-    path = to_name(path, client=client)
+    path = YPath(path, client=client)
     while True:
         try:
             remove(path, recursive=True, force=True, client=client)
@@ -458,9 +411,10 @@ def remove_with_empty_dirs(path, force=True, client=None):
                 break
             else:
                 raise
-        path = os.path.dirname(path)
+        # TODO(ignat): introduce ypath_dirname and use it here.
+        path = YPath(os.path.dirname(str(path)), simplify=False)
         try:
-            if path == "//" or not exists(path, client=client) or list(path, client=client) or get(path + "/@acl", client=client):
+            if str(path) == "//" or not exists(path, client=client) or list(path, client=client) or get(path + "/@acl", client=client):
                 break
         except YtResponseError as err:
             if err.is_resolve_error():

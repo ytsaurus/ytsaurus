@@ -6,7 +6,7 @@ from .helpers import TEST_DIR, TESTS_SANDBOX, TESTS_LOCATION, \
 from yt.wrapper.exceptions_catcher import KeyboardInterruptsCatcher
 from yt.wrapper.response_stream import ResponseStream, EmptyResponseStream
 from yt.wrapper.mappings import VerifiedDict, FrozenDict
-from yt.wrapper.cypress_commands import ypath_join
+from yt.wrapper.ypath import ypath_join
 from yt.common import makedirp
 from yt.yson import to_yson_type
 import yt.yson as yson

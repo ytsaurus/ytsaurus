@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+from __future__ import print_function
+
 from .helpers import TEST_DIR
 
 from yt.wrapper.client import Yt
@@ -17,19 +19,19 @@ class TestCypressCommands(object):
     def test_ypath(self):
         path = yt.TablePath("<append=false;sort-by=[key]>//my/table")
         assert str(path) == "//my/table"
-        assert repr(path) == "//my/table"
+        assert repr(path).endswith("//my/table")
         assert not path.append
         assert path.attributes == {"append": "false", "sort_by": ["key"]}
 
         path = yt.TablePath("<append=false;sort-by=[key]>//my/table", append=True, attributes={"sort_by": ["subkey"]})
         assert str(path) == "//my/table"
-        assert repr(path) == "//my/table"
+        assert repr(path).endswith("//my/table")
         assert path.append
         assert path.attributes == {"append": "true", "sort_by": ["subkey"]}
 
         path = yt.TablePath("#123", ranges=[])
         assert str(path) == "#123"
-        assert repr(path) == "#123"
+        assert repr(path).endswith("#123")
         assert path.append is None
         assert path.attributes == {"ranges": []}
 
