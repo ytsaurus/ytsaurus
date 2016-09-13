@@ -83,7 +83,6 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
                                 data=iter(chunk),
                                 is_data_compressed=is_stream_compressed,
                                 use_heavy_proxy=True,
-                                retry_unavailable_proxy=False,
                                 client=client)
                         break
                     except get_retriable_errors() as err:
