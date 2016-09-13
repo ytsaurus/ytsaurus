@@ -680,9 +680,10 @@ public:
                 }
 
                 auto* chunkList = chunkLists[tabletIndex]->AsChunkList();
+                const auto& chunkListStatistics = chunkList->Statistics();
                 auto chunks = EnumerateChunksInChunkTree(chunkList);
                 auto storeType = table->IsPhysicallySorted() ? EStoreType::SortedChunk : EStoreType::OrderedChunk;
-                i64 startingRowIndex = tablet->GetTrimmedStoresRowCount();
+                i64 startingRowIndex = chunkListStatistics.LogicalRowCount - chunkListStatistics.RowCount;
                 for (const auto* chunk : chunks) {
                     auto* descriptor = req.add_stores();
                     descriptor->set_store_type(static_cast<int>(storeType));
@@ -1025,8 +1026,10 @@ public:
         // (which are about to drop) are properly trimmed.
         if (newTabletCount < oldTabletCount) {
             for (int index = firstTabletIndex + newTabletCount; index < firstTabletIndex + oldTabletCount; ++index) {
-                auto* tablet = table->Tablets()[index];
-                if (tablet->GetTrimmedRowCount() != tablet->GetTrimmedStoresRowCount()) {
+                const auto* tablet = table->Tablets()[index];
+                const auto* chunkList = table->GetChunkList()->Children()[tablet->GetIndex()]->AsChunkList();
+                const auto& chunkListStatistics = chunkList->Statistics();
+                if (tablet->GetTrimmedRowCount() != chunkListStatistics.LogicalRowCount - chunkListStatistics.RowCount) {
                     THROW_ERROR_EXCEPTION("Some chunks of tablet %v are not fully trimmed; such a tablet cannot "
                         "participate in resharding",
                         tablet->GetId());
@@ -1043,7 +1046,6 @@ public:
                 newTablet->SetPivotKey(pivotKeys[index]);
             } else if (oldTablet) {
                 newTablet->SetTrimmedRowCount(oldTablet->GetTrimmedRowCount());
-                newTablet->SetTrimmedStoresRowCount(oldTablet->GetTrimmedStoresRowCount());
             }
             newTablets.push_back(newTablet);
         }
@@ -2414,10 +2416,6 @@ private:
             // Update table resource usage.
             for (auto* chunk : chunksToAttach) {
                 chunkManager->UnstageChunk(chunk->AsChunk());
-            }
-
-            if (!table->IsPhysicallySorted()) {
-                tablet->SetTrimmedStoresRowCount(tablet->GetTrimmedStoresRowCount() + detachedRowCount);
             }
 
             auto securityManager = Bootstrap_->GetSecurityManager();
