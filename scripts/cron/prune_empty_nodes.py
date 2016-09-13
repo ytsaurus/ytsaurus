@@ -67,12 +67,13 @@ def prune(root):
 
     for path, revision in tables_to_prune:
         try:
-            with yt.Transaction():
-                yt.lock(path)
-                if yt.get_attribute(path, "revision") == revision:
-                    yt.remove(path, force=True)
-                else:
-                    logger.info("Table %s revision mismatch, skipping", path)
+            if yt.exists(path):
+                with yt.Transaction():
+                    yt.lock(path)
+                    if yt.get_attribute(path, "revision") == revision:
+                        yt.remove(path, force=True)
+                    else:
+                        logger.info("Table %s revision mismatch, skipping", path)
         except yt.YtResponseError as err:
             if err.is_concurrent_transaction_lock_conflict():
                 logger.warning("Table %s is locked", path)
