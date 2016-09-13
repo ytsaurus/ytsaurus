@@ -530,8 +530,7 @@ public:
     TTabletStatistics GetTabletStatistics(const TTablet* tablet)
     {
         const auto* table = tablet->GetTable();
-        const auto* rootChunkList = table->GetChunkList();
-        const auto* tabletChunkList = rootChunkList->Children()[tablet->GetIndex()]->AsChunkList();
+        const auto* tabletChunkList = tablet->GetChunkList();
         const auto& treeStatistics = tabletChunkList->Statistics();
         const auto& nodeStatistics = tablet->NodeStatistics();
 
@@ -1027,8 +1026,7 @@ public:
         if (newTabletCount < oldTabletCount) {
             for (int index = firstTabletIndex + newTabletCount; index < firstTabletIndex + oldTabletCount; ++index) {
                 const auto* tablet = table->Tablets()[index];
-                const auto* chunkList = table->GetChunkList()->Children()[tablet->GetIndex()]->AsChunkList();
-                const auto& chunkListStatistics = chunkList->Statistics();
+                const auto& chunkListStatistics = tablet->GetChunkList()->Statistics();
                 if (tablet->GetTrimmedRowCount() != chunkListStatistics.LogicalRowCount - chunkListStatistics.RowCount) {
                     THROW_ERROR_EXCEPTION("Some chunks of tablet %v are not fully trimmed; such a tablet cannot "
                         "participate in resharding",
@@ -2321,8 +2319,7 @@ private:
             }
 
             if (!table->IsPhysicallySorted()) {
-                auto* rootChunkList = table->GetChunkList();
-                auto* tabletChunkList = rootChunkList->Children()[tablet->GetIndex()]->AsChunkList();
+                auto* tabletChunkList = tablet->GetChunkList();
 
                 if (request->stores_to_add_size() > 0) {
                     if (request->stores_to_add_size() > 1) {
@@ -2405,8 +2402,7 @@ private:
 
             // Apply all requested changes.
             cell->TotalStatistics() -= GetTabletStatistics(tablet);
-            auto* rootChunkList = table->GetChunkList();
-            auto* tabletChunkList = rootChunkList->Children()[tablet->GetIndex()]->AsChunkList();
+            auto* tabletChunkList = tablet->GetChunkList();
             chunkManager->AttachToChunkList(tabletChunkList, chunksToAttach);
             chunkManager->DetachFromChunkList(tabletChunkList, chunksToDetach);
             cell->TotalStatistics() += GetTabletStatistics(tablet);

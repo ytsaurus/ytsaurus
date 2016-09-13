@@ -10,6 +10,8 @@
 
 #include <yt/server/tablet_node/public.h>
 
+#include <yt/server/chunk_server/public.h>
+
 #include <yt/ytlib/tablet_client/heartbeat.pb.h>
 
 #include <yt/ytlib/table_client/unversioned_row.h>
@@ -130,6 +132,9 @@ public:
     TTableReplicaInfo& GetReplicaInfo(TTableReplica* replica);
 
     bool IsActive() const;
+
+    NChunkServer::TChunkList* GetChunkList();
+    const NChunkServer::TChunkList* GetChunkList() const;
 
 };
 

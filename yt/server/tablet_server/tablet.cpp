@@ -6,12 +6,15 @@
 
 #include <yt/server/table_server/table_node.h>
 
+#include <yt/server/chunk_server/chunk_list.h>
+
 #include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NTabletServer {
 
 using namespace NTableServer;
+using namespace NChunkServer;
 using namespace NCellMaster;
 using namespace NYTree;
 
@@ -223,6 +226,16 @@ bool TTablet::IsActive() const
         State_ == ETabletState::Freezing ||
         State_ == ETabletState::Frozen ||
         State_ == ETabletState::Unfreezing;
+}
+
+TChunkList* TTablet::GetChunkList()
+{
+    return Table_->GetTrunkNode()->GetChunkList()->Children()[Index_]->AsChunkList();
+}
+
+const TChunkList* TTablet::GetChunkList() const
+{
+    return const_cast<TTablet*>(this)->GetChunkList();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
