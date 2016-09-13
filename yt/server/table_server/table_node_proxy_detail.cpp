@@ -204,7 +204,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* cons
                             auto* chunkList = table->GetChunkList()->Children()[tablet->GetIndex()]->AsChunkList();
                             fluent
                                 .Item("trimmed_row_count").Value(tablet->GetTrimmedRowCount())
-                                .Item("flushed_row_count").Value(chunkList->Statistics().RowCount);
+                                .Item("flushed_row_count").Value(tablet->GetFlushedRowCount());
                         })
                         .Item("state").Value(tablet->GetState())
                         .Item("statistics").Value(tabletManager->GetTabletStatistics(tablet))
