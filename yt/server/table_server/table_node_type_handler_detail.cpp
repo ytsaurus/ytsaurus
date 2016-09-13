@@ -82,6 +82,12 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         ValidateTableSchemaUpdate(TTableSchema(), *maybeSchema, dynamic, true);
     }
 
+    auto maybeTabletCount = attributes->FindAndRemove<int>("tablet_count");
+    auto maybePivotKeys = attributes->FindAndRemove<std::vector<TOwningKey>>("pivot_keys");
+    if (maybeTabletCount && maybePivotKeys) {
+        THROW_ERROR_EXCEPTION("Cannot specify both \"tablet_count\" and \"pivot_keys\"");
+    }
+
     TBase::InitializeAttributes(attributes);
 
     auto nodeHolder = TBase::DoCreate(
@@ -106,6 +112,12 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         if (dynamic) {
             auto tabletManager = this->Bootstrap_->GetTabletManager();
             tabletManager->MakeTableDynamic(node);
+
+            if (maybeTabletCount) {
+                tabletManager->ReshardTable(node, 0, 0, *maybeTabletCount, {});
+            } else if (maybePivotKeys) {
+                tabletManager->ReshardTable(node, 0, 0, maybePivotKeys->size(), *maybePivotKeys);
+            }
         }
     } catch (...) {
         DoDestroy(node);
