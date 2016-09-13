@@ -3,7 +3,8 @@ from .errors import YtError, YtOperationFailedError, YtTimeoutError, YtResponseE
 from .driver import make_request
 from .http_helpers import get_proxy_url, get_retriable_errors
 from .exceptions_catcher import ExceptionCatcher
-from .cypress_commands import exists, get, list, ypath_join
+from .cypress_commands import exists, get, list
+from .ypath import ypath_join
 from .file_commands import read_file
 from . import yson
 

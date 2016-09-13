@@ -71,7 +71,7 @@ $ yt get "//tmp/sepulki/@"
     }
 
 You can use GUID of object #1-2-3-4 instead path.
-See also https://wiki.yandex-team.ru/yt/Design/YPath
+See also https://wiki.yandex-team.ru/yt/userdoc/ypath
 
 Note! Create parent directory of table before writing to it. Recursive path creating is not available during operation.
 
@@ -104,7 +104,7 @@ See also:
     access to the system    https://wiki.yandex-team.ru/yt/gettingstarted
     tutorial                https://wiki.yandex-team.ru/yt/userdoc/forbeginners
     user documentations     https://wiki.yandex-team.ru/yt/userdoc
-    command specification   https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core
+    command specification   https://wiki.yandex-team.ru/yt/userdoc/api
     ACL                     https://wiki.yandex-team.ru/yt/userdoc/accesscontrol
     transactions            https://wiki.yandex-team.ru/yt/userdoc/transactions
 '''
@@ -193,7 +193,7 @@ def add_hybrid_argument(parser, name, help=None, description=None, group_require
     return positional, optional
 
 def add_ypath_argument(parser, name, help="address in Cypress", hybrid=False, **kwargs):
-    description = "See also: https://wiki.yandex-team.ru/yt/Design/YPath"
+    description = "See also: https://wiki.yandex-team.ru/yt/userdoc/ypath"
 
     if hybrid:
         positional, optional = add_hybrid_argument(parser, name, help=help, description=description, **kwargs)

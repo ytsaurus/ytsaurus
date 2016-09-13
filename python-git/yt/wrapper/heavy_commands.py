@@ -2,7 +2,7 @@ from . import config
 from .config import get_option, get_config, get_total_request_timeout, get_request_retry_count
 from .common import get_backoff, chunk_iter_blobs, YtError
 from .errors import YtResponseError, YtRetriableError
-from .table import to_table, to_name
+from .ypath import YPathSupportingAppend
 from .transaction import Transaction
 from .transaction_commands import _make_transactional_request
 from .http_helpers import get_retriable_errors
@@ -45,20 +45,20 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
     """
     param stream: list or iterator over string blobs.
     """
-    path = to_table(path, client=client)
+    path = YPathSupportingAppend(path, client=client)
     request_timeout = get_total_request_timeout(client)
 
     created = False
     if get_config(client)["yamr_mode"]["create_tables_outside_of_transaction"]:
-        create_object(path.name)
+        create_object(path)
         created = True
 
-    title = "Python wrapper: {0} {1}".format(command_name, path.name)
+    title = "Python wrapper: {0} {1}".format(command_name, path)
     with Transaction(timeout=request_timeout,
                      attributes={"title": title},
                      client=client):
         if not created:
-            create_object(path.name)
+            create_object(path)
         if use_retries:
             chunk_size = get_config(client)["write_retries"]["chunk_size"]
 
@@ -78,7 +78,7 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
                         if get_option("_ENABLE_HEAVY_REQUEST_CHAOS_MONKEY", client) and random.randint(1, 5) == 1:
                             raise YtRetriableError()
                         with Transaction(timeout=request_timeout, client=client):
-                            params["path"] = path.to_yson_type()
+                            params["path"] = path
 
                             _make_transactional_request(
                                 command_name,
@@ -103,7 +103,7 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
                             time.sleep(backoff)
                         logger.warning("New retry (%d) ...", attempt + 2)
         else:
-            params["path"] = path.to_yson_type()
+            params["path"] = path
             _make_transactional_request(
                 command_name,
                 params,
@@ -140,7 +140,7 @@ def make_read_request(command_name, path, params, process_response_action, retri
         title = "Python wrapper: {0} {1}".format(command_name, path)
 
         if get_config(client)["read_retries"]["create_transaction_and_take_snapshot_lock"]:
-            title = "Python wrapper: read {0}".format(to_name(path, client=client))
+            title = "Python wrapper: read {0}".format(str(YPathSupportingAppend(path, client=client)))
             tx = Transaction(attributes={"title": title}, interrupt_on_failed=False, client=client)
         else:
             tx = FakeTransaction()
