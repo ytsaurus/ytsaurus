@@ -72,6 +72,7 @@ TFuture<void> TOperation::GetFinished()
 void TOperation::SetFinished()
 {
     FinishedPromise_.Set();
+    Suspended_ = false;
 }
 
 bool TOperation::IsFinishedState() const
