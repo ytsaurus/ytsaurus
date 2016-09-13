@@ -12,9 +12,9 @@ class ClientState(object):
         self._ENABLE_HEAVY_REQUEST_CHAOS_MONKEY = False
 
         self._transaction_stack = None
-        self._banned_proxies = {}
         self._driver = None
         self._requests_session = None
+        self._heavy_proxy_provider = None
 
         # Cache for API version (to check it only once)
         self._api_version = None
