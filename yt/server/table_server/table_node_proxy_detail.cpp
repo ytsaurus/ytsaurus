@@ -98,6 +98,9 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(TAttributeDescriptor("tablets")
         .SetPresent(isDynamic)
         .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor("pivot_keys")
+        .SetPresent(isDynamic && isSorted)
+        .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor("tablet_statistics")
         .SetPresent(isDynamic)
         .SetOpaque(true));
@@ -213,6 +216,15 @@ bool TTableNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* cons
                             fluent.Item("cell_id").Value(cell->GetId());
                         })
                     .EndMap();
+            });
+        return true;
+    }
+
+    if (key == "pivot_keys" && isDynamic && isSorted) {
+        BuildYsonFluently(consumer)
+            .DoListFor(trunkTable->Tablets(), [&] (TFluentList fluent, TTablet* tablet) {
+                fluent
+                    .Item().Value(tablet->GetPivotKey());
             });
         return true;
     }
