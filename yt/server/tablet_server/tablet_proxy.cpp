@@ -70,6 +70,7 @@ private:
     {
         const auto* tablet = GetThisImpl();
         const auto* table = tablet->GetTable();
+        const auto* chunkList = table->GetChunkList()->Children()[tablet->GetIndex()]->AsChunkList();
 
         auto tabletManager = Bootstrap_->GetTabletManager();
 
@@ -93,7 +94,7 @@ private:
 
         if (key == "flushed_row_count") {
             BuildYsonFluently(consumer)
-                .Value(tablet->GetFlushedRowCount());
+                .Value(chunkList->Statistics().LogicalRowCount);
             return true;
         }
 

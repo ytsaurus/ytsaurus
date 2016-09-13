@@ -2417,7 +2417,6 @@ private:
             }
 
             if (!table->IsPhysicallySorted()) {
-                tablet->SetFlushedRowCount(tablet->GetFlushedRowCount() + attachedRowCount);
                 tablet->SetTrimmedStoresRowCount(tablet->GetTrimmedStoresRowCount() + detachedRowCount);
             }
 
