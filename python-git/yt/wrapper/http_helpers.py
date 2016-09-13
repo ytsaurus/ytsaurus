@@ -137,8 +137,9 @@ def raise_for_status(response, request_info):
     if not response.is_ok():
         raise YtHttpResponseError(error=response.error(), **request_info)
 
-def make_request_with_retries(method, url, make_retries=True, retry_unavailable_proxy=True, response_format=None,
-                              params=None, timeout=None, retry_action=None, client=None, log_body=True, is_ping=False, **kwargs):
+def make_request_with_retries(method, url, make_retries=True, response_format=None,
+                              params=None, timeout=None, retry_action=None, log_body=True, is_ping=False, use_heavy_proxy=False,
+                              client=None, **kwargs):
     configure_ip(get_session(client),
                  get_config(client)["proxy"]["force_ipv4"],
                  get_config(client)["proxy"]["force_ipv6"])
@@ -147,8 +148,6 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
         timeout = get_config(client)["proxy"]["request_retry_timeout"] / 1000.0
 
     retriable_errors = list(get_retriable_errors())
-    if not retry_unavailable_proxy:
-        retriable_errors.remove(YtProxyUnavailable)
     if is_ping:
         retriable_errors.append(YtNoSuchTransaction)
 
