@@ -1,5 +1,7 @@
 from misc import _convert_to_tskved_json, LOGBROKER_TSKV_PREFIX
 
+from yt.common import date_string_to_timestamp
+
 import yt.packages.requests as requests
 
 import yt.wrapper as yt
@@ -14,7 +16,7 @@ from copy import deepcopy
 from datetime import datetime
 from cStringIO import StringIO
 from gzip import GzipFile
-from itertools import starmap
+from itertools import starmap, imap
 from threading import Thread
 from Queue import Queue
 
@@ -91,6 +93,9 @@ class LogBroker(object):
         return (self._request_logbroker_hostname(session_index, session_count),
                 self._get_session_params(session_index, session_count))
 
+    def get_log_type(self):
+        return self._log_type
+
     def _get_session_params(self, session_index, session_count):
         return {"ident": self._service_id, "logtype": self._log_type, "sourceid": self._make_source_id(session_index, session_count)}
 
@@ -137,6 +142,19 @@ def write_header(seqno, stream):
     # v2le header format: <chunk_id><seqno><lines>
     # lines is used just for debug, we do not use it.
     stream.write(struct.pack("<QQQ", seqno, seqno, 0))
+
+def enrich_row(yt_client, logbroker, row):
+    row.update({
+        "cluster_name": yt_client.config["proxy"]["url"],
+        "tskv_format": logbroker.get_log_type(),
+        "timezone": "+0000"})
+    if "timestamp" in row:
+        row_time = date_string_to_timestamp(row["timestamp"])
+        row.update({
+            "timestamp": int(row_time),
+            "microseconds": int((row_time - int(row_time)) * 10 ** 6)
+        })
+    return row
 
 def write_row(row, stream):
     format = yt.DsvFormat(enable_escaping=True)
@@ -252,9 +270,10 @@ def pipe_from_yt_to_logbroker(yt_client, logbroker, table_path, ranges, session_
     logger.info("Session started with id %s", session_id)
 
     rows = yt_client.read_table(yt.TablePath(table_path, ranges=ranges, simplify=False))
+    enriched_rows = imap(lambda row: enrich_row(yt_client, logbroker, row), rows)
     def gen_data():
         logger.info("Start write session with seqno: %d", seqno)
-        for chunk, row_count in convert_rows_to_chunks(rows, logbroker.get_chunk_size(), seqno):
+        for chunk, row_count in convert_rows_to_chunks(enriched_rows, logbroker.get_chunk_size(), seqno):
             logger.info("Writing chunk (size: %d, row_count: %d)", len(chunk), row_count)
             yield chunk
 
