@@ -47,6 +47,12 @@ TJobPtr TJob::CreateReplicate(
     auto* chunk = chunkWithIndex.GetPtr();
     i64 dataSize = chunk->ChunkInfo().disk_space();
 
+    auto codecId = chunk->GetErasureCodec();
+    if (codecId != ECodec::None) {
+        auto* codec = NErasure::GetCodec(codecId);
+        dataSize /= codec->GetTotalPartCount();
+    }
+
     TNodeResources resourceUsage;
     resourceUsage.set_replication_slots(1);
     resourceUsage.set_replication_data_size(dataSize);
