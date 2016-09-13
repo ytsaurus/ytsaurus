@@ -157,7 +157,6 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, PivotKey_);
     Save(context, NodeStatistics_);
     Save(context, InMemoryMode_);
-    Save(context, TrimmedStoresRowCount_);
     Save(context, TrimmedRowCount_);
     Save(context, Replicas_);
 }
@@ -177,7 +176,6 @@ void TTablet::Load(TLoadContext& context)
     Load(context, InMemoryMode_);
     // COMPAT(babenko)
     if (context.GetVersion() >= 401) {
-        Load(context, TrimmedStoresRowCount_);
         Load(context, TrimmedRowCount_);
     }
     // COMPAT(babenko)
@@ -195,7 +193,6 @@ void TTablet::CopyFrom(const TTablet& other)
     PivotKey_ = other.PivotKey_;
     NodeStatistics_ = other.NodeStatistics_;
     InMemoryMode_ = other.InMemoryMode_;
-    TrimmedStoresRowCount_ = other.TrimmedStoresRowCount_;
     TrimmedRowCount_ = other.TrimmedRowCount_;
 }
 

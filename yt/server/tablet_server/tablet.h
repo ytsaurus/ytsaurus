@@ -113,8 +113,6 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NTabletNode::EInMemoryMode, InMemoryMode);
     //! Only used for ordered tablets. Kept in sync with trimmed row count at node.
     DEFINE_BYVAL_RW_PROPERTY(i64, TrimmedRowCount);
-    //! Only used for ordered tablets. Only counts whole trimmed stores.
-    DEFINE_BYVAL_RW_PROPERTY(i64, TrimmedStoresRowCount);
 
     using TReplicaMap = yhash_map<TTableReplica*, TTableReplicaInfo>;
     DEFINE_BYREF_RW_PROPERTY(TReplicaMap, Replicas);
