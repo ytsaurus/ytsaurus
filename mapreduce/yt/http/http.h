@@ -114,7 +114,7 @@ class TYtHttpResponse
 public:
     // 'requestId' and 'proxyHostName' are provided for debug reasons
     // (they will appear in some error messages).
-    explicit TYtHttpResponse(
+    TYtHttpResponse(
         TInputStream* socketStream,
         const Stroka& requestId,
         const Stroka& proxyHostName);
@@ -128,8 +128,8 @@ private:
 
 private:
     THttpInput HttpInput_;
-    Stroka RequestId_;
-    Stroka ProxyHostName_;
+    const Stroka RequestId_;
+    const Stroka ProxyHostName_;
     int HttpCode_ = 0;
 };
 

@@ -288,7 +288,7 @@ TYtHttpResponse::TYtHttpResponse(
             break;
 
         default: {
-            TStringStream httpHeaders;;
+            TStringStream httpHeaders;
             httpHeaders << "HTTP headers (";
             for (const auto& header : HttpInput_.Headers()) {
                 httpHeaders << header.Name() << ": " << header.Value() << "; ";
