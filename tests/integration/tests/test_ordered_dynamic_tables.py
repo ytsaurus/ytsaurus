@@ -307,7 +307,9 @@ class TestOrderedDynamicTables(YTEnvSetup):
         self.sync_unmount_table("//tmp/t")
 
         assert get("//tmp/t/@resource_usage/chunk_count") == 1
-        assert get("//tmp/t/@tablets/0/flushed_row_count") == 200
+        chunk_list_id = get("//tmp/t/@chunk_list_id")
+        assert get("#{0}/@statistics/row_count".format(chunk_list_id)) == 200
+        assert get("//tmp/t/@tablets/0/flushed_row_count") == 300
         assert get("//tmp/t/@tablets/0/trimmed_row_count") == 100
 
         self.sync_mount_table("//tmp/t")
