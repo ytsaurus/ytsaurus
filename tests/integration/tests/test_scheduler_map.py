@@ -1657,13 +1657,14 @@ print row + table_index
 
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_schema_validation(self, optimize_for):
+        schema = make_schema([
+                {"name": "key", "type": "int64"},
+                {"name": "value", "type": "string"}])
         create("table", "//tmp/input")
         create("table", "//tmp/output", attributes={
             "optimize_for" : optimize_for,
-            "schema": make_schema([
-                {"name": "key", "type": "int64"},
-                {"name": "value", "type": "string"}])
-            })
+            "schema": schema })
+        create("table", "//tmp/output2")
 
         for i in xrange(10):
             write_table("<append=true>//tmp/input", {"key": i, "value": "foo"})
@@ -1674,7 +1675,17 @@ print row + table_index
 
         assert get("//tmp/output/@schema_mode") == "strong"
         assert get("//tmp/output/@schema/@strict")
+        assert [c for c in get("//tmp/output/@schema")] == [c for c in schema]
         assert_items_equal(read_table("//tmp/output"), [{"key": i, "value": "foo"} for i in xrange(10)])
+
+        map(in_="//tmp/input",
+            out="<schema=%s>//tmp/output2" % yson.dumps(schema),
+            command="cat")
+
+        assert get("//tmp/output2/@schema_mode") == "strong"
+        assert get("//tmp/output2/@schema/@strict")
+        assert [c for c in get("//tmp/output2/@schema")] == [c for c in schema]
+        assert_items_equal(read_table("//tmp/output2"), [{"key": i, "value": "foo"} for i in xrange(10)])
 
         write_table("//tmp/input", {"key": "1", "value": "foo"})
 
