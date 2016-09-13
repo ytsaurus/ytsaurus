@@ -1,9 +1,9 @@
 from . import yson
-from .config import get_config, get_option
+from .config import get_config, get_option, set_option
 from .compression import create_zlib_generator
 from .common import require, generate_uuid, bool_to_string, get_version, total_seconds, forbidden_inside_job
 from .errors import YtError, YtHttpResponseError, YtProxyUnavailable, YtConcurrentOperationsLimitExceeded, YtRequestTimedOut
-from .http_helpers import make_get_request_with_retries, make_request_with_retries, get_token, get_api_version, get_api_commands, get_proxy_url, parse_error_from_headers, get_header_format
+from .http_helpers import make_get_request_with_retries, make_request_with_retries, get_token, get_api_version, get_api_commands, get_proxy_url, parse_error_from_headers, get_header_format, ProxyProvider
 from .response_stream import ResponseStream
 
 import yt.logger as logger
@@ -17,12 +17,6 @@ from copy import deepcopy
 from datetime import datetime
 
 import os
-
-def get_proxy_ban_errors():
-    from yt.packages.requests import ConnectionError
-    from httplib import BadStatusLine
-    from socket import error as SocketError
-    return (ConnectionError, BadStatusLine, SocketError, YtRequestTimedOut, YtProxyUnavailable)
 
 def escape_utf8(obj):
     def escape_symbol(sym):
@@ -43,46 +37,59 @@ def escape_utf8(obj):
         obj = dict((escape_str(k), escape_utf8(v)) for k, v in iteritems(obj))
     return obj
 
-def get_hosts(client=None):
-    proxy = get_proxy_url(None, client=client)
-    hosts = get_config(client)["proxy"]["proxy_discovery_url"]
-    return make_get_request_with_retries("http://{0}/{1}".format(proxy, hosts), client=client)
+class HeavyProxyProvider(ProxyProvider):
+    def __init__(self, client):
+        self.client = client
+        self.banned_proxies = {}
+        self.light_proxy = get_proxy_url(None, client=self.client)
 
-def get_heavy_proxy(client):
-    banned_hosts = get_option("_banned_proxies", client)
+        from yt.packages.requests import ConnectionError
+        from httplib import BadStatusLine
+        from socket import error as SocketError
+        self.ban_errors = (ConnectionError, BadStatusLine, SocketError, YtRequestTimedOut, YtProxyUnavailable)
 
-    now = datetime.now()
-    for host in list(banned_hosts):
-        time = banned_hosts[host]
-        if total_seconds(now - time) * 1000 > get_config(client)["proxy"]["proxy_ban_timeout"]:
-            logger.info("Host %s unbanned", host)
-            del banned_hosts[host]
+    def __call__(self):
+        now = datetime.now()
+        for proxy in list(self.banned_proxies):
+            time = self.banned_proxies[proxy]
+            if total_seconds(now - time) * 1000 > get_config(self.client)["proxy"]["proxy_ban_timeout"]:
+                logger.info("Proxy %s unbanned", proxy)
+                del self.banned_proxies[proxy]
 
-    url = get_config(client)["proxy"]["url"]
-    if get_config(client)["proxy"]["enable_proxy_discovery"]:
-        limit = get_config(client)["proxy"]["number_of_top_proxies_for_random_chioce"]
-        unbanned_hosts = []
-        hosts = get_hosts(client=client)
-        if not hosts:
-            return url
+        if get_config(self.client)["proxy"]["enable_proxy_discovery"]:
+            limit = get_config(self.client)["proxy"]["number_of_top_proxies_for_random_choice"]
+            unbanned_proxies = []
+            heavy_proxies = self._discover_heavy_proxies()
+            if not heavy_proxies:
+                return self.light_proxy
 
-        for host in hosts:
-            if host not in banned_hosts:
-                unbanned_hosts.append(host)
+            for proxy in heavy_proxies:
+                if proxy not in self.banned_proxies:
+                    unbanned_proxies.append(proxy)
 
-        if unbanned_hosts:
-            upper_bound = min(limit, len(unbanned_hosts))
-            return unbanned_hosts[random.randint(0, upper_bound - 1)]
-        else:
-            logger.warning("All hosts are banned, use %s as first in the hosts list", hosts[0])
-            upper_bound = min(limit, len(hosts))
-            return hosts[random.randint(0, upper_bound - 1)]
+            result_proxy = None
+            if unbanned_proxies:
+                upper_bound = min(limit, len(unbanned_proxies))
+                result_proxy = unbanned_proxies[random.randint(0, upper_bound - 1)]
+            else:
+                upper_bound = min(limit, len(heavy_proxies))
+                logger.warning("All proxies are banned, use random proxy from top %d of discovered proxies", upper_bound)
+                result_proxy = heavy_proxies[random.randint(0, upper_bound - 1)]
 
-    return get_config(client)["proxy"]["url"]
+            self.last_provided_proxy = result_proxy
+            return result_proxy
 
-def ban_host(host, client):
-    logger.info("Host %s banned", host)
-    get_option("_banned_proxies", client)[host] = datetime.now()
+        return self.light_proxy
+
+    def on_error_occured(self, error):
+        if isinstance(error, self.ban_errors):
+            proxy = self.last_provided_proxy
+            logger.info("Proxy %s banned", proxy)
+            self.banned_proxies[proxy] = datetime.now()
+
+    def _discover_heavy_proxies(self):
+        discovery_url = get_config(self.client)["proxy"]["proxy_discovery_url"]
+        return make_get_request_with_retries("http://{0}/{1}".format(self.light_proxy, discovery_url), client=self.client)
 
 class TokenAuth(AuthBase):
     def __init__(self, token):
@@ -115,12 +122,6 @@ def make_request(command_name, params,
     """
     Makes request to yt proxy. Command name is the name of command in YT API.
     """
-    # Prepare request url.
-    if use_heavy_proxy:
-        proxy = get_heavy_proxy(client)
-    else:
-        proxy = get_proxy_url(proxy, client=client)
-
     commands = get_api_commands(client)
     api_path = "api/" + get_api_version(client)
 
@@ -166,8 +167,17 @@ def make_request(command_name, params,
     else:
         retry_action = None
 
-    # prepare url
-    url = "http://{0}/{1}/{2}".format(proxy, api_path, command_name)
+    # prepare url.
+    url_pattern = "http://{proxy}/{api}/{command}"
+    if use_heavy_proxy:
+        proxy_provider = get_option("_heavy_proxy_provider", client)
+        if proxy_provider is None:
+            proxy_provider = HeavyProxyProvider(client)
+            set_option("_heavy_proxy_provider", proxy_provider, client)
+        url = url_pattern.format(proxy="{proxy}", api=api_path, command=command_name)
+    else:
+        proxy_provider = None
+        url = url_pattern.format(proxy=get_proxy_url(proxy, client=client), api=api_path, command=command_name)
 
     # prepare params, format and headers
     user_agent = "Python wrapper " + get_version()
@@ -217,26 +227,23 @@ def make_request(command_name, params,
             data = create_zlib_generator(data)
 
     stream = (command.output_type in ["binary", "tabular"])
-    try:
-        response = make_request_with_retries(
-            command.http_method(),
-            url,
-            make_retries=allow_retries,
-            retry_action=retry_action,
-            log_body=(command.input_type is None),
-            headers=headers,
-            data=data,
-            params=params,
-            stream=stream,
-            response_format=response_format,
-            timeout=timeout,
-            auth=auth,
-            # TODO(ignat): Refactor retrying logic to avoid this hack.
-            is_ping=(command_name == "ping_tx"),
-            client=client)
-    except get_proxy_ban_errors():
-        ban_host(proxy, client=client)
-        raise
+    response = make_request_with_retries(
+        command.http_method(),
+        url,
+        make_retries=allow_retries,
+        retry_action=retry_action,
+        log_body=(command.input_type is None),
+        headers=headers,
+        data=data,
+        params=params,
+        stream=stream,
+        response_format=response_format,
+        timeout=timeout,
+        auth=auth,
+        # TODO(ignat): Refactor retrying logic to avoid this hack.
+        is_ping=(command_name == "ping_tx"),
+        proxy_provider=proxy_provider,
+        client=client)
 
     # Determine type of response data and return it
     if return_content:

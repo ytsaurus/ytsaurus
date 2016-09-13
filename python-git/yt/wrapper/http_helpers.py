@@ -18,6 +18,7 @@ import time
 import types
 from datetime import datetime
 from socket import error as SocketError
+from abc import ABCMeta, abstractmethod
 
 # We cannot use requests.HTTPError in module namespace because of conflict with python3 http library
 from httplib import BadStatusLine, IncompleteRead
@@ -26,6 +27,17 @@ def get_retriable_errors():
     from yt.packages.requests import HTTPError, ConnectionError, Timeout
     return (HTTPError, ConnectionError, Timeout, IncompleteRead, BadStatusLine, SocketError,
             YtIncorrectResponse, YtProxyUnavailable, YtRequestRateLimitExceeded, YtRequestQueueSizeLimitExceeded, YtRequestTimedOut, YtRetriableError)
+
+class ProxyProvider(object):
+    __metaclass__ = ABCMeta
+
+    @abstractmethod
+    def __call__(self):
+        pass
+
+    @abstractmethod
+    def on_error_occured(self, error):
+        pass
 
 requests = None
 def lazy_import_requests():
@@ -137,8 +149,8 @@ def raise_for_status(response, request_info):
     if not response.is_ok():
         raise YtHttpResponseError(error=response.error(), **request_info)
 
-def make_request_with_retries(method, url, make_retries=True, response_format=None,
-                              params=None, timeout=None, retry_action=None, log_body=True, is_ping=False, use_heavy_proxy=False,
+def make_request_with_retries(method, url=None, make_retries=True, response_format=None,
+                              params=None, timeout=None, retry_action=None, log_body=True, is_ping=False, proxy_provider=None,
                               client=None, **kwargs):
     configure_ip(get_session(client),
                  get_config(client)["proxy"]["force_ipv4"],
@@ -154,12 +166,19 @@ def make_request_with_retries(method, url, make_retries=True, response_format=No
     headers = get_value(kwargs.get("headers", {}), {})
     headers["X-YT-Correlation-Id"] = generate_uuid(get_option("_random_generator", client))
 
-    logger.debug("Request url: %r", url)
-    logger.debug("Headers: %r", headers)
-    if log_body and "data" in kwargs and kwargs["data"] is not None:
-        logger.debug("Body: %r", kwargs["data"])
+    if proxy_provider is not None:
+        url_pattern = url
 
     for attempt in xrange(get_config(client)["proxy"]["request_retry_count"]):
+        if proxy_provider is not None:
+            proxy = proxy_provider()
+            url = url_pattern.format(proxy=proxy)
+
+        logger.debug("Request url: %r", url)
+        logger.debug("Headers: %r", headers)
+        if log_body and "data" in kwargs and kwargs["data"] is not None:
+            logger.debug("Body: %r", kwargs["data"])
+
         request_start_time = datetime.now()
         _process_request_backoff(request_start_time, client=client)
         request_info = {"headers": headers, "url": url, "params": params}
@@ -199,6 +218,8 @@ def make_request_with_retries(method, url, make_retries=True, response_format=No
                            method, url, str(type(error)), error.message, str(hide_token(dict(headers))))
             if isinstance(error, YtError):
                 logger.info("Full error message:\n%s", str(error))
+            if proxy_provider is not None:
+                proxy_provider.on_error_occured(error)
             if make_retries and attempt + 1 < get_config(client)["proxy"]["request_retry_count"]:
                 if retry_action is not None:
                     retry_action(error, kwargs)
