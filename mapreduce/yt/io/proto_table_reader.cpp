@@ -11,8 +11,6 @@ namespace NYT {
 
 using ::google::protobuf::FieldDescriptor;
 
-namespace {
-
 void ReadMessageFromNode(const TNode& node, Message* row)
 {
     auto* descriptor = row->GetDescriptor();
@@ -110,8 +108,6 @@ void ReadMessageFromNode(const TNode& node, Message* row)
         }
     }
 }
-
-} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
