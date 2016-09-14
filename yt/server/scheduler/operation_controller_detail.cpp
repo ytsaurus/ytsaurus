@@ -4288,6 +4288,19 @@ void TOperationControllerBase::InitUserJobSpec(
     if (joblet->StartRowIndex >= 0) {
         jobSpec->add_environment(Format("YT_START_ROW_INDEX=%v", joblet->StartRowIndex));
     }
+
+    if (Operation->GetSecureVault()) {
+        // NB: These environment variables should be added to user job spec, not to the user job spec template.
+        // They may contain sensitive information that should not be persisted with a controller.
+
+        // We add a single variable storing the whole secure vault and all top-level key-value pairs.
+        jobSpec->add_environment(Format("YT_SECURE_VAULT=%v",
+            ConvertToYsonString(Operation->GetSecureVault(), EYsonFormat::Text)));
+
+        for (const auto& pair : Operation->GetSecureVault()->GetChildren()) {
+            jobSpec->add_environment(Format("YT_SECURE_VAULT_%v=%v", pair.first, ConvertToYsonString(pair.second, EYsonFormat::Text)));
+        }
+    }
 }
 
 i64 TOperationControllerBase::GetFinalOutputIOMemorySize(TJobIOConfigPtr ioConfig) const
