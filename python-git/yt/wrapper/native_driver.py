@@ -84,7 +84,7 @@ def make_request(command_name, params,
         parameters=params,
         input_stream=input_stream,
         output_stream=output_stream,
-        user=get_config(client)["driver_user_name"])
+        user=str(get_config(client)["driver_user_name"]))
 
     if get_config(client)["enable_passing_request_id_to_driver"]:
         request.id = request_id
