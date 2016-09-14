@@ -20,6 +20,9 @@ class TTableOutput
 {
 public:
     TTableOutput(const NFormats::TFormat& format, NYson::IYsonConsumer* consumer);
+
+    explicit TTableOutput(std::unique_ptr<NFormats::IParser> parser);
+
     ~TTableOutput() throw();
 
 private:

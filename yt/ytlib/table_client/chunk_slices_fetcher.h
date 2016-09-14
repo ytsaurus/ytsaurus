@@ -27,15 +27,16 @@ public:
         IInvokerPtr invoker,
         NChunkClient::TScrapeChunksCallback scraperCallback,
         NApi::INativeClientPtr client,
+        NTableClient::TRowBufferPtr rowBuffer,
         const NLogging::TLogger& logger);
 
     virtual TFuture<void> Fetch() override;
     std::vector<NChunkClient::TInputSlicePtr> GetChunkSlices();
 
 private:
-    i64 ChunkSliceSize_;
-    TKeyColumns KeyColumns_;
-    bool SliceByKeys_;
+    const i64 ChunkSliceSize_;
+    const TKeyColumns KeyColumns_;
+    const bool SliceByKeys_;
 
     //! All slices fetched so far.
     std::vector<std::vector<NChunkClient::TInputSlicePtr>> SlicesByChunkIndex_;

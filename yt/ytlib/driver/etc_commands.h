@@ -90,7 +90,9 @@ public:
 
 struct TExecuteBatchOptions
     : public NApi::TMutatingOptions
-{ };
+{
+    int Concurrency;
+};
 
 class TExecuteBatchCommand
     : public TTypedCommand<TExecuteBatchOptions>
@@ -122,6 +124,9 @@ public:
 
     TExecuteBatchCommand()
     {
+        RegisterParameter("concurrency", Options.Concurrency)
+            .Default(50)
+            .GreaterThan(0);
         RegisterParameter("requests", Requests);
     }
 

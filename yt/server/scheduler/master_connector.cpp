@@ -614,7 +614,8 @@ private:
                         "authenticated_user",
                         "start_time",
                         "state",
-                        "suspended"
+                        "suspended",
+                        "events"
                     };
                     ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
                     batchReq->AddRequest(req, "get_op_attr");
@@ -657,7 +658,9 @@ private:
     };
 
 
-    TObjectServiceProxy::TReqExecuteBatchPtr StartObjectBatchRequest(TCellTag cellTag = PrimaryMasterCellTag)
+    TObjectServiceProxy::TReqExecuteBatchPtr StartObjectBatchRequest(
+        EMasterChannelKind channelKind = EMasterChannelKind::Leader,
+        TCellTag cellTag = PrimaryMasterCellTag)
     {
         TObjectServiceProxy proxy(Bootstrap
             ->GetMasterClient()
@@ -770,7 +773,8 @@ private:
             operationSpec->Owners,
             attributes.Get<TInstant>("start_time"),
             attributes.Get<EOperationState>("state"),
-            attributes.Get<bool>("suspended"));
+            attributes.Get<bool>("suspended"),
+            attributes.Get<std::vector<TOperationEvent>>("events"));
 
         result.UserTransactionAborted = !userTransaction && userTransactionId;
 
@@ -1110,6 +1114,13 @@ private:
             batchReq->AddRequest(req, "update_op_node");
         }
 
+        // Set events.
+        {
+            auto req = TYPathProxy::Set(operationPath + "/@events");
+            req->set_value(ConvertToYsonString(operation->GetEvents()).Data());
+            batchReq->AddRequest(req, "update_op_node");
+        }
+
         if (operation->HasControllerProgress())
         {
             // Set progress.
@@ -1384,7 +1395,7 @@ private:
             }
 
             {
-                auto batchReq = StartObjectBatchRequest(cellTag);
+                auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower, cellTag);
 
                 for (const auto& info : infos) {
                     auto req = TFileYPathProxy::GetUploadParams(FromObjectId(info.NodeId));
@@ -1526,7 +1537,7 @@ private:
             auto cellTag = pair.first;
             auto& tableInfos = pair.second;
 
-            auto batchReq = StartObjectBatchRequest(cellTag);
+            auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower, cellTag);
             for (const auto* tableInfo : tableInfos) {
                 auto req = TTableYPathProxy::GetUploadParams(FromObjectId(tableInfo->TableId));
                 SetTransactionId(req, tableInfo->UploadTransactionId);
@@ -1756,7 +1767,7 @@ private:
 
         // Global watchers.
         {
-            auto batchReq = StartObjectBatchRequest();
+            auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
             for (auto requester : GlobalWatcherRequesters) {
                 requester.Run(batchReq);
             }
@@ -1784,7 +1795,7 @@ private:
             if (operation->GetState() != EOperationState::Running)
                 continue;
 
-            auto batchReq = StartObjectBatchRequest();
+            auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
             for (auto requester : list.WatcherRequesters) {
                 requester.Run(batchReq);
             }

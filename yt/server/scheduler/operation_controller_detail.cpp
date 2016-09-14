@@ -74,7 +74,7 @@ using NTableClient::TTableReaderOptions;
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TLivePreviewTableBase::Persist(TPersistenceContext& context)
+void TOperationControllerBase::TLivePreviewTableBase::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, LivePreviewTableId);
@@ -82,7 +82,7 @@ void TOperationControllerBase::TLivePreviewTableBase::Persist(TPersistenceContex
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TInputTable::Persist(TPersistenceContext& context)
+void TOperationControllerBase::TInputTable::Persist(const TPersistenceContext& context)
 {
     TUserObject::Persist(context);
 
@@ -95,7 +95,7 @@ void TOperationControllerBase::TInputTable::Persist(TPersistenceContext& context
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TJobBoundaryKeys::Persist(TPersistenceContext& context)
+void TOperationControllerBase::TJobBoundaryKeys::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, MinKey);
@@ -105,7 +105,7 @@ void TOperationControllerBase::TJobBoundaryKeys::Persist(TPersistenceContext& co
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TOutputTable::Persist(TPersistenceContext& context)
+void TOperationControllerBase::TOutputTable::Persist(const TPersistenceContext& context)
 {
     TUserObject::Persist(context);
     TLivePreviewTableBase::Persist(context);
@@ -131,14 +131,14 @@ void TOperationControllerBase::TOutputTable::Persist(TPersistenceContext& contex
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TIntermediateTable::Persist(TPersistenceContext& context)
+void TOperationControllerBase::TIntermediateTable::Persist(const TPersistenceContext& context)
 {
     TLivePreviewTableBase::Persist(context);
 }
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TUserFile::Persist(TPersistenceContext& context)
+void TOperationControllerBase::TUserFile::Persist(const TPersistenceContext& context)
 {
     TUserObject::Persist(context);
 
@@ -154,7 +154,7 @@ void TOperationControllerBase::TUserFile::Persist(TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TCompletedJob::Persist(TPersistenceContext& context)
+void TOperationControllerBase::TCompletedJob::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Lost);
@@ -169,7 +169,7 @@ void TOperationControllerBase::TCompletedJob::Persist(TPersistenceContext& conte
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TJoblet::Persist(TPersistenceContext& context)
+void TOperationControllerBase::TJoblet::Persist(const TPersistenceContext& context)
 {
     // NB: Every joblet is aborted after snapshot is loaded.
     // Here we only serialize a subset of members required for ReinstallJob to work
@@ -183,7 +183,7 @@ void TOperationControllerBase::TJoblet::Persist(TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TTaskGroup::Persist(TPersistenceContext& context)
+void TOperationControllerBase::TTaskGroup::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, MinNeededResources);
@@ -222,7 +222,7 @@ void TOperationControllerBase::TTaskGroup::Persist(TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TStripeDescriptor::Persist(TPersistenceContext& context)
+void TOperationControllerBase::TStripeDescriptor::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Stripe);
@@ -232,7 +232,7 @@ void TOperationControllerBase::TStripeDescriptor::Persist(TPersistenceContext& c
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TInputChunkDescriptor::Persist(TPersistenceContext& context)
+void TOperationControllerBase::TInputChunkDescriptor::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, InputStripes);
@@ -532,7 +532,7 @@ i64 TOperationControllerBase::TTask::GetPendingDataSize() const
     return GetChunkPoolOutput()->GetPendingDataSize();
 }
 
-void TOperationControllerBase::TTask::Persist(TPersistenceContext& context)
+void TOperationControllerBase::TTask::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
 
@@ -1527,6 +1527,7 @@ void TOperationControllerBase::DoLoadSnapshot(TSharedRef snapshot)
 
     TLoadContext context;
     context.SetInput(&input);
+    context.SetRowBuffer(RowBuffer);
 
     NPhoenix::TSerializer::InplaceLoad(context, this);
 
@@ -3926,22 +3927,22 @@ void TOperationControllerBase::RegisterBoundaryKeys(
     YCHECK(boundaryKeys.sorted());
     YCHECK(!outputTable->Options->ValidateUniqueKeys || boundaryKeys.unique_keys());
 
-    auto minKey = FromProto<TOwningKey>(boundaryKeys.min());
-    auto maxKey = FromProto<TOwningKey>(boundaryKeys.max());
+    auto trimAndCaptureKey = [&] (const TOwningKey& key) {
+        int limit = outputTable->TableUploadOptions.TableSchema.GetKeyColumnCount();
+        if (key.GetCount() > limit) {
+            // NB: This can happen for a teleported chunk from a table with a wider key in sorted (but not unique_keys) mode.
+            YCHECK(!outputTable->Options->ValidateUniqueKeys);
+            return RowBuffer->Capture(key.Begin(), limit);
+        } else {
+            return RowBuffer->Capture(key.Begin(), key.GetCount());
+        }
+    };
 
-    // NB: This can happen for a teleported chunk from a table with a wider key in sorted (but not unique_keys) mode.
-    if (minKey.GetCount() > outputTable->TableUploadOptions.TableSchema.GetKeyColumnCount() ||
-        maxKey.GetCount() > outputTable->TableUploadOptions.TableSchema.GetKeyColumnCount())
-    {
-        YCHECK(!outputTable->Options->ValidateUniqueKeys);
-
-        int minKeyLength = std::min(minKey.GetCount(), static_cast<int>(outputTable->TableUploadOptions.TableSchema.GetKeyColumnCount()));
-        int maxKeyLength = std::min(maxKey.GetCount(), static_cast<int>(outputTable->TableUploadOptions.TableSchema.GetKeyColumnCount()));
-        minKey = TOwningRow(minKey.Begin(), minKey.Begin() + minKeyLength);
-        maxKey = TOwningRow(maxKey.Begin(), maxKey.Begin() + maxKeyLength);
-    }
-
-    outputTable->BoundaryKeys.push_back(TJobBoundaryKeys{minKey, maxKey, chunkTreeId});
+    outputTable->BoundaryKeys.push_back(TJobBoundaryKeys{
+        trimAndCaptureKey(FromProto<TOwningKey>(boundaryKeys.min())),
+        trimAndCaptureKey(FromProto<TOwningKey>(boundaryKeys.max())),
+        chunkTreeId
+    });
 }
 
 void TOperationControllerBase::RegisterOutput(
@@ -4167,13 +4168,16 @@ void TOperationControllerBase::BuildBriefSpec(IYsonConsumer* consumer) const
         .Item("output_table_paths").ListLimited(GetOutputTablePaths(), 1);
 }
 
-TYsonString TOperationControllerBase::BuildInputPathYson(const TJobId& jobId) const
+TNullable<TYsonString> TOperationControllerBase::BuildInputPathYson(const TJobId& jobId) const
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
+    auto joblet = GetJobletOrThrow(jobId);
     return BuildInputPaths(
         GetInputTablePaths(),
-        GetJobletOrThrow(jobId)->InputStripeList);
+        joblet->InputStripeList,
+        Operation->GetType(),
+        joblet->JobType);
 }
 
 std::vector<TOperationControllerBase::TPathWithStage> TOperationControllerBase::GetFilePaths() const
@@ -4575,7 +4579,7 @@ const IDigest* TOperationControllerBase::GetJobProxyMemoryDigest(EJobType jobTyp
     return iter->second.get();
 }
 
-void TOperationControllerBase::Persist(TPersistenceContext& context)
+void TOperationControllerBase::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
 
@@ -4850,7 +4854,7 @@ public:
         Underlying_->BuildBriefSpec(consumer);
     }
 
-    virtual TYsonString BuildInputPathYson(const TJobId& jobId) const override
+    virtual TNullable<TYsonString> BuildInputPathYson(const TJobId& jobId) const override
     {
         return Underlying_->BuildInputPathYson(jobId);
     }

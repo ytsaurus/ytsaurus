@@ -19,6 +19,7 @@
 namespace NYT {
 namespace NTableClient {
 
+using namespace NTableClient;
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NNodeTrackerClient;
@@ -48,11 +49,12 @@ bool operator<(const TSample& lhs, const TSample& rhs)
 
 TSamplesFetcher::TSamplesFetcher(
     TFetcherConfigPtr config,
-    i64 desiredSampleCount,
+    int desiredSampleCount,
     const TKeyColumns& keyColumns,
-    int maxSampleSize,
+    i64 maxSampleSize,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     IInvokerPtr invoker,
+    TRowBufferPtr rowBuffer,
     TScrapeChunksCallback scraperCallback,
     NApi::INativeClientPtr client,
     const NLogging::TLogger& logger)
@@ -60,6 +62,7 @@ TSamplesFetcher::TSamplesFetcher(
         config,
         nodeDirectory,
         invoker,
+        rowBuffer,
         scraperCallback,
         client,
         logger)
@@ -120,7 +123,7 @@ TFuture<void> TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector
 
     std::vector<int> requestedChunkIndexes;
 
-    for (auto index : chunkIndexes) {
+    for (int index : chunkIndexes) {
         const auto& chunk = Chunks_[index];
 
         currentSize += chunk->GetUncompressedDataSize();
@@ -133,11 +136,11 @@ TFuture<void> TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector
             auto* sampleRequest = req->add_sample_requests();
             ToProto(sampleRequest->mutable_chunk_id(), chunkId);
             sampleRequest->set_sample_count(sampleCount - currentSampleCount);
-            if (chunk->LowerLimit() && chunk->LowerLimit()->has_key()) {
-                sampleRequest->set_lower_key(chunk->LowerLimit()->key());
+            if (chunk->LowerLimit() && chunk->LowerLimit()->HasKey()) {
+                ToProto(sampleRequest->mutable_lower_key(), chunk->LowerLimit()->GetKey());
             }
-            if (chunk->UpperLimit() && chunk->UpperLimit()->has_key()) {
-                sampleRequest->set_upper_key(chunk->UpperLimit()->key());
+            if (chunk->UpperLimit() && chunk->UpperLimit()->HasKey()) {
+                ToProto(sampleRequest->mutable_upper_key(), chunk->UpperLimit()->GetKey());
             }
             currentSampleCount = sampleCount;
         }
@@ -180,8 +183,11 @@ void TSamplesFetcher::OnResponse(
             requestedChunkIndexes[index]);
 
         for (const auto& protoSample : sampleResponse.samples()) {
-            TSample sample = {
-                FromProto<TOwningKey>(protoSample.key()),
+            TKey key;
+            FromProto(&key, protoSample.key(), RowBuffer_);
+
+            TSample sample{
+                key,
                 protoSample.incomplete(),
                 protoSample.weight()
             };

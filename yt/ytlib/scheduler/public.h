@@ -27,6 +27,7 @@ DEFINE_ENUM(EOperationType,
 );
 
 DEFINE_ENUM(EOperationState,
+    (None)
     (Initializing)
     (Preparing)
     (Materializing)

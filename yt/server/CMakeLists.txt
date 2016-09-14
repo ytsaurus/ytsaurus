@@ -184,7 +184,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/sorted_reduce_job_io.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/stderr_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/stracer.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/table_output.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/user_job.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/user_job_io_detail.cpp
 

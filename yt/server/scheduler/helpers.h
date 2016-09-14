@@ -21,9 +21,11 @@ void BuildInitializingOperationAttributes(TOperationPtr operation, NYson::IYsonC
 void BuildRunningOperationAttributes(TOperationPtr operation, NYson::IYsonConsumer* consumer);
 void BuildJobAttributes(TJobPtr job, NYson::IYsonConsumer* consumer);
 void BuildExecNodeAttributes(TExecNodePtr node, NYson::IYsonConsumer* consumer);
-NYson::TYsonString BuildInputPaths(
+TNullable<NYson::TYsonString> BuildInputPaths(
     const std::vector<NYPath::TRichYPath>& inputPaths,
-    const TChunkStripeListPtr& inputStripeList);
+    const TChunkStripeListPtr& inputStripeList,
+    EOperationType operationType,
+    EJobType jobType);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -378,5 +378,37 @@ DEFINE_REFCOUNTED_TYPE(TSchemafulDsvFormatConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ENestedMessagesMode,
+    (Protobuf)
+    (Yson)
+);
+
+class TProtobufFormatConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    Stroka FileDescriptorSet;
+    std::vector<int> FileIndices;
+    std::vector<int> MessageIndices;
+    bool EnumsAsStrings;
+    ENestedMessagesMode NestedMessagesMode;
+
+    TProtobufFormatConfig()
+    {
+        RegisterParameter("file_descriptor_set", FileDescriptorSet)
+            .NonEmpty();
+        RegisterParameter("file_indices", FileIndices);
+        RegisterParameter("message_indices", MessageIndices);
+        RegisterParameter("enums_as_strings", EnumsAsStrings)
+            .Default(false);
+        RegisterParameter("nested_messages_mode", NestedMessagesMode)
+            .Default(ENestedMessagesMode::Protobuf);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TProtobufFormatConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NFormats
 } // namespace NYT

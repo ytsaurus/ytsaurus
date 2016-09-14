@@ -68,9 +68,25 @@ void TNode::Init()
     Rack_ = nullptr;
     LeaseTransaction_ = nullptr;
     LocalStatePtr_ = nullptr;
+    AggregatedState_ = ENodeState::Offline;
     ChunkReplicationQueues_.resize(ReplicationPriorityCount);
     RandomReplicaIt_ = StoredReplicas_.end();
     ClearSessionHints();
+}
+
+void TNode::RecomputeAggregatedState()
+{
+    TNullable<ENodeState> result;
+    for (const auto& pair : MulticellStates_) {
+        if (result) {
+            if (*result != pair.second) {
+                result = ENodeState::Mixed;
+            }
+        } else {
+            result = pair.second;
+        }
+    }
+    AggregatedState_ = *result;
 }
 
 TNodeId TNode::GetId() const
@@ -105,29 +121,42 @@ TNodeDescriptor TNode::GetDescriptor() const
         Rack_ ? MakeNullable(Rack_->GetName()) : Null);
 }
 
+void TNode::InitializeStates(TCellTag cellTag, const TCellTagList& secondaryCellTags)
+{
+    auto addCell = [&] (TCellTag someTag) {
+        if (MulticellStates_.find(someTag) == MulticellStates_.end()) {
+            YCHECK(MulticellStates_.emplace(someTag, ENodeState::Offline).second);
+        }
+    };
+
+    addCell(cellTag);
+    for (auto secondaryCellTag : secondaryCellTags) {
+        addCell(secondaryCellTag);
+    }
+
+    LocalStatePtr_ = &MulticellStates_[cellTag];
+}
+
 ENodeState TNode::GetLocalState() const
 {
     return *LocalStatePtr_;
 }
 
-ENodeState TNode::GetAggregatedState() const
-{
-    TNullable<ENodeState> result;
-    for (const auto& pair : MulticellStates_) {
-        if (result) {
-            if (*result != pair.second) {
-                result = ENodeState::Mixed;
-            }
-        } else {
-            result = pair.second;
-        }
-    }
-    return *result;
-}
-
-void TNode::SetLocalState(ENodeState state) const
+void TNode::SetLocalState(ENodeState state)
 {
     *LocalStatePtr_ = state;
+    RecomputeAggregatedState();
+}
+
+void TNode::SetState(TCellTag cellTag, ENodeState state)
+{
+    MulticellStates_[cellTag] = state;
+    RecomputeAggregatedState();
+}
+
+ENodeState TNode::GetAggregatedState() const
+{
+    return AggregatedState_;
 }
 
 void TNode::Save(NCellMaster::TSaveContext& context) const

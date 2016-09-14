@@ -37,7 +37,7 @@ public:
     void Aborted(i64 count, EAbortReason reason = EAbortReason::Other);
     void Lost(i64 count);
 
-    void Persist(TStreamPersistenceContext& context);
+    void Persist(const TStreamPersistenceContext& context);
 
 private:
     bool TotalEnabled_;

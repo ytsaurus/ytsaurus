@@ -25,8 +25,10 @@
 
 #include <yt/ytlib/table_client/samples_fetcher.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/ytlib/table_client/row_buffer.h>
 
 #include <yt/ytlib/tablet_client/config.h>
+#include <yt/ytlib/tablet_client/wire_protocol.h>
 
 #include <yt/ytlib/object_client/helpers.h>
 
@@ -41,6 +43,7 @@ namespace NTabletNode {
 using namespace NConcurrency;
 using namespace NHydra;
 using namespace NTableClient;
+using namespace NTabletClient;
 using namespace NNodeTrackerClient;
 using namespace NChunkClient;
 using namespace NTabletNode::NProto;
@@ -198,7 +201,8 @@ private:
             splitFactor);
 
         try {
-            auto samples = GetPartitionSamples(partition, Config_->MaxPartitioningSampleCount);
+            auto rowBuffer = New<TRowBuffer>();
+            auto samples = GetPartitionSamples(rowBuffer, partition, Config_->MaxPartitioningSampleCount);
             int sampleCount = static_cast<int>(samples.size());
             int minSampleCount = std::max(Config_->MinPartitioningSampleCount, splitFactor);
             if (sampleCount < minSampleCount) {
@@ -207,13 +211,13 @@ private:
                     sampleCount);
             }
 
-            std::vector<TOwningKey> pivotKeys;
+            std::vector<TKey> pivotKeys;
             // Take the pivot of the partition.
             pivotKeys.push_back(partition->GetPivotKey());
             // And add |splitFactor - 1| more keys from samples.
             for (int i = 0; i < splitFactor - 1; ++i) {
                 int j = (i + 1) * sampleCount / splitFactor - 1;
-                const auto& key = samples[j];
+                auto key = samples[j];
                 if (key > pivotKeys.back()) {
                     pivotKeys.push_back(key);
                 }
@@ -316,16 +320,21 @@ private:
             config->SamplesPerPartition);
 
         try {
-            auto samples = GetPartitionSamples(partition, config->SamplesPerPartition);
+            auto rowBuffer = New<TRowBuffer>();
+            auto samples = GetPartitionSamples(rowBuffer, partition, config->SamplesPerPartition);
             samples.erase(
                 std::unique(samples.begin(), samples.end()),
                 samples.end());
+
+            TWireProtocolWriter writer;
+            writer.WriteUnversionedRowset(samples);
+            auto serializedSampleKeys = MergeRefs(writer.Flush());
 
             TReqUpdatePartitionSampleKeys request;
             ToProto(request.mutable_tablet_id(), tablet->GetId());
             request.set_mount_revision(tablet->GetMountRevision());
             ToProto(request.mutable_partition_id(), partition->GetId());
-            ToProto(request.mutable_sample_keys(), samples);
+            request.set_sample_keys(ToString(serializedSampleKeys));
 
             CreateMutation(hydraManager, request)
                 ->CommitAndLog(Logger);
@@ -340,14 +349,15 @@ private:
     }
 
 
-    std::vector<TOwningKey> GetPartitionSamples(
+    std::vector<TKey> GetPartitionSamples(
+        const TRowBufferPtr& rowBuffer,
         TPartition* partition,
         int maxSampleCount)
     {
         YCHECK(!partition->IsEden());
 
         if (maxSampleCount == 0) {
-            return std::vector<TOwningKey>();
+            return std::vector<TKey>();
         }
 
         auto Logger = BuildLogger(partition);
@@ -356,13 +366,14 @@ private:
 
         auto nodeDirectory = New<TNodeDirectory>();
 
-        auto fetcher = New<TSamplesFetcher>(
+        auto samplesFetcher = New<TSamplesFetcher>(
             Config_->SamplesFetcher,
             maxSampleCount,
             tablet->Schema().GetKeyColumns(),
-            std::numeric_limits<i64>::max(),
+            NTableClient::MaxSampleSize,
             nodeDirectory,
             GetCurrentInvoker(),
+            rowBuffer,
             TScrapeChunksCallback(),
             Bootstrap_->GetMasterClient(),
             Logger);
@@ -400,7 +411,7 @@ private:
             addStores(tablet->GetEden()->Stores());
 
             if (req->subrequests_size() == 0) {
-                return std::vector<TOwningKey>();
+                return std::vector<TKey>();
             }
 
             LOG_INFO("Locating partition chunks (ChunkCount: %v)",
@@ -422,7 +433,7 @@ private:
                 auto storeIt = storeMap.find(chunkId);
                 YCHECK(storeIt != storeMap.end());
                 auto store = storeIt->second;
-                fetcher->AddChunk(
+                samplesFetcher->AddChunk(
                     New<TInputChunk>(
                         chunkId,
                         NYT::FromProto<TChunkReplicaList>(subresponse.replicas()),
@@ -433,12 +444,13 @@ private:
             }
         }
 
-        WaitFor(fetcher->Fetch())
+        WaitFor(samplesFetcher->Fetch())
             .ThrowOnError();
 
-        std::vector<TOwningKey> samples;
-        for (const auto& sample : fetcher->GetSamples()) {
+        std::vector<TKey> samples;
+        for (const auto& sample : samplesFetcher->GetSamples()) {
             YCHECK(!sample.Incomplete);
+            YCHECK(sample.Weight == 1);
             samples.push_back(sample.Key);
         }
 
@@ -448,7 +460,7 @@ private:
             std::remove_if(
                 samples.begin(),
                 samples.end(),
-                [&] (const TOwningKey& key) {
+                [&] (TKey key) {
                     return key <= partition->GetPivotKey() || key >= partition->GetNextPivotKey();
                 }),
             samples.end());

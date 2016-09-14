@@ -26,7 +26,7 @@ struct TCreateJobNodeRequest
     NYson::TYsonString Attributes;
     NChunkClient::TChunkId StderrChunkId;
     NChunkClient::TChunkId FailContextChunkId;
-    TFuture<NYson::TYsonString> InputPathsFuture;
+    TFuture<TNullable<NYson::TYsonString>> InputPathsFuture;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

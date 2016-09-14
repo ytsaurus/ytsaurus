@@ -47,6 +47,8 @@ extern const TChunkListId NullChunkListId;
 typedef NObjectClient::TObjectId TChunkTreeId;
 extern const TChunkTreeId NullChunkTreeId;
 
+const int DefaultPartIndex = -1;
+
 const int MinReplicationFactor = 1;
 const int MaxReplicationFactor = 10;
 
@@ -105,8 +107,6 @@ DEFINE_ENUM(EErrorCode,
     ((ChunkUnavailable)         (716))
     ((WriteThrottlingActive)    (718))
 );
-
-////////////////////////////////////////////////////////////////////////////////
 
 //! Values must be contiguous.
 DEFINE_ENUM(ESessionType,

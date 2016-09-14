@@ -4,32 +4,53 @@
 #include "tablet.h"
 #include "config.h"
 
+#include <yt/ytlib/table_client/serialize.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/ytlib/table_client/row_buffer.h>
+
+#include <yt/ytlib/tablet_client/wire_protocol.h>
+
 #include <yt/core/misc/serialize.h>
 
 namespace NYT {
 namespace NTabletNode {
 
 using namespace NTableClient;
+using namespace NTabletClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TKeyList::Save(TSaveContext& context) const
+void TSampleKeyList::Save(TSaveContext& context) const
 {
     using NYT::Save;
-    Save(context, Keys);
+    TWireProtocolWriter writer;
+    writer.WriteUnversionedRowset(Keys);
+    Save(context, MergeRefs(writer.Flush()));
 }
 
-void TKeyList::Load(TLoadContext& context)
+void TSampleKeyList::Load(TLoadContext& context)
 {
     using NYT::Load;
-    Load(context, Keys);
+    // COMPAT(babenko)
+    if (context.GetVersion() < 16) {
+        NTableClient::TLoadContext tableContext;
+        tableContext.SetInput(context.GetInput());
+        auto rowBuffer = New<TRowBuffer>(TSampleKeyListTag());
+        tableContext.SetRowBuffer(rowBuffer);
+        auto size = TSizeSerializer::Load(context);
+        std::vector<TKey> keys;
+        keys.reserve(size);
+        for (size_t index = 0; index < size; ++index) {
+            keys.push_back(Load<TKey>(tableContext));
+        }
+        Keys = MakeSharedRange(std::move(keys), std::move(rowBuffer));
+    } else {
+        TWireProtocolReader reader(Load<TSharedRef>(context));
+        Keys = CaptureRows<TSampleKeyListTag>(reader.ReadUnversionedRowset());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-#ifndef _win_
-const int TPartition::EdenIndex;
-#endif
 
 TPartition::TPartition(
     TTablet* tablet,
@@ -42,7 +63,7 @@ TPartition::TPartition(
     , Index_(index)
     , PivotKey_(std::move(pivotKey))
     , NextPivotKey_(std::move(nextPivotKey))
-    , SampleKeys_(New<TKeyList>())
+    , SampleKeys_(New<TSampleKeyList>())
 { }
 
 void TPartition::CheckedSetState(EPartitionState oldState, EPartitionState newState)

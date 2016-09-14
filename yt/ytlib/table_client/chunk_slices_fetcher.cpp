@@ -1,4 +1,5 @@
 #include "chunk_slices_fetcher.h"
+#include "row_buffer.h"
 #include "private.h"
 
 #include <yt/ytlib/chunk_client/chunk_replica.h>
@@ -21,6 +22,7 @@ namespace NYT {
 namespace NTableClient {
 
 using namespace NConcurrency;
+using namespace NTableClient;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
@@ -40,8 +42,16 @@ TChunkSliceFetcher::TChunkSliceFetcher(
     IInvokerPtr invoker,
     TScrapeChunksCallback scraperCallback,
     NApi::INativeClientPtr client,
+    TRowBufferPtr rowBuffer,
     const NLogging::TLogger& logger)
-    : TFetcherBase(config, nodeDirectory, invoker, scraperCallback, client, logger)
+    : TFetcherBase(
+        config,
+        nodeDirectory,
+        invoker,
+        rowBuffer,
+        scraperCallback,
+        client,
+        logger)
     , ChunkSliceSize_(chunkSliceSize)
     , KeyColumns_(keyColumns)
     , SliceByKeys_(sliceByKeys)
@@ -59,9 +69,8 @@ TFuture<void> TChunkSliceFetcher::Fetch()
 std::vector<TInputSlicePtr> TChunkSliceFetcher::GetChunkSlices()
 {
     std::vector<NChunkClient::TInputSlicePtr> chunkSlices;
-
     chunkSlices.reserve(SliceCount_);
-    for (const auto& slices: SlicesByChunkIndex_) {
+    for (const auto& slices : SlicesByChunkIndex_) {
         chunkSlices.insert(chunkSlices.end(), slices.begin(), slices.end());
     }
     return chunkSlices;
@@ -105,8 +114,8 @@ TFuture<void> TChunkSliceFetcher::DoFetchFromNode(TNodeId nodeId, const std::vec
         {
             auto slice = CreateInputSlice(
                 chunk,
-                GetKeyPrefix(minKey, keyColumnCount),
-                GetKeyPrefixSuccessor(maxKey, keyColumnCount));
+                GetKeyPrefix(minKey, keyColumnCount, RowBuffer_),
+                GetKeyPrefixSuccessor(maxKey, keyColumnCount, RowBuffer_));
             if (SlicesByChunkIndex_.size() <= index) {
                 SlicesByChunkIndex_.resize(index + 1, std::vector<NChunkClient::TInputSlicePtr>());
             }
@@ -175,8 +184,8 @@ void TChunkSliceFetcher::OnResponse(
         if (SlicesByChunkIndex_.size() <= index) {
             SlicesByChunkIndex_.resize(index + 1, std::vector<NChunkClient::TInputSlicePtr>());
         }
-        for (auto& protoChunkSlice : slices.chunk_slices()) {
-            auto slice = CreateInputSlice(chunk, protoChunkSlice);
+        for (const auto& protoChunkSlice : slices.chunk_slices()) {
+            auto slice = CreateInputSlice(chunk, RowBuffer_, protoChunkSlice);
             SlicesByChunkIndex_[index].push_back(slice);
             SliceCount_++;
         }

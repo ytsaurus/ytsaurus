@@ -1169,9 +1169,11 @@ public:
             .Default(ESchedulingMode::FairShare);
 
         RegisterParameter("max_running_operation_count", MaxRunningOperationCount)
+            .Alias("max_running_operations")
             .Default();
 
         RegisterParameter("max_operation_count", MaxOperationCount)
+            .Alias("max_operations")
             .Default();
 
         RegisterParameter("fifo_sort_parameters", FifoSortParameters)
