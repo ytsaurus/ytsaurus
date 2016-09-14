@@ -25,12 +25,7 @@ void CreateSandbox()
     );
 }
 
-void PrepareInput(IClientPtr client, const TYPath& path)
-{
-    client->Remove(path, TRemoveOptions().Force(true));
-}
-
-void PrepareOutput(IClientPtr client, const TYPath& path)
+void RemoveTable(IClientPtr client, const TYPath& path)
 {
     client->Remove(path, TRemoveOptions().Force(true));
 }
@@ -60,10 +55,10 @@ void IdMapperNode()
     auto client = CreateClient(SERVER);
 
     Stroka input(PREFIX + "/input");
-    PrepareInput(client, input);
+    RemoveTable(client, input);
 
     Stroka output(PREFIX + "/output");
-    PrepareOutput(client, output);
+    RemoveTable(client, output);
 
     auto writer = client->CreateTableWriter<TNode>(input);
     for (int i = 0; i < 16; ++i) {
@@ -118,10 +113,10 @@ void IdMapperYaMR()
     auto client = CreateClient(SERVER);
 
     Stroka input(PREFIX + "/input");
-    PrepareInput(client, input);
+    RemoveTable(client, input);
 
     Stroka output(PREFIX + "/output");
-    PrepareOutput(client, output);
+    RemoveTable(client, output);
 
     auto writer = client->CreateTableWriter<TYaMRRow>(input);
     for (int i = 0; i < 16; ++i) {
@@ -179,10 +174,10 @@ void IdMapperProto()
     auto client = CreateClient(SERVER);
 
     Stroka input(PREFIX + "/input");
-    PrepareInput(client, input);
+    RemoveTable(client, input);
 
     Stroka output(PREFIX + "/output");
-    PrepareOutput(client, output);
+    RemoveTable(client, output);
 
     auto writer = client->CreateTableWriter<TSampleProto>(input);
     for (int i = 0; i < 16; ++i) {
@@ -280,7 +275,7 @@ void ManyTablesMapperNode()
     for (int i = 0; i < inputCount; ++i) {
         Stroka input = PREFIX + Sprintf("/input%d", i);
         inputs.push_back(input);
-        PrepareInput(client, input);
+        RemoveTable(client, input);
 
         auto writer = client->CreateTableWriter<TNode>(input);
         for (int j = 0; j < 16; ++j) {
@@ -299,7 +294,7 @@ void ManyTablesMapperNode()
     for (int i = 0; i < outputCount; ++i) {
         Stroka output = PREFIX + Sprintf("/output%d", i);
         outputs.push_back(output);
-        PrepareOutput(client, output);
+        RemoveTable(client, output);
 
         spec.AddOutput<TNode>(output);
     }
@@ -362,16 +357,16 @@ void JoinReducerProto()
     auto client = CreateClient(SERVER);
 
     Stroka inputLeft = PREFIX + "/input_left";
-    PrepareInput(client, inputLeft);
+    RemoveTable(client, inputLeft);
 
     Stroka inputRight = PREFIX + "/input_right";
-    PrepareInput(client, inputRight);
+    RemoveTable(client, inputRight);
 
     Stroka outputSum(PREFIX + "/output_sum");
-    PrepareOutput(client, outputSum);
+    RemoveTable(client, outputSum);
 
     Stroka outputProduct(PREFIX + "/output_product");
-    PrepareOutput(client, outputProduct);
+    RemoveTable(client, outputProduct);
 
     {
         auto path = TRichYPath(inputLeft).SortedBy("key");
@@ -432,9 +427,27 @@ void JoinReducerProto()
 void Tablets()
 {
     auto client = CreateClient(SERVER);
-    Stroka table("");
-    // table must exist and be mounted
-    // schema { a = int64; b = int64; }
+    Stroka table(PREFIX + "/tablets");
+
+    TNode schema;
+    schema.Add(TNode()("name", "a")("type", "int64")("sort_order", "ascending"));
+    schema.Add(TNode()("name", "b")("type", "int64"));
+
+    RemoveTable(client, table);
+
+    client->Create(
+        table,
+        NT_TABLE,
+        TCreateOptions()
+            .Recursive(true)
+            .IgnoreExisting(true)
+            .Attributes(TNode()
+                ("dynamic", true)
+                ("schema", schema))
+    );
+
+    client->MountTable(table);
+    Sleep(TDuration::Seconds(15)); // TODO: wait for tablet cell status
 
     { // insert
         TNode::TList rows;
@@ -482,7 +495,7 @@ void ReadMultipleRangesNode()
     auto client = CreateClient(SERVER);
 
     Stroka input(PREFIX + "/input");
-    PrepareInput(client, input);
+    RemoveTable(client, input);
 
     auto writer = client->CreateTableWriter<TNode>(
         TRichYPath(input).SortedBy("key"));
@@ -520,7 +533,7 @@ void ReadMultipleRangesYaMR()
     auto client = CreateClient(SERVER);
 
     Stroka input(PREFIX + "/input");
-    PrepareInput(client, input);
+    RemoveTable(client, input);
 
     auto writer = client->CreateTableWriter<TYaMRRow>(
         TRichYPath(input).SortedBy("key"));
