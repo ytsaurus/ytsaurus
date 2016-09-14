@@ -450,7 +450,6 @@ private:
         std::vector<TKey> samples;
         for (const auto& sample : samplesFetcher->GetSamples()) {
             YCHECK(!sample.Incomplete);
-            YCHECK(sample.Weight == 1);
             samples.push_back(sample.Key);
         }
 
