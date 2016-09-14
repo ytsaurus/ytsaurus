@@ -6,7 +6,7 @@
 #include "config.h"
 #include "sorted_dynamic_store.h"
 #include "ordered_dynamic_store.h"
-#include "replicated_sorted_store_manager.h"
+#include "replicated_store_manager.h"
 #include "in_memory_manager.h"
 #include "lookup.h"
 #include "partition.h"
@@ -2342,7 +2342,7 @@ private:
     {
         if (tablet->IsReplicated()) {
             if (tablet->TableSchema().IsSorted()) {
-                return DoCreateStoreManager<TReplicatedSortedStoreManager>(tablet);
+                return DoCreateStoreManager<TReplicatedStoreManager>(tablet);
             } else {
                 Y_UNREACHABLE();
             }

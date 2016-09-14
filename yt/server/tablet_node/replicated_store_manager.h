@@ -16,11 +16,11 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReplicatedSortedStoreManager
+class TReplicatedStoreManager
     : public ISortedStoreManager
 {
 public:
-    TReplicatedSortedStoreManager(
+    TReplicatedStoreManager(
         TTabletManagerConfigPtr config,
         TTablet* tablet,
         ITabletContext* tabletContext,
@@ -129,7 +129,7 @@ private:
 
 };
 
-DEFINE_REFCOUNTED_TYPE(TReplicatedSortedStoreManager)
+DEFINE_REFCOUNTED_TYPE(TReplicatedStoreManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
