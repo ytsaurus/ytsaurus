@@ -25,7 +25,19 @@ namespace NYT {
 TNode NodeFromYsonString(const Stroka& input, EYsonType type)
 {
     TStringInput stream(input);
+
     TNode result;
+    switch (type) {
+        case YT_LIST_FRAGMENT:
+            result = TNode::CreateList();
+            break;
+        case YT_MAP_FRAGMENT:
+            result = TNode::CreateMap();
+            break;
+        default:
+            break;
+    }
+
     TNodeBuilder builder(&result);
     TYsonParser parser(&builder, &stream, type);
     parser.Parse();
