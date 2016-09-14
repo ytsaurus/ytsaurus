@@ -79,12 +79,16 @@ def make_request(command_name, params,
 
     logger.debug("Executing command %s with parameters %s and id %s", command_name, repr(params), hex(request_id)[2:])
 
+    driver_user_name = get_config(client)["driver_user_name"]
+    if driver_user_name is not None:
+        driver_user_name = str(driver_user_name)
+
     request = Request(
         command_name=command_name,
         parameters=params,
         input_stream=input_stream,
         output_stream=output_stream,
-        user=str(get_config(client)["driver_user_name"]))
+        user=driver_user_name)
 
     if get_config(client)["enable_passing_request_id_to_driver"]:
         request.id = request_id
