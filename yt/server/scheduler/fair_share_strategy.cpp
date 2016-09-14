@@ -994,6 +994,7 @@ private:
         auto* oldParent = pool->GetParent();
         if (oldParent) {
             oldParent->IncreaseResourceUsage(-pool->GetResourceUsage());
+            IncreaseOperationCount(oldParent, -pool->RunningOperationCount());
             IncreaseRunningOperationCount(oldParent, -pool->RunningOperationCount());
             oldParent->RemoveChild(pool);
         }
@@ -1002,6 +1003,7 @@ private:
         if (parent) {
             parent->AddChild(pool);
             parent->IncreaseResourceUsage(pool->GetResourceUsage());
+            IncreaseOperationCount(parent.Get(), pool->RunningOperationCount());
             IncreaseRunningOperationCount(parent.Get(), pool->RunningOperationCount());
 
             LOG_INFO("Parent pool set (Pool: %v, Parent: %v)",
