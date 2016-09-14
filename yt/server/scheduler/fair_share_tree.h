@@ -622,17 +622,20 @@ private:
 
         TJobResources ResourceUsage;
 
-        static void SetPreemptable(TJobProperties* properties) {
+        static void SetPreemptable(TJobProperties* properties)
+        {
             properties->Preemptable = true;
             properties->AggressivelyPreemptable = true;
         }
 
-        static void SetAggressivelyPreemptable(TJobProperties* properties) {
+        static void SetAggressivelyPreemptable(TJobProperties* properties)
+        {
             properties->Preemptable = false;
             properties->AggressivelyPreemptable = true;
         }
 
-        static void SetNonPreemptable(TJobProperties* properties) {
+        static void SetNonPreemptable(TJobProperties* properties)
+        {
             properties->Preemptable = false;
             properties->AggressivelyPreemptable = false;
         }
