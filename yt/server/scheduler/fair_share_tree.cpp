@@ -108,16 +108,6 @@ double TSchedulerElementBaseSharedState::GetResourceUsageRatio(
     return GetResource(ResourceUsage_, dominantResource) / dominantResourceLimit;
 }
 
-bool TSchedulerElementBaseSharedState::GetAlive() const
-{
-    return Alive_;
-}
-
-void TSchedulerElementBaseSharedState::SetAlive(bool alive)
-{
-    Alive_ = alive;
-}
-
 ////////////////////////////////////////////////////////////////////
 
 int TSchedulerElementBase::EnumerateNodes(int startIndex)
