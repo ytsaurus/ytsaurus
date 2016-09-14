@@ -1,4 +1,4 @@
-#include "replicated_sorted_store_manager.h"
+#include "replicated_store_manager.h"
 #include "ordered_store_manager.h"
 #include "tablet.h"
 #include "private.h"
@@ -19,7 +19,7 @@ using namespace NTabletClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReplicatedSortedStoreManager::TReplicatedSortedStoreManager(
+TReplicatedStoreManager::TReplicatedStoreManager(
     TTabletManagerConfigPtr config,
     TTablet* tablet,
     ITabletContext* tabletContext,
@@ -45,32 +45,32 @@ TReplicatedSortedStoreManager::TReplicatedSortedStoreManager(
         Client_))
 { }
 
-TTablet* TReplicatedSortedStoreManager::GetTablet() const
+TTablet* TReplicatedStoreManager::GetTablet() const
 {
     return Tablet_;
 }
 
-bool TReplicatedSortedStoreManager::HasActiveLocks() const
+bool TReplicatedStoreManager::HasActiveLocks() const
 {
     return Underlying_->HasActiveLocks();
 }
 
-bool TReplicatedSortedStoreManager::HasUnflushedStores() const
+bool TReplicatedStoreManager::HasUnflushedStores() const
 {
     return Underlying_->HasUnflushedStores();
 }
 
-void TReplicatedSortedStoreManager::StartEpoch(TTabletSlotPtr slot)
+void TReplicatedStoreManager::StartEpoch(TTabletSlotPtr slot)
 {
     Underlying_->StartEpoch(std::move(slot));
 }
 
-void TReplicatedSortedStoreManager::StopEpoch()
+void TReplicatedStoreManager::StopEpoch()
 {
     Underlying_->StopEpoch();
 }
 
-void TReplicatedSortedStoreManager::ExecuteAtomicWrite(
+void TReplicatedStoreManager::ExecuteAtomicWrite(
     TTransaction* transaction,
     TWireProtocolReader* reader,
     bool prelock)
@@ -101,180 +101,180 @@ void TReplicatedSortedStoreManager::ExecuteAtomicWrite(
     }
 }
 
-void TReplicatedSortedStoreManager::ExecuteNonAtomicWrite(
+void TReplicatedStoreManager::ExecuteNonAtomicWrite(
     const TTransactionId& /*transactionId*/,
     TWireProtocolReader* /*reader*/)
 {
     THROW_ERROR_EXCEPTION("Non-atomic writes to replicated tables are not supported");
 }
 
-bool TReplicatedSortedStoreManager::IsOverflowRotationNeeded() const
+bool TReplicatedStoreManager::IsOverflowRotationNeeded() const
 {
     return Underlying_->IsOverflowRotationNeeded();
 }
 
-bool TReplicatedSortedStoreManager::IsPeriodicRotationNeeded() const
+bool TReplicatedStoreManager::IsPeriodicRotationNeeded() const
 {
     return Underlying_->IsPeriodicRotationNeeded();
 }
 
-bool TReplicatedSortedStoreManager::IsRotationPossible() const
+bool TReplicatedStoreManager::IsRotationPossible() const
 {
     return Underlying_->IsRotationPossible();
 }
 
-bool TReplicatedSortedStoreManager::IsForcedRotationPossible() const
+bool TReplicatedStoreManager::IsForcedRotationPossible() const
 {
     return Underlying_->IsForcedRotationPossible();
 }
 
-bool TReplicatedSortedStoreManager::IsRotationScheduled() const
+bool TReplicatedStoreManager::IsRotationScheduled() const
 {
     return Underlying_->IsRotationScheduled();
 }
 
-void TReplicatedSortedStoreManager::ScheduleRotation()
+void TReplicatedStoreManager::ScheduleRotation()
 {
     Underlying_->ScheduleRotation();
 }
 
-void TReplicatedSortedStoreManager::Rotate(bool createNewStore)
+void TReplicatedStoreManager::Rotate(bool createNewStore)
 {
     Underlying_->Rotate(createNewStore);
 }
 
-void TReplicatedSortedStoreManager::AddStore(IStorePtr store, bool onMount)
+void TReplicatedStoreManager::AddStore(IStorePtr store, bool onMount)
 {
     Underlying_->AddStore(std::move(store), onMount);
 }
 
-void TReplicatedSortedStoreManager::RemoveStore(IStorePtr store)
+void TReplicatedStoreManager::RemoveStore(IStorePtr store)
 {
     Underlying_->RemoveStore(std::move(store));
 }
 
-void TReplicatedSortedStoreManager::BackoffStoreRemoval(IStorePtr store)
+void TReplicatedStoreManager::BackoffStoreRemoval(IStorePtr store)
 {
     Underlying_->BackoffStoreRemoval(std::move(store));
 }
 
-bool TReplicatedSortedStoreManager::IsStoreLocked(IStorePtr store) const
+bool TReplicatedStoreManager::IsStoreLocked(IStorePtr store) const
 {
     return Underlying_->IsStoreLocked(std::move(store));
 }
 
-std::vector<IStorePtr> TReplicatedSortedStoreManager::GetLockedStores() const
+std::vector<IStorePtr> TReplicatedStoreManager::GetLockedStores() const
 {
     return Underlying_->GetLockedStores();
 }
 
-IChunkStorePtr TReplicatedSortedStoreManager::PeekStoreForPreload()
+IChunkStorePtr TReplicatedStoreManager::PeekStoreForPreload()
 {
     return NYT::NTabletNode::IChunkStorePtr();
 }
 
-void TReplicatedSortedStoreManager::BeginStorePreload(IChunkStorePtr store, TCallback<TFuture<void>()> callbackFuture)
+void TReplicatedStoreManager::BeginStorePreload(IChunkStorePtr store, TCallback<TFuture<void>()> callbackFuture)
 {
     Underlying_->BeginStorePreload(std::move(store), std::move(callbackFuture));
 }
 
-void TReplicatedSortedStoreManager::EndStorePreload(IChunkStorePtr store)
+void TReplicatedStoreManager::EndStorePreload(IChunkStorePtr store)
 {
     Underlying_->EndStorePreload(std::move(store));
 }
 
-void TReplicatedSortedStoreManager::BackoffStorePreload(IChunkStorePtr store)
+void TReplicatedStoreManager::BackoffStorePreload(IChunkStorePtr store)
 {
     Underlying_->BackoffStorePreload(std::move(store));
 }
 
-bool TReplicatedSortedStoreManager::IsStoreFlushable(IStorePtr store) const
+bool TReplicatedStoreManager::IsStoreFlushable(IStorePtr store) const
 {
     return Underlying_->IsStoreFlushable(std::move(store));
 }
 
-TStoreFlushCallback  TReplicatedSortedStoreManager::BeginStoreFlush(
+TStoreFlushCallback  TReplicatedStoreManager::BeginStoreFlush(
     IDynamicStorePtr store,
     TTabletSnapshotPtr tabletSnapshot)
 {
     return Underlying_->BeginStoreFlush(std::move(store), std::move(tabletSnapshot));
 }
 
-void TReplicatedSortedStoreManager::EndStoreFlush(IDynamicStorePtr store)
+void TReplicatedStoreManager::EndStoreFlush(IDynamicStorePtr store)
 {
     Underlying_->EndStoreFlush(std::move(store));
 }
 
-void TReplicatedSortedStoreManager::BackoffStoreFlush(IDynamicStorePtr store)
+void TReplicatedStoreManager::BackoffStoreFlush(IDynamicStorePtr store)
 {
     Underlying_->BackoffStoreFlush(std::move(store));
 }
 
-bool TReplicatedSortedStoreManager::IsStoreCompactable(IStorePtr store) const
+bool TReplicatedStoreManager::IsStoreCompactable(IStorePtr store) const
 {
     return Underlying_->IsStoreCompactable(std::move(store));
 }
 
-void TReplicatedSortedStoreManager::BeginStoreCompaction(IChunkStorePtr store)
+void TReplicatedStoreManager::BeginStoreCompaction(IChunkStorePtr store)
 {
     Underlying_->BeginStoreCompaction(std::move(store));
 }
 
-void TReplicatedSortedStoreManager::EndStoreCompaction(IChunkStorePtr store)
+void TReplicatedStoreManager::EndStoreCompaction(IChunkStorePtr store)
 {
     Underlying_->EndStoreCompaction(std::move(store));
 }
 
-void TReplicatedSortedStoreManager::BackoffStoreCompaction(IChunkStorePtr store)
+void TReplicatedStoreManager::BackoffStoreCompaction(IChunkStorePtr store)
 {
     Underlying_->BackoffStoreCompaction(std::move(store));
 }
 
-void TReplicatedSortedStoreManager::Mount(
+void TReplicatedStoreManager::Mount(
     const std::vector<NTabletNode::NProto::TAddStoreDescriptor>& storeDescriptors)
 {
     Underlying_->Mount(storeDescriptors);
 }
 
-void TReplicatedSortedStoreManager::Remount(
+void TReplicatedStoreManager::Remount(
     TTableMountConfigPtr mountConfig,
     TTabletWriterOptionsPtr writerOptions)
 {
     Underlying_->Remount(std::move(mountConfig), std::move(writerOptions));
 }
 
-ISortedStoreManagerPtr TReplicatedSortedStoreManager::AsSorted()
+ISortedStoreManagerPtr TReplicatedStoreManager::AsSorted()
 {
     return this;
 }
 
-IOrderedStoreManagerPtr TReplicatedSortedStoreManager::AsOrdered()
+IOrderedStoreManagerPtr TReplicatedStoreManager::AsOrdered()
 {
     return Underlying_;
 }
 
-bool TReplicatedSortedStoreManager::SplitPartition(
+bool TReplicatedStoreManager::SplitPartition(
     int /*partitionIndex*/,
     const std::vector<TOwningKey>& /*pivotKeys*/)
 {
     Y_UNREACHABLE();
 }
 
-void TReplicatedSortedStoreManager::MergePartitions(
+void TReplicatedStoreManager::MergePartitions(
     int /*firstPartitionIndex*/,
     int /*lastPartitionIndex*/)
 {
     Y_UNREACHABLE();
 }
 
-void TReplicatedSortedStoreManager::UpdatePartitionSampleKeys(
+void TReplicatedStoreManager::UpdatePartitionSampleKeys(
     TPartition* /*partition*/,
     const std::vector<TOwningKey>& /*keys*/)
 {
     Y_UNREACHABLE();
 }
 
-TOrderedDynamicRowRef  TReplicatedSortedStoreManager::WriteRow(
+TOrderedDynamicRowRef  TReplicatedStoreManager::WriteRow(
     TTransaction* transaction,
     TUnversionedRow row,
     bool prelock)
@@ -285,7 +285,7 @@ TOrderedDynamicRowRef  TReplicatedSortedStoreManager::WriteRow(
         prelock);
 }
 
-TOrderedDynamicRowRef TReplicatedSortedStoreManager::DeleteRow(
+TOrderedDynamicRowRef TReplicatedStoreManager::DeleteRow(
     TTransaction* transaction,
     TKey key,
     bool prelock)
@@ -296,7 +296,7 @@ TOrderedDynamicRowRef TReplicatedSortedStoreManager::DeleteRow(
         prelock);
 }
 
-TUnversionedRow TReplicatedSortedStoreManager::BuildLogRow(
+TUnversionedRow TReplicatedStoreManager::BuildLogRow(
     TUnversionedRow row,
     ERowModificationType changeType)
 {
