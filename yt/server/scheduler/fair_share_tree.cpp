@@ -635,13 +635,10 @@ void TCompositeSchedulerElement::PrescheduleJob(TFairShareContext& context, bool
         context.HasAggressivelyStarvingNodes = true;
     }
 
+    // If pool is starving, any child will do.
+    bool starvingOnlyChildren = Starving_ ? false : starvingOnly;
     for (const auto& child : EnabledChildren_) {
-        // If pool is starving, any child will do.
-        if (Starving_) {
-            child->PrescheduleJob(context, false);
-        } else {
-            child->PrescheduleJob(context, starvingOnly);
-        }
+        child->PrescheduleJob(context, starvingOnlyChildren);
     }
 
     TSchedulerElementBase::PrescheduleJob(context, starvingOnly);
@@ -969,8 +966,7 @@ ISchedulerElementPtr TCompositeSchedulerElement::GetBestActiveChildFairShare(con
     for (const auto& child : EnabledChildren_) {
         if (child->IsActive(dynamicAttributesList)) {
             double childSatisfactionRatio = dynamicAttributesList[child->GetTreeIndex()].SatisfactionRatio;
-            if (!bestChild || childSatisfactionRatio < bestChildSatisfactionRatio)
-            {
+            if (!bestChild || childSatisfactionRatio < bestChildSatisfactionRatio) {
                 bestChild = child.Get();
                 bestChildSatisfactionRatio = childSatisfactionRatio;
             }
