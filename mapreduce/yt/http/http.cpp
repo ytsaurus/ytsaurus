@@ -264,9 +264,10 @@ TYtHttpResponse::TYtHttpResponse(
     TErrorResponse errorResponse(HttpCode_, RequestId_);
 
     auto logAndSetError = [&] (const Stroka& rawError) {
-        LOG_ERROR(
-            "RSP %s - HTTP %d - %s",
-            ~RequestId_, HttpCode_, ~rawError);
+        LOG_ERROR("RSP %s - HTTP %d - %s",
+            ~RequestId_,
+            HttpCode_,
+            ~rawError);
         errorResponse.SetRawError(rawError);
     };
 
@@ -294,9 +295,10 @@ TYtHttpResponse::TYtHttpResponse(
                 httpHeaders << header.Name() << ": " << header.Value() << "; ";
             }
             httpHeaders << ")";
-            LOG_ERROR(
-                "RSP %s - HTTP %d - %s",
-                ~RequestId_, HttpCode_, ~httpHeaders.Str());
+            LOG_ERROR("RSP %s - HTTP %d - %s",
+                ~RequestId_,
+                HttpCode_,
+                ~httpHeaders.Str());
 
             if (auto parsedResponse = ParseError(HttpInput_.Headers())) {
                 errorResponse = parsedResponse.GetRef();
@@ -366,7 +368,9 @@ Stroka THttpRequest::GetRequestId() const
 
 void THttpRequest::Connect(TDuration socketTimeout)
 {
-    LOG_DEBUG("REQ %s - connect to %s", ~RequestId, ~HostName);
+    LOG_DEBUG("REQ %s - connect to %s",
+        ~RequestId,
+        ~HostName);
 
     NetworkAddress = TAddressCache::Get()->Resolve(HostName);
 
@@ -380,7 +384,8 @@ void THttpRequest::Connect(TDuration socketTimeout)
 
     Socket.Reset(new TSocket(socket.Release()));
 
-    LOG_DEBUG("REQ %s - connected", ~RequestId);
+    LOG_DEBUG("REQ %s - connected",
+        ~RequestId);
 }
 
 SOCKET THttpRequest::DoConnect()
@@ -437,11 +442,15 @@ SOCKET THttpRequest::DoConnect()
 THttpOutput* THttpRequest::StartRequest(const THttpHeader& header)
 {
     auto strHeader = header.GetHeader(HostName, RequestId);
-    LOG_DEBUG("REQ %s - %s", ~RequestId, ~header.GetUrl());
+    LOG_DEBUG("REQ %s - %s",
+        ~RequestId,
+        ~header.GetUrl());
 
     auto parameters = header.GetParameters();
     if (!parameters.Empty()) {
-        LOG_DEBUG("REQ %s - X-YT-Parameters: %s", ~RequestId, ~parameters);
+        LOG_DEBUG("REQ %s - X-YT-Parameters: %s",
+            ~RequestId,
+            ~parameters);
     }
 
     auto dataStreamFormat = header.GetDataStreamFormat();
@@ -475,7 +484,23 @@ Stroka THttpRequest::GetResponse()
     Stroka result = GetResponseStream()->ReadAll();
     if (LogResponse) {
         const size_t sizeLimit = 2 << 10;
-        LOG_DEBUG("RSP %s - %s", ~RequestId, ~result.substr(0, sizeLimit));
+        if (result.size() > sizeLimit) {
+            LOG_DEBUG("RSP %s - %s ...truncated - %" PRISZT " bytes total",
+                ~RequestId,
+                ~result.substr(0, sizeLimit),
+                result.size());
+        } else if (result) {
+            LOG_DEBUG("RSP %s - %s",
+                ~RequestId,
+                ~result);
+        } else {
+            LOG_DEBUG("RSP %s - ",
+                ~RequestId);
+        }
+    } else {
+        LOG_INFO("RSP %s - %" PRISZT " bytes",
+            ~RequestId,
+            result.size());
     }
     return result;
 }
