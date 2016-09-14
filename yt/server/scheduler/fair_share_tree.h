@@ -90,7 +90,7 @@ struct ISchedulerElement
     virtual TSchedulableAttributes& Attributes() = 0;
     virtual void UpdateAttributes() = 0;
 
-    virtual TNullable<Stroka> GetNodeTag() const = 0;
+    virtual const TNullable<Stroka>& GetNodeTag() const = 0;
 
     virtual bool IsActive(const TDynamicAttributesList& dynamicAttributesList) const = 0;
 
@@ -234,7 +234,7 @@ public:
     virtual TSchedulableAttributes& Attributes() override;
     virtual void UpdateAttributes() override;
 
-    virtual TNullable<Stroka> GetNodeTag() const override;
+    virtual const TNullable<Stroka>& GetNodeTag() const override;
 
     virtual bool IsActive(const TDynamicAttributesList& dynamicAttributesList) const override;
 
@@ -265,6 +265,8 @@ protected:
     const TFairShareStrategyConfigPtr StrategyConfig_;
 
     TSchedulerElementBaseSharedStatePtr SharedState_;
+
+    static const TNullable<Stroka> NullNodeTag;
 
     TSchedulerElementBase(ISchedulerStrategyHost* host, TFairShareStrategyConfigPtr strategyConfig);
     TSchedulerElementBase(const TSchedulerElementBase& other);
@@ -421,7 +423,7 @@ public:
     virtual void SetStarving(bool starving) override;
     virtual void CheckForStarvation(TInstant now) override;
 
-    virtual TNullable<Stroka> GetNodeTag() const override;
+    virtual const TNullable<Stroka>& GetNodeTag() const override;
 
     virtual void UpdateBottomUp(TDynamicAttributesList& dynamicAttributesList) override;
 
@@ -683,7 +685,7 @@ public:
     virtual TJobResources GetMinShareResources() const override;
     virtual double GetMaxShareRatio() const override;
 
-    virtual TNullable<Stroka> GetNodeTag() const override;
+    virtual const TNullable<Stroka>& GetNodeTag() const override;
 
     virtual ESchedulableStatus GetStatus() const override;
 
@@ -754,7 +756,7 @@ public:
 
     virtual bool IsRoot() const override;
 
-    virtual TNullable<Stroka> GetNodeTag() const override;
+    virtual const TNullable<Stroka>& GetNodeTag() const override;
 
     virtual Stroka GetId() const override;
 
