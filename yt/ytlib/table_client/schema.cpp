@@ -386,7 +386,6 @@ TTableSchema TTableSchema::ToUniqueKeys() const
     return TTableSchema(Columns_, Strict_, true);
 }
 
-<<<<<<< 8244c18316e5d22aebc7082a43a4d521933fb8b4
 TTableSchema TTableSchema::ToStrippedColumnAttributes() const
 {
     std::vector<TColumnSchema> strippedColumns;

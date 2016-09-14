@@ -40,7 +40,7 @@ public:
         , DirectoryClient_(directoryConnection->CreateClient(TClientOptions(NSecurityClient::RootUserName)))
         , ClusterDirectory_(clusterDirectory)
         , SyncExecutor_(New<TPeriodicExecutor>(
-            NRpc::TDispatcher::Get()->GetInvoker(),
+            NRpc::TDispatcher::Get()->GetLightInvoker(),
             BIND(&TImpl::OnSync, MakeWeak(this)),
             Config_->SyncPeriod))
     { }
@@ -58,7 +58,7 @@ public:
     TFuture<void> Sync()
     {
         return BIND(&TImpl::DoSync, MakeStrong(this))
-            .AsyncVia(NRpc::TDispatcher::Get()->GetInvoker())
+            .AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker())
             .Run();
     }
 
