@@ -110,6 +110,8 @@ double TSchedulerElementBaseSharedState::GetResourceUsageRatio(
 
 ////////////////////////////////////////////////////////////////////
 
+const TNullable<Stroka> TSchedulerElementBase::NullNodeTag;
+
 int TSchedulerElementBase::EnumerateNodes(int startIndex)
 {
     YCHECK(!Cloned_);
@@ -213,9 +215,9 @@ void TSchedulerElementBase::UpdateAttributes()
     }
 }
 
-TNullable<Stroka> TSchedulerElementBase::GetNodeTag() const
+const TNullable<Stroka>& TSchedulerElementBase::GetNodeTag() const
 {
-    return Null;
+    return NullNodeTag;
 }
 
 bool TSchedulerElementBase::IsActive(const TDynamicAttributesList& dynamicAttributesList) const
@@ -1160,7 +1162,7 @@ void TPool::CheckForStarvation(TInstant now)
         now);
 }
 
-TNullable<Stroka> TPool::GetNodeTag() const
+const TNullable<Stroka>& TPool::GetNodeTag() const
 {
     return Config_->SchedulingTag;
 }
@@ -1716,7 +1718,7 @@ double TOperationElement::GetMaxShareRatio() const
     return Spec_->MaxShareRatio;
 }
 
-TNullable<Stroka> TOperationElement::GetNodeTag() const
+const TNullable<Stroka>& TOperationElement::GetNodeTag() const
 {
     return Spec_->SchedulingTag;
 }
@@ -2020,9 +2022,9 @@ bool TRootElement::IsRoot() const
     return true;
 }
 
-TNullable<Stroka> TRootElement::GetNodeTag() const
+const TNullable<Stroka>& TRootElement::GetNodeTag() const
 {
-    return Null;
+    return NullNodeTag;
 }
 
 Stroka TRootElement::GetId() const
