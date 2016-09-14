@@ -485,17 +485,14 @@ Stroka THttpRequest::GetResponse()
     if (LogResponse) {
         const size_t sizeLimit = 2 << 10;
         if (result.size() > sizeLimit) {
-            LOG_DEBUG("RSP %s - %s ...truncated - %" PRISZT " bytes total",
+            LOG_DEBUG("RSP %s - %s...truncated - %" PRISZT " bytes total",
                 ~RequestId,
                 ~result.substr(0, sizeLimit),
                 result.size());
-        } else if (result) {
+        } else {
             LOG_DEBUG("RSP %s - %s",
                 ~RequestId,
                 ~result);
-        } else {
-            LOG_DEBUG("RSP %s - ",
-                ~RequestId);
         }
     } else {
         LOG_INFO("RSP %s - %" PRISZT " bytes",
