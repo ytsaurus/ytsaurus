@@ -55,6 +55,9 @@ private:
     bool RowTaken_ = false;
 };
 
+// Sometime useful outside mapreduce/yt
+void ReadMessageFromNode(const TNode& node, Message* row);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
