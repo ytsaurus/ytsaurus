@@ -173,9 +173,9 @@ IChunkStorePtr TReplicatedSortedStoreManager::PeekStoreForPreload()
     return NYT::NTabletNode::IChunkStorePtr();
 }
 
-void TReplicatedSortedStoreManager::BeginStorePreload(IChunkStorePtr store, TFuture<void> future)
+void TReplicatedSortedStoreManager::BeginStorePreload(IChunkStorePtr store, TCallback<TFuture<void>()> callbackFuture)
 {
-    Underlying_->BeginStorePreload(std::move(store), std::move(future));
+    Underlying_->BeginStorePreload(std::move(store), std::move(callbackFuture));
 }
 
 void TReplicatedSortedStoreManager::EndStorePreload(IChunkStorePtr store)

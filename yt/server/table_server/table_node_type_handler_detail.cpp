@@ -106,7 +106,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
 
         if (maybeSchema) {
             node->TableSchema() = *maybeSchema;
-            node->SetSchemaMode(ESchemaMode::Strong);
+            node->SetSchemaMode(ETableSchemaMode::Strong);
         }
 
         if (dynamic) {

@@ -98,7 +98,7 @@ public:
             Logger))
         , RandomGenerator_(RandomNumber<ui64>())
         , SamplingThreshold_(static_cast<ui64>(std::numeric_limits<ui64>::max() * Config_->SampleRate))
-    { Ъ
+    { }
 
     virtual TFuture<void> Open() override
     {

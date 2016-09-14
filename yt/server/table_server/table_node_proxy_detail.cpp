@@ -299,7 +299,7 @@ void TTableNodeProxy::AlterTable(
 
     if (newSchema) {
         table->TableSchema() = std::move(schema);
-        table->SetSchemaMode(ESchemaMode::Strong);
+        table->SetSchemaMode(ETableSchemaMode::Strong);
     }
 
     if (newDynamic) {
