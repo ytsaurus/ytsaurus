@@ -109,6 +109,10 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/formats/json_parser.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/json_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/parser.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/protobuf.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/protobuf_extension.proto
+  ${CMAKE_CURRENT_LIST_DIR}/formats/protobuf_parser.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/protobuf_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/schemaful_dsv_parser.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/schemaful_dsv_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/schemaful_writer.cpp

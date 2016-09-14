@@ -61,6 +61,17 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(ECodec, i8,
     ((Zstd_20)                   (45))
     ((Zstd_21)                   (46))
 
+    ((Lzma_0)                    (47))
+    ((Lzma_1)                    (48))
+    ((Lzma_2)                    (49))
+    ((Lzma_3)                    (50))
+    ((Lzma_4)                    (51))
+    ((Lzma_5)                    (52))
+    ((Lzma_6)                    (53))
+    ((Lzma_7)                    (54))
+    ((Lzma_8)                    (55))
+    ((Lzma_9)                    (56))
+
     // Deprecated
     ((Zlib6)                      (2))
     ((GzipNormal)                 (2))

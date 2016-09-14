@@ -255,6 +255,13 @@ class TestSchedulerOther(YTEnvSetup):
         assert get("//sys/operations/{0}/@pool".format(op.id)) == "root"
         assert get("//sys/operations/{0}/@brief_spec/pool".format(op.id)) == "root"
 
+    def test_operation_events_attribute(self):
+        self._prepare_tables()
+
+        op = map(in_="//tmp/t_in", out="//tmp/t_out", command="cat")
+        events = get("//sys/operations/{0}/@events".format(op.id))
+        assert ["initializing", "preparing", "pending", "materializing", "running", "completing", "completed"] == [event["state"] for event in events]
+
 
 class TestSchedulerRevive(YTEnvSetup):
     NUM_MASTERS = 3
@@ -1413,7 +1420,34 @@ class TestSchedulerJobStatistics(YTEnvSetup):
         create("table", table)
         set(table + "/@replication_factor", 1)
 
-    @pytest.mark.xfail
+    def test_scheduler_job_by_id(self):
+        self._create_table("//tmp/in")
+        self._create_table("//tmp/out")
+        write_table("//tmp/in", [{"foo": i} for i in xrange(10)])
+        op = map(
+            dont_track=True,
+            waiting_jobs=True,
+            label="scheduler_job_statistics",
+            in_="//tmp/in",
+            out="//tmp/out",
+            command="cat")
+
+        running_jobs = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
+        job_id = running_jobs.keys()[0]
+        job_info = running_jobs.values()[0]
+
+        # Check that /job_by_id is accessible only with direct job id.
+        with pytest.raises(YtError):
+            get("//sys/scheduler/orchid/scheduler/job_by_id")
+        with pytest.raises(YtError):
+            ls("//sys/scheduler/orchid/scheduler/job_by_id")
+
+        job_info2 = get("//sys/scheduler/orchid/scheduler/job_by_id/{0}".format(job_id))
+        # Check that job_info2 contains all the keys that are in job_info (do not check the same
+        # for values because values could actually change between two get requests).
+        for key in job_info:
+            assert key in job_info2
+
     def test_scheduler_job_statistics(self):
         self._create_table("//tmp/in")
         self._create_table("//tmp/out")
@@ -1431,9 +1465,8 @@ class TestSchedulerJobStatistics(YTEnvSetup):
         job_id = running_jobs.keys()[0]
 
         statistics_appeared = False
-        for iter in xrange(10):
-            attributes = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}".format(op.id, job_id))
-            statistics = attributes.get("statistics", {})
+        for iter in xrange(30):
+            statistics = get("//sys/scheduler/orchid/scheduler/job_by_id/{0}/statistics".format(job_id))
             data = statistics.get("data", {})
             _input = data.get("input", {})
             row_count = _input.get("row_count", {})

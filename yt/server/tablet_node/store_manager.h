@@ -114,7 +114,7 @@ struct ISortedStoreManager
         int lastPartitionIndex) = 0;
     virtual void UpdatePartitionSampleKeys(
         TPartition* partition,
-        const std::vector<TOwningKey>& keys) = 0;
+        const TSharedRange<TKey>& keys) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISortedStoreManager)

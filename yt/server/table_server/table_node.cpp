@@ -19,7 +19,6 @@ namespace NYT {
 namespace NTableServer {
 
 using namespace NTableClient;
-using namespace NCellMaster;
 using namespace NCypressServer;
 using namespace NYTree;
 using namespace NYson;
@@ -85,7 +84,7 @@ ETabletState TTableNode::GetTabletState() const
     return result;
 }
 
-void TTableNode::Save(TSaveContext& context) const
+void TTableNode::Save(NCellMaster::TSaveContext& context) const
 {
     TChunkOwnerBase::Save(context);
 
@@ -98,7 +97,7 @@ void TTableNode::Save(TSaveContext& context) const
     Save(context, LastCommitTimestamp_);
 }
 
-void TTableNode::Load(TLoadContext& context)
+void TTableNode::Load(NCellMaster::TLoadContext& context)
 {
     // Brief history of changes.
     // In 205 we removed KeyColumns from the snapshot and introduced TableSchema.
@@ -255,7 +254,7 @@ class TTableNodeTypeHandler
 public:
     typedef TChunkOwnerTypeHandler<TTableNode> TBase;
 
-    explicit TTableNodeTypeHandler(TBootstrap* bootstrap)
+    explicit TTableNodeTypeHandler(NCellMaster::TBootstrap* bootstrap)
         : TBase(bootstrap)
     { }
 
@@ -413,7 +412,7 @@ protected:
     }
 };
 
-INodeTypeHandlerPtr CreateTableTypeHandler(TBootstrap* bootstrap)
+INodeTypeHandlerPtr CreateTableTypeHandler(NCellMaster::TBootstrap* bootstrap)
 {
     return New<TTableNodeTypeHandler>(bootstrap);
 }

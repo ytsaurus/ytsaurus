@@ -24,7 +24,7 @@ using NChunkClient::NProto::TMiscExt;
 
 ////////////////////////////////////////////////////////////////////
 
-void TChunkStripeStatistics::Persist(TPersistenceContext& context)
+void TChunkStripeStatistics::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, ChunkCount);
@@ -94,7 +94,7 @@ TChunkStripeStatistics TChunkStripe::GetStatistics() const
     return result;
 }
 
-void TChunkStripe::Persist(TPersistenceContext& context)
+void TChunkStripe::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, ChunkSlices);
@@ -161,7 +161,7 @@ TChunkStripeStatistics TChunkStripeList::GetAggregateStatistics() const
     return result;
 }
 
-void TChunkStripeList::Persist(TPersistenceContext& context)
+void TChunkStripeList::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Stripes);
@@ -189,7 +189,7 @@ public:
 
     // IPersistent implementation.
 
-    virtual void Persist(TPersistenceContext& context) override
+    virtual void Persist(const TPersistenceContext& context) override
     {
         using NYT::Persist;
         Persist(context, Finished);
@@ -251,7 +251,7 @@ public:
         Stripe = stripe;
     }
 
-    void Persist(TPersistenceContext& context)
+    void Persist(const TPersistenceContext& context)
     {
         using NYT::Persist;
         Persist(context, ExtractedCookie_);
@@ -307,7 +307,7 @@ public:
 
     // IPersistent implementation.
 
-    virtual void Persist(TPersistenceContext& context) override
+    virtual void Persist(const TPersistenceContext& context) override
     {
         using NYT::Persist;
         Persist(context, DataSizeCounter);
@@ -508,7 +508,7 @@ public:
 
     // IPersistent implementation.
 
-    virtual void Persist(TPersistenceContext& context) override
+    virtual void Persist(const TPersistenceContext& context) override
     {
         TChunkPoolInputBase::Persist(context);
         TChunkPoolOutputBase::Persist(context);
@@ -872,7 +872,7 @@ public:
 
     // IPersistent implementation.
 
-    virtual void Persist(TPersistenceContext& context) override
+    virtual void Persist(const TPersistenceContext& context) override
     {
         TChunkPoolInputBase::Persist(context);
         TChunkPoolOutputBase::Persist(context);
@@ -919,7 +919,7 @@ private:
         //! Indexes in #Stripes.
         yhash_set<int> StripeIndexes;
 
-        void Persist(TPersistenceContext& context)
+        void Persist(const TPersistenceContext& context)
         {
             using NYT::Persist;
             Persist(context, Locality);
@@ -937,7 +937,7 @@ private:
         std::vector<int> StripeIndexes;
         TChunkStripeListPtr StripeList;
 
-        void Persist(TPersistenceContext& context)
+        void Persist(const TPersistenceContext& context)
         {
             using NYT::Persist;
             Persist(context, UnavailableStripeCount);
@@ -1244,7 +1244,7 @@ public:
 
     // IPersistent implementation.
 
-    virtual void Persist(TPersistenceContext& context) override
+    virtual void Persist(const TPersistenceContext& context) override
     {
         TChunkPoolInputBase::Persist(context);
 
@@ -1488,7 +1488,7 @@ private:
 
         // IPersistent implementation.
 
-        virtual void Persist(TPersistenceContext& context) override
+        virtual void Persist(const TPersistenceContext& context) override
         {
             TChunkPoolOutputBase::Persist(context);
 
@@ -1517,7 +1517,7 @@ private:
             ERunState State = ERunState::Initializing;
             bool IsApproximate = false;
 
-            void Persist(TPersistenceContext& context)
+            void Persist(const TPersistenceContext& context)
             {
                 using NYT::Persist;
                 Persist(context, ElementaryIndexBegin);
@@ -1593,7 +1593,7 @@ private:
         int ElementaryIndexBegin;
         int ElementaryIndexEnd;
 
-        void Persist(TPersistenceContext& context)
+        void Persist(const TPersistenceContext& context)
         {
             using NYT::Persist;
             Persist(context, ElementaryIndexBegin);

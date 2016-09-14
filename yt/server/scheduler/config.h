@@ -280,6 +280,7 @@ class TSortOperationOptionsBase
 {
 public:
     int MaxPartitionJobCount;
+    int MaxPartitionCount;
     i64 SortJobMaxSliceDataSize;
     i64 PartitionJobMaxSliceDataSize;
     i32 MaxSampleSize;
@@ -291,6 +292,10 @@ public:
     {
         RegisterParameter("max_partition_job_count", MaxPartitionJobCount)
             .Default(100000)
+            .GreaterThan(0);
+
+        RegisterParameter("max_partition_count", MaxPartitionCount)
+            .Default(10000)
             .GreaterThan(0);
 
         RegisterParameter("partition_job_max_slice_data_size", PartitionJobMaxSliceDataSize)

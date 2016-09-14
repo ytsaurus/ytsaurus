@@ -646,13 +646,13 @@ private:
             return std::make_pair(0, 1);
         }
 
-        auto findStartSample = [&] (const std::vector<TOwningKey>& sampleKeys) {
+        auto findStartSample = [&] (const TSharedRange<TKey>& sampleKeys) {
             return std::upper_bound(
                 sampleKeys.begin(),
                 sampleKeys.end(),
                 lowerBound);
         };
-        auto findEndSample = [&] (const std::vector<TOwningKey>& sampleKeys) {
+        auto findEndSample = [&] (const TSharedRange<TKey>& sampleKeys) {
             return std::lower_bound(
                 sampleKeys.begin(),
                 sampleKeys.end(),
@@ -683,7 +683,7 @@ private:
         for (auto partitionIt = startPartitionIt; partitionIt != endPartitionIt; ++partitionIt) {
             const auto& partition = *partitionIt;
             const auto& sampleKeys = partition->SampleKeys->Keys;
-            auto startSampleIt = partitionIt == startPartitionIt && !sampleKeys.empty()
+            auto startSampleIt = partitionIt == startPartitionIt && !sampleKeys.Empty()
                 ? findStartSample(sampleKeys)
                 : sampleKeys.begin();
             auto endSampleIt = partitionIt + 1 == endPartitionIt
@@ -709,13 +709,13 @@ private:
             return {TOwningKey(lowerBound)};
         }
 
-        auto findStartSample = [&] (const std::vector<TOwningKey>& sampleKeys) {
+        auto findStartSample = [&] (const TSharedRange<TKey>& sampleKeys) {
             return std::upper_bound(
                 sampleKeys.begin(),
                 sampleKeys.end(),
                 lowerBound);
         };
-        auto findEndSample = [&] (const std::vector<TOwningKey>& sampleKeys) {
+        auto findEndSample = [&] (const TSharedRange<TKey>& sampleKeys) {
             return std::lower_bound(
                 sampleKeys.begin(),
                 sampleKeys.end(),
@@ -751,7 +751,7 @@ private:
         for (auto partitionIt = startPartitionIt; partitionIt != endPartitionIt; ++partitionIt) {
             const auto& partition = *partitionIt;
             const auto& sampleKeys = partition->SampleKeys->Keys;
-            auto startSampleIt = partitionIt == startPartitionIt && !sampleKeys.empty()
+            auto startSampleIt = partitionIt == startPartitionIt && !sampleKeys.Empty()
                 ? findStartSample(sampleKeys)
                 : sampleKeys.begin();
             auto endSampleIt = partitionIt == endPartitionIt - 1
@@ -768,7 +768,7 @@ private:
                 if (currentSampleCount == nextSampleCount) {
                     ++nextSampleIndex;
                     nextSampleCount = nextSampleIndex * totalSampleCount / cappedSampleCount;
-                    result.push_back(*sampleIt);
+                    result.push_back(TOwningKey(*sampleIt));
                 }
                 int samplesLeft = static_cast<int>(std::distance(sampleIt, endSampleIt));
                 int step = std::min(samplesLeft, nextSampleCount - currentSampleCount);

@@ -254,6 +254,10 @@ DECLARE_REFCOUNTED_STRUCT(IChunkLookupHashTable)
 
 struct TBoundaryKeys;
 
+class TSaveContext;
+class TLoadContext;
+using TPersistenceContext = TCustomPersistenceContext<TSaveContext, TLoadContext>;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient

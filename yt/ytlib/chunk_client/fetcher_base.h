@@ -38,6 +38,7 @@ public:
         TFetcherConfigPtr config,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         IInvokerPtr invoker,
+        NTableClient::TRowBufferPtr rowBuffer,
         TScrapeChunksCallback scraperCallback,
         NApi::INativeClientPtr client, // TODO(sandello): This is redundant; IConnection is sufficient.
         const NLogging::TLogger& logger);
@@ -49,6 +50,7 @@ protected:
     const TFetcherConfigPtr Config_;
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
     const IInvokerPtr Invoker_;
+    NTableClient::TRowBufferPtr RowBuffer_;
 
     //! All chunks for which info is to be fetched.
     std::vector<TInputChunkPtr> Chunks_;
