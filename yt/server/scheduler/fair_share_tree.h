@@ -777,3 +777,7 @@ private:
 
 } // namespace NScheduler
 } // namespace NYT
+
+#define FAIR_SHARE_TREE_INL_H_
+#include "fair_share_tree-inl.h"
+#undef FAIR_SHARE_TREE_INL_H_
