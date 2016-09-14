@@ -296,6 +296,8 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
         require(file_paths is None, lambda: YtError("You cannot specify yt_files and file_paths simultaneously"))
         file_paths = yt_files
 
+    file_paths = flatten(get_value(file_paths, []))
+
     files = _reliably_upload_files(files, client=client)
     input_format, output_format = _prepare_formats(format, input_format, output_format, binary=binary, client=client)
 
@@ -325,7 +327,7 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
                 "output_format": output_format.to_yson_type(),
                 "command": binary,
                 "file_paths":
-                    flatten(files + additional_files + map(lambda path: prepare_path(path, client=client), get_value(file_paths, []))),
+                    flatten(files + additional_files + map(lambda path: prepare_path(path, client=client), file_paths)),
                 "use_yamr_descriptors": bool_to_string(get_config(client)["yamr_mode"]["use_yamr_style_destination_fds"]),
                 "check_input_fully_consumed": bool_to_string(get_config(client)["yamr_mode"]["check_input_fully_consumed"])
             }
