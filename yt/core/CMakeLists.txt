@@ -26,6 +26,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/codegen/routine_registry.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/compression/brotli.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/compression/brotli_stream.cpp
   ${CMAKE_CURRENT_LIST_DIR}/compression/codec.cpp
   ${CMAKE_CURRENT_LIST_DIR}/compression/details.cpp
   ${CMAKE_CURRENT_LIST_DIR}/compression/helpers.cpp
