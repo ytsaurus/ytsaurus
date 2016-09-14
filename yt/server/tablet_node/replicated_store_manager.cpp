@@ -269,7 +269,7 @@ void TReplicatedStoreManager::MergePartitions(
 
 void TReplicatedStoreManager::UpdatePartitionSampleKeys(
     TPartition* /*partition*/,
-    const std::vector<TOwningKey>& /*keys*/)
+    const TSharedRange<TKey>& /*keys*/)
 {
     Y_UNREACHABLE();
 }
