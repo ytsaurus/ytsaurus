@@ -99,7 +99,7 @@ public:
         int lastPartitionIndex) override;
     virtual void UpdatePartitionSampleKeys(
         TPartition* partition,
-        const std::vector<TOwningKey>& keys) override;
+        const TSharedRange<TKey>& keys) override;
 
 
     TOrderedDynamicRowRef WriteRow(
