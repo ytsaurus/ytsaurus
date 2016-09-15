@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from .helpers import record_to_line, line_to_record, python_map, Record
+from helpers import record_to_line, line_to_record, python_map, Record
 
 from time import sleep
 import sys

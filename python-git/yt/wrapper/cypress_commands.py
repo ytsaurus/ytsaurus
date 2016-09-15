@@ -120,7 +120,7 @@ def concatenate(source_paths, destination_path, client=None):
     :param source_path: (string or `yt.wrapper.YPath`)
     :param destination_path: (string or `yt.wrapper.YPath`)
     """
-    source_paths = list(imap(lambda path: YPath(path, client=client), source_paths))
+    source_paths = builtins.list(imap(lambda path: YPath(path, client=client), source_paths))
     destination_path = YPath(destination_path, client=client)
     if not source_paths:
         raise YtError("Source paths must be non-empty")
@@ -186,7 +186,7 @@ def list(path, max_size=1000, format=None, absolute=None, attributes=None, clien
         format=format,
         client=client)
     if absolute and format is None:
-        result = list(imap(join, result))
+        result = builtins.list(imap(join, result))
     return result
 
 def exists(path, client=None):
