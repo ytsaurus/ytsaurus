@@ -395,7 +395,7 @@ class YsonFormat(Format):
                         self._increment_row_index = True
                         return row
 
-                raise StopIteration
+                raise StopIteration()
 
             def __iter__(self):
                 return self

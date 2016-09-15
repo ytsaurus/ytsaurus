@@ -454,7 +454,7 @@ class Operation(object):
             finalize(state)
             if timeout_occurred:
                 logger.info("Timeout occurred.")
-                raise YtTimeoutError
+                raise YtTimeoutError()
 
         if check_result and state.is_unsuccessfully_finished():
             raise _create_operation_failed_error(self, state)

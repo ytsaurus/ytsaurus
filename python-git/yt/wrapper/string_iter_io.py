@@ -80,7 +80,7 @@ class StringIterIO(object):
         """ Get the next line from stream. """
         res = self.readline()
         if not res:
-            raise StopIteration
+            raise StopIteration()
         return res
 
     def __iter__(self):

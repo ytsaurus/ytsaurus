@@ -7,6 +7,7 @@ import yt.logger as logger
 
 import yt.packages.requests as requests
 import yt.packages.simplejson as json
+from yt.packages.six import reraise
 
 import sys
 import time
@@ -90,7 +91,7 @@ class Poller(object):
             self._thread.join(1.0)
 
         if self.exc_info is not None:
-            raise self.exc_info[0], self.exc_info[1], self.exc_info[2]
+            reraise(*self.exc_info)
 
         aborted_task_count, failed_task_count = self._queue.get()["value"]
         return aborted_task_count, failed_task_count
@@ -98,7 +99,7 @@ class Poller(object):
     def acquire_task_slot(self):
         while not self._semaphore.acquire(False):
             if self.exc_info is not None:
-                raise self.exc_info[0], self.exc_info[1], self.exc_info[2]
+                reraise(*self.exc_info)
             time.sleep(0.5)
 
     def notify_task_started(self, task_id):

@@ -9,6 +9,8 @@ import yt.logger as logger
 import yt.yson as yson
 import yt.json as json
 
+from yt.packages.six import reraise
+
 import os
 import sys
 import random
@@ -180,7 +182,7 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
                         # See YT-4053.
                         rsp = create_response(error.response, request_info, client)
                     except:
-                        raise exc_info[0], exc_info[1], exc_info[2]
+                        reraise(*exc_info)
                     raise_for_status(rsp, request_info)
                 raise
 
