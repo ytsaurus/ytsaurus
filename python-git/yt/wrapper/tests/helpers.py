@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 from yt.packages.six import iteritems, integer_types
+from yt.packages.six.moves import map as imap
 
 import yt.yson as yson
 import yt.wrapper as yt
@@ -46,7 +47,6 @@ def check(rowsA, rowsB, ordered=True):
     def prepare(rows):
         def fix_unicode(obj):
             if isinstance(obj, unicode):
-                #print >>sys.stderr, obj, str(obj)
                 return str(obj)
             return obj
         def process_row(row):
@@ -54,9 +54,9 @@ def check(rowsA, rowsB, ordered=True):
                 return dict([(fix_unicode(key), fix_unicode(value)) for key, value in iteritems(row)])
             return row
 
-        rows = map(process_row, rows)
+        rows = list(imap(process_row, rows))
         if not ordered:
-            rows = tuple(sorted(map(lambda obj: tuple(sorted(obj.items())), rows)))
+            rows = tuple(sorted(imap(lambda obj: tuple(sorted(iteritems(obj))), rows)))
 
         return rows
 

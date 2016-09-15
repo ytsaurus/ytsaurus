@@ -10,6 +10,8 @@ from yt.common import YtError, get_value
 import yt.json as json
 import yt.logger as logger
 
+from yt.packages.six.moves import map as imap
+
 import argparse
 import logging
 from functools import partial
@@ -124,7 +126,7 @@ def get_tasks_func(**kwargs):
         safe_get = lambda task, field: task.get(field, "")
 
         for task in tasks:
-            info = map(partial(safe_get, task), fields)
+            info = list(imap(partial(safe_get, task), fields))
             print("task {0}: {1} ({2}) -> {3} ({4})\tuser: {5}\tstate: {6}".format(*info))
 
 def add_get_tasks_subparser(subparsers):

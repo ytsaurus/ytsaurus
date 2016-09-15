@@ -8,7 +8,7 @@ from yt.wrapper import Record, dumps_row, TablePath
 from yt.common import flatten, makedirp
 import yt.yson as yson
 
-from yt.packages.six.moves import xrange
+from yt.packages.six.moves import xrange, map as imap, zip as izip
 
 import yt.wrapper as yt
 
@@ -16,13 +16,13 @@ import pytest
 
 import os
 import string
-from itertools import imap, izip, starmap
+from itertools import starmap
 
 @pytest.mark.usefixtures("yt_env_for_yamr")
 class TestYamrMode(object):
     def get_temp_records(self):
         columns = [string.digits, reversed(string.ascii_lowercase[:10]), string.ascii_uppercase[:10]]
-        return map(dumps_row, starmap(Record, imap(flatten, reduce(izip, columns))))
+        return list(imap(dumps_row, starmap(Record, imap(flatten, reduce(izip, columns)))))
 
     def test_get_smart_format(self):
         from yt.wrapper.table_commands import _get_format_from_tables as get_format
@@ -208,7 +208,7 @@ class TestYamrMode(object):
         yt.write_table(table, ["0\ta\tA\n", "1\tb\tB\n", "2\tc\tC\n"])
         yt.run_map("PYTHONPATH=. ./my_op.py",
                    table, other_table,
-                   files=map(get_test_file_path, ["my_op.py", "helpers.py"]))
+                   files=list(imap(get_test_file_path, ["my_op.py", "helpers.py"])))
         assert yt.row_count(other_table) == 2 * yt.row_count(table)
 
         test_run_operations_dir = os.path.join(TESTS_SANDBOX, "test_run_operations")
@@ -270,7 +270,7 @@ class TestYamrMode(object):
         yt.write_table(table, ["1\t2\t3\n"])
         yt.run_map("PYTHONPATH=. ./my_op.py",
                    [table, other_table], another_table,
-                   files=map(get_test_file_path, ["my_op.py", "helpers.py"]))
+                   files=list(imap(get_test_file_path, ["my_op.py", "helpers.py"])))
         assert not yt.exists(other_table)
 
     def test_reduce_unexisting_tables(self):

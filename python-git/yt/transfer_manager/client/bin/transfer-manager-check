@@ -3,12 +3,13 @@
 from yt.wrapper.cli_helpers import run_main
 from yt.wrapper.client import Yt
 from yt.wrapper.http_helpers import get_token
-from yt.common import YtError, get_value, remove_file
+from yt.common import YtError, remove_file
 from yt.tools.yamr import Yamr
 from yt.transfer_manager.client import TransferManager
 import yt.json as json
 
 from yt.packages.six import itervalues, iteritems
+from yt.packages.six.moves import map as imap
 
 import yt.wrapper as yt
 
@@ -201,7 +202,7 @@ def parse_arguments():
     def parse_direction(arg):
         if "~>" not in arg:
             raise argparse.ArgumentTypeError('"~>" symbol is expected in direction')
-        src, dst = map(lambda s: s.strip(), arg.split("~>"))
+        src, dst = list(imap(lambda s: s.strip(), arg.split("~>")))
         if not src and not dst:
             raise argparse.ArgumentTypeError(
                 'Direction is expected to have at least one cluster name and cannot be only "~>"')

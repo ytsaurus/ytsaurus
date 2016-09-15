@@ -8,7 +8,7 @@ import yt.yson as yson
 import yt.json as json
 import yt.logger as logger
 
-from yt.packages.six.moves import xrange
+from yt.packages.six.moves import xrange, map as imap
 
 import yt.wrapper as yt
 
@@ -57,7 +57,7 @@ class Kiwi(object):
     def get_write_command(self, kiwi_user, kwworm_options=None):
         if kwworm_options is None:
             kwworm_options = []
-        command = "./kwworm " + " ".join(map(self._option_to_str, self._join_options(self.kwworm_options, kwworm_options)))
+        command = "./kwworm " + " ".join(imap(self._option_to_str, self._join_options(self.kwworm_options, kwworm_options)))
         return command.format(kiwi_url=self.url, kiwi_user=kiwi_user)
 
 
@@ -154,7 +154,7 @@ def _slice_yamr_table_evenly(client, table, split_size, record_count=None, size=
         return _split(record_count, split_size, size)
     else:
         data = _check_output(["mr_slicetable", "--server", client.server, "--table", table, "--desired-size", str(split_size)])
-        return [map(int, line.split()) for line in data.split("\n") if line.strip()]
+        return [list(imap(int, line.split())) for line in data.split("\n") if line.strip()]
 
 def _slice_yt_table_evenly(client, table, split_size=None):
     """ Return list with correct YT ranges. """

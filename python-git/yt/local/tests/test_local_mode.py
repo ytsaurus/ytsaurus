@@ -1,6 +1,9 @@
 from yt.local import start, stop, delete
 from yt.wrapper.client import Yt
 from yt.common import remove_file
+
+from yt.packages.six.moves import map as imap
+
 import yt.wrapper as yt
 
 import yt.yson as yson
@@ -20,7 +23,7 @@ def _read_pids_file(environment):
     if not os.path.exists(environment.pids_filename):
         return []
     with open(environment.pids_filename) as f:
-        return map(int, f)
+        return list(imap(int, f))
 
 def _is_exists(environment):
     return os.path.exists(os.path.join(TESTS_SANDBOX, environment.id))

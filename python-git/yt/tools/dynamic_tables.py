@@ -8,11 +8,12 @@ from yt.wrapper.common import run_with_retries, update
 from yt.wrapper.client import Yt
 
 from yt.packages.six import itervalues, iteritems
+from yt.packages.six.moves import map as imap
 
 import sys
 import time
 import logging
-import itertools
+from itertools import takewhile, chain
 from random import shuffle
 
 # XXXX/TODO: global stuff. Find a way to avoid this.
@@ -337,7 +338,7 @@ class DynamicTablesClient(object):
         partition_keys = [
             # NOTE: using `!= None` because there's some YsonEntity
             # which is `== None` but `is not None`.
-            list(itertools.takewhile(lambda val: not is_none(val), key))
+            list(takewhile(lambda val: not is_none(val), key))
             for key in partition_keys]
         partition_keys = [key for key in partition_keys if len(key) > 0]
         partition_keys = sorted(partition_keys)
@@ -430,7 +431,7 @@ class DynamicTablesClient(object):
 
             result_iterator = rows
             if mapper is not None:
-                result_iterator = itertools.chain.from_iterable(itertools.imap(mapper, rows))
+                result_iterator = chain.from_iterable(imap(mapper, rows))
 
             rowsets = split_in_groups(result_iterator, batch_size or self.batch_size)
             for rowset in rowsets:

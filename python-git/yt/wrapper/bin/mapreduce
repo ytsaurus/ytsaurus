@@ -30,6 +30,9 @@ from yt.wrapper.common import flatten, first_not_none, bool_to_string, get_value
 import yt.wrapper.config as config
 import yt.yson as yson
 import yt.json as json
+
+from yt.packages.six.moves import map as imap
+
 import yt.wrapper as yt
 
 import os
@@ -38,7 +41,7 @@ import types
 from argparse import ArgumentParser, RawTextHelpFormatter, REMAINDER, Action
 from copy import deepcopy
 from operator import attrgetter
-from itertools import imap, groupby
+from itertools import groupby
 
 def removed(list, value):
     result = deepcopy(list)
@@ -147,7 +150,7 @@ def list_entities(type, prefix, exact, jsonoutput, user, follow_links):
         result.sort(key=lambda item: item["name"])
         return [json.dumps(result, indent=4)]
     else:
-        return sorted(map(remove_prefix, map(str, tables)))
+        return sorted(imap(remove_prefix, imap(str, tables)))
 
 def add_eoln(str):
     return str + "\n"

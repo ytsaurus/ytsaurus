@@ -2,7 +2,7 @@ import yt.json as json
 import yt.yson as yson
 
 from yt.packages.six import iteritems
-from yt.packages.six.moves import xrange
+from yt.packages.six.moves import xrange, map as imap
 
 import socket
 import os
@@ -85,7 +85,7 @@ def assert_almost_equal(actual, expected, decimal_places=4):
     return abs(actual - expected) < eps
 
 def get_open_port(port_locks_path=None):
-    local_port_range = map(int, open("/proc/sys/net/ipv4/ip_local_port_range").read().split())
+    local_port_range = list(imap(int, open("/proc/sys/net/ipv4/ip_local_port_range").read().split()))
 
     for _ in xrange(GEN_PORT_ATTEMPTS):
         port = None
@@ -137,7 +137,7 @@ def get_open_port(port_locks_path=None):
 
 def versions_cmp(version1, version2):
     def normalize(v):
-        return map(int, v.split("."))
+        return list(imap(int, v.split(".")))
     return cmp(normalize(version1), normalize(version2))
 
 def _fix_yson_booleans(obj):

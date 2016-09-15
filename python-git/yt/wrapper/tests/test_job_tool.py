@@ -3,6 +3,8 @@ from .helpers import TESTS_SANDBOX, TEST_DIR, TESTS_LOCATION, subprocess
 import yt.yson as yson
 from yt.common import makedirp
 
+from yt.packages.six.moves import map as imap
+
 import yt.wrapper as yt
 
 import os
@@ -55,7 +57,7 @@ for line in sys.stdin:
                 descriptors = [1, 3, 4, 5, 6]
             else:
                 descriptors = [1, 4, 7, 10]
-            fout.write("\n".join(map(str, descriptors)))
+            fout.write("\n".join(imap(str, descriptors)))
 
         runner = self._start_job_runner({
             "command_path": command_path,

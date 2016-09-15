@@ -1,4 +1,5 @@
 from yt.packages.six import iteritems
+from yt.packages.six.moves import map as imap
 
 import collections
 
@@ -61,7 +62,7 @@ class FrozenDict(collections.Mapping):
 
     def __repr__(self):
         cls = self.__class__.__name__
-        items = ", ".join(map(repr, iteritems(self._store)))
+        items = ", ".join(imap(repr, iteritems(self._store)))
         return "{0}({1})".format(cls, items)
 
     def pop(self, key, default=None):

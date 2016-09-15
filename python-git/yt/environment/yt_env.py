@@ -11,7 +11,7 @@ from yt.wrapper.errors import YtResponseError
 import yt.yson as yson
 
 from yt.packages.six import itervalues
-from yt.packages.six.moves import xrange
+from yt.packages.six.moves import xrange, map as imap
 import yt.packages.requests as requests
 
 import logging
@@ -70,7 +70,7 @@ def _get_proxy_version(node_binary_path, proxy_binary_path):
     version_str = err.split("\n")[1].split()[1]
 
     try:
-        version = map(int, version_str.split("."))
+        version = list(imap(int, version_str.split(".")))
     except ValueError:
         return None
 
@@ -363,17 +363,21 @@ class YTInstance(object):
         for cell_index in xrange(self.secondary_master_cell_count + 1):
             name = self._get_master_name("master", cell_index)
             master_dirs.append([os.path.join(self.path, name, str(i)) for i in xrange(self.master_count)])
-            map(makedirp, master_dirs[cell_index])
+            for dir_ in master_dirs[cell_index]:
+                makedirp(dir_)
 
             if self._tmpfs_path is not None and not self._load_existing_environment:
                 master_tmpfs_dirs.append([os.path.join(self._tmpfs_path, name, str(i)) for i in xrange(self.master_count)])
-                map(makedirp, master_tmpfs_dirs[cell_index])
+                for dir_ in master_tmpfs_dirs[cell_index]:
+                    makedirp(dir_)
 
         scheduler_dirs = [os.path.join(self.path, "scheduler", str(i)) for i in xrange(self.scheduler_count)]
-        map(makedirp, scheduler_dirs)
+        for dir_ in scheduler_dirs:
+            makedirp(dir_)
 
         node_dirs = [os.path.join(self.path, "node", str(i)) for i in xrange(self.node_count)]
-        map(makedirp, node_dirs)
+        for dir_ in node_dirs:
+            makedirp(dir_)
 
         proxy_dir = os.path.join(self.path, "proxy")
         makedirp(proxy_dir)
@@ -915,7 +919,7 @@ class YTInstance(object):
         nodejs_binary_path = _find_nodejs()
 
         proxy_version = _get_proxy_version(nodejs_binary_path, proxy_binary_path)[:2]  # major, minor
-        ytserver_version = map(int, self._ytserver_version.split("."))[:2]
+        ytserver_version = list(imap(int, self._ytserver_version.split(".")))[:2]
         if proxy_version and proxy_version != ytserver_version:
             raise YtError("Proxy version does not match ytserver version. "
                           "Expected: {0}.{1}, actual: {2}.{3}".format(*(ytserver_version + proxy_version)))

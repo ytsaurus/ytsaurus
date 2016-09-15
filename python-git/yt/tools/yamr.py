@@ -6,6 +6,7 @@ import yt.json as json
 
 from yt.packages.six import Iterator
 from yt.packages.six.moves.urllib.parse import quote_plus
+from yt.packages.six.moves import map as imap
 
 import os
 import errno
@@ -116,7 +117,7 @@ class Yamr(object):
         if proxies is None:
             self.proxies = []
         else:
-            self.proxies = map(lambda proxy: self._make_address(proxy, proxy_port), proxies)
+            self.proxies = list(imap(lambda proxy: self._make_address(proxy, proxy_port), proxies))
         self.fetch_info_from_http = fetch_info_from_http
 
         self.cache = {}

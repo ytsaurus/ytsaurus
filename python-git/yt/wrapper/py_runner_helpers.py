@@ -76,7 +76,12 @@ def check_job_environment_variables():
                              "manually for testing purposes then this is a bug.\n".format(name))
 
 def process_rows(operation_dump_filename, config_dump_filename, start_time):
-    import itertools
+    from itertools import chain, groupby, starmap
+    try:
+        from itertools import imap
+    except ImportError:  # Python 3
+        imap = map
+
     import time
 
     import yt.yson
@@ -134,19 +139,19 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
             result = run(rows)
         else:
             if operation_type == "mapper" or raw:
-                result = itertools.chain(
+                result = chain(
                     start(),
-                    itertools.chain.from_iterable(itertools.imap(run, rows)),
+                    chain.from_iterable(imap(run, rows)),
                     finish())
             else:
                 if attibutes.get("is_reduce_aggregator"):
-                    result = run(itertools.groupby(rows, lambda row: extract_key(row, group_by_keys)))
+                    result = run(groupby(rows, lambda row: extract_key(row, group_by_keys)))
                 else:
-                    result = itertools.chain(
+                    result = chain(
                         start(),
-                        itertools.chain.from_iterable(
-                            itertools.starmap(run,
-                                itertools.groupby(rows, lambda row: extract_key(row, group_by_keys)))),
+                        chain.from_iterable(
+                            starmap(run,
+                                groupby(rows, lambda row: extract_key(row, group_by_keys)))),
                         finish())
 
         result = process_frozen_dict(result)

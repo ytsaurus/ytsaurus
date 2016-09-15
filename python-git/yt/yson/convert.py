@@ -2,7 +2,7 @@ from .yson_types import *
 from .common import YsonError
 
 from yt.packages.six import text_type, binary_type, integer_types, iteritems, PY3
-from yt.packages.six.moves import map
+from yt.packages.six.moves import map as imap
 
 def to_yson_type(value, attributes=None):
     """ Wrap value with YSON type """
@@ -63,7 +63,7 @@ def json_to_yson(json_tree, encode_key=False):
     elif isinstance(value, float):
         result = YsonDouble(value)
     elif isinstance(value, list):
-        result = YsonList(map(json_to_yson, value))
+        result = YsonList(imap(json_to_yson, value))
     elif isinstance(value, dict):
         result = YsonMap((json_to_yson(k, True), json_to_yson(v)) for k, v in iteritems(YsonMap(value)))
     elif value is None:
@@ -88,7 +88,7 @@ def yson_to_json(yson_tree, print_attributes=True):
         return {"$attributes": process_dict(yson_tree.attributes),
                 "$value": yson_to_json(yson_tree, print_attributes=False)}
     if isinstance(yson_tree, list):
-        return list(map(yson_to_json, yson_tree))
+        return list(imap(yson_to_json, yson_tree))
     elif isinstance(yson_tree, dict):
         return process_dict(yson_tree)
     elif isinstance(yson_tree, YsonEntity):

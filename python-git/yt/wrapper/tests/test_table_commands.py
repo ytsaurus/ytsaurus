@@ -2,13 +2,14 @@ from __future__ import with_statement
 
 from .helpers import TEST_DIR, check, set_config_option
 
-import yt.zip as zip
 import yt.wrapper.py_wrapper as py_wrapper
 from yt.wrapper.table import TablePath, TempTable
 from yt.wrapper.client import Yt
 from yt.wrapper.common import parse_bool
 
-from yt.packages.six.moves import xrange
+import yt.zip as zip
+
+from yt.packages.six.moves import xrange, map as imap
 
 import yt.wrapper as yt
 
@@ -19,7 +20,6 @@ import shutil
 import time
 import contextlib
 from StringIO import StringIO
-from itertools import imap
 
 
 @pytest.mark.usefixtures("yt_env")
@@ -137,7 +137,7 @@ class TestTableCommands(object):
         with set_config_option("tabular_data_format", yt.DsvFormat()):
             record = {"\tke\n\\\\y=": "\\x\\y\tz\n"}
             table = TEST_DIR + "/table"
-            yt.write_table(table, map(yt.dumps_row, [record]), raw=True)
+            yt.write_table(table, [yt.dumps_row(record)], raw=True)
             assert [record] == list(yt.read_table(table))
 
     def test_mount_unmount(self, yt_env):

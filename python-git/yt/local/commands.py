@@ -4,8 +4,12 @@ from yt.environment import YTInstance
 from yt.environment.init_cluster import initialize_world
 from yt.wrapper.common import generate_uuid, GB
 from yt.common import YtError, require
+
 import yt.yson as yson
 import yt.json as json
+
+from yt.packages.six.moves import map as imap
+
 import yt.wrapper as yt
 
 import os
@@ -131,7 +135,7 @@ def _is_pid_exists(pid):
 
 def _read_pids_file(pids_file_path):
     with open(pids_file_path) as f:
-        return map(int, f)
+        return list(imap(int, f))
 
 def log_started_instance_info(environment, start_proxy, prepare_only):
     logger.info("Local YT {0}, id: {1}".format(

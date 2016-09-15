@@ -1,4 +1,5 @@
 from yt.packages.six import iteritems
+from yt.packages.six.moves import map as imap
 
 from itertools import chain
 from collections import Mapping
@@ -214,7 +215,7 @@ def update(object, patch):
 def flatten(obj, list_types=(list, tuple, set, types.GeneratorType)):
     """ Create flat list from all elements. """
     if isinstance(obj, list_types):
-        return list(chain(*map(flatten, obj)))
+        return list(chain(*imap(flatten, obj)))
     return [obj]
 
 def update_from_env(variables):
