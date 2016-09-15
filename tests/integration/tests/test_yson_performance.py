@@ -76,7 +76,8 @@ class TestYsonPerformance(object):
 
     @classmethod
     def setup_class(cls):
-        cls.client = YtClient(proxy=cls.DATASETS_CLUSTER)
+        cls.client = YtClient(proxy=cls.DATASETS_CLUSTER,
+                              token=os.environ.get("TEAMCITY_YT_TOKEN"))
 
     @pytest.mark.parametrize("dataset,expected_loads_time,expected_dumps_time", [
         ("access_log", 5.0, 4.0),
