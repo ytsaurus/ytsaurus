@@ -150,8 +150,10 @@ def enrich_row(yt_client, logbroker, row):
         "timezone": "+0000"})
     if "timestamp" in row:
         row_time = date_string_to_timestamp(row["timestamp"])
+        row["original_timestamp"] = row["timestamp"]
+        del row["timestamp"]
         row.update({
-            "timestamp": int(row_time),
+            "unixtime": int(row_time),
             "microseconds": int((row_time - int(row_time)) * 10 ** 6)
         })
     return row
