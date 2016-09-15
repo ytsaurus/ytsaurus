@@ -17,6 +17,7 @@ import pytest
 import os
 import string
 from itertools import starmap
+from functools import reduce
 
 @pytest.mark.usefixtures("yt_env_for_yamr")
 class TestYamrMode(object):
