@@ -75,11 +75,6 @@ static TValue MakeString(const TStringBuf& value)
     return MakeUnversionedStringValue(value);
 }
 
-static TValue MakeNull()
-{
-    return MakeUnversionedSentinelValue(EValueType::Null);
-}
-
 template <class TTypedExpression, class... TArgs>
 static TConstExpressionPtr Make(TArgs&&... args)
 {
@@ -87,8 +82,6 @@ static TConstExpressionPtr Make(TArgs&&... args)
         EValueType::TheBottom,
         std::forward<TArgs>(args)...);
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 class TPrepareCallbacksMock
     : public IPrepareCallbacks

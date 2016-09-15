@@ -596,80 +596,6 @@ TCodegenExpression MakeCodegenUnaryOpExpr(
     };
 }
 
-TCodegenExpression MakeCodegenLogicalBinaryOpExpr(
-    EBinaryOp opcode,
-    TCodegenExpression codegenLhs,
-    TCodegenExpression codegenRhs,
-    EValueType type,
-    Stroka name)
-{
-    return [
-        MOVE(opcode),
-        MOVE(codegenLhs),
-        MOVE(codegenRhs),
-        MOVE(type),
-        MOVE(name)
-    ] (TCGContext& builder, Value* row) {
-        auto compare = [&] (bool parameter) {
-            auto lhsValue = codegenLhs(builder, row);
-            return CodegenIf<TCGContext, TCGValue>(
-                builder,
-                lhsValue.IsNull(),
-                [&] (TCGContext& builder) {
-                    auto rhsValue = codegenRhs(builder, row);
-                    return CodegenIf<TCGContext, TCGValue>(
-                        builder,
-                        rhsValue.IsNull(),
-                        [&] (TCGContext& builder) {
-                            return TCGValue::CreateNull(builder, type);
-                        },
-                        [&] (TCGContext& builder) {
-                            Value* rhsData = rhsValue.GetData();
-                            return CodegenIf<TCGContext, TCGValue>(
-                                builder,
-                                builder.CreateICmpEQ(rhsData, builder.getInt8(parameter)),
-                                [&] (TCGContext& builder) {
-                                    return rhsValue;
-                                },
-                                [&] (TCGContext& builder) {
-                                    return TCGValue::CreateNull(builder, type);
-                                });
-                        });
-                },
-                [&] (TCGContext& builder) {
-                    Value* lhsData = lhsValue.GetData();
-                    return CodegenIf<TCGContext, TCGValue>(
-                        builder,
-                        builder.CreateICmpEQ(lhsData, builder.getInt8(parameter)),
-                        [&] (TCGContext& builder) {
-                            return lhsValue;
-                        },
-                        [&] (TCGContext& builder) {
-                            auto rhsValue = codegenRhs(builder, row);
-                            return CodegenIf<TCGContext, TCGValue>(
-                                builder,
-                                rhsValue.IsNull(),
-                                [&] (TCGContext& builder) {
-                                    return TCGValue::CreateNull(builder, type);
-                                },
-                                [&] (TCGContext& builder) {
-                                    return rhsValue;
-                                });
-                        });
-                });
-        };
-
-        switch (opcode) {
-            case EBinaryOp::And:
-                return compare(false);
-            case EBinaryOp::Or:
-                return compare(true);
-            default:
-                YUNREACHABLE();
-        }
-    };
-}
-
 TCodegenExpression MakeCodegenBinaryOpExpr(
     EBinaryOp opcode,
     TCodegenExpression codegenLhs,
@@ -677,14 +603,9 @@ TCodegenExpression MakeCodegenBinaryOpExpr(
     EValueType type,
     Stroka name)
 {
-    if (IsLogicalBinaryOp(opcode)) {
-        return MakeCodegenLogicalBinaryOpExpr(
-            opcode,
-            std::move(codegenLhs),
-            std::move(codegenRhs),
-            type,
-            std::move(name));
-    } else if (IsRelationalBinaryOp(opcode)) {
+
+    if (IsRelationalBinaryOp(opcode))
+    {
         return [
             MOVE(opcode),
             MOVE(codegenLhs),
@@ -909,6 +830,7 @@ TCodegenExpression MakeCodegenBinaryOpExpr(
 
                             switch (operandType) {
 
+                                case EValueType::Boolean:
                                 case EValueType::Int64:
                                     switch (opcode) {
                                         OP(Plus, Add)
@@ -918,6 +840,8 @@ TCodegenExpression MakeCodegenBinaryOpExpr(
                                         OP(Modulo, SRem)
                                         OP(BitAnd, And)
                                         OP(BitOr, Or)
+                                        OP(And, And)
+                                        OP(Or, Or)
                                         OP(LeftShift, Shl)
                                         OP(RightShift, LShr)
                                         default:
@@ -1178,14 +1102,15 @@ TCodegenSource MakeCodegenFilterOp(
             [&] (TCGContext& builder, Value* row) {
                 auto predicateResult = codegenPredicate(builder, row);
 
+                Value* result = builder.CreateZExtOrBitCast(
+                    predicateResult.GetData(),
+                    builder.getInt64Ty());
+
                 auto* ifBB = builder.CreateBBHere("if");
                 auto* endifBB = builder.CreateBBHere("endif");
 
-                auto* notIsNull = builder.CreateNot(predicateResult.IsNull());
-                auto* isTrue = builder.CreateICmpEQ(predicateResult.GetData(), builder.getInt8(true));
-
                 builder.CreateCondBr(
-                    builder.CreateAnd(notIsNull, isTrue),
+                    builder.CreateICmpNE(result, builder.getInt64(0)),
                     ifBB,
                     endifBB);
 
