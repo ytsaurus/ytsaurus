@@ -52,6 +52,7 @@ private:
     int RetriesLeft_;
 
 private:
+    void TransformYPath();
     void CreateRequest(bool initial, ui32 rangeIndex = 0ul, ui64 rowIndex = 0ull);
 };
 
