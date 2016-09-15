@@ -24,11 +24,13 @@
 #include <yt/ytlib/hive/cell_directory.h>
 #include <yt/ytlib/hive/config.h>
 
+#include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
+
+#include <yt/ytlib/node_tracker_client/channel.h>
+
 #include <yt/ytlib/object_client/helpers.h>
 #include <yt/ytlib/object_client/master_ypath_proxy.h>
 #include <yt/ytlib/object_client/object_service_proxy.h>
-
-#include <yt/ytlib/node_tracker_client/channel.h>
 
 #include <yt/ytlib/query_client/column_evaluator.h>
 #include <yt/ytlib/query_client/coordinator.h>
@@ -1405,6 +1407,11 @@ public:
         const TYPath& path,
         const TDumpJobContextOptions& options),
         (jobId, path, options))
+    IMPLEMENT_METHOD(Stroka, GetJobStderr, (
+        const TJobId& jobId,
+        const TYPath& path,
+        const TGetJobStderrOptions& options),
+        (jobId, path, options))
     IMPLEMENT_METHOD(TYsonString, StraceJob, (
         const TJobId& jobId,
         const TStraceJobOptions& options),
@@ -2774,6 +2781,32 @@ private:
 
         WaitFor(req->Invoke())
             .ThrowOnError();
+    }
+
+    Stroka DoGetJobStderr(
+        const TJobId& jobId,
+        const TYPath& path,
+        const TGetJobStderrOptions& /*options*/)
+    {
+        NNodeTrackerClient::TNodeDescriptor jobNodeDescriptor;
+        {
+            auto req = JobProberProxy_->GetJobNode();
+            ToProto(req->mutable_job_id(), jobId);
+            auto rsp = WaitFor(req->Invoke()).ValueOrThrow();
+            FromProto(&jobNodeDescriptor, rsp->node_descriptor());
+        }
+
+        LOG_INFO("Got job node (JobId: %v, Node: %v)",
+            jobId,
+            jobNodeDescriptor.GetDefaultAddress());
+
+        auto nodeChannel = GetLightChannelFactory()->CreateChannel(jobNodeDescriptor);
+        NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(nodeChannel);
+
+        auto req = jobProberServiceProxy.GetStderr();
+        ToProto(req->mutable_job_id(), jobId);
+        auto rsp = WaitFor(req->Invoke()).ValueOrThrow();
+        return rsp->stderr_data();
     }
 
     TYsonString DoStraceJob(

@@ -1,70 +1,160 @@
-#include "private.h"
 #include "stderr_writer.h"
+
+#include "private.h"
 
 #include <yt/core/misc/finally.h>
 
 namespace NYT {
 namespace NJobProxy {
 
+static const auto& Logger = JobProxyLogger;
+
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+class TSizeCountingStream
+    : public TOutputStream
+{
+public:
+    ui64 GetSize() const
+    {
+        return Size_;
+    }
+
+private:
+    virtual void DoWrite(const void* /*buf*/, size_t size) override
+    {
+        Size_ += size;
+    }
+
+private:
+    ui64 Size_ = 0;
+};
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTailBuffer::TTailBuffer(i64 sizeLimit)
+    : RingBuffer_(TDefaultBlobTag(), sizeLimit)
+{ }
+
+bool TTailBuffer::IsOverflowed() const
+{
+    return BufferOverflowed_;
+}
+
+void TTailBuffer::SaveTo(TOutputStream* out) const
+{
+    if (BufferOverflowed_) {
+        out->Write(RingBuffer_.Begin() + Position_, RingBuffer_.Size() - Position_);
+        out->Write(RingBuffer_.Begin(), Position_);
+    } else {
+        out->Write(RingBuffer_.Begin(), Position_);
+    }
+}
+
+void TTailBuffer::DoWrite(const void* buf_, size_t len)
+{
+    const char* buf = static_cast<const char*>(buf_);
+    if (Position_ + len <= RingBuffer_.Size()) {
+        std::copy(buf, buf + len, RingBuffer_.Begin() + Position_);
+        Position_ += len;
+    } else {
+        BufferOverflowed_ = true;
+        if (len >= RingBuffer_.Size()) {
+            Position_ = 0;
+            std::copy(buf + len - RingBuffer_.Size(), buf + len, RingBuffer_.Begin());
+        } else {
+            std::copy(buf, buf + RingBuffer_.Size() - Position_, RingBuffer_.Begin() + Position_);
+            std::copy(buf + RingBuffer_.Size() - Position_, buf + len, RingBuffer_.Begin());
+            Position_ += len - RingBuffer_.Size();
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+
+TStderrWriter::TStderrWriter(
+    NApi::TFileWriterConfigPtr config,
+    NChunkClient::TMultiChunkWriterOptionsPtr options,
+    NApi::IClientPtr client,
+    const NObjectClient::TTransactionId& transactionId,
+    size_t sizeLimit)
+    : FileChunkOutput_(
+        config,
+        options,
+        client,
+        transactionId)
+    // Limit for tail and head are the half of total limit.
+    , PartLimit_(sizeLimit / 2)
+    , Head_(sizeLimit / 2)
+{ }
+
+NChunkClient::TChunkId TStderrWriter::GetChunkId() const
+{
+    return FileChunkOutput_.GetChunkId();
+}
 
 void TStderrWriter::DoWrite(const void* buf_, size_t len)
 {
-    if (Failed_) {
-        return;
+    const char* buf = static_cast<const char*>(buf_);
+
+    if (Head_.Size() < PartLimit_) {
+        const size_t toWrite = std::min(PartLimit_, len);
+        Head_.Write(buf, toWrite);
+        Y_ASSERT(Head_.Size() <= PartLimit_);
+        if (toWrite == len) {
+            return;
+        } else {
+            buf += toWrite;
+            len -= toWrite;
+        }
     }
 
-    auto buf = static_cast<const char*>(buf_);
+    if (!Tail_) {
+        Tail_.Emplace(PartLimit_);
+    }
+    Tail_->Write(buf, len);
+}
 
-    // Limit for tail and head are the half of total limit.
-    i64 limit = SizeLimit_ / 2;
+Stroka TStderrWriter::GetCurrentData() const
+{
+    TStringStream stringStream;
+    stringStream.Reserve(GetCurrentSize());
+    SaveCurrentDataTo(&stringStream);
+    return stringStream.Str();
+}
 
-    if (WrittenSize_ < limit) {
-        try {
-            TFileChunkOutput::DoWrite(buf, len);
-        } catch (const std::exception& ex) {
-            Failed_ = true;
-            LOG_WARNING(ex, "Writing stderr data to chunk failed");
-            return;
-        }
-        WrittenSize_ += len;
-    } else {
-        if (!BufferInitialized_) {
-            CyclicBuffer_ = TBlob(TDefaultBlobTag(), limit);
-            BufferInitialized_ = true;
-        }
+size_t TStderrWriter::GetCurrentSize() const
+{
+    // Logic of filling stream with data is little bit complicated,
+    // so it's easier to use special stream that will count bytes for us.
+    TSizeCountingStream sizeCounter;
+    SaveCurrentDataTo(&sizeCounter);
+    return sizeCounter.GetSize();
+}
 
-        if (Position_ + len <= CyclicBuffer_.Size()) {
-            std::copy(buf, buf + len, CyclicBuffer_.Begin() + Position_);
-            Position_ += len;
-        } else {
-            BufferOverflowed_ = true;
-            if (len >= limit) {
-                Position_ = 0;
-                std::copy(buf + len - limit, buf + len, CyclicBuffer_.Begin());
-            } else {
-                std::copy(buf, buf + CyclicBuffer_.Size() - Position_, CyclicBuffer_.Begin() + Position_);
-                std::copy(buf + CyclicBuffer_.Size() - Position_, buf + len, CyclicBuffer_.Begin());
-                Position_ += len - CyclicBuffer_.Size();
-            }
+void TStderrWriter::SaveCurrentDataTo(TOutputStream* output) const
+{
+    output->Write(Head_.Begin(), Head_.Size());
+
+    if (Tail_) {
+        if (Tail_->IsOverflowed()) {
+            static const auto skipped = STRINGBUF("\n...skipped...\n");
+            output->Write(skipped);
         }
+        Tail_->SaveTo(output);
     }
 }
 
 void TStderrWriter::DoFinish()
 {
     try {
-        if (!Failed_) {
-            static const auto skipped = STRINGBUF("\n...skipped...\n");
-            if (BufferOverflowed_) {
-                TFileChunkOutput::DoWrite(skipped.data(), skipped.length());
-                TFileChunkOutput::DoWrite(CyclicBuffer_.Begin() + Position_, CyclicBuffer_.Size() - Position_);
-                TFileChunkOutput::DoWrite(CyclicBuffer_.Begin(), Position_);
-            } else {
-                TFileChunkOutput::DoWrite(CyclicBuffer_.Begin(), Position_);
-            }
-        }
-        TFileChunkOutput::DoFinish();
+        SaveCurrentDataTo(&FileChunkOutput_);
+        FileChunkOutput_.Finish();
     } catch (const std::exception& ex) {
         LOG_WARNING(ex, "Writing stderr data to chunk failed");
     }
@@ -74,4 +164,3 @@ void TStderrWriter::DoFinish()
 
 } // namespace NJobProxy
 } // namespace NYT
-

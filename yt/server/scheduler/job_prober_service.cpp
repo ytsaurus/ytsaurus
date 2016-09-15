@@ -41,6 +41,7 @@ public:
         , Bootstrap_(bootstrap)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DumpInputContext));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobNode));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Strace));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SignalJob));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbandonJob));
@@ -64,6 +65,24 @@ private:
 
         WaitFor(scheduler->DumpInputContext(jobId, path, context->GetUser()))
             .ThrowOnError();
+
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, GetJobNode)
+    {
+        auto jobId = FromProto<TJobId>(request->job_id());
+        context->SetRequestInfo("JobId: %v", jobId);
+
+        auto scheduler = Bootstrap_->GetScheduler();
+        scheduler->ValidateConnected();
+
+        auto jobNodeDescriptor = WaitFor(scheduler->GetJobNode(jobId, context->GetUser()))
+            .ValueOrThrow();
+
+        context->SetResponseInfo("NodeDescriptor: %v", jobNodeDescriptor);
+
+        ToProto(response->mutable_node_descriptor(), jobNodeDescriptor);
 
         context->Reply();
     }

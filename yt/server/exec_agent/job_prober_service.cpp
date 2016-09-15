@@ -33,6 +33,7 @@ public:
         , Bootstrap_(bootstrap)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DumpInputContext));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetStderr));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Strace));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SignalJob));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PollJobShell));
@@ -51,6 +52,18 @@ private:
 
         context->SetResponseInfo("ChunkIds: %v", chunkIds);
         ToProto(response->mutable_chunk_ids(), chunkIds);
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, GetStderr)
+    {
+        auto jobId = FromProto<TJobId>(request->job_id());
+        context->SetRequestInfo("JobId: %v", jobId);
+
+        auto job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
+        auto stderrData = job->GetStderr();
+
+        response->set_stderr_data(stderrData);
         context->Reply();
     }
 
