@@ -1061,7 +1061,7 @@ private:
     TRootElementSnapshotPtr CreateRootElementSnapshot()
     {
         auto snapshot = New<TRootElementSnapshot>();
-        snapshot->RootElement = RootElement->CloneRoot();
+        snapshot->RootElement = RootElement->Clone();
         snapshot->RootElement->BuildOperationToElementMapping(&snapshot->OperationIdToElement);
         return snapshot;
     }
