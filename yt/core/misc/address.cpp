@@ -479,6 +479,16 @@ TNetworkAddress TAddressResolver::TImpl::DoResolve(const Stroka& hostName)
 
         THROW_ERROR_EXCEPTION("No IPv4 or IPv6 address can be found for %v", hostName);
     } catch (const std::exception& ex) {
+        // Clear refresh flag.
+        {
+            TWriterGuard guard(CacheLock_);
+            auto it = Cache_.find(hostName);
+            if (it != Cache_.end()) {
+                auto& entry = Cache_[hostName];
+                entry.Deadline = TInstant::Now() + Config_->AddressExpirationTime;
+                entry.Refreshing = false;                
+            }
+        }
         LOG_WARNING(TError(ex));
         throw;
     }
