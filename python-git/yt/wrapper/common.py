@@ -6,7 +6,7 @@ import yt.yson as yson
 
 from yt.packages.decorator import decorator
 from yt.packages.six import iteritems, itervalues
-from yt.packages.six.moves import xrange, map as imap
+from yt.packages.six.moves import xrange, map as imap, filter as ifilter
 
 import os
 import sys
@@ -17,7 +17,7 @@ import argparse
 import random
 import time
 from datetime import datetime
-from itertools import ifilter, chain
+from itertools import chain
 from functools import reduce
 
 EMPTY_GENERATOR = (i for i in [])

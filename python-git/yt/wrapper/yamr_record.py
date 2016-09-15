@@ -2,6 +2,11 @@
     Copy-pasted from mapreducelib.py with some additions.
 """
 
+try:
+    from itertools import ifilter
+except ImportError:  # Python 3
+    ifilter = filter
+
 class SimpleRecord:
     """Mapreduce-like record represents (key, value) pair, without subkey"""
     def __init__(self, key, value, tableIndex=0, recordIndex=None):
@@ -20,7 +25,7 @@ class SimpleRecord:
     def __cmp__(self, other):
         cmps = [cmp(getattr(self, field), getattr(other, field))
                 for field in ["key", "value"]]
-        non_zeroes = filter(None, cmps) + [0]
+        non_zeroes = list(ifilter(None, cmps)) + [0]
         return non_zeroes[0]
 
     def __hash__(self):
@@ -56,7 +61,7 @@ class SubkeyedRecord(SimpleRecord):
     def __cmp__(self, other):
         cmps = [cmp(getattr(self, field), getattr(other, field))
                 for field in ["key", "subkey", "value"]]
-        non_zeroes = filter(None, cmps) + [0]
+        non_zeroes = list(ifilter(None, cmps)) + [0]
         return non_zeroes[0]
 
     def __hash__(self):

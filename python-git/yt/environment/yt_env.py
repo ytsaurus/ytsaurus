@@ -11,7 +11,7 @@ from yt.wrapper.errors import YtResponseError
 import yt.yson as yson
 
 from yt.packages.six import itervalues
-from yt.packages.six.moves import xrange, map as imap
+from yt.packages.six.moves import xrange, map as imap, filter as ifilter
 import yt.packages.requests as requests
 
 import logging
@@ -907,7 +907,7 @@ class YTInstance(object):
                 logger.warning("Failed to configure UI, file {0} not found".format(ui_config_path))
 
     def _start_proxy_from_package(self):
-        node_path = filter(lambda x: x != "", os.environ.get("NODE_PATH", "").split(":"))
+        node_path = list(ifilter(lambda x: x != "", os.environ.get("NODE_PATH", "").split(":")))
         for path in node_path + ["/usr/lib/node_modules"]:
             proxy_binary_path = os.path.join(path, "yt", "bin", "yt_http_proxy")
             if os.path.exists(proxy_binary_path):

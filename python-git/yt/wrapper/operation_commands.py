@@ -14,7 +14,7 @@ from yt.common import format_error
 import yt.packages.dateutil.parser as dateutil_parser
 from yt.packages.decorator import decorator
 from yt.packages.six import iteritems
-from yt.packages.six.moves import builtins
+from yt.packages.six.moves import builtins, filter as ifilter
 
 import logging
 from datetime import datetime
@@ -265,7 +265,7 @@ def get_stderrs(operation, only_failed_jobs, client=None):
         return []
     jobs = list(jobs_path, attributes=["error", "address"], absolute=True, client=client)
     if only_failed_jobs:
-        jobs = filter(lambda obj: "error" in obj.attributes, jobs)
+        jobs = builtins.list(ifilter(lambda obj: "error" in obj.attributes, jobs))
 
     result = []
 
