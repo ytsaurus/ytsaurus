@@ -1,6 +1,8 @@
 from . import fennel
 from . import misc
 
+from yt.packages.six import reraise
+
 from tornado import testing
 from tornado import gen
 
@@ -25,7 +27,7 @@ class TestLogBrokerIntegration(testing.AsyncTestCase):
         self.init()
         self.wait()
         if self._init_exception_info:
-            raise self._init_exception_info[0], self._init_exception_info[1], self._init_exception_info[2]
+            reraise(*self._init_exception_info)
 
     def tearDown(self):
         self.l.stop()
