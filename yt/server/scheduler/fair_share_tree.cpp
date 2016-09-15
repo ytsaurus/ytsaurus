@@ -305,11 +305,6 @@ void TSchedulerElementBase::IncreaseLocalResourceUsage(const TJobResources& delt
     SharedState_->IncreaseResourceUsage(delta);
 }
 
-void TSchedulerElementBase::SetCloned(bool cloned)
-{
-    Cloned_ = cloned;
-}
-
 TSchedulerElementBase::TSchedulerElementBase(
     ISchedulerStrategyHost* host,
     TFairShareStrategyConfigPtr strategyConfig)
@@ -318,11 +313,14 @@ TSchedulerElementBase::TSchedulerElementBase(
     , SharedState_(New<TSchedulerElementBaseSharedState>())
 { }
 
-TSchedulerElementBase::TSchedulerElementBase(const TSchedulerElementBase& other)
+TSchedulerElementBase::TSchedulerElementBase(
+    const TSchedulerElementBase& other,
+    TCompositeSchedulerElement* clonedParent)
     : TSchedulerElementBaseFixedState(other)
     , StrategyConfig_(other.StrategyConfig_)
     , SharedState_(other.SharedState_)
 {
+    Parent_ = clonedParent;
     Cloned_ = true;
 }
 
@@ -422,29 +420,25 @@ TCompositeSchedulerElement::TCompositeSchedulerElement(
     : TSchedulerElementBase(host, strategyConfig)
 { }
 
-TCompositeSchedulerElement::TCompositeSchedulerElement(const TCompositeSchedulerElement& other)
-    : TSchedulerElementBase(other)
+TCompositeSchedulerElement::TCompositeSchedulerElement(
+    const TCompositeSchedulerElement& other,
+    TCompositeSchedulerElement* clonedParent)
+    : TSchedulerElementBase(other, clonedParent)
     , TCompositeSchedulerElementFixedState(other)
 {
-    auto cloneChild = [&] (
-        const ISchedulerElementPtr& child,
-        yhash_map<ISchedulerElementPtr, int>* map,
-        std::vector<ISchedulerElementPtr>* list)
+    auto cloneChildren = [&] (
+        const std::vector<ISchedulerElementPtr>& list,
+        yhash_map<ISchedulerElementPtr, int>* clonedMap,
+        std::vector<ISchedulerElementPtr>* clonedList)
     {
-        auto childClone = child->Clone();
-        childClone->SetCloned(false);
-        childClone->SetParent(this);
-        childClone->SetCloned(true);
-        list->push_back(childClone);
-        YCHECK(map->emplace(childClone, list->size() - 1).second);
+        for (const auto& child : list) {
+            auto childClone = child->Clone(this);
+            clonedList->push_back(childClone);
+            YCHECK(clonedMap->emplace(childClone, clonedList->size() - 1).second);
+        }
     };
-
-    for (const auto& child : other.EnabledChildren_) {
-        cloneChild(child, &EnabledChildToIndex_, &EnabledChildren_);
-    }
-    for (const auto& child : other.DisabledChildren_) {
-        cloneChild(child, &DisabledChildToIndex_, &DisabledChildren_);
-    }
+    cloneChildren(other.EnabledChildren_, &EnabledChildToIndex_, &EnabledChildren_);
+    cloneChildren(other.DisabledChildren_, &DisabledChildToIndex_, &DisabledChildren_);
 }
 
 int TCompositeSchedulerElement::EnumerateNodes(int startIndex)
@@ -1029,8 +1023,8 @@ TPool::TPool(
     SetDefaultConfig();
 }
 
-TPool::TPool(const TPool& other)
-    : TCompositeSchedulerElement(other)
+TPool::TPool(const TPool& other, TCompositeSchedulerElement* clonedParent)
+    : TCompositeSchedulerElement(other, clonedParent)
     , TPoolFixedState(other)
     , Config_(other.Config_)
 { }
@@ -1181,9 +1175,9 @@ int TPool::GetMaxOperationCount() const
     return Config_->MaxOperationCount.Get(StrategyConfig_->MaxOperationCountPerPool);
 }
 
-ISchedulerElementPtr TPool::Clone()
+ISchedulerElementPtr TPool::Clone(TCompositeSchedulerElement* clonedParent)
 {
-    return New<TPool>(*this);
+    return New<TPool>(*this, clonedParent);
 }
 
 void TPool::DoSetConfig(TPoolConfigPtr newConfig)
@@ -1509,8 +1503,10 @@ TOperationElement::TOperationElement(
     , SharedState_(New<TOperationElementSharedState>())
 { }
 
-TOperationElement::TOperationElement(const TOperationElement& other)
-    : TSchedulerElementBase(other)
+TOperationElement::TOperationElement(
+    const TOperationElement& other,
+    TCompositeSchedulerElement* clonedParent)
+    : TSchedulerElementBase(other, clonedParent)
     , TOperationElementFixedState(other)
     , RuntimeParams_(other.RuntimeParams_)
     , Spec_(other.Spec_)
@@ -1839,9 +1835,9 @@ void TOperationElement::BuildOperationToElementMapping(TOperationElementByIdMap*
     operationElementByIdMap->emplace(OperationId_, this);
 }
 
-ISchedulerElementPtr TOperationElement::Clone()
+ISchedulerElementPtr TOperationElement::Clone(TCompositeSchedulerElement* clonedParent)
 {
-    return New<TOperationElement>(*this);
+    return New<TOperationElement>(*this, clonedParent);
 }
 
 TOperation* TOperationElement::GetOperation() const
@@ -2004,6 +2000,11 @@ TRootElement::TRootElement(
     AdjustedFairSharePreemptionTimeoutLimit_ = GetFairSharePreemptionTimeoutLimit();
 }
 
+TRootElement::TRootElement(const TRootElement& other)
+    : TCompositeSchedulerElement(other, nullptr)
+    , TRootElementFixedState(other)
+{ }
+
 void TRootElement::Update(TDynamicAttributesList& dynamicAttributesList)
 {
     YCHECK(!Cloned_);
@@ -2083,12 +2084,12 @@ NProfiling::TTagId TRootElement::GetProfilingTag() const
     return ProfilingTag_;
 }
 
-ISchedulerElementPtr TRootElement::Clone()
+ISchedulerElementPtr TRootElement::Clone(TCompositeSchedulerElement* /*clonedParent*/)
 {
-    return New<TRootElement>(*this);
+    YUNREACHABLE();
 }
 
-TRootElementPtr TRootElement::CloneRoot()
+TRootElementPtr TRootElement::Clone()
 {
     return New<TRootElement>(*this);
 }

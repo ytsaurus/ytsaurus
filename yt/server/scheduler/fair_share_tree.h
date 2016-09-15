@@ -130,8 +130,7 @@ struct ISchedulerElement
 
     virtual void BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap) = 0;
 
-    virtual ISchedulerElementPtr Clone() = 0;
-    virtual void SetCloned(bool cloned) = 0;
+    virtual ISchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -259,8 +258,6 @@ public:
     virtual double GetResourceUsageRatio() const override;
     virtual void IncreaseLocalResourceUsage(const TJobResources& delta) override;
 
-    virtual void SetCloned(bool cloned) override;
-
 protected:
     const TFairShareStrategyConfigPtr StrategyConfig_;
 
@@ -268,8 +265,12 @@ protected:
 
     static const TNullable<Stroka> NullNodeTag;
 
-    TSchedulerElementBase(ISchedulerStrategyHost* host, TFairShareStrategyConfigPtr strategyConfig);
-    TSchedulerElementBase(const TSchedulerElementBase& other);
+    TSchedulerElementBase(
+        ISchedulerStrategyHost* host,
+        TFairShareStrategyConfigPtr strategyConfig);
+    TSchedulerElementBase(
+        const TSchedulerElementBase& other,
+        TCompositeSchedulerElement* clonedParent);
 
     ISchedulerStrategyHost* GetHost() const;
 
@@ -309,8 +310,12 @@ class TCompositeSchedulerElement
     , public TCompositeSchedulerElementFixedState
 {
 public:
-    TCompositeSchedulerElement(ISchedulerStrategyHost* host, TFairShareStrategyConfigPtr strategyConfig);
-    TCompositeSchedulerElement(const TCompositeSchedulerElement& other);
+    TCompositeSchedulerElement(
+        ISchedulerStrategyHost* host,
+        TFairShareStrategyConfigPtr strategyConfig);
+    TCompositeSchedulerElement(
+        const TCompositeSchedulerElement& other,
+        TCompositeSchedulerElement* clonedParent);
 
     virtual int EnumerateNodes(int startIndex) override;
 
@@ -391,8 +396,13 @@ class TPool
     , public TPoolFixedState
 {
 public:
-    TPool(ISchedulerStrategyHost* host, const Stroka& id, TFairShareStrategyConfigPtr strategyConfig);
-    TPool(const TPool& other);
+    TPool(
+        ISchedulerStrategyHost* host,
+        const Stroka& id,
+        TFairShareStrategyConfigPtr strategyConfig);
+    TPool(
+        const TPool& other,
+        TCompositeSchedulerElement* clonedParent);
 
     bool IsDefaultConfigured() const;
 
@@ -430,7 +440,7 @@ public:
     virtual int GetMaxRunningOperationCount() const override;
     virtual int GetMaxOperationCount() const override;
 
-    virtual ISchedulerElementPtr Clone() override;
+    virtual ISchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
 
     virtual NProfiling::TTagId GetProfilingTag() const override;
 
@@ -663,8 +673,9 @@ public:
         TOperationRuntimeParamsPtr runtimeParams,
         ISchedulerStrategyHost* host,
         TOperationPtr operation);
-
-    TOperationElement(const TOperationElement& other);
+    TOperationElement(
+        const TOperationElement& other,
+        TCompositeSchedulerElement* clonedParent);
 
     virtual double GetFairShareStarvationTolerance() const override;
     virtual TDuration GetMinSharePreemptionTimeout() const override;
@@ -711,7 +722,7 @@ public:
 
     virtual void BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap) override;
 
-    virtual ISchedulerElementPtr Clone() override;
+    virtual ISchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
 
     TJobResources Finalize();
 
@@ -750,7 +761,10 @@ class TRootElement
     , public TRootElementFixedState
 {
 public:
-    TRootElement(ISchedulerStrategyHost* host, TFairShareStrategyConfigPtr strategyConfig);
+    TRootElement(
+        ISchedulerStrategyHost* host,
+        TFairShareStrategyConfigPtr strategyConfig);
+    TRootElement(const TRootElement& other);
 
     virtual void Update(TDynamicAttributesList& dynamicAttributesList) override;
 
@@ -776,9 +790,8 @@ public:
 
     virtual NProfiling::TTagId GetProfilingTag() const override;
 
-    virtual ISchedulerElementPtr Clone() override;
-
-    TRootElementPtr CloneRoot();
+    virtual ISchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
+    TRootElementPtr Clone();
 
 private:
     NProfiling::TTagId ProfilingTag_;
