@@ -13,13 +13,12 @@ from yt.common import format_error
 import yt.packages.dateutil.parser as dateutil_parser
 from yt.packages.decorator import decorator
 from yt.packages.six import iteritems
+from yt.packages.six.moves import builtins
 
 import logging
 from datetime import datetime
 from time import sleep, time
 from cStringIO import StringIO
-
-import __builtin__
 
 OPERATIONS_PATH = "//sys/operations"
 
@@ -282,7 +281,7 @@ def get_stderrs(operation, only_failed_jobs, client=None):
         if has_stderr:
             try:
                 job_with_stderr["stderr"] = read_file(stderr_path, client=client).read()
-            except tuple(__builtin__.list(get_retriable_errors()) + [YtResponseError]):
+            except tuple(builtins.list(get_retriable_errors()) + [YtResponseError]):
                 if ignore_errors:
                     continue
                 else:

@@ -6,8 +6,11 @@ import yt.wrapper.yson as yson
 from yt.wrapper.common import parse_bool, bool_to_string, chunk_iter_stream, update, get_value, MB, DoNotReplaceAction
 from yt.wrapper.cli_helpers import write_silently, run_main
 import yt.wrapper.completers as completers
-import yt.wrapper as yt
 import yt.json as json
+
+from yt.packages.six.moves import builtins
+
+import yt.wrapper as yt
 
 import os
 import sys
@@ -15,8 +18,6 @@ import inspect
 import fnmatch
 import shlex
 from argparse import ArgumentParser, Action, RawDescriptionHelpFormatter
-
-import __builtin__
 
 DESCRIPTION = '''Shell utility to work with YT system.\n
 Cypress (metainformation tree) commands:
@@ -280,7 +281,7 @@ def find(**args):
     result = yt.search(args["path"],
                        node_type=args["type"],
                        path_filter=path_filter,
-                       attributes=__builtin__.list(attributes),
+                       attributes=builtins.list(attributes),
                        object_filter=object_filter,
                        depth_bound=args["depth"],
                        follow_links=args["follow_links"])
