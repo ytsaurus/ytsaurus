@@ -41,6 +41,7 @@ TClientReader::TClientReader(
     , RetriesLeft_(TConfig::Get()->RetryCount)
 {
     Lock(Auth_, ReadTransaction_->GetId(), path.Path_, "snapshot");
+    TransformYPath();
     CreateRequest(true);
 }
 
@@ -64,6 +65,32 @@ bool TClientReader::OnStreamError(
 size_t TClientReader::DoRead(void* buf, size_t len)
 {
     return Input_->Read(buf, len);
+}
+
+void TClientReader::TransformYPath()
+{
+    for (auto& range : Path_.Ranges_) {
+        auto& exact = range.Exact_;
+        if (IsTrivial(exact)) {
+            continue;
+        }
+
+        if (exact.RowIndex_) {
+            range.LowerLimit(TReadLimit().RowIndex(*exact.RowIndex_));
+            range.UpperLimit(TReadLimit().RowIndex(*exact.RowIndex_ + 1));
+            exact.RowIndex_.Clear();
+
+        } else if (exact.Key_) {
+            range.LowerLimit(TReadLimit().Key(*exact.Key_));
+
+            auto lastPart = TNode::CreateEntity();
+            lastPart.Attributes() = TNode()("type", "max");
+            exact.Key_->Parts_.push_back(lastPart);
+
+            range.UpperLimit(TReadLimit().Key(*exact.Key_));
+            exact.Key_.Clear();
+        }
+    }
 }
 
 void TClientReader::CreateRequest(bool keepRanges, ui32 rangeIndex, ui64 rowIndex)

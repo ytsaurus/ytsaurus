@@ -154,11 +154,6 @@ void Serialize(const TReadLimit& readLimit, IYsonConsumer* consumer)
     .EndMap();
 }
 
-bool IsTrivial(const TReadLimit& readLimit)
-{
-    return !readLimit.Key_ && !readLimit.RowIndex_ && !readLimit.Offset_;
-}
-
 void Serialize(const TReadRange& readRange, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer).BeginMap()

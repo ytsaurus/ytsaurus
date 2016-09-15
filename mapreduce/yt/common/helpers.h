@@ -34,6 +34,8 @@ Stroka GetReadTableCommand();
 Stroka GetWriteFileCommand();
 Stroka GetReadFileCommand();
 
+bool IsTrivial(const TReadLimit& readLimit);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
