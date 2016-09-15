@@ -14,12 +14,11 @@ import yt.logger as logger
 import yt.json as json
 
 from yt.packages.six import iteritems, Iterator, add_metaclass
-from yt.packages.six.moves import xrange, map as imap
+from yt.packages.six.moves import xrange, map as imap, zip as izip
 
 from abc import ABCMeta, abstractmethod
 import copy
 import struct
-import itertools
 from cStringIO import StringIO
 
 try:
@@ -836,8 +835,8 @@ class SchemafulDsvFormat(Format):
             return "\\".join(imap(lambda token: self._unescape(token, unescape_dict),
                                   field.split("\\\\")))
 
-        return dict(itertools.izip(self._columns,
-                                   imap(unescape_field, line.rstrip("\n").split("\t"))))
+        return dict(izip(self._columns,
+                         imap(unescape_field, line.rstrip("\n").split("\t"))))
 
 # TODO(veronikaiv): do it beautiful way!
 Format._copy_docs()

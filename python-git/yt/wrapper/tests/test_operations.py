@@ -11,7 +11,7 @@ from yt.wrapper.table import TablePath
 import yt.logger as logger
 
 from yt.packages.six import add_metaclass
-from yt.packages.six.moves import xrange
+from yt.packages.six.moves import xrange, zip as izip
 
 import yt.wrapper as yt
 
@@ -463,7 +463,7 @@ class TestOperations(object):
         @yt.raw
         def reformat(rec):
             values = rec.strip().split("\t", 2)
-            yield "\t".join("=".join([k, v]) for k, v in zip(["k", "s", "v"], values)) + "\n"
+            yield "\t".join("=".join([k, v]) for k, v in izip(["k", "s", "v"], values)) + "\n"
 
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
