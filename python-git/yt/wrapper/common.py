@@ -18,6 +18,7 @@ import random
 import time
 from datetime import datetime
 from itertools import ifilter, chain
+from functools import reduce
 
 EMPTY_GENERATOR = (i for i in [])
 
