@@ -350,7 +350,10 @@ def run_python_libraries_tests(options):
 
     run_pytest(options, "python_libraries", "{0}/python".format(options.checkout_directory),
                pytest_args=pytest_args,
-               env={"TESTS_JOB_CONTROL": "1"})
+               env={
+                   "TESTS_JOB_CONTROL": "1",
+                   "YT_ENABLE_REQUEST_LOGGING": "1"
+                })
 
 
 @build_step
