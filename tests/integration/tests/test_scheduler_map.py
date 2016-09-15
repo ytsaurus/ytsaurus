@@ -916,6 +916,33 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert get("//tmp/input_context/@description/type") == "input_context"
         assert JsonFormat(process_table_index=True).loads_row(context)["foo"] == "bar"
 
+
+    def test_get_job_stderr(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
+
+        op = map(
+            dont_track=True,
+            waiting_jobs=True,
+            label="get_job_stderr",
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            precommand="echo STDERR-OUTPUT >&2",
+            command="cat",
+            spec={
+                "mapper": {
+                    "input_format": "json",
+                    "output_format": "json"
+                }
+            })
+
+        res = get_job_stderr(op.jobs[0])
+        assert res == "STDERR-OUTPUT\n"
+        op.resume_jobs()
+        op.track()
+
+
     @unix_only
     def test_sorted_output(self):
         create("table", "//tmp/t1")

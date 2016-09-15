@@ -2,8 +2,8 @@
 #include "private.h"
 #include "config.h"
 #include "job_detail.h"
-#include "stracer.h"
 #include "stderr_writer.h"
+#include "stracer.h"
 #include "user_job_io.h"
 
 #include <yt/server/exec_agent/public.h>
@@ -14,8 +14,6 @@
 #include <yt/ytlib/cgroup/cgroup.h>
 
 #include <yt/ytlib/chunk_client/public.h>
-
-#include <yt/ytlib/file_client/file_chunk_output.h>
 
 #include <yt/ytlib/formats/parser.h>
 
@@ -137,6 +135,7 @@ public:
         , JobErrorPromise_(NewPromise<void>())
         , PipeIOPool_(New<TThreadPool>(Config_->JobIO->PipeIOPoolSize, "PipeIO"))
         , AuxQueue_(New<TActionQueue>("JobAux"))
+        , ReadStderrInvoker_(CreateSerializedInvoker(PipeIOPool_->GetInvoker()))
         , Process_(New<TProcess>(GetExecPath(), false))
         , CpuAccounting_(CGroupPrefix + ToString(jobId))
         , BlockIO_(CGroupPrefix + ToString(jobId))
@@ -309,11 +308,12 @@ private:
 
     const TThreadPoolPtr PipeIOPool_;
     const TActionQueuePtr AuxQueue_;
+    IInvokerPtr ReadStderrInvoker_;
 
     std::vector<std::unique_ptr<TOutputStream>> TableOutputs_;
     std::vector<std::unique_ptr<TWritingValueConsumer>> WritingValueConsumers_;
 
-    std::unique_ptr<TFileChunkOutput> ErrorOutput_;
+    std::unique_ptr<TStderrWriter> ErrorOutput_;
     std::unique_ptr<TTableOutput> StatisticsOutput_;
     std::unique_ptr<IYsonConsumer> StatisticsConsumer_;
 
@@ -330,6 +330,7 @@ private:
     std::vector<TCallback<void()>> StartActions_;
     std::vector<TCallback<void()>> InputActions_;
     std::vector<TCallback<void()>> OutputActions_;
+    std::vector<TCallback<void()>> StderrActions_;
     std::vector<TCallback<void()>> FinalizeActions_;
 
     TProcessPtr Process_;
@@ -543,6 +544,17 @@ private:
         return result;
     }
 
+    virtual Stroka GetStderr() override
+    {
+        ValidatePrepared();
+
+        auto result = WaitFor(BIND([=] () { return ErrorOutput_->GetCurrentData(); })
+            .AsyncVia(ReadStderrInvoker_)
+            .Run());
+        THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error collecting job stderr");
+        return result.Value();
+    }
+
     virtual TYsonString StraceJob() override
     {
         ValidatePrepared();
@@ -645,8 +657,8 @@ private:
 
             // In case of YAMR jobs dup 1 and 3 fd for YAMR compatibility
             auto reader = (UserJobSpec_.use_yamr_descriptors() && jobDescriptor == 3)
-                ? PrepareOutputPipe({1, jobDescriptor}, TableOutputs_[i].get())
-                : PrepareOutputPipe({jobDescriptor}, TableOutputs_[i].get());
+                ? PrepareOutputPipe({1, jobDescriptor}, TableOutputs_[i].get(), &OutputActions_)
+                : PrepareOutputPipe({jobDescriptor}, TableOutputs_[i].get(), &OutputActions_);
             TablePipeReaders_.push_back(reader);
         }
 
@@ -665,7 +677,7 @@ private:
         }));
     }
 
-    TAsyncReaderPtr PrepareOutputPipe(const std::vector<int>& jobDescriptors, TOutputStream* output)
+    TAsyncReaderPtr PrepareOutputPipe(const std::vector<int>& jobDescriptors, TOutputStream* output, std::vector<TCallback<void()>>* actions)
     {
         auto pipe = TNamedPipe::Create(CreateNamedPipePath());
 
@@ -676,7 +688,7 @@ private:
 
         auto asyncInput = pipe->CreateAsyncReader();
 
-        OutputActions_.push_back(BIND([=] () {
+        actions->push_back(BIND([=] () {
             try {
                 auto input = CreateSyncAdapter(asyncInput);
                 PipeInputToOutput(input.get(), output, BufferSize);
@@ -858,12 +870,12 @@ private:
         CreateControlPipe();
 
         // Configure stderr pipe.
-        StderrPipeReader_ = PrepareOutputPipe({STDERR_FILENO}, CreateErrorOutput());
+        StderrPipeReader_ = PrepareOutputPipe({STDERR_FILENO}, CreateErrorOutput(), &StderrActions_);
 
         PrepareOutputTablePipes();
 
         if (!UserJobSpec_.use_yamr_descriptors()) {
-            StatisticsPipeReader_ = PrepareOutputPipe({JobStatisticsFD}, CreateStatisticsOutput());
+            StatisticsPipeReader_ = PrepareOutputPipe({JobStatisticsFD}, CreateStatisticsOutput(), &OutputActions_);
         }
 
         PrepareInputTablePipe();
@@ -1036,12 +1048,13 @@ private:
         });
 
         auto runActions = [&] (const std::vector<TCallback<void()>>& actions,
-                const NYT::TCallback<void(const TError&)>& onError)
+                const NYT::TCallback<void(const TError&)>& onError,
+                IInvokerPtr invoker)
         {
             std::vector<TFuture<void>> result;
             for (const auto& action : actions) {
                 auto asyncError = action
-                    .AsyncVia(PipeIOPool_->GetInvoker())
+                    .AsyncVia(invoker)
                     .Run();
                 asyncError.Subscribe(onError);
                 result.emplace_back(std::move(asyncError));
@@ -1049,7 +1062,7 @@ private:
             return result;
         };
 
-        auto startFutures = runActions(StartActions_, onStartIOError);
+        auto startFutures = runActions(StartActions_, onStartIOError, PipeIOPool_->GetInvoker());
         // Wait until executor opens and dup named pipes.
 
         ProcessFinished_.Subscribe(onProcessFinished);
@@ -1057,12 +1070,14 @@ private:
         WaitFor(CombineAll(startFutures));
         LOG_INFO("Start actions finished");
 
-        auto inputFutures = runActions(InputActions_, onIOError);
-        auto outputFutures = runActions(OutputActions_, onIOError);
+        auto inputFutures = runActions(InputActions_, onIOError, PipeIOPool_->GetInvoker());
+        auto outputFutures = runActions(OutputActions_, onIOError, PipeIOPool_->GetInvoker());
+        auto stderrFutures = runActions(StderrActions_, onIOError, ReadStderrInvoker_);
 
         // First, wait for all job output pipes.
         // If job successfully completes or dies prematurely, they close automatically.
         WaitFor(CombineAll(outputFutures));
+        WaitFor(CombineAll(stderrFutures));
         LOG_INFO("Output actions finished");
 
         // Then, wait for job process to finish.

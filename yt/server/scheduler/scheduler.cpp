@@ -29,6 +29,7 @@
 #include <yt/ytlib/shell/config.h>
 
 #include <yt/ytlib/node_tracker_client/channel.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/schemaless_buffered_table_writer.h>
@@ -642,6 +643,14 @@ public:
     {
         auto nodeShard = GetNodeShardByJobId(jobId);
         return BIND(&TNodeShard::DumpJobInputContext, nodeShard, jobId, path, user)
+            .AsyncVia(nodeShard->GetInvoker())
+            .Run();
+    }
+
+    TFuture<TNodeDescriptor> GetJobNode(const TJobId& jobId, const Stroka& user)
+    {
+        auto nodeShard = GetNodeShardByJobId(jobId);
+        return BIND(&TNodeShard::GetJobNode, nodeShard, jobId, user)
             .AsyncVia(nodeShard->GetInvoker())
             .Run();
     }
@@ -2390,6 +2399,12 @@ TFuture<void> TScheduler::DumpInputContext(const TJobId& jobId, const NYPath::TY
 {
     return Impl_->DumpInputContext(jobId, path, user);
 }
+
+TFuture<TNodeDescriptor> TScheduler::GetJobNode(const TJobId& jobId, const Stroka& user)
+{
+    return Impl_->GetJobNode(jobId, user);
+}
+
 
 TFuture<TYsonString> TScheduler::Strace(const TJobId& jobId, const Stroka& user)
 {

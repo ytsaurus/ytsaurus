@@ -416,6 +416,16 @@ void TNodeShard::DumpJobInputContext(const TJobId& jobId, const TYPath& path, co
         jobId);
 }
 
+TNodeDescriptor TNodeShard::GetJobNode(const TJobId& jobId, const Stroka& user)
+{
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    auto job = GetJobOrThrow(jobId);
+
+    Host_->ValidateOperationPermission(user, job->GetOperationId(), EPermission::Write);
+
+    return job->GetNode()->NodeDescriptor();
+}
+
 void TNodeShard::SignalJob(const TJobId& jobId, const Stroka& signalName, const Stroka& user)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());

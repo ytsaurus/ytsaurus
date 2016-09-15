@@ -29,6 +29,23 @@ public:
 
 };
 
+class TGetJobStderrCommand
+    : public TTypedCommand<NApi::TGetJobStderrOptions>
+{
+private:
+    NJobTrackerClient::TJobId JobId;
+    NYPath::TYPath Path;
+
+public:
+    TGetJobStderrCommand()
+    {
+        RegisterParameter("job_id", JobId);
+    }
+
+    void Execute(ICommandContextPtr context);
+
+};
+
 class TStraceJobCommand
     : public TTypedCommand<NApi::TStraceJobOptions>
 {

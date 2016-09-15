@@ -99,6 +99,12 @@ std::vector<NChunkClient::TChunkId> TJobProxy::DumpInputContext(const TJobId& jo
     return Job_->DumpInputContext();
 }
 
+Stroka TJobProxy::GetStderr(const TJobId& jobId)
+{
+    ValidateJobId(jobId);
+    return Job_->GetStderr();
+}
+
 TYsonString TJobProxy::Strace(const TJobId& jobId)
 {
     ValidateJobId(jobId);
