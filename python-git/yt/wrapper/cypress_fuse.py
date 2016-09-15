@@ -21,6 +21,7 @@ from yt.packages.expiringdict import ExpiringDict
 import yt.packages.fuse as fuse
 import yt.packages.requests as requests
 from yt.packages.six import itervalues, iteritems, iterkeys
+from yt.packages.six.moves import map as imap
 
 import stat
 import errno
@@ -248,7 +249,7 @@ class CachedYtClient(yt.wrapper.client.Yt):
         children = super(CachedYtClient, self).list(
             path, attributes=attributes
         )
-        cache_entry.children = set(map(str, children))
+        cache_entry.children = set(imap(str, children))
 
         for child in children:
             child_path = path + "/" + child

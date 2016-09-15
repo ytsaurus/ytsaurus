@@ -16,6 +16,7 @@ except ImportError:
     from yt.packages.importlib import import_module
 
 from yt.packages.six import itervalues, iteritems
+from yt.packages.six.moves import map as imap
 
 import re
 import imp
@@ -55,13 +56,13 @@ def calc_md5_from_file(filename):
         h = hashlib.md5()
         for buf in chunk_iter_stream(fin, 1024):
             h.update(buf)
-    return tuple(map(ord, h.digest()))
+    return tuple(imap(ord, h.digest()))
 
 def calc_md5_from_string(string):
     h = hashlib.md5()
     for buf in chunk_iter_string(string, 1024):
         h.update(buf)
-    return tuple(map(ord, h.digest()))
+    return tuple(imap(ord, h.digest()))
 
 def merge_md5(lhs, rhs):
     return lhs + [rhs]
@@ -72,7 +73,7 @@ def hex_md5(md5_array):
         return "zip_salt_" + "".join(["{0:02x}".format(num) for num in md5])
 
     md5_array.sort()
-    return to_hex(calc_md5_from_string("".join(map(to_hex, md5_array))))
+    return to_hex(calc_md5_from_string("".join(imap(to_hex, md5_array))))
 
 def calc_md5_string_from_file(filename):
     return hex_md5([calc_md5_from_file(filename)])
@@ -326,7 +327,7 @@ def simplify(function_name):
         if sym not in string.ascii_letters and sym not in string.digits:
             return "_"
         return sym
-    return "".join(map(fix, function_name[:30]))
+    return "".join(imap(fix, function_name[:30]))
 
 def get_function_name(function):
     if hasattr(function, "__name__"):
@@ -364,17 +365,17 @@ def do_wrap(function, operation_type, tempfiles_manager, input_format, output_fo
         Pickler(config.DEFAULT_PICKLING_FRAMEWORK).dump(get_config(client), fout)
 
     if SINGLE_INDEPENDENT_BINARY_CASE or (SINGLE_INDEPENDENT_BINARY_CASE is None and getattr(sys, "is_standalone_binary", False)):
-        files = map(os.path.abspath, [
+        files = list(imap(os.path.abspath, [
             sys.argv[0],
             function_filename,
-            config_filename])
+            config_filename]))
 
         if local_mode:
             file_args = files
             uploaded_files = []
             local_files_to_remove = tempfiles_manager._tempfiles_pool
         else:
-            file_args =  map(os.path.basename, files)
+            file_args =  list(imap(os.path.basename, files))
             file_args[0] = "./" + file_args[0]
             uploaded_files = uploader(files)
             local_files_to_remove = []
@@ -430,12 +431,12 @@ def do_wrap(function, operation_type, tempfiles_manager, input_format, output_fo
     if function_source_filename:
         shutil.copy(function_source_filename, main_filename)
 
-    files = map(os.path.abspath, [
+    files = list(imap(os.path.abspath, [
         os.path.join(LOCATION, "_py_runner.py"),
         function_filename,
         config_filename,
         modules_info_filename,
-        main_filename])
+        main_filename]))
 
     python_binary = get_config(client)["pickling"]["python_binary"]
     use_local_python_in_jobs = get_config(client)["pickling"]["use_local_python_in_jobs"]
@@ -456,7 +457,7 @@ def do_wrap(function, operation_type, tempfiles_manager, input_format, output_fo
         if use_local_python_in_jobs:
             python_binary = "./" + os.path.basename(sys.executable)
             files_to_upload.append(os.path.abspath(sys.executable))
-        file_args = map(os.path.basename, files)
+        file_args = list(imap(os.path.basename, files))
         files_to_upload += files + modules_filenames
         uploaded_files = uploader(files_to_upload)
         local_files_to_remove = []

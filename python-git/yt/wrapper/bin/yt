@@ -8,7 +8,7 @@ from yt.wrapper.cli_helpers import write_silently, run_main
 import yt.wrapper.completers as completers
 import yt.json as json
 
-from yt.packages.six.moves import builtins
+from yt.packages.six.moves import builtins, map as imap
 
 import yt.wrapper as yt
 
@@ -149,7 +149,7 @@ class ParseFormat(Action):
 
 class ParseStructuredArguments(Action):
     def __call__(self, parser, namespace, values, option_string=None):
-        setattr(namespace, self.dest, map(parse_arguments, values))
+        setattr(namespace, self.dest, list(imap(parse_arguments, values)))
 
 class ParseStructuredArgument(Action):
     def __call__(self, parser, namespace, values, option_string=None):

@@ -1,4 +1,10 @@
-from itertools import imap, chain, izip
+from itertools import chain
+
+try:
+    from itertools import izip, imap
+except ImportError:  # Python 3
+    izip = zip
+    imap = map
 
 class SimpleRecord:
     def __init__(self, key, value, tableIndex=0):

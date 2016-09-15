@@ -66,6 +66,8 @@ import yt.logger as logger
 import yt.json as json
 import yt.yson as yson
 
+from yt.packages.six.moves import map as imap
+
 import os
 import sys
 import time
@@ -268,7 +270,7 @@ def _prepare_destination_tables(tables, replication_factor, compression_codec, c
         if get_config(client)["yamr_mode"]["throw_on_missing_destination"]:
             raise YtError("Destination tables are missing")
         return []
-    tables = map(lambda name: TablePath(name, client=client), flatten(tables))
+    tables = list(imap(lambda name: TablePath(name, client=client), flatten(tables)))
     for table in tables:
         attributes = {}
         if replication_factor is not None:
@@ -337,7 +339,7 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
                 "output_format": output_format.to_yson_type(),
                 "command": binary,
                 "file_paths":
-                    flatten(files + additional_files + map(lambda path: TablePath(path, client=client), file_paths)),
+                    flatten(files + additional_files + list(imap(lambda path: TablePath(path, client=client), file_paths))),
                 "use_yamr_descriptors": bool_to_string(get_config(client)["yamr_mode"]["use_yamr_style_destination_fds"]),
                 "check_input_fully_consumed": bool_to_string(get_config(client)["yamr_mode"]["check_input_fully_consumed"])
             }
@@ -393,11 +395,11 @@ def _add_input_output_spec(source_table, destination_table, spec):
     def get_output_name(table):
         return table.to_yson_type()
 
-    spec = update({"input_table_paths": map(get_input_name, source_table)}, spec)
+    spec = update({"input_table_paths": list(imap(get_input_name, source_table))}, spec)
     if isinstance(destination_table, TablePath):
         spec = update({"output_table_path": get_output_name(destination_table)}, spec)
     else:
-        spec = update({"output_table_paths": map(get_output_name, destination_table)}, spec)
+        spec = update({"output_table_paths": list(imap(get_output_name, destination_table))}, spec)
     return spec
 
 def _add_job_io_spec(job_types, job_io, table_writer, spec):
@@ -478,7 +480,7 @@ def _get_format_from_tables(tables, ignore_unexisting_tables):
             return create_format(format_name)
         return None
 
-    formats = map(extract_format, tables_to_extract)
+    formats = list(imap(extract_format, tables_to_extract))
 
     def format_repr(format):
         if format is not None:
@@ -850,7 +852,7 @@ def copy_table(source_table, destination_table, replace=True, client=None):
             remove(destination_table, client=client)
         copy(source_tables[0], destination_table, recursive=True, client=client)
     else:
-        mode = "sorted" if (all(map(lambda t: is_sorted(t, client=client), source_tables)) and not destination_table.append) \
+        mode = "sorted" if (all(imap(lambda t: is_sorted(t, client=client), source_tables)) and not destination_table.append) \
                else "ordered"
         run_merge(source_tables, destination_table, mode, client=client)
 
@@ -1256,7 +1258,7 @@ def run_merge(source_table, destination_table, mode=None,
 
     mode = get_value(mode, "auto")
     if mode == "auto":
-        mode = "sorted" if all(map(is_sorted, source_table)) else "unordered"
+        mode = "sorted" if all(imap(is_sorted, source_table)) else "unordered"
 
     table_writer = _prepare_table_writer(table_writer, client)
     spec = compose(
@@ -1331,10 +1333,10 @@ class Finalizer(object):
             for file in self.local_files_to_remove:
                 os.remove(file)
         if state == "completed":
-            for table in map(lambda table: TablePath(table, client=self.client), self.output_tables):
+            for table in imap(lambda table: TablePath(table, client=self.client), self.output_tables):
                 self.check_for_merge(table)
         if get_config(self.client)["yamr_mode"]["delete_empty_tables"]:
-            for table in map(lambda table: TablePath(table, client=self.client), self.output_tables):
+            for table in imap(lambda table: TablePath(table, client=self.client), self.output_tables):
                 if is_empty(table, client=self.client):
                     remove_with_empty_dirs(table, client=self.client)
 
@@ -1748,7 +1750,7 @@ def run_remote_copy(source_table, destination_table,
         lambda _: _set_option(_, "cluster_name", cluster_name),
         lambda _: _set_option(_, "cluster_connection", cluster_connection),
         lambda _: _set_option(_, "copy_attributes", copy_attributes),
-        lambda _: update({"input_table_paths": map(get_input_name, source_table),
+        lambda _: update({"input_table_paths": list(imap(get_input_name, source_table)),
                           "output_table_path": destination_table},
                           _),
         lambda _: get_value(spec, {})

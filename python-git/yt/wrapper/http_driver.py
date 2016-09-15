@@ -11,6 +11,7 @@ import yt.json as json
 
 from yt.packages.requests.auth import AuthBase
 from yt.packages.six import iteritems
+from yt.packages.six.moves import map as imap
 
 import random
 from copy import deepcopy
@@ -25,14 +26,14 @@ def escape_utf8(obj):
         else:
             return chr(ord('\xC0') | (ord(sym) >> 6)) + chr(ord('\x80') | (ord(sym) & ~ord('\xC0')))
     def escape_str(str):
-        return "".join(map(escape_symbol, str))
+        return "".join(imap(escape_symbol, str))
 
     if isinstance(obj, unicode):
         obj = escape_str(str(bytearray(obj, 'utf-8')))
     elif isinstance(obj, str):
         obj = escape_str(obj)
     elif isinstance(obj, list):
-        obj = map(escape_utf8, obj)
+        obj = list(imap(escape_utf8, obj))
     elif isinstance(obj, dict):
         obj = dict((escape_str(k), escape_utf8(v)) for k, v in iteritems(obj))
     return obj

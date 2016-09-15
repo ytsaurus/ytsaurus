@@ -3,8 +3,12 @@
 from __future__ import print_function
 
 import sys
-from itertools import imap
 from functools import partial
+
+try:
+    from itertools import imap
+except ImportError:  # Python 3
+    imap = map
 
 def capitalizeB(rec):
     if "b" in rec:
@@ -13,7 +17,7 @@ def capitalizeB(rec):
 
 """ Methods for records convertion """
 def record_to_line(rec, eoln=True):
-    body = "\t".join("=".join(map(str, item)) for item in rec.items())
+    body = "\t".join("=".join(imap(str, item)) for item in rec.items())
     return "%s%s" % (body, "\n" if eoln else "")
 
 def line_to_record(line):
@@ -22,6 +26,6 @@ def line_to_record(line):
 if __name__ == "__main__":
     lines = sys.stdin.readlines()
     print(lines, file=sys.stderr)
-    recs = map(partial(line_to_record), lines)
+    recs = list(imap(partial(line_to_record), lines))
     print(recs, file=sys.stderr)
     sys.stdout.writelines(imap(partial(record_to_line), imap(capitalizeB, recs)))

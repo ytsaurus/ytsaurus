@@ -4,7 +4,7 @@ from yt.wrapper.cli_helpers import die
 import yt.json as json
 
 from yt.packages.six import iteritems
-from yt.packages.six.moves import xrange
+from yt.packages.six.moves import xrange, map as imap
 
 import yt.wrapper as yt
 
@@ -64,7 +64,7 @@ class Hash(object):
             self.array = [0] * 16
         else:
             assert len(md5) == 16
-            self.array = map(ord, md5)
+            self.array = list(imap(ord, md5))
 
     def update(self, other):
         assert len(self.array) == len(other.array)
@@ -72,10 +72,10 @@ class Hash(object):
             self.array[i] = self.array[i] ^ other.array[i]
 
     def md5(self):
-        return "".join(map(chr, self.array))
+        return "".join(imap(chr, self.array))
 
     def hex(self):
-        return "".join(map(lambda num: "%02x" % num, self.array))
+        return "".join(imap(lambda num: "%02x" % num, self.array))
 
 class SortedHash(object):
     prime = 4093082899
@@ -144,7 +144,7 @@ def process_stream(stream, input_type, sorted, reduce_by):
                 return ""
 
             group_hashes = calculate_hash_of_groups(stream, input_type, reduce_by)
-            hash = calculate_hash(itertools.imap(lambda hash: hash.md5(), group_hashes), SortedHash)
+            hash = calculate_hash(imap(lambda hash: hash.md5(), group_hashes), SortedHash)
 
         return "{0}\t{1}\n".format(key, hash.hex())
     else:

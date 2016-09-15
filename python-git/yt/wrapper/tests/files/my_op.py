@@ -1,9 +1,14 @@
 #!/usr/bin/env python
-from helpers import record_to_line, line_to_record, python_map, Record
 
-from itertools import imap
+from .helpers import record_to_line, line_to_record, python_map, Record
+
 from time import sleep
 import sys
+
+try:
+    from itertools import imap
+except ImportError:  # Python 3
+    imap = map
 
 def func(rec):
     for i in [0, 1]:

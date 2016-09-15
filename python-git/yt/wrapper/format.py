@@ -14,7 +14,7 @@ import yt.logger as logger
 import yt.json as json
 
 from yt.packages.six import iteritems, Iterator, add_metaclass
-from yt.packages.six.moves import xrange
+from yt.packages.six.moves import xrange, map as imap
 
 from abc import ABCMeta, abstractmethod
 import copy
@@ -295,10 +295,10 @@ class DsvFormat(Format):
             key_dict = copy.deepcopy(value_dict)
             key_dict['\\='] = '='
 
-            return ["\\".join(map(lambda t: self._unescape(t, key_dict), key_tokens)),
-                    "\\".join(map(lambda t: self._unescape(t, value_dict), value_tokens))]
+            return ["\\".join(imap(lambda t: self._unescape(t, key_dict), key_tokens)),
+                    "\\".join(imap(lambda t: self._unescape(t, value_dict), value_tokens))]
 
-        return dict(map(unescape_dsv_field, filter(None, string.strip("\n").split("\t"))))
+        return dict(imap(unescape_dsv_field, filter(None, string.strip("\n").split("\t"))))
 
 class YsonFormat(Format):
     """
@@ -833,11 +833,11 @@ class SchemafulDsvFormat(Format):
             if not self.enable_escaping:
                 return field
             unescape_dict = {'\\n': '\n', '\\r': '\r', '\\t': '\t', '\\0': '\0'}
-            return "\\".join(map(lambda token: self._unescape(token, unescape_dict),
-                                 field.split("\\\\")))
+            return "\\".join(imap(lambda token: self._unescape(token, unescape_dict),
+                                  field.split("\\\\")))
 
         return dict(itertools.izip(self._columns,
-                                   map(unescape_field, line.rstrip("\n").split("\t"))))
+                                   imap(unescape_field, line.rstrip("\n").split("\t"))))
 
 # TODO(veronikaiv): do it beautiful way!
 Format._copy_docs()

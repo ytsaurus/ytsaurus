@@ -6,7 +6,7 @@ import yt.yson as yson
 
 from yt.packages.decorator import decorator
 from yt.packages.six import iteritems, itervalues
-from yt.packages.six.moves import xrange
+from yt.packages.six.moves import xrange, map as imap
 
 import os
 import sys
@@ -80,7 +80,7 @@ def dict_depth(obj):
     if not isinstance(obj, dict):
         return 0
     else:
-        return 1 + max(map(dict_depth, itervalues(obj)))
+        return 1 + max(imap(dict_depth, itervalues(obj)))
 
 def first_not_none(iter):
     return next(ifilter(None, iter))

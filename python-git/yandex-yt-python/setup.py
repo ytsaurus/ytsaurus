@@ -7,6 +7,11 @@ import os
 import sys
 import subprocess
 
+try:
+    from itertools import imap
+except ImportError:  # Python 3
+    imap = map
+
 class PyTest(TestCommand):
     def finalize_options(self):
         TestCommand.finalize_options(self)
@@ -22,7 +27,7 @@ class PyTest(TestCommand):
 
 def recursive(path):
     prefix = path.strip("/").replace("/", ".")
-    return map(lambda package: prefix + "." + package, find_packages(path)) + [prefix]
+    return list(imap(lambda package: prefix + "." + package, find_packages(path))) + [prefix]
 
 def build_documentation_files(source, target):
     result = []
