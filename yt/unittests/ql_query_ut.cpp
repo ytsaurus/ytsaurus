@@ -804,49 +804,6 @@ TEST_F(TQueryEvaluateTest, SelectAll)
     Evaluate("* FROM [//t]", split, source, ResultMatcher(result));
 }
 
-TEST_F(TQueryEvaluateTest, FilterNulls1)
-{
-    auto split = MakeSplit({
-        {"a", EValueType::Int64},
-        {"b", EValueType::Int64}
-    });
-
-    std::vector<Stroka> source = {
-        "a=4;b=5",
-        "a=6",
-        "a=10;b=11"
-    };
-
-    auto result = BuildRows({
-        "a=4;b=5",
-        "a=10;b=11"
-    }, split);
-
-    Evaluate("* FROM [//t] where b > 0", split, source, ResultMatcher(result));
-}
-
-TEST_F(TQueryEvaluateTest, FilterNulls2)
-{
-    auto split = MakeSplit({
-        {"a", EValueType::Int64},
-        {"b", EValueType::Int64}
-    });
-
-    std::vector<Stroka> source = {
-        "a=4;b=5",
-        "a=6",
-        "a=10;b=11"
-    };
-
-    auto result = BuildRows({
-        "a=4;b=5",
-        "a=6",
-        "a=10;b=11"
-    }, split);
-
-    Evaluate("* FROM [//t] where b > 0 or is_null(b)", split, source, ResultMatcher(result));
-}
-
 TEST_F(TQueryEvaluateTest, SimpleCmpInt)
 {
     auto split = MakeSplit({
