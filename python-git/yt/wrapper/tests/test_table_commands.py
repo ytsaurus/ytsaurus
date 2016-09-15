@@ -348,7 +348,7 @@ class TestTableCommands(object):
         assert yt.row_count(dst_table_ab) == len_a + len_b
         for table in (dst_table_a, dst_table_b, dst_table_ab):
             rsp = yt.read_table(table, raw=False)
-            row = rsp.next()
+            row = next(rsp)
             for field in ("@table_index", "TableIndex", "_table_index_"):
                 assert field not in row
 

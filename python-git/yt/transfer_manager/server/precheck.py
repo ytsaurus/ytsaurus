@@ -46,7 +46,7 @@ def perform_precheck(task, clusters_configuration, ignore_timeout=False, yamr_ti
                 path = yt.TablePath(task.source_table, ranges=[{"upper_limit": {"row_index": 1}}], client=source_client)
                 try:
                     stream = source_client.read_table(path, format=yt.YamrFormat(), raw=True)
-                    stream.next()
+                    next(stream)
                     stream.close()
                 except yt.YtError as err:
                     raise yt.YtError("Failed to read first row in YAMR format", inner_errors=[err])

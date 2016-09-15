@@ -12,7 +12,7 @@ from yt.yson import to_yson_type
 import yt.yson as yson
 import yt.json as json
 
-from yt.packages.six import iterkeys, itervalues, iteritems, PY3
+from yt.packages.six import iterkeys, itervalues, iteritems, PY3, Iterator
 
 import yt.wrapper as yt
 
@@ -26,6 +26,7 @@ import tempfile
 import time
 import pytest
 import shutil
+import collections
 
 def test_docs_exist():
     functions = inspect.getmembers(yt, lambda o: inspect.isfunction(o) and \
@@ -40,8 +41,12 @@ def test_docs_exist():
             continue # Python Thread is not documented O_o
         public_methods = inspect.getmembers(cl, lambda o: inspect.ismethod(o) and \
                                                           not o.__name__.startswith('_'))
+        ignore_methods = set()
+        if issubclass(cl, collections.Iterator) and not PY3:
+            ignore_methods.add("next")
+
         methods_without_doc = [method for name, method in public_methods
-                                                            if (not inspect.getdoc(method))]
+                               if name not in ignore_methods and not inspect.getdoc(method)]
         assert not methods_without_doc
 
 def test_ypath_join():
@@ -183,9 +188,9 @@ class TestRetries(object):
             check([{"x": 1}, {"y": 2}], yt.read_table(table))
 
             rsp = yt.read_table(table, format=yt.JsonFormat(), raw=True)
-            assert json.loads(rsp.next()) == {"x": 1}
+            assert json.loads(next(rsp)) == {"x": 1}
             yt.write_table(table, [{"x": 1}, {"y": 3}])
-            assert json.loads(rsp.next()) == {"y": 2}
+            assert json.loads(next(rsp)) == {"y": 2}
             rsp.close()
 
             rsp = yt.read_table(table, raw=False)
@@ -448,7 +453,7 @@ class TestResponseStream(object):
         random_line = lambda: ''.join(random.choice(string.ascii_lowercase) for _ in xrange(100))
         s = '\n'.join(random_line() for _ in xrange(3))
 
-        class StringIterator(object):
+        class StringIterator(Iterator):
             def __init__(self, string, chunk_size=10):
                 self.string = string
                 self.pos = 0
@@ -461,7 +466,7 @@ class TestResponseStream(object):
             def __iter__(self):
                 return self
 
-            def next(self):
+            def __next__(self):
                 str_part = self.string[self.pos:self.pos + self.chunk_size]
                 if not str_part:
                     if not self.empty_string_before_finish_yielded:
@@ -490,8 +495,8 @@ class TestResponseStream(object):
         assert stream.read(2) == s[20:22]
 
         iterator = stream.chunk_iter()
-        assert iterator.next() == s[22:30]
-        assert iterator.next() == s[30:40]
+        assert next(iterator) == s[22:30]
+        assert next(iterator) == s[30:40]
 
         assert stream.readline() == s[40:101]
         assert stream.readline() == s[101:202]
@@ -523,7 +528,7 @@ class TestResponseStream(object):
         assert len(values) == 0
 
         with pytest.raises(StopIteration):
-            stream.next()
+            next(stream)
 
 @pytest.mark.usefixtures("yt_env")
 class TestExecuteBatch(object):

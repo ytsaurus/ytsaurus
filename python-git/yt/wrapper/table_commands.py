@@ -72,6 +72,7 @@ import time
 import types
 from cStringIO import StringIO
 from copy import deepcopy
+import collections
 
 # Auxiliary methods
 
@@ -91,7 +92,8 @@ def _to_chunk_stream(stream, format, raw, split_rows, chunk_size):
             stream = stream.encode("utf-8")
         stream = StringIO(stream)
 
-    is_iterable = any([isinstance(stream, type) for type in [types.ListType, types.GeneratorType]]) or hasattr(stream, "next")
+    iterable_types = [types.ListType, types.GeneratorType, collections.Iterator, collections.Iterable]
+    is_iterable = any([isinstance(stream, type) for type in iterable_types])
     is_filelike = hasattr(stream, "read")
 
     if not is_iterable and not is_filelike:
@@ -720,7 +722,7 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
 
             def load_control_row(row):
                 if format_name == "yson":
-                    return yson.loads(row, yson_type="list_fragment").next()
+                    return next(yson.loads(row, yson_type="list_fragment"))
                 elif format_name == "json":
                     return yson.json_to_yson(json.loads(row))
                 else:

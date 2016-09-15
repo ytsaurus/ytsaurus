@@ -136,7 +136,7 @@ def process_stream(stream, input_type, sorted, reduce_by):
         else:
             stream, another_stream = itertools.tee(stream)
             try:
-                key = extract_key(another_stream.next(), input_type, reduce_by)
+                key = extract_key(next(another_stream), input_type, reduce_by)
                 del another_stream
             except StopIteration:
                 # Empty input case

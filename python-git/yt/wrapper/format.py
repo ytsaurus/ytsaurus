@@ -13,7 +13,7 @@ from . import yson
 import yt.logger as logger
 import yt.json as json
 
-from yt.packages.six import iteritems
+from yt.packages.six import iteritems, Iterator
 
 from abc import ABCMeta, abstractmethod
 import copy
@@ -371,14 +371,14 @@ class YsonFormat(Format):
                 if row_index is not None:
                     row_index += 1
 
-        class Iterator(object):
+        class RowsIterator(Iterator):
             def __init__(self):
                 self.table_index = None
                 self.row_index = None
                 self.range_index = None
                 self._increment_row_index = False
 
-            def next(self):
+            def __next__(self):
                 for row in rows:
                     if isinstance(row, yson.YsonEntity):
                         self._increment_row_index = False
@@ -404,7 +404,7 @@ class YsonFormat(Format):
             if self.control_attributes_mode == "row_fields":
                 return generator()
             elif self.control_attributes_mode == "iterator":
-                return Iterator()
+                return RowsIterator()
             else:
                 return rows
         elif self.process_table_index:

@@ -94,20 +94,20 @@ def test_yson_iterator_mode():
     assert iterator.table_index is None
     assert iterator.row_index is None
     assert iterator.range_index is None
-    assert iterator.next() == {"a": 1}
+    assert next(iterator) == {"a": 1}
     assert iterator.table_index is None
     assert iterator.row_index == 0
     assert iterator.range_index == 0
-    assert iterator.next() == {"a": 1}
+    assert next(iterator) == {"a": 1}
     assert iterator.table_index == 1
     assert iterator.row_index == 2
     assert iterator.range_index == 3
-    assert iterator.next() == {"b": 2}
+    assert next(iterator) == {"b": 2}
     assert iterator.table_index == 1
     assert iterator.row_index == 3
     assert iterator.range_index == 3
     with pytest.raises(StopIteration):
-        iterator.next()
+        next(iterator)
 
 
 def test_dsv_format():

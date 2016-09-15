@@ -1,7 +1,9 @@
+from yt.packages.six import Iterator
+
 from itertools import chain
 from cStringIO import StringIO
 
-class StringIterIO(object):
+class StringIterIO(Iterator):
     """
     Read-only IO stream wraps strings iterator.
     """
@@ -71,13 +73,12 @@ class StringIterIO(object):
 
     def _extract_next(self):
         try:
-            self._cur_string = self._strings_iter.next()
+            self._cur_string = next(self._strings_iter)
             self._active = True
         except StopIteration:
             self._active = False
 
-    def next(self):
-        """ Get the next line from stream. """
+    def __next__(self):
         res = self.readline()
         if not res:
             raise StopIteration()

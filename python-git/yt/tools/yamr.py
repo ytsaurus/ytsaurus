@@ -1,7 +1,10 @@
-import yt.logger as logger
 from yt.common import YtError, set_pdeathsig, flatten, make_non_blocking
 from yt.wrapper.common import generate_uuid, MB
+
+import yt.logger as logger
 import yt.json as json
+
+from yt.packages.six import Iterator
 
 import os
 import errno
@@ -42,7 +45,7 @@ def _check_call(command, silent=False, **kwargs):
 
     logger.info("Command '{}' successfully executed".format(command))
 
-class _ReadTableIterator(object):
+class _ReadTableIterator(Iterator):
     def __init__(self, command, chunk_size, timeout):
         self._command = command
         self._chunk_size = chunk_size
@@ -75,7 +78,7 @@ class _ReadTableIterator(object):
         error.inner_errors = [YamrError(stderr, returncode)]
         raise error
 
-    def next(self):
+    def __next__(self):
         while True:
             if self._timeout is not None and time.time() - self._proc_start_time > self._timeout:
                 self._proc.kill()
