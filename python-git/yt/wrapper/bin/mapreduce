@@ -31,7 +31,7 @@ import yt.wrapper.config as config
 import yt.yson as yson
 import yt.json as json
 
-from yt.packages.six.moves import map as imap
+from yt.packages.six.moves import map as imap, zip as izip
 
 import yt.wrapper as yt
 
@@ -780,7 +780,7 @@ Examples:
                 exit("Number of source and destination tables must be the same "
                      "in case of multiple destination tables in copy or move")
             with yt.Transaction(attributes={"title": "Python wrapper: mapreduce-yt copying/moving multiple tables"}):
-                for source_table, destination_table in zip(args.src, dst):
+                for source_table, destination_table in izip(args.src, dst):
                     method(source_table, destination_table)
         else:
             method(args.src, unlist_destination_tables(dst))

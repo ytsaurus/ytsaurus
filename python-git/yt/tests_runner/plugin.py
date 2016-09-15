@@ -9,6 +9,11 @@ import time
 import execnet
 from functools import partial
 
+try:
+    from itertools import izip
+except ImportError:  # Python 3
+    izip = zip
+
 import pytest
 from _pytest import runner
 
@@ -143,7 +148,7 @@ class YtParallelTestsRunnerPlugin(object):
             self.processes.append(self._make_process())
             self._initialize_process(process_index)
 
-        for process, tasks in zip(self.processes, self.processes_tasks):
+        for process, tasks in izip(self.processes, self.processes_tasks):
             process.channel.send(tasks)
 
         while len(self.finished_processes) < self.process_count:

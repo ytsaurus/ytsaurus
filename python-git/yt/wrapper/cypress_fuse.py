@@ -21,7 +21,7 @@ from yt.packages.expiringdict import ExpiringDict
 import yt.packages.fuse as fuse
 import yt.packages.requests as requests
 from yt.packages.six import itervalues, iteritems, iterkeys
-from yt.packages.six.moves import map as imap
+from yt.packages.six.moves import map as imap, zip as izip
 
 import stat
 import errno
@@ -89,7 +89,7 @@ def log_calls(logger, message_format, statistics):
         positional_names = function.__code__.co_varnames
 
         def log_call(*args, **kwargs):
-            kwargs.update(zip(positional_names, args))
+            kwargs.update(izip(positional_names, args))
             kwargs["__name__"] = function.__name__
             logger.debug(message_format, kwargs)
 

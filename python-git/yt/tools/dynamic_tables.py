@@ -8,7 +8,7 @@ from yt.wrapper.common import run_with_retries, update
 from yt.wrapper.client import Yt
 
 from yt.packages.six import itervalues, iteritems
-from yt.packages.six.moves import map as imap
+from yt.packages.six.moves import map as imap, zip as izip
 
 import sys
 import time
@@ -347,7 +347,7 @@ class DynamicTablesClient(object):
         # Write partition bounds into partition_bounds_table.
 
         # Same as `regions = window(regions, 2, fill_left=True, fill_right=True)`:
-        regions = zip([None] + partition_keys, partition_keys + [None])
+        regions = list(izip([None] + partition_keys, partition_keys + [None]))
 
         regions = [{"left": left, "right": right}
                    for left, right in regions]
