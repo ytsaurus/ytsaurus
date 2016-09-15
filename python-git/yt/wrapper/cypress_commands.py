@@ -10,7 +10,7 @@ from .format import create_format
 import yt.logger as logger
 
 from yt.packages.six import iteritems
-from yt.packages.six.moves import builtins, map as imap
+from yt.packages.six.moves import builtins, map as imap, filter as ifilter
 
 import os
 import string
@@ -368,7 +368,7 @@ def search(root="", node_type=None,
            (object_filter is None or object_filter(object)) and \
            (path_filter is None or path_filter(path)):
             yson_path = yson.YsonString(path)
-            yson_path.attributes = dict(filter(lambda item: item[0] in attributes, iteritems(object.attributes)))
+            yson_path.attributes = dict(ifilter(lambda item: item[0] in attributes, iteritems(object.attributes)))
             yield yson_path
 
         if object_type in ["account_map", "tablet_cell"]:

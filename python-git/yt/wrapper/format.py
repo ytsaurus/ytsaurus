@@ -14,7 +14,7 @@ import yt.logger as logger
 import yt.json as json
 
 from yt.packages.six import iteritems, Iterator, add_metaclass
-from yt.packages.six.moves import xrange, map as imap, zip as izip
+from yt.packages.six.moves import xrange, map as imap, zip as izip, filter as ifilter
 
 from abc import ABCMeta, abstractmethod
 import copy
@@ -297,7 +297,7 @@ class DsvFormat(Format):
             return ["\\".join(imap(lambda t: self._unescape(t, key_dict), key_tokens)),
                     "\\".join(imap(lambda t: self._unescape(t, value_dict), value_tokens))]
 
-        return dict(imap(unescape_dsv_field, filter(None, string.strip("\n").split("\t"))))
+        return dict(imap(unescape_dsv_field, ifilter(None, string.strip("\n").split("\t"))))
 
 class YsonFormat(Format):
     """

@@ -66,7 +66,7 @@ import yt.logger as logger
 import yt.json as json
 import yt.yson as yson
 
-from yt.packages.six.moves import map as imap
+from yt.packages.six.moves import map as imap, filter as ifilter
 
 import os
 import sys
@@ -459,10 +459,10 @@ def _make_operation_request(command_name, spec, sync,
 
 def _get_format_from_tables(tables, ignore_unexisting_tables):
     """Try to get format from tables, raise YtError if tables have different _format attribute"""
-    not_none_tables = filter(None, flatten(tables))
+    not_none_tables = list(ifilter(None, flatten(tables)))
 
     if ignore_unexisting_tables:
-        tables_to_extract = filter(lambda x: exists(TablePath(x)), not_none_tables)
+        tables_to_extract = list(ifilter(lambda x: exists(TablePath(x)), not_none_tables))
     else:
         tables_to_extract = not_none_tables
 

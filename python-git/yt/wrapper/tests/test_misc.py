@@ -13,7 +13,7 @@ import yt.yson as yson
 import yt.json as json
 
 from yt.packages.six import iterkeys, itervalues, iteritems, PY3, Iterator
-from yt.packages.six.moves import xrange
+from yt.packages.six.moves import xrange, filter as ifilter
 
 import yt.wrapper as yt
 
@@ -32,7 +32,7 @@ import collections
 def test_docs_exist():
     functions = inspect.getmembers(yt, lambda o: inspect.isfunction(o) and \
                                                  not o.__name__.startswith('_'))
-    functions_without_doc = filter(lambda (name, func): not inspect.getdoc(func), functions)
+    functions_without_doc = list(ifilter(lambda (name, func): not inspect.getdoc(func), functions))
     assert not functions_without_doc
 
     classes = inspect.getmembers(yt, lambda o: inspect.isclass(o))

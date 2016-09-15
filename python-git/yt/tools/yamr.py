@@ -6,7 +6,7 @@ import yt.json as json
 
 from yt.packages.six import Iterator
 from yt.packages.six.moves.urllib.parse import quote_plus
-from yt.packages.six.moves import map as imap
+from yt.packages.six.moves import map as imap, filter as ifilter
 
 import os
 import errno
@@ -156,7 +156,7 @@ class Yamr(object):
     def get_field_from_page(self, table, field):
         """ Extract value of given field from http page of the table """
         http_content = sh.curl("{0}/debug?info=table&table={1}".format(self.http_server, table)).stdout
-        records_line = filter(lambda line: line.find(field) != -1,  http_content.split("\n"))[0]
+        records_line = list(ifilter(lambda line: line.find(field) != -1,  http_content.split("\n"))[0])
         records_line = records_line.replace("</b>", "").replace("<br>", "").replace("<b>", "").replace(",", "")
         return records_line.split(field + ":")[1].split()[0]
 
@@ -175,7 +175,7 @@ class Yamr(object):
                     .format(self.binary, self.server, table),
                 timeout=self._light_command_timeout,
                 shell=True)
-            table_info = filter(lambda obj: obj["name"] == table, json.loads_as_bytes(output))
+            table_info = list(ifilter(lambda obj: obj["name"] == table, json.loads_as_bytes(output)))
             if table_info:
                 self.cache[table] = table_info[0]
             else:
@@ -226,7 +226,7 @@ class Yamr(object):
             return count is None or count == 0
         """ Parse whether table is empty from html """
         http_content = sh.curl("{0}/debug?info=table&table={1}".format(self.http_server, table)).stdout
-        empty_lines = filter(lambda line: line.find("is empty") != -1,  http_content.split("\n"))
+        empty_lines = list(ifilter(lambda line: line.find("is empty") != -1,  http_content.split("\n")))
         return empty_lines and empty_lines[0].startswith("Table is empty")
 
     def drop(self, table):

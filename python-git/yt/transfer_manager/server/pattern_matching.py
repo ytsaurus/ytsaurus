@@ -1,4 +1,4 @@
-from yt.packages.six.moves import xrange
+from yt.packages.six.moves import xrange, filter as ifilter
 
 import yt.wrapper as yt
 
@@ -9,7 +9,7 @@ def _is_placeholder(token):
 
 def _tokenize(pattern):
     parts = re.split(r"(\{\w*\}|\{\*\})", pattern)
-    return tuple(filter(lambda p: p != "", parts))
+    return tuple(ifilter(lambda p: p != "", parts))
 
 def _match(path, source_tokens, destination_tokens, result):
     destination_path_parts = list(destination_tokens)
@@ -64,7 +64,7 @@ def match_copy_pattern(client, source_pattern, destination_pattern):
             raise yt.YtError("Source pattern cannot contain consequtive placeholders")
 
     destination_tokens = _tokenize(destination_pattern)
-    if filter(_is_placeholder, source_tokens) != filter(_is_placeholder, destination_tokens):
+    if list(ifilter(_is_placeholder, source_tokens)) != list(ifilter(_is_placeholder, destination_tokens)):
         raise yt.YtError("Source pattern {0} do not match destination pattern {1}".format(source_pattern, destination_pattern))
 
     star_placeholder_count = source_tokens.count("{*}")

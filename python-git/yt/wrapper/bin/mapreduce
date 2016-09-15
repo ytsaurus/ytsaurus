@@ -31,7 +31,7 @@ import yt.wrapper.config as config
 import yt.yson as yson
 import yt.json as json
 
-from yt.packages.six.moves import map as imap, zip as izip
+from yt.packages.six.moves import map as imap, zip as izip, filter as ifilter
 
 import yt.wrapper as yt
 
@@ -122,7 +122,7 @@ def list_entities(type, prefix, exact, jsonoutput, user, follow_links):
                            object_filter=object_filter,
                            attributes=attributes,
                            follow_links=follow_links)
-        tables = filter(lambda table: table.startswith(prefix), tables)
+        tables = list(ifilter(lambda table: table.startswith(prefix), tables))
 
     if jsonoutput:
         result = []

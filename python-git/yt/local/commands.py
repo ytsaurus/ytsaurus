@@ -8,7 +8,7 @@ from yt.common import YtError, require
 import yt.yson as yson
 import yt.json as json
 
-from yt.packages.six.moves import map as imap
+from yt.packages.six.moves import map as imap, filter as ifilter
 
 import yt.wrapper as yt
 
@@ -228,7 +228,7 @@ def start(master_count=1, node_count=1, scheduler_count=1, start_proxy=True,
     # Consider instance running if "pids.txt" file exists
     if os.path.isfile(pids_filename):
         pids = _read_pids_file(pids_filename)
-        alive_pids = filter(_is_pid_exists, pids)
+        alive_pids = list(ifilter(_is_pid_exists, pids))
         if len(pids) == 0 or len(pids) > len(alive_pids):
             for pid in alive_pids:
                 logger.warning("Killing alive process (pid: {0}) from previously run instance".format(pid))
@@ -265,7 +265,7 @@ def _is_stopped(id, path=None):
 
     pids_file_path = os.path.join(sandbox_path, "pids.txt")
     if os.path.isfile(pids_file_path):
-        alive_pids = filter(_is_pid_exists, _read_pids_file(pids_file_path))
+        alive_pids = list(ifilter(_is_pid_exists, _read_pids_file(pids_file_path)))
         if not alive_pids:
             os.remove(pids_file_path)
         return not alive_pids
