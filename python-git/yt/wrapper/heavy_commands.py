@@ -1,6 +1,3 @@
-"""heavy command"""
-
-import yt.logger as logger
 from . import config
 from .config import get_option, get_config, get_total_request_timeout, get_request_retry_count
 from .common import get_backoff, chunk_iter_blobs, YtError
@@ -12,6 +9,10 @@ from .http_helpers import get_retriable_errors
 from .response_stream import ResponseStream
 from .lock_commands import lock
 from .format import YtFormatReadError
+
+import yt.logger as logger
+
+from yt.packages.six import Iterator as IteratorBase
 
 import time
 import random
@@ -175,7 +176,7 @@ def make_read_request(command_name, path, params, process_response_action, retri
             finally:
                 tx.abort()
 
-        class Iterator(object):
+        class Iterator(IteratorBase):
             def __init__(self):
                 self.retriable_state = retriable_state_class()
                 self.response = None
@@ -211,8 +212,8 @@ def make_read_request(command_name, path, params, process_response_action, retri
                 finally:
                     self.response = None
 
-            def next(self):
-                return self.iterator.next()
+            def __next__(self):
+                return next(self.iterator)
 
             def __iter__(self):
                 return self

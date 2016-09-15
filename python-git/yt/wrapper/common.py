@@ -82,7 +82,7 @@ def dict_depth(obj):
         return 1 + max(map(dict_depth, itervalues(obj)))
 
 def first_not_none(iter):
-    return ifilter(None, iter).next()
+    return next(ifilter(None, iter))
 
 def merge_dicts(*dicts):
     return dict(chain(*[iteritems(d) for d in dicts]))

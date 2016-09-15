@@ -1,6 +1,8 @@
 from . import common
 
-class ResponseStream(object):
+from yt.packages.six import Iterator
+
+class ResponseStream(Iterator):
     """Iterator over response"""
     def __init__(self, get_response, iter_content, close, process_error, get_response_parameters):
         self._buffer = ""
@@ -97,7 +99,7 @@ class ResponseStream(object):
         assert not self._stream_finished
         try:
             while True:
-                self._buffer = self._iter_content.next()
+                self._buffer = next(self._iter_content)
                 if self._buffer:
                     break
             self._buffer_length = len(self._buffer)
@@ -109,7 +111,7 @@ class ResponseStream(object):
     def __iter__(self):
         return self
 
-    def next(self):
+    def __next__(self):
         line = self.readline()
         if not line:
             raise StopIteration()
@@ -118,7 +120,7 @@ class ResponseStream(object):
     def close(self):
         self._close()
 
-class EmptyResponseStream(object):
+class EmptyResponseStream(Iterator):
     def read(self, length=None):
         return ""
 
@@ -134,6 +136,6 @@ class EmptyResponseStream(object):
     def __iter__(self):
         return self
 
-    def next(self):
+    def __next__(self):
         raise StopIteration()
 
