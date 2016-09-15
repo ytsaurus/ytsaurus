@@ -1,7 +1,8 @@
 import yt.logger as logger
-import yt.wrapper as yt
 
-import __builtin__
+from yt.packages.six.moves import builtins
+
+import yt.wrapper as yt
 
 import random
 from time import sleep
@@ -55,9 +56,9 @@ def process_tasks_from_list(list, action, limit=10000):
                 break
 
             hashable_value = value
-            if isinstance(value, __builtin__.list):
+            if isinstance(value, builtins.list):
                 hashable_value = tuple(value)
-            elif isinstance(value, __builtin__.dict):
+            elif isinstance(value, builtins.dict):
                 hashable_value = tuple(value.items())
 
             if hashable_value is not None and is_hashable(hashable_value):

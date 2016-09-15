@@ -10,12 +10,11 @@ from .format import create_format
 import yt.logger as logger
 
 from yt.packages.six import iteritems
+from yt.packages.six.moves import builtins
 
 import os
 import string
 from copy import deepcopy
-
-import __builtin__
 
 # XXX(asaitgalin): Used in get_attribute function for `default` argument
 # instead of None value to distinguish case when default argument
@@ -431,7 +430,7 @@ def search(root="", node_type=None,
                 for obj in walk("{0}/{1}".format(path, escape_ypath_literal(key)), value, depth + 1):
                     yield obj
 
-        if isinstance(object, __builtin__.list):
+        if isinstance(object, builtins.list):
             if list_node_order is not None:
                 enumeration = ((index, object[index]) for index in list_node_order(path, object))
             else:
