@@ -66,7 +66,7 @@ IInvokerPtr TNodeShard::GetInvoker()
     return ActionQueue_->GetInvoker();
 }
 
-void TNodeShard::UpdateConfig(TSchedulerConfigPtr config)
+void TNodeShard::UpdateConfig(const TSchedulerConfigPtr& config)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -116,7 +116,7 @@ void TNodeShard::UnregisterOperation(const TOperationId& operationId)
     OperationStates_.erase(it);
 }
 
-yhash_set<TOperationId> TNodeShard::ProcessHeartbeat(TScheduler::TCtxHeartbeatPtr context)
+yhash_set<TOperationId> TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeartbeatPtr& context)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
