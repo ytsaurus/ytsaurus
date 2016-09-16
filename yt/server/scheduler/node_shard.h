@@ -151,8 +151,8 @@ public:
     int GetTotalNodeCount();
 
 private:
-    int Id_;
-    NConcurrency::TActionQueuePtr ActionQueue_;
+    const int Id_;
+    const NConcurrency::TActionQueuePtr ActionQueue_;
 
     int ConcurrentHeartbeatCount_ = 0;
 
@@ -196,7 +196,7 @@ private:
 
     const NObjectClient::TCellTag PrimaryMasterCellTag_;
     TSchedulerConfigPtr Config_;
-    INodeShardHost* Host_;
+    INodeShardHost* const Host_;
     NCellScheduler::TBootstrap* const Bootstrap_;
 
     NLogging::TLogger Logger;
