@@ -1221,9 +1221,13 @@ private:
     {
         // This method is called after preparation and before finalization.
         // Reader must be opened and ready, so open must succeed.
+        // Still an error can occur in case of external forced sandbox clearance (e.g. in integration tests).
         auto fd = HandleEintr(::open, InputPipePath_.c_str(), O_WRONLY |  O_CLOEXEC | O_NONBLOCK);
-        YCHECK(fd >= 0);
-        ::close(fd);
+        if (fd >= 0) {
+            ::close(fd);
+        } else {
+            LOG_WARNING(TError::FromSystem(), "Failed to blink input pipe");
+        }
     }
 };
 
