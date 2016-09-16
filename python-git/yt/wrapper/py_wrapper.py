@@ -252,7 +252,7 @@ def create_modules_archive_default(tempfiles_manager, client):
             if relpath is None:
                 if logger.LOGGER.isEnabledFor(logging_level):
                     logger.log(logging_level, "Cannot determine relative path of module " + str(module))
-                    continue
+                continue
 
             if relpath in files_to_compress:
                 continue
