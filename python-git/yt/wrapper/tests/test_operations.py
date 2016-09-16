@@ -1045,3 +1045,30 @@ if __name__ == "__main__":
             del sys.modules["yt_test_dynamic_libraries_collection"]
             if old_ld_library_path:
                 os.environ["LD_LIBRARY_PATH"] = old_ld_library_path
+
+    @add_failed_operation_stderrs_to_error_message
+    def test_mount_tmpfs_in_sandbox(self, yt_env):
+        def foo(rec):
+            yield rec
+        def get_spec_option(id, name):
+            return yt.get("//sys/operations/{0}/@spec/".format(id) + name)
+
+        with set_config_option("mount_sandbox_in_tmpfs", True):
+            table = TEST_DIR + "/table"
+            file = TEST_DIR + "/test_file"
+
+            dir_ = yt_env.env.path
+            with tempfile.NamedTemporaryFile(dir=dir_, prefix="local_file", delete=False) as local_file:
+                local_file.write("bbbbb")
+            yt.write_table(table, [{"x": 1}, {"y": 2}])
+            yt.write_file(file, "aaaaa")
+            op = yt.run_map(foo, table, table, local_files=[local_file.name], yt_files=[file], format=None)
+            check(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
+
+            tmpfs_size = get_spec_option(op.id, "mapper/tmpfs_size")
+            memory_limit = get_spec_option(op.id, "mapper/memory_limit")
+            assert tmpfs_size > 8 * 1024
+            assert memory_limit - tmpfs_size == 512 * 1024 * 1024
+            assert get_spec_option(op.id, "mapper/tmpfs_path") == "."
+
+

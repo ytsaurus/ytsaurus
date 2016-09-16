@@ -209,3 +209,17 @@ class DoNotReplaceAction(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
         if not getattr(namespace, self.dest):
             setattr(namespace, self.dest, values)
+
+def round_up_to(num, divider):
+    if num % divider == 0:
+        return num
+    else:
+        return (1 + (num / divider)) * divider
+
+def get_disk_size(filepath):
+    stat = os.stat(filepath)
+    if hasattr(stat, "st_blocks") and hasattr(stat, "st_blksize"):
+        return stat.st_blocks * stat.st_blksize
+    else:
+        return round_up_to(stat.st_size, 4 * 1024)
+
