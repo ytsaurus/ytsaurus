@@ -46,6 +46,7 @@ public:
     TAddressResolverConfigPtr AddressResolver;
 
     TDuration HeartbeatPeriod;
+    TDuration InputPipeBlinkerPeriod;
 
     NYTree::INodePtr JobEnvironment;
 
@@ -67,6 +68,9 @@ public:
 
         RegisterParameter("heartbeat_period", HeartbeatPeriod)
             .Default(TDuration::Seconds(5));
+
+        RegisterParameter("input_pipe_blinker_period", InputPipeBlinkerPeriod)
+            .Default(TDuration::Seconds(1));
 
         RegisterParameter("job_environment", JobEnvironment);
 

@@ -1400,6 +1400,18 @@ print row + table_index
             map(in_="//tmp/t_in", out="//tmp/t_out", command="cat",
                 spec={"mapper": {"memory_limit": 1000000000000}})
 
+    @unix_only
+    def test_YT_5629(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+
+        data = [{"a": i} for i in xrange(5)]
+        write_table("//tmp/t1", data)
+
+        map(in_="//tmp/t1", out="//tmp/t2", command="sleep 1; cat /proc/self/fd/0")
+
+        assert read_table("//tmp/t2") == data
+
     def test_check_input_fully_consumed(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
