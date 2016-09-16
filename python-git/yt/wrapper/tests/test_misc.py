@@ -230,10 +230,10 @@ class TestRetries(object):
                 list(yt.read_table(table + '[#0,"2":"1",#2,#1,1:3]', format=yt.YsonFormat(process_table_index=False)))
 
             assert [to_yson_type(None, attributes={"range_index": 0}),
-                    to_yson_type(None, attributes={"row_index": 0L}),
+                    to_yson_type(None, attributes={"row_index": 0}),
                     {"x": 1},
                     to_yson_type(None, attributes={"range_index": 1}),
-                    to_yson_type(None, attributes={"row_index": 2L}),
+                    to_yson_type(None, attributes={"row_index": 2}),
                     {"x": 3}] == \
                 list(yt.read_table(table + '[#0,#2]', format=yt.YsonFormat(process_table_index=False),
                                    control_attributes={"enable_row_index": True, "enable_range_index": True}))
