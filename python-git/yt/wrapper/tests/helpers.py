@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-from yt.packages.six import iteritems
+from yt.packages.six import iteritems, integer_types
 
 import yt.yson as yson
 import yt.wrapper as yt
@@ -64,8 +64,7 @@ def check(rowsA, rowsB, ordered=True):
     assert lhs == rhs
 
 def _filter_simple_types(obj):
-    if isinstance(obj, int) or \
-            isinstance(obj, long) or \
+    if isinstance(obj, integer_types) or \
             isinstance(obj, float) or \
             obj is None or \
             isinstance(obj, yson.YsonType) or \
