@@ -89,27 +89,6 @@ def get_token_and_user(request, client):
             raise IncorrectTokenError("Authorization token is incorrect: " + token)
     return token, user
 
-def remove_unsigned(obj):
-    def is_uint(num):
-        return isinstance(num, long) and (num < -2 ** 63 or num >= 2 ** 63)
-
-    if isinstance(obj, list):
-        result = []
-        for value in obj:
-            new_value = remove_unsigned(value)
-            if not is_uint(new_value):
-                result.append(new_value)
-        return result
-    elif isinstance(obj, dict):
-        result = {}
-        for key, value in iteritems(obj):
-            new_value = remove_unsigned(value)
-            if not is_uint(new_value):
-                result[key] = new_value
-        return result
-    else:
-        return obj
-
 def get_cluster_version(cluster_client):
     if hasattr(cluster_client, "_version"):
         return cluster_client._version

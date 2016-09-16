@@ -12,7 +12,7 @@ from yt.transfer_manager.server.task_types import Task
 from yt.transfer_manager.server.clusters_configuration import get_clusters_configuration_from_config
 from yt.transfer_manager.server.errors import RequestFailed, SchedulingError
 from yt.transfer_manager.server.precheck import perform_precheck
-from yt.transfer_manager.server.helpers import log_yt_exception, get_token_and_user, remove_unsigned, \
+from yt.transfer_manager.server.helpers import log_yt_exception, get_token_and_user, \
                                                SafeThread, get_cluster_version, configure_logging
 from yt.transfer_manager.server.task_executor import run_executor
 
@@ -520,7 +520,7 @@ class Application(object):
         with self._mutex:
             start_time = time.time()
             path = os.path.join(self._tasks_path, id)
-            value = remove_unsigned(self._tasks[id].dict())
+            value = self._tasks[id].dict()
             os.path.join(self._tasks_path, id)
             client = Yt(**self._config["yt_backend_options"])
             with self._mutex.discharge():
