@@ -12,6 +12,8 @@
 #include <util/system/thread.h>
 #include <util/system/event.h>
 
+#include <atomic>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -70,8 +72,8 @@ private:
     TBuffer SecondaryBuffer_;
 
     TThread Thread_;
-    volatile bool Started_ = false;
-    volatile bool Stopped_ = false;
+    std::atomic<bool> Started_{false};
+    std::atomic<bool> Stopped_{false};
     bool Finished_ = false;
 
     TAutoEvent HasData_;
