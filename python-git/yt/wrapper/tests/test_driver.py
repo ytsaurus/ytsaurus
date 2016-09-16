@@ -11,7 +11,7 @@ def test_heavy_proxies():
 
     yt.wrapper.config["proxy"]["number_of_top_proxies_for_random_choice"] = 1
 
-    provider = HeavyProxyProvider(None)
+    provider = HeavyProxyProvider(None, "light_proxy")
     provider._discover_heavy_proxies = lambda: ["host1", "host2"]
     assert provider() == "host1"
 
@@ -26,6 +26,9 @@ def test_heavy_proxies():
     time.sleep(0.01)
 
     assert provider() == "host2"
+
+    provider._discover_heavy_proxies = lambda: []
+    assert provider() == "light_proxy"
 
 def teardown_function(function):
     reload_module(yt.wrapper.http_driver)

@@ -38,10 +38,10 @@ def escape_utf8(obj):
     return obj
 
 class HeavyProxyProvider(ProxyProvider):
-    def __init__(self, client):
+    def __init__(self, client, proxy):
         self.client = client
         self.banned_proxies = {}
-        self.light_proxy = get_proxy_url(None, client=self.client)
+        self.light_proxy = proxy
 
         from yt.packages.requests import ConnectionError
         from httplib import BadStatusLine
@@ -172,7 +172,7 @@ def make_request(command_name, params,
     if use_heavy_proxy:
         proxy_provider = get_option("_heavy_proxy_provider", client)
         if proxy_provider is None:
-            proxy_provider = HeavyProxyProvider(client)
+            proxy_provider = HeavyProxyProvider(client, get_proxy_url(None, client=client))
             set_option("_heavy_proxy_provider", proxy_provider, client)
         url = url_pattern.format(proxy="{proxy}", api=api_path, command=command_name)
     else:
