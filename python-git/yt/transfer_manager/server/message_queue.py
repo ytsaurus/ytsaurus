@@ -1,10 +1,11 @@
+from yt.packages.six.moves import cPickle as pickle
+
 from threading import Thread
 from Queue import Queue
 
 import os
 import struct
 import fcntl
-import cPickle as pickle
 import time
 
 class Stream(object):
