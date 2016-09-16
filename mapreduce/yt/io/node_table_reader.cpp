@@ -105,7 +105,7 @@ private:
     TRowElementPtr Row_;
     int Depth_;
     bool Started_;
-    volatile bool Stopped_;
+    std::atomic<bool> Stopped_;
     TRowQueue* RowQueue_;
 
     void EnqueueRow();

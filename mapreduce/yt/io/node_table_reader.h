@@ -10,6 +10,8 @@
 #include <util/system/spinlock.h>
 #include <util/thread/lfqueue.h>
 
+#include <atomic>
+
 namespace NYT {
 
 class TProxyInput;
@@ -52,7 +54,7 @@ private:
     const size_t SizeLimit_;
     TAutoEvent EnqueueEvent_;
     TAutoEvent DequeueEvent_;
-    volatile bool Stopped_;
+    std::atomic<bool> Stopped_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -98,7 +100,7 @@ private:
 
     yexception Exception_;
 
-    volatile bool Running_;
+    std::atomic<bool> Running_;
     TAutoEvent RetryPrepared_;
     THolder<TThread> Thread_;
 };

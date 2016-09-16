@@ -5,6 +5,8 @@
 #include <util/system/thread.h>
 #include <util/datetime/base.h>
 
+#include <atomic>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,7 +32,7 @@ private:
     TAuth Auth_;
     TTransactionId TransactionId_;
 
-    volatile bool Running_;
+    std::atomic<bool> Running_;
     TThread Thread_;
 
     void Stop(bool commit);
