@@ -126,10 +126,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern Stroka ClientSendAnnotation;
-extern Stroka ClientReceiveAnnotation;
-extern Stroka ServerSendAnnotation;
-extern Stroka ServerReceiveAnnotation;
+extern const Stroka ClientSendAnnotation;
+extern const Stroka ClientReceiveAnnotation;
+extern const Stroka ServerSendAnnotation;
+extern const Stroka ServerReceiveAnnotation;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -165,29 +165,10 @@ void TraceEvent(
     const T& annotationValue);
 
 ////////////////////////////////////////////////////////////////////////////////
-
-namespace NDetail {
-
-inline bool IsTracingEnabled(const Stroka&)
-{
-    return NTracing::IsTracingEnabled();
-}
-
-inline bool IsTracingEnabled(const char*)
-{
-    return GetCurrentTraceContext().IsEnabled();
-}
-
-inline bool IsTracingEnabled(const TTraceContext& context)
-{
-    return context.IsEnabled();
-}
-
-} // namespace NDetail
 
 #define TRACE_ANNOTATION(head, ...) \
     do { \
-        if (::NYT::NTracing::NDetail::IsTracingEnabled(head)) { \
+        if (::NYT::NTracing::IsTracingEnabled(head)) { \
             ::NYT::NTracing::TraceEvent(head, __VA_ARGS__); \
         } \
     } while (false)
