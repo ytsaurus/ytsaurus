@@ -222,6 +222,12 @@ def make_read_tasks(yt_client, table_path, session_count, range_row_count, max_r
             yt_client.set("{0}/@{1}".format(table_path, "table_start_row_index"), 0)
         attributes = yt_client.get(table_path + "/@")
 
+    if "table_start_row_index" not in attributes:
+        logger.info("Set table_start_row_index attribute since it is missing")
+        with yt_client.Transaction(transaction_id="0-0-0-0"):
+            yt_client.set("{0}/@{1}".format(table_path, "table_start_row_index"), 0)
+        attributes = yt_client.get(table_path + "/@")
+
     row_count = attributes["row_count"]
     processed_row_count = attributes["processed_row_count"]
     table_start_row_index = attributes["table_start_row_index"]
