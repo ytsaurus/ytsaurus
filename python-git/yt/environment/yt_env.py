@@ -11,6 +11,7 @@ from yt.wrapper.errors import YtResponseError
 import yt.yson as yson
 
 from yt.packages.six import itervalues
+from yt.packages.six.moves import xrange
 import yt.packages.requests as requests
 
 import logging

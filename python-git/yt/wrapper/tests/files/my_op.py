@@ -6,7 +6,7 @@ from time import sleep
 import sys
 
 def func(rec):
-    for i in xrange(2):
+    for i in [0, 1]:
         yield Record(rec.key + str(i), rec.subkey, rec.value + str(10 + i))
 
 if __name__ == "__main__":

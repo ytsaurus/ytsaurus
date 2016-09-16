@@ -3,6 +3,7 @@ from misc import _convert_to_tskved_json, LOGBROKER_TSKV_PREFIX
 from yt.common import date_string_to_timestamp
 
 import yt.packages.requests as requests
+from yt.packages.six.moves import xrange
 
 import yt.wrapper as yt
 
@@ -425,7 +426,7 @@ def push_to_logbroker(yt_client, logbroker, daemon, table_path, session_count, r
         sentry_handler = SentryHandler(sentry_endpoint)
         sentry_handler.setLevel(logging.ERROR)
         root_logger.addHandler(sentry_handler)
-    
+
     if lock_path:
         lock_queue = Queue()
         lock_args = dict(yt_client=deepcopy(yt_client), lock_path=lock_path, queue=lock_queue)

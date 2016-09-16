@@ -1,5 +1,7 @@
 from . import fennel
 
+from yt.packages.six.moves import xrange
+
 from tornado import iostream
 from tornado import testing
 from tornado import gen

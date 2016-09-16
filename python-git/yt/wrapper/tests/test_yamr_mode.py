@@ -8,6 +8,8 @@ from yt.wrapper import Record, dumps_row, TablePath
 from yt.common import flatten, makedirp
 import yt.yson as yson
 
+from yt.packages.six.moves import xrange
+
 import yt.wrapper as yt
 
 import pytest

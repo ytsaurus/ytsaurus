@@ -10,6 +10,7 @@ import yt.yson as yson
 import yt.json as json
 
 from yt.packages.six import reraise, add_metaclass
+from yt.packages.six.moves import xrange
 
 import os
 import sys

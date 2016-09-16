@@ -182,7 +182,7 @@ if __name__ == '__main__':
     for line in sys.stdin:
         pass
 
-    for descr in range(3, 6):
+    for descr in [3, 4, 5]:
         os.write(descr, '{0}\\\t{0}\\\t{0}\\\n'.format(descr))
     " >many_output_mapreduce.py
     chmod +x many_output_mapreduce.py
@@ -222,7 +222,7 @@ if __name__ == '__main__':
     for line in sys.stdin:
         pass
 
-    for i in range(2):
+    for i in [0, 1]:
         sys.stdout.write('k={0}\\\ts={0}\\\tv={0}\\\n'.format(i))
     " >reformat.py
 
@@ -275,7 +275,7 @@ if __name__ == '__main__':
     for line in sys.stdin:
         pass
 
-    for i in range(5):
+    for i in [0, 1, 2, 3, 4]:
         sys.stdout.write('{0}\\\t{1}\\\t{2}\\\n'.format(i, i * i, i * i * i))
     " >my_mapper.py
     chmod +x my_mapper.py
@@ -447,6 +447,11 @@ from itertools import groupby, starmap
 def parse(line):
     d = dict(x.split('=') for x in line.split())
     return (d['c3'], d['c2'])
+
+try:
+    xrange
+except NameError:  # Python 3
+    xrange = range
 
 def aggregate(key, recs):
     recs = list(recs)

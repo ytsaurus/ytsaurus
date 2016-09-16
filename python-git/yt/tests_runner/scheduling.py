@@ -1,5 +1,10 @@
 from collections import defaultdict
 
+try:
+    xrange
+except NameError:  # Python 3
+    xrange = range
+
 _test_scheduling_func = None
 
 def split_test_suites(suites, process_count):

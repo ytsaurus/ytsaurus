@@ -1,6 +1,9 @@
 from yt.transfer_manager.client import TransferManager
 from yt.wrapper.client import Yt
+
 import yt.logger as logger
+
+from yt.packages.six.moves import xrange
 
 import time
 import logging

@@ -2,6 +2,7 @@ from . import fennel
 from . import misc
 
 from yt.packages.six import reraise
+from yt.packages.six.moves import xrange
 
 from tornado import testing
 from tornado import gen

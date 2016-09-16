@@ -13,6 +13,7 @@ from .format import YtFormatReadError
 import yt.logger as logger
 
 from yt.packages.six import Iterator as IteratorBase
+from yt.packages.six.moves import xrange
 
 import time
 import random

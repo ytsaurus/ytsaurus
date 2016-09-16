@@ -3,6 +3,12 @@
 import os
 import sys
 
+try:
+    xrange
+except NameError:  # Python 3
+    xrange = range
+
+
 if __name__ == "__main__":
     is_yamr_mode = sys.argv[1] == "yamr"
 
