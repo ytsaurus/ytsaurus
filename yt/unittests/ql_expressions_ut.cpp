@@ -934,6 +934,128 @@ INSTANTIATE_TEST_CASE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTernaryLogicTest
+    : public ::testing::Test
+    , public ::testing::WithParamInterface<std::tuple<EBinaryOp, TValue, TValue, TValue>>
+    , public TCompareExpressionTest
+{
+protected:
+    virtual void SetUp() override
+    { }
+};
+
+TEST_P(TTernaryLogicTest, Evaluate)
+{
+    auto& param = GetParam();
+
+    auto op = std::get<0>(param);
+    auto lhs = std::get<1>(param);
+    auto rhs = std::get<2>(param);
+    auto expected = std::get<3>(param);
+
+    TUnversionedValue result;
+    TCGVariables variables;
+    auto buffer = New<TRowBuffer>();
+    auto row = NTableClient::BuildRow("", TTableSchema(), true);
+
+    auto expr1 = New<TBinaryOpExpression>(EValueType::Boolean, op,
+        New<TLiteralExpression>(EValueType::Boolean, lhs),
+        New<TLiteralExpression>(EValueType::Boolean, rhs));
+
+    auto expr2 = New<TBinaryOpExpression>(EValueType::Boolean, op,
+        New<TLiteralExpression>(EValueType::Boolean, rhs),
+        New<TLiteralExpression>(EValueType::Boolean, lhs));
+
+    // NB: function contexts need to be destroyed before callback since it hosts destructors.
+    TExecutionContext executionContext;
+    executionContext.PermanentBuffer = buffer;
+    executionContext.OutputBuffer = buffer;
+    executionContext.IntermediateBuffer = buffer;
+#ifndef NDEBUG
+    volatile int dummy;
+    executionContext.StackSizeGuardHelper = reinterpret_cast<size_t>(&dummy);
+#endif
+
+    TCGVariables variables1;
+    auto compiledExpr1 = Profile(expr1, TTableSchema(), nullptr, &variables1)();
+    compiledExpr1(variables1.GetOpaqueData(), &result, row, &executionContext);
+    EXPECT_TRUE(CompareRowValues(result, expected) == 0);
+
+    TCGVariables variables2;
+    auto compiledExpr2 = Profile(expr2, TTableSchema(), nullptr, &variables2)();
+    compiledExpr2(variables2.GetOpaqueData(), &result, row, &executionContext);
+    EXPECT_TRUE(CompareRowValues(result, expected) == 0);
+}
+
+INSTANTIATE_TEST_CASE_P(
+    AndOr,
+    TTernaryLogicTest,
+    ::testing::Values(
+        std::tuple<EBinaryOp, TValue, TValue, TValue>(
+            EBinaryOp::And,
+            MakeBoolean(true),
+            MakeBoolean(true),
+            MakeBoolean(true)),
+        std::tuple<EBinaryOp, TValue, TValue, TValue>(
+            EBinaryOp::And,
+            MakeBoolean(true),
+            MakeBoolean(false),
+            MakeBoolean(false)),
+        std::tuple<EBinaryOp, TValue, TValue, TValue>(
+            EBinaryOp::And,
+            MakeBoolean(false),
+            MakeBoolean(false),
+            MakeBoolean(false)),
+        std::tuple<EBinaryOp, TValue, TValue, TValue>(
+            EBinaryOp::And,
+            MakeBoolean(false),
+            MakeNull(),
+            MakeBoolean(false)),
+        std::tuple<EBinaryOp, TValue, TValue, TValue>(
+            EBinaryOp::And,
+            MakeBoolean(true),
+            MakeNull(),
+            MakeNull()),
+        std::tuple<EBinaryOp, TValue, TValue, TValue>(
+            EBinaryOp::And,
+            MakeNull(),
+            MakeNull(),
+            MakeNull()),
+
+        std::tuple<EBinaryOp, TValue, TValue, TValue>(
+            EBinaryOp::Or,
+            MakeBoolean(true),
+            MakeBoolean(true),
+            MakeBoolean(true)),
+        std::tuple<EBinaryOp, TValue, TValue, TValue>(
+            EBinaryOp::Or,
+            MakeBoolean(true),
+            MakeBoolean(false),
+            MakeBoolean(true)),
+        std::tuple<EBinaryOp, TValue, TValue, TValue>(
+            EBinaryOp::Or,
+            MakeBoolean(false),
+            MakeBoolean(false),
+            MakeBoolean(false)),
+        std::tuple<EBinaryOp, TValue, TValue, TValue>(
+            EBinaryOp::Or,
+            MakeBoolean(false),
+            MakeNull(),
+            MakeNull()),
+        std::tuple<EBinaryOp, TValue, TValue, TValue>(
+            EBinaryOp::Or,
+            MakeBoolean(true),
+            MakeNull(),
+            MakeBoolean(true)),
+        std::tuple<EBinaryOp, TValue, TValue, TValue>(
+            EBinaryOp::Or,
+            MakeNull(),
+            MakeNull(),
+            MakeNull())
+));
+
+////////////////////////////////////////////////////////////////////////////////
+
 using TCompareWithNullTestParam = std::tuple<const char*, const char*, TUnversionedValue>;
 
 class TCompareWithNullTest
