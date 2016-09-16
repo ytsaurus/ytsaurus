@@ -293,21 +293,21 @@ class TestTableCommands(object):
 
         with set_config_option("tabular_data_format", yt.JsonFormat()):
             rsp = yt.read_table(table, raw=True)
-            assert rsp.response_parameters == {"start_row_index": 0L,
-                                               "approximate_row_count": 3L}
+            assert rsp.response_parameters == {"start_row_index": 0,
+                                               "approximate_row_count": 3}
 
             rsp = yt.read_table(yt.TablePath(table, start_index=1), raw=True)
-            assert rsp.response_parameters == {"start_row_index": 1L,
-                                               "approximate_row_count": 2L}
+            assert rsp.response_parameters == {"start_row_index": 1,
+                                               "approximate_row_count": 2}
 
             rsp = yt.read_table(yt.TablePath(table, lower_key=["d"]), raw=True)
             assert rsp.response_parameters == \
-                {"start_row_index": 2L,
+                {"start_row_index": 2,
                  # When reading with key limits row count is estimated rounded up to the chunk row count.
-                 "approximate_row_count": 3L}
+                 "approximate_row_count": 3}
 
             rsp = yt.read_table(yt.TablePath(table, lower_key=["x"]), raw=True)
-            assert rsp.response_parameters == {"approximate_row_count": 0L}
+            assert rsp.response_parameters == {"approximate_row_count": 0}
 
     def test_table_index(self):
         dsv = yt.format.DsvFormat(enable_table_index=True, table_index_column="TableIndex")
