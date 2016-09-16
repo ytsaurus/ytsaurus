@@ -245,11 +245,21 @@ private:
         int Index = -1;
         NProto::TCellStatistics Statistics;
 
-        void Persist(NCellMaster::TPersistenceContext& context)
+        void Save(NCellMaster::TSaveContext& context) const
         {
-            using NYT::Persist;
+            using NYT::Save;
+            Save(context, Index);
+            Save(context, Statistics);
+        }
 
-            Persist(context, Statistics);
+        void Load(NCellMaster::TLoadContext& context)
+        {
+            using NYT::Load;
+            // COMPAT(babenko)
+            if (context.GetVersion() >= 351) {
+                Load(context, Index);
+            }
+            Load(context, Statistics);
         }
     };
 
@@ -271,23 +281,28 @@ private:
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
 
-        int index = 0;
-        for (auto& pair : RegisteredMasterMap_) {
-            auto cellTag = pair.first;
-            auto& entry = pair.second;
-            entry.Index = index++;
-            ValidateCellTag(cellTag);
+        // COMPAT(babenko)
+        if (!RegisteredMasterMap_.empty() && RegisteredMasterMap_.begin()->second.Index < 0) {
+            int index = 0;
+            for (auto& pair : RegisteredMasterMap_) {
+                auto& entry = pair.second;
+                entry.Index = index++;
+            }
 
+            // XXX(babenko): hotfix for YT-5643
+            auto it1 = RegisteredMasterMap_.find(6022);
+            auto it2 = RegisteredMasterMap_.find(7022);
+            if (it1 != RegisteredMasterMap_.end() && it2 != RegisteredMasterMap_.end()) {
+                LOG_INFO("Patching cell indexes; cf. YT-5643: %v <-> %v",
+                    it1->second.Index,
+                    it2->second.Index);
+                std::swap(it1->second.Index, it2->second.Index);
+            }
         }
 
-        // XXX(babenko): hotfix for YT-5643
-        auto it1 = RegisteredMasterMap_.find(6022);
-        auto it2 = RegisteredMasterMap_.find(7022);
-        if (it1 != RegisteredMasterMap_.end() && it2 != RegisteredMasterMap_.end()) {
-            LOG_INFO("Patching cell indexes; cf. YT-5643: %v <-> %v",
-                it1->second.Index,
-                it2->second.Index);
-            std::swap(it1->second.Index, it2->second.Index);
+        for (auto& pair : RegisteredMasterMap_) {
+            auto cellTag = pair.first;
+            ValidateCellTag(cellTag);
         }
 
         if (RegisterState_ == EPrimaryRegisterState::Registered) {
