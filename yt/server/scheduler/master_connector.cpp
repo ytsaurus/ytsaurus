@@ -779,7 +779,7 @@ private:
             attributes.Get<TInstant>("start_time"),
             attributes.Get<EOperationState>("state"),
             attributes.Get<bool>("suspended"),
-            attributes.Get<std::vector<TOperationEvent>>("events"));
+            attributes.Get<std::vector<TOperationEvent>>("events", {}));
 
         result.UserTransactionAborted = !userTransaction && userTransactionId;
 
