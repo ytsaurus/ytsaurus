@@ -7,6 +7,7 @@ import yt.logger as logger
 import yt.tests_runner as tests_runner
 
 from yt.packages.six import itervalues
+from yt.packages.six.moves import reload_module
 
 import yt.wrapper as yt
 
@@ -95,9 +96,9 @@ class YtTestEnvironment(object):
 
         self.version = self.env._ytserver_version
 
-        reload(yt)
-        reload(yt.config)
-        reload(yt.native_driver)
+        reload_module(yt)
+        reload_module(yt.config)
+        reload_module(yt.native_driver)
 
         yt._cleanup_http_session()
 

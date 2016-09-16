@@ -1,6 +1,8 @@
 import yt.wrapper.driver
 import yt.wrapper.config
 
+from yt.packages.six.moves import reload_module
+
 import time
 
 def test_heavy_proxies():
@@ -26,5 +28,5 @@ def test_heavy_proxies():
     assert provider() == "host2"
 
 def teardown_function(function):
-    reload(yt.wrapper.http_driver)
-    reload(yt.wrapper.config)
+    reload_module(yt.wrapper.http_driver)
+    reload_module(yt.wrapper.config)
