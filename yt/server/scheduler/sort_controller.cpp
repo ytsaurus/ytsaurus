@@ -2535,7 +2535,7 @@ private:
                 Spec->SortBy);
         }
 
-        LOG_DEBUG("ReduceCcolumns: %v, SortColumns: %v",
+        LOG_DEBUG("ReduceColumns: %v, SortColumns: %v",
             Spec->ReduceBy,
             Spec->SortBy);
     }

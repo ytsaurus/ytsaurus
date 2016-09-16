@@ -105,14 +105,11 @@ public:
             auto owners = operation->GetOwners();
             owners.push_back(operation->GetAuthenticatedUser());
 
-            auto controller = operation->GetController();
-
             auto req = TYPathProxy::Set(path);
             req->set_value(BuildYsonStringFluently()
                 .BeginAttributes()
                     .Do(BIND(&ISchedulerStrategy::BuildOperationAttributes, strategy, operationId))
                     .Do(BIND(&BuildInitializingOperationAttributes, operation))
-                    .DoIf(static_cast<bool>(controller), BIND(&IOperationController::BuildOperationAttributes, controller))
                     .Item("brief_spec").BeginMap()
                         .Do(BIND(&IOperationController::BuildBriefSpec, operation->GetController()))
                         .Do(BIND(&ISchedulerStrategy::BuildBriefSpec, strategy, operationId))
@@ -713,8 +710,11 @@ private:
         const TOperationId& operationId,
         const IAttributeDictionary& attributes)
     {
-        auto getTransaction = [&] (const TTransactionId& transactionId, bool ping) -> ITransactionPtr {
+        auto getTransaction = [&] (const TTransactionId& transactionId, bool ping, const Stroka& name = Stroka()) -> ITransactionPtr {
             if (!transactionId) {
+                if (name) {
+                    LOG_INFO("%v %v of operation %v is missing", name, transactionId, operationId);
+                }
                 return nullptr;
             }
             try {
@@ -743,16 +743,20 @@ private:
         result.ControllerTransactions = New<TControllerTransactions>();
         result.ControllerTransactions->Sync = getTransaction(
             attributes.Get<TTransactionId>("sync_scheduler_transaction_id"),
-            true);
+            true,
+            "SyncTransaction");
         result.ControllerTransactions->Async = getTransaction(
             attributes.Get<TTransactionId>("async_scheduler_transaction_id"),
-            true);
+            true,
+            "AsyncTransaction");
         result.ControllerTransactions->Input = getTransaction(
             attributes.Get<TTransactionId>("input_transaction_id"),
-            true);
+            true,
+            "InputTransaction");
         result.ControllerTransactions->Output = getTransaction(
             attributes.Get<TTransactionId>("output_transaction_id"),
-            true);
+            true,
+            "OutputTransaction");
 
         auto spec = attributes.Get<INodePtr>("spec")->AsMap();
         TOperationSpecBasePtr operationSpec;
