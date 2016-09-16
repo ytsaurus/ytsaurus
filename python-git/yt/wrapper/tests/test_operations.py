@@ -10,6 +10,8 @@ from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_
 from yt.wrapper.table import TablePath
 import yt.logger as logger
 
+from yt.packages.six import add_metaclass
+
 import yt.wrapper as yt
 
 import os
@@ -78,9 +80,8 @@ class ChangeX__(object):
 # Map method to test metaclass pickling
 from abc import ABCMeta, abstractmethod
 
+@add_metaclass(ABCMeta)
 class TAbstractClass(object):
-  __metaclass__ = ABCMeta
-
   @abstractmethod
   def __init__(self):
     pass

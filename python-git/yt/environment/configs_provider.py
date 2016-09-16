@@ -5,7 +5,7 @@ from yt.wrapper.mappings import VerifiedDict
 from yt.common import YtError, unlist, update, get_value
 from yt.yson import YsonString
 
-from yt.packages.six import iteritems
+from yt.packages.six import iteritems, add_metaclass
 
 import socket
 import abc
@@ -106,9 +106,8 @@ _default_provision = {
 def get_default_provision():
     return VerifiedDict([], None, deepcopy(_default_provision))
 
+@add_metaclass(abc.ABCMeta)
 class ConfigsProvider(object):
-    __metaclass__ = abc.ABCMeta
-
     def build_configs(self, ports_generator, master_dirs, master_tmpfs_dirs=None, scheduler_dirs=None,
                       node_dirs=None, proxy_dir=None, provision=None):
         provision = get_value(provision, get_default_provision())

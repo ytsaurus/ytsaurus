@@ -13,7 +13,7 @@ from . import yson
 import yt.logger as logger
 import yt.json as json
 
-from yt.packages.six import iteritems, Iterator
+from yt.packages.six import iteritems, Iterator, add_metaclass
 
 from abc import ABCMeta, abstractmethod
 import copy
@@ -39,13 +39,12 @@ class YtFormatReadError(YtFormatError):
     """Problem with parsing that can be caused by network problems"""
     pass
 
+@add_metaclass(ABCMeta)
 class Format(object):
     """ YT data representations.
 
         Abstract base class for different formats.
     """
-    __metaclass__ = ABCMeta
-
     def __init__(self, name, attributes=None, raw=None):
         """
         :param name: (string) format name

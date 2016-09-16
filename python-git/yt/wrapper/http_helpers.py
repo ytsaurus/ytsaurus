@@ -9,7 +9,7 @@ import yt.logger as logger
 import yt.yson as yson
 import yt.json as json
 
-from yt.packages.six import reraise
+from yt.packages.six import reraise, add_metaclass
 
 import os
 import sys
@@ -28,9 +28,8 @@ def get_retriable_errors():
     return (HTTPError, ConnectionError, Timeout, IncompleteRead, BadStatusLine, SocketError,
             YtIncorrectResponse, YtProxyUnavailable, YtRequestRateLimitExceeded, YtRequestQueueSizeLimitExceeded, YtRequestTimedOut, YtRetriableError)
 
+@add_metaclass(ABCMeta)
 class ProxyProvider(object):
-    __metaclass__ = ABCMeta
-
     @abstractmethod
     def __call__(self):
         pass
