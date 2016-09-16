@@ -424,22 +424,24 @@ TCompositeSchedulerElement::TCompositeSchedulerElement(const TCompositeScheduler
     : TSchedulerElementBase(other)
     , TCompositeSchedulerElementFixedState(other)
 {
-    auto cloneChild = [this] (
+    auto cloneChild = [&] (
         const ISchedulerElementPtr& child,
-        yhash_set<ISchedulerElementPtr>* children)
+        yhash_map<ISchedulerElementPtr, int>* map,
+        std::vector<ISchedulerElementPtr>* list)
     {
         auto childClone = child->Clone();
         childClone->SetCloned(false);
         childClone->SetParent(this);
         childClone->SetCloned(true);
-        children->insert(childClone);
+        list->push_back(childClone);
+        YCHECK(map->emplace(childClone, list->size() - 1).second);
     };
 
-    for (const auto& child : other.Children) {
-        cloneChild(child, &Children);
+    for (const auto& child : other.EnabledChildren_) {
+        cloneChild(child, &EnabledChildToIndex_, &EnabledChildren_);
     }
-    for (const auto& child : other.DisabledChildren) {
-        cloneChild(child, &DisabledChildren);
+    for (const auto& child : other.DisabledChildren_) {
+        cloneChild(child, &DisabledChildToIndex_, &DisabledChildren_);
     }
 }
 
@@ -448,7 +450,7 @@ int TCompositeSchedulerElement::EnumerateNodes(int startIndex)
     YCHECK(!Cloned_);
 
     startIndex = TSchedulerElementBase::EnumerateNodes(startIndex);
-    for (const auto& child : Children) {
+    for (const auto& child : EnabledChildren_) {
         startIndex = child->EnumerateNodes(startIndex);
     }
     return startIndex;
@@ -462,7 +464,7 @@ void TCompositeSchedulerElement::UpdateBottomUp(TDynamicAttributesList& dynamicA
     PendingJobCount_ = 0;
     ResourceDemand_ = ZeroJobResources();
     auto maxPossibleChildrenResourceUsage_ = ZeroJobResources();
-    for (const auto& child : Children) {
+    for (const auto& child : EnabledChildren_) {
         child->UpdateBottomUp(dynamicAttributesList);
 
         Attributes_.BestAllocationRatio = std::max(
@@ -499,7 +501,7 @@ void TCompositeSchedulerElement::UpdateTopDown(TDynamicAttributesList& dynamicAt
     UpdatePreemptionSettingsLimits();
 
     // Propagate updates to children.
-    for (const auto& child : Children) {
+    for (const auto& child : EnabledChildren_) {
         UpdateChildPreemptionSettings(child);
         child->UpdateTopDown(dynamicAttributesList);
     }
@@ -606,7 +608,7 @@ void TCompositeSchedulerElement::UpdateDynamicAttributes(TDynamicAttributesList&
 
 void TCompositeSchedulerElement::BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap)
 {
-    for (const auto& child : Children) {
+    for (const auto& child : EnabledChildren_) {
         child->BuildOperationToElementMapping(operationElementByIdMap);
     }
 }
@@ -631,7 +633,7 @@ void TCompositeSchedulerElement::PrescheduleJob(TFairShareContext& context, bool
         context.HasAggressivelyStarvingNodes = true;
     }
 
-    for (const auto& child : Children) {
+    for (const auto& child : EnabledChildren_) {
         // If pool is starving, any child will do.
         if (Starving_) {
             child->PrescheduleJob(context, false);
@@ -692,43 +694,32 @@ void TCompositeSchedulerElement::AddChild(const ISchedulerElementPtr& child, boo
 {
     YCHECK(!Cloned_);
 
-    if (enabled) {
-        YCHECK(Children.insert(child).second);
-    } else {
-        YCHECK(DisabledChildren.insert(child).second);
-    }
+    auto& map = enabled ? EnabledChildToIndex_ : DisabledChildToIndex_;
+    auto& list = enabled ? EnabledChildren_ : DisabledChildren_;
+    AddChild(&map, &list, child);
 }
 
 void TCompositeSchedulerElement::EnableChild(const ISchedulerElementPtr& child)
 {
     YCHECK(!Cloned_);
 
-    auto it = DisabledChildren.find(child);
-    YCHECK(it != DisabledChildren.end());
-    Children.insert(child);
-    DisabledChildren.erase(it);
+    RemoveChild(&DisabledChildToIndex_, &DisabledChildren_, child);
+    AddChild(&EnabledChildToIndex_, &EnabledChildren_, child);
 }
 
 void TCompositeSchedulerElement::RemoveChild(const ISchedulerElementPtr& child)
 {
     YCHECK(!Cloned_);
 
-    auto childrenIt = Children.find(child);
-    auto disabledChildrenIt = DisabledChildren.find(child);
-
-    bool foundInChildren = (childrenIt != Children.end());
-    bool foundInDisabledChildren = (disabledChildrenIt != DisabledChildren.end());
-    YCHECK((foundInChildren && !foundInDisabledChildren) || (!foundInChildren && foundInDisabledChildren));
-    if (foundInChildren) {
-        Children.erase(childrenIt);
-    } else {
-        DisabledChildren.erase(disabledChildrenIt);
-    }
+    bool enabled = ContainsChild(EnabledChildToIndex_, child);
+    auto& map = enabled ? EnabledChildToIndex_ : DisabledChildToIndex_;
+    auto& list = enabled ? EnabledChildren_ : DisabledChildren_;
+    RemoveChild(&map, &list, child);
 }
 
 bool TCompositeSchedulerElement::IsEmpty() const
 {
-    return Children.empty() && DisabledChildren.empty();
+    return EnabledChildren_.empty() && DisabledChildren_.empty();
 }
 
 // Given a non-descending continuous |f|, |f(0) = 0|, and a scalar |a|,
@@ -762,7 +753,7 @@ void TCompositeSchedulerElement::ComputeByFitting(
 {
     auto getSum = [&] (double fitFactor) -> double {
         double sum = 0.0;
-        for (const auto& child : Children) {
+        for (const auto& child : EnabledChildren_) {
             sum += getter(fitFactor, child);
         }
         return sum;
@@ -772,7 +763,7 @@ void TCompositeSchedulerElement::ComputeByFitting(
     double fitFactor = BinarySearch(getSum, sum);
 
     // Compute actual min shares from fit factor.
-    for (const auto& child : Children) {
+    for (const auto& child : EnabledChildren_) {
         double value = getter(fitFactor, child);
         setter(child, value);
     }
@@ -784,7 +775,7 @@ void TCompositeSchedulerElement::UpdateFifo(TDynamicAttributesList& dynamicAttri
 
     // TODO(acid): This code shouldn't use active children.
     const auto& bestChild = GetBestActiveChildFifo(dynamicAttributesList);
-    for (const auto& child : Children) {
+    for (const auto& child : EnabledChildren_) {
         auto& childAttributes = child->Attributes();
         if (child == bestChild) {
             childAttributes.AdjustedMinShareRatio = std::min(
@@ -809,7 +800,7 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
     // Compute min shares sum and min weight.
     double minShareRatioSum = 0.0;
     double minWeight = 1.0;
-    for (const auto& child : Children) {
+    for (const auto& child : EnabledChildren_) {
         auto& childAttributes = child->Attributes();
         auto minShareRatio = child->GetMinShareRatio();
         minShareRatioSum += minShareRatio;
@@ -836,14 +827,14 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
             minShareRatioSum);
 
         double fitFactor = 1.0 / minShareRatioSum;
-        for (const auto& child : Children) {
+        for (const auto& child : EnabledChildren_) {
             auto& childAttributes = child->Attributes();
             childAttributes.RecursiveMinShareRatio *= fitFactor;
         }
     }
 
     minShareRatioSum = 0.0;
-    for (const auto& child : Children) {
+    for (const auto& child : EnabledChildren_) {
         auto& childAttributes = child->Attributes();
         childAttributes.AdjustedMinShareRatio = std::max(
             childAttributes.RecursiveMinShareRatio,
@@ -860,7 +851,7 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
             Attributes_.GuaranteedResourcesRatio);
 
         double fitFactor = Attributes_.GuaranteedResourcesRatio / minShareRatioSum;
-        for (const auto& child : Children) {
+        for (const auto& child : EnabledChildren_) {
             auto& childAttributes = child->Attributes();
             childAttributes.AdjustedMinShareRatio *= fitFactor;
         }
@@ -901,7 +892,7 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
         Attributes_.GuaranteedResourcesRatio);
 
     // Trim adjusted min share ratio with demand ratio.
-    for (const auto& child : Children) {
+    for (const auto& child : EnabledChildren_) {
         auto& childAttributes = child->Attributes();
         double result = childAttributes.AdjustedMinShareRatio;
         // Never give more than can be used.
@@ -958,7 +949,7 @@ ISchedulerElementPtr TCompositeSchedulerElement::GetBestActiveChildFifo(const TD
     };
 
     ISchedulerElement* bestChild = nullptr;
-    for (const auto& child : Children) {
+    for (const auto& child : EnabledChildren_) {
         if (child->IsActive(dynamicAttributesList)) {
             if (bestChild && isBetter(bestChild, child))
                 continue;
@@ -973,7 +964,7 @@ ISchedulerElementPtr TCompositeSchedulerElement::GetBestActiveChildFairShare(con
 {
     ISchedulerElement* bestChild = nullptr;
     double bestChildSatisfactionRatio = std::numeric_limits<double>::max();
-    for (const auto& child : Children) {
+    for (const auto& child : EnabledChildren_) {
         if (child->IsActive(dynamicAttributesList)) {
             double childSatisfactionRatio = dynamicAttributesList[child->GetTreeIndex()].SatisfactionRatio;
             if (!bestChild || childSatisfactionRatio < bestChildSatisfactionRatio)
@@ -984,6 +975,41 @@ ISchedulerElementPtr TCompositeSchedulerElement::GetBestActiveChildFairShare(con
         }
     }
     return bestChild;
+}
+
+
+void TCompositeSchedulerElement::AddChild(
+    TChildMap* map,
+    TChildList* list,
+    const ISchedulerElementPtr& child)
+{
+    list->push_back(child);
+    YCHECK(map->emplace(child, list->size() - 1).second);
+}
+
+void TCompositeSchedulerElement::RemoveChild(
+    TChildMap* map,
+    TChildList* list,
+    const ISchedulerElementPtr& child)
+{
+    auto it = map->find(child);
+    YCHECK(it != map->end());
+    if (child == list->back()) {
+        list->pop_back();
+    } else {
+        int index = it->second;
+        std::swap((*list)[index], list->back());
+        list->pop_back();
+        (*map)[(*list)[index]] = index;
+    }
+    map->erase(it);
+}
+
+bool TCompositeSchedulerElement::ContainsChild(
+    const TChildMap& map,
+    const ISchedulerElementPtr& child)
+{
+    return map.find(child) != map.end();
 }
 
 ////////////////////////////////////////////////////////////////////
