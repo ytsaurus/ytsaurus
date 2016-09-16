@@ -1,6 +1,6 @@
 from yt.wrapper.client import Yt
 
-from yt.packages.six import iteritems
+from yt.packages.six import iteritems, add_metaclass
 
 import types
 from copy import deepcopy
@@ -45,9 +45,8 @@ class AddNotificationForRunMethods(type):
         return cls
 
 
+@add_metaclass(AddNotificationForRunMethods)
 class YtClientWithNotifications(Yt):
-    __metaclass__ = AddNotificationForRunMethods
-
     wrapped_base = Yt
 
     def __init__(self, *args, **kwargs):
