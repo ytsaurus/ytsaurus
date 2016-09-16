@@ -134,6 +134,7 @@ void ToProto(NNodeTrackerClient::NProto::TAddressMap* protoAddresses, const NNod
 void FromProto(NNodeTrackerClient::TAddressMap* addresses, const NNodeTrackerClient::NProto::TAddressMap& protoAddresses)
 {
     addresses->clear();
+    addresses->reserve(protoAddresses.entries_size());
     for (const auto& entry : protoAddresses.entries()) {
         YCHECK(addresses->insert(std::make_pair(entry.network(), entry.address())).second);
     }
