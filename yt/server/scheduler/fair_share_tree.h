@@ -347,8 +347,14 @@ public:
     virtual void BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap) override;
 
 protected:
-    yhash_set<ISchedulerElementPtr> Children;
-    yhash_set<ISchedulerElementPtr> DisabledChildren;
+    using TChildMap = yhash_map<ISchedulerElementPtr, int>;
+    using TChildList = std::vector<ISchedulerElementPtr>;
+
+    TChildMap EnabledChildToIndex_;
+    TChildList EnabledChildren_;
+
+    TChildMap DisabledChildToIndex_;
+    TChildList DisabledChildren_;
 
     template <class TGetter, class TSetter>
     void ComputeByFitting(const TGetter& getter, const TSetter& setter, double sum);
@@ -359,6 +365,10 @@ protected:
     ISchedulerElementPtr GetBestActiveChild(const TDynamicAttributesList& dynamicAttributesList) const;
     ISchedulerElementPtr GetBestActiveChildFifo(const TDynamicAttributesList& dynamicAttributesList) const;
     ISchedulerElementPtr GetBestActiveChildFairShare(const TDynamicAttributesList& dynamicAttributesList) const;
+
+    static void AddChild(TChildMap* map, TChildList* list, const ISchedulerElementPtr& child);
+    static void RemoveChild(TChildMap* map, TChildList* list, const ISchedulerElementPtr& child);
+    static bool ContainsChild(const TChildMap& map, const ISchedulerElementPtr& child);
 
 };
 
