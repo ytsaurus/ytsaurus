@@ -34,7 +34,7 @@ def create_ordered_by_id_table(path, force=False):
 
     yt.create("table", path, recursive=True, attributes=get_dynamic_table_attributes(yt, schema, key_columns))
 
-    pivot_keys = [[]] + [[yson.YsonUint64((i * 2 ** 64) / SHARD_COUNT)] for i in xrange(1, SHARD_COUNT)]
+    pivot_keys = [[]] + [[yson.YsonUint64((i * 2 ** 64) // SHARD_COUNT)] for i in xrange(1, SHARD_COUNT)]
     yt.reshard_table(path, pivot_keys)
     yt.mount_table(path)
 

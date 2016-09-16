@@ -639,7 +639,7 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
     attributes = get(table.name + "/@", client=client)
     if attributes.get("type") != "table":
         raise YtError("Command read is supported only for tables")
-    if  attributes["chunk_count"] > 100 and attributes["compressed_data_size"] / attributes["chunk_count"] < MB:
+    if  attributes["chunk_count"] > 100 and attributes["compressed_data_size"] // attributes["chunk_count"] < MB:
         logger.info("Table chunks are too small; consider running the following command to improve read performance: "
                     "yt merge --proxy {1} --src {0} --dst {0} "
                     "--spec '{{"
@@ -1359,7 +1359,7 @@ class Finalizer(object):
         data_size_per_job = min(16 * GB, int(500 * MB / float(compression_ratio)))
 
         data_size = get_attribute(table, "uncompressed_data_size", client=self.client)
-        data_size_per_job = min(data_size_per_job, data_size / max(1, chunk_count / chunk_count_per_job_limit))
+        data_size_per_job = min(data_size_per_job, data_size // max(1, chunk_count // chunk_count_per_job_limit))
         data_size_per_job = max(data_size_per_job, chunk_count_per_job_limit)
 
         mode = "sorted" if is_sorted(table, client=self.client) else "unordered"

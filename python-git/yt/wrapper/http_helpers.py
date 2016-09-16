@@ -80,7 +80,7 @@ def get_header_format(client):
         "json" if get_api_version(client=client) == "v2" else "yson")
 
 def check_response_is_decodable(response, format):
-    if response.status_code / 100 != 2:
+    if response.status_code // 100 != 2:
         return
 
     if format == "json":

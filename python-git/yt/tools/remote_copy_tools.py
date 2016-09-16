@@ -124,9 +124,9 @@ def _secure_upload_token(token, destination_client, token_storage_path, tmp_dir)
 def _split(item_count, split_size, total_size):
     if item_count == 0:
         return []
-    split_item_count = max(1, (item_count * split_size) / total_size)
+    split_item_count = max(1, (item_count * split_size) // total_size)
     return [(i * split_item_count, min((i + 1) * split_item_count, item_count))
-            for i in xrange(1 + ((item_count - 1) / split_item_count))]
+            for i in xrange(1 + ((item_count - 1) // split_item_count))]
 
 def _estimate_split_size(total_size):
     # XXX(asaitgalin): if table is bigger than 100 TiB and sorted it is not ok to
@@ -134,7 +134,7 @@ def _estimate_split_size(total_size):
     # DEFAULT_MAXIMUM_YT_JOB_COUNT and two ranges will be processed by the same job
     # which may violate destination table sort order.
     split_size = 1024 * yt.common.MB
-    ranges_count = total_size / split_size
+    ranges_count = total_size // split_size
     if ranges_count > DEFAULT_MAXIMUM_YT_JOB_COUNT:
         scale_factor = 1.01 * ranges_count / DEFAULT_MAXIMUM_YT_JOB_COUNT
         return int(scale_factor * split_size)
@@ -253,7 +253,7 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name,
     compressed_data_size = source_client.get_attribute(src, "compressed_data_size")
     chunk_count = source_client.get_attribute(src, "chunk_count")
 
-    if chunk_count > 100 and compressed_data_size / chunk_count < 10 * MB and not src.has_delimiters():
+    if chunk_count > 100 and compressed_data_size // chunk_count < 10 * MB and not src.has_delimiters():
         if check_permission(source_client, "write", str(src)):
             try:
                 # TODO(ignat): introduce preprocess spec template

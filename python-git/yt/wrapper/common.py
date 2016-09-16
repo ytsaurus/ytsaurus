@@ -214,7 +214,7 @@ def round_up_to(num, divider):
     if num % divider == 0:
         return num
     else:
-        return (1 + (num / divider)) * divider
+        return (1 + (num // divider)) * divider
 
 def get_disk_size(filepath):
     stat = os.stat(filepath)
