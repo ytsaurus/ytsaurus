@@ -13,6 +13,7 @@ using namespace NProto;
 using namespace NTableClient;
 
 const int MaxRowCount = 128 * 1024;
+const int MaxBufferSize = 32 * 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,7 +36,7 @@ public:
     virtual void WriteUnversionedValues(TRange<TUnversionedRow> rows) override
     {
         AddPendingValues(rows);
-        if (Offsets_.size() > MaxRowCount) {
+        if (Offsets_.size() > MaxRowCount || DataBuffer_->GetSize() > MaxBufferSize) {
             FinishCurrentSegment();
         }
     }
