@@ -5,6 +5,7 @@ import yt.logger as logger
 import yt.json as json
 
 from yt.packages.six import Iterator
+from yt.packages.six.moves.urllib.parse import quote_plus
 
 import os
 import errno
@@ -12,7 +13,6 @@ import sh
 import time
 import subprocess32 as subprocess
 from datetime import datetime, timedelta
-from urllib import quote_plus
 
 class YamrError(YtError):
     pass

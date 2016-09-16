@@ -4,7 +4,8 @@ from .common import get_value
 from .errors import YtResponseError, YtError, YtTransactionPingError
 from .transaction_commands import start_transaction, commit_transaction, abort_transaction, ping_transaction
 
-from thread import interrupt_main
+from yt.packages.six.moves._thread import interrupt_main
+
 from time import sleep
 from threading import Thread
 from datetime import datetime, timedelta

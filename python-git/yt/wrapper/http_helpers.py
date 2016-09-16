@@ -22,7 +22,7 @@ from socket import error as SocketError
 from abc import ABCMeta, abstractmethod
 
 # We cannot use requests.HTTPError in module namespace because of conflict with python3 http library
-from httplib import BadStatusLine, IncompleteRead
+from yt.packages.six.moves.http_client import BadStatusLine, IncompleteRead
 
 def get_retriable_errors():
     from yt.packages.requests import HTTPError, ConnectionError, Timeout

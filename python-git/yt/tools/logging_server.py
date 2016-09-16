@@ -4,10 +4,15 @@ import pickle
 import select
 import logging
 import logging.handlers
-import SocketServer
+
+try:
+    import SocketServer as socketserver
+except ImportError:  # Python 3
+    import socketserver
+
 import struct
 
-class LogRecordStreamHandlerBase(SocketServer.StreamRequestHandler):
+class LogRecordStreamHandlerBase(socketserver.StreamRequestHandler):
     def handle(self):
         """
         Handle multiple requests - each expected to be a 4-byte length,
@@ -26,7 +31,7 @@ class LogRecordStreamHandlerBase(SocketServer.StreamRequestHandler):
             record = logging.makeLogRecord(obj)
             self.handle_log_record(record)
 
-class LogRecordSocketReceiver(SocketServer.ThreadingTCPServer):
+class LogRecordSocketReceiver(socketserver.ThreadingTCPServer):
     allow_reuse_address = 1
 
     def __init__(self,
@@ -39,10 +44,10 @@ class LogRecordSocketReceiver(SocketServer.ThreadingTCPServer):
 
         LogRecordStreamHandler = type(
                 "LogRecordStreamHandler",
-                (LogRecordStreamHandlerBase, object), 
+                (LogRecordStreamHandlerBase, object),
                 {"handle_log_record": lambda self, record: handle(record)})
 
-        SocketServer.ThreadingTCPServer.__init__(self, (host, port), LogRecordStreamHandler)
+        socketserver.ThreadingTCPServer.__init__(self, (host, port), LogRecordStreamHandler)
         self.timeout = 1
 
     def serve_until_stopped(self):

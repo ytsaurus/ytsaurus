@@ -1,8 +1,7 @@
 from yt.packages.six.moves import cPickle as pickle
+from yt.packages.six.moves.queue import Queue
 
 from threading import Thread
-from Queue import Queue
-
 import os
 import struct
 import fcntl
