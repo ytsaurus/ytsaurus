@@ -122,11 +122,19 @@ yhash_set<TOperationId> TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeart
 
     auto* request = &context->Request();
     auto* response = &context->Response();
+
     auto nodeId = request->node_id();
+    auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
+    const auto& resourceLimits = request->resource_limits();
+    const auto& resourceUsage = request->resource_usage();
+
+    context->SetRequestInfo("NodeId: %v, Address: %v, ResourceUsage: %v",
+        nodeId,
+        descriptor.GetDefaultAddress(),
+        FormatResourceUsage(TJobResources(resourceUsage), TJobResources(resourceLimits)));
 
     YCHECK(Host_->GetNodeShardId(nodeId) == Id_);
 
-    auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
     auto node = GetOrRegisterNode(nodeId, descriptor);
     // NB: Resource limits and usage of node should be updated even if
     // node is offline to avoid getting incorrect total limits when node becomes online.
