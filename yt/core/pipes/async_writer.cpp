@@ -169,7 +169,7 @@ private:
 
     bool InitFD(const Stroka& str)
     {
-        FD_ = open(str.c_str(), O_WRONLY |  O_CLOEXEC);
+        FD_ = HandleEintr(::open, str.c_str(), O_WRONLY |  O_CLOEXEC);
         if (FD_ == -1) {
             LOG_ERROR(TError::FromSystem(), "Failed to open async writer"
                 "for named pipe %v", str);
