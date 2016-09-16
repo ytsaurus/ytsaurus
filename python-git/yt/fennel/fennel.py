@@ -764,11 +764,11 @@ class Application(object):
                             except EventLog.NotEnoughDataError:
                                 self.log.info("Not enough data in the event log", exc_info=True)
                                 if (datetime.datetime.utcnow() - last_success_time).total_seconds() > 120:
-                                    chunk_size = max(1, chunk_size / 2)
+                                    chunk_size = max(1, chunk_size // 2)
                                     self.log.info("Use smaller chunk size: %d", chunk_size)
                                 yield sleep_future(30.0, self._io_loop)
                             except ChunkTooBigError:
-                                new_chunk_size = max(100, chunk_size / 2)
+                                new_chunk_size = max(100, chunk_size // 2)
                                 self.log.error("%d table rows forms chunk which is too big. Use small chunk size: %d", chunk_size, new_chunk_size)
                                 chunk_size = new_chunk_size
                             else:

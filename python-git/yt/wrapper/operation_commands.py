@@ -105,7 +105,7 @@ class OperationProgressFormatter(logging.Formatter):
             return created.strftime(date_format)
         else:
             def total_minutes(time):
-                return time.seconds / 60 + 60 * 24 * time.days
+                return time.seconds // 60 + 60 * 24 * time.days
             elapsed = total_minutes(datetime.now() - self._start_time)
             time = datetime.now()
             if time.microsecond > 0:

@@ -41,7 +41,7 @@ def get_size(table):
 def get_disk_space_per_row(table):
     attributes = yt.get(table + "/@")
     if attributes["row_count"]:
-        return attributes["resource_usage"]["disk_space"] / attributes["row_count"]
+        return attributes["resource_usage"]["disk_space"] // attributes["row_count"]
     return 0
 
 def get_archive_disk_space_ratio(example_of_archived_table):
@@ -79,7 +79,7 @@ def get_possible_size_to_archive():
     attributes = yt.get("event_log/@")
     if attributes["row_count"] == 0:
         return 0
-    return (get_processed_row_count(attributes) * attributes["resource_usage"]["disk_space"]) / attributes["row_count"]
+    return (get_processed_row_count(attributes) * attributes["resource_usage"]["disk_space"]) // attributes["row_count"]
 
 def get_desired_row_count_to_archive(desired_archive_size, example_of_archived_table):
     free_archive_size = desired_archive_size

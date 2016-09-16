@@ -31,7 +31,7 @@ def md5(obj):
     return h.digest()
 
 def from_hex(str):
-    return "".join(chr(int(str[i * 2: i * 2 + 2], 16)) for i in xrange(len(str) / 2))
+    return "".join(chr(int(str[i * 2: i * 2 + 2], 16)) for i in xrange(len(str) // 2))
 
 def parse_stream(stream, input_type):
     for line in stream:
@@ -84,7 +84,7 @@ class SortedHash(object):
                            [0, 1]]
         else:
             assert len(md5) == 16
-            self._number_len = len(md5) / 4
+            self._number_len = len(md5) // 4
             numbers = [self._str_to_num(md5[self._number_len * i: self._number_len * (i + 1)]) for i in xrange(4)]
             self.matrix = [[numbers[i * 2 + j] for j in xrange(2)] for i in xrange(2)]
 

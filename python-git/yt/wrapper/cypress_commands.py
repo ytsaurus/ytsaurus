@@ -62,7 +62,7 @@ def escape_ypath_literal(literal):
         if num >= 256:
             raise YtError("YPath literals should consist of bytes with code in [0, 255]")
         if num < 32: # or num >= 128:
-            return "\\x" + string.hexdigits[num / 16] + string.hexdigits[num % 16]
+            return "\\x" + string.hexdigits[num // 16] + string.hexdigits[num % 16]
         return ch
 
     return "".join(map(escape_char, literal))

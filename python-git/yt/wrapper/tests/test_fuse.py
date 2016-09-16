@@ -55,7 +55,7 @@ class TestCachedYtClient(object):
                 attributes.pop(attribute, None)
         assert real_attributes == cached_attributes
 
-        sample_names = random.sample(list(real_attributes), len(real_attributes) / 2)
+        sample_names = random.sample(list(real_attributes), len(real_attributes) // 2)
         cached_attributes = client.get_attributes("//home", sample_names)
         assert sorted(iterkeys(cached_attributes)) == sorted(sample_names)
 
@@ -88,11 +88,11 @@ class TestCypress(object):
         fuse_content = cypress.read(fuse_filepath, len(content), 0, fi)
         assert fuse_content == content
 
-        offset = len(content) / 2
+        offset = len(content) // 2
         fuse_content = cypress.read(fuse_filepath, len(content), offset, fi)
         assert fuse_content == content[offset:]
 
-        length = len(content) / 2
+        length = len(content) // 2
         fuse_content = cypress.read(fuse_filepath, length, 0, fi)
         assert fuse_content == content[:length]
 
@@ -118,11 +118,11 @@ class TestCypress(object):
         fuse_content = cypress.read(fuse_filepath, len(content), 0, fi)
         assert fuse_content == content
 
-        offset = len(content) / 2
+        offset = len(content) // 2
         fuse_content = cypress.read(fuse_filepath, len(content), offset, fi)
         assert fuse_content == content[offset:]
 
-        length = len(content) / 2
+        length = len(content) // 2
         fuse_content = cypress.read(fuse_filepath, length, 0, fi)
         assert fuse_content == content[:length]
 
@@ -169,7 +169,7 @@ class TestCypress(object):
         fi = fuse_file_info()
         fuse_filepath = filepath[1:]
 
-        for truncated_length in [len(content), len(content) / 2, 0]:
+        for truncated_length in [len(content), len(content) // 2, 0]:
             cypress.open(fuse_filepath, fi)
             cypress.truncate(fuse_filepath, truncated_length)
             cypress.flush(fuse_filepath, fi)
