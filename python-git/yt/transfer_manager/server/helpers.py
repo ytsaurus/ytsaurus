@@ -5,6 +5,7 @@ from .errors import IncorrectTokenError
 import yt.logger as logger
 
 from yt.packages.six import iteritems
+from yt.packages.six.moves import _thread as thread
 
 import yt.wrapper as yt
 
@@ -12,7 +13,6 @@ import os
 import sys
 import time
 import traceback
-import thread
 import signal
 import logging
 import logging.handlers

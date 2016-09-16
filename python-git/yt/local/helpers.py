@@ -1,6 +1,6 @@
-from threading import Thread
+from yt.packages.six.moves import _thread as thread
 
-import thread
+from threading import Thread
 import time
 import os
 import logging

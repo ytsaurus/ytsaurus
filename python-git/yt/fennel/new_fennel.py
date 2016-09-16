@@ -4,6 +4,7 @@ from yt.common import date_string_to_timestamp
 
 import yt.packages.requests as requests
 from yt.packages.six.moves import xrange
+from yt.packages.six.moves.queue import Queue
 
 import yt.wrapper as yt
 
@@ -19,7 +20,6 @@ from cStringIO import StringIO
 from gzip import GzipFile
 from itertools import starmap, imap
 from threading import Thread
-from Queue import Queue
 
 # Brief description.
 # Attributes on table:

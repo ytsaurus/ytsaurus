@@ -8,10 +8,10 @@ import yt.logger as logger
 import yt.packages.requests as requests
 import yt.packages.simplejson as json
 from yt.packages.six import reraise
+from yt.packages.six.moves import queue
 
 import sys
 import time
-import Queue
 from threading import Thread, Semaphore
 from copy import deepcopy
 
@@ -73,8 +73,8 @@ class Poller(object):
         self._thread.daemon = True
         self._thread.start()
 
-        self._queue = Queue.Queue()
-        self._restart_queue = Queue.Queue()
+        self._queue = queue.Queue()
+        self._restart_queue = queue.Queue()
         self._semaphore = Semaphore(running_tasks_limit)
 
         self._enable_failed_tasks_restarting = enable_failed_tasks_restarting
@@ -115,7 +115,7 @@ class Poller(object):
                 if task is None:
                     finished = True
                 tasks.append(task)
-            except Queue.Empty:
+            except queue.Empty:
                 break
 
         return tasks, finished
@@ -198,7 +198,7 @@ class Poller(object):
             while True:
                 try:
                     msg = self._queue.get_nowait()
-                except Queue.Empty:
+                except queue.Empty:
                     break
 
                 if msg["type"] == "all_started":

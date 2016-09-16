@@ -23,7 +23,7 @@ make_link()
 }
 
 urlencode() {
-    echo "$@" | python -c "import sys, urllib; sys.stdout.write(urllib.quote(sys.stdin.read()))"
+    echo "$@" | python2 -c "import sys, urllib; sys.stdout.write(urllib.quote(sys.stdin.read()))"
 }
 
 FILES=$($YT list $DEST)

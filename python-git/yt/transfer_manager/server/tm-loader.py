@@ -6,12 +6,12 @@ from yt.transfer_manager.client import TransferManager
 from yt.wrapper.client import Yt
 
 from yt.packages.six import iteritems
+from yt.packages.six.moves import queue
 
 import yt.wrapper as yt
 
 import sys
 import argparse
-import Queue
 from threading import Thread, Semaphore
 import time
 
@@ -21,7 +21,7 @@ DST_TEST_TABLES_PATH = "//tmp/tm_load_tester"
 SRC_YT_CLUSTER = "banach"
 DST_YT_CLUSTER = "quine"
 
-def waiting_thread(client, token, queue, semaphore):
+def waiting_thread(client, token, queue_, semaphore):
     dst_client = Yt(proxy=DST_YT_CLUSTER, token=token)
 
     running_tasks = {}
@@ -40,8 +40,8 @@ def waiting_thread(client, token, queue, semaphore):
 
         while True:
             try:
-                task, destination = queue.get_nowait()
-            except Queue.Empty:
+                task, destination = queue_.get_nowait()
+            except queue.Empty:
                 break
 
             running_tasks[task] = destination
@@ -55,10 +55,10 @@ def run_tasks(client, task_limit):
     dst_yt_client = Yt(proxy=DST_YT_CLUSTER, token=yt.config["token"])
     dst_yt_client.create("map_node", DST_TEST_TABLES_PATH, ignore_existing=True)
 
-    queue = Queue.Queue()
+    tasks_queue = queue.Queue()
     semaphore = Semaphore(task_limit)
 
-    thread = Thread(target=waiting_thread, args=(client, yt.config["token"], queue, semaphore))
+    thread = Thread(target=waiting_thread, args=(client, yt.config["token"], tasks_queue, semaphore))
     thread.daemon = True
     thread.start()
 
@@ -67,7 +67,7 @@ def run_tasks(client, task_limit):
         semaphore.acquire()
         destination = dst_yt_client.create_temp_table(path=DST_TEST_TABLES_PATH)
         task_id = client.add_task(SRC_YT_CLUSTER, SRC_TEST_TABLE_NAME, DST_YT_CLUSTER, destination)
-        queue.put((task_id, destination))
+        tasks_queue.put((task_id, destination))
 
         time.sleep(0.5)
 
