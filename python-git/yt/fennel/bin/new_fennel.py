@@ -46,7 +46,7 @@ def make_logbroker_client(args):
 def parse_monitor(args):
     client = make_yt_client(args)
     configure_logging(args)
-    monitor(client, args.threshold)
+    monitor(client, args.table_path, args.threshold)
 
 def add_monitor_parser(subparsers, parent_parser):
     parser = subparsers.add_parser("monitor", help="Juggler compatible monitor of event_log state", parents=[parent_parser])
@@ -72,10 +72,6 @@ def add_push_to_logbroker_parser(subparsers, parent_parser):
     parser = subparsers.add_parser("push-to-logbroker",
                                    help="Tail table and push data to logbroker",
                                    parents=[parent_parser])
-    parser.add_argument("--table-path",
-                        help="Path to table that should be pushed to logbroker. "
-                             "By default it is //sys/scheduler/event_log",
-                        default="//sys/scheduler/event_log")
     parser.add_argument("--session-count", type=int,
                         help="Number of parallel sessions to tail and push", default=1)
     parser.add_argument("--range-row-count", type=int,
@@ -109,6 +105,9 @@ def main():
     parent_parser.add_argument("--yt-config", default={}, help="yt config")
     parent_parser.add_argument("--log-file", help="path to log file, stderr if not specified")
     parent_parser.add_argument("--log-level", help="log level")
+    parent_parser.add_argument("--table-path",
+                               help="Path to table that fennel should process",
+                               default="//sys/scheduler/event_log")
 
     subparsers = parser.add_subparsers(help="Command: monitor or push-to-logbroker", metavar="command")
     add_monitor_parser(subparsers, parent_parser)
