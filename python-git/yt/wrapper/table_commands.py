@@ -46,7 +46,7 @@ from . import py_wrapper
 from .config import get_config
 from .common import flatten, require, unlist, update, parse_bool, is_prefix, get_value, \
                     compose, bool_to_string, chunk_iter_stream, get_started_by, MB, GB, EMPTY_GENERATOR, \
-                    run_with_retries, forbidden_inside_job
+                    run_with_retries, forbidden_inside_job, get_disk_size, round_up_to
 from .errors import YtIncorrectResponse, YtError, YtOperationFailedError, YtConcurrentOperationsLimitExceeded
 from .driver import make_request
 from .exceptions_catcher import KeyboardInterruptsCatcher
@@ -175,25 +175,32 @@ def _prepare_table_writer(table_writer, client):
         return None
     return update(table_writer_from_config, get_value(table_writer, {}))
 
-def _reliably_upload_files(files, client=None):
-    if files is None:
-        return []
+class FileUploader(object):
+    def __init__(self, client):
+        self.client = client
+        self.disk_size = 0
 
-    file_paths = []
-    with Transaction(transaction_id=null_transaction_id, attributes={"title": "Python wrapper: upload operation files"}, client=client):
-        for file in flatten(files):
-            if isinstance(file, basestring):
-                file_params = {"filename": file}
-            else:
-                file_params = file
-            filename = file_params["filename"]
+    def __call__(self, files):
+        if files is None:
+            return []
 
-            path = upload_file_to_cache(client=client, **file_params)
-            file_paths.append(yson.to_yson_type(path, attributes={
-                "executable": is_executable(filename, client=client),
-                "file_name": os.path.basename(filename),
-            }))
-    return file_paths
+        file_paths = []
+        with Transaction(transaction_id=null_transaction_id, attributes={"title": "Python wrapper: upload operation files"}, client=self.client):
+            for file in flatten(files):
+                if isinstance(file, basestring):
+                    file_params = {"filename": file}
+                else:
+                    file_params = file
+                filename = file_params["filename"]
+
+                self.disk_size += get_disk_size(filename)
+
+                path = upload_file_to_cache(client=self.client, **file_params)
+                file_paths.append(yson.to_yson_type(path, attributes={
+                    "executable": is_executable(filename, client=self.client),
+                    "file_name": os.path.basename(filename),
+                }))
+        return file_paths
 
 def _is_python_function(binary):
     return isinstance(binary, types.FunctionType) or hasattr(binary, "__call__")
@@ -235,8 +242,8 @@ def _prepare_format(format, raw, client):
             lambda: YtError("You should specify format"))
     return format
 
-def _prepare_binary(binary, operation_type, input_format=None, output_format=None,
-                    group_by=None, client=None):
+def _prepare_binary(binary, operation_type, input_format, output_format,
+                    group_by, file_uploader, client=None):
     if _is_python_function(binary):
         start_time = time.time()
         if isinstance(input_format, YamrFormat) and group_by is not None and set(group_by) != set(["key"]):
@@ -248,7 +255,7 @@ def _prepare_binary(binary, operation_type, input_format=None, output_format=Non
                             input_format=input_format,
                             output_format=output_format,
                             group_by=group_by,
-                            uploader=lambda files: _reliably_upload_files(files, client=client),
+                            uploader=file_uploader,
                             client=client)
 
         logger.debug("Collecting python modules and uploading to cypress takes %.2lf seconds", time.time() - start_time)
@@ -300,7 +307,8 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
 
     file_paths = flatten(get_value(file_paths, []))
 
-    files = _reliably_upload_files(files, client=client)
+    file_uploader = FileUploader(client)
+    files = file_uploader(files)
     input_format, output_format = _prepare_formats(format, input_format, output_format, binary=binary, client=client)
 
     environment = {}
@@ -317,7 +325,7 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
 
     binary, additional_files, additional_local_files_to_remove, tmpfs_size = \
         _prepare_binary(binary, op_type, input_format, output_format,
-                        group_by, client=client)
+                        group_by, file_uploader, client=client)
 
     if local_files_to_remove is not None:
         local_files_to_remove += additional_local_files_to_remove
@@ -343,8 +351,16 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
             paths.insert(0, ld_library_path)
         environment["LD_LIBRARY_PATH"] = os.pathsep.join(paths)
 
-    if tmpfs_size > 0:
-        spec = update({op_type: {"tmpfs_size": tmpfs_size, "tmpfs_path": "tmpfs"}}, spec)
+    if get_config(client)["mount_sandbox_in_tmpfs"]:
+        disk_size = file_uploader.disk_size
+        for file in file_paths:
+            disk_size += round_up_to(get(file + "/@uncompressed_data_size", client=client), 4 * 1024)
+        spec = update({op_type: {"tmpfs_size": disk_size, "tmpfs_path": "."}}, spec)
+        tmpfs_size = disk_size
+    else:
+        if tmpfs_size > 0:
+            spec = update({op_type: {"tmpfs_size": tmpfs_size, "tmpfs_path": "tmpfs"}}, spec)
+
     if environment:
         spec = update({op_type: {"environment": environment}}, spec)
 

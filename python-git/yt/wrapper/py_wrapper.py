@@ -3,7 +3,7 @@ from __future__ import print_function
 from . import config
 from .config import get_config
 from .pickling import Pickler
-from .common import get_python_version, YtError, chunk_iter_stream, chunk_iter_string, get_value, which
+from .common import get_python_version, YtError, chunk_iter_stream, chunk_iter_string, get_value, which, get_disk_size
 from .py_runner_helpers import process_rows
 from .local_mode import is_local_mode
 
@@ -76,20 +76,6 @@ def hex_md5(md5_array):
 
 def calc_md5_string_from_file(filename):
     return hex_md5([calc_md5_from_file(filename)])
-
-# Misc functions.
-def round_up_to(num, divider):
-    if num % divider == 0:
-        return num
-    else:
-        return (1 + (num / divider)) * divider
-
-def get_disk_size(filepath):
-    stat = os.stat(filepath)
-    if hasattr(stat, "st_blocks") and hasattr(stat, "st_blksize"):
-        return stat.st_blocks * stat.st_blksize
-    else:
-        return round_up_to(stat.st_size, 4 * 1024)
 
 def is_running_interactively():
     # Does not work in bpython
