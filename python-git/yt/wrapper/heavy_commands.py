@@ -25,7 +25,7 @@ class FakeTransaction(object):
     def __exit__(self, type, value, traceback):
         pass
 
-    def __nonzero__(self):
+    def __bool__(self):
         return False
 
     def abort(self):
@@ -36,6 +36,8 @@ class FakeTransaction(object):
 
     def is_pinger_alive(self):
         return True
+
+    __nonzero__ = __bool__
 
 def make_write_request(command_name, stream, path, params, create_object, use_retries,
                        is_stream_compressed=False, client=None):

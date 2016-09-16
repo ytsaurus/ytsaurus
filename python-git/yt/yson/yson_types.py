@@ -175,7 +175,7 @@ class YsonEntity(YsonType):
     def __ne__(self, other):
         return not (self == other)
 
-    def __nonzero__(self):
+    def __bool__(self):
         return False
 
     def __repr__(self):
@@ -186,3 +186,5 @@ class YsonEntity(YsonType):
 
     def __str__(self):
         return self.__repr__()
+
+    __nonzero__ = __bool__
