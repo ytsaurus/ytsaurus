@@ -981,10 +981,9 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
 
     std::atomic<bool> cleanStart = {false};
 
-    // Check transactions.
-    if (!cleanStart) {
-        std::vector<TFuture<void>> asyncResults;
 
+    // Check transactions.
+    {
         auto checkTransaction = [&] (ITransactionPtr transaction) {
             if (cleanStart) {
                 return;
@@ -994,25 +993,12 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
                 LOG_INFO("Operation transaction is missing, will use clean start");
                 return;
             }
-
-            asyncResults.push_back(transaction->Ping().Apply(
-                BIND([transaction, this, this_=MakeStrong(this), &cleanStart] (const TError& error) {
-                    if (!error.IsOK() && !cleanStart) {
-                        cleanStart = true;
-                        LOG_INFO(error,
-                            "Error renewing operation transaction, will use clean start (TransactionId: %v)",
-                            transaction->GetId());
-                    }
-                })));
         };
 
         // NB: Async transaction is not checked.
         checkTransaction(controllerTransactions->Sync);
         checkTransaction(controllerTransactions->Input);
         checkTransaction(controllerTransactions->Output);
-
-        WaitFor(Combine(asyncResults))
-            .ThrowOnError();
     }
 
     // Downloading snapshot.

@@ -298,6 +298,22 @@ class TestSchedulerRevive(YTEnvSetup):
             iter += 1
             assert iter < 50, "Operation %s do not comes to %s state after %f seconds" % (op.id, state, iter * backoff)
 
+    def test_missing_transactions(self):
+        self._prepare_tables()
+
+        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 10")
+
+        for iter in xrange(5):
+            self._wait_state(op, "running")
+            self.Env.kill_schedulers()
+            set("//sys/operations/" + op.id + "/@input_transaction_id", "0-0-0-0")
+            self.Env.start_schedulers()
+            time.sleep(1)
+
+        op.track()
+
+        assert "completed" == get("//sys/operations/" + op.id + "/@state")
+
     def test_aborting(self):
         self._prepare_tables()
 
