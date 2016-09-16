@@ -1,6 +1,11 @@
 from threading import RLock
 from contextlib import contextmanager
 
+try:
+    xrange
+except NameError:  # Python 3
+    xrange = range
+
 class CountedRLock(object):
     def __init__(self):
         self._lock = RLock()
@@ -38,7 +43,7 @@ class CountedRLock(object):
 
     def __exit__(self, type, value, tb):
         self.release()
-    
+
     def get_counter(self):
         return self._counter
 
@@ -50,6 +55,3 @@ class CountedRLock(object):
             yield
         finally:
             self.acquire(count=acquired_count)
-
-
-

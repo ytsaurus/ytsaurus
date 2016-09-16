@@ -6,6 +6,7 @@ import yt.yson as yson
 
 from yt.packages.decorator import decorator
 from yt.packages.six import iteritems, itervalues
+from yt.packages.six.moves import xrange
 
 import os
 import sys

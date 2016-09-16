@@ -12,6 +12,11 @@ from functools import partial
 import pytest
 from _pytest import runner
 
+try:
+    xrange
+except NameError:  # Python 3
+    xrange = range
+
 MAX_PROCESS_COUNT = 24
 PROCESS_FAILURES_LIMIT = 10
 

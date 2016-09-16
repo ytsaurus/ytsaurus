@@ -4,6 +4,8 @@ from yt.wrapper.client import Yt
 from yt.wrapper.table import TablePath
 import yt.wrapper.http_helpers as http
 
+from yt.packages.six.moves import xrange
+
 import yt.wrapper as yt
 
 import pytest

@@ -3,6 +3,8 @@ from yt.wrapper.common import update, unlist, parse_bool, dict_depth, bool_to_st
                               is_prefix, prefix, first_not_none, chunk_iter_blobs, \
                               datetime_to_string, date_string_to_timestamp
 
+from yt.packages.six.moves import xrange
+
 import yt.wrapper as yt
 
 from datetime import datetime

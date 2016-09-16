@@ -3,9 +3,13 @@ from .yamr import _check_output
 from yt.wrapper.common import generate_uuid, bool_to_string, MB, GB
 from yt.tools.conversion_tools import transform
 from yt.common import get_value
+
 import yt.yson as yson
 import yt.json as json
 import yt.logger as logger
+
+from yt.packages.six.moves import xrange
+
 import yt.wrapper as yt
 
 import os

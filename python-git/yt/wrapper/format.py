@@ -14,6 +14,7 @@ import yt.logger as logger
 import yt.json as json
 
 from yt.packages.six import iteritems, Iterator, add_metaclass
+from yt.packages.six.moves import xrange
 
 from abc import ABCMeta, abstractmethod
 import copy

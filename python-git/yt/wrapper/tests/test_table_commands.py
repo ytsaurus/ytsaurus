@@ -8,6 +8,8 @@ from yt.wrapper.table import TablePath, TempTable
 from yt.wrapper.client import Yt
 from yt.wrapper.common import parse_bool
 
+from yt.packages.six.moves import xrange
+
 import yt.wrapper as yt
 
 import os

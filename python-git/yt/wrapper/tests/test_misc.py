@@ -13,6 +13,7 @@ import yt.yson as yson
 import yt.json as json
 
 from yt.packages.six import iterkeys, itervalues, iteritems, PY3, Iterator
+from yt.packages.six.moves import xrange
 
 import yt.wrapper as yt
 

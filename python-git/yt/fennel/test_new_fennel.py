@@ -1,16 +1,17 @@
-from new_fennel import StringIOWrapper, round_down_to, monitor, convert_rows_to_chunks, make_read_tasks
+from .new_fennel import StringIOWrapper, round_down_to, monitor, convert_rows_to_chunks, make_read_tasks
 
-import pytest
+from yt.packages.six.moves import xrange
+
 from datetime import datetime, timedelta
 from cStringIO import StringIO
 from gzip import GzipFile
 
 def test_string_io_wrapper():
     stream = StringIOWrapper()
-    
+
     stream.write("a")
     assert stream.size == 1
-    
+
     stream.write("abcd")
     assert stream.size == 5
 
@@ -31,7 +32,7 @@ def test_monitor():
     output = StringIO()
     monitor(MockYtClient(timedelta(minutes=5)), "", 10, output)
     assert output.getvalue().startswith("0; Lag equals to:")
-    
+
     output = StringIO()
     monitor(MockYtClient(timedelta(minutes=15)), "", 10, output)
     assert output.getvalue().startswith("2; Lag equals to:")
@@ -43,7 +44,7 @@ def test_convert_rows_to_chunks():
         with GzipFile(fileobj=output, mode="a") as zipped_stream:
             zipped_stream.write(str)
         return output.getvalue()
-    
+
     row = {"key": "value"}
     encoded_row = encode("tskv\tkey=value\n")
     start_header = ("\x01" + "\x00" * 7) * 2 + "\x00" * 8
@@ -57,10 +58,10 @@ def test_convert_rows_to_chunks():
     row_count_to_have_two_chunks = (1024 / len(encoded_row)) + 5
     chunks = list(convert_rows_to_chunks([row] * row_count_to_have_two_chunks, chunk_size=1024, seqno=0))
     assert len(chunks) == 2
-    
+
     data, row_count1 = chunks[0]
     assert data == start_header + encoded_row * row_count1
-    
+
     data, row_count2 = chunks[1]
     assert data[24:] == encoded_row * row_count2
 
@@ -82,9 +83,9 @@ def test_make_read_tasks_simple_cases():
         1) # max_range_count
     assert row_count == 1
     assert tasks == [(0, 0, [make_range(0, 1)])]
-    
+
     tasks, row_count = make_read_tasks(
-        MockYtClient(), 
+        MockYtClient(),
         "", # fake table path
         1, # session_count
         1, # range_row_count
@@ -93,7 +94,7 @@ def test_make_read_tasks_simple_cases():
     assert tasks == [(0, 0, [make_range(i, i + 1) for i in xrange(10)])]
 
     tasks, row_count = make_read_tasks(
-        MockYtClient(), 
+        MockYtClient(),
         "", # fake table path
         1, # session_count
         3, # range_row_count
@@ -102,16 +103,16 @@ def test_make_read_tasks_simple_cases():
     assert tasks == [(0, 0, [make_range(i * 3, (i + 1) * 3) for i in xrange(3)])]
 
     tasks, row_count = make_read_tasks(
-        MockYtClient(), 
+        MockYtClient(),
         "", # fake table path
         1, # session_count
         3, # range_row_count
         4) # max_range_count
     assert row_count == 10
     assert tasks == [(0, 0, [make_range(i * 3, (i + 1) * 3) for i in xrange(3)] + [make_range(9, 10)])]
-    
+
     tasks, row_count = make_read_tasks(
-        MockYtClient(), 
+        MockYtClient(),
         "", # fake table path
         3, # session_count
         2, # range_row_count
@@ -132,7 +133,7 @@ def test_make_read_tasks_complicated_cases():
         return {"lower_limit": {"row_index": start_index}, "upper_limit": {"row_index": end_index}}
 
     tasks, row_count = make_read_tasks(
-        MockYtClient(), 
+        MockYtClient(),
         "", # fake table path
         3, # session_count
         3, # range_row_count
@@ -143,4 +144,3 @@ def test_make_read_tasks_complicated_cases():
         (1, 22, [make_range(17, 19), make_range(25, 28), make_range(34, 37)]),
         (2, 21, [make_range(19, 22), make_range(28, 31), make_range(37, 40)]),
     ]
-    

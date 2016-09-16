@@ -11,6 +11,7 @@ from yt.wrapper.table import TablePath
 import yt.logger as logger
 
 from yt.packages.six import add_metaclass
+from yt.packages.six.moves import xrange
 
 import yt.wrapper as yt
 

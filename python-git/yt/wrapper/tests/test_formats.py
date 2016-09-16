@@ -2,6 +2,8 @@ from yt.wrapper.string_iter_io import StringIterIO
 import yt.yson as yson
 from yt.wrapper.format import extract_key, create_format
 
+from yt.packages.six.moves import xrange
+
 import yt.wrapper as yt
 
 from cStringIO import StringIO

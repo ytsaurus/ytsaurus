@@ -5,6 +5,7 @@ from yt.wrapper.http_helpers import get_proxy_url
 
 from yt.packages.fuse import fuse_file_info, FuseOSError
 from yt.packages.six import iterkeys
+from yt.packages.six.moves import xrange
 
 import yt.wrapper as yt
 
@@ -105,7 +106,7 @@ class TestCypress(object):
 
         filepath = TEST_DIR + "/file"
         content = ""
-        for i in range(100):
+        for i in xrange(100):
             data = {"a": i, "b": 2 * i, "c": 3 * i}
             content += json.dumps(data, separators=(',', ':'), sort_keys=True)
             content += "\n"

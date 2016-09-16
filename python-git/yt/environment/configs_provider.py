@@ -6,6 +6,7 @@ from yt.common import YtError, unlist, update, get_value
 from yt.yson import YsonString
 
 from yt.packages.six import iteritems, add_metaclass
+from yt.packages.six.moves import xrange
 
 import socket
 import abc

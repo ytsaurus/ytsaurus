@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+from yt.packages.six.moves import xrange
+
 import yt.wrapper as yt
 
 import time

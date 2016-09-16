@@ -4,6 +4,7 @@ from yt.wrapper.cli_helpers import die
 import yt.json as json
 
 from yt.packages.six import iteritems
+from yt.packages.six.moves import xrange
 
 import yt.wrapper as yt
 

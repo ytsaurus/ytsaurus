@@ -1,4 +1,7 @@
 import yt.yson as yson
+
+from yt.packages.six.moves import xrange
+
 import yt.wrapper as yt
 
 import calendar
