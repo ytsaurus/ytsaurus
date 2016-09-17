@@ -243,7 +243,7 @@ struct TTransactionCommitOptions
     NElection::TCellId CoordinatorCellId;
 
     //! If |true| then two-phase-commit procotol is executed regardless of the number of participants.
-    bool Force2PC;
+    bool Force2PC = false;
 };
 
 struct TTransactionAbortOptions
