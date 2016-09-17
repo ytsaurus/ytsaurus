@@ -13,49 +13,53 @@ class TSchedule
 {
 public:
     TSchedule();
-
     explicit TSchedule(int** schedulePointer);
+    TSchedule(const TSchedule&& other) = delete;
 
     int** Get() const;
 
     TSchedule(TSchedule&&);
     TSchedule& operator = (TSchedule&&);
-    
+    TSchedule operator = (const TSchedule&) = delete;
+
     ~TSchedule();
 
 private:
-    TSchedule(const TSchedule&);
-    TSchedule operator = (const TSchedule&);
+    int** SchedulePointer_;
 
     void Free();
 
-    int** SchedulePointer_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TMatrix
 {
 public:
     TMatrix();
-    
     explicit TMatrix(int* matrixPointer);
+    TMatrix(const TMatrix&) = delete;
 
     int* Get() const;
     
     TMatrix(TMatrix&&);
     TMatrix& operator = (TMatrix&&);
+    TMatrix operator = (const TMatrix&) = delete;
 
     ~TMatrix();
 
 private:
-    TMatrix(const TMatrix&);
-    TMatrix operator = (const TMatrix&);
+    int* MatrixPointer_;
 
     void Free();
 
-    int* MatrixPointer_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+//! Must be invoked prior to calling jerasure or galois functions to ensure
+//! thread-safe initialization.
+void InitializeJerasure();
 
 std::vector<TSharedRef> ScheduleEncode(
     int blockCount,
