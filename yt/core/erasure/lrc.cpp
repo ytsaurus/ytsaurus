@@ -60,6 +60,9 @@ TLrc::TLrc(int dataPartCount)
     , ParityPartCount_(4)
     , WordSize_(8)
 {
+    // Check that the (constant) word size is sane.
+    YCHECK(WordSize_ <= MaxWordSize);
+
     // Data part count must be even.
     YCHECK(dataPartCount % 2 == 0);
     // Data part count should be enough small to construct proper matrix.

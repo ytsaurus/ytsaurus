@@ -57,8 +57,14 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const int MaxWordSize = 8;
+
 //! Must be invoked prior to calling jerasure or galois functions to ensure
 //! thread-safe initialization.
+/*!
+ *  Note that the tables are only initialized for word sizes up to #MaxWordSize.
+ *  Don't use sizes exceeding this limit without adjusting the constant.
+ */
 void InitializeJerasure();
 
 std::vector<TSharedRef> ScheduleEncode(

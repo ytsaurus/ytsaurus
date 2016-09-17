@@ -118,10 +118,10 @@ void InitializeJerasure()
         auto guard = Guard(JerasureInitLock);
         if (!JerasureInitialized.load()) {
             // Cf. galois.c.
-            for (int w = 1; w <= 30; ++w) {
+            for (int w = 1; w <= MaxWordSize; ++w) {
                 galois_create_log_tables(w);
             }
-            for (int w = 1; w <= 13; ++w) {
+            for (int w = 1; w <= MaxWordSize; ++w) {
                 galois_create_mult_tables(w);
             }
         }

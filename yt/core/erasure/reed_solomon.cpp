@@ -22,6 +22,9 @@ TCauchyReedSolomon::TCauchyReedSolomon(
     , ParityPartCount_(parityPartCount)
     , WordSize_(wordSize)
 {
+    // Check that the word size is sane.
+    YCHECK(WordSize_ <= MaxWordSize);
+
     InitializeJerasure();
 
     Matrix_ = TMatrix(cauchy_good_general_coding_matrix(dataPartCount, parityPartCount, wordSize));
