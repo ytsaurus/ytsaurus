@@ -114,20 +114,19 @@ void InitializeJerasure()
         return;
     }
 
-    {
-        auto guard = Guard(JerasureInitLock);
-        if (!JerasureInitialized.load()) {
-            // Cf. galois.c.
-            for (int w = 1; w <= MaxWordSize; ++w) {
-                galois_create_log_tables(w);
-            }
-            for (int w = 1; w <= MaxWordSize; ++w) {
-                galois_create_mult_tables(w);
-            }
-        }
-    }
+    auto guard = Guard(JerasureInitLock);
 
-    JerasureInitialized.store(true);
+    if (!JerasureInitialized.load()) {
+        // Cf. galois.c.
+        for (int w = 1; w <= MaxWordSize; ++w) {
+            galois_create_log_tables(w);
+        }
+        for (int w = 1; w <= MaxWordSize; ++w) {
+            galois_create_mult_tables(w);
+        }
+
+        JerasureInitialized.store(true);
+    }
 }
 
 std::vector<TSharedRef> ScheduleEncode(
