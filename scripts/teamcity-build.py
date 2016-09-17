@@ -474,6 +474,7 @@ def main():
 
     options = parser.parse_args()
     options.failed_tests_path = os.path.expanduser("~/failed_tests")
+    options.core_path = os.path.expanduser("~/core")
     options.is_bare_metal = socket.getfqdn().endswith("tc.yt.yandex.net")
     # NB: parallel testing is enabled by default only for bare metal machines.
     options.enable_parallel_testing = options.is_bare_metal
