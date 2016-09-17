@@ -160,7 +160,6 @@ public:
 
         int avgChunkCount = chunkCountSum / RegisteredMasterMap_.size();
 
-
         // Split the candidates into two subsets: less-that-avg and more-than-avg.
         SmallVector<TCellTag, MaxSecondaryMasterCells> loCandidates;
         SmallVector<TCellTag, MaxSecondaryMasterCells> hiCandidates;
@@ -300,8 +299,16 @@ private:
             }
         }
 
+        RegisteredMasterCellTags_.resize(RegisteredMasterMap_.size());
+        for (const auto& pair : RegisteredMasterMap_) {
+            auto cellTag = pair.first;
+            const auto& entry = pair.second;
+            RegisteredMasterCellTags_[entry.Index] = cellTag;
+        }
+
         for (auto& pair : RegisteredMasterMap_) {
             auto cellTag = pair.first;
+            auto& entry = pair.second;
             ValidateCellTag(cellTag);
         }
 
@@ -333,11 +340,6 @@ private:
         using NYT::Load;
 
         Load(context, RegisteredMasterMap_);
-
-        RegisteredMasterCellTags_.clear();
-        for (const auto& pair : RegisteredMasterMap_) {
-            RegisteredMasterCellTags_.push_back(pair.first);
-        }
 
         // COMPAT(babenko)
         if (context.GetVersion() >= 207) {
@@ -551,13 +553,13 @@ private:
 
     void RegisterMasterEntry(TCellTag cellTag)
     {
-        int index = RegisteredMasterMap_.empty() ? 0 : RegisteredMasterMap_.rbegin()->second.Index + 1;
+        YCHECK(RegisteredMasterMap_.size() == RegisteredMasterCellTags_.size());
+        int index = static_cast<int>(RegisteredMasterMap_.size());
         auto pair = RegisteredMasterMap_.insert(std::make_pair(cellTag, TMasterEntry()));
         YCHECK(pair.second);
         auto& entry = pair.first->second;
         entry.Index = index;
         RegisteredMasterCellTags_.push_back(cellTag);
-        std::sort(RegisteredMasterCellTags_.begin(), RegisteredMasterCellTags_.end());
     }
 
     TMasterEntry* FindMasterEntry(TCellTag cellTag)
