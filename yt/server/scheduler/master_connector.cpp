@@ -410,9 +410,6 @@ private:
         for (auto operationReport : result.OperationReports) {
             CreateUpdateList(operationReport.Operation);
         }
-        for (auto handler : GlobalWatcherHandlers) {
-            handler.Run(result.WatcherResponses);
-        }
 
         LockTransaction->SubscribeAborted(
             BIND(&TImpl::OnLockTransactionAborted, MakeWeak(this))
@@ -452,7 +449,7 @@ private:
             StartLockTransaction();
             TakeLock();
             AssumeControl();
-            InvokeWatchers();
+            UpdateGlobalWatchers();
             UpdateClusterDirectory();
             ListOperations();
             RequestOperationAttributes();
@@ -641,8 +638,8 @@ private:
             }
         }
 
-        // - Send watcher requests.
-        void InvokeWatchers()
+        // Update global watchers.
+        void UpdateGlobalWatchers()
         {
             auto batchReq = Owner->StartObjectBatchRequest();
             for (auto requester : Owner->GlobalWatcherRequesters) {
@@ -650,7 +647,11 @@ private:
             }
 
             auto batchRspOrError = WaitFor(batchReq->Invoke());
-            Result.WatcherResponses = batchRspOrError.ValueOrThrow();
+            auto watcherResponses = batchRspOrError.ValueOrThrow();
+
+            for (auto handler : Owner->GlobalWatcherHandlers) {
+                handler.Run(watcherResponses);
+            }
         }
 
     };
