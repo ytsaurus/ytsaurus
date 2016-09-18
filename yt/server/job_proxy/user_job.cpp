@@ -617,11 +617,11 @@ private:
         return Freezer_.GetTasks();
     }
 
-    std::vector<IValueConsumer*> CreateValueConsumers()
+    std::vector<IValueConsumer*> CreateValueConsumers(TTypeConversionConfigPtr typeConversionConfig)
     {
         std::vector<IValueConsumer*> valueConsumers;
         for (const auto& writer : JobIO_->GetWriters()) {
-            WritingValueConsumers_.emplace_back(new TWritingValueConsumer(writer));
+            WritingValueConsumers_.emplace_back(new TWritingValueConsumer(writer, typeConversionConfig));
             valueConsumers.push_back(WritingValueConsumers_.back().get());
         }
         return valueConsumers;
@@ -635,7 +635,7 @@ private:
 
         TableOutputs_.resize(writers.size());
         for (int i = 0; i < writers.size(); ++i) {
-            auto valueConsumers = CreateValueConsumers();
+            auto valueConsumers = CreateValueConsumers(ConvertTo<TTypeConversionConfigPtr>(format.Attributes()));
             auto parser = CreateParserForFormat(format, valueConsumers, i);
             TableOutputs_[i].reset(new TTableOutput(std::move(parser)));
 
@@ -1191,10 +1191,10 @@ private:
                 item.Type,
                 item.DeviceId);
 
-            if (UserJobSpec_.has_iops_threshold() && 
+            if (UserJobSpec_.has_iops_threshold() &&
                 item.Type == "read" &&
                 !IsWoodpecker_ &&
-                item.Value > UserJobSpec_.iops_threshold()) 
+                item.Value > UserJobSpec_.iops_threshold())
             {
                 LOG_DEBUG("Woodpecker detected (DeviceId: %v)", item.DeviceId);
                 IsWoodpecker_ = true;

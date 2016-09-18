@@ -207,7 +207,7 @@ public:
         // Open is always synchronous for buffered writer.
         YCHECK(EventLogWriter_->Open().IsSet());
 
-        EventLogValueConsumer_.reset(new TWritingValueConsumer(EventLogWriter_, true));
+        EventLogValueConsumer_.reset(new TWritingValueConsumer(EventLogWriter_, New<TTypeConversionConfig>(), true /* flushImmediately */));
         EventLogTableConsumer_.reset(new TTableConsumer(EventLogValueConsumer_.get()));
 
         LogEventFluently(ELogEventType::SchedulerStarted)
