@@ -1204,7 +1204,7 @@ private:
 
     void ProfileSchedulerElement(TCompositeSchedulerElementPtr element)
     {
-        const auto& tag = element->GetProfilingTag();
+        auto tag = element->GetProfilingTag();
         Profiler.Enqueue(
             "/pools/fair_share_ratio_x100000",
             static_cast<i64>(element->Attributes().FairShareRatio * 1e5),
