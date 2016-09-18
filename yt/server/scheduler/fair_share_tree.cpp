@@ -416,8 +416,10 @@ TCompositeSchedulerElementFixedState::TCompositeSchedulerElementFixedState()
 
 TCompositeSchedulerElement::TCompositeSchedulerElement(
     ISchedulerStrategyHost* host,
-    TFairShareStrategyConfigPtr strategyConfig)
+    TFairShareStrategyConfigPtr strategyConfig,
+    const Stroka& profilingName)
     : TSchedulerElementBase(host, strategyConfig)
+    , ProfilingTag_(NProfiling::TProfileManager::Get()->RegisterTag("pool", profilingName))
 { }
 
 TCompositeSchedulerElement::TCompositeSchedulerElement(
@@ -425,6 +427,7 @@ TCompositeSchedulerElement::TCompositeSchedulerElement(
     TCompositeSchedulerElement* clonedParent)
     : TSchedulerElementBase(other, clonedParent)
     , TCompositeSchedulerElementFixedState(other)
+    , ProfilingTag_(other.ProfilingTag_)
 {
     auto cloneChildren = [&] (
         const std::vector<ISchedulerElementPtr>& list,
@@ -713,6 +716,11 @@ void TCompositeSchedulerElement::RemoveChild(const ISchedulerElementPtr& child)
 bool TCompositeSchedulerElement::IsEmpty() const
 {
     return EnabledChildren_.empty() && DisabledChildren_.empty();
+}
+
+NProfiling::TTagId TCompositeSchedulerElement::GetProfilingTag() const
+{
+    return ProfilingTag_;
 }
 
 // Given a non-descending continuous |f|, |f(0) = 0|, and a scalar |a|,
@@ -1016,9 +1024,8 @@ TPool::TPool(
     ISchedulerStrategyHost* host,
     const Stroka& id,
     TFairShareStrategyConfigPtr strategyConfig)
-    : TCompositeSchedulerElement(host, strategyConfig)
+    : TCompositeSchedulerElement(host, strategyConfig, id)
     , TPoolFixedState(id)
-    , ProfilingTag_(NProfiling::TProfileManager::Get()->RegisterTag("pool", id))
 {
     SetDefaultConfig();
 }
@@ -1194,11 +1201,6 @@ TJobResources TPool::ComputeResourceLimits() const
     auto resourceLimits = GetHost()->GetResourceLimits(GetNodeTag()) * Config_->MaxShareRatio;
     auto perTypeLimits = ToJobResources(Config_->ResourceLimits, InfiniteJobResources());
     return Min(resourceLimits, perTypeLimits);
-}
-
-NProfiling::TTagId TPool::GetProfilingTag() const
-{
-    return ProfilingTag_;
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -1984,8 +1986,7 @@ int TOperationElement::ComputePendingJobCount() const
 TRootElement::TRootElement(
     ISchedulerStrategyHost* host,
     TFairShareStrategyConfigPtr strategyConfig)
-    : TCompositeSchedulerElement(host, strategyConfig)
-    , ProfilingTag_(NProfiling::TProfileManager::Get()->RegisterTag("pool", RootPoolName))
+    : TCompositeSchedulerElement(host, strategyConfig, RootPoolName)
 {
     Attributes_.FairShareRatio = 1.0;
     Attributes_.GuaranteedResourcesRatio = 1.0;
@@ -2077,11 +2078,6 @@ int TRootElement::GetMaxRunningOperationCount() const
 int TRootElement::GetMaxOperationCount() const
 {
     return StrategyConfig_->MaxOperationCount;
-}
-
-NProfiling::TTagId TRootElement::GetProfilingTag() const
-{
-    return ProfilingTag_;
 }
 
 ISchedulerElementPtr TRootElement::Clone(TCompositeSchedulerElement* /*clonedParent*/)

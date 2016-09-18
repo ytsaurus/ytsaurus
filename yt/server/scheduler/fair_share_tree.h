@@ -312,7 +312,8 @@ class TCompositeSchedulerElement
 public:
     TCompositeSchedulerElement(
         ISchedulerStrategyHost* host,
-        TFairShareStrategyConfigPtr strategyConfig);
+        TFairShareStrategyConfigPtr strategyConfig,
+        const Stroka& profilingName);
     TCompositeSchedulerElement(
         const TCompositeSchedulerElement& other,
         TCompositeSchedulerElement* clonedParent);
@@ -346,14 +347,16 @@ public:
 
     bool IsEmpty() const;
 
+    NProfiling::TTagId GetProfilingTag() const;
+
     virtual int GetMaxOperationCount() const = 0;
     virtual int GetMaxRunningOperationCount() const = 0;
-
-    virtual NProfiling::TTagId GetProfilingTag() const = 0;
 
     virtual void BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap) override;
 
 protected:
+    const NProfiling::TTagId ProfilingTag_;
+
     using TChildMap = yhash_map<ISchedulerElementPtr, int>;
     using TChildList = std::vector<ISchedulerElementPtr>;
 
@@ -442,12 +445,8 @@ public:
 
     virtual ISchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
 
-    virtual NProfiling::TTagId GetProfilingTag() const override;
-
 private:
     TPoolConfigPtr Config_;
-
-    NProfiling::TTagId ProfilingTag_;
 
     void DoSetConfig(TPoolConfigPtr newConfig);
 
@@ -791,13 +790,8 @@ public:
     virtual int GetMaxRunningOperationCount() const override;
     virtual int GetMaxOperationCount() const override;
 
-    virtual NProfiling::TTagId GetProfilingTag() const override;
-
     virtual ISchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
     TRootElementPtr Clone();
-
-private:
-    NProfiling::TTagId ProfilingTag_;
 
 };
 
