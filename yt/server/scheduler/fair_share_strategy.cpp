@@ -512,8 +512,12 @@ public:
             }
 
             auto rootElementSnapshot = CreateRootElementSnapshot();
+
+            TRootElementSnapshotPtr oldRootElementSnapshot;
             {
+                // NB: Avoid destroying the cloned tree inside critical section.
                 TWriterGuard guard(RootElementSnapshotLock);
+                std::swap(RootElementSnapshot, oldRootElementSnapshot);
                 RootElementSnapshot = rootElementSnapshot;
             }
 
