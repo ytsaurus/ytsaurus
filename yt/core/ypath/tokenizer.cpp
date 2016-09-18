@@ -13,6 +13,7 @@ namespace NYPath {
 TTokenizer::TTokenizer(const TYPath& path)
     : Path_(path)
     , Type_(ETokenType::StartOfStream)
+    , PreviousType_(ETokenType::StartOfStream)
     , Input_(Path_)
 {
     LiteralValue_.reserve(Path_.length());
@@ -27,11 +28,11 @@ ETokenType TTokenizer::Advance()
     // Check for EndOfStream.
     const char* current = Input_.begin();
     if (current == Input_.end()) {
-        Type_ = ETokenType::EndOfStream;
+        SetType(ETokenType::EndOfStream);
         return Type_;
     }
 
-    Type_ = ETokenType::Literal;
+    SetType(ETokenType::Literal);
     bool proceed = true;
     while (proceed && current != Input_.end()) {
         auto token = NYson::CharToTokenType(*current);
@@ -39,7 +40,7 @@ ETokenType TTokenizer::Advance()
             token == NYson::ETokenType::LeftBrace)
         {
             if (current == Input_.begin()) {
-                Type_ = ETokenType::Range;
+                SetType(ETokenType::Range);
                 current = Input_.end();
             }
             proceed = false;
@@ -54,10 +55,10 @@ ETokenType TTokenizer::Advance()
                 if (current == Input_.begin()) {
                     Token_ = TStringBuf(current, current + 1);
                     switch (*current) {
-                        case '/': Type_ = ETokenType::Slash;     break;
-                        case '@': Type_ = ETokenType::At;        break;
-                        case '&': Type_ = ETokenType::Ampersand; break;
-                        case '*': Type_ = ETokenType::Asterisk;  break;
+                        case '/': SetType(ETokenType::Slash);     break;
+                        case '@': SetType(ETokenType::At);        break;
+                        case '&': SetType(ETokenType::Ampersand); break;
+                        case '*': SetType(ETokenType::Asterisk);  break;
                         default:  YUNREACHABLE();
                     }
                     return Type_;
@@ -82,8 +83,14 @@ ETokenType TTokenizer::Advance()
 
 void TTokenizer::ThrowMalformedEscapeSequence(const TStringBuf& context)
 {
-    THROW_ERROR_EXCEPTION("Malformed escape sequence %Qv",
+    THROW_ERROR_EXCEPTION("Malformed escape sequence %Qv in YPath",
         context);
+}
+
+void TTokenizer::SetType(ETokenType type)
+{
+    PreviousType_ = Type_;
+    Type_ = type;
 }
 
 const char* TTokenizer::AdvanceEscaped(const char* current)
@@ -92,7 +99,7 @@ const char* TTokenizer::AdvanceEscaped(const char* current)
     ++current;
 
     if (current == Input_.end()) {
-        THROW_ERROR_EXCEPTION("Premature end-of-string while parsing escape sequence");
+        THROW_ERROR_EXCEPTION("Unexpected end-of-string in YPath while parsing escape sequence");
     }
 
     switch (*current) {
@@ -148,10 +155,16 @@ void TTokenizer::Expect(ETokenType expectedType)
 {
     if (expectedType != Type_) {
         if (Type_ == ETokenType::EndOfStream) {
-            THROW_ERROR_EXCEPTION("Premature end-of-stream while expecting %Qlv",
-                expectedType);
+            if (PreviousType_ == ETokenType::Slash) {
+                THROW_ERROR_EXCEPTION("Expected %Qlv in YPath but found end-of-string; please note that YPath cannot "
+                    "normally end with \"/\"",
+                    expectedType);
+            } else {
+                THROW_ERROR_EXCEPTION("Expected %Qlv in YPath but found end-of-string",
+                    expectedType);
+            }
         } else {
-            THROW_ERROR_EXCEPTION("Expected %Qlv but found %Qlv token %Qv",
+            THROW_ERROR_EXCEPTION("Expected %Qlv in YPath but found %Qlv token %Qv",
                 expectedType,
                 Type_,
                 Token_);
@@ -169,9 +182,14 @@ void TTokenizer::Skip(ETokenType expectedType)
 void TTokenizer::ThrowUnexpected()
 {
     if (Type_ == ETokenType::EndOfStream) {
-        THROW_ERROR_EXCEPTION("Unexpected end-of-stream");
+        if (PreviousType_ == ETokenType::Slash) {
+            THROW_ERROR_EXCEPTION("Unexpected end-of-string in YPath; please note that YPath cannot "
+                "normally end with \"/\"");
+        } else {
+            THROW_ERROR_EXCEPTION("Unexpected end-of-string in YPath");
+        }
     } else {
-        THROW_ERROR_EXCEPTION("Unexpected %Qlv token %Qv",
+        THROW_ERROR_EXCEPTION("Unexpected %Qlv token %Qv in YPath",
             Type_,
             Token_);
     }
