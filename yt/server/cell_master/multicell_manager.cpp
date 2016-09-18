@@ -303,13 +303,11 @@ private:
         for (const auto& pair : RegisteredMasterMap_) {
             auto cellTag = pair.first;
             const auto& entry = pair.second;
-            RegisteredMasterCellTags_[entry.Index] = cellTag;
-        }
-
-        for (auto& pair : RegisteredMasterMap_) {
-            auto cellTag = pair.first;
-            auto& entry = pair.second;
             ValidateCellTag(cellTag);
+            RegisteredMasterCellTags_[entry.Index] = cellTag;
+            LOG_INFO_UNLESS(IsRecovery(), "Master cell registered (CellTag: %v, CellIndex: %v)",
+                cellTag,
+                entry.Index);
         }
 
         if (RegisterState_ == EPrimaryRegisterState::Registered) {
@@ -422,8 +420,6 @@ private:
 
             ValidateSecondaryMasterRegistration_.Fire(cellTag);
 
-            LOG_INFO_UNLESS(IsRecovery(), "Secondary master registered (CellTag: %v)", cellTag);
-
             RegisterMasterEntry(cellTag);
 
             ReplicateKeysToSecondaryMaster_.Fire(cellTag);
@@ -484,8 +480,6 @@ private:
             if (FindMasterEntry(cellTag))  {
                 THROW_ERROR_EXCEPTION("Attempted to re-register secondary master %v", cellTag);
             }
-
-            LOG_INFO_UNLESS(IsRecovery(), "Secondary master registered (CellTag: %v)", cellTag);
 
             RegisterMasterEntry(cellTag);
         } catch (const std::exception& ex) {
@@ -560,6 +554,9 @@ private:
         auto& entry = pair.first->second;
         entry.Index = index;
         RegisteredMasterCellTags_.push_back(cellTag);
+        LOG_INFO_UNLESS(IsRecovery(), "Master cell registered (CellTag: %v, CellIndex: %v)",
+            cellTag,
+            index);
     }
 
     TMasterEntry* FindMasterEntry(TCellTag cellTag)
