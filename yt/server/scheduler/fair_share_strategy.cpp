@@ -525,7 +525,7 @@ public:
             for (const auto& pair : Pools) {
                 ProfileSchedulerElement(pair.second);
             }
-            ProfileSchedulerElement(RootElementSnapshot->RootElement);
+            ProfileSchedulerElement(RootElement);
         }
     }
 
