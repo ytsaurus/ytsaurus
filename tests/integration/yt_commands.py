@@ -266,7 +266,11 @@ def _prepare_rows_stream(data):
 
 def insert_rows(path, data, is_raw=False, **kwargs):
     kwargs["path"] = path
-    return execute_command("insert_rows", kwargs, input_stream=_prepare_rows_stream(data))
+    if not is_raw:
+        return execute_command("insert_rows", kwargs, input_stream=_prepare_rows_stream(data))
+    else:
+        return execute_command("insert_rows", kwargs, input_stream=StringIO(data))
+
 
 def delete_rows(path, data, **kwargs):
     kwargs["path"] = path

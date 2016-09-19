@@ -23,7 +23,7 @@ TEST(TTableConsumer, EntityAsNull)
 {
     StrictMock<TMockValueConsumer> mock(New<TNameTable>(), true);
     EXPECT_CALL(mock, OnBeginRow());
-    EXPECT_CALL(mock, OnValue(MakeUnversionedSentinelValue(EValueType::Null, 0)));
+    EXPECT_CALL(mock, OnMyValue(MakeUnversionedSentinelValue(EValueType::Null, 0)));
     EXPECT_CALL(mock, OnEndRow());
 
     std::unique_ptr<IYsonConsumer> consumer(new TTableConsumer(&mock));
