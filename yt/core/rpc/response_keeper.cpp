@@ -19,6 +19,7 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto EvictionPeriod = TDuration::Seconds(1);
+static const auto ProfilingPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,20 +44,25 @@ public:
             BIND(&TImpl::OnEvict, MakeWeak(this)),
             EvictionPeriod);
         EvictionExecutor_->Start();
+
+        ProfilingExecutor_ = New<TPeriodicExecutor>(
+            GetSyncInvoker(),
+            BIND(&TImpl::OnProfiling, MakeWeak(this)),
+            EvictionPeriod);
+        ProfilingExecutor_->Start();
     }
 
     void Start()
     {
-        {
-            if (Started_)
-                return;
+        auto guard = Guard(SpinLock_);
 
-            TGuard<TSpinLock> guard(SpinLock_);
-            WarmupDeadline_ = Config_->EnableWarmup
-                ? NProfiling::GetCpuInstant() + NProfiling::DurationToCpuDuration(Config_->WarmupTime)
-                : 0;
-            Started_ = true;
-        }
+        if (Started_)
+            return;
+
+        WarmupDeadline_ = Config_->EnableWarmup
+            ? NProfiling::GetCpuInstant() + NProfiling::DurationToCpuDuration(Config_->WarmupTime)
+            : 0;
+        Started_ = true;
 
         LOG_INFO("Response keeper started (WarmupTime: %v, ExpirationTime: %v)",
             Config_->WarmupTime,
@@ -65,20 +71,17 @@ public:
 
     void Stop()
     {
-        {
-            if (!Started_)
-                return;
+        auto guard = Guard(SpinLock_);
 
-            TGuard<TSpinLock> guard(SpinLock_);
-            PendingResponses_.clear();
-            FinishedResponses_.clear();
-            ResponseEvictionQueue_.clear();
-            FinishedResponseSpace_ = 0;
-            FinishedResponseCount_ = 0;
-            Started_ = false;
-        }
+        if (!Started_)
+            return;
 
-        OnProfiling();
+        PendingResponses_.clear();
+        FinishedResponses_.clear();
+        ResponseEvictionQueue_.clear();
+        FinishedResponseSpace_ = 0;
+        FinishedResponseCount_ = 0;
+        Started_ = false;
 
         LOG_INFO("Response keeper stopped");
     }
@@ -87,7 +90,7 @@ public:
     {
         Y_ASSERT(id);
 
-        TGuard<TSpinLock> guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
 
         if (!Started_) {
             THROW_ERROR_EXCEPTION("Response keeper is not active");
@@ -132,7 +135,7 @@ public:
 
         TPromise<TSharedRefArray> promise;
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            auto guard = Guard(SpinLock_);
 
             if (!Started_)
                 return;
@@ -148,6 +151,8 @@ public:
                 return;
 
             ResponseEvictionQueue_.push_back(TEvictionItem{id, NProfiling::GetCpuInstant()});
+
+            UpdateCounters(response, +1);
         }
 
         if (promise) {
@@ -155,8 +160,6 @@ public:
         }
 
         LOG_TRACE("Response kept (MutationId: %v)", id);
-        UpdateCounters(response, +1);
-        OnProfiling();
     }
 
     void CancelRequest(const TMutationId& id, const TError& error)
@@ -164,7 +167,7 @@ public:
         Y_ASSERT(id);
 
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            auto guard = Guard(SpinLock_);
 
             if (!Started_)
                 return;
@@ -208,13 +211,14 @@ private:
     const TResponseKeeperConfigPtr Config_;
 
     TPeriodicExecutorPtr EvictionExecutor_;
+    TPeriodicExecutorPtr ProfilingExecutor_;
 
     bool Started_ = false;
     NProfiling::TCpuInstant WarmupDeadline_ = 0;
 
     yhash_map<TMutationId, TSharedRefArray> FinishedResponses_;
-    volatile int FinishedResponseCount_ = 0;
-    volatile i64 FinishedResponseSpace_ = 0;
+    int FinishedResponseCount_ = 0;
+    i64 FinishedResponseSpace_ = 0;
 
     struct TEvictionItem
     {
@@ -238,7 +242,6 @@ private:
     void UpdateCounters(const TSharedRefArray& data, int delta)
     {
         FinishedResponseCount_ += delta;
-
         for (const auto& part : data) {
             FinishedResponseSpace_ += delta * part.Size();
         }
@@ -246,41 +249,36 @@ private:
 
     void OnProfiling()
     {
+        auto guard = Guard(SpinLock_);
+
+        if (!Started_)
+            return;
+
         Profiler.Update(CountCounter_, FinishedResponseCount_);
         Profiler.Update(SpaceCounter_, FinishedResponseSpace_);
     }
 
     void OnEvict()
     {
-        bool changed = false;
+        auto guard = Guard(SpinLock_);
 
-        {
-            TGuard<TSpinLock> guard(SpinLock_);
+        if (!Started_)
+            return;
 
-            if (!Started_)
-                return;
-
-            auto deadline = NProfiling::GetCpuInstant() - NProfiling::DurationToCpuDuration(Config_->ExpirationTime);
-            while (!ResponseEvictionQueue_.empty()) {
-                const auto& item = ResponseEvictionQueue_.front();
-                if (item.When > deadline) {
-                    break;
-                }
-
-                auto it = FinishedResponses_.find(item.Id);
-                YCHECK(it != FinishedResponses_.end());
-                UpdateCounters(it->second, -1);
-                FinishedResponses_.erase(it);
-                ResponseEvictionQueue_.pop_front();
-                changed = true;
+        auto deadline = NProfiling::GetCpuInstant() - NProfiling::DurationToCpuDuration(Config_->ExpirationTime);
+        while (!ResponseEvictionQueue_.empty()) {
+            const auto& item = ResponseEvictionQueue_.front();
+            if (item.When > deadline) {
+                break;
             }
-        }
 
-        if (changed) {
-            OnProfiling();
+            auto it = FinishedResponses_.find(item.Id);
+            YCHECK(it != FinishedResponses_.end());
+            UpdateCounters(it->second, -1);
+            FinishedResponses_.erase(it);
+            ResponseEvictionQueue_.pop_front();
         }
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -292,8 +290,7 @@ TResponseKeeper::TResponseKeeper(
     : Impl_(New<TImpl>(std::move(config), logger, profiler))
 { }
 
-TResponseKeeper::~TResponseKeeper()
-{ }
+TResponseKeeper::~TResponseKeeper() = default;
 
 void TResponseKeeper::Start()
 {

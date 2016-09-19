@@ -47,12 +47,14 @@ void BuildInitializingOperationAttributes(TOperationPtr operation, NYson::IYsonC
 
 void BuildRunningOperationAttributes(TOperationPtr operation, NYson::IYsonConsumer* consumer)
 {
+    auto controller = operation->GetController();
     auto userTransaction = operation->GetUserTransaction();
     BuildYsonMapFluently(consumer)
         .Item("state").Value(operation->GetState())
         .Item("suspended").Value(operation->GetSuspended())
         .Item("user_transaction_id").Value(userTransaction ? userTransaction->GetId() : NullTransactionId)
-        .Item("events").Value(operation->GetEvents());
+        .Item("events").Value(operation->GetEvents())
+        .DoIf(static_cast<bool>(controller), BIND(&IOperationController::BuildOperationAttributes, controller));
 }
 
 void BuildJobAttributes(TJobPtr job, NYson::IYsonConsumer* consumer)

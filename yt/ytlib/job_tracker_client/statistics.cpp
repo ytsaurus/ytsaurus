@@ -6,6 +6,8 @@
 
 #include <yt/core/ytree/fluent.h>
 
+#include <util/string/util.h>
+
 namespace NYT {
 namespace NJobTrackerClient {
 
@@ -354,30 +356,40 @@ void CreateBuildingYsonConsumer(std::unique_ptr<IBuildingYsonConsumer<TStatistic
 
 ////////////////////////////////////////////////////////////////////
 
+const Stroka inputPrefix = "/data/input";
+const Stroka outputPrefix = "/data/output";
+
 TDataStatistics GetTotalInputDataStatistics(const TStatistics& jobStatistics)
 {
-    auto getValue = [] (const TSummary& summary) {
-        return summary.GetSum();
-    };
-
-    try {
-        return GetValues<TDataStatistics>(jobStatistics, "/data/input", getValue);
-    } catch (const std::exception&) {
-        return TDataStatistics();
+    TDataStatistics result;
+    for (auto iterator = jobStatistics.Data().upper_bound(inputPrefix);
+         iterator != jobStatistics.Data().end() && HasPrefix(iterator->first, inputPrefix);
+         ++iterator)
+    {
+        SetDataStatisticsField(result, TStringBuf(iterator->first.begin() + 1 + inputPrefix.size(), iterator->first.end()), iterator->second.GetSum());
     }
+
+    return result;
 }
 
 yhash_map<int, TDataStatistics> GetOutputDataStatistics(const TStatistics& jobStatistics)
 {
-    auto getValue = [] (const TSummary& summary) {
-        return summary.GetSum();
-    };
-
-    try {
-        return GetValues<yhash_map<int, TDataStatistics>>(jobStatistics, "/data/output", getValue);
-    } catch (const std::exception&) {
-        return yhash_map<int, TDataStatistics>();
+    yhash_map<int, TDataStatistics> result;
+    for (auto iterator = jobStatistics.Data().upper_bound(outputPrefix);
+         iterator != jobStatistics.Data().end() && HasPrefix(iterator->first, outputPrefix);
+         ++iterator)
+    {
+        TStringBuf currentPath(iterator->first.begin() + outputPrefix.size() + 1, iterator->first.end());
+        size_t slashPos = currentPath.find("/");
+        if (slashPos == TStringBuf::npos) {
+            // Looks like a malformed path in /data/output, let's skip it.
+            continue;
+        }
+        int tableIndex = a2i(Stroka(currentPath.substr(0, slashPos)));
+        SetDataStatisticsField(result[tableIndex], currentPath.substr(slashPos + 1), iterator->second.GetSum());
     }
+
+    return result;
 }
 
 TDataStatistics GetTotalOutputDataStatistics(const TStatistics& jobStatistics)

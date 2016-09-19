@@ -43,8 +43,6 @@ public:
 #endif
     );
 
-    virtual ~TBindStateBase();
-
     NTracing::TTraceContext TraceContext;
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
     TSourceLocation Location;
@@ -93,13 +91,6 @@ protected:
      */
     explicit TCallbackBase(TIntrusivePtr<TBindStateBase>&& bindState);
 
-    /*!
-     * Force the destructor to be instantiated inside this translation unit so
-     * that our subclasses will not get inlined versions.
-     * Avoids more template bloat.
-     */
-    ~TCallbackBase();
-
 protected:
     /*!
      * In C++, it is safe to cast function pointers to function pointers of
@@ -121,3 +112,8 @@ private:
 /*! \endinternal */
 } // namespace NDetail
 } // namespace NY
+
+#define CALLBACK_INTERNAL_INL_H_
+#include "callback_internal-inl.h"
+#undef CALLBACK_INTERNAL_INL_H_
+

@@ -99,7 +99,7 @@ private:
     Y_DECLARE_SINGLETON_FRIEND();
 
     class TImpl;
-    const std::unique_ptr<TImpl> Impl_;
+    const TIntrusivePtr<TImpl> Impl_;
 
 };
 

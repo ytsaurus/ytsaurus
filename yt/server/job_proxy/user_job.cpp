@@ -147,6 +147,11 @@ public:
         auto jobEnvironmentConfig = ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment);
         MemoryWatchdogPeriod_ = jobEnvironmentConfig->MemoryWatchdogPeriod;
 
+        InputPipeBlinker_ = New<TPeriodicExecutor>(
+            AuxQueue_->GetInvoker(),
+            BIND(&TUserJob::BlinkInputPipe, MakeWeak(this)),
+            Config_->InputPipeBlinkerPeriod);
+
         MemoryWatchdogExecutor_ = New<TPeriodicExecutor>(
             AuxQueue_->GetInvoker(),
             BIND(&TUserJob::CheckMemoryUsage, MakeWeak(this)),
@@ -162,7 +167,6 @@ public:
                 BIND(&TUserJob::CheckBlockIOUsage, MakeWeak(this)),
                 CGroupsConfig_->BlockIOWatchdogPeriod);
         }
-
      }
 
     virtual void Initialize() override
@@ -182,6 +186,7 @@ public:
             LOG_INFO("Job process started");
 
             MemoryWatchdogExecutor_->Start();
+            InputPipeBlinker_->Start();
             if (BlockIOWatchdogExecutor_) {
                 BlockIOWatchdogExecutor_->Start();
             }
@@ -198,6 +203,7 @@ public:
             DoJobIO();
 
             TDelayedExecutor::CancelAndClear(timeLimitCookie);
+            WaitFor(InputPipeBlinker_->Stop());
 
             if (!JobErrorPromise_.IsSet())  {
                 FinalizeJobIO();
@@ -284,6 +290,8 @@ private:
 
     const TJobProxyConfigPtr Config_;
 
+    Stroka InputPipePath_;
+
     TCGroupJobEnvironmentConfigPtr CGroupsConfig_;
     TNullable<int> UserId_;
 
@@ -340,6 +348,7 @@ private:
 
     TPeriodicExecutorPtr MemoryWatchdogExecutor_;
     TPeriodicExecutorPtr BlockIOWatchdogExecutor_;
+    TPeriodicExecutorPtr InputPipeBlinker_;
 
     const NLogging::TLogger Logger;
 
@@ -786,7 +795,8 @@ private:
     void PrepareInputTablePipe()
     {
         int jobDescriptor = 0;
-        auto pipe = TNamedPipe::Create(CreateNamedPipePath());
+        InputPipePath_= CreateNamedPipePath();
+        auto pipe = TNamedPipe::Create(InputPipePath_);
         TNamedPipeConfig pipeId(pipe->GetPath(), jobDescriptor, false);
         Process_->AddArguments({ "--prepare-named-pipe", ConvertToYsonString(pipeId, EYsonFormat::Text).Data() });
         auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.input_format()));
@@ -804,7 +814,6 @@ private:
         }
 
         FinalizeActions_.push_back(BIND([=] () {
-
             if (!UserJobSpec_.check_input_fully_consumed()) {
                 return;
             }
@@ -1205,6 +1214,20 @@ private:
             << TErrorAttribute("limit", UserJobSpec_.job_time_limit());
         JobErrorPromise_.TrySet(error);
         CleanupUserProcesses(error);
+    }
+
+    // NB(psushin): Read st before asking questions: st/YT-5629.
+    void BlinkInputPipe() const
+    {
+        // This method is called after preparation and before finalization.
+        // Reader must be opened and ready, so open must succeed.
+        // Still an error can occur in case of external forced sandbox clearance (e.g. in integration tests).
+        auto fd = HandleEintr(::open, InputPipePath_.c_str(), O_WRONLY |  O_CLOEXEC | O_NONBLOCK);
+        if (fd >= 0) {
+            ::close(fd);
+        } else {
+            LOG_WARNING(TError::FromSystem(), "Failed to blink input pipe");
+        }
     }
 };
 
