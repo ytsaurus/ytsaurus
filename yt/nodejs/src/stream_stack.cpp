@@ -1,11 +1,10 @@
 #include "stream_stack.h"
 
-#include <library/streams/lzop/lzop.h>
+#include <yt/core/compression/brotli_stream.h>
 
+#include <library/streams/lzop/lzop.h>
 #include <library/streams/lz/lz.h>
 
-#include <util/stream/input.h>
-#include <util/stream/output.h>
 #include <util/stream/zlib.h>
 
 namespace NYT {
@@ -65,6 +64,9 @@ void AddCompressionToStack(TGrowingInputStreamStack& stack, ECompression compres
         case ECompression::Snappy:
             stack.Add<TLazyInput<TSnappyDecompress>>();
             break;
+        case ECompression::Brotli:
+            stack.Add<NCompression::TBrotliDecompress>();
+            break;
         default:
             Y_UNREACHABLE();
     }
@@ -92,6 +94,9 @@ void AddCompressionToStack(TGrowingOutputStreamStack& stack, ECompression compre
             break;
         case ECompression::Snappy:
             stack.Add<TSnappyCompress>(DefaultStreamBufferSize);
+            break;
+        case ECompression::Brotli:
+            stack.Add<NCompression::TBrotliCompress>(3);
             break;
         default:
             Y_UNREACHABLE();

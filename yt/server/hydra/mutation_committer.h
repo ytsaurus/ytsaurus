@@ -103,15 +103,15 @@ private:
     class TBatch;
     typedef TIntrusivePtr<TBatch> TBatchPtr;
 
-    void OnBatchTimeout(TBatchPtr batch);
-    void OnBatchCommitted(TBatchPtr batch, const TError& error);
+    void OnBatchTimeout(const TBatchPtr& batch);
+    void OnBatchCommitted(const TBatchPtr& batch, const TError& error);
     TIntrusivePtr<TBatch> GetOrCreateBatch(TVersion version);
     void AddToBatch(
         TVersion version,
         const TMutationRequest& request,
         const TSharedRef& recordData,
         TFuture<void> localFlushResult);
-    void FlushCurrentBatch();
+    void FlushCurrentBatch(TGuard<TSpinLock>* guard);
 
     void OnAutoCheckpointCheck();
 

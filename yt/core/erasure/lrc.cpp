@@ -60,10 +60,15 @@ TLrc::TLrc(int dataPartCount)
     , ParityPartCount_(4)
     , WordSize_(8)
 {
-    // Data part count must be even
+    // Check that the (constant) word size is sane.
+    YCHECK(WordSize_ <= MaxWordSize);
+
+    // Data part count must be even.
     YCHECK(dataPartCount % 2 == 0);
-    // Data part count should be enough small to construct proper matrix
+    // Data part count should be enough small to construct proper matrix.
     YCHECK(1 + dataPartCount / 2 < (1 << (WordSize_ / 2)));
+
+    InitializeJerasure();
 
     Matrix_.resize(ParityPartCount_ * DataPartCount_);
     for (int row = 0; row < ParityPartCount_; ++row) {
@@ -96,8 +101,6 @@ TLrc::TLrc(int dataPartCount)
 
     BitMatrix_ = TMatrix(jerasure_matrix_to_bitmatrix(DataPartCount_, ParityPartCount_, WordSize_, Matrix_.data()));
     Schedule_ = TSchedule(jerasure_dumb_bitmatrix_to_schedule(DataPartCount_, ParityPartCount_, WordSize_, BitMatrix_.Get()));
-
-
 
     Groups_[0] = MakeSegment(0, DataPartCount_ / 2);
     Groups_[0].push_back(DataPartCount_);

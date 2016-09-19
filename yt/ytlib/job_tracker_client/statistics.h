@@ -75,12 +75,6 @@ private:
     friend class TStatisticsBuildingConsumer;
 };
 
-template <class T>
-T GetValues(
-    const TStatistics& statistics,
-    const NYPath::TYPath& path,
-    std::function<i64(const TSummary&)> getValue);
-
 i64 GetNumericValue(const TStatistics& statistics, const Stroka& path);
 
 TNullable<i64> FindNumericValue(const TStatistics& statistics, const Stroka& path);

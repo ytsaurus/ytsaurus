@@ -1,5 +1,7 @@
 #include "jerasure.h"
 
+#include <yt/core/concurrency/fork_aware_spinlock.h>
+
 extern "C" {
 #include <yt/contrib/jerasure/jerasure.h>
 }
@@ -10,7 +12,7 @@ namespace NErasure {
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchedule::TSchedule()
-    : SchedulePointer_(0)
+    : SchedulePointer_(nullptr)
 { }
 
 TSchedule::TSchedule(int** schedulePointer):
@@ -21,7 +23,7 @@ TSchedule::TSchedule(TSchedule&& other)
 {
     Free();
     SchedulePointer_ = other.SchedulePointer_;
-    other.SchedulePointer_ = 0;
+    other.SchedulePointer_ = nullptr;
 }
 
 TSchedule& TSchedule::operator= (TSchedule&& other)
@@ -29,7 +31,7 @@ TSchedule& TSchedule::operator= (TSchedule&& other)
     if (this != &other) {
         Free();
         SchedulePointer_ = other.SchedulePointer_;
-        other.SchedulePointer_ = 0;
+        other.SchedulePointer_ = nullptr;
     }
     return *this;
 }
@@ -41,8 +43,9 @@ TSchedule::~TSchedule()
     
 void TSchedule::Free()
 {
-    if (SchedulePointer_ != 0) {
+    if (SchedulePointer_) {
         jerasure_free_schedule(SchedulePointer_);
+        SchedulePointer_ = nullptr;
     }
 }
 
@@ -54,7 +57,7 @@ int** TSchedule::Get() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TMatrix::TMatrix()
-    : MatrixPointer_(0)
+    : MatrixPointer_(nullptr)
 { }
 
 TMatrix::TMatrix(int* matrixPointer)
@@ -65,7 +68,7 @@ TMatrix::TMatrix(TMatrix&& other)
 {
     Free();
     MatrixPointer_ = other.MatrixPointer_;
-    other.MatrixPointer_ = 0;
+    other.MatrixPointer_ = nullptr;
 }
 
 TMatrix& TMatrix::operator= (TMatrix&& other)
@@ -73,18 +76,21 @@ TMatrix& TMatrix::operator= (TMatrix&& other)
     if (this != &other) {
         Free();
         MatrixPointer_ = other.MatrixPointer_;
-        other.MatrixPointer_ = 0;
+        other.MatrixPointer_ = nullptr;
     }
     return *this;
 }
 
 TMatrix::~TMatrix()
-{ }
+{
+    Free();
+}
 
 void TMatrix::Free()
 {
-    if (MatrixPointer_ != 0) {
+    if (MatrixPointer_) {
         free(MatrixPointer_);
+        MatrixPointer_ = nullptr;
     }
 }
 
@@ -94,6 +100,34 @@ int* TMatrix::Get() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+std::atomic<bool> JerasureInitialized = {false};
+NConcurrency::TForkAwareSpinLock JerasureInitLock;
+
+} // namespace
+
+void InitializeJerasure()
+{
+    if (JerasureInitialized.load(std::memory_order_relaxed)) {
+        return;
+    }
+
+    auto guard = Guard(JerasureInitLock);
+
+    if (!JerasureInitialized.load()) {
+        // Cf. galois.c.
+        for (int w = 1; w <= MaxWordSize; ++w) {
+            galois_create_log_tables(w);
+        }
+        for (int w = 1; w <= MaxWordSize; ++w) {
+            galois_create_mult_tables(w);
+        }
+
+        JerasureInitialized.store(true);
+    }
+}
 
 std::vector<TSharedRef> ScheduleEncode(
     int dataCount,

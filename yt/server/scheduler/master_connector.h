@@ -42,7 +42,6 @@ struct TOperationReport
 struct TMasterHandshakeResult
 {
     std::vector<TOperationReport> OperationReports;
-    NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr WatcherResponses;
 };
 
 typedef TCallback<void(NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr)> TWatcherRequester;

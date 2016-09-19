@@ -512,8 +512,12 @@ public:
             }
 
             auto rootElementSnapshot = CreateRootElementSnapshot();
+
+            TRootElementSnapshotPtr oldRootElementSnapshot;
             {
+                // NB: Avoid destroying the cloned tree inside critical section.
                 TWriterGuard guard(RootElementSnapshotLock);
+                std::swap(RootElementSnapshot, oldRootElementSnapshot);
                 RootElementSnapshot = rootElementSnapshot;
             }
 
@@ -521,7 +525,7 @@ public:
             for (const auto& pair : Pools) {
                 ProfileSchedulerElement(pair.second);
             }
-            ProfileSchedulerElement(RootElementSnapshot->RootElement);
+            ProfileSchedulerElement(RootElement);
         }
     }
 
@@ -995,6 +999,7 @@ private:
         auto* oldParent = pool->GetParent();
         if (oldParent) {
             oldParent->IncreaseResourceUsage(-pool->GetResourceUsage());
+            IncreaseOperationCount(oldParent, -pool->RunningOperationCount());
             IncreaseRunningOperationCount(oldParent, -pool->RunningOperationCount());
             oldParent->RemoveChild(pool);
         }
@@ -1003,6 +1008,7 @@ private:
         if (parent) {
             parent->AddChild(pool);
             parent->IncreaseResourceUsage(pool->GetResourceUsage());
+            IncreaseOperationCount(parent.Get(), pool->RunningOperationCount());
             IncreaseRunningOperationCount(parent.Get(), pool->RunningOperationCount());
 
             LOG_INFO("Parent pool set (Pool: %v, Parent: %v)",
@@ -1059,7 +1065,7 @@ private:
     TRootElementSnapshotPtr CreateRootElementSnapshot()
     {
         auto snapshot = New<TRootElementSnapshot>();
-        snapshot->RootElement = RootElement->CloneRoot();
+        snapshot->RootElement = RootElement->Clone();
         snapshot->RootElement->BuildOperationToElementMapping(&snapshot->OperationIdToElement);
         return snapshot;
     }
@@ -1202,7 +1208,7 @@ private:
 
     void ProfileSchedulerElement(TCompositeSchedulerElementPtr element)
     {
-        const auto& tag = element->GetProfilingTag();
+        auto tag = element->GetProfilingTag();
         Profiler.Enqueue(
             "/pools/fair_share_ratio_x100000",
             static_cast<i64>(element->Attributes().FairShareRatio * 1e5),

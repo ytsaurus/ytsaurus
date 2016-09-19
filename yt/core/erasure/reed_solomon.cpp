@@ -21,10 +21,16 @@ TCauchyReedSolomon::TCauchyReedSolomon(
     : DataPartCount_(dataPartCount)
     , ParityPartCount_(parityPartCount)
     , WordSize_(wordSize)
-    , Matrix_(cauchy_good_general_coding_matrix(dataPartCount, parityPartCount, wordSize))
-    , BitMatrix_(jerasure_matrix_to_bitmatrix(dataPartCount, parityPartCount, wordSize, Matrix_.Get()))
-    , Schedule_(jerasure_smart_bitmatrix_to_schedule(dataPartCount, parityPartCount, wordSize, BitMatrix_.Get()))
-{ }
+{
+    // Check that the word size is sane.
+    YCHECK(WordSize_ <= MaxWordSize);
+
+    InitializeJerasure();
+
+    Matrix_ = TMatrix(cauchy_good_general_coding_matrix(dataPartCount, parityPartCount, wordSize));
+    BitMatrix_ = TMatrix(jerasure_matrix_to_bitmatrix(dataPartCount, parityPartCount, wordSize, Matrix_.Get()));
+    Schedule_ = TSchedule(jerasure_smart_bitmatrix_to_schedule(dataPartCount, parityPartCount, wordSize, BitMatrix_.Get()));
+}
 
 std::vector<TSharedRef> TCauchyReedSolomon::Encode(const std::vector<TSharedRef>& blocks) const
 {

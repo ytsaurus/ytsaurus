@@ -15,6 +15,7 @@ using namespace NTableClient;
 using namespace NYson;
 
 const int MaxValueCount = 128 * 1024;
+const int MaxBufferSize = 32 * 1024 * 1024;
 
 char* EmptyStringBase = (char*)1;
 
@@ -246,7 +247,7 @@ public:
                 Values_.push_back(stringBuf);
             });
 
-        if (Values_.size() > MaxValueCount) {
+        if (Values_.size() > MaxValueCount || DirectBuffer_->GetSize() > MaxBufferSize) {
             FinishCurrentSegment();
         }
     }
@@ -272,6 +273,7 @@ public:
 private:
     using TStringColumnWriterBase<ValueType>::Values_;
     using TStringColumnWriterBase<ValueType>::Dictionary_;
+    using TStringColumnWriterBase<ValueType>::DirectBuffer_;
 
     void Reset()
     {
@@ -385,6 +387,7 @@ private:
     using TStringColumnWriterBase<ValueType>::Dictionary_;
     using TStringColumnWriterBase<ValueType>::DictionarySize_;
     using TStringColumnWriterBase<ValueType>::MaxValueLength_;
+    using TStringColumnWriterBase<ValueType>::DirectBuffer_;
 
     void Reset()
     {
@@ -574,7 +577,7 @@ private:
     void DoWriteValues(TRange<TRow> rows)
     {
         AddPendingValues(rows);
-        if (Values_.size() > MaxValueCount) {
+        if (Values_.size() > MaxValueCount || DirectBuffer_->GetSize() > MaxBufferSize) {
             FinishCurrentSegment();
         }
     }
