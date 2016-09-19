@@ -331,6 +331,12 @@ private:
     void UploadBinary()
     {
         auto binaryPath = GetExecPath();
+        if (TConfig::Get()->JobBinary) {
+            binaryPath = TConfig::Get()->JobBinary;
+        }
+        if (Spec_.JobBinary_) {
+            binaryPath = *Spec_.JobBinary_;
+        }
 
         if (Options_.MountSandboxInTmpfs_) {
             TFsPath path(binaryPath);
