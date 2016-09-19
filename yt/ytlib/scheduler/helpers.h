@@ -25,7 +25,7 @@ bool IsOperationFinished(EOperationState state);
 bool IsOperationFinishing(EOperationState state);
 bool IsOperationInProgress(EOperationState state);
 
-void ValidateEnvironmentVariableName(TStringBuf name);
+void ValidateEnvironmentVariableName(const TStringBuf& name);
 
 ////////////////////////////////////////////////////////////////////////////////
 

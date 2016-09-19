@@ -4293,12 +4293,28 @@ void TOperationControllerBase::InitUserJobSpec(
         // NB: These environment variables should be added to user job spec, not to the user job spec template.
         // They may contain sensitive information that should not be persisted with a controller.
 
-        // We add a single variable storing the whole secure vault and all top-level key-value pairs.
+        // We add a single variable storing the whole secure vault and all top-level scalar values.
         jobSpec->add_environment(Format("YT_SECURE_VAULT=%v",
             ConvertToYsonString(Operation->GetSecureVault(), EYsonFormat::Text)));
 
         for (const auto& pair : Operation->GetSecureVault()->GetChildren()) {
-            jobSpec->add_environment(Format("YT_SECURE_VAULT_%v=%v", pair.first, ConvertToYsonString(pair.second, EYsonFormat::Text)));
+            Stroka value;
+            auto node = pair.second;
+            if (node->GetType() == ENodeType::Int64) {
+                value = ToString(node->GetValue<i64>());
+            } else if (node->GetType() == ENodeType::Uint64) {
+                value = ToString(node->GetValue<ui64>());
+            } else if (node->GetType() == ENodeType::Boolean) {
+                value = ToString(node->GetValue<bool>());
+            } else if (node->GetType() == ENodeType::Double) {
+                value = ToString(node->GetValue<double>());
+            } else if (node->GetType() == ENodeType::String) {
+                value = node->GetValue<Stroka>();
+            } else {
+                // We do not export composite values as a separate environment variables.
+                continue;
+            }
+            jobSpec->add_environment(Format("YT_SECURE_VAULT_%v=\"%v\"", pair.first, value));
         }
     }
 }

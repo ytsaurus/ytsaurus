@@ -104,10 +104,13 @@ bool IsOperationInProgress(EOperationState state)
         state == EOperationState::Aborting;
 }
 
-void ValidateEnvironmentVariableName(TStringBuf name) {
+void ValidateEnvironmentVariableName(const TStringBuf& name)
+{
     static const int MaximumNameLength = 1 << 16; // 64 kilobytes.
-    if (static_cast<int>(name.size()) > MaximumNameLength) {
-        THROW_ERROR_EXCEPTION("Maximum length of the name for an environment variable violated: %v > %v", name.size(), MaximumNameLength);
+    if (name.size() > MaximumNameLength) {
+        THROW_ERROR_EXCEPTION("Maximum length of the name for an environment variable violated: %v > %v",
+            name.size(),
+            MaximumNameLength);
     }
     for (char c : name) {
         if (!IsAsciiAlnum(c) && c != '_') {
