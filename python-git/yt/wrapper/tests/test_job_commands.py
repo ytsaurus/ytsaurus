@@ -113,8 +113,6 @@ class TestJobCommands(object):
         assert ids and int(ids.group(1)) == int(ids.group(2))
         if ENABLE_JOB_CONTROL:
             assert int(ids.group(1)) != os.getuid()
-        else:
-            assert int(ids.group(1)) == os.getuid()
 
         shell.make_request("terminate")
         with pytest.raises(yt.YtError):
