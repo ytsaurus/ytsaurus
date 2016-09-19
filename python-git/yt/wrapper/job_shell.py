@@ -2,6 +2,7 @@ from __future__ import print_function
 
 from . import yson
 from .common import generate_uuid, get_version, YtError
+from .errors import YtResponseError
 from .config import get_backend_type
 from .http_helpers import get_proxy_url, get_api_version, get_token
 
@@ -123,12 +124,7 @@ class JobShell(object):
         if type(err) is HTTPError and hasattr(err, "response") and err.response:
             if "X-Yt-Error" in err.response.headers:
                 error = json.loads(err.response.headers["X-Yt-Error"])
-                code = 1
-                while code == 1 and error is not None:
-                    code = error["code"] if "code" in error else 1
-                    message = error["message"] if "message" in error else "Unknown error"
-                    error = error["inner_errors"][0] if "inner_errors" in error and len(error["inner_errors"]) else None
-                print("\n{0}: {1}".format(code, message))
+                print(YtResponseError(error))
         else:
             print("Error:", err)
 
