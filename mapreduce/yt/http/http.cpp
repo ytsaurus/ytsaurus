@@ -331,6 +331,10 @@ size_t TYtHttpResponse::DoRead(void* buf, size_t len)
 {
     size_t read = HttpInput_.Read(buf, len);
     if (read == 0 && len != 0) {
+        // THttpInput MUST return defined (but may be empty)
+        // trailers when it is exhausted.
+        Y_VERIFY(HttpInput_.Trailers().Defined(),
+            "trailers MUST be defined for exhausted stream");
         CheckTrailers(HttpInput_.Trailers().GetRef());
     }
     return read;
@@ -340,6 +344,10 @@ size_t TYtHttpResponse::DoSkip(size_t len)
 {
     size_t skipped = HttpInput_.Skip(len);
     if (skipped == 0 && len != 0) {
+        // THttpInput MUST return defined (but may be empty)
+        // trailers when it is exhausted.
+        Y_VERIFY(HttpInput_.Trailers().Defined(),
+            "trailers MUST be defined for exhausted stream");
         CheckTrailers(HttpInput_.Trailers().GetRef());
     }
     return skipped;
