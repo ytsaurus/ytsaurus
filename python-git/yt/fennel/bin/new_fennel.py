@@ -84,7 +84,7 @@ def add_push_to_logbroker_parser(subparsers, parent_parser):
                         help="Size of chunk to split data in /rt/store command", default=1024 * 1024)
     parser.add_argument("--logbroker-source-id",
                         help="Source id for log broker. If used more than one session then "
-                             "'_NUM' will be added to session id. By default session name "
+                             "'_SESSIONCOUNT_NUM' will be added to session id. By default session name "
                              "generated from cluster name")
     parser.add_argument("--logbroker-log-type", help="Name of log type that used by logbroker", default="yt-scheduler-log")
     parser.add_argument("--logbroker-service-id", help="Name of service", default="yt")
