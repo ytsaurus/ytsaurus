@@ -15,6 +15,9 @@ import socket
 import fcntl
 from datetime import datetime
 
+# Standard YT time representation
+YT_DATETIME_FORMAT_STRING = "%Y-%m-%dT%H:%M:%S.%fZ"
+
 class YtError(Exception):
     """Base of all YT errors"""
     def __init__(self, message="", code=1, inner_errors=None, attributes=None):
@@ -272,15 +275,16 @@ def makedirp(path):
         if err.errno != errno.EEXIST:
             raise
 
+def date_string_to_datetime(date):
+    return datetime.strptime(date, YT_DATETIME_FORMAT_STRING)
+
 def date_string_to_timestamp(date):
-    # It is standard time representation in YT.
-    return calendar.timegm(datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%fZ").timetuple())
+    return calendar.timegm(date_string_to_datetime(date).timetuple())
 
 def datetime_to_string(date, is_local=False):
     if is_local:
         date = datetime.utcfromtimestamp(time.mktime(date.timetuple()))
-    # It is standard time representation in YT.
-    return date.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    return date.strftime(YT_DATETIME_FORMAT_STRING)
 
 def make_non_blocking(fd):
     flags = fcntl.fcntl(fd, fcntl.F_GETFL)
