@@ -9,9 +9,8 @@ from .file_commands import read_file
 from . import yson
 
 import yt.logger as logger
-from yt.common import format_error
+from yt.common import format_error, date_string_to_datetime
 
-import yt.packages.dateutil.parser as dateutil_parser
 from yt.packages.decorator import decorator
 from yt.packages.six import iteritems
 from yt.packages.six.moves import builtins, filter as ifilter
@@ -171,7 +170,7 @@ class PrintOperationInfo(object):
         self.progress = None
 
         creation_time_str = get_operation_attributes(operation, client=client)["creation_time"]
-        creation_time = dateutil_parser.parse(creation_time_str).replace(tzinfo=None)
+        creation_time = date_string_to_datetime(creation_time_str).replace(tzinfo=None)
         local_creation_time = creation_time + (datetime.now() - datetime.utcnow())
 
         self.formatter = OperationProgressFormatter(start_time=local_creation_time)
