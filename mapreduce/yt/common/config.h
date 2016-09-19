@@ -44,6 +44,8 @@ struct TConfig
     Stroka RemoteTempFilesDirectory;
     Stroka RemoteTempTablesDirectory;
 
+    Stroka JobBinary;
+
     bool UseClientProtobuf;
 
     // common wrapper

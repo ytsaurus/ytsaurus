@@ -322,6 +322,8 @@ void RetryHeavyWriteRequest(
         Stroka requestId;
         TPingableTransaction attemptTx(auth, parentId);
 
+        auto input = streamMaker();
+
         try {
             Stroka proxyName = GetProxyForHeavyRequest(auth);
             THttpRequest request(proxyName);
@@ -332,7 +334,6 @@ void RetryHeavyWriteRequest(
 
             request.Connect();
             try {
-                auto input = streamMaker();
                 TOutputStream* output = request.StartRequest(header);
                 TransferData(input.Get(), output);
                 request.FinishRequest();
