@@ -91,11 +91,6 @@ EDataStreamFormat THttpHeader::GetDataStreamFormat() const
     return DataStreamFormat;
 }
 
-void THttpHeader::SetChunkedEncoding()
-{
-    ChunkedEncoding = true;
-}
-
 void THttpHeader::SetInputFormat(const Stroka& format)
 {
     InputFormat = format;
@@ -168,7 +163,7 @@ Stroka THttpHeader::GetHeader(const Stroka& hostName, const Stroka& requestId) c
         header << "Authorization: OAuth " << Token << "\r\n";
     }
 
-    if (ChunkedEncoding) {
+    if (Method == "PUT" || Method == "POST") {
         header << "Transfer-Encoding: chunked\r\n";
     }
 
@@ -468,7 +463,7 @@ THttpOutput* THttpRequest::StartRequest(const THttpHeader& header)
 
     SocketOutput.Reset(new TSocketOutput(*Socket.Get()));
     Output.Reset(new THttpOutput(SocketOutput.Get()));
-    Output->EnableKeepAlive(true);
+    Output->EnableKeepAlive(false);
 
     Output->Write(~strHeader, +strHeader);
     return Output.Get();

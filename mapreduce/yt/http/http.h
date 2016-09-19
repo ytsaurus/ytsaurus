@@ -46,8 +46,6 @@ public:
 
     void SetToken(const Stroka& token);
 
-    void SetChunkedEncoding();
-
     void SetDataStreamFormat(EDataStreamFormat format);
     EDataStreamFormat GetDataStreamFormat() const;
 
@@ -68,8 +66,6 @@ private:
     const Stroka Method;
     const Stroka Command;
     const bool IsApi;
-
-    bool ChunkedEncoding = false;
 
     yhash_map<Stroka, Stroka> Params;
 

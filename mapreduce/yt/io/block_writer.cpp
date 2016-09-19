@@ -58,7 +58,6 @@ void TBlockWriter::FlushBuffer(bool lastBlock)
 void TBlockWriter::Send(const TBuffer& buffer)
 {
     THttpHeader header("PUT", Command_);
-    header.SetChunkedEncoding();
     header.SetDataStreamFormat(Format_);
     header.SetParameters(Parameters_);
 
