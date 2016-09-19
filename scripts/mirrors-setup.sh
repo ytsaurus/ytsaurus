@@ -125,3 +125,4 @@ configure_github_mirror tornadoweb-tornado
 configure_github_mirror certifi-python-certifi
 configure_github_mirror cython-backports_abc
 configure_github_mirror micheles-decorator
+configure_github_mirror dateutil-dateutil
