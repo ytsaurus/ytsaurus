@@ -149,6 +149,7 @@ public:
         ClassName_ = TJobFactory::Get()->GetJobName(job);
         Command_ = TStringBuilder() <<
             options.JobCommandPrefix_ <<
+            (TConfig::Get()->UseClientProtobuf ? "" : "YT_USE_CLIENT_PROTOBUF=0 ") <<
             binaryPath << " " <<
             commandLineName << " " <<
             "\"" << ClassName_ << "\" " <<
