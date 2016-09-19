@@ -191,8 +191,9 @@ public:
  *  Otherwise, individual responses are examined and a cumulative error
  *  is constructed (with individual errors attached as inner).
  *  If all individual responses were successful then OK is returned.
+ *  If |key| is specified, only the responses marked with corresponding |key| are considered.
  */
-TError GetCumulativeError(const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError);
+TError GetCumulativeError(const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError, const Stroka& key = Stroka());
 
 ////////////////////////////////////////////////////////////////////////////////
 

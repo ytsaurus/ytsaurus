@@ -282,6 +282,10 @@ void TTcpConnection::OnAddressResolutionFinished(const TErrorOr<TNetworkAddress>
     }
 
     TNetworkAddress address(result.Value(), Port_);
+
+    LOG_DEBUG("Connection network address resolved (Address: %v)",
+        address);
+
     if (!InterfaceType_ && IsLocalBusTransportEnabled() && TAddressResolver::Get()->IsLocalAddress(address)) {
         address = GetLocalBusAddress(Port_);
         OnInterfaceTypeEstablished(ETcpInterfaceType::Local);

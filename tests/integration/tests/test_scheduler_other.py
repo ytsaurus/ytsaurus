@@ -297,6 +297,22 @@ class TestSchedulerRevive(YTEnvSetup):
             iter += 1
             assert iter < 50, "Operation %s do not comes to %s state after %f seconds" % (op.id, state, iter * backoff)
 
+    def test_missing_transactions(self):
+        self._prepare_tables()
+
+        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 10")
+
+        for iter in xrange(5):
+            self._wait_state(op, "running")
+            self.Env.kill_schedulers()
+            set("//sys/operations/" + op.id + "/@input_transaction_id", "0-0-0-0")
+            self.Env.start_schedulers()
+            time.sleep(1)
+
+        op.track()
+
+        assert "completed" == get("//sys/operations/" + op.id + "/@state")
+
     def test_aborting(self):
         self._prepare_tables()
 
@@ -1730,3 +1746,75 @@ class TestSchedulerJobTimeLimit(YTEnvSetup):
             command="sleep 1 ; cat",
             spec={"max_failed_job_count": 1, "mapper": {"job_time_limit": 2000}})
         op.track()
+
+class TestSecureVault(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    secure_vault = {"key1": 42424243, "key2": {"token1": "SeNsItIvE", "token2": "InFo"}}
+
+    def run_map_with_secure_vault(self):
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", {"foo": "bar"})
+        create("table", "//tmp/t_out")
+        op = map(
+            dont_track=True,
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"secure_vault": self.secure_vault, "max_failed_job_count": 1},
+            command="""
+                echo {YT_SECURE_VAULT=$YT_SECURE_VAULT}\;;
+                echo {YT_SECURE_VAULT_key1=$YT_SECURE_VAULT_key1}\;;
+                echo {YT_SECURE_VAULT_key2=$YT_SECURE_VAULT_key2}\;;
+            """)
+        return op
+
+    def check_content(self, res):
+        assert len(res) == 3
+        assert res[0] == {"YT_SECURE_VAULT": self.secure_vault}
+        assert res[1] == {"YT_SECURE_VAULT_key1": self.secure_vault["key1"]}
+        assert res[2] == {"YT_SECURE_VAULT_key2": self.secure_vault["key2"]}
+
+    def test_secure_vault_not_visible(self):
+        op = self.run_map_with_secure_vault()
+        cypress_info = str(get("//sys/operations/{0}/@".format(op.id)))
+        scheduler_info = str(get("//sys/scheduler/orchid/scheduler/operations/{0}".format(op.id)))
+        op.track()
+
+        # Check that secure environment variables is neither presented in the Cypress node of the
+        # operation nor in scheduler Orchid representation of the operation.
+        for info in [cypress_info, scheduler_info]:
+            for sensible_text in ["42424243", "SeNsItIvE", "InFo"]:
+                assert info.find(sensible_text) == -1
+
+    def test_secure_vault_simple(self):
+        op = self.run_map_with_secure_vault()
+        op.track()
+        res = read_table("//tmp/t_out")
+        self.check_content(res)
+
+    def test_secure_vault_with_revive(self):
+        op = self.run_map_with_secure_vault()
+        self.Env.kill_schedulers()
+        self.Env.start_schedulers()
+        op.track()
+        res = read_table("//tmp/t_out")
+        self.check_content(res)
+
+    def test_allowed_variable_names(self):
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", {"foo": "bar"})
+        create("table", "//tmp/t_out")
+        with pytest.raises(YtError):
+            map(dont_track=True,
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                spec={"secure_vault": {"=_=": 42}},
+                command="cat")
+        with pytest.raises(YtError):
+            map(ont_track=True,
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                spec={"secure_vault": {"x" * (2**16 + 1): 42}},
+                command="cat")
