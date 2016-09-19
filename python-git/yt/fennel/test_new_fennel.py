@@ -27,7 +27,7 @@ def test_monitor():
         def __init__(self, shift):
             self.shift = shift
         def get(self, *args, **kwargs):
-            return datetime.strftime(datetime.utcnow() - self.shift, "%Y-%m-%d %H:%M:%S")
+            return datetime.strftime(datetime.utcnow() - self.shift, "%Y-%m-%dT%H:%M:%S.%z")
 
     output = StringIO()
     monitor(MockYtClient(timedelta(minutes=5)), "", 10, output)
