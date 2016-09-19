@@ -268,6 +268,9 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
     env["TESTS_SANDBOX_STORAGE"] = sandbox_storage
     env["YT_CAPTURE_STDERR_TO_FILE"] = "1"
     env["YT_ENABLE_VERBOSE_LOGGING"] = "1"
+    for var in ["TEAMCITY_YT_TOKEN", "TEAMCITY_SANDBOX_TOKEN"]:
+        if var in os.environ:
+            env[var] = os.environ[var]
 
     with tempfile.NamedTemporaryFile() as handle:
         try:
