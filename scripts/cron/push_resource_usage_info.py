@@ -13,6 +13,7 @@ import time
 import os
 import sys
 from datetime import datetime
+from copy import deepcopy
 
 from socket import error as SocketError
 from requests import HTTPError, ConnectionError, Timeout
@@ -78,7 +79,7 @@ def push_data_with_retries(url, data, headers):
             logging.warning("New retry (%d) ...", attempt + 2)
 
 def convert_data_to_statface_format(cluster, accounts_data):
-    converted_accounts_data = accounts_data.copy()
+    converted_accounts_data = deepcopy(accounts_data)
     for account_data in converted_accounts_data:
         account_data["fielddate"] = NOW_STR
         account_data["cluster"] = cluster
@@ -157,7 +158,7 @@ def main():
         logging.info("Fetching accounts info from %s", cluster)
         try:
             accounts_data = collect_accounts_data_for_cluster(cluster)
-            push_cluster_data_to_statface(clusert, accounts_data, statface_headers)
+            push_cluster_data_to_statface(cluster, accounts_data, statface_headers)
             push_cluster_data_to_solomon(cluster, accounts_data, solomon_headers)
         except exceptions:
             logging.exception("Failed to fetch account info from %s", cluster)
