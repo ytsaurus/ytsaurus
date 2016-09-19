@@ -262,7 +262,6 @@ private:
             THttpHeader header("PUT", GetWriteFileCommand());
             header.SetToken(Auth_.Token);
             header.AddPath(uniquePath);
-            header.SetChunkedEncoding();
             auto streamMaker = [&source] () {
                 return CreateStream(source);
             };
