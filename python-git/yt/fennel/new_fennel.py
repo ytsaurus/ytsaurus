@@ -126,7 +126,7 @@ def monitor(yt_client, table_path, threshold, output=sys.stdout):
     try:
         now = datetime.utcnow()
         last_processed_time_str = yt_client.get(table_path + "/@last_saved_ts")
-        last_processed_time = datetime.strptime(last_processed_time_str, "%Y-%m-%dT%H:%M:%S").split(".")[0]
+        last_processed_time = datetime.strptime(last_processed_time_str.split(".")[0], "%Y-%m-%dT%H:%M:%S")
         lag = now - last_processed_time
     except Exception:
         logger.error("Failed to run monitoring. Unhandled exception", exc_info=True)
