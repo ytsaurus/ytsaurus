@@ -128,11 +128,13 @@ def erase_archived_prefix():
             if err.is_concurrent_transaction_lock_conflict():
                 return False
             raise
+        logger.info("Selected %d archived rows to erase", archived_row_count)
         yt.run_erase(yt.TablePath("event_log", start_index=0, end_index=archived_row_count))
         yt.set("event_log/@archived_row_count", 0)
-        if yt.exists("event_log/@processed_row_count") and yt.exists("event_log/@table_start_row_index"):
+        if yt.exists("event_log/@processed_row_count"):
             yt.set("event_log/@processed_row_count", processed_row_count - archived_row_count)
-            yt.set("event_log/@table_start_row_index", yt.get("event_log/@table_start_row_index") + archived_row_count)
+            if yt.exists("event_log/@table_start_row_index"):
+                yt.set("event_log/@table_start_row_index", yt.get("event_log/@table_start_row_index") + archived_row_count)
         return True
 
 def rotate_archives(archive_size_limit, min_portion_to_archive):
@@ -146,7 +148,7 @@ def rotate_archives(archive_size_limit, min_portion_to_archive):
                 yt.move(table, get_next_table(table))
 
 def archive_event_log(archive_size_limit):
-    logger.info("Archive prefix of event log table")
+    logger.info("Start archivation prefix of event log table")
 
     tables = get_event_log_tables()
     tables.sort(key=get_archive_number)
@@ -156,6 +158,8 @@ def archive_event_log(archive_size_limit):
         example_archive = "event_log.1"
 
     row_count_to_archive = get_desired_row_count_to_archive(archive_size_limit, example_archive)
+
+    logger.info("Selected first %d rows to archive", row_count_to_archive)
     archived_row_count = get_archived_row_count()
     assert archived_row_count == 0
 
