@@ -547,6 +547,36 @@ class TestSchedulerMapCommands(YTEnvSetup):
         new_data = read_table("//tmp/t2", verbose=False)
         assert sorted(row.items() for row in new_data) == [[("index", i)] for i in xrange(count)]
 
+    def test_type_conversion(self):
+        create("table", "//tmp/s")
+        write_table("//tmp/s", {"foo": "42"})
+
+        create("table", "//tmp/t",
+            attributes={
+                "schema": make_schema([
+                    {"name": "int64", "type": "int64", "sort_order": "ascending"},
+                    {"name": "uint64", "type": "uint64"},
+                    {"name": "boolean", "type": "boolean"},
+                    {"name": "double", "type": "double"},
+                    {"name": "any", "type": "any"}],
+                    strict=False)
+            })
+
+        row = '{int64=3u; uint64=42; boolean="false"; double=18; any={}; extra=qwe}'
+
+        with pytest.raises(YtError):
+            map(in_="//tmp/s",
+                out="//tmp/t",
+                command="echo '{0}'".format(row),
+                spec={"max_failed_job_count": 1})
+
+        yson_with_type_conversion = yson.loads("<enable_type_conversion=%true>yson")
+        map(in_="//tmp/s",
+            out="//tmp/t",
+            command="echo '{0}'".format(row), format=yson_with_type_conversion,
+            spec={"max_failed_job_count": 1, "mapper": {"output_format": yson_with_type_conversion}})
+
+
     def test_file_with_integer_name(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")

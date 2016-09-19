@@ -2,7 +2,7 @@ import pytest
 
 from yt_env_setup import YTEnvSetup, make_schema, wait
 from yt_commands import *
-from yt.yson import YsonEntity, YsonList
+from yt.yson import YsonEntity, YsonList, loads
 
 from time import sleep
 
@@ -1547,9 +1547,42 @@ class TestSortedTablets(YTEnvSetup):
         assert lookup_rows("//tmp/t", keys) == rows
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)
 
+    def test_type_conversion(self):
+        self.sync_create_cells(1, 1)
+        create("table", "//tmp/t",
+            attributes={
+                "dynamic": True,
+                "schema": [
+                    {"name": "int64", "type": "int64", "sort_order": "ascending"},
+                    {"name": "uint64", "type": "uint64"},
+                    {"name": "boolean", "type": "boolean"},
+                    {"name": "double", "type": "double"},
+                    {"name": "any", "type": "any"}]
+            })
+        self.sync_mount_table("//tmp/t")
+
+        row1 = '{int64=3u; uint64=42; boolean="false"; double=18; any={}}'
+        row2 = '{int64=3u}'
+
+        yson_with_type_conversion = loads("<enable_type_conversion=%true>yson")
+        yson_without_type_conversion = loads("<enable_integral_types_conversion=%false>yson")
+
+        with pytest.raises(YtError):
+            insert_rows("//tmp/t", row1, is_raw=True, input_format=yson_without_type_conversion)
+        insert_rows("//tmp/t", row1, is_raw=True, input_format=yson_with_type_conversion)
+
+        with pytest.raises(YtError):
+            lookup_rows("//tmp/t", row2, is_raw=True, input_format=yson_without_type_conversion)
+        lookup_rows("//tmp/t", row2, is_raw=True, input_format=yson_with_type_conversion)
+
+        with pytest.raises(YtError):
+            delete_rows("//tmp/t", row2, is_raw=True, input_format=yson_without_type_conversion)
+        delete_rows("//tmp/t", row2, is_raw=True, input_format=yson_with_type_conversion)
+
+        assert select_rows("* from [//tmp/t]") == []
+
 ##################################################################
 
 class TestSortedTabletsMulticell(TestSortedTablets):
     NUM_SECONDARY_MASTER_CELLS = 2
-
 
