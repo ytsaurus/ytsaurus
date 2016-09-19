@@ -106,10 +106,11 @@ public:
 
         auto path = GetOperationPath(operationId);
         auto batchReq = StartObjectBatchRequest();
-        {
-            auto owners = operation->GetOwners();
-            owners.push_back(operation->GetAuthenticatedUser());
 
+        auto owners = operation->GetOwners();
+        owners.push_back(operation->GetAuthenticatedUser());
+
+        {
             auto controller = operation->GetController();
 
             auto req = TYPathProxy::Set(path);
@@ -117,7 +118,6 @@ public:
                 .BeginAttributes()
                     .Do(BIND(&ISchedulerStrategy::BuildOperationAttributes, strategy, operationId))
                     .Do(BIND(&BuildInitializingOperationAttributes, operation))
-                    .DoIf(static_cast<bool>(controller), BIND(&IOperationController::BuildOperationAttributes, controller))
                     .Item("brief_spec").BeginMap()
                         .Do(BIND(&IOperationController::BuildBriefSpec, operation->GetController()))
                         .Do(BIND(&ISchedulerStrategy::BuildBriefSpec, strategy, operationId))
@@ -142,6 +142,30 @@ public:
                     .BeginMap().EndMap()
                 .EndMap()
                 .Data());
+            GenerateMutationId(req);
+            batchReq->AddRequest(req);
+        }
+
+        if (operation->GetSecureVault()) {
+            // Create secure vault.
+            auto secureVaultPath = path + "/secure_vault";
+            auto req = TCypressYPathProxy::Create(path + "/secure_vault");
+            req->set_type(static_cast<int>(EObjectType::Document));
+
+            auto attributes = CreateEphemeralAttributes();
+            attributes->Set("inherit_acl", false);
+            attributes->Set("value", operation->GetSecureVault());
+            attributes->Set("acl", BuildYsonStringFluently()
+                .BeginList()
+                    .Item().BeginMap()
+                        .Item("action").Value(ESecurityAction::Allow)
+                        .Item("subjects").Value(owners)
+                        .Item("permissions").BeginList()
+                            .Item().Value(EPermission::Read)
+                        .EndList()
+                    .EndMap()
+                .EndList());
+            ToProto(req->mutable_node_attributes(), *attributes);
             GenerateMutationId(req);
             batchReq->AddRequest(req);
         }
@@ -418,9 +442,6 @@ private:
         for (auto operationReport : result.OperationReports) {
             CreateUpdateList(operationReport.Operation);
         }
-        for (auto handler : GlobalWatcherHandlers) {
-            handler.Run(result.WatcherResponses);
-        }
 
         LockTransaction->SubscribeAborted(
             BIND(&TImpl::OnLockTransactionAborted, MakeWeak(this))
@@ -460,7 +481,7 @@ private:
             StartLockTransaction();
             TakeLock();
             AssumeControl();
-            InvokeWatchers();
+            UpdateGlobalWatchers();
             UpdateClusterDirectory();
             ListOperations();
             RequestOperationAttributes();
@@ -603,45 +624,76 @@ private:
         {
             auto batchReq = Owner->StartObjectBatchRequest();
             {
-                LOG_INFO("Fetching attributes for %v unfinished operations",
+                LOG_INFO("Fetching attributes and secure vaults for %v unfinished operations",
                     OperationIds.size());
                 for (const auto& operationId : OperationIds) {
-                    auto req = TYPathProxy::Get(GetOperationPath(operationId) + "/@");
-                    // Keep in sync with CreateOperationFromAttributes.
-                    std::vector<Stroka> attributeKeys{
-                        "operation_type",
-                        "mutation_id",
-                        "user_transaction_id",
-                        "sync_scheduler_transaction_id",
-                        "async_scheduler_transaction_id",
-                        "input_transaction_id",
-                        "output_transaction_id",
-                        "spec",
-                        "authenticated_user",
-                        "start_time",
-                        "state",
-                        "suspended",
-                        "events"
-                    };
-                    ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                    batchReq->AddRequest(req, "get_op_attr");
+                    // Keep stuff below in sync with CreateOperationFromAttributes.
+                    // Retrieve operation attributes.
+                    {
+                        auto req = TYPathProxy::Get(GetOperationPath(operationId) + "/@");
+                        std::vector<Stroka> attributeKeys{
+                            "operation_type",
+                            "mutation_id",
+                            "user_transaction_id",
+                            "sync_scheduler_transaction_id",
+                            "async_scheduler_transaction_id",
+                            "input_transaction_id",
+                            "output_transaction_id",
+                            "spec",
+                            "authenticated_user",
+                            "start_time",
+                            "state",
+                            "suspended",
+                            "events"
+                        };
+                        ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+                        batchReq->AddRequest(req, "get_op_attr");
+                    }
+                    // Retrieve secure vault.
+                    {
+                        auto req = TYPathProxy::Get(GetOperationPath(operationId) + "/secure_vault");
+                        batchReq->AddRequest(req, "get_op_secure_vault");
+                    }
                 }
             }
 
             auto batchRspOrError = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
+            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError, "get_op_attr"));
             const auto& batchRsp = batchRspOrError.Value();
 
             {
-                auto rsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_op_attr");
-                YCHECK(rsps.size() == OperationIds.size());
+                auto attributesRsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_op_attr");
+                YCHECK(attributesRsps.size() == OperationIds.size());
 
-                for (int index = 0; index < static_cast<int>(rsps.size()); ++index) {
+                auto secureVaultRsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_op_secure_vault");
+                YCHECK(secureVaultRsps.size() == OperationIds.size());
+
+                for (int index = 0; index < static_cast<int>(OperationIds.size()); ++index) {
                     const auto& operationId = OperationIds[index];
-                    auto rsp = rsps[index].Value();
-                    auto attributesNode = ConvertToAttributes(TYsonString(rsp->value()));
-
-                    auto operationReport = Owner->CreateOperationFromAttributes(operationId, *attributesNode);
+                    auto attributesRsp = attributesRsps[index].Value();
+                    auto attributesNode = ConvertToAttributes(TYsonString(attributesRsp->value()));
+                    auto secureVaultRspOrError = secureVaultRsps[index];
+                    IMapNodePtr secureVault;
+                    if (secureVaultRspOrError.IsOK()) {
+                        const auto& secureVaultRsp = secureVaultRspOrError.Value();
+                        auto secureVaultNode = ConvertToNode(TYsonString(secureVaultRsp->value()));
+                        // It is a pretty strange situation when the node type different
+                        // from map, but still we should consider it.
+                        if (secureVaultNode->GetType() == ENodeType::Map) {
+                            secureVault = secureVaultNode->AsMap();
+                        } else {
+                            LOG_ERROR("Node %v has type %v, while %v is expected",
+                                GetOperationPath(operationId) + "/secure_vault",
+                                secureVaultNode->GetType(),
+                                ENodeType::Map);
+                            // TODO(max42): (YT-5651) Do not just ignore such a situation!
+                        }
+                    } else if (secureVaultRspOrError.GetCode() != NYTree::EErrorCode::ResolveError) {
+                        THROW_ERROR_EXCEPTION("Error while attempting to fetch the secure vault of operation")
+                            << TErrorAttribute("operation", operationId)
+                            << secureVaultRspOrError;
+                    }
+                    auto operationReport = Owner->CreateOperationFromAttributes(operationId, *attributesNode, std::move(secureVault));
                     if (operationReport.Operation) {
                         Result.OperationReports.push_back(operationReport);
                     }
@@ -649,8 +701,8 @@ private:
             }
         }
 
-        // - Send watcher requests.
-        void InvokeWatchers()
+        // Update global watchers.
+        void UpdateGlobalWatchers()
         {
             auto batchReq = Owner->StartObjectBatchRequest();
             for (auto requester : Owner->GlobalWatcherRequesters) {
@@ -658,7 +710,11 @@ private:
             }
 
             auto batchRspOrError = WaitFor(batchReq->Invoke());
-            Result.WatcherResponses = batchRspOrError.ValueOrThrow();
+            auto watcherResponses = batchRspOrError.ValueOrThrow();
+
+            for (auto handler : Owner->GlobalWatcherHandlers) {
+                handler.Run(watcherResponses);
+            }
         }
 
     };
@@ -716,10 +772,14 @@ private:
 
     TOperationReport CreateOperationFromAttributes(
         const TOperationId& operationId,
-        const IAttributeDictionary& attributes)
+        const IAttributeDictionary& attributes,
+        IMapNodePtr secureVault)
     {
-        auto getTransaction = [&] (const TTransactionId& transactionId, bool ping) -> ITransactionPtr {
+        auto getTransaction = [&] (const TTransactionId& transactionId, bool ping, const Stroka& name = Stroka()) -> ITransactionPtr {
             if (!transactionId) {
+                if (name) {
+                    LOG_INFO("%v %v of operation %v is missing", name, transactionId, operationId);
+                }
                 return nullptr;
             }
             try {
@@ -748,16 +808,20 @@ private:
         result.ControllerTransactions = New<TControllerTransactions>();
         result.ControllerTransactions->Sync = getTransaction(
             attributes.Get<TTransactionId>("sync_scheduler_transaction_id"),
-            true);
+            true,
+            "SyncTransaction");
         result.ControllerTransactions->Async = getTransaction(
             attributes.Get<TTransactionId>("async_scheduler_transaction_id"),
-            true);
+            true,
+            "AsyncTransaction");
         result.ControllerTransactions->Input = getTransaction(
             attributes.Get<TTransactionId>("input_transaction_id"),
-            true);
+            true,
+            "InputTransaction");
         result.ControllerTransactions->Output = getTransaction(
             attributes.Get<TTransactionId>("output_transaction_id"),
-            true);
+            true,
+            "OutputTransaction");
 
         auto spec = attributes.Get<INodePtr>("spec")->AsMap();
         TOperationSpecBasePtr operationSpec;
@@ -780,7 +844,9 @@ private:
             attributes.Get<TInstant>("start_time"),
             attributes.Get<EOperationState>("state"),
             attributes.Get<bool>("suspended"),
-            attributes.Get<std::vector<TOperationEvent>>("events"));
+            attributes.Get<std::vector<TOperationEvent>>("events", {}));
+
+        result.Operation->SetSecureVault(std::move(secureVault));
 
         result.UserTransactionAborted = !userTransaction && userTransactionId;
 

@@ -60,6 +60,11 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, Spec);
 
+    // A YSON map that is stored under ACL in Cypress.
+    // NB: It should not be present in operation spec as it may contain
+    // sensitive information.
+    DEFINE_BYVAL_RW_PROPERTY(NYTree::IMapNodePtr, SecureVault);
+
     DEFINE_BYVAL_RO_PROPERTY(Stroka, AuthenticatedUser);
     DEFINE_BYVAL_RO_PROPERTY(std::vector<Stroka>, Owners);
 

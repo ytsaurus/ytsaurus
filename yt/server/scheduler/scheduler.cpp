@@ -2136,7 +2136,6 @@ private:
             .BeginMap()
                 // Include the complete list of attributes.
                 .Do(BIND(&NScheduler::BuildInitializingOperationAttributes, operation))
-                .DoIf(static_cast<bool>(controller), BIND(&IOperationController::BuildOperationAttributes, controller))
                 .Item("progress").BeginMap()
                     .DoIf(hasControllerProgress, BIND([=] (IYsonConsumer* consumer) {
                         WaitFor(

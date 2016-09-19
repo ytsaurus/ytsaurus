@@ -50,6 +50,8 @@ TOperation::TOperation(
     auto parsedSpec = ConvertTo<TOperationSpecBasePtr>(Spec_);
     MaxStderrCount_ = parsedSpec->MaxStderrCount;
     SchedulingTag_ = parsedSpec->SchedulingTag;
+    SecureVault_ = std::move(parsedSpec->SecureVault);
+    Spec_->RemoveChild("secure_vault");
 }
 
 TFuture<TOperationPtr> TOperation::GetStarted()

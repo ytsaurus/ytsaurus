@@ -353,7 +353,10 @@ def run_python_libraries_tests(options):
 
     run_pytest(options, "python_libraries", "{0}/python".format(options.checkout_directory),
                pytest_args=pytest_args,
-               env={"TESTS_JOB_CONTROL": "1"})
+               env={
+                   "TESTS_JOB_CONTROL": "1",
+                   "YT_ENABLE_REQUEST_LOGGING": "1"
+                })
 
 
 @build_step
@@ -476,6 +479,7 @@ def main():
 
     options = parser.parse_args()
     options.failed_tests_path = os.path.expanduser("~/failed_tests")
+    options.core_path = os.path.expanduser("~/core")
     options.is_bare_metal = socket.getfqdn().endswith("tc.yt.yandex.net")
     # NB: parallel testing is enabled by default only for bare metal machines.
     options.enable_parallel_testing = options.is_bare_metal
