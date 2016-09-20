@@ -73,6 +73,8 @@ struct TSerializableWorkloadDescriptor
         RegisterParameter("category", Category);
         RegisterParameter("band", Band)
             .Default(0);
+        RegisterParameter("annotations", Annotations)
+            .Default();
     }
 };
 
