@@ -74,9 +74,6 @@ protected:
         const NTransactionClient::TTransactionId& transactionId,
         const NTableClient::TTableSchema& tableSchema);
 
-    NTableClient::NProto::TBoundaryKeysExt GetBoundaryKeys(
-        NTableClient::ISchemalessMultiChunkWriterPtr writer) const;
-
 private:
     void InitReader(
         NTableClient::TNameTablePtr nameTable,
