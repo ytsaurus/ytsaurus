@@ -4,26 +4,44 @@ from .client_state import ClientState
 from . import client_api
 
 from yt.packages.decorator import FunctionMaker
+from yt.packages.six import PY3
 
 import inspect
+from copy import deepcopy
 
 def fix_argspec(argspec, is_init_method):
+    args = deepcopy(argspec.args)
+    defaults = deepcopy(argspec.defaults)
+
     if not is_init_method:
-        argspec.args.insert(0, "self")
+        args.insert(0, "self")
 
-    if "client" in argspec.args:
-        index = argspec.args.index("client")
+    if "client" in args:
+        index = args.index("client")
 
-        defaults_shift = len(argspec.args) - len(argspec.defaults)
+        defaults_shift = len(args) - len(defaults)
         defaults_index = index - defaults_shift
 
-        argspec.args.pop(index)
+        args.pop(index)
 
-        modified_defaults = list(argspec.defaults)
+        modified_defaults = list(defaults)
         assert modified_defaults[defaults_index] is None
         modified_defaults.pop(defaults_index)
-        argspec.defaults = tuple(modified_defaults)
+        defaults = tuple(modified_defaults)
 
+    # NOTE: In Python 3 argspec is namedtuple and forbids mutations so new instance is created.
+    if PY3:
+        new_argspec_args = {}
+        for name in argspec._fields:
+            if name in ["args", "defaults"]:
+                continue
+            new_argspec_args[name] = getattr(argspec, name)
+        new_argspec_args["args"] = args
+        new_argspec_args["defaults"] = defaults
+        return inspect.FullArgSpec(**new_argspec_args)
+
+    argspec.args = args
+    argspec.defaults = defaults
     return argspec
 
 def create_class_method(func):
