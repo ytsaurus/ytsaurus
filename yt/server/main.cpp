@@ -10,8 +10,6 @@
 #include <yt/server/job_proxy/job_proxy.h>
 #include <yt/server/job_proxy/user_job.h>
 
-#include <yt/server/hydra/private.h>
-
 #include <yt/ytlib/cgroup/cgroup.h>
 
 #include <yt/ytlib/chunk_client/dispatcher.h>
@@ -20,8 +18,6 @@
 #include <yt/ytlib/monitoring/monitoring_manager.h>
 
 #include <yt/ytlib/scheduler/config.h>
-
-#include <yt/ytlib/shutdown.h>
 
 #include <yt/build/build.h>
 
@@ -178,6 +174,12 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void Exit(EExitCode exitCode)
+{
+    // Currently we don't support graceful shutdown.
+    _exit(static_cast<int>(exitCode));
+}
+
 EExitCode GuardedMain(int argc, const char* argv[])
 {
     TThread::CurrentThreadSetName("Bootstrap");
@@ -272,7 +274,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
         Cout << result.Data();
         // NB: no shutdown, some initialization may still be in progress.
         Cout.Flush();
-        _exit(static_cast<int>(EExitCode::OK));
+        Exit(EExitCode::OK);
     }
 #endif
 
@@ -573,16 +575,12 @@ EExitCode GuardedMain(int argc, const char* argv[])
         // But we (currently) don't care.
         auto jobProxy = New<TJobProxy>(configNode, jobId);
         jobProxy->Run();
-
-        // XXX(sandello): Job proxy does not shutdown cleanly (there are cyclic references holding some threads)
-        // so we just wipe out the process.
-        _exit(static_cast<int>(EExitCode::OK));
     }
 
     return EExitCode::OK;
 }
 
-EExitCode Main(int argc, const char* argv[])
+void Main(int argc, const char* argv[])
 {
     InstallCrashSignalHandler();
 
@@ -626,10 +624,7 @@ EExitCode Main(int argc, const char* argv[])
         exitCode = EExitCode::BootstrapError;
     }
 
-    NHydra::ShutdownHydraIOInvoker();
-    Shutdown();
-
-    return exitCode;
+    Exit(exitCode);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -638,5 +633,5 @@ EExitCode Main(int argc, const char* argv[])
 
 int main(int argc, const char* argv[])
 {
-    return static_cast<int>(NYT::Main(argc, argv));
+    NYT::Main(argc, argv);
 }
