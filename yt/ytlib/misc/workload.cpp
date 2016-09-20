@@ -23,7 +23,7 @@ static const i64 BandPriorityFactor = (i64) 1 << 48;
 
 TWorkloadDescriptor TWorkloadDescriptor::SetCurrentInstant() const
 {
-    return TWorkloadDescriptor(Category, Band, TInstant::Now());
+    return TWorkloadDescriptor(Category, Band, TInstant::Now(), Annotations);
 }
 
 i64 TWorkloadDescriptor::GetPriority() const
