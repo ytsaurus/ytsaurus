@@ -18,7 +18,7 @@ struct TWorkloadDescriptor
         EWorkloadCategory category = EWorkloadCategory::Idle,
         int band = 0,
         TInstant instant = TInstant::Now(),
-        std::vector<Stroka> annotations)
+        std::vector<Stroka> annotations = std::vector<Stroka>())
         : Category(category)
         , Band(band)
         , Instant(instant)
