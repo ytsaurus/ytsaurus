@@ -1478,6 +1478,12 @@ describe("YtCommand - specific behaviour", function() {
         }, done).end();
     });
 
+    it("should not redirect when it is suppressed", function(done) {
+        ask("GET", V + "/read?path=//t", {"X-YT-Suppress-Redirect": "1"}, function(rsp) {
+            rsp.statusCode.should.eql(200);
+        }, done).end();
+    });
+
     it("should redirect yandex-team.ru requests to yandex-team.ru domain", function(done) {
         sinon.stub(this.coordinator, "getSelf").returns({role: "control"});
         var mock = sinon.mock(this.coordinator);
