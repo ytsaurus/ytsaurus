@@ -304,7 +304,6 @@ def create_modules_archive_default(tempfiles_manager, client):
 
     return result
 
-
 def create_modules_archive(tempfiles_manager, client):
     create_modules_archive_function = get_config(client)["pickling"]["create_modules_archive_function"]
     if create_modules_archive_function is not None:
@@ -323,6 +322,7 @@ def create_modules_archive(tempfiles_manager, client):
 
     return create_modules_archive_default(tempfiles_manager, client)
 
+
 def simplify(function_name):
     def fix(sym):
         if sym not in string.ascii_letters and sym not in string.digits:
@@ -338,76 +338,76 @@ def get_function_name(function):
     else:
         return "operation"
 
-def wrap(tempfiles_manager, client, **kwargs):
-    local_mode = is_local_mode(client)
-    remove_temp_files = get_config(client)["clear_local_temp_files"] and not local_mode
 
-    if tempfiles_manager is None:
-        with TempfilesManager(remove_temp_files, get_config(client)["local_temp_directory"]) as new_tempfiles_manager:
-            return do_wrap(tempfiles_manager=new_tempfiles_manager, client=client, local_mode=local_mode, **kwargs)
+def build_caller_arguments(is_standalone_binary, file_argument_builder, environment, client):
+    use_py_runner = None
+    arguments = []
+
+    if is_standalone_binary:
+        use_py_runner = False
+        arguments = [file_argument_builder(sys.argv[0], caller=True)]
     else:
-        return do_wrap(tempfiles_manager=tempfiles_manager, client=client, local_mode=local_mode, **kwargs)
+        use_py_runner = True
+        python_binary = get_config(client)["pickling"]["python_binary"]
+        use_local_python_in_jobs = get_config(client)["pickling"]["use_local_python_in_jobs"]
+        if use_local_python_in_jobs is not None and python_binary is not None:
+            raise YtError("Options pickling/use_local_python_in_jobs and pickling/python_binary cannot be "
+                          "specified simultaneously")
 
-def do_wrap(function, operation_type, tempfiles_manager, input_format, output_format, group_by, local_mode, uploader, client):
-    assert operation_type in ["mapper", "reducer", "reduce_combiner"]
-    local_temp_directory = get_config(client)["local_temp_directory"]
-    function_filename = tempfiles_manager.create_tempfile(dir=local_temp_directory,
-                                                          prefix=get_function_name(function) + ".pickle")
+        if python_binary is None and use_local_python_in_jobs is None and is_arcadia_python():
+            use_local_python_in_jobs = True
 
+        if python_binary is not None:
+            arguments = [python_binary]
+        else:
+            if use_local_python_in_jobs is not None:
+                arguments = [file_argument_builder(sys.executable, caller=True)]
+                if is_arcadia_python() and "yt" in sys.extra_modules:
+                    use_py_runner = False
+            else:
+                arguments = ["python"]
+
+    if use_py_runner:
+        arguments.append(file_argument_builder(os.path.join(LOCATION, "_py_runner.py")))
+    else:
+        environment["Y_PYTHON_ENTRY_POINT"] = "__yt_entry_point__"
+
+    return arguments
+
+def build_function_and_config_arguments(function, operation_type, input_format, output_format, group_by,
+                                        create_temp_file, file_argument_builder, client):
+    function_filename = create_temp_file(prefix=get_function_name(function) + ".pickle")
     pickler = Pickler(get_config(client)["pickling"]["framework"])
-
     with open(function_filename, "wb") as fout:
         attributes = function.attributes if hasattr(function, "attributes") else {}
         pickler.dump((function, attributes, operation_type, input_format, output_format, group_by, get_python_version()), fout)
 
-    config_filename = tempfiles_manager.create_tempfile(dir=local_temp_directory,
-                                                        prefix="config_dump")
+    config_filename = create_temp_file(prefix="config_dump")
     with open(config_filename, "wb") as fout:
         Pickler(config.DEFAULT_PICKLING_FRAMEWORK).dump(get_config(client), fout)
 
-    if SINGLE_INDEPENDENT_BINARY_CASE or (SINGLE_INDEPENDENT_BINARY_CASE is None and getattr(sys, "is_standalone_binary", False)):
-        files = list(imap(os.path.abspath, [
-            sys.argv[0],
-            function_filename,
-            config_filename]))
+    return list(imap(file_argument_builder, [function_filename, config_filename]))
 
-        if local_mode:
-            file_args = files
-            uploaded_files = []
-            local_files_to_remove = tempfiles_manager._tempfiles_pool
-        else:
-            file_args =  list(imap(os.path.basename, files))
-            file_args[0] = "./" + file_args[0]
-            uploaded_files = uploader(files)
-            local_files_to_remove = []
-
-        cmd = " ".join(file_args)
-
-        return cmd, uploaded_files, local_files_to_remove, 0
-
-    modules_info = create_modules_archive(tempfiles_manager, client)
+def build_modules_arguments(modules_info, create_temp_file, file_argument_builder, client):
     # COMPAT: previous version of create_modules_archive returns string.
     if isinstance(modules_info, basestring):
         modules_info = [{"filename": modules_info, "hash": calc_md5_string_from_file(modules_info), "tmpfs": False}]
-    modules_filenames = [{"filename": info["filename"], "hash": info["hash"]}
-                         for info in modules_info]
+
     tmpfs_size = sum([info["size"] for info in modules_info if info["tmpfs"]])
     if tmpfs_size > 0:
         tmpfs_size = int(TMPFS_SIZE_ADDEND + TMPFS_SIZE_MULTIPLIER * tmpfs_size)
 
     for info in modules_info:
-        if local_mode:
-            info["filename"] = os.path.abspath(info["filename"])
-        else:
-            info["filename"] = os.path.basename(info["filename"])
+        info["filename"] = file_argument_builder({"filename": info["filename"], "hash": info["hash"]})
 
-    modules_info_filename = tempfiles_manager.create_tempfile(dir=local_temp_directory,
-                                                              prefix="_modules_info")
+    modules_info_filename = create_temp_file(prefix="_modules_info")
     with open(modules_info_filename, "wb") as fout:
         standard_pickle.dump(modules_info, fout)
 
-    main_filename = tempfiles_manager.create_tempfile(dir=local_temp_directory,
-                                                      prefix="_main_module", suffix=".py")
+    return [file_argument_builder(modules_info_filename)], tmpfs_size
+
+def build_main_file_arguments(function, create_temp_file, file_argument_builder):
+    main_filename = create_temp_file(prefix="_main_module", suffix=".py")
     main_module_type = "PY_SOURCE"
     if is_running_interactively():
         try:
@@ -432,47 +432,63 @@ def do_wrap(function, operation_type, tempfiles_manager, input_format, output_fo
     if function_source_filename:
         shutil.copy(function_source_filename, main_filename)
 
-    python_binary = get_config(client)["pickling"]["python_binary"]
-    use_local_python_in_jobs = get_config(client)["pickling"]["use_local_python_in_jobs"]
-    use_pyrunner = True
-    if use_local_python_in_jobs is None:
-        if python_binary == "python":
-            use_local_python_in_jobs = is_arcadia_python()
-            if use_local_python_in_jobs and "yt" in sys.extra_modules:
-                use_pyrunner = False
+    return [file_argument_builder(main_filename), "_main_module", main_module_type]
+
+def do_wrap(function, operation_type, tempfiles_manager, input_format, output_format, group_by, local_mode, uploader, client):
+    assert operation_type in ["mapper", "reducer", "reduce_combiner"]
+
+    def create_temp_file(prefix="", suffix=""):
+        return tempfiles_manager.create_tempfile(dir=get_config(client)["local_temp_directory"],
+                                                 prefix=prefix, suffix=suffix)
+
+    uploaded_files = []
+    def file_argument_builder(file, caller=False):
+        if isinstance(file, str):
+            filename = file
         else:
-            use_local_python_in_jobs = False
+            filename = file["filename"]
+        if local_mode:
+            return os.path.abspath(filename)
+        else:
+            uploaded_files.append(uploader(file))
+            return ("./" if caller else "") + os.path.basename(filename)
 
+    is_standalone_binary = SINGLE_INDEPENDENT_BINARY_CASE or \
+        (SINGLE_INDEPENDENT_BINARY_CASE is None and getattr(sys, "is_standalone_binary", False))
 
-    files = list(imap(os.path.abspath,
-        [os.path.join(LOCATION, "_py_runner.py")] if use_pyrunner else []
-        +
-        [
-            function_filename,
-            config_filename,
-            modules_info_filename,
-            main_filename
-        ]))
+    environment = {}
+    environment["YT_WRAPPER_IS_INSIDE_JOB"] = "1"
+    environment["YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB"] = \
+       str(int(get_config(client)["allow_http_requests_to_yt_from_job"]))
 
-    if local_mode:
-        if use_local_python_in_jobs:
-            python_binary = os.path.abspath(sys.executable)
-        file_args = files
-        uploaded_files = []
-        local_files_to_remove = tempfiles_manager._tempfiles_pool
+    caller_arguments = build_caller_arguments(is_standalone_binary, file_argument_builder, environment, client)
+    function_and_config_arguments = build_function_and_config_arguments(
+        function, operation_type, input_format, output_format, group_by,
+        create_temp_file,
+        file_argument_builder,
+        client)
+
+    if is_standalone_binary:
+        tmpfs_size = 0
+        modules_arguments = []
+        main_file_arguments = []
     else:
-        files_to_upload = []
-        if use_local_python_in_jobs:
-            python_binary = "./" + os.path.basename(sys.executable)
-            files_to_upload.append(os.path.abspath(sys.executable))
-        file_args = list(imap(os.path.basename, files))
-        files_to_upload += files + modules_filenames
-        uploaded_files = uploader(files_to_upload)
-        local_files_to_remove = []
+        modules_info = create_modules_archive(tempfiles_manager, client)
+        modules_arguments, tmpfs_size = build_modules_arguments(modules_info, create_temp_file, file_argument_builder, client)
+        main_file_arguments = build_main_file_arguments(function, create_temp_file, file_argument_builder)
 
-    cmd = " ".join([python_binary] + file_args + ["_main_module", main_module_type])
+    cmd = " ".join(caller_arguments + function_and_config_arguments + modules_arguments + main_file_arguments)
+    return cmd, uploaded_files, tmpfs_size, environment
 
-    return cmd, uploaded_files, local_files_to_remove, tmpfs_size
+def wrap(client, **kwargs):
+    local_mode = is_local_mode(client)
+    remove_temp_files = get_config(client)["clear_local_temp_files"] and not local_mode
+
+    with TempfilesManager(remove_temp_files, get_config(client)["local_temp_directory"]) as tempfiles_manager:
+        cmd, uploaded_files, tmpfs_size, environment = do_wrap(tempfiles_manager=tempfiles_manager, client=client, local_mode=local_mode, **kwargs)
+        local_files_to_remove = tempfiles_manager._tempfiles_pool if local_mode else []
+        return cmd, uploaded_files, tmpfs_size, environment, local_files_to_remove
+
 
 def enable_python_job_processing_for_standalone_binary():
     """ Enables alternative method to run python functions as jobs in YT operations.
