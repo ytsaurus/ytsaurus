@@ -456,6 +456,8 @@ def do_wrap(function, operation_type, tempfiles_manager, input_format, output_fo
     is_standalone_binary = SINGLE_INDEPENDENT_BINARY_CASE or \
         (SINGLE_INDEPENDENT_BINARY_CASE is None and getattr(sys, "is_standalone_binary", False))
 
+    # XXX(asaitgalin): Some flags are needed before operation (and config) is unpickled
+    # so these flags are passed through environment variables.
     environment = {}
     environment["YT_WRAPPER_IS_INSIDE_JOB"] = "1"
     environment["YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB"] = \
