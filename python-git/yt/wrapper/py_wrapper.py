@@ -6,6 +6,7 @@ from .pickling import Pickler
 from .common import get_python_version, YtError, chunk_iter_stream, chunk_iter_string, get_value, which, get_disk_size
 from .py_runner_helpers import process_rows
 from .local_mode import is_local_mode
+from ._py_runner import main as run_py_runner
 
 from yt.zip import ZipFile
 import yt.logger as logger
@@ -431,20 +432,27 @@ def do_wrap(function, operation_type, tempfiles_manager, input_format, output_fo
     if function_source_filename:
         shutil.copy(function_source_filename, main_filename)
 
-    files = list(imap(os.path.abspath, [
-        os.path.join(LOCATION, "_py_runner.py"),
-        function_filename,
-        config_filename,
-        modules_info_filename,
-        main_filename]))
-
     python_binary = get_config(client)["pickling"]["python_binary"]
     use_local_python_in_jobs = get_config(client)["pickling"]["use_local_python_in_jobs"]
+    use_pyrunner = True
     if use_local_python_in_jobs is None:
         if python_binary == "python":
             use_local_python_in_jobs = is_arcadia_python()
+            if use_local_python_in_jobs and "yt" in sys.extra_modules:
+                use_pyrunner = False
         else:
             use_local_python_in_jobs = False
+
+
+    files = list(imap(os.path.abspath,
+        [os.path.join(LOCATION, "_py_runner.py")] if use_pyrunner else []
+        +
+        [
+            function_filename,
+            config_filename,
+            modules_info_filename,
+            main_filename
+        ]))
 
     if local_mode:
         if use_local_python_in_jobs:
@@ -472,23 +480,26 @@ def enable_python_job_processing_for_standalone_binary():
     and do not send modules that used by the program. Therefore this method works
     correctly only if your script is a standalone binary and executed as binary.
 
-    You should call this function in the beggining of the program.
+    This function used as entry point if yt library built in python/program from arcadia.
     """
     global SINGLE_INDEPENDENT_BINARY_CASE
     if os.environ.get("YT_WRAPPER_IS_INSIDE_JOB"):
-        process_rows(sys.argv[1], sys.argv[2], start_time=None)
+        if getattr(sys, "is_standalone_binary", False):
+            process_rows(sys.argv[1], sys.argv[2], start_time=None)
+        else:
+            run_py_runner()
         sys.exit(0)
     else:
         SINGLE_INDEPENDENT_BINARY_CASE = True
 
 def initialize_python_job_processing():
     """
-    Check that program is build as standalone binary.
+    Check that program is build as standalone binary or arcadia python used.
     And call enable_python_job_processing_for_standalone_binary if it is the case.
 
     You should call this function in the beggining of the program.
     """
-    if getattr(sys, "is_standalone_binary", False):
+    if getattr(sys, "is_standalone_binary", False) or is_arcadia_python():
         enable_python_job_processing_for_standalone_binary()
 
 def _set_attribute(func, key, value):
