@@ -509,10 +509,10 @@ class TestTableCommands(object):
             assert os.listdir(yt.config["local_temp_directory"]) == []
             with pytest.raises(Exception):
                 py_wrapper.wrap(function=foo, operation_type="mapper", uploader=None,
-                                tempfiles_manager=None, client=None, input_format=None, output_format=None, group_by=None)
+                                client=None, input_format=None, output_format=None, group_by=None)
             assert os.listdir(yt.config["local_temp_directory"]) == []
             py_wrapper.wrap(function=foo, operation_type="mapper", uploader=uploader,
-                            tempfiles_manager=None, client=None, input_format=None, output_format=None, group_by=None)
+                            client=None, input_format=None, output_format=None, group_by=None)
             assert os.listdir(yt.config["local_temp_directory"]) == []
 
     def test_write_compressed_table_data(self):

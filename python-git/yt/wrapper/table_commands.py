@@ -312,17 +312,20 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
     files = file_uploader(files)
     input_format, output_format = _prepare_formats(format, input_format, output_format, binary=binary, client=client)
 
-    environment = {}
-    if _is_python_function(binary):
-        # XXX(asaitgalin): Some flags are needed before operation (and config) is unpickled
-        # so these flags are passed through environment variables.
-        environment["YT_WRAPPER_IS_INSIDE_JOB"] = "1"
-        if getattr(sys, "is_standalone_binary", False) or (py_wrapper.is_arcadia_python() and "yt" in sys.extra_modules):
-            environment["Y_PYTHON_ENTRY_POINT"] = "__yt_entry_point__"
+    ld_library_path = None
+    if _is_python_function(binary) and get_config(client)["pickling"]["dynamic_libraries"]["enable_auto_collection"]:
+        ld_library_path = spec.get(op_type, {}).get("environment", {}).get("LD_LIBRARY_PATH")
+        paths = ["./modules/_shared", "./tmpfs/modules/_shared"]
+        if ld_library_path is not None:
+            paths.insert(0, ld_library_path)
+        ld_library_path = os.pathsep.join(paths)
 
     binary, additional_files, tmpfs_size, environment, additional_local_files_to_remove = \
         _prepare_binary(binary, op_type, input_format, output_format,
                         group_by, file_uploader, client=client)
+
+    if ld_library_path is not None:
+        environment["LD_LIBRARY_PATH"] = ld_library_path
 
     if local_files_to_remove is not None:
         local_files_to_remove += additional_local_files_to_remove
@@ -340,13 +343,6 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
             }
         },
         spec)
-
-    if _is_python_function(binary) and get_config(client)["pickling"]["dynamic_libraries"]["enable_auto_collection"]:
-        ld_library_path = spec[op_type].get("environment", {}).get("LD_LIBRARY_PATH")
-        paths = ["./modules/_shared", "./tmpfs/modules/_shared"]
-        if ld_library_path is not None:
-            paths.insert(0, ld_library_path)
-        environment["LD_LIBRARY_PATH"] = os.pathsep.join(paths)
 
     if get_config(client)["mount_sandbox_in_tmpfs"]:
         disk_size = file_uploader.disk_size
