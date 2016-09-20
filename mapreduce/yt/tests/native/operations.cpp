@@ -3,6 +3,8 @@
 
 #include <mapreduce/yt/interface/client.h>
 
+#include <mapreduce/yt/common/config.h>
+
 namespace NYT {
 namespace NNativeTest {
 
@@ -408,7 +410,7 @@ YT_TEST(TOperationWith, CypressTable)
             .AddInput<TNode>(Input())
             .AddOutput<TNode>(Output())
             .MapperSpec(TUserJobSpec()
-                .AddFile(TRichYPath(Stroka("//") + Input2())
+                .AddFile(TRichYPath(TConfig::Get()->Prefix + Input2())
                     .Format(format)
                     .FileName(sandboxName)
                     .AddRange(TReadRange::FromRowIndexes(1,2)))),
@@ -433,7 +435,7 @@ YT_TEST(TOperationWith, CypressFile)
             .AddInput<TNode>(Input())
             .AddOutput<TNode>(Output())
             .MapperSpec(TUserJobSpec()
-                .AddFile(TRichYPath(Stroka("//") + Input2())
+                .AddFile(TRichYPath(TConfig::Get()->Prefix + Input2())
                     .FileName(sandboxName))),
         new TMapperWithFile(sandboxName)
     );
