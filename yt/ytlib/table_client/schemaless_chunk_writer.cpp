@@ -1194,7 +1194,7 @@ public:
         IThroughputThrottlerPtr throttler,
         IBlockCachePtr blockCache)
         : Logger(TableClientLogger)
-        , Config_(config)
+        , Config_(CloneYsonSerializable(config))
         , Options_(options)
         , RichPath_(richPath)
         , NameTable_(nameTable)
@@ -1207,6 +1207,8 @@ public:
         if (Transaction_) {
             ListenTransaction(Transaction_);
         }
+
+        Config_->WorkloadDescriptor.Annotations.push_back(Format("TablePath: %v", RichPath_.GetPath()));
 
         Logger.AddTag("Path: %v, TransactionId: %v",
             RichPath_.GetPath(),

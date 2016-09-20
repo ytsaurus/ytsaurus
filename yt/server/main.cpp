@@ -561,9 +561,17 @@ EExitCode GuardedMain(int argc, const char* argv[])
             return EExitCode::OK;
         }
 
+        TOperationId operationId;
+        try {
+            operationId = TOperationId::FromString(parser.OperationId.getValue());
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error parsing operation id")
+                << ex;
+        }
+
         TJobId jobId;
         try {
-            jobId = TGuid::FromString(parser.JobId.getValue());
+            jobId = TJobId::FromString(parser.JobId.getValue());
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing job id")
                 << ex;
@@ -573,7 +581,10 @@ EExitCode GuardedMain(int argc, const char* argv[])
         // JobProxy <-> Job
         // JobProxy <-> JobProberService
         // But we (currently) don't care.
-        auto jobProxy = New<TJobProxy>(configNode, jobId);
+        auto jobProxy = New<TJobProxy>(
+            configNode,
+            operationId,
+            jobId);
         jobProxy->Run();
     }
 

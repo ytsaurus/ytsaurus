@@ -34,10 +34,10 @@ public:
 protected:
     const IJobHostPtr Host_;
 
-    std::atomic<bool> Initialized_ = { false };
-
     const NScheduler::NProto::TSchedulerJobSpecExt& SchedulerJobSpec_;
-    NScheduler::TJobIOConfigPtr JobIOConfig_;
+    const NScheduler::TJobIOConfigPtr JobIOConfig_;
+
+    std::atomic<bool> Initialized_ = {false};
 
     NTableClient::ISchemalessMultiChunkReaderPtr Reader_;
     std::vector<NTableClient::ISchemalessMultiChunkWriterPtr> Writers_;
