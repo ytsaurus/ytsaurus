@@ -35,6 +35,9 @@ struct TWorkloadDescriptor
     //! Certain categories rely on this value for FIFO ordering.
     TInstant Instant;
 
+    //! Arbitrary client-supplied strings to be logged at server-side.
+    std::vector<Stroka> Annotations;
+
     //! Updates the instant field with the current time.
     TWorkloadDescriptor SetCurrentInstant() const;
 

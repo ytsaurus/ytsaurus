@@ -95,6 +95,7 @@ void ToProto(NYT::NProto::TWorkloadDescriptor* protoDescriptor, const TWorkloadD
     protoDescriptor->set_category(static_cast<int>(descriptor.Category));
     protoDescriptor->set_band(descriptor.Band);
     protoDescriptor->set_instant(ToProto(descriptor.Instant));
+    ToProto(protoDescriptor->mutable_annotations(), descriptor.Annotations);
 }
 
 void FromProto(TWorkloadDescriptor* descriptor, const NYT::NProto::TWorkloadDescriptor& protoDescriptor)
@@ -102,6 +103,7 @@ void FromProto(TWorkloadDescriptor* descriptor, const NYT::NProto::TWorkloadDesc
     descriptor->Category = EWorkloadCategory(protoDescriptor.category());
     descriptor->Band = protoDescriptor.band();
     descriptor->Instant = FromProto<TInstant>(protoDescriptor.instant());
+    FromProto(&descriptor->Annotations, protoDescriptor.annotations());
 }
 
 void FormatValue(
@@ -115,6 +117,16 @@ void FormatValue(
     if (descriptor.Instant != TInstant::Zero()) {
         builder->AppendFormat(":%v",
             descriptor.Instant);
+    }
+    if (!descriptor.Annotations.empty()) {
+        builder->AppendChar('{');
+        for (size_t index = 0; index < descriptor.Annotations.size(); ++index) {
+            builder->AppendString(descriptor.Annotations[index]);
+            if (index != descriptor.Annotations.size() - 1) {
+                builder->AppendString(", ");
+            }
+        }
+        builder->AppendChar('}');
     }
 }
 

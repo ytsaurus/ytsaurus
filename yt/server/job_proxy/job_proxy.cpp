@@ -79,14 +79,18 @@ static const auto RpcServerShutdownTimeout = TDuration::Seconds(15);
 
 TJobProxy::TJobProxy(
     INodePtr configNode,
+    const TOperationId& operationId,
     const TJobId& jobId)
     : ConfigNode_(configNode)
+    , OperationId_(operationId)
     , JobId_(jobId)
     , JobThread_(New<TActionQueue>("JobMain"))
     , ControlThread_(New<TActionQueue>("Control"))
     , Logger(JobProxyLogger)
 {
-    Logger.AddTag("JobId: %v", JobId_);
+    Logger.AddTag("OperationId: %v, JobId: %v",
+        OperationId_,
+        JobId_);
 }
 
 std::vector<NChunkClient::TChunkId> TJobProxy::DumpInputContext(const TJobId& jobId)
@@ -433,6 +437,16 @@ TCGroupJobEnvironmentConfigPtr TJobProxy::GetCGroupsConfig() const
 TJobProxyConfigPtr TJobProxy::GetConfig() const
 {
     return Config_;
+}
+
+const TOperationId& TJobProxy::GetOperationId() const
+{
+    return OperationId_;
+}
+
+const TJobId& TJobProxy::GetJobId() const
+{
+    return JobId_;
 }
 
 const TJobSpec& TJobProxy::GetJobSpec() const
