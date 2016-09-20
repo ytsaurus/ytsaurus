@@ -485,8 +485,7 @@ class Operation(object):
             time.sleep(self._poll_frequency)
 
     def abort(self, **kwargs):
-        kwargs["operation_id"] = self.id
-        execute_command("abort_op", kwargs)
+        abort_op(self.id, **kwargs)
 
     def complete(self, **kwargs):
         kwargs["operation_id"] = self.id
@@ -585,6 +584,10 @@ def start_op(op_type, **kwargs):
         operation.track()
 
     return operation
+
+def abort_op(op_id, **kwargs):
+    kwargs["operation_id"] = op_id
+    execute_command("abort_op", kwargs)
 
 def map(**kwargs):
     change(kwargs, "ordered", ["spec", "ordered"])
