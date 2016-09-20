@@ -17,7 +17,6 @@ from yt.packages.six.moves import xrange
 
 import time
 import random
-import exceptions
 
 class FakeTransaction(object):
     def __enter__(self):
@@ -173,7 +172,7 @@ def make_read_request(command_name, path, params, process_response_action, retri
                         logger.warning("Sleep for %.2lf seconds before next retry", backoff)
                         time.sleep(backoff)
                         logger.warning("New retry (%d) ...", attempt + 2)
-            except exceptions.GeneratorExit:
+            except GeneratorExit:
                 pass
             finally:
                 tx.abort()
