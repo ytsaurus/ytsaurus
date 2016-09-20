@@ -17,10 +17,12 @@ struct TWorkloadDescriptor
     explicit TWorkloadDescriptor(
         EWorkloadCategory category = EWorkloadCategory::Idle,
         int band = 0,
-        TInstant instant = TInstant::Now())
+        TInstant instant = TInstant::Now(),
+        std::vector<Stroka> annotations)
         : Category(category)
         , Band(band)
         , Instant(instant)
+        , Annotations(std::move(annotations))
     { }
 
     //! The type of the workload defining its basic priority.
