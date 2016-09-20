@@ -114,7 +114,8 @@ def push_cluster_data_to_solomon(cluster, accounts_data, headers):
     data["commonLabels"] = {
         "project": "yt",
         "cluster": cluster,
-        "service": "misc"
+        "service": "misc",
+        "host": "none"
     }
     data["sensors"] = convert_data_to_solomon_format(accounts_data)
     push_data_with_retries(SOLOMON_PUSH_URL, json.dumps(data), headers)
