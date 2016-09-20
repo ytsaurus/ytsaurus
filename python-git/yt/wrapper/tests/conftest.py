@@ -53,7 +53,7 @@ class YtTestEnvironment(object):
             config = {}
 
         logging.getLogger("Yt.local").setLevel(logging.INFO)
-        logger.LOGGER.setLevel(logging.INFO)
+        logger.LOGGER.setLevel(logging.WARNING)
 
         dir = os.path.join(TESTS_SANDBOX, self.test_name, "run_" + uuid.uuid4().hex[:8])
 

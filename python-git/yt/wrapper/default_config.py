@@ -148,8 +148,8 @@ default_config = {
         "check_python_version": False,
         # Enables uploading local python to jobs and using it to run job.
         "use_local_python_in_jobs": None,
-        # Path to python binary that would be used in jobs.
-        "python_binary": "python",
+        # Command to run python in jobs, by default it is simple "python".
+        "python_binary": None,
         # Enable wrapping of stdin and stdout streams to avoid their unintentional usage.
         "safe_stream_mode": True,
         # Age (in seconds) to distinguish currently modified modules and old modules.

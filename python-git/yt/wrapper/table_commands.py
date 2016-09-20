@@ -250,10 +250,9 @@ def _prepare_binary(binary, operation_type, input_format, output_format,
         start_time = time.time()
         if isinstance(input_format, YamrFormat) and group_by is not None and set(group_by) != set(["key"]):
             raise YtError("Yamr format does not support reduce by %r", group_by)
-        binary, files, local_files_to_remove, tmpfs_size = \
+        binary, files, tmpfs_size, environment, local_files_to_remove = \
             py_wrapper.wrap(function=binary,
                             operation_type=operation_type,
-                            tempfiles_manager=None,
                             input_format=input_format,
                             output_format=output_format,
                             group_by=group_by,
@@ -261,9 +260,9 @@ def _prepare_binary(binary, operation_type, input_format, output_format,
                             client=client)
 
         logger.debug("Collecting python modules and uploading to cypress takes %.2lf seconds", time.time() - start_time)
-        return binary, files, local_files_to_remove, tmpfs_size
+        return binary, files, tmpfs_size, environment, local_files_to_remove
     else:
-        return binary, [], [], 0
+        return binary, [], 0, {}, []
 
 def _prepare_destination_tables(tables, replication_factor, compression_codec, client=None):
     if tables is None:
@@ -317,15 +316,11 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
     if _is_python_function(binary):
         # XXX(asaitgalin): Some flags are needed before operation (and config) is unpickled
         # so these flags are passed through environment variables.
-        allow_requests_to_yt_from_job = \
-                str(int(get_config(client)["allow_http_requests_to_yt_from_job"]))
-
-        environment["YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB"] = allow_requests_to_yt_from_job
         environment["YT_WRAPPER_IS_INSIDE_JOB"] = "1"
-        if getattr(sys, "is_standalone_binary", False):
+        if getattr(sys, "is_standalone_binary", False) or (py_wrapper.is_arcadia_python() and "yt" in sys.extra_modules):
             environment["Y_PYTHON_ENTRY_POINT"] = "__yt_entry_point__"
 
-    binary, additional_files, additional_local_files_to_remove, tmpfs_size = \
+    binary, additional_files, tmpfs_size, environment, additional_local_files_to_remove = \
         _prepare_binary(binary, op_type, input_format, output_format,
                         group_by, file_uploader, client=client)
 
@@ -346,7 +341,7 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
         },
         spec)
 
-    if get_config(client)["pickling"]["dynamic_libraries"]["enable_auto_collection"]:
+    if _is_python_function(binary) and get_config(client)["pickling"]["dynamic_libraries"]["enable_auto_collection"]:
         ld_library_path = spec[op_type].get("environment", {}).get("LD_LIBRARY_PATH")
         paths = ["./modules/_shared", "./tmpfs/modules/_shared"]
         if ld_library_path is not None:
