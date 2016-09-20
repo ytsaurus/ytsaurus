@@ -105,7 +105,7 @@ class LogBroker(object):
 
         headers = {"ClientHost": socket.getfqdn(), "Accept-Encoding": "identity"}
         params = self._get_session_params(session_index, session_count)
-        response = requests.get("http://{0}/advise".format(self._url), params=params, headers=headers)
+        response = requests.get("http://{0}/advise".format(self._url), params=params, headers=headers, timeout=30)
         raise_for_status(response)
 
         host = response.text.strip()
@@ -270,7 +270,7 @@ def make_read_tasks(yt_client, table_path, session_count, range_row_count, max_r
 
 def pipe_from_yt_to_logbroker(yt_client, logbroker, table_path, ranges, session_index, session_count, seqno):
     url, params = logbroker.get_session_options(session_index, session_count)
-    session_rsp = requests.get("http://{}/rt/session".format(url), params=params, stream=True)
+    session_rsp = requests.get("http://{}/rt/session".format(url), params=params, stream=True, timeout=600)
     raise_for_status(session_rsp)
 
     session_rsp_lines_iter = session_rsp.iter_lines()
@@ -308,7 +308,8 @@ def pipe_from_yt_to_logbroker(yt_client, logbroker, table_path, ranges, session_
                                  "Content-Encoding": "gzip"
                              },
                              data=gen_data(),
-                             stream=True)
+                             stream=True,
+                             timeout=300)
     raise_for_status(store_rsp)
     store_rsp.close()
 
