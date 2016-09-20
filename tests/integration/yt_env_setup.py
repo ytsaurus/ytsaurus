@@ -305,6 +305,8 @@ class YTEnvSetup(object):
                 yt_commands.set("//sys/nodes/%s/@resource_limits_overrides" % node_name, {})
 
     def _remove_operations(self):
+        for operation_id in yt_commands.ls("//sys/scheduler/orchid/scheduler/operations"):
+            yt_commands.abort_op(operation_id)
         for operation in yt_commands.ls("//sys/operations"):
             yt_commands.remove("//sys/operations/" + operation, recursive=True)
 
