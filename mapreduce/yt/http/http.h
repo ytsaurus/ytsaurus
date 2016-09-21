@@ -101,19 +101,55 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TConnection
+{
+    THolder<TSocket> Socket;
+    TAtomic Busy = 1;
+    TInstant DeadLine;
+    ui32 Id;
+};
+
+using TConnectionPtr = TAtomicSharedPtr<TConnection>;
+
+class TConnectionPool
+{
+public:
+    using TConnectionMap = yhash_multimap<Stroka, TConnectionPtr>;
+
+    static TConnectionPool* Get();
+
+    TConnectionPtr Connect(const Stroka& hostName, TDuration socketTimeout);
+    void Release(TConnectionPtr connection);
+    void Invalidate(const Stroka& hostName, TConnectionPtr connection);
+
+private:
+    void Refresh();
+    static SOCKET DoConnect(TAddressCache::TAddressPtr address);
+
+private:
+    TConnectionMap Connections_;
+    TRWMutex Lock_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //
 // Input stream that handles YT-specific header/trailer errors
 // and throws TErrorResponse if it finds any.
-class TYtHttpResponse
+class THttpResponse
     : public TInputStream
 {
 public:
-    // 'requestId' and 'proxyHostName' are provided for debug reasons
+    // 'requestId' and 'hostName' are provided for debug reasons
     // (they will appear in some error messages).
-    TYtHttpResponse(
+    THttpResponse(
         TInputStream* socketStream,
         const Stroka& requestId,
-        const Stroka& proxyHostName);
+        const Stroka& hostName);
+
+    const THttpHeaders& Headers() const;
+
+    void CheckErrorResponse() const;
 
 private:
     size_t DoRead(void* buf, size_t len) override;
@@ -125,8 +161,9 @@ private:
 private:
     THttpInput HttpInput_;
     const Stroka RequestId_;
-    const Stroka ProxyHostName_;
+    const Stroka HostName_;
     int HttpCode_ = 0;
+    TMaybe<TErrorResponse> ErrorResponse_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -135,31 +172,30 @@ class THttpRequest
 {
 public:
     explicit THttpRequest(const Stroka& hostName);
+    ~THttpRequest();
 
     Stroka GetRequestId() const;
 
     void Connect(TDuration socketTimeout = TDuration::Zero());
     THttpOutput* StartRequest(const THttpHeader& request);
     void FinishRequest();
-    TYtHttpResponse* GetResponseStream();
+    THttpResponse* GetResponseStream();
 
     Stroka GetResponse();
 
-private:
-    SOCKET DoConnect();
+    void InvalidateConnection();
 
 private:
     Stroka HostName;
     Stroka RequestId;
 
-    TAtomicSharedPtr<TNetworkAddress> NetworkAddress;
-    THolder<TSocket> Socket;
+    TConnectionPtr Connection;
 
     THolder<TSocketOutput> SocketOutput;
     THolder<THttpOutput> Output;
 
     THolder<TSocketInput> SocketInput;
-    THolder<TYtHttpResponse> Input;
+    THolder<THttpResponse> Input;
 
     bool LogResponse = false;
 };

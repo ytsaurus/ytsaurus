@@ -208,7 +208,6 @@ Stroka GetProxyForHeavyRequest(const TAuth& auth)
     } while (hostIdx >= hosts.size());
 
     return hosts[hostIdx];
-//    return hosts.front();
 }
 
 Stroka RetryRequest(
@@ -232,7 +231,6 @@ Stroka RetryRequest(
     bool needRetry = false;
 
     for (int attempt = 0; attempt < retryCount; ++attempt) {
-        Stroka requestId;
         Stroka response;
 
         Stroka hostName(auth.ServerName);
@@ -243,23 +241,23 @@ Stroka RetryRequest(
         bool hasError = false;
         TDuration retryInterval;
 
+        THttpRequest request(hostName);
+        auto requestId = request.GetRequestId();
+
+        if (needMutationId) {
+            header.AddMutationId();
+            needMutationId = false;
+            needRetry = false;
+        }
+
+        if (needRetry) {
+            header.AddParam("retry", "true");
+        } else {
+            header.RemoveParam("retry");
+            needRetry = true;
+        }
+
         try {
-            THttpRequest request(hostName);
-            requestId = request.GetRequestId();
-
-            if (needMutationId) {
-                header.AddMutationId();
-                needMutationId = false;
-                needRetry = false;
-            }
-
-            if (needRetry) {
-                header.AddParam("retry", "true");
-            } else {
-                header.RemoveParam("retry");
-                needRetry = true;
-            }
-
             request.Connect(socketTimeout);
             try {
                 TOutputStream* output = request.StartRequest(header);
@@ -272,7 +270,8 @@ Stroka RetryRequest(
 
         } catch (TErrorResponse& e) {
             LOG_ERROR("RSP %s - attempt %d failed",
-                ~requestId, attempt);
+                ~requestId,
+                attempt);
 
             if (!e.IsRetriable() || attempt + 1 == retryCount) {
                 throw;
@@ -286,8 +285,11 @@ Stroka RetryRequest(
 
         } catch (yexception& e) {
             LOG_ERROR("RSP %s - %s - attempt %d failed",
-                ~requestId, e.what(), attempt);
+                ~requestId,
+                e.what(),
+                attempt);
 
+            request.InvalidateConnection();
             if (attempt + 1 == retryCount) {
                 throw;
             }
@@ -319,19 +321,18 @@ void RetryHeavyWriteRequest(
     header.SetToken(auth.Token);
 
     for (int attempt = 0; attempt < retryCount; ++attempt) {
-        Stroka requestId;
         TPingableTransaction attemptTx(auth, parentId);
 
         auto input = streamMaker();
 
+        auto proxyName = GetProxyForHeavyRequest(auth);
+        THttpRequest request(proxyName);
+        auto requestId = request.GetRequestId();
+
+        header.AddTransactionId(attemptTx.GetId());
+        header.SetRequestCompression(TConfig::Get()->ContentEncoding);
+
         try {
-            Stroka proxyName = GetProxyForHeavyRequest(auth);
-            THttpRequest request(proxyName);
-            requestId = request.GetRequestId();
-
-            header.AddTransactionId(attemptTx.GetId());
-            header.SetRequestCompression(TConfig::Get()->ContentEncoding);
-
             request.Connect();
             try {
                 TOutputStream* output = request.StartRequest(header);
@@ -344,7 +345,8 @@ void RetryHeavyWriteRequest(
 
         } catch (TErrorResponse& e) {
             LOG_ERROR("RSP %s - attempt %d failed",
-                ~requestId, attempt);
+                ~requestId,
+                attempt);
 
             if (!e.IsRetriable() || attempt + 1 == retryCount) {
                 throw;
@@ -354,8 +356,11 @@ void RetryHeavyWriteRequest(
 
         } catch (yexception& e) {
             LOG_ERROR("RSP %s - %s - attempt %d failed",
-                ~requestId, e.what(), attempt);
+                ~requestId,
+                e.what(),
+                attempt);
 
+            request.InvalidateConnection();
             if (attempt + 1 == retryCount) {
                 throw;
             }

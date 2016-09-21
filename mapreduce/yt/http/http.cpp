@@ -243,159 +243,137 @@ TAddressCache::TAddressPtr TAddressCache::Resolve(const Stroka& hostName)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYtHttpResponse::TYtHttpResponse(
-    TInputStream* socketStream,
-    const Stroka& requestId,
-    const Stroka& proxyHostName)
-    : HttpInput_(socketStream)
-    , RequestId_(requestId)
-    , ProxyHostName_(proxyHostName)
+TConnectionPool* TConnectionPool::Get()
 {
-    HttpCode_ = ParseHttpRetCode(HttpInput_.FirstLine());
-    if (HttpCode_ == 200 || HttpCode_ == 202) {
-        return;
-    }
-
-    TErrorResponse errorResponse(HttpCode_, RequestId_);
-
-    auto logAndSetError = [&] (const Stroka& rawError) {
-        LOG_ERROR("RSP %s - HTTP %d - %s",
-            ~RequestId_,
-            HttpCode_,
-            ~rawError);
-        errorResponse.SetRawError(rawError);
-    };
-
-    switch (HttpCode_) {
-        case 401:
-            logAndSetError("authentication error");
-            break;
-
-        case 429:
-            logAndSetError("request rate limit exceeded");
-            break;
-
-        case 500:
-            logAndSetError(TStringBuilder() << "internal error in proxy " << ProxyHostName_);
-            break;
-
-        case 503:
-            logAndSetError(TStringBuilder() << "proxy " << ProxyHostName_ << " is unavailable");
-            break;
-
-        default: {
-            TStringStream httpHeaders;
-            httpHeaders << "HTTP headers (";
-            for (const auto& header : HttpInput_.Headers()) {
-                httpHeaders << header.Name() << ": " << header.Value() << "; ";
-            }
-            httpHeaders << ")";
-            LOG_ERROR("RSP %s - HTTP %d - %s",
-                ~RequestId_,
-                HttpCode_,
-                ~httpHeaders.Str());
-
-            if (auto parsedResponse = ParseError(HttpInput_.Headers())) {
-                errorResponse = parsedResponse.GetRef();
-            } else {
-                errorResponse.SetRawError("X-YT-Error is missing in headers");
-            }
-            break;
-        }
-    }
-
-    ythrow errorResponse;
+    return Singleton<TConnectionPool>();
 }
 
-TMaybe<TErrorResponse> TYtHttpResponse::ParseError(const THttpHeaders& headers)
+TConnectionPtr TConnectionPool::Connect(
+    const Stroka& hostName,
+    TDuration socketTimeout)
 {
-    for (const auto& header : headers) {
-        if (header.Name() == "X-YT-Error") {
-            TErrorResponse errorResponse(HttpCode_, RequestId_);
-            errorResponse.ParseFromJsonError(header.Value());
-            if (errorResponse.IsOk()) {
-                return Nothing();
-            }
-            return errorResponse;
-        }
-    }
-    return Nothing();
-}
-
-size_t TYtHttpResponse::DoRead(void* buf, size_t len)
-{
-    size_t read = HttpInput_.Read(buf, len);
-    if (read == 0 && len != 0) {
-        // THttpInput MUST return defined (but may be empty)
-        // trailers when it is exhausted.
-        Y_VERIFY(HttpInput_.Trailers().Defined(),
-            "trailers MUST be defined for exhausted stream");
-        CheckTrailers(HttpInput_.Trailers().GetRef());
-    }
-    return read;
-}
-
-size_t TYtHttpResponse::DoSkip(size_t len)
-{
-    size_t skipped = HttpInput_.Skip(len);
-    if (skipped == 0 && len != 0) {
-        // THttpInput MUST return defined (but may be empty)
-        // trailers when it is exhausted.
-        Y_VERIFY(HttpInput_.Trailers().Defined(),
-            "trailers MUST be defined for exhausted stream");
-        CheckTrailers(HttpInput_.Trailers().GetRef());
-    }
-    return skipped;
-}
-
-void TYtHttpResponse::CheckTrailers(const THttpHeaders& trailers)
-{
-    if (auto errorResponse = ParseError(trailers)) {
-        LOG_ERROR("%s", errorResponse.GetRef().what());
-        ythrow errorResponse.GetRef();
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-THttpRequest::THttpRequest(const Stroka& hostName)
-    : HostName(hostName)
-{
-    RequestId = CreateGuidAsString();
-}
-
-Stroka THttpRequest::GetRequestId() const
-{
-    return RequestId;
-}
-
-void THttpRequest::Connect(TDuration socketTimeout)
-{
-    LOG_DEBUG("REQ %s - connect to %s",
-        ~RequestId,
-        ~HostName);
-
-    NetworkAddress = TAddressCache::Get()->Resolve(HostName);
-
-    TSocketHolder socket(DoConnect());
-    SetNonBlock(socket, false);
+    Refresh();
 
     if (socketTimeout == TDuration::Zero()) {
         socketTimeout = TConfig::Get()->SocketTimeout;
     }
-    SetSocketTimeout(socket, socketTimeout.Seconds());
 
-    Socket.Reset(new TSocket(socket.Release()));
+    {
+        TReadGuard guard(Lock_);
+        auto now = TInstant::Now();
+        auto range = Connections_.equal_range(hostName);
+        for (auto it = range.first; it != range.second; ++it) {
+            auto& connection = it->second;
+            if (connection->DeadLine < now) {
+                continue;
+            }
+            if (!AtomicCas(&connection->Busy, 1, 0)) {
+                continue;
+            }
 
-    LOG_DEBUG("REQ %s - connected",
-        ~RequestId);
+            connection->DeadLine = now + socketTimeout;
+            connection->Socket->SetSocketTimeout(socketTimeout.Seconds());
+            return connection;
+        }
+    }
+
+    TConnectionPtr connection(new TConnection);
+    {
+        TWriteGuard guard(Lock_);
+        Connections_.insert({hostName, connection});
+        static ui32 connectionId = 0;
+        connection->Id = ++connectionId;
+    }
+
+    auto networkAddress = TAddressCache::Get()->Resolve(hostName);
+    TSocketHolder socket(DoConnect(networkAddress));
+    SetNonBlock(socket, false);
+
+    connection->Socket.Reset(new TSocket(socket.Release()));
+
+    connection->DeadLine = TInstant::Now() + socketTimeout;
+    connection->Socket->SetSocketTimeout(socketTimeout.Seconds());
+
+    LOG_DEBUG("Connection #%u opened",
+        connection->Id);
+
+    return connection;
 }
 
-SOCKET THttpRequest::DoConnect()
+void TConnectionPool::Release(TConnectionPtr connection)
+{
+    auto socketTimeout = TConfig::Get()->SocketTimeout;
+    connection->DeadLine = TInstant::Now() + socketTimeout;
+    connection->Socket->SetSocketTimeout(socketTimeout.Seconds());
+    AtomicSet(connection->Busy, 0);
+
+    Refresh();
+}
+
+void TConnectionPool::Invalidate(
+    const Stroka& hostName,
+    TConnectionPtr connection)
+{
+    TWriteGuard guard(Lock_);
+    auto range = Connections_.equal_range(hostName);
+    for (auto it = range.first; it != range.second; ++it) {
+        if (it->second == connection) {
+            LOG_DEBUG("Connection #%u invalidated",
+                connection->Id);
+            Connections_.erase(it);
+            return;
+        }
+    }
+}
+
+void TConnectionPool::Refresh()
+{
+    TWriteGuard guard(Lock_);
+
+    auto removeCount = static_cast<int>(Connections_.size()) -
+        TConfig::Get()->ConnectionPoolSize;
+
+    // simple, since we don't expect too many connections
+    std::vector<TConnectionMap::iterator> sortedConnections;
+    for (auto it = Connections_.begin(); it != Connections_.end(); ++it) {
+        sortedConnections.push_back(it);
+    }
+
+    std::sort(
+        sortedConnections.begin(),
+        sortedConnections.end(),
+        [] (TConnectionMap::iterator a, TConnectionMap::iterator b) -> bool {
+            return a->second->DeadLine < b->second->DeadLine;
+        });
+
+    auto now = TInstant::Now();
+    for (auto mapIterator : sortedConnections) {
+        auto connection = mapIterator->second;
+        if (AtomicGet(connection->Busy)) {
+            continue;
+        }
+
+        if (removeCount > 0) {
+            Connections_.erase(mapIterator);
+            LOG_DEBUG("Connection #%u closed",
+                connection->Id);
+            --removeCount;
+            continue;
+        }
+
+        if (connection->DeadLine < now) {
+            Connections_.erase(mapIterator);
+            LOG_DEBUG("Connection #%u closed (timeout)",
+                connection->Id);
+        }
+    }
+}
+
+SOCKET TConnectionPool::DoConnect(TAddressCache::TAddressPtr address)
 {
     int lastError = 0;
 
-    for (auto i = NetworkAddress->Begin(); i != NetworkAddress->End(); ++i) {
+    for (auto i = address->Begin(); i != address->End(); ++i) {
         struct addrinfo* info = &*i;
 
         if (TConfig::Get()->ForceIpV4 && info->ai_family != AF_INET) {
@@ -439,7 +417,182 @@ SOCKET THttpRequest::DoConnect()
         continue;
     }
 
-    ythrow TSystemError(lastError) << "can not connect to " << *NetworkAddress;
+    ythrow TSystemError(lastError) << "can not connect to " << *address;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+THttpResponse::THttpResponse(
+    TInputStream* socketStream,
+    const Stroka& requestId,
+    const Stroka& hostName)
+    : HttpInput_(socketStream)
+    , RequestId_(requestId)
+    , HostName_(hostName)
+{
+    HttpCode_ = ParseHttpRetCode(HttpInput_.FirstLine());
+    if (HttpCode_ == 200 || HttpCode_ == 202) {
+        return;
+    }
+
+    ErrorResponse_ = TErrorResponse(HttpCode_, RequestId_);
+
+    auto logAndSetError = [&] (const Stroka& rawError) {
+        LOG_ERROR("RSP %s - HTTP %d - %s",
+            ~RequestId_,
+            HttpCode_,
+            ~rawError);
+        ErrorResponse_->SetRawError(rawError);
+    };
+
+    switch (HttpCode_) {
+        case 401:
+            logAndSetError("authentication error");
+            break;
+
+        case 429:
+            logAndSetError("request rate limit exceeded");
+            break;
+
+        case 500:
+            logAndSetError(TStringBuilder() << "internal error in proxy " << HostName_);
+            break;
+
+        case 503:
+            logAndSetError(TStringBuilder() << "proxy " << HostName_ << " is unavailable");
+            break;
+
+        default: {
+            TStringStream httpHeaders;
+            httpHeaders << "HTTP headers (";
+            for (const auto& header : HttpInput_.Headers()) {
+                httpHeaders << header.Name() << ": " << header.Value() << "; ";
+            }
+            httpHeaders << ")";
+
+            LOG_ERROR("RSP %s - HTTP %d - %s",
+                ~RequestId_,
+                HttpCode_,
+                ~httpHeaders.Str());
+
+            if (auto parsedResponse = ParseError(HttpInput_.Headers())) {
+                ErrorResponse_ = parsedResponse.GetRef();
+            } else {
+                ErrorResponse_->SetRawError("X-YT-Error is missing in headers");
+            }
+            break;
+        }
+    }
+}
+
+const THttpHeaders& THttpResponse::Headers() const
+{
+    return HttpInput_.Headers();
+}
+
+void THttpResponse::CheckErrorResponse() const
+{
+    if (ErrorResponse_) {
+        throw *ErrorResponse_;
+    }
+}
+
+TMaybe<TErrorResponse> THttpResponse::ParseError(const THttpHeaders& headers)
+{
+    for (const auto& header : headers) {
+        if (header.Name() == "X-YT-Error") {
+            TErrorResponse errorResponse(HttpCode_, RequestId_);
+            errorResponse.ParseFromJsonError(header.Value());
+            if (errorResponse.IsOk()) {
+                return Nothing();
+            }
+            return errorResponse;
+        }
+    }
+    return Nothing();
+}
+
+size_t THttpResponse::DoRead(void* buf, size_t len)
+{
+    size_t read = HttpInput_.Read(buf, len);
+    if (read == 0 && len != 0) {
+        // THttpInput MUST return defined (but may be empty)
+        // trailers when it is exhausted.
+        Y_VERIFY(HttpInput_.Trailers().Defined(),
+            "trailers MUST be defined for exhausted stream");
+        CheckTrailers(HttpInput_.Trailers().GetRef());
+    }
+    return read;
+}
+
+size_t THttpResponse::DoSkip(size_t len)
+{
+    size_t skipped = HttpInput_.Skip(len);
+    if (skipped == 0 && len != 0) {
+        // THttpInput MUST return defined (but may be empty)
+        // trailers when it is exhausted.
+        Y_VERIFY(HttpInput_.Trailers().Defined(),
+            "trailers MUST be defined for exhausted stream");
+        CheckTrailers(HttpInput_.Trailers().GetRef());
+    }
+    return skipped;
+}
+
+void THttpResponse::CheckTrailers(const THttpHeaders& trailers)
+{
+    if (auto errorResponse = ParseError(trailers)) {
+        LOG_ERROR("RSP %s - %s",
+            ~RequestId_,
+            errorResponse.GetRef().what());
+        ythrow errorResponse.GetRef();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+THttpRequest::THttpRequest(const Stroka& hostName)
+    : HostName(hostName)
+{
+    RequestId = CreateGuidAsString();
+}
+
+THttpRequest::~THttpRequest()
+{
+    if (!Connection) {
+        return;
+    }
+
+    bool keepAlive = false;
+    for (const auto& header : Input->Headers()) {
+        if (header.Name() == "Connection" && header.Value() == "keep-alive") {
+            keepAlive = true;
+            break;
+        }
+    }
+
+    if (keepAlive) {
+        TConnectionPool::Get()->Release(Connection);
+    } else {
+        TConnectionPool::Get()->Invalidate(HostName, Connection);
+    }
+}
+
+Stroka THttpRequest::GetRequestId() const
+{
+    return RequestId;
+}
+
+void THttpRequest::Connect(TDuration socketTimeout)
+{
+    LOG_DEBUG("REQ %s - connect to %s",
+        ~RequestId,
+        ~HostName);
+
+    Connection = TConnectionPool::Get()->Connect(HostName, socketTimeout);
+
+    LOG_DEBUG("REQ %s - connection #%u",
+        ~RequestId,
+        Connection->Id);
 }
 
 THttpOutput* THttpRequest::StartRequest(const THttpHeader& header)
@@ -461,9 +614,9 @@ THttpOutput* THttpRequest::StartRequest(const THttpHeader& header)
         LogResponse = true;
     }
 
-    SocketOutput.Reset(new TSocketOutput(*Socket.Get()));
+    SocketOutput.Reset(new TSocketOutput(*Connection->Socket.Get()));
     Output.Reset(new THttpOutput(SocketOutput.Get()));
-    Output->EnableKeepAlive(false);
+    Output->EnableKeepAlive(true);
 
     Output->Write(~strHeader, +strHeader);
     return Output.Get();
@@ -475,10 +628,11 @@ void THttpRequest::FinishRequest()
     Output->Finish();
 }
 
-TYtHttpResponse* THttpRequest::GetResponseStream()
+THttpResponse* THttpRequest::GetResponseStream()
 {
-    SocketInput.Reset(new TSocketInput(*Socket.Get()));
-    Input.Reset(new TYtHttpResponse(SocketInput.Get(), RequestId, HostName));
+    SocketInput.Reset(new TSocketInput(*Connection->Socket.Get()));
+    Input.Reset(new THttpResponse(SocketInput.Get(), RequestId, HostName));
+    Input->CheckErrorResponse();
     return Input.Get();
 }
 
@@ -503,6 +657,12 @@ Stroka THttpRequest::GetResponse()
             result.size());
     }
     return result;
+}
+
+void THttpRequest::InvalidateConnection()
+{
+    TConnectionPool::Get()->Invalidate(HostName, Connection);
+    Connection.Reset();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
