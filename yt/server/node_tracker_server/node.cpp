@@ -129,6 +129,8 @@ void TNode::InitializeStates(TCellTag cellTag, const TCellTagList& secondaryCell
     }
 
     LocalStatePtr_ = &MulticellStates_[cellTag];
+
+    RecomputeAggregatedState();
 }
 
 ENodeState TNode::GetLocalState() const
