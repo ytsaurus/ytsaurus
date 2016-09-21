@@ -16,7 +16,7 @@ try:
 except ImportError:
     from yt.packages.importlib import import_module
 
-from yt.packages.six import itervalues, iteritems
+from yt.packages.six import itervalues, iteritems, iterbytes, text_type, binary_type
 from yt.packages.six.moves import map as imap
 
 import re
@@ -57,13 +57,15 @@ def calc_md5_from_file(filename):
         h = hashlib.md5()
         for buf in chunk_iter_stream(fin, 1024):
             h.update(buf)
-    return tuple(imap(ord, h.digest()))
+    return tuple(iterbytes(h.digest()))
 
 def calc_md5_from_string(string):
+    if isinstance(string, text_type):
+        string = string.encode("ascii")
     h = hashlib.md5()
     for buf in chunk_iter_string(string, 1024):
         h.update(buf)
-    return tuple(imap(ord, h.digest()))
+    return tuple(iterbytes(h.digest()))
 
 def merge_md5(lhs, rhs):
     return lhs + [rhs]
@@ -71,7 +73,7 @@ def merge_md5(lhs, rhs):
 def hex_md5(md5_array):
     def to_hex(md5):
         # String "zip_salt_" is neccessary to distinguish empty archive from empty file.
-        return "zip_salt_" + "".join(["{0:02x}".format(num) for num in md5])
+        return "zip_salt_" + "".join([hex(num) for num in md5])
 
     md5_array.sort()
     return to_hex(calc_md5_from_string("".join(imap(to_hex, md5_array))))
@@ -390,7 +392,7 @@ def build_function_and_config_arguments(function, operation_type, input_format, 
 
 def build_modules_arguments(modules_info, create_temp_file, file_argument_builder, client):
     # COMPAT: previous version of create_modules_archive returns string.
-    if isinstance(modules_info, basestring):
+    if isinstance(modules_info, (text_type, binary_type)):
         modules_info = [{"filename": modules_info, "hash": calc_md5_string_from_file(modules_info), "tmpfs": False}]
 
     tmpfs_size = sum([info["size"] for info in modules_info if info["tmpfs"]])
