@@ -1,13 +1,16 @@
 #include "user_job_io_detail.h"
 #include "config.h"
-#include "helpers.h"
 #include "job.h"
+
+#include <yt/server/misc/stderr_table_schema.h>
 
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/chunk_client/schema.h>
 #include <yt/ytlib/chunk_client/schema.pb.h>
 
+#include <yt/ytlib/table_client/blob_table_writer.h>
+#include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
@@ -42,6 +45,9 @@ TUserJobIOBase::TUserJobIOBase(IJobHostPtr host)
     , Logger(host->GetLogger())
 { }
 
+TUserJobIOBase::~TUserJobIOBase()
+{ }
+
 void TUserJobIOBase::Init()
 {
     LOG_INFO("Opening writers");
@@ -69,6 +75,28 @@ void TUserJobIOBase::Init()
         auto error = WaitFor(writer->Open());
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
         Writers_.push_back(writer);
+    }
+
+    if (SchedulerJobSpec_.user_job_spec().has_stderr_table_spec()) {
+        const auto& stderrTableSpec = SchedulerJobSpec_.user_job_spec().stderr_table_spec();
+        const auto& outputTableSpec = stderrTableSpec.output_table_spec();
+        auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(stderrTableSpec.output_table_spec().table_writer_options()));
+        options->ValidateDuplicateIds = true;
+        options->ValidateRowWeight = true;
+        options->ValidateColumnCount = true;
+
+        auto stderrTableWriterConfig = ConvertTo<TBlobTableWriterConfigPtr>(
+            TYsonString(stderrTableSpec.stderr_table_writer_config()));
+
+        StderrTableWriter_.reset(
+            new NTableClient::TBlobTableWriter(
+                GetStderrBlobTableSchema(),
+                {ToString(Host_->GetJobId())},
+                Host_->GetClient(),
+                stderrTableWriterConfig,
+                options,
+                transactionId,
+                FromProto<TChunkListId>(outputTableSpec.chunk_list_id())));
     }
 }
 
@@ -123,10 +151,26 @@ ISchemalessMultiChunkReaderPtr TUserJobIOBase::GetReader() const
     }
 }
 
+TOutputStream* TUserJobIOBase::GetStderrTableWriter() const
+{
+    if (Initialized_) {
+        return StderrTableWriter_.get();
+    } else {
+        return nullptr;
+    }
+}
+
 void TUserJobIOBase::PopulateResult(TSchedulerJobResultExt* schedulerJobResultExt)
 {
     for (const auto& writer : Writers_) {
         *schedulerJobResultExt->add_output_boundary_keys() = GetWrittenChunksBoundaryKeys(writer);
+    }
+}
+
+void TUserJobIOBase::PopulateStderrResult(NScheduler::NProto::TSchedulerJobResultExt* schedulerJobResultExt)
+{
+    if (StderrTableWriter_) {
+        *schedulerJobResultExt->mutable_stderr_table_boundary_keys() = StderrTableWriter_->GetOutputResult();
     }
 }
 

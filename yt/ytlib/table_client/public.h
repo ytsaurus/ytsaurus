@@ -245,6 +245,8 @@ DECLARE_REFCOUNTED_CLASS(TChunkReaderOptions)
 DECLARE_REFCOUNTED_CLASS(TTableWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TTableReaderConfig)
 
+DECLARE_REFCOUNTED_CLASS(TBlobTableWriterConfig)
+
 DECLARE_REFCOUNTED_CLASS(TBufferedTableWriterConfig)
 
 DECLARE_REFCOUNTED_CLASS(TRetentionConfig)
@@ -267,6 +269,9 @@ struct TBoundaryKeys;
 class TSaveContext;
 class TLoadContext;
 using TPersistenceContext = TCustomPersistenceContext<TSaveContext, TLoadContext>;
+
+struct TBlobTableSchema;
+class TBlobTableWriter;
 
 ////////////////////////////////////////////////////////////////////////////////
 

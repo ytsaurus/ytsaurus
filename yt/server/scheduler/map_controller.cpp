@@ -447,6 +447,16 @@ private:
         return Spec->OutputTablePaths;
     }
 
+    virtual TNullable<TRichYPath> GetStderrTablePath() const override
+    {
+        return Spec->StderrTablePath;
+    }
+
+    virtual TBlobTableWriterConfigPtr GetStderrTableWriterConfig() const override
+    {
+        return Spec->StderrTableWriterConfig;
+    }
+
     virtual std::vector<TPathWithStage> GetFilePaths() const override
     {
         std::vector<TPathWithStage> result;

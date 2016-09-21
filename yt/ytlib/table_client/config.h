@@ -39,7 +39,7 @@ public:
 
         RegisterParameter("max_row_weight", MaxRowWeight)
             .GreaterThanOrEqual((i64) 5 * 1024 * 1024)
-            .LessThanOrEqual((i64) 128 * 1024 * 1024)
+            .LessThanOrEqual(MaxRowWeightLimit)
             .Default((i64) 16 * 1024 * 1024);
 
         RegisterParameter("max_key_filter_size", MaxKeyFilterSize)
@@ -85,7 +85,7 @@ public:
         RegisterParameter("validate_duplicate_ids", ValidateDuplicateIds)
             .Default(false);
         RegisterParameter("validate_column_count", ValidateColumnCount)
-        	.Default(false);
+            .Default(false);
         RegisterParameter("validate_unique_keys", ValidateUniqueKeys)
             .Default(false);
         RegisterParameter("explode_on_validation_error", ExplodeOnValidationError)
@@ -121,6 +121,25 @@ class TTableWriterConfig
 { };
 
 DEFINE_REFCOUNTED_TYPE(TTableWriterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TBlobTableWriterConfig
+    : public NTableClient::TTableWriterConfig
+{
+public:
+    i64 MaxPartSize;
+
+    TBlobTableWriterConfig()
+    {
+        RegisterParameter("max_part_size", MaxPartSize)
+            .Default(4 * 1024 * 1024)
+            .GreaterThanOrEqual(1 * 1024 * 1024)
+            .LessThanOrEqual(MaxRowWeightLimit);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TBlobTableWriterConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
