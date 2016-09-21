@@ -231,7 +231,7 @@ def create_modules_archive_default(tempfiles_manager, client):
     for module_name in OPERATION_REQUIRED_MODULES:
         import_module(module_name)
 
-    logging_level = logging._levelNames[get_config(client)["pickling"]["find_module_file_error_logging_level"]]
+    logging_level = logging.getLevelName(get_config(client)["pickling"]["find_module_file_error_logging_level"])
 
     files_to_compress = {}
     module_filter = get_config(client)["pickling"]["module_filter"]
