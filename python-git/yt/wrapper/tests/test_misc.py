@@ -30,9 +30,10 @@ import shutil
 import collections
 
 def test_docs_exist():
-    functions = inspect.getmembers(yt, lambda o: inspect.isfunction(o) and \
-                                                 not o.__name__.startswith('_'))
-    functions_without_doc = list(ifilter(lambda name, func: not inspect.getdoc(func), functions))
+    functions = inspect.getmembers(
+        yt, lambda o: inspect.isfunction(o) and not o.__name__.startswith('_'))
+
+    functions_without_doc = list(ifilter(lambda pair: not inspect.getdoc(pair[1]), functions))
     assert not functions_without_doc
 
     classes = inspect.getmembers(yt, lambda o: inspect.isclass(o))
