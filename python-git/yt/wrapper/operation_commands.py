@@ -176,7 +176,7 @@ class PrintOperationInfo(object):
         self.formatter = OperationProgressFormatter(start_time=local_creation_time)
 
         self.client = client
-        self.level = logging._levelNames[get_config(self.client)["operation_tracker"]["progress_logging_level"]]
+        self.level = logging.getLevelName(get_config(self.client)["operation_tracker"]["progress_logging_level"])
 
     def __call__(self, state):
         if state.is_running():
@@ -464,7 +464,7 @@ class Operation(object):
             if statistics:
                 logger.info("Job statistics:\n" + yson.dumps(self.get_job_statistics(), yson_format="pretty"))
 
-        stderr_level = logging._levelNames[get_config(self.client)["operation_tracker"]["stderr_logging_level"]]
+        stderr_level = logging.getLevelName(get_config(self.client)["operation_tracker"]["stderr_logging_level"])
         if logger.LOGGER.isEnabledFor(stderr_level):
             stderrs = get_stderrs(self.id, only_failed_jobs=False, client=self.client)
             if stderrs:
