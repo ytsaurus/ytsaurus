@@ -1829,6 +1829,23 @@ print row + table_index
         actual = get("{0}/{1}/@input_paths".format(jobs_path, job_ids[0]))
         assert expected == actual
 
+    def test_map_max_data_size_per_job(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        op = map(
+            dont_track=True,
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            command='cat',
+            spec={
+                "max_data_size_per_job": 1
+            })
+
+        with pytest.raises(YtError):
+            op.track()
+
 class TestSchedulerControllerThrottling(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
