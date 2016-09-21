@@ -83,7 +83,7 @@ struct ISchedulerElement
 
     virtual void UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList) = 0;
 
-    virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly) = 0;
+    virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly, bool aggressiveStarvationEnabled) = 0;
     virtual bool ScheduleJob(TFairShareContext& context) = 0;
 
     virtual const TSchedulableAttributes& Attributes() const = 0;
@@ -227,7 +227,7 @@ public:
 
     virtual void UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList) override;
 
-    virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly) override;
+    virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly, bool aggressiveStarvationEnabled) override;
 
     virtual const TSchedulableAttributes& Attributes() const override;
     virtual TSchedulableAttributes& Attributes() override;
@@ -332,7 +332,7 @@ public:
 
     virtual void UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList) override;
 
-    virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly) override;
+    virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly, bool aggressiveStarvationEnabled) override;
     virtual bool ScheduleJob(TFairShareContext& context) override;
 
     virtual void IncreaseResourceUsage(const TJobResources& delta) override;
@@ -688,7 +688,7 @@ public:
 
     virtual void UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList) override;
 
-    virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly) override;
+    virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly, bool aggressiveStarvationEnabled) override;
     virtual bool ScheduleJob(TFairShareContext& context) override;
 
     virtual Stroka GetId() const override;

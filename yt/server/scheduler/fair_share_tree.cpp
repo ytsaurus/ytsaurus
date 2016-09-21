@@ -155,7 +155,7 @@ void TSchedulerElementBase::UpdateDynamicAttributes(TDynamicAttributesList& dyna
     dynamicAttributesList[this->GetTreeIndex()].Active = IsAlive();
 }
 
-void TSchedulerElementBase::PrescheduleJob(TFairShareContext& context, bool starvingOnly)
+void TSchedulerElementBase::PrescheduleJob(TFairShareContext& context, bool /*starvingOnly*/, bool /*aggressiveStarvationEnabled*/)
 {
     UpdateDynamicAttributes(context.DynamicAttributesList);
 }
@@ -612,7 +612,7 @@ void TCompositeSchedulerElement::BuildOperationToElementMapping(TOperationElemen
     }
 }
 
-void TCompositeSchedulerElement::PrescheduleJob(TFairShareContext& context, bool starvingOnly)
+void TCompositeSchedulerElement::PrescheduleJob(TFairShareContext& context, bool starvingOnly, bool aggressiveStarvationEnabled)
 {
     auto& attributes = context.DynamicAttributes(this);
 
@@ -628,17 +628,18 @@ void TCompositeSchedulerElement::PrescheduleJob(TFairShareContext& context, bool
         return;
     }
 
-    if (Starving_ && IsAggressiveStarvationEnabled()) {
+    aggressiveStarvationEnabled = aggressiveStarvationEnabled || IsAggressiveStarvationEnabled();
+    if (Starving_ && aggressiveStarvationEnabled) {
         context.HasAggressivelyStarvingNodes = true;
     }
 
     // If pool is starving, any child will do.
     bool starvingOnlyChildren = Starving_ ? false : starvingOnly;
     for (const auto& child : EnabledChildren_) {
-        child->PrescheduleJob(context, starvingOnlyChildren);
+        child->PrescheduleJob(context, starvingOnlyChildren, aggressiveStarvationEnabled);
     }
 
-    TSchedulerElementBase::PrescheduleJob(context, starvingOnly);
+    TSchedulerElementBase::PrescheduleJob(context, starvingOnly, aggressiveStarvationEnabled);
 }
 
 bool TCompositeSchedulerElement::ScheduleJob(TFairShareContext& context)
@@ -1577,7 +1578,7 @@ void TOperationElement::UpdateDynamicAttributes(TDynamicAttributesList& dynamicA
     TSchedulerElementBase::UpdateDynamicAttributes(dynamicAttributesList);
 }
 
-void TOperationElement::PrescheduleJob(TFairShareContext& context, bool starvingOnly)
+void TOperationElement::PrescheduleJob(TFairShareContext& context, bool starvingOnly, bool aggressiveStarvationEnabled)
 {
     auto& attributes = context.DynamicAttributes(this);
 
@@ -1603,7 +1604,7 @@ void TOperationElement::PrescheduleJob(TFairShareContext& context, bool starving
         return;
     }
 
-    TSchedulerElementBase::PrescheduleJob(context, starvingOnly);
+    TSchedulerElementBase::PrescheduleJob(context, starvingOnly, aggressiveStarvationEnabled);
 }
 
 bool TOperationElement::ScheduleJob(TFairShareContext& context)
