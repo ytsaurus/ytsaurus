@@ -436,11 +436,14 @@ void TOperationControllerBase::TTask::ScheduleJob(
                 ApproximateSizesBoostFactor));
         }
 
-        if (schedulerJobSpecExt->input_uncompressed_data_size() > Controller->Spec->MaxDataSizePerJob) {
-            Controller->OnOperationFailed(TError(
-                "Maximum allowed data size per job violated: %v > %v",
-                schedulerJobSpecExt->input_uncompressed_data_size(),
-                Controller->Spec->MaxDataSizePerJob));
+        if (schedulerJobSpecExt->input_uncompressed_data_size() > controller->Spec->MaxDataSizePerJob) {
+            controller->GetCancelableInvoker()->Invoke(BIND(
+                &TOperationControllerBase::OnOperationFailed,
+                controller,
+                TError(
+                    "Maximum allowed data size per job violated: %v > %v",
+                    schedulerJobSpecExt->input_uncompressed_data_size(),
+                    controller->Spec->MaxDataSizePerJob)));
         }
     });
 
