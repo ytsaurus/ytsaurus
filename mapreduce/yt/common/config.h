@@ -48,6 +48,8 @@ struct TConfig
 
     bool UseClientProtobuf;
 
+    int ConnectionPoolSize;
+
     // common wrapper
 
     TDuration TxClientTimeout;

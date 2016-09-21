@@ -50,6 +50,7 @@ TFileReader::TFileReader(
 
     } catch (yexception& e) {
         LOG_ERROR("RSP %s - %s - failed", ~requestId, e.what());
+        Request_->InvalidateConnection();
         throw;
     }
 }

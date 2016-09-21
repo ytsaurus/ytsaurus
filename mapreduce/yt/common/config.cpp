@@ -202,6 +202,8 @@ TConfig::TConfig()
 
     UseClientProtobuf = GetBool("YT_USE_CLIENT_PROTOBUF", true);
 
+    ConnectionPoolSize = GetInt("YT_CONNECTION_POOL_SIZE", 16);
+
     OrderGuarantees = GetBool("YT_STRICTLY_TESTABLE") // common
         ? OG_STRICTLY_TESTABLE
         : GetBool("YT_TESTABLE") ? OG_TESTABLE : OG_STANDARD;
