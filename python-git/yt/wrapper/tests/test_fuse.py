@@ -138,7 +138,7 @@ class TestCypress(object):
 
         fi = fuse_file_info()
         fuse_filepath = filepath[1:]
-        fh = cypress.create(fuse_filepath, 0755, fi)
+        cypress.create(fuse_filepath, 0o755, fi)
         cypress.release(fuse_filepath, fi)
 
         assert yt.read_file(filepath).read() == ""
@@ -189,7 +189,7 @@ class TestCypress(object):
         fi = fuse_file_info()
         fuse_filepath = filepath[1:]
 
-        fh = cypress.create(fuse_filepath, 0755, fi)
+        cypress.create(fuse_filepath, 0o755, fi)
         cypress.write(fuse_filepath, content, 0, fi)
         cypress.flush(fuse_filepath, fi)
         cypress.release(fuse_filepath, fi)
@@ -216,7 +216,7 @@ class TestCypress(object):
         fi = fuse_file_info()
         fuse_filepath = filepath[1:]
 
-        fh = cypress.create(fuse_filepath, 0755, fi)
+        ypress.create(fuse_filepath, 0o755, fi)
 
         for offset, length in parts:
             cypress.write(fuse_filepath, content[offset:offset + length], offset, fi)
@@ -234,13 +234,13 @@ class TestCypress(object):
         dirpath = TEST_DIR + "/dir"
         fuse_dirpath = dirpath[1:]
 
-        cypress.mkdir(fuse_dirpath, 0755)
+        cypress.mkdir(fuse_dirpath, 0o755)
         assert "dir" in yt.list(TEST_DIR)
 
         cypress.rmdir(fuse_dirpath)
         assert "dir" not in yt.list(TEST_DIR)
 
-        cypress.mkdir(fuse_dirpath, 0755)
+        cypress.mkdir(fuse_dirpath, 0o755)
         assert "dir" in yt.list(TEST_DIR)
 
     def test_remove_directory(self):
@@ -279,11 +279,11 @@ class TestCypress(object):
 
         fi = fuse_file_info()
         with pytest.raises(FuseOSError):
-            fh = cypress.create(fuse_filepath, 0755, fi)
+            cypress.create(fuse_filepath, 0o755, fi)
         assert "file" not in yt.list(TEST_DIR)
 
         with pytest.raises(FuseOSError):
-            cypress.mkdir(fuse_dirpath, 0755)
+            cypress.mkdir(fuse_dirpath, 0o755)
         assert "dir" not in yt.list(TEST_DIR)
 
         yt.create("file", filepath)

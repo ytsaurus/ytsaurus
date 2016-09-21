@@ -512,11 +512,11 @@ class Cypress(fuse.Operations):
         """Get st_mode for a node based on its attributes."""
         node_type = attributes["type"]
         if node_type == "file":
-            mask = stat.S_IFREG | 0666
+            mask = stat.S_IFREG | 0o666
         elif node_type == "table":
             mask = stat.S_IFREG | stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH
         elif node_type in ["map_node", "sys_node"]:
-            mask = stat.S_IFDIR | 0755
+            mask = stat.S_IFDIR | 0o755
         else:
             # Support links maybe?
             mask = stat.S_IFBLK
