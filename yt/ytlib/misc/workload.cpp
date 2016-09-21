@@ -121,7 +121,7 @@ void FormatValue(
             descriptor.Instant);
     }
     if (!descriptor.Annotations.empty()) {
-        builder->AppendChar(":{");
+        builder->AppendString(":{");
         for (size_t index = 0; index < descriptor.Annotations.size(); ++index) {
             builder->AppendString(descriptor.Annotations[index]);
             if (index != descriptor.Annotations.size() - 1) {
