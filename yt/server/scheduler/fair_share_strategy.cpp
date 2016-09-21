@@ -477,6 +477,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        LOG_INFO("Starting fair share update");
+
         // Run periodic update.
         PROFILE_TIMING ("/fair_share_update_time") {
             // The root element gets the whole cluster.
@@ -522,6 +524,8 @@ public:
             }
             ProfileSchedulerElement(RootElementSnapshot->RootElement);
         }
+
+        LOG_INFO("Fair share successfully updated");
     }
 
     // NB: This function is public for testing purposes.
