@@ -262,6 +262,8 @@ void TJobProxy::Run()
         statistics = ConvertToYsonString(GetStatistics());
     }
 
+    CheckResult(result);
+
     ReportResult(result, statistics, startTime, finishTime);
 }
 
@@ -603,6 +605,16 @@ void TJobProxy::CheckMemoryUsage()
         TotalMaxMemoryUsage_ = totalMemoryUsage;
         UpdateResourceUsage();
     }
+}
+
+void TJobProxy::CheckResult(const TJobResult& jobResult)
+{
+    const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+    const auto& schedulerJobResultExt = jobResult.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+    const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
+
+    // If we were provided with stderr_table_spec we are expected to write stderr and provide some results.
+    YCHECK(!userJobSpec.has_stderr_table_spec() || schedulerJobResultExt.has_stderr_table_boundary_keys());
 }
 
 void TJobProxy::Exit(EJobProxyExitCode exitCode)

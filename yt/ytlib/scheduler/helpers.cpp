@@ -67,6 +67,13 @@ TYPath GetLivePreviewOutputPath(const TOperationId& operationId, int tableIndex)
         + "/output_" + ToString(tableIndex);
 }
 
+NYPath::TYPath GetLivePreviewStderrTablePath(const TOperationId& operationId)
+{
+    return
+        GetOperationPath(operationId)
+        + "/stderr";
+}
+
 TYPath GetLivePreviewIntermediatePath(const TOperationId& operationId)
 {
     return

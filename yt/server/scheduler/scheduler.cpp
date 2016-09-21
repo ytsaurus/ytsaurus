@@ -233,7 +233,7 @@ public:
         UpdateExecNodeDescriptorsExecutor_->Start();
     }
 
-    ISchedulerStrategyPtr GetStrategy()
+    virtual ISchedulerStrategyPtr GetStrategy() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

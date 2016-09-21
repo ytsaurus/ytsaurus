@@ -17,15 +17,18 @@ class TUserJobIOBase
 {
 public:
     explicit TUserJobIOBase(IJobHostPtr host);
+    ~TUserJobIOBase();
 
     virtual void Init() override;
 
     virtual std::vector<NTableClient::ISchemalessMultiChunkWriterPtr> GetWriters() const override;
     virtual NTableClient::ISchemalessMultiChunkReaderPtr GetReader() const override;
+    virtual TOutputStream* GetStderrTableWriter() const override;
 
     virtual int GetKeySwitchColumnCount() const override;
 
     virtual void PopulateResult(NScheduler::NProto::TSchedulerJobResultExt* schedulerJobResultExt) override;
+    virtual void PopulateStderrResult(NScheduler::NProto::TSchedulerJobResultExt* schedulerJobResultExt) override;
 
     virtual void CreateReader() override;
 
@@ -41,6 +44,7 @@ protected:
 
     NTableClient::ISchemalessMultiChunkReaderPtr Reader_;
     std::vector<NTableClient::ISchemalessMultiChunkWriterPtr> Writers_;
+    std::unique_ptr<NTableClient::TBlobTableWriter> StderrTableWriter_;
 
     NLogging::TLogger Logger;
 

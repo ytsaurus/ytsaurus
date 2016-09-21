@@ -65,6 +65,7 @@
 #include <util/system/execpath.h>
 
 #include <util/generic/guid.h>
+#include <util/stream/tee.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -228,6 +229,7 @@ public:
         auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
         SaveErrorChunkId(schedulerResultExt);
+        JobIO_->PopulateStderrResult(schedulerResultExt);
 
         if (jobResultError) {
             try {
@@ -312,7 +314,13 @@ private:
     std::vector<std::unique_ptr<TOutputStream>> TableOutputs_;
     std::vector<std::unique_ptr<TWritingValueConsumer>> WritingValueConsumers_;
 
+    // Writes stderr data to cypress file.
     std::unique_ptr<TStderrWriter> ErrorOutput_;
+
+    // StderrCombined_ is set only if stderr table is specified.
+    // It redirects data to both ErrorOutput_ and stderr table writer.
+    std::unique_ptr<TTeeOutput> StderrCombined_;
+
     std::unique_ptr<TTableOutput> StatisticsOutput_;
     std::unique_ptr<IYsonConsumer> StatisticsConsumer_;
 
@@ -458,7 +466,13 @@ private:
             FromProto<TTransactionId>(UserJobSpec_.async_scheduler_transaction_id()),
             UserJobSpec_.max_stderr_size()));
 
-        return ErrorOutput_.get();
+        auto* stderrTableWriter = JobIO_->GetStderrTableWriter();
+        if (stderrTableWriter) {
+            StderrCombined_.reset(new TTeeOutput(ErrorOutput_.get(), stderrTableWriter));
+            return StderrCombined_.get();
+        } else {
+            return ErrorOutput_.get();
+        }
     }
 
     void SaveErrorChunkId(TSchedulerJobResultExt* schedulerResultExt)
@@ -693,6 +707,13 @@ private:
                 PipeInputToOutput(input.get(), output, BufferSize);
             } catch (const std::exception& ex) {
                 LOG_ERROR(ex, "Output action failed (Pipes: %v)", jobDescriptors);
+
+                // We aborting asyncInput mainly for stderr.
+                // Almost all readers are aborted in `OnIOErrorOrFinished', but stderr doesn't,
+                // because we want to read and save as much stderr as possible even if job is failing.
+                // But if stderr transfering fiber itself failed child process may hang
+                // if it wants to write more stderr. So we abort input (and therefore closing the pipe) here.
+                asyncInput->Abort();
                 throw;
             }
         }));
@@ -1060,6 +1081,8 @@ private:
         if (!JobStarted_) {
             // If start action didn't finish successfully, stderr could have stayed closed,
             // and output action may hang.
+            // But if job is started we want to save as much stderr as possible
+            // so we don't close stderr in that case.
             StderrPipeReader_->Abort();
         }
     }

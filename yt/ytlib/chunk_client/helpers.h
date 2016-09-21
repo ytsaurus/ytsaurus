@@ -110,7 +110,7 @@ struct TUserObject
 
 template <class T>
 void GetUserObjectBasicAttributes(
-    NApi::IClientPtr client, 
+    NApi::IClientPtr client,
     TMutableRange<T> objects,
     const NObjectClient::TTransactionId& transactionId,
     const NLogging::TLogger& logger,

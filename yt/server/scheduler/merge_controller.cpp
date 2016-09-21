@@ -516,7 +516,7 @@ protected:
     //! A typical implementation of #IsTeleportChunk that depends on whether chunks must be combined or not.
     bool IsTeleportChunkImpl(const TInputChunkPtr& chunkSpec, bool combineChunks) const
     {
-       	if (chunkSpec->Channel() || !IsInputTableTeleportable[chunkSpec->GetTableIndex()]) {
+        if (chunkSpec->Channel() || !IsInputTableTeleportable[chunkSpec->GetTableIndex()]) {
             return false;
         }
 
@@ -658,6 +658,16 @@ private:
     virtual std::vector<TRichYPath> GetOutputTablePaths() const override
     {
         return Spec->OutputTablePaths;
+    }
+
+    virtual TNullable<TRichYPath> GetStderrTablePath() const override
+    {
+        return Spec->StderrTablePath;
+    }
+
+    virtual TBlobTableWriterConfigPtr GetStderrTableWriterConfig() const override
+    {
+        return Spec->StderrTableWriterConfig;
     }
 
     virtual TNullable<int> GetTeleportTableIndex() const override
@@ -1861,6 +1871,16 @@ protected:
     virtual std::vector<TRichYPath> GetOutputTablePaths() const override
     {
         return Spec->OutputTablePaths;
+    }
+
+    virtual TNullable<TRichYPath> GetStderrTablePath() const override
+    {
+        return Spec->StderrTablePath;
+    }
+
+    virtual TBlobTableWriterConfigPtr GetStderrTableWriterConfig() const override
+    {
+        return Spec->StderrTableWriterConfig;
     }
 
     virtual TNullable<int> GetTeleportTableIndex() const override

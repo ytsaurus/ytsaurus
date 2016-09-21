@@ -11,7 +11,17 @@
 #include <yt/core/misc/phoenix.h>
 
 namespace NYT {
+
+namespace NScheduler {
+namespace NProto {
+
+class TOutputResult;
+
+} // namespace NProto
+} // namespace NScheduler
+
 namespace NTableClient {
+
 
 //////////////////////////////////////////////////////////////////////////////////
 
@@ -83,6 +93,10 @@ TTableUploadOptions GetTableUploadOptions(
     const TTableSchema& schema,
     ETableSchemaMode schemaMode,
     i64 rowCount);
+
+//////////////////////////////////////////////////////////////////////////////////
+
+NScheduler::NProto::TOutputResult GetWrittenChunksBoundaryKeys(ISchemalessMultiChunkWriterPtr writer);
 
 //////////////////////////////////////////////////////////////////////////////////
 
