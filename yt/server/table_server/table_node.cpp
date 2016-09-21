@@ -75,10 +75,6 @@ bool TTableNode::IsSorted() const
 
 void TTableNode::Save(NCellMaster::TSaveContext& context) const
 {
-    if (IsDynamic() && !TableSchema_.GetStrict()) {
-        LOG_ERROR("Dynamic table %v schema is not strict", GetId());
-    }
-
     TChunkOwnerBase::Save(context);
 
     using NYT::Save;
@@ -141,6 +137,8 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
                 YCHECK(columns[index].Name == columnName);
                 columns[index].SetSortOrder(ESortOrder::Ascending);
             }
+            // XXX(sandello): In good ol' times there were no ordered-dynamic tables,
+            // so we can assert that keys are unique.
             TableSchema_ = TTableSchema(columns, true /* strict */, true /* unique_keys */);
         } else {
             TableSchema_ = TTableSchema::FromKeyColumns(keyColumns);
@@ -189,7 +187,15 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
     if (context.GetVersion() < 301) {
         if (IsDynamic() && !TableSchema_.GetStrict()) {
             LOG_ERROR("Dynamic table %v schema was made strict during load from snapshot", GetId());
-            TableSchema_ = TTableSchema(TableSchema_.Columns(), true /* strict */);
+            TableSchema_ = TTableSchema(TableSchema_.Columns(), /*strict*/ true, /*unique keys*/ TableSchema_.IsSorted());
+        }
+    }
+
+    // COMPAT(sandello): Apparently we did not care enough about compatibility.
+    if (context.GetVersion() < 352) {
+        if (IsDynamic() && TableSchema_.IsSorted() && !TableSchema_.GetUniqueKeys()) {
+            LOG_ERROR("Dynamic table %v schema was made unique keys during load from snapshot", GetId());
+            TableSchema_ = TTableSchema(TableSchema_.Columns(), /*strict*/ true, /*unique keys*/ true);
         }
     }
 }
