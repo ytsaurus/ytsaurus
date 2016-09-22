@@ -114,16 +114,6 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
 def make_read_request(command_name, path, params, process_response_action, retriable_state_class, client):
     retriable_errors = tuple(list(get_retriable_errors()) + [YtResponseError, YtFormatReadError])
 
-    def execute_with_retries(func):
-        for attempt in xrange(config.get_request_retry_count(client)):
-            try:
-                return func()
-            except get_retriable_errors() as err:
-                if attempt + 1 == config.get_request_retry_count(client):
-                    raise
-                logger.warning(str(err))
-                logger.warning("New retry (%d) ...", attempt + 2)
-
     if not get_config(client)["read_retries"]["enable"]:
         response = _make_transactional_request(
             command_name,
