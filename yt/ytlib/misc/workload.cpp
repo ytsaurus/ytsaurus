@@ -44,7 +44,6 @@ i64 GetBasicPriority(EWorkloadCategory category)
             return 0;
 
         case EWorkloadCategory::SystemReplication:
-        case EWorkloadCategory::SystemRepair:
         case EWorkloadCategory::SystemTabletCompaction:
         case EWorkloadCategory::SystemTabletPartitioning:
         case EWorkloadCategory::SystemTabletPreload:
@@ -52,11 +51,14 @@ i64 GetBasicPriority(EWorkloadCategory category)
         case EWorkloadCategory::UserBatch:
             return CategoryPriorityFactor * 1;
 
-        case EWorkloadCategory::UserRealtime:
+        case EWorkloadCategory::SystemRepair:
             return CategoryPriorityFactor * 2;
 
-        case EWorkloadCategory::SystemRealtime:
+        case EWorkloadCategory::UserRealtime:
             return CategoryPriorityFactor * 3;
+
+        case EWorkloadCategory::SystemRealtime:
+            return CategoryPriorityFactor * 4;
 
         // Graceful fallback for possible future extensions of categories.
         default:

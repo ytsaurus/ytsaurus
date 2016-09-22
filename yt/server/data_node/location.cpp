@@ -266,7 +266,6 @@ EIOCategory TLocation::ToIOCategory(const TWorkloadDescriptor& workloadDescripto
     switch (workloadDescriptor.Category) {
         case EWorkloadCategory::Idle:
         case EWorkloadCategory::SystemReplication:
-        case EWorkloadCategory::SystemRepair:
         case EWorkloadCategory::SystemTabletCompaction:
         case EWorkloadCategory::SystemTabletPartitioning:
         case EWorkloadCategory::SystemTabletPreload:
@@ -277,6 +276,9 @@ EIOCategory TLocation::ToIOCategory(const TWorkloadDescriptor& workloadDescripto
         case EWorkloadCategory::UserRealtime:
         case EWorkloadCategory::SystemRealtime:
             return EIOCategory::Realtime;
+
+        case EWorkloadCategory::SystemRepair:
+            return EIOCategory::Repair;
 
         default:
             // Graceful fallback for possible future extensions of categories.
