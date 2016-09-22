@@ -19,7 +19,7 @@ struct IPartitioner
 
 DEFINE_REFCOUNTED_TYPE(IPartitioner)
 
-IPartitionerPtr CreateOrderedPartitioner(const std::vector<TOwningKey>* keys);
+IPartitionerPtr CreateOrderedPartitioner(std::vector<TOwningKey> keys);
 IPartitionerPtr CreateHashPartitioner(int partitionCount, int keyColumnCount);
 
 ////////////////////////////////////////////////////////////////////////////////
