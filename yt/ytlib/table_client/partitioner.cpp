@@ -11,35 +11,35 @@ class TOrderedPartitioner
     : public IPartitioner
 {
 public:
-    explicit TOrderedPartitioner(const std::vector<TOwningKey>* keys)
-        : Keys_(keys)
+    explicit TOrderedPartitioner(std::vector<TOwningKey> keys)
+        : Keys_(std::move(keys))
     { }
 
     virtual int GetPartitionCount() override
     {
-        return Keys_->size() + 1;
+        return Keys_.size() + 1;
     }
 
     virtual int GetPartitionIndex(TUnversionedRow row) override
     {
         auto it = std::upper_bound(
-            Keys_->begin(),
-            Keys_->end(),
+            Keys_.begin(),
+            Keys_.end(),
             row,
             [] (TUnversionedRow row, const TOwningKey& element) {
                 return row < element;
             });
-        return std::distance(Keys_->begin(), it);
+        return std::distance(Keys_.begin(), it);
     }
 
 private:
-    const std::vector<TOwningKey>* const Keys_;
+    const std::vector<TOwningKey> Keys_;
 
 };
 
-IPartitionerPtr CreateOrderedPartitioner(const std::vector<TOwningKey>* keys)
+IPartitionerPtr CreateOrderedPartitioner(std::vector<TOwningKey> keys)
 {
-    return New<TOrderedPartitioner>(keys);
+    return New<TOrderedPartitioner>(std::move(keys));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

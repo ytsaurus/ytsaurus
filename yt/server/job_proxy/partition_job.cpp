@@ -89,7 +89,7 @@ public:
                 CellTagFromId(chunkListId),
                 transactionId,
                 chunkListId,
-                GetPartitioner());
+                CreatePartitioner());
             return Writer_;
         };
     }
@@ -97,7 +97,6 @@ public:
 private:
     const TPartitionJobSpecExt& PartitionJobSpecExt_;
 
-    std::vector<TOwningKey> PartitionKeys_;
     TNameTablePtr NameTable_;
 
 
@@ -116,12 +115,12 @@ private:
         return false;
     }
 
-    IPartitionerPtr GetPartitioner()
+    IPartitionerPtr CreatePartitioner()
     {
         if (PartitionJobSpecExt_.partition_keys_size() > 0) {
             YCHECK(PartitionJobSpecExt_.partition_keys_size() + 1 == PartitionJobSpecExt_.partition_count());
-            PartitionKeys_ = FromProto<std::vector<TOwningKey>>(PartitionJobSpecExt_.partition_keys());
-            return CreateOrderedPartitioner(&PartitionKeys_);
+            auto partitionKeys = FromProto<std::vector<TOwningKey>>(PartitionJobSpecExt_.partition_keys());
+            return CreateOrderedPartitioner(std::move(partitionKeys));
         } else {
             return CreateHashPartitioner(
                 PartitionJobSpecExt_.partition_count(),
