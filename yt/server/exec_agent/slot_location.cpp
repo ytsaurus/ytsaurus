@@ -20,7 +20,6 @@
 
 #include <yt/core/tools/tools.h>
 
-
 #include <util/system/fs.h>
 
 namespace NYT {
@@ -181,13 +180,13 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
                 Bootstrap_->GetConfig()->ExecAgent->SlotManager->FileCopyChunkSize);
             EnsureNotInUse(destinationPath);
             NFS::SetExecutableMode(destinationPath, executable);
-        } catch (const TSystemError& systemError) {
-            if (IsInsideTmpfs(destinationPath) && systemError.Status() == ENOSPC) {
+        } catch (const TErrorException& ex) {
+            if (IsInsideTmpfs(destinationPath) && ex.Error().FindMatching(ELinuxErrorCode::NOSPC)) {
                 THROW_ERROR_EXCEPTION("Failed to make a copy for file %Qv into sandbox %v: tmpfs is too small",
                     destinationName,
-                    sandboxPath) << TError(systemError);
+                    sandboxPath) << ex;
             } else {
-                logErrorAndDisableLocation(systemError);
+                logErrorAndDisableLocation(ex);
             }
         } catch (const std::exception& ex) {
             logErrorAndDisableLocation(ex);
