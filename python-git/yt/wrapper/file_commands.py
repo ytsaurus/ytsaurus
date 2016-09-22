@@ -201,11 +201,19 @@ def upload_file_to_cache(filename, hash=None, client=None):
         else:
             remove(destination + "&", client=client)
 
+    should_upload_file = not link_exists
     if link_exists:
         logger.debug("Link %s of file %s exists, skipping upload and set /@touched attribute", destination, filename)
-        set(destination + "/@touched", True, client=client)
-        set(destination + "&/@touched", True, client=client)
-    else:
+        try:
+            set(destination + "/@touched", True, client=client)
+            set(destination + "&/@touched", True, client=client)
+        except YtError as err:
+            if err.is_resolve_error():
+                should_upload_file = True
+            elif not err.is_concurrent_transaction_lock_conflict():
+                raise
+
+    if should_upload_file:
         logger.debug("Link %s of file %s missing, uploading file", destination, filename)
         prefix = ypath_join(get_config(client)["remote_temp_files_directory"], last_two_digits_of_hash, os.path.basename(filename))
         # NB: In local mode we have only one node and default replication factor equal to one for all tables and files.
