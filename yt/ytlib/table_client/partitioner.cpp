@@ -37,9 +37,9 @@ private:
 
 };
 
-std::unique_ptr<IPartitioner> CreateOrderedPartitioner(const std::vector<TOwningKey>* keys)
+IPartitionerPtr CreateOrderedPartitioner(const std::vector<TOwningKey>* keys)
 {
-    return std::unique_ptr<IPartitioner>(new TOrderedPartitioner(keys));
+    return New<TOrderedPartitioner>(keys);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -69,9 +69,9 @@ private:
 
 };
 
-std::unique_ptr<IPartitioner> CreateHashPartitioner(int partitionCount, int keyColumnCount)
+IPartitionerPtr CreateHashPartitioner(int partitionCount, int keyColumnCount)
 {
-    return std::unique_ptr<IPartitioner>(new THashPartitioner(partitionCount, keyColumnCount));
+    return New<THashPartitioner>(partitionCount, keyColumnCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

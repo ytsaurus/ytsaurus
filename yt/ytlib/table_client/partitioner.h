@@ -11,16 +11,16 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IPartitioner
+    : public virtual TRefCounted
 {
-    virtual ~IPartitioner()
-    { }
-
     virtual int GetPartitionCount() = 0;
     virtual int GetPartitionIndex(TUnversionedRow row) = 0;
 };
 
-std::unique_ptr<IPartitioner> CreateOrderedPartitioner(const std::vector<TOwningKey>* keys);
-std::unique_ptr<IPartitioner> CreateHashPartitioner(int partitionCount, int keyColumnCount);
+DEFINE_REFCOUNTED_TYPE(IPartitioner)
+
+IPartitionerPtr CreateOrderedPartitioner(const std::vector<TOwningKey>* keys);
+IPartitionerPtr CreateHashPartitioner(int partitionCount, int keyColumnCount);
 
 ////////////////////////////////////////////////////////////////////////////////
 
