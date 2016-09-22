@@ -457,30 +457,24 @@ class StderrInserter(object):
         self.metrics.add("archived_stderr_size", sum(len(row["stderr"]) for row in rowset))
 
 class StderrDownloader(object):
-    CONFIG = {
-        "read_retries": {
-            "enable": False
-        },
-        "proxy": {
-            "request_retry_enable": False,
-            "request_retry_count": 1,
-            "heavy_request_retry_timeout": 10000
-        }
-    }
-
     def __init__(self, insert_queue, metrics):
         self.insert_queue = insert_queue
         self.metrics = metrics
-        self.yt = yt.YtClient(config=update(yt.config.config, self.CONFIG))
 
     def __call__(self, element):
         (op_id, job_id) = element
+        token = get_token()
+        proxy_url = get_proxy_url(yt.config.config["proxy"]["url"])
+        path = "http://{}/api/v3/read_file?path=//sys/operations/{}/jobs/{}/stderr".format(proxy_url, op_id, job_id)
 
         try:
-            content = self.yt.read_file(yt.YPath("//sys/operations/{}/jobs/{}/stderr".format(op_id, job_id), simplify=False)).read()
+            rsp = requests.get(path, headers={"Authorization": "OAuth {}".format(token)}, allow_redirects=True, timeout=10)
         except:
             self.metrics.add("failed_to_archive_stderr_count", 1)
             raise
+
+        if not rsp.content:
+            return
 
         op_id_hi, op_id_lo = id_to_parts(op_id)
         id_hi, id_lo = id_to_parts(job_id)
@@ -490,7 +484,7 @@ class StderrDownloader(object):
         row["operation_id_lo"] = yson.YsonUint64(op_id_lo)
         row["job_id_hi"] = yson.YsonUint64(id_hi)
         row["job_id_lo"] = yson.YsonUint64(id_lo)
-        row["stderr"] = content
+        row["stderr"] = rsp.content
         self.insert_queue.put(row)
 
 def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, archiving_timeout,
