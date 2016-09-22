@@ -15,10 +15,6 @@ class TestTabletTransactions(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 0
 
-    def _wait(self, predicate):
-        while not predicate():
-            sleep(1)
-
     def _create_table(self, path):
         create("table", path,
             attributes={
@@ -28,7 +24,6 @@ class TestTabletTransactions(YTEnvSetup):
                     {"name": "value", "type": "string"}]
             })
 
-    @pytest.mark.skipif("True")
     def test_sticky_tablet_transactions(self):
         self.sync_create_cells(1)
         self._create_table("//tmp/t")
@@ -52,7 +47,7 @@ class TestTabletTransactions(YTEnvSetup):
         assert select_rows("* from [//tmp/t]") == []
         assert lookup_rows("//tmp/t", _keys(0, 1)) == []
 
-        commit_transaction(tx1)
+        commit_transaction(tx1, sticky=True)
         assert select_rows("* from [//tmp/t]") == _rows(0, 1)
         assert lookup_rows("//tmp/t", _keys(0, 1)) == _rows(0, 1)
 
@@ -61,8 +56,8 @@ class TestTabletTransactions(YTEnvSetup):
         assert lookup_rows("//tmp/t", _keys(0, 1), tx=tx2) == []
 
         # cannot commit transaction twice
-        with pytest.raises(YtError): commit_transaction(tx1)
+        with pytest.raises(YtError): commit_transaction(tx1, sticky=True)
 
         # cannot commit conflicting transaction
-        with pytest.raises(YtError): commit_transaction(tx2)
+        with pytest.raises(YtError): commit_transaction(tx2, sticky=True)
 
