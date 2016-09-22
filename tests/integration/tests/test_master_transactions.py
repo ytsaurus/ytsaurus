@@ -8,7 +8,7 @@ from time import sleep
 
 ##################################################################
 
-class TestTransactions(YTEnvSetup):
+class TestMasterTransactions(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 3
 
@@ -279,5 +279,5 @@ class TestTransactions(YTEnvSetup):
 
 ##################################################################
 
-class TestTransactionsMulticell(TestTransactions):
+class TestMasterTransactionsMulticell(TestMasterTransactions):
     NUM_SECONDARY_MASTER_CELLS = 2
