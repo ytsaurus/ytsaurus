@@ -11,12 +11,12 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka Join(const std::vector<Stroka>& data)
+template <class T>
+std::vector<T> SortedAndUnique(const std::vector<T>& vector)
 {
-    Stroka result;
-    for (const auto& str : data) {
-        result += str;
-    }
+    auto result = vector;
+    std::sort(result.begin(), result.end());
+    result.erase(std::unique(result.begin(), result.end()), result.end());
     return result;
 }
 
@@ -31,112 +31,105 @@ std::vector<TSharedRef> ConvertToSharedRefs(const std::vector<Stroka>& data)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCodecTest:
-    public ::testing::Test
-{ };
-
-TEST_F(TCodecTest, Compression)
+class TCodecTest
+    : public ::testing::TestWithParam<std::tuple<ECodec, ui64>>
 {
-    for (auto codecId : TEnumTraits<ECodec>::GetDomainValues()) {
-        auto codec = GetCodec(codecId);
-
-        Stroka data = "hello world";
-        auto compressed = codec->Compress(TSharedRef::FromString(data));
-        auto decompressed = codec->Decompress(compressed);
-        EXPECT_EQ(data, Stroka(decompressed.Begin(), decompressed.End()));
+protected:
+    ICodec* TheCodec()
+    {
+        return GetCodec(std::get<0>(GetParam()));
     }
-}
 
-TEST_F(TCodecTest, VectorCompression)
-{
-    for (auto codecId : TEnumTraits<ECodec>::GetDomainValues()) {
-        auto codec = GetCodec(codecId);
+    size_t ThePartSize()
+    {
+        return std::get<1>(GetParam());
+    }
 
-        {
-            std::vector<Stroka> data = {"", "", "hello", "", " ", "world", "", Stroka(10000, 'a'), Stroka(50000, 'b'), "", ""};
-            auto refs = ConvertToSharedRefs(data);
-            auto compressed = codec->Compress(refs);
-            auto decompressed = codec->Decompress(compressed);
-            EXPECT_EQ(Join(data), Stroka(decompressed.Begin(), decompressed.End()));
+    void TestCase(const std::vector<Stroka>& pieces)
+    {
+        std::vector<TSharedRef> refs;
+        size_t length = 0;
+
+        for (const auto& piece : pieces) {
+            refs.push_back(TSharedRef::FromString(piece));
+            length += piece.length();
         }
 
-        {
-            std::vector<TSharedRef> emptyRefs(10, TSharedRef());
-            auto compressed = codec->Compress(emptyRefs);
-            auto decompressed = codec->Decompress(compressed);
-            EXPECT_EQ("", Stroka(decompressed.Begin(), decompressed.End()));
-        }
+        auto compressed = TheCodec()->Compress(refs).Split(ThePartSize());
+        auto decompressed = TheCodec()->Decompress(compressed);
 
-        {
-            std::vector<Stroka> data(10000, "a");
-            auto refs = ConvertToSharedRefs(data);
-            auto compressed = codec->Compress(refs);
-            auto decompressed = codec->Decompress(compressed);
-            EXPECT_EQ(Join(data), Stroka(decompressed.Begin(), decompressed.End()));
-        }
+        ASSERT_EQ(length, decompressed.Size());
 
-        {
-            std::vector<Stroka> data;
-            for (int i = 0; i < 20; ++i) {
-                data.push_back(Stroka(1 << i, i));
-            }
-            auto refs = ConvertToSharedRefs(data);
-            auto compressed = codec->Compress(refs);
-            auto decompressed = codec->Decompress(compressed);
-            EXPECT_EQ(Join(data), Stroka(decompressed.Begin(), decompressed.End()));
+        size_t offset = 0;
+        for (const auto& piece : pieces) {
+            auto actualSharedRef = decompressed.Slice(offset, offset + piece.length());
+            auto actualStringBuf = TStringBuf(actualSharedRef.begin(), actualSharedRef.end());
+            auto expectedStringBuf = TStringBuf(piece.begin(), piece.end());
+
+            EXPECT_EQ(expectedStringBuf, actualStringBuf);
+
+            offset += piece.length();
         }
     }
-}
+};
 
-TEST_F(TCodecTest, LargeTest)
+TEST_P(TCodecTest, HelloWorld)
 {
-    for (auto codecId : TEnumTraits<ECodec>::GetDomainValues()) {
-        auto codec = GetCodec(codecId);
-
-        Stroka data(static_cast<int>(1e7), 'a');
-        auto compressed = codec->Compress(TSharedRef::FromString(data));
-        auto decompressed = codec->Decompress(compressed);
-        EXPECT_EQ(data, Stroka(decompressed.Begin(), decompressed.End()));
-    }
+    TestCase({"hello world"});
 }
 
-TEST_F(TCodecTest, VectorDecompression)
+TEST_P(TCodecTest, 64KB)
 {
-    for (auto codecId : TEnumTraits<ECodec>::GetDomainValues()) {
-        auto codec = GetCodec(codecId);
-
-        {
-            Stroka data = "hello world";
-            auto dataRef = TSharedRef::FromString(data).Split(2);
-            EXPECT_TRUE(dataRef.size() > 1);
-            auto compressed = codec->Compress(dataRef).Split(2);
-            EXPECT_TRUE(compressed.size() > 1);
-            auto decompressed = codec->Decompress(compressed);
-            EXPECT_EQ(data, Stroka(decompressed.Begin(), decompressed.End()));
-        }
-
-        {
-            std::vector<Stroka> data(10000, "a");
-            auto refs = ConvertToSharedRefs(data);
-            auto compressed = codec->Compress(refs).Split(4);
-            EXPECT_TRUE(compressed.size() > 1);
-            auto decompressed = codec->Decompress(compressed);
-            EXPECT_EQ(Join(data), Stroka(decompressed.Begin(), decompressed.End()));
-        }
-
-        {
-            std::vector<Stroka> data;
-            for (int i = 0; i < 20; ++i) {
-                data.push_back(Stroka(1 << i, i));
-            }
-            auto refs = ConvertToSharedRefs(data);
-            auto compressed = codec->Compress(refs).Split(5);
-            EXPECT_TRUE(compressed.size() > 1);
-            auto decompressed = codec->Decompress(compressed);
-            EXPECT_EQ(Join(data), Stroka(decompressed.Begin(), decompressed.End()));
-        }
-    }
+    TestCase({Stroka(64 * 1024, 'a')});
 }
+
+TEST_P(TCodecTest, 1MB)
+{
+    TestCase({Stroka(1 * 1024 * 1024, 'a')});
+}
+
+TEST_P(TCodecTest, VectorHelloWorld)
+{
+    TestCase({
+        "", "", "hello",
+        "", "", "world",
+        "", "", Stroka(10000, 'a'),
+        "", "", Stroka(10000, 'b'),
+        "", ""});
+}
+
+TEST_P(TCodecTest, VectorEmptyRefs)
+{
+    TestCase({"", "", ""});
+}
+
+TEST_P(TCodecTest, VectorSingleCharacters)
+{
+    std::vector<Stroka> input(10000, "a");
+    TestCase(input);
+}
+
+TEST_P(TCodecTest, VectorExpBuffers)
+{
+    std::vector<Stroka> input;
+    for (int i = 0; i < 20; ++i) {
+        input.emplace_back(1 << i, 'a' + i);
+    }
+    TestCase(input);
+}
+
+INSTANTIATE_TEST_CASE_P(
+    All,
+    TCodecTest,
+    ::testing::Combine(
+        ::testing::ValuesIn(SortedAndUnique(TEnumTraits<ECodec>::GetDomainValues())),
+        ::testing::ValuesIn(std::vector<ui64>({static_cast<ui64>(-1), 1, 1024}))),
+    [] (const ::testing::TestParamInfo<std::tuple<ECodec, ui64>>& info) -> std::string {
+        return
+            "Codec_" +
+            std::string(TEnumTraits<ECodec>::ToString(std::get<0>(info.param)).c_str()) + "_PartSize_" +
+            ::testing::PrintToString(std::get<1>(info.param));
+    });
 
 ////////////////////////////////////////////////////////////////////////////////
 
