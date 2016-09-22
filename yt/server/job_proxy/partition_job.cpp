@@ -116,7 +116,7 @@ private:
         return false;
     }
 
-    std::unique_ptr<IPartitioner> GetPartitioner()
+    IPartitionerPtr GetPartitioner()
     {
         if (PartitionJobSpecExt_.partition_keys_size() > 0) {
             YCHECK(PartitionJobSpecExt_.partition_keys_size() + 1 == PartitionJobSpecExt_.partition_count());

@@ -184,8 +184,6 @@ class TBlockWriter;
 
 class THorizontalSchemalessBlockReader;
 
-struct IPartitioner;
-
 class TSchemafulRowMerger;
 class TVersionedRowMerger;
 
@@ -219,6 +217,8 @@ DECLARE_REFCOUNTED_STRUCT(IVersionedWriter)
 
 DECLARE_REFCOUNTED_STRUCT(IVersionedChunkWriter)
 DECLARE_REFCOUNTED_STRUCT(IVersionedMultiChunkWriter)
+
+DECLARE_REFCOUNTED_STRUCT(IPartitioner)
 
 DECLARE_REFCOUNTED_CLASS(TColumnarChunkMeta)
 DECLARE_REFCOUNTED_CLASS(TCachedVersionedChunkMeta)
