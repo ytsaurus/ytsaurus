@@ -310,8 +310,8 @@ class FilePath(YPathSupportingAppend):
 
     * columns -- list of string (column) or string pairs (column range).
     """
-    def __init__(self, path, append=None, executable=None, file_name=None, attributes=None, client=None):
-        super(FilePath, self).__init__(path, attributes=attributes, append=append, client=client)
+    def __init__(self, path, append=None, executable=None, file_name=None, simplify=None, attributes=None, client=None):
+        super(FilePath, self).__init__(path, attributes=attributes, simplify=simplify, append=append, client=client)
         if executable is not None:
             self.attributes["executable"] = executable
         if file_name is not None:

@@ -130,7 +130,6 @@ def make_read_request(command_name, path, params, process_response_action, retri
             params,
             return_content=False,
             use_heavy_proxy=True,
-            allow_retries=True,
             client=client)
         process_response_action(response)
         return response
