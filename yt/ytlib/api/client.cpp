@@ -2793,7 +2793,8 @@ private:
         {
             auto req = JobProberProxy_->GetJobNode();
             ToProto(req->mutable_job_id(), jobId);
-            auto rsp = WaitFor(req->Invoke()).ValueOrThrow();
+            auto rsp = WaitFor(req->Invoke())
+                .ValueOrThrow();
             FromProto(&jobNodeDescriptor, rsp->node_descriptor());
         }
 
@@ -2801,12 +2802,13 @@ private:
             jobId,
             jobNodeDescriptor.GetDefaultAddress());
 
-        auto nodeChannel = GetLightChannelFactory()->CreateChannel(jobNodeDescriptor);
+        auto nodeChannel = GetHeavyChannelFactory()->CreateChannel(jobNodeDescriptor);
         NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(nodeChannel);
 
         auto req = jobProberServiceProxy.GetStderr();
         ToProto(req->mutable_job_id(), jobId);
-        auto rsp = WaitFor(req->Invoke()).ValueOrThrow();
+        auto rsp = WaitFor(req->Invoke())
+            .ValueOrThrow();
         return rsp->stderr_data();
     }
 
