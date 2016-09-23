@@ -51,7 +51,7 @@ def create_task(task_dict):
     id_ = task_dict["id"]
     state = task_dict["state"]
     finish_time = None
-    if is_final(state):
+    if state in ["failed", "completed", "aborted"]:
         finish_time = parse(task_dict["finish_time"]).replace(tzinfo=None)
 
     return Task(start_time, finish_time, id_, user, state)
