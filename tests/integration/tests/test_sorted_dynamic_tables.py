@@ -27,17 +27,26 @@ class TestSortedDynamicTables(YTEnvSetup):
         "max_rows_per_write_request": 2
     }
 
-    def _create_simple_table(self, path, atomicity="full", optimize_for="lookup", tablet_cell_bundle="default"):
-        create("table", path,
-            attributes={
-                "dynamic": True,
-                "atomicity": atomicity,
-                "optimize_for": optimize_for,
-                "tablet_cell_bundle": tablet_cell_bundle,
-                "schema": [
-                    {"name": "key", "type": "int64", "sort_order": "ascending"},
-                    {"name": "value", "type": "string"}]
-            })
+    def _create_simple_table(self, path, atomicity=None, optimize_for=None, tablet_cell_bundle=None,
+                             tablet_count=None, pivot_keys=None):
+        attributes={
+            "dynamic": True,
+            "schema": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"}
+            ]
+        }
+        if atomicity:
+            attributes["atomicity"] = atomicity
+        if optimize_for:
+            attributes["optimize_for"] = optimize_for
+        if tablet_cell_bundle:
+            attributes["tablet_cell_bundle"] = tablet_cell_bundle
+        if tablet_count:
+            attributes["tablet_count"] = tablet_count
+        if pivot_keys:
+            attributes["pivot_keys"] = pivot_keys
+        create("table", path, attributes=attributes)
 
     def _create_table_with_computed_column(self, path, optimize_for="lookup"):
         create("table", path,
@@ -1628,6 +1637,19 @@ class TestSortedDynamicTables(YTEnvSetup):
     def test_no_commit_ordering(self):
         self._create_simple_table("//tmp/t")
         assert not exists("//tmp/t/@commit_ordering")
+
+
+    def test_set_pivot_keys_upon_construction_fail(self):
+        with pytest.raises(YtError):
+            self._create_simple_table("//tmp/t", tablet_count=10)
+        with pytest.raises(YtError):
+            self._create_simple_table("//tmp/t", pivot_keys=[[10], [20]])
+        with pytest.raises(YtError):
+            self._create_simple_table("//tmp/t", pivot_keys=[[], [1], [1]])
+
+    def test_set_pivot_keys_upon_construction_success(self):
+        self._create_simple_table("//tmp/t", pivot_keys=[[], [1], [2], [3]])
+        assert get("//tmp/t/@tablet_count") == 4
 
 ##################################################################
 
