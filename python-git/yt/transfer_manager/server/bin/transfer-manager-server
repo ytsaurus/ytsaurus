@@ -953,6 +953,7 @@ class Application(object):
                 if (destination_client._type == "yamr" and not destination_client.is_empty(task.destination_table)) or \
                         (destination_client._type == "yt" and destination_client.exists(task.destination_table)):
                     task.state = "skipped"
+                    task.finish_time = now_str()
             except TimeoutExpired:
                 raise RequestFailed("Cannot check if destination table exists: request to YAMR cluster timed out",
                                     http_code=500)
@@ -972,7 +973,6 @@ class Application(object):
                 if task.state == "skipped":
                     logger.info('Task %s skipped since "skip_if_destination_exists" option '
                                 'is specified and destination table exists', task.id)
-                    task.finish_time = now_str()
                     return task.id
 
                 self._append_pending_task(task)
