@@ -306,7 +306,7 @@ public:
     }
 
     virtual std::vector<TChunkId> DumpInputContext() override
-    {
+    {   
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
         ValidateJobRunning();
@@ -875,6 +875,7 @@ private:
             resultError.FindMatching(NExecAgent::EErrorCode::ConfigCreationFailed) ||
             resultError.FindMatching(NExecAgent::EErrorCode::AllLocationsDisabled) ||
             resultError.FindMatching(NExecAgent::EErrorCode::JobEnvironmentDisabled) ||
+            resultError.FindMatching(NExecAgent::EErrorCode::ArtifactCopyingFailed) ||
             resultError.FindMatching(NJobProxy::EErrorCode::MemoryCheckFailed))
         {
             return EAbortReason::Other;
