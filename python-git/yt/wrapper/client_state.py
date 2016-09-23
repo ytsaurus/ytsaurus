@@ -25,6 +25,9 @@ class ClientState(object):
         self._random_generator = SystemRandom()
 
     def init_pseudo_random_generator(self):
+        """ Changes client random generator to pseudo random generator,
+            initialized with seed from system generator.
+        """
         # This implementation works incorrectky if process forked.
         seed = random.SystemRandom().randint(0, 2**63)
         self._random_generator = random.random()
