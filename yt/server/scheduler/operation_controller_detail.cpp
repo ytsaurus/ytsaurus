@@ -1656,6 +1656,7 @@ void TOperationControllerBase::AttachOutputChunks()
             if (!req) {
                 batchReq = proxy.ExecuteBatch();
                 GenerateMutationId(batchReq);
+                batchReq->set_suppress_upstream_sync(true);
                 req = batchReq->add_attach_chunk_trees_subrequests();
                 ToProto(req->mutable_parent_id(), table.OutputChunkListId);
             }

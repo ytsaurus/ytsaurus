@@ -518,6 +518,7 @@ private:
 
                 auto batchReq = proxy.ExecuteBatch();
                 GenerateMutationId(batchReq);
+                batchReq->set_suppress_upstream_sync(true);
 
                 auto* req = batchReq->add_create_chunk_subrequests();
                 req->set_type(static_cast<int>(EObjectType::JournalChunk));
@@ -616,6 +617,7 @@ private:
 
                 auto batchReq = proxy.ExecuteBatch();
                 GenerateMutationId(batchReq);
+                batchReq->set_suppress_upstream_sync(true);
 
                 YCHECK(!replicas.empty());
                 auto* req = batchReq->add_confirm_chunk_subrequests();
@@ -641,6 +643,7 @@ private:
                 TChunkServiceProxy proxy(UploadMasterChannel_);
                 auto batchReq = proxy.ExecuteBatch();
                 GenerateMutationId(batchReq);
+                batchReq->set_suppress_upstream_sync(true);
 
                 auto* req = batchReq->add_attach_chunk_trees_subrequests();
                 ToProto(req->mutable_parent_id(), ChunkListId_);
@@ -790,6 +793,7 @@ private:
 
                 auto batchReq = proxy.ExecuteBatch();
                 GenerateMutationId(batchReq);
+                batchReq->set_suppress_upstream_sync(true);
 
                 auto* req = batchReq->add_seal_chunk_subrequests();
                 ToProto(req->mutable_chunk_id(), chunkId);
