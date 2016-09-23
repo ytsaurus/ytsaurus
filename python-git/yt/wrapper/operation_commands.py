@@ -337,7 +337,7 @@ def get_operation_error(operation, client=None):
 def _create_operation_failed_error(operation, state):
     error = get_operation_error(operation.id, client=operation.client)
     stderrs = get_stderrs(operation.id, only_failed_jobs=True, client=operation.client)
-    raise YtOperationFailedError(
+    return YtOperationFailedError(
         id=operation.id,
         state=str(state),
         error=error,
