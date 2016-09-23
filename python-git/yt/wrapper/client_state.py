@@ -1,5 +1,7 @@
 from .system_random import SystemRandom
 
+import random
+
 class ClientState(object):
     def __init__(self):
         self.RETRY = None
@@ -22,8 +24,9 @@ class ClientState(object):
 
         self._random_generator = SystemRandom()
 
-        # This implementation works incorrectky if client copied.
-        #seed = random.SystemRandom().randint(0, 2**63)
-        #self._random_generator = random.random()
-        #self._random_generator.seed(seed)
+    def init_pseudo_random_generator(self):
+        # This implementation works incorrectky if process forked.
+        seed = random.SystemRandom().randint(0, 2**63)
+        self._random_generator = random.random()
+        self._random_generator.seed(seed)
 
