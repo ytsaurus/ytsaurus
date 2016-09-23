@@ -306,6 +306,24 @@ TJobResult TJobProxy::DoRun()
             << ex;
     }
 
+    std::vector<Stroka> annotations{
+        Format("OperationId: %v", OperationId_),
+        Format("JobId: %v", JobId_),
+        Format("JobType: %v", EJobType(JobSpec_.type()))
+    };
+
+    for (auto* descriptor : {
+        &Config_->JobIO->TableReader->WorkloadDescriptor,
+        &Config_->JobIO->TableWriter->WorkloadDescriptor,
+        &Config_->JobIO->ErrorFileWriter->WorkloadDescriptor
+    })
+    {
+        descriptor->Annotations.insert(
+            descriptor->Annotations.end(),
+            annotations.begin(),
+            annotations.end());
+    }
+
     auto environmentConfig = ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment);
     if (environmentConfig->Type == EJobEnvironmentType::Cgroups) {
         CGroupsConfig_ = ConvertTo<TCGroupJobEnvironmentConfigPtr>(Config_->JobEnvironment);
