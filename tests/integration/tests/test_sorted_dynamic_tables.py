@@ -96,7 +96,10 @@ class TestSortedDynamicTables(YTEnvSetup):
             if get(path + "/" + cell_id + "/state") == "leading":
                 tablets = ls(path + "/" + cell_id + "/tablets")
                 if tablet_id in tablets:
-                    return self._get_recursive(path + "/" + cell_id + "/tablets/" + tablet_id)
+                    try:
+                        return self._get_recursive(path + "/" + cell_id + "/tablets/" + tablet_id)
+                    except:
+                        return None
         return None
 
     def _wait_for_in_memory_stores_preload(self, table):
