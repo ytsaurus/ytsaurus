@@ -1657,7 +1657,7 @@ class TestSortedDynamicTables(YTEnvSetup):
 
     
     def test_type_conversion(self):
-        self.sync_create_cells(1, 1)
+        self.sync_create_cells(1)
         create("table", "//tmp/t",
             attributes={
                 "dynamic": True,
