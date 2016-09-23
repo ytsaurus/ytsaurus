@@ -69,7 +69,7 @@ void TValueConsumerBase::ProcessIntegralValue(const TUnversionedValue& value, EV
 
 void TValueConsumerBase::ProcessInt64Value(const TUnversionedValue& value, EValueType columnType)
 {
-    if (TypeConversionConfig_->EnableIntegralTypesConversion && columnType == EValueType::Uint64) {
+    if (TypeConversionConfig_->EnableIntegralTypeConversion && columnType == EValueType::Uint64) {
         i64 integralValue = value.Data.Int64;
         if (integralValue < 0) {
             ThrowConversionException(
@@ -87,7 +87,7 @@ void TValueConsumerBase::ProcessInt64Value(const TUnversionedValue& value, EValu
 
 void TValueConsumerBase::ProcessUint64Value(const TUnversionedValue& value, EValueType columnType)
 {
-    if (TypeConversionConfig_->EnableIntegralTypesConversion && columnType == EValueType::Int64) {
+    if (TypeConversionConfig_->EnableIntegralTypeConversion && columnType == EValueType::Int64) {
         ui64 integralValue = value.Data.Uint64;
         if (integralValue > std::numeric_limits<i64>::max()) {
             ThrowConversionException(
