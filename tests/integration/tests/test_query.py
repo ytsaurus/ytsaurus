@@ -93,7 +93,7 @@ class TestQuery(YTEnvSetup):
         assert_items_equal(actual, expected)
 
     def test_having(self):
-        self.sync_create_cells(3, 3)
+        self.sync_create_cells(3)
 
         create("table", "//tmp/t",
             attributes={
