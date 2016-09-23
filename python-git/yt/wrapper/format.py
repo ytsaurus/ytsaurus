@@ -5,7 +5,7 @@ parameters, and then by kwargs options.
 """
 
 from .config import get_config
-from .common import get_value, require, filter_dict, merge_dicts, YtError
+from .common import get_value, require, filter_dict, merge_dicts, YtError, parse_bool
 from .mappings import FrozenDict
 from .yamr_record import Record, SimpleRecord, SubkeyedRecord
 from . import yson
@@ -157,8 +157,11 @@ class Format(object):
         return self.load_row(stream)
 
     @staticmethod
-    def _create_property(property_name):
-        get_func = lambda self: self.attributes[property_name]
+    def _create_property(property_name, conversion=None):
+        if conversion is None:
+            get_func = lambda self: self.attributes[property_name]
+        else:
+            get_func = lambda self: conversion(self.attributes[property_name])
         return property(get_func)
 
     @staticmethod
@@ -207,9 +210,9 @@ class DsvFormat(Format):
         super(DsvFormat, self).__init__("dsv", all_attributes, raw)
 
 
-    enable_escaping = Format._create_property("enable_escaping")
+    enable_escaping = Format._create_property("enable_escaping", parse_bool)
 
-    enable_table_index = Format._create_property("enable_table_index")
+    enable_table_index = Format._create_property("enable_table_index", parse_bool)
 
     table_index_column = Format._create_property("table_index_column")
 
@@ -484,8 +487,8 @@ class YamrFormat(Format):
         self._load_row = self._read_lenval_values if self.lenval else self._read_delimited_values
         self.fields_number = 3 if self.has_subkey else 2
 
-    has_subkey = Format._create_property("has_subkey")
-    lenval = Format._create_property("lenval")
+    has_subkey = Format._create_property("has_subkey", parse_bool)
+    lenval = Format._create_property("lenval", parse_bool)
     field_separator = Format._create_property("fs")
     record_separator = Format._create_property("rs")
 
@@ -785,9 +788,9 @@ class SchemafulDsvFormat(Format):
 
     columns = Format._create_property("columns")
 
-    enable_escaping = Format._create_property("enable_escaping")
+    enable_escaping = Format._create_property("enable_escaping", parse_bool)
 
-    enable_table_index = Format._create_property("enable_table_index")
+    enable_table_index = Format._create_property("enable_table_index", parse_bool)
 
     table_index_column = Format._create_property("table_index_column")
 
