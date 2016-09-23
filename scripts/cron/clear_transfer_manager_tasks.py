@@ -47,10 +47,12 @@ def create_task(task_dict):
     start_time = parse(
         task_dict.get("start_time", task_dict["creation_time"])).replace(tzinfo=None)
 
-    finish_time = task_dict.get("finish_time", None)
     user = task_dict.get("user", "unknown")
     id_ = task_dict["id"]
     state = task_dict["state"]
+    finish_time = None
+    if is_final(state):
+        finish_time = parse(task_dict["finish_time"]).replace(tzinfo=None)
 
     return Task(start_time, finish_time, id_, user, state)
 
@@ -81,7 +83,7 @@ def clean_tasks(url, token, count, total_count, failed_timeout, max_regular_task
 
         users.add(task.user)
 
-        time_since = datetime.utcnow() - task.start_time
+        time_since = datetime.utcnow() - task.finish_time
         is_old = (time_since > failed_timeout)
 
         is_regular = (task.user in robots) and (task.state != "failed")
