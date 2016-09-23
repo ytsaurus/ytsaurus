@@ -1957,10 +1957,10 @@ void TOperationControllerBase::FinalizeJoblet(
     }
 
     if (jobSummary->PrepareDuration) {
-        statistics.AddSample("/time/prepare", *jobSummary->PrepareDuration);
+        statistics.AddSample("/time/prepare", jobSummary->PrepareDuration->MilliSeconds());
     }
     if (jobSummary->ExecDuration) {
-        statistics.AddSample("/time/exec", *jobSummary->ExecDuration);
+        statistics.AddSample("/time/exec", jobSummary->ExecDuration->MilliSeconds());
     }
 
     statistics.AddSample("/job_proxy/memory_reserve_factor_x10000", static_cast<int>(1e4 * joblet->JobProxyMemoryReserveFactor));
