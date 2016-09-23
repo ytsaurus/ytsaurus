@@ -2575,6 +2575,7 @@ private:
 
                 auto batchReq = proxy->ExecuteBatch();
                 NRpc::GenerateMutationId(batchReq);
+                batchReq->set_suppress_upstream_sync(true);
 
                 auto req = batchReq->add_attach_chunk_trees_subrequests();
                 ToProto(req->mutable_parent_id(), chunkListId);
