@@ -78,15 +78,25 @@ class TestSortedDynamicTables(YTEnvSetup):
         leader_peer = list(x for x in peers if x["state"] == "leading")[0]
         return leader_peer["address"]
 
-    def _get_recursive(self, path, result=None):
+    def _find_recursive(self, path, result=None):
         if result is None or result.attributes.get("opaque", False):
-            result = get(path, attributes=["opaque"])
+            try:
+                result = get(path, attributes=["opaque"])
+            except:
+                # path may not exist
+                return None
         if isinstance(result, dict):
             for key, value in result.iteritems():
-                result[key] = self._get_recursive(path + "/" + key, value)
+                actual_value = self._find_recursive(path + "/" + key, value)
+                if not actual_value:
+                    return None
+                result[key] = actual_value
         if isinstance(result, list):
             for index, value in enumerate(result):
-                result[index] = self._get_recursive(path + "/" + str(index), value)
+                actual_value = self._find_recursive(path + "/" + str(index), value)
+                if not actual_value:
+                    return None
+                result[index] = actual_value
         return result
 
     def _find_tablet_orchid(self, address, tablet_id):
@@ -96,7 +106,7 @@ class TestSortedDynamicTables(YTEnvSetup):
             if get(path + "/" + cell_id + "/state") == "leading":
                 tablets = ls(path + "/" + cell_id + "/tablets")
                 if tablet_id in tablets:
-                    return self._get_recursive(path + "/" + cell_id + "/tablets/" + tablet_id)
+                    return self._find_recursive(path + "/" + cell_id + "/tablets/" + tablet_id)
         return None
 
     def _wait_for_in_memory_stores_preload(self, table):
