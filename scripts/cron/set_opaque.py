@@ -5,7 +5,7 @@ import yt.yson as yson
 import yt.wrapper as yt
 
 import argparse
-from cStringIO import StringIO
+#from cStringIO import StringIO
 
 def is_map_node(object):
     return object.attributes["type"] == "map_node"
@@ -160,11 +160,11 @@ def main():
 
     removed_opaques = set(remove_opaques(opaque_tree, args.min_threshold, args.max_threshold)) - set(args.save)
 
-    result_opaque_tree = extract_subtree(tree, lambda node: (is_opaque(node) or get_path(node) in new_opaques) and get_path(node) not in removed_opaques)
+    #result_opaque_tree = extract_subtree(tree, lambda node: (is_opaque(node) or get_path(node) in new_opaques) and get_path(node) not in removed_opaques)
 
-    sout = StringIO()
-    print_pretty(sout, result_opaque_tree)
-    logger.info("Dump opaque tree:\n%s", sout.getvalue())
+    #sout = StringIO()
+    #print_pretty(sout, result_opaque_tree)
+    #logger.info("Dump opaque tree:\n%s", sout.getvalue())
 
     for elem in new_opaques - removed_opaques:
         logger.info("Setting opaque to %s", elem)
