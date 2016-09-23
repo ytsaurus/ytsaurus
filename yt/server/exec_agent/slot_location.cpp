@@ -147,17 +147,27 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
         auto sandboxPath = GetSandboxPath(slotIndex, kind);
         auto destinationPath = NFS::CombinePaths(sandboxPath, destinationName);
 
-        LOG_DEBUG("Making sandbox copy (SourcePath: %v, DestinationName: %v)", sourcePath, destinationName);
+        LOG_DEBUG("Making sandbox copy (SourcePath: %v, DestinationName: %v)", 
+            sourcePath, 
+            destinationName);
 
         try {
             // This validations do not disable slot.
             ValidateNotExists(destinationPath);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Failed to make a copy for file %Qv into sandbox %v", destinationName, sandboxPath) << ex;
+            // Job will be failed.
+            THROW_ERROR_EXCEPTION(
+                "Failed to make a copy for file %Qv into sandbox %v", 
+                destinationName, 
+                sandboxPath) 
+                    << ex;
         }
 
         auto logErrorAndDisableLocation = [&] (const std::exception& ex) {
-            auto error = TError("Failed to make a copy for file %Qv into sandbox %v",
+            // Probably location error, job will be aborted.
+            auto error = TError(
+                EErrorCode::ArtifactCopyingFailed, 
+                "Failed to make a copy for file %Qv into sandbox %v",
                 destinationName,
                 sandboxPath) << ex;
             Disable(error);

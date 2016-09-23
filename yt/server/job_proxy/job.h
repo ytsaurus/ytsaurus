@@ -30,6 +30,8 @@ struct IJobHost
 {
     virtual TJobProxyConfigPtr GetConfig() const = 0;
     virtual NExecAgent::TCGroupJobEnvironmentConfigPtr GetCGroupsConfig() const = 0;
+    virtual const NJobTrackerClient::TOperationId& GetOperationId() const = 0;
+    virtual const NJobTrackerClient::TJobId& GetJobId() const = 0;
 
     virtual const NJobTrackerClient::NProto::TJobSpec& GetJobSpec() const = 0;
 
@@ -73,6 +75,7 @@ struct IJob
     virtual NJobTrackerClient::TStatistics GetStatistics() const = 0;
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext() = 0;
+    virtual Stroka GetStderr() = 0;
     virtual NYson::TYsonString StraceJob() = 0;
     virtual void SignalJob(const Stroka& signalName) = 0;
     virtual NYson::TYsonString PollJobShell(const NYson::TYsonString& parameters) = 0;

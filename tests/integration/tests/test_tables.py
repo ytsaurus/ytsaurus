@@ -145,7 +145,7 @@ class TestTables(YTEnvSetup):
         content = "some_data"
         create("file", "//tmp/file")
         write_file("//tmp/file", content)
-        with pytest.raises(YtError): read_table("//tmp/file") 
+        with pytest.raises(YtError): read_table("//tmp/file")
 
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_schemaful_write(self, optimize_for):
@@ -163,14 +163,14 @@ class TestTables(YTEnvSetup):
             # sorted_by and schema are not compatible
             write_table("<sorted_by=[a]; schema=[{name=key; type=int64; sort_order=ascending}]>//tmp/table", [{"key": 2}])
 
-        write_table("<schema=[{name=key; type=int64; sort_order=ascending}]>//tmp/table", 
+        write_table("<schema=[{name=key; type=int64; sort_order=ascending}]>//tmp/table",
             [{"key": 0}, {"key": 1}])
 
         assert get("//tmp/table/@schema_mode") == "strong"
         assert read_table("//tmp/table") == [{"key": i} for i in xrange(2)]
 
         # schemas are equal so this must work; data is overwritten
-        write_table("<schema=[{name=key; type=int64; sort_order=ascending}]>//tmp/table", 
+        write_table("<schema=[{name=key; type=int64; sort_order=ascending}]>//tmp/table",
             [{"key": 0}, {"key": 1}, {"key": 2}, {"key": 3}])
         assert read_table("//tmp/table") == [{"key": i} for i in xrange(4)]
 
@@ -179,7 +179,7 @@ class TestTables(YTEnvSetup):
         assert read_table("//tmp/table") == [{"key": i} for i in xrange(6)]
 
         # data is overwritten, schema is reset
-        write_table("<schema=[{name=key; type=any}]>//tmp/table", 
+        write_table("<schema=[{name=key; type=any}]>//tmp/table",
             [{"key": 4}, {"key": 5}])
         assert get("//tmp/table/@row_count") == 2
 
@@ -539,7 +539,7 @@ class TestTables(YTEnvSetup):
         assert len(chunk_ids) == 1
         chunk_id = chunk_ids[0]
         assert get("#%s/@owning_nodes" % chunk_id) == ["//tmp/t"]
-        
+
         tx = start_transaction()
         assert read_table("//tmp/t", tx=tx) == [{"a" : "b"}]
         t2_id = copy("//tmp/t", "//tmp/t2", tx=tx)
@@ -639,7 +639,7 @@ class TestTables(YTEnvSetup):
         chunk_ids = get("//tmp/t1/@chunk_ids")
         assert len(chunk_ids) == 1
         chunk_id = chunk_ids[0]
-        
+
         assert get("#" + chunk_id + "/@replication_factor") == 1
 
         copy("//tmp/t1", "//tmp/t2")
@@ -647,9 +647,9 @@ class TestTables(YTEnvSetup):
 
         sleep(0.2)
         assert get("#" + chunk_id + "/@replication_factor") == 2
-        
+
         remove("//tmp/t2")
-        
+
         sleep(0.2)
         assert get("#" + chunk_id + "/@replication_factor") == 1
 
@@ -872,11 +872,11 @@ class TestTables(YTEnvSetup):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [
-            {"column1": {"childA" : "some_value", "childB" : "42"}, 
-            "column2" : "value12", 
+            {"column1": {"childA" : "some_value", "childB" : "42"},
+            "column2" : "value12",
             "column3" : "value13"},
-            {"column1": {"childA" : "some_other_value", "childB" : "321"}, 
-            "column2" : "value22", 
+            {"column1": {"childA" : "some_other_value", "childB" : "321"},
+            "column2" : "value22",
             "column3" : "value23"}])
 
         tabular_data = read_table("//tmp/t1", output_format=yson.loads("<columns=[column2;column3]>schemaful_dsv"))
@@ -935,6 +935,28 @@ class TestTables(YTEnvSetup):
 
         rows = [{"key": 1, "value": str(i)} for i in xrange(10)]
         test_negative(schema, rows);
+
+    def test_type_conversion(self):
+        create("table", "//tmp/t",
+            attributes={
+                "schema": make_schema([
+                    {"name": "int64", "type": "int64", "sort_order": "ascending"},
+                    {"name": "uint64", "type": "uint64"},
+                    {"name": "boolean", "type": "boolean"},
+                    {"name": "double", "type": "double"},
+                    {"name": "any", "type": "any"}],
+                    strict=False)
+            })
+
+        row = '{int64=3u; uint64=42; boolean="false"; double=18; any={}; extra=qwe}'
+
+        yson_without_type_conversion = loads("yson")
+        yson_with_type_conversion = loads("<enable_type_conversion=%true>yson")
+
+        with pytest.raises(YtError):
+            write_table("//tmp/t", row, is_raw=True, input_format=yson_without_type_conversion)
+        write_table("//tmp/t", row, is_raw=True, input_format=yson_with_type_conversion)
+
 
 ##################################################################
 

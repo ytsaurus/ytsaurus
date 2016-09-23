@@ -31,6 +31,7 @@ DEFINE_ENUM(EErrorCode,
     ((AllLocationsDisabled)     (1104))
     ((JobEnvironmentDisabled)   (1105))
     ((JobProxyConnectionFailed) (1106))
+    ((ArtifactCopyingFailed)    (1107))
 );
 
 DEFINE_ENUM(ESandboxKind,

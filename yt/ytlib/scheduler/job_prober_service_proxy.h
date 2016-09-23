@@ -30,6 +30,7 @@ public:
     { }
 
     DEFINE_RPC_PROXY_METHOD(NProto, DumpInputContext);
+    DEFINE_RPC_PROXY_METHOD(NProto, GetJobNode);
     DEFINE_RPC_PROXY_METHOD(NProto, Strace);
     DEFINE_RPC_PROXY_METHOD(NProto, SignalJob);
     DEFINE_RPC_PROXY_METHOD(NProto, AbandonJob);

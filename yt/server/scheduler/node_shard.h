@@ -123,6 +123,8 @@ public:
 
     void DumpJobInputContext(const TJobId& jobId, const NYTree::TYPath& path, const Stroka& user);
 
+    NNodeTrackerClient::TNodeDescriptor GetJobNode(const TJobId& jobId, const Stroka& user);
+
     void SignalJob(const TJobId& jobId, const Stroka& signalName, const Stroka& user);
 
     void AbandonJob(const TJobId& jobId, const Stroka& user);

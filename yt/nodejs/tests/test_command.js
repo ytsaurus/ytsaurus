@@ -326,6 +326,7 @@ describe("YtCommand - command descriptors", function() {
             'unfreeze_table',
             'generate_timestamp',
             'get',
+            'get_job_stderr',
             'get_version',
             'insert_rows',
             'trim_rows',
@@ -1491,6 +1492,12 @@ describe("YtCommand - specific behaviour", function() {
         sinon.stub(this.coordinator, "getSelf").returns({role: "control"});
         ask("PUT", V + "/write?path=//t", {}, function(rsp) {
             rsp.statusCode.should.eql(503);
+        }, done).end();
+    });
+
+    it("should not redirect when it is suppressed", function(done) {
+        ask("GET", V + "/read?path=//t", {"X-YT-Suppress-Redirect": "1"}, function(rsp) {
+            rsp.statusCode.should.eql(200);
         }, done).end();
     });
 

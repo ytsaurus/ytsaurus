@@ -162,6 +162,10 @@ def dump_job_context(job_id, path, **kwargs):
     kwargs["path"] = path
     return execute_command("dump_job_context", kwargs)
 
+def get_job_stderr(job_id, **kwargs):
+    kwargs["job_id"] = job_id
+    return execute_command("get_job_stderr", kwargs)
+
 def strace_job(job_id, **kwargs):
     kwargs["job_id"] = job_id
     result = execute_command('strace_job', kwargs)
@@ -274,7 +278,10 @@ def _prepare_rows_stream(data, is_raw=False):
 
 def insert_rows(path, data, is_raw=False, **kwargs):
     kwargs["path"] = path
-    return execute_command("insert_rows", kwargs, input_stream=_prepare_rows_stream(data, is_raw))
+    if not is_raw:
+        return execute_command("insert_rows", kwargs, input_stream=_prepare_rows_stream(data))
+    else:
+        return execute_command("insert_rows", kwargs, input_stream=StringIO(data))
 
 def delete_rows(path, data, **kwargs):
     kwargs["path"] = path
@@ -517,8 +524,7 @@ class Operation(object):
             time.sleep(self._poll_frequency)
 
     def abort(self, **kwargs):
-        kwargs["operation_id"] = self.id
-        execute_command("abort_op", kwargs)
+        abort_op(self.id, **kwargs)
 
     def complete(self, **kwargs):
         kwargs["operation_id"] = self.id
@@ -617,6 +623,10 @@ def start_op(op_type, **kwargs):
         operation.track()
 
     return operation
+
+def abort_op(op_id, **kwargs):
+    kwargs["operation_id"] = op_id
+    execute_command("abort_op", kwargs)
 
 def map(**kwargs):
     change(kwargs, "ordered", ["spec", "ordered"])

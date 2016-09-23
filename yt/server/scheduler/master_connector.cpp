@@ -1482,6 +1482,7 @@ private:
             {
                 auto batchReq = StartChunkBatchRequest(cellTag);
                 GenerateMutationId(batchReq);
+                batchReq->set_suppress_upstream_sync(true);
 
                 for (int index = 0; index < perCellFiles.size(); ++index) {
                     const auto& file = perCellFiles[index];
@@ -1627,6 +1628,7 @@ private:
 
             auto batchReq = StartChunkBatchRequest(cellTag);
             GenerateMutationId(batchReq);
+            batchReq->set_suppress_upstream_sync(true);
 
             std::vector<int> tableIndexToRspIndex;
             for (const auto* tableInfo : tableInfos) {

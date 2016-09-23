@@ -11,15 +11,30 @@ from threading import Thread
 def do_action(action, tables, args, **kwargs):
     def _mount(table, **kwargs):
         logging.info("Mounting table %s", table)
-        yt.mount_table(table, **kwargs)
+        try:
+            yt.mount_table(table, **kwargs)
+            return True
+        except:
+            logging.exception("Unable to unmount table %s", table)
+            return False
 
     def _unmount(table, **kwargs):
         logging.info("Unmounting table %s", table)
-        yt.unmount_table(table, **kwargs)
+        try:
+            yt.unmount_table(table, **kwargs)
+            return True
+        except:
+            logging.exception("Unable to unmount table %s", table)
+            return False
 
     def _remount(table, **kwargs):
         logging.info("Remounting table %s", table)
-        yt.remount_table(table, **kwargs)
+        try:
+            yt.remount_table(table, **kwargs)
+            return True
+        except:
+            logging.exception("Unable to unmount table %s", table)
+            return False
 
     ops = []
     if action == "mount":
@@ -32,13 +47,32 @@ def do_action(action, tables, args, **kwargs):
         ops.append([_unmount, "unmounted"])
         ops.append([_mount, "mounted"])
 
+    skipped_tables = []
+    success_tables = []
+    failed_tables = []
+
+    check_state = lambda: all(tablet["state"] == state for tablet in yt.get(table + "/@tablets"))
     for fn, state in ops:
         for table in tables:
-            fn(table, **kwargs)
-        for table in tables:
-            while not all(tablet["state"] == state for tablet in yt.get(table + "/@tablets")):
+            if check_state():
+                skipped_tables.append(table)
+                continue
+            if args.read_only:
+                yt.set(table + "/@read_only", True)
+            if args.read_write:
+                yt.remove(table + "/@read_only", force=True)
+            ok = fn(table, **kwargs)
+            if ok:
+                success_tables.append(table)
+            else:
+                failed_tables.append(table)
+        for table in success_tables:
+            while not check_state():
                 logging.info("Waiting for table %s tablets to become %s", table, state)
                 time.sleep(1)
+
+    logging.info("Done; skipped %s tables, succeded in %s tables, failed in %s tables",
+                 len(skipped_tables), len(success_tables), len(failed_tables))
 
 
 def main():
@@ -53,6 +87,7 @@ def main():
                         help="Set read-only mode for table")
     parser.add_argument("--read-write", action="store_true", default=False,
                         help="Set read-write mode for table")
+    parser.add_argument("--path", default="/", help="Path to operate on")
 
     args = parser.parse_args()
 
@@ -66,8 +101,10 @@ def main():
     else:
         kwargs = {}
 
+    logging.info("Operating on %s", args.path)
+
     tables = []
-    for table in yt.search("/", node_type="table", attributes=["dynamic"]):
+    for table in yt.search(args.path, node_type="table", attributes=["dynamic"]):
         dynamic = parse_bool(table.attributes.get("dynamic", "false"))
         if not dynamic:
             continue

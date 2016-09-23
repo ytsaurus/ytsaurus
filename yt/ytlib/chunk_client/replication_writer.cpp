@@ -255,10 +255,6 @@ private:
 
     void AddBlocks(const std::vector<TSharedRef>& blocks);
 
-    IChannelPtr CreateRetryingNodeChannel(
-        INodeChannelFactoryPtr channelFactory,
-        const Stroka& address);
-
     DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
 };
 
@@ -578,12 +574,13 @@ void TReplicationWriter::StartChunk(TChunkReplica target)
     auto address = nodeDescriptor.GetAddress(Networks_);
     LOG_DEBUG("Starting write session (Address: %v)", address);
 
-    auto lightChannel = CreateRetryingNodeChannel(
-        Client_->GetLightChannelFactory(),
-        address);
-    auto heavyChannel = CreateRetryingNodeChannel(
-        Client_->GetHeavyChannelFactory(),
-        address);
+    auto lightChannel = Client_->GetLightChannelFactory()->CreateChannel(address);
+    auto heavyChannel = CreateRetryingChannel(
+        Config_->NodeChannel,
+        Client_->GetHeavyChannelFactory()->CreateChannel(address),
+        BIND([] (const TError& error) {
+            return error.FindMatching(NChunkClient::EErrorCode::WriteThrottlingActive).HasValue();
+        }));
 
     TDataNodeServiceProxy proxy(lightChannel);
     auto req = proxy.StartChunk();
@@ -1089,18 +1086,6 @@ NErasure::ECodec TReplicationWriter::GetErasureCodecId() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     return NErasure::ECodec::None;
-}
-
-IChannelPtr TReplicationWriter::CreateRetryingNodeChannel(
-    INodeChannelFactoryPtr channelFactory,
-    const Stroka& address)
-{
-    return CreateRetryingChannel(
-        Config_->NodeChannel,
-        channelFactory->CreateChannel(address),
-        BIND([] (const TError& error) {
-            return error.FindMatching(NChunkClient::EErrorCode::WriteThrottlingActive).HasValue();
-        }));
 }
 
 ///////////////////////////////////////////////////////////////////////////////

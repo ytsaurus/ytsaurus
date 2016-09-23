@@ -48,7 +48,6 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
         query->InputRowLimit,
         query->OutputRowLimit);
 
-    topQuery->HavingClause = query->HavingClause;
     topQuery->OrderClause = query->OrderClause;
     topQuery->Limit = query->Limit;
 
@@ -89,8 +88,10 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
             topGroupClause->IsFinal = query->GroupClause->IsFinal;
             topGroupClause->TotalsMode = query->GroupClause->TotalsMode;
             topQuery->GroupClause = topGroupClause;
+            topQuery->HavingClause = query->HavingClause;
         } else {
             subqueryPattern->GroupClause = query->GroupClause;
+            subqueryPattern->HavingClause = query->HavingClause;
         }
 
         topQuery->ProjectClause = query->ProjectClause;

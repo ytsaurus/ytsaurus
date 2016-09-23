@@ -263,6 +263,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_reader_base.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_slices_fetcher.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/columnar_chunk_reader_base.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/columnar_chunk_meta.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/legacy_channel_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/legacy_chunk_meta.proto

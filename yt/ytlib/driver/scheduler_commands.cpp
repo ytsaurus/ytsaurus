@@ -25,6 +25,17 @@ void TDumpJobContextCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TGetJobStderrCommand::Execute(ICommandContextPtr context)
+{
+    auto result = WaitFor(context->GetClient()->GetJobStderr(JobId, Path))
+        .ValueOrThrow();
+
+    auto output = context->Request().OutputStream;
+    output->Write(TSharedRef::FromString(result));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TStraceJobCommand::Execute(ICommandContextPtr context)
 {
     auto asyncResult = context->GetClient()->StraceJob(JobId, Options);

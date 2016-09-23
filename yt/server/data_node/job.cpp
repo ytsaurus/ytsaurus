@@ -211,6 +211,11 @@ public:
         THROW_ERROR_EXCEPTION("Input context dumping is not supported");
     }
 
+    virtual Stroka GetStderr() override
+    {
+        THROW_ERROR_EXCEPTION("Getting stderr is not supported");
+    }
+
     virtual TYsonString Strace() override
     {
         THROW_ERROR_EXCEPTION("Stracing is not supported");

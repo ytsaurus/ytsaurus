@@ -60,6 +60,13 @@ std::vector<NChunkClient::TChunkId> TJob::DumpInputContext()
         "Dumping input context is not supported for built-in jobs");
 }
 
+Stroka TJob::GetStderr()
+{
+    THROW_ERROR_EXCEPTION(
+        EErrorCode::UnsupportedJobType,
+        "Getting stderr is not supported for built-in jobs");
+}
+
 TYsonString TJob::StraceJob()
 {
     THROW_ERROR_EXCEPTION(

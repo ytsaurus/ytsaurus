@@ -1752,7 +1752,14 @@ class TestSecureVault(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
-    secure_vault = {"key1": 42424243, "key2": {"token1": "SeNsItIvE", "token2": "InFo"}}
+    secure_vault = {
+        "int64": 42424243,
+        "uint64": yson.YsonUint64(1234),
+        "string": "penguin",
+        "boolean": True,
+        "double": 3.14,
+        "composite": {"token1": "SeNsItIvE", "token2": "InFo"},
+    }
 
     def run_map_with_secure_vault(self):
         create("table", "//tmp/t_in")
@@ -1765,16 +1772,27 @@ class TestSecureVault(YTEnvSetup):
             spec={"secure_vault": self.secure_vault, "max_failed_job_count": 1},
             command="""
                 echo {YT_SECURE_VAULT=$YT_SECURE_VAULT}\;;
-                echo {YT_SECURE_VAULT_key1=$YT_SECURE_VAULT_key1}\;;
-                echo {YT_SECURE_VAULT_key2=$YT_SECURE_VAULT_key2}\;;
-            """)
+                echo {YT_SECURE_VAULT_int64=$YT_SECURE_VAULT_int64}\;;
+                echo {YT_SECURE_VAULT_uint64=$YT_SECURE_VAULT_uint64}\;;
+                echo {YT_SECURE_VAULT_string=$YT_SECURE_VAULT_string}\;;
+                echo {YT_SECURE_VAULT_boolean=$YT_SECURE_VAULT_boolean}\;;
+                echo {YT_SECURE_VAULT_double=$YT_SECURE_VAULT_double}\;;
+                echo {YT_SECURE_VAULT_composite=\\"$YT_SECURE_VAULT_composite\\"}\;;
+           """)
         return op
 
     def check_content(self, res):
-        assert len(res) == 3
+        assert len(res) == 7
         assert res[0] == {"YT_SECURE_VAULT": self.secure_vault}
-        assert res[1] == {"YT_SECURE_VAULT_key1": self.secure_vault["key1"]}
-        assert res[2] == {"YT_SECURE_VAULT_key2": self.secure_vault["key2"]}
+        assert res[1] == {"YT_SECURE_VAULT_int64": str(self.secure_vault["int64"])}
+        assert res[2] == {"YT_SECURE_VAULT_uint64": str(self.secure_vault["uint64"])}
+        assert res[3] == {"YT_SECURE_VAULT_string": self.secure_vault["string"]}
+        # Boolean values are represented with 0/1.
+        assert res[4] == {"YT_SECURE_VAULT_boolean": "1"}
+        assert res[5] == {"YT_SECURE_VAULT_double": str(self.secure_vault["double"])}
+        # Composite values are not exported as separate environment variables.
+        assert res[6] == {"YT_SECURE_VAULT_composite": ""}
+
 
     def test_secure_vault_not_visible(self):
         op = self.run_map_with_secure_vault()
@@ -1813,7 +1831,7 @@ class TestSecureVault(YTEnvSetup):
                 spec={"secure_vault": {"=_=": 42}},
                 command="cat")
         with pytest.raises(YtError):
-            map(ont_track=True,
+            map(dont_track=True,
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
                 spec={"secure_vault": {"x" * (2**16 + 1): 42}},

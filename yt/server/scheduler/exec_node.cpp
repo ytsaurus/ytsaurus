@@ -81,11 +81,8 @@ void TExecNode::SetResourceUsage(const TJobResources& value)
 
 ////////////////////////////////////////////////////////////////////
 
-TExecNodeDescriptor::TExecNodeDescriptor()
-{ }
-
 TExecNodeDescriptor::TExecNodeDescriptor(
-    const NNodeTrackerClient::TNodeId& id,
+    NNodeTrackerClient::TNodeId id,
     const Stroka& address,
     double ioWeight,
     const TJobResources& resourceLimits,
