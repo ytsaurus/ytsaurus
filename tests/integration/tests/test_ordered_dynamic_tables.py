@@ -36,11 +36,11 @@ class TestOrderedDynamicTables(YTEnvSetup):
                 {"name": "c", "type": "string"}
             ]
         }
-        if commit_ordering:
+        if commit_ordering is not None:
             attributes["commit_ordering"] = commit_ordering
-        if tablet_count:
+        if tablet_count is not None:
             attributes["tablet_count"] = tablet_count
-        if pivot_keys:
+        if pivot_keys is not None:
             attributes["pivot_keys"] = pivot_keys
         create("table", path, attributes=attributes)
 
@@ -447,6 +447,8 @@ class TestOrderedDynamicTables(YTEnvSetup):
 
 
     def test_set_tablet_count_upon_construction_fail(self):
+        with pytest.raises(YtError):
+            self._create_simple_table("//tmp/t", tablet_count=0)
         with pytest.raises(YtError):
             self._create_simple_table("//tmp/t", tablet_count=-1)
         with pytest.raises(YtError):

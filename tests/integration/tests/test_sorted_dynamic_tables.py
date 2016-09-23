@@ -36,15 +36,15 @@ class TestSortedDynamicTables(YTEnvSetup):
                 {"name": "value", "type": "string"}
             ]
         }
-        if atomicity:
+        if atomicity is not None:
             attributes["atomicity"] = atomicity
-        if optimize_for:
+        if optimize_for is not None:
             attributes["optimize_for"] = optimize_for
-        if tablet_cell_bundle:
+        if tablet_cell_bundle is not None:
             attributes["tablet_cell_bundle"] = tablet_cell_bundle
-        if tablet_count:
+        if tablet_count is not None:
             attributes["tablet_count"] = tablet_count
-        if pivot_keys:
+        if pivot_keys is not None:
             attributes["pivot_keys"] = pivot_keys
         create("table", path, attributes=attributes)
 
@@ -1642,6 +1642,8 @@ class TestSortedDynamicTables(YTEnvSetup):
     def test_set_pivot_keys_upon_construction_fail(self):
         with pytest.raises(YtError):
             self._create_simple_table("//tmp/t", tablet_count=10)
+        with pytest.raises(YtError):
+            self._create_simple_table("//tmp/t", pivot_keys=[])
         with pytest.raises(YtError):
             self._create_simple_table("//tmp/t", pivot_keys=[[10], [20]])
         with pytest.raises(YtError):
