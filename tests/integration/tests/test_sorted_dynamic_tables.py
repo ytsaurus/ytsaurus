@@ -117,6 +117,8 @@ class TestSortedDynamicTables(YTEnvSetup):
             address = self._get_tablet_leader_address(tablet_id)
             def all_preloaded():
                 orchid = self._find_tablet_orchid(address, tablet_id)
+                if not orchid:
+                    return False
                 for store in orchid["eden"]["stores"].itervalues():
                     if store["store_state"] == "persistent" and store["preload_state"] != "complete":
                         return False
