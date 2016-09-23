@@ -216,7 +216,7 @@ class TestCypress(object):
         fi = fuse_file_info()
         fuse_filepath = filepath[1:]
 
-        ypress.create(fuse_filepath, 0o755, fi)
+        cypress.create(fuse_filepath, 0o755, fi)
 
         for offset, length in parts:
             cypress.write(fuse_filepath, content[offset:offset + length], offset, fi)
