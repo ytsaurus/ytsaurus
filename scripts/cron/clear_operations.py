@@ -31,8 +31,6 @@ import yt.packages.requests as requests
 operations_archive.STDERRS = "{}/stderrs".format(operations_archive.OPERATIONS_ARCHIVE_PATH)
 operations_archive.JOBS = "{}/jobs".format(operations_archive.OPERATIONS_ARCHIVE_PATH)
 
-STDERR_THREAD_FACTOR = 8
-
 Operation = namedtuple("Operation", ["start_time", "finish_time", "id", "user", "state", "spec"])
 
 logger.set_formatter(Formatter("%(asctime)-15s\t{}\t%(message)s".format(yt.config["proxy"]["url"])))
@@ -204,7 +202,7 @@ def push_to_solomon(values_map, cluster, ts):
     }
 
     try:
-        rsp = requests.post("http://api.solomon.search.yandex.net/push/json", headers={"Content-Type": "application/json"}, data=json.dumps(data), allow_redirects=True, timeout=10)
+        rsp = requests.post("http://api.solomon.search.yandex.net/push/json", headers={"Content-Type": "application/json"}, data=json.dumps(data), allow_redirects=True, timeout=20)
         if not rsp.ok:
             logger.info(rsp.content)
     except:
@@ -468,7 +466,7 @@ class StderrDownloader(object):
         path = "http://{}/api/v3/read_file?path=//sys/operations/{}/jobs/{}/stderr".format(proxy_url, op_id, job_id)
 
         try:
-            rsp = requests.get(path, headers={"Authorization": "OAuth {}".format(token)}, allow_redirects=True, timeout=10)
+            rsp = requests.get(path, headers={"Authorization": "OAuth {}".format(token)}, allow_redirects=True, timeout=20)
         except:
             self.metrics.add("failed_to_archive_stderr_count", 1)
             raise
@@ -488,7 +486,7 @@ class StderrDownloader(object):
         self.insert_queue.put(row)
 
 def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, archiving_timeout,
-                     max_operations_per_user, robots, log, archive, archive_stderrs, thread_count, push_metrics):
+                     max_operations_per_user, robots, log, archive, archive_stderrs, thread_count, stderr_thread_count, push_metrics):
 
     #
     # Step 1: Fetch data from Cypress.
@@ -610,7 +608,7 @@ def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, arc
             timer = timers["archiving_stderrs"] = Timer()
             with timer:
                 insert_queue = NonBlockingQueue()
-                run_queue_workers(stderr_queue, StderrDownloader, thread_count * STDERR_THREAD_FACTOR, (insert_queue, thread_safe_metrics))
+                run_queue_workers(stderr_queue, StderrDownloader, stderr_thread_count, (insert_queue, thread_safe_metrics))
                 run_batching_queue_workers(insert_queue, StderrInserter, thread_count, (thread_safe_metrics,))
 
                 wait_for_queue(stderr_queue, "fetch_stderr", end_time_limit)
@@ -688,6 +686,8 @@ def main():
                         help="(deprecated) scheme type of operations archive, possible values: 'old', 'new'")
     parser.add_argument("--thread-count", metavar="N", type=int, default=24,
                         help="parallelism level for operation cleansing")
+    parser.add_argument("--stderr-thread-count", metavar="N", type=int, default=96,
+                        help="parallelism level for downloading stderrs")
 
 
     args = parser.parse_args()
@@ -704,6 +704,7 @@ def main():
         args.archive,
         args.stderrs,
         args.thread_count,
+        args.stderr_thread_count,
         args.push_metrics)
 
 if __name__ == "__main__":
