@@ -22,7 +22,7 @@ using namespace NYson;
 // test all possible combinations of them.
 // Order of options: <EnableStringToAllConversion,
 //                    EnableAllToStringConversion,
-//                    EnableIntegralTypesConversion,
+//                    EnableIntegralTypeConversion,
 //                    EnableIntegralToDoubleConversion>
 class TValueConsumerTypeConversionTest
     : public ::testing::TestWithParam<std::tuple<bool, bool, bool, bool>>
@@ -42,7 +42,7 @@ TEST_P(TValueConsumerTypeConversionTest, TestBehaviour)
     std::tie(
         typeConversionConfig->EnableStringToAllConversion,
         typeConversionConfig->EnableAllToStringConversion,
-        typeConversionConfig->EnableIntegralTypesConversion,
+        typeConversionConfig->EnableIntegralTypeConversion,
         typeConversionConfig->EnableIntegralToDoubleConversion) = GetParam();
 
     TTableSchema schema({
@@ -98,16 +98,16 @@ TEST_P(TValueConsumerTypeConversionTest, TestBehaviour)
         ExpectConversion("any", value, Never);
     }
 
-    ExpectConversion("int64", "42u", typeConversionConfig->EnableIntegralTypesConversion, "42");
-    ExpectError("int64", "9223372036854775808u", typeConversionConfig->EnableIntegralTypesConversion); // 2^63 leads to an integer overflow.
+    ExpectConversion("int64", "42u", typeConversionConfig->EnableIntegralTypeConversion, "42");
+    ExpectError("int64", "9223372036854775808u", typeConversionConfig->EnableIntegralTypeConversion); // 2^63 leads to an integer overflow.
     ExpectConversion("int64", "\"-42\"", typeConversionConfig->EnableStringToAllConversion, "-42");
     ExpectError("int64", "abc", typeConversionConfig->EnableStringToAllConversion);
     for (Stroka value : {"42", "%true", "3.14", "#", "{}"}) {
         ExpectConversion("int64", value, Never);
     }
 
-    ExpectConversion("uint64", "42", typeConversionConfig->EnableIntegralTypesConversion, "42u");
-    ExpectError("uint64", "-42", typeConversionConfig->EnableIntegralTypesConversion);
+    ExpectConversion("uint64", "42", typeConversionConfig->EnableIntegralTypeConversion, "42u");
+    ExpectError("uint64", "-42", typeConversionConfig->EnableIntegralTypeConversion);
     ExpectConversion("uint64", "\"234\"", typeConversionConfig->EnableStringToAllConversion, "234u");
     ExpectError("uint64", "abc", typeConversionConfig->EnableStringToAllConversion);
     for (Stroka value : {"42u", "%true", "3.14", "#", "{}"}) {

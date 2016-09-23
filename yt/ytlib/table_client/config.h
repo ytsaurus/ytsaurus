@@ -268,7 +268,7 @@ public:
     bool EnableTypeConversion;
     bool EnableStringToAllConversion;
     bool EnableAllToStringConversion;
-    bool EnableIntegralTypesConversion;
+    bool EnableIntegralTypeConversion;
     bool EnableIntegralToDoubleConversion;
 
     TTypeConversionConfig()
@@ -279,7 +279,7 @@ public:
             .Default(false);
         RegisterParameter("enable_all_to_string_conversion", EnableStringToAllConversion)
             .Default(false);
-        RegisterParameter("enable_integral_types_conversion", EnableIntegralTypesConversion)
+        RegisterParameter("enable_integral_type_conversion", EnableIntegralTypeConversion)
             .Default(true);
         RegisterParameter("enable_integral_to_double_conversion", EnableIntegralToDoubleConversion)
             .Default(false);
@@ -288,7 +288,7 @@ public:
     virtual void OnLoaded() override
     {
         if (EnableTypeConversion) {
-            EnableStringToAllConversion = EnableAllToStringConversion = EnableIntegralTypesConversion = EnableIntegralToDoubleConversion = true;
+            EnableStringToAllConversion = EnableAllToStringConversion = EnableIntegralTypeConversion = EnableIntegralToDoubleConversion = true;
         }
     }
 };
