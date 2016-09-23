@@ -47,7 +47,7 @@ var version;
 try {
     version = JSON.parse(fs.readFileSync(__dirname + "/../package.json"));
 } catch (ex) {
-    version = { version : "(development)", dependencies : {} };
+    version = { version : "18.5 arcadia", dependencies : {} };
 }
 
 if (opts.argv.v) {
