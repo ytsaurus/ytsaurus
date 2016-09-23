@@ -38,15 +38,9 @@ using namespace NObjectClient;
 TUserJobIOBase::TUserJobIOBase(IJobHostPtr host)
     : Host_(host)
     , SchedulerJobSpec_(Host_->GetJobSpec().GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext))
-    , JobIOConfig_(CloneYsonSerializable(Host_->GetConfig()->JobIO))
+    , JobIOConfig_(Host_->GetConfig()->JobIO)
     , Logger(host->GetLogger())
-{
-    auto annotation = Format("OperationId: %v, JobId: %v",
-        Host_->GetOperationId(),
-        Host_->GetJobId());
-    JobIOConfig_->TableReader->WorkloadDescriptor.Annotations.push_back(annotation);
-    JobIOConfig_->TableWriter->WorkloadDescriptor.Annotations.push_back(annotation);
-}
+{ }
 
 void TUserJobIOBase::Init()
 {
