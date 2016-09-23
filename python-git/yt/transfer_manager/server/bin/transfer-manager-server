@@ -972,6 +972,7 @@ class Application(object):
                 if task.state == "skipped":
                     logger.info('Task %s skipped since "skip_if_destination_exists" option '
                                 'is specified and destination table exists', task.id)
+                    task.finish_time = now_str()
                     return task.id
 
                 self._append_pending_task(task)
