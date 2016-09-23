@@ -306,7 +306,7 @@ public:
     }
 
     virtual std::vector<TChunkId> DumpInputContext() override
-    {
+    {   
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
         ValidateJobRunning();
@@ -320,6 +320,22 @@ public:
         const auto& rsp = rspOrError.Value();
 
         return FromProto<std::vector<TChunkId>>(rsp->chunk_ids());
+    }
+
+    virtual Stroka GetStderr() override
+    {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+        ValidateJobRunning();
+
+        auto proxy = Slot_->GetJobProberProxy();
+        auto req = proxy.GetStderr();
+
+        ToProto(req->mutable_job_id(), Id_);
+        auto rspOrError = WaitFor(req->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting stderr from job proxy");
+        const auto& rsp = rspOrError.Value();
+
+        return rsp->stderr_data();
     }
 
     virtual TYsonString Strace() override
@@ -859,6 +875,7 @@ private:
             resultError.FindMatching(NExecAgent::EErrorCode::ConfigCreationFailed) ||
             resultError.FindMatching(NExecAgent::EErrorCode::AllLocationsDisabled) ||
             resultError.FindMatching(NExecAgent::EErrorCode::JobEnvironmentDisabled) ||
+            resultError.FindMatching(NExecAgent::EErrorCode::ArtifactCopyingFailed) ||
             resultError.FindMatching(NJobProxy::EErrorCode::MemoryCheckFailed))
         {
             return EAbortReason::Other;

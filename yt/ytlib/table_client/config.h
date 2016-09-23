@@ -273,5 +273,41 @@ DEFINE_REFCOUNTED_TYPE(TRetentionConfig)
 
 ///////////////////////////////////////////////////////////////////////////////
 
+class TTypeConversionConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool EnableTypeConversion;
+    bool EnableStringToAllConversion;
+    bool EnableAllToStringConversion;
+    bool EnableIntegralTypesConversion;
+    bool EnableIntegralToDoubleConversion;
+
+    TTypeConversionConfig()
+    {
+        RegisterParameter("enable_type_conversion", EnableTypeConversion)
+            .Default(false);
+        RegisterParameter("enable_string_to_all_conversion", EnableStringToAllConversion)
+            .Default(false);
+        RegisterParameter("enable_all_to_string_conversion", EnableStringToAllConversion)
+            .Default(false);
+        RegisterParameter("enable_integral_types_conversion", EnableIntegralTypesConversion)
+            .Default(true);
+        RegisterParameter("enable_integral_to_double_conversion", EnableIntegralToDoubleConversion)
+            .Default(false);
+    }
+
+    virtual void OnLoaded() override
+    {
+        if (EnableTypeConversion) {
+            EnableStringToAllConversion = EnableAllToStringConversion = EnableIntegralTypesConversion = EnableIntegralToDoubleConversion = true;
+        }
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TTypeConversionConfig)
+
+///////////////////////////////////////////////////////////////////////////////
+
 } // namespace NTableClient
 } // namespace NYT

@@ -105,7 +105,9 @@ void TWriteTableCommand::Execute(ICommandContextPtr context)
     WaitFor(writer->Open())
         .ThrowOnError();
 
-    TWritingValueConsumer valueConsumer(writer);
+    TWritingValueConsumer valueConsumer(
+        writer,
+        ConvertTo<TTypeConversionConfigPtr>(context->GetInputFormat().Attributes()));
 
     std::vector<IValueConsumer*> valueConsumers(1, &valueConsumer);
     TTableOutput output(CreateParserForFormat(
@@ -285,7 +287,9 @@ void TInsertRowsCommand::Execute(ICommandContextPtr context)
     { };
 
     // Parse input data.
-    TBuildingValueConsumer valueConsumer(tableInfo->Schemas[ETableSchemaKind::Write]);
+    TBuildingValueConsumer valueConsumer(
+        tableInfo->Schemas[ETableSchemaKind::Write],
+        ConvertTo<TTypeConversionConfigPtr>(context->GetInputFormat().Attributes()));
     valueConsumer.SetTreatMissingAsNull(!Update);
 
     auto rows = ParseRows(context, config, &valueConsumer);
@@ -332,7 +336,9 @@ void TLookupRowsCommand::Execute(ICommandContextPtr context)
     { };
 
     // Parse input data.
-    TBuildingValueConsumer valueConsumer(tableInfo->Schemas[ETableSchemaKind::Lookup]);
+    TBuildingValueConsumer valueConsumer(
+        tableInfo->Schemas[ETableSchemaKind::Lookup],
+        ConvertTo<TTypeConversionConfigPtr>(context->GetInputFormat().Attributes()));
     auto keys = ParseRows(context, config, &valueConsumer);
     auto rowBuffer = New<TRowBuffer>(TLookupRowsBufferTag());
     auto capturedKeys = rowBuffer->Capture(keys);
@@ -397,7 +403,9 @@ void TDeleteRowsCommand::Execute(ICommandContextPtr context)
     { };
 
     // Parse input data.
-    TBuildingValueConsumer valueConsumer(tableInfo->Schemas[ETableSchemaKind::Delete]);
+    TBuildingValueConsumer valueConsumer(
+        tableInfo->Schemas[ETableSchemaKind::Delete],
+        ConvertTo<TTypeConversionConfigPtr>(context->GetInputFormat().Attributes()));
     auto keys = ParseRows(context, config, &valueConsumer);
     auto rowBuffer = New<TRowBuffer>(TDeleteRowsBufferTag());
     auto capturedKeys = rowBuffer->Capture(keys);

@@ -232,19 +232,25 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ExecuteBatch)
     {
+        bool suppressUpstreamSync = request->suppress_upstream_sync();
+
         context->SetRequestInfo(
             "CreateChunkCount: %v, "
             "ConfirmChunkCount: %v, "
-            "SealChunkCount: %v"
-            "CreateChunkListsCount: %v",
+            "SealChunkCount: %v, "
+            "CreateChunkListsCount: %v, "
+            "SuppressUpstreamSync: %v",
             request->create_chunk_subrequests_size(),
             request->confirm_chunk_subrequests_size(),
             request->seal_chunk_subrequests_size(),
-            request->create_chunk_lists_subrequests_size());
+            request->create_chunk_lists_subrequests_size(),
+            suppressUpstreamSync);
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
-        SyncWithUpstream();
+        if (!suppressUpstreamSync) {
+            SyncWithUpstream();
+        }
 
         auto chunkManager = Bootstrap_->GetChunkManager();
         chunkManager

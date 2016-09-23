@@ -51,7 +51,7 @@ ISchemalessChunkWriterPtr CreatePartitionChunkWriter(
     TChunkWriterOptionsPtr options,
     const TKeyColumns& keyColumns,
     NChunkClient::IChunkWriterPtr chunkWriter,
-    IPartitioner* partitioner,
+    IPartitionerPtr partitioner,
     NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -87,7 +87,7 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
     NObjectClient::TCellTag cellTag,
     const NTransactionClient::TTransactionId& transactionId,
     const NChunkClient::TChunkListId& parentChunkListId,
-    std::unique_ptr<IPartitioner> partitioner,
+    IPartitionerPtr partitioner,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
     NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
 

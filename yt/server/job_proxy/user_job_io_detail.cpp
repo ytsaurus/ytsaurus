@@ -37,8 +37,7 @@ using namespace NObjectClient;
 
 TUserJobIOBase::TUserJobIOBase(IJobHostPtr host)
     : Host_(host)
-    , SchedulerJobSpec_(Host_->GetJobSpec().GetExtension(
-        TSchedulerJobSpecExt::scheduler_job_spec_ext))
+    , SchedulerJobSpec_(Host_->GetJobSpec().GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext))
     , JobIOConfig_(Host_->GetConfig()->JobIO)
     , Logger(host->GetLogger())
 { }
@@ -166,7 +165,7 @@ ISchemalessMultiChunkReaderPtr TUserJobIOBase::CreateRegularReader(
     }
 
     auto options = ConvertTo<TTableReaderOptionsPtr>(TYsonString(
-            SchedulerJobSpec_.input_specs(0).table_reader_options()));
+        SchedulerJobSpec_.input_specs(0).table_reader_options()));
 
     return CreateTableReader(options, chunkSpecs, std::move(nameTable), columnFilter, isParallel);
 }

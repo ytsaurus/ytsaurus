@@ -92,6 +92,31 @@ class TestQuery(YTEnvSetup):
         actual = select_rows("k, sum(b) as s from [//tmp/t] group by a % 2 as k")
         assert_items_equal(actual, expected)
 
+    def test_having(self):
+        self.sync_create_cells(3, 3)
+
+        create("table", "//tmp/t",
+            attributes={
+                "dynamic": True,
+                "optimize_for": "scan",
+                "schema": [
+                    {"name": "a", "type": "int64", "sort_order": "ascending"},
+                    {"name": "b", "type": "int64"}]
+            })
+
+        self.sync_mount_table("//tmp/t")
+
+        data = [{"a" : i, "b" : i * 10} for i in xrange(0,100)]
+        insert_rows("//tmp/t", data)
+
+        expected = [{"k": 0, "aa": 49.0, "mb": 0, "ab": 490.0}]
+        actual = select_rows("""
+            k, avg(a) as aa, min(b) as mb, avg(b) as ab
+            from [//tmp/t]
+            group by a % 2 as k
+            having mb < 5""")
+        assert expected == actual
+
     def test_merging_group_by(self):
         self.sync_create_cells(1)
 

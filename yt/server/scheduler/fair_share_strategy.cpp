@@ -478,6 +478,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        LOG_INFO("Starting fair share update");
+
         // Run periodic update.
         PROFILE_TIMING ("/fair_share_update_time") {
             // The root element gets the whole cluster.
@@ -527,6 +529,8 @@ public:
             }
             ProfileSchedulerElement(RootElement);
         }
+
+        LOG_INFO("Fair share successfully updated");
     }
 
     // NB: This function is public for testing purposes.
@@ -679,7 +683,7 @@ private:
         {
             LOG_DEBUG("Scheduling new jobs");
             PROFILE_AGGREGATED_TIMING(NonPreemptiveProfilingCounters.PrescheduleJobTimeCounter) {
-                rootElement->PrescheduleJob(context, /*starvingOnly*/ false);
+                rootElement->PrescheduleJob(context, /*starvingOnly*/ false, /*aggressiveStarvationEnabled*/ false);
             }
 
             TScopedTimer timer;
@@ -733,7 +737,7 @@ private:
         {
             LOG_DEBUG("Scheduling new jobs with preemption");
             PROFILE_AGGREGATED_TIMING(PreemptiveProfilingCounters.PrescheduleJobTimeCounter) {
-                rootElement->PrescheduleJob(context, /*starvingOnly*/ true);
+                rootElement->PrescheduleJob(context, /*starvingOnly*/ true, /*aggressiveStarvationEnabled*/ false);
             }
 
             // Clean data from previous profiling.

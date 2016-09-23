@@ -171,6 +171,8 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
                 YCHECK(columns[index].Name == columnName);
                 columns[index].SetSortOrder(ESortOrder::Ascending);
             }
+            // XXX(sandello): In good ol' times there were no ordered-dynamic tables,
+            // so we can assert that keys are unique.
             TableSchema_ = TTableSchema(columns, true /* strict */, true /* unique_keys */);
         } else {
             TableSchema_ = TTableSchema::FromKeyColumns(keyColumns);
