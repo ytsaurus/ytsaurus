@@ -83,8 +83,11 @@ def clean_tasks(url, token, count, total_count, failed_timeout, max_regular_task
 
         users.add(task.user)
 
-        time_since = datetime.utcnow() - task.finish_time
-        is_old = (time_since > failed_timeout)
+        if task.finish_time is not None:
+            time_since = datetime.utcnow() - task.finish_time
+            is_old = (time_since > failed_timeout)
+        else:
+            is_old = False
 
         is_regular = (task.user in robots) and (task.state != "failed")
 
