@@ -527,11 +527,13 @@ Examples:
     if args.timeout is not None:
         config["transaction_timeout"] = int(args.timeout)
 
-    spec = {}
+    ytspec = {}
     if args.ytspec is not None:
         for spec_arg in args.ytspec:
-            spec = update(spec, yson.json_to_yson(json.loads(spec_arg)))
+            ytspec = update(ytspec, yson.json_to_yson(json.loads(spec_arg)))
+    yt.config["spec_defaults"] = update(yt.config["spec_defaults"], ytspec)
 
+    spec = {}
     if args.title is not None:
         spec["title"] = args.title
 
