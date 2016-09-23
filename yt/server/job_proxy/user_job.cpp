@@ -204,7 +204,7 @@ public:
             TDelayedExecutor::CancelAndClear(timeLimitCookie);
             WaitFor(InputPipeBlinker_->Stop());
 
-            if (!JobErrorPromise_.IsSet())  {
+            if (!JobErrorPromise_.IsSet()) {
                 FinalizeJobIO();
             }
 
