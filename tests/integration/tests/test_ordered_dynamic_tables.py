@@ -25,18 +25,24 @@ class TestOrderedDynamicTables(YTEnvSetup):
         "max_rows_per_write_request": 2
     }
     
-    def _create_simple_table(self, path, dynamic=True, commit_ordering="weak"):
-        create("table", path,
-            attributes={
-                "dynamic": dynamic,
-                "external": False,
-                "commit_ordering": commit_ordering,
-                "schema": [
-                    {"name": "a", "type": "int64"},
-                    {"name": "b", "type": "double"},
-                    {"name": "c", "type": "string"}]
-            })
-
+    def _create_simple_table(self, path, dynamic=True, commit_ordering=None, tablet_count=None,
+                             pivot_keys=None):
+        attributes={
+            "dynamic": dynamic,
+            "external": False,
+            "schema": [
+                {"name": "a", "type": "int64"},
+                {"name": "b", "type": "double"},
+                {"name": "c", "type": "string"}
+            ]
+        }
+        if commit_ordering:
+            attributes["commit_ordering"] = commit_ordering
+        if tablet_count:
+            attributes["tablet_count"] = tablet_count
+        if pivot_keys:
+            attributes["pivot_keys"] = pivot_keys
+        create("table", path, attributes=attributes)
 
     def test_mount(self):
         self.sync_create_cells(1)
@@ -438,6 +444,17 @@ class TestOrderedDynamicTables(YTEnvSetup):
     def test_set_commit_ordering_upon_construction(self):
         self._create_simple_table("//tmp/t", commit_ordering="strong")
         assert get("//tmp/t/@commit_ordering") == "strong"
+
+
+    def test_set_tablet_count_upon_construction_fail(self):
+        with pytest.raises(YtError):
+            self._create_simple_table("//tmp/t", tablet_count=-1)
+        with pytest.raises(YtError):
+            self._create_simple_table("//tmp/t", pivot_keys=[[]])
+
+    def test_set_tablet_count_upon_construction_success(self):
+        self._create_simple_table("//tmp/t", tablet_count=10)
+        assert get("//tmp/t/@tablet_count") == 10
 
 ##################################################################
 
