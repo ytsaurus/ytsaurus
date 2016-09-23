@@ -138,19 +138,27 @@ public:
         UploadFilesFromSpec(spec);
         UploadJobState(job);
 
-        Stroka binaryPath;
+        BinaryPath_ = GetExecPath();
+        if (TConfig::Get()->JobBinary) {
+            BinaryPath_ = TConfig::Get()->JobBinary;
+        }
+        if (Spec_.JobBinary_) {
+            BinaryPath_ = *Spec_.JobBinary_;
+        }
+
+        Stroka jobBinaryPath;
         if (!IsLocalMode(auth)) {
             UploadBinary();
-            binaryPath = "./cppbinary";
+            jobBinaryPath = "./cppbinary";
         } else {
-            binaryPath = GetExecPath();
+            jobBinaryPath = BinaryPath_;
         }
 
         ClassName_ = TJobFactory::Get()->GetJobName(job);
         Command_ = TStringBuilder() <<
             options.JobCommandPrefix_ <<
             (TConfig::Get()->UseClientProtobuf ? "" : "YT_USE_CLIENT_PROTOBUF=0 ") <<
-            binaryPath << " " <<
+            jobBinaryPath << " " <<
             commandLineName << " " <<
             "\"" << ClassName_ << "\" " <<
             outputTableCount << " " <<
@@ -193,6 +201,7 @@ private:
     TUserJobSpec Spec_;
     TOperationOptions Options_;
 
+    Stroka BinaryPath_;
     yvector<TRichYPath> Files_;
     bool HasState_ = false;
     Stroka ClassName_;
@@ -330,23 +339,17 @@ private:
 
     void UploadBinary()
     {
-        auto binaryPath = GetExecPath();
-        if (TConfig::Get()->JobBinary) {
-            binaryPath = TConfig::Get()->JobBinary;
-        }
-        if (Spec_.JobBinary_) {
-            binaryPath = *Spec_.JobBinary_;
-        }
-
         if (Options_.MountSandboxInTmpfs_) {
-            TFsPath path(binaryPath);
+            TFsPath path(BinaryPath_);
             TFileStat stat;
             path.Stat(stat);
             TotalFileSize_ += RoundUpFileSize(stat.Size);
         }
 
-        auto cachePath = UploadToCache(binaryPath);
-        Files_.push_back(TRichYPath(cachePath).FileName("cppbinary").Executable(true));
+        auto cachePath = UploadToCache(BinaryPath_);
+        Files_.push_back(TRichYPath(cachePath)
+            .FileName("cppbinary")
+            .Executable(true));
     }
 
     void UploadJobState(IJob* job)
