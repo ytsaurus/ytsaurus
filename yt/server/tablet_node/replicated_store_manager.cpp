@@ -328,7 +328,11 @@ TUnversionedRow TReplicatedStoreManager::BuildLogRow(
             auto value = row[index];
             value.Id = (value.Id - keyColumnCount) * 2 + keyColumnCount + 2;
             logRow[value.Id] = value;
-            logRow[value.Id + 1].Data.Uint64 &= ~static_cast<ui64>(EReplicationLogDataFlags::Missing);
+            auto& flags = logRow[value.Id + 1].Data.Uint64;
+            flags &= ~static_cast<ui64>(EReplicationLogDataFlags::Missing);
+            if (value.Aggregate) {
+                flags |= static_cast<ui64>(EReplicationLogDataFlags::Aggregate);
+            }
         }
     }
 
