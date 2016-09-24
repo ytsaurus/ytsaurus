@@ -381,18 +381,18 @@ void Serialize(const TChannel& channel, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .BeginList()
-        .DoFor(channel.GetColumns(), [] (TFluentList fluent, Stroka column) {
-            fluent.Item().Value(column);
-        })
-        .DoFor(channel.GetRanges(), [] (TFluentList fluent, const TColumnRange& range) {
-            fluent.Item()
-                .BeginList()
-                    .Item().Value(range.Begin())
-                    .DoIf(!range.IsInfinite(), [&] (TFluentList fluent) {fluent
-                        .Item().Value(range.End());
-                    })
-                .EndList();
-        })
+            .DoFor(channel.GetColumns(), [] (TFluentList fluent, const Stroka& column) {
+                fluent.Item().Value(column);
+            })
+            .DoFor(channel.GetRanges(), [] (TFluentList fluent, const TColumnRange& range) {
+                fluent.Item()
+                    .BeginList()
+                        .Item().Value(range.Begin())
+                        .DoIf(!range.IsInfinite(), [&] (TFluentList fluent) {
+                            fluent.Item().Value(range.End());
+                        })
+                    .EndList();
+            })
         .EndList();
 }
 
