@@ -118,10 +118,15 @@ void TSchemalessFormatWriterBase::DoFlushBuffer()
         return;
     }
 
-    PreviousBuffer_ = CurrentBuffer_.Flush();
-    WaitFor(Output_->Write(PreviousBuffer_))
+    auto buffer = CurrentBuffer_.Flush();
+    WaitFor(Output_->Write(buffer))
         .ThrowOnError();
 
+    if (EnableContextSaving_) {
+        PreviousBuffer_ = std::move(buffer);
+    }
+
+    CurrentBuffer_.Clear();
     CurrentBuffer_.Reserve(ContextBufferCapacity);
 }
 
