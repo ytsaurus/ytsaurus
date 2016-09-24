@@ -61,7 +61,7 @@ def _escape_bytes(obj):
         try:
             return ESCAPE_DICT[match.group(0)]
         except KeyError:
-            return "\\x{:02x}".format(ord(match.group(0))).encode("ascii")
+            return "\\x{0:02x}".format(ord(match.group(0))).encode("ascii")
 
     return ESCAPE.sub(replace, obj)
 
