@@ -2,9 +2,13 @@ from .new_fennel import StringIOWrapper, round_down_to, monitor, convert_rows_to
 
 from yt.packages.six.moves import xrange
 
+import pytest
+
 from datetime import datetime, timedelta
 from cStringIO import StringIO
 from gzip import GzipFile
+
+pytestmark = pytest.mark.skipif("not (sys.version_info >= (2, 7))")
 
 def test_string_io_wrapper():
     stream = StringIOWrapper()
