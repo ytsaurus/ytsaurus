@@ -1234,6 +1234,7 @@ private:
     // NB(psushin): Read st before asking questions: st/YT-5629.
     void BlinkInputPipe() const
     {
+        /*
         // This method is called after preparation and before finalization.
         // Reader must be opened and ready, so open must succeed.
         // Still an error can occur in case of external forced sandbox clearance (e.g. in integration tests).
@@ -1243,6 +1244,7 @@ private:
         } else {
             LOG_WARNING(TError::FromSystem(), "Failed to blink input pipe");
         }
+        */
     }
 };
 
