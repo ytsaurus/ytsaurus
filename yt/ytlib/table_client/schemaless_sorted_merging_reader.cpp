@@ -14,8 +14,10 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 // Reasonable default for max data size per one read call.
-const i64 MaxDataSizePerRead = 16 * 1024 * 1024;
-const i64 RowBufferSize = 10000;
+static const i64 MaxDataSizePerRead = 16 * 1024 * 1024;
+static const i64 RowBufferSize = 10000;
+
+static const auto& Logger = TableClientLogger;
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -61,9 +63,7 @@ private:
         int TableIndex;
     };
 
-    NLogging::TLogger Logger;
-
-    int KeyColumnCount_;
+    const int KeyColumnCount_;
 
     std::vector<TSession> SessionHolder_;
     std::vector<TSession*> SessionHeap_;
@@ -74,8 +74,6 @@ private:
     TFuture<void> ReadyEvent_;
     i64 TableRowIndex_ = 0;
 
-    TOwningKey LastKey_;
-
     std::function<bool(const TSession* lhs, const TSession* rhs)> CompareSessions_;
 
     void DoOpen();
@@ -85,10 +83,9 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchemalessSortedMergingReader::TSchemalessSortedMergingReader(
-        const std::vector<ISchemalessMultiChunkReaderPtr>& readers,
-        int keyColumnCount)
-    : Logger(TableClientLogger)
-    , KeyColumnCount_(keyColumnCount)
+    const std::vector<ISchemalessMultiChunkReaderPtr>& readers,
+    int keyColumnCount)
+    : KeyColumnCount_(keyColumnCount)
 {
     YCHECK(!readers.empty());
     int rowsPerSession = RowBufferSize / readers.size();
@@ -130,8 +127,8 @@ TSchemalessSortedMergingReader::TSchemalessSortedMergingReader(
 
 void TSchemalessSortedMergingReader::DoOpen()
 {
-    auto getTableIndex = [] (TUnversionedRow row, TNameTablePtr nameTable) {
-        int tableIndexId = -1;
+    auto getTableIndex = [] (TUnversionedRow row, TNameTablePtr nameTable) -> int {
+        int tableIndexId;
         try {
             tableIndexId = nameTable->GetIdOrRegisterName(TableIndexColumnName);
         } catch (const std::exception& ex) {
@@ -139,13 +136,14 @@ void TSchemalessSortedMergingReader::DoOpen()
                 << ex;
         }
 
-        for (auto valueIt = row.Begin(); valueIt != row.End(); ++valueIt) {
-            if (valueIt->Id == tableIndexId) {
-                YCHECK(valueIt->Type == EValueType::Int64);
-                return valueIt->Data.Int64;
+        for (const auto& value : row) {
+            if (value.Id == tableIndexId) {
+                YCHECK(value.Type == EValueType::Int64);
+                return value.Data.Int64;
             }
         }
-        return i64(0);
+
+        return 0;
     };
 
     try {
@@ -161,6 +159,7 @@ void TSchemalessSortedMergingReader::DoOpen()
                     .ThrowOnError();
             }
         }
+
         if (!SessionHeap_.empty()) {
             MakeHeap(SessionHeap_.begin(), SessionHeap_.end(), CompareSessions_);
         }
@@ -172,11 +171,12 @@ void TSchemalessSortedMergingReader::DoOpen()
 bool TSchemalessSortedMergingReader::Read(std::vector<TUnversionedRow>* rows)
 {
     YCHECK(rows->capacity() > 0);
+
+    rows->clear();
+
     if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
         return true;
     }
-
-    rows->clear();
 
     if (SessionHeap_.empty()) {
         return false;
