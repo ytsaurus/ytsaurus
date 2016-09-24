@@ -562,6 +562,7 @@ private:
                     if (None(flags & EReplicationLogDataFlags::Missing)) {
                         auto dataValue = rowBuffer->Capture(logRow[index * 2 + keyColumnCount + 4]);\
                         dataValue.Id = index + keyColumnCount;
+                        dataValue.Aggregate = Any(flags & EReplicationLogDataFlags::Aggregate);
                         row[currentIndex++] = dataValue;
                     }
                 }

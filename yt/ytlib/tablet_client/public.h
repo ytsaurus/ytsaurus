@@ -50,8 +50,9 @@ static const int MaxPeerCount = 10;
 ///////////////////////////////////////////////////////////////////////////////
 
 DEFINE_BIT_ENUM(EReplicationLogDataFlags,
-    ((None)    (0x0000))
-    ((Missing) (0x0001))
+    ((None)      (0x0000))
+    ((Missing)   (0x0001))
+    ((Aggregate) (0x0002))
 );
 
 struct TReplicationLogTable
