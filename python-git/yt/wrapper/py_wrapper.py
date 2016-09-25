@@ -54,18 +54,18 @@ def init_md5():
 
 def calc_md5_from_file(filename):
     with open(filename, mode="rb") as fin:
-        h = hashlib.md5()
+        md5_hash = hashlib.md5()
         for buf in chunk_iter_stream(fin, 1024):
-            h.update(buf)
-    return tuple(iterbytes(h.digest()))
+            md5_hash.update(buf)
+    return tuple(iterbytes(md5_hash.digest()))
 
-def calc_md5_from_string(string):
-    if isinstance(string, text_type):
-        string = string.encode("ascii")
-    h = hashlib.md5()
-    for buf in chunk_iter_string(string, 1024):
-        h.update(buf)
-    return tuple(iterbytes(h.digest()))
+def calc_md5_from_string(string_obj):
+    if isinstance(string_obj, text_type):
+        string_obj = string.encode("ascii")
+    md5_hash = hashlib.md5()
+    for buf in chunk_iter_string(string_obj, 1024):
+        md5_hash.update(buf)
+    return tuple(iterbytes(md5_hash.digest()))
 
 def merge_md5(lhs, rhs):
     return lhs + [rhs]
