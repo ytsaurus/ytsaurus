@@ -54,7 +54,19 @@ if TYPE is None:
     from .writer import dump, dumps
     TYPE = "PYTHON"
 
-from .yson_types import YsonString, YsonUnicode, YsonInt64, YsonUint64, \
-                        YsonDouble, YsonBoolean, YsonList, YsonMap, YsonEntity, YsonType
+from .yson_types import YsonString, YsonUnicode, YsonInt64, YsonUint64, YsonDouble, \
+                        YsonBoolean, YsonList, YsonMap, YsonEntity, YsonType
+
 from .convert import to_yson_type, yson_to_json, json_to_yson
 from .common import YsonError
+
+def _loads_from_native_str(string, encoding="utf-8"):
+    import sys
+
+    if sys.version_info[0] < 3:
+        return loads(string)
+
+    if isinstance(string, str):
+        string = string.encode(encoding)
+
+    return loads(string, encoding=encoding)
