@@ -1,7 +1,10 @@
 from yt.packages.six import Iterator
 
 from itertools import chain
-from cStringIO import StringIO
+try:
+    from cStringIO import StringIO as BytesIO
+except ImportError:  # Python 3
+    from io import BytesIO
 
 class StringIterIO(Iterator):
     """
@@ -10,7 +13,7 @@ class StringIterIO(Iterator):
 
     def __init__(self, strings_iter, add_eoln=False):
         self._strings_iter = strings_iter
-        self._sep = "\n" if add_eoln else ""
+        self._sep = b"\n" if add_eoln else b""
         self._pos = 0
         self._cur_string = None
         self._active = False
@@ -23,13 +26,13 @@ class StringIterIO(Iterator):
         :param size: (int) number bytes to read
         """
         if not self._active:
-            return ""
+            return b""
 
         if size is None:
             self._active = False
             return self._sep.join(chain([self._cur_string[self._pos:]], self._strings_iter))
         else:
-            string_output = StringIO()
+            string_output = BytesIO()
             while True:
                 to_write = min(size, len(self._cur_string) - self._pos)
                 string_output.write(self._cur_string[self._pos : self._pos + to_write])
@@ -51,11 +54,11 @@ class StringIterIO(Iterator):
         Get from string line (string ended by '\n').
         """
         if not self._active:
-            return ""
+            return b""
 
-        string_output = StringIO()
+        string_output = BytesIO()
         while True:
-            index = self._cur_string.find("\n", self._pos)
+            index = self._cur_string.find(b"\n", self._pos)
             if index != -1:
                 string_output.write(self._cur_string[self._pos : index + 1])
                 self._pos = index + 1
@@ -67,7 +70,7 @@ class StringIterIO(Iterator):
                 if not self._active:
                     break
                 string_output.write(self._sep)
-                if self._sep == "\n":
+                if self._sep == b"\n":
                     break
         return string_output.getvalue()
 

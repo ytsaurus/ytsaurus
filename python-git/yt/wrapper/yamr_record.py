@@ -22,11 +22,20 @@ class SimpleRecord:
     def __repr__(self):
         return self.__str__()
 
-    def __cmp__(self, other):
-        cmps = [cmp(getattr(self, field), getattr(other, field))
-                for field in ["key", "value"]]
-        non_zeroes = list(ifilter(None, cmps)) + [0]
-        return non_zeroes[0]
+    def __eq__(self, other):
+        return self.key == other.key and self.value == other.value
+
+    def __lt__(self, other):
+        return (self.key, self.value) < (other.key, other.value)
+
+    def __le__(self, other):
+        return self < other or self == other
+
+    def __ge__(self, other):
+        return not self < other
+
+    def __gt__(self, other):
+        return not (self < other or self == other)
 
     def __hash__(self):
         return hash(frozenset([self.key, self.value]))
@@ -58,11 +67,11 @@ class SubkeyedRecord(SimpleRecord):
     def __repr__(self):
         return self.__str__()
 
-    def __cmp__(self, other):
-        cmps = [cmp(getattr(self, field), getattr(other, field))
-                for field in ["key", "subkey", "value"]]
-        non_zeroes = list(ifilter(None, cmps)) + [0]
-        return non_zeroes[0]
+    def __eq__(self, other):
+        return self.key == other.key and self.subkey == other.subkey and self.value == other.value
+
+    def __lt__(self, other):
+        return (self.key, self.subkey, self.value) < (other.key, other.subkey, other.value)
 
     def __hash__(self):
         return hash(frozenset([self.key, self.subkey, self.value]))

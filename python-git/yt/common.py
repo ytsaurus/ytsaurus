@@ -1,4 +1,4 @@
-from yt.packages.six import iteritems
+from yt.packages.six import iteritems, PY3, text_type, binary_type
 from yt.packages.six.moves import map as imap
 import yt.json as json
 
@@ -318,3 +318,10 @@ def datetime_to_string(date, is_local=False):
 def make_non_blocking(fd):
     flags = fcntl.fcntl(fd, fcntl.F_GETFL)
     fcntl.fcntl(fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
+
+def to_native_str(string, encoding="utf-8"):
+    if not PY3 and isinstance(string, text_type):
+        return string.encode(encoding)
+    if PY3 and isinstance(string, binary_type):
+        return string.decode(encoding)
+    return string
