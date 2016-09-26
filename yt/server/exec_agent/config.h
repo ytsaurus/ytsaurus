@@ -130,6 +130,10 @@ public:
     //! Chunk size used for copying chunks if #copy_chunks is set to %true in operation spec.
     i64 FileCopyChunkSize;
 
+    //! A directory that contains files defining the correspondence between slot user id
+    //! and its job proxy RPC Unix Domain Socket name.
+    TNullable<Stroka> JobProxyUdsNameDirectory;
+
     TSlotManagerConfig()
     {
         RegisterParameter("locations", Locations);
@@ -146,6 +150,9 @@ public:
         RegisterParameter("file_copy_chunk_size", FileCopyChunkSize)
             .GreaterThanOrEqual(1024)
             .Default((i64)10 * 1024 * 1024);
+
+        RegisterParameter("job_proxy_uds_name_directory", JobProxyUdsNameDirectory)
+            .Default(Null);
     }
 };
 
