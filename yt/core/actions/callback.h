@@ -228,6 +228,11 @@ public:
             std::forward<TArgs>(args)...);
     }
 
+    R operator()(TArgs... args) const
+    {
+        return Run(std::forward<TArgs>(args)...);
+    }
+
     R RunWithTuple(const std::tuple<TArgs...>& args) const
     {
         return NMpl::CallWithTuple<R>(
