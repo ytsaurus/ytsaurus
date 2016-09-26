@@ -57,7 +57,7 @@ def create_task(task_dict):
     return Task(start_time, finish_time, id_, user, state)
 
 def clean_tasks(url, token, count, total_count, failed_timeout, max_regular_tasks_per_user,
-                max_failed_tasks_per_user, robots, batch_size):
+                max_failed_tasks_per_user, robots, batch_size, finished_persist_timeout):
     if robots is None:
         robots = []
 
@@ -83,11 +83,14 @@ def clean_tasks(url, token, count, total_count, failed_timeout, max_regular_task
 
         users.add(task.user)
 
+        # Skipped tasks currently do not have finish_time attribute.
         if task.finish_time is not None:
             time_since = datetime.utcnow() - task.finish_time
             is_old = (time_since > failed_timeout)
+            is_finished_recently = (time_since <= finished_persist_timeout)
         else:
             is_old = False
+            is_finished_recently = False
 
         is_regular = (task.user in robots) and (task.state != "failed")
 
@@ -97,6 +100,10 @@ def clean_tasks(url, token, count, total_count, failed_timeout, max_regular_task
         else:
             users_regular[task.user] += 1
             is_user_limit_exceeded = users_regular[task.user] > max_regular_tasks_per_user
+
+        if is_finished_recently:
+            saved += 1
+            continue
 
         if is_regular or is_old or (saved >= total_count) or is_user_limit_exceeded or (
                     saved >= count and task.user in users and is_casual(task)):
@@ -133,10 +140,13 @@ def main():
     parser.add_argument("--robot", action="append", help="robot users that run tasks very often and can be ignored")
     parser.add_argument("--batch-size", metavar="N", type=int, default=100,
                         help="number of tasks to remove per one delete request")
+    parser.add_argument("--finished-persist-timeout", type=int, default=10,
+                        help="task wont be removed if passed less than this value minutes since it finished")
 
     args = dict(vars(parser.parse_args()))
     args["failed_timeout"] = timedelta(hours=args["failed_timeout"])
     args["robots"] = args.pop("robot")
+    args["finished_persist_timeout"] = timedelta(minutes=args["finished_persist_timeout"])
 
     clean_tasks(**args)
 
