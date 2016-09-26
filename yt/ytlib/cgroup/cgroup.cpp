@@ -629,6 +629,9 @@ TMemory::TStatistics TMemory::GetStatistics() const
             if (type == "mapped_file") {
                 result.MappedFile = FromString<ui64>(unparsedValue);
             }
+            if (type == "pgmajfault") {
+                result.MajorPageFaults = FromString<ui64>(unparsedValue);
+            }
             ++lineNumber;
         }
     } catch (const std::exception& ex) {
@@ -646,7 +649,6 @@ ui64 TMemory::GetMaxMemoryUsage() const
     return FromString<ui64>(Get("memory.max_usage_in_bytes"));
 }
 
-
 void TMemory::SetLimitInBytes(i64 bytes) const
 {
     Set("memory.limit_in_bytes", ToString(bytes));
@@ -663,6 +665,7 @@ void Serialize(const TMemory::TStatistics& statistics, NYson::IYsonConsumer* con
         .BeginMap()
             .Item("rss").Value(statistics.Rss)
             .Item("mapped_file").Value(statistics.MappedFile)
+            .Item("major_page_faults").Value(statistics.MajorPageFaults)
         .EndMap();
 }
 

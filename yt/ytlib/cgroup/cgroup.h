@@ -190,6 +190,7 @@ public:
     {
         ui64 Rss = 0;
         ui64 MappedFile = 0;
+        ui64 MajorPageFaults = 0;
     };
 
     explicit TMemory(const Stroka& name);
