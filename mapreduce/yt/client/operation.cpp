@@ -250,15 +250,28 @@ private:
             TConfig::Get()->RemoteTempFilesDirectory <<
             "/hash/" << twoDigits << "/" << buf;
 
-        if (Exists(Auth_, TTransactionId(), cypressPath)) {
-            Set(Auth_, TTransactionId(), cypressPath + "/@touched", "\"true\"");
-            try {
-                Set(Auth_, TTransactionId(), cypressPath + "&/@touched", "\"true\"");
-            } catch (TErrorResponse& e) {
-                if (!e.IsResolveError()) {
-                    throw;
-                }
+        TNode linkAttrs;
+        try {
+            linkAttrs = NodeFromYsonString(
+                Get(Auth_, TTransactionId(), cypressPath + "&/@"));
+        } catch (TErrorResponse& e) {
+            if (!e.IsResolveError()) {
+                throw;
             }
+        }
+
+        bool linkExists = false;
+        if (linkAttrs["type"] == "link" &&
+            (!linkAttrs.HasKey("broken") || !linkAttrs["broken"].AsBool()))
+        {
+            linkExists = true;
+        } else {
+            Remove(Auth_, TTransactionId(), cypressPath + "&", true, true);
+        }
+
+        if (linkExists) {
+            Set(Auth_, TTransactionId(), cypressPath + "/@touched", "\"true\"");
+            Set(Auth_, TTransactionId(), cypressPath + "&/@touched", "\"true\"");
             return cypressPath;
         }
 
@@ -266,7 +279,9 @@ private:
             TConfig::Get()->RemoteTempFilesDirectory <<
             "/" << twoDigits << "/cpp_" << CreateGuidAsString();
 
-        Create(Auth_, TTransactionId(), uniquePath, "file", true, true);
+        Create(Auth_, TTransactionId(), uniquePath, "file", true, true,
+            TNode()("hash", buf)("touched", true));
+
         {
             THttpHeader header("PUT", GetWriteFileCommand());
             header.SetToken(Auth_.Token);
@@ -276,17 +291,9 @@ private:
             };
             RetryHeavyWriteRequest(Auth_, TTransactionId(), header, streamMaker);
         }
-        Set(Auth_, TTransactionId(), uniquePath + "/@hash",
-            TStringBuilder() << "\"" << buf << "\"");
-        {
-            THttpHeader header("POST", "link");
-            header.AddParam("target_path", uniquePath);
-            header.AddParam("link_path", cypressPath);
-            header.AddMutationId();
-            header.AddParam("recursive", true);
-            header.AddParam("ignore_existing", true);
-            RetryRequest(Auth_, header);
-        }
+
+        Link(Auth_, TTransactionId(), uniquePath, cypressPath, true, true,
+            TNode()("touched", true));
 
         return cypressPath;
     }

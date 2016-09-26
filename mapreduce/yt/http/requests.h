@@ -61,7 +61,24 @@ void Create(
     const TYPath& path,
     const Stroka& type,
     bool ignoreExisting = true,
-    bool recursive = false);
+    bool recursive = false,
+    const TMaybe<TNode>& attributes = Nothing());
+
+void Remove(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TYPath& path,
+    bool recursive = false,
+    bool force = false);
+
+void Link(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TYPath& targetPath,
+    const TYPath& linkPath,
+    bool ignoreExisting = true,
+    bool recursive = false,
+    const TMaybe<TNode>& attributes = Nothing());
 
 void Lock(
     const TAuth& auth,
