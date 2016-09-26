@@ -1670,23 +1670,31 @@ class TestSortedDynamicTables(YTEnvSetup):
             })
         self.sync_mount_table("//tmp/t")
 
-        row1 = '{int64=3u; uint64=42; boolean="false"; double=18; any={}}'
-        row2 = '{int64=3u}'
+        row1 = {
+            "int64": yson.YsonUint64(3),
+            "uint64": 42,
+            "boolean": "false",
+            "double": 18,
+            "any": {}
+        }
+        row2 = {
+            "int64": yson.YsonUint64(3)
+        }
 
         yson_with_type_conversion = loads("<enable_type_conversion=%true>yson")
         yson_without_type_conversion = loads("<enable_integral_types_conversion=%false>yson")
 
         with pytest.raises(YtError):
-            insert_rows("//tmp/t", row1, is_raw=True, input_format=yson_without_type_conversion)
-        insert_rows("//tmp/t", row1, is_raw=True, input_format=yson_with_type_conversion)
+            insert_rows("//tmp/t", [row1], input_format=yson_without_type_conversion)
+        insert_rows("//tmp/t", [row1], input_format=yson_with_type_conversion)
 
         with pytest.raises(YtError):
-            lookup_rows("//tmp/t", row2, is_raw=True, input_format=yson_without_type_conversion)
-        lookup_rows("//tmp/t", row2, is_raw=True, input_format=yson_with_type_conversion)
+            lookup_rows("//tmp/t", [row2], input_format=yson_without_type_conversion)
+        assert len(lookup_rows("//tmp/t", [row2], input_format=yson_with_type_conversion)) == 1
 
         with pytest.raises(YtError):
-            delete_rows("//tmp/t", row2, is_raw=True, input_format=yson_without_type_conversion)
-        delete_rows("//tmp/t", row2, is_raw=True, input_format=yson_with_type_conversion)
+            delete_rows("//tmp/t", [row2], input_format=yson_without_type_conversion)
+        delete_rows("//tmp/t", [row2], input_format=yson_with_type_conversion)
 
         assert select_rows("* from [//tmp/t]") == []
 
