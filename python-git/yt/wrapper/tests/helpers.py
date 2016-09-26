@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-from yt.packages.six import iteritems, integer_types
+from yt.packages.six import iteritems, integer_types, text_type, binary_type
 from yt.packages.six.moves import map as imap
 
 import yt.yson as yson
@@ -40,7 +40,7 @@ def set_config_option(name, value, final_action=None):
 def check(rowsA, rowsB, ordered=True):
     def prepare(rows):
         def fix_unicode(obj):
-            if isinstance(obj, unicode):
+            if isinstance(obj, text_type):
                 return str(obj)
             return obj
         def process_row(row):
@@ -62,7 +62,7 @@ def _filter_simple_types(obj):
             isinstance(obj, float) or \
             obj is None or \
             isinstance(obj, yson.YsonType) or \
-            isinstance(obj, basestring):
+            isinstance(obj, (binary_type, text_type)):
         return obj
     elif isinstance(obj, list):
         return [_filter_simple_types(item) for item in obj]
@@ -101,3 +101,17 @@ def build_python_egg(egg_contents_dir, temp_dir=None):
         return egg_filename
     finally:
         shutil.rmtree(dir_, ignore_errors=True)
+
+def run_python_script_with_check(yt_env, script):
+    dir_ = yt_env.env.path
+
+    with tempfile.NamedTemporaryFile(mode="w", dir=dir_, suffix=".py", delete=False) as f:
+        f.write(script)
+        f.close()
+
+        proc = subprocess.Popen([sys.executable, f.name], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        out, err = proc.communicate()
+        assert proc.returncode == 0, err
+
+        return out, err
