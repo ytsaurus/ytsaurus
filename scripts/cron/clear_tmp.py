@@ -85,7 +85,8 @@ def main():
         # filter object by age, total size and count
         if (age > max_age or disk_space > args.max_disk_space or node_count > args.max_node_count or chunk_count > args.max_chunk_count) and age > safe_age:
             if "hash" in obj.attributes:
-                link = os.path.join(os.path.dirname(obj), "hash", obj.attributes["hash"])
+                hash = obj.attributes["hash"]
+                link = os.path.join(os.path.dirname(obj), "hash", hash[-2:], obj.attributes["hash"])
                 if link in links:
                     add_to_remove(link)
             add_to_remove(obj)
