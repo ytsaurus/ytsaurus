@@ -156,7 +156,8 @@ void Create(
     const TYPath& path,
     const Stroka& type,
     bool ignoreExisting,
-    bool recursive)
+    bool recursive,
+    const TMaybe<TNode>& attributes)
 {
     THttpHeader header("POST", "create");
     header.AddTransactionId(transactionId);
@@ -164,6 +165,47 @@ void Create(
     header.AddParam("type", type);
     header.AddParam("ignore_existing", ignoreExisting);
     header.AddParam("recursive", recursive);
+    if (attributes) {
+        header.SetParameters(AttributesToYsonString(*attributes));
+    }
+    header.AddMutationId();
+    RetryRequest(auth, header);
+}
+
+void Remove(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TYPath& path,
+    bool recursive,
+    bool force)
+{
+    THttpHeader header("POST", "remove");
+    header.AddTransactionId(transactionId);
+    header.AddPath(path);
+    header.AddParam("recursive", recursive);
+    header.AddParam("force", force);
+    header.AddMutationId();
+    RetryRequest(auth, header);
+}
+
+void Link(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TYPath& targetPath,
+    const TYPath& linkPath,
+    bool ignoreExisting,
+    bool recursive,
+    const TMaybe<TNode>& attributes)
+{
+    THttpHeader header("POST", "link");
+    header.AddTransactionId(transactionId);
+    header.AddParam("target_path", targetPath);
+    header.AddParam("link_path", linkPath);
+    header.AddParam("ignore_existing", ignoreExisting);
+    header.AddParam("recursive", recursive);
+    if (attributes) {
+        header.SetParameters(AttributesToYsonString(*attributes));
+    }
     header.AddMutationId();
     RetryRequest(auth, header);
 }
