@@ -41,11 +41,13 @@ private:
     std::vector<TSlotLocationPtr> Locations_;
     std::vector<TSlotLocationPtr> AliveLocations_;
 
-    IJobEnvironmentPtr JobEnviroment_;
+    IJobEnvironmentPtr JobEnvironment_;
 
     TSpinLock SpinLock_;
     yhash_set<int> FreeSlots_;
     int SlotCount_ = 0;
+
+    bool JobProxySocketNameDirectoryCreated_ = false;
 
     void UpdateAliveLocations();
 };

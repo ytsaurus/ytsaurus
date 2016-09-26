@@ -42,7 +42,7 @@ void TSlotManager::Initialize(int slotCount)
         FreeSlots_.insert(slotIndex);
     }
 
-    JobEnviroment_ = CreateJobEnvironment(
+    JobEnvironment_ = CreateJobEnvironment(
         Config_->JobEnvironment,
         Bootstrap_);
 
@@ -64,13 +64,13 @@ void TSlotManager::Initialize(int slotCount)
     // Fisrt shutdown all possible processes.
     try {
         for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
-            JobEnviroment_->CleanProcesses(slotIndex);
+            JobEnvironment_->CleanProcesses(slotIndex);
         }
     } catch (const std::exception& ex) {
         LOG_WARNING(ex, "Failed to clean up processes on slot manager initialization");
     }
 
-    if (!JobEnviroment_->IsEnabled()) {
+    if (!JobEnvironment_->IsEnabled()) {
         return;
     }
 
@@ -83,6 +83,25 @@ void TSlotManager::Initialize(int slotCount)
             }
         } catch (const std::exception& ex) {
             LOG_WARNING(ex, "Failed to clean up sandboxes on slot manager initialization");
+        }
+    }
+
+    if (Config_->JobProxySocketNameDirectory) {
+        try {
+            // Create for each slot a file containing the name of Unix Domain Socket
+            // that the corresponding job proxy listens to.
+            for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
+                auto filePath = Format("%v/%v", *Config_->JobProxySocketNameDirectory, JobEnvironment_->GetUserId(slotIndex));
+                TFile file(filePath, CreateAlways | WrOnly | Seq | CloseOnExec);
+                TFileOutput fileOutput(file);
+                fileOutput << GetJobProxyUnixDomainName(NodeTag_, slotIndex) << Endl;
+            }
+            JobProxySocketNameDirectoryCreated_ = true;
+        } catch (const std::exception& ex) {
+            auto alert = TError("Failed to create a job proxy socket name directory")
+                << ex;
+            LOG_WARNING(alert);
+            Bootstrap_->GetMasterConnector()->RegisterAlert(alert);
         }
     }
 
@@ -120,7 +139,7 @@ ISlotPtr TSlotManager::AcquireSlot()
     int slotIndex = *FreeSlots_.begin();
     FreeSlots_.erase(slotIndex);
 
-    return CreateSlot(slotIndex, std::move(*locationIt), JobEnviroment_, NodeTag_);
+    return CreateSlot(slotIndex, std::move(*locationIt), JobEnvironment_, NodeTag_);
 }
 
 void TSlotManager::ReleaseSlot(int slotIndex)
@@ -135,9 +154,15 @@ int TSlotManager::GetSlotCount() const
 
 bool TSlotManager::IsEnabled() const
 {
-    return SlotCount_ > 0 &&
+    bool isEnabled = SlotCount_ > 0 &&
         !AliveLocations_.empty() &&
-        JobEnviroment_->IsEnabled();
+        JobEnvironment_->IsEnabled();
+
+    if (Config_->JobProxySocketNameDirectory) {
+        isEnabled = isEnabled && JobProxySocketNameDirectoryCreated_;
+    }
+
+    return isEnabled;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

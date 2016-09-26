@@ -14,6 +14,13 @@ const int TmpfsRemoveAttemptCount = 5;
 
 ////////////////////////////////////////////////////////////////////
 
+Stroka GetJobProxyUnixDomainName(const Stroka& nodeTag, int slotIndex)
+{
+    return Format("%v-job-proxy-%v", nodeTag, slotIndex);
+}
+
+////////////////////////////////////////////////////////////////////
+
 } // namespace NExecAgent
 } // namespace NYT
 
