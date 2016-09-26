@@ -1201,25 +1201,19 @@ private:
             return;
         }
 
-        auto servicedIOs = BlockIO_.GetIOServiced();
+        auto statistics = BlockIO_.GetStatistics();
 
-        for (const auto& item : servicedIOs) {
-            LOG_DEBUG("IO operations serviced (OperationCount: %v, OperationType: %v, DeviceId: %v)",
-                item.Value,
-                item.Type,
-                item.DeviceId);
+        if (UserJobSpec_.has_iops_threshold() &&
+            statistics.IORead > UserJobSpec_.iops_threshold() &&
+            !IsWoodpecker_) 
+        {
+            LOG_DEBUG("Woodpecker detected (IORead: %v, Threshold: %v)", 
+                statistics.IORead, 
+                UserJobSpec_.iops_threshold());
+            IsWoodpecker_ = true;
 
-            if (UserJobSpec_.has_iops_threshold() &&
-                item.Type == "read" &&
-                !IsWoodpecker_ &&
-                item.Value > UserJobSpec_.iops_threshold())
-            {
-                LOG_DEBUG("Woodpecker detected (DeviceId: %v)", item.DeviceId);
-                IsWoodpecker_ = true;
-
-                if (UserJobSpec_.has_iops_throttler_limit()) {
-                    BlockIO_.ThrottleOperations(item.DeviceId, UserJobSpec_.iops_throttler_limit());
-                }
+            if (UserJobSpec_.has_iops_throttler_limit()) {
+                BlockIO_.ThrottleOperations(UserJobSpec_.iops_throttler_limit());
             }
         }
     }
