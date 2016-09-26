@@ -215,7 +215,7 @@ def update(object, patch):
         object = patch
     return object
 
-def flatten(obj, list_types=(list, tuple, set, types.GeneratorType)):
+def flatten(obj, list_types=(list, tuple, set, frozenset, types.GeneratorType)):
     """ Create flat list from all elements. """
     if isinstance(obj, list_types):
         return list(chain(*imap(flatten, obj)))
