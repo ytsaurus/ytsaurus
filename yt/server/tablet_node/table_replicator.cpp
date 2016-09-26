@@ -363,13 +363,10 @@ private:
         }
 
         auto startRowIndex = rowIndexLo;
-        TTimestamp startTimestamp;
-        while (true) {
+        auto startTimestamp = NullTimestamp;
+        while (startRowIndex < totalRowCount) {
             startTimestamp = ReadLogRowTimestamp(mountConfig, tabletSnapshot, startRowIndex);
             if (startTimestamp > startReplicationTimestamp) {
-                break;
-            }
-            if (startRowIndex == totalRowCount - 1) {
                 break;
             }
             ++startRowIndex;
