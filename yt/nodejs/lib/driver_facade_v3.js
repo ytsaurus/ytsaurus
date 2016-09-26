@@ -97,7 +97,7 @@ YtDriverFacadeV3.prototype.execute = function(name, user,
         function(response) {
             // TODO(sandello): Serialize to user-requested format.
             var result = new YtError();
-            output_stream.write(JSON.stringify(response));
+            output_stream.write(Buffer(JSON.stringify(response)));
             if (typeof(result_interceptor) === "function") {
                 result_interceptor(result);
             }
