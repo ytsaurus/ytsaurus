@@ -2,11 +2,12 @@ from functools import wraps
 import logging
 import os
 import shutil
-import socket
 import sys
 import tempfile
 import time
 import uuid
+
+import yt_version
 
 import pytest
 import yatest.common
@@ -95,6 +96,7 @@ class YtStuff(object):
 
         yt_archive_path = os.path.join(build_path, _YT_ARCHIVE_NAME)
         self._extract_tar(yt_archive_path, self.yt_path)
+        self._replace_binaries()
 
         self.yt_work_dir = yatest.common.output_path("yt_wd")
         if not os.path.isdir(self.yt_work_dir):
@@ -111,6 +113,29 @@ class YtStuff(object):
         self.yt_local_out = open(yt_local_out_path, "r+")
         self.yt_local_err = open(yt_local_err_path, "r+")
         self.is_running = False
+
+    def _replace_binaries(self):
+        version = yt_version.YT_VERSION
+        if version in ('17_5',):
+            return
+
+        yt_server_arcadia_path = yatest.common.binary_path('mapreduce/yt/python/yt/{}/yt/server/ytserver'.format(version))
+        orig_server_path = os.path.join(self.yt_bins_path, 'ytserver')
+        os.remove(orig_server_path)
+        shutil.copy(yt_server_arcadia_path, orig_server_path)
+
+        shutil.rmtree(self.yt_node_modules_path, ignore_errors=True)
+        node_modules_resource_dir = yatest.common.binary_path('mapreduce/yt/python/yt/{}/yt/node_modules'.format(version))
+        node_modules_archive_path = os.path.join(node_modules_resource_dir, 'resource.tar.gz')
+        self._extract_tar(node_modules_archive_path, self.yt_path)
+
+        yt_node_arcadia_path = yatest.common.binary_path('mapreduce/yt/python/yt/{}/yt/nodejs/targets/bin/ytnode'.format(version))
+        orig_node_path = os.path.join(self.yt_node_bin_path, 'nodejs')
+        os.remove(orig_node_path)
+        shutil.copy(yt_node_arcadia_path, orig_node_path)
+
+        yt_node_path = yatest.common.binary_path('mapreduce/yt/python/yt/{}/yt/nodejs/targets/package'.format(version))
+        shutil.copytree(yt_node_path, os.path.join(self.yt_node_modules_path, 'yt'))
 
     def _prepare_env(self):
         self.env = {}
