@@ -283,7 +283,7 @@ YtCommand.prototype._epilogue = function(result, bytes_in, bytes_out) {
             var length = 0;
             var i, n;
             for (i = 0, n = chunks.length; i < n; ++i) {
-                length += Buffer.byteLength(chunks[i], 'utf8');
+                length += chunks[i].length;
             }
             this.rsp.removeHeader("Transfer-Encoding");
             this.rsp.setHeader("Content-Length", length);
