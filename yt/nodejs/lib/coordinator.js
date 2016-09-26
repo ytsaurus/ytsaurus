@@ -220,6 +220,7 @@ function YtCoordinator(config, logger, driver, fqdn, port)
     this.hosts = {};
     this.hosts[this.name] = this.host;
 
+    this.announce = this.config.enable && this.config.announce;
     this.initialized = false;
 
     this.initDeferred = Q.defer();
@@ -330,7 +331,7 @@ YtCoordinator.prototype._refresh = function()
 
     var sync = Q.resolve();
 
-    if (self.config.announce) {
+    if (self.announce) {
         if (!self.initialized) {
             return void self._initialize();
         }
