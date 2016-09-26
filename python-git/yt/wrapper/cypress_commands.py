@@ -19,7 +19,14 @@ from copy import deepcopy
 # XXX(asaitgalin): Used in get_attribute function for `default` argument
 # instead of None value to distinguish case when default argument
 # is passed and is None from case when default is not passed.
-_KWARG_SENTINEL = object()
+class _KwargSentinelClass(object):
+    __instance = None
+    def __new__(cls):
+        if cls.__instance == None:
+            cls.__instance = object.__new__(cls)
+            cls.__instance.name = "_KwargSentinelClassInstance"
+        return cls.__instance
+_KWARG_SENTINEL = _KwargSentinelClass()
 
 def get(path, attributes=None, format=None, ignore_opaque=False, client=None):
     """Get Cypress node content (attribute tree).
