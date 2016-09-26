@@ -2251,7 +2251,7 @@ class TestSandboxTmpfs(YTEnvSetup):
                     "max_failed_job_count": 1,
                 })
 
-        map(command="cat",
+        op = map(command="cat",
             in_="//tmp/t_input",
             out="//tmp/t_output",
             spec={
@@ -2263,6 +2263,10 @@ class TestSandboxTmpfs(YTEnvSetup):
                 },
                 "max_failed_job_count": 1,
             })
+
+        statistics = get("//sys/operations/{0}/@progress/job_statistics".format(op.id))
+        tmpfs_size = get_statistics(statistics, "user_job.tmpfs_size.$.completed.map.sum")
+        assert 0.9 * 1024 * 1024 <= tmpfs_size <= 1.1 * 1024 * 1024
 
         with pytest.raises(YtError):
             map(command="cat",

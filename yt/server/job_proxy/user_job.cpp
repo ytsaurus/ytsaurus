@@ -293,7 +293,7 @@ private:
     TCGroupJobEnvironmentConfigPtr CGroupsConfig_;
     TNullable<int> UserId_;
 
-    TPromise<void> JobErrorPromise_;
+    mutable TPromise<void> JobErrorPromise_;
 
     std::atomic<bool> Prepared_ = { false };
     std::atomic<bool> IsWoodpecker_ = { false };
@@ -401,7 +401,7 @@ private:
             .Run());
     }
 
-    void CleanupUserProcesses(const TError& error)
+    void CleanupUserProcesses(const TError& error) const
     {
         BIND(&IShellManager::Terminate, ShellManager_, error)
             .Via(AuxQueue_->GetInvoker())
@@ -411,7 +411,7 @@ private:
             .Run();
     }
 
-    void DoCleanupUserProcesses()
+    void DoCleanupUserProcesses() const
     {
         if (!CGroupsConfig_) {
             return;
@@ -989,6 +989,8 @@ private:
             statistics.AddSample("/user_job/woodpecker", IsWoodpecker_ ? 1 : 0);
         }
 
+        statistics.AddSample("/user_job/tmpfs_size", GetTmpfsSize());
+
         statistics.AddSample("/user_job/memory_limit", UserJobSpec_.memory_limit());
         statistics.AddSample("/user_job/memory_reserve", UserJobSpec_.memory_reserve());
 
@@ -1135,6 +1137,24 @@ private:
         return rss;
     }
 
+    i64 GetTmpfsSize() const
+    {
+        i64 tmpfsSize = 0;
+        if (Config_->TmpfsPath) {
+            try {
+                auto diskSpaceStatistics = NFS::GetDiskSpaceStatistics(*Config_->TmpfsPath);
+                tmpfsSize = diskSpaceStatistics.TotalSpace - diskSpaceStatistics.AvailableSpace;
+            } catch (const std::exception& ex) {
+                auto error = TError(
+                    NJobProxy::EErrorCode::MemoryCheckFailed,
+                    "Failed to get tmpfs size") << ex;
+                JobErrorPromise_.TrySet(error);
+                CleanupUserProcesses(error);
+            }
+        }
+        return tmpfsSize;
+    }
+
     void CheckMemoryUsage()
     {
         if (!UserId_) {
@@ -1142,57 +1162,44 @@ private:
             return;
         }
 
-        try {
-            i64 rss = GetMemoryUsageByUid(*UserId_);
+        i64 rss = GetMemoryUsageByUid(*UserId_);
 
-            if (Memory_.IsCreated()) {
-                auto statistics = Memory_.GetStatistics();
+        if (Memory_.IsCreated()) {
+            auto statistics = Memory_.GetStatistics();
 
-                i64 uidRss = rss;
-                rss = UserJobSpec_.include_memory_mapped_files() ? statistics.MappedFile : 0;
-                rss += statistics.Rss;
+            i64 uidRss = rss;
+            rss = UserJobSpec_.include_memory_mapped_files() ? statistics.MappedFile : 0;
+            rss += statistics.Rss;
 
-                if (rss > 1.05 * uidRss && uidRss > 0) {
-                    LOG_ERROR("Memory usage measured by cgroup is much greater than via procfs: %v > %v",
-                        rss,
-                        uidRss);
-                }
+            if (rss > 1.05 * uidRss && uidRss > 0) {
+                LOG_ERROR("Memory usage measured by cgroup is much greater than via procfs: %v > %v",
+                    rss,
+                    uidRss);
             }
+        }
 
-            i64 tmpfsSize = 0;
-            if (Config_->TmpfsPath) {
-                auto diskSpaceStatistics = NFS::GetDiskSpaceStatistics(*Config_->TmpfsPath);
-                tmpfsSize = diskSpaceStatistics.TotalSpace - diskSpaceStatistics.AvailableSpace;
-            }
+        i64 tmpfsSize = GetTmpfsSize();
+        i64 memoryLimit = UserJobSpec_.memory_limit();
+        i64 currentMemoryUsage = rss + tmpfsSize;
 
-            i64 memoryLimit = UserJobSpec_.memory_limit();
-            i64 currentMemoryUsage = rss + tmpfsSize;
+        CumulativeMemoryUsageMbSec_ += (currentMemoryUsage / (1024 * 1024)) * MemoryWatchdogPeriod_.Seconds();
 
-            CumulativeMemoryUsageMbSec_ += (currentMemoryUsage / (1024 * 1024)) * MemoryWatchdogPeriod_.Seconds();
-
-            LOG_DEBUG("Checking memory usage (Tmpfs: %v, Rss: %v, MemoryLimit: %v)",
-                tmpfsSize,
-                rss,
-                memoryLimit);
-            if (currentMemoryUsage > memoryLimit) {
-                auto error = TError(
-                    NJobProxy::EErrorCode::MemoryLimitExceeded,
-                    "Memory limit exceeded")
-                    << TErrorAttribute("rss", rss)
-                    << TErrorAttribute("tmpfs", tmpfsSize)
-                    << TErrorAttribute("limit", memoryLimit);
-                JobErrorPromise_.TrySet(error);
-                CleanupUserProcesses(error);
-            }
-
-            Host_->SetUserJobMemoryUsage(rss);
-        } catch (const std::exception& ex) {
+        LOG_DEBUG("Checking memory usage (Tmpfs: %v, Rss: %v, MemoryLimit: %v)",
+            tmpfsSize,
+            rss,
+            memoryLimit);
+        if (currentMemoryUsage > memoryLimit) {
             auto error = TError(
-                NJobProxy::EErrorCode::MemoryCheckFailed,
-                "Failed to check user job memory usage") << ex;
+                NJobProxy::EErrorCode::MemoryLimitExceeded,
+                "Memory limit exceeded")
+                << TErrorAttribute("rss", rss)
+                << TErrorAttribute("tmpfs", tmpfsSize)
+                << TErrorAttribute("limit", memoryLimit);
             JobErrorPromise_.TrySet(error);
             CleanupUserProcesses(error);
         }
+
+        Host_->SetUserJobMemoryUsage(rss);
     }
 
     void CheckBlockIOUsage()
