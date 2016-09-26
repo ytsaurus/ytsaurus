@@ -182,7 +182,7 @@ private:
 
     TTcpBusClientConfigPtr GetRpcClientConfig() const
     {
-        auto unixDomainName = Format("%v-job-proxy-%v", NodeTag_, SlotIndex_);
+        auto unixDomainName = GetJobProxyUnixDomainName(NodeTag_, SlotIndex_);
         return TTcpBusClientConfig::CreateUnixDomain(unixDomainName);
     }
 
