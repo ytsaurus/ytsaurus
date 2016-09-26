@@ -295,9 +295,9 @@ private:
 
     TPromise<void> JobErrorPromise_;
 
-    std::atomic<bool> Prepared_ = {false};
-    std::atomic<bool> IsWoodpecker_ = {false};
-    std::atomic<bool> JobStarted_ = {false};
+    std::atomic<bool> Prepared_ = { false };
+    std::atomic<bool> IsWoodpecker_ = { false };
+    std::atomic<bool> JobStarted_ = { false };
 
     std::atomic_flag Stracing_ = ATOMIC_FLAG_INIT;
 
