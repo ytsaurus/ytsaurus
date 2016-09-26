@@ -41,6 +41,8 @@ class TestClient(object):
 
             client.set(TEST_DIR + "/node", "abc")
             assert client.get(TEST_DIR + "/node") == "abc"
+            with pytest.raises(yt.YtError):
+                client.get_attribute(TEST_DIR + "/node", "missing_attribute")
 
             assert client.list(TEST_DIR) == ["node"]
 
