@@ -127,7 +127,7 @@ def find(root):
             task = make_compression_task(path, **params)
 
             if has_proper_codecs(object, task["erasure_codec"], task["compression_codec"]):
-                logger.info("Table %s is already has proper compression and erasure codecs", path)
+                logger.info("Table %s already has proper compression and erasure codecs", path)
                 return
 
             if enabled and object.attributes["uncompressed_data_size"] > min_table_size:
