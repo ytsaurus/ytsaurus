@@ -47,6 +47,14 @@ struct TFluentYsonUnwrapper<TFluentYsonVoid>
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TFluent, class TFunc, class... TArgs>
+void InvokeFluentFunc(TFunc func, NYson::IYsonConsumer* consumer, TArgs&&... args)
+{
+    func(TFluent(consumer), std::forward<TArgs>(args)...);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TFluentYsonBuilder
     : private TNonCopyable
 {
@@ -89,7 +97,6 @@ public:
         {
             return TFluentYsonUnwrapper<TParent>::Unwrap(std::move(Parent));
         }
-
     };
 
     template <template <class TParent> class TThis, class TParent>
@@ -105,64 +112,39 @@ public:
             : TFluentBase<TParent>(consumer, std::move(parent))
         { }
 
-        TDeepThis& Do(NYson::TYsonProducer producer)
+        template <class TFunc>
+        TDeepThis& Do(TFunc func)
         {
-            producer.Run(this->Consumer);
+            InvokeFluentFunc<TShallowThis>(func, this->Consumer);
             return *static_cast<TDeepThis*>(this);
-        }
-
-        TDeepThis& Do(NYson::TYsonCallback ysonCallback)
-        {
-            return Do(NYson::TYsonProducer(ysonCallback));
         }
 
         template <class TFunc>
-        TDeepThis& Do(const TFunc& func)
-        {
-            func(TShallowThis(this->Consumer));
-            return *static_cast<TDeepThis*>(this);
-        }
-
-        TDeepThis& DoIf(bool condition, NYson::TYsonProducer producer)
+        TDeepThis& DoIf(bool condition, TFunc func)
         {
             if (condition) {
-                producer.Run(this->Consumer);
-            }
-            return *static_cast<TDeepThis*>(this);
-        }
-
-        TDeepThis& DoIf(bool condition, NYson::TYsonCallback ysonCallback)
-        {
-            return DoIf(condition, NYson::TYsonProducer(ysonCallback));
-        }
-
-        template <class TFunc>
-        TDeepThis& DoIf(bool condition, const TFunc& func)
-        {
-            if (condition) {
-                func(TShallowThis(this->Consumer));
+                InvokeFluentFunc<TShallowThis>(func, this->Consumer);
             }
             return *static_cast<TDeepThis*>(this);
         }
 
         template <class TFunc, class TIterator>
-        TDeepThis& DoFor(const TIterator& begin, const TIterator& end, const TFunc& func)
+        TDeepThis& DoFor(TIterator begin, TIterator end, TFunc func)
         {
             for (auto current = begin; current != end; ++current) {
-                func(TShallowThis(this->Consumer), current);
+                InvokeFluentFunc<TShallowThis>(func, this->Consumer, current);
             }
             return *static_cast<TDeepThis*>(this);
         }
 
         template <class TFunc, class TCollection>
-        TDeepThis& DoFor(const TCollection& collection, const TFunc& func)
+        TDeepThis& DoFor(const TCollection& collection, TFunc func)
         {
             for (const auto& item : collection) {
-                func(TShallowThis(this->Consumer), item);
+                InvokeFluentFunc<TShallowThis>(func, this->Consumer, item);
             }
             return *static_cast<TDeepThis*>(this);
         }
-
     };
 
     template <class TParent>
@@ -170,15 +152,18 @@ public:
         : public TFluentBase<TParent>
     {
     public:
+        typedef TAnyWithoutAttributes<TParent> TDeepThis;
+        typedef TAnyWithoutAttributes<TFluentYsonVoid> TShallowThis;
         typedef typename TFluentYsonUnwrapper<TParent>::TUnwrapped TUnwrappedParent;
 
-        TAnyWithoutAttributes(NYson::IYsonConsumer* consumer, TParent parent)
+        TAnyWithoutAttributes(NYson::IYsonConsumer* consumer, TParent parent = TParent())
             : TFluentBase<TParent>(consumer, std::move(parent))
         { }
 
-        TUnwrappedParent Do(NYson::TYsonProducer producer)
+        template <class TFunc>
+        TUnwrappedParent Do(TFunc func)
         {
-            producer.Run(this->Consumer);
+            InvokeFluentFunc<TShallowThis>(func, this->Consumer);
             return this->GetUnwrappedParent();
         }
 
@@ -234,31 +219,31 @@ public:
         }
 
         template <class TFunc>
-        TUnwrappedParent DoList(const TFunc& func)
+        TUnwrappedParent DoList(TFunc func)
         {
             this->Consumer->OnBeginList();
-            func(TList<TFluentYsonVoid>(this->Consumer));
+            InvokeFluentFunc<TList<TFluentYsonVoid>>(func, this->Consumer);
             this->Consumer->OnEndList();
             return this->GetUnwrappedParent();
         }
 
         template <class TFunc, class TIterator>
-        TUnwrappedParent DoListFor(const TIterator& begin, const TIterator& end, const TFunc& func)
+        TUnwrappedParent DoListFor(TIterator begin, TIterator end, TFunc func)
         {
             this->Consumer->OnBeginList();
             for (auto current = begin; current != end; ++current) {
-                func(TList<TFluentYsonVoid>(this->Consumer), current);
+                InvokeFluentFunc<TList<TFluentYsonVoid>>(func, this->Consumer, current);
             }
             this->Consumer->OnEndList();
             return this->GetUnwrappedParent();
         }
 
         template <class TFunc, class TCollection>
-        TUnwrappedParent DoListFor(const TCollection& collection, const TFunc& func)
+        TUnwrappedParent DoListFor(const TCollection& collection, TFunc func)
         {
             this->Consumer->OnBeginList();
             for (const auto& item : collection) {
-                func(TList<TFluentYsonVoid>(this->Consumer), item);
+                InvokeFluentFunc<TList<TFluentYsonVoid>>(func, this->Consumer, item);
             }
             this->Consumer->OnEndList();
             return this->GetUnwrappedParent();
@@ -271,31 +256,31 @@ public:
         }
 
         template <class TFunc>
-        TUnwrappedParent DoMap(const TFunc& func)
+        TUnwrappedParent DoMap(TFunc func)
         {
             this->Consumer->OnBeginMap();
-            func(TMap<TFluentYsonVoid>(this->Consumer));
+            InvokeFluentFunc<TMap<TFluentYsonVoid>>(func, this->Consumer);
             this->Consumer->OnEndMap();
             return this->GetUnwrappedParent();
         }
 
         template <class TFunc, class TIterator>
-        TUnwrappedParent DoMapFor(const TIterator& begin, const TIterator& end, const TFunc& func)
+        TUnwrappedParent DoMapFor(TIterator begin, TIterator end, TFunc func)
         {
             this->Consumer->OnBeginMap();
             for (auto current = begin; current != end; ++current) {
-                func(TMap<TFluentYsonVoid>(this->Consumer), current);
+                InvokeFluentFunc<TMap<TFluentYsonVoid>>(func, this->Consumer, current);
             }
             this->Consumer->OnEndMap();
             return this->GetUnwrappedParent();
         }
 
         template <class TFunc, class TCollection>
-        TUnwrappedParent DoMapFor(const TCollection& collection, const TFunc& func)
+        TUnwrappedParent DoMapFor(const TCollection& collection, TFunc func)
         {
             this->Consumer->OnBeginMap();
             for (const auto& item : collection) {
-                func(TMap<TFluentYsonVoid>(this->Consumer), item);
+                InvokeFluentFunc<TMap<TFluentYsonVoid>>(func, this->Consumer, item);
             }
             this->Consumer->OnEndMap();
             return this->GetUnwrappedParent();
@@ -309,7 +294,7 @@ public:
     public:
         typedef TAnyWithoutAttributes<TParent> TBase;
 
-        explicit TAny(NYson::IYsonConsumer* consumer, TParent parent)
+        explicit TAny(NYson::IYsonConsumer* consumer, TParent parent = TParent())
             : TBase(consumer, std::move(parent))
         { }
 
@@ -346,7 +331,7 @@ public:
             return TAny<TThis>(this->Consumer, *this);
         }
 
-        TThis& Items(IMapNodePtr map)
+        TThis& Items(const IMapNodePtr& map)
         {
             for (const auto& pair : map->GetChildren()) {
                 this->Consumer->OnKeyedItem(pair.first);
@@ -390,7 +375,7 @@ public:
             return TAny<TThis>(this->Consumer, *this);
         }
 
-        TThis& Items(IListNodePtr list)
+        TThis& Items(const IListNodePtr& list)
         {
             for (auto item : list->GetChildren()) {
                 this->Consumer->OnListItem();
@@ -430,7 +415,7 @@ public:
             return TAny<TThis>(this->Consumer, *this);
         }
 
-        TThis& Items(IMapNodePtr map)
+        TThis& Items(const IMapNodePtr& map)
         {
             for (const auto& pair : map->GetChildren()) {
                 this->Consumer->OnKeyedItem(pair.first);
@@ -455,7 +440,6 @@ public:
             return this->GetUnwrappedParent();
         }
     };
-
 };
 
 typedef TFluentYsonBuilder::TList<TFluentYsonVoid> TFluentList;
@@ -535,7 +519,7 @@ public:
     }
 
 private:
-    std::unique_ptr<ITreeBuilder> Builder;
+    const std::unique_ptr<ITreeBuilder> Builder;
 
 };
 
@@ -546,7 +530,7 @@ class TFluentYsonHolder
 {
 public:
     explicit TFluentYsonHolder(TIntrusivePtr<TState> state)
-        : State(state)
+        : State(std::move(state))
     { }
 
     TIntrusivePtr<TState> GetState() const
@@ -555,7 +539,7 @@ public:
     }
 
 private:
-    TIntrusivePtr<TState> State;
+    const TIntrusivePtr<TState> State;
 
 };
 
@@ -580,7 +564,7 @@ TFluentYsonBuilder::TAny< TFluentYsonHolder<TState> > BuildYsonFluentlyWithState
 {
     return TFluentYsonBuilder::TAny< TFluentYsonHolder<TState> >(
         state->GetConsumer(),
-        TFluentYsonHolder<TState>(state));
+        TFluentYsonHolder<TState>(std::move(state)));
 }
 
 inline TFluentYsonBuilder::TAny< TFluentYsonHolder<TFluentYsonWriterState> > BuildYsonStringFluently(

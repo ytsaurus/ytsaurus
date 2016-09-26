@@ -421,7 +421,7 @@ void Serialize(
             })
             .DoIf(valueProducer != nullptr, [=] (TFluentMap fluent) {
                 fluent
-                    .Item("value").Do(BIND(*valueProducer));
+                    .Item("value").Do(*valueProducer);
             })
         .EndMap();
 }

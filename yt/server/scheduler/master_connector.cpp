@@ -1192,12 +1192,12 @@ private:
                 auto req = TYPathProxy::Set(operationPath + "/@progress");
                 req->set_value(BuildYsonStringFluently()
                     .BeginMap()
-                        .Do(BIND([=] (IYsonConsumer* consumer) {
+                        .Do([=] (IYsonConsumer* consumer) {
                             WaitFor(
                                 BIND(&IOperationController::BuildProgress, controller)
                                     .AsyncVia(controller->GetInvoker())
                                     .Run(consumer));
-                        }))
+                        })
                     .EndMap().Data());
                 batchReq->AddRequest(req, "update_op_node");
 
@@ -1207,12 +1207,12 @@ private:
                 auto req = TYPathProxy::Set(operationPath + "/@brief_progress");
                 req->set_value(BuildYsonStringFluently()
                     .BeginMap()
-                        .Do(BIND([=] (IYsonConsumer* consumer) {
+                        .Do([=] (IYsonConsumer* consumer) {
                             WaitFor(
                                 BIND(&IOperationController::BuildBriefProgress, controller)
                                     .AsyncVia(controller->GetInvoker())
                                     .Run(consumer));
-                        }))
+                        })
                     .EndMap().Data());
                 batchReq->AddRequest(req, "update_op_node");
             }
@@ -1325,13 +1325,12 @@ private:
 
             req->set_value(BuildYsonStringFluently()
                 .BeginAttributes()
-                    .Do(BIND([=] (IYsonConsumer* consumer) {
+                    .Do([=] (IYsonConsumer* consumer) {
                         consumer->OnRaw(request.Attributes);
-                    }))
-                    .DoIf(static_cast<bool>(inputPaths), BIND([=] (IYsonConsumer* consumer) {
-                        consumer->OnKeyedItem("input_paths");
-                        consumer->OnRaw(*inputPaths);
-                    }))
+                    })
+                    .DoIf(static_cast<bool>(inputPaths), [=] (TFluentAttributes fluent) {
+                        fluent.Item("input_paths").Value(*inputPaths);
+                    })
                 .EndAttributes()
                 .BeginMap()
                 .EndMap()

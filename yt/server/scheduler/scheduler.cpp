@@ -2100,24 +2100,24 @@ private:
                     .Item("total_node_count").Value(GetTotalNodeCount())
                 .EndMap()
                 .Item("suspicious_jobs").BeginMap()
-                    .Do(BIND([=] (IYsonConsumer* consumer) {
+                    .Do([=] (IYsonConsumer* consumer) {
                         for (auto nodeShard : NodeShards_) {
                             WaitFor(
                                 BIND(&TNodeShard::BuildSuspiciousJobsYson, nodeShard, consumer)
                                     .AsyncVia(nodeShard->GetInvoker())
                                     .Run());
                         }
-                    }))
+                    })
                 .EndMap()
                 .Item("nodes").BeginMap()
-                    .Do(BIND([=] (IYsonConsumer* consumer) {
+                    .Do([=] (IYsonConsumer* consumer) {
                         for (auto nodeShard : NodeShards_) {
                             WaitFor(
                                 BIND(&TNodeShard::BuildNodesYson, nodeShard, consumer)
                                     .AsyncVia(nodeShard->GetInvoker())
                                     .Run());
                         }
-                    }))
+                    })
                 .EndMap()
                 .Item("clusters").DoMapFor(GetClusterDirectory()->GetClusterNames(), [=] (TFluentMap fluent, const Stroka& clusterName) {
                     BuildClusterYson(clusterName, fluent);
@@ -2167,22 +2167,21 @@ private:
                     .Item("opaque").Value("true")
                 .EndAttributes()
                 .BeginMap()
-                .Do(BIND([=] (IYsonConsumer* consumer) {
-                    for (auto& nodeShard : NodeShards_) {
+                    .Do([=] (IYsonConsumer* consumer) {
+                        for (auto& nodeShard : NodeShards_) {
+                            WaitFor(
+                                BIND(&TNodeShard::BuildOperationJobsYson, nodeShard)
+                                    .AsyncVia(nodeShard->GetInvoker())
+                                    .Run(operation->GetId(), consumer));
+                        }
+                    })
+                    .Do([=] (IYsonConsumer* consumer) {
                         WaitFor(
-                            BIND(&TNodeShard::BuildOperationJobsYson, nodeShard)
-                                .AsyncVia(nodeShard->GetInvoker())
-                                .Run(operation->GetId(), consumer));
-                    }
-                    }))
-                .EndMap()
-                .Do(BIND([=] (IYsonConsumer* consumer) {
-                    WaitFor(
-                        BIND(&IOperationController::BuildMemoryDigestStatistics, controller)
-                            .AsyncVia(controller->GetInvoker())
-                            .Run(consumer));
-                    }))
-            .EndMap();
+                            BIND(&IOperationController::BuildMemoryDigestStatistics, controller)
+                                .AsyncVia(controller->GetInvoker())
+                                .Run(consumer));
+                    })
+                .EndMap();
     }
 
     IYPathServicePtr GetDynamicOrchidService()

@@ -183,17 +183,17 @@ TNullable<TYsonString> BuildInputPaths(
                                     .Item()
                                     .BeginMap()
                                         .Item("lower_limit")
-                                        .Do(BIND(
-                                            &BuildInputSliceLimit,
-                                            range.first,
-                                            range.first->LowerLimit(),
-                                            TNullable<i64>(mergeByRows && !isForeignTable[tableIndex], 0)))
+                                            .Do(BIND(
+                                                &BuildInputSliceLimit,
+                                                range.first,
+                                                range.first->LowerLimit(),
+                                                TNullable<i64>(mergeByRows && !isForeignTable[tableIndex], 0)))
                                         .Item("upper_limit")
-                                        .Do(BIND(
-                                            &BuildInputSliceLimit,
-                                            range.second,
-                                            range.second->UpperLimit(),
-                                            TNullable<i64>(mergeByRows && !isForeignTable[tableIndex], range.second->GetInputChunk()->GetRowCount())))
+                                            .Do(BIND(
+                                                &BuildInputSliceLimit,
+                                                range.second,
+                                                range.second->UpperLimit(),
+                                                TNullable<i64>(mergeByRows && !isForeignTable[tableIndex], range.second->GetInputChunk()->GetRowCount())))
                                     .EndMap();
                             })
                         .EndAttributes()
