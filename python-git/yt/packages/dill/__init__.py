@@ -5,6 +5,8 @@
 # License: 3-clause BSD.  The full license text is available at:
 #  - http://trac.mystic.cacr.caltech.edu/project/pathos/browser/dill/LICENSE
 
+from __future__ import absolute_import
+
 # get version numbers, license, and long description
 try:
     from .info import this_version as __version__
@@ -21,14 +23,14 @@ __doc__ = """
 __license__ = """
 """ + __license__
 
-from dill import dump, dumps, load, loads, dump_session, load_session, \
+from .dill import dump, dumps, load, loads, dump_session, load_session, \
     Pickler, Unpickler, register, copy, pickle, pickles, \
     HIGHEST_PROTOCOL, DEFAULT_PROTOCOL, PicklingError, UnpicklingError, \
     HANDLE_FMODE, CONTENTS_FMODE, FILE_FMODE
-import source, temp, detect
+from . import source, temp, detect
 
 # get global settings
-from settings import settings
+from .settings import settings
 
 # make sure "trace" is turned off
 detect.trace(False)
@@ -53,7 +55,7 @@ objects = odict()
 #del _objects
 
 # local import of dill.objtypes
-import objtypes as types
+from . import objtypes as types
 
 def load_types(pickleable=True, unpickleable=True):
     """load pickleable and/or unpickleable types to dill.types"""
@@ -94,6 +96,7 @@ def citation():
     print (__doc__[-499:-140])
     return
 
+del absolute_import
 del odict
 
 # end of file

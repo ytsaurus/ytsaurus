@@ -49,7 +49,6 @@ if PY3: #XXX: get types from dill.objtypes ?
     TypeType = type # 'new-style' classes #XXX: unregistered
     XRangeType = range
     DictProxyType = type(object.__dict__)
-    # TODO(ignat): Support StaticMethodType and ClassMethodType
 else:
     import __builtin__
     from pickle import Pickler as StockPickler, Unpickler as StockUnpickler
@@ -59,12 +58,12 @@ else:
          NotImplementedType, EllipsisType, FrameType, ModuleType, \
          BufferType, BuiltinMethodType, TypeType
 
-    class _class:
-        def _method(self):
-            pass
-    _method = _class._method
-    StaticMethodType = type(staticmethod(_method))
-    ClassMethodType = type(classmethod(_method))
+class _class:
+    def _method(self):
+        pass
+_method = _class._method
+StaticMethodType = type(staticmethod(_method))
+ClassMethodType = type(classmethod(_method))
 
 from pickle import HIGHEST_PROTOCOL, PicklingError, UnpicklingError
 try:

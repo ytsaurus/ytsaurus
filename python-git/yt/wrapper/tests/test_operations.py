@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 from .helpers import TEST_DIR, PYTHONPATH, get_test_file_path, check, set_config_option, \
-                     build_python_egg, TESTS_SANDBOX
+                     build_python_egg, TESTS_SANDBOX, run_python_script_with_check
 
 from yt.wrapper.py_wrapper import create_modules_archive_default, TempfilesManager
 from yt.common import which, makedirp
@@ -50,60 +50,6 @@ class AggregateReducer(object):
 
     def finish(self):
         yield {"sum": self.sum}
-
-# Map method for test operations with python entities
-def _change_x(rec):
-    if "x" in rec:
-        rec["x"] = int(rec["x"]) + 1
-
-class ChangeX__(object):
-    def __init__(self, mode):
-        self.change_x = {
-            "method": self._change_x,
-            "staticmethod": self._change_x_staticmethod,
-            "classmethod": self._change_x_classmethod
-            }[mode]
-
-    def __call__(self, rec):
-        self.change_x(rec)
-        yield rec
-
-    def _change_x(self, rec):
-        _change_x(rec)
-
-    @staticmethod
-    def _change_x_staticmethod(rec):
-        _change_x(rec)
-
-    @classmethod
-    def _change_x_classmethod(cls, rec):
-        _change_x(rec)
-
-# Map method to test metaclass pickling
-from abc import ABCMeta, abstractmethod
-
-@add_metaclass(ABCMeta)
-class TAbstractClass(object):
-  @abstractmethod
-  def __init__(self):
-    pass
-
-
-class TDoSomething(TAbstractClass):
-    def __init__(self):
-        pass
-
-    def do_something(self, rec):
-        _change_x(rec)
-        return rec
-
-
-class TMapperWithMetaclass(object):
-  def __init__(self):
-    self.some_external_code = TDoSomething()
-
-  def map(self, rec):
-    yield self.some_external_code.do_something(rec)
 
 class CreateModulesArchive(object):
     def __call__(self, tempfiles_manager=None, custom_python_used=False):
@@ -316,7 +262,67 @@ class TestOperations(object):
                 yt.run_reduce("cat", [table1, table2], table, join_by=["x"])
 
     @add_failed_operation_stderrs_to_error_message
-    def test_python_operations(self):
+    def test_python_operations(self, yt_env):
+        test_script = """\
+from __future__ import print_function
+import yt.wrapper as yt
+
+{mapper_code}
+
+if __name__ == "__main__":
+    yt.config["proxy"]["url"] = "{proxy}"
+    yt.config["pickling"]["enable_tmpfs_archive"] = False
+    print(yt.run_map({mapper}, "{source_table}", "{destination_table}", format="json").id)
+"""
+
+        methods_pickling_test = ("""\
+class C(object):
+    {decorator}
+    def do({self}):
+        return 0
+
+    def __call__(self, rec):
+        self.do()
+        yield rec
+""", 'C()')
+
+        metaclass_pickling_test = ("""\
+from yt.packages.six import add_metaclass
+from abc import ABCMeta, abstractmethod
+
+@add_metaclass(ABCMeta)
+class AbstractClass(object):
+    @abstractmethod
+    def __init__(self):
+        pass
+
+class DoSomething(AbstractClass):
+    def __init__(self):
+        pass
+
+    def do_something(self, rec):
+        if "x" in rec:
+            rec["x"] = int(rec["x"]) + 1
+        return rec
+
+class MapperWithMetaclass(object):
+    def __init__(self):
+        self.some_external_code = DoSomething()
+
+    def map(self, rec):
+        yield self.some_external_code.do_something(rec)
+""", 'MapperWithMetaclass().map')
+
+        simple_pickling_test = ("""\
+def mapper(rec):
+    yield rec
+""", 'mapper')
+
+        def _format_script(script, **kwargs):
+            kwargs.update(dict(zip(("mapper_code", "mapper"), script)))
+            kwargs["proxy"] = yt_env.config["proxy"]["url"]
+            return test_script.format(**kwargs)
+
         def change_x(rec):
             if "x" in rec:
                 rec["x"] = int(rec["x"]) + 1
@@ -330,7 +336,7 @@ class TestOperations(object):
 
         @yt.raw
         def change_field(line):
-            yield "z=8\n"
+            yield b"z=8\n"
 
         @yt.aggregator
         def sum_x(recs):
@@ -356,21 +362,32 @@ class TestOperations(object):
         table = TEST_DIR + "/table"
 
         yt.write_table(table, [{"x": 1}, {"y": 2}])
-
-        yt.run_map(change_x, table, table, format=None)
+        yt.run_map(change_x, table, table, format=None, spec={"enable_core_dump": True})
         check(yt.read_table(table), [{"x": 2}, {"y": 2}], ordered=False)
 
         yt.write_table(table, [{"x": 1}, {"y": 2}])
         yt.run_map(change_x, table, table)
         check(yt.read_table(table),  [{"x": 2}, {"y": 2}])
 
-        for mode in ["method", "staticmethod", "classmethod"]:
+        yt.write_table(table, [{"x": 1}, {"x": 2}, {"x": 3}])
+        run_python_script_with_check(
+            yt_env,
+            _format_script(simple_pickling_test, source_table=table, destination_table=table))
+        check(yt.read_table(table), [{"x": 1}, {"x": 2}, {"x": 3}])
+
+        for decorator, self_ in [("", "self"), ("@staticmethod", ""), ("@classmethod", "cls")]:
             yt.write_table(table, [{"x": 1}, {"y": 2}])
-            yt.run_map(ChangeX__(mode), table, table)
-            check(yt.read_table(table), [{"x": 2}, {"y": 2}], ordered=False)
+            script = (methods_pickling_test[0].format(decorator=decorator, self=self_),
+                      methods_pickling_test[1])
+            run_python_script_with_check(
+                yt_env,
+                _format_script(script, source_table=table, destination_table=table))
+            check(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
 
         yt.write_table(table, [{"x": 1}, {"y": 2}])
-        yt.run_map(TMapperWithMetaclass().map, table, table)
+        run_python_script_with_check(
+            yt_env,
+            _format_script(metaclass_pickling_test, source_table=table, destination_table=table))
         check(yt.read_table(table), [{"x": 2}, {"y": 2}], ordered=False)
 
         yt.write_table(table, [{"x": 2}, {"x": 2, "y": 2}])
@@ -1090,5 +1107,3 @@ if __name__ == "__main__":
             assert tmpfs_size > 8 * 1024
             assert memory_limit - tmpfs_size == 512 * 1024 * 1024
             assert get_spec_option(op.id, "mapper/tmpfs_path") == "."
-
-

@@ -17,8 +17,8 @@ try:
 except ImportError:
     from yt.packages.importlib import import_module
 
-from yt.packages.six import itervalues, iteritems, iterbytes, text_type, binary_type
-from yt.packages.six.moves import map as imap
+from yt.packages.six import itervalues, iteritems, iterbytes, text_type, binary_type, PY3
+from yt.packages.six.moves import map as imap, filter as ifilter, xrange
 
 import re
 import imp
@@ -123,22 +123,29 @@ class TempfilesManager(object):
         self._tempfiles_pool.append(filepath)
         return filepath
 
-def module_relpath(module_name, module_file, client):
+def module_relpath(module_names, module_file, client):
     search_extensions = get_config(client)["pickling"]["search_extensions"]
     if search_extensions is None:
         suffixes = [suf for suf, _, _ in imp.get_suffixes()]
     else:
         suffixes = ["." + ext for ext in search_extensions]
 
-    if module_name == "__main__":
+    module_file_parts = module_file.split(os.sep)
+
+    if any(name == "__main__" for name in module_names):
         return module_file
-    for init in ["", os.sep + "__init__"]:
-        for suf in suffixes:
-            rel_path = ''.join([module_name.replace(".", os.sep), init, suf])
-            if module_file.endswith(rel_path):
-                return rel_path
+
+    for suf in suffixes:
+        for name in module_names:
+            parts = name.split(".")
+
+            for rel_path_parts in (parts[:-1] + [parts[-1] + suf], parts + ["__init__" + suf]):
+                if module_file_parts[-len(rel_path_parts):] == rel_path_parts:
+                    return os.sep.join(rel_path_parts)
+
     if module_file.endswith(".egg"):
         return os.path.basename(module_file)
+
     return None
     #!!! It is wrong solution, because modules can affect sys.path while importing
     #!!! Do not delete it to prevent wrong refactoring in the future.
@@ -233,7 +240,7 @@ def create_modules_archive_default(tempfiles_manager, custom_python_used, client
     files_to_compress = {}
     module_filter = get_config(client)["pickling"]["module_filter"]
     extra_modules = getattr(sys, "extra_modules", set())
-    for module in list(itervalues(sys.modules)):
+    for name, module in list(iteritems(sys.modules)):
         if module_filter is not None and not module_filter(module):
             continue
         if hasattr(module, "__file__"):
@@ -259,7 +266,7 @@ def create_modules_archive_default(tempfiles_manager, custom_python_used, client
             if get_config(client)["pickling"]["force_using_py_instead_of_pyc"] and file.endswith(".pyc"):
                 file = file[:-1]
 
-            relpath = module_relpath(module.__name__, file, client)
+            relpath = module_relpath([module.__name__, name], file, client)
             if relpath is None:
                 if logger.LOGGER.isEnabledFor(logging_level):
                     logger.log(logging_level, "Cannot determine relative path of module " + str(module))
@@ -279,7 +286,7 @@ def create_modules_archive_default(tempfiles_manager, custom_python_used, client
                     dir=get_config(client)["local_temp_directory"],
                     prefix="__init__.py")
 
-                with open(init_file, "wb") as f:
+                with open(init_file, "w") as f:
                     f.write("#")  # Should not be empty. Empty comment is ok.
 
                 module_name_parts = module.__name__.split(".") + ["__init__.py"]
@@ -378,7 +385,8 @@ def build_caller_arguments(is_standalone_binary, use_local_python_in_jobs, file_
                 if is_arcadia_python() and "yt.wrapper._py_runner" in getattr(sys, "extra_modules", []):
                     use_py_runner = False
             else:
-                arguments = ["python"]
+                major_version = get_python_version()[0]
+                arguments = ["python" + str(major_version)]
 
     if use_py_runner:
         arguments.append(file_argument_builder(os.path.join(LOCATION, "_py_runner.py")))
