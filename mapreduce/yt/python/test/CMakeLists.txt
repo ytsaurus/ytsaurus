@@ -13,7 +13,11 @@ TEST_SRCS(
 
 TIMEOUT(100)
 
-DEPENDS(mapreduce/yt/python)
+PEERDIR(
+    mapreduce/yt/python
+)
+
+DEPENDS(yt/packages)
 
 TAG(ya:external)
 

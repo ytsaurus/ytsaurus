@@ -15,7 +15,7 @@ import yatest.common
 import devtools.swag.daemon
 import devtools.swag.ports
 
-_YT_ARCHIVE_NAME = "mapreduce/yt/python/yt.tar" # comes by FROM_SANDBOX
+_YT_ARCHIVE_NAME = "yt/packages/yt.tar" # comes by FROM_SANDBOX
 _YT_PREFIX = "//"
 _YT_MAX_START_RETRIES = 3
 
@@ -119,22 +119,22 @@ class YtStuff(object):
         if version in ('17_5',):
             return
 
-        yt_server_arcadia_path = yatest.common.binary_path('mapreduce/yt/python/yt/{}/yt/server/ytserver'.format(version))
+        yt_server_arcadia_path = yatest.common.binary_path('yt/packages/yt/{}/yt/server/ytserver'.format(version))
         orig_server_path = os.path.join(self.yt_bins_path, 'ytserver')
         os.remove(orig_server_path)
         shutil.copy(yt_server_arcadia_path, orig_server_path)
 
         shutil.rmtree(self.yt_node_modules_path, ignore_errors=True)
-        node_modules_resource_dir = yatest.common.binary_path('mapreduce/yt/python/yt/{}/yt/node_modules'.format(version))
+        node_modules_resource_dir = yatest.common.binary_path('yt/packages/yt/{}/yt/node_modules'.format(version))
         node_modules_archive_path = os.path.join(node_modules_resource_dir, 'resource.tar.gz')
         self._extract_tar(node_modules_archive_path, self.yt_path)
 
-        yt_node_arcadia_path = yatest.common.binary_path('mapreduce/yt/python/yt/{}/yt/nodejs/targets/bin/ytnode'.format(version))
+        yt_node_arcadia_path = yatest.common.binary_path('yt/packages/yt/{}/yt/nodejs/targets/bin/ytnode'.format(version))
         orig_node_path = os.path.join(self.yt_node_bin_path, 'nodejs')
         os.remove(orig_node_path)
         shutil.copy(yt_node_arcadia_path, orig_node_path)
 
-        yt_node_path = yatest.common.binary_path('mapreduce/yt/python/yt/{}/yt/nodejs/targets/package'.format(version))
+        yt_node_path = yatest.common.binary_path('yt/packages/yt/{}/yt/nodejs/targets/package'.format(version))
         shutil.copytree(yt_node_path, os.path.join(self.yt_node_modules_path, 'yt'))
 
     def _prepare_env(self):

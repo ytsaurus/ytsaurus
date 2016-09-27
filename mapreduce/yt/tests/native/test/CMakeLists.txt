@@ -6,8 +6,12 @@ TEST_SRCS(
     test.py
 )
 
-DEPENDS(
+PEERDIR(
     mapreduce/yt/python
+)
+
+DEPENDS(
+    yt/packages
     mapreduce/yt/tests/native
 )
 

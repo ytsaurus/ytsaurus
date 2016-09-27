@@ -11,8 +11,12 @@ DATA(
     arcadia/devtools/swag
 )
 
-DEPENDS(
+PEERDIR(
     mapreduce/yt/python
+)
+
+DEPENDS(
+    yt/packages
     mapreduce/yt/tests/library
     quality/mapreduce
 )
