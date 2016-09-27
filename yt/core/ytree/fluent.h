@@ -546,7 +546,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TState>
-struct TFluentYsonUnwrapper< TFluentYsonHolder<TState> >
+struct TFluentYsonUnwrapper<TFluentYsonHolder<TState>>
 {
     typedef typename TState::TValue TUnwrapped;
 
@@ -559,21 +559,21 @@ struct TFluentYsonUnwrapper< TFluentYsonHolder<TState> >
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TState>
-TFluentYsonBuilder::TAny< TFluentYsonHolder<TState> > BuildYsonFluentlyWithState(
+TFluentYsonBuilder::TAny<TFluentYsonHolder<TState>> BuildYsonFluentlyWithState(
     TIntrusivePtr<TState> state)
 {
-    return TFluentYsonBuilder::TAny< TFluentYsonHolder<TState> >(
+    return TFluentYsonBuilder::TAny<TFluentYsonHolder<TState>>(
         state->GetConsumer(),
         TFluentYsonHolder<TState>(state));
 }
 
-inline TFluentYsonBuilder::TAny< TFluentYsonHolder<TFluentYsonWriterState> > BuildYsonStringFluently(
+inline TFluentYsonBuilder::TAny<TFluentYsonHolder<TFluentYsonWriterState>> BuildYsonStringFluently(
     NYson::EYsonFormat format = NYson::EYsonFormat::Binary)
 {
     return BuildYsonFluentlyWithState(New<TFluentYsonWriterState>(format));
 }
 
-inline TFluentYsonBuilder::TAny< TFluentYsonHolder<TFluentYsonBuilderState> > BuildYsonNodeFluently(
+inline TFluentYsonBuilder::TAny<TFluentYsonHolder<TFluentYsonBuilderState>> BuildYsonNodeFluently(
     INodeFactory* factory = GetEphemeralNodeFactory())
 {
     return BuildYsonFluentlyWithState(New<TFluentYsonBuilderState>(factory));
