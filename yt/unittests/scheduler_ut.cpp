@@ -487,12 +487,24 @@ TEST_F(TSchedulerTest, JustYield1)
 TEST_F(TSchedulerTest, JustYield2)
 {
     auto invoker = Queue1->GetInvoker();
-    auto asyncResult = BIND([] () {
-        WaitFor(VoidFuture);
-        for (int i = 0; i < 10; ++i) {
+
+    bool flag = false;
+
+    auto asyncResult = BIND([&] () {
+        for (int i = 0; i < 2; ++i) {
+            Sleep(SleepQuantum);
             Yield();
         }
+        flag = true;
     }).AsyncVia(invoker).Run();
+
+    // This callback must complete before the first.
+    auto errorOrValue = BIND([&] () {
+        return flag;
+    }).AsyncVia(invoker).Run().Get();
+
+    EXPECT_TRUE(errorOrValue.IsOK());
+    EXPECT_FALSE(errorOrValue.Value());
     EXPECT_TRUE(asyncResult.Get().IsOK());
 }
 
