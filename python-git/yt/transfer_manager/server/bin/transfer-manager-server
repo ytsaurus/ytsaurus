@@ -658,6 +658,7 @@ class Application(object):
                 self._pending_tasks.remove(id)
 
             if self._tasks[id].state not in ["aborted", "completed", "failed"]:
+                self._tasks[id].finish_time = now_str()
                 new_state = "aborted"
                 if task_was_executed and not task_is_aborted:
                     new_state = "aborting"
@@ -1066,11 +1067,6 @@ class Application(object):
             if self._tasks[id].state not in ["completed", "aborted", "failed"]:
                 raise RequestFailed("Cannot restart task in state " + self._tasks[id].state)
 
-            self._tasks[id].state = "pending"
-            self._tasks[id].restart_time = now_str()
-            self._tasks[id]._last_ping_time = time.time()
-            self._tasks[id].finish_time = None
-
             if self._tasks[id].history is None:
                 self._tasks[id].history = []
 
@@ -1084,6 +1080,10 @@ class Application(object):
                 del history_element[bad_key]
 
             self._tasks[id].history.append(history_element)
+
+            self._tasks[id].state = "pending"
+            self._tasks[id].restart_time = now_str()
+            self._tasks[id]._last_ping_time = time.time()
 
             self._tasks[id].progress = None
             self._tasks[id].error = None
