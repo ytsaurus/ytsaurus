@@ -470,15 +470,18 @@ THttpResponse::THttpResponse(
             }
             httpHeaders << ")";
 
-            LOG_ERROR("RSP %s - HTTP %d - %s",
+            auto errorString = Sprintf("RSP %s - HTTP %d - %s",
                 ~RequestId_,
                 HttpCode_,
                 ~httpHeaders.Str());
 
+            LOG_ERROR(~errorString);
+
             if (auto parsedResponse = ParseError(HttpInput_.Headers())) {
                 ErrorResponse_ = parsedResponse.GetRef();
             } else {
-                ErrorResponse_->SetRawError("X-YT-Error is missing in headers");
+                ErrorResponse_->SetRawError(
+                    errorString + " - X-YT-Error is missing in headers");
             }
             break;
         }
