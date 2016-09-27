@@ -261,12 +261,14 @@ private:
         }
 
         bool linkExists = false;
-        if (linkAttrs["type"] == "link" &&
-            (!linkAttrs.HasKey("broken") || !linkAttrs["broken"].AsBool()))
-        {
-            linkExists = true;
-        } else {
-            Remove(Auth_, TTransactionId(), cypressPath + "&", true, true);
+        if (linkAttrs.GetType() != TNode::UNDEFINED) {
+            if (linkAttrs["type"] == "link" &&
+                (!linkAttrs.HasKey("broken") || !linkAttrs["broken"].AsBool()))
+            {
+                linkExists = true;
+            } else {
+                Remove(Auth_, TTransactionId(), cypressPath + "&", true, true);
+            }
         }
 
         if (linkExists) {
