@@ -2168,20 +2168,20 @@ private:
                 .EndAttributes()
                 .BeginMap()
                     .Do([=] (IYsonConsumer* consumer) {
-                        for (auto& nodeShard : NodeShards_) {
+                        for (const auto& nodeShard : NodeShards_) {
                             WaitFor(
                                 BIND(&TNodeShard::BuildOperationJobsYson, nodeShard)
                                     .AsyncVia(nodeShard->GetInvoker())
                                     .Run(operation->GetId(), consumer));
                         }
                     })
-                    .Do([=] (IYsonConsumer* consumer) {
-                        WaitFor(
-                            BIND(&IOperationController::BuildMemoryDigestStatistics, controller)
-                                .AsyncVia(controller->GetInvoker())
-                                .Run(consumer));
-                    })
                 .EndMap()
+                .Do([=] (IYsonConsumer* consumer) {
+                    WaitFor(
+                        BIND(&IOperationController::BuildMemoryDigestStatistics, controller)
+                            .AsyncVia(controller->GetInvoker())
+                            .Run(consumer));
+                })
             .EndMap();
     }
 
