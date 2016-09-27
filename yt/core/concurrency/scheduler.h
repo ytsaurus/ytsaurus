@@ -16,18 +16,13 @@ namespace NConcurrency {
 //! and provide means for cooperative multitasking on that thread.
 struct IScheduler
 {
-    virtual ~IScheduler()
-    { }
+    virtual ~IScheduler() = default;
 
     virtual TFiber* GetCurrentFiber() = 0;
 
     //! Returns control back to the scheduler.
     //! This must be called upon fiber termination.
     virtual void Return() = 0;
-
-    //! Transfers control back to the scheduler and reschedules currently
-    //! executing fiber to the end of the run queue.
-    virtual void Yield() = 0;
 
     //! Transfers control to other fiber and reschedules currently executing fiber
     //! to the end of the run queue.
