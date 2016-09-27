@@ -2181,7 +2181,8 @@ private:
                                 .AsyncVia(controller->GetInvoker())
                                 .Run(consumer));
                     })
-                .EndMap();
+                .EndMap()
+            .EndMap();
     }
 
     IYPathServicePtr GetDynamicOrchidService()
