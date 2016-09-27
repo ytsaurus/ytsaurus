@@ -4,7 +4,7 @@ from yt.tools.atomic import process_tasks_from_list
 from yt.tools.conversion_tools import convert_to_erasure
 
 from yt.wrapper.cli_helpers import die
-from yt.wrapper.common import parse_bool, get_value
+from yt.wrapper.common import parse_bool, get_value, filter_dict
 
 import yt.logger as logger
 import yt.wrapper as yt
@@ -102,6 +102,9 @@ def find(root):
                             "nightly_compression_settings", "nightly_compressed", "compression_statistics",
                             "erasure_statistics", "chunk_count"]
 
+    compression_settings_allowed_keys = set(["min_table_size", "enabled", "compression_codec", "erasure_codec",
+                                             "force_recompress_to_specified_codecs"])
+
     def walk(path, object, compression_settings=None):
         if path in ignore_nodes:
             return
@@ -114,7 +117,7 @@ def find(root):
             if compression_settings is None or not isinstance(compression_settings, dict):
                 return
 
-            params = deepcopy(compression_settings)
+            params = filter_dict(lambda k, v: k in compression_settings_allowed_keys, deepcopy(compression_settings))
             min_table_size = params.pop("min_table_size", 0)
             enabled = parse_bool(params.pop("enabled", "false"))
             force_recompress_to_specified_codecs = \
