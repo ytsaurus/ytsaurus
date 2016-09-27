@@ -564,7 +564,7 @@ TFluentYsonBuilder::TAny< TFluentYsonHolder<TState> > BuildYsonFluentlyWithState
 {
     return TFluentYsonBuilder::TAny< TFluentYsonHolder<TState> >(
         state->GetConsumer(),
-        TFluentYsonHolder<TState>(std::move(state)));
+        TFluentYsonHolder<TState>(state));
 }
 
 inline TFluentYsonBuilder::TAny< TFluentYsonHolder<TFluentYsonWriterState> > BuildYsonStringFluently(
