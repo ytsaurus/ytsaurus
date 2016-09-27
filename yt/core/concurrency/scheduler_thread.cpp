@@ -388,26 +388,6 @@ void TSchedulerThread::Return()
     Y_UNREACHABLE();
 }
 
-void TSchedulerThread::Yield()
-{
-    VERIFY_THREAD_AFFINITY(HomeThread);
-
-    auto fiber = CurrentFiber.Get();
-    Y_ASSERT(fiber);
-
-    CheckForCanceledFiber(fiber);
-
-    YCHECK(CurrentFiber->GetState() == EFiberState::Running);
-    fiber->SetSuspended();
-
-    SwitchExecutionContext(
-        fiber->GetContext(),
-        &SchedulerContext,
-        nullptr);
-
-    CheckForCanceledFiber(fiber);
-}
-
 void TSchedulerThread::SubscribeContextSwitched(TClosure callback)
 {
     VERIFY_THREAD_AFFINITY(HomeThread);

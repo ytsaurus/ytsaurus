@@ -42,7 +42,6 @@ public:
 
     virtual TFiber* GetCurrentFiber() override;
     virtual void Return() override;
-    virtual void Yield() override;
     virtual void YieldTo(TFiberPtr&& other) override;
     virtual void SwitchTo(IInvokerPtr invoker) override;
     virtual void SubscribeContextSwitched(TClosure callback) override;

@@ -48,7 +48,7 @@ TFiberId GetCurrentFiberId()
 
 void Yield()
 {
-    GetCurrentScheduler()->Yield();
+    WaitFor(VoidFuture);
 }
 
 void SwitchTo(IInvokerPtr invoker)
