@@ -43,6 +43,7 @@ public:
         const auto& inputSpec = SchedulerJobSpecExt_.input_specs(0);
 
         std::vector<TChunkSpec> chunkSpecs(inputSpec.chunks().begin(), inputSpec.chunks().end());
+        auto readerOptions = ConvertTo<NTableClient::TTableReaderOptionsPtr>(TYsonString(inputSpec.table_reader_options()));
 
         TotalRowCount_ = GetCumulativeRowCount(chunkSpecs);
 
@@ -56,7 +57,7 @@ public:
             // which is a nightmare for restarted (lost) jobs.
             Reader_ = CreateSchemalessSequentialMultiChunkReader(
                 config->JobIO->TableReader,
-                New<NTableClient::TTableReaderOptions>(),
+                readerOptions,
                 Host_->GetClient(),
                 Host_->LocalDescriptor(),
                 Host_->GetBlockCache(),
