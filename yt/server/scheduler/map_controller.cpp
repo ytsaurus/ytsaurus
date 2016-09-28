@@ -6,7 +6,6 @@
 #include "job_memory.h"
 #include "private.h"
 #include "operation_controller_detail.h"
-#include "job_size_manager.h"
 
 #include <yt/ytlib/chunk_client/input_slice.h>
 
@@ -60,7 +59,6 @@ public:
         Persist(context, TableReaderOptions);
         Persist(context, UnorderedTask);
         Persist(context, UnorderedTaskGroup);
-        Persist(context, JobSizeManager);
     }
 
 protected:
@@ -86,11 +84,11 @@ protected:
             : Controller(nullptr)
         { }
 
-        TUnorderedTask(TUnorderedOperationControllerBase* controller, i64 dataSizePerJob)
+        explicit TUnorderedTask(TUnorderedOperationControllerBase* controller, int jobCount)
             : TTask(controller)
             , Controller(controller)
             , ChunkPool(CreateUnorderedChunkPool(
-                dataSizePerJob,
+                jobCount,
                 Controller->Config->MaxChunkStripesPerJob))
         { }
 
@@ -183,13 +181,6 @@ protected:
             TTask::OnJobCompleted(joblet, jobSummary);
 
             RegisterOutput(joblet, joblet->JobIndex, jobSummary);
-
-            if (Controller->JobSizeManager) {
-                Controller->JobSizeManager->OnJobCompleted(jobSummary);
-                ChunkPool->SetDataSizePerJob(Controller->JobSizeManager->GetIdealDataSizePerJob());
-                LOG_DEBUG("Set ideal data size per job (DataSizePerJob: %v)",
-                    Controller->JobSizeManager->GetIdealDataSizePerJob());
-            }
         }
 
         virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
@@ -203,8 +194,6 @@ protected:
 
     TUnorderedTaskPtr UnorderedTask;
     TTaskGroupPtr UnorderedTaskGroup;
-
-    std::unique_ptr<IJobSizeManager> JobSizeManager;
 
 
     // Custom bits of preparation pipeline.
@@ -259,33 +248,21 @@ protected:
 
             // Create the task, if any data.
             if (totalDataSize > 0) {
-                TJobSizeLimits jobSizeLimits(
+                auto jobCount = SuggestJobCount(
                     totalDataSize,
-                    Spec->DataSizePerJob.Get(Options->DataSizePerJob),
+                    Spec->DataSizePerJob,
                     Spec->JobCount,
                     GetMaxJobCount(Spec->MaxJobCount, Options->MaxJobCount));
-                auto stripes = SliceChunks(mergedChunks, Options->JobMaxSliceDataSize, &jobSizeLimits);
+                auto stripes = SliceChunks(mergedChunks, Options->JobMaxSliceDataSize, &jobCount);
 
-                if (!Spec->JobCount && !Spec->DataSizePerJob) {
-                    LOG_DEBUG("Activating job size manager (DataSizePerJob: %v, MaxJobDataSize: %v, MinJobTime: %v, ExecToPrepareTimeRatio: %v",
-                        jobSizeLimits.GetDataSizePerJob(),
-                        Spec->MaxDataSizePerJob,
-                        Options->JobSizeManager->MinJobTime,
-                        Options->JobSizeManager->ExecToPrepareTimeRatio);
-                    JobSizeManager = CreateJobSizeManager(
-                        jobSizeLimits.GetDataSizePerJob(),
-                        Spec->MaxDataSizePerJob,
-                        Options->JobSizeManager);
-                }
-
-                UnorderedTask = New<TUnorderedTask>(this, jobSizeLimits.GetDataSizePerJob());
+                UnorderedTask = New<TUnorderedTask>(this, jobCount);
                 UnorderedTask->Initialize();
                 UnorderedTask->AddInput(stripes);
                 UnorderedTask->FinishInput();
                 RegisterTask(UnorderedTask);
 
                 LOG_INFO("Inputs processed (JobCount: %v)",
-                    jobSizeLimits.GetJobCount());
+                    jobCount);
             } else {
                 LOG_INFO("Inputs processed (JobCount: 0). All chunks were teleported");
             }

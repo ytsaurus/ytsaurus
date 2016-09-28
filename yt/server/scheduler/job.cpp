@@ -201,9 +201,6 @@ TJobSummary::TJobSummary(const TJobPtr& job)
     if (status.has_prepare_duration()) {
         PrepareDuration = FromProto<TDuration>(status.prepare_duration());
     }
-    if (status.has_download_duration()) {
-        PrepareDuration = FromProto<TDuration>(status.download_duration());
-    }
     if (status.has_exec_duration()) {
         ExecDuration.Emplace();
         FromProto(ExecDuration.GetPtr(), status.exec_duration());
