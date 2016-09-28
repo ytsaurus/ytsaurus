@@ -34,44 +34,6 @@ static const auto& Logger = SchedulerLogger;
 
 ////////////////////////////////////////////////////////////////////
 
-TJobSizeLimits::TJobSizeLimits(
-    i64 totalDataSize,
-    i64 dataSizePerJob,
-    TNullable<int> configJobCount,
-    int maxJobCount)
-    : TotalDataSize_(totalDataSize)
-    , MaxJobCount_(maxJobCount)
-{
-    if (configJobCount) {
-        SetJobCount(*configJobCount);
-    } else {
-        SetDataSizePerJob(dataSizePerJob);
-    }
-}
-
-void TJobSizeLimits::SetJobCount(i64 jobCount)
-{
-    JobCount_ = Clamp(jobCount, 1, MaxJobCount_);
-    DataSizePerJob_ = DivCeil(TotalDataSize_, JobCount_);
-}
-
-int TJobSizeLimits::GetJobCount() const
-{
-    return JobCount_;
-}
-
-void TJobSizeLimits::SetDataSizePerJob(i64 dataSizePerJob)
-{
-    SetJobCount(DivCeil(TotalDataSize_, dataSizePerJob));
-}
-
-i64 TJobSizeLimits::GetDataSizePerJob() const
-{
-    return DataSizePerJob_;
-}
-
-////////////////////////////////////////////////////////////////////
-
 void BuildInitializingOperationAttributes(TOperationPtr operation, NYson::IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
@@ -247,12 +209,6 @@ i64 Clamp(i64 value, i64 minValue, i64 maxValue)
     value = std::min(value, maxValue);
     value = std::max(value, minValue);
     return value;
-}
-
-i64 DivCeil(i64 numerator, i64 denominator)
-{
-    auto res = std::div(numerator, denominator);
-    return res.quot + (res.rem ? 1 : 0);
 }
 
 Stroka TrimCommandForBriefSpec(const Stroka& command)

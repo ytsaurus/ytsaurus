@@ -416,17 +416,17 @@ protected:
 
     void CalculateSizes()
     {
-        TJobSizeLimits jobSizeLimits(
+        auto jobCount = SuggestJobCount(
             TotalEstimatedInputDataSize,
-            Spec->DataSizePerJob.Get(Options->DataSizePerJob),
+            Spec->DataSizePerJob,
             Spec->JobCount,
             GetMaxJobCount(Spec->MaxJobCount, Options->MaxJobCount));
 
-        MaxDataSizePerJob = DivCeil(PrimaryInputDataSize_, jobSizeLimits.GetJobCount());
-        ChunkSliceSize = Clamp(MaxDataSizePerJob, 1, Options->JobMaxSliceDataSize);
+        MaxDataSizePerJob = (PrimaryInputDataSize_ + jobCount - 1) / jobCount;
+        ChunkSliceSize = static_cast<int>(Clamp(MaxDataSizePerJob, 1, Options->JobMaxSliceDataSize));
 
         LOG_DEBUG("Calculated operation parameters (JobCount: %v, MaxDataSizePerJob: %v, ChunkSliceSize: %v)",
-            jobSizeLimits.GetJobCount(),
+            jobCount,
             MaxDataSizePerJob,
             ChunkSliceSize);
     }

@@ -1,5 +1,4 @@
 #include "chunk_pool.h"
-#include "helpers.h"
 #include "private.h"
 
 #include <yt/ytlib/chunk_client/input_slice.h>
@@ -507,11 +506,6 @@ public:
         RowCounter.Lost(RowCounter.GetTotal());
     }
 
-    virtual void SetDataSizePerJob(i64 dataSizePerJob) override
-    {
-        YUNREACHABLE();
-    }
-
     // IPersistent implementation.
 
     virtual void Persist(const TPersistenceContext& context) override
@@ -564,8 +558,7 @@ class TUnorderedChunkPool
 public:
     //! For persistence only.
     TUnorderedChunkPool()
-        : DataSizePerJob(-1)
-        , FreePendingDataSize(-1)
+        : FreePendingDataSize(-1)
         , SuspendedDataSize(-1)
         , UnavailableLostCookieCount(-1)
         , MaxChunkStripesPerJob(-1)
@@ -573,12 +566,15 @@ public:
     { }
 
     TUnorderedChunkPool(
-        i64 dataSizePerJob,
+        int jobCount,
         int maxChunkStripesPerJob)
-        : DataSizePerJob(dataSizePerJob)
+        : FreePendingDataSize(0)
+        , SuspendedDataSize(0)
+        , UnavailableLostCookieCount(0)
         , MaxChunkStripesPerJob(maxChunkStripesPerJob)
+        , MaxBlockSize(0)
     {
-        JobCounter.Set(0);
+        JobCounter.Set(jobCount);
     }
 
     // IChunkPoolInput implementation.
@@ -597,7 +593,6 @@ public:
         MaxBlockSize = std::max(MaxBlockSize, suspendableStripe.GetStatistics().RowCount);
 
         Register(cookie);
-        UpdateJobCounter();
 
         return cookie;
     }
@@ -671,7 +666,7 @@ public:
         // TODO(babenko): refactor
         bool hasAvailableLostJobs = LostCookies.size() > UnavailableLostCookieCount;
         if (hasAvailableLostJobs) {
-            return JobCounter.GetPending() - UnavailableLostCookieCount;
+            return JobCounter.GetPending();
         }
 
         int freePendingJobCount = GetFreePendingJobCount();
@@ -696,7 +691,7 @@ public:
             }
         }
 
-        return freePendingJobCount;
+        return JobCounter.GetPending();
     }
 
     virtual TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override
@@ -875,14 +870,6 @@ public:
         }
     }
 
-    virtual void SetDataSizePerJob(i64 dataSizePerJob) override
-    {
-        YCHECK(dataSizePerJob > 0);
-
-        DataSizePerJob = dataSizePerJob;
-        UpdateJobCounter();
-    }
-
     // IPersistent implementation.
 
     virtual void Persist(const TPersistenceContext& context) override
@@ -893,7 +880,6 @@ public:
         using NYT::Persist;
         Persist(context, Stripes);
         Persist(context, PendingGlobalStripes);
-        Persist(context, DataSizePerJob);
         Persist(context, FreePendingDataSize);
         Persist(context, SuspendedDataSize);
         Persist(context, UnavailableLostCookieCount);
@@ -914,13 +900,12 @@ private:
     //! Indexes in #Stripes.
     yhash_set<int> PendingGlobalStripes;
 
-    i64 DataSizePerJob = 0;
-    i64 FreePendingDataSize = 0;
-    i64 SuspendedDataSize = 0;
-    int UnavailableLostCookieCount = 0;
-    int MaxChunkStripesPerJob = 0;
+    i64 FreePendingDataSize;
+    i64 SuspendedDataSize;
+    int UnavailableLostCookieCount;
+    int MaxChunkStripesPerJob;
 
-    i64 MaxBlockSize = 0;
+    i64 MaxBlockSize;
 
     struct TLocalityEntry
     {
@@ -981,16 +966,7 @@ private:
         YCHECK(freePendingJobCount > 0);
         return std::max(
             static_cast<i64>(1),
-            DivCeil(FreePendingDataSize + SuspendedDataSize, freePendingJobCount));
-    }
-
-    void UpdateJobCounter()
-    {
-        i64 newJobCount = DivCeil(FreePendingDataSize, DataSizePerJob);
-        int freePendingJobCount = GetFreePendingJobCount();
-        if (newJobCount != freePendingJobCount) {
-            JobCounter.Increment(newJobCount - freePendingJobCount);
-        }
+            (FreePendingDataSize + SuspendedDataSize + freePendingJobCount - 1) / freePendingJobCount);
     }
 
     void Register(int stripeIndex)
@@ -1106,11 +1082,11 @@ private:
 DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedChunkPool);
 
 std::unique_ptr<IChunkPool> CreateUnorderedChunkPool(
-    i64 dataSizePerJob,
+    int jobCount,
     int maxChunkStripesPerJob)
 {
     return std::unique_ptr<IChunkPool>(new TUnorderedChunkPool(
-        dataSizePerJob,
+        jobCount,
         maxChunkStripesPerJob));
 }
 
@@ -1508,11 +1484,6 @@ private:
             JobCounter.Lost(1);
             DataSizeCounter.Lost(run.TotalDataSize);
             RowCounter.Lost(run.TotalRowCount);
-        }
-
-        virtual void SetDataSizePerJob(i64 dataSizePerJob) override
-        {
-            YUNREACHABLE();
         }
 
         // IPersistent implementation.

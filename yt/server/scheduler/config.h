@@ -182,27 +182,6 @@ DEFINE_REFCOUNTED_TYPE(TEventLogConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobSizeManagerConfig
-    : public NYTree::TYsonSerializable
-{
-public:
-    TDuration MinJobTime;
-    double ExecToPrepareTimeRatio;
-
-    TJobSizeManagerConfig()
-    {
-        RegisterParameter("min_job_time", MinJobTime)
-            .Default(TDuration::Seconds(60));
-
-        RegisterParameter("exec_to_prepare_time_ratio", ExecToPrepareTimeRatio)
-            .Default(20.0);
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TJobSizeManagerConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TOperationOptions
     : public NYTree::TYsonSerializable
 {
@@ -224,8 +203,6 @@ class TSimpleOperationOptions
 public:
     int MaxJobCount;
     i64 JobMaxSliceDataSize;
-    i64 DataSizePerJob;
-    TJobSizeManagerConfigPtr JobSizeManager;
 
     TSimpleOperationOptions()
     {
@@ -235,13 +212,6 @@ public:
         RegisterParameter("job_max_slice_data_size", JobMaxSliceDataSize)
             .Default((i64)256 * 1024 * 1024)
             .GreaterThan(0);
-
-        RegisterParameter("data_size_per_job", DataSizePerJob)
-            .Default((i64) 256 * 1024 * 1024)
-            .GreaterThan(0);
-
-        RegisterParameter("job_size_manager", JobSizeManager)
-            .DefaultNew();
     }
 };
 
@@ -251,15 +221,7 @@ DEFINE_REFCOUNTED_TYPE(TSimpleOperationOptions)
 
 class TMapOperationOptions
     : public TSimpleOperationOptions
-{
-public:
-    TMapOperationOptions()
-    {
-        RegisterInitializer([&] () {
-            DataSizePerJob = (i64) 128 * 1024 * 1024;
-        });
-    }
-};
+{ };
 
 DEFINE_REFCOUNTED_TYPE(TMapOperationOptions)
 
@@ -291,15 +253,7 @@ DEFINE_REFCOUNTED_TYPE(TSortedMergeOperationOptions)
 
 class TReduceOperationOptions
     : public TSortedMergeOperationOptions
-{
-public:
-    TReduceOperationOptions()
-    {
-        RegisterInitializer([&] () {
-            DataSizePerJob = (i64) 128 * 1024 * 1024;
-        });
-    }
-};
+{ };
 
 DEFINE_REFCOUNTED_TYPE(TReduceOperationOptions)
 
@@ -333,7 +287,6 @@ public:
     i64 CompressedBlockSize;
     i64 MinPartitionSize;
     i64 MinUncompressedBlockSize;
-    TJobSizeManagerConfigPtr PartitionJobSizeManager;
 
     TSortOperationOptionsBase()
     {
@@ -355,25 +308,22 @@ public:
 
         RegisterParameter("max_sample_size", MaxSampleSize)
             .Default(10 * 1024)
-            .GreaterThanOrEqual(1024)
+            .GreaterThan(1024)
             // NB(psushin): removing this validator may lead to weird errors in sorting.
             .LessThanOrEqual(NTableClient::MaxSampleSize);
 
         RegisterParameter("compressed_block_size", CompressedBlockSize)
             .Default(1 * 1024 * 1024)
-            .GreaterThanOrEqual(1024);
+            .GreaterThan(1024);
 
         RegisterParameter("min_partition_size", MinPartitionSize)
             .Default(256 * 1024 * 1024)
-            .GreaterThanOrEqual(1024);
+            .GreaterThan(1024);
 
         // Minimum is 1 for tests.
         RegisterParameter("min_uncompressed_block_size", MinUncompressedBlockSize)
             .Default(1024 * 1024)
             .GreaterThanOrEqual(1);
-
-        RegisterParameter("partition_job_size_manager", PartitionJobSizeManager)
-            .DefaultNew();
     }
 };
 
@@ -402,16 +352,11 @@ class TRemoteCopyOperationOptions
 {
 public:
     int MaxJobCount;
-    i64 DataSizePerJob;
 
     TRemoteCopyOperationOptions()
     {
         RegisterParameter("max_job_count", MaxJobCount)
             .Default(100000)
-            .GreaterThan(0);
-
-        RegisterParameter("data_size_per_job", DataSizePerJob)
-            .Default((i64) 1024 * 1024 * 1024)
             .GreaterThan(0);
     }
 };
