@@ -2188,7 +2188,15 @@ private:
         auto req = TYPathProxy::Set(path);
         SetTransactionId(req, options, true);
         SetMutationId(req, options);
-        req->set_value(value.Data());
+
+        // Binarize the value.
+        TStringStream stream;
+        TBufferedBinaryYsonWriter writer(&stream, EYsonType::Node, false);
+        YCHECK(value.GetType() == EYsonType::Node);
+        writer.OnRaw(value.Data(), EYsonType::Node);
+        writer.Flush();
+        req->set_value(stream.Str());
+
         batchReq->AddRequest(req);
 
         auto batchRsp = WaitFor(batchReq->Invoke())
