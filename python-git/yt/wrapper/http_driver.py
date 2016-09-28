@@ -43,6 +43,7 @@ class HeavyProxyProvider(ProxyProvider):
         self.client = client
         self.banned_proxies = {}
         self.light_proxy = proxy
+        self.last_provided_proxy = None
 
         from yt.packages.requests import ConnectionError
         from httplib import BadStatusLine
@@ -83,7 +84,7 @@ class HeavyProxyProvider(ProxyProvider):
         return self.light_proxy
 
     def on_error_occured(self, error):
-        if isinstance(error, self.ban_errors):
+        if isinstance(error, self.ban_errors) and self.last_provided_proxy is not None:
             proxy = self.last_provided_proxy
             logger.info("Proxy %s banned", proxy)
             self.banned_proxies[proxy] = datetime.now()
