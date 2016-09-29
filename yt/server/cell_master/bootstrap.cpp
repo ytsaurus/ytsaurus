@@ -327,7 +327,6 @@ void TBootstrap::TryLoadSnapshot(const Stroka& fileName, bool dump)
         .Run()
         .Get()
         .ThrowOnError();
-    _exit(0);
 }
 
 TPeerId TBootstrap::ComputePeerId(TCellConfigPtr config, const Stroka& localAddress)
