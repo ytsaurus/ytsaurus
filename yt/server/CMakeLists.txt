@@ -52,6 +52,8 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/public.cpp
 
+  ${CMAKE_CURRENT_LIST_DIR}/core_dump/core_forwarder.cpp
+
   ${CMAKE_CURRENT_LIST_DIR}/cypress_server/access_tracker.cpp
   ${CMAKE_CURRENT_LIST_DIR}/cypress_server/cypress_integration.cpp
   ${CMAKE_CURRENT_LIST_DIR}/cypress_server/cypress_manager.cpp
