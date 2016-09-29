@@ -75,6 +75,7 @@ test_cypress_commands()
     check "{\"folder\"={}}" "$(fix_yson_repr $(./yt get //home/wrapper_test --format "<format=text>yson"))"
     check "" "$(./yt find //home/wrapper_test --name "xxx")"
     check "//home/wrapper_test/folder" "$(./yt find //home/wrapper_test --name "folder")"
+    check "//home/wrapper_test/folder" "$(YT_PREFIX="//home/" ./yt find wrapper_test --name "folder")"
 
     ./yt set //home/wrapper_test/folder/@attr '<a=b>c'
     check  '<"a"="b">"c"' "$(fix_yson_repr $(./yt get //home/wrapper_test/folder/@attr --format '<format=text>yson'))"
