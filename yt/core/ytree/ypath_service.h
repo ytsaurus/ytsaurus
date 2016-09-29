@@ -94,6 +94,13 @@ struct IYPathService
      */
     static IYPathServicePtr FromProducer(NYson::TYsonProducer producer);
 
+    //! Creates a YSON producer from a YPath service.
+    /*!
+     *  Each time the producer is invoked, a Get request is issued
+     *  for the wrapped service.
+     */
+    NYson::TYsonProducer ToProducer();
+
     //! Creates a YPath service from a class method.
     template <class T, class R>
     static IYPathServicePtr FromMethod(
