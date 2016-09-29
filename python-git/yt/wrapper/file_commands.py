@@ -220,6 +220,8 @@ def upload_file_to_cache(filename, hash=None, client=None):
         if is_local_mode(client):
             replication_factor = 1
         else:
+            if get_config(client)["file_cache"]["replication_factor"] < 3:
+                raise YtError("File cache replication factor cannot be set less than 3")
             replication_factor = get_config(client)["file_cache"]["replication_factor"]
         real_destination = find_free_subpath(prefix, client=client)
         attributes = {
