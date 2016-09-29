@@ -329,6 +329,9 @@ def search(root="", node_type=None,
     # Deprecated. Default value "/" should be removed.
     if not root and not get_config(client)["prefix"]:
         root = "/"
+    # Normalize path.
+    root = str(YPath(root, client=client))
+
     attributes = get_value(attributes, [])
 
     request_attributes = deepcopy(flatten(attributes))
