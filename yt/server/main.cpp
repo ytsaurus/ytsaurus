@@ -10,6 +10,8 @@
 #include <yt/server/job_proxy/job_proxy.h>
 #include <yt/server/job_proxy/user_job.h>
 
+#include <yt/server/core_dump/core_forwarder.h>
+
 #include <yt/ytlib/cgroup/cgroup.h>
 
 #include <yt/ytlib/chunk_client/dispatcher.h>
@@ -61,6 +63,7 @@ using namespace NScheduler;
 using namespace NJobProxy;
 using namespace NTools;
 using namespace NExecAgent;
+using namespace NCoreDump;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -73,6 +76,7 @@ DEFINE_ENUM(EExitCode,
     ((OptionsError)(1))
     ((BootstrapError)(2))
     ((ExecutorError)(3))
+    ((CoreForwarderError)(4))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -108,7 +112,12 @@ public:
         , Command("", "command", "command (for executor mode)", false, "", "COMMAND")
         , ParentDeathSignal("", "pdeath-signal", "parent death signal", false, 0, "PDEATH_SIG")
         , ControlPipe("", "control-pipe", "executor to jobproxy pipe (for executor mode)", false, "", "CONTROLPIPE")
+        , CoreForwarder(
+            "",
+            "core-forwarder",
+            "read the core dump from stdin and either forward it to the job proxy that is responsible for it or save it to the file under given name")
 #endif
+        , ExtraArguments("", "Extra unlabeled arguments (applicable only if --core-forwarder is specified)", false /* req */, "extra-arguments")
     {
         CmdLine.add(WorkingDirectory);
         CmdLine.add(Config);
@@ -136,7 +145,9 @@ public:
         CmdLine.add(Command);
         CmdLine.add(ParentDeathSignal);
         CmdLine.add(ControlPipe);
+        CmdLine.add(CoreForwarder);
 #endif
+        CmdLine.add(ExtraArguments);
     }
 
     TCLAP::CmdLine CmdLine;
@@ -168,8 +179,10 @@ public:
     TCLAP::ValueArg<Stroka> Command;
     TCLAP::ValueArg<int> ParentDeathSignal;
     TCLAP::ValueArg<Stroka> ControlPipe;
+    TCLAP::SwitchArg CoreForwarder;
 #endif
 
+    TCLAP::UnlabeledMultiArg<Stroka> ExtraArguments;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -206,6 +219,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
     Stroka toolName = parser.Tool.getValue();
     bool isExecutor = parser.Executor.getValue();
     bool isShell = parser.Shell.isSet();
+    bool isCoreForwarder = parser.CoreForwarder.getValue();
 #endif
 
     bool printConfigTemplate = parser.ConfigTemplate.getValue();
@@ -242,6 +256,9 @@ EExitCode GuardedMain(int argc, const char* argv[])
         ++modeCount;
     }
     if (isShell) {
+        ++modeCount;
+    }
+    if (isCoreForwarder) {
         ++modeCount;
     }
 #endif
@@ -285,11 +302,17 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
     INodePtr configNode;
 
-    if (isExecutor || isShell) {
+#ifdef _unix_
+    if (isExecutor || isShell || isCoreForwarder)
+    {
         // Don't start any other singleton or parse config in executor mode.
         // Explicitly shut down log manager to ensure it doesn't spoil dup-ed descriptors.
+        // In case of core-dump-forwarder logging is meaningless since it doesn't get anywhere,
+        // logging to syslog should be used instead.
         NLogging::TLogManager::StaticShutdown();
-    } else if (!printConfigTemplate) {
+    } else
+#endif
+    if (!printConfigTemplate) {
         if (configFileName.empty()) {
             THROW_ERROR_EXCEPTION("Missing --config option");
         }
@@ -485,7 +508,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
         if (!executorError.IsOK()) {
             return EExitCode::ExecutorError;
         }
- 
+
         TryExecve(
             "/bin/bash",
             args.data(),
@@ -493,6 +516,13 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
         return EExitCode::ExecutorError;
     }
+
+    if (isCoreForwarder) {
+        TCoreForwarder forwarder;
+        bool error = forwarder.Main(parser.ExtraArguments.getValue());
+        return error ? EExitCode::CoreForwarderError : EExitCode::OK;
+    }
+
 #endif
 
     // Start an appropriate server.
@@ -591,6 +621,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
             operationId,
             jobId);
         jobProxy->Run();
+        NLogging::TLogManager::Get()->Shutdown();
     }
 
     return EExitCode::OK;
