@@ -90,13 +90,17 @@ public:
     using TRowType = T;
     using IReaderImpl = typename TRowTraits<T>::IReaderImpl;
 
+    TTableReaderBase() : Lock_(MakeAtomicShared<TMutex>()) {
+    }
+
     explicit TTableReaderBase(TIntrusivePtr<IReaderImpl> reader)
         : Reader_(reader)
+        , Lock_(MakeAtomicShared<TMutex>())
     { }
 
     const T& GetRow() const
     {
-        auto guard = Guard(Lock_);
+        auto guard = Guard(*Lock_);
         return Reader_->GetRow();
     }
 
@@ -107,7 +111,7 @@ public:
 
     void Next()
     {
-        auto guard = Guard(Lock_);
+        auto guard = Guard(*Lock_);
         Reader_->Next();
     }
 
@@ -123,7 +127,7 @@ public:
 
 private:
     TIntrusivePtr<IReaderImpl> Reader_;
-    TMutex Lock_;
+    TAtomicSharedPtr<TMutex> Lock_;
 };
 
 template <>
@@ -292,13 +296,15 @@ public:
 
     explicit TTableWriterBase(TIntrusivePtr<IWriterImpl> writer)
         : Writer_(writer)
-        , Locks_(writer->GetStreamCount())
+        , Locks_(MakeAtomicShared<yvector<TMutex>>(writer->GetStreamCount()))
     { }
 
     ~TTableWriterBase() override
     {
         try {
-            Finish();
+            if (Locks_.RefCount() == 1) {
+                Finish();
+            }
         } catch (...) {
             // no guarantees
         }
@@ -306,21 +312,21 @@ public:
 
     void AddRow(const T& row, size_t tableIndex = 0)
     {
-        auto guard = Guard(Locks_[tableIndex]);
+        auto guard = Guard((*Locks_)[tableIndex]);
         Writer_->AddRow(row, tableIndex);
     }
 
     void Finish()
     {
         for (size_t i = 0; i < Writer_->GetStreamCount(); ++i) {
-            auto guard = Guard(Locks_[i]);
+            auto guard = Guard((*Locks_)[i]);
             Writer_->GetStream(i)->Finish();
         }
     }
 
 private:
     TIntrusivePtr<IWriterImpl> Writer_;
-    yvector<TMutex> Locks_;
+    TAtomicSharedPtr<yvector<TMutex>> Locks_;
 };
 
 template <>
