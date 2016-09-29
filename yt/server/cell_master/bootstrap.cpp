@@ -536,6 +536,9 @@ void TBootstrap::DoInitialize()
     MonitoringManager_->Register(
         "/election",
         HydraFacade_->GetElectionManager()->GetMonitoringProducer());
+    MonitoringManager_->Register(
+        "/hive",
+        HiveManager_->GetOrchidService()->ToProducer());
 
     LFAllocProfiler_ = std::make_unique<NLFAlloc::TLFAllocProfiler>();
 
