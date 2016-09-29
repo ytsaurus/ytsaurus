@@ -119,7 +119,7 @@ protected:
     template <class TImpl = TCypressNodeBase>
     TImpl* GetThisImpl()
     {
-        return static_cast<TImpl*>(DoGetThisImpl());
+        return DoGetThisImpl()->As<TImpl>();
     }
 
     template <class TImpl = TCypressNodeBase>
@@ -133,7 +133,7 @@ protected:
         const TLockRequest& request = ELockMode::Exclusive,
         bool recursive = false)
     {
-        return static_cast<TImpl*>(DoLockThisImpl(request, recursive));
+        return DoLockThisImpl(request, recursive)->As<TImpl>();
     }
 
 

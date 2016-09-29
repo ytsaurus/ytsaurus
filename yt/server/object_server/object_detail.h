@@ -192,12 +192,12 @@ public:
 protected:
     const TObject* GetThisImpl() const
     {
-        return static_cast<const TObject*>(Object_);
+        return Object_->As<TObject>();
     }
 
     TObject* GetThisImpl()
     {
-        return static_cast<TObject*>(Object_);
+        return Object_->As<TObject>();
     }
 };
 

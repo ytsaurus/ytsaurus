@@ -120,6 +120,13 @@ public:
     //! This value must always be positive. The default is 10.
     virtual int GetGCWeight() const;
 
+    //! Performs static cast to a given type.
+    //! Note that we only use single inheritance inside TObject hierarchy.
+    template <class TDerived>
+    TDerived* As();
+    template <class TDerived>
+    const TDerived* As() const;
+
 protected:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);

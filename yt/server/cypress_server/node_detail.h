@@ -84,7 +84,7 @@ public:
         TCypressNodeBase* trunkNode,
         NTransactionServer::TTransaction* transaction) override
     {
-        return DoGetProxy(static_cast<TImpl*>(trunkNode), transaction);
+        return DoGetProxy(trunkNode->As<TImpl>(), transaction);
     }
 
     virtual std::unique_ptr<TCypressNodeBase> Instantiate(
@@ -118,7 +118,7 @@ public:
         DestroyCore(node);
 
         // Run custom stuff.
-        DoDestroy(static_cast<TImpl*>(node));
+        DoDestroy(node->As<TImpl>());
     }
 
     virtual std::unique_ptr<TCypressNodeBase> Branch(
@@ -133,7 +133,7 @@ public:
         auto* typedBranchedNode = branchedNodeHolder.get();
 
         // Run core stuff.
-        auto* typedOriginatingNode = static_cast<TImpl*>(originatingNode);
+        auto* typedOriginatingNode = originatingNode->As<TImpl>();
         BranchCore(typedOriginatingNode, typedBranchedNode, transaction, mode);
 
         // Run custom stuff.
@@ -148,8 +148,8 @@ public:
         TCypressNodeBase* branchedNode) override
     {
         // Run custom stuff.
-        auto* typedOriginatingNode = static_cast<TImpl*>(originatingNode);
-        auto* typedBranchedNode = static_cast<TImpl*>(branchedNode);
+        auto* typedOriginatingNode = originatingNode->As<TImpl>();
+        auto* typedBranchedNode = branchedNode->As<TImpl>();
         DoUnbranch(typedOriginatingNode, typedBranchedNode);
         DoLogUnbranch(typedOriginatingNode, typedBranchedNode);
     }
@@ -159,8 +159,8 @@ public:
         TCypressNodeBase* branchedNode) override
     {
         // Run core stuff.
-        auto* typedOriginatingNode = static_cast<TImpl*>(originatingNode);
-        auto* typedBranchedNode = static_cast<TImpl*>(branchedNode);
+        auto* typedOriginatingNode = originatingNode->As<TImpl>();
+        auto* typedBranchedNode = branchedNode->As<TImpl>();
         MergeCore(typedOriginatingNode, typedBranchedNode);
 
         // Run custom stuff.
@@ -181,8 +181,8 @@ public:
             sourceNode->GetExternalCellTag());
 
         // Run custom stuff.
-        auto* typedSourceNode = static_cast<TImpl*>(sourceNode);
-        auto* typedClonedNode = static_cast<TImpl*>(clonedNode);
+        auto* typedSourceNode = sourceNode->template As<TImpl>();
+        auto* typedClonedNode = clonedNode->template As<TImpl>();
         DoClone(typedSourceNode, typedClonedNode, factory, mode);
 
         // Run core epilogue stuff.

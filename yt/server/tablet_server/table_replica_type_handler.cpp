@@ -63,7 +63,7 @@ public:
             THROW_ERROR_EXCEPTION("%v is not a replicated table",
                 tablePath);
         }
-        auto* table = static_cast<TReplicatedTableNode*>(cypressNodeProxy->GetTrunkNode());
+        auto* table = cypressNodeProxy->GetTrunkNode()->As<TReplicatedTableNode>();
 
         cypressManager->LockNode(table, nullptr, ELockMode::Exclusive);
 

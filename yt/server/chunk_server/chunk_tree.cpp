@@ -19,7 +19,7 @@ TChunk* TChunkTree::AsChunk()
         GetType() == EObjectType::Chunk ||
         GetType() == EObjectType::ErasureChunk ||
         GetType() == EObjectType::JournalChunk);
-    return static_cast<TChunk*>(this);
+    return As<TChunk>();
 }
 
 const TChunk* TChunkTree::AsChunk() const
@@ -28,19 +28,19 @@ const TChunk* TChunkTree::AsChunk() const
         GetType() == EObjectType::Chunk ||
         GetType() == EObjectType::ErasureChunk ||
         GetType() == EObjectType::JournalChunk);
-    return static_cast<const TChunk*>(this);
+    return As<TChunk>();
 }
 
 TChunkList* TChunkTree::AsChunkList()
 {
     Y_ASSERT(GetType() == EObjectType::ChunkList);
-    return static_cast<TChunkList*>(this);
+    return As<TChunkList>();
 }
 
 const TChunkList* TChunkTree::AsChunkList() const
 {
     Y_ASSERT(GetType() == EObjectType::ChunkList);
-    return static_cast<const TChunkList*>(this);
+    return As<TChunkList>();
 }
 
 void TChunkTree::Save(NCellMaster::TSaveContext& context) const

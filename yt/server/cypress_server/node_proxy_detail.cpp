@@ -1173,7 +1173,7 @@ int TMapNodeProxy::GetChildCount() const
 
     int result = 0;
     for (const auto* node : originators) {
-        const auto* mapNode = static_cast<const TMapNode*>(node);
+        const auto* mapNode = node->As<TMapNode>();
         result += mapNode->ChildCountDelta();
     }
     return result;
@@ -1314,7 +1314,7 @@ Stroka TMapNodeProxy::GetChildKey(IConstNodePtr child)
     auto originators = cypressManager->GetNodeOriginators(Transaction, TrunkNode);
 
     for (const auto* node : originators) {
-        const auto* mapNode = static_cast<const TMapNode*>(node);
+        const auto* mapNode = node->As<TMapNode>();
         auto it = mapNode->ChildToKey().find(trunkChildImpl);
         if (it != mapNode->ChildToKey().end()) {
             return it->second;

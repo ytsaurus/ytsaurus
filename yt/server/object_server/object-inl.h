@@ -112,6 +112,18 @@ inline bool TObjectBase::IsForeign() const
     return Flags_.Foreign;
 }
 
+template <class TDerived>
+TDerived* TObjectBase::As()
+{
+    return static_cast<TDerived*>(this);
+}
+
+template <class TDerived>
+const TDerived* TObjectBase::As() const
+{
+    return static_cast<const TDerived*>(this);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 inline TNonversionedObjectBase::TNonversionedObjectBase(const TObjectId& id)

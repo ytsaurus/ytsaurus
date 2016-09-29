@@ -1938,7 +1938,7 @@ private:
         for (auto* node : owningNodes) {
             securityManager->UpdateAccountNodeUsage(node);
             if (node->GetType() == EObjectType::Journal) {
-                auto* journalNode = static_cast<TJournalNode*>(node);
+                auto* journalNode = node->As<TJournalNode>();
                 if (journalNode->GetUpdateMode() != EUpdateMode::None) {
                     journalNodeLocked = true;
                 }

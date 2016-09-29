@@ -46,7 +46,9 @@ public:
     explicit TTableNode(const NCypressServer::TVersionedNodeId& id);
 
     virtual NObjectClient::EObjectType GetObjectType() const;
-    TTableNode* GetTrunkNode() const;
+
+    TTableNode* GetTrunkNode();
+    const TTableNode* GetTrunkNode() const;
 
     virtual void BeginUpload(NChunkClient::EUpdateMode mode) override;
     virtual void EndUpload(

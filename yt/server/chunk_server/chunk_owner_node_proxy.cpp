@@ -887,10 +887,9 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
 
     uploadTransaction->SetAccountingEnabled(node->GetAccountingEnabled());
 
-    auto* lockedNode = static_cast<TChunkOwnerBase*>(cypressManager->LockNode(
-        TrunkNode,
-        uploadTransaction,
-        lockMode));
+    auto* lockedNode = cypressManager
+        ->LockNode(TrunkNode, uploadTransaction, lockMode)
+        ->As<TChunkOwnerBase>();
 
     auto securityManager = Bootstrap_->GetSecurityManager();
     securityManager->SetNodeResourceAccounting(lockedNode, false);

@@ -983,7 +983,7 @@ public:
             for (const auto* parentNode : parentOriginators) {
                 switch (parentNode->GetNodeType()) {
                     case ENodeType::Map: {
-                        const auto* parentMapNode = static_cast<const TMapNode*>(parentNode);
+                        const auto* parentMapNode = parentNode->As<TMapNode>();
                         auto it = parentMapNode->ChildToKey().find(childTrunkNode);
                         if (it != parentMapNode->ChildToKey().end()) {
                             key = it->second;
@@ -992,7 +992,7 @@ public:
                     }
 
                     case ENodeType::List: {
-                        const auto* parentListNode = static_cast<const TListNode*>(parentNode);
+                        const auto* parentListNode = parentNode->As<TListNode>();
                         auto it = parentListNode->ChildToIndex().find(childTrunkNode);
                         return it != parentListNode->ChildToIndex().end();
                     }
@@ -1014,7 +1014,7 @@ public:
             for (const auto* parentNode : parentOriginators) {
                 switch (parentNode->GetNodeType()) {
                     case ENodeType::Map: {
-                        const auto* parentMapNode = static_cast<const TMapNode*>(parentNode);
+                        const auto* parentMapNode = parentNode->As<TMapNode>();
                         auto it = parentMapNode->KeyToChild().find(*key);
                         if (it != parentMapNode->KeyToChild().end() && it->second != childTrunkNode) {
                             return false;
@@ -1230,7 +1230,7 @@ private:
             if (RecomputeChunkOwnerStatistics_ &&
                 (node->GetType() == EObjectType::Table || node->GetType() == EObjectType::File))
             {
-                auto* chunkOwnerNode = static_cast<TChunkOwnerBase*>(node);
+                auto* chunkOwnerNode = node->As<TChunkOwnerBase>();
                 const auto* chunkList = chunkOwnerNode->GetChunkList();
                 if (chunkList) {
                     chunkOwnerNode->SnapshotStatistics() = chunkList->Statistics().ToDataStatistics();
@@ -1247,7 +1247,7 @@ private:
         auto* untypedRootNode = FindNode(TVersionedNodeId(RootNodeId_));
         if (untypedRootNode) {
             // Root already exists.
-            RootNode_ = static_cast<TMapNode*>(untypedRootNode);
+            RootNode_ = untypedRootNode->As<TMapNode>();
         } else {
             // Create the root.
             auto securityManager = Bootstrap_->GetSecurityManager();
@@ -1894,7 +1894,7 @@ private:
                 auto originators = GetNodeReverseOriginators(transaction, trunkNode);
                 yhash_map<Stroka, TCypressNodeBase*> children;
                 for (const auto* node : originators) {
-                    const auto* mapNode = static_cast<const TMapNode*>(node);
+                    const auto* mapNode = node->As<TMapNode>();
                     for (const auto& pair : mapNode->KeyToChild()) {
                         if (pair.second) {
                             children[pair.first] = pair.second;
@@ -1914,7 +1914,7 @@ private:
 
             case ENodeType::List: {
                 auto* node = GetVersionedNode(trunkNode, transaction);
-                auto* listRoot = static_cast<TListNode*>(node);
+                auto* listRoot = node->As<TListNode>();
                 for (auto* trunkChild : listRoot->IndexToChild()) {
                     ListSubtreeNodes(trunkChild, transaction, true, subtreeNodes);
                 }
@@ -2293,7 +2293,7 @@ TCypressManager::TNodeTypeHandler::TNodeTypeHandler(
 
 void TCypressManager::TNodeTypeHandler::DestroyObject(TObjectBase* object) throw()
 {
-    Owner_->DestroyNode(static_cast<TCypressNodeBase*>(object));
+    Owner_->DestroyNode(object->As<TCypressNodeBase>());
 }
 
 Stroka TCypressManager::TNodeTypeHandler::DoGetName(const TCypressNodeBase* node)
