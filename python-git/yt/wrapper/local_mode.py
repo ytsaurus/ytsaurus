@@ -1,13 +1,12 @@
 from .cypress_commands import get
-from .config import get_config
+from .config import get_option, set_option
 from .errors import YtResponseError
 
 import socket
 
 def is_local_mode(client):
-    local_mode = get_config(client)["pickling"]["local_mode"]
-    if local_mode is not None:
-        return local_mode
+    if get_option("_is_local_mode", client) is not None:
+        return get_option("_is_local_mode", client)
 
     fqdn = None
     try:
@@ -16,7 +15,9 @@ def is_local_mode(client):
         if not err.is_resolve_error():
             raise
 
-    local_mode = fqdn == socket.getfqdn()
-    get_config(client)["pickling"]["local_mode"] = local_mode
-    return local_mode
+    is_local_mode = (fqdn is not None) and fqdn == socket.getfqdn()
+
+    set_option("_is_local_mode", is_local_mode, client)
+
+    return is_local_mode
 
