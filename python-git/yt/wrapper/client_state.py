@@ -21,6 +21,7 @@ class ClientState(object):
         # Cache for API version (to check it only once)
         self._api_version = None
         self._commands = None
+        self._is_local_mode = None
 
         self._random_generator = SystemRandom()
 
