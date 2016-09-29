@@ -29,7 +29,7 @@ yhash_map<Stroka, TCypressNodeBase*> GetMapNodeChildMap(
 
     yhash_map<Stroka, TCypressNodeBase*> result;
     for (const auto* node : originators) {
-        const auto* mapNode = static_cast<const TMapNode*>(node);
+        const auto* mapNode = node->As<TMapNode>();
         const auto& keyToChild = mapNode->KeyToChild();
         if (mapNode == trunkNode) {
             result.reserve(keyToChild.size());
@@ -57,7 +57,7 @@ std::vector<TCypressNodeBase*> GetMapNodeChildList(
     if (transaction) {
         return GetValues(GetMapNodeChildMap(cypressManager, trunkNode, transaction));
     } else {
-        const auto* mapNode = static_cast<const TMapNode*>(trunkNode);
+        const auto* mapNode = trunkNode->As<TMapNode>();
         return GetValues(mapNode->KeyToChild());
     }
 }
@@ -70,7 +70,7 @@ const std::vector<TCypressNodeBase*>& GetListNodeChildList(
     Y_ASSERT(trunkNode->GetNodeType() == ENodeType::List);
 
     auto* node = cypressManager->GetVersionedNode(trunkNode, transaction);
-    auto* listNode = static_cast<TListNode*>(node);
+    auto* listNode = node->As<TListNode>();
     return listNode->IndexToChild();
 }
 
@@ -98,7 +98,7 @@ TCypressNodeBase* FindMapNodeChild(
     auto originators = cypressManager->GetNodeOriginators(transaction, trunkNode);
 
     for (const auto* node : originators) {
-        const auto* mapNode = static_cast<const TMapNode*>(node);
+        const auto* mapNode = node->As<TMapNode>();
         auto it = mapNode->KeyToChild().find(key);
         if (it != mapNode->KeyToChild().end()) {
             return it->second;

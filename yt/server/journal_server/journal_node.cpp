@@ -81,12 +81,12 @@ TChunk* TJournalNode::GetTrailingChunk() const
 
 TJournalNode* TJournalNode::GetTrunkNode()
 {
-    return static_cast<TJournalNode*>(TrunkNode_);
+    return TrunkNode_->As<TJournalNode>();
 }
 
 const TJournalNode* TJournalNode::GetTrunkNode() const
 {
-    return static_cast<const TJournalNode*>(TrunkNode_);
+    return TrunkNode_->As<TJournalNode>();
 }
 
 bool TJournalNode::GetSealed() const

@@ -43,19 +43,19 @@ public:
 
     virtual TCellTagList GetReplicationCellTags(const TObjectBase* object) override
     {
-        return DoGetReplicationCellTags(static_cast<const TObject*>(object));
+        return DoGetReplicationCellTags(object->As<TObject>());
     }
 
     virtual Stroka GetName(const TObjectBase* object) override
     {
-        return DoGetName(static_cast<const TObject*>(object));
+        return DoGetName(object->As<TObject>());
     }
 
     virtual IObjectProxyPtr GetProxy(
         TObjectBase* object,
         NTransactionServer::TTransaction* transaction) override
     {
-        return DoGetProxy(static_cast<TObject*>(object), transaction);
+        return DoGetProxy(object->As<TObject>(), transaction);
     }
 
     virtual TObjectBase* CreateObject(
@@ -67,29 +67,29 @@ public:
 
     virtual void ZombifyObject(TObjectBase* object) throw() override
     {
-        DoZombifyObject(static_cast<TObject*>(object));
+        DoZombifyObject(object->As<TObject>());
     }
 
     virtual void UnstageObject(TObjectBase* object, bool recursive) override
     {
-        DoUnstageObject(static_cast<TObject*>(object), recursive);
+        DoUnstageObject(object->As<TObject>(), recursive);
     }
 
     virtual NSecurityServer::TAccessControlDescriptor* FindAcd(TObjectBase* object) override
     {
-        return DoFindAcd(static_cast<TObject*>(object));
+        return DoFindAcd(object->As<TObject>());
     }
 
     virtual TObjectBase* GetParent(TObjectBase* object) override
     {
-        return DoGetParent(static_cast<TObject*>(object));
+        return DoGetParent(object->As<TObject>());
     }
 
     virtual void ExportObject(
         TObjectBase* object,
         NObjectClient::TCellTag destinationCellTag) override
     {
-        DoExportObject(static_cast<TObject*>(object), destinationCellTag);
+        DoExportObject(object->As<TObject>(), destinationCellTag);
     }
 
     virtual void UnexportObject(
@@ -97,7 +97,7 @@ public:
         NObjectClient::TCellTag destinationCellTag,
         int importRefCounter) override
     {
-        DoUnexportObject(static_cast<TObject*>(object), destinationCellTag, importRefCounter);
+        DoUnexportObject(object->As<TObject>(), destinationCellTag, importRefCounter);
     }
 
 protected:
@@ -177,7 +177,7 @@ public:
 
     virtual void DestroyObject(TObjectBase* object) throw() override
     {
-        this->DoDestroyObject(static_cast<TObject*>(object));
+        this->DoDestroyObject(object->As<TObject>());
         // Remove the object from the map but keep it alive.
         Map_->Release(object->GetId()).release();
     }

@@ -31,7 +31,7 @@ bool TObjectBase::IsTrunk() const
         return true;
     }
 
-    auto* node = static_cast<const TCypressNodeBase*>(this);
+    auto* node = As<TCypressNodeBase>();
     return node->GetTrunkNode() == node;
 }
 

@@ -87,7 +87,7 @@ private:
             return true;
         }
 
-        auto* chunk = static_cast<TChunk*>(object);
+        auto* chunk = object->As<TChunk>();
         const auto& chunks = GetFilteredChunks();
         return chunks.find(chunk) != chunks.end();
     }

@@ -671,7 +671,7 @@ public:
                 req.set_commit_ordering(static_cast<int>(table->GetCommitOrdering()));
                 req.set_freeze(freeze);
                 if (table->IsReplicated()) {
-                    auto* replicatedTable = static_cast<TReplicatedTableNode*>(table);
+                    auto* replicatedTable = table->As<TReplicatedTableNode>();
                     for (auto* replica : replicatedTable->Replicas()) {
                         const auto& replicaInfo = tablet->GetReplicaInfo(replica);
                         PopulateTableReplicaDescriptor(req.add_replicas(), replica, replicaInfo);
@@ -937,7 +937,7 @@ public:
         }
 
         if (table->GetType() == EObjectType::ReplicatedTable) {
-            auto* replicatedTable = static_cast<TReplicatedTableNode*>(table);
+            auto* replicatedTable = table->As<TReplicatedTableNode>();
             auto objectManager = Bootstrap_->GetObjectManager();
             for (auto* replica : replicatedTable->Replicas()) {
                 replica->SetTable(nullptr);
@@ -1603,7 +1603,7 @@ private:
             for (const auto& pair : cypressManager->Nodes()) {
                 auto* node = pair.second;
                 if (node->IsTrunk() && node->GetType() == EObjectType::Table) {
-                    auto* table = static_cast<TTableNode*>(node);
+                    auto* table = node->As<TTableNode>();
                     if (table->IsDynamic()) {
                         table->SetTabletCellBundle(DefaultTabletCellBundle_);
                         DefaultTabletCellBundle_->RefObject();
@@ -1624,7 +1624,7 @@ private:
             for (const auto& pair : cypressManager->Nodes()) {
                 auto* node = pair.second;
                 if (node->IsTrunk() && node->GetType() == EObjectType::Table) {
-                    auto* table = static_cast<TTableNode*>(node);
+                    auto* table = node->As<TTableNode>();
                     if (table->IsDynamic()) {
                         auto* rootChunkList = table->GetChunkList();
                         YCHECK(rootChunkList->GetOrdered());
