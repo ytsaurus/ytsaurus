@@ -88,12 +88,19 @@ private:
     {
         return ConvertTo<INodePtr>(Producer_);
     }
-
 };
 
 IYPathServicePtr IYPathService::FromProducer(TYsonProducer producer)
 {
     return New<TFromProducerYPathService>(producer);
+}
+
+TYsonProducer IYPathService::ToProducer()
+{
+    return BIND([this_ = MakeStrong(this)] (IYsonConsumer* consumer) {
+        auto result = SyncYPathGet(this_, "");
+        consumer->OnRaw(result);
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
