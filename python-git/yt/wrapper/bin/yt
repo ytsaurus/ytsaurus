@@ -263,7 +263,7 @@ def add_list_parser(add_parser):
     group.add_argument("-l", "--long-format", action="store_true", help="print some extra information about nodes")
     add_structured_format_argument(group)
     parser.add_argument("--attribute", action="append", dest="attributes", help="node attributes to add into response")
-    parser.add_argument("--max-size", type=int, default=65535)
+    parser.add_argument("--max-size", type=int)
     parser.set_defaults(func=list)
 
 def find(**args):

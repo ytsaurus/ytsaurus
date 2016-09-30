@@ -162,7 +162,7 @@ def link(target_path, link_path, recursive=False, ignore_existing=False, attribu
         client=client)
 
 
-def list(path, max_size=1000, format=None, absolute=None, attributes=None, client=None):
+def list(path, max_size=None, format=None, absolute=None, attributes=None, client=None):
     """List directory (map_node) content.
 
     Node type must be 'map_node'.
@@ -181,6 +181,9 @@ def list(path, max_size=1000, format=None, absolute=None, attributes=None, clien
         return yson.to_yson_type(
             yson.YsonString("{0}/{1}".format(path, elem)),
             elem.attributes)
+
+    if max_size is None:
+        max_size = 65535
 
     params = {
         "path": YPath(path, client=client),
