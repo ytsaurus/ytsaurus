@@ -27,6 +27,7 @@
 #include <yt/core/logging/log_manager.h>
 
 #include <yt/core/misc/intrusive_ptr.h>
+#include <yt/core/misc/crash_handler.h>
 
 #include <yt/core/tracing/trace_manager.h>
 
@@ -305,6 +306,7 @@ public:
         PyEval_InitThreads();
 
         RegisterShutdown();
+        InstallCrashSignalHandler();
 
         TDriver::InitType();
         TBufferedStreamWrap::InitType();
