@@ -234,6 +234,7 @@ struct TOperationOptions
     FLUENT_FIELD(Stroka, JobCommandPrefix);
     FLUENT_FIELD(Stroka, JobCommandSuffix);
     FLUENT_FIELD_DEFAULT(bool, MountSandboxInTmpfs, false);
+    FLUENT_FIELD_OPTION(Stroka, FileStorage);
 };
 
 struct IOperationClient
