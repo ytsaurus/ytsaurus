@@ -186,9 +186,9 @@ public:
         return Spec_;
     }
 
-    const TOperationOptions& GetOptions() const
+    bool ShouldMountSandbox() const
     {
-        return Options_;
+        return TConfig::Get()->MountSandboxInTmpfs || Options_.MountSandboxInTmpfs_;
     }
 
     ui64 GetTotalFileSize() const
@@ -313,9 +313,11 @@ private:
                 ythrow yexception() << "File " << file.Path_ << " does not exist";
             }
 
-            if (Options_.MountSandboxInTmpfs_) {
+            if (ShouldMountSandbox()) {
                 auto size = NodeFromYsonString(
-                    Get(Auth_, TTransactionId(), file.Path_ + "/@uncompressed_data_size")).AsInt64();
+                    Get(Auth_, TTransactionId(), file.Path_ + "/@uncompressed_data_size")
+                ).AsInt64();
+
                 TotalFileSize_ += RoundUpFileSize(static_cast<ui64>(size));
             }
         }
@@ -338,7 +340,7 @@ private:
                 cypressPath.Executable(true);
             }
 
-            if (Options_.MountSandboxInTmpfs_) {
+            if (ShouldMountSandbox()) {
                 TotalFileSize_ += RoundUpFileSize(stat.Size);
             }
 
@@ -348,7 +350,7 @@ private:
 
     void UploadBinary()
     {
-        if (Options_.MountSandboxInTmpfs_) {
+        if (ShouldMountSandbox()) {
             TFsPath path(BinaryPath_);
             TFileStat stat;
             path.Stat(stat);
@@ -371,7 +373,7 @@ private:
             Files_.push_back(TRichYPath(cachePath).FileName("jobstate"));
             HasState_ = true;
 
-            if (Options_.MountSandboxInTmpfs_) {
+            if (ShouldMountSandbox()) {
                 TotalFileSize_ += output.Buffer().Size();
             }
         }
@@ -583,13 +585,13 @@ void BuildUserJobFluently(
     const TMultiFormatDesc& outputDesc,
     TFluentMap fluent)
 {
-    bool mountSandboxInTmpfs = preparer.GetOptions().MountSandboxInTmpfs_;
     TMaybe<i64> memoryLimit = preparer.GetSpec().MemoryLimit_;
-    if (mountSandboxInTmpfs) {
+    if (preparer.ShouldMountSandbox()) {
         memoryLimit = memoryLimit.GetOrElse(512ll << 20) + preparer.GetTotalFileSize();
     }
 
     // TODO: tables as files
+
     fluent
     .Item("file_paths").List(preparer.GetFiles())
     .DoIf(inputDesc.Format == TMultiFormatDesc::F_YSON, [] (TFluentMap fluent)
@@ -660,7 +662,7 @@ void BuildUserJobFluently(
     .DoIf(memoryLimit.Defined(), [&] (TFluentMap fluent) {
         fluent.Item("memory_limit").Value(*memoryLimit);
     })
-    .DoIf(mountSandboxInTmpfs, [] (TFluentMap fluent) {
+    .DoIf(preparer.ShouldMountSandbox(), [] (TFluentMap fluent) {
         fluent.Item("tmpfs_path").Value(".");
         fluent.Item("copy_files").Value(true);
     });
