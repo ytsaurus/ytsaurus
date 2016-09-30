@@ -50,6 +50,8 @@ struct TConfig
 
     int ConnectionPoolSize;
 
+    bool MountSandboxInTmpfs;
+
     // common wrapper
 
     TDuration TxClientTimeout;

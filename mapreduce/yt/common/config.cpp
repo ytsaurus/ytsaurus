@@ -202,6 +202,8 @@ TConfig::TConfig()
 
     UseClientProtobuf = GetBool("YT_USE_CLIENT_PROTOBUF", true);
 
+    MountSandboxInTmpfs = GetBool("YT_MOUNT_SANDBOX_IN_TMPFS");
+
     ConnectionPoolSize = GetInt("YT_CONNECTION_POOL_SIZE", 16);
 
     OrderGuarantees = GetBool("YT_STRICTLY_TESTABLE") // common
