@@ -397,6 +397,8 @@ public:
 
     TDuration WatchersUpdatePeriod;
 
+    TDuration ProfilingUpdatePeriod;
+
     TDuration AlertsUpdatePeriod;
 
     TDuration ClusterDirectoryUpdatePeriod;
@@ -600,6 +602,8 @@ public:
             .Default(TDuration::Seconds(3));
         RegisterParameter("watchers_update_period", WatchersUpdatePeriod)
             .Default(TDuration::Seconds(3));
+        RegisterParameter("profiling_update_period", ProfilingUpdatePeriod)
+            .Default(TDuration::Seconds(1));
         RegisterParameter("alerts_update_period", AlertsUpdatePeriod)
             .Default(TDuration::Seconds(1));
         RegisterParameter("cluster_directory_update_period", ClusterDirectoryUpdatePeriod)

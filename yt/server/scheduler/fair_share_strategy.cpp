@@ -1225,6 +1225,33 @@ private:
             EMetricType::Gauge,
             {tag});
         Profiler.Enqueue(
+            "/pools/demand_ratio_x100000",
+            static_cast<i64>(element->Attributes().DemandRatio * 1e5),
+            EMetricType::Gauge,
+            {tag});
+        Profiler.Enqueue(
+            "/pools/guaranteed_resource_ratio_x100000",
+            static_cast<i64>(element->Attributes().GuaranteedResourcesRatio * 1e5),
+            EMetricType::Gauge,
+            {tag});
+
+        ProfileResources(
+            Profiler,
+            element->GetResourceUsage(),
+            "/pools/resource_usage",
+            {tag});
+        ProfileResources(
+            Profiler,
+            element->ResourceLimits(),
+            "/pools/resource_limits",
+            {tag});
+        ProfileResources(
+            Profiler,
+            element->ResourceDemand(),
+            "/pools/resource_demand",
+            {tag});
+
+        Profiler.Enqueue(
             "/running_operation_count",
             element->RunningOperationCount(),
             EMetricType::Gauge,
