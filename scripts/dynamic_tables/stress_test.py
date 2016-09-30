@@ -241,10 +241,10 @@ def unmount_table(path):
 def create_dynamic_table(table, schema, attributes, tablet_count):
     print "Create dynamic table %s" % table
     attributes["dynamic"] = True
+    attributes["schema"] = schema.yson()
     yt.create_table(table, attributes=attributes)
     owner = yt.get(table + "/@owner")
     yt.set(table + "/@acl", [{"permissions": ["mount"], "action": "allow", "subjects": [owner]}])
-    yt.alter_table(table, schema=schema.yson())
     yt.reshard_table(table, create_pivot_keys(schema, tablet_count))
     mount_table(table)
 
@@ -421,9 +421,15 @@ def variate_modes(table, args):
     single_execution(table + ".uncompressed.lookuptable", schema, {"in_memory_mode": "uncompressed", "enable_lookup_hash_table": True}, args.tablet_count, args.key_count, args.iterations, args.job_count, args.force, args.keep)
 
 def run_test(args):
-    #for i in range(100):
-        #variate_modes(args.table + "." + str(i), args)
-    variate_modes(args.table, args)
+    module_filter = lambda module: hasattr(module, "__file__") and \
+                                   not module.__file__.endswith(".so") and \
+                                   "yt_yson_bindings" not in getattr(module, "__name__", "") and \
+                                   "yt_driver_bindings" not in getattr(module, "__name__", "")
+    yt.config["pickling"]["module_filter"] = module_filter
+
+    for i in range(100):
+        variate_modes(args.table + "." + str(i), args)
+    #variate_modes(args.table, args)
 
 def main():
     parser = argparse.ArgumentParser(description="Map-Reduce table manipulator.")
