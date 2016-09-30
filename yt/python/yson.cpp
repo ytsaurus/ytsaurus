@@ -8,6 +8,8 @@
 
 #include <yt/core/ytree/convert.h>
 
+#include <yt/core/misc/crash_handler.h>
+
 #include <contrib/libs/pycxx/Extensions.hxx>
 #include <contrib/libs/pycxx/Objects.hxx>
 
@@ -199,6 +201,7 @@ public:
         PyEval_InitThreads();
 
         RegisterShutdown();
+        InstallCrashSignalHandler();
 
         TYsonIterator::InitType();
         TRawYsonIterator::InitType();
