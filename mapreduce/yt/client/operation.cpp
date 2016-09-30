@@ -228,17 +228,23 @@ private:
         return new TBufferInput(buffer);
     }
 
-    void CreateStorage()
+    Stroka GetFileStorage() const
     {
-        Stroka cypressFolder = TStringBuilder() <<
-            TConfig::Get()->RemoteTempFilesDirectory << "/hash";
+        return Options_.FileStorage_ ?
+            *Options_.FileStorage_ :
+            TConfig::Get()->RemoteTempFilesDirectory;
+    }
+
+    void CreateStorage() const
+    {
+        Stroka cypressFolder = TStringBuilder() << GetFileStorage() << "/hash";
         if (!Exists(Auth_, TTransactionId(), cypressFolder)) {
             Create(Auth_, TTransactionId(), cypressFolder, "map_node", true, true);
         }
     }
 
     template <class TSource>
-    Stroka UploadToCache(const TSource& source)
+    Stroka UploadToCache(const TSource& source) const
     {
         constexpr size_t md5Size = 32;
         char buf[md5Size + 1];
@@ -246,8 +252,7 @@ private:
 
         Stroka twoDigits(buf + md5Size - 2, 2);
 
-        Stroka cypressPath = TStringBuilder() <<
-            TConfig::Get()->RemoteTempFilesDirectory <<
+        Stroka cypressPath = TStringBuilder() << GetFileStorage() <<
             "/hash/" << twoDigits << "/" << buf;
 
         TNode linkAttrs;
@@ -277,8 +282,7 @@ private:
             return cypressPath;
         }
 
-        Stroka uniquePath = TStringBuilder() <<
-            TConfig::Get()->RemoteTempFilesDirectory <<
+        Stroka uniquePath = TStringBuilder() << GetFileStorage() <<
             "/" << twoDigits << "/cpp_" << CreateGuidAsString();
 
         Create(Auth_, TTransactionId(), uniquePath, "file", true, true,
