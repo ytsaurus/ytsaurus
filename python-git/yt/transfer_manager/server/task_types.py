@@ -14,7 +14,8 @@ class Task(object):
                  skip_if_destination_exists=None, progress=None, history=None, backend_tag=None, kiwi_user=None,
                  kwworm_options=None, pool=None, meta=None, destination_compression_codec=None,
                  destination_erasure_codec=None, destination_force_sort=None, copy_spec=None, postprocess_spec=None,
-                 job_timeout=None, intermediate_format=None, lease_timeout=None, queue_name=None, force_copy_with_operation=None):
+                 job_timeout=None, intermediate_format=None, lease_timeout=None, queue_name=None, force_copy_with_operation=None,
+                 additional_attributes=None):
         self.source_cluster = source_cluster
         self.source_table = source_table
         self.source_cluster_token = get_value(source_cluster_token, token)
@@ -47,6 +48,7 @@ class Task(object):
         self.job_timeout = job_timeout
         self.intermediate_format = intermediate_format
         self.force_copy_with_operation = force_copy_with_operation
+        self.additional_attributes = additional_attributes
 
         self.destination_compression_codec = destination_compression_codec
         self.destination_erasure_codec = destination_erasure_codec
