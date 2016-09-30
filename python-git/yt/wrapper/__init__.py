@@ -12,7 +12,7 @@ from .errors import YtError, YtOperationFailedError, YtResponseError, YtHttpResp
                     YtProxyUnavailable, YtTokenError, YtTimeoutError, YtTransactionPingError
 from .yamr_record import Record
 from .format import DsvFormat, YamrFormat, YsonFormat, JsonFormat, SchemafulDsvFormat,\
-                    YamredDsvFormat, Format, create_format, dumps_row, loads_row, YtFormatError
+                    YamredDsvFormat, Format, create_format, dumps_row, loads_row, YtFormatError, create_table_switch
 from .table import to_table, to_name
 from .ypath import YPath, TablePath, FilePath, ypath_join
 from .cypress_commands import escape_ypath_literal
