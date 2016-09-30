@@ -39,16 +39,18 @@ def escape_utf8(obj):
     return obj
 
 class HeavyProxyProvider(ProxyProvider):
-    def __init__(self, client, proxy):
+    def __init__(self, client):
         self.client = client
         self.banned_proxies = {}
-        self.light_proxy = proxy
         self.last_provided_proxy = None
 
         from yt.packages.requests import ConnectionError
         from httplib import BadStatusLine
         from socket import error as SocketError
         self.ban_errors = (ConnectionError, BadStatusLine, SocketError, YtRequestTimedOut, YtProxyUnavailable)
+
+    def _get_light_proxy(self):
+        return get_proxy_url(None, client=self.client)
 
     def __call__(self):
         now = datetime.now()
@@ -63,7 +65,7 @@ class HeavyProxyProvider(ProxyProvider):
             unbanned_proxies = []
             heavy_proxies = self._discover_heavy_proxies()
             if not heavy_proxies:
-                return self.light_proxy
+                return self._get_light_proxy()
 
             for proxy in heavy_proxies:
                 if proxy not in self.banned_proxies:
@@ -81,7 +83,7 @@ class HeavyProxyProvider(ProxyProvider):
             self.last_provided_proxy = result_proxy
             return result_proxy
 
-        return self.light_proxy
+        return self._get_light_proxy()
 
     def on_error_occured(self, error):
         if isinstance(error, self.ban_errors) and self.last_provided_proxy is not None:
@@ -91,7 +93,9 @@ class HeavyProxyProvider(ProxyProvider):
 
     def _discover_heavy_proxies(self):
         discovery_url = get_config(self.client)["proxy"]["proxy_discovery_url"]
-        return make_get_request_with_retries("http://{0}/{1}".format(self.light_proxy, discovery_url), client=self.client)
+        return make_get_request_with_retries(
+            "http://{0}/{1}".format(self._get_light_proxy(), discovery_url),
+            client=self.client)
 
 class TokenAuth(AuthBase):
     def __init__(self, token):
@@ -174,7 +178,7 @@ def make_request(command_name, params,
     if use_heavy_proxy:
         proxy_provider = get_option("_heavy_proxy_provider", client)
         if proxy_provider is None:
-            proxy_provider = HeavyProxyProvider(client, get_proxy_url(None, client=client))
+            proxy_provider = HeavyProxyProvider(client)
             set_option("_heavy_proxy_provider", proxy_provider, client)
         url = url_pattern.format(proxy="{proxy}", api=api_path, command=command_name)
     else:
