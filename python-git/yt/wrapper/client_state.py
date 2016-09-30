@@ -23,6 +23,8 @@ class ClientState(object):
         self._commands = None
         self._is_local_mode = None
 
+        self._is_testing_mode = None
+
         self._random_generator = SystemRandom()
 
     def init_pseudo_random_generator(self):

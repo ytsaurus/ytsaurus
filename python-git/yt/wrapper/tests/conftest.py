@@ -1,6 +1,7 @@
 from .helpers import TESTS_LOCATION, TEST_DIR, TESTS_SANDBOX, ENABLE_JOB_CONTROL
 
 from yt.environment import YTInstance
+from yt.wrapper.config import set_option
 from yt.wrapper.default_config import get_default_config
 from yt.wrapper.common import update
 import yt.logger as logger
@@ -101,6 +102,9 @@ class YtTestEnvironment(object):
         reload_module(yt.native_driver)
 
         yt._cleanup_http_session()
+
+        # TODO(ignat): Remove after max_replication_factor will be implemented.
+        set_option("_is_testing_mode", True, client=None)
 
         self.config = update(get_default_config(), config)
         self.config["operation_tracker"]["poll_period"] = 100

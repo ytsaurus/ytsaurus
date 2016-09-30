@@ -1,7 +1,7 @@
 """downloading and uploading data to YT commands"""
 
 import yt.logger as logger
-from .config import get_config
+from .config import get_config, get_option
 from .common import require, chunk_iter_stream, chunk_iter_string, bool_to_string, parse_bool
 from .errors import YtError, YtResponseError
 from .http_helpers import get_api_version
@@ -217,7 +217,7 @@ def upload_file_to_cache(filename, hash=None, client=None):
         logger.debug("Link %s of file %s missing, uploading file", destination, filename)
         prefix = ypath_join(get_config(client)["remote_temp_files_directory"], last_two_digits_of_hash, os.path.basename(filename))
         # NB: In local mode we have only one node and default replication factor equal to one for all tables and files.
-        if is_local_mode(client):
+        if is_local_mode(client) or get_option("_is_testing_mode", client=client):
             replication_factor = 1
         else:
             if get_config(client)["file_cache"]["replication_factor"] < 3:
