@@ -241,6 +241,16 @@ def copy_user_attributes(source_client, destination_client, source_table, destin
     for attribute in source_attributes.get("user_attribute_keys", []):
         destination_client.set_attribute(destination_table, attribute, source_attributes[attribute])
 
+def copy_additional_attributes(source_client, destination_client, source_table, destination_table, attributes_list):
+    # It must be called outside of transactions, since some system attributes cannot be set inside transactions.
+    if attributes_list is None:
+        return
+
+    source_attributes = source_client.get(source_table + "/@")
+    for attribute in attributes_list:
+        if attribute in source_attributes:
+            destination_client.set_attribute(destination_table, attribute, source_attributes[attribute])
+
 def set_codec(yt_client, dst, codec, codec_type):
     attribute_name = codec_type + "_codec"
     if codec is not None:
@@ -250,7 +260,7 @@ def set_codec(yt_client, dst, codec, codec_type):
 
 def copy_yt_to_yt(source_client, destination_client, src, dst, network_name,
                   copy_spec_template=None, postprocess_spec_template=None,
-                  compression_codec=None, erasure_codec=None):
+                  compression_codec=None, erasure_codec=None, additional_attributes=None):
     copy_spec_template = get_value(copy_spec_template, {})
 
     src = yt.TablePath(src, client=source_client)
@@ -301,11 +311,13 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name,
             transform(str(dst), compression_codec=compression_codec, erasure_codec=erasure_codec,
                       yt_client=destination_client, spec=postprocess_spec_template, check_codecs=True)
 
+    copy_additional_attributes(source_client, destination_client, src.name, dst, additional_attributes)
+
 def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fastbone, token_storage_path,
                                 copy_spec_template=None, postprocess_spec_template=None, default_tmp_dir=None,
                                 compression_codec=None, erasure_codec=None, intermediate_format=None,
                                 enable_row_count_check=True, small_table_size_threshold=None,
-                                force_copy_with_operation=False):
+                                force_copy_with_operation=False, additional_attributes=None):
     tmp_dir = tempfile.mkdtemp(dir=default_tmp_dir)
 
     intermediate_format = yt.create_format(get_value(intermediate_format, "json"))
@@ -403,6 +415,8 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
                 check_codecs=True)
 
             copy_user_attributes(source_client, destination_client, src.name, dst)
+
+        copy_additional_attributes(source_client, destination_client, src.name, dst, additional_attributes)
 
     finally:
         shutil.rmtree(tmp_dir)

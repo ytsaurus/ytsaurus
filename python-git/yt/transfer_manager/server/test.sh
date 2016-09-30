@@ -262,6 +262,8 @@ test_copy_table_range_with_codec() {
 test_copy_table_attributes() {
     echo "Importing from Smith to Banach (attributes copying test)"
 
+    echo -e "a\tb\nc\td\ne\tf" | yt2 write //tmp/test_table --format yamr --proxy smith.yt.yandex.net
+
     set_attribute() {
         yt2 set //tmp/test_table/@$1 "$2" --proxy smith.yt.yandex.net
     }
@@ -269,8 +271,9 @@ test_copy_table_attributes() {
     set_attribute "test_key" "test_value"
     set_attribute "erasure_codec" "lrc_12_2_2"
     set_attribute "compression_codec" "zlib9"
+    set_attribute "expiration_time" "2100000000000"
 
-    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "smith", "destination_table": "//tmp/test_table_from_smith", "destination_cluster": "banach", "pool": "ignat"}')
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "smith", "destination_table": "//tmp/test_table_from_smith", "destination_cluster": "banach", "pool": "ignat", "additional_attributes": ["expiration_time"]}')
     wait_task $id
 
     check_attribute() {
@@ -279,7 +282,7 @@ test_copy_table_attributes() {
             "$(yt2 get //tmp/test_table/@$1 --proxy smith.yt.yandex.net)"
     }
 
-    for attribute in "test_key" "erasure_codec" "compression_codec"; do
+    for attribute in "test_key" "erasure_codec" "compression_codec" "expiration_time"; do
         check_attribute $attribute
     done
 
