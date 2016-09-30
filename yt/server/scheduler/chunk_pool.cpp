@@ -590,7 +590,7 @@ public:
 
         DataSizeCounter.Increment(suspendableStripe.GetStatistics().DataSize);
         RowCounter.Increment(suspendableStripe.GetStatistics().RowCount);
-        MaxBlockSize = std::max(MaxBlockSize, suspendableStripe.GetStatistics().RowCount);
+        MaxBlockSize = std::max(MaxBlockSize, suspendableStripe.GetStatistics().MaxBlockSize);
 
         Register(cookie);
 
