@@ -1027,7 +1027,8 @@ private:
         if (!defaultParentPool || defaultParentPool == pool) {
             // NB: root element is not a pool, so we should suppress warning in this special case.
             if (Config->DefaultParentPool != RootPoolName) {
-                LOG_WARNING("Default parent pool %Qv is not registered", Config->DefaultParentPool);
+                auto error = TError("Default parent pool %Qv is not registered", Config->DefaultParentPool);
+                Host->RegisterAlert(EAlertType::UpdatePools, error);
             }
             SetPoolParent(pool, RootElement);
         } else {
