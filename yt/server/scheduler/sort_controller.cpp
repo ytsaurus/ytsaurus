@@ -2405,7 +2405,7 @@ private:
             JobCounter.GetCompleted(),
             GetPendingJobCount(),
             JobCounter.GetFailed(),
-            JobCounter.GetAborted(),
+            JobCounter.GetAbortedTotal(),
             JobCounter.GetLost(),
             // Partitions
             Partitions.size(),
@@ -3007,7 +3007,7 @@ private:
             JobCounter.GetCompleted(),
             GetPendingJobCount(),
             JobCounter.GetFailed(),
-            JobCounter.GetAborted(),
+            JobCounter.GetAbortedTotal(),
             JobCounter.GetLost(),
             // Partitions
             Partitions.size(),

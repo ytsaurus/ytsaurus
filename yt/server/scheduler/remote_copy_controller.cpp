@@ -481,7 +481,7 @@ private:
             JobCounter.GetCompleted(),
             GetPendingJobCount(),
             JobCounter.GetFailed(),
-            JobCounter.GetAborted(),
+            JobCounter.GetAbortedTotal(),
             UnavailableInputChunkCount);
     }
 
