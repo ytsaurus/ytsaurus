@@ -291,10 +291,13 @@ class OperationArchiver(object):
         index_columns = ["state", "authenticated_user", "operation_type"]
         value_columns = ["progress", "brief_progress", "spec", "brief_spec", "result"]
 
+        if self.version >= 5:
+            value_columns.append("events")
+
         by_id_row = {}
         for key in index_columns + value_columns:
             if key in data:
-                by_id_row[key] = data[key]
+                by_id_row[key] = data.get(key)
 
         id_hi, id_lo = id_to_parts(op_id)
 
@@ -315,15 +318,13 @@ class OperationArchiver(object):
             "start_time": by_id_row["start_time"]
         }
 
-        if self.version <= 1:
+        if self.version < 2:
             by_start_time_row["dummy"] = 0
-        elif self.version == 2:
+        else:
             by_start_time_row["filter_factors"] = get_filter_factors(op_id, data)
             for key in index_columns:
                 if key in data:
                     by_start_time_row[key] = data[key]
-        else:
-            raise Exception("Unsupported version of operations archive")
 
         return by_id_row, by_start_time_row
 
@@ -372,12 +373,14 @@ class JobInfoFetcher(object):
         "error",
         "size",
         "start_time",
-        "finish_time"
+        "finish_time",
+        "uncompressed_data_size"
     ]
 
-    def __init__(self, stderr_queue, clean_queue, metrics):
+    def __init__(self, stderr_queue, clean_queue, version, metrics):
         self.stderr_queue = stderr_queue
         self.clean_queue = clean_queue
+        self.version = version
         self.metrics = metrics
         self.yt = yt.YtClient(config=yt.config.config)
 
@@ -393,11 +396,15 @@ class JobInfoFetcher(object):
             row["operation_id_lo"] = yson.YsonUint64(op_id_lo)
             row["job_id_hi"] = yson.YsonUint64(job_id_hi)
             row["job_id_lo"] = yson.YsonUint64(job_id_lo)
-            row["error"] = attributes.get("error", None)
+            row["error"] = attributes.get("error")
             row["job_type"] = attributes["job_type"]
             row["state"] = attributes["state"]
             row["start_time"] = operations_archive.datestr_to_timestamp(attributes["start_time"])
             row["finish_time"] = operations_archive.datestr_to_timestamp(attributes["finish_time"])
+
+            stderr = value.get("stderr")
+            if self.version >= 4 and stderr:
+                row["stderr_size"] = yson.YsonUint64(stderr.attributes["uncompressed_data_size"])
             rows.append(row)
 
             if "stderr" in value:
@@ -486,7 +493,7 @@ class StderrDownloader(object):
         self.insert_queue.put(row)
 
 def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, archiving_timeout,
-                     max_operations_per_user, robots, log, archive, archive_stderrs, thread_count, stderr_thread_count, push_metrics):
+                     max_operations_per_user, robots, archive, archive_jobs, thread_count, stderr_thread_count, push_metrics):
 
     #
     # Step 1: Fetch data from Cypress.
@@ -592,7 +599,7 @@ def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, arc
             run_batching_queue_workers(archive_queue, OperationArchiver, thread_count, (after_archive_queue, version, thread_safe_metrics))
             after_archive_queue.put_many(wait_for_queue(archive_queue, "archive_operation", end_time_limit))
 
-        if archive_stderrs:
+        if version >= 3 and archive_jobs:
             logger.info("Fetching job lists for %d operations", len(operations_to_archive))
             stderr_queue = NonBlockingQueue()
 
@@ -600,7 +607,7 @@ def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, arc
             timer = timers["archiving_jobs"] = Timer()
             with timer:
                 job_info_queue = after_archive_queue
-                run_batching_queue_workers(job_info_queue, JobInfoFetcher, thread_count, (stderr_queue, remove_queue, thread_safe_metrics))
+                run_batching_queue_workers(job_info_queue, JobInfoFetcher, thread_count, (stderr_queue, remove_queue, version, thread_safe_metrics))
                 remove_queue.put_many(wait_for_queue(job_info_queue, "archive_job_info", end_time_limit))
 
             logger.info("Archiving %d stderrs", len(stderr_queue))
@@ -675,11 +682,10 @@ def main():
                         help="remove old operations of user if limit exceeded")
     parser.add_argument("--robot", action="append",
                         help="robot users that run operations very often and can be ignored")
-    parser.add_argument("--log", help="file to save operation specs")
     parser.add_argument("--archive", action="store_true", default=False,
                         help="whether save cleared operations to tablets")
-    parser.add_argument("--stderrs", action="store_true", default=False,
-                        help="whether save stderrs to tablets")
+    parser.add_argument("--archive-jobs", action="store_true", default=False,
+                        help="whether save jobs and stderrs to tablets")
     parser.add_argument("--push-metrics", action="store_true", default=False,
                         help="whether push metrics to solomon")
     parser.add_argument("--scheme-type", default="old",
@@ -700,9 +706,8 @@ def main():
         timedelta(seconds=args.archiving_timeout),
         args.max_operations_per_user,
         args.robot if args.robot is not None else [],
-        args.log,
         args.archive,
-        args.stderrs,
+        args.archive_jobs,
         args.thread_count,
         args.stderr_thread_count,
         args.push_metrics)
