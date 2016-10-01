@@ -1,6 +1,6 @@
 from .yamr import _check_output
 
-from yt.wrapper.common import generate_uuid, bool_to_string, MB, GB
+from yt.wrapper.common import generate_uuid, bool_to_string, MB, GB, update
 from yt.tools.conversion_tools import transform
 from yt.common import get_value
 
@@ -103,10 +103,7 @@ def _pack_token(token, output_dir):
 
     filename = os.path.join(output_dir, "yt_token")
     with open(filename, "wb") as fout:
-        # XXX(asaitgalin): using GzipFile here with fileobj parameter
-        # to exclude filename from resulting gzip file contents.
-        with gzip.GzipFile("", fileobj=fout) as gzip_fout:
-            gzip_fout.write(token)
+        fout.write(token)
 
     return filename
 
@@ -633,7 +630,7 @@ def copy_yt_to_yamr_push(yt_client, yamr_client, src, dst, fastbone, copy_spec_t
 
 def _copy_to_kiwi(kiwi_client, kiwi_transmittor, src, read_command, ranges, kiwi_user, files=None,
                   yt_files=None, copy_spec_template=None, write_to_table=False, protobin=True,
-                  kwworm_options=None, default_tmp_dir=None):
+                  kwworm_options=None, default_tmp_dir=None, write_errors_script=None, yt_client=None):
     extract_value_script_to_table = """\
 import sys
 import struct
@@ -677,38 +674,48 @@ while True:
     kiwi_transmittor.set(output_table + "/@replication_factor", 1)
 
     spec = deepcopy(get_value(copy_spec_template, {}))
-    spec["data_size_per_job"] = 1
-    spec["locality_timeout"] = 0
-    spec["pool"] = "transfer_kiwi"
-    # After investigation of several copy jobs we have found the following:
-    # 1) kwworm memory consumption is in range (200-500MB)
-    # 2) yt2 read consumption is in range (200-600MB)
-    # 3) In some corner cases yt2 can use above than 1GB.
-    # 4) Other processes uses less than 100 MB.
-    spec["mapper"] = {
-        "cpu_limit": 0,
-        "memory_limit": 4 * 1024 * 1024 * 1024,
-        "memory_reserve_factor": 0.35}
-    _set_mapper_settings_for_read_from_yt(spec)
-    if "max_failed_job_count" not in spec:
-        spec["max_failed_job_count"] = 1000
+    spec = update(
+        {
+            "data_size_per_job": 1,
+            "locality_timeout": 0,
+            "pool": "transfer_kiwi",
+            "max_failed_job_count": 1000,
+            "mapper": {
+                "cpu_limit": 0,
+                # After investigation of several copy jobs we have found the following:
+                # 1) kwworm memory consumption is in range (200-500MB)
+                # 2) yt2 read consumption is in range (200-600MB)
+                # 3) In some corner cases yt2 can use above than 1GB.
+                # 4) Other processes uses less than 100 MB.
+                "memory_limit": 4 * 1024 * 1024 * 1024,
+                "memory_reserve_factor": 0.35,
+            },
+        },
+        spec)
 
     if write_to_table:
         extract_value_script = extract_value_script_to_table
         write_command = ""
+        finalize_command = ""
         output_format = yt.YamrFormat(lenval=True,has_subkey=False)
     else:
         extract_value_script = extract_value_script_to_worm
         kiwi_command = kiwi_client.get_write_command(kiwi_user=kiwi_user, kwworm_options=kwworm_options)
-        write_command = "| {0} >output 2>&1; RESULT=$?; cat output; tail -n 100 output >&2; exit $RESULT".format(kiwi_command)
+        write_command = "| {0} >output 2>&1; ".format(kiwi_command)
+        write_errors_command = ""
+        if write_errors_script is not None:
+            write_errors_command = "cat output | python write_errors.py; "
+        finalize_command = "RESULT=$?; cat output; tail -n 100 output >&2;{0} exit $RESULT".format(write_errors_command)
         output_format = yt.SchemafulDsvFormat(columns=["error"])
 
     tmp_dir = tempfile.mkdtemp(dir=default_tmp_dir)
     if files is None:
         files = []
-    command_script = "set -o pipefail; {0} | python extract_value.py {1}".format(read_command, write_command)
+    command_script = "set -o pipefail; {0} | python extract_value.py {1} {2}".format(read_command, write_command, finalize_command)
     files.append(_pack_string("command.sh", command_script, tmp_dir))
     files.append(_pack_string("extract_value.py", extract_value_script, tmp_dir))
+    if write_errors_script is not None:
+        files.append(_pack_string("write_errors.py", write_errors_script, tmp_dir))
     files.append(kiwi_client.kwworm_binary)
 
     try:
@@ -724,7 +731,21 @@ while True:
     finally:
         shutil.rmtree(tmp_dir)
 
-def copy_yt_to_kiwi(yt_client, kiwi_client, kiwi_transmittor, src, token_storage_path, **kwargs):
+def copy_yt_to_kiwi(yt_client, kiwi_client, kiwi_transmittor, src, token_storage_path, table_for_errors, **kwargs):
+    write_errors_script_template = """\
+import sys
+import yt.wrapper as yt
+
+def gen_rows():
+    for line in sys.stdin:
+        yield {{"error": line.strip()}}
+
+client = yt.YtClient(proxy="{0}", config={{"token_path": "{1}"}})
+table = yt.TablePath("{2}", append=True, client=client)
+client.create("table", table, ignore_existing=True)
+client.write_table(table, gen_rows())
+"""
+
     ranges = _slice_yt_table_evenly(yt_client, src, 512 * yt.common.MB)
     fastbone = kwargs.get("fastbone", True)
     if "fastbone" in kwargs:
@@ -750,6 +771,13 @@ def copy_yt_to_kiwi(yt_client, kiwi_client, kiwi_transmittor, src, token_storage
                     enable_row_count_check=enable_row_count_check,
                     token_file=yt_token_file.attributes["file_name"])
 
+                write_errors_script = None
+                if table_for_errors is not None:
+                    write_errors_script = write_errors_script_template.format(
+                        yt_client.config["proxy"]["url"],
+                        yt_token_file.attributes["file_name"],
+                        table_for_errors)
+
                 _copy_to_kiwi(
                     kiwi_client,
                     kiwi_transmittor,
@@ -758,6 +786,7 @@ def copy_yt_to_kiwi(yt_client, kiwi_client, kiwi_transmittor, src, token_storage
                     ranges=ranges,
                     files=files,
                     yt_files=[yt_token_file],
+                    write_errors_script=write_errors_script,
                     **kwargs)
             finally:
                 kiwi_transmittor.remove(str(yt_token_file), force=True)

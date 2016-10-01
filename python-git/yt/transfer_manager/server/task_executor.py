@@ -163,9 +163,9 @@ def execute_task(task, message_queue, config):
                 task.destination_table,
                 fastbone=fastbone)
         elif source_client._type == "yt" and destination_client._type == "kiwi":
-            dc_name = source_client._parameters.get("dc_name")
-            if dc_name is not None:
-                copy_spec["scheduling_tag"] = dc_name
+            #dc_name = source_client._parameters.get("dc_name")
+            #if dc_name is not None:
+            #    copy_spec = update({"scheduling_tag": dc_name}, copy_spec)
             copy_yt_to_kiwi(
                 source_client,
                 destination_client,
@@ -176,6 +176,7 @@ def execute_task(task, message_queue, config):
                 kiwi_user=task.kiwi_user,
                 kwworm_options=task.kwworm_options,
                 copy_spec_template=copy_spec,
+                table_for_errors=task.table_for_errors,
                 default_tmp_dir=config.get("default_tmp_dir"),
                 enable_row_count_check=config.get("enable_row_count_check"))
         elif source_client._type == "hive" and destination_client._type == "yt":
