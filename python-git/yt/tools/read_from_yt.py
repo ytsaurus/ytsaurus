@@ -72,10 +72,8 @@ def read(proxy, token, config, transaction, format, table, input_type):
                 sys.stdout.write(chunk)
 
 def get_token(token_file):
-    from yt.zip import GzipFile
-
     if token_file is not None:
-        with GzipFile(token_file, "rb") as fin:
+        with open(token_file, "rb") as fin:
             return fin.read().strip()
 
     return None

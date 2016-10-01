@@ -516,7 +516,11 @@ test_copy_with_annotated_json() {
 
 test_kiwi_copy() {
     echo "Test kiwi copy"
-    id=$(run_task '{"source_table": "//home/ignat/tm_kiwi_test_table", "source_cluster": "freud", "destination_cluster": "kiwi_apteryx", "kiwi_user": "flux"}')
+
+    id=$(run_task '{"source_table": "//home/ignat/tm_kiwi_test_table", "source_cluster": "freud", "destination_cluster": "kiwi_apteryx", "kiwi_user": "flux", "copy_spec": {"pool": "ignat", "max_failed_job_count": 1, "scheduling_tag": "fol"}}')
+    wait_task $id
+
+    id=$(run_task '{"source_table": "//home/ignat/tm_kiwi_test_table", "source_cluster": "freud", "destination_cluster": "kiwi_apteryx", "kiwi_user": "flux", "table_for_errors": "//tmp/table_for_errors", "copy_spec": {"pool": "ignat", "max_failed_job_count": 1, "scheduling_tag": "fol"}}')
     wait_task $id
 }
 
