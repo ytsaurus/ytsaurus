@@ -201,7 +201,7 @@ size_t ReadValue(const char* input, TUnversionedValue* value)
             ui32 length;
             current += ReadVarUint32(current, &length);
             TStringBuf data(current, current + length);
-            current += value->Length;
+            current += length;
 
             *value = type == EValueType::String 
                 ? MakeUnversionedStringValue(data, id)
