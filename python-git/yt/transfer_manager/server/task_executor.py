@@ -185,7 +185,10 @@ def execute_task(task, message_queue, config):
                 destination_client,
                 task.source_table,
                 task.destination_table,
-                copy_spec_template=copy_spec)
+                copy_spec_template=copy_spec,
+                postprocess_spec_template=postprocess_spec,
+                compression_codec=task.compression_codec,
+                erasure_codec=task.erasure_codec)
         elif (source_client._type == "hdfs" and destination_client._type == "hdfs") \
                 or (source_client._type == "hive" and destination_client._type == "hive") \
                 or (source_client._type == "hbase" and destination_client._type == "hbase"):
