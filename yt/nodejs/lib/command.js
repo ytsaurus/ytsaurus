@@ -448,7 +448,11 @@ YtCommand.prototype._checkAvailability = function() {
 YtCommand.prototype._redirectHeavyRequests = function() {
     this.__DBG("_redirectHeavyRequests");
 
-    if (this.descriptor.is_heavy && this.coordinator.getSelf().role === "control") {
+    var is_heavy = this.descriptor.is_heavy;
+    var is_control = this.coordinator.getSelf().role === "control";
+    var is_suppress = typeof(this.req.headers["x-yt-suppress-redirect"]) !== "undefined";
+
+    if (is_heavy && is_control && !is_suppress) {
         if (this.descriptor.input_type_as_integer !== binding.EDataType_Null) {
             this.rsp.statusCode = 503;
             this.rsp.setHeader("Retry-After", "60");
