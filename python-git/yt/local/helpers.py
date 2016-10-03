@@ -13,17 +13,21 @@ def _sync_mode_finalize_func(environment, process_call_args):
     thread.interrupt_main()
 
 class YTCheckingThread(Thread):
-    def __init__(self, environment, delay):
+    def __init__(self, environment, delay, timeout):
         super(YTCheckingThread, self).__init__()
         self.environment = environment
         self.delay = delay
+        self.timeout = timeout
         self.daemon = True
         self.is_running = True
+        self._start_time = None
 
     def run(self):
+        self._start_time = time.time()
+
         while self.is_running:
-            if not os.path.exists(self.environment.pids_filename):
-                logger.info("Local YT with id {0} was stopped".format(self.environment.id))
+            timeout_occured = self.timeout is not None and time.time() - self._start_time > self.timeout
+            if not os.path.exists(self.environment.pids_filename) or timeout_occured:
                 thread.interrupt_main()
                 break
             self.environment.check_liveness(callback_func=_sync_mode_finalize_func)

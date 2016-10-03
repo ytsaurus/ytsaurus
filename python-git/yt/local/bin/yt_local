@@ -47,12 +47,13 @@ def patch_add_parser(subparsers):
     subparsers.add_parser = add_parser
 
 def start_func(**kwargs):
-    sync = kwargs.get("sync", False)
-    kwargs.pop("sync")
-    quiet = kwargs.get("quiet", False)
-    kwargs.pop("quiet")
-    no_proxy = kwargs.get("no_proxy", False)
-    kwargs.pop("no_proxy")
+    sync = kwargs.pop("sync", False)
+    quiet = kwargs.pop("quiet", False)
+    no_proxy = kwargs.pop("no_proxy", False)
+    timeout = kwargs.pop("timeout", None)
+    if not sync and timeout is not None:
+        print("Warning! --timeout option has no effect when --sync flag is not specified", file=sys.stderr)
+
     kwargs["start_proxy"] = not no_proxy
 
     if quiet:
@@ -71,17 +72,18 @@ def start_func(**kwargs):
         kwargs["port_range_start"] = kwargs["ports_range_start"]
     for opt in ("masters_count", "nodes_count", "schedulers_count", "ports_range_start"):
         del kwargs[opt]
+
     environment = start(**kwargs)
 
     if sync:
         if quiet:
             print(environment.id)
 
-        checking_thread = YTCheckingThread(environment, delay=2)
+        checking_thread = YTCheckingThread(environment, delay=2, timeout=timeout)
         checking_thread.start()
 
         def interrupt_action():
-            logger.info("Stopping environment...")
+            logger.info("Stopping local YT instance")
             checking_thread.stop()
             environment.stop()
             sys.exit(0)
@@ -129,6 +131,9 @@ def add_start_subparser(subparsers):
                         help="memory limit for operations in bytes")
     parser.add_argument("--wait-tablet-cell-initialization", action="store_true", default=False,
                         help="wait until tablet cell (created during world initialization) health is good")
+    parser.add_argument("--timeout", type=int,
+                        help="time in seconds after which local YT will be stopped automatically "
+                             "(applies only to sync mode)")
 
     # Compatibility options
     parser.add_argument("--masters-count", type=int, help=argparse.SUPPRESS)
