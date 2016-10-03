@@ -89,9 +89,6 @@ protected:
         TUnorderedTask(TUnorderedOperationControllerBase* controller, i64 dataSizePerJob)
             : TTask(controller)
             , Controller(controller)
-            , ChunkPool(CreateUnorderedChunkPool(
-                dataSizePerJob,
-                Controller->Config->MaxChunkStripesPerJob))
         { }
 
         virtual Stroka GetId() const override
@@ -119,12 +116,12 @@ protected:
 
         virtual IChunkPoolInput* GetChunkPoolInput() const override
         {
-            return ChunkPool.get();
+            return Controller->UnorderedPool.get();
         }
 
         virtual IChunkPoolOutput* GetChunkPoolOutput() const override
         {
-            return ChunkPool.get();
+            return Controller->UnorderedPool.get();
         }
 
         virtual void Persist(const TPersistenceContext& context) override
@@ -133,7 +130,6 @@ protected:
 
             using NYT::Persist;
             Persist(context, Controller);
-            Persist(context, ChunkPool);
         }
 
     private:
@@ -141,12 +137,10 @@ protected:
 
         TUnorderedOperationControllerBase* Controller;
 
-        std::unique_ptr<IChunkPool> ChunkPool;
-
         virtual TExtendedJobResources GetMinNeededResourcesHeavy() const override
         {
             auto result = Controller->GetUnorderedOperationResources(
-                ChunkPool->GetApproximateStripeStatistics());
+                Controller->UnorderedPool->GetApproximateStripeStatistics());
             AddFootprintAndUserJobResources(result);
             return result;
         }
@@ -186,7 +180,7 @@ protected:
 
             if (Controller->JobSizeManager) {
                 Controller->JobSizeManager->OnJobCompleted(jobSummary);
-                ChunkPool->SetDataSizePerJob(Controller->JobSizeManager->GetIdealDataSizePerJob());
+                Controller->UnorderedPool->SetDataSizePerJob(Controller->JobSizeManager->GetIdealDataSizePerJob());
                 LOG_DEBUG("Set ideal data size per job (DataSizePerJob: %v)",
                     Controller->JobSizeManager->GetIdealDataSizePerJob());
             }
@@ -200,6 +194,8 @@ protected:
     };
 
     typedef TIntrusivePtr<TUnorderedTask> TUnorderedTaskPtr;
+
+    std::unique_ptr<IChunkPool> UnorderedPool;
 
     TUnorderedTaskPtr UnorderedTask;
     TTaskGroupPtr UnorderedTaskGroup;
@@ -220,6 +216,13 @@ protected:
         UnorderedTaskGroup = New<TTaskGroup>();
         UnorderedTaskGroup->MinNeededResources.SetCpu(GetCpuLimit());
         RegisterTaskGroup(UnorderedTaskGroup);
+    }
+
+    void InitUnorderedPool(i64 dataSizePerJob)
+    {
+        UnorderedPool = CreateUnorderedChunkPool(
+            dataSizePerJob,
+            Config->MaxChunkStripesPerJob);
     }
 
     virtual bool IsCompleted() const override
@@ -266,7 +269,9 @@ protected:
                     GetMaxJobCount(Spec->MaxJobCount, Options->MaxJobCount));
                 auto stripes = SliceChunks(mergedChunks, Options->JobMaxSliceDataSize, &jobSizeLimits);
 
-                if (!Spec->JobCount && !Spec->DataSizePerJob) {
+                InitUnorderedPool(jobSizeLimits.GetDataSizePerJob());
+
+                if (Config->EnableJobSizeManager && !Spec->JobCount && !Spec->DataSizePerJob) {
                     LOG_DEBUG("Activating job size manager (DataSizePerJob: %v, MaxJobDataSize: %v, MinJobTime: %v, ExecToPrepareTimeRatio: %v",
                         jobSizeLimits.GetDataSizePerJob(),
                         Spec->MaxDataSizePerJob,
@@ -276,6 +281,7 @@ protected:
                         jobSizeLimits.GetDataSizePerJob(),
                         Spec->MaxDataSizePerJob,
                         Options->JobSizeManager);
+                    UnorderedPool->SetMaxDataSizePerJob(Spec->MaxDataSizePerJob);
                 }
 
                 UnorderedTask = New<TUnorderedTask>(this, jobSizeLimits.GetDataSizePerJob());
