@@ -796,25 +796,36 @@ client.write_table(table, gen_rows())
 def copy_yamr_to_kiwi():
     pass
 
-def copy_hive_to_yt(hive_client, yt_client, source_table, destination_table, copy_spec_template=None):
+def copy_hive_to_yt(hive_client, yt_client, source_table, destination_table, copy_spec_template=None,
+                    postprocess_spec_template=None, compression_codec=None, erasure_codec=None):
     source = source_table.split(".", 1)
     read_config, files = hive_client.get_table_config_and_files(*source)
     read_command = hive_client.get_read_command(read_config)
 
-    temp_table = yt_client.create_temp_table()
-    yt_client.write_table(temp_table, [{"file": file} for file in files], raw=False, format=yt.JsonFormat())
+    yt_client.create("map_node", os.path.dirname(destination_table), recursive=True, ignore_existing=True)
 
-    spec = deepcopy(get_value(copy_spec_template, {}))
-    spec["data_size_per_job"] = 1
-    _set_mapper_settings_for_read_from_yt(spec)
-    yt_client.run_map(
-        read_command,
-        temp_table,
-        destination_table,
-        input_format=yt.SchemafulDsvFormat(columns=["file"]),
-        output_format=yt.JsonFormat(attributes={"encode_utf8": "false"}),
-        files=hive_client.hive_importer_library,
-        spec=spec)
+    with yt_client.Transaction(attributes={"title": "copy_hive_to_yt"}):
+        set_codec(yt_client, destination_table, compression_codec, "compression")
+
+        temp_table = yt_client.create_temp_table()
+        yt_client.write_table(temp_table, [{"file": file} for file in files], raw=False, format=yt.JsonFormat())
+
+        spec = deepcopy(get_value(copy_spec_template, {}))
+        spec["data_size_per_job"] = 1
+        _set_mapper_settings_for_read_from_yt(spec)
+
+        yt_client.run_map(
+            read_command,
+            temp_table,
+            destination_table,
+            input_format=yt.SchemafulDsvFormat(columns=["file"]),
+            output_format=yt.JsonFormat(attributes={"encode_utf8": "false"}),
+            files=hive_client.hive_importer_library,
+            spec=spec)
+
+        postprocess_spec = deepcopy(get_value(postprocess_spec_template, {}))
+        transform(destination_table, erasure_codec=erasure_codec, yt_client=yt_client,
+                  spec=postprocess_spec, check_codecs=True)
 
 def copy_hadoop_to_hadoop_with_airflow(task_type, airflow_client, source_path, source_cluster,
                                        destination_path, destination_cluster, user):
