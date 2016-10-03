@@ -335,7 +335,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
             # NB: for reliable access to table under snapshot lock we should use id.
             src_name = src
             src = yt.TablePath(src, client=source_client)
-            src.name = yson.to_yson_type("#" + source_client.get(src.name + "/@id"), attributes=src.attributes)
+            src = yt.TablePath("#" + source_client.get(src.name + "/@id"), attributes=src.attributes, simplify=False, client=source_client)
             source_client.lock(src, mode="snapshot")
 
             if compression_codec is None:
@@ -347,10 +347,10 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
             sorted_by = None
             dst_table = dst
             if source_client.exists(src.name + "/@sorted_by"):
-                sorted_by = source_client.get(src.name + "/@sorted_by")
+                sorted_by = source_client.get(src + "/@sorted_by")
                 dst_table = yt.TablePath(dst, client=source_client)
                 dst_table.attributes["sorted_by"] = sorted_by
-            row_count = source_client.get(src.name + "/@row_count")
+            row_count = source_client.get(src + "/@row_count")
 
             if small_table_size_threshold is not None and \
                     source_client.get(str(src) + "/@uncompressed_data_size") < small_table_size_threshold and \
@@ -377,9 +377,9 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
                         enable_row_count_check=enable_row_count_check,
                         token_file=yt_token_file.attributes["file_name"])
 
-                    ranges = _slice_yt_table_evenly(source_client, src.name)
+                    ranges = _slice_yt_table_evenly(source_client, src)
 
-                    temp_table = destination_client.create_temp_table(prefix=os.path.basename(src.name))
+                    temp_table = destination_client.create_temp_table(prefix=os.path.basename(str(src)))
                     destination_client.write_table(temp_table, ranges, format=yt.JsonFormat(), raw=False)
 
                     spec = deepcopy(get_value(copy_spec_template, {}))
@@ -411,9 +411,9 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
                 spec=postprocess_spec_template,
                 check_codecs=True)
 
-            copy_user_attributes(source_client, destination_client, src.name, dst)
+            copy_user_attributes(source_client, destination_client, src, dst)
 
-        copy_additional_attributes(source_client, destination_client, src.name, dst, additional_attributes)
+        copy_additional_attributes(source_client, destination_client, src, dst, additional_attributes)
 
     finally:
         shutil.rmtree(tmp_dir)
@@ -544,14 +544,14 @@ def copy_yt_to_yamr_pull(yt_client, yamr_client, src, dst, parallel_job_count=No
             # NB: for reliable access to table under snapshot lock we should use id.
             src_name = src
             src = yt.TablePath(src, client=yt_client)
-            src.name = yson.to_yson_type("#" + yt_client.get(src.name + "/@id"), attributes=src.attributes)
+            src = yt.TablePath("#" + yt_client.get(src.name + "/@id"), simplify=False, attributes=src.attributes, client=yt_client)
             yt_client.lock(src, mode="snapshot")
 
-            is_sorted = yt_client.exists(src.name + "/@sorted_by")
-            row_count = yt_client.get(src.name + "/@row_count")
+            is_sorted = yt_client.exists(src + "/@sorted_by")
+            row_count = yt_client.get(src + "/@row_count")
 
             if small_table_size_threshold is not None and \
-                    yt_client.get(src.name + "/@uncompressed_data_size") < small_table_size_threshold and \
+                    yt_client.get(src + "/@uncompressed_data_size") < small_table_size_threshold and \
                     not force_copy_with_operation:
                 logger.info("Source table '%s' is small, copying without operation on destination cluster",
                             str(src_name))
@@ -561,7 +561,7 @@ def copy_yt_to_yamr_pull(yt_client, yamr_client, src, dst, parallel_job_count=No
                 finally:
                     stream.close()
             else:
-                ranges = _slice_yt_table_evenly(yt_client, src.name, 1024 * yt.common.MB)
+                ranges = _slice_yt_table_evenly(yt_client, src, 1024 * yt.common.MB)
 
                 temp_yamr_table = "tmp/yt/" + generate_uuid()
                 yamr_client.write_rows_as_values(temp_yamr_table, ranges)
