@@ -71,7 +71,10 @@
 0 * * * * TITLE="clear tasks @ tm-userdata" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru /opt/cron/clear_transfer_manager_tasks.py http://tm-userdata.yt.yandex-team.ru/api/v1 --token !!INSERT_TRANSFER_MANAGER_TOKEN_HERE!! --total-count 1500 >>/opt/cron/clear_transfer_manager_tasks_userdata.log 2>&1
 
 # Push account statistics to statface
-*/10 * * * * TITLE="push account statistics to statface" STATFACE_ROBOT_LOGIN="robot_asaitgalin" STATFACE_ROBOT_PASSWORD="!!INSERT_STATFACE_ROBOT_PASSWORD_HERE!!" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru /opt/cron/push_resource_usage_info.py >>/opt/cron/push_resource_usage_info.log 2>&1
+*/10 * * * * TITLE="push account statistics to statface" STATFACE_ROBOT_LOGIN="robot_asaitgalin" STATFACE_ROBOT_PASSWORD="!!INSERT_STATFACE_ROBOT_PASSWORD_HERE!!" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru /opt/cron/push_resource_usage_info.py --push-to-statface >>/opt/cron/push_resource_usage_info.log 2>&1
+
+# Push account statistics to solomon
+* * * * * TITLE="push account statistics to solomon" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru /opt/cron/push_resource_usage_info.py --push-to-solomon >>/opt/cron/push_resource_usage_info.log 2>&1
 
 # Scheduler event log rotation
 0 * * * * TITLE="scheduler event log rotation on quine" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=quine.yt.yandex.net yt_lock.py --conflict-exit-code 0 //sys/cron/scheduler_event_log_rotate_lock "/opt/cron/fennel_rotate.py --skip-fennel-check"' >>/opt/cron/scheduler_event_log_rotation_quine.log 2>&1

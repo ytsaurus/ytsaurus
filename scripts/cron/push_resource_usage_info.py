@@ -130,20 +130,28 @@ def main():
     parser.add_argument("--robot-password", default=os.environ.get("STATFACE_ROBOT_PASSWORD"))
     parser.add_argument("--clusters-config-url", default="http://yt.yandex.net/config.json",
                         help="url to json with all available clusters")
+    parser.add_argument("--push-to-statface", action="store_true", default=False)
+    parser.add_argument("--push-to-solomon", action="store_true", default=False)
     args = parser.parse_args()
 
-    if args.robot_login is None or args.robot_password is None:
-        print >>sys.stderr, "Statface credentials are not set correctly"
+    if not (args.push_to_statface or args.push_to_solomon):
+        print >>sys.stderr, "Push destination is not specified"
         sys.exit(1)
 
-    statface_headers = {
-        "StatRobotUser": args.robot_login,
-        "StatRobotPassword": args.robot_password
-    }
+    if args.push_to_statface:
+        if args.robot_login is None or args.robot_password is None:
+            print >>sys.stderr, "Statface credentials are not set correctly"
+            sys.exit(1)
 
-    solomon_headers = {
-        "Content-Type": "application/json"
-    }
+        statface_headers = {
+            "StatRobotUser": args.robot_login,
+            "StatRobotPassword": args.robot_password
+        }
+
+    if args.push_to_solomon:
+        solomon_headers = {
+            "Content-Type": "application/json"
+        }
 
     logging.info("Retrieving clusters configuration from %s", args.clusters_config_url)
     clusters_configuration = requests.get(args.clusters_config_url).json()
@@ -159,8 +167,10 @@ def main():
         logging.info("Fetching accounts info from %s", cluster)
         try:
             accounts_data = collect_accounts_data_for_cluster(cluster)
-            push_cluster_data_to_statface(cluster, accounts_data, statface_headers)
-            push_cluster_data_to_solomon(cluster, accounts_data, solomon_headers)
+            if args.push_to_statface:
+                push_cluster_data_to_statface(cluster, accounts_data, statface_headers)
+            if args.push_to_solomon:
+                push_cluster_data_to_solomon(cluster, accounts_data, solomon_headers)
         except exceptions:
             logging.exception("Failed to fetch account info from %s", cluster)
 
