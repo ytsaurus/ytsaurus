@@ -2,7 +2,7 @@ from __future__ import print_function
 
 from .configs_provider import init_logging, get_default_provision, create_configs_provider
 from .helpers import versions_cmp, read_config, write_config, \
-                     is_dead_or_zombie, get_open_port, get_lsof_diagnostic
+                     is_dead_or_zombie, get_open_port
 
 from yt.common import update, YtError, remove_file, makedirp, set_pdeathsig, \
                       which
@@ -75,33 +75,6 @@ def _get_proxy_version(node_binary_path, proxy_binary_path):
         return None
 
     return version
-
-def get_busy_port_diagnostic(log_paths):
-    patterns = [
-        re.compile(r".*Failed to start HTTP server on port (\d+).*"),
-        re.compile(r".*Failed to bind a server socket to port (\d+).*")
-    ]
-
-    try:
-        for log_path in log_paths:
-            if not os.path.exists(log_path):
-                continue
-            for line in reversed(open(log_path).readlines()):
-                for pattern in patterns:
-                    match = pattern.match(line)
-                    if match:
-                        return get_lsof_diagnostic(match.group(1))
-    except:
-        logger.exception("Failed to get busy port diagnostics")
-    return None
-
-def add_busy_port_diagnostic(error, log_paths, name):
-    if name == "proxy":  # Port diagnostic is not supported for proxy.
-        return
-
-    diagnostic = get_busy_port_diagnostic(log_paths[name])
-    if diagnostic is not None:
-        error.attributes["details"] = diagnostic
 
 def _config_safe_get(config, config_path, key):
     d = config
@@ -597,12 +570,9 @@ class YTInstance(object):
             time.sleep(timeout)
             if p.poll():
                 self._print_stderrs(name, number)
-
-                error = YtError("Process {0}{1} unexpectedly terminated with error code {2}. "
-                                "If the problem is reproducible please report to yt@yandex-team.ru mailing list."
-                                .format(name, number_suffix, p.returncode))
-                add_busy_port_diagnostic(error, self.log_paths, name)
-                raise error
+                raise YtError("Process {0}{1} unexpectedly terminated with error code {2}. "
+                              "If the problem is reproducible please report to yt@yandex-team.ru mailing list."
+                              .format(name, number_suffix, p.returncode))
 
             self._process_to_kill[name].append(p)
             self._all_processes[p.pid] = (p, args)
@@ -966,7 +936,5 @@ class YTInstance(object):
             current_wait_time += sleep_quantum
 
         self._print_stderrs(name)
-        error =  YtError("{0} still not ready after {1} seconds. See logs in working dir for details."
-                         .format(name.capitalize(), max_wait_time))
-        add_busy_port_diagnostic(error, self.log_paths, name)
-        raise error
+        raise YtError("{0} still not ready after {1} seconds. See logs in working dir for details."
+                      .format(name.capitalize(), max_wait_time))
