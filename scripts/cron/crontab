@@ -39,7 +39,8 @@
 #0 2,14 * * * /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=kant.yt.yandex.net /opt/cron/detect_nodes_without_parent.py >>/opt/cron/detect_nodes_without_parent_log 2>&1
 
 # Clear old objects in tmp
-0 * * * * TITLE="clear tmp on barney" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=barney.yt.yandex.net /opt/cron/clear_tmp.py >>/opt/cron/clear_tmp_smith.log 2>&1
+0 * * * * TITLE="clear tmp on flux" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=flux.yt.yandex.net /opt/cron/clear_tmp.py >>/opt/cron/clear_tmp_flux.log 2>&1
+0 * * * * TITLE="clear tmp on barney" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=barney.yt.yandex.net /opt/cron/clear_tmp.py >>/opt/cron/clear_tmp_barney.log 2>&1
 0 * * * * TITLE="clear tmp on smith" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=smith.yt.yandex.net /opt/cron/clear_tmp.py >>/opt/cron/clear_tmp_smith.log 2>&1
 0 * * * * TITLE="clear tmp on marx" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=marx.yt.yandex.net /opt/cron/clear_tmp.py >>/opt/cron/clear_tmp_marx.log 2>&1
 0 * * * * TITLE="clear tmp on quine" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=quine.yt.yandex.net /opt/cron/clear_tmp.py >>/opt/cron/clear_tmp_quine.log 2>&1
