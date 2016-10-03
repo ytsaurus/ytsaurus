@@ -110,7 +110,7 @@ public:
         TSchedulerConfigPtr config,
         TBootstrap* bootstrap)
         : Config_(config)
-        , InitialConfig_(ConvertToNode(Config_))
+        , InitialConfig_(Config_)
         , Bootstrap_(bootstrap)
         , SnapshotIOQueue_(New<TActionQueue>("SnapshotIO"))
         , ControllerThreadPool_(New<TThreadPool>(Config_->ControllerThreadCount, "Controller"))
@@ -961,7 +961,7 @@ public:
 
 private:
     TSchedulerConfigPtr Config_;
-    const INodePtr InitialConfig_;
+    const TSchedulerConfigPtr InitialConfig_;
     TBootstrap* const Bootstrap_;
 
     TActionQueuePtr SnapshotIOQueue_;
@@ -1501,14 +1501,12 @@ private:
             return;
         }
 
-        TSchedulerConfigPtr newConfig = New<TSchedulerConfig>();
+        TSchedulerConfigPtr newConfig = CloneYsonSerializable(InitialConfig_);
         try {
             const auto& rsp = rspOrError.Value();
             auto configFromCypress = ConvertToNode(TYsonString(rsp->value()));
-            auto mergedConfig = UpdateNode(InitialConfig_, configFromCypress);
-
             try {
-                newConfig->Load(mergedConfig, /* validate */ true, /* setDefaults */ true);
+                newConfig->Load(configFromCypress, /* validate */ true, /* setDefaults */ false);
             } catch (const std::exception& ex) {
                 auto error = TError("Error updating cell scheduler configuration")
                     << ex;
