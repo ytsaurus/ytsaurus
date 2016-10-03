@@ -300,37 +300,48 @@ size_t WriteYson(char* buffer, const TUnversionedValue& unversionedValue)
 
 Stroka ToString(const TUnversionedValue& value)
 {
+    TStringBuilder builder;
+    if (value.Aggregate) {
+        builder.AppendChar('%');
+    }
     switch (value.Type) {
         case EValueType::Null:
         case EValueType::Min:
         case EValueType::Max:
         case EValueType::TheBottom:
-            return Format("<%v>", value.Type);
+            builder.AppendFormat("<%v>", value.Type);
+            break;
 
         case EValueType::Int64:
-            return Format("%v", value.Data.Int64);
+            builder.AppendFormat("%v", value.Data.Int64);
+            break;
 
         case EValueType::Uint64:
-            return Format("%vu", value.Data.Uint64);
+            builder.AppendFormat("%vu", value.Data.Uint64);
+            break;
 
         case EValueType::Double:
-            return Format("%v", value.Data.Double);
+            builder.AppendFormat("%v", value.Data.Double);
+            break;
 
         case EValueType::Boolean:
-            return Format("%v", value.Data.Boolean);
+            builder.AppendFormat("%v", value.Data.Boolean);
+            break;
 
         case EValueType::String:
-            return Stroka(value.Data.String, value.Length).Quote();
+            builder.AppendFormat("%Qv", TStringBuf(value.Data.String, value.Length));
+            break;
 
         case EValueType::Any:
-            return ConvertToYsonString(
-                    TYsonString(Stroka(value.Data.String, value.Length)),
-                    EYsonFormat::Text)
-                .Data();
+            builder.AppendString(ConvertToYsonString(
+                TYsonString(Stroka(value.Data.String, value.Length)),
+                EYsonFormat::Text).Data());
+            break;
 
         default:
             Y_UNREACHABLE();
     }
+    return builder.Flush();
 }
 
 int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
