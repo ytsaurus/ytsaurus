@@ -761,7 +761,7 @@ void ValidateClientRow(
     ValidateRowValueCount(row.GetCount());
     ValidateKeyColumnCount(schema.GetKeyColumnCount());
 
-    bool keyColumnSeen[MaxKeyColumnCount] {};
+    bool keyColumnSeen[MaxKeyColumnCount]{};
 
     for (const auto& value : row) {
         int mappedId = ApplyIdMapping(value, schema, &idMapping);
@@ -769,6 +769,12 @@ void ValidateClientRow(
         Y_ASSERT(mappedId >= 0 && mappedId < schema.Columns().size());
         const auto& column = schema.Columns()[mappedId];
         ValidateValueType(value, schema, mappedId);
+
+        if (value.Aggregate && !column.Aggregate) {
+            THROW_ERROR_EXCEPTION(
+                "\"aggregate\" flag is set for value in column %Qv which is not aggregating",
+                column.Name);
+        }
 
         if (column.Expression) {
             THROW_ERROR_EXCEPTION(

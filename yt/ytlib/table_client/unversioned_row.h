@@ -322,7 +322,9 @@ void ValidateRowCount(int count);
  *  The row must obey the following properties:
  *  1. Its value count must pass #ValidateRowValueCount checks.
  *  2. It must contain all key components (values with ids in range [0, #schema.GetKeyColumnCount() - 1]).
- *  3. Value types must either be null or match those given in schema.
+ *  3. Value types must either be null or match those given in #schema.
+ *  4. For values marked with #TUnversionedValue::Aggregate flag, the corresponding columns in #schema must
+ *  be aggregating.
  */
 void ValidateClientDataRow(
     TUnversionedRow row,
