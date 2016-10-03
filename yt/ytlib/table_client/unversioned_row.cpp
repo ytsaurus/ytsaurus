@@ -154,43 +154,60 @@ size_t ReadValue(const char* input, TUnversionedValue* value)
 
     ui32 id;
     current += ReadVarUint32(current, &id);
-    value->Id = static_cast<ui16>(id);
 
-    ui32 type;
-    current += ReadVarUint32(current, &type);
-    value->Type = static_cast<EValueType>(type);
+    ui32 typeValue;
+    current += ReadVarUint32(current, &typeValue);
+    auto type = static_cast<EValueType>(typeValue);
 
-    switch (value->Type) {
+    switch (type) {
         case EValueType::Null:
         case EValueType::Min:
         case EValueType::Max:
         case EValueType::TheBottom:
+            *value = MakeUnversionedSentinelValue(type, id);
             break;
 
-        case EValueType::Int64:
-            current += ReadVarInt64(current, &value->Data.Int64);
+        case EValueType::Int64: {
+            i64 data;
+            current += ReadVarInt64(current, &data);
+            *value = MakeUnversionedInt64Value(data, id);
             break;
+        }
 
-        case EValueType::Uint64:
-            current += ReadVarUint64(current, &value->Data.Uint64);
+        case EValueType::Uint64: {
+            ui64 data;
+            current += ReadVarUint64(current, &data);
+            *value = MakeUnversionedUint64Value(data, id);
             break;
+        }
 
-        case EValueType::Double:
-            ::memcpy(&value->Data.Double, current, sizeof (double));
+        case EValueType::Double: {
+            double data;
+            ::memcpy(&data, current, sizeof (double));
             current += sizeof (double);
+            *value = MakeUnversionedDoubleValue(data, id);
             break;
+        }
 
-        case EValueType::Boolean:
-            value->Data.Boolean = (*current) == 1;
+        case EValueType::Boolean: {
+            bool data = (*current) == 1;
             current += 1;
+            *value = MakeUnversionedBooleanValue(data, id);
             break;
+        }
 
         case EValueType::String:
-        case EValueType::Any:
-            current += ReadVarUint32(current, &value->Length);
-            value->Data.String = current;
+        case EValueType::Any: {
+            ui32 length;
+            current += ReadVarUint32(current, &length);
+            TStringBuf data(current, current + length);
             current += value->Length;
+
+            *value = type == EValueType::String 
+                ? MakeUnversionedStringValue(data, id)
+                : MakeUnversionedAnyValue(data, id);
             break;
+        }
 
         default:
             YUNREACHABLE();
