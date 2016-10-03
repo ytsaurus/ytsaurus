@@ -1,6 +1,7 @@
 #pragma once
 
 #include <yt/core/misc/common.h>
+#include <yt/core/misc/error.h>
 
 namespace NYT {
 namespace NCoreDump {
@@ -20,8 +21,8 @@ private:
     int ProcessId_ = -1;
     int UserId_ = -1;
     Stroka ExecutableName_;
-    i64 RlimitCore_ = -1;
-    Stroka JobProxyUdsNameDirectory_;
+    i64 RLimitCore_ = -1;
+    Stroka JobProxySocketNameDirectory_;
     Stroka FallbackPath_;
 
     void ParseArgs(const std::vector<Stroka>& args);
@@ -29,7 +30,7 @@ private:
     void GuardedMain(const std::vector<Stroka>& args);
 
     void WriteCoreToDisk();
-    void ForwardCore(const Stroka& UdsName);
+    void ForwardCore(const Stroka& SocketName);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
