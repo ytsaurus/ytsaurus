@@ -37,12 +37,12 @@ EObjectType TTableNode::GetObjectType() const
 
 TTableNode* TTableNode::GetTrunkNode()
 {
-    return As<TTableNode>();
+    return TrunkNode_->As<TTableNode>();
 }
 
 const TTableNode* TTableNode::GetTrunkNode() const
 {
-    return As<TTableNode>();
+    return TrunkNode_->As<TTableNode>();
 }
 
 void TTableNode::BeginUpload(EUpdateMode mode)
