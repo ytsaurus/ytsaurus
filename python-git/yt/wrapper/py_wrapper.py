@@ -229,7 +229,7 @@ class Zip(object):
         if type is None:
             self.md5 = hex_md5(self.hash)
 
-def create_modules_archive_default(tempfiles_manager, client):
+def create_modules_archive_default(tempfiles_manager, custom_python_used, client):
     for module_name in OPERATION_REQUIRED_MODULES:
         import_module(module_name)
 
@@ -237,14 +237,26 @@ def create_modules_archive_default(tempfiles_manager, client):
 
     files_to_compress = {}
     module_filter = get_config(client)["pickling"]["module_filter"]
+    extra_modules = getattr(sys, "extra_modules", set())
     for module in list(itervalues(sys.modules)):
         if module_filter is not None and not module_filter(module):
             continue
         if hasattr(module, "__file__"):
+            if custom_python_used:
+                # NB: Ignore frozen and compiled in binary modules.
+                if module.__name__ in extra_modules or module.__name__ + ".__init__"  in extra_modules:
+                    continue
+                if module.__file__ == "<frozen>":
+                    continue
+
             file = find_file(module.__file__)
             if file is None or not os.path.isfile(file):
                 if logger.LOGGER.isEnabledFor(logging_level):
-                    logger.log(logging_level, "Cannot find file of module %s", module.__file__)
+                    logger.log(
+                        logging_level,
+                        "Cannot locate file of the module (__name__: %s, __file__: %s)",
+                        module.__name__,
+                        module.__file__)
                 continue
 
             file = os.path.abspath(file)
@@ -306,7 +318,7 @@ def create_modules_archive_default(tempfiles_manager, client):
 
     return result
 
-def create_modules_archive(tempfiles_manager, client):
+def create_modules_archive(tempfiles_manager, custom_python_used, client):
     create_modules_archive_function = get_config(client)["pickling"]["create_modules_archive_function"]
     if create_modules_archive_function is not None:
         if inspect.isfunction(create_modules_archive_function):
@@ -322,7 +334,7 @@ def create_modules_archive(tempfiles_manager, client):
         else:
             return create_modules_archive_function()
 
-    return create_modules_archive_default(tempfiles_manager, client)
+    return create_modules_archive_default(tempfiles_manager, custom_python_used, client)
 
 
 def simplify(function_name):
@@ -340,8 +352,19 @@ def get_function_name(function):
     else:
         return "operation"
 
+def get_use_local_python_in_jobs(client):
+    python_binary = get_config(client)["pickling"]["python_binary"]
+    use_local_python_in_jobs = get_config(client)["pickling"]["use_local_python_in_jobs"]
+    if use_local_python_in_jobs is not None and python_binary is not None:
+        raise YtError("Options pickling/use_local_python_in_jobs and pickling/python_binary cannot be "
+                      "specified simultaneously")
 
-def build_caller_arguments(is_standalone_binary, file_argument_builder, environment, client):
+    if python_binary is None and use_local_python_in_jobs is None and is_arcadia_python():
+        use_local_python_in_jobs = True
+
+    return use_local_python_in_jobs
+
+def build_caller_arguments(is_standalone_binary, use_local_python_in_jobs, file_argument_builder, environment, client):
     use_py_runner = None
     arguments = []
 
@@ -350,15 +373,8 @@ def build_caller_arguments(is_standalone_binary, file_argument_builder, environm
         arguments = [file_argument_builder(sys.argv[0], caller=True)]
     else:
         use_py_runner = True
+
         python_binary = get_config(client)["pickling"]["python_binary"]
-        use_local_python_in_jobs = get_config(client)["pickling"]["use_local_python_in_jobs"]
-        if use_local_python_in_jobs is not None and python_binary is not None:
-            raise YtError("Options pickling/use_local_python_in_jobs and pickling/python_binary cannot be "
-                          "specified simultaneously")
-
-        if python_binary is None and use_local_python_in_jobs is None and is_arcadia_python():
-            use_local_python_in_jobs = True
-
         if python_binary is not None:
             arguments = [python_binary]
         else:
@@ -458,6 +474,8 @@ def do_wrap(function, operation_type, tempfiles_manager, input_format, output_fo
     is_standalone_binary = SINGLE_INDEPENDENT_BINARY_CASE or \
         (SINGLE_INDEPENDENT_BINARY_CASE is None and getattr(sys, "is_standalone_binary", False))
 
+    use_local_python_in_jobs = get_use_local_python_in_jobs(client)
+
     # XXX(asaitgalin): Some flags are needed before operation (and config) is unpickled
     # so these flags are passed through environment variables.
     environment = {}
@@ -465,7 +483,7 @@ def do_wrap(function, operation_type, tempfiles_manager, input_format, output_fo
     environment["YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB"] = \
        str(int(get_config(client)["allow_http_requests_to_yt_from_job"]))
 
-    caller_arguments = build_caller_arguments(is_standalone_binary, file_argument_builder, environment, client)
+    caller_arguments = build_caller_arguments(is_standalone_binary, use_local_python_in_jobs, file_argument_builder, environment, client)
     function_and_config_arguments = build_function_and_config_arguments(
         function, operation_type, input_format, output_format, group_by,
         create_temp_file,
@@ -477,7 +495,7 @@ def do_wrap(function, operation_type, tempfiles_manager, input_format, output_fo
         modules_arguments = []
         main_file_arguments = []
     else:
-        modules_info = create_modules_archive(tempfiles_manager, client)
+        modules_info = create_modules_archive(tempfiles_manager, is_standalone_binary or use_local_python_in_jobs, client)
         modules_arguments, tmpfs_size = build_modules_arguments(modules_info, create_temp_file, file_argument_builder, client)
         main_file_arguments = build_main_file_arguments(function, create_temp_file, file_argument_builder)
 
