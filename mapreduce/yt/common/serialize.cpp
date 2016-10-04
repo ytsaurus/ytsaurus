@@ -25,6 +25,11 @@ void Serialize(const char* value, IYsonConsumer* consumer)
     consumer->OnStringScalar(value);
 }
 
+void Deserialize(Stroka& value, const TNode& node)
+{
+    value = node.AsString();
+}
+
 #define SERIALIZE_SIGNED(type) \
 void Serialize(type value, IYsonConsumer* consumer) \
 { \
@@ -52,9 +57,24 @@ SERIALIZE_UNSIGNED(unsigned long long);
 #undef SERIALIZE_SIGNED
 #undef SERIALIZE_UNSIGNED
 
+void Deserialize(i64& value, const TNode& node)
+{
+    value = node.AsInt64();
+}
+
+void Deserialize(ui64& value, const TNode& node)
+{
+    value = node.AsUint64();
+}
+
 void Serialize(double value, IYsonConsumer* consumer)
 {
     consumer->OnDoubleScalar(value);
+}
+
+void Deserialize(double& value, const TNode& node)
+{
+    value = node.AsDouble();
 }
 
 void Serialize(bool value, IYsonConsumer* consumer)
@@ -63,11 +83,55 @@ void Serialize(bool value, IYsonConsumer* consumer)
     consumer->OnStringScalar(value ? "true" : "false");
 }
 
+void Deserialize(bool& value, const TNode& node)
+{
+    value = node.AsBool();
+}
+
 void Serialize(const TNode& node, IYsonConsumer* consumer)
 {
     TNodeVisitor visitor(consumer);
     visitor.Visit(node);
 }
+
+void Deserialize(TNode& value, const TNode& node)
+{
+    value = node;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+void Deserialize(TMaybe<T>& value, const TNode& node)
+{
+    value.ConstructInPlace();
+    Deserialize(value.GetRef(), node);
+}
+
+template <class T>
+void Deserialize(yvector<T>& value, const TNode& node)
+{
+    for (const auto& element : node.AsList()) {
+        value.emplace_back();
+        Deserialize(value.back(), element);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// const auto& nodeMap = node.AsMap();
+#define DESERIALIZE_ITEM(NAME, MEMBER) \
+    if (const auto* item = nodeMap.FindPtr(NAME)) { \
+        Deserialize(MEMBER, *item); \
+    }
+
+// const auto& attributesMap = node.GetAttributes().AsMap();
+#define DESERIALIZE_ATTR(NAME, MEMBER) \
+    if (const auto* attr = attributesMap.FindPtr(NAME)) { \
+        Deserialize(MEMBER, *attr); \
+    }
+
+////////////////////////////////////////////////////////////////////////////////
 
 void Serialize(const TKey& key, IYsonConsumer* consumer)
 {
@@ -77,6 +141,12 @@ void Serialize(const TKey& key, IYsonConsumer* consumer)
 void Serialize(const TKeyColumns& keyColumns, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer).List(keyColumns.Parts_);
+}
+
+template <class T>
+void Deserialize(TKeyBase<T>& key, const TNode& node)
+{
+    Deserialize(key.Parts_, node);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -95,6 +165,26 @@ Stroka ToString(EValueType type)
     }
 }
 
+void Deserialize(EValueType& valueType, const TNode& node)
+{
+    const auto& nodeStr = node.AsString();
+    if (nodeStr == "int64") {
+        valueType = VT_INT64;
+    } else if (nodeStr == "uint64") {
+        valueType = VT_UINT64;
+    } else if (nodeStr == "double") {
+        valueType = VT_DOUBLE;
+    } else if (nodeStr == "boolean") {
+        valueType = VT_BOOLEAN;
+    } else if (nodeStr == "string") {
+        valueType = VT_STRING;
+    } else if (nodeStr == "any") {
+        valueType = VT_ANY;
+    } else {
+        ythrow yexception() << "Invalid value type '" << nodeStr << "'";
+    }
+}
+
 Stroka ToString(ESortOrder sortOrder)
 {
     switch (sortOrder) {
@@ -102,6 +192,18 @@ Stroka ToString(ESortOrder sortOrder)
         case SO_DESCENDING: return "descending";
         default:
             ythrow yexception() << "Invalid sort order " << static_cast<int>(sortOrder);
+    }
+}
+
+void Deserialize(ESortOrder& sortOrder, const TNode& node)
+{
+    const auto& nodeStr = node.AsString();
+    if (nodeStr == "ascending") {
+        sortOrder = SO_ASCENDING;
+    } else if (nodeStr == "descending") {
+        sortOrder = SO_DESCENDING;
+    } else {
+        ythrow yexception() << "Invalid sort order '" << nodeStr << "'";
     }
 }
 
@@ -128,6 +230,18 @@ void Serialize(const TColumnSchema& columnSchema, IYsonConsumer* consumer)
     .EndMap();
 }
 
+void Deserialize(TColumnSchema& columnSchema, const TNode& node)
+{
+    const auto& nodeMap = node.AsMap();
+    DESERIALIZE_ITEM("name", columnSchema.Name_);
+    DESERIALIZE_ITEM("type", columnSchema.Name_);
+    DESERIALIZE_ITEM("sort_order", columnSchema.SortOrder_);
+    DESERIALIZE_ITEM("lock", columnSchema.Lock_);
+    DESERIALIZE_ITEM("expression", columnSchema.Expression_);
+    DESERIALIZE_ITEM("aggregate", columnSchema.Aggregate_);
+    DESERIALIZE_ITEM("group", columnSchema.Group_);
+}
+
 void Serialize(const TTableSchema& tableSchema, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer).BeginAttributes()
@@ -135,6 +249,14 @@ void Serialize(const TTableSchema& tableSchema, IYsonConsumer* consumer)
         .Item("unique_keys").Value(tableSchema.UniqueKeys_)
     .EndAttributes()
     .List(tableSchema.Columns_);
+}
+
+void Deserialize(TTableSchema& tableSchema, const TNode& node)
+{
+    const auto& attributesMap = node.GetAttributes().AsMap();
+    DESERIALIZE_ATTR("strict", tableSchema.Strict_);
+    DESERIALIZE_ATTR("unique_keys", tableSchema.UniqueKeys_);
+    Deserialize(tableSchema.Columns_, node);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -154,6 +276,14 @@ void Serialize(const TReadLimit& readLimit, IYsonConsumer* consumer)
     .EndMap();
 }
 
+void Deserialize(TReadLimit& readLimit, const TNode& node)
+{
+    const auto& nodeMap = node.AsMap();
+    DESERIALIZE_ITEM("key", readLimit.Key_);
+    DESERIALIZE_ITEM("row_index", readLimit.RowIndex_);
+    DESERIALIZE_ITEM("offset", readLimit.Offset_);
+}
+
 void Serialize(const TReadRange& readRange, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer).BeginMap()
@@ -167,6 +297,14 @@ void Serialize(const TReadRange& readRange, IYsonConsumer* consumer)
             fluent.Item("exact").Value(readRange.Exact_);
         })
     .EndMap();
+}
+
+void Deserialize(TReadRange& readRange, const TNode& node)
+{
+    const auto& nodeMap = node.AsMap();
+    DESERIALIZE_ITEM("lower_limit", readRange.LowerLimit_);
+    DESERIALIZE_ITEM("upper_limit", readRange.UpperLimit_);
+    DESERIALIZE_ITEM("exact", readRange.Exact_);
 }
 
 void Serialize(const TRichYPath& path, IYsonConsumer* consumer)
@@ -212,10 +350,31 @@ void Serialize(const TRichYPath& path, IYsonConsumer* consumer)
     .Value(path.Path_);
 }
 
+void Deserialize(TRichYPath& path, const TNode& node)
+{
+    const auto& attributesMap = node.GetAttributes().AsMap();
+    DESERIALIZE_ATTR("ranges", path.Ranges_);
+    DESERIALIZE_ATTR("columns", path.Columns_);
+    DESERIALIZE_ATTR("append", path.Append_);
+    DESERIALIZE_ATTR("sorted_by", path.SortedBy_);
+    DESERIALIZE_ATTR("teleport", path.Teleport_);
+    DESERIALIZE_ATTR("primary", path.Primary_);
+    DESERIALIZE_ATTR("foreign", path.Foreign_);
+    DESERIALIZE_ATTR("row_count_limit", path.RowCountLimit_);
+    DESERIALIZE_ATTR("file_name", path.FileName_);
+    DESERIALIZE_ATTR("executable", path.Executable_);
+    DESERIALIZE_ATTR("format", path.Format_);
+    DESERIALIZE_ATTR("schema", path.Schema_);
+    Deserialize(path.Path_, node);
+}
+
 void Serialize(const TAttributeFilter& filter, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer).List(filter.Attributes_);
 }
+
+#undef DESERIALIZE_ITEM
+#undef DESERIALIZE_ATTR
 
 ////////////////////////////////////////////////////////////////////////////////
 
