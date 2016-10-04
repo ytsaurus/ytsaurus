@@ -32,7 +32,7 @@ namespace NYTree {
 namespace NDetail {
 
 template <class T>
-void Load(T& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
+void LoadFromNode(T& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
 {
     try {
         Deserialize(parameter, node);
@@ -44,7 +44,7 @@ void Load(T& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
 
 // TYsonSerializable
 template <class T, class E = typename std::enable_if<std::is_convertible<T&, TYsonSerializable&>::value>::type>
-void Load(TIntrusivePtr<T>& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
+void LoadFromNode(TIntrusivePtr<T>& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
 {
     if (!parameter) {
         parameter = New<T>();
@@ -54,26 +54,26 @@ void Load(TIntrusivePtr<T>& parameter, NYTree::INodePtr node, const NYPath::TYPa
 
 // TNullable
 template <class T>
-void Load(TNullable<T>& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
+void LoadFromNode(TNullable<T>& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
 {
     if (node->GetType() == NYTree::ENodeType::Entity) {
         parameter = Null;
     } else {
         T value;
-        Load(value, node, path);
+        LoadFromNode(value, node, path);
         parameter = value;
     }
 }
 
 // std::vector
 template <class... T>
-void Load(std::vector<T...>& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
+void LoadFromNode(std::vector<T...>& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
 {
     auto listNode = node->AsList();
     auto size = listNode->GetChildCount();
     parameter.resize(size);
     for (int i = 0; i < size; ++i) {
-        Load(
+        LoadFromNode(
             parameter[i],
             listNode->GetChild(i),
             path + "/" + NYPath::ToYPathLiteral(i));
@@ -82,14 +82,14 @@ void Load(std::vector<T...>& parameter, NYTree::INodePtr node, const NYPath::TYP
 
 // For any map.
 template <template <typename...> class Map, class... T, class M = typename Map<T...>::mapped_type>
-void Load(Map<T...>& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
+void LoadFromNode(Map<T...>& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
 {
     auto mapNode = node->AsMap();
     parameter.clear();
     for (const auto& pair : mapNode->GetChildren()) {
         const auto& key = pair.first;
         M value;
-        Load(
+        LoadFromNode(
             value,
             pair.second,
             path + "/" + NYPath::ToYPathLiteral(key));
@@ -217,7 +217,7 @@ template <class T>
 void TYsonSerializableLite::TParameter<T>::Load(NYTree::INodePtr node, const NYPath::TYPath& path)
 {
     if (node) {
-        NYT::NYTree::NDetail::Load(Parameter, node, path);
+        NDetail::LoadFromNode(Parameter, node, path);
     } else if (!DefaultValue) {
         THROW_ERROR_EXCEPTION("Missing required parameter %v",
             path);

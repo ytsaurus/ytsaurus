@@ -1,7 +1,7 @@
 import yt_commands
 
 from yt.environment import YTInstance
-from yt.common import makedirp, update
+from yt.common import makedirp, update, YtError
 import yt_driver_bindings
 
 import yt.yson as yson
@@ -305,6 +305,11 @@ class YTEnvSetup(object):
                 yt_commands.set("//sys/nodes/%s/@resource_limits_overrides" % node_name, {})
 
     def _remove_operations(self):
+        try:
+            for operation_id in yt_commands.ls("//sys/scheduler/orchid/scheduler/operations"):
+                yt_commands.abort_op(operation_id)
+        except YtError:
+            pass
         for operation in yt_commands.ls("//sys/operations"):
             yt_commands.remove("//sys/operations/" + operation, recursive=True)
 

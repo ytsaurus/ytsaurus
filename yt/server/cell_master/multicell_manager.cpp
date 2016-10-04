@@ -160,7 +160,6 @@ public:
 
         int avgChunkCount = chunkCountSum / RegisteredMasterMap_.size();
 
-
         // Split the candidates into two subsets: less-that-avg and more-than-avg.
         SmallVector<TCellTag, MaxSecondaryMasterCells> loCandidates;
         SmallVector<TCellTag, MaxSecondaryMasterCells> hiCandidates;
@@ -245,11 +244,21 @@ private:
         int Index = -1;
         NProto::TCellStatistics Statistics;
 
-        void Persist(NCellMaster::TPersistenceContext& context)
+        void Save(NCellMaster::TSaveContext& context) const
         {
-            using NYT::Persist;
+            using NYT::Save;
+            Save(context, Index);
+            Save(context, Statistics);
+        }
 
-            Persist(context, Statistics);
+        void Load(NCellMaster::TLoadContext& context)
+        {
+            using NYT::Load;
+            // COMPAT(babenko)
+            if (context.GetVersion() >= 351) {
+                Load(context, Index);
+            }
+            Load(context, Statistics);
         }
     };
 
@@ -271,23 +280,34 @@ private:
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
 
-        int index = 0;
-        for (auto& pair : RegisteredMasterMap_) {
-            auto cellTag = pair.first;
-            auto& entry = pair.second;
-            entry.Index = index++;
-            ValidateCellTag(cellTag);
+        // COMPAT(babenko)
+        if (!RegisteredMasterMap_.empty() && RegisteredMasterMap_.begin()->second.Index < 0) {
+            int index = 0;
+            for (auto& pair : RegisteredMasterMap_) {
+                auto& entry = pair.second;
+                entry.Index = index++;
+            }
 
+            // XXX(babenko): hotfix for YT-5643
+            auto it1 = RegisteredMasterMap_.find(6022);
+            auto it2 = RegisteredMasterMap_.find(7022);
+            if (it1 != RegisteredMasterMap_.end() && it2 != RegisteredMasterMap_.end()) {
+                LOG_INFO("Patching cell indexes; cf. YT-5643: %v <-> %v",
+                    it1->second.Index,
+                    it2->second.Index);
+                std::swap(it1->second.Index, it2->second.Index);
+            }
         }
 
-        // XXX(babenko): hotfix for YT-5643
-        auto it1 = RegisteredMasterMap_.find(6022);
-        auto it2 = RegisteredMasterMap_.find(7022);
-        if (it1 != RegisteredMasterMap_.end() && it2 != RegisteredMasterMap_.end()) {
-            LOG_INFO("Patching cell indexes; cf. YT-5643: %v <-> %v",
-                it1->second.Index,
-                it2->second.Index);
-            std::swap(it1->second.Index, it2->second.Index);
+        RegisteredMasterCellTags_.resize(RegisteredMasterMap_.size());
+        for (const auto& pair : RegisteredMasterMap_) {
+            auto cellTag = pair.first;
+            const auto& entry = pair.second;
+            ValidateCellTag(cellTag);
+            RegisteredMasterCellTags_[entry.Index] = cellTag;
+            LOG_INFO_UNLESS(IsRecovery(), "Master cell registered (CellTag: %v, CellIndex: %v)",
+                cellTag,
+                entry.Index);
         }
 
         if (RegisterState_ == EPrimaryRegisterState::Registered) {
@@ -318,11 +338,6 @@ private:
         using NYT::Load;
 
         Load(context, RegisteredMasterMap_);
-
-        RegisteredMasterCellTags_.clear();
-        for (const auto& pair : RegisteredMasterMap_) {
-            RegisteredMasterCellTags_.push_back(pair.first);
-        }
 
         // COMPAT(babenko)
         if (context.GetVersion() >= 207) {
@@ -405,8 +420,6 @@ private:
 
             ValidateSecondaryMasterRegistration_.Fire(cellTag);
 
-            LOG_INFO_UNLESS(IsRecovery(), "Secondary master registered (CellTag: %v)", cellTag);
-
             RegisterMasterEntry(cellTag);
 
             ReplicateKeysToSecondaryMaster_.Fire(cellTag);
@@ -467,8 +480,6 @@ private:
             if (FindMasterEntry(cellTag))  {
                 THROW_ERROR_EXCEPTION("Attempted to re-register secondary master %v", cellTag);
             }
-
-            LOG_INFO_UNLESS(IsRecovery(), "Secondary master registered (CellTag: %v)", cellTag);
 
             RegisterMasterEntry(cellTag);
         } catch (const std::exception& ex) {
@@ -536,13 +547,16 @@ private:
 
     void RegisterMasterEntry(TCellTag cellTag)
     {
-        int index = RegisteredMasterMap_.empty() ? 0 : RegisteredMasterMap_.rbegin()->second.Index + 1;
+        YCHECK(RegisteredMasterMap_.size() == RegisteredMasterCellTags_.size());
+        int index = static_cast<int>(RegisteredMasterMap_.size());
         auto pair = RegisteredMasterMap_.insert(std::make_pair(cellTag, TMasterEntry()));
         YCHECK(pair.second);
         auto& entry = pair.first->second;
         entry.Index = index;
         RegisteredMasterCellTags_.push_back(cellTag);
-        std::sort(RegisteredMasterCellTags_.begin(), RegisteredMasterCellTags_.end());
+        LOG_INFO_UNLESS(IsRecovery(), "Master cell registered (CellTag: %v, CellIndex: %v)",
+            cellTag,
+            index);
     }
 
     TMasterEntry* FindMasterEntry(TCellTag cellTag)

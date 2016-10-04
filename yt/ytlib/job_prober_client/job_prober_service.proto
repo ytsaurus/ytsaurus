@@ -14,6 +14,16 @@ message TRspDumpInputContext
     repeated NYT.NProto.TGuid chunk_ids = 1;
 }
 
+message TReqGetStderr
+{
+    required NYT.NProto.TGuid job_id = 2;
+}
+
+message TRspGetStderr
+{
+    required string stderr_data = 1;
+}
+
 message TReqStrace
 {
     required NYT.NProto.TGuid job_id = 1;

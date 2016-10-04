@@ -184,8 +184,6 @@ class TBlockWriter;
 
 class THorizontalSchemalessBlockReader;
 
-struct IPartitioner;
-
 class TSchemafulRowMerger;
 class TVersionedRowMerger;
 
@@ -220,6 +218,8 @@ DECLARE_REFCOUNTED_STRUCT(IVersionedWriter)
 DECLARE_REFCOUNTED_STRUCT(IVersionedChunkWriter)
 DECLARE_REFCOUNTED_STRUCT(IVersionedMultiChunkWriter)
 
+DECLARE_REFCOUNTED_STRUCT(IPartitioner)
+
 DECLARE_REFCOUNTED_CLASS(TColumnarChunkMeta)
 DECLARE_REFCOUNTED_CLASS(TCachedVersionedChunkMeta)
 
@@ -243,6 +243,8 @@ DECLARE_REFCOUNTED_CLASS(TBufferedTableWriterConfig)
 
 DECLARE_REFCOUNTED_CLASS(TRetentionConfig)
 
+DECLARE_REFCOUNTED_CLASS(TTypeConversionConfig)
+
 DECLARE_REFCOUNTED_CLASS(TLegacyChannelReader)
 DECLARE_REFCOUNTED_CLASS(TLegacyTableChunkReader)
 
@@ -253,6 +255,10 @@ DECLARE_REFCOUNTED_CLASS(TVersionedRowMerger);
 DECLARE_REFCOUNTED_CLASS(TVersionedChunkLookupHashTable);
 
 struct TBoundaryKeys;
+
+class TSaveContext;
+class TLoadContext;
+using TPersistenceContext = TCustomPersistenceContext<TSaveContext, TLoadContext>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

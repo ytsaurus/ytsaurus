@@ -880,27 +880,33 @@ echo {v = 2} >&7
 
     @unix_only
     def test_reduce_input_paths_attr(self):
-        create("table", "//tmp/input")
-        for i in xrange(3):
+        create("table", "//tmp/in1")
+        for i in xrange(0, 5, 2):
             write_table(
-                "<append=true>//tmp/input",
-                [
-                    {"key": "%05d"%i, "value": "foo"},
-                ],
+                "<append=true>//tmp/in1",
+                [{"key": "%05d" % (i+j), "value": "foo"} for j in xrange(2)],
                 sorted_by = ["key"])
-        create("table", "//tmp/output")
 
+        create("table", "//tmp/in2")
+        for i in xrange(3, 16, 2):
+            write_table(
+                "<append=true>//tmp/in2",
+                [{"key": "%05d" % ((i+j)/4), "value": "foo"} for j in xrange(2)],
+                sorted_by = ["key", "value"])
+
+        create("table", "//tmp/out")
         op = reduce(
             dont_track=True,
-            in_="//tmp/input",
-            out="//tmp/output",
-            command="cat; [ $YT_JOB_INDEX == 1 ] && exit 1 || true",
-            reduce_by=["key"],
+            in_=["<foreign=true>//tmp/in1", '//tmp/in2["00001":"00004"]'],
+            out="//tmp/out",
+            command="exit 1",
+            reduce_by=["key", "value"],
+            join_by=["key"],
             spec={
                 "reducer": {
                     "format": "dsv"
                 },
-                "data_size_per_job": 1,
+                "job_count": 1,
                 "max_failed_job_count": 1
             })
         with pytest.raises(YtError):
@@ -909,12 +915,12 @@ echo {v = 2} >&7
         jobs_path = "//sys/operations/{0}/jobs".format(op.id)
         job_ids = ls(jobs_path)
         assert len(job_ids) == 1
-        input_paths = get("{0}/{1}/@input_paths".format(jobs_path, job_ids[0]))
-        assert str(input_paths[0]) == "//tmp/input"
-        assert len(input_paths[0].attributes["ranges"][0]["lower_limit"]["key"]) == 1
-        assert len(input_paths[0].attributes["ranges"][0]["lower_limit"]["key"][0]) == 5
-        assert len(input_paths[0].attributes["ranges"][0]["upper_limit"]["key"]) == 2
-        assert len(input_paths[0].attributes["ranges"][0]["upper_limit"]["key"][0]) == 5
+        actual = get("{0}/{1}/@input_paths".format(jobs_path, job_ids[0]))
+        expected = yson.loads('''[
+            <ranges=[{lower_limit={key=["00001"]};upper_limit={key=["00004";<type="max";>#]}}];"foreign"=%true>"//tmp/in1";
+            <ranges=[{lower_limit={key=["00001"]};upper_limit={key=["00004"]}}]>"//tmp/in2";
+        ]''')
+        assert expected == actual
 
     def _test_schema_validation(self, sort_order):
         create("table", "//tmp/input")

@@ -19,7 +19,6 @@ namespace NYT {
 namespace NTableServer {
 
 using namespace NTableClient;
-using namespace NCellMaster;
 using namespace NCypressServer;
 using namespace NYTree;
 using namespace NYson;
@@ -74,12 +73,8 @@ bool TTableNode::IsSorted() const
     return TableSchema_.IsSorted();
 }
 
-void TTableNode::Save(TSaveContext& context) const
+void TTableNode::Save(NCellMaster::TSaveContext& context) const
 {
-    if (IsDynamic() && !TableSchema_.GetStrict()) {
-        LOG_ERROR("Dynamic table %v schema is not strict", GetId());
-    }
-
     TChunkOwnerBase::Save(context);
 
     using NYT::Save;
@@ -89,7 +84,7 @@ void TTableNode::Save(TSaveContext& context) const
     Save(context, Atomicity_);
 }
 
-void TTableNode::Load(TLoadContext& context)
+void TTableNode::Load(NCellMaster::TLoadContext& context)
 {
     // Brief history of changes.
     // In 205 we removed KeyColumns from the snapshot and introduced TableSchema.
@@ -142,6 +137,8 @@ void TTableNode::Load(TLoadContext& context)
                 YCHECK(columns[index].Name == columnName);
                 columns[index].SetSortOrder(ESortOrder::Ascending);
             }
+            // XXX(sandello): In good ol' times there were no ordered-dynamic tables,
+            // so we can assert that keys are unique.
             TableSchema_ = TTableSchema(columns, true /* strict */, true /* unique_keys */);
         } else {
             TableSchema_ = TTableSchema::FromKeyColumns(keyColumns);
@@ -190,7 +187,15 @@ void TTableNode::Load(TLoadContext& context)
     if (context.GetVersion() < 301) {
         if (IsDynamic() && !TableSchema_.GetStrict()) {
             LOG_ERROR("Dynamic table %v schema was made strict during load from snapshot", GetId());
-            TableSchema_ = TTableSchema(TableSchema_.Columns(), true /* strict */);
+            TableSchema_ = TTableSchema(TableSchema_.Columns(), /*strict*/ true, /*unique keys*/ TableSchema_.IsSorted());
+        }
+    }
+
+    // COMPAT(sandello): Apparently we did not care enough about compatibility.
+    if (context.GetVersion() < 352) {
+        if (IsDynamic() && TableSchema_.IsSorted() && !TableSchema_.GetUniqueKeys()) {
+            LOG_ERROR("Dynamic table %v schema was made unique keys during load from snapshot", GetId());
+            TableSchema_ = TTableSchema(TableSchema_.Columns(), /*strict*/ true, /*unique keys*/ true);
         }
     }
 }
@@ -247,7 +252,7 @@ class TTableNodeTypeHandler
 public:
     typedef TChunkOwnerTypeHandler<TTableNode> TBase;
 
-    explicit TTableNodeTypeHandler(TBootstrap* bootstrap)
+    explicit TTableNodeTypeHandler(NCellMaster::TBootstrap* bootstrap)
         : TBase(bootstrap)
     { }
 
@@ -415,7 +420,7 @@ protected:
     }
 };
 
-INodeTypeHandlerPtr CreateTableTypeHandler(TBootstrap* bootstrap)
+INodeTypeHandlerPtr CreateTableTypeHandler(NCellMaster::TBootstrap* bootstrap)
 {
     return New<TTableNodeTypeHandler>(bootstrap);
 }

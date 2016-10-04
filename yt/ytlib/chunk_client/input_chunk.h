@@ -27,7 +27,7 @@ const int InputChunkReplicaCount = 16;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Compact representation of some fields from proto TChunkSpec.
+//! Compact representation of some fields from NProto::TChunkSpec.
 //! Used inside scheduler to reduce memory footprint.
 //! The content of TInputChunkBase is stored in a scheduler snapshot as a POD.
 class TInputChunkBase
@@ -64,22 +64,23 @@ public:
     TChunkReplicaList GetReplicaList() const;
     void SetReplicaList(const TChunkReplicaList& replicas);
 
-    void Save(NPhoenix::TSaveContext& context) const;
-    void Load(NPhoenix::TLoadContext& context);
+private:
+    void CheckOffsets();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Compact representation of proto TChunkSpec.
+//! Compact representation of NProto::TChunkSpec.
 //! Used inside scheduler to reduce memory footprint.
 class TInputChunk
     : public TIntrinsicRefCounted
     , public TInputChunkBase
 {
     // Here are read limits.
-    typedef std::unique_ptr<NChunkClient::NProto::TReadLimit> TInputChunkReadLimit;
-    DEFINE_BYREF_RO_PROPERTY(TInputChunkReadLimit, LowerLimit);
-    DEFINE_BYREF_RO_PROPERTY(TInputChunkReadLimit, UpperLimit);
+    typedef std::unique_ptr<TReadLimit> TReadLimitHolder;
+    DEFINE_BYREF_RO_PROPERTY(TReadLimitHolder, LowerLimit);
+    DEFINE_BYREF_RO_PROPERTY(TReadLimitHolder, UpperLimit);
 
     // Here are boundary keys.
     typedef std::unique_ptr<NTableClient::TBoundaryKeys> TInputChunkBoundaryKeys;
@@ -96,25 +97,27 @@ public:
     TInputChunk(TInputChunk&& other) = default;
 
     explicit TInputChunk(const NProto::TChunkSpec& chunkSpec);
-    explicit TInputChunk(NProto::TChunkSpec&& chunkSpec);
 
     TInputChunk(
         const TChunkId& chunkId,
         const TChunkReplicaList& replicas,
-        const NChunkClient::NProto::TChunkMeta& chunk_meta,
+        const NChunkClient::NProto::TChunkMeta& chunkMeta,
         const NTableClient::TOwningKey& lowerLimit,
         const NTableClient::TOwningKey& upperLimit,
         NErasure::ECodec erasureCodec);
 
-    void Persist(NPhoenix::TPersistenceContext& context);
+    void Persist(const TStreamPersistenceContext& context);
+
     size_t SpaceUsed() const;
+
     //! Returns |false| iff the chunk has nontrivial limits.
     bool IsCompleteChunk() const;
     //! Returns |true| iff the chunk is complete and is large enough.
     bool IsLargeCompleteChunk(i64 desiredChunkSize) const;
-    //! Release memory occupied by BoundaryKeys
+
+    //! Releases memory occupied by BoundaryKeys
     void ReleaseBoundaryKeys();
-    //! Release memory occupied by PartitionsExt
+    //! Releases memory occupied by PartitionsExt
     void ReleasePartitionsExt();
 
     friend void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk);
@@ -136,3 +139,5 @@ TChunkId EncodeChunkId(const TInputChunkPtr& inputChunk, NNodeTrackerClient::TNo
 
 } // namespace NChunkClient
 } // namespace NYT
+
+Y_DECLARE_PODTYPE(NYT::NChunkClient::TInputChunkBase);

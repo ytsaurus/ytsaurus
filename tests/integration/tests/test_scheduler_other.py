@@ -248,6 +248,20 @@ class TestSchedulerOther(YTEnvSetup):
         assert op.get_state() == "aborted"
         assert get("//sys/operations/{0}/@result/error/inner_errors/0/message".format(op.id)) == "Test abort"
 
+    def test_operation_pool_attributes(self):
+        self._prepare_tables()
+
+        op = map(in_="//tmp/t_in", out="//tmp/t_out", command="cat")
+        assert get("//sys/operations/{0}/@pool".format(op.id)) == "root"
+        assert get("//sys/operations/{0}/@brief_spec/pool".format(op.id)) == "root"
+
+    def test_operation_events_attribute(self):
+        self._prepare_tables()
+
+        op = map(in_="//tmp/t_in", out="//tmp/t_out", command="cat")
+        events = get("//sys/operations/{0}/@events".format(op.id))
+        assert ["initializing", "preparing", "pending", "materializing", "running", "completing", "completed"] == [event["state"] for event in events]
+
 
 class TestSchedulerRevive(YTEnvSetup):
     NUM_MASTERS = 3
@@ -571,7 +585,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "max_running_operations_per_pool" : 1
+            "max_running_operation_count_per_pool" : 1
         }
     }
 
@@ -631,7 +645,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
 
     def test_operations_recursive_pool_limit(self):
         create("map_node", "//sys/pools/research")
-        set("//sys/pools/research/@max_running_operations", 2)
+        set("//sys/pools/research/@max_running_operation_count", 2)
         create("map_node", "//sys/pools/research/test_pool_1")
         create("map_node", "//sys/pools/research/test_pool_2")
         self._run_operations()
@@ -1423,7 +1437,34 @@ class TestSchedulerJobStatistics(YTEnvSetup):
         create("table", table)
         set(table + "/@replication_factor", 1)
 
-    @pytest.mark.xfail
+    def test_scheduler_job_by_id(self):
+        self._create_table("//tmp/in")
+        self._create_table("//tmp/out")
+        write_table("//tmp/in", [{"foo": i} for i in xrange(10)])
+        op = map(
+            dont_track=True,
+            waiting_jobs=True,
+            label="scheduler_job_statistics",
+            in_="//tmp/in",
+            out="//tmp/out",
+            command="cat")
+
+        running_jobs = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
+        job_id = running_jobs.keys()[0]
+        job_info = running_jobs.values()[0]
+
+        # Check that /job_by_id is accessible only with direct job id.
+        with pytest.raises(YtError):
+            get("//sys/scheduler/orchid/scheduler/job_by_id")
+        with pytest.raises(YtError):
+            ls("//sys/scheduler/orchid/scheduler/job_by_id")
+
+        job_info2 = get("//sys/scheduler/orchid/scheduler/job_by_id/{0}".format(job_id))
+        # Check that job_info2 contains all the keys that are in job_info (do not check the same
+        # for values because values could actually change between two get requests).
+        for key in job_info:
+            assert key in job_info2
+
     def test_scheduler_job_statistics(self):
         self._create_table("//tmp/in")
         self._create_table("//tmp/out")
@@ -1441,9 +1482,8 @@ class TestSchedulerJobStatistics(YTEnvSetup):
         job_id = running_jobs.keys()[0]
 
         statistics_appeared = False
-        for iter in xrange(10):
-            attributes = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}".format(op.id, job_id))
-            statistics = attributes.get("statistics", {})
+        for iter in xrange(30):
+            statistics = get("//sys/scheduler/orchid/scheduler/job_by_id/{0}/statistics".format(job_id))
             data = statistics.get("data", {})
             _input = data.get("input", {})
             row_count = _input.get("row_count", {})
@@ -1708,3 +1748,93 @@ class TestSchedulerJobTimeLimit(YTEnvSetup):
             command="sleep 1 ; cat",
             spec={"max_failed_job_count": 1, "mapper": {"job_time_limit": 2000}})
         op.track()
+
+class TestSecureVault(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    secure_vault = {
+        "int64": 42424243,
+        "uint64": yson.YsonUint64(1234),
+        "string": "penguin",
+        "boolean": True,
+        "double": 3.14,
+        "composite": {"token1": "SeNsItIvE", "token2": "InFo"},
+    }
+
+    def run_map_with_secure_vault(self):
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", {"foo": "bar"})
+        create("table", "//tmp/t_out")
+        op = map(
+            dont_track=True,
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"secure_vault": self.secure_vault, "max_failed_job_count": 1},
+            command="""
+                echo {YT_SECURE_VAULT=$YT_SECURE_VAULT}\;;
+                echo {YT_SECURE_VAULT_int64=$YT_SECURE_VAULT_int64}\;;
+                echo {YT_SECURE_VAULT_uint64=$YT_SECURE_VAULT_uint64}\;;
+                echo {YT_SECURE_VAULT_string=$YT_SECURE_VAULT_string}\;;
+                echo {YT_SECURE_VAULT_boolean=$YT_SECURE_VAULT_boolean}\;;
+                echo {YT_SECURE_VAULT_double=$YT_SECURE_VAULT_double}\;;
+                echo {YT_SECURE_VAULT_composite=\\"$YT_SECURE_VAULT_composite\\"}\;;
+           """)
+        return op
+
+    def check_content(self, res):
+        assert len(res) == 7
+        assert res[0] == {"YT_SECURE_VAULT": self.secure_vault}
+        assert res[1] == {"YT_SECURE_VAULT_int64": str(self.secure_vault["int64"])}
+        assert res[2] == {"YT_SECURE_VAULT_uint64": str(self.secure_vault["uint64"])}
+        assert res[3] == {"YT_SECURE_VAULT_string": self.secure_vault["string"]}
+        # Boolean values are represented with 0/1.
+        assert res[4] == {"YT_SECURE_VAULT_boolean": "1"}
+        assert res[5] == {"YT_SECURE_VAULT_double": str(self.secure_vault["double"])}
+        # Composite values are not exported as separate environment variables.
+        assert res[6] == {"YT_SECURE_VAULT_composite": ""}
+
+
+    def test_secure_vault_not_visible(self):
+        op = self.run_map_with_secure_vault()
+        cypress_info = str(get("//sys/operations/{0}/@".format(op.id)))
+        scheduler_info = str(get("//sys/scheduler/orchid/scheduler/operations/{0}".format(op.id)))
+        op.track()
+
+        # Check that secure environment variables is neither presented in the Cypress node of the
+        # operation nor in scheduler Orchid representation of the operation.
+        for info in [cypress_info, scheduler_info]:
+            for sensible_text in ["42424243", "SeNsItIvE", "InFo"]:
+                assert info.find(sensible_text) == -1
+
+    def test_secure_vault_simple(self):
+        op = self.run_map_with_secure_vault()
+        op.track()
+        res = read_table("//tmp/t_out")
+        self.check_content(res)
+
+    def test_secure_vault_with_revive(self):
+        op = self.run_map_with_secure_vault()
+        self.Env.kill_schedulers()
+        self.Env.start_schedulers()
+        op.track()
+        res = read_table("//tmp/t_out")
+        self.check_content(res)
+
+    def test_allowed_variable_names(self):
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", {"foo": "bar"})
+        create("table", "//tmp/t_out")
+        with pytest.raises(YtError):
+            map(dont_track=True,
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                spec={"secure_vault": {"=_=": 42}},
+                command="cat")
+        with pytest.raises(YtError):
+            map(dont_track=True,
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                spec={"secure_vault": {"x" * (2**16 + 1): 42}},
+                command="cat")

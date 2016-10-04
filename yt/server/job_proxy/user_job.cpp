@@ -2,9 +2,8 @@
 #include "private.h"
 #include "config.h"
 #include "job_detail.h"
-#include "stracer.h"
 #include "stderr_writer.h"
-#include "table_output.h"
+#include "stracer.h"
 #include "user_job_io.h"
 
 #include <yt/server/exec_agent/public.h>
@@ -15,8 +14,6 @@
 #include <yt/ytlib/cgroup/cgroup.h>
 
 #include <yt/ytlib/chunk_client/public.h>
-
-#include <yt/ytlib/file_client/file_chunk_output.h>
 
 #include <yt/ytlib/formats/parser.h>
 
@@ -138,6 +135,7 @@ public:
         , JobErrorPromise_(NewPromise<void>())
         , PipeIOPool_(New<TThreadPool>(Config_->JobIO->PipeIOPoolSize, "PipeIO"))
         , AuxQueue_(New<TActionQueue>("JobAux"))
+        , ReadStderrInvoker_(CreateSerializedInvoker(PipeIOPool_->GetInvoker()))
         , Process_(New<TProcess>(GetExecPath(), false))
         , CpuAccounting_(CGroupPrefix + ToString(jobId))
         , BlockIO_(CGroupPrefix + ToString(jobId))
@@ -205,7 +203,7 @@ public:
             TDelayedExecutor::CancelAndClear(timeLimitCookie);
             WaitFor(InputPipeBlinker_->Stop());
 
-            if (!JobErrorPromise_.IsSet())  {
+            if (!JobErrorPromise_.IsSet()) {
                 FinalizeJobIO();
             }
 
@@ -295,11 +293,11 @@ private:
     TCGroupJobEnvironmentConfigPtr CGroupsConfig_;
     TNullable<int> UserId_;
 
-    TPromise<void> JobErrorPromise_;
+    mutable TPromise<void> JobErrorPromise_;
 
-    std::atomic<bool> Prepared_ = {false};
-    std::atomic<bool> IsWoodpecker_ = {false};
-    std::atomic<bool> JobStarted_ = {false};
+    std::atomic<bool> Prepared_ = { false };
+    std::atomic<bool> IsWoodpecker_ = { false };
+    std::atomic<bool> JobStarted_ = { false };
 
     std::atomic_flag Stracing_ = ATOMIC_FLAG_INIT;
 
@@ -309,12 +307,14 @@ private:
 
     const TThreadPoolPtr PipeIOPool_;
     const TActionQueuePtr AuxQueue_;
+    IInvokerPtr ReadStderrInvoker_;
 
     std::vector<std::unique_ptr<TOutputStream>> TableOutputs_;
     std::vector<std::unique_ptr<TWritingValueConsumer>> WritingValueConsumers_;
 
-    std::unique_ptr<TFileChunkOutput> ErrorOutput_;
+    std::unique_ptr<TStderrWriter> ErrorOutput_;
     std::unique_ptr<TTableOutput> StatisticsOutput_;
+    std::unique_ptr<IYsonConsumer> StatisticsConsumer_;
 
     std::vector<TAsyncReaderPtr> TablePipeReaders_;
     std::vector<TAsyncWriterPtr> TablePipeWriters_;
@@ -329,6 +329,7 @@ private:
     std::vector<TCallback<void()>> StartActions_;
     std::vector<TCallback<void()>> InputActions_;
     std::vector<TCallback<void()>> OutputActions_;
+    std::vector<TCallback<void()>> StderrActions_;
     std::vector<TCallback<void()>> FinalizeActions_;
 
     TProcessPtr Process_;
@@ -400,7 +401,7 @@ private:
             .Run());
     }
 
-    void CleanupUserProcesses(const TError& error)
+    void CleanupUserProcesses(const TError& error) const
     {
         BIND(&IShellManager::Terminate, ShellManager_, error)
             .Via(AuxQueue_->GetInvoker())
@@ -410,7 +411,7 @@ private:
             .Run();
     }
 
-    void DoCleanupUserProcesses()
+    void DoCleanupUserProcesses() const
     {
         if (!CGroupsConfig_) {
             return;
@@ -427,10 +428,13 @@ private:
 
     TOutputStream* CreateStatisticsOutput()
     {
-        auto consumer = std::make_unique<TStatisticsConsumer>(
-            BIND(&TUserJob::AddCustomStatistics, Unretained(this)));
-        auto parser = CreateParserForFormat(TFormat(EFormatType::Yson), EDataType::Tabular, consumer.get());
-        StatisticsOutput_.reset(new TTableOutput(std::move(parser), std::move(consumer)));
+        StatisticsConsumer_.reset(new TStatisticsConsumer(
+            BIND(&TUserJob::AddCustomStatistics, Unretained(this))));
+        auto parser = CreateParserForFormat(
+            TFormat(EFormatType::Yson),
+            EDataType::Tabular,
+            StatisticsConsumer_.get());
+        StatisticsOutput_.reset(new TTableOutput(std::move(parser)));
         return StatisticsOutput_.get();
     }
 
@@ -539,6 +543,17 @@ private:
         return result;
     }
 
+    virtual Stroka GetStderr() override
+    {
+        ValidatePrepared();
+
+        auto result = WaitFor(BIND([=] () { return ErrorOutput_->GetCurrentData(); })
+            .AsyncVia(ReadStderrInvoker_)
+            .Run());
+        THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error collecting job stderr");
+        return result.Value();
+    }
+
     virtual TYsonString StraceJob() override
     {
         ValidatePrepared();
@@ -613,11 +628,11 @@ private:
         return Freezer_.GetTasks();
     }
 
-    std::vector<IValueConsumer*> CreateValueConsumers()
+    std::vector<IValueConsumer*> CreateValueConsumers(TTypeConversionConfigPtr typeConversionConfig)
     {
         std::vector<IValueConsumer*> valueConsumers;
         for (const auto& writer : JobIO_->GetWriters()) {
-            WritingValueConsumers_.emplace_back(new TWritingValueConsumer(writer));
+            WritingValueConsumers_.emplace_back(new TWritingValueConsumer(writer, typeConversionConfig));
             valueConsumers.push_back(WritingValueConsumers_.back().get());
         }
         return valueConsumers;
@@ -631,12 +646,9 @@ private:
 
         TableOutputs_.resize(writers.size());
         for (int i = 0; i < writers.size(); ++i) {
-            auto valueConsumers = CreateValueConsumers();
-            std::unique_ptr<IYsonConsumer> consumer(new TTableConsumer(valueConsumers, i));
-            auto parser = CreateParserForFormat(format, EDataType::Tabular, consumer.get());
-            TableOutputs_[i].reset(new TTableOutput(
-                std::move(parser),
-                std::move(consumer)));
+            auto valueConsumers = CreateValueConsumers(ConvertTo<TTypeConversionConfigPtr>(format.Attributes()));
+            auto parser = CreateParserForFormat(format, valueConsumers, i);
+            TableOutputs_[i].reset(new TTableOutput(std::move(parser)));
 
             int jobDescriptor = UserJobSpec_.use_yamr_descriptors()
                 ? 3 + i
@@ -644,8 +656,8 @@ private:
 
             // In case of YAMR jobs dup 1 and 3 fd for YAMR compatibility
             auto reader = (UserJobSpec_.use_yamr_descriptors() && jobDescriptor == 3)
-                ? PrepareOutputPipe({1, jobDescriptor}, TableOutputs_[i].get())
-                : PrepareOutputPipe({jobDescriptor}, TableOutputs_[i].get());
+                ? PrepareOutputPipe({1, jobDescriptor}, TableOutputs_[i].get(), &OutputActions_)
+                : PrepareOutputPipe({jobDescriptor}, TableOutputs_[i].get(), &OutputActions_);
             TablePipeReaders_.push_back(reader);
         }
 
@@ -664,7 +676,7 @@ private:
         }));
     }
 
-    TAsyncReaderPtr PrepareOutputPipe(const std::vector<int>& jobDescriptors, TOutputStream* output)
+    TAsyncReaderPtr PrepareOutputPipe(const std::vector<int>& jobDescriptors, TOutputStream* output, std::vector<TCallback<void()>>* actions)
     {
         auto pipe = TNamedPipe::Create(CreateNamedPipePath());
 
@@ -675,7 +687,7 @@ private:
 
         auto asyncInput = pipe->CreateAsyncReader();
 
-        OutputActions_.push_back(BIND([=] () {
+        actions->push_back(BIND([=] () {
             try {
                 auto input = CreateSyncAdapter(asyncInput);
                 PipeInputToOutput(input.get(), output, BufferSize);
@@ -861,12 +873,12 @@ private:
         CreateControlPipe();
 
         // Configure stderr pipe.
-        StderrPipeReader_ = PrepareOutputPipe({STDERR_FILENO}, CreateErrorOutput());
+        StderrPipeReader_ = PrepareOutputPipe({STDERR_FILENO}, CreateErrorOutput(), &StderrActions_);
 
         PrepareOutputTablePipes();
 
         if (!UserJobSpec_.use_yamr_descriptors()) {
-            StatisticsPipeReader_ = PrepareOutputPipe({JobStatisticsFD}, CreateStatisticsOutput());
+            StatisticsPipeReader_ = PrepareOutputPipe({JobStatisticsFD}, CreateStatisticsOutput(), &OutputActions_);
         }
 
         PrepareInputTablePipe();
@@ -977,6 +989,8 @@ private:
             statistics.AddSample("/user_job/woodpecker", IsWoodpecker_ ? 1 : 0);
         }
 
+        statistics.AddSample("/user_job/tmpfs_size", GetTmpfsSize());
+
         statistics.AddSample("/user_job/memory_limit", UserJobSpec_.memory_limit());
         statistics.AddSample("/user_job/memory_reserve", UserJobSpec_.memory_reserve());
 
@@ -1039,12 +1053,13 @@ private:
         });
 
         auto runActions = [&] (const std::vector<TCallback<void()>>& actions,
-                const NYT::TCallback<void(const TError&)>& onError)
+                const NYT::TCallback<void(const TError&)>& onError,
+                IInvokerPtr invoker)
         {
             std::vector<TFuture<void>> result;
             for (const auto& action : actions) {
                 auto asyncError = action
-                    .AsyncVia(PipeIOPool_->GetInvoker())
+                    .AsyncVia(invoker)
                     .Run();
                 asyncError.Subscribe(onError);
                 result.emplace_back(std::move(asyncError));
@@ -1052,7 +1067,7 @@ private:
             return result;
         };
 
-        auto startFutures = runActions(StartActions_, onStartIOError);
+        auto startFutures = runActions(StartActions_, onStartIOError, PipeIOPool_->GetInvoker());
         // Wait until executor opens and dup named pipes.
 
         ProcessFinished_.Subscribe(onProcessFinished);
@@ -1060,12 +1075,14 @@ private:
         WaitFor(CombineAll(startFutures));
         LOG_INFO("Start actions finished");
 
-        auto inputFutures = runActions(InputActions_, onIOError);
-        auto outputFutures = runActions(OutputActions_, onIOError);
+        auto inputFutures = runActions(InputActions_, onIOError, PipeIOPool_->GetInvoker());
+        auto outputFutures = runActions(OutputActions_, onIOError, PipeIOPool_->GetInvoker());
+        auto stderrFutures = runActions(StderrActions_, onIOError, ReadStderrInvoker_);
 
         // First, wait for all job output pipes.
         // If job successfully completes or dies prematurely, they close automatically.
         WaitFor(CombineAll(outputFutures));
+        WaitFor(CombineAll(stderrFutures));
         LOG_INFO("Output actions finished");
 
         // Then, wait for job process to finish.
@@ -1120,6 +1137,24 @@ private:
         return rss;
     }
 
+    i64 GetTmpfsSize() const
+    {
+        i64 tmpfsSize = 0;
+        if (Config_->TmpfsPath) {
+            try {
+                auto diskSpaceStatistics = NFS::GetDiskSpaceStatistics(*Config_->TmpfsPath);
+                tmpfsSize = diskSpaceStatistics.TotalSpace - diskSpaceStatistics.AvailableSpace;
+            } catch (const std::exception& ex) {
+                auto error = TError(
+                    NJobProxy::EErrorCode::MemoryCheckFailed,
+                    "Failed to get tmpfs size") << ex;
+                JobErrorPromise_.TrySet(error);
+                CleanupUserProcesses(error);
+            }
+        }
+        return tmpfsSize;
+    }
+
     void CheckMemoryUsage()
     {
         if (!UserId_) {
@@ -1127,57 +1162,44 @@ private:
             return;
         }
 
-        try {
-            i64 rss = GetMemoryUsageByUid(*UserId_);
+        i64 rss = GetMemoryUsageByUid(*UserId_);
 
-            if (Memory_.IsCreated()) {
-                auto statistics = Memory_.GetStatistics();
+        if (Memory_.IsCreated()) {
+            auto statistics = Memory_.GetStatistics();
 
-                i64 uidRss = rss;
-                rss = UserJobSpec_.include_memory_mapped_files() ? statistics.MappedFile : 0;
-                rss += statistics.Rss;
+            i64 uidRss = rss;
+            rss = UserJobSpec_.include_memory_mapped_files() ? statistics.MappedFile : 0;
+            rss += statistics.Rss;
 
-                if (rss > 1.05 * uidRss && uidRss > 0) {
-                    LOG_ERROR("Memory usage measured by cgroup is much greater than via procfs: %v > %v",
-                        rss,
-                        uidRss);
-                }
+            if (rss > 1.05 * uidRss && uidRss > 0) {
+                LOG_ERROR("Memory usage measured by cgroup is much greater than via procfs: %v > %v",
+                    rss,
+                    uidRss);
             }
+        }
 
-            i64 tmpfsSize = 0;
-            if (Config_->TmpfsPath) {
-                auto diskSpaceStatistics = NFS::GetDiskSpaceStatistics(*Config_->TmpfsPath);
-                tmpfsSize = diskSpaceStatistics.TotalSpace - diskSpaceStatistics.AvailableSpace;
-            }
+        i64 tmpfsSize = GetTmpfsSize();
+        i64 memoryLimit = UserJobSpec_.memory_limit();
+        i64 currentMemoryUsage = rss + tmpfsSize;
 
-            i64 memoryLimit = UserJobSpec_.memory_limit();
-            i64 currentMemoryUsage = rss + tmpfsSize;
+        CumulativeMemoryUsageMbSec_ += (currentMemoryUsage / (1024 * 1024)) * MemoryWatchdogPeriod_.Seconds();
 
-            CumulativeMemoryUsageMbSec_ += (currentMemoryUsage / (1024 * 1024)) * MemoryWatchdogPeriod_.Seconds();
-
-            LOG_DEBUG("Checking memory usage (Tmpfs: %v, Rss: %v, MemoryLimit: %v)",
-                tmpfsSize,
-                rss,
-                memoryLimit);
-            if (currentMemoryUsage > memoryLimit) {
-                auto error = TError(
-                    NJobProxy::EErrorCode::MemoryLimitExceeded,
-                    "Memory limit exceeded")
-                    << TErrorAttribute("rss", rss)
-                    << TErrorAttribute("tmpfs", tmpfsSize)
-                    << TErrorAttribute("limit", memoryLimit);
-                JobErrorPromise_.TrySet(error);
-                CleanupUserProcesses(error);
-            }
-
-            Host_->SetUserJobMemoryUsage(rss);
-        } catch (const std::exception& ex) {
+        LOG_DEBUG("Checking memory usage (Tmpfs: %v, Rss: %v, MemoryLimit: %v)",
+            tmpfsSize,
+            rss,
+            memoryLimit);
+        if (currentMemoryUsage > memoryLimit) {
             auto error = TError(
-                NJobProxy::EErrorCode::MemoryCheckFailed,
-                "Failed to check user job memory usage") << ex;
+                NJobProxy::EErrorCode::MemoryLimitExceeded,
+                "Memory limit exceeded")
+                << TErrorAttribute("rss", rss)
+                << TErrorAttribute("tmpfs", tmpfsSize)
+                << TErrorAttribute("limit", memoryLimit);
             JobErrorPromise_.TrySet(error);
             CleanupUserProcesses(error);
         }
+
+        Host_->SetUserJobMemoryUsage(rss);
     }
 
     void CheckBlockIOUsage()
@@ -1186,25 +1208,19 @@ private:
             return;
         }
 
-        auto servicedIOs = BlockIO_.GetIOServiced();
+        auto statistics = BlockIO_.GetStatistics();
 
-        for (const auto& item : servicedIOs) {
-            LOG_DEBUG("IO operations serviced (OperationCount: %v, OperationType: %v, DeviceId: %v)",
-                item.Value,
-                item.Type,
-                item.DeviceId);
+        if (UserJobSpec_.has_iops_threshold() &&
+            statistics.IORead > UserJobSpec_.iops_threshold() &&
+            !IsWoodpecker_) 
+        {
+            LOG_DEBUG("Woodpecker detected (IORead: %v, Threshold: %v)", 
+                statistics.IORead, 
+                UserJobSpec_.iops_threshold());
+            IsWoodpecker_ = true;
 
-            if (UserJobSpec_.has_iops_threshold() && 
-                item.Type == "read" &&
-                !IsWoodpecker_ &&
-                item.Value > UserJobSpec_.iops_threshold()) 
-            {
-                LOG_DEBUG("Woodpecker detected (DeviceId: %v)", item.DeviceId);
-                IsWoodpecker_ = true;
-
-                if (UserJobSpec_.has_iops_throttler_limit()) {
-                    BlockIO_.ThrottleOperations(item.DeviceId, UserJobSpec_.iops_throttler_limit());
-                }
+            if (UserJobSpec_.has_iops_throttler_limit()) {
+                BlockIO_.ThrottleOperations(UserJobSpec_.iops_throttler_limit());
             }
         }
     }

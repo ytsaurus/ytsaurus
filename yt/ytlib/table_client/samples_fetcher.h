@@ -16,18 +16,18 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSample 
-{   
-    TOwningKey Key;
+{
+    //! The key is stored in row buffer.
+    TKey Key;
 
-    //! True, if the sample is trimmed to fulfil #MaxSampleSize_.
+    //! |true| if the sample is trimmed to obey max sample size limit.
     bool Incomplete;
 
-    //! Proportional to  data size this sample represents.
+    //! Proportional to the data size this sample represents.
     i64 Weight;
 };
 
 bool operator==(const TSample& lhs, const TSample& rhs);
-
 bool operator<(const TSample& lhs, const TSample& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -40,11 +40,12 @@ class TSamplesFetcher
 public:
     TSamplesFetcher(
         NChunkClient::TFetcherConfigPtr config,
-        i64 desiredSampleCount,
+        int desiredSampleCount,
         const TKeyColumns& keyColumns,
-        i32 maxSampleSize,
+        i64 maxSampleSize,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         IInvokerPtr invoker,
+        NTableClient::TRowBufferPtr rowBuffer,
         NChunkClient::TScrapeChunksCallback scraperCallback,
         NApi::IClientPtr client,
         const NLogging::TLogger& logger);
@@ -56,8 +57,8 @@ public:
 
 private:
     const TKeyColumns KeyColumns_;
-    const i64 DesiredSampleCount_;
-    const i32 MaxSampleSize_;
+    const int DesiredSampleCount_;
+    const i64 MaxSampleSize_;
 
     i64 SizeBetweenSamples_ = 0;
     i64 TotalDataSize_ = 0;

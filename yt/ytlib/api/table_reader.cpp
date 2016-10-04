@@ -113,7 +113,7 @@ TSchemalessTableReader::TSchemalessTableReader(
     ITransactionPtr transaction,
     const TRichYPath& richPath,
     bool unordered)
-    : Config_(config)
+    : Config_(CloneYsonSerializable(config))
     , Options_(options)
     , Client_(client)
     , Transaction_(transaction)
@@ -123,6 +123,8 @@ TSchemalessTableReader::TSchemalessTableReader(
 {
     YCHECK(Config_);
     YCHECK(Client_);
+
+    Config_->WorkloadDescriptor.Annotations.push_back(Format("TablePath: %v", RichPath_.GetPath()));
 
     Logger.AddTag("Path: %v, TransactionId: %v",
         RichPath_.GetPath(),

@@ -82,11 +82,8 @@ void TExecNode::SetResourceUsage(const TJobResources& value)
 
 ////////////////////////////////////////////////////////////////////
 
-TExecNodeDescriptor::TExecNodeDescriptor()
-{ }
-
 TExecNodeDescriptor::TExecNodeDescriptor(
-    const NNodeTrackerClient::TNodeId& id,
+    NNodeTrackerClient::TNodeId id,
     const Stroka& address,
     double ioWeight,
     const TJobResources& resourceLimits,
@@ -103,7 +100,7 @@ bool TExecNodeDescriptor::CanSchedule(const TNullable<Stroka>& tag) const
     return !tag || Tags.find(*tag) != Tags.end();
 }
 
-void TExecNodeDescriptor::Persist(TStreamPersistenceContext& context)
+void TExecNodeDescriptor::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;
 

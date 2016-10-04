@@ -29,7 +29,7 @@ DEFINE_REFCOUNTED_TYPE(TControlAttributesConfig);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYsonFormatConfig
-    : public NYTree::TYsonSerializable
+    : public NTableClient::TTypeConversionConfig
 {
 public:
     NYson::EYsonFormat Format;
@@ -65,7 +65,7 @@ DEFINE_ENUM(EJsonAttributesMode,
 );
 
 class TJsonFormatConfig
-    : public NYTree::TYsonSerializable
+    : public NTableClient::TTypeConversionConfig
 {
 public:
     EJsonFormat Format;
@@ -135,13 +135,13 @@ DEFINE_REFCOUNTED_TYPE(TJsonFormatConfig)
 // All fields are declared in Base classes, all parameters are                               //
 // registered in derived classes.                                                            //
 
-class TTableFormatConfigBase 
-    : public NYTree::TYsonSerializable 
+class TTableFormatConfigBase
+    : public NTableClient::TTypeConversionConfig
 {
 public:
     char RecordSeparator;
     char FieldSeparator;
-    
+
     // Escaping rules (EscapingSymbol is '\\')
     //  * '\0' ---> "\0"
     //  * '\n' ---> "\n"
@@ -149,7 +149,7 @@ public:
     //  * 'X'  ---> "\X" if X not in ['\0', '\n', '\t']
     bool EnableEscaping;
     char EscapingSymbol;
-    
+
     bool EnableTableIndex;
 };
 
@@ -375,6 +375,38 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchemafulDsvFormatConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(ENestedMessagesMode,
+    (Protobuf)
+    (Yson)
+);
+
+class TProtobufFormatConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    Stroka FileDescriptorSet;
+    std::vector<int> FileIndices;
+    std::vector<int> MessageIndices;
+    bool EnumsAsStrings;
+    ENestedMessagesMode NestedMessagesMode;
+
+    TProtobufFormatConfig()
+    {
+        RegisterParameter("file_descriptor_set", FileDescriptorSet)
+            .NonEmpty();
+        RegisterParameter("file_indices", FileIndices);
+        RegisterParameter("message_indices", MessageIndices);
+        RegisterParameter("enums_as_strings", EnumsAsStrings)
+            .Default(false);
+        RegisterParameter("nested_messages_mode", NestedMessagesMode)
+            .Default(ENestedMessagesMode::Protobuf);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TProtobufFormatConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 

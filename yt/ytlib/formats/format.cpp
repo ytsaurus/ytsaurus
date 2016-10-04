@@ -12,6 +12,8 @@
 #include "yamred_dsv_parser.h"
 #include "yamred_dsv_writer.h"
 #include "yson_parser.h"
+#include "protobuf_parser.h"
+#include "protobuf_writer.h"
 
 #include <yt/core/misc/error.h>
 
@@ -22,6 +24,7 @@
 #include <yt/core/yson/forwarding_consumer.h>
 
 #include <yt/ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/table_consumer.h>
 
 namespace NYT {
 namespace NFormats {
@@ -149,6 +152,38 @@ std::unique_ptr<IFlushableYsonConsumer> CreateConsumerForDsv(
     };
 }
 
+class TTableParserAdapter
+    : public IParser
+{
+public:
+    TTableParserAdapter(
+        const TFormat& format,
+        std::vector<IValueConsumer*> valueConsumers,
+        int tableIndex)
+        : TableConsumer_(new TTableConsumer(
+            valueConsumers,
+            tableIndex))
+        , Parser_(CreateParserForFormat(
+            format,
+            EDataType::Tabular,
+            TableConsumer_.get()))
+    { }
+
+    virtual void Read(const TStringBuf& data) override
+    {
+        Parser_->Read(data);
+    }
+
+    virtual void Finish() override
+    {
+        Parser_->Finish();
+    }
+
+private:
+    const std::unique_ptr<IYsonConsumer> TableConsumer_;
+    const std::unique_ptr<IParser> Parser_;
+};
+
 } // namespace
 
 std::unique_ptr<IFlushableYsonConsumer> CreateConsumerForFormat(
@@ -265,7 +300,15 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
                 std::move(output),
                 enableContextSaving,
                 controlAttributesConfig,
-                keyColumnCount); 
+                keyColumnCount);
+        case EFormatType::Protobuf:
+            return CreateSchemalessWriterForProtobuf(
+                format.Attributes(),
+                nameTable,
+                std::move(output),
+                enableContextSaving,
+                controlAttributesConfig,
+                keyColumnCount);
         default:
             auto adapter = New<TSchemalessWriterAdapter>(
                 nameTable,
@@ -405,6 +448,22 @@ std::unique_ptr<IParser> CreateParserForFormat(const TFormat& format, EDataType 
         default:
             THROW_ERROR_EXCEPTION("Unsupported input format %Qlv",
                 format.GetType());
+    }
+}
+
+std::unique_ptr<IParser> CreateParserForFormat(
+    const TFormat& format,
+    const std::vector<IValueConsumer*>& valueConsumers,
+    int tableIndex)
+{
+    switch (format.GetType()) {
+        case EFormatType::Protobuf: {
+            auto config = ConvertTo<TProtobufFormatConfigPtr>(&format.Attributes());
+            return CreateParserForProtobuf(valueConsumers[tableIndex], config, tableIndex);
+        }
+        default:
+            return std::unique_ptr<IParser>(
+                new TTableParserAdapter(format, valueConsumers, tableIndex));
     }
 }
 

@@ -10,6 +10,16 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// NYT::TError::FromSystem adds this value to a system errno. The enum
+// below lists several errno's that are used in our code.
+const int LinuxErrorCodeBase = 4200;
+
+DEFINE_ENUM(ELinuxErrorCode,
+    ((NOSPC)((LinuxErrorCodeBase + ENOSPC)))
+)
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::vector<int> GetPidsByUid(int uid);
 
 //! Gets the resident set size of a process.

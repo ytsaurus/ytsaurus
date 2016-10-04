@@ -226,7 +226,7 @@ TObjectServiceProxy::TReqExecuteBatchPtr TObjectServiceProxy::ExecuteBatch()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TError GetCumulativeError(const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
+TError GetCumulativeError(const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError, const Stroka& key)
 {
     if (!batchRspOrError.IsOK()) {
         return batchRspOrError;
@@ -234,7 +234,7 @@ TError GetCumulativeError(const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr&
 
     TError cumulativeError("Error communicating with master");
     const auto& batchRsp = batchRspOrError.Value();
-    for (const auto& rspOrError : batchRsp->GetResponses()) {
+    for (const auto& rspOrError : batchRsp->GetResponses(key)) {
         if (!rspOrError.IsOK()) {
             cumulativeError.InnerErrors().push_back(rspOrError);
         }

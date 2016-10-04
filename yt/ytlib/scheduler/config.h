@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "helpers.h"
 
 #include <yt/ytlib/api/config.h>
 
@@ -17,6 +18,7 @@
 #include <yt/core/rpc/config.h>
 #include <yt/core/rpc/retrying_channel.h>
 
+#include <yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/yson_serializable.h>
 
@@ -142,6 +144,10 @@ public:
     //! Users that can change operation parameters, e.g abort or suspend it.
     std::vector<Stroka> Owners;
 
+    //! A storage keeping YSON map that is hidden under ACL in Cypress. It will be exported
+    //! to all user jobs via environment variables.
+    NYTree::IMapNodePtr SecureVault;
+
     TOperationSpecBase()
     {
         RegisterParameter("intermediate_data_account", IntermediateDataAccount)
@@ -211,11 +217,22 @@ public:
         RegisterParameter("owners", Owners)
             .Default();
 
+        RegisterParameter("secure_vault", SecureVault)
+            .Default();
+
         RegisterValidator([&] () {
             if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
                 UnavailableChunkTactics == EUnavailableChunkAction::Skip)
             {
                 THROW_ERROR_EXCEPTION("Your tactics conflicts with your strategy, Luke!");
+            }
+        });
+
+        RegisterValidator([&] () {
+            if (SecureVault) {
+                for (const auto& name : SecureVault->GetKeys()) {
+                    ValidateEnvironmentVariableName(name);
+                }
             }
         });
 
@@ -331,6 +348,12 @@ public:
             if (TmpfsPath) {
                 i64 tmpfsSize = TmpfsSize ? *TmpfsSize : MemoryLimit;
                 MemoryReserveFactor = std::min(1.0, std::max(MemoryReserveFactor, double(tmpfsSize) / MemoryLimit));
+            }
+        });
+
+        RegisterValidator([&] () {
+            for (const auto& pair : Environment) {
+                ValidateEnvironmentVariableName(pair.first);
             }
         });
     }
@@ -1168,16 +1191,12 @@ public:
         RegisterParameter("mode", Mode)
             .Default(ESchedulingMode::FairShare);
 
-        // COMPAT(ignat): deprecated use max_running_operation_count instead.
-        RegisterParameter("max_running_operations", MaxRunningOperationCount)
-            .Default();
         RegisterParameter("max_running_operation_count", MaxRunningOperationCount)
+            .Alias("max_running_operations")
             .Default();
 
-        // COMPAT(ignat): deprecated use max_operation_count instead.
-        RegisterParameter("max_operations", MaxOperationCount)
-            .Default();
         RegisterParameter("max_operation_count", MaxOperationCount)
+            .Alias("max_operations")
             .Default();
 
         RegisterParameter("fifo_sort_parameters", FifoSortParameters)

@@ -149,7 +149,7 @@ void TProgressCounter::Finalize()
     }
 }
 
-void TProgressCounter::Persist(TStreamPersistenceContext& context)
+void TProgressCounter::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, TotalEnabled_);

@@ -40,9 +40,9 @@ public:
     virtual int GetWordSize() const override;
 
 private:
-    int DataPartCount_;
-    int ParityPartCount_;
-    int WordSize_;
+    const int DataPartCount_;
+    const int ParityPartCount_;
+    const int WordSize_;
 
     TPartIndexList Matrix_;
     TMatrix BitMatrix_;

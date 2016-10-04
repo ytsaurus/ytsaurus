@@ -1,11 +1,5 @@
 #include "output_stack.h"
 
-
-#include <library/streams/lz/lz.h>
-#include <library/streams/lzop/lzop.h>
-
-#include <util/stream/zlib.h>
-
 namespace NYT {
 namespace NNodeJS {
 

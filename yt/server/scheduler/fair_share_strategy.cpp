@@ -381,7 +381,8 @@ public:
         const auto& element = GetOperationElement(operationId);
         auto serializedParams = ConvertToAttributes(element->GetRuntimeParams());
         BuildYsonMapFluently(consumer)
-            .Items(*serializedParams);
+            .Items(*serializedParams)
+            .Item("pool").Value(element->GetParent()->GetId());
     }
 
     virtual void BuildOperationProgress(const TOperationId& operationId, IYsonConsumer* consumer) override
@@ -513,8 +514,12 @@ public:
             }
 
             auto rootElementSnapshot = CreateRootElementSnapshot();
+
+            TRootElementSnapshotPtr oldRootElementSnapshot;
             {
+                // NB: Avoid destroying the cloned tree inside critical section.
                 TWriterGuard guard(RootElementSnapshotLock);
+                std::swap(RootElementSnapshot, oldRootElementSnapshot);
                 RootElementSnapshot = rootElementSnapshot;
             }
 
@@ -522,7 +527,7 @@ public:
             for (const auto& pair : Pools) {
                 ProfileSchedulerElement(pair.second);
             }
-            ProfileSchedulerElement(RootElementSnapshot->RootElement);
+            ProfileSchedulerElement(RootElement);
         }
 
         LOG_INFO("Fair share successfully updated");
@@ -678,7 +683,7 @@ private:
         {
             LOG_DEBUG("Scheduling new jobs");
             PROFILE_AGGREGATED_TIMING(NonPreemptiveProfilingCounters.PrescheduleJobTimeCounter) {
-                rootElement->PrescheduleJob(context, /*starvingOnly*/ false);
+                rootElement->PrescheduleJob(context, /*starvingOnly*/ false, /*aggressiveStarvationEnabled*/ false);
             }
 
             TScopedTimer timer;
@@ -732,7 +737,7 @@ private:
         {
             LOG_DEBUG("Scheduling new jobs with preemption");
             PROFILE_AGGREGATED_TIMING(PreemptiveProfilingCounters.PrescheduleJobTimeCounter) {
-                rootElement->PrescheduleJob(context, /*starvingOnly*/ true);
+                rootElement->PrescheduleJob(context, /*starvingOnly*/ true, /*aggressiveStarvationEnabled*/ false);
             }
 
             // Clean data from previous profiling.
@@ -1064,7 +1069,7 @@ private:
     TRootElementSnapshotPtr CreateRootElementSnapshot()
     {
         auto snapshot = New<TRootElementSnapshot>();
-        snapshot->RootElement = RootElement->CloneRoot();
+        snapshot->RootElement = RootElement->Clone();
         snapshot->RootElement->BuildOperationToElementMapping(&snapshot->OperationIdToElement);
         return snapshot;
     }
@@ -1207,7 +1212,7 @@ private:
 
     void ProfileSchedulerElement(TCompositeSchedulerElementPtr element)
     {
-        const auto& tag = element->GetProfilingTag();
+        auto tag = element->GetProfilingTag();
         Profiler.Enqueue(
             "/pools/fair_share_ratio_x100000",
             static_cast<i64>(element->Attributes().FairShareRatio * 1e5),

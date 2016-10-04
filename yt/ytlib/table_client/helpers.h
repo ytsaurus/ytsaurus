@@ -20,6 +20,9 @@ class TTableOutput
 {
 public:
     TTableOutput(const NFormats::TFormat& format, NYson::IYsonConsumer* consumer);
+
+    explicit TTableOutput(std::unique_ptr<NFormats::IParser> parser);
+
     ~TTableOutput() throw();
 
 private:
@@ -54,7 +57,7 @@ void PipeInputToOutput(
 
 // NB: not using TYsonString here to avoid copying.
 TUnversionedValue MakeUnversionedValue(
-    const TStringBuf& ysonString, int id, 
+    const TStringBuf& ysonString, int id,
     NYson::TStatelessLexer& lexer);
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -85,3 +88,7 @@ TTableUploadOptions GetTableUploadOptions(
 
 } // namespace NYT
 } // namespace NTableClient
+
+#define HELPERS_INL_H_
+#include "helpers-inl.h"
+#undef HELPERS_INL_H_
