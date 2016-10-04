@@ -3239,7 +3239,6 @@ public:
             TRowModification modification;
             modification.Type = ERowModificationType::Write;
             modification.Row = row;
-            modification.Aggregate = options.Aggregate;
             modifications.push_back(modification);
         }
 
@@ -3479,12 +3478,6 @@ private:
 
                 TTabletInfoPtr tabletInfo;
                 if (tableInfo->IsSorted()) {
-                    for (int index = primarySchema.GetKeyColumnCount(); index < capturedRow.GetCount(); ++index) {
-                        auto& value = capturedRow[index];
-                        const auto& columnSchema = primarySchema.Columns()[value.Id];
-                        value.Aggregate = columnSchema.Aggregate ? modification.Aggregate : false;
-                    }
-
                     if (evaluator) {
                         evaluator->EvaluateKeys(capturedRow, rowBuffer);
                     }

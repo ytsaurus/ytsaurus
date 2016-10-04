@@ -266,9 +266,6 @@ std::vector<TUnversionedRow> ParseRows(
 
 void TInsertRowsCommand::Execute(ICommandContextPtr context)
 {
-    TWriteRowsOptions writeOptions;
-    writeOptions.Aggregate = Aggregate;
-
     auto config = UpdateYsonSerializable(
         context->GetConfig()->TableWriter,
         TableWriter);
@@ -290,6 +287,7 @@ void TInsertRowsCommand::Execute(ICommandContextPtr context)
     TBuildingValueConsumer valueConsumer(
         tableInfo->Schemas[ETableSchemaKind::Write],
         ConvertTo<TTypeConversionConfigPtr>(context->GetInputFormat().Attributes()));
+    valueConsumer.SetAggregate(Aggregate);
     valueConsumer.SetTreatMissingAsNull(!Update);
 
     auto rows = ParseRows(context, config, &valueConsumer);
@@ -308,8 +306,7 @@ void TInsertRowsCommand::Execute(ICommandContextPtr context)
     transaction->WriteRows(
         Path.GetPath(),
         valueConsumer.GetNameTable(),
-        std::move(rowRange),
-        writeOptions);
+        std::move(rowRange));
 
     if (ShouldCommitTransaction()) {
         WaitFor(transaction->Commit())

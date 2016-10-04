@@ -213,11 +213,6 @@ TBuildingValueConsumer::TBuildingValueConsumer(
     InitializeIdToTypeMapping();
 }
 
-const std::vector<TUnversionedOwningRow>& TBuildingValueConsumer::GetOwningRows() const
-{
-    return Rows_;
-}
-
 std::vector<TUnversionedRow> TBuildingValueConsumer::GetRows() const
 {
     std::vector<TUnversionedRow> result;
@@ -226,6 +221,11 @@ std::vector<TUnversionedRow> TBuildingValueConsumer::GetRows() const
         result.push_back(row);
     }
     return result;
+}
+
+void TBuildingValueConsumer::SetAggregate(bool value)
+{
+    Aggregate_ = value;
 }
 
 void TBuildingValueConsumer::SetTreatMissingAsNull(bool value)
@@ -279,19 +279,24 @@ TUnversionedValue TBuildingValueConsumer::MakeAnyFromScalar(const TUnversionedVa
         TStringBuf(
             ValueBuffer_.Begin(),
             ValueBuffer_.Begin() + ValueBuffer_.Size()),
-        value.Id);
+        value.Id,
+        value.Aggregate);
 }
 
 void TBuildingValueConsumer::OnMyValue(const TUnversionedValue& value)
 {
-    auto schemaType = Schema_.Columns()[value.Id].Type;
-    if (schemaType == EValueType::Any && value.Type != EValueType::Any) {
-        Builder_.AddValue(MakeAnyFromScalar(value));
+    auto valueCopy = value;
+    const auto& columnSchema = Schema_.Columns()[valueCopy.Id];
+    if (columnSchema.Aggregate) {
+        valueCopy.Aggregate = Aggregate_;
+    }
+    if (columnSchema.Type == EValueType::Any && valueCopy.Type != EValueType::Any) {
+        Builder_.AddValue(MakeAnyFromScalar(valueCopy));
         ValueBuffer_.Clear();
     } else {
-        Builder_.AddValue(value);
+        Builder_.AddValue(valueCopy);
     }
-    WrittenFlags_[value.Id] = true;
+    WrittenFlags_[valueCopy.Id] = true;
 }
 
 void TBuildingValueConsumer::OnEndRow()
