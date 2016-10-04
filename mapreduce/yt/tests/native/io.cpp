@@ -115,6 +115,8 @@ YT_TEST(TIo, ReadMultipleRangesYaMR)
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
 Stroka RandomBytes() {
@@ -124,7 +126,6 @@ Stroka RandomBytes() {
 }
 
 } // namespace
-
 
 YT_TEST(TIo, ReadErrorInTrailers)
 {
@@ -153,6 +154,27 @@ YT_TEST(TIo, ReadErrorInTrailers)
         }
     };
     ASSERT_THROW(readRemaining(), NYT::TErrorResponse);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+YT_TEST(TIo, ReadUncanonicalPath)
+{
+    auto writer = Client()->CreateTableWriter<TNode>(
+        TRichYPath(Input()).SortedBy("key"));
+
+    for (int i = 0; i < 100; ++i) {
+        writer->AddRow(TNode()("key", i));
+    }
+    writer->Finish();
+
+    TRichYPath path(Input() + Stroka("[#10:#20,30:40,#50:#60,70:80,#90,95]"));
+
+    auto reader = Client()->CreateTableReader<TNode>(path);
+    for (; reader->IsValid(); reader->Next()) {
+        const auto& row = reader->GetRow();
+        Cout << row["key"].AsInt64() << ", " << reader->GetRowIndex() << Endl;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
