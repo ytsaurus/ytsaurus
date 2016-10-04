@@ -20,13 +20,19 @@ from .operation_commands import format_operation_stderrs, Operation, OperationsT
 from .py_wrapper import aggregator, raw, raw_io, reduce_aggregator, \
                         enable_python_job_processing_for_standalone_binary, initialize_python_job_processing
 from .string_iter_io import StringIterIO
-from .http_helpers import _cleanup_http_session
 from .user_statistics import write_statistics, get_blkio_cgroup_statistics, get_memory_cgroup_statistics
-
 from .yamr_mode import set_yamr_mode
 
 from .common import get_version, is_inside_job
 __version__ = VERSION = get_version()
+
+# Some usefull parts of private API.
+from .http_helpers import \
+    _cleanup_http_session, \
+    get_token as _get_token, \
+    get_proxy_url as _get_proxy_url, \
+    make_get_request_with_retries as _make_get_request_with_retries, \
+    get_retriable_errors as _get_retriable_errors
 
 # For PyCharm checks
 from . import config

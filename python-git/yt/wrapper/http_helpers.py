@@ -46,7 +46,7 @@ def lazy_import_requests():
         import yt.packages.requests
         requests = yt.packages.requests
 
-def get_session(client=None):
+def _get_session(client=None):
     lazy_import_requests()
     if get_option("_requests_session", client) is None:
         set_option("_requests_session", requests.Session(), client)
@@ -128,14 +128,14 @@ def create_response(response, request_info, client):
 def _process_request_backoff(current_time, client):
     backoff = get_config(client)["proxy"]["request_backoff_time"]
     if backoff is not None:
-        last_request_time = getattr(get_session(client=client), "last_request_time", 0)
+        last_request_time = getattr(_get_session(client=client), "last_request_time", 0)
         now_seconds = total_seconds(current_time - datetime(1970, 1, 1))
         diff = now_seconds - last_request_time
         if diff * 1000.0 < float(backoff):
             time.sleep(float(backoff) / 1000.0 - diff)
-        get_session(client=client).last_request_time = now_seconds
+        _get_session(client=client).last_request_time = now_seconds
 
-def raise_for_status(response, request_info):
+def _raise_for_status(response, request_info):
     if response.status_code == 503:
         raise YtProxyUnavailable(response)
     if response.status_code == 401:
@@ -152,7 +152,7 @@ def raise_for_status(response, request_info):
 def make_request_with_retries(method, url=None, make_retries=True, response_format=None,
                               params=None, timeout=None, retry_action=None, log_body=True, is_ping=False, proxy_provider=None,
                               client=None, **kwargs):
-    configure_ip(get_session(client),
+    configure_ip(_get_session(client),
                  get_config(client)["proxy"]["force_ipv4"],
                  get_config(client)["proxy"]["force_ipv6"])
 
@@ -184,7 +184,7 @@ def make_request_with_retries(method, url=None, make_retries=True, response_form
         request_info = {"headers": headers, "url": url, "params": params}
         try:
             try:
-                response = create_response(get_session(client=client).request(method, url, timeout=timeout, **kwargs),
+                response = create_response(_get_session(client=client).request(method, url, timeout=timeout, **kwargs),
                                            request_info, client)
 
                 if get_option("_ENABLE_HTTP_CHAOS_MONKEY", client) and random.randint(1, 5) == 1:
@@ -201,7 +201,7 @@ def make_request_with_retries(method, url=None, make_retries=True, response_form
                         rsp = create_response(error.response, request_info, client)
                     except:
                         reraise(*exc_info)
-                    raise_for_status(rsp, request_info)
+                    _raise_for_status(rsp, request_info)
                 raise
 
             # Sometimes (quite often) we obtain incomplete response with body expected to be JSON.
@@ -211,7 +211,7 @@ def make_request_with_retries(method, url=None, make_retries=True, response_form
 
             logger.debug("Response headers %r", response.headers)
 
-            raise_for_status(response, request_info)
+            _raise_for_status(response, request_info)
             return response
         except tuple(retriable_errors) as error:
             logger.warning("HTTP %s request %s has failed with error %s, message: '%s', headers: %s",
