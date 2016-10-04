@@ -121,13 +121,6 @@ TYPath AddPathPrefix(const TYPath& path)
     return TConfig::Get()->Prefix + path;
 }
 
-TRichYPath AddPathPrefix(const TRichYPath& path)
-{
-    auto pathCopy(path);
-    pathCopy.Path_ = AddPathPrefix(path.Path_);
-    return pathCopy;
-}
-
 Stroka GetWriteTableCommand()
 {
     return TConfig::Get()->ApiVersion == "v2" ? "write" : "write_table";

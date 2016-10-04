@@ -116,7 +116,6 @@ private:
     TMutex Lock_;
 };
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobPreparer
@@ -691,11 +690,6 @@ void BuildCommonOperationPart(TFluentMap fluent)
         });
 }
 
-void BuildPathPrefix(TFluentList fluent, const TRichYPath& path)
-{
-    fluent.Item().Value(AddPathPrefix(path));
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 Stroka MergeSpec(TNode& dst, const TOperationOptions& options)
@@ -715,7 +709,7 @@ void CreateOutputTable(
     if (!path.Path_) {
         ythrow yexception() << "Output table is not set";
     }
-    Create(auth, transactionId, AddPathPrefix(path).Path_, "table", true, true);
+    Create(auth, transactionId, path.Path_, "table", true, true);
 }
 
 void CreateOutputTables(
@@ -772,21 +766,24 @@ TOperationId ExecuteMap(
     IJob* mapper,
     const TOperationOptions& options)
 {
+    auto inputs = CanonizePaths(auth, spec.Inputs_);
+    auto outputs = CanonizePaths(auth, spec.Outputs_);
+
     TMaybe<TNode> format;
     if (spec.InputDesc_.Format == TMultiFormatDesc::F_YAMR &&
         options.UseTableFormats_)
     {
-        format = GetTableFormats(auth, transactionId, spec.Inputs_);
+        format = GetTableFormats(auth, transactionId, inputs);
     }
 
-    CreateOutputTables(auth, transactionId, spec.Outputs_);
+    CreateOutputTables(auth, transactionId, outputs);
 
     TJobPreparer map(
         auth,
         "--yt-map",
         spec.MapperSpec_,
         mapper,
-        spec.Outputs_.size(),
+        outputs.size(),
         options);
 
     TNode specNode = BuildYsonNodeFluently()
@@ -798,8 +795,8 @@ TOperationId ExecuteMap(
             spec.InputDesc_,
             spec.OutputDesc_,
             std::placeholders::_1))
-        .Item("input_table_paths").DoListFor(spec.Inputs_, BuildPathPrefix)
-        .Item("output_table_paths").DoListFor(spec.Outputs_, BuildPathPrefix)
+        .Item("input_table_paths").List(inputs)
+        .Item("output_table_paths").List(outputs)
         .Item("job_io").BeginMap()
             .Item("control_attributes").BeginMap()
                 .Item("enable_row_index").Value(true)
@@ -821,8 +818,8 @@ TOperationId ExecuteMap(
         MergeSpec(specNode, options));
 
     LogJob(operationId, mapper, "mapper");
-    LogYPaths(operationId, spec.Inputs_, "input");
-    LogYPaths(operationId, spec.Outputs_, "output");
+    LogYPaths(operationId, inputs, "input");
+    LogYPaths(operationId, outputs, "output");
 
     if (options.Wait_) {
         WaitForOperation(auth, transactionId, operationId);
@@ -837,21 +834,24 @@ TOperationId ExecuteReduce(
     IJob* reducer,
     const TOperationOptions& options)
 {
+    auto inputs = CanonizePaths(auth, spec.Inputs_);
+    auto outputs = CanonizePaths(auth, spec.Outputs_);
+
     TMaybe<TNode> format;
     if (spec.InputDesc_.Format == TMultiFormatDesc::F_YAMR &&
         options.UseTableFormats_)
     {
-        format = GetTableFormats(auth, transactionId, spec.Inputs_);
+        format = GetTableFormats(auth, transactionId, inputs);
     }
 
-    CreateOutputTables(auth, transactionId, spec.Outputs_);
+    CreateOutputTables(auth, transactionId, outputs);
 
     TJobPreparer reduce(
         auth,
         "--yt-reduce",
         spec.ReducerSpec_,
         reducer,
-        spec.Outputs_.size(),
+        outputs.size(),
         options);
 
     TNode specNode = BuildYsonNodeFluently()
@@ -868,8 +868,8 @@ TOperationId ExecuteReduce(
         .DoIf(spec.JoinBy_.Defined(), [&] (TFluentMap fluent) {
             fluent.Item("join_by").Value(spec.JoinBy_.GetRef());
         })
-        .Item("input_table_paths").DoListFor(spec.Inputs_, BuildPathPrefix)
-        .Item("output_table_paths").DoListFor(spec.Outputs_, BuildPathPrefix)
+        .Item("input_table_paths").List(inputs)
+        .Item("output_table_paths").List(outputs)
         .Item("job_io").BeginMap()
             .Item("control_attributes").BeginMap()
                 .Item("enable_key_switch").Value(true)
@@ -889,8 +889,8 @@ TOperationId ExecuteReduce(
         MergeSpec(specNode, options));
 
     LogJob(operationId, reducer, "reducer");
-    LogYPaths(operationId, spec.Inputs_, "input");
-    LogYPaths(operationId, spec.Outputs_, "output");
+    LogYPaths(operationId, inputs, "input");
+    LogYPaths(operationId, outputs, "output");
 
     if (options.Wait_) {
         WaitForOperation(auth, transactionId, operationId);
@@ -905,21 +905,24 @@ TOperationId ExecuteJoinReduce(
     IJob* reducer,
     const TOperationOptions& options)
 {
+    auto inputs = CanonizePaths(auth, spec.Inputs_);
+    auto outputs = CanonizePaths(auth, spec.Outputs_);
+
     TMaybe<TNode> format;
     if (spec.InputDesc_.Format == TMultiFormatDesc::F_YAMR &&
         options.UseTableFormats_)
     {
-        format = GetTableFormats(auth, transactionId, spec.Inputs_);
+        format = GetTableFormats(auth, transactionId, inputs);
     }
 
-    CreateOutputTables(auth, transactionId, spec.Outputs_);
+    CreateOutputTables(auth, transactionId, outputs);
 
     TJobPreparer reduce(
         auth,
         "--yt-reduce",
         spec.ReducerSpec_,
         reducer,
-        spec.Outputs_.size(),
+        outputs.size(),
         options);
 
     TNode specNode = BuildYsonNodeFluently()
@@ -932,8 +935,8 @@ TOperationId ExecuteJoinReduce(
             spec.OutputDesc_,
             std::placeholders::_1))
         .Item("join_by").Value(spec.JoinBy_)
-        .Item("input_table_paths").DoListFor(spec.Inputs_, BuildPathPrefix)
-        .Item("output_table_paths").DoListFor(spec.Outputs_, BuildPathPrefix)
+        .Item("input_table_paths").List(inputs)
+        .Item("output_table_paths").List(outputs)
         .Item("job_io").BeginMap()
             .Item("control_attributes").BeginMap()
                 .Item("enable_key_switch").Value(true)
@@ -953,8 +956,8 @@ TOperationId ExecuteJoinReduce(
         MergeSpec(specNode, options));
 
     LogJob(operationId, reducer, "reducer");
-    LogYPaths(operationId, spec.Inputs_, "input");
-    LogYPaths(operationId, spec.Outputs_, "output");
+    LogYPaths(operationId, inputs, "input");
+    LogYPaths(operationId, outputs, "output");
 
     if (options.Wait_) {
         WaitForOperation(auth, transactionId, operationId);
@@ -975,14 +978,17 @@ TOperationId ExecuteMapReduce(
     const TMultiFormatDesc& inputReducerDesc,
     const TOperationOptions& options)
 {
+    auto inputs = CanonizePaths(auth, spec.Inputs_);
+    auto outputs = CanonizePaths(auth, spec.Outputs_);
+
     TMaybe<TNode> format;
     if (spec.InputDesc_.Format == TMultiFormatDesc::F_YAMR &&
         options.UseTableFormats_)
     {
-        format = GetTableFormats(auth, transactionId, spec.Inputs_);
+        format = GetTableFormats(auth, transactionId, inputs);
     }
 
-    CreateOutputTables(auth, transactionId, spec.Outputs_);
+    CreateOutputTables(auth, transactionId, outputs);
 
     TKeyColumns sortBy(spec.SortBy_);
     TKeyColumns reduceBy(spec.ReduceBy_);
@@ -1016,7 +1022,7 @@ TOperationId ExecuteMapReduce(
         "--yt-reduce",
         spec.ReducerSpec_,
         reducer,
-        spec.Outputs_.size(),
+        outputs.size(),
         options);
 
     TNode specNode = BuildYsonNodeFluently()
@@ -1064,8 +1070,8 @@ TOperationId ExecuteMapReduce(
             std::placeholders::_1))
         .Item("sort_by").Value(sortBy)
         .Item("reduce_by").Value(reduceBy)
-        .Item("input_table_paths").DoListFor(spec.Inputs_, BuildPathPrefix)
-        .Item("output_table_paths").DoListFor(spec.Outputs_, BuildPathPrefix)
+        .Item("input_table_paths").List(inputs)
+        .Item("output_table_paths").List(outputs)
         .Item("map_job_io").BeginMap()
             .Item("control_attributes").BeginMap()
                 .Item("enable_row_index").Value(true)
@@ -1102,8 +1108,8 @@ TOperationId ExecuteMapReduce(
     LogJob(operationId, mapper, "mapper");
     LogJob(operationId, reduceCombiner, "reduce_combiner");
     LogJob(operationId, reducer, "reducer");
-    LogYPaths(operationId, spec.Inputs_, "input");
-    LogYPaths(operationId, spec.Outputs_, "output");
+    LogYPaths(operationId, inputs, "input");
+    LogYPaths(operationId, outputs, "output");
 
     if (options.Wait_) {
         WaitForOperation(auth, transactionId, operationId);
@@ -1118,12 +1124,15 @@ TOperationId ExecuteSort(
     const TSortOperationSpec& spec,
     const TOperationOptions& options)
 {
-    CreateOutputTable(auth, transactionId, spec.Output_);
+    auto inputs = CanonizePaths(auth, spec.Inputs_);
+    auto output = CanonizePath(auth, spec.Output_);
+
+    CreateOutputTable(auth, transactionId, output);
 
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()
-        .Item("input_table_paths").DoListFor(spec.Inputs_, BuildPathPrefix)
-        .Item("output_table_path").Value(AddPathPrefix(spec.Output_))
+        .Item("input_table_paths").List(inputs)
+        .Item("output_table_path").Value(output)
         .Item("sort_by").Value(spec.SortBy_)
         .Do(BuildCommonOperationPart)
     .EndMap().EndMap();
@@ -1134,8 +1143,8 @@ TOperationId ExecuteSort(
         "sort",
         MergeSpec(specNode, options));
 
-    LogYPaths(operationId, spec.Inputs_, "input");
-    LogYPath(operationId, spec.Output_, "output");
+    LogYPaths(operationId, inputs, "input");
+    LogYPath(operationId, output, "output");
 
     if (options.Wait_) {
         WaitForOperation(auth, transactionId, operationId);
@@ -1149,12 +1158,15 @@ TOperationId ExecuteMerge(
     const TMergeOperationSpec& spec,
     const TOperationOptions& options)
 {
-    CreateOutputTable(auth, transactionId, spec.Output_);
+    auto inputs = CanonizePaths(auth, spec.Inputs_);
+    auto output = CanonizePath(auth, spec.Output_);
+
+    CreateOutputTable(auth, transactionId, output);
 
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()
-        .Item("input_table_paths").DoListFor(spec.Inputs_, BuildPathPrefix)
-        .Item("output_table_path").Value(AddPathPrefix(spec.Output_))
+        .Item("input_table_paths").List(inputs)
+        .Item("output_table_path").Value(output)
         .Item("mode").Value(ToString(spec.Mode_))
         .Item("combine_chunks").Value(spec.CombineChunks_)
         .Item("force_transform").Value(spec.ForceTransform_)
@@ -1168,8 +1180,8 @@ TOperationId ExecuteMerge(
         "merge",
         MergeSpec(specNode, options));
 
-    LogYPaths(operationId, spec.Inputs_, "input");
-    LogYPath(operationId, spec.Output_, "output");
+    LogYPaths(operationId, inputs, "input");
+    LogYPath(operationId, output, "output");
 
     if (options.Wait_) {
         WaitForOperation(auth, transactionId, operationId);
@@ -1183,9 +1195,11 @@ TOperationId ExecuteErase(
     const TEraseOperationSpec& spec,
     const TOperationOptions& options)
 {
+    auto tablePath = CanonizePath(auth, spec.TablePath_);
+
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()
-        .Item("table_path").Value(AddPathPrefix(spec.TablePath_))
+        .Item("table_path").Value(tablePath)
         .Item("combine_chunks").Value(spec.CombineChunks_)
         .Do(BuildCommonOperationPart)
     .EndMap().EndMap();
@@ -1196,7 +1210,7 @@ TOperationId ExecuteErase(
         "erase",
         MergeSpec(specNode, options));
 
-    LogYPath(operationId, spec.TablePath_, "table_path");
+    LogYPath(operationId, tablePath, "table_path");
 
     if (options.Wait_) {
         WaitForOperation(auth, transactionId, operationId);

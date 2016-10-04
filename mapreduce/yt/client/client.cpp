@@ -246,14 +246,14 @@ public:
         header.AddTransactionId(TransactionId_);
         header.AddMutationId();
 
-        TRichYPath path(destinationPath);
+        TRichYPath path(AddPathPrefix(destinationPath));
         path.Append(options.Append_);
         header.SetParameters(BuildYsonStringFluently().BeginMap()
             .Item("source_paths").DoListFor(sourcePaths,
                 [] (TFluentList fluent, const TYPath& path) {
                     fluent.Item().Value(AddPathPrefix(path));
                 })
-            .Item("destination_path").Value(AddPathPrefix(path))
+            .Item("destination_path").Value(path)
         .EndMap());
 
         RetryRequest(Auth_, header);
@@ -265,14 +265,18 @@ public:
         const TRichYPath& path,
         const TFileReaderOptions& options) override
     {
-        return new TFileReader(AddPathPrefix(path), Auth_, TransactionId_, options);
+        return new TFileReader(
+            CanonizePath(Auth_, path),
+            Auth_,
+            TransactionId_,
+            options);
     }
 
     IFileWriterPtr CreateFileWriter(
         const TRichYPath& path,
         const TFileWriterOptions& options) override
     {
-        auto realPath = AddPathPrefix(path);
+        auto realPath = CanonizePath(Auth_, path);
         if (!NYT::Exists(Auth_, TransactionId_, realPath.Path_)) {
             NYT::Create(Auth_, TransactionId_, realPath.Path_, "file");
         }
@@ -427,7 +431,12 @@ private:
         const Stroka& formatConfig = Stroka())
     {
         return MakeHolder<TClientReader>(
-            AddPathPrefix(path), Auth_, TransactionId_, format, formatConfig, options);
+            CanonizePath(Auth_, path),
+            Auth_,
+            TransactionId_,
+            format,
+            formatConfig,
+            options);
     }
 
     THolder<TClientWriter> CreateClientWriter(
@@ -436,7 +445,7 @@ private:
         const TTableWriterOptions& options,
         const Stroka& formatConfig = Stroka())
     {
-        auto realPath = AddPathPrefix(path);
+        auto realPath = CanonizePath(Auth_, path);
         if (!NYT::Exists(Auth_, TransactionId_, realPath.Path_)) {
             NYT::Create(Auth_, TransactionId_, realPath.Path_, "table");
         }

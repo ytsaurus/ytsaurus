@@ -92,6 +92,12 @@ bool ParseBoolFromResponse(const Stroka& response);
 
 TGUID ParseGuidFromResponse(const Stroka& response);
 
+TRichYPath CanonizePath(
+    const TAuth& auth, const TRichYPath& path);
+
+yvector<TRichYPath> CanonizePaths(
+    const TAuth& auth, const yvector<TRichYPath>& paths);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 Stroka GetProxyForHeavyRequest(const TAuth& auth);

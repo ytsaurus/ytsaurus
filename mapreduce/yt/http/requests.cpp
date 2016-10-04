@@ -6,6 +6,7 @@
 #include <mapreduce/yt/common/log.h>
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/helpers.h>
+#include <mapreduce/yt/common/serialize.h>
 
 #include <library/json/json_reader.h>
 
@@ -42,6 +43,30 @@ void ParseJsonStringArray(const Stroka& response, yvector<Stroka>& result)
     for (size_t i = 0; i < array.size(); ++i) {
         result.push_back(array[i].GetString());
     }
+}
+
+TRichYPath CanonizePath(const TAuth& auth, const TRichYPath& path)
+{
+    TRichYPath result;
+    if (path.Path_.find_first_of("<>{}[]") != Stroka::npos) {
+        THttpHeader header("GET", "parse_ypath");
+        header.SetParameters(NodeToYsonString(NodeFromYPath(path)));
+        auto response = NodeFromYsonString(RetryRequest(auth, header));
+        Deserialize(result, response);
+    } else {
+        result = path;
+    }
+    result.Path_ = AddPathPrefix(result.Path_);
+    return result;
+}
+
+yvector<TRichYPath> CanonizePaths(const TAuth& auth, const yvector<TRichYPath>& paths)
+{
+    yvector<TRichYPath> result;
+    for (const auto& path : paths) {
+        result.push_back(CanonizePath(auth, path));
+    }
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

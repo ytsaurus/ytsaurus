@@ -42,7 +42,7 @@ TMaybe<TNode> GetTableFormats(
 
     bool start = true;
     for (auto& table : inputs) {
-        TMaybe<TNode> format = GetTableFormat(auth, transactionId, AddPathPrefix(table));
+        TMaybe<TNode> format = GetTableFormat(auth, transactionId, table);
 
         if (start) {
             result = format;
