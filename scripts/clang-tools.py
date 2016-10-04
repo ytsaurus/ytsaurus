@@ -140,6 +140,7 @@ def extract_perl_api_mapping(tus):
         IsDefinitionMatcher(),
         TypeMatcher(AnyOfMatcher(
             NameMatcher(r"NYT::NApi::T.*Options"),
+            NameMatcher(r"NYT::NPerl::T.*Options"),
             NameMatcher(r"NYT::NApi::TUserWorkloadDescriptor")
         ))
     ))

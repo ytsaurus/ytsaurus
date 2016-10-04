@@ -75,18 +75,20 @@ public:
         const TTableSchema& schema,
         const TTypeConversionConfigPtr& typeConversionConfig = New<TTypeConversionConfig>());
 
-    const std::vector<TUnversionedOwningRow>& GetOwningRows() const;
     std::vector<TUnversionedRow> GetRows() const;
 
     virtual TNameTablePtr GetNameTable() const override;
 
+    void SetAggregate(bool value);
     void SetTreatMissingAsNull(bool value);
 
 private:
     TUnversionedOwningRowBuilder Builder_;
     std::vector<TUnversionedOwningRow> Rows_;
 
-    TNameTablePtr NameTable_;
+    const TNameTablePtr NameTable_;
+
+    bool Aggregate_ = false;
 
     std::vector<bool> WrittenFlags_;
     bool TreatMissingAsNull_ = false;

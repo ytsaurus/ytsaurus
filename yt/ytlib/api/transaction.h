@@ -15,10 +15,7 @@ namespace NApi {
 ///////////////////////////////////////////////////////////////////////////////
 
 struct TWriteRowsOptions
-{
-    //! Use inserted aggregate column values as delta for aggregation.
-    bool Aggregate = false;
-};
+{ };
 
 struct TDeleteRowsOptions
 { };
@@ -36,8 +33,6 @@ struct TRowModification
     ERowModificationType Type;
     //! Either a row (for write) or a key (for delete).
     NTableClient::TUnversionedRow Row;
-    //! Cf. #TWriteRowOptions::Aggregate; only makes sense for writes.
-    bool Aggregate = false;
 };
 
 struct TModifyRowsOptions
