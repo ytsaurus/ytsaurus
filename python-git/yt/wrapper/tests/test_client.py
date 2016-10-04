@@ -208,7 +208,9 @@ class TestClient(object):
         client.config["token"] = None
         client.config["token_path"] = filename
         assert http.get_token(client=client) == "b" * 32
-        assert http.get_token(token="abacaba") == "abacaba"
+
+        assert http.get_token(client=yt.YtClient(config={"token": "abacaba"})) == "abacaba"
         with pytest.raises(yt.YtTokenError):
-            assert http.get_token(token="\x01\x02")
-        assert http.get_token(token="", client=client) == "b" * 32
+            http.get_token(client=yt.YtClient(config={"token": "\x01\x02"}))
+
+        assert http.get_token(client=yt.YtClient(config={"token": ""})) == None

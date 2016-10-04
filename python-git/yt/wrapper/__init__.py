@@ -31,7 +31,7 @@ from .http_helpers import \
     _cleanup_http_session, \
     get_token as _get_token, \
     get_proxy_url as _get_proxy_url, \
-    make_get_request_with_retries as _make_get_request_with_retries, \
+    make_request_with_retries as _make_http_request_with_retries, \
     get_retriable_errors as _get_retriable_errors
 
 # For PyCharm checks

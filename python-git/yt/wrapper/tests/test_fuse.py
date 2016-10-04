@@ -198,7 +198,7 @@ class TestCypress(object):
 
     def test_write_multipart_file(self):
         cypress = Cypress(
-            CachedYtClient(proxy = get_proxy_url(), config=yt.config.config),
+            CachedYtClient(proxy=get_proxy_url(), config=yt.config.config),
             enable_write_access=True)
 
         filepath = TEST_DIR + "/file"
