@@ -1,7 +1,7 @@
 """YT usage errors"""
 
 import yt.common
-from yt.common import YtError
+from yt.common import YtError, PrettyPrintableDict
 import yt.json as json
 
 from copy import deepcopy
@@ -57,11 +57,12 @@ class YtHttpResponseError(YtResponseError):
         self.url = url
         self.headers = deepcopy(headers)
         self.params = params
-        self.message = "Received response with error.\n"\
-                       "Url: {0}\n"\
-                       "Headers: {1}\n"\
-                       "Params: {2}"\
-            .format(url, dumps(self.headers), dumps(self.params))
+        self.message = "Received HTTP response with error"
+        self.attributes.update({
+            "url": url,
+            "headers": PrettyPrintableDict(self.headers),
+            "params": PrettyPrintableDict(self.params),
+            "transparent": True})
 
     def __reduce__(self):
         return (YtHttpResponseError, (self.error, self.url, self.headers, self.params))
