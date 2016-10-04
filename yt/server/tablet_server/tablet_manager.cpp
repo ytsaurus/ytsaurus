@@ -1183,6 +1183,9 @@ public:
                         THROW_ERROR_EXCEPTION("Cannot move dynamic table since not all of its tablets are in %Qlv state",
                             ETabletState::Unmounted);
                     }
+                    if (factory->GetTransaction()) {
+                        THROW_ERROR_EXCEPTION("Cannot move a dynamic table inside transaction");
+                    }
                     break;
 
                 default:
