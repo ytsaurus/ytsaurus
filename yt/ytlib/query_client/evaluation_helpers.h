@@ -191,6 +191,7 @@ struct TExecutionContext
     TExecutionContext()
     {
         auto context = this;
+        Y_UNUSED(context);
         CHECK_STACK();
     }
 
