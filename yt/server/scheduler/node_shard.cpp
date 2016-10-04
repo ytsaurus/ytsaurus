@@ -275,6 +275,8 @@ void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<Stroka, INode
         auto newState = attributes.Get<ENodeState>("state");
         auto ioWeight = attributes.Get<double>("io_weight", 0.0);
 
+        LOG_DEBUG("Handling node %v (nodeId: %v, objectId: %v, newState: %v)", address, nodeId, objectId, newState);
+
         YCHECK(Host_->GetNodeShardId(nodeId) == Id_);
 
         if (IdToNode_.find(nodeId) == IdToNode_.end()) {
