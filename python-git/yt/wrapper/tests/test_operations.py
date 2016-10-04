@@ -1000,6 +1000,16 @@ if __name__ == "__main__":
             tracker.add(yt.run_map("false", table, TEST_DIR + "/out", sync=False))
             with pytest.raises(yt.YtError):
                 tracker.wait_all(check_result=True)
+
+            assert not tracker.operations
+
+            op = yt.run_map("cat", table, TEST_DIR + "/out", sync=False)
+            tracker.add(op)
+            tracker.wait_all(keep_finished=True)
+            assert op.id in tracker.operations
+
+            tracker.wait_all(keep_finished=True)
+            tracker.abort_all()
         finally:
             logger.LOGGER.setLevel(old_level)
 
