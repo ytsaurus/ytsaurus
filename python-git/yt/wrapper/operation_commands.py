@@ -354,7 +354,7 @@ class Operation(object):
         self.client = client
         self.printer = PrintOperationInfo(id, client=client)
 
-        proxy_url = get_proxy_url(check=False, client=self.client)
+        proxy_url = get_proxy_url(required=False, client=self.client)
         if proxy_url:
             self.url = \
                 get_config(self.client)["proxy"]["operation_link_pattern"]\

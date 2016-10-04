@@ -24,10 +24,10 @@ def process_params(obj):
         obj = bool_to_string(obj)
     return obj
 
-def make_request(command_name, params,
+def make_request(command_name,
+                 params,
                  data=None,
                  is_data_compressed=False,
-                 proxy=None,
                  return_content=True,
                  response_format=None,
                  use_heavy_proxy=False,
@@ -59,7 +59,6 @@ def make_request(command_name, params,
             params,
             data=data,
             is_data_compressed=is_data_compressed,
-            proxy=proxy,
             return_content=return_content,
             response_format=response_format,
             use_heavy_proxy=use_heavy_proxy,

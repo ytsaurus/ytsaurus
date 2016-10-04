@@ -25,6 +25,7 @@ from abc import ABCMeta, abstractmethod
 from yt.packages.six.moves.http_client import BadStatusLine, IncompleteRead
 
 def get_retriable_errors():
+    """ List or errors that API will retry in HTTP requests"""
     from yt.packages.requests import HTTPError, ConnectionError, Timeout
     return (HTTPError, ConnectionError, Timeout, IncompleteRead, BadStatusLine, SocketError,
             YtIncorrectResponse, YtProxyUnavailable, YtRequestRateLimitExceeded, YtRequestQueueSizeLimitExceeded, YtRequestTimedOut, YtRetriableError)
@@ -152,6 +153,7 @@ def _raise_for_status(response, request_info):
 def make_request_with_retries(method, url=None, make_retries=True, response_format=None,
                               params=None, timeout=None, retry_action=None, log_body=True, is_ping=False, proxy_provider=None,
                               client=None, **kwargs):
+    """ Performs HTTP request to YT proxy with retries """
     configure_ip(_get_session(client),
                  get_config(client)["proxy"]["force_ipv4"],
                  get_config(client)["proxy"]["force_ipv6"])
@@ -238,26 +240,22 @@ def make_request_with_retries(method, url=None, make_retries=True, response_form
 
     assert False, "Unknown error: this point should not be reachable"
 
-def make_get_request_with_retries(url, **kwargs):
-    response = make_request_with_retries("get", url, **kwargs)
-    return response.json()
-
-def get_proxy_url(proxy=None, check=True, client=None):
-    if proxy is None:
-        proxy = get_config(client=client)["proxy"]["url"]
+def get_proxy_url(required=True, client=None):
+    """ Extracts proxy url from client and checks that url is specified """
+    proxy = get_config(client=client)["proxy"]["url"]
 
     if proxy is not None and "." not in proxy and "localhost" not in proxy and ":" not in proxy:
         proxy = proxy + get_config(client=client)["proxy"]["default_suffix"]
 
-    if check:
+    if required:
         require(proxy, lambda: YtError("You should specify proxy"))
 
     return proxy
 
-def _request_api(proxy, version=None, client=None):
-    proxy = get_proxy_url(proxy, client=client)
+def _request_api(version=None, client=None):
+    proxy = get_proxy_url(client=client)
     location = "api" if version is None else "api/" + version
-    return make_get_request_with_retries("http://{0}/{1}".format(proxy, location), client=client)
+    return make_request_with_retries("get", "http://{0}/{1}".format(proxy, location), client=client).json()
 
 def get_api_version(client=None):
     api_version_option = get_option("_api_version", client)
@@ -275,7 +273,7 @@ def get_api_version(client=None):
         if default_api_version_for_http is not None:
             api_version = default_api_version_for_http
         else:
-            api_versions = _request_api(get_config(client)["proxy"]["url"], client=client)
+            api_versions = _request_api(client=client)
             if "v3" in api_versions:
                 api_version = "v3"
             else:
@@ -294,34 +292,38 @@ def get_api_commands(client=None):
 
     commands = parse_commands(
         _request_api(
-            get_config(client)["proxy"]["url"],
             version=get_api_version(client),
             client=client))
     set_option("_commands", commands, client)
 
     return commands
 
-def get_token(token=None, client=None):
-    if not token:
-        if not get_config(client)["enable_token"]:
-            return None
+def get_token(client=None):
+    """ Extracts token from given client and checks it for correctness """
+    if not get_config(client)["enable_token"]:
+        return None
 
-        token = get_config(client)["token"]
-        if token is None:
-            token_path = get_config(client=client)["token_path"]
-            if token_path is None:
-                token_path = os.path.join(os.path.expanduser("~"), ".yt/token")
-            if os.path.isfile(token_path):
-                with open(token_path, "rb") as token_file:
-                    token = token_file.read().strip()
-                logger.debug("Token got from %s", token_path)
-        else:
-            logger.debug("Token got from environment variable or config")
+    token = get_config(client)["token"]
+    if token is None:
+        token_path = get_config(client=client)["token_path"]
+        if token_path is None:
+            token_path = os.path.join(os.path.expanduser("~"), ".yt/token")
+        if os.path.isfile(token_path):
+            with open(token_path, "rb") as token_file:
+                token = token_file.read().strip()
+            logger.debug("Token got from file %s", token_path)
+    else:
+        logger.debug("Token got from environment variable or config")
+
+    # Token should not contains non-printable symbols.
     if token is not None:
         require(all(33 <= ord(c) <= 126 for c in token),
                 lambda: YtTokenError("You have an improper authentication token"))
+
+    # Empty token considered as missing.
     if not token:
         token = None
+
     return token
 
 def get_user_name(token=None, headers=None, client=None):
@@ -333,7 +335,7 @@ def get_user_name(token=None, headers=None, client=None):
         token = get_token(client=client)
 
     version = get_api_version(client=client)
-    proxy = get_proxy_url(None, client=client)
+    proxy = get_proxy_url(client=client)
 
     if version == "v3":
         if headers is None:

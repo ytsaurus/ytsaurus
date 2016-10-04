@@ -3,7 +3,7 @@ from .config import get_config, get_option, set_option
 from .compression import create_zlib_generator
 from .common import require, generate_uuid, bool_to_string, get_version, total_seconds, forbidden_inside_job
 from .errors import YtError, YtHttpResponseError, YtProxyUnavailable, YtConcurrentOperationsLimitExceeded, YtRequestTimedOut
-from .http_helpers import make_get_request_with_retries, make_request_with_retries, get_token, get_api_version, get_api_commands, get_proxy_url, parse_error_from_headers, get_header_format, ProxyProvider
+from .http_helpers import make_request_with_retries, get_token, get_api_version, get_api_commands, get_proxy_url, parse_error_from_headers, get_header_format, ProxyProvider
 from .response_stream import ResponseStream
 
 import yt.logger as logger
@@ -50,7 +50,7 @@ class HeavyProxyProvider(ProxyProvider):
         self.ban_errors = (ConnectionError, BadStatusLine, SocketError, YtRequestTimedOut, YtProxyUnavailable)
 
     def _get_light_proxy(self):
-        return get_proxy_url(None, client=self.client)
+        return get_proxy_url(client=self.client)
 
     def __call__(self):
         now = datetime.now()
@@ -93,9 +93,10 @@ class HeavyProxyProvider(ProxyProvider):
 
     def _discover_heavy_proxies(self):
         discovery_url = get_config(self.client)["proxy"]["proxy_discovery_url"]
-        return make_get_request_with_retries(
+        return make_request_with_retries(
+            "get",
             "http://{0}/{1}".format(self._get_light_proxy(), discovery_url),
-            client=self.client)
+            client=self.client).json()
 
 class TokenAuth(AuthBase):
     def __init__(self, token):
@@ -115,10 +116,10 @@ class TokenAuth(AuthBase):
         return request
 
 @forbidden_inside_job
-def make_request(command_name, params,
+def make_request(command_name,
+                 params,
                  data=None,
                  is_data_compressed=None,
-                 proxy=None,
                  return_content=True,
                  response_format=None,
                  use_heavy_proxy=False,
@@ -183,7 +184,7 @@ def make_request(command_name, params,
         url = url_pattern.format(proxy="{proxy}", api=api_path, command=command_name)
     else:
         proxy_provider = None
-        url = url_pattern.format(proxy=get_proxy_url(proxy, client=client), api=api_path, command=command_name)
+        url = url_pattern.format(proxy=get_proxy_url(client=client), api=api_path, command=command_name)
 
     # prepare params, format and headers
     user_agent = "Python wrapper " + get_version()

@@ -888,6 +888,7 @@ def extract_key(rec, fields):
         return FrozenDict((key, rec[key]) for key in fields if key in rec)
 
 def create_table_switch(table_index):
+    """ Returns YSON that represents table switch row """
     table_switch = yson.YsonEntity()
     table_switch.attributes["table_index"] = table_index
     return table_switch
