@@ -201,7 +201,7 @@ public:
         PyEval_InitThreads();
 
         RegisterShutdown();
-        InstallCrashSignalHandler();
+        InstallCrashSignalHandler(std::set<int>({SIGSEGV}));
 
         TYsonIterator::InitType();
         TRawYsonIterator::InitType();

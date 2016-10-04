@@ -306,7 +306,7 @@ public:
         PyEval_InitThreads();
 
         RegisterShutdown();
-        InstallCrashSignalHandler();
+        InstallCrashSignalHandler(std::set<int>({SIGSEGV}));
 
         TDriver::InitType();
         TBufferedStreamWrap::InitType();

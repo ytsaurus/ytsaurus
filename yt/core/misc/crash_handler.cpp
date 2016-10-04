@@ -379,7 +379,7 @@ void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
 } // namespace
 #endif
 
-void InstallCrashSignalHandler()
+void InstallCrashSignalHandler(TNullable<std::set<int>> signalNumbers)
 {
 #ifdef _unix_
     struct sigaction sa;
@@ -389,7 +389,9 @@ void InstallCrashSignalHandler()
     sa.sa_sigaction = &CrashSignalHandler;
 
     for (size_t i = 0; i < Y_ARRAY_SIZE(FailureSignals); ++i) {
-        YCHECK(sigaction(FailureSignals[i].Number, &sa, NULL) == 0);
+        if (!signalNumbers || signalNumbers->find(FailureSignals[i].Number) != signalNumbers->end()) {
+            YCHECK(sigaction(FailureSignals[i].Number, &sa, NULL) == 0);
+        }
     }
 #endif
 }
