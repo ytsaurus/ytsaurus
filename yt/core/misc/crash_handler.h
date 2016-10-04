@@ -1,12 +1,14 @@
 #pragma once
 
+#include <yt/core/misc/nullable.h>
+
 #include <util/generic/stroka.h>
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void InstallCrashSignalHandler();
+void InstallCrashSignalHandler(TNullable<std::set<int>> signalNumbers = Null);
 
 ////////////////////////////////////////////////////////////////////////////////
 
