@@ -24,6 +24,7 @@ using namespace NNodeTrackerClient;
 using namespace NRpc;
 using namespace NObjectClient;
 using namespace NApi;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -155,13 +156,15 @@ TFetcherBase::TFetcherBase(
     TFetcherConfigPtr config,
     TNodeDirectoryPtr nodeDirectory,
     IInvokerPtr invoker,
+    TRowBufferPtr rowBuffer,
     TScrapeChunksCallback scraperCallback,
     NApi::IClientPtr client,
     const NLogging::TLogger& logger)
-    : Config_(config)
-    , NodeDirectory_(nodeDirectory)
+    : Config_(std::move(config))
+    , NodeDirectory_(std::move(nodeDirectory))
     , Invoker_(invoker)
-    , ScraperCallback_(scraperCallback)
+    , RowBuffer_(std::move(rowBuffer))
+    , ScraperCallback_(std::move(scraperCallback))
     , Logger(logger)
     , Client_(std::move(client))
 { }

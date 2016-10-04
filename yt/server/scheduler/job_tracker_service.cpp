@@ -44,16 +44,6 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NJobTrackerClient::NProto, Heartbeat)
     {
-        auto nodeId = request->node_id();
-        auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
-        const auto& resourceLimits = request->resource_limits();
-        const auto& resourceUsage = request->resource_usage();
-
-        context->SetRequestInfo("NodeId: %v, Address: %v, ResourceUsage: %v",
-            nodeId,
-            descriptor.GetDefaultAddress(),
-            FormatResourceUsage(TJobResources(resourceUsage), TJobResources(resourceLimits)));
-
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
         scheduler->ProcessHeartbeat(context);

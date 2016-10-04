@@ -13,17 +13,19 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TKeyList
+struct TSampleKeyListTag
+{ };
+
+struct TSampleKeyList
     : public TIntrinsicRefCounted
 {
-    std::vector<TOwningKey> Keys;
+    TSharedRange<TKey> Keys;
 
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
-
 };
 
-DEFINE_REFCOUNTED_TYPE(TKeyList)
+DEFINE_REFCOUNTED_TYPE(TSampleKeyList)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,7 +35,7 @@ struct TPartitionSnapshot
     TPartitionId Id;
     TOwningKey PivotKey;
     TOwningKey NextPivotKey;
-    TKeyListPtr SampleKeys;
+    TSampleKeyListPtr SampleKeys;
     std::vector<ISortedStorePtr> Stores;
 };
 
@@ -46,8 +48,6 @@ class TPartition
     , public TRefTracked<TPartition>
 {
 public:
-    static const int EdenIndex = -1;
-
     DEFINE_BYVAL_RO_PROPERTY(TTablet*, Tablet);
     DEFINE_BYVAL_RW_PROPERTY(int, Index);
 
@@ -60,7 +60,7 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(TInstant, SamplingTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, SamplingRequestTime);
-    DEFINE_BYVAL_RW_PROPERTY(TKeyListPtr, SampleKeys);
+    DEFINE_BYVAL_RW_PROPERTY(TSampleKeyListPtr, SampleKeys);
 
     DEFINE_BYVAL_RW_PROPERTY(TInstant, CompactionTime);
 

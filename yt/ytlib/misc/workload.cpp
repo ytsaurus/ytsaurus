@@ -23,7 +23,7 @@ static const i64 BandPriorityFactor = (i64) 1 << 48;
 
 TWorkloadDescriptor TWorkloadDescriptor::SetCurrentInstant() const
 {
-    return TWorkloadDescriptor(Category, Band, TInstant::Now());
+    return TWorkloadDescriptor(Category, Band, TInstant::Now(), Annotations);
 }
 
 i64 TWorkloadDescriptor::GetPriority() const
@@ -44,7 +44,6 @@ i64 GetBasicPriority(EWorkloadCategory category)
             return 0;
 
         case EWorkloadCategory::SystemReplication:
-        case EWorkloadCategory::SystemRepair:
         case EWorkloadCategory::SystemTabletCompaction:
         case EWorkloadCategory::SystemTabletPartitioning:
         case EWorkloadCategory::SystemTabletPreload:
@@ -52,11 +51,14 @@ i64 GetBasicPriority(EWorkloadCategory category)
         case EWorkloadCategory::UserBatch:
             return CategoryPriorityFactor * 1;
 
-        case EWorkloadCategory::UserRealtime:
+        case EWorkloadCategory::SystemRepair:
             return CategoryPriorityFactor * 2;
 
-        case EWorkloadCategory::SystemRealtime:
+        case EWorkloadCategory::UserRealtime:
             return CategoryPriorityFactor * 3;
+
+        case EWorkloadCategory::SystemRealtime:
+            return CategoryPriorityFactor * 4;
 
         // Graceful fallback for possible future extensions of categories.
         default:
@@ -73,6 +75,8 @@ struct TSerializableWorkloadDescriptor
         RegisterParameter("category", Category);
         RegisterParameter("band", Band)
             .Default(0);
+        RegisterParameter("annotations", Annotations)
+            .Default();
     }
 };
 
@@ -95,6 +99,7 @@ void ToProto(NYT::NProto::TWorkloadDescriptor* protoDescriptor, const TWorkloadD
     protoDescriptor->set_category(static_cast<int>(descriptor.Category));
     protoDescriptor->set_band(descriptor.Band);
     protoDescriptor->set_instant(ToProto(descriptor.Instant));
+    ToProto(protoDescriptor->mutable_annotations(), descriptor.Annotations);
 }
 
 void FromProto(TWorkloadDescriptor* descriptor, const NYT::NProto::TWorkloadDescriptor& protoDescriptor)
@@ -102,6 +107,7 @@ void FromProto(TWorkloadDescriptor* descriptor, const NYT::NProto::TWorkloadDesc
     descriptor->Category = EWorkloadCategory(protoDescriptor.category());
     descriptor->Band = protoDescriptor.band();
     descriptor->Instant = FromProto<TInstant>(protoDescriptor.instant());
+    FromProto(&descriptor->Annotations, protoDescriptor.annotations());
 }
 
 void FormatValue(
@@ -115,6 +121,16 @@ void FormatValue(
     if (descriptor.Instant != TInstant::Zero()) {
         builder->AppendFormat(":%v",
             descriptor.Instant);
+    }
+    if (!descriptor.Annotations.empty()) {
+        builder->AppendString(":{");
+        for (size_t index = 0; index < descriptor.Annotations.size(); ++index) {
+            builder->AppendString(descriptor.Annotations[index]);
+            if (index != descriptor.Annotations.size() - 1) {
+                builder->AppendString(", ");
+            }
+        }
+        builder->AppendChar('}');
     }
 }
 

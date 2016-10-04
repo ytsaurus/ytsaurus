@@ -1,11 +1,6 @@
 #pragma once
 
-#include "public.h"
 #include "token.h"
-
-#include <yt/core/misc/nullable.h>
-
-#include <util/memory/tempbuf.h>
 
 namespace NYT {
 namespace NYPath {
@@ -34,10 +29,12 @@ private:
     const TYPath Path_;
 
     ETokenType Type_;
+    ETokenType PreviousType_;
     TStringBuf Token_;
     TStringBuf Input_;
     Stroka LiteralValue_;
 
+    void SetType(ETokenType type);
     const char* AdvanceEscaped(const char* current);
     static int ParseHexDigit(char ch, const TStringBuf& context);
     static void ThrowMalformedEscapeSequence(const TStringBuf& context);

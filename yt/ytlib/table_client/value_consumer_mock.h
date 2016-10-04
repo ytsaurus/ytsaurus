@@ -11,18 +11,23 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMockValueConsumer
-    : public IValueConsumer
+    : public TValueConsumerBase
 {
 public:
     TMockValueConsumer(
         TNameTablePtr nameTable,
-        bool allowUnknownColumns)
-        : NameTable_(nameTable)
+        bool allowUnknownColumns,
+        const TTableSchema& schema = TTableSchema(),
+        const TTypeConversionConfigPtr& typeConversionConfig = New<TTypeConversionConfig>())
+        : TValueConsumerBase(schema, typeConversionConfig)
+        , NameTable_(nameTable)
         , AllowUnknowsColumns_(allowUnknownColumns)
-    { }
+    {
+        InitializeIdToTypeMapping();
+    }
 
     MOCK_METHOD0(OnBeginRow, void());
-    MOCK_METHOD1(OnValue, void(const TUnversionedValue& value));
+    MOCK_METHOD1(OnMyValue, void(const TUnversionedValue& value));
     MOCK_METHOD0(OnEndRow, void());
 
     virtual TNameTablePtr GetNameTable() const override

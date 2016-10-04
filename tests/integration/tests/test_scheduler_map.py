@@ -189,7 +189,7 @@ class TestJobProber(YTEnvSetup):
         result = strace_job(op.jobs[0])
 
         for pid, trace in result["traces"].iteritems():
-            if "No such process" not in trace['trace']:
+            if trace["process_name"] != "sleep" and "No such process" not in trace["trace"]:
                 assert trace["trace"].startswith("Process {0} attached".format(pid))
             assert "process_command_line" in trace
             assert "process_name" in trace
@@ -547,6 +547,36 @@ class TestSchedulerMapCommands(YTEnvSetup):
         new_data = read_table("//tmp/t2", verbose=False)
         assert sorted(row.items() for row in new_data) == [[("index", i)] for i in xrange(count)]
 
+    def test_type_conversion(self):
+        create("table", "//tmp/s")
+        write_table("//tmp/s", {"foo": "42"})
+
+        create("table", "//tmp/t",
+            attributes={
+                "schema": make_schema([
+                    {"name": "int64", "type": "int64", "sort_order": "ascending"},
+                    {"name": "uint64", "type": "uint64"},
+                    {"name": "boolean", "type": "boolean"},
+                    {"name": "double", "type": "double"},
+                    {"name": "any", "type": "any"}],
+                    strict=False)
+            })
+
+        row = '{int64=3u; uint64=42; boolean="false"; double=18; any={}; extra=qwe}'
+
+        with pytest.raises(YtError):
+            map(in_="//tmp/s",
+                out="//tmp/t",
+                command="echo '{0}'".format(row),
+                spec={"max_failed_job_count": 1})
+
+        yson_with_type_conversion = yson.loads("<enable_type_conversion=%true>yson")
+        map(in_="//tmp/s",
+            out="//tmp/t",
+            command="echo '{0}'".format(row), format=yson_with_type_conversion,
+            spec={"max_failed_job_count": 1, "mapper": {"output_format": yson_with_type_conversion}})
+
+
     def test_file_with_integer_name(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -885,6 +915,33 @@ class TestSchedulerMapCommands(YTEnvSetup):
         context = read_file("//tmp/input_context")
         assert get("//tmp/input_context/@description/type") == "input_context"
         assert JsonFormat(process_table_index=True).loads_row(context)["foo"] == "bar"
+
+
+    def test_get_job_stderr(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
+
+        op = map(
+            dont_track=True,
+            waiting_jobs=True,
+            label="get_job_stderr",
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            precommand="echo STDERR-OUTPUT >&2",
+            command="cat",
+            spec={
+                "mapper": {
+                    "input_format": "json",
+                    "output_format": "json"
+                }
+            })
+
+        res = get_job_stderr(op.jobs[0])
+        assert res == "STDERR-OUTPUT\n"
+        op.resume_jobs()
+        op.track()
+
 
     @unix_only
     def test_sorted_output(self):
@@ -1727,6 +1784,68 @@ print row + table_index
                 command=command,
                 spec={"job_count": 1})
 
+    @unix_only
+    def test_map_input_paths_attr(self):
+        create("table", "//tmp/in1")
+        for i in xrange(0, 5, 2):
+            write_table(
+                "<append=true>//tmp/in1",
+                [{"key": "%05d" % (i+j), "value": "foo"} for j in xrange(2)],
+                sorted_by = ["key"])
+
+        create("table", "//tmp/in2")
+        for i in xrange(3, 24, 2):
+            write_table(
+                "<append=true>//tmp/in2",
+                [{"key": "%05d" % ((i+j) / 4), "value": "bar"} for j in xrange(2)],
+                sorted_by = ["key", "value"])
+
+        create("table", "//tmp/out")
+        in2 = '//tmp/in2["00001":"00004","00005":"00006"]'
+        op = map(
+            dont_track=True,
+            in_=["//tmp/in1", in2],
+            out="//tmp/out",
+            command="exit 1",
+            spec={
+                "mapper": {
+                    "format": "dsv"
+                },
+                "job_count": 1,
+                "max_failed_job_count": 1
+            })
+        with pytest.raises(YtError):
+            op.track();
+
+        jobs_path = "//sys/operations/{0}/jobs".format(op.id)
+        job_ids = ls(jobs_path)
+        assert len(job_ids) == 1
+        expected = yson.loads('''[
+            <ranges=[{lower_limit={row_index=0};upper_limit={row_index=6}}]>"//tmp/in1";
+            <ranges=[
+                {lower_limit={row_index=0;key=["00001"]};upper_limit={row_index=14;key=["00004"]}};
+                {lower_limit={row_index=16;key=["00005"]};upper_limit={row_index=22;key=["00006"]}}
+            ]>"//tmp/in2"]''')
+        actual = get("{0}/{1}/@input_paths".format(jobs_path, job_ids[0]))
+        assert expected == actual
+
+    def test_map_max_data_size_per_job(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        op = map(
+            dont_track=True,
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            command='cat',
+            spec={
+                "max_data_size_per_job": 1
+            })
+
+        with pytest.raises(YtError):
+            op.track()
+
 class TestSchedulerControllerThrottling(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
@@ -2132,7 +2251,7 @@ class TestSandboxTmpfs(YTEnvSetup):
                     "max_failed_job_count": 1,
                 })
 
-        map(command="cat",
+        op = map(command="cat",
             in_="//tmp/t_input",
             out="//tmp/t_output",
             spec={
@@ -2144,6 +2263,10 @@ class TestSandboxTmpfs(YTEnvSetup):
                 },
                 "max_failed_job_count": 1,
             })
+
+        statistics = get("//sys/operations/{0}/@progress/job_statistics".format(op.id))
+        tmpfs_size = get_statistics(statistics, "user_job.tmpfs_size.$.completed.map.sum")
+        assert 0.9 * 1024 * 1024 <= tmpfs_size <= 1.1 * 1024 * 1024
 
         with pytest.raises(YtError):
             map(command="cat",

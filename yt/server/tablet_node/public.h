@@ -176,7 +176,7 @@ class TPartition;
 
 DECLARE_ENTITY_TYPE(TTablet, TTabletId, NObjectClient::TDirectObjectIdHash)
 
-DECLARE_REFCOUNTED_STRUCT(TKeyList)
+DECLARE_REFCOUNTED_STRUCT(TSampleKeyList)
 DECLARE_REFCOUNTED_STRUCT(TPartitionSnapshot)
 DECLARE_REFCOUNTED_STRUCT(TTabletSnapshot)
 DECLARE_REFCOUNTED_STRUCT(TTabletPerformanceCounters)
@@ -229,6 +229,8 @@ struct ITabletContext;
 //! The soft limit, thus, is significantly smaller.
 static const i64 HardRevisionsPerDynamicStoreLimit = 1ULL << 26;
 static const i64 SoftRevisionsPerDynamicStoreLimit = 1ULL << 25;
+
+static const int EdenIndex = -1;
 
 ////////////////////////////////////////////////////////////////////////////////
 

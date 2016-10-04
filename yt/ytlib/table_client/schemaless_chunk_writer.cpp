@@ -638,7 +638,7 @@ public:
         IChunkWriterPtr chunkWriter,
         IBlockCachePtr blockCache,
         const TTableSchema& schema,
-        IPartitioner* partitioner)
+        IPartitionerPtr partitioner)
         : TUnversionedChunkWriterBase(
             config,
             options,
@@ -698,8 +698,9 @@ public:
     }
 
 private:
+    const IPartitionerPtr Partitioner_;
+
     TPartitionsExt PartitionsExt_;
-    IPartitioner* Partitioner_;
 
     std::vector<std::unique_ptr<THorizontalSchemalessBlockWriter>> BlockWriters_;
 
@@ -822,7 +823,7 @@ ISchemalessChunkWriterPtr CreatePartitionChunkWriter(
     TChunkWriterOptionsPtr options,
     const TTableSchema& schema,
     IChunkWriterPtr chunkWriter,
-    IPartitioner* partitioner,
+    IPartitionerPtr partitioner,
     IBlockCachePtr blockCache)
 {
     return New<TPartitionChunkWriter>(
@@ -1147,18 +1148,17 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
     TCellTag cellTag,
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
-    std::unique_ptr<IPartitioner> partitioner,
+    IPartitionerPtr partitioner,
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
 {
-    // TODO(babenko): consider making IPartitioner ref-counted.
-    auto createChunkWriter = [=, partitioner = std::shared_ptr<IPartitioner>(std::move(partitioner))] (IChunkWriterPtr underlyingWriter) {
+    auto createChunkWriter = [=] (IChunkWriterPtr underlyingWriter) {
         return CreatePartitionChunkWriter(
             config,
             options,
             schema,
             underlyingWriter,
-            partitioner.get(),
+            partitioner,
             blockCache);
     };
 
@@ -1194,7 +1194,7 @@ public:
         IThroughputThrottlerPtr throttler,
         IBlockCachePtr blockCache)
         : Logger(TableClientLogger)
-        , Config_(config)
+        , Config_(CloneYsonSerializable(config))
         , Options_(options)
         , RichPath_(richPath)
         , NameTable_(nameTable)
@@ -1207,6 +1207,8 @@ public:
         if (Transaction_) {
             ListenTransaction(Transaction_);
         }
+
+        Config_->WorkloadDescriptor.Annotations.push_back(Format("TablePath: %v", RichPath_.GetPath()));
 
         Logger.AddTag("Path: %v, TransactionId: %v",
             RichPath_.GetPath(),

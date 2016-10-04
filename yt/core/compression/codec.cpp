@@ -1,6 +1,7 @@
 #include "codec.h"
 #include "details.h"
 #include "lz.h"
+#include "lzma.h"
 #include "snappy.h"
 #include "zlib.h"
 #include "zstd.h"
@@ -20,53 +21,63 @@ struct TDecompressedBlockTag { };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TCodec>
 class TCodecBase
     : public ICodec
 {
-protected:
-    template <class TCodec>
+private:
     TSharedRef Run(
-        TConverter converter,
-        // TODO(ignat): change bool to enum
-        bool compress,
+        void (TCodec::*converter)(StreamSource* source, TBlob* output),
+        TRefCountedTypeCookie blobCookie,
         const TSharedRef& ref)
     {
         ByteArraySource input(ref.Begin(), ref.Size());
-        auto blobCookie = compress
-             ? GetRefCountedTypeCookie<TCompressedBlockTag<TCodec>>()
-             : GetRefCountedTypeCookie<TDecompressedBlockTag<TCodec>>();
-        auto outputBlob = TBlob(std::move(blobCookie), 0, false);
-        converter(&input, &outputBlob);
+        auto outputBlob = TBlob(blobCookie, 0, false);
+        (static_cast<TCodec*>(this)->*converter)(&input, &outputBlob);
         return TSharedRef::FromBlob(std::move(outputBlob));
     }
 
-    template <class TCodec>
     TSharedRef Run(
-        TConverter converter,
-        bool compress,
+        void (TCodec::*converter)(StreamSource* source, TBlob* output),
+        TRefCountedTypeCookie blobCookie,
         const std::vector<TSharedRef>& refs)
     {
         if (refs.size() == 1) {
-            return Run<TCodec>(
-                converter,
-                compress,
-                refs.front());
+            return Run(converter, blobCookie, refs.front());
         }
 
         TVectorRefsSource input(refs);
-        auto blobCookie = compress
-              ? GetRefCountedTypeCookie<TCompressedBlockTag<TCodec>>()
-              : GetRefCountedTypeCookie<TDecompressedBlockTag<TCodec>>();
         auto outputBlob = TBlob(blobCookie, 0, false);
-        converter(&input, &outputBlob);
+        (static_cast<TCodec*>(this)->*converter)(&input, &outputBlob);
         return TSharedRef::FromBlob(std::move(outputBlob));
     }
+
+    virtual TSharedRef Compress(const TSharedRef& block) override
+    {
+        return Run(&TCodec::DoCompress, GetRefCountedTypeCookie<TCompressedBlockTag<TCodec>>(), block);
+    }
+
+    virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) override
+    {
+        return Run(&TCodec::DoCompress, GetRefCountedTypeCookie<TCompressedBlockTag<TCodec>>(), blocks);
+    }
+
+    virtual TSharedRef Decompress(const TSharedRef& block) override
+    {
+        return Run(&TCodec::DoDecompress, GetRefCountedTypeCookie<TDecompressedBlockTag<TCodec>>(), block);
+    }
+
+    virtual TSharedRef Decompress(const std::vector<TSharedRef>& blocks) override
+    {
+        return Run(&TCodec::DoDecompress, GetRefCountedTypeCookie<TDecompressedBlockTag<TCodec>>(), blocks);
+    }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNoneCodec
-    : public TCodecBase
+    : public ICodec
 {
 public:
     virtual TSharedRef Compress(const TSharedRef& block) override
@@ -98,27 +109,17 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSnappyCodec
-    : public TCodecBase
+    : public TCodecBase<TSnappyCodec>
 {
 public:
-    virtual TSharedRef Compress(const TSharedRef& block) override
+    void DoCompress(StreamSource* source, TBlob* output)
     {
-        return Run<TSnappyCodec>(NCompression::SnappyCompress, true, block);
+        NCompression::SnappyCompress(source, output);
     }
 
-    virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) override
+    void DoDecompress(StreamSource* source, TBlob* output)
     {
-        return Run<TSnappyCodec>(NCompression::SnappyCompress, true, blocks);
-    }
-
-    virtual TSharedRef Decompress(const TSharedRef& block) override
-    {
-        return Run<TSnappyCodec>(NCompression::SnappyDecompress, false, block);
-    }
-
-    virtual TSharedRef Decompress(const std::vector<TSharedRef>& blocks) override
-    {
-        return Run<TSnappyCodec>(NCompression::SnappyDecompress, false, blocks);
+        NCompression::SnappyDecompress(source, output);
     }
 
     virtual ECodec GetId() const override
@@ -130,32 +131,21 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TZlibCodec
-    : public TCodecBase
+    : public TCodecBase<TZlibCodec>
 {
 public:
     explicit TZlibCodec(int level)
-        : Compressor_(std::bind(NCompression::ZlibCompress, level, std::placeholders::_1, std::placeholders::_2))
-        , Level_(level)
+        : Level_(level)
     { }
 
-    virtual TSharedRef Compress(const TSharedRef& block) override
+    void DoCompress(StreamSource* source, TBlob* output)
     {
-        return Run<TZlibCodec>(Compressor_, true, block);
+        NCompression::ZlibCompress(Level_, source, output);
     }
 
-    virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) override
+    void DoDecompress(StreamSource* source, TBlob* output)
     {
-        return Run<TZlibCodec>(Compressor_, true, blocks);
-    }
-
-    virtual TSharedRef Decompress(const TSharedRef& block) override
-    {
-        return Run<TZlibCodec>(NCompression::ZlibDecompress, false, block);
-    }
-
-    virtual TSharedRef Decompress(const std::vector<TSharedRef>& blocks) override
-    {
-        return Run<TZlibCodec>(NCompression::ZlibDecompress, false, blocks);
+        NCompression::ZlibDecompress(source, output);
     }
 
     virtual ECodec GetId() const override
@@ -172,114 +162,77 @@ public:
     }
 
 private:
-    const NCompression::TConverter Compressor_;
     const int Level_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLz4Codec
-    : public TCodecBase
+    : public TCodecBase<TLz4Codec>
 {
 public:
     explicit TLz4Codec(bool highCompression)
-        : Compressor_(std::bind(NCompression::Lz4Compress, highCompression, std::placeholders::_1, std::placeholders::_2))
-        , CodecId_(highCompression ? ECodec::Lz4HighCompression : ECodec::Lz4)
+        : HighCompression_(highCompression)
     { }
 
-    virtual TSharedRef Compress(const TSharedRef& block) override
+    void DoCompress(StreamSource* source, TBlob* output)
     {
-        return Run<TLz4Codec>(Compressor_, true, block);
+        NCompression::Lz4Compress(HighCompression_, source, output);
     }
 
-    virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) override
+    void DoDecompress(StreamSource* source, TBlob* output)
     {
-        return Run<TLz4Codec>(Compressor_, true, blocks);
-    }
-
-    virtual TSharedRef Decompress(const TSharedRef& block) override
-    {
-        return Run<TLz4Codec>(NCompression::Lz4Decompress, false, block);
-    }
-
-    virtual TSharedRef Decompress(const std::vector<TSharedRef>& blocks) override
-    {
-        return Run<TLz4Codec>(NCompression::Lz4Decompress, false, blocks);
+        NCompression::Lz4Decompress(source, output);
     }
 
     virtual ECodec GetId() const override
     {
-        return CodecId_;
+        return HighCompression_ ? ECodec::Lz4HighCompression : ECodec::Lz4;
     }
 
 private:
-    const NCompression::TConverter Compressor_;
-    const ECodec CodecId_;
+    const bool HighCompression_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQuickLzCodec
-    : public TCodecBase
+    : public TCodecBase<TQuickLzCodec>
 {
 public:
     TQuickLzCodec()
-        : Compressor_(NCompression::QuickLzCompress)
     { }
 
-    virtual TSharedRef Compress(const TSharedRef& block) override
+    void DoCompress(StreamSource* source, TBlob* output)
     {
-        return Run<TQuickLzCodec>(Compressor_, true, block);
+        NCompression::QuickLzCompress(source, output);
     }
 
-    virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) override
+    void DoDecompress(StreamSource* source, TBlob* output)
     {
-        return Run<TQuickLzCodec>(Compressor_, true, blocks);
-    }
-
-    virtual TSharedRef Decompress(const TSharedRef& block) override
-    {
-        return Run<TQuickLzCodec>(NCompression::QuickLzDecompress, false, block);
-    }
-
-    virtual TSharedRef Decompress(const std::vector<TSharedRef>& blocks) override
-    {
-        return Run<TQuickLzCodec>(NCompression::QuickLzDecompress, false, blocks);
+        NCompression::QuickLzDecompress(source, output);
     }
 
     virtual ECodec GetId() const override
     {
         return ECodec::QuickLz;
     }
-
-private:
-    const NCompression::TConverter Compressor_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TZstdLegacyCodec
-    : public TCodecBase
+    : public TCodecBase<TZstdLegacyCodec>
 {
 public:
-    virtual TSharedRef Compress(const TSharedRef& block) override
+    void DoCompress(StreamSource* source, TBlob* output)
     {
-        return Run<TZstdLegacyCodec>(NCompression::ZstdLegacyCompress, true, block);
+        NCompression::ZstdLegacyCompress(source, output);
     }
 
-    virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) override
+    void DoDecompress(StreamSource* source, TBlob* output)
     {
-        return Run<TZstdLegacyCodec>(NCompression::ZstdLegacyCompress, true, blocks);
-    }
-
-    virtual TSharedRef Decompress(const TSharedRef& block) override
-    {
-        return Run<TZstdLegacyCodec>(NCompression::ZstdLegacyDecompress, false, block);
-    }
-
-    virtual TSharedRef Decompress(const std::vector<TSharedRef>& blocks) override
-    {
-        return Run<TZstdLegacyCodec>(NCompression::ZstdLegacyDecompress, false, blocks);
+        NCompression::ZstdLegacyDecompress(source, output);
     }
 
     virtual ECodec GetId() const override
@@ -289,32 +242,21 @@ public:
 };
 
 class TZstdCodec
-    : public TCodecBase
+    : public TCodecBase<TZstdCodec>
 {
 public:
     TZstdCodec(int level)
-        : Compressor_(std::bind(NCompression::ZstdCompress, level, std::placeholders::_1, std::placeholders::_2))
-        , Level_(level)
+        : Level_(level)
     { }
 
-    virtual TSharedRef Compress(const TSharedRef& block) override
+    void DoCompress(StreamSource* source, TBlob* output)
     {
-        return Run<TZstdCodec>(Compressor_, true, block);
+        NCompression::ZstdCompress(Level_, source, output);
     }
 
-    virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) override
+    void DoDecompress(StreamSource* source, TBlob* output)
     {
-        return Run<TZstdCodec>(Compressor_, true, blocks);
-    }
-
-    virtual TSharedRef Decompress(const TSharedRef& block) override
-    {
-        return Run<TZstdCodec>(NCompression::ZstdDecompress, false, block);
-    }
-
-    virtual TSharedRef Decompress(const std::vector<TSharedRef>& blocks) override
-    {
-        return Run<TZstdCodec>(NCompression::ZstdDecompress, false, blocks);
+        NCompression::ZstdDecompress(source, output);
     }
 
     virtual ECodec GetId() const override
@@ -331,39 +273,27 @@ public:
     }
 
 private:
-    const NCompression::TConverter Compressor_;
     const int Level_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBrotliCodec
-    : public TCodecBase
+    : public TCodecBase<TBrotliCodec>
 {
 public:
     TBrotliCodec(int level)
-        : Compressor_(std::bind(NCompression::BrotliCompress, level, std::placeholders::_1, std::placeholders::_2))
-        , Level_(level)
+        : Level_(level)
     { }
 
-    virtual TSharedRef Compress(const TSharedRef& block) override
+    void DoCompress(StreamSource* source, TBlob* output)
     {
-        return Run<TBrotliCodec>(Compressor_, true, block);
+        NCompression::BrotliCompress(Level_, source, output);
     }
 
-    virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) override
+    void DoDecompress(StreamSource* source, TBlob* output)
     {
-        return Run<TBrotliCodec>(Compressor_, true, blocks);
-    }
-
-    virtual TSharedRef Decompress(const TSharedRef& block) override
-    {
-        return Run<TBrotliCodec>(NCompression::BrotliDecompress, false, block);
-    }
-
-    virtual TSharedRef Decompress(const std::vector<TSharedRef>& blocks) override
-    {
-        return Run<TBrotliCodec>(NCompression::BrotliDecompress, false, blocks);
+        NCompression::BrotliDecompress(source, output);
     }
 
     virtual ECodec GetId() const override
@@ -380,7 +310,41 @@ public:
     }
 
 private:
-    const NCompression::TConverter Compressor_;
+    const int Level_;
+};
+
+class TLzmaCodec
+    : public TCodecBase<TLzmaCodec>
+{
+public:
+    TLzmaCodec(int level)
+        : Level_(level)
+    { }
+
+    void DoCompress(StreamSource* source, TBlob* output)
+    {
+        NCompression::LzmaCompress(Level_, source, output);
+    }
+
+    void DoDecompress(StreamSource* source, TBlob* output)
+    {
+        NCompression::LzmaDecompress(source, output);
+    }
+
+    virtual ECodec GetId() const override
+    {
+        switch (Level_) {
+
+#define CASE(level) case level: return PP_CONCAT(ECodec::Lzma_, level);
+            PP_FOR_EACH(CASE, (0)(1)(2)(3)(4)(5)(6)(7)(8)(9))
+#undef CASE
+
+            default:
+                YUNREACHABLE();
+        }
+    }
+
+private:
     const int Level_;
 };
 
@@ -432,6 +396,10 @@ ICodec* GetCodec(ECodec id)
 
 #define CODEC Brotli
         PP_FOR_EACH(CASE, (1)(2)(3)(4)(5)(6)(7)(8)(9)(10)(11))
+#undef CODEC
+
+#define CODEC Lzma
+        PP_FOR_EACH(CASE, (0)(1)(2)(3)(4)(5)(6)(7)(8)(9))
 #undef CODEC
 
 #define CODEC Zstd

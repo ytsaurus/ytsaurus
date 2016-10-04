@@ -79,20 +79,30 @@ static const auto RpcServerShutdownTimeout = TDuration::Seconds(15);
 
 TJobProxy::TJobProxy(
     INodePtr configNode,
+    const TOperationId& operationId,
     const TJobId& jobId)
     : ConfigNode_(configNode)
+    , OperationId_(operationId)
     , JobId_(jobId)
     , JobThread_(New<TActionQueue>("JobMain"))
     , ControlThread_(New<TActionQueue>("Control"))
     , Logger(JobProxyLogger)
 {
-    Logger.AddTag("JobId: %v", JobId_);
+    Logger.AddTag("OperationId: %v, JobId: %v",
+        OperationId_,
+        JobId_);
 }
 
 std::vector<NChunkClient::TChunkId> TJobProxy::DumpInputContext(const TJobId& jobId)
 {
     ValidateJobId(jobId);
     return Job_->DumpInputContext();
+}
+
+Stroka TJobProxy::GetStderr(const TJobId& jobId)
+{
+    ValidateJobId(jobId);
+    return Job_->GetStderr();
 }
 
 TYsonString TJobProxy::Strace(const TJobId& jobId)
@@ -182,6 +192,24 @@ void TJobProxy::RetrieveJobSpec()
 
     // We never report to node less memory usage, than was initially reserved.
     TotalMaxMemoryUsage_ = JobProxyMemoryReserve_;
+
+    std::vector<Stroka> annotations{
+        Format("OperationId: %v", OperationId_),
+        Format("JobId: %v", JobId_),
+        Format("JobType: %v", EJobType(JobSpec_.type()))
+    };
+
+    for (auto* descriptor : {
+        &Config_->JobIO->TableReader->WorkloadDescriptor,
+        &Config_->JobIO->TableWriter->WorkloadDescriptor,
+        &Config_->JobIO->ErrorFileWriter->WorkloadDescriptor
+    })
+    {
+        descriptor->Annotations.insert(
+            descriptor->Annotations.end(),
+            annotations.begin(),
+            annotations.end());
+    }
 }
 
 void TJobProxy::Run()
@@ -433,6 +461,16 @@ TCGroupJobEnvironmentConfigPtr TJobProxy::GetCGroupsConfig() const
 TJobProxyConfigPtr TJobProxy::GetConfig() const
 {
     return Config_;
+}
+
+const TOperationId& TJobProxy::GetOperationId() const
+{
+    return OperationId_;
+}
+
+const TJobId& TJobProxy::GetJobId() const
+{
+    return JobId_;
 }
 
 const TJobSpec& TJobProxy::GetJobSpec() const

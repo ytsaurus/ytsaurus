@@ -140,7 +140,7 @@ TTablet::TTablet(
     , Eden_(std::make_unique<TPartition>(
         this,
         context->GenerateId(EObjectType::TabletPartition),
-        TPartition::EdenIndex,
+        EdenIndex,
         PivotKey_,
         NextPivotKey_))
     , Context_(context)
@@ -291,7 +291,7 @@ void TTablet::Load(TLoadContext& context)
 
     SERIALIZATION_DUMP_WRITE(context, "partitions");
     SERIALIZATION_DUMP_INDENT(context) {
-        Eden_ = loadPartition(TPartition::EdenIndex);
+        Eden_ = loadPartition(EdenIndex);
 
         int partitionCount = TSizeSerializer::LoadSuspended(context);
         for (int index = 0; index < partitionCount; ++index) {
@@ -436,18 +436,19 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex)
         firstIndex,
         PartitionList_[firstIndex]->GetPivotKey(),
         PartitionList_[lastIndex]->GetNextPivotKey());
-    auto& mergedSampleKeys = mergedPartition->GetSampleKeys()->Keys;
+
+    std::vector<TKey> mergedSampleKeys;
+    auto rowBuffer = New<TRowBuffer>(TSampleKeyListTag());
 
     for (int index = firstIndex; index <= lastIndex; ++index) {
         const auto& existingPartition = PartitionList_[index];
         const auto& existingSampleKeys = existingPartition->GetSampleKeys()->Keys;
         if (index > firstIndex) {
-            mergedSampleKeys.push_back(existingPartition->GetPivotKey());
+            mergedSampleKeys.push_back(rowBuffer->Capture(existingPartition->GetPivotKey()));
         }
-        mergedSampleKeys.insert(
-            mergedSampleKeys.end(),
-            existingSampleKeys.begin(),
-            existingSampleKeys.end());
+        for (auto key : existingSampleKeys) {
+            mergedSampleKeys.push_back(rowBuffer->Capture(key));
+        }
 
         for (const auto& store : existingPartition->Stores()) {
             YCHECK(store->GetPartition() == existingPartition.get());
@@ -455,6 +456,8 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex)
             YCHECK(mergedPartition->Stores().insert(store).second);
         }
     }
+
+    mergedPartition->GetSampleKeys()->Keys = MakeSharedRange(std::move(mergedSampleKeys), std::move(rowBuffer));
 
     auto firstPartitionIt = PartitionList_.begin() + firstIndex;
     auto lastPartitionIt = PartitionList_.begin() + lastIndex;
@@ -494,17 +497,21 @@ void TTablet::SplitPartition(int index, const std::vector<TOwningKey>& pivotKeys
             thisPivotKey,
             nextPivotKey);
 
-        if (sampleKeyIndex < existingSampleKeys.size() && existingSampleKeys[sampleKeyIndex] == thisPivotKey) {
+        if (sampleKeyIndex < existingSampleKeys.Size() && existingSampleKeys[sampleKeyIndex] == thisPivotKey) {
             ++sampleKeyIndex;
         }
 
-        YCHECK(sampleKeyIndex >= existingSampleKeys.size() || existingSampleKeys[sampleKeyIndex] > thisPivotKey);
-        auto& sampleKeys = partition->GetSampleKeys()->Keys;
-        while (sampleKeyIndex < existingSampleKeys.size() && existingSampleKeys[sampleKeyIndex] < nextPivotKey) {
-            sampleKeys.push_back(existingSampleKeys[sampleKeyIndex]);
+        YCHECK(sampleKeyIndex >= existingSampleKeys.Size() || existingSampleKeys[sampleKeyIndex] > thisPivotKey);
+
+        std::vector<TKey> sampleKeys;
+        auto rowBuffer = New<TRowBuffer>(TSampleKeyListTag());
+
+        while (sampleKeyIndex < existingSampleKeys.Size() && existingSampleKeys[sampleKeyIndex] < nextPivotKey) {
+            sampleKeys.push_back(rowBuffer->Capture(existingSampleKeys[sampleKeyIndex]));
             ++sampleKeyIndex;
         }
 
+        partition->GetSampleKeys()->Keys = MakeSharedRange(std::move(sampleKeys), std::move(rowBuffer));
         splitPartitions.push_back(std::move(partition));
     }
 

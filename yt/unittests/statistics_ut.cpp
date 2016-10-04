@@ -45,14 +45,6 @@ TEST(TStatistics, Summary)
 
 ////////////////////////////////////////////////////////////////////
 
-i64 GetSum(const TStatistics& statistics, const NYPath::TYPath& path)
-{
-    auto getValue = [] (const TSummary& summary) {
-        return summary.GetSum();
-    };
-    return GetValues<i64>(statistics, path, getValue);
-}
-
 TStatistics CreateStatistics(std::initializer_list<std::pair<NYPath::TYPath, i64>> data)
 {
     TStatistics result;
@@ -71,41 +63,35 @@ TEST(TStatistics, AddSample)
         "/key/subkey",
         origin);
 
-    EXPECT_EQ(5, GetSum(statistics, "/key/subkey/x"));
-    EXPECT_EQ(7, GetSum(statistics, "/key/subkey/y"));
-
-    auto getValue = [] (const TSummary& summary) {
-        return summary.GetSum();
-    };
-    auto stored = GetValues<std::map<Stroka, int>>(statistics, "/key/subkey", getValue);
-    EXPECT_EQ(origin, stored);
+    EXPECT_EQ(5, GetNumericValue(statistics, "/key/subkey/x"));
+    EXPECT_EQ(7, GetNumericValue(statistics, "/key/subkey/y"));
 
     statistics.AddSample("/key/sub", 42);
-    EXPECT_EQ(42, GetSum(statistics, "/key/sub"));
+    EXPECT_EQ(42, GetNumericValue(statistics, "/key/sub"));
 
     // Cannot add sample to the map node.
     EXPECT_THROW(statistics.AddSample("/key/subkey", 24), std::exception);
 
     statistics.Update(CreateStatistics({
-        {"/key/subkey/x", 5}, 
+        {"/key/subkey/x", 5},
         {"/key/subkey/z", 9}}));
 
-    EXPECT_EQ(10, GetSum(statistics, "/key/subkey/x"));
-    EXPECT_EQ(7, GetSum(statistics, "/key/subkey/y"));
-    EXPECT_EQ(9, GetSum(statistics, "/key/subkey/z"));
+    EXPECT_EQ(10, GetNumericValue(statistics, "/key/subkey/x"));
+    EXPECT_EQ(7, GetNumericValue(statistics, "/key/subkey/y"));
+    EXPECT_EQ(9, GetNumericValue(statistics, "/key/subkey/z"));
 
     EXPECT_THROW(
-        statistics.Update(CreateStatistics({{"/key", 5}})), 
+        statistics.Update(CreateStatistics({{"/key", 5}})),
         std::exception);
 
     statistics.AddSample("/key/subkey/x", 10);
-    EXPECT_EQ(20, GetSum(statistics, "/key/subkey/x"));
+    EXPECT_EQ(20, GetNumericValue(statistics, "/key/subkey/x"));
 
     auto ysonStatistics = ConvertToYsonString(statistics);
     auto deserializedStatistics = ConvertTo<TStatistics>(ysonStatistics);
-    
-    EXPECT_EQ(20, GetSum(deserializedStatistics, "/key/subkey/x"));
-    EXPECT_EQ(42, GetSum(deserializedStatistics, "/key/sub"));
+
+    EXPECT_EQ(20, GetNumericValue(deserializedStatistics, "/key/subkey/x"));
+    EXPECT_EQ(42, GetNumericValue(deserializedStatistics, "/key/sub"));
 }
 
 TEST(TStatistics, AddSuffixToNames)
@@ -114,7 +100,7 @@ TEST(TStatistics, AddSuffixToNames)
 
     statistics.AddSuffixToNames("/$/completed/map");
 
-    EXPECT_EQ(10, GetSum(statistics, "/key/$/completed/map"));
+    EXPECT_EQ(10, GetNumericValue(statistics, "/key/$/completed/map"));
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -159,9 +145,9 @@ TEST(TStatistics, Consumer)
             .EndMap();
 
     const auto& statistics = statisticsUpdater.GetStatistics();
-    EXPECT_EQ(4, GetSum(statistics, "/custom/k1"));
-    EXPECT_EQ(-7, GetSum(statistics, "/custom/k2"));
-    EXPECT_EQ(42, GetSum(statistics, "/custom/key/subkey"));
+    EXPECT_EQ(4, GetNumericValue(statistics, "/custom/k1"));
+    EXPECT_EQ(-7, GetNumericValue(statistics, "/custom/k2"));
+    EXPECT_EQ(42, GetNumericValue(statistics, "/custom/key/subkey"));
 }
 
 ////////////////////////////////////////////////////////////////////

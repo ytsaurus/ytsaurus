@@ -101,6 +101,7 @@ var _ENCODING_TO_COMPRESSION = {
     "y-lzo"    : binding.ECompression_LZO,
     "y-lzf"    : binding.ECompression_LZF,
     "y-snappy" : binding.ECompression_Snappy,
+    "br"       : binding.ECompression_Brotli,
     "identity" : binding.ECompression_None,
 };
 

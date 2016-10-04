@@ -4,10 +4,6 @@
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
-#include <yt/ytlib/table_client/chunk_meta_extensions.h>
-
-#include <yt/ytlib/node_tracker_client/public.h>
-
 namespace NYT {
 namespace NChunkClient {
 
@@ -98,9 +94,15 @@ void TInputChunkBase::SetReplicaList(const TChunkReplicaList& replicas)
     }
 }
 
-void TInputChunkBase::Save(NPhoenix::TSaveContext& context) const
+// Workaround for TSerializationDumpPodWriter.
+Stroka ToString(const TInputChunkBase&)
 {
-    // TInputChunkBase is persisted as one block, but we should be insured in offsets of all fields.
+    YUNREACHABLE();
+}
+
+// Intentionally used.
+void TInputChunkBase::CheckOffsets()
+{
     static_assert(offsetof(TInputChunkBase, ChunkId_) == 0, "invalid offset");
     static_assert(offsetof(TInputChunkBase, Replicas_) == 16, "invalid offset");
     static_assert(offsetof(TInputChunkBase, TableIndex_) == 80, "invalid offset");
@@ -114,49 +116,27 @@ void TInputChunkBase::Save(NPhoenix::TSaveContext& context) const
     static_assert(offsetof(TInputChunkBase, MaxBlockSize_) == 128, "invalid offset");
     static_assert(offsetof(TInputChunkBase, UniqueKeys_) == 136, "invalid offset");
     static_assert(sizeof(TInputChunkBase) == 144, "invalid sizeof");
-    NYT::TRangeSerializer::Save(context, TRef(reinterpret_cast<const void*>(this), sizeof(*this)));
-}
-
-void TInputChunkBase::Load(NPhoenix::TLoadContext& context)
-{
-    auto ref = TMutableRef(reinterpret_cast<void*>(this), sizeof(*this));
-    NYT::TRangeSerializer::Load(context, ref);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TInputChunk::TInputChunk(const NProto::TChunkSpec& chunkSpec)
     : TInputChunkBase(chunkSpec)
+    , LowerLimit_(chunkSpec.has_lower_limit()
+        ? std::make_unique<TReadLimit>(chunkSpec.lower_limit())
+        : nullptr)
+    , UpperLimit_(chunkSpec.has_upper_limit()
+        ? std::make_unique<TReadLimit>(chunkSpec.upper_limit())
+        : nullptr)
     , BoundaryKeys_(GetBoundaryKeys(chunkSpec.chunk_meta()))
-{
-    if (chunkSpec.has_lower_limit()) {
-        LowerLimit_ = std::make_unique<NProto::TReadLimit>(chunkSpec.lower_limit());
-    }
-    if (chunkSpec.has_upper_limit()) {
-        UpperLimit_ = std::make_unique<NProto::TReadLimit>(chunkSpec.upper_limit());
-    }
-
-    if (chunkSpec.has_channel()) {
-        Channel_ = std::make_unique<NProto::TChannel>(chunkSpec.channel());
-    }
-    if (HasProtoExtension<NTableClient::NProto::TPartitionsExt>(chunkSpec.chunk_meta().extensions())) {
-        PartitionsExt_ = std::make_unique<NTableClient::NProto::TPartitionsExt>(
-            GetProtoExtension<NTableClient::NProto::TPartitionsExt>(chunkSpec.chunk_meta().extensions()));
-    }
-}
-
-TInputChunk::TInputChunk(NProto::TChunkSpec&& chunkSpec)
-    : TInputChunkBase(chunkSpec)
-    , LowerLimit_(chunkSpec.release_lower_limit())
-    , UpperLimit_(chunkSpec.release_upper_limit())
-    , BoundaryKeys_(GetBoundaryKeys(chunkSpec.chunk_meta()))
-    , Channel_(chunkSpec.release_channel())
-{
-    if (HasProtoExtension<NTableClient::NProto::TPartitionsExt>(chunkSpec.chunk_meta().extensions())) {
-        PartitionsExt_ = std::make_unique<NTableClient::NProto::TPartitionsExt>(
-            GetProtoExtension<NTableClient::NProto::TPartitionsExt>(chunkSpec.chunk_meta().extensions()));
-    }
-}
+    , Channel_(chunkSpec.has_channel()
+        ? std::make_unique<NProto::TChannel>(chunkSpec.channel())
+        : nullptr)
+    , PartitionsExt_(HasProtoExtension<NTableClient::NProto::TPartitionsExt>(chunkSpec.chunk_meta().extensions())
+        ? std::make_unique<NTableClient::NProto::TPartitionsExt>(
+            GetProtoExtension<NTableClient::NProto::TPartitionsExt>(chunkSpec.chunk_meta().extensions()))
+        : nullptr)
+{ }
 
 TInputChunk::TInputChunk(
     const TChunkId& chunkId,
@@ -166,24 +146,21 @@ TInputChunk::TInputChunk(
     const TOwningKey& upperLimit,
     NErasure::ECodec erasureCodec)
     : TInputChunkBase(chunkId, replicas, chunkMeta, erasureCodec)
+    , LowerLimit_(std::make_unique<TReadLimit>(lowerLimit))
+    , UpperLimit_(std::make_unique<TReadLimit>(upperLimit))
     , BoundaryKeys_(GetBoundaryKeys(chunkMeta))
-{
-    LowerLimit_.reset(new NProto::TReadLimit);
-    ToProto(LowerLimit_->mutable_key(), lowerLimit);
-    UpperLimit_.reset(new NProto::TReadLimit);
-    ToProto(UpperLimit_->mutable_key(), upperLimit);
-}
+{ }
 
-void TInputChunk::Persist(NPhoenix::TPersistenceContext& context)
+void TInputChunk::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;
 
     Persist(context, static_cast<TInputChunkBase&>(*this));
-    Persist(context, LowerLimit_);
-    Persist(context, UpperLimit_);
-    Persist(context, BoundaryKeys_);
-    Persist(context, Channel_);
-    Persist(context, PartitionsExt_);
+    Persist<TUniquePtrSerializer<>>(context, LowerLimit_);
+    Persist<TUniquePtrSerializer<>>(context, UpperLimit_);
+    Persist<TUniquePtrSerializer<>>(context, BoundaryKeys_);
+    Persist<TUniquePtrSerializer<>>(context, Channel_);
+    Persist<TUniquePtrSerializer<>>(context, PartitionsExt_);
 }
 
 size_t TInputChunk::SpaceUsed() const
@@ -200,7 +177,8 @@ size_t TInputChunk::SpaceUsed() const
 //! Returns |false| iff the chunk has nontrivial limits.
 bool TInputChunk::IsCompleteChunk() const
 {
-    return (!LowerLimit_ || IsTrivial(*LowerLimit_)) &&
+    return
+        (!LowerLimit_ || IsTrivial(*LowerLimit_)) &&
         (!UpperLimit_ || IsTrivial(*UpperLimit_));
 }
 
@@ -266,7 +244,7 @@ Stroka ToString(const TInputChunkPtr& inputChunk)
     return Format(
         "{ChunkId: %v, Replicas: %v, TableIndex: %v, ErasureCodec: %v, TableRowIndex: %v, "
         "RangeIndex: %v, TableChunkFormat: %v, UncompressedDataSize: %v, RowCount: %v, "
-        "CompressedDataSize: %v, MaxBlockSize: %v, LowerLimit: {%v}, UpperLimit: {%v}, "
+        "CompressedDataSize: %v, MaxBlockSize: %v, LowerLimit: %v, UpperLimit: %v, "
         "BoundaryKeys: {%v}, Channel: {%v}, PartitionsExt: {%v}}",
         inputChunk->ChunkId(),
         JoinToString(inputChunk->Replicas()),
@@ -279,8 +257,8 @@ Stroka ToString(const TInputChunkPtr& inputChunk)
         inputChunk->GetRowCount(),
         inputChunk->GetCompressedDataSize(),
         inputChunk->GetMaxBlockSize(),
-        inputChunk->LowerLimit() ? inputChunk->LowerLimit()->ShortDebugString() : "",
-        inputChunk->UpperLimit() ? inputChunk->UpperLimit()->ShortDebugString() : "",
+        inputChunk->LowerLimit() ? MakeNullable(*inputChunk->LowerLimit()) : Null,
+        inputChunk->UpperLimit() ? MakeNullable(*inputChunk->UpperLimit()) : Null,
         inputChunk->BoundaryKeys() ? boundaryKeys : "",
         inputChunk->Channel() ? inputChunk->Channel()->ShortDebugString() : "",
         inputChunk->PartitionsExt() ? inputChunk->PartitionsExt()->ShortDebugString() : "");

@@ -22,6 +22,7 @@
 #if defined(_linux_)
     #include <mntent.h>
     #include <sys/vfs.h>
+    #include <sys/sendfile.h>
 #elif defined(_freebsd_) || defined(_darwin_)
     #include <sys/param.h>
     #include <sys/mount.h>
@@ -586,30 +587,51 @@ void Chmod(const Stroka& path, int mode)
 }
 
 void ChunkedCopy(
-    const Stroka& existingPath, 
-    const Stroka& newPath, 
-    i64 chunkSize) 
+    const Stroka& existingPath,
+    const Stroka& newPath,
+    i64 chunkSize)
 {
-    struct TChunkedCopyTag { };
+#ifdef _linux_
+    try {
+        TFile src(existingPath, OpenExisting | RdOnly | Seq | CloseOnExec);
+        TFile dst(newPath, CreateAlways | WrOnly | Seq | CloseOnExec);
+        dst.Flock(LOCK_EX);
 
-    TFileInput src(existingPath);
-
-    auto dstFile = TFile(newPath, CreateAlways | WrOnly | Seq | CloseOnExec);
-    dstFile.Flock(LOCK_EX);
-
-    TFileOutput dst(dstFile);
-    TBlob buffer(TChunkedCopyTag(), chunkSize, false);
-
-    while (true) {
-        auto size = src.Load(buffer.Begin(), buffer.Size());
-        dst.Write(buffer.Begin(), size);
-
-        if (size < buffer.Size()) {
-            break;
+        i64 srcSize = src.GetLength();
+        if (srcSize == -1) {
+            THROW_ERROR_EXCEPTION("Cannot get source file length: stat failed for %v", existingPath)
+                << TError::FromSystem();
         }
-        // Yield woudn't work here, see st/YT-5601.
-        NConcurrency::WaitFor(VoidFuture);
+
+        int srcFd = src.GetHandle();
+        int dstFd = dst.GetHandle();
+
+        while (true) {
+            i64 currentChunkSize = 0;
+            while (currentChunkSize < chunkSize && srcSize > 0) {
+                auto size = sendfile(dstFd, srcFd, nullptr, chunkSize);
+                if (size == -1) {
+                    THROW_ERROR_EXCEPTION("Error while doing chunked copy: sendfile failed")
+                        << TError::FromSystem();
+                }
+                currentChunkSize += size;
+                srcSize -= size;
+            }
+
+            if (srcSize == 0) {
+                break;
+            }
+
+            // Yield woudn't work here, see st/YT-5601.
+            NConcurrency::WaitFor(VoidFuture);
+        }
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Failed to copy %v to %v", existingPath, newPath)
+            << ex;
     }
+#else
+    ThrowNotSupported();
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////
