@@ -2262,7 +2262,7 @@ class TestSandboxTmpfs(YTEnvSetup):
                     "max_failed_job_count": 1,
                 })
 
-        map(command="cat",
+        op = map(command="cat",
             in_="//tmp/t_input",
             out="//tmp/t_output",
             spec={
@@ -2274,6 +2274,10 @@ class TestSandboxTmpfs(YTEnvSetup):
                 },
                 "max_failed_job_count": 1,
             })
+
+        statistics = get("//sys/operations/{0}/@progress/job_statistics".format(op.id))
+        tmpfs_size = get_statistics(statistics, "user_job.tmpfs_size.$.completed.map.sum")
+        assert 0.9 * 1024 * 1024 <= tmpfs_size <= 1.1 * 1024 * 1024
 
         with pytest.raises(YtError):
             map(command="cat",
@@ -2417,3 +2421,57 @@ class TestFilesInSandbox(YTEnvSetup):
         assert op.get_state() == "aborted"
         assert get("//sys/scheduler/orchid/scheduler/cell/resource_usage/cpu") == 0
 
+
+class TestJobSizeManager(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 5
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+      "scheduler" : {
+        "map_operation_options" : {
+          "data_size_per_job" : 1
+        }
+      }
+    }
+
+    def test_map_job_size_manager_boost(self):
+        create("table", "//tmp/t_input")
+        original_data = [{"index": "%05d" % i} for i in xrange(31)]
+        for row in original_data:
+            write_table("<append=true>//tmp/t_input", row, verbose=False)
+
+        create("table", "//tmp/t_output")
+
+        op = map(
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            command="echo lines=`wc -l`",
+            spec={
+                "mapper": {"format": "dsv"},
+                "resource_limits": {"user_slots": 1}
+            })
+
+        expected = [{"lines": str(2**i)} for i in xrange(5)]
+        actual = read_table("//tmp/t_output")
+        assert_items_equal(actual, expected)
+
+    def test_map_job_size_manager_max_limit(self):
+        create("table", "//tmp/t_input")
+        original_data = [{"index": "%05d" % i} for i in xrange(31)]
+        for row in original_data:
+            write_table("<append=true>//tmp/t_input", row, verbose=False)
+
+        create("table", "//tmp/t_output")
+
+        op = map(
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            command="echo lines=`wc -l`",
+            spec={
+                "mapper": {"format": "dsv"},
+                "max_data_size_per_job": 100
+            })
+
+        for row in read_table("//tmp/t_output"):
+            assert int(row["lines"]) < 5

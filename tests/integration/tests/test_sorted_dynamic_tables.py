@@ -1682,7 +1682,7 @@ class TestSortedDynamicTables(YTEnvSetup):
         }
 
         yson_with_type_conversion = loads("<enable_type_conversion=%true>yson")
-        yson_without_type_conversion = loads("<enable_integral_types_conversion=%false>yson")
+        yson_without_type_conversion = loads("<enable_integral_type_conversion=%false>yson")
 
         with pytest.raises(YtError):
             insert_rows("//tmp/t", [row1], input_format=yson_without_type_conversion)

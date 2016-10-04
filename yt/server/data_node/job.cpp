@@ -191,6 +191,11 @@ public:
         return Null;
     }
 
+    virtual TNullable<TDuration> GetDownloadDuration() const override
+    {
+        return Null;
+    }
+
     virtual TNullable<TDuration> GetExecDuration() const override
     {
         return Null;

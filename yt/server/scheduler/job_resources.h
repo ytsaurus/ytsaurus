@@ -60,7 +60,11 @@ Stroka FormatResourceUsage(const TJobResources& usage, const TJobResources& limi
 Stroka FormatResources(const TJobResources& resources);
 Stroka FormatResources(const TExtendedJobResources& resources);
 
-void ProfileResources(NProfiling::TProfiler& profiler, const TJobResources& resources);
+void ProfileResources(
+    const NProfiling::TProfiler& profiler,
+    const TJobResources& resources,
+    const Stroka& prefix = Stroka(),
+    const NProfiling::TTagIdList& tagIds = NProfiling::EmptyTagIds);
 
 NNodeTrackerClient::EResourceType GetDominantResource(
     const TJobResources& demand,

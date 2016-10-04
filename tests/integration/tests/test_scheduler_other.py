@@ -31,19 +31,7 @@ def set_banned_flag(value, nodes=None):
         assert get("//sys/nodes/{0}/@state".format(address)) == state
         print >>sys.stderr, "Node {0} is {1}".format(address, state)
 
-class TestSchedulerOther(YTEnvSetup):
-    NUM_MASTERS = 3
-    NUM_NODES = 1
-    NUM_SCHEDULERS = 1
-
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
-            "operation_time_limit_check_period" : 100,
-            "connect_retry_backoff_time": 100,
-            "fair_share_update_period": 100,
-        }
-    }
-
+class PrepareTables(object):
     def _create_table(self, table):
         create("table", table)
         set(table + "/@replication_factor", 1)
@@ -53,6 +41,21 @@ class TestSchedulerOther(YTEnvSetup):
         write_table("//tmp/t_in", {"foo": "bar"})
 
         self._create_table("//tmp/t_out")
+
+
+class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
+    NUM_MASTERS = 3
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "operation_time_limit_check_period" : 100,
+            "connect_retry_backoff_time": 100,
+            "fair_share_update_period": 100,
+            "profiling_update_period": 100,
+        }
+    }
 
     def test_revive(self):
         self._prepare_tables()
@@ -260,6 +263,167 @@ class TestSchedulerOther(YTEnvSetup):
         op = map(in_="//tmp/t_in", out="//tmp/t_out", command="cat")
         events = get("//sys/operations/{0}/@events".format(op.id))
         assert ["initializing", "preparing", "pending", "materializing", "running", "completing", "completed"] == [event["state"] for event in events]
+
+    def test_exceed_job_time_limit(self):
+        self._prepare_tables()
+
+        op = map(
+            dont_track=True,
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="sleep 2 ; cat",
+            spec={"max_failed_job_count": 1, "mapper": {"job_time_limit": 2000}})
+
+        # if all jobs failed then operation is also failed
+        with pytest.raises(YtError):
+            op.track()
+
+        jobs_path = "//sys/operations/" + op.id + "/jobs"
+        for job_id in ls(jobs_path):
+            inner_errors = get(jobs_path + "/" + job_id + "/@error/inner_errors")
+            assert "Job time limit exceeded" in inner_errors[0]["message"]
+
+    def test_within_job_time_limit(self):
+        self._prepare_tables()
+        map(in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="sleep 1 ; cat",
+            spec={"max_failed_job_count": 1, "mapper": {"job_time_limit": 2000}})
+
+    def _get_metric_maximum_value(self, metric_key, pool):
+        result = 0.0
+        for value in reversed(get("//sys/scheduler/orchid/profiling/scheduler/pools/" + metric_key, verbose=False)):
+            if value["tags"]["pool"] != pool:
+                continue
+            result = max(result, value["value"])
+        return result
+
+    def test_pool_profiling(self):
+        self._prepare_tables()
+        create("map_node", "//sys/pools/unique_pool")
+        map(command="sleep 1; cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"pool": "unique_pool"})
+
+        assert self._get_metric_maximum_value("fair_share_ratio_x100000", "unique_pool") == 100000
+        assert self._get_metric_maximum_value("usage_ratio_x100000", "unique_pool") == 100000
+        assert self._get_metric_maximum_value("demand_ratio_x100000", "unique_pool") == 100000
+        assert self._get_metric_maximum_value("guaranteed_resource_ratio_x100000", "unique_pool") == 100000
+        assert self._get_metric_maximum_value("resource_usage/cpu", "unique_pool") == 1
+        assert self._get_metric_maximum_value("resource_usage/user_slots", "unique_pool") == 1
+        assert self._get_metric_maximum_value("resource_demand/cpu", "unique_pool") == 1
+        assert self._get_metric_maximum_value("resource_demand/user_slots", "unique_pool") == 1
+
+
+class TestSchedulerFunctionality2(YTEnvSetup, PrepareTables):
+    NUM_MASTERS = 3
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "operation_time_limit_check_period" : 100,
+            "connect_retry_backoff_time": 100,
+            "fair_share_update_period": 100,
+        }
+    }
+
+    def test_scheduler_guaranteed_resources_ratio(self):
+        create("map_node", "//sys/pools/big_pool", attributes={"min_share_ratio": 1.0})
+        create("map_node", "//sys/pools/big_pool/subpool_1", attributes={"weight": 1.0})
+        create("map_node", "//sys/pools/big_pool/subpool_2", attributes={"weight": 3.0})
+        create("map_node", "//sys/pools/small_pool", attributes={"weight": 100.0})
+        create("map_node", "//sys/pools/small_pool/subpool_3", attributes={"min_share_ratio": 1.0})
+        create("map_node", "//sys/pools/small_pool/subpool_4", attributes={"min_share_ratio": 1.0})
+
+        total_resource_limit = get("//sys/scheduler/orchid/scheduler/cell/resource_limits")
+
+        # Wait for fair share update.
+        time.sleep(1)
+
+        get_pool_guaranteed_resources = lambda pool: \
+            get("//sys/scheduler/orchid/scheduler/pools/{0}/guaranteed_resources".format(pool))
+
+        get_pool_guaranteed_resources_ratio = lambda pool: \
+            get("//sys/scheduler/orchid/scheduler/pools/{0}/guaranteed_resources_ratio".format(pool))
+
+        assert assert_almost_equal(get_pool_guaranteed_resources_ratio("big_pool"), 1.0)
+        assert get_pool_guaranteed_resources("big_pool") == total_resource_limit
+
+        assert assert_almost_equal(get_pool_guaranteed_resources_ratio("small_pool"), 0)
+        assert assert_almost_equal(get_pool_guaranteed_resources_ratio("subpool_3"), 0)
+        assert assert_almost_equal(get_pool_guaranteed_resources_ratio("subpool_4"), 0)
+
+        assert assert_almost_equal(get_pool_guaranteed_resources_ratio("subpool_1"), 1.0 / 4.0)
+        assert assert_almost_equal(get_pool_guaranteed_resources_ratio("subpool_2"), 3.0 / 4.0)
+
+        self._prepare_tables()
+
+        get_operation_guaranteed_resources_ratio = lambda op_id: \
+            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/guaranteed_resources_ratio".format(op_id))
+
+        op = map(
+            dont_track=True,
+            waiting_jobs=True,
+            command="cat",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out",
+            spec={"pool": "big_pool"})
+
+        # Wait for fair share update.
+        time.sleep(1)
+
+        assert assert_almost_equal(get_operation_guaranteed_resources_ratio(op.id), 1.0 / 5.0)
+        assert assert_almost_equal(get_pool_guaranteed_resources_ratio("subpool_1"), 1.0 / 5.0)
+        assert assert_almost_equal(get_pool_guaranteed_resources_ratio("subpool_2"), 3.0 / 5.0)
+
+        op.resume_jobs()
+        op.track()
+
+
+    def test_resource_limits(self):
+        resource_limits = {"cpu": 1, "memory": 1000 * 1024 * 1024, "network": 10}
+        create("map_node", "//sys/pools/test_pool", attributes={"resource_limits": resource_limits})
+
+        while True:
+            pools = get("//sys/scheduler/orchid/scheduler/pools")
+            if "test_pool" in pools:
+                break
+            time.sleep(0.1)
+
+        stats = get("//sys/scheduler/orchid/scheduler")
+        pool_resource_limits = stats["pools"]["test_pool"]["resource_limits"]
+        for resource, limit in resource_limits.iteritems():
+            assert pool_resource_limits[resource] == limit
+
+        self._prepare_tables()
+        data = [{"foo": i} for i in xrange(3)]
+        write_table("//tmp/t_in", data)
+
+        memory_limit = 30 * 1024 * 1024
+
+        testing_options = {"scheduling_delay": 500}
+
+        op = map(
+            dont_track=True,
+            command="sleep 5",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"job_count": 3, "pool": "test_pool", "mapper": {"memory_limit": memory_limit}, "testing": testing_options})
+        time.sleep(3)
+        assert len(get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))) == 1
+        op.abort()
+
+        op = map(
+            dont_track=True,
+            command="sleep 5",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"job_count": 3, "resource_limits": resource_limits, "mapper": {"memory_limit": memory_limit}, "testing": testing_options})
+        time.sleep(3)
+        op_limits = get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_limits".format(op.id))
+        for resource, limit in resource_limits.iteritems():
+            assert op_limits[resource] == limit
+        assert len(get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))) == 1
+        op.abort()
 
 
 class TestSchedulerRevive(YTEnvSetup):
@@ -1315,72 +1479,6 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
         assert assert_almost_equal(get_usage_ratio(op.id), 1.0 / 3.0)
         assert get_running_job_count(op.id) == 1
 
-class TestSchedulerGuaranteedResources(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 3
-    NUM_SCHEDULERS = 1
-
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
-            "fair_share_update_period": 100
-        }
-    }
-
-    def test_scheduler_guaranteed_resources_ratio(self):
-        create("map_node", "//sys/pools/big_pool", attributes={"min_share_ratio": 1.0})
-        create("map_node", "//sys/pools/big_pool/subpool_1", attributes={"weight": 1.0})
-        create("map_node", "//sys/pools/big_pool/subpool_2", attributes={"weight": 3.0})
-        create("map_node", "//sys/pools/small_pool", attributes={"weight": 100.0})
-        create("map_node", "//sys/pools/small_pool/subpool_3", attributes={"min_share_ratio": 1.0})
-        create("map_node", "//sys/pools/small_pool/subpool_4", attributes={"min_share_ratio": 1.0})
-
-        total_resource_limit = get("//sys/scheduler/orchid/scheduler/cell/resource_limits")
-
-        # Wait for fair share update.
-        time.sleep(1)
-
-        get_pool_guaranteed_resources = lambda pool: \
-            get("//sys/scheduler/orchid/scheduler/pools/{0}/guaranteed_resources".format(pool))
-
-        get_pool_guaranteed_resources_ratio = lambda pool: \
-            get("//sys/scheduler/orchid/scheduler/pools/{0}/guaranteed_resources_ratio".format(pool))
-
-        assert assert_almost_equal(get_pool_guaranteed_resources_ratio("big_pool"), 1.0)
-        assert get_pool_guaranteed_resources("big_pool") == total_resource_limit
-
-        assert assert_almost_equal(get_pool_guaranteed_resources_ratio("small_pool"), 0)
-        assert assert_almost_equal(get_pool_guaranteed_resources_ratio("subpool_3"), 0)
-        assert assert_almost_equal(get_pool_guaranteed_resources_ratio("subpool_4"), 0)
-
-        assert assert_almost_equal(get_pool_guaranteed_resources_ratio("subpool_1"), 1.0 / 4.0)
-        assert assert_almost_equal(get_pool_guaranteed_resources_ratio("subpool_2"), 3.0 / 4.0)
-
-        create("table", "//tmp/t_in")
-        write_table("//tmp/t_in", {"foo": "bar"})
-        create("table", "//tmp/t_out")
-
-        get_operation_guaranteed_resources_ratio = lambda op_id: \
-            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/guaranteed_resources_ratio".format(op_id))
-
-        op = map(
-            dont_track=True,
-            waiting_jobs=True,
-            command="cat",
-            in_=["//tmp/t_in"],
-            out="//tmp/t_out",
-            spec={"pool": "big_pool"})
-
-        # Wait for fair share update.
-        time.sleep(1)
-
-        assert assert_almost_equal(get_operation_guaranteed_resources_ratio(op.id), 1.0 / 5.0)
-        assert assert_almost_equal(get_pool_guaranteed_resources_ratio("subpool_1"), 1.0 / 5.0)
-        assert assert_almost_equal(get_pool_guaranteed_resources_ratio("subpool_2"), 3.0 / 5.0)
-
-        op.resume_jobs()
-        op.track()
-
-
 class TestSchedulerHeterogeneousConfiguration(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -1495,59 +1593,6 @@ class TestSchedulerJobStatistics(YTEnvSetup):
 
         op.resume_jobs()
         op.track()
-
-class TestResourceLimits(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 3
-    NUM_SCHEDULERS = 1
-
-    def test_resource_limits(self):
-        resource_limits = {"cpu": 1, "memory": 1000 * 1024 * 1024, "network": 10}
-        create("map_node", "//sys/pools/test_pool", attributes={"resource_limits": resource_limits})
-
-        while True:
-            pools = get("//sys/scheduler/orchid/scheduler/pools")
-            if "test_pool" in pools:
-                break
-            time.sleep(0.1)
-
-        stats = get("//sys/scheduler/orchid/scheduler")
-        pool_resource_limits = stats["pools"]["test_pool"]["resource_limits"]
-        for resource, limit in resource_limits.iteritems():
-            assert pool_resource_limits[resource] == limit
-
-        data = [{"foo": i} for i in xrange(3)]
-        create("table", "//tmp/in")
-        create("table", "//tmp/out")
-        write_table("//tmp/in", data)
-
-        memory_limit = 30 * 1024 * 1024
-
-        testing_options = {"scheduling_delay": 500}
-
-        op = map(
-            dont_track=True,
-            command="sleep 5",
-            in_="//tmp/in",
-            out="//tmp/out",
-            spec={"job_count": 3, "pool": "test_pool", "mapper": {"memory_limit": memory_limit}, "testing": testing_options})
-        time.sleep(3)
-        assert len(get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))) == 1
-        op.abort()
-
-        op = map(
-            dont_track=True,
-            command="sleep 5",
-            in_="//tmp/in",
-            out="//tmp/out",
-            spec={"job_count": 3, "resource_limits": resource_limits, "mapper": {"memory_limit": memory_limit}, "testing": testing_options})
-        time.sleep(3)
-        op_limits = get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_limits".format(op.id))
-        for resource, limit in resource_limits.iteritems():
-            assert op_limits[resource] == limit
-        assert len(get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))) == 1
-        op.abort()
-
 
 class TestSchedulerSuspiciousJobs(YTEnvSetup):
     NUM_MASTERS = 1
@@ -1709,42 +1754,6 @@ class TestSchedulerCaching(YTEnvSetup):
         write_table("//tmp/t_in", [{"foo": i} for i in xrange(10)])
 
         op = map(dont_track=True, command='cat', in_="//tmp/t_in", out="//tmp/t_out")
-        op.track()
-
-
-class TestSchedulerJobTimeLimit(YTEnvSetup):
-    NUM_MASTERS = 3
-    NUM_NODES = 3
-    NUM_SCHEDULERS = 1
-
-    def test_exceed_job_time_limit(self):
-        create("table", "//tmp/t_in")
-        write_table("//tmp/t_in", {"foo": "bar"})
-        create("table", "//tmp/t_out")
-        op = map(
-            dont_track=True,
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
-            command="sleep 2 ; cat",
-            spec={"max_failed_job_count": 1, "mapper": {"job_time_limit": 2000}})
-        # if all jobs failed then operation is also failed
-        with pytest.raises(YtError):
-            op.track()
-        jobs_path = "//sys/operations/" + op.id + "/jobs"
-        for job_id in ls(jobs_path):
-            inner_errors = get(jobs_path + "/" + job_id + "/@error/inner_errors")
-            assert "Job time limit exceeded" in inner_errors[0]["message"]
-
-    def test_within_job_time_limit(self):
-        create("table", "//tmp/t_in")
-        write_table("//tmp/t_in", {"foo": "bar"})
-        create("table", "//tmp/t_out")
-        op = map(
-            dont_track=True,
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
-            command="sleep 1 ; cat",
-            spec={"max_failed_job_count": 1, "mapper": {"job_time_limit": 2000}})
         op.track()
 
 class TestSecureVault(YTEnvSetup):

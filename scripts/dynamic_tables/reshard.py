@@ -11,6 +11,7 @@ account several important factors:
 """
 
 import argparse
+import copy
 import re
 import time
 import logging
@@ -18,8 +19,8 @@ import logging
 import yt.wrapper as yt
 import yt.yson as yson
 
-yt.config.VERSION = "v3"
-yt.config.http.HEADER_FORMAT = "yson"
+#yt.config.VERSION = "v3"
+#yt.config.http.HEADER_FORMAT = "yson"
 
 
 GB = 1024 * 1024 * 1024
@@ -92,28 +93,31 @@ def reshard(table, shards=None, yes=False):
 
 
 def main(args):
-    if args.action == "one":
-        process_one(args)
-    elif args.action == "many":
-        process_many(args)
+    if args.action == "manual":
+        process_manual(args.table, args.shards, args.yes)
+    elif args.action == "auto":
+        process_auto(args.table, args.include, args.exclude, args.root,
+                     args.desired_size_gbs, args.in_memory_only, args.yes)
 
 
-def process_one(args):
-    reshard(args.table, args.shards, args.yes)
+def process_manual(table, shards, yes=False):
+    reshard(table, shards, yes)
 
 
-def process_many(args):
-    tables = []
-    for table in args.table:
-        tables.append(table)
+def process_auto(tables, include_regexps=[], exclude_regexps=[], root="/",
+                 desired_size_gbs=0, in_memory_only=False, yes=False):
+    tables = copy.deepcopy(tables)
 
-    if len(args.include) + len(args.exclude) > 0:
-        for table in yt.search("/", node_type="table", attributes=["dynamic", "in_memory_mode"]):
+    if root != "/" and len(tables) == 0 and len(include_regexps) == 0 and len(exclude_regexps) == 0:
+        include_regexps.append(".*")
+
+    if len(include_regexps) + len(exclude_regexps) > 0:
+        for table in yt.search(root, node_type="table", attributes=["dynamic", "in_memory_mode"]):
             dynamic = table.attributes.get("dynamic", False)
             in_memory_mode = table.attributes.get("in_memory_mode", "none")
             if not dynamic:
                 continue
-            if args.in_memory_only and in_memory_mode == "none":
+            if in_memory_only and in_memory_mode == "none":
                 continue
             tables.append(str(table))
 
@@ -129,16 +133,16 @@ def process_many(args):
 
         in_memory_mode = table_attributes.get("in_memory_mode", "none")
 
-        desired_size_gbs = args.desired_size_gbs
         if desired_size_gbs == 0:
             if in_memory_mode == "none":
                 desired_size_gbs = 80
             else:
                 desired_size_gbs = 1
 
-        desired_size_kind = "uncompressed"
         if in_memory_mode == "compressed":
             desired_size_kind = "compressed"
+        else:
+            desired_size_kind = "uncompressed"
 
         sizes = [tablet["statistics"]["%s_data_size" % desired_size_kind] for tablet in tablets]
 
@@ -150,7 +154,7 @@ def process_many(args):
 
         try:
             logging.info("Resharding table %s into %d shards", table, shards)
-            reshard(table, shards, args.yes)
+            reshard(table, shards, yes)
         except KeyboardInterrupt:
             raise
         except:
@@ -165,23 +169,25 @@ if __name__ == "__main__":
 
     subparsers = parser.add_subparsers()
 
-    one_parser = subparsers.add_parser("one", help="reshard one table")
-    one_parser.add_argument("--table", type=str, required=True, help="Table to reshard")
-    one_parser.add_argument("--shards", type=int, required=True, help="Target number of shards")
-    one_parser.set_defaults(action="one")
+    manual_parser = subparsers.add_parser("manual", help="reshard table manually")
+    manual_parser.add_argument("--table", type=str, required=True, help="Table to reshard")
+    manual_parser.add_argument("--shards", type=int, required=True, help="Target number of shards")
+    manual_parser.set_defaults(action="manual")
 
-    many_parser = subparsers.add_parser("many", help="reshard many tables")
-    many_parser.add_argument("--table", action="append", type=str,
+    auto_parser = subparsers.add_parser("auto", help="reshard tables automatically")
+    auto_parser.add_argument("--table", action="append", type=str,
                              help="Add a single table to task list")
-    many_parser.add_argument("--include", metavar="REGEXP", action="append", type=str,
+    auto_parser.add_argument("--include", metavar="REGEXP", action="append", type=str,
                              help="Add tables matching regular expression to task list")
-    many_parser.add_argument("--exclude", metavar="REGEXP", action="append", type=str,
+    auto_parser.add_argument("--exclude", metavar="REGEXP", action="append", type=str,
                              help="Remove tables matching regular expression from task list")
-    many_parser.add_argument("--in-memory-only", action="store_true", default=False,
+    auto_parser.add_argument("--root", metavar="ROOT", type=str,
+                             help="Root path to use for --include/--exclude search")
+    auto_parser.add_argument("--in-memory-only", action="store_true", default=False,
                              help="Process only in-memory tables")
-    many_parser.add_argument("--desired-size-gbs", metavar="N", type=long, required=False, default=0,
+    auto_parser.add_argument("--desired-size-gbs", metavar="N", type=long, required=False, default=0,
                              help="Desired tablet size (in GBs)")
-    many_parser.set_defaults(table=[], include=[], exclude=[], action="many")
+    auto_parser.set_defaults(table=[], include=[], exclude=[], root="/", action="auto")
 
     args = parser.parse_args()
 

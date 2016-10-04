@@ -79,9 +79,19 @@ i64 TProgressCounter::GetFailed() const
     return Failed_;
 }
 
-i64 TProgressCounter::GetAborted() const
+i64 TProgressCounter::GetAbortedTotal() const
 {
     return std::accumulate(Aborted_.begin(), Aborted_.end(), 0LL);
+}
+
+i64 TProgressCounter::GetAbortedScheduled() const
+{
+    return GetAbortedTotal() - GetAbortedNonScheduled();
+}
+
+i64 TProgressCounter::GetAbortedNonScheduled() const
+{
+    return Aborted_[EAbortReason::SchedulingTimeout] + Aborted_[EAbortReason::SchedulingResourceOvercommit];
 }
 
 i64 TProgressCounter::GetAborted(EAbortReason reason) const
@@ -164,6 +174,10 @@ void TProgressCounter::Persist(const TStreamPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////
 
+const TProgressCounter NullProgressCounter;
+
+////////////////////////////////////////////////////////////////////
+
 Stroka ToString(const TProgressCounter& counter)
 {
     return counter.IsTotalEnabled()
@@ -173,13 +187,13 @@ Stroka ToString(const TProgressCounter& counter)
             counter.GetCompleted(),
             counter.GetPending(),
             counter.GetFailed(),
-            counter.GetAborted(),
+            counter.GetAbortedTotal(),
             counter.GetLost())
         : Format("{R: %v, C: %v, F: %v, A: %v, L: %v}",
             counter.GetRunning(),
             counter.GetCompleted(),
             counter.GetFailed(),
-            counter.GetAborted(),
+            counter.GetAbortedTotal(),
             counter.GetLost());
 }
 
@@ -196,7 +210,12 @@ void Serialize(const TProgressCounter& counter, IYsonConsumer* consumer)
             .Item("completed").Value(counter.GetCompleted())
             .Item("failed").Value(counter.GetFailed())
             .Item("aborted").BeginMap()
-                .Item("total").Value(counter.GetAborted())
+                // NB(ignat): temporaly output total aborted job count as scheduled aborted jobs count.
+                // Fix it when UI will start using scheduled aborted job count.
+                .Item("total").Value(counter.GetAbortedScheduled())
+                //.Item("total").Value(counter.GetAbortedTotal())
+                .Item("non_scheduled").Value(counter.GetAbortedNonScheduled())
+                .Item("scheduled").Value(counter.GetAbortedScheduled())
                 .DoFor(TEnumTraits<EAbortReason>::GetDomainValues(), [&] (TFluentMap fluent, EAbortReason reason) {
                     fluent
                         .Item(FormatEnum(reason)).Value(counter.GetAborted(reason));

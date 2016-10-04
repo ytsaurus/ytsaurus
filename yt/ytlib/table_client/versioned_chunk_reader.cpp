@@ -1211,9 +1211,9 @@ private:
         }
 
         size_t valueCount = 0;
-        for (int valueColumnIndex = 0; valueColumnIndex < VersionedChunkMeta_->SchemaIdMapping().size(); ++valueColumnIndex) {
-            const auto& idMapping = VersionedChunkMeta_->SchemaIdMapping()[valueColumnIndex];
-            const auto& columnSchema = VersionedChunkMeta_->ChunkSchema().Columns()[idMapping.ChunkSchemaIndex];
+        for (int valueColumnIndex = 0; valueColumnIndex < SchemaIdMapping_.size(); ++valueColumnIndex) {
+            const auto& idMapping = SchemaIdMapping_[valueColumnIndex];
+            const auto& columnSchema = ChunkMeta_->ChunkSchema().Columns()[idMapping.ChunkSchemaIndex];
             ui32 columnValueCount = 1;
             if (columnSchema.Aggregate) {
                 // Possibly multiple values per column for aggregate columns.

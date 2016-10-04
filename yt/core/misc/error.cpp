@@ -6,6 +6,7 @@
 
 #include <yt/core/misc/error.pb.h>
 #include <yt/core/misc/protobuf_helpers.h>
+#include <yt/core/misc/proc.h>
 
 #include <yt/core/tracing/trace_context.h>
 
@@ -127,7 +128,7 @@ TError TError::FromSystem()
 
 TError TError::FromSystem(int error)
 {
-    return TError("%v", LastSystemErrorText(error)) <<
+    return TError(LinuxErrorCodeBase + error, "%v", LastSystemErrorText(error)) <<
         TErrorAttribute("errno", error);
 }
 
