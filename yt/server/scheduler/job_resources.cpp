@@ -134,9 +134,13 @@ Stroka FormatResources(const TExtendedJobResources& resources)
         resources.GetNetwork());
 }
 
-void ProfileResources(TProfiler& profiler, const TJobResources& resources)
+void ProfileResources(
+    const TProfiler& profiler,
+    const TJobResources& resources,
+    const Stroka& prefix,
+    const TTagIdList& tagIds)
 {
-    #define XX(name, Name) profiler.Enqueue("/" #name, resources.Get##Name(), EMetricType::Gauge);
+    #define XX(name, Name) profiler.Enqueue(prefix + "/" #name, resources.Get##Name(), EMetricType::Gauge, tagIds);
     ITERATE_JOB_RESOURCES(XX)
     #undef XX
 }

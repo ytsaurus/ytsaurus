@@ -27,7 +27,9 @@ public:
     i64 GetCompleted() const;
     i64 GetPending() const;
     i64 GetFailed() const;
-    i64 GetAborted() const;
+    i64 GetAbortedTotal() const;
+    i64 GetAbortedScheduled() const;
+    i64 GetAbortedNonScheduled() const;
     i64 GetAborted(EAbortReason reason) const;
     i64 GetLost() const;
 
@@ -54,6 +56,10 @@ private:
 Stroka ToString(const TProgressCounter& counter);
 
 void Serialize(const TProgressCounter& counter, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const TProgressCounter NullProgressCounter;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -124,6 +124,7 @@ struct IChunkPoolOutput
 
     virtual int GetTotalJobCount() const = 0;
     virtual int GetPendingJobCount() const = 0;
+    virtual const TProgressCounter& GetJobCounter() const = 0;
 
     //! Approximate average stripe list statistics to estimate memory usage.
     virtual TChunkStripeStatisticsVector GetApproximateStripeStatistics() const = 0;
@@ -139,6 +140,8 @@ struct IChunkPoolOutput
     virtual void Aborted(TCookie cookie) = 0;
     virtual void Lost(TCookie cookie) = 0;
 
+    virtual void SetDataSizePerJob(i64 dataSizePerJob) = 0;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -151,7 +154,7 @@ struct IChunkPool
 std::unique_ptr<IChunkPool> CreateAtomicChunkPool();
 
 std::unique_ptr<IChunkPool> CreateUnorderedChunkPool(
-    int jobCount,
+    i64 dataSizePerJob,
     int maxChunkStripesPerJob);
 
 ////////////////////////////////////////////////////////////////////////////////

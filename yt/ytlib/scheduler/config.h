@@ -402,7 +402,7 @@ public:
     //! groups of chunks are partitioned into tasks of this or smaller size.
     //! This number, however, is merely an estimate, i.e. some tasks may still
     //! be larger.
-    i64 DataSizePerJob;
+    TNullable<i64> DataSizePerJob;
 
     TNullable<int> JobCount;
     TNullable<int> MaxJobCount;
@@ -417,7 +417,7 @@ public:
     TSimpleOperationSpecBase()
     {
         RegisterParameter("data_size_per_job", DataSizePerJob)
-            .Default((i64) 256 * 1024 * 1024)
+            .Default()
             .GreaterThan(0);
         RegisterParameter("job_count", JobCount)
             .Default()
@@ -480,10 +480,6 @@ public:
             .NonEmpty();
         RegisterParameter("ordered", Ordered)
             .Default(false);
-
-        RegisterInitializer([&] () {
-            DataSizePerJob = (i64) 128 * 1024 * 1024;
-        });
     }
 
     virtual void OnLoaded() override
@@ -633,10 +629,6 @@ public:
             if (!JoinBy.empty()) {
                 NTableClient::ValidateKeyColumns(JoinBy);
             }
-        });
-
-        RegisterInitializer([&] () {
-            DataSizePerJob = (i64) 128 * 1024 * 1024;
         });
     }
 
@@ -1021,7 +1013,7 @@ public:
     NYPath::TRichYPath OutputTablePath;
     TNullable<int> JobCount;
     TNullable<int> MaxJobCount;
-    i64 DataSizePerJob;
+    TNullable<i64> DataSizePerJob;
     TJobIOConfigPtr JobIO;
     int MaxChunkCountPerJob;
     bool CopyAttributes;
@@ -1046,7 +1038,7 @@ public:
             .Default()
             .GreaterThan(0);
         RegisterParameter("data_size_per_job", DataSizePerJob)
-            .Default((i64) 1024 * 1024 * 1024)
+            .Default()
             .GreaterThan(0);
         RegisterParameter("job_io", JobIO)
             .DefaultNew();

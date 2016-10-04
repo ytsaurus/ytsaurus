@@ -55,6 +55,7 @@ struct IJob
     virtual void OnJobPrepared() = 0;
 
     virtual TNullable<TDuration> GetPrepareDuration() const = 0;
+    virtual TNullable<TDuration> GetDownloadDuration() const = 0;
     virtual TNullable<TDuration> GetExecDuration() const = 0;
 
     virtual TInstant GetStatisticsLastSendTime() const = 0;

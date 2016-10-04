@@ -559,8 +559,18 @@ std::vector<TBlockIO::TStatisticsItem> TBlockIO::GetDetailedStatistics(const cha
 
             YCHECK(item.DeviceId.has_prefix("8:"));
 
+            {
+                auto guard = Guard(SpinLock_);
+                DeviceIds_.insert(item.DeviceId);
+            }
+
             if (item.Type == "Read" || item.Type == "Write") {
                 result.push_back(item);
+
+                LOG_DEBUG("IO operations serviced (OperationCount: %v, OperationType: %v, DeviceId: %v)",
+                    item.Value,
+                    item.Type,
+                    item.DeviceId);
             }
             ++lineNumber;
         }
@@ -574,20 +584,14 @@ std::vector<TBlockIO::TStatisticsItem> TBlockIO::GetDetailedStatistics(const cha
     return result;
 }
 
-void TBlockIO::ThrottleOperations(const Stroka& deviceId, i64 operations) const
+void TBlockIO::ThrottleOperations(i64 operations) const
 {
-    auto value = Format("%v %v", deviceId, operations);
-    Append("blkio.throttle.read_iops_device", value);
-    Append("blkio.throttle.write_iops_device", value);
-}
-
-void TBlockIO::SetWeight(int weight)
-{   
-    // These are the extreme values defined in
-    // https://www.kernel.org/doc/Documentation/cgroups/blkio-controller.txt
-    weight = std::min(weight, 1000);
-    weight = std::max(weight, 10);
-    Append("blkio.weight", ToString(weight));
+    auto guard = Guard(SpinLock_);
+    for (const auto& deviceId : DeviceIds_) {
+        auto value = Format("%v %v", deviceId, operations);
+        Append("blkio.throttle.read_iops_device", value);
+        Append("blkio.throttle.write_iops_device", value);
+    }
 }
 
 void Serialize(const TBlockIO::TStatistics& statistics, NYson::IYsonConsumer* consumer)
@@ -625,6 +629,9 @@ TMemory::TStatistics TMemory::GetStatistics() const
             if (type == "mapped_file") {
                 result.MappedFile = FromString<ui64>(unparsedValue);
             }
+            if (type == "pgmajfault") {
+                result.MajorPageFaults = FromString<ui64>(unparsedValue);
+            }
             ++lineNumber;
         }
     } catch (const std::exception& ex) {
@@ -642,7 +649,6 @@ ui64 TMemory::GetMaxMemoryUsage() const
     return FromString<ui64>(Get("memory.max_usage_in_bytes"));
 }
 
-
 void TMemory::SetLimitInBytes(i64 bytes) const
 {
     Set("memory.limit_in_bytes", ToString(bytes));
@@ -659,6 +665,7 @@ void Serialize(const TMemory::TStatistics& statistics, NYson::IYsonConsumer* con
         .BeginMap()
             .Item("rss").Value(statistics.Rss)
             .Item("mapped_file").Value(statistics.MappedFile)
+            .Item("major_page_faults").Value(statistics.MajorPageFaults)
         .EndMap();
 }
 

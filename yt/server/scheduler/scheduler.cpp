@@ -190,7 +190,7 @@ public:
         ProfilingExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(),
             BIND(&TImpl::OnProfiling, MakeWeak(this)),
-            ProfilingPeriod);
+            Config_->ProfilingUpdatePeriod);
         ProfilingExecutor_->Start();
 
         auto nameTable = New<TNameTable>();

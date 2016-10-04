@@ -1027,7 +1027,8 @@ private:
         if (!defaultParentPool || defaultParentPool == pool) {
             // NB: root element is not a pool, so we should suppress warning in this special case.
             if (Config->DefaultParentPool != RootPoolName) {
-                LOG_WARNING("Default parent pool %Qv is not registered", Config->DefaultParentPool);
+                auto error = TError("Default parent pool %Qv is not registered", Config->DefaultParentPool);
+                Host->RegisterAlert(EAlertType::UpdatePools, error);
             }
             SetPoolParent(pool, RootElement);
         } else {
@@ -1223,6 +1224,33 @@ private:
             static_cast<i64>(element->GetResourceUsageRatio() * 1e5),
             EMetricType::Gauge,
             {tag});
+        Profiler.Enqueue(
+            "/pools/demand_ratio_x100000",
+            static_cast<i64>(element->Attributes().DemandRatio * 1e5),
+            EMetricType::Gauge,
+            {tag});
+        Profiler.Enqueue(
+            "/pools/guaranteed_resource_ratio_x100000",
+            static_cast<i64>(element->Attributes().GuaranteedResourcesRatio * 1e5),
+            EMetricType::Gauge,
+            {tag});
+
+        ProfileResources(
+            Profiler,
+            element->GetResourceUsage(),
+            "/pools/resource_usage",
+            {tag});
+        ProfileResources(
+            Profiler,
+            element->ResourceLimits(),
+            "/pools/resource_limits",
+            {tag});
+        ProfileResources(
+            Profiler,
+            element->ResourceDemand(),
+            "/pools/resource_demand",
+            {tag});
+
         Profiler.Enqueue(
             "/running_operation_count",
             element->RunningOperationCount(),
