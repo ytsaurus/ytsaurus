@@ -305,7 +305,7 @@ private:
             const auto& entry = pair.second;
             ValidateCellTag(cellTag);
             RegisteredMasterCellTags_[entry.Index] = cellTag;
-            LOG_INFO_UNLESS(IsRecovery(), "Master cell registered (CellTag: %v, CellIndex: %v)",
+            LOG_INFO("Master cell registered (CellTag: %v, CellIndex: %v)",
                 cellTag,
                 entry.Index);
         }
