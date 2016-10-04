@@ -12,7 +12,7 @@ import yt.logger as logger
 from yt.common import format_error, date_string_to_datetime
 
 from yt.packages.decorator import decorator
-from yt.packages.six import iteritems
+from yt.packages.six import iteritems, iterkeys
 from yt.packages.six.moves import builtins, filter as ifilter
 
 import logging
@@ -473,7 +473,8 @@ class Operation(object):
 class OperationsTracker(object):
     """Holds operations and allows to wait or abort all tracked operations."""
     def __init__(self, poll_period=5000, abort_on_sigint=True):
-        self._operations = {}
+        self.operations = {}
+
         self._poll_period = poll_period
         self._abort_on_sigint = abort_on_sigint
 
@@ -487,7 +488,7 @@ class OperationsTracker(object):
 
         if not operation.exists():
             raise YtError("Operation %s does not exist and is not added", operation.id)
-        self._operations[operation.id] = operation
+        self.operations[operation.id] = operation
 
     def add_by_id(self, operation_id, client=None):
         """Adds operation to tracker (by operation id)
@@ -496,30 +497,36 @@ class OperationsTracker(object):
         try:
             attributes = get_operation_attributes(operation_id, client=client)
             operation = Operation(attributes["operation_type"], operation_id, client=client)
-            self._operations[operation_id] = operation
+            self.operations[operation_id] = operation
         except YtResponseError as err:
             if err.is_resolve_error():
                 raise YtError("Operation %s does not exist and is not added", operation_id)
             raise
 
-    def wait_all(self, check_result=True, print_progress=True, abort_exceptions=(KeyboardInterrupt,)):
+    def wait_all(self, check_result=True, print_progress=True, abort_exceptions=(KeyboardInterrupt,),
+                 keep_finished=False):
         """Waits all added operations and prints progress.
         :param check_result: (bool) if True then `YtError` will be raised if any operation failed.
         For each failed operation `YtOperationFailedError` object with details will be added to raised error.
         :param print_progress: (bool)
+        :param abort_exceptions: (tuple) if any exception from this tuple is caught all operations \
+        will be aborted.
+        :param keep_finished: (bool) do not remove finished operations from tracker, just wait for them to finish.
         """
-        logger.info("Waiting for %d operations to complete...", len(self._operations))
+        logger.info("Waiting for %d operations to complete...", len(self.operations))
 
         unsucessfully_finished_count = 0
         inner_errors = []
+        operations_to_track = set(iterkeys(self.operations))
 
         with ExceptionCatcher(abort_exceptions, self.abort_all, enable=self._abort_on_sigint):
-            while self._operations:
+            while operations_to_track:
                 operations_to_remove = []
 
-                for id_, operation in iteritems(self._operations):
-                    state = operation.get_state()
+                for id_ in operations_to_track:
+                    operation = self.operations[id_]
 
+                    state = operation.get_state()
                     if print_progress:
                         operation.printer(state)
 
@@ -531,7 +538,9 @@ class OperationsTracker(object):
                             inner_errors.append(_create_operation_failed_error(operation, state))
 
                 for operation_id in operations_to_remove:
-                    del self._operations[operation_id]
+                    operations_to_track.remove(operation_id)
+                    if not keep_finished:
+                        del self.operations[operation_id]
 
                 sleep(self._poll_period / 1000.0)
 
@@ -541,8 +550,8 @@ class OperationsTracker(object):
 
     def abort_all(self):
         """Aborts all added operations."""
-        logger.info("Aborting %d operations", len(self._operations))
-        for id_, operation in iteritems(self._operations):
+        logger.info("Aborting %d operations", len(self.operations))
+        for id_, operation in iteritems(self.operations):
             state = operation.get_state()
 
             if state.is_finished():
@@ -552,4 +561,4 @@ class OperationsTracker(object):
             operation.abort()
             logger.info("Operation %s was aborted", id_)
 
-        self._operations.clear()
+        self.operations.clear()
