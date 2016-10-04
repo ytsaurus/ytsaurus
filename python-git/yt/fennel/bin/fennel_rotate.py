@@ -1,13 +1,16 @@
 #!/usr/bin/env python
 
+from yt.common import get_value
 import yt.wrapper as yt
-import yt.logger as logger
 
 import re
 import sys
+import logging
 from argparse import ArgumentParser
 
 TABLE_NAME = None
+
+logger = logging.getLogger("Fennel")
 
 def get_tables():
     pattern = re.compile(TABLE_NAME + "(\.\d*)?$")
@@ -170,6 +173,22 @@ def archive_table(archive_size_limit):
                      spec={"force_transform": True, "data_size_per_job": data_size_per_job})
         yt.set(TABLE_NAME + "/@archived_row_count", row_count_to_archive)
 
+def configure_logging(args):
+    if args.log_file is not None:
+        handler = logging.handlers.WatchedFileHandler(args.log_file)
+    else:
+        handler = logging.StreamHandler()
+    level = logging.__dict__[get_value(args.log_level, "INFO")]
+
+    def configure_logger(logger):
+        logger.propagate = False
+        logger.setLevel(level)
+        logger.handlers = [handler]
+        logger.handlers[0].setFormatter(logging.Formatter("%(asctime)-15s\t%(levelname)s\t%(name)s\t%(message)s"))
+
+    configure_logger(logging.getLogger("Fennel"))
+    configure_logger(logging.getLogger("Yt"))
+
 def main():
     parser = ArgumentParser(description="Script to rotate scheduler event logs")
     parser.add_argument("--archive-size-limit", type=int, default=500 * 1024 ** 3)
@@ -177,8 +196,12 @@ def main():
     parser.add_argument("--skip-fennel-check", action="store_true", default=False)
     parser.add_argument("--table-directory", default="//sys/scheduler/")
     parser.add_argument("--table-name", default="event_log")
+    parser.add_argument("--log-file", help="path to log file, stderr if not specified")
+    parser.add_argument("--log-level", help="log level")
 
     args = parser.parse_args()
+
+    configure_logging(args)
 
     yt.config["prefix"] = args.table_directory
 
