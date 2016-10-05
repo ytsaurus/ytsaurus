@@ -127,13 +127,13 @@ TEST(TThreadAffinityTest, UntangledThreadAccessToSharedSlot)
 
 #ifndef NDEBUG
 
-TEST(TThreadAffinityDeathTest, TangledThreadAccess1)
+DISABLED_TEST(TThreadAffinityDeathTest, TangledThreadAccess1)
 {
     TMyObject object;
     ASSERT_DEATH({ TangledThreadAccess1(&object); }, ".*");
 }
 
-TEST(TThreadAffinityDeathTest, TangledThreadAccess2)
+DISABLED_TEST(TThreadAffinityDeathTest, TangledThreadAccess2)
 {
     TMyObject object;
     ASSERT_DEATH({ TangledThreadAccess2(&object); }, ".*");
