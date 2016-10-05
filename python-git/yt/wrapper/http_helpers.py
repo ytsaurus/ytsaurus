@@ -298,31 +298,32 @@ def get_api_commands(client=None):
 
     return commands
 
-def get_token(client=None):
-    """Extracts token from given client and checks it for correctness."""
-    if not get_config(client)["enable_token"]:
-        return None
-
-    token = get_config(client)["token"]
+def get_token(token=None, client=None):
+    """Extracts token from given `token` and `client` arguments. Also checks token for correctness."""
     if token is None:
-        token_path = get_config(client=client)["token_path"]
-        if token_path is None:
-            token_path = os.path.join(os.path.expanduser("~"), ".yt/token")
-        if os.path.isfile(token_path):
-            with open(token_path, "rb") as token_file:
-                token = token_file.read().strip()
-            logger.debug("Token got from file %s", token_path)
-    else:
-        logger.debug("Token got from environment variable or config")
+        if not get_config(client)["enable_token"]:
+            return None
 
-    # Token should not contains non-printable symbols.
-    if token is not None:
-        require(all(33 <= ord(c) <= 126 for c in token),
-                lambda: YtTokenError("You have an improper authentication token"))
+        token = get_config(client)["token"]
+        if token is None:
+            token_path = get_config(client=client)["token_path"]
+            if token_path is None:
+                token_path = os.path.join(os.path.expanduser("~"), ".yt/token")
+            if os.path.isfile(token_path):
+                with open(token_path, "rb") as token_file:
+                    token = token_file.read().strip()
+                logger.debug("Token got from file %s", token_path)
+        else:
+            logger.debug("Token got from environment variable or config")
 
     # Empty token considered as missing.
     if not token:
         token = None
+
+    # Validate token.
+    if token is not None:
+        require(all(33 <= ord(c) <= 126 for c in token),
+                lambda: YtTokenError("You have an improper authentication token"))
 
     return token
 
