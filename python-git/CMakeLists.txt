@@ -8,69 +8,29 @@ if(NOT (${CMAKE_VERSION} VERSION_LESS 3.2.3))
   )
 endif()
 
-file(
-  REMOVE_RECURSE ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages/requests
-)
+foreach(package_name "requests" "argcomplete" "pympler" "cherrypy" "tornado"
+                     "certifi" "backports_abc" "six" "singledispatch")
+  file(
+    REMOVE_RECURSE
+    ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages/${package_name}*
+    ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages/${package_name}*.py
+  )
+  file(GLOB FILES_TO_COPY
+    ${CMAKE_CURRENT_SOURCE_DIR}/contrib/python-${package_name}/${package_name}*.py
+  )
 
-file(
-  COPY ${CMAKE_CURRENT_SOURCE_DIR}/contrib/python-requests/requests
-  DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages
-)
+  SET(SOURCE_PACKAGE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/contrib/python-${package_name}/${package_name})
+  if(EXISTS ${SOURCE_PACKAGE_DIR})
+    SET(FILES_TO_COPY ${FILES_TO_COPY} ${SOURCE_PACKAGE_DIR})
+  endif()
 
-file(
-  REMOVE_RECURSE ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages/argcomplete
-)
+  file(
+    COPY ${FILES_TO_COPY}
+    DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages
+  )
+endforeach(package_name)
 
-file(
-  COPY ${CMAKE_CURRENT_SOURCE_DIR}/contrib/python-argcomplete/argcomplete
-  DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages
-)
-
-file(
-  REMOVE_RECURSE ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages/pympler
-)
-
-file(
-  COPY ${CMAKE_CURRENT_SOURCE_DIR}/contrib/python-pympler/pympler
-  DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages
-)
-
-file(
-  REMOVE_RECURSE ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages/cherrypy
-)
-
-file(
-  COPY ${CMAKE_CURRENT_SOURCE_DIR}/contrib/python-cherrypy/cherrypy
-  DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages
-)
-
-file(
-  REMOVE_RECURSE ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages/tornado
-)
-
-file(
-  COPY ${CMAKE_CURRENT_SOURCE_DIR}/contrib/python-tornado/tornado
-  DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages
-)
-
-file(
-  REMOVE_RECURSE ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages/certifi
-)
-
-file(
-  COPY ${CMAKE_CURRENT_SOURCE_DIR}/contrib/python-certifi/certifi
-  DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages
-)
-
-file(
-  REMOVE ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages/backports_abc.py
-)
-
-file(
-  COPY ${CMAKE_CURRENT_SOURCE_DIR}/contrib/python-backports_abc/backports_abc.py
-  DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages
-)
-
+# Additinal packages to copy
 file(
   REMOVE_RECURSE ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages/backports
 )
@@ -81,37 +41,20 @@ file(
 )
 
 file(
-  REMOVE ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages/six.py
-)
-
-file(
-  COPY ${CMAKE_CURRENT_SOURCE_DIR}/contrib/python-six/six.py
-  DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages
-)
-
-file(
-  REMOVE ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages/singledispatch.py
-)
-
-file(
-  COPY ${CMAKE_CURRENT_SOURCE_DIR}/contrib/python-singledispatch/singledispatch.py
-  DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages
-)
-
-file(
-  REMOVE ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages/singledispatch_helpers.py
-)
-
-file(
-  COPY ${CMAKE_CURRENT_SOURCE_DIR}/contrib/python-singledispatch/singledispatch_helpers.py
-  DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages
-)
-
-file(
   REMOVE ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages/decorator.py
 )
 
 file(
   COPY ${CMAKE_CURRENT_SOURCE_DIR}/contrib/python-decorator/src/decorator.py
   DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages
+)
+
+# Prepare yt_yson_bindings
+file(
+  REMOVE_RECURSE ${CMAKE_CURRENT_SOURCE_DIR}/yt_yson_bindings
+)
+
+file(
+  COPY ${CMAKE_CURRENT_SOURCE_DIR}/yson-debian/yt_yson_bindings
+  DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/yt_yson_bindings
 )
