@@ -103,6 +103,7 @@ extern const TConstFunctionProfilerMapPtr BuiltinFunctionCG;
 extern const TConstAggregateProfilerMapPtr BuiltinAggregateCG;
 
 DECLARE_REFCOUNTED_STRUCT(IFunctionRegistry)
+DECLARE_REFCOUNTED_STRUCT(ITypeInferrer)
 
 DECLARE_REFCOUNTED_CLASS(TFunctionImplCache)
 

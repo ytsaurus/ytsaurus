@@ -10,10 +10,8 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(ITypeInferrer)
-
 struct ITypeInferrer
-    : public TRefCounted
+    : public virtual TRefCounted
 {
     template <class TDerived>
     const TDerived* As() const
@@ -27,6 +25,8 @@ struct ITypeInferrer
         return dynamic_cast<TDerived*>(this);
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(ITypeInferrer)
 
 struct TFunctionTypeInferrer
     : public ITypeInferrer
@@ -119,10 +119,14 @@ struct TTypeInferrerMap
 
 };
 
+DEFINE_REFCOUNTED_TYPE(TTypeInferrerMap)
+
 struct TRangeExtractorMap
     : public TRefCounted
     , public std::unordered_map<Stroka, TRangeExtractor>
 { };
+
+DEFINE_REFCOUNTED_TYPE(TRangeExtractorMap)
 
 struct TFunctionProfilerMap
     : public TRefCounted
@@ -132,6 +136,8 @@ struct TFunctionProfilerMap
 
 };
 
+DEFINE_REFCOUNTED_TYPE(TFunctionProfilerMap)
+
 struct TAggregateProfilerMap
     : public TRefCounted
     , public std::unordered_map<Stroka, IAggregateCodegenPtr>
@@ -139,6 +145,8 @@ struct TAggregateProfilerMap
     const IAggregateCodegenPtr& GetAggregate(const Stroka& functionName) const;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TAggregateProfilerMap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
