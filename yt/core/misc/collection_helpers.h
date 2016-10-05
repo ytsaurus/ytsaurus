@@ -27,6 +27,9 @@ std::vector<typename std::tuple_element<N, typename T::value_type>::type> GetIth
 template <class T>
 bool ShrinkHashTable(T* collection);
 
+template <class TSource, class TTarget>
+void MergeFrom(TTarget* target, const TSource& source);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

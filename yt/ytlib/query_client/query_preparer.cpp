@@ -11,6 +11,8 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
+#include <yt/core/misc/collection_helpers.h>
+
 #include <unordered_set>
 
 namespace NYT {
@@ -1444,7 +1446,7 @@ void ParseYqlString(
 
 void DefaultFetchFunctions(const std::vector<Stroka>& names, const TTypeInferrerMapPtr& typeInferrers)
 {
-    MergeFrom(typeInferrers.Get(), BuiltinTypeInferrersMap.Get());
+    MergeFrom(typeInferrers.Get(), *BuiltinTypeInferrersMap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

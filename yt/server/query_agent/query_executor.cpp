@@ -58,6 +58,7 @@
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/misc/string.h>
+#include <yt/core/misc/collection_helpers.h>
 
 namespace NYT {
 namespace NQueryAgent {
@@ -245,8 +246,8 @@ private:
 
         auto functionGenerators = New<TFunctionProfilerMap>();
         auto aggregateGenerators = New<TAggregateProfilerMap>();
-        MergeFrom(functionGenerators.Get(), BuiltinFunctionCG.Get());
-        MergeFrom(aggregateGenerators.Get(), BuiltinAggregateCG.Get());
+        MergeFrom(functionGenerators.Get(), *BuiltinFunctionCG);
+        MergeFrom(aggregateGenerators.Get(), *BuiltinAggregateCG);
         FetchImplementations(
             functionGenerators,
             aggregateGenerators,
