@@ -14,12 +14,16 @@
 #include <yt/core/concurrency/scheduler.h>
 #include <yt/core/concurrency/async_stream.h>
 
+#include <yt/core/ytree/convert.h>
+#include <yt/core/ytree/node.h>
+
 namespace NYT {
 namespace NTableClient {
 
 using namespace NConcurrency;
 using namespace NFormats;
 using namespace NYson;
+using namespace NYTree;
 using namespace NCypressClient;
 using namespace NChunkClient;
 
@@ -28,7 +32,7 @@ using NYPath::TRichYPath;
 
 //////////////////////////////////////////////////////////////////////////////////
 
-TTableOutput::TTableOutput(const TFormat& format, NYson::IYsonConsumer* consumer)
+TTableOutput::TTableOutput(const TFormat& format, IYsonConsumer* consumer)
     : Parser_(CreateParserForFormat(format, EDataType::Tabular, consumer))
 { }
 
@@ -371,6 +375,128 @@ TTableUploadOptions GetTableUploadOptions(
     }
 
     return result;
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+
+TUnversionedOwningRow YsonToRow(
+    const Stroka& yson,
+    const TTableSchema& tableSchema,
+    bool treatMissingAsNull)
+{
+    auto nameTable = TNameTable::FromSchema(tableSchema);
+
+    auto rowParts = ConvertTo<yhash_map<Stroka, INodePtr>>(
+        TYsonString(yson, EYsonType::MapFragment));
+
+    TUnversionedOwningRowBuilder rowBuilder;
+    auto addValue = [&] (int id, INodePtr value) {
+        switch (value->GetType()) {
+            case ENodeType::Int64:
+                rowBuilder.AddValue(MakeUnversionedInt64Value(value->GetValue<i64>(), id));
+                break;
+            case ENodeType::Uint64:
+                rowBuilder.AddValue(MakeUnversionedUint64Value(value->GetValue<ui64>(), id));
+                break;
+            case ENodeType::Double:
+                rowBuilder.AddValue(MakeUnversionedDoubleValue(value->GetValue<double>(), id));
+                break;
+            case ENodeType::Boolean:
+                rowBuilder.AddValue(MakeUnversionedBooleanValue(value->GetValue<bool>(), id));
+                break;
+            case ENodeType::String:
+                rowBuilder.AddValue(MakeUnversionedStringValue(value->GetValue<Stroka>(), id));
+                break;
+            case ENodeType::Entity:
+                rowBuilder.AddValue(MakeUnversionedSentinelValue(value->Attributes().Get<EValueType>("type"), id));
+                break;
+            default:
+                rowBuilder.AddValue(MakeUnversionedAnyValue(ConvertToYsonString(value).Data(), id));
+                break;
+        }
+    };
+
+    const auto& keyColumns = tableSchema.GetKeyColumns();
+
+    // Key
+    for (int id = 0; id < static_cast<int>(keyColumns.size()); ++id) {
+        auto it = rowParts.find(nameTable->GetName(id));
+        if (it == rowParts.end()) {
+            rowBuilder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, id));
+        } else {
+            addValue(id, it->second);
+        }
+    }
+
+    // Fixed values
+    for (int id = static_cast<int>(keyColumns.size()); id < static_cast<int>(tableSchema.Columns().size()); ++id) {
+        auto it = rowParts.find(nameTable->GetName(id));
+        if (it != rowParts.end()) {
+            addValue(id, it->second);
+        } else if (treatMissingAsNull) {
+            rowBuilder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, id));
+        }
+    }
+
+    // Variable values
+    for (const auto& pair : rowParts) {
+        int id = nameTable->GetIdOrRegisterName(pair.first);
+        if (id >= tableSchema.Columns().size()) {
+            addValue(id, pair.second);
+        }
+    }
+
+    return rowBuilder.FinishRow();
+}
+
+TUnversionedOwningRow YsonToKey(const Stroka& yson)
+{
+    TUnversionedOwningRowBuilder keyBuilder;
+    auto keyParts = ConvertTo<std::vector<INodePtr>>(
+        TYsonString(yson, EYsonType::ListFragment));
+
+    for (int id = 0; id < keyParts.size(); ++id) {
+        const auto& keyPart = keyParts[id];
+        switch (keyPart->GetType()) {
+            case ENodeType::Int64:
+                keyBuilder.AddValue(MakeUnversionedInt64Value(
+                    keyPart->GetValue<i64>(),
+                    id));
+                break;
+            case ENodeType::Uint64:
+                keyBuilder.AddValue(MakeUnversionedUint64Value(
+                    keyPart->GetValue<ui64>(),
+                    id));
+                break;
+            case ENodeType::Double:
+                keyBuilder.AddValue(MakeUnversionedDoubleValue(
+                    keyPart->GetValue<double>(),
+                    id));
+                break;
+            case ENodeType::String:
+                keyBuilder.AddValue(MakeUnversionedStringValue(
+                    keyPart->GetValue<Stroka>(),
+                    id));
+                break;
+            case ENodeType::Entity:
+                keyBuilder.AddValue(MakeUnversionedSentinelValue(
+                    keyPart->Attributes().Get<EValueType>("type"),
+                    id));
+                break;
+            default:
+                keyBuilder.AddValue(MakeUnversionedAnyValue(
+                    ConvertToYsonString(keyPart).Data(),
+                    id));
+                break;
+        }
+    }
+
+    return keyBuilder.FinishRow();
+}
+
+Stroka KeyToYson(TUnversionedRow row)
+{
+    return ConvertToYsonString(row, EYsonFormat::Text).Data();
 }
 
 //////////////////////////////////////////////////////////////////////////////////

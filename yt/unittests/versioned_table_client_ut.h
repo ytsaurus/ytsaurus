@@ -5,69 +5,11 @@
 #include <yt/ytlib/table_client/versioned_row.h>
 #include <yt/ytlib/table_client/versioned_reader.h>
 
-#include <yt/core/yson/public.h>
-
-#include <yt/core/ytree/convert.h>
-#include <yt/core/ytree/node.h>
-
 namespace NYT {
 namespace NTableClient {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-using namespace NYTree;
-using namespace NYson;
-
-inline TUnversionedOwningRow BuildKey(const Stroka& yson)
-{
-    TUnversionedOwningRowBuilder keyBuilder;
-    auto keyParts = ConvertTo<std::vector<INodePtr>>(
-        TYsonString(yson, EYsonType::ListFragment));
-
-    for (int id = 0; id < keyParts.size(); ++id) {
-        const auto& keyPart = keyParts[id];
-        switch (keyPart->GetType()) {
-            case ENodeType::Int64:
-                keyBuilder.AddValue(MakeInt64Value<TUnversionedValue>(
-                    keyPart->GetValue<i64>(),
-                    id));
-                break;
-            case ENodeType::Uint64:
-                keyBuilder.AddValue(MakeUint64Value<TUnversionedValue>(
-                    keyPart->GetValue<ui64>(),
-                    id));
-                break;
-            case ENodeType::Double:
-                keyBuilder.AddValue(MakeDoubleValue<TUnversionedValue>(
-                    keyPart->GetValue<double>(),
-                    id));
-                break;
-            case ENodeType::String:
-                keyBuilder.AddValue(MakeStringValue<TUnversionedValue>(
-                    keyPart->GetValue<Stroka>(),
-                    id));
-                break;
-            case ENodeType::Entity:
-                keyBuilder.AddValue(MakeSentinelValue<TUnversionedValue>(
-                    keyPart->Attributes().Get<EValueType>("type"),
-                    id));
-                break;
-            default:
-                keyBuilder.AddValue(MakeAnyValue<TUnversionedValue>(
-                    ConvertToYsonString(keyPart).Data(),
-                    id));
-                break;
-        }
-    }
-
-    return keyBuilder.FinishRow();
-}
-
-inline Stroka KeyToYson(TKey key)
-{
-    return ConvertToYsonString(key, EYsonFormat::Text).Data();
-}
 
 class TVersionedTableClientTestBase
     : public ::testing::Test

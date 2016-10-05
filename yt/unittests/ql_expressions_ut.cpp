@@ -11,8 +11,7 @@
 #include <yt/ytlib/query_client/functions_cg.h>
 #include <yt/ytlib/query_client/coordinator.h>
 
-#include <yt/core/yson/string.h>
-#include <yt/core/ytree/convert.h>
+#include <yt/ytlib/table_client/helpers.h>
 
 // Tests:
 // TCompareExpressionTest
@@ -30,6 +29,7 @@ namespace {
 
 using namespace NYson;
 using namespace NYTree;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -250,7 +250,7 @@ TEST_P(TEliminateLookupPredicateTest, Simple)
     std::vector<TOwningKey> keys;
     Stroka keysString;
     for (const auto& keyString : keyStrings) {
-        keys.push_back(BuildKey(keyString));
+        keys.push_back(YsonToKey(keyString));
         keysString += Stroka(keysString.size() > 0 ? ", " : "") + "[" + keyString + "]";
     }
 
@@ -377,7 +377,7 @@ TEST_P(TEliminatePredicateTest, Simple)
 
     std::vector<TKeyRange> owningRanges;
     for (size_t i = 0; i < keyStrings.size() / 2; ++i) {
-        owningRanges.emplace_back(BuildKey(keyStrings[2 * i]), BuildKey(keyStrings[2 * i + 1]));
+        owningRanges.emplace_back(YsonToKey(keyStrings[2 * i]), YsonToKey(keyStrings[2 * i + 1]));
     }
 
     auto refined = Eliminate(owningRanges, predicate, tableSchema, keyColumns);
@@ -988,7 +988,7 @@ TEST_P(TArithmeticTest, Evaluate)
     auto expr = PrepareExpression(Stroka("k") + op + "l", schema);
 
     auto callback = Profile(expr, schema, nullptr, &variables)();
-    auto row = NTableClient::BuildRow(Stroka("k=") + lhs + ";l=" + rhs, schema, true);
+    auto row = YsonToRow(Stroka("k=") + lhs + ";l=" + rhs, schema, true);
 
     auto buffer = New<TRowBuffer>();
 
@@ -1058,7 +1058,7 @@ TEST_P(TTernaryLogicTest, Evaluate)
     TUnversionedValue result;
     TCGVariables variables;
     auto buffer = New<TRowBuffer>();
-    auto row = NTableClient::BuildRow("", TTableSchema(), true);
+    auto row = YsonToRow("", TTableSchema(), true);
 
     auto expr1 = New<TBinaryOpExpression>(EValueType::Boolean, op,
         New<TLiteralExpression>(EValueType::Boolean, lhs),
@@ -1171,7 +1171,7 @@ TEST_P(TCompareWithNullTest, Simple)
     TCGVariables variables;
     auto schema = GetSampleTableSchema();
 
-    auto row = NTableClient::BuildRow(rowString, schema, true);
+    auto row = YsonToRow(rowString, schema, true);
     auto expr = PrepareExpression(exprString, schema);
     auto callback = Profile(expr, schema, nullptr, &variables)();
 
@@ -1311,7 +1311,7 @@ void EvaluateExpression(
 
     auto callback = Profile(expr, schema, nullptr, &variables)();
 
-    auto row = NTableClient::BuildRow(rowString, schema, true);
+    auto row = YsonToRow(rowString, schema, true);
 
     callback(variables.GetOpaqueData(), result, row, buffer.Get());
 }
