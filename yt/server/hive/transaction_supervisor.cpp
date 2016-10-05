@@ -91,7 +91,7 @@ public:
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCoordinatorCommitSimpleTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCoordinatorCommitDistributedTransactionPhaseOne, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCoordinatorCommitDistributedTransactionPhaseTwo, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCoorindatorAbortTransaction, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCoordinatorAbortTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCoordinatorFinishDistributedTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraParticipantPrepareTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraParticipantCommitTransaction, Unretained(this)));
@@ -785,7 +785,7 @@ private:
             ECommitState::Commit);
     }
 
-    void HydraCoorindatorAbortTransaction(NHiveServer::NProto::TReqAbortTransaction* request)
+    void HydraCoordinatorAbortTransaction(NHiveServer::NProto::TReqAbortTransaction* request)
     {
         auto mutationId = FromProto<TMutationId>(request->mutation_id());
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
@@ -810,13 +810,17 @@ private:
             return;
         }
 
-        auto* commit = FindPersistentCommit(transactionId);
+        auto* commit = FindCommit(transactionId);
         if (commit) {
             auto error = TError("Transaction %v was aborted", transactionId);
             SetCommitFailed(commit, error);
 
-            ChangeCommitTransientState(commit, ECommitState::Abort);
-            ChangeCommitPersistentState(commit, ECommitState::Abort);
+            if (commit->GetPersistent()) {
+                ChangeCommitTransientState(commit, ECommitState::Abort);
+                ChangeCommitPersistentState(commit, ECommitState::Abort);
+            } else {
+                RemoveTransientCommit(commit);
+            }
         }
 
         {
@@ -1021,7 +1025,7 @@ private:
             // at all participants. We _must_ forcefully abort it.
             LOG_DEBUG(timestampOrError, "Error generating commit timestamp (TransactionId: %v)",
                 transactionId);
-            AbortTransaction(transactionId, true);
+                AbortTransaction(transactionId, true);
             return;
         }
 
