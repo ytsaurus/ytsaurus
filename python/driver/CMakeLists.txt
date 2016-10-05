@@ -1,0 +1,29 @@
+SET(YT_ABI 18_5)
+
+LIBRARY()
+
+OWNER(sandello)
+
+NO_COMPILER_WARNINGS()
+NO_WERROR()
+
+PYTHON_ADDINCL()
+
+SRCDIR(
+    yt/${YT_ABI}/yt/python
+)
+
+SRCS(
+  driver.cpp
+)
+
+PEERDIR(
+  contrib/libs/pycxx
+  yt/${YT_ABI}/yt/core
+  yt/${YT_ABI}/yt/ytlib
+  yt/${YT_ABI}/yt/python/common
+)
+
+PY_REGISTER(driver_lib)
+
+END()
