@@ -150,15 +150,5 @@ DEFINE_REFCOUNTED_TYPE(TAggregateProfilerMap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T>
-void MergeFrom(std::unordered_map<Stroka, T>* target, const std::unordered_map<Stroka, T>* source)
-{
-    for (const auto& item : *source) {
-        target->insert(item);
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NQueryClient
 } // namespace NYT

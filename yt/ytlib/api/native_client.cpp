@@ -79,6 +79,8 @@
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/ypath_proxy.h>
 
+#include <yt/core/misc/collection_helpers.h>
+
 // TODO(babenko): refactor this
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/schemaful_reader.h>
@@ -889,8 +891,8 @@ private:
 
         auto functionGenerators = New<TFunctionProfilerMap>();
         auto aggregateGenerators = New<TAggregateProfilerMap>();
-        MergeFrom(functionGenerators.Get(), BuiltinFunctionCG.Get());
-        MergeFrom(aggregateGenerators.Get(), BuiltinAggregateCG.Get());
+        MergeFrom(functionGenerators.Get(), *BuiltinFunctionCG);
+        MergeFrom(aggregateGenerators.Get(), *BuiltinAggregateCG);
         FetchImplementations(
             functionGenerators,
             aggregateGenerators,
@@ -1998,7 +2000,7 @@ private:
 
         auto externalCGInfo = New<TExternalCGInfo>();
         auto fetchFunctions = [&] (const std::vector<Stroka>& names, const TTypeInferrerMapPtr& typeInferrers) {
-            MergeFrom(typeInferrers.Get(), BuiltinTypeInferrersMap.Get());
+            MergeFrom(typeInferrers.Get(), *BuiltinTypeInferrersMap);
 
             std::vector<Stroka> externalNames;
             for (const auto& name : names) {

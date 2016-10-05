@@ -41,6 +41,7 @@
 #include <yt/core/erasure/codec.h>
 
 #include <yt/core/misc/fs.h>
+#include <yt/core/misc/collection_helpers.h>
 
 #include <yt/core/profiling/scoped_timer.h>
 
@@ -3725,7 +3726,7 @@ void TOperationControllerBase::InitQuerySpec(
     auto externalCGInfo = New<TExternalCGInfo>();
     auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
     auto fetchFunctions = [&] (const std::vector<Stroka>& names, const TTypeInferrerMapPtr& typeInferrers) {
-        MergeFrom(typeInferrers.Get(), BuiltinTypeInferrersMap.Get());
+        MergeFrom(typeInferrers.Get(), *BuiltinTypeInferrersMap);
 
         std::vector<Stroka> externalNames;
         for (const auto& name : names) {

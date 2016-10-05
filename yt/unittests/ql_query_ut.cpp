@@ -27,6 +27,8 @@
 
 #include <yt/core/concurrency/action_queue.h>
 
+#include <yt/core/misc/collection_helpers.h>
+
 #include <tuple>
 
 // Tests:
@@ -240,7 +242,7 @@ protected:
         auto config = New<TColumnEvaluatorCacheConfig>();
         ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(config);
 
-        MergeFrom(RangeExtractorMap.Get(), BuiltinRangeExtractorMap.Get());
+        MergeFrom(RangeExtractorMap.Get(), *BuiltinRangeExtractorMap);
     }
 
     void Coordinate(const Stroka& source, const TDataSplits& dataSplits, size_t subqueriesCount)
@@ -487,9 +489,9 @@ protected:
             test_udfs_o_o_len,
             nullptr);
 
-        MergeFrom(TypeInferers_.Get(), BuiltinTypeInferrersMap.Get());
-        MergeFrom(FunctionProfilers_.Get(), BuiltinFunctionCG.Get());
-        MergeFrom(AggregateProfilers_.Get(), BuiltinAggregateCG.Get());
+        MergeFrom(TypeInferers_.Get(), *BuiltinTypeInferrersMap);
+        MergeFrom(FunctionProfilers_.Get(), *BuiltinFunctionCG);
+        MergeFrom(AggregateProfilers_.Get(), *BuiltinAggregateCG);
 
         TFunctionRegistryBuilder builder(
             TypeInferers_.Get(),
@@ -695,8 +697,8 @@ protected:
             sourceGuids.emplace(NYT::FromProto<TGuid>(dataSplit.second.chunk_id()), index++);
         }
 
-        auto fetchFunctions = [&] (const std::vector<Stroka>& names, const TTypeInferrerMapPtr& typeInferrers) {
-            MergeFrom(typeInferrers.Get(), TypeInferers_.Get());
+        auto fetchFunctions = [&] (const std::vector<Stroka>& /*names*/, const TTypeInferrerMapPtr& typeInferrers) {
+            MergeFrom(typeInferrers.Get(), *TypeInferers_);
         };
 
         auto prepareAndExecute = [&] () {

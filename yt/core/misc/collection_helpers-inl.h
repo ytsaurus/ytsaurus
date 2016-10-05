@@ -97,6 +97,14 @@ bool ShrinkHashTable(T* collection)
     return true;
 }
 
+template <class TSource, class TTarget>
+void MergeFrom(TTarget* target, const TSource& source)
+{
+    for (const auto& item : source) {
+        target->insert(item);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

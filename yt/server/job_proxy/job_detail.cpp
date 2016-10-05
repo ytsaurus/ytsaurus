@@ -19,6 +19,8 @@
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
 #include <yt/ytlib/table_client/schemaless_writer.h>
 
+#include <yt/core/misc/collection_helpers.h>
+
 namespace NYT {
 namespace NJobProxy {
 
@@ -108,8 +110,8 @@ void RunQuery(
 
     auto functionGenerators = New<TFunctionProfilerMap>();
     auto aggregateGenerators = New<TAggregateProfilerMap>();
-    MergeFrom(functionGenerators.Get(), BuiltinFunctionCG.Get());
-    MergeFrom(aggregateGenerators.Get(), BuiltinAggregateCG.Get());
+    MergeFrom(functionGenerators.Get(), *BuiltinFunctionCG);
+    MergeFrom(aggregateGenerators.Get(), *BuiltinAggregateCG);
     FetchJobImplementations(
         functionGenerators,
         aggregateGenerators,
