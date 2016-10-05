@@ -14,7 +14,7 @@ using ::ToString;
 ////////////////////////////////////////////////////////////////////////////////
 
 #ifndef NDEBUG
-TEST(TNullableDeathTest, Uninitialized)
+DISABLED_TEST(TNullableDeathTest, Uninitialized)
 {
     TNullable<int> nullable;
     EXPECT_FALSE(nullable.HasValue());
