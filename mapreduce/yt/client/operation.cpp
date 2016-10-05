@@ -254,52 +254,66 @@ private:
         Stroka cypressPath = TStringBuilder() << GetFileStorage() <<
             "/hash/" << twoDigits << "/" << buf;
 
-        TNode linkAttrs;
-        try {
-            linkAttrs = NodeFromYsonString(
-                Get(Auth_, TTransactionId(), cypressPath + "&/@"));
-        } catch (TErrorResponse& e) {
-            if (!e.IsResolveError()) {
-                throw;
+        int retryCount = 256;
+        for (int attempt = 0; attempt < retryCount; ++attempt) {
+            TNode linkAttrs;
+            if (Exists(Auth_, TTransactionId(), cypressPath + "&")) {
+                try {
+                    linkAttrs = NodeFromYsonString(
+                        Get(Auth_, TTransactionId(), cypressPath + "&/@"));
+                } catch (TErrorResponse& e) {
+                    if (!e.IsResolveError()) {
+                        throw;
+                    }
+                }
             }
-        }
 
-        bool linkExists = false;
-        if (linkAttrs.GetType() != TNode::UNDEFINED) {
-            if (linkAttrs["type"] == "link" &&
-                (!linkAttrs.HasKey("broken") || !linkAttrs["broken"].AsBool()))
-            {
-                linkExists = true;
-            } else {
-                Remove(Auth_, TTransactionId(), cypressPath + "&", true, true);
+            try {
+                bool linkExists = false;
+                if (linkAttrs.GetType() != TNode::UNDEFINED) {
+                    if (linkAttrs["type"] == "link" &&
+                        (!linkAttrs.HasKey("broken") || !linkAttrs["broken"].AsBool()))
+                    {
+                        linkExists = true;
+                    } else {
+                        Remove(Auth_, TTransactionId(), cypressPath + "&", true, true);
+                    }
+                }
+
+                if (linkExists) {
+                    Set(Auth_, TTransactionId(), cypressPath + "/@touched", "\"true\"");
+                    Set(Auth_, TTransactionId(), cypressPath + "&/@touched", "\"true\"");
+                    return cypressPath;
+                }
+
+                Stroka uniquePath = TStringBuilder() << GetFileStorage() <<
+                    "/" << twoDigits << "/cpp_" << CreateGuidAsString();
+
+                Create(Auth_, TTransactionId(), uniquePath, "file", true, true,
+                    TNode()("hash", buf)("touched", true));
+
+                {
+                    THttpHeader header("PUT", GetWriteFileCommand());
+                    header.SetToken(Auth_.Token);
+                    header.AddPath(uniquePath);
+                    auto streamMaker = [&source] () {
+                        return CreateStream(source);
+                    };
+                    RetryHeavyWriteRequest(Auth_, TTransactionId(), header, streamMaker);
+                }
+
+                Link(Auth_, TTransactionId(), uniquePath, cypressPath, true, true,
+                    TNode()("touched", true));
+
+            } catch (TErrorResponse& e) {
+                if (!e.IsResolveError() || attempt + 1 == retryCount) {
+                    throw;
+                }
+                Sleep(TDuration::Seconds(1));
+                continue;
             }
+            break;
         }
-
-        if (linkExists) {
-            Set(Auth_, TTransactionId(), cypressPath + "/@touched", "\"true\"");
-            Set(Auth_, TTransactionId(), cypressPath + "&/@touched", "\"true\"");
-            return cypressPath;
-        }
-
-        Stroka uniquePath = TStringBuilder() << GetFileStorage() <<
-            "/" << twoDigits << "/cpp_" << CreateGuidAsString();
-
-        Create(Auth_, TTransactionId(), uniquePath, "file", true, true,
-            TNode()("hash", buf)("touched", true));
-
-        {
-            THttpHeader header("PUT", GetWriteFileCommand());
-            header.SetToken(Auth_.Token);
-            header.AddPath(uniquePath);
-            auto streamMaker = [&source] () {
-                return CreateStream(source);
-            };
-            RetryHeavyWriteRequest(Auth_, TTransactionId(), header, streamMaker);
-        }
-
-        Link(Auth_, TTransactionId(), uniquePath, cypressPath, true, true,
-            TNode()("touched", true));
-
         return cypressPath;
     }
 
