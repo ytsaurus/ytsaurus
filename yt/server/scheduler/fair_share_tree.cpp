@@ -1308,7 +1308,7 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
     };
 
     // NB: We need 2 iteration since thresholds may change significantly such that we need
-    // to move job from preemptable list to non-preemptable list through aggressively preemtable list.
+    // to move job from preemptable list to non-preemptable list through aggressively preemptable list.
     for (int iteration = 0; iteration < 2; ++iteration) {
         auto startNonPreemptableAndAggressivelyPreemptableResourceUsage_ = NonpreemptableResourceUsage_ + AggressivelyPreemptableResourceUsage_;
 
