@@ -1680,7 +1680,7 @@ private:
         }
 
         if (transaction->LockedNodes().insert(trunkNode).second) {
-            LOG_DEBUG("Node locked (NodeId: %v, TransactionId: %v)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Node locked (NodeId: %v, TransactionId: %v)",
                 trunkNode->GetId(),
                 transaction->GetId());
         }
