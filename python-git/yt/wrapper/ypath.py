@@ -108,11 +108,11 @@ class YPath(object):
         return self._path_object.attributes
 
     def to_yson_type(self):
-        """Return YSON representation of path"""
+        """Return YSON representation of path."""
         return self._path_object
 
     def to_yson_string(self):
-        """Return yson path with attributes as string"""
+        """Return yson path with attributes as string."""
         # NB: in text format \n can appear only as separator.
         if self.attributes:
             return "<{0}>{1}".format(
@@ -122,7 +122,7 @@ class YPath(object):
             return str(self._path_object)
 
     def join(self, other):
-        """Join ypath with other path"""
+        """Join ypath with other path."""
         return YPath(ypath_join(str(self), other), simplify=False)
 
     def __eq__(self, other):
@@ -302,7 +302,7 @@ class TablePath(YPathSupportingAppend):
         self._path_object = value
 
     def has_delimiters(self):
-        """Check attributes for delimiters (channel, lower or upper limits)"""
+        """Check attributes for delimiters (channel, lower or upper limits)."""
         return any(key in self.attributes for key in ["columns", "lower_limit", "upper_limit", "ranges"])
 
 class FilePath(YPathSupportingAppend):

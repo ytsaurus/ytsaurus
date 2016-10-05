@@ -1,9 +1,7 @@
 """YT command misc"""
 
 class Command(object):
-    """
-    Properties of YT command.
-    """
+    """Properties of YT command."""
     def __init__(self, input_type, output_type, is_volatile, is_heavy):
         self.input_type = input_type
         self.output_type = output_type
@@ -19,9 +17,7 @@ class Command(object):
             return "GET"
 
 def parse_commands(description):
-    """
-    Parse tree-like description from /api response into commands dictionary.
-    """
+    """Parse tree-like description from /api response into commands dictionary."""
     commands = {}
     for elem in description:
         name = elem["name"]

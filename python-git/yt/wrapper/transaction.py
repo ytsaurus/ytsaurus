@@ -245,8 +245,8 @@ class PingTransaction(Thread):
         self.stop()
 
 class PingableTransaction(Transaction):
-    """Self-pinged transaction"""
-    """Deprecated! Use Transaction(...ping=True...) instead"""
+    """Self-pinged transaction."""
+    """Deprecated! Use Transaction(...ping=True...) instead."""
     def __init__(self, timeout=None, attributes=None, ping_ancestor_transactions=False, client=None):
         super(PingableTransaction, self).__init__(
             timeout=timeout,
