@@ -91,8 +91,8 @@ class YtStuff(object):
         self.yt_node_modules_path = os.path.join(self.yt_path, "node_modules")
         self.yt_thor_path = os.path.join(self.yt_path, "yt-thor")
         # Binaries
-        self.mapreduce_yt_path = os.path.join(self.yt_bins_path, "mapreduce-yt")
-        self.yt_local_path = os.path.join(self.yt_bins_path, "yt_local")
+        self.mapreduce_yt_path = [yatest.common.python_path(), os.path.join(self.yt_bins_path, "mapreduce-yt")]
+        self.yt_local_path = [yatest.common.python_path(), os.path.join(self.yt_bins_path, "yt_local")]
 
         yt_archive_path = os.path.join(build_path, _YT_ARCHIVE_NAME)
         self._extract_tar(yt_archive_path, self.yt_path)
@@ -118,6 +118,23 @@ class YtStuff(object):
         version = yt_version.YT_VERSION
         if version in ('17_5',):
             return
+
+        yt2_arcadia_path = yatest.common.binary_path('yt/packages/contrib/python/yt/bin/yt/yt')
+        orig_yt2_path = os.path.join(self.yt_bins_path, 'yt2')
+        os.remove(orig_yt2_path)
+        shutil.copy(yt2_arcadia_path, orig_yt2_path)
+
+        mapreduce_yt_arcadia_path = yatest.common.binary_path('yt/packages/contrib/python/yt/bin/mapreduce-yt/mapreduce-yt')
+        orig_mapreduce_yt_path = os.path.join(self.yt_bins_path, 'mapreduce-yt')
+        os.remove(orig_mapreduce_yt_path)
+        shutil.copy(mapreduce_yt_arcadia_path, orig_mapreduce_yt_path)
+        self.mapreduce_yt_path = [os.path.join(self.yt_bins_path, "mapreduce-yt")]
+
+        yt_local_arcadia_path = yatest.common.binary_path('yt/packages/contrib/python/yt_local/bin/local/yt_local')
+        orig_yt_local_path = os.path.join(self.yt_bins_path, 'yt_local')
+        os.remove(orig_yt_local_path)
+        shutil.copy(yt_local_arcadia_path, orig_yt_local_path)
+        self.yt_local_path = [os.path.join(self.yt_bins_path, "yt_local")]
 
         yt_server_arcadia_path = yatest.common.binary_path('yt/packages/yt/{}/yt/server/ytserver'.format(version))
         orig_server_path = os.path.join(self.yt_bins_path, 'ytserver')
@@ -205,7 +222,7 @@ class YtStuff(object):
             if self.config.proxy_config:
                 args += ["--proxy-config", self.config.proxy_config]
 
-            cmd = [yatest.common.python_path(), self.yt_local_path] + list(args)
+            cmd = self.yt_local_path + list(args)
             self._log(" ".join([os.path.basename(cmd[0])] + cmd[1:]))
 
             special_file = os.path.join(self.yt_work_dir, self.yt_id, "started")
@@ -268,7 +285,7 @@ class YtStuff(object):
             env = {}
 
         env.update(self.env)
-        cmd = [yatest.common.python_path(), self.mapreduce_yt_path] + cmd
+        cmd = self.mapreduce_yt_path + cmd
 
         return yatest.common.execute(cmd, env=env, *args, **kwargs)
 
@@ -302,8 +319,7 @@ class YtStuff(object):
 
     def suspend_local_yt(self):
         try:
-            cmd = [
-                yatest.common.python_path(), self.yt_local_path,
+            cmd = self.yt_local_path + [
                 "stop", os.path.join(self.yt_work_dir, self.yt_id),
             ]
             self._log(" ".join([os.path.basename(cmd[0])] + cmd[1:]))
