@@ -105,8 +105,8 @@ class TMapperWithMetaclass(object):
     yield self.some_external_code.do_something(rec)
 
 class CreateModulesArchive(object):
-    def __call__(self, tempfiles_manager=None):
-        return create_modules_archive_default(tempfiles_manager, None)
+    def __call__(self, tempfiles_manager=None, custom_python_used=False):
+        return create_modules_archive_default(tempfiles_manager, custom_python_used, None)
 
 
 @pytest.mark.usefixtures("yt_env")
