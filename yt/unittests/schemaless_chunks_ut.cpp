@@ -11,9 +11,12 @@
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/ytlib/table_client/helpers.h>
 
 #include <yt/core/compression/public.h>
+
 #include <yt/core/ytree/convert.h>
+
 #include <yt/core/yson/string.h>
 
 namespace NYT {
@@ -361,8 +364,8 @@ INSTANTIATE_TEST_CASE_P(Sorted,
         ::testing::Values(TColumnFilter()),
         ::testing::Values(
             TReadRange(),
-            TReadRange(TReadLimit().SetKey(BuildKey("<type=null>#")), TReadLimit().SetKey(BuildKey("<type=null>#"))),
-            TReadRange(TReadLimit().SetKey(BuildKey("-65537; -1; 1u; <type=null>#")), TReadLimit().SetKey(BuildKey("350000.1; 1; 1; \"Z\""))))));
+            TReadRange(TReadLimit().SetKey(YsonToKey("<type=null>#")), TReadLimit().SetKey(YsonToKey("<type=null>#"))),
+            TReadRange(TReadLimit().SetKey(YsonToKey("-65537; -1; 1u; <type=null>#")), TReadLimit().SetKey(YsonToKey("350000.1; 1; 1; \"Z\""))))));
 
 // ToDo(psushin):
 //  1. Test sampling.

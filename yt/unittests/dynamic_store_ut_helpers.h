@@ -5,7 +5,6 @@
 #include <yt/server/tablet_node/sorted_store_manager.h>
 #include <yt/server/tablet_node/ordered_dynamic_store.h>
 #include <yt/server/tablet_node/ordered_store_manager.h>
-#include <yt/server/tablet_node/public.h>
 #include <yt/server/tablet_node/tablet.h>
 #include <yt/server/tablet_node/tablet_manager.h>
 #include <yt/server/tablet_node/transaction.h>
@@ -16,16 +15,15 @@
 #include <yt/ytlib/chunk_client/memory_writer.h>
 
 #include <yt/ytlib/table_client/name_table.h>
-#include <yt/ytlib/table_client/public.h>
 #include <yt/ytlib/table_client/schema.h>
 #include <yt/ytlib/table_client/schemaful_chunk_reader.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
 #include <yt/ytlib/table_client/versioned_reader.h>
 #include <yt/ytlib/table_client/versioned_row.h>
 #include <yt/ytlib/table_client/writer.h>
+#include <yt/ytlib/table_client/helpers.h>
 
 #include <yt/ytlib/tablet_client/config.h>
-#include <yt/ytlib/tablet_client/public.h>
 
 #include <yt/ytlib/query_client/column_evaluator.h>
 
@@ -183,9 +181,14 @@ protected:
     }
 
 
+    TUnversionedOwningRow BuildKey(const Stroka& yson)
+    {
+        return NTableClient::YsonToKey(yson);
+    }
+
     TUnversionedOwningRow BuildRow(const Stroka& yson, bool treatMissingAsNull = true)
     {
-        return NTableClient::BuildRow(yson, Tablet_->PhysicalSchema(), treatMissingAsNull);
+        return NTableClient::YsonToRow(yson, Tablet_->PhysicalSchema(), treatMissingAsNull);
     }
 
     bool AreRowsEqual(TUnversionedRow row, const Stroka& yson)

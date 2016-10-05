@@ -23,6 +23,7 @@
 #include <yt/ytlib/table_client/schema.h>
 #include <yt/ytlib/table_client/schemaful_reader.h>
 #include <yt/ytlib/table_client/schemaful_writer.h>
+#include <yt/ytlib/table_client/helpers.h>
 
 #include <yt/core/concurrency/action_queue.h>
 
@@ -308,18 +309,18 @@ TEST_F(TQueryCoordinateTest, UsesKeyToPruneSplits)
 
     splits.emplace_back(MakeSimpleSplit("//t", 1));
     SetSorted(&splits.back(), true);
-    SetLowerBound(&splits.back(), BuildKey("0;0;0"));
-    SetUpperBound(&splits.back(), BuildKey("1;0;0"));
+    SetLowerBound(&splits.back(), YsonToKey("0;0;0"));
+    SetUpperBound(&splits.back(), YsonToKey("1;0;0"));
 
     splits.emplace_back(MakeSimpleSplit("//t", 2));
     SetSorted(&splits.back(), true);
-    SetLowerBound(&splits.back(), BuildKey("1;0;0"));
-    SetUpperBound(&splits.back(), BuildKey("2;0;0"));
+    SetLowerBound(&splits.back(), YsonToKey("1;0;0"));
+    SetUpperBound(&splits.back(), YsonToKey("2;0;0"));
 
     splits.emplace_back(MakeSimpleSplit("//t", 3));
     SetSorted(&splits.back(), true);
-    SetLowerBound(&splits.back(), BuildKey("2;0;0"));
-    SetUpperBound(&splits.back(), BuildKey("3;0;0"));
+    SetLowerBound(&splits.back(), YsonToKey("2;0;0"));
+    SetUpperBound(&splits.back(), YsonToKey("3;0;0"));
 
     EXPECT_NO_THROW({
         Coordinate("a from [//t] where k = 1 and l = 2 and m = 3", splits, 1);
@@ -361,14 +362,14 @@ public:
     MOCK_METHOD0(GetReadyEvent, TFuture<void>());
 };
 
-TOwningRow BuildRow(
+TOwningRow YsonToRow(
     const Stroka& yson,
     const TDataSplit& dataSplit,
     bool treatMissingAsNull = true)
 {
     auto tableSchema = GetTableSchemaFromDataSplit(dataSplit);
 
-    return NTableClient::BuildRow(yson, tableSchema, treatMissingAsNull);
+    return NTableClient::YsonToRow(yson, tableSchema, treatMissingAsNull);
 }
 
 TQueryStatistics DoExecuteQuery(
@@ -386,7 +387,7 @@ TQueryStatistics DoExecuteQuery(
     auto readerMock = New<StrictMock<TReaderMock>>();
 
     for (const auto& row : source) {
-        owningSource.push_back(NTableClient::BuildRow(row, query->GetReadSchema()));
+        owningSource.push_back(NTableClient::YsonToRow(row, query->GetReadSchema(), true));
     }
 
     sourceRows.resize(owningSource.size());
@@ -755,12 +756,12 @@ protected:
 
 };
 
-std::vector<TOwningRow> BuildRows(std::initializer_list<const char*> rowsData, const TDataSplit& split)
+std::vector<TOwningRow> YsonToRows(std::initializer_list<const char*> rowsData, const TDataSplit& split)
 {
     std::vector<TOwningRow> result;
 
     for (auto row : rowsData) {
-        result.push_back(BuildRow(row, split, true));
+        result.push_back(YsonToRow(row, split, true));
     }
 
     return result;
@@ -778,7 +779,7 @@ TEST_F(TQueryEvaluateTest, Simple)
         "a=10;b=11"
     };
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "a=4;b=5",
         "a=10;b=11"
     }, split);
@@ -798,7 +799,7 @@ TEST_F(TQueryEvaluateTest, SelectAll)
         "a=10;b=11"
     };
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "a=4;b=5",
         "a=10;b=11"
     }, split);
@@ -819,7 +820,7 @@ TEST_F(TQueryEvaluateTest, FilterNulls1)
         "a=10;b=11"
     };
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "a=4;b=5",
         "a=10;b=11"
     }, split);
@@ -840,7 +841,7 @@ TEST_F(TQueryEvaluateTest, FilterNulls2)
         "a=10;b=11"
     };
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "a=4;b=5",
         "a=6",
         "a=10;b=11"
@@ -869,7 +870,7 @@ TEST_F(TQueryEvaluateTest, SimpleCmpInt)
         {"r5", EValueType::Boolean}
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "r1=%true;r2=%false;r3=%true;r4=%false;r5=%false",
         "r1=%false;r2=%false;r3=%true;r4=%true;r5=%true"
     }, resultSplit);
@@ -897,7 +898,7 @@ TEST_F(TQueryEvaluateTest, SimpleCmpString)
         {"r5", EValueType::Boolean}
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "r1=%true;r2=%false;r3=%true;r4=%false;r5=%false",
         "r1=%false;r2=%false;r3=%true;r4=%true;r5=%true"
     }, resultSplit);
@@ -918,7 +919,7 @@ TEST_F(TQueryEvaluateTest, SimpleBetweenAnd)
         "a=15;b=11"
     };
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "a=10;b=11"
     }, split);
 
@@ -938,7 +939,7 @@ TEST_F(TQueryEvaluateTest, SimpleIn)
         "a=15;b=11"
     };
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "a=4;b=5",
         "a=-10;b=11"
     }, split);
@@ -960,7 +961,7 @@ TEST_F(TQueryEvaluateTest, SimpleWithNull)
         "a=16"
     };
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "a=4;b=5",
         "a=10;b=11;c=9",
         "a=16"
@@ -991,7 +992,7 @@ TEST_F(TQueryEvaluateTest, SimpleWithNull2)
         {"x", EValueType::Int64}
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "a=1;x=5",
         "a=4;",
         "a=5;",
@@ -1013,7 +1014,7 @@ TEST_F(TQueryEvaluateTest, SimpleStrings)
         "s=baz"
     };
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "s=foo",
         "s=bar",
         "s=baz"
@@ -1036,7 +1037,7 @@ TEST_F(TQueryEvaluateTest, SimpleStrings2)
         "s=olala; u=z"
     };
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "s=foo; u=x",
         "s=baz; u=x"
     }, split);
@@ -1056,7 +1057,7 @@ TEST_F(TQueryEvaluateTest, IsPrefixStrings)
         "s=baz"
     };
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "s=foobar"
     }, split);
 
@@ -1079,7 +1080,7 @@ TEST_F(TQueryEvaluateTest, IsSubstrStrings)
         "s=baz"
     };
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "s=foobar",
         "s=barfoo",
         "s=\"baz foo bar\"",
@@ -1113,7 +1114,7 @@ TEST_F(TQueryEvaluateTest, GroupByBool)
         {"t", EValueType::Int64}
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "x=%false;t=200",
         "x=%true;t=240"
     }, resultSplit);
@@ -1147,7 +1148,7 @@ TEST_F(TQueryEvaluateTest, GroupWithTotals)
         {"t", EValueType::Int64}
     });
 
-    auto resultWithTotals = BuildRows({
+    auto resultWithTotals = YsonToRows({
         "x=%false;t=200",
         "x=%true;t=240",
         "t=440"
@@ -1156,7 +1157,7 @@ TEST_F(TQueryEvaluateTest, GroupWithTotals)
     Evaluate("x, sum(b) as t FROM [//t] where a > 1 group by a % 2 = 1 as x with totals", split,
         source, ResultMatcher(resultWithTotals));
 
-    auto resultWithTotalsAfterHaving = BuildRows({
+    auto resultWithTotalsAfterHaving = YsonToRows({
         "x=%true;t=240",
         "t=240"
     }, resultSplit);
@@ -1164,7 +1165,7 @@ TEST_F(TQueryEvaluateTest, GroupWithTotals)
     Evaluate("x, sum(b) as t FROM [//t] where a > 1 group by a % 2 = 1 as x having t > 200 with totals", split,
         source, ResultMatcher(resultWithTotalsAfterHaving));
 
-    auto resultWithTotalsBeforeHaving = BuildRows({
+    auto resultWithTotalsBeforeHaving = YsonToRows({
         "x=%true;t=240",
         "t=440"
     }, resultSplit);
@@ -1192,7 +1193,7 @@ TEST_F(TQueryEvaluateTest, GroupWithTotalsNulls)
         {"t", EValueType::Int64}
     });
 
-    auto resultWithTotals = BuildRows({
+    auto resultWithTotals = YsonToRows({
     }, resultSplit);
 
     EXPECT_THROW_THAT(
@@ -1220,7 +1221,7 @@ TEST_F(TQueryEvaluateTest, GroupWithTotalsEmpty)
         {"t", EValueType::Int64}
     });
 
-    auto resultWithTotals = BuildRows({
+    auto resultWithTotals = YsonToRows({
     }, resultSplit);
 
     Evaluate("x, sum(b) as t FROM [//t] group by a % 2 as x with totals", split,
@@ -1253,7 +1254,7 @@ TEST_F(TQueryEvaluateTest, ComplexWithAliases)
         {"t", EValueType::Int64}
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "x=0;t=200",
         "x=1;t=241"
     }, resultSplit);
@@ -1287,7 +1288,7 @@ TEST_F(TQueryEvaluateTest, Complex)
         {"t", EValueType::Int64}
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "x=0;t=200",
         "x=1;t=241"
     }, resultSplit);
@@ -1322,7 +1323,7 @@ TEST_F(TQueryEvaluateTest, Complex2)
         {"t", EValueType::Int64}
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "x=0;q=0;t=200",
         "x=1;q=0;t=241"
     }, resultSplit);
@@ -1352,7 +1353,7 @@ TEST_F(TQueryEvaluateTest, ComplexBigResult)
     std::vector<TOwningRow> result;
 
     for (size_t i = 2; i < 10000; ++i) {
-        result.push_back(BuildRow(Stroka() + "x=" + ToString(i) + ";t=" + ToString(i * 10 + i), resultSplit, false));
+        result.push_back(YsonToRow(Stroka() + "x=" + ToString(i) + ";t=" + ToString(i * 10 + i), resultSplit, false));
     }
 
     Evaluate("x, sum(b) + x as t FROM [//t] where a > 1 group by a as x", split, source, ResultMatcher(result));
@@ -1387,7 +1388,7 @@ TEST_F(TQueryEvaluateTest, ComplexWithNull)
         {"y", EValueType::Int64}
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "x=1;t=251;y=250",
         "x=0;t=200;y=200",
         "y=6"
@@ -1417,7 +1418,7 @@ TEST_F(TQueryEvaluateTest, HavingClause1)
         {"t", EValueType::Int64},
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "x=1;t=20",
     }, resultSplit);
 
@@ -1445,7 +1446,7 @@ TEST_F(TQueryEvaluateTest, HavingClause2)
         {"t", EValueType::Int64},
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "x=1;t=20",
     }, resultSplit);
 
@@ -1472,7 +1473,7 @@ TEST_F(TQueryEvaluateTest, HavingClause3)
         {"x", EValueType::Int64}
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "x=1",
     }, resultSplit);
 
@@ -1502,7 +1503,7 @@ TEST_F(TQueryEvaluateTest, IsNull)
         {"b", EValueType::Int64}
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "b=1",
         "b=2",
         "b=3"
@@ -1530,7 +1531,7 @@ TEST_F(TQueryEvaluateTest, DoubleSum)
         {"t", EValueType::Int64}
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "x=2.;t=3"
     }, resultSplit);
 
@@ -1564,7 +1565,7 @@ TEST_F(TQueryEvaluateTest, ComplexStrings)
         {"t", EValueType::Int64}
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "x=y;t=160",
         "x=x;t=120",
         "t=199",
@@ -1596,7 +1597,7 @@ TEST_F(TQueryEvaluateTest, ComplexStringsLower)
         {"s", EValueType::String}
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "s=one",
         "s=two",
         "s=four",
@@ -1632,7 +1633,7 @@ TEST_F(TQueryEvaluateTest, TestIf)
         {"t", EValueType::Double}
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "x=b;t=251.",
         "x=a;t=201."
     }, resultSplit);
@@ -1662,7 +1663,7 @@ TEST_F(TQueryEvaluateTest, TestInputRowLimit)
         "a=9;b=90"
     };
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "a=2;b=20",
         "a=3;b=30"
     }, split);
@@ -1691,7 +1692,7 @@ TEST_F(TQueryEvaluateTest, TestOutputRowLimit)
         "a=9;b=90"
     };
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "a=2;b=20",
         "a=3;b=30",
         "a=4;b=40"
@@ -1719,7 +1720,7 @@ TEST_F(TQueryEvaluateTest, TestOutputRowLimit2)
     });
 
     std::vector<TOwningRow> result;
-    result.push_back(BuildRow(Stroka() + "x=" + ToString(10000), resultSplit, false));
+    result.push_back(YsonToRow(Stroka() + "x=" + ToString(10000), resultSplit, false));
 
     Evaluate("sum(1) as x FROM [//t] group by 0 as q", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(),
              100);
@@ -1751,7 +1752,7 @@ TEST_F(TQueryEvaluateTest, TestTypeInference)
         {"t", EValueType::Double}
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "x=b;t=251.",
         "x=a;t=201."
     }, resultSplit);
@@ -1800,7 +1801,7 @@ TEST_F(TQueryEvaluateTest, TestJoinEmpty)
         {"z", EValueType::Int64}
     });
 
-    auto result = BuildRows({ }, resultSplit);
+    auto result = YsonToRows({ }, resultSplit);
 
     Evaluate("sum(a) as x, sum(b) as y, z FROM [//left] join [//right] using b group by c % 2 as z", splits, sources, ResultMatcher(result));
 
@@ -1836,7 +1837,7 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple2)
         {"x", EValueType::Int64}
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "x=1",
         "x=2"
     }, resultSplit);
@@ -1876,7 +1877,7 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple3)
         {"x", EValueType::Int64}
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "x=1",
         "x=1"
     }, resultSplit);
@@ -1915,7 +1916,7 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple4)
         {"x", EValueType::Int64}
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "x=1",
         "x=1"
     }, resultSplit);
@@ -1956,7 +1957,7 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple5)
         {"x", EValueType::Int64}
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "x=1",
         "x=1",
         "x=1",
@@ -2008,7 +2009,7 @@ TEST_F(TQueryEvaluateTest, TestJoinLimit)
         {"x", EValueType::Int64}
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "x=2",
         "x=3",
         "x=4",
@@ -2054,7 +2055,7 @@ TEST_F(TQueryEvaluateTest, TestJoinLimit2)
         {"x", EValueType::Int64}
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "x=1",
         "x=1",
         "x=1",
@@ -2108,7 +2109,7 @@ TEST_F(TQueryEvaluateTest, TestJoinLimit3)
         {"x", EValueType::Int64}
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "x=3",
         "x=1"
     }, resultSplit);
@@ -2120,7 +2121,7 @@ TEST_F(TQueryEvaluateTest, TestJoinLimit3)
         ResultMatcher(result),
         std::numeric_limits<i64>::max(), 4);
 
-    result = BuildRows({
+    result = YsonToRows({
         "x=1",
         "x=3",
         "x=5",
@@ -2171,7 +2172,7 @@ TEST_F(TQueryEvaluateTest, TestJoinNonPrefixColumns)
         {"y", EValueType::String}
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "a=1;x=a",
         "a=2;x=b",
         "a=3;x=c"
@@ -2230,7 +2231,7 @@ TEST_F(TQueryEvaluateTest, TestJoinManySimple)
         {"e", EValueType::Int64}
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
          "a=2;c=b;b=200;d=Y;e=5678",
          "a=2;c=b;b=500;d=X;e=1234",
          "a=3;c=c;b=300;d=X;e=1234",
@@ -2294,7 +2295,7 @@ TEST_F(TQueryEvaluateTest, TestJoin)
         {"z", EValueType::Int64}
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "x=25;z=1",
         "x=20;z=0",
     }, resultSplit);
@@ -2349,7 +2350,7 @@ TEST_F(TQueryEvaluateTest, TestLeftJoin)
         {"c", EValueType::Int64}
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "a=1;b=10;c=1",
         "a=2;b=20",
         "a=3;b=30;c=3",
@@ -2397,7 +2398,7 @@ TEST_F(TQueryEvaluateTest, ComplexAlias)
         {"t", EValueType::Int64}
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "x=y;t=160",
         "x=x;t=120",
         "t=199",
@@ -2469,7 +2470,7 @@ TEST_F(TQueryEvaluateTest, TestJoinMany)
         {"z", EValueType::Int64}
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "x=20;y=200;z=0",
         "x=25;y=250;z=1"
     }, resultSplit);
@@ -2505,7 +2506,7 @@ TEST_F(TQueryEvaluateTest, TestOrderBy)
     std::vector<TOwningRow> result;
 
     for (const auto& row : source) {
-        result.push_back(BuildRow(row, split, false));
+        result.push_back(YsonToRow(row, split, false));
     }
 
     std::vector<TOwningRow> limitedResult;
@@ -2539,7 +2540,7 @@ TEST_F(TQueryEvaluateTest, TestUdf)
         {"x", EValueType::Int64}
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "x=1",
         "x=2",
         "x=9",
@@ -2570,7 +2571,7 @@ TEST_F(TQueryEvaluateTest, TestZeroArgumentUdf)
         {"a", EValueType::Int64}
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "a=75u",
         "a=75u"
     }, resultSplit);
@@ -2641,7 +2642,7 @@ TEST_F(TQueryEvaluateTest, TestUdfNullPropagation)
         {"x", EValueType::Int64}
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "",
         "x=20",
         "",
@@ -2671,7 +2672,7 @@ TEST_F(TQueryEvaluateTest, TestUdfNullPropagation2)
         {"x", EValueType::Int64}
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "",
         "x=1024",
         "",
@@ -2700,7 +2701,7 @@ TEST_F(TQueryEvaluateTest, TestUdfStringArgument)
         {"x", EValueType::Uint64}
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "x=123u",
         "x=50u",
         "x=0u",
@@ -2729,7 +2730,7 @@ TEST_F(TQueryEvaluateTest, TestUdfStringResult)
         {"x", EValueType::Uint64}
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "x=\"hello\"",
         "x=\"hello\"",
         "x=\"\"",
@@ -2757,7 +2758,7 @@ TEST_F(TQueryEvaluateTest, TestUnversionedValueUdf)
         {"x", EValueType::Boolean}
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "x=%false",
         "x=%false",
         "x=%true"
@@ -2783,7 +2784,7 @@ TEST_F(TQueryEvaluateTest, TestVarargUdf)
         {"x", EValueType::Boolean}
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "x=1",
         "x=2"
     }, resultSplit);
@@ -2811,7 +2812,7 @@ TEST_F(TQueryEvaluateTest, TestObjectUdf)
         {"x", EValueType::Int64}
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "x=10",
         "x=4",
         "x=27",
@@ -2840,7 +2841,7 @@ TEST_F(TQueryEvaluateTest, TestFarmHash)
         {"x", EValueType::Uint64}
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "x=13185060272037541714u",
         "x=1607147011416532415u"
     }, resultSplit);
@@ -2866,7 +2867,7 @@ TEST_F(TQueryEvaluateTest, TestRegexParseError)
         {"x", EValueType::Boolean},
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "x=%false",
         "x=%true",
         "x=%false",
@@ -2891,7 +2892,7 @@ TEST_F(TQueryEvaluateTest, TestRegexFullMatch)
         {"x", EValueType::Boolean},
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "x=%false",
         "x=%true",
         "x=%false",
@@ -2918,7 +2919,7 @@ TEST_F(TQueryEvaluateTest, TestRegexPartialMatch)
         {"x", EValueType::Boolean},
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "x=%false",
         "x=%true",
         "x=%false",
@@ -2944,7 +2945,7 @@ TEST_F(TQueryEvaluateTest, TestRegexReplaceFirst)
         {"x", EValueType::String},
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "x=\"x_x43x\"",
         "",
     }, resultSplit);
@@ -2969,7 +2970,7 @@ TEST_F(TQueryEvaluateTest, TestRegexReplaceAll)
         {"x", EValueType::String},
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "x=\"x_x_x\"",
         "",
     }, resultSplit);
@@ -2994,7 +2995,7 @@ TEST_F(TQueryEvaluateTest, TestRegexExtract)
         {"x", EValueType::String},
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "x=\"root at ya\"",
         "",
     }, resultSplit);
@@ -3019,7 +3020,7 @@ TEST_F(TQueryEvaluateTest, TestRegexEscape)
         {"x", EValueType::String},
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "x=\"1\\\\.5\"",
         "",
     }, resultSplit);
@@ -3048,7 +3049,7 @@ TEST_F(TQueryEvaluateTest, TestAverageAgg)
         {"x", EValueType::Double}
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "x=24.2",
     }, resultSplit);
 
@@ -3082,7 +3083,7 @@ TEST_F(TQueryEvaluateTest, TestAverageAgg2)
         {"r4", EValueType::Int64},
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "r1=17.0;x=1;r2=43;r3=20.0;r4=3",
         "r1=35.5;x=0;r2=9;r3=3.5;r4=23"
     }, resultSplit);
@@ -3109,7 +3110,7 @@ TEST_F(TQueryEvaluateTest, TestAverageAgg3)
         {"x", EValueType::Double}
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "b=1;x=5.0",
         "b=0"
     }, resultSplit);
@@ -3135,7 +3136,7 @@ TEST_F(TQueryEvaluateTest, TestStringAgg)
         {"b", EValueType::String},
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "b=\"fo\";c=\"two\"",
     }, resultSplit);
 
@@ -3173,7 +3174,7 @@ TEST_F(TQueryEvaluateTest, CardinalityAggregate)
         {"lower", EValueType::Boolean},
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "upper=%true;lower=%true"
     }, resultSplit);
 
@@ -3201,7 +3202,7 @@ TEST_F(TQueryEvaluateTest, TestObjectUdaf)
         {"r", EValueType::Uint64},
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "r=333u"
     }, resultSplit);
 
@@ -3272,7 +3273,7 @@ TEST_F(TQueryEvaluateTest, TestCasts)
         {"r3", EValueType::Uint64},
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
         "r1=3;r2=34.0",
         "r3=1u",
         "r1=12",
@@ -3297,7 +3298,7 @@ TEST_F(TQueryEvaluateTest, TestUdfException)
         {"r", EValueType::Int64},
     });
 
-    auto result = BuildRows({
+    auto result = YsonToRows({
     }, resultSplit);
 
     EvaluateExpectingError("throw_if_negative_udf(a) from [//t]", split, source, EFailureLocation::Execution);

@@ -5,18 +5,12 @@
 
 #include <yt/core/ytree/convert.h>
 
+#include <yt/ytlib/table_client/helpers.h>
+
 namespace NYT {
 namespace NTableClient {
 
-using namespace NYson;
-using namespace NYTree;
-
 ////////////////////////////////////////////////////////////////////////////////
-
-Stroka KeyToYson(TKey key)
-{
-    return ConvertToYsonString(key, EYsonFormat::Text).Data();
-}
 
 void PrintTo(const TOwningKey& key, ::std::ostream* os)
 {

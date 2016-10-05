@@ -4,6 +4,8 @@
 #include <yt/ytlib/query_client/query_helpers.h>
 #include <yt/ytlib/query_client/query_preparer.h>
 
+#include <yt/ytlib/table_client/helpers.h>
+
 // Tests:
 // TKeyRangeTest
 // TRefineKeyRangeTest
@@ -16,8 +18,8 @@ namespace {
 
 TEST(TKeyRangeTest, Unite)
 {
-    auto k1 = BuildKey("1"); auto k2 = BuildKey("2");
-    auto k3 = BuildKey("3"); auto k4 = BuildKey("4");
+    auto k1 = YsonToKey("1"); auto k2 = YsonToKey("2");
+    auto k3 = YsonToKey("3"); auto k4 = YsonToKey("4");
     auto mp = [] (const TOwningKey& a, const TOwningKey& b) {
         return std::make_pair(a, b);
     };
@@ -32,8 +34,8 @@ TEST(TKeyRangeTest, Unite)
 
 TEST(TKeyRangeTest, Intersect)
 {
-    auto k1 = BuildKey("1"); auto k2 = BuildKey("2");
-    auto k3 = BuildKey("3"); auto k4 = BuildKey("4");
+    auto k1 = YsonToKey("1"); auto k2 = YsonToKey("2");
+    auto k3 = YsonToKey("3"); auto k4 = YsonToKey("4");
     auto mp = [] (const TOwningKey& a, const TOwningKey& b) {
         return std::make_pair(a, b);
     };
@@ -56,7 +58,7 @@ TEST(TKeyRangeTest, Intersect)
 
 TEST(TKeyRangeTest, IsEmpty)
 {
-    auto k1 = BuildKey("1"); auto k2 = BuildKey("2");
+    auto k1 = YsonToKey("1"); auto k2 = YsonToKey("2");
     auto mp = [] (const TOwningKey& a, const TOwningKey& b) {
         return std::make_pair(a, b);
     };
@@ -67,8 +69,8 @@ TEST(TKeyRangeTest, IsEmpty)
     EXPECT_TRUE(IsEmpty(mp(k2, k1)));
     EXPECT_FALSE(IsEmpty(mp(k1, k2)));
 
-    EXPECT_TRUE(IsEmpty(mp(BuildKey("0;0;1"), BuildKey("0;0;0"))));
-    EXPECT_FALSE(IsEmpty(mp(BuildKey("0;0;0"), BuildKey("0;0;1"))));
+    EXPECT_TRUE(IsEmpty(mp(YsonToKey("0;0;1"), YsonToKey("0;0;0"))));
+    EXPECT_FALSE(IsEmpty(mp(YsonToKey("0;0;0"), YsonToKey("0;0;1"))));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -114,22 +116,22 @@ struct TRefineKeyRangeTestCase
 
     TOwningKey GetInitialLeftBound() const
     {
-        return BuildKey(InitialLeftBoundAsYson);
+        return YsonToKey(InitialLeftBoundAsYson);
     }
 
     TOwningKey GetInitialRightBound() const
     {
-        return BuildKey(InitialRightBoundAsYson);
+        return YsonToKey(InitialRightBoundAsYson);
     }
 
     TOwningKey GetResultingLeftBound() const
     {
-        return BuildKey(ResultingLeftBoundAsYson);
+        return YsonToKey(ResultingLeftBoundAsYson);
     }
 
     TOwningKey GetResultingRightBound() const
     {
-        return BuildKey(ResultingRightBoundAsYson);
+        return YsonToKey(ResultingRightBoundAsYson);
     }
 };
 
@@ -601,7 +603,7 @@ TEST_F(TRefineKeyRangeTest, ContradictiveConjuncts)
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
-        std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
+        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")),
         expr);
 
     ExpectIsEmpty(result);
@@ -613,11 +615,11 @@ TEST_F(TRefineKeyRangeTest, Lookup1)
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
-        std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
+        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")),
         expr);
 
-    EXPECT_EQ(BuildKey("50;50"), result.first);
-    EXPECT_EQ(BuildKey("50;50;" _MAX_), result.second);
+    EXPECT_EQ(YsonToKey("50;50"), result.first);
+    EXPECT_EQ(YsonToKey("50;50;" _MAX_), result.second);
 }
 
 TEST_F(TRefineKeyRangeTest, Lookup2)
@@ -626,11 +628,11 @@ TEST_F(TRefineKeyRangeTest, Lookup2)
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
-        std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
+        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")),
         expr);
 
-    EXPECT_EQ(BuildKey("50;50;50"), result.first);
-    EXPECT_EQ(BuildKey("50;50;50;" _MAX_), result.second);
+    EXPECT_EQ(YsonToKey("50;50;50"), result.first);
+    EXPECT_EQ(YsonToKey("50;50;50;" _MAX_), result.second);
 }
 
 TEST_F(TRefineKeyRangeTest, Range1)
@@ -641,11 +643,11 @@ TEST_F(TRefineKeyRangeTest, Range1)
     keyColumns.push_back("k");
     auto result = RefineKeyRange(
         keyColumns,
-        std::make_pair(BuildKey(""), BuildKey("1000000000")),
+        std::make_pair(YsonToKey(""), YsonToKey("1000000000")),
         expr);
 
-    EXPECT_EQ(BuildKey("0;" _MAX_), result.first);
-    EXPECT_EQ(BuildKey("100"), result.second);
+    EXPECT_EQ(YsonToKey("0;" _MAX_), result.first);
+    EXPECT_EQ(YsonToKey("100"), result.second);
 }
 
 TEST_F(TRefineKeyRangeTest, NegativeRange1)
@@ -656,11 +658,11 @@ TEST_F(TRefineKeyRangeTest, NegativeRange1)
     keyColumns.push_back("k");
     auto result = RefineKeyRange(
         keyColumns,
-        std::make_pair(BuildKey(""), BuildKey("1000000000")),
+        std::make_pair(YsonToKey(""), YsonToKey("1000000000")),
         expr);
 
-    EXPECT_EQ(BuildKey("-100;" _MAX_), result.first);
-    EXPECT_EQ(BuildKey("1;" _MAX_), result.second);
+    EXPECT_EQ(YsonToKey("-100;" _MAX_), result.first);
+    EXPECT_EQ(YsonToKey("1;" _MAX_), result.second);
 }
 
 TEST_F(TRefineKeyRangeTest, MultipleConjuncts1)
@@ -669,11 +671,11 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts1)
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
-        std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
+        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")),
         expr);
 
-    EXPECT_EQ(BuildKey("10"), result.first);
-    EXPECT_EQ(BuildKey("90"), result.second);
+    EXPECT_EQ(YsonToKey("10"), result.first);
+    EXPECT_EQ(YsonToKey("90"), result.second);
 }
 
 TEST_F(TRefineKeyRangeTest, MultipleConjuncts2)
@@ -684,11 +686,11 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts2)
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
-        std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
+        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")),
         expr);
 
-    EXPECT_EQ(BuildKey("50;10"), result.first);
-    EXPECT_EQ(BuildKey("50;90"), result.second);
+    EXPECT_EQ(YsonToKey("50;10"), result.first);
+    EXPECT_EQ(YsonToKey("50;90"), result.second);
 }
 
 TEST_F(TRefineKeyRangeTest, MultipleConjuncts3)
@@ -697,11 +699,11 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts3)
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
-        std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
+        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")),
         expr);
 
-    EXPECT_EQ(BuildKey("50"), result.first);
-    EXPECT_EQ(BuildKey("50;" _MAX_), result.second);
+    EXPECT_EQ(YsonToKey("50"), result.first);
+    EXPECT_EQ(YsonToKey("50;" _MAX_), result.second);
 }
 
 
@@ -720,7 +722,7 @@ TEST_F(TRefineKeyRangeTest, EmptyKeyTrie)
 {
     auto rowBuffer = New<TRowBuffer>();
     auto result = GetRangesFromTrieWithinRange(
-        std::make_pair(BuildKey(_MIN_), BuildKey(_MAX_)),
+        std::make_pair(YsonToKey(_MIN_), YsonToKey(_MAX_)),
         TKeyTrie::Empty(),
         rowBuffer);
 
@@ -740,17 +742,17 @@ TEST_F(TRefineKeyRangeTest, MultipleDisjuncts)
         rowBuffer);
 
     auto result = GetRangesFromTrieWithinRange(
-        std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
+        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")),
         keyTrie,
         rowBuffer);
 
     EXPECT_EQ(2, result.size());
 
-    EXPECT_EQ(BuildKey("50"), result[0].first);
-    EXPECT_EQ(BuildKey("50;" _MAX_), result[0].second);
+    EXPECT_EQ(YsonToKey("50"), result[0].first);
+    EXPECT_EQ(YsonToKey("50;" _MAX_), result[0].second);
 
-    EXPECT_EQ(BuildKey("75"), result[1].first);
-    EXPECT_EQ(BuildKey("75;" _MAX_), result[1].second);
+    EXPECT_EQ(YsonToKey("75"), result[1].first);
+    EXPECT_EQ(YsonToKey("75;" _MAX_), result[1].second);
 }
 
 TEST_F(TRefineKeyRangeTest, NotEqualToMultipleRanges)
@@ -766,17 +768,17 @@ TEST_F(TRefineKeyRangeTest, NotEqualToMultipleRanges)
         rowBuffer);
 
     auto result = GetRangesFromTrieWithinRange(
-        std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
+        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")),
         keyTrie,
         rowBuffer);
 
     EXPECT_EQ(2, result.size());
 
-    EXPECT_EQ(BuildKey("50;40;" _MAX_), result[0].first);
-    EXPECT_EQ(BuildKey("50;50"), result[0].second);
+    EXPECT_EQ(YsonToKey("50;40;" _MAX_), result[0].first);
+    EXPECT_EQ(YsonToKey("50;50"), result[0].second);
 
-    EXPECT_EQ(BuildKey("50;50;" _MAX_), result[1].first);
-    EXPECT_EQ(BuildKey("50;60"), result[1].second);
+    EXPECT_EQ(YsonToKey("50;50;" _MAX_), result[1].first);
+    EXPECT_EQ(YsonToKey("50;60"), result[1].second);
 }
 
 TEST_F(TRefineKeyRangeTest, RangesProduct)
@@ -792,38 +794,38 @@ TEST_F(TRefineKeyRangeTest, RangesProduct)
         rowBuffer);
 
     auto result = GetRangesFromTrieWithinRange(
-        std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
+        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")),
         keyTrie,
         rowBuffer);
 
     EXPECT_EQ(9, result.size());
 
-    EXPECT_EQ(BuildKey("40;40"), result[0].first);
-    EXPECT_EQ(BuildKey("40;40;" _MAX_), result[0].second);
+    EXPECT_EQ(YsonToKey("40;40"), result[0].first);
+    EXPECT_EQ(YsonToKey("40;40;" _MAX_), result[0].second);
 
-    EXPECT_EQ(BuildKey("40;50"), result[1].first);
-    EXPECT_EQ(BuildKey("40;50;" _MAX_), result[1].second);
+    EXPECT_EQ(YsonToKey("40;50"), result[1].first);
+    EXPECT_EQ(YsonToKey("40;50;" _MAX_), result[1].second);
 
-    EXPECT_EQ(BuildKey("40;60"), result[2].first);
-    EXPECT_EQ(BuildKey("40;60;" _MAX_), result[2].second);
+    EXPECT_EQ(YsonToKey("40;60"), result[2].first);
+    EXPECT_EQ(YsonToKey("40;60;" _MAX_), result[2].second);
 
-    EXPECT_EQ(BuildKey("50;40"), result[3].first);
-    EXPECT_EQ(BuildKey("50;40;" _MAX_), result[3].second);
+    EXPECT_EQ(YsonToKey("50;40"), result[3].first);
+    EXPECT_EQ(YsonToKey("50;40;" _MAX_), result[3].second);
 
-    EXPECT_EQ(BuildKey("50;50"), result[4].first);
-    EXPECT_EQ(BuildKey("50;50;" _MAX_), result[4].second);
+    EXPECT_EQ(YsonToKey("50;50"), result[4].first);
+    EXPECT_EQ(YsonToKey("50;50;" _MAX_), result[4].second);
 
-    EXPECT_EQ(BuildKey("50;60"), result[5].first);
-    EXPECT_EQ(BuildKey("50;60;" _MAX_), result[5].second);
+    EXPECT_EQ(YsonToKey("50;60"), result[5].first);
+    EXPECT_EQ(YsonToKey("50;60;" _MAX_), result[5].second);
 
-    EXPECT_EQ(BuildKey("60;40"), result[6].first);
-    EXPECT_EQ(BuildKey("60;40;" _MAX_), result[6].second);
+    EXPECT_EQ(YsonToKey("60;40"), result[6].first);
+    EXPECT_EQ(YsonToKey("60;40;" _MAX_), result[6].second);
 
-    EXPECT_EQ(BuildKey("60;50"), result[7].first);
-    EXPECT_EQ(BuildKey("60;50;" _MAX_), result[7].second);
+    EXPECT_EQ(YsonToKey("60;50"), result[7].first);
+    EXPECT_EQ(YsonToKey("60;50;" _MAX_), result[7].second);
 
-    EXPECT_EQ(BuildKey("60;60"), result[8].first);
-    EXPECT_EQ(BuildKey("60;60;" _MAX_), result[8].second);
+    EXPECT_EQ(YsonToKey("60;60"), result[8].first);
+    EXPECT_EQ(YsonToKey("60;60;" _MAX_), result[8].second);
 }
 
 TEST_F(TRefineKeyRangeTest, RangesProductWithOverlappingKeyPositions)
@@ -839,23 +841,23 @@ TEST_F(TRefineKeyRangeTest, RangesProductWithOverlappingKeyPositions)
         rowBuffer);
 
     auto result = GetRangesFromTrieWithinRange(
-        std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
+        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")),
         keyTrie,
         rowBuffer);
 
     EXPECT_EQ(4, result.size());
 
-    EXPECT_EQ(BuildKey("2;2;3"), result[0].first);
-    EXPECT_EQ(BuildKey("2;2;3;" _MAX_), result[0].second);
+    EXPECT_EQ(YsonToKey("2;2;3"), result[0].first);
+    EXPECT_EQ(YsonToKey("2;2;3;" _MAX_), result[0].second);
 
-    EXPECT_EQ(BuildKey("2;3;3"), result[1].first);
-    EXPECT_EQ(BuildKey("2;3;3;" _MAX_), result[1].second);
+    EXPECT_EQ(YsonToKey("2;3;3"), result[1].first);
+    EXPECT_EQ(YsonToKey("2;3;3;" _MAX_), result[1].second);
 
-    EXPECT_EQ(BuildKey("4;2;6"), result[2].first);
-    EXPECT_EQ(BuildKey("4;2;6;" _MAX_), result[2].second);
+    EXPECT_EQ(YsonToKey("4;2;6"), result[2].first);
+    EXPECT_EQ(YsonToKey("4;2;6;" _MAX_), result[2].second);
 
-    EXPECT_EQ(BuildKey("4;3;6"), result[3].first);
-    EXPECT_EQ(BuildKey("4;3;6;" _MAX_), result[3].second);
+    EXPECT_EQ(YsonToKey("4;3;6"), result[3].first);
+    EXPECT_EQ(YsonToKey("4;3;6;" _MAX_), result[3].second);
 }
 
 TEST_F(TRefineKeyRangeTest, NormalizeShortKeys)
@@ -866,11 +868,11 @@ TEST_F(TRefineKeyRangeTest, NormalizeShortKeys)
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
-        std::make_pair(BuildKey("1"), BuildKey("2")),
+        std::make_pair(YsonToKey("1"), YsonToKey("2")),
         expr);
 
-    EXPECT_EQ(BuildKey("1;2;3"), result.first);
-    EXPECT_EQ(BuildKey("1;2;3;" _MAX_), result.second);
+    EXPECT_EQ(YsonToKey("1;2;3"), result.first);
+    EXPECT_EQ(YsonToKey("1;2;3;" _MAX_), result.second);
 }
 
 TEST_F(TRefineKeyRangeTest, PrefixQuery)
@@ -889,11 +891,11 @@ TEST_F(TRefineKeyRangeTest, PrefixQuery)
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns2(),
-        std::make_pair(BuildKey("1;1;1;aaa"), BuildKey("100;100;100;bbb")),
+        std::make_pair(YsonToKey("1;1;1;aaa"), YsonToKey("100;100;100;bbb")),
         expr);
 
-    EXPECT_EQ(BuildKey("50;50;50;abc"), result.first);
-    EXPECT_EQ(BuildKey("50;50;50;abd"), result.second);
+    EXPECT_EQ(YsonToKey("50;50;50;abc"), result.first);
+    EXPECT_EQ(YsonToKey("50;50;50;abd"), result.second);
 }
 
 TEST_F(TRefineKeyRangeTest, EmptyRange)
@@ -904,11 +906,11 @@ TEST_F(TRefineKeyRangeTest, EmptyRange)
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
-        std::make_pair(BuildKey("0;0;0"), BuildKey("2;2;2")),
+        std::make_pair(YsonToKey("0;0;0"), YsonToKey("2;2;2")),
         expr);
 
-    EXPECT_EQ(BuildKey("1"), result.first);
-    EXPECT_EQ(BuildKey("1;" _MAX_), result.second);
+    EXPECT_EQ(YsonToKey("1"), result.first);
+    EXPECT_EQ(YsonToKey("1;" _MAX_), result.second);
 }
 
 TEST_F(TRefineKeyRangeTest, RangeToPointCollapsing)
@@ -919,11 +921,11 @@ TEST_F(TRefineKeyRangeTest, RangeToPointCollapsing)
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
-        std::make_pair(BuildKey("0;0;0"), BuildKey("2;2;2")),
+        std::make_pair(YsonToKey("0;0;0"), YsonToKey("2;2;2")),
         expr);
 
-    EXPECT_EQ(BuildKey("1;1"), result.first);
-    EXPECT_EQ(BuildKey("1;1;" _MAX_), result.second);
+    EXPECT_EQ(YsonToKey("1;1"), result.first);
+    EXPECT_EQ(YsonToKey("1;1;" _MAX_), result.second);
 }
 
 TEST_F(TRefineKeyRangeTest, MultipleRangeDisjuncts)
@@ -940,17 +942,17 @@ TEST_F(TRefineKeyRangeTest, MultipleRangeDisjuncts)
         rowBuffer);
 
     auto result = GetRangesFromTrieWithinRange(
-        std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
+        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")),
         keyTrie,
         rowBuffer);
 
     EXPECT_EQ(2, result.size());
 
-    EXPECT_EQ(BuildKey("21"), result[0].first);
-    EXPECT_EQ(BuildKey("32;" _MAX_), result[0].second);
+    EXPECT_EQ(YsonToKey("21"), result[0].first);
+    EXPECT_EQ(YsonToKey("32;" _MAX_), result[0].second);
 
-    EXPECT_EQ(BuildKey("43"), result[1].first);
-    EXPECT_EQ(BuildKey("54;" _MAX_), result[1].second);
+    EXPECT_EQ(YsonToKey("43"), result[1].first);
+    EXPECT_EQ(YsonToKey("54;" _MAX_), result[1].second);
 }
 
 TEST_F(TRefineKeyRangeTest, SecondDimensionRange)
@@ -967,14 +969,14 @@ TEST_F(TRefineKeyRangeTest, SecondDimensionRange)
         rowBuffer);
 
     auto result = GetRangesFromTrieWithinRange(
-        std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
+        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")),
         keyTrie,
         rowBuffer);
 
     EXPECT_EQ(1, result.size());
 
-    EXPECT_EQ(BuildKey("1;2"), result[0].first);
-    EXPECT_EQ(BuildKey("1;4;"), result[0].second);
+    EXPECT_EQ(YsonToKey("1;2"), result[0].first);
+    EXPECT_EQ(YsonToKey("1;4;"), result[0].second);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

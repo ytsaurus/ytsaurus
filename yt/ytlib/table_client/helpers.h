@@ -86,6 +86,16 @@ TTableUploadOptions GetTableUploadOptions(
 
 //////////////////////////////////////////////////////////////////////////////////
 
+// Mostly used in unittests and for debugging purposes.
+TUnversionedOwningRow YsonToRow(
+    const Stroka& yson,
+    const TTableSchema& tableSchema,
+    bool treatMissingAsNull);
+TUnversionedOwningRow YsonToKey(const Stroka& yson);
+Stroka KeyToYson(TUnversionedRow row);
+
+//////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
 } // namespace NTableClient
 

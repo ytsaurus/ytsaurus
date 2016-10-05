@@ -7,6 +7,8 @@
 #include <yt/ytlib/query_client/query_preparer.h>
 #include <yt/ytlib/query_client/functions.h>
 
+#include <yt/ytlib/table_client/helpers.h>
+
 #include <yt/core/yson/string.h>
 #include <yt/core/ytree/convert.h>
 
@@ -167,8 +169,8 @@ TEST_F(TComputedColumnTest, NoKeyColumnsInPredicate)
 
     EXPECT_EQ(1, result.size());
 
-    EXPECT_EQ(BuildKey(_MIN_), result[0].first);
-    EXPECT_EQ(BuildKey(_MAX_), result[0].second);
+    EXPECT_EQ(YsonToKey(_MIN_), result[0].first);
+    EXPECT_EQ(YsonToKey(_MAX_), result[0].second);
 }
 
 TEST_F(TComputedColumnTest, Simple)
@@ -178,8 +180,8 @@ TEST_F(TComputedColumnTest, Simple)
 
     EXPECT_EQ(1, result.size());
 
-    EXPECT_EQ(BuildKey("20;10;"), result[0].first);
-    EXPECT_EQ(BuildKey("20;10;" _MAX_), result[0].second);
+    EXPECT_EQ(YsonToKey("20;10;"), result[0].first);
+    EXPECT_EQ(YsonToKey("20;10;" _MAX_), result[0].second);
 }
 
 TEST_F(TComputedColumnTest, Inequality)
@@ -189,8 +191,8 @@ TEST_F(TComputedColumnTest, Inequality)
 
     EXPECT_EQ(1, result.size());
 
-    EXPECT_EQ(BuildKey(_MIN_), result[0].first);
-    EXPECT_EQ(BuildKey(_MAX_), result[0].second);
+    EXPECT_EQ(YsonToKey(_MIN_), result[0].first);
+    EXPECT_EQ(YsonToKey(_MAX_), result[0].second);
 }
 
 TEST_F(TComputedColumnTest, Composite)
@@ -200,8 +202,8 @@ TEST_F(TComputedColumnTest, Composite)
 
     EXPECT_EQ(1, result.size());
 
-    EXPECT_EQ(BuildKey("20;10;0;" _MAX_), result[0].first);
-    EXPECT_EQ(BuildKey("20;10;50;"), result[0].second);
+    EXPECT_EQ(YsonToKey("20;10;0;" _MAX_), result[0].first);
+    EXPECT_EQ(YsonToKey("20;10;50;"), result[0].second);
 }
 
 TEST_F(TComputedColumnTest, Vector)
@@ -211,12 +213,12 @@ TEST_F(TComputedColumnTest, Vector)
 
     EXPECT_EQ(3, result.size());
 
-    EXPECT_EQ(BuildKey("2;1;"), result[0].first);
-    EXPECT_EQ(BuildKey("2;1;" _MAX_), result[0].second);
-    EXPECT_EQ(BuildKey("4;2;"), result[1].first);
-    EXPECT_EQ(BuildKey("4;2;" _MAX_), result[1].second);
-    EXPECT_EQ(BuildKey("6;3;"), result[2].first);
-    EXPECT_EQ(BuildKey("6;3;" _MAX_), result[2].second);
+    EXPECT_EQ(YsonToKey("2;1;"), result[0].first);
+    EXPECT_EQ(YsonToKey("2;1;" _MAX_), result[0].second);
+    EXPECT_EQ(YsonToKey("4;2;"), result[1].first);
+    EXPECT_EQ(YsonToKey("4;2;" _MAX_), result[1].second);
+    EXPECT_EQ(YsonToKey("6;3;"), result[2].first);
+    EXPECT_EQ(YsonToKey("6;3;" _MAX_), result[2].second);
 }
 
 TEST_F(TComputedColumnTest, ComputedKeyInPredicate)
@@ -226,8 +228,8 @@ TEST_F(TComputedColumnTest, ComputedKeyInPredicate)
 
     EXPECT_EQ(1, result.size());
 
-    EXPECT_EQ(BuildKey("10;20;"), result[0].first);
-    EXPECT_EQ(BuildKey(_MAX_), result[0].second);
+    EXPECT_EQ(YsonToKey("10;20;"), result[0].first);
+    EXPECT_EQ(YsonToKey(_MAX_), result[0].second);
 }
 
 TEST_F(TComputedColumnTest, ComputedColumnLast)
@@ -248,8 +250,8 @@ TEST_F(TComputedColumnTest, ComputedColumnLast)
 
     EXPECT_EQ(1, result.size());
 
-    EXPECT_EQ(BuildKey("10;13;"), result[0].first);
-    EXPECT_EQ(BuildKey("10;13;" _MAX_), result[0].second);
+    EXPECT_EQ(YsonToKey("10;13;"), result[0].first);
+    EXPECT_EQ(YsonToKey("10;13;" _MAX_), result[0].second);
 }
 
 TEST_F(TComputedColumnTest, Complex1)
@@ -277,8 +279,8 @@ TEST_F(TComputedColumnTest, Complex1)
 
     EXPECT_EQ(1, result.size());
 
-    EXPECT_EQ(BuildKey("10;21;"), result[0].first);
-    EXPECT_EQ(BuildKey("10;21;" _MAX_), result[0].second);
+    EXPECT_EQ(YsonToKey("10;21;"), result[0].first);
+    EXPECT_EQ(YsonToKey("10;21;" _MAX_), result[0].second);
 }
 
 TEST_F(TComputedColumnTest, Complex2)
@@ -306,10 +308,10 @@ TEST_F(TComputedColumnTest, Complex2)
 
     EXPECT_EQ(2, result.size());
 
-    EXPECT_EQ(BuildKey("10;21;"), result[0].first);
-    EXPECT_EQ(BuildKey("10;21;" _MAX_), result[0].second);
-    EXPECT_EQ(BuildKey("50;61;"), result[1].first);
-    EXPECT_EQ(BuildKey("50;61;" _MAX_), result[1].second);
+    EXPECT_EQ(YsonToKey("10;21;"), result[0].first);
+    EXPECT_EQ(YsonToKey("10;21;" _MAX_), result[0].second);
+    EXPECT_EQ(YsonToKey("50;61;"), result[1].first);
+    EXPECT_EQ(YsonToKey("50;61;" _MAX_), result[1].second);
 }
 
 TEST_F(TComputedColumnTest, Complex3)
@@ -337,8 +339,8 @@ TEST_F(TComputedColumnTest, Complex3)
 
     EXPECT_EQ(1, result.size());
 
-    EXPECT_EQ(BuildKey("10;"), result[0].first);
-    EXPECT_EQ(BuildKey("10;" _MAX_), result[0].second);
+    EXPECT_EQ(YsonToKey("10;"), result[0].first);
+    EXPECT_EQ(YsonToKey("10;" _MAX_), result[0].second);
 }
 
 TEST_F(TComputedColumnTest, Far0)
@@ -361,8 +363,8 @@ TEST_F(TComputedColumnTest, Far0)
 
     EXPECT_EQ(1, result.size());
 
-    EXPECT_EQ(BuildKey(_MIN_), result[0].first);
-    EXPECT_EQ(BuildKey(_MAX_), result[0].second);
+    EXPECT_EQ(YsonToKey(_MIN_), result[0].first);
+    EXPECT_EQ(YsonToKey(_MAX_), result[0].second);
 }
 
 TEST_F(TComputedColumnTest, Far1)
@@ -385,8 +387,8 @@ TEST_F(TComputedColumnTest, Far1)
 
     EXPECT_EQ(1, result.size());
 
-    EXPECT_EQ(BuildKey("11;"), result[0].first);
-    EXPECT_EQ(BuildKey("11;" _MAX_), result[0].second);
+    EXPECT_EQ(YsonToKey("11;"), result[0].first);
+    EXPECT_EQ(YsonToKey("11;" _MAX_), result[0].second);
 }
 
 TEST_F(TComputedColumnTest, Far2)
@@ -411,8 +413,8 @@ TEST_F(TComputedColumnTest, Far2)
 
     EXPECT_EQ(1, result.size());
 
-    EXPECT_EQ(BuildKey("11;20;"), result[0].first);
-    EXPECT_EQ(BuildKey("11;20;" _MAX_), result[0].second);
+    EXPECT_EQ(YsonToKey("11;20;"), result[0].first);
+    EXPECT_EQ(YsonToKey("11;20;" _MAX_), result[0].second);
 }
 
 TEST_F(TComputedColumnTest, Far3)
@@ -437,10 +439,10 @@ TEST_F(TComputedColumnTest, Far3)
 
     EXPECT_EQ(2, result.size());
 
-    EXPECT_EQ(BuildKey("11;20;"), result[0].first);
-    EXPECT_EQ(BuildKey("11;20;" _MAX_), result[0].second);
-    EXPECT_EQ(BuildKey("31;40;"), result[1].first);
-    EXPECT_EQ(BuildKey("31;40;" _MAX_), result[1].second);
+    EXPECT_EQ(YsonToKey("11;20;"), result[0].first);
+    EXPECT_EQ(YsonToKey("11;20;" _MAX_), result[0].second);
+    EXPECT_EQ(YsonToKey("31;40;"), result[1].first);
+    EXPECT_EQ(YsonToKey("31;40;" _MAX_), result[1].second);
 }
 
 TEST_F(TComputedColumnTest, Far4)
@@ -465,14 +467,14 @@ TEST_F(TComputedColumnTest, Far4)
 
     EXPECT_EQ(4, result.size());
 
-    EXPECT_EQ(BuildKey("11;20;"), result[0].first);
-    EXPECT_EQ(BuildKey("11;20;" _MAX_), result[0].second);
-    EXPECT_EQ(BuildKey("11;40;"), result[1].first);
-    EXPECT_EQ(BuildKey("11;40;" _MAX_), result[1].second);
-    EXPECT_EQ(BuildKey("31;20;"), result[2].first);
-    EXPECT_EQ(BuildKey("31;20;" _MAX_), result[2].second);
-    EXPECT_EQ(BuildKey("31;40;"), result[3].first);
-    EXPECT_EQ(BuildKey("31;40;" _MAX_), result[3].second);
+    EXPECT_EQ(YsonToKey("11;20;"), result[0].first);
+    EXPECT_EQ(YsonToKey("11;20;" _MAX_), result[0].second);
+    EXPECT_EQ(YsonToKey("11;40;"), result[1].first);
+    EXPECT_EQ(YsonToKey("11;40;" _MAX_), result[1].second);
+    EXPECT_EQ(YsonToKey("31;20;"), result[2].first);
+    EXPECT_EQ(YsonToKey("31;20;" _MAX_), result[2].second);
+    EXPECT_EQ(YsonToKey("31;40;"), result[3].first);
+    EXPECT_EQ(YsonToKey("31;40;" _MAX_), result[3].second);
 }
 
 TEST_F(TComputedColumnTest, NoComputedColumns)
@@ -492,8 +494,8 @@ TEST_F(TComputedColumnTest, NoComputedColumns)
 
     EXPECT_EQ(1, result.size());
 
-    EXPECT_EQ(BuildKey(_MIN_), result[0].first);
-    EXPECT_EQ(BuildKey(_MAX_), result[0].second);
+    EXPECT_EQ(YsonToKey(_MIN_), result[0].first);
+    EXPECT_EQ(YsonToKey(_MAX_), result[0].second);
 }
 
 TEST_F(TComputedColumnTest, Modulo0)
@@ -514,8 +516,8 @@ TEST_F(TComputedColumnTest, Modulo0)
 
     EXPECT_EQ(1, result.size());
 
-    EXPECT_EQ(BuildKey(_MIN_), result[0].first);
-    EXPECT_EQ(BuildKey(_MAX_), result[0].second);
+    EXPECT_EQ(YsonToKey(_MIN_), result[0].first);
+    EXPECT_EQ(YsonToKey(_MAX_), result[0].second);
 }
 
 TEST_F(TComputedColumnTest, Modulo1)
@@ -536,14 +538,14 @@ TEST_F(TComputedColumnTest, Modulo1)
 
     EXPECT_EQ(4, result.size());
 
-    EXPECT_EQ(BuildKey(_NULL_ ";0;" _MAX_), result[0].first);
-    EXPECT_EQ(BuildKey(_NULL_ ";2000;" _MAX_), result[0].second);
-    EXPECT_EQ(BuildKey("-1;0;" _MAX_), result[1].first);
-    EXPECT_EQ(BuildKey("-1;2000;" _MAX_), result[1].second);
-    EXPECT_EQ(BuildKey("0;0;" _MAX_), result[2].first);
-    EXPECT_EQ(BuildKey("0;2000;" _MAX_), result[2].second);
-    EXPECT_EQ(BuildKey("1;0;" _MAX_), result[3].first);
-    EXPECT_EQ(BuildKey("1;2000;" _MAX_), result[3].second);
+    EXPECT_EQ(YsonToKey(_NULL_ ";0;" _MAX_), result[0].first);
+    EXPECT_EQ(YsonToKey(_NULL_ ";2000;" _MAX_), result[0].second);
+    EXPECT_EQ(YsonToKey("-1;0;" _MAX_), result[1].first);
+    EXPECT_EQ(YsonToKey("-1;2000;" _MAX_), result[1].second);
+    EXPECT_EQ(YsonToKey("0;0;" _MAX_), result[2].first);
+    EXPECT_EQ(YsonToKey("0;2000;" _MAX_), result[2].second);
+    EXPECT_EQ(YsonToKey("1;0;" _MAX_), result[3].first);
+    EXPECT_EQ(YsonToKey("1;2000;" _MAX_), result[3].second);
 }
 
 TEST_F(TComputedColumnTest, Modulo2)
@@ -569,14 +571,14 @@ TEST_F(TComputedColumnTest, Modulo2)
 
     EXPECT_EQ(4, result.size());
 
-    EXPECT_EQ(BuildKey(_NULL_ ";" _NULL_ ";1;"), result[0].first);
-    EXPECT_EQ(BuildKey(_NULL_ ";" _NULL_ ";1;" _MAX_), result[0].second);
-    EXPECT_EQ(BuildKey(_NULL_ ";0u;1;"), result[1].first);
-    EXPECT_EQ(BuildKey(_NULL_ ";0u;1;" _MAX_), result[1].second);
-    EXPECT_EQ(BuildKey("0u;" _NULL_ ";1;"), result[2].first);
-    EXPECT_EQ(BuildKey("0u;" _NULL_ ";1;" _MAX_), result[2].second);
-    EXPECT_EQ(BuildKey("0u;0u;1;"), result[3].first);
-    EXPECT_EQ(BuildKey("0u;0u;1;" _MAX_), result[3].second);
+    EXPECT_EQ(YsonToKey(_NULL_ ";" _NULL_ ";1;"), result[0].first);
+    EXPECT_EQ(YsonToKey(_NULL_ ";" _NULL_ ";1;" _MAX_), result[0].second);
+    EXPECT_EQ(YsonToKey(_NULL_ ";0u;1;"), result[1].first);
+    EXPECT_EQ(YsonToKey(_NULL_ ";0u;1;" _MAX_), result[1].second);
+    EXPECT_EQ(YsonToKey("0u;" _NULL_ ";1;"), result[2].first);
+    EXPECT_EQ(YsonToKey("0u;" _NULL_ ";1;" _MAX_), result[2].second);
+    EXPECT_EQ(YsonToKey("0u;0u;1;"), result[3].first);
+    EXPECT_EQ(YsonToKey("0u;0u;1;" _MAX_), result[3].second);
 }
 
 TEST_F(TComputedColumnTest, Modulo3)
@@ -600,8 +602,8 @@ TEST_F(TComputedColumnTest, Modulo3)
 
     EXPECT_EQ(1, result.size());
 
-    EXPECT_EQ(BuildKey(_MIN_), result[0].first);
-    EXPECT_EQ(BuildKey(_MAX_), result[0].second);
+    EXPECT_EQ(YsonToKey(_MIN_), result[0].first);
+    EXPECT_EQ(YsonToKey(_MAX_), result[0].second);
 }
 
 TEST_F(TComputedColumnTest, Modulo4)
@@ -624,14 +626,14 @@ TEST_F(TComputedColumnTest, Modulo4)
 
     EXPECT_EQ(4, result.size());
 
-    EXPECT_EQ(BuildKey(_NULL_ ";0;"), result[0].first);
-    EXPECT_EQ(BuildKey(_NULL_ ";2;" _MAX_), result[0].second);
-    EXPECT_EQ(BuildKey("-1;0;"), result[1].first);
-    EXPECT_EQ(BuildKey("-1;2;" _MAX_), result[1].second);
-    EXPECT_EQ(BuildKey("0;0;"), result[2].first);
-    EXPECT_EQ(BuildKey("0;2;" _MAX_), result[2].second);
-    EXPECT_EQ(BuildKey("1;0;"), result[3].first);
-    EXPECT_EQ(BuildKey("1;2;" _MAX_), result[3].second);
+    EXPECT_EQ(YsonToKey(_NULL_ ";0;"), result[0].first);
+    EXPECT_EQ(YsonToKey(_NULL_ ";2;" _MAX_), result[0].second);
+    EXPECT_EQ(YsonToKey("-1;0;"), result[1].first);
+    EXPECT_EQ(YsonToKey("-1;2;" _MAX_), result[1].second);
+    EXPECT_EQ(YsonToKey("0;0;"), result[2].first);
+    EXPECT_EQ(YsonToKey("0;2;" _MAX_), result[2].second);
+    EXPECT_EQ(YsonToKey("1;0;"), result[3].first);
+    EXPECT_EQ(YsonToKey("1;2;" _MAX_), result[3].second);
 }
 
 TEST_F(TComputedColumnTest, Divide1)
@@ -652,10 +654,10 @@ TEST_F(TComputedColumnTest, Divide1)
 
     EXPECT_EQ(2, result.size());
 
-    EXPECT_EQ(BuildKey("1;3"), result[0].first);
-    EXPECT_EQ(BuildKey("1;4"), result[0].second);
-    EXPECT_EQ(BuildKey("2;4"), result[1].first);
-    EXPECT_EQ(BuildKey("2;6"), result[1].second);
+    EXPECT_EQ(YsonToKey("1;3"), result[0].first);
+    EXPECT_EQ(YsonToKey("1;4"), result[0].second);
+    EXPECT_EQ(YsonToKey("2;4"), result[1].first);
+    EXPECT_EQ(YsonToKey("2;6"), result[1].second);
 }
 
 TEST_F(TComputedColumnTest, Divide2)
@@ -679,14 +681,14 @@ TEST_F(TComputedColumnTest, Divide2)
 
     EXPECT_EQ(4, result.size());
 
-    EXPECT_EQ(BuildKey("0;0;0;" _MAX_), result[0].first);
-    EXPECT_EQ(BuildKey("0;0;3"), result[0].second);
-    EXPECT_EQ(BuildKey("1;0;3"), result[1].first);
-    EXPECT_EQ(BuildKey("1;0;4"), result[1].second);
-    EXPECT_EQ(BuildKey("1;1;4"), result[2].first);
-    EXPECT_EQ(BuildKey("1;1;6"), result[2].second);
-    EXPECT_EQ(BuildKey("2;1;6"), result[3].first);
-    EXPECT_EQ(BuildKey("2;1;6;" _MAX_), result[3].second);
+    EXPECT_EQ(YsonToKey("0;0;0;" _MAX_), result[0].first);
+    EXPECT_EQ(YsonToKey("0;0;3"), result[0].second);
+    EXPECT_EQ(YsonToKey("1;0;3"), result[1].first);
+    EXPECT_EQ(YsonToKey("1;0;4"), result[1].second);
+    EXPECT_EQ(YsonToKey("1;1;4"), result[2].first);
+    EXPECT_EQ(YsonToKey("1;1;6"), result[2].second);
+    EXPECT_EQ(YsonToKey("2;1;6"), result[3].first);
+    EXPECT_EQ(YsonToKey("2;1;6;" _MAX_), result[3].second);
 }
 
 TEST_F(TComputedColumnTest, Divide3)
@@ -712,14 +714,14 @@ TEST_F(TComputedColumnTest, Divide3)
 
     EXPECT_EQ(4, result.size());
 
-    EXPECT_EQ(BuildKey("0u;" _NULL_ ";0u"), result[0].first);
-    EXPECT_EQ(BuildKey("0u;" _NULL_ ";2u"), result[0].second);
-    EXPECT_EQ(BuildKey("0u;0u;0u"), result[1].first);
-    EXPECT_EQ(BuildKey("0u;0u;2u"), result[1].second);
-    EXPECT_EQ(BuildKey("1u;" _NULL_ ";2u"), result[2].first);
-    EXPECT_EQ(BuildKey("1u;" _NULL_ ";3u"), result[2].second);
-    EXPECT_EQ(BuildKey("1u;0u;2u"), result[3].first);
-    EXPECT_EQ(BuildKey("1u;0u;3u"), result[3].second);
+    EXPECT_EQ(YsonToKey("0u;" _NULL_ ";0u"), result[0].first);
+    EXPECT_EQ(YsonToKey("0u;" _NULL_ ";2u"), result[0].second);
+    EXPECT_EQ(YsonToKey("0u;0u;0u"), result[1].first);
+    EXPECT_EQ(YsonToKey("0u;0u;2u"), result[1].second);
+    EXPECT_EQ(YsonToKey("1u;" _NULL_ ";2u"), result[2].first);
+    EXPECT_EQ(YsonToKey("1u;" _NULL_ ";3u"), result[2].second);
+    EXPECT_EQ(YsonToKey("1u;0u;2u"), result[3].first);
+    EXPECT_EQ(YsonToKey("1u;0u;3u"), result[3].second);
 }
 
 TEST_F(TComputedColumnTest, Divide4)
@@ -740,10 +742,10 @@ TEST_F(TComputedColumnTest, Divide4)
 
     EXPECT_EQ(2, result.size());
 
-    EXPECT_EQ(BuildKey("0;0;"), result[0].first);
-    EXPECT_EQ(BuildKey("0;9223372036854775807;" _MAX_), result[0].second);
-    EXPECT_EQ(BuildKey("1;-9223372036854775808"), result[1].first);
-    EXPECT_EQ(BuildKey("1;0;"), result[1].second);
+    EXPECT_EQ(YsonToKey("0;0;"), result[0].first);
+    EXPECT_EQ(YsonToKey("0;9223372036854775807;" _MAX_), result[0].second);
+    EXPECT_EQ(YsonToKey("1;-9223372036854775808"), result[1].first);
+    EXPECT_EQ(YsonToKey("1;0;"), result[1].second);
 }
 
 TEST_F(TComputedColumnTest, FarDivide1)
@@ -766,10 +768,10 @@ TEST_F(TComputedColumnTest, FarDivide1)
 
     EXPECT_EQ(2, result.size());
 
-    EXPECT_EQ(BuildKey("1"), result[0].first);
-    EXPECT_EQ(BuildKey("1;" _MAX_), result[0].second);
-    EXPECT_EQ(BuildKey("2"), result[1].first);
-    EXPECT_EQ(BuildKey("2;" _MAX_), result[1].second);
+    EXPECT_EQ(YsonToKey("1"), result[0].first);
+    EXPECT_EQ(YsonToKey("1;" _MAX_), result[0].second);
+    EXPECT_EQ(YsonToKey("2"), result[1].first);
+    EXPECT_EQ(YsonToKey("2;" _MAX_), result[1].second);
 }
 
 TEST_P(TComputedColumnTest, Join)
@@ -791,10 +793,10 @@ TEST_P(TComputedColumnTest, Join)
 
     EXPECT_EQ(2, result.size());
 
-    EXPECT_EQ(BuildKey(args[2]), result[0].first);
-    EXPECT_EQ(BuildKey(args[3]), result[0].second);
-    EXPECT_EQ(BuildKey(args[4]), result[1].first);
-    EXPECT_EQ(BuildKey(args[5]), result[1].second);
+    EXPECT_EQ(YsonToKey(args[2]), result[0].first);
+    EXPECT_EQ(YsonToKey(args[3]), result[0].second);
+    EXPECT_EQ(YsonToKey(args[4]), result[1].first);
+    EXPECT_EQ(YsonToKey(args[5]), result[1].second);
 }
 
 INSTANTIATE_TEST_CASE_P(
