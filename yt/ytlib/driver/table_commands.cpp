@@ -293,12 +293,9 @@ void TInsertRowsCommand::Execute(ICommandContextPtr context)
     auto rows = ParseRows(context, config, &valueConsumer);
     auto rowBuffer = New<TRowBuffer>(TInsertRowsBufferTag());
     auto capturedRows = rowBuffer->Capture(rows);
-    auto mutableRowRange = MakeSharedRange(std::move(capturedRows), std::move(rowBuffer));
-    // XXX(sandello): No covariance here yet.
-    auto rowRange = TSharedRange<TUnversionedRow>(
-        static_cast<const TUnversionedRow*>(mutableRowRange.Begin()),
-        static_cast<const TUnversionedRow*>(mutableRowRange.End()),
-        mutableRowRange.GetHolder());
+    auto rowRange = MakeSharedRange(
+        std::vector<TUnversionedRow>(capturedRows.begin(), capturedRows.end()),
+        std::move(rowBuffer));
 
     // Run writes.
     auto transaction = GetTransaction(context);
@@ -406,12 +403,9 @@ void TDeleteRowsCommand::Execute(ICommandContextPtr context)
     auto keys = ParseRows(context, config, &valueConsumer);
     auto rowBuffer = New<TRowBuffer>(TDeleteRowsBufferTag());
     auto capturedKeys = rowBuffer->Capture(keys);
-    auto mutableKeyRange = MakeSharedRange(std::move(capturedKeys), std::move(rowBuffer));
-    // XXX(sandello): No covariance here yet.
-    auto keyRange = TSharedRange<TUnversionedRow>(
-        static_cast<const TUnversionedRow*>(mutableKeyRange.Begin()),
-        static_cast<const TUnversionedRow*>(mutableKeyRange.End()),
-        mutableKeyRange.GetHolder());
+    auto keyRange = MakeSharedRange(
+        std::vector<TKey>(capturedKeys.begin(), capturedKeys.end()),
+        std::move(rowBuffer));
 
     // Run deletes.
     auto transaction = GetTransaction(context);
