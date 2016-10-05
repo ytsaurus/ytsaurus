@@ -25,7 +25,7 @@ from abc import ABCMeta, abstractmethod
 from yt.packages.six.moves.http_client import BadStatusLine, IncompleteRead
 
 def get_retriable_errors():
-    """ List or errors that API will retry in HTTP requests"""
+    """List or errors that API will retry in HTTP requests."""
     from yt.packages.requests import HTTPError, ConnectionError, Timeout
     return (HTTPError, ConnectionError, Timeout, IncompleteRead, BadStatusLine, SocketError,
             YtIncorrectResponse, YtProxyUnavailable, YtRequestRateLimitExceeded, YtRequestQueueSizeLimitExceeded, YtRequestTimedOut, YtRetriableError)
@@ -153,7 +153,7 @@ def _raise_for_status(response, request_info):
 def make_request_with_retries(method, url=None, make_retries=True, response_format=None,
                               params=None, timeout=None, retry_action=None, log_body=True, is_ping=False, proxy_provider=None,
                               client=None, **kwargs):
-    """ Performs HTTP request to YT proxy with retries """
+    """Performs HTTP request to YT proxy with retries."""
     configure_ip(_get_session(client),
                  get_config(client)["proxy"]["force_ipv4"],
                  get_config(client)["proxy"]["force_ipv6"])
@@ -241,7 +241,7 @@ def make_request_with_retries(method, url=None, make_retries=True, response_form
     assert False, "Unknown error: this point should not be reachable"
 
 def get_proxy_url(required=True, client=None):
-    """ Extracts proxy url from client and checks that url is specified """
+    """Extracts proxy url from client and checks that url is specified."""
     proxy = get_config(client=client)["proxy"]["url"]
 
     if proxy is not None and "." not in proxy and "localhost" not in proxy and ":" not in proxy:
@@ -299,7 +299,7 @@ def get_api_commands(client=None):
     return commands
 
 def get_token(client=None):
-    """ Extracts token from given client and checks it for correctness """
+    """Extracts token from given client and checks it for correctness."""
     if not get_config(client)["enable_token"]:
         return None
 
@@ -327,7 +327,7 @@ def get_token(client=None):
     return token
 
 def get_user_name(token=None, headers=None, client=None):
-    """ Requests auth method at proxy to receive user name by token or by cookies in header. """
+    """Requests auth method at proxy to receive user name by token or by cookies in header."""
     if get_backend_type(client) != "http":
         raise YtError("Function 'get_user_name' cannot be implemented for not http clients")
 
