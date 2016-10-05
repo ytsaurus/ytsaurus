@@ -305,7 +305,7 @@ private:
                         aggregateGenerators,
                         Options_.EnableCodeCache);
 
-                asyncStatistics.Apply(BIND([=] (const TErrorOr<TQueryStatistics>& result) -> TErrorOr<TQueryStatistics>{
+                asyncStatistics.Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TQueryStatistics>& result) -> TErrorOr<TQueryStatistics>{
                     if (!result.IsOK()) {
                         pipe->Fail(result);
                         LOG_DEBUG(result, "Failed evaluating subquery (SubqueryId: %v)", subquery->Id);
