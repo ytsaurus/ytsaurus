@@ -351,7 +351,7 @@ static void* AsynchronousDeleter(void* param)
     return NULL;
 }
 
-DISABLED_TEST_F(TWeakPtrTest, AcquisionOfSlowlyDyingObject)
+TEST_F(TWeakPtrTest, DISABLED_AcquisionOfSlowlyDyingObject)
 {
     TSlowlyDyingObjectPtr object = New<TSlowlyDyingObject>();
     TSlowlyDyingObjectWkPtr ptr(object);

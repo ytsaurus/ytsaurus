@@ -35,7 +35,7 @@ public:
     MOCK_METHOD2(F, bool(bool passThrough, const char* comment));
 };
 
-DISABLED_TEST(TVerifyDeathTest, NoCrashForTruthExpression)
+TEST(TVerifyDeathTest, DISABLED_NoCrashForTruthExpression)
 {
     TMockCallee callee;
     EXPECT_CALL(callee, F(true, _)).Times(1);
@@ -44,7 +44,7 @@ DISABLED_TEST(TVerifyDeathTest, NoCrashForTruthExpression)
     SUCCEED();
 }
 
-DISABLED_TEST(TVerifyDeathTest, CrashForFalseExpression)
+TEST(TVerifyDeathTest, DISABLED_CrashForFalseExpression)
 {
     NiceMock<TMockCallee> callee;
 
