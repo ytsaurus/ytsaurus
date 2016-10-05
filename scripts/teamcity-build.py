@@ -13,7 +13,7 @@ from helpers import mkdirp, run, run_captured, cwd, copytree, \
                     kill_by_name, sudo_rmtree, ls, get_size, \
                     rmtree, format_yes_no, parse_yes_no_bool, ChildHasNonZeroExitCode
 
-from pytest_helpers import get_sandbox_dirs, save_failed_test
+from pytest_helpers import get_sandbox_dirs, save_failed_test, find_and_report_core_dumps
 
 import argparse
 import glob
@@ -232,19 +232,25 @@ def run_unit_tests(options):
     finally:
         rmtree(sandbox_current)
 
+    find_and_report_core_dumps(options, "unit_tests", sandbox_current)
+
 
 @build_step
 def run_javascript_tests(options):
     if not options.build_enable_nodejs:
         return
 
+    tests_path = "{0}/yt/nodejs".format(options.working_directory)
+
     try:
         run(
             ["./run_tests.sh", "-R", "xunit"],
-            cwd="{0}/yt/nodejs".format(options.working_directory),
+            cwd=tests_path,
             env={"MOCHA_OUTPUT_FILE": "{0}/junit_nodejs_run_tests.xml".format(options.working_directory)})
     except ChildHasNonZeroExitCode as err:
         raise StepFailedWithNonCriticalError(str(err))
+
+    find_and_report_core_dumps(options, "javascript", tests_path)
 
 
 def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
@@ -315,6 +321,8 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
         except (UnicodeDecodeError, ParseError, xml.parsers.expat.ExpatError):
             failed = True
             teamcity_message("Failed to parse pytest output:\n" + open(handle.name).read())
+
+    find_and_report_core_dumps(options, suite_name, suite_path)
 
     try:
         if failed:
