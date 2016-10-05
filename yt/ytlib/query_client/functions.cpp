@@ -149,8 +149,6 @@ EValueType TypingFunction(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_REFCOUNTED_TYPE(ITypeInferrer);
-
 EValueType TFunctionTypeInferrer::InferResultType(
     const std::vector<EValueType>& argumentTypes,
     const Stroka& name,
@@ -198,8 +196,6 @@ EValueType TAggregateTypeInferrer::InferResultType(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_REFCOUNTED_TYPE(TTypeInferrerMap)
-
 const ITypeInferrerPtr& TTypeInferrerMap::GetFunction(const Stroka& functionName) const
 {
     auto found = this->find(functionName);
@@ -208,10 +204,6 @@ const ITypeInferrerPtr& TTypeInferrerMap::GetFunction(const Stroka& functionName
     }
     return found->second;
 }
-
-DEFINE_REFCOUNTED_TYPE(TRangeExtractorMap)
-
-DEFINE_REFCOUNTED_TYPE(TFunctionProfilerMap)
 
 const IFunctionCodegenPtr& TFunctionProfilerMap::GetFunction(const Stroka& functionName) const
 {
@@ -222,8 +214,6 @@ const IFunctionCodegenPtr& TFunctionProfilerMap::GetFunction(const Stroka& funct
     }
     return found->second;
 }
-
-DEFINE_REFCOUNTED_TYPE(TAggregateProfilerMap)
 
 const IAggregateCodegenPtr& TAggregateProfilerMap::GetAggregate(const Stroka& functionName) const
 {
