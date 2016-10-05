@@ -127,7 +127,7 @@ public:
             .Default(10000);
 
         RegisterParameter("chunk_properties_update_period", ChunkPropertiesUpdatePeriod)
-            .Default(TDuration::MilliSeconds(1000));
+            .Default(TDuration::MilliSeconds(100));
         RegisterParameter("max_chunks_per_properties_update", MaxChunksPerPropertiesUpdate)
             .Default(10000);
 
