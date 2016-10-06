@@ -72,10 +72,19 @@ import os
 import sys
 import time
 import types
-from cStringIO import StringIO
-# It is used to checks iterable type.
-# Since isinstance(StringIO, collections.Iterator) raises an error in python 2.6.
-from StringIO import StringIO as pythonStringIO
+
+try:
+    # It is used to checks iterable type.
+    # Since isinstance(StringIO, collections.Iterator) raises an error in python 2.6.
+    from StringIO import StringIO as pythonStringIO
+except ImportError:  # Python 3
+    pythonStringIO = None
+
+try:
+    from cStringIO import StringIO as BytesIO
+except ImportError:  # Python 3
+    from io import BytesIO
+
 from copy import deepcopy
 import collections
 
@@ -97,8 +106,11 @@ def _to_chunk_stream(stream, format, raw, split_rows, chunk_size):
             stream = stream.encode("utf-8")
         stream = StringIO(stream)
 
-    iterable_types = (pythonStringIO, types.ListType, types.GeneratorType, collections.Iterator, collections.Iterable)
-    is_iterable = isinstance(stream, iterable_types)
+    iterable_types = [list, types.GeneratorType, collections.Iterator, collections.Iterable]
+    if pythonStringIO is not None:
+        iterable_types.insert(0, pythonStringIO)
+
+    is_iterable = isinstance(stream, tuple(iterable_types))
     is_filelike = hasattr(stream, "read")
 
     if not is_iterable and not is_filelike:
