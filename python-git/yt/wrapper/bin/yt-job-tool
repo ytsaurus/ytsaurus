@@ -107,6 +107,8 @@ def prepare_job_environment(operation_id, job_id, job_path, run=False):
         if parse_bool(file_.attributes.get("executable", False)):
             os.chmod(destination_path, os.stat(destination_path).st_mode | stat.S_IXUSR)
 
+        logger.info("Done")
+
     if file_count > 0:
         logger.info("Job files were downloaded to %s", sandbox_path)
     else:
