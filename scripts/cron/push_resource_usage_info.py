@@ -52,8 +52,8 @@ def get_account_statistics(account):
 
     return result
 
-def collect_accounts_data_for_cluster(cluster):
-    client = Yt(proxy=cluster)
+def collect_accounts_data_for_cluster(cluster, request_retry_enable):
+    client = Yt(proxy=cluster, config={"proxy": {"request_retry_enable": request_retry_enable}})
     result = []
     for account in client.list("//sys/accounts", attributes=["resource_usage", "resource_limits"]):
         account_data = get_account_statistics(account)
@@ -138,6 +138,8 @@ def main():
         print >>sys.stderr, "Push destination is not specified"
         sys.exit(1)
 
+    request_retry_enable = False
+
     if args.push_to_statface:
         if args.robot_login is None or args.robot_password is None:
             print >>sys.stderr, "Statface credentials are not set correctly"
@@ -147,6 +149,8 @@ def main():
             "StatRobotUser": args.robot_login,
             "StatRobotPassword": args.robot_password
         }
+
+        request_retry_enable = True
 
     if args.push_to_solomon:
         solomon_headers = {
@@ -166,7 +170,7 @@ def main():
     for cluster in clusters:
         logging.info("Fetching accounts info from %s", cluster)
         try:
-            accounts_data = collect_accounts_data_for_cluster(cluster)
+            accounts_data = collect_accounts_data_for_cluster(cluster, request_retry_enable)
             if args.push_to_statface:
                 push_cluster_data_to_statface(cluster, accounts_data, statface_headers)
             if args.push_to_solomon:
