@@ -48,25 +48,31 @@ def create_destination(dst, yt, force=False, attributes=None):
     yt.create_table(dst, attributes=attributes)
 
 
-def check_table_schema(dst, schema, key_columns, yt):
+def check_table_schema(dst, schema, key_columns, optimize_for, yt):
     """ Check that table exists and has specified schema """
     if not yt.exists(dst):
         raise Exception("Destination table does not exists")
-    real_schema, real_key_columns = dt_module.get_schema_and_key_columns(yt, dst)
+    real_schema, real_key_columns, real_optimize_for = dt_module.get_dynamic_table_attributes(yt, dst)
     if _drop_sort_order(real_schema) != _drop_sort_order(schema):
         raise Exception("Destination table schema does not match")
     if real_key_columns != key_columns:
         raise Exception("Destination table key columns does not match")
+    if optimize_for != real_optimize_for:
+        raise Exception("Destination table optimize_for mode does not match")
 
 
 class DumpRestoreClient(dt_module.DynamicTablesClient):
     def dump_table(self, src_table, dst_table, force=False, predicate=None):
         """ Dump dynamic table rows matching the predicate into a static table """
-        schema, key_columns = dt_module.get_schema_and_key_columns(self.yt, src_table)
+        schema, key_columns, optimize_for = dt_module.get_dynamic_table_attributes(self.yt, src_table)
         tablets = self.yt.get(src_table + "/@tablets")
         pivot_keys = sorted([tablet["pivot_key"] for tablet in tablets])
 
-        create_destination(dst_table, yt=self.yt, force=force)
+        attributes = {
+            "schema": schema,
+            "optimize_for": optimize_for
+        }
+        create_destination(dst_table, yt=self.yt, force=force, attributes=attributes)
         save_attributes(
             dst_table,
             origin=src_table,
@@ -89,15 +95,16 @@ class DumpRestoreClient(dt_module.DynamicTablesClient):
             src_table,
             yt=self.yt,
             attributes=("schema", "key_columns", "pivot_keys"))
+        optimize_for = self.yt.get_attribute(src_table, "optimize_for", default="lookup")
 
         if to_existing:
-            check_table_schema(dst_table, schema, key_columns, yt=self.yt)
+            check_table_schema(dst_table, schema, key_columns, optimize_for, yt=self.yt)
         else:
             create_destination(
                 dst_table,
                 yt=self.yt,
                 force=force,
-                attributes=dt_module.get_dynamic_table_attributes(self.yt, schema, key_columns))
+                attributes=dt_module.make_dynamic_table_attributes(self.yt, schema, key_columns, optimize_for))
             self.yt.reshard_table(dst_table, pivot_keys)
             self.mount_table(dst_table)
 
@@ -108,7 +115,7 @@ class DumpRestoreClient(dt_module.DynamicTablesClient):
 
     def erase_table(self, table, predicate=None):
         """ Delete all rows matching the predicate from a dynamic table """
-        _, key_columns = dt_module.get_schema_and_key_columns(self.yt, table)
+        _, key_columns, _ = dt_module.get_dynamic_table_attributes(self.yt, table)
 
         def erase_mapper(rows):
             client = self.make_driver_yt_client()
@@ -140,7 +147,7 @@ class DumpRestoreClient(dt_module.DynamicTablesClient):
         dynamic table or from attributes saved with table dump)
         """
         if self.yt.get_attribute(table, "dynamic"):
-            schema, key_columns = dt_module.get_schema_and_key_columns(self.yt, table)
+            schema, key_columns, optimize_for = dt_module.get_dynamic_table_attributes(self.yt, table)
         else:
             schema, key_columns = restore_attributes(
                 table,
