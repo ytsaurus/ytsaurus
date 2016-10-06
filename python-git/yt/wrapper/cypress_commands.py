@@ -178,9 +178,7 @@ def list(path, max_size=None, format=None, absolute=None, attributes=None, clien
         raise YtError("Option 'absolute' is supported only for non-specified format")
 
     def join(elem):
-        return yson.to_yson_type(
-            yson.YsonString("{0}/{1}".format(path, elem)),
-            elem.attributes)
+        return yson.to_yson_type("{0}/{1}".format(path, elem), elem.attributes)
 
     if max_size is None:
         max_size = 65535
@@ -380,8 +378,8 @@ def search(root="", node_type=None,
         if (node_type is None or object_type in flatten(node_type)) and \
            (object_filter is None or object_filter(object)) and \
            (path_filter is None or path_filter(path)):
-            yson_path = yson.YsonString(path)
-            yson_path.attributes = dict(ifilter(lambda item: item[0] in attributes, iteritems(object.attributes)))
+            yson_path_attributes = dict(ifilter(lambda item: item[0] in attributes, iteritems(object.attributes)))
+            yson_path = yson.to_yson_type(path, attributes=yson_path_attributes)
             yield yson_path
 
         if object_type in ["account_map", "tablet_cell"]:

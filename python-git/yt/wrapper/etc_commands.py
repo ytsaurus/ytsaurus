@@ -8,13 +8,13 @@ except ImportError:
     native_parse_ypath = None
 
 from yt.common import update
-from yt.yson import loads, YsonString
+from yt.yson import loads, YsonString, YsonUnicode
 
 import copy
 
 def parse_ypath(path, client=None):
     attributes = {}
-    if isinstance(path, YsonString):
+    if isinstance(path, (YsonString, YsonUnicode)):
         attributes = copy.deepcopy(path.attributes)
 
     if get_config(client)["enable_native_parse_ypath"] and native_parse_ypath is not None:

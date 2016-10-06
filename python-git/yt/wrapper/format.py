@@ -51,7 +51,7 @@ class Format(object):
         :param attributes: (dict) format parameters
         """
         require(isinstance(name, str), lambda: YtFormatError("Incorrect format %r" % name))
-        self._name = yson.YsonString(name)
+        self._name = yson.to_yson_type(name)
         self._name.attributes = get_value(attributes, {})
         self._raw = raw
 

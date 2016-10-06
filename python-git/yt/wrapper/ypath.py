@@ -4,7 +4,6 @@ from .errors import YtError
 from .config import get_config
 
 import yt.yson as yson
-from yt.yson import YsonString
 from yt.packages.six import iteritems
 from copy import deepcopy
 
@@ -85,7 +84,7 @@ class YPath(object):
                         self._path_object.attributes[key.replace("-", "_")] = value
                         del self._path_object.attributes[key]
             else:
-                self._path_object = YsonString(path)
+                self._path_object = yson.to_yson_type(path)
 
         if str(self._path_object) != "/" and not self._path_object.startswith("//") and not self._path_object.startswith("#"):
             prefix = get_config(client)["prefix"]
@@ -97,7 +96,7 @@ class YPath(object):
                     lambda: YtError("PREFIX '%s' should end with /" % prefix))
             # TODO(ignat): refactor YsonString to fix this hack
             copy_attributes = self._path_object.attributes
-            self._path_object = YsonString(prefix + self._path_object if self._path_object else prefix[:-1])
+            self._path_object = yson.to_yson_type(prefix + self._path_object if self._path_object else prefix[:-1])
             self._path_object.attributes = copy_attributes
 
         if attributes is not None:
