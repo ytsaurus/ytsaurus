@@ -5,7 +5,7 @@ var Q = require("bluebird");
 var _ = require("underscore");
 var UI64 = require("cuint").UINT64;
 
-var binding = require("./ytnode");
+var binding = process._linkedBinding ? process._linkedBinding("ytnode") : require("./ytnode");
 var utils = require("./utils");
 
 var YtError = require("./error").that;
