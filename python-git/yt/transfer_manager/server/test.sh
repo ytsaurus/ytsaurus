@@ -598,6 +598,45 @@ EOF
     echo "Ok"
 }
 
+test_schema_copy()
+{
+    echo "Test schema copy"
+
+    yt2 remove //tmp/test_table --proxy banach --force
+    yt2 remove //tmp/test_table2 --proxy banach --force
+
+    yt2 remove //tmp/test_table --proxy freud --force
+    yt2 create table //tmp/test_table --proxy freud --attributes '{schema=[{type=string;name=a}]}'
+    echo 'a=1' | yt2 write //tmp/test_table --proxy freud --format dsv
+
+
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "freud", "destination_table": "//tmp/test_table", "destination_cluster": "banach"}')
+    wait_task $id
+
+    check "a=1" "$(yt2 read //tmp/test_table --proxy banach --format dsv)"
+    check '"string"' "$(yt2 get //tmp/test_table/@schema/0/type --proxy banach)"
+    check '%true' "$(yt2 get //tmp/test_table/@schema/@strict --proxy banach)"
+
+
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "freud", "destination_table": "//tmp/test_table2", "destination_cluster": "banach", "schema_inference_mode": "from_output"}')
+    wait_task $id
+
+    check "a=1" "$(yt2 read //tmp/test_table2 --proxy banach --format dsv)"
+    check '%false' "$(yt2 get //tmp/test_table2/@schema/@strict --proxy banach)"
+
+
+    yt2 remove //tmp/test_table2 --proxy freud --force
+    yt2 create table //tmp/test_table2 --proxy freud --attributes '{schema=[{type=string;name=b}]}'
+    echo 'b=2' | yt2 write //tmp/test_table2 --proxy freud --format dsv
+
+    id=$(run_task '{"source_table": "//tmp/test_table2", "source_cluster": "freud", "destination_table": "//tmp/test_table", "destination_cluster": "banach", "schema_inference_mode": "from_input"}')
+    wait_task $id
+
+    check "b=2" "$(yt2 read //tmp/test_table --proxy banach --format dsv)"
+    check '"string"' "$(yt2 get //tmp/test_table/@schema/0/type --proxy banach)"
+    check '%true' "$(yt2 get //tmp/test_table/@schema/@strict --proxy banach)"
+}
+
 # Different transfers
 test_copy_empty_table
 
@@ -627,6 +666,7 @@ test_mutating_requests_retries
 test_delete_tasks
 test_copy_with_annotated_json
 test_kiwi_copy
+test_schema_copy
 
 # Test it manually since in required killing TM instance.
 #test_abort_operations_on_startup

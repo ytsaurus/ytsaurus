@@ -103,7 +103,8 @@ def execute_task(task, message_queue, config):
                     enable_row_count_check=config.get("enable_row_count_check"),
                     small_table_size_threshold=config.get("small_table_size_threshold"),
                     force_copy_with_operation=force_copy_with_operation,
-                    additional_attributes=task.additional_attributes)
+                    additional_attributes=task.additional_attributes,
+                    schema_inference_mode=task.schema_inference_mode)
             else:  # native
                 network_name = "fastbone" if fastbone else "default"
                 network_name = parameters.get("network_name", network_name)
@@ -117,7 +118,8 @@ def execute_task(task, message_queue, config):
                     postprocess_spec_template=postprocess_spec,
                     compression_codec=task.destination_compression_codec,
                     erasure_codec=task.destination_erasure_codec,
-                    additional_attributes=task.additional_attributes)
+                    additional_attributes=task.additional_attributes,
+                    schema_inference_mode=task.schema_inference_mode)
         elif source_client._type == "yt" and destination_client._type == "yamr":
             logger.info("Running YT -> YAMR remote copy")
             if task.copy_method == "push":
