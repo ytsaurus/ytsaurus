@@ -981,7 +981,7 @@ def alter_table(path, schema=None, dynamic=None, client=None):
     if dynamic is not None:
         params["dynamic"] = dynamic
 
-    make_request("alter_table", params, client=client)
+    _make_transactional_request("alter_table", params, client=client)
 
 def unmount_table(path, first_tablet_index=None, last_tablet_index=None, force=None, client=None):
     """Unmount table.

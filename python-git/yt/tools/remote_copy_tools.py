@@ -15,7 +15,6 @@ import yt.wrapper as yt
 import os
 import time
 import shutil
-import gzip
 import tempfile
 import tarfile
 from copy import deepcopy
@@ -257,8 +256,11 @@ def set_codec(yt_client, dst, codec, codec_type):
 
 def copy_yt_to_yt(source_client, destination_client, src, dst, network_name,
                   copy_spec_template=None, postprocess_spec_template=None,
-                  compression_codec=None, erasure_codec=None, additional_attributes=None):
+                  compression_codec=None, erasure_codec=None, additional_attributes=None,
+                  schema_inference_mode=None):
     copy_spec_template = get_value(copy_spec_template, {})
+    if schema_inference_mode is not None:
+        copy_spec_template["schema_inference_mode"] = schema_inference_mode
 
     src = yt.TablePath(src, client=source_client)
     compressed_data_size = source_client.get_attribute(src, "compressed_data_size")
@@ -314,7 +316,11 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
                                 copy_spec_template=None, postprocess_spec_template=None, default_tmp_dir=None,
                                 compression_codec=None, erasure_codec=None, intermediate_format=None,
                                 enable_row_count_check=True, small_table_size_threshold=None,
-                                force_copy_with_operation=False, additional_attributes=None):
+                                force_copy_with_operation=False, additional_attributes=None,
+                                schema_inference_mode=None):
+    if schema_inference_mode is None:
+        schema_inference_mode = "auto"
+
     tmp_dir = tempfile.mkdtemp(dir=default_tmp_dir)
 
     intermediate_format = yt.create_format(get_value(intermediate_format, "json"))
@@ -345,7 +351,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
             set_codec(destination_client, dst, compression_codec, "compression")
 
             sorted_by = None
-            dst_table = dst
+            dst_table = yt.TablePath(dst, simplify=False)
             if source_client.exists(src.name + "/@sorted_by"):
                 sorted_by = source_client.get(src + "/@sorted_by")
                 dst_table = yt.TablePath(dst, client=source_client)
@@ -384,6 +390,12 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
 
                     spec = deepcopy(get_value(copy_spec_template, {}))
                     spec["data_size_per_job"] = 1
+                    if schema_inference_mode == "from_input":
+                        destination_client.run_erase(dst_table)
+                        destination_client.alter_table(dst_table, source_client.get(src + "/@schema"))
+                    if schema_inference_mode == "auto":
+                        dst_table.attributes["schema"] = source_client.get(src + "/@schema")
+
                     _set_mapper_settings_for_read_from_yt(spec)
 
                     destination_client.run_map(
