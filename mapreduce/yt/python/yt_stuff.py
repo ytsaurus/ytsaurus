@@ -86,7 +86,8 @@ class YtStuff(object):
         # Folders
         self.yt_path = tempfile.mkdtemp(dir=work_path, prefix="yt_") if self.config.yt_path is None else self.config.yt_path
         self.yt_bins_path = os.path.join(self.yt_path, "bin")
-        self.yt_python_path = os.path.join(self.yt_path, "python")
+        if yt_version.YT_VERSION == '17_5':
+            self.yt_python_path = os.path.join(self.yt_path, "python")
         self.yt_node_path = os.path.join(self.yt_path, "node")
         self.yt_node_bin_path = os.path.join(self.yt_node_path, "bin")
         self.yt_node_modules_path = os.path.join(self.yt_path, "node_modules")
@@ -164,13 +165,15 @@ class YtStuff(object):
                 self.yt_node_path,
                 self.yt_node_modules_path,
             ])
-        self.env["PYTHONPATH"] = self.yt_python_path
+        if yt_version.YT_VERSION == '17_5':
+            self.env["PYTHONPATH"] = self.yt_python_path
         self.env["YT_LOCAL_THOR_PATH"] = self.yt_thor_path
         self.env["YT_ENABLE_VERBOSE_LOGGING"] = "1"
         self.env["YT_LOG_LEVEL"] = "DEBUG"
 
     def _import_wrapper(self):
-        sys.path.insert(0, self.yt_python_path)
+        if yt_version.YT_VERSION == '17_5':
+            sys.path.insert(0, self.yt_python_path)
 
         import yt.wrapper
         import yt.logger
