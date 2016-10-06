@@ -3,7 +3,7 @@ from . import default_configs
 from yt.wrapper.common import MB, GB
 from yt.wrapper.mappings import VerifiedDict
 from yt.common import YtError, unlist, update, get_value
-from yt.yson import YsonString
+from yt.yson import to_yson_type
 
 from yt.packages.six import iteritems, add_metaclass
 from yt.packages.six.moves import xrange
@@ -480,7 +480,7 @@ class ConfigsProvider_18(ConfigsProvider):
 
             for i in xrange(provision["master"]["cell_size"]):
                 rpc_port, monitoring_port = next(ports_generator), next(ports_generator)
-                address = YsonString("{0}:{1}".format(provision["fqdn"], rpc_port))
+                address = to_yson_type("{0}:{1}".format(provision["fqdn"], rpc_port))
                 if i >= provision["master"]["cell_size"] - nonvoting_master_count:
                     address.attributes["voting"] = False
                 cell_addresses.append(address)
