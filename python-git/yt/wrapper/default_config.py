@@ -295,7 +295,7 @@ default_config = {
         "create_transaction_and_take_snapshot_lock": True
     },
 
-    # Retries for write commands. It split data stream into chunks and write it separately undef transactions.
+    # Retries for write commands. It split data stream into chunks and writes it separately under transactions.
     "write_retries": {
         "enable": True,
         # The size of data chunk that retried.
@@ -338,7 +338,7 @@ default_config = {
         "max_data_size_per_job": 16 * 1024 ** 3,
     },
 
-    # Enables mounting sandbox in tmpfs. Automatically calculates file sizes and add it to memory limit.
+    # Enables mounting sandbox in tmpfs. Automatically calculates file sizes and adds them to memory limit.
     "mount_sandbox_in_tmpfs": None,
 }
 
