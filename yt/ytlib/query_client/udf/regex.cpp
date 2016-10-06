@@ -15,146 +15,150 @@ extern "C" void RegexReplaceAll(TExecutionContext*, google::re2::RE2*, TUnversio
 extern "C" void RegexExtract(TExecutionContext*, google::re2::RE2*, TUnversionedValue*, TUnversionedValue*, TUnversionedValue*);
 extern "C" void RegexEscape(TExecutionContext*, TUnversionedValue*, TUnversionedValue*);
 
-struct TData
+struct TRe2Regex
 {
-    TData(TUnversionedValue* regexp)
-        : Re2(RegexCreate(regexp))
+    explicit TRe2Regex(TUnversionedValue* pattern)
+        : Re2(RegexCreate(pattern))
     { }
 
-    ~TData()
+    ~TRe2Regex()
     {
         RegexDestroy(Re2);
     }
 
-    TData(const TData& other) = delete;
-    TData& operator= (const TData& other) = delete;
+    TRe2Regex(const TRe2Regex& other) = delete;
+    TRe2Regex& operator= (const TRe2Regex& other) = delete;
 
     google::re2::RE2* Re2;
 };
 
-void regex_work(
-    NYT::NQueryClient::TFunctionContext* functonContext,
-    TUnversionedValue* regexp,
-    std::function<void(TData*)> doWork)
+static void regex_apply(
+    NYT::NQueryClient::TFunctionContext* functionContext,
+    TUnversionedValue* pattern,
+    std::function<void(TRe2Regex*)> func)
 {
-    if (!functonContext->IsArgLiteral(0)) {
-        TData data{regexp};
-        doWork(&data);
+    if (!functionContext->IsLiteralArg(0)) {
+        TRe2Regex regex{pattern};
+        func(&regex);
     } else {
-        void* data = functonContext->GetPrivateData();
-        if (!data) {
-            data = functonContext->CreateObject<TData>(regexp);
-            functonContext->SetPrivateData(data);
+        void* regex = functionContext->GetPrivateData();
+        if (!regex) {
+            regex = functionContext->CreateObject<TRe2Regex>(pattern);
+            if (!regex) {
+                ThrowException("Failed to precompile regular expression");
+            } else {
+                functionContext->SetPrivateData(regex);
+            }
         }
-        doWork(static_cast<TData*>(data));
+        func(static_cast<TRe2Regex*>(regex));
     }
 }
 
 extern "C" void regex_full_match(
     TExecutionContext* executionContext,
-    NYT::NQueryClient::TFunctionContext* functonContext,
+    NYT::NQueryClient::TFunctionContext* functionContext,
     TUnversionedValue* result,
-    TUnversionedValue* regexp,
+    TUnversionedValue* pattern,
     TUnversionedValue* input)
 {
-    if (regexp->Type == EValueType::Null || input->Type == EValueType::Null) {
+    if (pattern->Type == EValueType::Null || input->Type == EValueType::Null) {
         result->Type = EValueType::Boolean;
         result->Data.Boolean = false;
     } else {
-        regex_work(
-            functonContext,
-            regexp,
-            [=] (TData* data) {
+        regex_apply(
+            functionContext,
+            pattern,
+            [=] (TRe2Regex* regex) {
                 result->Type = EValueType::Boolean;
-                result->Data.Boolean = RegexFullMatch(data->Re2, input);
+                result->Data.Boolean = RegexFullMatch(regex->Re2, input);
             });
     }
 }
 
 extern "C" void regex_partial_match(
     TExecutionContext* executionContext,
-    NYT::NQueryClient::TFunctionContext* functonContext,
+    NYT::NQueryClient::TFunctionContext* functionContext,
     TUnversionedValue* result,
-    TUnversionedValue* regexp,
+    TUnversionedValue* pattern,
     TUnversionedValue* input)
 {
-    if (regexp->Type == EValueType::Null || input->Type == EValueType::Null) {
+    if (pattern->Type == EValueType::Null || input->Type == EValueType::Null) {
         result->Type = EValueType::Boolean;
         result->Data.Boolean = false;
     } else {
-        regex_work(
-            functonContext,
-            regexp,
-            [=] (TData* data) {
+        regex_apply(
+            functionContext,
+            pattern,
+            [=] (TRe2Regex* regex) {
                 result->Type = EValueType::Boolean;
-                result->Data.Boolean = RegexPartialMatch(data->Re2, input);
+                result->Data.Boolean = RegexPartialMatch(regex->Re2, input);
             });
     }
 }
 
 extern "C" void regex_replace_first(
     TExecutionContext* executionContext,
-    NYT::NQueryClient::TFunctionContext* functonContext,
+    NYT::NQueryClient::TFunctionContext* functionContext,
     TUnversionedValue* result,
-    TUnversionedValue* regexp,
+    TUnversionedValue* pattern,
     TUnversionedValue* input,
     TUnversionedValue* rewrite)
 {
-    if (regexp->Type == EValueType::Null || input->Type == EValueType::Null || rewrite->Type == EValueType::Null) {
+    if (pattern->Type == EValueType::Null || input->Type == EValueType::Null || rewrite->Type == EValueType::Null) {
         result->Type = EValueType::Null;
     } else {
-        regex_work(
-            functonContext,
-            regexp,
-            [=] (TData* data) {
-                RegexReplaceFirst(executionContext, data->Re2, input, rewrite, result);
+        regex_apply(
+            functionContext,
+            pattern,
+            [=] (TRe2Regex* regex) {
+                RegexReplaceFirst(executionContext, regex->Re2, input, rewrite, result);
             });
     }
 }
 
 extern "C" void regex_replace_all(
     TExecutionContext* executionContext,
-    NYT::NQueryClient::TFunctionContext* functonContext,
+    NYT::NQueryClient::TFunctionContext* functionContext,
     TUnversionedValue* result,
-    TUnversionedValue* regexp,
+    TUnversionedValue* pattern,
     TUnversionedValue* input,
     TUnversionedValue* rewrite)
 {
-    if (regexp->Type == EValueType::Null || input->Type == EValueType::Null || rewrite->Type == EValueType::Null) {
+    if (pattern->Type == EValueType::Null || input->Type == EValueType::Null || rewrite->Type == EValueType::Null) {
         result->Type = EValueType::Null;
     } else {
-        regex_work(
-            functonContext,
-            regexp,
-            [=] (TData* data) {
-                RegexReplaceAll(executionContext, data->Re2, input, rewrite, result);
+        regex_apply(
+            functionContext,
+            pattern,
+            [=] (TRe2Regex* regex) {
+                RegexReplaceAll(executionContext, regex->Re2, input, rewrite, result);
             });
     }
 }
 
 extern "C" void regex_extract(
     TExecutionContext* executionContext,
-    NYT::NQueryClient::TFunctionContext* functonContext,
+    NYT::NQueryClient::TFunctionContext* functionContext,
     TUnversionedValue* result,
-    TUnversionedValue* regexp,
+    TUnversionedValue* pattern,
     TUnversionedValue* input,
     TUnversionedValue* rewrite)
 {
-    if (regexp->Type == EValueType::Null || input->Type == EValueType::Null || rewrite->Type == EValueType::Null) {
+    if (pattern->Type == EValueType::Null || input->Type == EValueType::Null || rewrite->Type == EValueType::Null) {
         result->Type = EValueType::Null;
     } else {
-        regex_work(
-            functonContext,
-            regexp,
-            [=] (TData* data) {
-                RegexExtract(executionContext, data->Re2, input, rewrite, result);
+        regex_apply(
+            functionContext,
+            pattern,
+            [=] (TRe2Regex* regex) {
+                RegexExtract(executionContext, regex->Re2, input, rewrite, result);
             });
     }
 }
 
 extern "C" void regex_escape(
     TExecutionContext* executionContext,
-    NYT::NQueryClient::TFunctionContext* functonContext,
+    NYT::NQueryClient::TFunctionContext* functionContext,
     TUnversionedValue* result,
     TUnversionedValue* input)
 {
