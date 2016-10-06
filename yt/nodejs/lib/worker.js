@@ -5,7 +5,7 @@ var http = require("http");
 var https = require("https");
 var os = require("os");
 
-var yt = require("yt");
+var yt = process._linkedBinding ? require("../index.js") : require("yt");
 
 var connect = require("connect");
 var node_static = require("node-static");
@@ -14,7 +14,7 @@ var Q = require("bluebird");
 var v8_profiler = require("profiler");
 var v8_heapdump = require("heapdump");
 
-var binding = require("./ytnode");
+var binding = process._linkedBinding ? process._linkedBinding("ytnode") : require("./ytnode");
 
 // Bind UE handler early to avoid core dumps.
 process.on("uncaughtException", function(err) {

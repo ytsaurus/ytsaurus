@@ -1,4 +1,4 @@
-var binding = require("../lib/ytnode");
+var binding = process._linkedBinding ? process._linkedBinding("ytnode") : require("../lib/ytnode");
 
 var YtError = require("../lib/error").that;
 
