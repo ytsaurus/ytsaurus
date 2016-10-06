@@ -13,6 +13,7 @@
 #include "sorted_reduce_job_io.h"
 #include "user_job.h"
 #include "user_job_io.h"
+#include "user_job_synchronizer.h"
 
 #include <yt/server/exec_agent/config.h>
 #include <yt/server/exec_agent/supervisor_service.pb.h>
@@ -66,6 +67,7 @@ using namespace NScheduler::NProto;
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
+using namespace NJobProberClient;
 using namespace NJobTrackerClient::NProto;
 using namespace NConcurrency;
 using namespace NCGroup;
@@ -75,8 +77,6 @@ using namespace NYson;
 using NJobTrackerClient::TStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-static const auto RpcServerShutdownTimeout = TDuration::Seconds(15);
 
 // Option cpu.share is limited to [2, 1024], see http://git.kernel.org/cgit/linux/kernel/git/tip/tip.git/tree/kernel/sched/sched.h#n279
 // To overcome this limitation we consider one cpu_limit unit as ten cpu.shares units.
@@ -100,39 +100,33 @@ TJobProxy::TJobProxy(
         JobId_);
 }
 
-std::vector<NChunkClient::TChunkId> TJobProxy::DumpInputContext(const TJobId& jobId)
+std::vector<NChunkClient::TChunkId> TJobProxy::DumpInputContext()
 {
-    ValidateJobId(jobId);
     return Job_->DumpInputContext();
 }
 
-Stroka TJobProxy::GetStderr(const TJobId& jobId)
+Stroka TJobProxy::GetStderr()
 {
-    ValidateJobId(jobId);
     return Job_->GetStderr();
 }
 
-TYsonString TJobProxy::Strace(const TJobId& jobId)
+TYsonString TJobProxy::StraceJob()
 {
-    ValidateJobId(jobId);
     return Job_->StraceJob();
 }
 
-void TJobProxy::SignalJob(const TJobId& jobId, const Stroka& signalName)
+void TJobProxy::SignalJob(const Stroka& signalName)
 {
-    ValidateJobId(jobId);
     Job_->SignalJob(signalName);
 }
 
-TYsonString TJobProxy::PollJobShell(const TJobId& jobId, const TYsonString& parameters)
+TYsonString TJobProxy::PollJobShell(const TYsonString& parameters)
 {
-    ValidateJobId(jobId);
     return Job_->PollJobShell(parameters);
 }
 
-void TJobProxy::Interrupt(const TJobId& jobId)
+void TJobProxy::Interrupt()
 {
-    ValidateJobId(jobId);
     Job_->Interrupt();
 }
 

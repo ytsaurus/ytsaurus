@@ -34,6 +34,7 @@ Stroka GetProcessName(int pid);
 std::vector<Stroka> GetProcessCommandLine(int pid);
 
 TError StatusToError(int status);
+TError ProcessInfoToError(const siginfo_t& processInfo);
 
 void RemoveDirAsRoot(const Stroka& path);
 void RemoveDirContentAsRoot(const Stroka& path);

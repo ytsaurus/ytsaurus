@@ -30,7 +30,7 @@ struct TMultiplyByTwo
     }
 };
 
-REGISTER_TOOL(TMultiplyByTwo);
+REGISTER_TOOL(TMultiplyByTwo)
 
 TEST(TTools, MultiplyByTwo)
 {
@@ -44,7 +44,7 @@ struct TStrokaToVoid
     { }
 };
 
-REGISTER_TOOL(TStrokaToVoid);
+REGISTER_TOOL(TStrokaToVoid)
 
 TEST(TTools, ToVoid)
 {
@@ -59,7 +59,7 @@ struct TFaulty
     }
 };
 
-REGISTER_TOOL(TFaulty);
+REGISTER_TOOL(TFaulty)
 
 TEST(TTools, Faulty)
 {

@@ -129,8 +129,10 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/misc/small_vector.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/source_location.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/stack_trace.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/stracer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/string.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/subprocess.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/signaler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/url.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/pipes/async_reader.cpp

@@ -19,6 +19,7 @@
 
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 
+#include <yt/ytlib/job_prober_client/job_probe.h>
 #include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
 #include <yt/ytlib/security_client/public.h>
@@ -349,15 +350,12 @@ public:
         VERIFY_THREAD_AFFINITY(ControllerThread);
         ValidateJobRunning();
 
-        auto proxy = Slot_->GetJobProberProxy();
-        auto req = proxy.DumpInputContext();
-
-        ToProto(req->mutable_job_id(), Id_);
-        auto rspOrError = WaitFor(req->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting input contexts dump from job proxy");
-        const auto& rsp = rspOrError.Value();
-
-        return FromProto<std::vector<TChunkId>>(rsp->chunk_ids());
+        try {
+            return Slot_->GetJobProberClient()->DumpInputContext();
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error requesting input contexts dump from job proxy")
+                << ex;
+        }
     }
 
     virtual Stroka GetStderr() override
@@ -365,31 +363,25 @@ public:
         VERIFY_THREAD_AFFINITY(ControllerThread);
         ValidateJobRunning();
 
-        auto proxy = Slot_->GetJobProberProxy();
-        auto req = proxy.GetStderr();
-
-        ToProto(req->mutable_job_id(), Id_);
-        auto rspOrError = WaitFor(req->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting stderr from job proxy");
-        const auto& rsp = rspOrError.Value();
-
-        return rsp->stderr_data();
+        try {
+            return Slot_->GetJobProberClient()->GetStderr();
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error requesting stderr from job proxy")
+                << ex;
+        }
     }
 
-    virtual TYsonString Strace() override
+    virtual TYsonString StraceJob() override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
         ValidateJobRunning();
 
-        auto proxy = Slot_->GetJobProberProxy();
-        auto req = proxy.Strace();
-
-        ToProto(req->mutable_job_id(), Id_);
-        auto rspOrError = WaitFor(req->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting strace dump from job proxy");
-        const auto& rsp = rspOrError.Value();
-
-        return TYsonString(rsp->trace());
+        try {
+            return Slot_->GetJobProberClient()->StraceJob();
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error requesting strace dump from job proxy")
+                << ex;
+        }
     }
 
     virtual void SignalJob(const Stroka& signalName) override
@@ -397,15 +389,14 @@ public:
         VERIFY_THREAD_AFFINITY(ControllerThread);
         ValidateJobRunning();
 
-        auto proxy = Slot_->GetJobProberProxy();
-
         Signaled_ = true;
-        auto req = proxy.SignalJob();
 
-        ToProto(req->mutable_job_id(), Id_);
-        ToProto(req->mutable_signal_name(), signalName);
-        auto rspOrError = WaitFor(req->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error sending signal to job proxy");
+        try {
+            Slot_->GetJobProberClient()->SignalJob(signalName);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error sending signal to job proxy")
+                << ex;
+        }
     }
 
     virtual TYsonString PollJobShell(const TYsonString& parameters) override
@@ -413,24 +404,19 @@ public:
         VERIFY_THREAD_AFFINITY(ControllerThread);
         ValidateJobRunning();
 
-        auto proxy = Slot_->GetJobProberProxy();
-        auto req = proxy.PollJobShell();
-
-        ToProto(req->mutable_job_id(), Id_);
-        ToProto(req->mutable_parameters(), parameters.GetData());
-        auto rspOrError = WaitFor(req->Invoke());
-        // The following code changes error code for more user-friendly
-        // diagnostics in interactive shell.
-        if (rspOrError.FindMatching(NRpc::EErrorCode::TransportError)) {
-            THROW_ERROR_EXCEPTION_IF_FAILED(
-                rspOrError,
-                NExecAgent::EErrorCode::JobProxyConnectionFailed,
-                "No connection to job proxy");
+        try {
+            return Slot_->GetJobProberClient()->PollJobShell(parameters);
+        } catch (const TErrorException& ex) {
+            // The following code changes error code for more user-friendly
+            // diagnostics in interactive shell
+            if (ex.Error().FindMatching(NRpc::EErrorCode::TransportError)) {
+                THROW_ERROR_EXCEPTION(NExecAgent::EErrorCode::JobProxyConnectionFailed,
+                    "No connection to job proxy")
+                    << ex;
+            }
+            THROW_ERROR_EXCEPTION("Error polling job shell")
+                << ex;
         }
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error polling job shell");
-        const auto& rsp = rspOrError.Value();
-
-        return TYsonString(rsp->result());
     }
 
     virtual void ReportStatistics(TJobStatistics&& statistics) override
@@ -443,13 +429,13 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
         ValidateJobRunning();
-        auto proxy = Slot_->GetJobProberProxy();
 
-        auto req = proxy.Interrupt();
-
-        ToProto(req->mutable_job_id(), Id_);
-        auto rspOrError = WaitFor(req->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error interrupting job on job proxy");
+        try {
+            Slot_->GetJobProberClient()->Interrupt();
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error interrupting job on job proxy")
+                << ex;
+        }
     }
 
 private:

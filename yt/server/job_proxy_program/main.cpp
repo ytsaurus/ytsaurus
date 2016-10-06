@@ -1,7 +1,6 @@
 #include <yt/server/program/program.h>
 #include <yt/server/program/program_cgroup_mixin.h>
 #include <yt/server/program/program_config_mixin.h>
-#include <yt/server/program/program_tool_mixin.h>
 
 #include <yt/server/job_proxy/config.h>
 #include <yt/server/job_proxy/job_proxy.h>
@@ -16,14 +15,12 @@ namespace NYT {
 
 class TJobProxyProgram
     : public TProgram
-    , public TProgramToolMixin
     , public TProgramConfigMixin<NJobProxy::TJobProxyConfig>
     , public TProgramCgroupMixin
 {
 public:
     TJobProxyProgram()
         : TProgram()
-        , TProgramToolMixin(Opts_)
         , TProgramConfigMixin(Opts_, false)
         , TProgramCgroupMixin(Opts_)
     {
@@ -49,10 +46,6 @@ protected:
         ConfigureUids();
         ConfigureSignals();
         ConfigureCrashHandler();
-
-        if (HandleToolOptions()) {
-            return;
-        }
 
         CloseAllDescriptors();
         CreateStderrFile("stderr");

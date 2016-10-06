@@ -3,8 +3,9 @@
 #include "config.h"
 #include "job_detail.h"
 #include "stderr_writer.h"
-#include "stracer.h"
 #include "user_job_io.h"
+#include "job_satellite_connection.h"
+#include "user_job_synchronizer.h"
 
 #include <yt/server/core_dump/public.h>
 #include <yt/server/core_dump/core_processor_service.h>
@@ -14,7 +15,6 @@
 
 #include <yt/server/program/names.h>
 
-#include <yt/server/job_proxy/job_signaler.h>
 
 #include <yt/server/shell/shell_manager.h>
 
@@ -30,6 +30,9 @@
 #include <yt/ytlib/formats/parser.h>
 
 #include <yt/ytlib/job_proxy/user_job_read_controller.h>
+
+#include <yt/ytlib/job_prober_client/job_probe.h>
+
 #include <yt/ytlib/job_tracker_client/statistics.h>
 
 #include <yt/ytlib/query_client/evaluator.h>
@@ -62,6 +65,7 @@
 #include <yt/core/misc/process.h>
 #include <yt/core/misc/public.h>
 #include <yt/core/misc/subprocess.h>
+#include <yt/core/misc/signaler.h>
 
 #include <yt/core/pipes/async_reader.h>
 #include <yt/core/pipes/async_writer.h>
@@ -105,7 +109,6 @@ using namespace NCoreDump;
 using namespace NExecAgent;
 using namespace NYPath;
 using namespace NJobTrackerClient;
-using namespace NShell;
 
 using NJobTrackerClient::NProto::TJobResult;
 using NJobTrackerClient::NProto::TJobSpec;
@@ -137,6 +140,18 @@ static Stroka CreateNamedPipePath()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const Stroka& GetCGroupUserJobBase()
+{
+    return CGroupBase;
+}
+
+const Stroka& GetCGroupUserJobPrefix()
+{
+    return CGroupPrefix;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TUserJob
     : public TJob
 {
@@ -161,8 +176,12 @@ public:
         , BlockIO_(CGroupPrefix + ToString(jobId))
         , Memory_(CGroupPrefix + ToString(jobId))
         , Freezer_(CGroupPrefix + ToString(jobId))
+        , JobSatelliteConnection_(jobId, host->GetConfig()->BusServer)
         , Logger(Host_->GetLogger())
     {
+        Synchronizer_ = New<TUserJobSynchronizer>();
+        Host_->GetRpcServer()->RegisterService(CreateUserJobSynchronizerService(Logger, Synchronizer_, AuxQueue_->GetInvoker()));
+        JobProberClient_ = NJobProberClient::CreateJobProbe(JobSatelliteConnection_.GetRpcClientConfig(), jobId);
         auto jobEnvironmentConfig = ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment);
         MemoryWatchdogPeriod_ = jobEnvironmentConfig->MemoryWatchdogPeriod;
 
@@ -261,7 +280,6 @@ public:
             }
 
             auto error = TError("Job finished");
-            WaitForActiveShellProcesses(error);
             CleanupUserProcesses(error);
 
             if (BlockIOWatchdogExecutor_) {
@@ -365,6 +383,7 @@ private:
     TNullable<int> UserId_;
 
     mutable TPromise<void> JobErrorPromise_;
+    Stroka JobFailMessage_;
 
     std::atomic<bool> Prepared_ = { false };
     std::atomic<bool> IsWoodpecker_ = { false };
@@ -395,13 +414,13 @@ private:
 
     std::vector<TAsyncReaderPtr> TablePipeReaders_;
     std::vector<TAsyncWriterPtr> TablePipeWriters_;
-    TAsyncReaderPtr ControlPipeReader_;
     TAsyncReaderPtr StatisticsPipeReader_;
     TAsyncReaderPtr StderrPipeReader_;
 
-    // Actually StartActions_ and InputActions_ has only one element,
+    std::vector<ISchemalessFormatWriterPtr> FormatWriters_;
+
+    // Actually InputActions_ has only one element,
     // but use vector to reuse runAction code
-    std::vector<TCallback<void()>> StartActions_;
     std::vector<TCallback<void()>> InputActions_;
     std::vector<TCallback<void()>> OutputActions_;
     std::vector<TCallback<void()>> StderrActions_;
@@ -411,21 +430,21 @@ private:
     TFuture<void> ProcessFinished_;
     std::vector<Stroka> Environment_;
 
-    // Destroy shell manager before user job cgrops, since its cgroups are typically
-    // nested, and we need to mantain destroy order.
-    IShellManagerPtr ShellManager_;
-
     TCpuAccounting CpuAccounting_;
     TBlockIO BlockIO_;
     TMemory Memory_;
     TFreezer Freezer_;
     TSpinLock FreezerLock_;
 
+    TJobSatelliteConnection JobSatelliteConnection_;
+    NJobProberClient::IJobProbePtr JobProberClient_;
+
     TPeriodicExecutorPtr MemoryWatchdogExecutor_;
     TPeriodicExecutorPtr BlockIOWatchdogExecutor_;
     TPeriodicExecutorPtr InputPipeBlinker_;
 
     const NLogging::TLogger Logger;
+    TIntrusivePtr<TUserJobSynchronizer> Synchronizer_;
 
     TSpinLock StatisticsLock_;
     TStatistics CustomStatistics_;
@@ -438,7 +457,11 @@ private:
 
         PreparePipes();
 
+        JobSatelliteConnection_.MakeConfig();
+
         Process_->AddArguments({"--command", UserJobSpec_.shell_command()});
+        Process_->AddArguments({"--config", JobSatelliteConnection_.GetConfigPath()});
+        Process_->AddArguments({"--job-id", ToString(JobSatelliteConnection_.GetJobId())});
         Process_->SetWorkingDirectory(SandboxDirectoryNames[ESandboxKind::User]);
 
         if (UserJobSpec_.has_core_table_spec()) {
@@ -463,27 +486,10 @@ private:
         for (const auto& var : Environment_) {
             Process_->AddArguments({"--env", var});
         }
-
-        ShellManager_ = CreateShellManager(
-            NFS::CombinePaths(NFs::CurrentWorkingDirectory(), SandboxDirectoryNames[ESandboxKind::Home]),
-            UserId_,
-            TNullable<Stroka>(static_cast<bool>(CGroupsConfig_), CGroupBase),
-            Format("Job environment:\n%v\n", JoinToString(Environment_, STRINGBUF("\n"))));
-    }
-
-    void WaitForActiveShellProcesses(const TError& error)
-    {
-        // Ignore errors.
-        WaitFor(BIND(&IShellManager::GracefulShutdown, ShellManager_, error)
-            .AsyncVia(AuxQueue_->GetInvoker())
-            .Run());
     }
 
     void CleanupUserProcesses(const TError& error) const
     {
-        BIND(&IShellManager::Terminate, ShellManager_, error)
-            .Via(AuxQueue_->GetInvoker())
-            .Run();
         BIND(&TUserJob::DoCleanupUserProcesses, MakeWeak(this))
             .Via(PipeIOPool_->GetInvoker())
             .Run();
@@ -629,60 +635,17 @@ private:
 
     virtual TYsonString StraceJob() override
     {
-        ValidatePrepared();
-
-        if (Stracing_.test_and_set()) {
-            THROW_ERROR_EXCEPTION("Another strace session is in progress");
-        }
-
-        auto guard = Finally([&] () {
-            Stracing_.clear();
-        });
-
-        auto pids = GetPidsFromFreezer();
-        auto result = WaitFor(BIND([=] () { return RunTool<TStraceTool>(pids); })
-            .AsyncVia(AuxQueue_->GetInvoker())
-            .Run());
-        THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error running job strace tool");
-
-        return ConvertToYsonString(result.Value());
+        return JobProberClient_->StraceJob();
     }
 
     virtual void SignalJob(const Stroka& signalName) override
     {
-        ValidatePrepared();
-
-        auto arg = New<TJobSignalerArg>();
-        arg->Pids = GetPidsFromFreezer();
-        auto it = std::find(arg->Pids.begin(), arg->Pids.end(), Process_->GetProcessId());
-        if (it != arg->Pids.end()) {
-            arg->Pids.erase(it);
-        }
-        if (arg->Pids.empty()) {
-            THROW_ERROR_EXCEPTION("No processes in the job to send signal");
-        }
-
-        arg->SignalName = signalName;
-        LOG_INFO("Sending signal %v to pids %v",
-            arg->SignalName,
-            arg->Pids);
-
-        auto result = WaitFor(BIND([=] () { return RunTool<TJobSignalerTool>(arg); })
-            .AsyncVia(AuxQueue_->GetInvoker())
-            .Run());
-        THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error running job signaler tool");
+        JobProberClient_->SignalJob(signalName);
     }
 
     virtual TYsonString PollJobShell(const TYsonString& parameters) override
     {
-        ValidatePrepared();
-
-        auto result = WaitFor(BIND([=] () { return ShellManager_->PollJobShell(parameters); })
-            .AsyncVia(AuxQueue_->GetInvoker())
-            .Run());
-
-        return result
-            .ValueOrThrow();
+        return JobProberClient_->PollJobShell(parameters);
     }
 
     virtual void Interrupt() override
@@ -794,39 +757,6 @@ private:
         return asyncInput;
     }
 
-    void CreateControlPipe()
-    {
-        auto pipe = TNamedPipe::Create(CreateNamedPipePath());
-
-        Process_->AddArguments({"--control-pipe-path", pipe->GetPath()});
-
-        ControlPipeReader_ = pipe->CreateAsyncReader();
-
-        StartActions_.push_back(BIND([=] () {
-            try {
-                auto input = CreateSyncAdapter(ControlPipeReader_);
-                auto data = input->ReadLine();
-
-                auto executorResult = ConvertTo<TError>(TYsonString(data));
-                executorResult.ThrowOnError();
-                WaitFor(ControlPipeReader_->Abort())
-                  .ThrowOnError();
-
-                // Notify node process that user job is fully prepared and running.
-                Host_->OnPrepared();
-
-                // Now writing pipe is definitely ready, so we can start blinking.
-                InputPipeBlinker_->Start();
-
-                JobStarted_ = true;
-            } catch (const std::exception& ex) {
-                auto error = TError("Start action failed") << ex;
-                LOG_ERROR(error);
-                THROW_ERROR error;
-            }
-        }));
-    }
-
     void PrepareInputTablePipe()
     {
         int jobDescriptor = 0;
@@ -895,8 +825,6 @@ private:
         //
         // A special option (ToDo(psushin): which one?) enables concatenating
         // all input streams into fd == 0.
-
-        CreateControlPipe();
 
         // Configure stderr pipe.
         StderrPipeReader_ = PrepareOutputPipe(
@@ -1073,10 +1001,7 @@ private:
 
         LOG_ERROR(error, "%v", message);
 
-        WaitForActiveShellProcesses(error);
         CleanupUserProcesses(error);
-
-        ControlPipeReader_->Abort();
 
         for (const auto& reader : TablePipeReaders_) {
             reader->Abort();
@@ -1109,8 +1034,37 @@ private:
             OnIOErrorOrFinished(error, "Executor input/output error, aborting");
         });
 
-        auto onProcessFinished = BIND([=] (const TError& error) {
-            OnIOErrorOrFinished(error, "Job control process has finished, aborting");
+        auto onProcessFinished = BIND([=, this_ = MakeStrong(this)] (const TError& satelliteError) {
+            // If process has crashed before sending notification we stuck
+            // on Syncroniser_->Wait() call, so cancel wait here.
+            Synchronizer_->CancelWait();
+
+            try {
+                auto userJobError = Synchronizer_->GetUserProcessStatus();
+
+                JobFailMessage_ = "User job failed";
+
+                LOG_DEBUG("Process finished, user status %v, satellite %v",
+                    userJobError,
+                    satelliteError);
+
+                // If Syncroniser_->GetUserProcessStatus() returns some status but
+                // satellite returns nonzero exit code - it is a bug, or satellite
+                // was killed
+                if (!satelliteError.IsOK()) {
+                    OnIOErrorOrFinished(satelliteError, "Unexpected crash of job satellite");
+                } else {
+                    OnIOErrorOrFinished(userJobError, "Job control process has finished, aborting");
+                }
+            } catch (const std::exception& ex) {
+                LOG_ERROR(ex, "Unable to get user process status");
+
+                JobFailMessage_ = "Satellite failed";
+                // Likely it is a real bug in satellite or rpc code.
+                LOG_FATAL_IF(satelliteError.IsOK(),
+                     "Unable to get process status but satellite returns no errors");
+                OnIOErrorOrFinished(satelliteError, "Satellite failed");
+            }
         });
 
         auto runActions = [&] (const std::vector<TCallback<void()>>& actions,
@@ -1128,14 +1082,22 @@ private:
             return result;
         };
 
-        auto startFutures = runActions(StartActions_, onStartIOError, PipeIOPool_->GetInvoker());
-        // Wait until executor opens and dup named pipes.
-
         ProcessFinished_.Subscribe(onProcessFinished);
 
-        WaitFor(CombineAll(startFutures));
-        LOG_INFO("Start actions finished");
+        // Wait until executor opens and dup named pipes,
+        // satellite calls waitpid()
+        LOG_DEBUG("Wait for signal from executor/satellite");
+        Synchronizer_->Wait();
 
+        if (!JobErrorPromise_.IsSet()) {
+            Host_->OnPrepared();
+            // Now writing pipe is definitely ready, so we can start blinking.
+            InputPipeBlinker_->Start();
+            JobStarted_ = true;
+        } else {
+            LOG_ERROR("Failed to prepare satellite/executor");
+        }
+        LOG_INFO("Start actions finished");
         auto inputFutures = runActions(InputActions_, onIOError, PipeIOPool_->GetInvoker());
         auto outputFutures = runActions(OutputActions_, onIOError, PipeIOPool_->GetInvoker());
         auto stderrFutures = runActions(StderrActions_, onIOError, ReadStderrInvoker_);

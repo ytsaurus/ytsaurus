@@ -463,41 +463,6 @@ void TProcess::ValidateSpawnResult()
 }
 
 #ifdef _unix_
-static TError ProcessInfoToError(const siginfo_t& processInfo)
-{
-    switch (processInfo.si_code) {
-        case CLD_EXITED: {
-            auto exitCode = processInfo.si_status;
-            if (exitCode == 0) {
-                return TError();
-            } else {
-                return TError(
-                    EProcessErrorCode::NonZeroExitCode,
-                    "Process exited with code %v",
-                    exitCode)
-                    << TErrorAttribute("exit_code", exitCode);
-            }
-        }
-
-        case CLD_KILLED:
-        case CLD_DUMPED: {
-            int signal = processInfo.si_status;
-            return TError(
-                EProcessErrorCode::Signal,
-                "Process terminated by signal %v",
-                signal)
-                << TErrorAttribute("signal", signal)
-                << TErrorAttribute("core_dumped", processInfo.si_code == CLD_DUMPED);
-        }
-
-        default:
-            return TError("Unknown signal code %v",
-                processInfo.si_code);
-    }
-}
-#endif
-
-#ifdef _unix_
 void TProcess::AsyncPeriodicTryWait()
 {
     siginfo_t processInfo;

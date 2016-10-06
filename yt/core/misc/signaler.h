@@ -5,33 +5,33 @@
 #include <yt/core/ytree/serialize.h>
 
 namespace NYT {
-namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TJobSignalerArg
+struct TSignalerArg
     : public NYTree::TYsonSerializable
 {
     std::vector<int> Pids;
     Stroka SignalName;
 
-    TJobSignalerArg();
+    TSignalerArg();
 };
 
-DEFINE_REFCOUNTED_TYPE(TJobSignalerArg)
+DEFINE_REFCOUNTED_TYPE(TSignalerArg)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void SendSignal(const std::vector<int>& pids, const Stroka& signalName);
+TNullable<int> FindSignalIdBySignalName(const Stroka& signalName);
+void ValidateSignalName(const Stroka& signalName);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TJobSignalerTool
+struct TSignalerTool
 {
-    void operator()(const TJobSignalerArgPtr& arg) const;
+    void operator()(const TSignalerArgPtr& arg) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
 } // namespace NYT

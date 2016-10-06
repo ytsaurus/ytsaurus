@@ -5,6 +5,8 @@
 #include "slot_location.h"
 
 #include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
+#include <yt/ytlib/job_prober_client/job_probe.h>
+
 #include <yt/ytlib/cgroup/cgroup.h>
 
 #include <yt/core/bus/tcp_client.h>
@@ -73,6 +75,7 @@ public:
         const TJobId& jobId,
         const TOperationId& operationId) override
     {
+        JobProberClient_ = CreateJobProbe(GetRpcClientConfig(), jobId);
         return RunPrepareAction<void>([&] () {
             auto error = WaitFor(Location_->MakeConfig(SlotIndex_, ConvertToNode(config)));
             THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to create job proxy config")
@@ -136,15 +139,10 @@ public:
         true);
     }
 
-    virtual TJobProberServiceProxy GetJobProberProxy() override
+    virtual IJobProbePtr GetJobProberClient() override
     {
-        if (!JobProberProxy_) {
-            auto client = CreateTcpBusClient(GetRpcClientConfig());
-            auto channel = CreateBusChannel(std::move(client));
-            JobProberProxy_.Emplace(std::move(channel));
-        }
-
-        return *JobProberProxy_;
+        YCHECK(JobProberClient_);
+        return JobProberClient_;
     }
 
     virtual int GetSlotIndex() const override
@@ -174,7 +172,7 @@ private:
     //! Used for unix socket name generation, to communicate between node and job proxies.
     const Stroka NodeTag_;
 
-    TNullable<TJobProberServiceProxy> JobProberProxy_;
+    IJobProbePtr JobProberClient_;
 
     std::vector<TFuture<void>> PreparationFutures_;
     bool PreparationCanceled_ = false;

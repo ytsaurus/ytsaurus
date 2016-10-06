@@ -4,6 +4,7 @@
 #include "private.h"
 #include "config.h"
 #include "job.h"
+#include "job_satellite_connection.h"
 
 #include <yt/server/exec_agent/public.h>
 #include <yt/server/exec_agent/supervisor_service_proxy.h>
@@ -11,6 +12,8 @@
 #include <yt/server/job_agent/public.h>
 
 #include <yt/ytlib/api/public.h>
+
+#include <yt/ytlib/job_prober_client/job_probe.h>
 
 #include <yt/ytlib/job_tracker_client/public.h>
 #include <yt/ytlib/job_tracker_client/statistics.h>
@@ -28,6 +31,7 @@ namespace NJobProxy {
 
 class TJobProxy
     : public IJobHost
+    , public NJobProberClient::IJobProbe
 {
 public:
     TJobProxy(
@@ -40,12 +44,14 @@ public:
 
     IInvokerPtr GetControlInvoker() const;
 
-    std::vector<NChunkClient::TChunkId> DumpInputContext(const NJobTrackerClient::TJobId& jobId);
-    Stroka GetStderr(const NJobTrackerClient::TJobId& jobId);
-    NYson::TYsonString Strace(const NJobTrackerClient::TJobId& jobId);
-    void SignalJob(const NJobTrackerClient::TJobId& jobId, const Stroka& signalName);
-    NYson::TYsonString PollJobShell(const NJobTrackerClient::TJobId& jobId, const NYson::TYsonString& parameters);
-    void Interrupt(const NJobTrackerClient::TJobId& jobId);
+    virtual std::vector<NChunkClient::TChunkId> DumpInputContext() override;
+    virtual Stroka GetStderr() override;
+    virtual NYson::TYsonString StraceJob() override;
+    virtual void SignalJob(const Stroka& signalName) override;
+    virtual NYson::TYsonString PollJobShell(const NYson::TYsonString& parameters) override;
+    virtual void Interrupt() override;
+
+    virtual const NJobAgent::TJobId& GetJobId() const override;
 
     virtual NRpc::IServerPtr GetRpcServer() const override;
 
@@ -123,7 +129,6 @@ private:
     virtual TJobProxyConfigPtr GetConfig() const override;
     virtual NExecAgent::TCGroupJobEnvironmentConfigPtr GetCGroupsConfig() const override;
     virtual const NJobAgent::TOperationId& GetOperationId() const override;
-    virtual const NJobAgent::TJobId& GetJobId() const override;
 
     virtual const IJobSpecHelperPtr& GetJobSpecHelper() const override;
 

@@ -14,6 +14,8 @@
 #include <yt/ytlib/job_tracker_client/public.h>
 #include <yt/ytlib/job_tracker_client/statistics.h>
 
+#include <yt/ytlib/job_prober_client/job_probe.h>
+
 #include <yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/ytlib/scheduler/job.pb.h>
@@ -61,9 +63,8 @@ DEFINE_REFCOUNTED_TYPE(IJobHost)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Represents a job running inside job proxy.
 struct IJob
-    : public virtual TRefCounted
+    : public NJobProberClient::IJobProbe
 {
     virtual void Initialize() = 0;
     virtual NJobTrackerClient::NProto::TJobResult Run() = 0;
@@ -78,14 +79,6 @@ struct IJob
     virtual double GetProgress() const = 0;
 
     virtual NJobTrackerClient::TStatistics GetStatistics() const = 0;
-
-    virtual std::vector<NChunkClient::TChunkId> DumpInputContext() = 0;
-    virtual Stroka GetStderr() = 0;
-    virtual NYson::TYsonString StraceJob() = 0;
-    virtual void SignalJob(const Stroka& signalName) = 0;
-    virtual NYson::TYsonString PollJobShell(const NYson::TYsonString& parameters) = 0;
-    virtual void Interrupt() = 0;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(IJob)

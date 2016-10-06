@@ -272,6 +272,39 @@ TError StatusToError(int status)
     }
 }
 
+TError ProcessInfoToError(const siginfo_t& processInfo)
+{
+    switch (processInfo.si_code) {
+        case CLD_EXITED: {
+            auto exitCode = processInfo.si_status;
+            if (exitCode == 0) {
+                return TError();
+            } else {
+                return TError(
+                    EProcessErrorCode::NonZeroExitCode,
+                    "Process exited with code %v",
+                    exitCode)
+                    << TErrorAttribute("exit_code", exitCode);
+            }
+        }
+
+        case CLD_KILLED:
+        case CLD_DUMPED: {
+            int signal = processInfo.si_status;
+            return TError(
+                EProcessErrorCode::Signal,
+                "Process terminated by signal %v",
+                signal)
+                << TErrorAttribute("signal", signal)
+                << TErrorAttribute("core_dumped", processInfo.si_code == CLD_DUMPED);
+        }
+
+        default:
+            return TError("Unknown signal code %v",
+                processInfo.si_code);
+    }
+}
+
 bool TryExecve(const char* path, const char* const* argv, const char* const* env)
 {
     ::execve(
@@ -737,16 +770,12 @@ void TKillAllByUidTool::operator()(int uid) const
     KillAllByUid(uid);
 }
 
-REGISTER_TOOL(TKillAllByUidTool);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void TRemoveDirAsRootTool::operator()(const Stroka& arg) const
 {
     RemoveDirAsRoot(arg);
 }
-
-REGISTER_TOOL(TRemoveDirAsRootTool);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -755,8 +784,6 @@ void TRemoveDirContentAsRootTool::operator()(const Stroka& arg) const
     RemoveDirContentAsRoot(arg);
 }
 
-REGISTER_TOOL(TRemoveDirContentAsRootTool);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void TMountTmpfsAsRootTool::operator()(TMountTmpfsConfigPtr arg) const
@@ -764,16 +791,12 @@ void TMountTmpfsAsRootTool::operator()(TMountTmpfsConfigPtr arg) const
     MountTmpfsAsRoot(arg);
 }
 
-REGISTER_TOOL(TMountTmpfsAsRootTool);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void TUmountAsRootTool::operator()(TUmountConfigPtr arg) const
 {
     UmountAsRoot(arg);
 }
-
-REGISTER_TOOL(TUmountAsRootTool);
 
 ////////////////////////////////////////////////////////////////////////////////
 

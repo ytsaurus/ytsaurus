@@ -57,8 +57,8 @@ struct ISlot
         i64 size,
         Stroka path,
         bool enable) = 0;
-    
-    virtual NJobProberClient::TJobProberServiceProxy GetJobProberProxy() = 0;
+
+    virtual NJobProberClient::IJobProbePtr GetJobProberClient() = 0;
 
     virtual NBus::TTcpBusServerConfigPtr GetBusServerConfig() const = 0;
 

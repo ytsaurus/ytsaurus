@@ -158,7 +158,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/hydra/version.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/job_prober_client/job_prober_service.proto
-  ${CMAKE_CURRENT_LIST_DIR}/job_prober_client/job_signal.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_prober_client/job_probe.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/job_spec_helper.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/helpers.cpp
