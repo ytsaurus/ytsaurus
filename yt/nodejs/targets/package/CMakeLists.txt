@@ -1,0 +1,55 @@
+UNION()
+
+OWNER(snowball)
+
+SRCDIR(yt/18_5/yt/nodejs)
+
+FILES(
+    static/auth-token.mustache
+    static/auth-index.mustache
+    static/bootstrap.min.css
+    static/auth-layout.mustache
+    static/auth-error.mustache
+    index.js
+    bin/yt_http_proxy
+    lib/accrual_failure_detector.js
+    lib/application_upravlyator.js
+    lib/http_request.js
+    lib/authentication.js
+    lib/registry.js
+    lib/debug.js
+    lib/bunyan.js
+    lib/command.js
+    lib/middleware/check_python_wrapper_version.js
+    lib/middleware/application_upravlyator.js
+    lib/middleware/application_api.js
+    lib/middleware/authentication.js
+    lib/middleware/acao.js
+    lib/middleware/min_python_wrapper_version.js
+    lib/middleware/application_hosts.js
+    lib/middleware/application_auth.js
+    lib/middleware/log_socket.js
+    lib/middleware/log_request.js
+    lib/application_hosts.js
+    lib/reservoir.js
+    lib/application_operations.js
+    lib/writable_stream.js
+    lib/worker.js
+    lib/.gitignore
+    lib/application_auth.js
+    lib/coordinator.js
+    lib/driver.js
+    lib/driver_facade_v3.js
+    lib/utils.js
+    lib/master.js
+    lib/application_versions.js
+    lib/readable_stream.js
+    lib/authority.js
+    lib/error.js
+    lib/driver_facade_v2.js
+    lib/eio_watcher.js
+    lib/external_services.js
+    lib/statistics.js
+)
+
+END()
