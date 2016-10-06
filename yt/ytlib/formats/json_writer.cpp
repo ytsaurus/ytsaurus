@@ -139,6 +139,7 @@ TJsonWriter::TJsonWriter(TOutputStream* output, bool isPretty, bool supportInfin
     yajl_gen_config(Handle, yajl_gen_skip_final_newline, 0);
     yajl_gen_config(Handle, yajl_gen_support_infinity, supportInfinity ? 1 : 0);
 #endif
+    yajl_gen_config(Handle, yajl_gen_disable_yandex_double_format, 1);
     yajl_gen_config(Handle, yajl_gen_validate_utf8, 1);
 }
 

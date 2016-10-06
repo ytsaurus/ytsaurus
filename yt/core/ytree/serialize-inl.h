@@ -142,7 +142,7 @@ template <class T>
 struct TTupleHelper<T, 0U>
 {
     static void SerializeItem(const T&, NYson::IYsonConsumer*) {}
-    static void DeserializeItem(T&, IListNodePtr list) {}
+    static void DeserializeItem(T&, IListNodePtr) {}
 };
 
 template <class T, size_t Size>

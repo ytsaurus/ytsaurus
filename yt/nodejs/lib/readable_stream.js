@@ -2,7 +2,7 @@ var util = require("util");
 var stream = require("stream");
 var assert = require("assert");
 
-var binding = require("./ytnode");
+var binding = process._linkedBinding ? process._linkedBinding("ytnode") : require("./ytnode");
 
 ////////////////////////////////////////////////////////////////////////////////
 
