@@ -58,6 +58,7 @@ public:
         Persist(context, JobIOConfig);
         Persist(context, JobSpecTemplate);
         Persist(context, TableReaderOptions);
+        Persist(context, UnorderedPool);
         Persist(context, UnorderedTask);
         Persist(context, UnorderedTaskGroup);
         Persist(context, JobSizeManager);
