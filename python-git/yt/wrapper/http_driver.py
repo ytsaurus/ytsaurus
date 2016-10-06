@@ -3,7 +3,8 @@ from .config import get_config, get_option, set_option
 from .compression import create_zlib_generator
 from .common import require, generate_uuid, bool_to_string, get_version, total_seconds, forbidden_inside_job
 from .errors import YtError, YtHttpResponseError, YtProxyUnavailable, YtConcurrentOperationsLimitExceeded, YtRequestTimedOut
-from .http_helpers import make_request_with_retries, get_token, get_api_version, get_api_commands, get_proxy_url, parse_error_from_headers, get_header_format, ProxyProvider
+from .http_helpers import make_request_with_retries, get_token, get_api_version, get_api_commands, get_proxy_url, \
+                          parse_error_from_headers, get_header_format, ProxyProvider
 from .response_stream import ResponseStream
 
 import yt.logger as logger
@@ -45,7 +46,7 @@ class HeavyProxyProvider(ProxyProvider):
         self.last_provided_proxy = None
 
         from yt.packages.requests import ConnectionError
-        from httplib import BadStatusLine
+        from yt.packages.six.moves.http_client import BadStatusLine
         from socket import error as SocketError
         self.ban_errors = (ConnectionError, BadStatusLine, SocketError, YtRequestTimedOut, YtProxyUnavailable)
 
@@ -112,7 +113,7 @@ class TokenAuth(AuthBase):
 
     def __call__(self, request):
         self.set_token(request)
-        request.register_hook('response', self.handle_redirect)
+        request.register_hook("response", self.handle_redirect)
         return request
 
 @forbidden_inside_job
@@ -268,4 +269,3 @@ def make_request(command_name,
             lambda: response.close(),
             process_error,
             lambda: response.headers.get("X-YT-Response-Parameters", None))
-
