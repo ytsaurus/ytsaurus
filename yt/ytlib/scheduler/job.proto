@@ -82,6 +82,8 @@ message TUserJobSpec
     optional int32 iops_throttler_limit = 28;
 
     optional TTableOtherSpec stderr_table_spec = 29;
+
+    optional TTableOtherSpec core_table_spec = 30;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
