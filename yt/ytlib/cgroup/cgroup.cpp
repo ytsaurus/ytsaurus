@@ -108,8 +108,6 @@ void TKillProcessGroupTool::operator()(const Stroka& processGroupPath) const
     group.Kill();
 }
 
-REGISTER_TOOL(TKillProcessGroupTool);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TNonOwningCGroup::TNonOwningCGroup(const Stroka& fullPath)

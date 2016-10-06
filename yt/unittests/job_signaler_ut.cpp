@@ -1,6 +1,6 @@
 #include "framework.h"
 
-#include <yt/server/job_proxy/job_signaler.h>
+#include <yt/core/misc/signaler.h>
 
 #ifdef _unix_
 #include <signal.h>

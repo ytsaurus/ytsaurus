@@ -1,11 +1,10 @@
 #include "framework.h"
 
-#include <yt/server/job_proxy/stracer.h>
+#include <yt/core/misc/stracer.h>
 
 #include <util/system/thread.h>
 
 namespace NYT {
-namespace NJobProxy {
 namespace {
 
 ////////////////////////////////////////////////////////////////////
@@ -50,5 +49,4 @@ TEST(TStracer, Basic)
 
 ////////////////////////////////////////////////////////////////////
 } // namespace
-} // namespace NJobProxy
 } // namespace NYT

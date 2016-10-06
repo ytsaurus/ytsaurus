@@ -9,8 +9,14 @@
 
 #include <yt/core/ytree/fluent.h>
 
+#include <yt/server/program/names.h>
+
 namespace NYT {
 namespace NTools {
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const char* ToolsProgramName = "ytserver-tools";
 
 using namespace NYson;
 using namespace NYTree;
@@ -19,7 +25,7 @@ using namespace NYTree;
 
 TYsonString SpawnTool(const Stroka& toolName, const TYsonString& serializedArgument)
 {
-    auto process = TSubprocess::CreateCurrentProcessSpawner();
+    auto process = TSubprocess(ToolsProgramName);
     process.AddArguments({
         "--tool-name",
         toolName,

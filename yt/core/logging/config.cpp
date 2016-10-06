@@ -28,6 +28,27 @@ bool TRuleConfig::IsApplicable(const Stroka& category, ELogLevel level) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TLogConfigPtr TLogConfig::CreateLogFile(const Stroka& path)
+{
+    auto rule = New<TRuleConfig>();
+    rule->MinLevel = ELogLevel::Trace;
+    rule->Writers.push_back("FileWriter");
+
+    auto fileWriterConfig = New<TWriterConfig>();
+    fileWriterConfig->Type = EWriterType::File;
+    fileWriterConfig->FileName = path;
+
+    auto config = New<TLogConfig>();
+    config->Rules.push_back(rule);
+    config->WriterConfigs.insert(std::make_pair("FileWriter", fileWriterConfig));
+
+    config->MinDiskSpace = 0;
+    config->HighBacklogWatermark = 100000;
+    config->LowBacklogWatermark = 100000;
+
+    return config;
+}
+
 TLogConfigPtr TLogConfig::CreateStderrLogger(ELogLevel logLevel)
 {
     auto rule = New<TRuleConfig>();

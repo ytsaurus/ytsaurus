@@ -29,7 +29,7 @@ TToolRegistry* GetToolRegistry();
 
 #define REGISTER_TOOL(toolType) \
     static const ::NYT::NTools::NDetail::TToolRegistrator<toolType> toolType##_Registrator \
-        (PP_STRINGIZE(toolType))
+        (PP_STRINGIZE(toolType));
 
 ////////////////////////////////////////////////////////////////////////////////
 

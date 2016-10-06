@@ -1,10 +1,23 @@
 #include "job_prober_service.h"
 #include "private.h"
 #include "job_proxy.h"
+#include "user_job.h"
+
+#include <yt/server/shell/shell_manager.h>
+
+#include <yt/server/exec_agent/public.h>
 
 #include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
+#include <yt/core/tools/tools.h>
+
 #include <yt/core/rpc/service_detail.h>
+
+#include <yt/core/misc/finally.h>
+#include <yt/core/misc/signaler.h>
+#include <yt/core/misc/fs.h>
+
+#include <util/system/fs.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -15,6 +28,9 @@ using namespace NConcurrency;
 using namespace NJobAgent;
 using namespace NYson;
 using namespace NYTree;
+using namespace NConcurrency;
+using namespace NTools;
+using namespace NShell;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -22,9 +38,9 @@ class TJobProberService
     : public TServiceBase
 {
 public:
-    explicit TJobProberService(TJobProxyPtr jobProxy)
+    TJobProberService(IJobProbePtr jobProxy, IInvokerPtr controlInvoker)
         : TServiceBase(
-            jobProxy->GetControlInvoker(),
+            controlInvoker,
             TJobProberServiceProxy::GetDescriptor(),
             JobProxyLogger)
         , JobProxy_(jobProxy)
@@ -38,16 +54,11 @@ public:
     }
 
 private:
-    const TJobProxyPtr JobProxy_;
-
+    const IJobProbePtr JobProxy_;
 
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, DumpInputContext)
     {
-        auto jobId = FromProto<TJobId>(request->job_id());
-
-        context->SetRequestInfo("JobId: %v", jobId);
-
-        auto chunkIds = JobProxy_->DumpInputContext(jobId);
+        auto chunkIds = JobProxy_->DumpInputContext();
         context->SetResponseInfo("ChunkIds: %v", chunkIds);
 
         ToProto(response->mutable_chunk_ids(), chunkIds);
@@ -56,11 +67,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, GetStderr)
     {
-        auto jobId = FromProto<TJobId>(request->job_id());
-
-        context->SetRequestInfo("JobId: %v", jobId);
-
-        auto stderrData = JobProxy_->GetStderr(jobId);
+        auto stderrData = JobProxy_->GetStderr();
 
         response->set_stderr_data(stderrData);
         context->Reply();
@@ -68,10 +75,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, Strace)
     {
-        auto jobId = FromProto<TJobId>(request->job_id());
-        context->SetRequestInfo("JobId: %v", jobId);
-
-        auto trace = JobProxy_->Strace(jobId);
+        auto trace = JobProxy_->StraceJob();
 
         ToProto(response->mutable_trace(), trace.GetData());
         context->Reply();
@@ -81,28 +85,24 @@ private:
     {
         Y_UNUSED(response);
 
-        auto jobId = FromProto<TJobId>(request->job_id());
         const auto& signalName = request->signal_name();
 
-        context->SetRequestInfo("JobId: %v, SignalName: %v",
-            jobId,
+        context->SetRequestInfo("SignalName: %v",
             signalName);
 
-        JobProxy_->SignalJob(jobId, signalName);
+        JobProxy_->SignalJob(signalName);
 
         context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, PollJobShell)
     {
-        auto jobId = FromProto<TJobId>(request->job_id());
         auto parameters = TYsonString(request->parameters());
 
-        context->SetRequestInfo("JobId: %v, Parameters: %v",
-            jobId,
+        context->SetRequestInfo("Parameters: %v",
             ConvertToYsonString(parameters, EYsonFormat::Text));
 
-        auto result = JobProxy_->PollJobShell(jobId, parameters);
+        auto result = JobProxy_->PollJobShell(parameters);
 
         ToProto(response->mutable_result(), result.GetData());
         context->Reply();
@@ -112,12 +112,7 @@ private:
     {
         Y_UNUSED(response);
 
-        auto jobId = FromProto<TJobId>(request->job_id());
-
-        context->SetRequestInfo("JobId: %v",
-            jobId);
-
-        JobProxy_->Interrupt(jobId);
+        JobProxy_->Interrupt();
 
         context->Reply();
     }
@@ -125,7 +120,12 @@ private:
 
 IServicePtr CreateJobProberService(TJobProxyPtr jobProxy)
 {
-    return New<TJobProberService>(jobProxy);
+    return New<TJobProberService>(jobProxy, jobProxy->GetControlInvoker());
+}
+
+IServicePtr CreateJobProberService(IJobProbePtr jobProbe, IInvokerPtr controlInvoker)
+{
+    return New<TJobProberService>(jobProbe, controlInvoker);
 }
 
 ////////////////////////////////////////////////////////////////////

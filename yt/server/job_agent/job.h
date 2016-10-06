@@ -8,6 +8,8 @@
 
 #include <yt/ytlib/job_tracker_client/job.pb.h>
 
+#include <yt/ytlib/job_prober_client/public.h>
+
 #include <yt/ytlib/node_tracker_client/node.pb.h>
 
 #include <yt/core/actions/signal.h>
@@ -67,7 +69,7 @@ struct IJob
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext() = 0;
     virtual Stroka GetStderr() = 0;
-    virtual NYson::TYsonString Strace() = 0;
+    virtual NYson::TYsonString StraceJob() = 0;
     virtual void SignalJob(const Stroka& signalName) = 0;
     virtual NYson::TYsonString PollJobShell(const NYson::TYsonString& parameters) = 0;
 

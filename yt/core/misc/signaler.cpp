@@ -1,7 +1,4 @@
-#include "job_signaler.h"
-#include "private.h"
-
-#include <yt/ytlib/job_prober_client/job_signal.h>
+#include "signaler.h"
 
 #include <yt/core/concurrency/action_queue.h>
 
@@ -15,17 +12,15 @@
 #include <yt/core/ytree/serialize.h>
 
 namespace NYT {
-namespace NJobProxy {
 
 using namespace NYTree;
 using namespace NConcurrency;
-using namespace NJobProberClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 // NB: Moving this into the header will break tool registration as the linker
 // will optimize it out.
-TJobSignalerArg::TJobSignalerArg()
+TSignalerArg::TSignalerArg()
 {
     RegisterParameter("pids", Pids)
         .Default();
@@ -35,27 +30,48 @@ TJobSignalerArg::TJobSignalerArg()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TJobSignalerTool::operator()(const TJobSignalerArgPtr& arg) const
+void TSignalerTool::operator()(const TSignalerArgPtr& arg) const
 {
     SafeSetUid(0);
     return SendSignal(arg->Pids, arg->SignalName);
 }
-
-REGISTER_TOOL(TJobSignalerTool);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void SendSignal(const std::vector<int>& pids, const Stroka& signalName)
 {
     ValidateSignalName(signalName);
-
     auto sig = FindSignalIdBySignalName(signalName);
     for (int pid : pids) {
         kill(pid, *sig);
     }
 }
 
+TNullable<int> FindSignalIdBySignalName(const Stroka& signalName)
+{
+    static yhash_map<Stroka, int> SignalNameToNumber = {
+        { "SIGHUP",  SIGHUP },
+        { "SIGINT",  SIGINT },
+        { "SIGALRM", SIGALRM },
+        { "SIGKILL", SIGKILL },
+        { "SIGTERM", SIGTERM },
+        { "SIGUSR1", SIGUSR1 },
+        { "SIGUSR2", SIGUSR2 },
+        { "SIGURG", SIGURG },
+    };
+
+    auto it = SignalNameToNumber.find(signalName);
+    return it == SignalNameToNumber.end() ? Null : MakeNullable(it->second);
+}
+
+void ValidateSignalName(const Stroka& signalName)
+{
+    auto signal = FindSignalIdBySignalName(signalName);
+    if (!signal) {
+        THROW_ERROR_EXCEPTION("Unsupported signal name %Qv", signalName);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
 } // namespace NYT

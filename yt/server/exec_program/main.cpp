@@ -1,7 +1,12 @@
 #include <yt/server/program/program.h>
+#include <yt/server/program/program_config_mixin.h>
 #include <yt/server/program/program_cgroup_mixin.h>
+#include <yt/server/program/program_tool_mixin.h>
 
 #include <yt/server/misc/configure_singletons.h>
+
+#include <yt/server/job_proxy/job_satellite.h>
+#include <yt/server/job_proxy/job_satellite_connection.h>
 
 #include <yt/core/logging/log_manager.h>
 #include <yt/core/pipes/pipe.h>
@@ -17,7 +22,6 @@
     #include <grp.h>
 #endif
 
-
 namespace NYT {
 
 using namespace NYTree;
@@ -27,11 +31,13 @@ using namespace NYson;
 
 class TExecProgram
     : public TProgram
+    , public TProgramConfigMixin<NJobProxy::TJobSatelliteConnectionConfig>
     , public TProgramCgroupMixin
 {
 public:
     TExecProgram()
         : TProgram()
+        , TProgramConfigMixin(Opts_, false)
         , TProgramCgroupMixin(Opts_)
     {
         Opts_
@@ -52,9 +58,9 @@ public:
             .RequiredArgument("PIPE_CONFIG")
             .Optional();
         Opts_
-            .AddLongOption("control-pipe-path", "path to a control pipe")
-            .StoreResult(&ControlPipePath_)
-            .RequiredArgument("PIPE_PATH")
+            .AddLongOption("job-id", "job id")
+            .StoreResult(&JobId_)
+            .RequiredArgument("ID")
             .Optional();
         Opts_
             .AddLongOption("env", "set up environment for a child process (could be used multiple times)")
@@ -83,9 +89,17 @@ public:
 protected:
     virtual void DoRun(const NLastGetopt::TOptsParseResult& parseResult) override
     {
-        TThread::CurrentThreadSetName("ExecMain");
+        if (HandleConfigOptions()) {
+            return;
+        }
 
         ConfigureUids();
+
+        if (Pty_ == -1) {
+            NJobProxy::RunJobSatellite(GetConfig(), Uid_, Environment_, JobId_);
+        }
+        TThread::CurrentThreadSetName("ExecMain");
+
         ConfigureCrashHandler();
 
         // Don't start any other singleton or parse config in executor mode.
@@ -127,16 +141,6 @@ protected:
                     THROW_ERROR_EXCEPTION("Failed to prepare named pipe")
                         << TErrorAttribute("path", path)
                         << TErrorAttribute("fd", streamFd)
-                        << ex;
-                }
-            }
-
-            if (!ControlPipePath_.empty()) {
-                try {
-                    SetPermissions(ControlPipePath_, PipePermissions);
-                } catch (const std::exception& ex) {
-                    THROW_ERROR_EXCEPTION("Failed to prepare control pipe")
-                        << TErrorAttribute("path", ControlPipePath_)
                         << ex;
                 }
             }
@@ -207,17 +211,11 @@ protected:
         args.push_back(nullptr);
 
         // We are ready to execute user code, send signal to JobProxy.
-        if (!ControlPipePath_.empty()) {
-            auto ysonData = ConvertToYsonString(executorError, EYsonFormat::Text).GetData();
-            int fd = HandleEintr(::open, ControlPipePath_.c_str(), O_WRONLY | O_CLOEXEC);
-            if (fd == -1) {
-                // Logging is explicitly disabled, try to dump as much diagnostics as possible.
-                fprintf(stderr, "Failed to open control pipe\n%s\n%s", ~ToString(TError::FromSystem()), ~ysonData);
-                Y_UNREACHABLE();
-            }
-            if (HandleEintr(::write, fd, ysonData.c_str(), ysonData.size()) != ysonData.size()) {
-                // Logging is explicitly disabled, try dump as much diagnostics as possible.
-                fprintf(stderr, "Failed to write to control pipe\n%s\n%s", ~ToString(TError::FromSystem()), ~ysonData);
+        if (Pty_ == -1) {
+            try {
+                NJobProxy::NotifyExecutorPrepared(GetConfig());
+            } catch (const std::exception& ex) {
+                fprintf(stderr, "Unable to notify job proxy\n%s", ex.what());
                 Y_UNREACHABLE();
             }
         }
@@ -239,8 +237,8 @@ protected:
 private:
     Stroka Command_;
     std::vector<NPipes::TNamedPipeConfig> Pipes_;
-    Stroka ControlPipePath_;
     std::vector<Stroka> Environment_;
+    Stroka JobId_;
     int Uid_ = -1;
     int Pty_ = -1;
     bool EnableCoreDump_ = false;

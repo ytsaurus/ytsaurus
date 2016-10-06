@@ -19,6 +19,9 @@ namespace NJobProxy {
 
 extern const NLogging::TLogger JobProxyLogger;
 extern const NProfiling::TProfiler JobProxyProfiler;
+extern const TDuration RpcServerShutdownTimeout;
+
+const Stroka SatelliteConfigFileName("satellite_config.yson");
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -189,7 +189,8 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/job_detail.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/job_prober_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/job_proxy.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/job_signaler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/job_satellite.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/job_satellite_connection.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/map_job_io.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/merge_job.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/partition_job.cpp
@@ -202,9 +203,11 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/sorted_merge_job.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/sorted_reduce_job_io.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/stderr_writer.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/stracer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/user_job.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/user_job_io_detail.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/user_job_synchronizer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/user_job_synchronizer_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/user_job_synchronizer_service.proto
 
   ${CMAKE_CURRENT_LIST_DIR}/journal_server/journal_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/journal_server/journal_node.cpp
@@ -522,6 +525,20 @@ target_link_libraries(ytserver-exec
 )
 
 set_target_properties(ytserver-exec PROPERTIES LINK_FLAGS "-static-libstdc++")
+
+### tools
+
+add_executable(ytserver-tools
+  ${CMAKE_CURRENT_LIST_DIR}/tools_program/main.cpp
+)
+
+target_link_libraries(ytserver-tools
+  yt-library-server
+  deps-arcadia-library-getopt
+  deps-arcadia-library-lfalloc
+)
+
+set_target_properties(ytserver-tools PROPERTIES LINK_FLAGS "-static-libstdc++")
 
 ### core-forwarder
 

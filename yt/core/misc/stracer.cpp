@@ -1,5 +1,4 @@
 #include "stracer.h"
-#include "private.h"
 
 #include <yt/core/concurrency/action_queue.h>
 
@@ -15,14 +14,13 @@
 #include <yt/core/ytree/fluent.h>
 
 namespace NYT {
-namespace NJobProxy {
 
 using namespace NYTree;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = JobProxyLogger;
+static const NLogging::TLogger Logger("Stracer");
 static const auto TraceInterval = TDuration::Seconds(5);
 static const auto TraceTimeout = TDuration::Seconds(10);
 static const int StraceConcurrencyFactor = 4;
@@ -50,8 +48,6 @@ TStracerResultPtr TStraceTool::operator()(const std::vector<int>& pids) const
     SafeSetUid(0);
     return Strace(pids);;
 }
-
-REGISTER_TOOL(TStraceTool);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -141,5 +137,4 @@ TStracerResultPtr Strace(const std::vector<int>& pids)
 ////////////////////////////////////////////////////////////////////////////////
 
 
-} // namespace NJobProxy
 } // namespace NYT

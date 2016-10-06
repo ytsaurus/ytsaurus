@@ -73,7 +73,7 @@ private:
         context->SetRequestInfo("JobId: %v", jobId);
 
         auto job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
-        auto trace = job->Strace();
+        auto trace = job->StraceJob();
 
         ToProto(response->mutable_trace(), trace.GetData());
         context->Reply();

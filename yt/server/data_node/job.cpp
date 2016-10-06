@@ -218,7 +218,7 @@ public:
         THROW_ERROR_EXCEPTION("Getting stderr is not supported");
     }
 
-    virtual TYsonString Strace() override
+    virtual TYsonString StraceJob() override
     {
         THROW_ERROR_EXCEPTION("Stracing is not supported");
     }

@@ -6,8 +6,6 @@
 
 #include <yt/ytlib/api/client.h>
 
-#include <yt/ytlib/job_prober_client/job_signal.h>
-
 #include <yt/ytlib/scheduler/helpers.h>
 #include <yt/ytlib/scheduler/job_prober_service_proxy.h>
 
@@ -15,13 +13,14 @@
 
 #include <yt/core/ytree/permission.h>
 
+#include <yt/core/misc/signaler.h>
+
 namespace NYT {
 namespace NScheduler {
 
 using namespace NRpc;
 using namespace NCellScheduler;
 using namespace NConcurrency;
-using namespace NJobProberClient;
 using namespace NYson;
 using namespace NYTree;
 using namespace NSecurityClient;

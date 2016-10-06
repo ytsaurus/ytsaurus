@@ -123,6 +123,7 @@ public:
     }
 
     static TLogConfigPtr CreateStderrLogger(ELogLevel logLevel);
+    static TLogConfigPtr CreateLogFile(const Stroka& path);
     static TLogConfigPtr CreateDefault();
     static TLogConfigPtr CreateQuiet();
     static TLogConfigPtr CreateSilent();
