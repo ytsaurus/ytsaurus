@@ -18,8 +18,8 @@ NTableClient::TBlobTableSchema GetStderrBlobTableSchema()
 NTableClient::TBlobTableSchema GetCoreBlobTableSchema()
 {
     TBlobTableSchema result;
-    result.BlobIdColumns.emplace_back("job_id");
-    result.BlobIdColumns.emplace_back("core_id");
+    result.BlobIdColumns.emplace_back("job_id", EValueType::String);
+    result.BlobIdColumns.emplace_back("core_id", EValueType::Int64);
     return result;
 }
 
