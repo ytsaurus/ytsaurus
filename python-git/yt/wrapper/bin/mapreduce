@@ -777,7 +777,7 @@ Examples:
             method = copy_table
         if args.move:
             method = move_table
-        if isinstance(dst, types.ListType) and len(dst) > 1:
+        if isinstance(dst, list) and len(dst) > 1:
             if len(args.src) != len(dst):
                 exit("Number of source and destination tables must be the same "
                      "in case of multiple destination tables in copy or move")

@@ -205,7 +205,7 @@ def update(object, patch):
                 object[key] = update(object[key], value)
             else:
                 object[key] = value
-    elif isinstance(patch, types.ListType) and isinstance(object, types.ListType):
+    elif isinstance(patch, list) and isinstance(object, list):
         for index, value in enumerate(patch):
             if index < len(object):
                 object[index] = update(object[index], value)
