@@ -30,6 +30,7 @@ ELSE () # Latest version
 ENDIF()
 
 PEERDIR(
+    contrib/python/yt
     devtools/swag/lib
 )
 

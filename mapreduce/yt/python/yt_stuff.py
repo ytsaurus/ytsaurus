@@ -16,6 +16,7 @@ import devtools.swag.daemon
 import devtools.swag.ports
 
 _YT_ARCHIVE_NAME = "yt/packages/yt.tar" # comes by FROM_SANDBOX
+_YT_THOR_ARCHIVE_NAME = "yt/packages/yt_thor.tar" # comes by FROM_SANDBOX
 _YT_PREFIX = "//"
 _YT_MAX_START_RETRIES = 3
 
@@ -94,7 +95,7 @@ class YtStuff(object):
         self.mapreduce_yt_path = [yatest.common.python_path(), os.path.join(self.yt_bins_path, "mapreduce-yt")]
         self.yt_local_path = [yatest.common.python_path(), os.path.join(self.yt_bins_path, "yt_local")]
 
-        yt_archive_path = os.path.join(build_path, _YT_ARCHIVE_NAME)
+        yt_archive_path = os.path.join(build_path, _YT_ARCHIVE_NAME if yt_version.YT_VERSION == "17_5" else _YT_THOR_ARCHIVE_NAME)
         self._extract_tar(yt_archive_path, self.yt_path)
         self._replace_binaries()
 
@@ -116,41 +117,38 @@ class YtStuff(object):
 
     def _replace_binaries(self):
         version = yt_version.YT_VERSION
-        if version in ('17_5',):
+        if version == '17_5':
             return
+
+        for path in (self.yt_bins_path, self.yt_node_bin_path):
+            if not os.path.exists(path):
+                os.makedirs(path)
 
         yt2_arcadia_path = yatest.common.binary_path('yt/packages/contrib/python/yt/bin/yt/yt')
         orig_yt2_path = os.path.join(self.yt_bins_path, 'yt2')
-        os.remove(orig_yt2_path)
+        if os.path.exists(orig_yt2_path):
+            os.remove(orig_yt2_path)
         shutil.copy(yt2_arcadia_path, orig_yt2_path)
 
-        mapreduce_yt_arcadia_path = yatest.common.binary_path('yt/packages/contrib/python/yt/bin/mapreduce-yt/mapreduce-yt')
-        orig_mapreduce_yt_path = os.path.join(self.yt_bins_path, 'mapreduce-yt')
-        os.remove(orig_mapreduce_yt_path)
-        shutil.copy(mapreduce_yt_arcadia_path, orig_mapreduce_yt_path)
-        self.mapreduce_yt_path = [os.path.join(self.yt_bins_path, "mapreduce-yt")]
-
-        yt_local_arcadia_path = yatest.common.binary_path('yt/packages/contrib/python/yt_local/bin/local/yt_local')
-        orig_yt_local_path = os.path.join(self.yt_bins_path, 'yt_local')
-        os.remove(orig_yt_local_path)
-        shutil.copy(yt_local_arcadia_path, orig_yt_local_path)
-        self.yt_local_path = [os.path.join(self.yt_bins_path, "yt_local")]
+        self.mapreduce_yt_path = [yatest.common.binary_path('yt/packages/contrib/python/yt/bin/mapreduce-yt/mapreduce-yt')]
+        self.yt_local_path = [yatest.common.binary_path('yt/packages/contrib/python/yt_local/bin/local/yt_local')]
 
         yt_server_arcadia_path = yatest.common.binary_path('yt/packages/yt/{}/yt/server/ytserver'.format(version))
         orig_server_path = os.path.join(self.yt_bins_path, 'ytserver')
-        os.remove(orig_server_path)
+        if os.path.exists(orig_server_path):
+            os.remove(orig_server_path)
         shutil.copy(yt_server_arcadia_path, orig_server_path)
-
-        shutil.rmtree(self.yt_node_modules_path, ignore_errors=True)
-        node_modules_resource_dir = yatest.common.binary_path('yt/packages/yt/{}/yt/node_modules'.format(version))
-        node_modules_archive_path = os.path.join(node_modules_resource_dir, 'resource.tar.gz')
-        self._extract_tar(node_modules_archive_path, self.yt_path)
 
         yt_node_arcadia_path = yatest.common.binary_path('yt/packages/yt/{}/yt/nodejs/targets/bin/ytnode'.format(version))
         orig_node_path = os.path.join(self.yt_node_bin_path, 'nodejs')
-        os.remove(orig_node_path)
+        if os.path.exists(orig_node_path):
+            os.remove(orig_node_path)
         shutil.copy(yt_node_arcadia_path, orig_node_path)
 
+        if os.path.exists(self.yt_node_modules_path):
+            shutil.rmtree(self.yt_node_modules_path, ignore_errors=True)
+        node_modules_archive_path = yatest.common.binary_path('yt/packages/yt/{}/yt/node_modules/resource.tar.gz'.format(version))
+        self._extract_tar(node_modules_archive_path, self.yt_path)
         yt_node_path = yatest.common.binary_path('yt/packages/yt/{}/yt/nodejs/targets/package'.format(version))
         shutil.copytree(yt_node_path, os.path.join(self.yt_node_modules_path, 'yt'))
 
