@@ -28,7 +28,8 @@ def get_retriable_errors():
     """List or errors that API will retry in HTTP requests."""
     from yt.packages.requests import HTTPError, ConnectionError, Timeout
     return (HTTPError, ConnectionError, Timeout, IncompleteRead, BadStatusLine, SocketError,
-            YtIncorrectResponse, YtProxyUnavailable, YtRequestRateLimitExceeded, YtRequestQueueSizeLimitExceeded, YtRequestTimedOut, YtRetriableError)
+            YtIncorrectResponse, YtProxyUnavailable, YtRequestRateLimitExceeded, YtRequestQueueSizeLimitExceeded,
+            YtRequestTimedOut, YtRetriableError)
 
 @add_metaclass(ABCMeta)
 class ProxyProvider(object):
@@ -91,7 +92,7 @@ def check_response_is_decodable(response, format):
             raise YtIncorrectResponse("Response body can not be decoded from JSON", response)
     elif format == "yson":
         try:
-            yson.loads(response.text)
+            yson.loads(response.content)
         except (yson.YsonError, TypeError):
             raise YtIncorrectResponse("Response body can not be decoded from YSON", response)
 
@@ -145,14 +146,14 @@ def _raise_for_status(response, request_info):
             "Your authentication token was rejected by the server (X-YT-Request-ID: {0}).\n"
             "Please refer to {1}/auth/ for obtaining a valid token if it will not fix error: "
             "please kindly submit a request to https://st.yandex-team.ru/createTicket?queue=YTADMINREQ"\
-                .format(response.headers.get("X-YT-Request-ID", "missing"), url_base))
+            .format(response.headers.get("X-YT-Request-ID", "missing"), url_base))
 
     if not response.is_ok():
         raise YtHttpResponseError(error=response.error(), **request_info)
 
 def make_request_with_retries(method, url=None, make_retries=True, response_format=None,
-                              params=None, timeout=None, retry_action=None, log_body=True, is_ping=False, proxy_provider=None,
-                              client=None, **kwargs):
+                              params=None, timeout=None, retry_action=None, log_body=True,
+                              is_ping=False, proxy_provider=None, client=None, **kwargs):
     """Performs HTTP request to YT proxy with retries."""
     configure_ip(_get_session(client),
                  get_config(client)["proxy"]["force_ipv4"],
@@ -310,7 +311,7 @@ def get_token(token=None, client=None):
             if token_path is None:
                 token_path = os.path.join(os.path.expanduser("~"), ".yt/token")
             if os.path.isfile(token_path):
-                with open(token_path, "rb") as token_file:
+                with open(token_path, "r") as token_file:
                     token = token_file.read().strip()
                 logger.debug("Token got from file %s", token_path)
         else:
