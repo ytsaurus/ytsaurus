@@ -80,10 +80,7 @@ try:
 except ImportError:  # Python 3
     pythonStringIO = None
 
-try:
-    from cStringIO import StringIO as BytesIO
-except ImportError:  # Python 3
-    from io import BytesIO
+from cStringIO import StringIO
 
 from copy import deepcopy
 import collections
