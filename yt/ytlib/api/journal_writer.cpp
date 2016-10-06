@@ -562,7 +562,7 @@ private:
                 targets.push_back(descriptor);
             }
 
-            const auto& networks = Client_->GetConnection()->GetConfig()->Networks;
+            const auto& networks = Client_->GetConnection()->GetNetworks();
             for (const auto& target : targets) {
                 auto address = target.GetAddress(networks);
                 auto lightChannel = Client_->GetLightChannelFactory()->CreateChannel(address);

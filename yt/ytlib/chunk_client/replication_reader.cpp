@@ -123,7 +123,7 @@ public:
         , ChunkId_(chunkId)
         , BlockCache_(blockCache)
         , Throttler_(throttler)
-        , Networks_(client->GetConnection()->GetConfig()->Networks)
+        , Networks_(client->GetConnection()->GetNetworks())
         , InitialSeedReplicas_(seedReplicas)
         , SeedsTimestamp_(TInstant::Zero())
     {
