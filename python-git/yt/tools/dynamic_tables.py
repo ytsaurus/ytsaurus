@@ -39,22 +39,24 @@ def convert_to_new_schema(schema, key_columns):
         result.append(result_column)
     return result
 
-def get_schema_and_key_columns(client, path):
+def get_dynamic_table_attributes(client, path):
     schema = client.get(path + "/@schema")
+    optimize_for = client.get_attribute(path, "optimize_for", default="lookup")
 
     if get_cluster_version(client)[0] == "18":
        key_columns = [column["name"] for column in schema if "sort_order" in column]
     else:
        key_columns = client.get(path + "/@key_columns")
 
-    return schema, key_columns
+    return schema, key_columns, optimize_for
 
-def get_dynamic_table_attributes(client, schema, key_columns):
+def make_dynamic_table_attributes(client, schema, key_columns, optimize_for):
     attributes = {
         "dynamic": True
     }
     if get_cluster_version(client)[0] == "18":
         attributes["schema"] = convert_to_new_schema(schema, key_columns)
+        attributes["optimize_for"] = optimize_for
     else:
         attributes["schema"] = schema
         attributes["key_columns"] = key_columns
@@ -366,7 +368,7 @@ class DynamicTablesClient(object):
         input_row_limit = self.input_row_limit
         output_row_limit = self.output_row_limit
 
-        schema, key_columns = get_schema_and_key_columns(self.yt, src_table)
+        schema, key_columns, _ = get_dynamic_table_attributes(self.yt, src_table)
 
         select_columns_str = schema_to_select_columns_str(
             schema, include_list=columns)
