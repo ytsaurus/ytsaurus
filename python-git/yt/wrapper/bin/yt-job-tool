@@ -42,6 +42,8 @@ JOB_TYPE_TO_SPEC_TYPE = {
     "map": "mapper"
 }
 
+ORCHID_JOB_PATH_PATTERN = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}"
+
 def add_hybrid_argument(parser, name, group_required=True, **kwargs):
     group = parser.add_mutually_exclusive_group(required=group_required)
     group.add_argument(name, nargs="?", action=DoNotReplaceAction, **kwargs)
@@ -60,6 +62,27 @@ def run_job(job_path):
     p = subprocess.Popen([run_script], close_fds=False)
     sys.exit(p.wait())
 
+def download_job_input(operation_id, job_id, job_input_path, is_running):
+    if is_running:
+        logger.info("Job is running, using its input context as local input")
+        output_path = yt.find_free_subpath(yt.config["remote_temp_files_directory"])
+        yt.dump_job_context(job_id, output_path)
+        try:
+            download_file(output_path, job_input_path)
+        finally:
+            yt.remove(output_path, force=True)
+    else:
+        logger.info("Job is failed, using its fail context as local input")
+
+        cypress_job_path = JOB_PATH_PATTERN.format(operation_id, job_id)
+        fail_context_path = yt.ypath_join(cypress_job_path, "fail_context")
+        if not yt.exists(fail_context_path):
+            raise yt.YtError("Job input data is missing. Neither input context nor fail context exists")
+
+        download_file(fail_context_path, job_input_path)
+
+    logger.info("Downloaded job input to %s", job_input_path)
+
 def prepare_job_environment(operation_id, job_id, job_path, run=False):
     if job_path is None:
         job_path = os.path.join(os.getcwd(), "job_" + job_id)
@@ -72,26 +95,31 @@ def prepare_job_environment(operation_id, job_id, job_path, run=False):
 
     logger.info("Preparing job environment for job %s, operation %s", job_id, operation_id)
 
-    cypress_job_path = JOB_PATH_PATTERN.format(operation_id, job_id)
-    if not yt.exists(cypress_job_path):
-        raise yt.YtError("Job {0} (operation id: {1}) does not exist".format(job_id, operation_id))
+    orchid_job_path = ORCHID_JOB_PATH_PATTERN.format(operation_id, job_id)
+    running_job_info = None
+    try:
+        running_job_info = yt.get(orchid_job_path)
+    except yt.YtResponseError as err:
+        if not err.is_resolve_error():
+            raise
 
-    job_type = yt.get_attribute(cypress_job_path, "job_type")
+    if running_job_info is None:
+        cypress_job_path = JOB_PATH_PATTERN.format(operation_id, job_id)
+        if not yt.exists(cypress_job_path):
+            raise yt.YtError("Cannot find running or failed job with id {0} (operation id: {1})".format(job_id, operation_id))
+
+        job_type = yt.get_attribute(cypress_job_path, "job_type")
+    else:
+        job_type = running_job_info["job_type"]
+
     if job_type not in JOB_TYPE_TO_SPEC_TYPE:
         raise yt.YtError('Unknown job type "{0}"'.format(repr(job_type)))
 
     op_type = JOB_TYPE_TO_SPEC_TYPE[job_type]
 
-    # Fail context (small portion of job input)
-    fail_context_path = yt.ypath_join(cypress_job_path, "fail_context")
-    if not yt.exists(fail_context_path):
-        raise yt.YtError("Job input data is missing. Fail context does not exist")
-
     makedirp(job_path)
-
-    fail_context_destination = os.path.join(job_path, "fail_context")
-    logger.info("Downloading job fail context to %s", fail_context_destination)
-    download_file(fail_context_path, fail_context_destination)
+    job_input_path = os.path.join(job_path, "input")
+    download_job_input(operation_id, job_id, job_input_path, is_running=running_job_info is not None)
 
     # Sandbox files
     sandbox_path = os.path.join(job_path, "sandbox")
@@ -122,7 +150,7 @@ def prepare_job_environment(operation_id, job_id, job_path, run=False):
     run_config = {
         "command_path": command_path,
         "sandbox_path": sandbox_path,
-        "input_path": fail_context_destination,
+        "input_path": job_input_path,
         "output_path": os.path.join(job_path, "output"),
         "output_table_count": len(attributes["spec"]["output_table_paths"]),
         "use_yamr_descriptors": attributes["spec"][op_type].get("use_yamr_descriptors", False),
