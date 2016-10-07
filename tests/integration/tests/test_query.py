@@ -9,10 +9,7 @@ from yt_commands import *
 from yt.environment.helpers import assert_items_equal
 from yt.yson import YsonList
 
-from random import randint
-from random import shuffle
-
-from yt.environment.helpers import assert_items_equal
+from random import randint, shuffle
 
 ##################################################################
 
