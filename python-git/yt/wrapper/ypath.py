@@ -5,8 +5,9 @@ from .config import get_config
 
 import yt.yson as yson
 from yt.packages.six import iteritems
-from copy import deepcopy
+from yt.packages.six.moves import map as imap
 
+from copy import deepcopy
 import string
 
 def ypath_join(*paths):
@@ -51,7 +52,7 @@ def escape_ypath_literal(literal):
             return "\\x" + string.hexdigits[num // 16] + string.hexdigits[num % 16]
         return ch
 
-    return "".join(map(escape_char, literal))
+    return "".join(imap(escape_char, literal))
 
 # XXX(ignat): Inherit from YsonString?
 class YPath(object):
