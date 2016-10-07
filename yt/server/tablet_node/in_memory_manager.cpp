@@ -64,6 +64,25 @@ EBlockType InMemoryModeToBlockType(EInMemoryMode mode)
     }
 }
 
+void FinalizeChunkData(
+    const TInMemoryChunkDataPtr& data,
+    const TChunkId& chunkId,
+    const TChunkMeta& chunkMeta,
+    const TTabletSnapshotPtr& tabletSnapshot)
+{
+    data->ChunkMeta = TCachedVersionedChunkMeta::Create(
+        chunkId,
+        chunkMeta,
+        tabletSnapshot->TableSchema);
+
+    if (tabletSnapshot->HashTableSize > 0) {
+        data->LookupHashTable = CreateChunkLookupHashTable(
+            data->Blocks,
+            data->ChunkMeta,
+            tabletSnapshot->RowKeyComparer);
+    }
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -158,25 +177,6 @@ private:
     yhash_map<TChunkId, TInMemoryChunkDataPtr> ChunkIdToData_;
 
 
-    void FinalizeChunkData(
-        TInMemoryChunkDataPtr data,
-        const TChunkId& chunkId,
-        const TChunkMeta& chunkMeta,
-        const TTabletSnapshotPtr& tabletSnapshot)
-    {
-        data->ChunkMeta = TCachedVersionedChunkMeta::Create(
-            chunkId,
-            chunkMeta,
-            tabletSnapshot->TableSchema);
-
-        if (tabletSnapshot->HashTableSize > 0) {
-            data->LookupHashTable = CreateChunkLookupHashTable(
-                data->Blocks,
-                data->ChunkMeta,
-                tabletSnapshot->RowKeyComparer);
-        }
-    }
-
     void ScanSlot(TTabletSlotPtr slot)
     {
         if (IsMemoryLimitExceeded()) {
@@ -252,7 +252,10 @@ private:
                         .Via(invoker)
                         .Run();
                 });
-            GuardedPreloadStore(tablet, store, Logger);
+            if (!IsMemoryLimitExceeded()) {
+                auto tabletSnapshot = Bootstrap_->GetTabletSlotManager()->FindTabletSnapshot(tablet->GetId());
+                PreloadInMemoryStore(tabletSnapshot, store, CompressionInvoker_);
+            }
             finalizer.Release();
             storeManager->EndStorePreload(store);
         } catch (const std::exception& ex) {
@@ -261,102 +264,6 @@ private:
 
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->RegisterTabletSnapshot(slot, tablet);
-    }
-
-    void GuardedPreloadStore(
-        TTablet* tablet,
-        IChunkStorePtr store,
-        const NLogging::TLogger& Logger)
-    {
-        if (IsMemoryLimitExceeded()) {
-            return;
-        }
-
-        auto mode = tablet->GetConfig()->InMemoryMode;
-        if (mode == EInMemoryMode::None) {
-            return;
-        }
-
-        auto slotManager = Bootstrap_->GetTabletSlotManager();
-        auto tabletSnapshot = slotManager->FindTabletSnapshot(tablet->GetId());
-        if (!tabletSnapshot) {
-            return;
-        }
-
-        auto reader = store->GetChunkReader();
-
-        LOG_INFO("Store preload started");
-
-        auto workloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletPreload);
-        auto asyncMeta = reader->GetMeta(TWorkloadDescriptor(workloadDescriptor));
-        auto meta = WaitFor(asyncMeta)
-            .ValueOrThrow();
-
-        auto miscExt = GetProtoExtension<TMiscExt>(meta.extensions());
-        auto blocksExt = GetProtoExtension<TBlocksExt>(meta.extensions());
-
-        auto codecId = NCompression::ECodec(miscExt.compression_codec());
-        auto* codec = NCompression::GetCodec(codecId);
-
-        auto chunkData = New<TInMemoryChunkData>();
-        chunkData->InMemoryMode = mode;
-
-        int startBlockIndex = 0;
-        int totalBlockCount = blocksExt.blocks_size();
-        while (startBlockIndex < totalBlockCount) {
-            LOG_DEBUG("Started reading chunk blocks (FirstBlock: %v)",
-                startBlockIndex);
-
-            auto asyncResult = reader->ReadBlocks(
-                workloadDescriptor,
-                startBlockIndex,
-                totalBlockCount - startBlockIndex);
-            auto compressedBlocks = WaitFor(asyncResult)
-                .ValueOrThrow();
-
-            int readBlockCount = compressedBlocks.size();
-            LOG_DEBUG("Finished reading chunk blocks (Blocks: %v-%v)",
-                startBlockIndex,
-                startBlockIndex + readBlockCount - 1);
-
-            std::vector<TSharedRef> cachedBlocks;
-            switch (mode) {
-                case EInMemoryMode::Compressed:
-                    cachedBlocks = std::move(compressedBlocks);
-                    break;
-
-                case EInMemoryMode::Uncompressed: {
-                    LOG_DEBUG("Decompressing chunk blocks (Blocks: %v-%v)",
-                        startBlockIndex,
-                        startBlockIndex + readBlockCount - 1);
-
-                    std::vector<TFuture<TSharedRef>> asyncUncompressedBlocks;
-                    for (const auto& compressedBlock : compressedBlocks) {
-                        asyncUncompressedBlocks.push_back(
-                            BIND([=] () { return codec->Decompress(compressedBlock); })
-                                .AsyncVia(CompressionInvoker_)
-                                .Run());
-                    }
-
-                    cachedBlocks = WaitFor(Combine(asyncUncompressedBlocks))
-                        .ValueOrThrow();
-                    break;
-                }
-
-                default:
-                    YUNREACHABLE();
-            }
-
-            chunkData->Blocks.insert(chunkData->Blocks.end(), cachedBlocks.begin(), cachedBlocks.end());
-
-            startBlockIndex += readBlockCount;
-        }
-
-        FinalizeChunkData(chunkData, store->GetId(), meta, tabletSnapshot);
-
-        store->Preload(chunkData);
-
-        LOG_INFO("Store preload completed (LookupHashTable: %v)", static_cast<bool>(chunkData->LookupHashTable));
     }
 
     class TInterceptingBlockCache
@@ -516,6 +423,96 @@ void TInMemoryManager::FinalizeChunk(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+void PreloadInMemoryStore(
+    const TTabletSnapshotPtr& tabletSnapshot,
+    const IChunkStorePtr& store,
+    const IInvokerPtr& compressionInvoker)
+{
+    if (!tabletSnapshot) {
+        return;
+    }
+    auto mode = tabletSnapshot->Config->InMemoryMode;
+    if (mode == EInMemoryMode::None) {
+        return;
+    }
+
+    NLogging::TLogger Logger(TabletNodeLogger);
+    Logger.AddTag("TabletId: %v, StoreId: %v", tabletSnapshot->TabletId, store->GetId());
+    LOG_INFO("Store preload started");
+
+    auto reader = store->GetChunkReader();
+    auto workloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletPreload);
+    auto asyncMeta = reader->GetMeta(TWorkloadDescriptor(workloadDescriptor));
+    auto meta = WaitFor(asyncMeta)
+        .ValueOrThrow();
+
+    auto miscExt = GetProtoExtension<TMiscExt>(meta.extensions());
+    auto blocksExt = GetProtoExtension<TBlocksExt>(meta.extensions());
+
+    auto codecId = NCompression::ECodec(miscExt.compression_codec());
+    auto* codec = NCompression::GetCodec(codecId);
+
+    auto chunkData = New<TInMemoryChunkData>();
+    chunkData->InMemoryMode = mode;
+
+    int startBlockIndex = 0;
+    int totalBlockCount = blocksExt.blocks_size();
+    while (startBlockIndex < totalBlockCount) {
+        LOG_DEBUG("Started reading chunk blocks (FirstBlock: %v)",
+            startBlockIndex);
+
+        auto asyncResult = reader->ReadBlocks(
+            workloadDescriptor,
+            startBlockIndex,
+            totalBlockCount - startBlockIndex);
+        auto compressedBlocks = WaitFor(asyncResult)
+            .ValueOrThrow();
+
+        int readBlockCount = compressedBlocks.size();
+        LOG_DEBUG("Finished reading chunk blocks (Blocks: %v-%v)",
+            startBlockIndex,
+            startBlockIndex + readBlockCount - 1);
+
+        std::vector<TSharedRef> cachedBlocks;
+        switch (mode) {
+            case EInMemoryMode::Compressed:
+                cachedBlocks = std::move(compressedBlocks);
+                break;
+
+            case EInMemoryMode::Uncompressed: {
+                LOG_DEBUG("Decompressing chunk blocks (Blocks: %v-%v)",
+                    startBlockIndex,
+                    startBlockIndex + readBlockCount - 1);
+
+                std::vector<TFuture<TSharedRef>> asyncUncompressedBlocks;
+                for (const auto& compressedBlock : compressedBlocks) {
+                    asyncUncompressedBlocks.push_back(
+                        BIND([=] () { return codec->Decompress(compressedBlock); })
+                            .AsyncVia(compressionInvoker)
+                            .Run());
+                }
+
+                cachedBlocks = WaitFor(Combine(asyncUncompressedBlocks))
+                    .ValueOrThrow();
+                break;
+            }
+
+            default:
+                YUNREACHABLE();
+        }
+
+        chunkData->Blocks.insert(chunkData->Blocks.end(), cachedBlocks.begin(), cachedBlocks.end());
+
+        startBlockIndex += readBlockCount;
+    }
+
+    FinalizeChunkData(chunkData, store->GetId(), meta, tabletSnapshot);
+
+    store->Preload(chunkData);
+
+    LOG_INFO("Store preload completed (LookupHashTable: %v)", static_cast<bool>(chunkData->LookupHashTable));
+}
 
 } // namespace NTabletNode
 } // namespace NYT

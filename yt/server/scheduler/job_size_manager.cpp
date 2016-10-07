@@ -5,6 +5,8 @@
 namespace NYT {
 namespace NScheduler {
 
+using namespace NLogging;
+
 ////////////////////////////////////////////////////////////////////
 
 class TJobSizeManager
@@ -45,7 +47,7 @@ public:
             IdealDataSizePerJob_ = ClampVal(
                 idealDataSize,
                 IdealDataSizePerJob_,
-                std::min(Statistics_.GetDataSizeBoost(), MaxDataSizePerJob_));
+                std::min(IdealDataSizePerJob_ * JobSizeBoostFactor, MaxDataSizePerJob_));
         }
     }
 
@@ -91,11 +93,6 @@ private:
         double GetMeanExecTimePerByte() const
         {
             return std::max(ExecTimeTotal_ / DataSizeTotal_, 1e-12);
-        }
-
-        double GetDataSizeBoost() const
-        {
-            return DataSizeMax_ * JobSizeBoostFactor;
         }
 
         bool IsEmpty() const

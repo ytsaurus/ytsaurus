@@ -164,6 +164,9 @@ void TBootstrap::DoRun()
     }
 
     auto localAddresses = GetLocalAddresses();
+    if (!Config->ClusterConnection->Networks) {
+        Config->ClusterConnection->Networks = GetLocalNetworks();
+    }
 
     LOG_INFO("Starting node (LocalAddresses: %v, PrimaryMasterAddresses: %v, NodeTags: %v)",
         GetValues(localAddresses),

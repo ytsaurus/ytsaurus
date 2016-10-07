@@ -12,6 +12,7 @@
 
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/hydra_facade.h>
+#include <yt/server/cell_master/multicell_manager.h>
 
 namespace NYT {
 namespace NObjectServer {
@@ -53,13 +54,11 @@ private:
         descriptors->push_back("primary_cell_id");
         descriptors->push_back("current_commit_revision");
         descriptors->push_back("chunk_replicator_enabled");
+        descriptors->push_back("registered_master_cell_tags");
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
-        auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        auto chunkManager = Bootstrap_->GetChunkManager();
-
         if (key == "cell_tag") {
             BuildYsonFluently(consumer)
                 .Value(Bootstrap_->GetCellTag());
@@ -85,6 +84,7 @@ private:
         }
 
         if (key == "current_commit_revision") {
+            auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
             BuildYsonFluently(consumer)
                 .Value(hydraManager->GetAutomatonVersion().ToRevision());
             return true;
@@ -92,8 +92,16 @@ private:
 
         if (key == "chunk_replicator_enabled") {
             RequireLeader();
+            auto chunkManager = Bootstrap_->GetChunkManager();
             BuildYsonFluently(consumer)
                 .Value(chunkManager->IsReplicatorEnabled());
+            return true;
+        }
+
+        if (key == "registered_master_cell_tags") {
+            auto multicellManager = Bootstrap_->GetMulticellManager();
+            BuildYsonFluently(consumer)
+                .Value(multicellManager->GetRegisteredMasterCellTags());
             return true;
         }
 
