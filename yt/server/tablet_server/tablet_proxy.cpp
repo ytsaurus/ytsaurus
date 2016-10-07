@@ -52,6 +52,7 @@ private:
             .SetPresent(!table->IsPhysicallySorted()));
         descriptors->push_back(TAttributeDescriptor("flushed_row_count")
             .SetPresent(!table->IsPhysicallySorted()));
+        descriptors->push_back("last_commit_timestamp");
         descriptors->push_back(TAttributeDescriptor("performance_counters")
             .SetPresent(tablet->GetCell()));
         descriptors->push_back(TAttributeDescriptor("mount_revision")
@@ -95,6 +96,12 @@ private:
         if (key == "flushed_row_count") {
             BuildYsonFluently(consumer)
                 .Value(chunkList->Statistics().LogicalRowCount);
+            return true;
+        }
+
+        if (key == "last_commit_timestamp") {
+            BuildYsonFluently(consumer)
+                .Value(tablet->NodeStatistics().last_commit_timestamp());
             return true;
         }
 
