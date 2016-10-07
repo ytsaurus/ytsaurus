@@ -78,19 +78,19 @@ class TestUsers(YTEnvSetup):
         assert get("//sys/users/u/@request_count") == 0
 
     def test_builtin_init(self):
-        assert sorted(get("//sys/groups/everyone/@members")) == sorted(["users", "guest"])
-        assert get("//sys/groups/users/@members") == ["superusers"]
-        assert sorted(get("//sys/groups/superusers/@members")) == sorted(["root", "scheduler", "job"])
+        assert_items_equal(get("//sys/groups/everyone/@members"), ["users", "guest"])
+        assert_items_equal(get("//sys/groups/users/@members"), ["superusers"])
+        assert_items_equal(get("//sys/groups/superusers/@members"), ["root", "scheduler", "job", "replicator"])
 
-        assert get("//sys/users/root/@member_of") == ["superusers"]
-        assert get("//sys/users/guest/@member_of") == ["everyone"]
-        assert get("//sys/users/scheduler/@member_of") == ["superusers"]
-        assert get("//sys/users/job/@member_of") == ["superusers"]
-        
-        assert sorted(get("//sys/users/root/@member_of_closure")) == sorted(["superusers", "users", "everyone"])
-        assert get("//sys/users/guest/@member_of_closure") == ["everyone"]
-        assert sorted(get("//sys/users/scheduler/@member_of_closure")) == sorted(["superusers", "users", "everyone"])
-        assert sorted(get("//sys/users/job/@member_of_closure")) == sorted(["superusers", "users", "everyone"])
+        assert_items_equal(get("//sys/users/root/@member_of"), ["superusers"])
+        assert_items_equal(get("//sys/users/guest/@member_of"), ["everyone"])
+        assert_items_equal(get("//sys/users/scheduler/@member_of"), ["superusers"])
+        assert_items_equal(get("//sys/users/job/@member_of"), ["superusers"])
+
+        assert_items_equal(get("//sys/users/root/@member_of_closure"), ["superusers", "users", "everyone"])
+        assert_items_equal(get("//sys/users/guest/@member_of_closure"), ["everyone"])
+        assert_items_equal(get("//sys/users/scheduler/@member_of_closure"), ["superusers", "users", "everyone"])
+        assert_items_equal(get("//sys/users/job/@member_of_closure"), ["superusers", "users", "everyone"])
         
     def test_create_user1(self):
         create_user("max")

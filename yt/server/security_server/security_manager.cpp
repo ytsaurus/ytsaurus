@@ -268,6 +268,7 @@ public:
         GuestUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xfffffffffffffffe);
         JobUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xfffffffffffffffd);
         SchedulerUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xfffffffffffffffc);
+        ReplicatorUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xfffffffffffffffb);
 
         EveryoneGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xffffffffffffffff);
         UsersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffe);
@@ -1049,6 +1050,9 @@ private:
     TUserId SchedulerUserId_;
     TUser* SchedulerUser_ = nullptr;
 
+    TUserId ReplicatorUserId_;
+    TUser* ReplicatorUser_ = nullptr;
+
     NHydra::TEntityMap<TGroup> GroupMap_;
     yhash_map<Stroka, TGroup*> GroupNameMap_;
 
@@ -1141,12 +1145,17 @@ private:
     TGroup* GetBuiltinGroupForUser(TUser* user)
     {
         // "guest" is a member of "everyone" group
-        // "root", "job", and "scheduler" are members of "superusers" group
+        // "root", "job", "scheduler", and "replicator" are members of "superusers" group
         // others are members of "users" group
         const auto& id = user->GetId();
         if (id == GuestUserId_) {
             return EveryoneGroup_;
-        } else if (id == RootUserId_ || id == JobUserId_ || id == SchedulerUserId_) {
+        } else if (
+            id == RootUserId_ ||
+            id == JobUserId_ ||
+            id == SchedulerUserId_ ||
+            id == ReplicatorUserId_)
+        {
             return SuperusersGroup_;
         } else {
             return UsersGroup_;
@@ -1453,6 +1462,14 @@ private:
             SchedulerUser_ = DoCreateUser(SchedulerUserId_, SchedulerUserName);
             SchedulerUser_->SetRequestRateLimit(1000000);
             SchedulerUser_->SetRequestQueueSizeLimit(1000000);
+        }
+
+        ReplicatorUser_ = FindUser(ReplicatorUserId_);
+        if (!ReplicatorUser_) {
+            // replicator
+            ReplicatorUser_ = DoCreateUser(ReplicatorUserId_, ReplicatorUserName);
+            ReplicatorUser_->SetRequestRateLimit(1000000);
+            ReplicatorUser_->SetRequestQueueSizeLimit(1000000);
         }
 
         // COMPAT(babenko)
