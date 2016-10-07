@@ -294,7 +294,10 @@ class Config(types.ModuleType, client_state.ClientState):
         config = self.get_config(client)
         #backend = self.get_backend_type(client)
         # TODO(ignat): support native backend.
-        return config["proxy"]["request_retry_count"]
+        if config["proxy"]["request_retry_enable"]:
+            return config["proxy"]["request_retry_count"]
+        else:
+            return 1
 
     def get_total_request_timeout(self, client):
         return self.get_single_request_timeout(client) * self.get_request_retry_count(client)
