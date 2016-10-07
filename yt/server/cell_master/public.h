@@ -17,6 +17,7 @@ class TCellStatistics;
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TMasterHydraManagerConfig)
+DECLARE_REFCOUNTED_CLASS(TMasterConnectionConfig)
 DECLARE_REFCOUNTED_CLASS(TMulticellManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TCellMasterConfig)
 
