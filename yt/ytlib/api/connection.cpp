@@ -196,7 +196,7 @@ private:
     {
         auto channel = NHydra::CreatePeerChannel(
             config,
-            GetBusChannelFactory(),
+            LightChannelFactory_,
             kind);
 
         auto isRetryableError = BIND([options = Options_] (const TError& error) {
@@ -225,6 +225,9 @@ private:
         for (const auto& masterConfig : Config_->SecondaryMasters) {
             SecondaryMasterCellTags_.push_back(CellTagFromId(masterConfig->CellId));
         }
+
+        LightChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
+        HeavyChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
 
         auto initMasterChannel = [&] (
             EMasterChannelKind channelKind,
@@ -268,9 +271,6 @@ private:
             GetBusChannelFactory(),
             GetMasterChannelOrThrow(EMasterChannelKind::Leader),
             GetNetworks());
-
-        LightChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
-        HeavyChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
 
         CellDirectory_ = New<TCellDirectory>(
             Config_->CellDirectory,
