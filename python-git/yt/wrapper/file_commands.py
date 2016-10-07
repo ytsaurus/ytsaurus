@@ -13,6 +13,8 @@ from .local_mode import is_local_mode
 
 from yt.yson import to_yson_type
 
+from yt.packages.six import text_type, binary_type, PY3
+
 import os
 import hashlib
 
@@ -130,9 +132,13 @@ def write_file(destination, stream, file_writer=None, is_stream_compressed=False
     if hasattr(stream, "read"):
         # read files by chunks, not by lines
         stream = chunk_iter_stream(stream, chunk_size)
-    if isinstance(stream, basestring):
-        if isinstance(stream, unicode):
-            stream = stream.encode("utf-8")
+    if isinstance(stream, (text_type, binary_type)):
+        if isinstance(stream, text_type):
+            if not PY3:
+                stream = stream.encode("utf-8")
+            else:
+                raise YtError("Only binary strings are supported as string input")
+
         if len(stream) <= chunk_size:
             is_one_small_blob = True
             stream = [stream]
