@@ -26,8 +26,6 @@ using namespace NChunkClient;
 using NChunkClient::TChannel;
 using NYPath::TRichYPath;
 
-static const auto& Logger = TableClientLogger;
-
 //////////////////////////////////////////////////////////////////////////////////
 
 TTableOutput::TTableOutput(const TFormat& format, NYson::IYsonConsumer* consumer)
@@ -77,14 +75,6 @@ void PipeReaderToWriter(
             continue;
         }
 
-        // XXX(savrus): debug map-reduce over dynamic tables.
-        int valueCount = 0;
-        for (const auto& row : rows) {
-            valueCount += row.GetCount();
-        }
-        LOG_DEBUG("Read %v rows and %v values in PipeReaderToWriter", rows.size(), valueCount);
-
-
         if (validateValues) {
             for (const auto& row : rows) {
                 for (const auto& value : row) {
@@ -97,7 +87,6 @@ void PipeReaderToWriter(
             WaitFor(writer->GetReadyEvent())
                 .ThrowOnError();
         }
-        LOG_DEBUG("PipeReaderToWriter written rows %v", rows);
     }
 
     WaitFor(writer->Close())
