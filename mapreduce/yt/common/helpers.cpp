@@ -85,6 +85,14 @@ Stroka AttributeFilterToYsonString(const TAttributeFilter& filter)
     .EndMap();
 }
 
+TNode NodeFromTableSchema(const TTableSchema& schema)
+{
+    TNode result;
+    TNodeBuilder builder(&result);
+    Serialize(schema, &builder);
+    return result;
+}
+
 void MergeNodes(TNode& dst, const TNode& src)
 {
     if (dst.IsMap() && src.IsMap()) {

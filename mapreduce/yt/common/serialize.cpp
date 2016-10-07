@@ -79,8 +79,7 @@ void Deserialize(double& value, const TNode& node)
 
 void Serialize(bool value, IYsonConsumer* consumer)
 {
-    // TODO: yson boolean
-    consumer->OnStringScalar(value ? "true" : "false");
+    consumer->OnBooleanScalar(value);
 }
 
 void Deserialize(bool& value, const TNode& node)
