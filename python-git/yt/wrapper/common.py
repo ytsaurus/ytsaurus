@@ -161,12 +161,15 @@ def get_python_version():
     return sys.version_info[:3]
 
 def get_started_by():
+    python_version = "{0}.{1}.{2}".format(*get_python_version())
     return {
         "hostname": socket.getfqdn(),
         "pid": os.getpid(),
         "user": getpass.getuser(),
         "command": sys.argv,
-        "wrapper_version": get_version()}
+        "wrapper_version": get_version(),
+        "python_version": python_version
+    }
 
 def run_with_retries(action, retry_count=6, backoff=20.0, exceptions=(YtError,), except_action=None,
                      backoff_action=None):
