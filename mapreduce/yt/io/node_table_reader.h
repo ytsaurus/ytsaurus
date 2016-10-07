@@ -50,11 +50,11 @@ public:
 private:
     yqueue<TRowElementPtr> Queue_;
     TSpinLock SpinLock_;
-    TAtomic Size_;
-    const size_t SizeLimit_;
+    TAtomic Size_ = 0;
+    const size_t SizeLimit_ = 4 << 20;
     TAutoEvent EnqueueEvent_;
     TAutoEvent DequeueEvent_;
-    std::atomic<bool> Stopped_;
+    std::atomic<bool> Stopped_{false};
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -98,11 +98,10 @@ private:
     THolder<TRowBuilder> Builder_;
     THolder<TYsonParser> Parser_;
 
-    yexception Exception_;
-
-    std::atomic<bool> Running_;
+    std::atomic<bool> Running_{false};
     TAutoEvent RetryPrepared_;
     THolder<TThread> Thread_;
+    yexception Exception_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

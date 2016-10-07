@@ -50,6 +50,10 @@ void TBlockWriter::FlushBuffer(bool lastBlock)
     }
 
     CanWrite_.Wait();
+    if (Exception_) {
+        throw *Exception_;
+    }
+
     SecondaryBuffer_.Swap(Buffer_);
     Stopped_ = lastBlock;
     HasData_.Signal();
@@ -76,10 +80,16 @@ void TBlockWriter::Send(const TBuffer& buffer)
 void TBlockWriter::SendThread()
 {
     while (!Stopped_) {
-        CanWrite_.Signal();
-        HasData_.Wait();
-        Send(SecondaryBuffer_);
-        SecondaryBuffer_.Clear();
+        try {
+            CanWrite_.Signal();
+            HasData_.Wait();
+            Send(SecondaryBuffer_);
+            SecondaryBuffer_.Clear();
+        } catch (yexception& e) {
+            Exception_ = e;
+            CanWrite_.Signal();
+            break;
+        }
     }
 }
 

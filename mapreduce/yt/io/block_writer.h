@@ -76,6 +76,7 @@ private:
     std::atomic<bool> Started_{false};
     std::atomic<bool> Stopped_{false};
     bool Finished_ = false;
+    TMaybe<yexception> Exception_;
 
     TAutoEvent HasData_;
     TAutoEvent CanWrite_;

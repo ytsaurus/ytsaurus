@@ -18,9 +18,6 @@ class TStopException
 ////////////////////////////////////////////////////////////////////////////////
 
 TRowQueue::TRowQueue()
-    : Size_(0)
-    , SizeLimit_(4 << 20)
-    , Stopped_(false)
 { }
 
 void TRowQueue::Enqueue(TRowElementPtr row)
@@ -103,19 +100,16 @@ public:
 private:
     THolder<TNodeBuilder> Builder_;
     TRowElementPtr Row_;
-    int Depth_;
-    bool Started_;
-    std::atomic<bool> Stopped_;
+    int Depth_ = 0;
+    bool Started_ = false;
+    std::atomic<bool> Stopped_{false};
     TRowQueue* RowQueue_;
 
     void EnqueueRow();
 };
 
 TRowBuilder::TRowBuilder(TRowQueue* queue)
-    : Depth_(0)
-    , Started_(false)
-    , Stopped_(false)
-    , RowQueue_(queue)
+    : RowQueue_(queue)
 { }
 
 void TRowBuilder::OnStringScalar(const TStringBuf& value)
