@@ -197,13 +197,11 @@ private:
 
             LOG_DEBUG("Starting replication transactions");
 
-            // TODO(babenko): use "replicator" user
-            auto localClient = LocalConnection_->CreateNativeClient(TClientOptions(NSecurityClient::RootUserName));
+            auto localClient = LocalConnection_->CreateNativeClient(TClientOptions(NSecurityClient::ReplicatorUserName));
             auto localTransaction = WaitFor(localClient->StartNativeTransaction(ETransactionType::Tablet))
                 .ValueOrThrow();
 
-            // TODO(babenko): use "replicator" user
-            auto remoteClient = remoteConnection->CreateClient(TClientOptions(NSecurityClient::RootUserName));
+            auto remoteClient = remoteConnection->CreateClient(TClientOptions(NSecurityClient::ReplicatorUserName));
             auto remoteTransaction = WaitFor(localTransaction->StartSlaveTransaction(remoteClient))
                 .ValueOrThrow();
 

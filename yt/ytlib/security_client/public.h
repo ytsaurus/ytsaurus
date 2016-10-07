@@ -26,6 +26,7 @@ extern const Stroka SchedulerUserName;
 extern const Stroka EveryoneGroupName;
 extern const Stroka UsersGroupName;
 extern const Stroka SuperusersGroupName;
+extern const Stroka ReplicatorUserName;
 
 DEFINE_ENUM(ESecurityAction,
     ((Undefined)(0))  // Intermediate state, used internally.
