@@ -32,7 +32,7 @@ private:
     TAuth Auth_;
     TTransactionId TransactionId_;
 
-    std::atomic<bool> Running_;
+    std::atomic<bool> Running_{false};
     TThread Thread_;
 
     void Stop(bool commit);

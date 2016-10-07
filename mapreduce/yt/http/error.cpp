@@ -104,12 +104,6 @@ bool TErrorResponse::IsOk() const
     return Error_.GetCode() == 0;
 }
 
-const char* TErrorResponse::what() const throw ()
-{
-    What_ = TStringBuilder() << Error_.GetMessage() << ". Raw error: " << RawError_;
-    return ~What_;
-}
-
 void TErrorResponse::SetRawError(const Stroka& rawError)
 {
     RawError_ = rawError;
@@ -156,6 +150,8 @@ bool TErrorResponse::IsConcurrentOperationsLimitReached() const
 
 void TErrorResponse::Setup()
 {
+    *this << Error_.GetMessage() << ". Raw error: " << RawError_;
+
     Retriable_ = true;
     RetryInterval_ = TConfig::Get()->RetryInterval;
 
