@@ -210,6 +210,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* cons
                                 .Item("flushed_row_count").Value(chunkList->Statistics().LogicalRowCount);
                         })
                         .Item("state").Value(tablet->GetState())
+                        .Item("last_commit_timestamp").Value(tablet->NodeStatistics().last_commit_timestamp())
                         .Item("statistics").Value(tabletManager->GetTabletStatistics(tablet))
                         .Item("tablet_id").Value(tablet->GetId())
                         .DoIf(cell, [&] (TFluentMap fluent) {
