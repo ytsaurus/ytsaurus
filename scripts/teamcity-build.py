@@ -11,7 +11,8 @@ from teamcity import build_step, cleanup_step, teamcity_main, \
 
 from helpers import mkdirp, run, run_captured, cwd, copytree, \
                     kill_by_name, sudo_rmtree, ls, get_size, \
-                    rmtree, format_yes_no, parse_yes_no_bool, ChildHasNonZeroExitCode
+                    rmtree, rm_content, \
+                    format_yes_no, parse_yes_no_bool, ChildHasNonZeroExitCode
 
 from pytest_helpers import get_sandbox_dirs, save_failed_test, find_and_report_core_dumps
 
@@ -109,8 +110,7 @@ def prepare(options):
     run(["sudo", "rm", "-rf", "/tmp/tmp*"])
 
     # Clean core path from previous builds.
-    shutil.rmtree(options.core_path)
-    mkdirp(options.core_path)
+    rm_content(options.core_path)
 
     mkdirp(options.sandbox_directory)
 
