@@ -1,21 +1,31 @@
+IF(YMAKE)
+  SET(YT_ABI 18_5)
+ENDIF()
+
+################################################################################
+IF(YMAKE)
+################################################################################
+
 LIBRARY(ytlib)
 
-OWNER(snowball)
+OWNER(snowball sandello)
 
 NO_COMPILER_WARNINGS()
 
 SET(NODE_DIR contrib/libs/node_0_8_28)
+
 PEERDIR(
-    ${NODE_DIR}/targets/libnode
-    yt/18_5/yt/build
-    yt/18_5/yt/ytlib
-    library/streams/lz
-    library/streams/lzop
+  ${NODE_DIR}/targets/libnode
+  yt/${YT_ABI}/yt/build
+  yt/${YT_ABI}/yt/ytlib
+  library/streams/lz
+  library/streams/lzop
 )
 
-SRCDIR(yt/18_5/yt/nodejs)
+SRCDIR(yt/${YT_ABI}/yt/nodejs)
 
 CFLAGS(-DSTATIC_NODE_EXTENSION)
+
 SRCS(
   src/async_ref_counted.cpp
   src/common.cpp
@@ -37,3 +47,8 @@ SRCS(
 )
 
 END()
+
+################################################################################
+ENDIF()
+################################################################################
+
