@@ -5,7 +5,7 @@ from yt.packages.six import Iterator
 class ResponseStream(Iterator):
     """Iterator over response"""
     def __init__(self, get_response, iter_content, close, process_error, get_response_parameters):
-        self._buffer = ""
+        self._buffer = b""
         self._buffer_length = 0
         self._pos = 0
 
@@ -28,7 +28,7 @@ class ResponseStream(Iterator):
 
     def read(self, length=None):
         if self._stream_finished:
-            return ""
+            return b""
 
         if length is None:
             length = 2 ** 32
@@ -59,15 +59,15 @@ class ResponseStream(Iterator):
             result_strings.append(self._buffer[:length])
             self._pos = length
 
-        return "".join(result_strings)
+        return b"".join(result_strings)
 
     def readline(self):
         if self._stream_finished:
-            return ""
+            return b""
 
         result = []
         while True:
-            index = self._buffer.find("\n", self._pos)
+            index = self._buffer.find(b"\n", self._pos)
             if index != -1:
                 result.append(self._buffer[self._pos: index + 1])
                 self._pos = index + 1
@@ -78,7 +78,7 @@ class ResponseStream(Iterator):
             if self._stream_finished:
                 break
 
-        return "".join(result)
+        return b"".join(result)
 
     def _read_chunk(self):
         if self._pos == 0:
@@ -86,7 +86,7 @@ class ResponseStream(Iterator):
         elif self._pos == len(self._buffer):
             self._fetch()
             if self._stream_finished:
-                return ""
+                return b""
             remaining_buffer = self._buffer
         else:
             remaining_buffer = self._buffer[self._pos:]
@@ -122,13 +122,13 @@ class ResponseStream(Iterator):
 
 class EmptyResponseStream(Iterator):
     def read(self, length=None):
-        return ""
+        return b""
 
     def chunk_iter(self):
         return common.EMPTY_GENERATOR
 
     def readline(self):
-        return ""
+        return b""
 
     def close(self):
         pass

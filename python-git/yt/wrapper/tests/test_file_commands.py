@@ -3,26 +3,26 @@
 from .helpers import TEST_DIR, set_config_option
 
 import yt.zip as zip
+from yt.packages.six import PY3
 
 import yt.wrapper as yt
 
 import os
 import pytest
 import tempfile
-import contextlib
 
 @pytest.mark.usefixtures("yt_env")
 class TestFileCommands(object):
     def test_file_commands(self):
         with pytest.raises(yt.YtError):
-            yt.write_file(TEST_DIR + "/dir/file", "")
+            yt.write_file(TEST_DIR + "/dir/file", b"")
 
         file_path = TEST_DIR + "/file"
-        yt.write_file(file_path, "")
-        assert yt.read_file(file_path).read() == ""
+        yt.write_file(file_path, b"")
+        assert yt.read_file(file_path).read() == b""
 
-        yt.write_file(file_path, "0" * 1000)
-        assert yt.read_file(file_path).read() == "0" * 1000
+        yt.write_file(file_path, b"0" * 1000)
+        assert yt.read_file(file_path).read() == b"0" * 1000
 
         _, filename = tempfile.mkstemp()
         with open(filename, "w") as fout:
@@ -51,31 +51,36 @@ class TestFileCommands(object):
         with pytest.raises(yt.YtError):
             yt.smart_upload_file(filename, destination=destination, placement_strategy="hash")
 
-        assert yt.read_file(destination, length=4).read() == "some"
-        assert yt.read_file(destination, offset=5).read() == "content"
+        assert yt.read_file(destination, length=4).read() == b"some"
+        assert yt.read_file(destination, offset=5).read() == b"content"
 
         destination = yt.smart_upload_file(filename, placement_strategy="ignore")
         yt.smart_upload_file(filename, placement_strategy="ignore")
-        assert yt.read_file(destination).read() == "some content"
+        assert yt.read_file(destination).read() == b"some content"
 
     def test_unicode(self):
         data = u"строка"
         path = TEST_DIR + "/filename"
         yt.create("file", path)
-        yt.write_file(path, data)
-        assert yt.read_file(path).read().decode("utf-8") == data
+        if not PY3:
+            yt.write_file(path, data)
+            assert yt.read_file(path).read().decode("utf-8") == data
+        else:
+            with pytest.raises(yt.YtError):
+                yt.write_file(path, data)
 
     def test_write_compressed_file_data(self):
         fd, filename = tempfile.mkstemp()
         os.close(fd)
 
         with zip.GzipFile(filename, "w", 5) as fout:
-            fout.write("test write compressed file data")
+            fout.write(b"test write compressed file data")
 
-        with contextlib.nested(open(filename), set_config_option("proxy/content_encoding", "gzip")) as (f, _):
-            if yt.config["backend"] == "native":
-                with pytest.raises(yt.YtError):  # not supported for native backend
+        with set_config_option("proxy/content_encoding", "gzip"):
+            with open(filename, "rb") as f:
+                if yt.config["backend"] == "native":
+                    with pytest.raises(yt.YtError):  # not supported for native backend
+                        yt.write_file(TEST_DIR + "/file", f, is_stream_compressed=True)
+                else:
                     yt.write_file(TEST_DIR + "/file", f, is_stream_compressed=True)
-            else:
-                yt.write_file(TEST_DIR + "/file", f, is_stream_compressed=True)
-                assert "test write compressed file data" == yt.read_file(TEST_DIR + "/file").read()
+                    assert b"test write compressed file data" == yt.read_file(TEST_DIR + "/file").read()
