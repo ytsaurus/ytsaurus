@@ -1,4 +1,3 @@
-from . import config
 from .config import get_option, get_config, get_total_request_timeout, get_request_retry_count
 from .common import get_backoff, chunk_iter_blobs, YtError
 from .errors import YtResponseError, YtRetriableError

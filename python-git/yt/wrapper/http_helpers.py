@@ -1,4 +1,4 @@
-from .config import get_config, get_option, set_option, get_backend_type
+from .config import get_config, get_option, set_option, get_backend_type, get_request_retry_count
 from .common import require, get_backoff, get_value, total_seconds, generate_uuid
 from .errors import YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, YtHttpResponseError, \
                     YtRequestRateLimitExceeded, YtRequestQueueSizeLimitExceeded, YtRequestTimedOut, \
@@ -172,7 +172,8 @@ def make_request_with_retries(method, url=None, make_retries=True, response_form
     if proxy_provider is not None:
         url_pattern = url
 
-    for attempt in xrange(get_config(client)["proxy"]["request_retry_count"]):
+    request_retry_count = get_request_retry_count(client)
+    for attempt in xrange(request_retry_count):
         if proxy_provider is not None:
             proxy = proxy_provider()
             url = url_pattern.format(proxy=proxy)
@@ -223,7 +224,7 @@ def make_request_with_retries(method, url=None, make_retries=True, response_form
                 logger.info("Full error message:\n%s", str(error))
             if proxy_provider is not None:
                 proxy_provider.on_error_occured(error)
-            if make_retries and attempt + 1 < get_config(client)["proxy"]["request_retry_count"]:
+            if make_retries and attempt + 1 < request_retry_count:
                 if retry_action is not None:
                     retry_action(error, kwargs)
                 backoff = get_backoff(

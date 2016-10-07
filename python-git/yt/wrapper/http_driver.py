@@ -141,8 +141,7 @@ def make_request(command_name,
     # Determine make retries or not and set mutation if needed
     if allow_retries is None:
         allow_retries = not command.is_heavy and \
-            command_name not in ["concatenate"] and \
-            get_config(client)["proxy"]["request_retry_enable"]
+            command_name not in ["concatenate"]
 
     if timeout is None:
         if command.is_heavy:
