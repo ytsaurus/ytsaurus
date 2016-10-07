@@ -91,7 +91,7 @@ TEST_F(TFutureTest, SetAndGet)
 }
 
 #ifndef NDEBUG
-TEST_F(TFutureTest, DoubleSet)
+TEST_F(TFutureTest, DISABLED_DoubleSet)
 {
 #ifdef _darwin_
     // DEATH tests are working on Darwin platform only in single-thread applications.

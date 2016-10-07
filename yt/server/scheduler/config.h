@@ -604,6 +604,8 @@ public:
     int HardConcurrentHeartbeatLimit;
 
     bool EnableTmpfs;
+    // Enable dynamic change of job sizes.
+    bool EnableJobSizeManager;
 
     double UserJobMemoryDigestPrecision;
     double UserJobMemoryReserveQuantile;
@@ -833,6 +835,8 @@ public:
             .GreaterThanOrEqual(1);
 
         RegisterParameter("enable_tmpfs", EnableTmpfs)
+            .Default(true);
+        RegisterParameter("enable_job_size_manager", EnableJobSizeManager)
             .Default(true);
 
         RegisterParameter("user_job_memory_digest_precision", UserJobMemoryDigestPrecision)

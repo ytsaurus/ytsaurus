@@ -4183,7 +4183,6 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     }
     jobSpec->set_memory_limit(config->MemoryLimit);
     jobSpec->set_include_memory_mapped_files(config->IncludeMemoryMappedFiles);
-    jobSpec->set_iops_threshold(config->IopsThreshold);
     jobSpec->set_use_yamr_descriptors(config->UseYamrDescriptors);
     jobSpec->set_check_input_fully_consumed(config->CheckInputFullyConsumed);
     jobSpec->set_max_stderr_size(config->MaxStderrSize);

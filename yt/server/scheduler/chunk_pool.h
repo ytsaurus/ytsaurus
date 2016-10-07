@@ -141,6 +141,7 @@ struct IChunkPoolOutput
     virtual void Lost(TCookie cookie) = 0;
 
     virtual void SetDataSizePerJob(i64 dataSizePerJob) = 0;
+    virtual void SetMaxDataSizePerJob(i64 maxDataSizePerJob) = 0;
 
 };
 

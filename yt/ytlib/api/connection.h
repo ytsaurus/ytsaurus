@@ -58,6 +58,7 @@ struct IConnection
     : public virtual TRefCounted
 {
     virtual TConnectionConfigPtr GetConfig() = 0;
+    virtual const NNodeTrackerClient::TNetworkPreferenceList& GetNetworks() const = 0;
 
     virtual const NObjectClient::TCellId& GetPrimaryMasterCellId() const = 0;
     virtual NObjectClient::TCellTag GetPrimaryMasterCellTag() const = 0;

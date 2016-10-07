@@ -112,7 +112,7 @@ TEST(TCGroup, AddCurrentTask)
         auto tasks = group.GetTasks();
         ASSERT_EQ(1, tasks.size());
         EXPECT_EQ(getpid(), tasks[0]);
-        exit(0);
+        _exit(0);
     }
 
     auto waitedpid = waitpid(pid, nullptr, 0);
@@ -140,7 +140,7 @@ TEST(TCGroup, DISABLED_UnableToDestoryNotEmptyCGroup)
         ASSERT_EQ(sizeof(value), ::write(addedEvent, &value, sizeof(value)));
 
         ASSERT_EQ(sizeof(value), ::read(triedRemoveEvent, &value, sizeof(value)));
-        exit(0);
+        _exit(0);
     }
 
     i64 value;
@@ -330,7 +330,7 @@ TEST(TCGroup, FreezerFreeze)
         ASSERT_EQ(sizeof(value), ::write(addedEvent, &value, sizeof(value)));
 
         ASSERT_EQ(sizeof(value), ::read(exitEvent, &value, sizeof(value)));
-        exit(0);
+        _exit(0);
     }
 
     i64 value;
