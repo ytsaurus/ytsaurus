@@ -104,13 +104,6 @@ struct TSerializerTraits<
     typedef NObjectServer::TObjectRefComparer TComparer;
 };
 
-//template <class C>
-//struct TSerializerTraits<NNodeTrackerServer::TNode*, C>
-//{
-//    typedef NCellMaster::TNonversionedObjectRefSerializer TSerializer;
-//    typedef NObjectServer::TObjectRefComparer TComparer;
-//};
-//
 template <class T, class C>
 struct TSerializerTraits<
     T,
