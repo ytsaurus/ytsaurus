@@ -105,14 +105,14 @@ TEST_P(TCodecTest, VectorEmptyRefs)
 
 TEST_P(TCodecTest, VectorSingleCharacters)
 {
-    std::vector<Stroka> input(10000, "a");
+    std::vector<Stroka> input(1000, "a");
     TestCase(input);
 }
 
 TEST_P(TCodecTest, VectorExpBuffers)
 {
     std::vector<Stroka> input;
-    for (int i = 0; i < 20; ++i) {
+    for (int i = 0; i < 15; ++i) {
         input.emplace_back(1 << i, 'a' + i);
     }
     TestCase(input);

@@ -28,7 +28,7 @@ using NChunkClient::NProto::TChunkSpec;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int RowCount = 600000;
+int RowCount = 50000;
 auto StringValue = STRINGBUF("She sells sea shells on a sea shore");
 auto AnyValueList = STRINGBUF("[one; two; three]");
 auto AnyValueMap = STRINGBUF("{a=b; c=d}");
@@ -189,7 +189,7 @@ protected:
         auto memoryWriter = New<TMemoryWriter>();
 
         auto config = New<TChunkWriterConfig>();
-        config->BlockSize = 2 * 1024;
+        config->BlockSize = 256;
 
         auto options = New<TChunkWriterOptions>();
         options->OptimizeFor = std::get<0>(GetParam());
