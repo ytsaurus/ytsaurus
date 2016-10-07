@@ -66,6 +66,7 @@ import yt.logger as logger
 import yt.json as json
 import yt.yson as yson
 
+from yt.packages.six import text_type, binary_type
 from yt.packages.six.moves import map as imap, filter as ifilter
 
 import os
@@ -80,7 +81,10 @@ try:
 except ImportError:  # Python 3
     pythonStringIO = None
 
-from cStringIO import StringIO
+try:
+    from cStringIO import StringIO as BytesIO
+except ImportError:  # Python 3
+    from io import BytesIO
 
 from copy import deepcopy
 import collections
@@ -98,10 +102,13 @@ def _set_option(params, name, value, transform=None):
     return params
 
 def _to_chunk_stream(stream, format, raw, split_rows, chunk_size):
-    if isinstance(stream, basestring):
-        if isinstance(stream, unicode):
-            stream = stream.encode("utf-8")
-        stream = StringIO(stream)
+    if isinstance(stream, (text_type, binary_type)):
+        if isinstance(stream, text_type):
+            if not PY3:
+                stream = stream.encode("utf-8")
+            else:
+                raise YtError("Cannot split unicode string into chunks, consider encoding it first")
+        stream = BytesIO(stream)
 
     iterable_types = [list, types.GeneratorType, collections.Iterator, collections.Iterable]
     if pythonStringIO is not None:
@@ -201,7 +208,7 @@ class FileUploader(object):
         file_paths = []
         with Transaction(transaction_id=null_transaction_id, attributes={"title": "Python wrapper: upload operation files"}, client=self.client):
             for file in flatten(files):
-                if isinstance(file, basestring):
+                if isinstance(file, (text_type, binary_type)):
                     file_params = {"filename": file}
                 else:
                     file_params = file
@@ -593,7 +600,7 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
             attributes["compression_codec"] = compression_codec
         create_table(path, ignore_existing=True, attributes=attributes, client=client)
 
-    can_split_input = isinstance(input_stream, types.ListType) or format.is_raw_load_supported()
+    can_split_input = isinstance(input_stream, list) or format.is_raw_load_supported()
     enable_retries = get_config(client)["write_retries"]["enable"] and \
             can_split_input and \
             not is_stream_compressed
@@ -640,7 +647,7 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
     table = TablePath(table, client=client)
     format = _prepare_format(format, raw, client)
     if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and not exists(table, client=client):
-        return StringIO() if raw else EMPTY_GENERATOR
+        return BytesIO() if raw else EMPTY_GENERATOR
     attributes = get(table + "/@", client=client)
     if attributes.get("type") != "table":
         raise YtError("Command read is supported only for tables")
