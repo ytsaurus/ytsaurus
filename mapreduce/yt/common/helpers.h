@@ -12,7 +12,6 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 TNode NodeFromYsonString(const Stroka& input, EYsonType type = YT_NODE);
-
 Stroka NodeToYsonString(const TNode& node, EYsonFormat format = YF_TEXT);
 
 Stroka NodeListToYsonString(const TNode::TList& nodes);
@@ -22,6 +21,8 @@ TNode NodeFromYPath(const TRichYPath& path);
 Stroka AttributesToYsonString(const TNode& attributes);
 
 Stroka AttributeFilterToYsonString(const TAttributeFilter& filter);
+
+TNode NodeFromTableSchema(const TTableSchema& schema);
 
 void MergeNodes(TNode& dst, const TNode& src);
 
