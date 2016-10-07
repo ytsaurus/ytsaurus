@@ -46,6 +46,7 @@ public:
 
         auto secondaryPath = path;
         secondaryPath.Append_ = true;
+        secondaryPath.Schema_.Clear();
         SecondaryParameters_ = FormIORequestParameters(secondaryPath, options);
     }
 
