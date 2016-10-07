@@ -7,8 +7,6 @@ from yt.environment.helpers import assert_items_equal
 from time import sleep
 import pytest
 
-from yt.environment.helpers import assert_items_equal
-
 ##################################################################
 
 class TestTables(YTEnvSetup):
