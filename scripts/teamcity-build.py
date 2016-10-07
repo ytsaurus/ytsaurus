@@ -108,6 +108,10 @@ def prepare(options):
 
     run(["sudo", "rm", "-rf", "/tmp/tmp*"])
 
+    # Clean core path from previous builds.
+    shutil.rmtree(options.core_path)
+    mkdirp(options.core_path)
+
     mkdirp(options.sandbox_directory)
 
     os.chdir(options.sandbox_directory)
