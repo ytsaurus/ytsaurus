@@ -1724,6 +1724,15 @@ print row + table_index
                 out=["<row_count_limit=1>//tmp/out_1", "<row_count_limit=1>//tmp/out_2"],
                 command="cat")
 
+    def test_invalid_schema_in_path(self):
+        create("table", "//tmp/input")
+        create("table", "//tmp/output")
+
+        with pytest.raises(YtError):
+            map(in_="//tmp/input",
+                out="<schema=[{name=key; type=int64}; {name=key;type=string}]>//tmp/output",
+                command="cat")
+
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_schema_validation(self, optimize_for):
         create("table", "//tmp/input")
