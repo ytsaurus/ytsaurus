@@ -83,8 +83,17 @@ for line in sys.stdin:
 class TestJobTool(object):
     JOB_TOOL_BINARY = os.path.join(os.path.dirname(TESTS_LOCATION), "bin", "yt-job-tool")
 
-    def _check(self, operation_id, yt_env):
-        jobs = yt.list("//sys/operations/{0}/jobs".format(operation_id))
+    def _check(self, operation_id, yt_env, check_running=False):
+        if not check_running:
+            jobs = yt.list("//sys/operations/{0}/jobs".format(operation_id))
+        else:
+            running_jobs_pattern = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs"
+            running_jobs_path = running_jobs_pattern.format(operation_id)
+            while True:  # Waiting for job to start
+                jobs = yt.list(running_jobs_path)
+                if jobs:
+                    break
+
         job_path = subprocess.check_output([
             self.JOB_TOOL_BINARY,
             "prepare-job-environment",
@@ -96,7 +105,7 @@ class TestJobTool(object):
             yt_env.config["proxy"]["url"]]).strip()
 
         assert open(os.path.join(job_path, "sandbox", "_test_file")).read().strip() == "stringdata"
-        assert "1\t2\n" == open(os.path.join(job_path, "fail_context")).read()
+        assert "1\t2\n" == open(os.path.join(job_path, "input")).read()
 
         run_config = os.path.join(job_path, "run_config")
         assert os.path.exists(run_config)
@@ -105,12 +114,13 @@ class TestJobTool(object):
         assert config["operation_id"] == operation_id
         assert config["job_id"] == jobs[0]
 
-        proc = subprocess.Popen([self.JOB_TOOL_BINARY, "run-job", job_path], stderr=subprocess.PIPE)
-        proc.wait()
+        if not check_running:
+            proc = subprocess.Popen([self.JOB_TOOL_BINARY, "run-job", job_path], stderr=subprocess.PIPE)
+            proc.wait()
 
-        assert proc.returncode != 0
-        assert "RuntimeError" in proc.stderr.read()
-        assert "RuntimeError" in open(os.path.join(job_path, "output", "2")).read()
+            assert proc.returncode != 0
+            assert "RuntimeError" in proc.stderr.read()
+            assert "RuntimeError" in open(os.path.join(job_path, "output", "2")).read()
 
         shutil.rmtree(job_path)
 
@@ -152,3 +162,9 @@ class TestJobTool(object):
                                sync=False)
         op.wait(check_result=False)
         self._check(op.id, yt_env)
+
+        # Should fallback on using input context
+        op = yt.run_map("sleep 1000; cat", table, TEST_DIR + "/output", format="yamr",
+                        yt_files=[file_], spec={"max_failed_job_count": 1}, sync=False)
+        self._check(op.id, yt_env, check_running=True)
+        op.abort()
