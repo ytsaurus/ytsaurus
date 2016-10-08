@@ -285,6 +285,26 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         sleep(1.0)
         assert select_rows("* from [//tmp/r]") == [{"key": 1, "value1": "test2", "value2": 150}]
 
+    def test_replication_lag(self):
+        self.sync_create_cells(1)
+        self._create_replicated_table("//tmp/t", schema=self.AGGREGATE_SCHEMA)
+        self.sync_mount_table("//tmp/t")
+
+        self._create_replica_table("//tmp/r", schema=self.AGGREGATE_SCHEMA)
+        self.sync_mount_table("//tmp/r")
+
+        replica_id = create_table_replica("//tmp/t", "r1", "//tmp/r")
+
+        assert get("#{0}/@replication_lag_time".format(replica_id)) == 0
+
+        insert_rows("//tmp/t", [{"key": 1, "value1": "test1"}])
+        sleep(1.0)
+        get("#{0}/@replication_lag_time".format(replica_id)) > 1000000
+        
+        enable_table_replica(replica_id)
+        sleep(1.0)
+        assert get("#{0}/@replication_lag_time".format(replica_id)) == 0
+
 ##################################################################
 
 class TestReplicatedDynamicTablesMulticell(TestReplicatedDynamicTables):

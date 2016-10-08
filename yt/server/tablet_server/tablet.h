@@ -129,7 +129,8 @@ public:
 
     void ValidateMountRevision(i64 mountRevision);
 
-    TTableReplicaInfo& GetReplicaInfo(TTableReplica* replica);
+    TTableReplicaInfo& GetReplicaInfo(const TTableReplica* replica);
+    TDuration ComputeReplicationLagTime(const TTableReplicaInfo& replicaInfo) const;
 
     bool IsActive() const;
 

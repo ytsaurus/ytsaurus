@@ -8,6 +8,8 @@
 
 #include <yt/server/chunk_server/chunk_list.h>
 
+#include <yt/ytlib/transaction_client/helpers.h>
+
 #include <yt/core/ytree/fluent.h>
 
 namespace NYT {
@@ -17,6 +19,7 @@ using namespace NTableServer;
 using namespace NChunkServer;
 using namespace NCellMaster;
 using namespace NYTree;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -211,11 +214,24 @@ void TTablet::ValidateMountRevision(i64 mountRevision)
     }
 }
 
-TTableReplicaInfo& TTablet::GetReplicaInfo(TTableReplica* replica)
+TTableReplicaInfo& TTablet::GetReplicaInfo(const TTableReplica* replica)
 {
-    auto it = Replicas_.find(replica);
+    auto it = Replicas_.find(const_cast<TTableReplica*>(replica));
     YCHECK(it != Replicas_.end());
     return it->second;
+}
+
+TDuration TTablet::ComputeReplicationLagTime(const TTableReplicaInfo& replicaInfo) const
+{
+    auto lastCommitTimestamp = NodeStatistics_.last_commit_timestamp();
+    if (lastCommitTimestamp == NullTimestamp) {
+        return TDuration::Zero();
+    }
+    auto replicationTimestamp = replicaInfo.GetCurrentReplicationTimestamp();
+    if (replicationTimestamp >= lastCommitTimestamp) {
+        return TDuration::Zero();
+    }
+    return TimestampToInstant(lastCommitTimestamp).second - TimestampToInstant(replicationTimestamp).first;
 }
 
 bool TTablet::IsActive() const
