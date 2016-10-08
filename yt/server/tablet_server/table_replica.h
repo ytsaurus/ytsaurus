@@ -38,6 +38,8 @@ public:
 
     void ThrowInvalidState();
 
+    TDuration ComputeReplicationLagTime() const;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

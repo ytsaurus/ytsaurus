@@ -49,6 +49,8 @@ private:
         attributes->push_back("state");
         attributes->push_back(TAttributeDescriptor("tablets")
             .SetOpaque(true));
+        attributes->push_back(TAttributeDescriptor("replication_lag_time")
+            .SetOpaque(true));
 
         TBase::ListSystemAttributes(attributes);
     }
@@ -100,8 +102,15 @@ private:
                             .Item("state").Value(replicaInfo.GetState())
                             .Item("current_replication_row_index").Value(replicaInfo.GetCurrentReplicationRowIndex())
                             .Item("current_replication_timestamp").Value(replicaInfo.GetCurrentReplicationTimestamp())
+                            .Item("replication_lag_time").Value(tablet->ComputeReplicationLagTime(replicaInfo))
                         .EndMap();
                 });
+            return true;
+        }
+
+        if (key == "replication_lag_time") {
+            BuildYsonFluently(consumer)
+                .Value(replica->ComputeReplicationLagTime());
             return true;
         }
 
