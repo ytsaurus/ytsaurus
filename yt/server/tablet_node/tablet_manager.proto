@@ -4,6 +4,7 @@ import "yt/core/misc/guid.proto";
 import "yt/core/misc/error.proto";
 import "yt/ytlib/table_client/chunk_meta.proto";
 import "yt/ytlib/chunk_client/chunk_meta.proto";
+import "yt/ytlib/tablet_client/heartbeat.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,19 +22,13 @@ message TRemoveStoreDescriptor
     required NYT.NProto.TGuid store_id = 1;
 }
 
-message TTableReplicaStatistics
-{
-    required int64 current_replication_row_index = 1;
-    required uint64 current_replication_timestamp = 2;
-}
-
 message TTableReplicaDescriptor
 {
     required NYT.NProto.TGuid replica_id = 1;
     required string cluster_name = 2;
     required string replica_path = 3;
     required uint64 start_replication_timestamp = 4;
-    required TTableReplicaStatistics statistics = 5;
+    required NYT.NTabletClient.NProto.TTableReplicaStatistics statistics = 5;
 }
 
 message TReqMountTablet

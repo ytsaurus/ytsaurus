@@ -88,7 +88,7 @@ class TTableReplicaInfo
 public:
     DEFINE_BYVAL_RW_PROPERTY(ETableReplicaState, State, ETableReplicaState::None);
     DEFINE_BYVAL_RW_PROPERTY(i64, CurrentReplicationRowIndex, 0);
-    DEFINE_BYVAL_RW_PROPERTY(i64, CurrentReplicationTimestamp, NTransactionClient::NullTimestamp);
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, CurrentReplicationTimestamp, NTransactionClient::NullTimestamp);
 
 public:
     void Save(NCellMaster::TSaveContext& context) const;
@@ -129,7 +129,8 @@ public:
 
     void ValidateMountRevision(i64 mountRevision);
 
-    TTableReplicaInfo& GetReplicaInfo(const TTableReplica* replica);
+    TTableReplicaInfo* FindReplicaInfo(const TTableReplica* replica);
+    TTableReplicaInfo* GetReplicaInfo(const TTableReplica* replica);
     TDuration ComputeReplicationLagTime(const TTableReplicaInfo& replicaInfo) const;
 
     bool IsActive() const;

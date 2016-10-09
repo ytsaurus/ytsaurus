@@ -99,10 +99,10 @@ private:
                     fluent
                         .Item(ToString(tablet->GetId()))
                         .BeginMap()
-                            .Item("state").Value(replicaInfo.GetState())
-                            .Item("current_replication_row_index").Value(replicaInfo.GetCurrentReplicationRowIndex())
-                            .Item("current_replication_timestamp").Value(replicaInfo.GetCurrentReplicationTimestamp())
-                            .Item("replication_lag_time").Value(tablet->ComputeReplicationLagTime(replicaInfo))
+                            .Item("state").Value(replicaInfo->GetState())
+                            .Item("current_replication_row_index").Value(replicaInfo->GetCurrentReplicationRowIndex())
+                            .Item("current_replication_timestamp").Value(replicaInfo->GetCurrentReplicationTimestamp())
+                            .Item("replication_lag_time").Value(tablet->ComputeReplicationLagTime(*replicaInfo))
                         .EndMap();
                 });
             return true;

@@ -2451,7 +2451,7 @@ private:
         replicaInfo.SetReplicaPath(descriptor.replica_path());
         replicaInfo.SetStartReplicationTimestamp(descriptor.start_replication_timestamp());
         replicaInfo.SetState(ETableReplicaState::Disabled);
-        PopulateTableReplicaInfoFromStatistics(&replicaInfo, descriptor.statistics());
+        replicaInfo.MergeFromStatistics(descriptor.statistics());
 
         if (IsLeader()) {
             StartTableReplicaEpoch(tablet, &replicaInfo);
@@ -2542,7 +2542,7 @@ private:
         ToProto(request.mutable_tablet_id(), tablet->GetId());
         ToProto(request.mutable_replica_id(), replicaInfo.GetId());
         request.set_mount_revision(tablet->GetMountRevision());
-        PopulateTableReplicaStatisticsFromInfo(request.mutable_statistics(), replicaInfo);
+        replicaInfo.PopulateStatistics(request.mutable_statistics());
         PostMasterMutation(request);
     }
 
@@ -2613,19 +2613,6 @@ private:
         auto trimmedRowCount = it->second->GetStartingRowIndex();
         YCHECK(tablet->GetTrimmedRowCount() <= trimmedRowCount);
         UpdateTrimmedRowCount(tablet, trimmedRowCount);
-    }
-
-
-    static void PopulateTableReplicaStatisticsFromInfo(TTableReplicaStatistics* statistics, const TTableReplicaInfo& info)
-    {
-        statistics->set_current_replication_row_index(info.GetCurrentReplicationRowIndex());
-        statistics->set_current_replication_timestamp(info.GetCurrentReplicationTimestamp());
-    }
-
-    static void PopulateTableReplicaInfoFromStatistics(TTableReplicaInfo* info, const TTableReplicaStatistics& statistics)
-    {
-        info->SetCurrentReplicationRowIndex(statistics.current_replication_row_index());
-        info->SetCurrentReplicationTimestamp(statistics.current_replication_timestamp());
     }
 };
 

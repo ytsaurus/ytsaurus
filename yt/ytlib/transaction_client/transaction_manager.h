@@ -167,7 +167,7 @@ public:
 private:
     friend class TTransaction;
     class TImpl;
-    TIntrusivePtr<TImpl> Impl_;
+    const TIntrusivePtr<TImpl> Impl_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTransactionManager)
