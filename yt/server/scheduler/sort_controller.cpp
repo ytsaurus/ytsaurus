@@ -2656,7 +2656,9 @@ private:
         auto jobSizeLimits = SuggestPartitionJobLimits();
         auto stripes = SliceInputChunks(Options->PartitionJobMaxSliceDataSize, &jobSizeLimits);
 
-        if (!Spec->PartitionJobCount && !Spec->DataSizePerPartitionJob) {
+        InitPartitionPool(jobSizeLimits.GetDataSizePerJob());
+
+        if (Config->EnableJobSizeManager && !Spec->PartitionJobCount && !Spec->DataSizePerPartitionJob) {
             LOG_DEBUG("Activating job size manager (DataSizePerPartitionJob: %v, MaxJobDataSize: %v, MinPartitionJobTime: %v, ExecToPrepareTimeRatio: %v",
                 jobSizeLimits.GetDataSizePerJob(),
                 Spec->MaxDataSizePerJob,
@@ -2666,9 +2668,8 @@ private:
                 jobSizeLimits.GetDataSizePerJob(),
                 Spec->MaxDataSizePerJob,
                 Options->PartitionJobSizeManager);
+            PartitionPool->SetMaxDataSizePerJob(Spec->MaxDataSizePerJob);
         }
-
-        InitPartitionPool(jobSizeLimits.GetDataSizePerJob());
 
         PartitionTask = New<TPartitionTask>(this);
         PartitionTask->Initialize();

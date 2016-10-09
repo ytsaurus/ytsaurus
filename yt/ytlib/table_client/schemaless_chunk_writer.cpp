@@ -213,7 +213,6 @@ protected:
                 lastRow.Begin() + Schema_.GetKeyColumnCount());
         }
 
-        block.Meta.set_chunk_row_count(RowCount_);
         block.Meta.set_block_index(BlockMetaExt_.blocks_size());
 
         BlockMetaExtSize_ += block.Meta.ByteSize();
@@ -400,6 +399,7 @@ public:
 
             if (BlockWriter_->GetBlockSize() >= Config_->BlockSize) {
                 auto block = BlockWriter_->FlushBlock();
+                block.Meta.set_chunk_row_count(RowCount_);
                 RegisterBlock(block, row);
                 BlockWriter_.reset(new THorizontalSchemalessBlockWriter);
             }
@@ -426,6 +426,7 @@ private:
     {
         if (BlockWriter_->GetRowCount() > 0) {
             auto block = BlockWriter_->FlushBlock();
+            block.Meta.set_chunk_row_count(RowCount_);
             RegisterBlock(block, LastKey_.Get());
         }
 
@@ -585,6 +586,7 @@ private:
     void FinishBlock(int blockWriterIndex, TUnversionedRow lastRow)
     {
         auto block = BlockWriters_[blockWriterIndex]->DumpBlock(BlockMetaExt_.blocks_size(), RowCount_);
+        block.Meta.set_chunk_row_count(RowCount_);
         RegisterBlock(block, lastRow);
     }
 

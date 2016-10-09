@@ -16,6 +16,8 @@ struct INativeConnection
 {
     virtual TNativeConnectionConfigPtr GetConfig() = 0;
 
+    virtual const NNodeTrackerClient::TNetworkPreferenceList& GetNetworks() const = 0;
+
     virtual const NObjectClient::TCellId& GetPrimaryMasterCellId() const = 0;
     virtual NObjectClient::TCellTag GetPrimaryMasterCellTag() const = 0;
     virtual const NObjectClient::TCellTagList& GetSecondaryMasterCellTags() const = 0;

@@ -1,7 +1,7 @@
 var util = require("util");
 var stream = require("stream");
 
-var binding = require("./ytnode");
+var binding = process._linkedBinding ? process._linkedBinding("ytnode") : require("./ytnode");
 
 ////////////////////////////////////////////////////////////////////////////////
 

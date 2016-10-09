@@ -174,7 +174,7 @@ namespace NYT {
 #define ENUM__MINMAX_IMPL(name, seq, ext) \
     static constexpr TType Get##ext##Value() \
     { \
-        return TType(NMpl::ext( \
+        return TType(::NYT::NMpl::ext( \
             PP_FOR_EACH(ENUM__MINMAX_ITEM, seq) \
             ENUM__MINMAX_ITEM_CORE(PP_HEAD(seq)) \
         )); \

@@ -143,7 +143,7 @@ TCodegenExpression TExpressionProfiler::Profile(TConstExpressionPtr expr, const 
         Fold(static_cast<int>(EFoldingObjectType::LiteralExpr));
         Fold(static_cast<ui16>(TValue(literalExpr->Value).Type));
 
-        int index = Variables_->AddObject<TOwningValue>(literalExpr->Value);
+        int index = Variables_->AddOpaque<TOwningValue>(literalExpr->Value);
 
         return MakeCodegenLiteralExpr(index, literalExpr->Type);
     } else if (auto referenceExpr = expr->As<TReferenceExpression>()) {
@@ -167,7 +167,7 @@ TCodegenExpression TExpressionProfiler::Profile(TConstExpressionPtr expr, const 
             literalArgs.push_back(argument->As<TLiteralExpression>() != nullptr);
         }
 
-        int index = Variables_->AddObject<TFunctionContext>(std::move(literalArgs));
+        int index = Variables_->AddOpaque<TFunctionContext>(std::move(literalArgs));
 
         const auto& function = FunctionProfilers_->GetFunction(functionExpr->FunctionName);
 
@@ -205,7 +205,7 @@ TCodegenExpression TExpressionProfiler::Profile(TConstExpressionPtr expr, const 
             codegenArgs.push_back(Profile(argument, schema));
         }
 
-        int index = Variables_->AddObject<TSharedRange<TRow>>(inOp->Values);
+        int index = Variables_->AddOpaque<TSharedRange<TRow>>(inOp->Values);
 
         return MakeCodegenInOpExpr(codegenArgs, index);
     }
@@ -283,7 +283,7 @@ TCodegenSource TQueryProfiler::Profile(TConstQueryPtr query)
             foreignFilter = ExtractPredicateForColumnSubset(whereClause, joinClause->GetRenamedSchema());
         }
 
-        int index = Variables_->AddObject<TJoinParameters>(GetJoinEvaluator(
+        int index = Variables_->AddOpaque<TJoinParameters>(GetJoinEvaluator(
             *joinClause,
             foreignFilter,
             schema,

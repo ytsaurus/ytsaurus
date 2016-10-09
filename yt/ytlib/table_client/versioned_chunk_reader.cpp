@@ -1389,7 +1389,6 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 timestamp);
 
         case ETableChunkFormat::SchemalessHorizontal: {
-
             auto schemalessReaderFactory = [&] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) {
                 TChunkSpec chunkSpec;
                 auto* protoMeta = chunkSpec.mutable_chunk_meta();
@@ -1415,9 +1414,10 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 return CreateSchemafulReaderAdapter(schemalessReaderFactory, schema);
             };
             return CreateVersionedReaderAdapter(
-                schemafulReaderFactory,
+                std::move(schemafulReaderFactory),
                 chunkMeta->Schema());
         }
+
         default:
             Y_UNREACHABLE();
     }

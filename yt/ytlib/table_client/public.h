@@ -254,6 +254,8 @@ DECLARE_REFCOUNTED_CLASS(TVersionedRowMerger)
 
 DECLARE_REFCOUNTED_STRUCT(IChunkLookupHashTable)
 
+DECLARE_REFCOUNTED_STRUCT(TCacheBasedChunkState)
+
 struct TBoundaryKeys;
 
 class TSaveContext;

@@ -57,10 +57,17 @@ private:
     class TImpl;
     using TImplPtr = TIntrusivePtr<TImpl>;
     const TImplPtr Impl_;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TInMemoryManager)
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Preload specified store into memory.
+void PreloadInMemoryStore(
+    const TTabletSnapshotPtr& tabletSnapshot,
+    const IChunkStorePtr& store,
+    const IInvokerPtr& compressionInvoker);
 
 ////////////////////////////////////////////////////////////////////////////////
 

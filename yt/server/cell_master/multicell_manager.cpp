@@ -12,6 +12,8 @@
 
 #include <yt/core/concurrency/periodic_executor.h>
 
+#include <yt/core/rpc/retrying_channel.h>
+
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/hive/cell_directory.h>
@@ -226,10 +228,17 @@ public:
             return nullptr;
         }
 
-        auto wrappedChannel = CreateDefaultTimeoutChannel(channel, Config_->MasterRpcTimeout);
-        YCHECK(MasterChannelCache_.insert(std::make_pair(key, wrappedChannel)).second);
+        auto isRetryableError = BIND([] (const TError& error) {
+            return
+                error.GetCode() == NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded ||
+                IsRetriableError(error);
+        });
+        channel = CreateRetryingChannel(Config_->MasterConnection, channel, isRetryableError);
+        channel = CreateDefaultTimeoutChannel(channel, Config_->MasterConnection->RpcTimeout);
 
-        return wrappedChannel;
+        YCHECK(MasterChannelCache_.emplace(key, channel).second);
+
+        return channel;
     }
 
 

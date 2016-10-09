@@ -30,6 +30,8 @@
 #include <util/system/sigset.h>
 #include <util/system/yield.h>
 
+#include <util/string/vector.h>
+
 #include <atomic>
 
 #ifdef _win_
@@ -829,6 +831,74 @@ void TLogManager::Enqueue(TLogEvent&& event)
 void TLogManager::Reopen()
 {
     Impl_->Reopen();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void SimpleConfigureLogging(
+    const char* logLevelStr,
+    const char* logExcludeCategoriesStr,
+    const char* logIncludeCategoriesStr)
+{
+    if (!logLevelStr && !logExcludeCategoriesStr && !logIncludeCategoriesStr) {
+        return;
+    }
+
+    const char* const stderrWriterName = "stderr";
+
+    auto rule = New<TRuleConfig>();
+    rule->Writers.push_back(stderrWriterName);
+
+    if (logLevelStr) {
+        Stroka logLevel = logLevelStr;
+        logLevel.to_upper(0, std::min(logLevel.size(), static_cast<size_t>(1)));
+        rule->MinLevel = TEnumTraits<ELogLevel>::FromString(logLevel);
+    } else {
+        rule->MinLevel = ELogLevel::Fatal;
+    }
+
+    VectorStrok logExcludeCategories;
+    if (logExcludeCategoriesStr) {
+        SplitStroku(&logExcludeCategories, logExcludeCategoriesStr, ",");
+    }
+
+    for (const auto& excludeCategory : logExcludeCategories) {
+        rule->ExcludeCategories.insert(excludeCategory);
+    }
+
+    VectorStrok logIncludeCategories;
+    if (logIncludeCategoriesStr) {
+        SplitStroku(&logIncludeCategories, logIncludeCategoriesStr, ",");
+    }
+
+    if (!logIncludeCategories.empty()) {
+        rule->IncludeCategories.Assign(yhash_set<Stroka>());
+        for (const auto& includeCategory : logIncludeCategories) {
+            rule->IncludeCategories->insert(includeCategory);
+        }
+    }
+
+    auto config = New<TLogConfig>();
+    config->Rules.push_back(std::move(rule));
+
+    config->MinDiskSpace = 0;
+    config->HighBacklogWatermark = std::numeric_limits<int>::max();
+    config->LowBacklogWatermark = 0;
+
+    auto stderrWriter = New<TWriterConfig>();
+    stderrWriter->Type = EWriterType::Stderr;
+
+    config->WriterConfigs.insert(std::make_pair(stderrWriterName, std::move(stderrWriter)));
+
+    TLogManager::Get()->Configure(std::move(config));
+}
+
+void SimpleConfigureLoggingFromEnv()
+{
+    SimpleConfigureLogging(
+        getenv("YT_LOG_LEVEL"),
+        getenv("YT_LOG_EXCLUDE_CATEGORIES"),
+        getenv("YT_LOG_INCLUDE_CATEGORIES"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

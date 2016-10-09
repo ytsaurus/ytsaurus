@@ -320,24 +320,27 @@ private:
             case ESchemaInferenceMode::Auto:
                 if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
                     InferSchemaFromInputOrdered();
-                } else {
-                    ValidateOutputSchemaOrdered();
+                    break;
+                } 
+                // We intentionally fall into next clause.
 
-                    for (const auto& inputTable : InputTables) {
-                        ValidateTableSchemaCompatibility(
-                            inputTable.Schema,
-                            table.TableUploadOptions.TableSchema,
-                            /* ignoreSortOrder */ true)
-                        .ThrowOnError();
+            case ESchemaInferenceMode::FromOutput:
+                ValidateOutputSchemaOrdered();
+
+                // Since remote copy doesn't unpack blocks and validate schema, we must ensure
+                // that schemas are identical.
+                for (const auto& inputTable : InputTables) {
+                    if (inputTable.Schema.ToCanonical() != table.TableUploadOptions.TableSchema.ToCanonical()) {
+                        THROW_ERROR_EXCEPTION("Cannot make remote copy into table with \"strong\" schema since "
+                            "input table schema differs from output table schema")
+                            << TErrorAttribute("input_table_schema", inputTable.Schema)
+                            << TErrorAttribute("output_table_schema", table.TableUploadOptions.TableSchema);
                     }
                 }
                 break;
 
             case ESchemaInferenceMode::FromInput:
                 InferSchemaFromInputOrdered();
-                break;
-
-            case ESchemaInferenceMode::FromOutput:
                 break;
 
             default:

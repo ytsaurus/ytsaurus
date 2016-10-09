@@ -1,9 +1,24 @@
+################################################################################
 IF(YMAKE)
-  SET(CMAKE_CURRENT_LIST_DIR .)
-  SET(YT_ABI 18_5)
-ENDIF()
+################################################################################
 
-SET(PROTO_NAMESPACE yt/${YT_ABI})
+LIBRARY()
+
+OWNER(sandello)
+
+SET(YT_ABI 18_5)
+
+PEERDIR(
+  yt/${YT_ABI}/yt/python/driver
+  yt/${YT_ABI}/yt/python/yson
+  yt/${YT_ABI}/yt/python/common
+)
+
+END()
+
+################################################################################
+ELSE()
+################################################################################
 
 SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/buffered_stream.cpp
@@ -14,38 +29,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/shutdown.cpp
   ${CMAKE_CURRENT_LIST_DIR}/stream.cpp
 )
-
-################################################################################
-IF(YMAKE)
-################################################################################
-
-LIBRARY()
-
-OWNER(sandello)
-
-NO_COMPILER_WARNINGS()
-NO_WERROR()
-
-PYTHON_ADDINCL()
-
-SRCS(
-  ${YT_SRCS}
-  ${CMAKE_CURRENT_LIST_DIR}/yson.cpp
-)
-
-PEERDIR(
-  contrib/libs/pycxx
-  yt/${YT_ABI}/yt/core
-  yt/${YT_ABI}/yt/ytlib
-)
-
-PY_REGISTER(yson_lib)
-
-END()
-
-################################################################################
-ELSE()
-################################################################################
 
 execute_process(COMMAND lsb_release --codename --short
                 OUTPUT_VARIABLE LSB_RELEASE)

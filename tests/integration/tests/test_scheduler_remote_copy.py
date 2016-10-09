@@ -3,6 +3,7 @@ import pytest
 from yt_env_setup import YTEnvSetup, make_schema, make_ace
 from yt_commands import *
 from yt.environment import YTInstance
+from yt import yson
 
 import time
 
@@ -76,6 +77,39 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyBase):
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
         assert not get("//tmp/t2/@sorted")
+
+    def test_schema_inference(self):
+        schema = yson.loads("<strict=%true; unique_keys=%false>[{name=a; type=string}]")
+
+        create("table", 
+            "//tmp/t1", 
+            attributes={"schema" : schema}, 
+            driver=self.remote_driver)
+
+        write_table("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
+
+        create("table", "//tmp/t2")
+        remote_copy(in_="//tmp/t1", out="//tmp/t2", spec={"cluster_name": "remote"})
+
+        assert read_table("//tmp/t2") == [{"a": "b"}]
+        assert get("//tmp/t2/@schema") == schema
+        assert get("//tmp/t2/@schema_mode") == "strong"
+
+        create("table", 
+            "//tmp/t3",
+            attributes={"schema" : [{"name" : "b", "type" : "string"}]})
+
+        with pytest.raises(YtError):
+            # To do remote copy into table with "stong" schema mode schemas must be identical.
+            remote_copy(in_="//tmp/t1", out="//tmp/t3", spec={"cluster_name": "remote"})
+
+        with pytest.raises(YtError):
+            # To do remote copy into table with "stong" schema mode schemas must be identical.
+            # Even if we force scheduler to infer schema from output.
+            remote_copy(
+                in_="//tmp/t1", 
+                out="//tmp/t3", 
+                spec={"cluster_name": "remote", "schema_inference_mode" : "from_output"})
 
     def test_cluster_connection_config(self):
         create("table", "//tmp/t1", driver=self.remote_driver)
