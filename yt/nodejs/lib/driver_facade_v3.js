@@ -1,4 +1,4 @@
-var binding = require("./ytnode");
+var binding = process._linkedBinding ? process._linkedBinding("ytnode") : require("./ytnode");
 
 var Q = require("bluebird");
 

@@ -3,7 +3,7 @@ var zlib = require("zlib");
 var buffertools = require("buffertools");
 var bluebird = require("bluebird");
 
-var binding = require("../lib/ytnode");
+var binding = process._linkedBinding ? process._linkedBinding("ytnode") : require("../lib/ytnode");
 
 var YtReadableStream = require("../lib/readable_stream.js").that;
 var YtWritableStream = require("../lib/writable_stream.js").that;

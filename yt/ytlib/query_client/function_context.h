@@ -1,7 +1,6 @@
 #pragma once
 
 #include <memory>
-#include <utility>
 #include <vector>
 
 namespace NYT {
@@ -14,22 +13,26 @@ struct TFunctionContext
     explicit TFunctionContext(std::vector<bool> literalArgs);
     ~TFunctionContext();
 
-    // Create local object. Objects are destroyed automaticaly when the function context is destroyed.
+    //! Creates typed function-local object.
+    //! Function-local objects are destroyed automaticaly when the function context is destroyed.
+    //! In case of any error, nullptr is returned.
     template <class T, class... Args>
-    T* CreateObject(Args... args);
+    T* CreateObject(Args&&... args);
 
-    void* GetPrivateData();
+    //! Creates untyped function-local object.
+    //! Function-local objects are destroyed automaticaly when the function context is destroyed.
+    //! In case of any error, nullptr is returned.
+    void* CreateUntypedObject(void* pointer, void(*deleter)(void*));
+
+    void* GetPrivateData() const;
 
     void SetPrivateData(void* data);
 
-    bool IsArgLiteral(int argIndex);
+    bool IsLiteralArg(int argIndex) const;
 
 private:
-    std::vector<std::unique_ptr<void, void(*)(void*)>> Objects_;
-    std::vector<bool> LiteralArgs_;
-    void* PrivateData_ = nullptr;
-
-    void RememberObjectOrDestroy(void* object, void(*deleter)(void*));
+    class TImpl;
+    std::unique_ptr<TImpl> Impl_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1118,10 +1118,10 @@ public:
         if (ShouldCompletePrematurely()) {
             SetPromisePrematurely(Promise_);
         } else {
-            for (int index = 0; index < Futures_.size(); ++index) {
+            for (size_t index = 0; index < Futures_.size(); ++index) {
                 Futures_[index].Subscribe(BIND(&TFutureCombinerBase::OnFutureSet, MakeStrong(this), index));
             }
-            Promise_.OnCanceled(BIND(&TFutureCombinerBase::CancelFutures, MakeWeak(this)));            
+            Promise_.OnCanceled(BIND(&TFutureCombinerBase::CancelFutures, MakeWeak(this)));
         }
         return Promise_;
     }
@@ -1133,7 +1133,7 @@ protected:
 
     void CancelFutures()
     {
-        for (int index = 0; index < Futures_.size(); ++index) {
+        for (size_t index = 0; index < Futures_.size(); ++index) {
             Futures_[index].Cancel();
         }
     }
@@ -1168,7 +1168,7 @@ public:
 private:
     TFutureCombinerResultHolder<T> ResultHolder_;
     std::atomic<int> PendingResponseCount_;
-    
+
 
     virtual void OnFutureSet(int futureIndex, const TErrorOr<T>& result) override
     {
@@ -1179,12 +1179,12 @@ private:
         }
 
         ResultHolder_.SetItem(futureIndex, result);
-        
+
         if (--PendingResponseCount_ == 0) {
             ResultHolder_.SetPromise(this->Promise_);
         }
     }
-    
+
     virtual bool ShouldCompletePrematurely() override
     {
         return this->Futures_.empty();
@@ -1209,7 +1209,7 @@ private:
     TFutureCombinerResultHolder<T> ResultHolder_;
     std::atomic<int> PendingResponseCount_;
     std::atomic<int> CurrentResponseIndex_ = {0};
-    
+
 
     virtual void OnFutureSet(int /*futureIndex*/, const TErrorOr<T>& result) override
     {
@@ -1223,12 +1223,12 @@ private:
         if (responseIndex < Quorum_) {
             ResultHolder_.SetItem(responseIndex, result);
         }
-        
+
         if (--PendingResponseCount_ == 0) {
             ResultHolder_.SetPromise(this->Promise_);
         }
     }
-    
+
     virtual bool ShouldCompletePrematurely() override
     {
         return this->Futures_.empty() || Quorum_ == 0;
@@ -1258,7 +1258,7 @@ private:
             this->Promise_.Set(std::move(Results_));
         }
     }
-    
+
     virtual bool ShouldCompletePrematurely() override
     {
         return this->Futures_.empty();

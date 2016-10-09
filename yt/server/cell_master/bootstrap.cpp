@@ -409,10 +409,12 @@ void TBootstrap::DoInitialize()
             localPeerId);
     }
 
+    const auto& networks = Config_->Networks;
+
     CellDirectory_ = New<TCellDirectory>(
         Config_->CellDirectory,
         GetBusChannelFactory(),
-        NNodeTrackerClient::DefaultNetworkPreferences);
+        networks);
 
     YCHECK(CellDirectory_->ReconfigureCell(Config_->PrimaryMaster));
     for (const auto& cellConfig : Config_->SecondaryMasters) {
@@ -608,10 +610,10 @@ void TBootstrap::DoInitialize()
 
     LightNodeChannelFactory_ = CreateNodeChannelFactory(
         CreateCachingChannelFactory(GetBusChannelFactory()),
-        Config_->Networks);
+        networks);
     HeavyNodeChannelFactory_ = CreateNodeChannelFactory(
         CreateCachingChannelFactory(GetBusChannelFactory()),
-        Config_->Networks);
+        networks);
 }
 
 void TBootstrap::DoRun()

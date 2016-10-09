@@ -607,6 +607,8 @@ public:
 
     // Enables using tmpfs if tmpfs_path is specified in user spec.
     bool EnableTmpfs;
+    // Enable dynamic change of job sizes.
+    bool EnableJobSizeManager;
 
     //! Acl used for intermediate tables and stderrs additional to acls specified by user.
     NYTree::IListNodePtr AdditionalIntermediateDataAcl;
@@ -839,6 +841,8 @@ public:
             .GreaterThanOrEqual(1);
 
         RegisterParameter("enable_tmpfs", EnableTmpfs)
+            .Default(true);
+        RegisterParameter("enable_job_size_manager", EnableJobSizeManager)
             .Default(true);
 
         RegisterParameter("additional_intermediate_data_acl", AdditionalIntermediateDataAcl)

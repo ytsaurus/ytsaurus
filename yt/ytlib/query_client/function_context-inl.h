@@ -9,13 +9,15 @@ namespace NQueryClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T, class... Args>
-T* TFunctionContext::CreateObject(Args... args)
+T* TFunctionContext::CreateObject(Args&&... args)
 {
-    T* objectPtr = new T(args...);
+    auto pointer = new T(std::forward<Args>(args)...);
+    auto deleter = [] (void* ptr) {
+        static_assert(sizeof(T) > 0, "Cannot delete incomplete type.");
+        delete static_cast<T*>(ptr);
+    };
 
-    RememberObjectOrDestroy(objectPtr, [] (void* ptr) { delete static_cast<T*>(ptr); });
-
-    return objectPtr;
+    return static_cast<T*>(CreateUntypedObject(pointer, deleter));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

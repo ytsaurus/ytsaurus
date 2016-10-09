@@ -161,6 +161,10 @@ class TestTables(YTEnvSetup):
             # sorted_by and schema are not compatible
             write_table("<sorted_by=[a]; schema=[{name=key; type=int64; sort_order=ascending}]>//tmp/table", [{"key": 2}])
 
+        with pytest.raises(YtError):
+            # invalid schema - duplicate columns
+            write_table("<schema=[{name=key; type=int64};{name=key; type=string}]>//tmp/table", [])
+
         write_table("<schema=[{name=key; type=int64; sort_order=ascending}]>//tmp/table",
             [{"key": 0}, {"key": 1}])
 

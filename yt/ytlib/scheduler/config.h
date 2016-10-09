@@ -267,8 +267,6 @@ public:
 
     bool IncludeMemoryMappedFiles;
 
-    int IopsThreshold;
-
     bool UseYamrDescriptors;
     bool CheckInputFullyConsumed;
     bool EnableCoreDump;
@@ -312,10 +310,6 @@ public:
             .LessThanOrEqual(1.);
         RegisterParameter("include_memory_mapped_files", IncludeMemoryMappedFiles)
             .Default(true);
-        RegisterParameter("iops_threshold", IopsThreshold)
-            .Default(3)
-            .GreaterThan(0)
-            .LessThanOrEqual(100);
         RegisterParameter("use_yamr_descriptors", UseYamrDescriptors)
             .Default(false);
         RegisterParameter("check_input_fully_consumed", CheckInputFullyConsumed)
