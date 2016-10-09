@@ -32,7 +32,11 @@ struct TRuntimeTableReplicaData
     : public TIntrinsicRefCounted
 {
     std::atomic<i64> CurrentReplicationRowIndex = {0};
+    std::atomic<TTimestamp> CurrentReplicationTimestamp = {NullTimestamp};
     std::atomic<i64> PreparedReplicationRowIndex = {-1};
+
+    void Populate(NTabletClient::NProto::TTableReplicaStatistics* statistics) const;
+    void MergeFrom(const NTabletClient::NProto::TTableReplicaStatistics& statistics);
 };
 
 DEFINE_REFCOUNTED_TYPE(TRuntimeTableReplicaData)
@@ -57,7 +61,7 @@ struct TRuntimeTabletData
 {
     std::atomic<i64> TotalRowCount = {0};
     std::atomic<i64> TrimmedRowCount = {0};
-    std::atomic<TTimestamp> LastCommitTimestamp = {NTransactionClient::MinTimestamp};
+    std::atomic<TTimestamp> LastCommitTimestamp = {NullTimestamp};
 };
 
 DEFINE_REFCOUNTED_TYPE(TRuntimeTabletData)
@@ -172,7 +176,6 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, StartReplicationTimestamp, NullTimestamp);
 
     DEFINE_BYVAL_RW_PROPERTY(ETableReplicaState, State);
-    DEFINE_BYVAL_RW_PROPERTY(TTimestamp, CurrentReplicationTimestamp, NullTimestamp);
 
     DEFINE_BYVAL_RW_PROPERTY(TTableReplicatorPtr, Replicator);
 
@@ -186,10 +189,16 @@ public:
     i64 GetCurrentReplicationRowIndex() const;
     void SetCurrentReplicationRowIndex(i64 value);
 
+    TTimestamp GetCurrentReplicationTimestamp() const;
+    void SetCurrentReplicationTimestamp(TTimestamp value);
+
     i64 GetPreparedReplicationRowIndex() const;
     void SetPreparedReplicationRowIndex(i64 value);
 
     TTableReplicaSnapshotPtr BuildSnapshot() const;
+
+    void PopulateStatistics(NTabletClient::NProto::TTableReplicaStatistics* statistics) const;
+    void MergeFromStatistics(const NTabletClient::NProto::TTableReplicaStatistics& statistics);
 
 private:
     const TRuntimeTableReplicaDataPtr RuntimeData_ = New<TRuntimeTableReplicaData>();

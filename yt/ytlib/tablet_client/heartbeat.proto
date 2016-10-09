@@ -12,6 +12,12 @@ message TTabletSlotInfo
     optional NYT.NHiveClient.NProto.TCellInfo cell_info = 3;
 }
 
+message TTableReplicaStatistics
+{
+    required int64 current_replication_row_index = 1;
+    required uint64 current_replication_timestamp = 2;
+}
+
 message TTabletStatistics
 {
     required int32 partition_count = 1;
@@ -36,11 +42,18 @@ message TTabletPerformanceCounters
     required int64 merged_row_read_count = 8;
 }
 
+message TTableReplicaInfo
+{
+    required NYT.NProto.TGuid replica_id = 1;
+    required TTableReplicaStatistics statistics = 2;
+}
+
 message TTabletInfo
 {
     required NYT.NProto.TGuid tablet_id = 1;
     required TTabletStatistics statistics = 2;
-    required TTabletPerformanceCounters performance_counters = 3;
+    repeated TTableReplicaInfo replicas = 3;
+    required TTabletPerformanceCounters performance_counters = 4;
 }
 
 message TCreateTabletSlotInfo

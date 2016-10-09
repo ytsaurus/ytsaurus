@@ -17,6 +17,7 @@ class TColumnFilter;
 class TReqLookupRows;
 class TReqRegisterTransactionActions;
 class TRspRegisterTransactionActions;
+class TTableReplicaStatistics;
 
 } // namespace NProto
 

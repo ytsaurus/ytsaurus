@@ -214,11 +214,17 @@ void TTablet::ValidateMountRevision(i64 mountRevision)
     }
 }
 
-TTableReplicaInfo& TTablet::GetReplicaInfo(const TTableReplica* replica)
+TTableReplicaInfo* TTablet::FindReplicaInfo(const TTableReplica* replica)
 {
     auto it = Replicas_.find(const_cast<TTableReplica*>(replica));
-    YCHECK(it != Replicas_.end());
-    return it->second;
+    return it == Replicas_.end() ? nullptr : &it->second;
+}
+
+TTableReplicaInfo* TTablet::GetReplicaInfo(const TTableReplica* replica)
+{
+    auto* replicaInfo = FindReplicaInfo(replica);
+    YCHECK(replicaInfo);
+    return replicaInfo;
 }
 
 TDuration TTablet::ComputeReplicationLagTime(const TTableReplicaInfo& replicaInfo) const

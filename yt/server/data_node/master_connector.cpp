@@ -585,20 +585,28 @@ void TMasterConnector::SendIncrementalNodeHeartbeat(TCellTag cellTag)
         }
 
         auto tabletSnapshots = slotManager->GetTabletSnapshots();
-        for (auto snapshot : tabletSnapshots) {
+        for (const auto& tabletSnapshot : tabletSnapshots) {
             auto* protoTabletInfo = request->add_tablets();
-            ToProto(protoTabletInfo->mutable_tablet_id(), snapshot->TabletId);
+            ToProto(protoTabletInfo->mutable_tablet_id(), tabletSnapshot->TabletId);
 
-            auto* protoStatistics = protoTabletInfo->mutable_statistics();
-            protoStatistics->set_partition_count(snapshot->PartitionList.size());
-            protoStatistics->set_store_count(snapshot->StoreCount);
-            protoStatistics->set_preload_pending_store_count(snapshot->PreloadPendingStoreCount);
-            protoStatistics->set_preload_completed_store_count(snapshot->PreloadCompletedStoreCount);
-            protoStatistics->set_preload_failed_store_count(snapshot->PreloadFailedStoreCount);
-            protoStatistics->set_last_commit_timestamp(snapshot->RuntimeData->LastCommitTimestamp);
+            auto* protoTabletStatistics = protoTabletInfo->mutable_statistics();
+            protoTabletStatistics->set_partition_count(tabletSnapshot->PartitionList.size());
+            protoTabletStatistics->set_store_count(tabletSnapshot->StoreCount);
+            protoTabletStatistics->set_preload_pending_store_count(tabletSnapshot->PreloadPendingStoreCount);
+            protoTabletStatistics->set_preload_completed_store_count(tabletSnapshot->PreloadCompletedStoreCount);
+            protoTabletStatistics->set_preload_failed_store_count(tabletSnapshot->PreloadFailedStoreCount);
+            protoTabletStatistics->set_last_commit_timestamp(tabletSnapshot->RuntimeData->LastCommitTimestamp);
+
+            for (const auto& pair : tabletSnapshot->Replicas) {
+                const auto& replicaId = pair.first;
+                const auto& replicaSnapshot = pair.second;
+                auto* protoReplicaInfo = protoTabletInfo->add_replicas();
+                ToProto(protoReplicaInfo->mutable_replica_id(), replicaId);
+                replicaSnapshot->RuntimeData->Populate(protoReplicaInfo->mutable_statistics());
+            }
 
             auto* protoPerformanceCounters = protoTabletInfo->mutable_performance_counters();
-            auto performanceCounters = snapshot->PerformanceCounters;
+            auto performanceCounters = tabletSnapshot->PerformanceCounters;
             protoPerformanceCounters->set_dynamic_row_read_count(performanceCounters->DynamicRowReadCount);
             protoPerformanceCounters->set_dynamic_row_lookup_count(performanceCounters->DynamicRowLookupCount);
             protoPerformanceCounters->set_dynamic_row_write_count(performanceCounters->DynamicRowWriteCount);

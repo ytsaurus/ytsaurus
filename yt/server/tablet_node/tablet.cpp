@@ -29,10 +29,25 @@ namespace NTabletNode {
 using namespace NHydra;
 using namespace NTableClient;
 using namespace NTabletClient;
+using namespace NTabletClient::NProto;
 using namespace NChunkClient;
 using namespace NObjectClient;
 using namespace NTransactionClient;
 using namespace NQueryClient;
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TRuntimeTableReplicaData::Populate(TTableReplicaStatistics* statistics) const
+{
+    statistics->set_current_replication_row_index(CurrentReplicationRowIndex.load());
+    statistics->set_current_replication_timestamp(CurrentReplicationTimestamp.load());
+}
+
+void TRuntimeTableReplicaData::MergeFrom(const TTableReplicaStatistics& statistics)
+{
+    CurrentReplicationRowIndex = statistics.current_replication_row_index();
+    CurrentReplicationTimestamp = statistics.current_replication_timestamp();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -136,8 +151,8 @@ void TTableReplicaInfo::Save(TSaveContext& context) const
     Save(context, StartReplicationTimestamp_);
     Save(context, State_);
     Save(context, RuntimeData_->CurrentReplicationRowIndex);
+    Save(context, RuntimeData_->CurrentReplicationTimestamp);
     Save(context, RuntimeData_->PreparedReplicationRowIndex);
-    Save(context, CurrentReplicationTimestamp_);
 }
 
 void TTableReplicaInfo::Load(TLoadContext& context)
@@ -149,8 +164,8 @@ void TTableReplicaInfo::Load(TLoadContext& context)
     Load(context, StartReplicationTimestamp_);
     Load(context, State_);
     Load(context, RuntimeData_->CurrentReplicationRowIndex);
+    Load(context, RuntimeData_->CurrentReplicationTimestamp);
     Load(context, RuntimeData_->PreparedReplicationRowIndex);
-    Load(context, CurrentReplicationTimestamp_);
 }
 
 i64 TTableReplicaInfo::GetCurrentReplicationRowIndex() const
@@ -161,6 +176,16 @@ i64 TTableReplicaInfo::GetCurrentReplicationRowIndex() const
 void TTableReplicaInfo::SetCurrentReplicationRowIndex(i64 value)
 {
     RuntimeData_->CurrentReplicationRowIndex = value;
+}
+
+TTimestamp TTableReplicaInfo::GetCurrentReplicationTimestamp() const
+{
+    return RuntimeData_->CurrentReplicationTimestamp;
+}
+
+void TTableReplicaInfo::SetCurrentReplicationTimestamp(TTimestamp value)
+{
+    RuntimeData_->CurrentReplicationTimestamp = value;
 }
 
 i64 TTableReplicaInfo::GetPreparedReplicationRowIndex() const
@@ -179,6 +204,16 @@ TTableReplicaSnapshotPtr TTableReplicaInfo::BuildSnapshot() const
     snapshot->StartReplicationTimestamp = StartReplicationTimestamp_;
     snapshot->RuntimeData = RuntimeData_;
     return snapshot;
+}
+
+void TTableReplicaInfo::PopulateStatistics(TTableReplicaStatistics* statistics) const
+{
+    RuntimeData_->Populate(statistics);
+}
+
+void TTableReplicaInfo::MergeFromStatistics(const TTableReplicaStatistics& statistics)
+{
+    RuntimeData_->MergeFrom(statistics);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

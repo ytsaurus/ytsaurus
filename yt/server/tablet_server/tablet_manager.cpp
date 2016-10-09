@@ -79,6 +79,7 @@ using namespace NYTree;
 using namespace NSecurityServer;
 using namespace NTableServer;
 using namespace NTabletClient;
+using namespace NTabletClient::NProto;
 using namespace NHydra;
 using namespace NHiveClient;
 using namespace NTransactionServer;
@@ -457,8 +458,8 @@ public:
                 continue;
             }
 
-            auto& replicaInfo = tablet->GetReplicaInfo(replica);
-            replicaInfo.SetState(ETableReplicaState::Enabled);
+            auto* replicaInfo = tablet->GetReplicaInfo(replica);
+            replicaInfo->SetState(ETableReplicaState::Enabled);
 
             auto* cell = tablet->GetCell();
             auto* mailbox = hiveManager->GetMailbox(cell->GetId());
@@ -504,8 +505,8 @@ public:
                 continue;
             }
 
-            auto& replicaInfo = tablet->GetReplicaInfo(replica);
-            replicaInfo.SetState(ETableReplicaState::Disabling);
+            auto* replicaInfo = tablet->GetReplicaInfo(replica);
+            replicaInfo->SetState(ETableReplicaState::Disabling);
 
             YCHECK(replica->DisablingTablets().insert(tablet).second);
 
@@ -673,8 +674,8 @@ public:
                 if (table->IsReplicated()) {
                     auto* replicatedTable = table->As<TReplicatedTableNode>();
                     for (auto* replica : replicatedTable->Replicas()) {
-                        const auto& replicaInfo = tablet->GetReplicaInfo(replica);
-                        PopulateTableReplicaDescriptor(req.add_replicas(), replica, replicaInfo);
+                        const auto* replicaInfo = tablet->GetReplicaInfo(replica);
+                        PopulateTableReplicaDescriptor(req.add_replicas(), replica, *replicaInfo);
                     }
                 }
 
@@ -1873,13 +1874,14 @@ private:
             }
         }
 
-        // Copy tablet statistics, update performance counters.
+        // Copy tablet statistics, update performance counters and table replica statistics.
         auto now = TInstant::Now();
         for (auto& tabletInfo : request->tablets()) {
             auto tabletId = FromProto<TTabletId>(tabletInfo.tablet_id());
             auto* tablet = FindTablet(tabletId);
-            if (!IsObjectAlive(tablet) || tablet->GetState() != ETabletState::Mounted)
+            if (!IsObjectAlive(tablet) || tablet->GetState() != ETabletState::Mounted) {
                 continue;
+            }
 
             auto* cell = tablet->GetCell();
             cell->TotalStatistics() -= GetTabletStatistics(tablet);
@@ -1906,6 +1908,21 @@ private:
             ITERATE_TABLET_PERFORMANCE_COUNTERS(XX)
             #undef XX
             tablet->PerformanceCounters().Timestamp = now;
+
+            for (const auto& protoReplicaInfo : tabletInfo.replicas()) {
+                auto replicaId = FromProto<TTableReplicaId>(protoReplicaInfo.replica_id());
+                auto* replica = FindTableReplica(replicaId);
+                if (!replica) {
+                    continue;
+                }
+
+                auto* replicaInfo = tablet->FindReplicaInfo(replica);
+                if (!replicaInfo) {
+                    continue;
+                }
+
+                PopulateTableReplicaInfoFromStatistics(replicaInfo, protoReplicaInfo.statistics());
+            }
         }
     }
 
@@ -2141,15 +2158,15 @@ private:
             return;
         }
 
-        auto& replicaInfo = tablet->GetReplicaInfo(replica);
-        PopulateTableReplicaInfoFromStatistics(&replicaInfo, request->statistics());
+        auto* replicaInfo = tablet->GetReplicaInfo(replica);
+        PopulateTableReplicaInfoFromStatistics(replicaInfo, request->statistics());
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Table replica statistics updated (TabletId: %v, ReplicaId: %v, "
             "CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %v)",
             tabletId,
             replicaId,
-            replicaInfo.GetCurrentReplicationRowIndex(),
-            replicaInfo.GetCurrentReplicationTimestamp());
+            replicaInfo->GetCurrentReplicationRowIndex(),
+            replicaInfo->GetCurrentReplicationTimestamp());
     }
 
     void HydraOnTableReplicaDisabled(TRspDisableTableReplica* response)
@@ -2171,17 +2188,17 @@ private:
             return;
         }
 
-        auto& replicaInfo = tablet->GetReplicaInfo(replica);
-        if (replicaInfo.GetState() != ETableReplicaState::Disabling) {
+        auto* replicaInfo = tablet->GetReplicaInfo(replica);
+        if (replicaInfo->GetState() != ETableReplicaState::Disabling) {
             LOG_WARNING_UNLESS(IsRecovery(), "Disabled replica notification received for a replica in %Qlv state, "
                 "ignored (TabletId: %v, ReplicaId: %v)",
-                replicaInfo.GetState(),
+                replicaInfo->GetState(),
                 tabletId,
                 replicaId);
             return;
         }
 
-        replicaInfo.SetState(ETableReplicaState::Disabled);
+        replicaInfo->SetState(ETableReplicaState::Disabled);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Table replica tablet disabled (TabletId: %v, ReplicaId: %v)",
             tabletId,
@@ -3041,8 +3058,13 @@ private:
 
     static void PopulateTableReplicaInfoFromStatistics(TTableReplicaInfo* info, const TTableReplicaStatistics& statistics)
     {
-        info->SetCurrentReplicationRowIndex(statistics.current_replication_row_index());
-        info->SetCurrentReplicationTimestamp(statistics.current_replication_timestamp());
+        // Updates may be reordered but we can rely on monotonicity here.
+        info->SetCurrentReplicationRowIndex(std::max(
+            info->GetCurrentReplicationRowIndex(),
+            statistics.current_replication_row_index()));
+        info->SetCurrentReplicationTimestamp(std::max(
+            info->GetCurrentReplicationTimestamp(),
+            statistics.current_replication_timestamp()));
     }
 };
 
