@@ -126,30 +126,20 @@ class YtStuff(object):
                 os.makedirs(path)
 
         yt2_arcadia_path = yatest.common.binary_path('yt/packages/contrib/python/yt/bin/yt/yt')
-        orig_yt2_path = os.path.join(self.yt_bins_path, 'yt2')
-        if os.path.exists(orig_yt2_path):
-            os.remove(orig_yt2_path)
-        shutil.copy(yt2_arcadia_path, orig_yt2_path)
+        shutil.copy(yt2_arcadia_path, os.path.join(self.yt_bins_path, 'yt2'))
 
         self.mapreduce_yt_path = [yatest.common.binary_path('yt/packages/contrib/python/yt/bin/mapreduce-yt/mapreduce-yt')]
         self.yt_local_path = [yatest.common.binary_path('yt/packages/contrib/python/yt_local/bin/local/yt_local')]
 
         yt_server_arcadia_path = yatest.common.binary_path('yt/packages/yt/{}/yt/server/ytserver'.format(version))
-        orig_server_path = os.path.join(self.yt_bins_path, 'ytserver')
-        if os.path.exists(orig_server_path):
-            os.remove(orig_server_path)
-        shutil.copy(yt_server_arcadia_path, orig_server_path)
+        shutil.copy(yt_server_arcadia_path, os.path.join(self.yt_bins_path, 'ytserver'))
 
         yt_node_arcadia_path = yatest.common.binary_path('yt/packages/yt/{}/yt/nodejs/targets/bin/ytnode'.format(version))
-        orig_node_path = os.path.join(self.yt_node_bin_path, 'nodejs')
-        if os.path.exists(orig_node_path):
-            os.remove(orig_node_path)
-        shutil.copy(yt_node_arcadia_path, orig_node_path)
+        shutil.copy(yt_node_arcadia_path, os.path.join(self.yt_node_bin_path, 'nodejs'))
 
-        if os.path.exists(self.yt_node_modules_path):
-            shutil.rmtree(self.yt_node_modules_path, ignore_errors=True)
         node_modules_archive_path = yatest.common.binary_path('yt/packages/yt/{}/yt/node_modules/resource.tar.gz'.format(version))
         self._extract_tar(node_modules_archive_path, self.yt_path)
+
         yt_node_path = yatest.common.binary_path('yt/packages/yt/{}/yt/nodejs/targets/package'.format(version))
         shutil.copytree(yt_node_path, os.path.join(self.yt_node_modules_path, 'yt'))
 
