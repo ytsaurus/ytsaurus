@@ -26,7 +26,7 @@ from yt.wrapper.table_commands import copy_table, move_table, _remove_locks, _ge
 from yt.wrapper.cypress_commands import remove_with_empty_dirs
 
 from yt.wrapper.common import flatten, first_not_none, bool_to_string, get_value, get_version, MB, GB, \
-                              chunk_iter_stream, date_string_to_timestamp, update
+                              chunk_iter_stream, date_string_to_timestamp, update, parse_bool
 import yt.wrapper.config as config
 import yt.yson as yson
 import yt.json as json
@@ -37,7 +37,6 @@ import yt.wrapper as yt
 
 import os
 import sys
-import types
 from argparse import ArgumentParser, RawTextHelpFormatter, REMAINDER, Action
 from copy import deepcopy
 from operator import attrgetter
@@ -82,54 +81,57 @@ def list_entities(type, prefix, exact, jsonoutput, user, follow_links):
     else:
         prefix = config["prefix"]
 
-    attributes = []
+    attributes = [
+        "uncompressed_data_size",
+        "account",
+        "dynamic"]
     if jsonoutput:
-        attributes = [
-            "account",
+        attributes += [
             "chunk_count",
             "row_count",
             "compressed_data_size",
-            "uncompressed_data_size",
             "resource_usage",
             "sorted_by",
             "modification_time",
             "creation_time",
             "access_time",
             "compression_codec",
-            "replication_factor"]
-    else:
-        attributes = [
-            "uncompressed_data_size",
-            "account"]
+            "replication_factor",
+            "dynamic"]
 
     # NB: it will be files in case of type == "file"
-    tables = []
+    def object_filter(obj):
+        if yt.config["yamr_mode"]["ignore_empty_tables_in_mapreduce_list"] and obj.attributes.get("uncompressed_data_size", 0) == 0:
+            return False
+        if user is not None and obj.attributes.get("account") != user:
+            return False
+        if type == "table" and parse_bool(obj.attributes.get("dynamic")):
+            return False
+        return True
+
+    objects = []
     if exact is not None:
         if yt.exists(prefix) and yt.get(prefix + "/@type") == type:
-            table_attributes = yt.get(prefix, attributes=attributes).attributes
-            tables.append(yson.to_yson_type(prefix, attributes=table_attributes))
+            obj_attributes = yt.get(prefix, attributes=attributes).attributes
+            obj = yson.to_yson_type(prefix, attributes=obj_attributes)
+            if object_filter(obj):
+                objects.append(obj)
     else:
-        def object_filter(obj):
-            if yt.config["yamr_mode"]["ignore_empty_tables_in_mapreduce_list"] and obj.attributes.get("uncompressed_data_size", 0) == 0:
-                return False
-            if user is not None and obj.attributes.get("account") != user:
-                return False
-            return True
         request_prefix = prefix.rsplit("/", 1)[0]
-        tables = yt.search(request_prefix, type,
-                           path_filter=lambda path: path.startswith(request_prefix),
-                           subtree_filter=lambda path, _: (str(path) == request_prefix) or str(path).startswith(prefix),
-                           object_filter=object_filter,
-                           attributes=attributes,
-                           follow_links=follow_links)
-        tables = list(ifilter(lambda table: table.startswith(prefix), tables))
+        objects = yt.search(request_prefix, type,
+                            path_filter=lambda path: path.startswith(request_prefix),
+                            subtree_filter=lambda path, _: (str(path) == request_prefix) or str(path).startswith(prefix),
+                            object_filter=object_filter,
+                            attributes=attributes,
+                            follow_links=follow_links)
+        objects = list(ifilter(lambda obj: obj.startswith(prefix), objects))
 
     if jsonoutput:
         result = []
-        for table in tables:
-            attrs = table.attributes
+        for obj in objects:
+            attrs = obj.attributes
             result.append({
-                "name": remove_prefix(str(table)),
+                "name": remove_prefix(str(obj)),
                 "user": attrs["account"],
                 "chunks": attrs["chunk_count"],
                 "records": attrs["row_count"],
@@ -150,7 +152,7 @@ def list_entities(type, prefix, exact, jsonoutput, user, follow_links):
         result.sort(key=lambda item: item["name"])
         return [json.dumps(result, indent=4)]
     else:
-        return sorted(imap(remove_prefix, imap(str, tables)))
+        return sorted(imap(remove_prefix, imap(str, objects)))
 
 def add_eoln(str):
     return str + "\n"
