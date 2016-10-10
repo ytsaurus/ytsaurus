@@ -4,6 +4,7 @@ from __future__ import print_function
 
 from yt.local import start, stop, delete, get_proxy, list_instances
 from yt.local.helpers import YTCheckingThread
+from yt.local.commands import _START_DEFAULTS
 
 from yt.wrapper.cli_helpers import run_main
 from yt.wrapper.exceptions_catcher import KeyboardInterruptsCatcher
@@ -18,12 +19,19 @@ DESCRIPTION = """Command-line utility to work with local YT instances."""
 
 logger = logging.getLogger("Yt.local")
 
+_USE_START_DEFAULT = object()
+
 def fix_parser(parser):
     old_add_argument = parser.add_argument
 
     def add_argument(*args, **kwargs):
         help = [kwargs.get("help", "")]
         if "default" in kwargs:
+
+            if kwargs["default"] is _USE_START_DEFAULT:
+                argument_name = args[0].strip("--").replace("-", "_")
+                kwargs["default"] = _START_DEFAULTS[argument_name]
+
             default = str(kwargs["default"])
             help.append(" (default: {0})".format(default))
         kwargs["help"] = "".join(help)
@@ -70,7 +78,9 @@ def start_func(**kwargs):
         kwargs["scheduler_count"] = kwargs["schedulers_count"]
     if kwargs["ports_range_start"] is not None:
         kwargs["port_range_start"] = kwargs["ports_range_start"]
-    for opt in ("masters_count", "nodes_count", "schedulers_count", "ports_range_start"):
+    if kwargs["operations_memory_limit"] is not None:
+        kwargs["jobs_memory_limit"] = kwargs["operations_memory_limit"]
+    for opt in ("masters_count", "nodes_count", "schedulers_count", "ports_range_start", "operations_memory_limit"):
         del kwargs[opt]
 
     environment = start(**kwargs)
@@ -97,9 +107,9 @@ def start_func(**kwargs):
 def add_start_subparser(subparsers):
     parser = subparsers.add_parser("start", help="Start local YT environment with specified options",
                                    func=start_func)
-    parser.add_argument("--master-count", type=int, default=1, help="number of masters")
-    parser.add_argument("--node-count", type=int, default=1, help="number of nodes")
-    parser.add_argument("--scheduler-count", type=int, default=1, help="number of schedulers")
+    parser.add_argument("--master-count", type=int, default=_USE_START_DEFAULT, help="number of masters")
+    parser.add_argument("--node-count", type=int, default=_USE_START_DEFAULT, help="number of nodes")
+    parser.add_argument("--scheduler-count", type=int, default=_USE_START_DEFAULT, help="number of schedulers")
 
     for service in ["master", "node", "scheduler", "proxy"]:
         parser.add_argument("--{0}-config".format(service), help="{0} config path".format(service))
@@ -127,8 +137,13 @@ def add_start_subparser(subparsers):
     parser.add_argument("--fqdn", help="FQDN to use in all addresses. Detected automatically if not specified.")
     parser.add_argument("--prepare-only", action="store_true", default=False,
                         help="Only prepare environment, but don't start.")
-    parser.add_argument("--operations-memory-limit", type=int, default=16 * GB,
-                        help="memory limit for operations in bytes")
+
+    parser.add_argument("--jobs-memory-limit", type=int, default=_USE_START_DEFAULT,
+                        help="memory limit for jobs in bytes")
+    parser.add_argument("--jobs-cpu-limit", type=int, default=_USE_START_DEFAULT, help="cpu limit for jobs")
+    parser.add_argument("--jobs-user-slot-count", type=int, default=_USE_START_DEFAULT,
+                        help="slot count for user jobs")
+
     parser.add_argument("--wait-tablet-cell-initialization", action="store_true", default=False,
                         help="wait until tablet cell (created during world initialization) health is good")
     parser.add_argument("--timeout", type=int,
@@ -140,6 +155,7 @@ def add_start_subparser(subparsers):
     parser.add_argument("--nodes-count", type=int, help=argparse.SUPPRESS)
     parser.add_argument("--schedulers-count", type=int, help=argparse.SUPPRESS)
     parser.add_argument("--ports-range-start", type=int, help=argparse.SUPPRESS)
+    parser.add_argument("--operations-memory-limit", type=int, help=argparse.SUPPRESS)
 
 def add_stop_subparser(subparsers):
     parser = subparsers.add_parser("stop", help="Stop local YT with given id", func=stop)

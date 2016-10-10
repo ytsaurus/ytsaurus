@@ -3,7 +3,7 @@ from .cluster_configuration import modify_cluster_configuration, NODE_MEMORY_LIM
 from yt.environment import YTInstance
 from yt.environment.init_cluster import initialize_world
 from yt.wrapper.common import generate_uuid, GB
-from yt.common import YtError, require
+from yt.common import YtError, require, get_value
 
 import yt.yson as yson
 import yt.json as json
@@ -176,13 +176,27 @@ def _initialize_world(client, cluster_connection, wait_tablet_cell_initializatio
     # Cluster connection.
     client.set("//sys/@cluster_connection", cluster_connection)
 
-def start(master_count=1, node_count=1, scheduler_count=1, start_proxy=True,
+_START_DEFAULTS = {
+    "master_count": 1,
+    "node_count": 1,
+    "scheduler_count": 1,
+    "jobs_memory_limit": 16 * GB,
+    "jobs_cpu_limit": 1,
+    "jobs_user_slot_count": 10
+}
+
+def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=True,
           master_config=None, node_config=None, scheduler_config=None, proxy_config=None,
           proxy_port=None, id=None, local_cypress_dir=None, use_proxy_from_yt_source=False,
           enable_debug_logging=False, tmpfs_path=None, port_range_start=None, fqdn=None, path=None,
-          prepare_only=False, operations_memory_limit=16 * GB, wait_tablet_cell_initialization=False):
+          prepare_only=False, jobs_memory_limit=None, jobs_cpu_limit=None, jobs_user_slot_count=None,
+          wait_tablet_cell_initialization=False):
 
-    require(master_count >= 1, lambda: YtError("Cannot start local YT instance without masters"))
+    options = {}
+    for name in _START_DEFAULTS:
+        options[name] = get_value(locals()[name], _START_DEFAULTS[name])
+
+    require(options["master_count"] >= 1, lambda: YtError("Cannot start local YT instance without masters"))
 
     path = get_root_path(path)
     sandbox_id = id if id is not None else generate_uuid()
@@ -202,9 +216,6 @@ def start(master_count=1, node_count=1, scheduler_count=1, start_proxy=True,
     os.environ["YT_CAPTURE_STDERR_TO_FILE"] = "1"
 
     environment = YTInstance(sandbox_path,
-                             master_count=master_count,
-                             node_count=node_count,
-                             scheduler_count=scheduler_count,
                              has_proxy=start_proxy,
                              proxy_port=proxy_port,
                              enable_debug_logging=enable_debug_logging,
@@ -213,11 +224,10 @@ def start(master_count=1, node_count=1, scheduler_count=1, start_proxy=True,
                              # XXX(asaitgalin): For parallel testing purposes.
                              port_locks_path=os.environ.get("YT_LOCAL_PORT_LOCKS_PATH"),
                              preserve_working_dir=True,
-                             node_jobs_memory_limit=operations_memory_limit,
-                             node_user_slots=10,
                              node_memory_limit_addition=NODE_MEMORY_LIMIT_ADDITION,
                              tmpfs_path=sandbox_tmpfs_path,
-                             modify_configs_func=modify_configs_func)
+                             modify_configs_func=modify_configs_func,
+                             **options)
 
     environment.id = sandbox_id
 
