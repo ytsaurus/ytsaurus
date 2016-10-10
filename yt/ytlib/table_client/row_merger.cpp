@@ -25,8 +25,6 @@ TSchemafulRowMerger::TSchemafulRowMerger(
     , KeyColumnCount_(keyColumnCount)
     , ColumnEvaluator_(std::move(columnEvaluator))
 {
-    Y_ASSERT(KeyColumnCount_ == ColumnEvaluator_->GetKeyColumnCount());
-
     auto schemaColumnCount = ColumnCount_;
 
     if (columnFilter.All) {
@@ -222,8 +220,6 @@ TUnversionedRowMerger::TUnversionedRowMerger(
     , KeyColumnCount_(keyColumnCount)
     , ColumnEvaluator_(std::move(columnEvauator))
 {
-    Y_ASSERT(KeyColumnCount_ == ColumnEvaluator_->GetKeyColumnCount());
-
     ValidValues_.resize(ColumnCount_);
 
     Cleanup();
@@ -363,8 +359,6 @@ TVersionedRowMerger::TVersionedRowMerger(
     , ColumnEvaluator_(std::move(columnEvauator))
     , Keys_(KeyColumnCount_)
 {
-    Y_ASSERT(KeyColumnCount_ == ColumnEvaluator_->GetKeyColumnCount());
-
     Cleanup();
 }
 

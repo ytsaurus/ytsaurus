@@ -3294,6 +3294,7 @@ void TOperationControllerBase::GetOutputTablesSchema()
                 attributes->Get<TTableSchema>("schema"),
                 attributes->Get<ETableSchemaMode>("schema_mode"),
                 0); // Here we assume zero row count, we will do additional check later.
+            table.Options->EvaluateComputedColumns = table.TableUploadOptions.TableSchema.HasComputedColumns();
         }
     }
 }
@@ -3410,6 +3411,7 @@ void TOperationControllerBase::BeginUploadOutputTables()
                 } else {
                     table.Options->ValidateSorted = false;
                 }
+
                 table.Options->CompressionCodec = attributes->Get<NCompression::ECodec>("compression_codec");
                 table.Options->ErasureCodec = attributes->Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
                 table.Options->ReplicationFactor = attributes->Get<int>("replication_factor");

@@ -54,6 +54,7 @@ public:
 
 protected:
     NLogging::TLogger Logger;
+    const NApi::INativeClientPtr Client_;
 
     bool TrySwitchSession();
 
@@ -81,7 +82,6 @@ private:
 
     const TMultiChunkWriterConfigPtr Config_;
     const TMultiChunkWriterOptionsPtr Options_;
-    const NApi::INativeClientPtr Client_;
     const NObjectClient::TCellTag CellTag_;
     const NTransactionClient::TTransactionId TransactionId_;
     const TChunkListId ParentChunkListId_;

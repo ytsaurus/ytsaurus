@@ -759,6 +759,26 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert_items_equal(read_table("//tmp/t_out"), rows)
 
+    @pytest.mark.parametrize("mode", ["unordered", "ordered", "sorted"])
+    def test_computed_columns(self, mode):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2",
+            attributes={
+                "schema": [
+                    {"name": "k1", "type": "int64", "expression": "k2 * 2" },
+                    {"name": "k2", "type": "int64"}]
+            })
+
+        write_table("<sorted_by=[k2]>//tmp/t1", [{"k2": i} for i in xrange(2)])
+
+        merge(
+            mode=mode,
+            in_="//tmp/t1",
+            out="//tmp/t2")
+
+        assert get("//tmp/t2/@schema_mode") == "strong"
+        assert read_table("//tmp/t2") == [{"k1": i * 2, "k2": i} for i in xrange(2)]
+
 ##################################################################
 
 class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):

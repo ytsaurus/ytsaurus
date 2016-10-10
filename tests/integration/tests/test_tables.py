@@ -207,6 +207,22 @@ class TestTables(YTEnvSetup):
         assert get("//tmp/table/@schema/@unique_keys")
         assert read_table("//tmp/table") == [{"key": i} for i in xrange(3)]
 
+    def test_computed_columns(self):
+        create("table", "//tmp/table",
+            attributes={
+                "schema": [
+                    {"name": "k1", "type": "int64", "expression": "k2 * 2", "sort_order": "ascending"},
+                    {"name": "k2", "type": "int64"}]
+            })
+
+        assert get("//tmp/table/@schema_mode") == "strong"
+
+        with pytest.raises(YtError):
+            write_table("//tmp/table", [{"k2": 1}, {"k2": 0}])
+
+        write_table("//tmp/table", [{"k2": 0}, {"k2": 1}])
+        assert read_table("//tmp/table") == [{"k1": i * 2, "k2": i} for i in xrange(2)]
+
     def test_row_index_selector(self):
         create("table", "//tmp/table")
 

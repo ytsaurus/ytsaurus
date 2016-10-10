@@ -73,6 +73,7 @@ public:
     bool ValidateUniqueKeys;
     bool ExplodeOnValidationError;
     bool ValidateColumnCount;
+    bool EvaluateComputedColumns;
 
     EOptimizeFor OptimizeFor;
 
@@ -92,6 +93,8 @@ public:
             .Default(false);
         RegisterParameter("optimize_for", OptimizeFor)
             .Default(EOptimizeFor::Lookup);
+        RegisterParameter("evaluate_computed_columns", EvaluateComputedColumns)
+            .Default(true);
 
         RegisterValidator([&] () {
             if (ValidateUniqueKeys && !ValidateSorted) {

@@ -592,7 +592,7 @@ void ValidateKeyColumnsUpdate(const TKeyColumns& oldKeyColumns, const TKeyColumn
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateColumnSchema(const TColumnSchema& columnSchema)
+void ValidateColumnSchema(const TColumnSchema& columnSchema, bool isTableDynamic)
 {
     try {
         if (columnSchema.Name.empty()) {
@@ -637,7 +637,7 @@ void ValidateColumnSchema(const TColumnSchema& columnSchema)
 
         ValidateSchemaValueType(columnSchema.Type);
 
-        if (columnSchema.Expression && !columnSchema.SortOrder) {
+        if (columnSchema.Expression && !columnSchema.SortOrder && isTableDynamic) {
             THROW_ERROR_EXCEPTION("Non-key column cannot be computed");
         }
 
@@ -825,7 +825,7 @@ void ValidateKeyColumnsFormPrefix(const TTableSchema& schema)
  *  - Type of a computed column matches the type of its expression.
  *  - All referenced columns appear in schema, are key columns and are not computed.
  */
-void ValidateComputedColumns(const TTableSchema& schema)
+void ValidateComputedColumns(const TTableSchema& schema, bool isTableDynamic)
 {
     // TODO(max42): Passing *this before the object is finally constructed
     // doesn't look like a good idea (although it works :) ). Get rid of this.
@@ -833,8 +833,8 @@ void ValidateComputedColumns(const TTableSchema& schema)
     for (int index = 0; index < schema.Columns().size(); ++index) {
         const auto& columnSchema = schema.Columns()[index];
         if (columnSchema.Expression) {
-            if (index >= schema.GetKeyColumnCount()) {
-                THROW_ERROR_EXCEPTION("Non-key column %Qv can't be computed", columnSchema.Name);
+            if (index >= schema.GetKeyColumnCount() && isTableDynamic) {
+                THROW_ERROR_EXCEPTION("Non-key column %Qv cannot be computed", columnSchema.Name);
             }
             yhash_set<Stroka> references;
             auto expr = PrepareExpression(columnSchema.Expression.Get(), schema, BuiltinTypeInferrersMap, &references);
@@ -848,7 +848,7 @@ void ValidateComputedColumns(const TTableSchema& schema)
 
             for (const auto& ref : references) {
                 const auto& refColumn = schema.GetColumnOrThrow(ref);
-                if (!refColumn.SortOrder) {
+                if (!refColumn.SortOrder && isTableDynamic) {
                     THROW_ERROR_EXCEPTION("Computed column %Qv depends on a non-key column %Qv",
                         columnSchema.Name,
                         ref);
@@ -876,7 +876,7 @@ void ValidateAggregatedColumns(const TTableSchema& schema)
         const auto& columnSchema = schema.Columns()[index];
         if (columnSchema.Aggregate) {
             if (index < schema.GetKeyColumnCount()) {
-                THROW_ERROR_EXCEPTION("Key column %Qv can't be aggregated", columnSchema.Name);
+                THROW_ERROR_EXCEPTION("Key column %Qv cannot be aggregated", columnSchema.Name);
             }
 
             const auto& name = *columnSchema.Aggregate;
@@ -937,15 +937,15 @@ void ValidateSchemaAttributes(const TTableSchema& schema)
     }
 }
 
-void ValidateTableSchema(const TTableSchema& schema)
+void ValidateTableSchema(const TTableSchema& schema, bool isTableDynamic)
 {
     for (const auto& column : schema.Columns()) {
-        ValidateColumnSchema(column);
+        ValidateColumnSchema(column, isTableDynamic);
     }
     ValidateColumnUniqueness(schema);
     ValidateLocks(schema);
     ValidateKeyColumnsFormPrefix(schema);
-    ValidateComputedColumns(schema);
+    ValidateComputedColumns(schema, isTableDynamic);
     ValidateAggregatedColumns(schema);
     ValidateTimestampColumn(schema);
     ValidateSchemaAttributes(schema);
@@ -958,7 +958,7 @@ void ValidateTableSchemaUpdate(
     bool isTableDynamic,
     bool isTableEmpty)
 {
-    ValidateTableSchema(newSchema);
+    ValidateTableSchema(newSchema, isTableDynamic);
 
     if (isTableDynamic) {
         ValidateDynamicTableConstraints(newSchema);
@@ -1204,13 +1204,20 @@ TError ValidateTableSchemaCompatibility(
         }
     }
 
-    // Check that column types are the same.
+    // Check that columns are the same.
     for (const auto& outputColumn : outputSchema.Columns()) {
         if (auto inputColumn = inputSchema.FindColumn(outputColumn.Name)) {
             if (inputColumn->Type != outputColumn.Type && outputColumn.Type != EValueType::Any) {
                 return addAttributes(TError("Column %Qv input type is incompatible with the output type",
                     inputColumn->Name));
             }
+            if (outputColumn.Expression && inputColumn->Expression != outputColumn.Expression) {
+                return addAttributes(TError("Column %Qv expression mismatch",
+                    inputColumn->Name));
+            }
+        } else if (outputColumn.Expression) {
+            return addAttributes(TError("Unexpected computed column %Qv in output schema",
+                outputColumn.Name));
         }
     }
 

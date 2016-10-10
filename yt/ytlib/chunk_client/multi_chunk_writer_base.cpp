@@ -48,9 +48,9 @@ TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
     : Logger(ChunkClientLogger)
+    , Client_(client)
     , Config_(NYTree::CloneYsonSerializable(config))
     , Options_(options)
-    , Client_(client)
     , CellTag_(cellTag)
     , TransactionId_(transactionId)
     , ParentChunkListId_(parentChunkListId)

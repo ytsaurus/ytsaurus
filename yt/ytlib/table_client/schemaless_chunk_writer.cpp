@@ -7,6 +7,7 @@
 #include "schemaless_row_reorderer.h"
 #include "table_ypath_proxy.h"
 #include "helpers.h"
+#include "row_buffer.h"
 
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/transaction.h>
@@ -29,6 +30,8 @@
 #include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/transaction_listener.h>
 #include <yt/ytlib/transaction_client/config.h>
+
+#include <yt/ytlib/query_client/column_evaluator.h>
 
 #include <yt/ytlib/api/transaction.h>
 #include <yt/ytlib/api/config.h>
@@ -856,6 +859,8 @@ ISchemalessChunkWriterPtr CreatePartitionChunkWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSchemalessChunkWriterTag {};
+
 class TSchemalessMultiChunkWriter
     : public TNontemplateMultiChunkWriterBase
     , public ISchemalessMultiChunkWriter
@@ -940,7 +945,7 @@ private:
     TOwningKey LastKey_;
     TError Error_;
 
-    TChunkedMemoryPool Pool_;
+    TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TSchemalessChunkWriterTag());
 
     // Maps global name table indexes into chunk name table indexes.
     std::vector<int> IdMapping_;
@@ -958,7 +963,7 @@ private:
 
     std::vector<TUnversionedRow> ReorderAndValidateRows(const std::vector<TUnversionedRow>& rows)
     {
-        Pool_.Clear();
+        RowBuffer_->Clear();
 
         std::vector<TUnversionedRow> result;
         result.reserve(rows.size());
@@ -967,7 +972,7 @@ private:
             ValidateDuplicateIds(row);
 
             int maxColumnCount = Schema_.Columns().size() + (Schema_.GetStrict() ? 0 : row.GetCount());
-            auto mutableRow = TMutableUnversionedRow::Allocate(&Pool_, maxColumnCount);
+            auto mutableRow = TMutableUnversionedRow::Allocate(RowBuffer_->GetPool(), maxColumnCount);
             int columnCount = Schema_.Columns().size();
 
             for (int i = 0; i < Schema_.Columns().size(); ++i) {
@@ -1021,11 +1026,21 @@ private:
             ValidateColumnCount(columnCount);
             mutableRow.SetCount(columnCount);
 
+            EvaluateComputedColumns(mutableRow);
+
             result.push_back(mutableRow);
         }
 
         ValidateSortAndUnique(result);
         return result;
+    }
+
+    void EvaluateComputedColumns(TMutableUnversionedRow row)
+    {
+        if (Options_->EvaluateComputedColumns) {
+            auto evaluator = Client_->GetNativeConnection()->GetColumnEvaluatorCache()->Find(Schema_);
+            evaluator->EvaluateKeys(row, RowBuffer_);
+        }
     }
 
     void ValidateColumnCount(int columnCount)
@@ -1375,6 +1390,7 @@ private:
             Options_->ValidateSorted = TableUploadOptions_.TableSchema.IsSorted();
             Options_->ValidateUniqueKeys = TableUploadOptions_.TableSchema.GetUniqueKeys();
             Options_->OptimizeFor = attributes.Get<EOptimizeFor>("optimize_for", EOptimizeFor::Lookup);
+            Options_->EvaluateComputedColumns = TableUploadOptions_.TableSchema.HasComputedColumns();
 
             LOG_INFO("Extended attributes received (Account: %v, CompressionCodec: %v, ErasureCodec: %v)",
                 Options_->Account,

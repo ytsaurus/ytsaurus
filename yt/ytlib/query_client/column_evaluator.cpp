@@ -29,10 +29,10 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
     const TConstTypeInferrerMapPtr& typeInferrers,
     const TConstFunctionProfilerMapPtr& profilers)
 {
-    std::vector<TColumn> columns(schema.GetKeyColumnCount());
+    std::vector<TColumn> columns(schema.GetColumnCount());
     std::unordered_map<int, TCGAggregateCallbacks> aggregates;
 
-    for (int index = 0; index < schema.GetKeyColumnCount(); ++index) {
+    for (int index = 0; index < schema.GetColumnCount(); ++index) {
         auto& column = columns[index];
         if (schema.Columns()[index].Expression) {
             yhash_set<Stroka> references;
@@ -111,11 +111,6 @@ TConstExpressionPtr TColumnEvaluator::GetExpression(int index) const
 bool TColumnEvaluator::IsAggregate(int index) const
 {
     return Aggregates_.count(index);
-}
-
-size_t TColumnEvaluator::GetKeyColumnCount() const
-{
-    return Columns_.size();
 }
 
 void TColumnEvaluator::InitAggregate(

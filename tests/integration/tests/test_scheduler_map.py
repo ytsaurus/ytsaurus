@@ -1795,6 +1795,27 @@ print row + table_index
                 command=command,
                 spec={"job_count": 1})
 
+    @pytest.mark.parametrize("mode", ["unordered", "ordered"])
+    def test_computed_columns(self, mode):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2",
+            attributes={
+                "schema": [
+                    {"name": "k1", "type": "int64", "expression": "k2 * 2" },
+                    {"name": "k2", "type": "int64"}]
+            })
+
+        write_table("//tmp/t1", [{"k2": i} for i in xrange(2)])
+
+        map(
+            mode=mode,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="cat")
+
+        assert get("//tmp/t2/@schema_mode") == "strong"
+        assert read_table("//tmp/t2") == [{"k1": i * 2, "k2": i} for i in xrange(2)]
+
     @unix_only
     def test_map_input_paths_attr(self):
         create("table", "//tmp/in1")
