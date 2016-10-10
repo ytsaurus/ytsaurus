@@ -427,6 +427,61 @@ class TestSchedulerFunctionality2(YTEnvSetup, PrepareTables):
         op.abort()
 
 
+    def test_max_possible_resource_usage(self):
+        create("map_node", "//sys/pools/low_cpu_pool", attributes={"resource_limits": {"cpu": 1}})
+        create("map_node", "//sys/pools/low_cpu_pool/subpool_1")
+        create("map_node", "//sys/pools/low_cpu_pool/subpool_2", attributes={"resource_limits": {"cpu": 0}})
+        create("map_node", "//sys/pools/high_cpu_pool")
+
+        self._create_table("//tmp/t_in")
+        self._create_table("//tmp/t_out_1")
+        self._create_table("//tmp/t_out_2")
+        self._create_table("//tmp/t_out_3")
+        data = [{"foo": i} for i in xrange(3)]
+        write_table("//tmp/t_in", data);
+
+        get_pool_fair_share_ratio = lambda pool: \
+            get("//sys/scheduler/orchid/scheduler/pools/{0}/fair_share_ratio".format(pool))
+
+        op1 = map(
+            waiting_jobs=True,
+            dont_track=True,
+            command="cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out_1",
+            spec={"job_count": 1, "pool": "subpool_1"})
+
+        op2 = map(
+            waiting_jobs=True,
+            dont_track=True,
+            command="cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out_2",
+            spec={"job_count": 2, "pool": "high_cpu_pool"})
+
+        assert assert_almost_equal(get_pool_fair_share_ratio("subpool_1"), 1.0 / 3.0)
+        assert assert_almost_equal(get_pool_fair_share_ratio("low_cpu_pool"), 1.0 / 3.0)
+        assert assert_almost_equal(get_pool_fair_share_ratio("high_cpu_pool"), 2.0 / 3.0)
+
+        op3 = map(
+            dont_track=True,
+            command="cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out_3",
+            spec={"job_count": 1, "pool": "subpool_2", "mapper": {"cpu_limit": 0}})
+
+        time.sleep(1)
+
+        assert assert_almost_equal(get_pool_fair_share_ratio("low_cpu_pool"), 1.0 / 2.0)
+        assert assert_almost_equal(get_pool_fair_share_ratio("high_cpu_pool"), 1.0 / 2.0)
+
+        op1.resume_jobs()
+        op1.track()
+        op2.resume_jobs()
+        op2.track()
+        op3.track()
+
+
 class TestSchedulerRevive(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 1
