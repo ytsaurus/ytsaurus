@@ -141,6 +141,16 @@ void ProfileResources(TProfiler& profiler, const TJobResources& resources)
     #undef XX
 }
 
+double ComputeDemandRatio(i64 demand, i64 limit)
+{
+    return limit == 0 ? 1.0 : static_cast<double>(demand) / limit;
+}
+
+double ComputeUsageRatio(i64 usage, i64 limit)
+{
+    return limit == 0 ? 0.0 : static_cast<double>(usage) / limit;
+}
+
 EResourceType GetDominantResource(
     const TJobResources& demand,
     const TJobResources& limits)
@@ -149,7 +159,7 @@ EResourceType GetDominantResource(
     double maxRatio = 0.0;
     auto update = [&] (i64 a, i64 b, EResourceType type) {
         if (b > 0) {
-            double ratio = (double) a / b;
+            double ratio = static_cast<double>(a) / b;
             if (ratio > maxRatio) {
                 maxRatio = ratio;
                 maxType = type;
@@ -160,6 +170,25 @@ EResourceType GetDominantResource(
     ITERATE_JOB_RESOURCES(XX)
     #undef XX
     return maxType;
+}
+
+double GetDominantResourceUsage(
+    const TJobResources& usage,
+    const TJobResources& limits)
+{
+    double maxRatio = 0.0;
+    auto update = [&] (i64 a, i64 b, EResourceType type) {
+        if (b > 0) {
+            double ratio = static_cast<double>(a) / b;
+            if (ratio > maxRatio) {
+                maxRatio = ratio;
+            }
+        }
+    };
+    #define XX(name, Name) update(usage.Get##Name(), limits.Get##Name(), EResourceType::Name);
+    ITERATE_JOB_RESOURCES(XX)
+    #undef XX
+    return maxRatio;
 }
 
 i64 GetResource(const TJobResources& resources, EResourceType type)
@@ -193,7 +222,7 @@ double GetMinResourceRatio(
     double result = std::numeric_limits<double>::infinity();
     auto update = [&] (i64 a, i64 b) {
         if (b > 0) {
-            result = std::min(result, (double) a / b);
+            result = std::min(result, static_cast<double>(a) / b);
         }
     };
     #define XX(name, Name) update(nominator.Get##Name(), denominator.Get##Name());
