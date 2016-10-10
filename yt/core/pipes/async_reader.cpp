@@ -8,6 +8,8 @@
 
 #include <yt/core/misc/proc.h>
 
+#include <yt/core/profiling/timing.h>
+
 #include <yt/contrib/libev/ev++.h>
 
 #include <errno.h>
@@ -19,6 +21,8 @@ namespace NDetail {
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = PipesLogger;
+
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -76,6 +80,8 @@ public:
             YCHECK(ReadResultPromise_.IsSet());
             ReadResultPromise_ = promise;
 
+            UpdateDurationCounter(&TotalIdleMilliseconds_);
+
             switch (State_) {
                 case EReaderState::Aborted:
                     ReadResultPromise_.Set(TError(EErrorCode::Aborted, "Reader aborted")
@@ -115,13 +121,48 @@ public:
                 if (State_ == EReaderState::Active) { 
                     State_ = EReaderState::Aborted;
                     FDWatcher_.stop();
-                    ReadResultPromise_.TrySet(TError(EErrorCode::Aborted, "Reader aborted")
-                        << TErrorAttribute("fd", FD_));
+
+                    if (ReadResultPromise_.TrySet(TError(EErrorCode::Aborted, "Reader aborted")
+                        << TErrorAttribute("fd", FD_))) 
+                    {
+                        UpdateDurationCounter(&TotalBusyMilliseconds_);
+                    } else {
+                        UpdateDurationCounter(&TotalIdleMilliseconds_);
+                    }
                     Close();
                 }
             })
             .AsyncVia(TIODispatcher::Get()->GetInvoker())
             .Run();
+    }
+
+    TFuture<TDuration> GetIdleDuration() const
+    {
+        return BIND([this, this_ = MakeStrong(this)] () {
+            if (State_ == EReaderState::Active && ReadResultPromise_.IsSet()) {
+                UpdateDurationCounter(&TotalIdleMilliseconds_);
+            }
+            return TDuration::MilliSeconds(TotalIdleMilliseconds_);
+        })
+        .AsyncVia(TIODispatcher::Get()->GetInvoker())
+        .Run();
+    }
+
+    TFuture<TDuration> GetBusyDuration() const
+    {
+        return BIND([this, this_ = MakeStrong(this)] () {
+            if (State_ == EReaderState::Active && !ReadResultPromise_.IsSet()) {
+                UpdateDurationCounter(&TotalBusyMilliseconds_);
+            }
+            return TDuration::MilliSeconds(TotalBusyMilliseconds_);
+        })
+        .AsyncVia(TIODispatcher::Get()->GetInvoker())
+        .Run();
+    }
+
+    i64 GetByteCount() const
+    {
+        return ByteCount_;
     }
 
 private:
@@ -138,6 +179,14 @@ private:
 
     TSharedMutableRef Buffer_;
     int Position_ = 0;
+
+    //! Start instant of current reader state (either busy or idle).
+    mutable TCpuInstant StartTime_;
+
+    mutable i64 TotalBusyMilliseconds_ = 0;
+    mutable i64 TotalIdleMilliseconds_ = 0;
+
+    std::atomic<i64> ByteCount_ = { 0 };
 
     DECLARE_THREAD_AFFINITY_SLOT(EventLoop);
 
@@ -166,7 +215,7 @@ private:
             if (errno == EAGAIN) {
                 if (Position_ != 0) {
                     FDWatcher_.stop();
-                    ReadResultPromise_.Set(Position_);
+                    SetResultPromise(Position_);
                 }
                 return;
             }
@@ -182,23 +231,24 @@ private:
             State_ = EReaderState::Failed;
             FDWatcher_.stop();
             if (Position_ != 0) {
-                ReadResultPromise_.Set(Position_);
+                SetResultPromise(Position_);
             } else {
-                ReadResultPromise_.Set(Error_);
+                SetResultPromise(Error_);
             }
             return;
         }
 
+        ByteCount_ += size;
         Position_ += size;
 
         if (size == 0) {
             State_ = EReaderState::EndOfStream;
             FDWatcher_.stop();
             Close();
-            ReadResultPromise_.Set(Position_);
+            SetResultPromise(Position_);
         } else if (Position_ == Buffer_.Size()) {
             FDWatcher_.stop();
-            ReadResultPromise_.Set(Position_);
+            SetResultPromise(Position_);
         }
 #else
     THROW_ERROR_EXCEPTION("Unsupported platform");
@@ -221,6 +271,7 @@ private:
 
     void InitWatcher()
     {
+        StartTime_ = GetCpuInstant();
         FDWatcher_.set(FD_, ev::READ);
         FDWatcher_.set(TIODispatcher::Get()->GetEventLoop());
         FDWatcher_.set<TAsyncReaderImpl, &TAsyncReaderImpl::OnRead>(this);
@@ -230,6 +281,27 @@ private:
     {
         YCHECK(TryClose(FD_, false));
         FD_ = TPipe::InvalidFD;
+    }
+
+    // NB: Not really const, but is called from duration getters.
+    void UpdateDurationCounter(i64* counter) const
+    {
+        auto now = GetCpuInstant();
+        auto duration = now - StartTime_;
+        StartTime_ = now;
+        *counter += CpuDurationToDuration(duration).MilliSeconds();
+    }
+
+    void SetResultPromise(size_t size)
+    {
+        ReadResultPromise_.Set(size);
+        UpdateDurationCounter(&TotalBusyMilliseconds_);
+    }
+
+    void SetResultPromise(const TError& error)
+    {
+        ReadResultPromise_.Set(error);
+        UpdateDurationCounter(&TotalBusyMilliseconds_);
     }
 };
 
@@ -269,6 +341,21 @@ TFuture<size_t> TAsyncReader::Read(const TSharedMutableRef& buffer)
 TFuture<void> TAsyncReader::Abort()
 {
     return Impl_->Abort();
+}
+
+TFuture<TDuration> TAsyncReader::GetBusyDuration() const
+{
+    return Impl_->GetBusyDuration();
+}
+
+TFuture<TDuration> TAsyncReader::GetIdleDuration() const
+{
+    return Impl_->GetIdleDuration();
+}
+
+i64 TAsyncReader::GetByteCount() const
+{
+    return Impl_->GetByteCount();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -999,6 +999,32 @@ private:
             "/user_job/memory_reserve_factor_x10000",
             static_cast<int>((1e4 * UserJobSpec_.memory_reserve()) / UserJobSpec_.memory_limit()));
 
+        // Pipe statistics.
+        if (Prepared_) {
+            statistics.AddSample(
+                "/user_job/pipes/input/idle_time", 
+                WaitFor(TablePipeWriters_[0]->GetIdleDuration()).Value());
+            statistics.AddSample(
+                "/user_job/pipes/input/busy_time", 
+                WaitFor(TablePipeWriters_[0]->GetBusyDuration()).Value());
+            statistics.AddSample(
+                "/user_job/pipes/input/bytes", 
+                TablePipeWriters_[0]->GetByteCount());
+
+            for (int i = 0; i < TablePipeReaders_.size(); ++i) {
+                const auto& tablePipeReader = TablePipeReaders_[i];
+
+                statistics.AddSample(
+                    Format("/user_job/pipes/output/%v/idle_time", NYPath::ToYPathLiteral(i)), 
+                    WaitFor(tablePipeReader->GetIdleDuration()).Value());
+                statistics.AddSample(
+                    Format("/user_job/pipes/output/%v/busy_time", NYPath::ToYPathLiteral(i)), 
+                    WaitFor(tablePipeReader->GetBusyDuration()).Value());
+                statistics.AddSample(
+                    Format("/user_job/pipes/output/%v/bytes", NYPath::ToYPathLiteral(i)), 
+                    tablePipeReader->GetByteCount());
+            }
+        }
 
         return statistics;
     }

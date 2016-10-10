@@ -8,6 +8,8 @@
 
 #include <yt/core/misc/proc.h>
 
+#include <yt/core/profiling/timing.h>
+
 #include <yt/contrib/libev/ev++.h>
 
 #include <errno.h>
@@ -19,6 +21,8 @@ namespace NDetail {
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = PipesLogger;
+
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,6 +78,8 @@ public:
         BIND([=, this_ = MakeStrong(this)] () {
             YCHECK(WriteResultPromise_.IsSet());
             WriteResultPromise_ = promise;
+
+            UpdateDurationCounter(&TotalIdleMilliseconds_);
 
             switch (State_) {
                 case EWriterState::Aborted:
@@ -141,14 +147,49 @@ public:
 
             State_ = EWriterState::Aborted;
             FDWatcher_.stop();
-            WriteResultPromise_.TrySet(TError(EErrorCode::Aborted, "Writer aborted")
-               << TErrorAttribute("fd", FD_));
+
+            if (WriteResultPromise_.TrySet(TError(EErrorCode::Aborted, "Writer aborted")
+               << TErrorAttribute("fd", FD_)))
+            {
+                UpdateDurationCounter(&TotalBusyMilliseconds_);
+            } else {
+                UpdateDurationCounter(&TotalIdleMilliseconds_);
+            }
 
             YCHECK(TryClose(FD_, false));
             FD_ = TPipe::InvalidFD;
         })
         .AsyncVia(TIODispatcher::Get()->GetInvoker())
         .Run();
+    }
+
+    TFuture<TDuration> GetIdleDuration() const
+    {
+        return BIND([this, this_ = MakeStrong(this)] () {
+            if (State_ == EWriterState::Active && WriteResultPromise_.IsSet()) {
+                UpdateDurationCounter(&TotalIdleMilliseconds_);
+            }
+            return TDuration::MilliSeconds(TotalIdleMilliseconds_);
+        })
+        .AsyncVia(TIODispatcher::Get()->GetInvoker())
+        .Run();
+    }
+
+    TFuture<TDuration> GetBusyDuration() const
+    {
+        return BIND([this, this_ = MakeStrong(this)] ()  {
+            if (State_ == EWriterState::Active && !WriteResultPromise_.IsSet()) {
+                UpdateDurationCounter(&TotalBusyMilliseconds_);
+            }
+            return TDuration::MilliSeconds(TotalBusyMilliseconds_);
+        })
+        .AsyncVia(TIODispatcher::Get()->GetInvoker())
+        .Run();
+    }
+
+    i64 GetByteCount() const
+    {
+        return ByteCount_;
     }
 
 private:
@@ -164,6 +205,14 @@ private:
 
     TSharedRef Buffer_;
     int Position_ = 0;
+
+    //! Start instant of current reader state (either busy or idle).
+    mutable TCpuInstant StartTime_;
+
+    mutable i64 TotalBusyMilliseconds_ = 0;
+    mutable i64 TotalIdleMilliseconds_ = 0;
+
+    std::atomic<i64> ByteCount_ = { 0 };
 
     DECLARE_THREAD_AFFINITY_SLOT(EventLoop);
 
@@ -187,6 +236,7 @@ private:
 
     void InitWatcher()
     {
+        StartTime_ = GetCpuInstant();
         FDWatcher_.set(FD_, ev::WRITE);
         FDWatcher_.set(TIODispatcher::Get()->GetEventLoop());
         FDWatcher_.set<TAsyncWriterImpl, &TAsyncWriterImpl::OnWrite>(this);
@@ -227,21 +277,36 @@ private:
 
             State_ = EWriterState::Failed;
             FDWatcher_.stop();
-            WriteResultPromise_.Set(error);
+            SetResultPromise(error);
             return;
         }
 
         YCHECK(size > 0);
+        ByteCount_ += size;
         Position_ += size;
 
         if (Position_ == Buffer_.Size()) {
-            WriteResultPromise_.Set(TError());
+            SetResultPromise();
         }
 #else
     THROW_ERROR_EXCEPTION("Unsupported platform");
 #endif
     }
 
+    // NB: Not really const, but is called from duration getters.
+    void UpdateDurationCounter(i64* counter) const
+    {
+        auto now = GetCpuInstant();
+        auto duration = now - StartTime_;
+        StartTime_ = now;
+        *counter += CpuDurationToDuration(duration).MilliSeconds();
+    }
+
+    void SetResultPromise(const TError& error = TError())
+    {
+        WriteResultPromise_.Set(error);
+        UpdateDurationCounter(&TotalBusyMilliseconds_);
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TAsyncWriterImpl);
@@ -285,6 +350,21 @@ TFuture<void> TAsyncWriter::Close()
 TFuture<void> TAsyncWriter::Abort()
 {
     return Impl_->Abort();
+}
+
+TFuture<TDuration> TAsyncWriter::GetBusyDuration() const
+{
+    return Impl_->GetBusyDuration();
+}
+
+TFuture<TDuration> TAsyncWriter::GetIdleDuration() const
+{
+    return Impl_->GetIdleDuration();
+}
+
+i64 TAsyncWriter::GetByteCount() const
+{
+    return Impl_->GetByteCount();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
