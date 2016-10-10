@@ -50,7 +50,7 @@ while true; do
     if [ "$result" != "0" ]; then break; fi;
 
     {jar} -J-Xmx1024m xf ./{hive_importer_library} libhadoop.so libsnappy.so.1 >&2;
-    curl --silent --show-error "http://{hdfs_host}/webhdfs/v1/${{table}}?op=OPEN&user.name=none" >output;
+    curl --location --silent --show-error "http://{hdfs_host}/webhdfs/v1/${{table}}?op=OPEN&user.name=none" >output;
     LANG=en_US.UTF-8 {java} -Xmx1024m -Dhadoop.root.logger=INFO -Djava.library.path=./ -jar ./{hive_importer_library} -file output -config '{read_config}';
 done
 """\
