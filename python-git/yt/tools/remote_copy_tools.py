@@ -1,6 +1,7 @@
 from .yamr import _check_output
 
-from yt.wrapper.common import generate_uuid, bool_to_string, MB, GB, update
+from yt.wrapper.common import generate_uuid, bool_to_string, MB, GB, update, \
+                              round_up_to
 from yt.tools.conversion_tools import transform
 from yt.common import get_value
 
@@ -167,6 +168,29 @@ def _set_mapper_settings_for_read_from_yt(spec):
     # NB: yt2 read usually consumpt less than 600 Mb, but sometimes can use more than 1Gb of memory.
     spec["mapper"]["memory_limit"] = 4 * GB
     spec["mapper"]["memory_reserve_factor"] = 0.2
+    if "tmpfs_size" in spec["mapper"]:
+        spec["mapper"]["memory_limit"] += spec["mapper"]["tmpfs_size"]
+
+def _set_tmpfs_settings(client, spec, files, yt_files=None, reserved_size=0):
+    yt_files = get_value(yt_files, [])
+
+    if "mapper" not in spec:
+        spec["mapper"] = {}
+
+    spec["mapper"]["tmpfs_path"] = "."
+
+    files_size = 0
+    for file_ in files:
+        size = round_up_to(os.stat(file_).st_size, 4 * 1024)
+        # NOTE: Assuming here that files compressed by tar without compression and
+        # multiplying by two because space for uncompressed files should be added too.
+        if os.path.basename(file_).endswith(".tar"):
+            files_size += size * 2
+        else:
+            files_size += size
+
+    spec["mapper"]["tmpfs_size"] = MB + reserved_size + files_size + \
+        sum(round_up_to(client.get_attribute(path, "uncompressed_data_size"), 4 * 1024) for path in yt_files)
 
 def shellquote(s):
     return "'" + s.replace("'", "'\\''") + "'"
@@ -399,6 +423,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
                         if "sorted_by" in dst_table.attributes:
                             del dst_table.attributes["sorted_by"]
 
+                    _set_tmpfs_settings(destination_client, spec, files, [yt_token_file])
                     _set_mapper_settings_for_read_from_yt(spec)
 
                     destination_client.run_map(
@@ -523,6 +548,7 @@ done"""
 
                 logger.info("Pull import: run map '%s' with spec '%s'", command, repr(spec))
 
+                _set_tmpfs_settings(yt_client, spec, [yamr_client.binary])
                 yt_client.run_map(
                     command,
                     temp_table,
@@ -530,7 +556,7 @@ done"""
                     input_format=yt.SchemafulDsvFormat(columns=["command"]),
                     output_format=yt.YamrFormat(lenval=True, has_subkey=True),
                     files=yamr_client.binary,
-                    memory_limit = 2500 * MB,
+                    memory_limit=2500 * MB + spec["mapper"]["tmpfs_size"],
                     spec=spec)
 
             result_record_count = yt_client.row_count(dst)
@@ -622,7 +648,7 @@ def copy_yt_to_yamr_push(yt_client, yamr_client, src, dst, fastbone, copy_spec_t
     record_count = yt_client.row_count(src)
 
     spec = deepcopy(get_value(copy_spec_template, {}))
-    spec["data_size_per_job"] = 2 * 1024 * yt.common.MB
+    spec["data_size_per_job"] = 2 * GB
 
     write_command = yamr_client.get_write_command(dst, fastbone=fastbone)
     logger.info("Running map '%s'", write_command)
@@ -702,8 +728,8 @@ while True:
                 # 2) yt2 read consumption is in range (200-600MB)
                 # 3) In some corner cases yt2 can use above than 1GB.
                 # 4) Other processes uses less than 100 MB.
-                "memory_limit": 4 * 1024 * 1024 * 1024,
-                "memory_reserve_factor": 0.35,
+                "memory_limit": 4 * GB,
+                "memory_reserve_factor": 0.35
             },
         },
         spec)
@@ -732,6 +758,9 @@ while True:
     if write_errors_script is not None:
         files.append(_pack_string("write_errors.py", write_errors_script, tmp_dir))
     files.append(kiwi_client.kwworm_binary)
+
+    _set_tmpfs_settings(kiwi_transmittor, spec, files, yt_files)
+    spec["mapper"]["memory_limit"] += spec["mapper"]["tmpfs_size"]
 
     try:
         kiwi_transmittor.run_map(
@@ -827,6 +856,8 @@ def copy_hive_to_yt(hive_client, yt_client, source_table, destination_table, cop
 
         spec = deepcopy(get_value(copy_spec_template, {}))
         spec["data_size_per_job"] = 1
+
+        _set_tmpfs_settings(yt_client, spec, [hive_client.hive_importer_library], reserved_size=6 * GB)
         _set_mapper_settings_for_read_from_yt(spec)
 
         yt_client.run_map(
