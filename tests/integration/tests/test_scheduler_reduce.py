@@ -998,6 +998,26 @@ echo {v = 2} >&7
     def test_schema_validation_sorted(self):
         self._test_schema_validation("ascending")
 
+    def test_computed_columns(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2",
+            attributes={
+                "schema": [
+                    {"name": "k1", "type": "int64", "expression": "k2 * 2" },
+                    {"name": "k2", "type": "int64"}]
+            })
+
+        write_table("<sorted_by=[k2]>//tmp/t1", [{"k2": i} for i in xrange(2)])
+
+        reduce(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            reduce_by="k2",
+            command="cat")
+
+        assert get("//tmp/t2/@schema_mode") == "strong"
+        assert read_table("//tmp/t2") == [{"k1": i * 2, "k2": i} for i in xrange(2)]
+
 ##################################################################
 
 class TestSchedulerReduceCommandsMulticell(TestSchedulerReduceCommands):

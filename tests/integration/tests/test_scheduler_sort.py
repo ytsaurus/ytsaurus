@@ -466,6 +466,24 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         assert read_table("//tmp/t_out") == rows
 
+    def test_computed_columns(self):
+        create("table", "//tmp/t",
+            attributes={
+                "schema": [
+                    {"name": "k1", "type": "int64", "expression": "k2 * 2" },
+                    {"name": "k2", "type": "int64"}]
+            })
+
+        write_table("//tmp/t", [{"k2": i} for i in xrange(2)])
+        assert read_table("//tmp/t") == [{"k1": i * 2, "k2": i} for i in xrange(2)]
+
+        sort(
+            in_="//tmp/t",
+            out="//tmp/t",
+            sort_by="k1")
+
+        assert get("//tmp/t/@schema/0") == {"name": "k1", "type": "int64", "expression": "k2 * 2", "sort_order": "ascending"}
+        assert read_table("//tmp/t") == [{"k1": i * 2, "k2": i} for i in xrange(2)]
 
 ##################################################################
 

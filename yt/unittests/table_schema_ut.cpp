@@ -46,7 +46,7 @@ TEST_F(TTableSchemaTest, ColumnSchemaValidation)
     };
 
     for (const auto& columnSchema : invalidSchemas) {
-        EXPECT_THROW(ValidateColumnSchema(columnSchema), std::exception);
+        EXPECT_THROW(ValidateColumnSchema(columnSchema, true), std::exception);
     }
     
     std::vector<TColumnSchema> validSchemas{
@@ -257,7 +257,7 @@ TEST_F(TTableSchemaTest, TableSchemaValidation)
        
     for (const auto& tableSchema : invalidSchemas) {
         TTableSchema schema(tableSchema);
-        EXPECT_THROW(ValidateTableSchema(schema), std::exception);
+        EXPECT_THROW(ValidateTableSchema(schema, true), std::exception);
     }
 
     for (const auto& tableSchema : validSchemas) {
@@ -631,7 +631,7 @@ TEST_P(TInvalidSchemaTest, Basic)
     TTableSchema schema;
     Deserialize(schema, ConvertToNode(TYsonString(schemaString)));
 
-    EXPECT_THROW(ValidateTableSchema(schema), std::exception);
+    EXPECT_THROW(ValidateTableSchema(schema, true), std::exception);
 }
 
 INSTANTIATE_TEST_CASE_P(

@@ -1892,6 +1892,7 @@ private:
     {
         auto& table = OutputTables[0];
         table.TableUploadOptions.LockMode = ELockMode::Exclusive;
+        table.Options->EvaluateComputedColumns = false;
 
         switch (Spec->SchemaInferenceMode) {
             case ESchemaInferenceMode::Auto:

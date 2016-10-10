@@ -58,8 +58,6 @@ public:
 
     bool IsAggregate(int index) const;
 
-    size_t GetKeyColumnCount() const;
-
 private:
     struct TColumn
     {

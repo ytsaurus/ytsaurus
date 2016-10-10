@@ -169,10 +169,10 @@ bool operator != (const TTableSchema& lhs, const TTableSchema& rhs);
 void ValidateKeyColumns(const TKeyColumns& keyColumns);
 void ValidateKeyColumnsUpdate(const TKeyColumns& oldKeyColumns, const TKeyColumns& newKeyColumns);
 
-void ValidateColumnSchema(const TColumnSchema& columnSchema);
+void ValidateColumnSchema(const TColumnSchema& columnSchema, bool isTableDynamic = false);
 void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSchema& newColumn);
 
-void ValidateTableSchema(const TTableSchema& schema);
+void ValidateTableSchema(const TTableSchema& schema, bool isTableDynamic = false);
 void ValidateTableSchemaUpdate(
     const TTableSchema& oldSchema,
     const TTableSchema& newSchema,
