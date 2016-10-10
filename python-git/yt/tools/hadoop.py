@@ -64,13 +64,11 @@ class AirflowError(Exception):
     pass
 
 class Airflow(object):
-    def __init__(self, address, dag_registered_wait_time, protocol="http"):
+    def __init__(self, address, protocol="http"):
         self._url = "{0}://{1}/admin/airflow".format(protocol, address)
         self._headers = {
             "Content-Type": "application/json"
         }
-        # Special sleep to ensure that dag is registered at airflow.
-        self._dag_registered_wait_time = dag_registered_wait_time
         self.message_queue = None
 
     def add_task(self, task_type, source_cluster, source_path, destination_cluster, destination_path, owner):
@@ -108,7 +106,15 @@ class Airflow(object):
                     "id": task_id,
                     "cluster_name": self._name}})
 
-        time.sleep(self._dag_registered_wait_time)
+        # Waiting for DAG to be registered.
+        while True:
+            try:
+                self.get_task_info(task_id)
+                break
+            except AirflowError:
+                pass
+
+            time.sleep(1.0)
 
         return task_id
 
