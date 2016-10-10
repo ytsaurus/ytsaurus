@@ -81,6 +81,8 @@ struct ISchedulerElement
     virtual void UpdateBottomUp(TDynamicAttributesList& dynamicAttributesList) = 0;
     virtual void UpdateTopDown(TDynamicAttributesList& dynamicAttributesList) = 0;
 
+    virtual TJobResources ComputePossibleResourceUsage(TJobResources limit) const = 0;
+
     virtual void UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList) = 0;
 
     virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly, bool aggressiveStarvationEnabled) = 0;
@@ -322,6 +324,8 @@ public:
 
     virtual void UpdateBottomUp(TDynamicAttributesList& dynamicAttributesList) override;
     virtual void UpdateTopDown(TDynamicAttributesList& dynamicAttributesList) override;
+
+    virtual TJobResources ComputePossibleResourceUsage(TJobResources limit) const override;
 
     virtual double GetFairShareStarvationToleranceLimit() const;
     virtual TDuration GetMinSharePreemptionTimeoutLimit() const;
@@ -685,6 +689,8 @@ public:
 
     virtual void UpdateBottomUp(TDynamicAttributesList& dynamicAttributesList) override;
     virtual void UpdateTopDown(TDynamicAttributesList& dynamicAttributesList) override;
+
+    virtual TJobResources ComputePossibleResourceUsage(TJobResources limit) const override;
 
     virtual void UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList) override;
 

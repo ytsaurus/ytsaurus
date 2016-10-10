@@ -62,8 +62,16 @@ Stroka FormatResources(const TExtendedJobResources& resources);
 
 void ProfileResources(NProfiling::TProfiler& profiler, const TJobResources& resources);
 
+double ComputeDemandRatio(i64 demand, i64 limit);
+
+double ComputeUsageRatio(i64 demand, i64 limit);
+
 NNodeTrackerClient::EResourceType GetDominantResource(
     const TJobResources& demand,
+    const TJobResources& limits);
+
+double GetDominantResourceUsage(
+    const TJobResources& usage,
     const TJobResources& limits);
 
 i64 GetResource(
