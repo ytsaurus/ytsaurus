@@ -110,25 +110,13 @@ test_copy_empty_table() {
     check "true" "$(yt2 exists //tmp/empty_table --proxy smith)"
     check "10" "$(yt2 get //tmp/empty_table/@test_attr --proxy smith)"
 
-    id=$(run_task '{"source_table": "//tmp/empty_table", "source_cluster": "banach", "destination_table": "tmp/empty_table", "destination_cluster": "sakura"}')
-    wait_task $id
-}
-
-test_copy_from_smith_to_sakura() {
-    echo "Importing from Smith to Sakura"
-    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "smith", "destination_table": "tmp/yt/test_table", "destination_cluster": "sakura"}')
+    id=$(run_task '{"source_table": "//tmp/empty_table", "source_cluster": "banach", "destination_table": "tmp/empty_table", "destination_cluster": "titan", "mr_user": "imgdev"}')
     wait_task $id
 }
 
 test_copy_from_smith_to_titan() {
-    echo "Importing from Smith to Sakura"
-    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "smith", "destination_table": "tmp/yt/test_table", "destination_cluster": "titan", "mr_user": "userdata"}')
-    wait_task $id
-}
-
-test_copy_from_sakura_to_titan() {
-    echo "Importing from Sakura to Titan"
-    id=$(run_task '{"source_table": "tmp/yt/test_table", "source_cluster": "sakura", "destination_table": "tmp/yt/test_table", "destination_cluster": "titan", "mr_user": "imgdev"}')
+    echo "Importing from Smith to Titan"
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "smith", "destination_table": "tmp/yt/test_table", "destination_cluster": "titan", "mr_user": "imgdev"}')
     wait_task $id
 }
 
@@ -163,27 +151,14 @@ test_copy_from_banach_to_freud() {
     check "true" "$(yt2 exists //tmp/test_table_from_banach/@sorted --proxy freud.yt.yandex.net)"
 }
 
-test_copy_from_sakura_to_banach() {
-    echo "Importing from Sakura to Banach"
-    # mr_user: asaitgalin because this user has zero quota
-    id=$(run_task '{"source_table": "tmp/yt/test_table", "source_cluster": "sakura", "destination_table": "//tmp/test_table_from_sakura", "destination_cluster": "banach", "mr_user": "asaitgalin", "pool": "ignat"}')
-    wait_task $id
-
-    check \
-        "$(yt2 read //tmp/test_table_from_sakura --proxy banach.yt.yandex.net --format yamr)" \
-        "$(yt2 read //tmp/test_table --proxy smith.yt.yandex.net --format yamr)"
-}
-
 test_various_transfers() {
     echo -e "a\tb\nc\td\ne\tf" | yt2 write //tmp/test_table --format yamr --proxy smith.yt.yandex.net
     yt2 sort --src //tmp/test_table --dst //tmp/test_table --sort-by key --sort-by subkey --proxy smith.yt.yandex.net
 
-    test_copy_from_smith_to_sakura
-    test_copy_from_sakura_to_titan
+    test_copy_from_smith_to_titan
     test_copy_from_titan_to_banach
     test_copy_from_banach_to_smith
     test_copy_from_banach_to_freud
-    test_copy_from_sakura_to_banach
 }
 
 test_incorrect_copy_to_yamr() {
@@ -191,11 +166,11 @@ test_incorrect_copy_to_yamr() {
 
     # Incorrect column names.
     echo -e "a=b" | yt2 write //tmp/test_table --format dsv --proxy banach
-    run_task_that_should_fail '{"source_table": "//tmp/test_table", "source_cluster": "banach", "destination_table": "tmp/test_table_from_banach", "destination_cluster": "sakura"}'
+    run_task_that_should_fail '{"source_table": "//tmp/test_table", "source_cluster": "banach", "destination_table": "tmp/test_table_from_banach", "destination_cluster": "titan"}'
 
     # Incorrect type of values.
     echo -e '{"key": "a", "value": 10}' | yt2 write //tmp/test_table --format json --proxy banach
-    run_task_that_should_fail '{"source_table": "//tmp/test_table", "source_cluster": "banach", "destination_table": "tmp/test_table_from_banach", "destination_cluster": "sakura"}'
+    run_task_that_should_fail '{"source_table": "//tmp/test_table", "source_cluster": "banach", "destination_table": "tmp/test_table_from_banach", "destination_cluster": "titan"}'
 }
 
 test_abort_restart_task() {
@@ -293,8 +268,8 @@ test_copy_table_attributes() {
 }
 
 test_copy_to_yamr_table_with_spaces_in_name() {
-    echo "Importing from Smith to Sakura (test spaces in destination table name)"
-    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "smith", "destination_table": "tmp/yt/test table", "destination_cluster": "sakura"}')
+    echo "Importing from Smith to Titan (test spaces in destination table name)"
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "smith", "destination_table": "tmp/yt/test table", "destination_cluster": "titan", "mr_user": "imgdev"}')
     wait_task $id
 }
 
