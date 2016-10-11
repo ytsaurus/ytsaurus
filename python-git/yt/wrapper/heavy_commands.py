@@ -54,7 +54,8 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
     title = "Python wrapper: {0} {1}".format(command_name, path)
     with Transaction(timeout=request_timeout,
                      attributes={"title": title},
-                     client=client):
+                     client=client,
+                     transaction_id=get_config(client)["write_retries"]["transaction_id"]):
         if not created:
             create_object(path)
         if use_retries:
