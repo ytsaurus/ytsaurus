@@ -20,48 +20,46 @@ class TStopException
 TRowQueue::TRowQueue()
 { }
 
-void TRowQueue::Enqueue(TRowElementPtr row)
+void TRowQueue::Enqueue(TRowElement&& row)
 {
-    // move into lambda for 1 AtomicGet() instead of 2
-    auto sizeOverLimit = [&]() {
-        auto size = AtomicGet(Size_);
-        return size && size + row->Size > SizeLimit_;
-    };
-    while (!Stopped_ && sizeOverLimit()) {
-        DequeueEvent_.Wait();
+    EnqueueBuffer_.push_back(std::move(row));
+    EnqueueSize_ += row.Size;
+
+    if (EnqueueSize_ < SizeLimit_ && row.Type == TRowElement::Row) {
+        return;
     }
+
+    DequeueEvent_.Wait();
+
     if (Stopped_) {
         throw TStopException();
     }
-    AtomicAdd(Size_, row->Size);
-    {
-        TGuard<TSpinLock> guard(SpinLock_);
-        Queue_.push(row);
-    }
+
+    EnqueueBuffer_.swap(DequeueBuffer_);
+    EnqueueSize_ = 0;
+    DequeueIndex_ = 0;
+
     EnqueueEvent_.Signal();
 }
 
-TRowElementPtr TRowQueue::Dequeue()
+TRowElement TRowQueue::Dequeue()
 {
     while (true) {
-        TGuard<TSpinLock> guard(SpinLock_);
-        if (Queue_.empty()) {
-            guard.Release();
-            EnqueueEvent_.Wait();
-        } else {
-            TRowElementPtr element = Queue_.front();
-            Queue_.pop();
-            AtomicSub(Size_, element->Size);
-            DequeueEvent_.Signal();
-            return element;
+        if (DequeueIndex_ < DequeueBuffer_.size()) {
+            return std::move(DequeueBuffer_[DequeueIndex_++]);
         }
+        DequeueBuffer_.clear();
+        DequeueEvent_.Signal();
+        EnqueueEvent_.Wait();
     }
 }
 
 void TRowQueue::Clear()
 {
-    TGuard<TSpinLock> guard(SpinLock_);
-    Queue_.clear();
+    EnqueueBuffer_.clear();
+    DequeueBuffer_.clear();
+    EnqueueSize_ = 0;
+    DequeueIndex_ = 0;
 }
 
 void TRowQueue::Stop()
@@ -99,7 +97,7 @@ public:
 
 private:
     THolder<TNodeBuilder> Builder_;
-    TRowElementPtr Row_;
+    TRowElement Row_;
     int Depth_ = 0;
     bool Started_ = false;
     std::atomic<bool> Stopped_{false};
@@ -114,31 +112,31 @@ TRowBuilder::TRowBuilder(TRowQueue* queue)
 
 void TRowBuilder::OnStringScalar(const TStringBuf& value)
 {
-    Row_->Size += sizeof(TNode) + sizeof(Stroka) + value.Size();
+    Row_.Size += sizeof(TNode) + sizeof(Stroka) + value.Size();
     Builder_->OnStringScalar(value);
 }
 
 void TRowBuilder::OnInt64Scalar(i64 value)
 {
-    Row_->Size += sizeof(TNode);
+    Row_.Size += sizeof(TNode);
     Builder_->OnInt64Scalar(value);
 }
 
 void TRowBuilder::OnUint64Scalar(ui64 value)
 {
-    Row_->Size += sizeof(TNode);
+    Row_.Size += sizeof(TNode);
     Builder_->OnUint64Scalar(value);
 }
 
 void TRowBuilder::OnDoubleScalar(double value)
 {
-    Row_->Size += sizeof(TNode);
+    Row_.Size += sizeof(TNode);
     Builder_->OnDoubleScalar(value);
 }
 
 void TRowBuilder::OnBooleanScalar(bool value)
 {
-    Row_->Size += sizeof(TNode);
+    Row_.Size += sizeof(TNode);
     Builder_->OnBooleanScalar(value);
 }
 
@@ -150,7 +148,7 @@ void TRowBuilder::OnBeginList()
 
 void TRowBuilder::OnEntity()
 {
-    Row_->Size += sizeof(TNode);
+    Row_.Size += sizeof(TNode);
     Builder_->OnEntity();
 }
 
@@ -177,7 +175,7 @@ void TRowBuilder::OnBeginMap()
 
 void TRowBuilder::OnKeyedItem(const TStringBuf& key)
 {
-    Row_->Size += sizeof(Stroka) + key.Size();
+    Row_.Size += sizeof(Stroka) + key.Size();
     Builder_->OnKeyedItem(key);
 }
 
@@ -204,10 +202,10 @@ void TRowBuilder::EnqueueRow()
     if (!Started_) {
         Started_ = true;
     } else {
-        RowQueue_->Enqueue(Row_);
+        RowQueue_->Enqueue(std::move(Row_));
     }
-    Row_ = new TRowElement;
-    Builder_.Reset(new TNodeBuilder(&Row_->Node));
+    Row_.Reset();
+    Builder_.Reset(new TNodeBuilder(&Row_.Node));
 }
 
 void TRowBuilder::Stop()
@@ -218,19 +216,17 @@ void TRowBuilder::Stop()
 
 void TRowBuilder::OnStreamError()
 {
-    Row_ = new TRowElement;
-    Row_->Type = TRowElement::ERROR;
-    RowQueue_->Enqueue(Row_);
+    Row_.Reset(TRowElement::Error);
+    RowQueue_->Enqueue(std::move(Row_));
 }
 
 void TRowBuilder::Finalize()
 {
     if (Started_) {
-        RowQueue_->Enqueue(Row_);
+        RowQueue_->Enqueue(std::move(Row_));
     }
-    Row_ = new TRowElement;
-    Row_->Type = TRowElement::FINISH;
-    RowQueue_->Enqueue(Row_);
+    Row_.Reset(TRowElement::Finish);
+    RowQueue_->Enqueue(std::move(Row_));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -260,7 +256,7 @@ TNodeTableReader::~TNodeTableReader()
 const TNode& TNodeTableReader::GetRow() const
 {
     CheckValidity();
-    return Row_->Node;
+    return Row_.Node;
 }
 
 bool TNodeTableReader::IsValid() const
@@ -281,13 +277,14 @@ void TNodeTableReader::Next()
 
     while (true) {
         Row_ = RowQueue_.Dequeue();
-        if (Row_->Type == TRowElement::ROW) {
-            if (!Row_->Node.IsEntity()) {
+
+        if (Row_.Type == TRowElement::Row) {
+            if (!Row_.Node.IsEntity()) {
                 AtStart_ = false;
                 break;
             }
 
-            for (auto& entry : Row_->Node.GetAttributes().AsMap()) {
+            for (auto& entry : Row_.Node.GetAttributes().AsMap()) {
                 if (entry.first == "key_switch") {
                     if (!AtStart_) {
                         Valid_ = false;
@@ -316,14 +313,14 @@ void TNodeTableReader::Next()
                 break;
             }
 
-        } else if (Row_->Type == TRowElement::FINISH) {
+        } else if (Row_.Type == TRowElement::Finish) {
             Finished_ = true;
             Valid_ = false;
             Running_ = false;
             Thread_->Join();
             break;
 
-        } else if (Row_->Type == TRowElement::ERROR) {
+        } else if (Row_.Type == TRowElement::Error) {
             OnStreamError();
         }
     }
@@ -396,8 +393,10 @@ void TNodeTableReader::FetchThread()
             Parser_->Parse();
             Builder_->Finalize();
             break;
+
         } catch (TStopException&) {
             break;
+
         } catch (yexception& e) {
             Exception_ = e;
             Builder_->OnStreamError();

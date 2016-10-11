@@ -3,12 +3,9 @@
 #include <mapreduce/yt/interface/io.h>
 
 #include <util/stream/input.h>
-#include <util/generic/queue.h>
 #include <util/generic/buffer.h>
 #include <util/system/event.h>
 #include <util/system/thread.h>
-#include <util/system/spinlock.h>
-#include <util/thread/lfqueue.h>
 
 #include <atomic>
 
@@ -21,18 +18,22 @@ class TYsonParser;
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TRowElement
-    : public TThrRefBase
 {
     TNode Node;
     size_t Size = 0;
-    enum {
-        ROW,
-        ERROR,
-        FINISH
-    } Type = ROW;
-};
+    enum EType {
+        Row,
+        Error,
+        Finish
+    } Type = Row;
 
-using TRowElementPtr = TIntrusivePtr<TRowElement>;
+    void Reset(EType type = Row)
+    {
+        Node = TNode();
+        Size = 0;
+        Type = type;
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,17 +42,21 @@ class TRowQueue
 public:
     TRowQueue();
 
-    void Enqueue(TRowElementPtr row);
-    TRowElementPtr Dequeue();
+    void Enqueue(TRowElement&& row);
+    TRowElement Dequeue();
 
     void Clear();
     void Stop();
 
 private:
-    yqueue<TRowElementPtr> Queue_;
-    TSpinLock SpinLock_;
-    TAtomic Size_ = 0;
-    const size_t SizeLimit_ = 4 << 20;
+    yvector<TRowElement> EnqueueBuffer_;
+    size_t EnqueueSize_ = 0;
+
+    yvector<TRowElement> DequeueBuffer_;
+    size_t DequeueIndex_ = 0;
+
+    static constexpr size_t SizeLimit_ = 4 << 20;
+
     TAutoEvent EnqueueEvent_;
     TAutoEvent DequeueEvent_;
     std::atomic<bool> Stopped_{false};
@@ -92,7 +97,7 @@ private:
     TMaybe<ui32> RangeIndex_;
     bool AtStart_ = true;
 
-    TRowElementPtr Row_;
+    TRowElement Row_;
     TRowQueue RowQueue_;
 
     THolder<TRowBuilder> Builder_;
