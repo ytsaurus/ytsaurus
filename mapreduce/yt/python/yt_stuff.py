@@ -27,6 +27,7 @@ class YtConfig(object):
 
         self.proxy_port = kwargs.get("proxy_port")
         self.node_config = kwargs.get("node_config")
+        self.node_count = kwargs.get("node_count")
         self.proxy_config = kwargs.get("proxy_config")
         self.scheduler_config = kwargs.get("scheduler_config")
         self.yt_path = kwargs.get("yt_path")
@@ -208,6 +209,8 @@ class YtStuff(object):
                 args += ["--tmpfs-path", self.tmpfs_path]
             if self.config.node_config:
                 args += ["--node-config", self.config.node_config]
+            if self.config.node_count:
+                args += ["--node-count", str(self.config.node_count)]
             if self.config.scheduler_config:
                 args += ["--scheduler-config", self.config.scheduler_config]
             if self.config.proxy_config:
