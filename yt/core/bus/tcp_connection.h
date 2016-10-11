@@ -176,8 +176,7 @@ private:
 
     TPacketEncoder Encoder_;
     NProfiling::TCpuDuration WriteStallTimeout_;
-    NProfiling::TCpuInstant LastWriteTime_ = std::numeric_limits<NProfiling::TCpuInstant>::max();
-    NProfiling::TCpuInstant LastBeginWriteTime_ = std::numeric_limits<NProfiling::TCpuInstant>::max();
+    NProfiling::TCpuInstant LastWriteScheduleTime_ = std::numeric_limits<NProfiling::TCpuInstant>::max();
     std::vector<std::unique_ptr<TBlob>> WriteBuffers_;
     TRingQueue<TRef> EncodedFragments_;
     TRingQueue<size_t> EncodedPacketSizes_;
