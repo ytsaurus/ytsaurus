@@ -814,6 +814,9 @@ void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
     options->ChunksMovable = false;
     options->ReplicationFactor = 1;
     options->CompressionCodec = Controller->Spec->IntermediateCompressionCodec;
+
+    // Intermediate data MUST be sorted if we expect it to be sorted.
+    options->ExplodeOnValidationError = true;
     outputSpec->set_table_writer_options(ConvertToYsonString(options).Data());
 
     ToProto(outputSpec->mutable_table_schema(), TTableSchema::FromKeyColumns(keyColumns));
