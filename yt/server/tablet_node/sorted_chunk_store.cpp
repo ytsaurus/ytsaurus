@@ -168,8 +168,12 @@ TSortedChunkStore::TSortedChunkStore(
         client,
         localDescriptor)
     , TSortedStoreBase(config, id, tablet)
+    , ChunkState_(New<TCacheBasedChunkState>())
     , KeyComparer_(tablet->GetRowKeyComparer())
 {
+    ChunkState_->BlockCache = blockCache;
+    ChunkState_->PerformanceCounters = PerformanceCounters_;
+    ChunkState_->KeyComparer = KeyComparer_;
     LOG_DEBUG("Sorted chunk store created");
 }
 
@@ -201,7 +205,10 @@ void TSortedChunkStore::SetInMemoryMode(EInMemoryMode mode)
         return;
     }
 
-    PreloadedBlockCache_.Reset();
+    // RCU: read and copy chunk state
+    auto newState = New<TCacheBasedChunkState>(*ChunkState_);
+
+    newState->BlockCache.Reset();
 
     if (PreloadFuture_) {
         PreloadFuture_.Cancel();
@@ -215,7 +222,7 @@ void TSortedChunkStore::SetInMemoryMode(EInMemoryMode mode)
                mode == EInMemoryMode::Compressed      ? EBlockType::CompressedData :
             /* mode == EInMemoryMode::Uncompressed */   EBlockType::UncompressedData;
 
-        PreloadedBlockCache_ = New<TPreloadedBlockCache>(
+        newState->BlockCache = New<TPreloadedBlockCache>(
             this,
             StoreId_,
             blockType,
@@ -238,6 +245,9 @@ void TSortedChunkStore::SetInMemoryMode(EInMemoryMode mode)
     ChunkReader_.Reset();
 
     InMemoryMode_ = mode;
+
+    // RCU: update chunk state
+    ChunkState_ = newState;
 }
 
 void TSortedChunkStore::Preload(TInMemoryChunkDataPtr chunkData)
@@ -250,8 +260,16 @@ void TSortedChunkStore::Preload(TInMemoryChunkDataPtr chunkData)
         return;
     }
 
-    PreloadedBlockCache_->Preload(chunkData);
-    CachedVersionedChunkMeta_ = chunkData->ChunkMeta;
+    // RCU: read and copy chunk state
+    auto newState = New<TCacheBasedChunkState>(*ChunkState_);
+    TPreloadedBlockCache& preloaded = static_cast<TPreloadedBlockCache&>(*newState->BlockCache);
+
+    preloaded.Preload(chunkData);
+    newState->ChunkMeta = chunkData->ChunkMeta;
+    newState->LookupHashTable = preloaded.GetLookupHashTable();
+
+    // RCU: update chunk state
+    ChunkState_ = newState;
 }
 
 EStoreType TSortedChunkStore::GetType() const
@@ -346,15 +364,13 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
         return nullptr;
     }
 
-    YCHECK(CachedVersionedChunkMeta_);
+    YCHECK(ChunkState_->ChunkMeta);
 
     return CreateCacheBasedVersionedChunkReader(
-        PreloadedBlockCache_,
-        CachedVersionedChunkMeta_,
+        ChunkState_,
         std::move(lowerKey),
         std::move(upperKey),
         columnFilter,
-        PerformanceCounters_,
         timestamp);
 }
 
@@ -420,16 +436,12 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
         return nullptr;
     }
 
-    YCHECK(CachedVersionedChunkMeta_);
+    YCHECK(ChunkState_->ChunkMeta);
 
     return CreateCacheBasedVersionedChunkReader(
-        PreloadedBlockCache_,
-        CachedVersionedChunkMeta_,
-        PreloadedBlockCache_->GetLookupHashTable(),
+        ChunkState_,
         keys,
         columnFilter,
-        PerformanceCounters_,
-        KeyComparer_,
         timestamp);
 }
 
@@ -459,8 +471,8 @@ TCachedVersionedChunkMetaPtr TSortedChunkStore::PrepareCachedVersionedChunkMeta(
 
     {
         TReaderGuard guard(SpinLock_);
-        if (CachedVersionedChunkMeta_) {
-            return CachedVersionedChunkMeta_;
+        if (ChunkState_->ChunkMeta) {
+            return ChunkState_->ChunkMeta;
         }
     }
 
@@ -474,7 +486,9 @@ TCachedVersionedChunkMetaPtr TSortedChunkStore::PrepareCachedVersionedChunkMeta(
 
     {
         TWriterGuard guard(SpinLock_);
-        CachedVersionedChunkMeta_ = cachedMeta;
+        auto newState = New<TCacheBasedChunkState>(*ChunkState_);
+        ChunkState_->ChunkMeta = cachedMeta;
+        ChunkState_ = newState;
     }
 
     return cachedMeta;
@@ -485,7 +499,7 @@ IBlockCachePtr TSortedChunkStore::GetBlockCache()
     VERIFY_THREAD_AFFINITY_ANY();
 
     TReaderGuard guard(SpinLock_);
-    return PreloadedBlockCache_ ? PreloadedBlockCache_ : BlockCache_;
+    return ChunkState_->BlockCache ? ChunkState_->BlockCache : BlockCache_;
 }
 
 void TSortedChunkStore::PrecacheProperties()
@@ -503,7 +517,7 @@ bool TSortedChunkStore::ValidateBlockCachePreloaded()
         return false;
     }
 
-    if (!PreloadedBlockCache_ || !PreloadedBlockCache_->IsPreloaded()) {
+    if (!ChunkState_->BlockCache || !static_cast<TPreloadedBlockCache&>(*ChunkState_->BlockCache).IsPreloaded()) {
         THROW_ERROR_EXCEPTION("Chunk data is not preloaded yet")
             << TErrorAttribute("tablet_id", TabletId_)
             << TErrorAttribute("store_id", StoreId_);

@@ -610,10 +610,10 @@ private:
             , ResourceUsage(resourceUsage)
         { }
 
-        //! Determines whether job belongs to list of preemtable or aggressively preemtable jobs of operation.
+        //! Determines whether job belongs to list of preemptable or aggressively preemtable jobs of operation.
         bool Preemptable;
 
-        //! Determines whether job belongs to list of preemtable (but not aggressively preemptable) jobs of operation.
+        //! Determines whether job belongs to list of preemptable (but not aggressively preemptable) jobs of operation.
         bool AggressivelyPreemptable;
 
         //! Iterator in the per-operation list pointing to this particular job.

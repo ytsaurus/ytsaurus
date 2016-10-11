@@ -8,7 +8,7 @@ var YtError = require("./error").that;
 var YtReadableStream = require("./readable_stream").that;
 var YtWritableStream = require("./writable_stream").that;
 
-var binding = require("./ytnode");
+var binding = process._linkedBinding ? process._linkedBinding("ytnode") : require("./ytnode");
 var utils = require("./utils");
 
 ////////////////////////////////////////////////////////////////////////////////
