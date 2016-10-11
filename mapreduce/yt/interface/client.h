@@ -185,6 +185,8 @@ public:
     virtual TNode::TList SelectRows(
         const Stroka& query,
         const TSelectRowsOptions& options = TSelectRowsOptions()) = 0;
+
+    virtual ui64 GenerateTimestamp() = 0;
 };
 
 using IClientPtr = TIntrusivePtr<IClient>;

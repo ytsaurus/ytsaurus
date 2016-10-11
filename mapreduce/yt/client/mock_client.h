@@ -87,6 +87,8 @@ public:
     TNode::TList LookupRows(const TYPath&, const TNode::TList&, const TLookupRowsOptions&) override;
 
     TNode::TList SelectRows(const Stroka&, const TSelectRowsOptions&) override;
+
+    ui64 GenerateTimestamp() override;
 };
 
 
