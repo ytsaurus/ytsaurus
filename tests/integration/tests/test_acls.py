@@ -578,6 +578,8 @@ class TestAcls(YTEnvSetup):
     def test_descendants_only_inheritance(self):
         create("map_node", "//tmp/m", attributes={"acl": [make_ace("allow", "guest", "remove", "descendants_only")]})
         create("map_node", "//tmp/m/s")
+        create("map_node", "//tmp/m/s/r")
+        assert check_permission("guest", "remove", "//tmp/m/s/r")["action"] == "allow"
         assert check_permission("guest", "remove", "//tmp/m/s")["action"] == "allow"
         assert check_permission("guest", "remove", "//tmp/m")["action"] == "deny"
 
@@ -586,6 +588,14 @@ class TestAcls(YTEnvSetup):
         create("map_node", "//tmp/m/s")
         assert check_permission("guest", "remove", "//tmp/m/s")["action"] == "deny"
         assert check_permission("guest", "remove", "//tmp/m")["action"] == "allow"
+
+    def test_immediate_descendants_only_inheritance(self):
+        create("map_node", "//tmp/m", attributes={"acl": [make_ace("allow", "guest", "remove", "immediate_descendants_only")]})
+        create("map_node", "//tmp/m/s")
+        create("map_node", "//tmp/m/s/r")
+        assert check_permission("guest", "remove", "//tmp/m/s/r")["action"] == "deny"
+        assert check_permission("guest", "remove", "//tmp/m/s")["action"] == "allow"
+        assert check_permission("guest", "remove", "//tmp/m")["action"] == "deny"
 
 ##################################################################
 

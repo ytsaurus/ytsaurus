@@ -753,6 +753,25 @@ public:
     }
 
 
+    static bool CheckInheritanceMode(EAceInheritanceMode mode, int depth)
+    {
+        switch (depth) {
+            case 0:
+                return
+                    mode == EAceInheritanceMode::ObjectAndDescendants ||
+                    mode == EAceInheritanceMode::ObjectOnly;
+            case 1:
+                return
+                    mode == EAceInheritanceMode::ObjectAndDescendants ||
+                    mode == EAceInheritanceMode::DescendantsOnly ||
+                    mode == EAceInheritanceMode::ImmediateDescendantsOnly;
+            default: // >= 2
+                return
+                    mode == EAceInheritanceMode::ObjectAndDescendants ||
+                    mode == EAceInheritanceMode::DescendantsOnly;
+        }
+    }
+
     TPermissionCheckResult CheckPermission(
         TObjectBase* object,
         TUser* user,
@@ -776,6 +795,7 @@ public:
         // Slow lane: check ACLs through the object hierarchy.
         auto objectManager = Bootstrap_->GetObjectManager();
         auto* currentObject = object;
+        int depth = 0;
         while (currentObject) {
             const auto& handler = objectManager->GetHandler(currentObject);
             auto* acd = handler->FindAcd(currentObject);
@@ -783,16 +803,10 @@ public:
             // Check the current ACL, if any.
             if (acd) {
                 for (const auto& ace : acd->Acl().Entries) {
-                    // Handle inheritance mode.
-                    if (object == currentObject) {
-                        if (ace.InheritanceMode == EAceInheritanceMode::DescendantsOnly) {
-                            continue;
-                        }
-                    } else {
-                        if (ace.InheritanceMode == EAceInheritanceMode::ObjectOnly) {
-                            continue;
-                        }
+                    if (!CheckInheritanceMode(ace.InheritanceMode, depth)) {
+                        continue;
                     }
+  
                     if (CheckPermissionMatch(ace.Permissions, permission)) {
                         for (auto* subject : ace.Subjects) {
                             if (CheckSubjectMatch(subject, user)) {
@@ -822,6 +836,7 @@ public:
             }
 
             currentObject = handler->GetParent(currentObject);
+            ++depth;
         }
 
         // No allowing ACE, deny the request.
