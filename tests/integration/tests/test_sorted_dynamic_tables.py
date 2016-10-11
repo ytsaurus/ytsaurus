@@ -1092,7 +1092,7 @@ class TestSortedDynamicTables(YTEnvSetup):
         do("none", "full")
 
     @pytest.mark.parametrize("atomicity", ["full", "none"])
-    def test_snapshots(self, atomicity):
+    def test_tablet_snapshots(self, atomicity):
         self.sync_create_cells(1)
         cell_id = ls("//sys/tablet_cells")[0]
 
@@ -1114,7 +1114,7 @@ class TestSortedDynamicTables(YTEnvSetup):
 
         self.wait_for_cells()
 
-        # Wait to make all tablets are up
+        # Wait to make sure all tablets are up
         time.sleep(3.0)
 
         keys = [{"key": i} for i in xrange(100)]
@@ -1178,25 +1178,6 @@ class TestSortedDynamicTables(YTEnvSetup):
                 values.pop(key)
 
             verify()
-
-    def test_recover_from_snapshot(self):
-        create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 2}})
-        self.sync_create_cells(1, tablet_cell_bundle="b")
-        self._create_simple_table("//tmp/t", tablet_cell_bundle="b")
-        self.sync_mount_table("//tmp/t")
-
-        rows = [{"key": 1, "value": "2"}]
-        keys = [{"key": 1}]
-        insert_rows("//tmp/t", rows)
-
-        cell_id = ls("//sys/tablet_cells")[0]
-        build_snapshot(cell_id=cell_id)
-        assert get("//sys/tablet_cells/" + cell_id + "/snapshots/@count") == 1
-        self._ban_all_peers(cell_id)
-        sleep(3.0)
-
-        assert get("#" + cell_id + "/@health") == "good"
-        assert lookup_rows("//tmp/t", keys) == rows
 
     def test_rff_requires_async_last_committed(self):
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 3}})
