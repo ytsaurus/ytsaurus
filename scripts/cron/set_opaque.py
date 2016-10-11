@@ -169,7 +169,7 @@ def main():
     for elem in new_opaques - removed_opaques:
         logger.info("Setting opaque to %s", elem)
         try:
-            yt.set(elem + "/@opaque", "true")
+            yt.set(elem + "/@opaque", True)
         except yt.YtResponseError as err:
             if err.is_resolve_error():
                 logger.info("Path %s is missing", elem)
