@@ -26,6 +26,8 @@ public:
     void SetDataSizePerJob(i64 dataSizePerJob);
     i64 GetDataSizePerJob() const;
 
+    void UpdateStripeCount(i64 stripeCount, i64 maxStripesPerJob);
+
 private:
     i64 TotalDataSize_ = 0;
     int MaxJobCount_ = 0;

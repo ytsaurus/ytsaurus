@@ -25,11 +25,12 @@
 
 #include <yt/ytlib/scheduler/helpers.h>
 
-#include <yt/ytlib/table_client/data_slice_descriptor.h>
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/data_slice_descriptor.h>
+#include <yt/ytlib/table_client/data_slice_fetcher.h>
+#include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/schema.h>
 #include <yt/ytlib/table_client/table_consumer.h>
-#include <yt/ytlib/table_client/helpers.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 
@@ -92,7 +93,6 @@ void TOperationControllerBase::TInputTable::Persist(const TPersistenceContext& c
     using NYT::Persist;
     Persist(context, ChunkCount);
     Persist(context, Chunks);
-    Persist(context, DataSlices);
     Persist(context, Schema);
     Persist(context, SchemaMode);
     Persist(context, IsDynamic);
@@ -1261,8 +1261,6 @@ void TOperationControllerBase::Materialize()
         LockLivePreviewTables();
 
         CollectTotals();
-
-        PrepareInputTablesDataSlices();
 
         CustomPrepare();
 
@@ -3093,91 +3091,6 @@ void TOperationControllerBase::FetchInputTables()
     }
 }
 
-void TOperationControllerBase::PrepareInputTablesDataSlices()
-{
-    for (auto& table : InputTables) {
-        if (!table.IsDynamic) {
-            for (auto& chunkSpec : table.Chunks) {
-                table.DataSlices.push_back(CreateInputDataSlice(CreateInputChunkSlice(chunkSpec)));
-            }
-        } else {
-            std::vector<std::tuple<TKey, bool, int>> boundaries;
-            boundaries.reserve(table.Chunks.size());
-            for (int index = 0; index < table.Chunks.size(); ++index) {
-                auto minKey = WidenKey(
-                    table.Chunks[index]->BoundaryKeys()->MinKey.Get(),
-                    table.Schema.GetKeyColumnCount(),
-                    RowBuffer);
-                auto maxKey = WidenKey(
-                    table.Chunks[index]->BoundaryKeys()->MaxKey.Get(),
-                    table.Schema.GetKeyColumnCount(),
-                    RowBuffer);
-
-                boundaries.emplace_back(minKey, false, index);
-                boundaries.emplace_back(maxKey, true, index);
-            }
-            std::sort(boundaries.begin(), boundaries.end());
-            yhash_set<int> currentChunks;
-
-            int currentIndex = 0;
-            while (currentIndex < boundaries.size()) {
-                const auto& boundary = boundaries[currentIndex];
-                auto& currentKey = std::get<0>(boundary);
-
-                int index = currentIndex;
-
-                while (index < boundaries.size()) {
-                    const auto& boundary = boundaries[index];
-                    auto& key = std::get<0>(boundary);
-                    int chunkIndex = std::get<2>(boundary);
-
-                    if (key != currentKey) {
-                        break;
-                    }
-
-                    currentChunks.insert(chunkIndex);
-                    ++index;
-                }
-
-                if (!currentChunks.empty()) {
-                    std::vector<TInputChunkPtr> chunks;
-                    for (int chunkIndex : currentChunks) {
-                        chunks.push_back(table.Chunks[chunkIndex]);
-                    }
-
-                    auto upper = index == boundaries.size() ? MaxKey().Get() : std::get<0>(boundaries[index]);
-
-                    LOG_DEBUG("Add data slice for table %v (Range: <%v:%v>, Chunks: %v)", currentKey, upper, chunks);
-
-                    auto slice = CreateInputDataSlice(
-                        EDataSliceDescriptorType::VersionedTable,
-                        std::move(chunks),
-                        currentKey,
-                        upper);
-
-                    table.DataSlices.push_back(std::move(slice));
-                }
-
-                int end = index;
-                index = currentIndex;
-                for (index = currentIndex; index < end; ++index) {
-                    const auto& boundary = boundaries[index];
-                    bool right = std::get<1>(boundary);
-                    int chunkIndex = std::get<2>(boundary);
-
-                    if (right) {
-                        currentChunks.erase(chunkIndex);
-                    }
-                }
-
-                currentIndex = end;
-            }
-
-            LOG_DEBUG("Prepared %v data slices for dynamic input table %v", table.DataSlices.size(), table.Path.GetPath());
-        }
-    }
-}
-
 void TOperationControllerBase::LockInputTables()
 {
     LOG_INFO("Locking input tables");
@@ -3827,13 +3740,13 @@ void TOperationControllerBase::ClearInputChunkBoundaryKeys()
 }
 
 // NB: must preserve order of chunks in the input tables, no shuffling.
-std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryInputChunks() const
+std::vector<TInputChunkPtr> TOperationControllerBase::CollectPrimaryChunks(bool versioned) const
 {
-    std::vector<TInputDataSlicePtr> result;
+    std::vector<TInputChunkPtr> result;
     for (const auto& table : InputTables) {
-        if (!table.IsForeign()) {
-            for (const auto& dataSlice : table.DataSlices) {
-                if (IsUnavailable(dataSlice, IsParityReplicasFetchEnabled())) {
+        if (!table.IsForeign() && (table.IsDynamic == versioned)) {
+            for (const auto& chunk : table.Chunks) {
+                if (IsUnavailable(chunk, IsParityReplicasFetchEnabled())) {
                     switch (Spec->UnavailableChunkStrategy) {
                         case EUnavailableChunkAction::Skip:
                             continue;
@@ -3846,10 +3759,89 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryInputChu
                             Y_UNREACHABLE();
                     }
                 }
-                result.push_back(dataSlice);
+                result.push_back(chunk);
             }
         }
     }
+    return result;
+}
+
+std::vector<TInputChunkPtr> TOperationControllerBase::CollectPrimaryUnversionedChunks() const
+{
+    return CollectPrimaryChunks(false);
+}
+
+std::vector<TInputChunkPtr> TOperationControllerBase::CollectPrimaryVersionedChunks() const
+{
+    return CollectPrimaryChunks(true);
+}
+
+i64 TOperationControllerBase::CalculatePrimaryVersionedChunksSize() const
+{
+    i64 dataSize = 0;
+    for (const auto& table : InputTables) {
+        if (!table.IsForeign() && table.IsDynamic) {
+            for (const auto& chunk : table.Chunks) {
+                dataSize += chunk->GetUncompressedDataSize();
+            }
+        }
+    }
+    return dataSize;
+}
+
+std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersionedDataSlices(i64 sliceSize) const
+{
+    TScrapeChunksCallback scraperCallback;
+    if (Spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait) {
+        scraperCallback = CreateScrapeChunksSessionCallback(
+            Config,
+            GetCancelableInvoker(),
+            Host->GetChunkLocationThrottlerManager(),
+            AuthenticatedInputMasterClient,
+            InputNodeDirectory,
+            Logger);
+    }
+
+    std::vector<TFuture<void>> asyncResults;
+    std::vector<TDataSliceFetcherPtr> fetchers;
+
+    for (const auto& table : InputTables) {
+        if (!table.IsForeign() && table.IsDynamic) {
+            auto fetcher = New<TDataSliceFetcher>(
+                Config->Fetcher,
+                sliceSize,
+                table.Schema.GetKeyColumns(),
+                true,
+                InputNodeDirectory,
+                GetCancelableInvoker(),
+                scraperCallback,
+                Host->GetMasterClient(),
+                RowBuffer,
+                Logger);
+
+            for (const auto& chunk : table.Chunks) {
+                fetcher->AddChunk(chunk);
+            }
+
+            asyncResults.emplace_back(fetcher->Fetch());
+            fetchers.emplace_back(std::move(fetcher));
+        }
+    }
+
+    WaitFor(Combine(asyncResults))
+        .ThrowOnError();
+
+    std::vector<TInputDataSlicePtr> result;
+    for (const auto& fetcher : fetchers) {
+        for (auto& dataSlice : fetcher->GetDataSlices()) {
+            LOG_TRACE("Add dynamic table slice (TablePath: %v, Range: %v..%v)",
+                InputTables[dataSlice->GetTableIndex()].Path.GetPath(),
+                dataSlice->LowerLimit(),
+                dataSlice->UpperLimit());
+            result.emplace_back(std::move(dataSlice));
+        }
+    }
+
     return result;
 }
 
@@ -3859,8 +3851,7 @@ std::vector<std::deque<TInputChunkPtr>> TOperationControllerBase::CollectForeign
     for (const auto& table : InputTables) {
         if (table.IsForeign()) {
             result.push_back(std::deque<TInputChunkPtr>());
-            for (const auto& dataSlice : table.DataSlices) {
-                const auto& chunkSpec = dataSlice->GetSingleUnversionedChunkOrThrow();
+            for (const auto& chunkSpec : table.Chunks) {
                 if (IsUnavailable(chunkSpec, IsParityReplicasFetchEnabled())) {
                     switch (Spec->UnavailableChunkStrategy) {
                         case EUnavailableChunkAction::Skip:
@@ -3881,34 +3872,42 @@ std::vector<std::deque<TInputChunkPtr>> TOperationControllerBase::CollectForeign
     return result;
 }
 
-std::vector<TChunkStripePtr> TOperationControllerBase::SliceChunks(
-    const std::vector<TInputDataSlicePtr>& dataSlices,
-    i64 maxSliceDataSize,
-    TJobSizeLimits* jobSizeLimits)
+bool TOperationControllerBase::InputHasDynamicTables() const
 {
-    std::vector<TChunkStripePtr> result;
-    auto appendStripes = [&] (const std::vector<TInputChunkSlicePtr>& slices) {
-        for (const auto& slice : slices) {
-            result.push_back(New<TChunkStripe>(CreateInputDataSlice(slice)));
+    for (const auto& table : InputTables) {
+        if (table.IsDynamic) {
+            return true;
         }
-    };
+    }
+    return false;
+}
 
+i64 TOperationControllerBase::CalculateSliceDataSize(
+    i64 maxSliceDataSize,
+    const TJobSizeLimits& jobSizeLimits) const
+{
     double multiplier = Config->SliceDataSizeMultiplier;
     // Non-trivial multiplier should be used only if input data size is large enough.
     // Otherwise we do not want to have more slices than job count.
     if (TotalEstimatedInputDataSize < maxSliceDataSize) {
         multiplier = 1.0;
     }
-    i64 sliceDataSize = Clamp(static_cast<i64>(jobSizeLimits->GetDataSizePerJob() * multiplier), 1, maxSliceDataSize);
+    return Clamp(static_cast<i64>(jobSizeLimits.GetDataSizePerJob() * multiplier), 1, maxSliceDataSize);
+}
 
-    for (const auto& dataSlice : dataSlices) {
-        if (dataSlice->Type == EDataSliceDescriptorType::VersionedTable) {
-            result.push_back(New<TChunkStripe>(dataSlice));
-            continue;
+void TOperationControllerBase::SliceUnversionedChunks(
+    const std::vector<TInputChunkPtr>& unversionedChunks,
+    i64 sliceDataSize,
+    std::vector<TChunkStripePtr>* result) const
+{
+    auto appendStripes = [&] (const std::vector<TInputChunkSlicePtr>& slices) {
+        for (const auto& slice : slices) {
+            result->push_back(New<TChunkStripe>(CreateInputDataSlice(slice)));
         }
-        const auto& chunkSpec = dataSlice->GetSingleUnversionedChunkOrThrow();
+    };
 
-        int oldSize = result.size();
+    for (const auto& chunkSpec : unversionedChunks) {
+        int oldSize = result->size();
 
         bool hasNontrivialLimits = !chunkSpec->IsCompleteChunk();
 
@@ -3925,21 +3924,24 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceChunks(
 
         LOG_TRACE("Slicing chunk (ChunkId: %v, SliceCount: %v)",
             chunkSpec->ChunkId(),
-            result.size() - oldSize);
+            result->size() - oldSize);
     }
-
-    i64 stripeCount = result.size();
-    i64 minJobCount = DivCeil(stripeCount, Config->MaxChunkStripesPerJob);
-    i64 jobCount = Clamp(jobSizeLimits->GetJobCount(), minJobCount, stripeCount);
-    jobSizeLimits->SetJobCount(jobCount);
-    return result;
 }
 
-std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(
-    i64 maxSliceDataSize,
-    TJobSizeLimits* jobSizeLimits)
+void TOperationControllerBase::SlicePrimaryUnversionedChunks(
+    i64 sliceDataSize,
+    std::vector<TChunkStripePtr>* result) const
 {
-    return SliceChunks(CollectPrimaryInputChunks(), maxSliceDataSize, jobSizeLimits);
+    SliceUnversionedChunks(CollectPrimaryUnversionedChunks(), sliceDataSize, result);
+}
+
+void TOperationControllerBase::SlicePrimaryVersionedChunks(
+    i64 sliceDataSize,
+    std::vector<TChunkStripePtr>* result) const
+{
+    for (const auto& dataSlice : CollectPrimaryVersionedDataSlices(sliceDataSize)) {
+        result->push_back(New<TChunkStripe>(dataSlice));
+    }
 }
 
 TKeyColumns TOperationControllerBase::CheckInputTablesSorted(

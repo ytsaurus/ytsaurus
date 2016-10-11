@@ -114,8 +114,8 @@ TFuture<void> TChunkSliceFetcher::DoFetchFromNode(TNodeId nodeId, const std::vec
         {
             auto slice = CreateInputChunkSlice(
                 chunk,
-                GetKeyPrefix(minKey, keyColumnCount, RowBuffer_),
-                GetKeyPrefixSuccessor(maxKey, keyColumnCount, RowBuffer_));
+                GetStrictKey(minKey, keyColumnCount, RowBuffer_),
+                GetStrictKeySuccessor(maxKey, keyColumnCount, RowBuffer_));
             if (SlicesByChunkIndex_.size() <= index) {
                 SlicesByChunkIndex_.resize(index + 1, std::vector<NChunkClient::TInputChunkSlicePtr>());
             }

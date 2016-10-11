@@ -1118,6 +1118,24 @@ TKey GetKeyPrefix(TKey key, int prefixLength, const TRowBufferPtr& rowBuffer)
         std::min(key.GetCount(), prefixLength));
 }
 
+TKey GetStrictKey(TKey key, int keyColumnCount, const TRowBufferPtr& rowBuffer)
+{
+    if (key.GetCount() > keyColumnCount) {
+        return GetKeyPrefix(key, keyColumnCount, rowBuffer);
+    } else {
+        return WidenKey(key, keyColumnCount, rowBuffer);
+    }
+}
+
+TKey GetStrictKeySuccessor(TKey key, int keyColumnCount, const TRowBufferPtr& rowBuffer)
+{
+    if (key.GetCount() >= keyColumnCount) {
+        return GetKeyPrefixSuccessor(key, keyColumnCount, rowBuffer);
+    } else {
+        return WidenKeySuccessor(key, keyColumnCount, rowBuffer);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static TOwningKey MakeSentinelKey(EValueType type)
@@ -1638,12 +1656,31 @@ TKey WidenKey(const TKey& key, int keyColumnCount, const TRowBufferPtr& rowBuffe
     auto wideKey = rowBuffer->Allocate(keyColumnCount);
 
     for (int index = 0; index < key.GetCount(); ++index) {
-        wideKey[index] = key[index];
+        wideKey[index] = rowBuffer->Capture(key[index]);
     }
 
     for (int index = key.GetCount(); index < keyColumnCount; ++index) {
         wideKey[index] = MakeUnversionedSentinelValue(EValueType::Null);
     }
+
+    return wideKey;
+}
+
+TKey WidenKeySuccessor(const TKey& key, int keyColumnCount, const TRowBufferPtr& rowBuffer)
+{
+    YCHECK(keyColumnCount >= key.GetCount());
+
+    auto wideKey = rowBuffer->Allocate(keyColumnCount + 1);
+
+    for (int index = 0; index < key.GetCount(); ++index) {
+        wideKey[index] = rowBuffer->Capture(key[index]);
+    }
+
+    for (int index = key.GetCount(); index < keyColumnCount; ++index) {
+        wideKey[index] = MakeUnversionedSentinelValue(EValueType::Null);
+    }
+
+    wideKey[keyColumnCount] = MakeUnversionedSentinelValue(EValueType::Max);
 
     return wideKey;
 }

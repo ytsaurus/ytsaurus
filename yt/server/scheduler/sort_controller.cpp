@@ -1407,16 +1407,6 @@ protected:
         return CompletedPartitionCount == Partitions.size();
     }
 
-    bool InputHasDynamicTables() const
-    {
-        for (const auto& table : InputTables) {
-            if (table.IsDynamic) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     virtual void OnOperationCompleted(bool interrupted) override
     {
         if (!interrupted) {
@@ -1946,7 +1936,6 @@ private:
 
         TFuture<void> asyncSamplesResult;
         PROFILE_TIMING ("/input_processing_time") {
-            auto slices = CollectPrimaryInputChunks();
             int sampleCount = SuggestPartitionCount() * Spec->SamplesPerPartition;
 
             TScrapeChunksCallback scraperCallback;
@@ -1972,10 +1961,11 @@ private:
                 Host->GetMasterClient(),
                 Logger);
 
-            for (const auto& slice : slices) {
-                for (const auto& chunk: slice->ChunkSlices) {
-                    samplesFetcher->AddChunk(chunk->GetInputChunk());
-                }
+            for (const auto& chunk : CollectPrimaryUnversionedChunks()) {
+                samplesFetcher->AddChunk(chunk);
+            }
+            for (const auto& chunk : CollectPrimaryVersionedChunks()) {
+                samplesFetcher->AddChunk(chunk);
             }
 
             asyncSamplesResult = samplesFetcher->Fetch();
@@ -2060,7 +2050,11 @@ private:
             Spec->DataSizePerSortJob,
             TNullable<int>(),
             Options->MaxPartitionJobCount);
-        auto stripes = SliceInputChunks(Options->SortJobMaxSliceDataSize, &jobSizeLimits);
+        std::vector<TChunkStripePtr> stripes;
+        auto sliceDataSize = CalculateSliceDataSize(Options->SortJobMaxSliceDataSize, jobSizeLimits);
+        SlicePrimaryUnversionedChunks(sliceDataSize, &stripes);
+        SlicePrimaryVersionedChunks(sliceDataSize, &stripes);
+        jobSizeLimits.UpdateStripeCount(stripes.size(), Config->MaxChunkStripesPerJob);
 
         // Create the fake partition.
         InitSimpleSortPool(jobSizeLimits.GetDataSizePerJob());
@@ -2175,7 +2169,11 @@ private:
         InitShufflePool();
 
         auto jobSizeLimits = SuggestPartitionJobLimits();
-        auto stripes = SliceInputChunks(Options->PartitionJobMaxSliceDataSize, &jobSizeLimits);
+        std::vector<TChunkStripePtr> stripes;
+        auto sliceDataSize = CalculateSliceDataSize(Options->PartitionJobMaxSliceDataSize, jobSizeLimits);
+        SlicePrimaryUnversionedChunks(sliceDataSize, &stripes);
+        SlicePrimaryVersionedChunks(sliceDataSize, &stripes);
+        jobSizeLimits.UpdateStripeCount(stripes.size(), Config->MaxChunkStripesPerJob);
 
         InitPartitionPool(jobSizeLimits.GetDataSizePerJob());
 
@@ -2658,7 +2656,11 @@ private:
         InitShufflePool();
 
         auto jobSizeLimits = SuggestPartitionJobLimits();
-        auto stripes = SliceInputChunks(Options->PartitionJobMaxSliceDataSize, &jobSizeLimits);
+        std::vector<TChunkStripePtr> stripes;
+        auto sliceDataSize = CalculateSliceDataSize(Options->PartitionJobMaxSliceDataSize, jobSizeLimits);
+        SlicePrimaryUnversionedChunks(sliceDataSize, &stripes);
+        SlicePrimaryVersionedChunks(sliceDataSize, &stripes);
+        jobSizeLimits.UpdateStripeCount(stripes.size(), Config->MaxChunkStripesPerJob);
 
         InitPartitionPool(jobSizeLimits.GetDataSizePerJob());
 

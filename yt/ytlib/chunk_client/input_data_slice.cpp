@@ -119,26 +119,26 @@ TInputDataSlicePtr CreateInputDataSlice(TInputChunkSlicePtr chunkSlice)
 
 TInputDataSlicePtr CreateInputDataSlice(
     EDataSliceDescriptorType type,
-    const std::vector<TInputChunkPtr>& inputChunks,
-    TKey lower,
-    TKey upper)
+    const std::vector<TInputChunkSlicePtr>& inputChunks,
+    TKey lowerKey,
+    TKey upperKey)
 {
     TInputDataSlice::TChunkSliceList chunkSlices;
     TNullable<int> tableIndex;
     for (const auto& inputChunk : inputChunks) {
         if (!tableIndex) {
-            tableIndex = inputChunk->GetTableIndex();
+            tableIndex = inputChunk->GetInputChunk()->GetTableIndex();
         } else {
-            YCHECK(*tableIndex == inputChunk->GetTableIndex());
+            YCHECK(*tableIndex == inputChunk->GetInputChunk()->GetTableIndex());
         }
-        chunkSlices.push_back(CreateInputChunkSlice(std::move(inputChunk), lower, upper));
+        chunkSlices.push_back(CreateInputChunkSlice(*inputChunk, lowerKey, upperKey));
     }
 
     TInputSliceLimit lowerLimit;
-    lowerLimit.Key = lower;
+    lowerLimit.Key = lowerKey;
 
     TInputSliceLimit upperLimit;
-    upperLimit.Key = upper;
+    upperLimit.Key = upperKey;
 
     return New<TInputDataSlice>(
         type,
@@ -149,8 +149,8 @@ TInputDataSlicePtr CreateInputDataSlice(
 
 TInputDataSlicePtr CreateInputDataSlice(
     const TInputDataSlicePtr& dataSlice,
-    NTableClient::TKey lowerKey,
-    NTableClient::TKey upperKey)
+    TKey lowerKey,
+    TKey upperKey)
 {
     auto lowerLimit = dataSlice->LowerLimit();
     auto upperLimit = dataSlice->UpperLimit();
