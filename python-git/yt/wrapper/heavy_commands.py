@@ -135,7 +135,8 @@ def make_read_request(command_name, path, params, process_response_action, retri
         def iter_with_retries(iter):
             chaos_monkey_enabled = get_option("_ENABLE_READ_TABLE_CHAOS_MONKEY", client)
             try:
-                for attempt in xrange(retry_count):
+                attempt = 0
+                while True:
                     try:
                         for elem in iter():
                             if not tx.is_pinger_alive():
@@ -144,11 +145,14 @@ def make_read_request(command_name, path, params, process_response_action, retri
                             # NB: We should possible raise error only after row yielded.
                             if chaos_monkey_enabled and random.randint(1, 5) == 1:
                                 raise YtRetriableError()
+                            # Reset attempt counter since we successfully read row.
+                            attempt = 0
                         break
                     except retriable_errors as err:
+                        attempt += 1
                         if isinstance(err, YtResponseError) and not err.is_chunk_unavailable():
                             raise
-                        if attempt + 1 == retry_count:
+                        if attempt == retry_count:
                             raise
                         logger.warning(str(err))
                         backoff = get_backoff(
@@ -159,7 +163,7 @@ def make_read_request(command_name, path, params, process_response_action, retri
                             backoff_config=get_config(client)["retry_backoff"])
                         logger.warning("Sleep for %.2lf seconds before next retry", backoff)
                         time.sleep(backoff)
-                        logger.warning("New retry (%d) ...", attempt + 2)
+                        logger.warning("New retry (%d) ...", attempt + 1)
             except GeneratorExit:
                 pass
             finally:
