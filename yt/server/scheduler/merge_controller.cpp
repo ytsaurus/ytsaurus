@@ -959,6 +959,9 @@ private:
         table.TableUploadOptions.UpdateMode = EUpdateMode::Overwrite;
         table.TableUploadOptions.LockMode = ELockMode::Exclusive;
 
+        // Sorted merge output MUST be sorted.
+        table.Options->ExplodeOnValidationError = true;
+
         switch (Spec->SchemaInferenceMode) {
             case ESchemaInferenceMode::Auto:
                 if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {

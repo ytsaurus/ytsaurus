@@ -1883,6 +1883,9 @@ private:
         auto& table = OutputTables[0];
         table.TableUploadOptions.LockMode = ELockMode::Exclusive;
 
+        // Sort output MUST be sorted.
+        table.Options->ExplodeOnValidationError = true;
+
         switch (Spec->SchemaInferenceMode) {
             case ESchemaInferenceMode::Auto:
                 if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {

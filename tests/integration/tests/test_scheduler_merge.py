@@ -720,6 +720,29 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                 out="//tmp/output",
                 spec={"schema_inference_mode" : "from_output"})
 
+    def test_sort_order_validation_failure(self):
+        create("table", "//tmp/input")
+        create("table", "//tmp/output", attributes={
+            "schema": make_schema([
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"}])
+            })
+
+        for i in xrange(10):
+            write_table("<append=true;>//tmp/input", {"key": i % 3, "value": "foo"})
+
+        with pytest.raises(YtError):
+            merge(mode="unordered",
+                in_="//tmp/input",
+                out="//tmp/output",
+                spec={"schema_inference_mode" : "from_output"})
+
+        with pytest.raises(YtError):
+            merge(mode="ordered",
+                in_="//tmp/input",
+                out="//tmp/output",
+                spec={"schema_inference_mode" : "from_output"})
+
 ##################################################################
 
 class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
