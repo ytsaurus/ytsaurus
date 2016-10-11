@@ -62,20 +62,37 @@ DEFINE_REFCOUNTED_TYPE(TMasterHydraManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMasterConnectionConfig
+    : public NRpc::TRetryingChannelConfig
+{
+public:
+    //! Timeout for RPC requests to masters.
+    TDuration RpcTimeout;
+
+    TMasterConnectionConfig()
+    {
+        RegisterParameter("rpc_timeout", RpcTimeout)
+            .Default(TDuration::Seconds(30));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TMasterConnectionConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TMulticellManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    //! Timeout for requests issued between masters. This applies to
-    //! follower-to-leader forwarding and cross-cell interactions.
-    TDuration MasterRpcTimeout;
+    //! Applies to follower-to-leader forwarding and cross-cell interactions.
+    TMasterConnectionConfigPtr MasterConnection;
 
     TDuration CellStatisticsGossipPeriod;
 
     TMulticellManagerConfig()
     {
-        RegisterParameter("master_rpc_timeout", MasterRpcTimeout)
-            .Default(TDuration::Seconds(30));
+        RegisterParameter("master_connection", MasterConnection)
+            .DefaultNew();
 
         RegisterParameter("cell_statistics_gossip_period", CellStatisticsGossipPeriod)
             .Default(TDuration::Seconds(1));

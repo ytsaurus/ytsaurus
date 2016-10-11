@@ -1,37 +1,78 @@
 #include "function_context.h"
 
-#include <cassert>
+#include <yt/core/misc/assert.h>
 
 namespace NYT {
 namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TFunctionContext::TImpl
+{
+public:
+    TImpl(std::vector<bool> literalArgs)
+        : LiteralArgs_(std::move(literalArgs))
+    { }
+
+    void* CreateUntypedObject(void* pointer, void(*deleter)(void*))
+    {
+        try {
+            auto holder = std::unique_ptr<void, void(*)(void*)>(pointer, deleter);
+            Objects_.push_back(std::move(holder));
+            return pointer;
+        } catch (...) {
+            return nullptr;
+        }
+    }
+
+    void* GetPrivateData() const
+    {
+        return PrivateData_;
+    }
+
+    void SetPrivateData(void* privateData)
+    {
+        PrivateData_ = privateData;
+    }
+
+    bool IsLiteralArg(int argIndex) const
+    {
+        Y_ASSERT(argIndex >= 0 && argIndex < LiteralArgs_.size());
+        return LiteralArgs_[argIndex];
+    }
+
+private:
+    std::vector<bool> LiteralArgs_;
+
+    std::vector<std::unique_ptr<void, void(*)(void*)>> Objects_;
+
+    void* PrivateData_ = nullptr;
+};
+
 TFunctionContext::TFunctionContext(std::vector<bool> literalArgs)
-    : LiteralArgs_(std::move(literalArgs))
+    : Impl_(std::make_unique<TImpl>(std::move(literalArgs)))
 { }
 
 TFunctionContext::~TFunctionContext() = default;
 
-bool TFunctionContext::IsArgLiteral(int argIndex)
+void* TFunctionContext::CreateUntypedObject(void* pointer, void(*deleter)(void*))
 {
-    assert(argIndex >= 0 && argIndex < LiteralArgs_.size());
-        return LiteralArgs_[argIndex];
+    return Impl_->CreateUntypedObject(pointer, deleter);
 }
 
-void* TFunctionContext::GetPrivateData()
+void* TFunctionContext::GetPrivateData() const
 {
-    return PrivateData_;
+    return Impl_->GetPrivateData();
 }
 
 void TFunctionContext::SetPrivateData(void* data)
 {
-    PrivateData_ = data;
+    Impl_->SetPrivateData(data);
 }
 
-void TFunctionContext::RememberObjectOrDestroy(void* object, void(*deleter)(void*))
+bool TFunctionContext::IsLiteralArg(int argIndex) const
 {
-    Objects_.push_back(std::unique_ptr<void, void(*)(void*)>(object, deleter));
+    return Impl_->IsLiteralArg(argIndex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -436,7 +436,7 @@ TSharedRange<T> MakeSharedRange(SmallVector<T, N>&& elements, THolders&&... hold
 template <class T, class... THolders>
 TSharedRange<T> MakeSharedRange(const std::vector<T>& elements, THolders&&... holders)
 {
-    return DoMakeSharedRange<T>(std::move(elements), std::forward<THolders>(holders)...);
+    return DoMakeSharedRange<T>(elements, std::forward<THolders>(holders)...);
 }
 
 template <class T, class... THolders>

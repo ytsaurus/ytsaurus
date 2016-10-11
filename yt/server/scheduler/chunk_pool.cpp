@@ -528,6 +528,11 @@ public:
         Y_UNREACHABLE();
     }
 
+    virtual void SetMaxDataSizePerJob(i64 dataSizePerJob) override
+    {
+        Y_UNREACHABLE();
+    }
+
     // IPersistent implementation.
 
     virtual void Persist(const TPersistenceContext& context) override
@@ -629,6 +634,7 @@ public:
         if (outputCookie == IChunkPoolOutput::NullCookie) {
             Unregister(cookie);
             SuspendedDataSize += suspendableStripe.GetStatistics().DataSize;
+            UpdateJobCounter();
         } else {
             auto it = ExtractedLists.find(outputCookie);
             YCHECK(it != ExtractedLists.end());
@@ -653,6 +659,7 @@ public:
             Register(cookie);
             SuspendedDataSize -= suspendableStripe.GetStatistics().DataSize;
             YCHECK(SuspendedDataSize >= 0);
+            UpdateJobCounter();
         } else {
             auto it = ExtractedLists.find(outputCookie);
             YCHECK(it != ExtractedLists.end());
@@ -702,16 +709,6 @@ public:
 
         if (FreePendingDataSize == 0) {
             return 0;
-        }
-
-        if (SuspendedDataSize > 0) {
-            if (freePendingJobCount == 1) {
-                return 0;
-            }
-
-            if (FreePendingDataSize < GetIdealDataSizePerJob()) {
-                return 0;
-            }
         }
 
         return freePendingJobCount;
@@ -906,6 +903,13 @@ public:
         UpdateJobCounter();
     }
 
+    virtual void SetMaxDataSizePerJob(i64 maxDataSizePerJob) override
+    {
+        YCHECK(maxDataSizePerJob > 0);
+
+        MaxDataSizePerJob = maxDataSizePerJob;
+    }
+
     // IPersistent implementation.
 
     virtual void Persist(const TPersistenceContext& context) override
@@ -917,6 +921,7 @@ public:
         Persist(context, Stripes);
         Persist(context, PendingGlobalStripes);
         Persist(context, DataSizePerJob);
+        Persist(context, MaxDataSizePerJob);
         Persist(context, FreePendingDataSize);
         Persist(context, SuspendedDataSize);
         Persist(context, UnavailableLostCookieCount);
@@ -938,6 +943,7 @@ private:
     yhash_set<int> PendingGlobalStripes;
 
     i64 DataSizePerJob = 0;
+    TNullable<i64> MaxDataSizePerJob;
     i64 FreePendingDataSize = 0;
     i64 SuspendedDataSize = 0;
     int UnavailableLostCookieCount = 0;
@@ -1009,7 +1015,8 @@ private:
 
     void UpdateJobCounter()
     {
-        i64 newJobCount = DivCeil(FreePendingDataSize, DataSizePerJob);
+        i64 newJobCount = DivCeil(FreePendingDataSize, DataSizePerJob) +
+            DivCeil(SuspendedDataSize, DataSizePerJob);
         int freePendingJobCount = GetFreePendingJobCount();
         if (newJobCount != freePendingJobCount) {
             JobCounter.Increment(newJobCount - freePendingJobCount);
@@ -1086,11 +1093,16 @@ private:
                 break;
             }
             auto stripeIndex = *it;
+            auto& suspendableStripe = Stripes[stripeIndex];
+            auto stat = suspendableStripe.GetStatistics();
+            // We should always return at least one stripe, even we get MaxDataSizePerJob overflow.
+            if (MaxDataSizePerJob && list->TotalDataSize != 0 && list->TotalDataSize + stat.DataSize > *MaxDataSizePerJob) {
+                break;
+            }
+
             extractedStripeList.StripeIndexes.push_back(stripeIndex);
 
-            auto& suspendableStripe = Stripes[stripeIndex];
             suspendableStripe.SetExtractedCookie(cookie);
-            auto stat = suspendableStripe.GetStatistics();
             AddStripeToList(
                 suspendableStripe.GetStripe(),
                 stat.DataSize,
@@ -1548,6 +1560,11 @@ private:
         }
 
         virtual void SetDataSizePerJob(i64 dataSizePerJob) override
+        {
+            Y_UNREACHABLE();
+        }
+
+        virtual void SetMaxDataSizePerJob(i64 dataSizePerJob) override
         {
             Y_UNREACHABLE();
         }

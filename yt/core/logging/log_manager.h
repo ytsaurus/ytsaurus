@@ -42,6 +42,15 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void SimpleConfigureLogging(
+    const char* logLevelStr,
+    const char* logExcludeCategoriesStr,
+    const char* logIncludeCategoriesStr);
+
+void SimpleConfigureLoggingFromEnv();
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NLogging
 } // namespace NYT
 

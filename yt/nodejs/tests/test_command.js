@@ -6,7 +6,7 @@ var YtDriver = require("../lib/driver").that;
 var YtError = require("../lib/error").that;
 var YtCommand = require("../lib/command").that;
 
-var binding = require("../lib/ytnode");
+var binding = process._linkedBinding ? process._linkedBinding("ytnode") : require("../lib/ytnode");
 var utils = require("../lib/utils");
 
 ////////////////////////////////////////////////////////////////////////////////

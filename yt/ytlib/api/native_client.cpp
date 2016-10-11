@@ -116,6 +116,7 @@ using NChunkClient::TReadRange;
 using NTableClient::TColumnSchema;
 using NNodeTrackerClient::INodeChannelFactoryPtr;
 using NNodeTrackerClient::CreateNodeChannelFactory;
+using NNodeTrackerClient::TNetworkPreferenceList;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -296,17 +297,17 @@ const TCellPeerDescriptor& GetBackupTabletPeerDescriptor(
 IChannelPtr CreateTabletReadChannel(
     const IChannelFactoryPtr& channelFactory,
     const TCellDescriptor& cellDescriptor,
-    const TNativeConnectionConfigPtr& config,
-    const TTabletReadOptions& options)
+    const TTabletReadOptions& options,
+    const TNetworkPreferenceList& networks)
 {
     const auto& primaryPeerDescriptor = GetPrimaryTabletPeerDescriptor(cellDescriptor, options.ReadFrom);
-    auto primaryChannel = channelFactory->CreateChannel(primaryPeerDescriptor.GetAddress(config->Networks));
+    auto primaryChannel = channelFactory->CreateChannel(primaryPeerDescriptor.GetAddress(networks));
     if (cellDescriptor.Peers.size() == 1 || !options.BackupRequestDelay) {
         return primaryChannel;
     }
 
     const auto& backupPeerDescriptor = GetBackupTabletPeerDescriptor(cellDescriptor, primaryPeerDescriptor);
-    auto backupChannel = channelFactory->CreateChannel(backupPeerDescriptor.GetAddress(config->Networks));
+    auto backupChannel = channelFactory->CreateChannel(backupPeerDescriptor.GetAddress(networks));
 
     return CreateLatencyTamingChannel(
         std::move(primaryChannel),
@@ -646,7 +647,7 @@ private:
             return GetLowerBoundFromDataSplit(lhs) < GetLowerBoundFromDataSplit(rhs);
         });
 
-        const auto& networks = Connection_->GetConfig()->Networks;
+        const auto& networks = Connection_->GetNetworks();
 
         for (auto& chunkSpec : chunkSpecs) {
             auto chunkSchema = FindProtoExtension<TTableSchemaExt>(chunkSpec.chunk_meta().extensions());
@@ -721,7 +722,7 @@ private:
         const TTableMountInfoPtr& tableInfo)
     {
         const auto& cellDirectory = Connection_->GetCellDirectory();
-        const auto& networks = Connection_->GetConfig()->Networks;
+        const auto& networks = Connection_->GetNetworks();
 
         yhash_map<NTabletClient::TTabletCellId, TCellDescriptor> tabletCellReplicas;
 
@@ -1121,10 +1122,10 @@ public:
 
         LightChannelFactory_ = CreateNodeChannelFactory(
             wrapChannelFactory(Connection_->GetLightChannelFactory()),
-            Connection_->GetConfig()->Networks);
+            Connection_->GetNetworks());
         HeavyChannelFactory_ = CreateNodeChannelFactory(
             wrapChannelFactory(Connection_->GetHeavyChannelFactory()),
-            Connection_->GetConfig()->Networks);
+            Connection_->GetNetworks());
 
         SchedulerProxy_.reset(new TSchedulerServiceProxy(GetSchedulerChannel()));
         JobProberProxy_.reset(new TJobProberServiceProxy(GetSchedulerChannel()));
@@ -1712,10 +1713,12 @@ private:
     public:
         TTabletCellLookupSession(
             TNativeConnectionConfigPtr config,
+            const TNetworkPreferenceList& networks,
             const TCellId& cellId,
             const TLookupRowsOptions& options,
             TTableMountInfoPtr tableInfo)
             : Config_(std::move(config))
+            , Networks_(networks)
             , CellId_(cellId)
             , Options_(options)
             , TableInfo_(std::move(tableInfo))
@@ -1760,8 +1763,8 @@ private:
             auto channel = CreateTabletReadChannel(
                 channelFactory,
                 cellDescriptor,
-                Config_,
-                Options_);
+                Options_,
+                Networks_);
 
             InvokeProxy_ = std::make_unique<TQueryServiceProxy>(std::move(channel));
             InvokeProxy_->SetDefaultTimeout(Config_->LookupTimeout);
@@ -1790,6 +1793,7 @@ private:
     private:
         const TNativeClientPtr Client_;
         const TNativeConnectionConfigPtr Config_;
+        const TNetworkPreferenceList Networks_;
         const TCellId CellId_;
         const TLookupRowsOptions Options_;
         const TTableMountInfoPtr TableInfo_;
@@ -1925,6 +1929,7 @@ private:
                         cellId,
                         New<TTabletCellLookupSession>(
                             Connection_->GetConfig(),
+                            Connection_->GetNetworks(),
                             cellId,
                             options,
                             tableInfo)))

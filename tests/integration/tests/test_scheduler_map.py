@@ -1724,6 +1724,15 @@ print row + table_index
                 out=["<row_count_limit=1>//tmp/out_1", "<row_count_limit=1>//tmp/out_2"],
                 command="cat")
 
+    def test_invalid_schema_in_path(self):
+        create("table", "//tmp/input")
+        create("table", "//tmp/output")
+
+        with pytest.raises(YtError):
+            map(in_="//tmp/input",
+                out="<schema=[{name=key; type=int64}; {name=key;type=string}]>//tmp/output",
+                command="cat")
+
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_schema_validation(self, optimize_for):
         schema = make_schema([
@@ -2542,7 +2551,9 @@ class TestJobSizeManager(YTEnvSetup):
         original_data = [{"index": "%05d" % i} for i in xrange(31)]
         for row in original_data:
             write_table("<append=true>//tmp/t_input", row, verbose=False)
-
+        chunk_ids = get("//tmp/t_input/@chunk_ids")
+        chunk_id = chunk_ids[0]
+        chunk_size = get("#{0}/@uncompressed_data_size".format(chunk_id))
         create("table", "//tmp/t_output")
 
         op = map(
@@ -2551,8 +2562,61 @@ class TestJobSizeManager(YTEnvSetup):
             command="echo lines=`wc -l`",
             spec={
                 "mapper": {"format": "dsv"},
-                "max_data_size_per_job": 100
+                "max_data_size_per_job": chunk_size * 4,
+                "resource_limits": {"user_slots": 3}
             })
 
         for row in read_table("//tmp/t_output"):
             assert int(row["lines"]) < 5
+
+    def test_map_unavailable_chunk(self):
+        create("table", "//tmp/t_input", attributes={"replication_factor": 1})
+        original_data = [{"index": "%05d" % i} for i in xrange(20)]
+        write_table("<append=true>//tmp/t_input", original_data[0], verbose=False)
+        chunk_ids = get("//tmp/t_input/@chunk_ids")
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
+
+        chunk_size = get("#{0}/@uncompressed_data_size".format(chunk_id))
+        replicas = get("#{0}/@stored_replicas".format(chunk_id))
+        assert len(replicas) == 1
+        replica_to_ban = replicas[0]
+
+        banned = False
+        for node in ls("//sys/nodes"):
+            if node == replica_to_ban:
+                set("//sys/nodes/{0}/@banned".format(node), True)
+                banned = True
+        assert banned
+
+        time.sleep(1)
+        assert get("#{0}/@replication_status/lost".format(chunk_id))
+
+        for row in original_data[1:]:
+            write_table("<append=true>//tmp/t_input", row, verbose=False)
+        chunk_ids = get("//tmp/t_input/@chunk_ids")
+        assert len(chunk_ids) == len(original_data)
+
+        create("table", "//tmp/t_output")
+        op = map(dont_track=True,
+                 command="sleep $YT_JOB_INDEX; cat",
+                 in_="//tmp/t_input",
+                 out="//tmp/t_output",
+                 spec={
+                     "data_size_per_job": chunk_size * 2
+                 })
+
+        while True:
+            time.sleep(0.2)
+            if op.get_job_count("completed") > 3:
+                break
+
+        unbanned = False
+        for node in ls("//sys/nodes"):
+            if node == replica_to_ban:
+                set("//sys/nodes/{0}/@banned".format(node), False)
+                unbanned = True
+        assert unbanned
+
+        op.track()
+        assert op.get_state() == "completed"
