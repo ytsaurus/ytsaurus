@@ -367,8 +367,8 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
         disk_size = file_uploader.disk_size
         for file in file_paths:
             disk_size += round_up_to(get(file + "/@uncompressed_data_size", client=client), 4 * 1024)
-        spec = update({op_type: {"tmpfs_size": disk_size, "tmpfs_path": "."}}, spec)
-        tmpfs_size = disk_size
+        tmpfs_size += disk_size
+        spec = update({op_type: {"tmpfs_size": tmpfs_size, "tmpfs_path": "."}}, spec)
     else:
         if tmpfs_size > 0:
             spec = update({op_type: {"tmpfs_size": tmpfs_size, "tmpfs_path": "tmpfs"}}, spec)
