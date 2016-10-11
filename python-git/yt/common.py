@@ -201,7 +201,7 @@ def _pretty_format(error, attribute_length_limit=None):
 
         return result
 
-    return "{0}\n\n==========BEGIN DETAILS==========\n{1}\n===========END DETAILS==========="\
+    return "{0}\n\n***** Details:\n{1}\n"\
         .format(format_messages(error, indent=0), format_full_errors(error))
 
 def format_error(error, attribute_length_limit=300):
