@@ -458,6 +458,35 @@ class TestOrderedDynamicTables(YTEnvSetup):
         self._create_simple_table("//tmp/t", tablet_count=10)
         assert get("//tmp/t/@tablet_count") == 10
 
+
+    def test_tablet_snapshots(self):
+        self.sync_create_cells(1)
+        cell_id = ls("//sys/tablet_cells")[0]
+
+        self._create_simple_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+
+        rows = [{"a": i, "b": i * 0.5, "c" : "payload" + str(i)} for i in xrange(0, 100)]
+        insert_rows("//tmp/t", rows)
+
+        build_snapshot(cell_id=cell_id)
+
+        snapshots = ls("//sys/tablet_cells/" + cell_id + "/snapshots")
+        assert len(snapshots) == 1
+
+        self.Env.kill_nodes()
+        # Wait to make sure all leases have expired
+        time.sleep(3.0)
+        self.Env.start_nodes()
+
+        self.wait_for_cells()
+
+        # Wait to make sure all tablets are up
+        time.sleep(3.0)
+
+        actual = select_rows("a, b, c from [//tmp/t]")
+        assert_items_equal(actual, rows)
+
 ##################################################################
 
 class TestOrderedDynamicTablesMulticell(TestOrderedDynamicTables):
