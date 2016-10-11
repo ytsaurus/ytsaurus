@@ -76,10 +76,9 @@ private:
     struct TFetchItemsSession
         : public TIntrinsicRefCounted
     {
+        IInvokerPtr Invoker;
         i64 Limit = -1;
         TNullable<std::vector<Stroka>> AttributeKeys;
-        NObjectClient::TCellTagList CellTags;
-        int CellTagIndex = -1; // -1 means local
         bool Incomplete = false;
         std::vector<TFetchItem> Items;
     };
@@ -90,17 +89,11 @@ private:
         i64 limit,
         const TNullable<std::vector<Stroka>>& attributeKeys);
 
-    void FetchItemsFromAnywhere(
-        TFetchItemsSessionPtr session,
-        TPromise<TFetchItemsSessionPtr> promise);
+    TFuture<void> FetchItemsFromLocal(TFetchItemsSessionPtr session);
+    TFuture<void> FetchItemsFromRemote(TFetchItemsSessionPtr session, NObjectClient::TCellTag cellTag);
 
-    void FetchItemsFromLocal(
-        TFetchItemsSessionPtr session,
-        TPromise<TFetchItemsSessionPtr> promise);
-
-    void FetchItemsFromRemote(
-        TFetchItemsSessionPtr session,
-        TPromise<TFetchItemsSessionPtr> promise);
+    TFuture<std::pair<NObjectClient::TCellTag, i64>> FetchSizeFromLocal();
+    TFuture<std::pair<NObjectClient::TCellTag, i64>> FetchSizeFromRemote(NObjectClient::TCellTag cellTag);
 
     TFuture<NYson::TYsonString> GetOwningNodeAttributes(const TNullable<std::vector<Stroka>>& attributeKeys);
 

@@ -300,88 +300,87 @@ bool TVirtualMulticellMapBase::RemoveBuiltinAttribute(const Stroka& /*key*/)
 TFuture<std::vector<std::pair<TCellTag, i64>>> TVirtualMulticellMapBase::FetchSizes()
 {
     std::vector<TFuture<std::pair<TCellTag, i64>>> asyncResults{
-        MakeFuture(std::make_pair(Bootstrap_->GetCellTag(), GetSize()))
+        FetchSizeFromLocal()
     };
 
     if (Bootstrap_->IsPrimaryMaster()) {
         auto multicellManager = Bootstrap_->GetMulticellManager();
         for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
-            auto channel = multicellManager->FindMasterChannel(cellTag, NHydra::EPeerKind::Leader);
-            if (!channel) {
-                continue;
+            auto asyncResult = FetchSizeFromRemote(cellTag);
+            if (asyncResult) {
+                asyncResults.push_back(asyncResult);
             }
-
-            TObjectServiceProxy proxy(channel);
-            auto batchReq = proxy.ExecuteBatch();
-            batchReq->SetSuppressUpstreamSync(true);
-
-            auto path = GetWellKnownPath();
-            auto req = TYPathProxy::Get(path + "/@count");
-            batchReq->AddRequest(req, "get_count");
-
-            auto asyncResult = batchReq->Invoke()
-                .Apply(BIND([=, this_ = MakeStrong(this)] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
-                    auto cumulativeError = GetCumulativeError(batchRspOrError);
-                    if (!cumulativeError.IsOK()) {
-                        THROW_ERROR_EXCEPTION("Error fetching size of virtual map %v from cell %v",
-                            path,
-                            cellTag)
-                            << cumulativeError;
-                    }
-
-                    const auto& batchRsp = batchRspOrError.Value();
-
-                    auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_count");
-                    const auto& rsp = rspOrError.Value();
-                    return std::make_pair(cellTag, ConvertTo<i64>(TYsonString(rsp->value())));
-                }));
-
-            asyncResults.push_back(asyncResult);
         }
     }
 
     return Combine(asyncResults);
 }
 
+TFuture<std::pair<TCellTag, i64>> TVirtualMulticellMapBase::FetchSizeFromLocal()
+{
+    return MakeFuture(std::make_pair(Bootstrap_->GetCellTag(), GetSize()));
+}
+
+TFuture<std::pair<TCellTag, i64>> TVirtualMulticellMapBase::FetchSizeFromRemote(TCellTag cellTag)
+{
+    auto multicellManager = Bootstrap_->GetMulticellManager();
+    auto channel = multicellManager->FindMasterChannel(cellTag, NHydra::EPeerKind::Leader);
+    if (!channel) {
+        return TFuture<std::pair<TCellTag, i64>>();
+    }
+
+    TObjectServiceProxy proxy(channel);
+    auto batchReq = proxy.ExecuteBatch();
+    batchReq->SetSuppressUpstreamSync(true);
+
+    auto path = GetWellKnownPath();
+    auto req = TYPathProxy::Get(path + "/@count");
+    batchReq->AddRequest(req, "get_count");
+
+    return batchReq->Invoke()
+        .Apply(BIND([=, this_ = MakeStrong(this)] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
+            auto cumulativeError = GetCumulativeError(batchRspOrError);
+            if (!cumulativeError.IsOK()) {
+                THROW_ERROR_EXCEPTION("Error fetching size of virtual map %v from cell %v",
+                    path,
+                    cellTag)
+                    << cumulativeError;
+            }
+
+            const auto& batchRsp = batchRspOrError.Value();
+
+            auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_count");
+            const auto& rsp = rspOrError.Value();
+            return std::make_pair(cellTag, ConvertTo<i64>(TYsonString(rsp->value())));
+        }));
+}
+
 TFuture<TVirtualMulticellMapBase::TFetchItemsSessionPtr> TVirtualMulticellMapBase::FetchItems(
     i64 limit,
     const TNullable<std::vector<Stroka>>& attributeKeys)
 {
-    auto multicellManager = Bootstrap_->GetMulticellManager();
-
     auto session = New<TFetchItemsSession>();
+    session->Invoker = CreateSerializedInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker());
     session->Limit = limit;
     session->AttributeKeys = attributeKeys;
-    session->CellTags = multicellManager->GetRegisteredMasterCellTags();
 
-    auto promise = NewPromise<TFetchItemsSessionPtr>();
-    FetchItemsFromAnywhere(session, promise);
+    std::vector<TFuture<void>> asyncResults{
+        FetchItemsFromLocal(session)
+    };
 
-    return promise.ToFuture();
-}
-
-void TVirtualMulticellMapBase::FetchItemsFromAnywhere(
-    TVirtualMulticellMapBase::TFetchItemsSessionPtr session,
-    TPromise<TFetchItemsSessionPtr> promise)
-{
-    if (promise.IsSet()) {
-        return;
+    if (Bootstrap_->IsPrimaryMaster()) {
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
+            asyncResults.push_back(FetchItemsFromRemote(session, cellTag));
+        }
     }
 
-    if (session->CellTagIndex >= (int) session->CellTags.size() ||
-        session->Items.size() >= session->Limit)
-    {
-        promise.Set(session);
-    } else if (session->CellTagIndex < 0) {
-        FetchItemsFromLocal(session, promise);
-    } else {
-        FetchItemsFromRemote(session, promise);
-    }
+    return Combine(asyncResults).Apply(BIND([=] () {
+        return session;
+    }));
 }
 
-void TVirtualMulticellMapBase::FetchItemsFromLocal(
-    TVirtualMulticellMapBase::TFetchItemsSessionPtr session,
-    TPromise<TFetchItemsSessionPtr> promise)
+TFuture<void> TVirtualMulticellMapBase::FetchItemsFromLocal(TFetchItemsSessionPtr session)
 {
     auto keys = GetKeys(session->Limit);
     session->Incomplete |= (keys.size() == session->Limit);
@@ -407,35 +406,21 @@ void TVirtualMulticellMapBase::FetchItemsFromLocal(
         }
     }
 
-    Combine(asyncAttributes)
-        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TYsonString>>& errorOrAttributes) mutable {
-            if (!errorOrAttributes.IsOK()) {
-                promise.Set(errorOrAttributes);
-                return;
-            }
-
-            const auto& attributes = errorOrAttributes.Value();
+    return Combine(asyncAttributes)
+        .Apply(BIND([=, this_ = MakeStrong(this)] (const std::vector<TYsonString>& attributes) {
             YCHECK(session->Items.size() == attributes.size());
             for (int index = 0; index < session->Items.size(); ++index) {
                 session->Items[index].Attributes = attributes[index];
             }
-
-            // Proceed to remotes.
-            session->CellTagIndex = 0;
-            FetchItemsFromAnywhere(session, promise);
-        }));
+        }).AsyncVia(session->Invoker));
 }
 
-void TVirtualMulticellMapBase::FetchItemsFromRemote(
-    TVirtualMulticellMapBase::TFetchItemsSessionPtr session,
-    TPromise<TFetchItemsSessionPtr> promise)
+TFuture<void> TVirtualMulticellMapBase::FetchItemsFromRemote(TFetchItemsSessionPtr session, TCellTag cellTag)
 {
-    auto cellTag = session->CellTags[session->CellTagIndex++];
     auto multicellManager = Bootstrap_->GetMulticellManager();
     auto channel = multicellManager->FindMasterChannel(cellTag, NHydra::EPeerKind::Follower);
     if (!channel) {
-        FetchItemsFromAnywhere(session, promise);
-        return;
+        return VoidFuture;
     }
 
     TObjectServiceProxy proxy(channel);
@@ -450,15 +435,14 @@ void TVirtualMulticellMapBase::FetchItemsFromRemote(
     }
     batchReq->AddRequest(req, "enumerate");
 
-    batchReq->Invoke()
-        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) mutable {
+    return batchReq->Invoke()
+        .Apply(BIND([=, this_ = MakeStrong(this)] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
             auto cumulativeError = GetCumulativeError(batchRspOrError);
             if (!cumulativeError.IsOK()) {
-                promise.Set(TError("Error fetching content of virtual map %v from cell %v",
+                THROW_ERROR_EXCEPTION("Error fetching content of virtual map %v from cell %v",
                     path,
                     cellTag)
-                    << cumulativeError);
-                return;
+                    << cumulativeError;
             }
 
             const auto& batchRsp = batchRspOrError.Value();
@@ -475,10 +459,7 @@ void TVirtualMulticellMapBase::FetchItemsFromRemote(
                 }
                 session->Items.push_back(item);
             }
-
-            // Proceed to the next remote.
-            FetchItemsFromAnywhere(session, promise);
-        }).Via(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
+        }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
 }
 
 TFuture<TYsonString> TVirtualMulticellMapBase::GetOwningNodeAttributes(const TNullable<std::vector<Stroka>>& attributeKeys)
