@@ -265,7 +265,8 @@ class TestSortedDynamicTables(YTEnvSetup):
         with pytest.raises(YtError):  read_table("//tmp/t[#5:]")
         with pytest.raises(YtError):  read_table("<ranges=[{lower_limit={chunk_index = 0};upper_limit={chunk_index = 1}}]>//tmp/t")
 
-    def _test_read_table(self, optimize_for):
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_read_table(self, optimize_for):
         self.sync_create_cells(1)
 
         self._create_simple_table("//tmp/t", optimize_for=optimize_for)
@@ -277,12 +278,6 @@ class TestSortedDynamicTables(YTEnvSetup):
 
         assert read_table("//tmp/t") == rows1
         assert get("//tmp/t/@chunk_count") == 1
-
-    def test_read_table_scan(self):
-        self._test_read_table("scan")
-
-    def test_read_table_lookup(self):
-        self._test_read_table("lookup")
 
     def test_read_snapshot_lock(self):
         self.sync_create_cells(1)
@@ -371,7 +366,8 @@ class TestSortedDynamicTables(YTEnvSetup):
 
         with pytest.raises(YtError): write_table("//tmp/t", [{"key": 1, "value": 2}])
 
-    def _test_computed_columns(self, optimize_for):
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_computed_columns(self, optimize_for):
         self.sync_create_cells(1)
         self._create_table_with_computed_column("//tmp/t", optimize_for)
         self.sync_mount_table("//tmp/t")
@@ -406,13 +402,8 @@ class TestSortedDynamicTables(YTEnvSetup):
         actual = select_rows("* from [//tmp/t]")
         assert_items_equal(actual, expected)
 
-    def test_computed_columns_lookup(self):
-        self._test_computed_columns("lookup")
-
-    def test_computed_columns_scan(self):
-        self._test_computed_columns("scan")
-
-    def _test_computed_hash(self, optimize_for):
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_computed_hash(self, optimize_for):
         self.sync_create_cells(1)
 
         self._create_table_with_hash("//tmp/t", optimize_for)
@@ -434,13 +425,8 @@ class TestSortedDynamicTables(YTEnvSetup):
         actual = select_rows("key, value from [//tmp/t]")
         assert_items_equal(actual, row2)
 
-    def test_computed_hash_scan(self):
-        self._test_computed_hash("scan")
-
-    def test_computed_hash_lookup(self):
-        self._test_computed_hash("lookup")
-
-    def _test_computed_column_update_consistency(self, optimize_for):
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_computed_column_update_consistency(self, optimize_for):
         self.sync_create_cells(1)
 
         create("table", "//tmp/t",
@@ -472,13 +458,8 @@ class TestSortedDynamicTables(YTEnvSetup):
         actual = lookup_rows("//tmp/t", [{"key2" : 1}])
         assert_items_equal(actual, expected)
 
-    def test_computed_column_update_consistency_scan(self):
-        self._test_computed_column_update_consistency("scan")
-
-    def test_computed_column_update_consistency_lookup(self):
-        self._test_computed_column_update_consistency("lookup")
-
-    def _test_aggregate_columns(self, optimize_for):
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_aggregate_columns(self, optimize_for):
         self.sync_create_cells(1)
         self._create_table_with_aggregate_column("//tmp/t", optimize_for=optimize_for)
         self.sync_mount_table("//tmp/t")
@@ -551,12 +532,6 @@ class TestSortedDynamicTables(YTEnvSetup):
         self.sync_compact_table("//tmp/t")
 
         verify_after_flush({"key": 1, "time": 21, "value": 10})
-
-    def test_aggregate_columns_scan(self):
-        self._test_aggregate_columns("scan")
-
-    def test_aggregate_columns_lookup(self):
-        self._test_aggregate_columns("lookup")
 
     def test_aggregate_min_max(self):
         self.sync_create_cells(1)
@@ -745,7 +720,8 @@ class TestSortedDynamicTables(YTEnvSetup):
         assert_items_equal(get_tablet_ids("//tmp/x/a"), tablet_ids_a)
         assert_items_equal(get_tablet_ids("//tmp/x/b"), tablet_ids_b)
 
-    def _test_any_value_type(self, optimize_for):
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_any_value_type(self, optimize_for):
         self.sync_create_cells(1)
         create("table", "//tmp/t1",
             attributes={
@@ -772,12 +748,6 @@ class TestSortedDynamicTables(YTEnvSetup):
         assert_items_equal(actual, rows)
         actual = lookup_rows("//tmp/t1", [{"key": row["key"]} for row in rows])
         assert_items_equal(actual, rows)
-
-    def test_any_value_scan(self):
-        self._test_any_value_type("scan")
-
-    def test_any_value_lookup(self):
-        self._test_any_value_type("lookup")
 
     def _prepare_allowed(self, permission):
         self.sync_create_cells(1)
@@ -840,7 +810,8 @@ class TestSortedDynamicTables(YTEnvSetup):
         self._prepare_denied("write")
         with pytest.raises(YtError): delete_rows("//tmp/t", [{"key": 1}], authenticated_user="u")
 
-    def _test_read_from_chunks(self, optimize_for):
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_read_from_chunks(self, optimize_for):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t", optimize_for = optimize_for)
 
@@ -876,12 +847,6 @@ class TestSortedDynamicTables(YTEnvSetup):
             #assert get(path + "/static_chunk_row_lookup_false_positive_count") < 4
             #assert get(path + "/static_chunk_row_lookup_true_negative_count") > 90
 
-    def test_read_from_chunks_scan(self):
-        self._test_read_from_chunks("scan")
-
-    def test_read_from_chunks_lookup(self):
-        self._test_read_from_chunks("lookup")
-
     def test_store_rotation(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -902,7 +867,9 @@ class TestSortedDynamicTables(YTEnvSetup):
         assert len(tablet_data["partitions"]) == 1
         assert len(tablet_data["partitions"][0]["stores"]) == 1
 
-    def _test_in_memory(self, mode, optimize_for):
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    @pytest.mark.parametrize("mode", ["compressed", "uncompressed"])
+    def test_in_memory(self, mode, optimize_for):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t", optimize_for=optimize_for)
 
@@ -953,18 +920,6 @@ class TestSortedDynamicTables(YTEnvSetup):
 
         _check_preload_state("complete")
         assert lookup_rows("//tmp/t", keys) == rows
-
-    def test_in_memory_compressed_lookup(self):
-        self._test_in_memory("compressed", "lookup")
-
-    def test_in_memory_uncompressed_lookup(self):
-        self._test_in_memory("uncompressed", "lookup")
-
-    def test_in_memory_compressed_scan(self):
-        self._test_in_memory("compressed", "scan")
-
-    def test_in_memory_uncompressed_scan(self):
-        self._test_in_memory("uncompressed", "scan")
 
     def test_lookup_hash_table(self):
         self.sync_create_cells(1)
@@ -1092,7 +1047,8 @@ class TestSortedDynamicTables(YTEnvSetup):
             {"name": "value", "type": "string"}])
         with pytest.raises(YtError): alter_table("//tmp/t2", dynamic=True)
 
-    def _test_update_key_columns_success(self, optimize_for):
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_update_key_columns_success(self, optimize_for):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t", optimize_for = optimize_for)
 
@@ -1115,12 +1071,6 @@ class TestSortedDynamicTables(YTEnvSetup):
         assert lookup_rows("//tmp/t", [{"key" : 77, "key2": 0}]) == [{"key": 77, "key2": 0, "value": "77"}]
         assert select_rows("sum(1) as s from [//tmp/t] where is_null(key2) group by 0") == [{"s": 100}]
 
-    def test_update_key_columns_success_scan(self):
-        self._test_update_key_columns_success("scan")
-
-    def test_update_key_columns_success_lookup(self):
-        self._test_update_key_columns_success("lookup")
-
     def test_create_table_with_invalid_schema(self):
         with pytest.raises(YtError):
             create("table", "//tmp/t", attributes={
@@ -1141,7 +1091,8 @@ class TestSortedDynamicTables(YTEnvSetup):
         do("full", "none")
         do("none", "full")
 
-    def _test_snapshots(self, atomicity):
+    @pytest.mark.parametrize("atomicity", ["full", "none"])
+    def test_snapshots(self, atomicity):
         self.sync_create_cells(1)
         cell_id = ls("//sys/tablet_cells")[0]
 
@@ -1170,13 +1121,8 @@ class TestSortedDynamicTables(YTEnvSetup):
         actual = lookup_rows("//tmp/t", keys)
         assert_items_equal(actual, rows)
 
-    def test_atomic_snapshots(self):
-        self._test_snapshots("full")
-
-    def test_nonatomic_snapshots(self):
-        self._test_snapshots("none")
-
-    def _test_stress_tablet_readers(self, optimize_for):
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_stress_tablet_readers(self, optimize_for):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t", optimize_for = optimize_for)
         self.sync_mount_table("//tmp/t")
@@ -1232,12 +1178,6 @@ class TestSortedDynamicTables(YTEnvSetup):
                 values.pop(key)
 
             verify()
-
-    def test_stress_tablet_readers_scan(self):
-        self._test_stress_tablet_readers("scan")
-
-    def test_stress_tablet_readers_lookup(self):
-        self._test_stress_tablet_readers("lookup")
 
     def test_recover_from_snapshot(self):
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 2}})
@@ -1351,7 +1291,8 @@ class TestSortedDynamicTables(YTEnvSetup):
         statistics2 = get("#" + chunk_list_id + "/@statistics")
         assert statistics1 == statistics2
 
-    def _test_timestamp_access(self, optimize_for):
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_timestamp_access(self, optimize_for):
         self.sync_create_cells(3)
         self._create_simple_table("//tmp/t", optimize_for = optimize_for)
         self.sync_mount_table("//tmp/t")
@@ -1367,12 +1308,6 @@ class TestSortedDynamicTables(YTEnvSetup):
 
         assert lookup_rows("//tmp/t", keys, timestamp=MinTimestamp) == []
         assert select_rows("* from [//tmp/t]", timestamp=MinTimestamp) == []
-
-    def test_timestamp_access_lookup(self):
-        self._test_timestamp_access("lookup")
-
-    def test_timestamp_access_scan(self):
-        self._test_timestamp_access("scan")
 
     def test_column_groups(self):
         self.sync_create_cells(1)
@@ -1466,36 +1401,36 @@ class TestSortedDynamicTables(YTEnvSetup):
             assert get("#{0}/@ref_counter".format(child_id)) == 2
             assert_items_equal(get("#{0}/@owning_nodes".format(child_id)), ["//tmp/t1", "//tmp/t2"])
 
-    def _test_copy_simple(self, unmount_func, mount_func, unmounted_state):
+    @pytest.mark.parametrize("unmount_func, mount_func, unmounted_state", [
+        ["sync_unmount_table", "sync_mount_table", "unmounted"],
+        ["sync_freeze_table", "sync_unfreeze_table", "frozen"]])
+    def test_copy_simple(self, unmount_func, mount_func, unmounted_state):
         self._prepare_copy()
         self.sync_mount_table("//tmp/t1")
         rows = [{"key": i * 100 - 50} for i in xrange(10)]
         insert_rows("//tmp/t1", rows)
-        unmount_func("//tmp/t1")
+        getattr(self, unmount_func)("//tmp/t1")
         copy("//tmp/t1", "//tmp/t2")
         assert get("//tmp/t1/@tablet_state") == unmounted_state
         assert get("//tmp/t2/@tablet_state") == "unmounted"
-        mount_func("//tmp/t1")
+        getattr(self, mount_func)("//tmp/t1")
         self.sync_mount_table("//tmp/t2")
         assert_items_equal(select_rows("key from [//tmp/t1]"), rows)
         assert_items_equal(select_rows("key from [//tmp/t2]"), rows)
 
-    def test_copy_simple_unmounted(self):
-        self._test_copy_simple(self.sync_unmount_table, self.sync_mount_table, "unmounted")
-
-    def test_copy_simple_frozen(self):
-        self._test_copy_simple(self.sync_freeze_table, self.sync_unfreeze_table, "frozen")
-       
-    def _test_copy_and_fork(self, unmount_func, mount_func, unmounted_state):
+    @pytest.mark.parametrize("unmount_func, mount_func, unmounted_state", [
+        ["sync_unmount_table", "sync_mount_table", "unmounted"],
+        ["sync_freeze_table", "sync_unfreeze_table", "frozen"]])
+    def test_copy_and_fork(self, unmount_func, mount_func, unmounted_state):
         self._prepare_copy()
         self.sync_mount_table("//tmp/t1")
         rows = [{"key": i * 100 - 50} for i in xrange(10)]
         insert_rows("//tmp/t1", rows)
-        unmount_func("//tmp/t1")
+        getattr(self, unmount_func)("//tmp/t1")
         copy("//tmp/t1", "//tmp/t2")
         assert get("//tmp/t1/@tablet_state") == unmounted_state
         assert get("//tmp/t2/@tablet_state") == "unmounted"
-        mount_func("//tmp/t1")
+        getattr(self, mount_func)("//tmp/t1")
         self.sync_mount_table("//tmp/t2")
         ext_rows1 = [{"key": i * 100 - 51} for i in xrange(10)]
         ext_rows2 = [{"key": i * 100 - 52} for i in xrange(10)]
@@ -1503,12 +1438,6 @@ class TestSortedDynamicTables(YTEnvSetup):
         insert_rows("//tmp/t2", ext_rows2)
         assert_items_equal(select_rows("key from [//tmp/t1]"), rows + ext_rows1)
         assert_items_equal(select_rows("key from [//tmp/t2]"), rows + ext_rows2)
-
-    def test_copy_and_fork_unmounted(self):
-        self._test_copy_and_fork(self.sync_unmount_table, self.sync_mount_table, "unmounted")
-
-    def test_copy_and_fork_frozen(self):
-        self._test_copy_and_fork(self.sync_freeze_table, self.sync_unfreeze_table, "frozen")
 
     def test_copy_and_compact(self):
         self._prepare_copy()
@@ -1559,7 +1488,11 @@ class TestSortedDynamicTables(YTEnvSetup):
         assert not get("//tmp/t/@schema/@unique_keys")
         with pytest.raises(YtError): alter_table("//tmp/t", dynamic=True)
 
-    def _test_mount_static_table(self, in_memory_mode, enable_lookup_hash_table):
+    @pytest.mark.parametrize("in_memory_mode, enable_lookup_hash_table", [
+        ["none", False],
+        ["compressed", False],
+        ["uncompressed", True]])
+    def test_mount_static_table(self, in_memory_mode, enable_lookup_hash_table):
         self.sync_create_cells(1)
         create("table", "//tmp/t",
             attributes={
@@ -1627,13 +1560,6 @@ class TestSortedDynamicTables(YTEnvSetup):
         assert actual == expected
         actual = select_rows("key, avalue from [//tmp/t]")
         assert_items_equal(actual, expected)
-
-    def test_mount_static_table_none(self):
-        self._test_mount_static_table("none", False)
-    def test_mount_static_table_compressed(self):
-        self._test_mount_static_table("compressed", False)
-    def test_mount_static_table_with_lookup_hash_table(self):
-        self._test_mount_static_table("uncompressed", True)
 
 
     def test_no_commit_ordering(self):
