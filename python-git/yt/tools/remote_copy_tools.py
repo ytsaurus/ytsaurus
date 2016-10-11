@@ -395,6 +395,9 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
                         destination_client.alter_table(dst_table, source_client.get(src + "/@schema"))
                     if schema_inference_mode == "auto":
                         dst_table.attributes["schema"] = source_client.get(src + "/@schema")
+                        # TODO(ignat): use schema initially instead of schema
+                        if "sorted_by" in dst_table.attributes:
+                            del dst_table.attributes["sorted_by"]
 
                     _set_mapper_settings_for_read_from_yt(spec)
 
