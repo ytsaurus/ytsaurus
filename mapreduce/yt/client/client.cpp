@@ -725,6 +725,12 @@ public:
         return NodeFromYsonString(response, YT_LIST_FRAGMENT).AsList();
     }
 
+    ui64 GenerateTimestamp() override {
+        THttpHeader header("GET", "generate_timestamp");
+        auto response = RetryRequest(Auth_, header, "", true);
+        return NodeFromYsonString(response).AsUint64();
+    }
+
 private:
     template <class TOptions>
     void SetTabletParams(

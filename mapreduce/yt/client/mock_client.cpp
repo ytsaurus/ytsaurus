@@ -334,6 +334,10 @@ TNode::TList TMockClient::SelectRows(const Stroka&, const TSelectRowsOptions&) {
     return TNode::TList();
 }
 
+ui64 TMockClient::GenerateTimestamp() {
+    return 0;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
