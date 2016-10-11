@@ -1018,6 +1018,45 @@ echo {v = 2} >&7
         assert get("//tmp/t2/@schema_mode") == "strong"
         assert read_table("//tmp/t2") == [{"k1": i * 2, "k2": i} for i in xrange(2)]
 
+    def test_reduce_on_dynamic_table(self):
+        def _create_dynamic_table(path):
+            create("table", path,
+                attributes = {
+                    "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}, {"name": "value", "type": "string"}],
+                    "dynamic": True
+                })
+
+        self.sync_create_cells(1)
+        _create_dynamic_table("//tmp/t")
+
+        create("table", "//tmp/t_out")
+
+        rows = [{"key": i, "value": str(i)} for i in range(10)]
+        self.sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", rows)
+        self.sync_unmount_table("//tmp/t")
+
+        reduce(
+            in_="//tmp/t",
+            out="//tmp/t_out",
+            reduce_by="key",
+            command="cat")
+
+        assert_items_equal(read_table("//tmp/t_out"), rows)
+
+        rows = [{"key": i, "value": str(i+1)} for i in range(10)]
+        self.sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", rows)
+        self.sync_unmount_table("//tmp/t")
+
+        reduce(
+            in_="//tmp/t",
+            out="//tmp/t_out",
+            reduce_by="key",
+            command="cat")
+
+        assert_items_equal(read_table("//tmp/t_out"), rows)
+
 ##################################################################
 
 class TestSchedulerReduceCommandsMulticell(TestSchedulerReduceCommands):

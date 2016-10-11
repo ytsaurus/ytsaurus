@@ -443,7 +443,10 @@ protected:
 
             InitTeleportableInputTables();
             ClearCurrentTaskStripes();
-            for (auto slice : CollectPrimaryInputChunks()) {
+            for (auto chunk : CollectPrimaryUnversionedChunks()) {
+                ProcessInputDataSlice(CreateInputDataSlice(CreateInputChunkSlice(chunk)));
+            }
+            for (auto slice : CollectPrimaryVersionedDataSlices(ChunkSliceSize)) {
                 ProcessInputDataSlice(slice);
             }
         }
@@ -2385,23 +2388,30 @@ private:
 
     virtual void BuildTasks() override
     {
-        const auto& slices = ChunkSliceFetcher->GetChunkSlices();
-
-        for (const auto& slice : slices) {
+        auto processSlice = [&] (const TInputDataSlicePtr& slice) {
             try {
                 ValidateClientKey(slice->LowerLimit().Key);
                 ValidateClientKey(slice->UpperLimit().Key);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION(
                     "Error validating sample key in input table %v",
-                    GetInputTablePaths()[slice->GetInputChunk()->GetTableIndex()])
+                    GetInputTablePaths()[slice->GetTableIndex()])
                     << ex;
             }
 
-            AddPendingChunkSlice(slice);
+            AddPendingDataSlice(slice);
 
             EndTaskIfLarge();
+        };
+
+        for (const auto& chunkSlice : ChunkSliceFetcher->GetChunkSlices()) {
+            processSlice(CreateInputDataSlice(chunkSlice));
         }
+
+        for (const auto& slice : VersionedDataSlices) {
+            processSlice(slice);
+        }
+
         EndTaskIfActive();
     }
 

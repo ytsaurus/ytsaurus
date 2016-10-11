@@ -356,15 +356,18 @@ private:
 
         LOG_INFO("Processing inputs");
 
+        if (InputHasDynamicTables()) {
+            THROW_ERROR_EXCEPTION("Remote copy operation does not support dynamic tables");
+        }
+
         std::vector<TChunkStripePtr> stripes;
-        for (const auto& dataSlice : CollectPrimaryInputChunks()) {
-            const auto& chunkSpec = dataSlice->GetSingleUnversionedChunkOrThrow();
+        for (const auto& chunkSpec : CollectPrimaryUnversionedChunks()) {
             if (chunkSpec->LowerLimit() && !IsTrivial(*chunkSpec->LowerLimit()) ||
                 chunkSpec->UpperLimit() && !IsTrivial(*chunkSpec->UpperLimit()))
             {
                 THROW_ERROR_EXCEPTION("Remote copy operation does not support non-trivial table limits");
             }
-            stripes.push_back(New<TChunkStripe>(dataSlice));
+            stripes.push_back(New<TChunkStripe>(CreateInputDataSlice(CreateInputChunkSlice(chunkSpec))));
         }
 
         TJobSizeLimits jobSizeLimits(

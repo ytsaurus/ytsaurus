@@ -70,6 +70,13 @@ i64 TJobSizeLimits::GetDataSizePerJob() const
     return DataSizePerJob_;
 }
 
+void TJobSizeLimits::UpdateStripeCount(i64 stripeCount, i64 maxStripesPerJob)
+{
+    i64 minJobCount = DivCeil(stripeCount, maxStripesPerJob);
+    i64 jobCount = Clamp(GetJobCount(), minJobCount, stripeCount);
+    SetJobCount(jobCount);
+}
+
 ////////////////////////////////////////////////////////////////////
 
 void BuildInitializingOperationAttributes(TOperationPtr operation, NYson::IYsonConsumer* consumer)

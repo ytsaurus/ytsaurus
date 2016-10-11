@@ -613,10 +613,21 @@ private:
                 THROW_ERROR_EXCEPTION("Chunk %v is not sorted", chunkId);
             }
 
-            // TODO(psushin): mirgate to schemaful chunks.
-            auto keyColumnsExt = GetProtoExtension<TKeyColumnsExt>(meta.extensions());
-            auto chunkKeyColumns = FromProto<TKeyColumns>(keyColumnsExt);
-            ValidateKeyColumns(keyColumns, chunkKeyColumns, false);
+            // COMPAT(savrus) Support schemaful and versioned chunks.
+            TKeyColumns chunkKeyColumns;
+            auto maybeKeyColumnsExt = FindProtoExtension<TKeyColumnsExt>(meta.extensions());
+            if (maybeKeyColumnsExt) {
+                chunkKeyColumns = FromProto<TKeyColumns>(*maybeKeyColumnsExt);
+            } else {
+                auto schemaExt = GetProtoExtension<TTableSchemaExt>(meta.extensions());
+                chunkKeyColumns = FromProto<TTableSchema>(schemaExt).GetKeyColumns();
+            }
+            auto format = ETableChunkFormat(meta.version());
+            auto isVersioned =
+                format == ETableChunkFormat::VersionedSimple ||
+                format == ETableChunkFormat::VersionedColumnar;
+
+            ValidateKeyColumns(keyColumns, chunkKeyColumns, isVersioned);
 
             auto slices = SliceChunk(
                 sliceRequest,

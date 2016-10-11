@@ -62,9 +62,9 @@ void ToProto(
 
 TInputDataSlicePtr CreateInputDataSlice(
     NTableClient::EDataSliceDescriptorType type,
-    const std::vector<TInputChunkPtr>& inputChunks,
-    NTableClient::TKey lower,
-    NTableClient::TKey upper);
+    const std::vector<TInputChunkSlicePtr>& inputChunks,
+    NTableClient::TKey lowerKey,
+    NTableClient::TKey upperKey);
 
 TInputDataSlicePtr CreateInputDataSlice(
     const TInputDataSlicePtr& dataSlice,

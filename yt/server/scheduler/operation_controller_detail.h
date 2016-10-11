@@ -232,7 +232,6 @@ protected:
         //! Number of chunks in the whole table (without range selectors).
         int ChunkCount = -1;
         std::vector<NChunkClient::TInputChunkPtr> Chunks;
-        std::vector<NChunkClient::TInputDataSlicePtr> DataSlices;
         NTableClient::TTableSchema Schema;
         NTableClient::ETableSchemaMode SchemaMode;
         bool IsDynamic;
@@ -681,7 +680,6 @@ protected:
     // Preparation.
     void FetchInputTables();
     void LockInputTables();
-    void PrepareInputTablesDataSlices();
     void GetOutputTablesSchema();
     virtual void PrepareOutputTables();
     void BeginUploadOutputTables();
@@ -722,6 +720,8 @@ protected:
 
     void DoSaveSnapshot(TOutputStream* output);
     void DoLoadSnapshot(const TSharedRef& snapshot);
+
+    bool InputHasDynamicTables() const;
 
     //! Called to extract input table paths from the spec.
     virtual std::vector<NYPath::TRichYPath> GetInputTablePaths() const = 0;
@@ -880,10 +880,16 @@ protected:
     void ClearInputChunkBoundaryKeys();
 
     //! Returns the list of all input chunks collected from all primary input tables.
-    std::vector<NChunkClient::TInputDataSlicePtr> CollectPrimaryInputChunks() const;
+    std::vector<NChunkClient::TInputChunkPtr> CollectPrimaryChunks(bool versioned) const;
+    std::vector<NChunkClient::TInputChunkPtr> CollectPrimaryUnversionedChunks() const;
+    std::vector<NChunkClient::TInputChunkPtr> CollectPrimaryVersionedChunks() const;
+    i64 CalculatePrimaryVersionedChunksSize() const;
+    std::vector<NChunkClient::TInputDataSlicePtr> CollectPrimaryVersionedDataSlices(i64 sliceSize) const;
 
     //! Returns the list of lists of all input chunks collected from all foreign input tables.
     std::vector<std::deque<NChunkClient::TInputChunkPtr>> CollectForeignInputChunks() const;
+
+    i64 CalculateSliceDataSize(i64 maxSliceDataSize, const TJobSizeLimits& jobSizeLimits) const;
 
     //! Converts a list of input chunks into a list of chunk stripes for further
     //! processing. Each stripe receives exactly one chunk (as suitable for most
@@ -892,14 +898,16 @@ protected:
     //! |TotalEstimateInputDataSize / jobCount|, whichever is smaller. If the resulting
     //! list contains less than |jobCount| stripes then |jobCount| is decreased
     //! appropriately.
-    std::vector<TChunkStripePtr> SliceChunks(
-        const std::vector<NChunkClient::TInputDataSlicePtr>& chunkSpecs,
-        i64 maxSliceDataSize,
-        TJobSizeLimits* jobSizeLimits);
-
-    std::vector<TChunkStripePtr> SliceInputChunks(
-        i64 maxSliceDataSize,
-        TJobSizeLimits* jobSizeLimits);
+    void SliceUnversionedChunks(
+        const std::vector<NChunkClient::TInputChunkPtr>& unversionedChunks,
+        i64 sliceDataSize,
+        std::vector<TChunkStripePtr>* result) const;
+    void SlicePrimaryUnversionedChunks(
+        i64 sliceDataSize,
+        std::vector<TChunkStripePtr>* result) const;
+    void SlicePrimaryVersionedChunks(
+        i64 sliceDataSize,
+        std::vector<TChunkStripePtr>* result) const;
 
     int GetMaxJobCount(
         TNullable<int> userMaxJobCount,

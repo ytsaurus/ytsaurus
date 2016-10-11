@@ -732,3 +732,56 @@ echo {v = 2} >&7
         ]''')
         actual = get("{0}/{1}/@input_paths".format(jobs_path, job_ids[0]))
         assert expected == actual
+
+    def test_join_reduce_on_dynamic_table(self):
+        def _create_dynamic_table(path):
+            create("table", path,
+                attributes = {
+                    "schema": [
+                        {"name": "key", "type": "string", "sort_order": "ascending"},
+                        {"name": "value", "type": "string"}],
+                    "dynamic": True
+                })
+
+        self.sync_create_cells(1)
+        _create_dynamic_table("//tmp/t1")
+        create("table", "//tmp/t2")
+        create("table", "//tmp/t_out")
+
+        rows = [{"key": str(i), "value": str(i)} for i in range(1)]
+        self.sync_mount_table("//tmp/t1")
+        insert_rows("//tmp/t1", rows)
+        self.sync_unmount_table("//tmp/t1")
+
+        joined_rows = [{"key": "0", "value": "joined"}]
+        write_table("//tmp/t2", joined_rows, sorted_by=["key"])
+
+        join_reduce(
+            in_=["//tmp/t1", "<foreign=true>//tmp/t2"],
+            out="//tmp/t_out",
+            join_by="key",
+            command="cat",
+            spec={
+                "reducer": {
+                    "format": "dsv"
+                }})
+
+        assert read_table("//tmp/t_out") == rows + joined_rows
+
+        rows = [{"key": str(i), "value": str(i+1)} for i in range(1)]
+        self.sync_mount_table("//tmp/t1")
+        insert_rows("//tmp/t1", rows)
+        self.sync_unmount_table("//tmp/t1")
+
+        join_reduce(
+            in_=["//tmp/t1", "<foreign=true>//tmp/t2"],
+            out="//tmp/t_out",
+            join_by="key",
+            command="cat",
+            spec={
+                "reducer": {
+                    "format": "dsv"
+                }})
+
+        assert read_table("//tmp/t_out") == rows + joined_rows
+
