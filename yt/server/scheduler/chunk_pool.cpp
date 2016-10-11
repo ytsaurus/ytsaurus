@@ -698,6 +698,16 @@ public:
             return 0;
         }
 
+        if (SuspendedDataSize > 0) {
+            if (freePendingJobCount == 1) {
+                return 0;
+            }
+
+            if (FreePendingDataSize < GetIdealDataSizePerJob()) {
+                return 0;
+            }
+        }
+
         return freePendingJobCount;
     }
 
@@ -1002,8 +1012,7 @@ private:
 
     void UpdateJobCounter()
     {
-        i64 newJobCount = DivCeil(FreePendingDataSize, DataSizePerJob) +
-            DivCeil(SuspendedDataSize, DataSizePerJob);
+        i64 newJobCount = DivCeil(FreePendingDataSize + SuspendedDataSize, DataSizePerJob);
         int freePendingJobCount = GetFreePendingJobCount();
         if (newJobCount != freePendingJobCount) {
             JobCounter.Increment(newJobCount - freePendingJobCount);
