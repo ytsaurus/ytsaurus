@@ -224,7 +224,8 @@ def round_up_to(num, divider):
 def get_disk_size(filepath):
     stat = os.stat(filepath)
     if hasattr(stat, "st_blocks") and hasattr(stat, "st_blksize"):
-        return stat.st_blocks * stat.st_blksize
+        # NB: st_blocks count number of 512 blocks.
+        return stat.st_blocks * 512
     else:
         return round_up_to(stat.st_size, 4 * 1024)
 
