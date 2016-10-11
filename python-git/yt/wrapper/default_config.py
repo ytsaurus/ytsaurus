@@ -300,7 +300,12 @@ default_config = {
         "enable": True,
         # The size of data chunk that retried.
         # It is also used as a portion of reading file stream even if retries are disabled.
-        "chunk_size": 512 * common.MB
+        "chunk_size": 512 * common.MB,
+
+        # Id of parent transaction in write process.
+        # New transaction created if None value is specified.
+        # Otherwise specified transaction will be used.
+        "transaction_id": None
     },
 
     # Retries for start operation requests.
