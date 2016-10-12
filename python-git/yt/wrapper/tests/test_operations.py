@@ -488,7 +488,7 @@ class TestOperations(object):
         assert list(yt.read_table(table, format=yt.format.DsvFormat(), raw=True)) == ["k=1\ts=2\tv=3\n"]
 
     def test_python_operations_io(self):
-        """ All access (except read-only) to stdin/out during the operation should be disabled """
+        """All access (except read-only) to stdin/out during the operation should be disabled."""
         table = TEST_DIR + "/table_io_test"
 
         yt.write_table(table, [{"x": 1}, {"y": 2}])
@@ -847,7 +847,7 @@ def mapper(rec):
 
 yt.config["proxy"]["url"] = "{0}"
 yt.config["pickling"]["enable_tmpfs_archive"] = False
-print(yt.run_map(mapper, "{1}", "{2}", spec={3}, sync=False).id)
+print(yt.run_map(mapper, "{1}", "{2}", sync=False).id)
 """
         second_script = """\
 from __future__ import print_function
@@ -861,7 +861,7 @@ def mapper(rec):
 if __name__ == "__main__":
     yt.config["proxy"]["url"] = "{0}"
     yt.config["pickling"]["enable_tmpfs_archive"] = False
-    print(yt.run_map(mapper, "{1}", "{2}", spec={3}, sync=False).id)
+    print(yt.run_map(mapper, "{1}", "{2}", sync=False).id)
 """
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"x": 1}, {"x": 2}])
@@ -871,8 +871,7 @@ if __name__ == "__main__":
             with tempfile.NamedTemporaryFile(dir=dir_, prefix="mapper", delete=False) as f:
                 mapper = script.format(yt.config["proxy"]["url"],
                                        table,
-                                       TEST_DIR + "/other_table",
-                                       str({"max_failed_job_count": 1}))
+                                       TEST_DIR + "/other_table")
                 f.write(mapper)
 
             op_id = subprocess.check_output(["python", f.name]).strip()
@@ -943,7 +942,7 @@ def mapper(rec):
 if __name__ == "__main__":
     yt.config["proxy"]["url"] = "{0}"
     yt.config["pickling"]["enable_tmpfs_archive"] = False
-    print(yt.run_map(mapper, "{1}", "{2}", spec={3}, sync=False).id)
+    print(yt.run_map(mapper, "{1}", "{2}", sync=False).id)
 """
         yt.write_table(TEST_DIR + "/table", [{"x": 1, "y": 1}])
 
@@ -951,8 +950,7 @@ if __name__ == "__main__":
         with tempfile.NamedTemporaryFile(dir=dir_, prefix="mapper", delete=False) as f:
             mapper = script.format(yt.config["proxy"]["url"],
                                    TEST_DIR + "/table",
-                                   TEST_DIR + "/other_table",
-                                   str({"max_failed_job_count": 1}))
+                                   TEST_DIR + "/other_table")
             f.write(mapper)
 
         module_egg = build_python_egg(get_test_file_path("yt_test_module"), temp_dir=dir_)
