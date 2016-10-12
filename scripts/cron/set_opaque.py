@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+from yt.wrapper.common import parse_bool
+
 import yt.logger as logger
 import yt.yson as yson
 import yt.wrapper as yt
@@ -11,7 +13,7 @@ def is_map_node(object):
     return object.attributes["type"] == "map_node"
 
 def is_opaque(object):
-    return object.attributes.get("opaque", False)
+    return parse_bool(object.attributes.get("opaque", False))
 
 def get_path(object):
     return object.attributes["path"]
