@@ -162,15 +162,18 @@ public:
     explicit TBlockIO(const Stroka& name);
 
     TStatistics GetStatistics() const;
+    void ThrottleOperations(i64 iops) const;
+
+private:
+    //! Guards device ids.
+    TSpinLock SpinLock_;
+    //! Set of all seen device ids.
+    mutable yhash_set<Stroka> DeviceIds_;
+
+    std::vector<TBlockIO::TStatisticsItem> GetDetailedStatistics(const char* filename) const;
 
     std::vector<TStatisticsItem> GetIOServiceBytes() const;
     std::vector<TStatisticsItem> GetIOServiced() const;
-
-    void ThrottleOperations(const Stroka& deviceId, i64 operations) const;
-    void SetWeight(int weight);
-
-private:
-    std::vector<TBlockIO::TStatisticsItem> GetDetailedStatistics(const char* filename) const;
 };
 
 void Serialize(const TBlockIO::TStatistics& statistics, NYson::IYsonConsumer* consumer);
@@ -187,6 +190,7 @@ public:
     {
         ui64 Rss = 0;
         ui64 MappedFile = 0;
+        ui64 MajorPageFaults = 0;
     };
 
     explicit TMemory(const Stroka& name);

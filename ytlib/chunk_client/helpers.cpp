@@ -79,6 +79,7 @@ TChunkId CreateChunk(
 
     auto batchReq = proxy.ExecuteBatch();
     GenerateMutationId(batchReq);
+    batchReq->set_suppress_upstream_sync(true);
 
     auto* req = batchReq->add_create_chunk_subrequests();
     ToProto(req->mutable_transaction_id(), transactionId);
@@ -108,6 +109,7 @@ void ProcessFetchResponse(
     TCellTag fetchCellTag,
     TNodeDirectoryPtr nodeDirectory,
     int maxChunksPerLocateRequest,
+    TNullable<int> rangeIndex,
     const NLogging::TLogger& logger,
     std::vector<NProto::TChunkSpec>* chunkSpecs)
 {
@@ -117,6 +119,9 @@ void ProcessFetchResponse(
 
     yhash_map<TCellTag, std::vector<NProto::TChunkSpec*>> foreignChunkMap;
     for (auto& chunkSpec : *fetchResponse->mutable_chunks()) {
+        if (rangeIndex) {
+            chunkSpec.set_range_index(*rangeIndex);
+        }
         auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
         auto chunkCellTag = CellTagFromId(chunkId);
         if (chunkCellTag != fetchCellTag) {
@@ -412,7 +417,7 @@ IChunkReaderPtr CreateRemoteReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TUserObject::Persist(NPhoenix::TPersistenceContext& context)
+void TUserObject::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Path);

@@ -77,7 +77,7 @@ public:
 
     // Persistence.
 
-    virtual void Persist(TPersistenceContext& context) override
+    virtual void Persist(const TPersistenceContext& context) override
     {
         TOperationControllerBase::Persist(context);
 
@@ -145,7 +145,7 @@ private:
             return ChunkPool_.get();
         }
 
-        virtual void Persist(TPersistenceContext& context) override
+        virtual void Persist(const TPersistenceContext& context) override
         {
             TTask::Persist(context);
 
@@ -313,24 +313,27 @@ private:
             case ESchemaInferenceMode::Auto:
                 if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
                     InferSchemaFromInputOrdered();
-                } else {
-                    ValidateOutputSchemaOrdered();
+                    break;
+                } 
+                // We intentionally fall into next clause.
 
-                    for (const auto& inputTable : InputTables) {
-                        ValidateTableSchemaCompatibility(
-                            inputTable.Schema,
-                            table.TableUploadOptions.TableSchema,
-                            /* ignoreSortOrder */ true)
-                        .ThrowOnError();
+            case ESchemaInferenceMode::FromOutput:
+                ValidateOutputSchemaOrdered();
+
+                // Since remote copy doesn't unpack blocks and validate schema, we must ensure
+                // that schemas are identical.
+                for (const auto& inputTable : InputTables) {
+                    if (inputTable.Schema.ToCanonical() != table.TableUploadOptions.TableSchema.ToCanonical()) {
+                        THROW_ERROR_EXCEPTION("Cannot make remote copy into table with \"strong\" schema since "
+                            "input table schema differs from output table schema")
+                            << TErrorAttribute("input_table_schema", inputTable.Schema)
+                            << TErrorAttribute("output_table_schema", table.TableUploadOptions.TableSchema);
                     }
                 }
                 break;
 
             case ESchemaInferenceMode::FromInput:
                 InferSchemaFromInputOrdered();
-                break;
-
-            case ESchemaInferenceMode::FromOutput:
                 break;
 
             default:
@@ -354,17 +357,17 @@ private:
             stripes.push_back(New<TChunkStripe>(CreateInputSlice(chunkSpec)));
         }
 
-        auto jobCount = SuggestJobCount(
+        TJobSizeLimits jobSizeLimits(
             TotalEstimatedInputDataSize,
-            Spec_->DataSizePerJob,
+            Spec_->DataSizePerJob.Get(Options_->DataSizePerJob),
             Spec_->JobCount,
             GetMaxJobCount(Spec_->MaxJobCount, Options_->MaxJobCount));
-        jobCount = std::min(jobCount, static_cast<int>(stripes.size()));
+        jobSizeLimits.SetJobCount(std::min(jobSizeLimits.GetJobCount(), static_cast<int>(stripes.size())));
 
-        if (stripes.size() > Spec_->MaxChunkCountPerJob * jobCount) {
+        if (stripes.size() > Spec_->MaxChunkCountPerJob * jobSizeLimits.GetJobCount()) {
             THROW_ERROR_EXCEPTION("Too many chunks per job: actual %v, limit %v; "
                 "please merge input tables before starting Remote Copy",
-                stripes.size() / jobCount,
+                stripes.size() / jobSizeLimits.GetJobCount(),
                 Spec_->MaxChunkCountPerJob);
         }
 
@@ -435,11 +438,12 @@ private:
         };
 
         i64 currentDataSize = 0;
+        i64 dataSizePerJob = Spec_->DataSizePerJob.Get(Options_->DataSizePerJob);
         std::vector<TChunkStripePtr> currentStripes;
         for (auto stripe : stripes) {
             currentStripes.push_back(stripe);
             currentDataSize += stripe->GetStatistics().DataSize;
-            if (currentDataSize >= Spec_->DataSizePerJob || currentStripes.size() == Config->MaxChunkStripesPerJob) {
+            if (currentDataSize >= dataSizePerJob || currentStripes.size() == Config->MaxChunkStripesPerJob) {
                 addTask(currentStripes, Tasks.size());
                 currentStripes.clear();
                 currentDataSize = 0;
@@ -480,7 +484,7 @@ private:
             JobCounter.GetCompleted(),
             GetPendingJobCount(),
             JobCounter.GetFailed(),
-            JobCounter.GetAborted(),
+            JobCounter.GetAbortedTotal(),
             UnavailableInputChunkCount);
     }
 

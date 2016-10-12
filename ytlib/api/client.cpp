@@ -24,11 +24,13 @@
 #include <yt/ytlib/hive/cell_directory.h>
 #include <yt/ytlib/hive/config.h>
 
+#include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
+
+#include <yt/ytlib/node_tracker_client/channel.h>
+
 #include <yt/ytlib/object_client/helpers.h>
 #include <yt/ytlib/object_client/master_ypath_proxy.h>
 #include <yt/ytlib/object_client/object_service_proxy.h>
-
-#include <yt/ytlib/node_tracker_client/channel.h>
 
 #include <yt/ytlib/query_client/column_evaluator.h>
 #include <yt/ytlib/query_client/coordinator.h>
@@ -109,6 +111,7 @@ using NChunkClient::TReadRange;
 using NTableClient::TColumnSchema;
 using NNodeTrackerClient::INodeChannelFactoryPtr;
 using NNodeTrackerClient::CreateNodeChannelFactory;
+using NNodeTrackerClient::TNetworkPreferenceList;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -289,17 +292,17 @@ const TCellPeerDescriptor& GetBackupTabletPeerDescriptor(
 IChannelPtr CreateTabletReadChannel(
     const IChannelFactoryPtr& channelFactory,
     const TCellDescriptor& cellDescriptor,
-    const TConnectionConfigPtr& config,
-    const TTabletReadOptions& options)
+    const TTabletReadOptions& options,
+    const TNetworkPreferenceList& networks)
 {
     const auto& primaryPeerDescriptor = GetPrimaryTabletPeerDescriptor(cellDescriptor, options.ReadFrom);
-    auto primaryChannel = channelFactory->CreateChannel(primaryPeerDescriptor.GetAddress(config->Networks));
+    auto primaryChannel = channelFactory->CreateChannel(primaryPeerDescriptor.GetAddress(networks));
     if (cellDescriptor.Peers.size() == 1 || !options.BackupRequestDelay) {
         return primaryChannel;
     }
 
     const auto& backupPeerDescriptor = GetBackupTabletPeerDescriptor(cellDescriptor, primaryPeerDescriptor);
-    auto backupChannel = channelFactory->CreateChannel(backupPeerDescriptor.GetAddress(config->Networks));
+    auto backupChannel = channelFactory->CreateChannel(backupPeerDescriptor.GetAddress(networks));
 
     return CreateLatencyTamingChannel(
         std::move(primaryChannel),
@@ -639,7 +642,7 @@ private:
             return GetLowerBoundFromDataSplit(lhs) < GetLowerBoundFromDataSplit(rhs);
         });
 
-        const auto& networks = Connection_->GetConfig()->Networks;
+        const auto& networks = Connection_->GetNetworks();
 
         for (auto& chunkSpec : chunkSpecs) {
             auto chunkSchema = FindProtoExtension<TTableSchemaExt>(chunkSpec.chunk_meta().extensions());
@@ -714,7 +717,7 @@ private:
         const TTableMountInfoPtr& tableInfo)
     {
         const auto& cellDirectory = Connection_->GetCellDirectory();
-        const auto& networks = Connection_->GetConfig()->Networks;
+        const auto& networks = Connection_->GetNetworks();
 
         yhash_map<NTabletClient::TTabletCellId, TCellDescriptor> tabletCellReplicas;
 
@@ -1104,10 +1107,10 @@ public:
 
         LightChannelFactory_ = CreateNodeChannelFactory(
             wrapChannelFactory(Connection_->GetLightChannelFactory()),
-            Connection_->GetConfig()->Networks);
+            Connection_->GetNetworks());
         HeavyChannelFactory_ = CreateNodeChannelFactory(
             wrapChannelFactory(Connection_->GetHeavyChannelFactory()),
-            Connection_->GetConfig()->Networks);
+            Connection_->GetNetworks());
 
         SchedulerProxy_.reset(new TSchedulerServiceProxy(GetSchedulerChannel()));
         JobProberProxy_.reset(new TJobProberServiceProxy(GetSchedulerChannel()));
@@ -1405,6 +1408,11 @@ public:
         const TYPath& path,
         const TDumpJobContextOptions& options),
         (jobId, path, options))
+    IMPLEMENT_METHOD(Stroka, GetJobStderr, (
+        const TJobId& jobId,
+        const TYPath& path,
+        const TGetJobStderrOptions& options),
+        (jobId, path, options))
     IMPLEMENT_METHOD(TYsonString, StraceJob, (
         const TJobId& jobId,
         const TStraceJobOptions& options),
@@ -1649,10 +1657,12 @@ private:
     public:
         TTabletCellLookupSession(
             TConnectionConfigPtr config,
+            const TNetworkPreferenceList& networks,
             const TCellId& cellId,
             const TLookupRowsOptions& options,
             TTableMountInfoPtr tableInfo)
             : Config_(std::move(config))
+            , Networks_(networks)
             , CellId_(cellId)
             , Options_(options)
             , TableInfo_(std::move(tableInfo))
@@ -1724,8 +1734,8 @@ private:
             auto channel = CreateTabletReadChannel(
                 channelFactory,
                 cellDescriptor,
-                Config_,
-                Options_);
+                Options_,
+                Networks_);
 
             InvokeProxy_ = std::make_unique<TQueryServiceProxy>(std::move(channel));
             InvokeProxy_->SetDefaultTimeout(Config_->LookupTimeout);
@@ -1754,6 +1764,7 @@ private:
     private:
         const TClientPtr Client_;
         const TConnectionConfigPtr Config_;
+        const TNetworkPreferenceList Networks_;
         const TCellId CellId_;
         const TLookupRowsOptions Options_;
         const TTableMountInfoPtr TableInfo_;
@@ -1889,6 +1900,7 @@ private:
                         cellId,
                         New<TTabletCellLookupSession>(
                             Connection_->GetConfig(),
+                            Connection_->GetNetworks(),
                             cellId,
                             options,
                             tableInfo)))
@@ -2181,7 +2193,15 @@ private:
         auto req = TYPathProxy::Set(path);
         SetTransactionId(req, options, true);
         SetMutationId(req, options);
-        req->set_value(value.Data());
+
+        // Binarize the value.
+        TStringStream stream;
+        TBufferedBinaryYsonWriter writer(&stream, EYsonType::Node, false);
+        YCHECK(value.GetType() == EYsonType::Node);
+        writer.OnRaw(value.Data(), EYsonType::Node);
+        writer.Flush();
+        req->set_value(stream.Str());
+
         batchReq->AddRequest(req);
 
         auto batchRsp = WaitFor(batchReq->Invoke())
@@ -2568,6 +2588,7 @@ private:
 
                 auto batchReq = proxy->ExecuteBatch();
                 NRpc::GenerateMutationId(batchReq);
+                batchReq->set_suppress_upstream_sync(true);
 
                 auto req = batchReq->add_attach_chunk_trees_subrequests();
                 ToProto(req->mutable_parent_id(), chunkListId);
@@ -2774,6 +2795,34 @@ private:
 
         WaitFor(req->Invoke())
             .ThrowOnError();
+    }
+
+    Stroka DoGetJobStderr(
+        const TJobId& jobId,
+        const TYPath& path,
+        const TGetJobStderrOptions& /*options*/)
+    {
+        NNodeTrackerClient::TNodeDescriptor jobNodeDescriptor;
+        {
+            auto req = JobProberProxy_->GetJobNode();
+            ToProto(req->mutable_job_id(), jobId);
+            auto rsp = WaitFor(req->Invoke())
+                .ValueOrThrow();
+            FromProto(&jobNodeDescriptor, rsp->node_descriptor());
+        }
+
+        LOG_INFO("Got job node (JobId: %v, Node: %v)",
+            jobId,
+            jobNodeDescriptor.GetDefaultAddress());
+
+        auto nodeChannel = GetHeavyChannelFactory()->CreateChannel(jobNodeDescriptor);
+        NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(nodeChannel);
+
+        auto req = jobProberServiceProxy.GetStderr();
+        ToProto(req->mutable_job_id(), jobId);
+        auto rsp = WaitFor(req->Invoke())
+            .ValueOrThrow();
+        return rsp->stderr_data();
     }
 
     TYsonString DoStraceJob(

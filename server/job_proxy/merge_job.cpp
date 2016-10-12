@@ -54,7 +54,9 @@ public:
         }
 
         std::vector<TChunkSpec> chunkSpecs;
+        auto readerOptions = New<NTableClient::TTableReaderOptions>();
         for (const auto& inputSpec : SchedulerJobSpecExt_.input_specs()) {
+            readerOptions = ConvertTo<NTableClient::TTableReaderOptionsPtr>(TYsonString(inputSpec.table_reader_options()));
             for (const auto& chunkSpec : inputSpec.chunks()) {
                 chunkSpecs.push_back(chunkSpec);
             }
@@ -74,7 +76,7 @@ public:
             YCHECK(!Reader_);
             Reader_ = readerFactory(
                 config->JobIO->TableReader,
-                New<NTableClient::TTableReaderOptions>(),
+                readerOptions,
                 Host_->GetClient(),
                 Host_->LocalDescriptor(),
                 Host_->GetBlockCache(),
@@ -93,7 +95,6 @@ public:
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
         auto schema = FromProto<TTableSchema>(outputSpec.table_schema());
-        options->ExplodeOnValidationError = true;
 
         WriterFactory_ = [=] (TNameTablePtr nameTable) {
             YCHECK(!Writer_);

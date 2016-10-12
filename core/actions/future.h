@@ -73,6 +73,11 @@ TFuture<T> MakeFuture(TErrorOr<T> value);
 template <class T>
 TFuture<T> MakeFuture(T value);
 
+//! Constructs a well-known pre-set future like #VoidFuture.
+//! For such futures ref-counting is essentially disabled.
+template <class T>
+TFuture<T> MakeWellKnownFuture(TErrorOr<T> value);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
@@ -223,9 +228,11 @@ private:
     template <class U>
     friend TFuture<U> MakeFuture(TErrorOr<U> value);
     template <class U>
+    friend TFuture<U> MakeWellKnownFuture(TErrorOr<U> value);
+    template <class U>
     friend TFuture<U> MakeFuture(U value);
     template <class U>
-    // XXX(babenko): 'NYT::' is a workaround; cf. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=52625 
+    // XXX(babenko): 'NYT::' is a workaround; cf. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=52625
     friend class NYT::TFutureBase;
     template <class U>
     friend class TPromiseBase;
@@ -253,6 +260,8 @@ private:
 
     template <class U>
     friend TFuture<U> MakeFuture(TErrorOr<U> value);
+    template <class U>
+    friend TFuture<U> MakeWellKnownFuture(TErrorOr<U> value);
     template <class U>
     // XXX(babenko): 'NYT::' is a workaround; cf. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=52625 
     friend class NYT::TFutureBase;
@@ -487,7 +496,7 @@ struct TFutureCombineTraits<void>
  */
 template <class T>
 TFuture<typename TFutureCombineTraits<T>::TCombined> Combine(
-    const std::vector<TFuture<T>>& futures);
+    std::vector<TFuture<T>> futures);
 
 //! Same as #Combine but only wait for #quorum successful results.
 /*!
@@ -496,19 +505,25 @@ TFuture<typename TFutureCombineTraits<T>::TCombined> Combine(
  */
 template <class T>
 TFuture<typename TFutureCombineTraits<T>::TCombined> CombineQuorum(
-    const std::vector<TFuture<T>>& futures,
+    std::vector<TFuture<T>> futures,
     int quorum);
 
 //! A variant of |Combine| that accepts future holders instead of futures.
 template <class T>
 TFuture<typename TFutureCombineTraits<T>::TCombined> Combine(
-    const std::vector<TFutureHolder<T>>& holders);
+    std::vector<TFutureHolder<T>> holders);
 
 //! Similar to #Combine but waits for the results in all components, i.e.
 //! errors occurring in components will not cause early termination.
 template <class T>
 TFuture<std::vector<TErrorOr<T>>> CombineAll(
-    const std::vector<TFuture<T>>& futures);
+    std::vector<TFuture<T>> futures);
+
+//! Executes given #callbacks, allowing up to #concurrencyLimit simultaneous invocations.
+template <class T>
+TFuture<std::vector<TErrorOr<T>>> RunWithBoundedConcurrency(
+    std::vector<TCallback<TFuture<T>()>> callbacks,
+    int concurrencyLimit);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -36,7 +36,7 @@
     #include <utmp.h>
 #endif
 #ifdef _darwin_
-    //include <util.h>
+    #include <util.h>
 #endif
 
 namespace NYT {
@@ -651,21 +651,27 @@ void CloseAllDescriptors(const std::vector<int>& exceptFor)
     int dirFD = ::dirfd(dirStream);
     YCHECK(dirFD >= 0);
 
+    std::vector<int> fds;
     dirent* ep;
     while ((ep = ::readdir(dirStream)) != nullptr) {
         char* begin = ep->d_name;
         char* end = nullptr;
         int fd = static_cast<int>(strtol(begin, &end, 10));
-        if (begin == end)
+        if (begin == end ||
+            fd == dirFD ||
+            (std::find(exceptFor.begin(), exceptFor.end(), fd) != exceptFor.end()))
+        {
             continue;
-        if (fd == dirFD)
-            continue;
-        if (std::find(exceptFor.begin(), exceptFor.end(), fd) != exceptFor.end())
-            continue;
-        YCHECK(::close(fd) == 0);
+        }
+        fds.push_back(fd);
     }
 
     YCHECK(::closedir(dirStream) == 0);
+
+    bool ignoreBadFD = true;
+    for (int fd : fds) {
+        YCHECK(TryClose(fd, ignoreBadFD));
+    }
 #endif
 }
 

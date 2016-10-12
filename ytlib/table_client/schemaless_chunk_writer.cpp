@@ -209,7 +209,6 @@ protected:
                 lastRow.Begin() + Schema_.GetKeyColumnCount());
         }
 
-        block.Meta.set_chunk_row_count(RowCount_);
         block.Meta.set_block_index(BlockMetaExt_.blocks_size());
 
         BlockMetaExtSize_ += block.Meta.ByteSize();
@@ -276,7 +275,7 @@ protected:
             return;
         }
 
-        THROW_ERROR_EXCEPTION("Row weight is too large")
+        THROW_ERROR_EXCEPTION(EErrorCode::RowWeightLimitExceeded, "Row weight is too large")
             << TErrorAttribute("row_weight", weight)
             << TErrorAttribute("row_weight_limit", Config_->MaxRowWeight);
     }
@@ -386,6 +385,7 @@ public:
 
             if (BlockWriter_->GetBlockSize() >= Config_->BlockSize) {
                 auto block = BlockWriter_->FlushBlock();
+                block.Meta.set_chunk_row_count(RowCount_);
                 RegisterBlock(block, row);
                 BlockWriter_.reset(new THorizontalSchemalessBlockWriter);
             }
@@ -412,6 +412,7 @@ private:
     {
         if (BlockWriter_->GetRowCount() > 0) {
             auto block = BlockWriter_->FlushBlock();
+            block.Meta.set_chunk_row_count(RowCount_);
             RegisterBlock(block, LastKey_.Get());
         }
 
@@ -569,6 +570,7 @@ private:
     void FinishBlock(int blockWriterIndex, TUnversionedRow lastRow)
     {
         auto block = BlockWriters_[blockWriterIndex]->DumpBlock(BlockMetaExt_.blocks_size(), RowCount_);
+        block.Meta.set_chunk_row_count(RowCount_);
         RegisterBlock(block, lastRow);
     }
 
@@ -638,7 +640,7 @@ public:
         IChunkWriterPtr chunkWriter,
         IBlockCachePtr blockCache,
         const TTableSchema& schema,
-        IPartitioner* partitioner)
+        IPartitionerPtr partitioner)
         : TUnversionedChunkWriterBase(
             config,
             options,
@@ -698,8 +700,9 @@ public:
     }
 
 private:
+    const IPartitionerPtr Partitioner_;
+
     TPartitionsExt PartitionsExt_;
-    IPartitioner* Partitioner_;
 
     std::vector<std::unique_ptr<THorizontalSchemalessBlockWriter>> BlockWriters_;
 
@@ -822,7 +825,7 @@ ISchemalessChunkWriterPtr CreatePartitionChunkWriter(
     TChunkWriterOptionsPtr options,
     const TTableSchema& schema,
     IChunkWriterPtr chunkWriter,
-    IPartitioner* partitioner,
+    IPartitionerPtr partitioner,
     IBlockCachePtr blockCache)
 {
     return New<TPartitionChunkWriter>(
@@ -1147,18 +1150,17 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
     TCellTag cellTag,
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
-    std::unique_ptr<IPartitioner> partitioner,
+    IPartitionerPtr partitioner,
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
 {
-    // TODO(babenko): consider making IPartitioner ref-counted.
-    auto createChunkWriter = [=, partitioner = std::shared_ptr<IPartitioner>(std::move(partitioner))] (IChunkWriterPtr underlyingWriter) {
+    auto createChunkWriter = [=] (IChunkWriterPtr underlyingWriter) {
         return CreatePartitionChunkWriter(
             config,
             options,
             schema,
             underlyingWriter,
-            partitioner.get(),
+            partitioner,
             blockCache);
     };
 
@@ -1194,7 +1196,7 @@ public:
         IThroughputThrottlerPtr throttler,
         IBlockCachePtr blockCache)
         : Logger(TableClientLogger)
-        , Config_(config)
+        , Config_(CloneYsonSerializable(config))
         , Options_(options)
         , RichPath_(richPath)
         , NameTable_(nameTable)
@@ -1207,6 +1209,8 @@ public:
         if (Transaction_) {
             ListenTransaction(Transaction_);
         }
+
+        Config_->WorkloadDescriptor.Annotations.push_back(Format("TablePath: %v", RichPath_.GetPath()));
 
         Logger.AddTag("Path: %v, TransactionId: %v",
             RichPath_.GetPath(),

@@ -221,6 +221,8 @@ private:
 
     int AllocateWriteTargetsRetryIndex_ = 0;
 
+    std::vector<Stroka> BannedNodes_;
+
     NLogging::TLogger Logger = ChunkClientLogger;
 
 
@@ -252,10 +254,6 @@ private:
     void CancelNode(TNodePtr node, bool abort);
 
     void AddBlocks(const std::vector<TSharedRef>& blocks);
-
-    IChannelPtr CreateRetryingNodeChannel(
-        INodeChannelFactoryPtr channelFactory,
-        const Stroka& address);
 
     DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
 };
@@ -483,7 +481,7 @@ TReplicationWriter::TReplicationWriter(
     , NodeDirectory_(nodeDirectory)
     , Throttler_(throttler)
     , BlockCache_(blockCache)
-    , Networks_(client->GetConnection()->GetConfig()->Networks)
+    , Networks_(client->GetConnection()->GetNetworks())
     , WindowSlots_(New<TAsyncSemaphore>(config->SendWindowSize))
     , UploadReplicationFactor_(Config_->UploadReplicationFactor)
     , MinUploadReplicationFactor_(std::min(Config_->UploadReplicationFactor, Config_->MinUploadReplicationFactor))
@@ -538,6 +536,8 @@ TChunkReplicaList TReplicationWriter::AllocateTargets()
         forbiddenAddresses.push_back(node->Descriptor.GetDefaultAddress());
     }
 
+    forbiddenAddresses.insert(forbiddenAddresses.begin(), BannedNodes_.begin(), BannedNodes_.end());
+
     return AllocateWriteTargets(
         Client_,
         ChunkId_,
@@ -574,12 +574,13 @@ void TReplicationWriter::StartChunk(TChunkReplica target)
     auto address = nodeDescriptor.GetAddress(Networks_);
     LOG_DEBUG("Starting write session (Address: %v)", address);
 
-    auto lightChannel = CreateRetryingNodeChannel(
-        Client_->GetLightChannelFactory(),
-        address);
-    auto heavyChannel = CreateRetryingNodeChannel(
-        Client_->GetHeavyChannelFactory(),
-        address);
+    auto lightChannel = Client_->GetLightChannelFactory()->CreateChannel(address);
+    auto heavyChannel = CreateRetryingChannel(
+        Config_->NodeChannel,
+        Client_->GetHeavyChannelFactory()->CreateChannel(address),
+        BIND([] (const TError& error) {
+            return error.FindMatching(NChunkClient::EErrorCode::WriteThrottlingActive).HasValue();
+        }));
 
     TDataNodeServiceProxy proxy(lightChannel);
     auto req = proxy.StartChunk();
@@ -791,6 +792,10 @@ void TReplicationWriter::OnNodeFailed(TNodePtr node, const TError& error)
         node->Descriptor.GetDefaultAddress())
         << error;
     LOG_ERROR(wrappedError);
+
+    if (Config_->BanFailedNodes) {
+        BannedNodes_.push_back(node->Descriptor.GetDefaultAddress());
+    }
 
     node->Error = wrappedError;
     --AliveNodeCount_;
@@ -1081,18 +1086,6 @@ NErasure::ECodec TReplicationWriter::GetErasureCodecId() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     return NErasure::ECodec::None;
-}
-
-IChannelPtr TReplicationWriter::CreateRetryingNodeChannel(
-    INodeChannelFactoryPtr channelFactory,
-    const Stroka& address)
-{
-    return CreateRetryingChannel(
-        Config_->NodeChannel,
-        channelFactory->CreateChannel(address),
-        BIND([] (const TError& error) {
-            return error.FindMatching(NChunkClient::EErrorCode::WriteThrottlingActive).HasValue();
-        }));
 }
 
 ///////////////////////////////////////////////////////////////////////////////

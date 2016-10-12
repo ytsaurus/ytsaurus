@@ -37,6 +37,7 @@ DEFINE_ENUM(EFormatType,
     (Yamr)
     (YamredDsv)
     (SchemafulDsv)
+    (Protobuf)
 );
 
 class TFormat
@@ -103,6 +104,11 @@ std::unique_ptr<IParser> CreateParserForFormat(
     const TFormat& format,
     EDataType dataType,
     NYson::IYsonConsumer* consumer);
+
+std::unique_ptr<IParser> CreateParserForFormat(
+    const TFormat& format,
+    const std::vector<NTableClient::IValueConsumer*>& valueConsumers,
+    int tableIndex);
 
 ////////////////////////////////////////////////////////////////////////////////
 

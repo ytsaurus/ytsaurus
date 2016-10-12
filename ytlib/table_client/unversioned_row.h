@@ -304,6 +304,9 @@ public:
         return End();
     }
 
+    void Save(TSaveContext& context) const;
+    void Load(TLoadContext& context);
+
 private:
     const TUnversionedRowHeader* Header_;
 
@@ -401,13 +404,17 @@ void ValidateReadTimestamp(TTimestamp timestamp);
 //! Returns the successor of |key|, i.e. the key obtained from |key|
 //! by appending a |EValueType::Min| sentinel.
 TOwningKey GetKeySuccessor(TKey key);
+TKey GetKeySuccessor(TKey key, const TRowBuffer& rowBuffer);
 
 //! Returns the successor of |key| trimmed to a given length, i.e. the key
 //! obtained by trimming |key| to |prefixLength| and appending
 //! a |EValueType::Max| sentinel.
 TOwningKey GetKeyPrefixSuccessor(TKey key, int prefixLength);
+TKey GetKeyPrefixSuccessor(TKey key, int prefixLength, const TRowBufferPtr& rowBuffer);
 
+//! If #key has more than #prefixLength values then trims it this limit.
 TOwningKey GetKeyPrefix(TKey key, int prefixLength);
+TKey GetKeyPrefix(TKey key, int prefixLength, const TRowBufferPtr& rowBuffer);
 
 //! Makes a new, wider key padded with null values.
 TOwningKey WidenKey(const TOwningKey& key, int keyColumnCount);
@@ -451,6 +458,22 @@ size_t WriteYson(char* buffer, const TUnversionedValue& unversionedValue);
 Stroka ToString(TUnversionedRow row);
 Stroka ToString(TMutableUnversionedRow row);
 Stroka ToString(const TUnversionedOwningRow& row);
+
+//! Constructs a shared range of rows from a non-shared one.
+/*!
+ *  The values contained in the rows are also captured.
+ *  The underlying storage allocation has just the right size to contain the captured
+ *  data and is marked with #tagCookie.
+ */
+TSharedRange<TUnversionedRow> CaptureRows(
+    const TRange<TUnversionedRow>& rows,
+    TRefCountedTypeCookie tagCookie);
+
+template <class TTag>
+TSharedRange<TUnversionedRow> CaptureRows(const TRange<TUnversionedRow>& rows)
+{
+    return CaptureRows(rows, GetRefCountedTypeCookie<TTag>());
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -647,7 +670,6 @@ private:
     {
         return RowData_ ? reinterpret_cast<const TUnversionedRowHeader*>(RowData_.Begin()) : nullptr;
     }
-
 };
 
 // For TKeyComparer.

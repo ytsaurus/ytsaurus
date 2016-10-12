@@ -2,6 +2,7 @@
 
 #include <yt/ytlib/table_client/unversioned_row.h>
 #include <yt/ytlib/table_client/versioned_row.h>
+#include <yt/ytlib/table_client/helpers.h>
 
 #include <yt/core/misc/chunked_output_stream.h>
 
@@ -64,31 +65,6 @@ inline ui32 GetUnversionedValueCount(const NTableClient::TVersionedRow row)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline void GetValue(double* result, const NTableClient::TUnversionedValue& value)
-{
-    *result = value.Data.Double;
-}
-
-inline void GetValue(ui64* result, const NTableClient::TUnversionedValue& value)
-{
-    *result = value.Data.Uint64;
-}
-
-inline void GetValue(i64* result, const NTableClient::TUnversionedValue& value)
-{
-    *result = value.Data.Int64;
-}
-
-inline void GetValue(bool* result, const NTableClient::TUnversionedValue& value)
-{
-    *result = value.Data.Boolean;
-}
-
-inline void GetValue(TStringBuf* result, const NTableClient::TUnversionedValue& value)
-{
-    *result = TStringBuf(value.Data.String, value.Length);
-}
-
 template <class TValue>
 int CompareTypedValues(const NTableClient::TUnversionedValue& lhs, const NTableClient::TUnversionedValue& rhs)
 {
@@ -98,7 +74,7 @@ int CompareTypedValues(const NTableClient::TUnversionedValue& lhs, const NTableC
 
     if (rhs.Type == NTableClient::EValueType::Null) {
         return 0;
-    } 
+    }
 
     TValue lhsValue;
     GetValue(&lhsValue, lhs);

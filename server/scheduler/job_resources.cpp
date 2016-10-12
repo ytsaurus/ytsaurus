@@ -48,7 +48,7 @@ void Serialize(const TExtendedJobResources& resources, IYsonConsumer* consumer)
         .EndMap();
 }
 
-void TExtendedJobResources::Persist(TStreamPersistenceContext& context)
+void TExtendedJobResources::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;
 
@@ -83,7 +83,7 @@ TNodeResources TJobResources::ToNodeResources() const
     return result;
 }
 
-void TJobResources::Persist(TStreamPersistenceContext& context)
+void TJobResources::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;
 
@@ -134,11 +134,25 @@ Stroka FormatResources(const TExtendedJobResources& resources)
         resources.GetNetwork());
 }
 
-void ProfileResources(TProfiler& profiler, const TJobResources& resources)
+void ProfileResources(
+    const TProfiler& profiler,
+    const TJobResources& resources,
+    const Stroka& prefix,
+    const TTagIdList& tagIds)
 {
-    #define XX(name, Name) profiler.Enqueue("/" #name, resources.Get##Name(), EMetricType::Gauge);
+    #define XX(name, Name) profiler.Enqueue(prefix + "/" #name, resources.Get##Name(), EMetricType::Gauge, tagIds);
     ITERATE_JOB_RESOURCES(XX)
     #undef XX
+}
+
+double ComputeDemandRatio(i64 demand, i64 limit)
+{
+    return limit == 0 ? 1.0 : static_cast<double>(demand) / limit;
+}
+
+double ComputeUsageRatio(i64 usage, i64 limit)
+{
+    return limit == 0 ? 0.0 : static_cast<double>(usage) / limit;
 }
 
 EResourceType GetDominantResource(
@@ -149,7 +163,7 @@ EResourceType GetDominantResource(
     double maxRatio = 0.0;
     auto update = [&] (i64 a, i64 b, EResourceType type) {
         if (b > 0) {
-            double ratio = (double) a / b;
+            double ratio = static_cast<double>(a) / b;
             if (ratio > maxRatio) {
                 maxRatio = ratio;
                 maxType = type;
@@ -160,6 +174,25 @@ EResourceType GetDominantResource(
     ITERATE_JOB_RESOURCES(XX)
     #undef XX
     return maxType;
+}
+
+double GetDominantResourceUsage(
+    const TJobResources& usage,
+    const TJobResources& limits)
+{
+    double maxRatio = 0.0;
+    auto update = [&] (i64 a, i64 b, EResourceType type) {
+        if (b > 0) {
+            double ratio = static_cast<double>(a) / b;
+            if (ratio > maxRatio) {
+                maxRatio = ratio;
+            }
+        }
+    };
+    #define XX(name, Name) update(usage.Get##Name(), limits.Get##Name(), EResourceType::Name);
+    ITERATE_JOB_RESOURCES(XX)
+    #undef XX
+    return maxRatio;
 }
 
 i64 GetResource(const TJobResources& resources, EResourceType type)
@@ -193,7 +226,7 @@ double GetMinResourceRatio(
     double result = std::numeric_limits<double>::infinity();
     auto update = [&] (i64 a, i64 b) {
         if (b > 0) {
-            result = std::min(result, (double) a / b);
+            result = std::min(result, static_cast<double>(a) / b);
         }
     };
     #define XX(name, Name) update(nominator.Get##Name(), denominator.Get##Name());

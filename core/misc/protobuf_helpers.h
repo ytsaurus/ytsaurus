@@ -205,19 +205,19 @@ void FromProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TSerialized, class TOriginal>
-TSerialized ToProto(const TOriginal& original)
+template <class TSerialized, class TOriginal, class... TArgs>
+TSerialized ToProto(const TOriginal& original, TArgs&&... args)
 {
     TSerialized serialized;
-    ToProto(&serialized, original);
+    ToProto(&serialized, original, std::forward<TArgs>(args)...);
     return serialized;
 }
 
-template <class TOriginal, class TSerialized>
-TOriginal FromProto(const TSerialized& serialized)
+template <class TOriginal, class TSerialized, class... TArgs>
+TOriginal FromProto(const TSerialized& serialized, TArgs&&... args)
 {
     TOriginal original;
-    FromProto(&original, serialized);
+    FromProto(&original, serialized, std::forward<TArgs>(args)...);
     return original;
 }
 

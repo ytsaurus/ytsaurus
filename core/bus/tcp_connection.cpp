@@ -167,10 +167,7 @@ void TTcpConnection::SyncCheck()
 
     auto now = NProfiling::GetCpuInstant();
 
-    if (HasUnsentData() &&
-        LastBeginWriteTime_ < now - WriteStallTimeout_ &&
-        LastWriteTime_ < now - WriteStallTimeout_)
-    {
+    if (HasUnsentData() && LastWriteScheduleTime_ < now - WriteStallTimeout_) {
         ++Statistics_->StalledWrites;
         SyncClose(TError(
             NRpc::EErrorCode::TransportError,
@@ -179,9 +176,7 @@ void TTcpConnection::SyncCheck()
         return;
     }
 
-    if (HasUnreadData() &&
-        LastReadTime_ < now - ReadStallTimeout_)
-    {
+    if (HasUnreadData() && LastReadTime_ < now - ReadStallTimeout_) {
         ++Statistics_->StalledReads;
         SyncClose(TError(
             NRpc::EErrorCode::TransportError,
@@ -282,6 +277,10 @@ void TTcpConnection::OnAddressResolutionFinished(const TErrorOr<TNetworkAddress>
     }
 
     TNetworkAddress address(result.Value(), Port_);
+
+    LOG_DEBUG("Connection network address resolved (Address: %v)",
+        address);
+
     if (!InterfaceType_ && IsLocalBusTransportEnabled() && TAddressResolver::Get()->IsLocalAddress(address)) {
         address = GetLocalBusAddress(Port_);
         OnInterfaceTypeEstablished(ETcpInterfaceType::Local);
@@ -815,8 +814,6 @@ void TTcpConnection::OnSocketWrite()
         return;
     }
 
-    LastWriteTime_ = NProfiling::GetCpuInstant();
-
     // For client sockets the first write notification means that
     // connection was established (either successfully or not).
     if (ConnectionType_ == EConnectionType::Client && State_ == EState::Opening) {
@@ -835,6 +832,8 @@ void TTcpConnection::OnSocketWrite()
     }
 
     LOG_TRACE("Started serving write request");
+
+    LastWriteScheduleTime_ = std::numeric_limits<NProfiling::TCpuInstant>::max();
 
     size_t bytesWrittenTotal = 0;
     while (HasUnsentData()) {
@@ -1192,15 +1191,12 @@ void TTcpConnection::UpdateSocketWatcher()
         return;
     }
 
+    int events = ev::READ;
     if (HasUnsentData()) {
-        SocketWatcher_->set(ev::READ|ev::WRITE);
-        if (LastBeginWriteTime_ == std::numeric_limits<NProfiling::TCpuInstant>::max()) {
-            LastBeginWriteTime_ = NProfiling::GetCpuInstant();
-        }
-    } else {
-        SocketWatcher_->set(ev::READ);
-        LastWriteTime_ = std::numeric_limits<NProfiling::TCpuInstant>::max();
+        LastWriteScheduleTime_ = NProfiling::GetCpuInstant();
+        events |= ev::WRITE;
     }
+    SocketWatcher_->set(events);
 }
 
 int TTcpConnection::GetSocketError() const

@@ -2,6 +2,8 @@
 
 #include "framework.h"
 
+#include "ql_helpers.h"
+
 #include <yt/ytlib/table_chunk_format/column_writer.h>
 #include <yt/ytlib/table_chunk_format/column_reader.h>
 #include <yt/ytlib/table_chunk_format/data_block_writer.h>
@@ -72,7 +74,7 @@ protected:
     NTableClient::TVersionedRow CreateRowWithValues(const std::vector<NTableClient::TVersionedValue>& values) const;
 
     void WriteSegment(IValueColumnWriter* columnWriter, const std::vector<NTableClient::TVersionedRow>& rows);
-    
+
     void Validate(
         const std::vector<NTableClient::TVersionedRow>& original,
         int beginRowIndex,

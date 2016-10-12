@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "helpers.h"
 
 #include <yt/ytlib/api/config.h>
 
@@ -17,6 +18,7 @@
 #include <yt/core/rpc/config.h>
 #include <yt/core/rpc/retrying_channel.h>
 
+#include <yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/yson_serializable.h>
 
@@ -142,6 +144,10 @@ public:
     //! Users that can change operation parameters, e.g abort or suspend it.
     std::vector<Stroka> Owners;
 
+    //! A storage keeping YSON map that is hidden under ACL in Cypress. It will be exported
+    //! to all user jobs via environment variables.
+    NYTree::IMapNodePtr SecureVault;
+
     TOperationSpecBase()
     {
         RegisterParameter("intermediate_data_account", IntermediateDataAccount)
@@ -211,11 +217,22 @@ public:
         RegisterParameter("owners", Owners)
             .Default();
 
+        RegisterParameter("secure_vault", SecureVault)
+            .Default();
+
         RegisterValidator([&] () {
             if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
                 UnavailableChunkTactics == EUnavailableChunkAction::Skip)
             {
                 THROW_ERROR_EXCEPTION("Your tactics conflicts with your strategy, Luke!");
+            }
+        });
+
+        RegisterValidator([&] () {
+            if (SecureVault) {
+                for (const auto& name : SecureVault->GetKeys()) {
+                    ValidateEnvironmentVariableName(name);
+                }
             }
         });
 
@@ -249,8 +266,6 @@ public:
     double MemoryReserveFactor;
 
     bool IncludeMemoryMappedFiles;
-
-    int IopsThreshold;
 
     bool UseYamrDescriptors;
     bool CheckInputFullyConsumed;
@@ -295,10 +310,6 @@ public:
             .LessThanOrEqual(1.);
         RegisterParameter("include_memory_mapped_files", IncludeMemoryMappedFiles)
             .Default(true);
-        RegisterParameter("iops_threshold", IopsThreshold)
-            .Default(3)
-            .GreaterThan(0)
-            .LessThanOrEqual(100);
         RegisterParameter("use_yamr_descriptors", UseYamrDescriptors)
             .Default(false);
         RegisterParameter("check_input_fully_consumed", CheckInputFullyConsumed)
@@ -331,6 +342,12 @@ public:
             if (TmpfsPath) {
                 i64 tmpfsSize = TmpfsSize ? *TmpfsSize : MemoryLimit;
                 MemoryReserveFactor = std::min(1.0, std::max(MemoryReserveFactor, double(tmpfsSize) / MemoryLimit));
+            }
+        });
+
+        RegisterValidator([&] () {
+            for (const auto& pair : Environment) {
+                ValidateEnvironmentVariableName(pair.first);
             }
         });
     }
@@ -379,7 +396,7 @@ public:
     //! groups of chunks are partitioned into tasks of this or smaller size.
     //! This number, however, is merely an estimate, i.e. some tasks may still
     //! be larger.
-    i64 DataSizePerJob;
+    TNullable<i64> DataSizePerJob;
 
     TNullable<int> JobCount;
     TNullable<int> MaxJobCount;
@@ -394,7 +411,7 @@ public:
     TSimpleOperationSpecBase()
     {
         RegisterParameter("data_size_per_job", DataSizePerJob)
-            .Default((i64) 256 * 1024 * 1024)
+            .Default()
             .GreaterThan(0);
         RegisterParameter("job_count", JobCount)
             .Default()
@@ -457,10 +474,6 @@ public:
             .NonEmpty();
         RegisterParameter("ordered", Ordered)
             .Default(false);
-
-        RegisterInitializer([&] () {
-            DataSizePerJob = (i64) 128 * 1024 * 1024;
-        });
     }
 
     virtual void OnLoaded() override
@@ -610,10 +623,6 @@ public:
             if (!JoinBy.empty()) {
                 NTableClient::ValidateKeyColumns(JoinBy);
             }
-        });
-
-        RegisterInitializer([&] () {
-            DataSizePerJob = (i64) 128 * 1024 * 1024;
         });
     }
 
@@ -998,7 +1007,7 @@ public:
     NYPath::TRichYPath OutputTablePath;
     TNullable<int> JobCount;
     TNullable<int> MaxJobCount;
-    i64 DataSizePerJob;
+    TNullable<i64> DataSizePerJob;
     TJobIOConfigPtr JobIO;
     int MaxChunkCountPerJob;
     bool CopyAttributes;
@@ -1023,7 +1032,7 @@ public:
             .Default()
             .GreaterThan(0);
         RegisterParameter("data_size_per_job", DataSizePerJob)
-            .Default((i64) 1024 * 1024 * 1024)
+            .Default()
             .GreaterThan(0);
         RegisterParameter("job_io", JobIO)
             .DefaultNew();
@@ -1168,16 +1177,12 @@ public:
         RegisterParameter("mode", Mode)
             .Default(ESchedulingMode::FairShare);
 
-        // COMPAT(ignat): deprecated use max_running_operation_count instead.
-        RegisterParameter("max_running_operations", MaxRunningOperationCount)
-            .Default();
         RegisterParameter("max_running_operation_count", MaxRunningOperationCount)
+            .Alias("max_running_operations")
             .Default();
 
-        // COMPAT(ignat): deprecated use max_operation_count instead.
-        RegisterParameter("max_operations", MaxOperationCount)
-            .Default();
         RegisterParameter("max_operation_count", MaxOperationCount)
+            .Alias("max_operations")
             .Default();
 
         RegisterParameter("fifo_sort_parameters", FifoSortParameters)

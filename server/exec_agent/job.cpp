@@ -225,6 +225,18 @@ public:
         }
     }
 
+    virtual TNullable<TDuration> GetDownloadDuration() const override
+    {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+        if (!PrepareTime_) {
+            return Null;
+        } else if (!CopyTime_) {
+            return TInstant::Now() - *PrepareTime_;
+        } else {
+            return *CopyTime_ - *PrepareTime_;
+        }
+    }
+
     virtual TNullable<TDuration> GetExecDuration() const override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
@@ -306,7 +318,7 @@ public:
     }
 
     virtual std::vector<TChunkId> DumpInputContext() override
-    {
+    {   
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
         ValidateJobRunning();
@@ -320,6 +332,22 @@ public:
         const auto& rsp = rspOrError.Value();
 
         return FromProto<std::vector<TChunkId>>(rsp->chunk_ids());
+    }
+
+    virtual Stroka GetStderr() override
+    {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+        ValidateJobRunning();
+
+        auto proxy = Slot_->GetJobProberProxy();
+        auto req = proxy.GetStderr();
+
+        ToProto(req->mutable_job_id(), Id_);
+        auto rspOrError = WaitFor(req->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting stderr from job proxy");
+        const auto& rsp = rspOrError.Value();
+
+        return rsp->stderr_data();
     }
 
     virtual TYsonString Strace() override
@@ -364,6 +392,14 @@ public:
         ToProto(req->mutable_job_id(), Id_);
         ToProto(req->mutable_parameters(), parameters.Data());
         auto rspOrError = WaitFor(req->Invoke());
+        // The following code changes error code for more user-friendly
+        // diagnostics in interactive shell.
+        if (rspOrError.FindMatching(NRpc::EErrorCode::TransportError)) {
+            THROW_ERROR_EXCEPTION_IF_FAILED(
+                rspOrError,
+                NExecAgent::EErrorCode::JobProxyConnectionFailed,
+                "No connection to job proxy");
+        }
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error polling job shell");
         const auto& rsp = rspOrError.Value();
 
@@ -391,6 +427,7 @@ private:
     TNullable<TJobResult> JobResult_;
 
     TNullable<TInstant> PrepareTime_;
+    TNullable<TInstant> CopyTime_;
     TNullable<TInstant> ExecTime_;
     TNullable<TInstant> FinishTime_;
 
@@ -489,13 +526,14 @@ private:
 
         GuardedAction([&] () {
             ValidateJobPhase(EJobPhase::DownloadingArtifacts);
-            THROW_ERROR_EXCEPTION_IF_FAILED(errorOrArtifacts, "Failed to download artifacts")
+            THROW_ERROR_EXCEPTION_IF_FAILED(errorOrArtifacts, "Failed to download artifacts");
             const auto& chunks = errorOrArtifacts.Value();
 
             for (size_t index = 0; index < Artifacts_.size(); ++index) {
                 Artifacts_[index].Chunk = chunks[index];
             }
 
+            CopyTime_ = TInstant::Now();
             JobPhase_ = EJobPhase::PreparingDirectories;
             BIND(&TJob::PrepareDirectories, MakeStrong(this))
                 .AsyncVia(Invoker_)
@@ -851,6 +889,7 @@ private:
             resultError.FindMatching(NExecAgent::EErrorCode::ConfigCreationFailed) ||
             resultError.FindMatching(NExecAgent::EErrorCode::AllLocationsDisabled) ||
             resultError.FindMatching(NExecAgent::EErrorCode::JobEnvironmentDisabled) ||
+            resultError.FindMatching(NExecAgent::EErrorCode::ArtifactCopyingFailed) ||
             resultError.FindMatching(NJobProxy::EErrorCode::MemoryCheckFailed))
         {
             return EAbortReason::Other;
@@ -886,7 +925,8 @@ private:
             error.FindMatching(NTableClient::EErrorCode::InvalidDoubleValue) ||
             error.FindMatching(NTableClient::EErrorCode::IncomparableType) ||
             error.FindMatching(NTableClient::EErrorCode::UnhashableType) ||
-            error.FindMatching(NTableClient::EErrorCode::CorruptedNameTable);
+            error.FindMatching(NTableClient::EErrorCode::CorruptedNameTable) ||
+            error.FindMatching(NTableClient::EErrorCode::RowWeightLimitExceeded);
     }
 };
 

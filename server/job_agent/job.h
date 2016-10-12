@@ -55,12 +55,14 @@ struct IJob
     virtual void OnJobPrepared() = 0;
 
     virtual TNullable<TDuration> GetPrepareDuration() const = 0;
+    virtual TNullable<TDuration> GetDownloadDuration() const = 0;
     virtual TNullable<TDuration> GetExecDuration() const = 0;
 
     virtual TInstant GetStatisticsLastSendTime() const = 0;
     virtual void ResetStatisticsLastSendTime() = 0;
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext() = 0;
+    virtual Stroka GetStderr() = 0;
     virtual NYson::TYsonString Strace() = 0;
     virtual void SignalJob(const Stroka& signalName) = 0;
     virtual NYson::TYsonString PollJobShell(const NYson::TYsonString& parameters) = 0;

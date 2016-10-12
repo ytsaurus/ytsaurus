@@ -16,6 +16,8 @@
 
 #include <yt/ytlib/object_client/helpers.h>
 
+#include <yt/ytlib/scheduler/public.h>
+
 #include <yt/core/ytree/fluent.h>
 
 #include <yt/core/misc/fs.h>
@@ -187,7 +189,11 @@ IJobPtr TJobController::TImpl::GetJobOrThrow(const TJobId& jobId) const
 {
     auto job = FindJob(jobId);
     if (!job) {
-        THROW_ERROR_EXCEPTION("No such job %v", jobId);
+        // We can get here only when job exists in scheduler, but job proxy is not yet started.
+        THROW_ERROR_EXCEPTION(
+            NScheduler::EErrorCode::NoSuchJob,
+            "Job %v has not yet started",
+            jobId);
     }
     return job;
 }

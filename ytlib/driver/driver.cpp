@@ -110,6 +110,7 @@ public:
         REGISTER(TPingTransactionCommand,      "ping_tx",                 Null,       Null,       true,  false);
         REGISTER(TCommitTransactionCommand,    "commit_tx",               Null,       Null,       true,  false);
         REGISTER(TAbortTransactionCommand,     "abort_tx",                Null,       Null,       true,  false);
+        REGISTER(TGenerateTimestampCommand,    "generate_timestamp",      Null,       Structured, false, false);
 
         REGISTER(TCreateCommand,               "create",                  Null,       Structured, true,  false);
         REGISTER(TRemoveCommand,               "remove",                  Null,       Null,       true,  false);
@@ -162,6 +163,7 @@ public:
         REGISTER(TReadJournalCommand,          "read_journal",            Null,       Tabular,    false, true );
 
         REGISTER(TDumpJobContextCommand,       "dump_job_context",        Null,       Null,       true,  false);
+        REGISTER(TGetJobStderrCommand,         "get_job_stderr",          Null,       Binary,     true,  false);
         REGISTER(TStraceJobCommand,            "strace_job",              Null,       Structured, false, false);
         REGISTER(TSignalJobCommand,            "signal_job",              Null,       Null,       false, false);
         REGISTER(TAbandonJobCommand,           "abandon_job",             Null,       Null,       false, false);

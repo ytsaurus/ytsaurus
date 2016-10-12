@@ -30,6 +30,8 @@
 #include <util/system/sigset.h>
 #include <util/system/yield.h>
 
+#include <util/string/vector.h>
+
 #include <atomic>
 
 #ifdef _win_
@@ -57,6 +59,7 @@ static TLogger Logger(SystemLoggingCategory);
 static const auto& Profiler = LoggingProfiler;
 
 static const auto ProfilingPeriod = TDuration::Seconds(1);
+static const auto DequeuePeriod = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -246,15 +249,22 @@ public:
             BIND(&TImpl::OnProfiling, MakeStrong(this)),
             ProfilingPeriod);
         ProfilingExecutor_->Start();
+
+        DequeueExecutor_ = New<TPeriodicExecutor>(
+            EventQueue_,
+            BIND(&TImpl::OnDequeue, MakeStrong(this)),
+            DequeuePeriod);
+        DequeueExecutor_->Start();
     }
 
     void Configure(INodePtr node, const TYPath& path = "")
     {
-        if (!LoggingThread_->IsShutdown()) {
-            auto config = TLogConfig::CreateFromNode(node, path);
-            LoggerQueue_.Enqueue(std::move(config));
-            EventCount_->NotifyOne();
+        if (LoggingThread_->IsShutdown()) {
+            return;
         }
+
+        auto config = TLogConfig::CreateFromNode(node, path);
+        LoggerQueue_.Enqueue(std::move(config));
     }
 
     void Configure(const Stroka& fileName, const TYPath& path)
@@ -271,10 +281,11 @@ public:
 
     void Configure(TLogConfigPtr&& config)
     {
-        if (!LoggingThread_->IsShutdown()) {
-            LoggerQueue_.Enqueue(std::move(config));
-            EventCount_->NotifyOne();
+        if (LoggingThread_->IsShutdown()) {
+            return;
         }
+
+        LoggerQueue_.Enqueue(std::move(config));
     }
 
     void Shutdown()
@@ -439,7 +450,6 @@ private:
         {
             Owner_->EndExecute();
         }
-
     };
 
 
@@ -447,44 +457,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(LoggingThread);
 
-        auto result = EventQueue_->BeginExecute(&CurrentAction_);
-        if (result != EBeginExecuteResult::QueueEmpty) {
-            return result;
-        }
-
-        int eventsWritten = 0;
-        bool empty = true;
-
-        Notified_ = false;
-        while (LoggerQueue_.DequeueAll(true, [&] (const TLoggerQueueItem& item) {
-                if (empty) {
-                    EventCount_->CancelWait();
-                    empty = false;
-                }
-
-                if (const auto* configPtr = item.TryAs<TLogConfigPtr>()) {
-                    UpdateConfig(*configPtr);
-                } else if (const auto* eventPtr = item.TryAs<TLogEvent>()) {
-                    if (ReopenRequested_) {
-                        ReopenRequested_ = false;
-                        ReloadWriters();
-                    }
-
-                    Write(*eventPtr);
-                    ++eventsWritten;
-                } else {
-                    YUNREACHABLE();
-                }
-            }))
-        { }
-
-        if (eventsWritten > 0 && !Config_->FlushPeriod) {
-            FlushWriters();
-        }
-
-        WrittenEvents_ += eventsWritten;
-
-        return empty ? EBeginExecuteResult::QueueEmpty : EBeginExecuteResult::Success;
+        return EventQueue_->BeginExecute(&CurrentAction_);
     }
 
     void EndExecute()
@@ -493,6 +466,7 @@ private:
 
         EventQueue_->EndExecute(&CurrentAction_);
     }
+
 
     const std::vector<ILogWriterPtr>& GetWriters(const TLogEvent& event)
     {
@@ -713,15 +687,12 @@ private:
     {
         ++EnqueuedEvents_;
         LoggerQueue_.Enqueue(std::move(event));
-
-        bool expected = false;
-        if (Notified_.compare_exchange_strong(expected, true)) {
-            EventCount_->NotifyOne();
-        }
     }
 
     void OnProfiling()
     {
+        VERIFY_THREAD_AFFINITY(LoggingThread);
+
         auto writtenEvents = WrittenEvents_.load();
         auto enqueuedEvents = EnqueuedEvents_.load();
         
@@ -730,9 +701,37 @@ private:
         Profiler.Enqueue("/backlog_events", enqueuedEvents - writtenEvents, EMetricType::Counter);
     }
 
+    void OnDequeue()
+    {
+        VERIFY_THREAD_AFFINITY(LoggingThread);
+
+        int eventsWritten = 0;
+        while (LoggerQueue_.DequeueAll(true, [&] (const TLoggerQueueItem& item) {
+            if (const auto* configPtr = item.TryAs<TLogConfigPtr>()) {
+                UpdateConfig(*configPtr);
+            } else if (const auto* eventPtr = item.TryAs<TLogEvent>()) {
+                if (ReopenRequested_) {
+                    ReopenRequested_ = false;
+                    ReloadWriters();
+                }
+
+                Write(*eventPtr);
+                ++eventsWritten;
+            } else {
+                YUNREACHABLE();
+            }
+        }))
+        { }
+
+        if (eventsWritten > 0 && !Config_->FlushPeriod) {
+            FlushWriters();
+        }
+
+        WrittenEvents_ += eventsWritten;
+    }
+
 
     const std::shared_ptr<TEventCount> EventCount_ = std::make_shared<TEventCount>();
-    std::atomic<bool> Notified_ = {false};
     const TInvokerQueuePtr EventQueue_;
 
     TIntrusivePtr<TThread> LoggingThread_;
@@ -770,6 +769,7 @@ private:
     TPeriodicExecutorPtr WatchExecutor_;
     TPeriodicExecutorPtr CheckSpaceExecutor_;
     TPeriodicExecutorPtr ProfilingExecutor_;
+    TPeriodicExecutorPtr DequeueExecutor_;
 
     std::unique_ptr<TNotificationHandle> NotificationHandle_;
     std::vector<std::unique_ptr<TNotificationWatch>> NotificationWatches_;
@@ -833,6 +833,74 @@ void TLogManager::Enqueue(TLogEvent&& event)
 void TLogManager::Reopen()
 {
     Impl_->Reopen();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void SimpleConfigureLogging(
+    const char* logLevelStr,
+    const char* logExcludeCategoriesStr,
+    const char* logIncludeCategoriesStr)
+{
+    if (!logLevelStr && !logExcludeCategoriesStr && !logIncludeCategoriesStr) {
+        return;
+    }
+
+    const char* const stderrWriterName = "stderr";
+
+    auto rule = New<TRuleConfig>();
+    rule->Writers.push_back(stderrWriterName);
+
+    if (logLevelStr) {
+        Stroka logLevel = logLevelStr;
+        logLevel.to_upper(0, std::min(logLevel.size(), static_cast<size_t>(1)));
+        rule->MinLevel = TEnumTraits<ELogLevel>::FromString(logLevel);
+    } else {
+        rule->MinLevel = ELogLevel::Fatal;
+    }
+
+    VectorStrok logExcludeCategories;
+    if (logExcludeCategoriesStr) {
+        SplitStroku(&logExcludeCategories, logExcludeCategoriesStr, ",");
+    }
+
+    for (const auto& excludeCategory : logExcludeCategories) {
+        rule->ExcludeCategories.insert(excludeCategory);
+    }
+
+    VectorStrok logIncludeCategories;
+    if (logIncludeCategoriesStr) {
+        SplitStroku(&logIncludeCategories, logIncludeCategoriesStr, ",");
+    }
+
+    if (!logIncludeCategories.empty()) {
+        rule->IncludeCategories.Assign(yhash_set<Stroka>());
+        for (const auto& includeCategory : logIncludeCategories) {
+            rule->IncludeCategories->insert(includeCategory);
+        }
+    }
+
+    auto config = New<TLogConfig>();
+    config->Rules.push_back(std::move(rule));
+
+    config->MinDiskSpace = 0;
+    config->HighBacklogWatermark = std::numeric_limits<int>::max();
+    config->LowBacklogWatermark = 0;
+
+    auto stderrWriter = New<TWriterConfig>();
+    stderrWriter->Type = EWriterType::Stderr;
+
+    config->WriterConfigs.insert(std::make_pair(stderrWriterName, std::move(stderrWriter)));
+
+    TLogManager::Get()->Configure(std::move(config));
+}
+
+void SimpleConfigureLoggingFromEnv()
+{
+    SimpleConfigureLogging(
+        getenv("YT_LOG_LEVEL"),
+        getenv("YT_LOG_EXCLUDE_CATEGORIES"),
+        getenv("YT_LOG_INCLUDE_CATEGORIES"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

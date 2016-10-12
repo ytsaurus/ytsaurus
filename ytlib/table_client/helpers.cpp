@@ -32,6 +32,10 @@ TTableOutput::TTableOutput(const TFormat& format, NYson::IYsonConsumer* consumer
     : Parser_(CreateParserForFormat(format, EDataType::Tabular, consumer))
 { }
 
+TTableOutput::TTableOutput(std::unique_ptr<IParser> parser)
+    : Parser_(std::move(parser))
+{ }
+
 TTableOutput::~TTableOutput() throw() = default;
 
 void TTableOutput::DoWrite(const void* buf, size_t len)

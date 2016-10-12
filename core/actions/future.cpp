@@ -4,9 +4,9 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TFuture<void> VoidFuture = MakeFuture(TError());
-const TFuture<bool> TrueFuture = MakeFuture(true);
-const TFuture<bool> FalseFuture = MakeFuture(false);
+const TFuture<void> VoidFuture = MakeWellKnownFuture(TError());
+const TFuture<bool> TrueFuture = MakeWellKnownFuture(TErrorOr<bool>(true));
+const TFuture<bool> FalseFuture = MakeWellKnownFuture(TErrorOr<bool>(false));
 
 ///////////////////////////////////////////////////////////////////////////////
 

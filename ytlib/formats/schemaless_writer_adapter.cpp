@@ -118,15 +118,10 @@ void TSchemalessFormatWriterBase::DoFlushBuffer()
         return;
     }
 
-    auto buffer = CurrentBuffer_.Flush();
-    WaitFor(Output_->Write(buffer))
+    PreviousBuffer_ = CurrentBuffer_.Flush();
+    WaitFor(Output_->Write(PreviousBuffer_))
         .ThrowOnError();
 
-    if (EnableContextSaving_) {
-        PreviousBuffer_ = std::move(buffer);
-    }
-
-    CurrentBuffer_.Clear();
     CurrentBuffer_.Reserve(ContextBufferCapacity);
 }
 
@@ -272,6 +267,9 @@ TSchemalessWriterAdapter::TSchemalessWriterAdapter(
 // so we set Consumer_ inside Init function rather than inside the constructor.
 void TSchemalessWriterAdapter::Init(const TFormat& format)
 {
+    // This is generic code for those formats, that support skipping nulls.
+    // See #TYsonFormatConfig and #TJsonFormatConfig.
+    SkipNullValues_ = format.Attributes().Get("skip_null_values", false);
     Consumer_ = CreateConsumerForFormat(format, EDataType::Tabular, GetOutputStream());
 }
 
@@ -332,6 +330,10 @@ void TSchemalessWriterAdapter::ConsumeRow(TUnversionedRow row)
         auto& value = *it;
 
         if (IsSystemColumnId(value.Id)) {
+            continue;
+        }
+
+        if (value.Type == EValueType::Null && SkipNullValues_) {
             continue;
         }
 

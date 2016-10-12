@@ -43,6 +43,7 @@ public:
         const auto& inputSpec = SchedulerJobSpecExt_.input_specs(0);
 
         std::vector<TChunkSpec> chunkSpecs(inputSpec.chunks().begin(), inputSpec.chunks().end());
+        auto readerOptions = ConvertTo<NTableClient::TTableReaderOptionsPtr>(TYsonString(inputSpec.table_reader_options()));
 
         TotalRowCount_ = GetCumulativeRowCount(chunkSpecs);
 
@@ -56,7 +57,7 @@ public:
             // which is a nightmare for restarted (lost) jobs.
             Reader_ = CreateSchemalessSequentialMultiChunkReader(
                 config->JobIO->TableReader,
-                New<NTableClient::TTableReaderOptions>(),
+                readerOptions,
                 Host_->GetClient(),
                 Host_->LocalDescriptor(),
                 Host_->GetBlockCache(),
@@ -89,7 +90,7 @@ public:
                 CellTagFromId(chunkListId),
                 transactionId,
                 chunkListId,
-                GetPartitioner());
+                CreatePartitioner());
             return Writer_;
         };
     }
@@ -97,7 +98,6 @@ public:
 private:
     const TPartitionJobSpecExt& PartitionJobSpecExt_;
 
-    std::vector<TOwningKey> PartitionKeys_;
     TNameTablePtr NameTable_;
 
 
@@ -116,12 +116,12 @@ private:
         return false;
     }
 
-    std::unique_ptr<IPartitioner> GetPartitioner()
+    IPartitionerPtr CreatePartitioner()
     {
         if (PartitionJobSpecExt_.partition_keys_size() > 0) {
             YCHECK(PartitionJobSpecExt_.partition_keys_size() + 1 == PartitionJobSpecExt_.partition_count());
-            PartitionKeys_ = FromProto<std::vector<TOwningKey>>(PartitionJobSpecExt_.partition_keys());
-            return CreateOrderedPartitioner(&PartitionKeys_);
+            auto partitionKeys = FromProto<std::vector<TOwningKey>>(PartitionJobSpecExt_.partition_keys());
+            return CreateOrderedPartitioner(std::move(partitionKeys));
         } else {
             return CreateHashPartitioner(
                 PartitionJobSpecExt_.partition_count(),

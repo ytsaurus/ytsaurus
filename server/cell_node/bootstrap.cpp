@@ -164,6 +164,9 @@ void TBootstrap::DoRun()
     }
 
     auto localAddresses = GetLocalAddresses();
+    if (!Config->ClusterConnection->Networks) {
+        Config->ClusterConnection->Networks = GetLocalNetworks();
+    }
 
     LOG_INFO("Starting node (LocalAddresses: %v, PrimaryMasterAddresses: %v, NodeTags: %v)",
         GetValues(localAddresses),
@@ -415,14 +418,12 @@ void TBootstrap::DoRun()
     RpcServer->RegisterService(CreateTimestampProxyService(
         MasterConnection->GetTimestampProvider()));
 
-    auto directMasterChannel = CreatePeerChannel(
-        Config->ClusterConnection->PrimaryMaster,
-        GetBusChannelFactory(),
-        EPeerKind::Leader);
-
     RpcServer->RegisterService(CreateMasterCacheService(
         Config->MasterCacheService,
-        directMasterChannel,
+        CreatePeerChannel(
+            Config->ClusterConnection->PrimaryMaster,
+            GetBusChannelFactory(),
+            EPeerKind::Follower),
         GetCellId()));
 
     CellDirectorySynchronizer->Start();

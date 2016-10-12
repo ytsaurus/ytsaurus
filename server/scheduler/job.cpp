@@ -54,7 +54,7 @@ private:
 bool CompareBriefJobStatistics(
     const TBriefJobStatisticsPtr& lhs,
     const TBriefJobStatisticsPtr& rhs,
-    i64 userJobCpuUsageThreshold,
+    i64 cpuUsageThreshold,
     i64 userJobIOReadThreshold)
 {
     return lhs->ProcessedInputRowCount < rhs->ProcessedInputRowCount ||
@@ -62,7 +62,9 @@ bool CompareBriefJobStatistics(
         lhs->ProcessedOutputRowCount < rhs->ProcessedOutputRowCount ||
         lhs->ProcessedOutputDataSize < rhs->ProcessedOutputDataSize ||
         (lhs->UserJobCpuUsage && rhs->UserJobCpuUsage &&
-        *lhs->UserJobCpuUsage + userJobCpuUsageThreshold < *rhs->UserJobCpuUsage) ||
+        *lhs->UserJobCpuUsage + cpuUsageThreshold < *rhs->UserJobCpuUsage) ||
+        (lhs->JobProxyCpuUsage && rhs->JobProxyCpuUsage &&
+        *lhs->JobProxyCpuUsage + cpuUsageThreshold < *rhs->JobProxyCpuUsage) ||
         (lhs->UserJobBlockIORead && rhs->UserJobBlockIORead &&
         *lhs->UserJobBlockIORead + userJobIOReadThreshold < *rhs->UserJobBlockIORead);
 }
@@ -81,6 +83,9 @@ void Serialize(const TBriefJobStatistics& briefJobStatistics, IYsonConsumer* con
             })
             .DoIf(static_cast<bool>(briefJobStatistics.UserJobCpuUsage), [&] (TFluentMap fluent) {
                 fluent.Item("user_job_cpu_usage").Value(*briefJobStatistics.UserJobCpuUsage);
+            })
+            .DoIf(static_cast<bool>(briefJobStatistics.JobProxyCpuUsage), [&] (TFluentMap fluent) {
+                fluent.Item("job_proxy_cpu_usage").Value(*briefJobStatistics.JobProxyCpuUsage);
             })
         .EndMap();
 }
@@ -124,6 +129,7 @@ TBriefJobStatisticsPtr TJob::BuildBriefStatistics(const TYsonString& statisticsY
     briefStatistics->ProcessedInputRowCount = GetNumericValue(statistics, "/data/input/row_count");
     briefStatistics->ProcessedInputDataSize = GetNumericValue(statistics, "/data/input/uncompressed_data_size");
     briefStatistics->UserJobCpuUsage = FindNumericValue(statistics, "/user_job/cpu/user");
+    briefStatistics->JobProxyCpuUsage = FindNumericValue(statistics, "/job_proxy/cpu/user");
     briefStatistics->UserJobBlockIORead = FindNumericValue(statistics, "/user_job/block_io/io_read");
 
     auto outputDataStatistics = GetTotalOutputDataStatistics(statistics);
@@ -135,7 +141,7 @@ TBriefJobStatisticsPtr TJob::BuildBriefStatistics(const TYsonString& statisticsY
 
 void TJob::AnalyzeBriefStatistics(
     TDuration suspiciousInactivityTimeout,
-    i64 suspiciousUserJobCpuUsageThreshold,
+    i64 suspiciousCpuUsageThreshold,
     i64 suspiciousUserJobBlockIOReadThreshold,
     const TBriefJobStatisticsPtr& briefStatistics)
 {
@@ -144,7 +150,7 @@ void TJob::AnalyzeBriefStatistics(
     if (!BriefStatistics_ || CompareBriefJobStatistics(
         BriefStatistics_,
         briefStatistics,
-        suspiciousUserJobCpuUsageThreshold,
+        suspiciousCpuUsageThreshold,
         suspiciousUserJobBlockIOReadThreshold))
     {
         wasActive = true;
@@ -194,6 +200,9 @@ TJobSummary::TJobSummary(const TJobPtr& job)
     const auto& status = job->Status();
     if (status.has_prepare_duration()) {
         PrepareDuration = FromProto<TDuration>(status.prepare_duration());
+    }
+    if (status.has_download_duration()) {
+        PrepareDuration = FromProto<TDuration>(status.download_duration());
     }
     if (status.has_exec_duration()) {
         ExecDuration.Emplace();

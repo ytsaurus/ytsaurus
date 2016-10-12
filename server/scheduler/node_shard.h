@@ -49,7 +49,7 @@ struct INodeShardHost
         NYson::TYsonString jobAttributes,
         const NChunkClient::TChunkId& stderrChunkId,
         const NChunkClient::TChunkId& failContextChunkId,
-        TFuture<NYson::TYsonString> inputPathsFuture) = 0;
+        TFuture<TNullable<NYson::TYsonString>> inputPathsFuture) = 0;
 
     virtual TFuture<void> AttachJobContext(
         const NYTree::TYPath& path,
@@ -100,14 +100,14 @@ public:
 
     IInvokerPtr GetInvoker();
 
-    void UpdateConfig(TSchedulerConfigPtr config);
+    void UpdateConfig(const TSchedulerConfigPtr& config);
 
     void OnMasterDisconnected();
 
     void RegisterOperation(const TOperationId& operationId, const IOperationControllerPtr& operationController);
     void UnregisterOperation(const TOperationId& operationId);
 
-    yhash_set<TOperationId> ProcessHeartbeat(TScheduler::TCtxHeartbeatPtr context);
+    yhash_set<TOperationId> ProcessHeartbeat(const TScheduler::TCtxHeartbeatPtr& context);
 
     std::vector<TExecNodeDescriptor> GetExecNodeDescriptors();
 
@@ -119,7 +119,11 @@ public:
 
     NYson::TYsonString StraceJob(const TJobId& jobId, const Stroka& user);
 
+    TNullable<NYson::TYsonString> GetJobStatistics(const TJobId& jobId);
+
     void DumpJobInputContext(const TJobId& jobId, const NYTree::TYPath& path, const Stroka& user);
+
+    NNodeTrackerClient::TNodeDescriptor GetJobNode(const TJobId& jobId, const Stroka& user);
 
     void SignalJob(const TJobId& jobId, const Stroka& signalName, const Stroka& user);
 
@@ -131,6 +135,7 @@ public:
 
     void BuildNodesYson(NYson::IYsonConsumer* consumer);
     void BuildOperationJobsYson(const TOperationId& operationId, NYson::IYsonConsumer* consumer);
+    void BuildJobYson(const TJobId& job, NYson::IYsonConsumer* consumer);
     void BuildSuspiciousJobsYson(NYson::IYsonConsumer* consumer);
 
     TJobResources GetTotalResourceLimits();
@@ -148,8 +153,8 @@ public:
     int GetTotalNodeCount();
 
 private:
-    int Id_;
-    NConcurrency::TActionQueuePtr ActionQueue_;
+    const int Id_;
+    const NConcurrency::TActionQueuePtr ActionQueue_;
 
     int ConcurrentHeartbeatCount_ = 0;
 
@@ -193,7 +198,7 @@ private:
 
     const NObjectClient::TCellTag PrimaryMasterCellTag_;
     TSchedulerConfigPtr Config_;
-    INodeShardHost* Host_;
+    INodeShardHost* const Host_;
     NCellScheduler::TBootstrap* const Bootstrap_;
 
     NLogging::TLogger Logger;
@@ -276,7 +281,6 @@ private:
     TOperationState& GetOperationState(const TOperationId& operationId);
 
     void BuildNodeYson(TExecNodePtr node, NYson::IYsonConsumer* consumer);
-    void BuildJobYson(const TJobPtr& job, NYson::IYsonConsumer* consumer);
     void BuildSuspiciousJobYson(const TJobPtr& job, NYson::IYsonConsumer* consumer);
 
 };

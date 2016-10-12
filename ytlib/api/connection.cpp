@@ -43,6 +43,7 @@ using namespace NTransactionClient;
 using namespace NObjectClient;
 using namespace NQueryClient;
 using namespace NHydra;
+using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -65,6 +66,11 @@ public:
     virtual TConnectionConfigPtr GetConfig() override
     {
         return Config_;
+    }
+
+    virtual const TNetworkPreferenceList& GetNetworks() const override
+    {
+        return Config_->Networks.Get(DefaultNetworkPreferences);
     }
 
     virtual const TCellId& GetPrimaryMasterCellId() const override
@@ -190,7 +196,7 @@ private:
     {
         auto channel = NHydra::CreatePeerChannel(
             config,
-            GetBusChannelFactory(),
+            LightChannelFactory_,
             kind);
 
         auto isRetryableError = BIND([options = Options_] (const TError& error) {
@@ -219,6 +225,9 @@ private:
         for (const auto& masterConfig : Config_->SecondaryMasters) {
             SecondaryMasterCellTags_.push_back(CellTagFromId(masterConfig->CellId));
         }
+
+        LightChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
+        HeavyChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
 
         auto initMasterChannel = [&] (
             EMasterChannelKind channelKind,
@@ -261,15 +270,12 @@ private:
             Config_->Scheduler,
             GetBusChannelFactory(),
             GetMasterChannelOrThrow(EMasterChannelKind::Leader),
-            Config_->Networks);
-
-        LightChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
-        HeavyChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
+            GetNetworks());
 
         CellDirectory_ = New<TCellDirectory>(
             Config_->CellDirectory,
             LightChannelFactory_,
-            Config_->Networks);
+            GetNetworks());
         CellDirectory_->ReconfigureCell(Config_->PrimaryMaster);
         for (const auto& cellConfig : Config_->SecondaryMasters) {
             CellDirectory_->ReconfigureCell(cellConfig);

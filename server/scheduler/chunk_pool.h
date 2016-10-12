@@ -23,7 +23,7 @@ struct TChunkStripeStatistics
     i64 RowCount = 0;
     i64 MaxBlockSize = 0;
 
-    void Persist(TPersistenceContext& context);
+    void Persist(const TPersistenceContext& context);
 };
 
 TChunkStripeStatistics operator + (
@@ -50,7 +50,7 @@ struct TChunkStripe
 
     TChunkStripeStatistics GetStatistics() const;
 
-    void Persist(TPersistenceContext& context);
+    void Persist(const TPersistenceContext& context);
 
     SmallVector<NChunkClient::TInputSlicePtr, 1> ChunkSlices;
     int WaitingChunkCount = 0;
@@ -68,7 +68,7 @@ struct TChunkStripeList
     TChunkStripeStatisticsVector GetStatistics() const;
     TChunkStripeStatistics GetAggregateStatistics() const;
 
-    void Persist(TPersistenceContext& context);
+    void Persist(const TPersistenceContext& context);
 
     std::vector<TChunkStripePtr> Stripes;
 
@@ -124,6 +124,7 @@ struct IChunkPoolOutput
 
     virtual int GetTotalJobCount() const = 0;
     virtual int GetPendingJobCount() const = 0;
+    virtual const TProgressCounter& GetJobCounter() const = 0;
 
     //! Approximate average stripe list statistics to estimate memory usage.
     virtual TChunkStripeStatisticsVector GetApproximateStripeStatistics() const = 0;
@@ -139,6 +140,9 @@ struct IChunkPoolOutput
     virtual void Aborted(TCookie cookie) = 0;
     virtual void Lost(TCookie cookie) = 0;
 
+    virtual void SetDataSizePerJob(i64 dataSizePerJob) = 0;
+    virtual void SetMaxDataSizePerJob(i64 maxDataSizePerJob) = 0;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -151,7 +155,7 @@ struct IChunkPool
 std::unique_ptr<IChunkPool> CreateAtomicChunkPool();
 
 std::unique_ptr<IChunkPool> CreateUnorderedChunkPool(
-    int jobCount,
+    i64 dataSizePerJob,
     int maxChunkStripesPerJob);
 
 ////////////////////////////////////////////////////////////////////////////////

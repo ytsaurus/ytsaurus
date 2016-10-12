@@ -26,7 +26,7 @@ struct TCreateJobNodeRequest
     NYson::TYsonString Attributes;
     NChunkClient::TChunkId StderrChunkId;
     NChunkClient::TChunkId FailContextChunkId;
-    TFuture<NYson::TYsonString> InputPathsFuture;
+    TFuture<TNullable<NYson::TYsonString>> InputPathsFuture;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -42,7 +42,6 @@ struct TOperationReport
 struct TMasterHandshakeResult
 {
     std::vector<TOperationReport> OperationReports;
-    NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr WatcherResponses;
 };
 
 typedef TCallback<void(NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr)> TWatcherRequester;
