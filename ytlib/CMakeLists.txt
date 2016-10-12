@@ -108,10 +108,10 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/formats/json_parser.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/json_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/parser.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/formats/protobuf.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/formats/protobuf_extension.proto
-  ${CMAKE_CURRENT_LIST_DIR}/formats/protobuf_parser.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/formats/protobuf_writer.cpp
+  #${CMAKE_CURRENT_LIST_DIR}/formats/protobuf.cpp
+  #${CMAKE_CURRENT_LIST_DIR}/formats/protobuf_extension.proto
+  #${CMAKE_CURRENT_LIST_DIR}/formats/protobuf_parser.cpp
+  #${CMAKE_CURRENT_LIST_DIR}/formats/protobuf_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/schemaful_dsv_parser.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/schemaful_dsv_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/schemaful_writer.cpp
@@ -360,6 +360,7 @@ SRCS(
 PEERDIR(
   contrib/libs/llvm37/lib
   contrib/libs/re2
+  contrib/libs/protobuf
   contrib/libs/yajl
   yt/${YT_ABI}/yt/core
 )
