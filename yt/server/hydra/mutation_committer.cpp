@@ -361,7 +361,7 @@ void TLeaderCommitter::Flush()
 
     auto guard = Guard(BatchSpinLock_);
     if (CurrentBatch_) {
-        FlushCurrentBatch(&guard);
+        FlushCurrentBatch();
     }
 }
 
@@ -443,11 +443,11 @@ void TLeaderCommitter::AddToBatch(
         recordData,
         std::move(localFlushResult));
     if (batch->GetMutationCount() >= Config_->MaxCommitBatchRecordCount) {
-        FlushCurrentBatch(&guard);
+        FlushCurrentBatch();
     }
 }
 
-void TLeaderCommitter::FlushCurrentBatch(TGuard<TSpinLock>* guard)
+void TLeaderCommitter::FlushCurrentBatch()
 {
     VERIFY_SPINLOCK_AFFINITY(BatchSpinLock_);
 
@@ -455,8 +455,6 @@ void TLeaderCommitter::FlushCurrentBatch(TGuard<TSpinLock>* guard)
     std::swap(currentBatch, CurrentBatch_);
     PrevBatchQuorumFlushResult_ = currentBatch->GetQuorumFlushResult();
     TDelayedExecutor::CancelAndClear(BatchTimeoutCookie_);
-
-    guard->Release();
 
     currentBatch->Flush();
 
@@ -490,7 +488,7 @@ void TLeaderCommitter::OnBatchTimeout(const TBatchPtr& batch)
 
     auto guard = Guard(BatchSpinLock_);
     if (batch == CurrentBatch_) {
-        FlushCurrentBatch(&guard);
+        FlushCurrentBatch();
     }
 }
 
