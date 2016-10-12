@@ -485,8 +485,8 @@ TOperationId IOperationClient::MapReduce(
     CheckFormats<TReduceOutputRow>("reducer", "output", spec.OutputDesc_);
 
     TMultiFormatDesc dummy, outputMapperDesc, inputReducerDesc;
-    outputMapperDesc.Format = TFormatDescTraits<TMapOutputRow>::Format;
-    inputReducerDesc.Format = TFormatDescTraits<TReduceInputRow>::Format;
+    TOperationIOSpecBase::TFormatAdder<TMapOutputRow>::Add(outputMapperDesc);
+    TOperationIOSpecBase::TFormatAdder<TReduceInputRow>::Add(inputReducerDesc);
 
     TIntrusivePtr<TMapper> mapperPtr(mapper);
     TIntrusivePtr<TReducer> reducerPtr(reducer);
@@ -520,7 +520,7 @@ TOperationId IOperationClient::MapReduce(
     CheckFormats<TReduceOutputRow>("reducer", "output", spec.OutputDesc_);
 
     TMultiFormatDesc dummy, inputReducerDesc;
-    inputReducerDesc.Format = TFormatDescTraits<TReduceInputRow>::Format;
+    TOperationIOSpecBase::TFormatAdder<TReduceInputRow>::Add(inputReducerDesc);
 
     TIntrusivePtr<TReducer> reducerPtr(reducer);
 
@@ -563,10 +563,10 @@ TOperationId IOperationClient::MapReduce(
 
     TMultiFormatDesc outputMapperDesc, inputReducerDesc,
         inputReduceCombinerDesc, outputReduceCombinerDesc;
-    outputMapperDesc.Format = TFormatDescTraits<TMapOutputRow>::Format;
-    inputReducerDesc.Format = TFormatDescTraits<TReduceInputRow>::Format;
-    inputReduceCombinerDesc.Format = TFormatDescTraits<TReduceCombinerInputRow>::Format;
-    outputReduceCombinerDesc.Format = TFormatDescTraits<TReduceCombinerOutputRow>::Format;
+    TOperationIOSpecBase::TFormatAdder<TMapOutputRow>::Add(outputMapperDesc);
+    TOperationIOSpecBase::TFormatAdder<TReduceInputRow>::Add(inputReducerDesc);
+    TOperationIOSpecBase::TFormatAdder<TReduceCombinerInputRow>::Add(inputReduceCombinerDesc);
+    TOperationIOSpecBase::TFormatAdder<TReduceCombinerOutputRow>::Add(outputReduceCombinerDesc);
 
     TIntrusivePtr<TMapper> mapperPtr(mapper);
     TIntrusivePtr<TReduceCombiner> reduceCombinerPtr(reduceCombiner);
@@ -607,9 +607,9 @@ TOperationId IOperationClient::MapReduce(
 
     TMultiFormatDesc dummy, inputReducerDesc,
         inputReduceCombinerDesc, outputReduceCombinerDesc;
-    inputReducerDesc.Format = TFormatDescTraits<TReduceInputRow>::Format;
-    inputReduceCombinerDesc.Format = TFormatDescTraits<TReduceCombinerInputRow>::Format;
-    outputReduceCombinerDesc.Format = TFormatDescTraits<TReduceCombinerOutputRow>::Format;
+    TOperationIOSpecBase::TFormatAdder<TReduceInputRow>::Add(inputReducerDesc);
+    TOperationIOSpecBase::TFormatAdder<TReduceCombinerInputRow>::Add(inputReduceCombinerDesc);
+    TOperationIOSpecBase::TFormatAdder<TReduceCombinerOutputRow>::Add(outputReduceCombinerDesc);
 
     TIntrusivePtr<TReduceCombiner> reduceCombinerPtr(reduceCombiner);
     TIntrusivePtr<TReducer> reducerPtr(reducer);
