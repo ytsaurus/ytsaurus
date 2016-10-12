@@ -86,6 +86,20 @@ test_cypress_commands()
     ./yt create file //home/wrapper_test/file_with_attrs --attributes "{testattr=1;other=2}" --ignore-existing
     check "//home/wrapper_test/file_with_attrs" "$(./yt find //home/wrapper_test --attribute-filter "testattr=1")"
     check "" "$(./yt find //home/wrapper_test --attribute-filter "attr=1")"
+
+}
+
+test_list_long_format()
+{
+    ./yt list -l "//home"
+
+    # list with symlinks
+    ./yt create table "//home/wrapper_test/folder_with_symlinks/test_table" --recursive
+    ./yt link "//home/wrapper_test/folder_with_symlinks/test_table" "//home/wrapper_test/folder_with_symlinks/valid_link"
+    ./yt create table "//home/wrapper_test/table_to_delete"
+    ./yt link "//home/wrapper_test/table_to_delete" "//home/wrapper_test/folder_with_symlinks/invalid_link"
+    ./yt remove "//home/wrapper_test/table_to_delete"
+    ./yt list -l "//home/wrapper_test/folder_with_symlinks"
 }
 
 test_concatenate()
@@ -352,9 +366,10 @@ test_json_structured_format() {
 }
 
 tear_down
-run_test test_table_commands
 run_test test_cypress_commands
+run_test test_list_long_format
 run_test test_concatenate
+run_test test_table_commands
 run_test test_file_commands
 run_test test_copy_move_link
 run_test test_merge_erase
