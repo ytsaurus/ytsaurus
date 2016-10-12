@@ -91,6 +91,9 @@ public:
     //! Resumes an earlier suspended mutation logging and sends out all pending mutations.
     void ResumeLogging();
 
+    //! Cleans things up, aborts all pending mutations with a human-readable error.
+    void Stop();
+
 
     //! Raised each time a checkpoint is needed.
     DEFINE_SIGNAL(void(), CheckpointNeeded);
