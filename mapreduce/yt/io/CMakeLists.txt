@@ -24,6 +24,7 @@ PEERDIR(
     library/yson
     mapreduce/yt/http
     mapreduce/yt/interface
+    mapreduce/yt/interface/protos
 )
 
 END()
