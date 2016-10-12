@@ -79,6 +79,7 @@
 %token KwAnd "keyword `AND`"
 %token KwOr "keyword `OR`"
 %token KwNot "keyword `NOT`"
+%token KwNull "keyword `NULL`"
 %token KwBetween "keyword `BETWEEN`"
 %token KwIn "keyword `IN`"
 
@@ -95,6 +96,7 @@
 
 
 %token OpTilde 126 "`~`"
+%token OpNumberSign 35 "`#`"
 %token OpVerticalBar 124 "`|`"
 %token OpAmpersand 38 "`&`"
 %token OpModulo 37 "`%`"
@@ -569,6 +571,10 @@ literal-value
         { $$ = false; }
     | KwTrue
         { $$ = true; }
+    | KwNull
+        { $$ = TNullLiteralValue(); }
+    | OpNumberSign
+        { $$ = TNullLiteralValue(); }
 ;
 
 const-value
@@ -656,8 +662,8 @@ namespace NAst {
 
 void TParser::error(const location_type& location, const std::string& message)
 {
-    auto leftContextStart = std::max(location.first - 16, 0);
-    auto rightContextEnd = std::min(location.second + 16, source.size());
+    auto leftContextStart = std::max<size_t>(location.first, 16) - 16;
+    auto rightContextEnd = std::min<size_t>(location.second + 16, source.size());
 
     THROW_ERROR_EXCEPTION("Error while parsing query: %v", message)
         << TErrorAttribute("position", Format("%v-%v", location.first, location.second))

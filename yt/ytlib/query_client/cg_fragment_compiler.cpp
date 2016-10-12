@@ -346,7 +346,7 @@ Function* CodegenTupleComparerFunction(
                     returnIf(
                         builder->CreateICmpNE(lhsValue.IsNull(), rhsValue.IsNull()),
                         [&] (TCGIRBuilderPtr& builder) {
-                            return builder->CreateICmpULT(lhsValue.IsNull(), rhsValue.IsNull());
+                            return builder->CreateICmpUGT(lhsValue.IsNull(), rhsValue.IsNull());
                         });
                 },
                 [&] (TCGIRBuilderPtr& builder) {
@@ -723,20 +723,16 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
             builder,
             lhsValue.IsNull(),
             [&] (TCGBaseContext& builder) {
-
                 return compareNulls();
             },
             [&] (TCGBaseContext& builder) {
-
                 return CodegenIf<TCGBaseContext, TCGValue>(
                     builder,
                     rhsValue.IsNull(),
                     [&] (TCGBaseContext& builder) {
-
                         return compareNulls();
                     },
                     [&] (TCGBaseContext& builder) {
-
                         YCHECK(lhsValue.GetStaticType() == rhsValue.GetStaticType());
                         auto operandType = lhsValue.GetStaticType();
 

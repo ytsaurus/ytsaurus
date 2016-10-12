@@ -53,13 +53,6 @@ class TQueryPrepareTest
     : public ::testing::Test
 {
 protected:
-
-    virtual void SetUp() override
-    {
-        auto config = New<TColumnEvaluatorCacheConfig>();
-        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(config);
-    }
-
     template <class TMatcher>
     void ExpectPrepareThrowsWithDiagnostics(
         const Stroka& query,
@@ -70,7 +63,6 @@ protected:
             matcher);
     }
 
-    TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
 
 };
@@ -472,9 +464,6 @@ class TQueryEvaluateTest
 protected:
     virtual void SetUp() override
     {
-        auto config = New<TColumnEvaluatorCacheConfig>();
-        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(config);
-
         WriterMock_ = New<StrictMock<TWriterMock>>();
 
         ActionQueue_ = New<TActionQueue>("Test");
@@ -750,7 +739,6 @@ protected:
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
     TIntrusivePtr<StrictMock<TWriterMock>> WriterMock_;
     TActionQueuePtr ActionQueue_;
-    TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
 
     TTypeInferrerMapPtr TypeInferers_ = New<TTypeInferrerMap>();
     TFunctionProfilerMapPtr FunctionProfilers_ = New<TFunctionProfilerMap>();
@@ -947,6 +935,28 @@ TEST_F(TQueryEvaluateTest, SimpleIn)
     }, split);
 
     Evaluate("a, b FROM [//t] where a in (4.0, -10)", split, source, ResultMatcher(result));
+}
+
+TEST_F(TQueryEvaluateTest, SimpleInWithNull)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "b=1",
+        "a=2",
+        "a=2;b=1",
+        ""
+    };
+
+    auto result = YsonToRows({
+        "b=1",
+        "a=2",
+    }, split);
+
+    Evaluate("a, b FROM [//t] where (a, b) in ((null, 1), (2, null))", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, SimpleWithNull)

@@ -13,7 +13,8 @@ namespace NAst {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef TVariant<i64, ui64, double, bool, Stroka> TLiteralValue;
+struct TNullLiteralValue {};
+typedef TVariant<TNullLiteralValue, i64, ui64, double, bool, Stroka> TLiteralValue;
 typedef std::vector<TLiteralValue> TLiteralValueList;
 typedef std::vector<std::vector<TLiteralValue>> TLiteralValueTupleList;
 

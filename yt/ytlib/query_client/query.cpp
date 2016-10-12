@@ -182,17 +182,20 @@ EValueType InferBinaryExprType(
     const TStringBuf& lhsSource,
     const TStringBuf& rhsSource)
 {
-    if (lhsType != rhsType) {
-        ThrowTypeMismatchError(lhsType, rhsType, source, lhsSource, rhsSource);
-    }
-
-    EValueType operandType = lhsType;
-
     switch (opCode) {
         case EBinaryOp::Plus:
         case EBinaryOp::Minus:
         case EBinaryOp::Multiply:
-        case EBinaryOp::Divide:
+        case EBinaryOp::Divide: {
+            if (lhsType == EValueType::Null || rhsType == EValueType::Null) {
+                return EValueType::Null;
+            }
+
+            if (lhsType != rhsType) {
+                ThrowTypeMismatchError(lhsType, rhsType, source, lhsSource, rhsSource);
+            }
+
+            EValueType operandType = lhsType;
             if (!IsArithmeticType(operandType)) {
                 THROW_ERROR_EXCEPTION(
                     "Expression %Qv requires either integral or floating-point operands",
@@ -202,12 +205,22 @@ EValueType InferBinaryExprType(
                     << TErrorAttribute("operand_type", operandType);
             }
             return operandType;
+        }
 
         case EBinaryOp::Modulo:
         case EBinaryOp::LeftShift:
         case EBinaryOp::RightShift:
         case EBinaryOp::BitOr:
-        case EBinaryOp::BitAnd:
+        case EBinaryOp::BitAnd: {
+            if (lhsType == EValueType::Null || rhsType == EValueType::Null) {
+                return EValueType::Null;
+            }
+
+            if (lhsType != rhsType) {
+                ThrowTypeMismatchError(lhsType, rhsType, source, lhsSource, rhsSource);
+            }
+
+            EValueType operandType = lhsType;
             if (!IsIntegralType(operandType)) {
                 THROW_ERROR_EXCEPTION(
                     "Expression %Qv requires integral operands",
@@ -217,10 +230,17 @@ EValueType InferBinaryExprType(
                     << TErrorAttribute("operand_type", operandType);
             }
             return operandType;
+        }
 
         case EBinaryOp::And:
-        case EBinaryOp::Or:
-            if (operandType != EValueType::Boolean) {
+        case EBinaryOp::Or: {
+            EValueType operandType = lhsType;
+
+            if (operandType == EValueType::Null) {
+                operandType = rhsType;
+            }
+
+            if (operandType != EValueType::Boolean && operandType != EValueType::Null) {
                 THROW_ERROR_EXCEPTION(
                     "Expression %Qv requires boolean operands",
                     source)
@@ -229,14 +249,25 @@ EValueType InferBinaryExprType(
                     << TErrorAttribute("operand_type", operandType);
             }
             return EValueType::Boolean;
+        }
 
         case EBinaryOp::Equal:
         case EBinaryOp::NotEqual:
         case EBinaryOp::Less:
         case EBinaryOp::Greater:
         case EBinaryOp::LessOrEqual:
-        case EBinaryOp::GreaterOrEqual:
-            if (!IsComparableType(operandType)) {
+        case EBinaryOp::GreaterOrEqual: {
+            EValueType operandType = lhsType;
+
+            if (operandType == EValueType::Null) {
+                operandType = rhsType;
+            }
+
+            if (lhsType != EValueType::Null && rhsType != EValueType::Null && lhsType != rhsType) {
+                ThrowTypeMismatchError(lhsType, rhsType, source, lhsSource, rhsSource);
+            }
+
+            if (operandType != EValueType::Null && !IsComparableType(operandType)) {
                 THROW_ERROR_EXCEPTION(
                     "Expression %Qv requires either integral, floating-point or string operands",
                     source)
@@ -245,6 +276,7 @@ EValueType InferBinaryExprType(
                     << TErrorAttribute("lhs_type", operandType);
             }
             return EValueType::Boolean;
+        }
 
         default:
             Y_UNREACHABLE();
