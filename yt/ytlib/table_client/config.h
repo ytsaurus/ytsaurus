@@ -277,7 +277,7 @@ public:
             .Default(false);
         RegisterParameter("enable_string_to_all_conversion", EnableStringToAllConversion)
             .Default(false);
-        RegisterParameter("enable_all_to_string_conversion", EnableStringToAllConversion)
+        RegisterParameter("enable_all_to_string_conversion", EnableAllToStringConversion)
             .Default(false);
         RegisterParameter("enable_integral_type_conversion", EnableIntegralTypeConversion)
             .Default(true);
