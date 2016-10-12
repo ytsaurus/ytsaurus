@@ -163,9 +163,35 @@ do_pull() {
     message="$message"$'\n'"yt:svn_revision:$svn_revision"
     set -x
 
-    local branch=$(git symbolic-ref --short HEAD)
+    # In general, situation looks like this.
+    #
+    #   mainline  --(B)----(*)----(L)--..--HEAD
+    #                 \           /
+    #    arcadia  ----(P)--(*)--(*)--
+    #
+    # or
+    #
+    #   mainline  ----(L)--(*)--(B)--
+    #                 /           \
+    #    arcadia  --(*)----(*)----(P)--
+    #
+    # Here P is the latest push commit with base B, L is the latest pull commit,
+    # and we need to figure out how to properly merge Arcadia into mainline.
+    # To do this, we test whether merge base of two branches is ancestor of P.
 
-    git branch "arcadia" "$base_commit"
+    local merge_base=$(git merge-base HEAD "refs/remotes/${arc_remote}")
+
+    msg "Merge base is $merge_base"
+
+    if git merge-base --is-ancestor "$merge_base" "$push_commit" ; then
+        msg "Merge base preceedes latest push; merging via temporary branch."
+        git branch "arcadia" "$base_commit"
+    else
+        msg "Merge base succeedes latest push; merging directly."
+        git branch "arcadia" "HEAD"
+    fi
+
+    local branch=$(git symbolic-ref --short HEAD)
     git checkout "arcadia"
     git merge -Xsubtree=yt "refs/remotes/${arc_remote}" -m "$message"
     git checkout "$branch"
