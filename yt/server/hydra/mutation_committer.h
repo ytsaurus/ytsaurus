@@ -114,7 +114,7 @@ private:
         const TMutationRequest& request,
         const TSharedRef& recordData,
         TFuture<void> localFlushResult);
-    void FlushCurrentBatch(TGuard<TSpinLock>* guard);
+    void FlushCurrentBatch();
 
     void OnAutoCheckpointCheck();
 
