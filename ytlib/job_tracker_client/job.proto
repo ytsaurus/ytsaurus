@@ -35,6 +35,7 @@ message TJobStatus
     optional string statistics = 8;
     optional int64 prepare_duration = 9;
     optional int64 exec_duration = 10;
+    optional int64 download_duration = 11;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -189,45 +189,36 @@ class TCGVariables
 {
 public:
     template <class T, class... Args>
-    size_t AddObject(Args... args)
+    size_t AddOpaque(Args&&... args)
     {
-        T* object = reinterpret_cast<T*>(new char[sizeof(T)]);
-
-        auto index = OpaqueValues.size();
-        try {
-            new(object) T(std::forward<Args>(args)...);
-        } catch (...) {
-            delete[] reinterpret_cast<char*>(object);
-        }
-
+        auto pointer = new T(std::forward<Args>(args)...);
         auto deleter = [] (void* ptr) {
-            static_cast<T*>(ptr)->~T();
-            delete[] static_cast<char*>(ptr);
+            static_assert(sizeof(T) > 0, "Cannot delete incomplete type.");
+            delete static_cast<T*>(ptr);
         };
 
-        std::unique_ptr<void, void(*)(void*)> ptr(object, deleter);
+        std::unique_ptr<void, void(*)(void*)> holder(pointer, deleter);
+        YCHECK(holder);
 
-        // Allocate memory after constructing unique_ptr
+        OpaqueValues_.push_back(std::move(holder));
+        OpaquePointers_.push_back(pointer);
 
-        OpaqueValues.push_back(std::move(ptr));
-        OpaquePointers.push_back(object);
-
-        return index;
+        return OpaquePointers_.size() - 1;
     }
 
     void* const* GetOpaqueData() const
     {
-        return OpaquePointers.data();
+        return OpaquePointers_.data();
     }
 
     size_t GetOpaqueCount() const
     {
-        return OpaqueValues.size();
+        return OpaqueValues_.size();
     }
 
 private:
-    std::vector<std::unique_ptr<void, void(*)(void*)>> OpaqueValues;
-    std::vector<void*> OpaquePointers;
+    std::vector<std::unique_ptr<void, void(*)(void*)>> OpaqueValues_;
+    std::vector<void*> OpaquePointers_;
 
 };
 

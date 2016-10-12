@@ -381,7 +381,8 @@ public:
         const auto& element = GetOperationElement(operationId);
         auto serializedParams = ConvertToAttributes(element->GetRuntimeParams());
         BuildYsonMapFluently(consumer)
-            .Items(*serializedParams);
+            .Items(*serializedParams)
+            .Item("pool").Value(element->GetParent()->GetId());
     }
 
     virtual void BuildOperationProgress(const TOperationId& operationId, IYsonConsumer* consumer) override
@@ -477,6 +478,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        LOG_INFO("Starting fair share update");
+
         // Run periodic update.
         PROFILE_TIMING ("/fair_share_update_time") {
             // The root element gets the whole cluster.
@@ -511,32 +514,23 @@ public:
             }
 
             auto rootElementSnapshot = CreateRootElementSnapshot();
+
+            TRootElementSnapshotPtr oldRootElementSnapshot;
             {
+                // NB: Avoid destroying the cloned tree inside critical section.
                 TWriterGuard guard(RootElementSnapshotLock);
+                std::swap(RootElementSnapshot, oldRootElementSnapshot);
                 RootElementSnapshot = rootElementSnapshot;
             }
 
             // Profiling.
             for (const auto& pair : Pools) {
-                const auto& pool = pair.second;
-                const auto& tag = pool->GetProfilingTag();
-                Profiler.Enqueue(
-                    "/pools/fair_share_ratio_x100000",
-                    static_cast<i64>(pool->Attributes().FairShareRatio * 1e5),
-                    EMetricType::Gauge,
-                    {tag});
-                Profiler.Enqueue(
-                    "/pools/usage_ratio_x100000",
-                    static_cast<i64>(pool->GetResourceUsageRatio() * 1e5),
-                    EMetricType::Gauge,
-                    {tag});
-                Profiler.Enqueue(
-                    "/operation_count",
-                    pool->RunningOperationCount(),
-                    EMetricType::Gauge,
-                    {tag});
+                ProfileSchedulerElement(pair.second);
             }
+            ProfileSchedulerElement(RootElement);
         }
+
+        LOG_INFO("Fair share successfully updated");
     }
 
     // NB: This function is public for testing purposes.
@@ -689,7 +683,7 @@ private:
         {
             LOG_DEBUG("Scheduling new jobs");
             PROFILE_AGGREGATED_TIMING(NonPreemptiveProfilingCounters.PrescheduleJobTimeCounter) {
-                rootElement->PrescheduleJob(context, /*starvingOnly*/ false);
+                rootElement->PrescheduleJob(context, /*starvingOnly*/ false, /*aggressiveStarvationEnabled*/ false);
             }
 
             TScopedTimer timer;
@@ -743,7 +737,7 @@ private:
         {
             LOG_DEBUG("Scheduling new jobs with preemption");
             PROFILE_AGGREGATED_TIMING(PreemptiveProfilingCounters.PrescheduleJobTimeCounter) {
-                rootElement->PrescheduleJob(context, /*starvingOnly*/ true);
+                rootElement->PrescheduleJob(context, /*starvingOnly*/ true, /*aggressiveStarvationEnabled*/ false);
             }
 
             // Clean data from previous profiling.
@@ -1009,6 +1003,7 @@ private:
         auto* oldParent = pool->GetParent();
         if (oldParent) {
             oldParent->IncreaseResourceUsage(-pool->GetResourceUsage());
+            IncreaseOperationCount(oldParent, -pool->RunningOperationCount());
             IncreaseRunningOperationCount(oldParent, -pool->RunningOperationCount());
             oldParent->RemoveChild(pool);
         }
@@ -1017,6 +1012,7 @@ private:
         if (parent) {
             parent->AddChild(pool);
             parent->IncreaseResourceUsage(pool->GetResourceUsage());
+            IncreaseOperationCount(parent.Get(), pool->RunningOperationCount());
             IncreaseRunningOperationCount(parent.Get(), pool->RunningOperationCount());
 
             LOG_INFO("Parent pool set (Pool: %v, Parent: %v)",
@@ -1031,7 +1027,8 @@ private:
         if (!defaultParentPool || defaultParentPool == pool) {
             // NB: root element is not a pool, so we should suppress warning in this special case.
             if (Config->DefaultParentPool != RootPoolName) {
-                LOG_WARNING("Default parent pool %Qv is not registered", Config->DefaultParentPool);
+                auto error = TError("Default parent pool %Qv is not registered", Config->DefaultParentPool);
+                Host->RegisterAlert(EAlertType::UpdatePools, error);
             }
             SetPoolParent(pool, RootElement);
         } else {
@@ -1073,7 +1070,7 @@ private:
     TRootElementSnapshotPtr CreateRootElementSnapshot()
     {
         auto snapshot = New<TRootElementSnapshot>();
-        snapshot->RootElement = RootElement->CloneRoot();
+        snapshot->RootElement = RootElement->Clone();
         snapshot->RootElement->BuildOperationToElementMapping(&snapshot->OperationIdToElement);
         return snapshot;
     }
@@ -1212,6 +1209,58 @@ private:
         const auto& user = operation->GetAuthenticatedUser();
         WaitFor(Host->CheckPoolPermission(poolPath, user, EPermission::Use))
             .ThrowOnError();
+    }
+
+    void ProfileSchedulerElement(TCompositeSchedulerElementPtr element)
+    {
+        auto tag = element->GetProfilingTag();
+        Profiler.Enqueue(
+            "/pools/fair_share_ratio_x100000",
+            static_cast<i64>(element->Attributes().FairShareRatio * 1e5),
+            EMetricType::Gauge,
+            {tag});
+        Profiler.Enqueue(
+            "/pools/usage_ratio_x100000",
+            static_cast<i64>(element->GetResourceUsageRatio() * 1e5),
+            EMetricType::Gauge,
+            {tag});
+        Profiler.Enqueue(
+            "/pools/demand_ratio_x100000",
+            static_cast<i64>(element->Attributes().DemandRatio * 1e5),
+            EMetricType::Gauge,
+            {tag});
+        Profiler.Enqueue(
+            "/pools/guaranteed_resource_ratio_x100000",
+            static_cast<i64>(element->Attributes().GuaranteedResourcesRatio * 1e5),
+            EMetricType::Gauge,
+            {tag});
+
+        ProfileResources(
+            Profiler,
+            element->GetResourceUsage(),
+            "/pools/resource_usage",
+            {tag});
+        ProfileResources(
+            Profiler,
+            element->ResourceLimits(),
+            "/pools/resource_limits",
+            {tag});
+        ProfileResources(
+            Profiler,
+            element->ResourceDemand(),
+            "/pools/resource_demand",
+            {tag});
+
+        Profiler.Enqueue(
+            "/running_operation_count",
+            element->RunningOperationCount(),
+            EMetricType::Gauge,
+            {tag});
+        Profiler.Enqueue(
+            "/total_operation_count",
+            element->OperationCount(),
+            EMetricType::Gauge,
+            {tag});
     }
 };
 

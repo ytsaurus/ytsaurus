@@ -6,7 +6,6 @@
 #include <yt/core/ytree/node.h>
 #include <yt/core/ytree/helpers.h>
 #include <yt/core/ytree/system_attribute_provider.h>
-#include <yt/core/ytree/fluent.h>
 
 #include <yt/core/yson/async_writer.h>
 #include <yt/core/yson/attribute_consumer.h>
@@ -833,14 +832,7 @@ void TSupportsAttributes::SetAttribute(
     TCtxSetPtr context)
 {
     context->SetRequestInfo();
-
-    // Binarize the value.
-    TStringStream stream;
-    TBufferedBinaryYsonWriter writer(&stream, EYsonType::Node, false);
-    writer.OnRaw(request->value(), EYsonType::Node);
-    writer.Flush();
-    auto value = TYsonString(stream.Str());
-    auto result = DoSetAttribute(path, value);
+    auto result = DoSetAttribute(path, TYsonString(request->value()));
     context->ReplyFrom(result);
 }
 

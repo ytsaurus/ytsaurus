@@ -252,7 +252,7 @@ describe("input stream interface", function() {
         [ "gzip",    binding.ECompression_Gzip,    zlib.gzip    ],
         [ "deflate", binding.ECompression_Deflate, zlib.deflate ],
     ].forEach(function(test_setting) {
-        [ 
+        [
             [ "empty string",  ""                              ],
             [ "tiny string",   "hello"                         ],
             [ "small string",  GenerateString(8 * 1024)        ],
@@ -450,6 +450,7 @@ describe("high-level interoperation", function() {
         ["lzo",     binding.ECompression_LZO],
         ["lzf",     binding.ECompression_LZF],
         ["snappy",  binding.ECompression_Snappy],
+        ["br",      binding.ECompression_Brotli],
     ].forEach(function(test_settings) {
         [
             [ "empty string",  ""                              ],
@@ -517,8 +518,8 @@ describe("high-level interoperation", function() {
 
                     received.length.should.eql(case_data.length);
                     received.should.be.equal(case_data);
-                    done();
-                });
+                })
+                .then(done, done);
             });
         });
     });

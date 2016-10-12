@@ -1,4 +1,5 @@
 #include "chunk_pool.h"
+#include "helpers.h"
 #include "private.h"
 
 #include <yt/ytlib/chunk_client/input_slice.h>
@@ -24,7 +25,7 @@ using NChunkClient::NProto::TMiscExt;
 
 ////////////////////////////////////////////////////////////////////
 
-void TChunkStripeStatistics::Persist(TPersistenceContext& context)
+void TChunkStripeStatistics::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, ChunkCount);
@@ -94,7 +95,7 @@ TChunkStripeStatistics TChunkStripe::GetStatistics() const
     return result;
 }
 
-void TChunkStripe::Persist(TPersistenceContext& context)
+void TChunkStripe::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, ChunkSlices);
@@ -161,7 +162,7 @@ TChunkStripeStatistics TChunkStripeList::GetAggregateStatistics() const
     return result;
 }
 
-void TChunkStripeList::Persist(TPersistenceContext& context)
+void TChunkStripeList::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Stripes);
@@ -189,7 +190,7 @@ public:
 
     // IPersistent implementation.
 
-    virtual void Persist(TPersistenceContext& context) override
+    virtual void Persist(const TPersistenceContext& context) override
     {
         using NYT::Persist;
         Persist(context, Finished);
@@ -251,7 +252,7 @@ public:
         Stripe = stripe;
     }
 
-    void Persist(TPersistenceContext& context)
+    void Persist(const TPersistenceContext& context)
     {
         using NYT::Persist;
         Persist(context, ExtractedCookie_);
@@ -307,7 +308,7 @@ public:
 
     // IPersistent implementation.
 
-    virtual void Persist(TPersistenceContext& context) override
+    virtual void Persist(const TPersistenceContext& context) override
     {
         using NYT::Persist;
         Persist(context, DataSizeCounter);
@@ -409,6 +410,11 @@ public:
             ? 1 : 0;
     }
 
+    virtual const TProgressCounter& GetJobCounter() const override
+    {
+        return JobCounter;
+    }
+
     virtual i64 GetLocality(TNodeId nodeId) const override
     {
         if (ExtractedList) {
@@ -506,9 +512,19 @@ public:
         RowCounter.Lost(RowCounter.GetTotal());
     }
 
+    virtual void SetDataSizePerJob(i64 dataSizePerJob) override
+    {
+        YUNREACHABLE();
+    }
+
+    virtual void SetMaxDataSizePerJob(i64 dataSizePerJob) override
+    {
+        YUNREACHABLE();
+    }
+
     // IPersistent implementation.
 
-    virtual void Persist(TPersistenceContext& context) override
+    virtual void Persist(const TPersistenceContext& context) override
     {
         TChunkPoolInputBase::Persist(context);
         TChunkPoolOutputBase::Persist(context);
@@ -558,7 +574,8 @@ class TUnorderedChunkPool
 public:
     //! For persistence only.
     TUnorderedChunkPool()
-        : FreePendingDataSize(-1)
+        : DataSizePerJob(-1)
+        , FreePendingDataSize(-1)
         , SuspendedDataSize(-1)
         , UnavailableLostCookieCount(-1)
         , MaxChunkStripesPerJob(-1)
@@ -566,15 +583,12 @@ public:
     { }
 
     TUnorderedChunkPool(
-        int jobCount,
+        i64 dataSizePerJob,
         int maxChunkStripesPerJob)
-        : FreePendingDataSize(0)
-        , SuspendedDataSize(0)
-        , UnavailableLostCookieCount(0)
+        : DataSizePerJob(dataSizePerJob)
         , MaxChunkStripesPerJob(maxChunkStripesPerJob)
-        , MaxBlockSize(0)
     {
-        JobCounter.Set(jobCount);
+        JobCounter.Set(0);
     }
 
     // IChunkPoolInput implementation.
@@ -590,9 +604,10 @@ public:
 
         DataSizeCounter.Increment(suspendableStripe.GetStatistics().DataSize);
         RowCounter.Increment(suspendableStripe.GetStatistics().RowCount);
-        MaxBlockSize = std::max(MaxBlockSize, suspendableStripe.GetStatistics().RowCount);
+        MaxBlockSize = std::max(MaxBlockSize, suspendableStripe.GetStatistics().MaxBlockSize);
 
         Register(cookie);
+        UpdateJobCounter();
 
         return cookie;
     }
@@ -606,6 +621,7 @@ public:
         if (outputCookie == IChunkPoolOutput::NullCookie) {
             Unregister(cookie);
             SuspendedDataSize += suspendableStripe.GetStatistics().DataSize;
+            UpdateJobCounter();
         } else {
             auto it = ExtractedLists.find(outputCookie);
             YCHECK(it != ExtractedLists.end());
@@ -630,6 +646,7 @@ public:
             Register(cookie);
             SuspendedDataSize -= suspendableStripe.GetStatistics().DataSize;
             YCHECK(SuspendedDataSize >= 0);
+            UpdateJobCounter();
         } else {
             auto it = ExtractedLists.find(outputCookie);
             YCHECK(it != ExtractedLists.end());
@@ -666,7 +683,7 @@ public:
         // TODO(babenko): refactor
         bool hasAvailableLostJobs = LostCookies.size() > UnavailableLostCookieCount;
         if (hasAvailableLostJobs) {
-            return JobCounter.GetPending();
+            return JobCounter.GetPending() - UnavailableLostCookieCount;
         }
 
         int freePendingJobCount = GetFreePendingJobCount();
@@ -691,7 +708,12 @@ public:
             }
         }
 
-        return JobCounter.GetPending();
+        return freePendingJobCount;
+    }
+
+    virtual const TProgressCounter& GetJobCounter() const override
+    {
+        return JobCounter;
     }
 
     virtual TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override
@@ -870,9 +892,24 @@ public:
         }
     }
 
+    virtual void SetDataSizePerJob(i64 dataSizePerJob) override
+    {
+        YCHECK(dataSizePerJob > 0);
+
+        DataSizePerJob = dataSizePerJob;
+        UpdateJobCounter();
+    }
+
+    virtual void SetMaxDataSizePerJob(i64 maxDataSizePerJob) override
+    {
+        YCHECK(maxDataSizePerJob > 0);
+
+        MaxDataSizePerJob = maxDataSizePerJob;
+    }
+
     // IPersistent implementation.
 
-    virtual void Persist(TPersistenceContext& context) override
+    virtual void Persist(const TPersistenceContext& context) override
     {
         TChunkPoolInputBase::Persist(context);
         TChunkPoolOutputBase::Persist(context);
@@ -880,6 +917,8 @@ public:
         using NYT::Persist;
         Persist(context, Stripes);
         Persist(context, PendingGlobalStripes);
+        Persist(context, DataSizePerJob);
+        Persist(context, MaxDataSizePerJob);
         Persist(context, FreePendingDataSize);
         Persist(context, SuspendedDataSize);
         Persist(context, UnavailableLostCookieCount);
@@ -900,12 +939,14 @@ private:
     //! Indexes in #Stripes.
     yhash_set<int> PendingGlobalStripes;
 
-    i64 FreePendingDataSize;
-    i64 SuspendedDataSize;
-    int UnavailableLostCookieCount;
-    int MaxChunkStripesPerJob;
+    i64 DataSizePerJob = 0;
+    TNullable<i64> MaxDataSizePerJob;
+    i64 FreePendingDataSize = 0;
+    i64 SuspendedDataSize = 0;
+    int UnavailableLostCookieCount = 0;
+    int MaxChunkStripesPerJob = 0;
 
-    i64 MaxBlockSize;
+    i64 MaxBlockSize = 0;
 
     struct TLocalityEntry
     {
@@ -919,7 +960,7 @@ private:
         //! Indexes in #Stripes.
         yhash_set<int> StripeIndexes;
 
-        void Persist(TPersistenceContext& context)
+        void Persist(const TPersistenceContext& context)
         {
             using NYT::Persist;
             Persist(context, Locality);
@@ -937,7 +978,7 @@ private:
         std::vector<int> StripeIndexes;
         TChunkStripeListPtr StripeList;
 
-        void Persist(TPersistenceContext& context)
+        void Persist(const TPersistenceContext& context)
         {
             using NYT::Persist;
             Persist(context, UnavailableStripeCount);
@@ -966,7 +1007,16 @@ private:
         YCHECK(freePendingJobCount > 0);
         return std::max(
             static_cast<i64>(1),
-            (FreePendingDataSize + SuspendedDataSize + freePendingJobCount - 1) / freePendingJobCount);
+            DivCeil(FreePendingDataSize + SuspendedDataSize, freePendingJobCount));
+    }
+
+    void UpdateJobCounter()
+    {
+        i64 newJobCount = DivCeil(FreePendingDataSize + SuspendedDataSize, DataSizePerJob);
+        int freePendingJobCount = GetFreePendingJobCount();
+        if (newJobCount != freePendingJobCount) {
+            JobCounter.Increment(newJobCount - freePendingJobCount);
+        }
     }
 
     void Register(int stripeIndex)
@@ -1035,11 +1085,16 @@ private:
                 break;
             }
             auto stripeIndex = *it;
+            auto& suspendableStripe = Stripes[stripeIndex];
+            auto stat = suspendableStripe.GetStatistics();
+            // We should always return at least one stripe, even we get MaxDataSizePerJob overflow.
+            if (MaxDataSizePerJob && list->TotalDataSize != 0 && list->TotalDataSize + stat.DataSize > *MaxDataSizePerJob) {
+                break;
+            }
+
             extractedStripeList.StripeIndexes.push_back(stripeIndex);
 
-            auto& suspendableStripe = Stripes[stripeIndex];
             suspendableStripe.SetExtractedCookie(cookie);
-            auto stat = suspendableStripe.GetStatistics();
             AddStripeToList(
                 suspendableStripe.GetStripe(),
                 stat.DataSize,
@@ -1082,11 +1137,11 @@ private:
 DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedChunkPool);
 
 std::unique_ptr<IChunkPool> CreateUnorderedChunkPool(
-    int jobCount,
+    i64 dataSizePerJob,
     int maxChunkStripesPerJob)
 {
     return std::unique_ptr<IChunkPool>(new TUnorderedChunkPool(
-        jobCount,
+        dataSizePerJob,
         maxChunkStripesPerJob));
 }
 
@@ -1244,7 +1299,7 @@ public:
 
     // IPersistent implementation.
 
-    virtual void Persist(TPersistenceContext& context) override
+    virtual void Persist(const TPersistenceContext& context) override
     {
         TChunkPoolInputBase::Persist(context);
 
@@ -1388,6 +1443,11 @@ private:
             return static_cast<int>(PendingRuns.size());
         }
 
+        virtual const TProgressCounter& GetJobCounter() const override
+        {
+            return JobCounter;
+        }
+
         virtual i64 GetLocality(TNodeId /*nodeId*/) const override
         {
             YUNREACHABLE();
@@ -1486,9 +1546,19 @@ private:
             RowCounter.Lost(run.TotalRowCount);
         }
 
+        virtual void SetDataSizePerJob(i64 dataSizePerJob) override
+        {
+            YUNREACHABLE();
+        }
+
+        virtual void SetMaxDataSizePerJob(i64 dataSizePerJob) override
+        {
+            YUNREACHABLE();
+        }
+
         // IPersistent implementation.
 
-        virtual void Persist(TPersistenceContext& context) override
+        virtual void Persist(const TPersistenceContext& context) override
         {
             TChunkPoolOutputBase::Persist(context);
 
@@ -1517,7 +1587,7 @@ private:
             ERunState State = ERunState::Initializing;
             bool IsApproximate = false;
 
-            void Persist(TPersistenceContext& context)
+            void Persist(const TPersistenceContext& context)
             {
                 using NYT::Persist;
                 Persist(context, ElementaryIndexBegin);
@@ -1593,7 +1663,7 @@ private:
         int ElementaryIndexBegin;
         int ElementaryIndexEnd;
 
-        void Persist(TPersistenceContext& context)
+        void Persist(const TPersistenceContext& context)
         {
             using NYT::Persist;
             Persist(context, ElementaryIndexBegin);

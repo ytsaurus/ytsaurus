@@ -32,7 +32,8 @@ class TJobProxy
 public:
     TJobProxy(
         NYTree::INodePtr configNode,
-        const NJobAgent::TJobId& jobId);
+        const NJobTrackerClient::TOperationId& operationId,
+        const NJobTrackerClient::TJobId& jobId);
 
     //! Runs the job. Blocks until the job is complete.
     void Run();
@@ -40,13 +41,15 @@ public:
     IInvokerPtr GetControlInvoker() const;
 
     std::vector<NChunkClient::TChunkId> DumpInputContext(const NJobTrackerClient::TJobId& jobId);
+    Stroka GetStderr(const NJobTrackerClient::TJobId& jobId);
     NYson::TYsonString Strace(const NJobTrackerClient::TJobId& jobId);
     void SignalJob(const NJobTrackerClient::TJobId& jobId, const Stroka& signalName);
     NYson::TYsonString PollJobShell(const NJobTrackerClient::TJobId& jobId, const NYson::TYsonString& parameters);
 
 private:
     const NYTree::INodePtr ConfigNode_;
-    const NJobAgent::TJobId JobId_;
+    const NJobTrackerClient::TOperationId OperationId_;
+    const NJobTrackerClient::TJobId JobId_;
 
     //! Can be null if running in non-cgroups environment.
     NExecAgent::TCGroupJobEnvironmentConfigPtr CGroupsConfig_;
@@ -114,6 +117,8 @@ private:
     // IJobHost implementation.
     virtual TJobProxyConfigPtr GetConfig() const override;
     virtual NExecAgent::TCGroupJobEnvironmentConfigPtr GetCGroupsConfig() const override;
+    virtual const NJobAgent::TOperationId& GetOperationId() const override;
+    virtual const NJobAgent::TJobId& GetJobId() const override;
 
     virtual const NJobTrackerClient::NProto::TJobSpec& GetJobSpec() const override;
 

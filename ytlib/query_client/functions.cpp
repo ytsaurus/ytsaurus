@@ -200,7 +200,8 @@ const ITypeInferrerPtr& TTypeInferrerMap::GetFunction(const Stroka& functionName
 {
     auto found = this->find(functionName);
     if (found == this->end()) {
-        THROW_ERROR_EXCEPTION("Undefined function %v", functionName);
+        THROW_ERROR_EXCEPTION("Undefined function %Qv",
+            functionName);
     }
     return found->second;
 }
@@ -213,7 +214,7 @@ const IFunctionCodegenPtr& TFunctionProfilerMap::GetFunction(const Stroka& funct
 {
     auto found = this->find(functionName);
     if (found == this->end()) {
-        THROW_ERROR_EXCEPTION("Code generator not found for regular function %v",
+        THROW_ERROR_EXCEPTION("Code generator not found for regular function %Qv",
             functionName);
     }
     return found->second;
@@ -225,7 +226,7 @@ const IAggregateCodegenPtr& TAggregateProfilerMap::GetAggregate(const Stroka& fu
 {
     auto found = this->find(functionName);
     if (found == this->end()) {
-        THROW_ERROR_EXCEPTION("Code generator not found for aggregate function %v",
+        THROW_ERROR_EXCEPTION("Code generator not found for aggregate function %Qv",
             functionName);
     }
     return found->second;

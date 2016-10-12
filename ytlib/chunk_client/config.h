@@ -204,6 +204,8 @@ public:
 
     bool PreferLocalHost;
 
+    bool BanFailedNodes;
+
     //! Interval between consecutive pings to Data Nodes.
     TDuration NodePingPeriod;
 
@@ -232,6 +234,8 @@ public:
         RegisterParameter("upload_replication_factor", UploadReplicationFactor)
             .GreaterThanOrEqual(1)
             .Default(2);
+        RegisterParameter("ban_failed_nodes", BanFailedNodes)
+            .Default(false);
         RegisterParameter("min_upload_replication_factor", MinUploadReplicationFactor)
             .Default(2)
             .GreaterThanOrEqual(1);

@@ -66,7 +66,7 @@ IInvokerPtr TNodeShard::GetInvoker()
     return ActionQueue_->GetInvoker();
 }
 
-void TNodeShard::UpdateConfig(TSchedulerConfigPtr config)
+void TNodeShard::UpdateConfig(const TSchedulerConfigPtr& config)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -116,17 +116,25 @@ void TNodeShard::UnregisterOperation(const TOperationId& operationId)
     OperationStates_.erase(it);
 }
 
-yhash_set<TOperationId> TNodeShard::ProcessHeartbeat(TScheduler::TCtxHeartbeatPtr context)
+yhash_set<TOperationId> TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeartbeatPtr& context)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
     auto* request = &context->Request();
     auto* response = &context->Response();
+
     auto nodeId = request->node_id();
+    auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
+    const auto& resourceLimits = request->resource_limits();
+    const auto& resourceUsage = request->resource_usage();
+
+    context->SetRequestInfo("NodeId: %v, Address: %v, ResourceUsage: %v",
+        nodeId,
+        descriptor.GetDefaultAddress(),
+        FormatResourceUsage(TJobResources(resourceUsage), TJobResources(resourceLimits)));
 
     YCHECK(Host_->GetNodeShardId(nodeId) == Id_);
 
-    auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
     auto node = GetOrRegisterNode(nodeId, descriptor);
     // NB: Resource limits and usage of node should be updated even if
     // node is offline to avoid getting incorrect total limits when node becomes online.
@@ -364,6 +372,15 @@ TYsonString TNodeShard::StraceJob(const TJobId& jobId, const Stroka& user)
     return TYsonString(rsp->trace());
 }
 
+TNullable<TYsonString> TNodeShard::GetJobStatistics(const TJobId& jobId)
+{
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    auto job = GetJobOrThrow(jobId);
+
+    return job->StatisticsYson();
+}
+
 void TNodeShard::DumpJobInputContext(const TJobId& jobId, const TYPath& path, const Stroka& user)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
@@ -397,6 +414,16 @@ void TNodeShard::DumpJobInputContext(const TJobId& jobId, const TYPath& path, co
 
     LOG_INFO("Input contexts saved (JobId: %v)",
         jobId);
+}
+
+TNodeDescriptor TNodeShard::GetJobNode(const TJobId& jobId, const Stroka& user)
+{
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    auto job = GetJobOrThrow(jobId);
+
+    Host_->ValidateOperationPermission(user, job->GetOperationId(), EPermission::Write);
+
+    return job->GetNode()->NodeDescriptor();
 }
 
 void TNodeShard::SignalJob(const TJobId& jobId, const Stroka& signalName, const Stroka& user)
@@ -529,8 +556,22 @@ void TNodeShard::BuildOperationJobsYson(const TOperationId& operationId, IYsonCo
     }
 
     for (const auto& job : operationState->Jobs) {
-        BuildJobYson(job.second, consumer);
+        BuildYsonMapFluently(consumer)
+            .Item(ToString(job.first)).BeginMap()
+                .Do(BIND(BuildJobAttributes, job.second))
+            .EndMap();
     }
+}
+
+void TNodeShard::BuildJobYson(const TJobId& jobId, IYsonConsumer* consumer)
+{
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    auto job = GetJobOrThrow(jobId);
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Do(BIND(BuildJobAttributes, job))
+        .EndMap();
 }
 
 void TNodeShard::BuildSuspiciousJobsYson(IYsonConsumer* consumer)
@@ -1151,7 +1192,7 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status)
                 &TJob::AnalyzeBriefStatistics,
                 job,
                 Config_->SuspiciousInactivityTimeout,
-                Config_->SuspiciousUserJobCpuUsageThreshold,
+                Config_->SuspiciousCpuUsageThreshold,
                 Config_->SuspiciousUserJobBlockIOReadThreshold)
                 .Via(GetInvoker()));
         }
@@ -1301,14 +1342,17 @@ void TNodeShard::ProcessFinishedJobResult(const TJobPtr& job)
     }
 
     auto* operationState = FindOperationState(job->GetOperationId());
-    TFuture<TYsonString> inputPathsFuture;
+    TFuture<TNullable<TYsonString>> inputPathsFuture;
     if (operationState) {
         auto& controller = operationState->Controller;
+        auto cb = BIND(&IOperationController::BuildInputPathYson, controller);
+        cb.AsyncVia(controller->GetCancelableInvoker());
         inputPathsFuture = BIND(&IOperationController::BuildInputPathYson, controller)
             .AsyncVia(controller->GetCancelableInvoker())
             .Run(job->GetId());
     } else {
-        inputPathsFuture = MakeFuture<TYsonString>(TError("No controller for operation %v", job->GetOperationId()));
+        inputPathsFuture = MakeFuture<TNullable<TYsonString>>(
+            TError("No controller for operation %v", job->GetOperationId()));
     }
 
     auto asyncResult = Host_->UpdateOperationWithFinishedJob(
@@ -1438,7 +1482,7 @@ TJobPtr TNodeShard::GetJobOrThrow(const TJobId& jobId)
 {
     auto job = FindJob(jobId);
     if (!job) {
-        THROW_ERROR_EXCEPTION("No such job %v", jobId);
+        THROW_ERROR_EXCEPTION(EErrorCode::NoSuchJob, "No such job %v", jobId);
     }
     return job;
 }
@@ -1473,16 +1517,6 @@ void TNodeShard::BuildNodeYson(TExecNodePtr node, IYsonConsumer* consumer)
         .Item(node->GetDefaultAddress()).BeginMap()
             .Do([=] (TFluentMap fluent) {
                 BuildExecNodeAttributes(node, fluent);
-            })
-        .EndMap();
-}
-
-void TNodeShard::BuildJobYson(const TJobPtr& job, IYsonConsumer* consumer)
-{
-    BuildYsonMapFluently(consumer)
-        .Item(ToString(job->GetId())).BeginMap()
-            .Do([=] (TFluentMap fluent) {
-                BuildJobAttributes(job, fluent);
             })
         .EndMap();
 }

@@ -62,6 +62,16 @@ public:
     void Execute(ICommandContextPtr context);
 };
 
+struct TGenerateTimestampOptions
+{ };
+
+class TGenerateTimestampCommand
+    : public TTypedCommand<TGenerateTimestampOptions>
+{
+public:
+    void Execute(ICommandContextPtr context);
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NDriver

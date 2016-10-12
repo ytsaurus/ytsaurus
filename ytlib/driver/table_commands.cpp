@@ -17,6 +17,7 @@
 #include <yt/ytlib/tablet_client/table_mount_cache.h>
 
 #include <yt/ytlib/formats/config.h>
+#include <yt/ytlib/formats/parser.h>
 
 namespace NYT {
 namespace NDriver {
@@ -116,10 +117,15 @@ void TWriteTableCommand::Execute(ICommandContextPtr context)
     WaitFor(writer->Open())
         .ThrowOnError();
 
-    TWritingValueConsumer valueConsumer(writer);
-    TTableConsumer tableConsumer(&valueConsumer);
+    TWritingValueConsumer valueConsumer(
+        writer,
+        ConvertTo<TTypeConversionConfigPtr>(context->GetInputFormat().Attributes()));
 
-    TTableOutput output(context->GetInputFormat(), &tableConsumer);
+    std::vector<IValueConsumer*> valueConsumers(1, &valueConsumer);
+    TTableOutput output(CreateParserForFormat(
+        context->GetInputFormat(),
+        valueConsumers,
+        0));
 
     PipeInputToOutput(context->Request().InputStream, &output, config->BlockSize);
 
@@ -244,8 +250,12 @@ std::vector<TUnversionedRow> ParseRows(
     TTableWriterConfigPtr config,
     TBuildingValueConsumer* valueConsumer)
 {
-    TTableConsumer tableConsumer(valueConsumer);
-    TTableOutput output(context->GetInputFormat(), &tableConsumer);
+    std::vector<IValueConsumer*> valueConsumers(1, valueConsumer);
+    TTableOutput output(CreateParserForFormat(
+        context->GetInputFormat(),
+        valueConsumers,
+        0));
+
     auto input = CreateSyncAdapter(context->Request().InputStream);
     PipeInputToOutput(input.get(), &output, config->BlockSize);
     return valueConsumer->GetRows();
@@ -280,7 +290,9 @@ void TInsertRowsCommand::Execute(ICommandContextPtr context)
     { };
 
     // Parse input data.
-    TBuildingValueConsumer valueConsumer(tableInfo->Schemas[ETableSchemaKind::Write]);
+    TBuildingValueConsumer valueConsumer(
+        tableInfo->Schemas[ETableSchemaKind::Write],
+        ConvertTo<TTypeConversionConfigPtr>(context->GetInputFormat().Attributes()));
     valueConsumer.SetTreatMissingAsNull(!Update);
 
     auto rows = ParseRows(context, config, &valueConsumer);
@@ -336,7 +348,9 @@ void TLookupRowsCommand::Execute(ICommandContextPtr context)
     { };
 
     // Parse input data.
-    TBuildingValueConsumer valueConsumer(tableInfo->Schemas[ETableSchemaKind::Lookup]);
+    TBuildingValueConsumer valueConsumer(
+        tableInfo->Schemas[ETableSchemaKind::Lookup],
+        ConvertTo<TTypeConversionConfigPtr>(context->GetInputFormat().Attributes()));
     auto keys = ParseRows(context, config, &valueConsumer);
     auto rowBuffer = New<TRowBuffer>(TLookupRowsBufferTag());
     auto capturedKeys = rowBuffer->Capture(keys);
@@ -411,7 +425,9 @@ void TDeleteRowsCommand::Execute(ICommandContextPtr context)
     { };
 
     // Parse input data.
-    TBuildingValueConsumer valueConsumer(tableInfo->Schemas[ETableSchemaKind::Delete]);
+    TBuildingValueConsumer valueConsumer(
+        tableInfo->Schemas[ETableSchemaKind::Delete],
+        ConvertTo<TTypeConversionConfigPtr>(context->GetInputFormat().Attributes()));
     auto keys = ParseRows(context, config, &valueConsumer);
     auto rowBuffer = New<TRowBuffer>(TDeleteRowsBufferTag());
     auto capturedKeys = rowBuffer->Capture(keys);

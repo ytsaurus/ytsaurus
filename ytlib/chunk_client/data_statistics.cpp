@@ -89,6 +89,24 @@ void Deserialize(TDataStatistics& value, INodePtr node)
     value.set_erasure_disk_space(rootMap->GetChild("erasure_disk_space")->GetValue<i64>());
 }
 
+void SetDataStatisticsField(TDataStatistics& statistics, TStringBuf key, i64 value) {
+    if (key == "chunk_count") {
+        statistics.set_chunk_count(value);
+    } else if (key == "row_count") {
+        statistics.set_row_count(value);
+    } else if (key == "uncompressed_data_size") {
+        statistics.set_uncompressed_data_size(value);
+    } else if (key == "compressed_data_size") {
+        statistics.set_compressed_data_size(value);
+    } else if (key == "regular_disk_space") {
+        statistics.set_regular_disk_space(value);
+    } else if (key == "erasure_disk_space") {
+        statistics.set_erasure_disk_space(value);
+    } else {
+        // That's a strange situation but we intentionally ignore it.
+    }
+}
+
 Stroka ToString(const TDataStatistics& statistics)
 {
     return Format(

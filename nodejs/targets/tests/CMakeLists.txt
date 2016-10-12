@@ -1,16 +1,29 @@
+IF(YMAKE)
+  SET(YT_ABI 18_5)
+ENDIF()
+
+################################################################################
+IF(YMAKE)
+################################################################################
+
 PYTEST()
 
-OWNER(snowball)
+OWNER(snowball sandello)
 
 TEST_SRCS(test_ytnode.py)
 
-DATA(arcadia/yt/18_5/yt/nodejs)
+DATA(arcadia/yt/${YT_ABI}/yt/nodejs)
 
 DEPENDS(
-    yt/18_5/yt/node_modules
-    yt/18_5/yt/nodejs/targets/bin
+  yt/${YT_ABI}/yt/node_modules
+  yt/${YT_ABI}/yt/nodejs/targets/bin
 )
 
 TIMEOUT(600)
 
 END()
+
+################################################################################
+ENDIF()
+################################################################################
+

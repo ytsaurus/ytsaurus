@@ -56,7 +56,7 @@ class TConnectionConfig
     : public NChunkClient::TChunkTeleporterConfig
 {
 public:
-    NNodeTrackerClient::TNetworkPreferenceList Networks;
+    TNullable<NNodeTrackerClient::TNetworkPreferenceList> Networks;
     TMasterConnectionConfigPtr PrimaryMaster;
     std::vector<TMasterConnectionConfigPtr> SecondaryMasters;
     TMasterConnectionConfigPtr MasterCache;

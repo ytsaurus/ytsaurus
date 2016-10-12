@@ -108,6 +108,10 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/formats/json_parser.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/json_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/parser.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/protobuf.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/protobuf_extension.proto
+  ${CMAKE_CURRENT_LIST_DIR}/formats/protobuf_parser.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/protobuf_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/schemaful_dsv_parser.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/schemaful_dsv_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/schemaful_writer.cpp
@@ -222,9 +226,9 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/security_client/public.cpp
   ${CMAKE_CURRENT_LIST_DIR}/security_client/user_ypath.proto
 
-  ${CMAKE_CURRENT_LIST_DIR}/shell/manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/shell/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/shell/shell.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/shell/shell_manager.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/boolean_column_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/boolean_column_writer.cpp
@@ -253,6 +257,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_reader_base.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_slices_fetcher.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/columnar_chunk_reader_base.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/columnar_chunk_meta.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/legacy_channel_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/legacy_chunk_meta.proto

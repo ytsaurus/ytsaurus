@@ -453,7 +453,7 @@ public:
             PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId);
         ChangelogStoreFactoryThunk_->SetUnderlying(changelogStoreFactory);
 
-        auto cellConfig = CellDescriptor_.ToConfig(NNodeTrackerClient::DefaultNetworkPreferences);
+        auto cellConfig = CellDescriptor_.ToConfig(Bootstrap_->GetLocalNetworks());
 
         if (HydraManager_) {
             ElectionManager_->SetEpochId(PrerequisiteTransactionId_);

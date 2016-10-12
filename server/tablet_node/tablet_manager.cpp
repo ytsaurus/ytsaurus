@@ -1236,7 +1236,19 @@ private:
             return;
         }
 
-        auto sampleKeys = FromProto<std::vector<TOwningKey>>(request->sample_keys());
+        // COMPAT(babenko)
+        TSharedRange<TKey> sampleKeys;
+        if (request->legacy_sample_keys_size() > 0) {
+            auto rowBuffer = New<TRowBuffer>();
+            std::vector<TKey> keys;
+            for (const auto& protoKey : request->legacy_sample_keys()) {
+                keys.push_back(FromProto<TKey>(protoKey, rowBuffer));
+            }
+            sampleKeys = MakeSharedRange(std::move(keys), std::move(rowBuffer));
+        } else {
+            TWireProtocolReader reader(TSharedRef::FromString(request->sample_keys()));
+            sampleKeys = CaptureRows<TSampleKeyListTag>(reader.ReadUnversionedRowset());
+        }
 
         auto storeManager = tablet->GetStoreManager()->AsSorted();
         storeManager->UpdatePartitionSampleKeys(partition, sampleKeys);
@@ -1246,7 +1258,7 @@ private:
         LOG_INFO_UNLESS(IsRecovery(), "Partition sample keys updated (TabletId: %v, PartitionId: %v, SampleKeyCount: %v)",
             tabletId,
             partition->GetId(),
-            sampleKeys.size());
+            sampleKeys.Size());
     }
 
 
@@ -1705,7 +1717,7 @@ private:
                 .Item("state").Value(partition->GetState())
                 .Item("pivot_key").Value(partition->GetPivotKey())
                 .Item("next_pivot_key").Value(partition->GetNextPivotKey())
-                .Item("sample_key_count").Value(partition->GetSampleKeys()->Keys.size())
+                .Item("sample_key_count").Value(partition->GetSampleKeys()->Keys.Size())
                 .Item("sampling_time").Value(partition->GetSamplingTime())
                 .Item("sampling_request_time").Value(partition->GetSamplingRequestTime())
                 .Item("compaction_time").Value(partition->GetCompactionTime())

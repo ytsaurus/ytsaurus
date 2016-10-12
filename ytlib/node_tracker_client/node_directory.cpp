@@ -64,7 +64,7 @@ TNullable<Stroka> TNodeDescriptor::FindAddress(const TNetworkPreferenceList& net
     return NNodeTrackerClient::FindAddress(Addresses(), networks);
 }
 
-void TNodeDescriptor::Persist(TStreamPersistenceContext& context)
+void TNodeDescriptor::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Addresses_);
@@ -134,6 +134,7 @@ void ToProto(NNodeTrackerClient::NProto::TAddressMap* protoAddresses, const NNod
 void FromProto(NNodeTrackerClient::TAddressMap* addresses, const NNodeTrackerClient::NProto::TAddressMap& protoAddresses)
 {
     addresses->clear();
+    addresses->reserve(protoAddresses.entries_size());
     for (const auto& entry : protoAddresses.entries()) {
         YCHECK(addresses->insert(std::make_pair(entry.network(), entry.address())).second);
     }
@@ -254,7 +255,7 @@ const TNodeDescriptor& TNodeDirectory::GetDescriptor(const Stroka& address)
     return *result;
 }
 
-void TNodeDirectory::Persist(TStreamPersistenceContext& context)
+void TNodeDirectory::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, IdToDescriptor_);

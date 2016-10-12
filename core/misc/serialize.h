@@ -235,7 +235,7 @@ public:
         return SaveContext_ != nullptr;
     }
 
-    TSaveContext& SaveContext()
+    TSaveContext& SaveContext() const
     {
         Y_ASSERT(SaveContext_);
         return *SaveContext_;
@@ -246,10 +246,16 @@ public:
         return LoadContext_ != nullptr;
     }
 
-    TLoadContext& LoadContext()
+    TLoadContext& LoadContext() const
     {
         Y_ASSERT(LoadContext_);
         return *LoadContext_;
+    }
+
+    template <class TOtherContext>
+    operator TOtherContext() const
+    {
+        return IsSave() ? TOtherContext(*SaveContext_) : TOtherContext(*LoadContext_);
     }
 
 private:
@@ -260,48 +266,48 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T, class C>
-void Save(C& context, const T& value);
+template <class T, class C, class... TArgs>
+void Save(C& context, const T& value, TArgs&&... args);
 
-template <class T, class C>
-void Load(C& context, T& value);
+template <class T, class C, class... TArgs>
+void Load(C& context, T& value, TArgs&&... args);
 
-template <class T, class C>
-T Load(C& context);
+template <class T, class C, class... TArgs>
+T Load(C& context, TArgs&&... args);
 
 ////////////////////////////////////////////////////////////////////////////////
 // TODO(babenko): move to inl
 
-template <class T, class C>
-void Save(C& context, const T& value)
+template <class T, class C, class... TArgs>
+void Save(C& context, const T& value, TArgs&&... args)
 {
-    TSerializerTraits<T, C>::TSerializer::Save(context, value);
+    TSerializerTraits<T, C>::TSerializer::Save(context, value, std::forward<TArgs>(args)...);
 }
 
-template <class T, class C>
-void Load(C& context, T& value)
+template <class T, class C, class... TArgs>
+void Load(C& context, T& value, TArgs&&... args)
 {
-    TSerializerTraits<T, C>::TSerializer::Load(context, value);
+    TSerializerTraits<T, C>::TSerializer::Load(context, value, std::forward<TArgs>(args)...);
 }
 
-template <class T, class C>
-T Load(C& context)
+template <class T, class C, class... TArgs>
+T Load(C& context, TArgs&&... args)
 {
     T value;
-    Load(context, value);
+    Load(context, value, std::forward<TArgs>(args)...);
     return value;
 }
 
-template <class T, class C>
-T LoadSuspended(C& context)
+template <class T, class C, class... TArgs>
+T LoadSuspended(C& context, TArgs&&... args)
 {
     SERIALIZATION_DUMP_SUSPEND(context) {
-        return Load<T, C>(context);
+        return Load<T, C, TArgs...>(context, std::forward<TArgs>(args)...);
     }
 }
 
 template <class S, class T, class C>
-void Persist(C& context, T& value)
+void Persist(const C& context, T& value)
 {
     if (context.IsSave()) {
         S::Save(context.SaveContext(), value);
@@ -315,7 +321,7 @@ void Persist(C& context, T& value)
 struct TDefaultSerializer;
 
 template <class T, class C>
-void Persist(C& context, T& value)
+void Persist(const C& context, T& value)
 {
     Persist<TDefaultSerializer, T, C>(context, value);
 }
@@ -503,8 +509,14 @@ struct TSharedRefSerializer
     template <class C>
     static void Load(C& context, TSharedRef& value)
     {
+        return Load(context, value, TDefaultSharedBlobTag());
+    }
+
+    template <class C, class TTag>
+    static void Load(C& context, TSharedRef& value, TTag tag)
+    {
         size_t size = TSizeSerializer::LoadSuspended(context);
-        auto mutableValue = TSharedMutableRef::Allocate(size, false);
+        auto mutableValue = TSharedMutableRef::Allocate<TTag>(size, false);
 
         auto* input = context.GetInput();
         YCHECK(input->Load(mutableValue.Begin(), mutableValue.Size()) == mutableValue.Size());
@@ -1270,6 +1282,35 @@ struct TSerializerTraits
 {
     typedef TValueBoundSerializer TSerializer;
     typedef TValueBoundComparer TComparer;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TUnderlyingSerializer = TDefaultSerializer>
+struct TUniquePtrSerializer
+{
+    template <class T, class C>
+    static void Save(C& context, const std::unique_ptr<T>& ptr)
+    {
+        using NYT::Save;
+        if (ptr) {
+            Save(context, true);
+            TUnderlyingSerializer::Save(context, *ptr);
+        } else {
+            Save(context, false);
+        }
+    }
+
+    template <class T, class C>
+    static void Load(C& context, std::unique_ptr<T>& ptr)
+    {
+        if (LoadSuspended<bool>(context)) {
+            ptr = std::make_unique<T>();
+            TUnderlyingSerializer::Load(context, *ptr);
+        } else {
+            ptr.reset();
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

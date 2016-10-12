@@ -29,7 +29,7 @@ public:
 
     i64 GetMemory() const;
 
-    void Persist(TStreamPersistenceContext& context);
+    void Persist(const TStreamPersistenceContext& context);
 };
 
 class TJobResources
@@ -47,7 +47,7 @@ public:
 
     NNodeTrackerClient::NProto::TNodeResources ToNodeResources() const;
 
-    void Persist(TStreamPersistenceContext& context);
+    void Persist(const TStreamPersistenceContext& context);
 };
 
 #define ITERATE_JOB_RESOURCES(XX) \
@@ -60,10 +60,22 @@ Stroka FormatResourceUsage(const TJobResources& usage, const TJobResources& limi
 Stroka FormatResources(const TJobResources& resources);
 Stroka FormatResources(const TExtendedJobResources& resources);
 
-void ProfileResources(NProfiling::TProfiler& profiler, const TJobResources& resources);
+void ProfileResources(
+    const NProfiling::TProfiler& profiler,
+    const TJobResources& resources,
+    const Stroka& prefix = Stroka(),
+    const NProfiling::TTagIdList& tagIds = NProfiling::EmptyTagIds);
+
+double ComputeDemandRatio(i64 demand, i64 limit);
+
+double ComputeUsageRatio(i64 demand, i64 limit);
 
 NNodeTrackerClient::EResourceType GetDominantResource(
     const TJobResources& demand,
+    const TJobResources& limits);
+
+double GetDominantResourceUsage(
+    const TJobResources& usage,
     const TJobResources& limits);
 
 i64 GetResource(

@@ -6,6 +6,7 @@
 #include "job_memory.h"
 #include "private.h"
 #include "operation_controller_detail.h"
+#include "job_size_manager.h"
 
 #include <yt/ytlib/chunk_client/input_slice.h>
 
@@ -49,7 +50,7 @@ public:
     { }
 
     // Persistence.
-    virtual void Persist(TPersistenceContext& context) override
+    virtual void Persist(const TPersistenceContext& context) override
     {
         TOperationControllerBase::Persist(context);
 
@@ -57,8 +58,10 @@ public:
         Persist(context, JobIOConfig);
         Persist(context, JobSpecTemplate);
         Persist(context, TableReaderOptions);
+        Persist(context, UnorderedPool);
         Persist(context, UnorderedTask);
         Persist(context, UnorderedTaskGroup);
+        Persist(context, JobSizeManager);
     }
 
 protected:
@@ -84,12 +87,9 @@ protected:
             : Controller(nullptr)
         { }
 
-        explicit TUnorderedTask(TUnorderedOperationControllerBase* controller, int jobCount)
+        TUnorderedTask(TUnorderedOperationControllerBase* controller, i64 dataSizePerJob)
             : TTask(controller)
             , Controller(controller)
-            , ChunkPool(CreateUnorderedChunkPool(
-                jobCount,
-                Controller->Config->MaxChunkStripesPerJob))
         { }
 
         virtual Stroka GetId() const override
@@ -117,21 +117,20 @@ protected:
 
         virtual IChunkPoolInput* GetChunkPoolInput() const override
         {
-            return ChunkPool.get();
+            return Controller->UnorderedPool.get();
         }
 
         virtual IChunkPoolOutput* GetChunkPoolOutput() const override
         {
-            return ChunkPool.get();
+            return Controller->UnorderedPool.get();
         }
 
-        virtual void Persist(TPersistenceContext& context) override
+        virtual void Persist(const TPersistenceContext& context) override
         {
             TTask::Persist(context);
 
             using NYT::Persist;
             Persist(context, Controller);
-            Persist(context, ChunkPool);
         }
 
     private:
@@ -139,12 +138,10 @@ protected:
 
         TUnorderedOperationControllerBase* Controller;
 
-        std::unique_ptr<IChunkPool> ChunkPool;
-
         virtual TExtendedJobResources GetMinNeededResourcesHeavy() const override
         {
             auto result = Controller->GetUnorderedOperationResources(
-                ChunkPool->GetApproximateStripeStatistics());
+                Controller->UnorderedPool->GetApproximateStripeStatistics());
             AddFootprintAndUserJobResources(result);
             return result;
         }
@@ -181,6 +178,13 @@ protected:
             TTask::OnJobCompleted(joblet, jobSummary);
 
             RegisterOutput(joblet, joblet->JobIndex, jobSummary);
+
+            if (Controller->JobSizeManager) {
+                Controller->JobSizeManager->OnJobCompleted(jobSummary);
+                Controller->UnorderedPool->SetDataSizePerJob(Controller->JobSizeManager->GetIdealDataSizePerJob());
+                LOG_DEBUG("Set ideal data size per job (DataSizePerJob: %v)",
+                    Controller->JobSizeManager->GetIdealDataSizePerJob());
+            }
         }
 
         virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
@@ -192,8 +196,12 @@ protected:
 
     typedef TIntrusivePtr<TUnorderedTask> TUnorderedTaskPtr;
 
+    std::unique_ptr<IChunkPool> UnorderedPool;
+
     TUnorderedTaskPtr UnorderedTask;
     TTaskGroupPtr UnorderedTaskGroup;
+
+    std::unique_ptr<IJobSizeManager> JobSizeManager;
 
 
     // Custom bits of preparation pipeline.
@@ -209,6 +217,13 @@ protected:
         UnorderedTaskGroup = New<TTaskGroup>();
         UnorderedTaskGroup->MinNeededResources.SetCpu(GetCpuLimit());
         RegisterTaskGroup(UnorderedTaskGroup);
+    }
+
+    void InitUnorderedPool(i64 dataSizePerJob)
+    {
+        UnorderedPool = CreateUnorderedChunkPool(
+            dataSizePerJob,
+            Config->MaxChunkStripesPerJob);
     }
 
     virtual bool IsCompleted() const override
@@ -248,21 +263,36 @@ protected:
 
             // Create the task, if any data.
             if (totalDataSize > 0) {
-                auto jobCount = SuggestJobCount(
+                TJobSizeLimits jobSizeLimits(
                     totalDataSize,
-                    Spec->DataSizePerJob,
+                    Spec->DataSizePerJob.Get(Options->DataSizePerJob),
                     Spec->JobCount,
                     GetMaxJobCount(Spec->MaxJobCount, Options->MaxJobCount));
-                auto stripes = SliceChunks(mergedChunks, Options->JobMaxSliceDataSize, &jobCount);
+                auto stripes = SliceChunks(mergedChunks, Options->JobMaxSliceDataSize, &jobSizeLimits);
 
-                UnorderedTask = New<TUnorderedTask>(this, jobCount);
+                InitUnorderedPool(jobSizeLimits.GetDataSizePerJob());
+
+                if (Config->EnableJobSizeManager && !Spec->JobCount && !Spec->DataSizePerJob) {
+                    LOG_DEBUG("Activating job size manager (DataSizePerJob: %v, MaxJobDataSize: %v, MinJobTime: %v, ExecToPrepareTimeRatio: %v",
+                        jobSizeLimits.GetDataSizePerJob(),
+                        Spec->MaxDataSizePerJob,
+                        Options->JobSizeManager->MinJobTime,
+                        Options->JobSizeManager->ExecToPrepareTimeRatio);
+                    JobSizeManager = CreateJobSizeManager(
+                        jobSizeLimits.GetDataSizePerJob(),
+                        Spec->MaxDataSizePerJob,
+                        Options->JobSizeManager);
+                    UnorderedPool->SetMaxDataSizePerJob(Spec->MaxDataSizePerJob);
+                }
+
+                UnorderedTask = New<TUnorderedTask>(this, jobSizeLimits.GetDataSizePerJob());
                 UnorderedTask->Initialize();
                 UnorderedTask->AddInput(stripes);
                 UnorderedTask->FinishInput();
                 RegisterTask(UnorderedTask);
 
                 LOG_INFO("Inputs processed (JobCount: %v)",
-                    jobCount);
+                    jobSizeLimits.GetJobCount());
             } else {
                 LOG_INFO("Inputs processed (JobCount: 0). All chunks were teleported");
             }
@@ -296,7 +326,7 @@ protected:
             JobCounter.GetCompleted(),
             GetPendingJobCount(),
             JobCounter.GetFailed(),
-            JobCounter.GetAborted(),
+            JobCounter.GetAbortedTotal(),
             UnavailableInputChunkCount);
     }
 
@@ -380,7 +410,7 @@ public:
     }
 
     // Persistence.
-    virtual void Persist(TPersistenceContext& context) override
+    virtual void Persist(const TPersistenceContext& context) override
     {
         TUnorderedOperationControllerBase::Persist(context);
 

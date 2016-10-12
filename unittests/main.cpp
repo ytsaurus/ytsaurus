@@ -1,6 +1,7 @@
 #include "framework.h"
 
 #include <yt/ytlib/shutdown.h>
+#include <yt/core/logging/log_manager.h>
 
 // XXX(sandello): This is a dirty hack. :(
 #include <yt/server/hydra/private.h>
@@ -11,10 +12,7 @@ class TYTEnvironment
 public:
     virtual void SetUp() override
     {
-        NYT::ConfigureLogging(
-            getenv("YT_LOG_LEVEL"),
-            getenv("YT_LOG_EXCLUDE_CATEGORIES"),
-            getenv("YT_LOG_INCLUDE_CATEGORIES"));
+        NYT::NLogging::SimpleConfigureLoggingFromEnv();
     }
 
     virtual void TearDown() override

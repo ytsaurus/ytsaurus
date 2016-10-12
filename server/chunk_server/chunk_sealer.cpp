@@ -280,6 +280,7 @@ private:
 
             auto batchReq = proxy.ExecuteBatch();
             GenerateMutationId(batchReq);
+            batchReq->set_suppress_upstream_sync(true);
 
             auto* req = batchReq->add_seal_chunk_subrequests();
             ToProto(req->mutable_chunk_id(), chunkId);

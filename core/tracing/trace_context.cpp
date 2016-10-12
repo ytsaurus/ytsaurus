@@ -13,6 +13,8 @@ namespace NTracing {
 
 static const auto& Logger = TracingLogger;
 
+const TTraceContext NullTraceContext;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static ui64 GenerateId()
@@ -35,26 +37,6 @@ static TSpanId GenerateSpanId()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTraceContext::TTraceContext()
-    : TraceId_(InvalidTraceId)
-    , SpanId_(InvalidSpanId)
-    , ParentSpanId_(InvalidSpanId)
-{ }
-
-TTraceContext::TTraceContext(
-    TTraceId traceId,
-    TSpanId spanId,
-    TSpanId parentSpanId)
-    : TraceId_(traceId)
-    , SpanId_(spanId)
-    , ParentSpanId_(parentSpanId)
-{ }
-
-bool TTraceContext::IsEnabled() const
-{
-    return TraceId_ != InvalidTraceId;
-}
-
 TTraceContext TTraceContext::CreateChild() const
 {
     return TTraceContext(TraceId_, GenerateSpanId(), SpanId_);
@@ -68,95 +50,18 @@ Stroka ToString(const TTraceContext& context)
         context.GetParentSpanId());
 }
 
-const TTraceContext NullTraceContext;
-
 ////////////////////////////////////////////////////////////////////////////////
 
-TTraceContextGuard::TTraceContextGuard(const TTraceContext& context)
-    : Context_(context)
-    , Active_(context.IsEnabled())
+static std::vector<TTraceContext>& TraceContextStack()
 {
-    if (Active_) {
-        PushContext(context);
-    }
-}
-
-TTraceContextGuard::TTraceContextGuard(TTraceContextGuard&& other)
-    : Context_(other.Context_)
-    , Active_(other.Active_)
-{
-    other.Active_ = false;
-}
-
-TTraceContextGuard::~TTraceContextGuard()
-{
-    Release();
-}
-
-const TTraceContext& TTraceContextGuard::GetContext() const
-{
-    return Context_;
-}
-
-bool TTraceContextGuard::IsActive() const
-{
-    return Active_;
-}
-
-void TTraceContextGuard::Release()
-{
-    if (Active_) {
-        PopContext();
-        Active_ = false;
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TNullTraceContextGuard::TNullTraceContextGuard()
-    : Active_(true)
-{
-    PushContext(NullTraceContext);
-}
-
-TNullTraceContextGuard::TNullTraceContextGuard(TNullTraceContextGuard&& other)
-    : Active_(other.Active_)
-{
-    other.Active_ = false;
-}
-
-TNullTraceContextGuard::~TNullTraceContextGuard()
-{
-    Release();
-}
-
-bool TNullTraceContextGuard::IsActive() const
-{
-    return Active_;
-}
-
-void TNullTraceContextGuard::Release()
-{
-    if (Active_) {
-        PopContext();
-        Active_ = false;
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-typedef NConcurrency::TFls<std::vector<TTraceContext>> TTraceContextStack;
-
-static TTraceContextStack& TraceContextStack()
-{
-    static TTraceContextStack stack;
-    return stack;
+    static NConcurrency::TFls<std::vector<TTraceContext>> stack;
+    return *stack;
 }
 
 const TTraceContext& GetCurrentTraceContext()
 {
     auto& stack = TraceContextStack();
-    return stack->empty() ? NullTraceContext : stack->back();
+    return stack.empty() ? NullTraceContext : stack.back();
 }
 
 bool IsTracingEnabled()
@@ -167,15 +72,15 @@ bool IsTracingEnabled()
 void PushContext(const TTraceContext& context)
 {
     LOG_TRACE("Push context %v", context);
-    TraceContextStack()->push_back(context);
+    TraceContextStack().push_back(context);
 }
 
 void PopContext()
 {
     auto& stack = TraceContextStack();
-    YCHECK(!stack->empty());
-    LOG_TRACE("Pop context %v", stack->back());
-    stack->pop_back();
+    YCHECK(!stack.empty());
+    LOG_TRACE("Pop context %v", stack.back());
+    stack.pop_back();
 }
 
 TTraceContext CreateChildTraceContext()
@@ -273,10 +178,10 @@ void TChildTraceContextGuard::Release()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka ClientSendAnnotation("cs");
-Stroka ClientReceiveAnnotation("cr");
-Stroka ServerSendAnnotation("ss");
-Stroka ServerReceiveAnnotation("sr");
+const Stroka ClientSendAnnotation("cs");
+const Stroka ClientReceiveAnnotation("cr");
+const Stroka ServerSendAnnotation("ss");
+const Stroka ServerReceiveAnnotation("sr");
 
 ////////////////////////////////////////////////////////////////////////////////
 

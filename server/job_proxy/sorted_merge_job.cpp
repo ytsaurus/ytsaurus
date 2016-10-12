@@ -48,12 +48,13 @@ public:
 
         for (const auto& inputSpec : SchedulerJobSpecExt_.input_specs()) {
             std::vector<TChunkSpec> chunkSpecs(inputSpec.chunks().begin(), inputSpec.chunks().end());
+            auto readerOptions = ConvertTo<NTableClient::TTableReaderOptionsPtr>(TYsonString(inputSpec.table_reader_options()));
 
             TotalRowCount_ += GetCumulativeRowCount(chunkSpecs);
 
             auto reader = CreateSchemalessSequentialMultiChunkReader(
                 config->JobIO->TableReader,
-                New<NTableClient::TTableReaderOptions>(),
+                readerOptions,
                 Host_->GetClient(),
                 Host_->LocalDescriptor(),
                 Host_->GetBlockCache(),
@@ -72,7 +73,6 @@ public:
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
         auto schema = FromProto<TTableSchema>(outputSpec.table_schema());
-        options->ExplodeOnValidationError = true;
 
         Writer_ = CreateSchemalessMultiChunkWriter(
             config->JobIO->TableWriter,

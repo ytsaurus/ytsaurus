@@ -452,6 +452,10 @@ struct TDumpJobContextOptions
     : public TTimeoutOptions
 { };
 
+struct TGetJobStderrOptions
+    : public TTimeoutOptions
+{ };
+
 struct TStraceJobOptions
     : public TTimeoutOptions
 { };
@@ -706,6 +710,11 @@ struct IClient
         const NJobTrackerClient::TJobId& jobId,
         const NYPath::TYPath& path,
         const TDumpJobContextOptions& options = TDumpJobContextOptions()) = 0;
+
+    virtual TFuture<Stroka> GetJobStderr(
+        const NJobTrackerClient::TJobId& jobId,
+        const NYPath::TYPath& path,
+        const TGetJobStderrOptions& options = TGetJobStderrOptions()) = 0;
 
     virtual TFuture<NYson::TYsonString> StraceJob(
         const NJobTrackerClient::TJobId& jobId,

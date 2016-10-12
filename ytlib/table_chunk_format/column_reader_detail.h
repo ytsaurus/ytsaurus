@@ -428,7 +428,7 @@ public:
 
     virtual TNullable<int> GetNextBlockIndex() const override
     {
-        return LastBlockSegmentIndex_ == ColumnMeta_.segments_size()
+        return (LastBlockSegmentIndex_ + 1) == ColumnMeta_.segments_size()
            ? Null
            : MakeNullable(static_cast<int>(ColumnMeta_.segments(LastBlockSegmentIndex_ + 1).block_index()));
     }

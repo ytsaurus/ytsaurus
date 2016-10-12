@@ -24,6 +24,17 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TOperationEvent
+{
+    TInstant Time;
+    EOperationState State;
+};
+
+void Serialize(const TOperationEvent& schema, NYson::IYsonConsumer* consumer);
+void Deserialize(TOperationEvent& event, NYTree::INodePtr node);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TOperation
     : public TIntrinsicRefCounted
 {
@@ -34,7 +45,7 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(NRpc::TMutationId, MutationId);
 
-    DEFINE_BYVAL_RW_PROPERTY(EOperationState, State);
+    DEFINE_BYVAL_RO_PROPERTY(EOperationState, State);
     DEFINE_BYVAL_RW_PROPERTY(bool, Suspended);
 
     // By default, all new operations are not activated.
@@ -49,11 +60,19 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, Spec);
 
+    // A YSON map that is stored under ACL in Cypress.
+    // NB: It should not be present in operation spec as it may contain
+    // sensitive information.
+    DEFINE_BYVAL_RW_PROPERTY(NYTree::IMapNodePtr, SecureVault);
+
     DEFINE_BYVAL_RO_PROPERTY(Stroka, AuthenticatedUser);
     DEFINE_BYVAL_RO_PROPERTY(std::vector<Stroka>, Owners);
 
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, FinishTime);
+
+    //! List of events that happened to operation.
+    DEFINE_BYVAL_RO_PROPERTY(std::vector<TOperationEvent>, Events);
 
     //! Number of stderrs generated so far.
     DEFINE_BYVAL_RW_PROPERTY(int, StderrCount);
@@ -107,6 +126,9 @@ public:
     //! Returns the codicil guard holding the operation id.
     TCodicilGuard MakeCodicilGuard() const;
 
+    //! Sets operation state and adds corresponding event.
+    void SetState(EOperationState state);
+
     TOperation(
         const TOperationId& operationId,
         EOperationType type,
@@ -116,8 +138,9 @@ public:
         const Stroka& authenticatedUser,
         const std::vector<Stroka>& owners,
         TInstant startTime,
-        EOperationState state = EOperationState::Initializing,
-        bool suspended = false);
+        EOperationState state = EOperationState::None,
+        bool suspended = false,
+        const std::vector<TOperationEvent>& events = {});
 
 private:
     const Stroka CodicilData_;

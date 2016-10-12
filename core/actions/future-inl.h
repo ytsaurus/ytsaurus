@@ -16,7 +16,7 @@
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
-// Forward declrations
+// Forward declarations
 
 // invoker_util.h.
 IInvokerPtr GetFinalizerInvoker();
@@ -45,6 +45,8 @@ public:
     typedef SmallVector<TCancelHandler, 8> TCancelHandlers;
 
 private:
+    const bool WellKnown_;
+
     //! Number of promises.
     std::atomic<int> StrongRefCount_;
     //! Number of futures plus one if there's at least one promise.
@@ -77,7 +79,7 @@ private:
                     return false;
                 }
             }
-            Value_.Assign(std::forward<U>(value));
+            Value_.Assign(TErrorOr<T>(std::forward<U>(value)));
             Set_ = true;
             canceled = Canceled_;
             readyEvent = ReadyEvent_.get();
@@ -123,15 +125,17 @@ private:
 
 protected:
     TFutureState(int strongRefCount, int weakRefCount)
-        : StrongRefCount_(strongRefCount)
+        : WellKnown_(false)
+        , StrongRefCount_(strongRefCount)
         , WeakRefCount_(weakRefCount)
         , Canceled_(false)
         , Set_(false)
     { }
 
     template <class U>
-    TFutureState(int strongRefCount, int weakRefCount, U&& value)
-        : StrongRefCount_(strongRefCount)
+    TFutureState(bool wellKnown, int strongRefCount, int weakRefCount, U&& value)
+        : WellKnown_(wellKnown)
+        , StrongRefCount_(strongRefCount)
         , WeakRefCount_(weakRefCount)
         , Canceled_ (false)
         , Set_(true)
@@ -141,12 +145,18 @@ protected:
 public:
     void RefFuture()
     {
+        if (WellKnown_) {
+            return;
+        }
         auto oldWeakCount = WeakRefCount_++;
         Y_ASSERT(oldWeakCount > 0);
     }
 
     void UnrefFuture()
     {
+        if (WellKnown_) {
+            return;
+        }
         auto oldWeakCount = WeakRefCount_--;
         Y_ASSERT(oldWeakCount > 0);
         if (oldWeakCount == 1) {
@@ -156,15 +166,16 @@ public:
 
     void RefPromise()
     {
+        Y_ASSERT(!WellKnown_);
         auto oldStrongCount = StrongRefCount_++;
         Y_ASSERT(oldStrongCount > 0 && WeakRefCount_ > 0);
     }
 
     void UnrefPromise()
     {
+        Y_ASSERT(!WellKnown_);
         auto oldStrongCount = StrongRefCount_--;
         Y_ASSERT(oldStrongCount > 0);
-
         if (oldStrongCount == 1) {
             Dispose();
         }
@@ -316,8 +327,8 @@ public:
     { }
 
     template <class U>
-    TPromiseState(int strongRefCount, int weakRefCount, U&& value)
-        : TFutureState<T>(strongRefCount, weakRefCount, std::forward<U>(value))
+    TPromiseState(bool wellKnown, int strongRefCount, int weakRefCount, U&& value)
+        : TFutureState<T>(wellKnown, strongRefCount, weakRefCount, std::forward<U>(value))
     { }
 };
 
@@ -440,25 +451,31 @@ TPromise<T> NewPromise()
 template <class T>
 TPromise<T> MakePromise(TErrorOr<T> value)
 {
-    return TPromise<T>(New<NYT::NDetail::TPromiseState<T>>(1, 1, std::move(value)));
+    return TPromise<T>(New<NYT::NDetail::TPromiseState<T>>(false, 1, 1, std::move(value)));
 }
 
 template <class T>
 TPromise<T> MakePromise(T value)
 {
-    return TPromise<T>(New<NYT::NDetail::TPromiseState<T>>(1, 1, std::move(value)));
+    return TPromise<T>(New<NYT::NDetail::TPromiseState<T>>(false, 1, 1, std::move(value)));
 }
 
 template <class T>
 TFuture<T> MakeFuture(TErrorOr<T> value)
 {
-    return TFuture<T>(New<NYT::NDetail::TPromiseState<T>>(0, 1, std::move(value)));
+    return TFuture<T>(New<NYT::NDetail::TPromiseState<T>>(false, 0, 1, std::move(value)));
 }
 
 template <class T>
 TFuture<T> MakeFuture(T value)
 {
-    return TFuture<T>(New<NYT::NDetail::TPromiseState<T>>(0, 1, std::move(value)));
+    return TFuture<T>(New<NYT::NDetail::TPromiseState<T>>(false, 0, 1, std::move(value)));
+}
+
+template <class T>
+TFuture<T> MakeWellKnownFuture(TErrorOr<T> value)
+{
+    return TFuture<T>(New<NYT::NDetail::TPromiseState<T>>(true, -1, -1, std::move(value)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1092,8 +1109,8 @@ class TFutureCombinerBase
     : public TRefCounted
 {
 public:
-    explicit TFutureCombinerBase(const std::vector<TFuture<TItem>>& futures)
-        : Futures_(futures)
+    explicit TFutureCombinerBase(std::vector<TFuture<TItem>> futures)
+        : Futures_(std::move(futures))
     { }
 
     TFuture<TResult> Run()
@@ -1142,10 +1159,10 @@ class TFutureCombiner
     : public TFutureCombinerBase<T, typename TFutureCombineTraits<T>::TCombined>
 {
 public:
-    explicit TFutureCombiner(const std::vector<TFuture<T>>& futures)
-        : TFutureCombinerBase<T, typename TFutureCombineTraits<T>::TCombined>(futures)
-        , ResultHolder_(futures.size())
-        , PendingResponseCount_(futures.size())
+    explicit TFutureCombiner(std::vector<TFuture<T>> futures)
+        : TFutureCombinerBase<T, typename TFutureCombineTraits<T>::TCombined>(std::move(futures))
+        , ResultHolder_(this->Futures_.size())
+        , PendingResponseCount_(this->Futures_.size())
     { }
 
 private:
@@ -1179,8 +1196,8 @@ class TQuorumFutureCombiner
     : public TFutureCombinerBase<T, typename TFutureCombineTraits<T>::TCombined>
 {
 public:
-    TQuorumFutureCombiner(const std::vector<TFuture<T>>& futures, int quorum)
-        : TFutureCombinerBase<T, typename TFutureCombineTraits<T>::TCombined>(futures)
+    TQuorumFutureCombiner(std::vector<TFuture<T>> futures, int quorum)
+        : TFutureCombinerBase<T, typename TFutureCombineTraits<T>::TCombined>(std::move(futures))
         , Quorum_(quorum)
         , ResultHolder_(quorum)
         , PendingResponseCount_(quorum)
@@ -1223,10 +1240,10 @@ class TAllFutureCombiner
     : public TFutureCombinerBase<T, std::vector<TErrorOr<T>>>
 {
 public:
-    explicit TAllFutureCombiner(const std::vector<TFuture<T>>& futures)
-        : TFutureCombinerBase<T, std::vector<TErrorOr<T>>>(futures)
-        , Results_(futures.size())
-        , PendingResponseCount_(futures.size())
+    explicit TAllFutureCombiner(std::vector<TFuture<T>> futures)
+        : TFutureCombinerBase<T, std::vector<TErrorOr<T>>>(std::move(futures))
+        , Results_(this->Futures_.size())
+        , PendingResponseCount_(this->Futures_.size())
     { }
 
 private:
@@ -1252,37 +1269,113 @@ private:
 
 template <class T>
 TFuture<typename TFutureCombineTraits<T>::TCombined> Combine(
-    const std::vector<TFuture<T>>& futures)
+    std::vector<TFuture<T>> futures)
 {
-    return New<NDetail::TFutureCombiner<T>>(futures)->Run();
+    return New<NDetail::TFutureCombiner<T>>(std::move(futures))
+        ->Run();
 }
 
 template <class T>
 TFuture<typename TFutureCombineTraits<T>::TCombined> CombineQuorum(
-    const std::vector<TFuture<T>>& futures,
+    std::vector<TFuture<T>> futures,
     int quorum)
 {
-    Y_ASSERT(quorum >= 0);
-    return New<NDetail::TQuorumFutureCombiner<T>>(futures, quorum)->Run();
+    YCHECK(quorum >= 0);
+    return New<NDetail::TQuorumFutureCombiner<T>>(std::move(futures), quorum)
+        ->Run();
 }
 
 template <class T>
 TFuture<typename TFutureCombineTraits<T>::TCombined> Combine(
-    const std::vector<TFutureHolder<T>>& holders)
+    std::vector<TFutureHolder<T>> holders)
 {
     std::vector<TFuture<T>> futures;
     futures.reserve(holders.size());
     for (auto& holder : holders) {
         futures.push_back(holder.Get());
     }
-    return Combine(futures);
+    return Combine(std::move(futures));
 }
 
 template <class T>
 TFuture<std::vector<TErrorOr<T>>> CombineAll(
-    const std::vector<TFuture<T>>& futures)
+    std::vector<TFuture<T>> futures)
 {
-    return New<NDetail::TAllFutureCombiner<T>>(futures)->Run();
+    return New<NDetail::TAllFutureCombiner<T>>(std::move(futures))
+        ->Run();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NDetail {
+
+template <class T>
+class TBoundedConcurrencyRunner
+    : public TIntrinsicRefCounted
+{
+public:
+    TBoundedConcurrencyRunner(
+        std::vector<TCallback<TFuture<T>()>> callbacks,
+        int concurrencyLimit)
+        : Callbacks_(std::move(callbacks))
+        , ConcurrencyLimit_(concurrencyLimit)
+        , Results_(Callbacks_.size())
+    { }
+
+    TFuture<std::vector<TErrorOr<T>>> Run()
+    {
+        if (Callbacks_.empty()) {
+            return MakeFuture(std::vector<TErrorOr<T>>());
+        }
+        int startImmediatelyCount = std::min(ConcurrencyLimit_, static_cast<int>(Callbacks_.size()));
+        CurrentIndex_ = startImmediatelyCount;
+        for (int index = 0; index < startImmediatelyCount; ++index) {
+            RunCallback(index);
+        }
+        return Promise_;
+    }
+
+private:
+    const std::vector<TCallback<TFuture<T>()>> Callbacks_;
+    const int ConcurrencyLimit_;
+
+    std::vector<TErrorOr<T>> Results_;
+    TPromise<std::vector<TErrorOr<T>>> Promise_ = NewPromise<std::vector<TErrorOr<T>>>();
+    std::atomic<int> CurrentIndex_;
+    std::atomic<int> FinishedCount_ = {0};
+
+
+    void RunCallback(int index)
+    {
+        Callbacks_[index].Run().Subscribe(
+            BIND(&TBoundedConcurrencyRunner::OnResult, MakeStrong(this), index));
+    }
+
+    void OnResult(int index, const TErrorOr<T>& result)
+    {
+        Results_[index] = result;
+
+        int newIndex = CurrentIndex_++;
+        if (newIndex < Callbacks_.size()) {
+            RunCallback(newIndex);
+        }
+
+        if (++FinishedCount_ == Callbacks_.size()) {
+            Promise_.Set(Results_);
+        }
+    }
+};
+
+} // namespace NDetail
+
+template <class T>
+TFuture<std::vector<TErrorOr<T>>> RunWithBoundedConcurrency(
+    std::vector<TCallback<TFuture<T>()>> callbacks,
+    int concurrencyLimit)
+{
+    YCHECK(concurrencyLimit >= 0);
+    return New<NDetail::TBoundedConcurrencyRunner<T>>(std::move(callbacks), concurrencyLimit)
+        ->Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

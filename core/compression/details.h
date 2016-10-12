@@ -1,7 +1,5 @@
 #pragma once
 
-#include <yt/core/actions/callback.h>
-
 #include <yt/core/logging/log.h>
 
 #include <yt/core/misc/ref.h>
@@ -25,8 +23,6 @@ extern const NLogging::TLogger CompressionLogger;
 typedef snappy::Sink StreamSink;
 typedef snappy::Source StreamSource;
 typedef snappy::ByteArraySource ByteArraySource;
-
-typedef std::function<void (StreamSource*, TBlob*)> TConverter;
 
 ////////////////////////////////////////////////////////////////////////////////
 

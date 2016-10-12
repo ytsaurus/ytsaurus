@@ -1,11 +1,15 @@
-#include "callback_internal.h"
+#pragma once
+#ifndef CALLBACK_INTERNAL_INL_H_
+#error "Direct inclusion of this file is not allowed, include callback_internal.h"
+#endif
+#undef CALLBACK_INTERNAL_INL_H_
 
 namespace NYT {
 namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBindStateBase::TBindStateBase(
+inline TBindStateBase::TBindStateBase(
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
     const TSourceLocation& location
 #endif
@@ -16,26 +20,23 @@ TBindStateBase::TBindStateBase(
 #endif
 { }
 
-TBindStateBase::~TBindStateBase()
-{ }
-
-TCallbackBase::operator bool() const
+inline TCallbackBase::operator bool() const
 {
     return static_cast<bool>(BindState);
 }
 
-void TCallbackBase::Reset()
+inline void TCallbackBase::Reset()
 {
     BindState = nullptr;
     UntypedInvoke = nullptr;
 }
 
-void* TCallbackBase::GetHandle() const
+inline void* TCallbackBase::GetHandle() const
 {
     return (void*)((size_t)(void*)BindState.Get() ^ (size_t)(void*)UntypedInvoke);
 }
 
-void TCallbackBase::Swap(TCallbackBase& other)
+inline void TCallbackBase::Swap(TCallbackBase& other)
 {
     TIntrusivePtr<TBindStateBase> tempBindState = std::move(other.BindState);
     TUntypedInvokeFunction tempUntypedInvoke = std::move(other.UntypedInvoke);
@@ -47,27 +48,24 @@ void TCallbackBase::Swap(TCallbackBase& other)
     UntypedInvoke = std::move(tempUntypedInvoke);
 }
 
-bool TCallbackBase::operator == (const TCallbackBase& other) const
+inline bool TCallbackBase::operator == (const TCallbackBase& other) const
 {
     return
         BindState == other.BindState &&
         UntypedInvoke == other.UntypedInvoke;
 }
 
-bool TCallbackBase::operator != (const TCallbackBase& other) const
+inline bool TCallbackBase::operator != (const TCallbackBase& other) const
 {
     return !(*this == other);
 }
 
-TCallbackBase::TCallbackBase(TIntrusivePtr<TBindStateBase>&& bindState)
+inline TCallbackBase::TCallbackBase(TIntrusivePtr<TBindStateBase>&& bindState)
     : BindState(std::move(bindState))
-    , UntypedInvoke(NULL)
+    , UntypedInvoke(nullptr)
 {
     Y_ASSERT(!BindState || BindState->GetRefCount() == 1);
 }
-
-TCallbackBase::~TCallbackBase()
-{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

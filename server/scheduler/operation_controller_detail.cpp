@@ -74,7 +74,7 @@ using NTableClient::TTableReaderOptions;
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TLivePreviewTableBase::Persist(TPersistenceContext& context)
+void TOperationControllerBase::TLivePreviewTableBase::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, LivePreviewTableId);
@@ -82,7 +82,7 @@ void TOperationControllerBase::TLivePreviewTableBase::Persist(TPersistenceContex
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TInputTable::Persist(TPersistenceContext& context)
+void TOperationControllerBase::TInputTable::Persist(const TPersistenceContext& context)
 {
     TUserObject::Persist(context);
 
@@ -95,7 +95,7 @@ void TOperationControllerBase::TInputTable::Persist(TPersistenceContext& context
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TJobBoundaryKeys::Persist(TPersistenceContext& context)
+void TOperationControllerBase::TJobBoundaryKeys::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, MinKey);
@@ -105,7 +105,7 @@ void TOperationControllerBase::TJobBoundaryKeys::Persist(TPersistenceContext& co
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TOutputTable::Persist(TPersistenceContext& context)
+void TOperationControllerBase::TOutputTable::Persist(const TPersistenceContext& context)
 {
     TUserObject::Persist(context);
     TLivePreviewTableBase::Persist(context);
@@ -131,14 +131,14 @@ void TOperationControllerBase::TOutputTable::Persist(TPersistenceContext& contex
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TIntermediateTable::Persist(TPersistenceContext& context)
+void TOperationControllerBase::TIntermediateTable::Persist(const TPersistenceContext& context)
 {
     TLivePreviewTableBase::Persist(context);
 }
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TUserFile::Persist(TPersistenceContext& context)
+void TOperationControllerBase::TUserFile::Persist(const TPersistenceContext& context)
 {
     TUserObject::Persist(context);
 
@@ -154,7 +154,7 @@ void TOperationControllerBase::TUserFile::Persist(TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TCompletedJob::Persist(TPersistenceContext& context)
+void TOperationControllerBase::TCompletedJob::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Lost);
@@ -169,7 +169,7 @@ void TOperationControllerBase::TCompletedJob::Persist(TPersistenceContext& conte
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TJoblet::Persist(TPersistenceContext& context)
+void TOperationControllerBase::TJoblet::Persist(const TPersistenceContext& context)
 {
     // NB: Every joblet is aborted after snapshot is loaded.
     // Here we only serialize a subset of members required for ReinstallJob to work
@@ -183,7 +183,7 @@ void TOperationControllerBase::TJoblet::Persist(TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TTaskGroup::Persist(TPersistenceContext& context)
+void TOperationControllerBase::TTaskGroup::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, MinNeededResources);
@@ -222,7 +222,7 @@ void TOperationControllerBase::TTaskGroup::Persist(TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TStripeDescriptor::Persist(TPersistenceContext& context)
+void TOperationControllerBase::TStripeDescriptor::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Stripe);
@@ -232,7 +232,7 @@ void TOperationControllerBase::TStripeDescriptor::Persist(TPersistenceContext& c
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TInputChunkDescriptor::Persist(TPersistenceContext& context)
+void TOperationControllerBase::TInputChunkDescriptor::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, InputStripes);
@@ -289,6 +289,11 @@ int TOperationControllerBase::TTask::GetTotalJobCountDelta()
     int newValue = GetTotalJobCount();
     CachedTotalJobCount = newValue;
     return newValue - oldValue;
+}
+
+const TProgressCounter& TOperationControllerBase::TTask::GetJobCounter() const
+{
+    return GetChunkPoolOutput()->GetJobCounter();
 }
 
 TJobResources TOperationControllerBase::TTask::GetTotalNeededResourcesDelta()
@@ -436,11 +441,14 @@ void TOperationControllerBase::TTask::ScheduleJob(
                 ApproximateSizesBoostFactor));
         }
 
-        if (schedulerJobSpecExt->input_uncompressed_data_size() > Controller->Spec->MaxDataSizePerJob) {
-            Controller->OnOperationFailed(TError(
-                "Maximum allowed data size per job violated: %v > %v",
-                schedulerJobSpecExt->input_uncompressed_data_size(),
-                Controller->Spec->MaxDataSizePerJob));
+        if (schedulerJobSpecExt->input_uncompressed_data_size() > controller->Spec->MaxDataSizePerJob) {
+            controller->GetCancelableInvoker()->Invoke(BIND(
+                &TOperationControllerBase::OnOperationFailed,
+                controller,
+                TError(
+                    "Maximum allowed data size per job violated: %v > %v",
+                    schedulerJobSpecExt->input_uncompressed_data_size(),
+                    controller->Spec->MaxDataSizePerJob)));
         }
     });
 
@@ -532,7 +540,7 @@ i64 TOperationControllerBase::TTask::GetPendingDataSize() const
     return GetChunkPoolOutput()->GetPendingDataSize();
 }
 
-void TOperationControllerBase::TTask::Persist(TPersistenceContext& context)
+void TOperationControllerBase::TTask::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
 
@@ -806,6 +814,9 @@ void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
     options->ChunksMovable = false;
     options->ReplicationFactor = 1;
     options->CompressionCodec = Controller->Spec->IntermediateCompressionCodec;
+
+    // Intermediate data MUST be sorted if we expect it to be sorted.
+    options->ExplodeOnValidationError = true;
     outputSpec->set_table_writer_options(ConvertToYsonString(options).Data());
 
     ToProto(outputSpec->mutable_table_schema(), TTableSchema::FromKeyColumns(keyColumns));
@@ -981,10 +992,9 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
 
     std::atomic<bool> cleanStart = {false};
 
-    // Check transactions.
-    if (!cleanStart) {
-        std::vector<TFuture<void>> asyncResults;
 
+    // Check transactions.
+    {
         auto checkTransaction = [&] (ITransactionPtr transaction) {
             if (cleanStart) {
                 return;
@@ -994,25 +1004,12 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
                 LOG_INFO("Operation transaction is missing, will use clean start");
                 return;
             }
-
-            asyncResults.push_back(transaction->Ping().Apply(
-                BIND([transaction, this, this_=MakeStrong(this), &cleanStart] (const TError& error) {
-                    if (!error.IsOK() && !cleanStart) {
-                        cleanStart = true;
-                        LOG_INFO(error,
-                            "Error renewing operation transaction, will use clean start (TransactionId: %v)",
-                            transaction->GetId());
-                    }
-                })));
         };
 
         // NB: Async transaction is not checked.
         checkTransaction(controllerTransactions->Sync);
         checkTransaction(controllerTransactions->Input);
         checkTransaction(controllerTransactions->Output);
-
-        WaitFor(Combine(asyncResults))
-            .ThrowOnError();
     }
 
     // Downloading snapshot.
@@ -1527,6 +1524,7 @@ void TOperationControllerBase::DoLoadSnapshot(TSharedRef snapshot)
 
     TLoadContext context;
     context.SetInput(&input);
+    context.SetRowBuffer(RowBuffer);
 
     NPhoenix::TSerializer::InplaceLoad(context, this);
 
@@ -1669,6 +1667,7 @@ void TOperationControllerBase::AttachOutputChunks()
             if (!req) {
                 batchReq = proxy.ExecuteBatch();
                 GenerateMutationId(batchReq);
+                batchReq->set_suppress_upstream_sync(true);
                 req = batchReq->add_attach_chunk_trees_subrequests();
                 ToProto(req->mutable_parent_id(), table.OutputChunkListId);
             }
@@ -1966,10 +1965,10 @@ void TOperationControllerBase::FinalizeJoblet(
     }
 
     if (jobSummary->PrepareDuration) {
-        statistics.AddSample("/time/prepare", *jobSummary->PrepareDuration);
+        statistics.AddSample("/time/prepare", jobSummary->PrepareDuration->MilliSeconds());
     }
     if (jobSummary->ExecDuration) {
-        statistics.AddSample("/time/exec", *jobSummary->ExecDuration);
+        statistics.AddSample("/time/exec", jobSummary->ExecDuration->MilliSeconds());
     }
 
     statistics.AddSample("/job_proxy/memory_reserve_factor_x10000", static_cast<int>(1e4 * joblet->JobProxyMemoryReserveFactor));
@@ -2955,10 +2954,11 @@ void TOperationControllerBase::FetchInputTables()
         TObjectServiceProxy proxy(channel);
 
         auto batchReq = proxy.ExecuteBatch();
+        std::vector<int> rangeIndices;
 
-        for (const auto& range : ranges) {
+        for (int rangeIndex = 0; rangeIndex < static_cast<int>(ranges.size()); ++rangeIndex) {
             for (i64 index = 0; index * Config->MaxChunksPerFetch < table.ChunkCount; ++index) {
-                auto adjustedRange = range;
+                auto adjustedRange = ranges[rangeIndex];
                 auto chunkCountLowerLimit = index * Config->MaxChunksPerFetch;
                 if (adjustedRange.LowerLimit().HasChunkIndex()) {
                     chunkCountLowerLimit = std::max(chunkCountLowerLimit, adjustedRange.LowerLimit().GetChunkIndex());
@@ -2983,6 +2983,7 @@ void TOperationControllerBase::FetchInputTables()
                 req->set_fetch_parity_replicas(IsParityReplicasFetchEnabled());
                 SetTransactionId(req, InputTransaction->GetId());
                 batchReq->AddRequest(req, "fetch");
+                rangeIndices.push_back(rangeIndex);
             }
         }
 
@@ -2992,8 +2993,8 @@ void TOperationControllerBase::FetchInputTables()
         const auto& batchRsp = batchRspOrError.Value();
 
         auto rspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspFetch>("fetch");
-        for (const auto& rspOrError : rspsOrError) {
-            const auto& rsp = rspOrError.Value();
+        for (int resultIndex = 0; resultIndex < static_cast<int>(rspsOrError.size()); ++resultIndex) {
+            const auto& rsp = rspsOrError[resultIndex].Value();
             std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs;
             ProcessFetchResponse(
                 AuthenticatedInputMasterClient,
@@ -3001,6 +3002,7 @@ void TOperationControllerBase::FetchInputTables()
                 table.CellTag,
                 InputNodeDirectory,
                 Config->MaxChunksPerLocateRequest,
+                rangeIndices[resultIndex],
                 Logger,
                 &chunkSpecs);
 
@@ -3371,6 +3373,7 @@ void TOperationControllerBase::FetchUserFiles(std::vector<TUserFile>* files)
                 file.CellTag,
                 AuxNodeDirectory,
                 Config->MaxChunksPerLocateRequest,
+                Null,
                 Logger,
                 &file.ChunkSpecs);
         }
@@ -3710,7 +3713,7 @@ std::vector<std::deque<TInputChunkPtr>> TOperationControllerBase::CollectForeign
 std::vector<TChunkStripePtr> TOperationControllerBase::SliceChunks(
     const std::vector<TInputChunkPtr>& chunkSpecs,
     i64 maxSliceDataSize,
-    int* jobCount)
+    TJobSizeLimits* jobSizeLimits)
 {
     std::vector<TChunkStripePtr> result;
     auto appendStripes = [&] (const std::vector<TInputSlicePtr>& slices) {
@@ -3725,9 +3728,7 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceChunks(
     if (TotalEstimatedInputDataSize < maxSliceDataSize) {
         multiplier = 1.0;
     }
-    i64 sliceDataSize = std::min(
-        maxSliceDataSize,
-        (i64)std::max(multiplier * TotalEstimatedInputDataSize / *jobCount, 1.0));
+    i64 sliceDataSize = Clamp(static_cast<i64>(jobSizeLimits->GetDataSizePerJob() * multiplier), 1, maxSliceDataSize); 
 
     for (const auto& chunkSpec : chunkSpecs) {
         int oldSize = result.size();
@@ -3750,19 +3751,18 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceChunks(
             result.size() - oldSize);
     }
 
-    *jobCount = std::min(*jobCount, static_cast<int>(result.size()));
-    if (!result.empty()) {
-        *jobCount = std::max(*jobCount, 1 + (static_cast<int>(result.size()) - 1) / Config->MaxChunkStripesPerJob);
-    }
-
+    i64 stripeCount = result.size();
+    i64 minJobCount = DivCeil(stripeCount, Config->MaxChunkStripesPerJob);
+    i64 jobCount = Clamp(jobSizeLimits->GetJobCount(), minJobCount, stripeCount);
+    jobSizeLimits->SetJobCount(jobCount);
     return result;
 }
 
 std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(
     i64 maxSliceDataSize,
-    int* jobCount)
+    TJobSizeLimits* jobSizeLimits)
 {
-    return SliceChunks(CollectPrimaryInputChunks(), maxSliceDataSize, jobCount);
+    return SliceChunks(CollectPrimaryInputChunks(), maxSliceDataSize, jobSizeLimits);
 }
 
 TKeyColumns TOperationControllerBase::CheckInputTablesSorted(
@@ -3901,22 +3901,22 @@ void TOperationControllerBase::RegisterBoundaryKeys(
     YCHECK(boundaryKeys.sorted());
     YCHECK(!outputTable->Options->ValidateUniqueKeys || boundaryKeys.unique_keys());
 
-    auto minKey = FromProto<TOwningKey>(boundaryKeys.min());
-    auto maxKey = FromProto<TOwningKey>(boundaryKeys.max());
+    auto trimAndCaptureKey = [&] (const TOwningKey& key) {
+        int limit = outputTable->TableUploadOptions.TableSchema.GetKeyColumnCount();
+        if (key.GetCount() > limit) {
+            // NB: This can happen for a teleported chunk from a table with a wider key in sorted (but not unique_keys) mode.
+            YCHECK(!outputTable->Options->ValidateUniqueKeys);
+            return RowBuffer->Capture(key.Begin(), limit);
+        } else {
+            return RowBuffer->Capture(key.Begin(), key.GetCount());
+        }
+    };
 
-    // NB: This can happen for a teleported chunk from a table with a wider key in sorted (but not unique_keys) mode.
-    if (minKey.GetCount() > outputTable->TableUploadOptions.TableSchema.GetKeyColumnCount() ||
-        maxKey.GetCount() > outputTable->TableUploadOptions.TableSchema.GetKeyColumnCount())
-    {
-        YCHECK(!outputTable->Options->ValidateUniqueKeys);
-
-        int minKeyLength = std::min(minKey.GetCount(), static_cast<int>(outputTable->TableUploadOptions.TableSchema.GetKeyColumnCount()));
-        int maxKeyLength = std::min(maxKey.GetCount(), static_cast<int>(outputTable->TableUploadOptions.TableSchema.GetKeyColumnCount()));
-        minKey = TOwningRow(minKey.Begin(), minKey.Begin() + minKeyLength);
-        maxKey = TOwningRow(maxKey.Begin(), maxKey.Begin() + maxKeyLength);
-    }
-
-    outputTable->BoundaryKeys.push_back(TJobBoundaryKeys{minKey, maxKey, chunkTreeId});
+    outputTable->BoundaryKeys.push_back(TJobBoundaryKeys{
+        trimAndCaptureKey(FromProto<TOwningKey>(boundaryKeys.min())),
+        trimAndCaptureKey(FromProto<TOwningKey>(boundaryKeys.max())),
+        chunkTreeId
+    });
 }
 
 void TOperationControllerBase::RegisterOutput(
@@ -4142,13 +4142,16 @@ void TOperationControllerBase::BuildBriefSpec(IYsonConsumer* consumer) const
         .Item("output_table_paths").ListLimited(GetOutputTablePaths(), 1);
 }
 
-TYsonString TOperationControllerBase::BuildInputPathYson(const TJobId& jobId) const
+TNullable<TYsonString> TOperationControllerBase::BuildInputPathYson(const TJobId& jobId) const
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
+    auto joblet = GetJobletOrThrow(jobId);
     return BuildInputPaths(
         GetInputTablePaths(),
-        GetJobletOrThrow(jobId)->InputStripeList);
+        joblet->InputStripeList,
+        Operation->GetType(),
+        joblet->JobType);
 }
 
 std::vector<TOperationControllerBase::TPathWithStage> TOperationControllerBase::GetFilePaths() const
@@ -4171,20 +4174,6 @@ int TOperationControllerBase::GetMaxJobCount(
     return maxJobCount;
 }
 
-int TOperationControllerBase::SuggestJobCount(
-    i64 totalDataSize,
-    i64 dataSizePerJob,
-    TNullable<int> configJobCount,
-    int maxJobCount) const
-{
-    i64 suggestionBySize = (totalDataSize + dataSizePerJob - 1) / dataSizePerJob;
-    // Job count must fit into int.
-    suggestionBySize = Clamp(suggestionBySize, 1, maxJobCount);
-
-    int jobCount = configJobCount.Get(suggestionBySize);
-    return Clamp(jobCount, 1, maxJobCount);
-}
-
 void TOperationControllerBase::InitUserJobSpecTemplate(
     NScheduler::NProto::TUserJobSpec* jobSpec,
     TUserJobSpecPtr config,
@@ -4197,7 +4186,6 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     }
     jobSpec->set_memory_limit(config->MemoryLimit);
     jobSpec->set_include_memory_mapped_files(config->IncludeMemoryMappedFiles);
-    jobSpec->set_iops_threshold(config->IopsThreshold);
     jobSpec->set_use_yamr_descriptors(config->UseYamrDescriptors);
     jobSpec->set_check_input_fully_consumed(config->CheckInputFullyConsumed);
     jobSpec->set_max_stderr_size(config->MaxStderrSize);
@@ -4214,8 +4202,11 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         jobSpec->set_tmpfs_path(*config->TmpfsPath);
     }
 
-    if (Config->UserJobBlkioWeight) {
-        jobSpec->set_blkio_weight(*Config->UserJobBlkioWeight);
+    if (Config->IopsThreshold) {
+        jobSpec->set_iops_threshold(*Config->IopsThreshold);
+        if (Config->IopsThrottlerLimit) {
+            jobSpec->set_iops_throttler_limit(*Config->IopsThrottlerLimit);
+        }
     }
 
     {
@@ -4290,6 +4281,35 @@ void TOperationControllerBase::InitUserJobSpec(
     jobSpec->add_environment(Format("YT_JOB_ID=%v", joblet->JobId));
     if (joblet->StartRowIndex >= 0) {
         jobSpec->add_environment(Format("YT_START_ROW_INDEX=%v", joblet->StartRowIndex));
+    }
+
+    if (Operation->GetSecureVault()) {
+        // NB: These environment variables should be added to user job spec, not to the user job spec template.
+        // They may contain sensitive information that should not be persisted with a controller.
+
+        // We add a single variable storing the whole secure vault and all top-level scalar values.
+        jobSpec->add_environment(Format("YT_SECURE_VAULT=%v",
+            ConvertToYsonString(Operation->GetSecureVault(), EYsonFormat::Text)));
+
+        for (const auto& pair : Operation->GetSecureVault()->GetChildren()) {
+            Stroka value;
+            auto node = pair.second;
+            if (node->GetType() == ENodeType::Int64) {
+                value = ToString(node->GetValue<i64>());
+            } else if (node->GetType() == ENodeType::Uint64) {
+                value = ToString(node->GetValue<ui64>());
+            } else if (node->GetType() == ENodeType::Boolean) {
+                value = ToString(node->GetValue<bool>());
+            } else if (node->GetType() == ENodeType::Double) {
+                value = ToString(node->GetValue<double>());
+            } else if (node->GetType() == ENodeType::String) {
+                value = node->GetValue<Stroka>();
+            } else {
+                // We do not export composite values as a separate environment variables.
+                continue;
+            }
+            jobSpec->add_environment(Format("YT_SECURE_VAULT_%v=\"%v\"", pair.first, value));
+        }
     }
 }
 
@@ -4547,7 +4567,7 @@ const IDigest* TOperationControllerBase::GetJobProxyMemoryDigest(EJobType jobTyp
     return iter->second.get();
 }
 
-void TOperationControllerBase::Persist(TPersistenceContext& context)
+void TOperationControllerBase::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
 
@@ -4822,7 +4842,7 @@ public:
         Underlying_->BuildBriefSpec(consumer);
     }
 
-    virtual TYsonString BuildInputPathYson(const TJobId& jobId) const override
+    virtual TNullable<TYsonString> BuildInputPathYson(const TJobId& jobId) const override
     {
         return Underlying_->BuildInputPathYson(jobId);
     }

@@ -44,6 +44,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/hyperloglog_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/intrusive_ptr_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/integer_column_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_size_manager_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_signaler_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/json_parser_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/json_writer_ut.cpp
@@ -107,6 +108,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/url_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/variant_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/varint_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/value_consumer_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/versioned_blocks_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/versioned_chunks_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/weak_ptr_ut.cpp

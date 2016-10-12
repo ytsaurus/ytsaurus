@@ -1,6 +1,7 @@
 package NYT.NScheduler.NProto;
 
 import "yt/core/misc/guid.proto";
+import "yt/ytlib/node_tracker_client/node.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -12,6 +13,16 @@ message TReqDumpInputContext
 
 message TRspDumpInputContext
 { }
+
+message TReqGetJobNode
+{
+    required NYT.NProto.TGuid job_id = 1;
+}
+
+message TRspGetJobNode
+{
+    required NYT.NNodeTrackerClient.NProto.TNodeDescriptor node_descriptor = 1;
+}
 
 message TReqStrace
 {

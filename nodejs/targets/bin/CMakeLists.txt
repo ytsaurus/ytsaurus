@@ -1,21 +1,31 @@
+IF(YMAKE)
+  SET(YT_ABI 18_5)
+ENDIF()
+
+################################################################################
+IF(YMAKE)
+################################################################################
+
 PROGRAM(ytnode)
 
-OWNER(
-    snowball
-)
+OWNER(snowball sandello)
 
 NO_COMPILER_WARNINGS()
 
 SET(NODE_DIR contrib/libs/node_0_8_28)
 
 PEERDIR(
-    ${NODE_DIR}/targets/libnode
-    yt/18_5/yt/nodejs/targets/lib
+  ${NODE_DIR}/targets/libnode
+  yt/${YT_ABI}/yt/nodejs/targets/lib
 )
 
 SRCS(
-    main.cc
+  main.cc
 )
 
 END()
+
+################################################################################
+ENDIF()
+################################################################################
 

@@ -2,7 +2,7 @@
 
 #include "public.h"
 #include "chunk_meta_extensions.h"
-#include "columnar_chunk_reader_base.h"
+#include "columnar_chunk_meta.h"
 #include "schema.h"
 #include "unversioned_row.h"
 

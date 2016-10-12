@@ -126,10 +126,10 @@ DEFINE_REFCOUNTED_TYPE(TExecNode)
 //! An immutable snapshot of TExecNode.
 struct TExecNodeDescriptor
 {
-    TExecNodeDescriptor();
+    TExecNodeDescriptor() = default;
 
     TExecNodeDescriptor(
-        const NNodeTrackerClient::TNodeId& id,
+        NNodeTrackerClient::TNodeId id,
         const Stroka& address,
         double ioWeight,
         const TJobResources& resourceLimits,
@@ -143,7 +143,7 @@ struct TExecNodeDescriptor
     TJobResources ResourceLimits;
     yhash_set<Stroka> Tags;
 
-    void Persist(TStreamPersistenceContext& context);
+    void Persist(const TStreamPersistenceContext& context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

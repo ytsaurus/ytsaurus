@@ -191,6 +191,11 @@ public:
         return Null;
     }
 
+    virtual TNullable<TDuration> GetDownloadDuration() const override
+    {
+        return Null;
+    }
+
     virtual TNullable<TDuration> GetExecDuration() const override
     {
         return Null;
@@ -209,6 +214,11 @@ public:
     virtual std::vector<TChunkId> DumpInputContext() override
     {
         THROW_ERROR_EXCEPTION("Input context dumping is not supported");
+    }
+
+    virtual Stroka GetStderr() override
+    {
+        THROW_ERROR_EXCEPTION("Getting stderr is not supported");
     }
 
     virtual TYsonString Strace() override
