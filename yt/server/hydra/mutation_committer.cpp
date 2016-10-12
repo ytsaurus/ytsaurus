@@ -467,7 +467,7 @@ TLeaderCommitter::TBatchPtr TLeaderCommitter::GetOrCreateBatch(TVersion version)
         YCHECK(!BatchTimeoutCookie_);
         BatchTimeoutCookie_ = TDelayedExecutor::Submit(
             BIND(&TLeaderCommitter::OnBatchTimeout, MakeWeak(this), CurrentBatch_)
-                .Via(EpochContext_->EpochControlInvoker),
+                .Via(EpochContext_->EpochUserAutomatonInvoker),
             Config_->MaxCommitBatchDelay);
     }
 
