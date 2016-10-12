@@ -164,46 +164,63 @@ void RemoveDirContentAsRoot(const Stroka& path)
             path);
     }
 
-    bool foundUnremovedItems = false;
+    auto isRemovable = [&] (TStlIterator<TDirIterator>::TIterator it) {
+        if (it->fts_info == FTS_DOT || it->fts_info == FTS_D) {
+            return false;
+        }
+        if (path.has_prefix(it->fts_path)) {
+            return false;
+        }
+
+        return true;
+    };
+
+    bool removed = false;
+    std::vector<TError> attemptErrors;
     for (int attempt = 0; attempt < RemoveAsRootAttemptCount; ++attempt) {
-        foundUnremovedItems = false;
+        std::vector<TError> innerErrors;
+
         TDirIterator dir(path);
         for (auto it = dir.Begin(); it != dir.End(); ++it) {
-            if (it->fts_info == FTS_DOT || it->fts_info == FTS_D) {
-                continue;
-            }
-            if (path.has_prefix(it->fts_path)) {
-                continue;
-            }
-
-            foundUnremovedItems = true;
             try {
-                ::remove(it->fts_path);
+                if (isRemovable(it)) {
+                    ::remove(it->fts_path);
+                }
             } catch (const std::exception& ex) {
-                // Ignores any error while remove.
+                innerErrors.push_back(TError("Failed to remove path %v", it->fts_path)
+                    << ex);
             }
         }
 
-        if (!foundUnremovedItems) {
+        std::vector<Stroka> unremovableItems;
+        for (auto it = dir.Begin(); it != dir.End(); ++it) {
+            if (isRemovable(it)) {
+                unremovableItems.push_back(it->fts_path);
+            }
+        }
+
+        if (unremovableItems.empty()) {
+            removed = true;
             break;
         }
-    }
 
-    if (foundUnremovedItems) {
-        std::vector<Stroka> unremovableItems;
-        TDirIterator dir(path);
-        for (auto it = dir.Begin(); it != dir.End(); ++it) {
-            if (it->fts_info == FTS_DOT || it->fts_info == FTS_D) {
-                continue;
-            }
-            if (path.has_prefix(it->fts_path)) {
-                continue;
-            }
-            unremovableItems.push_back(it->fts_path);
-        }
-        THROW_ERROR_EXCEPTION("Failed to remove items %Qv in the directory %Qv",
+        auto error = TError("Failed to remove items %v in directory %v",
             unremovableItems,
             path);
+
+        error = NFS::AttachLsofOutput(error, path);
+        error = NFS::AttachFindOutput(error, path);
+        error.InnerErrors() = innerErrors;
+
+        attemptErrors.push_back(error);
+
+        Sleep(TDuration::Seconds(1));
+    }
+
+    if (!removed) {
+        auto error = TError("Failed to remove directory %v contents", path);
+        error.InnerErrors() = attemptErrors;
+        THROW_ERROR error;
     }
 }
 
