@@ -36,7 +36,7 @@ Stroka ToString(const TBoundaryKeys& keys)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TryGetBoundaryKeys(const TChunkMeta& chunkMeta, TOwningKey* minKey, TOwningKey* maxKey)
+bool FindBoundaryKeys(const TChunkMeta& chunkMeta, TOwningKey* minKey, TOwningKey* maxKey)
 {
     if (chunkMeta.version() == static_cast<int>(ETableChunkFormat::Old)) {
         auto boundaryKeys = FindProtoExtension<TOldBoundaryKeysExt>(chunkMeta.extensions());
@@ -56,13 +56,13 @@ bool TryGetBoundaryKeys(const TChunkMeta& chunkMeta, TOwningKey* minKey, TOwning
     return true;
 }
 
-std::unique_ptr<TBoundaryKeys> GetBoundaryKeys(const TChunkMeta& chunkMeta)
+std::unique_ptr<TBoundaryKeys> FindBoundaryKeys(const TChunkMeta& chunkMeta)
 {
-    std::unique_ptr<TBoundaryKeys> keys(new TBoundaryKeys());
-    if (!TryGetBoundaryKeys(chunkMeta, &keys->MinKey, &keys->MaxKey)) {
-        keys.reset();
+    TBoundaryKeys keys;
+    if (!FindBoundaryKeys(chunkMeta, &keys.MinKey, &keys.MaxKey)) {
+        return nullptr;
     }
-    return keys;
+    return std::make_unique<TBoundaryKeys>(std::move(keys));
 }
 
 TChunkMeta FilterChunkMetaByPartitionTag(const TChunkMeta& chunkMeta, int partitionTag)
