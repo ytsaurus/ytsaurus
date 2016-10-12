@@ -3,7 +3,7 @@
 #include "node_table_reader.h"
 #include "proxy_input.h"
 
-#include <mapreduce/yt/interface/extension.pb.h>
+#include <mapreduce/yt/interface/protos/extension.pb.h>
 
 #include <util/string/escape.h>
 

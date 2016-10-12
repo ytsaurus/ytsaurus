@@ -9,12 +9,12 @@ SRCS(
     io.h
     operation.h
     client.h
-    extension.proto
 )
 
 PEERDIR(
     util
     contrib/libs/protobuf
+    mapreduce/yt/interface/protos
 )
 
 END()

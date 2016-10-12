@@ -4,7 +4,7 @@
 #include "proxy_output.h"
 
 #include <mapreduce/yt/common/node_builder.h>
-#include <mapreduce/yt/interface/extension.pb.h>
+#include <mapreduce/yt/interface/protos/extension.pb.h>
 
 namespace NYT {
 

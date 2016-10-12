@@ -1,4 +1,4 @@
-import "mapreduce/yt/interface/extension.proto";
+import "mapreduce/yt/interface/protos/extension.proto";
 
 package NExample;
 
