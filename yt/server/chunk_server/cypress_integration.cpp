@@ -79,7 +79,11 @@ private:
 
     virtual bool IsValid(TObjectBase* object) const
     {
-        if (object->GetType() != EObjectType::Chunk) {
+        auto type = object->GetType();
+        if (type != EObjectType::Chunk &&
+            type != EObjectType::ErasureChunk &&
+            type != EObjectType::JournalChunk)
+        {
             return false;
         }
 
