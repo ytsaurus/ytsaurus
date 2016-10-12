@@ -79,6 +79,7 @@ _ensure_up_to_date() {
 _fetch_svn_remote() {
     local lws=100000
     # work around problematic revisions
+    set -x
     git svn --svn-remote "$arc_remote" fetch --log-window-size ${lws} --revision 0:174921
     git svn --svn-remote "$arc_remote" fetch --log-window-size ${lws} --revision 174921:174922
     git svn --svn-remote "$arc_remote" fetch --log-window-size ${lws} --revision 174922:907136
@@ -86,6 +87,7 @@ _fetch_svn_remote() {
     git svn --svn-remote "$arc_remote" fetch --log-window-size ${lws} --revision 907137:2359112
     git svn --svn-remote "$arc_remote" fetch --log-window-size ${lws} --revision 2359112:2359113
     git svn --svn-remote "$arc_remote" fetch --log-window-size ${lws} --revision 2359113:HEAD
+    set +x
 }
 
 _find_most_recent_sync() {
@@ -203,9 +205,11 @@ do_pull() {
 }
 
 do_push() {
-    msg "Pushing changes to Arcadia..."
+    msg "Pulling all remote changes onto HEAD..."
 
     _fetch_svn_remote
+
+    msg "Pushing changes to Arcadia..."
 
     local local_tree=$(git write-tree --prefix=yt/)
     local remote_tree=$(git cat-file -p "refs/remotes/${arc_remote}" | grep '^tree' | awk '{print $2}')
@@ -230,7 +234,7 @@ do_push() {
     message="$message"$'\n'"yt:last_svn_revision:$last_svn_revision"
     set -x
 
-    git svn --svn-remote "$arc_remote" commit-diff -r "$svn_revision" -m "$message" "$remote_tree" "$local_tree" "$arc"
+    git svn --svn-remote "$arc_remote" commit-diff -r "$last_svn_revision" -m "$message" "$remote_tree" "$local_tree" "$arc"
 }
 
 ################################################################################
