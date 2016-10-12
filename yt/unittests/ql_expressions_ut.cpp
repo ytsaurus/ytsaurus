@@ -923,7 +923,7 @@ INSTANTIATE_TEST_CASE_P(
 
 using TArithmeticTestParam = std::tuple<EValueType, const char*, const char*, const char*, TUnversionedValue>;
 
-class TArithmeticTest
+class TExpressionTest
     : public ::testing::Test
     , public ::testing::WithParamInterface<TArithmeticTestParam>
     , public TCompareExpressionTest
@@ -933,7 +933,7 @@ protected:
     { }
 };
 
-TEST_P(TArithmeticTest, ConstantFolding)
+TEST_P(TExpressionTest, ConstantFolding)
 {
     auto schema = GetSampleTableSchema();
     auto& param = GetParam();
@@ -942,14 +942,14 @@ TEST_P(TArithmeticTest, ConstantFolding)
     auto& rhs = std::get<3>(param);
     auto expected = Make<TLiteralExpression>(std::get<4>(param));
 
-    auto got = PrepareExpression(Stroka(lhs) + op + rhs, schema);
+    auto got = PrepareExpression(Stroka(lhs) + " " + op + " " + rhs, schema);
 
     EXPECT_TRUE(Equal(got, expected))
         << "got: " <<  ::testing::PrintToString(got) << std::endl
         << "expected: " <<  ::testing::PrintToString(expected) << std::endl;
 }
 
-TEST_F(TArithmeticTest, ConstantDivisorsFolding)
+TEST_F(TExpressionTest, ConstantDivisorsFolding)
 {
     auto schema = GetSampleTableSchema();
     auto expr1 = PrepareExpression("k / 100 / 2", schema);
@@ -968,13 +968,41 @@ TEST_F(TArithmeticTest, ConstantDivisorsFolding)
 
 }
 
-TEST_P(TArithmeticTest, Evaluate)
+TEST_F(TExpressionTest, FunctionNullArgument)
+{
+    auto schema = GetSampleTableSchema();
+
+    auto expr = PrepareExpression("int64(null)", schema);
+
+    EXPECT_EQ(expr->Type, EValueType::Int64);
+
+    TUnversionedValue result;
+    TCGVariables variables;
+
+    auto callback = Profile(expr, schema, nullptr, &variables)();
+
+    TUnversionedOwningRow row;
+    auto buffer = New<TRowBuffer>();
+    callback(variables.GetOpaqueData(), &result, row, buffer.Get());
+
+    EXPECT_EQ(result, MakeNull());
+
+    expr = PrepareExpression("if(null, null, null)", schema);
+    EXPECT_EQ(expr->Type, EValueType::Null);
+
+    callback = Profile(expr, schema, nullptr, &variables)();
+    callback(variables.GetOpaqueData(), &result, row, buffer.Get());
+
+    EXPECT_EQ(result, MakeNull());
+}
+
+TEST_P(TExpressionTest, Evaluate)
 {
     auto& param = GetParam();
     auto type = std::get<0>(param);
-    auto& lhs = std::get<1>(param);
+    auto lhs = std::get<1>(param);
     auto& op = std::get<2>(param);
-    auto& rhs = std::get<3>(param);
+    auto rhs = std::get<3>(param);
     auto& expected = std::get<4>(param);
 
     TUnversionedValue result;
@@ -985,9 +1013,10 @@ TEST_P(TArithmeticTest, Evaluate)
     columns[1].Type = type;
     auto schema = TTableSchema(columns);
 
-    auto expr = PrepareExpression(Stroka("k") + op + "l", schema);
+    auto expr = PrepareExpression(Stroka("k") + " " + op + " " + "l", schema);
 
     auto callback = Profile(expr, schema, nullptr, &variables)();
+
     auto row = YsonToRow(Stroka("k=") + lhs + ";l=" + rhs, schema, true);
 
     auto buffer = New<TRowBuffer>();
@@ -1000,7 +1029,7 @@ TEST_P(TArithmeticTest, Evaluate)
 
 INSTANTIATE_TEST_CASE_P(
     TArithmeticTest,
-    TArithmeticTest,
+    TExpressionTest,
     ::testing::Values(
         TArithmeticTestParam(EValueType::Int64, "1", "+", "2", MakeInt64(3)),
         TArithmeticTestParam(EValueType::Int64, "1", "-", "2", MakeInt64(-1)),
@@ -1034,6 +1063,38 @@ INSTANTIATE_TEST_CASE_P(
         TArithmeticTestParam(EValueType::Uint64, "6u", "<=", "6u", MakeBoolean(true))
 ));
 
+INSTANTIATE_TEST_CASE_P(
+    TArithmeticNullTest,
+    TExpressionTest,
+    ::testing::Values(
+        TArithmeticTestParam(EValueType::Boolean, "#", "or", "#", MakeNull()),
+        TArithmeticTestParam(EValueType::Boolean, "#", "or", "%true", MakeBoolean(true)),
+        TArithmeticTestParam(EValueType::Boolean, "%true", "or", "#", MakeBoolean(true)),
+        TArithmeticTestParam(EValueType::Boolean, "%true", "or", "%true", MakeBoolean(true)),
+        TArithmeticTestParam(EValueType::Boolean, "#", "or", "%false", MakeNull()),
+        TArithmeticTestParam(EValueType::Boolean, "%false", "or", "#", MakeNull()),
+        TArithmeticTestParam(EValueType::Boolean, "%false", "or", "%false", MakeBoolean(false)),
+        TArithmeticTestParam(EValueType::Boolean, "%true", "or", "%false", MakeBoolean(true)),
+        TArithmeticTestParam(EValueType::Boolean, "%false", "or", "%true", MakeBoolean(true)),
+
+        TArithmeticTestParam(EValueType::Boolean, "#", "and", "#", MakeNull()),
+        TArithmeticTestParam(EValueType::Boolean, "#", "and", "%true", MakeNull()),
+        TArithmeticTestParam(EValueType::Boolean, "%true", "and", "#", MakeNull()),
+        TArithmeticTestParam(EValueType::Boolean, "%true", "and", "%true", MakeBoolean(true)),
+        TArithmeticTestParam(EValueType::Boolean, "#", "and", "%false",  MakeBoolean(false)),
+        TArithmeticTestParam(EValueType::Boolean, "%false", "and", "#",  MakeBoolean(false)),
+        TArithmeticTestParam(EValueType::Boolean, "%false", "and", "%false", MakeBoolean(false)),
+        TArithmeticTestParam(EValueType::Boolean, "%true", "and", "%false",  MakeBoolean(false)),
+        TArithmeticTestParam(EValueType::Boolean, "%false", "and", "%true",  MakeBoolean(false)),
+
+        TArithmeticTestParam(EValueType::Int64, "#", "=", "#", MakeBoolean(true)),
+        TArithmeticTestParam(EValueType::Int64, "#", "!=", "#", MakeBoolean(false)),
+        TArithmeticTestParam(EValueType::Int64, "1", "=", "#", MakeBoolean(false)),
+        TArithmeticTestParam(EValueType::Int64, "1", "!=", "#", MakeBoolean(true)),
+
+        TArithmeticTestParam(EValueType::Int64, "1", "+", "#", MakeNull()),
+        TArithmeticTestParam(EValueType::Int64, "#", "+", "#", MakeNull())
+));
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTernaryLogicTest

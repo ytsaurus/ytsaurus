@@ -408,7 +408,8 @@ TUnversionedOwningRow YsonToRow(
                 rowBuilder.AddValue(MakeUnversionedStringValue(value->GetValue<Stroka>(), id));
                 break;
             case ENodeType::Entity:
-                rowBuilder.AddValue(MakeUnversionedSentinelValue(value->Attributes().Get<EValueType>("type"), id));
+                rowBuilder.AddValue(MakeUnversionedSentinelValue(
+                    value->Attributes().Get<EValueType>("type", EValueType::Null), id));
                 break;
             default:
                 rowBuilder.AddValue(MakeUnversionedAnyValue(ConvertToYsonString(value).Data(), id));
@@ -480,7 +481,7 @@ TUnversionedOwningRow YsonToKey(const Stroka& yson)
                 break;
             case ENodeType::Entity:
                 keyBuilder.AddValue(MakeUnversionedSentinelValue(
-                    keyPart->Attributes().Get<EValueType>("type"),
+                    keyPart->Attributes().Get<EValueType>("type", EValueType::Null),
                     id));
                 break;
             default:

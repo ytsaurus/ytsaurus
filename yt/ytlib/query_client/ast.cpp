@@ -9,6 +9,8 @@ namespace NAst {
 Stroka LiteralValueToString(const TLiteralValue& literalValue)
 {
     switch (literalValue.Tag()) {
+        case NAst::TLiteralValue::TagOf<NAst::TNullLiteralValue>():
+            return "null";
         case NAst::TLiteralValue::TagOf<i64>():
             return ToString(literalValue.As<i64>());
         case NAst::TLiteralValue::TagOf<ui64>():

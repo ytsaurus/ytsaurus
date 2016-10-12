@@ -16,7 +16,7 @@
 
 #define _MIN_ "<\"type\"=\"min\">#"
 #define _MAX_ "<\"type\"=\"max\">#"
-#define _NULL_ "<\"type\"=\"null\">#"
+#define _NULL_ "#"
 
 namespace NYT {
 namespace NTableClient {

@@ -390,21 +390,23 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         KwAnd = 1016,
         KwOr = 1017,
         KwNot = 1018,
-        KwBetween = 1019,
-        KwIn = 1020,
-        KwFalse = 1021,
-        KwTrue = 1022,
-        Identifier = 1023,
-        Int64Literal = 1024,
-        Uint64Literal = 1025,
-        DoubleLiteral = 1026,
-        StringLiteral = 1027,
+        KwNull = 1019,
+        KwBetween = 1020,
+        KwIn = 1021,
+        KwFalse = 1022,
+        KwTrue = 1023,
+        Identifier = 1024,
+        Int64Literal = 1025,
+        Uint64Literal = 1026,
+        DoubleLiteral = 1027,
+        StringLiteral = 1028,
         OpTilde = 126,
+        OpNumberSign = 35,
         OpVerticalBar = 124,
         OpAmpersand = 38,
         OpModulo = 37,
-        OpLeftShift = 1028,
-        OpRightShift = 1029,
+        OpLeftShift = 1029,
+        OpRightShift = 1030,
         LeftParenthesis = 40,
         RightParenthesis = 41,
         Asterisk = 42,
@@ -414,11 +416,11 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         Dot = 46,
         OpDivide = 47,
         OpLess = 60,
-        OpLessOrEqual = 1030,
+        OpLessOrEqual = 1031,
         OpEqual = 61,
-        OpNotEqual = 1031,
+        OpNotEqual = 1032,
         OpGreater = 62,
-        OpGreaterOrEqual = 1032
+        OpGreaterOrEqual = 1033
       };
     };
 
@@ -635,6 +637,10 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
     static inline
     symbol_type
+    make_KwNull (const location_type& l);
+
+    static inline
+    symbol_type
     make_KwBetween (const location_type& l);
 
     static inline
@@ -672,6 +678,10 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     static inline
     symbol_type
     make_OpTilde (const location_type& l);
+
+    static inline
+    symbol_type
+    make_OpNumberSign (const location_type& l);
 
     static inline
     symbol_type
@@ -834,7 +844,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   // number is the opposite.  If YYTABLE_NINF, syntax error.
   static const short int yytable_[];
 
-  static const short int yycheck_[];
+  static const unsigned char yycheck_[];
 
   // YYSTOS[STATE-NUM] -- The (internal number of the) accessing
   // symbol of state STATE-NUM.
@@ -949,13 +959,13 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 203,     ///< Last index in yytable_.
+      yylast_ = 218,     ///< Last index in yytable_.
       yynnts_ = 43,  ///< Number of nonterminal symbols.
       yyempty_ = -2,
-      yyfinal_ = 41, ///< Termination state number.
+      yyfinal_ = 43, ///< Termination state number.
       yyterror_ = 1,
       yyerrcode_ = 256,
-      yyntokens_ = 53  ///< Number of tokens.
+      yyntokens_ = 55  ///< Number of tokens.
     };
 
 

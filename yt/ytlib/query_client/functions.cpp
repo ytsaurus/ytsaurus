@@ -45,6 +45,9 @@ EValueType TypingFunction(
 
     auto isSubtype = [&] (EValueType type1, TType type2) {
         YCHECK(!type2.TryAs<TTypeArgument>());
+        if (type1 == EValueType::Null) {
+            return true;
+        }
         if (auto* unionType = type2.TryAs<TUnionType>()) {
             return typeInUnion(*unionType, type1);
         } else if (auto* concreteType = type2.TryAs<EValueType>()) {
@@ -56,7 +59,14 @@ EValueType TypingFunction(
     auto unify = [&] (TType type1, EValueType type2) {
         if (auto* genericId = type1.TryAs<TTypeArgument>()) {
             if (genericAssignments.count(*genericId)) {
-                return genericAssignments[*genericId] == type2;
+                if (type2 == EValueType::Null) {
+                    return true;
+                } else if (genericAssignments[*genericId] == EValueType::Null) {
+                    genericAssignments[*genericId] = type2;
+                    return true;
+                } else {
+                    return genericAssignments[*genericId] == type2;
+                }
             } else {
                 genericAssignments[*genericId] = type2;
                 return true;
@@ -113,6 +123,7 @@ EValueType TypingFunction(
         auto typeArg = constraint.first;
         auto allowedTypes = constraint.second;
         if (genericAssignments.count(typeArg)
+            && genericAssignments[typeArg] != EValueType::Null
             && !typeInUnion(allowedTypes, genericAssignments[typeArg]))
         {
             THROW_ERROR_EXCEPTION(
@@ -142,7 +153,7 @@ EValueType TypingFunction(
         return resultType.As<EValueType>();
     }
 
-    return EValueType::Null;
+    Y_UNREACHABLE();
 }
 
 } // namespace
