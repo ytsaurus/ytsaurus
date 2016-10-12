@@ -128,7 +128,7 @@ TInputChunk::TInputChunk(const NProto::TChunkSpec& chunkSpec)
     , UpperLimit_(chunkSpec.has_upper_limit()
         ? std::make_unique<TReadLimit>(chunkSpec.upper_limit())
         : nullptr)
-    , BoundaryKeys_(GetBoundaryKeys(chunkSpec.chunk_meta()))
+    , BoundaryKeys_(FindBoundaryKeys(chunkSpec.chunk_meta()))
     , Channel_(chunkSpec.has_channel()
         ? std::make_unique<NProto::TChannel>(chunkSpec.channel())
         : nullptr)
@@ -148,7 +148,7 @@ TInputChunk::TInputChunk(
     : TInputChunkBase(chunkId, replicas, chunkMeta, erasureCodec)
     , LowerLimit_(std::make_unique<TReadLimit>(lowerLimit))
     , UpperLimit_(std::make_unique<TReadLimit>(upperLimit))
-    , BoundaryKeys_(GetBoundaryKeys(chunkMeta))
+    , BoundaryKeys_(FindBoundaryKeys(chunkMeta))
 { }
 
 void TInputChunk::Persist(const TStreamPersistenceContext& context)
