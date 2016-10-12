@@ -390,27 +390,25 @@ TFuture<void> TVirtualMulticellMapBase::FetchItemsFromLocal(TFetchItemsSessionPt
     std::vector<TFuture<TYsonString>> asyncAttributes;
     for (const auto& key : keys) {
         auto* object = objectManager->FindObject(key);
-        if (IsObjectAlive(object)) {
-            TFetchItem item;
-            item.Key = ToString(key);
-            if (session->AttributeKeys) {
-                TAsyncYsonWriter writer(EYsonType::MapFragment);
-                auto proxy = objectManager->GetProxy(object, nullptr);
-                proxy->WriteAttributesFragment(&writer, session->AttributeKeys, false);
-                asyncAttributes.emplace_back(writer.Finish());
-            } else {
-                static const auto EmptyFragment = MakeFuture(TYsonString(Stroka(), EYsonType::MapFragment));
-                asyncAttributes.push_back(EmptyFragment);
-            }
-            session->Items.push_back(item);
+        if (!IsObjectAlive(object)) {
+            continue;
+        }
+        if (session->AttributeKeys) {
+            TAsyncYsonWriter writer(EYsonType::MapFragment);
+            auto proxy = objectManager->GetProxy(object, nullptr);
+            proxy->WriteAttributesFragment(&writer, session->AttributeKeys, false);
+            asyncAttributes.emplace_back(writer.Finish());
+        } else {
+            static const auto EmptyFragment = MakeFuture(TYsonString(Stroka(), EYsonType::MapFragment));
+            asyncAttributes.push_back(EmptyFragment);
         }
     }
 
     return Combine(asyncAttributes)
-        .Apply(BIND([=, this_ = MakeStrong(this)] (const std::vector<TYsonString>& attributes) {
-            YCHECK(session->Items.size() == attributes.size());
-            for (int index = 0; index < session->Items.size(); ++index) {
-                session->Items[index].Attributes = attributes[index];
+        .Apply(BIND([=, keys = std::move(keys), this_ = MakeStrong(this)] (const std::vector<TYsonString>& attributes) {
+            YCHECK(keys.size() == attributes.size());
+            for (int index = 0; index < static_cast<int>(keys.size()); ++index) {
+                session->Items.push_back(TFetchItem{ToString(keys[index]), attributes[index]});
             }
         }).AsyncVia(session->Invoker));
 }
@@ -459,7 +457,7 @@ TFuture<void> TVirtualMulticellMapBase::FetchItemsFromRemote(TFetchItemsSessionP
                 }
                 session->Items.push_back(item);
             }
-        }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
+        }).AsyncVia(session->Invoker));
 }
 
 TFuture<TYsonString> TVirtualMulticellMapBase::GetOwningNodeAttributes(const TNullable<std::vector<Stroka>>& attributeKeys)
