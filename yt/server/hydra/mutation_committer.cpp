@@ -418,6 +418,16 @@ void TLeaderCommitter::ResumeLogging()
     LoggingSuspended_ = false;
 }
 
+void TLeaderCommitter::Stop()
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    auto error = TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped");
+    for (auto& mutation : PendingMutations_) {
+        mutation.Promise.Set(error);
+    }
+}
+
 void TLeaderCommitter::AddToBatch(
     TVersion version,
     const TMutationRequest& request,
