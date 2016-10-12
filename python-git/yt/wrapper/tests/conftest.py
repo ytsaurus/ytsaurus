@@ -37,10 +37,11 @@ def pytest_configure(config):
         suites = defaultdict(list)
         for index, test in enumerate(test_items):
             match = re.search(r"\[([a-zA-Z0-9]+)\]$", test.name)
-            if match:
-                suites[match.group(1)].append(index)
-            else:
-                suites[None].append(index)
+            suite_name = None
+            if match and match.group(1) in ["v2", "v3", "native"]:
+                suite_name = match.group(1)
+
+            suites[suite_name].append(index)
 
         return tests_runner.split_test_suites(suites, process_count)
 
