@@ -399,6 +399,7 @@ class JobInfoFetcher(object):
             row["error"] = attributes.get("error")
             row["job_type"] = attributes["job_type"]
             row["state"] = attributes["state"]
+            row["address"] = attributes["address"]
             row["start_time"] = operations_archive.datestr_to_timestamp(attributes["start_time"])
             row["finish_time"] = operations_archive.datestr_to_timestamp(attributes["finish_time"])
 
