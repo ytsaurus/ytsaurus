@@ -233,14 +233,16 @@ def add_exists_parser(add_parser):
 
 def formatted_print(obj, path, long_format):
     if long_format:
-        attrs = yt.get(path + "/@")
+        attrs = yt.get(path + "&/@")
         type = attrs["type"]
+        link_tail = (" -> " + str(yt.get(path + "&/@target_path"))) if type == "link" else ""
         user = attrs["account"]
-        size = yt.get(path + "/@recursive_resource_usage/disk_space")
-        date, time = yt.get(path + "/@modification_time").split("T")
+        size = int(yt.get(path + "&/@recursive_resource_usage/disk_space"))
+        date, time = yt.get(path + "&/@modification_time").split("T")
         time = time[:5]
-        sys.stdout.write("%10s %20s %18r %10s %5s " % (type, user, size, date, time))
-    print(obj)
+        sys.stdout.write("%10s %20s %18d %10s %5s %s%s\n" % (type, user, size, date, time, str(obj), link_tail))
+    else:
+        print(obj)
 
 def list(**args):
     list_args = dict(args)
