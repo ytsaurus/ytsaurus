@@ -76,7 +76,12 @@ class YtTestEnvironment(object):
         }
         delta_scheduler_config = {
             "scheduler" : {
-                "max_operation_count": 5
+                "max_operation_count": 5,
+                "operation_options": {
+                    "spec_template": {
+                        "max_failed_job_count": 1
+                    }
+                }
             }
         }
 

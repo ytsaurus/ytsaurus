@@ -141,30 +141,27 @@ class TestJobTool(object):
         yt.write_file(file_, "stringdata")
 
         op = yt.run_map(failing_mapper, table, TEST_DIR + "/output", format="yamr",
-                        yt_files=[file_], spec={"max_failed_job_count": 1}, sync=False)
+                        yt_files=[file_], sync=False)
         op.wait(check_result=False)
         self._check(op.id, yt_env)
 
         op = yt.run_reduce(failing_reducer, table, TEST_DIR + "/output", format="yamr",
-                           yt_files=[file_], spec={"max_failed_job_count": 1}, sync=False,
-                           reduce_by=["key"])
+                           yt_files=[file_], sync=False, reduce_by=["key"])
         op.wait(check_result=False)
         self._check(op.id, yt_env)
 
         op = yt.run_map_reduce(failing_mapper, "cat", table, TEST_DIR + "/output", format="yamr",
-                               map_yt_files=[file_], reduce_by=["key"], spec={"max_failed_job_count": 1},
-                               sync=False)
+                               map_yt_files=[file_], reduce_by=["key"], sync=False)
         op.wait(check_result=False)
         self._check(op.id, yt_env)
 
         op = yt.run_map_reduce("cat", failing_reducer, table, TEST_DIR + "/output", format="yamr",
-                               reduce_yt_files=[file_], reduce_by=["key"], spec={"max_failed_job_count": 1},
-                               sync=False)
+                               reduce_yt_files=[file_], reduce_by=["key"], sync=False)
         op.wait(check_result=False)
         self._check(op.id, yt_env)
 
         # Should fallback on using input context
         op = yt.run_map("sleep 1000; cat", table, TEST_DIR + "/output", format="yamr",
-                        yt_files=[file_], spec={"max_failed_job_count": 1}, sync=False)
+                        yt_files=[file_], sync=False)
         self._check(op.id, yt_env, check_running=True)
         op.abort()
