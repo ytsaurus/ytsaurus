@@ -4,6 +4,7 @@ OWNER(monster)
 
 SRCS(
     main.cpp
+    test_cypress_manipulations.cpp
     test_operations.cpp
     test_table.cpp
     test_update.cpp
@@ -11,6 +12,7 @@ SRCS(
 )
 
 PEERDIR(
+    mapreduce/yt/client
     mapreduce/yt/tests/lib
     mapreduce/yt/tests/operations
     mapreduce/yt/tests/util
