@@ -247,6 +247,8 @@ class JobsCountGetter(object):
             } for op in operations])
 
         for op, rsp in zip(operations, responses):
+            #if "error" not in rsp:
+            #    logger.info("job_count %s %s", rsp["output"], str(type(rsp["output"])))
             self.operations_with_job_counts.append((op, 0 if "error" in rsp else rsp["output"]))
 
 class OperationCleaner(object):
@@ -507,11 +509,25 @@ def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, arc
 
     now = datetime.utcnow()
 
-    metrics = Counter()
-    timers = {}
+    metrics = Counter({name: 0 for name in [
+        "failed_to_archive_count",
+        "archived_count",
+        "failed_to_archive_job_count",
+        "archived_job_count",
+        "failed_to_archive_stderr_count",
+        "archived_stderr_count",
+        "archived_stderr_size",
+        "failed_to_archive_stderr_count"]})
 
-    timer = timers["getting_operations_list"] = Timer()
-    with timer:
+    timers = {name: Timer() for name in [
+        "getting_job_counts",
+        "getting_operations_list",
+        "archiving_operations",
+        "archiving_jobs",
+        "archiving_stderrs",
+        "removing_operations"]}
+
+    with timers["getting_operations_list"]:
         operations = yt.list(
             "//sys/operations",
             max_size=100000,
@@ -548,8 +564,7 @@ def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, arc
     #
 
     operations_with_job_counts = []
-    timer = timers["getting_job_counts"] = Timer()
-    with timer:
+    with timers["getting_job_counts"]:
         consider_queue = NonBlockingQueue(operations_to_consider)
         run_batching_queue_workers(consider_queue, JobsCountGetter, thread_count, (operations_with_job_counts,))
         wait_for_queue(consider_queue, "get_job_count")
@@ -590,8 +605,7 @@ def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, arc
         version = yt.get("{}/@".format(operations_archive.OPERATIONS_ARCHIVE_PATH)).get("version", 0)
 
         thread_safe_metrics = ThreadSafeCounter(metrics)
-        timer = timers["archiving_operations"] = Timer()
-        with timer:
+        with timers["archiving_operations"]:
             archive_queue = NonBlockingQueue(operations_to_archive)
             run_batching_queue_workers(archive_queue, OperationArchiver, thread_count, (after_archive_queue, version, thread_safe_metrics))
             after_archive_queue.put_many(wait_for_queue(archive_queue, "archive_operation", end_time_limit))
@@ -601,16 +615,14 @@ def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, arc
             stderr_queue = NonBlockingQueue()
 
             remove_queue = NonBlockingQueue()
-            timer = timers["archiving_jobs"] = Timer()
-            with timer:
+            with timers["archiving_jobs"]:
                 job_info_queue = after_archive_queue
                 run_batching_queue_workers(job_info_queue, JobInfoFetcher, thread_count, (stderr_queue, remove_queue, version, thread_safe_metrics))
                 remove_queue.put_many(wait_for_queue(job_info_queue, "archive_job_info", end_time_limit))
 
             logger.info("Archiving %d stderrs", len(stderr_queue))
 
-            timer = timers["archiving_stderrs"] = Timer()
-            with timer:
+            with timers["archiving_stderrs"]:
                 insert_queue = NonBlockingQueue()
                 run_queue_workers(stderr_queue, StderrDownloader, stderr_thread_count, (insert_queue, thread_safe_metrics))
                 run_batching_queue_workers(insert_queue, StderrInserter, thread_count, (thread_safe_metrics,))
@@ -624,8 +636,7 @@ def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, arc
 
     remove_count = len(remove_queue)
     logger.info("Removing %d operations", len(remove_queue))
-    timer = timers["removing_operations"] = Timer()
-    with timer:
+    with timers["removing_operations"]:
         run_batching_queue_workers(remove_queue, OperationCleaner, thread_count)
         wait_for_queue(remove_queue, "remove_operations")
 
