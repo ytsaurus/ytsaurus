@@ -124,6 +124,8 @@ public:
     //! Sets the rack and notifies the subscribers.
     void SetNodeRack(TNode* node, TRack* rack);
 
+    //! Sets the "disable_write_sessions" flag.
+    void SetDisableWriteSessions(TNode* node, bool value);
 
     //! Creates a new rack with a given name. Throws on name conflict.
     TRack* CreateRack(const Stroka& name);

@@ -64,7 +64,9 @@ void TNode::Init()
     IOWeight_ = 0.0;
     Banned_ = false;
     Decommissioned_ = false;
+    DisableWriteSessions_ = false;
     Rack_ = nullptr;
+    DisableSchedulerJobs_ = false;
     LeaseTransaction_ = nullptr;
     LocalStatePtr_ = nullptr;
     AggregatedState_ = ENodeState::Offline;
@@ -178,6 +180,8 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     using NYT::Save;
     Save(context, Banned_);
     Save(context, Decommissioned_);
+    Save(context, DisableWriteSessions_);
+    Save(context, DisableSchedulerJobs_);
     Save(context, Addresses_);
     Save(context, MulticellStates_);
     Save(context, UserTags_);
@@ -205,6 +209,13 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, Banned_);
     Load(context, Decommissioned_);
+
+    // COMPAT(psushin)
+    if (context.GetVersion() >= 353) {
+        Load(context, DisableWriteSessions_);
+        Load(context, DisableSchedulerJobs_);
+    }
+
     Load(context, Addresses_);
     Load(context, MulticellStates_);
     // COMPAT(babenko)

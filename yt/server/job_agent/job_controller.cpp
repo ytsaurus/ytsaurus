@@ -65,6 +65,8 @@ public:
     TNodeResources GetResourceUsage(bool includeWaiting = true) const;
     void SetResourceLimitsOverrides(const TNodeResourceLimitsOverrides& resourceLimits);
 
+    void SetDisableSchedulerJobs(bool value);
+
     void PrepareHeartbeatRequest(
         TCellTag cellTag,
         EObjectType jobObjectType,
@@ -82,6 +84,8 @@ private:
     yhash_map<TJobId, IJobPtr> Jobs_;
 
     bool StartScheduled_ = false;
+
+    bool DisableSchedulerJobs_ = false;
 
     IThroughputThrottlerPtr StatisticsThrottler_;
 
@@ -212,7 +216,7 @@ TNodeResources TJobController::TImpl::GetResourceLimits() const
     TNodeResources result;
 
     // If chunk cache is disabled, we disable all sheduler jobs.
-    result.set_user_slots(Bootstrap_->GetChunkCache()->IsEnabled() 
+    result.set_user_slots(Bootstrap_->GetChunkCache()->IsEnabled() && !DisableSchedulerJobs_
         ? Bootstrap_->GetExecSlotManager()->GetSlotCount()
         : 0);
 
@@ -248,6 +252,11 @@ TNodeResources TJobController::TImpl::GetResourceUsage(bool includeWaiting) cons
 void TJobController::TImpl::SetResourceLimitsOverrides(const TNodeResourceLimitsOverrides& resourceLimits)
 {
     ResourceLimitsOverrides_ = resourceLimits;
+}
+
+void TJobController::TImpl::SetDisableSchedulerJobs(bool value)
+{
+    DisableSchedulerJobs_ = value;
 }
 
 void TJobController::TImpl::StartWaitingJobs()
@@ -638,6 +647,11 @@ TNodeResources TJobController::GetResourceUsage(bool includeWaiting) const
 void TJobController::SetResourceLimitsOverrides(const TNodeResourceLimitsOverrides& resourceLimits)
 {
     Impl_->SetResourceLimitsOverrides(resourceLimits);
+}
+
+void TJobController::SetDisableSchedulerJobs(bool value)
+{
+    Impl_->SetDisableSchedulerJobs(value);
 }
 
 void TJobController::PrepareHeartbeatRequest(

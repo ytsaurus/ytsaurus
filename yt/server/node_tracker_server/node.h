@@ -79,8 +79,12 @@ public:
     // Chunk Manager stuff.
     DEFINE_BYVAL_RW_PROPERTY(bool, Banned);
     DEFINE_BYVAL_RW_PROPERTY(bool, Decommissioned);
+    DEFINE_BYVAL_RW_PROPERTY(bool, DisableWriteSessions);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<NChunkServer::TFillFactorToNodeIterator>, FillFactorIterator);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<NChunkServer::TLoadFactorToNodeIterator>, LoadFactorIterator);
+
+    // Used for graceful restart.
+    DEFINE_BYVAL_RW_PROPERTY(bool, DisableSchedulerJobs);
 
     // NB: Randomize replica hashing to avoid collisions during balancing.
     using TReplicaSet = yhash_set<TChunkPtrWithIndex>;
