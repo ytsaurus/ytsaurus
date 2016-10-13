@@ -213,6 +213,7 @@ class Zip(object):
                 continue
             self.zip.write(library, os.path.join("_shared", os.path.basename(library)))
             self.dynamic_libraries.add(library)
+            self.size += get_disk_size(library)
 
     def append(self, filepath, relpath):
         if relpath.endswith(".egg"):
