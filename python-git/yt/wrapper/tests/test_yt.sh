@@ -365,6 +365,23 @@ test_json_structured_format() {
     unset YT_STRUCTURED_FORMAT
 }
 
+test_transform()
+{
+    export YT_TABULAR_DATA_FORMAT="dsv"
+    echo -e "k=v\n" | ./yt write //home/wrapper_test/table_to_transform
+    ./yt transform //home/wrapper_test/table_to_transform
+
+    ./yt transform //home/wrapper_test/table_to_transform --compression-codec zlib_6
+    check '"zlib_6"' "$(./yt get //home/wrapper_test/table_to_transform/@compression_codec)"
+
+    ./yt transform //home/wrapper_test/table_to_transform --compression-codec zlib_6 --check-codecs
+
+    ./yt transform //home/wrapper_test/table_to_transform //home/wrapper_test/other_table --compression-codec zlib_6
+    check '"zlib_6"' "$(./yt get //home/wrapper_test/other_table/@compression_codec)"
+
+    unset YT_TABULAR_DATA_FORMAT
+}
+
 tear_down
 run_test test_cypress_commands
 run_test test_list_long_format
@@ -381,3 +398,4 @@ run_test test_transactions
 run_test test_hybrid_arguments
 run_test test_async_operations
 run_test test_json_structured_format
+run_test test_transform
