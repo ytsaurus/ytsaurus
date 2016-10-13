@@ -2,10 +2,9 @@
 
 import yt.tools.operations_archive as operations_archive
 
-from yt.wrapper.http_helpers import get_session, get_token, get_proxy_url
+from yt.wrapper.http_helpers import get_token, get_proxy_url
 from yt.wrapper.common import run_with_retries
-from yt.common import datetime_to_string, update
-import yt.packages.requests.adapters as requests_adapters
+from yt.common import datetime_to_string
 
 import yt.logger as logger
 import yt.wrapper as yt
@@ -499,9 +498,6 @@ def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, arc
     #
     # Step 1: Fetch data from Cypress.
     #
-
-    # XXX(ignat): Hack to increase requests connection pool size.
-    get_session().mount("http://", requests_adapters.HTTPAdapter(pool_connections=thread_count, pool_maxsize=thread_count))
 
     def maybe_parse_time(value):
         if value is None:
