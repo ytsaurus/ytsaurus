@@ -88,6 +88,10 @@
 # XXX(sandello): Disabled until we get 10G network on the cluster.
 #15 21 * * * TITLE="reshard tables on vanga" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=vanga.yt.yandex.net yt_lock.py --conflict-exit-code 0 //sys/cron/vanga_rebalance "/opt/cron/rebalance.py --key-columns 2 --oversized --no-undersized --desired-size-gbs 10 --include \"^//home/statface/webface.*\" --exclude \".*/_rm/.*\" improve --yes"' >>/opt/cron/rebalance_vanga.log 2>&1
 
+# Reshard in-memory tables on yabs clusters
+0 10 * * * TITLE="resharding in-memory tables" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=barney.yt.yandex.net yt_lock.py --conflict-exit-code 0 //sys/cron/reshard_in_memory_tables_lock "/opt/cron/reshard.py --yes auto --in-memory-only --root //yabs"' >>/opt/cron/reshard_in_memory_barney.log 2>&1
+10 18 * * * TITLE="resharding in-memory tables" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=alyx.yt.yandex.net yt_lock.py --conflict-exit-code 0 //sys/cron/reshard_in_memory_tables_lock "/opt/cron/reshard.py --yes auto --in-memory-only --root //yabs"' >>/opt/cron/reshard_in_memory_alyx.log 2>&1
+
 # Send cluster notification via mail
 # Normal clusters:
 */2 * * * * TITLE="sending notification via mail" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN=!!INSERT_TOKEN_HERE!! /opt/cron/send_notifications_via_mail.py hahn banach locke freud marx smith vanga -r yt-announces@yandex-team.ru yt-ops@yandex-team.ru' >>/opt/cron/send_notifications_via_mail.log 2>&1
