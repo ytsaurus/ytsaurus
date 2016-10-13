@@ -37,7 +37,9 @@ Operation commands:
 Transaction commands:
     lock, start-tx, abort-tx, commit-tx, ping-tx
 Job commands:
-    run-job-shell'''
+    run-job-shell
+Other commands:
+    transform'''
 
 EPILOG = '''Examples:
 
@@ -178,14 +180,21 @@ def add_argument(parser, name, help, description, **kwargs):
 
 def add_hybrid_argument(parser, name, help=None, description=None, group_required=True, **kwargs):
     group = parser.add_mutually_exclusive_group(required=group_required)
+    dest = None
+    positional_name = name
+    if "dest" in kwargs:
+        dest = kwargs.pop("dest")
+        positional_name = dest
     # Positional argument
     positional = add_argument(parser=group,
-                              name=name,
+                              name=positional_name,
                               help=help,
                               description=description,
                               nargs="?",
                               action=DoNotReplaceAction, **kwargs)
     # Optional argument
+    if dest is not None:
+        kwargs["dest"] = dest
     optional = add_argument(parser=group,
                             name="--" + name.replace("_", "-"),
                             help=help,
@@ -801,6 +810,19 @@ def add_run_job_shell_parser(add_parser):
     parser.add_argument("--timeout", type=int, help="inactivity timeout in milliseconds after job has "
                                                     "finished, by default 60000 milliseconds")
 
+def add_transform_parser(add_parser):
+    parser = add_parser("transform", yt.transform)
+    add_hybrid_argument(parser, "src", help="source table", dest="source_table")
+    add_hybrid_argument(parser, "dst", dest="destination_table", group_required=False,
+                        help="destination table (if not specified source table will be overwritten)")
+    parser.add_argument("--erasure-codec", help="desired erasure codec for table")
+    parser.add_argument("--compression-codec", help="desired compression codec for table")
+    parser.add_argument("--desired-chunk-size", type=int, help="desired chunk size in bytes")
+    parser.add_argument("--check-codecs", action="store_true",
+                        help="check if table already has proper codecs before transforming")
+    add_structured_argument(parser, "--spec")
+
+
 def main():
     config_parser = ArgumentParser(add_help=False)
     config_parser.add_argument("--proxy", help="specify cluster to run command, "
@@ -910,6 +932,8 @@ def main():
     add_execute_batch_parser(add_parser)
 
     add_run_job_shell_parser(add_parser)
+
+    add_transform_parser(add_parser)
 
     if "_ARGCOMPLETE" in os.environ:
         completers.autocomplete(parser, enable_bash_fallback=False,

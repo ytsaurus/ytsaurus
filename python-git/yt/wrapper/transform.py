@@ -35,8 +35,9 @@ def _check_codec(table, codec_name, codec_value, client):
             else:
                 raise
 
-def transform(source_table, destination_table=None, erasure_codec=None, compression_codec=None, desired_chunk_size=None, spec=None, check_codecs=False, client=None):
-    """ Transforms source_table table to destination_table writing data with given compression and erasure codecs.
+def transform(source_table, destination_table=None, erasure_codec=None, compression_codec=None,
+              desired_chunk_size=None, spec=None, check_codecs=False, client=None):
+    """Transforms source table to destination table writing data with given compression and erasure codecs.
     Automatically calculates desired chunk size and data size per job.
     """
 
@@ -60,19 +61,23 @@ def transform(source_table, destination_table=None, erasure_codec=None, compress
         create("table", dst, ignore_existing=True, client=client)
 
     if compression_codec is not None:
-        ratio = _get_compression_ratio(src, compression_codec, spec=spec, client=client)
         set(dst + "/@compression_codec", compression_codec, client=client)
-    else:
-        ratio = get(src + "/@compression_ratio", client=client)
 
     if erasure_codec is not None:
         set(dst + "/@erasure_codec", erasure_codec, client=client)
     else:
         erasure_codec = get(dst + "/@erasure_codec", client=client)
 
-    if check_codecs and _check_codec(dst, "compression", compression_codec, client=client) and _check_codec(dst, "erasure", erasure_codec, client=client):
-        logger.debug("Table %s already has proper codecs", dst)
+    if check_codecs and \
+            _check_codec(dst, "compression", compression_codec, client=client) and \
+            _check_codec(dst, "erasure", erasure_codec, client=client):
+        logger.info("Table %s already has proper codecs", dst)
         return False
+
+    if compression_codec is not None:
+        ratio = _get_compression_ratio(src, compression_codec, spec=spec, client=client)
+    else:
+        ratio = get(src + "/@compression_ratio", client=client)
 
     data_size_per_job = max(
         1,
