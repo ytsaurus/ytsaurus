@@ -67,6 +67,9 @@ public:
     //! Set resource limits overrides.
     void SetResourceLimitsOverrides(const NNodeTrackerClient::NProto::TNodeResourceLimitsOverrides& resourceLimits);
 
+    //! Set value of flag disabling all scheduler jobs.
+    void SetDisableSchedulerJobs(bool value);
+
     //! Prepares a heartbeat request.
     void PrepareHeartbeatRequest(
         NObjectClient::TCellTag cellTag,
