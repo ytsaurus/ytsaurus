@@ -46,7 +46,8 @@ ISchemafulReaderPtr CreateSchemafulChunkReader(
     TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,
     IBlockCachePtr blockCache,
-    const TTableSchema& schema,
+    const TTableSchema& resultSchema,
+    const TKeyColumns& keyColumns,
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
     const TReadRange& readRange,
     TTimestamp timestamp)
@@ -70,12 +71,12 @@ ISchemafulReaderPtr CreateSchemafulChunkReader(
                     std::move(chunkReader),
                     std::move(nameTable),
                     std::move(blockCache),
-                    TKeyColumns(),
+                    keyColumns,
                     columnFilter,
                     readRange);
             };
 
-            return CreateSchemafulReaderAdapter(createSchemalessReader, schema);
+            return CreateSchemafulReaderAdapter(createSchemalessReader, resultSchema);
         }
 
         default:
@@ -87,7 +88,8 @@ ISchemafulReaderPtr CreateSchemafulChunkReader(
     TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,
     IBlockCachePtr blockCache,
-    const TTableSchema& schema,
+    const TTableSchema& resultSchema,
+    const TKeyColumns& keyColumns,
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
     const TSharedRange<TKey>& keys,
     TTimestamp timestamp)
@@ -112,12 +114,12 @@ ISchemafulReaderPtr CreateSchemafulChunkReader(
                     std::move(chunkReader),
                     std::move(nameTable),
                     std::move(blockCache),
-                    TKeyColumns(),
+                    keyColumns,
                     columnFilter,
                     keys);
             };
 
-            return CreateSchemafulReaderAdapter(createSchemalessReader, schema);
+            return CreateSchemafulReaderAdapter(createSchemalessReader, resultSchema);
         }
 
         default:

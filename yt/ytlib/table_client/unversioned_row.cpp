@@ -617,6 +617,10 @@ size_t GetUnversionedRowByteSize(int valueCount)
 
 size_t GetDataWeight(TUnversionedRow row)
 {
+    if (!row) {
+        return 0;
+    }
+
     return std::accumulate(
         row.Begin(),
         row.End(),

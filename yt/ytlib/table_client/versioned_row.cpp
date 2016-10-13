@@ -73,6 +73,10 @@ size_t GetVersionedRowByteSize(
 
 size_t GetDataWeight(TVersionedRow row)
 {
+    if (!row) {
+        return 0;
+    }
+
     size_t result = 0;
     result += std::accumulate(
         row.BeginValues(),

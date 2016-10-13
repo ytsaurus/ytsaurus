@@ -886,6 +886,7 @@ private:
             std::move(chunkReader),
             Bootstrap_->GetBlockCache(),
             Query_->GetReadSchema(),
+            Query_->OriginalSchema.GetKeyColumns(),
             chunkMeta,
             keys,
             Options_.Timestamp);
@@ -905,6 +906,7 @@ private:
             std::move(chunkReader),
             Bootstrap_->GetBlockCache(),
             Query_->GetReadSchema(),
+            Query_->OriginalSchema.GetKeyColumns(),
             chunkMeta,
             readRange,
             Options_.Timestamp);

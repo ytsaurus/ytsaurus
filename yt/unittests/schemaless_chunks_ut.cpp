@@ -409,7 +409,7 @@ protected:
         if (rowIndex % 20 == 0) {
             return MakeUnversionedSentinelValue(EValueType::Null, id);
         } else {
-            return MakeUnversionedInt64Value(static_cast<bool>(rowIndex % 3), id);
+            return MakeUnversionedBooleanValue(static_cast<bool>(rowIndex % 3), id);
         }
     }
 
@@ -575,7 +575,7 @@ TEST_P(TSchemalessChunksLookupTest, Simple)
         keys.push_back(key);
     }
 
-    auto reader = LookupRows(MakeSharedRange(keys), TKeyColumns());
+    auto reader = LookupRows(MakeSharedRange(keys), Schema_.GetKeyColumns());
     CheckSchemalessResult(expected, reader, Schema_.GetKeyColumnCount());
 }
 
@@ -614,8 +614,7 @@ INSTANTIATE_TEST_CASE_P(Sorted,
     TSchemalessChunksLookupTest,
     ::testing::Combine(
         ::testing::Values(
-            //TODO: support lookup for unversionedColumnar format
-            //EOptimizeFor::Scan,
+            EOptimizeFor::Scan,
             EOptimizeFor::Lookup),
         ::testing::Values(
             ConvertTo<TTableSchema>(TYsonString("<strict=%true>["

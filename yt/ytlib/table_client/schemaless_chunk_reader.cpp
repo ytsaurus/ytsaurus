@@ -22,6 +22,7 @@
 
 #include <yt/ytlib/table_chunk_format/public.h>
 #include <yt/ytlib/table_chunk_format/column_reader.h>
+#include <yt/ytlib/table_chunk_format/null_column_reader.h>
 
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
@@ -669,10 +670,6 @@ void THorizontalSchemalessLookupChunkReader::DoInitializeBlockSequence()
     TKeyColumns chunkKeyColumns = NYT::FromProto<TKeyColumns>(keyColumnsExt);
     ChunkKeyColumnCount_ = chunkKeyColumns.size();
 
-    if (KeyColumns_.empty()) {
-        KeyColumns_ = chunkKeyColumns;
-    }
-
     ValidateKeyColumns(KeyColumns_, chunkKeyColumns, Options_->DynamicTable);
 
     for (const auto& key : Keys_) {
@@ -781,12 +778,12 @@ void THorizontalSchemalessLookupChunkReader::InitNextBlock()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TColumnarSchemalessChunkReader
+class TColumnarSchemalessRangeChunkReader
     : public TSchemalessChunkReaderBase
     , public TColumnarRangeChunkReaderBase
 {
 public:
-    TColumnarSchemalessChunkReader(
+    TColumnarSchemalessRangeChunkReader(
         const TChunkSpec& chunkSpec,
         TChunkReaderConfigPtr config,
         TChunkReaderOptionsPtr options,
@@ -812,7 +809,7 @@ public:
         LowerLimit_ = readRange.LowerLimit();
         UpperLimit_ = readRange.UpperLimit();
 
-        ReadyEvent_ = BIND(&TColumnarSchemalessChunkReader::InitializeBlockSequence, MakeStrong(this))
+        ReadyEvent_ = BIND(&TColumnarSchemalessRangeChunkReader::InitializeBlockSequence, MakeStrong(this))
             .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
             .Run();
     }
@@ -989,26 +986,34 @@ private:
         YCHECK(ChunkSpec_.chunk_meta().version() == static_cast<int>(ETableChunkFormat::UnversionedColumnar));
         InitializeSystemColumnIds();
 
-        // Download chunk meta.
-        std::vector<int> extensionTags = {
-            TProtoExtensionTag<TMiscExt>::Value,
-            TProtoExtensionTag<TTableSchemaExt>::Value,
-            TProtoExtensionTag<TBlockMetaExt>::Value,
-            TProtoExtensionTag<TColumnMetaExt>::Value,
-            TProtoExtensionTag<TNameTableExt>::Value
-        };
+        TNameTablePtr chunkNameTable;
 
-        auto asynChunkMeta = UnderlyingReader_->GetMeta(
-            TColumnarRangeChunkReaderBase::Config_->WorkloadDescriptor,
-            Null,
-            extensionTags);
-        auto chunkMeta = WaitFor(asynChunkMeta)
-            .ValueOrThrow();
+        if (Options_->DynamicTable) {
+            auto chunkMeta = ChunkSpec_.chunk_meta();
+            ChunkMeta_ = New<TColumnarChunkMeta>(std::move(chunkMeta));
+            chunkNameTable = TNameTable::FromSchema(ChunkMeta_->ChunkSchema());
+        } else {
+            // Download chunk meta.
+            std::vector<int> extensionTags = {
+                TProtoExtensionTag<TMiscExt>::Value,
+                TProtoExtensionTag<TTableSchemaExt>::Value,
+                TProtoExtensionTag<TBlockMetaExt>::Value,
+                TProtoExtensionTag<TColumnMetaExt>::Value,
+                TProtoExtensionTag<TNameTableExt>::Value
+            };
 
-        auto chunkNameTable = FromProto<TNameTablePtr>(GetProtoExtension<TNameTableExt>(
-            chunkMeta.extensions()));
+            auto asynChunkMeta = UnderlyingReader_->GetMeta(
+                TColumnarRangeChunkReaderBase::Config_->WorkloadDescriptor,
+                Null,
+                extensionTags);
+            auto chunkMeta = WaitFor(asynChunkMeta)
+                .ValueOrThrow();
 
-        ChunkMeta_ = New<TColumnarChunkMeta>(std::move(chunkMeta));
+            chunkNameTable = FromProto<TNameTablePtr>(GetProtoExtension<TNameTableExt>(
+                chunkMeta.extensions()));
+
+            ChunkMeta_ = New<TColumnarChunkMeta>(std::move(chunkMeta));
+        }
 
         // Minimum prefix of key columns, that must be included in column filter.
         int minKeyColumnCount = KeyColumns_.size();
@@ -1027,7 +1032,7 @@ private:
         ValidateKeyColumns(
             KeyColumns_, 
             ChunkMeta_->ChunkSchema().GetKeyColumns(), 
-            false /* require unique keys */);
+            Options_->DynamicTable);
 
         // Cannot read more key columns than stored in chunk, even if range keys are longer.
         minKeyColumnCount = std::min(minKeyColumnCount, ChunkMeta_->ChunkSchema().GetKeyColumnCount());
@@ -1129,6 +1134,301 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TColumnarSchemalessLookupChunkReader
+    : public TSchemalessChunkReaderBase
+    , public TColumnarLookupChunkReaderBase
+{
+public:
+    TColumnarSchemalessLookupChunkReader(
+        const TChunkSpec& chunkSpec,
+        TChunkReaderConfigPtr config,
+        TChunkReaderOptionsPtr options,
+        IChunkReaderPtr underlyingReader,
+        TNameTablePtr nameTable,
+        IBlockCachePtr blockCache,
+        const TKeyColumns& keyColumns,
+        const TColumnFilter& columnFilter,
+        const TSharedRange<TKey>& keys,
+        TChunkReaderPerformanceCountersPtr performanceCounters)
+        : TSchemalessChunkReaderBase(
+            chunkSpec,
+            config,
+            options,
+            underlyingReader->GetChunkId(),
+            nameTable,
+            columnFilter,
+            keyColumns)
+        , TColumnarLookupChunkReaderBase(
+            config,
+            underlyingReader,
+            blockCache)
+        , PerformanceCounters_(std::move(performanceCounters))
+    {
+        Keys_ = keys;
+
+        ReadyEvent_ = BIND(&TColumnarSchemalessLookupChunkReader::InitializeBlockSequence, MakeStrong(this))
+            .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
+            .Run();
+    }
+
+    virtual bool Read(std::vector<TUnversionedRow>* rows) override
+    {
+        rows->clear();
+        Pool_.Clear();
+
+        if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
+            return true;
+        }
+
+        if (NextKeyIndex_ == Keys_.Size()) {
+            return false;
+        }
+
+        i64 DataWeight = 0;
+        while (rows->size() < rows->capacity()) {
+            ResetExhaustedColumns();
+
+            if (RowIndexes_[NextKeyIndex_] < ChunkMeta_->Misc().row_count()) {
+                const auto& key = Keys_[NextKeyIndex_];
+
+                YCHECK(key.GetCount() == KeyColumnReaders_.size());
+
+                // Reading row.
+                i64 lowerRowIndex = KeyColumnReaders_[0]->GetCurrentRowIndex();
+                i64 upperRowIndex = KeyColumnReaders_[0]->GetBlockUpperRowIndex();
+                for (int i = 0; i < KeyColumnReaders_.size(); ++i) {
+                    std::tie(lowerRowIndex, upperRowIndex) = KeyColumnReaders_[i]->GetEqualRange(
+                        key[i],
+                        lowerRowIndex,
+                        upperRowIndex);
+                }
+
+                if (upperRowIndex == lowerRowIndex) {
+                    // Key does not exist.
+                    rows->push_back(TMutableUnversionedRow());
+                } else {
+                    // Key can be present in exactly one row.
+                    YCHECK(upperRowIndex == lowerRowIndex + 1);
+                    i64 rowIndex = lowerRowIndex;
+
+                    rows->push_back(ReadRow(rowIndex));
+                }
+            } else {
+                // Key oversteps chunk boundaries.
+                rows->push_back(TMutableUnversionedRow());
+            }
+
+            DataWeight += GetDataWeight(rows->back());
+
+            if (++NextKeyIndex_ == Keys_.Size() || !TryFetchNextRow() || DataWeight > TSchemalessChunkReaderBase::Config_->MaxDataSizePerRead) {
+                break;
+            }
+        }
+
+        if (PerformanceCounters_) {
+            PerformanceCounters_->StaticChunkRowLookupCount += rows->size();
+        }
+
+        RowCount_ += rows->size();
+
+        return true;
+    }
+
+    virtual TDataStatistics GetDataStatistics() const override
+    {
+        auto dataStatistics = TColumnarChunkReaderBase::GetDataStatistics();
+        dataStatistics.set_row_count(RowCount_);
+        return dataStatistics;
+    }
+
+private:
+    const TChunkReaderPerformanceCountersPtr PerformanceCounters_;
+
+    std::vector<std::unique_ptr<IUnversionedColumnReader>> ColumnReaders_;
+    std::vector<IUnversionedColumnReader*> KeyColumnReaders_;
+    std::vector<IUnversionedColumnReader*> SchemaColumnReaders_;
+    std::unique_ptr<ISchemalessColumnReader> SchemalessReader_;
+
+    TChunkedMemoryPool Pool_;
+
+    TMutableUnversionedRow ReadRow(i64 rowIndex)
+    {
+        ui32 schemalessColumnCount = 0;
+
+        if (SchemalessReader_) {
+            SchemalessReader_->SkipToRowIndex(rowIndex);
+            SchemalessReader_->GetValueCounts(TMutableRange<ui32>(&schemalessColumnCount, 1));
+        }
+
+        auto row = TMutableUnversionedRow::Allocate(&Pool_, SchemaColumnReaders_.size() + schemalessColumnCount + SystemColumnCount_);
+        row.SetCount(SchemaColumnReaders_.size());
+
+        // Read values.
+        auto range = TMutableRange<TMutableUnversionedRow>(&row, 1);
+
+        for (auto& columnReader : SchemaColumnReaders_) {
+            columnReader->SkipToRowIndex(rowIndex);
+            columnReader->ReadValues(range);
+        }
+
+        if (SchemalessReader_) {
+            SchemalessReader_->ReadValues(range);
+        }
+
+        // Append system columns.
+        if (Options_->EnableTableIndex) {
+            *row.End() = MakeUnversionedInt64Value(ChunkSpec_.table_index(), TableIndexId_);
+            row.SetCount(row.GetCount() + 1);
+        }
+        if (Options_->EnableRowIndex) {
+            *row.End() = MakeUnversionedInt64Value(
+                ChunkSpec_.table_row_index() + rowIndex,
+                RowIndexId_);
+            row.SetCount(row.GetCount() + 1);
+        }
+
+        return row;
+    }
+
+    void InitializeBlockSequence()
+    {
+        YCHECK(ChunkSpec_.chunk_meta().version() == static_cast<int>(ETableChunkFormat::UnversionedColumnar));
+        InitializeSystemColumnIds();
+
+        TNameTablePtr chunkNameTable;
+
+        if (Options_->DynamicTable) {
+            auto chunkMeta = ChunkSpec_.chunk_meta();
+            ChunkMeta_ = New<TColumnarChunkMeta>(std::move(chunkMeta));
+            chunkNameTable = TNameTable::FromSchema(ChunkMeta_->ChunkSchema());
+        } else {
+            // Download chunk meta.
+            std::vector<int> extensionTags = {
+                TProtoExtensionTag<TMiscExt>::Value,
+                TProtoExtensionTag<TTableSchemaExt>::Value,
+                TProtoExtensionTag<TBlockMetaExt>::Value,
+                TProtoExtensionTag<TColumnMetaExt>::Value,
+                TProtoExtensionTag<TNameTableExt>::Value
+            };
+
+            auto asynChunkMeta = UnderlyingReader_->GetMeta(
+                TColumnarLookupChunkReaderBase::Config_->WorkloadDescriptor,
+                Null,
+                extensionTags);
+            auto chunkMeta = WaitFor(asynChunkMeta)
+                .ValueOrThrow();
+
+            chunkNameTable = FromProto<TNameTablePtr>(GetProtoExtension<TNameTableExt>(
+                chunkMeta.extensions()));
+
+            ChunkMeta_ = New<TColumnarChunkMeta>(std::move(chunkMeta));
+        }
+
+        if (!ChunkMeta_->Misc().sorted()) {
+            THROW_ERROR_EXCEPTION("Requested a sorted read for an unsorted chunk");
+        }
+
+        ValidateKeyColumns(
+            KeyColumns_,
+            ChunkMeta_->ChunkSchema().GetKeyColumns(),
+            Options_->DynamicTable);
+
+        ChunkMeta_->InitBlockLastKeys(KeyColumns_.size());
+
+        // Create key column readers.
+        KeyColumnReaders_.resize(KeyColumns_.size());
+        for (int keyColumnIndex = 0; keyColumnIndex < ChunkMeta_->ChunkSchema().GetKeyColumnCount(); ++keyColumnIndex) {
+            auto columnReader = CreateUnversionedColumnReader(
+                ChunkMeta_->ChunkSchema().Columns()[keyColumnIndex],
+                ChunkMeta_->ColumnMeta().columns(keyColumnIndex),
+                keyColumnIndex,
+                keyColumnIndex);
+
+            Columns_.emplace_back(columnReader.get(), keyColumnIndex);
+            KeyColumnReaders_[keyColumnIndex] = columnReader.get();
+            ColumnReaders_.emplace_back(std::move(columnReader));
+        }
+        for (int keyColumnIndex = ChunkMeta_->ChunkSchema().GetKeyColumnCount(); keyColumnIndex < KeyColumns_.size(); ++keyColumnIndex) {
+            auto columnReader = CreateUnversionedNullColumnReader(
+                keyColumnIndex,
+                keyColumnIndex);
+
+            KeyColumnReaders_[keyColumnIndex] = columnReader.get();
+            ColumnReaders_.emplace_back(std::move(columnReader));
+        }
+
+        // Define columns to read.
+        std::vector<TColumnIdMapping> schemalessIdMapping;
+        schemalessIdMapping.resize(chunkNameTable->GetSize(), {-1, -1});
+
+        std::vector<int> schemaColumnIndexes;
+        bool readSchemalessColumns = false;
+        if (ColumnFilter_.All) {
+            for (int index = 0; index < ChunkMeta_->ChunkSchema().Columns().size(); ++index) {
+                schemaColumnIndexes.push_back(index);
+            }
+
+            for (
+                int chunkColumnId = ChunkMeta_->ChunkSchema().Columns().size();
+                chunkColumnId < chunkNameTable->GetSize();
+                ++chunkColumnId)
+            {
+                readSchemalessColumns = true;
+                schemalessIdMapping[chunkColumnId].ChunkSchemaIndex = chunkColumnId;
+                schemalessIdMapping[chunkColumnId].ReaderSchemaIndex = NameTable_->GetIdOrRegisterName(
+                    chunkNameTable->GetName(chunkColumnId));
+            }
+        } else {
+            auto filterIndexes = yhash_set<int>(ColumnFilter_.Indexes.begin(), ColumnFilter_.Indexes.end());
+            for (int chunkColumnId = 0; chunkColumnId < chunkNameTable->GetSize(); ++chunkColumnId) {
+                auto nameTableIndex = NameTable_->GetIdOrRegisterName(chunkNameTable->GetName(chunkColumnId));
+                if (filterIndexes.has(nameTableIndex)) {
+                    if (chunkColumnId < ChunkMeta_->ChunkSchema().Columns().size()) {
+                        schemaColumnIndexes.push_back(chunkColumnId);
+                    } else {
+                        readSchemalessColumns = true;
+                        schemalessIdMapping[chunkColumnId].ChunkSchemaIndex = chunkColumnId;
+                        schemalessIdMapping[chunkColumnId].ReaderSchemaIndex = nameTableIndex;
+
+                    }
+                }
+            }
+        }
+
+        // Create column readers.
+        for (int valueIndex = 0; valueIndex < schemaColumnIndexes.size(); ++valueIndex) {
+            auto columnIndex = schemaColumnIndexes[valueIndex];
+            if (columnIndex < ChunkMeta_->ChunkSchema().GetKeyColumnCount()) {
+                SchemaColumnReaders_.push_back(KeyColumnReaders_[columnIndex]);
+            } else {
+                auto columnReader = CreateUnversionedColumnReader(
+                    ChunkMeta_->ChunkSchema().Columns()[columnIndex],
+                    ChunkMeta_->ColumnMeta().columns(columnIndex),
+                    valueIndex,
+                    NameTable_->GetIdOrRegisterName(ChunkMeta_->ChunkSchema().Columns()[columnIndex].Name));
+
+                Columns_.emplace_back(columnReader.get(), columnIndex);
+                SchemaColumnReaders_.emplace_back(columnReader.get());
+                ColumnReaders_.emplace_back(std::move(columnReader));
+            }
+        }
+
+        if (readSchemalessColumns) {
+            SchemalessReader_ = CreateSchemalessColumnReader(
+                ChunkMeta_->ColumnMeta().columns(ChunkMeta_->ChunkSchema().Columns().size()),
+                schemalessIdMapping);
+
+            Columns_.emplace_back(
+                SchemalessReader_.get(),
+                ChunkMeta_->ChunkSchema().Columns().size());
+        }
+
+        Initialize();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     const TChunkSpec& chunkSpec,
     TChunkReaderConfigPtr config,
@@ -1176,7 +1476,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
         }
 
         case ETableChunkFormat::UnversionedColumnar:
-            return New<TColumnarSchemalessChunkReader>(
+            return New<TColumnarSchemalessRangeChunkReader>(
                 chunkSpec,
                 config,
                 options,
@@ -1226,6 +1526,19 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
                 keys,
                 std::move(performanceCounters),
                 std::move(partitionTag));
+
+        case ETableChunkFormat::UnversionedColumnar:
+            return New<TColumnarSchemalessLookupChunkReader>(
+                chunkSpec,
+                std::move(config),
+                std::move(options),
+                std::move(underlyingReader),
+                std::move(nameTable),
+                std::move(blockCache),
+                keyColumns,
+                columnFilter,
+                keys,
+                std::move(performanceCounters));
 
         default:
             THROW_ERROR_EXCEPTION(

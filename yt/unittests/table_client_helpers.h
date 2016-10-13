@@ -48,7 +48,7 @@ void CheckSchemalessResult(const std::vector<TRow>& expected, TIntrusivePtr<TRea
 
     while (reader->Read(&actual)) {
         if (actual.empty()) {
-            EXPECT_TRUE(reader->GetReadyEvent().Get().IsOK());
+            ASSERT_TRUE(reader->GetReadyEvent().Get().IsOK());
             continue;
         }
 

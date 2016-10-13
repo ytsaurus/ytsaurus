@@ -207,6 +207,7 @@ ISchemafulReaderPtr TOrderedChunkStore::CreateReader(
         std::move(chunkReader),
         std::move(blockCache),
         readSchema,
+        TKeyColumns(),
         *ChunkMeta_,
         {readRange});
 

@@ -280,5 +280,87 @@ bool TColumnarRangeChunkReaderBase::TryFetchNextRow()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TColumnarLookupChunkReaderBase::Initialize()
+{
+    RowIndexes_.reserve(Keys_.Size());
+    for (const auto& key : Keys_) {
+        RowIndexes_.push_back(GetLowerRowIndex(key));
+    }
+
+    for (auto& column : Columns_) {
+        for (auto rowIndex : RowIndexes_) {
+            if (rowIndex < ChunkMeta_->Misc().row_count()) {
+                const auto& columnMeta = ChunkMeta_->ColumnMeta().columns(column.ColumnMetaIndex);
+                auto segmentIndex = GetSegmentIndex(column, rowIndex);
+                const auto& segment = columnMeta.segments(segmentIndex);
+                column.BlockIndexSequence.push_back(segment.block_index());
+            } else {
+                // All keys left are outside boundary keys.
+                break;
+            }
+
+        }
+    }
+
+    InitBlockFetcher();
+    TryFetchNextRow();
+}
+
+void TColumnarLookupChunkReaderBase::InitBlockFetcher()
+{
+    std::vector<TBlockFetcher::TBlockInfo> blockInfos;
+    for (const auto& column : Columns_) {
+        int lastBlockIndex = -1;
+        for (auto blockIndex : column.BlockIndexSequence) {
+            if (blockIndex != lastBlockIndex) {
+                lastBlockIndex = blockIndex;
+                blockInfos.push_back(CreateBlockInfo(lastBlockIndex));
+            }
+        }
+    }
+
+    if (blockInfos.empty()) {
+        return;
+    }
+
+    BlockFetcher_ = New<TBlockFetcher>(
+        Config_,
+        std::move(blockInfos),
+        Semaphore_,
+        UnderlyingReader_,
+        BlockCache_,
+        NCompression::ECodec(ChunkMeta_->Misc().compression_codec()));
+}
+
+bool TColumnarLookupChunkReaderBase::TryFetchNextRow()
+{
+    if (RowIndexes_[NextKeyIndex_] >= ChunkMeta_->Misc().row_count()) {
+        return true;
+    }
+
+    std::vector<TFuture<void>> blockFetchResult;
+    PendingBlocks_.clear();
+    for (int i = 0; i < Columns_.size(); ++i) {
+        auto& column = Columns_[i];
+        if (column.ColumnReader->GetCurrentBlockIndex() != column.BlockIndexSequence[NextKeyIndex_]) {
+            while (PendingBlocks_.size() < i) {
+                PendingBlocks_.emplace_back();
+            }
+
+            column.PendingBlockIndex_ = column.BlockIndexSequence[NextKeyIndex_];
+            PendingBlocks_.push_back(BlockFetcher_->FetchBlock(column.PendingBlockIndex_));
+            blockFetchResult.push_back(PendingBlocks_.back().As<void>());
+        }
+    }
+
+    if (!blockFetchResult.empty()) {
+        ReadyEvent_ = Combine(blockFetchResult);
+    }
+
+    return PendingBlocks_.empty();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NTableClient
 } // namespace NYT

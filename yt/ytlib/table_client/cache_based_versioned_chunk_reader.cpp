@@ -592,6 +592,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
                 columnFilter,
                 timestamp);
 
+        case ETableChunkFormat::UnversionedColumnar:
         case ETableChunkFormat::VersionedColumnar: {
             auto underlyingReader = CreateCacheReader(
                 chunkState->ChunkMeta->GetChunkId(),
@@ -721,6 +722,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
                 columnFilter,
                 timestamp);
 
+        case ETableChunkFormat::UnversionedColumnar:
         case ETableChunkFormat::VersionedColumnar: {
             auto underlyingReader = CreateCacheReader(
                 chunkState->ChunkMeta->GetChunkId(),

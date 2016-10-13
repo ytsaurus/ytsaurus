@@ -44,6 +44,8 @@ using namespace NTableChunkFormat::NProto;
 using NChunkClient::TReadLimit;
 using NChunkClient::TReadRange;
 
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const i64 CacheSize = 32 * 1024;
@@ -1020,7 +1022,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TColumnarVersionedLookupChunkReader
-    : public TColumnarVersionedChunkReaderBase<TColumnarChunkReaderBase>
+    : public TColumnarVersionedChunkReaderBase<TColumnarLookupChunkReaderBase>
 {
 public:
     TColumnarVersionedLookupChunkReader(
@@ -1040,9 +1042,10 @@ public:
             columnFilter,
             std::move(performanceCounters),
             timestamp)
-        , Keys_(keys)
         , Pool_(TVersionedChunkReaderPoolTag())
     {
+        Keys_ = keys;
+
         int timestampReaderIndex = VersionedChunkMeta_->ColumnMeta().columns().size() - 1;
         TimestampReader_ = std::make_unique<TLookupTransactionTimestampReader>(
             VersionedChunkMeta_->ColumnMeta().columns(timestampReaderIndex),
@@ -1050,28 +1053,7 @@ public:
 
         Columns_.emplace_back(TimestampReader_.get(), timestampReaderIndex);
 
-        RowIndexes_.reserve(Keys_.Size());
-        for (const auto& key : Keys_) {
-            RowIndexes_.push_back(GetLowerRowIndex(key));
-        }
-
-        for (auto& column : Columns_) {
-            for (auto rowIndex : RowIndexes_) {
-                if (rowIndex < VersionedChunkMeta_->Misc().row_count()) {
-                    const auto& columnMeta = VersionedChunkMeta_->ColumnMeta().columns(column.ColumnMetaIndex);
-                    auto segmentIndex = GetSegmentIndex(column, rowIndex);
-                    const auto& segment = columnMeta.segments(segmentIndex);
-                    column.BlockIndexSequence.push_back(segment.block_index());
-                } else {
-                    // All keys left are outside boundary keys.
-                    break;
-                }
-
-            }
-        }
-
-        InitBlockFetcher();
-        TryFetchNextRow();
+        Initialize();
     }
 
     virtual bool Read(std::vector<TVersionedRow>* rows) override
@@ -1119,8 +1101,6 @@ public:
                 rows->push_back(TMutableVersionedRow());
             }
 
-            ++PerformanceCounters_->StaticChunkRowLookupTrueNegativeCount;
-
             if (++NextKeyIndex_ == Keys_.Size() || !TryFetchNextRow()) {
                 break;
             }
@@ -1131,68 +1111,9 @@ public:
     }
 
 private:
-    const TSharedRange<TKey> Keys_;
-    std::vector<i64> RowIndexes_;
-
-    i64 NextKeyIndex_ = 0;
-
     TChunkedMemoryPool Pool_;
 
     std::unique_ptr<TLookupTransactionTimestampReader> TimestampReader_;
-
-    void InitBlockFetcher()
-    {
-        std::vector<TBlockFetcher::TBlockInfo> blockInfos;
-        for (auto& column : Columns_) {
-            int lastBlockIndex = -1;
-            for (auto blockIndex : column.BlockIndexSequence) {
-                if (blockIndex != lastBlockIndex) {
-                    lastBlockIndex = blockIndex;
-                    blockInfos.push_back(CreateBlockInfo(lastBlockIndex));
-                }
-            }
-        }
-
-        if (blockInfos.empty()) {
-            return;
-        }
-
-        BlockFetcher_ = New<TBlockFetcher>(
-            Config_,
-            std::move(blockInfos),
-            Semaphore_,
-            UnderlyingReader_,
-            BlockCache_,
-            NCompression::ECodec(VersionedChunkMeta_->Misc().compression_codec()));
-    }
-
-    bool TryFetchNextRow()
-    {
-        if (RowIndexes_[NextKeyIndex_] >= VersionedChunkMeta_->Misc().row_count()) {
-            return true;
-        }
-
-        std::vector<TFuture<void>> blockFetchResult;
-        PendingBlocks_.clear();
-        for (int i = 0; i < Columns_.size(); ++i) {
-            auto& column = Columns_[i];
-            if (column.ColumnReader->GetCurrentBlockIndex() != column.BlockIndexSequence[NextKeyIndex_]) {
-                while (PendingBlocks_.size() < i) {
-                    PendingBlocks_.emplace_back();
-                }
-
-                column.PendingBlockIndex_ = column.BlockIndexSequence[NextKeyIndex_];
-                PendingBlocks_.push_back(BlockFetcher_->FetchBlock(column.PendingBlockIndex_));
-                blockFetchResult.push_back(PendingBlocks_.back().As<void>());
-            }
-        }
-
-        if (!blockFetchResult.empty()) {
-            ReadyEvent_ = Combine(blockFetchResult);
-        }
-
-        return PendingBlocks_.empty();
-    }
 
     TMutableVersionedRow ReadRow(i64 rowIndex)
     {
@@ -1314,6 +1235,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     timestamp);
             }
 
+        case ETableChunkFormat::UnversionedColumnar:
         case ETableChunkFormat::SchemalessHorizontal: {
             auto schemalessReaderFactory = [&] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) {
                 TChunkSpec chunkSpec;
@@ -1321,6 +1243,9 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 protoMeta->set_type(static_cast<int>(chunkMeta->GetChunkType()));
                 protoMeta->set_version(static_cast<int>(chunkMeta->GetChunkFormat()));
                 SetProtoExtension(protoMeta->mutable_extensions(), chunkMeta->Misc());
+                SetProtoExtension(protoMeta->mutable_extensions(), chunkMeta->BlockMeta());
+                SetProtoExtension(protoMeta->mutable_extensions(), chunkMeta->ColumnMeta());
+                SetProtoExtension(protoMeta->mutable_extensions(), ToProto<TTableSchemaExt>(chunkMeta->ChunkSchema()));
 
                 auto options = New<TTableReaderOptions>();
                 options->DynamicTable = true;
@@ -1388,6 +1313,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 std::move(performanceCounters),
                 timestamp);
 
+        case ETableChunkFormat::UnversionedColumnar:
         case ETableChunkFormat::SchemalessHorizontal: {
             auto schemalessReaderFactory = [&] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) {
                 TChunkSpec chunkSpec;
@@ -1395,7 +1321,10 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 protoMeta->set_type(static_cast<int>(chunkMeta->GetChunkType()));
                 protoMeta->set_version(static_cast<int>(chunkMeta->GetChunkFormat()));
                 SetProtoExtension(protoMeta->mutable_extensions(), chunkMeta->Misc());
-                
+                SetProtoExtension(protoMeta->mutable_extensions(), chunkMeta->BlockMeta());
+                SetProtoExtension(protoMeta->mutable_extensions(), chunkMeta->ColumnMeta());
+                SetProtoExtension(protoMeta->mutable_extensions(), ToProto<TTableSchemaExt>(chunkMeta->ChunkSchema()));
+
                 auto options = New<TTableReaderOptions>();
                 options->DynamicTable = true;
 

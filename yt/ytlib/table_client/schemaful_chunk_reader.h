@@ -20,7 +20,8 @@ ISchemafulReaderPtr CreateSchemafulChunkReader(
     TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,
     NChunkClient::IBlockCachePtr blockCache,
-    const TTableSchema& schema,
+    const TTableSchema& resultSchema,
+    const TKeyColumns& keyColumns,
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
     const NChunkClient::TReadRange& readRange,
     TTimestamp timestamp = NullTimestamp);
@@ -29,7 +30,8 @@ ISchemafulReaderPtr CreateSchemafulChunkReader(
     TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,
     NChunkClient::IBlockCachePtr blockCache,
-    const TTableSchema& schema,
+    const TTableSchema& resultSchema,
+    const TKeyColumns& keyColumns,
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
     const TSharedRange<TKey>& keys,
     TTimestamp timestamp = NullTimestamp);
