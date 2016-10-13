@@ -126,6 +126,7 @@ class YtParallelTestsRunnerPlugin(object):
             else:
                 print("Executor failures count limit exceeded ({0} > {1}). Test session was terminated."
                       .format(self.failures_count, PROCESS_FAILURES_LIMIT), file=sys.stderr)
+                self.group.terminate(timeout=3)
                 os._exit(66)
 
         else:
