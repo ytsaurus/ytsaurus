@@ -179,23 +179,27 @@ void RemoveDirContentAsRoot(const Stroka& path)
     std::vector<TError> attemptErrors;
     for (int attempt = 0; attempt < RemoveAsRootAttemptCount; ++attempt) {
         std::vector<TError> innerErrors;
-
-        TDirIterator dir(path);
-        for (auto it = dir.Begin(); it != dir.End(); ++it) {
-            try {
-                if (isRemovable(it)) {
-                    ::remove(it->fts_path);
+        {
+            TDirIterator dir(path);
+            for (auto it = dir.Begin(); it != dir.End(); ++it) {
+                try {
+                    if (isRemovable(it)) {
+                        ::remove(it->fts_path);
+                    }
+                } catch (const std::exception& ex) {
+                    innerErrors.push_back(TError("Failed to remove path %v", it->fts_path)
+                        << ex);
                 }
-            } catch (const std::exception& ex) {
-                innerErrors.push_back(TError("Failed to remove path %v", it->fts_path)
-                    << ex);
             }
         }
 
         std::vector<Stroka> unremovableItems;
-        for (auto it = dir.Begin(); it != dir.End(); ++it) {
-            if (isRemovable(it)) {
-                unremovableItems.push_back(it->fts_path);
+        {
+            TDirIterator dir(path);
+            for (auto it = dir.Begin(); it != dir.End(); ++it) {
+                if (isRemovable(it)) {
+                    unremovableItems.push_back(it->fts_path);
+                }
             }
         }
 
