@@ -1469,16 +1469,18 @@ class TestSortedDynamicTables(YTEnvSetup):
         assert not get("//tmp/t/@schema/@unique_keys")
         with pytest.raises(YtError): alter_table("//tmp/t", dynamic=True)
 
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     @pytest.mark.parametrize("in_memory_mode, enable_lookup_hash_table", [
         ["none", False],
         ["compressed", False],
         ["uncompressed", True]])
-    def test_mount_static_table(self, in_memory_mode, enable_lookup_hash_table):
+    def test_mount_static_table(self, in_memory_mode, enable_lookup_hash_table, optimize_for):
         self.sync_create_cells(1)
         create("table", "//tmp/t",
             attributes={
                 "dynamic": False,
                 "external": False,
+                "optimize_for": optimize_for,
                 "schema": make_schema([
                     {"name": "key", "type": "int64", "sort_order": "ascending"},
                     {"name": "value", "type": "string"},

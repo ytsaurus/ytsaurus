@@ -95,5 +95,23 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TColumnarLookupChunkReaderBase
+    : public TColumnarChunkReaderBase
+{
+public:
+    using TColumnarChunkReaderBase::TColumnarChunkReaderBase;
+
+protected:
+    TSharedRange<TKey> Keys_;
+    std::vector<i64> RowIndexes_;
+    i64 NextKeyIndex_ = 0;
+
+    void Initialize();
+    void InitBlockFetcher();
+    bool TryFetchNextRow();
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NTableClient
 } // namespace NYT

@@ -136,6 +136,7 @@ void TCachedVersionedChunkMeta::ValidateChunkMeta()
 
     if (ChunkFormat_ != ETableChunkFormat::VersionedSimple &&
         ChunkFormat_ != ETableChunkFormat::VersionedColumnar &&
+        ChunkFormat_ != ETableChunkFormat::UnversionedColumnar &&
         ChunkFormat_ != ETableChunkFormat::SchemalessHorizontal)
     {
         THROW_ERROR_EXCEPTION("Incorrect chunk format %Qlv",
