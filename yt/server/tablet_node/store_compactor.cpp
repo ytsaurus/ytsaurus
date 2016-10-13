@@ -261,11 +261,14 @@ private:
         const auto& storeManager = tablet->GetStoreManager();
         const auto& config = tablet->GetConfig();
 
+        // XXX(savrus) Disabled. Hotfix for YT-5828
+#if 0
         // Don't compact partitions (excluding Eden) whose data size exceeds the limit.
         // Let Partition Balancer do its job.
         if (!partition->IsEden() && partition->GetUncompressedDataSize() > config->MaxCompactionDataSize) {
             return std::vector<TSortedChunkStorePtr>();
         }
+#endif
 
         std::vector<TSortedChunkStorePtr> candidates;
         std::vector<TSortedChunkStorePtr> forcedCandidates;
