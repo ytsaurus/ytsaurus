@@ -409,6 +409,22 @@ public:
         }
     }
 
+    void SetDisableWriteSessions(TNode* node, bool value)
+    {
+        if (node->GetDisableWriteSessions() != value) {
+            node->SetDisableWriteSessions(value);
+            if (value) {
+                LOG_INFO_UNLESS(IsRecovery(), "Disabled write sessions on node (NodeId: %v, Address: %v)",
+                    node->GetId(),
+                    node->GetDefaultAddress());
+            } else {
+                LOG_INFO_UNLESS(IsRecovery(), "Enabled write sessions on node (NodeId: %v, Address: %v)",
+                    node->GetId(),
+                    node->GetDefaultAddress());
+            }
+        }
+    }
+
     void SetNodeRack(TNode* node, TRack* rack)
     {
         if (node->GetRack() != rack) {
@@ -807,6 +823,7 @@ private:
                 }
 
                 *response->mutable_resource_limits_overrides() = node->ResourceLimitsOverrides();
+                response->set_disable_scheduler_jobs(node->GetDisableSchedulerJobs());
             }
 
             IncrementalHeartbeat_.Fire(node, request, response);
@@ -1419,6 +1436,11 @@ void TNodeTracker::SetNodeBanned(TNode* node, bool value)
 void TNodeTracker::SetNodeDecommissioned(TNode* node, bool value)
 {
     Impl_->SetNodeDecommissioned(node, value);
+}
+
+void TNodeTracker::SetDisableWriteSessions(TNode* node, bool value)
+{
+    Impl_->SetDisableWriteSessions(node, value);
 }
 
 void TNodeTracker::SetNodeRack(TNode* node, TRack* rack)

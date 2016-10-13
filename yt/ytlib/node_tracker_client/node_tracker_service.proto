@@ -139,6 +139,7 @@ message TRspIncrementalHeartbeat
     // Node Tracker stuff.
     optional string rack = 6;
     optional TNodeResourceLimitsOverrides resource_limits_overrides = 7;
+    optional bool disable_scheduler_jobs = 8;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
