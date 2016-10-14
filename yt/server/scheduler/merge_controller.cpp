@@ -1216,6 +1216,12 @@ protected:
     {
         auto slices = ChunkSliceFetcher->GetChunkSlices();
         for (const auto& slice : slices) {
+            if (slice->LowerLimit().Key >= slice->UpperLimit().Key) {
+                // This can happen if ranges were specified. 
+                // Chunk slice fetcher can produce empty slices.
+                continue;
+            }
+
             TKeyEndpoint leftEndpoint;
             leftEndpoint.Type = EEndpointType::Left;
             leftEndpoint.ChunkSlice = slice;
