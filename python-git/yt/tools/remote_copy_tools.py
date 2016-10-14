@@ -178,6 +178,7 @@ def _set_tmpfs_settings(client, spec, files, yt_files=None, reserved_size=0):
         spec["mapper"] = {}
 
     spec["mapper"]["tmpfs_path"] = "."
+    spec["mapper"]["copy_files"] = True
 
     files_size = 0
     for file_ in files:
