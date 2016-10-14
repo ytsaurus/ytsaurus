@@ -85,11 +85,13 @@ def assert_almost_equal(actual, expected, decimal_places=4):
     return abs(actual - expected) < eps
 
 def get_open_port(port_locks_path=None):
-    local_port_range = list(imap(int, open("/proc/sys/net/ipv4/ip_local_port_range").read().split()))
+    local_port_range = None
+    if os.path.exists("/proc/sys/net/ipv4/ip_local_port_range"):
+        local_port_range = list(imap(int, open("/proc/sys/net/ipv4/ip_local_port_range").read().split()))
 
     for _ in xrange(GEN_PORT_ATTEMPTS):
         port = None
-        if local_port_range[0] - START_PORT > 1000:
+        if local_port_range is not None and local_port_range[0] - START_PORT > 1000:
             # Generate random port manually and check that it is free.
             port_value = random.randint(START_PORT, local_port_range[0] - 1)
             try:
