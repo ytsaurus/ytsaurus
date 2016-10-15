@@ -252,6 +252,29 @@ TEST_F(TTskvParserTest, Escaping)
     ParseDsv(input, &Mock, Config);
 }
 
+TEST_F(TTskvParserTest, DisabledEscaping)
+{
+    InSequence dummy;
+
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+    EXPECT_CALL(Mock, OnEndMap());
+
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("a\\"));
+        EXPECT_CALL(Mock, OnStringScalar("b\\t=c\\=d or e=f\\0"));
+    EXPECT_CALL(Mock, OnEndMap());
+
+    Stroka input =
+        "tskv\t\\x\\y\n"
+        "tskv" "\t" "a\\=b\\t"  "="  "c\\=d or e=f\\0" "\n";
+
+    Config->EnableEscaping = false;
+
+    ParseDsv(input, &Mock, Config);
+}
+
 TEST_F(TTskvParserTest, AllowedUnescapedSymbols)
 {
     Config->LinePrefix = "prefix_with_=";

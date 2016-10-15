@@ -110,7 +110,7 @@ const char* TDsvParser::Consume(const char* begin, const char* end)
         LastCharacter = *(end - 1);
     }
     // Process escaping symbols.
-    if (!ExpectingEscapedChar && *begin == Config->EscapingSymbol) {
+    if (Config->EnableEscaping && !ExpectingEscapedChar && *begin == Config->EscapingSymbol) {
         ExpectingEscapedChar = true;
         return begin + 1;
     }
@@ -125,7 +125,7 @@ const char* TDsvParser::Consume(const char* begin, const char* end)
         ? Table.KeyStops.FindNext(begin, end)
         : Table.ValueStops.FindNext(begin, end);
     CurrentToken.append(begin, next);
-    if (next == end || *next == Config->EscapingSymbol) {
+    if (next == end || (Config->EnableEscaping && *next == Config->EscapingSymbol)) {
         return next;
     }
 
