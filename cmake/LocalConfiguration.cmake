@@ -68,11 +68,11 @@ endif()
 # Initially take these flags either from environment or from special variable.
 
 set(CUSTOM_CMAKE_C_FLAGS
-  $ENV{CFLAGS} ${USER_CMAKE_C_FLAGS}
+  $ENV{CFLAGS} ${USER_CMAKE_C_FLAGS} ${CUSTOM_CMAKE_C_FLAGS}
   CACHE STRING "User-defined C compiler flags")
 
 set(CUSTOM_CMAKE_CXX_FLAGS
-  $ENV{CXXFLAGS} ${USER_CMAKE_CXX_FLAGS}
+  $ENV{CXXFLAGS} ${USER_CMAKE_CXX_FLAGS} ${CUSTOM_CMAKE_CXX_FLAGS}
   CACHE STRING "User-defined C++ compiler flags")
 
 # Now configure compiler options for g++ and clang.
@@ -133,10 +133,10 @@ if(_is_gcc)
   endif()
 
   set(CMAKE_C_FLAGS
-    "${CUSTOM_CMAKE_C_FLAGS} -fPIC ${DIAGNOSTIC_FLAGS} ${ARCH_FLAGS}"
+    "-fPIC ${DIAGNOSTIC_FLAGS} ${ARCH_FLAGS} ${CUSTOM_CMAKE_C_FLAGS}"
     CACHE STRING "(Auto-generated) C compiler flags" FORCE)
   set(CMAKE_CXX_FLAGS
-    "${CUSTOM_CMAKE_CXX_FLAGS} -std=c++1y -fPIC ${DIAGNOSTIC_FLAGS} ${ARCH_FLAGS}"
+    "-std=c++1y -fPIC ${DIAGNOSTIC_FLAGS} ${ARCH_FLAGS} ${CUSTOM_CMAKE_CXX_FLAGS}"
     CACHE STRING "(Auto-generated) C++ compiler flags" FORCE)
 
   # Use libc++ on Mac OS X.
