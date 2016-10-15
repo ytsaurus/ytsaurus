@@ -203,7 +203,7 @@ ISchemafulReaderPtr TOrderedChunkStore::CreateReader(
     }
 
     auto underlyingReader = CreateSchemafulChunkReader(
-        Config_->ChunkReader,
+        config,
         std::move(chunkReader),
         std::move(blockCache),
         readSchema,
