@@ -35,6 +35,7 @@ def main():
     parser.add_argument("--safe-age", type=int, default=10, help="Objects that younger than safe-age minutes will not be removed")
     parser.add_argument("--max-age", type=int, default=7, help="Objects that older than max-age days will be removed")
     parser.add_argument("--do-not-remove-objects-with-other-account", action="store_true", default=False, help="By default all objects in directory will be removed")
+    parser.add_argument("--do-not-remove-objects-with-locks", action="store_true", default=False, help="Do not remove objects with any locks on them")
     args = parser.parse_args()
 
     safe_age = timedelta(minutes=args.safe_age)
@@ -49,22 +50,31 @@ def main():
     if args.max_node_count is None:
         args.max_node_count = yt.get("//sys/accounts/{0}/@resource_limits/node_count".format(args.account)) / 2
 
-    # collect links
-    links = list(yt.search(args.directory, node_type="link"))
-
-    # collect dirs
-    dirs = list(yt.search(args.directory, object_filter=lambda obj: obj.attributes["type"] in ["map_node", "list_node"], attributes=["modification_time", "count", "type"]))
+    # collect aux objects
+    dirs = []
+    links = set()
+    aux_objects = yt.search(args.directory,
+                            object_filter=lambda obj: obj.attributes["type"] in ["list", "map_node", "list_node"],
+                            attributes=["modification_time", "count", "type"])
+    for obj in aux_objects:
+        if obj.attributes["type"] == "link":
+            links.add(str(obj))
+        else: #dir case
+            dirs.append(obj)
     dir_sizes = dict((str(obj), obj.attributes["count"]) for obj in dirs)
+
+    object_to_attributes = {}
 
     # collect table and files
     objects = []
     for obj in yt.search(args.directory,
                          node_type=["table", "file", "link"],
-                         attributes=["access_time", "modification_time", "locks", "hash", "resource_usage", "account"]):
+                         attributes=["access_time", "modification_time", "locks", "hash", "resource_usage", "account", "type", "target_path"]):
         if is_locked(obj):
             continue
         if args.do_not_remove_objects_with_other_account and obj.attributes.get("account") != args.account:
             continue
+        object_to_attributes[str(obj)] = obj.attributes
         objects.append((get_age(obj), obj))
     objects.sort()
 
@@ -82,6 +92,15 @@ def main():
     for age, obj in objects:
         node_count += 1
         disk_space += int(obj.attributes["resource_usage"]["disk_space"])
+        # filter by locks
+        if args.do_not_remove_objects_with_locks:
+            if obj.attributes["locks"]:
+                continue
+            if obj.attributes["type"] == "link":
+                target_path = obj.attributes["target_path"]
+                if target_path in object_to_attributes and object_to_attributes[target_path]["locks"]:
+                    continue
+
         # filter object by age, total size and count
         if (age > max_age or disk_space > args.max_disk_space or node_count > args.max_node_count or chunk_count > args.max_chunk_count) and age > safe_age:
             if "hash" in obj.attributes:
