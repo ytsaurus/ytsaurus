@@ -607,6 +607,20 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         merge(in_=["//tmp/input_weak", "//tmp/input_loose"], out="//tmp/output_loose")
 
+        create("table", "//tmp/output_sorted", 
+            attributes={
+                "optimize_for" : optimize_for, 
+                "schema" : make_schema([{"name" : "key", "type" : "int64", "sort_order" : "ascending"}], strict=False)})
+
+        with pytest.raises(YtError):
+            # cannot do unordered merge to sorted output
+            merge(in_="//tmp/input_loose", out="//tmp/output_sorted")
+
+        with pytest.raises(YtError):
+            # even in user insists
+            merge(in_="//tmp/input_loose", out="//tmp/output_sorted", spec={"schema_inference_mode" : "from_output"})
+
+
     def test_auto_schema_inference_ordered(self):
         output_schema = make_schema([{"name" : "key", "type" : "int64"}, {"name" : "value", "type" : "string"}])
         good_schema = make_schema([{"name" : "key", "type" : "int64"}])
