@@ -75,10 +75,14 @@ private:
     TOwningKey MinKey_;
     TOwningKey MaxKey_;
 
-    NTableClient::TCacheBasedChunkStatePtr ChunkState_;
-    NTableClient::TKeyComparer KeyComparer_;
+    NTableClient::TCachedVersionedChunkMetaPtr CachedVersionedChunkMeta_;
+
+    TPreloadedBlockCachePtr PreloadedBlockCache_;
 
     EInMemoryMode InMemoryMode_ = EInMemoryMode::None;
+
+    const NTableClient::TKeyComparer KeyComparer_;
+
 
     NTableClient::IVersionedReaderPtr CreateCacheBasedReader(
         const TSharedRange<TKey>& keys,
