@@ -328,7 +328,7 @@ public:
     EMissingSchemafulDsvValueMode MissingValueMode;
     Stroka MissingValueSentinel;
 
-    bool EnableColumnNamesHeader;
+    TNullable<bool> EnableColumnNamesHeader;
 
     const std::vector<Stroka>& GetColumnsOrThrow() const
     {
@@ -363,7 +363,7 @@ public:
             .Default("");
 
         RegisterParameter("enable_column_names_header", EnableColumnNamesHeader)
-            .Default(false);
+            .Default();
 
         RegisterValidator([&] () {
             if (Columns) {

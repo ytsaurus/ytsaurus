@@ -50,7 +50,7 @@ protected:
 
     void WriteColumnNamesHeader()
     {
-        if (Config_->EnableColumnNamesHeader) {
+        if (Config_->EnableColumnNamesHeader && *Config_->EnableColumnNamesHeader) {
             auto columns = Config_->Columns.Get();
             for (size_t index = 0; index < columns.size(); ++index) {
                 WriteRaw(columns[index]);
