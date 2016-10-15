@@ -72,7 +72,16 @@ class YtTestEnvironment(object):
                         "max_trash_ttl": 2000
                     }
                 ]
-            }
+            },
+            "cluster_connection": {
+                # Disable cache
+                "table_mount_cache": {
+                    "expire_after_successful_update_time": 0,
+                    "expire_after_failed_update_time": 0,
+                    "expire_after_access_time": 0,
+                    "refresh_time": 0
+                }
+            },
         }
         delta_scheduler_config = {
             "scheduler" : {
