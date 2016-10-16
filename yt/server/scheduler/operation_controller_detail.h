@@ -159,12 +159,12 @@ protected:
 
     TSchedulerConfigPtr Config;
     IOperationHost* Host;
-    TOperation* Operation;
 
     const TOperationId OperationId;
 
-    TInstant StartTime;
-    Stroka AuthenticatedUser;
+    const EOperationType OperationType;
+    const TInstant StartTime;
+    const Stroka AuthenticatedUser;
 
     NApi::IClientPtr AuthenticatedMasterClient;
     NApi::IClientPtr AuthenticatedInputMasterClient;
@@ -202,7 +202,7 @@ protected:
     // Maps node ids to descriptors for job auxiliary chunks.
     NNodeTrackerClient::TNodeDirectoryPtr AuxNodeDirectory;
 
-    NObjectClient::TTransactionId UserTransactionId;
+    const NObjectClient::TTransactionId UserTransactionId;
 
     NApi::ITransactionPtr SyncSchedulerTransaction;
     NApi::ITransactionPtr AsyncSchedulerTransaction;
@@ -214,7 +214,7 @@ protected:
     struct TRowBufferTag { };
     const NTableClient::TRowBufferPtr RowBuffer = New<NTableClient::TRowBuffer>(TRowBufferTag());
 
-    NYTree::IMapNodePtr SecureVault;
+    const NYTree::IMapNodePtr SecureVault;
 
 
     struct TLivePreviewTableBase
@@ -696,7 +696,6 @@ protected:
 
     void PickIntermediateDataCell();
     void InitChunkListPool();
-    void InitSecureVault();
 
     // Initialize transactions
     void StartAsyncSchedulerTransaction();

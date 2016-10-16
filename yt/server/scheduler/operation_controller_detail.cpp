@@ -948,10 +948,10 @@ TOperationControllerBase::TOperationControllerBase(
     TOperation* operation)
     : Config(config)
     , Host(host)
-    , Operation(operation)
-    , OperationId(Operation->GetId())
-    , StartTime(Operation->GetStartTime())
-    , AuthenticatedUser(Operation->GetAuthenticatedUser())
+    , OperationId(operation->GetId())
+    , OperationType(operation->GetType())
+    , StartTime(operation->GetStartTime())
+    , AuthenticatedUser(operation->GetAuthenticatedUser())
     , AuthenticatedMasterClient(CreateClient())
     , AuthenticatedInputMasterClient(AuthenticatedMasterClient)
     , AuthenticatedOutputMasterClient(AuthenticatedMasterClient)
@@ -962,7 +962,8 @@ TOperationControllerBase::TOperationControllerBase(
     , SuspendableInvoker(CreateSuspendableInvoker(Invoker))
     , CancelableInvoker(CancelableContext->CreateInvoker(SuspendableInvoker))
     , JobCounter(0)
-    , UserTransactionId(Operation->GetUserTransaction() ? Operation->GetUserTransaction()->GetId() : NullTransactionId)
+    , UserTransactionId(operation->GetUserTransaction() ? operation->GetUserTransaction()->GetId() : NullTransactionId)
+    , SecureVault(operation->GetSecureVault())
     , Spec(spec)
     , Options(options)
     , CachedNeededResources(ZeroJobResources())
@@ -1230,7 +1231,6 @@ void TOperationControllerBase::Materialize()
 
         PickIntermediateDataCell();
         InitChunkListPool();
-        InitSecureVault();
 
         CreateLivePreviewTables();
 
@@ -1305,7 +1305,6 @@ void TOperationControllerBase::Revive()
     }
 
     InitChunkListPool();
-    InitSecureVault();
 
     DoLoadSnapshot(Snapshot);
     Snapshot = TSharedRef();
@@ -1427,12 +1426,6 @@ void TOperationControllerBase::InitChunkListPool()
     for (const auto& table : OutputTables) {
         ++CellTagToOutputTableCount[table.CellTag];
     }
-}
-
-void TOperationControllerBase::InitSecureVault()
-{
-    // NB: SecureVault is being used in InitUserJobSpec, where no access to Operation is possible.
-    SecureVault = Operation->GetSecureVault();
 }
 
 void TOperationControllerBase::InitInputChunkScraper()
@@ -2785,7 +2778,7 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
 
     State = EControllerState::Finished;
 
-    Host->OnOperationCompleted(Operation);
+    Host->OnOperationCompleted(OperationId);
 }
 
 void TOperationControllerBase::OnOperationFailed(const TError& error)
@@ -2799,7 +2792,7 @@ void TOperationControllerBase::OnOperationFailed(const TError& error)
 
     State = EControllerState::Finished;
 
-    Host->OnOperationFailed(Operation, error);
+    Host->OnOperationFailed(OperationId, error);
 }
 
 bool TOperationControllerBase::IsPrepared() const
@@ -4159,7 +4152,7 @@ TNullable<TYsonString> TOperationControllerBase::BuildInputPathYson(const TJobId
     return BuildInputPaths(
         GetInputTablePaths(),
         joblet->InputStripeList,
-        Operation->GetType(),
+        OperationType,
         joblet->JobType);
 }
 

@@ -1800,7 +1800,7 @@ protected:
     {
         TOperationControllerBase::CustomPrepare();
 
-        auto user = Operation->GetAuthenticatedUser();
+        auto user = AuthenticatedUser;
         auto account = Spec->IntermediateDataAccount;
 
         auto client = Host->GetMasterClient();

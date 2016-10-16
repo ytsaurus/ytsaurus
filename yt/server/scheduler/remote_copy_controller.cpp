@@ -277,7 +277,7 @@ private:
     virtual void InitializeConnections() override
     {
         TClientOptions options;
-        options.User = Operation->GetAuthenticatedUser();
+        options.User = AuthenticatedUser;
 
         if (Spec_->ClusterConnection) {
             auto connection = NApi::CreateConnection(*Spec_->ClusterConnection);
