@@ -33,11 +33,13 @@ class TGetJobStderrCommand
     : public TTypedCommand<NApi::TGetJobStderrOptions>
 {
 private:
+    NJobTrackerClient::TOperationId OperationId;
     NJobTrackerClient::TJobId JobId;
 
 public:
     TGetJobStderrCommand()
     {
+        RegisterParameter("operation_id", OperationId);
         RegisterParameter("job_id", JobId);
     }
 
