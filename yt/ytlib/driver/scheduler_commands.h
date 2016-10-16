@@ -34,7 +34,6 @@ class TGetJobStderrCommand
 {
 private:
     NJobTrackerClient::TJobId JobId;
-    NYPath::TYPath Path;
 
 public:
     TGetJobStderrCommand()

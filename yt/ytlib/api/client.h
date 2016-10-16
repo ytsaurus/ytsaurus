@@ -713,7 +713,6 @@ struct IClient
 
     virtual TFuture<Stroka> GetJobStderr(
         const NJobTrackerClient::TJobId& jobId,
-        const NYPath::TYPath& path,
         const TGetJobStderrOptions& options = TGetJobStderrOptions()) = 0;
 
     virtual TFuture<NYson::TYsonString> StraceJob(

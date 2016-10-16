@@ -1407,9 +1407,8 @@ public:
         (jobId, path, options))
     IMPLEMENT_METHOD(Stroka, GetJobStderr, (
         const TJobId& jobId,
-        const TYPath& path,
         const TGetJobStderrOptions& options),
-        (jobId, path, options))
+        (jobId, options))
     IMPLEMENT_METHOD(TYsonString, StraceJob, (
         const TJobId& jobId,
         const TStraceJobOptions& options),
@@ -2796,7 +2795,6 @@ private:
 
     Stroka DoGetJobStderr(
         const TJobId& jobId,
-        const TYPath& path,
         const TGetJobStderrOptions& /*options*/)
     {
         NNodeTrackerClient::TNodeDescriptor jobNodeDescriptor;
