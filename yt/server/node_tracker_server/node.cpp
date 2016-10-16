@@ -43,22 +43,8 @@ void TNode::TTabletSlot::Persist(NCellMaster::TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNode::TNode(
-    const TObjectId& objectId,
-    const TAddressMap& addresses)
-    : TObjectBase(objectId)
-    , Addresses_(addresses)
-{
-    Init();
-}
-
 TNode::TNode(const TObjectId& objectId)
     : TObjectBase(objectId)
-{
-    Init();
-}
-
-void TNode::Init()
 {
     VisitMark_ = 0;
     IOWeight_ = 0.0;
