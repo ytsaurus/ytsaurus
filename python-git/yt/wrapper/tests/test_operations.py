@@ -628,7 +628,7 @@ print(op.id)
 
         yt.run_map_reduce(mapper=None, reduce_combiner="cat", reducer="cat", reduce_by=["x"],
                           source_table=table, destination_table=output_table)
-        check([{"x": 1}, {"y": 2}], sorted(list(yt.read_table(table))))
+        check([{"x": 1}, {"y": 2}], list(yt.read_table(table)))
 
     def test_reduce_differently_sorted_table(self):
         table = TEST_DIR + "/table"
@@ -654,7 +654,7 @@ print(op.id)
         yt.run_map(foo, table, table,
                    input_format=yt.create_format("<key_column_names=[\"y\"]>yamred_dsv"),
                    output_format=yt.YamrFormat(has_subkey=False, lenval=False))
-        check([{"key": "2", "value": "x=1"}], sorted(list(yt.read_table(table))))
+        check([{"key": "2", "value": "x=1"}], list(yt.read_table(table)))
 
     def test_schemaful_dsv(self):
         def foo(rec):
@@ -725,7 +725,7 @@ print(op.id)
         yt.write_table(table, [{"x": 1, "y": 2}, {"x": 0, "y": 3}, {"x": 1, "y": 4}])
         yt.run_sort(table, sort_by=["x"])
         yt.run_reduce(AggregateReducer(), table, other_table, reduce_by=["x"])
-        assert [{"sum": 1}, {"sum": 2}, {"sum": 9}] == sorted(yt.read_table(other_table))
+        check([{"sum": 1}, {"sum": 2}, {"sum": 9}], list(yt.read_table(other_table)))
 
     @add_failed_operation_stderrs_to_error_message
     def test_create_modules_archive(self):
@@ -912,14 +912,11 @@ if __name__ == "__main__":
 
         yt.run_map(mapper, [tableA, tableB], outputTable, format=yt.YsonFormat(), spec={"job_io": {"control_attributes": {"enable_row_index": True}}, "ordered": True})
 
-        result = sorted(list(yt.read_table(outputTable, raw=False, format=yt.YsonFormat(process_table_index=False))),
-                        key=lambda item: (item["table_index"], item["row_index"]))
+        result = list(yt.read_table(outputTable, raw=False, format=yt.YsonFormat(process_table_index=False)))
 
-        assert [
-            {"table_index": 0, "row_index": 0, "x": 1},
-            {"table_index": 0, "row_index": 1, "y": 1},
-            {"table_index": 1, "row_index": 0, "x": 2},
-        ] == result
+        check([{"table_index": 0, "row_index": 0, "x": 1},
+               {"table_index": 0, "row_index": 1, "y": 1},
+               {"table_index": 1, "row_index": 0, "x": 2}], result)
 
     def test_reduce_sort_by(self):
         table = TEST_DIR + "/table"
