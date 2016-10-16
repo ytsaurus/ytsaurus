@@ -213,6 +213,8 @@ protected:
     struct TRowBufferTag { };
     const NTableClient::TRowBufferPtr RowBuffer = New<NTableClient::TRowBuffer>(TRowBufferTag());
 
+    NYTree::IMapNodePtr SecureVault;
+
 
     struct TLivePreviewTableBase
     {
@@ -692,6 +694,7 @@ protected:
 
     void PickIntermediateDataCell();
     void InitChunkListPool();
+    void InitSecureVault();
 
     // Initialize transactions
     void StartAsyncSchedulerTransaction();
