@@ -52,7 +52,6 @@ DECLARE_REFCOUNTED_CLASS(TNodeDirectory)
 DECLARE_REFCOUNTED_STRUCT(INodeChannelFactory)
 
 extern const Stroka DefaultNetworkName;
-extern const Stroka InterconnectNetworkName;
 extern const TNetworkPreferenceList DefaultNetworkPreferences;
 
 DEFINE_ENUM(EErrorCode,
