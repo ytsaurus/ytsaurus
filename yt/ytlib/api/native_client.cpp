@@ -44,6 +44,7 @@
 #include <yt/ytlib/query_client/query_statistics.h>
 #include <yt/ytlib/query_client/functions_cache.h>
 
+#include <yt/ytlib/scheduler/helpers.h>
 #include <yt/ytlib/scheduler/job_prober_service_proxy.h>
 #include <yt/ytlib/scheduler/scheduler_service_proxy.h>
 
@@ -1454,10 +1455,11 @@ public:
         const TYPath& path,
         const TDumpJobContextOptions& options),
         (jobId, path, options))
-    IMPLEMENT_METHOD(Stroka, GetJobStderr, (
+    IMPLEMENT_METHOD(TSharedRef, GetJobStderr, (
+        const TOperationId& operationId,
         const TJobId& jobId,
         const TGetJobStderrOptions& options),
-        (jobId, options))
+        (operationId, jobId, options))
     IMPLEMENT_METHOD(TYsonString, StraceJob, (
         const TJobId& jobId,
         const TStraceJobOptions& options),
@@ -2915,31 +2917,147 @@ private:
             .ThrowOnError();
     }
 
-    Stroka DoGetJobStderr(
+    TSharedRef DoGetJobStderr(
+        const TOperationId& operationId,
         const TJobId& jobId,
         const TGetJobStderrOptions& /*options*/)
     {
-        NNodeTrackerClient::TNodeDescriptor jobNodeDescriptor;
-        {
-            auto req = JobProberProxy_->GetJobNode();
+        try {
+            NNodeTrackerClient::TNodeDescriptor jobNodeDescriptor;
+            {
+                auto req = JobProberProxy_->GetJobNode();
+                ToProto(req->mutable_job_id(), jobId);
+                auto rsp = WaitFor(req->Invoke())
+                    .ValueOrThrow();
+                FromProto(&jobNodeDescriptor, rsp->node_descriptor());
+            }
+
+            auto nodeChannel = GetHeavyChannelFactory()->CreateChannel(jobNodeDescriptor);
+            NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(nodeChannel);
+
+            auto req = jobProberServiceProxy.GetStderr();
             ToProto(req->mutable_job_id(), jobId);
             auto rsp = WaitFor(req->Invoke())
                 .ValueOrThrow();
-            FromProto(&jobNodeDescriptor, rsp->node_descriptor());
+            return TSharedRef::FromString(rsp->stderr_data());
+        } catch (const TErrorException& exception) {
+            auto matchedError = exception.Error().FindMatching(NScheduler::EErrorCode::NoSuchJob);
+
+            if (!matchedError) {
+                THROW_ERROR_EXCEPTION("Failed to get job stderr from job proxy")
+                    << TErrorAttribute("operation_id", operationId)
+                    << TErrorAttribute("job_id", jobId)
+                    << exception.Error();
+            }
         }
 
-        LOG_INFO("Got job node (JobId: %v, Node: %v)",
-            jobId,
-            jobNodeDescriptor.GetDefaultAddress());
+        try {
+            auto path = NScheduler::GetStderrPath(operationId, jobId);
 
-        auto nodeChannel = GetHeavyChannelFactory()->CreateChannel(jobNodeDescriptor);
-        NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(nodeChannel);
+            std::vector<TSharedRef> blocks;
+            auto fileReader = static_cast<IClientBase*>(this)->CreateFileReader(path);
+            WaitFor(fileReader->Open())
+                .ThrowOnError();
 
-        auto req = jobProberServiceProxy.GetStderr();
-        ToProto(req->mutable_job_id(), jobId);
-        auto rsp = WaitFor(req->Invoke())
-            .ValueOrThrow();
-        return rsp->stderr_data();
+            while (true) {
+                auto block = WaitFor(fileReader->Read())
+                    .ValueOrThrow();
+
+                if (!block) {
+                    break;
+                }
+
+                blocks.push_back(std::move(block));
+            }
+
+            i64 size = GetByteSize(blocks);
+            YCHECK(size);
+            auto stderrFile = TSharedMutableRef::Allocate(size);
+            auto memoryOutput = TMemoryOutput(stderrFile.Begin(), size);
+
+            for (const auto& block : blocks) {
+                memoryOutput.Write(block.Begin(), block.Size());
+            }
+
+            return stderrFile;
+        } catch (const TErrorException& exception) {
+            auto matchedError = exception.Error().FindMatching(NYTree::EErrorCode::ResolveError);
+
+            if (!matchedError) {
+                THROW_ERROR_EXCEPTION("Failed to get job stderr from Cypress")
+                    << TErrorAttribute("operation_id", operationId)
+                    << TErrorAttribute("job_id", jobId)
+                    << exception.Error();
+            }
+        }
+
+        try {
+            auto nameTable = New<TNameTable>();
+
+            struct TStderrArchiveIds
+            {
+                explicit TStderrArchiveIds(const TNameTablePtr& nameTable)
+                    : OperationIdHi(nameTable->RegisterName("operation_id_hi"))
+                    , OperationIdLo(nameTable->RegisterName("operation_id_lo"))
+                    , JobIdHi(nameTable->RegisterName("job_id_hi"))
+                    , JobIdLo(nameTable->RegisterName("job_id_lo"))
+                    , Stderr(nameTable->RegisterName("stderr"))
+                { }
+
+                const int OperationIdHi;
+                const int OperationIdLo;
+                const int JobIdHi;
+                const int JobIdLo;
+                const int Stderr;
+            };
+
+            TStderrArchiveIds ids(nameTable);
+
+            auto rowBuffer = New<TRowBuffer>();
+
+            std::vector<TUnversionedRow> keys;
+            auto key = rowBuffer->Allocate(4);
+            key[0] = MakeUnversionedUint64Value(operationId.Parts64[0], ids.OperationIdHi);
+            key[1] = MakeUnversionedUint64Value(operationId.Parts64[1], ids.OperationIdLo);
+            key[2] = MakeUnversionedUint64Value(jobId.Parts64[0], ids.JobIdHi);
+            key[3] = MakeUnversionedUint64Value(jobId.Parts64[1], ids.JobIdLo);
+            keys.push_back(key);
+
+            TLookupRowsOptions lookupOptions;
+            lookupOptions.ColumnFilter = NTableClient::TColumnFilter({ids.Stderr});
+            lookupOptions.KeepMissingRows = true;
+
+            auto rowset = WaitFor(LookupRows(
+                "//sys/operations_archive/stderrs",
+                nameTable,
+                MakeSharedRange(keys, rowBuffer),
+                lookupOptions))
+                .ValueOrThrow();
+
+            const auto& rows = rowset->Rows();
+
+            YCHECK(!rows.empty());
+
+            if (rows[0]) {
+                auto value = rows[0][0];
+
+                YCHECK(value.Type == EValueType::String);
+                return TSharedRef::MakeCopy<char>(TRef(value.Data.String, value.Length));
+            }
+        } catch (const TErrorException& exception) {
+            auto matchedError = exception.Error().FindMatching(NYTree::EErrorCode::ResolveError);
+
+            if (!matchedError) {
+                THROW_ERROR_EXCEPTION("Failed to get job stderr from archive")
+                    << TErrorAttribute("operation_id", operationId)
+                    << TErrorAttribute("job_id", jobId)
+                    << exception.Error();
+            }
+        }
+
+        THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::NoSuchJob, "Job stderr is not found")
+            << TErrorAttribute("operation_id", operationId)
+            << TErrorAttribute("job_id", jobId);
     }
 
     TYsonString DoStraceJob(

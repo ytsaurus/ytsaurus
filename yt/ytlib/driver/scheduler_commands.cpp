@@ -27,11 +27,11 @@ void TDumpJobContextCommand::Execute(ICommandContextPtr context)
 
 void TGetJobStderrCommand::Execute(ICommandContextPtr context)
 {
-    auto result = WaitFor(context->GetClient()->GetJobStderr(JobId, Options))
+    auto result = WaitFor(context->GetClient()->GetJobStderr(OperationId, JobId, Options))
         .ValueOrThrow();
 
     auto output = context->Request().OutputStream;
-    output->Write(TSharedRef::FromString(result));
+    output->Write(result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
