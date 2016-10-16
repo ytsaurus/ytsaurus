@@ -1059,6 +1059,8 @@ private:
         YCHECK(node->RefObject() == 1);
 
         InitializeNodeStates(node);
+
+        node->SetAddresses(addresses);
         InsertToAddressMaps(node);
 
         auto objectManager = Bootstrap_->GetObjectManager();
