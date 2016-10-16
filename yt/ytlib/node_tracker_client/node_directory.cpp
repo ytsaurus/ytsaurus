@@ -49,11 +49,6 @@ const Stroka& TNodeDescriptor::GetDefaultAddress() const
     return IsNull() ? NullAddress : NNodeTrackerClient::GetDefaultAddress(Addresses_);
 }
 
-const Stroka& TNodeDescriptor::GetInterconnectAddress() const
-{
-    return IsNull() ? NullAddress : NNodeTrackerClient::GetInterconnectAddress(Addresses_);
-}
-
 const Stroka& TNodeDescriptor::GetAddress(const TNetworkPreferenceList& networks) const
 {
     return NNodeTrackerClient::GetAddress(Addresses(), networks);
@@ -91,12 +86,6 @@ const Stroka& GetDefaultAddress(const TAddressMap& addresses)
     auto it = addresses.find(DefaultNetworkName);
     YCHECK(it != addresses.end());
     return it->second;
-}
-
-const Stroka& GetInterconnectAddress(const TAddressMap& addresses)
-{
-    auto it = addresses.find(InterconnectNetworkName);
-    return it == addresses.end() ? GetDefaultAddress(addresses) : it->second;
 }
 
 EAddressLocality ComputeAddressLocality(const TNodeDescriptor& first, const TNodeDescriptor& second)
