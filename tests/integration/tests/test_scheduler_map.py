@@ -14,6 +14,14 @@ from collections import defaultdict
 
 ##################################################################
 
+def id_to_parts(id):
+    id_parts = id.split("-")
+    id_hi = long(id_parts[2], 16) << 32 | int(id_parts[3], 16)
+    id_lo = long(id_parts[0], 16) << 32 | int(id_parts[1], 16)
+    return id_hi, id_lo
+
+##################################################################
+
 def get_statistics(statistics, complex_key):
     result = statistics
     for part in complex_key.split("."):
@@ -916,7 +924,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert get("//tmp/input_context/@description/type") == "input_context"
         assert JsonFormat(process_table_index=True).loads_row(context)["foo"] == "bar"
 
-
     def test_get_job_stderr(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -937,11 +944,50 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 }
             })
 
-        res = get_job_stderr(op.jobs[0])
+        job_id = op.jobs[0]
+        res = get_job_stderr(op.id, job_id)
         assert res == "STDERR-OUTPUT\n"
         op.resume_jobs()
         op.track()
+        res = get_job_stderr(op.id, job_id)
+        assert res == "STDERR-OUTPUT\n"
 
+        stderrs_archive_path = "//sys/operations_archive/stderrs"
+
+        self.sync_create_cells(1)
+        create("table", stderrs_archive_path,
+            attributes={
+                "dynamic": True,
+                "optimize_for" : "scan",
+                "schema": [
+                    {"name": "operation_id_hi", "type": "uint64", "sort_order": "ascending"},
+                    {"name": "operation_id_lo", "type": "uint64", "sort_order": "ascending"},
+                    {"name": "job_id_hi", "type": "uint64", "sort_order": "ascending"},
+                    {"name": "job_id_lo", "type": "uint64", "sort_order": "ascending"},
+                    {"name": "stderr", "type": "string"}]
+            },
+            recursive=True)
+
+        self.sync_mount_table(stderrs_archive_path)
+
+        op_id_hi, op_id_lo = id_to_parts(op.id)
+        id_hi, id_lo = id_to_parts(job_id)
+
+        row = {}
+        row["operation_id_hi"] = yson.YsonUint64(op_id_hi)
+        row["operation_id_lo"] = yson.YsonUint64(op_id_lo)
+        row["job_id_hi"] = yson.YsonUint64(id_hi)
+        row["job_id_lo"] = yson.YsonUint64(id_lo)
+        row["stderr"] =  res
+
+        insert_rows(stderrs_archive_path, [row])
+
+        remove("//sys/operations/{}".format(op.id))
+
+        res = get_job_stderr(op.id, job_id)
+        assert res == "STDERR-OUTPUT\n"
+        self.sync_unmount_table(stderrs_archive_path)
+        remove(stderrs_archive_path)
 
     @unix_only
     def test_sorted_output(self):

@@ -711,7 +711,8 @@ struct IClient
         const NYPath::TYPath& path,
         const TDumpJobContextOptions& options = TDumpJobContextOptions()) = 0;
 
-    virtual TFuture<Stroka> GetJobStderr(
+    virtual TFuture<TSharedRef> GetJobStderr(
+        const NJobTrackerClient::TOperationId& operationId,
         const NJobTrackerClient::TJobId& jobId,
         const TGetJobStderrOptions& options = TGetJobStderrOptions()) = 0;
 
