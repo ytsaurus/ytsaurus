@@ -121,9 +121,6 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TTabletSlotList, TabletSlots);
 
 public:
-    TNode(
-        const NObjectServer::TObjectId& objectId,
-        const TAddressMap& addresses);
     explicit TNode(const NObjectServer::TObjectId& objectId);
 
     TNodeId GetId() const;
@@ -214,8 +211,6 @@ private:
 
     ENodeState* LocalStatePtr_;
     ENodeState AggregatedState_;
-
-    void Init();
 
     void RecomputeAggregatedState();
 

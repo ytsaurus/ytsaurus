@@ -14,6 +14,8 @@
 #include <yt/server/security_server/group.h>
 #include <yt/server/security_server/security_manager.h>
 
+#include <yt/server/transaction_server/transaction_manager.h>
+
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -21,9 +23,10 @@
 
 #include <yt/ytlib/object_client/helpers.h>
 #include <yt/ytlib/object_client/master_ypath_proxy.h>
-#include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/ytlib/transaction_client/transaction_ypath.pb.h>
+
+#include <yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
@@ -35,8 +38,6 @@
 
 #include <yt/core/ytree/ypath_client.h>
 #include <yt/core/ytree/ypath_proxy.h>
-
-#include <yt/server/transaction_server/transaction_manager.h>
 
 namespace NYT {
 namespace NCellMaster {
@@ -482,7 +483,9 @@ private:
                         EObjectType::Orchid,
                         BuildYsonStringFluently()
                             .BeginMap()
-                                .Item("remote_address").Value(address)
+                                .Item("remote_addresses").Value(NNodeTrackerClient::TAddressMap{
+                                    {NNodeTrackerClient::DefaultNetworkName, address}
+                                })
                             .EndMap());
                 }
             };

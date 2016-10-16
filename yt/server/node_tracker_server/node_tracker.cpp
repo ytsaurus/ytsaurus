@@ -1052,10 +1052,7 @@ private:
     {
         auto objectId = ObjectIdFromNodeId(nodeId);
 
-        auto nodeHolder = std::make_unique<TNode>(
-            objectId,
-            addresses);
-
+        auto nodeHolder = std::make_unique<TNode>(objectId);
         auto* node = NodeMap_.Insert(objectId, std::move(nodeHolder));
 
         // Make the fake reference.
@@ -1074,7 +1071,6 @@ private:
                 auto req = TCypressYPathProxy::Create(nodePath);
                 req->set_type(static_cast<int>(EObjectType::ClusterNodeNode));
                 req->set_ignore_existing(true);
-
                 SyncExecuteVerb(rootService, req);
             }
 
@@ -1083,16 +1079,13 @@ private:
                 auto req = TCypressYPathProxy::Create(nodePath + "/orchid");
                 req->set_type(static_cast<int>(EObjectType::Orchid));
                 req->set_ignore_existing(true);
-
-                auto attributes = CreateEphemeralAttributes();
-                attributes->Set("remote_address", GetInterconnectAddress(addresses));
-                ToProto(req->mutable_node_attributes(), *attributes);
-
                 SyncExecuteVerb(rootService, req);
             }
         } catch (const std::exception& ex) {
             LOG_ERROR_UNLESS(IsRecovery(), ex, "Error registering cluster node in Cypress");
         }
+
+        UpdateNode(node, addresses);
 
         return node;
     }
@@ -1108,9 +1101,8 @@ private:
 
         try {
             // Update "orchid" child.
-            auto req = TYPathProxy::Set(nodePath + "/orchid/@remote_address");
-            req->set_value(ConvertToYsonString(GetInterconnectAddress(addresses)).Data());
-
+            auto req = TYPathProxy::Set(nodePath + "/orchid/@remote_addresses");
+            req->set_value(ConvertToYsonString(addresses).Data());
             SyncExecuteVerb(rootService, req);
         } catch (const std::exception& ex) {
             LOG_ERROR_UNLESS(IsRecovery(), ex, "Error updating cluster node in Cypress");
