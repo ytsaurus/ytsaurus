@@ -1230,6 +1230,7 @@ void TOperationControllerBase::Materialize()
 
         PickIntermediateDataCell();
         InitChunkListPool();
+        InitSecureVault();
 
         CreateLivePreviewTables();
 
@@ -1304,6 +1305,7 @@ void TOperationControllerBase::Revive()
     }
 
     InitChunkListPool();
+    InitSecureVault();
 
     DoLoadSnapshot(Snapshot);
 
@@ -1424,6 +1426,12 @@ void TOperationControllerBase::InitChunkListPool()
     for (const auto& table : OutputTables) {
         ++CellTagToOutputTableCount[table.CellTag];
     }
+}
+
+void TOperationControllerBase::InitSecureVault()
+{
+    // NB: SecureVault is being used in InitUserJobSpec, where no access to Operation is possible.
+    SecureVault = Operation->GetSecureVault();
 }
 
 void TOperationControllerBase::InitInputChunkScraper()
@@ -4283,15 +4291,15 @@ void TOperationControllerBase::InitUserJobSpec(
         jobSpec->add_environment(Format("YT_START_ROW_INDEX=%v", joblet->StartRowIndex));
     }
 
-    if (Operation->GetSecureVault()) {
+    if (SecureVault) {
         // NB: These environment variables should be added to user job spec, not to the user job spec template.
         // They may contain sensitive information that should not be persisted with a controller.
 
         // We add a single variable storing the whole secure vault and all top-level scalar values.
         jobSpec->add_environment(Format("YT_SECURE_VAULT=%v",
-            ConvertToYsonString(Operation->GetSecureVault(), EYsonFormat::Text)));
+            ConvertToYsonString(SecureVault, EYsonFormat::Text)));
 
-        for (const auto& pair : Operation->GetSecureVault()->GetChildren()) {
+        for (const auto& pair : SecureVault->GetChildren()) {
             Stroka value;
             auto node = pair.second;
             if (node->GetType() == ENodeType::Int64) {
