@@ -488,7 +488,6 @@ private:
 
         Stroka ServiceAddress;
         std::vector<TOperationId> OperationIds;
-        std::vector<TOperationId> AbortingOperationIds;
         TMasterHandshakeResult Result;
 
         // - Register scheduler instance.
