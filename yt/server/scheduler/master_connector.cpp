@@ -511,7 +511,10 @@ private:
                 req->set_ignore_existing(true);
                 req->set_type(static_cast<int>(EObjectType::Orchid));
                 auto attributes = CreateEphemeralAttributes();
-                attributes->Set("remote_addresses", ServiceAddress);
+                // TODO(babenko): provide proper addresses
+                attributes->Set("remote_addresses", NNodeTrackerClient::TAddressMap{
+                    {NNodeTrackerClient::DefaultNetworkName, ServiceAddress}
+                });
                 ToProto(req->mutable_node_attributes(), *attributes);
                 GenerateMutationId(req);
                 batchReq->AddRequest(req);
