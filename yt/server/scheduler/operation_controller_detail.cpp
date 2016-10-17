@@ -3737,7 +3737,7 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceChunks(
     if (TotalEstimatedInputDataSize < maxSliceDataSize) {
         multiplier = 1.0;
     }
-    i64 sliceDataSize = Clamp(static_cast<i64>(jobSizeLimits->GetDataSizePerJob() * multiplier), 1, maxSliceDataSize); 
+    i64 sliceDataSize = Clamp(static_cast<i64>(jobSizeLimits->GetDataSizePerJob() * multiplier), 1, maxSliceDataSize);
 
     for (const auto& chunkSpec : chunkSpecs) {
         int oldSize = result.size();
@@ -4317,7 +4317,7 @@ void TOperationControllerBase::InitUserJobSpec(
                 // We do not export composite values as a separate environment variables.
                 continue;
             }
-            jobSpec->add_environment(Format("YT_SECURE_VAULT_%v=\"%v\"", pair.first, value));
+            jobSpec->add_environment(Format("YT_SECURE_VAULT_%v=%v", pair.first, value));
         }
     }
 }
