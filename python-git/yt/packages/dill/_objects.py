@@ -377,7 +377,7 @@ try: # numpy
     a['NumpyUfuncType'] = _numpy_ufunc
     a['NumpyArrayType'] = _numpy_array
     a['NumpyInt32Type'] = _numpy_int32
-except ImportError:
+except (AttributeError, ImportError):
     pass
 try: # python 2.6
     # numeric and mathematical types (CH 9)
