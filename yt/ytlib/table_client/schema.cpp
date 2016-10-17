@@ -634,6 +634,7 @@ void ValidateColumnSchema(const TColumnSchema& columnSchema)
  *  - Column type remains the same.
  *  - Column expression remains the same.
  *  - Column aggregate method either was introduced or remains the same.
+ *  - Column sort order either changes to Null or remains the same.
  */
 void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSchema& newColumn)
 {
@@ -645,7 +646,7 @@ void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSch
             newColumn.Type);
     }
 
-    if (newColumn.SortOrder != oldColumn.SortOrder) {
+    if (newColumn.SortOrder.HasValue() && newColumn.SortOrder != oldColumn.SortOrder) {
         THROW_ERROR_EXCEPTION("Sort order mismatch for column %Qv: old %Qlv, new %Qlv",
             oldColumn.Name,
             oldColumn.SortOrder,
@@ -730,6 +731,7 @@ void ValidateColumnsNotInserted(const TTableSchema& oldSchema, const TTableSchem
 //! Also validates that key columns positions are not changed.
 void ValidateColumnsMatch(const TTableSchema& oldSchema, const TTableSchema& newSchema)
 {
+    int commonKeyColumnPrefix = 0;
     for (int oldColumnIndex = 0; oldColumnIndex < oldSchema.Columns().size(); ++oldColumnIndex) {
         const auto& oldColumn = oldSchema.Columns()[oldColumnIndex];
         const auto* newColumnPtr = newSchema.FindColumn(oldColumn.Name);
@@ -740,14 +742,30 @@ void ValidateColumnsMatch(const TTableSchema& oldSchema, const TTableSchema& new
         const auto& newColumn = *newColumnPtr;
         ValidateColumnSchemaUpdate(oldColumn, newColumn);
         int newColumnIndex = newSchema.GetColumnIndex(newColumn);
-        if (oldColumnIndex < oldSchema.GetKeyColumnCount()) {
+
+        if (oldColumn.SortOrder && newColumn.SortOrder) {
             if (oldColumnIndex != newColumnIndex) {
                 THROW_ERROR_EXCEPTION("Cannot change position of a key column %Qv: old %v, new %v",
                     oldColumn.Name,
                     oldColumnIndex,
                     newColumnIndex);
             }
+            if (commonKeyColumnPrefix <= oldColumnIndex) {
+                commonKeyColumnPrefix = oldColumnIndex + 1;
+            }
         }
+    }
+
+    // Check that all columns from the commonKeyColumnPrefix in oldSchema are actually present in newSchema.
+    for (int oldColumnIndex = 0; oldColumnIndex < commonKeyColumnPrefix; ++oldColumnIndex) {
+        const auto& oldColumn = oldSchema.Columns()[oldColumnIndex];
+        if (!newSchema.FindColumn(oldColumn.Name)) {
+            THROW_ERROR_EXCEPTION("Key column %Qv is missing in new schema", oldColumn.Name);
+        }
+    }
+
+    if (commonKeyColumnPrefix < oldSchema.GetKeyColumnCount() && newSchema.GetUniqueKeys()) {
+        THROW_ERROR_EXCEPTION("Cannot have unique_keys = true after removing some of the key columns");
     }
 }
 
@@ -944,9 +962,10 @@ void ValidateTableSchemaUpdate(
         return;
     }
 
-    if (oldSchema.GetKeyColumnCount() > 0 && newSchema.GetKeyColumnCount() == 0) {
-        THROW_ERROR_EXCEPTION("Cannot change schema from sorted to unsorted");
+    if (isTableDynamic && oldSchema.IsSorted() != newSchema.IsSorted()) {
+        THROW_ERROR_EXCEPTION("Cannot change dynamic table type from sorted to ordered or vice versa");
     }
+
     if (oldSchema.GetKeyColumnCount() == 0 && newSchema.GetKeyColumnCount() > 0) {
         THROW_ERROR_EXCEPTION("Cannot change schema from unsorted to sorted");
     }

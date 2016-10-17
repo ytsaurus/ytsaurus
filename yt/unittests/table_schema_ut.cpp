@@ -48,7 +48,7 @@ TEST_F(TTableSchemaTest, ColumnSchemaValidation)
     for (const auto& columnSchema : invalidSchemas) {
         EXPECT_THROW(ValidateColumnSchema(columnSchema), std::exception);
     }
-    
+
     std::vector<TColumnSchema> validSchemas{
         TColumnSchema("Name", EValueType::String),
         TColumnSchema("Name", EValueType::Any),
@@ -74,16 +74,11 @@ TEST_F(TTableSchemaTest, ColumnSchemaUpdateValidation)
             TColumnSchema("Name", EValueType::String),
             TColumnSchema("Name", EValueType::Int64)
         },
-        // Changing column sort order is not ok.
+        // Changing column sort order from null to something is not ok.
         {
             TColumnSchema("Name", EValueType::String),
             TColumnSchema("Name", EValueType::String)
                 .SetSortOrder(ESortOrder::Ascending)
-        },
-        {
-            TColumnSchema("Name", EValueType::String)
-                .SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("Name", EValueType::String)
         },
         // Changing column expression is not ok.
         {
@@ -140,6 +135,12 @@ TEST_F(TTableSchemaTest, ColumnSchemaUpdateValidation)
             TColumnSchema("Name", EValueType::String),
             TColumnSchema("Name", EValueType::String)
                 .SetLock(Stroka("Lock"))
+        },
+        // Making a column not sorted is ok.
+        {
+            TColumnSchema("Name", EValueType::String)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("Name", EValueType::String)
         },
         {
             TColumnSchema("Name", EValueType::String)
@@ -227,7 +228,7 @@ TEST_F(TTableSchemaTest, TableSchemaValidation)
     }
 
     std::vector<std::vector<TColumnSchema>> validSchemas{
-        { 
+        {
             // Empty schema is valid.
         },
         {
@@ -254,7 +255,7 @@ TEST_F(TTableSchemaTest, TableSchemaValidation)
                 .SetAggregate(Stroka("max"))
         }
     };
-       
+
     for (const auto& tableSchema : invalidSchemas) {
         TTableSchema schema(tableSchema);
         EXPECT_THROW(ValidateTableSchema(schema), std::exception);
@@ -337,13 +338,58 @@ TEST_F(TTableSchemaTest, TableSchemaUpdateValidation)
                     .SetSortOrder(ESortOrder::Ascending)
                     .SetExpression(Stroka("Name"))
             })
-        }
+        },
+        {
+            // When making some key column unsorted by removing sort order, unique_keys can no longer be true.
+            TTableSchema({
+                TColumnSchema("KeyName1", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending),
+                TColumnSchema("KeyName2", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending),
+            }, false /* strict */, true /* unique_keys */),
+            TTableSchema({
+                TColumnSchema("KeyName1", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending),
+                TColumnSchema("KeyName2", EValueType::String),
+            }, false /* strict */, true /* unique_keys */)
+        },
+        {
+            TTableSchema({
+                TColumnSchema("KeyName1", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending),
+                TColumnSchema("KeyName2", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending),
+                TColumnSchema("KeyName3", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending),
+            }, false /* strict */),
+            TTableSchema({
+                TColumnSchema("KeyName1", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending),
+                TColumnSchema("KeyName4", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending),
+                TColumnSchema("KeyName3", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending),
+                TColumnSchema("KeyName2", EValueType::String),
+            }, false /* strict */)
+        },
     };
-      
+
     for (const auto& pairOfSchemas : invalidUpdates) {
         EXPECT_THROW(ValidateTableSchemaUpdate(pairOfSchemas[0], pairOfSchemas[1]), std::exception);
     }
-    
+
+    EXPECT_THROW(ValidateTableSchemaUpdate(
+        TTableSchema({
+            TColumnSchema("KeyName1", EValueType::String)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("Name1", EValueType::Int64)
+        }, true /* strict */),
+        TTableSchema({
+            TColumnSchema("KeyName1", EValueType::String),
+            TColumnSchema("Name1", EValueType::Int64)
+        }, true /* strict */),
+        true /* isDynamicTable */), std::exception);
+
     EXPECT_THROW(ValidateTableSchemaUpdate(
         TTableSchema({}, true),
         TTableSchema({}, false),
@@ -434,14 +480,60 @@ TEST_F(TTableSchemaTest, TableSchemaUpdateValidation)
                     .SetSortOrder(ESortOrder::Ascending),
                 TColumnSchema("Name1", EValueType::String),
             }, false)
-        }
+        },
+        {
+            // Making several last key columns non-key (possibly with changing their order) is ok.
+            TTableSchema({
+                TColumnSchema("KeyName1", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending),
+                TColumnSchema("KeyName2", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending),
+                TColumnSchema("KeyName3", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending),
+            }, false /* strict */, true /* uniqueKeys */),
+            TTableSchema({
+                TColumnSchema("KeyName1", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending),
+                TColumnSchema("KeyName3", EValueType::String),
+                TColumnSchema("KeyName2", EValueType::String),
+            }, false /* strict */)
+        },
+        {
+            // We may even make several last key columns non-key and add some new key columns at the same time.
+            TTableSchema({
+                TColumnSchema("KeyName1", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending),
+                TColumnSchema("KeyName2", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending),
+            }, true /* strict */),
+            TTableSchema({
+                TColumnSchema("KeyName1", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending),
+                TColumnSchema("KeyName3", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending),
+                TColumnSchema("KeyName2", EValueType::String),
+            }, true /* strict */)
+        },
+        {
+            // Making table unsorted by removing sort order for all columns is also ok.
+            TTableSchema({
+                TColumnSchema("KeyName1", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending),
+                TColumnSchema("KeyName2", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending),
+            }, false),
+            TTableSchema({
+                TColumnSchema("KeyName1", EValueType::String),
+                TColumnSchema("KeyName2", EValueType::String),
+            }, false)
+        },
     };
-    
+
     for (const auto& pairOfSchemas : validUpdates) {
         ValidateTableSchemaUpdate(pairOfSchemas[0], pairOfSchemas[1]);
     }
 
-    // It allowed to add computed columns if table is empty. 
+    // It is allowed to add computed columns if table is empty.
     ValidateTableSchemaUpdate(
         TTableSchema({
             TColumnSchema("Name", EValueType::Int64)
