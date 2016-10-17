@@ -79,6 +79,7 @@ public:
 
 private:
     const TJournalManagerConfigPtr Config_;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -89,8 +90,7 @@ TJournalManager::TJournalManager(
     : Impl_(New<TImpl>(config, bootstrap))
 { }
 
-TJournalManager::~TJournalManager()
-{ }
+TJournalManager::~TJournalManager() = default;
 
 void TJournalManager::SealJournal(
     TJournalNode* trunkNode,
