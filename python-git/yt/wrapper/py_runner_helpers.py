@@ -102,7 +102,10 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
 
     yt.wrapper.py_runner_helpers.check_job_environment_variables()
 
-    unpickler = Unpickler(yt.wrapper.config.config["pickling"]["framework"])
+    unpickler_name = yt.wrapper.config.config["pickling"]["framework"]
+    unpickler = Unpickler(unpickler_name)
+    if unpickler_name == "dill" and yt.wrapper.config.config["pickling"]["load_additional_dill_types"]:
+        unpickler.load_types()
 
     operation, attibutes, operation_type, input_format, output_format, group_by_keys, python_version = \
         unpickler.load(open(operation_dump_filename, "rb"))
