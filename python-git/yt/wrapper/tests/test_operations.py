@@ -912,11 +912,14 @@ if __name__ == "__main__":
 
         yt.run_map(mapper, [tableA, tableB], outputTable, format=yt.YsonFormat(), spec={"job_io": {"control_attributes": {"enable_row_index": True}}, "ordered": True})
 
-        result = list(yt.read_table(outputTable, raw=False, format=yt.YsonFormat(process_table_index=False)))
+        result = sorted(list(yt.read_table(outputTable, raw=False, format=yt.YsonFormat(process_table_index=False))),
+                        key=lambda item: (item["table_index"], item["row_index"]))
 
-        check([{"table_index": 0, "row_index": 0, "x": 1},
-               {"table_index": 0, "row_index": 1, "y": 1},
-               {"table_index": 1, "row_index": 0, "x": 2}], result)
+        assert [
+            {"table_index": 0, "row_index": 0, "x": 1},
+            {"table_index": 0, "row_index": 1, "y": 1},
+            {"table_index": 1, "row_index": 0, "x": 2}
+        ] == result
 
     def test_reduce_sort_by(self):
         table = TEST_DIR + "/table"
