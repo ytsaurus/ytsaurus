@@ -61,7 +61,7 @@ def calc_md5_from_file(filename):
 
 def calc_md5_from_string(string_obj):
     if isinstance(string_obj, text_type):
-        string_obj = string.encode("ascii")
+        string_obj = string_obj.encode("ascii")
     md5_hash = hashlib.md5()
     for buf in chunk_iter_string(string_obj, 1024):
         md5_hash.update(buf)
