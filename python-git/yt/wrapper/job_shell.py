@@ -124,7 +124,11 @@ class JobShell(object):
         if type(err) is HTTPError and hasattr(err, "response") and err.response:
             if "X-Yt-Error" in err.response.headers:
                 error = json.loads(err.response.headers["X-Yt-Error"])
-                print(YtResponseError(error))
+                yt_error = YtResponseError(error)
+                if yt_error.is_shell_exited():
+                    print("Shell exited")
+                else:
+                    print(yt_error)
         else:
             print("Error:", err)
 
