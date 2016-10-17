@@ -1850,12 +1850,12 @@ class TestSecureVault(YTEnvSetup):
     def check_content(self, res):
         assert len(res) == 7
         assert res[0] == {"YT_SECURE_VAULT": self.secure_vault}
-        assert res[1] == {"YT_SECURE_VAULT_int64": str(self.secure_vault["int64"])}
-        assert res[2] == {"YT_SECURE_VAULT_uint64": str(self.secure_vault["uint64"])}
+        assert res[1] == {"YT_SECURE_VAULT_int64": self.secure_vault["int64"]}
+        assert res[2] == {"YT_SECURE_VAULT_uint64": self.secure_vault["uint64"]}
         assert res[3] == {"YT_SECURE_VAULT_string": self.secure_vault["string"]}
         # Boolean values are represented with 0/1.
-        assert res[4] == {"YT_SECURE_VAULT_boolean": "1"}
-        assert res[5] == {"YT_SECURE_VAULT_double": str(self.secure_vault["double"])}
+        assert res[4] == {"YT_SECURE_VAULT_boolean": 1}
+        assert res[5] == {"YT_SECURE_VAULT_double": self.secure_vault["double"]}
         # Composite values are not exported as separate environment variables.
         assert res[6] == {"YT_SECURE_VAULT_composite": ""}
 
