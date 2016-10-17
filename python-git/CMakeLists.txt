@@ -58,3 +58,12 @@ file(
   COPY ${CMAKE_CURRENT_SOURCE_DIR}/yson-debian/yt_yson_bindings
   DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}
 )
+
+file(
+  REMOVE ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages/fuse.py
+)
+
+file(
+  COPY ${CMAKE_CURRENT_SOURCE_DIR}/contrib/python-fusepy/fuse.py
+  DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages
+)
