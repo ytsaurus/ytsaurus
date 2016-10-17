@@ -388,11 +388,13 @@ TFuture<void> TVirtualMulticellMapBase::FetchItemsFromLocal(TFetchItemsSessionPt
     auto objectManager = Bootstrap_->GetObjectManager();
 
     std::vector<TFuture<TYsonString>> asyncAttributes;
+    std::vector<TObjectId> aliveKeys;
     for (const auto& key : keys) {
         auto* object = objectManager->FindObject(key);
         if (!IsObjectAlive(object)) {
             continue;
         }
+        aliveKeys.push_back(key);
         if (session->AttributeKeys) {
             TAsyncYsonWriter writer(EYsonType::MapFragment);
             auto proxy = objectManager->GetProxy(object, nullptr);
@@ -405,10 +407,10 @@ TFuture<void> TVirtualMulticellMapBase::FetchItemsFromLocal(TFetchItemsSessionPt
     }
 
     return Combine(asyncAttributes)
-        .Apply(BIND([=, keys = std::move(keys), this_ = MakeStrong(this)] (const std::vector<TYsonString>& attributes) {
-            YCHECK(keys.size() == attributes.size());
-            for (int index = 0; index < static_cast<int>(keys.size()); ++index) {
-                session->Items.push_back(TFetchItem{ToString(keys[index]), attributes[index]});
+        .Apply(BIND([=, aliveKeys = std::move(aliveKeys), this_ = MakeStrong(this)] (const std::vector<TYsonString>& attributes) {
+            YCHECK(aliveKeys.size() == attributes.size());
+            for (int index = 0; index < static_cast<int>(aliveKeys.size()); ++index) {
+                session->Items.push_back(TFetchItem{ToString(aliveKeys[index]), attributes[index]});
             }
         }).AsyncVia(session->Invoker));
 }
