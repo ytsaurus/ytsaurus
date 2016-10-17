@@ -1524,7 +1524,7 @@ void TOperationControllerBase::AbortAllJoblets()
     JobletMap.clear();
 }
 
-void TOperationControllerBase::DoLoadSnapshot(TSharedRef snapshot)
+void TOperationControllerBase::DoLoadSnapshot(const TSharedRef& snapshot)
 {
     LOG_INFO("Started loading snapshot");
 

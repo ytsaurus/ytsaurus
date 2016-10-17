@@ -716,7 +716,7 @@ protected:
     void AbortAllJoblets();
 
     void DoSaveSnapshot(TOutputStream* output);
-    void DoLoadSnapshot(TSharedRef snapshot);
+    void DoLoadSnapshot(const TSharedRef& snapshot);
 
     //! Called to extract input table paths from the spec.
     virtual std::vector<NYPath::TRichYPath> GetInputTablePaths() const = 0;
