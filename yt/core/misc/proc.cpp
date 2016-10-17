@@ -12,6 +12,8 @@
 
 #include <yt/core/ytree/convert.h>
 
+#include <yt/core/misc/fs.h>
+
 #include <util/stream/file.h>
 
 #include <util/string/vector.h>
@@ -184,7 +186,7 @@ void RemoveDirContentAsRoot(const Stroka& path)
             for (auto it = dir.Begin(); it != dir.End(); ++it) {
                 try {
                     if (isRemovable(it)) {
-                        ::remove(it->fts_path);
+                        NFS::Remove(it->fts_path);
                     }
                 } catch (const std::exception& ex) {
                     innerErrors.push_back(TError("Failed to remove path %v", it->fts_path)
@@ -214,7 +216,7 @@ void RemoveDirContentAsRoot(const Stroka& path)
 
         error = NFS::AttachLsofOutput(error, path);
         error = NFS::AttachFindOutput(error, path);
-        error.InnerErrors() = innerErrors;
+        error.InnerErrors() = std::move(innerErrors);
 
         attemptErrors.push_back(error);
 
@@ -223,7 +225,7 @@ void RemoveDirContentAsRoot(const Stroka& path)
 
     if (!removed) {
         auto error = TError("Failed to remove directory %v contents", path);
-        error.InnerErrors() = attemptErrors;
+        error.InnerErrors() = std::move(attemptErrors);
         THROW_ERROR error;
     }
 }
