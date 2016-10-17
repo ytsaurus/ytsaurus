@@ -1308,6 +1308,7 @@ void TOperationControllerBase::Revive()
     InitSecureVault();
 
     DoLoadSnapshot(Snapshot);
+    Snapshot = TSharedRef();
 
     LockLivePreviewTables();
 
