@@ -671,7 +671,6 @@ protected:
     virtual void InitializeConnections();
     virtual void InitializeTransactions();
     virtual void InitializeStructures();
-    //void CheckTransactions();
 
 
     // Preparation.
