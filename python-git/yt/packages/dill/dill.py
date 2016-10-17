@@ -104,7 +104,7 @@ try:
         if id(obj.__reduce_ex__) == id(NumpyInstance.__reduce_ex__) and \
            id(obj.__reduce__) == id(NumpyInstance.__reduce__): return True
         return False
-except ImportError:
+except (AttributeError, ImportError):
     NumpyUfuncType = None
     NumpyArrayType = None
     def ndarraysubclassinstance(obj): return False
