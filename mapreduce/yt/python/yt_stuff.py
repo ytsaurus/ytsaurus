@@ -133,7 +133,8 @@ class YtStuff(object):
         self.yt_local_path = [yatest.common.binary_path('yt/packages/contrib/python/yt_local/bin/local/yt_local')]
 
         yt_server_arcadia_path = yatest.common.binary_path('yt/packages/yt/{}/yt/server/ytserver'.format(version))
-        shutil.copy(yt_server_arcadia_path, os.path.join(self.yt_bins_path, 'ytserver'))
+        yt_server_custom_path = yatest.common.get_param("yt_ytserver_path")
+        shutil.copy(yt_server_custom_path or yt_server_arcadia_path, os.path.join(self.yt_bins_path, 'ytserver'))
 
         yt_node_arcadia_path = yatest.common.binary_path('yt/packages/yt/{}/yt/nodejs/targets/bin/ytnode'.format(version))
         shutil.copy(yt_node_arcadia_path, os.path.join(self.yt_node_bin_path, 'nodejs'))
