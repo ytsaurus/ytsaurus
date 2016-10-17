@@ -19,10 +19,16 @@ def import_framework_module(framework):
 
 class Pickler(object):
     def __init__(self, framework):
-        framework_module = import_framework_module(framework)
-        self.dump, self.dumps = framework_module.dump, framework_module.dumps
+        self.framework_module = import_framework_module(framework)
+        self.dump, self.dumps = self.framework_module.dump, self.framework_module.dumps
+
+    def __getattr__(self, name):
+        return getattr(self.framework_module, name)
 
 class Unpickler(object):
     def __init__(self, framework):
-        framework_module = import_framework_module(framework)
-        self.load, self.loads = framework_module.load, framework_module.loads
+        self.framework_module = import_framework_module(framework)
+        self.load, self.loads = self.framework_module.load, self.framework_module.loads
+
+    def __getattr__(self, name):
+        return getattr(self.framework_module, name)

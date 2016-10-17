@@ -396,7 +396,12 @@ def build_caller_arguments(is_standalone_binary, use_local_python_in_jobs, file_
 def build_function_and_config_arguments(function, operation_type, input_format, output_format, group_by,
                                         create_temp_file, file_argument_builder, client):
     function_filename = create_temp_file(prefix=get_function_name(function) + ".pickle")
-    pickler = Pickler(get_config(client)["pickling"]["framework"])
+
+    pickler_name = get_config(client)["pickling"]["framework"]
+    pickler = Pickler(pickler_name)
+    if pickler_name == "dill" and get_config(client)["pickling"]["load_additional_dill_types"]:
+        pickler.load_types()
+
     with open(function_filename, "wb") as fout:
         attributes = function.attributes if hasattr(function, "attributes") else {}
         pickler.dump((function, attributes, operation_type, input_format, output_format, group_by, get_python_version()), fout)
