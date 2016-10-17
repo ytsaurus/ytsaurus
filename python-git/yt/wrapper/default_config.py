@@ -143,6 +143,9 @@ default_config = {
         "find_module_file_error_logging_level": "WARNING",
         # Pickling framework used to save user modules.
         "framework": "dill",
+        # Forces dill to load additional types (e.g. numpy.ndarray) for better pickling
+        # (has no effect if framework is not "dill")
+        "load_additional_dill_types": False,
         # Check that python version on local machine is the same as on cluster nodes.
         # Turn it off at your own risk.
         "check_python_version": False,
