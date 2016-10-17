@@ -330,7 +330,14 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
             config->Path = path;
             config->Detach = DetachedTmpfsUmount_;
 
-            RunTool<TRemoveDirContentAsRootTool>(path);
+            try {
+                // Due to bug in the kernel, this can sometimes fail with error"Directory is not empty".
+                // More info: https://bugzilla.redhat.com/show_bug.cgi?id=1066751
+                RunTool<TRemoveDirContentAsRootTool>(path);
+            } catch (const std::exception& ex) {
+                LOG_WARNING(ex, "Failed to remove mount point %v", path);
+            }
+
             TMounter::Get()->Umount(config);
         };
 
