@@ -11,7 +11,7 @@ from yt.wrapper.table import TablePath
 import yt.logger as logger
 import yt.subprocess as subprocess
 
-from yt.packages.six import add_metaclass
+from yt.packages.six import add_metaclass, b
 from yt.packages.six.moves import xrange, zip as izip
 
 import yt.wrapper as yt
@@ -177,7 +177,7 @@ class TestOperations(object):
         other_table = TEST_DIR + "/other_table"
 
         columns = [(self.random_string(7), self.random_string(7)) for _ in xrange(10)]
-        yt.write_table(table, ["x={0}\ty={1}\n".format(*c) for c in columns], format=yt.DsvFormat(), raw=True)
+        yt.write_table(table, [b("x={0}\ty={1}\n".format(*c)) for c in columns], format=yt.DsvFormat(), raw=True)
 
         with pytest.raises(yt.YtError):
             yt.run_sort([table, other_table], other_table, sort_by=["y"])
@@ -463,8 +463,8 @@ class TestOperations(object):
     def test_cross_format_operations(self):
         @yt.raw
         def reformat(rec):
-            values = rec.strip().split("\t", 2)
-            yield "\t".join("=".join([k, v]) for k, v in izip(["k", "s", "v"], values)) + "\n"
+            values = rec.strip().split(b"\t", 2)
+            yield b"\t".join(b"=".join([k, v]) for k, v in izip([b"k", b"s", b"v"], values)) + b"\n"
 
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
@@ -475,18 +475,18 @@ class TestOperations(object):
         old_level = logger.LOGGER.level
         logger.LOGGER.setLevel(logging.INFO)
         try:
-            yt.write_table(table, ["0\ta\tA\n", "1\tb\tB\n"], raw=True)
+            yt.write_table(table, [b"0\ta\tA\n", b"1\tb\tB\n"], raw=True)
             yt.run_map(reformat, table, other_table, output_format=yt.format.DsvFormat())
             assert sorted(yt.read_table(other_table, format="dsv", raw=True)) == \
-                   ["k=0\ts=a\tv=A\n", "k=1\ts=b\tv=B\n"]
+                   [b"k=0\ts=a\tv=A\n", b"k=1\ts=b\tv=B\n"]
         finally:
             yt.config["tabular_data_format"] = None
             logger.LOGGER.setLevel(old_level)
 
-        yt.write_table(table, ["1\t2\t3\n"], format="<has_subkey=true>yamr", raw=True)
+        yt.write_table(table, [b"1\t2\t3\n"], format="<has_subkey=true>yamr", raw=True)
         yt.run_map(reformat, table, table, input_format="<has_subkey=true>yamr", output_format="dsv")
         yt.run_map("cat", table, table, input_format="dsv", output_format="dsv")
-        assert list(yt.read_table(table, format=yt.format.DsvFormat(), raw=True)) == ["k=1\ts=2\tv=3\n"]
+        assert list(yt.read_table(table, format=yt.format.DsvFormat(), raw=True)) == [b"k=1\ts=2\tv=3\n"]
 
     def test_python_operations_io(self):
         """All access (except read-only) to stdin/out during the operation should be disabled."""
@@ -567,14 +567,18 @@ print(op.id)
 
 """
         dir_ = yt_env.env.path
-        with tempfile.NamedTemporaryFile(dir=dir_, prefix="mapper", delete=False) as file:
+        with tempfile.NamedTemporaryFile(mode="w", dir=dir_, prefix="mapper", delete=False) as file:
             file.write(script)
 
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"x": 1}])
 
+        env = {
+            "YT_PROXY": yt.config["proxy"]["url"],
+            "PYTHONPATH": PYTHONPATH
+        }
         op_id = subprocess.check_output(["python", file.name, table, table, PYTHONPATH],
-                                        env={"YT_PROXY": yt.config["proxy"]["url"], "PYTHONPATH": PYTHONPATH}, stderr=sys.stderr).strip()
+                                        env=env, stderr=sys.stderr).strip()
         time.sleep(3)
 
         assert yt.get("//sys/operations/{0}/@state".format(op_id)) == "aborted"
@@ -662,12 +666,12 @@ print(op.id)
             yield rec
 
         table = TEST_DIR + "/table"
-        yt.write_table(table, ["x=1\ty=2\n", "x=\\n\tz=3\n"], raw=True, format=yt.DsvFormat())
-        check(["1\n", "\\n\n"],
+        yt.write_table(table, [b"x=1\ty=2\n", b"x=\\n\tz=3\n"], raw=True, format=yt.DsvFormat())
+        check([b"1\n", b"\\n\n"],
               sorted(list(yt.read_table(table, format=yt.SchemafulDsvFormat(columns=["x"]), raw=True))))
 
         yt.run_map(foo, table, table, format=yt.SchemafulDsvFormat(columns=["x"]))
-        check(["x=1\n", "x=\\n\n"], sorted(list(yt.read_table(table, format=yt.DsvFormat(), raw=True))))
+        check([b"x=1\n", b"x=\\n\n"], sorted(list(yt.read_table(table, format=yt.DsvFormat(), raw=True))))
 
     @add_failed_operation_stderrs_to_error_message
     def test_reduce_aggregator(self):
@@ -760,10 +764,14 @@ print(op.id)
             assert test_module.TEST == 1
             yield rec
 
-        with open("/tmp/test_module.py", "w") as fout:
-            fout.write("TEST = 1")
+        with tempfile.NamedTemporaryFile(mode="w",
+                                         suffix=".py",
+                                         dir=TESTS_SANDBOX,
+                                         prefix="test_pickling",
+                                         delete=False) as f:
+            f.write("TEST = 1")
 
-        with set_config_option("pickling/additional_files_to_archive", [("/tmp/test_module.py", "test_module.py")]):
+        with set_config_option("pickling/additional_files_to_archive", [(f.name, "test_module.py")]):
             table = TEST_DIR + "/table"
             yt.write_table(table, [{"x": 1}])
             yt.run_map(foo, table, table)
@@ -869,7 +877,7 @@ if __name__ == "__main__":
 
         dir_ = yt_env.env.path
         for script in [first_script, second_script]:
-            with tempfile.NamedTemporaryFile(dir=dir_, prefix="mapper", delete=False) as f:
+            with tempfile.NamedTemporaryFile("w", dir=dir_, prefix="mapper", delete=False) as f:
                 mapper = script.format(yt.config["proxy"]["url"],
                                        table,
                                        TEST_DIR + "/other_table")
@@ -888,7 +896,7 @@ if __name__ == "__main__":
             while not yt.exists(stderr_path):
                 time.sleep(0.2)
 
-            assert "Did you forget to surround" in yt.read_file(stderr_path).read()
+            assert b"Did you forget to surround" in yt.read_file(stderr_path).read()
 
     @add_failed_operation_stderrs_to_error_message
     def test_table_and_row_index_from_job(self):
@@ -911,7 +919,8 @@ if __name__ == "__main__":
 
         outputTable = TEST_DIR + "/output"
 
-        yt.run_map(mapper, [tableA, tableB], outputTable, format=yt.YsonFormat(), spec={"job_io": {"control_attributes": {"enable_row_index": True}}, "ordered": True})
+        yt.run_map(mapper, [tableA, tableB], outputTable, format=yt.YsonFormat(),
+                   spec={"job_io": {"control_attributes": {"enable_row_index": True}}, "ordered": True})
 
         result = sorted(list(yt.read_table(outputTable, raw=False, format=yt.YsonFormat(process_table_index=False))),
                         key=lambda item: (item["table_index"], item["row_index"]))
@@ -948,7 +957,7 @@ if __name__ == "__main__":
         yt.write_table(TEST_DIR + "/table", [{"x": 1, "y": 1}])
 
         dir_ = yt_env.env.path
-        with tempfile.NamedTemporaryFile(dir=dir_, prefix="mapper", delete=False) as f:
+        with tempfile.NamedTemporaryFile("w", dir=dir_, prefix="mapper", delete=False) as f:
             mapper = script.format(yt.config["proxy"]["url"],
                                    TEST_DIR + "/table",
                                    TEST_DIR + "/other_table")
@@ -1070,9 +1079,9 @@ if __name__ == "__main__":
 
             dir_ = yt_env.env.path
             with tempfile.NamedTemporaryFile(dir=dir_, prefix="local_file", delete=False) as local_file:
-                local_file.write("bbbbb")
+                local_file.write(b"bbbbb")
             yt.write_table(table, [{"x": 1}, {"y": 2}])
-            yt.write_file(file, "aaaaa")
+            yt.write_file(file, b"aaaaa")
             op = yt.run_map(foo, table, table, local_files=[local_file.name], yt_files=[file], format=None)
             check(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
 
