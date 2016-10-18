@@ -227,11 +227,20 @@ def datestr_to_timestamp_legacy(time_str):
     dt = datetime.strptime(time_str, "%Y-%m-%dT%H:%M:%S.%fZ")
     return int(mktime(dt.timetuple()) * 1000000 + dt.microsecond)
 
-def id_to_parts(id):
+def id_to_parts_old(id):
     id_parts = id.split("-")
     id_hi = long(id_parts[3], 16) << 32 | int(id_parts[2], 16)
     id_lo = long(id_parts[1], 16) << 32 | int(id_parts[0], 16)
     return id_hi, id_lo
+
+def id_to_parts_new(id):
+    id_parts = id.split("-")
+    id_hi = long(id_parts[2], 16) << 32 | int(id_parts[3], 16)
+    id_lo = long(id_parts[0], 16) << 32 | int(id_parts[1], 16)
+    return id_hi, id_lo
+
+def id_to_parts(id, version):
+    return (id_to_parts_new if version >= 6 else id_to_parts_old)(id)
 
 class JobsCountGetter(object):
     def __init__(self, operations_with_job_counts):
@@ -300,7 +309,7 @@ class OperationArchiver(object):
             if key in data:
                 by_id_row[key] = data.get(key)
 
-        id_hi, id_lo = id_to_parts(op_id)
+        id_hi, id_lo = id_to_parts(op_id, self.version)
 
         if self.version == 0:
             datestr_to_timestamp = datestr_to_timestamp_legacy
@@ -386,10 +395,10 @@ class JobInfoFetcher(object):
         self.yt = yt.YtClient(config=yt.config.config)
 
     def get_insert_rows(self, op_id, jobs):
-        op_id_hi, op_id_lo = id_to_parts(op_id)
+        op_id_hi, op_id_lo = id_to_parts(op_id, self.version)
         rows = []
         for job_id, value in jobs.iteritems():
-            job_id_hi, job_id_lo = id_to_parts(job_id)
+            job_id_hi, job_id_lo = id_to_parts(job_id, self.version)
             attributes = value.attributes
 
             row = {}
@@ -464,8 +473,9 @@ class StderrInserter(object):
         self.metrics.add("archived_stderr_size", sum(len(row["stderr"]) for row in rowset))
 
 class StderrDownloader(object):
-    def __init__(self, insert_queue, metrics):
+    def __init__(self, insert_queue, version, metrics):
         self.insert_queue = insert_queue
+        self.version = version
         self.metrics = metrics
 
     def __call__(self, element):
@@ -483,8 +493,8 @@ class StderrDownloader(object):
         if not rsp.content:
             return
 
-        op_id_hi, op_id_lo = id_to_parts(op_id)
-        id_hi, id_lo = id_to_parts(job_id)
+        op_id_hi, op_id_lo = id_to_parts(op_id, self.version)
+        id_hi, id_lo = id_to_parts(job_id, self.version)
 
         row = {}
         row["operation_id_hi"] = yson.YsonUint64(op_id_hi)
@@ -624,7 +634,7 @@ def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, arc
 
             with timers["archiving_stderrs"]:
                 insert_queue = NonBlockingQueue()
-                run_queue_workers(stderr_queue, StderrDownloader, stderr_thread_count, (insert_queue, thread_safe_metrics))
+                run_queue_workers(stderr_queue, StderrDownloader, stderr_thread_count, (insert_queue, version, thread_safe_metrics))
                 run_batching_queue_workers(insert_queue, StderrInserter, thread_count, (thread_safe_metrics,))
 
                 wait_for_queue(stderr_queue, "fetch_stderr", end_time_limit)

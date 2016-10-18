@@ -232,6 +232,37 @@ TRANSFORMS[5] = [
             pivot_keys=DEFAULT_PIVOTS))
 ]
 
+def convert_id(id):
+    return id >> 32 | (((1 << 32) - 1) & id) << 32
+
+def convert_id_mapper(row):
+    row["id_hi"] = convert_id(row["id_hi"])
+    row["id_lo"] = convert_id(row["id_lo"])
+    yield row
+
+def convert_job_id_mapper(row):
+    row["operation_id_hi"] = convert_id(row["operation_id_hi"])
+    row["operation_id_lo"] = convert_id(row["operation_id_lo"])
+    row["job_id_hi"] = convert_id(row["job_id_hi"])
+    row["job_id_lo"] = convert_id(row["job_id_lo"])
+    yield row
+
+TRANSFORMS[6] = [
+    Convert(
+        "ordered_by_id",
+        mapper=convert_id_mapper),
+    Convert(
+        "ordered_by_start_time",
+        mapper=convert_id_mapper),
+    Convert(
+        "jobs",
+        mapper=convert_job_id_mapper),
+    Convert(
+        "stderrs",
+        mapper=convert_job_id_mapper)
+]
+
+
 BASE_PATH = "//sys/operations_archive"
 
 def swap_table(target, source):
