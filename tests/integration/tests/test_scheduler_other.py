@@ -426,6 +426,61 @@ class TestSchedulerFunctionality2(YTEnvSetup, PrepareTables):
         op.abort()
 
 
+    def test_max_possible_resource_usage(self):
+        create("map_node", "//sys/pools/low_cpu_pool", attributes={"resource_limits": {"cpu": 1}})
+        create("map_node", "//sys/pools/low_cpu_pool/subpool_1")
+        create("map_node", "//sys/pools/low_cpu_pool/subpool_2", attributes={"resource_limits": {"cpu": 0}})
+        create("map_node", "//sys/pools/high_cpu_pool")
+
+        self._create_table("//tmp/t_in")
+        self._create_table("//tmp/t_out_1")
+        self._create_table("//tmp/t_out_2")
+        self._create_table("//tmp/t_out_3")
+        data = [{"foo": i} for i in xrange(3)]
+        write_table("//tmp/t_in", data);
+
+        get_pool_fair_share_ratio = lambda pool: \
+            get("//sys/scheduler/orchid/scheduler/pools/{0}/fair_share_ratio".format(pool))
+
+        op1 = map(
+            waiting_jobs=True,
+            dont_track=True,
+            command="cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out_1",
+            spec={"job_count": 1, "pool": "subpool_1"})
+
+        op2 = map(
+            waiting_jobs=True,
+            dont_track=True,
+            command="cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out_2",
+            spec={"job_count": 2, "pool": "high_cpu_pool"})
+
+        assert assert_almost_equal(get_pool_fair_share_ratio("subpool_1"), 1.0 / 3.0)
+        assert assert_almost_equal(get_pool_fair_share_ratio("low_cpu_pool"), 1.0 / 3.0)
+        assert assert_almost_equal(get_pool_fair_share_ratio("high_cpu_pool"), 2.0 / 3.0)
+
+        op3 = map(
+            dont_track=True,
+            command="cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out_3",
+            spec={"job_count": 1, "pool": "subpool_2", "mapper": {"cpu_limit": 0}})
+
+        time.sleep(1)
+
+        assert assert_almost_equal(get_pool_fair_share_ratio("low_cpu_pool"), 1.0 / 2.0)
+        assert assert_almost_equal(get_pool_fair_share_ratio("high_cpu_pool"), 1.0 / 2.0)
+
+        op1.resume_jobs()
+        op1.track()
+        op2.resume_jobs()
+        op2.track()
+        op3.track()
+
+
 class TestSchedulerRevive(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 1
@@ -1793,12 +1848,12 @@ class TestSecureVault(YTEnvSetup):
     def check_content(self, res):
         assert len(res) == 7
         assert res[0] == {"YT_SECURE_VAULT": self.secure_vault}
-        assert res[1] == {"YT_SECURE_VAULT_int64": str(self.secure_vault["int64"])}
-        assert res[2] == {"YT_SECURE_VAULT_uint64": str(self.secure_vault["uint64"])}
+        assert res[1] == {"YT_SECURE_VAULT_int64": self.secure_vault["int64"]}
+        assert res[2] == {"YT_SECURE_VAULT_uint64": self.secure_vault["uint64"]}
         assert res[3] == {"YT_SECURE_VAULT_string": self.secure_vault["string"]}
         # Boolean values are represented with 0/1.
-        assert res[4] == {"YT_SECURE_VAULT_boolean": "1"}
-        assert res[5] == {"YT_SECURE_VAULT_double": str(self.secure_vault["double"])}
+        assert res[4] == {"YT_SECURE_VAULT_boolean": 1}
+        assert res[5] == {"YT_SECURE_VAULT_double": self.secure_vault["double"]}
         # Composite values are not exported as separate environment variables.
         assert res[6] == {"YT_SECURE_VAULT_composite": ""}
 

@@ -28,6 +28,39 @@ class TestNodeTracker(YTEnvSetup):
         node = ls("//sys/nodes")[0]
         assert get("//sys/nodes/{0}/@resource_limits_overrides".format(node)) == {}
 
+    def test_disable_write_sessions(self):
+        nodes = ls("//sys/nodes")
+        assert len(nodes) == 3
+
+        create("table", "//tmp/t")
+        write_table("//tmp/t", {"a" : "b"})
+
+        for node in nodes:
+            set("//sys/nodes/{0}/@disable_write_sessions".format(node), True) 
+
+        with pytest.raises(YtError):
+            write_table("//tmp/t", {"a" : "b"})
+
+        for node in nodes:
+            set("//sys/nodes/{0}/@disable_write_sessions".format(node), False) 
+
+        sleep(1)
+
+        # Now write must be successful.
+        write_table("//tmp/t", {"a" : "b"})
+
+    def test_disable_scheduler_jobs(self):
+        nodes = ls("//sys/nodes")
+        assert len(nodes) == 3
+
+        test_node = nodes[0]
+        assert get("//sys/nodes/{0}/@resource_limits/user_slots".format(test_node)) > 0
+        set("//sys/nodes/{0}/@disable_scheduler_jobs".format(test_node), True) 
+
+        sleep(1)
+
+        assert get("//sys/nodes/{0}/@resource_limits/user_slots".format(test_node)) == 0
+
     def test_resource_limits_overrides_valiation(self):
         node = ls("//sys/nodes")[0]
         with pytest.raises(YtError): remove("//sys/nodes/{0}/@resource_limits_overrides".format(node))

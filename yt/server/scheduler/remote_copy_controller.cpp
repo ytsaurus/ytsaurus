@@ -284,7 +284,7 @@ private:
     virtual void InitializeConnections() override
     {
         TClientOptions options;
-        options.User = Operation->GetAuthenticatedUser();
+        options.User = AuthenticatedUser;
 
         if (Spec_->ClusterConnection) {
             auto connection = CreateNativeConnection(*Spec_->ClusterConnection);
@@ -330,7 +330,9 @@ private:
                 // Since remote copy doesn't unpack blocks and validate schema, we must ensure
                 // that schemas are identical.
                 for (const auto& inputTable : InputTables) {
-                    if (inputTable.Schema.ToCanonical() != table.TableUploadOptions.TableSchema.ToCanonical()) {
+                    if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Strong &&
+                        inputTable.Schema.ToCanonical() != table.TableUploadOptions.TableSchema.ToCanonical())
+                    {
                         THROW_ERROR_EXCEPTION("Cannot make remote copy into table with \"strong\" schema since "
                             "input table schema differs from output table schema")
                             << TErrorAttribute("input_table_schema", inputTable.Schema)

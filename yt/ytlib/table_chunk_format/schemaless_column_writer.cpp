@@ -46,7 +46,8 @@ public:
         if (Offsets_.empty()) {
             return 0;
         } else {
-            return DataBuffer_->GetSize();
+            // DataBuffer may be empty (if there were no values), but we still must report nonzero result.
+            return DataBuffer_->GetSize() + sizeof(ui32) * Offsets_.size();
         }
     }
 

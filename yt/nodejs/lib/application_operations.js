@@ -24,7 +24,8 @@ var OPERATIONS_CYPRESS_PATH = "//sys/operations";
 var OPERATIONS_RUNTIME_PATH = "//sys/scheduler/orchid/scheduler/operations";
 var SCHEDULING_INFO_PATH = "//sys/scheduler/orchid/scheduler";
 var MAX_SIZE_LIMIT = 100;
-var TIME_SPAN_LIMIT = 10 * 24 * 3600 * 1000000;
+var TIME_SPAN_DAY = 24 * 3600 * 1000000;
+var TIME_SPAN_LIMIT = 10 * TIME_SPAN_DAY;
 var CYPRESS_OPERATIONS_SUCCESS_EXPIRATION_TIME = 1000;
 var CYPRESS_OPERATIONS_FAILURE_EXPIRATION_TIME = 1000;
 
@@ -439,8 +440,8 @@ function YtApplicationOperations$list(parameters)
 
     var time_span = to_time - from_time;
     if (time_span > TIME_SPAN_LIMIT) {
-        throw new YtError("Time span exceedes allowed limit ({} > {})".format(
-            time_span, TIME_SPAN_LIMIT)).withCode(1);
+        throw new YtError("Time span exceedes allowed limit ({} days > {} days)".format(
+            time_span / TIME_SPAN_DAY, TIME_SPAN_LIMIT / TIME_SPAN_DAY)).withCode(1);
     }
 
     // Process |cursor_time|, |cursor_direction|.

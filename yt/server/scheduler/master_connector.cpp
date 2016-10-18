@@ -493,7 +493,6 @@ private:
 
         Stroka ServiceAddress;
         std::vector<TOperationId> OperationIds;
-        std::vector<TOperationId> AbortingOperationIds;
         TMasterHandshakeResult Result;
 
         // - Register scheduler instance.
@@ -517,7 +516,10 @@ private:
                 req->set_ignore_existing(true);
                 req->set_type(static_cast<int>(EObjectType::Orchid));
                 auto attributes = CreateEphemeralAttributes();
-                attributes->Set("remote_address", ServiceAddress);
+                // TODO(babenko): provide proper addresses
+                attributes->Set("remote_addresses", NNodeTrackerClient::TAddressMap{
+                    {NNodeTrackerClient::DefaultNetworkName, ServiceAddress}
+                });
                 ToProto(req->mutable_node_attributes(), *attributes);
                 GenerateMutationId(req);
                 batchReq->AddRequest(req);
@@ -565,13 +567,13 @@ private:
                 auto req = TYPathProxy::Set("//sys/scheduler/@addresses");
                 req->set_value(ConvertToYsonString(addresses).Data());
                 GenerateMutationId(req);
-                batchReq->AddRequest(req, "set_scheduler_addresses");
+                batchReq->AddRequest(req);
             }
             {
-                auto req = TYPathProxy::Set("//sys/scheduler/orchid/@remote_address");
-                req->set_value(ConvertToYsonString(NNodeTrackerClient::GetInterconnectAddress(addresses)).Data());
+                auto req = TYPathProxy::Set("//sys/scheduler/orchid/@remote_addresses");
+                req->set_value(ConvertToYsonString(addresses).Data());
                 GenerateMutationId(req);
-                batchReq->AddRequest(req, "set_orchid_address");
+                batchReq->AddRequest(req);
             }
 
             auto batchRspOrError = WaitFor(batchReq->Invoke());

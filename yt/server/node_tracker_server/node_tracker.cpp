@@ -408,6 +408,22 @@ public:
         }
     }
 
+    void SetDisableWriteSessions(TNode* node, bool value)
+    {
+        if (node->GetDisableWriteSessions() != value) {
+            node->SetDisableWriteSessions(value);
+            if (value) {
+                LOG_INFO_UNLESS(IsRecovery(), "Disabled write sessions on node (NodeId: %v, Address: %v)",
+                    node->GetId(),
+                    node->GetDefaultAddress());
+            } else {
+                LOG_INFO_UNLESS(IsRecovery(), "Enabled write sessions on node (NodeId: %v, Address: %v)",
+                    node->GetId(),
+                    node->GetDefaultAddress());
+            }
+        }
+    }
+
     void SetNodeRack(TNode* node, TRack* rack)
     {
         if (node->GetRack() != rack) {
@@ -817,6 +833,7 @@ private:
                 }
 
                 *response->mutable_resource_limits_overrides() = node->ResourceLimitsOverrides();
+                response->set_disable_scheduler_jobs(node->GetDisableSchedulerJobs());
             }
 
             IncrementalHeartbeat_.Fire(node, request, response);
@@ -1046,16 +1063,15 @@ private:
     {
         auto objectId = ObjectIdFromNodeId(nodeId);
 
-        auto nodeHolder = std::make_unique<TNode>(
-            objectId,
-            addresses);
-
+        auto nodeHolder = std::make_unique<TNode>(objectId);
         auto* node = NodeMap_.Insert(objectId, std::move(nodeHolder));
 
         // Make the fake reference.
         YCHECK(node->RefObject() == 1);
 
         InitializeNodeStates(node);
+
+        node->SetAddresses(addresses);
         InsertToAddressMaps(node);
 
         auto objectManager = Bootstrap_->GetObjectManager();
@@ -1068,7 +1084,6 @@ private:
                 auto req = TCypressYPathProxy::Create(nodePath);
                 req->set_type(static_cast<int>(EObjectType::ClusterNodeNode));
                 req->set_ignore_existing(true);
-
                 SyncExecuteVerb(rootService, req);
             }
 
@@ -1077,16 +1092,13 @@ private:
                 auto req = TCypressYPathProxy::Create(nodePath + "/orchid");
                 req->set_type(static_cast<int>(EObjectType::Orchid));
                 req->set_ignore_existing(true);
-
-                auto attributes = CreateEphemeralAttributes();
-                attributes->Set("remote_address", GetInterconnectAddress(addresses));
-                ToProto(req->mutable_node_attributes(), *attributes);
-
                 SyncExecuteVerb(rootService, req);
             }
         } catch (const std::exception& ex) {
             LOG_ERROR_UNLESS(IsRecovery(), ex, "Error registering cluster node in Cypress");
         }
+
+        UpdateNode(node, addresses);
 
         return node;
     }
@@ -1102,9 +1114,8 @@ private:
 
         try {
             // Update "orchid" child.
-            auto req = TYPathProxy::Set(nodePath + "/orchid/@remote_address");
-            req->set_value(ConvertToYsonString(GetInterconnectAddress(addresses)).Data());
-
+            auto req = TYPathProxy::Set(nodePath + "/orchid/@remote_addresses");
+            req->set_value(ConvertToYsonString(addresses).Data());
             SyncExecuteVerb(rootService, req);
         } catch (const std::exception& ex) {
             LOG_ERROR_UNLESS(IsRecovery(), ex, "Error updating cluster node in Cypress");
@@ -1430,6 +1441,11 @@ void TNodeTracker::SetNodeBanned(TNode* node, bool value)
 void TNodeTracker::SetNodeDecommissioned(TNode* node, bool value)
 {
     Impl_->SetNodeDecommissioned(node, value);
+}
+
+void TNodeTracker::SetDisableWriteSessions(TNode* node, bool value)
+{
+    Impl_->SetDisableWriteSessions(node, value);
 }
 
 void TNodeTracker::SetNodeRack(TNode* node, TRack* rack)

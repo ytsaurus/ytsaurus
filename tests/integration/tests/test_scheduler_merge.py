@@ -607,6 +607,20 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         merge(in_=["//tmp/input_weak", "//tmp/input_loose"], out="//tmp/output_loose")
 
+        create("table", "//tmp/output_sorted", 
+            attributes={
+                "optimize_for" : optimize_for, 
+                "schema" : make_schema([{"name" : "key", "type" : "int64", "sort_order" : "ascending"}], strict=False)})
+
+        with pytest.raises(YtError):
+            # cannot do unordered merge to sorted output
+            merge(in_="//tmp/input_loose", out="//tmp/output_sorted")
+
+        with pytest.raises(YtError):
+            # even in user insists
+            merge(in_="//tmp/input_loose", out="//tmp/output_sorted", spec={"schema_inference_mode" : "from_output"})
+
+
     def test_auto_schema_inference_ordered(self):
         output_schema = make_schema([{"name" : "key", "type" : "int64"}, {"name" : "value", "type" : "string"}])
         good_schema = make_schema([{"name" : "key", "type" : "int64"}])
@@ -778,6 +792,29 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert get("//tmp/t2/@schema_mode") == "strong"
         assert read_table("//tmp/t2") == [{"k1": i * 2, "k2": i} for i in xrange(2)]
+
+    def test_sort_order_validation_failure(self):
+        create("table", "//tmp/input")
+        create("table", "//tmp/output", attributes={
+            "schema": make_schema([
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"}])
+            })
+
+        for i in xrange(10):
+            write_table("<append=true;>//tmp/input", {"key": i % 3, "value": "foo"})
+
+        with pytest.raises(YtError):
+            merge(mode="unordered",
+                in_="//tmp/input",
+                out="//tmp/output",
+                spec={"schema_inference_mode" : "from_output"})
+
+        with pytest.raises(YtError):
+            merge(mode="ordered",
+                in_="//tmp/input",
+                out="//tmp/output",
+                spec={"schema_inference_mode" : "from_output"})
 
 ##################################################################
 
