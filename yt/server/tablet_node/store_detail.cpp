@@ -529,10 +529,10 @@ IChunkReaderPtr TChunkStoreBase::PrepareChunkReader(IChunkPtr chunk)
         }
     }
 
-    auto readerConfig = Config_->ChunkReader;
+    const auto& readerConfig = Config_->ChunkReader;
 
     IChunkReaderPtr chunkReader;
-    if (chunk && !chunk->IsRemoveScheduled()) {
+    if (readerConfig->PreferLocalReplicas && chunk && !chunk->IsRemoveScheduled()) {
         chunkReader = CreateLocalChunkReader(
             readerConfig,
             chunk,
