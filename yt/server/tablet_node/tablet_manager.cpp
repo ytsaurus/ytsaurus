@@ -1551,8 +1551,14 @@ private:
         auto prevCurrentReplicationTimestamp = replicaInfo->GetCurrentReplicationTimestamp();
         auto prevTrimmedRowCount = tablet->GetTrimmedRowCount();
 
-        replicaInfo->SetCurrentReplicationRowIndex(request->new_replication_row_index());
-        replicaInfo->SetCurrentReplicationTimestamp(request->new_replication_timestamp());
+        auto newCurrentReplicationRowIndex = request->new_replication_row_index();
+        auto newCurrentReplicationTimestamp = request->new_replication_timestamp();
+
+        YCHECK(newCurrentReplicationRowIndex >= prevCurrentReplicationRowIndex);
+        YCHECK(newCurrentReplicationTimestamp >= prevCurrentReplicationTimestamp);
+
+        replicaInfo->SetCurrentReplicationRowIndex(newCurrentReplicationRowIndex);
+        replicaInfo->SetCurrentReplicationTimestamp(newCurrentReplicationTimestamp);
 
         AdvanceReplicatedTrimmedRowCount(transaction, tablet);
 
