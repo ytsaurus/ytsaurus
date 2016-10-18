@@ -9,6 +9,7 @@ from yt.common import update, YtError, remove_file, makedirp, set_pdeathsig, \
 from yt.wrapper.client import Yt
 from yt.wrapper.errors import YtResponseError
 import yt.yson as yson
+import yt.subprocess as subprocess
 
 from yt.packages.six import itervalues
 from yt.packages.six.moves import xrange, map as imap, filter as ifilter
@@ -27,14 +28,6 @@ import getpass
 from collections import defaultdict
 from threading import RLock
 from itertools import count
-
-try:
-    import subprocess32 as subprocess
-except ImportError:
-    if sys.version_info[:2] <= (2, 6):
-        print("Environment may not work properly on python of version <= 2.6 "
-              "because subprocess32 library is not installed.", file=sys.stderr)
-    import subprocess
 
 logger = logging.getLogger("Yt.local")
 
@@ -509,7 +502,7 @@ class YTInstance(object):
         info = {}
         if self.has_proxy:
             info["proxy"] = {"address": self.get_proxy_address()}
-        with open(os.path.join(self.path, "info.yson"), "w") as fout:
+        with open(os.path.join(self.path, "info.yson"), "wb") as fout:
             yson.dump(info, fout, yson_format="pretty")
 
     def _kill_process(self, proc, name):
@@ -586,9 +579,7 @@ class YTInstance(object):
 
         help_output = subprocess.check_output(["ytserver", "-h"])
         self._supports_pdeath_signal_result = "pdeath-signal" in help_output
-
         return self._supports_pdeath_signal_result
-
 
     def _run_ytserver(self, service_name, name=None):
         if name is None:

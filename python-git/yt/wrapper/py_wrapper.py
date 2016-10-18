@@ -10,6 +10,7 @@ from ._py_runner import main as run_py_runner
 
 from yt.zip import ZipFile
 import yt.logger as logger
+import yt.subprocess as subprocess
 
 try:
     from importlib import import_module
@@ -31,13 +32,6 @@ import sys
 import time
 import logging
 import pickle as standard_pickle
-try:
-    import subprocess32 as subprocess
-except ImportError:
-    if sys.version_info[:2] <= (2, 6):
-        print("Script may not work properly on python of version <= 2.6 "
-              "because subprocess32 library is not installed.", file=sys.stderr)
-    import subprocess
 
 LOCATION = os.path.dirname(os.path.abspath(__file__))
 TMPFS_SIZE_MULTIPLIER = 1.01

@@ -1,7 +1,8 @@
-from .helpers import TESTS_SANDBOX, TEST_DIR, TESTS_LOCATION, subprocess
+from .helpers import TESTS_SANDBOX, TEST_DIR, TESTS_LOCATION
 
-import yt.yson as yson
 from yt.common import makedirp
+import yt.yson as yson
+import yt.subprocess as subprocess
 
 from yt.packages.six.moves import map as imap
 

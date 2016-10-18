@@ -4,6 +4,8 @@ from yt.packages.six import iteritems, integer_types
 from yt.packages.six.moves import map as imap
 
 import yt.yson as yson
+import yt.subprocess as subprocess
+
 import yt.wrapper as yt
 
 import os
@@ -12,14 +14,6 @@ import glob
 import shutil
 import tempfile
 from contextlib import contextmanager
-
-try:
-    import subprocess32 as subprocess
-except ImportError:
-    if sys.version_info[:2] <= (2, 6):
-        print("Script may not work properly on python of version <= 2.6 "
-              "because subprocess32 library is not installed.", file=sys.stderr)
-    import subprocess
 
 TEST_DIR = "//home/wrapper_tests"
 

@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 from .helpers import TEST_DIR, PYTHONPATH, get_test_file_path, check, set_config_option, \
-                     build_python_egg, TESTS_SANDBOX, subprocess
+                     build_python_egg, TESTS_SANDBOX
 
 from yt.wrapper.py_wrapper import create_modules_archive_default, TempfilesManager
 from yt.common import which, makedirp
@@ -9,6 +9,7 @@ from yt.wrapper.common import parse_bool
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
 from yt.wrapper.table import TablePath
 import yt.logger as logger
+import yt.subprocess as subprocess
 
 from yt.packages.six import add_metaclass
 from yt.packages.six.moves import xrange, zip as izip
