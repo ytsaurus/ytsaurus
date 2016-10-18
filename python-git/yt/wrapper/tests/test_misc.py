@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 from .helpers import TEST_DIR, TESTS_SANDBOX, TESTS_LOCATION, \
-                     get_environment_for_binary_test, check, subprocess
+                     get_environment_for_binary_test, check
 
 from yt.wrapper.exceptions_catcher import KeyboardInterruptsCatcher
 from yt.wrapper.response_stream import ResponseStream, EmptyResponseStream
@@ -11,6 +11,7 @@ from yt.common import makedirp
 from yt.yson import to_yson_type
 import yt.yson as yson
 import yt.json as json
+import yt.subprocess as subprocess
 
 from yt.packages.six import iterkeys, itervalues, iteritems, PY3, Iterator
 from yt.packages.six.moves import xrange, filter as ifilter

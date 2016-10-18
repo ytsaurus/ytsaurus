@@ -1,5 +1,5 @@
 from .helpers import TEST_DIR, TESTS_LOCATION, TESTS_SANDBOX, get_test_file_path, \
-                     get_environment_for_binary_test, set_config_option, subprocess
+                     get_environment_for_binary_test, set_config_option
 
 from yt.wrapper.table_commands import copy_table, move_table
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
@@ -7,6 +7,7 @@ from yt.wrapper.common import parse_bool
 from yt.wrapper import Record, dumps_row, TablePath
 from yt.common import flatten, makedirp
 import yt.yson as yson
+import yt.subprocess as subprocess
 
 from yt.packages.six.moves import xrange, map as imap, zip as izip
 
