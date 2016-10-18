@@ -5,7 +5,7 @@ import yt.json as json
 
 def get_logging_config(enable_debug_logging=True):
     config = yson.loads(
-"""
+b"""
 {
     rules = [
         {
@@ -44,7 +44,7 @@ def get_logging_config(enable_debug_logging=True):
 
 def get_master_config():
     return yson.loads(
-"""
+b"""
 {
     enable_provision_lock = %false;
 
@@ -101,7 +101,7 @@ def get_master_config():
 
 def get_scheduler_config():
     return yson.loads(
-"""
+b"""
 {
     cluster_connection = {
         enable_read_from_followers = %true;
@@ -147,7 +147,7 @@ def get_scheduler_config():
 
 def get_node_config(enable_debug_logging=True):
     config = yson.loads(
-"""
+b"""
 {
     orchid_cache_update_period = 0;
 
@@ -277,7 +277,7 @@ def get_node_config(enable_debug_logging=True):
 
 def get_driver_config():
     return yson.loads(
-"""
+b"""
 {
     enable_read_from_followers = %true;
 

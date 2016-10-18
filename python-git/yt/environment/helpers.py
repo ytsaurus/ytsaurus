@@ -1,13 +1,15 @@
+from yt.common import to_native_str
 import yt.json as json
 import yt.yson as yson
 
-from yt.packages.six import iteritems
+from yt.packages.six import iteritems, PY3, text_type
 from yt.packages.six.moves import xrange, map as imap
 
 import socket
 import os
 import fcntl
 import random
+import codecs
 import subprocess
 
 GEN_PORT_ATTEMPTS = 10
@@ -154,28 +156,35 @@ def _fix_yson_booleans(obj):
     return obj
 
 def write_config(config, filename, format="yson"):
-    with open(filename, "wt") as f:
-        if format == "yson":
+    with open(filename, "wb") as f:
+        if format == "json":
+            writer = lambda stream: stream
+            if PY3:
+                writer = codecs.getwriter("utf-8")
+            json.dump(_fix_yson_booleans(config), writer(f), indent=4)
+        elif format == "yson":
             yson.dump(config, f, yson_format="pretty", boolean_as_string=False)
-            f.write("\n")
-        elif format == "json":
-            json.dump(_fix_yson_booleans(config), f, indent=4)
-            f.write("\n")
         else:
+            if isinstance(config, text_type):
+                config = config.encode("utf-8")
             f.write(config)
+        f.write(b"\n")
 
 def read_config(filename, format="yson"):
-    with open(filename, "r") as f:
+    with open(filename, "rb") as f:
         if format == "yson":
             return yson.load(f)
         elif format == "json":
-            return json.load(f)
+            reader = lambda stream: stream
+            if PY3:
+                reader = codecs.getreader("utf-8")
+            return json.load(reader(f))
         else:
-            return f.read()
+            return to_native_str(f.read())
 
 def is_dead_or_zombie(pid):
     try:
-        with open("/proc/{0}/status".format(pid), "rb") as f:
+        with open("/proc/{0}/status".format(pid), "r") as f:
             for line in f:
                 if line.startswith("State:"):
                     return line.split()[1] == "Z"
