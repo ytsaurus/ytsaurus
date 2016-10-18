@@ -1,7 +1,12 @@
 from flask import after_this_request, request
-from cStringIO import StringIO as IO
+
+try:
+    from cStringIO import StringIO as BytesIO
+except ImportError:  # Python 3
+    from io import BytesIO
+
 import gzip
-import functools 
+import functools
 
 try:
     import zlib_fork_safe as zlib
@@ -25,8 +30,8 @@ def process_gzip(f):
                 response.status_code >= 300 or
                 'Content-Encoding' in response.headers):
                 return response
-            gzip_buffer = IO()
-            gzip_file = gzip.GzipFile(mode='wb', 
+            gzip_buffer = BytesIO()
+            gzip_file = gzip.GzipFile(mode='wb',
                                       fileobj=gzip_buffer)
             gzip_file.write(response.data)
             gzip_file.close()
