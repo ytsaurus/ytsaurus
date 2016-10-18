@@ -27,7 +27,7 @@ const char* TVectorRefsSource::Peek(size_t* len)
 {
     if (Index_ == Blocks_.size()) {
         *len = 0;
-        return NULL;
+        return nullptr;
     }
     *len = Blocks_[Index_].Size() - Position_;
     return Blocks_[Index_].Begin() + Position_;

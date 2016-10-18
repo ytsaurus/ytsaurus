@@ -51,7 +51,7 @@ TEST(TJobSignaler, Basic)
     ASSERT_EQ(0, memcmp(buffer, "got signal\n", 11));
 
     ASSERT_EQ(0, kill(pid, SIGKILL));
-    ASSERT_EQ(pid, waitpid(pid, NULL, 0));
+    ASSERT_EQ(pid, waitpid(pid, nullptr, 0));
 }
 
 TEST(TJobSignaler, UnknownSignal)

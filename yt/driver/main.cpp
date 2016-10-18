@@ -173,12 +173,12 @@ private:
         sigset_t sigset;
         SigEmptySet(&sigset);
         SigAddSet(&sigset, SIGPIPE);
-        SigProcMask(SIG_UNBLOCK, &sigset, NULL);
+        SigProcMask(SIG_UNBLOCK, &sigset, nullptr);
 
         // Set handler.
         struct sigaction newAction;
         newAction.sa_handler = SigPipeHandler;
-        sigaction(SIGPIPE, &newAction, NULL);
+        sigaction(SIGPIPE, &newAction, nullptr);
 #endif
     }
 

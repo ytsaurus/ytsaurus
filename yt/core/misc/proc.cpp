@@ -669,7 +669,7 @@ void CloseAllDescriptors(const std::vector<int>& exceptFor)
 {
 #ifdef _linux_
     auto* dirStream = ::opendir("/proc/self/fd");
-    YCHECK(dirStream != NULL);
+    YCHECK(dirStream != nullptr);
 
     int dirFD = ::dirfd(dirStream);
     YCHECK(dirFD >= 0);

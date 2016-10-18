@@ -895,7 +895,7 @@ bool TTcpConnection::WriteFragments(size_t* bytesWritten)
     ssize_t result;
 #ifdef _win_
     DWORD bytesWritten_ = 0;
-    result = WSASend(Socket_, SendVector_.data(), SendVector_.size(), &bytesWritten_, 0, NULL, NULL);
+    result = WSASend(Socket_, SendVector_.data(), SendVector_.size(), &bytesWritten_, 0, nullptr, nullptr);
     *bytesWritten = static_cast<size_t>(bytesWritten_);
 #else
     result = HandleEintr(::writev, Socket_, SendVector_.data(), SendVector_.size());
