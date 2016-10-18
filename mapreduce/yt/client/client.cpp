@@ -501,13 +501,18 @@ private:
         const TTableWriterOptions& options,
         const Message* prototype) override
     {
+        yvector<const ::google::protobuf::Descriptor*> descriptors;
+        descriptors.push_back(prototype->GetDescriptor());
+
         if (TConfig::Get()->UseClientProtobuf) {
             return new TProtoTableWriter(
-                CreateClientWriter(path, DSF_YSON_BINARY, options));
+                CreateClientWriter(path, DSF_YSON_BINARY, options),
+                std::move(descriptors));
         } else {
             auto formatConfig = NodeToYsonString(MakeProtoFormatConfig(prototype));
             return new TLenvalProtoTableWriter(
-                CreateClientWriter(path, DSF_PROTO, options, formatConfig));
+                CreateClientWriter(path, DSF_PROTO, options, formatConfig),
+                std::move(descriptors));
         }
     }
 };

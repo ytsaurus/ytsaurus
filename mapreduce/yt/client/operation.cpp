@@ -128,14 +128,17 @@ public:
         const TUserJobSpec& spec,
         IJob* job,
         size_t outputTableCount,
+        const TMultiFormatDesc& outputDesc,
         const TOperationOptions& options)
         : Auth_(auth)
         , Spec_(spec)
+        , OutputDesc_(outputDesc)
         , Options_(options)
     {
         CreateStorage();
-        UploadFilesFromSpec(spec);
+        UploadFilesFromSpec();
         UploadJobState(job);
+        UploadProtoConfig();
 
         BinaryPath_ = GetExecPath();
         if (TConfig::Get()->JobBinary) {
@@ -198,6 +201,7 @@ public:
 private:
     TAuth Auth_;
     TUserJobSpec Spec_;
+    TMultiFormatDesc OutputDesc_;
     TOperationOptions Options_;
 
     Stroka BinaryPath_;
@@ -323,9 +327,9 @@ private:
         return (size + roundUpTo - 1) & ~(roundUpTo - 1);
     }
 
-    void UploadFilesFromSpec(const TUserJobSpec& spec)
+    void UploadFilesFromSpec()
     {
-        for (const auto& file : spec.Files_) {
+        for (const auto& file : Spec_.Files_) {
             if (!Exists(Auth_, TTransactionId(), file.Path_)) {
                 ythrow yexception() << "File " << file.Path_ << " does not exist";
             }
@@ -339,9 +343,9 @@ private:
             }
         }
 
-        Files_ = spec.Files_;
+        Files_ = Spec_.Files_;
 
-        for (const auto& localFile : spec.LocalFiles_) {
+        for (const auto& localFile : Spec_.LocalFiles_) {
             TFsPath path(localFile);
             path.CheckExists();
 
@@ -394,6 +398,20 @@ private:
                 TotalFileSize_ += output.Buffer().Size();
             }
         }
+    }
+
+    void UploadProtoConfig() {
+        if (OutputDesc_.Format != TMultiFormatDesc::F_PROTO) {
+            return;
+        }
+
+        TBufferOutput messageTypeList;
+        for (const auto& descriptor : OutputDesc_.ProtoDescriptors) {
+            messageTypeList << descriptor->full_name() << Endl;
+        }
+
+        auto cachePath = UploadToCache(messageTypeList.Buffer());
+        Files_.push_back(TRichYPath(cachePath).FileName("protoconfig"));
     }
 };
 
@@ -798,6 +816,7 @@ TOperationId ExecuteMap(
         spec.MapperSpec_,
         mapper,
         outputs.size(),
+        spec.OutputDesc_,
         options);
 
     TNode specNode = BuildYsonNodeFluently()
@@ -866,6 +885,7 @@ TOperationId ExecuteReduce(
         spec.ReducerSpec_,
         reducer,
         outputs.size(),
+        spec.OutputDesc_,
         options);
 
     TNode specNode = BuildYsonNodeFluently()
@@ -937,6 +957,7 @@ TOperationId ExecuteJoinReduce(
         spec.ReducerSpec_,
         reducer,
         outputs.size(),
+        spec.OutputDesc_,
         options);
 
     TNode specNode = BuildYsonNodeFluently()
@@ -1037,6 +1058,7 @@ TOperationId ExecuteMapReduce(
         spec.ReducerSpec_,
         reducer,
         outputs.size(),
+        spec.OutputDesc_,
         options);
 
     TNode specNode = BuildYsonNodeFluently()
@@ -1048,6 +1070,7 @@ TOperationId ExecuteMapReduce(
                 spec.MapperSpec_,
                 mapper,
                 1,
+                outputMapperDesc,
                 options);
 
             fluent.Item("mapper").DoMap(std::bind(
@@ -1065,6 +1088,7 @@ TOperationId ExecuteMapReduce(
                 spec.ReduceCombinerSpec_,
                 reduceCombiner,
                 1,
+                outputReduceCombinerDesc,
                 options);
 
             fluent.Item("reduce_combiner").DoMap(std::bind(
@@ -1266,9 +1290,13 @@ TIntrusivePtr<IYaMRWriterImpl> CreateJobYaMRWriter(size_t outputTableCount)
 TIntrusivePtr<IProtoWriterImpl> CreateJobProtoWriter(size_t outputTableCount)
 {
     if (TConfig::Get()->UseClientProtobuf) {
-        return new TProtoTableWriter(MakeHolder<TJobWriter>(outputTableCount));
+        return new TProtoTableWriter(
+            MakeHolder<TJobWriter>(outputTableCount),
+            GetJobOutputDescriptors());
     } else {
-        return new TLenvalProtoTableWriter(MakeHolder<TJobWriter>(outputTableCount));
+        return new TLenvalProtoTableWriter(
+            MakeHolder<TJobWriter>(outputTableCount),
+            GetJobOutputDescriptors());
     }
 }
 
