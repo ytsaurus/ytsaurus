@@ -87,7 +87,7 @@ class TestCypressCommands(object):
     def test_search(self):
         yt.mkdir(TEST_DIR + "/dir/other_dir", recursive=True)
         yt.create_table(TEST_DIR + "/dir/table")
-        yt.write_file(TEST_DIR + "/file", "")
+        yt.write_file(TEST_DIR + "/file", b"")
 
         res = set([TEST_DIR, TEST_DIR + "/dir",
                    TEST_DIR + "/dir/other_dir",
@@ -464,11 +464,11 @@ class TestCypressCommands(object):
         fileB = TEST_DIR + "/fileB"
         output_file = TEST_DIR + "/outputFile"
 
-        yt.write_file(fileA, "Hello")
-        yt.write_file(fileB, "World")
+        yt.write_file(fileA, b"Hello")
+        yt.write_file(fileB, b"World")
         yt.concatenate([fileA, fileB], output_file)
 
-        assert "HelloWorld" == yt.read_file(output_file).read()
+        assert b"HelloWorld" == yt.read_file(output_file).read()
 
         with pytest.raises(yt.YtError):
             yt.concatenate([], None)

@@ -55,15 +55,15 @@ class TestClient(object):
             table = TEST_DIR + "/table"
             client.create("table", table)
             client.write_table(table, [{"a": "b"}])
-            assert "a=b\n" == client.read_table(table, format=yt.DsvFormat(), raw=True).read()
+            assert b"a=b\n" == client.read_table(table, format=yt.DsvFormat(), raw=True).read()
 
             assert set(client.search(TEST_DIR)) == set([TEST_DIR, TEST_DIR + "/folder", table])
 
             other_table = TEST_DIR + "/other_table"
             client.copy(table, other_table)
-            assert "a=b\n" == client.read_table(other_table, format=yt.DsvFormat(), raw=True).read()
+            assert b"a=b\n" == client.read_table(other_table, format=yt.DsvFormat(), raw=True).read()
             client.move(table, TEST_DIR + "/moved_table")
-            assert "a=b\n" == client.read_table(TEST_DIR + "/moved_table", format=yt.DsvFormat(), raw=True).read()
+            assert b"a=b\n" == client.read_table(TEST_DIR + "/moved_table", format=yt.DsvFormat(), raw=True).read()
             assert not client.exists(table)
 
             client.link(other_table, TEST_DIR + "/table_link")
@@ -99,7 +99,7 @@ class TestClient(object):
             assert client.row_count(temp_table) == 5
 
             client.run_map("cat", other_table, TEST_DIR + "/map_output", format=yt.DsvFormat())
-            assert "a=b\n" == client.read_table(other_table, format=yt.DsvFormat(), raw=True).read()
+            assert b"a=b\n" == client.read_table(other_table, format=yt.DsvFormat(), raw=True).read()
 
             client.write_table(TEST_DIR + "/first", [{"x": 1}])
             client.write_table(TEST_DIR + "/second", [{"x": 2}])
@@ -155,13 +155,13 @@ class TestClient(object):
             assert op.get_progress()["total"] != 0
             assert op.get_stderrs() == []
 
-            client.write_file(TEST_DIR + "/file", "0" * 1000)
-            assert client.read_file(TEST_DIR + "/file").read() == "0" * 1000
+            client.write_file(TEST_DIR + "/file", b"0" * 1000)
+            assert client.read_file(TEST_DIR + "/file").read() == b"0" * 1000
             with pytest.raises(yt.YtError):
                 client.smart_upload_file("/unexisting")
 
             assert other_client.get("/")
-            assert '{"a":"b"}\n' == other_client.read_table(other_table, raw=True).read()
+            assert b'{"a":"b"}\n' == other_client.read_table(other_table, raw=True).read()
 
             with client.TempTable(TEST_DIR) as table:
                 assert client.exists(table)
