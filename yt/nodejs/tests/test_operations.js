@@ -71,6 +71,19 @@ function testApplicationOperations(version)
                 }))
                 .returns(Q.resolve(null));
 
+            if (version >= 6 && result.isFulfilled()) {
+                var result_data = result.value();
+                result_data.forEach(function(value) {
+                    var id = YtApplicationOperations._idUint64ToString(value["id_hi"]["$value"], value["id_lo"]["$value"]);
+                    var id_parts = YtApplicationOperations._idStringToUint64New(id);
+
+                    value["id_hi"]["$value"] = id_parts[0].toString(10);
+                    value["id_lo"]["$value"] = id_parts[1].toString(10);
+                });
+
+                result = Q.resolve(result_data);
+            }
+
             mock
                 .expects("executeSimple")
                 .once()
@@ -115,9 +128,13 @@ function testApplicationOperations(version)
             .returns(result);
     }
 
+    var idStringToUint64 = typeof version !== "undefined" && version >= 6
+        ? YtApplicationOperations._idStringToUint64New
+        : YtApplicationOperations._idStringToUint64;
+
     function mockArchiveForGet(mock, id, result)
     {
-        var id_parts = YtApplicationOperations._idStringToUint64(id);
+        var id_parts = idStringToUint64(id);
         var id_hi = id_parts[0];
         var id_lo = id_parts[1];
 
@@ -156,6 +173,7 @@ function testApplicationOperations(version)
 
     function mockForGet(mock, id, cypress_result, runtime_result, archive_result)
     {
+        mockVersion(mock);
         mockCypressForGet(mock, id, cypress_result);
         mockRuntimeForGet(mock, id, runtime_result);
         mockArchiveForGet(mock, id, archive_result);
@@ -731,7 +749,7 @@ function testApplicationOperations(version)
         var mock = sinon.mock(this.driver);
 
         var id = "2ec4d6a3-f53d20bd-9083e069-2e728b62";
-        var id_parts = YtApplicationOperations._idStringToUint64(id);
+        var id_parts = idStringToUint64(id);
         var id_hi = id_parts[0];
         var id_lo = id_parts[1];
 
@@ -777,3 +795,6 @@ describe("YtApplicationOperations - list, get operations and scheduling info (ve
    testApplicationOperations(2);
 });
 
+describe("YtApplicationOperations - list, get operations and scheduling info (version 6)", function() {
+   testApplicationOperations(6);
+});
