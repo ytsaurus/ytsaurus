@@ -139,7 +139,7 @@ private:
 
     void OnProfiling();
 
-    TEnumIndexedVector<int, EJobOrigin> GetJobCountByOrigin() const;
+    TEnumIndexedVector<std::vector<IJobPtr>, EJobOrigin> GetJobsByOrigin() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -543,27 +543,27 @@ void TJobController::TImpl::ProcessHeartbeatResponse(TRspHeartbeat* response)
     }
 }
 
-TEnumIndexedVector<int, EJobOrigin> TJobController::TImpl::GetJobCountByOrigin() const
+TEnumIndexedVector<std::vector<IJobPtr>, EJobOrigin> TJobController::TImpl::GetJobsByOrigin() const
 {
-    auto jobCount = TEnumIndexedVector<int, EJobOrigin>();
+    auto jobs = TEnumIndexedVector<std::vector<IJobPtr>, EJobOrigin>();
     for (const auto& pair : Jobs_) {
         switch (TypeFromId(pair.first)) {
             case EObjectType::MasterJob:
-                ++jobCount[EJobOrigin::Master];
+                jobs[EJobOrigin::Master].push_back(pair.second);
                 break;
             case EObjectType::SchedulerJob:
-                ++jobCount[EJobOrigin::Scheduler];
+                jobs[EJobOrigin::Scheduler].push_back(pair.second);
                 break;
             default:
                 Y_UNREACHABLE();
         }
     }
-    return jobCount;
+    return jobs;
 }
 
 void TJobController::TImpl::BuildOrchid(IYsonConsumer* consumer) const
 {
-    auto jobCount = GetJobCountByOrigin();
+    auto jobs = GetJobsByOrigin();
     BuildYsonFluently(consumer)
         .BeginMap()
             .Item("resource_limits").Value(GetResourceLimits())
@@ -571,7 +571,20 @@ void TJobController::TImpl::BuildOrchid(IYsonConsumer* consumer) const
             .Item("active_job_count").DoMapFor(
                 TEnumTraits<EJobOrigin>::GetDomainValues(),
                 [&] (TFluentMap fluent, const EJobOrigin origin) {
-                    fluent.Item(Format("%lv", origin)).Value(jobCount[origin]);
+                    fluent.Item(Format("%lv", origin)).Value(jobs[origin].size());
+                })
+            .Item("active_jobs").DoMapFor(
+                TEnumTraits<EJobOrigin>::GetDomainValues(),
+                [&] (TFluentMap fluent, const EJobOrigin origin) {
+                    fluent.Item(Format("%lv", origin)).DoMapFor(
+                        jobs[origin],
+                        [&] (TFluentMap fluent, IJobPtr job) {
+                            fluent.Item(Format("%lv", job->GetId()))
+                                .BeginMap()
+                                    .Item("job_state").Value(job->GetState())
+                                    .Item("job_phase").Value(job->GetPhase())
+                                .EndMap();
+                        });
                 })
         .EndMap();
 }
@@ -584,9 +597,9 @@ IYPathServicePtr TJobController::TImpl::GetOrchidService()
 
 void TJobController::TImpl::OnProfiling()
 {
-    auto jobCount = GetJobCountByOrigin();
+    auto jobs = GetJobsByOrigin();
     for (auto origin : TEnumTraits<EJobOrigin>::GetDomainValues()) {
-        Profiler.Enqueue("/active_job_count", jobCount[origin], EMetricType::Gauge, {JobOriginToTag_[origin]});
+        Profiler.Enqueue("/active_job_count", jobs[origin].size(), EMetricType::Gauge, {JobOriginToTag_[origin]});
     }
     ProfileResources(ResourceUsageProfiler_, GetResourceUsage(false /* includeWaiting */));
     ProfileResources(ResourceLimitsProfiler_, GetResourceLimits());
