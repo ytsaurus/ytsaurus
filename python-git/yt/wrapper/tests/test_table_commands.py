@@ -19,8 +19,7 @@ import tempfile
 import shutil
 import time
 import contextlib
-from StringIO import StringIO
-
+from io import BytesIO
 
 @pytest.mark.usefixtures("yt_env")
 class TestTableCommands(object):
@@ -50,7 +49,7 @@ class TestTableCommands(object):
         yt.write_table(table, [{"y": 1}])
         check([{"y": 1}], yt.read_table(table))
 
-        yt.write_table(table, StringIO('{"y": 1}\n'), raw=True, format=yt.JsonFormat())
+        yt.write_table(table, BytesIO(b'{"y": 1}\n'), raw=True, format=yt.JsonFormat())
         check([{"y": 1}], yt.read_table(table))
 
         response_parameters = {}
@@ -61,7 +60,7 @@ class TestTableCommands(object):
         assert [{"y": "1"}] == list(yt.read_table(table, raw=False))
 
         with set_config_option("tabular_data_format", yt.DsvFormat()):
-            yt.write_table(table, ["x=1\n"], raw=True)
+            yt.write_table(table, [b"x=1\n"], raw=True)
 
     def test_table_path(self, yt_env):
         path = yt.TablePath("//path/to/table", attributes={"my_attr": 10})
@@ -520,12 +519,13 @@ class TestTableCommands(object):
         os.close(fd)
 
         with zip.GzipFile(filename, "w", 5) as fout:
-            fout.write("x=1\nx=2\nx=3\n")
+            fout.write(b"x=1\nx=2\nx=3\n")
 
-        with contextlib.nested(open(filename), set_config_option("proxy/content_encoding", "gzip")) as (f, _):
-            if yt.config["backend"] == "native":
-                with pytest.raises(yt.YtError):  # not supported for native backend
+        with open(filename, "rb") as f:
+            with set_config_option("proxy/content_encoding", "gzip"):
+                if yt.config["backend"] == "native":
+                    with pytest.raises(yt.YtError):  # not supported for native backend
+                        yt.write_table(TEST_DIR + "/table", f, format="dsv", is_stream_compressed=True, raw=True)
+                else:
                     yt.write_table(TEST_DIR + "/table", f, format="dsv", is_stream_compressed=True, raw=True)
-            else:
-                yt.write_table(TEST_DIR + "/table", f, format="dsv", is_stream_compressed=True, raw=True)
-                check([{"x": "1"}, {"x": "2"}, {"x": "3"}], yt.read_table(TEST_DIR + "/table"))
+                    check([{"x": "1"}, {"x": "2"}, {"x": "3"}], yt.read_table(TEST_DIR + "/table"))
