@@ -60,7 +60,7 @@ template <class T>
 void SetProtoExtension(NProto::TExtensionSet* extensions, const T& value)
 {
     i32 tag = TProtoExtensionTag<T>::Value;
-    NYT::NProto::TExtension* extension = NULL;
+    NYT::NProto::TExtension* extension = nullptr;
     for (auto& currentExtension : *extensions->mutable_extensions()) {
         if (currentExtension.tag() == tag) {
             extension = &currentExtension;

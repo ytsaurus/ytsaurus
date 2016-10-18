@@ -599,7 +599,7 @@ void Main(int argc, const char* argv[])
     sigset_t sigset;
     SigEmptySet(&sigset);
     SigAddSet(&sigset, SIGHUP);
-    SigProcMask(SIG_BLOCK, &sigset, NULL);
+    SigProcMask(SIG_BLOCK, &sigset, nullptr);
 
     signal(SIGPIPE, SIG_IGN);
 
