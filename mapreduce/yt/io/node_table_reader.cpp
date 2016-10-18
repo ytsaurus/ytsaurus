@@ -22,10 +22,11 @@ TRowQueue::TRowQueue()
 
 void TRowQueue::Enqueue(TRowElement&& row)
 {
-    EnqueueBuffer_.push_back(std::move(row));
     EnqueueSize_ += row.Size;
+    EnqueueSize_ += sizeof(TRowElement);
+    EnqueueBuffer_.push_back(std::move(row));
 
-    if (EnqueueSize_ < SizeLimit_ && row.Type == TRowElement::Row) {
+    if (row.Type == TRowElement::Row && EnqueueSize_ < SizeLimit_) {
         return;
     }
 
