@@ -185,7 +185,7 @@ class TestRetries(object):
 
             yt.create_table(table)
             check([], yt.read_table(table))
-            assert "" == yt.read_table(table, format=yt.JsonFormat(), raw=True).read()
+            assert b"" == yt.read_table(table, format=yt.JsonFormat(), raw=True).read()
 
             yt.write_table(table, [{"x": 1}, {"y": 2}])
             check([{"x": 1}, {"y": 2}], yt.read_table(table))
@@ -220,10 +220,10 @@ class TestRetries(object):
             table = TEST_DIR + "/table"
 
             yt.create_table(table)
-            assert "" == yt.read_table(table, format=yt.JsonFormat(), raw=True).read()
+            assert b"" == yt.read_table(table, format=yt.JsonFormat(), raw=True).read()
 
             yt.write_table("<sorted_by=[x]>" + table, [{"x": 1}, {"x": 2}, {"x": 3}])
-            assert '{"x":1}\n{"x":2}\n{"x":3}\n' == yt.read_table(table, format=yt.JsonFormat(), raw=True).read()
+            assert b'{"x":1}\n{"x":2}\n{"x":3}\n' == yt.read_table(table, format=yt.JsonFormat(), raw=True).read()
             assert [{"x":1}] == list(yt.read_table(table + "[#0]", format=yt.JsonFormat()))
 
             assert [{"x": 1}, {"x": 3}, {"x": 2}, {"x": 1}, {"x": 2}] == \
@@ -258,7 +258,7 @@ class TestRetries(object):
             with pytest.raises(yt.YtError):
                 list(yt.read_table(table + '[#0,2]', raw=False, format=yt.YsonFormat(process_table_index=False), unordered=True))
 
-            assert ["x=2\n", "x=3\n"] == list(yt.read_table(table + "[2:]", raw=True, format=yt.DsvFormat()))
+            assert [b"x=2\n", b"x=3\n"] == list(yt.read_table(table + "[2:]", raw=True, format=yt.DsvFormat()))
 
             with pytest.raises(yt.YtError):
                 list(yt.read_table(table + '[#0,2]', raw=False, format=yt.DsvFormat()))
@@ -316,7 +316,7 @@ class TestRetries(object):
             yt.config["proxy"]["request_backoff_time"] = None
 
     def test_download_with_retries(self):
-        text = "some long text repeated twice " * 2
+        text = b"some long text repeated twice " * 2
         file_path = TEST_DIR + "/file"
         yt.write_file(file_path, text)
         assert text == yt.read_file(file_path).read()
@@ -329,8 +329,8 @@ class TestRetries(object):
         yt.config._ENABLE_READ_TABLE_CHAOS_MONKEY = True
         try:
             assert text == yt.read_file(file_path).read()
-            assert "twice " == yt.read_file(file_path, offset=len(text) - 6).read()
-            assert "some" == yt.read_file(file_path, length=4).read()
+            assert b"twice " == yt.read_file(file_path, offset=len(text) - 6).read()
+            assert b"some" == yt.read_file(file_path, length=4).read()
         finally:
             yt.config._ENABLE_READ_TABLE_CHAOS_MONKEY = False
             yt.config["read_retries"]["enable"] = old_value
