@@ -208,7 +208,8 @@ class TestReplicatedDynamicTables(YTEnvSetup):
 
         assert get("#{0}/@tablets/{1}/current_replication_row_index".format(replica_id, tablet_id)) == 1
 
-    def test_start_replication_timestamp(self):
+    @pytest.mark.parametrize("with_data", [False, True])
+    def test_start_replication_timestamp(self, with_data):
         self.sync_create_cells(1)
         self._create_replicated_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
@@ -223,10 +224,14 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         })
         enable_table_replica(replica_id)
 
-        insert_rows("//tmp/t", [{"key": 2, "value1": "test"}])
+        if with_data:
+            insert_rows("//tmp/t", [{"key": 2, "value1": "test"}])
 
         sleep(1.0)
-        assert select_rows("* from [//tmp/r]") == [{"key": 2, "value1": "test", "value2": YsonEntity()}]
+
+        assert select_rows("* from [//tmp/r]") == \
+            ([{"key": 2, "value1": "test", "value2": YsonEntity()}] if with_data else \
+            [])
 
     @pytest.mark.parametrize("ttl, chunk_count, trimmed_row_count", [
         (0, 1, 1),
