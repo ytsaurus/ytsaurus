@@ -260,6 +260,7 @@ private:
             TChunkServiceProxy proxy(channel);
 
             auto req = proxy.LocateChunks();
+            req->SetHeavy(true);
             ToProto(req->add_subrequests(), ChunkId_);
             req->Invoke().Subscribe(
                 BIND(&TReplicationReader::OnLocateChunkResponse, MakeStrong(this))
