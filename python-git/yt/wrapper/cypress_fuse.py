@@ -20,7 +20,7 @@ import yt.wrapper.client
 from yt.packages.expiringdict import ExpiringDict
 import yt.packages.fuse as fuse
 import yt.packages.requests as requests
-from yt.packages.six import itervalues, iteritems, iterkeys
+from yt.packages.six import itervalues, iteritems, iterkeys, PY3
 from yt.packages.six.moves import map as imap, zip as izip
 
 import stat
@@ -314,7 +314,7 @@ class OpenedFile(object):
         self._minimum_read_size = minimum_read_size
         self._length = 0
         self._offset = 0
-        self._buffer = ""
+        self._buffer = b""
         self._has_pending_write = False
         self._tx = client.create_transaction_and_take_snapshot_lock(ypath)
 
@@ -351,7 +351,7 @@ class OpenedFile(object):
 
     def _extend_buffer(self, length):
         if len(self._buffer) < length:
-            self._buffer += "\0" * (length - len(self._buffer))
+            self._buffer += b"\0" * (length - len(self._buffer))
 
     def truncate(self, length):
         if not self._has_pending_write:
@@ -375,7 +375,7 @@ class OpenedFile(object):
     def flush(self):
         if self._has_pending_write:
             self._client.write_file(self.ypath, self._buffer)
-            self._buffer = ""
+            self._buffer = b""
             self._length = 0
             self._has_pending_write = False
 
@@ -415,7 +415,7 @@ class OpenedTable(object):
                 client=self._client
             )
             with self._client.Transaction(transaction_id=self._tx.transaction_id, attributes={"title": "Fuse read transaction"}):
-                slice_content = "".join(
+                slice_content = b"".join(
                     self._client.read_table(slice_ypath, format=self._format, raw=True)
                 )
             if len(slice_content) == 0:
@@ -433,7 +433,7 @@ class OpenedTable(object):
                 client=self._client
             )
             with self._client.Transaction(transaction_id=self._tx.transaction_id, attributes={"title": "Fuse read transaction"}):
-                slice_content = "".join(
+                slice_content = b"".join(
                     self._client.read_table(slice_ypath, format=self._format, raw=True)
                 )
             self._lower_offset -= len(slice_content)
@@ -441,7 +441,7 @@ class OpenedTable(object):
             self._buffer = [slice_content] + self._buffer
 
         slices_offset = offset - self._lower_offset
-        return "".join(self._buffer)[slices_offset:(slices_offset + length)]
+        return b"".join(self._buffer)[slices_offset:(slices_offset + length)]
 
     def truncate(self, length):
         self._logger.debug("truncate is not implemented")
@@ -585,7 +585,10 @@ class Cypress(fuse.Operations):
         children = self._client.list(ypath, attributes=self._system_attributes)
         # Still having encoding problems,
         # try listing //statbox/home/zahaaar at Plato.
-        return [child.decode("utf-8") for child in children]
+        if PY3:
+            return [str(child) for child in children]
+        else:
+            return [str(child).decode("utf-8") for child in children]
 
     @handle_yt_errors(_logger)
     @log_calls(_logger, "%(__name__)s(%(path)r)", _statistics)
