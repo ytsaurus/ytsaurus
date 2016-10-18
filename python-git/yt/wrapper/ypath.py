@@ -116,7 +116,7 @@ class YPath(object):
         # NB: in text format \n can appear only as separator.
         if self.attributes:
             return "<{0}>{1}".format(
-                yson.dumps(self.attributes, yson_type="map_fragment", yson_format="text").replace("\n", ""),
+                yson.dumps(self.attributes, yson_type="map_fragment", yson_format="text").replace(b"\n", b""),
                 str(self._path_object))
         else:
             return str(self._path_object)
