@@ -146,9 +146,13 @@ def process_auto(tables, include_regexps=[], exclude_regexps=[], root="/",
         shards = 1 + sum(sizes) / (desired_size_gbs * GB)
 
         try:
-            logging.info("Resharding table %s into %d shards (slack: %.2f .. %.2f)",
-                         table, shards, min(slacks), max(slacks))
-            reshard(table, shards, yes)
+            if shards > len(tablets):
+                logging.info("Resharding table %s from %d shards to %d shards (slack: %.2f .. %.2f)",
+                             table, len(tablets), shards, min(slacks), max(slacks))
+                reshard(table, shards, yes)
+            else:
+                logging.info("Skipping table %s due to natural disbalance (slack: %.3f .. %.2f)",
+                             table, min(slacks), max(slacks))
         except KeyboardInterrupt:
             raise
         except:
