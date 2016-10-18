@@ -240,7 +240,16 @@ DEFINE_REFCOUNTED_TYPE(TTransactionManagerConfig)
 class TTabletChunkReaderConfig
     : public NTableClient::TChunkReaderConfig
     , public NChunkClient::TReplicationReaderConfig
-{ };
+{
+public:
+    bool PreferLocalReplicas;
+
+    TTabletChunkReaderConfig()
+    {
+        RegisterParameter("prefer_local_replicas", PreferLocalReplicas)
+            .Default(true);
+    }
+};
 
 DEFINE_REFCOUNTED_TYPE(TTabletChunkReaderConfig)
 
