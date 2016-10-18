@@ -101,8 +101,7 @@ struct IOperationHost
      *
      *  \note Thread affinity: any
      */
-    virtual void OnOperationCompleted(
-        TOperationPtr operation) = 0;
+    virtual void OnOperationCompleted(const TOperationId& operation) = 0;
 
     //! Called by a controller to notify the host that the operation has failed.
     /*!
@@ -111,7 +110,7 @@ struct IOperationHost
      *  \note Thread affinity: any
      */
     virtual void OnOperationFailed(
-        TOperationPtr operation,
+        const TOperationId& operationId,
         const TError& error) = 0;
 
     //! Creates new value consumer that can be used for logging.

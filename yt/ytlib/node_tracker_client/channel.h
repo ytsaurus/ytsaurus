@@ -10,11 +10,11 @@ namespace NNodeTrackerClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct INodeChannelFactory
-    : public NYT::NRpc::IChannelFactory
+    : public NRpc::IChannelFactory
 {
+    using NRpc::IChannelFactory::CreateChannel;
     virtual NRpc::IChannelPtr CreateChannel(const TNodeDescriptor& descriptor) = 0;
-
-    virtual NRpc::IChannelPtr CreateChannel(const Stroka& address) = 0;
+    virtual NRpc::IChannelPtr CreateChannel(const TAddressMap& addresses) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(INodeChannelFactory)

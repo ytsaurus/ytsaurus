@@ -34,7 +34,6 @@ class TestOrchid(YTEnvSetup):
     def test_at_scheduler(self):
         self._check_service("//sys/scheduler/orchid", "scheduler")
 
-    @skip_if_multicell
     def test_at_tablet_cells(self):
         self.sync_create_cells(1)
         cells = ls("//sys/tablet_cells")

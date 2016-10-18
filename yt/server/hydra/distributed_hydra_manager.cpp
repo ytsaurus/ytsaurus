@@ -1224,6 +1224,9 @@ private:
 
         LOG_INFO("Stopped leading");
 
+        // Save for later to respect the thread affinity.
+        auto leaderCommitter = ControlEpochContext_->LeaderCommitter;
+
         StopEpoch();
 
         YCHECK(ControlState_ == EPeerState::Leading || ControlState_ == EPeerState::LeaderRecovery);
@@ -1233,6 +1236,7 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         AutomatonEpochContext_.Reset();
+        leaderCommitter->Stop();
         DecoratedAutomaton_->OnStopLeading();
         StopLeading_.Fire();
 

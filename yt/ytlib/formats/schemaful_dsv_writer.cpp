@@ -48,6 +48,17 @@ protected:
         YCHECK(Config_->Columns);
     }    
 
+    void WriteColumnNamesHeader()
+    {
+        if (Config_->EnableColumnNamesHeader && *Config_->EnableColumnNamesHeader) {
+            auto columns = Config_->Columns.Get();
+            for (size_t index = 0; index < columns.size(); ++index) {
+                WriteRaw(columns[index]);
+                WriteRaw((index + 1 == columns.size()) ? Config_->RecordSeparator : Config_->FieldSeparator);
+            }
+        }
+    }
+
     void WriteValue(const TUnversionedValue& value)
     {
         switch (value.Type) {
@@ -166,6 +177,7 @@ public:
             : -1)
     {
         BlobOutput_ = GetOutputStream();
+        WriteColumnNamesHeader();
     }
 
 private:
@@ -235,6 +247,7 @@ public:
         , Output_(CreateSyncAdapter(stream))
     {
         BlobOutput_ = &UnderlyingBlobOutput_; 
+        WriteColumnNamesHeader();
     }
 
     virtual TFuture<void> Close() override

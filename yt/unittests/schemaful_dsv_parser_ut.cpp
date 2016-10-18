@@ -185,6 +185,20 @@ TEST(TSchemafulDsvParserTest, DisabledEscaping)
     ParseSchemafulDsv(input, &Mock, config);
 }
 
+TEST(TSchemafulDsvParserTest, ColumnsNamesHeader)
+{
+    Stroka input("a\tb\n1\t2\n");
+
+    auto config = New<TSchemafulDsvFormatConfig>();
+    config->Columns = std::vector<Stroka>();
+    config->Columns->push_back("a");
+    config->Columns->push_back("b");
+    config->EnableColumnNamesHeader = true;
+
+    auto Null = GetNullYsonConsumer();
+    EXPECT_THROW(ParseSchemafulDsv(input, Null, config), std::exception);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

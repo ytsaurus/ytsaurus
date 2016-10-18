@@ -1015,8 +1015,7 @@ private:
 
     void UpdateJobCounter()
     {
-        i64 newJobCount = DivCeil(FreePendingDataSize, DataSizePerJob) +
-            DivCeil(SuspendedDataSize, DataSizePerJob);
+        i64 newJobCount = DivCeil(FreePendingDataSize + SuspendedDataSize, DataSizePerJob);
         int freePendingJobCount = GetFreePendingJobCount();
         if (newJobCount != freePendingJobCount) {
             JobCounter.Increment(newJobCount - freePendingJobCount);
