@@ -68,8 +68,17 @@ class DumpRestoreClient(dt_module.DynamicTablesClient):
         tablets = self.yt.get(src_table + "/@tablets")
         pivot_keys = sorted([tablet["pivot_key"] for tablet in tablets])
 
+        static_schema = []
+        for column in schema:
+            if "expression" in column:
+                continue
+            static_column = {"name": column["name"], "type": column["type"]}
+            if "group" in column:
+                static_column["group"] = column["group"]
+            static_schema.append(static_column)
+
         attributes = {
-            "schema": schema,
+            "schema": static_schema,
             "optimize_for": optimize_for
         }
         create_destination(dst_table, yt=self.yt, force=force, attributes=attributes)
