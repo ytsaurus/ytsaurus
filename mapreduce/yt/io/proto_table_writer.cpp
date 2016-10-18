@@ -8,6 +8,7 @@
 
 namespace NYT {
 
+using ::google::protobuf::Descriptor;
 using ::google::protobuf::FieldDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -86,12 +87,35 @@ TNode MakeNodeFromMessage(const Message& row)
     return node;
 }
 
+void ValidateProtoDescriptor(
+    const Message& row,
+    size_t tableIndex,
+    const yvector<const Descriptor*>& descriptors)
+{
+    if (tableIndex >= descriptors.size()) {
+        ythrow TIOException() <<
+            "Table index " << tableIndex <<
+            " is out of range [0, " << descriptors.size() << ")";
+    }
+
+    if (row.GetDescriptor() != descriptors[tableIndex]) {
+        ythrow TIOException() <<
+            "Invalid row of type " << row.GetDescriptor()->full_name() <<
+            " at index " << tableIndex <<
+            ", row of type " << descriptors[tableIndex]->full_name() <<
+            " expected";
+    }
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TProtoTableWriter::TProtoTableWriter(THolder<TProxyOutput> output)
+TProtoTableWriter::TProtoTableWriter(
+    THolder<TProxyOutput> output,
+    yvector<const Descriptor*>&& descriptors)
     : NodeWriter_(new TNodeTableWriter(std::move(output)))
+    , Descriptors_(std::move(descriptors))
 { }
 
 TProtoTableWriter::~TProtoTableWriter()
@@ -109,13 +133,18 @@ TOutputStream* TProtoTableWriter::GetStream(size_t tableIndex) const
 
 void TProtoTableWriter::AddRow(const Message& row, size_t tableIndex)
 {
+    ValidateProtoDescriptor(row, tableIndex, Descriptors_);
+
     NodeWriter_->AddRow(MakeNodeFromMessage(row), tableIndex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLenvalProtoTableWriter::TLenvalProtoTableWriter(THolder<TProxyOutput> output)
+TLenvalProtoTableWriter::TLenvalProtoTableWriter(
+    THolder<TProxyOutput> output,
+    yvector<const Descriptor*>&& descriptors)
     : Output_(std::move(output))
+    , Descriptors_(std::move(descriptors))
 { }
 
 TLenvalProtoTableWriter::~TLenvalProtoTableWriter()
@@ -133,8 +162,9 @@ TOutputStream* TLenvalProtoTableWriter::GetStream(size_t tableIndex) const
 
 void TLenvalProtoTableWriter::AddRow(const Message& row, size_t tableIndex)
 {
-    auto* stream = GetStream(tableIndex);
+    ValidateProtoDescriptor(row, tableIndex, Descriptors_);
 
+    auto* stream = GetStream(tableIndex);
     i32 size = row.ByteSize();
     stream->Write(&size, sizeof(size));
     row.SerializeToStream(stream);

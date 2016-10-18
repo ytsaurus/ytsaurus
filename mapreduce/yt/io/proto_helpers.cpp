@@ -6,6 +6,8 @@
 #include <contrib/libs/protobuf/google/protobuf/descriptor.pb.h>
 
 #include <util/stream/str.h>
+#include <util/stream/file.h>
+#include <util/folder/path.h>
 
 namespace NYT {
 
@@ -69,6 +71,24 @@ TNode MakeProtoFormatConfig(const yvector<const Descriptor*>& descriptors)
         .Item("nested_messages_mode").Value("protobuf")
     .EndAttributes()
     .Value("protobuf");
+}
+
+yvector<const Descriptor*> GetJobOutputDescriptors()
+{
+    yvector<const Descriptor*> descriptors;
+    if (!TFsPath("protoconfig").Exists()) {
+        ythrow yexception() << "Cannot load 'protoconfig' file";
+    }
+
+    TFileInput input("protoconfig");
+    Stroka line;
+    while (input.ReadLine(line)) {
+        const auto* pool = DescriptorPool::generated_pool();
+        const auto* descriptor = pool->FindMessageTypeByName(line);
+        descriptors.push_back(descriptor);
+    }
+
+    return descriptors;
 }
 
 TNode MakeProtoFormatConfig(const Message* prototype)

@@ -20,6 +20,8 @@ TNode MakeProtoFormatConfig(
 
 TNode MakeProtoFormatConfig(const ::google::protobuf::Message* prototype);
 
+yvector<const ::google::protobuf::Descriptor*> GetJobOutputDescriptors();
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
