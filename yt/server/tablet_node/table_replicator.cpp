@@ -408,7 +408,8 @@ private:
         std::vector<TUnversionedRow> readerRows;
         readerRows.reserve(TabletRowsPerRead);
 
-        auto prevTimestamp = NullTimestamp;
+        // This default only makes sence if the batch turns out to be empty.
+        auto prevTimestamp = replicaSnapshot->RuntimeData->CurrentReplicationTimestamp.load();
 
         bool tooMuch = false;
         while (!tooMuch) {
@@ -473,10 +474,7 @@ private:
             }
         }
 
-        YCHECK(rowCount > 0);
         *newReplicationRowIndex = startRowIndex + rowCount;
-
-        YCHECK(prevTimestamp != NullTimestamp);
         *newReplicationTimestamp = prevTimestamp;
 
         LOG_DEBUG("Finished building replication batch (StartRowIndex: %v, RowCount: %v, DataWeight: %v, "
