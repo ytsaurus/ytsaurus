@@ -4,7 +4,7 @@ from yt.wrapper.cypress_fuse import CachedYtClient, Cypress
 from yt.wrapper.http_helpers import get_proxy_url
 
 from yt.packages.fuse import fuse_file_info, FuseOSError
-from yt.packages.six import iterkeys
+from yt.packages.six import iterkeys, PY3
 from yt.packages.six.moves import xrange
 
 import yt.wrapper as yt
@@ -79,7 +79,7 @@ class TestCypress(object):
             enable_write_access=False)
 
         filepath = TEST_DIR + "/file"
-        content = "Hello, world!" * 100
+        content = b"Hello, world!" * 100
         yt.write_file(filepath, content)
 
         fi = fuse_file_info()
@@ -110,6 +110,8 @@ class TestCypress(object):
             data = {"a": i, "b": 2 * i, "c": 3 * i}
             content += json.dumps(data, separators=(',', ':'), sort_keys=True)
             content += "\n"
+        if PY3:
+            content = content.encode("utf-8")
         yt.write_table(filepath, content, format=yt.JsonFormat(), raw=True)
 
         fi = fuse_file_info()
@@ -141,7 +143,7 @@ class TestCypress(object):
         cypress.create(fuse_filepath, 0o755, fi)
         cypress.release(fuse_filepath, fi)
 
-        assert yt.read_file(filepath).read() == ""
+        assert yt.read_file(filepath).read() == b""
 
     def test_unlink_file(self):
         cypress = Cypress(
@@ -164,7 +166,7 @@ class TestCypress(object):
             enable_write_access=True)
 
         filepath = TEST_DIR + "/file"
-        content = "Hello, world!" * 100
+        content = b"Hello, world!" * 100
         yt.write_file(filepath, content)
 
         fi = fuse_file_info()
@@ -184,7 +186,7 @@ class TestCypress(object):
             enable_write_access=True)
 
         filepath = TEST_DIR + "/file"
-        content = "Hello, world!" * 100
+        content = b"Hello, world!" * 100
 
         fi = fuse_file_info()
         fuse_filepath = filepath[1:]
@@ -202,7 +204,7 @@ class TestCypress(object):
             enable_write_access=True)
 
         filepath = TEST_DIR + "/file"
-        content = "Hello, world!" * 100
+        content = b"Hello, world!" * 100
 
         parts = []
         part_length = 17
