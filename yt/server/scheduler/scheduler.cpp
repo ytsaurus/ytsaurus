@@ -608,7 +608,7 @@ public:
         ValidateOperationPermission(user, operation->GetId(), EPermission::Write);
 
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
-            LOG_INFO(error, "Operation is already shuting down (OperationId: %v, State: %v)",
+            LOG_INFO(error, "Operation is already shutting down (OperationId: %v, State: %v)",
                 operation->GetId(),
                 operation->GetState());
             return operation->GetFinished();
@@ -1985,8 +1985,9 @@ private:
 
         auto operation = FindOperation(operationId);
 
-        if (!operation || operation->IsFinishedState() || operation->IsFinishingState()) {
-            // Operation is probably being aborted.
+        // NB: finishing state is ok, do not skip operation fail in this case.
+        if (!operation || operation->IsFinishedState()) {
+            // Operation is already terminated.
             return;
         }
 

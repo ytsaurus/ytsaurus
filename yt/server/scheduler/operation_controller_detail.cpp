@@ -2774,8 +2774,6 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
         return;
     }
 
-    LOG_INFO("Operation completed");
-
     State = EControllerState::Finished;
 
     Host->OnOperationCompleted(OperationId);
