@@ -13,15 +13,30 @@ from yt.yson.convert import json_to_yson
 from yt.packages.six import iteritems
 from yt.packages.six.moves import map as imap
 
+from copy import copy
+
 def process_params(obj):
+    attributes = None
+    is_yson_type = isinstance(obj, yson.YsonType)
+    if is_yson_type and obj.attributes:
+        attributes = process_params(obj.attributes)
+
     if isinstance(obj, list):
-        obj = list(imap(process_params, obj))
+        list_cls = yson.YsonList if is_yson_type else list
+        obj = list_cls(imap(process_params, obj))
     elif isinstance(obj, dict):
-        obj = dict((k, process_params(v)) for k, v in iteritems(obj))
+        dict_cls = yson.YsonMap if is_yson_type else dict
+        obj = dict_cls((k, process_params(v) for k, v in iteritems(obj)))
     elif hasattr(obj, "to_yson_type"):
         obj = obj.to_yson_type()
     elif obj is True or obj is False:
         obj = bool_to_string(obj)
+    else:
+        obj = copy(obj)
+
+    if attributes is not None:
+        obj.attributes = attributes
+
     return obj
 
 def make_request(command_name,
