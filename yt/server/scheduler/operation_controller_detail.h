@@ -696,6 +696,7 @@ protected:
 
     void PickIntermediateDataCell();
     void InitChunkListPool();
+    void InitSecureVault();
 
     // Initialize transactions
     void StartAsyncSchedulerTransaction();
