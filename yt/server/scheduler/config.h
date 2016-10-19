@@ -551,6 +551,8 @@ public:
 
     TDuration OperationTimeLimitCheckPeriod;
 
+    TDuration AvailableExecNodesCheckPeriod;
+
     TDuration OperationBuildProgressPeriod;
 
     TDuration TaskUpdatePeriod;
@@ -620,8 +622,19 @@ public:
     // TODO(ignat): rename to SafeExecNodeCount.
     int SafeOnlineNodeCount;
 
+    //! Don't check resource demand for sanity if scheduler is online
+    //! less than this timeout.
+    TDuration SafeSchedulerOnlineTime;
+
     //! Time between two consecutive calls in operation controller to get exec nodes information from scheduler.
-    TDuration GetExecNodesInformationDelay;
+    TDuration ControllerUpdateExecNodesInformationDelay;
+
+    //! Timeout to store cached value of exec nodes information
+    //! for scheduling tag filter without access.
+    TDuration SchedulingTagFilterExpireTimeout;
+
+    //! Time between two consecutive calls in node shard to calculate exec nodes list.
+    TDuration NodeShardUpdateExecNodesInformationDelay;
 
     //! Maximum number of foreign chunks to locate per request.
     int MaxChunksPerLocateRequest;
@@ -788,6 +801,9 @@ public:
         RegisterParameter("operation_time_limit_check_period", OperationTimeLimitCheckPeriod)
             .Default(TDuration::Seconds(1));
 
+        RegisterParameter("available_exec_nodes_check_period", AvailableExecNodesCheckPeriod)
+            .Default(TDuration::Seconds(5));
+
         RegisterParameter("operation_build_progress_period", OperationBuildProgressPeriod)
             .Default(TDuration::Seconds(3));
 
@@ -856,8 +872,14 @@ public:
             .GreaterThanOrEqual(0)
             .Default(1);
 
-        RegisterParameter("get_exec_nodes_information_delay", GetExecNodesInformationDelay)
+        RegisterParameter("safe_scheduler_online_time", SafeSchedulerOnlineTime)
+            .Default(TDuration::Minutes(10));
+
+        RegisterParameter("controller_update_exec_nodes_information_delay", ControllerUpdateExecNodesInformationDelay)
             .Default(TDuration::Seconds(1));
+
+        RegisterParameter("scheduling_tag_filter_expire_timeout", SchedulingTagFilterExpireTimeout)
+            .Default(TDuration::Hours(1));
 
         RegisterParameter("max_chunks_per_locate_request", MaxChunksPerLocateRequest)
             .GreaterThan(0)

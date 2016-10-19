@@ -12,6 +12,7 @@
 #include "operation_controller.h"
 #include "remote_copy_controller.h"
 #include "scheduler_strategy.h"
+#include "scheduling_tag.h"
 #include "snapshot_downloader.h"
 #include "sort_controller.h"
 
@@ -298,6 +299,10 @@ public:
         }
     }
 
+    virtual TInstant GetConnectionTime() const override
+    {
+        return ConnectionTime_;
+    }
 
     TOperationPtr FindOperation(const TOperationId& id)
     {
@@ -353,11 +358,11 @@ public:
         return totalNodeCount;
     }
 
-    virtual std::vector<TExecNodeDescriptor> GetExecNodeDescriptors(const TNullable<Stroka>& tag) const override
+    virtual std::vector<TExecNodeDescriptor> GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        if (!tag) {
+        if (filter.IsEmpty()) {
             TReaderGuard guard(ExecNodeDescriptorsLock_);
 
             return CachedExecNodeDescriptors_;
@@ -368,12 +373,12 @@ public:
         {
             TReaderGuard guard(ExecNodeDescriptorsByTagLock_);
 
-            auto it = CachedExecNodeDescriptorsByTag_.find(*tag);
-            if (it != CachedExecNodeDescriptorsByTag_.end() &&
-                now <= it->second.first + Config_->UpdateExecNodeDescriptorsPeriod)
+            auto it = CachedExecNodeDescriptorsByTags_.find(filter);
+            if (it != CachedExecNodeDescriptorsByTags_.end() &&
+                now <= it->second.LastAccessTime + Config_->UpdateExecNodeDescriptorsPeriod)
             {
-                it->second.first = now;
-                return it->second.second;
+                it->second.LastAccessTime = now;
+                return it->second.ExecNodeDescriptors;
             }
         }
 
@@ -383,7 +388,7 @@ public:
             TReaderGuard guard(ExecNodeDescriptorsLock_);
 
             for (const auto& descriptor : CachedExecNodeDescriptors_) {
-                if (descriptor.CanSchedule(tag)) {
+                if (filter.CanSchedule(descriptor.Tags)) {
                     result.push_back(descriptor);
                 }
             }
@@ -391,7 +396,7 @@ public:
 
         {
             TWriterGuard guard(ExecNodeDescriptorsByTagLock_);
-            CachedExecNodeDescriptorsByTag_[*tag] = std::make_pair(now, result);
+            CachedExecNodeDescriptorsByTags_.emplace(filter, TExecNodeDescriptorsEntry({now, result}));
         }
 
         return result;
@@ -776,13 +781,13 @@ public:
         return totalResourceUsage;
     }
 
-    virtual TJobResources GetResourceLimits(const TNullable<Stroka>& tag) override
+    virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto resourceLimits = ZeroJobResources();
         for (auto& nodeShard : NodeShards_) {
-            resourceLimits += nodeShard->GetResourceLimits(tag);
+            resourceLimits += nodeShard->GetResourceLimits(filter);
         }
         return resourceLimits;
     }
@@ -970,6 +975,8 @@ private:
 
     ISchedulerStrategyPtr Strategy_;
 
+    TInstant ConnectionTime_;
+
     TNodeDirectoryPtr NodeDirectory_ = New<TNodeDirectory>();
 
     typedef yhash_map<TOperationId, TOperationPtr> TOperationIdMap;
@@ -980,7 +987,13 @@ private:
     TExecNodeDescriptors CachedExecNodeDescriptors_;
 
     NConcurrency::TReaderWriterSpinLock ExecNodeDescriptorsByTagLock_;
-    mutable yhash_map<Stroka, std::pair<TInstant, TExecNodeDescriptors>> CachedExecNodeDescriptorsByTag_;
+
+    struct TExecNodeDescriptorsEntry
+    {
+        TInstant LastAccessTime;
+        TExecNodeDescriptors ExecNodeDescriptors;
+    };
+    mutable yhash_map<TSchedulingTagFilter, TExecNodeDescriptorsEntry> CachedExecNodeDescriptorsByTags_;
 
     TProfiler TotalResourceLimitsProfiler_;
     TProfiler TotalResourceUsageProfiler_;
@@ -1257,6 +1270,8 @@ private:
         }
 
         Strategy_->StartPeriodicActivity();
+
+        ConnectionTime_ = TInstant::Now();
     }
 
     void OnMasterDisconnected()
@@ -1568,6 +1583,40 @@ private:
             TWriterGuard guard(ExecNodeDescriptorsLock_);
 
             CachedExecNodeDescriptors_ = result;
+        }
+
+        // Remove outdated cached exec node descriptor lists.
+        {
+            auto now = TInstant::Now();
+            std::vector<TSchedulingTagFilter> toRemove;
+            {
+                TReaderGuard guard(ExecNodeDescriptorsLock_);
+                for (const auto& pair : CachedExecNodeDescriptorsByTags_) {
+                    if (pair.second.LastAccessTime + Config_->SchedulingTagFilterExpireTimeout < now) {
+                        toRemove.push_back(pair.first);
+                    }
+                }
+            }
+            {
+                TWriterGuard guard(ExecNodeDescriptorsLock_);
+                for (const auto& filter : toRemove) {
+                    auto it = CachedExecNodeDescriptorsByTags_.find(filter);
+                    if (it->second.LastAccessTime + Config_->SchedulingTagFilterExpireTimeout < now) {
+                        CachedExecNodeDescriptorsByTags_.erase(it);
+                    }
+                }
+            }
+
+
+            {
+                for (const auto& filter : toRemove) {
+                    for (auto& nodeShard : NodeShards_) {
+                        BIND(&TNodeShard::RemoveOutdatedSchedulingTagFilter, nodeShard, filter)
+                            .AsyncVia(nodeShard->GetInvoker())
+                            .Run();
+                    }
+                }
+            }
         }
     }
 

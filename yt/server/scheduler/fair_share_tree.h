@@ -3,6 +3,7 @@
 #include "job.h"
 #include "job_resources.h"
 #include "scheduler_strategy.h"
+#include "scheduling_tag.h"
 
 #include <yt/core/concurrency/rw_spinlock.h>
 
@@ -43,11 +44,15 @@ typedef std::vector<TDynamicAttributes> TDynamicAttributesList;
 
 struct TFairShareContext
 {
-    TFairShareContext(const ISchedulingContextPtr& schedulingContext, int treeSize);
+    TFairShareContext(
+        const ISchedulingContextPtr& schedulingContext,
+        int treeSize,
+        const std::vector<TSchedulingTagFilter>& filter);
 
     TDynamicAttributes& DynamicAttributes(TSchedulerElement* element);
     const TDynamicAttributes& DynamicAttributes(TSchedulerElement* element) const;
 
+    std::vector<bool> CanSchedule;
     const ISchedulingContextPtr SchedulingContext;
     TDynamicAttributesList DynamicAttributesList;
     TDuration TotalScheduleJobDuration;
@@ -59,6 +64,7 @@ struct TFairShareContext
 ////////////////////////////////////////////////////////////////////
 
 const int UnassignedTreeIndex = -1;
+const int EmptySchedulingTagFilterIndex = -1;
 
 class TSchedulerElementFixedState
 {
@@ -67,6 +73,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceLimits);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, MaxPossibleResourceUsage);
     DEFINE_BYREF_RW_PROPERTY(TSchedulableAttributes, Attributes);
+    DEFINE_BYVAL_RW_PROPERTY(int, SchedulingTagFilterIndex, EmptySchedulingTagFilterIndex);
 
 protected:
     explicit TSchedulerElementFixedState(
@@ -148,7 +155,7 @@ public:
     virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly, bool aggressiveStarvationEnabled);
     virtual bool ScheduleJob(TFairShareContext& context) = 0;
 
-    virtual const TNullable<Stroka>& GetNodeTag() const;
+    virtual const TSchedulingTagFilter& GetSchedulingTagFilter() const;
 
     bool IsActive(const TDynamicAttributesList& dynamicAttributesList) const;
 
@@ -189,8 +196,6 @@ public:
 
 protected:
     TSchedulerElementSharedStatePtr SharedState_;
-
-    static const TNullable<Stroka> NullNodeTag;
 
     TSchedulerElement(
         ISchedulerStrategyHost* host,
@@ -374,7 +379,7 @@ public:
     virtual void SetStarving(bool starving) override;
     virtual void CheckForStarvation(TInstant now) override;
 
-    virtual const TNullable<Stroka>& GetNodeTag() const override;
+    virtual const TSchedulingTagFilter& GetSchedulingTagFilter() const override;
 
     virtual void UpdateBottomUp(TDynamicAttributesList& dynamicAttributesList) override;
 
@@ -387,6 +392,7 @@ public:
 
 private:
     TPoolConfigPtr Config_;
+    TSchedulingTagFilter SchedulingTagFilter_;
 
     void DoSetConfig(TPoolConfigPtr newConfig);
 
@@ -628,7 +634,7 @@ public:
     virtual TJobResources GetMinShareResources() const override;
     virtual double GetMaxShareRatio() const override;
 
-    virtual const TNullable<Stroka>& GetNodeTag() const override;
+    virtual const TSchedulingTagFilter& GetSchedulingTagFilter() const override;
 
     virtual ESchedulableStatus GetStatus() const override;
 
@@ -659,6 +665,8 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TOperationRuntimeParamsPtr, RuntimeParams);
 
     DEFINE_BYVAL_RO_PROPERTY(TStrategyOperationSpecPtr, Spec);
+
+    TSchedulingTagFilter SchedulingTagFilter_;
 
 private:
     TOperationElementSharedStatePtr SharedState_;
@@ -700,7 +708,7 @@ public:
 
     virtual bool IsRoot() const override;
 
-    virtual const TNullable<Stroka>& GetNodeTag() const override;
+    virtual const TSchedulingTagFilter& GetSchedulingTagFilter() const override;
 
     virtual Stroka GetId() const override;
 
