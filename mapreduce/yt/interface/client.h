@@ -78,7 +78,7 @@ struct TLookupRowsOptions
     using TSelf = TLookupRowsOptions;
 
     FLUENT_FIELD_OPTION(TDuration, Timeout);
-    // ColumnFilter
+    FLUENT_FIELD_OPTION(TKeyColumns, Columns);
     FLUENT_FIELD_DEFAULT(bool, KeepMissingRows, false);
 };
 

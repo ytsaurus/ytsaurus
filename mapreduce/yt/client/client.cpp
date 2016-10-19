@@ -695,6 +695,9 @@ public:
                 fluent.Item("timeout").Value(options.Timeout_->MilliSeconds());
             })
             .Item("keep_missing_rows").Value(options.KeepMissingRows_)
+            .DoIf(options.Columns_.Defined(), [&] (TFluentMap fluent) {
+                fluent.Item("column_names").Value(*options.Columns_);
+            })
         .EndMap());
 
         auto body = NodeListToYsonString(keys);
