@@ -133,8 +133,6 @@ TOutputStream* TProtoTableWriter::GetStream(size_t tableIndex) const
 
 void TProtoTableWriter::AddRow(const Message& row, size_t tableIndex)
 {
-    ValidateProtoDescriptor(row, tableIndex, Descriptors_);
-
     NodeWriter_->AddRow(MakeNodeFromMessage(row), tableIndex);
 }
 
