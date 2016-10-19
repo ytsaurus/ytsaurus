@@ -417,6 +417,34 @@ class Operation(object):
         self._tmpdir = ""
         self._poll_frequency = 0.1
 
+    def get_job_phase(self, job_id):
+        job_path = "//sys/scheduler/orchid/scheduler/job_by_id/{0}".format(job_id)
+        node = get(job_path + "/address", verbose=False)
+        job_phase_path = "//sys/nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}/job_phase".format(node, job_id)
+        return get(job_phase_path, verbose=False)
+
+    def wait_for_running_phase(self, timeout=5.0):
+        while True:
+            wait = False
+            for job in self.jobs:
+                try:
+                    if self.get_job_phase(job) != "running":
+                        wait = True
+                except YtResponseError as error:
+                    if error.is_resolve_error():
+                        continue
+                    raise
+
+            if wait == False:
+                break
+
+            if timeout <= 0:
+                TimeoutError("Job phase didn't become running within timeout")
+
+            print >>sys.stderr, "Some jobs are not in running phase yet, waiting..."
+            time.sleep(self._poll_frequency)
+            timeout -= self._poll_frequency
+
     def ensure_jobs_running(self, timeout=20.0):
         print >>sys.stderr, "Ensure operation jobs are running %s" % self.id
 
@@ -444,6 +472,8 @@ class Operation(object):
             raise TimeoutError("Jobs didn't become running within timeout")
 
         self.jobs = list(frozenset(ls(jobs_path)) - self.resumed_jobs)
+
+        self.wait_for_running_phase()
 
         # Wait till all jobs are actually running.
         while not all([os.path.exists(os.path.join(self._tmpdir, "started_" + job)) for job in self.jobs]) and timeout > 0:
