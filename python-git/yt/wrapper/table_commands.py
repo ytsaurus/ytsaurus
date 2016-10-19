@@ -21,12 +21,6 @@ Common operations parameters
 * **job_io** : (dict) spec for job io of all stages of operation \
 <https://wiki.yandex-team.ru/yt/userdoc/api#write>`_.
 
-* **replication_factor** : (Deprecated!) (integer) number of output data replicas
-
-* **compression_codec** : (Deprecated!) (one of "none" (default for files), "lz4" (default for tables), "snappy",\
- "zlib6", "zlib9", "lz4_high_compresion", "quick_lz") compression \
-algorithm for output data
-
 * **table_writer** : (dict) spec of `"write_table" operation \
 <https://wiki.yandex-team.ru/yt/userdoc/api#writetable>`_.
 
@@ -283,19 +277,14 @@ def _prepare_binary(binary, operation_type, input_format, output_format,
     else:
         return binary, [], 0, {}, []
 
-def _prepare_destination_tables(tables, replication_factor, compression_codec, client=None):
+def _prepare_destination_tables(tables, client=None):
     if tables is None:
         if get_config(client)["yamr_mode"]["throw_on_missing_destination"]:
             raise YtError("Destination tables are missing")
         return []
     tables = list(imap(lambda name: TablePath(name, client=client), flatten(tables)))
     for table in tables:
-        attributes = {}
-        if replication_factor is not None:
-            attributes["replication_factor"] = replication_factor
-        if compression_codec is not None:
-            attributes["compression_codec"] = compression_codec
-        create_table(table, ignore_existing=True, attributes=attributes, client=client)
+        create_table(table, ignore_existing=True, client=client)
     return tables
 
 def _remove_locks(table, client=None):
@@ -547,8 +536,8 @@ def create_temp_table(path=None, prefix=None, client=None):
     create_table(name, client=client)
     return name
 
-def write_table(table, input_stream, format=None, table_writer=None, replication_factor=None,
-                compression_codec=None, is_stream_compressed=False, force_create=None, raw=None,
+def write_table(table, input_stream, format=None, table_writer=None,
+                is_stream_compressed=False, force_create=None, raw=None,
                 client=None):
     """Write rows from input_stream to table.
 
@@ -558,8 +547,6 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
     :param format: (string or subclass of `Format`) format of input data, \
                     `yt.wrapper.config["tabular_data_format"]` by default.
     :param table_writer: (dict) spec of "write" operation
-    :param replication_factor: (integer) number of data replicas
-    :param compression_codec: (string) standard operation parameter
     :param is_stream_compressed: (bool) expect stream to contain compressed table data. \
     This data can be passed directly to proxy without recompression. Be careful! this option \
     disables write retries.
@@ -593,12 +580,7 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
     def prepare_table(path):
         if not force_create:
             return
-        attributes = {}
-        if replication_factor is not None:
-            attributes["replication_factor"] = replication_factor
-        if compression_codec is not None:
-            attributes["compression_codec"] = compression_codec
-        create_table(path, ignore_existing=True, attributes=attributes, client=client)
+        create_table(path, ignore_existing=True, client=client)
 
     can_split_input = isinstance(input_stream, list) or format.is_raw_load_supported()
     enable_retries = get_config(client)["write_retries"]["enable"] and \
@@ -1231,7 +1213,6 @@ def run_erase(table, spec=None, sync=True, client=None):
 @forbidden_inside_job
 def run_merge(source_table, destination_table, mode=None,
               sync=True, job_io=None, table_writer=None,
-              replication_factor=None, compression_codec=None,
               job_count=None, spec=None, client=None):
     """Merge source tables to destination table.
 
@@ -1243,16 +1224,13 @@ def run_merge(source_table, destination_table, mode=None,
     :param job_count:  (integer) recommendation how many jobs should run.
     :param job_io: job io specification
     :param table_writer: standard operation parameter
-    :param replication_factor: (int) number of destination table replicas.
-    :param compression_codec: (string) compression algorithm of destination_table.
     :param spec: (dict) standard operation parameter.
 
 
     .. seealso::  :ref:`operation_parameters`.
     """
     source_table = _prepare_source_tables(source_table, replace_unexisting_by_empty=False, client=client)
-    destination_table = unlist(_prepare_destination_tables(destination_table, replication_factor,
-                                                           compression_codec, client=client))
+    destination_table = unlist(_prepare_destination_tables(destination_table, client=client))
 
     def is_sorted(table):
         sort_attributes = get(TablePath(table, client=client) + "/@", attributes=["sorted", "sorted_by"], client=client)
@@ -1284,8 +1262,8 @@ def run_merge(source_table, destination_table, mode=None,
 
 @forbidden_inside_job
 def run_sort(source_table, destination_table=None, sort_by=None,
-             sync=True, job_io=None, table_writer=None, replication_factor=None,
-             compression_codec=None, spec=None, client=None):
+             sync=True, job_io=None, table_writer=None,
+             spec=None, client=None):
     """Sort source tables to destination table.
 
     If destination table is not specified, than it equals to source table.
@@ -1305,8 +1283,7 @@ def run_sort(source_table, destination_table=None, sort_by=None,
                 lambda: YtError("You must specify destination sort table "
                                 "in case of multiple source tables"))
         destination_table = source_table[0]
-    destination_table = unlist(_prepare_destination_tables(destination_table, replication_factor,
-                                                           compression_codec, client=client))
+    destination_table = unlist(_prepare_destination_tables(destination_table, client=client))
 
     if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and not source_table:
         _remove_tables([destination_table], client=client)
@@ -1402,7 +1379,6 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
                    map_input_format=None, map_output_format=None,
                    reduce_input_format=None, reduce_output_format=None,
                    sync=True, job_io=None, table_writer=None, spec=None,
-                   replication_factor=None, compression_codec=None,
                    map_files=None, map_file_paths=None,
                    map_local_files=None, map_yt_files=None,
                    reduce_files=None, reduce_file_paths=None,
@@ -1430,8 +1406,6 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
     :param job_io: job io specification
     :param table_writer: (dict) standard operation parameter
     :param spec: (dict) standard operation parameter
-    :param replication_factor: (int) standard operation parameter
-    :param compression_codec: standard operation parameter
     :param map_files: Deprecated!
     :param map_file_paths: Deprecated!
     :param map_local_files: (string or list  of string) paths to map scripts on local machine.
@@ -1464,8 +1438,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
     local_files_to_remove = []
 
     source_table = _prepare_source_tables(source_table, client=client)
-    destination_table = _prepare_destination_tables(destination_table, replication_factor,
-                                                    compression_codec, client=client)
+    destination_table = _prepare_destination_tables(destination_table, client=client)
 
     if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and _are_default_empty_table(source_table):
         _remove_tables(destination_table, client=client)
@@ -1514,8 +1487,6 @@ def _run_operation(binary, source_table, destination_table,
                   sync=True,
                   job_io=None,
                   table_writer=None,
-                  replication_factor=None,
-                  compression_codec=None,
                   job_count=None,
                   memory_limit=None,
                   spec=None,
@@ -1542,8 +1513,7 @@ def _run_operation(binary, source_table, destination_table,
 
     op_name = get_value(op_name, "map")
     source_table = _prepare_source_tables(source_table, client=client)
-    destination_table = _prepare_destination_tables(destination_table, replication_factor,
-                                                    compression_codec, client=client)
+    destination_table = _prepare_destination_tables(destination_table, client=client)
 
     are_sorted_output = False
     for table in destination_table:
@@ -1590,8 +1560,6 @@ def _run_operation(binary, source_table, destination_table,
                     table_writer=table_writer,
                     reduce_by=reduce_by,
                     sort_by=sort_by,
-                    replication_factor=replication_factor,
-                    compression_codec=compression_codec,
                     reducer_memory_limit=memory_limit,
                     sync=sync,
                     spec=spec,
@@ -1660,8 +1628,6 @@ def run_map(binary, source_table, destination_table,
             sync=True,
             job_io=None,
             table_writer=None,
-            replication_factor=None,
-            compression_codec=None,
             job_count=None,
             memory_limit=None,
             spec=None,
@@ -1684,8 +1650,6 @@ def run_reduce(binary, source_table, destination_table,
                sync=True,
                job_io=None,
                table_writer=None,
-               replication_factor=None,
-               compression_codec=None,
                job_count=None,
                memory_limit=None,
                spec=None,
@@ -1709,8 +1673,6 @@ def run_join_reduce(binary, source_table, destination_table,
                     sync=True,
                     job_io=None,
                     table_writer=None,
-                    replication_factor=None,
-                    compression_codec=None,
                     job_count=None,
                     memory_limit=None,
                     spec=None,
