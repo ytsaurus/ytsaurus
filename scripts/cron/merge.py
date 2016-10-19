@@ -58,7 +58,7 @@ def merge(table):
             #for attr in ["account", "compression_codec", "erasure_codec", "replication_factor"]:
             #    yt.set("{}/@{}".format(temp_table, attr), yt.get("{}/@{}".format(table, attr)))
 
-            mode = "sorted" if yt.is_sorted(table) else "unordered"
+            mode = "sorted" if yt.is_sorted(table) else "ordered"
             yt.run_merge(table, temp_table, mode,
                          spec={"combine_chunks":"true",
                                "data_size_per_job": data_size_per_job,
