@@ -1231,6 +1231,7 @@ void TOperationControllerBase::Materialize()
 
         PickIntermediateDataCell();
         InitChunkListPool();
+        InitSecureVault();
 
         CreateLivePreviewTables();
 
@@ -1305,6 +1306,7 @@ void TOperationControllerBase::Revive()
     }
 
     InitChunkListPool();
+    InitSecureVault();
 
     DoLoadSnapshot(Snapshot);
     Snapshot = TSharedRef();
@@ -1426,6 +1428,12 @@ void TOperationControllerBase::InitChunkListPool()
     for (const auto& table : OutputTables) {
         ++CellTagToOutputTableCount[table.CellTag];
     }
+}
+
+void TOperationControllerBase::InitSecureVault()
+{
+    // NB: SecureVault is being used in InitUserJobSpec, where no access to Operation is possible.
+    SecureVault = Operation->GetSecureVault();
 }
 
 void TOperationControllerBase::InitInputChunkScraper()
@@ -3728,6 +3736,7 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceChunks(
     if (TotalEstimatedInputDataSize < maxSliceDataSize) {
         multiplier = 1.0;
     }
+
     i64 sliceDataSize = Clamp(static_cast<i64>(jobSizeLimits->GetDataSizePerJob() * multiplier), 1, maxSliceDataSize);
 
     for (const auto& chunkSpec : chunkSpecs) {
