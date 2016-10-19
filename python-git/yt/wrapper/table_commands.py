@@ -66,7 +66,7 @@ import yt.logger as logger
 import yt.json as json
 import yt.yson as yson
 
-from yt.packages.six import text_type, binary_type
+from yt.packages.six import text_type, binary_type, PY3
 from yt.packages.six.moves import map as imap, filter as ifilter
 
 import os
