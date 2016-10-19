@@ -181,7 +181,7 @@ public:
             .GreaterThan(0);
 
         RegisterParameter("max_failed_job_count", MaxFailedJobCount)
-            .Default(100)
+            .Default(10)
             .GreaterThanOrEqual(0)
             .LessThanOrEqual(10000);
         RegisterParameter("max_stderr_count", MaxStderrCount)
