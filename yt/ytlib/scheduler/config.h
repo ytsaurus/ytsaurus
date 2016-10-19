@@ -20,6 +20,8 @@
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/yson_serializable.h>
 
+#include <yt/core/misc/dnf.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -92,8 +94,40 @@ DEFINE_REFCOUNTED_TYPE(TTestingOperationOptions);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOperationSpecBase
+class TSupportsSchedulingTagsConfig
     : public virtual NYTree::TYsonSerializable
+{
+public:
+    TNullable<Stroka> SchedulingTag;
+    TDisjunctiveNormalForm SchedulingTagRules;
+
+    TSupportsSchedulingTagsConfig()
+    {
+        RegisterParameter("scheduling_tag", SchedulingTag)
+            .Default();
+
+        RegisterParameter("scheduling_tag_rules", SchedulingTagRules)
+            .Default();
+    }
+
+    virtual void OnLoaded() override
+    {
+        if (SchedulingTag) {
+            TConjunctionClause clause;
+            clause.Include() = std::vector<Stroka>({*SchedulingTag});
+            SchedulingTagRules.Clauses().push_back(clause);
+        }
+        if (SchedulingTagRules.Clauses().size() > MaxSchedulingTagRuleCount) {
+            THROW_ERROR_EXCEPTION("Specifying more than %v scheduling tag rules is not allowed",
+                MaxSchedulingTagRuleCount);
+        }
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TOperationSpecBase
+    : public TSupportsSchedulingTagsConfig
 {
 public:
     //! Account holding intermediate data produces by the operation.
@@ -133,8 +167,6 @@ public:
 
     TNullable<Stroka> Title;
 
-    TNullable<Stroka> SchedulingTag;
-
     //! Limit on operation execution time.
     TNullable<TDuration> TimeLimit;
 
@@ -151,6 +183,9 @@ public:
 
     //! Intentionally fails the operation controller. Used only for testing purposes.
     bool FailController;
+
+    //! If candidate exec nodes are not found for more than timeout time then operation will be failed.
+    TDuration AvailableNodesMissingTimeout;
 
     TOperationSpecBase()
     {
@@ -208,9 +243,6 @@ public:
         RegisterParameter("title", Title)
             .Default();
 
-        RegisterParameter("scheduling_tag", SchedulingTag)
-            .Default();
-
         RegisterParameter("check_multichunk_files", CheckMultichunkFiles)
             .Default(true);
 
@@ -228,6 +260,9 @@ public:
 
         RegisterParameter("fail_controller", FailController)
             .Default(false);
+
+        RegisterParameter("available_nodes_missing_timeout", AvailableNodesMissingTimeout)
+            .Default(TDuration::Hours(1));
 
         RegisterValidator([&] () {
             if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
@@ -1121,7 +1156,7 @@ public:
 };
 
 class TSchedulableConfig
-    : public NYTree::TYsonSerializable
+    : public TSupportsSchedulingTagsConfig
 {
 public:
     double Weight;
@@ -1135,8 +1170,6 @@ public:
     double MinShareRatio;
     // Specifies guaranteed resources in absolute values.
     TResourceLimitsConfigPtr MinShareResources;
-
-    TNullable<Stroka> SchedulingTag;
 
     // The following settings override scheduler configuration.
     TNullable<TDuration> MinSharePreemptionTimeout;
@@ -1164,9 +1197,6 @@ public:
             .InRange(0.0, 1.0);
         RegisterParameter("min_share_resources", MinShareResources)
             .DefaultNew();
-
-        RegisterParameter("scheduling_tag", SchedulingTag)
-            .Default();
 
         RegisterParameter("min_share_preemption_timeout", MinSharePreemptionTimeout)
             .Default();
@@ -1238,7 +1268,7 @@ public:
     }
 };
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TStrategyOperationSpec
     : public TSchedulableConfig
@@ -1254,7 +1284,7 @@ public:
     }
 };
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TOperationRuntimeParams
     : public NYTree::TYsonSerializable
@@ -1270,7 +1300,7 @@ public:
     }
 };
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TSchedulerConnectionConfig
     : public NRpc::TRetryingChannelConfig
@@ -1288,7 +1318,7 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerConnectionConfig)
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler
 } // namespace NYT

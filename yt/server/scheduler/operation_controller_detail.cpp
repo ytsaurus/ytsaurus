@@ -721,11 +721,11 @@ bool TOperationControllerBase::TTask::CanScheduleJob(
 void TOperationControllerBase::TTask::DoCheckResourceDemandSanity(
     const TJobResources& neededResources)
 {
-    const auto& nodeDescriptors = Controller->GetExecNodeDescriptors();
-    if (nodeDescriptors.size() < Controller->Config->SafeOnlineNodeCount) {
+    if (Controller->ShouldSkipSanityCheck()) {
         return;
     }
 
+    const auto& nodeDescriptors = Controller->GetExecNodeDescriptors();
     for (const auto& descriptor : nodeDescriptors) {
         if (Dominates(descriptor.ResourceLimits, neededResources)) {
             return;
@@ -745,8 +745,9 @@ void TOperationControllerBase::TTask::CheckResourceDemandSanity(
     // Run sanity check to see if any node can provide enough resources.
     // Don't run these checks too often to avoid jeopardizing performance.
     auto now = TInstant::Now();
-    if (now < LastDemandSanityCheckTime + Controller->Config->ResourceDemandSanityCheckPeriod)
+    if (now < LastDemandSanityCheckTime + Controller->Config->ResourceDemandSanityCheckPeriod) {
         return;
+    }
     LastDemandSanityCheckTime = now;
 
     // Schedule check in controller thread.
@@ -1042,6 +1043,10 @@ TOperationControllerBase::TOperationControllerBase(
         GetCancelableInvoker(),
         BIND(&TThis::CheckTimeLimit, MakeWeak(this)),
         Config->OperationTimeLimitCheckPeriod))
+    , ExecNodesCheckExecutor(New<TPeriodicExecutor>(
+        GetCancelableInvoker(),
+        BIND(&TThis::CheckAvailableExecNodes, MakeWeak(this)),
+        Config->AvailableExecNodesCheckPeriod))
     , EventLogValueConsumer_(Host->CreateLogConsumer())
     , EventLogTableConsumer_(new TTableConsumer(EventLogValueConsumer_.get()))
     , CodicilData_(MakeOperationCodicilString(OperationId))
@@ -1391,6 +1396,7 @@ void TOperationControllerBase::SafeMaterialize()
 
         CheckTimeLimitExecutor->Start();
         ProgressBuildExecutor_->Start();
+        ExecNodesCheckExecutor->Start();
 
         State = EControllerState::Running;
     } catch (const std::exception& ex) {
@@ -1439,8 +1445,12 @@ void TOperationControllerBase::Revive()
 
     ReinstallLivePreview();
 
+    // To prevent operation failure on startup if available nodes are missing.
+    AvaialableNodesLastSeenTime_ = TInstant::Now();
+
     CheckTimeLimitExecutor->Start();
     ProgressBuildExecutor_->Start();
+    ExecNodesCheckExecutor->Start();
 
     State = EControllerState::Running;
 }
@@ -2470,6 +2480,25 @@ void TOperationControllerBase::CheckTimeLimit()
             OnOperationFailed(TError("Operation is running for too long, aborted")
                 << TErrorAttribute("time_limit", *timeLimit));
         }
+    }
+}
+
+void TOperationControllerBase::CheckAvailableExecNodes()
+{
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+
+    if (ShouldSkipSanityCheck()) {
+        return;
+    }
+
+    if (GetExecNodeDescriptors().empty()) {
+        if (AvaialableNodesLastSeenTime_ + Spec->AvailableNodesMissingTimeout < TInstant::Now()) {
+            OnOperationFailed(TError("No online nodes match operation scheduling tag filter")
+                << TErrorAttribute("operation_id", OperationId)
+                << TErrorAttribute("scheduling_tag_filter", Spec->SchedulingTagFilter));
+        }
+    } else {
+        AvaialableNodesLastSeenTime_ = TInstant::Now();
     }
 }
 
@@ -4847,12 +4876,13 @@ void TOperationControllerBase::ValidateUserFileCount(TUserJobSpecPtr spec, const
 void TOperationControllerBase::GetExecNodesInformation()
 {
     auto now = TInstant::Now();
-    if (LastGetExecNodesInformationTime_ + Config->GetExecNodesInformationDelay > now) {
+    if (LastGetExecNodesInformationTime_ + Config->ControllerUpdateExecNodesInformationDelay > now) {
         return;
     }
 
     ExecNodeCount_ = Host->GetExecNodeCount();
-    ExecNodesDescriptors_ = Host->GetExecNodeDescriptors(Spec->SchedulingTag);
+
+    ExecNodesDescriptors_ = Host->GetExecNodeDescriptors(TSchedulingTagFilter(Spec->SchedulingTagFilter));
 
     LastGetExecNodesInformationTime_ = TInstant::Now();
 }
@@ -4867,6 +4897,20 @@ const std::vector<TExecNodeDescriptor>& TOperationControllerBase::GetExecNodeDes
 {
     GetExecNodesInformation();
     return ExecNodesDescriptors_;
+}
+
+bool TOperationControllerBase::ShouldSkipSanityCheck()
+{
+    auto nodeCount = GetExecNodeCount();
+    if (nodeCount < Config->SafeOnlineNodeCount) {
+        return true;
+    }
+
+    if (TInstant::Now() < Host->GetConnectionTime() + Config->SafeSchedulerOnlineTime) {
+        return true;
+    }
+
+    return false;
 }
 
 void TOperationControllerBase::BuildMemoryDigestStatistics(IYsonConsumer* consumer) const

@@ -1147,78 +1147,6 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         for op in ops:
             op.abort()
 
-class TestSchedulingTags(YTEnvSetup):
-    NUM_MASTERS = 3
-    NUM_NODES = 2
-    NUM_SCHEDULERS = 1
-
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler" : {
-            "event_log" : {
-                "flush_period" : 300,
-                "retry_backoff_time": 300
-            }
-        }
-    }
-
-    def _prepare(self):
-        create("table", "//tmp/t_in")
-        write_table("//tmp/t_in", {"foo": "bar"})
-        create("table", "//tmp/t_out")
-
-        self.node = list(get("//sys/nodes"))[0]
-        set("//sys/nodes/{0}/@user_tags".format(self.node), ["tagA", "tagB"])
-        # Wait applying scheduling tags.
-        time.sleep(0.1)
-
-    def test_failed_cases(self):
-        self._prepare()
-
-        # TODO(acid): Enable this when scheduling tag prechecks will be added on operation start
-        # map(command="cat", in_="//tmp/t_in", out="//tmp/t_out")
-        # with pytest.raises(YtError):
-            # map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"scheduling_tag": "tagC"})
-
-        map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"scheduling_tag": "tagA"})
-        assert read_table("//tmp/t_out") == [ {"foo" : "bar"} ]
-
-        # TODO(acid): Enable this when scheduling tag prechecks will be added on operation start
-        # set("//sys/nodes/{0}/@user_tags".format(self.node), [])
-        # time.sleep(1.0)
-        # with pytest.raises(YtError):
-            # map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"scheduling_tag": "tagA"})
-
-
-    def test_pools(self):
-        self._prepare()
-
-        create("map_node", "//sys/pools/test_pool", attributes={"node_tag": "tagA"})
-        map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"pool": "test_pool"})
-        assert read_table("//tmp/t_out") == [ {"foo" : "bar"} ]
-
-    def test_tag_correctness(self):
-        def get_job_nodes(op):
-            nodes = __builtin__.set()
-            for row in read_table("//sys/scheduler/event_log"):
-                if row.get("event_type") == "job_started" and row.get("operation_id") == op.id:
-                    nodes.add(row["node_address"])
-            return nodes
-
-        self._prepare()
-        write_table("//tmp/t_in", [{"foo": "bar"} for _ in xrange(20)])
-
-        set("//sys/nodes/{0}/@user_tags".format(self.node), ["tagB"])
-        time.sleep(1.2)
-        op = map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"scheduling_tag": "tagB", "job_count": 20})
-        time.sleep(0.8)
-        assert get_job_nodes(op) == __builtin__.set([self.node])
-
-
-        op = map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"job_count": 20})
-        time.sleep(0.8)
-        assert len(get_job_nodes(op)) <= 2
-
-
     def _test_pool_acl_prologue(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
@@ -1273,6 +1201,84 @@ class TestSchedulingTags(YTEnvSetup):
             out="//tmp/t_out",
             user="u",
             spec={"pool": "p2"})
+
+class TestSchedulingTags(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 2
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler" : {
+            "event_log" : {
+                "flush_period" : 300,
+                "retry_backoff_time": 300
+            },
+            "safe_scheduler_online_time": 1000,
+        }
+    }
+
+    def _prepare(self):
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", {"foo": "bar"})
+        create("table", "//tmp/t_out")
+
+        self.node = list(get("//sys/nodes"))[0]
+        set("//sys/nodes/{0}/@user_tags".format(self.node), ["tagA", "tagB"])
+        # Wait applying scheduling tags.
+        time.sleep(0.1)
+
+    def test_tag_filters(self):
+        self._prepare()
+
+        map(command="cat", in_="//tmp/t_in", out="//tmp/t_out")
+        with pytest.raises(YtError):
+            map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"scheduling_tag": "tagC"})
+
+        map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"scheduling_tag": "tagA"})
+        assert read_table("//tmp/t_out") == [ {"foo" : "bar"} ]
+
+        map(command="cat", in_="//tmp/t_in", out="//tmp/t_out",
+            spec={"scheduling_tag_filter": [{"include": ["tagA"], "exclude": ["tagC"]}]})
+        assert read_table("//tmp/t_out") == [ {"foo" : "bar"} ]
+        with pytest.raises(YtError):
+            map(command="cat", in_="//tmp/t_in", out="//tmp/t_out",
+                spec={"scheduling_tag_filter": [{"include": ["tagA"], "exclude": ["tagB"]}]})
+
+        set("//sys/nodes/{0}/@user_tags".format(self.node), [])
+        time.sleep(1.0)
+        with pytest.raises(YtError):
+            map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"scheduling_tag": "tagA"})
+
+
+    def test_pools(self):
+        self._prepare()
+
+        create("map_node", "//sys/pools/test_pool", attributes={"node_tag": "tagA"})
+        map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"pool": "test_pool"})
+        assert read_table("//tmp/t_out") == [ {"foo" : "bar"} ]
+
+    def test_tag_correctness(self):
+        def get_job_nodes(op):
+            nodes = __builtin__.set()
+            for row in read_table("//sys/scheduler/event_log"):
+                if row.get("event_type") == "job_started" and row.get("operation_id") == op.id:
+                    nodes.add(row["node_address"])
+            return nodes
+
+        self._prepare()
+        write_table("//tmp/t_in", [{"foo": "bar"} for _ in xrange(20)])
+
+        set("//sys/nodes/{0}/@user_tags".format(self.node), ["tagB"])
+        time.sleep(1.2)
+        op = map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"scheduling_tag": "tagB", "job_count": 20})
+        time.sleep(0.8)
+        assert get_job_nodes(op) == __builtin__.set([self.node])
+
+
+        op = map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"job_count": 20})
+        time.sleep(0.8)
+        assert len(get_job_nodes(op)) <= 2
+
 
 ##################################################################
 
