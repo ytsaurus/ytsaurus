@@ -240,11 +240,20 @@ def convert_id_mapper(row):
     row["id_lo"] = convert_id(row["id_lo"])
     yield row
 
-def convert_job_id_mapper(row):
+def convert_job_id(row):
     row["operation_id_hi"] = convert_id(row["operation_id_hi"])
     row["operation_id_lo"] = convert_id(row["operation_id_lo"])
     row["job_id_hi"] = convert_id(row["job_id_hi"])
     row["job_id_lo"] = convert_id(row["job_id_lo"])
+
+def convert_job_id_mapper(row):
+    convert_job_id(row)
+    yield row
+
+def convert_job_id_and_job_type_mapper(row):
+    convert_job_id(row)
+    row["type"] = row["job_type"]
+    del row["job_type"]
     yield row
 
 TRANSFORMS[6] = [
@@ -256,12 +265,27 @@ TRANSFORMS[6] = [
         mapper=convert_id_mapper),
     Convert(
         "jobs",
-        mapper=convert_job_id_mapper),
+        table_info=TableInfo([
+                ("operation_id_hi", "uint64"),
+                ("operation_id_lo", "uint64"),
+                ("job_id_hi", "uint64"),
+                ("job_id_lo", "uint64")
+            ], [
+                ("type", "string"),
+                ("state", "string"),
+                ("start_time", "int64"),
+                ("finish_time", "int64"),
+                ("address", "string"),
+                ("error", "any"),
+                ("statistics", "any"),
+                ("stderr_size", "uint64")
+            ],
+            pivot_keys=DEFAULT_PIVOTS),
+        mapper=convert_job_id_and_job_type_mapper),
     Convert(
         "stderrs",
         mapper=convert_job_id_mapper)
 ]
-
 
 BASE_PATH = "//sys/operations_archive"
 
