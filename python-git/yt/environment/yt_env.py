@@ -9,7 +9,7 @@ from yt.common import update, YtError, remove_file, makedirp, set_pdeathsig, \
 from yt.wrapper.client import Yt
 from yt.wrapper.errors import YtResponseError
 import yt.yson as yson
-import yt.subprocess as subprocess
+import yt.subprocess_wrapper as subprocess
 
 from yt.packages.six import itervalues
 from yt.packages.six.moves import xrange, map as imap, filter as ifilter

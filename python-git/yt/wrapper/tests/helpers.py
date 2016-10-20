@@ -4,7 +4,7 @@ from yt.packages.six import iteritems, integer_types
 from yt.packages.six.moves import map as imap
 
 import yt.yson as yson
-import yt.subprocess as subprocess
+import yt.subprocess_wrapper as subprocess
 
 import yt.wrapper as yt
 
