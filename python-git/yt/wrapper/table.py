@@ -16,13 +16,3 @@ def TempTable(path=None, prefix=None, client=None):
     finally:
         remove(table, force=True, client=client)
 
-def to_table(object, client=None):
-    """ DEPRECATED """
-    """Return `TablePath` object"""
-    return TablePath(object, client=client)
-
-def to_name(object, client=None):
-    """ DEPRECATED """
-    """Return `YsonString` name of path"""
-    return to_table(object, client=client).to_yson_type()
-
