@@ -1494,8 +1494,8 @@ public:
         const TColumnFilter& columnFilter,
         TTimestamp timestamp,
         const TKeyComparer& keyComparer = DefaultKeyComparer())
-        : KeyComparer_(keyComparer)
-        , ChunkState_(std::move(state))
+        : ChunkState_(std::move(state))
+        , KeyComparer_(keyComparer)
         , Timestamp_(timestamp)
         , SchemaIdMapping_(BuildSchemaIdMapping(columnFilter, ChunkState_->ChunkMeta))
         , MemoryPool_(TCacheBasedVersionedChunkReaderPoolTag())
@@ -1551,8 +1551,8 @@ public:
     }
 
 protected:
-    const TKeyComparer& KeyComparer_;
     const TCacheBasedChunkStatePtr ChunkState_;
+    const TKeyComparer& KeyComparer_;
     const TTimestamp Timestamp_;
 
     const std::vector<TColumnIdMapping> SchemaIdMapping_;
