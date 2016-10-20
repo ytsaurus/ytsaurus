@@ -141,6 +141,10 @@ struct TEraseOperationSpec
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const TNode& GetJobSecureVault();
+
+////////////////////////////////////////////////////////////////////////////////
+
 void Initialize(int argc, const char* argv[]);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -162,6 +166,10 @@ public:
     virtual void Load(TInputStream& stream)
     {
         Y_UNUSED(stream);
+    }
+
+    const TNode& SecureVault() const {
+        return GetJobSecureVault();
     }
 };
 
@@ -235,6 +243,7 @@ struct TOperationOptions
     FLUENT_FIELD(Stroka, JobCommandSuffix);
     FLUENT_FIELD_DEFAULT(bool, MountSandboxInTmpfs, false);
     FLUENT_FIELD_OPTION(Stroka, FileStorage);
+    FLUENT_FIELD_OPTION(TNode, SecureVault);
 };
 
 struct IOperationClient

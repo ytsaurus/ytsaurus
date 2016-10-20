@@ -703,7 +703,7 @@ void BuildUserJobFluently(
     });
 }
 
-void BuildCommonOperationPart(TFluentMap fluent)
+void BuildCommonOperationPart(const TOperationOptions& options, TFluentMap fluent)
 {
     const TProcessState* properties = TProcessState::Get();
     const Stroka& pool = TConfig::Get()->Pool;
@@ -719,6 +719,12 @@ void BuildCommonOperationPart(TFluentMap fluent)
         .EndMap()
         .DoIf(!pool.Empty(), [&] (TFluentMap fluent) {
             fluent.Item("pool").Value(pool);
+        })
+        .DoIf(options.SecureVault_.Defined(), [&] (TFluentMap fluent) {
+            if (!options.SecureVault_->IsMap()) {
+                ythrow yexception() << "SecureVault must be a map node";
+            }
+            fluent.Item("secure_vault").Value(*options.SecureVault_);
         });
 }
 
@@ -841,7 +847,7 @@ TOperationId ExecuteMap(
         .DoIf(spec.Ordered_.Defined(), [&] (TFluentMap fluent) {
             fluent.Item("ordered").Value(spec.Ordered_.GetRef());
         })
-        .Do(BuildCommonOperationPart)
+        .Do(std::bind(BuildCommonOperationPart, options, std::placeholders::_1))
     .EndMap().EndMap();
 
     auto operationId = StartOperation(
@@ -913,7 +919,7 @@ TOperationId ExecuteReduce(
                 fluent.Item("table_writer").Value(TConfig::Get()->TableWriter);
             })
         .EndMap()
-        .Do(BuildCommonOperationPart)
+        .Do(std::bind(BuildCommonOperationPart, options, std::placeholders::_1))
     .EndMap().EndMap();
 
     auto operationId = StartOperation(
@@ -981,7 +987,7 @@ TOperationId ExecuteJoinReduce(
                 fluent.Item("table_writer").Value(TConfig::Get()->TableWriter);
             })
         .EndMap()
-        .Do(BuildCommonOperationPart)
+        .Do(std::bind(BuildCommonOperationPart, options, std::placeholders::_1))
     .EndMap().EndMap();
 
     auto operationId = StartOperation(
@@ -1134,7 +1140,7 @@ TOperationId ExecuteMapReduce(
                 fluent.Item("table_writer").Value(TConfig::Get()->TableWriter);
             })
         .EndMap()
-        .Do(BuildCommonOperationPart)
+        .Do(std::bind(BuildCommonOperationPart, options, std::placeholders::_1))
     .EndMap().EndMap();
 
     auto operationId = StartOperation(
@@ -1172,7 +1178,7 @@ TOperationId ExecuteSort(
         .Item("input_table_paths").List(inputs)
         .Item("output_table_path").Value(output)
         .Item("sort_by").Value(spec.SortBy_)
-        .Do(BuildCommonOperationPart)
+        .Do(std::bind(BuildCommonOperationPart, options, std::placeholders::_1))
     .EndMap().EndMap();
 
     auto operationId = StartOperation(
@@ -1209,7 +1215,7 @@ TOperationId ExecuteMerge(
         .Item("combine_chunks").Value(spec.CombineChunks_)
         .Item("force_transform").Value(spec.ForceTransform_)
         .Item("merge_by").Value(spec.MergeBy_)
-        .Do(BuildCommonOperationPart)
+        .Do(std::bind(BuildCommonOperationPart, options, std::placeholders::_1))
     .EndMap().EndMap();
 
     auto operationId = StartOperation(
@@ -1239,7 +1245,7 @@ TOperationId ExecuteErase(
     .BeginMap().Item("spec").BeginMap()
         .Item("table_path").Value(tablePath)
         .Item("combine_chunks").Value(spec.CombineChunks_)
-        .Do(BuildCommonOperationPart)
+        .Do(std::bind(BuildCommonOperationPart, options, std::placeholders::_1))
     .EndMap().EndMap();
 
     auto operationId = StartOperation(

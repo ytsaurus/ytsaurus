@@ -3,6 +3,7 @@
 #include <mapreduce/yt/interface/operation.h>
 #include <mapreduce/yt/common/log.h>
 #include <mapreduce/yt/common/config.h>
+#include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/io/job_reader.h>
 #include <mapreduce/yt/http/requests.h>
 
@@ -13,10 +14,31 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
 void WriteVersionToLog()
 {
     LOG_INFO("Wrapper version: %s", ~TProcessState::Get()->ClientVersion);
 }
+
+static TNode SecureVaultContents; // safe
+
+void InitializeSecureVault()
+{
+    SecureVaultContents = NodeFromYsonString(
+        TConfig::GetEnv("YT_SECURE_VAULT", "{}"));
+}
+
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TNode& GetJobSecureVault()
+{
+    return SecureVaultContents;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 void Initialize(int argc, const char* argv[])
 {
@@ -50,6 +72,8 @@ void Initialize(int argc, const char* argv[])
         WriteVersionToLog();
         return;
     }
+
+    InitializeSecureVault();
 
     Stroka jobName(argv[2]);
     size_t outputTableCount = FromString<size_t>(argv[3]);

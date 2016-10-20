@@ -4,6 +4,7 @@
 #include <mapreduce/yt/interface/client.h>
 
 #include <mapreduce/yt/common/config.h>
+#include <mapreduce/yt/common/helpers.h>
 
 namespace NYT {
 namespace NNativeTest {
@@ -371,6 +372,25 @@ private:
 };
 REGISTER_MAPPER(TMapperWithFile);
 
+class TMapperWithSecureVault
+    : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
+{
+public:
+    virtual void Do(
+        TTableReader<TNode>* input,
+        TTableWriter<TNode>* output) override
+    {
+        for (; input->IsValid(); input->Next()) {
+            output->AddRow(TNode()
+                ("b", NYT::NodeToYsonString(SecureVault())));
+        }
+    }
+
+private:
+    Stroka FileName_;
+};
+REGISTER_MAPPER(TMapperWithSecureVault);
+
 class TOperationWith
     : public TOperation
 {
@@ -458,6 +478,24 @@ YT_TEST(TOperationWith, LocalFile)
             .AddOutput<TNode>(Output())
             .MapperSpec(TUserJobSpec().AddLocalFile(localName)),
         new TMapperWithFile(localName)
+    );
+
+    ReadOutput();
+}
+
+YT_TEST(TOperationWith, SecureVault)
+{
+    WriteInput();
+    auto vault = TNode()
+        ("var1", "val1")
+        ("var2", TNode()("foo", "bar"));
+
+    Client()->Map(
+        TMapOperationSpec()
+            .AddInput<TNode>(Input())
+            .AddOutput<TNode>(Output()),
+        new TMapperWithSecureVault,
+        TOperationOptions().SecureVault(vault)
     );
 
     ReadOutput();
