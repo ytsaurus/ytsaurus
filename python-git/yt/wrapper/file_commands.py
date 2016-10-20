@@ -92,13 +92,6 @@ def read_file(path, file_reader=None, offset=None, length=None, client=None):
         retriable_state_class=RetriableState,
         client=client)
 
-def download_file(path, file_reader=None, offset=None, length=None, client=None):
-    """Download file from path in Cypress to local machine. Deprecated!
-    .. seealso::  :py:func:`yt.wrapper.file_commands.read_file`.
-    """
-    return read_file(path=path, file_reader=file_reader,
-                     offset=offset, length=length, client=client)
-
 def write_file(destination, stream, file_writer=None, is_stream_compressed=False, force_create=None, client=None):
     """Upload file to destination path from stream on local machine.
 
@@ -162,14 +155,6 @@ def write_file(destination, stream, file_writer=None, is_stream_compressed=False
         enable_retries,
         is_stream_compressed=is_stream_compressed,
         client=client)
-
-def upload_file(stream, destination, file_writer=None, client=None):
-    """Upload file to destination path from stream on local machine. Deprecated!
-    .. seealso::  :py:func:`yt.wrapper.file_commands.write_file`.
-    .. note:: upload_file and write_file have different argument order. \
-    Be careful renaming upload_file to write_file!
-    """
-    write_file(destination=destination, stream=stream, file_writer=file_writer, client=client)
 
 def is_executable(filename, client=None):
     return os.access(filename, os.X_OK) or get_config(client)["yamr_mode"]["always_set_executable_flag_on_files"]

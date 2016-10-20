@@ -11,8 +11,6 @@ from .table_commands import create_table, create_temp_table, write_table, read_t
 from .operation_commands import get_operation_state, abort_operation, suspend_operation, resume_operation, \
                                 complete_operation, get_operation_attributes
 from .file_commands import read_file, write_file, upload_file, smart_upload_file
-# Deprecated
-from .file_commands import download_file, upload_file
 from .transaction_commands import start_transaction, abort_transaction, commit_transaction, ping_transaction
 from .http_helpers import get_user_name
 from .transaction import Transaction, PingableTransaction, PingTransaction
