@@ -327,8 +327,8 @@ class TestTableCommands(object):
 
         yt.create_table(src_table_a, recursive=True, ignore_existing=True)
         yt.create_table(src_table_b, recursive=True, ignore_existing=True)
-        yt.write_table(src_table_a, "1=a\t2=a\t3=a\n" * len_a, format=dsv, raw=True)
-        yt.write_table(src_table_b, "1=b\t2=b\t3=b\n" * len_b, format=dsv, raw=True)
+        yt.write_table(src_table_a, b"1=a\t2=a\t3=a\n" * len_a, format=dsv, raw=True)
+        yt.write_table(src_table_b, b"1=b\t2=b\t3=b\n" * len_b, format=dsv, raw=True)
 
         assert yt.row_count(src_table_a) == len_a
         assert yt.row_count(src_table_b) == len_b
@@ -488,7 +488,7 @@ class TestTableCommands(object):
         with set_config_option("proxy/content_encoding", "identity"):
             table = TEST_DIR + "/table"
             try:
-                yt.write_table(table, iter(['{"abc": "123"}\n'] * 100000 + ["{a:b}"] + ['{"abc": "123"}\n'] * 100000), raw=True, format=yt.JsonFormat())
+                yt.write_table(table, iter([b'{"abc": "123"}\n'] * 100000 + [b"{a:b}"] + [b'{"abc": "123"}\n'] * 100000), raw=True, format=yt.JsonFormat())
             except yt.YtResponseError as err:
                 assert "JSON" in str(err), "Incorrect error message: " + str(err)
             else:
