@@ -125,10 +125,6 @@ class TestClient(object):
                 client.set("//@attr", 10)
                 assert client.exists("//@attr")
 
-            with client.PingableTransaction():
-                client.set("//@other_attr", 10)
-                assert client.exists("//@other_attr")
-
             tx = client.start_transaction(timeout=5000)
             with client.PingTransaction(tx, delay=1):
                 assert client.exists("//sys/transactions/{0}".format(tx))
