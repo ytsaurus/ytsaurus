@@ -9,6 +9,7 @@ from yt.common import flatten, makedirp
 import yt.yson as yson
 import yt.subprocess_wrapper as subprocess
 
+from yt.packages.six import b
 from yt.packages.six.moves import xrange, map as imap, zip as izip
 
 import yt.wrapper as yt
@@ -128,7 +129,7 @@ class TestYamrMode(object):
 
     def test_empty_write(self):
         table = TEST_DIR + "/table"
-        yt.write_table(table, ["x\ty\tz\n"])
+        yt.write_table(table, [b"x\ty\tz\n"])
         yt.write_table(table, [])
         assert not yt.exists(table)
 
@@ -136,7 +137,7 @@ class TestYamrMode(object):
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/subdir/other_table"
 
-        yt.write_table(table, ["x\ty\tz\n"])
+        yt.write_table(table, [b"x\ty\tz\n"])
         yt.run_map("cat 1>&2 2>/dev/null", table, other_table)
         assert not yt.exists(other_table)
         assert not yt.exists(TEST_DIR + "/subdir")
@@ -166,15 +167,15 @@ class TestYamrMode(object):
         output_table = TEST_DIR + "/output_table"
         yt.write_table(input_table,
                        [
-                           "\1a\t\t\n",
-                           "\1b\t\t\n",
-                           "\1c\t\t\n",
-                           "a b\tc\t\n",
-                           "c c\tc\tc c a\n"
+                           b"\1a\t\t\n",
+                           b"\1b\t\t\n",
+                           b"\1c\t\t\n",
+                           b"a b\tc\t\n",
+                           b"c c\tc\tc c a\n"
                        ])
         yt.run_map_reduce("./split.py", "./collect.py", input_table, output_table,
                           map_files=get_test_file_path("split.py"), reduce_files=get_test_file_path("collect.py"))
-        assert sorted(list(yt.read_table(output_table))) == sorted(["a\t\t2\n", "b\t\t1\n", "c\t\t6\n"])
+        assert sorted(list(yt.read_table(output_table))) == sorted([b"a\t\t2\n", b"b\t\t1\n", b"c\t\t6\n"])
 
     def test_many_output_tables(self):
         table = TEST_DIR + "/table"
@@ -182,8 +183,8 @@ class TestYamrMode(object):
         for i in xrange(10):
             output_tables.append(TEST_DIR + "/temp%d" % i)
         append_table = TEST_DIR + "/temp_special"
-        yt.write_table(table, ["1\t1\t1\n"])
-        yt.write_table(append_table, ["1\t1\t1\n"])
+        yt.write_table(table, [b"1\t1\t1\n"])
+        yt.write_table(append_table, [b"1\t1\t1\n"])
 
         yt.run_map("PYTHONPATH=. ./many_output.py yamr",
                    table,
@@ -192,14 +193,14 @@ class TestYamrMode(object):
 
         for table in output_tables:
             assert yt.row_count(table) == 1
-        assert sorted(yt.read_table(append_table)) == ["1\t1\t1\n", "10\t10\t10\n"]
+        assert sorted(yt.read_table(append_table)) == [b"1\t1\t1\n", b"10\t10\t10\n"]
 
     def test_reduce_unsorted(self):
         input_table = TEST_DIR + "/input_table"
         output_table = TEST_DIR + "/output_table"
         yt.create("table", input_table)
-        data = ['0\ti\tA\n', '0\th\tB\n', '0\tg\tC\n', '0\tf\tD\n', '0\te\tE\n',
-                '0\td\tF\n', '0\tc\tG\n', '0\tb\tH\n', '0\ta\tI\n']
+        data = [b'0\ti\tA\n', b'0\th\tB\n', b'0\tg\tC\n', b'0\tf\tD\n', b'0\te\tE\n',
+                b'0\td\tF\n', b'0\tc\tG\n', b'0\tb\tH\n', b'0\ta\tI\n']
         yt.write_table(input_table, data)
         yt.run_reduce("cat", source_table=input_table, destination_table=output_table)
         assert list(yt.read_table(output_table)) == data[::-1]
@@ -207,7 +208,7 @@ class TestYamrMode(object):
     def test_run_operations(self):
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
-        yt.write_table(table, ["0\ta\tA\n", "1\tb\tB\n", "2\tc\tC\n"])
+        yt.write_table(table, [b"0\ta\tA\n", b"1\tb\tB\n", b"2\tc\tC\n"])
         yt.run_map("PYTHONPATH=. ./my_op.py",
                    table, other_table,
                    files=list(imap(get_test_file_path, ["my_op.py", "helpers.py"])))
@@ -223,7 +224,7 @@ class TestYamrMode(object):
         yt.run_sort(table)
         yt.run_reduce("./cpp_bin", table, other_table, files=cpp_bin)
         assert sorted(yt.read_table(other_table)) == \
-               ["key{0}\tsubkey\tvalue=value\n".format(i) for i in xrange(5)]
+               [b("key{0}\tsubkey\tvalue=value\n".format(i)) for i in xrange(5)]
 
     @add_failed_operation_stderrs_to_error_message
     def test_python_operations(self):
@@ -242,34 +243,34 @@ class TestYamrMode(object):
         output_table = TEST_DIR + "/output_table"
 
         with set_config_option("tabular_data_format", yt.format.YamrFormat(has_subkey=False)):
-            yt.write_table(table, ["a\tb\n"])
+            yt.write_table(table, [b"a\tb\n"])
             yt.run_map_reduce(mapper=None, reducer=yamr_func,
                               source_table=table, destination_table=output_table, reduce_by="key")
-            assert list(yt.read_table(output_table)) == ["10\t20\n"]
+            assert list(yt.read_table(output_table)) == [b"10\t20\n"]
 
         with pytest.raises(yt.YtError):
             yt.run_map_reduce(mapper=None, reducer=yamr_func,
                               source_table=table, destination_table=output_table, reduce_by="subkey")
 
-        yt.write_table(table, ["1\t2\t3\n", "4\t5\t6\n"])
+        yt.write_table(table, [b"1\t2\t3\n", b"4\t5\t6\n"])
         yt.run_map(inc_key_yamr, table, table)
-        assert sorted(yt.read_table(table)) == ["2\t2\t3\n", "5\t5\t6\n"]
+        assert sorted(yt.read_table(table)) == [b"2\t2\t3\n", b"5\t5\t6\n"]
 
     def test_lenval_python_operations(self):
         def foo(rec):
             yield rec
 
         table = TEST_DIR + "/table"
-        yt.write_table(table, ["1\t2\t3\n"])
+        yt.write_table(table, [b"1\t2\t3\n"])
         yt.run_map(foo, table, table, format=yt.YamrFormat(has_subkey=True, lenval=True))
-        assert list(yt.read_table(table)) == ["1\t2\t3\n"]
+        assert list(yt.read_table(table)) == [b"1\t2\t3\n"]
 
     def test_empty_input_tables(self):
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/temp_other"
         another_table = TEST_DIR + "/temp_another"
 
-        yt.write_table(table, ["1\t2\t3\n"])
+        yt.write_table(table, [b"1\t2\t3\n"])
         yt.run_map("PYTHONPATH=. ./my_op.py",
                    [table, other_table], another_table,
                    files=list(imap(get_test_file_path, ["my_op.py", "helpers.py"])))
@@ -278,7 +279,7 @@ class TestYamrMode(object):
     def test_reduce_unexisting_tables(self):
         with set_config_option("yamr_mode/run_map_reduce_if_source_is_not_sorted", False):
             table = TEST_DIR + "/table"
-            yt.write_table(table, ["0\ta\tA\n"])
+            yt.write_table(table, [b"0\ta\tA\n"])
             yt.run_sort(table)
 
             output_table = TEST_DIR + "/output_table"
@@ -289,22 +290,22 @@ class TestYamrMode(object):
     def test_reduce_with_output_sorted(self):
         table = TEST_DIR + "/table"
         output_table = TEST_DIR + "/output_table"
-        yt.write_table(table, ["3\t1\t3\n", "1\t2\t4\n"])
+        yt.write_table(table, [b"3\t1\t3\n", b"1\t2\t4\n"])
         yt.run_reduce("cat", table, "<sorted_by=[key]>" + output_table)
-        assert list(yt.read_table(output_table)) == ["1\t2\t4\n", "3\t1\t3\n"]
+        assert list(yt.read_table(output_table)) == [b"1\t2\t4\n", b"3\t1\t3\n"]
         assert parse_bool(yt.get_attribute(output_table, "sorted", False))
 
     def test_reduce_differently_sorted_table(self):
         table = TEST_DIR + "/table"
-        yt.write_table(table, ["1\t2\t3\n"])
+        yt.write_table(table, [b"1\t2\t3\n"])
         yt.run_sort(table, sort_by=["key"])
 
         # NB: map-reduce should be run
         yt.run_reduce("cat", table, TEST_DIR + "/other_table", sort_by=["subkey"], reduce_by=["subkey"])
-        assert list(yt.read_table(table)) == ["1\t2\t3\n"]
+        assert list(yt.read_table(table)) == [b"1\t2\t3\n"]
 
     def test_throw_on_missing_destination(self):
         table = TEST_DIR + "/table"
-        yt.write_table(table, ["1\t2\t3\n"])
+        yt.write_table(table, [b"1\t2\t3\n"])
         with pytest.raises(yt.YtError):
             yt.run_map("cat", source_table=table, destination_table=None)
