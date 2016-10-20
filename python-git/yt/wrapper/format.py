@@ -19,7 +19,7 @@ from yt.packages.six import iteritems, Iterator, add_metaclass, PY3, binary_type
 from yt.packages.six.moves import xrange, map as imap, zip as izip, filter as ifilter
 
 from abc import ABCMeta, abstractmethod
-from codecs import getreader, getwriter
+from codecs import getwriter
 import copy
 import struct
 try:
