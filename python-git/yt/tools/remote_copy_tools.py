@@ -756,7 +756,7 @@ while True:
         write_errors_command = ""
         if write_errors_script is not None:
             write_errors_command = "cat output | python write_errors.py; "
-        finalize_command = "RESULT=$?; cat output; head -n 100 output >&2; tail -n 100 output >&2;{0} exit $RESULT"\
+        finalize_command = "RESULT=$?; cat output; head -n 500 output >&2; tail -n 500 output >&2;{0} exit $RESULT"\
                            .format(write_errors_command)
         output_format = yt.SchemafulDsvFormat(columns=["error"])
 
