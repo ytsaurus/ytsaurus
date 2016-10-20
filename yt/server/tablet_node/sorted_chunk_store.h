@@ -13,6 +13,8 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TSortedChunkState)
+
 class TSortedChunkStore
     : public TChunkStoreBase
     , public TSortedStoreBase
@@ -68,21 +70,17 @@ public:
         ui32 lockMask) override;
 
 private:
-    class TPreloadedBlockCache;
-    using TPreloadedBlockCachePtr = TIntrusivePtr<TPreloadedBlockCache>;
+    friend class TPreloadedBlockCache;
 
     // Cached for fast retrieval from ChunkMeta_.
     TOwningKey MinKey_;
     TOwningKey MaxKey_;
 
-    NTableClient::TCachedVersionedChunkMetaPtr CachedVersionedChunkMeta_;
-
-    TPreloadedBlockCachePtr PreloadedBlockCache_;
-
-    EInMemoryMode InMemoryMode_ = EInMemoryMode::None;
-
     const NTableClient::TKeyComparer KeyComparer_;
 
+    TSortedChunkStatePtr ChunkState_;
+
+    EInMemoryMode InMemoryMode_ = EInMemoryMode::None;
 
     NTableClient::IVersionedReaderPtr CreateCacheBasedReader(
         const TSharedRange<TKey>& keys,
