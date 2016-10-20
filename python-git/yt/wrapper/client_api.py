@@ -13,7 +13,7 @@ from .operation_commands import get_operation_state, abort_operation, suspend_op
 from .file_commands import read_file, write_file, upload_file, smart_upload_file
 from .transaction_commands import start_transaction, abort_transaction, commit_transaction, ping_transaction
 from .http_helpers import get_user_name
-from .transaction import Transaction, PingableTransaction, PingTransaction
+from .transaction import Transaction, PingTransaction
 from .lock_commands import lock
 from .table import TempTable
 from .transform import transform
