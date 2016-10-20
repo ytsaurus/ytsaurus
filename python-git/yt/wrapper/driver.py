@@ -26,7 +26,7 @@ def process_params(obj):
         obj = list_cls(imap(process_params, obj))
     elif isinstance(obj, dict):
         dict_cls = yson.YsonMap if is_yson_type else dict
-        obj = dict_cls((k, process_params(v) for k, v in iteritems(obj)))
+        obj = dict_cls((k, process_params(v)) for k, v in iteritems(obj))
     elif hasattr(obj, "to_yson_type"):
         obj = obj.to_yson_type()
     elif obj is True or obj is False:
