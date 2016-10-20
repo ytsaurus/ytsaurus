@@ -676,7 +676,7 @@ private:
             Profiler.Update(counters.ScheduleJobCallCounter, scheduleJobCount);
 
             for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
-                Profiler.Update(
+                Profiler.Increment(
                     counters.ControllerScheduleJobFailCounter[reason],
                     context.FailedScheduleJob[reason]);
             }
