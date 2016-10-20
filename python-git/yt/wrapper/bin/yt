@@ -330,7 +330,7 @@ def read_file(**args):
     write_silently(chunk_iter_stream(yt.read_file(**args), 16 * MB))
 
 def add_read_file_parser(add_parser):
-    for name, func in [("read-file", yt.read_file), ("download", yt.download_file)]:
+    for name, func in [("read-file", yt.read_file), ("download", yt.read_file)]:
         parser = add_parser(name, func)
         add_ypath_argument(parser, "path", hybrid=True)
         add_structured_argument(parser, "--file-reader")
@@ -351,7 +351,7 @@ def add_compressed_arg(parser):
                              "Data is passed directly to proxy without recompression.")
 
 def add_write_file_parser(add_parser):
-    for name, func in [("write-file", yt.write_file), ("upload", yt.upload_file)]:
+    for name, func in [("write-file", yt.write_file), ("upload", yt.write_file)]:
         parser = add_parser(name, func)
         add_ypath_argument(parser, "destination", hybrid=True)
         add_structured_argument(parser, "--file-writer")
