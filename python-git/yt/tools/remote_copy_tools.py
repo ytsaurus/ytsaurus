@@ -756,7 +756,8 @@ while True:
         write_errors_command = ""
         if write_errors_script is not None:
             write_errors_command = "cat output | python write_errors.py; "
-        finalize_command = "RESULT=$?; cat output; tail -n 100 output >&2;{0} exit $RESULT".format(write_errors_command)
+        finalize_command = "RESULT=$?; cat output; head -n 100 output >&2; tail -n 100 output >&2;{0} exit $RESULT"\
+                           .format(write_errors_command)
         output_format = yt.SchemafulDsvFormat(columns=["error"])
 
     tmp_dir = tempfile.mkdtemp(dir=default_tmp_dir)
@@ -769,7 +770,8 @@ while True:
         files.append(_pack_string("write_errors.py", write_errors_script, tmp_dir))
     files.append(kiwi_client.kwworm_binary)
 
-    _set_tmpfs_settings(kiwi_transmittor, spec, files, yt_files)
+    # NOTE: reserved_size is for "output" file
+    _set_tmpfs_settings(kiwi_transmittor, spec, files, yt_files, reserved_size=GB)
     spec["mapper"]["memory_limit"] += spec["mapper"]["tmpfs_size"]
 
     try:
