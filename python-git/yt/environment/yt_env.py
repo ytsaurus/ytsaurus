@@ -414,7 +414,7 @@ class YTInstance(object):
         self._prepare_driver(cluster_configuration["driver"], cluster_configuration["master"])
         self._prepare_console_driver()
 
-    def start(self, use_proxy_from_package=False, start_secondary_master_cells=False):
+    def start(self, use_proxy_from_package=False, start_secondary_master_cells=False, on_masters_started_func=None):
         self._process_to_kill.clear()
         self._all_processes.clear()
 
@@ -427,6 +427,8 @@ class YTInstance(object):
             if self.has_proxy:
                 self.start_proxy(use_proxy_from_package=use_proxy_from_package)
             self.start_all_masters(start_secondary_master_cells=start_secondary_master_cells)
+            if on_masters_started_func is not None:
+                on_masters_started_func()
             if self.node_count > 0:
                 self.start_nodes()
             if self.scheduler_count > 0:
