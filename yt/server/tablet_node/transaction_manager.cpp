@@ -86,7 +86,7 @@ public:
 
         RegisterMethod(BIND(&TImpl::HydraStartTransaction, Unretained(this)));
 
-        OrchidService_ = IYPathService::FromProducer(BIND(&TImpl::BuildOrchidYson, MakeStrong(this)))
+        OrchidService_ = IYPathService::FromProducer(BIND(&TImpl::BuildOrchidYson, MakeWeak(this)))
             ->Via(Slot_->GetGuardedAutomatonInvoker())
             ->Cached(TDuration::Seconds(1));
     }
