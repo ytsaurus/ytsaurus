@@ -10,7 +10,7 @@ from ._py_runner import main as run_py_runner
 
 from yt.zip import ZipFile
 import yt.logger as logger
-import yt.subprocess as subprocess
+import yt.subprocess_wrapper as subprocess
 
 try:
     from importlib import import_module

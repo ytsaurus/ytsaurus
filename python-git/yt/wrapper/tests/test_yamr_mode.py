@@ -7,7 +7,7 @@ from yt.wrapper.common import parse_bool
 from yt.wrapper import Record, dumps_row, TablePath
 from yt.common import flatten, makedirp
 import yt.yson as yson
-import yt.subprocess as subprocess
+import yt.subprocess_wrapper as subprocess
 
 from yt.packages.six.moves import xrange, map as imap, zip as izip
 

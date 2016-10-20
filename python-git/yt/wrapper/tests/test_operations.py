@@ -9,7 +9,7 @@ from yt.wrapper.common import parse_bool
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
 from yt.wrapper.table import TablePath
 import yt.logger as logger
-import yt.subprocess as subprocess
+import yt.subprocess_wrapper as subprocess
 
 from yt.packages.six import add_metaclass, b
 from yt.packages.six.moves import xrange, zip as izip

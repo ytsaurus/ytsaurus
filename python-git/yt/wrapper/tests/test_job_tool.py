@@ -2,7 +2,7 @@ from .helpers import TESTS_SANDBOX, TEST_DIR, TESTS_LOCATION
 
 from yt.common import makedirp
 import yt.yson as yson
-import yt.subprocess as subprocess
+import yt.subprocess_wrapper as subprocess
 
 from yt.packages.six.moves import map as imap
 
