@@ -77,6 +77,28 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     TKeyComparer keyComparer,
     TTimestamp timestamp = SyncLastCommittedTimestamp);
 
+//! Extracted chunk state to avoid unnecessary ref counting.
+struct TCacheBasedChunkState
+    : public TIntrinsicRefCounted
+{
+    TCacheBasedChunkState() = default;
+    TCacheBasedChunkState(const TCacheBasedChunkState& other)
+        : PreloadedBlockCache(other.PreloadedBlockCache)
+        , ChunkMeta(other.ChunkMeta)
+        , LookupHashTable(other.LookupHashTable)
+        , PerformanceCounters(other.PerformanceCounters)
+        , KeyComparer(other.KeyComparer)
+    { }
+
+    NChunkClient::IBlockCachePtr PreloadedBlockCache;
+    TCachedVersionedChunkMetaPtr ChunkMeta;
+    TVersionedChunkLookupHashTablePtr LookupHashTable;
+    TChunkReaderPerformanceCountersPtr PerformanceCounters;
+    TKeyComparer KeyComparer;
+};
+
+DEFINE_REFCOUNTED_TYPE(TCacheBasedChunkState)
+
 //! Same as CreateVersionedChunkReader but only suitable for in-memory tables
 //! since it relies on block cache to retrieve chunk blocks.
 /*!
@@ -86,22 +108,16 @@ IVersionedReaderPtr CreateVersionedChunkReader(
  *  The implementation is (kind of) highly optimized :)
  */
 IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
-    NChunkClient::IBlockCachePtr blockCache,
-    TCachedVersionedChunkMetaPtr chunkMeta,
-    TVersionedChunkLookupHashTablePtr lookupHashTable,
+    TCacheBasedChunkStatePtr state,
     const TSharedRange<TKey>& keys,
     const TColumnFilter& columnFilter,
-    TChunkReaderPerformanceCountersPtr performanceCounters,
-    TKeyComparer keyComparer,
     TTimestamp timestamp = SyncLastCommittedTimestamp);
 
 IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
-    NChunkClient::IBlockCachePtr blockCache,
-    TCachedVersionedChunkMetaPtr chunkMeta,
+    TCacheBasedChunkStatePtr state,
     TOwningKey lowerBound,
     TOwningKey upperBound,
     const TColumnFilter& columnFilter,
-    TChunkReaderPerformanceCountersPtr performanceCounters,
     TTimestamp timestamp = SyncLastCommittedTimestamp);
 
 ////////////////////////////////////////////////////////////////////////////////

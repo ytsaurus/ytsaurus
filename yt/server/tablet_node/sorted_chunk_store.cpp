@@ -56,7 +56,7 @@ using NChunkClient::TReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSortedChunkStore::TPreloadedBlockCache
+class TPreloadedBlockCache
     : public IBlockCache
 {
 public:
@@ -142,8 +142,72 @@ private:
 
     std::vector<TSharedRef> Blocks_;
     std::atomic<bool> Preloaded_ = {false};
-
 };
+
+DECLARE_REFCOUNTED_CLASS(TPreloadedBlockCache)
+DEFINE_REFCOUNTED_TYPE(TPreloadedBlockCache)
+
+class TSortedChunkState
+    : public TCacheBasedChunkState
+{
+public:
+    TSortedChunkState(
+        const TChunkReaderPerformanceCountersPtr& performanceCounters,
+        const TKeyComparer& keyComparer)
+    {
+        PerformanceCounters = performanceCounters;
+        KeyComparer = keyComparer;
+    }
+
+    TSortedChunkState(const TSortedChunkState& other)
+        : TCacheBasedChunkState(other)
+    { }
+
+    TPreloadedBlockCache& GetPreloadedBlockCache()
+    {
+        return static_cast<TPreloadedBlockCache&>(*PreloadedBlockCache);
+    }
+
+    bool HasPreloadedBlockCache()
+    {
+        return bool(PreloadedBlockCache);
+    }
+
+    void SetPreloadedBlockCachePtr(TPreloadedBlockCachePtr preloadedBlockCache)
+    {
+        PreloadedBlockCache = std::move(preloadedBlockCache);
+    }
+
+    TCachedVersionedChunkMetaPtr& GetChunkMetaPtr()
+    {
+        return ChunkMeta;
+    }
+
+    void SetChunkMeta(TCachedVersionedChunkMetaPtr chunkMeta)
+    {
+        ChunkMeta = std::move(chunkMeta);
+    }
+
+    void UpdateLookupHashTable()
+    {
+        LookupHashTable = GetPreloadedBlockCache().GetLookupHashTable();
+    }
+
+    // MakeDeepCopy must be invoked before any modification.
+    TSortedChunkStatePtr MakeDeepCopy()
+    {
+        return New<TSortedChunkState>(*this);
+    }
+
+private:
+    using TCacheBasedChunkState::PreloadedBlockCache;
+    using TCacheBasedChunkState::ChunkMeta;
+    using TCacheBasedChunkState::LookupHashTable;
+    using TCacheBasedChunkState::PerformanceCounters;
+    using TCacheBasedChunkState::KeyComparer;
+};
+
+DEFINE_REFCOUNTED_TYPE(TSortedChunkState)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -168,6 +232,7 @@ TSortedChunkStore::TSortedChunkStore(
         localDescriptor)
     , TSortedStoreBase(config, id, tablet)
     , KeyComparer_(tablet->GetRowKeyComparer())
+    , ChunkState_(New<TSortedChunkState>(PerformanceCounters_, KeyComparer_))
 {
     LOG_DEBUG("Sorted chunk store created");
 }
@@ -200,7 +265,8 @@ void TSortedChunkStore::SetInMemoryMode(EInMemoryMode mode)
         return;
     }
 
-    PreloadedBlockCache_.Reset();
+    ChunkState_ = ChunkState_->MakeDeepCopy();
+    ChunkState_->SetPreloadedBlockCachePtr(nullptr);
 
     if (PreloadFuture_) {
         PreloadFuture_.Cancel();
@@ -214,11 +280,13 @@ void TSortedChunkStore::SetInMemoryMode(EInMemoryMode mode)
                mode == EInMemoryMode::Compressed      ? EBlockType::CompressedData :
             /* mode == EInMemoryMode::Uncompressed */   EBlockType::UncompressedData;
 
-        PreloadedBlockCache_ = New<TPreloadedBlockCache>(
-            this,
-            StoreId_,
-            blockType,
-            BlockCache_);
+        ChunkState_->SetPreloadedBlockCachePtr(
+            New<TPreloadedBlockCache>(
+                this,
+                StoreId_,
+                blockType,
+                BlockCache_));
+        ChunkState_->UpdateLookupHashTable();
 
         switch (PreloadState_) {
             case EStorePreloadState::Disabled:
@@ -249,8 +317,10 @@ void TSortedChunkStore::Preload(TInMemoryChunkDataPtr chunkData)
         return;
     }
 
-    PreloadedBlockCache_->Preload(chunkData);
-    CachedVersionedChunkMeta_ = chunkData->ChunkMeta;
+    ChunkState_ = ChunkState_->MakeDeepCopy();
+    ChunkState_->GetPreloadedBlockCache().Preload(chunkData);
+    ChunkState_->UpdateLookupHashTable();
+    ChunkState_->SetChunkMeta(chunkData->ChunkMeta);
 }
 
 EStoreType TSortedChunkStore::GetType() const
@@ -353,15 +423,13 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
         return nullptr;
     }
 
-    YCHECK(CachedVersionedChunkMeta_);
+    YCHECK(ChunkState_->GetChunkMetaPtr());
 
     return CreateCacheBasedVersionedChunkReader(
-        PreloadedBlockCache_,
-        CachedVersionedChunkMeta_,
+        ChunkState_,
         std::move(lowerKey),
         std::move(upperKey),
         columnFilter,
-        PerformanceCounters_,
         timestamp);
 }
 
@@ -425,16 +493,12 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
         return nullptr;
     }
 
-    YCHECK(CachedVersionedChunkMeta_);
+    YCHECK(ChunkState_->GetChunkMetaPtr());
 
     return CreateCacheBasedVersionedChunkReader(
-        PreloadedBlockCache_,
-        CachedVersionedChunkMeta_,
-        PreloadedBlockCache_->GetLookupHashTable(),
+        ChunkState_,
         keys,
         columnFilter,
-        PerformanceCounters_,
-        KeyComparer_,
         timestamp);
 }
 
@@ -465,8 +529,9 @@ TCachedVersionedChunkMetaPtr TSortedChunkStore::PrepareCachedVersionedChunkMeta(
 
     {
         TReaderGuard guard(SpinLock_);
-        if (CachedVersionedChunkMeta_) {
-            return CachedVersionedChunkMeta_;
+        auto&& meta = ChunkState_->GetChunkMetaPtr();
+        if (meta) {
+            return meta;
         }
     }
 
@@ -480,7 +545,8 @@ TCachedVersionedChunkMetaPtr TSortedChunkStore::PrepareCachedVersionedChunkMeta(
 
     {
         TWriterGuard guard(SpinLock_);
-        CachedVersionedChunkMeta_ = cachedMeta;
+        ChunkState_ = ChunkState_->MakeDeepCopy();
+        ChunkState_->SetChunkMeta(cachedMeta);
     }
 
     return cachedMeta;
@@ -491,7 +557,7 @@ IBlockCachePtr TSortedChunkStore::GetBlockCache()
     VERIFY_THREAD_AFFINITY_ANY();
 
     TReaderGuard guard(SpinLock_);
-    return PreloadedBlockCache_ ? PreloadedBlockCache_ : BlockCache_;
+    return ChunkState_->HasPreloadedBlockCache() ? &ChunkState_->GetPreloadedBlockCache() : BlockCache_;
 }
 
 void TSortedChunkStore::PrecacheProperties()
@@ -509,7 +575,7 @@ bool TSortedChunkStore::ValidateBlockCachePreloaded()
         return false;
     }
 
-    if (!PreloadedBlockCache_ || !PreloadedBlockCache_->IsPreloaded()) {
+    if (!ChunkState_->HasPreloadedBlockCache() || !ChunkState_->GetPreloadedBlockCache().IsPreloaded()) {
         THROW_ERROR_EXCEPTION("Chunk data is not preloaded yet")
             << TErrorAttribute("tablet_id", TabletId_)
             << TErrorAttribute("store_id", StoreId_);
