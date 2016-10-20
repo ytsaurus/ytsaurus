@@ -253,10 +253,14 @@ default_config = {
     # Size of block to read from response stream.
     "read_buffer_size": 8 * 1024 * 1024,
 
-    # Defaults that will be passed to all operation specs
+    # Defaults that will be passed to all operation specs with lowest priority.
     "spec_defaults": {
     },
     "memory_limit": None,
+
+    # Defaults that will be passed to all operation specs with highest priority.
+    "spec_overrides": {
+    },
 
     # Default value of table table writer configs.
     # It is passed to write_table and to job_io sections in operation specs.
@@ -359,4 +363,4 @@ def transform_value(value, original_value):
     return value
 
 def get_default_config():
-    return VerifiedDict(["spec_defaults", "table_writer"], transform_value, deepcopy(default_config))
+    return VerifiedDict(["spec_defaults", "spec_overrides", "table_writer"], transform_value, deepcopy(default_config))

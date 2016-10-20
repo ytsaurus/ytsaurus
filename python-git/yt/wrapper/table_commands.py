@@ -399,6 +399,9 @@ def _configure_spec(spec, client):
         spec = update({"data_size_per_job": 4 * GB}, spec)
     return spec
 
+def _apply_spec_overrides(spec, client):
+    return update(deepcopy(get_config(client)["spec_overrides"]), spec)
+
 def _add_input_output_spec(source_table, destination_table, spec):
     def get_input_name(table):
         return table.to_yson_type()
@@ -1224,8 +1227,12 @@ def run_erase(table, spec=None, sync=True, client=None):
     table = TablePath(table, client=client)
     if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and not exists(table, client=client):
         return
-    spec = update({"table_path": table}, get_value(spec, {}))
-    spec = _configure_spec(spec, client)
+    spec = compose(
+        lambda _: _configure_spec(_, client),
+        lambda _: update({"table_path": table}, _),
+        lambda _: _apply_spec_overrides(_, client=client),
+        lambda _: get_value(_, {})
+    )(spec)
     return _make_operation_request("erase", spec, sync, client=client)
 
 @forbidden_inside_job
@@ -1277,6 +1284,7 @@ def run_merge(source_table, destination_table, mode=None,
         lambda _: _add_input_output_spec(source_table, destination_table, _),
         lambda _: update({"job_count": job_count}, _) if job_count is not None else _,
         lambda _: update({"mode": mode}, _),
+        lambda _: _apply_spec_overrides(_, client=client),
         lambda _: get_value(_, {})
     )(spec)
 
@@ -1323,6 +1331,7 @@ def run_sort(source_table, destination_table=None, sort_by=None,
         lambda _: _add_job_io_spec(["partition_job_io", "sort_job_io", "merge_job_io"], job_io, table_writer, _),
         lambda _: _add_input_output_spec(source_table, destination_table, _),
         lambda _: update({"sort_by": sort_by}, _),
+        lambda _: _apply_spec_overrides(_, client=client),
         lambda _: get_value(_, {})
     )(spec)
 
@@ -1499,6 +1508,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
             reduce_combiner_files, reduce_combiner_file_paths,
             reduce_combiner_local_files, reduce_combiner_yt_files,
             reduce_combiner_memory_limit, reduce_by, local_files_to_remove, _, client=client),
+        lambda _: _apply_spec_overrides(_, client=client),
         lambda _: get_value(_, {})
     )(spec)
 
@@ -1643,6 +1653,7 @@ def _run_operation(binary, source_table, destination_table,
                 files, file_paths,
                 local_files, yt_files,
                 memory_limit, group_by, local_files_to_remove, _, client=client),
+            lambda _: _apply_spec_overrides(_, client=client),
             lambda _: get_value(_, {})
         )(spec)
 
@@ -1763,7 +1774,8 @@ def run_remote_copy(source_table, destination_table,
         lambda _: update({"input_table_paths": list(imap(get_input_name, source_table)),
                           "output_table_path": destination_table},
                           _),
-        lambda _: get_value(spec, {})
+        lambda _: _apply_spec_overrides(_, client=client),
+        lambda _: get_value(_, {})
     )(spec)
 
     return _make_operation_request("remote_copy", spec, sync, client=client)
