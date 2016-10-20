@@ -9,7 +9,7 @@ if(NOT (${CMAKE_VERSION} VERSION_LESS 3.2.3))
 endif()
 
 foreach(package_name "requests" "argcomplete" "pympler" "cherrypy" "tornado"
-                     "certifi" "backports_abc" "six" "singledispatch")
+                     "certifi" "backports_abc" "six" "singledispatch" "dill")
   file(
     REMOVE_RECURSE
     ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages/${package_name}*
