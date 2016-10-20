@@ -193,9 +193,6 @@ class TestOperations(object):
         with pytest.raises(yt.YtError):
             yt.run_map("cat", table, table, local_files=get_test_file_path("capitalize_b.py"),
                                             files=get_test_file_path("capitalize_b.py"))
-        with pytest.raises(yt.YtError):
-            yt.run_map("cat", table, table, yt_files=get_test_file_path("capitalize_b.py"),
-                                            file_paths=get_test_file_path("capitalize_b.py"))
 
     def test_run_standalone_binary(self):
         table = TEST_DIR + "/table"

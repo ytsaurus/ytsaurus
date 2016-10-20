@@ -301,7 +301,7 @@ def _remove_tables(tables, client=None):
             remove(table, client=client)
 
 def _add_user_command_spec(op_type, binary, format, input_format, output_format,
-                           files, file_paths, local_files, yt_files,
+                           files, local_files, yt_files,
                            memory_limit, group_by, local_files_to_remove, spec, client=None):
     if binary is None:
         return spec
@@ -310,11 +310,7 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
         require(files is None, lambda: YtError("You cannot specify files and local_files simultaneously"))
         files = local_files
 
-    if yt_files is not None:
-        require(file_paths is None, lambda: YtError("You cannot specify yt_files and file_paths simultaneously"))
-        file_paths = yt_files
-
-    file_paths = flatten(get_value(file_paths, []))
+    file_paths = flatten(get_value(yt_files, []))
 
     file_uploader = FileUploader(client)
     files = file_uploader(files)
@@ -1379,16 +1375,13 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
                    map_input_format=None, map_output_format=None,
                    reduce_input_format=None, reduce_output_format=None,
                    sync=True, job_io=None, table_writer=None, spec=None,
-                   map_files=None, map_file_paths=None,
-                   map_local_files=None, map_yt_files=None,
-                   reduce_files=None, reduce_file_paths=None,
-                   reduce_local_files=None, reduce_yt_files=None,
+                   map_files=None, map_local_files=None, map_yt_files=None,
+                   reduce_files=None, reduce_local_files=None, reduce_yt_files=None,
                    mapper_memory_limit=None, reducer_memory_limit=None,
                    sort_by=None, reduce_by=None,
                    reduce_combiner=None,
                    reduce_combiner_input_format=None, reduce_combiner_output_format=None,
-                   reduce_combiner_files=None, reduce_combiner_file_paths=None,
-                   reduce_combiner_local_files=None, reduce_combiner_yt_files=None,
+                   reduce_combiner_files=None, reduce_combiner_local_files=None, reduce_combiner_yt_files=None,
                    reduce_combiner_memory_limit=None,
                    client=None):
     """Run map (optionally), sort, reduce and reduce-combine (optionally) operations.
@@ -1407,11 +1400,9 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
     :param table_writer: (dict) standard operation parameter
     :param spec: (dict) standard operation parameter
     :param map_files: Deprecated!
-    :param map_file_paths: Deprecated!
     :param map_local_files: (string or list  of string) paths to map scripts on local machine.
     :param map_yt_files: (string or list  of string) paths to map scripts in Cypress.
     :param reduce_files: Deprecated!
-    :param reduce_file_paths: Deprecated!
     :param reduce_local_files: (string or list  of string) paths to reduce scripts on local machine.
     :param reduce_yt_files: (string or list of string) paths to reduce scripts in Cypress.
     :param mapper_memory_limit: (integer) in bytes, map **job** memory limit.
@@ -1424,7 +1415,6 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
     :param reduce_combiner_input_format: (string or descendant of `yt.wrapper.format.Format`)
     :param reduce_combiner_output_format: (string or descendant of `yt.wrapper.format.Format`)
     :param reduce_combiner_files: Deprecated!
-    :param reduce_combiner_file_paths: Deprecated!
     :param reduce_combiner_local_files: (string or list  of string) \
                                         paths to reduce combiner scripts on local machine.
     :param reduce_combiner_yt_files: (string or list  of string) \
@@ -1459,18 +1449,15 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
         lambda _: update({"sort_by": sort_by, "reduce_by": reduce_by}, _),
         lambda _: _add_user_command_spec("mapper", mapper,
             format, map_input_format, map_output_format,
-            map_files, map_file_paths,
-            map_local_files, map_yt_files,
+            map_files, map_local_files, map_yt_files,
             mapper_memory_limit, None, local_files_to_remove,  _, client=client),
         lambda _: _add_user_command_spec("reducer", reducer,
             format, reduce_input_format, reduce_output_format,
-            reduce_files, reduce_file_paths,
-            reduce_local_files, reduce_yt_files,
+            reduce_files, reduce_local_files, reduce_yt_files,
             reducer_memory_limit, reduce_by, local_files_to_remove, _, client=client),
         lambda _: _add_user_command_spec("reduce_combiner", reduce_combiner,
             format, reduce_combiner_input_format, reduce_combiner_output_format,
-            reduce_combiner_files, reduce_combiner_file_paths,
-            reduce_combiner_local_files, reduce_combiner_yt_files,
+            reduce_combiner_files, reduce_combiner_local_files, reduce_combiner_yt_files,
             reduce_combiner_memory_limit, reduce_by, local_files_to_remove, _, client=client),
         lambda _: get_value(_, {})
     )(spec)
@@ -1481,8 +1468,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
 
 @forbidden_inside_job
 def _run_operation(binary, source_table, destination_table,
-                  files=None, file_paths=None,
-                  local_files=None, yt_files=None,
+                  files=None, local_files=None, yt_files=None,
                   format=None, input_format=None, output_format=None,
                   sync=True,
                   job_io=None,
@@ -1500,7 +1486,6 @@ def _run_operation(binary, source_table, destination_table,
 
     :param binary: (python generator, callable object-generator or string (with bash commands))
     :param files: Deprecated!
-    :param file_paths: Deprecated!
     :param local_files: (string or list  of string) paths to scripts on local machine.
     :param yt_files: (string or list  of string) paths to scripts in Cypress.
     :param op_name: (one of "map" (default), "reduce", ...)
@@ -1549,7 +1534,6 @@ def _run_operation(binary, source_table, destination_table,
                     reducer=binary,
                     reduce_files=files,
                     reduce_local_files=local_files,
-                    reduce_file_paths=file_paths,
                     reduce_yt_files=yt_files,
                     source_table=source_table,
                     destination_table=destination_table,
@@ -1608,8 +1592,7 @@ def _run_operation(binary, source_table, destination_table,
             lambda _: update({"job_count": job_count}, _) if job_count is not None else _,
             lambda _: _add_user_command_spec(op_type, binary,
                 format, input_format, output_format,
-                files, file_paths,
-                local_files, yt_files,
+                files, local_files, yt_files,
                 memory_limit, group_by, local_files_to_remove, _, client=client),
             lambda _: get_value(_, {})
         )(spec)
@@ -1622,8 +1605,7 @@ def _run_operation(binary, source_table, destination_table,
             finalize()
 
 def run_map(binary, source_table, destination_table,
-            files=None, file_paths=None,
-            local_files=None, yt_files=None,
+            files=None, local_files=None, yt_files=None,
             format=None, input_format=None, output_format=None,
             sync=True,
             job_io=None,
@@ -1644,8 +1626,7 @@ def run_map(binary, source_table, destination_table,
     return _run_operation(**kwargs)
 
 def run_reduce(binary, source_table, destination_table,
-               files=None, file_paths=None,
-               local_files=None, yt_files=None,
+               files=None, local_files=None, yt_files=None,
                format=None, input_format=None, output_format=None,
                sync=True,
                job_io=None,
@@ -1667,8 +1648,7 @@ def run_reduce(binary, source_table, destination_table,
     return _run_operation(**kwargs)
 
 def run_join_reduce(binary, source_table, destination_table,
-                    files=None, file_paths=None,
-                    local_files=None, yt_files=None,
+                    files=None, local_files=None, yt_files=None,
                     format=None, input_format=None, output_format=None,
                     sync=True,
                     job_io=None,
