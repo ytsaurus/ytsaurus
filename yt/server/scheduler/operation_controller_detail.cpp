@@ -1231,7 +1231,6 @@ void TOperationControllerBase::Materialize()
 
         PickIntermediateDataCell();
         InitChunkListPool();
-        InitSecureVault();
 
         CreateLivePreviewTables();
 
@@ -1306,7 +1305,6 @@ void TOperationControllerBase::Revive()
     }
 
     InitChunkListPool();
-    InitSecureVault();
 
     DoLoadSnapshot(Snapshot);
     Snapshot = TSharedRef();
@@ -1428,12 +1426,6 @@ void TOperationControllerBase::InitChunkListPool()
     for (const auto& table : OutputTables) {
         ++CellTagToOutputTableCount[table.CellTag];
     }
-}
-
-void TOperationControllerBase::InitSecureVault()
-{
-    // NB: SecureVault is being used in InitUserJobSpec, where no access to Operation is possible.
-    SecureVault = Operation->GetSecureVault();
 }
 
 void TOperationControllerBase::InitInputChunkScraper()
