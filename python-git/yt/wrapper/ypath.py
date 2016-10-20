@@ -291,16 +291,6 @@ class TablePath(YPathSupportingAppend):
             if range:
                 attributes["ranges"] = [range]
 
-    @property
-    def name(self):
-        """Deprecated"""
-        return self._path_object
-
-    @name.setter
-    def name(self, value):
-        """Deprecated"""
-        self._path_object = value
-
     def has_delimiters(self):
         """Check attributes for delimiters (channel, lower or upper limits)."""
         return any(key in self.attributes for key in ["columns", "lower_limit", "upper_limit", "ranges"])
