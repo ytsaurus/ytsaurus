@@ -91,9 +91,6 @@ class Config(types.ModuleType, client_state.ClientState):
             "IGNORE_EMPTY_TABLES_IN_MAPREDUCE_LIST": "yamr_mode/ignore_empty_tables_in_mapreduce_list"
         }
 
-        # Some shortcuts can't be backported one-to-one so they are processed manually
-        self.special_shortcuts = {"MERGE_INSTEAD_WARNING": int}
-
         super(Config, self).__init__(__name__)
         client_state.ClientState.__init__(self)
 
@@ -105,32 +102,6 @@ class Config(types.ModuleType, client_state.ClientState):
             self.__package__ = __name__.rsplit(".", 1)[0]
         else:
             self.__package__ = None
-
-        def shortcut_getter(obj_self, key):
-            import sys
-            print("Shortcut config option getter (config.%s) is deprecated" % key, file=sys.stderr)
-            return self._get(self.shortcuts[key])
-
-        def shortcut_setter(obj_self, value, key):
-            import sys
-            print("Shortcut config option setter (config.%s) is deprecated" % key, file=sys.stderr)
-            self._set(self.shortcuts[key], value)
-
-        for key in self.shortcuts:
-            obj = self
-            cls = Config
-            parts = key.split(".")
-            for part in parts[:-1]:
-                if not hasattr(cls, part):
-                    setattr(cls, part, type(part, (object,), {}))
-                    setattr(obj, part, getattr(cls, part)())
-                cls = getattr(cls, part)
-                obj = getattr(obj, part)
-            setattr(cls, parts[-1],
-                property(lambda obj_self, key=key: shortcut_getter(obj_self, key))
-                    .setter(lambda obj_self, value, key=key: shortcut_setter(obj_self, value, key)))
-        # MERGE_INSTEAD_WARNING shortcut is processed manually
-        self._process_merge_instead_warning_shortcut()
 
         self.default_config_module = default_config
         self.common_module = common
@@ -242,8 +213,9 @@ class Config(types.ModuleType, client_state.ClientState):
             elif key in self._env_configurable_options:
                 var_type = get_var_type(self.__dict__[key])
                 self.__dict__[key] = apply_type(var_type, key, value)
-            elif key in self.special_shortcuts:
-                setattr(self, key, self.special_shortcuts[key](value))
+            # Some shortcuts can't be backported one-to-one so they are processed manually
+            elif key == "MERGE_INSTEAD_WARNING":
+                self._set("auto_merge_output/action", "merge" if int(value) else "log")
 
 
     # NB: Method required for compatibility
@@ -327,21 +299,6 @@ class Config(types.ModuleType, client_state.ClientState):
         for k in parts[:-1]:
             d = d[k]
         d[parts[-1]] = value
-
-    def _process_merge_instead_warning_shortcut(self):
-        modern_path = "auto_merge_output/action"
-
-        def getter(obj_self):
-            import sys
-            print("Shortcut config option getter (config.MERGE_INSTEAD_WARNING) is deprecated", file=sys.stderr)
-            return self._get(modern_path) == "merge"
-
-        def setter(obj_self, value):
-            import sys
-            print("Shortcut config option setter (config.MERGE_INSTEAD_WARNING) is deprecated", file=sys.stderr)
-            self._set(modern_path, "merge" if value else "log")
-
-        setattr(self.cls, "MERGE_INSTEAD_WARNING", property(getter, setter))
 
 # Process reload correctly
 special_module_name = "_yt_config_" + __name__
