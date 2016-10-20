@@ -1,6 +1,6 @@
 from .helpers import TESTS_SANDBOX, TEST_DIR, TESTS_LOCATION
 
-from yt.common import makedirp
+from yt.common import makedirp, to_native_str
 import yt.yson as yson
 import yt.subprocess_wrapper as subprocess
 
@@ -120,7 +120,7 @@ class TestJobTool(object):
             proc.wait()
 
             assert proc.returncode != 0
-            assert "RuntimeError" in proc.stderr.read()
+            assert "RuntimeError" in to_native_str(proc.stderr.read())
             assert "RuntimeError" in open(os.path.join(job_path, "output", "2")).read()
 
         shutil.rmtree(job_path)
@@ -139,7 +139,7 @@ class TestJobTool(object):
         yt.run_sort(table, sort_by=["key"])
 
         file_ = TEST_DIR + "/_test_file"
-        yt.write_file(file_, "stringdata")
+        yt.write_file(file_, b"stringdata")
 
         op = yt.run_map(failing_mapper, table, TEST_DIR + "/output", format="yamr",
                         yt_files=[file_], sync=False)
