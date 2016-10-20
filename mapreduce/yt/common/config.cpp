@@ -175,7 +175,7 @@ TConfig::TConfig()
     Pool = GetEnv("YT_POOL");
     Prefix = GetEnv("YT_PREFIX");
     ApiVersion = GetEnv("YT_VERSION", "v3");
-    LogLevel = GetEnv("YT_LOG_LEVEL", "debug");
+    LogLevel = GetEnv("YT_LOG_LEVEL", "error");
 
     ContentEncoding = GetEncoding("YT_CONTENT_ENCODING");
     AcceptEncoding = GetEncoding("YT_ACCEPT_ENCODING");
