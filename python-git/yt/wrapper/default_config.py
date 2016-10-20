@@ -282,10 +282,6 @@ default_config = {
     # error "ValueError: signal only works in main thread".
     "transaction_use_signal_if_ping_failed": False,
 
-    # Always write files as one chunks.
-    # It forces disabling of write retries for large files.
-    "write_file_as_one_chunk": False,
-
     # Default value of raw option in read, write, select, insert, lookup, delete.
     "default_value_of_raw_option": False,
 

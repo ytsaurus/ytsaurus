@@ -150,13 +150,6 @@ def write_file(destination, stream, file_writer=None, is_stream_compressed=False
         params["file_writer"] = file_writer
 
     enable_retries = get_config(client)["write_retries"]["enable"]
-    if get_config(client)["write_file_as_one_chunk"]:
-        if "file_writer" not in params:
-            params["file_writer"] = {}
-        params["file_writer"]["desired_chunk_size"] = 1024 ** 4
-        if not is_one_small_blob:
-            enable_retries = False
-
     if not is_one_small_blob and is_stream_compressed:
         enable_retries = False
 
