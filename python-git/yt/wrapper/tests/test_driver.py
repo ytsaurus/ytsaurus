@@ -29,7 +29,7 @@ def test_heavy_proxies():
     assert provider() == "host1"
 
     provider._discover_heavy_proxies = lambda: ["host2", "host3"]
-    yt.config.HOST_BAN_PERIOD = 10
+    yt.wrapper.config["proxy"]["proxy_ban_timeout"] = 10
     time.sleep(0.01)
 
     assert provider() == "host2"

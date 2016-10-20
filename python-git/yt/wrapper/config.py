@@ -29,22 +29,16 @@ class Config(types.ModuleType, client_state.ClientState):
             "http.USE_TOKEN": "enable_token",
             "http.ACCEPT_ENCODING": "proxy/accept_encoding",
             "http.CONTENT_ENCODING": "proxy/content_encoding",
-            "http.REQUEST_RETRY_TIMEOUT": "proxy/request_retry_timeout",
-            "http.REQUEST_RETRY_COUNT": "proxy/request_retry_count",
-            "http.REQUEST_BACKOFF": "proxy/request_backoff_time",
             "http.FORCE_IPV4": "proxy/force_ipv4",
             "http.FORCE_IPV6": "proxy/force_ipv6",
-            "http.HEADER_FORMAT": "proxy/header_format",
 
             "VERSION": "api_version",
-            "OPERATION_LINK_PATTERN": "proxy/operation_link_pattern",
 
             "DRIVER_CONFIG": "driver_config",
             "DRIVER_CONFIG_PATH": "driver_config_path",
 
             "USE_HOSTS": "proxy/enable_proxy_discovery",
             "HOSTS": "proxy/proxy_discovery_url",
-            "HOST_BAN_PERIOD": "proxy/proxy_ban_timeout",
 
             "ALWAYS_SET_EXECUTABLE_FLAG_TO_FILE": "yamr_mode/always_set_executable_flag_on_files",
             "USE_MAPREDUCE_STYLE_DESTINATION_FDS": "yamr_mode/use_yamr_style_destination_fds",
@@ -65,15 +59,10 @@ class Config(types.ModuleType, client_state.ClientState):
             "IGNORE_STDERR_IF_DOWNLOAD_FAILED": "operation_tracker/ignore_stderr_if_download_failed",
             "KEYBOARD_ABORT": "operation_tracker/abort_on_sigint",
 
-            "READ_BUFFER_SIZE": "read_buffer_size",
-
             "FILE_STORAGE": "remote_temp_files_directory",
             "TEMP_TABLES_STORAGE": "remote_temp_tables_directory",
             "LOCAL_TMP_DIR": "local_temp_directory",
             "REMOVE_TEMP_FILES": "clear_local_temp_files",
-
-            "MIN_CHUNK_COUNT_FOR_MERGE_WARNING": "auto_merge_output/min_chunk_count",
-            "MAX_CHUNK_SIZE_FOR_MERGE_WARNING": "auto_merge_output/max_chunk_size",
 
             "PREFIX": "prefix",
 
@@ -83,20 +72,11 @@ class Config(types.ModuleType, client_state.ClientState):
             "SPEC": "spec_defaults",
             "TABLE_WRITER": "table_writer",
 
-            "TRANSACTION_TIMEOUT": "transaction_timeout",
-            "TRANSACTION_SLEEP_PERIOD": "transaction_sleep_period",
-            "OPERATION_GET_STATE_RETRY_COUNT": "proxy/operation_state_discovery_retry_count",
-
             "RETRY_READ": "read_retries/enable",
             "USE_RETRIES_DURING_WRITE": "write_retries/enable",
             "USE_RETRIES_DURING_UPLOAD": "write_retries/enable",
 
             "CHUNK_SIZE": "write_retries/chunk_size",
-
-            "PYTHON_FUNCTION_SEARCH_EXTENSIONS": "pickling/search_extensions",
-            "PYTHON_FUNCTION_MODULE_FILTER": "pickling/module_filter",
-            "PYTHON_DO_NOT_USE_PYC": "pickling/force_using_py_instead_of_pyc",
-            "PYTHON_CREATE_MODULES_ARCHIVE": "pickling/create_modules_archive_function",
 
             "DETACHED": "detached",
 

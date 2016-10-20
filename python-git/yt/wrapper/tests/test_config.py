@@ -15,22 +15,16 @@ class TestConfig(object):
         yt.config.http.USE_TOKEN = yt.config.http.USE_TOKEN
         yt.config.http.ACCEPT_ENCODING = yt.config.http.ACCEPT_ENCODING
         yt.config.http.CONTENT_ENCODING = yt.config.http.CONTENT_ENCODING
-        yt.config.http.REQUEST_RETRY_TIMEOUT = yt.config.http.REQUEST_RETRY_TIMEOUT
-        yt.config.http.REQUEST_RETRY_COUNT = yt.config.http.REQUEST_RETRY_COUNT
-        yt.config.http.REQUEST_BACKOFF = yt.config.http.REQUEST_BACKOFF
         yt.config.http.FORCE_IPV4 = yt.config.http.FORCE_IPV4
         yt.config.http.FORCE_IPV6 = yt.config.http.FORCE_IPV6
-        yt.config.http.HEADER_FORMAT = yt.config.http.HEADER_FORMAT
 
         yt.config.VERSION = yt.config.VERSION
-        yt.config.OPERATION_LINK_PATTERN = yt.config.OPERATION_LINK_PATTERN
 
         yt.config.DRIVER_CONFIG = yt.config.DRIVER_CONFIG
         yt.config.DRIVER_CONFIG_PATH = yt.config.DRIVER_CONFIG_PATH
 
         yt.config.USE_HOSTS = yt.config.USE_HOSTS
         yt.config.HOSTS = yt.config.HOSTS
-        yt.config.HOST_BAN_PERIOD = yt.config.HOST_BAN_PERIOD
 
         yt.config.ALWAYS_SET_EXECUTABLE_FLAG_TO_FILE = yt.config.ALWAYS_SET_EXECUTABLE_FLAG_TO_FILE
         yt.config.USE_MAPREDUCE_STYLE_DESTINATION_FDS = yt.config.USE_MAPREDUCE_STYLE_DESTINATION_FDS
@@ -48,7 +42,6 @@ class TestConfig(object):
         yt.config.OPERATION_STATE_UPDATE_PERIOD = yt.config.OPERATION_STATE_UPDATE_PERIOD
         yt.config.STDERR_LOGGING_LEVEL = yt.config.STDERR_LOGGING_LEVEL
         yt.config.IGNORE_STDERR_IF_DOWNLOAD_FAILED = yt.config.IGNORE_STDERR_IF_DOWNLOAD_FAILED
-        yt.config.READ_BUFFER_SIZE = yt.config.READ_BUFFER_SIZE
         yt.config.MEMORY_LIMIT = yt.config.MEMORY_LIMIT
 
         yt.config.FILE_STORAGE = yt.config.FILE_STORAGE
@@ -56,28 +49,11 @@ class TestConfig(object):
         yt.config.LOCAL_TMP_DIR = yt.config.LOCAL_TMP_DIR
         yt.config.REMOVE_TEMP_FILES = yt.config.REMOVE_TEMP_FILES
 
-        yt.config.KEYBOARD_ABORT = yt.config.KEYBOARD_ABORT
-
-        yt.config.MERGE_INSTEAD_WARNING = yt.config.MERGE_INSTEAD_WARNING
-        yt.config.MIN_CHUNK_COUNT_FOR_MERGE_WARNING = yt.config.MIN_CHUNK_COUNT_FOR_MERGE_WARNING
-        yt.config.MAX_CHUNK_SIZE_FOR_MERGE_WARNING  = yt.config.MAX_CHUNK_SIZE_FOR_MERGE_WARNING
-
         yt.config.PREFIX = yt.config.PREFIX
-
-        yt.config.TRANSACTION_TIMEOUT = yt.config.TRANSACTION_TIMEOUT
-        yt.config.TRANSACTION_SLEEP_PERIOD = yt.config.TRANSACTION_SLEEP_PERIOD
-        yt.config.OPERATION_GET_STATE_RETRY_COUNT = yt.config.OPERATION_GET_STATE_RETRY_COUNT
 
         yt.config.RETRY_READ = yt.config.RETRY_READ
         yt.config.USE_RETRIES_DURING_WRITE = yt.config.USE_RETRIES_DURING_WRITE
         yt.config.USE_RETRIES_DURING_UPLOAD = yt.config.USE_RETRIES_DURING_UPLOAD
-
-        yt.config.CHUNK_SIZE = yt.config.CHUNK_SIZE
-
-        yt.config.PYTHON_FUNCTION_SEARCH_EXTENSIONS = yt.config.PYTHON_FUNCTION_SEARCH_EXTENSIONS
-        yt.config.PYTHON_FUNCTION_MODULE_FILTER = yt.config.PYTHON_FUNCTION_MODULE_FILTER
-        yt.config.PYTHON_DO_NOT_USE_PYC = yt.config.PYTHON_DO_NOT_USE_PYC
-        yt.config.PYTHON_CREATE_MODULES_ARCHIVE = yt.config.PYTHON_CREATE_MODULES_ARCHIVE
 
         yt.config.DETACHED = yt.config.DETACHED
 
