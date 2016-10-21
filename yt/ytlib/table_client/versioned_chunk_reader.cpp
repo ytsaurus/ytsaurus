@@ -546,9 +546,8 @@ public:
                 VersionedChunkMeta_->ColumnMeta().columns(keyColumnIndex),
                 keyColumnIndex,
                 keyColumnIndex);
-
-            TBase::Columns_.emplace_back(columnReader.get(), keyColumnIndex);
-            KeyColumnReaders_[keyColumnIndex].swap(columnReader);
+            KeyColumnReaders_[keyColumnIndex] = columnReader.get();
+            TBase::Columns_.emplace_back(std::move(columnReader), keyColumnIndex);
         }
 
         // Null readers for wider keys.
@@ -556,9 +555,11 @@ public:
              keyColumnIndex < KeyColumnReaders_.size();
              ++keyColumnIndex)
         {
-            KeyColumnReaders_[keyColumnIndex] = CreateUnversionedNullColumnReader(
+            auto columnReader = CreateUnversionedNullColumnReader(
                 keyColumnIndex,
                 keyColumnIndex);
+            KeyColumnReaders_[keyColumnIndex] = columnReader.get();
+            TBase::Columns_.emplace_back(std::move(columnReader));
         }
 
         for (const auto& idMapping : SchemaIdMapping_) {
@@ -567,9 +568,8 @@ public:
                 VersionedChunkMeta_->ColumnMeta().columns(idMapping.ChunkSchemaIndex),
                 idMapping.ReaderSchemaIndex);
 
-            TBase::Columns_.emplace_back(columnReader.get(), idMapping.ChunkSchemaIndex);
-
-            ValueColumnReaders_.push_back(std::move(columnReader));
+            ValueColumnReaders_.push_back(columnReader.get());
+            TBase::Columns_.emplace_back(std::move(columnReader), idMapping.ChunkSchemaIndex);
         }
     }
 
@@ -595,8 +595,8 @@ protected:
 
     TChunkReaderPerformanceCountersPtr PerformanceCounters_;
 
-    std::vector<std::unique_ptr<IUnversionedColumnReader>> KeyColumnReaders_;
-    std::vector<std::unique_ptr<IVersionedColumnReader>> ValueColumnReaders_;
+    std::vector<IUnversionedColumnReader*> KeyColumnReaders_;
+    std::vector<IVersionedColumnReader*> ValueColumnReaders_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -606,18 +606,27 @@ class TScanColumnarRowBuilder
 public:
     TScanColumnarRowBuilder(
         TCachedVersionedChunkMetaPtr chunkMeta,
-        std::vector<std::unique_ptr<IVersionedColumnReader>>& valueColumnReaders,
+        std::vector<IVersionedColumnReader*>& valueColumnReaders,
         const std::vector<TColumnIdMapping>& schemaIdMapping,
         TTimestamp timestamp)
         : ChunkMeta_(chunkMeta)
         , ValueColumnReaders_(valueColumnReaders)
         , Pool_(TVersionedChunkReaderPoolTag())
         , SchemaIdMapping_(schemaIdMapping)
+        , Timestamp_(timestamp)
+    { }
+
+    // We pass away the ownership of the reader.
+    // All column reader are owned by the chunk reader.
+    std::unique_ptr<IColumnReaderBase> CreateTimestampReader()
     {
+        YCHECK(TimestampReader_ == nullptr);
+
         int timestampReaderIndex = ChunkMeta_->ColumnMeta().columns().size() - 1;
-        TimestampReader_ = std::make_unique<TScanTransactionTimestampReader>(
+        TimestampReader_ = new TScanTransactionTimestampReader(
             ChunkMeta_->ColumnMeta().columns(timestampReaderIndex),
-            timestamp);
+            Timestamp_);
+        return std::unique_ptr<IColumnReaderBase>(TimestampReader_);
     }
 
     TMutableRange<TMutableVersionedRow> AllocateRows(
@@ -697,11 +706,6 @@ public:
             static_cast<TMutableVersionedRow*>(rows->data() + rangeBegin + rowLimit));
     }
 
-    IColumnReaderBase* GetTimestampReader() const
-    {
-        return TimestampReader_.get();
-    }
-
     void ReadValues(TMutableRange<TMutableVersionedRow> range, i64 currentRowIndex)
     {
         // Read timestamp indexes.
@@ -737,15 +741,17 @@ public:
     }
 
 private:
-    std::unique_ptr<TScanTransactionTimestampReader> TimestampReader_;
+    TScanTransactionTimestampReader* TimestampReader_ = nullptr;
 
     const TCachedVersionedChunkMetaPtr ChunkMeta_;
 
-    std::vector<std::unique_ptr<IVersionedColumnReader>>& ValueColumnReaders_;
+    std::vector<IVersionedColumnReader*>& ValueColumnReaders_;
 
     TChunkedMemoryPool Pool_;
 
     const std::vector<TColumnIdMapping>& SchemaIdMapping_;
+
+    TTimestamp Timestamp_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -755,16 +761,22 @@ class TCompactionColumnarRowBuilder
 public:
     TCompactionColumnarRowBuilder(
         TCachedVersionedChunkMetaPtr chunkMeta,
-        std::vector<std::unique_ptr<IVersionedColumnReader>>& valueColumnReaders,
+        std::vector<IVersionedColumnReader*>& valueColumnReaders,
         const std::vector<TColumnIdMapping>& /* schemaIdMapping */,
         TTimestamp /* timestamp */)
         : ChunkMeta_(chunkMeta)
         , ValueColumnReaders_(valueColumnReaders)
         , Pool_(TVersionedChunkReaderPoolTag())
+    { }
+
+    std::unique_ptr<IColumnReaderBase> CreateTimestampReader()
     {
+        YCHECK(TimestampReader_ == nullptr);
         int timestampReaderIndex = ChunkMeta_->ColumnMeta().columns().size() - 1;
-        TimestampReader_ = std::make_unique<TCompactionTimestampReader>(
+        TimestampReader_ = new TCompactionTimestampReader(
             ChunkMeta_->ColumnMeta().columns(timestampReaderIndex));
+
+        return std::unique_ptr<IColumnReaderBase>(TimestampReader_);
     }
 
     TMutableRange<TMutableVersionedRow> AllocateRows(
@@ -820,11 +832,6 @@ public:
             static_cast<TMutableVersionedRow*>(rows->data() + rangeBegin + rowLimit));
     }
 
-    IColumnReaderBase* GetTimestampReader() const
-    {
-        return TimestampReader_.get();
-    }
-
     void ReadValues(TMutableRange<TMutableVersionedRow> range, i64 currentRowIndex)
     {
         for (auto& valueColumnReader : ValueColumnReaders_) {
@@ -853,11 +860,11 @@ public:
     }
 
 private:
-    std::unique_ptr<TCompactionTimestampReader> TimestampReader_;
+    TCompactionTimestampReader* TimestampReader_ = nullptr;
 
     const TCachedVersionedChunkMetaPtr ChunkMeta_;
 
-    std::vector<std::unique_ptr<IVersionedColumnReader>>& ValueColumnReaders_;
+    std::vector<IVersionedColumnReader*>& ValueColumnReaders_;
 
     TChunkedMemoryPool Pool_;
 };
@@ -893,7 +900,7 @@ public:
         UpperLimit_ = std::move(upperLimit);
 
         int timestampReaderIndex = VersionedChunkMeta_->ColumnMeta().columns().size() - 1;
-        Columns_.emplace_back(RowBuilder_.GetTimestampReader(), timestampReaderIndex);
+        Columns_.emplace_back(RowBuilder_.CreateTimestampReader(), timestampReaderIndex);
 
         // Empirical formula to determine max rows per read for better cache friendliness.
         MaxRowsPerRead_ = CacheSize / (KeyColumnReaders_.size() * sizeof(TUnversionedValue) +
@@ -1022,11 +1029,11 @@ public:
         , Pool_(TVersionedChunkReaderPoolTag())
     {
         int timestampReaderIndex = VersionedChunkMeta_->ColumnMeta().columns().size() - 1;
-        TimestampReader_ = std::make_unique<TLookupTransactionTimestampReader>(
+        TimestampReader_ = new TLookupTransactionTimestampReader(
             VersionedChunkMeta_->ColumnMeta().columns(timestampReaderIndex),
             Timestamp_);
 
-        Columns_.emplace_back(TimestampReader_.get(), timestampReaderIndex);
+        Columns_.emplace_back(std::unique_ptr<IColumnReaderBase>(TimestampReader_), timestampReaderIndex);
 
         RowIndexes_.reserve(Keys_.Size());
         for (const auto& key : Keys_) {
@@ -1116,7 +1123,7 @@ private:
 
     TChunkedMemoryPool Pool_;
 
-    std::unique_ptr<TLookupTransactionTimestampReader> TimestampReader_;
+    TLookupTransactionTimestampReader* TimestampReader_;
 
     void InitBlockFetcher()
     {

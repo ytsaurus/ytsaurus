@@ -825,8 +825,8 @@ public:
     }
 
 private:
-    std::vector<std::unique_ptr<IUnversionedColumnReader>> SchemaColumnReaders_;
-    std::unique_ptr<ISchemalessColumnReader> SchemalessReader_ = nullptr;
+    std::vector<IUnversionedColumnReader*> SchemaColumnReaders_;
+    ISchemalessColumnReader* SchemalessReader_ = nullptr;
 
     bool Completed_ = false;
     bool LowerKeyLimitReached_ = false;
@@ -935,17 +935,18 @@ private:
                 valueIndex,
                 NameTable_->GetIdOrRegisterName(ChunkMeta_->ChunkSchema().Columns()[columnIndex].Name));
 
-            Columns_.emplace_back(columnReader.get(), columnIndex);
-            SchemaColumnReaders_.emplace_back(std::move(columnReader));
+            SchemaColumnReaders_.emplace_back(columnReader.get());
+            Columns_.emplace_back(std::move(columnReader), columnIndex);
         }
 
         if (readSchemalessColumns) {
-            SchemalessReader_ = CreateSchemalessColumnReader(
+            auto columnReader = CreateSchemalessColumnReader(
                 ChunkMeta_->ColumnMeta().columns(ChunkMeta_->ChunkSchema().Columns().size()),
                 schemalessIdMapping);
+            SchemalessReader_ = columnReader.get();
 
             Columns_.emplace_back(
-                SchemalessReader_.get(),
+                std::move(columnReader),
                 ChunkMeta_->ChunkSchema().Columns().size());
         }
 
