@@ -384,7 +384,7 @@ class YtStuff(object):
 def yt_stuff(request):
     try:
         yt_config = request.getfuncargvalue("yt_config")
-    except Exception, e:
+    except Exception:
         yt_config = None
     yt = YtStuff(yt_config)
     yt.start_local_yt()
