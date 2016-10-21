@@ -2490,6 +2490,7 @@ void TOperationControllerBase::DoScheduleLocalJob(
             }
 
             if (!CheckJobLimits(task, jobLimits, nodeResourceLimits)) {
+                scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughResources);
                 continue;
             }
 
@@ -2573,6 +2574,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
         // Consider candidates in the order of increasing memory demand.
         {
             int processedTaskCount = 0;
+            int noPendingJobsTaskCount = 0;
             auto it = candidateTasks.begin();
             while (it != candidateTasks.end()) {
                 ++processedTaskCount;
@@ -2585,11 +2587,13 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
                     candidateTasks.erase(it++);
                     YCHECK(nonLocalTasks.erase(task) == 1);
                     UpdateTask(task);
+                    ++noPendingJobsTaskCount;
                     continue;
                 }
 
                 // Check min memory demand for early exit.
                 if (task->GetMinNeededResources().GetMemory() > jobLimits.GetMemory()) {
+                    scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughResources);
                     break;
                 }
 
@@ -2650,7 +2654,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
                     candidateTasks.insert(std::make_pair(minMemory, task));
                 }
             }
-            if (processedTaskCount == 0) {
+            if (processedTaskCount == noPendingJobsTaskCount) {
                 scheduleJobResult->RecordFail(EScheduleJobFailReason::NoCandidateTasks);
             }
 
