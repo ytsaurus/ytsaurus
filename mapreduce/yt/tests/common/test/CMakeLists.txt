@@ -1,5 +1,7 @@
 PYTEST()
 
+SIZE(FAT)
+
 OWNER(monster)
 
 TEST_SRCS(
