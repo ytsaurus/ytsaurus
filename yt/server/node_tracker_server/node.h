@@ -83,8 +83,13 @@ public:
     // Chunk Manager stuff.
     DEFINE_BYVAL_RO_PROPERTY(bool, Banned);
     DEFINE_BYVAL_RO_PROPERTY(bool, Decommissioned);
+    DEFINE_BYVAL_RO_PROPERTY(bool, DisableWriteSessions);
+
     DEFINE_BYVAL_RW_PROPERTY(TNullable<NChunkServer::TFillFactorToNodeIterator>, FillFactorIterator);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<NChunkServer::TLoadFactorToNodeIterator>, LoadFactorIterator);
+
+    // Used for graceful restart.
+    DEFINE_BYVAL_RW_PROPERTY(bool, DisableSchedulerJobs);
 
     // NB: Randomize replica hashing to avoid collisions during balancing.
     using TReplicaSet = yhash_set<TChunkPtrWithIndex>;
@@ -121,9 +126,6 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TTabletSlotList, TabletSlots);
 
 public:
-    TNode(
-        const NObjectServer::TObjectId& objectId,
-        const TAddressMap& addresses);
     explicit TNode(const NObjectServer::TObjectId& objectId);
 
     TNodeId GetId() const;
@@ -215,8 +217,6 @@ private:
     ENodeState* LocalStatePtr_;
     ENodeState AggregatedState_;
 
-    void Init();
-
     void RecomputeAggregatedState();
 
     static TChunkPtrWithIndex ToGeneric(TChunkPtrWithIndex replica);
@@ -236,6 +236,7 @@ private:
     void SetRack(TRack* rack);
     void SetBanned(bool value);
     void SetDecommissioned(bool value);
+    void SetDisableWriteSessions(bool value);
 
     void SetNodeTags(const std::vector<Stroka>& tags);
     void SetUserTags(const std::vector<Stroka>& tags);

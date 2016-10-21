@@ -609,7 +609,7 @@ public:
         ValidateOperationPermission(user, operation->GetId(), EPermission::Write);
 
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
-            LOG_INFO(error, "Operation is already shuting down (OperationId: %v, State: %v)",
+            LOG_INFO(error, "Operation is already shutting down (OperationId: %v, State: %v)",
                 operation->GetId(),
                 operation->GetState());
             return operation->GetFinished();
@@ -823,20 +823,20 @@ public:
         return EventLogTableConsumer_.get();
     }
 
-    virtual void OnOperationCompleted(TOperationPtr operation) override
+    virtual void OnOperationCompleted(const TOperationId& operationId) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         MasterConnector_->GetCancelableControlInvoker()->Invoke(
-            BIND(&TImpl::DoCompleteOperation, MakeStrong(this), operation));
+            BIND(&TImpl::DoCompleteOperation, MakeStrong(this), operationId));
     }
 
-    virtual void OnOperationFailed(TOperationPtr operation, const TError& error) override
+    virtual void OnOperationFailed(const TOperationId& operationId, const TError& error) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         MasterConnector_->GetCancelableControlInvoker()->Invoke(
-            BIND(&TImpl::DoFailOperation, MakeStrong(this), operation, error));
+            BIND(&TImpl::DoFailOperation, MakeStrong(this), operationId, error));
     }
 
     virtual std::unique_ptr<IValueConsumer> CreateLogConsumer() override
@@ -1555,7 +1555,7 @@ private:
             auto wrappedError = TError("Operation has failed to initialize")
                 << ex;
             if (registered) {
-                OnOperationFailed(operation, wrappedError);
+                OnOperationFailed(operation->GetId(), wrappedError);
             } else {
                 operation->SetStarted(wrappedError);
             }
@@ -1620,7 +1620,7 @@ private:
         } catch (const std::exception& ex) {
             auto wrappedError = TError("Operation has failed to prepare")
                 << ex;
-            OnOperationFailed(operation, wrappedError);
+            OnOperationFailed(operation->GetId(), wrappedError);
             return;
         }
 
@@ -1727,7 +1727,7 @@ private:
             LOG_ERROR(ex, "Operation has failed to revive (OperationId: %v)",
                 operation->GetId());
             auto wrappedError = TError("Operation has failed to revive") << ex;
-            OnOperationFailed(operation, wrappedError);
+            OnOperationFailed(operation->GetId(), wrappedError);
             return;
         }
 
@@ -1909,18 +1909,18 @@ private:
         }
     }
 
-    void DoCompleteOperation(TOperationPtr operation)
+    void DoCompleteOperation(const TOperationId& operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto codicilGuard = operation->MakeCodicilGuard();
+        auto operation = FindOperation(operationId);
 
-        if (operation->IsFinishedState() || operation->IsFinishingState()) {
+        if (!operation || operation->IsFinishedState() || operation->IsFinishingState()) {
             // Operation is probably being aborted.
             return;
         }
 
-        const auto& operationId = operation->GetId();
+        auto codicilGuard = operation->MakeCodicilGuard();
 
         LOG_INFO("Completing operation (OperationId: %v)",
             operationId);
@@ -1970,7 +1970,7 @@ private:
 
             FinishOperation(operation);
         } catch (const std::exception& ex) {
-            OnOperationFailed(operation, ex);
+            OnOperationFailed(operation->GetId(), ex);
             return;
         }
 
@@ -1980,9 +1980,17 @@ private:
         LogOperationFinished(operation, ELogEventType::OperationCompleted, TError());
     }
 
-    void DoFailOperation(TOperationPtr operation, const TError& error)
+    void DoFailOperation(const TOperationId operationId, const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto operation = FindOperation(operationId);
+
+        // NB: finishing state is ok, do not skip operation fail in this case.
+        if (!operation || operation->IsFinishedState()) {
+            // Operation is already terminated.
+            return;
+        }
 
         auto codicilGuard = operation->MakeCodicilGuard();
 

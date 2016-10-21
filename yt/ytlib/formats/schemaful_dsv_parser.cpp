@@ -175,6 +175,9 @@ std::unique_ptr<IParser> CreateParserForSchemafulDsv(
     IYsonConsumer* consumer,
     TSchemafulDsvFormatConfigPtr config)
 {
+    if (config->EnableColumnNamesHeader) {
+        THROW_ERROR_EXCEPTION("Parameter %Qv must not be specified for schemaful dsv parser", "enable_column_names_header");
+    }
     return std::unique_ptr<IParser>(new TSchemafulDsvParser(consumer, config));
 }
 

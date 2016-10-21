@@ -11,7 +11,9 @@ TDsvTable::TDsvTable(const TDsvFormatConfigBasePtr& config, bool addCarriageRetu
     std::vector<char> stopSymbols;
     stopSymbols.push_back(config->RecordSeparator);
     stopSymbols.push_back(config->FieldSeparator);
-    stopSymbols.push_back(config->EscapingSymbol);
+    if (config->EnableEscaping) {
+        stopSymbols.push_back(config->EscapingSymbol);
+    }
     stopSymbols.push_back('\0');
     if (addCarriageReturn) {
         stopSymbols.push_back('\r');

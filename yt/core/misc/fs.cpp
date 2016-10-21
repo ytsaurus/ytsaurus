@@ -4,7 +4,6 @@
 #include <yt/core/logging/log.h>
 #include <yt/core/misc/ref_counted.h>
 
-#include <yt/core/misc/error.h>
 #include <yt/core/misc/proc.h>
 
 #include <util/folder/dirut.h>
@@ -532,17 +531,8 @@ void Umount(const Stroka& path, bool detach)
         auto error = TError("Failed to umount %v", path)
             << TError::FromSystem();
         if (LastSystemError() == EBUSY) {
-            auto lsofOutput = TShellCommand(Format("lsof %v", path))
-                .Run()
-                .Wait()
-                .GetOutput();
-            auto findOutput = TShellCommand(Format("find %v -name '*'", path))
-                .Run()
-                .Wait()
-                .GetOutput();
-            error = error
-                << TErrorAttribute("lsof_output", lsofOutput)
-                << TErrorAttribute("find_output", findOutput);
+            error = AttachLsofOutput(error, path);
+            error = AttachFindOutput(error, path);
         }
         THROW_ERROR error;
     }
@@ -634,6 +624,26 @@ void ChunkedCopy(
 #else
     ThrowNotSupported();
 #endif
+}
+
+TError AttachLsofOutput(TError error, const Stroka& path)
+{
+    auto lsofOutput = TShellCommand(Format("lsof %v", path))
+        .Run()
+        .Wait()
+        .GetOutput();
+    return error
+        << TErrorAttribute("lsof_output", lsofOutput);
+}
+
+TError AttachFindOutput(TError error, const Stroka& path)
+{
+    auto findOutput = TShellCommand(Format("find %v -name '*'", path))
+        .Run()
+        .Wait()
+        .GetOutput();
+    return error
+        << TErrorAttribute("find_output", findOutput);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

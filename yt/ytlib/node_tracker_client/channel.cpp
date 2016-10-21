@@ -18,7 +18,12 @@ public:
 
     virtual IChannelPtr CreateChannel(const TNodeDescriptor& descriptor) override
     {
-        const auto& address = descriptor.GetAddress(Networks_);
+        return CreateChannel(descriptor.Addresses());
+    }
+
+    virtual IChannelPtr CreateChannel(const TAddressMap& addresses) override
+    {
+        const auto& address = GetAddress(addresses, Networks_);
         return CreateChannel(address);
     }
 

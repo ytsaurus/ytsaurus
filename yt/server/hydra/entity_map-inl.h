@@ -164,13 +164,13 @@ size_t TReadOnlyEntityMap<TValue>::size() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSerializationKeysTag
+struct TDynamicEntityDataTag
 { };
 
 template <class TValue, class TTraits>
 TEntityMap<TValue, TTraits>::TEntityMap(const TTraits& traits)
     : Traits_(traits)
-    , DynamicDataPool_(TSerializationKeysTag())
+    , DynamicDataPool_(TDynamicEntityDataTag())
 { }
 
 template <class TValue, class TTraits>

@@ -161,7 +161,7 @@ public:
                     chunkId);
         }
 
-        YCHECK(TryGetBoundaryKeys(Meta_, &MinKey_, &MaxKey_));
+        YCHECK(FindBoundaryKeys(Meta_, &MinKey_, &MaxKey_));
 
         auto miscExt = GetProtoExtension<NProto::TMiscExt>(Meta_.extensions());
         i64 chunkDataSize = miscExt.uncompressed_data_size();

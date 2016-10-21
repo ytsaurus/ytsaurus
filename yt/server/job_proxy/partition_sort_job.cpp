@@ -73,7 +73,6 @@ public:
         options->ExplodeOnValidationError = true;
         auto schema = FromProto<TTableSchema>(outputSpec.table_schema());
 
-        options->ExplodeOnValidationError = true;
         Writer_ = CreateSchemalessMultiChunkWriter(
             config->JobIO->TableWriter,
             options,

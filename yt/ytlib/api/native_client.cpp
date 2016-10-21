@@ -657,7 +657,7 @@ private:
             YCHECK(!chunkSchema);
 
             TOwningKey chunkLowerBound, chunkUpperBound;
-            if (TryGetBoundaryKeys(chunkSpec.chunk_meta(), &chunkLowerBound, &chunkUpperBound)) {
+            if (FindBoundaryKeys(chunkSpec.chunk_meta(), &chunkLowerBound, &chunkUpperBound)) {
                 chunkUpperBound = GetKeySuccessor(chunkUpperBound);
                 SetLowerBound(&chunkSpec, chunkLowerBound);
                 SetUpperBound(&chunkSpec, chunkUpperBound);

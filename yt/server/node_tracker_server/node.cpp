@@ -43,35 +43,23 @@ void TNode::TTabletSlot::Persist(NCellMaster::TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNode::TNode(
-    const TObjectId& objectId,
-    const TAddressMap& addresses)
-    : TObjectBase(objectId)
-    , Addresses_(addresses)
-{
-    Init();
-    RebuildTags();
-}
-
 TNode::TNode(const TObjectId& objectId)
     : TObjectBase(objectId)
-{
-    Init();
-}
-
-void TNode::Init()
 {
     VisitMark_ = 0;
     IOWeight_ = 0.0;
     Banned_ = false;
     Decommissioned_ = false;
+    DisableWriteSessions_ = false;
     Rack_ = nullptr;
+    DisableSchedulerJobs_ = false;
     LeaseTransaction_ = nullptr;
     LocalStatePtr_ = nullptr;
     AggregatedState_ = ENodeState::Offline;
     ChunkReplicationQueues_.resize(ReplicationPriorityCount);
     RandomReplicaIt_ = StoredReplicas_.end();
     ClearSessionHints();
+    RebuildTags();
 }
 
 void TNode::RecomputeAggregatedState()
@@ -168,6 +156,8 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     using NYT::Save;
     Save(context, Banned_);
     Save(context, Decommissioned_);
+    Save(context, DisableWriteSessions_);
+    Save(context, DisableSchedulerJobs_);
     Save(context, Addresses_);
     Save(context, MulticellStates_);
     Save(context, UserTags_);
@@ -195,6 +185,13 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, Banned_);
     Load(context, Decommissioned_);
+
+    // COMPAT(psushin)
+    if (context.GetVersion() >= 353) {
+        Load(context, DisableWriteSessions_);
+        Load(context, DisableSchedulerJobs_);
+    }
+
     Load(context, Addresses_);
     Load(context, MulticellStates_);
     // COMPAT(babenko)
@@ -575,6 +572,11 @@ void TNode::SetBanned(bool value)
 void TNode::SetDecommissioned(bool value)
 {
     Decommissioned_ = value;
+}
+
+void TNode::SetDisableWriteSessions(bool value)
+{
+    DisableWriteSessions_ = value;
 }
 
 void TNode::SetNodeTags(const std::vector<Stroka>& tags)

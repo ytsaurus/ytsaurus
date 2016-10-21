@@ -47,9 +47,14 @@ private:
             .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor("decommissioned")
             .SetReplicated(true));
+        descriptors->push_back(TAttributeDescriptor("disable_write_sessions")
+            .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor("rack")
             .SetPresent(node->GetRack())
             .SetRemovable(true)
+            .SetReplicated(true));
+
+        descriptors->push_back(TAttributeDescriptor("disable_scheduler_jobs")
             .SetReplicated(true));
         descriptors->push_back("state");
         descriptors->push_back("multicell_states");
@@ -97,9 +102,21 @@ private:
             return true;
         }
 
+        if (key == "disable_write_sessions") {
+            BuildYsonFluently(consumer)
+                .Value(node->GetDisableWriteSessions());
+            return true;
+        }
+
         if (key == "rack" && node->GetRack()) {
             BuildYsonFluently(consumer)
                 .Value(node->GetRack()->GetName());
+            return true;
+        }
+
+        if (key == "disable_scheduler_jobs") {
+            BuildYsonFluently(consumer)
+                .Value(node->GetDisableSchedulerJobs());
             return true;
         }
 
@@ -268,10 +285,22 @@ private:
             return true;
         }
 
+        if (key == "disable_write_sessions") {
+            auto disableWriteSessions = ConvertTo<bool>(value);
+            nodeTracker->SetDisableWriteSessions(node, disableWriteSessions);
+            return true;
+        }
+
         if (key == "rack") {
             auto rackName = ConvertTo<Stroka>(value);
             auto* rack = nodeTracker->GetRackByNameOrThrow(rackName);
             nodeTracker->SetNodeRack(node, rack);
+            return true;
+        }
+
+        if (key == "disable_scheduler_jobs") {
+            auto disableSchedulerJobs = ConvertTo<bool>(value);
+            node->SetDisableSchedulerJobs(disableSchedulerJobs);
             return true;
         }
 
