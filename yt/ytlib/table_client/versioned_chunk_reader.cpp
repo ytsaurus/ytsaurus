@@ -1476,15 +1476,6 @@ TVersionedChunkLookupHashTablePtr CreateChunkLookupHashTable(
 struct TCacheBasedVersionedChunkReaderPoolTag
 { };
 
-static const TKeyComparer& DefaultKeyComparer()
-{
-    static TKeyComparer comparer = [] (TKey lhs, TKey rhs) {
-        return CompareRows(lhs, rhs);
-    };
-
-    return comparer;
-}
-
 class TCacheBasedVersionedChunkReaderBase
     : public IVersionedReader
 {
@@ -1492,10 +1483,8 @@ public:
     TCacheBasedVersionedChunkReaderBase(
         const TCacheBasedChunkStatePtr& state,
         const TColumnFilter& columnFilter,
-        TTimestamp timestamp,
-        const TKeyComparer& keyComparer = DefaultKeyComparer())
+        TTimestamp timestamp)
         : ChunkState_(state)
-        , KeyComparer_(keyComparer)
         , Timestamp_(timestamp)
         , SchemaIdMapping_(BuildSchemaIdMapping(columnFilter, ChunkState_->ChunkMeta))
         , MemoryPool_(TCacheBasedVersionedChunkReaderPoolTag())
@@ -1534,7 +1523,6 @@ public:
 
         return true;
     }
-
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
     {
         YUNREACHABLE();
@@ -1552,7 +1540,6 @@ public:
 
 protected:
     const TCacheBasedChunkStatePtr ChunkState_;
-    const TKeyComparer& KeyComparer_;
     const TTimestamp Timestamp_;
 
     const std::vector<TColumnIdMapping> SchemaIdMapping_;
@@ -1572,7 +1559,7 @@ protected:
             rend,
             key,
             [this] (TKey pivot, const TOwningKey& indexKey) {
-                return KeyComparer_(pivot, indexKey) > 0;
+                return ChunkState_->KeyComparer(pivot, indexKey) > 0;
             });
 
         return it == rend ? 0 : std::distance(it, rend);
@@ -1653,8 +1640,7 @@ public:
         : TCacheBasedVersionedChunkReaderBase(
             state,
             columnFilter,
-            timestamp,
-            state->KeyComparer)
+            timestamp)
         , Keys_(keys)
     { }
 
@@ -1700,13 +1686,13 @@ private:
                 ChunkState_->ChunkMeta->GetChunkKeyColumnCount(),
                 ChunkState_->ChunkMeta->GetKeyColumnCount(),
                 SchemaIdMapping_,
-                KeyComparer_,
+                ChunkState_->KeyComparer,
                 Timestamp_,
                 false);
 
             YCHECK(blockReader.SkipToRowIndex(index.second));
 
-            if (KeyComparer_(blockReader.GetKey(), key) == 0) {
+            if (ChunkState_->KeyComparer(blockReader.GetKey(), key) == 0) {
                 return CaptureRow(&blockReader);
             }
         }
@@ -1717,7 +1703,9 @@ private:
     TVersionedRow LookupWithoutHashTable(TKey key)
     {
         // FIXME(savrus): Use bloom filter here.
-        if (KeyComparer_(key, ChunkState_->ChunkMeta->MinKey()) < 0 || KeyComparer_(key, ChunkState_->ChunkMeta->MaxKey()) > 0) {
+        if (ChunkState_->KeyComparer(key, ChunkState_->ChunkMeta->MinKey()) < 0 ||
+            ChunkState_->KeyComparer(key, ChunkState_->ChunkMeta->MaxKey()) > 0)
+        {
             return TVersionedRow();
         }
 
@@ -1732,10 +1720,10 @@ private:
             ChunkState_->ChunkMeta->GetChunkKeyColumnCount(),
             ChunkState_->ChunkMeta->GetKeyColumnCount(),
             SchemaIdMapping_,
-            KeyComparer_,
+            ChunkState_->KeyComparer,
             Timestamp_);
 
-        if (!blockReader.SkipToKey(key) || KeyComparer_(blockReader.GetKey(), key) != 0) {
+        if (!blockReader.SkipToKey(key) || ChunkState_->KeyComparer(blockReader.GetKey(), key) != 0) {
             ++ChunkState_->PerformanceCounters->StaticChunkRowLookupFalsePositiveCount;
             return TVersionedRow();
         }
@@ -1861,7 +1849,7 @@ private:
             ChunkState_->ChunkMeta->GetChunkKeyColumnCount(),
             ChunkState_->ChunkMeta->GetKeyColumnCount(),
             SchemaIdMapping_,
-            KeyComparer_,
+            ChunkState_->KeyComparer,
             Timestamp_);
         UpperBoundCheckNeeded_ = (UpperBound_ <= ChunkState_->ChunkMeta->BlockLastKeys()[BlockIndex_]);
     }
