@@ -315,7 +315,7 @@ TEST_P(TSchemalessChunksTest, WithoutSampling)
         columnFilter,
         { std::get<3>(GetParam()) });
 
-    CheckSchemalessResult(expected, chunkReader, std::get<1>(GetParam()).GetKeyColumnCount());
+    CheckSchemalessResult(expected, chunkReader, 0);
 }
 
 INSTANTIATE_TEST_CASE_P(Unsorted,
@@ -358,7 +358,7 @@ INSTANTIATE_TEST_CASE_P(Sorted,
                 "{name = c4; type = boolean; sort_order = ascending};"
                 "{name = c5; type = double; sort_order = ascending};"
                 "{name = c6; type = any};]"))),
-        ::testing::Values(TColumnFilter()),
+        ::testing::Values(TColumnFilter(), TColumnFilter({0, 5})),
         ::testing::Values(
             TReadRange(),
             TReadRange(TReadLimit().SetKey(BuildKey("<type=null>#")), TReadLimit().SetKey(BuildKey("<type=null>#"))),

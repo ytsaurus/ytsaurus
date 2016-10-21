@@ -3786,7 +3786,7 @@ TKeyColumns TOperationControllerBase::CheckInputTablesSorted(
     auto validateColumnFilter = [] (const TInputTable& table, const TKeyColumns& keyColumns) {
         for (const auto& keyColumn : keyColumns) {
             if (!table.Path.GetChannel().Contains(keyColumn)) {
-                THROW_ERROR_EXCEPTION("Columm filter for input table %v doesn't include key column %Qv",
+                THROW_ERROR_EXCEPTION("Column filter for input table %v doesn't include key column %Qv",
                     table.Path.GetPath(),
                     keyColumn);
             }

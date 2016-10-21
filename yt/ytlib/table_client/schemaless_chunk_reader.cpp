@@ -680,120 +680,83 @@ public:
             return false;
         }
 
-        i64 DataWeight = 0;
+        i64 dataWeight = 0;
         while (rows->size() < rows->capacity()) {
             ResetExhaustedColumns();
 
             // Define how many to read.
-            i64 rowLimit = std::min(HardUpperRowIndex_ - RowIndex_, static_cast<i64>(rows->capacity() - rows->size()));
+            i64 rowLimit = static_cast<i64>(rows->capacity() - rows->size());
+
+            // Each read must be fully below or fully above SafeUpperRowLimit,
+            // to determine if we should read and validate keys.
+            if (RowIndex_ < SafeUpperRowIndex_) {
+                rowLimit = std::min(SafeUpperRowIndex_ - RowIndex_, rowLimit);
+            } else {
+                rowLimit = std::min(HardUpperRowIndex_ - RowIndex_, rowLimit);
+            }
+
             for (const auto& column : Columns_) {
                 rowLimit = std::min(column.ColumnReader->GetReadyUpperRowIndex() - RowIndex_, rowLimit);
             }
+
             YCHECK(rowLimit > 0);
 
-            std::vector<ui32> schemalessColumnCount(rowLimit, 0);
-            if (SchemalessReader_) {
-                SchemalessReader_->GetValueCounts(TMutableRange<ui32>(
-                    schemalessColumnCount.data(),
-                    schemalessColumnCount.size()));
-            }
-
-            int rangeBegin = rows->size();
-            for (i64 index = 0; index < rowLimit; ++index) {
-                auto row = TMutableUnversionedRow::Allocate(
-                    &Pool_,
-                    SchemaColumnReaders_.size() + schemalessColumnCount[index] + SystemColumnCount_);
-                row.SetCount(SchemaColumnReaders_.size());
-                rows->push_back(row);
-            }
-
-            auto range = TMutableRange<TMutableUnversionedRow>(
-                static_cast<TMutableUnversionedRow*>(rows->data() + rangeBegin),
-                static_cast<TMutableUnversionedRow*>(rows->data() + rangeBegin + rowLimit));
-
-            // Read values.
-            for (auto& columnReader : SchemaColumnReaders_) {
-                columnReader->ReadValues(range);
-            }
-
-            if (SchemalessReader_) {
-                SchemalessReader_->ReadValues(range);
-            }
-
             if (!LowerKeyLimitReached_) {
-                // Since LowerKey can be wider than chunk key in schemaless read,
-                // we need to do additional check.
+                auto keys = ReadKeys(rowLimit);
+
                 i64 deltaIndex = 0;
                 for (; deltaIndex < rowLimit; ++deltaIndex) {
-                    if (CompareRows(
-                        range[deltaIndex].Begin(),
-                        range[deltaIndex].Begin() + KeyColumns_.size(),
-                        LowerLimit_.GetKey().Begin(),
-                        LowerLimit_.GetKey().End()) >= 0)
-                    {
+                    if (keys[deltaIndex] >= LowerLimit_.GetKey()) {
                         break;
                     }
                 }
-                if (deltaIndex > 0) {
-                    rowLimit -= deltaIndex;
-                    RowIndex_ += deltaIndex;
 
-                    for (i64 index = 0; index < rowLimit; ++index) {
-                        range[index] = range[index + deltaIndex];
-                    }
-                    range = range.Slice(range.Begin(), range.Begin() + rowLimit);
-                    rows->resize(rows->size() - deltaIndex);
-                }
-                if (!range.Empty()) {
-                    LowerKeyLimitReached_ = true;
-                }
-            }
+                rowLimit -= deltaIndex;
+                RowIndex_ += deltaIndex;
 
-            // Append system columns.
-            for (i64 index = 0; index < rowLimit; ++index) {
-                auto row = range[index];
-                if (Options_->EnableRangeIndex) {
-                    *row.End() = MakeUnversionedInt64Value(ChunkSpec_.range_index(), RangeIndexId_);
-                    row.SetCount(row.GetCount() + 1);
+                // Rewind row column readers to proper row index.
+                for (auto& reader : RowColumnReaders_) {
+                    reader->SkipToRowIndex(RowIndex_);
                 }
-                if (Options_->EnableTableIndex) {
-                    *row.End() = MakeUnversionedInt64Value(ChunkSpec_.table_index(), TableIndexId_);
-                    row.SetCount(row.GetCount() + 1);
-                }
-                if (Options_->EnableRowIndex) {
-                    *row.End() = MakeUnversionedInt64Value(
-                        GetTableRowIndex() + index,
-                        RowIndexId_);
-                    row.SetCount(row.GetCount() + 1);
+                if (SchemalessReader_) {
+                    SchemalessReader_->SkipToRowIndex(RowIndex_);
                 }
 
-                DataWeight += GetDataWeight(row);
-            }
+                LowerKeyLimitReached_ = (rowLimit > 0);
 
-            YCHECK(RowIndex_ + rowLimit <= HardUpperRowIndex_);
-            if (RowIndex_ + rowLimit > SafeUpperRowIndex_ && UpperLimit_.HasKey()) {
-                i64 index = std::max(SafeUpperRowIndex_ - RowIndex_, i64(0));
-                for (; index < rowLimit; ++index) {
-                    if (CompareRows(
-                        range[index].Begin(),
-                        range[index].Begin() + KeyColumns_.size(),
-                        UpperLimit_.GetKey().Begin(),
-                        UpperLimit_.GetKey().End()) >= 0)
-                    {
+                // We could have overcome upper limit, we must check it.
+                if (RowIndex_ >= SafeUpperRowIndex_ && UpperLimit_.HasKey()) {
+                    auto keyRange = MakeRange(keys.data() + deltaIndex, keys.data() + keys.size());
+                    while (rowLimit > 0 && keyRange[rowLimit - 1] >= UpperLimit_.GetKey()) {
+                        --rowLimit;
                         Completed_ = true;
-                        range = range.Slice(range.Begin(), range.Begin() + index);
-                        rows->resize(rows->size() - rowLimit + index);
-                        break;
                     }
+                }
+
+            } else if (RowIndex_ >= SafeUpperRowIndex_ && UpperLimit_.HasKey()) {
+                auto keys = ReadKeys(rowLimit);
+                while (rowLimit > 0 && keys[rowLimit - 1] >= UpperLimit_.GetKey()) {
+                    --rowLimit;
+                    Completed_ = true;
+                }
+            } else {
+                // We do not read keys, so we must skip rows for key readers.
+                for (auto& reader : KeyColumnReaders_) {
+                    reader->SkipToRowIndex(RowIndex_ + rowLimit);
                 }
             }
 
-            if (RowIndex_ + rowLimit == HardUpperRowIndex_) {
+            dataWeight += ReadRows(rowLimit, rows);
+
+            RowIndex_ += rowLimit;
+
+            if (RowIndex_ == HardUpperRowIndex_) {
                 Completed_ = true;
             }
 
-            RowIndex_ += range.Size();
-            if (Completed_ || !TryFetchNextRow() || DataWeight > TSchemalessChunkReaderBase::Config_->MaxDataSizePerRead) {
+            if (Completed_ || !TryFetchNextRow() ||
+                dataWeight > TSchemalessChunkReaderBase::Config_->MaxDataSizePerRead)
+            {
                 break;
             }
         }
@@ -825,7 +788,9 @@ public:
     }
 
 private:
-    std::vector<IUnversionedColumnReader*> SchemaColumnReaders_;
+    std::vector<IUnversionedColumnReader*> RowColumnReaders_;
+    std::vector<IUnversionedColumnReader*> KeyColumnReaders_;
+
     ISchemalessColumnReader* SchemalessReader_ = nullptr;
 
     bool Completed_ = false;
@@ -859,15 +824,15 @@ private:
 
         ChunkMeta_ = New<TColumnarChunkMeta>(std::move(chunkMeta));
 
-        // Minimum prefix of key columns, that must be included in column filter.
-        int minKeyColumnCount = KeyColumns_.size();
+        // Number of chunk key columns to be read for lower/upper limit filtering..
+        int minKeyColumnCount = 0;
         if (UpperLimit_.HasKey()) {
             minKeyColumnCount = std::max(minKeyColumnCount, UpperLimit_.GetKey().GetCount());
         }
         if (LowerLimit_.HasKey()) {
             minKeyColumnCount = std::max(minKeyColumnCount, LowerLimit_.GetKey().GetCount());
         }
-        bool sortedRead = minKeyColumnCount > 0;
+        bool sortedRead = minKeyColumnCount > 0 || !KeyColumns_.empty();
 
         if (sortedRead && !ChunkMeta_->Misc().sorted()) {
             THROW_ERROR_EXCEPTION("Requested a sorted read for an unsorted chunk");
@@ -878,12 +843,8 @@ private:
         // Cannot read more key columns than stored in chunk, even if range keys are longer.
         minKeyColumnCount = std::min(minKeyColumnCount, ChunkMeta_->ChunkSchema().GetKeyColumnCount());
 
-        if (sortedRead && KeyColumns_.empty()) {
-            KeyColumns_ = ChunkMeta_->ChunkSchema().GetKeyColumns();
-        }
-
         if (UpperLimit_.HasKey() || LowerLimit_.HasKey()) {
-            ChunkMeta_->InitBlockLastKeys(KeyColumns_.size());
+            ChunkMeta_->InitBlockLastKeys(minKeyColumnCount);
         }
 
         // Define columns to read.
@@ -900,8 +861,7 @@ private:
             for (
                 int chunkColumnId = ChunkMeta_->ChunkSchema().Columns().size();
                 chunkColumnId < chunkNameTable->GetSize();
-                ++chunkColumnId)
-            {
+                ++chunkColumnId) {
                 readSchemalessColumns = true;
                 schemalessIdMapping[chunkColumnId].ChunkSchemaIndex = chunkColumnId;
                 schemalessIdMapping[chunkColumnId].ReaderSchemaIndex = NameTable_->GetIdOrRegisterName(
@@ -920,8 +880,11 @@ private:
                         schemalessIdMapping[chunkColumnId].ReaderSchemaIndex = nameTableIndex;
 
                     }
-                } else if (chunkColumnId < minKeyColumnCount) {
-                    THROW_ERROR_EXCEPTION("At least %v key columns must be included in column filter for sorted read", minKeyColumnCount);
+                } else if (chunkColumnId < KeyColumns_.size()) {
+                    THROW_ERROR_EXCEPTION(
+                        EErrorCode::InvalidColumnFilter,
+                        "At least %v key columns must be included in column filter",
+                        KeyColumns_.size());
                 }
             }
         }
@@ -935,7 +898,7 @@ private:
                 valueIndex,
                 NameTable_->GetIdOrRegisterName(ChunkMeta_->ChunkSchema().Columns()[columnIndex].Name));
 
-            SchemaColumnReaders_.emplace_back(columnReader.get());
+            RowColumnReaders_.emplace_back(columnReader.get());
             Columns_.emplace_back(std::move(columnReader), columnIndex);
         }
 
@@ -950,6 +913,17 @@ private:
                 ChunkMeta_->ChunkSchema().Columns().size());
         }
 
+        for (int keyIndex = 0; keyIndex < minKeyColumnCount; ++keyIndex) {
+            auto columnReader = CreateUnversionedColumnReader(
+                ChunkMeta_->ChunkSchema().Columns()[keyIndex],
+                ChunkMeta_->ColumnMeta().columns(keyIndex),
+                keyIndex,
+                keyIndex); // Column id doesn't really matter.
+            KeyColumnReaders_.emplace_back(columnReader.get());
+
+            Columns_.emplace_back(std::move(columnReader), keyIndex);
+        }
+
         InitLowerRowIndex();
         InitUpperRowIndex();
 
@@ -961,7 +935,7 @@ private:
                 .ThrowOnError();
 
             ResetExhaustedColumns();
-            Initialize(MakeRange(SchemaColumnReaders_.data(), KeyColumns_.size()));
+            Initialize(MakeRange(KeyColumnReaders_));
             RowIndex_ = LowerRowIndex_;
             LowerKeyLimitReached_ = !LowerLimit_.HasKey();
 
@@ -971,6 +945,86 @@ private:
         } else {
             Completed_ = true;
         }
+    }
+
+    std::vector<TKey> ReadKeys(i64 rowCount)
+    {
+        std::vector<TKey> keys;
+
+        for (i64 index = 0; index < rowCount; ++index) {
+            auto key = TMutableKey::Allocate(
+                &Pool_,
+                KeyColumnReaders_.size());
+            key.SetCount(KeyColumnReaders_.size());
+            keys.push_back(key);
+        }
+
+        auto range = TMutableRange<TMutableKey>(
+            static_cast<TMutableKey*>(keys.data()),
+            static_cast<TMutableKey*>(keys.data() + rowCount));
+
+        for (auto& columnReader : KeyColumnReaders_) {
+            columnReader->ReadValues(range);
+        }
+        return keys;
+    }
+
+    //! Returns read data weight.
+    i64 ReadRows(i64 rowCount, std::vector<TUnversionedRow>* rows)
+    {
+        std::vector<ui32> schemalessColumnCount(rowCount, 0);
+        if (SchemalessReader_) {
+            SchemalessReader_->GetValueCounts(TMutableRange<ui32>(
+                schemalessColumnCount.data(),
+                schemalessColumnCount.size()));
+        }
+
+        int rangeBegin = rows->size();
+        for (i64 index = 0; index < rowCount; ++index) {
+            auto row = TMutableUnversionedRow::Allocate(
+                &Pool_,
+                RowColumnReaders_.size() + schemalessColumnCount[index] + SystemColumnCount_);
+            row.SetCount(RowColumnReaders_.size());
+            rows->push_back(row);
+        }
+
+        auto range = TMutableRange<TMutableUnversionedRow>(
+            static_cast<TMutableUnversionedRow*>(rows->data() + rangeBegin),
+            static_cast<TMutableUnversionedRow*>(rows->data() + rangeBegin + rowCount));
+
+        // Read values.
+        for (auto& columnReader : RowColumnReaders_) {
+            columnReader->ReadValues(range);
+        }
+
+        if (SchemalessReader_) {
+            SchemalessReader_->ReadValues(range);
+        }
+
+        i64 dataWeight = 0;
+
+        // Append system columns.
+        for (i64 index = 0; index < rowCount; ++index) {
+            auto row = range[index];
+            if (Options_->EnableRangeIndex) {
+                *row.End() = MakeUnversionedInt64Value(ChunkSpec_.range_index(), RangeIndexId_);
+                row.SetCount(row.GetCount() + 1);
+            }
+            if (Options_->EnableTableIndex) {
+                *row.End() = MakeUnversionedInt64Value(ChunkSpec_.table_index(), TableIndexId_);
+                row.SetCount(row.GetCount() + 1);
+            }
+            if (Options_->EnableRowIndex) {
+                *row.End() = MakeUnversionedInt64Value(
+                    GetTableRowIndex() + index,
+                    RowIndexId_);
+                row.SetCount(row.GetCount() + 1);
+            }
+
+            dataWeight += GetDataWeight(row);
+        }
+
+        return dataWeight;
     }
 };
 

@@ -78,8 +78,16 @@ protected:
     NChunkClient::TReadLimit LowerLimit_;
     NChunkClient::TReadLimit UpperLimit_;
 
+    // Lower limit (both, key and row index) is greater or equal than this row index.
+    // No need to read and check keys with lesser row indexes.
     i64 LowerRowIndex_;
+
+    // Upper limit (both, key and row index) is greater or equal than this row index.
+    // No need to check keys below this row index.
     i64 SafeUpperRowIndex_;
+
+    // Upper limit (both, key and row index) is less or equal than this row index.
+    // We should check UpperLimit_.GetKey() between SafeUpperRowIndex and HardUpperRowIndex.
     i64 HardUpperRowIndex_;
 
     void InitLowerRowIndex();
