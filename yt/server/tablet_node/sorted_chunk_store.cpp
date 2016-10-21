@@ -142,7 +142,6 @@ private:
 
     std::vector<TSharedRef> Blocks_;
     std::atomic<bool> Preloaded_ = {false};
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -200,6 +199,7 @@ void TSortedChunkStore::SetInMemoryMode(EInMemoryMode mode)
         return;
     }
 
+    ChunkState_.Reset();
     PreloadedBlockCache_.Reset();
 
     if (PreloadFuture_) {
@@ -251,6 +251,13 @@ void TSortedChunkStore::Preload(TInMemoryChunkDataPtr chunkData)
 
     PreloadedBlockCache_->Preload(chunkData);
     CachedVersionedChunkMeta_ = chunkData->ChunkMeta;
+    ChunkState_ = New<TCacheBasedChunkState>(
+        PreloadedBlockCache_,
+        CachedVersionedChunkMeta_,
+        PreloadedBlockCache_->GetLookupHashTable(),
+        PerformanceCounters_,
+        KeyComparer_
+    );
 }
 
 EStoreType TSortedChunkStore::GetType() const
@@ -353,15 +360,14 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
         return nullptr;
     }
 
-    YCHECK(CachedVersionedChunkMeta_);
+    YCHECK(ChunkState_);
+    YCHECK(ChunkState_->ChunkMeta);
 
     return CreateCacheBasedVersionedChunkReader(
-        PreloadedBlockCache_,
-        CachedVersionedChunkMeta_,
+        ChunkState_,
         std::move(lowerKey),
         std::move(upperKey),
         columnFilter,
-        PerformanceCounters_,
         timestamp);
 }
 
@@ -425,16 +431,13 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
         return nullptr;
     }
 
-    YCHECK(CachedVersionedChunkMeta_);
+    YCHECK(ChunkState_);
+    YCHECK(ChunkState_->ChunkMeta);
 
     return CreateCacheBasedVersionedChunkReader(
-        PreloadedBlockCache_,
-        CachedVersionedChunkMeta_,
-        PreloadedBlockCache_->GetLookupHashTable(),
+        ChunkState_,
         keys,
         columnFilter,
-        PerformanceCounters_,
-        KeyComparer_,
         timestamp);
 }
 
