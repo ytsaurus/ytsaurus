@@ -3,7 +3,7 @@ from .http_helpers import get_api_version
 import yt.yson
 from yt.common import YtError
 from yt.yson import *
-from yt.yson import _loads_from_native_str
+from yt.yson import _loads_from_native_str, _dumps_to_native_str
 
 def _fix_boolean_as_string(kwargs):
     if "boolean_as_string" in kwargs:

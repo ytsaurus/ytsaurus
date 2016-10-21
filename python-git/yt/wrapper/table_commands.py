@@ -719,7 +719,7 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
 
             def is_control_row(row):
                 if format_name == "yson":
-                    return row.endswith("#;")
+                    return row.endswith(b"#;")
                 elif format_name == "json":
                     loaded_row = json.loads(row)
                     return "$value" in loaded_row and loaded_row["$value"] is None
@@ -738,7 +738,10 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
                 if format_name == "yson":
                     return yson.dumps([row], yson_type="list_fragment")
                 elif format_name == "json":
-                    return json.dumps(yson.yson_to_json(row)) + "\n"
+                    row = json.dumps(yson.yson_to_json(row))
+                    if PY3:
+                        row = row.encode("utf-8")
+                    return row + b"\n"
                 else:
                     assert False, "Incorrect format"
 

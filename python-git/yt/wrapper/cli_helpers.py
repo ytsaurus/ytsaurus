@@ -3,15 +3,22 @@ from __future__ import print_function
 import yt.logger as logger
 from yt.wrapper.errors import YtOperationFailedError, YtError
 from yt.wrapper.operation_commands import format_operation_stderrs
+from yt.wrapper.common import get_binary_std_stream
+
+from yt.packages.six import PY3
 
 import os
 import sys
 import traceback
 
-def write_silently(strings):
+def write_silently(strings, force_use_text_stdout=False):
+    output_stream = sys.stdout
+    if not force_use_text_stdout:
+        output_stream = get_binary_std_stream(sys.stdout)
+
     try:
         for str in strings:
-            sys.stdout.write(str)
+            output_stream.write(str)
     except IOError as err:
         # Trying to detect case of broken pipe
         if err.errno == 32:

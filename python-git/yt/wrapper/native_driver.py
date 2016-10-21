@@ -6,16 +6,22 @@ from .response_stream import ResponseStream
 
 import yt.logger as logger
 import yt.yson as yson
+
+from yt.packages.six import binary_type
+
 try:
     import yt_driver_bindings
     from yt_driver_bindings import Request, Driver, BufferedStream
 except ImportError:
     Driver = None
 
-from cStringIO import StringIO
+try:
+    from cStringIO import StringIO as BytesIO
+except ImportError:  # Python 3
+    from io import BytesIO
 
 def read_config(path):
-    driver_config = yson.load(open(path, "r"))
+    driver_config = yson.load(open(path, "rb"))
     if not hasattr(read_config, "logging_and_tracing_initialized"):
         if "logging" in driver_config:
             yt_driver_bindings.configure_logging(driver_config["logging"])
@@ -46,8 +52,8 @@ def convert_to_stream(data):
         return data
     elif hasattr(data, "read"):
         return data
-    elif isinstance(data, str):
-        return StringIO(data)
+    elif isinstance(data, binary_type):
+        return BytesIO(data)
     elif isinstance(data, list):
         return StringIterIO(iter(data))
     else:
@@ -67,11 +73,11 @@ def make_request(command_name, params,
     input_stream = convert_to_stream(data)
 
     output_stream = None
-    if description.output_type() != "Null":
-        if "output_format" not in params and description.output_type() != "Binary":
+    if description.output_type() != b"Null":
+        if "output_format" not in params and description.output_type() != b"Binary":
             raise YtError("Inner error: output format is not specified for native driver command '{0}'".format(command_name))
         if return_content:
-            output_stream = StringIO()
+            output_stream = BytesIO()
         else:
             output_stream = BufferedStream(size=get_config(client)["read_buffer_size"])
 

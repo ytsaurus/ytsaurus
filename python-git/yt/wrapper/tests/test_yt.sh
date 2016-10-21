@@ -8,17 +8,18 @@ set -u
 
 SANDBOX_DIR=$1
 PIDS=""
+YT="$PYTHON_BINARY ./yt"
 
 add_pid_to_kill() {
     PIDS="$PIDS $1"
 }
 
 set_up() {
-    ./yt create map_node //home/wrapper_test --ignore-existing
+    $YT create map_node //home/wrapper_test --ignore-existing
 }
 
 tear_down() {
-    ./yt remove //home/wrapper_test --force --recursive
+    $YT remove //home/wrapper_test --force --recursive
 
     for pid in $PIDS; do
         if ps ax | awk '{print $1}' | grep $pid; then
@@ -63,63 +64,63 @@ test_cypress_commands()
     fix_yson_repr() {
         # COMPAT: yson representation slightly differ in prestable/0.17.3 and master.
         local yson_str="$1"
-        echo $(python -c "import sys; sys.stdout.write('$yson_str'.replace(';}', '}').replace(';>', '>'))")
+        echo $(python2 -c "import sys; sys.stdout.write('$yson_str'.replace(';}', '}').replace(';>', '>'))")
     }
 
-    check "" "$(./yt list //home/wrapper_test)"
-    check "" "$(./yt find //home/wrapper_test --name "xxx")"
+    check "" "$($YT list //home/wrapper_test)"
+    check "" "$($YT find //home/wrapper_test --name "xxx")"
 
-    ./yt set //home/wrapper_test/folder "{}"
-    check "" "$(./yt list //home/wrapper_test/folder)"
-    check "folder" "$(./yt list //home/wrapper_test)"
-    check "{\"folder\"={}}" "$(fix_yson_repr $(./yt get //home/wrapper_test --format "<format=text>yson"))"
-    check "" "$(./yt find //home/wrapper_test --name "xxx")"
-    check "//home/wrapper_test/folder" "$(./yt find //home/wrapper_test --name "folder")"
-    check "//home/wrapper_test/folder" "$(YT_PREFIX="//home/" ./yt find wrapper_test --name "folder")"
+    $YT set //home/wrapper_test/folder "{}"
+    check "" "$($YT list //home/wrapper_test/folder)"
+    check "folder" "$($YT list //home/wrapper_test)"
+    check "{\"folder\"={}}" "$(fix_yson_repr $($YT get //home/wrapper_test --format "<format=text>yson"))"
+    check "" "$($YT find //home/wrapper_test --name "xxx")"
+    check "//home/wrapper_test/folder" "$($YT find //home/wrapper_test --name "folder")"
+    check "//home/wrapper_test/folder" "$(YT_PREFIX="//home/" $YT find wrapper_test --name "folder")"
 
-    ./yt set //home/wrapper_test/folder/@attr '<a=b>c'
-    check  '<"a"="b">"c"' "$(fix_yson_repr $(./yt get //home/wrapper_test/folder/@attr --format '<format=text>yson'))"
+    $YT set //home/wrapper_test/folder/@attr '<a=b>c'
+    check  '<"a"="b">"c"' "$(fix_yson_repr $($YT get //home/wrapper_test/folder/@attr --format '<format=text>yson'))"
 
-    ./yt set //home/wrapper_test/folder/@attr '{"attr": 10}' --format json
-    check '{"attr":10}' $(./yt get //home/wrapper_test/folder/@attr --format json)
+    $YT set //home/wrapper_test/folder/@attr '{"attr": 10}' --format json
+    check '{"attr":10}' $($YT get //home/wrapper_test/folder/@attr --format json)
 
-    ./yt create file //home/wrapper_test/file_with_attrs --attributes "{testattr=1;other=2}" --ignore-existing
-    check "//home/wrapper_test/file_with_attrs" "$(./yt find //home/wrapper_test --attribute-filter "testattr=1")"
-    check "" "$(./yt find //home/wrapper_test --attribute-filter "attr=1")"
+    $YT create file //home/wrapper_test/file_with_attrs --attributes "{testattr=1;other=2}" --ignore-existing
+    check "//home/wrapper_test/file_with_attrs" "$($YT find //home/wrapper_test --attribute-filter "testattr=1")"
+    check "" "$($YT find //home/wrapper_test --attribute-filter "attr=1")"
 
 }
 
 test_list_long_format()
 {
-    ./yt list -l "//home"
+    $YT list -l "//home"
 
     # list with symlinks
-    ./yt create table "//home/wrapper_test/folder_with_symlinks/test_table" --recursive
-    ./yt link "//home/wrapper_test/folder_with_symlinks/test_table" "//home/wrapper_test/folder_with_symlinks/valid_link"
-    ./yt create table "//home/wrapper_test/table_to_delete"
-    ./yt link "//home/wrapper_test/table_to_delete" "//home/wrapper_test/folder_with_symlinks/invalid_link"
-    ./yt remove "//home/wrapper_test/table_to_delete"
-    ./yt list -l "//home/wrapper_test/folder_with_symlinks"
+    $YT create table "//home/wrapper_test/folder_with_symlinks/test_table" --recursive
+    $YT link "//home/wrapper_test/folder_with_symlinks/test_table" "//home/wrapper_test/folder_with_symlinks/valid_link"
+    $YT create table "//home/wrapper_test/table_to_delete"
+    $YT link "//home/wrapper_test/table_to_delete" "//home/wrapper_test/folder_with_symlinks/invalid_link"
+    $YT remove "//home/wrapper_test/table_to_delete"
+    $YT list -l "//home/wrapper_test/folder_with_symlinks"
 }
 
 test_concatenate()
 {
-    echo "Hello" | ./yt write-file //home/wrapper_test/file_a
-    echo "World" | ./yt write-file //home/wrapper_test/file_b
+    echo "Hello" | $YT write-file //home/wrapper_test/file_a
+    echo "World" | $YT write-file //home/wrapper_test/file_b
 
-    ./yt concatenate --src //home/wrapper_test/file_a --src //home/wrapper_test/file_b --dst //home/wrapper_test/output_file
+    $YT concatenate --src //home/wrapper_test/file_a --src //home/wrapper_test/file_b --dst //home/wrapper_test/output_file
 
-    check "$(echo -e "Hello\nWorld")" "$(./yt read-file //home/wrapper_test/output_file)"
+    check "$(echo -e "Hello\nWorld")" "$($YT read-file //home/wrapper_test/output_file)"
 }
 
 # read and write table
 test_table_commands()
 {
-    ./yt create table //home/wrapper_test/test_table
-    check "" "$(./yt read //home/wrapper_test/test_table --format dsv)"
+    $YT create table //home/wrapper_test/test_table
+    check "" "$($YT read //home/wrapper_test/test_table --format dsv)"
 
-    echo -e "value=y\nvalue=x\n" | ./yt write //home/wrapper_test/test_table --format dsv
-    check "$(echo -e "value=y\nvalue=x\n")" "$(./yt read //home/wrapper_test/test_table --format dsv)"
+    echo -e "value=y\nvalue=x\n" | $YT write //home/wrapper_test/test_table --format dsv
+    check "$(echo -e "value=y\nvalue=x\n")" "$($YT read //home/wrapper_test/test_table --format dsv)"
 }
 
 # download and upload file, use it in map operation
@@ -128,67 +129,67 @@ test_file_commands()
     echo "grep x" >$SANDBOX_DIR/script
     chmod +x $SANDBOX_DIR/script
 
-    cat $SANDBOX_DIR/script | ./yt upload //home/wrapper_test/script --executable
+    cat $SANDBOX_DIR/script | $YT upload //home/wrapper_test/script --executable
 
-    check "grep x" "$(./yt download //home/wrapper_test/script)"
+    check "grep x" "$($YT download //home/wrapper_test/script)"
 
-    echo -e "value=y\nvalue=x\n" | ./yt write //home/wrapper_test/input_table --format dsv
+    echo -e "value=y\nvalue=x\n" | $YT write //home/wrapper_test/input_table --format dsv
 
-    ./yt map "./script" --src //home/wrapper_test/input_table --dst //home/wrapper_test/output_table \
+    $YT map "./script" --src //home/wrapper_test/input_table --dst //home/wrapper_test/output_table \
         --file //home/wrapper_test/script --format dsv
-    check "value=x\n" "$(./yt read //home/wrapper_test/output_table --format dsv)"
+    check "value=x\n" "$($YT read //home/wrapper_test/output_table --format dsv)"
 
-    ./yt map "./script" --src //home/wrapper_test/input_table --dst //home/wrapper_test/output_table \
+    $YT map "./script" --src //home/wrapper_test/input_table --dst //home/wrapper_test/output_table \
         --local-file $SANDBOX_DIR/script --format dsv
-    check "value=x\n" "$(./yt read //home/wrapper_test/output_table --format dsv)"
+    check "value=x\n" "$($YT read //home/wrapper_test/output_table --format dsv)"
 
     rm -f $SANDBOX_DIR/script
 }
 
 test_copy_move_link()
 {
-    ./yt create table //home/wrapper_test/table
-    check "table" "$(./yt list //home/wrapper_test)"
+    $YT create table //home/wrapper_test/table
+    check "table" "$($YT list //home/wrapper_test)"
 
-    ./yt copy //home/wrapper_test/table //home/wrapper_test/other_table
-    check $'other_table\ntable' "$(./yt list //home/wrapper_test | sort)"
+    $YT copy //home/wrapper_test/table //home/wrapper_test/other_table
+    check $'other_table\ntable' "$($YT list //home/wrapper_test | sort)"
 
-    ./yt remove //home/wrapper_test/table
-    check "other_table" "$(./yt list //home/wrapper_test)"
+    $YT remove //home/wrapper_test/table
+    check "other_table" "$($YT list //home/wrapper_test)"
 
-    ./yt move //home/wrapper_test/other_table //home/wrapper_test/table
-    check "table" "$(./yt list //home/wrapper_test)"
+    $YT move //home/wrapper_test/other_table //home/wrapper_test/table
+    check "table" "$($YT list //home/wrapper_test)"
 
-    ./yt link //home/wrapper_test/table //home/wrapper_test/other_table
-    check $'other_table\ntable' "$(./yt list //home/wrapper_test | sort)"
+    $YT link //home/wrapper_test/table //home/wrapper_test/other_table
+    check $'other_table\ntable' "$($YT list //home/wrapper_test | sort)"
 
-    ./yt remove //home/wrapper_test/table
-    check_failed "./yt read //home/wrapper_test/other_table --format dsv"
+    $YT remove //home/wrapper_test/table
+    check_failed "$YT read //home/wrapper_test/other_table --format dsv"
 }
 
 test_merge_erase()
 {
     for i in {1..3}; do
-        echo -e "value=${i}" | ./yt write "//home/wrapper_test/table${i}" --format dsv
+        echo -e "value=${i}" | $YT write "//home/wrapper_test/table${i}" --format dsv
     done
-    ./yt merge --src //home/wrapper_test/table{1..3} --dst "//home/wrapper_test/merge"
-    check "3" "$(./yt get //home/wrapper_test/merge/@row_count)"
+    $YT merge --src //home/wrapper_test/table{1..3} --dst "//home/wrapper_test/merge"
+    check "3" "$($YT get //home/wrapper_test/merge/@row_count)"
 
-    ./yt erase '//home/wrapper_test/merge[#1:#2]'
-    check "2" "$(./yt get //home/wrapper_test/merge/@row_count)"
+    $YT erase '//home/wrapper_test/merge[#1:#2]'
+    check "2" "$($YT get //home/wrapper_test/merge/@row_count)"
 
-    ./yt merge --src "//home/wrapper_test/merge" --src "//home/wrapper_test/merge" --dst "//home/wrapper_test/merge"
-    check "4" "$(./yt get //home/wrapper_test/merge/@row_count)"
+    $YT merge --src "//home/wrapper_test/merge" --src "//home/wrapper_test/merge" --dst "//home/wrapper_test/merge"
+    check "4" "$($YT get //home/wrapper_test/merge/@row_count)"
 }
 
 test_map_reduce()
 {
     export YT_TABULAR_DATA_FORMAT="dsv"
-    echo -e "value=1\nvalue=2" | ./yt write //home/wrapper_test/input_table
-    check "2" "$(./yt get //home/wrapper_test/input_table/@row_count)"
+    echo -e "value=1\nvalue=2" | $YT write //home/wrapper_test/input_table
+    check "2" "$($YT get //home/wrapper_test/input_table/@row_count)"
 
-    ./yt map-reduce --mapper cat --reducer "grep 2" --src //home/wrapper_test/input_table --dst //home/wrapper_test/input_table --reduce-by value
-    check "1" "$(./yt get //home/wrapper_test/input_table/@row_count)"
+    $YT map-reduce --mapper cat --reducer "grep 2" --src //home/wrapper_test/input_table --dst //home/wrapper_test/input_table --reduce-by value
+    check "1" "$($YT get //home/wrapper_test/input_table/@row_count)"
     unset YT_TABULAR_DATA_FORMAT
 }
 
@@ -197,24 +198,24 @@ test_users()
     fix_yson_repr() {
         # COMPAT: yson representation slightly differ in prestable/0.17.3 and master.
         local yson_str="$1"
-        echo $(python -c "import sys; sys.stdout.write('$yson_str'.replace(';]', ']'))")
+        echo $(python2 -c "import sys; sys.stdout.write('$yson_str'.replace(';]', ']'))")
     }
 
-    ./yt create user --attribute '{name=test_user}'
-    ./yt create group --attribute '{name=test_group}'
+    $YT create user --attribute '{name=test_user}'
+    $YT create group --attribute '{name=test_group}'
 
-    check "[]" "$(./yt get //sys/groups/test_group/@members --format '<format=text>yson')"
+    check "[]" "$($YT get //sys/groups/test_group/@members --format '<format=text>yson')"
 
-    ./yt add-member test_user test_group
-    check  '["test_user"]' "$(fix_yson_repr $(./yt get //sys/groups/test_group/@members --format '<format=text>yson'))"
+    $YT add-member test_user test_group
+    check  '["test_user"]' "$(fix_yson_repr $($YT get //sys/groups/test_group/@members --format '<format=text>yson'))"
 
-    ./yt set "//home/wrapper_test/@acl/end" "{action=allow;subjects=[test_group];permissions=[write]}"
-    ./yt check-permission test_user write "//home/wrapper_test" | grep allow
+    $YT set "//home/wrapper_test/@acl/end" "{action=allow;subjects=[test_group];permissions=[write]}"
+    $YT check-permission test_user write "//home/wrapper_test" | grep allow
 
-    ./yt remove-member test_user test_group
-    check "[]" "$(./yt get //sys/groups/test_group/@members --format '<format=text>yson')"
+    $YT remove-member test_user test_group
+    check "[]" "$($YT get //sys/groups/test_group/@members --format '<format=text>yson')"
 
-    ./yt remove //sys/users/test_user
+    $YT remove //sys/users/test_user
 }
 
 #TODO(ignat): move this test to python
@@ -223,22 +224,22 @@ test_concurrent_upload_in_operation()
     echo "cat" > $SANDBOX_DIR/script.sh
     chmod +x $SANDBOX_DIR/script.sh
 
-    echo "x=y" | ./yt write //home/wrapper_test/table --format dsv
+    echo "x=y" | $YT write //home/wrapper_test/table --format dsv
 
-    ./yt map "cat" --src "//home/wrapper_test/table" --dst "//home/wrapper_test/out1" --format dsv --local-file $SANDBOX_DIR/script.sh &
+    $YT map "cat" --src "//home/wrapper_test/table" --dst "//home/wrapper_test/out1" --format dsv --local-file $SANDBOX_DIR/script.sh &
     add_pid_to_kill "$!"
-    ./yt map "cat" --src "//home/wrapper_test/table" --dst "//home/wrapper_test/out2" --format dsv --local-file $SANDBOX_DIR/script.sh &
+    $YT map "cat" --src "//home/wrapper_test/table" --dst "//home/wrapper_test/out2" --format dsv --local-file $SANDBOX_DIR/script.sh &
     add_pid_to_kill "$!"
 
     ok=0
     for i in {1..10}; do
         check=1
         for out_index in {1..2}; do
-            if [ $(./yt exists "//home/wrapper_test/out${out_index}") = "false" ]; then
+            if [ $($YT exists "//home/wrapper_test/out${out_index}") = "false" ]; then
                 check=0
                 break
             fi
-            content=$(./yt read "//home/wrapper_test/out${out_index}" --format dsv)
+            content=$($YT read "//home/wrapper_test/out${out_index}" --format dsv)
             if [ "$content" != "x=y" ]; then
                 check=0
                 break
@@ -257,98 +258,98 @@ test_concurrent_upload_in_operation()
 
 test_sorted_by()
 {
-    echo "x=y" | ./yt write "<sorted-by=[x]>//home/wrapper_test/table" --format dsv
-    echo "x=z" | ./yt write "<sorted_by=[x]>//home/wrapper_test/table" --format dsv
-    check "$(./yt get //home/wrapper_test/table/@sorted)" "$TRUE"
+    echo "x=y" | $YT write "<sorted-by=[x]>//home/wrapper_test/table" --format dsv
+    echo "x=z" | $YT write "<sorted_by=[x]>//home/wrapper_test/table" --format dsv
+    check "$($YT get //home/wrapper_test/table/@sorted)" "$TRUE"
 }
 
 test_transactions()
 {
-    local tx=$(./yt start-tx)
-    ./yt abort-tx "$tx"
+    local tx=$($YT start-tx)
+    $YT abort-tx "$tx"
 
-    tx=$(./yt start-tx)
-    ./yt commit-tx "$tx"
+    tx=$($YT start-tx)
+    $YT commit-tx "$tx"
 }
 
 test_hybrid_arguments()
 {
-    ./yt create table //home/wrapper_test/hybrid_test
+    $YT create table //home/wrapper_test/hybrid_test
 
-    ./yt copy //home/wrapper_test/hybrid_test --destination-path //home/wrapper_test/hybrid_copy
-    check "$(./yt exists --path //home/wrapper_test/hybrid_copy)" "true"
+    $YT copy //home/wrapper_test/hybrid_test --destination-path //home/wrapper_test/hybrid_copy
+    check "$($YT exists --path //home/wrapper_test/hybrid_copy)" "true"
 
-    ./yt copy --destination-path //home/wrapper_test/hybrid_copy2 --source-path //home/wrapper_test/hybrid_copy
-    check "$(./yt exists --path //home/wrapper_test/hybrid_copy2)" "true"
+    $YT copy --destination-path //home/wrapper_test/hybrid_copy2 --source-path //home/wrapper_test/hybrid_copy
+    check "$($YT exists --path //home/wrapper_test/hybrid_copy2)" "true"
 
-    ./yt move //home/wrapper_test/hybrid_test --destination-path //home/wrapper_test/hybrid_moved
-    check "$(./yt exists //home/wrapper_test/hybrid_moved)" "true"
+    $YT move //home/wrapper_test/hybrid_test --destination-path //home/wrapper_test/hybrid_moved
+    check "$($YT exists //home/wrapper_test/hybrid_moved)" "true"
 
-    ./yt move --destination-path //home/wrapper_test/hybrid_test --source-path //home/wrapper_test/hybrid_moved
-    check "$(./yt exists //home/wrapper_test/hybrid_test)" "true"
+    $YT move --destination-path //home/wrapper_test/hybrid_test --source-path //home/wrapper_test/hybrid_moved
+    check "$($YT exists //home/wrapper_test/hybrid_test)" "true"
 
-    ./yt link --link-path //home/wrapper_test/hybrid_link --target-path //home/wrapper_test/hybrid_test
+    $YT link --link-path //home/wrapper_test/hybrid_link --target-path //home/wrapper_test/hybrid_test
 
-    ./yt remove --path //home/wrapper_test/hybrid_test
-    check_failed "./yt read //home/wrapper_test/hybrid_link --format dsv"
+    $YT remove --path //home/wrapper_test/hybrid_test
+    check_failed "$YT read //home/wrapper_test/hybrid_link --format dsv"
 
-    ./yt create map_node //home/wrapper_test/test_dir
-    ./yt create --type map_node --path //home/wrapper_test/test_dir2
-    check "$(./yt list --path //home/wrapper_test/test_dir)" ""
-    check "$(./yt find --path //home/wrapper_test/test_dir --type file)" ""
+    $YT create map_node //home/wrapper_test/test_dir
+    $YT create --type map_node --path //home/wrapper_test/test_dir2
+    check "$($YT list --path //home/wrapper_test/test_dir)" ""
+    check "$($YT find --path //home/wrapper_test/test_dir --type file)" ""
 
-    echo -ne "a\tb\n" | ./yt write --table //home/wrapper_test/yamr_table --format "yamr"
-    check "$(./yt read --table //home/wrapper_test/yamr_table --format yamr)" "a\tb\n"
+    echo -ne "a\tb\n" | $YT write --table //home/wrapper_test/yamr_table --format "yamr"
+    check "$($YT read --table //home/wrapper_test/yamr_table --format yamr)" "a\tb\n"
 
-    echo -ne "abcdef" | ./yt write-file --destination //home/wrapper_test/test_file
-    check "$(./yt read-file --path //home/wrapper_test/test_file)" "abcdef"
+    echo -ne "abcdef" | $YT write-file --destination //home/wrapper_test/test_file
+    check "$($YT read-file --path //home/wrapper_test/test_file)" "abcdef"
 
-    TX=$(./yt start-tx --timeout 10000)
-    ./yt lock --path //home/wrapper_test/test_file --tx $TX
-    check_failed "./yt remove --path //home/wrapper_test/test_file"
-    ./yt ping-tx --transaction $TX
-    ./yt abort-tx --transaction $TX
+    TX=$($YT start-tx --timeout 10000)
+    $YT lock --path //home/wrapper_test/test_file --tx $TX
+    check_failed "$YT remove --path //home/wrapper_test/test_file"
+    $YT ping-tx --transaction $TX
+    $YT abort-tx --transaction $TX
 
-    ./yt check-permission root write //home/wrapper_test
-    ./yt check-permission --user root --permission write --path //home/wrapper_test
+    $YT check-permission root write //home/wrapper_test
+    $YT check-permission --user root --permission write --path //home/wrapper_test
 
-    ./yt set --path //home/wrapper_test/value --value "def"
-    check "$(./yt get --path //home/wrapper_test/value)" "\"def\""
+    $YT set --path //home/wrapper_test/value --value "def"
+    check "$($YT get --path //home/wrapper_test/value)" "\"def\""
 
-    ./yt set //home/wrapper_test/value "abc"
-    check "$(./yt get --path //home/wrapper_test/value)" "\"abc\""
+    $YT set //home/wrapper_test/value "abc"
+    check "$($YT get --path //home/wrapper_test/value)" "\"abc\""
 
-    echo -ne "with_pipe" | ./yt set //home/wrapper_test/value
-    check "$(./yt get --path //home/wrapper_test/value)" "\"with_pipe\""
+    echo -ne "with_pipe" | $YT set //home/wrapper_test/value
+    check "$($YT get --path //home/wrapper_test/value)" "\"with_pipe\""
 }
 
 test_async_operations() {
     export YT_TABULAR_DATA_FORMAT="dsv"
-    echo -e "x=1\n" | ./yt write //home/wrapper_test/input_table
-    map_op=$(./yt map "tr 1 2" --src //home/wrapper_test/input_table --dst //home/wrapper_test/map_output --async)
+    echo -e "x=1\n" | $YT write //home/wrapper_test/input_table
+    map_op=$($YT map "tr 1 2" --src //home/wrapper_test/input_table --dst //home/wrapper_test/map_output --async)
 
-    sort_op=$(./yt sort --src //home/wrapper_test/input_table --dst //home/wrapper_test/sort_output --sort-by "x" --async)
-    ./yt track-op $sort_op
+    sort_op=$($YT sort --src //home/wrapper_test/input_table --dst //home/wrapper_test/sort_output --sort-by "x" --async)
+    $YT track-op $sort_op
 
-    reduce_op=$(./yt reduce "cat" \
+    reduce_op=$($YT reduce "cat" \
                 --src //home/wrapper_test/sort_output \
                 --dst //home/wrapper_test/reduce_output \
                 --sort-by "x" \
                 --reduce-by "x" \
                 --async)
-    ./yt track-op $reduce_op
+    $YT track-op $reduce_op
 
-    op=$(./yt map-reduce \
+    op=$($YT map-reduce \
          --mapper "cat" \
          --reducer "cat" \
          --src //home/wrapper_test/sort_output \
          --dst //home/wrapper_test/map_reduce_output \
          --reduce-by "x" \
          --async)
-    ./yt track-op $op
+    $YT track-op $op
 
-    ./yt track-op $map_op
-    check "x=2\n" "$(./yt read //home/wrapper_test/map_output)"
+    $YT track-op $map_op
+    check "x=2\n" "$($YT read //home/wrapper_test/map_output)"
 
     unset YT_TABULAR_DATA_FORMAT
 }
@@ -356,11 +357,11 @@ test_async_operations() {
 test_json_structured_format() {
     export YT_STRUCTURED_DATA_FORMAT="json"
 
-    ./yt set //home/wrapper_test/folder "{}"
-    check "$(echo -e "{\n    \"folder\": {\n\n    }\n}\n\n")" "$(./yt get //home/wrapper_test)"
+    $YT set //home/wrapper_test/folder "{}"
+    check "$(echo -e "{\n    \"folder\": {\n\n    }\n}\n\n")" "$($YT get //home/wrapper_test)"
 
-    ./yt set //home/wrapper_test/folder/@attr '{"test": "value"}'
-    check  "$(echo -e "{\n    \"test\": \"value\"\n}\n\n")" "$(./yt get //home/wrapper_test/folder/@attr)"
+    $YT set //home/wrapper_test/folder/@attr '{"test": "value"}'
+    check  "$(echo -e "{\n    \"test\": \"value\"\n}\n\n")" "$($YT get //home/wrapper_test/folder/@attr)"
 
     unset YT_STRUCTURED_FORMAT
 }
@@ -368,16 +369,16 @@ test_json_structured_format() {
 test_transform()
 {
     export YT_TABULAR_DATA_FORMAT="dsv"
-    echo -e "k=v\n" | ./yt write //home/wrapper_test/table_to_transform
-    ./yt transform //home/wrapper_test/table_to_transform
+    echo -e "k=v\n" | $YT write //home/wrapper_test/table_to_transform
+    $YT transform //home/wrapper_test/table_to_transform
 
-    ./yt transform //home/wrapper_test/table_to_transform --compression-codec zlib_6
-    check '"zlib_6"' "$(./yt get //home/wrapper_test/table_to_transform/@compression_codec)"
+    $YT transform //home/wrapper_test/table_to_transform --compression-codec zlib_6
+    check '"zlib_6"' "$($YT get //home/wrapper_test/table_to_transform/@compression_codec)"
 
-    ./yt transform //home/wrapper_test/table_to_transform --compression-codec zlib_6 --check-codecs
+    $YT transform //home/wrapper_test/table_to_transform --compression-codec zlib_6 --check-codecs
 
-    ./yt transform //home/wrapper_test/table_to_transform //home/wrapper_test/other_table --compression-codec zlib_6
-    check '"zlib_6"' "$(./yt get //home/wrapper_test/other_table/@compression_codec)"
+    $YT transform //home/wrapper_test/table_to_transform //home/wrapper_test/other_table --compression-codec zlib_6
+    check '"zlib_6"' "$($YT get //home/wrapper_test/other_table/@compression_codec)"
 
     unset YT_TABULAR_DATA_FORMAT
 }

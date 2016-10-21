@@ -26,7 +26,8 @@ from yt.wrapper.table_commands import copy_table, move_table, _remove_locks, _ge
 from yt.wrapper.cypress_commands import remove_with_empty_dirs
 
 from yt.wrapper.common import flatten, first_not_none, bool_to_string, get_value, get_version, MB, GB, \
-                              chunk_iter_stream, date_string_to_timestamp, update, parse_bool
+                              chunk_iter_stream, date_string_to_timestamp, update, parse_bool, \
+                              get_binary_std_stream
 import yt.wrapper.config as config
 import yt.yson as yson
 import yt.json as json
@@ -694,9 +695,11 @@ Examples:
 
 
     if args.list:
-        write_silently(imap(add_eoln, list_entities(type="table", prefix=args.prefix, exact=args.exact, jsonoutput=args.jsonoutput, user=args.user, follow_links=args.followlinks)))
+        write_silently(imap(add_eoln, list_entities(type="table", prefix=args.prefix, exact=args.exact,
+            jsonoutput=args.jsonoutput, user=args.user, follow_links=args.followlinks)), force_use_text_stdout=True)
     if args.listfiles:
-        write_silently(imap(add_eoln, list_entities(type="file", prefix=args.prefix, exact=args.exact, jsonoutput=args.jsonoutput, user=args.user, follow_links=args.followlinks)))
+        write_silently(imap(add_eoln, list_entities(type="file", prefix=args.prefix, exact=args.exact,
+            jsonoutput=args.jsonoutput, user=args.user, follow_links=args.followlinks)), force_use_text_stdout=True)
     if args.read is not None:
         write_silently(
             chunk_iter_stream(
@@ -713,12 +716,13 @@ Examples:
         else:
             write_tables = [yt.TablePath(args.write, append=args.append)]
         if len(write_tables) == 1:
-            yt.write_table(write_tables[0], sys.stdin, format=outputformat, raw=True,
+            yt.write_table(write_tables[0], get_binary_std_stream(sys.stdin), format=outputformat, raw=True,
                            table_writer=args.tablewriter)
         else:
             with yt.Transaction(attributes={"title": "Python wrapper: mapreduce-yt writes multiple tables"}):
                 visited = set()
-                for key, records in groupby(outputformat.load_rows(sys.stdin), key=lambda rec: rec.tableIndex):
+                for key, records in groupby(outputformat.load_rows(get_binary_std_stream(sys.stdin)),
+                                            key=lambda rec: rec.tableIndex):
                     table = dst[key]
                     if key in visited:
                         table.append = True
@@ -737,7 +741,7 @@ Examples:
         else:
             attributes["sorted_by"] = ["key", "subkey"]
         table = yt.TablePath(args.writesorted, append=args.append, attributes=attributes)
-        yt.write_table(table, sys.stdin, format=outputformat, raw=True)
+        yt.write_table(table, get_binary_std_stream(sys.stdin), format=outputformat, raw=True)
     if mapreduce_case:
         map_input_format = inputformat
         map_output_format = reduce_input_format = reduce_output_format = outputformat
@@ -819,7 +823,7 @@ Examples:
         if yt.exists(args.upload) and yt.get_type(args.upload) == "file":
             remove_with_empty_dirs(args.upload)
         yt.mkdir(os.path.dirname(args.upload))
-        yt.write_file(args.upload, sys.stdin)
+        yt.write_file(args.upload, get_binary_std_stream(sys.stdin))
         if args.executable:
             yt.set_attribute(args.upload, "executable", bool_to_string(True))
     if args.download is not None:

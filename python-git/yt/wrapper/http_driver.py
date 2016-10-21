@@ -11,7 +11,7 @@ import yt.logger as logger
 import yt.json as json
 
 from yt.packages.requests.auth import AuthBase
-from yt.packages.six import iteritems
+from yt.packages.six import iteritems, text_type, binary_type, iterbytes, int2byte, byte2int, PY3
 from yt.packages.six.moves import map as imap
 
 import random
@@ -22,22 +22,38 @@ import os
 
 def escape_utf8(obj):
     def escape_symbol(sym):
-        if ord(sym) < 128:
-            return sym
+        # NOTE: This transformation is equivalent to converting byte char to unicode char
+        # with identity encoding (latin-1) and then encoding this unicode char
+        # to bytes with utf-8 encoding.
+        xC0 = byte2int(b"\xC0")
+        x80 = byte2int(b"\x80")
+        if sym < 128:
+            return int2byte(sym)
         else:
-            return chr(ord('\xC0') | (ord(sym) >> 6)) + chr(ord('\x80') | (ord(sym) & ~ord('\xC0')))
-    def escape_str(str):
-        return "".join(imap(escape_symbol, str))
+            return int2byte(xC0 | (sym >> 6)) + int2byte(x80 | (sym & ~xC0))
 
-    if isinstance(obj, unicode):
-        obj = escape_str(str(bytearray(obj, 'utf-8')))
-    elif isinstance(obj, str):
+    def escape_str(str):
+        return b"".join(imap(escape_symbol, iterbytes(str)))
+
+    if isinstance(obj, text_type):
+        # XXX(asaitgalin): Remove escape_str here since string after encode
+        # is already correct utf-8 string?
+        obj = escape_str(obj.encode("utf-8"))
+    elif isinstance(obj, binary_type):
         obj = escape_str(obj)
     elif isinstance(obj, list):
         obj = list(imap(escape_utf8, obj))
     elif isinstance(obj, dict):
-        obj = dict((escape_str(k), escape_utf8(v)) for k, v in iteritems(obj))
+        obj = dict((escape_utf8(k), escape_utf8(v)) for k, v in iteritems(obj))
     return obj
+
+def dump_params(obj, header_format):
+    if header_format == "json":
+        return json.dumps(escape_utf8(yson.yson_to_json(obj)))
+    elif header_format == "yson":
+        return yson.dumps(obj, yson_format="text")
+    else:
+        assert False, "Invalid header format"
 
 class HeavyProxyProvider(ProxyProvider):
     def __init__(self, client):
@@ -126,7 +142,8 @@ def make_request(command_name,
                  use_heavy_proxy=False,
                  timeout=None,
                  client=None,
-                 allow_retries=None):
+                 allow_retries=None,
+                 decode_content=True):
     """
     Makes request to yt proxy. Command name is the name of command in YT API.
     """
@@ -166,9 +183,9 @@ def make_request(command_name,
                 else:
                     params["retry"] = bool_to_string(True)
                 if command.input_type is None:
-                    arguments["data"] = dumps(params)
+                    arguments["data"] = dump_params(params, header_format)
                 else:
-                    arguments["headers"].update({"X-YT-Parameters": dumps(params)})
+                    arguments["headers"].update({"X-YT-Parameters": dump_params(params, header_format)})
         copy_params = deepcopy(params)
         retry_action = lambda error, arguments: set_retry(error, command, copy_params, arguments)
     else:
@@ -197,12 +214,6 @@ def make_request(command_name,
     header_format = get_header_format(client)
     if header_format not in ["json", "yson"]:
         raise YtError("Incorrect headers format: " + str(header_format))
-    def dumps(obj):
-        if header_format == "json":
-            return json.dumps(escape_utf8(yson.yson_to_json(obj)))
-        if header_format == "yson":
-            return yson.dumps(obj, yson_format="text")
-        assert False
 
     header_format_header = header_format
     if header_format == "yson":
@@ -215,11 +226,11 @@ def make_request(command_name,
         require(data is None, lambda: YtError("Body should be empty in commands without input type"))
         if command.is_volatile:
             headers["Content-Type"] = "application/x-yt-yson-text" if header_format == "yson" else "application/json"
-            data = dumps(params)
+            data = dump_params(params, header_format)
             write_params_to_header = False
 
     if write_params_to_header and params:
-        headers.update({"X-YT-Parameters": dumps(params)})
+        headers.update({"X-YT-Parameters": dump_params(params, header_format)})
 
     auth = TokenAuth(get_token(client=client))
 
@@ -254,7 +265,7 @@ def make_request(command_name,
 
     # Determine type of response data and return it
     if return_content:
-        return response.content
+        return response.text if (decode_content and PY3) else response.content
     else:
         def process_error(response):
             trailers = response.trailers()

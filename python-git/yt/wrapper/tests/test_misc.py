@@ -164,7 +164,7 @@ class TestMutations(object):
         operations_count = yt.get("//sys/operations/@count")
 
         self.check_command(
-            lambda: yson.loads(yt.driver.make_request("map", params)),
+            lambda: yson.loads(yt.driver.make_request("map", params, decode_content=False)),
             None,
             lambda: yt.get("//sys/operations/@count") == operations_count + 1,
             abort)

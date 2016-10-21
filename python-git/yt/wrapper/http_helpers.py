@@ -9,7 +9,7 @@ import yt.logger as logger
 import yt.yson as yson
 import yt.json as json
 
-from yt.packages.six import reraise, add_metaclass
+from yt.packages.six import reraise, add_metaclass, PY3
 from yt.packages.six.moves import xrange
 
 import os
@@ -103,6 +103,10 @@ def create_response(response, request_info, client):
         if header_format == "json":
             return yson.json_to_yson(json.loads(str))
         if header_format == "yson":
+            if PY3:
+                # NOTE: Actually this is latin-1 encoding. urllib uses it to
+                # decode headers, so it is used here to encode them back to bytes.
+                str = str.encode("iso-8859-1")
             return yson.loads(str)
         raise YtError("Incorrect header format: {0}".format(header_format))
 

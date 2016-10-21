@@ -48,6 +48,7 @@ def make_request(command_name,
                  use_heavy_proxy=False,
                  timeout=None,
                  allow_retries=None,
+                 decode_content=True,
                  client=None):
     backend = get_backend_type(client)
 
@@ -79,6 +80,7 @@ def make_request(command_name,
             use_heavy_proxy=use_heavy_proxy,
             timeout=timeout,
             allow_retries=allow_retries,
+            decode_content=decode_content,
             client=client)
     else:
         raise YtError("Incorrect backend type: " + backend)
@@ -113,7 +115,8 @@ def make_formatted_request(command_name, params, format, **kwargs):
             format = create_format(format)
         params["output_format"] = format.to_yson_type()
 
-    result = make_request(command_name, params, response_format=response_format, **kwargs)
+    decode_content = format is not None
+    result = make_request(command_name, params, response_format=response_format, decode_content=decode_content, **kwargs)
 
     if format is None:
         if has_yson_bindings:

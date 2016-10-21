@@ -9,16 +9,20 @@ from .file_commands import read_file
 from . import yson
 
 import yt.logger as logger
-from yt.common import format_error, date_string_to_datetime
+from yt.common import format_error, date_string_to_datetime, to_native_str
 
 from yt.packages.decorator import decorator
-from yt.packages.six import iteritems, iterkeys
+from yt.packages.six import iteritems, iterkeys, PY3
 from yt.packages.six.moves import builtins, filter as ifilter
 
 import logging
 from datetime import datetime
 from time import sleep, time
-from cStringIO import StringIO
+
+try:
+    from cStringIO import StringIO
+except ImportError:  # Python 3
+    from io import StringIO
 
 OPERATIONS_PATH = "//sys/operations"
 
@@ -280,7 +284,7 @@ def get_stderrs(operation, only_failed_jobs, client=None):
         ignore_errors = get_config(client)["operation_tracker"]["ignore_stderr_if_download_failed"]
         if has_stderr:
             try:
-                job_with_stderr["stderr"] = read_file(stderr_path, client=client).read()
+                job_with_stderr["stderr"] = to_native_str(read_file(stderr_path, client=client).read())
             except tuple(builtins.list(get_retriable_errors()) + [YtResponseError]):
                 if ignore_errors:
                     continue

@@ -20,7 +20,11 @@ def parse_ypath(path, client=None):
     if get_config(client)["enable_native_parse_ypath"] and native_parse_ypath is not None:
         result = native_parse_ypath(path)
     else:
-        result = loads(make_request("parse_ypath", {"path": path, "output_format": YsonFormat().to_yson_type()}, client=client))
+        result = loads(make_request(
+            "parse_ypath",
+            {"path": path, "output_format": YsonFormat().to_yson_type()},
+            client=client,
+            decode_content=False))
 
     result.attributes = update(attributes, result.attributes)
 

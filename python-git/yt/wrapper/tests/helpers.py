@@ -12,6 +12,7 @@ import os
 import sys
 import glob
 import shutil
+import collections
 import tempfile
 from contextlib import contextmanager
 
@@ -66,17 +67,18 @@ def _filter_simple_types(obj):
         return obj
     elif isinstance(obj, list):
         return [_filter_simple_types(item) for item in obj]
-    elif hasattr(obj, "iteritems"):
-        return dict([(key, _filter_simple_types(value)) for key, value in obj.iteritems()])
+    elif isinstance(obj, collections.Mapping):
+        return dict([(key, _filter_simple_types(value)) for key, value in iteritems(obj)])
     return None
 
 def get_environment_for_binary_test():
     env = {
         "PYTHONPATH": os.environ["PYTHONPATH"],
+        "PYTHON_BINARY": sys.executable,
         "YT_USE_TOKEN": "0",
         "YT_VERSION": yt.config["api_version"]
     }
-    env["YT_CONFIG_PATCHES"] = yson.dumps(_filter_simple_types(yt.config.config))
+    env["YT_CONFIG_PATCHES"] = yson._dumps_to_native_str(_filter_simple_types(yt.config.config))
     return env
 
 def build_python_egg(egg_contents_dir, temp_dir=None):
