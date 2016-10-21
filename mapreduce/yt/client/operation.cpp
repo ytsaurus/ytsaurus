@@ -395,7 +395,7 @@ private:
             HasState_ = true;
 
             if (ShouldMountSandbox()) {
-                TotalFileSize_ += output.Buffer().Size();
+                TotalFileSize_ += RoundUpFileSize(output.Buffer().Size());
             }
         }
     }
@@ -412,6 +412,10 @@ private:
 
         auto cachePath = UploadToCache(messageTypeList.Buffer());
         Files_.push_back(TRichYPath(cachePath).FileName("protoconfig"));
+
+        if (ShouldMountSandbox()) {
+            TotalFileSize_ += RoundUpFileSize(messageTypeList.Buffer().Size());
+        }
     }
 };
 
