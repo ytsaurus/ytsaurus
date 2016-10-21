@@ -3,7 +3,8 @@
 from __future__ import print_function
 
 import yt.wrapper.yson as yson
-from yt.wrapper.common import parse_bool, bool_to_string, chunk_iter_stream, update, get_value, MB, DoNotReplaceAction
+from yt.wrapper.common import parse_bool, bool_to_string, chunk_iter_stream, update, get_value, MB, \
+                              DoNotReplaceAction, get_binary_std_stream
 from yt.wrapper.cli_helpers import write_silently, run_main
 import yt.wrapper.completers as completers
 import yt.json as json
@@ -126,12 +127,12 @@ def fix_parser(parser):
     return parser
 
 def yson_dumps(data):
-    return yson.dumps(data, yson_format="pretty", indent=2)
+    return yson._dumps_to_native_str(data, yson_format="pretty", indent=2)
 
 YT_ARGUMENTS_FORMAT = os.environ.get("YT_ARGUMENTS_FORMAT", "yson")
 YT_STRUCTURED_DATA_FORMAT = os.environ.get("YT_STRUCTURED_DATA_FORMAT", "yson")
 PARSERS = {"json": lambda string: yson.json_to_yson(json.loads(string)),
-           "yson": yson.loads}
+           "yson": yson._loads_from_native_str}
 DUMPERS = {"json": lambda data: json.dumps(yson.yson_to_json(data), indent=2),
            "yson": yson_dumps}
 OUTPUT_FORMATS = {"json": "<format=pretty>json",
@@ -284,7 +285,7 @@ def find(**args):
 
     attributes = dict([(x, args[x]) for x in ["account", "owner"] if args[x] is not None])
     if args["attribute_filter"] is not None:
-        attributes.update(yson.loads(args["attribute_filter"], yson_type="map_fragment"))
+        attributes.update(yson._loads_from_native_str(args["attribute_filter"], yson_type="map_fragment"))
 
     object_filter = lambda obj: \
         all([obj.attributes.get(attr) == attributes[attr] for attr in attributes])
@@ -341,7 +342,7 @@ def add_read_file_parser(add_parser):
 def write_file(**args):
     func_args = dict(args)
     func_args.pop("executable")
-    yt.write_file(stream=sys.stdin, **func_args)
+    yt.write_file(stream=get_binary_std_stream(sys.stdin), **func_args)
     if args["executable"]:
         yt.set(args["destination"] + "/@executable", bool_to_string(True))
 
@@ -366,7 +367,7 @@ def add_write_table_parser(add_parser):
         add_format_argument(parser, help="input format")
         add_structured_argument(parser, "--table-writer")
         add_compressed_arg(parser)
-        parser.set_defaults(func=yt.write_table, input_stream=sys.stdin)
+        parser.set_defaults(func=yt.write_table, input_stream=get_binary_std_stream(sys.stdin))
 
 def create(**args):
     print(yt.create(**args))

@@ -1,4 +1,4 @@
-from .common import EMPTY_GENERATOR, YtError
+from .common import EMPTY_GENERATOR, YtError, get_binary_std_stream
 
 import inspect
 import os
@@ -133,11 +133,7 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
                          "try to use JsonFormat format or install yandex-yt-python-yson package.")
         sys.exit(1)
 
-    input_stream = sys.stdin
-    if hasattr(sys.stdin, "buffer"):  # Python 3
-        input_stream = sys.stdin.buffer
-
-    rows = input_format.load_rows(input_stream, raw=raw)
+    rows = input_format.load_rows(get_binary_std_stream(sys.stdin), raw=raw)
 
     start, run, finish = yt.wrapper.py_runner_helpers.extract_operation_methods(operation)
     wrap_stdin = wrap_stdout = yt.wrapper.config["pickling"]["safe_stream_mode"]
@@ -162,12 +158,7 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
                         finish())
 
         result = process_frozen_dict(result)
-
-        output_stream = streams.get_original_stdout()
-        if hasattr(output_stream, "buffer"):  # Python 3
-            output_stream = output_stream.buffer
-
-        output_format.dump_rows(result, output_stream, raw=raw)
+        output_format.dump_rows(result, get_binary_std_stream(streams.get_original_stdout()), raw=raw)
 
     # Read out all input
     for row in rows:

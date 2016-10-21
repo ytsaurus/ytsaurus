@@ -60,13 +60,22 @@ from .yson_types import YsonString, YsonUnicode, YsonInt64, YsonUint64, YsonDoub
 from .convert import to_yson_type, yson_to_json, json_to_yson
 from .common import YsonError
 
-def _loads_from_native_str(string, encoding="utf-8"):
+def _loads_from_native_str(string, encoding="utf-8", **kwargs):
     import sys
 
     if sys.version_info[0] < 3:
-        return loads(string)
+        return loads(string, **kwargs)
 
     if isinstance(string, str):
         string = string.encode(encoding)
 
-    return loads(string, encoding=encoding)
+    return loads(string, encoding=encoding, **kwargs)
+
+def _dumps_to_native_str(obj, encoding="utf-8", **kwargs):
+    import sys
+
+    if sys.version_info[0] < 3:
+        return dumps(obj, **kwargs)
+
+    s = dumps(obj, encoding=encoding, **kwargs)
+    return s.decode(encoding)

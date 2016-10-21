@@ -1,7 +1,8 @@
 from __future__ import print_function
 
 from .helpers import TEST_DIR, PYTHONPATH, get_test_file_path, check, set_config_option, \
-                     build_python_egg, TESTS_SANDBOX, run_python_script_with_check
+                     build_python_egg, TESTS_SANDBOX, run_python_script_with_check, \
+                     ENABLE_JOB_CONTROL
 
 from yt.wrapper.py_wrapper import create_modules_archive_default, TempfilesManager
 from yt.common import which, makedirp
@@ -195,6 +196,9 @@ class TestOperations(object):
                                             files=get_test_file_path("capitalize_b.py"))
 
     def test_run_standalone_binary(self):
+        if sys.version_info[0] >= 3:
+            pytest.skip()
+
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
         yt.write_table(table, [{"x": 1}, {"x": 2}])
@@ -1082,8 +1086,12 @@ if __name__ == "__main__":
 
     @add_failed_operation_stderrs_to_error_message
     def test_mount_tmpfs_in_sandbox(self, yt_env):
+        if not ENABLE_JOB_CONTROL:
+            pytest.skip()
+
         def foo(rec):
             yield rec
+
         def get_spec_option(id, name):
             return yt.get("//sys/operations/{0}/@spec/".format(id) + name)
 

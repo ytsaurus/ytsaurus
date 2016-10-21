@@ -144,7 +144,8 @@ class Config(types.ModuleType, client_state.ClientState):
 
         if "YT_CONFIG_PATCHES" in os.environ:
             try:
-                patches = self.yson_module.loads(os.environ["YT_CONFIG_PATCHES"], yson_type="list_fragment")
+                patches = self.yson_module._loads_from_native_str(os.environ["YT_CONFIG_PATCHES"],
+                                                                  yson_type="list_fragment")
             except self.yson_module.YsonError:
                 print("Failed to parse YT config patches from 'YT_CONFIG_PATCHES' environment variable", file=sys.stderr)
                 raise
@@ -189,7 +190,7 @@ class Config(types.ModuleType, client_state.ClientState):
             else:
                 raise self.common_module.YtError("Incorrect config_format '%s'" % format)
             try:
-                self.update_config(load_func(open(config_path, "r")))
+                self.update_config(load_func(open(config_path, "rb")))
             except Exception:
                 print("Failed to parse YT config from " + config_path, file=sys.stderr)
                 raise

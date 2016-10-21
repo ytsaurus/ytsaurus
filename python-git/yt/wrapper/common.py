@@ -5,7 +5,7 @@ from yt.common import require, flatten, update, which, YtError, update_from_env,
 import yt.yson as yson
 
 from yt.packages.decorator import decorator
-from yt.packages.six import iteritems, itervalues
+from yt.packages.six import iteritems, itervalues, PY3
 from yt.packages.six.moves import xrange, map as imap, filter as ifilter
 
 import os
@@ -229,3 +229,8 @@ def get_disk_size(filepath):
     else:
         return round_up_to(stat.st_size, 4 * 1024)
 
+def get_binary_std_stream(stream):
+    if PY3:
+        return stream.buffer
+    else:
+        return stream

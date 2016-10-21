@@ -113,11 +113,10 @@ class YPath(object):
 
     def to_yson_string(self):
         """Return yson path with attributes as string."""
-        # NB: in text format \n can appear only as separator.
         if self.attributes:
-            return "<{0}>{1}".format(
-                yson.dumps(self.attributes, yson_type="map_fragment", yson_format="text").replace(b"\n", b""),
-                str(self._path_object))
+            attributes_str = yson._dumps_to_native_str(self.attributes, yson_type="map_fragment", yson_format="text")
+            # NB: in text format \n can appear only as separator.
+            return "<{0}>{1}".format(attributes_str.replace("\n", ""), str(self._path_object))
         else:
             return str(self._path_object)
 
