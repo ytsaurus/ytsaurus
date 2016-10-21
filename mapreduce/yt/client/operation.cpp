@@ -700,7 +700,7 @@ void BuildUserJobFluently(
     .DoIf(memoryLimit.Defined(), [&] (TFluentMap fluent) {
         fluent.Item("memory_limit").Value(*memoryLimit);
     })
-    .DoIf(preparer.ShouldMountSandbox(), [] (TFluentMap fluent) {
+    .DoIf(preparer.ShouldMountSandbox(), [&] (TFluentMap fluent) {
         fluent.Item("tmpfs_path").Value(".");
         fluent.Item("tmpfs_size").Value(tmpfsSize);
         fluent.Item("copy_files").Value(true);
