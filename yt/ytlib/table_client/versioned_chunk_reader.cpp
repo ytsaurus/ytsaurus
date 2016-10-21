@@ -1041,6 +1041,11 @@ public:
         }
 
         for (auto& column : Columns_) {
+            if (column.ColumnMetaIndex < 0) {
+                // E.g. null column reader for widened keys.
+                continue;
+            }
+
             for (auto rowIndex : RowIndexes_) {
                 if (rowIndex < VersionedChunkMeta_->Misc().row_count()) {
                     const auto& columnMeta = VersionedChunkMeta_->ColumnMeta().columns(column.ColumnMetaIndex);
@@ -1161,6 +1166,12 @@ private:
         PendingBlocks_.clear();
         for (int i = 0; i < Columns_.size(); ++i) {
             auto& column = Columns_[i];
+
+            if (column.ColumnMetaIndex < 0) {
+                // E.g. null column reader for widened keys.
+                continue;
+            }
+
             if (column.ColumnReader->GetCurrentBlockIndex() != column.BlockIndexSequence[NextKeyIndex_]) {
                 while (PendingBlocks_.size() < i) {
                     PendingBlocks_.emplace_back();

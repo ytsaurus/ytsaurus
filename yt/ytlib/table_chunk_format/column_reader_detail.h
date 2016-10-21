@@ -391,7 +391,7 @@ public:
         CurrentRowIndex_ = rowIndex;
         int segmentIndex = FindSegmentByRow(rowIndex);
 
-        YCHECK(segmentIndex <= LastBlockSegmentIndex_);
+        YCHECK(segmentIndex >= CurrentSegmentIndex_);
         if (segmentIndex != CurrentSegmentIndex_) {
             CurrentSegmentIndex_ = segmentIndex;
             ResetSegmentReader();
