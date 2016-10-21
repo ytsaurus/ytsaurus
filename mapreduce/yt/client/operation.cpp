@@ -621,8 +621,11 @@ void BuildUserJobFluently(
     TFluentMap fluent)
 {
     TMaybe<i64> memoryLimit = preparer.GetSpec().MemoryLimit_;
+
+    i64 tmpfsSize = 0;
     if (preparer.ShouldMountSandbox()) {
-        memoryLimit = memoryLimit.GetOrElse(512ll << 20) + preparer.GetTotalFileSize();
+        tmpfsSize = preparer.GetTotalFileSize();
+        memoryLimit = memoryLimit.GetOrElse(512ll << 20) + tmpfsSize;
     }
 
     // TODO: tables as files
@@ -699,6 +702,7 @@ void BuildUserJobFluently(
     })
     .DoIf(preparer.ShouldMountSandbox(), [] (TFluentMap fluent) {
         fluent.Item("tmpfs_path").Value(".");
+        fluent.Item("tmpfs_size").Value(tmpfsSize);
         fluent.Item("copy_files").Value(true);
     });
 }
