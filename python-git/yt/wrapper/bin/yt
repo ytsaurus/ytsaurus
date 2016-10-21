@@ -151,7 +151,7 @@ class ParseFormat(Action):
 
 class ParseStructuredArguments(Action):
     def __call__(self, parser, namespace, values, option_string=None):
-        setattr(namespace, self.dest, list(imap(parse_arguments, values)))
+        setattr(namespace, self.dest, builtins.list(imap(parse_arguments, values)))
 
 class ParseStructuredArgument(Action):
     def __call__(self, parser, namespace, values, option_string=None):
