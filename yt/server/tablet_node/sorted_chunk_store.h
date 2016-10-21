@@ -75,6 +75,8 @@ private:
     TOwningKey MinKey_;
     TOwningKey MaxKey_;
 
+    NTableClient::TCacheBasedChunkStatePtr ChunkState_;
+
     NTableClient::TCachedVersionedChunkMetaPtr CachedVersionedChunkMeta_;
 
     TPreloadedBlockCachePtr PreloadedBlockCache_;
@@ -82,7 +84,6 @@ private:
     EInMemoryMode InMemoryMode_ = EInMemoryMode::None;
 
     const NTableClient::TKeyComparer KeyComparer_;
-
 
     NTableClient::IVersionedReaderPtr CreateCacheBasedReader(
         const TSharedRange<TKey>& keys,
@@ -104,7 +105,6 @@ private:
     bool ValidateBlockCachePreloaded();
 
     ISortedStorePtr GetSortedBackingStore();
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TSortedChunkStore)
