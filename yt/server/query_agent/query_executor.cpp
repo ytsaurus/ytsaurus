@@ -310,7 +310,7 @@ private:
         std::vector<TDataKeys> keysByTablePart;
 
         auto keySize = query->KeyColumnsCount;
-
+        size_t rangesCount = 0;
         for (const auto& source : dataSources) {
             TRowRanges rowRanges;
             std::vector<TRow> keys;
@@ -332,6 +332,7 @@ private:
             }
 
             if (!rowRanges.empty()) {
+                rangesCount += rowRanges.size();
                 TDataRanges item;
                 item.Id = source.Id;
                 item.Ranges = MakeSharedRange(std::move(rowRanges), source.Ranges.GetHolder());
@@ -346,7 +347,7 @@ private:
             }
         }
 
-        LOG_DEBUG("Splitting sources");
+        LOG_DEBUG("Splitting %v ranges", rangesCount);
 
         auto rowBuffer = New<TRowBuffer>(TQueryExecutorBufferTag());
         auto splits = Split(std::move(rangesByTablePart), rowBuffer, Logger, options.VerboseLogging);
