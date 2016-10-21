@@ -234,6 +234,7 @@ protected:
     {
         auto& miscExt = EncodingChunkWriter_->MiscExt();
         miscExt.set_sorted(IsSorted());
+        miscExt.set_unique_keys(Schema_.GetUniqueKeys());
         miscExt.set_row_count(RowCount_);
         miscExt.set_data_weight(DataWeight_);
 
