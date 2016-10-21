@@ -2197,11 +2197,24 @@ void TOperationControllerBase::Abort()
     abortTransaction(SyncSchedulerTransaction);
     abortTransaction(AsyncSchedulerTransaction);
 
-    State = EControllerState::Finished;
+    Aborted = true;
 
     CancelableContext->Cancel();
 
     LOG_INFO("Operation aborted");
+}
+
+void TOperationControllerBase::Forget()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    auto codicilGuard = MakeCodicilGuard();
+
+    LOG_INFO("Forgetting operation");
+
+    CancelableContext->Cancel();
+
+    LOG_INFO("Operation forgotten");
 }
 
 void TOperationControllerBase::Complete()
@@ -2804,12 +2817,12 @@ bool TOperationControllerBase::IsPrepared() const
 
 bool TOperationControllerBase::IsRunning() const
 {
-    return State == EControllerState::Running;
+    return State == EControllerState::Running && !Aborted;
 }
 
 bool TOperationControllerBase::IsFinished() const
 {
-    return State == EControllerState::Finished;
+    return State == EControllerState::Finished || Aborted;
 }
 
 void TOperationControllerBase::CreateLivePreviewTables()
@@ -4723,6 +4736,11 @@ public:
     virtual void Abort() override
     {
         Underlying_->Abort();
+    }
+
+    virtual void Forget() override
+    {
+        Underlying_->Forget();
     }
 
     virtual std::vector<ITransactionPtr> GetTransactions() override
