@@ -33,7 +33,6 @@ public:
     bool IsNull() const;
 
     const Stroka& GetDefaultAddress() const;
-    const Stroka& GetInterconnectAddress() const;
 
     const Stroka& GetAddress(const TNetworkPreferenceList& networks) const;
     TNullable<Stroka> FindAddress(const TNetworkPreferenceList& networks) const;
@@ -48,7 +47,6 @@ Stroka ToString(const TNodeDescriptor& descriptor);
 
 // Accessors for some well-known addresses.
 const Stroka& GetDefaultAddress(const TAddressMap& addresses);
-const Stroka& GetInterconnectAddress(const TAddressMap& addresses);
 
 const Stroka& GetAddress(const TAddressMap& addresses, const TNetworkPreferenceList& networks);
 TNullable<Stroka> FindAddress(const TAddressMap& addresses, const TNetworkPreferenceList& networks);

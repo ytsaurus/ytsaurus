@@ -159,12 +159,12 @@ protected:
 
     TSchedulerConfigPtr Config;
     IOperationHost* Host;
-    TOperation* Operation;
 
     const TOperationId OperationId;
 
-    TInstant StartTime;
-    Stroka AuthenticatedUser;
+    const EOperationType OperationType;
+    const TInstant StartTime;
+    const Stroka AuthenticatedUser;
 
     NApi::INativeClientPtr AuthenticatedMasterClient;
     NApi::INativeClientPtr AuthenticatedInputMasterClient;
@@ -202,7 +202,7 @@ protected:
     // Maps node ids to descriptors for job auxiliary chunks.
     NNodeTrackerClient::TNodeDirectoryPtr AuxNodeDirectory;
 
-    NObjectClient::TTransactionId UserTransactionId;
+    const NObjectClient::TTransactionId UserTransactionId;
 
     NApi::ITransactionPtr SyncSchedulerTransaction;
     NApi::ITransactionPtr AsyncSchedulerTransaction;
@@ -213,6 +213,9 @@ protected:
 
     struct TRowBufferTag { };
     const NTableClient::TRowBufferPtr RowBuffer = New<NTableClient::TRowBuffer>(TRowBufferTag());
+
+    const NYTree::IMapNodePtr SecureVault;
+    const std::vector<Stroka> Owners;
 
 
     struct TLivePreviewTableBase
@@ -673,7 +676,6 @@ protected:
     virtual void InitializeConnections();
     virtual void InitializeTransactions();
     virtual void InitializeStructures();
-    //void CheckTransactions();
 
 
     // Preparation.
@@ -719,7 +721,7 @@ protected:
     void AbortAllJoblets();
 
     void DoSaveSnapshot(TOutputStream* output);
-    void DoLoadSnapshot(TSharedRef snapshot);
+    void DoLoadSnapshot(const TSharedRef& snapshot);
 
     //! Called to extract input table paths from the spec.
     virtual std::vector<NYPath::TRichYPath> GetInputTablePaths() const = 0;

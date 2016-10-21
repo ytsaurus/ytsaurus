@@ -322,7 +322,7 @@ void TBootstrap::DoRun()
 
     RpcServer->RegisterService(CreateDataNodeService(Config->DataNode, this));
 
-    auto localInterconnectAddress = GetInterconnectAddress(localAddresses);
+    auto localAddress = GetDefaultAddress(localAddresses);
 
     JobProxyConfig = New<NJobProxy::TJobProxyConfig>();
 
@@ -330,7 +330,7 @@ void TBootstrap::DoRun()
 
     auto patchMasterConnectionConfig = [&] (TMasterConnectionConfigPtr config) {
         config->CellId = ToRedirectorCellId(config->CellId);
-        config->Addresses = {localInterconnectAddress};
+        config->Addresses = {localAddress};
         if (config->RetryTimeout && *config->RetryTimeout > config->RpcTimeout) {
             config->RpcTimeout = *config->RetryTimeout;
         }
@@ -344,7 +344,7 @@ void TBootstrap::DoRun()
     }
 
     JobProxyConfig->SupervisorConnection = New<NBus::TTcpBusClientConfig>();
-    JobProxyConfig->SupervisorConnection->Address = localInterconnectAddress;
+    JobProxyConfig->SupervisorConnection->Address = localAddress;
 
     // TODO(babenko): consider making this priority configurable
     JobProxyConfig->SupervisorConnection->Priority = 6;

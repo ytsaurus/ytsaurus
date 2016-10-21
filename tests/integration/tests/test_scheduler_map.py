@@ -1946,6 +1946,20 @@ print row + table_index
 
         assert_items_equal(read_table("//tmp/t_out"), rows)
 
+    def test_pipe_statistics(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        op = map(
+            command="cat",
+            in_="//tmp/t_input",
+            out="//tmp/t_output")
+
+        statistics = get("//sys/operations/{0}/@progress/job_statistics".format(op.id))
+        assert get_statistics(statistics, "user_job.pipes.input.bytes.$.completed.map.sum") == 15
+        assert get_statistics(statistics, "user_job.pipes.output.0.bytes.$.completed.map.sum") ==15
+
 
 class TestSchedulerControllerThrottling(YTEnvSetup):
     NUM_MASTERS = 3

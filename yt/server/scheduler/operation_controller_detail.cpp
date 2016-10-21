@@ -837,6 +837,9 @@ void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
     options->ChunksMovable = false;
     options->ReplicationFactor = 1;
     options->CompressionCodec = Controller->Spec->IntermediateCompressionCodec;
+
+    // Intermediate data MUST be sorted if we expect it to be sorted.
+    options->ExplodeOnValidationError = true;
     outputSpec->set_table_writer_options(ConvertToYsonString(options).Data());
 
     ToProto(outputSpec->mutable_table_schema(), TTableSchema::FromKeyColumns(keyColumns));
@@ -968,10 +971,10 @@ TOperationControllerBase::TOperationControllerBase(
     TOperation* operation)
     : Config(config)
     , Host(host)
-    , Operation(operation)
-    , OperationId(Operation->GetId())
-    , StartTime(Operation->GetStartTime())
-    , AuthenticatedUser(Operation->GetAuthenticatedUser())
+    , OperationId(operation->GetId())
+    , OperationType(operation->GetType())
+    , StartTime(operation->GetStartTime())
+    , AuthenticatedUser(operation->GetAuthenticatedUser())
     , AuthenticatedMasterClient(CreateClient())
     , AuthenticatedInputMasterClient(AuthenticatedMasterClient)
     , AuthenticatedOutputMasterClient(AuthenticatedMasterClient)
@@ -982,7 +985,9 @@ TOperationControllerBase::TOperationControllerBase(
     , SuspendableInvoker(CreateSuspendableInvoker(Invoker))
     , CancelableInvoker(CancelableContext->CreateInvoker(SuspendableInvoker))
     , JobCounter(0)
-    , UserTransactionId(Operation->GetUserTransaction() ? Operation->GetUserTransaction()->GetId() : NullTransactionId)
+    , UserTransactionId(operation->GetUserTransaction() ? operation->GetUserTransaction()->GetId() : NullTransactionId)
+    , SecureVault(operation->GetSecureVault())
+    , Owners(operation->GetOwners())
     , Spec(spec)
     , Options(options)
     , CachedNeededResources(ZeroJobResources())
@@ -1328,6 +1333,7 @@ void TOperationControllerBase::Revive()
     InitChunkListPool();
 
     DoLoadSnapshot(Snapshot);
+    Snapshot = TSharedRef();
 
     LockLivePreviewTables();
 
@@ -1538,7 +1544,7 @@ void TOperationControllerBase::AbortAllJoblets()
     JobletMap.clear();
 }
 
-void TOperationControllerBase::DoLoadSnapshot(TSharedRef snapshot)
+void TOperationControllerBase::DoLoadSnapshot(const TSharedRef& snapshot)
 {
     LOG_INFO("Started loading snapshot");
 
@@ -2802,11 +2808,9 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
         return;
     }
 
-    LOG_INFO("Operation completed");
-
     State = EControllerState::Finished;
 
-    Host->OnOperationCompleted(Operation);
+    Host->OnOperationCompleted(OperationId);
 }
 
 void TOperationControllerBase::OnOperationFailed(const TError& error)
@@ -2820,7 +2824,7 @@ void TOperationControllerBase::OnOperationFailed(const TError& error)
 
     State = EControllerState::Finished;
 
-    Host->OnOperationFailed(Operation, error);
+    Host->OnOperationFailed(OperationId, error);
 }
 
 bool TOperationControllerBase::IsPrepared() const
@@ -2904,8 +2908,8 @@ void TOperationControllerBase::CreateLivePreviewTables()
                     .Item().BeginMap()
                         .Item("action").Value("allow")
                         .Item("subjects").BeginList()
-                            .Item().Value(Operation->GetAuthenticatedUser())
-                            .DoFor(Operation->GetOwners(), [] (TFluentList fluent, const Stroka& owner) {
+                            .Item().Value(AuthenticatedUser)
+                            .DoFor(Owners, [] (TFluentList fluent, const Stroka& owner) {
                                 fluent.Item().Value(owner);
                             })
                         .EndList()
@@ -3895,7 +3899,7 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceChunks(
     if (TotalEstimatedInputDataSize < maxSliceDataSize) {
         multiplier = 1.0;
     }
-    i64 sliceDataSize = Clamp(static_cast<i64>(jobSizeLimits->GetDataSizePerJob() * multiplier), 1, maxSliceDataSize); 
+    i64 sliceDataSize = Clamp(static_cast<i64>(jobSizeLimits->GetDataSizePerJob() * multiplier), 1, maxSliceDataSize);
 
     for (const auto& dataSlice : dataSlices) {
         if (dataSlice->Type == EDataSliceDescriptorType::VersionedTable) {
@@ -4326,7 +4330,7 @@ TNullable<TYsonString> TOperationControllerBase::BuildInputPathYson(const TJobId
     return BuildInputPaths(
         GetInputTablePaths(),
         joblet->InputStripeList,
-        Operation->GetType(),
+        OperationType,
         joblet->JobType);
 }
 
@@ -4467,15 +4471,15 @@ void TOperationControllerBase::InitUserJobSpec(
         jobSpec->add_environment(Format("YT_START_ROW_INDEX=%v", joblet->StartRowIndex));
     }
 
-    if (Operation->GetSecureVault()) {
+    if (SecureVault) {
         // NB: These environment variables should be added to user job spec, not to the user job spec template.
         // They may contain sensitive information that should not be persisted with a controller.
 
         // We add a single variable storing the whole secure vault and all top-level scalar values.
         jobSpec->add_environment(Format("YT_SECURE_VAULT=%v",
-            ConvertToYsonString(Operation->GetSecureVault(), EYsonFormat::Text)));
+            ConvertToYsonString(SecureVault, EYsonFormat::Text)));
 
-        for (const auto& pair : Operation->GetSecureVault()->GetChildren()) {
+        for (const auto& pair : SecureVault->GetChildren()) {
             Stroka value;
             auto node = pair.second;
             if (node->GetType() == ENodeType::Int64) {
@@ -4492,7 +4496,7 @@ void TOperationControllerBase::InitUserJobSpec(
                 // We do not export composite values as a separate environment variables.
                 continue;
             }
-            jobSpec->add_environment(Format("YT_SECURE_VAULT_%v=\"%v\"", pair.first, value));
+            jobSpec->add_environment(Format("YT_SECURE_VAULT_%v=%v", pair.first, value));
         }
     }
 }
