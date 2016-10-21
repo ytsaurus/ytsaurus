@@ -41,12 +41,12 @@ protected:
 
     struct TColumn
     {
-        TColumn(NTableChunkFormat::IColumnReaderBase* reader, int chunkSchemaIndex)
-            : ColumnReader(reader)
-            , ColumnMetaIndex(chunkSchemaIndex)
+        TColumn(std::unique_ptr<NTableChunkFormat::IColumnReaderBase> reader, int columnMetaIndex = -1)
+            : ColumnReader(std::move(reader))
+            , ColumnMetaIndex(columnMetaIndex)
         { }
 
-        NTableChunkFormat::IColumnReaderBase* ColumnReader;
+        std::unique_ptr<NTableChunkFormat::IColumnReaderBase> ColumnReader;
         int ColumnMetaIndex;
         std::vector<int> BlockIndexSequence;
         int PendingBlockIndex_ = 0;
@@ -85,7 +85,7 @@ protected:
     void InitLowerRowIndex();
     void InitUpperRowIndex();
 
-    void Initialize(TRange<std::unique_ptr<NTableChunkFormat::IUnversionedColumnReader>> keyReaders);
+    void Initialize(TRange<NTableChunkFormat::IUnversionedColumnReader*> keyReaders);
 
     void InitBlockFetcher();
     TFuture<void> RequestFirstBlocks();
