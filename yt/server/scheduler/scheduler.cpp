@@ -1226,6 +1226,10 @@ private:
 
         auto error = TError("Master disconnected");
 
+        if (Config_->MasterDisconnectDelay) {
+            Sleep(*Config_->MasterDisconnectDelay);
+        }
+
         {
             std::vector<TFuture<void>> abortFutures;
             for (auto& nodeShard : NodeShards_) {
@@ -1243,7 +1247,7 @@ private:
             auto operation = pair.second;
             LOG_INFO("Forgetting operation (OperationId: %v)", operation->GetId());
             if (!operation->IsFinishedState()) {
-                operation->GetController()->Abort();
+                operation->GetController()->Forget();
                 SetOperationFinalState(
                     operation,
                     EOperationState::Aborted,

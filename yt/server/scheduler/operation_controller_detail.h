@@ -110,6 +110,7 @@ public:
 
     virtual void Commit() override;
     virtual void Abort() override;
+    virtual void Forget() override;
     virtual void Complete() override;
 
     virtual TScheduleJobResultPtr ScheduleJob(
@@ -179,7 +180,9 @@ protected:
     ISuspendableInvokerPtr SuspendableInvoker;
     IInvokerPtr CancelableInvoker;
 
-    std::atomic<EControllerState> State = {EControllerState::Preparing};
+    EControllerState State = EControllerState::Preparing;
+
+    std::atomic<bool> Aborted = {false};
 
     // These totals are approximate.
     int TotalEstimatedInputChunkCount = 0;

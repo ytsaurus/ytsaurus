@@ -594,6 +594,62 @@ class TestSchedulerRevive(YTEnvSetup):
 
         assert "failed" == get("//sys/operations/" + op.id + "/@state")
 
+
+class TestMultipleSchedulers(YTEnvSetup, PrepareTables):
+    NUM_MASTERS = 3
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 2
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "connect_retry_backoff_time": 1000,
+            "fair_share_update_period": 100,
+            "profiling_update_period": 100,
+            "snapshot_period": 500,
+            "master_disconnect_delay": 3000,
+        }
+    }
+
+    def _get_scheduler_transation(self):
+        while True:
+            scheduler_locks = get("//sys/scheduler/lock/@locks", verbose=False)
+            if len(scheduler_locks) > 0:
+                scheduler_transaction = scheduler_locks[0]["transaction_id"]
+                return scheduler_transaction
+            time.sleep(0.01)
+
+    def test_hot_standby(self):
+        self._prepare_tables()
+
+        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 5")
+
+        # Wait till snapshot is written
+        time.sleep(1)
+
+        transaction_id = self._get_scheduler_transation()
+
+        def get_transaction_title(transaction_id):
+            return get("#{0}/@title".format(transaction_id), verbose=False)
+
+        title = get_transaction_title(transaction_id)
+
+        while True:
+            abort_transaction(transaction_id)
+
+            new_transaction_id = self._get_scheduler_transation()
+            new_title = get_transaction_title(new_transaction_id)
+            if title != new_title:
+                break
+
+            title = new_title
+            transaction_id = new_transaction_id
+            time.sleep(0.3)
+
+        op.track()
+
+        assert read_table("//tmp/t_out") == [ {"foo" : "bar"} ]
+
+
 class TestStrategies(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 2

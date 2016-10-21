@@ -625,6 +625,9 @@ public:
     // Testing option that enables sleeping between intermediate and final states of operation.
     TNullable<TDuration> FinishOperationTransitionDelay;
 
+    // Testing option that enables sleeping during master disconnect.
+    TNullable<TDuration> MasterDisconnectDelay;
+
     // If user job iops threshold is exceeded, iops throttling is enabled via cgroups.
     TNullable<i32> IopsThreshold;
     TNullable<i32> IopsThrottlerLimit;
@@ -862,6 +865,9 @@ public:
             .Default(TDuration::Seconds(1));
 
         RegisterParameter("finish_operation_transition_delay", FinishOperationTransitionDelay)
+            .Default(Null);
+
+        RegisterParameter("master_disconnect_delay", MasterDisconnectDelay)
             .Default(Null);
 
         RegisterParameter("iops_threshold", IopsThreshold)
