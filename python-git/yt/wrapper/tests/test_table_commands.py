@@ -140,9 +140,6 @@ class TestTableCommands(object):
             assert [record] == list(yt.read_table(table))
 
     def test_mount_unmount(self, yt_env):
-        if yt.config["api_version"] == "v2":
-            pytest.skip()
-
         table = TEST_DIR + "/table"
         if yt_env.version < "0.18":
             yt.create_table(table, attributes={"dynamic": True})
@@ -170,9 +167,6 @@ class TestTableCommands(object):
 
     @pytest.mark.xfail(run = False, reason = "In progress")
     def test_select(self):
-        if yt.config["api_version"] == "v2":
-            pytest.skip()
-
         table = TEST_DIR + "/table"
 
         def select():
@@ -199,9 +193,6 @@ class TestTableCommands(object):
         assert [{"x": 1, "y": 2, "z": 3}] == select()
 
     def test_insert_lookup_delete(self, yt_env):
-        if yt.config["api_version"] == "v2":
-            pytest.skip()
-
         with set_config_option("tabular_data_format", None):
             # Name must differ with name of table in select test because of metadata caches
             table = TEST_DIR + "/table2"

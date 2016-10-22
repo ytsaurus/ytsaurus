@@ -38,6 +38,17 @@ except ImportError:
 
 _ENCODING_SENTINEL = object()
 
+class _AttributeDict(dict):
+    def __init__(self, *args, **kwargs):
+        super(_AttributeDict, self).__init__(*args, **kwargs)
+        self.__dict__ = self
+
+    def __deepcopy__(self):
+        return _AttributeDict(**self.__dict__)
+
+    def __copy__(self):
+        return _AttributeDict(**self.__dict__)
+
 class YtFormatError(YtError):
     """Wrong format"""
     pass
@@ -744,18 +755,27 @@ class JsonFormat(Format):
     """
     _ENCODING = "utf-8" if PY3 else None
 
+    @staticmethod
+    def _wrap_json_module(json_module):
+        return _AttributeDict({
+            "load": json_module.load,
+            "loads": json_module.loads,
+            "dump": json_module.dump,
+            "dumps": json_module.dumps,
+        })
+
     def __init__(self, process_table_index=True, table_index_column="@table_index", attributes=None,
                  raw=None, enable_ujson=True):
         attributes = get_value(attributes, {})
         super(JsonFormat, self).__init__("json", attributes, raw, self._ENCODING)
         self.process_table_index = process_table_index
         self.table_index_column = table_index_column
-        self.json_module = json
+        self.json_module = JsonFormat._wrap_json_module(json)
 
         if enable_ujson and not PY3:
             try:
                 import ujson
-                self.json_module = ujson
+                self.json_module = JsonFormat._wrap_json_module(ujson)
             except ImportError:
                 pass
 

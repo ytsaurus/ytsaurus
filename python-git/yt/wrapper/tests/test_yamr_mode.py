@@ -106,12 +106,8 @@ class TestYamrMode(object):
 
     def test_mapreduce_binary(self):
         env = get_environment_for_binary_test()
-        if yt.config["api_version"] == "v2":
-            env["FALSE"] = '"false"'
-            env["TRUE"] = '"true"'
-        else:
-            env["FALSE"] = "false"
-            env["TRUE"] = "true"
+        env["FALSE"] = "false"
+        env["TRUE"] = "true"
 
         test_binary = os.path.join(TESTS_LOCATION, "test_mapreduce.sh")
         binaries_dir = os.path.join(os.path.dirname(TESTS_LOCATION), "bin")

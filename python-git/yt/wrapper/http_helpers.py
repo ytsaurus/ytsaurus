@@ -77,9 +77,7 @@ def parse_error_from_headers(headers):
     return None
 
 def get_header_format(client):
-    return get_value(
-        get_config(client)["proxy"]["header_format"],
-        "json" if get_api_version(client=client) == "v2" else "yson")
+    return get_value(get_config(client)["proxy"]["header_format"], "yson")
 
 def check_response_is_decodable(response, format):
     if response.status_code // 100 != 2:
@@ -280,10 +278,9 @@ def get_api_version(client=None):
             api_version = default_api_version_for_http
         else:
             api_versions = _request_api(client=client)
-            if "v3" in api_versions:
-                api_version = "v3"
-            else:
-                api_version = "v2"
+            # To deprecate using api/v2
+            api_versions.remove("v2")
+            api_version = "v3"
             require(api_version in api_versions, lambda: YtError("API {0} is not supported".format(api_version)))
     else:
         api_version = "v3"

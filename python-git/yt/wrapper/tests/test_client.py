@@ -34,10 +34,7 @@ class TestClient(object):
 
         with set_config_option("proxy/url", None):
             if yt.config["backend"] != "native":
-                if yt.config["api_version"] == "v2":
-                    assert client.get_user_name("") == None
-                if yt.config["api_version"] == "v3":
-                    assert client.get_user_name("") == "root"
+                assert client.get_user_name("") == "root"
 
             client.set(TEST_DIR + "/node", "abc")
             assert client.get(TEST_DIR + "/node") == "abc"
@@ -109,7 +106,7 @@ class TestClient(object):
             client.run_reduce("head -n 3", temp_table, TEST_DIR + "/reduce_output", reduce_by=["x"], format=yt.DsvFormat())
             assert client.row_count(TEST_DIR + "/reduce_output") == 3
 
-            if yt_env.version >= "0.17.5" and yt.config["api_version"] != "v2":
+            if yt_env.version >= "0.17.5":
                 client.write_table("<sorted_by=[x]>" + TEST_DIR + "/first", [{"x": 1}, {"x": 2}])
                 client.write_table("<sorted_by=[x]>" + TEST_DIR + "/second", [{"x": 2}, {"x": 3}])
                 client.run_join_reduce("cat", [TEST_DIR + "/first", "<foreign=true>" + TEST_DIR + "/second"],
@@ -179,11 +176,8 @@ class TestClient(object):
 
     def test_get_user_name(self):
         if yt.config["backend"] != "native":
-            if yt.config["api_version"] == "v2":
-                assert http.get_user_name("") == None
-            if yt.config["api_version"] == "v3":
-                # With disabled authentication in proxy it always return root
-                assert http.get_user_name("") == "root"
+            # With disabled authentication in proxy it always return root
+            assert http.get_user_name("") == "root"
 
         #assert http.get_user_name("") == None
         #assert http.get_user_name("12345") == None

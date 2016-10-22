@@ -224,7 +224,7 @@ def _prepare_formats(format, input_format, output_format, binary, client):
     if format is None:
         format = get_config(client)["tabular_data_format"]
     if format is None and _is_python_function(binary):
-        format = YsonFormat(boolean_as_string=(get_api_version(client=client) == "v2"))
+        format = YsonFormat(boolean_as_string=False)
     if isinstance(format, str):
         format = create_format(format)
     if isinstance(input_format, str):
@@ -248,8 +248,7 @@ def _prepare_format(format, raw, client):
     if format is None:
         format = get_config(client)["tabular_data_format"]
     if not raw and format is None:
-        format = YsonFormat(process_table_index=False,
-                            boolean_as_string=(get_api_version(client=client) == "v2"))
+        format = YsonFormat(process_table_index=False, boolean_as_string=False)
     if isinstance(format, str):
         format = create_format(format)
 
@@ -593,7 +592,7 @@ def write_table(table, input_stream, format=None, table_writer=None,
         chunk_size=get_config(client)["write_retries"]["chunk_size"])
 
     make_write_request(
-        "write" if get_api_version(client=client) == "v2" else "write_table",
+        "write_table",
         input_stream,
         table,
         params,
@@ -646,8 +645,6 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
         params["control_attributes"] = control_attributes
     if unordered is not None:
         params["unordered"] = unordered
-
-    command_name = "read" if get_api_version(client=client) == "v2" else "read_table"
 
     def set_response_parameters(parameters):
         if response_parameters is not None:
@@ -797,7 +794,7 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
 
     # For read commands response is actually ResponseStream
     response = make_read_request(
-        command_name,
+        "read_table",
         table,
         params,
         process_response_action=process_response,
