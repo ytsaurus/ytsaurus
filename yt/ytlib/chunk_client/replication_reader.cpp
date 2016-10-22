@@ -669,7 +669,11 @@ protected:
 
         if (PeerQueue_.empty()) {
             RegisterError(TError("No feasible seeds to start a pass"));
-            OnRetryFailed();
+            if (reader->Options_->AllowFetchingSeedsFromMaster) {
+                OnRetryFailed();
+            } else {
+                OnSessionFailed();
+            }
             return false;
         }
 
