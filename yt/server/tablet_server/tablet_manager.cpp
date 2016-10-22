@@ -540,6 +540,10 @@ public:
         NTabletNode::TTabletWriterOptionsPtr writerOptions;
         GetTableSettings(table, &mountConfig, &writerOptions);
 
+        if (!table->IsSorted() && mountConfig->InMemoryMode != EInMemoryMode::None) {
+            THROW_ERROR_EXCEPTION("Cannot mount an ordered dynamic table in memory");
+        }
+
         auto serializedMountConfig = ConvertToYsonString(mountConfig);
         auto serializedWriterOptions = ConvertToYsonString(writerOptions);
 
@@ -664,6 +668,10 @@ public:
         TTableMountConfigPtr mountConfig;
         NTabletNode::TTabletWriterOptionsPtr writerOptions;
         GetTableSettings(table, &mountConfig, &writerOptions);
+
+        if (!table->IsSorted() && mountConfig->InMemoryMode != EInMemoryMode::None) {
+            THROW_ERROR_EXCEPTION("Cannot mount an ordered dynamic table in memory");
+        }
 
         auto serializedMountConfig = ConvertToYsonString(mountConfig);
         auto serializedWriterOptions = ConvertToYsonString(writerOptions);
