@@ -68,12 +68,8 @@ def test_ypath_join():
 @pytest.mark.usefixtures("yt_env")
 def test_yt_binary():
     env = get_environment_for_binary_test()
-    if yt.config["api_version"] == "v2":
-        env["FALSE"] = '"false"'
-        env["TRUE"] = '"true"'
-    else:
-        env["FALSE"] = '%false'
-        env["TRUE"] = '%true'
+    env["FALSE"] = '%false'
+    env["TRUE"] = '%true'
 
     sandbox_dir = os.path.join(TESTS_SANDBOX, "TestYtBinary_" + uuid.uuid4().hex[:8])
     binaries_dir = os.path.join(os.path.dirname(TESTS_LOCATION), "bin")
@@ -536,9 +532,6 @@ class TestResponseStream(object):
 @pytest.mark.usefixtures("yt_env")
 class TestExecuteBatch(object):
     def test_simple(self):
-        if yt.config["api_version"] == "v2":
-            pytest.skip()
-
         yt.mkdir("//tmp/test_dir")
         rsp = yt.execute_batch(requests=[
             {"command": "list", "parameters": {"path": "//tmp"}},

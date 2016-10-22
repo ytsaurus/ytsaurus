@@ -83,9 +83,8 @@ def read_file(path, file_reader=None, offset=None, length=None, client=None):
                     self.length -= len(chunk)
                 yield chunk
 
-    command_name = "download" if get_api_version(client=client) == "v2" else "read_file"
     return make_read_request(
-        command_name,
+        "read_file",
         path,
         params,
         process_response_action=process_response,
@@ -147,7 +146,7 @@ def write_file(destination, stream, file_writer=None, is_stream_compressed=False
         enable_retries = False
 
     make_write_request(
-        "upload" if get_api_version(client=client) == "v2" else "write_file",
+        "write_file",
         stream,
         destination,
         params,

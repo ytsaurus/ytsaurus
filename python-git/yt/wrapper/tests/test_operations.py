@@ -63,6 +63,7 @@ class TestOperations(object):
         yt.config["tabular_data_format"] = yt.format.JsonFormat()
 
     def teardown(self):
+        yt.config["tabular_data_format"] = None
         yt.remove("//tmp/yt_wrapper/file_storage", recursive=True, force=True)
 
     def random_string(self, length):
@@ -209,9 +210,6 @@ class TestOperations(object):
 
     @add_failed_operation_stderrs_to_error_message
     def test_run_join_operation(self, yt_env):
-        if yt.config["api_version"] == "v2":
-            pytest.skip()
-
         table1 = TEST_DIR + "/first"
         yt.write_table("<sorted_by=[x]>" + table1, [{"x": 1}])
         table2 = TEST_DIR + "/second"
@@ -609,8 +607,6 @@ print(op.id)
         assert op.get_state() == "aborted"
 
     def test_complete_operation(self):
-        if yt.config["api_version"] == "v2":
-            pytest.skip()
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"x": 1}])
         op = yt.run_map("sleep 15; cat", table, table, sync=False)

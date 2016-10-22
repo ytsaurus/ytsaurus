@@ -75,8 +75,9 @@ class TestJobCommands(object):
         return output
 
     def test_job_shell(self, yt_env):
-        if yt.config["api_version"] == "v2" or yt.config["backend"] == "native":
+        if yt.config["backend"] == "native":
             pytest.skip()
+
         commands = get_api_commands()
         if "poll_job_shell" not in commands:
             pytest.skip()

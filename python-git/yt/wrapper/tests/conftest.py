@@ -38,7 +38,7 @@ def pytest_configure(config):
         for index, test in enumerate(test_items):
             match = re.search(r"\[([a-zA-Z0-9]+)\]$", test.name)
             suite_name = None
-            if match and match.group(1) in ["v2", "v3", "native"]:
+            if match and match.group(1) in ["v3", "native"]:
                 suite_name = match.group(1)
 
             suites[suite_name].append(index)
@@ -154,12 +154,9 @@ class YtTestEnvironment(object):
         self.env.check_liveness(callback_func=_pytest_finalize_func)
 
 def init_environment_for_test_session(mode):
-    if mode == "v2" or mode == "yamr":
-        config = {"api_version": "v2"}
-    elif mode == "v3":
-        config = {"api_version": "v3", "proxy": {"header_format": "yson"}}
-    else:
-        config = {"backend": "native", "api_version": "v3"}
+    config = {"api_version": "v3"}
+    if mode == "native":
+        config["backend"] = "native"
 
     environment = YtTestEnvironment("TestYtWrapper" + mode.capitalize(), config)
 
@@ -171,7 +168,7 @@ def init_environment_for_test_session(mode):
 
     return environment
 
-@pytest.fixture(scope="session", params=["v2", "v3", "native"])
+@pytest.fixture(scope="session", params=["v3", "native"])
 def test_environment(request):
     environment = init_environment_for_test_session(request.param)
     request.addfinalizer(lambda: environment.cleanup())
@@ -229,7 +226,7 @@ def config(yt_env):
 def yt_env_for_yamr(request, test_environment_for_yamr):
     """ YT cluster fixture for Yamr mode tests.
         Uses test_environment_for_yamr fixture.
-        Starts YT cluster (with api_version v2) once per session but checks its health
+        Starts YT cluster once per session but checks its health
         before each test function.
     """
     test_environment_for_yamr.check_liveness()
