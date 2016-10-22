@@ -406,6 +406,7 @@ public:
                 RemoveFromAddressToCellMap(peer.Descriptor, cell);
             }
         }
+        cell->Peers().clear();
 
         AbortPrerequisiteTransaction(cell);
         AbortCellSubtreeTransactions(cell);
