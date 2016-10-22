@@ -21,11 +21,12 @@ namespace NYTree {
 void Serialize(
     const Py::Object& obj,
     NYson::IYsonConsumer* consumer,
+    const TNullable<Stroka>& encoding = Null,
     bool ignoreInnerAttributes = false,
     NYson::EYsonType ysonType = NYson::EYsonType::Node,
     int depth = 0);
 
-void Deserialize(Py::Object& obj, NYTree::INodePtr node);
+void Deserialize(Py::Object& obj, NYTree::INodePtr node, const TNullable<Stroka>& encoding = Null);
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -33,13 +34,14 @@ DEFINE_ENUM(EPythonObjectType,
     (Map)
     (List)
     (Attributes)
+    (Other)
 );
 
 class TPythonObjectBuilder
     : public NYson::TYsonConsumerBase
 {
 public:
-    explicit TPythonObjectBuilder(bool alwaysCreateAttributes);
+    explicit TPythonObjectBuilder(bool alwaysCreateAttributes, const TNullable<Stroka>& encoding);
 
     virtual void OnStringScalar(const TStringBuf& value) override;
     virtual void OnInt64Scalar(i64 value) override;
@@ -63,6 +65,7 @@ private:
     Py::Callable YsonMap;
     Py::Callable YsonList;
     Py::Callable YsonString;
+    Py::Callable YsonUnicode;
     Py::Callable YsonInt64;
     Py::Callable YsonUint64;
     Py::Callable YsonDouble;
@@ -70,6 +73,7 @@ private:
     Py::Callable YsonEntity;
 
     bool AlwaysCreateAttributes_;
+    TNullable<Stroka> Encoding_;
 
     std::queue<Py::Object> Objects_;
 
@@ -78,9 +82,9 @@ private:
     std::stack<Stroka> Keys_;
     TNullable<Py::Object> Attributes_;
 
-    PyObject* AddObject(PyObject* obj, const Py::Callable& type, bool forceYsonTypeCreation = false);
-    PyObject* AddObject(const Py::Callable& type);
-    PyObject* AddObject(PyObject* obj);
+    void AddObject(PyObject* obj, const Py::Callable& type, EPythonObjectType objType = EPythonObjectType::Other,
+                   bool forceYsonTypeCreation = false);
+    void AddObject(PyObject* obj);
 
     void Push(const Py::Object& obj, EPythonObjectType objectType);
     Py::Object Pop();

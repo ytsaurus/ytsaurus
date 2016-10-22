@@ -11,13 +11,17 @@ namespace Py {
 ///////////////////////////////////////////////////////////////////////////////
 // Extend PyCxx with some useful functions.
 
+static_assert(sizeof(PY_LONG_LONG) == sizeof(i64), "Py_LONG_LONG size does not equal i64 size");
+
 bool IsInstance(const Object& obj, const Object& cls);
-bool IsStringLike(const Object& obj);
-String ConvertToString(const Object& obj);
-TStringBuf ConvertToStringBuf(const String& pyString);
-Stroka ConvertToStroka(const String& pyString);
-String ConvertToPythonString(const Stroka& string);
+bool IsInteger(const Object& obj);
+bool IsFloat(const Object& obj);
+TStringBuf ConvertToStringBuf(const Bytes& pyString);
+Bytes ConvertToPythonString(const Stroka& string);
+Stroka ConvertStringObjectToStroka(const Object& obj);
 Object GetAttr(const Object& obj, const std::string& fieldName);
+i64 ConvertToLongLong(const Object& obj);
+std::string Repr(const Object& obj);
 
 ///////////////////////////////////////////////////////////////////////////////
 
