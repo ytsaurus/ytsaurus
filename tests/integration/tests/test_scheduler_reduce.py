@@ -253,8 +253,8 @@ class TestSchedulerReduceCommands(YTEnvSetup):
 
         reduce(
             in_ = ["<teleport=true>//tmp/in1", "<teleport=true>//tmp/in2", "//tmp/in3", "//tmp/in4"],
-            out = ["<sorted_by=[key]; teleport=true>//tmp/out1", "<sorted_by=[key]>//tmp/out2"],
-            command = "cat>/dev/fd/4",
+            out = ["<sorted_by=[key]>//tmp/out2", "<sorted_by=[key]; teleport=true>//tmp/out1"],
+            command = "cat",
             reduce_by = "key",
             sort_by=["key", "value"],
             spec={"reducer": {"format": "dsv"}})
