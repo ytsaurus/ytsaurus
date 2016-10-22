@@ -27,6 +27,7 @@
 #include <yt/core/logging/log_manager.h>
 
 #include <yt/core/misc/intrusive_ptr.h>
+#include <yt/core/misc/crash_handler.h>
 
 #include <yt/core/tracing/trace_manager.h>
 
@@ -57,10 +58,8 @@ const NLogging::TLogger Logger("PythonDriver");
 
 Py::Exception CreateYtError(const NYT::TError& error)
 {
-    auto ytErrorClass = Py::Callable(
-        PyObject_GetAttr(
-            PyImport_ImportModule("yt.common"),
-            PyString_FromString("YtError")));
+    auto ytModule = Py::Module(PyImport_ImportModule("yt.common"), true);
+    auto ytErrorClass = Py::Callable(GetAttr(ytModule, "YtError"));
 
     Py::Dict options;
     options.setItem("message", ConvertTo<Py::Object>(error.GetMessage()));
@@ -72,10 +71,8 @@ Py::Exception CreateYtError(const NYT::TError& error)
 
 Py::Exception CreateYtError(const std::string& message)
 {
-    auto ytErrorClass = Py::Object(
-        PyObject_GetAttr(
-            PyImport_ImportModule("yt.common"),
-            PyString_FromString("YtError")));
+    auto ytModule = Py::Module(PyImport_ImportModule("yt.common"), true);
+    auto ytErrorClass = Py::Object(GetAttr(ytModule, "YtError"));
     return Py::Exception(*ytErrorClass, message);
 }
 
@@ -92,6 +89,14 @@ Py::Exception CreateYtError(const std::string& message)
 
 ///////////////////////////////////////////////////////////////////////////////
 
+INodePtr ConvertObjectToNode(const Py::Object& obj) {
+    auto factory = GetEphemeralNodeFactory();
+    auto builder = CreateBuilderFromFactory(factory);
+    builder->BeginTree();
+    Serialize(obj, builder.get(), MakeNullable<Stroka>("utf-8"));
+    return builder->EndTree();
+}
+
 class TDriver
     : public Py::PythonClass<TDriver>
 {
@@ -103,7 +108,7 @@ public:
         ValidateArgumentsEmpty(args, kwargs);
 
         auto config = New<TDriverConfig>();
-        auto configNode = ConvertToNode(configDict);
+        auto configNode = ConvertObjectToNode(configDict);
         try {
             config->Load(configNode);
         } catch(const std::exception& ex) {
@@ -145,19 +150,19 @@ public:
         auto* response = pythonResponse.getCxxObject();
 
         TDriverRequest request;
-        request.CommandName = ConvertToStroka(Py::String(GetAttr(pyRequest, "command_name")));
-        request.Parameters = ConvertToNode(GetAttr(pyRequest, "parameters"))->AsMap();
+        request.CommandName = ConvertStringObjectToStroka(GetAttr(pyRequest, "command_name"));
+        request.Parameters = ConvertObjectToNode(GetAttr(pyRequest, "parameters"))->AsMap();
         request.ResponseParametersConsumer = response->GetResponseParametersConsumer();
 
         auto user = GetAttr(pyRequest, "user");
         if (!user.isNone()) {
-            request.AuthenticatedUser = ConvertToStroka(Py::String(user));
+            request.AuthenticatedUser = ConvertStringObjectToStroka(user);
         }
 
         if (pyRequest.hasAttr("id")) {
             auto id = GetAttr(pyRequest, "id");
             if (!id.isNone()) {
-                request.Id = Py::Int(id).asLongLong();
+                request.Id = Py::ConvertToLongLong(id);
             }
         }
 
@@ -204,7 +209,7 @@ public:
 
     Py::Object GetCommandDescriptor(Py::Tuple& args, Py::Dict& kwargs)
     {
-        auto commandName = ConvertToStroka(ConvertToString(ExtractArgument(args, kwargs, "command_name")));
+        auto commandName = ConvertStringObjectToStroka(ExtractArgument(args, kwargs, "command_name"));
         ValidateArgumentsEmpty(args, kwargs);
 
         Py::Callable class_type(TCommandDescriptor::type());
@@ -259,8 +264,7 @@ public:
 
         auto cellId = ExtractArgument(args, kwargs, "cell_id");
         if (!cellId.isNone()) {
-            auto cellIdStr = ConvertToStroka(ConvertToString(cellId));
-            options.CellId = TTabletCellId::FromString(cellIdStr);
+            options.CellId = TTabletCellId::FromString(ConvertStringObjectToStroka(cellId));
         }
 
         ValidateArgumentsEmpty(args, kwargs);
@@ -302,6 +306,7 @@ public:
         PyEval_InitThreads();
 
         RegisterShutdown();
+        //InstallCrashSignalHandler(std::set<int>({SIGSEGV}));
 
         TDriver::InitType();
         TBufferedStreamWrap::InitType();
@@ -324,7 +329,7 @@ public:
         auto args = args_;
         auto kwargs = kwargs_;
 
-        auto config = ConvertToNode(ExtractArgument(args, kwargs, "config"));
+        auto config = ConvertObjectToNode(ExtractArgument(args, kwargs, "config"));
         ValidateArgumentsEmpty(args, kwargs);
 
         NLogging::TLogManager::Get()->Configure(config->AsMap());
@@ -337,7 +342,7 @@ public:
         auto args = args_;
         auto kwargs = kwargs_;
 
-        auto config = ConvertToNode(ExtractArgument(args, kwargs, "config"));
+        auto config = ConvertObjectToNode(ExtractArgument(args, kwargs, "config"));
         ValidateArgumentsEmpty(args, kwargs);
 
         NTracing::TTraceManager::Get()->Configure(config->AsMap());
@@ -362,14 +367,16 @@ public:
 #define EXPORT_SYMBOL
 #endif
 
-extern "C" EXPORT_SYMBOL void initdriver_lib()
+static PyObject* init_module()
 {
-    static const auto* driver = new NYT::NPython::TDriverModule;
-    Y_UNUSED(driver);
+    static NYT::NPython::TDriverModule* driver = new NYT::NPython::TDriverModule;
+    return driver->module().ptr();
 }
 
-// This symbol is required for debug version.
-extern "C" EXPORT_SYMBOL void initdriver_lib_d()
-{
-    initdriver_lib();
-}
+#if PY_MAJOR_VERSION < 3
+extern "C" EXPORT_SYMBOL void initdriver_lib() { Y_UNUSED(init_module()); }
+extern "C" EXPORT_SYMBOL void initdriver_lib_d() { initdriver_lib(); }
+#else
+extern "C" EXPORT_SYMBOL PyObject* PyInit_driver_lib() { return init_module(); }
+extern "C" EXPORT_SYMBOL PyObject* PyInit_driver_lib_d() { return PyInit_driver_lib(); }
+#endif
