@@ -17,6 +17,8 @@
 #include <yt/ytlib/table_client/chunk_slices_fetcher.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
 
+#include <yt/core/concurrency/periodic_yielder.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -436,10 +438,13 @@ protected:
         PROFILE_TIMING ("/input_processing_time") {
             LOG_INFO("Processing inputs");
 
+            TPeriodicYielder yielder(PrepareYieldPeriod);
+
             InitTeleportableInputTables();
             ClearCurrentTaskStripes();
             for (auto chunk : CollectPrimaryInputChunks()) {
                 ProcessInputChunk(chunk);
+                yielder.TryYield();
             }
         }
     }
@@ -1349,10 +1354,13 @@ private:
             return;
         }
 
+        TPeriodicYielder yielder(PrepareYieldPeriod);
+
         int openedSlicesCount = 0;
         TInputChunkPtr currentChunkSpec;
         int startTeleportIndex = -1;
         for (int i = 0; i < static_cast<int>(Endpoints.size()); ++i) {
+            yielder.TryYield();
             auto& endpoint = Endpoints[i];
             auto& chunkSlice = endpoint.ChunkSlice;
 
@@ -1407,6 +1415,8 @@ private:
 
     virtual void BuildTasks() override
     {
+        TPeriodicYielder yielder(PrepareYieldPeriod);
+
         const int prefixLength = static_cast<int>(SortKeyColumns.size());
 
         yhash_set<TInputSlicePtr> globalOpenedSlices;
@@ -1414,6 +1424,7 @@ private:
 
         int startIndex = 0;
         while (startIndex < static_cast<int>(Endpoints.size())) {
+            yielder.TryYield();
             auto key = Endpoints[startIndex].GetKey();
 
             std::vector<TInputChunkPtr> teleportChunks;
@@ -2064,6 +2075,8 @@ private:
 
     virtual void FindTeleportChunks() override
     {
+        TPeriodicYielder yielder(PrepareYieldPeriod);
+
         const int prefixLength = ReduceKeyColumnCount;
 
         TInputChunkPtr currentChunkSpec;
@@ -2073,6 +2086,7 @@ private:
         auto previousKey = EmptyKey().Get();
 
         for (int i = 0; i < static_cast<int>(Endpoints.size()); ++i) {
+            yielder.TryYield();
             const auto& endpoint = Endpoints[i];
             auto key = endpoint.GetKey();
 
@@ -2141,6 +2155,7 @@ private:
 
     virtual void BuildTasks() override
     {
+        TPeriodicYielder yielder(PrepareYieldPeriod);
         const int prefixLength = ReduceKeyColumnCount;
 
         yhash_set<TInputSlicePtr> openedSlices;
@@ -2153,6 +2168,7 @@ private:
 
         int startIndex = 0;
         while (startIndex < static_cast<int>(Endpoints.size())) {
+            yielder.TryYield();
             auto key = Endpoints[startIndex].GetKey();
 
             int currentIndex = startIndex;
@@ -2321,9 +2337,11 @@ private:
 
     virtual void BuildTasks() override
     {
+        TPeriodicYielder yielder(PrepareYieldPeriod);
         const auto& slices = ChunkSliceFetcher->GetChunkSlices();
 
         for (const auto& slice : slices) {
+            yielder.TryYield();
             try {
                 ValidateClientKey(slice->LowerLimit().Key);
                 ValidateClientKey(slice->UpperLimit().Key);
