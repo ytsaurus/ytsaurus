@@ -383,7 +383,7 @@ protected:
                 CurrentPartitionIndex);
 
             // Place the chunk directly to the output table.
-            RegisterOutput(chunkSpec, CurrentPartitionIndex, 0);
+            RegisterOutput(chunkSpec, CurrentPartitionIndex, *tableIndex);
             ++CurrentPartitionIndex;
         }
     }
@@ -2221,11 +2221,6 @@ private:
 
         YCHECK(openedSlices.empty());
         EndTaskIfActive();
-    }
-
-    virtual TNullable<int> GetTeleportTableIndex() const override
-    {
-        return TeleportOutputTable;
     }
 };
 
