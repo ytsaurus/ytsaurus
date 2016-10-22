@@ -58,6 +58,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/fork_aware_spinlock.cpp
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/invoker_queue.cpp
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/periodic_executor.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/periodic_yielder.cpp
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/scheduler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/scheduler_thread.cpp

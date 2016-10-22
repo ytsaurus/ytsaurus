@@ -14,6 +14,8 @@ const NLogging::TLogger SchedulerLogger("Scheduler");
 const NLogging::TLogger OperationLogger("Operation");
 const NProfiling::TProfiler SchedulerProfiler("/scheduler");
 
+const auto PrepareYieldPeriod = TDuration::MilliSeconds(100);
+
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler
