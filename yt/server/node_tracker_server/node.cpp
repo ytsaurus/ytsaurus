@@ -59,7 +59,6 @@ TNode::TNode(const TObjectId& objectId)
     ChunkReplicationQueues_.resize(ReplicationPriorityCount);
     RandomReplicaIt_ = StoredReplicas_.end();
     ClearSessionHints();
-    RebuildTags();
 }
 
 void TNode::RecomputeAggregatedState()
