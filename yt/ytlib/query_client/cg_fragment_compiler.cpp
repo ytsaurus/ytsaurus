@@ -612,11 +612,12 @@ TCodegenExpression MakeCodegenLogicalBinaryOpExpr(
     ] (TCGContext& builder, Value* row) {
         auto compare = [&] (bool parameter) {
             auto lhsValue = codegenLhs(builder, row);
+            auto rhsValue = codegenRhs(builder, row);
+
             return CodegenIf<TCGContext, TCGValue>(
                 builder,
                 lhsValue.IsNull(),
                 [&] (TCGContext& builder) {
-                    auto rhsValue = codegenRhs(builder, row);
                     return CodegenIf<TCGContext, TCGValue>(
                         builder,
                         rhsValue.IsNull(),
@@ -645,7 +646,6 @@ TCodegenExpression MakeCodegenLogicalBinaryOpExpr(
                             return lhsValue;
                         },
                         [&] (TCGContext& builder) {
-                            auto rhsValue = codegenRhs(builder, row);
                             return CodegenIf<TCGContext, TCGValue>(
                                 builder,
                                 rhsValue.IsNull(),
