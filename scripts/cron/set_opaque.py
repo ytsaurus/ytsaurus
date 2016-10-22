@@ -37,7 +37,11 @@ def get(path, trimmed_nodes = None):
                     object[key] = yson.to_yson_type({}, object[key].attributes)
                     object[key].attributes["path"] = new_path
                 elif is_opaque(value):
-                    object[key] = get(new_path)
+                    result = get(new_path)
+                    if result is not None:
+                        object[key] = result
+                    else:
+                        del object[key]
                 else:
                     walk(new_path, value)
 
@@ -45,9 +49,12 @@ def get(path, trimmed_nodes = None):
         result = yt.get(path, attributes=["type", "opaque"])
     except yt.YtResponseError as err:
         if err.is_access_denied():
+            # TODO(ignat): remove this code since set_opaque performed by superuser.
             result = yson.YsonMap()
             result.attributes["type"] = "map_node"
             logger.warning("Have no access to %s", path)
+        elif err.is_resolve_error():
+            return None
         else:
             raise
 
