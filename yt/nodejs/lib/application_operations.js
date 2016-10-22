@@ -421,30 +421,7 @@ function getArchiveCallbacks(timings, from_time, to_time, cursor_time, substr_fi
     }
 }
 
-function makeErrorHandler(logger, message)
-{
-    return function(error) {
-        var err = YtError.ensureWrapped(error);
-        logger.error(message, {error: err.toJson()});
-        return Q.reject(new YtError(message, err));
-    };
-}
 
-function getVersion()
-{
-    return this.driver.executeSimple(
-        "get",
-        {
-            path: "{}/@version".format(OPERATIONS_ARCHIVE_DIRECTORY)
-        })
-        .catch(function(error) {
-            var err = YtError.ensureWrapped(error);
-            return err.getCode() === 500;
-        }, function(error) {
-            return 0;
-        })
-        .catch(makeErrorHandler(this.logger, "Failed to fetch archive version"));
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -458,6 +435,34 @@ YtApplicationOperations._idUint64ToString = idUint64ToString;
 YtApplicationOperations._idStringToUint64 = idStringToUint64;
 YtApplicationOperations._idUint64ToStringNew = idUint64ToStringNew;
 YtApplicationOperations._idStringToUint64New = idStringToUint64New;
+
+YtApplicationOperations.prototype.makeErrorHandler = Q.method(
+function makeErrorHandler(message)
+{
+    var logger = this.logger;
+    return function(error) {
+        var err = YtError.ensureWrapped(error);
+        logger.error(message, {error: err.toJson()});
+        return Q.reject(new YtError(message, err));
+    };
+});
+
+YtApplicationOperations.prototype.getVersion = Q.method(
+function getVersion()
+{
+    return this.driver.executeSimple(
+        "get",
+        {
+            path: "{}/@version".format(OPERATIONS_ARCHIVE_DIRECTORY)
+        })
+        .catch(function(error) {
+            var err = YtError.ensureWrapped(error);
+            return err.getCode() === 500;
+        }, function(error) {
+            return 0;
+        })
+        .catch(this.makeErrorHandler("Failed to fetch archive version"));
+});
 
 YtApplicationOperations.prototype.list = Q.method(
 function YtApplicationOperations$list(parameters)
@@ -525,8 +530,6 @@ function YtApplicationOperations$list(parameters)
             max_size, MAX_SIZE_LIMIT)).withCode(1);
     }
 
-    var logger = this.logger;
-
     var timings = {};
 
     // Okay, now fetch & merge data.
@@ -540,12 +543,12 @@ function YtApplicationOperations$list(parameters)
             success_expiration_time: CYPRESS_OPERATIONS_SUCCESS_EXPIRATION_TIME,
             failure_expiration_time: CYPRESS_OPERATIONS_FAILURE_EXPIRATION_TIME
         })
-        .catch(makeErrorHandler(logger, "Failed to fetch operations from Cypress"))
+        .catch(this.makeErrorHandler("Failed to fetch operations from Cypress"))
         .finally(function() {
             timings.cypress_data = new Date() - timings_start;
         });
 
-    var version = getVersion.apply(this)
+    var version = this.getVersion()
         .finally(function() {
             timings.version = new Date() - timings_start;
         });
@@ -630,13 +633,15 @@ function YtApplicationOperations$list(parameters)
 
     if (include_archive && include_counters) {
         archive_counts = archive_counts
-            .catch(makeErrorHandler(logger, "Failed to fetch operation counts from archive"));
+            .catch(this.makeErrorHandler("Failed to fetch operation counts from archive"));
     }
 
     if (include_archive) {
         archive_data = archive_data
-            .catch(makeErrorHandler(logger, "Failed to fetch operation items from archive"));
+            .catch(this.makeErrorHandler("Failed to fetch operation items from archive"));
     }
+
+    var logger = this.logger;
 
     return Q.settle([version, cypress_data, archive_data, archive_counts])
     .spread(function(version, cypress_data, archive_data, archive_counts) {
@@ -824,7 +829,7 @@ function YtApplicationOperations$get(parameters)
 {
     var id = required(parameters, "id", validateId);
 
-    var version = getVersion.apply(this);
+    var version = this.getVersion();
 
     var driver = this.driver;
 
