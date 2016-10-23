@@ -373,7 +373,7 @@ def build_python_packages(options):
     if not options.package:
         return
 
-    packages = ["yandex-yt-python", "yandex-yt-python-tools", "yandex-yt-python-yson",
+    packages = ["yandex-yt-python", "yandex-yt-python-tools",
                 "yandex-yt-transfer-manager", "yandex-yt-transfer-manager-client",
                 "yandex-yt-python-fennel", "yandex-yt-local"]
 
