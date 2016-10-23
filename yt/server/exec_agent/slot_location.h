@@ -48,7 +48,8 @@ public:
         ESandboxKind kind,
         i64 size,
         int userId,
-        const Stroka& path);
+        const Stroka& path,
+        bool enable);
 
     TFuture<void> MakeConfig(int slotIndex, NYTree::INodePtr config);
 
