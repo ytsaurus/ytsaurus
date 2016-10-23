@@ -43,6 +43,7 @@ def init_driver(config, secondary_driver_configs):
 def set_branch(dict, path, value):
     root = dict
     for field in path[:-1]:
+        assert isinstance(field, str), "non-string keys are not allowed in command parameters"
         if field not in root:
             root[field] = {}
         root = root[field]
