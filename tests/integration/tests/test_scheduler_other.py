@@ -229,7 +229,6 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             dont_track=True,
             in_="//tmp/t_in",
             out="//tmp/t_in",
-            command="cat",
             sort_by=["foo"])
         time.sleep(2)
 
