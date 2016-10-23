@@ -2381,6 +2381,41 @@ class TestSandboxTmpfs(YTEnvSetup):
 
         assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op.id)) == 0
 
+class TestDisabledSandboxTmpfs(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "slot_manager": {
+                "enable_tmpfs": False
+            }
+        }
+    }
+
+    def test_simple(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        op = map(
+            command="cat; echo 'content' > tmpfs/file; ls tmpfs/ >&2; cat tmpfs/file >&2;",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={
+                "mapper": {
+                    "tmpfs_size": 1024 * 1024,
+                    "tmpfs_path": "tmpfs",
+                }
+            })
+
+        jobs_path = "//sys/operations/" + op.id + "/jobs"
+        assert get(jobs_path + "/@count") == 1
+        words = read_file(jobs_path + "/" + ls(jobs_path)[0] + "/stderr").strip().split()
+        assert ["file", "content"] == words
+
+
 
 class TestFilesInSandbox(YTEnvSetup):
     NUM_MASTERS = 1

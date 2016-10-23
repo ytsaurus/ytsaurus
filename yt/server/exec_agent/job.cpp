@@ -319,7 +319,7 @@ public:
     }
 
     virtual std::vector<TChunkId> DumpInputContext() override
-    {   
+    {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
         ValidateJobRunning();
@@ -743,12 +743,20 @@ private:
         const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         if (schedulerJobSpecExt.has_user_job_spec()) {
             const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
-            if (userJobSpec.has_tmpfs_path() && Bootstrap_->GetConfig()->ExecAgent->SlotManager->EnableTmpfs) {
+            if (userJobSpec.has_tmpfs_path()) {
+                bool enable = Bootstrap_->GetConfig()->ExecAgent->SlotManager->EnableTmpfs;
                 TmpfsPath_ = WaitFor(Slot_->PrepareTmpfs(
                     ESandboxKind::User,
                     userJobSpec.tmpfs_size(),
-                    userJobSpec.tmpfs_path()))
+                    userJobSpec.tmpfs_path(),
+                    enable))
                 .ValueOrThrow();
+
+                // Slot just creates directory in that case and job proxy
+                // should not consider this directory as tmpfs.
+                if (!enable) {
+                    TmpfsPath_ = Null;
+                }
             }
         }
     }

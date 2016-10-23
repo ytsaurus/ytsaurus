@@ -146,8 +146,8 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
         auto sandboxPath = GetSandboxPath(slotIndex, kind);
         auto destinationPath = NFS::CombinePaths(sandboxPath, destinationName);
 
-        LOG_DEBUG("Making sandbox copy (SourcePath: %v, DestinationName: %v)", 
-            sourcePath, 
+        LOG_DEBUG("Making sandbox copy (SourcePath: %v, DestinationName: %v)",
+            sourcePath,
             destinationName);
 
         try {
@@ -156,16 +156,16 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
         } catch (const std::exception& ex) {
             // Job will be failed.
             THROW_ERROR_EXCEPTION(
-                "Failed to make a copy for file %Qv into sandbox %v", 
-                destinationName, 
-                sandboxPath) 
+                "Failed to make a copy for file %Qv into sandbox %v",
+                destinationName,
+                sandboxPath)
                     << ex;
         }
 
         auto logErrorAndDisableLocation = [&] (const std::exception& ex) {
             // Probably location error, job will be aborted.
             auto error = TError(
-                EErrorCode::ArtifactCopyingFailed, 
+                EErrorCode::ArtifactCopyingFailed,
                 "Failed to make a copy for file %Qv into sandbox %v",
                 destinationName,
                 sandboxPath) << ex;
@@ -239,7 +239,8 @@ TFuture<Stroka> TSlotLocation::MakeSandboxTmpfs(
     ESandboxKind kind,
     i64 size,
     int userId,
-    const Stroka& path)
+    const Stroka& path,
+    bool enable)
 {
     return BIND([=, this_ = MakeStrong(this)] () {
         ValidateEnabled();
@@ -263,9 +264,16 @@ TFuture<Stroka> TSlotLocation::MakeSandboxTmpfs(
                 // If we mount directory inside sandbox, it should not exist.
                 ValidateNotExists(tmpfsPath);
             }
+
+            NFS::ForcePath(tmpfsPath);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Failed to mount tmpfs %v into sandbox %v", path, sandboxPath)
+            THROW_ERROR_EXCEPTION("Failed to create directory %Qv for tmpfs in sandbox %v", path, sandboxPath)
                 << ex;
+        }
+
+        if (!enable) {
+            // Skip actual tmpfs mount.
+            return tmpfsPath;
         }
 
         try {
@@ -278,7 +286,6 @@ TFuture<Stroka> TSlotLocation::MakeSandboxTmpfs(
 
             LOG_DEBUG("Mounting tmpfs %v", ConvertToYsonString(config, EYsonFormat::Text));
 
-            NFS::ForcePath(tmpfsPath);
             TMounter::Get()->Mount(config);
             if (isSandbox) {
                 // We must give user full access to his sandbox.
