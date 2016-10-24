@@ -408,8 +408,6 @@ public:
         }
         cell->Peers().clear();
 
-        cell->Peers().clear();
-
         AbortPrerequisiteTransaction(cell);
         AbortCellSubtreeTransactions(cell);
 
