@@ -537,7 +537,7 @@ std::vector<TChunkPtrWithIndexes> TChunkPlacement::GetBalancingChunks(
         if (!chunk->IsSealed()) {
             continue;
         }
-        if (chunk->GetRefreshScheduled()) {
+        if (chunk->GetScanFlag(EChunkScanKind::Refresh)) {
             continue;
         }
         if (chunk->IsJobScheduled()) {

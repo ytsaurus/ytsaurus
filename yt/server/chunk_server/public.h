@@ -109,6 +109,13 @@ DEFINE_BIT_ENUM(ECrossMediumChunkStatus,
     ((MediumWiseLost)    (0x0400)) // Lost on some media, but not others.
 );
 
+DEFINE_BIT_ENUM(EChunkScanKind,
+    ((None)             (0x0000))
+    ((Refresh)          (0x0001))
+    ((PropertiesUpdate) (0x0002))
+    ((Seal)             (0x0004))
+);
+
 typedef std::list<std::pair<TChunk*, int>> TChunkRepairQueue; // chunk + medium index
 typedef TChunkRepairQueue::iterator TChunkRepairQueueIterator;
 

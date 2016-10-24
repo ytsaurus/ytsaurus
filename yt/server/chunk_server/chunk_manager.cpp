@@ -98,6 +98,24 @@ static const auto ReplicaApproveTimeout = TDuration::Seconds(60);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TChunkToAllLinkedListNode
+{
+    auto operator() (TChunk* chunk) const
+    {
+        return &chunk->GetDynamicData()->AllLinkedListNode;
+    }
+};
+
+struct TChunkToJournalLinkedListNode
+{
+    auto operator() (TChunk* chunk) const
+    {
+        return &chunk->GetDynamicData()->JournalLinkedListNode;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkTreeBalancerCallbacks
     : public IChunkTreeBalancerCallbacks
 {
@@ -570,15 +588,10 @@ public:
 
     TChunkList* CreateChunkList(bool ordered = true)
     {
-        ++ChunkListsCreated_;
-        auto objectManager = Bootstrap_->GetObjectManager();
-        auto id = objectManager->GenerateId(EObjectType::ChunkList, NullObjectId);
-        auto chunkListHolder = std::make_unique<TChunkList>(id);
-        auto* chunk = ChunkListMap_.Insert(id, std::move(chunkListHolder));
-        chunk->SetOrdered(ordered);
+        auto* chunkList = DoCreateChunkList(ordered);
         LOG_DEBUG_UNLESS(IsRecovery(), "Chunk list created (Id: %v)",
-            id);
-        return chunk;
+            chunkList->GetId());
+        return chunkList;
     }
 
 
@@ -1114,6 +1127,10 @@ private:
     TChunkReplicatorPtr ChunkReplicator_;
     TChunkSealerPtr ChunkSealer_;
 
+    // Global chunk lists; cf. TChunkDynamicData.
+    TIntrusiveLinkedList<TChunk, TChunkToAllLinkedListNode> AllChunks_;
+    TIntrusiveLinkedList<TChunk, TChunkToJournalLinkedListNode> JournalChunks_;
+
     NHydra::TEntityMap<TChunk> ChunkMap_;
     NHydra::TEntityMap<TChunkList> ChunkListMap_;
 
@@ -1127,6 +1144,21 @@ private:
     TMediumId DefaultCacheMediumId_;
     TMedium* DefaultCacheMedium_ = nullptr;
 
+    TChunk* DoCreateChunk(EObjectType chunkType)
+    {
+        auto id = Bootstrap_->GetObjectManager()->GenerateId(chunkType, NullObjectId);
+        return DoCreateChunk(id);
+    }
+
+    TChunk* DoCreateChunk(const TChunkId& chunkId)
+    {
+        auto chunkHolder = std::make_unique<TChunk>(chunkId);
+        auto* chunk = ChunkMap_.Insert(chunkId, std::move(chunkHolder));
+        RegisterChunk(chunk);
+        ChunksCreated_++;
+        return chunk;
+    }
+
     void DestroyChunk(TChunk* chunk)
     {
         if (chunk->IsForeign()) {
@@ -1139,6 +1171,9 @@ private:
         // Cancel all jobs, reset status etc.
         if (ChunkReplicator_) {
             ChunkReplicator_->OnChunkDestroyed(chunk);
+        }
+        if (ChunkSealer_) {
+            ChunkSealer_->OnChunkDestroyed(chunk);
         }
 
         // Unregister chunk replicas from all known locations.
@@ -1169,7 +1204,21 @@ private:
             unregisterReplica(replica, true);
         }
 
+        UnregisterChunk(chunk);
+
         ++ChunksDestroyed_;
+    }
+
+
+    TChunkList* DoCreateChunkList(bool ordered = true)
+    {
+        ++ChunkListsCreated_;
+        auto objectManager = Bootstrap_->GetObjectManager();
+        auto id = objectManager->GenerateId(EObjectType::ChunkList, NullObjectId);
+        auto chunkListHolder = std::make_unique<TChunkList>(id);
+        auto* chunkList = ChunkListMap_.Insert(id, std::move(chunkListHolder));
+        chunkList->SetOrdered(ordered);
+        return chunkList;
     }
 
     void DestroyChunkList(TChunkList* chunkList)
@@ -1448,8 +1497,7 @@ private:
 
             auto* chunk = ChunkMap_.Find(chunkId);
             if (!chunk) {
-                auto chunkHolder = std::make_unique<TChunk>(chunkId);
-                chunk = ChunkMap_.Insert(chunkId, std::move(chunkHolder));
+                chunk = DoCreateChunk(chunkId);
                 chunk->SetForeign();
                 chunk->Confirm(importData.mutable_info(), importData.mutable_meta());
                 chunk->SetErasureCodec(NErasure::ECodec(importData.erasure_codec()));
@@ -1557,10 +1605,7 @@ private:
         }
 
         // NB: Once the chunk is created, no exceptions could be thrown.
-        ChunksCreated_++;
-        auto id = Bootstrap_->GetObjectManager()->GenerateId(chunkType, NullObjectId);
-        auto chunkHolder = std::make_unique<TChunk>(id);
-        auto* chunk = ChunkMap_.Insert(id, std::move(chunkHolder));
+        auto* chunk = DoCreateChunk(chunkType);
         chunk->SetReadQuorum(readQuorum);
         chunk->SetWriteQuorum(writeQuorum);
         chunk->SetErasureCodec(erasureCodecId);
@@ -1663,7 +1708,7 @@ private:
         std::vector<TChunkListId> chunkListIds;
         chunkListIds.reserve(count);
         for (int index = 0; index < count; ++index) {
-            auto* chunkList = CreateChunkList();
+            auto* chunkList = DoCreateChunkList();
             StageChunkTree(chunkList, transaction, nullptr);
             transactionManager->StageObject(transaction, chunkList);
             ToProto(subresponse->add_chunk_list_ids(), chunkList->GetId());
@@ -1777,6 +1822,8 @@ private:
         for (const auto& pair : ChunkMap_) {
             auto* chunk = pair.second;
 
+            RegisterChunk(chunk);
+
             auto addReplica = [&] (TNodePtrWithIndexes nodePtrWithIndexes, bool cached) {
                 TChunkPtrWithIndexes chunkPtrWithIndexes(
                     chunk,
@@ -1825,6 +1872,8 @@ private:
     {
         TMasterAutomatonPart::Clear();
 
+        AllChunks_.Clear();
+        JournalChunks_.Clear();
         ChunkMap_.Clear();
         ChunkListMap_.Clear();
         ForeignChunks_.clear();
@@ -2005,38 +2054,20 @@ private:
         ChunkReplicator_ = New<TChunkReplicator>(Config_, Bootstrap_, ChunkPlacement_);
         ChunkSealer_ = New<TChunkSealer>(Config_, Bootstrap_);
 
-        LOG_INFO("Scheduling full chunk refresh");
-        PROFILE_TIMING ("/full_chunk_refresh_schedule_time") {
-            auto nodeTracker = Bootstrap_->GetNodeTracker();
-            for (const auto& pair : nodeTracker->Nodes()) {
-                auto* node = pair.second;
-                ChunkReplicator_->OnNodeRegistered(node);
-                ChunkPlacement_->OnNodeRegistered(node);
-            }
-
-            for (const auto& pair : ChunkMap_) {
-                auto* chunk = pair.second;
-                if (!IsObjectAlive(chunk))
-                    continue;
-
-                ChunkReplicator_->ScheduleChunkRefresh(chunk);
-                ChunkReplicator_->SchedulePropertiesUpdate(chunk);
-
-                if (chunk->IsJournal()) {
-                    ChunkSealer_->ScheduleSeal(chunk);
-                }
-            }
-
+        auto nodeTracker = Bootstrap_->GetNodeTracker();
+        for (const auto& pair : nodeTracker->Nodes()) {
+            auto* node = pair.second;
+            ChunkReplicator_->OnNodeRegistered(node);
+            ChunkPlacement_->OnNodeRegistered(node);
         }
-        LOG_INFO("Full chunk refresh scheduled");
     }
 
     virtual void OnLeaderActive() override
     {
         TMasterAutomatonPart::OnLeaderActive();
 
-        ChunkReplicator_->Start();
-        ChunkSealer_->Start();
+        ChunkReplicator_->Start(AllChunks_.GetFront(), AllChunks_.GetSize());
+        ChunkSealer_->Start(JournalChunks_.GetFront(), JournalChunks_.GetSize());
     }
 
     virtual void OnStopLeading() override
@@ -2053,6 +2084,23 @@ private:
         if (ChunkSealer_) {
             ChunkSealer_->Stop();
             ChunkSealer_.Reset();
+        }
+    }
+
+
+    void RegisterChunk(TChunk* chunk)
+    {
+        AllChunks_.PushFront(chunk);
+        if (chunk->IsJournal()) {
+            JournalChunks_.PushFront(chunk);
+        }
+    }
+
+    void UnregisterChunk(TChunk* chunk)
+    {
+        AllChunks_.Remove(chunk);
+        if (chunk->IsJournal()) {
+            JournalChunks_.Remove(chunk);
         }
     }
 
@@ -2319,8 +2367,9 @@ private:
             return;
         }
 
-        Profiler.Enqueue("/refresh_list_size", ChunkReplicator_->GetRefreshListSize(), EMetricType::Gauge);
-        Profiler.Enqueue("/properties_update_list_size", ChunkReplicator_->GetPropertiesUpdateListSize(), EMetricType::Gauge);
+        Profiler.Enqueue("/refresh_queue_size", ChunkReplicator_->GetRefreshQueueSize(), EMetricType::Gauge);
+        Profiler.Enqueue("/properties_update_queue_size", ChunkReplicator_->GetPropertiesUpdateQueueSize(), EMetricType::Gauge);
+        Profiler.Enqueue("/seal_queue_size", ChunkSealer_->GetQueueSize(), EMetricType::Gauge);
 
         Profiler.Enqueue("/chunk_count", ChunkMap_.GetSize(), EMetricType::Gauge);
         Profiler.Enqueue("/chunks_created", ChunksCreated_, EMetricType::Counter);

@@ -18,10 +18,14 @@ public:
         NCellMaster::TBootstrap* bootstrap);
     ~TChunkSealer();
 
-    void Start();
+    void Start(TChunk* frontJournalChunk, int journalChunkCount);
     void Stop();
 
     void ScheduleSeal(TChunk* chunk);
+
+    void OnChunkDestroyed(NChunkServer::TChunk* chunk);
+
+    int GetQueueSize() const;
 
 private:
     class TImpl;

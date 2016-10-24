@@ -39,7 +39,7 @@ public:
         NCellMaster::TBootstrap* bootstrap,
         TChunkPlacementPtr chunkPlacement);
 
-    void Start();
+    void Start(TChunk* frontChunk, int chunkCount);
     void Stop();
 
     void OnNodeRegistered(TNode* node);
@@ -69,7 +69,6 @@ public:
     void OnChunkDestroyed(TChunk* chunk);
     void OnReplicaRemoved(TNode* node, TChunkPtrWithIndexes chunkWithIndexes, ERemoveReplicaReason reason);
 
-    void ScheduleChunkRefresh(const TChunkId& chunkId);
     void ScheduleChunkRefresh(TChunk* chunk);
     void ScheduleNodeRefresh(TNode* node);
 
@@ -95,8 +94,8 @@ public:
 
     bool IsEnabled();
 
-    int GetRefreshListSize() const;
-    int GetPropertiesUpdateListSize() const;
+    int GetRefreshQueueSize() const;
+    int GetPropertiesUpdateQueueSize() const;
 
 private:
     struct TPerMediumChunkStatistics
@@ -135,32 +134,27 @@ private:
         ECrossMediumChunkStatus Status = ECrossMediumChunkStatus::None;
     };
 
-    struct TRefreshEntry
-    {
-        TChunk* Chunk = nullptr;
-        NProfiling::TCpuInstant When;
-    };
-
     const TChunkManagerConfigPtr Config_;
     NCellMaster::TBootstrap* const Bootstrap_;
     const TChunkPlacementPtr ChunkPlacement_;
 
     NProfiling::TCpuDuration ChunkRefreshDelay_;
 
-    NConcurrency::TPeriodicExecutorPtr RefreshExecutor_;
-    std::deque<TRefreshEntry> RefreshList_;
+    const NConcurrency::TPeriodicExecutorPtr RefreshExecutor_;
+    const std::unique_ptr<TChunkScanner> RefreshScanner_;
 
-    NConcurrency::TPeriodicExecutorPtr PropertiesUpdateExecutor_;
-    std::deque<TChunk*> PropertiesUpdateList_;
+    const NConcurrency::TPeriodicExecutorPtr PropertiesUpdateExecutor_;
+    const std::unique_ptr<TChunkScanner> PropertiesUpdateScanner_;
 
     yhash_map<TJobId, TJobPtr> JobMap_;
 
     TChunkRepairQueue ChunkRepairQueue_;
 
-    NConcurrency::TPeriodicExecutorPtr EnabledCheckExecutor_;
-    bool Enabled_ = false;
+    const NConcurrency::TPeriodicExecutorPtr EnabledCheckExecutor_;
 
-    NConcurrency::IThroughputThrottlerPtr JobThrottler_;
+    const NConcurrency::IThroughputThrottlerPtr JobThrottler_;
+
+    bool Enabled_ = false;
 
 
     void ProcessExistingJobs(
@@ -242,6 +236,7 @@ private:
     bool IsReplicaDecommissioned(TNodePtrWithIndexes replica);
 
     void OnPropertiesUpdate();
+    void UpdateChunkProperties(TChunk* chunk, NProto::TReqUpdateChunkProperties* request);
 
     //! Computes the actual properties the chunk must have.
     TChunkProperties ComputeChunkProperties(TChunk* chunk);
