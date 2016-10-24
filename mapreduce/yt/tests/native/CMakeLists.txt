@@ -1,6 +1,9 @@
 PROGRAM(native)
 
-OWNER(monster)
+OWNER(
+    ermolovd
+    monster
+)
 
 SRCS(
     sample.proto
