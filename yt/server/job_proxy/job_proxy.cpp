@@ -458,6 +458,8 @@ TStatistics TJobProxy::GetStatistics() const
     statistics.AddSample("/job_proxy/max_memory", JobProxyMaxMemoryUsage_);
     statistics.AddSample("/job_proxy/memory_reserve", JobProxyMemoryReserve_);
 
+    statistics.SetTimestamp(TInstant::Now());
+
     return statistics;
 }
 
