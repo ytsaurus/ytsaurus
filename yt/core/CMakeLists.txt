@@ -27,6 +27,7 @@ SET(YT_SRCS
 
   ${CMAKE_CURRENT_LIST_DIR}/compression/brotli.cpp
   ${CMAKE_CURRENT_LIST_DIR}/compression/brotli_stream.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/compression/bzip2.cpp
   ${CMAKE_CURRENT_LIST_DIR}/compression/codec.cpp
   ${CMAKE_CURRENT_LIST_DIR}/compression/details.cpp
   ${CMAKE_CURRENT_LIST_DIR}/compression/helpers.cpp
@@ -282,6 +283,7 @@ llvm_map_components_to_libraries(
 list(REMOVE_ITEM REQUIRED_LLVM_LIBRARIES "-lz")
 
 target_link_libraries(yt-core
+  deps-arcadia-contrib-libs-libbz2
   deps-arcadia-contrib-libs-lzmasdk
   deps-arcadia-contrib-libs-snappy
   deps-arcadia-contrib-libs-zstd07

@@ -1,111 +1,68 @@
 import pytest
 
+from compression_testcases import TESTCASE_MAP
+
 from yt.wrapper.client import Yt
+from yt.packages.requests.exceptions import ConnectionError
 import yt.logger as logger
 
+import collections
+import hashlib
 import os
 import subprocess
 import sys
 
-class TestCompression(object):
-    codecs = [
-        "snappy",
-        "lz4",
-        "lz4_high_compression",
-        "lzma_0",
-        "lzma_1",
-        "lzma_2",
-        "lzma_3",
-        "lzma_4",
-        "lzma_5",
-        "lzma_6",
-        "lzma_7",
-        "lzma_8",
-        "lzma_9",
-        "quick_lz",
-        "brotli_1",
-        "brotli_2",
-        "brotli_3",
-        "brotli_4",
-        "brotli_5",
-        "brotli_6",
-        "brotli_7",
-        "brotli_8",
-        "brotli_9",
-        "brotli_10",
-        "brotli_11",
-        "zlib_1",
-        "zlib_2",
-        "zlib_3",
-        "zlib_4",
-        "zlib_5",
-        "zlib_6",
-        "zlib_7",
-        "zlib_8",
-        "zlib_9",
-        "zstd_1",
-        "zstd_2",
-        "zstd_3",
-        "zstd_4",
-        "zstd_5",
-        "zstd_6",
-        "zstd_7",
-        "zstd_8",
-        "zstd_9",
-        "zstd_10",
-        "zstd_11",
-        "zstd_12",
-        "zstd_13",
-        "zstd_14",
-        "zstd_15",
-        "zstd_16",
-        "zstd_17",
-        "zstd_18",
-        "zstd_19",
-        "zstd_20",
-        "zstd_21",
-        "zstd_legacy",
-    ]
+def get_shasum(data):
+    return hashlib.sha1(data).hexdigest()
 
-    testsets = ["YT-2072", "YT-5096"]
+def get_testcase_info_list():
+    TestCaseInfo = collections.namedtuple("TestCaseInfo", ["testset", "uncompressed_file", "compressed_file"])
+    result = []
+    for testset_name, testset_info in TESTCASE_MAP["testsets"].iteritems():
+        uncompressed_file = testset_info["uncompressed_file"]
+        for compressed_file in testset_info["compressed_files"]:
+            result.append(TestCaseInfo(testset_name, uncompressed_file, compressed_file))
+    return result
 
-    proxy = "locke.yt.yandex.net"
-    test_data_path = "//home/files/test_data/compression"
+@pytest.fixture(scope="module")
+def yt_proxy():
+    # If we have teamcity yt token use it otherwise use default token.
+    token = os.environ.get("TEAMCITY_YT_TOKEN", None)
+    yt_proxy = Yt(proxy=TESTCASE_MAP["proxy"], token=token)
+    try:
+        yt_proxy.exists("/")
+        return yt_proxy
+    except ConnectionError:
+        # If we have network errors we don't return client and tests will be skipped.
+        return None
 
-    def prepare(self):
-        self.client = Yt(proxy=self.proxy)
+class CachingFileGetter(object):
+    def __init__(self, yt_proxy):
+        self.yt_proxy = yt_proxy
+        self.cache = {}
 
-    def test_compression(self):
-        self.prepare()
-        for testset in self.testsets:
-            print >>sys.stderr, 'Using testset "{0}"'.format(testset)
+    def get_file(self, yt_path):
+        if yt_path not in self.cache:
+            self.cache[yt_path] = self.yt_proxy.read_file(yt_path).read()
+        return self.cache[yt_path]
 
-            testset_path = os.path.join(self.test_data_path, testset)
-            file_path = os.path.join(testset_path, "data")
-            try:
-                data = self.client.read_file(file_path).read()
-            except Exception as e:
-                logger.exception("Unable to download testset %s", file_path)
-                return
+@pytest.fixture(scope="module")
+def caching_file_getter(yt_proxy):
+    return CachingFileGetter(yt_proxy)
 
-            for codec in self.codecs:
-                codec_data = self.run_codec(codec, testset)
-                if codec_data is not None:
-                    assert codec_data == data
+@pytest.mark.parametrize("testcase_info", get_testcase_info_list())
+def test_compression(yt_proxy, caching_file_getter, testcase_info):
+    if yt_proxy is None:
+        pytest.skip("yt is unavailable")
+    uncompressed_data = caching_file_getter.get_file(testcase_info.uncompressed_file["yt_path"])
+    assert get_shasum(uncompressed_data) == testcase_info.uncompressed_file["shasum"]
+    compressed_data = yt_proxy.read_file(testcase_info.compressed_file["yt_path"]).read()
+    assert get_shasum(compressed_data) == testcase_info.compressed_file["shasum"]
 
-    def run_codec(self, codec, testset):
-        testset_path = os.path.join(self.test_data_path, testset)
-        file_path = "{0}/data.compressed.{1}".format(testset_path, codec)
-        try:
-            data = self.client.read_file(file_path).read()
-        except Exception as e:
-            logger.info("Unable to download compressed data %s", file_path)
-            return None
-
-        process = subprocess.Popen(
-            ["run_codec", "decompress", codec],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE)
-        stdout, stderr = process.communicate(data)
-        return stdout
-
+    process = subprocess.Popen(
+        ["run_codec", "decompress", testcase_info.compressed_file["codec"]],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE)
+    stdout, stderr = process.communicate(compressed_data)
+    assert process.returncode == 0, stderr
+    assert stdout == uncompressed_data
