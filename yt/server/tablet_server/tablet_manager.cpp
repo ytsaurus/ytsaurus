@@ -408,6 +408,8 @@ public:
         }
         cell->Peers().clear();
 
+        cell->Peers().clear();
+
         AbortPrerequisiteTransaction(cell);
         AbortCellSubtreeTransactions(cell);
 
@@ -1072,6 +1074,9 @@ private:
 
         for (const auto& pair : TabletCellMap_) {
             auto* cell = pair.second;
+            if (!IsObjectAlive(cell)) {
+                continue;
+            }
             for (const auto& peer : cell->Peers()) {
                 if (!peer.Descriptor.IsNull()) {
                     AddToAddressToCellMap(peer.Descriptor, cell);
@@ -1196,9 +1201,10 @@ private:
         yhash_set<TTabletCell*> expectedCells;
         for (const auto& slot : node->TabletSlots()) {
             auto* cell = slot.Cell;
-            if (IsObjectAlive(cell)) {
-                YCHECK(expectedCells.insert(cell).second);
+            if (!IsObjectAlive(cell)) {
+                continue;
             }
+            YCHECK(expectedCells.insert(cell).second);
         }
 
         // Figure out and analyze the reality.
@@ -1289,7 +1295,10 @@ private:
             auto range = AddressToCell_.equal_range(address);
             for (auto it = range.first; it != range.second; ++it) {
                 auto* cell = it->second;
-                if (IsObjectAlive(cell) && actualCells.find(cell) == actualCells.end()) {
+                if (!IsObjectAlive(cell)) {
+                    continue;
+                }
+                if (actualCells.find(cell) == actualCells.end()) {
                     requestCreateSlot(cell);
                     --availableSlots;
                 }
@@ -1349,8 +1358,9 @@ private:
 
         auto cellId = FromProto<TTabletCellId>(request->cell_id());
         auto* cell = FindTabletCell(cellId);
-        if (!IsObjectAlive(cell))
+        if (!IsObjectAlive(cell)) {
             return;
+        }
 
         const auto* mutationContext = GetCurrentMutationContext();
         auto mutationTimestamp = mutationContext->GetTimestamp();
@@ -1392,8 +1402,9 @@ private:
 
         auto cellId = FromProto<TTabletCellId>(request->cell_id());
         auto* cell = FindTabletCell(cellId);
-        if (!IsObjectAlive(cell))
+        if (!IsObjectAlive(cell)) {
             return;
+        }
 
         bool leadingPeerRevoked = false;
         for (auto peerId : request->peer_ids()) {
@@ -1416,8 +1427,9 @@ private:
 
         auto cellId = FromProto<TTabletCellId>(request->cell_id());
         auto* cell = FindTabletCell(cellId);
-        if (!IsObjectAlive(cell))
+        if (!IsObjectAlive(cell)) {
             return;
+        }
 
         auto peerId = request->peer_id();
         cell->SetLeadingPeerId(peerId);
@@ -1436,8 +1448,9 @@ private:
     {
         auto tabletId = FromProto<TTabletId>(response->tablet_id());
         auto* tablet = FindTablet(tabletId);
-        if (!IsObjectAlive(tablet))
+        if (!IsObjectAlive(tablet)) {
             return;
+        }
 
         if (tablet->GetState() != ETabletState::Mounting) {
             LOG_INFO_UNLESS(IsRecovery(), "Mounted notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
@@ -1464,8 +1477,9 @@ private:
     {
         auto tabletId = FromProto<TTabletId>(response->tablet_id());
         auto* tablet = FindTablet(tabletId);
-        if (!IsObjectAlive(tablet))
+        if (!IsObjectAlive(tablet)) {
             return;
+        }
 
         if (tablet->GetState() != ETabletState::Unmounting) {
             LOG_INFO_UNLESS(IsRecovery(), "Unmounted notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
@@ -1705,6 +1719,9 @@ private:
 
         for (const auto& pair : TabletCellMap_) {
             auto* cell = pair.second;
+            if (!IsObjectAlive(cell)) {
+                continue;
+            }
             UpdateCellDirectory(cell);
         }
 
@@ -1763,8 +1780,12 @@ private:
     {
         for (const auto& pair : TabletCellMap_) {
             auto* cell = pair.second;
-            if (cell->GetHealth() == ETabletCellHealth::Good)
+            if (!IsObjectAlive(cell)) {
+                continue;
+            }
+            if (cell->GetHealth() == ETabletCellHealth::Good) {
                 return;
+            }
         }
         THROW_ERROR_EXCEPTION("No healthy tablet cells");
     }
@@ -1820,6 +1841,9 @@ private:
         std::set<TCellKey> cellKeys;
         for (const auto& pair : TabletCellMap_) {
             auto* cell = pair.second;
+            if (!IsObjectAlive(cell)) {
+                continue;
+            }
             if (cell->GetHealth() == ETabletCellHealth::Good) {
                 YCHECK(cellKeys.insert(TCellKey{getCellSize(cell), cell}).second);
             }
@@ -2090,8 +2114,9 @@ private:
             for (const auto& pair : TabletCellMap_) {
                 const auto& cellId = pair.first;
                 const auto* cell = pair.second;
-                if (!IsObjectAlive(cell))
+                if (!IsObjectAlive(cell)) {
                     continue;
+                }
 
                 auto snapshotsPath = Format("//sys/tablet_cells/%v/snapshots", cellId);
                 IMapNodePtr snapshotsMap;
