@@ -1,6 +1,9 @@
 PYTEST()
 
-OWNER(monster)
+OWNER(
+    ermolovd
+    monster
+)
 
 TEST_SRCS(
     test.py

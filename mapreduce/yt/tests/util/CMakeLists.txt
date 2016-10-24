@@ -1,4 +1,7 @@
-OWNER(monster)
+OWNER(
+    ermolovd
+    monster
+)
 
 LIBRARY()
 

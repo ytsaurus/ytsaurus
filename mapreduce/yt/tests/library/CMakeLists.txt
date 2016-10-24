@@ -1,6 +1,9 @@
 PROGRAM(library)
 
-OWNER(monster)
+OWNER(
+    ermolovd
+    monster
+)
 
 SRCS(
     main.cpp

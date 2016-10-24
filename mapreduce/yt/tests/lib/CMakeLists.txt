@@ -1,6 +1,9 @@
 LIBRARY()
 
-OWNER(monster)
+OWNER(
+    ermolovd
+    monster
+)
 
 SRCS(
     lib.cpp
