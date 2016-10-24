@@ -588,15 +588,20 @@ private:
     {
         auto& table = OutputTables[0];
 
+        auto validateOutputNotSorted = [&] () {
+            if (table.TableUploadOptions.TableSchema.IsSorted()) {
+                THROW_ERROR_EXCEPTION("Cannot perform unordered merge into a sorted table in a \"strong\" schema mode")
+                    << TErrorAttribute("schema", table.TableUploadOptions.TableSchema);
+            }
+        };
+
         switch (Spec->SchemaInferenceMode) {
             case ESchemaInferenceMode::Auto:
                 if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
                     InferSchemaFromInputUnordered();
                 } else {
-                    if (table.TableUploadOptions.TableSchema.IsSorted()) {
-                        THROW_ERROR_EXCEPTION("Cannot perform unordered merge into a sorted table in a \"strong\" schema mode")
-                            << TErrorAttribute("schema", table.TableUploadOptions.TableSchema);
-                    }
+                    validateOutputNotSorted();
+
                     for (const auto& inputTable : InputTables) {
                         if (inputTable.SchemaMode == ETableSchemaMode::Strong) {
                             ValidateTableSchemaCompatibility(
@@ -614,6 +619,7 @@ private:
                 break;
 
             case ESchemaInferenceMode::FromOutput:
+                validateOutputNotSorted();
                 break;
 
             default:

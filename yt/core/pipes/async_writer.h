@@ -32,6 +32,16 @@ public:
     //! Thread-safe, can be called multiple times.
     TFuture<void> Abort();
 
+
+    //! Time spent waiting for write requests.
+    TFuture<TDuration> GetIdleDuration() const;
+
+    //! Time spent waiting for the pipe readiness and doing actual writes.
+    TFuture<TDuration> GetBusyDuration() const;
+
+    //! Number of bytes written so far.
+    i64 GetByteCount() const;
+
 private:
     NDetail::TAsyncWriterImplPtr Impl_;
     TNamedPipePtr NamedPipeHolder_;

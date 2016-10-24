@@ -1,15 +1,5 @@
 #!/usr/bin/python
 
-"""
-This script reshards given table into a particular number of tablets, taking into
-account several important factors:
-
-    * _Column type_. In particular, script distinguishes between signed and unsigned
-    integers.
-    * _Column expression_. In particular, script is capable of devising shards
-    for modulo columns.
-"""
-
 import argparse
 import copy
 import re
@@ -18,9 +8,6 @@ import logging
 
 import yt.wrapper as yt
 import yt.yson as yson
-
-#yt.config.VERSION = "v3"
-#yt.config.http.HEADER_FORMAT = "yson"
 
 
 GB = 1024 * 1024 * 1024
@@ -72,22 +59,23 @@ def reshard(table, shards=None, yes=False):
     logging.info("You have 5 seconds to press Ctrl+C to abort...")
     time.sleep(5)
 
-    has_tablets = "tablets" in yt.list(table + "/@")
-    if has_tablets:
-        logging.info("Unmounting %s", table)
-        yt.unmount_table(table)
-        while not all(x["state"] == "unmounted" for x in yt.get(table + "/@tablets")):
-            logging.info("Waiting for tablets to become unmounted...")
+    try:
+        has_tablets = "tablets" in yt.list(table + "/@")
+        if has_tablets:
+            logging.info("Unmounting %s", table)
+            yt.unmount_table(table)
+            while not all(x["state"] == "unmounted" for x in yt.get(table + "/@tablets")):
+                logging.info("Waiting for tablets to become unmounted...")
+                time.sleep(1)
+
+        logging.info("Resharding %s", table)
+        yt.reshard_table(table, pivot_keys)
+    finally:
+        logging.info("Mounting %s", table)
+        yt.mount_table(table)
+        while not all(x["state"] == "mounted" for x in yt.get(table + "/@tablets")):
+            logging.info("Waiting for tablets to become mounted...")
             time.sleep(1)
-
-    logging.info("Resharding %s", table)
-    yt.reshard_table(table, pivot_keys)
-
-    logging.info("Mounting %s", table)
-    yt.mount_table(table)
-    while not all(x["state"] == "mounted" for x in yt.get(table + "/@tablets")):
-        logging.info("Waiting for tablets to become mounted...")
-        time.sleep(1)
 
     logging.info("Done")
 
@@ -97,7 +85,7 @@ def main(args):
         process_manual(args.table, args.shards, args.yes)
     elif args.action == "auto":
         process_auto(args.table, args.include, args.exclude, args.root,
-                     args.desired_size_gbs, args.in_memory_only, args.yes)
+                     args.desired_size_gbs, args.desired_slack, args.in_memory_only, args.yes)
 
 
 def process_manual(table, shards, yes=False):
@@ -105,7 +93,7 @@ def process_manual(table, shards, yes=False):
 
 
 def process_auto(tables, include_regexps=[], exclude_regexps=[], root="/",
-                 desired_size_gbs=0, in_memory_only=False, yes=False):
+                 desired_size_gbs=0, desired_slack=1.15, in_memory_only=False, yes=False):
     tables = copy.deepcopy(tables)
 
     if root != "/" and len(tables) == 0 and len(include_regexps) == 0 and len(exclude_regexps) == 0:
@@ -122,7 +110,10 @@ def process_auto(tables, include_regexps=[], exclude_regexps=[], root="/",
             tables.append(str(table))
 
     if len(tables) == 0:
-        logging.error("You must specify at least one table with either `--table` or `--include`/`--exclude`")
+        logging.error("You must specify at least one table with either `--table` or `--include`/`--exclude` or `--root`")
+        logging.info("Root: %r", root)
+        logging.info("Include Regexps: %r", include_regexps)
+        logging.info("Exclude Regexps: %r", exclude_regexps)
         return
 
     for table in tables:
@@ -145,15 +136,18 @@ def process_auto(tables, include_regexps=[], exclude_regexps=[], root="/",
             desired_size_kind = "uncompressed"
 
         sizes = [tablet["statistics"]["%s_data_size" % desired_size_kind] for tablet in tablets]
+        slacks = [float(size) / float(desired_size_gbs * GB) for size in sizes]
 
-        if all(size < 5 * desired_size_gbs * GB / 4 for size in sizes):
-            logging.info("Table %s is well-enough balanced; skipping", table)
+        if all(slack < desired_slack for slack in slacks):
+            logging.info("Table %s is well-enough balanced (slack: %.2f .. %.2f); skipping",
+                         table, min(slacks), max(slacks))
             continue
 
         shards = 1 + sum(sizes) / (desired_size_gbs * GB)
 
         try:
-            logging.info("Resharding table %s into %d shards", table, shards)
+            logging.info("Resharding table %s into %d shards (slack: %.2f .. %.2f)",
+                         table, shards, min(slacks), max(slacks))
             reshard(table, shards, yes)
         except KeyboardInterrupt:
             raise
@@ -185,8 +179,10 @@ if __name__ == "__main__":
                              help="Root path to use for --include/--exclude search")
     auto_parser.add_argument("--in-memory-only", action="store_true", default=False,
                              help="Process only in-memory tables")
-    auto_parser.add_argument("--desired-size-gbs", metavar="N", type=long, required=False, default=0,
+    auto_parser.add_argument("--size-gbs", dest="desired_size_gbs", metavar="N", type=long, required=False, default=0,
                              help="Desired tablet size (in GBs)")
+    auto_parser.add_argument("--slack", dest="desired_slack", metavar="S", type=float, required=False, default=1.15,
+                             help="Allowed slack (1 = no slack; 1.15 = default)")
     auto_parser.set_defaults(table=[], include=[], exclude=[], root="/", action="auto")
 
     args = parser.parse_args()

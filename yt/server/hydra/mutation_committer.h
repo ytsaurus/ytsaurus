@@ -91,6 +91,9 @@ public:
     //! Resumes an earlier suspended mutation logging and sends out all pending mutations.
     void ResumeLogging();
 
+    //! Cleans things up, aborts all pending mutations with a human-readable error.
+    void Stop();
+
 
     //! Raised each time a checkpoint is needed.
     DEFINE_SIGNAL(void(), CheckpointNeeded);
@@ -111,7 +114,7 @@ private:
         const TMutationRequest& request,
         const TSharedRef& recordData,
         TFuture<void> localFlushResult);
-    void FlushCurrentBatch(TGuard<TSpinLock>* guard);
+    void FlushCurrentBatch();
 
     void OnAutoCheckpointCheck();
 

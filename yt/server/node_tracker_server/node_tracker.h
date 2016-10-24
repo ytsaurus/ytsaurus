@@ -127,6 +127,8 @@ public:
     //! Sets the user tags for the node.
     void SetNodeUserTags(TNode* node, const std::vector<Stroka>& tags);
 
+    //! Sets the flag disabling write sessions at the node.
+    void SetDisableWriteSessions(TNode* node, bool value);
 
     //! Creates a new rack with a given name. Throws on name conflict.
     TRack* CreateRack(const Stroka& name);

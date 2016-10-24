@@ -280,16 +280,12 @@ private:
                 {
                     LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", subquery->Id);
 
-                    TQueryOptions subqueryOptions;
-                    subqueryOptions.Timestamp = Options_.Timestamp;
-                    subqueryOptions.VerboseLogging = Options_.VerboseLogging;
-
                     auto asyncResult = remoteExecutor->Execute(
                         subquery,
                         externalCGInfo,
                         std::move(dataRanges),
                         writer,
-                        subqueryOptions);
+                        Options_);
 
                     asyncSubqueryResults->push_back(asyncResult);
 

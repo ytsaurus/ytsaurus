@@ -1810,7 +1810,7 @@ protected:
     {
         TOperationControllerBase::CustomPrepare();
 
-        auto user = Operation->GetAuthenticatedUser();
+        auto user = AuthenticatedUser;
         auto account = Spec->IntermediateDataAccount;
 
         auto client = Host->GetMasterClient();
@@ -1893,6 +1893,9 @@ private:
         auto& table = OutputTables[0];
         table.TableUploadOptions.LockMode = ELockMode::Exclusive;
         table.Options->EvaluateComputedColumns = false;
+
+        // Sort output MUST be sorted.
+        table.Options->ExplodeOnValidationError = true;
 
         switch (Spec->SchemaInferenceMode) {
             case ESchemaInferenceMode::Auto:

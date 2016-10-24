@@ -1,8 +1,12 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/server/cell_master/public.h>
 
 #include <yt/server/cypress_server/public.h>
+
+#include <yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/core/ytree/yson_serializable.h>
 
@@ -14,13 +18,13 @@ namespace NOrchid {
 struct TOrchidManifest
     : public NYTree::TYsonSerializable
 {
-    Stroka RemoteAddress;
+    NNodeTrackerClient::TAddressMap RemoteAddresses;
     Stroka RemoteRoot;
     TDuration Timeout;
 
     TOrchidManifest()
     {
-        RegisterParameter("remote_address", RemoteAddress);
+        RegisterParameter("remote_addresses", RemoteAddresses);
         RegisterParameter("remote_root", RemoteRoot)
             .Default("/");
         RegisterParameter("timeout", Timeout)
@@ -28,7 +32,7 @@ struct TOrchidManifest
     }
 };
 
-typedef TIntrusivePtr<TOrchidManifest> TOrchidManifestPtr;
+DEFINE_REFCOUNTED_TYPE(TOrchidManifest)
 
 ////////////////////////////////////////////////////////////////////////////////
 

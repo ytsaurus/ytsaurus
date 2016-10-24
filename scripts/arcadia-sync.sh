@@ -79,6 +79,7 @@ _ensure_up_to_date() {
 _fetch_svn_remote() {
     local lws=100000
     # work around problematic revisions
+    set -x
     git svn --svn-remote "$arc_remote" fetch --log-window-size ${lws} --revision 0:174921
     git svn --svn-remote "$arc_remote" fetch --log-window-size ${lws} --revision 174921:174922
     git svn --svn-remote "$arc_remote" fetch --log-window-size ${lws} --revision 174922:907136
@@ -86,6 +87,38 @@ _fetch_svn_remote() {
     git svn --svn-remote "$arc_remote" fetch --log-window-size ${lws} --revision 907137:2359112
     git svn --svn-remote "$arc_remote" fetch --log-window-size ${lws} --revision 2359112:2359113
     git svn --svn-remote "$arc_remote" fetch --log-window-size ${lws} --revision 2359113:HEAD
+    set +x
+}
+
+_find_most_recent_sync() {
+    local push_commit=""
+    local base_commit=""
+
+    git log \
+        --grep="^yt:git_commit:" \
+        --grep="^Push yt/" \
+        --all-match \
+        --pretty="format:BEGIN %H%n%s%n%n%b%nEND%n" \
+        "refs/remotes/${arc_remote}" | while read a b
+    do
+        case "$a" in
+        BEGIN)
+            push_commit="$b"
+            ;;
+        yt:git_commit:*)
+            base_commit="$(echo "$a" | cut -d : -f 3)"
+            ;;
+        END)
+            if [[ "$push_commit" != "" ]]; then
+                if [[ "$base_commit" != "" ]]; then
+                    echo "$push_commit" "$base_commit"
+                    break
+                fi
+            fi
+            push_commit=""
+            base_commit=""
+        esac
+    done
 }
 
 _find_most_recent_sync() {
@@ -163,12 +196,39 @@ do_pull() {
     message="$message"$'\n'"yt:svn_revision:$svn_revision"
     set -x
 
-    local branch=$(git symbolic-ref --short HEAD)
+    # In general, situation looks like this.
+    #
+    #   mainline  --(B)----(*)----(L)--..--HEAD
+    #                 \           /
+    #    arcadia  ----(P)--(*)--(*)--
+    #
+    # or
+    #
+    #   mainline  ----(L)--(*)--(B)--
+    #                 /           \
+    #    arcadia  --(*)----(*)----(P)--
+    #
+    # Here P is the latest push commit with base B, L is the latest pull commit,
+    # and we need to figure out how to properly merge Arcadia into mainline.
+    # To do this, we test whether merge base of two branches is ancestor of P.
 
-    git branch "arcadia" "$base_commit"
+    local merge_base=$(git merge-base HEAD "refs/remotes/${arc_remote}")
+
+    msg "Merge base is $merge_base"
+
+    if git merge-base --is-ancestor "$merge_base" "$push_commit" ; then
+        msg "Merge base preceedes latest push; merging via temporary branch."
+        git branch "arcadia" "$base_commit"
+    else
+        msg "Merge base succeedes latest push; merging directly."
+        git branch "arcadia" "HEAD"
+    fi
+
+    local head=$(git symbolic-ref --short HEAD)
+
     git checkout "arcadia"
     git merge -Xsubtree=yt "refs/remotes/${arc_remote}" -m "$message"
-    git checkout "$branch"
+    git checkout "$head"
     git merge "arcadia"
 
     msg "Merged Arcadia to HEAD!"
@@ -177,9 +237,11 @@ do_pull() {
 }
 
 do_push() {
-    msg "Pushing changes to Arcadia..."
+    msg "Pulling all remote changes onto HEAD..."
 
     _fetch_svn_remote
+
+    msg "Pushing changes to Arcadia..."
 
     local local_tree=$(git write-tree --prefix=yt/)
     local remote_tree=$(git cat-file -p "refs/remotes/${arc_remote}" | grep '^tree' | awk '{print $2}')
@@ -204,7 +266,7 @@ do_push() {
     message="$message"$'\n'"yt:last_svn_revision:$last_svn_revision"
     set -x
 
-    git svn --svn-remote "$arc_remote" commit-diff -r "$svn_revision" -m "$message" "$remote_tree" "$local_tree" "$arc"
+    git svn --svn-remote "$arc_remote" commit-diff -r "$last_svn_revision" -m "$message" "$remote_tree" "$local_tree" "$arc"
 }
 
 ################################################################################

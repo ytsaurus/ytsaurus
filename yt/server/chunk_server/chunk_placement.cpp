@@ -392,6 +392,11 @@ bool TChunkPlacement::IsValidWriteTarget(
         return false;
     }
 
+    if (node->GetDisableWriteSessions()) {
+        // Do not start new sessions if they are explicitly disabled.
+        return false;
+    }
+
     if (!collector->CheckNode(node, enableRackAwareness)) {
         // The collector does not like this node.
         return false;
