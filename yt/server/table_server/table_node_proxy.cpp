@@ -94,6 +94,9 @@ private:
         descriptors->push_back(TAttributeDescriptor("tablets")
             .SetPresent(isDynamic)
             .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor("tablet_states")
+            .SetPresent(isDynamic)
+            .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor("tablet_statistics")
             .SetPresent(isDynamic)
             .SetOpaque(true));
@@ -184,6 +187,17 @@ private:
                         .EndMap();
                 });
             return true;
+        }
+
+        if (key == "tablet_states" && table->IsDynamic()) {
+            TEnumIndexedVector<int, ETabletState> counts;
+            for (const auto& tablet : table->Tablets()) {
+                ++counts[tablet->GetState()];
+            }
+            BuildYsonFluently(consumer)
+                .DoMapFor(TEnumTraits<ETabletState>::GetDomainValues(), [&] (TFluentMap fluent, ETabletState state) {
+                    fluent.Item(FormatEnum(state)).Value(counts[state]);
+                });
         }
 
         if (key == "tablet_statistics" && table->IsDynamic()) {
