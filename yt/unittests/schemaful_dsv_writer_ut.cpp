@@ -57,9 +57,9 @@ protected:
         controlAttributesConfig->EnableTableIndex = Config_->EnableTableIndex;
         Writer_ = CreateSchemalessWriterForSchemafulDsv(
             Config_,
-            NameTable_, 
+            NameTable_,
             CreateAsyncAdapter(static_cast<TOutputStream*>(&OutputStream_)),
-            false, // enableContextSaving  
+            false, // enableContextSaving
             controlAttributesConfig,
             0 /* keyColumnCount */);
     }
@@ -93,11 +93,11 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, Simple)
     Writer_->Close()
         .Get()
         .ThrowOnError();
-    
+
     Stroka expectedOutput =
         "-42\ttrue\tvalue_a\n"
         "false\tvalue_c\t23\n";
-    EXPECT_EQ(expectedOutput, OutputStream_.Str()); 
+    EXPECT_EQ(expectedOutput, OutputStream_.Str());
 }
 
 // This test shows the actual behavior of writer. It is OK to change it in the future. :)
@@ -109,7 +109,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, TrickyDoubleRepresentations)
     row1.AddValue(MakeUnversionedDoubleValue(1.234567890123456, KeyAId_));
     row1.AddValue(MakeUnversionedDoubleValue(42, KeyBId_));
     row1.AddValue(MakeUnversionedDoubleValue(1e300, KeyCId_));
-    row1.AddValue(MakeUnversionedDoubleValue(-1e-300, KeyDId_));    
+    row1.AddValue(MakeUnversionedDoubleValue(-1e-300, KeyDId_));
 
     std::vector<TUnversionedRow> rows = {row1.GetRow()};
 
@@ -125,13 +125,13 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, IntegralTypeRepresentations)
 {
     Config_->Columns = {"column_a", "column_b", "column_c", "column_d"};
     CreateStandardWriter();
-    
+
     TUnversionedRowBuilder row1;
     row1.AddValue(MakeUnversionedInt64Value(0LL, KeyAId_));
     row1.AddValue(MakeUnversionedInt64Value(-1LL, KeyBId_));
     row1.AddValue(MakeUnversionedInt64Value(1LL, KeyCId_));
     row1.AddValue(MakeUnversionedInt64Value(99LL, KeyDId_));
-    
+
     TUnversionedRowBuilder row2;
     row2.AddValue(MakeUnversionedInt64Value(123LL, KeyAId_));
     row2.AddValue(MakeUnversionedInt64Value(-123LL, KeyBId_));
@@ -150,14 +150,14 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, IntegralTypeRepresentations)
     row4.AddValue(MakeUnversionedInt64Value(std::numeric_limits<i64>::min() + 1LL, KeyCId_));
     row4.AddValue(MakeUnversionedUint64Value(std::numeric_limits<ui64>::max(), KeyDId_));
 
-    std::vector<TUnversionedRow> rows = 
+    std::vector<TUnversionedRow> rows =
         {row1.GetRow(), row2.GetRow(), row3.GetRow(), row4.GetRow()};
 
     EXPECT_EQ(true, Writer_->Write(rows));
     Writer_->Close()
         .Get()
         .ThrowOnError();
-    Stroka expectedOutput = 
+    Stroka expectedOutput =
         "0\t-1\t1\t99\n"
         "123\t-123\t1234\t-1234\n"
         "0\t98\t987\t9876\n"
@@ -169,10 +169,10 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, EmptyColumnList)
 {
     Config_->Columns = std::vector<Stroka>();
     CreateStandardWriter();
-    
+
     TUnversionedRowBuilder row1;
     row1.AddValue(MakeUnversionedInt64Value(0LL, KeyAId_));
-    
+
 
     std::vector<TUnversionedRow> rows = { row1.GetRow() };
 
@@ -192,7 +192,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, MissingValueMode)
     row1.AddValue(MakeUnversionedStringValue("Value1A", KeyAId_));
     row1.AddValue(MakeUnversionedStringValue("Value1B", KeyBId_));
     row1.AddValue(MakeUnversionedStringValue("Value1C", KeyCId_));
-    
+
     TUnversionedRowBuilder row2;
     row2.AddValue(MakeUnversionedStringValue("Value2A", KeyAId_));
     row2.AddValue(MakeUnversionedStringValue("Value2C", KeyCId_));
@@ -201,10 +201,10 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, MissingValueMode)
     row3.AddValue(MakeUnversionedStringValue("Value3A", KeyAId_));
     row3.AddValue(MakeUnversionedStringValue("Value3B", KeyBId_));
     row3.AddValue(MakeUnversionedStringValue("Value3C", KeyCId_));
-    
-    std::vector<TUnversionedRow> rows = 
+
+    std::vector<TUnversionedRow> rows =
         {row1.GetRow(), row2.GetRow(), row3.GetRow()};
-    
+
     {
         Config_->MissingValueMode = EMissingSchemafulDsvValueMode::SkipRow;
         CreateStandardWriter();
@@ -212,7 +212,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, MissingValueMode)
         Writer_->Close()
             .Get()
             .ThrowOnError();
-        Stroka expectedOutput = 
+        Stroka expectedOutput =
             "Value1A\tValue1B\tValue1C\n"
             "Value3A\tValue3B\tValue3C\n";
         EXPECT_EQ(expectedOutput, OutputStream_.Str());
@@ -227,7 +227,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, MissingValueMode)
             .Get()
             .ThrowOnError(), std::exception);
         OutputStream_.Clear();
-    } 
+    }
 
     {
         Config_->MissingValueMode = EMissingSchemafulDsvValueMode::PrintSentinel;
@@ -237,7 +237,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, MissingValueMode)
         Writer_->Close()
             .Get()
             .ThrowOnError();
-        Stroka expectedOutput = 
+        Stroka expectedOutput =
             "Value1A\tValue1B\tValue1C\n"
             "Value2A\t~\tValue2C\n"
             "Value3A\tValue3B\tValue3C\n";
@@ -259,13 +259,13 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, TableIndex)
     Config_->Columns = {"column_a", "column_b", "column_c", "column_d"};
     Config_->EnableTableIndex = true;
     CreateStandardWriter();
-    
+
     TUnversionedRowBuilder row0;
     row0.AddValue(MakeUnversionedInt64Value(0LL, KeyAId_));
     row0.AddValue(MakeUnversionedInt64Value(1LL, KeyBId_));
     row0.AddValue(MakeUnversionedInt64Value(2LL, KeyCId_));
     row0.AddValue(MakeUnversionedInt64Value(3LL, KeyDId_));
-    
+
     // It's necessary to specify a column corresponding to the table index
     // when enable_table_index = true.
     EXPECT_EQ(false, Writer_->Write({row0.GetRow()}));
@@ -279,7 +279,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, TableIndex)
     row1.AddValue(MakeUnversionedInt64Value(2LL, KeyCId_));
     row1.AddValue(MakeUnversionedInt64Value(3LL, KeyDId_));
 
-    
+
     TUnversionedRowBuilder row2;
     row2.AddValue(MakeUnversionedInt64Value(42LL, TableIndexId_));
     row2.AddValue(MakeUnversionedInt64Value(4LL, KeyAId_));
@@ -288,7 +288,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, TableIndex)
     row2.AddValue(MakeUnversionedInt64Value(7LL, KeyDId_));
 
     EXPECT_EQ(true, Writer_->Write({row1.GetRow(), row2.GetRow()}));
- 
+
     TUnversionedRowBuilder row3;
     row3.AddValue(MakeUnversionedInt64Value(23LL, TableIndexId_));
     row3.AddValue(MakeUnversionedUint64Value(8LL, KeyAId_));
@@ -301,7 +301,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, TableIndex)
     Writer_->Close()
         .Get()
         .ThrowOnError();
-    Stroka expectedOutput = 
+    Stroka expectedOutput =
         "42\t0\t1\t2\t3\n"
         "42\t4\t5\t6\t7\n"
         "23\t8\t9\t10\t11\n";
@@ -314,6 +314,29 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, ValidateDuplicateNames)
     Config_->Columns = {"column_a", "column_b", "column_a"};
     Config_->EnableTableIndex = true;
     EXPECT_THROW(CreateStandardWriter(), TErrorException);
+}
+
+TEST_F(TSchemalessWriterForSchemafulDsvTest, ColumnsHeader)
+{
+    Config_->Columns = {"column_b", "column_c", "column_a"};
+    Config_->EnableColumnNamesHeader = true;
+    CreateStandardWriter();
+
+    TUnversionedRowBuilder row1;
+    row1.AddValue(MakeUnversionedStringValue("value_a", KeyAId_));
+    row1.AddValue(MakeUnversionedInt64Value(-42, KeyBId_));
+    row1.AddValue(MakeUnversionedBooleanValue(true, KeyCId_));
+    std::vector<TUnversionedRow> rows = {row1.GetRow()};
+
+    EXPECT_EQ(true, Writer_->Write(rows));
+    Writer_->Close()
+        .Get()
+        .ThrowOnError();
+
+    Stroka expectedOutput =
+        "column_b\tcolumn_c\tcolumn_a\n"
+        "-42\ttrue\tvalue_a\n";
+    EXPECT_EQ(expectedOutput, OutputStream_.Str());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

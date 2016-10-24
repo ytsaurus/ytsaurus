@@ -108,6 +108,10 @@ public:
         FairShareLoggingExecutor_->Stop();
         FairShareUpdateExecutor_->Stop();
 
+        // Do fair share update in order to rebuild tree snapshot
+        // to drop references to old nodes.
+        OnFairShareUpdate();
+
         LastPoolsNodeUpdate.Reset();
     }
 

@@ -9,6 +9,8 @@
 
 #include <yt/core/actions/public.h>
 
+#include <yt/core/misc/error.h>
+
 namespace NYT {
 namespace NFS {
 
@@ -136,6 +138,9 @@ void ChunkedCopy(
     const Stroka& existingPath, 
     const Stroka& newPath, 
     i64 chunkSize);
+
+TError AttachLsofOutput(TError error, const Stroka& path);
+TError AttachFindOutput(TError error, const Stroka& path);
 
 ////////////////////////////////////////////////////////////////////////////////
 

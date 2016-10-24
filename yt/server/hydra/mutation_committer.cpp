@@ -361,7 +361,7 @@ void TLeaderCommitter::Flush()
 
     auto guard = Guard(BatchSpinLock_);
     if (CurrentBatch_) {
-        FlushCurrentBatch(&guard);
+        FlushCurrentBatch();
     }
 }
 
@@ -418,6 +418,16 @@ void TLeaderCommitter::ResumeLogging()
     LoggingSuspended_ = false;
 }
 
+void TLeaderCommitter::Stop()
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    auto error = TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped");
+    for (auto& mutation : PendingMutations_) {
+        mutation.Promise.Set(error);
+    }
+}
+
 void TLeaderCommitter::AddToBatch(
     TVersion version,
     const TMutationRequest& request,
@@ -433,11 +443,11 @@ void TLeaderCommitter::AddToBatch(
         recordData,
         std::move(localFlushResult));
     if (batch->GetMutationCount() >= Config_->MaxCommitBatchRecordCount) {
-        FlushCurrentBatch(&guard);
+        FlushCurrentBatch();
     }
 }
 
-void TLeaderCommitter::FlushCurrentBatch(TGuard<TSpinLock>* guard)
+void TLeaderCommitter::FlushCurrentBatch()
 {
     VERIFY_SPINLOCK_AFFINITY(BatchSpinLock_);
 
@@ -445,8 +455,6 @@ void TLeaderCommitter::FlushCurrentBatch(TGuard<TSpinLock>* guard)
     std::swap(currentBatch, CurrentBatch_);
     PrevBatchQuorumFlushResult_ = currentBatch->GetQuorumFlushResult();
     TDelayedExecutor::CancelAndClear(BatchTimeoutCookie_);
-
-    guard->Release();
 
     currentBatch->Flush();
 
@@ -480,7 +488,7 @@ void TLeaderCommitter::OnBatchTimeout(const TBatchPtr& batch)
 
     auto guard = Guard(BatchSpinLock_);
     if (batch == CurrentBatch_) {
-        FlushCurrentBatch(&guard);
+        FlushCurrentBatch();
     }
 }
 

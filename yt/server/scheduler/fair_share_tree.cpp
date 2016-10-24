@@ -186,33 +186,17 @@ void TSchedulerElementBase::UpdateAttributes()
         Attributes_.DominantResource = GetDominantResource(usage, TotalResourceLimits_);
     }
 
+    Attributes_.DominantLimit = GetResource(TotalResourceLimits_, Attributes_.DominantResource);;
+
     i64 dominantDemand = GetResource(demand, Attributes_.DominantResource);
-    i64 dominantUsage = GetResource(usage, Attributes_.DominantResource);
-    i64 dominantLimit = GetResource(TotalResourceLimits_, Attributes_.DominantResource);
+    Attributes_.DemandRatio = ComputeDemandRatio(dominantDemand, Attributes_.DominantLimit);
 
-    Attributes_.DemandRatio =
-        dominantLimit == 0 ? 1.0 : (double) dominantDemand / dominantLimit;
+    auto possibleUsage = usage + ComputePossibleResourceUsage(maxPossibleResourceUsage - usage);
+    double possibleUsageRatio = GetDominantResourceUsage(possibleUsage, TotalResourceLimits_);
 
-    double usageRatio =
-        dominantLimit == 0 ? 0.0 : (double) dominantUsage / dominantLimit;
-
-    Attributes_.DominantLimit = dominantLimit;
-
-    Attributes_.MaxPossibleUsageRatio = GetMaxShareRatio();
-    if (usageRatio > RatioComputationPrecision) {
-        // In this case we know pool resource preferences and can take them into account.
-        // We find maximum number K such that Usage * K < Limit and use it to estimate
-        // maximum dominant resource usage.
-        Attributes_.MaxPossibleUsageRatio = std::min(
-            GetMinResourceRatio(maxPossibleResourceUsage, usage) * usageRatio,
-            Attributes_.MaxPossibleUsageRatio);
-    } else {
-        // In this case we have no information about pool resource preferences, so just assume
-        // that it uses all resources equally.
-        Attributes_.MaxPossibleUsageRatio = std::min(
-            Attributes_.DemandRatio,
-            Attributes_.MaxPossibleUsageRatio);
-    }
+    Attributes_.MaxPossibleUsageRatio = std::min(
+        possibleUsageRatio,
+        GetMaxShareRatio());
 }
 
 const TNullable<Stroka>& TSchedulerElementBase::GetNodeTag() const
@@ -504,6 +488,18 @@ void TCompositeSchedulerElement::UpdateTopDown(TDynamicAttributesList& dynamicAt
         UpdateChildPreemptionSettings(child);
         child->UpdateTopDown(dynamicAttributesList);
     }
+}
+
+TJobResources TCompositeSchedulerElement::ComputePossibleResourceUsage(TJobResources limit) const
+{
+    limit = Min(limit, MaxPossibleResourceUsage() - GetResourceUsage());
+    auto additionalUsage = ZeroJobResources();
+    for (const auto& child : EnabledChildren_) {
+        auto childUsage = child->ComputePossibleResourceUsage(limit);
+        limit -= childUsage;
+        additionalUsage += childUsage;
+    }
+    return additionalUsage;
 }
 
 double TCompositeSchedulerElement::GetFairShareStarvationToleranceLimit() const
@@ -1257,11 +1253,8 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
 {
     TWriterGuard guard(JobPropertiesMapLock_);
 
-    auto getUsageRatio = [&] (const TJobResources& resourcesUsage) {
-        auto dominantResource = GetDominantResource(resourcesUsage, totalResourceLimits);
-        i64 dominantLimit = GetResource(totalResourceLimits, dominantResource);
-        i64 usage = GetResource(resourcesUsage, dominantResource);
-        return dominantLimit == 0 ? 0.0 : (double) usage / dominantLimit;
+    auto getUsageRatio = [&] (const TJobResources& resourceUsage) {
+        return GetDominantResourceUsage(resourceUsage, totalResourceLimits);
     };
 
     auto balanceLists = [&] (
@@ -1568,6 +1561,17 @@ void TOperationElement::UpdateTopDown(TDynamicAttributesList& dynamicAttributesL
         StrategyConfig_->AggressivePreemptionSatisfactionThreshold);
 }
 
+TJobResources TOperationElement::ComputePossibleResourceUsage(TJobResources limit) const
+{
+    auto usage = GetResourceUsage();
+    limit = Min(limit, MaxPossibleResourceUsage() - usage);
+    if (usage == ZeroJobResources()) {
+        return limit;
+    } else {
+        return usage * GetMinResourceRatio(limit, usage);
+    }
+}
+
 void TOperationElement::UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList)
 {
     auto& attributes = dynamicAttributesList[this->GetTreeIndex()];
@@ -1675,7 +1679,6 @@ bool TOperationElement::ScheduleJob(TFairShareContext& context)
     context.SchedulingContext->ResourceUsage() += jobStartRequest.ResourceLimits;
     OnJobStarted(jobStartRequest.Id, jobStartRequest.ResourceLimits);
     auto job = context.SchedulingContext->StartJob(OperationId_, jobStartRequest);
-    context.JobToOperationElement[job] = this;
 
     UpdateDynamicAttributes(context.DynamicAttributesList);
     updateAncestorsAttributes();

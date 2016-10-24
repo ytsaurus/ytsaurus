@@ -972,6 +972,9 @@ private:
         table.TableUploadOptions.UpdateMode = EUpdateMode::Overwrite;
         table.TableUploadOptions.LockMode = ELockMode::Exclusive;
 
+        // Sorted merge output MUST be sorted.
+        table.Options->ExplodeOnValidationError = true;
+
         switch (Spec->SchemaInferenceMode) {
             case ESchemaInferenceMode::Auto:
                 if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
@@ -1235,6 +1238,12 @@ protected:
     void CollectEndpoints()
     {
         auto processSlice = [&] (const TInputDataSlicePtr& slice) {
+            if (slice->LowerLimit().Key >= slice->UpperLimit().Key) {
+                // This can happen if ranges were specified. 
+                // Chunk slice fetcher can produce empty slices.
+                return;
+            }
+
             TKeyEndpoint leftEndpoint;
             leftEndpoint.Type = EEndpointType::Left;
             leftEndpoint.DataSlice = slice;

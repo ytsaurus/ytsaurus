@@ -47,12 +47,12 @@ Stroka ToString(const TBoundaryKeys& keys);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TryGetBoundaryKeys(
+bool FindBoundaryKeys(
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
     TOwningKey* minKey,
     TOwningKey* maxKey);
 
-std::unique_ptr<TBoundaryKeys> GetBoundaryKeys(
+std::unique_ptr<TBoundaryKeys> FindBoundaryKeys(
     const NChunkClient::NProto::TChunkMeta& chunkMeta);
 
 NChunkClient::NProto::TChunkMeta FilterChunkMetaByPartitionTag(
