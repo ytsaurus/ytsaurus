@@ -5,6 +5,8 @@
 
 #include <yt/server/cypress_server/cypress_manager.pb.h>
 
+#include <yt/server/hydra/mutation.h>
+
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/hydra_facade.h>
 
@@ -14,6 +16,7 @@ namespace NYT {
 namespace NCypressServer {
 
 using namespace NConcurrency;
+using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,6 +35,18 @@ void TExpirationTracker::Start()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    LOG_INFO("Started registering node expiration (Count: %v)",
+        ExpiredNodes_.size());
+    for (auto* trunkNode : ExpiredNodes_) {
+        Y_ASSERT(!trunkNode->GetExpirationIterator());
+        auto expirationTime = trunkNode->GetExpirationTime();
+        if (expirationTime) {
+            RegisterNodeExpiration(trunkNode, *expirationTime);
+        }
+    }
+    ExpiredNodes_.clear();
+    LOG_INFO("Finished registering node expiration");
+
     YCHECK(!CheckExecutor_);
     CheckExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
@@ -39,18 +54,6 @@ void TExpirationTracker::Start()
         Config_->ExpirationCheckPeriod);
     CheckExecutor_->Start();
 
-    LOG_INFO("Started checking node expiration times");
-
-    auto cypressManager = Bootstrap_->GetCypressManager();
-    for (const auto& pair : cypressManager->Nodes()) {
-        auto* node = pair.second;
-        if (node->IsTrunk() && node->GetExpirationTime()) {
-            auto it = ExpirationTimeToNode_.insert(std::make_pair(*node->GetExpirationTime(), node));
-            node->SetExpirationIterator(it);
-        }
-    }
-
-    LOG_INFO("Finished checking node expiration times");
 }
 
 void TExpirationTracker::Stop()
@@ -58,7 +61,14 @@ void TExpirationTracker::Stop()
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     CheckExecutor_.Reset();
-    ExpirationTimeToNode_.clear();
+}
+
+void TExpirationTracker::Clear()
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    ExpirationMap_.clear();
+    ExpiredNodes_.clear();
 }
 
 void TExpirationTracker::OnNodeExpirationTimeUpdated(TCypressNodeBase* trunkNode)
@@ -90,6 +100,9 @@ void TExpirationTracker::OnNodeDestroyed(TCypressNodeBase* trunkNode)
     if (trunkNode->GetExpirationIterator()) {
         UnregisterNodeExpiration(trunkNode);
     }
+
+    // NB: Typically missing.
+    ExpiredNodes_.erase(trunkNode);
 }
 
 void TExpirationTracker::OnNodeRemovalFailed(TCypressNodeBase* trunkNode)
@@ -97,20 +110,31 @@ void TExpirationTracker::OnNodeRemovalFailed(TCypressNodeBase* trunkNode)
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     Y_ASSERT(trunkNode->IsTrunk());
 
-    if (!trunkNode->GetExpirationIterator() && trunkNode->GetExpirationTime()) {
-        RegisterNodeExpiration(trunkNode, TInstant::Now() + Config_->ExpirationBackoffTime);
+    if (trunkNode->GetExpirationIterator()) {
+        return;
     }
+
+    if (!trunkNode->GetExpirationTime()) {
+        return;
+    }
+
+    // NB: Typically missing at followers.
+    ExpiredNodes_.erase(trunkNode);
+
+    auto* mutationContext = GetCurrentMutationContext();
+    RegisterNodeExpiration(trunkNode, mutationContext->GetTimestamp() + Config_->ExpirationBackoffTime);
 }
 
 void TExpirationTracker::RegisterNodeExpiration(TCypressNodeBase* trunkNode, TInstant expirationTime)
 {
-    auto it = ExpirationTimeToNode_.insert(std::make_pair(expirationTime, trunkNode));
+    Y_ASSERT(ExpiredNodes_.find(trunkNode) == ExpiredNodes_.end());
+    auto it = ExpirationMap_.insert(std::make_pair(expirationTime, trunkNode));
     trunkNode->SetExpirationIterator(it);
 }
 
 void TExpirationTracker::UnregisterNodeExpiration(TCypressNodeBase* trunkNode)
 {
-    ExpirationTimeToNode_.erase(*trunkNode->GetExpirationIterator());
+    ExpirationMap_.erase(*trunkNode->GetExpirationIterator());
     trunkNode->SetExpirationIterator(Null);
 }
 
@@ -126,8 +150,8 @@ void TExpirationTracker::OnCheck()
     NProto::TReqRemoveExpiredNodes request;
 
     auto now = TInstant::Now();
-    while (!ExpirationTimeToNode_.empty() && request.node_ids_size() < Config_->MaxExpiredNodesRemovalsPerCommit) {
-        auto it = ExpirationTimeToNode_.begin();
+    while (!ExpirationMap_.empty() && request.node_ids_size() < Config_->MaxExpiredNodesRemovalsPerCommit) {
+        auto it = ExpirationMap_.begin();
         const auto& pair = *it;
         auto expirationTime = pair.first;
         auto* trunkNode = pair.second;
@@ -139,13 +163,14 @@ void TExpirationTracker::OnCheck()
 
         ToProto(request.add_node_ids(), trunkNode->GetId());
         UnregisterNodeExpiration(trunkNode);
+        YCHECK(ExpiredNodes_.insert(trunkNode).second);
     }
 
     if (request.node_ids_size() == 0) {
         return;
     }
 
-    LOG_DEBUG("Starting removal commit for %v expired nodes",
+    LOG_DEBUG("Starting removal commit for expired nodes (Count: %v)",
         request.node_ids_size());
 
     CreateMutation(hydraManager, request)

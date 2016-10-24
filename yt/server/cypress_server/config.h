@@ -42,8 +42,9 @@ public:
     int DefaultJournalWriteQuorum;
 
     TDuration ExpirationCheckPeriod;
-    TDuration ExpirationBackoffTime;
     int MaxExpiredNodesRemovalsPerCommit;
+    // NB: Changing this value will invalidate all changelogs!
+    TDuration ExpirationBackoffTime;
 
     TCypressManagerConfig()
     {
@@ -81,10 +82,10 @@ public:
 
         RegisterParameter("expiration_check_period", ExpirationCheckPeriod)
             .Default(TDuration::Seconds(1));
-        RegisterParameter("expiration_backoff_time", ExpirationBackoffTime)
-            .Default(TDuration::Seconds(10));
         RegisterParameter("max_expired_nodes_removals_per_commit", MaxExpiredNodesRemovalsPerCommit)
             .Default(1000);
+        RegisterParameter("expiration_backoff_time", ExpirationBackoffTime)
+            .Default(TDuration::Seconds(10));
 
         RegisterValidator([&] () {
             if (DefaultJournalReadQuorum + DefaultJournalWriteQuorum < DefaultJournalReplicationFactor + 1) {

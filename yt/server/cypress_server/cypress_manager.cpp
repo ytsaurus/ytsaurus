@@ -880,10 +880,7 @@ public:
         YCHECK(trunkNode->IsTrunk());
 
         trunkNode->SetExpirationTime(time);
-
-        if (Bootstrap_->IsPrimaryMaster() && HydraManager_->IsLeader()) {
-            ExpirationTracker_->OnNodeExpirationTimeUpdated(trunkNode);
-        }
+        ExpirationTracker_->OnNodeExpirationTimeUpdated(trunkNode);
     }
 
 
@@ -1145,6 +1142,8 @@ private:
 
         TMasterAutomatonPart::Clear();
 
+        ExpirationTracker_->Clear();
+
         NodeMap_.Clear();
         LockMap_.Clear();
 
@@ -1159,6 +1158,7 @@ private:
 
         auto transactionManager = Bootstrap_->GetTransactionManager();
 
+        LOG_INFO("Started initializing nodes");
         for (const auto& pair : NodeMap_) {
             auto* node = pair.second;
 
@@ -1217,7 +1217,12 @@ private:
                     chunkOwnerNode->SnapshotStatistics() = chunkList->Statistics().ToDataStatistics();
                 }
             }
+
+            if (node->IsTrunk() && node->GetExpirationTime()) {
+                ExpirationTracker_->OnNodeExpirationTimeUpdated(node);
+            }
         }
+        LOG_INFO("Finished initializing nodes");
 
         InitBuiltin();
     }
@@ -1350,9 +1355,7 @@ private:
 
         trunkNode->ResetLockingState();
 
-        if (HydraManager_->IsLeader()) {
-            ExpirationTracker_->OnNodeDestroyed(trunkNode);
-        }
+        ExpirationTracker_->OnNodeDestroyed(trunkNode);
 
         auto handler = GetHandler(trunkNode);
         handler->Destroy(trunkNode);
@@ -2236,9 +2239,7 @@ private:
                 LOG_DEBUG_UNLESS(IsRecovery(), error, "Cannot remove an expired node; backing off and retrying (NodeId: %v)",
                     nodeId);
 
-                if (Bootstrap_->IsPrimaryMaster() && HydraManager_->IsLeader()) {
-                    ExpirationTracker_->OnNodeRemovalFailed(trunkNode);
-                }
+                ExpirationTracker_->OnNodeRemovalFailed(trunkNode);
             }
         }
     }
