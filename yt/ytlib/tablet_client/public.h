@@ -33,6 +33,7 @@ DEFINE_ENUM(EErrorCode,
     ((TransactionLockConflict)  (1700))
     ((NoSuchTablet)             (1701))
     ((TabletNotMounted)         (1702))
+    ((AllWritesDisabled)        (1703))
 );
 
 static const int TypicalCellSize = 5;
