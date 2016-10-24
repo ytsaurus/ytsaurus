@@ -6,6 +6,7 @@
 #include "chunk_owner_base.h"
 #include "config.h"
 #include "helpers.h"
+#include "chunk_scanner.h"
 
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/hydra_facade.h>
@@ -35,6 +36,7 @@ using namespace NRpc;
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NObjectClient;
+using namespace NObjectServer;
 using namespace NJournalClient;
 using namespace NNodeTrackerClient;
 using namespace NChunkClient;
@@ -58,27 +60,28 @@ public:
         : Config_(config)
         , Bootstrap_(bootstrap)
         , Semaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentChunkSeals))
+        , SealExecutor_(New<TPeriodicExecutor>(
+            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkMaintenance),
+            BIND(&TImpl::OnRefresh, MakeWeak(this)),
+            Config_->ChunkRefreshPeriod))
+        , SealScanner_(std::make_unique<TChunkScanner>(
+            Bootstrap_->GetObjectManager(),
+            EChunkScanKind::Seal))
     {
         YCHECK(Config_);
         YCHECK(Bootstrap_);
     }
 
-    void Start()
+    void Start(TChunk* frontJournalChunk, int journalChunkCount)
     {
-        YCHECK(!RefreshExecutor_);
-        auto hydraFacade = Bootstrap_->GetHydraFacade();
-        RefreshExecutor_ = New<TPeriodicExecutor>(
-            hydraFacade->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkMaintenance),
-            BIND(&TImpl::OnRefresh, MakeWeak(this)),
-            Config_->ChunkRefreshPeriod);
-        RefreshExecutor_->Start();
+        SealScanner_->Start(frontJournalChunk, journalChunkCount);
+        SealExecutor_->Start();
     }
 
     void Stop()
     {
-        if (RefreshExecutor_) {
-            RefreshExecutor_->Stop();
-        }
+        SealScanner_->Stop();
+        SealExecutor_->Stop();
     }
 
     void ScheduleSeal(TChunk* chunk)
@@ -87,25 +90,35 @@ public:
         Y_ASSERT(chunk->IsJournal());
 
         if (IsSealNeeded(chunk)) {
-            EnqueueChunk(chunk);
+            SealScanner_->EnqueueChunk(chunk);
         }
+    }
+
+    void OnChunkDestroyed(TChunk* chunk)
+    {
+        SealScanner_->OnChunkDestroyed(chunk);
+    }
+
+    int GetQueueSize() const
+    {
+        return SealScanner_->GetQueueSize();
     }
 
 private:
     const TChunkManagerConfigPtr Config_;
     TBootstrap* const Bootstrap_;
 
-    TAsyncSemaphorePtr Semaphore_;
+    const TAsyncSemaphorePtr Semaphore_;
 
-    TPeriodicExecutorPtr RefreshExecutor_;
-
-    std::deque<TChunk*> SealQueue_;
+    const TPeriodicExecutorPtr SealExecutor_;
+    const std::unique_ptr<TChunkScanner> SealScanner_;
 
 
     static bool IsSealNeeded(TChunk* chunk)
     {
         return
-            chunk->IsAlive() &&
+            IsObjectAlive(chunk) &&
+            chunk->IsJournal() &&
             chunk->IsConfirmed() &&
             !chunk->IsSealed();
     }
@@ -143,94 +156,69 @@ private:
     }
 
 
-    void RescheduleSeal(TChunk* chunk)
+    void RescheduleSeal(const TChunkId& chunkId)
     {
+        auto chunkManager = Bootstrap_->GetChunkManager();
+        auto* chunk = chunkManager->FindChunk(chunkId);
         if (IsSealNeeded(chunk)) {
             EnqueueChunk(chunk);
         }
-        EndDequeueChunk(chunk);
     }
 
     void EnqueueChunk(TChunk* chunk)
     {
-        if (chunk->GetSealScheduled())
+        if (!SealScanner_->EnqueueChunk(chunk)) {
             return;
-
-        auto objectManager = Bootstrap_->GetObjectManager();
-        objectManager->WeakRefObject(chunk);
-
-        SealQueue_.push_back(chunk);
-        chunk->SetSealScheduled(true);
+        }
 
         LOG_DEBUG("Chunk added to seal queue (ChunkId: %v)",
             chunk->GetId());
     }
 
-    TChunk* BeginDequeueChunk()
-    {
-        if (SealQueue_.empty()) {
-            return nullptr;
-        }
-        auto* chunk = SealQueue_.front();
-        SealQueue_.pop_front();
-        if (chunk->IsAlive()) {
-            chunk->SetSealScheduled(false);
-        }
-        LOG_DEBUG("Chunk extracted from seal queue (ChunkId: %v)",
-            chunk->GetId());
-        return chunk;
-    }
-
-    void EndDequeueChunk(TChunk* chunk)
-    {
-        auto objectManager = Bootstrap_->GetObjectManager();
-        objectManager->WeakUnrefObject(chunk);
-    }
-
 
     void OnRefresh()
     {
-        int chunksDequeued = 0;
-        while (true) {
+        int totalCount = 0;
+        while (totalCount < Config_->MaxChunksPerSeal &&
+               SealScanner_->HasUnscannedChunk())
+        {
             auto guard = TAsyncSemaphoreGuard::TryAcquire(Semaphore_);
-            if (!guard)
+            if (!guard) {
                 return;
+            }
 
-            while (true) {
-                if (chunksDequeued >= Config_->MaxChunksPerRefresh)
-                    return;
+            ++totalCount;
 
-                auto* chunk = BeginDequeueChunk();
-                if (!chunk)
-                    return;
+            auto* chunk = SealScanner_->DequeueChunk();
+            if (!IsObjectAlive(chunk)) {
+                continue;
+            }
 
-                ++chunksDequeued;
-
-                if (!CanBeSealed(chunk)) {
-                    EndDequeueChunk(chunk);
-                    continue;
-                }
-
-                BIND(&TImpl::SealChunk, MakeStrong(this), chunk, Passed(std::move(guard)))
+            if (CanBeSealed(chunk)) {
+                BIND(&TImpl::SealChunk, MakeStrong(this), chunk->GetId(), Passed(std::move(guard)))
                     .AsyncVia(GetCurrentInvoker())
                     .Run();
             }
-
         }
     }
 
     void SealChunk(
-        TChunk* chunk,
+        const TChunkId& chunkId,
         TAsyncSemaphoreGuard /*guard*/)
     {
+        auto chunkManager = Bootstrap_->GetChunkManager();
+        auto* chunk = chunkManager->FindChunk(chunkId);
+        if (!CanBeSealed(chunk)) {
+            return;
+        }
+
         try {
             GuardedSealChunk(chunk);
-            EndDequeueChunk(chunk);
         } catch (const std::exception& ex) {
             LOG_WARNING(ex, "Error sealing journal chunk %v, backing off",
-                chunk->GetId());
+                chunkId);
             TDelayedExecutor::Submit(
-                BIND(&TImpl::RescheduleSeal, MakeStrong(this), chunk)
+                BIND(&TImpl::RescheduleSeal, MakeStrong(this), chunkId)
                     .Via(GetCurrentInvoker()),
                 Config_->ChunkSealBackoffTime);
         }
@@ -238,9 +226,6 @@ private:
 
     void GuardedSealChunk(TChunk* chunk)
     {
-        if (!CanBeSealed(chunk))
-            return;
-
         const auto& chunkId = chunk->GetId();
         LOG_INFO("Sealing journal chunk (ChunkId: %v)",
             chunkId);
@@ -295,7 +280,6 @@ private:
 
         LOG_INFO("Journal chunk sealed (ChunkId: %v)", chunk->GetId());
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -306,12 +290,11 @@ TChunkSealer::TChunkSealer(
     : Impl_(New<TImpl>(config, bootstrap))
 { }
 
-TChunkSealer::~TChunkSealer()
-{ }
+TChunkSealer::~TChunkSealer() = default;
 
-void TChunkSealer::Start()
+void TChunkSealer::Start(TChunk* frontJournalChunk, int journalChunkCount)
 {
-    Impl_->Start();
+    Impl_->Start(frontJournalChunk, journalChunkCount);
 }
 
 void TChunkSealer::Stop()
@@ -322,6 +305,16 @@ void TChunkSealer::Stop()
 void TChunkSealer::ScheduleSeal(TChunk* chunk)
 {
     Impl_->ScheduleSeal(chunk);
+}
+
+void TChunkSealer::OnChunkDestroyed(TChunk* chunk)
+{
+    Impl_->OnChunkDestroyed(chunk);
+}
+
+int TChunkSealer::GetQueueSize() const
+{
+    return Impl_->GetQueueSize();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

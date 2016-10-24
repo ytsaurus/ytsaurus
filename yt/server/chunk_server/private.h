@@ -11,12 +11,24 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NProto {
+
+class TReqUpdateChunkProperties;
+
+} // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
 extern const NLogging::TLogger ChunkServerLogger;
 extern const NProfiling::TProfiler ChunkServerProfiler;
+
+////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_STRUCT(IChunkVisitor)
 DECLARE_REFCOUNTED_STRUCT(IChunkTraverserCallbacks)
 DECLARE_REFCOUNTED_STRUCT(IChunkTreeBalancerCallbacks)
+
+class TChunkScanner;
 
 DEFINE_ENUM(EAddReplicaReason,
     (IncrementalHeartbeat)

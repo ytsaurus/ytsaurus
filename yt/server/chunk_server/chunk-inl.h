@@ -23,34 +23,26 @@ inline void TChunk::SetMovable(bool value)
     Movable_ = value;
 }
 
-inline bool TChunk::GetRefreshScheduled() const
+inline bool TChunk::GetScanFlag(EChunkScanKind kind) const
 {
-    return GetDynamicData()->Flags.RefreshScheduled;
+    return Any(GetDynamicData()->ScanFlags & kind);
 }
 
-inline void TChunk::SetRefreshScheduled(bool value)
+inline void TChunk::SetScanFlag(EChunkScanKind kind)
 {
-    GetDynamicData()->Flags.RefreshScheduled = value;
+    GetDynamicData()->ScanFlags |= kind;
 }
 
-inline bool TChunk::GetPropertiesUpdateScheduled() const
+inline void TChunk::ClearScanFlag(EChunkScanKind kind)
 {
-    return GetDynamicData()->Flags.PropertiesUpdateScheduled;
+    GetDynamicData()->ScanFlags &= ~kind;
 }
 
-inline void TChunk::SetPropertiesUpdateScheduled(bool value)
+inline TChunk* TChunk::GetNextScannedChunk(EChunkScanKind kind) const
 {
-    GetDynamicData()->Flags.PropertiesUpdateScheduled = value;
-}
-
-inline bool TChunk::GetSealScheduled() const
-{
-    return GetDynamicData()->Flags.SealScheduled;
-}
-
-inline void TChunk::SetSealScheduled(bool value)
-{
-    GetDynamicData()->Flags.SealScheduled = value;
+    auto* data = GetDynamicData();
+    auto& node = kind == EChunkScanKind::Seal ? data->JournalLinkedListNode : data->AllLinkedListNode;
+    return node.Next;
 }
 
 inline const TNullable<TChunkRepairQueueIterator>& TChunk::GetRepairQueueIterator() const
@@ -81,7 +73,7 @@ inline void TChunk::SetJob(TJobPtr job)
 inline void TChunk::Reset()
 {
     auto* data = GetDynamicData();
-    data->Flags = {};
+    data->ScanFlags = EChunkScanKind::None;
     data->RepairQueueIterator.Reset();
     data->Job.Reset();
 }

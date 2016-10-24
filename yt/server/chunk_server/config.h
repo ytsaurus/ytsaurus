@@ -72,6 +72,9 @@ public:
     //! Timeout for RPC requests to nodes during journal operations.
     TDuration JournalRpcTimeout;
 
+    //! Maximum number of chunks to process during a seal scan.
+    int MaxChunksPerSeal;
+
     //! Maximum number of chunks that can be sealed concurrently.
     int MaxConcurrentChunkSeals;
 
@@ -131,6 +134,9 @@ public:
         RegisterParameter("max_chunks_per_properties_update", MaxChunksPerPropertiesUpdate)
             .Default(10000);
 
+        RegisterParameter("max_chunks_per_seal", MaxChunksPerSeal)
+            .GreaterThan(0)
+            .Default(10000);
         RegisterParameter("chunk_seal_backoff_time", ChunkSealBackoffTime)
             .Default(TDuration::Seconds(30));
         RegisterParameter("journal_rpc_timeout", JournalRpcTimeout)

@@ -19,6 +19,7 @@
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref_tracked.h>
 #include <yt/core/misc/small_vector.h>
+#include <yt/core/misc/intrusive_linked_list.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -39,12 +40,8 @@ using TChunkExportDataList = TChunkExportData[NObjectClient::MaxSecondaryMasterC
 struct TChunkDynamicData
     : public NObjectServer::TObjectDynamicData
 {
-    struct
-    {
-        bool RefreshScheduled : 1;
-        bool PropertiesUpdateScheduled : 1;
-        bool SealScheduled : 1;
-    } Flags = {};
+    //! Indicates that certain background scans were scheduled for this chunk.
+    EChunkScanKind ScanFlags = EChunkScanKind::None;
 
     //! Contains a valid iterator for those chunks belonging to the repair queue
     //! and |Null| for others.
@@ -52,6 +49,12 @@ struct TChunkDynamicData
 
     //! The job that is currently scheduled for this chunk (at most one).
     TJobPtr Job;
+
+    //! All chunks are linked via this node.
+    TIntrusiveLinkedListNode<TChunk> AllLinkedListNode;
+
+    //! All journal chunks are linked via this node.
+    TIntrusiveLinkedListNode<TChunk> JournalLinkedListNode;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -107,14 +110,10 @@ public:
     bool GetMovable() const;
     void SetMovable(bool value);
 
-    bool GetRefreshScheduled() const;
-    void SetRefreshScheduled(bool value);
-
-    bool GetPropertiesUpdateScheduled() const;
-    void SetPropertiesUpdateScheduled(bool value);
-
-    bool GetSealScheduled() const;
-    void SetSealScheduled(bool value);
+    bool GetScanFlag(EChunkScanKind kind) const;
+    void SetScanFlag(EChunkScanKind kind);
+    void ClearScanFlag(EChunkScanKind kind);
+    TChunk* GetNextScannedChunk(EChunkScanKind kind) const;
 
     const TNullable<TChunkRepairQueueIterator>& GetRepairQueueIterator() const;
     void SetRepairQueueIterator(const TNullable<TChunkRepairQueueIterator>& value);
