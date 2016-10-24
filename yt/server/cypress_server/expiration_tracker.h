@@ -24,6 +24,8 @@ public:
     void Start();
     void Stop();
 
+    void Clear();
+
     void OnNodeExpirationTimeUpdated(TCypressNodeBase* trunkNode);
     void OnNodeDestroyed(TCypressNodeBase* trunkNode);
     void OnNodeRemovalFailed(TCypressNodeBase* trunkNode);
@@ -34,7 +36,8 @@ private:
 
     NConcurrency::TPeriodicExecutorPtr CheckExecutor_;
 
-    TCypressNodeExpirationMap ExpirationTimeToNode_;
+    TCypressNodeExpirationMap ExpirationMap_;
+    yhash_set<TCypressNodeBase*> ExpiredNodes_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
