@@ -346,7 +346,7 @@ Function* CodegenTupleComparerFunction(
                     returnIf(
                         builder.CreateICmpNE(lhsValue.IsNull(), rhsValue.IsNull()),
                         [&] (TCGIRBuilder&) {
-                            return builder.CreateICmpULT(lhsValue.IsNull(), rhsValue.IsNull());
+                            return builder.CreateICmpUGT(lhsValue.IsNull(), rhsValue.IsNull());
                         });
                 },
                 [&] (TCGIRBuilder& builder) {
