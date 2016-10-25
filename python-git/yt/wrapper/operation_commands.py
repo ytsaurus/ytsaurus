@@ -486,6 +486,9 @@ class OperationsTracker(object):
         """Adds Operation object to tracker.
         :param operation: (Operation) operation to track
         """
+        if operation is None:
+            return
+
         if not isinstance(operation, Operation):
             raise YtError("Valid Operation object should be passed "
                           "to add method, not {0}".format(repr(operation)))
@@ -566,3 +569,16 @@ class OperationsTracker(object):
             logger.info("Operation %s was aborted", id_)
 
         self.operations.clear()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_tb):
+        if exc_type is None:
+            self.wait_all()
+        else:
+            logger.warning(
+                "Error: (type=%s, value=%s), aborting all operations in tracker...",
+                type,
+                str(exc_value).replace("\n", "\\n"))
+            self.abort_all()

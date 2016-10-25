@@ -1032,6 +1032,19 @@ if __name__ == "__main__":
 
             tracker.wait_all(keep_finished=True)
             tracker.abort_all()
+
+            with tracker:
+                op = yt.run_map("sleep 2; true", table, TEST_DIR + "/out", sync=False)
+                tracker.add(op)
+            assert op.get_state() == "completed"
+
+            with pytest.raises(RuntimeError):
+                with tracker:
+                    op = yt.run_map("sleep 100; cat", table, TEST_DIR + "/out", sync=False)
+                    tracker.add(op)
+                    raise RuntimeError("error")
+
+            assert op.get_state() == "aborted"
         finally:
             logger.LOGGER.setLevel(old_level)
 
