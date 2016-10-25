@@ -1870,7 +1870,7 @@ private:
         auto evaluator = tableInfo->NeedKeyEvaluation ? evaluatorCache->Find(schema) : nullptr;
 
         for (int index = 0; index < keys.Size(); ++index) {
-            ValidateClientKey(keys[index], schema, idMapping);
+            ValidateClientKey(keys[index], schema, idMapping, nameTable);
             auto capturedKey = rowBuffer->CaptureAndPermuteRow(keys[index], schema, idMapping);
 
             if (evaluator) {
@@ -3251,7 +3251,7 @@ private:
         : public TRequestBase
     {
     protected:
-        using TRowValidator = void(TUnversionedRow, const TTableSchema&, const TNameTableToSchemaIdMapping&);
+        using TRowValidator = void(TUnversionedRow, const TTableSchema&, const TNameTableToSchemaIdMapping&, const TNameTablePtr&);
 
         TModifyRequest(
             TTransaction* transaction,
@@ -3276,7 +3276,7 @@ private:
             auto randomTabletInfo = TableInfo_->GetRandomMountedTablet();
 
             for (auto row : rows) {
-                validateRow(row, writeSchema, writeIdMapping);
+                validateRow(row, writeSchema, writeIdMapping, NameTable_);
 
                 auto capturedRow = rowBuffer->CaptureAndPermuteRow(row, primarySchema, primaryIdMapping);
 

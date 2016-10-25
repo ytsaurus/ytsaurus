@@ -359,7 +359,8 @@ void ValidateRowCount(int count);
 void ValidateClientDataRow(
     TUnversionedRow row,
     const TTableSchema& schema,
-    const TNameTableToSchemaIdMapping& idMapping);
+    const TNameTableToSchemaIdMapping& idMapping,
+    const TNameTablePtr& nameTable);
 
 //! Checks that #row is a valid server-side data row. Throws on failure.
 /*! The row must obey the following properties:
@@ -386,7 +387,8 @@ void ValidateClientKey(TKey key);
 void ValidateClientKey(
     TKey key,
     const TTableSchema& schema,
-    const TNameTableToSchemaIdMapping& idMappingPtr);
+    const TNameTableToSchemaIdMapping& idMappingPtr,
+    const TNameTablePtr& nameTable);
 
 //! Checks that #key is a valid server-side key. Throws on failure.
 /*! The key must obey the following properties:

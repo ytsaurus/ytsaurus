@@ -740,6 +740,7 @@ void ValidateClientRow(
     TUnversionedRow row,
     const TTableSchema& schema,
     const TNameTableToSchemaIdMapping& idMapping,
+    const TNameTablePtr& nameTable,
     bool isKey)
 {
     ValidateRowValueCount(row.GetCount());
@@ -750,7 +751,17 @@ void ValidateClientRow(
     for (const auto& value : row) {
         int mappedId = ApplyIdMapping(value, schema, &idMapping);
 
-        Y_ASSERT(mappedId >= 0 && mappedId < schema.Columns().size());
+        if (mappedId < 0 || mappedId > schema.Columns().size()) {
+            int size = nameTable->GetSize();
+            if (value.Id < 0 || value.Id >= size) {
+                THROW_ERROR_EXCEPTION("Expected value id in range [0:%v] but got %v",
+                    size - 1,
+                    value.Id);
+            }
+
+            THROW_ERROR_EXCEPTION("Unexpected column %Qv", nameTable->GetName(value.Id));
+        }
+
         const auto& column = schema.Columns()[mappedId];
         ValidateValueType(value, schema, mappedId);
 
@@ -976,9 +987,10 @@ void ValidateRowCount(int count)
 void ValidateClientDataRow(
     TUnversionedRow row,
     const TTableSchema& schema,
-    const TNameTableToSchemaIdMapping& idMapping)
+    const TNameTableToSchemaIdMapping& idMapping,
+    const TNameTablePtr& nameTable)
 {
-    ValidateClientRow(row, schema, idMapping, false);
+    ValidateClientRow(row, schema, idMapping, nameTable, false);
 }
 
 void ValidateServerDataRow(
@@ -998,9 +1010,10 @@ void ValidateClientKey(TKey key)
 void ValidateClientKey(
     TKey key,
     const TTableSchema& schema,
-    const TNameTableToSchemaIdMapping& idMapping)
+    const TNameTableToSchemaIdMapping& idMapping,
+    const TNameTablePtr& nameTable)
 {
-    ValidateClientRow(key, schema, idMapping, true);
+    ValidateClientRow(key, schema, idMapping, nameTable, true);
 }
 
 void ValidateServerKey(
