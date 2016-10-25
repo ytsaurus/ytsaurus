@@ -187,14 +187,6 @@ public:
         return Map_->Find(id);
     }
 
-    virtual void ResetAllObjects() override
-    {
-        for (const auto& pair : *Map_) {
-            auto* object = pair.second;
-            this->DoResetObject(object);
-        }
-    }
-
 protected:
     // We store map by a raw pointer. In most cases this should be OK.
     TMap* const Map_;
@@ -207,11 +199,6 @@ protected:
         if (acd) {
             acd->Clear();
         }
-    }
-
-    virtual void DoResetObject(TObject* object)
-    {
-        object->ResetWeakRefCounter();
     }
 };
 

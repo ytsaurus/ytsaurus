@@ -394,19 +394,6 @@ public:
 
     virtual void DestroyObject(TObjectBase* object) throw();
 
-    virtual void ResetAllObjects() override
-    {
-        // NB: All node type handlers share the same map.
-        // No need to reset nodes multiple times.
-        // NB: The choice of type is pretty much arbitrary.
-        if (GetType() ==  EObjectType::MapNode) {
-            auto cypressManager = Bootstrap_->GetCypressManager();
-            for (const auto& pair : cypressManager->Nodes()) {
-                DoResetObject(pair.second);
-            }
-        }
-    }
-
 private:
     TImpl* const Owner_;
     const INodeTypeHandlerPtr UnderlyingHandler_;
@@ -436,12 +423,6 @@ private:
     virtual TObjectBase* DoGetParent(TCypressNodeBase* node) override
     {
         return node->GetParent();
-    }
-
-    void DoResetObject(TCypressNodeBase* node)
-    {
-        node->ResetWeakRefCounter();
-        node->SetExpirationIterator(Null);
     }
 };
 

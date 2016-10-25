@@ -161,15 +161,6 @@ class TChunkManager::TChunkTypeHandlerBase
 public:
     explicit TChunkTypeHandlerBase(TImpl* owner);
 
-    virtual void ResetAllObjects() override
-    {
-        // NB: All chunk type handlers share the same map.
-        // No need to reset chunks multiple times.
-        if (GetType() == EObjectType::Chunk) {
-            TObjectTypeHandlerWithMapBase::ResetAllObjects();
-        }
-    }
-
     virtual TObjectBase* FindObject(const TObjectId& id) override
     {
         return Map_->Find(DecodeChunkId(id).Id);
@@ -184,12 +175,6 @@ protected:
     virtual void DoDestroyObject(TChunk* chunk) override;
 
     virtual void DoUnstageObject(TChunk* chunk, bool recursive) override;
-
-    virtual void DoResetObject(TChunk* chunk) override
-    {
-        TObjectTypeHandlerWithMapBase::DoResetObject(chunk);
-        chunk->Reset();
-    }
 
     virtual void DoExportObject(
         TChunk* chunk,

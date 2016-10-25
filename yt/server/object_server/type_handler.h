@@ -102,13 +102,6 @@ struct IObjectTypeHandler
     //! Returns the object containing parent ACL.
     virtual TObjectBase* GetParent(TObjectBase* object) = 0;
 
-    //! Resets the transient state of all managed objects.
-    /*!
-     *  This is called upon recovery startup.
-     *  Among other things, the handler must reset weak ref counters to zero.
-     */
-    virtual void ResetAllObjects() = 0;
-
     //! Informs #object that it has been exported (once) to cell #cellTag.
     virtual void ExportObject(
         TObjectBase* object,

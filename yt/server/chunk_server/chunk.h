@@ -37,7 +37,7 @@ using TChunkExportDataList = TChunkExportData[NObjectClient::MaxSecondaryMasterC
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChunkDynamicData
-    : public NHydra::TEntityDynamicDataBase
+    : public NObjectServer::TObjectDynamicData
 {
     struct
     {
