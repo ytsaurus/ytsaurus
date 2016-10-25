@@ -82,7 +82,13 @@ Py::Object TDriverResponse::Error(Py::Tuple& args, Py::Dict& kwargs)
     if (!Response_.IsSet()) {
         THROW_ERROR_EXCEPTION("Response is not set");
     }
-    return NYTree::ConvertTo<Py::Object>(Response_.Get());
+    Py::Object object;
+#if PY_MAJOR_VERSION < 3
+    Deserialize(object, NYTree::ConvertToNode(Response_.Get()), Null);
+#else
+    Deserialize(object, NYTree::ConvertToNode(Response_.Get()), MakeNullable<Stroka>("utf-8"));
+#endif
+    return object;
 }
 
 TDriverResponse::~TDriverResponse()
