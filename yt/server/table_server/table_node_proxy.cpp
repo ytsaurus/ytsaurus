@@ -94,7 +94,7 @@ private:
         descriptors->push_back(TAttributeDescriptor("tablets")
             .SetPresent(isDynamic)
             .SetOpaque(true));
-        descriptors->push_back(TAttributeDescriptor("tablet_states")
+        descriptors->push_back(TAttributeDescriptor("tablet_count_by_state")
             .SetPresent(isDynamic)
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor("tablet_statistics")
@@ -189,7 +189,7 @@ private:
             return true;
         }
 
-        if (key == "tablet_states" && table->IsDynamic()) {
+        if (key == "tablet_count_by_state" && table->IsDynamic()) {
             TEnumIndexedVector<int, ETabletState> counts;
             for (const auto& tablet : table->Tablets()) {
                 ++counts[tablet->GetState()];
@@ -198,6 +198,7 @@ private:
                 .DoMapFor(TEnumTraits<ETabletState>::GetDomainValues(), [&] (TFluentMap fluent, ETabletState state) {
                     fluent.Item(FormatEnum(state)).Value(counts[state]);
                 });
+            return true;
         }
 
         if (key == "tablet_statistics" && table->IsDynamic()) {
