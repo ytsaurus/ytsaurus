@@ -96,5 +96,40 @@ DEFINE_REFCOUNTED_TYPE(TJobControllerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TStatisticsReporterConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool Enabled;
+    TDuration ReportingPeriod;
+    TDuration MinRepeatDelay;
+    TDuration MaxRepeatDelay;
+    int MaxItemsInProgress;
+    int MaxItemsInBatch;
+    Stroka TableName;
+
+    TStatisticsReporterConfig()
+    {
+        RegisterParameter("enabled", Enabled)
+            .Default(false);
+        RegisterParameter("reporting_period", ReportingPeriod)
+            .Default(TDuration::Seconds(1));
+        RegisterParameter("min_repeat_delay", MinRepeatDelay)
+            .Default(TDuration::Seconds(5));
+        RegisterParameter("max_repeat_delay", MaxRepeatDelay)
+            .Default(TDuration::Minutes(5));
+        RegisterParameter("max_items_in_progress", MaxItemsInProgress)
+            .Default(200000);
+        RegisterParameter("max_items_in_batch", MaxItemsInBatch)
+            .Default(20000);
+        RegisterParameter("table_name", TableName)
+            .Default("//sys/operations_archive/jobs");
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TStatisticsReporterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NJobAgent
 } // namespace NYT

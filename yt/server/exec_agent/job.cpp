@@ -13,6 +13,7 @@
 #include <yt/server/data_node/chunk.h>
 
 #include <yt/server/job_agent/job.h>
+#include <yt/server/job_agent/statistics_reporter.h>
 
 #include <yt/server/scheduler/config.h>
 
@@ -406,6 +407,22 @@ public:
         return TYsonString(rsp->result());
     }
 
+    virtual void ReportStatistics(
+        const TNullable<TInstant>& startTime = {},
+        const TNullable<TInstant>& finishTime = {},
+        const TNullable<TError>& error = {}) override
+    {
+        Bootstrap_->GetStatisticsReporter()->ReportStatistics(
+            GetOperationId(),
+            GetId(),
+            GetType(),
+            GetState(),
+            startTime,
+            finishTime,
+            error,
+            Statistics_);
+    }
+
 private:
     const TJobId Id_;
     const TOperationId OperationId_;
@@ -603,6 +620,7 @@ private:
         }
 
         Cleanup();
+        ReportStatistics();
     }
 
     void GuardedAction(std::function<void()> action)

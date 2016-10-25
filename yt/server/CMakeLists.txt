@@ -163,6 +163,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/job_agent/job.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_agent/job_controller.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_agent/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_agent/statistics_reporter.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/job_detail.cpp

@@ -32,6 +32,7 @@
 #include <yt/server/exec_agent/supervisor_service.h>
 
 #include <yt/server/job_agent/job_controller.h>
+#include <yt/server/job_agent/statistics_reporter.h>
 
 #include <yt/server/misc/address_helpers.h>
 #include <yt/server/misc/build_attributes.h>
@@ -395,6 +396,10 @@ void TBootstrap::DoRun()
     JobController->RegisterFactory(NJobAgent::EJobType::RepairChunk,     createChunkJob);
     JobController->RegisterFactory(NJobAgent::EJobType::SealChunk,       createChunkJob);
 
+    StatisticsReporter = New<TStatisticsReporter>(
+        Config->ExecAgent->StatisticsReporter,
+        this);
+
     RpcServer->RegisterService(CreateJobProberService(this));
 
     RpcServer->RegisterService(New<TSupervisorService>(this));
@@ -531,6 +536,11 @@ IMapNodePtr TBootstrap::GetOrchidRoot() const
 TJobControllerPtr TBootstrap::GetJobController() const
 {
     return JobController;
+}
+
+TStatisticsReporterPtr TBootstrap::GetStatisticsReporter() const
+{
+    return StatisticsReporter;
 }
 
 NTabletNode::TSlotManagerPtr TBootstrap::GetTabletSlotManager() const

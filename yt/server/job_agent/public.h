@@ -22,8 +22,10 @@ using NJobTrackerClient::EJobPhase;
 DECLARE_REFCOUNTED_STRUCT(IJob)
 
 DECLARE_REFCOUNTED_CLASS(TJobController)
+DECLARE_REFCOUNTED_CLASS(TStatisticsReporter)
 DECLARE_REFCOUNTED_CLASS(TResourceLimitsConfig)
 DECLARE_REFCOUNTED_CLASS(TJobControllerConfig)
+DECLARE_REFCOUNTED_CLASS(TStatisticsReporterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
