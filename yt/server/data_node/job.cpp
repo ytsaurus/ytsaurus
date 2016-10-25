@@ -241,6 +241,14 @@ public:
         YUNREACHABLE();
     }
 
+    virtual void ReportStatistics(
+        const TNullable<TInstant>& startTime,
+        const TNullable<TInstant>& finishTime,
+        const TNullable<TError>& error) override
+    {
+        YUNREACHABLE();
+    }
+
 protected:
     const TJobId JobId_;
     const TJobSpec JobSpec_;

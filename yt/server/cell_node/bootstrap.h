@@ -56,6 +56,7 @@ public:
     NRpc::IChannelFactoryPtr GetTabletChannelFactory() const;
     NYTree::IMapNodePtr GetOrchidRoot() const;
     NJobAgent::TJobControllerPtr GetJobController() const;
+    NJobAgent::TStatisticsReporterPtr GetStatisticsReporter() const;
     NTabletNode::TSlotManagerPtr GetTabletSlotManager() const;
     NTabletNode::TSecurityManagerPtr GetSecurityManager() const;
     NTabletNode::TInMemoryManagerPtr GetInMemoryManager() const;
@@ -111,6 +112,7 @@ private:
     NRpc::IChannelFactoryPtr TabletChannelFactory;
     NYTree::IMapNodePtr OrchidRoot;
     NJobAgent::TJobControllerPtr JobController;
+    NJobAgent::TStatisticsReporterPtr StatisticsReporter;
     NExecAgent::TSlotManagerPtr ExecSlotManager;
     NJobProxy::TJobProxyConfigPtr JobProxyConfig;
     std::unique_ptr<TMemoryUsageTracker<NNodeTrackerClient::EMemoryCategory>> MemoryUsageTracker;

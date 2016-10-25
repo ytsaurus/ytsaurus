@@ -214,10 +214,12 @@ void TJobProxy::RetrieveJobSpec()
 
 void TJobProxy::Run()
 {
+    auto startTime = Now();
     auto resultOrError = BIND(&TJobProxy::DoRun, Unretained(this))
         .AsyncVia(JobThread_->GetInvoker())
         .Run()
         .Get();
+    auto finishTime = Now();
 
     TJobResult result;
     if (!resultOrError.IsOK()) {
@@ -260,7 +262,7 @@ void TJobProxy::Run()
         statistics = ConvertToYsonString(GetStatistics());
     }
 
-    ReportResult(result, statistics);
+    ReportResult(result, statistics, startTime, finishTime);
 }
 
 std::unique_ptr<IUserJobIO> TJobProxy::CreateUserJobIO()
@@ -409,7 +411,11 @@ TJobResult TJobProxy::DoRun()
     return Job_->Run();
 }
 
-void TJobProxy::ReportResult(const TJobResult& result, const TNullable<TYsonString>& statistics)
+void TJobProxy::ReportResult(
+    const TJobResult& result,
+    const TNullable<TYsonString>& statistics,
+    TInstant startTime,
+    TInstant finishTime)
 {
     if (!SupervisorProxy_) {
         LOG_ERROR("Supervisor channel is not available");
@@ -422,6 +428,8 @@ void TJobProxy::ReportResult(const TJobResult& result, const TNullable<TYsonStri
     if (statistics) {
         req->set_statistics(statistics->Data());
     }
+    req->set_start_time(ToProto(startTime));
+    req->set_finish_time(ToProto(finishTime));
 
     auto rspOrError = req->Invoke().Get();
     if (!rspOrError.IsOK()) {

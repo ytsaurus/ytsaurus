@@ -187,6 +187,7 @@ class TExecAgentConfig
 public:
     TSlotManagerConfigPtr SlotManager;
     NJobAgent::TJobControllerConfigPtr JobController;
+    NJobAgent::TStatisticsReporterConfigPtr StatisticsReporter;
     TSchedulerConnectorConfigPtr SchedulerConnector;
 
     NYTree::INodePtr JobProxyLogging;
@@ -202,6 +203,8 @@ public:
         RegisterParameter("slot_manager", SlotManager)
             .DefaultNew();
         RegisterParameter("job_controller", JobController)
+            .DefaultNew();
+        RegisterParameter("statistics_reporter", StatisticsReporter)
             .DefaultNew();
         RegisterParameter("scheduler_connector", SchedulerConnector)
             .DefaultNew();

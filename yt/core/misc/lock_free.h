@@ -19,6 +19,7 @@ public:
     ~TMultipleProducerSingleConsumerLockFreeStack();
 
     void Enqueue(const T& value);
+    void Enqueue(T&& value);
     bool Dequeue(T* value);
     std::vector<T> DequeueAll(bool reverse = false);
     template <class F>
