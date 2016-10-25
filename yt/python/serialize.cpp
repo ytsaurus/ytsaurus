@@ -528,7 +528,7 @@ void Deserialize(Py::Object& obj, INodePtr node, const TNullable<Stroka>& encodi
         auto map = Py::Dict();
         for (auto child : node->AsMap()->GetChildren()) {
             Py::Object item;
-            Deserialize(item, child.second);
+            Deserialize(item, child.second, encoding);
             map.setItem(~child.first, item);
         }
         obj = NPython::CreateYsonObject("YsonMap", map, attributes);
@@ -557,7 +557,7 @@ void Deserialize(Py::Object& obj, INodePtr node, const TNullable<Stroka>& encodi
         auto list = Py::List();
         for (auto child : node->AsList()->GetChildren()) {
             Py::Object item;
-            Deserialize(item, child);
+            Deserialize(item, child, encoding);
             list.append(item);
         }
         obj = NPython::CreateYsonObject("YsonList", list, attributes);
