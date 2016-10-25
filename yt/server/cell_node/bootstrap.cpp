@@ -254,8 +254,9 @@ void TBootstrap::DoRun()
         localAddresses,
         Config->Tags,
         this);
-
     MasterConnector->SubscribePopulateAlerts(BIND(&TBootstrap::PopulateAlerts, this));
+    MasterConnector->SubscribeMasterConnected(BIND(&TBootstrap::OnMasterConnected, this));
+    MasterConnector->SubscribeMasterDisconnected(BIND(&TBootstrap::OnMasterDisconnected, this));
 
     ChunkStore = New<NDataNode::TChunkStore>(Config->DataNode, this);
 
@@ -423,13 +424,13 @@ void TBootstrap::DoRun()
     RpcServer->RegisterService(CreateTimestampProxyService(
         MasterConnection->GetTimestampProvider()));
 
-    RpcServer->RegisterService(CreateMasterCacheService(
+    MasterCacheService = CreateMasterCacheService(
         Config->MasterCacheService,
         CreatePeerChannel(
             Config->ClusterConnection->PrimaryMaster,
             GetBusChannelFactory(),
             EPeerKind::Follower),
-        GetCellId()));
+        GetCellId());
 
     CellDirectorySynchronizer->Start();
 
@@ -754,6 +755,16 @@ TCellId TBootstrap::ToRedirectorCellId(const TCellId& cellId)
     return ReplaceCellTagInId(
         TCellId(0xffffffffULL, 0xffffffffULL),
         CellTagFromId(cellId));
+}
+
+void TBootstrap::OnMasterConnected()
+{
+    RpcServer->RegisterService(MasterCacheService);
+}
+
+void TBootstrap::OnMasterDisconnected()
+{
+    RpcServer->UnregisterService(MasterCacheService);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
