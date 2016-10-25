@@ -53,6 +53,8 @@ using namespace NRpc;
 using namespace NApi;
 using namespace NSecurityClient;
 using namespace NConcurrency;
+using NNodeTrackerClient::TAddressMap;
+using NNodeTrackerClient::GetDefaultAddress;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -470,9 +472,8 @@ private:
         explicit TRegistrationPipeline(TIntrusivePtr<TImpl> owner)
             : Owner(owner)
         {
-            auto localHostName = TAddressResolver::Get()->GetLocalHostName();
             int port = Owner->Bootstrap->GetConfig()->RpcPort;
-            ServiceAddress = BuildServiceAddress(localHostName, port);
+            ServiceAddresses = Owner->Bootstrap->GetLocalAddresses();
         }
 
         TMasterHandshakeResult Run()
@@ -491,7 +492,7 @@ private:
     private:
         const TIntrusivePtr<TImpl> Owner;
 
-        Stroka ServiceAddress;
+        TAddressMap ServiceAddresses;
         std::vector<TOperationId> OperationIds;
         TMasterHandshakeResult Result;
 
@@ -503,7 +504,7 @@ private:
                 ->GetMasterClient()
                 ->GetMasterChannelOrThrow(EMasterChannelKind::Leader));
             auto batchReq = proxy.ExecuteBatch();
-            auto path = "//sys/scheduler/instances/" + ToYPathLiteral(ServiceAddress);
+            auto path = "//sys/scheduler/instances/" + ToYPathLiteral(GetDefaultAddress(ServiceAddresses));
             {
                 auto req = TCypressYPathProxy::Create(path);
                 req->set_ignore_existing(true);
@@ -516,10 +517,7 @@ private:
                 req->set_ignore_existing(true);
                 req->set_type(static_cast<int>(EObjectType::Orchid));
                 auto attributes = CreateEphemeralAttributes();
-                // TODO(babenko): provide proper addresses
-                attributes->Set("remote_addresses", NNodeTrackerClient::TAddressMap{
-                    {NNodeTrackerClient::DefaultNetworkName, ServiceAddress}
-                });
+                attributes->Set("remote_addresses", ServiceAddresses);
                 ToProto(req->mutable_node_attributes(), *attributes);
                 GenerateMutationId(req);
                 batchReq->AddRequest(req);
@@ -536,7 +534,7 @@ private:
             options.AutoAbort = true;
             options.Timeout = Owner->Config->LockTransactionTimeout;
             auto attributes = CreateEphemeralAttributes();
-            attributes->Set("title", Format("Scheduler lock at %v", ServiceAddress));
+            attributes->Set("title", Format("Scheduler lock at %v", GetDefaultAddress(ServiceAddresses)));
             options.Attributes = std::move(attributes);
 
             auto client = Owner->Bootstrap->GetMasterClient();
