@@ -508,7 +508,7 @@ def create_table(path, recursive=None, ignore_existing=False,
     create("table", table, recursive=recursive, ignore_existing=ignore_existing,
            attributes=attributes, client=client)
 
-def create_temp_table(path=None, prefix=None, client=None):
+def create_temp_table(path=None, prefix=None, attributes=None, client=None):
     """Create temporary table by given path with given prefix and return name.
 
     :param path: (string or :py:class:`yt.wrapper.table.TablePath`) existing path, \
@@ -528,7 +528,7 @@ def create_temp_table(path=None, prefix=None, client=None):
         if not path.endswith("/"):
             path = path + "/"
     name = find_free_subpath(path, client=client)
-    create_table(name, client=client)
+    create_table(name, attributes=attributes, client=client)
     return name
 
 def write_table(table, input_stream, format=None, table_writer=None,
