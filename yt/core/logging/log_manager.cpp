@@ -290,6 +290,18 @@ public:
 
     void Shutdown()
     {
+        if (LoggingThread_->GetId() != ::TThread::CurrentThreadId()) {
+            // Waiting for output of all previous messages.
+            // Waiting no more than 1 second to prevent hanging.
+            auto now = TInstant::Now();
+            auto enqueuedEvents = EnqueuedEvents_.load();
+            while (enqueuedEvents > WrittenEvents_.load() &&
+                TInstant::Now() - now < Config_->ShutdownGraceTimeout)
+            {
+                SchedYield();
+            }
+        }
+
         EventQueue_->Shutdown();
         LoggingThread_->Shutdown();
         FlushWriters();
@@ -328,18 +340,6 @@ public:
 
             // Add fatal message to log and notify event log queue.
             PushLogEvent(std::move(event));
-
-            if (LoggingThread_->GetId() != ::TThread::CurrentThreadId()) {
-                // Waiting for output of all previous messages.
-                // Waiting no more than 1 second to prevent hanging.
-                auto now = TInstant::Now();
-                auto enqueuedEvents = EnqueuedEvents_.load();
-                while (enqueuedEvents > WrittenEvents_.load() &&
-                    TInstant::Now() - now < Config_->ShutdownGraceTimeout)
-                {
-                    SchedYield();
-                }
-            }
 
             // Flush everything and die.
             Shutdown();
