@@ -12,6 +12,17 @@ namespace NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TObjectDynamicData
+    : public NHydra::TEntityDynamicDataBase
+{
+    //! If the object is not locked or is a ghost then this is -1.
+    //! If the object is locked and is not a ghost then this is the index in the global list of
+    //! locked objects maintained by TGarbageCollector.
+    int LockedListIndex = -1;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Provides a base for all objects in YT master server.
 class TObjectBase
     : public NHydra::TEntityBase
@@ -19,6 +30,8 @@ class TObjectBase
 public:
     explicit TObjectBase(const TObjectId& id);
     virtual ~TObjectBase();
+
+    TObjectDynamicData* GetDynamicData() const;
 
     //! Marks the object as destroyed.
     void SetDestroyed();

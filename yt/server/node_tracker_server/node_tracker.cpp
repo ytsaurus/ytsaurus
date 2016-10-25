@@ -112,13 +112,6 @@ private:
     virtual IObjectProxyPtr DoGetProxy(TNode* node, TTransaction* transaction) override;
 
     virtual void DoZombifyObject(TNode* node) override;
-
-    virtual void DoResetObject(TNode* node) override
-    {
-        TObjectTypeHandlerWithMapBase::DoResetObject(node);
-        node->Reset();
-    }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1159,6 +1152,11 @@ private:
     virtual void OnRecoveryStarted() override
     {
         TMasterAutomatonPart::OnRecoveryStarted();
+
+        for (const auto& pair : NodeMap_) {
+            auto* node = pair.second;
+            node->Reset();
+        }
 
         Profiler.SetEnabled(false);
     }

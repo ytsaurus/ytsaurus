@@ -122,9 +122,6 @@ public:
         Y_UNREACHABLE();
     }
 
-    virtual void ResetAllObjects() override
-    { }
-
 private:
     virtual Stroka DoGetName(const TMasterObject* /*object*/) override
     {

@@ -27,7 +27,7 @@ namespace NCypressServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TCypressNodeDynamicData
-    : public NHydra::TEntityDynamicDataBase
+    : public NObjectServer::TObjectDynamicData
 {
     int AccessStatisticsUpdateIndex = -1;
     TNullable<TCypressNodeExpirationMap::iterator> ExpirationIterator;

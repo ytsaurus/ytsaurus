@@ -15,7 +15,7 @@ namespace NChunkServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChunkListDynamicData
-    : public NHydra::TEntityDynamicDataBase
+    : public NObjectServer::TObjectDynamicData
 {
     //! Used to mark visited chunk lists with "unique" marks.
     ui64 VisitMark = 0;

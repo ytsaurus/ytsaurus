@@ -20,6 +20,11 @@ inline TObjectBase::~TObjectBase()
     Flags_.Disposed = true;
 }
 
+inline TObjectDynamicData* TObjectBase::GetDynamicData() const
+{
+    return GetTypedDynamicData<TObjectDynamicData>();
+}
+
 inline void TObjectBase::SetDestroyed()
 {
     Y_ASSERT(RefCounter_ == 0);

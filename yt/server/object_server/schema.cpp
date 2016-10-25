@@ -116,9 +116,6 @@ public:
         Y_UNREACHABLE();
     }
 
-    virtual void ResetAllObjects() override
-    { }
-
 private:
     typedef TObjectTypeHandlerBase<TSchemaObject> TBase;
 

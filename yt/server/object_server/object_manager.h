@@ -250,7 +250,6 @@ private:
 
     int CreatedObjects_ = 0;
     int DestroyedObjects_ = 0;
-    int LockedObjectCount_ = 0;
 
     //! Stores schemas (for serialization mostly).
     NHydra::TEntityMap<TSchemaObject> SchemaMap_;

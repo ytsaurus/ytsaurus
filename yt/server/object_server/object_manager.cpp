@@ -543,6 +543,7 @@ TObjectId TObjectManager::GenerateId(EObjectType type, const TObjectId& hintId)
 int TObjectManager::RefObject(TObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
+    Y_ASSERT(!object->IsDestroyed());
     Y_ASSERT(object->IsTrunk());
 
     int refCounter = object->RefObject();
@@ -561,6 +562,7 @@ int TObjectManager::RefObject(TObjectBase* object)
 int TObjectManager::UnrefObject(TObjectBase* object, int count)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
+    Y_ASSERT(object->IsAlive());
     Y_ASSERT(object->IsTrunk());
 
     int refCounter = object->UnrefObject(count);
@@ -592,31 +594,12 @@ int TObjectManager::UnrefObject(TObjectBase* object, int count)
 
 int TObjectManager::WeakRefObject(TObjectBase* object)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-    Y_ASSERT(!IsRecovery());
-    Y_ASSERT(object->IsTrunk());
-
-    int weakRefCounter = object->WeakRefObject();
-    if (weakRefCounter == 1) {
-        ++LockedObjectCount_;
-    }
-    return weakRefCounter;
+    return GarbageCollector_->WeakRefObject(object);
 }
 
 int TObjectManager::WeakUnrefObject(TObjectBase* object)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-    Y_ASSERT(!IsRecovery());
-    Y_ASSERT(object->IsTrunk());
-
-    int weakRefCounter = object->WeakUnrefObject();
-    if (weakRefCounter == 0) {
-        --LockedObjectCount_;
-        if (!object->IsAlive()) {
-            GarbageCollector_->DisposeGhost(object);
-        }
-    }
-    return weakRefCounter;
+    return GarbageCollector_->WeakUnrefObject(object);
 }
 
 void TObjectManager::SaveKeys(NCellMaster::TSaveContext& context) const
@@ -671,7 +654,6 @@ void TObjectManager::Clear()
 
     CreatedObjects_ = 0;
     DestroyedObjects_ = 0;
-    LockedObjectCount_ = 0;
 
     GarbageCollector_->Clear();
 }
@@ -706,14 +688,6 @@ void TObjectManager::OnRecoveryStarted()
     Profiler.SetEnabled(false);
 
     GarbageCollector_->Reset();
-    LockedObjectCount_ = 0;
-
-    for (auto type : RegisteredTypes_) {
-        const auto& handler = GetHandler(type);
-        LOG_INFO("Started resetting objects (Type: %v)", type);
-        handler->ResetAllObjects();
-        LOG_INFO("Finished resetting objects (Type: %v)", type);
-    }
 }
 
 void TObjectManager::OnRecoveryComplete()
@@ -1286,7 +1260,7 @@ void TObjectManager::OnProfiling()
 
     Profiler.Enqueue("/zombie_object_count", GarbageCollector_->GetZombieCount(), EMetricType::Gauge);
     Profiler.Enqueue("/ghost_object_count", GarbageCollector_->GetGhostCount(), EMetricType::Gauge);
-    Profiler.Enqueue("/locked_object_count", LockedObjectCount_, EMetricType::Gauge);
+    Profiler.Enqueue("/locked_object_count", GarbageCollector_->GetLockedCount(), EMetricType::Gauge);
     Profiler.Enqueue("/created_objects", CreatedObjects_, EMetricType::Counter);
     Profiler.Enqueue("/destroyed_objects", DestroyedObjects_, EMetricType::Counter);
 }

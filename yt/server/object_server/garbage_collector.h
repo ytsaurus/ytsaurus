@@ -27,7 +27,6 @@ public:
     TGarbageCollector(
         TObjectManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
-    ~TGarbageCollector();
 
     void Start();
     void Stop();
@@ -38,11 +37,12 @@ public:
 
     TFuture<void> Collect();
 
+    int WeakRefObject(TObjectBase* object);
+    int WeakUnrefObject(TObjectBase* object);
+
     void RegisterZombie(TObjectBase* object);
     void UnregisterZombie(TObjectBase* object);
     void DestroyZombie(TObjectBase* object);
-
-    void DisposeGhost(TObjectBase* object);
 
     void Reset();
 
@@ -50,6 +50,7 @@ public:
 
     int GetZombieCount() const;
     int GetGhostCount() const;
+    int GetLockedCount() const;
 
 private:
     const TObjectManagerConfigPtr Config_;
@@ -68,11 +69,21 @@ private:
     //! This promise is set each time #GCQueue becomes empty.
     TPromise<void> CollectPromise_;
 
+    //! Contains pointer to all locked objects except for ghosts.
+    //! Cf. #TObjectDynamicData::LockedListIndex.
+    std::vector<TObjectBase*> LockedObjects_;
+
+    //! The total number of locked objects, including ghosts.
+    int LockedObjectCount_ = 0;
+
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
     void OnSweep();
     bool IsRecovery();
+
+    void RegisterLocked(TObjectBase* object);
+    void UnregisterLocked(TObjectBase* object);
 
 };
 
