@@ -299,6 +299,8 @@ void TMasterConnector::RegisterAtMaster()
         delta->State = EState::Registered;
     }
 
+    MasterConnected_.Fire();
+
     LOG_INFO("Successfully registered at primary master (NodeId: %v)",
         NodeId_);
 
@@ -804,6 +806,8 @@ void TMasterConnector::Reset()
         delta->AddedSinceLastSuccess.clear();
         delta->RemovedSinceLastSuccess.clear();
     }
+
+    MasterDisconnected_.Fire();
 
     LOG_INFO("Master disconnected");
 }
