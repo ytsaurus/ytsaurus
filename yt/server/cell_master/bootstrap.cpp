@@ -39,7 +39,7 @@
 
 #include <yt/server/object_server/object_manager.h>
 #include <yt/server/object_server/object_service.h>
-#include <yt/server/object_server/sys_node.h>
+#include <yt/server/object_server/sys_node_type_handler.h>
 
 #include <yt/server/orchid/cypress_integration.h>
 

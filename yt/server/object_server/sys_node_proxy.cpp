@@ -1,4 +1,4 @@
-#include "sys_node.h"
+#include "sys_node_proxy.h"
 #include "private.h"
 
 #include <yt/core/ytree/fluent.h>
@@ -122,35 +122,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSysNodeTypeHandler
-    : public TMapNodeTypeHandler
+ICypressNodeProxyPtr CreateSysNodeProxy(
+    TBootstrap* bootstrap,
+    TObjectTypeMetadata* metadata,
+    TTransaction* transaction,
+    TMapNode* trunkNode)
 {
-public:
-    explicit TSysNodeTypeHandler(TBootstrap* bootstrap)
-        : TMapNodeTypeHandler(bootstrap)
-    { }
-
-    virtual EObjectType GetObjectType() const override
-    {
-        return EObjectType::SysNode;
-    }
-
-private:
-    virtual ICypressNodeProxyPtr DoGetProxy(
-        TMapNode* trunkNode,
-        NTransactionServer::TTransaction* transaction) override
-    {
-        return New<TSysNodeProxy>(
-            Bootstrap_,
-            &Metadata_,
-            transaction,
-            trunkNode);
-    }
-};
-
-INodeTypeHandlerPtr CreateSysNodeTypeHandler(TBootstrap* bootstrap)
-{
-    return New<TSysNodeTypeHandler>(bootstrap);
+    return New<TSysNodeProxy>(
+        bootstrap,
+        metadata,
+        transaction,
+        trunkNode);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

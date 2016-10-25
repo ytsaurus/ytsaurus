@@ -233,7 +233,8 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/object_server/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/object_server/schema.cpp
   ${CMAKE_CURRENT_LIST_DIR}/object_server/staged_object.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/object_server/sys_node.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/object_server/sys_node_type_handler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/object_server/sys_node_proxy.cpp
   ${CMAKE_CURRENT_LIST_DIR}/object_server/type_handler.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/orchid/cypress_integration.cpp
