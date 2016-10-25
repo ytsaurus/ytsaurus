@@ -68,7 +68,13 @@ def make_request(command_name,
     if backend == "native":
         if is_data_compressed:
             raise YtError("Native driver does not support compressed input for file and tabular data")
-        result = native_driver.make_request(command_name, params, data, return_content=return_content, client=client)
+        result = native_driver.make_request(
+            command_name,
+            params,
+            data,
+            return_content=return_content,
+            decode_content=decode_content,
+            client=client)
     elif backend == "http":
         result = http_driver.make_request(
             command_name,
