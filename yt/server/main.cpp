@@ -635,6 +635,7 @@ void Main(int argc, const char* argv[])
         exitCode = EExitCode::BootstrapError;
     }
 
+    NLogging::TLogManager::StaticShutdown();
     Exit(exitCode);
 }
 
