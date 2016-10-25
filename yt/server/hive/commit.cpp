@@ -64,6 +64,9 @@ void TCommit::Load(TLoadContext& context)
 {
     using NYT::Load;
 
+    // COMPAT(savrus)
+    YCHECK(context.GetVersion() == 2);
+
     Persistent_ = true;
     Load(context, TransactionId_);
     Load(context, MutationId_);
