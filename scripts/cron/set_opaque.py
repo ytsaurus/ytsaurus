@@ -149,17 +149,23 @@ def print_pretty(fout, obj, indent=0):
 
 def main():
     parser = argparse.ArgumentParser(description="Set opaques to avoid heavy get requests and minimize number of requests to traverse all tree")
+    parser.add_argument("--path", default="/")
     parser.add_argument("--min-threshold", type=int, metavar="N", default=50,
                        help="Do not set opaque to nodes with less that N descendants")
     parser.add_argument("--max-threshold", type=int, metavar="N", default=5000,
                        help="Maximum number of nodes under one opaque node")
     parser.add_argument("--save", action="append",  help="Opaques to not remove")
+
+
     args = parser.parse_args()
 
     if args.save is None:
-        args.save = yt.list("/", absolute=True)
+        if args.path == "/":
+            args.save = yt.list("/", absolute=True)
+        else:
+            args.save = []
 
-    obj = get("/")
+    obj = get(args.path)
 
     tree = convert_to_tree(obj)
 
