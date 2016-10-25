@@ -7,7 +7,7 @@ from .response_stream import ResponseStream
 import yt.logger as logger
 import yt.yson as yson
 
-from yt.packages.six import binary_type
+from yt.packages.six import binary_type, PY3
 
 try:
     import yt_driver_bindings
@@ -62,6 +62,7 @@ def convert_to_stream(data):
 def make_request(command_name, params,
                  data=None,
                  return_content=True,
+                 decode_content=True,
                  client=None):
     driver = get_driver_instance(client)
 
@@ -106,7 +107,10 @@ def make_request(command_name, params,
         if not response.is_ok():
             raise YtResponseError(response.error())
         if output_stream is not None:
-            return output_stream.getvalue()
+            value = output_stream.getvalue()
+            if decode_content and PY3:
+                return value.decode("utf-8")
+            return value
     else:
         def process_error(request):
             if not response.is_ok():
