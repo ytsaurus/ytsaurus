@@ -487,7 +487,7 @@ void TServerBase::RegisterService(IServicePtr service)
         serviceId.RealmId);
 }
 
-void TServerBase::UnregisterService(IServicePtr service)
+bool TServerBase::UnregisterService(IServicePtr service)
 {
     YCHECK(service);
 
@@ -495,12 +495,17 @@ void TServerBase::UnregisterService(IServicePtr service)
 
     {
         TWriterGuard guard(ServicesLock_);
-        YCHECK(ServiceMap_.erase(serviceId) == 1);
+        auto it = ServiceMap_.find(serviceId);
+        if (it == ServiceMap_.end() || it->second != service) {
+            return false;
+        }
+        ServiceMap_.erase(it);
     }
 
     LOG_INFO("RPC service unregistered (ServiceName: %v, RealmId: %v)",
         serviceId.ServiceName,
         serviceId.RealmId);
+    return true;
 }
 
 IServicePtr TServerBase::FindService(const TServiceId& serviceId)
