@@ -59,10 +59,12 @@ def commit_transaction(transaction, sticky=False, client=None):
     params["sticky"] = sticky
     make_request("commit_tx", params, client=client)
 
-def ping_transaction(transaction, client=None):
+def ping_transaction(transaction, sticky=False, client=None):
     """Prolong transaction lifetime.
 
     :param transaction: (string) transaction id
     .. seealso:: `ping_tx on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#pingtx>`_
     """
-    make_request("ping_tx", transaction_params(transaction, client=client), client=client)
+    params = transaction_params(transaction, client=client)
+    params["sticky"] = sticky
+    make_request("ping_tx", params, client=client)
