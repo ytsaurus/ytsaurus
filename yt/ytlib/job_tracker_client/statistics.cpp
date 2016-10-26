@@ -4,7 +4,10 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 
+#include <yt/core/ypath/token.h>
+
 #include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/helpers.h>
 
 #include <util/string/util.h>
 
@@ -135,7 +138,7 @@ void TStatistics::AddSample(const NYPath::TYPath& path, const INodePtr& sample)
 
         case ENodeType::Map:
             for (auto& pair : sample->AsMap()->GetChildren()) {
-                AddSample(path + "/" + pair.first, pair.second);
+                AddSample(path + "/" + ToYPathLiteral(pair.first), pair.second);
             }
             break;
 
@@ -308,10 +311,10 @@ public:
     {
         if (AtAttributes_) {
             if (key != "timestamp") {
-                THROW_ERROR_EXCEPTION("Attribtues other than statistics are not allowed");
+                THROW_ERROR_EXCEPTION("Attributes other than \"timestamp\" are not allowed");
             }
         } else {
-            LastKey_ = key;
+            LastKey_ = ToYPathLiteral(key);
         }
     }
 
