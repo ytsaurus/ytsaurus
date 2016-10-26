@@ -356,7 +356,7 @@ public:
             auto securityManager = Bootstrap_->GetSecurityManager();
             auto* rootUser = securityManager->GetRootUser();
             TAuthenticatedUserGuard userGuard(securityManager, rootUser);
-            
+
             // Create Cypress node.
             {
                 auto req = TCypressYPathProxy::Create(cellNodePath);
@@ -475,6 +475,7 @@ public:
         tabletStatistics.PreloadPendingStoreCount = nodeStatistics.preload_pending_store_count();
         tabletStatistics.PreloadCompletedStoreCount = nodeStatistics.preload_completed_store_count();
         tabletStatistics.PreloadFailedStoreCount = nodeStatistics.preload_failed_store_count();
+        tabletStatistics.OverlappingStoreCount = nodeStatistics.overlapping_store_count();
         tabletStatistics.UnmergedRowCount = treeStatistics.RowCount;
         tabletStatistics.UncompressedDataSize = treeStatistics.UncompressedDataSize;
         tabletStatistics.CompressedDataSize = treeStatistics.CompressedDataSize;
