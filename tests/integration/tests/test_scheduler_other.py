@@ -56,6 +56,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
             "profiling_update_period": 100,
+            "fair_share_profiling_period": 100,
         }
     }
 
@@ -325,6 +326,7 @@ class TestSchedulerFunctionality2(YTEnvSetup, PrepareTables):
             "operation_time_limit_check_period" : 100,
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
+            "fair_share_profiling_period": 100,
         }
     }
 

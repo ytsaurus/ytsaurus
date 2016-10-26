@@ -58,6 +58,7 @@ public:
         , Host(host)
         , NonPreemptiveProfilingCounters("/non_preemptive")
         , PreemptiveProfilingCounters("/preemptive")
+        , LastProfilingTime_(TInstant::Zero())
     {
         RootElement = New<TRootElement>(Host, config);
 
@@ -528,10 +529,13 @@ public:
             }
 
             // Profiling.
-            for (const auto& pair : Pools) {
-                ProfileSchedulerElement(pair.second);
+            if (LastProfilingTime_ + Config->FairShareProfilingPeriod < now) {
+                LastProfilingTime_ = now;
+                for (const auto& pair : Pools) {
+                    ProfileSchedulerElement(pair.second);
+                }
+                ProfileSchedulerElement(RootElement);
             }
-            ProfileSchedulerElement(RootElement);
         }
 
         LOG_INFO("Fair share successfully updated");
@@ -622,6 +626,8 @@ private:
 
     TProfilingCounters NonPreemptiveProfilingCounters;
     TProfilingCounters PreemptiveProfilingCounters;
+
+    TInstant LastProfilingTime_;
 
     TPeriodicExecutorPtr FairShareUpdateExecutor_;
     TPeriodicExecutorPtr FairShareLoggingExecutor_;
