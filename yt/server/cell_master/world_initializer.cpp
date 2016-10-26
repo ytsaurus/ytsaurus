@@ -423,7 +423,7 @@ private:
             ScheduleCreateNode(
                 "//sys/tablet_cells",
                 transactionId,
-                EObjectType::MapNode,
+                EObjectType::TabletCellMap,
                 BuildYsonStringFluently()
                     .BeginMap()
                         .Item("opaque").Value(true)

@@ -51,6 +51,7 @@
 
 #include <yt/server/tablet_server/cypress_integration.h>
 #include <yt/server/tablet_server/tablet_manager.h>
+#include <yt/server/tablet_server/tablet_cell_map_type_handler.h>
 
 #include <yt/server/transaction_server/cypress_integration.h>
 #include <yt/server/transaction_server/timestamp_manager.h>
@@ -607,6 +608,7 @@ void TBootstrap::DoInitialize()
     CypressManager_->RegisterHandler(CreateUserMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateGroupMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateTabletCellNodeTypeHandler(this));
+    CypressManager_->RegisterHandler(CreateTabletCellMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateTabletMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateTabletCellBundleMapTypeHandler(this));
 

@@ -337,7 +337,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/tablet_node/transaction.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_node/transaction_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_node/transaction_manager.proto
-        ${CMAKE_CURRENT_LIST_DIR}/tablet_node/replicated_store_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_node/replicated_store_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_node/table_replicator.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/tablet_server/cypress_integration.cpp
@@ -358,6 +358,8 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/tablet_server/table_replica.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_server/table_replica_proxy.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_server/table_replica_type_handler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_server/tablet_cell_map_proxy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_server/tablet_cell_map_type_handler.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/transaction_server/cypress_integration.cpp
   ${CMAKE_CURRENT_LIST_DIR}/transaction_server/private.cpp

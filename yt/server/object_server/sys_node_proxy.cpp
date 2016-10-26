@@ -3,7 +3,6 @@
 
 #include <yt/core/ytree/fluent.h>
 
-#include <yt/server/cypress_server/node_detail.h>
 #include <yt/server/cypress_server/node_proxy_detail.h>
 
 #include <yt/server/hydra/hydra_manager.h>
