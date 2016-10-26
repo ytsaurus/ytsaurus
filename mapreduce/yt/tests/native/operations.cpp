@@ -284,6 +284,37 @@ YT_TEST(TOperation, IdMapperTypeProto)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+YT_TEST(TOperation, OrderedIdMapperNode)
+{
+    auto writer = Client()->CreateTableWriter<TNode>(Input());
+    for (int i = 0; i < 8; ++i) {
+        writer->AddRow(TNode()("a", i)("b", i * 2));
+    }
+    writer->Finish();
+
+    Client()->Sort(
+        TSortOperationSpec()
+            .AddInput(Input())
+            .Output(Input())
+            .SortBy("a")
+    );
+
+    Client()->Map(
+        TMapOperationSpec()
+            .AddInput<TNode>(TRichYPath(Input()).SortedBy("a"))
+            .AddOutput<TNode>(TRichYPath(Output()).SortedBy("a"))
+            .Ordered(true),
+        new TIdMapperNode
+    );
+
+    auto reader = Client()->CreateTableReader<TNode>(Output());
+    for (; reader->IsValid(); reader->Next()) {
+        Cout << "a = " << reader->GetRow()["a"].AsInt64() << Endl;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSimpleReducer
     : public IReducer<TTableReader<TNode>, TTableWriter<TNode>>
 {
