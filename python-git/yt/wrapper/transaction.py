@@ -75,8 +75,6 @@ class Transaction(object):
         timeout = get_value(timeout, get_total_request_timeout(client))
         if transaction_id == null_transaction_id:
             ping = False
-        if sticky:
-            ping = False
 
         self.transaction_id = transaction_id
         self.sticky = sticky
