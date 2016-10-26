@@ -2912,7 +2912,7 @@ private:
                 lookupOptions))
                 .ValueOrThrow();
 
-            const auto& rows = rowset->Rows();
+            const auto& rows = rowset->GetRows();
 
             YCHECK(!rows.empty());
 
