@@ -954,7 +954,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         stderrs_archive_path = "//sys/operations_archive/stderrs"
 
-        self.sync_create_cells(1)
+        self.sync_create_cells(1, 1)
         create("table", stderrs_archive_path,
             attributes={
                 "dynamic": True,
