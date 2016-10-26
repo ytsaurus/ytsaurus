@@ -105,7 +105,12 @@ class Transaction(object):
 
         if self._ping and self._started:
             delay = (timeout / 1000.0) / max(2, get_request_retry_count(self._client))
-            self._ping_thread = PingTransaction(self.transaction_id, delay, interrupt_on_failed=interrupt_on_failed, client=self._client)
+            self._ping_thread = PingTransaction(
+                self.transaction_id,
+                delay,
+                sticky=self.sticky,
+                interrupt_on_failed=interrupt_on_failed,
+                client=self._client)
             self._ping_thread.start()
 
     def abort(self):
@@ -187,13 +192,14 @@ class PingTransaction(Thread):
 
     Ping transaction in background thread.
     """
-    def __init__(self, transaction, delay, interrupt_on_failed=True, client=None):
+    def __init__(self, transaction, delay, sticky=False, interrupt_on_failed=True, client=None):
         """
         :param delay: delay in seconds
         """
         super(PingTransaction, self).__init__()
         self.transaction = transaction
         self.delay = delay
+        self.sticky = sticky
         self.interrupt_on_failed = interrupt_on_failed
         self.failed = False
         self.is_running = True
@@ -221,7 +227,7 @@ class PingTransaction(Thread):
     def run(self):
         while self.is_running:
             try:
-                ping_transaction(self.transaction, client=self._client)
+                ping_transaction(self.transaction, sticky=self.sticky, client=self._client)
             except:
                 self.failed = True
                 if self.interrupt_on_failed:
