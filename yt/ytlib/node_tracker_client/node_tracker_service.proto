@@ -71,6 +71,7 @@ message TTabletStatistics
     optional int32 preload_pending_store_count = 3 [default = 0];
     optional int32 preload_completed_store_count = 4 [default = 0];
     optional int32 preload_failed_store_count = 5 [default = 0];
+    optional int32 overlapping_store_count = 6 [default = 0];
 }
 
 message TTabletPerformanceCounters

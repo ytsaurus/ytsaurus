@@ -16,7 +16,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTabletStatistics::Persist(NCellMaster::TPersistenceContext& context)
+void TTabletCellStatistics::Persist(NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
 
@@ -36,7 +36,19 @@ void TTabletStatistics::Persist(NCellMaster::TPersistenceContext& context)
     }
 }
 
-TTabletStatistics& operator +=(TTabletStatistics& lhs, const TTabletStatistics& rhs)
+void TTabletStatistics::Persist(NCellMaster::TPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    TTabletCellStatistics::Persist(context);
+
+    // COMPAT(lukyan) YT-5909
+    if (context.IsSave() || context.LoadContext().GetVersion() >= 354) {
+        Persist(context, OverlappingStoreCount);
+    }
+}
+
+TTabletCellStatistics& operator +=(TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs)
 {
     lhs.UnmergedRowCount += rhs.UnmergedRowCount;
     lhs.UncompressedDataSize += rhs.UncompressedDataSize;
@@ -52,6 +64,21 @@ TTabletStatistics& operator +=(TTabletStatistics& lhs, const TTabletStatistics& 
     return lhs;
 }
 
+TTabletCellStatistics operator +(const TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs)
+{
+    auto result = lhs;
+    result += rhs;
+    return result;
+}
+
+TTabletStatistics& operator +=(TTabletStatistics& lhs, const TTabletStatistics& rhs)
+{
+    static_cast<TTabletCellStatistics&>(lhs) += rhs;
+
+    lhs.OverlappingStoreCount = std::max(lhs.OverlappingStoreCount, rhs.OverlappingStoreCount);
+    return lhs;
+}
+
 TTabletStatistics operator +(const TTabletStatistics& lhs, const TTabletStatistics& rhs)
 {
     auto result = lhs;
@@ -59,7 +86,7 @@ TTabletStatistics operator +(const TTabletStatistics& lhs, const TTabletStatisti
     return result;
 }
 
-TTabletStatistics& operator -=(TTabletStatistics& lhs, const TTabletStatistics& rhs)
+TTabletCellStatistics& operator -=(TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs)
 {
     lhs.UnmergedRowCount -= rhs.UnmergedRowCount;
     lhs.UncompressedDataSize -= rhs.UncompressedDataSize;
@@ -75,28 +102,47 @@ TTabletStatistics& operator -=(TTabletStatistics& lhs, const TTabletStatistics& 
     return lhs;
 }
 
-TTabletStatistics operator -(const TTabletStatistics& lhs, const TTabletStatistics& rhs)
+TTabletCellStatistics operator -(const TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs)
 {
     auto result = lhs;
     result -= rhs;
     return result;
 }
 
+void SerializeMembers(const TTabletCellStatistics& statistics, TFluentMap fluent)
+{
+    fluent
+        .Item("unmerged_row_count").Value(statistics.UnmergedRowCount)
+        .Item("uncompressed_data_size").Value(statistics.UncompressedDataSize)
+        .Item("compressed_data_size").Value(statistics.CompressedDataSize)
+        .Item("memory_size").Value(statistics.MemorySize)
+        .Item("disk_space").Value(statistics.DiskSpace)
+        .Item("chunk_count").Value(statistics.ChunkCount)
+        .Item("partition_count").Value(statistics.PartitionCount)
+        .Item("store_count").Value(statistics.StoreCount)
+        .Item("preload_pending_store_count").Value(statistics.PreloadPendingStoreCount)
+        .Item("preload_completed_store_count").Value(statistics.PreloadCompletedStoreCount)
+        .Item("preload_failed_store_count").Value(statistics.PreloadFailedStoreCount);
+}
+
+void Serialize(const TTabletCellStatistics& statistics, NYson::IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Do([&] (TFluentMap fluent) {
+                SerializeMembers(statistics, fluent);
+            })
+        .EndMap();
+}
+
 void Serialize(const TTabletStatistics& statistics, NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("unmerged_row_count").Value(statistics.UnmergedRowCount)
-            .Item("uncompressed_data_size").Value(statistics.UncompressedDataSize)
-            .Item("compressed_data_size").Value(statistics.CompressedDataSize)
-            .Item("memory_size").Value(statistics.MemorySize)
-            .Item("disk_space").Value(statistics.DiskSpace)
-            .Item("chunk_count").Value(statistics.ChunkCount)
-            .Item("partition_count").Value(statistics.PartitionCount)
-            .Item("store_count").Value(statistics.StoreCount)
-            .Item("preload_pending_store_count").Value(statistics.PreloadPendingStoreCount)
-            .Item("preload_completed_store_count").Value(statistics.PreloadCompletedStoreCount)
-            .Item("preload_failed_store_count").Value(statistics.PreloadFailedStoreCount)
+            .Do([&] (TFluentMap fluent) {
+                SerializeMembers(statistics, fluent);
+            })
+            .Item("overlapping_store_count").Value(statistics.OverlappingStoreCount)
         .EndMap();
 }
 
