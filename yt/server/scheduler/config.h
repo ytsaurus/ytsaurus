@@ -37,6 +37,7 @@ public:
     double FairShareStarvationToleranceLimit;
 
     TDuration FairShareUpdatePeriod;
+    TDuration FairShareProfilingPeriod;
     TDuration FairShareLogPeriod;
 
     //! Any operation with usage less than this cannot be preempted.
@@ -95,6 +96,10 @@ public:
         RegisterParameter("fair_share_update_period", FairShareUpdatePeriod)
             .InRange(TDuration::MilliSeconds(10), TDuration::Seconds(60))
             .Default(TDuration::MilliSeconds(1000));
+
+        RegisterParameter("fair_share_profiling_period", FairShareProfilingPeriod)
+            .InRange(TDuration::MilliSeconds(10), TDuration::Seconds(60))
+            .Default(TDuration::MilliSeconds(5000));
 
         RegisterParameter("fair_share_log_period", FairShareLogPeriod)
             .InRange(TDuration::MilliSeconds(10), TDuration::Seconds(60))
