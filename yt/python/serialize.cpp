@@ -520,7 +520,7 @@ void Deserialize(Py::Object& obj, INodePtr node, const TNullable<Stroka>& encodi
 {
     Py::Object attributes = Py::Dict();
     if (!node->Attributes().List().empty()) {
-        Deserialize(attributes, node->Attributes().ToMap());
+        Deserialize(attributes, node->Attributes().ToMap(), encoding);
     }
 
     auto type = node->GetType();
