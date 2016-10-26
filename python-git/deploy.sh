@@ -111,7 +111,7 @@ fi
 
 # Upload python wheel
 if [ -z "$SKIP_WHEEL" ]; then
-    python setup.py bdist_wheel upload -r yandex
+    python setup.py bdist_wheel --universal upload -r yandex
 fi
 
 # Some postprocess steps
