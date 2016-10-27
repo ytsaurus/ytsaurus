@@ -146,6 +146,7 @@ private:
     TSimpleCounter DequeuedCounter_ = {"/dequeued"};
     TSimpleCounter DroppedCounter_ = {"/dropped"};
     TSimpleCounter CommittedCounter_ = {"/committed"};
+    TSimpleCounter CommittedDataWeightCounter_ = {"/committed_data_weight"};
 
     void OnReporting()
     {
@@ -184,8 +185,9 @@ private:
 
     void TryWriteBatch(const TStatisticsBatch& batch)
     {
-        LOG_DEBUG("Job statistics transaction starting (ItemCount: %v)",
-            batch.size());
+        LOG_DEBUG("Job statistics transaction starting (ItemCount: %v, PendingItems: %v)",
+            batch.size(),
+            InProgressCount_.load());
         auto asyncTransaction = Client_->StartTransaction(ETransactionType::Tablet);
         auto transactionOrError = WaitFor(asyncTransaction);
         auto transaction = transactionOrError.ValueOrThrow();
@@ -196,6 +198,7 @@ private:
         std::vector<TUnversionedRow> rows;
         auto rowBuffer = New<TRowBuffer>(TJobStatisticsTag());
 
+        size_t dataWeight = 0;
         for (auto&& item : batch) {
             TUnversionedRowBuilder builder;
             builder.AddValue(MakeUnversionedUint64Value(item.OperationId.Parts64[0], Table_.Ids.OperationIdHi));
@@ -205,10 +208,10 @@ private:
             builder.AddValue(MakeUnversionedStringValue(item.JobType, Table_.Ids.Type));
             builder.AddValue(MakeUnversionedStringValue(item.JobState, Table_.Ids.State));
             if (item.StartTime) {
-                builder.AddValue(MakeUnversionedUint64Value(*item.StartTime, Table_.Ids.StartTime));
+                builder.AddValue(MakeUnversionedInt64Value(*item.StartTime, Table_.Ids.StartTime));
             }
             if (item.FinishTime) {
-                builder.AddValue(MakeUnversionedUint64Value(*item.FinishTime, Table_.Ids.FinishTime));
+                builder.AddValue(MakeUnversionedInt64Value(*item.FinishTime, Table_.Ids.FinishTime));
             }
             builder.AddValue(MakeUnversionedStringValue(DefaultLocalAddress_, Table_.Ids.Address));
             if (item.Error) {
@@ -218,6 +221,7 @@ private:
                 builder.AddValue(MakeUnversionedAnyValue(*item.Statistics, Table_.Ids.Statistics));
             }
             rows.push_back(rowBuffer->Capture(builder.GetRow()));
+            dataWeight += GetDataWeight(rows.back());
         }
 
         transaction->WriteRows(
@@ -228,12 +232,14 @@ private:
         auto asyncResult = WaitFor(transaction->Commit());
         asyncResult.ThrowOnError();
 
-        auto pending = (InProgressCount_ -= batch.size());
+        InProgressCount_ -= batch.size();
         StatisticsProfiler.Increment(CommittedCounter_, batch.size());
-        LOG_DEBUG("Job statistics transaction committed (TransactionId: %v, CommittedItems: %v, PendingItems: %v)",
+        StatisticsProfiler.Increment(CommittedDataWeightCounter_, dataWeight);
+        LOG_DEBUG("Job statistics transaction committed (TransactionId: %v, CommittedItems: %v, "
+            "CommittedDataWeight: %v)",
             transaction->GetId(),
             batch.size(),
-            pending);
+            dataWeight);
     }
 };
 
