@@ -349,6 +349,7 @@ struct TCreateNodeOptions
 {
     bool Recursive = false;
     bool IgnoreExisting = false;
+    bool Force = false;
 };
 
 struct TLockNodeOptions
@@ -394,6 +395,7 @@ struct TLinkNodeOptions
     std::shared_ptr<const NYTree::IAttributeDictionary> Attributes;
     bool Recursive = false;
     bool IgnoreExisting = false;
+    bool Force = false;
 };
 
 struct TConcatenateNodesOptions

@@ -902,16 +902,27 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     auto type = EObjectType(request->type());
     auto ignoreExisting = request->ignore_existing();
     auto recursive = request->recursive();
+    auto force = request->force();
     const auto& path = GetRequestYPath(context->RequestHeader());
 
-    context->SetRequestInfo("Type: %v, IgnoreExisting: %v, Recursive: %v",
+    context->SetRequestInfo("Type: %v, IgnoreExisting: %v, Recursive: %v, Force: %v",
         type,
         ignoreExisting,
-        recursive);
+        recursive,
+        force);
 
-    if (path.Empty()) {
+    if (ignoreExisting && force) {
+        THROW_ERROR_EXCEPTION("Cannot specify both \"ignore_existing\" and \"force\" options simultaneously");
+    }
+
+    bool replace = path.empty();
+    if (replace && !force) {
+        if (!ignoreExisting) {
+            ThrowAlreadyExists(this);
+        }
+
         auto* impl = GetThisImpl();
-        if (impl->GetType() != type) {
+        if (impl->GetType() != type && !force) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::AlreadyExists,
                 "%v already exists and has type %Qlv while node of %Qlv type is about to be created",
@@ -919,10 +930,6 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
                 impl->GetType(),
                 type);
         }
-        if (!ignoreExisting) {
-            ThrowAlreadyExists(this);
-        }
-
         auto* node = GetThisImpl();
         ToProto(response->mutable_node_id(), node->GetId());
         response->set_cell_tag(node->GetExternalCellTag() == NotReplicatedCellTag
@@ -932,8 +939,16 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         return;
     }
 
-    if (!CanHaveChildren()) {
+    if (!replace && !CanHaveChildren()) {
         ThrowCannotHaveChildren(this);
+    }
+
+    ICompositeNodePtr parent;
+    if (replace) {
+        parent = GetParent();
+        if (!parent) {
+            ThrowCannotReplaceRoot();
+        }
     }
 
     ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
@@ -953,11 +968,15 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         request->enable_accounting(),
         attributes.get());
 
-    SetChildNode(
-        factory.get(),
-        path,
-        newProxy,
-        request->recursive());
+    if (replace) {
+        parent->ReplaceChild(this, newProxy);
+    } else {
+        SetChildNode(
+            factory.get(),
+            path,
+            newProxy,
+            recursive);
+    }
 
     factory->Commit();
 
@@ -1061,7 +1080,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
             factory.get(),
             targetPath,
             clonedProxy,
-            request->recursive());
+            recursive);
     }
 
     if (removeSource) {

@@ -2394,6 +2394,7 @@ private:
         req->set_type(static_cast<int>(type));
         req->set_recursive(options.Recursive);
         req->set_ignore_existing(options.IgnoreExisting);
+        req->set_force(options.Force);
         if (options.Attributes) {
             ToProto(req->mutable_node_attributes(), *options.Attributes);
         }
@@ -2499,6 +2500,7 @@ private:
         req->set_type(static_cast<int>(EObjectType::Link));
         req->set_recursive(options.Recursive);
         req->set_ignore_existing(options.IgnoreExisting);
+        req->set_force(options.Force);
         SetTransactionId(req, options, true);
         SetMutationId(req, options);
         auto attributes = options.Attributes ? ConvertToAttributes(options.Attributes.get()) : CreateEphemeralAttributes();

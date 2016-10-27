@@ -712,6 +712,17 @@ class TestCypress(YTEnvSetup):
         create("map_node", "//tmp/a/b", recursive=True)
         with pytest.raises(YtError): create("table", "//tmp/a/b", ignore_existing=False)
 
+    def test_create_ignore_existing_force_fail(self):
+        with pytest.raises(YtError): create("table", "//tmp/t", ignore_existing=True, force=True)
+
+    def test_create_force(self):
+        id1 = create("table", "//tmp/t", force=True)
+        assert get("//tmp/t/@id") == id1
+        id2 = create("table", "//tmp/t", force=True)
+        assert get("//tmp/t/@id") == id2
+        id3 = create("file", "//tmp/t", force=True)
+        assert get("//tmp/t/@id") == id3
+
     def test_link1(self):
         with pytest.raises(YtError): link("//tmp/a", "//tmp/b")
 
@@ -785,6 +796,42 @@ class TestCypress(YTEnvSetup):
         set("//tmp/t1", 1, tx=tx)
         link("//tmp/t1", "//tmp/l1", tx=tx)
         assert get("//tmp/l1", tx=tx) == 1
+
+    def test_link_existing_fail(self):
+        id1 = create("table", "//tmp/t1")
+        id2 = create("table", "//tmp/t2")
+        link("//tmp/t1", "//tmp/l")
+        assert get("//tmp/l/@id") == id1
+        with pytest.raises(YtError): link("//tmp/t2", "//tmp/l")
+        
+    def test_link_ignore_existing(self):
+        id1 = create("table", "//tmp/t1")
+        id2 = create("table", "//tmp/t2")
+        link("//tmp/t1", "//tmp/l")
+        link("//tmp/t2", "//tmp/l", ignore_existing=True)
+        assert get("//tmp/l/@id") == id1
+        
+    def test_link_force1(self):
+        id1 = create("table", "//tmp/t1")
+        id2 = create("table", "//tmp/t2")
+        link("//tmp/t1", "//tmp/l")
+        link("//tmp/t2", "//tmp/l", force=True)
+        assert get("//tmp/t1/@id") == id1
+        assert get("//tmp/l/@id") == id2
+
+    def test_link_force2(self):
+        id1 = create("table", "//tmp/t1")
+        id2 = create("table", "//tmp/t2")
+        link("//tmp/t1", "//tmp/l")
+        remove("//tmp/t1")
+        assert get("//tmp/l&/@broken")
+        link("//tmp/t2", "//tmp/l", force=True)
+        assert get("//tmp/l/@id") == id2
+
+    def test_link_ignore_existing_force_fail(self):
+        id1 = create("table", "//tmp/t")
+        with pytest.raises(YtError): link("//tmp/t", "//tmp/l", ignore_existing=True, force=True)
+
 
     def test_access_stat1(self):
         time.sleep(1.0)
