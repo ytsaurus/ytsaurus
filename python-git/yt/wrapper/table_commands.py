@@ -1059,7 +1059,7 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
     _set_option(params, "input_row_limit", input_row_limit)
     _set_option(params, "output_row_limit", output_row_limit)
     _set_option(params, "range_expansion_limit", range_expansion_limit)
-    _set_option(params, "fail_on_incomplete_result", fail_on_incomplete_result)
+    _set_option(params, "fail_on_incomplete_result", fail_on_incomplete_result, transform=bool_to_string)
     _set_option(params, "verbose_logging", verbose_logging, transform=bool_to_string)
     _set_option(params, "enable_code_cache", enable_code_cache, transform=bool_to_string)
     _set_option(params, "max_subqueries", max_subqueries)
