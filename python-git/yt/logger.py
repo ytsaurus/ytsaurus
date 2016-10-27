@@ -4,7 +4,7 @@ import logging
 
 LOGGER = logging.getLogger("Yt")
 LOGGER.propagate = False
-LOGGER.setLevel(level=logging.__dict__[logger_config.LOG_LEVEL])
+LOGGER.setLevel(level=logging.__dict__[logger_config.LOG_LEVEL.upper()])
 
 BASIC_FORMATTER = logging.Formatter(logger_config.LOG_PATTERN)
 
