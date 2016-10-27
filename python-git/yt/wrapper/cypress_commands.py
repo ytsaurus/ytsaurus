@@ -139,7 +139,7 @@ def concatenate(source_paths, destination_path, client=None):
               "destination_path": destination_path}
     _make_transactional_request("concatenate", params, client=client)
 
-def link(target_path, link_path, recursive=False, ignore_existing=False, attributes=None, client=None):
+def link(target_path, link_path, recursive=False, ignore_existing=False, force=False, attributes=None, client=None):
     """Make link to Cypress node.
 
     :param target_path: (string or `yt.wrapper.YPath`)
@@ -152,7 +152,8 @@ def link(target_path, link_path, recursive=False, ignore_existing=False, attribu
         "target_path": YPath(target_path, client=client),
         "link_path": YPath(link_path, client=client),
         "recursive": bool_to_string(recursive),
-        "ignore_existing": bool_to_string(ignore_existing)}
+        "ignore_existing": bool_to_string(ignore_existing),
+        "force": bool_to_string(force)}
     if attributes is not None:
         params["attributes"] = attributes
     return _make_formatted_transactional_request(
