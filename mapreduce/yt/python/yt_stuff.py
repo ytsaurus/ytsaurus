@@ -177,8 +177,12 @@ class YtStuff(object):
         yt.logger.LOGGER.handlers = [handler]
 
         self.yt_wrapper = yt.wrapper
-        self.yt_wrapper.config.PREFIX = _YT_PREFIX
+        self.yt_wrapper.config["prefix"] = _YT_PREFIX
         self.yt_wrapper.config["pickling"]["python_binary"] = yatest.common.python_path()
+
+        self.yt_client = yt.wrapper.YtClient()
+        self.yt_client.config["prefix"] = _YT_PREFIX
+        self.yt_client.config["pickling"]["python_binary"] = yatest.common.python_path()
 
     def _start_local_yt(self):
         self._log("Try to start local YT with id=%s", self.yt_id)
@@ -255,12 +259,17 @@ class YtStuff(object):
             return False
         self.yt_wrapper.config["proxy"]["url"] = self.get_server()
         self.yt_wrapper.config["proxy"]["enable_proxy_discovery"] = False
+        self.yt_client.config["proxy"]["url"] = self.get_server()
+        self.yt_client.config["proxy"]["enable_proxy_discovery"] = False
         self.env["YT_PROXY"] = self.get_server()
         self._log("Local YT was started with id=%s", self.yt_id)
         return True
 
     def get_yt_wrapper(self):
         return self.yt_wrapper
+
+    def get_yt_client(self):
+        return self.yt_client
 
     def get_server(self):
         return "localhost:%d" % self.yt_proxy_port
