@@ -1,11 +1,11 @@
-from misc import _convert_to_tskved_json, LOGBROKER_TSKV_PREFIX
-
 from yt.common import date_string_to_timestamp
 
-import yt.packages.requests as requests
+from yt.packages.six import iteritems
 from yt.packages.six.moves import xrange
 from yt.packages.six.moves.queue import Queue
 
+import yt.packages.requests as requests
+import yt.json as json
 import yt.wrapper as yt
 
 import os
@@ -37,6 +37,7 @@ ATTRIBUTES_UPDATE_ATTEMPTS = 10
 ATTRIBUTES_UPDATE_FAILURE_BACKOFF = 20
 PUSH_FAILURE_BACKOFF = 20
 LOCK_ACQUIRE_BACKOFF = 10
+LOGBROKER_TSKV_PREFIX = "tskv\t"
 
 # ================= Common stuff ===============================================
 
@@ -159,12 +160,25 @@ def enrich_row(yt_client, logbroker, row):
         })
     return row
 
+def convert_to_tskved_json(row):
+    result = {}
+    for key, value in iteritems(row):
+        if isinstance(value, basestring):
+            pass
+        else:
+            try:
+                value = json.dumps(value, encoding="latin1")
+            except TypeError:
+                # Ignore data that could be encoded to JSON
+                pass
+        result[key] = value
+    return result
+
 def write_row(row, stream):
     format = yt.DsvFormat(enable_escaping=True)
     with GzipFile(fileobj=stream, mode="a") as zipped_stream:
         zipped_stream.write(LOGBROKER_TSKV_PREFIX)
-        format.dump_row(_convert_to_tskved_json(row), zipped_stream)
-
+        format.dump_row(convert_to_tskved_json(row), zipped_stream)
 
 def convert_rows_to_chunks(rows, chunk_size, seqno):
     stream = StringIOWrapper()
