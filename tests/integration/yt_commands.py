@@ -224,7 +224,7 @@ def set(path, value, is_raw=False, **kwargs):
 def create(object_type, path, **kwargs):
     kwargs["type"] = object_type
     kwargs["path"] = path
-    execute_command("create", kwargs)
+    return yson.loads(execute_command("create", kwargs))
 
 def copy(source_path, destination_path, **kwargs):
     kwargs["source_path"] = source_path
