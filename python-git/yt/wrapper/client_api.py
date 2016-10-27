@@ -17,7 +17,7 @@ from .transaction import Transaction, PingTransaction
 from .lock_commands import lock
 from .table import TempTable
 from .transform import transform
-from .job_commands import run_job_shell
+from .job_commands import get_job_stderr, run_job_shell
 from .etc_commands import execute_batch, dump_job_context
 
 all_names = [key for key in locals().keys() if not key.startswith("_")]

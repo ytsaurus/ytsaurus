@@ -2,19 +2,21 @@ from yt.packages.six import iteritems, PY3, text_type, binary_type
 from yt.packages.six.moves import map as imap
 import yt.json as json
 
-from itertools import chain
 from collections import Mapping
-import os
-import sys
-import time
+from datetime import datetime
+from itertools import chain
+
 import calendar
 import ctypes
-import types
-import signal
 import errno
-import socket
 import fcntl
-from datetime import datetime
+import functools
+import os
+import signal
+import socket
+import sys
+import time
+import types
 
 # Standard YT time representation
 YT_DATETIME_FORMAT_STRING = "%Y-%m-%dT%H:%M:%S.%fZ"
@@ -329,3 +331,21 @@ def to_native_str(string, encoding="utf-8"):
     if PY3 and isinstance(string, binary_type):
         return string.decode(encoding)
     return string
+
+def copy_docstring_from(documented_function):
+    """
+    Decorator that copies docstring from one function to another
+
+    :param documented_function: function that provides docstring
+
+    Usage:
+    def foo(...):
+        "USEFUL DOCUMENTATION"
+        ...
+
+    @copy_docstring_from(foo)
+    def bar(...)
+        # docstring will be copied from `foo' function
+        ...
+    """
+    return functools.wraps(documented_function, assigned=("__doc__",), updated=())
