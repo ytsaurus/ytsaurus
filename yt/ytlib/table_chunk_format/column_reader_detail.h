@@ -499,7 +499,6 @@ protected:
             }
         );
 
-        YCHECK(it != ColumnMeta_.segments().end());
         return std::distance(ColumnMeta_.segments().begin(), it);
     }
 };
