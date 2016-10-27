@@ -199,6 +199,61 @@ TEST(TSchemafulDsvParserTest, ColumnsNamesHeader)
     EXPECT_THROW(ParseSchemafulDsv(input, Null, config), std::exception);
 }
 
+TEST(TSchemafulDsvParserTest, MissingValueModePrintSentinel)
+{
+    StrictMock<TMockYsonConsumer> Mock;
+    InSequence dummy;
+
+    Stroka input = "x\t\tz\n";
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("a"));
+        EXPECT_CALL(Mock, OnStringScalar("x"));
+        EXPECT_CALL(Mock, OnKeyedItem("b"));
+        EXPECT_CALL(Mock, OnStringScalar(""));
+        EXPECT_CALL(Mock, OnKeyedItem("c"));
+        EXPECT_CALL(Mock, OnStringScalar("z"));
+    EXPECT_CALL(Mock, OnEndMap());
+
+    auto config = New<TSchemafulDsvFormatConfig>();
+    config->Columns = {"a", "b", "c"};
+    // By default missing_value_mode = fail and no sentinel values are used,
+    // i. e. there is no way to represent YSON entity with this format.
+
+    ParseSchemafulDsv(input, &Mock, config);
+
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("a"));
+        EXPECT_CALL(Mock, OnStringScalar("x"));
+        EXPECT_CALL(Mock, OnKeyedItem("b"));
+        EXPECT_CALL(Mock, OnEntity());
+        EXPECT_CALL(Mock, OnKeyedItem("c"));
+        EXPECT_CALL(Mock, OnStringScalar("z"));
+    EXPECT_CALL(Mock, OnEndMap());
+
+    config->MissingValueMode = EMissingSchemafulDsvValueMode::PrintSentinel;
+    // By default missing_value_sentinel = "".
+
+    ParseSchemafulDsv(input, &Mock, config);
+
+    input = "null\tNULL\t\n";
+
+    config->MissingValueSentinel = "NULL";
+
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("a"));
+        EXPECT_CALL(Mock, OnStringScalar("null"));
+        EXPECT_CALL(Mock, OnKeyedItem("b"));
+        EXPECT_CALL(Mock, OnEntity());
+        EXPECT_CALL(Mock, OnKeyedItem("c"));
+        EXPECT_CALL(Mock, OnStringScalar(""));
+    EXPECT_CALL(Mock, OnEndMap());
+
+    ParseSchemafulDsv(input, &Mock, config);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
