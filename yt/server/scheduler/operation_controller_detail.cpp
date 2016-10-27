@@ -3834,7 +3834,10 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceChunks(
         multiplier = 1.0;
     }
 
-    i64 sliceDataSize = Clamp(static_cast<i64>(jobSizeLimits->GetDataSizePerJob() * multiplier), 1, maxSliceDataSize);
+    i64 sliceDataSize = Clamp(
+        static_cast<i64>(multiplier * TotalEstimatedInputDataSize / jobSizeLimits->GetJobCount()),
+        1,
+        maxSliceDataSize);
 
     for (const auto& chunkSpec : chunkSpecs) {
         int oldSize = result.size();
