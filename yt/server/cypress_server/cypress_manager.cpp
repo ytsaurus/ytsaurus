@@ -1846,17 +1846,14 @@ private:
         while (trunkNode->HasLockingState() && it != lockingState.PendingLocks.end()) {
             // Be prepared to possible iterator invalidation.
             auto* lock = *it++;
-
             auto error = CheckLock(
                 trunkNode,
                 lock->GetTransaction(),
                 lock->Request(),
                 false);
-            if (!error.IsOK()) {
-                break;
+            if (error.IsOK()) {
+                DoAcquireLock(lock);
             }
-
-            DoAcquireLock(lock);
         }
     }
 
