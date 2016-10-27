@@ -794,25 +794,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
             spec={"max_failed_job_count": 1, "job_node_account": "test_account"})
         check_all_stderrs(op, "stderr\n", 0)
 
-    def test_job_per_row(self):
-        create("table", "//tmp/input")
-
-        job_count = 976
-        original_data = [{"index": str(i)} for i in xrange(job_count)]
-        write_table("//tmp/input", original_data)
-
-        create("table", "//tmp/output", ignore_existing=True)
-
-        for job_count in xrange(976, 950, -1):
-            op = map(dont_track=True,
-                     in_="//tmp/input",
-                     out="//tmp/output",
-                     command="sleep 100",
-                     spec={"job_count": job_count})
-            time.sleep(1)
-            assert op.get_job_count("total") == job_count
-            op.abort()
-
     def test_job_progress(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
