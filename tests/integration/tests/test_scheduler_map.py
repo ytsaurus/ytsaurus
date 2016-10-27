@@ -6,6 +6,7 @@ from yt.wrapper import JsonFormat
 from yt.environment.helpers import assert_items_equal
 
 import pytest
+import random
 import time
 import __builtin__
 import os
@@ -1626,6 +1627,23 @@ print row + table_index
                 out="//tmp/output",
                 command="sleep 0.250; exit 1",
                 spec={"data_size_per_job": 1, "max_failed_job_count": 10, "testing": testing_options})
+
+    def test_job_per_row(self):
+        create("table", "//tmp/input")
+
+        job_count = 976
+        original_data = [{"index": str(i)} for i in xrange(job_count)]
+        write_table("//tmp/input", original_data)
+
+        create("table", "//tmp/output", ignore_existing=True)
+        op = map(dont_track=True,
+                 in_="//tmp/input",
+                 out="//tmp/output",
+                 command="sleep 100",
+                 spec={"job_count": 976})
+        time.sleep(1)
+        assert op.get_job_count("total") == 976
+        op.abort()
 
     def test_many_parallel_operations(self):
         create("table", "//tmp/input")
