@@ -362,6 +362,7 @@ INSTANTIATE_TEST_CASE_P(Sorted,
         ::testing::Values(
             TReadRange(),
             TReadRange(TReadLimit().SetKey(BuildKey("<type=null>#")), TReadLimit().SetKey(BuildKey("<type=null>#"))),
+            TReadRange(TReadLimit().SetKey(BuildKey("-65537; -1; 1u; <type=null>#")), TReadLimit()),
             TReadRange(TReadLimit().SetKey(BuildKey("-65537; -1; 1u; <type=null>#")), TReadLimit().SetKey(BuildKey("350000.1; 1; 1; \"Z\""))))));
 
 // ToDo(psushin):
