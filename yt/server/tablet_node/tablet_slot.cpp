@@ -81,7 +81,6 @@ using namespace NHiveClient;
 using namespace NHiveServer;
 using namespace NTabletClient::NProto;
 using namespace NObjectClient;
-using namespace NQueryClient;
 using namespace NApi;
 
 using NHydra::EPeerState;
@@ -374,11 +373,6 @@ public:
             (cellId.Parts32[1] & 0xffff0000) + static_cast<int>(type),
             version.RecordId,
             version.SegmentId);
-    }
-
-    TColumnEvaluatorCachePtr GetColumnEvaluatorCache() const
-    {
-        return Bootstrap_->GetColumnEvaluatorCache();
     }
 
     void Initialize(const TCreateTabletSlotInfo& createInfo)
@@ -892,11 +886,6 @@ TTabletManagerPtr TTabletSlot::GetTabletManager() const
 TObjectId TTabletSlot::GenerateId(EObjectType type)
 {
     return Impl_->GenerateId(type);
-}
-
-TColumnEvaluatorCachePtr TTabletSlot::GetColumnEvaluatorCache() const
-{
-    return Impl_->GetColumnEvaluatorCache();
 }
 
 void TTabletSlot::Initialize(const TCreateTabletSlotInfo& createInfo)

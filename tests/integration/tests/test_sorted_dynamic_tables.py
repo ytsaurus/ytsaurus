@@ -27,6 +27,14 @@ class TestSortedDynamicTables(YTEnvSetup):
         "max_rows_per_write_request": 2
     }
 
+    DELTA_NODE_CONFIG = {
+        "cluster_connection" : {
+            "timestamp_provider" : {
+                "update_period": 100
+            }
+        }
+    }
+
     def _create_simple_table(self, path, atomicity=None, optimize_for=None, tablet_cell_bundle=None,
                              tablet_count=None, pivot_keys=None):
         attributes={
@@ -1606,6 +1614,29 @@ class TestSortedDynamicTables(YTEnvSetup):
         delete_rows("//tmp/t", [row2], input_format=yson_with_type_conversion)
 
         assert select_rows("* from [//tmp/t]") == []
+
+    def test_retained_timestamp(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+
+        t1 = generate_timestamp()
+        # Wait for timestamp provider at the node.
+        sleep(1)
+        self.sync_mount_table("//tmp/t")
+        # Wait for master to receive node statistics.
+        sleep(1)
+        t2 = get("//tmp/t/@unflushed_timestamp")
+        assert t2 > t1
+        assert get("//tmp/t/@retained_timestamp") == MinTimestamp
+
+        rows = [{"key": i, "value": str(i)} for i in xrange(2)]
+        insert_rows("//tmp/t", rows)
+        self.sync_compact_table("//tmp/t")
+        t3 = get("//tmp/t/@retained_timestamp")
+        t4 = get("//tmp/t/@unflushed_timestamp")
+        assert t3 > MinTimestamp
+        assert t2 < t4
+        assert t3 < t4
 
 ##################################################################
 

@@ -58,6 +58,7 @@ message TReqUpdateTabletStores
     required int64 mount_revision = 4;
     repeated NTabletNode.NProto.TAddStoreDescriptor stores_to_add = 2;
     repeated NTabletNode.NProto.TRemoveStoreDescriptor stores_to_remove = 3;
+    required uint64 retained_timestamp = 5;
 }
 
 message TReqUpdateTabletTrimmedRowCount

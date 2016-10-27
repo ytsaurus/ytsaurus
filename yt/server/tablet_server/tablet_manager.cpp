@@ -2426,6 +2426,11 @@ private:
             // Update last commit timestamp.
             table->SetLastCommitTimestamp(lastCommitTimestamp);
 
+            // Update retained timestamp.
+            tablet->SetRetainedTimestamp(std::max(
+                tablet->GetRetainedTimestamp(),
+                static_cast<TTimestamp>(request->retained_timestamp())));
+
             // Copy chunk tree if somebody holds a reference.
             CopyChunkListIfShared(table, tablet->GetIndex(), tablet->GetIndex());
 

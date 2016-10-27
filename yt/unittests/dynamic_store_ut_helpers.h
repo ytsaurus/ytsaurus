@@ -25,6 +25,8 @@
 
 #include <yt/ytlib/tablet_client/config.h>
 
+#include <yt/ytlib/transaction_client/timestamp_provider.h>
+
 #include <yt/ytlib/query_client/column_evaluator.h>
 
 #include <yt/core/concurrency/scheduler.h>
@@ -86,6 +88,11 @@ protected:
             default:
                 Y_UNREACHABLE();
         }
+    }
+
+    virtual TTransactionManagerPtr GetTransactionManager() override
+    {
+        return nullptr;
     }
 
     virtual IStoreManagerPtr CreateStoreManager(TTablet* /*tablet*/)
@@ -330,7 +337,6 @@ protected:
     TNameTablePtr QueryNameTable_;
     std::unique_ptr<TTablet> Tablet_;
     TTimestamp CurrentTimestamp_ = 10000; // some reasonable starting point
-
 };
 
 ///////////////////////////////////////////////////////////////////////////////

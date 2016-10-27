@@ -56,6 +56,32 @@ using NChunkClient::TReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+TTimestamp GetUnflushedTimestamp(const TTableNode* table)
+{
+    auto result = MaxTimestamp;
+    for (const auto* tablet : table->Tablets()) {
+        auto timestamp = static_cast<TTimestamp>(tablet->NodeStatistics().unflushed_timestamp());
+        result = std::min(result, timestamp);
+    }
+    return result;
+}
+
+TTimestamp GetRetainedTimestamp(const TTableNode* table)
+{
+    auto result = MinTimestamp;
+    for (const auto* tablet : table->Tablets()) {
+        auto timestamp = static_cast<TTimestamp>(tablet->GetRetainedTimestamp());
+        result = std::max(result, timestamp);
+    }
+    return result;
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTableNodeProxy::TTableNodeProxy(
     NCellMaster::TBootstrap* bootstrap,
     TObjectTypeMetadata* metadata,
@@ -101,6 +127,10 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(TAttributeDescriptor("pivot_keys")
         .SetPresent(isDynamic && isSorted)
         .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor("retained_timestamp")
+        .SetPresent(isDynamic && isSorted));
+    descriptors->push_back(TAttributeDescriptor("unflushed_timestamp")
+        .SetPresent(isDynamic && isSorted));
     descriptors->push_back(TAttributeDescriptor("tablet_statistics")
         .SetPresent(isDynamic)
         .SetOpaque(true));
@@ -227,6 +257,18 @@ bool TTableNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* cons
                 fluent
                     .Item().Value(tablet->GetPivotKey());
             });
+        return true;
+    }
+
+    if (key == "retained_timestamp" && isDynamic && isSorted) {
+        BuildYsonFluently(consumer)
+            .Value(GetRetainedTimestamp(trunkTable));
+        return true;
+    }
+
+    if (key == "unflushed_timestamp" && isDynamic && isSorted) {
+        BuildYsonFluently(consumer)
+            .Value(GetUnflushedTimestamp(trunkTable));
         return true;
     }
 
