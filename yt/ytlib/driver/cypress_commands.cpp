@@ -134,6 +134,8 @@ TCreateNodeCommand::TCreateNodeCommand()
         .Default(false);
     RegisterParameter("ignore_existing", Options.IgnoreExisting)
         .Default(false);
+    RegisterParameter("force", Options.Force)
+        .Default(false);
 }
 
 void TCreateNodeCommand::DoExecute(ICommandContextPtr context)
@@ -304,6 +306,8 @@ TLinkCommand::TLinkCommand()
     RegisterParameter("recursive", Options.Recursive)
         .Optional();
     RegisterParameter("ignore_existing", Options.IgnoreExisting)
+        .Optional();
+    RegisterParameter("force", Options.Force)
         .Optional();
 }
 
