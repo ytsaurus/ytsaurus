@@ -458,6 +458,8 @@ def add_link_parser(add_parser):
 
     parser.add_argument("-r", "--recursive", action="store_true", help="remove nodes and their subnodes recursively")
     parser.add_argument("-i", "--ignore-existing", action="store_true")
+    parser.add_argument("-f", "--force", action="store_true", help="force create link even if destination already exists "
+                                                                   "(supported only on cluster with 19+ version)")
     add_structured_argument(parser, "--attributes")
 
 def add_concatenate_parser(add_parser):
