@@ -842,7 +842,7 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
 
     if (minShareRatioSum > Attributes_.GuaranteedResourcesRatio) {
         UpdateFairShareAlerts_.emplace_back(
-            "Impossible to satisfy resources guarantees for children of %Qv, ",
+            "Impossible to satisfy resources guarantees for children of %Qv, "
             "given out resources share is greater than guaranteed resources share: %v > %v",
             GetId(),
             minShareRatioSum,
