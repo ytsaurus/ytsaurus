@@ -163,6 +163,7 @@ TTablet::TTablet(const TTabletId& id)
     , Index_(-1)
     , State_(ETabletState::Unmounted)
     , InMemoryMode_(NTabletNode::EInMemoryMode::None)
+    , RetainedTimestamp_(MinTimestamp)
 { }
 
 void TTablet::Save(TSaveContext& context) const
@@ -180,6 +181,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, InMemoryMode_);
     Save(context, TrimmedRowCount_);
     Save(context, Replicas_);
+    Save(context, RetainedTimestamp_);
 }
 
 void TTablet::Load(TLoadContext& context)
@@ -202,6 +204,10 @@ void TTablet::Load(TLoadContext& context)
     // COMPAT(babenko)
     if (context.GetVersion() >= 500) {
         Load(context, Replicas_);
+    }
+    // COMPAT(savrus)
+    if (context.GetVersion() >= 502) {
+        Load(context, RetainedTimestamp_);
     }
 }
 

@@ -652,6 +652,7 @@ void TMasterConnector::SendIncrementalNodeHeartbeat(TCellTag cellTag)
             protoTabletStatistics->set_preload_completed_store_count(tabletSnapshot->PreloadCompletedStoreCount);
             protoTabletStatistics->set_preload_failed_store_count(tabletSnapshot->PreloadFailedStoreCount);
             protoTabletStatistics->set_last_commit_timestamp(tabletSnapshot->RuntimeData->LastCommitTimestamp);
+            protoTabletStatistics->set_unflushed_timestamp(tabletSnapshot->UnflushedTimestamp);
 
             for (const auto& pair : tabletSnapshot->Replicas) {
                 const auto& replicaId = pair.first;

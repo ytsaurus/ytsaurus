@@ -172,6 +172,13 @@ public:
         transactionManager->RegisterPrepareActionHandler(MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareReplicateRows, MakeStrong(this))));
         transactionManager->RegisterCommitActionHandler(MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitReplicateRows, MakeStrong(this))));
         transactionManager->RegisterAbortActionHandler(MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortReplicateRows, MakeStrong(this))));
+
+        // Initialize periodic latest timestamp update.
+        const auto& timestampProvider = Bootstrap_
+            ->GetMasterClient()
+            ->GetNativeConnection()
+            ->GetTimestampProvider();
+        timestampProvider->GetLatestTimestamp();
     }
 
 
@@ -401,6 +408,11 @@ private:
             const TAddStoreDescriptor* descriptor) override
         {
             return Owner_->CreateStore(tablet, type, storeId, descriptor);
+        }
+
+        virtual TTransactionManagerPtr GetTransactionManager() override
+        {
+            return Owner_->Slot_->GetTransactionManager();
         }
 
     private:
@@ -1150,6 +1162,7 @@ private:
             TReqUpdateTabletStores masterRequest;
             ToProto(masterRequest.mutable_tablet_id(), tabletId);
             masterRequest.set_mount_revision(mountRevision);
+            masterRequest.set_retained_timestamp(commitRequest->retained_timestamp());
             masterRequest.mutable_stores_to_add()->MergeFrom(commitRequest->stores_to_add());
             masterRequest.mutable_stores_to_remove()->MergeFrom(commitRequest->stores_to_remove());
             hiveManager->PostMessage(masterMailbox, masterRequest);

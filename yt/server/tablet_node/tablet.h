@@ -87,6 +87,7 @@ struct TTabletSnapshot
     NTransactionClient::EAtomicity Atomicity;
     int HashTableSize = 0;
     int OverlappingStoreCount = 0;
+    NTransactionClient::TTimestamp UnflushedTimestamp = NTransactionClient::MaxTimestamp;
 
     TPartitionSnapshotPtr Eden;
 
@@ -163,6 +164,7 @@ struct ITabletContext
         EStoreType type,
         const TStoreId& storeId,
         const NTabletNode::NProto::TAddStoreDescriptor* descriptor) = 0;
+    virtual TTransactionManagerPtr GetTransactionManager() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -361,6 +363,7 @@ private:
     TPartition* GetContainingPartition(const ISortedStorePtr& store);
 
  	void UpdateOverlappingStoreCount();
+    TTimestamp GetUnflushedTimestamp() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

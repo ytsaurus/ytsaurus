@@ -7,11 +7,15 @@
 #include "store_manager.h"
 #include "tablet_manager.h"
 #include "tablet_slot.h"
+#include "transaction_manager.h"
 
 #include <yt/ytlib/table_client/chunk_meta.pb.h>
 #include <yt/ytlib/table_client/schema.h>
 
 #include <yt/ytlib/tablet_client/config.h>
+
+#include <yt/ytlib/transaction_client/timestamp_provider.h>
+#include <yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/ytlib/query_client/column_evaluator.h>
 
@@ -861,6 +865,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
     snapshot->Atomicity = Atomicity_;
     snapshot->HashTableSize = HashTableSize_;
     snapshot->OverlappingStoreCount = OverlappingStoreCount_;
+    snapshot->UnflushedTimestamp = GetUnflushedTimestamp();
 
     snapshot->Eden = Eden_->BuildSnapshot();
 
@@ -1001,6 +1006,27 @@ void TTablet::UpdateOverlappingStoreCount()
             static_cast<int>(partition->Stores().size()));
     }
     OverlappingStoreCount_ += Eden_->Stores().size();
+}
+
+TTimestamp TTablet::GetUnflushedTimestamp() const
+{
+    auto unflushedTimestamp = MaxTimestamp;
+
+    for (const auto& pair : StoreIdMap()) {
+        if (pair.second->IsDynamic()) {
+            auto timestamp = pair.second->GetMinTimestamp();
+            unflushedTimestamp = std::min(unflushedTimestamp, timestamp);
+        }
+    }
+
+    if (Context_) {
+        auto transactionManager = Context_->GetTransactionManager();
+        if (transactionManager) {
+            auto timestamp = transactionManager->GetMinPrepareTimestamp();
+            unflushedTimestamp = std::min(unflushedTimestamp, timestamp);
+        }
+    }
+    return unflushedTimestamp;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

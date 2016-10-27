@@ -33,6 +33,7 @@
 #include <yt/ytlib/tablet_client/config.h>
 
 #include <yt/ytlib/transaction_client/timestamp_provider.h>
+#include <yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/core/concurrency/thread_pool.h>
 #include <yt/core/concurrency/async_semaphore.h>
@@ -53,6 +54,7 @@ using namespace NApi;
 using namespace NChunkClient;
 using namespace NObjectClient;
 using namespace NTabletNode::NProto;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -682,6 +684,9 @@ private:
             auto currentTimestamp = WaitFor(timestampProvider->GenerateTimestamps())
                 .ValueOrThrow();
 
+            auto ttlTimestamp = InstantToTimestamp(TimestampToInstant(currentTimestamp).first - tablet->GetConfig()->MinDataTtl).first;
+            majorTimestamp = std::min(majorTimestamp, ttlTimestamp);
+
             partition->SetCompactionTime(TInstant::Now());
 
             LOG_INFO("Partition compaction started (DataSize: %v, ChunkCount: %v, CurrentTimestamp: %v, MajorTimestamp: %v)",
@@ -779,6 +784,7 @@ private:
             TReqCommitTabletStoresUpdate hydraRequest;
             ToProto(hydraRequest.mutable_tablet_id(), tabletId);
             hydraRequest.set_mount_revision(mountRevision);
+            hydraRequest.set_retained_timestamp(ttlTimestamp);
             ToProto(hydraRequest.mutable_transaction_id(), transaction->GetId());
 
             SmallVector<TStoreId, TypicalStoreIdCount> storeIdsToAdd;

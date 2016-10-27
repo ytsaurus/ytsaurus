@@ -121,6 +121,8 @@ public:
     using TReplicaMap = yhash_map<TTableReplica*, TTableReplicaInfo>;
     DEFINE_BYREF_RW_PROPERTY(TReplicaMap, Replicas);
 
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, RetainedTimestamp);
+
 public:
     explicit TTablet(const TTabletId& id);
 
@@ -139,7 +141,6 @@ public:
 
     NChunkServer::TChunkList* GetChunkList();
     const NChunkServer::TChunkList* GetChunkList() const;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

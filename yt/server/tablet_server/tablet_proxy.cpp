@@ -22,6 +22,7 @@ namespace NTabletServer {
 using namespace NYson;
 using namespace NYTree;
 using namespace NObjectServer;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -65,6 +66,8 @@ private:
         descriptors->push_back("in_memory_mode");
         descriptors->push_back(TAttributeDescriptor("cell_id")
             .SetPresent(tablet->GetCell()));
+        descriptors->push_back("retained_timestamp");
+        descriptors->push_back("unflushed_timestamp");
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
@@ -155,6 +158,18 @@ private:
                     .Value(tablet->GetCell()->GetId());
                 return true;
             }
+        }
+
+        if (key == "retained_timestamp") {
+            BuildYsonFluently(consumer)
+                .Value(tablet->GetRetainedTimestamp());
+            return true;
+        }
+
+        if (key == "unflushed_timestamp") {
+            BuildYsonFluently(consumer)
+                .Value(static_cast<TTimestamp>(tablet->NodeStatistics().unflushed_timestamp()));
+            return true;
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);

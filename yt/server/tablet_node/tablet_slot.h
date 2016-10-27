@@ -23,8 +23,6 @@
 
 #include <yt/core/ytree/public.h>
 
-#include <yt/ytlib/query_client/public.h>
-
 namespace NYT {
 namespace NTabletNode {
 
@@ -69,8 +67,6 @@ public:
     TTabletManagerPtr GetTabletManager() const;
 
     NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type);
-
-    NQueryClient::TColumnEvaluatorCachePtr GetColumnEvaluatorCache() const;
 
     void Initialize(const NTabletClient::NProto::TCreateTabletSlotInfo& createInfo);
     bool CanConfigure() const;

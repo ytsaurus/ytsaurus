@@ -22,7 +22,7 @@ public:
 
     static int GetProtocolVersion()
     {
-        return 8;
+        return 9;
     }
 
     explicit TNodeTrackerServiceProxy(NRpc::IChannelPtr channel)
