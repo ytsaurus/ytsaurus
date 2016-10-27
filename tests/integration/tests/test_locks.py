@@ -367,6 +367,37 @@ class TestLocks(YTEnvSetup):
         assert get("//sys/locks/" + lock_id2 + "/@state") == "pending"
         write_table("<append=true>//tmp/t", {"a": "b"}, tx=tx1)
 
+    def test_waitable_lock11(self):
+        create("table", "//tmp/t")
+        tx1 = start_transaction()
+        tx2 = start_transaction()
+        tx3 = start_transaction()
+        lock_id1 = lock("//tmp/t", tx=tx1, mode="shared", child_key="a")
+        lock_id2 = lock("//tmp/t", tx=tx2, mode="shared", child_key="a", waitable=True)
+        lock_id3 = lock("//tmp/t", tx=tx3, mode="shared", child_key="b", waitable=True)
+        assert get("#" + lock_id1 + "/@state") == "acquired"
+        assert get("#" + lock_id2 + "/@state") == "pending"
+        assert get("#" + lock_id3 + "/@state") == "acquired"
+
+    def test_waitable_lock12(self):
+        create("table", "//tmp/t")
+        tx1 = start_transaction()
+        tx2 = start_transaction()
+        tx3 = start_transaction()
+        tx4 = start_transaction()
+        lock_id1 = lock("//tmp/t", tx=tx1, mode="shared", child_key="a")
+        lock_id2 = lock("//tmp/t", tx=tx2, mode="shared", child_key="b")
+        lock_id3 = lock("//tmp/t", tx=tx3, mode="shared", child_key="a", waitable=True)
+        lock_id4 = lock("//tmp/t", tx=tx4, mode="shared", child_key="b", waitable=True)
+        assert get("#" + lock_id1 + "/@state") == "acquired"
+        assert get("#" + lock_id2 + "/@state") == "acquired"
+        assert get("#" + lock_id3 + "/@state") == "pending"
+        assert get("#" + lock_id4 + "/@state") == "pending"
+        abort_transaction(tx2)
+        assert get("#" + lock_id1 + "/@state") == "acquired"
+        assert get("#" + lock_id3 + "/@state") == "pending"
+        assert get("#" + lock_id4 + "/@state") == "acquired"
+
     def test_yt_144(self):
         create("table", "//tmp/t")
 
