@@ -29,7 +29,7 @@ class YtError(Exception):
         if "host" not in self.attributes:
             self.attributes["host"] = self._get_fqdn()
         if "datetime" not in self.attributes:
-            self.attributes["datetime"] = datetime_to_string(datetime.now())
+            self.attributes["datetime"] = datetime_to_string(datetime.utcnow())
 
     def simplify(self):
         """ Transform error (with inner errors) to standard python dict """
