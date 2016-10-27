@@ -64,8 +64,8 @@ class TestClient(object):
             assert not client.exists(table)
 
             client.link(other_table, TEST_DIR + "/table_link")
-            assert client.get_attribute(TEST_DIR + "/table_link&", "target_id") == \
-                   client.get_attribute(other_table, "id")
+            assert client.get_attribute(TEST_DIR + "/table_link&", "target_path") == \
+                   client.get_attribute(other_table, "path")
             assert client.has_attribute(TEST_DIR + "/table_link&", "broken")
 
             client.set_attribute(other_table, "test_attr", "value")
