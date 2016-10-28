@@ -46,3 +46,11 @@ message TTypeProto
     optional sint32   SInt32   = 17;
     optional sint64   SInt64   = 18;
 };
+
+message TYaMRProto
+{
+    optional string key = 1;
+    optional string subkey = 2;
+    optional string value = 3;
+};
+

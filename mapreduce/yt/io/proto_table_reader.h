@@ -49,10 +49,7 @@ public:
     void NextKey() override;
 
 protected:
-    void OnRowStart() override;
-
-private:
-    bool RowTaken_ = false;
+    void SkipRow() override;
 };
 
 // Sometime useful outside mapreduce/yt

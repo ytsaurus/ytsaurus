@@ -39,11 +39,11 @@ public:
     ui64 GetRowIndex() const override;
     void NextKey() override;
 
-protected:
-    void OnRowStart() override;
-
 private:
     void ReadField(Stroka* result, i32 length);
+
+    void ReadRow();
+    void SkipRow() override;
 
     TYaMRRow Row_;
     Stroka Key_;
