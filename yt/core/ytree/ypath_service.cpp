@@ -23,6 +23,30 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+IYPathService::TResolveResult IYPathService::TResolveResult::Here(const TYPath& path)
+{
+    TResolveResult result;
+    result.Path_ = path;
+    return result;
+}
+
+IYPathService::TResolveResult IYPathService::TResolveResult::There(IYPathServicePtr service, const TYPath& path)
+{
+    Y_ASSERT(service);
+
+    TResolveResult result;
+    result.Service_ = service;
+    result.Path_ = path;
+    return result;
+}
+
+bool IYPathService::TResolveResult::IsHere() const
+{
+    return !Service_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TFromProducerYPathService
     : public TYPathServiceBase
     , public TSupportsGet

@@ -42,29 +42,13 @@ struct IYPathService
 
     public:
         //! Creates a result indicating that resolution is finished.
-        static TResolveResult Here(const TYPath& path)
-        {
-            TResolveResult result;
-            result.Path_ = path;
-            return result;
-        }
+        static TResolveResult Here(const TYPath& path);
 
         //! Creates a result indicating that resolution must proceed.
-        static TResolveResult There(IYPathServicePtr service, const TYPath& path)
-        {
-            Y_ASSERT(service);
+        static TResolveResult There(IYPathServicePtr service, const TYPath& path);
 
-            TResolveResult result;
-            result.Service_ = service;
-            result.Path_ = path;
-            return result;
-        }
-
-        //! Returns true iff the resolution is finished.
-        bool IsHere() const
-        {
-            return !Service_;
-        }
+        //! Returns |true| iff the resolution is finished.
+        bool IsHere() const;
     };
 
     //! Resolves the given path by either returning "here" or "there" result.
