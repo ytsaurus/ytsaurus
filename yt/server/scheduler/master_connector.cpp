@@ -687,8 +687,7 @@ private:
                             // TODO(max42): (YT-5651) Do not just ignore such a situation!
                         }
                     } else if (secureVaultRspOrError.GetCode() != NYTree::EErrorCode::ResolveError) {
-                        THROW_ERROR_EXCEPTION("Error while attempting to fetch the secure vault of operation")
-                            << TErrorAttribute("operation", operationId)
+                        THROW_ERROR_EXCEPTION("Error while attempting to fetch the secure vault of operation %v", operationId)
                             << secureVaultRspOrError;
                     }
                     auto operationReport = Owner->CreateOperationFromAttributes(operationId, *attributesNode, std::move(secureVault));

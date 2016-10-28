@@ -322,7 +322,8 @@ TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetExternalBuiltinAttribu
     TObjectServiceProxy proxy(channel);
     return proxy.Execute(req).Apply(BIND([=] (const TYPathProxy::TErrorOrRspGetPtr& rspOrError) {
         if (!rspOrError.IsOK()) {
-            if (rspOrError.GetCode() == NYTree::EErrorCode::ResolveError) {
+            auto code = rspOrError.GetCode();
+            if (code == NYTree::EErrorCode::ResolveError || code == NTransactionClient::EErrorCode::NoSuchTransaction) {
                 return TYsonString();
             }
             THROW_ERROR_EXCEPTION("Error requesting attribute %Qv of object %v from cell %v",
