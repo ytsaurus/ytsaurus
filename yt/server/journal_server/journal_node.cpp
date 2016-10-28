@@ -155,8 +155,6 @@ protected:
         TTransaction* transaction,
         IAttributeDictionary* attributes) override
     {
-        auto chunkManager = Bootstrap_->GetChunkManager();
-        auto objectManager = Bootstrap_->GetObjectManager();
         const auto& config = Bootstrap_->GetConfig()->CypressManager;
 
         // NB: Don't call TBase::InitializeAttributes; take care of all attributes here.
@@ -210,7 +208,7 @@ protected:
 
             chunkList->AddOwningNode(branchedNode);
 
-            auto objectManager = Bootstrap_->GetObjectManager();
+            const auto& objectManager = Bootstrap_->GetObjectManager();
             objectManager->RefObject(chunkList);
         }
     }
@@ -246,7 +244,7 @@ protected:
         if (!originatingNode->IsExternal()) {
             chunkList->RemoveOwningNode(branchedNode);
 
-            auto objectManager = Bootstrap_->GetObjectManager();
+            const auto& objectManager = Bootstrap_->GetObjectManager();
             objectManager->UnrefObject(chunkList);
         }
 
@@ -322,10 +320,10 @@ protected:
                     "Waiting for the trailing journal chunk to become sealed (NodeId: %v, ChunkId: %v)",
                     trunkNode->GetId(),
                     trailingChunk->GetId());
-                auto chunkManager = Bootstrap_->GetChunkManager();
+                const auto& chunkManager = Bootstrap_->GetChunkManager();
                 chunkManager->ScheduleChunkSeal(trailingChunk);
             } else {
-                auto journalManager = Bootstrap_->GetJournalManager();
+                const auto& journalManager = Bootstrap_->GetJournalManager();
                 journalManager->SealJournal(trunkNode, nullptr);
             }
         }

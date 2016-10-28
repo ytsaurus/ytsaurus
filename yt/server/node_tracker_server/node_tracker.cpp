@@ -248,17 +248,17 @@ public:
 
     void Initialize()
     {
-        auto transactionManager = Bootstrap_->GetTransactionManager();
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->SubscribeTransactionCommitted(BIND(&TImpl::OnTransactionFinished, MakeWeak(this)));
         transactionManager->SubscribeTransactionAborted(BIND(&TImpl::OnTransactionFinished, MakeWeak(this)));
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(New<TClusterNodeTypeHandler>(this));
         objectManager->RegisterHandler(New<TRackTypeHandler>(this));
         objectManager->RegisterHandler(New<TDataCenterTypeHandler>(this));
 
         if (Bootstrap_->IsPrimaryMaster()) {
-            auto multicellManager = Bootstrap_->GetMulticellManager();
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->SubscribeValidateSecondaryMasterRegistration(
                 BIND(&TImpl::OnValidateSecondaryMasterRegistration, MakeWeak(this)));
             multicellManager->SubscribeReplicateKeysToSecondaryMaster(
@@ -332,7 +332,7 @@ public:
         auto nodeMapProxy = GetNodeMap();
         auto nodeNodeProxy = nodeMapProxy->FindChild(ToString(node->GetDefaultAddress()));
         if (nodeNodeProxy) {
-            auto cypressManager = Bootstrap_->GetCypressManager();
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
             cypressManager->AbortSubtreeTransactions(nodeNodeProxy);
             nodeMapProxy->RemoveChild(nodeNodeProxy);
         }
@@ -516,7 +516,7 @@ public:
                 MaxRackCount);
         }
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::Rack, hintId);
 
         auto rackHolder = std::make_unique<TRack>(id);
@@ -812,7 +812,7 @@ private:
 
     IMapNodePtr GetNodeMap()
     {
-        auto cypressManager = Bootstrap_->GetCypressManager();
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto resolver = cypressManager->CreateResolver();
         auto node = resolver->ResolvePath("//sys/nodes");
         return node->AsMap();
@@ -835,7 +835,7 @@ private:
         TTransaction* leaseTransaction = nullptr;
         if (leaseTransactionId) {
             YCHECK(Bootstrap_->IsPrimaryMaster());
-            auto transactionManager = Bootstrap_->GetTransactionManager();
+            const auto& transactionManager = Bootstrap_->GetTransactionManager();
             leaseTransaction = transactionManager->GetTransactionOrThrow(leaseTransactionId);
             if (leaseTransaction->GetPersistentState() != ETransactionState::Active) {
                 leaseTransaction->ThrowInvalidState();
@@ -1028,7 +1028,7 @@ private:
 
         auto cellTag = request->cell_tag();
 
-        auto multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
             LOG_ERROR_UNLESS(IsRecovery(), "Received node states gossip message from unknown cell (CellTag: %v)",
                 cellTag);
@@ -1279,7 +1279,7 @@ private:
         node->SetAddresses(addresses);
         InsertToAddressMaps(node);
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         auto rootService = objectManager->GetRootService();
         auto nodePath = GetNodePath(node);
 
@@ -1313,7 +1313,7 @@ private:
         // NB: The default address must remain same, however others may change.
         node->SetAddresses(addresses);
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         auto rootService = objectManager->GetRootService();
         auto nodePath = GetNodePath(node);
 
@@ -1332,7 +1332,7 @@ private:
         PROFILE_TIMING ("/node_unregister_time") {
             auto* transaction = UnregisterLeaseTransaction(node);
             if (IsObjectAlive(transaction)) {
-                auto transactionManager = Bootstrap_->GetTransactionManager();
+                const auto& transactionManager = Bootstrap_->GetTransactionManager();
                 // NB: This will trigger OnTransactionFinished, however we've already evicted the
                 // lease so the latter call is no-op.
                 transactionManager->AbortTransaction(transaction, true);
@@ -1385,7 +1385,7 @@ private:
 
     void OnNodeStatesGossip()
     {
-        auto multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (!multicellManager->IsLocalMasterCellRegistered()) {
             return;
         }
@@ -1447,7 +1447,7 @@ private:
         ToProto(request.mutable_addresses(), node->GetAddresses());
         *request.mutable_statistics() = node->Statistics();
 
-        auto multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToSecondaryMasters(request);
     }
 
@@ -1456,7 +1456,7 @@ private:
         TReqUnregisterNode request;
         request.set_node_id(node->GetId());
 
-        auto multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToSecondaryMasters(request);
     }
 
@@ -1495,8 +1495,8 @@ private:
 
     void OnReplicateKeysToSecondaryMaster(TCellTag cellTag)
     {
-        auto multicellManager = Bootstrap_->GetMulticellManager();
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
 
         auto nodes = GetValuesSortedByKey(NodeMap_);
         for (const auto* node : nodes) {
@@ -1528,7 +1528,7 @@ private:
 
     void OnReplicateValuesToSecondaryMaster(TCellTag cellTag)
     {
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
 
         auto nodes = GetValuesSortedByKey(NodeMap_);
         for (auto* node : nodes) {

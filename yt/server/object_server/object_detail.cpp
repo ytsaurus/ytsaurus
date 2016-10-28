@@ -199,7 +199,7 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
 
     ToProto(response->mutable_object_id(), GetId());
 
-    auto objectManager = Bootstrap_->GetObjectManager();
+    const auto& objectManager = Bootstrap_->GetObjectManager();
     const auto& handler = objectManager->GetHandler(Object_);
     auto replicationCellTags = handler->GetReplicationCellTags(Object_);
     // TODO(babenko): this only works properly for chunk owners
@@ -219,9 +219,9 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, CheckPermission)
         userName,
         permission);
 
-    auto objectManager = Bootstrap_->GetObjectManager();
+    const auto& objectManager = Bootstrap_->GetObjectManager();
 
-    auto securityManager = Bootstrap_->GetSecurityManager();
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
     auto* user = securityManager->GetUserByNameOrThrow(userName);
 
     auto result = securityManager->CheckPermission(Object_, user, permission);
@@ -247,13 +247,12 @@ void TObjectProxyBase::Invoke(IServiceContextPtr context)
 
     // Validate that mutating requests are only being invoked inside mutations or recovery.
     const auto& ypathExt = requestHeader.GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-    auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
     YCHECK(!ypathExt.mutating() || NHydra::HasMutationContext());
 
-    auto securityManager = Bootstrap_->GetSecurityManager();
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
     auto* user = securityManager->GetAuthenticatedUser();
 
-    auto objectManager = Bootstrap_->GetObjectManager();
+    const auto& objectManager = Bootstrap_->GetObjectManager();
     if (requestHeader.HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
         const auto& prerequiesitesExt = requestHeader.GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
         objectManager->ValidatePrerequisites(prerequiesitesExt);
@@ -399,7 +398,7 @@ void TObjectProxyBase::ReplicateAttributeUpdate(IServiceContextPtr context)
     if (!IsPrimaryMaster())
         return;
 
-    auto objectManager = Bootstrap_->GetObjectManager();
+    const auto& objectManager = Bootstrap_->GetObjectManager();
     const auto& handler = objectManager->GetHandler(Object_->GetType());
     auto flags = handler->GetFlags();
 
@@ -464,7 +463,7 @@ const yhash_set<const char*>& TObjectProxyBase::GetBuiltinAttributeKeys()
 
 bool TObjectProxyBase::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
 {
-    auto securityManager = Bootstrap_->GetSecurityManager();
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
 
     bool isForeign = Object_->IsForeign();
 
@@ -547,7 +546,7 @@ TFuture<TYsonString> TObjectProxyBase::GetBuiltinAttributeAsync(const Stroka& /*
 
 bool TObjectProxyBase::SetBuiltinAttribute(const Stroka& key, const TYsonString& value)
 {
-    auto securityManager = Bootstrap_->GetSecurityManager();
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
     auto* acd = FindThisAcd();
     if (acd) {
         if (key == "inherit_acl") {
@@ -676,7 +675,7 @@ void TObjectProxyBase::ValidatePermission(EPermissionCheckScope scope, EPermissi
 void TObjectProxyBase::ValidatePermission(TObjectBase* object, EPermission permission)
 {
     YCHECK(object);
-    auto securityManager = Bootstrap_->GetSecurityManager();
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
     auto* user = securityManager->GetAuthenticatedUser();
     securityManager->ValidatePermission(object, user, permission);
 }
@@ -713,14 +712,14 @@ void TObjectProxyBase::RequireLeader() const
 
 void TObjectProxyBase::PostToSecondaryMasters(IServiceContextPtr context)
 {
-    auto multicellManager = Bootstrap_->GetMulticellManager();
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
     multicellManager->PostToSecondaryMasters(
         TCrossCellMessage(Object_->GetId(), std::move(context)));
 }
 
 void TObjectProxyBase::PostToMasters(IServiceContextPtr context, const TCellTagList& cellTags)
 {
-    auto multicellManager = Bootstrap_->GetMulticellManager();
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
     multicellManager->PostToMasters(
         TCrossCellMessage(Object_->GetId(), std::move(context)),
         cellTags);
@@ -728,7 +727,7 @@ void TObjectProxyBase::PostToMasters(IServiceContextPtr context, const TCellTagL
 
 void TObjectProxyBase::PostToMaster(IServiceContextPtr context, TCellTag cellTag)
 {
-    auto multicellManager = Bootstrap_->GetMulticellManager();
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
     multicellManager->PostToMaster(
         TCrossCellMessage(Object_->GetId(), std::move(context)),
         cellTag);
@@ -772,7 +771,7 @@ void TNontemplateNonversionedObjectProxyBase::RemoveSelf(TReqRemove* /*request*/
         THROW_ERROR_EXCEPTION("Object is in use");
     }
 
-    auto objectManager = Bootstrap_->GetObjectManager();
+    const auto& objectManager = Bootstrap_->GetObjectManager();
     objectManager->UnrefObject(Object_);
 
     context->Reply();
@@ -785,7 +784,7 @@ TVersionedObjectId TNontemplateNonversionedObjectProxyBase::GetVersionedId() con
 
 TAccessControlDescriptor* TNontemplateNonversionedObjectProxyBase::FindThisAcd()
 {
-    auto securityManager = Bootstrap_->GetSecurityManager();
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
     return securityManager->FindAcd(Object_);
 }
 

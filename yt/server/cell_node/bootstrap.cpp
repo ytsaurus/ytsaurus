@@ -519,87 +519,87 @@ void TBootstrap::DoRun()
     HttpServer->Start();
 }
 
-TCellNodeConfigPtr TBootstrap::GetConfig() const
+const TCellNodeConfigPtr& TBootstrap::GetConfig() const
 {
     return Config;
 }
 
-IInvokerPtr TBootstrap::GetControlInvoker() const
+const IInvokerPtr& TBootstrap::GetControlInvoker() const
 {
     return ControlQueue->GetInvoker();
 }
 
-IInvokerPtr TBootstrap::GetQueryPoolInvoker() const
+const IInvokerPtr& TBootstrap::GetQueryPoolInvoker() const
 {
     return QueryThreadPool->GetInvoker();
 }
 
-IInvokerPtr TBootstrap::GetTableReplicatorPoolInvoker() const
+const IInvokerPtr& TBootstrap::GetTableReplicatorPoolInvoker() const
 {
     return TableReplicatorThreadPool->GetInvoker();
 }
 
-INativeClientPtr TBootstrap::GetMasterClient() const
+const INativeClientPtr& TBootstrap::GetMasterClient() const
 {
     return MasterClient;
 }
 
-IServerPtr TBootstrap::GetRpcServer() const
+const IServerPtr& TBootstrap::GetRpcServer() const
 {
     return RpcServer;
 }
 
-IChannelFactoryPtr TBootstrap::GetTabletChannelFactory() const
+const IChannelFactoryPtr& TBootstrap::GetTabletChannelFactory() const
 {
     return TabletChannelFactory;
 }
 
-IMapNodePtr TBootstrap::GetOrchidRoot() const
+const IMapNodePtr& TBootstrap::GetOrchidRoot() const
 {
     return OrchidRoot;
 }
 
-TJobControllerPtr TBootstrap::GetJobController() const
+const TJobControllerPtr& TBootstrap::GetJobController() const
 {
     return JobController;
 }
 
-TStatisticsReporterPtr TBootstrap::GetStatisticsReporter() const
+const TStatisticsReporterPtr& TBootstrap::GetStatisticsReporter() const
 {
     return StatisticsReporter;
 }
 
-NTabletNode::TSlotManagerPtr TBootstrap::GetTabletSlotManager() const
+const NTabletNode::TSlotManagerPtr& TBootstrap::GetTabletSlotManager() const
 {
     return TabletSlotManager;
 }
 
-TSecurityManagerPtr TBootstrap::GetSecurityManager() const
+const TSecurityManagerPtr& TBootstrap::GetSecurityManager() const
 {
     return SecurityManager;
 }
 
-TInMemoryManagerPtr TBootstrap::GetInMemoryManager() const
+const TInMemoryManagerPtr& TBootstrap::GetInMemoryManager() const
 {
     return InMemoryManager;
 }
 
-NExecAgent::TSlotManagerPtr TBootstrap::GetExecSlotManager() const
+const NExecAgent::TSlotManagerPtr& TBootstrap::GetExecSlotManager() const
 {
     return ExecSlotManager;
 }
 
-TJobProxyConfigPtr TBootstrap::GetJobProxyConfig() const
+const TJobProxyConfigPtr& TBootstrap::GetJobProxyConfig() const
 {
     return JobProxyConfig;
 }
 
-NDataNode::TChunkStorePtr TBootstrap::GetChunkStore() const
+const TChunkStorePtr& TBootstrap::GetChunkStore() const
 {
     return ChunkStore;
 }
 
-TChunkCachePtr TBootstrap::GetChunkCache() const
+const TChunkCachePtr& TBootstrap::GetChunkCache() const
 {
     return ChunkCache;
 }
@@ -609,57 +609,57 @@ TNodeMemoryTracker* TBootstrap::GetMemoryUsageTracker() const
     return MemoryUsageTracker.get();
 }
 
-TChunkRegistryPtr TBootstrap::GetChunkRegistry() const
+const TChunkRegistryPtr& TBootstrap::GetChunkRegistry() const
 {
     return ChunkRegistry;
 }
 
-TSessionManagerPtr TBootstrap::GetSessionManager() const
+const TSessionManagerPtr& TBootstrap::GetSessionManager() const
 {
     return SessionManager;
 }
 
-TChunkBlockManagerPtr TBootstrap::GetChunkBlockManager() const
+const TChunkBlockManagerPtr& TBootstrap::GetChunkBlockManager() const
 {
     return ChunkBlockManager;
 }
 
-TChunkMetaManagerPtr TBootstrap::GetChunkMetaManager() const
+const TChunkMetaManagerPtr& TBootstrap::GetChunkMetaManager() const
 {
     return ChunkMetaManager;
 }
 
-IBlockCachePtr TBootstrap::GetBlockCache() const
+const IBlockCachePtr& TBootstrap::GetBlockCache() const
 {
     return BlockCache;
 }
 
-TPeerBlockTablePtr TBootstrap::GetPeerBlockTable() const
+const TPeerBlockTablePtr& TBootstrap::GetPeerBlockTable() const
 {
     return PeerBlockTable;
 }
 
-TBlobReaderCachePtr TBootstrap::GetBlobReaderCache() const
+const TBlobReaderCachePtr& TBootstrap::GetBlobReaderCache() const
 {
     return BlobReaderCache;
 }
 
-TJournalDispatcherPtr TBootstrap::GetJournalDispatcher() const
+const TJournalDispatcherPtr& TBootstrap::GetJournalDispatcher() const
 {
     return JournalDispatcher;
 }
 
-NDataNode::TMasterConnectorPtr TBootstrap::GetMasterConnector() const
+const TMasterConnectorPtr& TBootstrap::GetMasterConnector() const
 {
     return MasterConnector;
 }
 
-TClusterDirectoryPtr TBootstrap::GetClusterDirectory()
+const TClusterDirectoryPtr& TBootstrap::GetClusterDirectory()
 {
     return ClusterDirectory;
 }
 
-NQueryClient::ISubexecutorPtr TBootstrap::GetQueryExecutor() const
+const NQueryClient::ISubexecutorPtr& TBootstrap::GetQueryExecutor() const
 {
     return QueryExecutor;
 }
@@ -676,42 +676,42 @@ TCellId TBootstrap::GetCellId(TCellTag cellTag) const
         : ReplaceCellTagInId(GetCellId(), cellTag);
 }
 
-NQueryClient::TColumnEvaluatorCachePtr TBootstrap::GetColumnEvaluatorCache() const
+const NQueryClient::TColumnEvaluatorCachePtr& TBootstrap::GetColumnEvaluatorCache() const
 {
     return ColumnEvaluatorCache;
 }
 
-IThroughputThrottlerPtr TBootstrap::GetReplicationInThrottler() const
+const IThroughputThrottlerPtr& TBootstrap::GetReplicationInThrottler() const
 {
     return ReplicationInThrottler;
 }
 
-IThroughputThrottlerPtr TBootstrap::GetReplicationOutThrottler() const
+const IThroughputThrottlerPtr& TBootstrap::GetReplicationOutThrottler() const
 {
     return ReplicationOutThrottler;
 }
 
-IThroughputThrottlerPtr TBootstrap::GetRepairInThrottler() const
+const IThroughputThrottlerPtr& TBootstrap::GetRepairInThrottler() const
 {
     return RepairInThrottler;
 }
 
-IThroughputThrottlerPtr TBootstrap::GetRepairOutThrottler() const
+const IThroughputThrottlerPtr& TBootstrap::GetRepairOutThrottler() const
 {
     return RepairOutThrottler;
 }
 
-IThroughputThrottlerPtr TBootstrap::GetArtifactCacheInThrottler() const
+const IThroughputThrottlerPtr& TBootstrap::GetArtifactCacheInThrottler() const
 {
     return ArtifactCacheInThrottler;
 }
 
-IThroughputThrottlerPtr TBootstrap::GetArtifactCacheOutThrottler() const
+const IThroughputThrottlerPtr& TBootstrap::GetArtifactCacheOutThrottler() const
 {
     return ArtifactCacheOutThrottler;
 }
 
-IThroughputThrottlerPtr TBootstrap::GetInThrottler(const TWorkloadDescriptor& descriptor) const
+const IThroughputThrottlerPtr& TBootstrap::GetInThrottler(const TWorkloadDescriptor& descriptor) const
 {
     switch (descriptor.Category) {
         case EWorkloadCategory::SystemRepair:
@@ -728,7 +728,7 @@ IThroughputThrottlerPtr TBootstrap::GetInThrottler(const TWorkloadDescriptor& de
     }
 }
 
-IThroughputThrottlerPtr TBootstrap::GetOutThrottler(const TWorkloadDescriptor& descriptor) const
+const IThroughputThrottlerPtr& TBootstrap::GetOutThrottler(const TWorkloadDescriptor& descriptor) const
 {
     switch (descriptor.Category) {
         case EWorkloadCategory::SystemRepair:

@@ -330,7 +330,7 @@ private:
 
     TFuture<void> OnUpstreamSync()
     {
-        auto hiveManager = Bootstrap_->GetHiveManager();
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
         return hiveManager->SyncWith(Bootstrap_->GetPrimaryCellId());
     }
 };

@@ -76,7 +76,7 @@ private:
         const auto* table = tablet->GetTable();
         const auto* chunkList = tablet->GetChunkList();
 
-        auto tabletManager = Bootstrap_->GetTabletManager();
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
 
         if (key == "state") {
             BuildYsonFluently(consumer)

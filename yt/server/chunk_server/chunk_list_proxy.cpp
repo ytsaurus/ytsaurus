@@ -85,9 +85,6 @@ private:
 
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
     {
-        auto chunkManager = Bootstrap_->GetChunkManager();
-        auto cypressManager = Bootstrap_->GetCypressManager();
-
         auto* chunkList = GetThisImpl();
 
         if (key == "child_ids") {
@@ -122,6 +119,7 @@ private:
         }
 
         if (key == "statistics") {
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
             Serialize(chunkList->Statistics(), consumer, chunkManager);
             return true;
         }

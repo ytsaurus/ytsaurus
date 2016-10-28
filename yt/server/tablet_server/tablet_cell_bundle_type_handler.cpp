@@ -49,7 +49,7 @@ public:
         IAttributeDictionary* attributes) override
     {
         auto name = attributes->GetAndRemove<Stroka>("name");
-        auto tabletManager = Bootstrap_->GetTabletManager();
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
         return tabletManager->CreateTabletCellBundle(name, hintId);
     }
 
@@ -79,7 +79,7 @@ private:
     virtual void DoDestroyObject(TTabletCellBundle* cellBundle) override
     {
         TObjectTypeHandlerWithMapBase::DoDestroyObject(cellBundle);
-        auto tabletManager = Bootstrap_->GetTabletManager();
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->DestroyTabletCellBundle(cellBundle);
     }
 };

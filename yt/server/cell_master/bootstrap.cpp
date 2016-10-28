@@ -136,7 +136,7 @@ TBootstrap::TBootstrap(INodePtr configNode)
 
 TBootstrap::~TBootstrap() = default;
 
-TCellMasterConfigPtr TBootstrap::GetConfig() const
+const TCellMasterConfigPtr& TBootstrap::GetConfig() const
 {
     return Config_;
 }
@@ -188,112 +188,112 @@ const TCellTagList& TBootstrap::GetSecondaryCellTags() const
     return SecondaryCellTags_;
 }
 
-TMulticellManagerPtr TBootstrap::GetMulticellManager() const
+const TMulticellManagerPtr& TBootstrap::GetMulticellManager() const
 {
     return MulticellManager_;
 }
 
-IServerPtr TBootstrap::GetRpcServer() const
+const IServerPtr& TBootstrap::GetRpcServer() const
 {
     return RpcServer_;
 }
 
-IChannelPtr TBootstrap::GetLocalRpcChannel() const
+const IChannelPtr TBootstrap::GetLocalRpcChannel() const
 {
     return LocalRpcChannel_;
 }
 
-TCellManagerPtr TBootstrap::GetCellManager() const
+const TCellManagerPtr& TBootstrap::GetCellManager() const
 {
     return CellManager_;
 }
 
-IChangelogStoreFactoryPtr TBootstrap::GetChangelogStoreFactory() const
+const IChangelogStoreFactoryPtr& TBootstrap::GetChangelogStoreFactory() const
 {
     return ChangelogStoreFactory_;
 }
 
-ISnapshotStorePtr TBootstrap::GetSnapshotStore() const
+const ISnapshotStorePtr& TBootstrap::GetSnapshotStore() const
 {
     return SnapshotStore_;
 }
 
-TNodeTrackerPtr TBootstrap::GetNodeTracker() const
+const TNodeTrackerPtr& TBootstrap::GetNodeTracker() const
 {
     return NodeTracker_;
 }
 
-TTransactionManagerPtr TBootstrap::GetTransactionManager() const
+const TTransactionManagerPtr& TBootstrap::GetTransactionManager() const
 {
     return TransactionManager_;
 }
 
-TTransactionSupervisorPtr TBootstrap::GetTransactionSupervisor() const
+const TTransactionSupervisorPtr& TBootstrap::GetTransactionSupervisor() const
 {
     return TransactionSupervisor_;
 }
 
-TCypressManagerPtr TBootstrap::GetCypressManager() const
+const TCypressManagerPtr& TBootstrap::GetCypressManager() const
 {
     return CypressManager_;
 }
 
-THydraFacadePtr TBootstrap::GetHydraFacade() const
+const THydraFacadePtr& TBootstrap::GetHydraFacade() const
 {
     return HydraFacade_;
 }
 
-TWorldInitializerPtr TBootstrap::GetWorldInitializer() const
+const TWorldInitializerPtr& TBootstrap::GetWorldInitializer() const
 {
     return WorldInitializer_;
 }
 
-TObjectManagerPtr TBootstrap::GetObjectManager() const
+const TObjectManagerPtr& TBootstrap::GetObjectManager() const
 {
     return ObjectManager_;
 }
 
-TChunkManagerPtr TBootstrap::GetChunkManager() const
+const TChunkManagerPtr& TBootstrap::GetChunkManager() const
 {
     return ChunkManager_;
 }
 
-NJournalServer::TJournalManagerPtr TBootstrap::GetJournalManager() const
+const TJournalManagerPtr& TBootstrap::GetJournalManager() const
 {
     return JournalManager_;
 }
 
-TSecurityManagerPtr TBootstrap::GetSecurityManager() const
+const TSecurityManagerPtr& TBootstrap::GetSecurityManager() const
 {
     return SecurityManager_;
 }
 
-TTabletManagerPtr TBootstrap::GetTabletManager() const
+const TTabletManagerPtr& TBootstrap::GetTabletManager() const
 {
     return TabletManager_;
 }
 
-THiveManagerPtr TBootstrap::GetHiveManager() const
+const THiveManagerPtr& TBootstrap::GetHiveManager() const
 {
     return HiveManager_;
 }
 
-TCellDirectoryPtr TBootstrap::GetCellDirectory() const
+const TCellDirectoryPtr& TBootstrap::GetCellDirectory() const
 {
     return CellDirectory_;
 }
 
-IInvokerPtr TBootstrap::GetControlInvoker() const
+const IInvokerPtr& TBootstrap::GetControlInvoker() const
 {
     return ControlQueue_->GetInvoker();
 }
 
-INodeChannelFactoryPtr TBootstrap::GetLightNodeChannelFactory() const
+const INodeChannelFactoryPtr& TBootstrap::GetLightNodeChannelFactory() const
 {
     return LightNodeChannelFactory_;
 }
 
-INodeChannelFactoryPtr TBootstrap::GetHeavyNodeChannelFactory() const
+const INodeChannelFactoryPtr& TBootstrap::GetHeavyNodeChannelFactory() const
 {
     return HeavyNodeChannelFactory_;
 }

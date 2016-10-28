@@ -44,25 +44,25 @@ private:
 
     virtual std::vector<Stroka> GetKeys(i64 sizeLimit) const override
     {
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         return ToNames(GetValues(securityManager->Accounts(), sizeLimit));
     }
 
     virtual i64 GetSize() const override
     {
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         return securityManager->Accounts().GetSize();
     }
 
     virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
     {
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* account = securityManager->FindAccountByName(Stroka(key));
         if (!IsObjectAlive(account)) {
             return nullptr;
         }
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         return objectManager->GetProxy(account);
     }
 };
@@ -96,25 +96,25 @@ private:
 
     virtual std::vector<Stroka> GetKeys(i64 sizeLimit) const override
     {
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         return ToNames(GetValues(securityManager->Users(), sizeLimit));
     }
 
     virtual i64 GetSize() const override
     {
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         return securityManager->Users().GetSize();
     }
 
     virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
     {
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* user = securityManager->FindUserByName(Stroka(key));
         if (!IsObjectAlive(user)) {
             return nullptr;
         }
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         return objectManager->GetProxy(user);
     }
 };
@@ -148,25 +148,25 @@ private:
 
     virtual std::vector<Stroka> GetKeys(i64 sizeLimit) const override
     {
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         return ToNames(GetValues(securityManager->Groups(), sizeLimit));
     }
 
     virtual i64 GetSize() const override
     {
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         return securityManager->Groups().GetSize();
     }
 
     virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
     {
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* group = securityManager->FindGroupByName(Stroka(key));
         if (!IsObjectAlive(group)) {
             return nullptr;
         }
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         return objectManager->GetProxy(group);
     }
 };

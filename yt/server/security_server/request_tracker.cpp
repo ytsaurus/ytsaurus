@@ -42,7 +42,7 @@ void TRequestTracker::Start()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto securityManager = Bootstrap_->GetSecurityManager();
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
     for (const auto& pair : securityManager->Users()) {
         auto* user = pair.second;
         ReconfigureUserRequestRateThrottler(user);
@@ -60,7 +60,7 @@ void TRequestTracker::Stop()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto securityManager = Bootstrap_->GetSecurityManager();
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
     for (const auto& pair : securityManager->Users()) {
         auto* user = pair.second;
         user->SetRequestRateThrottler(nullptr);
@@ -84,7 +84,7 @@ void TRequestTracker::ChargeUserWrite(
     int requestCount,
     TDuration requestTime)
 {
-    auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+    const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
     if (hydraManager->IsLeader()) {
         DoChargeUser(user, requestCount, TDuration(), requestTime);
     } else {
@@ -109,7 +109,7 @@ void TRequestTracker::DoChargeUser(
         auto* entry = Request_.add_entries();
         ToProto(entry->mutable_user_id(), user->GetId());
     
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->WeakRefObject(user);
     }
     
@@ -169,7 +169,7 @@ void TRequestTracker::DecreaseRequestQueueSize(TUser* user)
 
 void TRequestTracker::Reset()
 {
-    auto objectManager = Bootstrap_->GetObjectManager();
+    const auto& objectManager = Bootstrap_->GetObjectManager();
     for (auto* user : UsersWithsEntry_) {
         user->SetRequestStatisticsUpdateIndex(-1);
         objectManager->WeakUnrefObject(user);
@@ -183,7 +183,7 @@ void TRequestTracker::OnFlush()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+    const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
     if (UsersWithsEntry_.empty() ||
         !hydraManager->IsActiveLeader() && !hydraManager->IsActiveFollower())
     {
@@ -193,7 +193,7 @@ void TRequestTracker::OnFlush()
     LOG_DEBUG("Starting user statistics commit for %v users",
         Request_.entries_size());
 
-    auto hydraFacade = Bootstrap_->GetHydraFacade();
+    const auto& hydraFacade = Bootstrap_->GetHydraFacade();
     auto asyncResult = CreateMutation(hydraFacade->GetHydraManager(), Request_)
         ->SetAllowLeaderForwarding(true)
         ->CommitAndLog(Logger);

@@ -46,11 +46,10 @@ public:
     NHydra::EPeerState GetAutomatonState() const;
     NHydra::TPeerId GetPeerId() const;
     const NHiveClient::TCellDescriptor& GetCellDescriptor() const;
-    NTransactionClient::TTransactionId GetPrerequisiteTransactionId() const;
 
-    NHydra::IHydraManagerPtr GetHydraManager() const;
-    NRpc::TResponseKeeperPtr GetResponseKeeper() const;
-    TTabletAutomatonPtr GetAutomaton() const;
+    const NHydra::IHydraManagerPtr& GetHydraManager() const;
+    const NRpc::TResponseKeeperPtr& GetResponseKeeper() const;
+    const TTabletAutomatonPtr& GetAutomaton() const;
 
     // These methods are thread-safe.
     // They may return null invoker (see #GetNullInvoker) if the invoker of the requested type is not available.
@@ -58,13 +57,13 @@ public:
     IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
     IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
 
-    NHiveServer::THiveManagerPtr GetHiveManager() const;
+    const NHiveServer::THiveManagerPtr& GetHiveManager() const;
     NHiveServer::TMailbox* GetMasterMailbox();
 
-    TTransactionManagerPtr GetTransactionManager() const;
-    NHiveServer::TTransactionSupervisorPtr GetTransactionSupervisor() const;
+    const TTransactionManagerPtr& GetTransactionManager() const;
+    const NHiveServer::TTransactionSupervisorPtr& GetTransactionSupervisor() const;
 
-    TTabletManagerPtr GetTabletManager() const;
+    const TTabletManagerPtr& GetTabletManager() const;
 
     NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type);
 
@@ -73,7 +72,7 @@ public:
     void Configure(const NTabletClient::NProto::TConfigureTabletSlotInfo& configureInfo);
     TFuture<void> Finalize();
 
-    NYTree::IYPathServicePtr GetOrchidService();
+    const NYTree::IYPathServicePtr& GetOrchidService();
 
 private:
     class TImpl;

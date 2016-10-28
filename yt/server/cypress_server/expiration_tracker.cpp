@@ -142,7 +142,7 @@ void TExpirationTracker::OnCheck()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+    const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
     if (!hydraManager->IsActiveLeader()) {
         return;
     }

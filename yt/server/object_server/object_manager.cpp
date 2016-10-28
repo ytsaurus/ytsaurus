@@ -105,7 +105,7 @@ public:
         auto updatedMessage = SetRequestHeader(requestMessage, requestHeader);
 
         auto cellTag = CellTagFromId(ObjectId_);
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         auto asyncResponseMessage = objectManager->ForwardToLeader(cellTag, updatedMessage);
         context->ReplyFrom(std::move(asyncResponseMessage));
     }
@@ -148,16 +148,16 @@ public:
 
     virtual void Invoke(IServiceContextPtr context) override
     {
-        auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         if (hydraManager->IsFollower()) {
             ForwardToLeader(std::move(context));
             return;
         }
 
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* user = securityManager->GetAuthenticatedUser();
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager
             ->CreateExecuteMutation(user->GetName(), context)
             ->Commit()
@@ -188,9 +188,9 @@ private:
 
     TResolveResult DoResolveThere(const TYPath& path, IServiceContextPtr context)
     {
-        auto cypressManager = Bootstrap_->GetCypressManager();
-        auto objectManager = Bootstrap_->GetObjectManager();
-        auto transactionManager = Bootstrap_->GetTransactionManager();
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
 
         TTransaction* transaction = nullptr;
         auto transactionId = GetTransactionId(context);
@@ -255,7 +255,7 @@ private:
 
     void ForwardToLeader(IServiceContextPtr context)
     {
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         auto asyncResponseMessage = objectManager->ForwardToLeader(
             Bootstrap_->GetCellTag(),
             context->GetRequestMessage());
@@ -276,8 +276,8 @@ public:
 
     virtual IObjectProxyPtr ResolvePath(const TYPath& path, TTransaction* transaction) override
     {
-        auto objectManager = Bootstrap_->GetObjectManager();
-        auto cypressManager = Bootstrap_->GetCypressManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
 
         NYPath::TTokenizer tokenizer(path);
         switch (tokenizer.Advance()) {
@@ -349,7 +349,7 @@ private:
         auto rsp = SyncExecuteVerb(proxy, req);
         auto objectId = FromProto<TObjectId>(rsp->object_id());
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* object = objectManager->GetObjectOrThrow(objectId);
         return objectManager->GetProxy(object, transaction);
     }
@@ -401,7 +401,7 @@ TObjectManager::TObjectManager(
 void TObjectManager::Initialize()
 {
     if (Bootstrap_->IsPrimaryMaster()) {
-        auto multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->SubscribeReplicateValuesToSecondaryMaster(
             BIND(&TObjectManager::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
     }
@@ -582,7 +582,7 @@ int TObjectManager::UnrefObject(TObjectBase* object, int count)
                 NProto::TReqRemoveForeignObject request;
                 ToProto(request.mutable_object_id(), object->GetId());
 
-                auto multicellManager = Bootstrap_->GetMulticellManager();
+                const auto& multicellManager = Bootstrap_->GetMulticellManager();
                 auto replicationCellTags = handler->GetReplicationCellTags(object);
                 multicellManager->PostToMasters(request, replicationCellTags);
             }
@@ -886,7 +886,7 @@ TObjectBase* TObjectManager::CreateObject(
         Bootstrap_->IsPrimaryMaster() &&
         Any(flags & ETypeFlags::ReplicateCreate);
 
-    auto securityManager = Bootstrap_->GetSecurityManager();
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
     auto* user = securityManager->GetAuthenticatedUser();
 
     auto* schema = FindSchema(type);
@@ -921,7 +921,7 @@ TObjectBase* TObjectManager::CreateObject(
         replicationRequest.set_type(static_cast<int>(type));
         ToProto(replicationRequest.mutable_object_attributes(), *replicatedAttributes);
 
-        auto multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         auto replicationCellTags = handler->GetReplicationCellTags(object);
         multicellManager->PostToMasters(replicationRequest, replicationCellTags);
     }
@@ -936,8 +936,8 @@ IObjectResolver* TObjectManager::GetObjectResolver()
 
 void TObjectManager::ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites)
 {
-    auto transactionManager = Bootstrap_->GetTransactionManager();
-    auto cypressManager = Bootstrap_->GetCypressManager();
+    const auto& transactionManager = Bootstrap_->GetTransactionManager();
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
 
     auto getPrerequisiteTransaction = [&] (const TTransactionId& transactionId) {
         auto* transaction = transactionManager->FindTransaction(transactionId);
@@ -1014,10 +1014,10 @@ TFuture<TSharedRefArray> TObjectManager::ForwardToLeader(
         cellTag,
         timeout);
 
-    auto securityManager = Bootstrap_->GetSecurityManager();
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
     auto* user = securityManager->GetAuthenticatedUser();
 
-    auto multicellManager = Bootstrap_->GetMulticellManager();
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
     auto channel = multicellManager->GetMasterChannelOrThrow(
         cellTag,
         EPeerKind::Leader);
@@ -1063,7 +1063,7 @@ void TObjectManager::ReplicateObjectCreationToSecondaryMasters(
     request.set_type(static_cast<int>(object->GetType()));
     ToProto(request.mutable_object_attributes(), *GetReplicatedAttributes(object, true));
 
-    auto multicellManager = Bootstrap_->GetMulticellManager();
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
     multicellManager->PostToMasters(request, cellTags);
 }
 
@@ -1074,7 +1074,7 @@ void TObjectManager::ReplicateObjectAttributesToSecondaryMaster(
     auto req = TYPathProxy::Set(FromObjectId(object->GetId()) + "/@");
     req->set_value(ConvertToYsonString(GetReplicatedAttributes(object, false)->ToMap()).Data());
 
-    auto multicellManager = Bootstrap_->GetMulticellManager();
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
     multicellManager->PostToMaster(req, cellTag);
 }
 
@@ -1085,7 +1085,7 @@ void TObjectManager::HydraExecuteLeader(
 {
     TScopedTimer timer;
 
-    auto securityManager = Bootstrap_->GetSecurityManager();
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
 
     TUser* user = nullptr;
     try {
@@ -1102,7 +1102,7 @@ void TObjectManager::HydraExecuteLeader(
 
     auto mutationId = GetMutationId(context);
     if (mutationId) {
-        auto hydraFacade = Bootstrap_->GetHydraFacade();
+        const auto& hydraFacade = Bootstrap_->GetHydraFacade();
         auto responseKeeper = hydraFacade->GetResponseKeeper();
         // NB: Context must already be replied by now.
         responseKeeper->EndRequest(mutationId, context->GetResponseMessage());
@@ -1164,7 +1164,7 @@ void TObjectManager::HydraDestroyObjects(NProto::TReqDestroyObjects* request)
             id);
     }
 
-    auto multicellManager = Bootstrap_->GetMulticellManager();
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
     for (const auto& pair : crossCellRequestMap) {
         auto cellTag = pair.first;
         const auto& request = pair.second;

@@ -56,7 +56,7 @@ protected:
             return nullptr;
         }
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         return objectManager->GetProxy(object);
     }
 };

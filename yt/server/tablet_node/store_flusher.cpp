@@ -99,7 +99,7 @@ private:
 
     void OnScanSlot(TTabletSlotPtr slot)
     {
-        auto tabletManager = slot->GetTabletManager();
+        const auto& tabletManager = slot->GetTabletManager();
         for (const auto& pair : tabletManager->Tablets()) {
             auto* tablet = pair.second;
             ScanTablet(slot, tablet);
@@ -147,7 +147,7 @@ private:
             const auto& slot = candidate.Slot;
             auto invoker = slot->GetGuardedAutomatonInvoker();
             invoker->Invoke(BIND([slot, tabletId] () {
-                auto tabletManager = slot->GetTabletManager();
+                const auto& tabletManager = slot->GetTabletManager();
                 auto* tablet = tabletManager->FindTablet(tabletId);
                 if (!tablet)
                     return;
@@ -160,7 +160,7 @@ private:
 
     void ScanTablet(TTabletSlotPtr slot, TTablet* tablet)
     {
-        auto tabletManager = slot->GetTabletManager();
+        const auto& tabletManager = slot->GetTabletManager();
         const auto& storeManager = tablet->GetStoreManager();
 
         if (storeManager->IsOverflowRotationNeeded()) {
@@ -186,7 +186,6 @@ private:
 
         {
             TGuard<TSpinLock> guard(SpinLock_);
-            const auto& storeManager = tablet->GetStoreManager();
             if (storeManager->IsForcedRotationPossible()) {
                 const auto& store = tablet->GetActiveStore();
                 i64 memoryUsage = store->GetMemoryUsage();
@@ -247,8 +246,6 @@ private:
     {
         // Capture everything needed below.
         // NB: Avoid accessing tablet from pool invoker.
-        auto hydraManager = slot->GetHydraManager();
-        auto tabletManager = slot->GetTabletManager();
         auto storeManager = tablet->GetStoreManager();
         auto tabletId = tablet->GetId();
         auto mountRevision = tablet->GetMountRevision();

@@ -92,9 +92,9 @@ private:
     {
         auto address = GetParent()->AsMap()->GetChildKey(this);
 
-        auto nodeTracker = Bootstrap_->GetNodeTracker();
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->GetNodeByAddressOrThrow(address);
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         return objectManager->GetProxy(node, nullptr);
     }
 };
@@ -170,8 +170,8 @@ private:
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
-        auto nodeTracker = Bootstrap_->GetNodeTracker();
-        auto chunkManager = Bootstrap_->GetChunkManager();
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
 
         if (key == "offline" || key == "registered" || key == "online") {
             auto state =
@@ -305,7 +305,7 @@ private:
     virtual std::vector<Stroka> GetKeys(i64 sizeLimit) const override
     {
         std::vector<Stroka> keys;
-        auto nodeTracker = Bootstrap_->GetNodeTracker();
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         for (const auto& pair : nodeTracker->Racks()) {
             const auto* rack = pair.second;
             keys.push_back(rack->GetName());
@@ -315,19 +315,19 @@ private:
 
     virtual i64 GetSize() const override
     {
-        auto nodeTracker = Bootstrap_->GetNodeTracker();
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         return nodeTracker->Racks().GetSize();
     }
 
     virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
     {
-        auto nodeTracker = Bootstrap_->GetNodeTracker();
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* rack = nodeTracker->FindRackByName(Stroka(key));
         if (!IsObjectAlive(rack)) {
             return nullptr;
         }
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         return objectManager->GetProxy(rack);
     }
 };

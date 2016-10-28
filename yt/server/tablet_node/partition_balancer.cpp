@@ -73,7 +73,7 @@ private:
 
     void OnScanSlot(TTabletSlotPtr slot)
     {
-        auto tabletManager = slot->GetTabletManager();
+        const auto& tabletManager = slot->GetTabletManager();
         for (const auto& pair : tabletManager->Tablets()) {
             auto* tablet = pair.second;
             ScanTablet(slot, tablet);
@@ -195,7 +195,7 @@ private:
         auto Logger = BuildLogger(partition);
 
         auto* tablet = partition->GetTablet();
-        auto hydraManager = slot->GetHydraManager();
+        const auto& hydraManager = slot->GetHydraManager();
 
         LOG_INFO("Partition is eligible for split (SplitFactor: %v)",
             splitFactor);
@@ -271,7 +271,7 @@ private:
 
         LOG_INFO("Partition is eligible for merge");
 
-        auto hydraManager = slot->GetHydraManager();
+        const auto& hydraManager = slot->GetHydraManager();
 
         TReqMergePartitions request;
         ToProto(request.mutable_tablet_id(), tablet->GetId());
@@ -314,7 +314,7 @@ private:
         auto* tablet = partition->GetTablet();
         auto config = tablet->GetConfig();
 
-        auto hydraManager = slot->GetHydraManager();
+        const auto& hydraManager = slot->GetHydraManager();
 
         LOG_INFO("Sampling partition (DesiredSampleCount: %v)",
             config->SamplesPerPartition);

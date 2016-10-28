@@ -49,7 +49,7 @@ private:
     virtual void DoDestroyObject(TTablet* tablet) override
     {
         TObjectTypeHandlerWithMapBase::DoDestroyObject(tablet);
-        auto tabletManager = Bootstrap_->GetTabletManager();
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->DestroyTablet(tablet);
     }
 };

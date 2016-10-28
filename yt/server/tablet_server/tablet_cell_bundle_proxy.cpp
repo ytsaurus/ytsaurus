@@ -104,7 +104,7 @@ private:
 
     virtual bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override
     {
-        auto tabletManager = Bootstrap_->GetTabletManager();
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
 
         auto* cellBundle = GetThisImpl();
 

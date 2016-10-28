@@ -65,7 +65,7 @@ private:
         const auto& resourceLimits = request->resource_limits();
         const auto& resourceUsage = request->resource_usage();
 
-        auto nodeTracker = Bootstrap_->GetNodeTracker();
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
 
         context->SetRequestInfo("NodeId: %v, Address: %v, ResourceUsage: %v",
@@ -83,7 +83,7 @@ private:
         node->ResourceLimits() = resourceLimits;
         node->ResourceUsage() = resourceUsage;
 
-        auto chunkManager = Bootstrap_->GetChunkManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
         std::vector<TJobPtr> currentJobs;
         for (const auto& jobStatus : request->jobs()) {
             auto jobId = FromProto<TJobId>(jobStatus.job_id());

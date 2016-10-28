@@ -79,10 +79,10 @@ private:
         auto key = GetParent()->AsMap()->GetChildKey(this);
         auto id = TTabletCellId::FromString(key);
      
-        auto tabletManager = Bootstrap_->GetTabletManager();
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
         auto* cell = tabletManager->GetTabletCellOrThrow(id);
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         return objectManager->GetProxy(cell, nullptr);
     }
 };
@@ -133,7 +133,7 @@ public:
 private:
     virtual std::vector<TObjectId> GetKeys(i64 sizeLimit) const override
     {
-        auto tabletManager = Bootstrap_->GetTabletManager();
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
         return ToObjectIds(GetValues(tabletManager->Tablets(), sizeLimit));
     }
 
@@ -144,7 +144,7 @@ private:
 
     virtual i64 GetSize() const override
     {
-        auto tabletManager = Bootstrap_->GetTabletManager();
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
         return tabletManager->Tablets().GetSize();
     }
 
@@ -183,25 +183,25 @@ private:
 
     virtual std::vector<Stroka> GetKeys(i64 sizeLimit) const override
     {
-        auto tabletManager = Bootstrap_->GetTabletManager();
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
         return ToNames(GetValues(tabletManager->TabletCellBundles(), sizeLimit));
     }
 
     virtual i64 GetSize() const override
     {
-        auto tabletManager = Bootstrap_->GetTabletManager();
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
         return tabletManager->TabletCellBundles().GetSize();
     }
 
     virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
     {
-        auto tabletManager = Bootstrap_->GetTabletManager();
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
         auto* cellBundle = tabletManager->FindTabletCellBundleByName(Stroka(key));
         if (!IsObjectAlive(cellBundle)) {
             return nullptr;
         }
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         return objectManager->GetProxy(cellBundle);
     }
 };

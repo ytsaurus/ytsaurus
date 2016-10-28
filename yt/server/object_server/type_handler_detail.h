@@ -130,7 +130,7 @@ protected:
 
     virtual TObjectBase* DoGetParent(TObject* /*object*/)
     {
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         return objectManager->FindSchema(GetType());
     }
 

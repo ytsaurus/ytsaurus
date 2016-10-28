@@ -85,7 +85,7 @@ private:
             leaseTransactionId,
             statistics);
 
-        auto nodeTracker = Bootstrap_->GetNodeTracker();
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         nodeTracker->ProcessRegisterNode(context);
     }
 
@@ -98,7 +98,7 @@ private:
         auto nodeId = request->node_id();
         const auto& statistics = request->statistics();
 
-        auto nodeTracker = Bootstrap_->GetNodeTracker();
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
 
         context->SetRequestInfo("NodeId: %v, Address: %v, %v",
@@ -118,7 +118,7 @@ private:
         auto nodeId = request->node_id();
         const auto& statistics = request->statistics();
 
-        auto nodeTracker = Bootstrap_->GetNodeTracker();
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
 
         context->SetRequestInfo("NodeId: %v, Address: %v, %v",

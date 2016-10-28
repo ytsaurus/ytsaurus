@@ -202,7 +202,7 @@ public:
         EPermission permission,
         TTimestamp timestamp)
     {
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ValidatePermission(tabletSnapshot, permission);
 
         if (timestamp != AsyncLastCommittedTimestamp) {

@@ -61,7 +61,7 @@ bool TNontemplateCypressNodeTypeHandlerBase::IsRecovery() const
 
 void TNontemplateCypressNodeTypeHandlerBase::DestroyCore(TCypressNodeBase* node)
 {
-    auto securityManager = Bootstrap_->GetSecurityManager();
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
 
     // Reset parent links from immediate descendants.
     for (auto* descendant : node->ImmediateDescendants()) {
@@ -83,7 +83,7 @@ void TNontemplateCypressNodeTypeHandlerBase::BranchCore(
     TTransaction* transaction,
     ELockMode mode)
 {
-    auto objectManager = Bootstrap_->GetObjectManager();
+    const auto& objectManager = Bootstrap_->GetObjectManager();
 
     // Copy basic properties.
     branchedNode->SetParent(originatingNode->GetParent());
@@ -96,7 +96,7 @@ void TNontemplateCypressNodeTypeHandlerBase::BranchCore(
     branchedNode->SetOriginator(originatingNode);
     branchedNode->SetExternalCellTag(originatingNode->GetExternalCellTag());
 
-    auto securityManager = Bootstrap_->GetSecurityManager();
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
     securityManager->SetNodeResourceAccounting(branchedNode, originatingNode->GetAccountingEnabled());
 
     // Branch user attributes.
@@ -107,8 +107,8 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCore(
     TCypressNodeBase* originatingNode,
     TCypressNodeBase* branchedNode)
 {
-    auto objectManager = Bootstrap_->GetObjectManager();
-    auto securityManager = Bootstrap_->GetSecurityManager();
+    const auto& objectManager = Bootstrap_->GetObjectManager();
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
 
     // Merge user attributes.
     objectManager->MergeAttributes(originatingNode, branchedNode);
@@ -131,7 +131,7 @@ TCypressNodeBase* TNontemplateCypressNodeTypeHandlerBase::CloneCorePrologue(
     TCellTag externalCellTag)
 {
     auto type = GetObjectType();
-    auto objectManager = Bootstrap_->GetObjectManager();
+    const auto& objectManager = Bootstrap_->GetObjectManager();
     auto clonedId = hintId
         ? hintId
         : objectManager->GenerateId(type, NullObjectId);
@@ -234,7 +234,7 @@ void TMapNodeTypeHandler::DoDestroy(TMapNode* node)
 
     // Drop references to the children.
     // Make sure we handle them in a stable order.
-    auto objectManager = Bootstrap_->GetObjectManager();
+    const auto& objectManager = Bootstrap_->GetObjectManager();
     for (const auto& pair : SortKeyToChild(node->KeyToChild())) {
         auto* node = pair.second;
         if (node) {
@@ -257,7 +257,7 @@ void TMapNodeTypeHandler::DoMerge(
 {
     TBase::DoMerge(originatingNode, branchedNode);
 
-    auto objectManager = Bootstrap_->GetObjectManager();
+    const auto& objectManager = Bootstrap_->GetObjectManager();
 
     bool isOriginatingNodeBranched = originatingNode->GetTransaction() != nullptr;
 
@@ -331,7 +331,7 @@ void TMapNodeTypeHandler::DoClone(
 
     auto* transaction = factory->GetTransaction();
 
-    auto cypressManager = Bootstrap_->GetCypressManager();
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
 
     auto keyToChildMap = GetMapNodeChildMap(
         cypressManager,
@@ -341,7 +341,7 @@ void TMapNodeTypeHandler::DoClone(
 
     auto* clonedTrunkNode = clonedNode->GetTrunkNode();
 
-    auto objectManager = Bootstrap_->GetObjectManager();
+    const auto& objectManager = Bootstrap_->GetObjectManager();
 
     for (const auto& pair : keyToChildList) {
         const auto& key = pair.first;
@@ -434,7 +434,7 @@ void TListNodeTypeHandler::DoDestroy(TListNode* node)
     TBase::DoDestroy(node);
 
     // Drop references to the children.
-    auto objectManager = Bootstrap_->GetObjectManager();
+    const auto& objectManager = Bootstrap_->GetObjectManager();
     for (auto* child : node->IndexToChild()) {
         objectManager->UnrefObject(child);
     }
@@ -451,7 +451,7 @@ void TListNodeTypeHandler::DoBranch(
     branchedNode->ChildToIndex() = originatingNode->ChildToIndex();
 
     // Reference all children.
-    auto objectManager = Bootstrap_->GetObjectManager();
+    const auto& objectManager = Bootstrap_->GetObjectManager();
     for (auto* child : originatingNode->IndexToChild()) {
         objectManager->RefObject(child);
     }
@@ -464,7 +464,7 @@ void TListNodeTypeHandler::DoMerge(
     TBase::DoMerge(originatingNode, branchedNode);
 
     // Drop all references held by the originator.
-    auto objectManager = Bootstrap_->GetObjectManager();
+    const auto& objectManager = Bootstrap_->GetObjectManager();
     for (auto* child : originatingNode->IndexToChild()) {
         objectManager->UnrefObject(child);
     }
@@ -484,7 +484,7 @@ void TListNodeTypeHandler::DoClone(
 
     auto* clonedTrunkNode = clonedNode->GetTrunkNode();
 
-    auto objectManager = Bootstrap_->GetObjectManager();
+    const auto& objectManager = Bootstrap_->GetObjectManager();
     const auto& indexToChild = sourceNode->IndexToChild();
     for (int index = 0; index < indexToChild.size(); ++index) {
         auto* childNode = indexToChild[index];
@@ -566,7 +566,7 @@ std::unique_ptr<TLinkNode> TLinkNodeTypeHandler::DoCreate(
 {
     // Make sure that target_path is valid upon creation.
     auto targetPath = attributes->GetAndRemove<Stroka>("target_path");
-    auto objectManager = Bootstrap_->GetObjectManager();
+    const auto& objectManager = Bootstrap_->GetObjectManager();
     auto* resolver = objectManager->GetObjectResolver();
     resolver->ResolvePath(targetPath, transaction);
 

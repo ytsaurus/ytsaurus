@@ -152,7 +152,7 @@ public:
 
         int recordId = UnderlyingChangelog_->GetRecordCount();
         auto flushResult = UnderlyingChangelog_->Append(data);
-        auto journalManager = Location_->GetJournalManager();
+        const auto& journalManager = Location_->GetJournalManager();
         return journalManager->AppendMultiplexedRecord(
             ChunkId_,
             recordId,
@@ -204,7 +204,7 @@ TFuture<IChangelogPtr> TJournalDispatcher::TImpl::OpenChangelog(
         return cookie.GetValue().As<IChangelogPtr>();
     }
 
-    auto journalManager = location->GetJournalManager();
+    const auto& journalManager = location->GetJournalManager();
     return journalManager->OpenChangelog(chunkId).Apply(BIND(
         &TImpl::OnChangelogOpenedOrCreated,
         MakeStrong(this),
@@ -248,7 +248,7 @@ TFuture<IChangelogPtr> TJournalDispatcher::TImpl::CreateChangelog(
                 chunkId);
         }
 
-        auto journalManager = location->GetJournalManager();
+        const auto& journalManager = location->GetJournalManager();
         return journalManager->CreateChangelog(chunkId, enableMultiplexing).Apply(BIND(
             &TImpl::OnChangelogOpenedOrCreated,
             MakeStrong(this),
@@ -269,7 +269,7 @@ TFuture<void> TJournalDispatcher::TImpl::RemoveChangelog(
 
     TAsyncSlruCacheBase::TryRemove({location, chunk->GetId()});
 
-    auto journalManager = location->GetJournalManager();
+    const auto& journalManager = location->GetJournalManager();
     return journalManager->RemoveChangelog(chunk, enableMultiplexing);
 }
 
@@ -277,14 +277,14 @@ TFuture<bool> TJournalDispatcher::TImpl::IsChangelogSealed(
     TStoreLocationPtr location,
     const TChunkId& chunkId)
 {
-    auto journalManager = location->GetJournalManager();
+    const auto& journalManager = location->GetJournalManager();
     return journalManager->IsChangelogSealed(chunkId);
 }
 
 TFuture<void> TJournalDispatcher::TImpl::SealChangelog(TJournalChunkPtr chunk)
 {
     auto location = chunk->GetStoreLocation();
-    auto journalManager = location->GetJournalManager();
+    const auto& journalManager = location->GetJournalManager();
     return journalManager->SealChangelog(chunk);
 }
 

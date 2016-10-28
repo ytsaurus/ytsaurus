@@ -81,7 +81,7 @@ protected:
     virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override
     {
         auto* subject = this->GetThisImpl();
-        auto securityManager = this->Bootstrap_->GetSecurityManager();
+        const auto& securityManager = this->Bootstrap_->GetSecurityManager();
 
         if (key == "name") {
             auto newName = NYTree::ConvertTo<Stroka>(value);

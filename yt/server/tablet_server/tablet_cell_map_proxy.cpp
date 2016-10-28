@@ -49,7 +49,7 @@ private:
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
         if (key == "count_by_health") {
-            auto tabletManager = Bootstrap_->GetTabletManager();
+            const auto& tabletManager = Bootstrap_->GetTabletManager();
             TEnumIndexedVector<int, ETabletCellHealth> counts;
             for (const auto& pair : tabletManager->TabletCells()) {
                 const auto* cell = pair.second;

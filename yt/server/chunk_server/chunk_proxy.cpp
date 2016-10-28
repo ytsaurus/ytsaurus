@@ -141,9 +141,7 @@ private:
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
-        auto chunkManager = Bootstrap_->GetChunkManager();
-        auto cypressManager = Bootstrap_->GetCypressManager();
-        auto multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
 
         auto* chunk = GetThisImpl();
         auto isForeign = chunk->IsForeign();
@@ -274,8 +272,8 @@ private:
         }
 
         if (key == "exports") {
-            auto chunkManager = Bootstrap_->GetChunkManager();
-            auto multicellManager = Bootstrap_->GetMulticellManager();
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
             const auto& cellTags = multicellManager->GetRegisteredMasterCellTags();
             BuildYsonFluently(consumer)
                 .DoMapFor(0, static_cast<int>(cellTags.size()), [&] (TFluentMap fluent, int index) {
@@ -441,7 +439,7 @@ private:
         auto* chunk = GetThisImpl();
 
         if (chunk->IsJournal() && key == "quorum_row_count") {
-            auto chunkManager = Bootstrap_->GetChunkManager();
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
             auto rowCountResult = chunkManager->GetChunkQuorumInfo(chunk);
             return rowCountResult.Apply(BIND([=] (const TMiscExt& miscExt) {
                 return MakeFuture(ConvertToYsonString(miscExt.row_count()));
@@ -469,7 +467,6 @@ private:
 
         context->SetRequestInfo();
 
-        auto chunkManager = Bootstrap_->GetChunkManager();
         const auto* chunk = GetThisImpl();
 
         auto replicas = chunk->GetReplicas();

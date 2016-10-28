@@ -243,7 +243,7 @@ private:
     virtual TFuture<TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override
     {
         const auto* transaction = GetThisImpl();
-        auto chunkManager = Bootstrap_->GetChunkManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
 
         if (key == "last_ping_time") {
             RequireLeader();
@@ -333,8 +333,8 @@ private:
 
     TFuture<std::pair<TCellTag, TAccountResourcesMap>> GetRemoteResourcesMap(TCellTag cellTag)
     {
-        auto chunkManager = Bootstrap_->GetChunkManager();
-        auto multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         auto channel = multicellManager->GetMasterChannelOrThrow(
             cellTag,
             EPeerKind::LeaderOrFollower);
@@ -482,12 +482,12 @@ public:
 
     void Initialize()
     {
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(New<TTransactionTypeHandler>(this, EObjectType::Transaction));
         objectManager->RegisterHandler(New<TTransactionTypeHandler>(this, EObjectType::NestedTransaction));
 
         if (Bootstrap_->IsPrimaryMaster()) {
-            auto multicellManager = Bootstrap_->GetMulticellManager();
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->SubscribeValidateSecondaryMasterRegistration(
                 BIND(&TImpl::OnValidateSecondaryMasterRegistration, MakeWeak(this)));
         }
@@ -506,7 +506,7 @@ public:
             parent->ThrowInvalidState();
         }
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         auto transactionId = objectManager->GenerateId(
             parent ? EObjectType::NestedTransaction : EObjectType::Transaction,
             hintId);
@@ -544,7 +544,7 @@ public:
         const auto* mutationContext = GetCurrentMutationContext();
         transaction->SetStartTime(mutationContext->GetTimestamp());
 
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         transaction->Acd().SetOwner(securityManager->GetRootUser());
 
         TransactionStarted_.Fire(transaction);
@@ -584,7 +584,7 @@ public:
             ToProto(request.mutable_transaction_id(), transactionId);
             request.set_commit_timestamp(commitTimestamp);
 
-            auto multicellManager = Bootstrap_->GetMulticellManager();
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToMasters(request, transaction->SecondaryCellTags());
         }
 
@@ -617,7 +617,7 @@ public:
                 transaction->ImportedObjects().begin(),
                 transaction->ImportedObjects().end());
         } else {
-            auto objectManager = Bootstrap_->GetObjectManager();
+            const auto& objectManager = Bootstrap_->GetObjectManager();
             for (auto* object : transaction->ImportedObjects()) {
                 objectManager->UnrefObject(object);
             }
@@ -649,7 +649,7 @@ public:
             transaction->ThrowInvalidState();
         }
 
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ValidatePermission(transaction, EPermission::Write);
 
         auto transactionId = transaction->GetId();
@@ -659,7 +659,7 @@ public:
             ToProto(request.mutable_transaction_id(), transactionId);
             request.set_force(force);
 
-            auto multicellManager = Bootstrap_->GetMulticellManager();
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToMasters(request, transaction->SecondaryCellTags());
         }
 
@@ -678,7 +678,7 @@ public:
 
         TransactionAborted_.Fire(transaction);
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         for (const auto& entry : transaction->ExportedObjects()) {
             auto* object = entry.Object;
             objectManager->UnrefObject(object);
@@ -725,7 +725,7 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         YCHECK(transaction->StagedObjects().insert(object).second);
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(object);
     }
 
@@ -733,7 +733,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         const auto& handler = objectManager->GetHandler(object);
         handler->UnstageObject(object, recursive);
 
@@ -748,7 +748,7 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         Y_ASSERT(trunkNode->IsTrunk());
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         transaction->StagedNodes().push_back(trunkNode);
         objectManager->RefObject(trunkNode);
     }
@@ -758,7 +758,7 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         transaction->ImportedObjects().push_back(object);
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(object);
         object->ImportRefObject();
     }
@@ -769,7 +769,7 @@ public:
 
         transaction->ExportedObjects().push_back({object, destinationCellTag});
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(object);
 
         const auto& handler = objectManager->GetHandler(object);
@@ -799,7 +799,7 @@ public:
             }
         }
 
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ValidatePermission(transaction, EPermission::Write);
 
         auto oldState = persistent ? transaction->GetPersistentState() : transaction->GetState();
@@ -818,7 +818,7 @@ public:
             NProto::TReqPrepareTransactionCommit request;
             ToProto(request.mutable_transaction_id(), transactionId);
 
-            auto multicellManager = Bootstrap_->GetMulticellManager();
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToMasters(request, transaction->SecondaryCellTags());
         }
     }
@@ -907,7 +907,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
 
         for (auto* object : transaction->StagedObjects()) {
             const auto& handler = objectManager->GetHandler(object);
@@ -1023,7 +1023,7 @@ private:
 
     void CreateLease(TTransaction* transaction)
     {
-        auto hydraFacade = Bootstrap_->GetHydraFacade();
+        const auto& hydraFacade = Bootstrap_->GetHydraFacade();
         LeaseTracker_->RegisterTransaction(
             transaction->GetId(),
             GetObjectId(transaction->GetParent()),
@@ -1047,7 +1047,7 @@ private:
         if (transaction->GetState() != ETransactionState::Active)
             return;
 
-        auto transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
+        const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
         transactionSupervisor->AbortTransaction(transactionId).Subscribe(BIND([=] (const TError& error) {
             if (!error.IsOK()) {
                 LOG_DEBUG(error, "Error aborting expired transaction (TransactionId: %v)",
@@ -1085,7 +1085,7 @@ TNonversionedObjectBase* TTransactionManager::TTransactionTypeHandler::CreateObj
 {
     TCellTagList secondaryCellTags;
     if (Bootstrap_->IsPrimaryMaster()) {
-        auto multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         secondaryCellTags = multicellManager->GetRegisteredMasterCellTags();
     }
 

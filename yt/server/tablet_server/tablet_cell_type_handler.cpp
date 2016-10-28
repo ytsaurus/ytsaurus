@@ -50,7 +50,7 @@ public:
         IAttributeDictionary* attributes) override
     {
         auto cellBundleName = attributes->GetAndRemove("tablet_cell_bundle", DefaultTabletCellBundleName);
-        auto tabletManager = Bootstrap_->GetTabletManager();
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
         auto* cellBundle = tabletManager->GetTabletCellBundleByNameOrThrow(cellBundleName);
         return tabletManager->CreateTabletCell(cellBundle, hintId);
     }
@@ -78,7 +78,7 @@ private:
         TObjectTypeHandlerWithMapBase::DoZombifyObject(cell);
         // NB: Destroy the cell right away and do not wait for GC to prevent
         // dangling links from occurring in //sys/tablet_cells.
-        auto tabletManager = Bootstrap_->GetTabletManager();
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->DestroyTabletCell(cell);
     }
 };

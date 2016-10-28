@@ -89,7 +89,7 @@ private:
         LOG_DEBUG("Deserialized subfragment");
 
         const auto& user = context->GetUser();
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager, user);
 
         ExecuteRequestWithRetries(
@@ -134,7 +134,7 @@ private:
         auto slotManager = Bootstrap_->GetTabletSlotManager();
 
         const auto& user = context->GetUser();
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager, user);
 
         ExecuteRequestWithRetries(

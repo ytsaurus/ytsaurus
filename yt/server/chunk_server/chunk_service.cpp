@@ -73,7 +73,7 @@ private:
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::LeaderOrFollower);
 
-        auto chunkManager = Bootstrap_->GetChunkManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
         TNodeDirectoryBuilder nodeDirectoryBuilder(response->mutable_node_directory());
 
         for (const auto& protoChunkId : request->subrequests()) {
@@ -110,8 +110,8 @@ private:
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
 
-        auto chunkManager = Bootstrap_->GetChunkManager();
-        auto nodeTracker = Bootstrap_->GetNodeTracker();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
 
         TNodeDirectoryBuilder builder(response->mutable_node_directory());
 
@@ -187,7 +187,7 @@ private:
         ValidatePeer(EPeerKind::Leader);
         SyncWithUpstream();
 
-        auto chunkManager = Bootstrap_->GetChunkManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
         chunkManager
             ->CreateExportChunksMutation(context)
             ->CommitAndReply(context);
@@ -205,7 +205,7 @@ private:
         ValidatePeer(EPeerKind::Leader);
         SyncWithUpstream();
 
-        auto chunkManager = Bootstrap_->GetChunkManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
         chunkManager
             ->CreateImportChunksMutation(context)
             ->CommitAndReply(context);
@@ -222,7 +222,7 @@ private:
         ValidatePeer(EPeerKind::LeaderOrFollower);
         SyncWithUpstream();
 
-        auto chunkManager = Bootstrap_->GetChunkManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto* chunk = chunkManager->GetChunkOrThrow(chunkId);
 
         auto owningNodes = GetOwningNodes(chunk);
@@ -261,7 +261,7 @@ private:
             SyncWithUpstream();
         }
 
-        auto chunkManager = Bootstrap_->GetChunkManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
         chunkManager
             ->CreateExecuteBatchMutation(context)
             ->CommitAndReply(context);
