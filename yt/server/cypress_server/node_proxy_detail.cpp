@@ -1162,10 +1162,12 @@ void TMapNodeProxy::Clear()
     auto* impl = LockThisImpl(ELockMode::Shared);
 
     // Construct children list.
-    auto keyToChildMap = GetMapNodeChildMap(
+    yhash_map<Stroka, TCypressNodeBase*> keyToChildMapStorage;
+    const auto& keyToChildMap = GetMapNodeChildMap(
         Bootstrap_->GetCypressManager(),
         TrunkNode,
-        Transaction);
+        Transaction,
+        &keyToChildMapStorage);
     auto keyToChildList = SortKeyToChild(keyToChildMap);
 
     // Take shared locks for children.
@@ -1203,14 +1205,16 @@ int TMapNodeProxy::GetChildCount() const
 
 std::vector<std::pair<Stroka, INodePtr>> TMapNodeProxy::GetChildren() const
 {
-    auto keyToChild = GetMapNodeChildMap(
+    yhash_map<Stroka, TCypressNodeBase*> keyToChildStorage;
+    const auto& keyToChildMap = GetMapNodeChildMap(
         Bootstrap_->GetCypressManager(),
         TrunkNode,
-        Transaction);
+        Transaction,
+        &keyToChildStorage);
 
     std::vector<std::pair<Stroka, INodePtr>> result;
-    result.reserve(keyToChild.size());
-    for (const auto& pair : keyToChild) {
+    result.reserve(keyToChildMap.size());
+    for (const auto& pair : keyToChildMap) {
         result.push_back(std::make_pair(pair.first, GetProxy(pair.second)));
     }
 
@@ -1219,13 +1223,15 @@ std::vector<std::pair<Stroka, INodePtr>> TMapNodeProxy::GetChildren() const
 
 std::vector<Stroka> TMapNodeProxy::GetKeys() const
 {
-    auto keyToChild = GetMapNodeChildMap(
+    yhash_map<Stroka, TCypressNodeBase*> keyToChildStorage;
+    const auto& keyToChildMap = GetMapNodeChildMap(
         Bootstrap_->GetCypressManager(),
         TrunkNode,
-        Transaction);
+        Transaction,
+        &keyToChildStorage);
 
     std::vector<Stroka> result;
-    for (const auto& pair : keyToChild) {
+    for (const auto& pair : keyToChildMap) {
         result.push_back(pair.first);
     }
 

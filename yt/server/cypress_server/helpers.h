@@ -15,10 +15,11 @@ namespace NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-yhash_map<Stroka, TCypressNodeBase*> GetMapNodeChildMap(
+const yhash_map<Stroka, TCypressNodeBase*>& GetMapNodeChildMap(
     const TCypressManagerPtr& cypressManager,
     TCypressNodeBase* trunkNode,
-    NTransactionServer::TTransaction* transaction);
+    NTransactionServer::TTransaction* transaction,
+    yhash_map<Stroka, TCypressNodeBase*>* storage);
 
 std::vector<TCypressNodeBase*> GetMapNodeChildList(
     const TCypressManagerPtr& cypressManager,
