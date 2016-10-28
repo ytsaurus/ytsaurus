@@ -359,6 +359,8 @@ void TBootstrap::DoRun()
     JobProxyConfig->Logging = Config->ExecAgent->JobProxyLogging;
     JobProxyConfig->Tracing = Config->ExecAgent->JobProxyTracing;
 
+    JobProxyConfig->CoreForwarderTimeout = Config->ExecAgent->CoreForwarderTimeout;
+
     ExecSlotManager = New<NExecAgent::TSlotManager>(Config->ExecAgent->SlotManager, this);
 
     JobController = New<TJobController>(Config->ExecAgent->JobController, this);

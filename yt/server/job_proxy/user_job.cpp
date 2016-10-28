@@ -6,6 +6,9 @@
 #include "stracer.h"
 #include "user_job_io.h"
 
+#include <yt/server/core_dump/public.h>
+#include <yt/server/core_dump/core_processor_service.h>
+
 #include <yt/server/exec_agent/public.h>
 #include <yt/server/exec_agent/supervisor_service_proxy.h>
 
@@ -14,6 +17,11 @@
 #include <yt/ytlib/cgroup/cgroup.h>
 
 #include <yt/ytlib/chunk_client/public.h>
+
+#include <yt/ytlib/core_dump/core_info.pb.h>
+#include <yt/ytlib/core_dump/helpers.h>
+
+#include <yt/ytlib/file_client/file_chunk_output.h>
 
 #include <yt/ytlib/formats/parser.h>
 
@@ -54,6 +62,8 @@
 #include <yt/core/pipes/async_reader.h>
 #include <yt/core/pipes/async_writer.h>
 
+#include <yt/core/rpc/server.h>
+
 #include <yt/core/tools/tools.h>
 
 #include <yt/core/ypath/tokenizer.h>
@@ -86,6 +96,8 @@ using namespace NFileClient;
 using namespace NChunkClient::NProto;
 using namespace NPipes;
 using namespace NQueryClient;
+using namespace NRpc;
+using namespace NCoreDump;
 using namespace NExecAgent;
 using namespace NYPath;
 using namespace NJobTrackerClient;
@@ -94,6 +106,7 @@ using namespace NShell;
 using NJobTrackerClient::NProto::TJobResult;
 using NJobTrackerClient::NProto::TJobSpec;
 using NScheduler::NProto::TUserJobSpec;
+using NCoreDump::NProto::TCoreInfo;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -167,6 +180,31 @@ public:
                 BIND(&TUserJob::CheckBlockIOUsage, MakeWeak(this)),
                 CGroupsConfig_->BlockIOWatchdogPeriod);
         }
+
+        if (UserJobSpec_.has_core_table_spec()) {
+            const auto& coreTableSpec = UserJobSpec_.core_table_spec();
+
+            auto tableWriterOptions = ConvertTo<TTableWriterOptionsPtr>(
+                TYsonString(coreTableSpec.output_table_spec().table_writer_options()));
+            tableWriterOptions->ValidateDuplicateIds = true;
+            tableWriterOptions->ValidateRowWeight = true;
+            tableWriterOptions->ValidateColumnCount = true;
+            auto chunkList = FromProto<TChunkListId>(coreTableSpec.output_table_spec().chunk_list_id());
+            auto blobTableWriterConfig = ConvertTo<TBlobTableWriterConfigPtr>(TYsonString(coreTableSpec.blob_table_writer_config()));
+            auto transactionId = FromProto<TTransactionId>(
+                Host_->GetJobSpec().GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext).output_transaction_id());
+
+            CoreProcessorService_ = New<TCoreProcessorService>(
+                Host_,
+                blobTableWriterConfig,
+                tableWriterOptions,
+                transactionId,
+                chunkList,
+                AuxQueue_->GetInvoker(),
+                Config_->CoreForwarderTimeout);
+
+            Host_->GetRpcServer()->RegisterService(CoreProcessorService_);
+        }
      }
 
     virtual void Initialize() override
@@ -221,9 +259,12 @@ public:
         }
 
         auto jobResultError = JobErrorPromise_.TryGet();
-        auto jobError = jobResultError
-            ? TError("User job failed") << *jobResultError
-            : TError();
+
+        std::vector<TError> innerErrors;
+
+        if (jobResultError)  {
+            innerErrors.push_back(*jobResultError);
+        }
 
         TJobResult result;
         auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
@@ -240,6 +281,31 @@ public:
         } else {
             JobIO_->PopulateResult(schedulerResultExt);
         }
+
+        if (UserJobSpec_.has_core_table_spec()) {
+            bool coreDumped = jobResultError.HasValue() && jobResultError->Attributes().Get("core_dumped", false /* defaultValue */);
+            auto coreResult = CoreProcessorService_->Finalize(coreDumped ? Config_->CoreForwarderTimeout : TDuration::Zero());
+
+            LOG_INFO("User job produced %v core files", coreResult.CoreInfos.size());
+            if (!coreResult.CoreInfos.empty()) {
+                for (const auto& coreInfo : coreResult.CoreInfos) {
+                    LOG_DEBUG("Core file (Pid: %v, ExecutableName: %v, Size: %v)",
+                        coreInfo.process_id(),
+                        coreInfo.executable_name(),
+                        coreInfo.size());
+                }
+                innerErrors.push_back(TError("User job produced core files")
+                        << TErrorAttribute("core_infos", coreResult.CoreInfos));
+            }
+
+            ToProto(schedulerResultExt->mutable_core_infos(), coreResult.CoreInfos);
+            YCHECK(coreResult.BoundaryKeys.empty() || coreResult.BoundaryKeys.sorted());
+            ToProto(schedulerResultExt->mutable_core_table_boundary_keys(), coreResult.BoundaryKeys);
+        }
+
+        auto jobError = innerErrors.empty()
+            ? TError()
+            : TError("User job failed") << innerErrors;
 
         ToProto(result.mutable_error(), jobError);
 
@@ -363,6 +429,7 @@ private:
     TSpinLock StatisticsLock_;
     TStatistics CustomStatistics_;
 
+    TCoreProcessorServicePtr CoreProcessorService_;
 
     void Prepare()
     {
@@ -373,7 +440,7 @@ private:
         Process_->AddArgument("--executor");
         Process_->AddArguments({"--command", UserJobSpec_.shell_command()});
         Process_->AddArguments({"--working-dir", SandboxDirectoryNames[ESandboxKind::User]});
-        if (UserJobSpec_.enable_core_dump()) {
+        if (UserJobSpec_.has_core_table_spec()) {
             Process_->AddArgument("--enable-core-dump");
         }
 
@@ -1023,26 +1090,26 @@ private:
         // Pipe statistics.
         if (Prepared_) {
             statistics.AddSample(
-                "/user_job/pipes/input/idle_time", 
+                "/user_job/pipes/input/idle_time",
                 WaitFor(TablePipeWriters_[0]->GetIdleDuration()).Value());
             statistics.AddSample(
-                "/user_job/pipes/input/busy_time", 
+                "/user_job/pipes/input/busy_time",
                 WaitFor(TablePipeWriters_[0]->GetBusyDuration()).Value());
             statistics.AddSample(
-                "/user_job/pipes/input/bytes", 
+                "/user_job/pipes/input/bytes",
                 TablePipeWriters_[0]->GetByteCount());
 
             for (int i = 0; i < TablePipeReaders_.size(); ++i) {
                 const auto& tablePipeReader = TablePipeReaders_[i];
 
                 statistics.AddSample(
-                    Format("/user_job/pipes/output/%v/idle_time", NYPath::ToYPathLiteral(i)), 
+                    Format("/user_job/pipes/output/%v/idle_time", NYPath::ToYPathLiteral(i)),
                     WaitFor(tablePipeReader->GetIdleDuration()).Value());
                 statistics.AddSample(
-                    Format("/user_job/pipes/output/%v/busy_time", NYPath::ToYPathLiteral(i)), 
+                    Format("/user_job/pipes/output/%v/busy_time", NYPath::ToYPathLiteral(i)),
                     WaitFor(tablePipeReader->GetBusyDuration()).Value());
                 statistics.AddSample(
-                    Format("/user_job/pipes/output/%v/bytes", NYPath::ToYPathLiteral(i)), 
+                    Format("/user_job/pipes/output/%v/bytes", NYPath::ToYPathLiteral(i)),
                     tablePipeReader->GetByteCount());
             }
         }
@@ -1261,10 +1328,10 @@ private:
 
         if (UserJobSpec_.has_iops_threshold() &&
             statistics.IORead > UserJobSpec_.iops_threshold() &&
-            !IsWoodpecker_) 
+            !IsWoodpecker_)
         {
-            LOG_DEBUG("Woodpecker detected (IORead: %v, Threshold: %v)", 
-                statistics.IORead, 
+            LOG_DEBUG("Woodpecker detected (IORead: %v, Threshold: %v)",
+                statistics.IORead,
                 UserJobSpec_.iops_threshold());
             IsWoodpecker_ = true;
 

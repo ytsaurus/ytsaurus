@@ -132,7 +132,7 @@ public:
 
     //! A directory that contains files defining the correspondence between slot user id
     //! and its job proxy RPC Unix Domain Socket name.
-    TNullable<Stroka> JobProxyUdsNameDirectory;
+    TNullable<Stroka> JobProxySocketNameDirectory;
 
     TSlotManagerConfig()
     {
@@ -151,7 +151,7 @@ public:
             .GreaterThanOrEqual(1024)
             .Default((i64)10 * 1024 * 1024);
 
-        RegisterParameter("job_proxy_uds_name_directory", JobProxyUdsNameDirectory)
+        RegisterParameter("job_proxy_socket_name_directory", JobProxySocketNameDirectory)
             .Default(Null);
     }
 };
@@ -208,6 +208,8 @@ public:
     int NodeDirectoryPrepareRetryCount;
     TDuration NodeDirectoryPrepareBackoffTime;
 
+    TDuration CoreForwarderTimeout;
+
     TExecAgentConfig()
     {
         RegisterParameter("slot_manager", SlotManager)
@@ -236,6 +238,10 @@ public:
             .Default(10);
         RegisterParameter("node_directory_prepare_backoff_time", NodeDirectoryPrepareBackoffTime)
             .Default(TDuration::Seconds(3));
+
+        RegisterParameter("core_forwarder_timeout", CoreForwarderTimeout)
+            .Default(TDuration::Seconds(60))
+            .GreaterThan(TDuration::Zero());
     }
 };
 

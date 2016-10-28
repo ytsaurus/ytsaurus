@@ -272,7 +272,6 @@ public:
 
     bool UseYamrDescriptors;
     bool CheckInputFullyConsumed;
-    bool EnableCoreDump;
 
     i64 MaxStderrSize;
 
@@ -317,8 +316,6 @@ public:
         RegisterParameter("use_yamr_descriptors", UseYamrDescriptors)
             .Default(false);
         RegisterParameter("check_input_fully_consumed", CheckInputFullyConsumed)
-            .Default(false);
-        RegisterParameter("enable_core_dump", EnableCoreDump)
             .Default(false);
         RegisterParameter("max_stderr_size", MaxStderrSize)
             .Default((i64)5 * 1024 * 1024) // 5MB
@@ -387,6 +384,43 @@ public:
                 THROW_ERROR_EXCEPTION("Expected to see \"input_schema\" in operation spec");
             }
         });
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TOperationWithUserJobSpec
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    TNullable<NYPath::TRichYPath> StderrTablePath;
+    NTableClient::TBlobTableWriterConfigPtr StderrTableWriterConfig;
+
+    TNullable<NYPath::TRichYPath> CoreTablePath;
+    NTableClient::TBlobTableWriterConfigPtr CoreTableWriterConfig;
+
+    TOperationWithUserJobSpec()
+    {
+        RegisterParameter("stderr_table_path", StderrTablePath)
+            .Default();
+        RegisterParameter("stderr_table_writer_config", StderrTableWriterConfig)
+            .DefaultNew();
+
+        RegisterParameter("core_table_path", CoreTablePath)
+            .Default();
+        RegisterParameter("core_table_writer_config", CoreTableWriterConfig)
+            .DefaultNew();
+    }
+
+    virtual void OnLoaded() override
+    {
+        if (StderrTablePath) {
+            *StderrTablePath = StderrTablePath->Normalize();
+        }
+
+        if (CoreTablePath) {
+            *CoreTablePath = CoreTablePath->Normalize();
+        }
     }
 };
 
@@ -464,12 +498,11 @@ public:
 
 class TMapOperationSpec
     : public TUnorderedOperationSpecBase
+    , public TOperationWithUserJobSpec
 {
 public:
     TUserJobSpecPtr Mapper;
     std::vector<NYPath::TRichYPath> OutputTablePaths;
-    TNullable<NYPath::TRichYPath> StderrTablePath;
-    NTableClient::TBlobTableWriterConfigPtr StderrTableWriterConfig;
     bool Ordered;
 
     TMapOperationSpec()
@@ -478,10 +511,6 @@ public:
             .DefaultNew();
         RegisterParameter("output_table_paths", OutputTablePaths)
             .NonEmpty();
-        RegisterParameter("stderr_table_path", StderrTablePath)
-            .Default();
-        RegisterParameter("stderr_table_writer_config", StderrTableWriterConfig)
-            .DefaultNew();
         RegisterParameter("ordered", Ordered)
             .Default(false);
     }
@@ -491,9 +520,6 @@ public:
         TUnorderedOperationSpecBase::OnLoaded();
 
         OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
-        if (StderrTablePath) {
-            *StderrTablePath = StderrTablePath->Normalize();
-        }
 
         Mapper->InitEnableInputTableIndex(InputTablePaths.size(), JobIO);
     }
@@ -616,13 +642,12 @@ public:
 
 class TReduceOperationSpecBase
     : public TSimpleOperationSpecBase
+    , public TOperationWithUserJobSpec
 {
 public:
     TUserJobSpecPtr Reducer;
     std::vector<NYPath::TRichYPath> InputTablePaths;
     std::vector<NYPath::TRichYPath> OutputTablePaths;
-    TNullable<NYPath::TRichYPath> StderrTablePath;
-    NTableClient::TBlobTableWriterConfigPtr StderrTableWriterConfig;
     NTableClient::TKeyColumns JoinBy;
 
     TReduceOperationSpecBase()
@@ -633,10 +658,6 @@ public:
             .NonEmpty();
         RegisterParameter("output_table_paths", OutputTablePaths)
             .NonEmpty();
-        RegisterParameter("stderr_table_path", StderrTablePath)
-            .Default();
-        RegisterParameter("stderr_table_writer_config", StderrTableWriterConfig)
-            .DefaultNew();
 
         RegisterValidator([&] () {
             if (!JoinBy.empty()) {
@@ -651,9 +672,6 @@ public:
 
         InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
         OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
-        if (StderrTablePath) {
-            *StderrTablePath = StderrTablePath->Normalize();
-        }
 
         Reducer->InitEnableInputTableIndex(InputTablePaths.size(), JobIO);
     }
@@ -900,11 +918,10 @@ public:
 class TMapReduceOperationSpec
     : public TSortOperationSpecBase
     , public TInputlyQueryableSpec
+    , public TOperationWithUserJobSpec
 {
 public:
     std::vector<NYPath::TRichYPath> OutputTablePaths;
-    TNullable<NYPath::TRichYPath> StderrTablePath;
-    NTableClient::TBlobTableWriterConfigPtr StderrTableWriterConfig;
 
     std::vector<Stroka> ReduceBy;
 
@@ -923,10 +940,6 @@ public:
     {
         RegisterParameter("output_table_paths", OutputTablePaths)
             .NonEmpty();
-        RegisterParameter("stderr_table_path", StderrTablePath)
-            .Default();
-        RegisterParameter("stderr_table_writer_config", StderrTableWriterConfig)
-            .DefaultNew();
         RegisterParameter("reduce_by", ReduceBy)
             .Default();
         // Mapper can be absent -- leave it Null by default.
@@ -1014,9 +1027,6 @@ public:
         }
 
         OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
-        if (StderrTablePath) {
-            *StderrTablePath = StderrTablePath->Normalize();
-        }
 
         if (Mapper) {
             Mapper->InitEnableInputTableIndex(InputTablePaths.size(), PartitionJobIO);

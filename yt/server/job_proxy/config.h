@@ -57,6 +57,8 @@ public:
     NYTree::INodePtr Logging;
     NYTree::INodePtr Tracing;
 
+    TDuration CoreForwarderTimeout;
+
     TJobProxyConfig()
     {
         RegisterParameter("rpc_server", RpcServer)
@@ -94,6 +96,9 @@ public:
         RegisterParameter("logging", Logging)
             .Default();
         RegisterParameter("tracing", Tracing)
+            .Default();
+
+        RegisterParameter("core_forwarder_timeout", CoreForwarderTimeout)
             .Default();
     }
 };
