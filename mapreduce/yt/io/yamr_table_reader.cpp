@@ -91,10 +91,12 @@ TYaMRTableReader::TYaMRTableReader(THolder<TProxyInput> input)
 TYaMRTableReader::~TYaMRTableReader()
 { }
 
-
 const TYaMRRow& TYaMRTableReader::GetRow() const
 {
     CheckValidity();
+    if (!RowTaken_) {
+        const_cast<TYaMRTableReader*>(this)->ReadRow();
+    }
     return Row_;
 }
 
@@ -128,14 +130,14 @@ void TYaMRTableReader::ReadField(Stroka* result, i32 length)
     result->resize(length);
     size_t count = Load(result->begin(), length);
     if (count != static_cast<size_t>(length)) {
-        ythrow yexception() << "Premature end of stream";
+        ythrow yexception() <<
+            "Premature end of YaMR stream";
     }
 }
 
-void TYaMRTableReader::OnRowStart()
+void TYaMRTableReader::ReadRow()
 {
     i32 value = static_cast<i32>(Length_);
-
     ReadField(&Key_, value);
     Row_.Key = Key_;
 
@@ -147,7 +149,19 @@ void TYaMRTableReader::OnRowStart()
     ReadField(&Value_, value);
     Row_.Value = Value_;
 
-    AtStart_ = false;
+    RowTaken_ = true;
+}
+
+void TYaMRTableReader::SkipRow()
+{
+    i32 value = static_cast<i32>(Length_);
+    Input_->Skip(value);
+
+    ReadInteger(&value);
+    Input_->Skip(value);
+
+    ReadInteger(&value);
+    Input_->Skip(value);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

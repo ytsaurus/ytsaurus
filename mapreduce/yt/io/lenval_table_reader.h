@@ -40,7 +40,7 @@ protected:
         return true;
     }
 
-    virtual void OnRowStart() = 0;
+    virtual void SkipRow() = 0;
 
 protected:
     THolder<TProxyInput> Input_;
@@ -51,6 +51,7 @@ protected:
     TMaybe<ui64> RowIndex_;
     TMaybe<ui32> RangeIndex_;
     bool AtStart_ = true;
+    bool RowTaken_ = true;
     ui32 Length_ = 0;
 };
 

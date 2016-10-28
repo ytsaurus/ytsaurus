@@ -174,10 +174,6 @@ bool TLenvalProtoTableReader::IsValid() const
 
 void TLenvalProtoTableReader::Next()
 {
-    if (!RowTaken_) {
-        Input_->Skip(Length_);
-    }
-    RowTaken_ = false;
     TLenvalTableReader::Next();
 }
 
@@ -194,12 +190,11 @@ ui64 TLenvalProtoTableReader::GetRowIndex() const
 void TLenvalProtoTableReader::NextKey()
 {
     TLenvalTableReader::NextKey();
-    RowTaken_ = true;
 }
 
-void TLenvalProtoTableReader::OnRowStart()
+void TLenvalProtoTableReader::SkipRow()
 {
-    AtStart_ = false;
+    Input_->Skip(Length_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

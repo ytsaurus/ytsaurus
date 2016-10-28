@@ -69,6 +69,10 @@ bool TLenvalTableReader::IsValid() const
 
 void TLenvalTableReader::Next()
 {
+    if (!RowTaken_) {
+        SkipRow();
+    }
+
     CheckValidity();
 
     if (RowIndex_) {
@@ -133,7 +137,8 @@ void TLenvalTableReader::Next()
             }
 
             Length_ = static_cast<ui32>(value);
-            OnRowStart();
+            RowTaken_ = false;
+            AtStart_ = false;
 
         } catch (TRetryException& e) {
             continue;
@@ -157,6 +162,8 @@ void TLenvalTableReader::NextKey()
     if (RowIndex_) {
         --*RowIndex_;
     }
+
+    RowTaken_ = true;
 }
 
 ui32 TLenvalTableReader::GetTableIndex() const

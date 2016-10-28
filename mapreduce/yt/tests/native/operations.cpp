@@ -378,6 +378,87 @@ YT_TEST(TOperation, SimpleReduce)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TRow>
+class TSkippingReducer
+    : public IReducer<TTableReader<TRow>, TTableWriter<TRow>>
+{
+public:
+    virtual void Do(
+        TTableReader<TRow>* input,
+        TTableWriter<TRow>* output) override
+    {
+        output->AddRow(input->GetRow());
+        input->Next();
+        input->Next();
+        output->AddRow(input->GetRow());
+        input->Next();
+    }
+};
+
+REGISTER_REDUCER(TSkippingReducer<TNode>);
+REGISTER_REDUCER(TSkippingReducer<TYaMRRow>);
+REGISTER_REDUCER(TSkippingReducer<TYaMRProto>);
+
+class TOperationSkippingReduce
+    : public TOperation
+{
+protected:
+    template <class TRow>
+    void Do()
+    {
+        {
+            auto writer = Client()->CreateTableWriter<TNode>(
+                TRichYPath(Input()).SortedBy("key"));
+            writer->AddRow(TNode()("key", "0")("value", "a"));
+            writer->AddRow(TNode()("key", "0")("value", "b"));
+            writer->AddRow(TNode()("key", "1")("value", "c"));
+            writer->AddRow(TNode()("key", "1")("value", "d"));
+            writer->Finish();
+        }
+        {
+            auto writer = Client()->CreateTableWriter<TNode>(
+                TRichYPath(Input2()).SortedBy("key"));
+            writer->AddRow(TNode()("key", "0")("value", "w"));
+            writer->AddRow(TNode()("key", "0")("value", "x"));
+            writer->AddRow(TNode()("key", "1")("value", "y"));
+            writer->AddRow(TNode()("key", "1")("value", "z"));
+            writer->Finish();
+        }
+
+        Client()->Reduce(
+            TReduceOperationSpec()
+                .template AddInput<TRow>(Input())
+                .template AddInput<TRow>(Input2())
+                .template AddOutput<TRow>(TRichYPath(Output()).SortedBy("key"))
+                .ReduceBy("key")
+                .SortBy("key"),
+            new TSkippingReducer<TRow>
+        );
+
+        auto reader = Client()->CreateTableReader<TNode>(Output());
+        for (; reader->IsValid(); reader->Next()) {
+            Cout << NYT::NodeToYsonString(reader->GetRow()) << Endl;
+        }
+    }
+};
+
+YT_TEST(TOperationSkippingReduce, Node)
+{
+    Do<TNode>();
+}
+
+YT_TEST(TOperationSkippingReduce, YaMR)
+{
+    Do<TYaMRRow>();
+}
+
+YT_TEST(TOperationSkippingReduce, Proto)
+{
+    Do<TYaMRProto>();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TMapperWithFile
     : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
 {
