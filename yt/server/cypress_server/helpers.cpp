@@ -18,33 +18,39 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-yhash_map<Stroka, TCypressNodeBase*> GetMapNodeChildMap(
+const yhash_map<Stroka, TCypressNodeBase*>& GetMapNodeChildMap(
     const TCypressManagerPtr& cypressManager,
     TCypressNodeBase* trunkNode,
-    TTransaction* transaction)
+    TTransaction* transaction,
+    yhash_map<Stroka, TCypressNodeBase*>* storage)
 {
     Y_ASSERT(trunkNode->GetNodeType() == ENodeType::Map);
 
-    auto originators = cypressManager->GetNodeReverseOriginators(transaction, trunkNode);
+    if (!transaction) {
+        // Fast path.
+        return trunkNode->As<TMapNode>()->KeyToChild();
+    }
 
-    yhash_map<Stroka, TCypressNodeBase*> result;
+    // Slow path.
+    storage->clear();
+    auto originators = cypressManager->GetNodeReverseOriginators(transaction, trunkNode);
     for (const auto* node : originators) {
         const auto* mapNode = node->As<TMapNode>();
         const auto& keyToChild = mapNode->KeyToChild();
         if (mapNode == trunkNode) {
-            result.reserve(keyToChild.size());
+            storage->reserve(keyToChild.size());
         }
         for (const auto& pair : keyToChild) {
             if (!pair.second) {
                 // NB: key may be absent.
-                result.erase(pair.first);
+                storage->erase(pair.first);
             } else {
-                result[pair.first] = pair.second;
+                (*storage)[pair.first] = pair.second;
             }
         }
     }
 
-    return result;
+    return *storage;
 }
 
 std::vector<TCypressNodeBase*> GetMapNodeChildList(
@@ -54,12 +60,13 @@ std::vector<TCypressNodeBase*> GetMapNodeChildList(
 {
     Y_ASSERT(trunkNode->GetNodeType() == ENodeType::Map);
 
-    if (transaction) {
-        return GetValues(GetMapNodeChildMap(cypressManager, trunkNode, transaction));
-    } else {
-        const auto* mapNode = trunkNode->As<TMapNode>();
-        return GetValues(mapNode->KeyToChild());
-    }
+    yhash_map<Stroka, TCypressNodeBase*> keyToChildMapStorage;
+    const auto& keyToChildMap = GetMapNodeChildMap(
+        cypressManager,
+        trunkNode,
+        transaction,
+        &keyToChildMapStorage);
+    return GetValues(keyToChildMap);
 }
 
 const std::vector<TCypressNodeBase*>& GetListNodeChildList(
