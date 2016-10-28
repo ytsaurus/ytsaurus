@@ -1,6 +1,5 @@
 package NYT.NScheduler.NProto;
 
-import "yt/core/misc/guid.proto";
 import "yt/ytlib/chunk_client/chunk_spec.proto";
 import "yt/ytlib/chunk_client/data_slice_descriptor.proto";
 import "yt/ytlib/job_tracker_client/job.proto";
@@ -8,6 +7,9 @@ import "yt/ytlib/node_tracker_client/node.proto";
 import "yt/ytlib/query_client/functions_cache.proto";
 import "yt/ytlib/query_client/query.proto";
 import "yt/ytlib/table_client/chunk_meta.proto";
+import "yt/ytlib/core_dump/core_info.proto";
+import "yt/ytlib/scheduler/output_result.proto";
+import "yt/core/misc/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,7 +23,7 @@ message TFileDescriptor
     optional bytes format = 7;
 }
 
-message TTableOtherSpec
+message TTableBlobSpec
 {
     required TTableOutputSpec output_table_spec = 1;
     required bytes blob_table_writer_config = 2;
@@ -60,8 +62,6 @@ message TUserJobSpec
 
     required int64 max_stderr_size = 11;
 
-    optional bool enable_core_dump = 12 [default = false];
-
     optional bool check_input_fully_consumed = 16 [default = false];
 
     required int64 custom_statistics_count_limit = 18;
@@ -81,9 +81,9 @@ message TUserJobSpec
     optional int32 iops_threshold = 27 [default = 1000];
     optional int32 iops_throttler_limit = 28;
 
-    optional TTableOtherSpec stderr_table_spec = 29;
+    optional TTableBlobSpec stderr_table_spec = 29;
 
-    optional TTableOtherSpec core_table_spec = 30;
+    optional TTableBlobSpec core_table_spec = 30;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -168,22 +168,6 @@ message TSchedulerJobSpecExt
     optional int64 job_proxy_ref_counted_tracker_log_period = 17 [default = 5];
 }
 
-message TOutputResult
-{
-    // Indicates that the result is empty.
-    required bool empty = 1;
-
-    // Indicates that the result contains s sorted rowset.
-    optional bool sorted = 2 [default = false];
-
-    // Indicates that the result contains a sorted rowset with unique keys.
-    optional bool unique_keys = 3 [default = false];
-
-    optional bytes min = 4;
-
-    optional bytes max = 5;
-}
-
 message TSchedulerJobResultExt
 {
     extend NJobTrackerClient.NProto.TJobResult
@@ -209,6 +193,9 @@ message TSchedulerJobResultExt
     repeated TOutputResult output_boundary_keys = 9;
 
     optional TOutputResult stderr_table_boundary_keys = 10;
+
+    repeated NYT.NCoreDump.NProto.TCoreInfo core_infos = 11;
+    optional TOutputResult core_table_boundary_keys = 12;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -234,6 +234,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/job.proto
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/job_prober_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/output_result.proto
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/scheduler_channel.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/scheduler_service.proto
 
