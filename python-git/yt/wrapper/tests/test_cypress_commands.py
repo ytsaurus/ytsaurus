@@ -195,7 +195,7 @@ class TestCypressCommands(object):
         yt.create_table(table)
         yt.link(table, link)
         assert not parse_bool(yt.get_attribute(link + "&", "broken"))
-        assert yt.get_attribute(link + "&", "target_id") == yt.get_attribute(table, "id")
+        assert yt.get_attribute(link + "&", "target_path") == table
 
         with pytest.raises(yt.YtError):
             yt.link(table, link)
@@ -203,10 +203,10 @@ class TestCypressCommands(object):
 
         other_link = TEST_DIR + "/other_link"
         yt.link(link, other_link, recursive=False)
-        assert yt.get_attribute(other_link + "&", "target_id") == yt.get_attribute(link, "id")
+        assert yt.get_attribute(other_link + "&", "target_path") == table
         yt.remove(other_link, force=True)
         yt.link(link, other_link, recursive=True)
-        assert yt.get_attribute(other_link + "&", "target_id") == yt.get_attribute(table, "id")
+        assert yt.get_attribute(other_link + "&", "target_path") == table
 
     def test_list(self):
         tables = ["{0}/{1}".format(TEST_DIR, name) for name in ("a", "b", "c")]
