@@ -384,8 +384,9 @@ TYsonString DoGetMulticellOwningNodes(
             const auto& rspOrError = rsps[index];
             const auto& versionedId = nodeIds[index];
             auto code = rspOrError.GetCode();
-            if (code == NYTree::EErrorCode::ResolveError)
+            if (code == NYTree::EErrorCode::ResolveError || code == NTransactionClient::EErrorCode::NoSuchTransaction) {
                 continue;
+            }
 
             THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting path for node %v",
                 versionedId);
