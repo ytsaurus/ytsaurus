@@ -209,7 +209,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/misc/disk_health_checker.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/disk_location.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/private.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/misc/stderr_table_schema.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/job_table_schema.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_server/cypress_integration.cpp
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_server/data_center.cpp
