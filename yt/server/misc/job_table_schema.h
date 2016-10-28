@@ -8,6 +8,8 @@ namespace NYT {
 
 NTableClient::TBlobTableSchema GetStderrBlobTableSchema();
 
+NTableClient::TBlobTableSchema GetCoreBlobTableSchema();
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

@@ -5,7 +5,7 @@
 #include "helpers.h"
 #include "master_connector.h"
 
-#include <yt/server/misc/stderr_table_schema.h>
+#include <yt/server/misc/job_table_schema.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
@@ -4662,7 +4662,7 @@ void TOperationControllerBase::AddStderrOutputSpecs(
 
     auto writerConfig = GetStderrTableWriterConfig();
     YCHECK(writerConfig);
-    stderrTableSpec->set_stderr_table_writer_config(ConvertToYsonString(writerConfig).Data());
+    stderrTableSpec->set_blob_table_writer_config(ConvertToYsonString(writerConfig).Data());
 }
 
 

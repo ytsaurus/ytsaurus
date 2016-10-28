@@ -2,7 +2,7 @@
 #include "config.h"
 #include "job.h"
 
-#include <yt/server/misc/stderr_table_schema.h>
+#include <yt/server/misc/job_table_schema.h>
 
 #include <yt/ytlib/object_client/helpers.h>
 
@@ -17,7 +17,7 @@
 
 #include <yt/core/concurrency/scheduler.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/core/ytree/convert.h>
 
 #include <yt/core/misc/finally.h>
 
@@ -35,6 +35,7 @@ using namespace NTableClient;
 using namespace NTableClient::NProto;
 using namespace NTransactionClient;
 using namespace NObjectClient;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,12 +87,12 @@ void TUserJobIOBase::Init()
         options->ValidateColumnCount = true;
 
         auto stderrTableWriterConfig = ConvertTo<TBlobTableWriterConfigPtr>(
-            TYsonString(stderrTableSpec.stderr_table_writer_config()));
+            TYsonString(stderrTableSpec.blob_table_writer_config()));
 
         StderrTableWriter_.reset(
             new NTableClient::TBlobTableWriter(
                 GetStderrBlobTableSchema(),
-                {ToString(Host_->GetJobId())},
+                {ConvertToYsonString(Host_->GetJobId())},
                 Host_->GetClient(),
                 stderrTableWriterConfig,
                 options,

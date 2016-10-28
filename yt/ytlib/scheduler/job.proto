@@ -20,10 +20,10 @@ message TFileDescriptor
     optional bytes format = 7;
 }
 
-message TTableStderrSpec
+message TTableOtherSpec
 {
     required TTableOutputSpec output_table_spec = 1;
-    required bytes stderr_table_writer_config = 2;
+    required bytes blob_table_writer_config = 2;
 }
 
 // Specification for starting user code during a job.
@@ -80,7 +80,7 @@ message TUserJobSpec
     optional int32 iops_threshold = 27 [default = 1000];
     optional int32 iops_throttler_limit = 28;
 
-    optional TTableStderrSpec stderr_table_spec = 29;
+    optional TTableOtherSpec stderr_table_spec = 29;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
