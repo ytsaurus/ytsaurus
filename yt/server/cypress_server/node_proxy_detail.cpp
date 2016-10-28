@@ -211,7 +211,6 @@ TNontemplateCypressNodeProxyBase::TNontemplateCypressNodeProxyBase(
     TTransaction* transaction,
     TCypressNodeBase* trunkNode)
     : TObjectProxyBase(bootstrap, metadata, trunkNode)
-    , Config(Bootstrap_->GetConfig()->CypressManager)
     , Transaction(transaction)
     , TrunkNode(trunkNode)
 {
@@ -1367,12 +1366,12 @@ void TMapNodeProxy::SetChildNode(
 
 int TMapNodeProxy::GetMaxChildCount() const
 {
-    return Config->MaxNodeChildCount;
+    return Bootstrap_->GetConfig()->CypressManager->MaxNodeChildCount;
 }
 
 int TMapNodeProxy::GetMaxKeyLength() const
 {
-    return Config->MaxMapNodeKeyLength;
+    return Bootstrap_->GetConfig()->CypressManager->MaxMapNodeKeyLength;
 }
 
 IYPathService::TResolveResult TMapNodeProxy::ResolveRecursive(
@@ -1584,7 +1583,7 @@ void TListNodeProxy::SetChildNode(
 
 int TListNodeProxy::GetMaxChildCount() const
 {
-    return Config->MaxNodeChildCount;
+    return Bootstrap_->GetConfig()->CypressManager->MaxNodeChildCount;
 }
 
 IYPathService::TResolveResult TListNodeProxy::ResolveRecursive(

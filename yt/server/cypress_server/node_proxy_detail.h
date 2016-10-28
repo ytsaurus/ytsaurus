@@ -53,7 +53,6 @@ protected:
     class TCustomAttributeDictionary;
     class TResourceUsageVisitor;
 
-    const TCypressManagerConfigPtr Config;
     NTransactionServer::TTransaction* const Transaction;
     TCypressNodeBase* const TrunkNode;
 
