@@ -395,7 +395,8 @@ static TError ProcessInfoToError(const siginfo_t& processInfo)
                 EProcessErrorCode::Signal,
                 "Process terminated by signal %v",
                 signal)
-                << TErrorAttribute("signal", signal);
+                << TErrorAttribute("signal", signal)
+                << TErrorAttribute("core_dumped", processInfo.si_code == CLD_DUMPED);
         }
 
         default:

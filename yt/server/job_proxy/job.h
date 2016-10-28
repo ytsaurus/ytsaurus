@@ -50,6 +50,8 @@ struct IJobHost
     virtual const NNodeTrackerClient::TNodeDescriptor& LocalDescriptor() const = 0;
 
     virtual NLogging::TLogger GetLogger() const = 0;
+
+    virtual NRpc::IServerPtr GetRpcServer() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobHost)

@@ -123,6 +123,11 @@ TYsonString TJobProxy::PollJobShell(const TJobId& jobId, const TYsonString& para
     return Job_->PollJobShell(parameters);
 }
 
+IServerPtr TJobProxy::GetRpcServer() const
+{
+    return RpcServer_;
+}
+
 void TJobProxy::ValidateJobId(const TJobId& jobId)
 {
     if (JobId_ != jobId) {
