@@ -63,11 +63,11 @@ VERSION_TO_CONFIGS_PROVIDER_CLASS = {
     "18.3": "ConfigsProvider_18_3",
     "18.4": "ConfigsProvider_18_4",
     "18.5": "ConfigsProvider_18_5",
-    "18.6": "ConfigsProvider_18_6"
+    "19.0": "ConfigsProvider_19_0"
 }
 
 def create_configs_provider(version):
-    if version.startswith("18."):
+    if version.startswith("18.") or version.startswith("19."):
         # XXX(asaitgalin): Drops git depth from version.
         # Only major and minor version components are important.
         version = ".".join(version.split(".")[:2])
@@ -791,5 +791,5 @@ class ConfigsProvider_18_5(ConfigsProvider_18):
 
         return configs
 
-class ConfigsProvider_18_6(ConfigsProvider_18_5):
+class ConfigsProvider_19(ConfigsProvider_18_5):
     pass
