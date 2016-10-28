@@ -54,17 +54,23 @@ public:
     //! Graceful delay before chunk refresh.
     TDuration ChunkRefreshDelay;
 
-    //! Interval between consequent chunk refresh scans.
+    //! Interval between consequent chunk refresh iterations.
     TDuration ChunkRefreshPeriod;
 
-    //! Maximum number of chunks to process during a refresh scan.
+    //! Maximum number of chunks to process during a refresh iteration.
     int MaxChunksPerRefresh;
 
-    //! Interval between consequent chunk properties update scans.
+    //! Maximum amount of time allowed to spend during a refresh iteration.
+    TDuration MaxTimePerRefresh;
+
+    //! Interval between consequent chunk properties update iterations.
     TDuration ChunkPropertiesUpdatePeriod;
 
-    //! Maximum number of chunks to process during a properties update scan.
+    //! Maximum number of chunks to process during a properties update iteration.
     int MaxChunksPerPropertiesUpdate;
+
+    //! Maximum amount of time allowed to spend during a properties update iteration.
+    TDuration MaxTimePerPropertiesUpdate;
 
     //! Interval between consequent seal attempts.
     TDuration ChunkSealBackoffTime;
@@ -125,11 +131,15 @@ public:
             .Default(TDuration::MilliSeconds(100));
         RegisterParameter("max_chunks_per_refresh", MaxChunksPerRefresh)
             .Default(10000);
+        RegisterParameter("max_time_per_refresh", MaxTimePerRefresh)
+            .Default(TDuration::MilliSeconds(100));
 
         RegisterParameter("chunk_properties_update_period", ChunkPropertiesUpdatePeriod)
             .Default(TDuration::MilliSeconds(100));
         RegisterParameter("max_chunks_per_properties_update", MaxChunksPerPropertiesUpdate)
             .Default(10000);
+        RegisterParameter("max_time_per_properties_update", MaxTimePerPropertiesUpdate)
+            .Default(TDuration::MilliSeconds(100));
 
         RegisterParameter("chunk_seal_backoff_time", ChunkSealBackoffTime)
             .Default(TDuration::Seconds(30));
