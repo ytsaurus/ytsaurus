@@ -791,5 +791,5 @@ class ConfigsProvider_18_5(ConfigsProvider_18):
 
         return configs
 
-class ConfigsProvider_19(ConfigsProvider_18_5):
+class ConfigsProvider_19_0(ConfigsProvider_18_5):
     pass
