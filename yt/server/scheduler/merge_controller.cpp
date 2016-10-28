@@ -443,10 +443,10 @@ protected:
 
             InitTeleportableInputTables();
             ClearCurrentTaskStripes();
-            for (auto chunk : CollectPrimaryUnversionedChunks()) {
+            for (const auto& chunk : CollectPrimaryUnversionedChunks()) {
                 ProcessInputDataSlice(CreateInputDataSlice(CreateInputChunkSlice(chunk)));
             }
-            for (auto slice : CollectPrimaryVersionedDataSlices(ChunkSliceSize)) {
+            for (const auto& slice : CollectPrimaryVersionedDataSlices(ChunkSliceSize)) {
                 ProcessInputDataSlice(slice);
             }
         }
@@ -2408,8 +2408,8 @@ private:
             processSlice(CreateInputDataSlice(chunkSlice));
         }
 
-        for (const auto& slice : VersionedDataSlices) {
-            processSlice(slice);
+        for (const auto& dataSlice : VersionedDataSlices) {
+            processSlice(dataSlice);
         }
 
         EndTaskIfActive();

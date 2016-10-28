@@ -35,7 +35,7 @@ public:
     std::vector<NChunkClient::TInputDataSlicePtr> GetDataSlices();
 
 private:
-    TChunkSliceFetcherPtr ChunkSliceFetcher_;
+    const TChunkSliceFetcherPtr ChunkSliceFetcher_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDataSliceFetcher)
