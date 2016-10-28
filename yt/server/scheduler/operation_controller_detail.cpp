@@ -626,7 +626,7 @@ void TOperationControllerBase::TTask::ReinstallJob(TJobletPtr joblet, EJobReinst
 {
     Controller->ReleaseChunkLists(joblet->ChunkListIds);
     if (joblet->StderrTableChunkListId && reason != EJobReinstallReason::Failed) {
-        Controller->ReleaseChunkLists(joblet->ChunkListIds);
+        Controller->ReleaseChunkLists({joblet->StderrTableChunkListId});
     }
 
     auto* chunkPoolOutput = GetChunkPoolOutput();
