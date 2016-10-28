@@ -46,6 +46,8 @@ public:
     void SignalJob(const NJobTrackerClient::TJobId& jobId, const Stroka& signalName);
     NYson::TYsonString PollJobShell(const NJobTrackerClient::TJobId& jobId, const NYson::TYsonString& parameters);
 
+    virtual NRpc::IServerPtr GetRpcServer() const override;
+
 private:
     const NYTree::INodePtr ConfigNode_;
     const NJobTrackerClient::TOperationId OperationId_;
