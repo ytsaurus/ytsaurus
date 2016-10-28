@@ -184,7 +184,7 @@ private:
     {
         auto cypressManager = Bootstrap_->GetCypressManager();
         auto* node = cypressManager->GetVersionedNode(trunkNode, transaction);
-        auto handler = cypressManager->GetHandler(node);
+        const auto& handler = cypressManager->GetHandler(node);
         ResourceUsage_ += handler->GetTotalResourceUsage(node);
     }
 
@@ -559,9 +559,9 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
     }
 
     if (key == "resource_usage") {
-        auto cypressManager = Bootstrap_->GetCypressManager();
-        auto handler = cypressManager->GetHandler(node);
-        auto chunkManager = Bootstrap_->GetChunkManager();
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        const auto& handler = cypressManager->GetHandler(node);
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto resourceSerializer = New<TSerializableClusterResources>(chunkManager, handler->GetTotalResourceUsage(node));
         BuildYsonFluently(consumer)
             .Value(resourceSerializer);

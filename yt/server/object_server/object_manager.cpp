@@ -70,6 +70,7 @@ using namespace NProfiling;
 
 static const auto& Logger = ObjectServerLogger;
 static const auto ProfilingPeriod = TDuration::MilliSeconds(100);
+static const IObjectTypeHandlerPtr NullTypeHandler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -486,8 +487,6 @@ void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
     }
 }
 
-static const IObjectTypeHandlerPtr NullTypeHandler;
-
 const IObjectTypeHandlerPtr& TObjectManager::FindHandler(EObjectType type) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -713,7 +712,7 @@ TObjectBase* TObjectManager::FindObject(const TObjectId& id)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto handler = FindHandler(TypeFromId(id));
+    const auto& handler = FindHandler(TypeFromId(id));
     if (!handler) {
         return nullptr;
     }
@@ -758,7 +757,7 @@ IObjectProxyPtr TObjectManager::GetProxy(
     YCHECK(IsObjectAlive(object));
 
     const auto& id = object->GetId();
-    auto handler = FindHandler(TypeFromId(id));
+    const auto& handler = FindHandler(TypeFromId(id));
     if (!handler) {
         return nullptr;
     }
@@ -871,7 +870,7 @@ TObjectBase* TObjectManager::CreateObject(
         attributes = attributeHolder.get();
     }
 
-    auto handler = FindHandler(type);
+    const auto& handler = FindHandler(type);
     if (!handler) {
         THROW_ERROR_EXCEPTION("Unknown object type %v",
             type);
@@ -1271,7 +1270,7 @@ std::unique_ptr<NYTree::IAttributeDictionary> TObjectManager::GetReplicatedAttri
 {
     YCHECK(!IsVersionedType(object->GetType()));
 
-    auto handler = GetHandler(object);
+    const auto& handler = GetHandler(object);
     auto proxy = handler->GetProxy(object, nullptr);
 
     auto attributes = CreateEphemeralAttributes();

@@ -1095,7 +1095,7 @@ private:
     {
         if (!node->IsExternal() && node->GetAccountingEnabled()) {
             auto cypressManager = Bootstrap_->GetCypressManager();
-            auto handler = cypressManager->GetHandler(node);
+            const auto& handler = cypressManager->GetHandler(node);
             node->CachedResourceUsage() = handler->GetAccountingResourceUsage(node);
         } else {
             node->CachedResourceUsage() = TClusterResources();

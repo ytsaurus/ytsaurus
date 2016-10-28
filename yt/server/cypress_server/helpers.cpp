@@ -201,7 +201,7 @@ bool NodeHasKey(
     if (!parent) {
         return false;
     }
-    auto handler = cypressManager->GetHandler(parent);
+    const auto& handler = cypressManager->GetHandler(parent);
     return handler->GetNodeType() == ENodeType::Map;
 }
 
