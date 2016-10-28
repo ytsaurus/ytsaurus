@@ -85,7 +85,7 @@ IYPathService::TResolveResult TVirtualMulticellMapBase::ResolveRecursive(
             objectIdString);
     }
 
-    auto objectManager = Bootstrap_->GetObjectManager();
+    const auto& objectManager = Bootstrap_->GetObjectManager();
     IYPathServicePtr proxy;
     if (Bootstrap_->IsPrimaryMaster() && CellTagFromId(objectId) != Bootstrap_->GetCellTag()) {
         proxy = objectManager->CreateRemoteProxy(objectId);
@@ -304,7 +304,7 @@ TFuture<std::vector<std::pair<TCellTag, i64>>> TVirtualMulticellMapBase::FetchSi
     };
 
     if (Bootstrap_->IsPrimaryMaster()) {
-        auto multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
             auto asyncResult = FetchSizeFromRemote(cellTag);
             if (asyncResult) {
@@ -323,7 +323,7 @@ TFuture<std::pair<TCellTag, i64>> TVirtualMulticellMapBase::FetchSizeFromLocal()
 
 TFuture<std::pair<TCellTag, i64>> TVirtualMulticellMapBase::FetchSizeFromRemote(TCellTag cellTag)
 {
-    auto multicellManager = Bootstrap_->GetMulticellManager();
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
     auto channel = multicellManager->FindMasterChannel(cellTag, NHydra::EPeerKind::Leader);
     if (!channel) {
         return TFuture<std::pair<TCellTag, i64>>();
@@ -369,7 +369,7 @@ TFuture<TVirtualMulticellMapBase::TFetchItemsSessionPtr> TVirtualMulticellMapBas
     };
 
     if (Bootstrap_->IsPrimaryMaster()) {
-        auto multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
             asyncResults.push_back(FetchItemsFromRemote(session, cellTag));
         }
@@ -385,7 +385,7 @@ TFuture<void> TVirtualMulticellMapBase::FetchItemsFromLocal(TFetchItemsSessionPt
     auto keys = GetKeys(session->Limit);
     session->Incomplete |= (keys.size() == session->Limit);
 
-    auto objectManager = Bootstrap_->GetObjectManager();
+    const auto& objectManager = Bootstrap_->GetObjectManager();
 
     std::vector<TFuture<TYsonString>> asyncAttributes;
     std::vector<TObjectId> aliveKeys;
@@ -417,7 +417,7 @@ TFuture<void> TVirtualMulticellMapBase::FetchItemsFromLocal(TFetchItemsSessionPt
 
 TFuture<void> TVirtualMulticellMapBase::FetchItemsFromRemote(TFetchItemsSessionPtr session, TCellTag cellTag)
 {
-    auto multicellManager = Bootstrap_->GetMulticellManager();
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
     auto channel = multicellManager->FindMasterChannel(cellTag, NHydra::EPeerKind::Follower);
     if (!channel) {
         return VoidFuture;
@@ -483,7 +483,7 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualMulticellMapBase, Enumerate)
 
     auto keys = GetKeys(limit);
 
-    auto objectManager = Bootstrap_->GetObjectManager();
+    const auto& objectManager = Bootstrap_->GetObjectManager();
 
     std::vector<TFuture<TYsonString>> asyncValues;
     for (const auto& key : keys) {

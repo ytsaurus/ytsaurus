@@ -83,7 +83,7 @@ private:
         }
 
         if (key == "current_commit_revision") {
-            auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+            const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
             BuildYsonFluently(consumer)
                 .Value(hydraManager->GetAutomatonVersion().ToRevision());
             return true;
@@ -91,14 +91,14 @@ private:
 
         if (key == "chunk_replicator_enabled") {
             RequireLeader();
-            auto chunkManager = Bootstrap_->GetChunkManager();
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
             BuildYsonFluently(consumer)
                 .Value(chunkManager->IsReplicatorEnabled());
             return true;
         }
 
         if (key == "registered_master_cell_tags") {
-            auto multicellManager = Bootstrap_->GetMulticellManager();
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
             BuildYsonFluently(consumer)
                 .Value(multicellManager->GetRegisteredMasterCellTags());
             return true;

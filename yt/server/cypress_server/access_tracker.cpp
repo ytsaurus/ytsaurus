@@ -65,7 +65,7 @@ void TAccessTracker::SetModified(
     // Failure here means that the node wasn't indeed locked,
     // which is strange given that we're about to mark it as modified.
     TVersionedNodeId versionedId(trunkNode->GetId(), GetObjectId(transaction));
-    auto cypressManager = Bootstrap_->GetCypressManager();
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
     auto* node = cypressManager->GetNode(versionedId);
 
     const auto* mutationContext = GetCurrentMutationContext();
@@ -89,7 +89,7 @@ void TAccessTracker::SetAccessed(TCypressNodeBase* trunkNode)
         auto* update = UpdateAccessStatisticsRequest_.add_updates();
         ToProto(update->mutable_node_id(), trunkNode->GetId());
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->WeakRefObject(trunkNode);
     }
 
@@ -101,7 +101,7 @@ void TAccessTracker::SetAccessed(TCypressNodeBase* trunkNode)
 
 void TAccessTracker::Reset()
 {
-    auto objectManager = Bootstrap_->GetObjectManager();
+    const auto& objectManager = Bootstrap_->GetObjectManager();
     for (auto* node : NodesWithAccessStatisticsUpdate_) {
         if (node->IsAlive()) {
             node->SetAccessStatisticsUpdateIndex(-1);
@@ -117,7 +117,7 @@ void TAccessTracker::OnFlush()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+    const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
     if (NodesWithAccessStatisticsUpdate_.empty() ||
         !hydraManager->IsActiveLeader() && !hydraManager->IsActiveFollower())
     {

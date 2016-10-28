@@ -61,7 +61,7 @@ public:
 
         trunkNode->SetSealed(true);
 
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->UpdateAccountNodeUsage(trunkNode);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Journal node sealed (NodeId: %v)",
@@ -71,7 +71,7 @@ public:
             auto req = TJournalYPathProxy::Seal(FromObjectId(trunkNode->GetId()));
             *req->mutable_statistics() = trunkNode->SnapshotStatistics();
 
-            auto multicellManager = Bootstrap_->GetMulticellManager();
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToMaster(req, PrimaryMasterCellTag);
         }
     }

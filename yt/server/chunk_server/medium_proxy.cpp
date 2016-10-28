@@ -80,7 +80,7 @@ private:
     virtual bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override
     {
         auto* medium = GetThisImpl();
-        auto chunkManager = Bootstrap_->GetChunkManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
 
         if (key == "name") {
             auto newName = ConvertTo<Stroka>(value);

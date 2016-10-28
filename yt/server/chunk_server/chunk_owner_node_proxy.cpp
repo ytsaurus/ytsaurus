@@ -169,7 +169,7 @@ private:
         try {
             // Update upper limits for all returned journal chunks.
             auto* chunkSpecs = Context_->Response().mutable_chunks();
-            auto chunkManager = Bootstrap_->GetChunkManager();
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
             for (auto& chunkSpec : *chunkSpecs) {
                 auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
                 if (TypeFromId(chunkId) == EObjectType::JournalChunk) {
@@ -229,7 +229,6 @@ private:
             return false;
         }
 
-        auto chunkManager = Bootstrap_->GetChunkManager();
         const auto& config = Bootstrap_->GetConfig()->ChunkManager;
 
         if (!chunk->IsConfirmed()) {
@@ -641,7 +640,7 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
     }
 
     if (key == "media") {
-        auto chunkManager = Bootstrap_->GetChunkManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& properties = node->Properties();
         BuildYsonFluently(consumer)
             .Value(TMediaSerializer(properties, chunkManager));
@@ -663,7 +662,7 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
     }
 
     if (key == "primary_medium_name") {
-        auto chunkManager = Bootstrap_->GetChunkManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto primaryMediumIndex = node->GetPrimaryMediumIndex();
         auto* medium = chunkManager->GetMediumByIndexOrThrow(primaryMediumIndex);
 
@@ -740,7 +739,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
     const Stroka& key,
     const TYsonString& value)
 {
-    auto chunkManager = Bootstrap_->GetChunkManager();
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
 
     auto* node = GetThisImpl<TChunkOwnerBase>();
 
@@ -772,7 +771,6 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
         serializer.ToChunkPropertiesOrThrow(&properties, chunkManager);
         SetProperties(properties);
         return true;
-
     }
 
     return TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(key, value);
@@ -783,7 +781,7 @@ void TChunkOwnerNodeProxy::SetReplicationFactor(int mediumIndex, int replication
     ValidateReplicationFactor(replicationFactor);
 
     auto* node = GetThisImpl<TChunkOwnerBase>();
-    auto chunkManager = Bootstrap_->GetChunkManager();
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
 
     YCHECK(node->IsTrunk());
 
@@ -795,7 +793,7 @@ void TChunkOwnerNodeProxy::SetReplicationFactor(int mediumIndex, int replication
 
         node->SetReplicationFactorOrThrow(mediumIndex, replicationFactor);
 
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->UpdateAccountNodeUsage(node);
 
         if (!node->IsExternal()) {
@@ -807,7 +805,7 @@ void TChunkOwnerNodeProxy::SetReplicationFactor(int mediumIndex, int replication
 void TChunkOwnerNodeProxy::SetVital(bool vital)
 {
     auto* node = GetThisImpl<TChunkOwnerBase>();
-    auto chunkManager = Bootstrap_->GetChunkManager();
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
 
     YCHECK(node->IsTrunk());
 
@@ -823,7 +821,7 @@ void TChunkOwnerNodeProxy::SetVital(bool vital)
 void TChunkOwnerNodeProxy::SetProperties(const TChunkProperties& properties)
 {
     auto* node = GetThisImpl<TChunkOwnerBase>();
-    auto chunkManager = Bootstrap_->GetChunkManager();
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
 
     YCHECK(node->IsTrunk());
 
@@ -840,7 +838,7 @@ void TChunkOwnerNodeProxy::SetProperties(const TChunkProperties& properties)
 
         node->SetPropertiesOrThrow(properties);
 
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->UpdateAccountNodeUsage(node);
 
         if (!node->IsExternal()) {
@@ -858,7 +856,7 @@ void TChunkOwnerNodeProxy::SetProperties(const TChunkProperties& properties)
 void TChunkOwnerNodeProxy::SetPrimaryMedium(int mediumIndex)
 {
     auto* node = GetThisImpl<TChunkOwnerBase>();
-    auto chunkManager = Bootstrap_->GetChunkManager();
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
 
     YCHECK(node->IsTrunk());
 
@@ -998,10 +996,10 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
 
     ValidateBeginUpload();
 
-    auto chunkManager = Bootstrap_->GetChunkManager();
-    auto objectManager = Bootstrap_->GetObjectManager();
-    auto cypressManager = Bootstrap_->GetCypressManager();
-    auto transactionManager = Bootstrap_->GetTransactionManager();
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+    const auto& objectManager = Bootstrap_->GetObjectManager();
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    const auto& transactionManager = Bootstrap_->GetTransactionManager();
 
     auto* uploadTransaction = transactionManager->StartTransaction(
         Transaction,
@@ -1016,7 +1014,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         ->LockNode(TrunkNode, uploadTransaction, lockMode)
         ->As<TChunkOwnerBase>();
 
-    auto securityManager = Bootstrap_->GetSecurityManager();
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
     securityManager->SetNodeResourceAccounting(lockedNode, false);
 
     switch (updateMode) {
@@ -1092,7 +1090,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
 
     response->set_cell_tag(externalCellTag == NotReplicatedCellTag ? Bootstrap_->GetPrimaryCellTag() : externalCellTag);
 
-    auto multicellManager = Bootstrap_->GetMulticellManager();
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
     if (node->IsExternal()) {
         auto replicationRequest = TChunkOwnerYPathProxy::BeginUpload(FromObjectId(GetId()));
@@ -1180,7 +1178,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
     SetModified();
 
     if (Bootstrap_->IsPrimaryMaster()) {
-        auto transactionManager = Bootstrap_->GetTransactionManager();
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->CommitTransaction(Transaction, NullTimestamp);
     }
 

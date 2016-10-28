@@ -283,17 +283,17 @@ public:
         return CellDescriptor_;
     }
 
-    IHydraManagerPtr GetHydraManager() const
+    const IHydraManagerPtr& GetHydraManager() const
     {
         return HydraManager_;
     }
 
-    TResponseKeeperPtr GetResponseKeeper() const
+    const TResponseKeeperPtr& GetResponseKeeper() const
     {
         return ResponseKeeper_;
     }
 
-    TTabletAutomatonPtr GetAutomaton() const
+    const TTabletAutomatonPtr& GetAutomaton() const
     {
         return Automaton_;
     }
@@ -321,7 +321,7 @@ public:
         return GuardedAutomatonInvokers_[queue];
     }
 
-    THiveManagerPtr GetHiveManager() const
+    const THiveManagerPtr& GetHiveManager() const
     {
         return HiveManager_;
     }
@@ -333,29 +333,29 @@ public:
         return HiveManager_->GetOrCreateMailbox(masterCellId);
     }
 
-    TTransactionManagerPtr GetTransactionManager() const
+    const TTransactionManagerPtr& GetTransactionManager() const
     {
         return TransactionManager_;
     }
 
-    TTransactionSupervisorPtr GetTransactionSupervisor() const
+    const TTransactionSupervisorPtr& GetTransactionSupervisor() const
     {
         return TransactionSupervisor_;
     }
 
-    TTabletManagerPtr GetTabletManager() const
+    const TTabletManagerPtr& GetTabletManager() const
     {
         return TabletManager_;
     }
 
-    TTransactionId GetPrerequisiteTransactionId() const
+    const TTransactionId& GetPrerequisiteTransactionId() const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return PrerequisiteTransactionId_;
     }
 
-    TTabletCellOptionsPtr GetOptions() const
+    const TTabletCellOptionsPtr& GetOptions() const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -594,7 +594,7 @@ public:
     }
 
 
-    IYPathServicePtr GetOrchidService()
+    const IYPathServicePtr& GetOrchidService()
     {
         return OrchidService_;
     }
@@ -795,8 +795,7 @@ TTabletSlot::TTabletSlot(
         bootstrap))
 { }
 
-TTabletSlot::~TTabletSlot()
-{ }
+TTabletSlot::~TTabletSlot() = default;
 
 int TTabletSlot::GetIndex() const
 {
@@ -828,17 +827,17 @@ const TCellDescriptor& TTabletSlot::GetCellDescriptor() const
     return Impl_->GetCellDescriptor();
 }
 
-IHydraManagerPtr TTabletSlot::GetHydraManager() const
+const IHydraManagerPtr& TTabletSlot::GetHydraManager() const
 {
     return Impl_->GetHydraManager();
 }
 
-TResponseKeeperPtr TTabletSlot::GetResponseKeeper() const
+const TResponseKeeperPtr& TTabletSlot::GetResponseKeeper() const
 {
     return Impl_->GetResponseKeeper();
 }
 
-TTabletAutomatonPtr TTabletSlot::GetAutomaton() const
+const TTabletAutomatonPtr& TTabletSlot::GetAutomaton() const
 {
     return Impl_->GetAutomaton();
 }
@@ -858,7 +857,7 @@ IInvokerPtr TTabletSlot::GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue)
     return Impl_->GetGuardedAutomatonInvoker(queue);
 }
 
-THiveManagerPtr TTabletSlot::GetHiveManager() const
+const THiveManagerPtr& TTabletSlot::GetHiveManager() const
 {
     return Impl_->GetHiveManager();
 }
@@ -868,17 +867,17 @@ TMailbox* TTabletSlot::GetMasterMailbox()
     return Impl_->GetMasterMailbox();
 }
 
-TTransactionManagerPtr TTabletSlot::GetTransactionManager() const
+const TTransactionManagerPtr& TTabletSlot::GetTransactionManager() const
 {
     return Impl_->GetTransactionManager();
 }
 
-TTransactionSupervisorPtr TTabletSlot::GetTransactionSupervisor() const
+const TTransactionSupervisorPtr& TTabletSlot::GetTransactionSupervisor() const
 {
     return Impl_->GetTransactionSupervisor();
 }
 
-TTabletManagerPtr TTabletSlot::GetTabletManager() const
+const TTabletManagerPtr& TTabletSlot::GetTabletManager() const
 {
     return Impl_->GetTabletManager();
 }
@@ -908,7 +907,7 @@ TFuture<void> TTabletSlot::Finalize()
     return Impl_->Finalize();
 }
 
-IYPathServicePtr TTabletSlot::GetOrchidService()
+const IYPathServicePtr& TTabletSlot::GetOrchidService()
 {
     return Impl_->GetOrchidService();
 }

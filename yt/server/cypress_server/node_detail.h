@@ -103,7 +103,7 @@ public:
         NTransactionServer::TTransaction* transaction,
         NYTree::IAttributeDictionary* attributes) override
     {
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(GetObjectType(), hintId);
         return DoCreate(
             TVersionedNodeId(id),

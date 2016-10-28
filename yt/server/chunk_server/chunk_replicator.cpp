@@ -134,7 +134,7 @@ void TChunkReplicator::Start(TChunk* frontChunk, int chunkCount)
 
 void TChunkReplicator::Stop()
 {
-    auto nodeTracker = Bootstrap_->GetNodeTracker();
+    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
     for (const auto& pair : nodeTracker->Nodes()) {
         auto* node = pair.second;
         node->Jobs().clear();
@@ -1015,7 +1015,7 @@ bool TChunkReplicator::CreateRemovalJob(
     const TChunkIdWithIndexes& chunkIdWithIndexes,
     TJobPtr* job)
 {
-    auto chunkManager = Bootstrap_->GetChunkManager();
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
     auto* chunk = chunkManager->FindChunk(chunkIdWithIndexes.Id);
     // NB: Allow more than one job for dead chunks.
     if (IsObjectAlive(chunk)) {
@@ -1563,8 +1563,6 @@ void TChunkReplicator::ScheduleNodeRefresh(TNode* node)
 
 void TChunkReplicator::OnRefresh()
 {
-    auto objectManager = Bootstrap_->GetObjectManager();
-
     int totalCount = 0;
     int aliveCount = 0;
     NProfiling::TScopedTimer timer;
@@ -1624,7 +1622,7 @@ void TChunkReplicator::OnCheckEnabled()
 
 void TChunkReplicator::OnCheckEnabledPrimary()
 {
-    auto cypressManager = Bootstrap_->GetCypressManager();
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
     auto resolver = cypressManager->CreateResolver();
     auto sysNode = resolver->ResolvePath("//sys");
     if (sysNode->Attributes().Get<bool>("disable_chunk_replicator", false)) {
@@ -1635,7 +1633,7 @@ void TChunkReplicator::OnCheckEnabledPrimary()
         return;
     }
 
-    auto nodeTracker = Bootstrap_->GetNodeTracker();
+    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
     int needOnline = Config_->SafeOnlineNodeCount;
     int gotOnline = nodeTracker->GetOnlineNodeCount();
     if (gotOnline < needOnline) {
@@ -1648,7 +1646,7 @@ void TChunkReplicator::OnCheckEnabledPrimary()
         return;
     }
 
-    auto multicellManager = Bootstrap_->GetMulticellManager();
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
     auto statistics = multicellManager->ComputeClusterStatistics();
     int gotChunkCount = statistics.chunk_count();
     int gotLostChunkCount = statistics.lost_vital_chunk_count();
@@ -1685,7 +1683,7 @@ void TChunkReplicator::OnCheckEnabledPrimary()
 
 void TChunkReplicator::OnCheckEnabledSecondary()
 {
-    auto multicellManager = Bootstrap_->GetMulticellManager();
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
     auto channel = multicellManager->GetMasterChannelOrThrow(Bootstrap_->GetPrimaryCellTag(), EPeerKind::Leader);
     TObjectServiceProxy proxy(channel);
 
@@ -1791,8 +1789,6 @@ void TChunkReplicator::OnPropertiesUpdate()
     if (!Bootstrap_->GetHydraFacade()->GetHydraManager()->IsActiveLeader()) {
         return;
     }
-
-    auto objectManager = Bootstrap_->GetObjectManager();
 
     TReqUpdateChunkProperties request;
     request.set_cell_tag(Bootstrap_->GetCellTag());
@@ -1951,7 +1947,7 @@ void TChunkReplicator::RegisterJob(const TJobPtr& job)
     YCHECK(JobMap_.insert(std::make_pair(job->GetJobId(), job)).second);
     YCHECK(job->GetNode()->Jobs().insert(job).second);
 
-    auto chunkManager = Bootstrap_->GetChunkManager();
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
     auto chunkId = job->GetChunkIdWithIndexes().Id;
     auto* chunk = chunkManager->FindChunk(chunkId);
     if (chunk) {
@@ -1967,7 +1963,7 @@ void TChunkReplicator::UnregisterJob(const TJobPtr& job, EJobUnregisterFlags fla
         YCHECK(job->GetNode()->Jobs().erase(job) == 1);
     }
 
-    auto chunkManager = Bootstrap_->GetChunkManager();
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
     auto chunkId = job->GetChunkIdWithIndexes().Id;
     auto* chunk = chunkManager->FindChunk(chunkId);
     if (chunk) {

@@ -108,7 +108,7 @@ private:
             const auto& cumulativeStatistics = chunkList->CumulativeStatistics();
             i64 penultimateRowCount = cumulativeStatistics.empty() ? 0 : cumulativeStatistics.back().RowCount;
 
-            auto chunkManager = Bootstrap_->GetChunkManager();
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
             return chunkManager
                 ->GetChunkQuorumInfo(chunk)
                 .Apply(BIND([=] (const NChunkClient::NProto::TMiscExt& miscExt) {
@@ -166,7 +166,7 @@ private:
         auto* journal = GetThisImpl();
         YCHECK(journal->IsTrunk());
 
-        auto journalManager = Bootstrap_->GetJournalManager();
+        const auto& journalManager = Bootstrap_->GetJournalManager();
         journalManager->SealJournal(journal->GetTrunkNode(), &request->statistics());
 
         context->Reply();

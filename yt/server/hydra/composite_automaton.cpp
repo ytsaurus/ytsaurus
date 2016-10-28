@@ -214,7 +214,7 @@ void TCompositeAutomaton::RegisterPart(TCompositeAutomatonPartPtr part)
     Parts_.push_back(part);
 
     if (Parts_.size() == 1) {
-        auto hydraManager = part->HydraManager_;
+        const auto& hydraManager = part->HydraManager_;
 
         hydraManager->SubscribeStartLeading(BIND(&TThis::OnRecoveryStarted, MakeWeak(this)));
         hydraManager->SubscribeLeaderRecoveryComplete(BIND(&TThis::OnRecoveryComplete, MakeWeak(this)));

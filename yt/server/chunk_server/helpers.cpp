@@ -303,7 +303,7 @@ TYsonString DoGetMulticellOwningNodes(
 {
     std::vector<TVersionedObjectId> nodeIds;
 
-    auto chunkManager = bootstrap->GetChunkManager();
+    const auto& chunkManager = bootstrap->GetChunkManager();
     auto* chunkTree = chunkManager->FindChunkTree(chunkTreeId);
     if (IsObjectAlive(chunkTree)) {
         auto nodes = GetOwningNodes(chunkTree);
@@ -312,7 +312,7 @@ TYsonString DoGetMulticellOwningNodes(
         }
     }
 
-    auto multicellManager = bootstrap->GetMulticellManager();
+    const auto& multicellManager = bootstrap->GetMulticellManager();
 
     // Request owning nodes from all cells.
     auto requestIdsFromCell = [&] (TCellTag cellTag) {
@@ -383,7 +383,8 @@ TYsonString DoGetMulticellOwningNodes(
         for (int index = 0; index < rsps.size(); ++index) {
             const auto& rspOrError = rsps[index];
             const auto& versionedId = nodeIds[index];
-            if (rspOrError.GetCode() == NYTree::EErrorCode::ResolveError)
+            auto code = rspOrError.GetCode();
+            if (code == NYTree::EErrorCode::ResolveError)
                 continue;
 
             THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting path for node %v",

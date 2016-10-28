@@ -97,7 +97,7 @@ private:
             return;
         }
 
-        auto tabletManager = slot->GetTabletManager();
+        const auto& tabletManager = slot->GetTabletManager();
         for (const auto& pair : tabletManager->Tablets()) {
             auto* tablet = pair.second;
             ScanTablet(slot, tablet);

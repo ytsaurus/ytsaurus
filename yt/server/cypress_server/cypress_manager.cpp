@@ -151,10 +151,10 @@ public:
         ValidateCreatedNodeType(type);
 
         auto* account = GetNewNodeAccount();
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ValidateResourceUsageIncrease(account, TClusterResources(1, 0));
 
-        auto cypressManager = Bootstrap_->GetCypressManager();
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
         const auto& handler = cypressManager->FindHandler(type);
         if (!handler) {
             THROW_ERROR_EXCEPTION("Unknown object type %Qlv",
@@ -173,7 +173,7 @@ public:
             attributes->Set("external", false);
         }
 
-        auto multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         bool isExternalDefault =
             Bootstrap_->IsPrimaryMaster() &&
             !multicellManager->GetRegisteredMasterCellTags().empty() &&
@@ -227,7 +227,7 @@ public:
 
         RegisterCreatedNode(trunkNode);
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->FillAttributes(trunkNode, *attributes);
 
         cypressManager->LockNode(trunkNode, Transaction_, ELockMode::Exclusive);
@@ -252,7 +252,7 @@ public:
         const TNodeId& id,
         TCellTag externalCellTag) override
     {
-        auto cypressManager = Bootstrap_->GetCypressManager();
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* node = cypressManager->InstantiateNode(id, externalCellTag);
 
         RegisterCreatedNode(node);
@@ -273,11 +273,11 @@ public:
             // NB: Ignore disk space increase since in multicell mode the primary cell
             // might not be aware of the actual resource usage.
             // This should be safe since chunk lists are shared anyway.
-            auto securityManager = Bootstrap_->GetSecurityManager();
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
             securityManager->ValidateResourceUsageIncrease(clonedAccount, TClusterResources(1, 0));
         }
 
-        auto cypressManager = Bootstrap_->GetCypressManager();
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* clonedTrunkNode = cypressManager->CloneNode(sourceNode, this, mode);
         auto* clonedNode = cypressManager->LockNode(clonedTrunkNode, Transaction_, ELockMode::Exclusive);
 
@@ -297,7 +297,7 @@ public:
             protoRequest.set_mode(static_cast<int>(mode));
             ToProto(protoRequest.mutable_account_id(), clonedNode->GetAccount()->GetId());
 
-            auto multicellManager = Bootstrap_->GetMulticellManager();
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToMaster(protoRequest, sourceNode->GetExternalCellTag());
         }
 
@@ -317,7 +317,7 @@ private:
     void OnCommit()
     {
         if (Transaction_) {
-            auto transactionManager = Bootstrap_->GetTransactionManager();
+            const auto& transactionManager = Bootstrap_->GetTransactionManager();
             for (auto* node : CreatedNodes_) {
                 transactionManager->StageNode(Transaction_, node);
             }
@@ -332,24 +332,24 @@ private:
 
     void ValidateCreatedNodeType(EObjectType type)
     {
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* schema = objectManager->GetSchema(type);
 
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ValidatePermission(schema, EPermission::Create);
     }
 
     void RegisterCreatedNode(TCypressNodeBase* trunkNode)
     {
         Y_ASSERT(trunkNode->IsTrunk());
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(trunkNode);
         CreatedNodes_.push_back(trunkNode);
     }
 
     void ReleaseCreatedNodes()
     {
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         for (auto* node : CreatedNodes_) {
             objectManager->UnrefObject(node);
         }
@@ -382,7 +382,7 @@ public:
 
     virtual TObjectBase* FindObject(const TObjectId& id) override
     {
-        auto cypressManager = Bootstrap_->GetCypressManager();
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
         return cypressManager->FindNode(TVersionedNodeId(id));
     }
 
@@ -412,7 +412,7 @@ private:
         TCypressNodeBase* node,
         TTransaction* transaction) override
     {
-        auto cypressManager = Bootstrap_->GetCypressManager();
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
         return cypressManager->GetNodeProxy(node, transaction);
     }
 
@@ -469,7 +469,7 @@ public:
 
     virtual INodePtr ResolvePath(const TYPath& path) override
     {
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* resolver = objectManager->GetObjectResolver();
         auto objectProxy = resolver->ResolvePath(path, Transaction_);
         auto* nodeProxy = dynamic_cast<ICypressNodeProxy*>(objectProxy.Get());
@@ -485,7 +485,7 @@ public:
     {
         auto* nodeProxy = ICypressNodeProxy::FromNode(node.Get());
 
-        auto cypressManager = Bootstrap_->GetCypressManager();
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
         if (!cypressManager->IsAlive(nodeProxy->GetTrunkNode(), nodeProxy->GetTransaction())) {
             return FromObjectId(nodeProxy->GetId());
         }
@@ -520,7 +520,7 @@ public:
         , ExpirationTracker_(New<TExpirationTracker>(config, bootstrap))
         , NodeMap_(TNodeMapTraits(this))
     {
-        auto hydraFacade = Bootstrap_->GetHydraFacade();
+        const auto& hydraFacade = Bootstrap_->GetHydraFacade();
         VERIFY_INVOKER_THREAD_AFFINITY(hydraFacade->GetAutomatonInvoker(), AutomatonThread);
 
         RootNodeId_ = MakeWellKnownId(EObjectType::MapNode, Bootstrap_->GetCellTag());
@@ -559,7 +559,7 @@ public:
 
     void Initialize()
     {
-        auto transactionManager = Bootstrap_->GetTransactionManager();
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->SubscribeTransactionCommitted(BIND(
             &TImpl::OnTransactionCommitted,
             MakeStrong(this)));
@@ -567,7 +567,7 @@ public:
             &TImpl::OnTransactionAborted,
             MakeStrong(this)));
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(New<TLockTypeHandler>(this));
     }
 
@@ -582,7 +582,7 @@ public:
         YCHECK(!TypeToHandler_[type]);
         TypeToHandler_[type] = handler;
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(New<TNodeTypeHandler>(this, handler));
     }
 
@@ -648,7 +648,7 @@ public:
         auto* node = RegisterNode(std::move(nodeHolder));
 
         // Set account.
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->SetAccount(node, account);
         securityManager->SetNodeResourceAccounting(node, enableAccounting);
 
@@ -680,7 +680,7 @@ public:
         YCHECK(factory);
 
         // Validate account access _before_ creating the actual copy.
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* clonedAccount = factory->GetClonedNodeAccount(sourceNode);
         securityManager->ValidatePermission(clonedAccount, EPermission::Use);
 
@@ -926,7 +926,7 @@ public:
             std::unique(transactions.begin(), transactions.end()),
             transactions.end());
 
-        auto transactionManager = Bootstrap_->GetTransactionManager();
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
         for (auto* transaction : transactions) {
             transactionManager->AbortTransaction(transaction, true);
         }
@@ -1157,7 +1157,7 @@ private:
 
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
 
-        auto transactionManager = Bootstrap_->GetTransactionManager();
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
 
         LOG_INFO("Started initializing nodes");
         for (const auto& pair : NodeMap_) {
@@ -1237,7 +1237,7 @@ private:
             RootNode_ = untypedRootNode->As<TMapNode>();
         } else {
             // Create the root.
-            auto securityManager = Bootstrap_->GetSecurityManager();
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
             auto rootNodeHolder = std::make_unique<TMapNode>(TVersionedNodeId(RootNodeId_));
             rootNodeHolder->SetTrunkNode(rootNodeHolder.get());
             rootNodeHolder->SetAccount(securityManager->GetSysAccount());
@@ -1343,7 +1343,7 @@ private:
             lock->GetTransaction()->LockedNodes().erase(trunkNode);
         }
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         for (auto* lock : lockingState.PendingLocks) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Lock orphaned (LockId: %v)",
                 lock->GetId());
@@ -1719,7 +1719,7 @@ private:
         const TLockRequest& request,
         bool implicit)
     {
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::Lock, NullObjectId);
         auto lockHolder = std::make_unique<TLock>(id);
         auto* lock = LockMap_.Insert(id, std::move(lockHolder));
@@ -1750,7 +1750,7 @@ private:
     void ReleaseLocks(TTransaction* transaction, bool promote)
     {
         auto* parentTransaction = transaction->GetParent();
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
 
         SmallVector<TLock*, 16> locks(transaction->Locks().begin(), transaction->Locks().end());
         transaction->Locks().clear();
@@ -1918,8 +1918,8 @@ private:
         YCHECK(transaction);
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto objectManager = Bootstrap_->GetObjectManager();
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
 
         const auto& id = originatingNode->GetId();
 
@@ -1949,8 +1949,8 @@ private:
         TTransaction* transaction,
         TCypressNodeBase* branchedNode)
     {
-        auto objectManager = Bootstrap_->GetObjectManager();
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
 
         const auto& handler = GetHandler(branchedNode);
 
@@ -2004,7 +2004,7 @@ private:
         TTransaction* transaction,
         TCypressNodeBase* branchedNode)
     {
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
 
         const auto& handler = GetHandler(branchedNode);
 
@@ -2064,7 +2064,7 @@ private:
             mode);
 
         // Set account.
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* account = factory->GetClonedNodeAccount(sourceNode);
         securityManager->SetAccount(clonedNode, account);
 
@@ -2115,12 +2115,12 @@ private:
         auto accountId = FromProto<TAccountId>(request->account_id());
         auto type = EObjectType(request->type());
 
-        auto transactionManager = Bootstrap_->GetTransactionManager();
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionId
             ? transactionManager->GetTransaction(transactionId)
             : nullptr;
 
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* account = accountId
             ? securityManager->GetAccount(accountId)
             : nullptr;
@@ -2150,7 +2150,7 @@ private:
             transaction,
             attributes.get());
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(trunkNode);
         objectManager->FillAttributes(trunkNode, *attributes);
 
@@ -2169,7 +2169,7 @@ private:
         auto mode = ENodeCloneMode(request->mode());
         auto accountId = FromProto<TAccountId>(request->account_id());
 
-        auto transactionManager = Bootstrap_->GetTransactionManager();
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* sourceTransaction = sourceTransactionId
             ? transactionManager->GetTransaction(sourceTransactionId)
             : nullptr;
@@ -2180,7 +2180,7 @@ private:
         auto* sourceTrunkNode = GetNode(TVersionedObjectId(sourceNodeId));
         auto* sourceNode = GetVersionedNode(sourceTrunkNode, sourceTransaction);
 
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* account = securityManager->GetAccount(accountId);
 
         auto factory = CreateNodeFactory(clonedTransaction, account, false);
@@ -2196,7 +2196,7 @@ private:
             clonedNodeId,
             mode);
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(clonedTrunkNode);
 
         LockNode(clonedTrunkNode, clonedTransaction, ELockMode::Exclusive);

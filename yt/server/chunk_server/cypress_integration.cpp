@@ -41,7 +41,7 @@ private:
     const yhash_set<TChunk*>& GetFilteredChunks() const
     {
         Bootstrap_->GetHydraFacade()->RequireLeader();
-        auto chunkManager = Bootstrap_->GetChunkManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
         switch (Type_) {
             case EObjectType::LostChunkMap:
                 return chunkManager->LostChunks();
@@ -73,7 +73,7 @@ private:
     virtual std::vector<TObjectId> GetKeys(i64 sizeLimit) const override
     {
         if (Type_ == EObjectType::ChunkMap) {
-            auto chunkManager = Bootstrap_->GetChunkManager();
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
             return ToObjectIds(GetValues(chunkManager->Chunks(), sizeLimit));
         } else {
             const auto& chunks = GetFilteredChunks();
@@ -104,7 +104,7 @@ private:
     virtual i64 GetSize() const override
     {
         if (Type_ == EObjectType::ChunkMap) {
-            auto chunkManager = Bootstrap_->GetChunkManager();
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
             return chunkManager->Chunks().GetSize();
         } else {
             return GetFilteredChunks().size();
@@ -173,7 +173,7 @@ public:
 private:
     virtual std::vector<TObjectId> GetKeys(i64 sizeLimit) const override
     {
-        auto chunkManager = Bootstrap_->GetChunkManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
         return ToObjectIds(GetValues(chunkManager->ChunkLists(), sizeLimit));
     }
 
@@ -184,7 +184,7 @@ private:
 
     virtual i64 GetSize() const override
     {
-        auto chunkManager = Bootstrap_->GetChunkManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
         return chunkManager->ChunkLists().GetSize();
     }
 
@@ -225,7 +225,7 @@ private:
     virtual std::vector<Stroka> GetKeys(i64 sizeLimit) const override
     {
         std::vector<Stroka> keys;
-        auto chunkManager = Bootstrap_->GetChunkManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
         for (const auto& pair : chunkManager->Media()) {
             const auto* medium = pair.second;
             keys.push_back(medium->GetName());
@@ -240,13 +240,13 @@ private:
 
     virtual i64 GetSize() const override
     {
-        auto chunkManager = Bootstrap_->GetChunkManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
         return chunkManager->Media().GetSize();
     }
 
     virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
     {
-        auto chunkManager = Bootstrap_->GetChunkManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto* medium = chunkManager->FindMediumByName(Stroka(key));
         if (!IsObjectAlive(medium)) {
             return nullptr;

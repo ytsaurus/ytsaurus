@@ -189,7 +189,7 @@ private:
             return;
         }
 
-        auto tabletManager = slot->GetTabletManager();
+        const auto& tabletManager = slot->GetTabletManager();
         for (const auto& pair : tabletManager->Tablets()) {
             auto* tablet = pair.second;
             ScanTablet(slot, tablet);
@@ -218,7 +218,7 @@ private:
 
     void ScanStore(TTabletSlotPtr slot, TTablet* tablet, IChunkStorePtr store, TAsyncSemaphoreGuard guard)
     {
-        auto storeManager = tablet->GetStoreManager();
+        const auto& storeManager = tablet->GetStoreManager();
         auto preloadStoreCallback =
             BIND(
                 &TImpl::PreloadStore,

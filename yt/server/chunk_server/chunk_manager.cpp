@@ -198,7 +198,7 @@ protected:
         TChunk* chunk,
         TCellTag destinationCellTag) override
     {
-        auto multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         auto cellIndex = multicellManager->GetRegisteredMasterCellIndex(destinationCellTag);
         chunk->Export(cellIndex);
     }
@@ -208,7 +208,7 @@ protected:
         TCellTag destinationCellTag,
         int importRefCounter) override
     {
-        auto multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         auto cellIndex = multicellManager->GetRegisteredMasterCellIndex(destinationCellTag);
         chunk->Unexport(cellIndex, importRefCounter);
     }
@@ -408,7 +408,7 @@ public:
 
     void Initialize()
     {
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(New<TRegularChunkTypeHandler>(this));
         objectManager->RegisterHandler(New<TErasureChunkTypeHandler>(this, EObjectType::ErasureChunk));
         for (auto type = MinErasureChunkPartType;
@@ -419,10 +419,9 @@ public:
         }
         objectManager->RegisterHandler(New<TJournalChunkTypeHandler>(this));
         objectManager->RegisterHandler(New<TChunkListTypeHandler>(this));
-
         objectManager->RegisterHandler(New<TMediumTypeHandler>(this));
 
-        auto nodeTracker = Bootstrap_->GetNodeTracker();
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         nodeTracker->SubscribeNodeRegistered(BIND(&TImpl::OnNodeRegistered, MakeWeak(this)));
         nodeTracker->SubscribeNodeUnregistered(BIND(&TImpl::OnNodeUnregistered, MakeWeak(this)));
         nodeTracker->SubscribeNodeDisposed(BIND(&TImpl::OnNodeDisposed, MakeWeak(this)));
@@ -511,7 +510,7 @@ public:
 
         chunk->Confirm(chunkInfo, chunkMeta);
 
-        auto nodeTracker = Bootstrap_->GetNodeTracker();
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
 
         const auto* mutationContext = GetCurrentMutationContext();
         auto mutationTimestamp = mutationContext->GetTimestamp();
@@ -556,7 +555,7 @@ public:
         if (chunk->IsStaged() && !chunk->IsJournal()) {
             auto* stagingTransaction = chunk->GetStagingTransaction();
             auto* stagingAccount = chunk->GetStagingAccount();
-            auto securityManager = Bootstrap_->GetSecurityManager();
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
             auto delta = chunk->GetResourceUsage();
             securityManager->UpdateAccountStagingUsage(stagingTransaction, stagingAccount, delta);
         }
@@ -602,7 +601,7 @@ public:
     {
         NChunkServer::AttachToChunkList(chunkList, childrenBegin, childrenEnd);
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         for (auto it = childrenBegin; it != childrenEnd; ++it) {
             auto* child = *it;
             objectManager->RefObject(child);
@@ -637,7 +636,7 @@ public:
     {
         NChunkServer::DetachFromChunkList(chunkList, childrenBegin, childrenEnd);
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         for (auto it = childrenBegin; it != childrenBegin; ++it) {
             auto* child = *it;
             objectManager->UnrefObject(child);
@@ -688,7 +687,7 @@ public:
 
         if (account) {
             chunkTree->SetStagingAccount(account);
-            auto objectManager = Bootstrap_->GetObjectManager();
+            const auto& objectManager = Bootstrap_->GetObjectManager();
             objectManager->RefObject(account);
         }
     }
@@ -699,12 +698,12 @@ public:
         auto* account = chunk->GetStagingAccount();
 
         if (account) {
-            auto objectManager = Bootstrap_->GetObjectManager();
+            const auto& objectManager = Bootstrap_->GetObjectManager();
             objectManager->UnrefObject(account);
         }
 
         if (account && chunk->IsConfirmed() && !chunk->IsJournal()) {
-            auto securityManager = Bootstrap_->GetSecurityManager();
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
             auto delta = -chunk->GetResourceUsage();
             securityManager->UpdateAccountStagingUsage(transaction, account, delta);
         }
@@ -717,7 +716,7 @@ public:
     {
         auto* account = chunkList->GetStagingAccount();
         if (account) {
-            auto objectManager = Bootstrap_->GetObjectManager();
+            const auto& objectManager = Bootstrap_->GetObjectManager();
             objectManager->UnrefObject(account);
         }
 
@@ -725,7 +724,7 @@ public:
         chunkList->SetStagingAccount(nullptr);
 
         if (recursive) {
-            auto transactionManager = Bootstrap_->GetTransactionManager();
+            const auto& transactionManager = Bootstrap_->GetTransactionManager();
             for (auto* child : chunkList->Children()) {
                 if (child) {
                     transactionManager->UnstageObject(child->GetStagingTransaction(), child, recursive);
@@ -766,7 +765,7 @@ public:
         YCHECK(chunkList->Parents().empty());
         chunkList->IncrementVersion();
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         for (auto* child : chunkList->Children()) {
             if (child) {
                 ResetChunkTreeParent(chunkList, child);
@@ -1213,7 +1212,7 @@ private:
     TChunkList* DoCreateChunkList(bool ordered = true)
     {
         ++ChunkListsCreated_;
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::ChunkList, NullObjectId);
         auto chunkListHolder = std::make_unique<TChunkList>(id);
         auto* chunkList = ChunkListMap_.Insert(id, std::move(chunkListHolder));
@@ -1227,7 +1226,7 @@ private:
         UnstageChunkList(chunkList, false);
 
         // Drop references to children.
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         for (auto* child : chunkList->Children()) {
             if (child) {
                 ResetChunkTreeParent(chunkList, child);
@@ -1381,7 +1380,7 @@ private:
 
         bool local = request->cell_tag() == Bootstrap_->GetCellTag();
 
-        auto multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         int cellIndex = local ? -1 : multicellManager->GetRegisteredMasterCellIndex(request->cell_tag());
 
         for (const auto& update : request->updates()) {
@@ -1438,13 +1437,13 @@ private:
     void HydraExportChunks(TCtxExportChunksPtr /*context*/, TReqExportChunks* request, TRspExportChunks* response)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto transactionManager = Bootstrap_->GetTransactionManager();
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
         if (transaction->GetPersistentState() != ETransactionState::Active) {
             transaction->ThrowInvalidState();
         }
 
-        auto multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
         std::vector<TChunkId> chunkIds;
         for (const auto& exportData : request->chunks()) {
@@ -1481,7 +1480,7 @@ private:
     void HydraImportChunks(TCtxImportChunksPtr /*context*/, TReqImportChunks* request, TRspImportChunks* /*response*/)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto transactionManager = Bootstrap_->GetTransactionManager();
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
 
         if (transaction->GetPersistentState() != ETransactionState::Active) {
@@ -1588,10 +1587,10 @@ private:
         int readQuorum = isJournal ? subrequest->read_quorum() : 0;
         int writeQuorum = isJournal ? subrequest->write_quorum() : 0;
 
-        auto transactionManager = Bootstrap_->GetTransactionManager();
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
 
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* account = securityManager->GetAccountByNameOrThrow(subrequest->account());
         TClusterResources resourceUsageIncrease(0, 1);
         resourceUsageIncrease.DiskSpace[mediumIndex] = 1;
@@ -1701,10 +1700,8 @@ private:
         auto transactionId = FromProto<TTransactionId>(subrequest->transaction_id());
         int count = subrequest->count();
 
-        auto transactionManager = Bootstrap_->GetTransactionManager();
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
-
-        auto objectManager = Bootstrap_->GetObjectManager();
 
         std::vector<TChunkListId> chunkListIds;
         chunkListIds.reserve(count);
@@ -1730,7 +1727,7 @@ private:
         auto recursive = subrequest->recursive();
 
         auto* chunkTree = GetChunkTreeOrThrow(chunkTreeId);
-        auto transactionManager = Bootstrap_->GetTransactionManager();
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->UnstageObject(chunkTree->GetStagingTransaction(), chunkTree, recursive);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Chunk tree unstaged (ChunkTreeId: %v, Recursive: %v)",
@@ -1922,11 +1919,11 @@ private:
         if (!medium) {
             medium = CreateDefaultMedium(mediumId, mediumName, mediumIndex, cache);
 
-            auto securityManager = Bootstrap_->GetSecurityManager();
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
             medium->Acd().AddEntry(TAccessControlEntry(
-                    ESecurityAction::Allow,
-                    securityManager->GetUsersGroup(),
-                    EPermission::Use));
+                ESecurityAction::Allow,
+                securityManager->GetUsersGroup(),
+                EPermission::Use));
         }
         YCHECK(medium);
         YCHECK(UsedMediumIndexes_.test(mediumIndex));
@@ -2055,7 +2052,7 @@ private:
         ChunkReplicator_ = New<TChunkReplicator>(Config_, Bootstrap_, ChunkPlacement_);
         ChunkSealer_ = New<TChunkSealer>(Config_, Bootstrap_);
 
-        auto nodeTracker = Bootstrap_->GetNodeTracker();
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         for (const auto& pair : nodeTracker->Nodes()) {
             auto* node = pair.second;
             ChunkReplicator_->OnNodeRegistered(node);
@@ -2334,7 +2331,7 @@ private:
         auto statisticsDelta = chunk->GetStatistics();
         AccumulateUniqueAncestorsStatistics(chunkList, statisticsDelta);
 
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
 
         auto owningNodes = GetOwningNodes(chunk);
 
@@ -2356,7 +2353,7 @@ private:
         }
 
         if (!journalNodeLocked && IsObjectAlive(trunkJournalNode)) {
-            auto journalManager = Bootstrap_->GetJournalManager();
+            const auto& journalManager = Bootstrap_->GetJournalManager();
             journalManager->SealJournal(trunkJournalNode, nullptr);
         }
     }

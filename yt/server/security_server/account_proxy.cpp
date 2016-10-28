@@ -79,7 +79,7 @@ private:
         }
 
         if (key == "multicell_statistics") {
-            auto chunkManager = Bootstrap_->GetChunkManager();
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
 
             BuildYsonFluently(consumer)
                 .DoMapFor(account->MulticellStatistics(), [&] (TFluentMap fluent, const std::pair<TCellTag, const TAccountStatistics&>& pair) {
@@ -110,8 +110,8 @@ private:
     virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override
     {
         auto* account = GetThisImpl();
-        auto securityManager = Bootstrap_->GetSecurityManager();
-        auto chunkManager = Bootstrap_->GetChunkManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
 
         if (key == "resource_limits") {
             auto limits = ConvertTo<TSerializableClusterResourcesPtr>(value);
@@ -130,7 +130,7 @@ private:
 
     void SerializeClusterResources(const TClusterResources& clusterResources, NYson::IYsonConsumer* consumer)
     {
-        auto chunkManager = Bootstrap_->GetChunkManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto resourceSerializer = New<TSerializableClusterResources>(chunkManager, clusterResources);
         BuildYsonFluently(consumer)
             .Value(resourceSerializer);

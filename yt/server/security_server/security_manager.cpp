@@ -281,13 +281,13 @@ public:
 
     void Initialize()
     {
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(New<TAccountTypeHandler>(this));
         objectManager->RegisterHandler(New<TUserTypeHandler>(this));
         objectManager->RegisterHandler(New<TGroupTypeHandler>(this));
 
         if (Bootstrap_->IsPrimaryMaster()) {
-            auto multicellManager = Bootstrap_->GetMulticellManager();
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->SubscribeReplicateKeysToSecondaryMaster(
                 BIND(&TImpl::OnReplicateKeysToSecondaryMaster, MakeWeak(this)));
             multicellManager->SubscribeReplicateValuesToSecondaryMaster(
@@ -312,7 +312,7 @@ public:
                 name);
         }
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::Account, hintId);
         return DoCreateAccount(id, name);
     }
@@ -368,7 +368,7 @@ public:
         if (oldAccount == account)
             return;
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
 
         if (oldAccount) {
             UpdateAccountResourceUsage(node, oldAccount, -1);
@@ -395,7 +395,7 @@ public:
         node->CachedResourceUsage() = TClusterResources();
         node->SetAccount(nullptr);
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->UnrefObject(account);
     }
 
@@ -489,7 +489,7 @@ public:
                 name);
         }
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::User, hintId);
         return DoCreateUser(id, name);
     }
@@ -561,7 +561,7 @@ public:
                 name);
         }
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::Group, hintId);
         return DoCreateGroup(id, name);
     }
@@ -704,7 +704,7 @@ public:
 
     TAccessControlDescriptor* FindAcd(TObjectBase* object)
     {
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         const auto& handler = objectManager->GetHandler(object);
         return handler->FindAcd(object);
     }
@@ -719,7 +719,7 @@ public:
     TAccessControlList GetEffectiveAcl(NObjectServer::TObjectBase* object)
     {
         TAccessControlList result;
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         while (object) {
             const auto& handler = objectManager->GetHandler(object);
             auto* acd = handler->FindAcd(object);
@@ -793,7 +793,7 @@ public:
         }
 
         // Slow lane: check ACLs through the object hierarchy.
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* currentObject = object;
         int depth = 0;
         while (currentObject) {
@@ -872,7 +872,7 @@ public:
 
         auto result = CheckPermission(object, user, permission);
         if (result.Action == ESecurityAction::Deny) {
-            auto objectManager = Bootstrap_->GetObjectManager();
+            const auto& objectManager = Bootstrap_->GetObjectManager();
             TError error;
             if (result.Object && result.Subject) {
                 error = TError(
@@ -1094,7 +1094,7 @@ private:
     void UpdateNodeCachedResourceUsage(TCypressNodeBase* node)
     {
         if (!node->IsExternal() && node->GetAccountingEnabled()) {
-            auto cypressManager = Bootstrap_->GetCypressManager();
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
             const auto& handler = cypressManager->GetHandler(node);
             node->CachedResourceUsage() = handler->GetAccountingResourceUsage(node);
         } else {
@@ -1401,7 +1401,7 @@ private:
 
     void InitDefaultSchemaAcds()
     {
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         for (auto type : objectManager->GetRegisteredTypes()) {
             if (HasSchema(type)) {
                 auto* schema = objectManager->GetSchema(type);
@@ -1611,7 +1611,7 @@ private:
 
     void OnAccountStatisticsGossip()
     {
-        auto multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (!multicellManager->IsLocalMasterCellRegistered()) {
             return;
         }
@@ -1646,7 +1646,7 @@ private:
         auto cellTag = request->cell_tag();
         YCHECK(Bootstrap_->IsPrimaryMaster() || cellTag == Bootstrap_->GetPrimaryCellTag());
 
-        auto multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
             LOG_ERROR_UNLESS(IsRecovery(), "Received account statistics gossip message from unknown cell (CellTag: %v)",
                 cellTag);
@@ -1695,7 +1695,7 @@ private:
 
     void OnUserStatisticsGossip()
     {
-        auto multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (!multicellManager->IsLocalMasterCellRegistered()) {
             return;
         }
@@ -1757,7 +1757,7 @@ private:
         auto cellTag = request->cell_tag();
         YCHECK(Bootstrap_->IsPrimaryMaster() || cellTag == Bootstrap_->GetPrimaryCellTag());
 
-        auto multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
             LOG_ERROR_UNLESS(IsRecovery(), "Received user statistics gossip message from unknown cell (CellTag: %v)",
                 cellTag);
@@ -1789,7 +1789,7 @@ private:
 
     void OnReplicateKeysToSecondaryMaster(TCellTag cellTag)
     {
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
 
         auto accounts = GetValuesSortedByKey(AccountMap_);
         for (auto* account : accounts) {
@@ -1809,7 +1809,7 @@ private:
 
     void OnReplicateValuesToSecondaryMaster(TCellTag cellTag)
     {
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
 
         auto accounts = GetValuesSortedByKey(AccountMap_);
         for (auto* account : accounts) {
@@ -1826,7 +1826,7 @@ private:
             objectManager->ReplicateObjectAttributesToSecondaryMaster(group, cellTag);
         }
         
-        auto multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         auto replicateMembership = [&] (TSubject* subject) {
             for (auto* group : subject->MemberOf()) {
                 auto req = TGroupYPathProxy::AddMember(FromObjectId(group->GetId()));

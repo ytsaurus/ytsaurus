@@ -469,7 +469,7 @@ private:
             return;
         }
 
-        auto transactionSupervisor = Slot_->GetTransactionSupervisor();
+        const auto& transactionSupervisor = Slot_->GetTransactionSupervisor();
         transactionSupervisor->AbortTransaction(id).Subscribe(BIND([=] (const TError& error) {
             if (!error.IsOK()) {
                 LOG_DEBUG(error, "Error aborting expired transaction (TransactionId: %v)",
@@ -492,7 +492,7 @@ private:
         LOG_DEBUG("Transaction timed out (TransactionId: %v)",
             id);
 
-        auto transactionSupervisor = Slot_->GetTransactionSupervisor();
+        const auto& transactionSupervisor = Slot_->GetTransactionSupervisor();
         transactionSupervisor->AbortTransaction(id).Subscribe(BIND([=] (const TError& error) {
             if (!error.IsOK()) {
                 LOG_DEBUG(error, "Error aborting timed out transaction (TransactionId: %v)",

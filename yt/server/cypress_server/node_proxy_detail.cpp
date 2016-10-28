@@ -64,7 +64,7 @@ public:
 
     virtual TNullable<TYsonString> FindYson(const Stroka& name) const override
     {
-        auto cypressManager = Proxy_->Bootstrap_->GetCypressManager();
+        const auto& cypressManager = Proxy_->Bootstrap_->GetCypressManager();
         auto originators = cypressManager->GetNodeOriginators(Proxy_->GetTransaction(), Proxy_->GetTrunkNode());
         for (const auto* node : originators) {
             const auto* userAttributes = node->GetAttributes();
@@ -84,7 +84,7 @@ public:
         auto oldValue = FindYson(key);
         Proxy_->GuardedValidateCustomAttributeUpdate(key, oldValue, value);
 
-        auto cypressManager = Proxy_->Bootstrap_->GetCypressManager();
+        const auto& cypressManager = Proxy_->Bootstrap_->GetCypressManager();
         auto* node = cypressManager->LockNode(
             Proxy_->TrunkNode,
             Proxy_->Transaction,
@@ -98,7 +98,7 @@ public:
 
     virtual bool Remove(const Stroka& key) override
     {
-        auto cypressManager = Proxy_->Bootstrap_->GetCypressManager();
+        const auto& cypressManager = Proxy_->Bootstrap_->GetCypressManager();
         auto originators = cypressManager->GetNodeReverseOriginators(Proxy_->GetTransaction(), Proxy_->GetTrunkNode());
 
         auto oldValue = FindYson(key);
@@ -182,7 +182,7 @@ private:
 
     virtual void OnNode(TCypressNodeBase* trunkNode, TTransaction* transaction) override
     {
-        auto cypressManager = Bootstrap_->GetCypressManager();
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* node = cypressManager->GetVersionedNode(trunkNode, transaction);
         const auto& handler = cypressManager->GetHandler(node);
         ResourceUsage_ += handler->GetTotalResourceUsage(node);
@@ -228,7 +228,7 @@ std::unique_ptr<ICypressNodeFactory> TNontemplateCypressNodeProxyBase::CreateCyp
     TAccount* account,
     bool preserveAccount) const
 {
-    auto cypressManager = Bootstrap_->GetCypressManager();
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
     return cypressManager->CreateNodeFactory(
         Transaction,
         account,
@@ -238,7 +238,7 @@ std::unique_ptr<ICypressNodeFactory> TNontemplateCypressNodeProxyBase::CreateCyp
 INodeResolverPtr TNontemplateCypressNodeProxyBase::GetResolver() const
 {
     if (!CachedResolver) {
-        auto cypressManager = Bootstrap_->GetCypressManager();
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
         CachedResolver = cypressManager->CreateResolver(Transaction);
     }
     return CachedResolver;
@@ -311,7 +311,7 @@ TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetExternalBuiltinAttribu
     auto cellTag = node->GetExternalCellTag();
     auto versionedId = GetVersionedId();
 
-    auto multicellManager = Bootstrap_->GetMulticellManager();
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
     auto channel = multicellManager->GetMasterChannelOrThrow(
         cellTag,
         NHydra::EPeerKind::LeaderOrFollower);
@@ -342,7 +342,7 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(const Stroka& key, co
     if (key == "account") {
         ValidateNoTransaction();
 
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
 
         auto name = ConvertTo<Stroka>(value);
         auto* account = securityManager->GetAccountByNameOrThrow(name);
@@ -363,7 +363,7 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(const Stroka& key, co
         ValidatePermission(EPermissionCheckScope::This|EPermissionCheckScope::Descendants, EPermission::Remove);
 
         auto* node = GetThisImpl();
-        auto cypressManager = Bootstrap_->GetCypressManager();
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
         if (node == cypressManager->GetRootNode()) {
             THROW_ERROR_EXCEPTION("Cannot set \"expiration_time\" for the root");
         }
@@ -383,7 +383,7 @@ bool TNontemplateCypressNodeProxyBase::RemoveBuiltinAttribute(const Stroka& key)
         ValidateNoTransaction();
 
         auto* node = GetThisImpl();
-        auto cypressManager = Bootstrap_->GetCypressManager();
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->SetExpirationTime(node, Null);
 
         return true;
@@ -399,7 +399,7 @@ TVersionedObjectId TNontemplateCypressNodeProxyBase::GetVersionedId() const
 
 TAccessControlDescriptor* TNontemplateCypressNodeProxyBase::FindThisAcd()
 {
-    auto securityManager = Bootstrap_->GetSecurityManager();
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
     auto* node = GetThisImpl();
     return securityManager->FindAcd(node);
 }
@@ -638,7 +638,7 @@ void TNontemplateCypressNodeProxyBase::RemoveSelf(
         YCHECK(node->IsTrunk());
         YCHECK(node->LockingState().AcquiredLocks.empty());
         YCHECK(node->GetObjectRefCounter() == 1);
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->UnrefObject(node);
     } else {
         TNodeBase::RemoveSelf(request, response, std::move(context));
@@ -696,7 +696,7 @@ void TNontemplateCypressNodeProxyBase::ExistsAttribute(
 
 TCypressNodeBase* TNontemplateCypressNodeProxyBase::GetImpl(TCypressNodeBase* trunkNode) const
 {
-    auto cypressManager = Bootstrap_->GetCypressManager();
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
     return cypressManager->GetVersionedNode(trunkNode, Transaction);
 }
 
@@ -705,7 +705,7 @@ TCypressNodeBase* TNontemplateCypressNodeProxyBase::LockImpl(
     const TLockRequest& request /*= ELockMode::Exclusive*/,
     bool recursive /*= false*/) const
 {
-    auto cypressManager = Bootstrap_->GetCypressManager();
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
     return cypressManager->LockNode(trunkNode, Transaction, request, recursive);
 }
 
@@ -732,7 +732,7 @@ TCypressNodeBase* TNontemplateCypressNodeProxyBase::DoLockThisImpl(
 
 ICypressNodeProxyPtr TNontemplateCypressNodeProxyBase::GetProxy(TCypressNodeBase* trunkNode) const
 {
-    auto cypressManager = Bootstrap_->GetCypressManager();
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
     return cypressManager->GetNodeProxy(trunkNode, Transaction);
 }
 
@@ -749,7 +749,7 @@ void TNontemplateCypressNodeProxyBase::ValidatePermission(
     // NB: Suppress permission checks for nodes upon construction.
     // Cf. YT-1191, YT-4628.
     auto* trunkNode = node->GetTrunkNode();
-    auto cypressManager = Bootstrap_->GetCypressManager();
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
     if (trunkNode == cypressManager->GetRootNode() || trunkNode->GetParent()) {
         ValidatePermission(node, scope, permission);
     }
@@ -769,7 +769,7 @@ void TNontemplateCypressNodeProxyBase::ValidatePermission(
     }
 
     if ((scope & EPermissionCheckScope::Descendants) != EPermissionCheckScope::None) {
-        auto cypressManager = Bootstrap_->GetCypressManager();
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* trunkNode = node->GetTrunkNode();
         auto descendants = cypressManager->ListSubtreeNodes(trunkNode, Transaction, false);
         for (auto* descendant : descendants) {
@@ -788,7 +788,7 @@ void TNontemplateCypressNodeProxyBase::ValidateNotExternal()
 void TNontemplateCypressNodeProxyBase::SetModified()
 {
     if (TrunkNode->IsAlive() && !ModificationTrackingSuppressed) {
-        auto cypressManager = Bootstrap_->GetCypressManager();
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->SetModified(TrunkNode, Transaction);
     }
 }
@@ -801,7 +801,7 @@ void TNontemplateCypressNodeProxyBase::SuppressModificationTracking()
 void TNontemplateCypressNodeProxyBase::SetAccessed()
 {
     if (TrunkNode->IsAlive()) {
-        auto cypressManager = Bootstrap_->GetCypressManager();
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->SetAccessed(TrunkNode);
     }
 }
@@ -874,7 +874,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
         EPermissionCheckScope::This,
         mode == ELockMode::Snapshot ? EPermission::Read : EPermission::Write);
 
-    auto cypressManager = Bootstrap_->GetCypressManager();
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
     auto* lock = cypressManager->CreateLock(
         TrunkNode,
         Transaction,
@@ -1189,7 +1189,7 @@ void TMapNodeProxy::Clear()
 
 int TMapNodeProxy::GetChildCount() const
 {
-    auto cypressManager = Bootstrap_->GetCypressManager();
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
     auto originators = cypressManager->GetNodeOriginators(Transaction, TrunkNode);
 
     int result = 0;
@@ -1316,7 +1316,7 @@ void TMapNodeProxy::ReplaceChild(INodePtr oldChild, INodePtr newChild)
     auto& childToKey = impl->ChildToKey();
 
     bool ownsOldChild = keyToChild.find(key) != keyToChild.end();
-    auto objectManager = Bootstrap_->GetObjectManager();
+    const auto& objectManager = Bootstrap_->GetObjectManager();
     DetachChild(objectManager, TrunkNode, oldChildImpl, ownsOldChild);
 
     keyToChild[key] = newTrunkChildImpl;
@@ -1331,7 +1331,7 @@ Stroka TMapNodeProxy::GetChildKey(IConstNodePtr child)
 {
     auto* trunkChildImpl = ICypressNodeProxy::FromNode(child.Get())->GetTrunkNode();
 
-    auto cypressManager = Bootstrap_->GetCypressManager();
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
     auto originators = cypressManager->GetNodeOriginators(Transaction, TrunkNode);
 
     for (const auto* node : originators) {
@@ -1389,7 +1389,7 @@ void TMapNodeProxy::DoRemoveChild(
     auto* trunkChildImpl = childImpl->GetTrunkNode();
     auto& keyToChild = impl->KeyToChild();
     auto& childToKey = impl->ChildToKey();
-    auto objectManager = Bootstrap_->GetObjectManager();
+    const auto& objectManager = Bootstrap_->GetObjectManager();
     if (Transaction) {
         auto it = keyToChild.find(key);
         if (it == keyToChild.end()) {
@@ -1545,7 +1545,7 @@ void TListNodeProxy::ReplaceChild(INodePtr oldChild, INodePtr newChild)
 
     int index = it->second;
 
-    auto objectManager = Bootstrap_->GetObjectManager();
+    const auto& objectManager = Bootstrap_->GetObjectManager();
     DetachChild(objectManager, TrunkNode, oldChildImpl, true);
 
     impl->IndexToChild()[index] = newTrunkChildImpl;
@@ -1612,7 +1612,7 @@ IYPathService::TResolveResult TLinkNodeProxy::Resolve(
     IServiceContextPtr context)
 {
     auto propagate = [&] () {
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         const auto* impl = GetThisImpl();
         auto combinedPath = impl->GetTargetPath() + path;
         return TResolveResult::There(objectManager->GetRootService(), combinedPath);
@@ -1668,7 +1668,7 @@ bool TLinkNodeProxy::IsBroken() const
 {
     try {
         const auto* impl = GetThisImpl();
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* resolver = objectManager->GetObjectResolver();
         resolver->ResolvePath(impl->GetTargetPath(), Transaction);
         return false;

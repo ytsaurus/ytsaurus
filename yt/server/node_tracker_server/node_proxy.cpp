@@ -181,7 +181,7 @@ private:
             }
 
             if (key == "statistics") {
-                auto chunkManager = Bootstrap_->GetChunkManager();
+                const auto& chunkManager = Bootstrap_->GetChunkManager();
 
                 const auto& statistics = node->Statistics();
 
@@ -264,7 +264,7 @@ private:
 
             if (key == "io_weights") {
                 RequireLeader();
-                auto chunkManager = Bootstrap_->GetChunkManager();
+                const auto& chunkManager = Bootstrap_->GetChunkManager();
                 const auto& allMedia = chunkManager->Media();
 
                 using TMediumMapIterator = ::NYT::NHydra::TReadOnlyEntityMap<NChunkServer::TMedium>::TIterator;
@@ -307,7 +307,7 @@ private:
     virtual bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override
     {
         auto* node = GetThisImpl();
-        auto nodeTracker = Bootstrap_->GetNodeTracker();
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
 
         if (key == "banned") {
             auto banned = ConvertTo<bool>(value);
@@ -356,7 +356,7 @@ private:
     virtual bool RemoveBuiltinAttribute(const Stroka& key) override
     {
         auto* node = GetThisImpl();
-        auto nodeTracker = Bootstrap_->GetNodeTracker();
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
 
         if (key == "rack") {
             nodeTracker->SetNodeRack(node, nullptr);

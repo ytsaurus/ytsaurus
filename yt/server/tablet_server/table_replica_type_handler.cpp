@@ -54,7 +54,7 @@ public:
         auto replicaPath = attributes->GetAndRemove<Stroka>("replica_path");
         auto startReplicationTimestamp = attributes->GetAndRemove<NTransactionClient::TTimestamp>("start_replication_timestamp", NTransactionClient::MinTimestamp);
 
-        auto cypressManager = Bootstrap_->GetCypressManager();
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto resolver = cypressManager->CreateResolver(nullptr);
         auto nodeProxy = resolver->ResolvePath(tablePath);
 
@@ -67,7 +67,7 @@ public:
 
         cypressManager->LockNode(table, nullptr, ELockMode::Exclusive);
 
-        auto tabletManager = Bootstrap_->GetTabletManager();
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
         return tabletManager->CreateTableReplica(
             table,
             clusterName,
@@ -91,7 +91,7 @@ private:
     virtual void DoDestroyObject(TTableReplica* replica) override
     {
         TObjectTypeHandlerWithMapBase::DoDestroyObject(replica);
-        auto tabletManager = Bootstrap_->GetTabletManager();
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->DestroyTableReplica(replica);
     }
 };

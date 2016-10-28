@@ -322,7 +322,7 @@ private:
 
         if (RegisterState_ == EPrimaryRegisterState::Registered) {
             YCHECK(!PrimaryMasterMailbox_);
-            auto hiveManager = Bootstrap_->GetHiveManager();
+            const auto& hiveManager = Bootstrap_->GetHiveManager();
             PrimaryMasterMailbox_ = hiveManager->GetMailbox(Bootstrap_->GetPrimaryCellId());
         }
     }
@@ -510,7 +510,7 @@ private:
         RegisterState_ = EPrimaryRegisterState::Registering;
 
         if (!PrimaryMasterMailbox_) {
-            auto hiveManager = Bootstrap_->GetHiveManager();
+            const auto& hiveManager = Bootstrap_->GetHiveManager();
             PrimaryMasterMailbox_ = hiveManager->GetOrCreateMailbox(Bootstrap_->GetPrimaryCellId());
         }
 
@@ -534,7 +534,7 @@ private:
 
     void ValidateSecondaryCellTag(TCellTag cellTag)
     {
-        auto config = Bootstrap_->GetConfig();
+        const auto& config = Bootstrap_->GetConfig();
         for (auto cellConfig : config->SecondaryMasters) {
             if (CellTagFromId(cellConfig->CellId) == cellTag)
                 return;
@@ -544,7 +544,7 @@ private:
 
     void ValidateCellTag(TCellTag cellTag)
     {
-        auto config = Bootstrap_->GetConfig();
+        const auto& config = Bootstrap_->GetConfig();
         if (CellTagFromId(config->PrimaryMaster->CellId) == cellTag)
             return;
         for (auto cellConfig : config->SecondaryMasters) {
@@ -620,7 +620,7 @@ private:
     NProto::TCellStatistics GetLocalCellStatistics()
     {
         NProto::TCellStatistics result;
-        auto chunkManager = Bootstrap_->GetChunkManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
         result.set_chunk_count(chunkManager->Chunks().GetSize());
         result.set_lost_vital_chunk_count(chunkManager->LostVitalChunks().size());
         return result;
@@ -651,7 +651,7 @@ private:
             hydraRequest.add_request_parts(part.Begin(), part.Size());
         }
 
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* user = securityManager->GetAuthenticatedUser();
         hydraRequest.set_user_name(user->GetName());
 
@@ -663,7 +663,7 @@ private:
         const TCellTagList& cellTags,
         bool reliable)
     {
-        auto hiveManager = Bootstrap_->GetHiveManager();
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
         for (auto cellTag : cellTags) {
             if (cellTag >= MinValidCellTag && cellTag <= MaxValidCellTag) {
                 auto cellId = Bootstrap_->GetCellId(cellTag);

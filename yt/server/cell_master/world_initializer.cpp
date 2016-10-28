@@ -74,14 +74,14 @@ public:
         YCHECK(Config_);
         YCHECK(Bootstrap_);
 
-        auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         hydraManager->SubscribeLeaderActive(BIND(&TImpl::OnLeaderActive, MakeWeak(this)));
     }
 
 
     bool IsInitialized()
     {
-        auto cypressManager = Bootstrap_->GetCypressManager();
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* rootNode = cypressManager->GetRootNode();
         return !rootNode->KeyToChild().empty();
     }
@@ -95,7 +95,7 @@ public:
 
     bool HasProvisionLock()
     {
-        auto cypressManager = Bootstrap_->GetCypressManager();
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto resolver = cypressManager->CreateResolver();
         auto sysNode = resolver->ResolvePath("//sys");
         return sysNode->Attributes().Get<bool>("provision_lock", false);
@@ -140,15 +140,14 @@ private:
         try {
             // Check for pre-existing transactions to avoid collisions with previous (failed)
             // initialization attempts.
-            auto transactionManager = Bootstrap_->GetTransactionManager();
+            const auto& transactionManager = Bootstrap_->GetTransactionManager();
             if (transactionManager->Transactions().GetSize() > 0) {
                 AbortTransactions();
                 THROW_ERROR_EXCEPTION("World initialization aborted: transactions found");
             }
 
-            auto objectManager = Bootstrap_->GetObjectManager();
-            auto cypressManager = Bootstrap_->GetCypressManager();
-            auto securityManager = Bootstrap_->GetSecurityManager();
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
 
             // All initialization will be happening within this transaction.
             auto transactionId = StartTransaction();
@@ -495,9 +494,9 @@ private:
 
     void AbortTransactions()
     {
-        auto transactionManager = Bootstrap_->GetTransactionManager();
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto transactionIds = ToObjectIds(GetValues(transactionManager->Transactions()));
-        auto transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
+        const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
         for (const auto& transactionId : transactionIds) {
             transactionSupervisor->AbortTransaction(transactionId);
         }
@@ -521,7 +520,7 @@ private:
 
     void CommitTransaction(const TTransactionId& transactionId)
     {
-        auto transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
+        const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
         WaitFor(transactionSupervisor->CommitTransaction(transactionId))
             .ThrowOnError();
     }

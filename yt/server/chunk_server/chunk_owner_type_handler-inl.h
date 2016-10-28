@@ -103,8 +103,8 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreate(
     NTransactionServer::TTransaction* transaction,
     NYTree::IAttributeDictionary* attributes)
 {
-    auto chunkManager = this->Bootstrap_->GetChunkManager();
-    auto objectManager = this->Bootstrap_->GetObjectManager();
+    const auto& chunkManager = this->Bootstrap_->GetChunkManager();
+    const auto& objectManager = this->Bootstrap_->GetObjectManager();
 
     auto nodeHolder = TBase::DoCreate(
         id,
@@ -131,12 +131,12 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoDestroy(TChunkOwner* node)
 
     auto* chunkList = node->GetChunkList();
     if (chunkList) {
-        auto chunkManager = TBase::Bootstrap_->GetChunkManager();
+        const auto& chunkManager = TBase::Bootstrap_->GetChunkManager();
         chunkManager->ScheduleChunkPropertiesUpdate(chunkList);
 
         chunkList->RemoveOwningNode(node);
 
-        auto objectManager = TBase::Bootstrap_->GetObjectManager();
+        const auto& objectManager = TBase::Bootstrap_->GetObjectManager();
         objectManager->UnrefObject(chunkList);
     }
 }
@@ -155,7 +155,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoBranch(
 
         branchedNode->GetChunkList()->AddOwningNode(branchedNode);
 
-        auto objectManager = TBase::Bootstrap_->GetObjectManager();
+        const auto& objectManager = TBase::Bootstrap_->GetObjectManager();
         objectManager->RefObject(chunkList);
     }
 
@@ -192,8 +192,8 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
 
     bool isExternal = originatingNode->IsExternal();
 
-    auto chunkManager = TBase::Bootstrap_->GetChunkManager();
-    auto objectManager = TBase::Bootstrap_->GetObjectManager();
+    const auto& chunkManager = TBase::Bootstrap_->GetChunkManager();
+    const auto& objectManager = TBase::Bootstrap_->GetObjectManager();
 
     auto* originatingChunkList = originatingNode->GetChunkList();
     auto* branchedChunkList = branchedNode->GetChunkList();
@@ -336,7 +336,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoClone(
     TBase::DoClone(sourceNode, clonedNode, factory, mode);
 
     if (!sourceNode->IsExternal()) {
-        auto objectManager = TBase::Bootstrap_->GetObjectManager();
+        const auto& objectManager = TBase::Bootstrap_->GetObjectManager();
         auto* chunkList = sourceNode->GetChunkList();
         YCHECK(!clonedNode->GetChunkList());
         clonedNode->SetChunkList(chunkList);

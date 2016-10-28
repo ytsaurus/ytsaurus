@@ -75,7 +75,7 @@ private:
             return;
         }
         int total = node->GetTotalTabletSlots();
-        auto tabletManager = Bootstrap_->GetTabletManager();
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
         int used = tabletManager->GetAssignedTabletCellCount(node->GetDefaultAddress());
         int spare = total - used;
         if (used >= total) {
@@ -92,7 +92,7 @@ private:
         if (it == TagToData_.end()) {
             it = TagToData_.insert(std::make_pair(tag, TPerTagData())).first;
             auto& data = it->second;
-            auto nodeTracker = Bootstrap_->GetNodeTracker();
+            const auto& nodeTracker = Bootstrap_->GetNodeTracker();
             for (const auto& pair : nodeTracker->Nodes()) {
                 auto* node = pair.second;
                 if (node->HasTag(tag)) {
@@ -162,7 +162,7 @@ bool TTabletTracker::IsEnabled()
 {
     // This method also logs state changes.
 
-    auto nodeTracker = Bootstrap_->GetNodeTracker();
+    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
 
     int needOnline = Config_->SafeOnlineNodeCount;
     int gotOnline = nodeTracker->GetOnlineNodeCount();
@@ -220,7 +220,7 @@ void TTabletTracker::ScheduleLeaderReassignment(TTabletCell* cell, TCandidatePoo
     ToProto(request.mutable_cell_id(), cell->GetId());
     request.set_peer_id(goodPeerId);
 
-    auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+    const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
     CreateMutation(hydraManager, request)
         ->CommitAndLog(Logger);
 }
@@ -282,7 +282,7 @@ void TTabletTracker::SchedulePeerAssignment(TTabletCell* cell, TCandidatePool* p
     if (request.peer_infos_size() == 0)
         return;
 
-    auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+    const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
     CreateMutation(hydraManager, request)
         ->CommitAndLog(Logger);
 }
@@ -306,7 +306,7 @@ void TTabletTracker::SchedulePeerRevocation(TTabletCell* cell)
     if (request.peer_ids_size() == 0)
         return;
 
-    auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+    const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
     CreateMutation(hydraManager, request)
         ->CommitAndLog(Logger);
 }
@@ -318,7 +318,7 @@ bool TTabletTracker::IsFailed(const TTabletCell* cell, TPeerId peerId, TDuration
         return false;
     }
 
-    auto nodeTracker = Bootstrap_->GetNodeTracker();
+    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
     const auto* node = nodeTracker->FindNodeByAddress(peer.Descriptor.GetDefaultAddress());
     if (node) {
         if (node->GetBanned()) {

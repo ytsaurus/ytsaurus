@@ -161,7 +161,7 @@ public:
 
     void Initialize()
     {
-        auto transactionManager = Slot_->GetTransactionManager();
+        const auto& transactionManager = Slot_->GetTransactionManager();
 
         transactionManager->SubscribeTransactionPrepared(BIND(&TImpl::OnTransactionPrepared, MakeStrong(this)));
         transactionManager->SubscribeTransactionCommitted(BIND(&TImpl::OnTransactionCommitted, MakeStrong(this)));
@@ -536,7 +536,7 @@ private:
             }
         }
 
-        auto transactionManager = Slot_->GetTransactionManager();
+        const auto& transactionManager = Slot_->GetTransactionManager();
         auto transactions = transactionManager->GetTransactions();
         for (auto* transaction : transactions) {
             YCHECK(!transaction->GetTransient());
@@ -960,7 +960,7 @@ private:
         const TTransactionWriteRecord& writeRecord,
         TMutationContext* /*context*/)
     {
-        auto transactionManager = Slot_->GetTransactionManager();
+        const auto& transactionManager = Slot_->GetTransactionManager();
         auto* transaction = transactionManager->MakeTransactionPersistent(transactionId);
 
         auto* tablet = FindTablet(tabletId);
@@ -1046,7 +1046,7 @@ private:
 
         switch (atomicity) {
             case EAtomicity::Full: {
-                auto transactionManager = Slot_->GetTransactionManager();
+                const auto& transactionManager = Slot_->GetTransactionManager();
                 auto* transaction = transactionManager->GetOrCreateTransaction(
                     transactionId,
                     transactionStartTimestamp,
@@ -1159,7 +1159,7 @@ private:
             storeIdsToAdd,
             storeIdsToRemove);
 
-        auto hiveManager = Slot_->GetHiveManager();
+        const auto& hiveManager = Slot_->GetHiveManager();
         auto* masterMailbox = Slot_->GetMasterMailbox();
 
         {
@@ -1883,7 +1883,7 @@ private:
         const auto& tabletId = tablet->GetId();
         const auto& storeManager = tablet->GetStoreManager();
 
-        auto transactionManager = Slot_->GetTransactionManager();
+        const auto& transactionManager = Slot_->GetTransactionManager();
         auto* transaction = transactionManager->GetOrCreateTransaction(
             transactionId,
             transactionStartTimestamp,
@@ -2091,7 +2091,7 @@ private:
 
     void PostMasterMutation(const ::google::protobuf::MessageLite& message)
     {
-        auto hiveManager = Slot_->GetHiveManager();
+        const auto& hiveManager = Slot_->GetHiveManager();
         hiveManager->PostMessage(Slot_->GetMasterMailbox(), message);
     }
 
@@ -2599,7 +2599,7 @@ private:
         }
         tablet->SetTrimmedRowCount(trimmedRowCount);
 
-        auto hiveManager = Slot_->GetHiveManager();
+        const auto& hiveManager = Slot_->GetHiveManager();
         auto* masterMailbox = Slot_->GetMasterMailbox();
 
         {

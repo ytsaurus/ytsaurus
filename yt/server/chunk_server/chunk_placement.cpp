@@ -137,7 +137,7 @@ void TChunkPlacement::OnNodeUpdated(TNode* node)
 {
     node->ClearSessionHints();
 
-    auto chunkManager = Bootstrap_->GetChunkManager();
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
 
     // Recompute IO weight.
     // Currently its just the number of non-full locations.
@@ -288,7 +288,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
     };
 
     if (preferredHostName) {
-        auto nodeTracker = Bootstrap_->GetNodeTracker();
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* preferredNode = nodeTracker->FindNodeByHostName(*preferredHostName);
         if (preferredNode) {
             tryAdd(preferredNode, true);

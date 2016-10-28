@@ -156,7 +156,7 @@ public:
         RegisterMethod(BIND(&TImpl::HydraUpdateTabletTrimmedRowCount, Unretained(this)));
 
         if (Bootstrap_->IsPrimaryMaster()) {
-            auto nodeTracker = Bootstrap_->GetNodeTracker();
+            const auto& nodeTracker = Bootstrap_->GetNodeTracker();
             nodeTracker->SubscribeNodeRegistered(BIND(&TImpl::OnNodeRegistered, MakeWeak(this)));
             nodeTracker->SubscribeNodeUnregistered(BIND(&TImpl::OnNodeUnregistered, MakeWeak(this)));
             nodeTracker->SubscribeIncrementalHeartbeat(BIND(&TImpl::OnIncrementalHeartbeat, MakeWeak(this)));
@@ -165,13 +165,13 @@ public:
 
     void Initialize()
     {
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(CreateTabletCellBundleTypeHandler(Bootstrap_, &TabletCellBundleMap_));
         objectManager->RegisterHandler(CreateTabletCellTypeHandler(Bootstrap_, &TabletCellMap_));
         objectManager->RegisterHandler(CreateTabletTypeHandler(Bootstrap_, &TabletMap_));
         objectManager->RegisterHandler(CreateTableReplicaTypeHandler(Bootstrap_, &TableReplicaMap_));
 
-        auto transactionManager = Bootstrap_->GetTransactionManager();
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->SubscribeTransactionCommitted(BIND(&TImpl::OnTransactionFinished, MakeWeak(this)));
         transactionManager->SubscribeTransactionAborted(BIND(&TImpl::OnTransactionFinished, MakeWeak(this)));
     }
@@ -189,7 +189,7 @@ public:
                 name);
         }
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::TabletCellBundle, hintId);
         return DoCreateTabletCellBundle(id, name);
     }
@@ -202,7 +202,7 @@ public:
         auto* cellBundle = TabletCellBundleMap_.Insert(id, std::move(cellBundleHolder));
         YCHECK(NameToTabletCellBundleMap_.insert(std::make_pair(cellBundle->GetName(), cellBundle)).second);
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(cellBundle);
 
         return cellBundle;
@@ -220,10 +220,10 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ValidatePermission(cellBundle, EPermission::Use);
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::TabletCell, hintId);
         auto cellHolder = std::make_unique<TTabletCell>(id);
 
@@ -239,7 +239,7 @@ public:
         // Make the fake reference.
         YCHECK(cell->RefObject() == 1);
 
-        auto hiveManager = Bootstrap_->GetHiveManager();
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
         hiveManager->CreateMailbox(id);
 
         auto cellMapNodeProxy = GetCellMapNode();
@@ -247,7 +247,7 @@ public:
 
         try {
             // NB: Users typically are not allowed to create these types.
-            auto securityManager = Bootstrap_->GetSecurityManager();
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
             auto* rootUser = securityManager->GetRootUser();
             TAuthenticatedUserGuard userGuard(securityManager, rootUser);
 
@@ -289,7 +289,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto hiveManager = Bootstrap_->GetHiveManager();
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
         hiveManager->RemoveMailbox(cell->GetId());
 
         for (const auto& peer : cell->Peers()) {
@@ -304,7 +304,7 @@ public:
 
         auto* cellBundle = cell->GetCellBundle();
         YCHECK(cellBundle->TabletCells().erase(cell) == 1);
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->UnrefObject(cellBundle);
         cell->SetCellBundle(nullptr);
 
@@ -314,7 +314,7 @@ public:
         auto cellNodeProxy = FindCellNode(cell->GetId());
         if (cellNodeProxy) {
             // NB: This should succeed regardless of user permissions.
-            auto securityManager = Bootstrap_->GetSecurityManager();
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
             auto* rootUser = securityManager->GetRootUser();
             TAuthenticatedUserGuard userGuard(securityManager, rootUser);
 
@@ -332,7 +332,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::Tablet, NullObjectId);
         auto tabletHolder = std::make_unique<TTablet>(id);
         tabletHolder->SetTable(table);
@@ -363,7 +363,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::TableReplica, NullObjectId);
         auto replicaHolder = std::make_unique<TTableReplica>(id);
         replicaHolder->SetTable(table);
@@ -382,7 +382,7 @@ public:
             replica->GetId(),
             startReplicationTimestamp);
 
-        auto hiveManager = Bootstrap_->GetHiveManager();
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
         for (auto* tablet : table->Tablets()) {
             auto pair = tablet->Replicas().emplace(replica, TTableReplicaInfo());
             YCHECK(pair.second);
@@ -415,7 +415,7 @@ public:
         if (table) {
             YCHECK(table->Replicas().erase(replica) == 1);
 
-            auto hiveManager = Bootstrap_->GetHiveManager();
+            const auto& hiveManager = Bootstrap_->GetHiveManager();
             for (auto* tablet : table->Tablets()) {
                 YCHECK(tablet->Replicas().erase(replica) == 1);
 
@@ -453,7 +453,7 @@ public:
 
         replica->SetState(ETableReplicaState::Enabled);
 
-        auto hiveManager = Bootstrap_->GetHiveManager();
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
         for (auto* tablet : table->Tablets()) {
             if (!tablet->IsActive()) {
                 continue;
@@ -500,7 +500,7 @@ public:
 
         replica->SetState(ETableReplicaState::Disabling);
 
-        auto hiveManager = Bootstrap_->GetHiveManager();
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
         for (auto* tablet : table->Tablets()) {
             if (!tablet->IsActive()) {
                 continue;
@@ -598,9 +598,6 @@ public:
             ValidateHasHealthyCells(table->GetTabletCellBundle()); // may throw
         }
 
-        auto objectManager = Bootstrap_->GetObjectManager();
-        auto chunkManager = Bootstrap_->GetChunkManager();
-
         const auto& allTablets = table->Tablets();
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
@@ -641,6 +638,8 @@ public:
             hintCell,
             std::move(tabletsToMount));
 
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+
         for (const auto& pair : assignment) {
             auto* tablet = pair.first;
             int tabletIndex = tablet->GetIndex();
@@ -657,7 +656,7 @@ public:
             const auto* context = GetCurrentMutationContext();
             tablet->SetMountRevision(context->GetVersion().ToRevision());
 
-            auto hiveManager = Bootstrap_->GetHiveManager();
+            const auto& hiveManager = Bootstrap_->GetHiveManager();
             auto* mailbox = hiveManager->GetMailbox(cell->GetId());
 
             {
@@ -811,7 +810,7 @@ public:
                 tablet->SetInMemoryMode(mountConfig->InMemoryMode);
                 cell->TotalStatistics() += GetTabletStatistics(tablet);
 
-                auto hiveManager = Bootstrap_->GetHiveManager();
+                const auto& hiveManager = Bootstrap_->GetHiveManager();
 
                 TReqRemountTablet request;
                 request.set_mount_config(serializedMountConfig.Data());
@@ -851,7 +850,7 @@ public:
             }
         }
 
-        auto hiveManager = Bootstrap_->GetHiveManager();
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = table->Tablets()[index];
@@ -901,7 +900,7 @@ public:
             }
         }
 
-        auto hiveManager = Bootstrap_->GetHiveManager();
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = table->Tablets()[index];
@@ -927,7 +926,7 @@ public:
     void DestroyTable(TTableNode* table)
     {
         if (table->GetTabletCellBundle()) {
-            auto objectManager = Bootstrap_->GetObjectManager();
+            const auto& objectManager = Bootstrap_->GetObjectManager();
             objectManager->UnrefObject(table->GetTabletCellBundle());
             table->SetTabletCellBundle(nullptr);
         }
@@ -939,7 +938,7 @@ public:
                 0,
                 static_cast<int>(table->Tablets().size()) - 1);
 
-            auto objectManager = Bootstrap_->GetObjectManager();
+            const auto& objectManager = Bootstrap_->GetObjectManager();
             for (auto* tablet : table->Tablets()) {
                 tablet->SetTable(nullptr);
                 YCHECK(tablet->GetState() == ETabletState::Unmounted);
@@ -951,7 +950,7 @@ public:
 
         if (table->GetType() == EObjectType::ReplicatedTable) {
             auto* replicatedTable = table->As<TReplicatedTableNode>();
-            auto objectManager = Bootstrap_->GetObjectManager();
+            const auto& objectManager = Bootstrap_->GetObjectManager();
             for (auto* replica : replicatedTable->Replicas()) {
                 replica->SetTable(nullptr);
                 replica->DisablingTablets().clear();
@@ -979,8 +978,8 @@ public:
             THROW_ERROR_EXCEPTION("Cannot reshard a replicated table");
         }
 
-        auto objectManager = Bootstrap_->GetObjectManager();
-        auto chunkManager = Bootstrap_->GetChunkManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
 
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
 
@@ -1202,7 +1201,7 @@ public:
                     Y_UNREACHABLE();
             }
         } catch (const std::exception& ex) {
-            auto cypressManager = Bootstrap_->GetCypressManager();
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
             auto sourceTableProxy = cypressManager->GetNodeProxy(sourceTable->GetTrunkNode(), sourceTable->GetTransaction());
             THROW_ERROR_EXCEPTION("Error cloning table %v",
                 sourceTableProxy->GetPath());
@@ -1247,7 +1246,7 @@ public:
                 // Undo the harm done in TChunkOwnerTypeHandler::DoClone.
                 auto* fakeClonedRootChunkList = clonedTable->GetChunkList();
                 fakeClonedRootChunkList->RemoveOwningNode(clonedTable);
-                auto objectManager = Bootstrap_->GetObjectManager();
+                const auto& objectManager = Bootstrap_->GetObjectManager();
                 objectManager->UnrefObject(fakeClonedRootChunkList);
 
                 const auto& sourceTablets = sourceTable->Tablets();
@@ -1255,7 +1254,7 @@ public:
                 auto& clonedTablets = clonedTable->Tablets();
                 YCHECK(clonedTablets.empty());
 
-                auto chunkManager = Bootstrap_->GetChunkManager();
+                const auto& chunkManager = Bootstrap_->GetChunkManager();
                 auto* clonedRootChunkList = chunkManager->CreateChunkList(false);
                 clonedTable->SetChunkList(clonedRootChunkList);
                 objectManager->RefObject(clonedRootChunkList);
@@ -1337,10 +1336,10 @@ public:
         }
         table->SetLastCommitTimestamp(lastCommitTimestamp);
 
-        auto chunkManager = Bootstrap_->GetChunkManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto* newRootChunkList = chunkManager->CreateChunkList(false);
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(newRootChunkList);
 
         table->SetChunkList(newRootChunkList);
@@ -1390,10 +1389,10 @@ public:
 
         auto* oldRootChunkList = table->GetChunkList();
 
-        auto chunkManager = Bootstrap_->GetChunkManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto newRootChunkList = chunkManager->CreateChunkList();
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(newRootChunkList);
 
         table->SetChunkList(newRootChunkList);
@@ -1483,10 +1482,10 @@ public:
             return;
         }
 
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ValidatePermission(cellBundle, EPermission::Use);
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         if (table->GetTabletCellBundle()) {
             objectManager->UnrefObject(table->GetTabletCellBundle());
         }
@@ -1615,7 +1614,7 @@ private:
 
         // COMPAT(babenko)
         if (InitializeCellBundles_) {
-            auto cypressManager = Bootstrap_->GetCypressManager();
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
             for (const auto& pair : cypressManager->Nodes()) {
                 auto* node = pair.second;
                 if (node->IsTrunk() && node->GetType() == EObjectType::Table) {
@@ -1636,7 +1635,7 @@ private:
 
         // COMPAT(babenko)
         if (UpdateChunkListsOrderedMode_) {
-            auto cypressManager = Bootstrap_->GetCypressManager();
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
             for (const auto& pair : cypressManager->Nodes()) {
                 auto* node = pair.second;
                 if (node->IsTrunk() && node->GetType() == EObjectType::Table) {
@@ -1681,7 +1680,7 @@ private:
                 DefaultTabletCellBundleId_,
                 DefaultTabletCellBundleName);
 
-            auto securityManager = Bootstrap_->GetSecurityManager();
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
             DefaultTabletCellBundle_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 securityManager->GetUsersGroup(),
@@ -2263,7 +2262,7 @@ private:
         tablet->SetState(ETabletState::Unmounted);
         tablet->SetCell(nullptr);
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         YCHECK(cell->Tablets().erase(tablet) == 1);
         objectManager->UnrefObject(cell);
     }
@@ -2275,8 +2274,8 @@ private:
     {
         auto* oldRootChunkList = table->GetChunkList();
         auto& chunkLists = oldRootChunkList->Children();
-        auto chunkManager = Bootstrap_->GetChunkManager();
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
 
         if (oldRootChunkList->GetObjectRefCounter() > 1) {
             auto statistics = oldRootChunkList->Statistics();
@@ -2344,7 +2343,7 @@ private:
             return;
         }
 
-        auto cypressManager = Bootstrap_->GetCypressManager();
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->SetModified(table, nullptr);
 
         TRspUpdateTabletStores response;
@@ -2409,7 +2408,7 @@ private:
             }
 
             // Collect all changes first.
-            auto chunkManager = Bootstrap_->GetChunkManager();
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
             std::vector<TChunkTree*> chunksToAttach;
             i64 attachedRowCount = 0;
             auto lastCommitTimestamp = table->GetLastCommitTimestamp();
@@ -2469,7 +2468,7 @@ private:
                 chunkManager->UnstageChunk(chunk->AsChunk());
             }
 
-            auto securityManager = Bootstrap_->GetSecurityManager();
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
             securityManager->UpdateAccountNodeUsage(table);
 
             LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores updated (TableId: %v, TabletId: %v, "
@@ -2488,7 +2487,7 @@ private:
             ToProto(response.mutable_error(), error.Sanitize());
         }
 
-        auto hiveManager = Bootstrap_->GetHiveManager();
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
         auto* mailbox = hiveManager->GetMailbox(cell->GetId());
         hiveManager->PostMessage(mailbox, response);
     }
@@ -2562,7 +2561,6 @@ private:
         auto config = cell->GetConfig();
         config->Addresses.clear();
         for (const auto& peer : cell->Peers()) {
-            auto nodeTracker = Bootstrap_->GetNodeTracker();
             if (peer.Descriptor.IsNull()) {
                 config->Addresses.push_back(Null);
             } else {
@@ -2719,17 +2717,17 @@ private:
 
     void StartPrerequisiteTransaction(TTabletCell* cell)
     {
-        auto multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         const auto& secondaryCellTags = multicellManager->GetRegisteredMasterCellTags();
 
-        auto transactionManager = Bootstrap_->GetTransactionManager();
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionManager->StartTransaction(
             nullptr,
             secondaryCellTags,
             Null,
             Format("Prerequisite for cell %v", cell->GetId()));
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         for (auto cellTag : secondaryCellTags) {
             objectManager->ReplicateObjectCreationToSecondaryMaster(transaction, cellTag);
         }
@@ -2745,7 +2743,7 @@ private:
 
     void AbortCellSubtreeTransactions(TTabletCell* cell)
     {
-        auto cypressManager = Bootstrap_->GetCypressManager();
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto cellNodeProxy = FindCellNode(cell->GetId());
         if (cellNodeProxy) {
             cypressManager->AbortSubtreeTransactions(cellNodeProxy);
@@ -2766,7 +2764,7 @@ private:
         // NB: Make a copy, transaction will die soon.
         auto transactionId = transaction->GetId();
 
-        auto transactionManager = Bootstrap_->GetTransactionManager();
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->AbortTransaction(transaction, true);
 
         LOG_INFO_UNLESS(IsRecovery(), "Tablet cell prerequisite aborted (CellId: %v, TransactionId: %v)",
@@ -2821,7 +2819,7 @@ private:
         int firstTabletIndex,
         int lastTabletIndex)
     {
-        auto hiveManager = Bootstrap_->GetHiveManager();
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = table->Tablets()[index];
@@ -2870,7 +2868,7 @@ private:
         TTableMountConfigPtr* mountConfig,
         TTableWriterOptionsPtr* writerOptions)
     {
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         auto tableProxy = objectManager->GetProxy(table);
         const auto& tableAttributes = tableProxy->Attributes();
 
@@ -2923,7 +2921,7 @@ private:
 
     IMapNodePtr GetCellMapNode()
     {
-        auto cypressManager = Bootstrap_->GetCypressManager();
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto resolver = cypressManager->CreateResolver();
         return resolver->ResolvePath("//sys/tablet_cells")->AsMap();
     }
@@ -2938,7 +2936,7 @@ private:
     void OnCleanup()
     {
         try {
-            auto cypressManager = Bootstrap_->GetCypressManager();
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
             auto resolver = cypressManager->CreateResolver();
             for (const auto& pair : TabletCellMap_) {
                 const auto& cellId = pair.first;
@@ -2976,7 +2974,7 @@ private:
                 std::sort(snapshotIds.begin(), snapshotIds.end());
                 int thresholdId = snapshotIds[snapshotIds.size() - Config_->MaxSnapshotsToKeep];
 
-                auto objectManager = Bootstrap_->GetObjectManager();
+                const auto& objectManager = Bootstrap_->GetObjectManager();
                 auto rootService = objectManager->GetRootService();
 
                 for (const auto& key : snapshotKeys) {

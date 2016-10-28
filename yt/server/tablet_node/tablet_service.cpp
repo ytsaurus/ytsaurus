@@ -97,7 +97,7 @@ private:
         TCurrentInvokerGuard invokerGuard(Slot_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write));
 
         const auto& user = context->GetUser();
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager, user);
 
         auto tabletSnapshot = GetTabletSnapshotOrThrow(tabletId, mountRevision);
@@ -111,7 +111,7 @@ private:
         auto requestData = NCompression::DecompressWithEnvelope(request->Attachments());
         TWireProtocolReader reader(requestData);
 
-        auto tabletManager = Slot_->GetTabletManager();
+        const auto& tabletManager = Slot_->GetTabletManager();
 
         TFuture<void> commitResult;
         while (!reader.IsFinished()) {
@@ -153,7 +153,7 @@ private:
             request->actions_size(),
             signature);
 
-        auto transactionManager = Slot_->GetTransactionManager();
+        const auto& transactionManager = Slot_->GetTransactionManager();
         transactionManager
             ->CreateRegisterTransactionActionsMutation(context)
             ->CommitAndReply(context);
@@ -170,12 +170,12 @@ private:
             trimmedRowCount);
 
         const auto& user = context->GetUser();
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager, user);
 
         auto tabletSnapshot = GetTabletSnapshotOrThrow(tabletId, mountRevision);
 
-        auto tabletManager = Slot_->GetTabletManager();
+        const auto& tabletManager = Slot_->GetTabletManager();
         WaitFor(tabletManager->Trim(tabletSnapshot, trimmedRowCount))
             .ThrowOnError();
 

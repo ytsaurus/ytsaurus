@@ -110,7 +110,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         }
 
         if (dynamic) {
-            auto tabletManager = this->Bootstrap_->GetTabletManager();
+            const auto& tabletManager = this->Bootstrap_->GetTabletManager();
             tabletManager->MakeTableDynamic(node);
 
             if (maybeTabletCount) {
@@ -133,7 +133,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoDestroy(TImpl* table)
     TBase::DoDestroy(table);
 
     if (table->IsTrunk()) {
-        auto tabletManager = this->Bootstrap_->GetTabletManager();
+        const auto& tabletManager = this->Bootstrap_->GetTabletManager();
         tabletManager->DestroyTable(table);
     }
 }
@@ -174,7 +174,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
         THROW_ERROR_EXCEPTION("Operation cannot be performed in transaction");
     }
 
-    auto tabletManager = this->Bootstrap_->GetTabletManager();
+    const auto& tabletManager = this->Bootstrap_->GetTabletManager();
 
     TBase::DoClone(sourceNode, clonedNode, factory, mode);
 

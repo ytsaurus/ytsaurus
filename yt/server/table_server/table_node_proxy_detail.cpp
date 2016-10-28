@@ -130,7 +130,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* cons
     const auto* trunkTable = table->GetTrunkNode();
     auto statistics = table->ComputeTotalStatistics();
 
-    auto tabletManager = Bootstrap_->GetTabletManager();
+    const auto& tabletManager = Bootstrap_->GetTabletManager();
 
     if (key == "row_count" && !isDynamic) {
         BuildYsonFluently(consumer)
@@ -335,7 +335,7 @@ void TTableNodeProxy::AlterTable(
     }
 
     if (newDynamic) {
-        auto tabletManager = Bootstrap_->GetTabletManager();
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
         if (*newDynamic) {
             tabletManager->MakeTableDynamic(table);
         } else {
@@ -352,7 +352,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(const Stroka& key, const TYsonString& 
         ValidateNoTransaction();
 
         auto name = ConvertTo<Stroka>(value);
-        auto tabletManager = Bootstrap_->GetTabletManager();
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
         auto* cellBundle = tabletManager->GetTabletCellBundleByNameOrThrow(name);
 
         auto* lockedTable = LockThisImpl();
@@ -477,7 +477,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Mount)
     ValidateNoTransaction();
     ValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
 
-    auto tabletManager = Bootstrap_->GetTabletManager();
+    const auto& tabletManager = Bootstrap_->GetTabletManager();
 
     TTabletCell* cell = nullptr;
     if (cellId) {
@@ -514,7 +514,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Unmount)
 
     auto* table = LockThisImpl();
 
-    auto tabletManager = Bootstrap_->GetTabletManager();
+    const auto& tabletManager = Bootstrap_->GetTabletManager();
     tabletManager->UnmountTable(
         table,
         force,
@@ -540,7 +540,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Freeze)
     ValidateNoTransaction();
     ValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
 
-    auto tabletManager = Bootstrap_->GetTabletManager();
+    const auto& tabletManager = Bootstrap_->GetTabletManager();
     auto* table = LockThisImpl();
 
     tabletManager->FreezeTable(
@@ -567,7 +567,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Unfreeze)
 
     auto* table = LockThisImpl();
 
-    auto tabletManager = Bootstrap_->GetTabletManager();
+    const auto& tabletManager = Bootstrap_->GetTabletManager();
     tabletManager->UnfreezeTable(
         table,
         firstTabletIndex,
@@ -592,7 +592,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Remount)
 
     auto* table = LockThisImpl();
 
-    auto tabletManager = Bootstrap_->GetTabletManager();
+    const auto& tabletManager = Bootstrap_->GetTabletManager();
     tabletManager->RemountTable(
         table,
         firstTabletIndex,
@@ -620,7 +620,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Reshard)
 
     auto* table = LockThisImpl();
 
-    auto tabletManager = Bootstrap_->GetTabletManager();
+    const auto& tabletManager = Bootstrap_->GetTabletManager();
     tabletManager->ReshardTable(
         table,
         firstTabletIndex,
@@ -712,7 +712,7 @@ bool TReplicatedTableNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonCons
     const auto* table = GetThisImpl<TReplicatedTableNode>();
 
     if (key == "replicas") {
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         BuildYsonFluently(consumer)
             .DoMapFor(table->Replicas(), [&] (TFluentMap fluent, TTableReplica* replica) {
                 auto replicaProxy = objectManager->GetProxy(replica);

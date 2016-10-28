@@ -79,7 +79,7 @@ private:
         }
 
         if (key == "table_path") {
-            auto cypressManager = Bootstrap_->GetCypressManager();
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
             auto tableProxy = cypressManager->GetNodeProxy(replica->GetTable(), nullptr);
             BuildYsonFluently(consumer)
                 .Value(tableProxy->GetPath());
@@ -133,7 +133,7 @@ private:
 
         auto* replica = GetThisImpl();
 
-        auto tabletManager = Bootstrap_->GetTabletManager();
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->EnableTableReplica(replica);
 
         context->Reply();
@@ -148,7 +148,7 @@ private:
 
         auto* replica = GetThisImpl();
 
-        auto tabletManager = Bootstrap_->GetTabletManager();
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->DisableTableReplica(replica);
 
         context->Reply();

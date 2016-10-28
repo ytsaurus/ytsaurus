@@ -70,7 +70,7 @@ private:
 
     TSubject* GetSubject(const Stroka& name)
     {
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* subject = securityManager->FindSubjectByName(name);
         if (!IsObjectAlive(subject)) {
             THROW_ERROR_EXCEPTION("No such user or group %Qv",
@@ -95,7 +95,7 @@ private:
         auto* member = GetSubject(name);
         auto* group = GetThisImpl();
 
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->AddMember(group, member, ignoreExisting);
 
         context->Reply();
@@ -121,7 +121,7 @@ private:
         auto* member = GetSubject(name);
         auto* group = GetThisImpl();
 
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->RemoveMember(group, member, ignoreMissing);
 
         context->Reply();

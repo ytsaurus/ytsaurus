@@ -559,7 +559,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, GCCollect)
     ValidateClusterInitialized();
     ValidatePeer(EPeerKind::Leader);
 
-    auto objectManager = Bootstrap_->GetObjectManager();
+    const auto& objectManager = Bootstrap_->GetObjectManager();
     context->ReplyFrom(objectManager->GCCollect());
 }
 

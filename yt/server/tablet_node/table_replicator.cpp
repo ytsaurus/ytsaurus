@@ -145,7 +145,7 @@ private:
 
     void OnUpdateMountConfig()
     {
-        auto tabletManager = Slot_->GetTabletManager();
+        const auto& tabletManager = Slot_->GetTabletManager();
         auto* tablet = tabletManager->FindTablet(TabletId_);
         SetMountConfig(tablet ? tablet->GetConfig() : nullptr);
     }

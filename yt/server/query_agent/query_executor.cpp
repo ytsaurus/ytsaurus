@@ -192,7 +192,7 @@ public:
             }
         }
 
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto maybeUser = securityManager->GetAuthenticatedUser();
 
         auto execute = Query_->IsOrdered()
@@ -229,7 +229,7 @@ private:
         const std::vector<TRefiner>& refiners,
         const std::vector<TSubreaderCreator>& subreaderCreators)
     {
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto maybeUser = securityManager->GetAuthenticatedUser();
 
         NApi::TClientOptions clientOptions;
@@ -344,7 +344,7 @@ private:
         ISchemafulWriterPtr writer,
         const TNullable<Stroka>& maybeUser)
     {
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager, maybeUser);
 
         LOG_DEBUG("Classifying data sources into ranges and lookup keys");
@@ -493,7 +493,7 @@ private:
         ISchemafulWriterPtr writer,
         const TNullable<Stroka>& maybeUser)
     {
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager, maybeUser);
 
         auto splits = Split(std::move(dataSources));

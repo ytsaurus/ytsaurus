@@ -165,7 +165,7 @@ void TGarbageCollector::DestroyZombie(TObjectBase* object)
         UnregisterLocked(object);
     }
 
-    auto objectManager = Bootstrap_->GetObjectManager();
+    const auto& objectManager = Bootstrap_->GetObjectManager();
     const auto& handler = objectManager->GetHandler(object->GetType());
     handler->DestroyObject(object);
 
@@ -228,8 +228,8 @@ void TGarbageCollector::OnSweep()
     ShrinkHashTable(&Zombies_);
     ShrinkHashTable(&Ghosts_);
     
-    auto hydraFacade = Bootstrap_->GetHydraFacade();
-    auto hydraManager = hydraFacade->GetHydraManager();
+    const auto& hydraFacade = Bootstrap_->GetHydraFacade();
+    const auto& hydraManager = hydraFacade->GetHydraManager();
     if (Zombies_.empty() || !hydraManager->IsActiveLeader()) {
         return;
     }

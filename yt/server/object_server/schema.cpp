@@ -106,7 +106,7 @@ public:
 
     virtual TObjectBase* FindObject(const TObjectId& id) override
     {
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* object = objectManager->GetSchema(Type_);
         return id == object->GetId() ? object : nullptr;
     }

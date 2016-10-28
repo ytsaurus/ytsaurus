@@ -50,7 +50,7 @@ public:
     explicit TBootstrap(NYTree::INodePtr configNode);
     ~TBootstrap();
 
-    TCellMasterConfigPtr GetConfig() const;
+    const TCellMasterConfigPtr& GetConfig() const;
 
     bool IsPrimaryMaster() const;
     bool IsSecondaryMaster() const;
@@ -65,29 +65,29 @@ public:
 
     const NObjectClient::TCellTagList& GetSecondaryCellTags() const;
 
-    TMulticellManagerPtr GetMulticellManager() const;
-    NRpc::IServerPtr GetRpcServer() const;
-    NRpc::IChannelPtr GetLocalRpcChannel() const;
-    NElection::TCellManagerPtr GetCellManager() const;
-    NHydra::IChangelogStoreFactoryPtr GetChangelogStoreFactory() const;
-    NHydra::ISnapshotStorePtr GetSnapshotStore() const;
-    NNodeTrackerServer::TNodeTrackerPtr GetNodeTracker() const;
-    NTransactionServer::TTransactionManagerPtr GetTransactionManager() const;
-    NHiveServer::TTransactionSupervisorPtr GetTransactionSupervisor() const;
-    NCypressServer::TCypressManagerPtr GetCypressManager() const;
-    THydraFacadePtr GetHydraFacade() const;
-    TWorldInitializerPtr GetWorldInitializer() const;
-    NObjectServer::TObjectManagerPtr GetObjectManager() const;
-    NChunkServer::TChunkManagerPtr GetChunkManager() const;
-    NJournalServer::TJournalManagerPtr GetJournalManager() const;
-    NSecurityServer::TSecurityManagerPtr GetSecurityManager() const;
-    NTabletServer::TTabletManagerPtr GetTabletManager() const;
-    NHiveServer::THiveManagerPtr GetHiveManager() const;
-    NHiveClient::TCellDirectoryPtr GetCellDirectory() const;
-    IInvokerPtr GetControlInvoker() const;
+    const TMulticellManagerPtr& GetMulticellManager() const;
+    const NRpc::IServerPtr& GetRpcServer() const;
+    const NRpc::IChannelPtr GetLocalRpcChannel() const;
+    const NElection::TCellManagerPtr& GetCellManager() const;
+    const NHydra::IChangelogStoreFactoryPtr& GetChangelogStoreFactory() const;
+    const NHydra::ISnapshotStorePtr& GetSnapshotStore() const;
+    const NNodeTrackerServer::TNodeTrackerPtr& GetNodeTracker() const;
+    const NTransactionServer::TTransactionManagerPtr& GetTransactionManager() const;
+    const NHiveServer::TTransactionSupervisorPtr& GetTransactionSupervisor() const;
+    const NCypressServer::TCypressManagerPtr& GetCypressManager() const;
+    const THydraFacadePtr& GetHydraFacade() const;
+    const TWorldInitializerPtr& GetWorldInitializer() const;
+    const NObjectServer::TObjectManagerPtr& GetObjectManager() const;
+    const NChunkServer::TChunkManagerPtr& GetChunkManager() const;
+    const NJournalServer::TJournalManagerPtr& GetJournalManager() const;
+    const NSecurityServer::TSecurityManagerPtr& GetSecurityManager() const;
+    const NTabletServer::TTabletManagerPtr& GetTabletManager() const;
+    const NHiveServer::THiveManagerPtr& GetHiveManager() const;
+    const NHiveClient::TCellDirectoryPtr& GetCellDirectory() const;
+    const IInvokerPtr& GetControlInvoker() const;
 
-    NNodeTrackerClient::INodeChannelFactoryPtr GetLightNodeChannelFactory() const;
-    NNodeTrackerClient::INodeChannelFactoryPtr GetHeavyNodeChannelFactory() const;
+    const NNodeTrackerClient::INodeChannelFactoryPtr& GetLightNodeChannelFactory() const;
+    const NNodeTrackerClient::INodeChannelFactoryPtr& GetHeavyNodeChannelFactory() const;
 
     void Initialize();
     void Run();

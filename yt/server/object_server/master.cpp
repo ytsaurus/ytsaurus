@@ -68,7 +68,7 @@ private:
             ? FromProto(request->object_attributes())
             : std::unique_ptr<IAttributeDictionary>();
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* object = objectManager->CreateObject(
             NullObjectId,
             type,
@@ -112,7 +112,7 @@ public:
 
     virtual TObjectBase* FindObject(const TObjectId& id) override
     {
-        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* object = objectManager->GetMasterObject();
         return id == object->GetId() ? object : nullptr;
     }
