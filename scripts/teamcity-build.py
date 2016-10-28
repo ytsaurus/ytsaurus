@@ -379,11 +379,9 @@ def build_python_packages(options):
     # "yandex-yt-python-yson"
     packages = ["yandex-yt-python", "yandex-yt-python-tools",
                 "yandex-yt-transfer-manager", "yandex-yt-transfer-manager-client",
-                "yandex-yt-fennel", "yandex-yt-python-fennel", "yandex-yt-local"]
+                "yandex-yt-fennel", "yandex-yt-local"]
 
     for package in packages:
-        if package == "yandex-yt-python-fennel" and not options.build_enable_python_2_7:
-            continue
         if package == "yandex-yt-fennel" and not options.build_enable_python_2_7:
             continue
         if package == "yandex-yt-local" and options.codename == "lucid":
