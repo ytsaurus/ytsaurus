@@ -6,6 +6,8 @@
 #include "public.h"
 #include "schemaless_chunk_writer.h"
 
+#include <yt/core/yson/lexer.h>
+
 #include <yt/ytlib/object_client/helpers.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
 
@@ -13,6 +15,8 @@ namespace NYT {
 namespace NTableClient {
 
 static const auto& Logger = TableClientLogger;
+
+using namespace NYson;
 
 using NConcurrency::WaitFor;
 using NCypressClient::TTransactionId;
@@ -22,10 +26,9 @@ using NChunkClient::TChunkListId;
 
 TTableSchema TBlobTableSchema::ToTableSchema() const
 {
-    std::vector<TColumnSchema> columns;
-    for (const auto& idColumn : BlobIdColumns) {
-        columns.emplace_back(idColumn, EValueType::String);
-        columns.back().SetSortOrder(ESortOrder::Ascending);
+    auto columns = BlobIdColumns;
+    for (auto& idColumn : columns) {
+        idColumn.SetSortOrder(ESortOrder::Ascending);
     }
     columns.emplace_back(PartIndexColumn, EValueType::Int64);
     columns.back().SetSortOrder(ESortOrder::Ascending);
@@ -40,17 +43,14 @@ TTableSchema TBlobTableSchema::ToTableSchema() const
 
 TBlobTableWriter::TBlobTableWriter(
     const TBlobTableSchema& blobTableSchema,
-    std::vector<Stroka> blobIdColumnValues,
+    const std::vector<TYsonString>& blobIdColumnValues,
     NApi::INativeClientPtr client,
     TBlobTableWriterConfigPtr blobTableWriterConfig,
     TTableWriterOptionsPtr tableWriterOptions,
     const TTransactionId& transactionId,
     const TChunkListId& chunkListId)
-    : BlobIdColumnValues_(std::move(blobIdColumnValues))
-    , PartSize_(blobTableWriterConfig->MaxPartSize)
+    : PartSize_(blobTableWriterConfig->MaxPartSize)
 {
-    YCHECK(BlobIdColumnValues_.size() == blobTableSchema.BlobIdColumns.size());
-
     LOG_INFO("Creating blob writer (TransactionId: %v, ChunkListId %v)",
         transactionId,
         chunkListId);
@@ -61,8 +61,17 @@ TBlobTableWriter::TBlobTableWriter(
     auto nameTable = TNameTable::FromSchema(tableSchema);
 
     for (const auto& column : blobTableSchema.BlobIdColumns) {
-        BlobIdColumnIds_.emplace_back(nameTable->GetIdOrThrow(column));
+        BlobIdColumnIds_.emplace_back(nameTable->GetIdOrThrow(column.Name));
     }
+
+    TStatelessLexer lexer;
+    TUnversionedOwningRowBuilder builder;
+
+    YCHECK(blobIdColumnValues.size() == blobTableSchema.BlobIdColumns.size());
+    for (size_t i = 0; i < BlobIdColumnIds_.size(); ++i) {
+        builder.AddValue(MakeUnversionedValue(blobIdColumnValues[i].Data(), BlobIdColumnIds_[i], lexer));
+    }
+    BlobIdColumnValues_ = builder.FinishRow();
 
     PartIndexColumnId_ = nameTable->GetIdOrThrow(blobTableSchema.PartIndexColumn);
     DataColumnId_ = nameTable->GetIdOrThrow(blobTableSchema.DataColumn);
@@ -118,8 +127,8 @@ void TBlobTableWriter::DoFlush()
     const size_t columnCount = BlobIdColumnIds_.size() + 2;
 
     TUnversionedRowBuilder builder(columnCount);
-    for (size_t i = 0; i < BlobIdColumnIds_.size(); ++i) {
-        builder.AddValue(MakeUnversionedStringValue(BlobIdColumnValues_[i], BlobIdColumnIds_[i]));
+    for (const auto* value = BlobIdColumnValues_.Begin(); value != BlobIdColumnValues_.End(); value++) {
+        builder.AddValue(*value);
     }
     builder.AddValue(MakeUnversionedInt64Value(WrittenPartCount_, PartIndexColumnId_));
     builder.AddValue(MakeUnversionedStringValue(dataBuf, DataColumnId_));

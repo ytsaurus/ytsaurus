@@ -1,11 +1,15 @@
 #pragma once
 
+#include "unversioned_row.h"
+
 #include <yt/ytlib/api/client.h>
 
 #include <yt/ytlib/scheduler/job.pb.h>
 
 #include <yt/core/misc/blob_output.h>
 #include <yt/core/misc/chunked_memory_pool.h>
+
+#include <yt/core/yson/string.h>
 
 #include <util/stream/ios.h>
 
@@ -16,7 +20,9 @@ namespace NTableClient {
 
 struct TBlobTableSchema
 {
-    std::vector<Stroka> BlobIdColumns;
+    // Do not specify anything except name and value
+    // type in all column schemas.
+    std::vector<TColumnSchema> BlobIdColumns;
     Stroka PartIndexColumn = "part_index";
     Stroka DataColumn = "data";
 
@@ -39,7 +45,7 @@ class TBlobTableWriter
 public:
     TBlobTableWriter(
         const TBlobTableSchema& schema,
-        std::vector<Stroka> blobIdColumnValues,
+        const std::vector<NYson::TYsonString>& blobIdColumnValues,
         NApi::INativeClientPtr client,
         TBlobTableWriterConfigPtr blobTableWriterConfig,
         TTableWriterOptionsPtr tableWriterOptions,
@@ -56,7 +62,7 @@ private:
     virtual void DoFinish() override;
 
 private:
-    std::vector<Stroka> BlobIdColumnValues_;
+    TUnversionedOwningRow BlobIdColumnValues_;
 
     ISchemalessMultiChunkWriterPtr MultiChunkWriter_;
     TBlobOutput Buffer_;
