@@ -46,9 +46,9 @@ public:
     void Initialize();
 
     void RegisterHandler(INodeTypeHandlerPtr handler);
-    INodeTypeHandlerPtr FindHandler(NObjectClient::EObjectType type);
-    INodeTypeHandlerPtr GetHandler(NObjectClient::EObjectType type);
-    INodeTypeHandlerPtr GetHandler(const TCypressNodeBase* node);
+    const INodeTypeHandlerPtr& FindHandler(NObjectClient::EObjectType type);
+    const INodeTypeHandlerPtr& GetHandler(NObjectClient::EObjectType type);
+    const INodeTypeHandlerPtr& GetHandler(const TCypressNodeBase* node);
 
     typedef NRpc::TTypedServiceRequest<NCypressClient::NProto::TReqCreate> TReqCreate;
     typedef NRpc::TTypedServiceResponse<NCypressClient::NProto::TRspCreate> TRspCreate;

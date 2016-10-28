@@ -200,7 +200,7 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
     ToProto(response->mutable_object_id(), GetId());
 
     auto objectManager = Bootstrap_->GetObjectManager();
-    auto handler = objectManager->GetHandler(Object_);
+    const auto& handler = objectManager->GetHandler(Object_);
     auto replicationCellTags = handler->GetReplicationCellTags(Object_);
     // TODO(babenko): this only works properly for chunk owners
     response->set_cell_tag(replicationCellTags.empty() ? Bootstrap_->GetCellTag() : replicationCellTags[0]);
@@ -400,7 +400,7 @@ void TObjectProxyBase::ReplicateAttributeUpdate(IServiceContextPtr context)
         return;
 
     auto objectManager = Bootstrap_->GetObjectManager();
-    auto handler = objectManager->GetHandler(Object_->GetType());
+    const auto& handler = objectManager->GetHandler(Object_->GetType());
     auto flags = handler->GetFlags();
 
     if (None(flags & ETypeFlags::ReplicateAttributes))

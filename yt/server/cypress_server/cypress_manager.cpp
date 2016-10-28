@@ -54,6 +54,7 @@ using namespace NChunkServer; // COMPAT(babenko)
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = CypressServerLogger;
+static const INodeTypeHandlerPtr NullTypeHandler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -154,7 +155,7 @@ public:
         securityManager->ValidateResourceUsageIncrease(account, TClusterResources(1, 0));
 
         auto cypressManager = Bootstrap_->GetCypressManager();
-        auto handler = cypressManager->FindHandler(type);
+        const auto& handler = cypressManager->FindHandler(type);
         if (!handler) {
             THROW_ERROR_EXCEPTION("Unknown object type %Qlv",
                 type);
@@ -585,27 +586,27 @@ public:
         objectManager->RegisterHandler(New<TNodeTypeHandler>(this, handler));
     }
 
-    INodeTypeHandlerPtr FindHandler(EObjectType type)
+    const INodeTypeHandlerPtr& FindHandler(EObjectType type)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         if (type < TEnumTraits<EObjectType>::GetMinValue() || type > TEnumTraits<EObjectType>::GetMaxValue()) {
-            return nullptr;
+            return NullTypeHandler;
         }
 
         return TypeToHandler_[type];
     }
 
-    INodeTypeHandlerPtr GetHandler(EObjectType type)
+    const INodeTypeHandlerPtr& GetHandler(EObjectType type)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto handler = FindHandler(type);
+        const auto& handler = FindHandler(type);
         YCHECK(handler);
         return handler;
     }
 
-    INodeTypeHandlerPtr GetHandler(const TCypressNodeBase* node)
+    const INodeTypeHandlerPtr& GetHandler(const TCypressNodeBase* node)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -665,7 +666,7 @@ public:
         TCellTag externalCellTag)
     {
         auto type = TypeFromId(id);
-        auto handler = GetHandler(type);
+        const auto& handler = GetHandler(type);
         auto nodeHolder = handler->Instantiate(TVersionedNodeId(id), externalCellTag);
         return RegisterNode(std::move(nodeHolder));
     }
@@ -760,7 +761,7 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(trunkNode->IsTrunk());
 
-        auto handler = GetHandler(trunkNode);
+        const auto& handler = GetHandler(trunkNode);
         return handler->GetProxy(trunkNode, transaction);
     }
 
@@ -1357,7 +1358,7 @@ private:
 
         ExpirationTracker_->OnNodeDestroyed(trunkNode);
 
-        auto handler = GetHandler(trunkNode);
+        const auto& handler = GetHandler(trunkNode);
         handler->Destroy(trunkNode);
 
         // Remove the object from the map but keep it alive.
@@ -1923,7 +1924,7 @@ private:
         const auto& id = originatingNode->GetId();
 
         // Create a branched node and initialize its state.
-        auto handler = GetHandler(originatingNode);
+        const auto& handler = GetHandler(originatingNode);
         auto branchedNodeHolder = handler->Branch(originatingNode, transaction, mode);
 
         TVersionedNodeId versionedId(id, transaction->GetId());
@@ -1951,7 +1952,7 @@ private:
         auto objectManager = Bootstrap_->GetObjectManager();
         auto securityManager = Bootstrap_->GetSecurityManager();
 
-        auto handler = GetHandler(branchedNode);
+        const auto& handler = GetHandler(branchedNode);
 
         auto* trunkNode = branchedNode->GetTrunkNode();
         auto branchedId = branchedNode->GetVersionedId();
@@ -2005,7 +2006,7 @@ private:
     {
         auto objectManager = Bootstrap_->GetObjectManager();
 
-        auto handler = GetHandler(branchedNode);
+        const auto& handler = GetHandler(branchedNode);
 
         auto* trunkNode = branchedNode->GetTrunkNode();
         auto branchedNodeId = branchedNode->GetVersionedId();
@@ -2055,7 +2056,7 @@ private:
         const TNodeId& hintId,
         ENodeCloneMode mode)
     {
-        auto handler = GetHandler(sourceNode);
+        const auto& handler = GetHandler(sourceNode);
         auto* clonedNode = handler->Clone(
             sourceNode,
             factory,
@@ -2138,7 +2139,7 @@ private:
             account ? MakeNullable(account->GetName()) : Null,
             enableAccounting);
 
-        auto handler = GetHandler(type);
+        const auto& handler = GetHandler(type);
 
         auto* trunkNode = CreateNode(
             nodeId,
@@ -2254,7 +2255,7 @@ TCypressManager::TImpl::TNodeMapTraits::TNodeMapTraits(TImpl* owner)
 std::unique_ptr<TCypressNodeBase> TCypressManager::TImpl::TNodeMapTraits::Create(const TVersionedNodeId& id) const
 {
     auto type = TypeFromId(id.ObjectId);
-    auto handler = Owner_->GetHandler(type);
+    const auto& handler = Owner_->GetHandler(type);
     // This cell tag is fake and will be overwritten on load
     // (unless this is a pre-multicell snapshot, in which case NotReplicatedCellTag is just what we want).
     return handler->Instantiate(id, NotReplicatedCellTag);
@@ -2308,17 +2309,17 @@ void TCypressManager::RegisterHandler(INodeTypeHandlerPtr handler)
     Impl_->RegisterHandler(std::move(handler));
 }
 
-INodeTypeHandlerPtr TCypressManager::FindHandler(EObjectType type)
+const INodeTypeHandlerPtr& TCypressManager::FindHandler(EObjectType type)
 {
     return Impl_->FindHandler(type);
 }
 
-INodeTypeHandlerPtr TCypressManager::GetHandler(EObjectType type)
+const INodeTypeHandlerPtr& TCypressManager::GetHandler(EObjectType type)
 {
     return Impl_->GetHandler(type);
 }
 
-INodeTypeHandlerPtr TCypressManager::GetHandler(const TCypressNodeBase* node)
+const INodeTypeHandlerPtr& TCypressManager::GetHandler(const TCypressNodeBase* node)
 {
     return Impl_->GetHandler(node);
 }
