@@ -21,7 +21,11 @@ def main():
     if args.account is not None:
         if not yt.exists("//sys/accounts/" + args.account):
             yt.create("account", attributes={"name": args.account})
-            yt.set("//sys/accounts/{}/@resource_limits/disk_space".format(args.account), args.disk_space)
+            if yt.exists("//sys/media"):
+                disk_space_path = "disk_space_per_medium/default"
+            else:
+                disk_space_path = "disk_space"
+            yt.set("//sys/accounts/{}/@resource_limits/{}".format(args.account, disk_space_path), args.disk_space)
         yt.set("//sys/accounts/{}/@acl/end".format(args.account), {"action": "allow", "subjects": [args.name], "permissions": ["use"]})
 
     if args.create_homedir:

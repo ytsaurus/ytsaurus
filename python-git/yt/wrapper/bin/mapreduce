@@ -27,7 +27,7 @@ from yt.wrapper.cypress_commands import remove_with_empty_dirs
 
 from yt.wrapper.common import flatten, first_not_none, bool_to_string, get_value, get_version, MB, GB, \
                               chunk_iter_stream, date_string_to_timestamp, update, parse_bool, \
-                              get_binary_std_stream
+                              get_binary_std_stream, get_disk_space_from_resources
 import yt.wrapper.config as config
 import yt.yson as yson
 import yt.json as json
@@ -139,7 +139,7 @@ def list_entities(type, prefix, exact, jsonoutput, user, follow_links):
                 "size": attrs["uncompressed_data_size"],
                 "byte_size": attrs["uncompressed_data_size"],
                 "full_size": attrs["uncompressed_data_size"],
-                "disk_size": attrs["resource_usage"]["disk_space"],
+                "disk_size": get_disk_space_from_resources(attrs["resource_usage"]),
                 "sorted": bool(attrs.get("sorted_by")),
                 "write_locked": None,
                 "mod_time": int(date_string_to_timestamp(attrs["modification_time"])),
