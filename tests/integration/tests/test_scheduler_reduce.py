@@ -1016,6 +1016,31 @@ echo {v = 2} >&7
 
         assert_items_equal(read_table("//tmp/t_out"), rows)
 
+    @unix_only
+    def test_reduce_with_foreign_dynamic(self):
+        self.sync_create_cells(1)
+        self._create_simple_dynamic_table("//tmp/t2")
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t_out")
+
+        rows = [{"key": i, "value": str(i)} for i in range(10)]
+        self.sync_mount_table("//tmp/t2")
+        insert_rows("//tmp/t2", rows)
+        self.sync_unmount_table("//tmp/t2")
+
+        write_table("<sorted_by=[key]>//tmp/t1", [{"key": i} for i in (8, 9)])
+
+        reduce(
+            in_=["//tmp/t1", "<foreign=true>//tmp/t2"],
+            out="//tmp/t_out",
+            reduce_by="key",
+            join_by="key",
+            command="cat")
+
+        expected = [{"key": i} for i in (8, 9)] + [{"key": i, "value": str(i)} for i in (8, 9)]
+
+        assert_items_equal(read_table("//tmp/t_out"), expected)
+
 ##################################################################
 
 class TestSchedulerReduceCommandsMulticell(TestSchedulerReduceCommands):

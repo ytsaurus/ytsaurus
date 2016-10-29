@@ -374,7 +374,7 @@ void ValidateReadTimestamp(TTimestamp timestamp);
 //! Returns the successor of |key|, i.e. the key obtained from |key|
 //! by appending a |EValueType::Min| sentinel.
 TOwningKey GetKeySuccessor(TKey key);
-TKey GetKeySuccessor(TKey key, const TRowBuffer& rowBuffer);
+TKey GetKeySuccessor(TKey key, const TRowBufferPtr& rowBuffer);
 
 //! Returns the successor of |key| trimmed to a given length, i.e. the key
 //! obtained by trimming |key| to |prefixLength| and appending

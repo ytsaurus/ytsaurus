@@ -25,16 +25,17 @@ THorizontalSchemalessBlockReader::THorizontalSchemalessBlockReader(
 {
     YCHECK(Meta_.row_count() > 0);
 
-    auto keyDataSize = GetUnversionedRowByteSize(KeyColumnCount_);
+    keyColumnCount = std::max(KeyColumnCount_, ChunkKeyColumnCount_);
+    auto keyDataSize = GetUnversionedRowByteSize(keyColumnCount);
     KeyBuffer_.reserve(keyDataSize);
-    Key_ = TMutableKey::Create(KeyBuffer_.data(), KeyColumnCount_);
+    Key_ = TMutableKey::Create(KeyBuffer_.data(), keyColumnCount);
 
     for (int index = 0; index < KeyColumnCount_; ++index) {
         auto& value = Key_[index];
         value.Id = index;
     }
 
-    for (int index = ChunkKeyColumnCount_; index < KeyColumnCount_; ++index) {
+    for (int index = ChunkKeyColumnCount_; index < keyColumnCount; ++index) {
         auto& value = Key_[index];
         value.Id = index;
         value.Type = EValueType::Null;
@@ -181,7 +182,7 @@ bool THorizontalSchemalessBlockReader::JumpToRowIndex(i64 rowIndex)
     YCHECK(ValueCount_ >= ChunkKeyColumnCount_);
 
     const char* ptr = CurrentPointer_;
-    for (int i = 0; i < std::min(ChunkKeyColumnCount_, KeyColumnCount_); ++i) {
+    for (int i = 0; i < ChunkKeyColumnCount_; ++i) {
         ptr += ReadValue(ptr, Key_.Begin() + i);
     }
 
