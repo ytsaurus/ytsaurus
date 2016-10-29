@@ -245,6 +245,65 @@ bool CanMergeSlices(const TInputDataSlicePtr& slice1, const TInputDataSlicePtr& 
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::vector<TInputDataSlicePtr> CombineVersionedChunkSlices(const std::vector<TInputChunkSlicePtr>& chunkSlices)
+{
+    std::vector<TInputDataSlicePtr> dataSlices;
+
+    std::vector<std::tuple<TKey, bool, int>> boundaries;
+    boundaries.reserve(chunkSlices.size() * 2);
+    for (int index = 0; index < chunkSlices.size(); ++index) {
+        boundaries.emplace_back(chunkSlices[index]->LowerLimit().Key, false, index);
+        boundaries.emplace_back(chunkSlices[index]->UpperLimit().Key, true, index);
+    }
+    std::sort(boundaries.begin(), boundaries.end());
+    yhash_set<int> currentChunks;
+
+    int index = 0;
+    while (index < boundaries.size()) {
+        const auto& boundary = boundaries[index];
+        auto currentKey = std::get<0>(boundary);
+
+        while (index < boundaries.size()) {
+            const auto& boundary = boundaries[index];
+            auto key = std::get<0>(boundary);
+            int chunkIndex = std::get<2>(boundary);
+            bool isUpper = std::get<1>(boundary);
+
+            if (key != currentKey) {
+                break;
+            }
+
+            if (isUpper) {
+                currentChunks.erase(chunkIndex);
+            } else {
+                currentChunks.insert(chunkIndex);
+            }
+            ++index;
+        }
+
+        if (!currentChunks.empty()) {
+            std::vector<TInputChunkSlicePtr> chunks;
+            for (int chunkIndex : currentChunks) {
+                chunks.push_back(chunkSlices[chunkIndex]);
+            }
+
+            auto upper = index == boundaries.size() ? MaxKey().Get() : std::get<0>(boundaries[index]);
+
+            auto slice = CreateInputDataSlice(
+                EDataSliceDescriptorType::VersionedTable,
+                std::move(chunks),
+                currentKey,
+                upper);
+
+            dataSlices.push_back(std::move(slice));
+        }
+    }
+
+    return dataSlices;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NChunkClient
 } // namespace NYT
 
