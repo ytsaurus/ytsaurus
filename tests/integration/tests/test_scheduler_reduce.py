@@ -13,6 +13,13 @@ class TestSchedulerReduceCommands(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
+    def _create_simple_dynamic_table(self, path):
+        create("table", path,
+            attributes = {
+                "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}, {"name": "value", "type": "string"}],
+                "dynamic": True
+            })
+
     @unix_only
     def test_tricky_chunk_boundaries(self):
         create("table", "//tmp/in1")
@@ -956,6 +963,7 @@ echo {v = 2} >&7
         ]''')
         assert expected == actual
 
+    @unix_only
     def test_computed_columns(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2",
@@ -976,17 +984,10 @@ echo {v = 2} >&7
         assert get("//tmp/t2/@schema_mode") == "strong"
         assert read_table("//tmp/t2") == [{"k1": i * 2, "k2": i} for i in xrange(2)]
 
+    @unix_only
     def test_reduce_on_dynamic_table(self):
-        def _create_dynamic_table(path):
-            create("table", path,
-                attributes = {
-                    "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}, {"name": "value", "type": "string"}],
-                    "dynamic": True
-                })
-
         self.sync_create_cells(1)
-        _create_dynamic_table("//tmp/t")
-
+        self._create_simple_dynamic_table("//tmp/t")
         create("table", "//tmp/t_out")
 
         rows = [{"key": i, "value": str(i)} for i in range(10)]
