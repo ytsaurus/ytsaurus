@@ -3746,7 +3746,7 @@ std::vector<TInputChunkPtr> TOperationControllerBase::CollectPrimaryChunks(bool 
     for (const auto& table : InputTables) {
         if (!table.IsForeign() && (table.IsDynamic == versioned)) {
             for (const auto& chunk : table.Chunks) {
-                if (IsUnavailable(chunk, IsParityReplicasFetchEnabled())) {
+                if (!table.IsDynamic && IsUnavailable(chunk, IsParityReplicasFetchEnabled())) {
                     switch (Spec->UnavailableChunkStrategy) {
                         case EUnavailableChunkAction::Skip:
                             continue;
