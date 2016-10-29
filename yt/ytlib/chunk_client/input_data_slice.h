@@ -79,5 +79,10 @@ bool CanMergeSlices(const TInputDataSlicePtr& slice1, const TInputDataSlicePtr& 
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::vector<TInputDataSlicePtr> CombineVersionedChunkSlices(
+    const std::vector<TInputChunkSlicePtr>& chunkSlices);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NChunkClient
 } // namespace NYT
