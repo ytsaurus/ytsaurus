@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from yt.common import get_value
+from yt.common import get_value, get_disk_space_from_resources
 import yt.wrapper as yt
 
 import re
@@ -39,12 +39,12 @@ def get_prev_table(table):
         return TABLE_NAME + "." + str(num)
 
 def get_size(table):
-    return yt.get(table + "/@resource_usage/disk_space")
+    return get_disk_space_from_resources(yt.get(table + "/@resource_usage"))
 
 def get_disk_space_per_row(table):
     attributes = yt.get(table + "/@")
     if attributes["row_count"]:
-        return attributes["resource_usage"]["disk_space"] // attributes["row_count"]
+        return get_disk_space_from_resources(attributes["resource_usage"]) // attributes["row_count"]
     return 0
 
 def get_archive_disk_space_ratio(example_of_archived_table):
@@ -82,12 +82,12 @@ def get_possible_size_to_archive():
     attributes = yt.get(TABLE_NAME + "/@")
     if attributes["row_count"] == 0:
         return 0
-    return (get_processed_row_count(attributes) * attributes["resource_usage"]["disk_space"]) // attributes["row_count"]
+    return (get_processed_row_count(attributes) * get_disk_space_from_resources(attributes["resource_usage"])) // attributes["row_count"]
 
 def get_desired_row_count_to_archive(desired_archive_size, example_of_archived_table):
     free_archive_size = desired_archive_size
     if yt.exists(TABLE_NAME + ".1"):
-        free_archive_size -= yt.get(TABLE_NAME + ".1/@resource_usage/disk_space")
+        free_archive_size -= get_disk_space_from_resources(yt.get(TABLE_NAME + ".1/@resource_usage"))
     archive_ratio = get_archive_disk_space_ratio(example_of_archived_table)
     size_to_archive = min(get_possible_size_to_archive(), free_archive_size) / archive_ratio
     logger.info("Archive ratio is %f, size to archive is %d", archive_ratio, size_to_archive)
@@ -95,7 +95,7 @@ def get_desired_row_count_to_archive(desired_archive_size, example_of_archived_t
     attributes = yt.get(TABLE_NAME + "/@")
     if attributes["row_count"] == 0:
         return 0
-    return int(min(get_processed_row_count(attributes), (attributes["row_count"] * size_to_archive) / attributes["resource_usage"]["disk_space"]))
+    return int(min(get_processed_row_count(attributes), (attributes["row_count"] * size_to_archive) / get_disk_space_from_resources(attributes["resource_usage"])))
 
 def fennel_exists():
     try:

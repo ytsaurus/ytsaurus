@@ -29,6 +29,16 @@ def add_acl(path, new_acl, client):
     if new_acl not in current_acls:
         client.set(path + "/@acl/end", new_acl)
 
+ # Backwards compatibility.
+def get_default_resource_limits(client):
+    result = {"node_count": 200000, "chunk_count": 1000000}
+    if client.exists("//sys/media"):
+        result["disk_space_per_medium"] = {"default": 10 * TB}
+    else:
+        result["disk_space"] = 10 * TB
+
+    return result
+
 def initialize_world(client=None):
     client = get_value(client, yt)
 
@@ -95,7 +105,7 @@ def initialize_world(client=None):
 
     client.create("account", attributes={"name": "tmp_files",
                                          "acl": [{"action": "allow", "subjects": ["users"], "permissions": ["use"]}],
-                                         "resource_limits": {"disk_space": 10 * TB, "node_count": 200000, "chunk_count": 1000000}})
+                                         "resource_limits": get_default_resource_limits(client)})
 
 def main():
     initialize_world()

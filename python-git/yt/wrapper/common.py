@@ -234,3 +234,10 @@ def get_binary_std_stream(stream):
         return stream.buffer
     else:
         return stream
+
+def get_disk_space_from_resources(resources):
+    # Backwards compatibility.
+    if "disk_space" in resources:
+        return resources["disk_space"]
+    else:
+        return resources["disk_space_per_medium"].get("default", 0)

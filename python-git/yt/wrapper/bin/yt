@@ -4,7 +4,7 @@ from __future__ import print_function
 
 import yt.wrapper.yson as yson
 from yt.wrapper.common import parse_bool, bool_to_string, chunk_iter_stream, update, get_value, MB, \
-                              DoNotReplaceAction, get_binary_std_stream
+                              DoNotReplaceAction, get_binary_std_stream, get_disk_space_from_resources
 from yt.wrapper.cli_helpers import write_silently, run_main
 import yt.wrapper.completers as completers
 import yt.json as json
@@ -248,7 +248,7 @@ def formatted_print(obj, path, long_format):
         type = attrs["type"]
         link_tail = (" -> " + str(yt.get(path + "&/@target_path"))) if type == "link" else ""
         user = attrs["account"]
-        size = int(yt.get(path + "&/@recursive_resource_usage/disk_space"))
+        size = get_disk_space_from_resources(yt.get(path + "&/@recursive_resource_usage"))
         date, time = yt.get(path + "&/@modification_time").split("T")
         time = time[:5]
         sys.stdout.write("%10s %20s %18d %10s %5s %s%s\n" % (type, user, size, date, time, str(obj), link_tail))
