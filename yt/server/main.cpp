@@ -176,6 +176,8 @@ public:
 
 void Exit(EExitCode exitCode)
 {
+    NLogging::TLogManager::StaticShutdown();
+
     // Currently we don't support graceful shutdown.
     _exit(static_cast<int>(exitCode));
 }
@@ -635,7 +637,6 @@ void Main(int argc, const char* argv[])
         exitCode = EExitCode::BootstrapError;
     }
 
-    NLogging::TLogManager::StaticShutdown();
     Exit(exitCode);
 }
 
