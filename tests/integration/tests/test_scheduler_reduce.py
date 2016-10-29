@@ -878,7 +878,9 @@ echo {v = 2} >&7
         op.track()
         assert len(read_table("//tmp/output")) == 3
 
-    def _test_schema_validation(self, sort_order):
+    @unix_only
+    @pytest.mark.parametrize("sort_order", [None, "ascending"])
+    def test_schema_validation(self, sort_order):
         create("table", "//tmp/input")
         create("table", "//tmp/output", attributes={
             "schema": make_schema([
@@ -896,7 +898,7 @@ echo {v = 2} >&7
             reduce_by="key",
             command="cat")
 
-        assert get("//tmp/output/@preserve_schema_on_write")
+        assert get("//tmp/output/@schema_mode") == "strong"
         assert get("//tmp/output/@schema/@strict")
         assert_items_equal(read_table("//tmp/output"), [{"key": i, "value": "foo"} for i in xrange(10)])
 
@@ -909,12 +911,6 @@ echo {v = 2} >&7
                 out="//tmp/output",
                 reduce_by="key",
                 command="cat")
-
-    def test_schema_validation(self):
-        self._test_schema_validation(None)
-
-    def test_schema_validation_sorted(self):
-        self._test_schema_validation("ascending")
 
     @unix_only
     def test_reduce_input_paths_attr(self):
@@ -959,44 +955,6 @@ echo {v = 2} >&7
             <ranges=[{lower_limit={key=["00001"]};upper_limit={key=["00004"]}}]>"//tmp/in2";
         ]''')
         assert expected == actual
-
-    def _test_schema_validation(self, sort_order):
-        create("table", "//tmp/input")
-        create("table", "//tmp/output", attributes={
-            "schema": make_schema([
-                {"name": "key", "type": "int64", "sort_order": sort_order},
-                {"name": "value", "type": "string"}])
-            })
-
-        for i in xrange(10):
-            write_table("<append=true; sorted_by=[key]>//tmp/input", {"key": i, "value": "foo"})
-            print get("//tmp/input/@schema")
-
-        reduce(
-            in_="//tmp/input",
-            out="//tmp/output",
-            reduce_by="key",
-            command="cat")
-
-        assert get("//tmp/output/@schema_mode") == "strong"
-        assert get("//tmp/output/@schema/@strict")
-        assert_items_equal(read_table("//tmp/output"), [{"key": i, "value": "foo"} for i in xrange(10)])
-
-        write_table("<sorted_by=[key]>//tmp/input", {"key": "1", "value": "foo"})
-        assert get("//tmp/input/@sorted_by") == ["key"]
-
-        with pytest.raises(YtError):
-            reduce(
-                in_="//tmp/input",
-                out="//tmp/output",
-                reduce_by="key",
-                command="cat")
-
-    def test_schema_validation(self):
-        self._test_schema_validation(None)
-
-    def test_schema_validation_sorted(self):
-        self._test_schema_validation("ascending")
 
     def test_computed_columns(self):
         create("table", "//tmp/t1")
