@@ -81,7 +81,6 @@ public:
         : Id_(jobId)
         , OperationId_(operationId)
         , Bootstrap_(bootstrap)
-        , Statistics_("{}")
         , ResourceUsage_(resourceUsage)
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
@@ -106,13 +105,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
-        switch (JobPhase_) {
-            case EJobPhase::Created:
-                break;
-
-            default:
-                LOG_DEBUG("Cannot start job (JobState: %lv, JobPhase: %lv)", JobState_, JobPhase_);
-                return;
+        if (JobPhase_ != EJobPhase::Created) {
+            LOG_DEBUG("Cannot start job (JobState: %v, JobPhase: %v)",
+                JobState_,
+                JobPhase_);
+            return;
         }
 
         GuardedAction([&] () {
@@ -124,10 +121,9 @@ public:
 
             JobPhase_ = EJobPhase::DownloadingArtifacts;
             auto artifactsFuture = DownloadArtifacts();
-            artifactsFuture.Subscribe(BIND(
-                &TJob::OnArtifactsDownloaded,
-                MakeWeak(this))
-            .Via(Invoker_));
+            artifactsFuture.Subscribe(
+                BIND(&TJob::OnArtifactsDownloaded, MakeWeak(this))
+                    .Via(Invoker_));
             ArtifactsFuture_ = artifactsFuture.As<void>();
         });
     }
@@ -436,7 +432,7 @@ private:
 
     double Progress_ = 0.0;
 
-    TYsonString Statistics_;
+    TYsonString Statistics_ = TYsonString("{}");
     TInstant StatisticsLastSendTime_ = TInstant::Now();
 
     bool Signaled_ = false;
