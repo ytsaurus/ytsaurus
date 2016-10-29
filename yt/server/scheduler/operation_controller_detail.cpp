@@ -3159,11 +3159,6 @@ void TOperationControllerBase::LockInputTables()
                 table.Schema = attributes->Get<TTableSchema>("schema");
                 table.SchemaMode = attributes->Get<ETableSchemaMode>("schema_mode");
                 table.ChunkCount = attributes->Get<int>("chunk_count");
-
-                if (table.IsForeign() && table.IsDynamic) {
-                    THROW_ERROR_EXCEPTION("Dynamic table %v cannot be foreign",
-                        table.Path.GetPath());
-                }
             }
             LOG_INFO("Input table locked (Path: %v, Schema: %v, ChunkCount: %v)",
                 path,
@@ -3847,27 +3842,60 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersione
     return result;
 }
 
-std::vector<std::deque<TInputChunkPtr>> TOperationControllerBase::CollectForeignInputChunks() const
+std::vector<std::deque<TInputDataSlicePtr>> TOperationControllerBase::CollectForeignInputDataSlices(int foreignKeyColumnCount) const
 {
-    std::vector<std::deque<TInputChunkPtr>> result;
+    std::vector<std::deque<TInputDataSlicePtr>> result;
     for (const auto& table : InputTables) {
         if (table.IsForeign()) {
-            result.push_back(std::deque<TInputChunkPtr>());
-            for (const auto& chunkSpec : table.Chunks) {
-                if (IsUnavailable(chunkSpec, IsParityReplicasFetchEnabled())) {
-                    switch (Spec->UnavailableChunkStrategy) {
-                        case EUnavailableChunkAction::Skip:
-                            continue;
+            result.push_back(std::deque<TInputDataSlicePtr>());
 
-                        case EUnavailableChunkAction::Wait:
-                            // Do nothing.
-                            break;
-
-                        default:
-                            Y_UNREACHABLE();
-                    }
+            if (table.IsDynamic) {
+                std::vector<TInputChunkSlicePtr> chunkSlices;
+                chunkSlices.reserve(table.Chunks.size());
+                for (const auto& chunkSpec : table.Chunks) {
+                    chunkSlices.push_back(CreateInputChunkSlice(
+                        chunkSpec,
+                        RowBuffer->Capture(chunkSpec->BoundaryKeys()->MinKey.Get()),
+                        GetKeySuccessor(chunkSpec->BoundaryKeys()->MaxKey.Get(), RowBuffer)));
                 }
-                result.back().push_back(chunkSpec);
+
+                auto dataSlices = CombineVersionedChunkSlices(chunkSlices);
+                for (const auto& dataSlice : dataSlices) {
+                    if (IsUnavailable(dataSlice, IsParityReplicasFetchEnabled())) {
+                        switch (Spec->UnavailableChunkStrategy) {
+                            case EUnavailableChunkAction::Skip:
+                                continue;
+
+                            case EUnavailableChunkAction::Wait:
+                                // Do nothing.
+                                break;
+
+                            default:
+                                Y_UNREACHABLE();
+                        }
+                    }
+                    result.back().push_back(dataSlice);
+                }
+            } else {
+                for (const auto& chunkSpec : table.Chunks) {
+                    if (IsUnavailable(chunkSpec, IsParityReplicasFetchEnabled())) {
+                        switch (Spec->UnavailableChunkStrategy) {
+                            case EUnavailableChunkAction::Skip:
+                                continue;
+
+                            case EUnavailableChunkAction::Wait:
+                                // Do nothing.
+                                break;
+
+                            default:
+                                Y_UNREACHABLE();
+                        }
+                    }
+                    result.back().push_back(CreateInputDataSlice(CreateInputChunkSlice(
+                        chunkSpec,
+                        GetKeyPrefix(chunkSpec->BoundaryKeys()->MinKey.Get(), foreignKeyColumnCount, RowBuffer),
+                        GetKeyPrefixSuccessor(chunkSpec->BoundaryKeys()->MaxKey.Get(), foreignKeyColumnCount, RowBuffer))));
+                }
             }
         }
     }

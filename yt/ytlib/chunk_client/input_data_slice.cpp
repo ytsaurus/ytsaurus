@@ -85,6 +85,15 @@ bool TInputDataSlice::IsTrivial() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+Stroka ToString(const TInputDataSlicePtr& dataSlice)
+{
+    return Format("Type: %v, LowerLimit: %v, UpperLimit: %v, ChunkSlices: %v",
+        dataSlice->Type,
+        dataSlice->LowerLimit(),
+        dataSlice->UpperLimit(),
+        dataSlice->ChunkSlices);
+}
+
 void ToProto(
     NTableClient::NProto::TDataSliceDescriptor* dataSliceDescriptor,
     TInputDataSlicePtr inputDataSlice,

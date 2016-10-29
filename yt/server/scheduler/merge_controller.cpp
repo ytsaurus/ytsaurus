@@ -1771,7 +1771,7 @@ public:
         TSortedMergeControllerBase::CustomPrepare();
 
         // Clean the rest, if anything left.
-        ForeignInputChunks.resize(0);
+        ForeignInputDataSlices.resize(0);
     }
 
 protected:
@@ -1788,7 +1788,7 @@ protected:
     //! Not serialized.
     TNullable<int> TeleportOutputTable;
     //! Not serialized.
-    std::vector<std::deque<TInputChunkPtr>> ForeignInputChunks;
+    std::vector<std::deque<TInputDataSlicePtr>> ForeignInputDataSlices;
 
     //! Not serialized.
     TKey CurrentTaskMinForeignKey;
@@ -1822,7 +1822,7 @@ protected:
 
     virtual void ProcessForeignInputTables() override
     {
-        ForeignInputChunks = CollectForeignInputChunks();
+        ForeignInputDataSlices = CollectForeignInputDataSlices(ForeignKeyColumnCount);
     }
 
     void AddForeignTablesToTask(TKey foreignMinKey, TKey foreignMaxKey)
@@ -1831,12 +1831,11 @@ protected:
         YCHECK(ForeignKeyColumnCount <= static_cast<int>(SortKeyColumns.size()));
         YCHECK(foreignMinKey.GetCount() <= ForeignKeyColumnCount);
 
-        for (auto& tableChunks : ForeignInputChunks) {
-            auto firstUsed = tableChunks.cbegin();
-            for (const auto& chunkSpec :  tableChunks) {
-                YCHECK(chunkSpec->BoundaryKeys());
-                const auto& minKey = chunkSpec->BoundaryKeys()->MinKey;
-                const auto& maxKey = chunkSpec->BoundaryKeys()->MaxKey;
+        for (auto& tableDataSlices : ForeignInputDataSlices) {
+            auto firstUsed = tableDataSlices.cbegin();
+            for (const auto& dataSlice : tableDataSlices) {
+                const auto& minKey = dataSlice->LowerLimit().Key;
+                const auto& maxKey = dataSlice->UpperLimit().Key;
                 if (CompareRows(foreignMinKey, maxKey, ForeignKeyColumnCount) > 0) {
                     ++firstUsed;
                     continue;
@@ -1844,9 +1843,9 @@ protected:
                 if (CompareRows(foreignMaxKey, minKey, ForeignKeyColumnCount) < 0) {
                     break;
                 }
-                AddPendingChunkSlice(CreateInputChunkSlice(chunkSpec, foreignMinKey, foreignMaxKey));
+                AddPendingDataSlice(CreateInputDataSlice(dataSlice, foreignMinKey, foreignMaxKey));
             }
-            tableChunks.erase(tableChunks.cbegin(), firstUsed);
+            tableDataSlices.erase(tableDataSlices.cbegin(), firstUsed);
         }
     }
 

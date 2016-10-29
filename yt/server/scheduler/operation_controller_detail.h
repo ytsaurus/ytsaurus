@@ -889,7 +889,7 @@ protected:
     std::vector<NChunkClient::TInputDataSlicePtr> CollectPrimaryVersionedDataSlices(i64 sliceSize) const;
 
     //! Returns the list of lists of all input chunks collected from all foreign input tables.
-    std::vector<std::deque<NChunkClient::TInputChunkPtr>> CollectForeignInputChunks() const;
+    std::vector<std::deque<NChunkClient::TInputDataSlicePtr>> CollectForeignInputDataSlices(int foreignKeyColumnCount) const;
 
     i64 CalculateSliceDataSize(i64 maxSliceDataSize, const TJobSizeLimits& jobSizeLimits) const;
 
