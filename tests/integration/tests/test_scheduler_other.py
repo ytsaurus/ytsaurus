@@ -863,7 +863,8 @@ class TestSchedulerOperationLimits(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "max_running_operation_count_per_pool" : 1
+            "max_running_operation_count_per_pool" : 1,
+            "static_orchid_cache_update_period": 100,
         }
     }
 
@@ -1059,6 +1060,54 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         for op in ops:
             op.abort()
 
+    def test_pool_changes(self):
+        create("map_node", "//sys/pools/research")
+        create("map_node", "//sys/pools/research/subpool")
+        create("map_node", "//sys/pools/production")
+
+        create("table", "//tmp/in")
+        write_table("//tmp/in", [{"foo": "bar"}])
+        for i in xrange(5):
+            create("table", "//tmp/out" + str(i))
+
+        ops = []
+        def run(index, pool):
+            ops.append(map(
+                dont_track=True,
+                command="sleep 1000; cat",
+                in_=["//tmp/in"],
+                out="//tmp/out" + str(index),
+                spec={"pool": pool}))
+
+        for i in xrange(1, 4):
+            run(i, "subpool")
+
+        time.sleep(0.5)
+
+        assert get("//sys/scheduler/orchid/scheduler/pools/subpool/running_operation_count") == 1
+        assert get("//sys/scheduler/orchid/scheduler/pools/subpool/operation_count") == 3
+
+        assert get("//sys/scheduler/orchid/scheduler/pools/research/running_operation_count") == 1
+        assert get("//sys/scheduler/orchid/scheduler/pools/research/operation_count") == 3
+
+        assert get("//sys/scheduler/orchid/scheduler/pools/production/running_operation_count") == 0
+        assert get("//sys/scheduler/orchid/scheduler/pools/production/operation_count") == 0
+
+        move("//sys/pools/research/subpool", "//sys/pools/production/subpool")
+
+        time.sleep(0.5)
+
+        assert get("//sys/scheduler/orchid/scheduler/pools/subpool/running_operation_count") == 1
+        assert get("//sys/scheduler/orchid/scheduler/pools/subpool/operation_count") == 3
+
+        assert get("//sys/scheduler/orchid/scheduler/pools/research/running_operation_count") == 0
+        assert get("//sys/scheduler/orchid/scheduler/pools/research/operation_count") == 0
+
+        assert get("//sys/scheduler/orchid/scheduler/pools/production/running_operation_count") == 1
+        assert get("//sys/scheduler/orchid/scheduler/pools/production/operation_count") == 3
+
+        for op in ops:
+            op.abort()
 
 class TestSchedulingTags(YTEnvSetup):
     NUM_MASTERS = 3
