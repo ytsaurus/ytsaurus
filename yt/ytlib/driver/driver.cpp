@@ -163,7 +163,7 @@ public:
         REGISTER(TReadJournalCommand,          "read_journal",            Null,       Tabular,    false, true );
 
         REGISTER(TDumpJobContextCommand,       "dump_job_context",        Null,       Null,       true,  false);
-        REGISTER(TGetJobStderrCommand,         "get_job_stderr",          Null,       Binary,     true,  false);
+        REGISTER(TGetJobStderrCommand,         "get_job_stderr",          Null,       Binary,     false, true);
         REGISTER(TStraceJobCommand,            "strace_job",              Null,       Structured, false, false);
         REGISTER(TSignalJobCommand,            "signal_job",              Null,       Null,       false, false);
         REGISTER(TAbandonJobCommand,           "abandon_job",             Null,       Null,       false, false);
