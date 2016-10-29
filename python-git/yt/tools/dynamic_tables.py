@@ -368,7 +368,13 @@ class DynamicTablesClient(object):
         input_row_limit = self.input_row_limit
         output_row_limit = self.output_row_limit
 
-        schema, key_columns, _ = get_dynamic_table_attributes(self.yt, src_table)
+        schema, key_columns, optimize_for = get_dynamic_table_attributes(self.yt, src_table)
+
+        # Ensure that partitions are small enoungh (YT-5903).
+        if optimize_for == "scan":
+            max_partition_size = self.yt.get_attribute(src_table, "max_partition_data_size", default=None)
+            if not max_partition_size or max_partition_size > 10 * 2**20:
+                raise Exception("\"max_partition_data_size\" shold be less than 10MB for tables with \"optimize_for\"=\"scan\"")
 
         select_columns_str = schema_to_select_columns_str(
             schema, include_list=columns)
