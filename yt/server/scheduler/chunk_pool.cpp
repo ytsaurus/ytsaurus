@@ -1210,17 +1210,17 @@ public:
             auto elementaryStripe = New<TChunkStripe>(chunkSlice);
             ElementaryStripes.push_back(elementaryStripe);
 
-            auto partitionsExt = chunkSlice->GetInputChunk()->PartitionsExt().get();
+            const auto* partitionsExt = chunkSlice->GetInputChunk()->PartitionsExt().get();
             YCHECK(partitionsExt);
-            YCHECK(partitionsExt->partitions_size() == Outputs.size());
+            YCHECK(partitionsExt->row_counts_size() == Outputs.size());
+            YCHECK(partitionsExt->uncompressed_data_sizes_size() == Outputs.size());
 
             for (int index = 0; index < static_cast<int>(Outputs.size()); ++index) {
-                const auto& partitionAttributes = partitionsExt->partitions(index);
-                YCHECK(partitionAttributes.row_count() <= RowCountThreshold);
+                YCHECK(partitionsExt->row_counts(index) <= RowCountThreshold);
                 Outputs[index]->AddStripe(
                     elementaryIndex,
-                    partitionAttributes.uncompressed_data_size(),
-                    partitionAttributes.row_count());
+                    partitionsExt->uncompressed_data_sizes(index),
+                    partitionsExt->row_counts(index));
             }
 
             chunkSlice->GetInputChunk()->ReleaseBoundaryKeys();
