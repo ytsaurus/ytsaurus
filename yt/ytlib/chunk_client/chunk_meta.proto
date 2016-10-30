@@ -17,13 +17,6 @@ message TBlocksExt
     repeated TBlockInfo blocks = 1;
 }
 
-// Used within sliced input chunks to override sizes provided in TMiscExt.
-message TSizeOverrideExt
-{
-    required int64 row_count = 1;
-    required int64 uncompressed_data_size = 2;
-}
-
 // Chunk meta extension.
 message TMiscExt
 {

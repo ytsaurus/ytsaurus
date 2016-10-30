@@ -22,7 +22,7 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const i64 DefaultMaxBlockSize;
+const i64 DefaultMaxBlockSize = (i64) 16 * 1024 * 1024;
 const int InputChunkReplicaCount = 16;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -53,13 +53,7 @@ class TInputChunkBase
 public:
     TInputChunkBase() = default;
     TInputChunkBase(TInputChunkBase&& other) = default;
-
     explicit TInputChunkBase(const NProto::TChunkSpec& chunkSpec);
-    TInputChunkBase(
-        const TChunkId& chunkId,
-        const TChunkReplicaList& replicas,
-        const NChunkClient::NProto::TChunkMeta& chunkMeta,
-        NErasure::ECodec erasureCodec);
 
     TChunkReplicaList GetReplicaList() const;
     void SetReplicaList(const TChunkReplicaList& replicas);
@@ -95,16 +89,7 @@ class TInputChunk
 public:
     TInputChunk() = default;
     TInputChunk(TInputChunk&& other) = default;
-
     explicit TInputChunk(const NProto::TChunkSpec& chunkSpec);
-
-    TInputChunk(
-        const TChunkId& chunkId,
-        const TChunkReplicaList& replicas,
-        const NChunkClient::NProto::TChunkMeta& chunkMeta,
-        const NTableClient::TOwningKey& lowerLimit,
-        const NTableClient::TOwningKey& upperLimit,
-        NErasure::ECodec erasureCodec);
 
     void Persist(const TStreamPersistenceContext& context);
 

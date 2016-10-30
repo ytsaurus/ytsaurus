@@ -38,31 +38,6 @@ bool IsUnavailable(const NProto::TChunkSpec& chunkSpec, bool checkParityParts)
     return IsUnavailable(replicas, codecId, checkParityParts);
 }
 
-void GetStatistics(
-    const TChunkMeta& meta,
-    i64* dataSize,
-    i64* rowCount)
-{
-    auto miscExt = GetProtoExtension<TMiscExt>(meta.extensions());
-    auto sizeOverrideExt = FindProtoExtension<TSizeOverrideExt>(meta.extensions());
-
-    if (sizeOverrideExt) {
-        if (dataSize) {
-            *dataSize = sizeOverrideExt->uncompressed_data_size();
-        }
-        if (rowCount) {
-            *rowCount = sizeOverrideExt->row_count();
-        }
-    } else {
-        if (dataSize) {
-            *dataSize = miscExt.uncompressed_data_size();
-        }
-        if (rowCount) {
-            *rowCount = miscExt.row_count();
-        }
-    }
-}
-
 i64 GetCumulativeRowCount(const std::vector<NProto::TChunkSpec>& chunkSpecs)
 {
     i64 result = 0;
