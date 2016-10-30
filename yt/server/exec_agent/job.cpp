@@ -474,8 +474,6 @@ private:
 
     std::vector<TArtifact> Artifacts_;
 
-    TNodeDirectoryPtr AuxNodeDirectory_ = New<TNodeDirectory>();
-
     TNodeResources ResourceUsage_;
     EJobState JobState_ = EJobState::Waiting;
     EJobPhase JobPhase_ = EJobPhase::Created;
@@ -737,17 +735,13 @@ private:
 
         auto* schedulerJobSpecExt = JobSpec_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
-        if (schedulerJobSpecExt->has_aux_node_directory()) {
-            AuxNodeDirectory_->MergeFrom(schedulerJobSpecExt->aux_node_directory());
-        }
-
         if (schedulerJobSpecExt->has_input_node_directory()) {
             LOG_INFO("Node directory is provided by scheduler");
             return;
         }
 
         const auto& nodeDirectory = Bootstrap_->GetNodeDirectory();
-        TNodeDirectoryBuilder nodeDirectoryBuilder(
+        TNodeDirectoryBuilder inputNodeDirectoryBuilder(
             nodeDirectory,
             schedulerJobSpecExt->mutable_input_node_directory());
 
@@ -756,56 +750,59 @@ private:
                 break;
             }
 
-            auto maybeUnresolvedNodeId = TryBuildNodeDirectory(
-                *schedulerJobSpecExt,
-                nodeDirectory,
-                &nodeDirectoryBuilder);
-            if (!maybeUnresolvedNodeId) {
-                break;
-            }
+            TNullable<TNodeId> unresolvedNodeId;
 
-            if (attempt >= Config_->NodeDirectoryPrepareRetryCount) {
-                THROW_ERROR_EXCEPTION("Unresolved node id %v in job spec",
-                    *maybeUnresolvedNodeId);
-            }
-
-            LOG_INFO("Unresolved node id found in job spec; backing off and retrying (NodeId: %v, Attempt: %v)",
-                *maybeUnresolvedNodeId,
-                attempt);
-            WaitFor(TDelayedExecutor::MakeDelayed(Config_->NodeDirectoryPrepareBackoffTime));
-        }
-
-        LOG_INFO("Node directory is constructed by Exec Agent");
-    }
-
-    TNullable<TNodeId> TryBuildNodeDirectory(
-        const TSchedulerJobSpecExt& schedulerJobSpecExt,
-        const TNodeDirectoryPtr& nodeDirectory,
-        TNodeDirectoryBuilder* nodeDirectoryBuilder)
-    {
-        TNullable<TNodeId> result;
-
-        auto processSpecs = [&] (const ::google::protobuf::RepeatedPtrField<TTableInputSpec>& tableSpecs) {
-            for (const auto& tableSpec : tableSpecs) {
-                for (const auto& chunkSpec : tableSpec.chunks()) {
+            auto validateValidateNodeIds = [&] (
+                const ::google::protobuf::RepeatedPtrField<TChunkSpec>& chunkSpecs,
+                const TNodeDirectoryPtr& nodeDirectory,
+                TNodeDirectoryBuilder* nodeDirectoryBuilder)
+            {
+                for (const auto& chunkSpec : chunkSpecs) {
                     auto replicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
                     for (auto replica : replicas) {
                         auto nodeId = replica.GetNodeId();
                         const auto* descriptor = nodeDirectory->FindDescriptor(nodeId);
                         if (!descriptor) {
-                            result = nodeId;
+                            unresolvedNodeId = nodeId;
                             return;
                         }
-                        nodeDirectoryBuilder->Add(replica);
+                        if (nodeDirectoryBuilder) {
+                            nodeDirectoryBuilder->Add(replica);
+                        }
                     }
                 }
+            };
+
+            auto validateTableSpecs = [&] (const ::google::protobuf::RepeatedPtrField<TTableInputSpec>& tableSpecs) {
+                for (const auto& tableSpec : tableSpecs) {
+                    validateValidateNodeIds(tableSpec.chunks(), nodeDirectory, &inputNodeDirectoryBuilder);
+                }
+            };
+
+            validateTableSpecs(schedulerJobSpecExt->input_table_specs());
+            validateTableSpecs(schedulerJobSpecExt->foreign_input_table_specs());
+
+            // NB: No need to add these descriptors to the input node directory.
+            for (const auto& artifact : Artifacts_) {
+                validateValidateNodeIds(artifact.Key.chunks(), nodeDirectory, nullptr);
             }
-        };
 
-        processSpecs(schedulerJobSpecExt.input_table_specs());
-        processSpecs(schedulerJobSpecExt.foreign_input_table_specs());
+            if (!unresolvedNodeId) {
+                break;
+            }
 
-        return result;
+            if (attempt >= Config_->NodeDirectoryPrepareRetryCount) {
+                THROW_ERROR_EXCEPTION("Unresolved node id %v in job spec",
+                    *unresolvedNodeId);
+            }
+
+            LOG_INFO("Unresolved node id found in job spec; backing off and retrying (NodeId: %v, Attempt: %v)",
+                *unresolvedNodeId,
+                attempt);
+            WaitFor(TDelayedExecutor::MakeDelayed(Config_->NodeDirectoryPrepareBackoffTime));
+        }
+
+        LOG_INFO("Node directory is constructed by Exec Agent");
     }
 
     TJobProxyConfigPtr CreateConfig()
@@ -885,9 +882,6 @@ private:
 
         if (schedulerJobSpecExt.has_input_query_spec()) {
             const auto& querySpec = schedulerJobSpecExt.input_query_spec();
-
-            AuxNodeDirectory_->MergeFrom(querySpec.node_directory());
-
             for (const auto& function : querySpec.external_functions()) {
                 TArtifactKey key;
                 key.set_type(static_cast<int>(NObjectClient::EObjectType::File));
@@ -913,7 +907,8 @@ private:
                 artifact.Name,
                 artifact.SandboxKind);
 
-            auto asyncChunk = chunkCache->PrepareArtifact(artifact.Key, AuxNodeDirectory_)
+            const auto& nodeDirectory = Bootstrap_->GetNodeDirectory();
+            auto asyncChunk = chunkCache->PrepareArtifact(artifact.Key, nodeDirectory)
                 .Apply(BIND([fileName = artifact.Name] (const TErrorOr<IChunkPtr>& chunkOrError) {
                     THROW_ERROR_EXCEPTION_IF_FAILED(chunkOrError,
                         "Failed to prepare user file %Qv",
