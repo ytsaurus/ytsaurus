@@ -489,7 +489,7 @@ protected:
 
             auto& result = const_cast<TJobResult&>(jobSummary.Result);
             auto* resultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-            auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_output_chunks());
+            auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_output_chunk_specs());
 
             RegisterIntermediate(
                 joblet,
@@ -794,7 +794,7 @@ protected:
                 // Construct a stripe consisting of sorted chunks and put it into the pool.
                 auto& result = const_cast<TJobResult&>(jobSummary.Result);
                 auto* resultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-                auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_output_chunks());
+                auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_output_chunk_specs());
 
                 RegisterIntermediate(
                     joblet,

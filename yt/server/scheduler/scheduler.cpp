@@ -800,6 +800,11 @@ public:
         return Bootstrap_->GetClusterDirectory();
     }
 
+    virtual const TNodeDirectoryPtr& GetNodeDirectory() override
+    {
+        return Bootstrap_->GetNodeDirectory();
+    }
+
     virtual IInvokerPtr GetControlInvoker() const override
     {
         return Bootstrap_->GetControlInvoker();

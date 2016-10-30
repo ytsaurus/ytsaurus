@@ -188,13 +188,9 @@ message TSchedulerJobResultExt
         optional TSchedulerJobResultExt scheduler_job_result_ext = 100;
     }
 
-    // Provides node id to descriptor mapping for |chunks|.
-    // These nodes always belong to the local cluster.
-    optional NYT.NNodeTrackerClient.NProto.TNodeDirectory output_node_directory = 2;
-
     // List of output chunks produced by the job.
     // NB: Only filled when necessary.
-    repeated NYT.NChunkClient.NProto.TChunkSpec output_chunks = 3;
+    repeated NYT.NChunkClient.NProto.TChunkSpec output_chunk_specs = 3;
 
     optional NYT.NProto.TGuid stderr_chunk_id = 4;
 
