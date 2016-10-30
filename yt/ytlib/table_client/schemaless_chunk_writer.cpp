@@ -660,11 +660,10 @@ public:
         for (int partitionIndex = 0; partitionIndex < partitionCount; ++partitionIndex) {
             BlockWriters_.emplace_back(new THorizontalSchemalessBlockWriter(BlockReserveSize_));
             CurrentBufferCapacity_ += BlockWriters_.back()->GetCapacity();
-
-            auto* partitionAttributes = PartitionsExt_.add_partitions();
-            partitionAttributes->set_row_count(0);
-            partitionAttributes->set_uncompressed_data_size(0);
         }
+
+        PartitionsExt_.mutable_row_counts()->Resize(partitionCount, 0);
+        PartitionsExt_.mutable_uncompressed_data_sizes()->Resize(partitionCount, 0);
     }
 
     virtual bool Write(const std::vector<TUnversionedRow>& rows) override
@@ -747,13 +746,13 @@ private:
         CurrentBufferCapacity_ += blockWriter->GetCapacity();
         i64 newSize = blockWriter->GetBlockSize();
 
-        auto* partitionAttributes = PartitionsExt_.mutable_partitions(partitionIndex);
-        partitionAttributes->set_row_count(partitionAttributes->row_count() + 1);
-        partitionAttributes->set_uncompressed_data_size(partitionAttributes->uncompressed_data_size() + newSize - oldSize);
+        auto newRowCount = PartitionsExt_.row_counts(partitionIndex) + 1;
+        auto newUncompressedDataSize = PartitionsExt_.uncompressed_data_sizes(partitionIndex) + newSize - oldSize;
 
-        LargestPartitionRowCount_ = std::max(
-            partitionAttributes->row_count(),
-            LargestPartitionRowCount_);
+        PartitionsExt_.set_row_counts(partitionIndex, newRowCount);
+        PartitionsExt_.set_uncompressed_data_sizes(partitionIndex, newUncompressedDataSize);
+
+        LargestPartitionRowCount_ = std::max(newRowCount, LargestPartitionRowCount_);
 
         if (newSize > LargestPartitionSize_) {
             LargestPartitionIndex_ = partitionIndex;
