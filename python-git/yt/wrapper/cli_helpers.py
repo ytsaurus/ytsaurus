@@ -5,8 +5,6 @@ from yt.wrapper.errors import YtOperationFailedError, YtError
 from yt.wrapper.operation_commands import format_operation_stderrs
 from yt.wrapper.common import get_binary_std_stream
 
-from yt.packages.six import PY3
-
 import os
 import sys
 import traceback
