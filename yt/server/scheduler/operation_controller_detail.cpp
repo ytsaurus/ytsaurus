@@ -155,6 +155,8 @@ void TOperationControllerBase::TUserFile::Persist(const TPersistenceContext& con
     Persist(context, Type);
     Persist(context, Executable);
     Persist(context, Format);
+    Persist(context, Schema);
+    Persist(context, IsDynamic);
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -3505,6 +3507,7 @@ void TOperationControllerBase::LockUserFiles(std::vector<TUserFile>* files)
                     case EObjectType::Table:
                         attributeKeys.push_back("format");
                         attributeKeys.push_back("dynamic");
+                        attributeKeys.push_back("schema");
                         break;
 
                     default:
@@ -3586,6 +3589,8 @@ void TOperationControllerBase::LockUserFiles(std::vector<TUserFile>* files)
                         break;
 
                     case EObjectType::Table:
+                        file.IsDynamic = attributes.Get<bool>("dynamic");
+                        file.Schema = attributes.Get<TTableSchema>("schema");
                         file.Format = attributes.FindYson("format").Get(TYsonString());
                         file.Format = file.Path.GetFormat().Get(file.Format);
                         // Validate that format is correct.
@@ -3598,9 +3603,6 @@ void TOperationControllerBase::LockUserFiles(std::vector<TUserFile>* files)
                         } catch (const std::exception& ex) {
                             THROW_ERROR_EXCEPTION("Failed to parse format of table file %v",
                                 file.Path) << ex;
-                        }
-                        if (attributes.Get<bool>("dynamic")) {
-                            THROW_ERROR_EXCEPTION("Dynamic table cannot be placed as a local file");
                         }
                         break;
 
@@ -4431,12 +4433,21 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         descriptor->set_type(static_cast<int>(file.Type));
         descriptor->set_file_name(file.FileName);
 
-        for (const auto& chunkSpec : file.ChunkSpecs) {
-            auto type = file.Type == EObjectType::File
-                ? EDataSliceDescriptorType::File
-                : EDataSliceDescriptorType::UnversionedTable;
-            TDataSliceDescriptor dataSliceDescriptor(type, {chunkSpec});
+        if (file.Type == EObjectType::Table && file.IsDynamic && file.Schema.IsSorted()) {
+            auto dataSliceDescriptor = TDataSliceDescriptor(
+                EDataSliceDescriptorType::VersionedTable,
+                file.ChunkSpecs);
+            dataSliceDescriptor.Schema = file.Schema;
+            dataSliceDescriptor.Timestamp = AsyncLastCommittedTimestamp;
             ToProto(descriptor->add_data_slice_descriptors(), dataSliceDescriptor);
+        } else {
+            for (const auto& chunkSpec : file.ChunkSpecs) {
+                auto type = file.Type == EObjectType::File
+                    ? EDataSliceDescriptorType::File
+                    : EDataSliceDescriptorType::UnversionedTable;
+                TDataSliceDescriptor dataSliceDescriptor(type, {chunkSpec});
+                ToProto(descriptor->add_data_slice_descriptors(), dataSliceDescriptor);
+            }
         }
 
         switch (file.Type) {
