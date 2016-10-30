@@ -1893,10 +1893,38 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
 
     auto codicilGuard = MakeCodicilGuard();
 
-    jobSummary->ParseStatistics();
-
     const auto& jobId = jobSummary->Id;
     const auto& result = jobSummary->Result;
+
+    const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+
+    // Validate all node ids of the output chunks and populate the local node directory.
+    // In case any id is not known, abort the job.
+    const auto& globalNodeDirectory = Host->GetNodeDirectory();
+    for (const auto& chunkSpec : schedulerResultExt.output_chunk_specs()) {
+        auto replicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
+        for (auto replica : replicas) {
+            auto nodeId = replica.GetNodeId();
+            if (InputNodeDirectory->FindDescriptor(nodeId)) {
+                continue;
+            }
+
+            const auto* descriptor = globalNodeDirectory->FindDescriptor(nodeId);
+            if (!descriptor) {
+                LOG_DEBUG("Job will is considered aborted since its output contains unresolved node id "
+                    "(JobId: %v, NodeId: %v)",
+                    jobId,
+                    nodeId);
+                auto abortedJobSummary = std::make_unique<TAbortedJobSummary>(*jobSummary, EAbortReason::Other);
+                OnJobAborted(std::move(abortedJobSummary));
+                return;
+            }
+
+            InputNodeDirectory->AddDescriptor(nodeId, *descriptor);
+        }
+    }
+
+    jobSummary->ParseStatistics();
 
     JobCounter.Completed(1);
 
@@ -1908,12 +1936,6 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
     LogFinishedJobFluently(ELogEventType::JobCompleted, joblet, *jobSummary);
 
     UpdateJobStatistics(*jobSummary);
-
-    const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-
-    // Populate node directory by adding additional nodes returned from the job.
-    // NB: Job's output may become some other job's input.
-    InputNodeDirectory->MergeFrom(schedulerResultExt.output_node_directory());
 
     joblet->Task->OnJobCompleted(joblet, *jobSummary);
 
