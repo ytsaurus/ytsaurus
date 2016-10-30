@@ -405,6 +405,8 @@ class ConfigsProvider_17(ConfigsProvider):
                 "quota": 256 * MB,
             }])
 
+            set_at(config, "exec_agent/node_directory_prepare_backoff_time", 100)
+
             set_at(config, "exec_agent/slot_manager/start_uid", current_user)
             set_at(config, "exec_agent/slot_manager/paths", [os.path.join(node_dirs[i], "slots")])
 
