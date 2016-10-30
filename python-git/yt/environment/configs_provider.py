@@ -405,8 +405,6 @@ class ConfigsProvider_17(ConfigsProvider):
                 "quota": 256 * MB,
             }])
 
-            set_at(config, "exec_agent/node_directory_prepare_backoff_time", 100)
-
             set_at(config, "exec_agent/slot_manager/start_uid", current_user)
             set_at(config, "exec_agent/slot_manager/paths", [os.path.join(node_dirs[i], "slots")])
 
@@ -772,6 +770,9 @@ class ConfigsProvider_18_5(ConfigsProvider_18):
                 "start_uid" : start_uid,
             })
             set_at(config, "exec_agent/slot_manager/locations", [{"path" : os.path.join(node_dirs[i], "slots")}])
+
+            set_at(config, "exec_agent/node_directory_prepare_backoff_time", 100)
+            set_at(config, "node_directory_synchronizer/sync_period", 100)
 
             config["addresses"] = [
                 ("interconnect", provision["fqdn"]),
