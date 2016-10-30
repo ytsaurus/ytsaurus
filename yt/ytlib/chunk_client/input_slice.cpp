@@ -217,9 +217,11 @@ TInputSlice::TInputSlice(
     UpperLimit_.MergeUpperLimit(TInputSliceLimit(protoChunkSlice.upper_limit(), rowBuffer));
     PartIndex_ = DefaultPartIndex;
 
-    if (protoChunkSlice.has_size_override_ext()) {
-        SetRowCount(protoChunkSlice.size_override_ext().row_count());
-        SetDataSize(protoChunkSlice.size_override_ext().uncompressed_data_size());
+    if (protoChunkSlice.has_row_count_override()) {
+        SetRowCount(protoChunkSlice.row_count_override());
+    }
+    if (protoChunkSlice.has_uncompressed_data_size_override()) {
+        SetRowCount(protoChunkSlice.uncompressed_data_size_override());
     }
 }
 
@@ -461,15 +463,11 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputSlicePtr& inputSlice)
 
     // Since we don't serialize MiscExt into proto, we always create SizeOverrideExt to track progress.
     if (inputSlice->GetSizeOverridden()) {
-        NProto::TSizeOverrideExt sizeOverrideExt;
-        sizeOverrideExt.set_uncompressed_data_size(inputSlice->GetDataSize());
-        sizeOverrideExt.set_row_count(inputSlice->GetRowCount());
-        SetProtoExtension(chunkSpec->mutable_chunk_meta()->mutable_extensions(), sizeOverrideExt);
+        chunkSpec->set_uncompressed_data_size_override(inputSlice->GetDataSize());
+        chunkSpec->set_row_count_override(inputSlice->GetRowCount());
     } else {
-        NProto::TSizeOverrideExt sizeOverrideExt;
-        sizeOverrideExt.set_uncompressed_data_size(inputSlice->GetInputChunk()->GetUncompressedDataSize());
-        sizeOverrideExt.set_row_count(inputSlice->GetInputChunk()->GetRowCount());
-        SetProtoExtension(chunkSpec->mutable_chunk_meta()->mutable_extensions(), sizeOverrideExt);
+        chunkSpec->set_uncompressed_data_size_override(inputSlice->GetInputChunk()->GetUncompressedDataSize());
+        chunkSpec->set_row_count_override(inputSlice->GetInputChunk()->GetRowCount());
     }
 }
 

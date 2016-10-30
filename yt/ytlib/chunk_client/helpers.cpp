@@ -281,9 +281,8 @@ TError GetCumulativeError(const TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& 
 
 i64 GetChunkDataSize(const TChunkSpec& chunkSpec)
 {
-    auto sizeOverrideExt = FindProtoExtension<TSizeOverrideExt>(chunkSpec.chunk_meta().extensions());
-    if (sizeOverrideExt) {
-        return sizeOverrideExt->uncompressed_data_size();
+    if (chunkSpec.has_uncompressed_data_size_override()) {
+        return chunkSpec.uncompressed_data_size_override();
     }
     auto miscExt = FindProtoExtension<TMiscExt>(chunkSpec.chunk_meta().extensions());
     return miscExt->uncompressed_data_size();

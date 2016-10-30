@@ -434,18 +434,23 @@ private:
             for (int index = 0; index < rsp->subresponses_size(); ++index) {
                 const auto& subrequest = req->subrequests(index);
                 const auto& subresponse = rsp->subresponses(index);
+
                 auto chunkId = FromProto<TChunkId>(subrequest);
+
                 auto storeIt = storeMap.find(chunkId);
                 YCHECK(storeIt != storeMap.end());
-                auto store = storeIt->second;
-                samplesFetcher->AddChunk(
-                    New<TInputChunk>(
-                        chunkId,
-                        NYT::FromProto<TChunkReplicaList>(subresponse.replicas()),
-                        store->GetChunkMeta(),
-                        partition->GetPivotKey(),
-                        partition->GetNextPivotKey(),
-                        NErasure::ECodec(subresponse.erasure_codec())));
+                const auto& store = storeIt->second;
+
+                NChunkClient::NProto::TChunkSpec chunkSpec;
+                ToProto(chunkSpec.mutable_chunk_id(), chunkId);
+                *chunkSpec.mutable_replicas() = subresponse.replicas();
+                *chunkSpec.mutable_chunk_meta() = store->GetChunkMeta();
+                ToProto(chunkSpec.mutable_lower_limit(), TReadLimit(partition->GetPivotKey()));
+                ToProto(chunkSpec.mutable_upper_limit(), TReadLimit(partition->GetNextPivotKey()));
+                chunkSpec.set_erasure_codec(subresponse.erasure_codec());
+
+                auto inputChunk = New<TInputChunk>(chunkSpec);
+                samplesFetcher->AddChunk(std::move(inputChunk));
             }
         }
 

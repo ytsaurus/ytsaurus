@@ -959,9 +959,10 @@ TChunkStripePtr TOperationControllerBase::TTask::BuildIntermediateChunkStripe(
     google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>* chunkSpecs)
 {
     auto stripe = New<TChunkStripe>();
-    for (auto& chunkSpec : *chunkSpecs) {
-        auto chunkSlice = CreateInputSlice(New<TInputChunk>(std::move(chunkSpec)));
-        stripe->ChunkSlices.push_back(chunkSlice);
+    for (const auto& chunkSpec : *chunkSpecs) {
+        auto inputChunk = New<TInputChunk>(chunkSpec);
+        auto inputSlice = CreateInputSlice(std::move(inputChunk));
+        stripe->ChunkSlices.emplace_back(std::move(inputSlice));
     }
     return stripe;
 }
@@ -3146,10 +3147,10 @@ void TOperationControllerBase::FetchInputTables()
                 Logger,
                 &chunkSpecs);
 
-            for (auto& chunk : chunkSpecs) {
-                auto chunkSpec = New<TInputChunk>(std::move(chunk));
-                chunkSpec->SetTableIndex(tableIndex);
-                table.Chunks.push_back(chunkSpec);
+            for (const auto& chunkSpec : chunkSpecs) {
+                auto inputChunk = New<TInputChunk>(chunkSpec);
+                inputChunk->SetTableIndex(tableIndex);
+                table.Chunks.emplace_back(std::move(inputChunk));
             }
         }
 
