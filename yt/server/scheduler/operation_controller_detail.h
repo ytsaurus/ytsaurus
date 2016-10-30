@@ -211,8 +211,6 @@ protected:
 
     // Maps node ids to descriptors for job input chunks.
     NNodeTrackerClient::TNodeDirectoryPtr InputNodeDirectory;
-    // Maps node ids to descriptors for job auxiliary chunks.
-    NNodeTrackerClient::TNodeDirectoryPtr AuxNodeDirectory;
 
     const NObjectClient::TTransactionId UserTransactionId;
 

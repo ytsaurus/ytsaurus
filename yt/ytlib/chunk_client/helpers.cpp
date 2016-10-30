@@ -115,7 +115,9 @@ void ProcessFetchResponse(
 {
     const auto& Logger = logger;
 
-    nodeDirectory->MergeFrom(fetchResponse->node_directory());
+    if (nodeDirectory) {
+        nodeDirectory->MergeFrom(fetchResponse->node_directory());
+    }
 
     yhash_map<TCellTag, std::vector<NProto::TChunkSpec*>> foreignChunkMap;
     for (auto& chunkSpec : *fetchResponse->mutable_chunks()) {
@@ -157,7 +159,9 @@ void ProcessFetchResponse(
             const auto& rsp = rspOrError.Value();
             YCHECK(req->subrequests_size() == rsp->subresponses_size());
 
-            nodeDirectory->MergeFrom(rsp->node_directory());
+            if (nodeDirectory) {
+                nodeDirectory->MergeFrom(rsp->node_directory());
+            }
 
             for (int globalIndex = beginIndex; globalIndex < endIndex; ++globalIndex) {
                 int localIndex = globalIndex - beginIndex;

@@ -86,7 +86,6 @@ private:
     NApi::IClientPtr Client_;
 
     NNodeTrackerClient::TNodeDirectoryPtr InputNodeDirectory_;
-    NNodeTrackerClient::TNodeDirectoryPtr AuxNodeDirectory_;
 
     NConcurrency::TPeriodicExecutorPtr HeartbeatExecutor_;
     NConcurrency::TPeriodicExecutorPtr MemoryWatchdogExecutor_;
@@ -138,7 +137,6 @@ private:
     virtual NChunkClient::IBlockCachePtr GetBlockCache() const override;
 
     virtual NNodeTrackerClient::TNodeDirectoryPtr GetInputNodeDirectory() const override;
-    virtual NNodeTrackerClient::TNodeDirectoryPtr GetAuxNodeDirectory() const override;
 
     virtual const NNodeTrackerClient::TNodeDescriptor& LocalDescriptor() const override;
 

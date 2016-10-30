@@ -89,7 +89,6 @@ message TQuerySpec
 {
     required NYT.NQueryClient.NProto.TQuery query = 1;
     repeated NYT.NQueryClient.NProto.TExternalFunctionImpl external_functions = 2;
-    required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -143,10 +142,6 @@ message TSchedulerJobSpecExt
     // For remote copy jobs, this directory is provided by the scheduler.
     // For other types of jobs, this directory is provided by Exec Agent at the cluster node.
     optional NNodeTrackerClient.NProto.TNodeDirectory input_node_directory = 5;
-
-    // Maps node ids to descriptors for chunks comprising user files, UDFs etc.
-    // These nodes always belong to the local cluster.
-    optional NNodeTrackerClient.NProto.TNodeDirectory aux_node_directory = 14;
 
     // Total input uncompressed data size estimate.
     optional int64 input_uncompressed_data_size = 6 [default = 0];

@@ -1133,7 +1133,6 @@ void TOperationControllerBase::Initialize()
 void TOperationControllerBase::InitializeStructures()
 {
     InputNodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
-    AuxNodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
 
     for (const auto& path : GetInputTablePaths()) {
         TInputTable table;
@@ -3485,7 +3484,7 @@ void TOperationControllerBase::FetchUserFiles(std::vector<TUserFile>* files)
                 AuthenticatedInputMasterClient,
                 rsp,
                 file.CellTag,
-                AuxNodeDirectory,
+                nullptr,
                 Config->MaxChunksPerLocateRequest,
                 Null,
                 Logger,
@@ -3709,8 +3708,6 @@ void TOperationControllerBase::InitQuerySpec(
     auto* querySpec = schedulerJobSpecExt->mutable_input_query_spec();
     ToProto(querySpec->mutable_query(), query);
     ToProto(querySpec->mutable_external_functions(), externalCGInfo->Functions);
-
-    externalCGInfo->NodeDirectory->DumpTo(querySpec->mutable_node_directory());
 }
 
 void TOperationControllerBase::CollectTotals()
@@ -4748,7 +4745,6 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, JobCounter);
 
     Persist(context, InputNodeDirectory);
-    Persist(context, AuxNodeDirectory);
 
     Persist(context, InputTables);
 

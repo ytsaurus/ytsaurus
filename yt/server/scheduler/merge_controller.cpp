@@ -725,7 +725,6 @@ private:
             InitQuerySpec(schedulerJobSpecExt, Spec->InputQuery.Get(), Spec->InputSchema.Get());
         }
 
-        AuxNodeDirectory->DumpTo(schedulerJobSpecExt->mutable_aux_node_directory());
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
@@ -868,7 +867,6 @@ private:
             InitQuerySpec(schedulerJobSpecExt, Spec->InputQuery.Get(), Spec->InputSchema.Get());
         }
 
-        AuxNodeDirectory->DumpTo(schedulerJobSpecExt->mutable_aux_node_directory());
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
@@ -1919,7 +1917,6 @@ protected:
         JobSpecTemplate.set_type(static_cast<int>(EJobType::SortedReduce));
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
-        AuxNodeDirectory->DumpTo(schedulerJobSpecExt->mutable_aux_node_directory());
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());

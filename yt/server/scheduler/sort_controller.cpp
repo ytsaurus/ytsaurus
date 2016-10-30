@@ -2741,8 +2741,6 @@ private:
                 InitQuerySpec(schedulerJobSpecExt, *Spec->InputQuery, *Spec->InputSchema);
             }
 
-            AuxNodeDirectory->DumpTo(schedulerJobSpecExt->mutable_aux_node_directory());
-
             auto* partitionJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
 
             ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
@@ -2770,7 +2768,6 @@ private:
 
             if (Spec->ReduceCombiner) {
                 IntermediateSortJobSpecTemplate.set_type(static_cast<int>(EJobType::ReduceCombiner));
-                AuxNodeDirectory->DumpTo(schedulerJobSpecExt->mutable_aux_node_directory());
 
                 auto* reduceJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
                 ToProto(reduceJobSpecExt->mutable_key_columns(), Spec->SortBy);
@@ -2792,8 +2789,6 @@ private:
             FinalSortJobSpecTemplate.set_type(static_cast<int>(EJobType::PartitionReduce));
 
             auto* schedulerJobSpecExt = FinalSortJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-            AuxNodeDirectory->DumpTo(schedulerJobSpecExt->mutable_aux_node_directory());
-
             auto* reduceJobSpecExt = FinalSortJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
 
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
@@ -2814,8 +2809,6 @@ private:
             SortedMergeJobSpecTemplate.set_type(static_cast<int>(EJobType::SortedReduce));
 
             auto* schedulerJobSpecExt = SortedMergeJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-            AuxNodeDirectory->DumpTo(schedulerJobSpecExt->mutable_aux_node_directory());
-
             auto* reduceJobSpecExt = SortedMergeJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
 
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
