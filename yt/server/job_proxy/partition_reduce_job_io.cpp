@@ -40,9 +40,9 @@ public:
         const TColumnFilter& columnFilter) override
     {
         YCHECK(nameTable->GetSize() == 0 && columnFilter.All);
-        YCHECK(SchedulerJobSpec_.input_specs_size() == 1);
+        YCHECK(SchedulerJobSpec_.input_table_specs_size() == 1);
 
-        const auto& inputSpec = SchedulerJobSpec_.input_specs(0);
+        const auto& inputSpec = SchedulerJobSpec_.input_table_specs(0);
         std::vector<TChunkSpec> chunks(
             inputSpec.chunks().begin(),
             inputSpec.chunks().end());

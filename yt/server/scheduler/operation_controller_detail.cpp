@@ -750,19 +750,27 @@ void TOperationControllerBase::TTask::AddLocalityHint(TNodeId nodeId)
     Controller->AddTaskLocalityHint(this, nodeId);
 }
 
+std::unique_ptr<TNodeDirectoryBuilder> TOperationControllerBase::TTask::MakeNodeDirectoryBuilder(
+    TSchedulerJobSpecExt* schedulerJobSpec)
+{
+    return Controller->OperationType == EOperationType::RemoteCopy
+        ? std::make_unique<TNodeDirectoryBuilder>(
+            Controller->InputNodeDirectory,
+            schedulerJobSpec->mutable_input_node_directory())
+        : nullptr;
+}
+
 void TOperationControllerBase::TTask::AddSequentialInputSpec(
     TJobSpec* jobSpec,
     TJobletPtr joblet)
 {
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-    TNodeDirectoryBuilder directoryBuilder(
-        Controller->InputNodeDirectory,
-        schedulerJobSpecExt->mutable_input_node_directory());
-    auto* inputSpec = schedulerJobSpecExt->add_input_specs();
+    auto directoryBuilder = MakeNodeDirectoryBuilder(schedulerJobSpecExt);
+    auto* inputSpec = schedulerJobSpecExt->add_input_table_specs();
     inputSpec->set_table_reader_options(ConvertToYsonString(GetTableReaderOptions()).Data());
     const auto& list = joblet->InputStripeList;
     for (const auto& stripe : list->Stripes) {
-        AddChunksToInputSpec(&directoryBuilder, inputSpec, stripe);
+        AddChunksToInputSpec(directoryBuilder.get(), inputSpec, stripe);
     }
     UpdateInputSpecTotals(jobSpec, joblet);
 }
@@ -772,15 +780,14 @@ void TOperationControllerBase::TTask::AddParallelInputSpec(
     TJobletPtr joblet)
 {
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-    TNodeDirectoryBuilder directoryBuilder(
-        Controller->InputNodeDirectory,
-        schedulerJobSpecExt->mutable_input_node_directory());
+    auto directoryBuilder = MakeNodeDirectoryBuilder(schedulerJobSpecExt);
     const auto& list = joblet->InputStripeList;
     for (const auto& stripe : list->Stripes) {
-        auto* inputSpec = stripe->Foreign ? schedulerJobSpecExt->add_foreign_input_specs() :
-            schedulerJobSpecExt->add_input_specs();
+        auto* inputSpec = stripe->Foreign
+            ? schedulerJobSpecExt->add_foreign_input_table_specs()
+            : schedulerJobSpecExt->add_input_table_specs();
         inputSpec->set_table_reader_options(ConvertToYsonString(GetTableReaderOptions()).Data());
-        AddChunksToInputSpec(&directoryBuilder, inputSpec, stripe);
+        AddChunksToInputSpec(directoryBuilder.get(), inputSpec, stripe);
     }
     UpdateInputSpecTotals(jobSpec, joblet);
 }
@@ -793,8 +800,10 @@ void TOperationControllerBase::TTask::AddChunksToInputSpec(
     for (const auto& chunkSlice : stripe->ChunkSlices) {
         auto* chunkSpec = inputSpec->add_chunks();
         ToProto(chunkSpec, chunkSlice);
-        auto replicas = chunkSlice->GetInputChunk()->GetReplicaList();
-        directoryBuilder->Add(replicas);
+        if (directoryBuilder) {
+            auto replicas = chunkSlice->GetInputChunk()->GetReplicaList();
+            directoryBuilder->Add(replicas);
+        }
     }
 }
 
@@ -820,7 +829,7 @@ void TOperationControllerBase::TTask::AddFinalOutputSpecs(
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
     for (int index = 0; index < Controller->OutputTables.size(); ++index) {
         const auto& table = Controller->OutputTables[index];
-        auto* outputSpec = schedulerJobSpecExt->add_output_specs();
+        auto* outputSpec = schedulerJobSpecExt->add_output_table_specs();
         outputSpec->set_table_writer_options(ConvertToYsonString(table.Options).Data());
         ToProto(outputSpec->mutable_table_schema(), table.TableUploadOptions.TableSchema);
         ToProto(outputSpec->mutable_chunk_list_id(), joblet->ChunkListIds[index]);
@@ -834,7 +843,7 @@ void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
 {
     YCHECK(joblet->ChunkListIds.size() == 1);
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-    auto* outputSpec = schedulerJobSpecExt->add_output_specs();
+    auto* outputSpec = schedulerJobSpecExt->add_output_table_specs();
     auto options = New<TTableWriterOptions>();
     options->Account = Controller->Spec->IntermediateDataAccount;
     options->ChunksVital = false;

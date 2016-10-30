@@ -21,10 +21,16 @@
 
 #include <yt/ytlib/security_client/public.h>
 
+#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/node_tracker_client/node_directory_builder.h>
+
 #include <yt/core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/delayed_executor.h>
+
 #include <yt/core/actions/cancelable_context.h>
 
 #include <yt/core/logging/log_manager.h>
+
 #include <yt/core/misc/proc.h>
 
 namespace NYT {
@@ -72,19 +78,13 @@ public:
         : Id_(jobId)
         , OperationId_(operationId)
         , Bootstrap_(bootstrap)
+        , Config_(Bootstrap_->GetConfig()->ExecAgent)
+        , Invoker_(Bootstrap_->GetControlInvoker())
         , ResourceUsage_(resourceUsage)
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
         JobSpec_.Swap(&jobSpec);
-
-        const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        if (schedulerJobSpecExt.has_aux_node_directory()) {
-            AuxNodeDirectory_->MergeFrom(schedulerJobSpecExt.aux_node_directory());
-        }
-
-        Invoker_ = Bootstrap_->GetControlInvoker();
-        InitializeArtifacts();
 
         Logger.AddTag("JobId: %v, OperationId: %v, JobType: %v",
             Id_,
@@ -103,19 +103,22 @@ public:
             return;
         }
 
-        GuardedAction([&] () {
+        GuardedAction([&] {
             JobState_ = EJobState::Running;
             PrepareTime_ = TInstant::Now();
+
+            InitializeArtifacts();
 
             auto slotManager = Bootstrap_->GetExecSlotManager();
             Slot_ = slotManager->AcquireSlot();
 
-            JobPhase_ = EJobPhase::DownloadingArtifacts;
-            auto artifactsFuture = DownloadArtifacts();
-            artifactsFuture.Subscribe(
-                BIND(&TJob::OnArtifactsDownloaded, MakeWeak(this))
-                    .Via(Invoker_));
-            ArtifactsFuture_ = artifactsFuture.As<void>();
+            JobPhase_ = EJobPhase::PreparingNodeDirectory;
+            BIND(&TJob::PrepareNodeDirectory, MakeWeak(this))
+                .AsyncVia(Invoker_)
+                .Run()
+                .Subscribe(
+                    BIND(&TJob::OnNodeDirectoryPrepared, MakeWeak(this))
+                        .Via(Invoker_));
         });
     }
 
@@ -127,6 +130,7 @@ public:
 
         switch (JobPhase_) {
             case EJobPhase::Created:
+            case EJobPhase::PreparingNodeDirectory:
             case EJobPhase::DownloadingArtifacts:
             case EJobPhase::Running:
                 JobState_ = EJobState::Aborting;
@@ -135,7 +139,7 @@ public:
                 Cleanup();
                 break;
 
-            case EJobPhase::PreparingDirectories:
+            case EJobPhase::PreparingSandboxDirectories:
             case EJobPhase::PreparingArtifacts:
             case EJobPhase::PreparingProxy:
                 // Wait for the next event handler to complete the abortion.
@@ -155,7 +159,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
-        GuardedAction([&] () {
+        GuardedAction([&] {
             ValidateJobPhase(EJobPhase::PreparingProxy);
             JobPhase_ = EJobPhase::Running;
         });
@@ -165,7 +169,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
-        GuardedAction([&] () {
+        GuardedAction([&] {
             JobPhase_ = EJobPhase::FinalizingProxy;
             DoSetResult(jobResult);
         });
@@ -174,36 +178,42 @@ public:
     virtual const TJobId& GetId() const override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
+
         return Id_;
     }
 
     virtual const TJobId& GetOperationId() const override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
+
         return OperationId_;
     }
 
     virtual EJobType GetType() const override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
+
         return EJobType(JobSpec_.type());
     }
 
     virtual const TJobSpec& GetSpec() const override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
+
         return JobSpec_;
     }
 
     virtual EJobState GetState() const override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
+
         return JobState_;
     }
 
     virtual TNullable<TDuration> GetPrepareDuration() const override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
+
         if (!PrepareTime_) {
             return Null;
         } else if (!ExecTime_) {
@@ -216,6 +226,7 @@ public:
     virtual TNullable<TDuration> GetDownloadDuration() const override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
+
         if (!PrepareTime_) {
             return Null;
         } else if (!CopyTime_) {
@@ -228,6 +239,7 @@ public:
     virtual TNullable<TDuration> GetExecDuration() const override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
+
         if (!ExecTime_) {
             return Null;
         } else if (!FinishTime_) {
@@ -240,30 +252,35 @@ public:
     virtual EJobPhase GetPhase() const override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
+
         return JobPhase_;
     }
 
     virtual TNodeResources GetResourceUsage() const override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
+
         return ResourceUsage_;
     }
 
     virtual TJobResult GetResult() const override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
+
         return JobResult_.Get();
     }
 
     virtual double GetProgress() const override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
+
         return Progress_;
     }
 
     virtual void SetResourceUsage(const TNodeResources& newUsage) override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
+
         if (JobPhase_ == EJobPhase::Running) {
             auto delta = newUsage - ResourceUsage_;
             ResourceUsage_ = newUsage;
@@ -274,6 +291,7 @@ public:
     virtual void SetProgress(double progress) override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
+
         if (JobPhase_ == EJobPhase::Running) {
             Progress_ = progress;
         }
@@ -282,24 +300,28 @@ public:
     virtual TNullable<TYsonString> GetStatistics() const override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
+
         return Statistics_;
     }
 
     virtual TInstant GetStatisticsLastSendTime() const override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
+
         return StatisticsLastSendTime_;
     }
 
     virtual void ResetStatisticsLastSendTime() override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
+
         StatisticsLastSendTime_ = TInstant::Now();
     }
 
     virtual void SetStatistics(const TYsonString& statistics) override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
+
         if (JobPhase_ == EJobPhase::Running || JobPhase_ == EJobPhase::FinalizingProxy) {
             Statistics_ = statistics;
         }
@@ -308,7 +330,6 @@ public:
     virtual std::vector<TChunkId> DumpInputContext() override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
-
         ValidateJobRunning();
 
         auto proxy = Slot_->GetJobProberProxy();
@@ -358,6 +379,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
         ValidateJobRunning();
+
         auto proxy = Slot_->GetJobProberProxy();
 
         Signaled_ = true;
@@ -415,7 +437,9 @@ private:
     const TOperationId OperationId_;
     NCellNode::TBootstrap* const Bootstrap_;
 
-    IInvokerPtr Invoker_;
+    const TExecAgentConfigPtr Config_;
+    const IInvokerPtr Invoker_;
+
     TJobSpec JobSpec_;
 
     // Used to terminate artifacts downloading in case of cancelation.
@@ -523,12 +547,28 @@ private:
     }
 
     // Event handlers.
+    void OnNodeDirectoryPrepared(const TError& error)
+    {
+        GuardedAction([&] {
+            ValidateJobPhase(EJobPhase::PreparingNodeDirectory);
+            THROW_ERROR_EXCEPTION_IF_FAILED(error,
+                NExecAgent::EErrorCode::NodeDirectoryPreparationFailed,
+                "Failed to prepare job node directory");
+
+            JobPhase_ = EJobPhase::DownloadingArtifacts;
+            auto artifactsFuture = DownloadArtifacts();
+            artifactsFuture.Subscribe(
+                BIND(&TJob::OnArtifactsDownloaded, MakeWeak(this))
+                    .Via(Invoker_));
+            ArtifactsFuture_ = artifactsFuture.As<void>();
+        });
+    }
 
     void OnArtifactsDownloaded(const TErrorOr<std::vector<NDataNode::IChunkPtr>>& errorOrArtifacts)
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
-        GuardedAction([&] () {
+        GuardedAction([&] {
             ValidateJobPhase(EJobPhase::DownloadingArtifacts);
             THROW_ERROR_EXCEPTION_IF_FAILED(errorOrArtifacts, "Failed to download artifacts");
             const auto& chunks = errorOrArtifacts.Value();
@@ -538,14 +578,15 @@ private:
             }
 
             CopyTime_ = TInstant::Now();
-            JobPhase_ = EJobPhase::PreparingDirectories;
-            BIND(&TJob::PrepareDirectories, MakeStrong(this))
+            JobPhase_ = EJobPhase::PreparingSandboxDirectories;
+            BIND(&TJob::PrepareSandboxDirectories, MakeStrong(this))
                 .AsyncVia(Invoker_)
                 .Run()
-                .Subscribe(BIND(
-                    &TJob::OnDirectoriesPrepared,
-                    MakeWeak(this))
-                .Via(Invoker_));
+                .Subscribe(
+                    BIND(
+                        &TJob::OnDirectoriesPrepared,
+                        MakeWeak(this))
+                        .Via(Invoker_));
         });
     }
 
@@ -553,8 +594,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
-        GuardedAction([&] () {
-            ValidateJobPhase(EJobPhase::PreparingDirectories);
+        GuardedAction([&] {
+            ValidateJobPhase(EJobPhase::PreparingSandboxDirectories);
             THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to prepare sandbox directories");
 
             JobPhase_ = EJobPhase::PreparingArtifacts;
@@ -572,7 +613,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
-        GuardedAction([&] () {
+        GuardedAction([&] {
             ValidateJobPhase(EJobPhase::PreparingArtifacts);
             THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to prepare artifacts");
 
@@ -690,10 +731,87 @@ private:
     }
 
     // Preparation.
+    void PrepareNodeDirectory()
+    {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+
+        auto* schedulerJobSpecExt = JobSpec_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+
+        if (schedulerJobSpecExt->has_aux_node_directory()) {
+            AuxNodeDirectory_->MergeFrom(schedulerJobSpecExt->aux_node_directory());
+        }
+
+        if (schedulerJobSpecExt->has_input_node_directory()) {
+            LOG_INFO("Node directory is provided by scheduler");
+            return;
+        }
+
+        const auto& nodeDirectory = Bootstrap_->GetNodeDirectory();
+        TNodeDirectoryBuilder nodeDirectoryBuilder(
+            nodeDirectory,
+            schedulerJobSpecExt->mutable_input_node_directory());
+
+        for (int attempt = 1;; ++attempt) {
+            if (JobPhase_ != EJobPhase::PreparingNodeDirectory) {
+                break;
+            }
+
+            auto maybeUnresolvedNodeId = TryBuildNodeDirectory(
+                *schedulerJobSpecExt,
+                nodeDirectory,
+                &nodeDirectoryBuilder);
+            if (!maybeUnresolvedNodeId) {
+                break;
+            }
+
+            if (attempt >= Config_->NodeDirectoryPrepareRetryCount) {
+                THROW_ERROR_EXCEPTION("Unresolved node id %v in job spec",
+                    *maybeUnresolvedNodeId);
+            }
+
+            LOG_INFO("Unresolved node id found in job spec; backing off and retrying (NodeId: %v, Attempt: %v)",
+                *maybeUnresolvedNodeId,
+                attempt);
+            WaitFor(TDelayedExecutor::MakeDelayed(Config_->NodeDirectoryPrepareBackoffTime));
+        }
+
+        LOG_INFO("Node directory is constructed by Exec Agent");
+    }
+
+    TNullable<TNodeId> TryBuildNodeDirectory(
+        const TSchedulerJobSpecExt& schedulerJobSpecExt,
+        const TNodeDirectoryPtr& nodeDirectory,
+        TNodeDirectoryBuilder* nodeDirectoryBuilder)
+    {
+        TNullable<TNodeId> result;
+
+        auto processSpecs = [&] (const ::google::protobuf::RepeatedPtrField<TTableInputSpec>& tableSpecs) {
+            for (const auto& tableSpec : tableSpecs) {
+                for (const auto& chunkSpec : tableSpec.chunks()) {
+                    auto replicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
+                    for (auto replica : replicas) {
+                        auto nodeId = replica.GetNodeId();
+                        const auto* descriptor = nodeDirectory->FindDescriptor(nodeId);
+                        if (!descriptor) {
+                            result = nodeId;
+                            return;
+                        }
+                        nodeDirectoryBuilder->Add(replica);
+                    }
+                }
+            }
+        };
+
+        processSpecs(schedulerJobSpecExt.input_table_specs());
+        processSpecs(schedulerJobSpecExt.foreign_input_table_specs());
+
+        return result;
+    }
 
     TJobProxyConfigPtr CreateConfig()
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
+
         INodePtr ioConfigNode;
         try {
             const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
@@ -720,7 +838,7 @@ private:
         return proxyConfig;
     }
 
-    void PrepareDirectories()
+    void PrepareSandboxDirectories()
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
@@ -903,6 +1021,7 @@ private:
             resultError.FindMatching(NExecAgent::EErrorCode::AllLocationsDisabled) ||
             resultError.FindMatching(NExecAgent::EErrorCode::JobEnvironmentDisabled) ||
             resultError.FindMatching(NExecAgent::EErrorCode::ArtifactCopyingFailed) ||
+            resultError.FindMatching(NExecAgent::EErrorCode::NodeDirectoryPreparationFailed) ||
             resultError.FindMatching(NJobProxy::EErrorCode::MemoryCheckFailed))
         {
             return EAbortReason::Other;

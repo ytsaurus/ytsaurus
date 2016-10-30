@@ -131,16 +131,18 @@ message TSchedulerJobSpecExt
     required NYT.NProto.TGuid output_transaction_id = 2;
 
     // Job input.
-    repeated TTableInputSpec input_specs = 3;
-    repeated TTableInputSpec foreign_input_specs = 15;
+    repeated TTableInputSpec input_table_specs = 3;
+    repeated TTableInputSpec foreign_input_table_specs = 15;
 
     // Job output.
-    repeated TTableOutputSpec output_specs = 4;
+    repeated TTableOutputSpec output_table_specs = 4;
 
     // Maps node ids to descriptors for input chunks.
     // These nodes may either belong to the local cluster (for most types of jobs)
     // or to a remote one (for remote copy jobs).
-    required NNodeTrackerClient.NProto.TNodeDirectory input_node_directory = 5;
+    // For remote copy jobs, this directory is provided by the scheduler.
+    // For other types of jobs, this directory is provided by Exec Agent at the cluster node.
+    optional NNodeTrackerClient.NProto.TNodeDirectory input_node_directory = 5;
 
     // Maps node ids to descriptors for chunks comprising user files, UDFs etc.
     // These nodes always belong to the local cluster.

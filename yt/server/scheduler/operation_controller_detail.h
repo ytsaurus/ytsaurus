@@ -549,6 +549,8 @@ protected:
 
         void ReinstallJob(TJobletPtr joblet, EJobReinstallReason reason);
 
+        std::unique_ptr<NNodeTrackerClient::TNodeDirectoryBuilder> MakeNodeDirectoryBuilder(
+            NScheduler::NProto::TSchedulerJobSpecExt* schedulerJobSpec);
         void AddSequentialInputSpec(
             NJobTrackerClient::NProto::TJobSpec* jobSpec,
             TJobletPtr joblet);

@@ -47,8 +47,8 @@ public:
 
         TotalRowCount_ = SchedulerJobSpecExt_.input_row_count();
 
-        YCHECK(SchedulerJobSpecExt_.input_specs_size() == 1);
-        const auto& inputSpec = SchedulerJobSpecExt_.input_specs(0);
+        YCHECK(SchedulerJobSpecExt_.input_table_specs_size() == 1);
+        const auto& inputSpec = SchedulerJobSpecExt_.input_table_specs(0);
         std::vector<TChunkSpec> chunkSpecs(inputSpec.chunks().begin(), inputSpec.chunks().end());
 
         Reader_ = CreateSchemalessPartitionSortReader(
@@ -64,9 +64,9 @@ public:
             SchedulerJobSpecExt_.is_approximate(),
             SortJobSpecExt_.partition_tag());
 
-        YCHECK(SchedulerJobSpecExt_.output_specs_size() == 1);
+        YCHECK(SchedulerJobSpecExt_.output_table_specs_size() == 1);
 
-        const auto& outputSpec = SchedulerJobSpecExt_.output_specs(0);
+        const auto& outputSpec = SchedulerJobSpecExt_.output_table_specs(0);
         auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));

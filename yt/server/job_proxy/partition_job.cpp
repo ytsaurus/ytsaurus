@@ -39,8 +39,8 @@ public:
     {
         auto config = Host_->GetConfig();
 
-        YCHECK(SchedulerJobSpecExt_.input_specs_size() == 1);
-        const auto& inputSpec = SchedulerJobSpecExt_.input_specs(0);
+        YCHECK(SchedulerJobSpecExt_.input_table_specs_size() == 1);
+        const auto& inputSpec = SchedulerJobSpecExt_.input_table_specs(0);
 
         std::vector<TChunkSpec> chunkSpecs(inputSpec.chunks().begin(), inputSpec.chunks().end());
         auto readerOptions = ConvertTo<NTableClient::TTableReaderOptionsPtr>(TYsonString(inputSpec.table_reader_options()));
@@ -69,8 +69,8 @@ public:
             return Reader_;
         };
 
-        YCHECK(SchedulerJobSpecExt_.output_specs_size() == 1);
-        const auto& outputSpec = SchedulerJobSpecExt_.output_specs(0);
+        YCHECK(SchedulerJobSpecExt_.output_table_specs_size() == 1);
+        const auto& outputSpec = SchedulerJobSpecExt_.output_table_specs(0);
 
         auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());

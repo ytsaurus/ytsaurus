@@ -38,15 +38,15 @@ public:
     {
         auto config = Host_->GetConfig();
 
-        YCHECK(SchedulerJobSpecExt_.output_specs_size() == 1);
-        const auto& outputSpec = SchedulerJobSpecExt_.output_specs(0);
+        YCHECK(SchedulerJobSpecExt_.output_table_specs_size() == 1);
+        const auto& outputSpec = SchedulerJobSpecExt_.output_table_specs(0);
 
         auto keyColumns = FromProto<TKeyColumns>(MergeJobSpecExt_.key_columns());
 
         auto nameTable = TNameTable::FromKeyColumns(keyColumns);
         std::vector<ISchemalessMultiChunkReaderPtr> readers;
 
-        for (const auto& inputSpec : SchedulerJobSpecExt_.input_specs()) {
+        for (const auto& inputSpec : SchedulerJobSpecExt_.input_table_specs()) {
             std::vector<TChunkSpec> chunkSpecs(inputSpec.chunks().begin(), inputSpec.chunks().end());
             auto readerOptions = ConvertTo<NTableClient::TTableReaderOptionsPtr>(TYsonString(inputSpec.table_reader_options()));
 
