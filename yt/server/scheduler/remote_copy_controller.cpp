@@ -212,25 +212,7 @@ private:
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller_->JobSpecTemplate_);
-
-            auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-            NNodeTrackerClient::TNodeDirectoryBuilder directoryBuilder(
-                Controller_->InputNodeDirectory,
-                schedulerJobSpecExt->mutable_input_node_directory());
-
-            auto* inputSpec = schedulerJobSpecExt->add_input_specs();
-            inputSpec->set_table_reader_options(ConvertToYsonString(GetTableReaderOptions()).Data());
-            auto list = joblet->InputStripeList;
-            for (const auto& stripe : list->Stripes) {
-                for (const auto& chunkSlice : stripe->ChunkSlices) {
-                    auto* chunkSpec = inputSpec->add_chunks();
-                    ToProto(chunkSpec, chunkSlice);
-                    auto replicas = chunkSlice->GetInputChunk()->GetReplicaList();
-                    directoryBuilder.Add(replicas);
-                }
-            }
-            UpdateInputSpecTotals(jobSpec, joblet);
-
+            AddSequentialInputSpec(jobSpec, joblet);
             AddFinalOutputSpecs(jobSpec, joblet);
         }
 

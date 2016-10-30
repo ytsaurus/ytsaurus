@@ -37,7 +37,7 @@ public:
         : TSimpleJobBase(host)
         , UseParallelReader_(userParallelReader)
     {
-        YCHECK(SchedulerJobSpecExt_.output_specs_size() == 1);
+        YCHECK(SchedulerJobSpecExt_.output_table_specs_size() == 1);
     }
 
     virtual void Initialize() override
@@ -55,7 +55,7 @@ public:
 
         std::vector<TChunkSpec> chunkSpecs;
         auto readerOptions = New<NTableClient::TTableReaderOptions>();
-        for (const auto& inputSpec : SchedulerJobSpecExt_.input_specs()) {
+        for (const auto& inputSpec : SchedulerJobSpecExt_.input_table_specs()) {
             readerOptions = ConvertTo<NTableClient::TTableReaderOptionsPtr>(TYsonString(inputSpec.table_reader_options()));
             for (const auto& chunkSpec : inputSpec.chunks()) {
                 chunkSpecs.push_back(chunkSpec);
@@ -91,7 +91,7 @@ public:
         };
 
         auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
-        const auto& outputSpec = SchedulerJobSpecExt_.output_specs(0);
+        const auto& outputSpec = SchedulerJobSpecExt_.output_table_specs(0);
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
         auto schema = FromProto<TTableSchema>(outputSpec.table_schema());
