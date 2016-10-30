@@ -311,6 +311,8 @@ protected:
         std::vector<NChunkClient::NProto::TChunkSpec> ChunkSpecs;
         bool Executable = false;
         NYson::TYsonString Format;
+        NTableClient::TTableSchema Schema;
+        bool IsDynamic = false;
 
         void Persist(const TPersistenceContext& context);
     };
