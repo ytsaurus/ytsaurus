@@ -49,7 +49,7 @@ if [ "$PYTHON_VERSION" != "${PYTHON_VERSION/2.7/}" ]; then
             continue
         fi
         rm -rf build dist
-        pyinstaller/pyinstaller.py --noconfirm --onefile yt/wrapper/$name
+        pyinstaller/pyinstaller.py --noconfirm --onefile yt/wrapper/bin/$name
         pyinstaller/pyinstaller.py --noconfirm "${name}.spec"
         cat dist/$name | $YT upload "$DEST/${name}_${VERSION}_${UBUNTU_VERSION}"
         make_link "$DEST/${name}_${VERSION}_${UBUNTU_VERSION}" "$DEST/${name}_${UBUNTU_VERSION}"

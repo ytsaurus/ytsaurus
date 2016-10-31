@@ -10,5 +10,6 @@ _yt_argcomplete() {
     fi
 }
 
+complete -o nospace -F _yt_argcomplete "yt3"
 complete -o nospace -F _yt_argcomplete "yt2"
 complete -o nospace -F _yt_argcomplete "yt"
