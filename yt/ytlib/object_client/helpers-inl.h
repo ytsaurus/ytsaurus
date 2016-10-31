@@ -31,6 +31,7 @@ inline bool IsVersionedType(EObjectType type)
         type == EObjectType::Journal ||
         type == EObjectType::ChunkMap ||
         type == EObjectType::LostChunkMap ||
+        type == EObjectType::PrecariousChunkMap ||
         type == EObjectType::OverreplicatedChunkMap ||
         type == EObjectType::UnderreplicatedChunkMap ||
         type == EObjectType::DataMissingChunkMap ||
@@ -40,12 +41,14 @@ inline bool IsVersionedType(EObjectType type)
         type == EObjectType::ForeignChunkMap ||
         type == EObjectType::RackMap ||
         type == EObjectType::ChunkListMap ||
+        type == EObjectType::MediumMap ||
         type == EObjectType::TransactionMap ||
         type == EObjectType::TopmostTransactionMap ||
         type == EObjectType::ClusterNodeNode ||
         type == EObjectType::ClusterNodeMap ||
         type == EObjectType::Orchid ||
         type == EObjectType::LostVitalChunkMap ||
+        type == EObjectType::PrecariousVitalChunkMap ||
         type == EObjectType::AccountMap ||
         type == EObjectType::UserMap ||
         type == EObjectType::GroupMap ||

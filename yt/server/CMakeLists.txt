@@ -32,6 +32,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_owner_base.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_owner_node_proxy.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_placement.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_properties.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_proxy.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_replica.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_replicator.cpp
@@ -42,10 +43,13 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_tree_statistics.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_tree_traversing.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/cypress_integration.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_server/medium.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_server/medium_proxy.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/job.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/job_tracker_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_server/public.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/cypress_server/access_tracker.cpp
   ${CMAKE_CURRENT_LIST_DIR}/cypress_server/cypress_integration.cpp

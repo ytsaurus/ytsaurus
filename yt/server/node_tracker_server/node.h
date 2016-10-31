@@ -17,10 +17,13 @@
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 #include <yt/ytlib/node_tracker_client/node_tracker_service.pb.h>
+#include <yt/ytlib/node_tracker_client/node_statistics.h>
 
 #include <yt/core/misc/nullable.h>
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref_tracked.h>
+
+#include <array>
 
 namespace NYT {
 namespace NNodeTrackerServer {
@@ -46,14 +49,19 @@ class TNode
 {
 public:
     // Import third-party types into the scope.
+    typedef NChunkServer::TChunkPtrWithIndexes TChunkPtrWithIndexes;
     typedef NChunkServer::TChunkPtrWithIndex TChunkPtrWithIndex;
     typedef NChunkServer::TChunkId TChunkId;
     typedef NChunkServer::TChunk TChunk;
     typedef NChunkServer::TJobPtr TJobPtr;
+    template <typename T>
+    using TPerMediumArray = NChunkServer::TPerMediumArray<T>;
+    using TMediumIndexSet = std::bitset<NChunkClient::MaxMediumCount>;
 
     // Transient properties.
     DEFINE_BYVAL_RW_PROPERTY(ui64, VisitMark);
-    DEFINE_BYVAL_RW_PROPERTY(double, IOWeight);
+    DEFINE_BYREF_RW_PROPERTY(NChunkServer::TPerMediumArray<double>, IOWeights);
+    double GetIOWeight(int mediumIndex) const;
 
     using TMulticellStates = yhash_map<NObjectClient::TCellTag, ENodeState>;
     DEFINE_BYREF_RO_PROPERTY(TMulticellStates, MulticellStates);
@@ -83,30 +91,43 @@ public:
     // Chunk Manager stuff.
     DEFINE_BYVAL_RO_PROPERTY(bool, Banned);
     DEFINE_BYVAL_RO_PROPERTY(bool, Decommissioned);
-    DEFINE_BYVAL_RO_PROPERTY(bool, DisableWriteSessions);
 
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<NChunkServer::TFillFactorToNodeIterator>, FillFactorIterator);
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<NChunkServer::TLoadFactorToNodeIterator>, LoadFactorIterator);
+    using TFillFactorIterator = TNullable<NChunkServer::TFillFactorToNodeIterator>;
+    using TFillFactorIterators = TPerMediumArray<TFillFactorIterator>;
+
+    using TLoadFactorIterator = TNullable<NChunkServer::TLoadFactorToNodeIterator>;
+    using TLoadFactorIterators = TPerMediumArray<TLoadFactorIterator>;
+
+    DEFINE_BYREF_RW_PROPERTY(TFillFactorIterators, FillFactorIterators);
+    DEFINE_BYREF_RW_PROPERTY(TLoadFactorIterators, LoadFactorIterators);
+    TFillFactorIterator GetFillFactorIterator(int mediumIndex);
+    void SetFillFactorIterator(int mediumIndex, TFillFactorIterator iter);
+    TLoadFactorIterator GetLoadFactorIterator(int mediumIndex);
+    void SetLoadFactorIterator(int mediumIndex, TLoadFactorIterator iter);
+
+    DEFINE_BYVAL_RO_PROPERTY(bool, DisableWriteSessions);
 
     // Used for graceful restart.
     DEFINE_BYVAL_RW_PROPERTY(bool, DisableSchedulerJobs);
 
     // NB: Randomize replica hashing to avoid collisions during balancing.
-    using TReplicaSet = yhash_set<TChunkPtrWithIndex>;
+    // NB: There's no need to store medium indexes in these per-medium containers.
+    using TMediumReplicaSet = yhash_set<TChunkPtrWithIndexes>;
+    using TReplicaSet = TPerMediumArray<TMediumReplicaSet>;
     DEFINE_BYREF_RO_PROPERTY(TReplicaSet, StoredReplicas);
     DEFINE_BYREF_RO_PROPERTY(TReplicaSet, CachedReplicas);
-    
+
     //! Maps replicas to the leader timestamp when this replica was registered by a client.
     typedef yhash_map<TChunkPtrWithIndex, TInstant> TUnapprovedReplicaMap;
     DEFINE_BYREF_RW_PROPERTY(TUnapprovedReplicaMap, UnapprovedReplicas);
 
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);
 
-    //! Indexed by priority.
-    typedef std::vector<yhash_set<NChunkServer::TChunkPtrWithIndex>> TChunkReplicationQueues;
+    //! Indexed by priority. Each queue maps (chunk ptr, replica) pair to a set of destination media.
+    using TChunkReplicationQueues = std::vector<yhash_map<TChunkPtrWithIndex, TMediumIndexSet>>;
     DEFINE_BYREF_RW_PROPERTY(TChunkReplicationQueues, ChunkReplicationQueues);
 
-    typedef yhash_set<NChunkClient::TChunkIdWithIndex> TChunkRemovalQueue;
+    using TChunkRemovalQueue = yhash_map<NChunkClient::TChunkIdWithIndex, TMediumIndexSet>;
     DEFINE_BYREF_RW_PROPERTY(TChunkRemovalQueue, ChunkRemovalQueue);
 
     typedef yhash_set<TChunk*> TChunkSealQueue;
@@ -156,24 +177,25 @@ public:
     void Load(NCellMaster::TLoadContext& context);
 
     // Chunk Manager stuff.
-    void ReserveStoredReplicas(int sizeHint);
-    void ReserveCachedReplicas(int sizeHint);
-    bool AddReplica(TChunkPtrWithIndex replica, bool cached);
+    void ReserveReplicas(int mediumIndex, int sizeHint, bool cache);
+    bool AddReplica(TChunkPtrWithIndexes replica, bool cached);
     //! Returns |true| if this was an approved non-cached replica.
-    bool RemoveReplica(TChunkPtrWithIndex replica, bool cached);
-    bool HasReplica(TChunkPtrWithIndex, bool cached) const;
-    TChunkPtrWithIndex PickRandomReplica();
+    bool RemoveReplica(TChunkPtrWithIndexes replica, bool cached);
+    bool HasReplica(TChunkPtrWithIndexes, bool cached) const;
+    TChunkPtrWithIndexes PickRandomReplica(int mediumIndex);
     void ClearReplicas();
 
     void AddUnapprovedReplica(TChunkPtrWithIndex replica, TInstant timestamp);
     bool HasUnapprovedReplica(TChunkPtrWithIndex replica) const;
     void ApproveReplica(TChunkPtrWithIndex replica);
 
-    void AddToChunkRemovalQueue(const NChunkClient::TChunkIdWithIndex& replica);
-    void RemoveFromChunkRemovalQueue(const NChunkClient::TChunkIdWithIndex& replica);
+    void AddToChunkRemovalQueue(const NChunkClient::TChunkIdWithIndexes& replica);
+    // Handles the case when #replica.GetMediumIndex() == AllMediaIndex correctly.
+    void RemoveFromChunkRemovalQueue(const NChunkClient::TChunkIdWithIndexes& replica);
 
-    void AddToChunkReplicationQueue(TChunkPtrWithIndex replica, int priority);
-    void RemoveFromChunkReplicationQueues(TChunkPtrWithIndex replica);
+    void AddToChunkReplicationQueue(TChunkPtrWithIndexes replica, int priority);
+    // Handles the case when #replica.GetMediumIndex() == AllMediaIndex correctly.
+    void RemoveFromChunkReplicationQueues(TChunkPtrWithIndexes replica);
 
     void AddToChunkSealQueue(TChunk* chunk);
     void RemoveFromChunkSealQueue(TChunk* chunk);
@@ -187,9 +209,11 @@ public:
 
     int GetTotalTabletSlots() const;
 
-    double GetFillFactor() const;
-    double GetLoadFactor() const;
-    bool IsFull() const;
+    //! Returns null if there's no storage of specified medium on this node.
+    TNullable<double> GetFillFactor(int mediumIndex) const;
+    //! Returns null if there's no storage of specified medium on this node.
+    TNullable<double> GetLoadFactor(int mediumIndex) const;
+    bool IsFull(int mediumIndex) const;
 
     TTabletSlot* FindTabletSlot(const NTabletServer::TTabletCell* cell);
     TTabletSlot* GetTabletSlot(const NTabletServer::TTabletCell* cell);
@@ -212,23 +236,24 @@ private:
     int HintedReplicationSessionCount_;
     int HintedRepairSessionCount_;
 
-    TReplicaSet::iterator RandomReplicaIt_;
+    TPerMediumArray<TMediumReplicaSet::iterator> RandomReplicaIters_;
 
     ENodeState* LocalStatePtr_;
     ENodeState AggregatedState_;
 
     void RecomputeAggregatedState();
 
+    static TChunkPtrWithIndex ToGeneric(TChunkPtrWithIndexes replica);
     static TChunkPtrWithIndex ToGeneric(TChunkPtrWithIndex replica);
-    static NChunkClient::TChunkIdWithIndex ToGeneric(const NChunkClient::TChunkIdWithIndex& replica);
+    static NChunkClient::TChunkIdWithIndex ToGeneric(const NChunkClient::TChunkIdWithIndexes& replica);
 
-    bool AddStoredReplica(TChunkPtrWithIndex replica);
-    bool RemoveStoredReplica(TChunkPtrWithIndex replica);
-    bool ContainsStoredReplica(TChunkPtrWithIndex replica) const;
+    bool AddStoredReplica(TChunkPtrWithIndexes replica);
+    bool RemoveStoredReplica(TChunkPtrWithIndexes replica);
+    bool ContainsStoredReplica(TChunkPtrWithIndexes replica) const;
 
-    bool AddCachedReplica(TChunkPtrWithIndex replica);
-    bool RemoveCachedReplica(TChunkPtrWithIndex replica);
-    bool ContainsCachedReplica(TChunkPtrWithIndex replica) const;
+    bool AddCachedReplica(TChunkPtrWithIndexes replica);
+    bool RemoveCachedReplica(TChunkPtrWithIndexes replica);
+    bool ContainsCachedReplica(TChunkPtrWithIndexes replica) const;
 
     // Private accessors for TNodeTracker.
     friend class TNodeTracker;

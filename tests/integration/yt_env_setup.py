@@ -121,6 +121,10 @@ class YTEnvSetup(object):
         pass
 
     @classmethod
+    def on_masters_started(cls):
+        pass
+
+    @classmethod
     def setup_class(cls, test_name=None):
         logging.basicConfig(level=logging.INFO)
 
@@ -148,16 +152,18 @@ class YTEnvSetup(object):
             port_locks_path=os.path.join(SANDBOX_ROOTDIR, "ports"),
             fqdn="localhost",
             modify_configs_func=cls.apply_config_patches)
-        cls.Env.start(start_secondary_master_cells=cls.START_SECONDARY_MASTER_CELLS)
 
-        yt_commands.path_to_run_tests = cls.path_to_run
-
+        # Init driver before starting the cluster. Some hooks use the driver during starting up (e.g. on_masters_started()).
         if cls.Env.configs["driver"]:
             secondary_driver_configs = [cls.Env.configs["driver_secondary_{0}".format(i)]
                                         for i in xrange(cls.NUM_SECONDARY_MASTER_CELLS)]
             yt_commands.init_driver(cls.Env.configs["driver"], secondary_driver_configs)
             yt_commands.is_multicell = (cls.NUM_SECONDARY_MASTER_CELLS > 0)
             yt_driver_bindings.configure_logging(cls.Env.driver_logging_config)
+
+        cls.Env.start(start_secondary_master_cells=cls.START_SECONDARY_MASTER_CELLS, on_masters_started_func=cls.on_masters_started)
+
+        yt_commands.path_to_run_tests = cls.path_to_run
 
         # To avoid strange hangups.
         if cls.NUM_MASTERS > 0:

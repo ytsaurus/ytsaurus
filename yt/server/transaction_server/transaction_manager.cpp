@@ -243,6 +243,7 @@ private:
     virtual TFuture<TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override
     {
         const auto* transaction = GetThisImpl();
+        auto chunkManager = Bootstrap_->GetChunkManager();
 
         if (key == "last_ping_time") {
             RequireLeader();
@@ -255,18 +256,18 @@ private:
         }
 
         if (key == "resource_usage") {
-            return GetAggregatedResourceUsageMap().Apply(BIND([] (const TAccountResourcesMap& usageMap) {
+            return GetAggregatedResourceUsageMap().Apply(BIND([=] (const TAccountResourcesMap& usageMap) {
                 return BuildYsonStringFluently()
                     .DoMapFor(usageMap, [=] (TFluentMap fluent, const TAccountResourcesMap::value_type& nameAndUsage) {
                         fluent
                             .Item(nameAndUsage.first)
-                            .Value(nameAndUsage.second);
+                            .Value(New<TSerializableClusterResources>(chunkManager, nameAndUsage.second));
                     });
-            }));
+            }).AsyncVia(GetCurrentInvoker()));
         }
 
         if (key == "multicell_resource_usage") {
-            return GetMulticellResourceUsageMap().Apply(BIND([] (const TMulticellAccountResourcesMap& multicellUsageMap) {
+            return GetMulticellResourceUsageMap().Apply(BIND([=] (const TMulticellAccountResourcesMap& multicellUsageMap) {
                 return BuildYsonStringFluently()
                     .DoMapFor(multicellUsageMap, [=] (TFluentMap fluent, const TMulticellAccountResourcesMap::value_type& cellTagAndUsageMap) {
                         fluent
@@ -274,10 +275,10 @@ private:
                             .DoMapFor(cellTagAndUsageMap.second, [=] (TFluentMap fluent, const TAccountResourcesMap::value_type& nameAndUsage) {
                                 fluent
                                     .Item(nameAndUsage.first)
-                                    .Value(nameAndUsage.second);
+                                    .Value(New<TSerializableClusterResources>(chunkManager, nameAndUsage.second));
                             });
                     });
-            }));
+            }).AsyncVia(GetCurrentInvoker()));
         }
 
         return Null;
@@ -332,6 +333,7 @@ private:
 
     TFuture<std::pair<TCellTag, TAccountResourcesMap>> GetRemoteResourcesMap(TCellTag cellTag)
     {
+        auto chunkManager = Bootstrap_->GetChunkManager();
         auto multicellManager = Bootstrap_->GetMulticellManager();
         auto channel = multicellManager->GetMasterChannelOrThrow(
             cellTag,
@@ -350,10 +352,25 @@ private:
                 id,
                 cellTag);
             const auto& rsp = rspOrError.Value();
+
             return std::make_pair(
                 cellTag,
-                ConvertTo<TAccountResourcesMap>(TYsonString(rsp->value())));
-        }));
+                DeserializeAccountResourcesMap(TYsonString(rsp->value()), chunkManager));
+        }).AsyncVia(GetCurrentInvoker()));
+    }
+
+    static TAccountResourcesMap DeserializeAccountResourcesMap(const TYsonString& value, const NChunkServer::TChunkManagerPtr& chunkManager)
+    {
+        using TSerializableAccountResourcesMap = yhash<Stroka, TSerializableClusterResourcesPtr>;
+
+        auto serializableAccountResources = ConvertTo<TSerializableAccountResourcesMap>(value);
+
+        TAccountResourcesMap result;
+        for (const auto& pair : serializableAccountResources) {
+            result.insert(std::make_pair(pair.first, pair.second->ToClusterResources(chunkManager)));
+        }
+
+        return result;
     }
 };
 

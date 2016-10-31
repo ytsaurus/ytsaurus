@@ -10,22 +10,23 @@
 namespace NYT {
 namespace NSecurityServer {
 
-using namespace NYTree;
 using namespace NYson;
+
+using NChunkClient::MaxMediumCount;
+using NChunkServer::DefaultMediumIndex;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TClusterResources::TClusterResources()
-    : DiskSpace(0)
+    : DiskSpace{}
     , NodeCount(0)
     , ChunkCount(0)
 { }
 
 TClusterResources::TClusterResources(
-    i64 diskSpace,
     int nodeCount,
     int chunkCount)
-    : DiskSpace(diskSpace)
+    : DiskSpace{}
     , NodeCount(nodeCount)
     , ChunkCount(chunkCount)
 { }
@@ -50,57 +51,91 @@ void TClusterResources::Load(NCellMaster::TLoadContext& context)
 
 void ToProto(NProto::TClusterResources* protoResources, const TClusterResources& resources)
 {
-    protoResources->set_disk_space(resources.DiskSpace);
     protoResources->set_chunk_count(resources.ChunkCount);
     protoResources->set_node_count(resources.NodeCount);
+
+    for (int i = 0; i < MaxMediumCount; ++i) {
+        i64 diskSpace = resources.DiskSpace[i];
+        if (diskSpace != 0) {
+            auto* protoDiskSpace = protoResources->add_disk_space_per_medium();
+            protoDiskSpace->set_medium_index(i);
+            protoDiskSpace->set_disk_space(diskSpace);
+        }
+    }
 }
 
 void FromProto(TClusterResources* resources, const NProto::TClusterResources& protoResources)
 {
-    resources->DiskSpace = protoResources.disk_space();
     resources->ChunkCount = protoResources.chunk_count();
     resources->NodeCount = protoResources.node_count();
+
+    std::fill_n(resources->DiskSpace, MaxMediumCount, 0);
+    for (const auto& spaceStats : protoResources.disk_space_per_medium()) {
+        resources->DiskSpace[spaceStats.medium_index()] = spaceStats.disk_space();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A serialization-enabling wrapper around TClusterResources.
-struct TSerializableClusterAttributes
-    : public TClusterResources
-    , public TYsonSerializableLite
+TSerializableClusterResources::TSerializableClusterResources()
 {
-    TSerializableClusterAttributes()
-    {
-        RegisterParameter("disk_space", DiskSpace)
-            .GreaterThanOrEqual(0);
-        RegisterParameter("node_count", NodeCount)
-            .GreaterThanOrEqual(0);
-        RegisterParameter("chunk_count", ChunkCount)
-            .GreaterThanOrEqual(0);
+    RegisterParameter("node_count", NodeCount_)
+        .GreaterThanOrEqual(0);
+    RegisterParameter("chunk_count", ChunkCount_)
+        .GreaterThanOrEqual(0);
+    RegisterParameter("disk_space_per_medium", DiskSpacePerMedium_);
+
+    RegisterValidator([this] {
+            for (const auto& pair : DiskSpacePerMedium_) {
+                ValidateDiskSpaceOrThrow(pair.second);
+            }
+        });
+}
+
+TSerializableClusterResources::TSerializableClusterResources(const NChunkServer::TChunkManagerPtr& chunkManager, const TClusterResources& clusterResources)
+    : TSerializableClusterResources()
+{
+    NodeCount_ = clusterResources.NodeCount;
+    ChunkCount_ = clusterResources.ChunkCount;
+    for (int i = 0; i < NChunkClient::MaxMediumCount; ++i) {
+        i64 mediumDiskSpace = clusterResources.DiskSpace[i];
+        if (mediumDiskSpace) {
+            auto* medium = chunkManager->FindMediumByIndex(i);
+            DiskSpacePerMedium_.insert(std::make_pair(medium->GetName(), mediumDiskSpace));
+        }
     }
-};
-
-void Serialize(const TClusterResources& resources, IYsonConsumer* consumer)
-{
-    TSerializableClusterAttributes wrapper;
-    static_cast<TClusterResources&>(wrapper) = resources;
-    Serialize(static_cast<const TYsonSerializableLite&>(wrapper), consumer);
 }
 
-void Deserialize(TClusterResources& resources, INodePtr node)
+TClusterResources TSerializableClusterResources::ToClusterResources(const NChunkServer::TChunkManagerPtr& chunkManager) const
 {
-    TSerializableClusterAttributes wrapper;
-    Deserialize(static_cast<TYsonSerializableLite&>(wrapper), node);
-    // TODO(babenko): we shouldn't be concerned with manual validation here
-    wrapper.Validate();
-    resources = static_cast<TClusterResources&>(wrapper);
+    TClusterResources result(NodeCount_, ChunkCount_);
+    for (const auto& pair : DiskSpacePerMedium_) {
+        auto* medium = chunkManager->GetMediumByNameOrThrow(pair.first);
+        result.DiskSpace[medium->GetIndex()] = pair.second;
+    }
+
+    return result;
 }
+
+void TSerializableClusterResources::ValidateDiskSpaceOrThrow(i64 diskSpace) const
+{
+    if (diskSpace < 0) {
+        THROW_ERROR_EXCEPTION("Expected >= 0, found %v", diskSpace);
+    }
+}
+
+DEFINE_REFCOUNTED_TYPE(TSerializableClusterResources)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TClusterResources& operator += (TClusterResources& lhs, const TClusterResources& rhs)
 {
-    lhs.DiskSpace += rhs.DiskSpace;
+    std::transform(
+        std::begin(lhs.DiskSpace),
+        std::end(lhs.DiskSpace),
+        std::begin(rhs.DiskSpace),
+        std::begin(lhs.DiskSpace),
+        std::plus<i64>());
     lhs.NodeCount += rhs.NodeCount;
     lhs.ChunkCount += rhs.ChunkCount;
     return lhs;
@@ -115,7 +150,12 @@ TClusterResources operator + (const TClusterResources& lhs, const TClusterResour
 
 TClusterResources& operator -= (TClusterResources& lhs, const TClusterResources& rhs)
 {
-    lhs.DiskSpace -= rhs.DiskSpace;
+    std::transform(
+        std::begin(lhs.DiskSpace),
+        std::end(lhs.DiskSpace),
+        std::begin(rhs.DiskSpace),
+        std::begin(lhs.DiskSpace),
+        std::minus<i64>());
     lhs.NodeCount -= rhs.NodeCount;
     lhs.ChunkCount -= rhs.ChunkCount;
     return lhs;
@@ -130,7 +170,11 @@ TClusterResources operator - (const TClusterResources& lhs, const TClusterResour
 
 TClusterResources& operator *= (TClusterResources& lhs, i64 rhs)
 {
-    lhs.DiskSpace *= rhs;
+    std::transform(
+        std::begin(lhs.DiskSpace),
+        std::end(lhs.DiskSpace),
+        std::begin(lhs.DiskSpace),
+        [rhs] (i64 space) { return space * rhs; });
     lhs.NodeCount *= rhs;
     lhs.ChunkCount *= rhs;
     return lhs;
@@ -146,7 +190,11 @@ TClusterResources operator * (const TClusterResources& lhs, i64 rhs)
 TClusterResources operator -  (const TClusterResources& resources)
 {
     TClusterResources result;
-    result.DiskSpace = -resources.DiskSpace;
+    std::transform(
+        std::begin(resources.DiskSpace),
+        std::end(resources.DiskSpace),
+        std::begin(result.DiskSpace),
+        std::negate<i64>());
     result.NodeCount = -resources.NodeCount;
     result.ChunkCount = -resources.ChunkCount;
     return result;

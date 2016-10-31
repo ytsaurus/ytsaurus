@@ -151,7 +151,7 @@ public:
 
         auto* account = GetNewNodeAccount();
         auto securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->ValidateResourceUsageIncrease(account, TClusterResources(0, 1, 0));
+        securityManager->ValidateResourceUsageIncrease(account, TClusterResources(1, 0));
 
         auto cypressManager = Bootstrap_->GetCypressManager();
         auto handler = cypressManager->FindHandler(type);
@@ -273,7 +273,7 @@ public:
             // might not be aware of the actual resource usage.
             // This should be safe since chunk lists are shared anyway.
             auto securityManager = Bootstrap_->GetSecurityManager();
-            securityManager->ValidateResourceUsageIncrease(clonedAccount, TClusterResources(0, 1, 0));
+            securityManager->ValidateResourceUsageIncrease(clonedAccount, TClusterResources(1, 0));
         }
 
         auto cypressManager = Bootstrap_->GetCypressManager();

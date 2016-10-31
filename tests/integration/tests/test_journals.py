@@ -22,7 +22,7 @@ class TestJournals(YTEnvSetup):
         assert get("//tmp/j/@replication_factor") == 3
         assert get("//tmp/j/@read_quorum") == 2
         assert get("//tmp/j/@write_quorum") == 2
-        assert get("//tmp/j/@resource_usage/disk_space") == 0
+        assert get_chunk_owner_disk_space("//tmp/j") == 0
         assert get("//tmp/j/@sealed")
         assert get("//tmp/j/@row_count") == 0
         assert get("//tmp/j/@chunk_ids") == []
@@ -63,8 +63,7 @@ class TestJournals(YTEnvSetup):
 
     def test_resource_usage(self):
         multicell_sleep()
-        assert get("//sys/accounts/tmp/@committed_resource_usage/disk_space") == 0
-        assert get("//sys/accounts/tmp/@committed_resource_usage/disk_space") == 0
+        assert get_account_committed_disk_space("tmp") == 0
 
         create("journal", "//tmp/j")
         self._write_and_wait_until_sealed("//tmp/j", self.DATA)
@@ -80,21 +79,21 @@ class TestJournals(YTEnvSetup):
             sleep(1)
 
         get("#" + chunk_id + "/@owning_nodes")
-        disk_space_delta = get("//tmp/j/@resource_usage/disk_space")
+        disk_space_delta = get_chunk_owner_disk_space("//tmp/j")
         assert disk_space_delta > 0
 
         get("//sys/accounts/tmp/@")
 
         multicell_sleep()
-        assert get("//sys/accounts/tmp/@committed_resource_usage/disk_space") == disk_space_delta
-        assert get("//sys/accounts/tmp/@resource_usage/disk_space") == disk_space_delta
+        assert get_account_committed_disk_space("tmp") == disk_space_delta
+        assert get_account_disk_space("tmp") == disk_space_delta
 
         remove("//tmp/j")
 
         gc_collect() # wait for account stats to be updated
         multicell_sleep()
-        assert get("//sys/accounts/tmp/@committed_resource_usage/disk_space") == 0
-        assert get("//sys/accounts/tmp/@resource_usage/disk_space") == 0
+        assert get_account_committed_disk_space("tmp") == 0
+        assert get_account_disk_space("tmp") == 0
 
     def test_no_copy(self):
         create("journal", "//tmp/j1")

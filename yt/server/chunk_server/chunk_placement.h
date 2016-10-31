@@ -30,6 +30,7 @@ public:
     void OnNodeDisposed(TNode* node);
 
     TNodeList AllocateWriteTargets(
+        int mediumIndex,
         TChunk* chunk,
         int desiredCount,
         int minCount,
@@ -39,21 +40,24 @@ public:
         NChunkClient::ESessionType sessionType);
 
     TNodeList AllocateWriteTargets(
+        int mediumIndex,
         TChunk* chunk,
         int desiredCount,
         int minCount,
         TNullable<int> replicationFactorOverride,
         NChunkClient::ESessionType sessionType);
 
-    TNode* GetRemovalTarget(TChunkPtrWithIndex chunkWithIndex);
+    TNode* GetRemovalTarget(TChunkPtrWithIndexes chunkWithIndexes);
 
-    bool HasBalancingTargets(double maxFillFactor);
+    bool HasBalancingTargets(int mediumIndex, double maxFillFactor);
 
-    std::vector<TChunkPtrWithIndex> GetBalancingChunks(
+    std::vector<TChunkPtrWithIndexes> GetBalancingChunks(
+        int mediumIndex,
         TNode* node,
         int replicaCount);
 
     TNode* AllocateBalancingTarget(
+        int mediumIndex,
         TChunk* chunk,
         double maxFillFactor);
 
@@ -63,17 +67,20 @@ private:
     const TChunkManagerConfigPtr Config_;
     NCellMaster::TBootstrap* const Bootstrap_;
 
-    TFillFactorToNodeMap FillFactorToNode_;
-    TFillFactorToNodeMap LoadFactorToNode_;
+    using TFillFactorToNodeMaps = TPerMediumArray<TFillFactorToNodeMap>;
+    using TLoadFactorToNodeMaps = TFillFactorToNodeMaps;
 
+    TFillFactorToNodeMaps MediumToFillFactorToNode_;
+    TLoadFactorToNodeMaps MediumToLoadFactorToNode_;
 
-    void InsertToFillFactorMap(TNode* node);
-    void RemoveFromFillFactorMap(TNode* node);
+    void InsertToFillFactorMaps(TNode* node);
+    void RemoveFromFillFactorMaps(TNode* node);
 
-    void InsertToLoadFactorMap(TNode* node);
-    void RemoveFromLoadFactorMap(TNode* node);
+    void InsertToLoadFactorMaps(TNode* node);
+    void RemoveFromLoadFactorMaps(TNode* node);
 
     TNodeList GetWriteTargets(
+        int mediumIndex,
         TChunk* chunk,
         int desiredCount,
         int minCount,
@@ -83,20 +90,24 @@ private:
         const TNullable<Stroka>& preferredHostName = Null);
 
     TNode* GetBalancingTarget(
+        int mediumIndex,
         TChunk* chunk,
         double maxFillFactor);
 
     static bool IsAcceptedChunkType(
+        int mediumIndex,
         TNode* node,
         NObjectClient::EObjectType type);
 
     bool IsValidWriteTarget(
+        int mediumIndex,
         TNode* node,
         NObjectClient::EObjectType chunkType,
         TTargetCollector* collector,
         bool enableRackAwareness);
-    
+
     bool IsValidBalancingTarget(
+        int mediumIndex,
         TNode* node,
         NObjectClient::EObjectType chunkType,
         TTargetCollector* collector,
@@ -110,8 +121,8 @@ private:
 
     int GetMaxReplicasPerRack(
         TChunk* chunk,
+        int mediumIndex,
         TNullable<int> replicationFactorOverride);
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkPlacement)

@@ -331,6 +331,16 @@ private:
                 EObjectType::LostVitalChunkMap);
 
             ScheduleCreateNode(
+                "//sys/precarious_chunks",
+                transactionId,
+                EObjectType::PrecariousChunkMap);
+
+            ScheduleCreateNode(
+                "//sys/precarious_vital_chunks",
+                transactionId,
+                EObjectType::PrecariousVitalChunkMap);
+
+            ScheduleCreateNode(
                 "//sys/overreplicated_chunks",
                 transactionId,
                 EObjectType::OverreplicatedChunkMap);
@@ -369,6 +379,11 @@ private:
                 "//sys/chunk_lists",
                 transactionId,
                 EObjectType::ChunkListMap);
+
+            ScheduleCreateNode(
+                "//sys/media",
+                transactionId,
+                EObjectType::MediumMap);
 
             ScheduleCreateNode(
                 "//sys/transactions",

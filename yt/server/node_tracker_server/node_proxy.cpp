@@ -4,6 +4,9 @@
 
 #include <yt/core/ytree/fluent.h>
 
+#include <yt/server/chunk_server/chunk_manager.h>
+#include <yt/server/chunk_server/medium.h>
+
 #include <yt/ytlib/node_tracker_client/helpers.h>
 
 #include <yt/server/object_server/object_detail.h>
@@ -74,7 +77,7 @@ private:
             .SetPresent(isGood));
         descriptors->push_back(TAttributeDescriptor("tablet_slots")
             .SetPresent(isGood));
-        descriptors->push_back(TAttributeDescriptor("io_weight")
+        descriptors->push_back(TAttributeDescriptor("io_weights")
             .SetPresent(isGood));
         descriptors->push_back(TAttributeDescriptor("resource_usage")
             .SetPresent(isGood));
@@ -169,7 +172,17 @@ private:
             }
 
             if (key == "statistics") {
+                auto chunkManager = Bootstrap_->GetChunkManager();
+
                 const auto& statistics = node->Statistics();
+
+                yhash_map<Stroka, yhash_set<EObjectType>> acceptedChunkTypes;
+                for (const auto& mediumTypePair : statistics.accepted_chunk_types()) {
+                    auto* medium = chunkManager->GetMediumByIndexOrThrow(mediumTypePair.medium_index());
+                    acceptedChunkTypes[medium->GetName()].insert(
+                        static_cast<EObjectType>(mediumTypePair.chunk_type()));
+                }
+
                 BuildYsonFluently(consumer)
                     .BeginMap()
                     .Item("total_available_space").Value(statistics.total_available_space())
@@ -178,12 +191,15 @@ private:
                     .Item("total_cached_chunk_count").Value(statistics.total_cached_chunk_count())
                     .Item("total_session_count").Value(node->GetTotalSessionCount())
                     .Item("full").Value(statistics.full())
-                    .Item("accepted_chunk_types").Value(FromProto<std::vector<EObjectType>>(statistics.accepted_chunk_types()))
-                    .Item("locations").DoListFor(statistics.locations(), [] (TFluentList fluent, const TLocationStatistics& locationStatistics) {
+                    .Item("accepted_chunk_types").Value(acceptedChunkTypes)
+                    .Item("locations").DoListFor(statistics.locations(), [&] (TFluentList fluent, const TLocationStatistics& locationStatistics) {
+                        auto* medium = chunkManager->GetMediumByIndexOrThrow(locationStatistics.medium_index());
                         fluent
                             .Item().BeginMap()
+                                .Item("medium_name").Value(medium->GetName())
                                 .Item("available_space").Value(locationStatistics.available_space())
                                 .Item("used_space").Value(locationStatistics.used_space())
+                                .Item("low_watermark_space").Value(locationStatistics.low_watermark_space())
                                 .Item("chunk_count").Value(locationStatistics.chunk_count())
                                 .Item("session_count").Value(locationStatistics.session_count())
                                 .Item("full").Value(locationStatistics.full())
@@ -237,10 +253,21 @@ private:
                 return true;
             }
 
-            if (key == "io_weight") {
+            if (key == "io_weights") {
                 RequireLeader();
+                auto chunkManager = Bootstrap_->GetChunkManager();
+                const auto& allMedia = chunkManager->Media();
+
+                using TMediumMapIterator = ::NYT::NHydra::TReadOnlyEntityMap<NChunkServer::TMedium>::TIterator;
+
                 BuildYsonFluently(consumer)
-                    .Value(node->GetIOWeight());
+                    .DoMapFor(allMedia.begin(), allMedia.end(), [&node] (TFluentMap fluent, TMediumMapIterator mapIter) {
+                            auto* medium = (*mapIter).second;
+                        fluent
+                            .Item(medium->GetName())
+                            .Value(node->GetIOWeight(medium->GetIndex()));
+                    });
+
                 return true;
             }
 

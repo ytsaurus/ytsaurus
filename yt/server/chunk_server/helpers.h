@@ -47,10 +47,6 @@ void AccumulateUniqueAncestorsStatistics(
 void ResetChunkListStatistics(TChunkList* chunkList);
 void RecomputeChunkListStatistics(TChunkList* chunkList);
 
-NSecurityServer::TClusterResources GetDiskUsage(
-    const NChunkClient::NProto::TDataStatistics& statistics,
-    int replicationFactor);
-
 std::vector<TChunkOwnerBase*> GetOwningNodes(
     TChunkTree* chunkTree);
 TFuture<NYson::TYsonString> GetMulticellOwningNodes(

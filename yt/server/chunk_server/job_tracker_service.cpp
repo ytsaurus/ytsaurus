@@ -144,7 +144,7 @@ private:
             &jobsToRemove);
 
         for (const auto& job : jobsToStart) {
-            const auto& chunkIdWithIndex = job->GetChunkIdWithIndex();
+            const auto& chunkIdWithIndexes = job->GetChunkIdWithIndexes();
 
             auto* jobInfo = response->add_jobs_to_start();
             ToProto(jobInfo->mutable_job_id(), job->GetJobId());
@@ -154,7 +154,9 @@ private:
             jobSpec->set_type(static_cast<int>(job->GetType()));
 
             auto* chunkjobSpecExt = jobSpec->MutableExtension(TChunkJobSpecExt::chunk_job_spec_ext);
-            ToProto(chunkjobSpecExt->mutable_chunk_id(), EncodeChunkId(chunkIdWithIndex));
+            ToProto(chunkjobSpecExt->mutable_chunk_id(), EncodeChunkId(chunkIdWithIndexes));
+            auto mediumIndex = chunkIdWithIndexes.MediumIndex;
+            chunkjobSpecExt->set_medium_index(mediumIndex);
 
             switch (job->GetType()) {
                 case EJobType::ReplicateChunk: {
@@ -163,7 +165,7 @@ private:
                     NNodeTrackerServer::TNodeDirectoryBuilder builder(replicateChunkJobSpecExt->mutable_node_directory());
 
                     for (auto* node : job->Targets()) {
-                        TNodePtrWithIndex replica(node, GenericChunkReplicaIndex);
+                        TNodePtrWithIndexes replica(node, GenericChunkReplicaIndex, mediumIndex);
                         replicateChunkJobSpecExt->add_targets(ToProto<ui32>(replica));
                         builder.Add(replica);
                     }
@@ -175,7 +177,7 @@ private:
                     break;
 
                 case EJobType::RepairChunk: {
-                    auto* chunk = chunkManager->GetChunk(chunkIdWithIndex.Id);
+                    auto* chunk = chunkManager->GetChunk(chunkIdWithIndexes.Id);
 
                     auto* repairChunkJobSpecExt = jobSpec->MutableExtension(TRepairChunkJobSpecExt::repair_chunk_job_spec_ext);
                     repairChunkJobSpecExt->set_erasure_codec(static_cast<int>(chunk->GetErasureCodec()));
@@ -188,7 +190,7 @@ private:
                     ToProto(repairChunkJobSpecExt->mutable_replicas(), replicas);
 
                     for (auto* node : job->Targets()) {
-                        TNodePtrWithIndex replica(node, GenericChunkReplicaIndex);
+                        TNodePtrWithIndexes replica(node, GenericChunkReplicaIndex, mediumIndex);
                         repairChunkJobSpecExt->add_targets(ToProto<ui32>(replica));
                         builder.Add(replica);
                     }
@@ -197,7 +199,7 @@ private:
                 }
 
                 case EJobType::SealChunk: {
-                    auto* chunk = chunkManager->GetChunk(chunkIdWithIndex.Id);
+                    auto* chunk = chunkManager->GetChunk(chunkIdWithIndexes.Id);
 
                     auto* sealChunkJobSpecExt = jobSpec->MutableExtension(TSealChunkJobSpecExt::seal_chunk_job_spec_ext);
 

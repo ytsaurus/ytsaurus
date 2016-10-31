@@ -923,13 +923,19 @@ public:
 
         const auto& usage = account->ClusterStatistics().ResourceUsage;
         const auto& limits = account->ClusterResourceLimits();
-        if (delta.DiskSpace > 0 && usage.DiskSpace + delta.DiskSpace > limits.DiskSpace) {
-            THROW_ERROR_EXCEPTION(
-                NSecurityClient::EErrorCode::AccountLimitExceeded,
-                "Account %Qv is over disk space limit",
-                account->GetName())
-                << TErrorAttribute("usage", usage.DiskSpace)
-                << TErrorAttribute("limit", limits.DiskSpace);
+
+        for (int i = 0; i < NChunkClient::MaxMediumCount; ++i) {
+            if (delta.DiskSpace[i] > 0 && usage.DiskSpace[i] + delta.DiskSpace[i] > limits.DiskSpace[i]) {
+                THROW_ERROR_EXCEPTION(
+                    NSecurityClient::EErrorCode::AccountLimitExceeded,
+                    "Account %Qv is over disk space limit",
+                    account->GetName())
+                    << TErrorAttribute("usage", usage.DiskSpace)
+                    << TErrorAttribute("limit", limits.DiskSpace)
+                    << TErrorAttribute("medium_index", i);
+                // TODO(shakurov): should we provide medium_name instead? (We'll
+                // need to access chunk manager for that.)
+            }
         }
         if (delta.NodeCount > 0 && usage.NodeCount + delta.NodeCount > limits.NodeCount) {
             THROW_ERROR_EXCEPTION(
@@ -1142,7 +1148,8 @@ private:
         auto accountHolder = std::make_unique<TAccount>(id);
         accountHolder->SetName(name);
         // Give some reasonable initial resource limits.
-        accountHolder->ClusterResourceLimits().DiskSpace = (i64) 1024 * 1024 * 1024; // 1 GB
+        accountHolder->ClusterResourceLimits()
+            .DiskSpace[NChunkServer::DefaultMediumIndex] = (i64) 1024 * 1024 * 1024; // 1 GB
         accountHolder->ClusterResourceLimits().NodeCount = 1000;
         accountHolder->ClusterResourceLimits().ChunkCount = 100000;
 
@@ -1500,7 +1507,9 @@ private:
         if (!SysAccount_) {
             // sys, 1 TB disk space, 100 000 nodes, 1 000 000 chunks allowed for: root
             SysAccount_ = DoCreateAccount(SysAccountId_, SysAccountName);
-            SysAccount_->ClusterResourceLimits() = TClusterResources((i64) 1024 * 1024 * 1024 * 1024, 100000, 1000000000);
+            SysAccount_->ClusterResourceLimits() = TClusterResources(100000, 1000000000);
+            SysAccount_->ClusterResourceLimits()
+                .DiskSpace[NChunkServer::DefaultMediumIndex] = (i64) 1024 * 1024 * 1024 * 1024;
             SysAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 RootUser_,
@@ -1511,7 +1520,9 @@ private:
         if (!TmpAccount_) {
             // tmp, 1 TB disk space, 100 000 nodes, 1 000 000 chunks allowed for: users
             TmpAccount_ = DoCreateAccount(TmpAccountId_, TmpAccountName);
-            TmpAccount_->ClusterResourceLimits() = TClusterResources((i64) 1024 * 1024 * 1024 * 1024, 100000, 1000000000);
+            TmpAccount_->ClusterResourceLimits() = TClusterResources(100000, 1000000000);
+            TmpAccount_->ClusterResourceLimits()
+                .DiskSpace[NChunkServer::DefaultMediumIndex] = (i64) 1024 * 1024 * 1024 * 1024;
             TmpAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 UsersGroup_,
@@ -1522,7 +1533,9 @@ private:
         if (!IntermediateAccount_) {
             // tmp, 1 TB disk space, 100 000 nodes, 1 000 000 chunks allowed for: users
             IntermediateAccount_ = DoCreateAccount(IntermediateAccountId_, IntermediateAccountName);
-            IntermediateAccount_->ClusterResourceLimits() = TClusterResources((i64) 1024 * 1024 * 1024 * 1024, 100000, 1000000000);
+            IntermediateAccount_->ClusterResourceLimits() = TClusterResources(100000, 1000000000);
+            IntermediateAccount_->ClusterResourceLimits()
+                .DiskSpace[NChunkServer::DefaultMediumIndex] = (i64) 1024 * 1024 * 1024 * 1024;
             IntermediateAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 UsersGroup_,

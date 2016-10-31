@@ -648,7 +648,7 @@ class TestTables(YTEnvSetup):
         assert len(chunk_ids) == 1
 
         chunk_id = chunk_ids[0]
-        assert get("#" + chunk_id + "/@replication_factor") == 2
+        assert get_chunk_replication_factor(chunk_id) == 2
 
     def test_replication_factor_recalculated_on_remove(self):
         create("table", "//tmp/t1", attributes={"replication_factor": 1})
@@ -658,27 +658,27 @@ class TestTables(YTEnvSetup):
         assert len(chunk_ids) == 1
         chunk_id = chunk_ids[0]
 
-        assert get("#" + chunk_id + "/@replication_factor") == 1
+        assert get_chunk_replication_factor(chunk_id) == 1
 
         copy("//tmp/t1", "//tmp/t2")
         set("//tmp/t2/@replication_factor", 2)
 
         sleep(0.2)
-        assert get("#" + chunk_id + "/@replication_factor") == 2
+        assert get_chunk_replication_factor(chunk_id) == 2
 
         remove("//tmp/t2")
 
         sleep(0.2)
-        assert get("#" + chunk_id + "/@replication_factor") == 1
+        assert get_chunk_replication_factor(chunk_id) == 1
 
     def test_recursive_resource_usage(self):
         create("table", "//tmp/t1")
         write_table("//tmp/t1", {"a": "b"})
         copy("//tmp/t1", "//tmp/t2")
 
-        assert get("//tmp/t1/@resource_usage")["disk_space"] + \
-               get("//tmp/t2/@resource_usage")["disk_space"] == \
-               get("//tmp/@recursive_resource_usage")["disk_space"]
+        assert get_chunk_owner_disk_space("//tmp/t1") + \
+            get_chunk_owner_disk_space("//tmp/t2") == \
+            get_recursive_disk_space("//tmp")
 
     def test_chunk_tree_balancer(self):
         create("table", "//tmp/t")
@@ -725,7 +725,7 @@ class TestTables(YTEnvSetup):
     def _check_replication_factor(self, path, expected_rf):
         chunk_ids = get(path + "/@chunk_ids")
         for id in chunk_ids:
-            assert get("#" + id + "/@replication_factor") == expected_rf
+            assert get_chunk_replication_factor(id) == expected_rf
 
     # In tests below we intentionally issue vital/replication_factor updates
     # using a temporary user "u"; cf. YT-3579.

@@ -786,7 +786,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         resource_usage = get("//sys/accounts/test_account/@resource_usage")
         assert resource_usage["node_count"] >= 2
         assert resource_usage["chunk_count"] >= 1
-        assert resource_usage["disk_space"] > 0
+        assert resource_usage["disk_space_per_medium"].get("default", 0) > 0
 
         jobs = ls("//sys/operations/{0}/jobs".format(op.id))
         assert get("//sys/operations/{0}/jobs/{1}/@recursive_resource_usage".format(op.id, jobs[0])) == resource_usage
@@ -2576,7 +2576,7 @@ class TestFilesInSandbox(YTEnvSetup):
 
         replicas = get("#{0}/@stored_replicas".format(chunk_id))
         assert len(replicas) == 1
-        replica_to_ban = replicas[0]
+        replica_to_ban = str(replicas[0]) # str() is for attribute stripping.
 
         banned = False
         for node in ls("//sys/nodes"):
@@ -2586,7 +2586,7 @@ class TestFilesInSandbox(YTEnvSetup):
         assert banned
 
         time.sleep(1)
-        assert get("#{0}/@replication_status/lost".format(chunk_id))
+        assert get("#{0}/@replication_status/default/lost".format(chunk_id))
 
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -2682,7 +2682,7 @@ class TestJobSizeManager(YTEnvSetup):
         chunk_size = get("#{0}/@uncompressed_data_size".format(chunk_id))
         replicas = get("#{0}/@stored_replicas".format(chunk_id))
         assert len(replicas) == 1
-        replica_to_ban = replicas[0]
+        replica_to_ban = str(replicas[0]) # str() is for attribute stripping.
 
         banned = False
         for node in ls("//sys/nodes"):
@@ -2692,7 +2692,7 @@ class TestJobSizeManager(YTEnvSetup):
         assert banned
 
         time.sleep(1)
-        assert get("#{0}/@replication_status/lost".format(chunk_id))
+        assert get("#{0}/@replication_status/default/lost".format(chunk_id))
 
         for row in original_data[1:]:
             write_table("<append=true>//tmp/t_input", row, verbose=False)

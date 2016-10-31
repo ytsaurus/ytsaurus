@@ -936,6 +936,42 @@ struct TListSerializer
 };
 
 template <class TItemSerializer = TDefaultSerializer>
+struct TArraySerializer
+{
+    template <class TArray, class C>
+    static void Save(C& context, const TArray& objects)
+    {
+        TSizeSerializer::Save(context, objects.size());
+
+        for (const auto& object : objects) {
+            TItemSerializer::Save(context, object);
+        }
+    }
+
+    template <
+        class C,
+        class T,
+        std::size_t N,
+        template <typename U, std::size_t S> class TArray
+    >
+    static void Load(C& context, TArray<T,N>& objects)
+    {
+        size_t size = TSizeSerializer::LoadSuspended(context);
+        YCHECK(size <= N);
+
+        SERIALIZATION_DUMP_WRITE(context, "array[%v]", size);
+        SERIALIZATION_DUMP_INDENT(context) {
+            for (size_t index = 0; index != size; ++index) {
+                SERIALIZATION_DUMP_WRITE(context, "%v =>", index);
+                SERIALIZATION_DUMP_INDENT(context) {
+                    TItemSerializer::Load(context, objects[index]);
+                }
+            }
+        }
+    }
+};
+
+template <class TItemSerializer = TDefaultSerializer>
 struct TNullableListSerializer
 {
     template <class TList, class C>
@@ -1378,6 +1414,12 @@ template <class T, unsigned size, class C>
 struct TSerializerTraits<SmallVector<T, size>, C, void>
 {
     typedef TVectorSerializer<> TSerializer;
+};
+
+template <class T, std::size_t size, class C>
+struct TSerializerTraits<std::array<T, size>, C, void>
+{
+    typedef TArraySerializer<> TSerializer;
 };
 
 template <class T, class A, class C>

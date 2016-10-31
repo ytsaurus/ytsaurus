@@ -706,6 +706,7 @@ private:
 
         node->SetLocalState(ENodeState::Registered);
         node->SetNodeTags(tags);
+
         node->Statistics() = statistics;
 
         UpdateLastSeenTime(node);
@@ -731,6 +732,13 @@ private:
         }
 
         response->set_node_id(node->GetId());
+
+        for (auto pair : Bootstrap_->GetChunkManager()->Media()) {
+            auto* medium = pair.second;
+            auto* mediumDescriptor = response->add_media();
+            mediumDescriptor->set_medium_name(medium->GetName());
+            mediumDescriptor->set_medium_index(medium->GetIndex());
+        }
 
         if (context) {
             context->SetResponseInfo("NodeId: %v",

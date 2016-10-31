@@ -178,12 +178,18 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define DECLARE_ENTITY_MAP_ACCESSORS(entityName, entityType) \
+#define DECLARE_ENTITY_MAP_ACCESSORS_IMPL(entityName, entityNamePlural, entityType) \
     entityType* Find ## entityName(const ::NYT::NHydra::TEntityKey<entityType>& id); \
     entityType* Get ## entityName(const ::NYT::NHydra::TEntityKey<entityType>& id); \
-    const ::NYT::NHydra::TReadOnlyEntityMap<entityType>& entityName ## s() const;
+    const ::NYT::NHydra::TReadOnlyEntityMap<entityType>& entityNamePlural() const;
 
-#define DEFINE_ENTITY_MAP_ACCESSORS(declaringType, entityName, entityType, map) \
+#define DECLARE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(entityName, entityNamePlural, entityType) \
+    DECLARE_ENTITY_MAP_ACCESSORS_IMPL(entityName, entityNamePlural, entityType)
+
+#define DECLARE_ENTITY_MAP_ACCESSORS(entityName, entityType) \
+    DECLARE_ENTITY_MAP_ACCESSORS_IMPL(entityName, entityName ## s, entityType)
+
+#define DEFINE_ENTITY_MAP_ACCESSORS_IMPL(declaringType, entityName, entityNamePlural, entityType, map) \
     entityType* declaringType::Find ## entityName(const ::NYT::NHydra::TEntityKey<entityType>& id) \
     { \
         return (map).Find(id); \
@@ -194,12 +200,18 @@ private:
         return (map).Get(id); \
     } \
     \
-    const ::NYT::NHydra::TReadOnlyEntityMap<entityType>& declaringType::entityName ## s() const \
+    const ::NYT::NHydra::TReadOnlyEntityMap<entityType>& declaringType::entityNamePlural() const \
     { \
         return (map); \
     }
 
-#define DELEGATE_ENTITY_MAP_ACCESSORS(declaringType, entityName, entityType, delegateTo) \
+#define DEFINE_ENTITY_MAP_ACCESSORS(declaringType, entityName, entityType, map) \
+    DEFINE_ENTITY_MAP_ACCESSORS_IMPL(declaringType, entityName, entityName ## s, entityType, map)
+
+#define DEFINE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(declaringType, entityName, entityNamePlural, entityType, map) \
+    DEFINE_ENTITY_MAP_ACCESSORS_IMPL(declaringType, entityName, entityNamePlural, entityType, map)
+
+#define DELEGATE_ENTITY_MAP_ACCESSORS_IMPL(declaringType, entityName, entityNamePlural, entityType, delegateTo) \
     entityType* declaringType::Find ## entityName(const ::NYT::NHydra::TEntityKey<entityType>& id) \
     { \
         return (delegateTo).Find ## entityName(id); \
@@ -210,10 +222,16 @@ private:
         return (delegateTo).Get ## entityName(id); \
     } \
     \
-    const ::NYT::NHydra::TReadOnlyEntityMap<entityType>& declaringType::entityName ## s() const \
+    const ::NYT::NHydra::TReadOnlyEntityMap<entityType>& declaringType::entityNamePlural() const \
     { \
-        return (delegateTo).entityName ## s(); \
+        return (delegateTo).entityNamePlural(); \
     }
+
+#define DELEGATE_ENTITY_MAP_ACCESSORS(declaringType, entityName, entityType, delegateTo) \
+    DELEGATE_ENTITY_MAP_ACCESSORS_IMPL(declaringType, entityName, entityName ## s, entityType, delegateTo)
+
+#define DELEGATE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(declaringType, entityName, entityNamePlural, entityType, delegateTo) \
+    DELEGATE_ENTITY_MAP_ACCESSORS_IMPL(declaringType, entityName, entityNamePlural, entityType, delegateTo)
 
 ////////////////////////////////////////////////////////////////////////////////
 

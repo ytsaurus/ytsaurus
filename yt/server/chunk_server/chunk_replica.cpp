@@ -15,47 +15,52 @@ using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka ToString(TNodePtrWithIndex value)
+Stroka ToString(TNodePtrWithIndexes value)
 {
-    if (value.GetIndex() == GenericChunkReplicaIndex) {
-        return value.GetPtr()->GetDefaultAddress();
-    } else {
-        return Format("%v/%v",
+    if (value.GetReplicaIndex() == GenericChunkReplicaIndex) {
+        return Format("%v@%v",
             value.GetPtr()->GetDefaultAddress(),
-            value.GetIndex());
+            value.GetMediumIndex());
+    } else {
+        return Format("%v/%v@%v",
+            value.GetPtr()->GetDefaultAddress(),
+            value.GetReplicaIndex(),
+            value.GetMediumIndex());
     }
 }
 
-Stroka ToString(TChunkPtrWithIndex value)
+Stroka ToString(TChunkPtrWithIndexes value)
 {
     auto* chunk = value.GetPtr();
-    int index = value.GetIndex();
+    int replicaIndex = value.GetReplicaIndex();
     if (chunk->IsJournal()) {
         return Format("%v/%v",
             chunk->GetId(),
-            EJournalReplicaType(index));
-    } else if (index != GenericChunkReplicaIndex) {
-        return Format("%v/%v",
+            EJournalReplicaType(replicaIndex));
+    } else if (replicaIndex != GenericChunkReplicaIndex) {
+        return Format("%v/%v@%v",
             chunk->GetId(),
-            index);
+            replicaIndex,
+            value.GetMediumIndex());
     } else {
-        return ToString(chunk->GetId());
+        return Format("%v@%v", chunk->GetId(), value.GetMediumIndex());
     }
 }
 
-void ToProto(ui32* protoValue, TNodePtrWithIndex value)
+void ToProto(ui32* protoValue, TNodePtrWithIndexes value)
 {
     NChunkClient::TChunkReplica clientReplica(
         value.GetPtr()->GetId(),
-        value.GetIndex());
+        value.GetReplicaIndex(),
+        value.GetMediumIndex());
     NChunkClient::ToProto(protoValue, clientReplica);
 }
 
-TChunkId EncodeChunkId(TChunkPtrWithIndex chunkWithIndex)
+TChunkId EncodeChunkId(TChunkPtrWithIndexes chunkWithIndexes)
 {
-    auto* chunk = chunkWithIndex.GetPtr();
+    auto* chunk = chunkWithIndexes.GetPtr();
     return chunk->IsErasure()
-        ? ErasurePartIdFromChunkId(chunk->GetId(), chunkWithIndex.GetIndex())
+        ? ErasurePartIdFromChunkId(chunk->GetId(), chunkWithIndexes.GetReplicaIndex())
         : chunk->GetId();
 }
 

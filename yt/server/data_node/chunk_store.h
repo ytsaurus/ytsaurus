@@ -37,6 +37,8 @@ public:
 
     void Initialize();
 
+    void SetMediumIndexes(const yhash_map<Stroka, int>& mediumNameToIndex);
+
     //! Registers a just-written chunk.
     void RegisterNewChunk(IChunkPtr chunk);
 

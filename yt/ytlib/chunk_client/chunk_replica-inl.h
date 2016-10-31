@@ -16,11 +16,16 @@ Y_FORCE_INLINE TChunkReplica::TChunkReplica(ui32 value)
     : Value(value)
 { }
 
-Y_FORCE_INLINE TChunkReplica::TChunkReplica(int nodeId, int index)
-    : Value(nodeId | (index << 24))
+Y_FORCE_INLINE TChunkReplica::TChunkReplica(int nodeId, int replicaIndex, int mediumIndex)
+    : Value(nodeId | (replicaIndex << 24) | (mediumIndex << 29))
 {
+    static_assert(
+        ChunkReplicaIndexBound * MediumIndexBound <= (0xff + 1),
+        "Replica and medium indexes must fit into a single byte.");
+
     Y_ASSERT(nodeId >= 0 && nodeId <= NNodeTrackerClient::MaxNodeId);
-    Y_ASSERT(index >= 0 && index < ChunkReplicaIndexBound);
+    Y_ASSERT(replicaIndex >= 0 && replicaIndex < ChunkReplicaIndexBound);
+    Y_ASSERT(mediumIndex >= 0 && mediumIndex < MediumIndexBound);
 }
 
 Y_FORCE_INLINE int TChunkReplica::GetNodeId() const
@@ -28,9 +33,14 @@ Y_FORCE_INLINE int TChunkReplica::GetNodeId() const
     return Value & 0x00ffffff;
 }
 
-Y_FORCE_INLINE int TChunkReplica::GetIndex() const
+Y_FORCE_INLINE int TChunkReplica::GetReplicaIndex() const
 {
-    return Value >> 24;
+    return (Value & 0x1f000000) >> 24;
+}
+
+Y_FORCE_INLINE int TChunkReplica::GetMediumIndex() const
+{
+    return Value >> 29;
 }
 
 Y_FORCE_INLINE void ToProto(ui32* value, TChunkReplica replica)
@@ -46,20 +56,48 @@ Y_FORCE_INLINE void FromProto(TChunkReplica* replica, ui32 value)
 ////////////////////////////////////////////////////////////////////////////////
 
 Y_FORCE_INLINE TChunkIdWithIndex::TChunkIdWithIndex()
-    : Index(GenericChunkReplicaIndex)
+    : ReplicaIndex(GenericChunkReplicaIndex)
 { }
 
-Y_FORCE_INLINE TChunkIdWithIndex::TChunkIdWithIndex(const TChunkId& id, int index)
+Y_FORCE_INLINE TChunkIdWithIndex::TChunkIdWithIndex(const TChunkId& id, int replicaIndex)
     : Id(id)
-    , Index(index)
+    , ReplicaIndex(replicaIndex)
 { }
 
-Y_FORCE_INLINE bool operator == (const TChunkIdWithIndex& lhs, const TChunkIdWithIndex& rhs)
+Y_FORCE_INLINE bool operator==(const TChunkIdWithIndex& lhs, const TChunkIdWithIndex& rhs)
 {
-    return lhs.Id == rhs.Id && lhs.Index == rhs.Index;
+    return lhs.Id == rhs.Id && lhs.ReplicaIndex == rhs.ReplicaIndex;
 }
 
-Y_FORCE_INLINE bool operator != (const TChunkIdWithIndex& lhs, const TChunkIdWithIndex& rhs)
+Y_FORCE_INLINE bool operator!=(const TChunkIdWithIndex& lhs, const TChunkIdWithIndex& rhs)
+{
+    return !(lhs == rhs);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+Y_FORCE_INLINE TChunkIdWithIndexes::TChunkIdWithIndexes()
+    : TChunkIdWithIndex()
+    , MediumIndex(DefaultMediumIndex)
+{ }
+
+Y_FORCE_INLINE TChunkIdWithIndexes::TChunkIdWithIndexes(const TChunkIdWithIndex& chunkIdWithIndex, int mediumIndex)
+    : TChunkIdWithIndex(chunkIdWithIndex)
+    , MediumIndex(mediumIndex)
+{ }
+
+Y_FORCE_INLINE TChunkIdWithIndexes::TChunkIdWithIndexes(const TChunkId& id, int replicaIndex, int mediumIndex)
+    : TChunkIdWithIndex(id, replicaIndex)
+    , MediumIndex(mediumIndex)
+{ }
+
+Y_FORCE_INLINE bool operator==(const TChunkIdWithIndexes& lhs, const TChunkIdWithIndexes& rhs)
+{
+    return static_cast<const TChunkIdWithIndex&>(lhs) == static_cast<const TChunkIdWithIndex&>(rhs) &&
+        lhs.MediumIndex == rhs.MediumIndex;
+}
+
+Y_FORCE_INLINE bool operator!=(const TChunkIdWithIndexes& lhs, const TChunkIdWithIndexes& rhs)
 {
     return !(lhs == rhs);
 }

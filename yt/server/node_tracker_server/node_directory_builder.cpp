@@ -24,12 +24,12 @@ void TNodeDirectoryBuilder::Add(const TNode* node)
     ToProto(item->mutable_node_descriptor(), node->GetDescriptor());
 }
 
-void TNodeDirectoryBuilder::Add(TNodePtrWithIndex node)
+void TNodeDirectoryBuilder::Add(TNodePtrWithIndexes node)
 {
     Add(node.GetPtr());
 }
 
-void TNodeDirectoryBuilder::Add(const TNodePtrWithIndexList& nodes)
+void TNodeDirectoryBuilder::Add(const TNodePtrWithIndexesList& nodes)
 {
     for (auto node : nodes) {
         Add(node);

@@ -15,12 +15,12 @@ inline TChunkDynamicData* TChunk::GetDynamicData() const
 
 inline bool TChunk::GetMovable() const
 {
-    return Flags_.Movable;
+    return Movable_;
 }
 
 inline void TChunk::SetMovable(bool value)
 {
-    Flags_.Movable = value;
+    Movable_ = value;
 }
 
 inline bool TChunk::GetRefreshScheduled() const
@@ -96,46 +96,54 @@ inline bool TChunk::ComputeVital() const
     if (GetLocalVital()) {
         return true;
     }
-    for (auto data : ExportDataList_) {
-        if (data.Vital) {
+    for (const auto& data : ExportDataList_) {
+        if (data.Properties.GetVital()) {
             return true;
         }
     }
     return false;
 }
 
-inline int TChunk::ComputeReplicationFactor() const
-{
-    // NB: Shortcut for non-exported chunk.
-    if (ExportCounter_ == 0) {
-        return GetLocalReplicationFactor();
-    }
-
-    int result = GetLocalReplicationFactor();
-    for (auto data : ExportDataList_) {
-        result = std::max(result, static_cast<int>(data.ReplicationFactor));
-    }
-    return result;
-}
-
 inline bool TChunk::GetLocalVital() const
 {
-    return Flags_.Vital;
+    return LocalProperties_.GetVital();
 }
 
 inline void TChunk::SetLocalVital(bool value)
 {
-    Flags_.Vital = value;
+    LocalProperties_.SetVital(value);
 }
 
-inline int TChunk::GetLocalReplicationFactor() const
+inline TChunkProperties TChunk::ComputeProperties() const
 {
-    return ReplicationFactor_;
+    // NB: Shortcut for non-exported chunk.
+    if (ExportCounter_ == 0) {
+        return GetLocalProperties();
+    }
+
+    TChunkProperties combinedProps = GetLocalProperties();
+    for (const auto& data : ExportDataList_) {
+        combinedProps |= data.Properties;
+    }
+    return combinedProps;
 }
 
-inline void TChunk::SetLocalReplicationFactor(int value)
+inline TPerMediumIntArray TChunk::ComputeReplicationFactors() const
 {
-    ReplicationFactor_ = value;
+    TPerMediumIntArray result;
+
+    auto props = ComputeProperties();
+    auto resultIt = std::begin(result);
+    for (const auto& mediumProps : props) {
+        *resultIt++ = mediumProps.GetReplicationFactor();
+    }
+
+    return result;
+}
+
+inline int TChunk::GetLocalReplicationFactor(int mediumIndex) const
+{
+    return LocalProperties_[mediumIndex].GetReplicationFactor();
 }
 
 inline int TChunk::GetReadQuorum() const

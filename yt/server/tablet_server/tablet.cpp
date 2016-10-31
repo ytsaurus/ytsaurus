@@ -23,6 +23,11 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTabletStatistics::TTabletStatistics()
+{
+    std::fill_n(DiskSpace, NChunkClient::MaxMediumCount, 0);
+}
+
 void TTabletStatistics::Persist(NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -49,7 +54,12 @@ TTabletStatistics& operator +=(TTabletStatistics& lhs, const TTabletStatistics& 
     lhs.UncompressedDataSize += rhs.UncompressedDataSize;
     lhs.CompressedDataSize += rhs.CompressedDataSize;
     lhs.MemorySize += rhs.MemorySize;
-    lhs.DiskSpace += rhs.DiskSpace;
+    std::transform(
+        std::begin(lhs.DiskSpace),
+        std::end(lhs.DiskSpace),
+        std::begin(rhs.DiskSpace),
+        std::begin(lhs.DiskSpace),
+        std::plus<i64>());
     lhs.ChunkCount += rhs.ChunkCount;
     lhs.PartitionCount += rhs.PartitionCount;
     lhs.StoreCount += rhs.StoreCount;
@@ -72,7 +82,12 @@ TTabletStatistics& operator -=(TTabletStatistics& lhs, const TTabletStatistics& 
     lhs.UncompressedDataSize -= rhs.UncompressedDataSize;
     lhs.CompressedDataSize -= rhs.CompressedDataSize;
     lhs.MemorySize -= rhs.MemorySize;
-    lhs.DiskSpace -= rhs.DiskSpace;
+    std::transform(
+        std::begin(lhs.DiskSpace),
+        std::end(lhs.DiskSpace),
+        std::begin(rhs.DiskSpace),
+        std::begin(lhs.DiskSpace),
+        std::minus<i64>());
     lhs.ChunkCount -= rhs.ChunkCount;
     lhs.PartitionCount -= rhs.PartitionCount;
     lhs.StoreCount -= rhs.StoreCount;

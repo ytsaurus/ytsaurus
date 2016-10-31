@@ -537,7 +537,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         write_table("//tmp/t1", [{"a": 1}])
         chunk_id = get("//tmp/t1/@chunk_ids/0")
 
-        assert get("#" + chunk_id + "/@replication_factor") == 1
+        assert get_chunk_replication_factor(chunk_id) == 1
         assert not get("#" + chunk_id + "/@vital")
 
         create("table", "//tmp/t2", attributes={"replication_factor": 3, "vital": True})
@@ -546,7 +546,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
               out="//tmp/t2")
 
         sleep(0.2)
-        assert get("#" + chunk_id + "/@replication_factor") == 3
+        assert get_chunk_replication_factor(chunk_id) == 3
         assert get("#" + chunk_id + "/@vital")
 
     @unix_only
@@ -844,8 +844,8 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         assert get("//tmp/t/@chunk_ids") == [chunk_id1, chunk_id2]
         assert get("#" + chunk_id1 + "/@ref_counter") == 2
         assert get("#" + chunk_id2 + "/@ref_counter") == 2
-        assert_items_equal(get("#" + chunk_id1 + "/@exports"), {"0": {"ref_counter": 1, "vital": True, "replication_factor": 3}})
-        assert_items_equal(get("#" + chunk_id2 + "/@exports"), {"0": {"ref_counter": 1, "vital": True, "replication_factor": 3}})
+        assert_items_equal(get("#" + chunk_id1 + "/@exports"), {"0": {"ref_counter": 1, "vital": True, "media": {"default": {"replication_factor": 3, "data_parts_only": False}}}})
+        assert_items_equal(get("#" + chunk_id2 + "/@exports"), {"0": {"ref_counter": 1, "vital": True, "media": {"default": {"replication_factor": 3, "data_parts_only": False}}}})
         assert_items_equal(ls("//sys/foreign_chunks", driver=get_driver(0)), [chunk_id1, chunk_id2])
         
         assert read_table("//tmp/t") == [{"a": 1}, {"a": 2}]
@@ -878,7 +878,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
 
         assert get("//tmp/t2/@chunk_ids") == [chunk_id, chunk_id]
         assert get("#" + chunk_id + "/@ref_counter") == 3
-        assert_items_equal(get("#" + chunk_id + "/@exports"), {"0": {"ref_counter": 2, "vital": True, "replication_factor": 3}})
+        assert_items_equal(get("#" + chunk_id + "/@exports"), {"0": {"ref_counter": 2, "vital": True, "media": {"default": {"replication_factor": 3, "data_parts_only": False}}}})
         assert_items_equal(ls("//sys/foreign_chunks", driver=get_driver(0)), [chunk_id])
         assert get("#" + chunk_id + "&/@import_ref_counter") == 2
         
@@ -891,7 +891,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
 
         assert get("//tmp/t3/@chunk_ids") == [chunk_id, chunk_id]
         assert get("#" + chunk_id + "/@ref_counter") == 5
-        assert_items_equal(get("#" + chunk_id + "/@exports"), {"0": {"ref_counter": 4, "vital": True, "replication_factor": 3}})
+        assert_items_equal(get("#" + chunk_id + "/@exports"), {"0": {"ref_counter": 4, "vital": True, "media": {"default": {"replication_factor": 3, "data_parts_only": False}}}})
         assert_items_equal(ls("//sys/foreign_chunks", driver=get_driver(0)), [chunk_id])
         assert get("#" + chunk_id + "&/@import_ref_counter") == 4
 
@@ -902,7 +902,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         gc_collect()
         multicell_sleep()
         assert get("#" + chunk_id + "/@ref_counter") == 5
-        assert_items_equal(get("#" + chunk_id + "/@exports"), {"0": {"ref_counter": 4, "vital": True, "replication_factor": 3}})
+        assert_items_equal(get("#" + chunk_id + "/@exports"), {"0": {"ref_counter": 4, "vital": True, "media": {"default": {"replication_factor": 3, "data_parts_only": False}}}})
         assert_items_equal(ls("//sys/foreign_chunks", driver=get_driver(0)), [chunk_id])
         
         remove("//tmp/t3")
@@ -925,7 +925,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         write_table("//tmp/t1", [{"a": 1}])
         chunk_id = get("//tmp/t1/@chunk_ids/0")
 
-        assert get("#" + chunk_id + "/@replication_factor") == 1
+        assert get_chunk_replication_factor(chunk_id) == 1
         assert not get("#" + chunk_id + "/@vital")
 
         create("table", "//tmp/t2", attributes={"replication_factor": 3, "vital": False, "external_cell_tag": 2})
@@ -934,18 +934,18 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
               out="//tmp/t2")
 
         sleep(0.2)
-        assert get("#" + chunk_id + "/@replication_factor") == 3
+        assert get_chunk_replication_factor(chunk_id) == 3
         assert not get("#" + chunk_id + "/@vital")
 
         set("//tmp/t2/@replication_factor", 2)
 
         sleep(0.2)
-        assert get("#" + chunk_id + "/@replication_factor") == 2
+        assert get_chunk_replication_factor(chunk_id) == 2
 
         set("//tmp/t2/@replication_factor", 3)
 
         sleep(0.2)
-        assert get("#" + chunk_id + "/@replication_factor") == 3
+        assert get_chunk_replication_factor(chunk_id) == 3
 
         set("//tmp/t2/@vital", True)
 
@@ -955,17 +955,17 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         set("//tmp/t1/@replication_factor", 4)
 
         sleep(0.2)
-        assert get("#" + chunk_id + "/@replication_factor") == 4
+        assert get_chunk_replication_factor(chunk_id) == 4
 
         set("//tmp/t1/@replication_factor", 1)
 
         sleep(0.2)
-        assert get("#" + chunk_id + "/@replication_factor") == 3
+        assert get_chunk_replication_factor(chunk_id) == 3
 
         remove("//tmp/t2")
 
         sleep(0.2)
-        assert get("#" + chunk_id + "/@replication_factor") == 1
+        assert get_chunk_replication_factor(chunk_id) == 1
         assert not get("#" + chunk_id + "/@vital")
 
     @unix_only
@@ -983,7 +983,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         assert_items_equal(
             get("#" + chunk_id + "/@exports"),
             {
-                "1": {"ref_counter": 1, "vital": True, "replication_factor": 3},
-                "2": {"ref_counter": 1, "vital": True, "replication_factor": 3}
+                "1": {"ref_counter": 1, "vital": True, "media": {"default": {"replication_factor": 3, "data_parts_only": False}}},
+                "2": {"ref_counter": 1, "vital": True, "media": {"default": {"replication_factor": 3, "data_parts_only": False}}}
             })
 

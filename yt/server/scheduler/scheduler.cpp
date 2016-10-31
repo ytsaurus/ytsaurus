@@ -1361,7 +1361,7 @@ private:
             "id",
             "tags",
             "state",
-            "io_weight"
+            "io_weights"
         };
         ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
         batchReq->AddRequest(req, "get_nodes");

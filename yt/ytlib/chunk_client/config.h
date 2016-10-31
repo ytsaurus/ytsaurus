@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "chunk_replica.h"
 
 #include <yt/ytlib/misc/config.h>
 #include <yt/ytlib/misc/workload.h>
@@ -276,11 +277,14 @@ class TRemoteWriterOptions
 {
 public:
     bool AllowAllocatingNewTargetNodes;
+    Stroka MediumName;
 
     TRemoteWriterOptions()
     {
         RegisterParameter("allow_allocating_new_target_nodes", AllowAllocatingNewTargetNodes)
             .Default(true);
+        RegisterParameter("medium_name", MediumName)
+            .Default(DefaultStoreMediumName);
     }
 };
 
@@ -414,7 +418,7 @@ public:
     {
         RegisterParameter("replication_factor", ReplicationFactor)
             .GreaterThanOrEqual(1)
-            .Default(3);
+            .Default(DefaultReplicationFactor);
         RegisterParameter("account", Account)
             .NonEmpty();
         RegisterParameter("chunks_vital", ChunksVital)

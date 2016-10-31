@@ -73,6 +73,22 @@ void TChunkStore::Initialize()
         GetChunkCount());
 }
 
+void TChunkStore::SetMediumIndexes(const yhash_map<Stroka, int>& mediumNameToIndex)
+{
+    for (const auto& location : Locations_) {
+        auto mediumName = location->GetMediumName();
+        auto it = mediumNameToIndex.find(mediumName);
+        if (it == mediumNameToIndex.end()) {
+            THROW_ERROR_EXCEPTION(
+                "Location %v is configured with medium %Qv, but no such medium is known at master",
+                location->GetId(),
+                mediumName);
+        }
+
+        location->SetMediumIndex(it->second);
+    }
+}
+
 void TChunkStore::RegisterNewChunk(IChunkPtr chunk)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);

@@ -44,7 +44,8 @@ NSecurityServer::TClusterResources TChunkOwnerTypeHandler<TChunkOwner>::GetTotal
     const auto* chunkOwnerNode = node->As<TChunkOwner>();
     auto result = TBase::GetTotalResourceUsage(node);
     auto statistics = chunkOwnerNode->ComputeTotalStatistics();
-    result += GetDiskUsage(statistics, chunkOwnerNode->GetReplicationFactor());
+
+    result += GetChunkOwnerDiskUsage(statistics, *chunkOwnerNode);
     return result;
 }
 
@@ -64,7 +65,23 @@ NSecurityServer::TClusterResources TChunkOwnerTypeHandler<TChunkOwner>::GetAccou
     }
     return
         TBase::GetAccountingResourceUsage(node) +
-        GetDiskUsage(statistics, chunkOwnerNode->GetReplicationFactor());
+        GetChunkOwnerDiskUsage(statistics, *chunkOwnerNode);
+}
+
+template <class TChunkOwner>
+NSecurityServer::TClusterResources TChunkOwnerTypeHandler<TChunkOwner>::GetChunkOwnerDiskUsage(
+    const NChunkClient::NProto::TDataStatistics& statistics,
+    const TChunkOwner& chunkOwner)
+{
+    NSecurityServer::TClusterResources result;
+    for (int mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
+        // Replication factor should be 1 in case of erasure coding.
+        result.DiskSpace[mediumIndex] =
+            chunkOwner.GetReplicationFactor(mediumIndex) *
+            (statistics.regular_disk_space() + statistics.erasure_disk_space());
+    }
+    result.ChunkCount = statistics.chunk_count();
+    return result;
 }
 
 template <class TChunkOwner>
@@ -142,8 +159,9 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoBranch(
         objectManager->RefObject(chunkList);
     }
 
-    branchedNode->SetReplicationFactor(originatingNode->GetReplicationFactor());
-    branchedNode->SetVital(originatingNode->GetVital());
+    branchedNode->SetPrimaryMediumIndexAndPropertiesOrThrow(
+        originatingNode->GetPrimaryMediumIndex(),
+        originatingNode->Properties()); // Never actually throws.
     branchedNode->SnapshotStatistics() = originatingNode->ComputeTotalStatistics();
 }
 
@@ -155,11 +173,13 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoLogBranch(
 {
     LOG_DEBUG_UNLESS(
         TBase::IsRecovery(),
-        "Node branched (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v, ReplicationFactor: %v, Mode: %v)",
+        "Node branched (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v, "
+        "Mode: %v, PrimaryMediumIndex: %v, Properties: %v)",
         originatingNode->GetVersionedId(),
         branchedNode->GetVersionedId(),
         NObjectServer::GetObjectId(originatingNode->GetChunkList()),
-        originatingNode->GetReplicationFactor(),
+        originatingNode->GetPrimaryMediumIndex(),
+        originatingNode->Properties(),
         mode);
 }
 
@@ -194,9 +214,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
     }
 
     bool topmostCommit = !originatingNode->GetTransaction();
-    bool propertiesMismatch =
-        originatingNode->GetReplicationFactor() != branchedNode->GetReplicationFactor() ||
-        originatingNode->GetVital() != branchedNode->GetVital();
+    bool propertiesMismatch = originatingNode->Properties() != branchedNode->Properties();
     bool propertiesUpdateNeeded =
         topmostCommit &&
         (propertiesMismatch || branchedNode->GetChunkPropertiesUpdateNeeded());
@@ -292,15 +310,18 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoLogMerge(
 {
     LOG_DEBUG_UNLESS(
         TBase::IsRecovery(),
-        "Node merged (OriginatingNodeId: %v, OriginatingReplicationFactor: %v, "
-        "BranchedNodeId: %v, BranchedChunkListId: %v, BranchedUpdateMode: %v, BranchedReplicationFactor: %v, "
+        "Node merged (OriginatingNodeId: %v, OriginatingPrimaryMediumIndex: %v, "
+        "OriginatingProperties: %v, BranchedNodeId: %v, BranchedChunkListId: %v, "
+        "BranchedUpdateMode: %v, BranchedPrimaryMediumIndex: %v, BranchedProperties: %v, "
         "NewOriginatingChunkListId: %v, NewOriginatingUpdateMode: %v)",
         originatingNode->GetVersionedId(),
-        originatingNode->GetReplicationFactor(),
+        originatingNode->GetPrimaryMediumIndex(),
+        originatingNode->Properties(),
         branchedNode->GetVersionedId(),
         NObjectServer::GetObjectId(branchedNode->GetChunkList()),
         branchedNode->GetUpdateMode(),
-        branchedNode->GetReplicationFactor(),
+        branchedNode->GetPrimaryMediumIndex(),
+        branchedNode->Properties(),
         NObjectServer::GetObjectId(originatingNode->GetChunkList()),
         originatingNode->GetUpdateMode());
 }
@@ -323,8 +344,9 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoClone(
         chunkList->AddOwningNode(clonedNode);
     }
 
-    clonedNode->SetReplicationFactor(sourceNode->GetReplicationFactor());
-    clonedNode->SetVital(sourceNode->GetVital());
+    clonedNode->SetPrimaryMediumIndexAndPropertiesOrThrow(
+        sourceNode->GetPrimaryMediumIndex(),
+        sourceNode->Properties());
     clonedNode->SnapshotStatistics() = sourceNode->SnapshotStatistics();
     clonedNode->DeltaStatistics() = sourceNode->DeltaStatistics();
 }

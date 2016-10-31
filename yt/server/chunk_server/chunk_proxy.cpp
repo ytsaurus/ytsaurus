@@ -76,6 +76,8 @@ private:
             .SetPresent(!isForeign));
         descriptors->push_back(TAttributeDescriptor("movable")
             .SetPresent(!isForeign));
+        descriptors->push_back(TAttributeDescriptor("media")
+            .SetPresent(!isForeign));
         descriptors->push_back(TAttributeDescriptor("vital")
             .SetPresent(!isForeign));
         descriptors->push_back(TAttributeDescriptor("replication_status")
@@ -83,8 +85,6 @@ private:
         descriptors->push_back(TAttributeDescriptor("available")
             .SetPresent(!isForeign));
         descriptors->push_back("confirmed");
-        descriptors->push_back(TAttributeDescriptor("replication_factor")
-            .SetPresent(!chunk->IsErasure()));
         descriptors->push_back(TAttributeDescriptor("erasure_codec")
             .SetPresent(chunk->IsErasure()));
         descriptors->push_back("master_meta_size");
@@ -148,44 +148,39 @@ private:
         auto* chunk = GetThisImpl();
         auto isForeign = chunk->IsForeign();
 
-        typedef std::function<void(TFluentList fluent, TNodePtrWithIndex replica)> TReplicaSerializer;
+        typedef std::function<void(TFluentList fluent, TNodePtrWithIndexes replica)> TReplicaSerializer;
 
-        auto serializeRegularReplica = [] (TFluentList fluent, TNodePtrWithIndex replica) {
+        TReplicaSerializer serializeReplica =
+            [&] (TFluentList fluent, TNodePtrWithIndexes replica) {
+
+            auto* medium = chunkManager->GetMediumByIndexOrThrow(replica.GetMediumIndex());
             fluent.Item()
-                .Value(replica.GetPtr()->GetDefaultAddress());
+            .BeginAttributes()
+                .DoIf(!chunk->IsJournal(), [&] (TFluentAttributes fluent) {
+                        fluent
+                            .Item("medium").Value(medium->GetName());
+                    })
+                .DoIf(chunk->IsErasure(), [&] (TFluentAttributes fluent) {
+                        fluent
+                            .Item("index").Value(replica.GetReplicaIndex());
+                    })
+                .DoIf(chunk->IsJournal(), [&] (TFluentAttributes fluent) {
+                        fluent
+                            .Item("type").Value(EJournalReplicaType(replica.GetReplicaIndex()));
+                    })
+            .EndAttributes()
+            .Value(replica.GetPtr()->GetDefaultAddress());
         };
 
-        auto serializeErasureReplica = [] (TFluentList fluent, TNodePtrWithIndex replica) {
-            fluent.Item()
-                .BeginAttributes()
-                    .Item("index").Value(replica.GetIndex())
-                .EndAttributes()
-                .Value(replica.GetPtr()->GetDefaultAddress());
-        };
-
-        auto serializeJournalReplica = [] (TFluentList fluent, TNodePtrWithIndex replica) {
-            fluent.Item()
-                .BeginAttributes()
-                    .Item("type").Value(EJournalReplicaType(replica.GetIndex()))
-                .EndAttributes()
-                .Value(replica.GetPtr()->GetDefaultAddress());
-        };
-
-        TReplicaSerializer serializeReplica;
-        if (chunk->IsErasure()) {
-            serializeReplica = TReplicaSerializer(serializeErasureReplica);
-        } else if (chunk->IsJournal()) {
-            serializeReplica = TReplicaSerializer(serializeJournalReplica);
-        } else {
-            serializeReplica = TReplicaSerializer(serializeRegularReplica);
-        }
-
-        auto serializeReplicas = [&] (IYsonConsumer* consumer, TNodePtrWithIndexList& replicas) {
+        auto serializeReplicas = [&] (IYsonConsumer* consumer, TNodePtrWithIndexesList& replicas) {
             std::sort(
                 replicas.begin(),
                 replicas.end(),
-                [] (TNodePtrWithIndex lhs, TNodePtrWithIndex rhs) {
-                    return lhs.GetIndex() < rhs.GetIndex();
+                [] (TNodePtrWithIndexes lhs, TNodePtrWithIndexes rhs) {
+                    if (lhs.GetReplicaIndex() != rhs.GetReplicaIndex()) {
+                        return lhs.GetReplicaIndex() < rhs.GetReplicaIndex();
+                    }
+                    return lhs.GetMediumIndex() < rhs.GetMediumIndex();
                 });
             BuildYsonFluently(consumer)
                 .DoListFor(replicas, serializeReplica);
@@ -193,13 +188,13 @@ private:
 
         if (!isForeign) {
             if (key == "cached_replicas") {
-                TNodePtrWithIndexList replicas(chunk->CachedReplicas().begin(), chunk->CachedReplicas().end());
+                TNodePtrWithIndexesList replicas(chunk->CachedReplicas().begin(), chunk->CachedReplicas().end());
                 serializeReplicas(consumer, replicas);
                 return true;
             }
 
             if (key == "stored_replicas") {
-                TNodePtrWithIndexList replicas(chunk->StoredReplicas().begin(), chunk->StoredReplicas().end());
+                TNodePtrWithIndexesList replicas(chunk->StoredReplicas().begin(), chunk->StoredReplicas().end());
                 serializeReplicas(consumer, replicas);
                 return true;
             }
@@ -218,16 +213,31 @@ private:
 
             if (key == "replication_status") {
                 RequireLeader();
-                auto status = chunkManager->ComputeChunkStatus(chunk);
-                BuildYsonFluently(consumer)
-                    .BeginMap()
-                        .Item("underreplicated").Value(Any(status & EChunkStatus::Underreplicated))
-                        .Item("overreplicated").Value(Any(status & EChunkStatus::Overreplicated))
-                        .Item("lost").Value(Any(status & EChunkStatus::Lost))
-                        .Item("data_missing").Value(Any(status & EChunkStatus::DataMissing))
-                        .Item("parity_missing").Value(Any(status & EChunkStatus::ParityMissing))
-                        .Item("unsafely_placed").Value(Any(status & EChunkStatus::UnsafelyPlaced))
-                    .EndMap();
+                auto statuses = chunkManager->ComputeChunkStatuses(chunk);
+
+                BuildYsonFluently(consumer).DoMapFor(
+                    0,
+                    MaxMediumCount,
+                    [&] (TFluentMap fluent, int mediumIndex) {
+                        auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+                        if (!medium) {
+                            return;
+                        }
+
+                        auto status = statuses[mediumIndex];
+
+                        fluent
+                            .Item(medium->GetName())
+                            .BeginMap()
+                                .Item("underreplicated").Value(Any(status & EChunkStatus::Underreplicated))
+                                .Item("overreplicated").Value(Any(status & EChunkStatus::Overreplicated))
+                                .Item("lost").Value(Any(status & EChunkStatus::Lost))
+                                .Item("data_missing").Value(Any(status & EChunkStatus::DataMissing))
+                                .Item("parity_missing").Value(Any(status & EChunkStatus::ParityMissing))
+                                .Item("unsafely_placed").Value(Any(status & EChunkStatus::UnsafelyPlaced))
+                            .EndMap();
+                    });
+
                 return true;
             }
 
@@ -238,18 +248,17 @@ private:
             }
         }
 
-        if (chunk->IsErasure()) {
-            if (key == "erasure_codec") {
-                BuildYsonFluently(consumer)
-                    .Value(chunk->GetErasureCodec());
-                return true;
-            }
-        } else {
-            if (key == "replication_factor") {
-                BuildYsonFluently(consumer)
-                    .Value(chunk->ComputeReplicationFactor());
-                return true;
-            }
+        if (key == "media") {
+            const auto& properties = chunk->ComputeProperties();
+            BuildYsonFluently(consumer)
+                .Value(TMediaSerializer(properties, chunkManager));
+            return true;
+        }
+
+        if (chunk->IsErasure() && key == "erasure_codec") {
+            BuildYsonFluently(consumer)
+                .Value(chunk->GetErasureCodec());
+            return true;
         }
 
         if (key == "confirmed") {
@@ -265,6 +274,7 @@ private:
         }
 
         if (key == "exports") {
+            auto chunkManager = Bootstrap_->GetChunkManager();
             auto multicellManager = Bootstrap_->GetMulticellManager();
             const auto& cellTags = multicellManager->GetRegisteredMasterCellTags();
             BuildYsonFluently(consumer)
@@ -272,11 +282,12 @@ private:
                     auto cellTag = cellTags[index];
                     const auto& exportData = chunk->GetExportData(index);
                     if (exportData.RefCounter > 0) {
+                        const auto& props = exportData.Properties;
                         fluent
                             .Item(ToString(cellTag)).BeginMap()
                                 .Item("ref_counter").Value(exportData.RefCounter)
-                                .Item("vital").Value(exportData.Vital)
-                                .Item("replication_factor").Value(exportData.ReplicationFactor)
+                                .Item("vital").Value(props.GetVital())
+                                .Item("media").Value(TMediaSerializer(props, chunkManager))
                             .EndMap();
                     }
                 });

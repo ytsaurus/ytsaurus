@@ -89,6 +89,7 @@ TChunkId CreateChunk(
     req->set_movable(options->ChunksMovable);
     req->set_vital(options->ChunksVital);
     req->set_erasure_codec(static_cast<int>(options->ErasureCodec));
+    req->set_medium_name(options->MediumName);
     if (chunkListId) {
         ToProto(req->mutable_chunk_list_id(), chunkListId);
     }
@@ -187,6 +188,7 @@ TChunkReplicaList AllocateWriteTargets(
     int desiredTargetCount,
     int minTargetCount,
     TNullable<int> replicationFactorOverride,
+    const Stroka& mediumName,
     bool preferLocalHost,
     const std::vector<Stroka>& forbiddenAddresses,
     TNodeDirectoryPtr nodeDirectory,
@@ -219,6 +221,7 @@ TChunkReplicaList AllocateWriteTargets(
     }
     ToProto(req->mutable_forbidden_addresses(), forbiddenAddresses);
     ToProto(req->mutable_chunk_id(), chunkId);
+    req->set_medium_name(mediumName);
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());
     THROW_ERROR_EXCEPTION_IF_FAILED(
@@ -327,8 +330,12 @@ IChunkReaderPtr CreateRemoteReader(
 
         std::array<TNodeId, MaxTotalPartCount> partIndexToNodeId;
         std::fill(partIndexToNodeId.begin(), partIndexToNodeId.end(), InvalidNodeId);
+        std::array<int, MaxTotalPartCount> partIndexToMediumIndex;
+        std::fill(partIndexToMediumIndex.begin(), partIndexToMediumIndex.end(), DefaultMediumIndex);
         for (auto replica : replicas) {
-            partIndexToNodeId[replica.GetIndex()] = replica.GetNodeId();
+            auto replicaIndex = replica.GetReplicaIndex();
+            partIndexToNodeId[replicaIndex] = replica.GetNodeId();
+            partIndexToMediumIndex[replicaIndex] = replica.GetMediumIndex();
         }
 
         auto* erasureCodec = GetCodec(erasureCodecId);
@@ -340,8 +347,9 @@ IChunkReaderPtr CreateRemoteReader(
         for (int index = 0; index < dataPartCount; ++index) {
             TChunkReplicaList partReplicas;
             auto nodeId = partIndexToNodeId[index];
+            auto mediumIndex = partIndexToMediumIndex[index];
             if (nodeId != InvalidNodeId) {
-                partReplicas.push_back(TChunkReplica(nodeId, index));
+                partReplicas.push_back(TChunkReplica(nodeId, index, mediumIndex));
             }
 
             auto partId = ErasurePartIdFromChunkId(chunkId, index);

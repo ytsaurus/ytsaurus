@@ -14,21 +14,23 @@ void FromProto(TChunkReplica* replica, ui32 value);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A compact representation of |(nodeId, index)| pair.
+//! A compact representation of |(nodeId, replicaIndex, mediumIndex)| triplet.
 class TChunkReplica
 {
 public:
     TChunkReplica();
-    TChunkReplica(int nodeId, int index);
+    TChunkReplica(int nodeId, int replicaIndex, int mediumIndex);
 
     int GetNodeId() const;
-    int GetIndex() const;
+    int GetReplicaIndex() const;
+    int GetMediumIndex() const;
 
 private:
     /*!
      *  Bits:
-     *   0-27: node id
-     *  28-31: index
+     *   0-23: node id
+     *  24-28: replica index (5 bits)
+     *  29-31: medium index (3 bits)
      */
     ui32 Value;
 
@@ -46,11 +48,20 @@ Stroka ToString(TChunkReplica replica);
 struct TChunkIdWithIndex
 {
     TChunkIdWithIndex();
-    TChunkIdWithIndex(const TChunkId& id, int index);
+    TChunkIdWithIndex(const TChunkId& id, int replicaIndex);
 
     TChunkId Id;
-    int Index;
+    int ReplicaIndex;
+};
 
+struct TChunkIdWithIndexes
+    : public TChunkIdWithIndex
+{
+    TChunkIdWithIndexes();
+    TChunkIdWithIndexes(const TChunkIdWithIndex& chunkIdWithIndex, int mediumIndex);
+    TChunkIdWithIndexes(const TChunkId& id, int replicaIndex, int mediumIndex);
+
+    int MediumIndex;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -73,12 +84,22 @@ DEFINE_ENUM(EJournalReplicaType,
     ((Sealed)    (SealedChunkReplicaIndex))
 );
 
+const int AllMediaIndex = MaxMediumCount; // passed to various APIs to indicate that any medium is OK
+
+//! Valid indexes are in range |[0, MediumIndexBound)|.
+const int MediumIndexBound = MaxMediumCount + 1;
+
 ///////////////////////////////////////////////////////////////////////////////
 
-bool operator == (const TChunkIdWithIndex& lhs, const TChunkIdWithIndex& rhs);
-bool operator != (const TChunkIdWithIndex& lhs, const TChunkIdWithIndex& rhs);
+bool operator==(const TChunkIdWithIndex& lhs, const TChunkIdWithIndex& rhs);
+bool operator!=(const TChunkIdWithIndex& lhs, const TChunkIdWithIndex& rhs);
 
 Stroka ToString(const TChunkIdWithIndex& id);
+
+bool operator==(const TChunkIdWithIndexes& lhs, const TChunkIdWithIndexes& rhs);
+bool operator!=(const TChunkIdWithIndexes& lhs, const TChunkIdWithIndexes& rhs);
+
+Stroka ToString(const TChunkIdWithIndexes& id);
 
 //! Returns |true| iff this is an artifact chunk.
 bool IsArtifactChunkId(const TChunkId& id);
@@ -133,8 +154,20 @@ struct hash<NYT::NChunkClient::TChunkIdWithIndex>
 {
     inline size_t operator()(const NYT::NChunkClient::TChunkIdWithIndex& value) const
     {
+        return THash<NYT::NChunkClient::TChunkId>()(value.Id) * 497 + value.ReplicaIndex;
+    }
+};
+
+Y_DECLARE_PODTYPE(NYT::NChunkClient::TChunkIdWithIndexes);
+
+//! A hasher for TChunkIdWithIndexes.
+template <>
+struct hash<NYT::NChunkClient::TChunkIdWithIndexes>
+{
+    inline size_t operator()(const NYT::NChunkClient::TChunkIdWithIndexes& value) const
+    {
         return THash<NYT::NChunkClient::TChunkId>()(value.Id) * 497 +
-            value.Index;
+            value.ReplicaIndex + value.MediumIndex * 8;
     }
 };
 

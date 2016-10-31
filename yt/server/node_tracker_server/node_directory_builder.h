@@ -19,8 +19,8 @@ public:
     explicit TNodeDirectoryBuilder(NNodeTrackerClient::NProto::TNodeDirectory* protoDirectory);
 
     void Add(const TNode* node);
-    void Add(NChunkServer::TNodePtrWithIndex node);
-    void Add(const NChunkServer::TNodePtrWithIndexList& nodes);
+    void Add(NChunkServer::TNodePtrWithIndexes node);
+    void Add(const NChunkServer::TNodePtrWithIndexesList& nodes);
 
 private:
     NNodeTrackerClient::NProto::TNodeDirectory* ProtoDirectory;

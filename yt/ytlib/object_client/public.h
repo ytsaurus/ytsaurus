@@ -104,6 +104,8 @@ DEFINE_ENUM(EObjectType,
     ((ChunkMap)                   (402))
     ((LostChunkMap)               (403))
     ((LostVitalChunkMap)          (413))
+    ((PrecariousChunkMap)         (410))
+    ((PrecariousVitalChunkMap)    (411))
     ((OverreplicatedChunkMap)     (404))
     ((UnderreplicatedChunkMap)    (405))
     ((DataMissingChunkMap)        (419))
@@ -113,6 +115,8 @@ DEFINE_ENUM(EObjectType,
     ((ForeignChunkMap)            (122))
     ((ChunkList)                  (101))
     ((ChunkListMap)               (406))
+    ((Medium)                     (408))
+    ((MediumMap)                  (409))
 
     // The following represent versioned objects (AKA Cypress nodes).
     // These must be created by calling TCypressYPathProxy::Create.

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "chunk_properties.h"
 #include "chunk_replica.h"
 #include "chunk_tree.h"
 
@@ -14,6 +15,7 @@
 #include <yt/core/erasure/public.h>
 
 #include <yt/core/misc/nullable.h>
+#include <yt/core/misc/format.h>
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref_tracked.h>
 #include <yt/core/misc/small_vector.h>
@@ -23,14 +25,14 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TChunkProperties
+struct TChunkExportData
 {
-    int ReplicationFactor = 0;
-    bool Vital = false;
+    ui32 RefCounter;
+    TChunkProperties Properties;
 };
 
-bool operator== (const TChunkProperties& lhs, const TChunkProperties& rhs);
-bool operator!= (const TChunkProperties& lhs, const TChunkProperties& rhs);
+static_assert(sizeof(TChunkExportData) == sizeof(TChunkProperties) + 4, "sizeof(TChunkExportData) != sizeof(TChunkProperties) + 4");
+using TChunkExportDataList = TChunkExportData[NObjectClient::MaxSecondaryMasterCells];
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,18 +53,6 @@ struct TChunkDynamicData
     //! The job that is currently scheduled for this chunk (at most one).
     TJobPtr Job;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TChunkExportData
-{
-    ui32 RefCounter : 24;
-    bool Vital : 1;
-    ui8 ReplicationFactor : 7;
-};
-
-static_assert(sizeof(TChunkExportData) == 4, "sizeof(TChunkExportData) != 4");
-using TChunkExportDataList = TChunkExportData[NObjectClient::MaxSecondaryMasterCells];
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -95,17 +85,18 @@ public:
     void AddParent(TChunkList* parent);
     void RemoveParent(TChunkList* parent);
 
-    using TCachedReplicas = yhash_set<TNodePtrWithIndex>;
+    using TCachedReplicas = yhash_set<TNodePtrWithIndexes>;
     const TCachedReplicas& CachedReplicas() const;
 
-    using TStoredReplicas = TNodePtrWithIndexList;
+    // TODO(shakurov): make these per-medium?
+    using TStoredReplicas = TNodePtrWithIndexesList;
     const TStoredReplicas& StoredReplicas() const;
 
-    void AddReplica(TNodePtrWithIndex replica, bool cached);
-    void RemoveReplica(TNodePtrWithIndex replica, bool cached);
-    TNodePtrWithIndexList GetReplicas() const;
+    void AddReplica(TNodePtrWithIndexes replica, bool cached);
+    void RemoveReplica(TNodePtrWithIndexes replica, bool cached);
+    TNodePtrWithIndexesList GetReplicas() const;
 
-    void ApproveReplica(TNodePtrWithIndex replica);
+    void ApproveReplica(TNodePtrWithIndexes replica);
 
     void Confirm(
         NChunkClient::NProto::TChunkInfo* chunkInfo,
@@ -137,14 +128,23 @@ public:
     //! Computes the vitality flag by ORing the local and the external values.
     bool ComputeVital() const;
 
-    //! Computes the replication factor by MAXing the local and the external values.
-    int ComputeReplicationFactor() const;
-
     bool GetLocalVital() const;
     void SetLocalVital(bool value);
 
-    int GetLocalReplicationFactor() const;
-    void SetLocalReplicationFactor(int value);
+    //! Computes properties of the chunk by combining local and external values.
+    //! For semantics of combining, see #TChunkProperties::operator|=().
+    TChunkProperties ComputeProperties() const;
+
+    //! Computes the replication factor for the specified medium by combining the
+    //! local and the external values. See #ComputeProperties(int).
+    int ComputeReplicationFactor(int mediumIndex) const;
+
+    //! Computes the replication factors for all media by combining the local and
+    //! the external values. See #ComputeProperties(int).
+    //! NB: most of the time, most of the elements of the returned array will be zero.
+    TPerMediumIntArray ComputeReplicationFactors() const;
+
+    int GetLocalReplicationFactor(int mediumIndex) const;
 
     int GetReadQuorum() const;
     void SetReadQuorum(int value);
@@ -160,7 +160,7 @@ public:
 
     //! Returns |true| iff this is a journal chunk.
     bool IsJournal() const;
-    
+
     //! Returns |true| iff this is a regular chunk.
     bool IsRegular() const;
 
@@ -182,7 +182,10 @@ public:
     void Seal(const NChunkClient::NProto::TMiscExt& info);
 
     //! Obtains the local properties of the chunk.
-    TChunkProperties GetLocalProperties() const;
+    const TChunkProperties& GetLocalProperties() const;
+
+    //! Obtains the local properties of the chunk for the specified medium.
+    TMediumChunkProperties GetLocalProperties(int mediumIndex) const;
 
     //! Updates the local properties of the chunk.
     //! Returns |true| if anything changes.
@@ -190,7 +193,7 @@ public:
 
     //! Updates the properties of the chunk, as seen by the external cell.
     //! Returns |true| if anything changes.
-    bool UpdateExternalProprties(int cellIndex, const TChunkProperties& properties);
+    bool UpdateExternalProperties(int cellIndex, const TChunkProperties& properties);
 
     //! Returns the maximum number of replicas that can be stored in the same
     //! rack without violating the availability guarantees.
@@ -198,7 +201,7 @@ public:
      *  \param replicationFactorOverride An override for replication factor;
      *  used when one wants to upload fewer replicas but still guarantee placement safety.
      */
-    int GetMaxReplicasPerRack(TNullable<int> replicationFactorOverride) const;
+    int GetMaxReplicasPerRack(int mediumIndex, TNullable<int> replicationFactorOverride) const;
 
     //! Returns the export data w.r.t. to a cell with a given #index.
     /*!
@@ -213,12 +216,10 @@ public:
     void Unexport(int cellIndex, int importRefCounter);
 
 private:
-    struct {
-        bool Movable : 1;
-        bool Vital : 1;
-    } Flags_ = {};
+    bool Movable_ : 1;
 
-    ui8 ReplicationFactor_ = 0;
+    TChunkProperties LocalProperties_;
+
     ui8 ReadQuorum_ = 0;
     ui8 WriteQuorum_ = 0;
     NErasure::ECodec ErasureCodec_ = NErasure::ECodec::None;

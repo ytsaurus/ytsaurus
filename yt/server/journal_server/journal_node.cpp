@@ -161,6 +161,7 @@ protected:
 
         // NB: Don't call TBase::InitializeAttributes; take care of all attributes here.
 
+        // TODO(shakurov): is this enough or should the "properties" attribute be passed here instead?
         int replicationFactor = attributes->GetAndRemove<int>("replication_factor", config->DefaultJournalReplicationFactor);
         int readQuorum = attributes->GetAndRemove<int>("read_quorum", config->DefaultJournalReadQuorum);
         int writeQuorum = attributes->GetAndRemove<int>("write_quorum", config->DefaultJournalWriteQuorum);
@@ -182,7 +183,7 @@ protected:
             attributes);
         auto* node = nodeHolder.get();
 
-        node->SetReplicationFactor(replicationFactor);
+        node->SetReplicationFactorOrThrow(DefaultMediumIndex, replicationFactor);
         node->SetReadQuorum(readQuorum);
         node->SetWriteQuorum(writeQuorum);
 
@@ -196,7 +197,9 @@ protected:
     {
         // NB: Don't call TBase::DoBranch.
 
-        branchedNode->SetReplicationFactor(originatingNode->GetReplicationFactor());
+        branchedNode->SetPrimaryMediumIndexAndPropertiesOrThrow(
+            originatingNode->GetPrimaryMediumIndex(),
+            originatingNode->Properties()); // Never actually throws.
         branchedNode->SetReadQuorum(originatingNode->GetReadQuorum());
         branchedNode->SetWriteQuorum(originatingNode->GetWriteQuorum());
         branchedNode->SetVital(originatingNode->GetVital());
@@ -220,11 +223,12 @@ protected:
         LOG_DEBUG_UNLESS(
             IsRecovery(),
             "Node branched (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v, "
-            "ReplicationFactor: %v, ReadQuorum: %v, WriteQuorum: %v, Mode: %v)",
+            "PrimaryMediumIndex: %v, Properties: %v, ReadQuorum: %v, WriteQuorum: %v, Mode: %v)",
             originatingNode->GetVersionedId(),
             branchedNode->GetVersionedId(),
             GetObjectId(originatingNode->GetChunkList()),
-            originatingNode->GetReplicationFactor(),
+            originatingNode->GetPrimaryMediumIndex(),
+            originatingNode->Properties(),
             originatingNode->GetReadQuorum(),
             originatingNode->GetWriteQuorum(),
             mode);

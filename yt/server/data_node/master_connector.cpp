@@ -12,6 +12,8 @@
 #include <yt/server/cell_node/bootstrap.h>
 #include <yt/server/cell_node/config.h>
 
+#include <yt/server/chunk_server/public.h>
+
 #include <yt/server/data_node/journal_dispatcher.h>
 
 #include <yt/server/job_agent/job_controller.h>
@@ -277,7 +279,7 @@ void TMasterConnector::RegisterAtMaster()
 
     auto req = proxy.RegisterNode();
     req->SetTimeout(Config_->RegisterTimeout);
-    *req->mutable_statistics() = ComputeStatistics();
+    ComputeTotalStatistics(req->mutable_statistics());
     ToProto(req->mutable_addresses(), LocalAddresses_);
     ToProto(req->mutable_lease_transaction_id(), LeaseTransaction_->GetId());
     ToProto(req->mutable_tags(), NodeTags_);
@@ -296,6 +298,11 @@ void TMasterConnector::RegisterAtMaster()
     const auto& rsp = rspOrError.Value();
 
     NodeId_ = rsp->node_id();
+
+    // Location configs specify medium names only. They're converted into indexes
+    // at node's registration, which are then used everywhere else in the protocol.
+    SetLocationIndexes(*rsp);
+
     for (auto cellTag : MasterCellTags_) {
         auto* delta = GetChunksDelta(cellTag);
         delta->State = EState::Registered;
@@ -317,6 +324,20 @@ void TMasterConnector::RegisterAtMaster()
     }
 }
 
+void TMasterConnector::SetLocationIndexes(const NNodeTrackerClient::NProto::TRspRegisterNode& rsp)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    yhash_map<Stroka, int> mediumNameToIndex;
+    for (const auto& pair : rsp.media()) {
+        mediumNameToIndex.insert(
+            std::make_pair(pair.medium_name(), pair.medium_index()));
+    }
+
+    Bootstrap_->GetChunkStore()->SetMediumIndexes(mediumNameToIndex);
+    Bootstrap_->GetChunkCache()->SetMediumIndexes(mediumNameToIndex);
+}
+
 void TMasterConnector::OnLeaseTransactionAborted()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -329,6 +350,14 @@ void TMasterConnector::OnLeaseTransactionAborted()
 TNodeStatistics TMasterConnector::ComputeStatistics()
 {
     TNodeStatistics result;
+    ComputeTotalStatistics(&result);
+    ComputeLocationSpecificStatistics(&result);
+    return result;
+}
+
+void TMasterConnector::ComputeTotalStatistics(TNodeStatistics* result)
+{
+    auto chunkStore = Bootstrap_->GetChunkStore();
 
     i64 totalAvailableSpace = 0;
     i64 totalLowWatermarkSpace = 0;
@@ -337,18 +366,7 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
     int totalSessionCount = 0;
     bool full = true;
 
-    auto chunkStore = Bootstrap_->GetChunkStore();
-    yhash_set<EObjectType> acceptedChunkTypes;
     for (auto location : chunkStore->Locations()) {
-        auto* locationStatistics = result.add_locations();
-
-        locationStatistics->set_available_space(location->GetAvailableSpace());
-        locationStatistics->set_used_space(location->GetUsedSpace());
-        locationStatistics->set_chunk_count(location->GetChunkCount());
-        locationStatistics->set_session_count(location->GetSessionCount());
-        locationStatistics->set_full(location->IsFull());
-        locationStatistics->set_enabled(location->IsEnabled());
-
         if (location->IsEnabled()) {
             totalAvailableSpace += location->GetAvailableSpace();
             totalLowWatermarkSpace += location->GetLowWatermarkSpace();
@@ -358,12 +376,6 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
         totalUsedSpace += location->GetUsedSpace();
         totalStoredChunkCount += location->GetChunkCount();
         totalSessionCount += location->GetSessionCount();
-
-        for (auto type : {EObjectType::Chunk, EObjectType::ErasureChunk, EObjectType::JournalChunk}) {
-            if (location->IsChunkTypeAccepted(type)) {
-                acceptedChunkTypes.insert(type);
-            }
-        }
     }
 
     // Do not treat node without locations as empty; motivating case is the following:
@@ -378,28 +390,24 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
     auto chunkCache = Bootstrap_->GetChunkCache();
     int totalCachedChunkCount = chunkCache->GetChunkCount();
 
-    for (auto type : acceptedChunkTypes) {
-        result.add_accepted_chunk_types(static_cast<int>(type));
-    }
-
-    result.set_total_available_space(totalAvailableSpace);
-    result.set_total_low_watermark_space(totalLowWatermarkSpace);
-    result.set_total_used_space(totalUsedSpace);
-    result.set_total_stored_chunk_count(totalStoredChunkCount);
-    result.set_total_cached_chunk_count(totalCachedChunkCount);
-    result.set_full(full);
+    result->set_total_available_space(totalAvailableSpace);
+    result->set_total_low_watermark_space(totalLowWatermarkSpace);
+    result->set_total_used_space(totalUsedSpace);
+    result->set_total_stored_chunk_count(totalStoredChunkCount);
+    result->set_total_cached_chunk_count(totalCachedChunkCount);
+    result->set_full(full);
 
     auto sessionManager = Bootstrap_->GetSessionManager();
-    result.set_total_user_session_count(sessionManager->GetSessionCount(ESessionType::User));
-    result.set_total_replication_session_count(sessionManager->GetSessionCount(ESessionType::Replication));
-    result.set_total_repair_session_count(sessionManager->GetSessionCount(ESessionType::Repair));
+    result->set_total_user_session_count(sessionManager->GetSessionCount(ESessionType::User));
+    result->set_total_replication_session_count(sessionManager->GetSessionCount(ESessionType::Replication));
+    result->set_total_repair_session_count(sessionManager->GetSessionCount(ESessionType::Repair));
 
     auto slotManager = Bootstrap_->GetTabletSlotManager();
-    result.set_available_tablet_slots(slotManager->GetAvailableTabletSlotCount());
-    result.set_used_tablet_slots(slotManager->GetUsedTableSlotCount());
+    result->set_available_tablet_slots(slotManager->GetAvailableTabletSlotCount());
+    result->set_used_tablet_slots(slotManager->GetUsedTableSlotCount());
 
     const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
-    auto* protoMemory = result.mutable_memory();
+    auto* protoMemory = result->mutable_memory();
     protoMemory->set_total_limit(tracker->GetTotalLimit());
     protoMemory->set_total_used(tracker->GetTotalUsed());
     for (auto category : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
@@ -412,8 +420,40 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
         auto used = tracker->GetUsed(category);
         protoCategory->set_used(used);
     }
+}
 
-    return result;
+void TMasterConnector::ComputeLocationSpecificStatistics(TNodeStatistics* result)
+{
+    auto chunkStore = Bootstrap_->GetChunkStore();
+
+    NChunkServer::TPerMediumArray<yhash_set<EObjectType>> acceptedChunkTypes;
+    for (auto location : chunkStore->Locations()) {
+        auto* locationStatistics = result->add_locations();
+
+        locationStatistics->set_medium_index(location->GetMediumIndex());
+        locationStatistics->set_available_space(location->GetAvailableSpace());
+        locationStatistics->set_used_space(location->GetUsedSpace());
+        locationStatistics->set_low_watermark_space(location->GetLowWatermarkSpace());
+        locationStatistics->set_chunk_count(location->GetChunkCount());
+        locationStatistics->set_session_count(location->GetSessionCount());
+        locationStatistics->set_enabled(location->IsEnabled());
+        locationStatistics->set_full(location->IsFull());
+
+        for (auto type : {EObjectType::Chunk, EObjectType::ErasureChunk, EObjectType::JournalChunk}) {
+            if (location->IsChunkTypeAccepted(type)) {
+                acceptedChunkTypes[location->GetMediumIndex()].insert(type);
+            }
+        }
+    }
+
+    for (int mediumIndex = 0; mediumIndex < acceptedChunkTypes.size(); ++mediumIndex) {
+        const auto& mediumChunkTypes = acceptedChunkTypes[mediumIndex];
+        for (const auto& type : mediumChunkTypes) {
+            auto* acceptedChunkType = result->add_accepted_chunk_types();
+            acceptedChunkType->set_medium_index(mediumIndex);
+            acceptedChunkType->set_chunk_type(static_cast<int>(type));
+        }
+    }
 }
 
 void TMasterConnector::SendNodeHeartbeat(TCellTag cellTag)
@@ -473,32 +513,48 @@ void TMasterConnector::SendFullNodeHeartbeat(TCellTag cellTag)
 
     *request->mutable_statistics() = ComputeStatistics();
 
+    NChunkServer::TPerMediumIntArray chunkCounts{};
+
     int storedChunkCount = 0;
     int cachedChunkCount = 0;
-    auto addChunkInfo = [&] (const IChunkPtr& chunk) {
+
+    auto addStoredChunkInfo = [&] (const IChunkPtr& chunk) {
         if (CellTagFromId(chunk->GetId()) == cellTag) {
             auto info = BuildAddChunkInfo(chunk);
             *request->add_chunks() = info;
-            if (info.cached()) {
-                ++cachedChunkCount;
-            } else {
-                ++storedChunkCount;
-            }
+            auto mediumIndex = chunk->GetLocation()->GetMediumIndex();
+            ++chunkCounts[mediumIndex];
+            ++storedChunkCount;
+        }
+    };
+
+    auto addCachedChunkInfo = [&] (const IChunkPtr& chunk) {
+        if (!IsArtifactChunkId(chunk->GetId())) {
+            auto info = BuildAddChunkInfo(chunk);
+            *request->add_chunks() = info;
+            ++chunkCounts[DefaultCacheMediumIndex];
+            ++cachedChunkCount;
         }
     };
 
     for (const auto& chunk : Bootstrap_->GetChunkStore()->GetChunks()) {
-        addChunkInfo(chunk);
+        addStoredChunkInfo(chunk);
     }
 
     for (const auto& chunk : Bootstrap_->GetChunkCache()->GetChunks()) {
-        if (!IsArtifactChunkId(chunk->GetId())) {
-            *request->add_chunks() = BuildAddChunkInfo(chunk);
-        }
+        addCachedChunkInfo(chunk);
     }
 
-    request->set_stored_chunk_count(storedChunkCount);
-    request->set_cached_chunk_count(cachedChunkCount);
+    int mediumIndex = 0;
+    for (auto chunkCount : chunkCounts) {
+        if (chunkCount != 0) {
+            auto* mediumChunkStatistics = request->add_chunk_statistics();
+            mediumChunkStatistics->set_medium_index(mediumIndex);
+            mediumChunkStatistics->set_chunk_count(chunkCount);
+        }
+
+        ++mediumIndex;
+    }
 
     LOG_INFO("Full node heartbeat sent to master (StoredChunkCount: %v, CachedChunkCount: %v, %v)",
         storedChunkCount,
@@ -729,7 +785,7 @@ TChunkAddInfo TMasterConnector::BuildAddChunkInfo(IChunkPtr chunk)
 {
     TChunkAddInfo result;
     ToProto(result.mutable_chunk_id(), chunk->GetId());
-    result.set_cached(chunk->GetLocation()->GetType() == ELocationType::Cache);
+    result.set_medium_index(chunk->GetLocation()->GetMediumIndex());
     result.set_active(chunk->IsActive());
     result.set_sealed(chunk->GetInfo().sealed());
     return result;
@@ -739,7 +795,7 @@ TChunkRemoveInfo TMasterConnector::BuildRemoveChunkInfo(IChunkPtr chunk)
 {
     TChunkRemoveInfo result;
     ToProto(result.mutable_chunk_id(), chunk->GetId());
-    result.set_cached(chunk->GetLocation()->GetType() == ELocationType::Cache);
+    result.set_medium_index(chunk->GetLocation()->GetMediumIndex());
     return result;
 }
 

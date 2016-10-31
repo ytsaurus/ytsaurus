@@ -273,7 +273,7 @@ void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<Stroka, INode
         auto objectId = attributes.Get<TObjectId>("id");
         auto nodeId = NodeIdFromObjectId(objectId);
         auto newState = attributes.Get<ENodeState>("state");
-        auto ioWeight = attributes.Get<double>("io_weight", 0.0);
+        auto ioWeights = attributes.Get<yhash_map<Stroka, double>>("io_weights", {});
 
         LOG_DEBUG("Handling node %v (nodeId: %v, objectId: %v, newState: %v)", address, nodeId, objectId, newState);
 
@@ -303,7 +303,7 @@ void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<Stroka, INode
         }
 
         execNode->SetMasterState(newState);
-        execNode->SetIOWeight(ioWeight);
+        execNode->SetIOWeights(ioWeights);
 
         if (oldState != newState) {
             LOG_INFO("Node %lv (Address: %v)", newState, address);

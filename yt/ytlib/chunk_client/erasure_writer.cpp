@@ -208,7 +208,10 @@ public:
         for (int i = 0; i < Writers_.size(); ++i) {
             auto replicas = Writers_[i]->GetWrittenChunkReplicas();
             YCHECK(replicas.size() == 1);
-            auto replica = TChunkReplica(replicas.front().GetNodeId(), i);
+            auto replica = TChunkReplica(
+                replicas.front().GetNodeId(),
+                i,
+                replicas.front().GetMediumIndex());
 
             result.push_back(replica);
         }
@@ -495,6 +498,7 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
         codec->GetTotalPartCount(),
         codec->GetTotalPartCount(),
         Null,
+        options->MediumName,
         partConfig->PreferLocalHost,
         std::vector<Stroka>(),
         nodeDirectory,

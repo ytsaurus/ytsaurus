@@ -82,6 +82,7 @@ public:
         , Bootstrap_(bootstrap)
         , ChunkJobSpecExt_(JobSpec_.GetExtension(TChunkJobSpecExt::chunk_job_spec_ext))
         , ChunkId_(FromProto<TChunkId>(ChunkJobSpecExt_.chunk_id()))
+        , MediumIndex_(ChunkJobSpecExt_.medium_index())
         , ResourceLimits_(resourceLimits)
     {
         Logger.AddTag("JobId: %v, JobType: %v, ChunkId: %v",
@@ -249,6 +250,7 @@ protected:
 
     const TChunkJobSpecExt ChunkJobSpecExt_;
     const TChunkId ChunkId_;
+    const int MediumIndex_;
 
     TNodeResources ResourceLimits_;
 
@@ -532,7 +534,7 @@ private:
         for (int partIndex : *repairIndexes) {
             TChunkReplicaList partReplicas;
             for (auto replica : replicas) {
-                if (replica.GetIndex() == partIndex) {
+                if (replica.GetReplicaIndex() == partIndex) {
                     partReplicas.push_back(replica);
                 }
             }
