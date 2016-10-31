@@ -25,7 +25,7 @@ bool IsUnavailable(const TChunkReplicaList& replicas, NErasure::ECodec codecId, 
         int partCount = checkParityParts ? codec->GetTotalPartCount() : codec->GetDataPartCount();
         NErasure::TPartIndexSet missingIndexSet((1 << partCount) - 1);
         for (auto replica : replicas) {
-            missingIndexSet.reset(replica.GetIndex());
+            missingIndexSet.reset(replica.GetReplicaIndex());
         }
         return missingIndexSet.any();
     }

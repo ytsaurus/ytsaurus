@@ -197,7 +197,8 @@ private:
 
     virtual void OnCompleted() override
     {
-        Promise_.Set(ConvertToYsonString(ResourceUsage_));
+        auto usage = New<TSerializableClusterResources>(Bootstrap_->GetChunkManager(), ResourceUsage_);
+        Promise_.Set(ConvertToYsonString(usage));
     }
 
 };
@@ -351,7 +352,7 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(const Stroka& key, co
 
         auto* node = LockThisImpl();
         if (node->GetAccount() != account) {
-            securityManager->ValidateResourceUsageIncrease(account, TClusterResources(0, 1, 0));
+            securityManager->ValidateResourceUsageIncrease(account, TClusterResources(1, 0));
             securityManager->SetAccount(node, account);
         }
 
@@ -560,8 +561,10 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
     if (key == "resource_usage") {
         auto cypressManager = Bootstrap_->GetCypressManager();
         auto handler = cypressManager->GetHandler(node);
+        auto chunkManager = Bootstrap_->GetChunkManager();
+        auto resourceSerializer = New<TSerializableClusterResources>(chunkManager, handler->GetTotalResourceUsage(node));
         BuildYsonFluently(consumer)
-            .Value(handler->GetTotalResourceUsage(node));
+            .Value(resourceSerializer);
         return true;
     }
 
@@ -825,7 +828,7 @@ void TNontemplateCypressNodeProxyBase::SetChildNode(
 
 TClusterResources TNontemplateCypressNodeProxyBase::GetResourceUsage() const
 {
-    return TClusterResources(0, 1, 0);
+    return TClusterResources(1, 0);
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)

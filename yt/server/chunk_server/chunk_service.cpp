@@ -84,8 +84,11 @@ private:
             auto* chunk = chunkManager->FindChunk(chunkIdWithIndex.Id);
 
             if (IsObjectAlive(chunk)) {
-                TChunkPtrWithIndex chunkWithIndex(chunk, chunkIdWithIndex.Index);
-                auto replicas = chunkManager->LocateChunk(chunkWithIndex);
+                TChunkPtrWithIndexes chunkWithIndexes(
+                    chunk,
+                    chunkIdWithIndex.ReplicaIndex,
+                    AllMediaIndex);
+                auto replicas = chunkManager->LocateChunk(chunkWithIndexes);
                 ToProto(subresponse->mutable_replicas(), replicas);
                 subresponse->set_erasure_codec(static_cast<int>(chunk->GetErasureCodec()));
                 for (auto replica : replicas) {
@@ -114,6 +117,9 @@ private:
 
         for (const auto& subrequest : request->subrequests()) {
             auto chunkId = FromProto<TChunkId>(subrequest.chunk_id());
+            const auto& mediumName = subrequest.medium_name();
+            auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
+            auto mediumIndex = medium->GetIndex();
             int desiredTargetCount = subrequest.desired_target_count();
             int minTargetCount = subrequest.min_target_count();
             auto replicationFactorOverride = subrequest.has_replication_factor_override()
@@ -136,6 +142,7 @@ private:
             std::sort(forbiddenNodes.begin(), forbiddenNodes.end());
 
             auto targets = chunkManager->AllocateWriteTargets(
+                mediumIndex,
                 chunk,
                 desiredTargetCount,
                 minTargetCount,
@@ -146,21 +153,23 @@ private:
             auto* subresponse = response->add_subresponses();
             for (int index = 0; index < static_cast<int>(targets.size()); ++index) {
                 auto* target = targets[index];
-                auto replica = TNodePtrWithIndex(target, GenericChunkReplicaIndex);
+                auto replica = TNodePtrWithIndexes(target, GenericChunkReplicaIndex, mediumIndex);
                 builder.Add(replica);
                 subresponse->add_replicas(ToProto<ui32>(replica));
             }
 
             LOG_DEBUG("Write targets allocated "
                 "(ChunkId: %v, DesiredTargetCount: %v, MinTargetCount: %v, ReplicationFactorOverride: %v, "
-                "PreferredHostName: %v, ForbiddenAddresses: %v, Targets: %v)",
+                "PreferredHostName: %v, ForbiddenAddresses: %v, Targets: %v, Medium: %v (%v))",
                 chunkId,
                 desiredTargetCount,
                 minTargetCount,
                 replicationFactorOverride,
                 preferredHostName,
                 forbiddenAddresses,
-                MakeFormattableRange(targets, TNodePtrAddressFormatter()));
+                MakeFormattableRange(targets, TNodePtrAddressFormatter()),
+                mediumName,
+                mediumIndex);
         }
 
         context->Reply();

@@ -9,7 +9,7 @@ import "yt/core/misc/guid.proto";
 message TChunkAddInfo
 {
     required NYT.NProto.TGuid chunk_id = 1;
-    optional bool cached = 2 [default = false];
+    required int32 medium_index = 5;
     optional bool active = 3 [default = false];
     optional bool sealed = 4 [default = false];
 }
@@ -17,7 +17,7 @@ message TChunkAddInfo
 message TChunkRemoveInfo
 {
     required NYT.NProto.TGuid chunk_id = 1;
-    optional bool cached = 2 [default = false];
+    required int32 medium_index = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

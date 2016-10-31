@@ -796,6 +796,13 @@ def remove_rack(name, **kwargs):
     remove("//sys/racks/" + name, **kwargs)
     gc_collect()
 
+def create_medium(name, **kwargs):
+    kwargs["type"] = "medium"
+    if "attributes" not in kwargs:
+        kwargs["attributes"] = dict()
+    kwargs["attributes"]["name"] = name
+    execute_command("create", kwargs)
+
 #########################################
 # Helpers:
 
@@ -833,6 +840,36 @@ def get_racks():
 
 def get_nodes():
     return ls("//sys/nodes")
+
+def get_media():
+    gc_collect()
+    return ls("//sys/media")
+
+def get_chunk_owner_disk_space(path, *args, **kwargs):
+    disk_space = get("{0}/@resource_usage/disk_space_per_medium".format(path), *args, **kwargs)
+    return disk_space.get("default", 0)
+
+def get_recursive_disk_space(path):
+    disk_space = get("{0}/@recursive_resource_usage/disk_space_per_medium".format(path))
+    return disk_space.get("default", 0)
+
+def get_account_disk_space(account):
+    disk_space = get("//sys/accounts/{0}/@resource_usage/disk_space_per_medium".format(account))
+    return disk_space.get("default", 0)
+
+def get_account_committed_disk_space(account):
+    disk_space = get("//sys/accounts/{0}/@committed_resource_usage/disk_space_per_medium".format(account))
+    return disk_space.get("default", 0)
+
+def get_account_disk_space_limit(account):
+    disk_space = get("//sys/accounts/{0}/@resource_limits/disk_space_per_medium".format(account))
+    return disk_space.get("default", 0)
+
+def set_account_disk_space_limit(account, limit):
+    set("//sys/accounts/{0}/@resource_limits/disk_space_per_medium/default".format(account), limit)
+
+def get_chunk_replication_factor(chunk_id):
+    return get("#{0}/@media/default/replication_factor".format(chunk_id))
 
 #########################################
 

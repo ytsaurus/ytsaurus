@@ -91,7 +91,7 @@ public:
     double GetIOWeight() const;
 
     //! Set the node's IO weight.
-    void SetIOWeight(double value);
+    void SetIOWeights(const yhash_map<Stroka, double>& mediumToWeight);
 
     //! Returns the node's resource limits, as reported by the node.
     const TJobResources& GetResourceLimits() const;

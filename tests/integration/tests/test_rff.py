@@ -52,7 +52,7 @@ class TestRff(YTEnvSetup):
 
         assert ls("//sys/lost_vital_chunks", read_from="follower") == []
 
-        assert all(not c.attributes["replication_status"]["overreplicated"]
+        assert all(not c.attributes["replication_status"]["default"]["overreplicated"]
                    for c in ls("//sys/chunks", attributes=["replication_status"], read_from="follower"))
 
         assert all(n.attributes["state"] == "online"

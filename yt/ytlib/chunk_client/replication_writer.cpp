@@ -544,6 +544,7 @@ TChunkReplicaList TReplicationWriter::AllocateTargets()
         UploadReplicationFactor_ - activeTargets,
         std::max(MinUploadReplicationFactor_ - activeTargets, 1),
         UploadReplicationFactor_,
+        Options_->MediumName,
         Config_->PreferLocalHost,
         forbiddenAddresses,
         NodeDirectory_,

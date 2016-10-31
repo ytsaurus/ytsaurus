@@ -70,11 +70,14 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS(ChunkList, TChunkList);
     TChunkList* GetChunkListOrThrow(const TChunkListId& id);
 
+    DECLARE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(Medium, Media, TMedium)
+
     TChunkTree* FindChunkTree(const TChunkTreeId& id);
     TChunkTree* GetChunkTree(const TChunkTreeId& id);
     TChunkTree* GetChunkTreeOrThrow(const TChunkTreeId& id);
 
     TNodeList AllocateWriteTargets(
+        int mediumIndex,
         TChunk* chunk,
         int desiredCount,
         int minCount,
@@ -111,7 +114,7 @@ public:
     void UnstageChunk(TChunk* chunk);
     void UnstageChunkList(TChunkList* chunkList, bool recursive);
 
-    TNodePtrWithIndexList LocateChunk(TChunkPtrWithIndex chunkWithIndex);
+    TNodePtrWithIndexesList LocateChunk(TChunkPtrWithIndexes chunkWithIndexes);
 
     void ClearChunkList(TChunkList* chunkList);
 
@@ -137,6 +140,8 @@ public:
     const yhash_set<TChunk*>& UnderreplicatedChunks() const;
     const yhash_set<TChunk*>& DataMissingChunks() const;
     const yhash_set<TChunk*>& ParityMissingChunks() const;
+    const yhash_set<TChunk*>& PrecariousChunks() const;
+    const yhash_set<TChunk*>& PrecariousVitalChunks() const;
     const yhash_set<TChunk*>& QuorumMissingChunks() const;
     const yhash_set<TChunk*>& UnsafelyPlacedChunks() const;
     const yhash_set<TChunk*>& ForeignChunks() const;
@@ -144,11 +149,26 @@ public:
     //! Returns the total number of all chunk replicas.
     int GetTotalReplicaCount();
 
-    EChunkStatus ComputeChunkStatus(TChunk* chunk);
+    TPerMediumArray<EChunkStatus> ComputeChunkStatuses(TChunk* chunk);
 
     //! Computes misc extension of a given journal chunk
     //! by querying a quorum of replicas (if the chunk is not sealed).
     TFuture<NChunkClient::NProto::TMiscExt> GetChunkQuorumInfo(NChunkServer::TChunk* chunk);
+
+    //! Returns the medium with a given index (|nullptr| if none).
+    TMedium* FindMediumByIndex(int index) const;
+
+    //! Returns the medium with a given index (throws if none).
+    TMedium* GetMediumByIndexOrThrow(int index) const;
+
+    //! Renames an existing medium. Throws on name conflict.
+    void RenameMedium(TMedium* medium, const Stroka& newName);
+
+    //! Returns the medium with a given name (|nullptr| if none).
+    TMedium* FindMediumByName(const Stroka& name) const;
+
+    //! Returns the medium with a given name (throws if none).
+    TMedium* GetMediumByNameOrThrow(const Stroka& name) const;
 
 private:
     class TImpl;
@@ -157,6 +177,7 @@ private:
     class TErasureChunkTypeHandler;
     class TJournalChunkTypeHandler;
     class TChunkListTypeHandler;
+    class TMediumTypeHandler;
 
     const TIntrusivePtr<TImpl> Impl_;
 

@@ -68,7 +68,7 @@ struct TChunkTreeStatistics
 
 Stroka ToString(const TChunkTreeStatistics& statistics);
 
-void Serialize(const TChunkTreeStatistics& statistics, NYson::IYsonConsumer* consumer);
+void Serialize(const TChunkTreeStatistics& statistics, NYson::IYsonConsumer* consumer, const TChunkManagerPtr& chunkManager = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

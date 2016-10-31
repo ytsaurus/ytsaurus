@@ -23,7 +23,7 @@ class TestRacks(YTEnvSetup):
     def _wait_for_safely_placed(self, chunk_id, replica_count):
         ok = False
         for i in xrange(60):
-            if not get("#" + chunk_id + "/@replication_status/unsafely_placed") and len(self._get_replica_nodes(chunk_id)) == replica_count:
+            if not get("#" + chunk_id + "/@replication_status/default/unsafely_placed") and len(self._get_replica_nodes(chunk_id)) == replica_count:
                 ok = True
                 break
             time.sleep(1.0)
@@ -162,10 +162,10 @@ class TestRacks(YTEnvSetup):
         chunk_id = chunk_ids[0]
 
         self._set_rack(nodes[0], "r2")
-        assert get("#" + chunk_id + "/@replication_status/unsafely_placed")
+        assert get("#" + chunk_id + "/@replication_status/default/unsafely_placed")
 
         self._reset_all_racks()
-        assert not get("#" + chunk_id + "/@replication_status/unsafely_placed")
+        assert not get("#" + chunk_id + "/@replication_status/default/unsafely_placed")
 
     def test_regular_move_to_safe_place(self):
         create("file", "//tmp/file")
@@ -174,7 +174,7 @@ class TestRacks(YTEnvSetup):
         chunk_ids = get("//tmp/file/@chunk_ids")
         assert len(chunk_ids) == 1
         chunk_id = chunk_ids[0]
-        assert not get("#" + chunk_id + "/@replication_status/unsafely_placed")
+        assert not get("#" + chunk_id + "/@replication_status/default/unsafely_placed")
 
         replicas = self._get_replica_nodes(chunk_id)
         assert len(replicas) == 3
@@ -199,7 +199,7 @@ class TestRacks(YTEnvSetup):
         chunk_ids = get("//tmp/file/@chunk_ids")
         assert len(chunk_ids) == 1
         chunk_id = chunk_ids[0]
-        assert not get("#" + chunk_id + "/@replication_status/unsafely_placed")
+        assert not get("#" + chunk_id + "/@replication_status/default/unsafely_placed")
 
         replicas = self._get_replica_nodes(chunk_id)
         assert len(replicas) == 16
@@ -248,7 +248,7 @@ class TestRacks(YTEnvSetup):
         chunk_ids = get("//tmp/j/@chunk_ids")
         assert len(chunk_ids) == 1
         chunk_id = chunk_ids[0]
-        assert not get("#" + chunk_id + "/@replication_status/unsafely_placed")
+        assert not get("#" + chunk_id + "/@replication_status/default/unsafely_placed")
 
         replicas = self._get_replica_nodes(chunk_id)
         assert len(replicas) == 3

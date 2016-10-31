@@ -45,9 +45,11 @@ void TNode::TTabletSlot::Persist(NCellMaster::TPersistenceContext& context)
 
 TNode::TNode(const TObjectId& objectId)
     : TObjectBase(objectId)
+    , IOWeights_{}
+    , FillFactorIterators_{}
+    , LoadFactorIterators_{}
 {
     VisitMark_ = 0;
-    IOWeight_ = 0.0;
     Banned_ = false;
     Decommissioned_ = false;
     DisableWriteSessions_ = false;
@@ -57,7 +59,11 @@ TNode::TNode(const TObjectId& objectId)
     LocalStatePtr_ = nullptr;
     AggregatedState_ = ENodeState::Offline;
     ChunkReplicationQueues_.resize(ReplicationPriorityCount);
-    RandomReplicaIt_ = StoredReplicas_.end();
+    std::transform(
+        StoredReplicas_.begin(),
+        StoredReplicas_.end(),
+        RandomReplicaIters_.begin(),
+        [] (const TMediumReplicaSet& i) { return i.end(); });
     ClearSessionHints();
 }
 
@@ -168,8 +174,33 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, ResourceLimitsOverrides_);
     Save(context, Rack_);
     Save(context, LeaseTransaction_);
-    TSizeSerializer::Save(context, StoredReplicas_.size());
-    TSizeSerializer::Save(context, CachedReplicas_.size());
+
+    auto countActiveMedia =
+        [] (const TReplicaSet& replicaSet) -> int {
+            return std::count_if(
+                replicaSet.begin(),
+                replicaSet.end(),
+                [] (const TMediumReplicaSet& i) { return !i.empty(); });
+        };
+
+    auto saveReplicaSetSizes =
+        [&] (NCellMaster::TSaveContext& context, const TReplicaSet& replicaSet) {
+            // The format is: the number of active media followed by that number
+            // of (mediumIndex, replicaCount) pairs.
+            Save(context, countActiveMedia(replicaSet));
+            int mediumIndex = 0;
+            for (const auto& replicas : replicaSet) {
+                if (!replicas.empty()) {
+                    Save(context, mediumIndex);
+                    Save<int>(context, replicas.size());
+                }
+                ++mediumIndex;
+            }
+        };
+
+    saveReplicaSetSizes(context, StoredReplicas_);
+    saveReplicaSetSizes(context, CachedReplicas_);
+
     Save(context, UnapprovedReplicas_);
     Save(context, TabletSlots_);
 }
@@ -200,7 +231,9 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     }
     Load(context, RegisterTime_);
     Load(context, LastSeenTime_);
+
     Load(context, Statistics_);
+
     Load(context, Alerts_);
     // COMPAT(babenko)
     if (context.GetVersion() >= 212) {
@@ -208,24 +241,39 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     }
     Load(context, Rack_);
     Load(context, LeaseTransaction_);
-    ReserveStoredReplicas(TSizeSerializer::Load(context));
-    ReserveCachedReplicas(TSizeSerializer::Load(context));
+    // COMPAT(shakurov)
+    if (context.GetVersion() < MEDIUM_TYPE_PATCH_CONTEXT_VERSION)  {
+        ReserveReplicas(DefaultMediumIndex, TSizeSerializer::Load(context), false);
+        ReserveReplicas(DefaultCacheMediumIndex, TSizeSerializer::Load(context), true);
+    } else {
+        auto loadReplicaSetSizes =
+            [&] (NCellMaster::TLoadContext& context, bool cache) {
+                auto activeMediumCount = Load<int>(context);
+                for (int i = 0; i < activeMediumCount; ++i) {
+                    auto mediumIndex = Load<int>(context);
+                    auto replicaCount = Load<int>(context);
+                    ReserveReplicas(mediumIndex, replicaCount, cache);
+                }
+            };
+
+        loadReplicaSetSizes(context, false);
+        loadReplicaSetSizes(context, true);
+    }
     Load(context, UnapprovedReplicas_);
     Load(context, TabletSlots_);
 }
 
-void TNode::ReserveStoredReplicas(int sizeHint)
+void TNode::ReserveReplicas(int mediumIndex, int sizeHint, bool cache)
 {
-    StoredReplicas_.reserve(sizeHint);
-    RandomReplicaIt_ = StoredReplicas_.end();
+    if (cache) {
+        CachedReplicas_[mediumIndex].reserve(sizeHint);
+    } else {
+        StoredReplicas_[mediumIndex].reserve(sizeHint);
+        RandomReplicaIters_[mediumIndex] = StoredReplicas_[mediumIndex].end();
+    }
 }
 
-void TNode::ReserveCachedReplicas(int sizeHint)
-{
-    CachedReplicas_.reserve(sizeHint);
-}
-
-bool TNode::AddReplica(TChunkPtrWithIndex replica, bool cached)
+bool TNode::AddReplica(TChunkPtrWithIndexes replica, bool cached)
 {
     auto* chunk = replica.GetPtr();
     if (cached) {
@@ -233,16 +281,18 @@ bool TNode::AddReplica(TChunkPtrWithIndex replica, bool cached)
         return AddCachedReplica(replica);
     } else  {
         if (chunk->IsJournal()) {
-            RemoveStoredReplica(TChunkPtrWithIndex(chunk, ActiveChunkReplicaIndex));
-            RemoveStoredReplica(TChunkPtrWithIndex(chunk, UnsealedChunkReplicaIndex));
-            RemoveStoredReplica(TChunkPtrWithIndex(chunk, SealedChunkReplicaIndex));
+            auto mediumIndex = replica.GetMediumIndex();
+            Y_ASSERT(mediumIndex == DefaultMediumIndex);
+            RemoveStoredReplica(TChunkPtrWithIndexes(chunk, ActiveChunkReplicaIndex, mediumIndex));
+            RemoveStoredReplica(TChunkPtrWithIndexes(chunk, UnsealedChunkReplicaIndex, mediumIndex));
+            RemoveStoredReplica(TChunkPtrWithIndexes(chunk, SealedChunkReplicaIndex, mediumIndex));
         }
         // NB: For journal chunks result is always true.
         return AddStoredReplica(replica);
     }
 }
 
-bool TNode::RemoveReplica(TChunkPtrWithIndex replica, bool cached)
+bool TNode::RemoveReplica(TChunkPtrWithIndexes replica, bool cached)
 {
     auto* chunk = replica.GetPtr();
     if (cached) {
@@ -251,9 +301,11 @@ bool TNode::RemoveReplica(TChunkPtrWithIndex replica, bool cached)
         return false;
     } else {
         if (chunk->IsJournal()) {
-            RemoveStoredReplica(TChunkPtrWithIndex(chunk, ActiveChunkReplicaIndex));
-            RemoveStoredReplica(TChunkPtrWithIndex(chunk, UnsealedChunkReplicaIndex));
-            RemoveStoredReplica(TChunkPtrWithIndex(chunk, SealedChunkReplicaIndex));
+            auto mediumIndex = replica.GetMediumIndex();
+            Y_ASSERT(mediumIndex == DefaultMediumIndex);
+            RemoveStoredReplica(TChunkPtrWithIndexes(chunk, ActiveChunkReplicaIndex, mediumIndex));
+            RemoveStoredReplica(TChunkPtrWithIndexes(chunk, UnsealedChunkReplicaIndex, mediumIndex));
+            RemoveStoredReplica(TChunkPtrWithIndexes(chunk, SealedChunkReplicaIndex, mediumIndex));
         } else {
             RemoveStoredReplica(replica);
         }
@@ -261,7 +313,7 @@ bool TNode::RemoveReplica(TChunkPtrWithIndex replica, bool cached)
     }
 }
 
-bool TNode::HasReplica(TChunkPtrWithIndex replica, bool cached) const
+bool TNode::HasReplica(TChunkPtrWithIndexes replica, bool cached) const
 {
     auto* chunk = replica.GetPtr();
     if (cached) {
@@ -269,48 +321,53 @@ bool TNode::HasReplica(TChunkPtrWithIndex replica, bool cached) const
         return ContainsCachedReplica(replica);
     } else {
         if (chunk->IsJournal()) {
+            auto mediumIndex = replica.GetMediumIndex();
+            Y_ASSERT(mediumIndex == DefaultMediumIndex);
             return
-                ContainsStoredReplica(TChunkPtrWithIndex(chunk, ActiveChunkReplicaIndex)) ||
-                    ContainsStoredReplica(TChunkPtrWithIndex(chunk, UnsealedChunkReplicaIndex)) ||
-                    ContainsStoredReplica(TChunkPtrWithIndex(chunk, SealedChunkReplicaIndex));
+                ContainsStoredReplica(TChunkPtrWithIndexes(chunk, ActiveChunkReplicaIndex, mediumIndex)) ||
+                ContainsStoredReplica(TChunkPtrWithIndexes(chunk, UnsealedChunkReplicaIndex, mediumIndex)) ||
+                ContainsStoredReplica(TChunkPtrWithIndexes(chunk, SealedChunkReplicaIndex, mediumIndex));
         } else {
             return ContainsStoredReplica(replica);
         }
     }
 }
 
-TChunkPtrWithIndex TNode::PickRandomReplica()
+TChunkPtrWithIndexes TNode::PickRandomReplica(int mediumIndex)
 {
-    if (StoredReplicas_.empty()) {
-        return TChunkPtrWithIndex();
+    if (StoredReplicas_[mediumIndex].empty()) {
+        return TChunkPtrWithIndexes();
     }
 
-    if (RandomReplicaIt_ == StoredReplicas_.end()) {
-        RandomReplicaIt_ = StoredReplicas_.begin();
+    auto& randomReplicaIt = RandomReplicaIters_[mediumIndex];
+
+    if (randomReplicaIt == StoredReplicas_[mediumIndex].end()) {
+        randomReplicaIt = StoredReplicas_[mediumIndex].begin();
     }
 
-    return *(RandomReplicaIt_++);
+    return *(randomReplicaIt++);
 }
 
 void TNode::ClearReplicas()
 {
-    StoredReplicas_.clear();
-    CachedReplicas_.clear();
+    for (auto& replicas : StoredReplicas_) {
+        replicas.clear();
+    }
+    for (auto& replicas : CachedReplicas_) {
+        replicas.clear();
+    }
     UnapprovedReplicas_.clear();
 }
 
 void TNode::AddUnapprovedReplica(TChunkPtrWithIndex replica, TInstant timestamp)
 {
-    YCHECK(UnapprovedReplicas_.insert(std::make_pair(
-        ToGeneric(replica),
-        timestamp)).second);
+    YCHECK(UnapprovedReplicas_.insert(
+            std::make_pair(ToGeneric(replica), timestamp)).second);
 }
 
 bool TNode::HasUnapprovedReplica(TChunkPtrWithIndex replica) const
 {
-    return
-        UnapprovedReplicas_.find(ToGeneric(replica)) !=
-        UnapprovedReplicas_.end();
+    return UnapprovedReplicas_.find(ToGeneric(replica)) != UnapprovedReplicas_.end();
 }
 
 void TNode::ApproveReplica(TChunkPtrWithIndex replica)
@@ -318,35 +375,59 @@ void TNode::ApproveReplica(TChunkPtrWithIndex replica)
     YCHECK(UnapprovedReplicas_.erase(ToGeneric(replica)) == 1);
     auto* chunk = replica.GetPtr();
     if (chunk->IsJournal()) {
-        RemoveStoredReplica(TChunkPtrWithIndex(chunk, ActiveChunkReplicaIndex));
-        RemoveStoredReplica(TChunkPtrWithIndex(chunk, UnsealedChunkReplicaIndex));
-        RemoveStoredReplica(TChunkPtrWithIndex(chunk, SealedChunkReplicaIndex));
-        YCHECK(AddStoredReplica(replica));
+        RemoveStoredReplica(TChunkPtrWithIndexes(chunk, ActiveChunkReplicaIndex, DefaultMediumIndex));
+        RemoveStoredReplica(TChunkPtrWithIndexes(chunk, UnsealedChunkReplicaIndex, DefaultMediumIndex));
+        RemoveStoredReplica(TChunkPtrWithIndexes(chunk, SealedChunkReplicaIndex, DefaultMediumIndex));
+        YCHECK(AddStoredReplica({chunk, replica.GetIndex(), DefaultMediumIndex}));
     }
 }
 
-void TNode::AddToChunkRemovalQueue(const TChunkIdWithIndex& replica)
+void TNode::AddToChunkRemovalQueue(const TChunkIdWithIndexes& replica)
 {
     Y_ASSERT(GetLocalState() == ENodeState::Online);
-    ChunkRemovalQueue_.insert(ToGeneric(replica));
+    ChunkRemovalQueue_[ToGeneric(replica)].set(replica.MediumIndex);
 }
 
-void TNode::RemoveFromChunkRemovalQueue(const TChunkIdWithIndex& replica)
-{
-    ChunkRemovalQueue_.erase(ToGeneric(replica));
-}
-
-void TNode::AddToChunkReplicationQueue(TChunkPtrWithIndex replica, int priority)
-{
-    Y_ASSERT(GetLocalState() == ENodeState::Online);
-    ChunkReplicationQueues_[priority].insert(ToGeneric(replica));
-}
-
-void TNode::RemoveFromChunkReplicationQueues(TChunkPtrWithIndex replica)
+void TNode::RemoveFromChunkRemovalQueue(const TChunkIdWithIndexes& replica)
 {
     auto genericReplica = ToGeneric(replica);
-    for (auto& queue : ChunkReplicationQueues_) {
-        queue.erase(genericReplica);
+    if (replica.MediumIndex == AllMediaIndex) {
+        ChunkRemovalQueue_.erase(genericReplica);
+    } else {
+        auto it = ChunkRemovalQueue_.find(genericReplica);
+        if (it != ChunkRemovalQueue_.end()) {
+            it->second.reset(replica.MediumIndex);
+            if (it->second.none()) {
+                ChunkRemovalQueue_.erase(it);
+            }
+        }
+    }
+}
+
+void TNode::AddToChunkReplicationQueue(TChunkPtrWithIndexes replica, int priority)
+{
+    Y_ASSERT(GetLocalState() == ENodeState::Online);
+    ChunkReplicationQueues_[priority][ToGeneric(replica)].set(replica.GetMediumIndex());
+}
+
+void TNode::RemoveFromChunkReplicationQueues(TChunkPtrWithIndexes replica)
+{
+    auto genericReplica = ToGeneric(replica);
+    auto mediumIndex = replica.GetMediumIndex();
+    if (mediumIndex == AllMediaIndex) {
+        for (auto& queue : ChunkReplicationQueues_) {
+            queue.erase(genericReplica);
+        }
+    } else {
+        for (auto& queue : ChunkReplicationQueues_) {
+            auto it = queue.find(genericReplica);
+            if (it != queue.end()) {
+                it->second.reset(mediumIndex);
+                if (it->second.none()) {
+                    queue.erase(it);
+                }
+            }
+        }
     }
 }
 
@@ -445,10 +526,14 @@ void TNode::ClearTabletSlots()
 
 void TNode::ShrinkHashTables()
 {
-    if (ShrinkHashTable(&StoredReplicas_)) {
-        RandomReplicaIt_ = StoredReplicas_.end();
+    for (int mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
+        if (ShrinkHashTable(&StoredReplicas_[mediumIndex])) {
+            RandomReplicaIters_[mediumIndex] = StoredReplicas_[mediumIndex].end();
+        }
     }
-    ShrinkHashTable(&CachedReplicas_);
+    for (auto& mediumCachedReplicas : CachedReplicas_) {
+        ShrinkHashTable(&mediumCachedReplicas);
+    }
     ShrinkHashTable(&UnapprovedReplicas_);
     ShrinkHashTable(&Jobs_);
     for (auto& queue : ChunkReplicationQueues_) {
@@ -467,8 +552,8 @@ void TNode::Reset()
         queue.clear();
     }
     ChunkSealQueue_.clear();
-    FillFactorIterator_ = Null;
-    LoadFactorIterator_ = Null;
+    FillFactorIterators_.fill(Null);
+    LoadFactorIterators_.fill(Null);
 }
 
 ui64 TNode::GenerateVisitMark()
@@ -484,77 +569,137 @@ int TNode::GetTotalTabletSlots() const
         Statistics_.available_tablet_slots();
 }
 
-double TNode::GetFillFactor() const
+double TNode::GetIOWeight(int mediumIndex) const
 {
-    auto freeSpace = Statistics_.total_available_space() - Statistics_.total_low_watermark_space();
-    return
-        Statistics_.total_used_space() /
-        std::max(1.0, static_cast<double>(freeSpace + Statistics_.total_used_space()));
+    return IOWeights_[mediumIndex];
 }
 
-double TNode::GetLoadFactor() const
+TNullable<double> TNode::GetFillFactor(int mediumIndex) const
+{
+    i64 freeSpace = 0;
+    i64 usedSpace = 0;
+
+    for (const auto& location : Statistics_.locations()) {
+        if (location.medium_index() == mediumIndex) {
+            freeSpace += location.available_space() - location.low_watermark_space();
+            usedSpace += location.used_space();
+        }
+    }
+
+    i64 totalSpace = freeSpace + usedSpace;
+    if (totalSpace == 0) {
+        // No storage of this medium on this node.
+        return Null;
+    } else {
+        return usedSpace / std::max<double>(1.0, totalSpace);
+    }
+}
+
+TNullable<double> TNode::GetLoadFactor(int mediumIndex) const
 {
     // NB: Avoid division by zero.
-    return static_cast<double>(GetTotalSessionCount()) / std::max(IOWeight_, 0.000000001);
+    return static_cast<double>(GetTotalSessionCount()) / std::max(IOWeights_[mediumIndex], 0.000000001);
 }
 
-bool TNode::IsFull() const
+TNode::TFillFactorIterator TNode::GetFillFactorIterator(int mediumIndex)
 {
-    return Statistics_.full();
+    return FillFactorIterators_[mediumIndex];
+}
+
+void TNode::SetFillFactorIterator(int mediumIndex, TFillFactorIterator iter)
+{
+    FillFactorIterators_[mediumIndex] = iter;
+}
+
+TNode::TLoadFactorIterator TNode::GetLoadFactorIterator(int mediumIndex)
+{
+    return LoadFactorIterators_[mediumIndex];
+}
+
+void TNode::SetLoadFactorIterator(int mediumIndex, TLoadFactorIterator iter)
+{
+    LoadFactorIterators_[mediumIndex] = iter;
+}
+
+bool TNode::IsFull(int mediumIndex) const
+{
+    bool full = true;
+    for (const auto& location : Statistics_.locations()) {
+        if (location.medium_index() == mediumIndex && !location.full()) {
+            full = false;
+            break;
+        }
+    }
+    return full && !Statistics_.locations().empty();
+}
+
+TChunkPtrWithIndex TNode::ToGeneric(TChunkPtrWithIndexes replica)
+{
+    auto* chunk = replica.GetPtr();
+    auto replicaIndex = chunk->IsJournal() ? GenericChunkReplicaIndex : replica.GetReplicaIndex();
+    return TChunkPtrWithIndex(chunk, replicaIndex);
 }
 
 TChunkPtrWithIndex TNode::ToGeneric(TChunkPtrWithIndex replica)
 {
     auto* chunk = replica.GetPtr();
-    return chunk->IsJournal()
-        ? TChunkPtrWithIndex(chunk, GenericChunkReplicaIndex)
-        : replica;
+    return TChunkPtrWithIndex(chunk, chunk->IsJournal() ? GenericChunkReplicaIndex : replica.GetIndex());
 }
 
-TChunkIdWithIndex TNode::ToGeneric(const TChunkIdWithIndex& replica)
+TChunkIdWithIndex TNode::ToGeneric(const TChunkIdWithIndexes& replica)
 {
-    return TypeFromId(replica.Id) == EObjectType::JournalChunk
-        ? TChunkIdWithIndex(replica.Id, GenericChunkReplicaIndex)
-        : replica;
+    auto replicaIndex = TypeFromId(replica.Id) == EObjectType::JournalChunk
+        ? GenericChunkReplicaIndex
+        : replica.ReplicaIndex;
+
+    return TChunkIdWithIndex(replica.Id, replicaIndex);
 }
 
-bool TNode::AddStoredReplica(TChunkPtrWithIndex replica)
+bool TNode::AddStoredReplica(TChunkPtrWithIndexes replica)
 {
-    auto pair = StoredReplicas_.insert(replica);
+    auto mediumIndex = replica.GetMediumIndex();
+    auto pair = StoredReplicas_[mediumIndex].insert(replica);
     if (pair.second) {
-        RandomReplicaIt_ = pair.first;
+        RandomReplicaIters_[mediumIndex] = pair.first;
         return true;
     } else {
         return false;
     }
 }
 
-bool TNode::RemoveStoredReplica(TChunkPtrWithIndex replica)
+bool TNode::RemoveStoredReplica(TChunkPtrWithIndexes replica)
 {
-    if (RandomReplicaIt_ != StoredReplicas_.end() && *RandomReplicaIt_ == replica) {
-        ++RandomReplicaIt_;
+    auto mediumIndex = replica.GetMediumIndex();
+    auto& randomReplicaIt = RandomReplicaIters_[mediumIndex];
+    auto& mediumStoredReplicas = StoredReplicas_[mediumIndex];
+    if (randomReplicaIt != mediumStoredReplicas.end() &&
+        *randomReplicaIt == replica)
+    {
+        ++randomReplicaIt;
     }
-    return StoredReplicas_.erase(replica) == 1;
+    return mediumStoredReplicas.erase(replica) == 1;
 }
 
-bool TNode::ContainsStoredReplica(TChunkPtrWithIndex replica) const
+bool TNode::ContainsStoredReplica(TChunkPtrWithIndexes replica) const
 {
-    return StoredReplicas_.find(replica) != StoredReplicas_.end();
+    auto mediumIndex = replica.GetMediumIndex();
+    return StoredReplicas_[mediumIndex].find(replica) != StoredReplicas_[mediumIndex].end();
 }
 
-bool TNode::AddCachedReplica(TChunkPtrWithIndex replica)
+bool TNode::AddCachedReplica(TChunkPtrWithIndexes replica)
 {
-    return CachedReplicas_.insert(replica).second;
+    return CachedReplicas_[replica.GetMediumIndex()].insert(replica).second;
 }
 
-bool TNode::RemoveCachedReplica(TChunkPtrWithIndex replica)
+bool TNode::RemoveCachedReplica(TChunkPtrWithIndexes replica)
 {
-    return CachedReplicas_.erase(replica) == 1;
+    return CachedReplicas_[replica.GetMediumIndex()].erase(replica) == 1;
 }
 
-bool TNode::ContainsCachedReplica(TChunkPtrWithIndex replica) const
+bool TNode::ContainsCachedReplica(TChunkPtrWithIndexes replica) const
 {
-    return CachedReplicas_.find(replica) != CachedReplicas_.end();
+    auto mediumCachedReplicas = CachedReplicas_[replica.GetMediumIndex()];
+    return mediumCachedReplicas.find(replica) != mediumCachedReplicas.end();
 }
 
 void TNode::SetRack(TRack* rack)
@@ -605,4 +750,3 @@ void TNode::RebuildTags()
 
 } // namespace NNodeTrackerServer
 } // namespace NYT
-

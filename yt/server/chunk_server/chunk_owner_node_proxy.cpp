@@ -6,6 +6,7 @@
 #include "chunk_tree_traversing.h"
 #include "config.h"
 #include "helpers.h"
+#include "medium.h"
 
 #include <yt/server/cell_master/config.h>
 #include <yt/server/cell_master/multicell_manager.h>
@@ -245,12 +246,12 @@ private:
             ToProto(chunkSpec->mutable_channel(), Channel_);
         }
 
-        SmallVector<TNodePtrWithIndex, TypicalReplicaCount> replicas;
+        SmallVector<TNodePtrWithIndexes, TypicalReplicaCount> replicas;
 
-        auto addJournalReplica = [&] (TNodePtrWithIndex replica) {
+        auto addJournalReplica = [&] (TNodePtrWithIndexes replica) {
             // For journal chunks, replica indexes are used to track states.
             // Hence we must replace index with #GenericChunkReplicaIndex.
-            replicas.push_back(TNodePtrWithIndex(replica.GetPtr(), GenericChunkReplicaIndex));
+            replicas.push_back(TNodePtrWithIndexes(replica.GetPtr(), GenericChunkReplicaIndex, DefaultMediumIndex));
             return true;
         };
 
@@ -259,20 +260,20 @@ private:
             ? std::numeric_limits<int>::max() // all replicas are feasible
             : NErasure::GetCodec(erasureCodecId)->GetDataPartCount();
 
-        auto addErasureReplica = [&] (TNodePtrWithIndex replica) {
-            if (replica.GetIndex() >= firstInfeasibleReplicaIndex) {
+        auto addErasureReplica = [&] (TNodePtrWithIndexes replica) {
+            if (replica.GetReplicaIndex() >= firstInfeasibleReplicaIndex) {
                 return false;
             }
             replicas.push_back(replica);
             return true;
         };
 
-        auto addRegularReplica = [&] (TNodePtrWithIndex replica) {
+        auto addRegularReplica = [&] (TNodePtrWithIndexes replica) {
             replicas.push_back(replica);
             return true;
         };
 
-        std::function<bool(TNodePtrWithIndex)> addReplica;
+        std::function<bool(TNodePtrWithIndexes)> addReplica;
         switch (chunk->GetType()) {
             case EObjectType::Chunk:          addReplica = addRegularReplica; break;
             case EObjectType::ErasureChunk:   addReplica = addErasureReplica; break;
@@ -580,9 +581,12 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
     descriptors->push_back(TAttributeDescriptor("erasure_codec")
         .SetCustom(true));
     descriptors->push_back("update_mode");
-    descriptors->push_back(TAttributeDescriptor("replication_factor")
-        .SetReplicated(true));
+    descriptors->push_back(TAttributeDescriptor("replication_factor"));
     descriptors->push_back(TAttributeDescriptor("vital")
+        .SetReplicated(true));
+    descriptors->push_back(TAttributeDescriptor("media")
+        .SetReplicated(true));
+    descriptors->push_back(TAttributeDescriptor("primary_medium_name")
         .SetReplicated(true));
 }
 
@@ -636,15 +640,35 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
         return true;
     }
 
-    if (key == "replication_factor") {
+    if (key == "media") {
+        auto chunkManager = Bootstrap_->GetChunkManager();
+        const auto& properties = node->Properties();
         BuildYsonFluently(consumer)
-            .Value(node->GetReplicationFactor());
+            .Value(TMediaSerializer(properties, chunkManager));
+        return true;
+    }
+
+    if (key == "replication_factor") {
+        const auto& properties = node->Properties();
+        auto primaryMediumIndex = node->GetPrimaryMediumIndex();
+        BuildYsonFluently(consumer)
+            .Value(properties[primaryMediumIndex].GetReplicationFactor());
         return true;
     }
 
     if (key == "vital") {
         BuildYsonFluently(consumer)
             .Value(node->GetVital());
+        return true;
+    }
+
+    if (key == "primary_medium_name") {
+        auto chunkManager = Bootstrap_->GetChunkManager();
+        auto primaryMediumIndex = node->GetPrimaryMediumIndex();
+        auto* medium = chunkManager->GetMediumByIndexOrThrow(primaryMediumIndex);
+
+        BuildYsonFluently(consumer)
+            .Value(medium->GetName());
         return true;
     }
 
@@ -722,48 +746,149 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
 
     if (key == "replication_factor") {
         ValidateNoTransaction();
-        int replicationFactor = ConvertTo<int>(value);
-        if (replicationFactor < MinReplicationFactor ||
-            replicationFactor > MaxReplicationFactor)
-        {
-            THROW_ERROR_EXCEPTION("\"replication_factor\" must be in range [%v,%v]",
-                MinReplicationFactor,
-                MaxReplicationFactor);
-        }
-
-        YCHECK(node->IsTrunk());
-
-        if (node->GetReplicationFactor() != replicationFactor) {
-            node->SetReplicationFactor(replicationFactor);
-
-            auto securityManager = Bootstrap_->GetSecurityManager();
-            securityManager->UpdateAccountNodeUsage(node);
-
-            if (!node->IsExternal()) {
-                chunkManager->ScheduleChunkPropertiesUpdate(node->GetChunkList());
-            }
-        }
+        SetReplicationFactor(
+            node->GetPrimaryMediumIndex(),
+            ConvertTo<int>(value));
         return true;
     }
 
     if (key == "vital") {
         ValidateNoTransaction();
-        bool vital = ConvertTo<bool>(value);
-
-        YCHECK(node->IsTrunk());
-
-        if (node->GetVital() != vital) {
-            node->SetVital(vital);
-
-            if (!node->IsExternal()) {
-                chunkManager->ScheduleChunkPropertiesUpdate(node->GetChunkList());
-            }
-        }
-
+        SetVital(ConvertTo<bool>(value));
         return true;
     }
 
+    if (key == "primary_medium_name") {
+        ValidateNoTransaction();
+        auto mediumName = ConvertTo<Stroka>(value);
+        auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
+        SetPrimaryMedium(medium->GetIndex());
+        return true;
+    }
+
+    if (key == "media") {
+        auto serializer = ConvertTo<TMediaSerializer>(value);
+        auto properties = node->Properties(); // Copying for modification.
+        serializer.ToChunkPropertiesOrThrow(&properties, chunkManager);
+        SetProperties(properties);
+        return true;
+
+    }
+
     return TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(key, value);
+}
+
+void TChunkOwnerNodeProxy::SetReplicationFactor(int mediumIndex, int replicationFactor)
+{
+    ValidateReplicationFactor(replicationFactor);
+
+    auto* node = GetThisImpl<TChunkOwnerBase>();
+    auto chunkManager = Bootstrap_->GetChunkManager();
+
+    YCHECK(node->IsTrunk());
+
+    if (node->GetReplicationFactor(mediumIndex) != replicationFactor) {
+        if (replicationFactor) {
+            auto* medium = chunkManager->GetMediumByIndexOrThrow(mediumIndex);
+            ValidatePermission(medium, EPermission::Use);
+        }
+
+        node->SetReplicationFactorOrThrow(mediumIndex, replicationFactor);
+
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->UpdateAccountNodeUsage(node);
+
+        if (!node->IsExternal()) {
+            chunkManager->ScheduleChunkPropertiesUpdate(node->GetChunkList());
+        }
+    }
+}
+
+void TChunkOwnerNodeProxy::SetVital(bool vital)
+{
+    auto* node = GetThisImpl<TChunkOwnerBase>();
+    auto chunkManager = Bootstrap_->GetChunkManager();
+
+    YCHECK(node->IsTrunk());
+
+    if (node->GetVital() != vital) {
+        node->SetVital(vital);
+
+        if (!node->IsExternal()) {
+            chunkManager->ScheduleChunkPropertiesUpdate(node->GetChunkList());
+        }
+    }
+}
+
+void TChunkOwnerNodeProxy::SetProperties(const TChunkProperties& properties)
+{
+    auto* node = GetThisImpl<TChunkOwnerBase>();
+    auto chunkManager = Bootstrap_->GetChunkManager();
+
+    YCHECK(node->IsTrunk());
+
+    if (node->Properties() != properties) {
+        int mediumIndex = 0;
+        for (const auto& mediumProps : properties) {
+            if (mediumProps) {
+                auto* medium = chunkManager->GetMediumByIndexOrThrow(mediumIndex);
+                ValidatePermission(medium, EPermission::Use);
+            }
+            ++mediumIndex;
+        }
+
+
+        node->SetPropertiesOrThrow(properties);
+
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->UpdateAccountNodeUsage(node);
+
+        if (!node->IsExternal()) {
+            chunkManager->ScheduleChunkPropertiesUpdate(node->GetChunkList());
+        }
+
+        LOG_DEBUG_UNLESS(
+            IsRecovery(),
+            "Chunk owner properties changed (ChunkOwnerId: %v, Properties: %v)",
+            node->GetId(),
+            node->Properties());
+    }
+ }
+
+void TChunkOwnerNodeProxy::SetPrimaryMedium(int mediumIndex)
+{
+    auto* node = GetThisImpl<TChunkOwnerBase>();
+    auto chunkManager = Bootstrap_->GetChunkManager();
+
+    YCHECK(node->IsTrunk());
+
+    if (node->GetPrimaryMediumIndex() != mediumIndex) {
+        auto* medium = chunkManager->GetMediumByIndexOrThrow(mediumIndex);
+        ValidatePermission(medium, EPermission::Use);
+
+        if (node->GetReplicationFactor(mediumIndex) != 0) {
+            node->SetPrimaryMediumIndexOrThrow(mediumIndex);
+        } else {
+            // The user is trying to set a medium with zero replication count
+            // as primary. This is probably a request to move from one medium to
+            // another.
+            auto oldMediumIndex = node->GetPrimaryMediumIndex();
+            auto props = node->Properties();
+            props[mediumIndex] = props[oldMediumIndex];
+            props[oldMediumIndex].Clear();
+            node->SetPrimaryMediumIndexAndPropertiesOrThrow(mediumIndex, props);
+        }
+
+        if (!node->IsExternal()) {
+            chunkManager->ScheduleChunkPropertiesUpdate(node->GetChunkList());
+        }
+
+        LOG_DEBUG_UNLESS(
+            IsRecovery(),
+            "Chunk owner primary medium changed (ChunkOwnerId: %v, PrimaryMediumIndex: %v)",
+            node->GetId(),
+            node->GetPrimaryMediumIndex());
+    }
 }
 
 void TChunkOwnerNodeProxy::ValidateFetchParameters(

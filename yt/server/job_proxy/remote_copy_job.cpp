@@ -243,7 +243,10 @@ private:
 
                 auto replicas = writers[i]->GetWrittenChunkReplicas();
                 YCHECK(replicas.size() == 1);
-                auto replica = TChunkReplica(replicas.front().GetNodeId(), i);
+                auto replica = TChunkReplica(
+                    replicas.front().GetNodeId(),
+                    i,
+                    replicas.front().GetMediumIndex());
 
                 writtenReplicas.push_back(replica);
             }

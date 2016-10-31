@@ -35,6 +35,7 @@ class TChunkPlacement::TTargetCollector
 public:
     TTargetCollector(
         const TChunk* chunk,
+        int mediumIndex,
         int maxReplicasPerRack,
         const TNodeList* forbiddenNodes)
         : MaxReplicasPerRack_(maxReplicasPerRack)
@@ -44,9 +45,11 @@ public:
         }
 
         for (auto replica : chunk->StoredReplicas()) {
-            auto* node = replica.GetPtr();
-            IncreaseRackUsage(node);
-            ForbiddenNodes_.push_back(node);
+            if (replica.GetMediumIndex() == mediumIndex) {
+                auto* node = replica.GetPtr();
+                IncreaseRackUsage(node);
+                ForbiddenNodes_.push_back(node);
+            }
         }
 
         std::sort(ForbiddenNodes_.begin(), ForbiddenNodes_.end());
@@ -116,33 +119,43 @@ void TChunkPlacement::OnNodeRegistered(TNode* node)
         node->GetLocalState() != ENodeState::Online)
         return;
 
-    InsertToLoadFactorMap(node);
+    InsertToLoadFactorMaps(node);
 
     if (node->GetSessionCount(ESessionType::Replication) < Config_->MaxReplicationWriteSessions) {
-        InsertToFillFactorMap(node);
+        InsertToFillFactorMaps(node);
     }
 }
 
 void TChunkPlacement::OnNodeUnregistered(TNode* node)
 {
-    RemoveFromLoadFactorMap(node);
+    RemoveFromLoadFactorMaps(node);
 
-    RemoveFromFillFactorMap(node);
+    RemoveFromFillFactorMaps(node);
 }
 
 void TChunkPlacement::OnNodeUpdated(TNode* node)
 {
     node->ClearSessionHints();
 
+    auto chunkManager = Bootstrap_->GetChunkManager();
+
     // Recompute IO weight.
     // Currently its just the number of non-full locations.
-    double ioWeight = 0.0;
+    TPerMediumArray<double> ioWeights;
+    ioWeights.fill(0.0);
     for (const auto& location : node->Statistics().locations()) {
-        if (!location.full()) {
-            ioWeight += 1.0;
+        if (location.full()) {
+            continue;
         }
+
+        auto* medium = chunkManager->FindMediumByIndex(location.medium_index());
+        if (!medium || medium->GetCache()) {
+            continue;
+        }
+
+        ioWeights[location.medium_index()] += 1.0;
     }
-    node->SetIOWeight(ioWeight);
+    node->IOWeights() = ioWeights;
 
     OnNodeUnregistered(node);
     OnNodeRegistered(node);
@@ -150,11 +163,15 @@ void TChunkPlacement::OnNodeUpdated(TNode* node)
 
 void TChunkPlacement::OnNodeDisposed(TNode* node)
 {
-    YCHECK(!node->GetLoadFactorIterator());
-    YCHECK(!node->GetFillFactorIterator());
+    for (const auto& pair : Bootstrap_->GetChunkManager()->Media()) {
+        auto mediumIndex = pair.second->GetIndex();
+        YCHECK(!node->GetLoadFactorIterator(mediumIndex));
+        YCHECK(!node->GetFillFactorIterator(mediumIndex));
+    }
 }
 
 TNodeList TChunkPlacement::AllocateWriteTargets(
+    int mediumIndex,
     TChunk* chunk,
     int desiredCount,
     int minCount,
@@ -164,6 +181,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
     ESessionType sessionType)
 {
     auto targetNodes = GetWriteTargets(
+        mediumIndex,
         chunk,
         desiredCount,
         minCount,
@@ -179,41 +197,70 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
     return targetNodes;
 }
 
-void TChunkPlacement::InsertToFillFactorMap(TNode* node)
+void TChunkPlacement::InsertToFillFactorMaps(TNode* node)
 {
-    RemoveFromFillFactorMap(node);
+    RemoveFromFillFactorMaps(node);
 
-    double fillFactor = node->GetFillFactor();
-    auto it = FillFactorToNode_.insert(std::make_pair(fillFactor, node));
-    node->SetFillFactorIterator(it);
-}
+    for (const auto& pair : Bootstrap_->GetChunkManager()->Media()) {
+        auto mediumIndex = pair.second->GetIndex();
+        auto fillFactor = node->GetFillFactor(mediumIndex);
+        if (!fillFactor) {
+            continue;
+        }
 
-void TChunkPlacement::RemoveFromFillFactorMap(TNode* node)
-{
-    if (node->GetFillFactorIterator()) {
-        FillFactorToNode_.erase(*node->GetFillFactorIterator());
-        node->SetFillFactorIterator(Null);
+        auto it = MediumToFillFactorToNode_[mediumIndex]
+            .insert(std::make_pair(*fillFactor, node));
+        node->SetFillFactorIterator(mediumIndex, it);
     }
 }
 
-void TChunkPlacement::InsertToLoadFactorMap(TNode* node)
+void TChunkPlacement::RemoveFromFillFactorMaps(TNode* node)
 {
-    RemoveFromLoadFactorMap(node);
+    for (const auto& pair : Bootstrap_->GetChunkManager()->Media()) {
+        auto mediumIndex = pair.second->GetIndex();
+        auto it = node->GetFillFactorIterator(mediumIndex);
+        if (!it) {
+            continue;
+        }
 
-    double loadFactor = node->GetLoadFactor();
-    auto it = LoadFactorToNode_.insert(std::make_pair(loadFactor, node));
-    node->SetLoadFactorIterator(it);
+        MediumToFillFactorToNode_[mediumIndex].erase(*it);
+        node->SetFillFactorIterator(mediumIndex, Null);
+    }
 }
 
-void TChunkPlacement::RemoveFromLoadFactorMap(TNode* node)
+void TChunkPlacement::InsertToLoadFactorMaps(TNode* node)
 {
-    if (node->GetLoadFactorIterator()) {
-        LoadFactorToNode_.erase(*node->GetLoadFactorIterator());
-        node->SetLoadFactorIterator(Null);
+    RemoveFromLoadFactorMaps(node);
+
+    for (const auto& pair : Bootstrap_->GetChunkManager()->Media()) {
+        auto mediumIndex = pair.second->GetIndex();
+        auto loadFactor = node->GetLoadFactor(mediumIndex);
+        if (!loadFactor) {
+            continue;
+        }
+
+        auto it = MediumToLoadFactorToNode_[mediumIndex]
+            .insert(std::make_pair(*loadFactor, node));
+        node->SetLoadFactorIterator(mediumIndex, it);
+    }
+}
+
+void TChunkPlacement::RemoveFromLoadFactorMaps(TNode* node)
+{
+    for (const auto& pair : Bootstrap_->GetChunkManager()->Media()) {
+        auto mediumIndex = pair.second->GetIndex();
+        auto it = node->GetLoadFactorIterator(mediumIndex);
+        if (!it) {
+            continue;
+        }
+
+        MediumToLoadFactorToNode_[mediumIndex].erase(*it);
+        node->SetLoadFactorIterator(mediumIndex, Null);
     }
 }
 
 TNodeList TChunkPlacement::GetWriteTargets(
+    int mediumIndex,
     TChunk* chunk,
     int desiredCount,
     int minCount,
@@ -222,17 +269,17 @@ TNodeList TChunkPlacement::GetWriteTargets(
     const TNodeList* forbiddenNodes,
     const TNullable<Stroka>& preferredHostName)
 {
-    int maxReplicasPerRack = GetMaxReplicasPerRack(chunk, replicationFactorOverride);
-    TTargetCollector collector(chunk, maxReplicasPerRack, forbiddenNodes);
+    int maxReplicasPerRack = GetMaxReplicasPerRack(chunk, mediumIndex, replicationFactorOverride);
+    TTargetCollector collector(chunk, mediumIndex, maxReplicasPerRack, forbiddenNodes);
 
     auto tryAdd = [&] (TNode* node, bool enableRackAwareness) {
-        if (IsValidWriteTarget(node, chunk->GetType(), &collector, enableRackAwareness)) {
+        if (IsValidWriteTarget(mediumIndex, node, chunk->GetType(), &collector, enableRackAwareness)) {
             collector.AddNode(node);
         }
     };
 
     auto tryAddAll = [&] (bool enableRackAwareness) {
-        for (const auto& pair : LoadFactorToNode_) {
+        for (const auto& pair : MediumToLoadFactorToNode_[mediumIndex]) {
             auto* node = pair.second;
             if (collector.GetAddedNodes().size() == desiredCount)
                 break;
@@ -243,7 +290,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
     if (preferredHostName) {
         auto nodeTracker = Bootstrap_->GetNodeTracker();
         auto* preferredNode = nodeTracker->FindNodeByHostName(*preferredHostName);
-        if (preferredNode && preferredNode->GetLocalState() == ENodeState::Online) {
+        if (preferredNode) {
             tryAdd(preferredNode, true);
         }
     }
@@ -258,6 +305,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
 }
 
 TNodeList TChunkPlacement::AllocateWriteTargets(
+    int mediumIndex,
     TChunk* chunk,
     int desiredCount,
     int minCount,
@@ -265,6 +313,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
     ESessionType sessionType)
 {
     auto targetNodes = GetWriteTargets(
+        mediumIndex,
         chunk,
         desiredCount,
         minCount,
@@ -278,13 +327,18 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
     return targetNodes;
 }
 
-TNode* TChunkPlacement::GetRemovalTarget(TChunkPtrWithIndex chunkWithIndex)
+TNode* TChunkPlacement::GetRemovalTarget(TChunkPtrWithIndexes chunkWithIndexes)
 {
-    auto* chunk = chunkWithIndex.GetPtr();
-    int maxReplicasPerRack = GetMaxReplicasPerRack(chunk, Null);
+    auto* chunk = chunkWithIndexes.GetPtr();
+    auto replicaIndex = chunkWithIndexes.GetReplicaIndex();
+    auto mediumIndex = chunkWithIndexes.GetMediumIndex();
+    int maxReplicasPerRack = GetMaxReplicasPerRack(chunk, mediumIndex, Null);
 
     std::array<i8, MaxRackCount> perRackCounters{};
     for (auto replica : chunk->StoredReplicas()) {
+        if (replica.GetMediumIndex() != mediumIndex)
+            continue;
+
         const auto* rack = replica.GetPtr()->GetRack();
         if (rack) {
             ++perRackCounters[rack->GetIndex()];
@@ -295,11 +349,12 @@ TNode* TChunkPlacement::GetRemovalTarget(TChunkPtrWithIndex chunkWithIndex)
     TNode* rackWinner = nullptr;
     // A node with the largest fill factor.
     TNode* fillFactorWinner = nullptr;
-    
+
     for (auto replica : chunk->StoredReplicas()) {
-        if (chunk->IsRegular() ||
-            chunk->IsErasure() && replica.GetIndex() == chunkWithIndex.GetIndex() ||
-            chunk->IsJournal()) // allow removing arbitrary journal replicas
+        if ((replica.GetMediumIndex() == mediumIndex) &&
+            (chunk->IsRegular() ||
+             chunk->IsErasure() && replica.GetReplicaIndex() == replicaIndex ||
+             chunk->IsJournal())) // allow removing arbitrary journal replicas
         {
             auto* node = replica.GetPtr();
             if (!IsValidRemovalTarget(node))
@@ -310,7 +365,12 @@ TNode* TChunkPlacement::GetRemovalTarget(TChunkPtrWithIndex chunkWithIndex)
                 rackWinner = node;
             }
 
-            if (!fillFactorWinner || node->GetFillFactor() > fillFactorWinner->GetFillFactor()) {
+            auto nodeFillFactor = node->GetFillFactor(mediumIndex);
+
+            if (nodeFillFactor &&
+                (!fillFactorWinner ||
+                 *nodeFillFactor > *fillFactorWinner->GetFillFactor(mediumIndex)))
+            {
                 fillFactorWinner = node;
             }
         }
@@ -319,25 +379,28 @@ TNode* TChunkPlacement::GetRemovalTarget(TChunkPtrWithIndex chunkWithIndex)
     return rackWinner ? rackWinner : fillFactorWinner;
 }
 
-bool TChunkPlacement::HasBalancingTargets(double maxFillFactor)
+bool TChunkPlacement::HasBalancingTargets(int mediumIndex, double maxFillFactor)
 {
     if (maxFillFactor < 0) {
         return false;
     }
 
-    if (FillFactorToNode_.empty()) {
+    if (MediumToFillFactorToNode_[mediumIndex].empty()) {
         return false;
     }
 
-    auto* node = FillFactorToNode_.begin()->second;
-    return node->GetFillFactor() < maxFillFactor;
+    auto* node = MediumToFillFactorToNode_[mediumIndex].begin()->second;
+    auto nodeFillFactor = node->GetFillFactor(mediumIndex);
+    YCHECK(nodeFillFactor);
+    return *nodeFillFactor < maxFillFactor;
 }
 
 TNode* TChunkPlacement::AllocateBalancingTarget(
+    int mediumIndex,
     TChunk* chunk,
     double maxFillFactor)
 {
-    auto* target = GetBalancingTarget(chunk, maxFillFactor);
+    auto* target = GetBalancingTarget(mediumIndex, chunk, maxFillFactor);
 
     if (target) {
         AddSessionHint(target, ESessionType::Replication);
@@ -347,18 +410,21 @@ TNode* TChunkPlacement::AllocateBalancingTarget(
 }
 
 TNode* TChunkPlacement::GetBalancingTarget(
+    int mediumIndex,
     TChunk* chunk,
     double maxFillFactor)
 {
-    int maxReplicasPerRack = GetMaxReplicasPerRack(chunk, Null);
-    TTargetCollector collector(chunk, maxReplicasPerRack, nullptr);
+    int maxReplicasPerRack = GetMaxReplicasPerRack(chunk, mediumIndex, Null);
+    TTargetCollector collector(chunk, mediumIndex, maxReplicasPerRack, nullptr);
 
-    for (const auto& pair : FillFactorToNode_) {
+    for (const auto& pair : MediumToFillFactorToNode_[mediumIndex]) {
         auto* node = pair.second;
-        if (node->GetFillFactor() > maxFillFactor) {
+        auto nodeFillFactor = node->GetFillFactor(mediumIndex);
+        YCHECK(nodeFillFactor);
+        if (*nodeFillFactor > maxFillFactor) {
             break;
         }
-        if (IsValidBalancingTarget(node, chunk->GetType(), &collector, true)) {
+        if (IsValidBalancingTarget(mediumIndex, node, chunk->GetType(), &collector, true)) {
             return node;
         }
     }
@@ -367,6 +433,7 @@ TNode* TChunkPlacement::GetBalancingTarget(
 }
 
 bool TChunkPlacement::IsValidWriteTarget(
+    int mediumIndex,
     TNode* node,
     EObjectType chunkType,
     TTargetCollector* collector,
@@ -377,13 +444,19 @@ bool TChunkPlacement::IsValidWriteTarget(
         return false;
     }
 
-    if (node->IsFull()) {
+    if (node->IsFull(mediumIndex)) {
         // Do not write anything to full nodes.
         return false;
     }
 
-    if (!IsAcceptedChunkType(node, chunkType)) {
+    if (!IsAcceptedChunkType(mediumIndex, node, chunkType)) {
         // Do not write anything to nodes not accepting this type of chunks.
+        return false;
+    }
+
+    auto* medium = Bootstrap_->GetChunkManager()->FindMediumByIndex(mediumIndex);
+    if (!medium || medium->GetCache()) {
+        // Direct writing to cache locations is not allowed.
         return false;
     }
 
@@ -407,13 +480,14 @@ bool TChunkPlacement::IsValidWriteTarget(
 }
 
 bool TChunkPlacement::IsValidBalancingTarget(
+    int mediumIndex,
     TNode* node,
     NObjectClient::EObjectType chunkType,
     TTargetCollector* collector,
     bool enableRackAwareness)
 {
     // Balancing implies write, after all.
-    if (!IsValidWriteTarget(node, chunkType, collector, enableRackAwareness)) {
+    if (!IsValidWriteTarget(mediumIndex, node, chunkType, collector, enableRackAwareness)) {
         return false;
     }
 
@@ -436,20 +510,20 @@ bool TChunkPlacement::IsValidRemovalTarget(TNode* node)
     return true;
 }
 
-std::vector<TChunkPtrWithIndex> TChunkPlacement::GetBalancingChunks(
+std::vector<TChunkPtrWithIndexes> TChunkPlacement::GetBalancingChunks(
+    int mediumIndex,
     TNode* node,
     int replicaCount)
 {
-    std::vector<TChunkPtrWithIndex> result;
+    std::vector<TChunkPtrWithIndexes> result;
     result.reserve(replicaCount);
-
-    auto chunkManager = Bootstrap_->GetChunkManager();
 
     // Let's bound the number of iterations somehow.
     // Never consider more chunks than the node has to avoid going into a loop (cf. YT-4258).
     int iterationCount = std::min(replicaCount * 2, static_cast<int>(node->StoredReplicas().size()));
     for (int index = 0; index < iterationCount; ++index) {
-        auto replica = node->PickRandomReplica();
+        auto replica = node->PickRandomReplica(mediumIndex);
+        Y_ASSERT(replica.GetMediumIndex() == mediumIndex);
         auto* chunk = replica.GetPtr();
         if (!IsObjectAlive(chunk)) {
             break;
@@ -475,10 +549,12 @@ std::vector<TChunkPtrWithIndex> TChunkPlacement::GetBalancingChunks(
     return result;
 }
 
-bool TChunkPlacement::IsAcceptedChunkType(TNode* node, EObjectType type)
+bool TChunkPlacement::IsAcceptedChunkType(int mediumIndex, TNode* node, EObjectType type)
 {
     for (auto acceptedType : node->Statistics().accepted_chunk_types()) {
-        if (EObjectType(acceptedType) == type) {
+        if (acceptedType.medium_index() == mediumIndex &&
+            EObjectType(acceptedType.chunk_type()) == type)
+        {
             return true;
         }
     }
@@ -489,19 +565,22 @@ void TChunkPlacement::AddSessionHint(TNode* node, ESessionType sessionType)
 {
     node->AddSessionHint(sessionType);
 
-    RemoveFromLoadFactorMap(node);
-    InsertToLoadFactorMap(node);
+    RemoveFromLoadFactorMaps(node);
+    InsertToLoadFactorMaps(node);
 
     if (node->GetSessionCount(ESessionType::Replication) >= Config_->MaxReplicationWriteSessions) {
-        RemoveFromFillFactorMap(node);
+        RemoveFromFillFactorMaps(node);
     }
 }
 
-int TChunkPlacement::GetMaxReplicasPerRack(TChunk* chunk, TNullable<int> replicationFactorOverride)
+int TChunkPlacement::GetMaxReplicasPerRack(
+    TChunk* chunk,
+    int mediumIndex,
+    TNullable<int> replicationFactorOverride)
 {
-    return std::min(
-        Config_->MaxReplicasPerRack,
-        chunk->GetMaxReplicasPerRack(replicationFactorOverride));
+    int replicasPerRack =
+        chunk->GetMaxReplicasPerRack(mediumIndex, replicationFactorOverride);
+    return std::min(Config_->MaxReplicasPerRack, replicasPerRack);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

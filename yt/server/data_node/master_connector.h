@@ -172,11 +172,18 @@ private:
     //! Sends out a registration request to master.
     void RegisterAtMaster();
 
+    // A part of #RegisterAtMaster()'s implementation.
+    void SetLocationIndexes(const NNodeTrackerClient::NProto::TRspRegisterNode& rsp);
+
     //! Handles lease transaction abort.
     void OnLeaseTransactionAborted();
 
     //! Computes the current node statistics.
     NNodeTrackerClient::NProto::TNodeStatistics ComputeStatistics();
+
+    // Implementation details for #ComputeStatistics().
+    void ComputeTotalStatistics(NNodeTrackerClient::NProto::TNodeStatistics* result);
+    void ComputeLocationSpecificStatistics(NNodeTrackerClient::NProto::TNodeStatistics* statistics);
 
     //! Returns |true| if the node is allowed to send a full heartbeat to Node Tracker
     //! of a given #cellTag.

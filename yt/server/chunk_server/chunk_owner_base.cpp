@@ -22,10 +22,13 @@ TChunkOwnerBase::TChunkOwnerBase(const TVersionedNodeId& id)
     : TCypressNodeBase(id)
     , ChunkList_(nullptr)
     , UpdateMode_(EUpdateMode::None)
-    , ReplicationFactor_(0)
-    , Vital_(true)
     , ChunkPropertiesUpdateNeeded_(false)
-{ }
+{
+    Properties_.SetVital(true);
+    for (auto& mediumProperties : Properties_) {
+        mediumProperties.Clear();
+    }
+}
 
 void TChunkOwnerBase::Save(NCellMaster::TSaveContext& context) const
 {
@@ -34,8 +37,8 @@ void TChunkOwnerBase::Save(NCellMaster::TSaveContext& context) const
     using NYT::Save;
     Save(context, ChunkList_);
     Save(context, UpdateMode_);
-    Save(context, ReplicationFactor_);
-    Save(context, Vital_);
+    Save(context, Properties_);
+    Save(context, PrimaryMediumIndex_);
     Save(context, ChunkPropertiesUpdateNeeded_);
     Save(context, SnapshotStatistics_);
     Save(context, DeltaStatistics_);
@@ -48,8 +51,15 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, ChunkList_);
     Load(context, UpdateMode_);
-    Load(context, ReplicationFactor_);
-    Load(context, Vital_);
+    // COMPAT(shakurov)
+    if (context.GetVersion() < MEDIUM_TYPE_PATCH_CONTEXT_VERSION) {
+        PrimaryMediumIndex_ = DefaultMediumIndex;
+        Properties_[DefaultMediumIndex].SetReplicationFactorOrThrow(Load<int>(context));
+        Properties_.SetVital(Load<bool>(context));
+    } else {
+        Load(context, Properties_);
+        PrimaryMediumIndex_ = Load<int>(context);
+    }
     // COMPAT(babenko)
     if (context.GetVersion() >= 203) {
         Load(context, ChunkPropertiesUpdateNeeded_);
@@ -166,6 +176,99 @@ TDataStatistics TChunkOwnerBase::ComputeUpdateStatistics() const
 
         default:
             Y_UNREACHABLE();
+    }
+}
+
+int TChunkOwnerBase::GetReplicationFactor(int mediumIndex) const
+{
+    return Properties_[mediumIndex].GetReplicationFactor();
+}
+
+void TChunkOwnerBase::SetReplicationFactorOrThrow(int mediumIndex, int replicationFactor)
+{
+    auto properties = Properties_;
+    properties[mediumIndex].SetReplicationFactorOrThrow(replicationFactor);
+
+    ValidateMedia(properties, PrimaryMediumIndex_);
+
+    Properties_ = properties;
+}
+
+bool TChunkOwnerBase::GetDataPartsOnly(int mediumIndex) const
+{
+    return Properties_[mediumIndex].GetDataPartsOnly();
+}
+
+void TChunkOwnerBase::SetDataPartsOnlyOrThrow(int mediumIndex, bool dataPartsOnly)
+{
+    auto properties = Properties_;
+    properties[mediumIndex].SetDataPartsOnly(dataPartsOnly);
+
+    ValidateMedia(properties, PrimaryMediumIndex_);
+
+    Properties_ = properties;
+}
+
+bool TChunkOwnerBase::GetVital() const
+{
+    return Properties_.GetVital();
+}
+
+void TChunkOwnerBase::SetVital(bool vital)
+{
+    Properties_.SetVital(vital);
+}
+
+void TChunkOwnerBase::SetPrimaryMediumIndexOrThrow(int mediumIndex)
+{
+    ValidateMedia(Properties_, mediumIndex);
+    PrimaryMediumIndex_ = mediumIndex;
+}
+
+int TChunkOwnerBase::GetPrimaryMediumReplicationFactor() const
+{
+    return GetReplicationFactor(GetPrimaryMediumIndex());
+}
+
+void TChunkOwnerBase::SetPrimaryMediumReplicationFactorOrThrow(int replicationFactor)
+{
+    SetReplicationFactorOrThrow(
+        GetPrimaryMediumIndex(),
+        replicationFactor);
+}
+
+int TChunkOwnerBase::GetPrimaryMediumDataPartsOnly() const
+{
+    return GetDataPartsOnly(GetPrimaryMediumIndex());
+}
+
+void TChunkOwnerBase::SetPropertiesOrThrow(const TChunkProperties& props)
+{
+    ValidateMedia(props, GetPrimaryMediumIndex());
+    Properties_ = props;
+}
+
+void TChunkOwnerBase::SetPrimaryMediumIndexAndPropertiesOrThrow(
+    int primaryMediumIndex,
+    const TChunkProperties& props)
+{
+    ValidateMedia(props, primaryMediumIndex);
+    PrimaryMediumIndex_ = primaryMediumIndex;
+    Properties_ = props;
+}
+
+/*static*/ void TChunkOwnerBase::ValidateMedia(const TChunkProperties& props, int primaryMediumIndex) {
+    ValidateMediumIndex(primaryMediumIndex);
+
+    props.ValidateOrThrow();
+
+    auto& primaryMediumProps = props[primaryMediumIndex];
+
+    if (primaryMediumProps.GetReplicationFactor() == 0) {
+        THROW_ERROR_EXCEPTION("Medium %v stores no chunk replicas and cannot be made primary", primaryMediumIndex);
+    }
+    if (primaryMediumProps.GetDataPartsOnly()) {
+        THROW_ERROR_EXCEPTION("Medium %v stores no parity parts and cannot be made primary", primaryMediumIndex);
     }
 }
 

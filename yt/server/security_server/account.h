@@ -28,7 +28,7 @@ struct TAccountStatistics
 void ToProto(NProto::TAccountStatistics* protoStatistics, const TAccountStatistics& statistics);
 void FromProto(TAccountStatistics* statistics, const NProto::TAccountStatistics& protoStatistics);
 
-void Serialize(const TAccountStatistics& statistics, NYson::IYsonConsumer* consumer);
+void Serialize(const TAccountStatistics& statistics, NYson::IYsonConsumer* consumer, const NChunkServer::TChunkManagerPtr& chunkManager);
 
 TAccountStatistics& operator += (TAccountStatistics& lhs, const TAccountStatistics& rhs);
 TAccountStatistics  operator +  (const TAccountStatistics& lhs, const TAccountStatistics& rhs);

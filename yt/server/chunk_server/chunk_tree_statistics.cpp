@@ -56,6 +56,7 @@ TDataStatistics TChunkTreeStatistics::ToDataStatistics() const
     result.set_compressed_data_size(CompressedDataSize);
     result.set_row_count(RowCount);
     result.set_chunk_count(ChunkCount);
+    result.set_data_weight(DataWeight);
     result.set_regular_disk_space(RegularDiskSpace);
     result.set_erasure_disk_space(ErasureDiskSpace);
     return result;
@@ -134,7 +135,7 @@ Stroka ToString(const TChunkTreeStatistics& statistics)
     return ConvertToYsonString(statistics, EYsonFormat::Text).Data();
 }
 
-void Serialize(const TChunkTreeStatistics& statistics, NYson::IYsonConsumer* consumer)
+void Serialize(const TChunkTreeStatistics& statistics, NYson::IYsonConsumer* consumer, const TChunkManagerPtr& chunkManager)
 {
     NYTree::BuildYsonFluently(consumer)
         .BeginMap()

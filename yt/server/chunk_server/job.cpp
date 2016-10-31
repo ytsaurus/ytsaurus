@@ -21,7 +21,7 @@ using namespace NChunkClient;
 TJob::TJob(
     EJobType type,
     const TJobId& jobId,
-    const TChunkIdWithIndex& chunkIdWithIndex,
+    const TChunkIdWithIndexes& chunkIdWithIndexes,
     TNode* node,
     const TNodeList& targets,
     const TPartIndexList& erasedIndexes,
@@ -29,7 +29,7 @@ TJob::TJob(
     const TNodeResources& resourceUsage)
     : JobId_(jobId)
     , Type_(type)
-    , ChunkIdWithIndex_(chunkIdWithIndex)
+    , ChunkIdWithIndexes_(chunkIdWithIndexes)
     , Node_(node)
     , Targets_(targets)
     , ErasedIndexes_(erasedIndexes)
@@ -40,11 +40,11 @@ TJob::TJob(
 
 TJobPtr TJob::CreateReplicate(
     const TJobId& jobId,
-    TChunkPtrWithIndex chunkWithIndex,
+    TChunkPtrWithIndexes chunkWithIndexes,
     TNode* node,
     const TNodeList& targets)
 {
-    auto* chunk = chunkWithIndex.GetPtr();
+    auto* chunk = chunkWithIndexes.GetPtr();
     i64 dataSize = chunk->ChunkInfo().disk_space();
 
     auto codecId = chunk->GetErasureCodec();
@@ -60,7 +60,10 @@ TJobPtr TJob::CreateReplicate(
     return New<TJob>(
         EJobType::ReplicateChunk,
         jobId,
-        TChunkIdWithIndex(chunk->GetId(), chunkWithIndex.GetIndex()),
+        TChunkIdWithIndexes(
+            chunk->GetId(),
+            chunkWithIndexes.GetReplicaIndex(),
+            chunkWithIndexes.GetMediumIndex()),
         node,
         targets,
         TPartIndexList(),
@@ -70,7 +73,7 @@ TJobPtr TJob::CreateReplicate(
 
 TJobPtr TJob::CreateRemove(
     const TJobId& jobId,
-    const TChunkIdWithIndex& chunkIdWithIndex,
+    const TChunkIdWithIndexes& chunkIdWithIndexes,
     NNodeTrackerServer::TNode* node)
 {
     TNodeResources resourceUsage;
@@ -79,7 +82,7 @@ TJobPtr TJob::CreateRemove(
     return New<TJob>(
         EJobType::RemoveChunk,
         jobId,
-        chunkIdWithIndex,
+        chunkIdWithIndexes,
         node,
         TNodeList(),
         TPartIndexList(),
@@ -90,6 +93,7 @@ TJobPtr TJob::CreateRemove(
 TJobPtr TJob::CreateRepair(
     const TJobId& jobId,
     TChunk* chunk,
+    int mediumIndex,
     NNodeTrackerServer::TNode* node,
     const TNodeList& targets,
     const TPartIndexList& erasedIndexes,
@@ -107,7 +111,7 @@ TJobPtr TJob::CreateRepair(
     return New<TJob>(
         EJobType::RepairChunk,
         jobId,
-        TChunkIdWithIndex(chunk->GetId(), 0),
+        TChunkIdWithIndexes(chunk->GetId(), 0, mediumIndex),
         node,
         targets,
         erasedIndexes,
@@ -126,7 +130,7 @@ TJobPtr TJob::CreateSeal(
     return New<TJob>(
         EJobType::SealChunk,
         jobId,
-        TChunkIdWithIndex(chunk->GetId(), 0),
+        TChunkIdWithIndexes(chunk->GetId(), 0, DefaultMediumIndex),
         node,
         TNodeList(),
         TPartIndexList(),

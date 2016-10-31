@@ -18,6 +18,9 @@ NCypressServer::INodeTypeHandlerPtr CreateChunkMapTypeHandler(
 NCypressServer::INodeTypeHandlerPtr CreateChunkListMapTypeHandler(
     NCellMaster::TBootstrap* bootstrap);
 
+NCypressServer::INodeTypeHandlerPtr CreateMediumMapTypeHandler(
+    NCellMaster::TBootstrap* bootstrap);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkServer

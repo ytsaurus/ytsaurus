@@ -6,9 +6,16 @@ import "yt/core/misc/guid.proto";
 
 message TClusterResources
 {
-    required int64 disk_space = 1;
     required int32 chunk_count = 2;
     required int32 node_count = 3;
+
+    message TMediumDiskSpace
+    {
+        required int32 medium_index = 1;
+        required int64 disk_space = 2;
+    }
+
+    repeated TMediumDiskSpace disk_space_per_medium = 4;
 }
 
 message TUserStatistics

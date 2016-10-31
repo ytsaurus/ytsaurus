@@ -557,9 +557,11 @@ public:
             default:
                 Y_UNREACHABLE();
         }
-        tabletStatistics.DiskSpace =
-            treeStatistics.RegularDiskSpace * table->GetReplicationFactor() +
-            treeStatistics.ErasureDiskSpace;
+        for (int mediumIndex = 0; mediumIndex < NChunkClient::MaxMediumCount; ++mediumIndex) {
+            tabletStatistics.DiskSpace[mediumIndex] =
+                table->GetReplicationFactor(mediumIndex) *
+                (treeStatistics.RegularDiskSpace + treeStatistics.ErasureDiskSpace);
+        }
         tabletStatistics.ChunkCount = treeStatistics.ChunkCount;
         return tabletStatistics;
     }
@@ -2845,7 +2847,7 @@ private:
 
         // Prepare tablet writer options.
         *writerOptions = New<TTableWriterOptions>();
-        (*writerOptions)->ReplicationFactor = table->GetReplicationFactor();
+        (*writerOptions)->ReplicationFactor = table->GetPrimaryMediumReplicationFactor();
         (*writerOptions)->Account = table->GetAccount()->GetName();
         (*writerOptions)->CompressionCodec = tableAttributes.Get<NCompression::ECodec>("compression_codec");
         (*writerOptions)->ErasureCodec = tableAttributes.Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);

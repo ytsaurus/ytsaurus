@@ -184,7 +184,7 @@ class TestAcls(YTEnvSetup):
         self._prepare_scheduler_test()
         set("//tmp/t2/@account", "a")
         set("//sys/accounts/a/@acl/end", make_ace("allow", "u", "use"))
-        set("//sys/accounts/a/@resource_limits/disk_space", 0)
+        set_account_disk_space_limit("a", 0)
         with pytest.raises(YtError): map(in_="//tmp/t1", out="//tmp/t2", command="cat", authenticated_user="u")
 
     def test_scheduler_operation_abort_acl(self):

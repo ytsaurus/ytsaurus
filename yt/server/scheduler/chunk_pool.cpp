@@ -54,7 +54,7 @@ void AddStripeToList(
             bool isLocal = false;
             for (auto replica : chunkSlice->GetInputChunk()->GetReplicaList()) {
                 if (replica.GetNodeId() == nodeId) {
-                    i64 locality = chunkSlice->GetLocality(replica.GetIndex());
+                    i64 locality = chunkSlice->GetLocality(replica.GetReplicaIndex());
                     if (locality > 0) {
                         list->LocalDataSize += locality;
                         isLocal = true;
@@ -560,7 +560,7 @@ private:
         for (const auto& dataSlice : stripe->DataSlices) {
             for (const auto& chunkSlice : dataSlice->ChunkSlices) {
                 for (auto replica : chunkSlice->GetInputChunk()->GetReplicaList()) {
-                    i64 localityDelta = chunkSlice->GetLocality(replica.GetIndex()) * delta;
+                    i64 localityDelta = chunkSlice->GetLocality(replica.GetReplicaIndex()) * delta;
                     NodeIdToLocality[replica.GetNodeId()] += localityDelta;
                 }
             }
@@ -1031,7 +1031,7 @@ private:
         for (const auto& dataSlice : stripe->DataSlices) {
             for (const auto& chunkSlice : dataSlice->ChunkSlices) {
                 for (auto replica : chunkSlice->GetInputChunk()->GetReplicaList()) {
-                    auto locality = chunkSlice->GetLocality(replica.GetIndex());
+                    auto locality = chunkSlice->GetLocality(replica.GetReplicaIndex());
                     if (locality > 0) {
                         auto& entry = NodeIdToEntry[replica.GetNodeId()];
                         // NB: do not check that stripe is unique, it may have already been inserted,
@@ -1055,7 +1055,7 @@ private:
         for (const auto& dataSlice : stripe->DataSlices) {
             for (const auto& chunkSlice : dataSlice->ChunkSlices) {
                 for (auto replica : chunkSlice->GetInputChunk()->GetReplicaList()) {
-                    auto locality = chunkSlice->GetLocality(replica.GetIndex());
+                    auto locality = chunkSlice->GetLocality(replica.GetReplicaIndex());
                     if (locality > 0) {
                         auto& entry = NodeIdToEntry[replica.GetNodeId()];
                         auto it = entry.StripeIndexes.find(stripeIndex);
@@ -1356,8 +1356,8 @@ private:
         {
             auto* run = &Runs.back();
             if (run->TotalDataSize > 0) {
-                if (run->TotalDataSize + dataSize > Owner->DataSizeThreshold || 
-                    run->TotalRowCount + rowCount > Owner->RowCountThreshold) 
+                if (run->TotalDataSize + dataSize > Owner->DataSizeThreshold ||
+                    run->TotalRowCount + rowCount > Owner->RowCountThreshold)
                 {
                     SealLastRun();
                     AddNewRun();
@@ -1704,4 +1704,3 @@ std::unique_ptr<IShuffleChunkPool> CreateShuffleChunkPool(
 
 } // namespace NScheduler
 } // namespace NYT
-

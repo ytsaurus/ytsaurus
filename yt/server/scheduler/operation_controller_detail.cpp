@@ -2412,7 +2412,7 @@ void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TChunkStripePt
     for (const auto& dataSlice : stripe->DataSlices) {
         for (const auto& chunkSlice : dataSlice->ChunkSlices) {
             for (auto replica : chunkSlice->GetInputChunk()->GetReplicaList()) {
-                auto locality = chunkSlice->GetLocality(replica.GetIndex());
+                auto locality = chunkSlice->GetLocality(replica.GetReplicaIndex());
                 if (locality > 0) {
                     DoAddTaskLocalityHint(task, replica.GetNodeId());
                 }
@@ -5068,4 +5068,3 @@ IOperationControllerPtr CreateControllerWrapper(
 
 } // namespace NScheduler
 } // namespace NYT
-

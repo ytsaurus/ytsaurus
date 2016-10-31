@@ -282,6 +282,24 @@ public:
             GetSize());
     }
 
+    void SetMediumIndexes(const yhash_map<Stroka, int>& mediumNameToIndex)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        for (const auto& location : Locations_) {
+            auto mediumName = location->GetMediumName();
+            auto it = mediumNameToIndex.find(mediumName);
+            if (it == mediumNameToIndex.end()) {
+                THROW_ERROR_EXCEPTION(
+                    "Location %v is configured with medium %Qv, but no such medium is known at master",
+                    location->GetId(),
+                    mediumName);
+            }
+
+            location->SetMediumIndex(it->second);
+        }
+    }
+
     bool IsEnabled() const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -893,6 +911,13 @@ TChunkCache::~TChunkCache()
 void TChunkCache::Initialize()
 {
     Impl_->Initialize();
+}
+
+void TChunkCache::SetMediumIndexes(const yhash_map<Stroka, int>& mediumNameToIndex)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return Impl_->SetMediumIndexes(mediumNameToIndex);
 }
 
 bool TChunkCache::IsEnabled() const

@@ -32,13 +32,15 @@ struct TTabletStatistics
     i64 UncompressedDataSize = 0;
     i64 CompressedDataSize = 0;
     i64 MemorySize = 0;
-    i64 DiskSpace = 0;
+    i64 DiskSpace[NChunkClient::MaxMediumCount];
     int ChunkCount = 0;
     int PartitionCount = 0;
     int StoreCount = 0;
     int PreloadPendingStoreCount = 0;
     int PreloadCompletedStoreCount = 0;
     int PreloadFailedStoreCount = 0;
+
+    TTabletStatistics();
 
     void Persist(NCellMaster::TPersistenceContext& context);
 };

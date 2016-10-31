@@ -16,6 +16,7 @@
 #include <yt/core/misc/public.h>
 
 #include <map>
+#include <array>
 
 namespace NYT {
 namespace NChunkServer {
@@ -25,6 +26,7 @@ namespace NChunkServer {
 using NChunkClient::TChunkId;
 using NChunkClient::TChunkListId;
 using NChunkClient::TChunkTreeId;
+using NChunkClient::TMediumId;
 using NChunkClient::NullChunkId;
 using NChunkClient::NullChunkListId;
 using NChunkClient::NullChunkTreeId;
@@ -32,6 +34,8 @@ using NChunkClient::TBlockOffset;
 using NChunkClient::EChunkType;
 using NChunkClient::TBlockId;
 using NChunkClient::TypicalReplicaCount;
+using NChunkClient::MaxMediumCount;
+using NChunkClient::DefaultMediumIndex;
 
 using NJobTrackerClient::TJobId;
 using NJobTrackerClient::EJobType;
@@ -51,6 +55,7 @@ using NNodeTrackerServer::TNodeList;
 
 DECLARE_ENTITY_TYPE(TChunk, TChunkId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TChunkList, TChunkListId, NObjectClient::TDirectObjectIdHash)
+DECLARE_ENTITY_TYPE(TMedium, TMediumId, NObjectClient::TDirectObjectIdHash)
 
 class TChunkTree;
 class TChunkOwnerBase;
@@ -95,7 +100,16 @@ DEFINE_BIT_ENUM(EChunkStatus,
     ((UnsafelyPlaced)    (0x0100))
 );
 
-typedef std::list<TChunk*> TChunkRepairQueue;
+DEFINE_BIT_ENUM(ECrossMediumChunkStatus,
+    ((None)              (0x0000))
+    ((Lost)              (0x0004))
+    ((DataMissing)       (0x0008))
+    ((ParityMissing)     (0x0010))
+    ((Precarious)        (0x0200)) // All replicas are on transient media.
+    ((MediumWiseLost)    (0x0400)) // Lost on some media, but not others.
+);
+
+typedef std::list<std::pair<TChunk*, int>> TChunkRepairQueue; // chunk + medium index
 typedef TChunkRepairQueue::iterator TChunkRepairQueueIterator;
 
 typedef std::multimap<double, NNodeTrackerServer::TNode*> TFillFactorToNodeMap;
@@ -103,6 +117,12 @@ typedef TFillFactorToNodeMap::iterator TFillFactorToNodeIterator;
 
 typedef std::multimap<double, NNodeTrackerServer::TNode*> TLoadFactorToNodeMap;
 typedef TLoadFactorToNodeMap::iterator TLoadFactorToNodeIterator;
+
+using TMediumSet = std::bitset<MaxMediumCount>;
+
+template <typename T>
+using TPerMediumArray = std::array<T, MaxMediumCount>;
+using TPerMediumIntArray = TPerMediumArray<int>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

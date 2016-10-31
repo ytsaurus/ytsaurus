@@ -804,7 +804,7 @@ std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
         sortedReplicas.begin(),
         sortedReplicas.end(),
         [] (TChunkReplica lhs, TChunkReplica rhs) {
-            return lhs.GetIndex() < rhs.GetIndex();
+            return lhs.GetReplicaIndex() < rhs.GetReplicaIndex();
         });
 
     std::vector<IChunkReaderPtr> readers;
@@ -812,14 +812,16 @@ std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
 
     {
         auto it = sortedReplicas.begin();
-        while (it != sortedReplicas.end() && it->GetIndex() < partCount) {
+        while (it != sortedReplicas.end() && it->GetReplicaIndex() < partCount) {
             auto jt = it;
-            while (jt != sortedReplicas.end() && it->GetIndex() == jt->GetIndex()) {
+            while (jt != sortedReplicas.end() &&
+                   it->GetReplicaIndex() == jt->GetReplicaIndex())
+            {
                 ++jt;
             }
 
             TChunkReplicaList partReplicas(it, jt);
-            auto partId = ErasurePartIdFromChunkId(chunkId, it->GetIndex());
+            auto partId = ErasurePartIdFromChunkId(chunkId, it->GetReplicaIndex());
             auto reader = CreateReplicationReader(
                 config,
                 options,

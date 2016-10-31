@@ -24,9 +24,9 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TJobId, JobId);
     DEFINE_BYVAL_RO_PROPERTY(EJobType, Type);
     /*!
-     *  Can't make it TChunkPtrWithIndex since removal jobs may refer to nonexistent chunks.
+     *  Can't make it TChunkPtrWithIndexes since removal jobs may refer to nonexistent chunks.
      */
-    DEFINE_BYVAL_RO_PROPERTY(NChunkClient::TChunkIdWithIndex, ChunkIdWithIndex);
+    DEFINE_BYVAL_RO_PROPERTY(NChunkClient::TChunkIdWithIndexes, ChunkIdWithIndexes);
     DEFINE_BYVAL_RO_PROPERTY(NNodeTrackerServer::TNode*, Node);
     DEFINE_BYREF_RO_PROPERTY(TNodeList, Targets);
     DEFINE_BYREF_RO_PROPERTY(NErasure::TPartIndexList, ErasedIndexes);
@@ -41,18 +41,19 @@ public:
 public:
     static TJobPtr CreateReplicate(
         const TJobId& jobId,
-        TChunkPtrWithIndex chunkWithIndex,
+        TChunkPtrWithIndexes chunkWithIndexes,
         NNodeTrackerServer::TNode* node,
         const TNodeList& targets);
 
     static TJobPtr CreateRemove(
         const TJobId& jobId,
-        const NChunkClient::TChunkIdWithIndex& chunkIdWithIndex,
+        const NChunkClient::TChunkIdWithIndexes& chunkIdWithIndexes,
         NNodeTrackerServer::TNode* node);
 
     static TJobPtr CreateRepair(
         const TJobId& jobId,
         TChunk* chunk,
+        int mediumIndex,
         NNodeTrackerServer::TNode* node,
         const TNodeList& targets,
         const NErasure::TPartIndexList& erasedIndexes,
@@ -66,7 +67,7 @@ public:
     TJob(
         EJobType type,
         const TJobId& jobId,
-        const NChunkClient::TChunkIdWithIndex& chunkIdWithIndex,
+        const NChunkClient::TChunkIdWithIndexes& chunkIdWithIndexes,
         NNodeTrackerServer::TNode* node,
         const TNodeList& targets,
         const NErasure::TPartIndexList& erasedIndexes,

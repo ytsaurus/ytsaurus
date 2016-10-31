@@ -18,27 +18,42 @@ using namespace NObjectClient;
 
 Stroka ToString(TChunkReplica replica)
 {
-    if (replica.GetIndex() == GenericChunkReplicaIndex) {
-        return ToString(replica.GetNodeId());
+    if (replica.GetReplicaIndex() == GenericChunkReplicaIndex) {
+        return Format("%v@%v", replica.GetNodeId(), replica.GetMediumIndex());
     } else {
-        return Format("%v/%v",
+        return Format("%v/%v@%v",
             replica.GetNodeId(),
-            replica.GetIndex());
+            replica.GetReplicaIndex(),
+            replica.GetMediumIndex());
     }
 }
 
 Stroka ToString(const TChunkIdWithIndex& id)
 {
-    if (id.Index == GenericChunkReplicaIndex) {
+    if (id.ReplicaIndex == GenericChunkReplicaIndex) {
         return ToString(id.Id);
     } else if (TypeFromId(id.Id) == EObjectType::JournalChunk) {
         return Format("%v/%v",
             id.Id,
-            EJournalReplicaType(id.Index));
+            EJournalReplicaType(id.ReplicaIndex));
     } else {
         return Format("%v/%v",
             id.Id,
-            id.Index);
+            id.ReplicaIndex);
+    }
+}
+
+Stroka ToString(const TChunkIdWithIndexes& id)
+{
+    if (TypeFromId(id.Id) == EObjectType::JournalChunk) {
+        return Format("%v/%v",
+            id.Id,
+            EJournalReplicaType(id.ReplicaIndex));
+    } else {
+        return Format("%v/%v@%v",
+            id.Id,
+            id.ReplicaIndex,
+            id.MediumIndex);
     }
 }
 
@@ -51,7 +66,11 @@ TChunkReplicaAddressFormatter::TChunkReplicaAddressFormatter(TNodeDirectoryPtr n
 void TChunkReplicaAddressFormatter::operator()(TStringBuilder* builder, TChunkReplica replica) const
 {
     const auto& descriptor = NodeDirectory_->GetDescriptor(replica.GetNodeId());
-    builder->AppendFormat("%v/%v", descriptor.GetDefaultAddress(), replica.GetIndex());
+    builder->AppendFormat(
+        "%v/%v@%v",
+        descriptor.GetDefaultAddress(),
+        replica.GetReplicaIndex(),
+        replica.GetMediumIndex());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -93,7 +112,7 @@ int IndexFromErasurePartId(const TChunkId& id)
 TChunkId EncodeChunkId(const TChunkIdWithIndex& idWithIndex)
 {
     return IsErasureChunkId(idWithIndex.Id)
-        ? ErasurePartIdFromChunkId(idWithIndex.Id, idWithIndex.Index)
+        ? ErasurePartIdFromChunkId(idWithIndex.Id, idWithIndex.ReplicaIndex)
         : idWithIndex.Id;
 }
 

@@ -6,6 +6,8 @@
 
 #include <yt/server/cell_master/public.h>
 
+#include <yt/server/node_tracker_server/rack.h>
+
 #include <yt/ytlib/chunk_client/chunk_replica.h>
 
 #include <yt/ytlib/node_tracker_client/node_tracker_service.pb.h>
@@ -20,6 +22,7 @@
 
 #include <yt/core/profiling/timing.h>
 
+#include <functional>
 #include <deque>
 
 namespace NYT {
@@ -43,24 +46,35 @@ public:
     void OnNodeUnregistered(TNode* node);
     void OnNodeDisposed(TNode* node);
 
+    // 'On all of the media' chunk states. E.g. LostChunks contain chunks that
+    // have been lost on all of the media.
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, LostChunks);
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, LostVitalChunks);
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, UnderreplicatedChunks);
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, OverreplicatedChunks);
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, DataMissingChunks);
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, ParityMissingChunks);
+    // Medium-wise unsafely placed chunks: all replicas are on transient media
+    // (and properties of these chunks demand otherwise).
+    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, PrecariousChunks);
+    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, PrecariousVitalChunks);
+
+
+    // 'On any medium'. E.g. UnderreplicatedChunks contain chunks that are
+    // underreplicated on at least one medium.
+    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, UnderreplicatedChunks);
+    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, OverreplicatedChunks);
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, QuorumMissingChunks);
+    // Rack-wise unsafely placed chunks.
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, UnsafelyPlacedChunks);
 
     void OnChunkDestroyed(TChunk* chunk);
-    void OnReplicaRemoved(TNode* node, TChunkPtrWithIndex chunkWithIndex, ERemoveReplicaReason reason);
+    void OnReplicaRemoved(TNode* node, TChunkPtrWithIndexes chunkWithIndexes, ERemoveReplicaReason reason);
 
     void ScheduleChunkRefresh(const TChunkId& chunkId);
     void ScheduleChunkRefresh(TChunk* chunk);
     void ScheduleNodeRefresh(TNode* node);
 
-    void ScheduleUnknownReplicaRemoval(TNode* node, const NChunkClient::TChunkIdWithIndex& chunkdIdWithIndex);
-    void ScheduleReplicaRemoval(TNode* node, TChunkPtrWithIndex chunkWithIndex);
+    void ScheduleUnknownReplicaRemoval(TNode* node, const NChunkClient::TChunkIdWithIndexes& chunkdIdWithIndexes);
+    void ScheduleReplicaRemoval(TNode* node, TChunkPtrWithIndexes chunkWithIndexes);
 
     void SchedulePropertiesUpdate(TChunkTree* chunkTree);
     void SchedulePropertiesUpdate(TChunk* chunk);
@@ -70,7 +84,7 @@ public:
 
     TJobPtr FindJob(const TJobId& id);
 
-    EChunkStatus ComputeChunkStatus(TChunk* chunk);
+    TPerMediumArray<EChunkStatus> ComputeChunkStatuses(TChunk* chunk);
 
     void ScheduleJobs(
         TNode* node,
@@ -85,26 +99,40 @@ public:
     int GetPropertiesUpdateListSize() const;
 
 private:
-    struct TChunkStatistics
+    struct TPerMediumChunkStatistics
     {
-        TChunkStatistics();
+        TPerMediumChunkStatistics();
 
         EChunkStatus Status;
 
         //! Number of active replicas, per each replica index.
         int ReplicaCount[NChunkClient::ChunkReplicaIndexBound];
-        
+
         //! Number of decommissioned replicas, per each replica index.
         int DecommissionedReplicaCount[NChunkClient::ChunkReplicaIndexBound];
 
+
         //! Indexes of replicas whose replication is advised.
         SmallVector<int, TypicalReplicaCount> ReplicationIndexes;
-        
-        //! Decommissioned replicas whose removal is advised.
-        SmallVector<TNodePtrWithIndex, TypicalReplicaCount> DecommissionedRemovalReplicas;
 
-        //! Indexes of replicas whose removal is advised for balancing.
+        //! Decommissioned replicas whose removal is advised.
+        // NB: there's no actual need to have medium index in context of this
+        // per-medium class. This is just for convenience.
+        SmallVector<TNodePtrWithIndexes, TypicalReplicaCount> DecommissionedRemovalReplicas;
+         //! Indexes of replicas whose removal is advised for balancing.
         SmallVector<int, TypicalReplicaCount> BalancingRemovalIndexes;
+    };
+
+    struct TChunkStatistics
+    {
+        TPerMediumArray<TPerMediumChunkStatistics> PerMediumStatistics;
+        // Aggregate status across all media. The only applicable statuses are:
+        //   Lost - the chunk is lost on all media;
+        //   DataMissing - the chunk is missing data parts on all media;
+        //   ParityMissing - the chunk is missing parity parts on all media;
+        //   Precarious - the chunk has no replicas on a non-transient media;
+        //   MediumWiseLost - the chunk is lost on some media, but not on others.
+        ECrossMediumChunkStatus Status = ECrossMediumChunkStatus::None;
     };
 
     struct TRefreshEntry
@@ -144,20 +172,21 @@ private:
     TJobId GenerateJobId();
     bool CreateReplicationJob(
         TNode* sourceNode,
-        TChunkPtrWithIndex chunkWithIndex,
+        TChunkPtrWithIndexes chunkWithIndex,
         TJobPtr* job);
     bool CreateBalancingJob(
         TNode* sourceNode,
-        TChunkPtrWithIndex chunkWithIndex,
+        TChunkPtrWithIndexes chunkWithIndex,
         double maxFillCoeff,
         TJobPtr* jobsToStart);
     bool CreateRemovalJob(
         TNode* node,
-        const NChunkClient::TChunkIdWithIndex& chunkIdWithIndex,
+        const NChunkClient::TChunkIdWithIndexes& chunkIdWithIndex,
         TJobPtr* job);
     bool CreateRepairJob(
         TNode* node,
         TChunk* chunk,
+        int mediumIndex,
         TJobPtr* job);
     bool CreateSealJob(
         TNode* node,
@@ -172,8 +201,8 @@ private:
     void RefreshChunk(TChunk* chunk);
 
     void ResetChunkStatus(TChunk* chunk);
-    void RemoveChunkFromQueues(TChunk* chunk, bool dropRemovals);
-    void RemoveReplicaFromQueues(TChunk* chunk, TNodePtrWithIndex nodeWithIndex, bool dropRemovals);
+    void RemoveChunkFromQueues(TChunk* chunk, int mediumIndex, bool dropRemovals);
+    void RemoveReplicaFromQueues(TChunk* chunk, TNodePtrWithIndexes nodeWithIndexes, bool dropRemovals);
     void CancelChunkJobs(TChunk* chunk);
 
     TChunkStatistics ComputeChunkStatistics(TChunk* chunk);
@@ -181,7 +210,36 @@ private:
     TChunkStatistics ComputeErasureChunkStatistics(TChunk* chunk);
     TChunkStatistics ComputeJournalChunkStatistics(TChunk* chunk);
 
-    bool IsReplicaDecommissioned(TNodePtrWithIndex replica);
+    // Implementation details for Compute{Regular,Erasure}ChunkStatistics().
+    void ComputeRegularChunkStatisticsForMedium(
+        TPerMediumChunkStatistics& result,
+        int replicationFactor,
+        int replicaCount,
+        int decommissionedReplicaCount,
+        const TNodePtrWithIndexesList& decommissionedReplicas,
+        bool hasUnsafelyPlacedReplicas);
+    void ComputeRegularChunkStatisticsCrossMedia(
+        TChunkStatistics& result,
+        bool precarious,
+        bool allMediaTransient,
+        const SmallVector<int, MaxMediumCount>& mediaOnWhichLost,
+        int mediaOnWhichPresentCount);
+    void ComputeErasureChunkStatisticsForMedium(
+        TPerMediumChunkStatistics& result,
+        NErasure::ICodec* codec,
+        int replicationFactor,
+        std::array<TNodePtrWithIndexesList, NChunkClient::ChunkReplicaIndexBound>& decommissionedReplicas,
+        int unsafelyPlacedReplicaIndex,
+        NErasure::TPartIndexSet& erasedIndexes,
+        bool dataPartsOnly);
+    void ComputeErasureChunkStatisticsCrossMedia(
+        TChunkStatistics& result,
+        NErasure::ICodec* codec,
+        bool allMediaTransient,
+        bool allMediaDataPartsOnly,
+        const TPerMediumArray<NErasure::TPartIndexSet>& mediumToErasedIndexes);
+
+    bool IsReplicaDecommissioned(TNodePtrWithIndexes replica);
 
     void OnPropertiesUpdate();
 
@@ -196,7 +254,7 @@ private:
 
     void UnregisterJob(const TJobPtr& job, EJobUnregisterFlags flags = EJobUnregisterFlags::All);
 
-    void AddToChunkRepairQueue(TChunk* chunk);
+    void AddToChunkRepairQueue(TChunk* chunk, int mediumIndex);
     void RemoveFromChunkRepairQueue(TChunk* chunk);
 
     void OnCheckEnabled();

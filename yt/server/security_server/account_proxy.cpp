@@ -69,28 +69,28 @@ private:
         }
 
         if (key == "resource_usage") {
-            BuildYsonFluently(consumer)
-                .Value(account->ClusterStatistics().ResourceUsage);
+            SerializeClusterResources(account->ClusterStatistics().ResourceUsage, consumer);
             return true;
         }
 
         if (key == "committed_resource_usage") {
-            BuildYsonFluently(consumer)
-                .Value(account->ClusterStatistics().CommittedResourceUsage);
+            SerializeClusterResources(account->ClusterStatistics().CommittedResourceUsage, consumer);
             return true;
         }
 
         if (key == "multicell_statistics") {
+            auto chunkManager = Bootstrap_->GetChunkManager();
+
             BuildYsonFluently(consumer)
-                .DoMapFor(account->MulticellStatistics(), [] (TFluentMap fluent, const std::pair<TCellTag, const TAccountStatistics&>& pair) {
-                    fluent.Item(ToString(pair.first)).Value(pair.second);
+                .DoMapFor(account->MulticellStatistics(), [&] (TFluentMap fluent, const std::pair<TCellTag, const TAccountStatistics&>& pair) {
+                    fluent.Item(ToString(pair.first));
+                    Serialize(pair.second, fluent, chunkManager);
                 });
             return true;
         }
 
         if (key == "resource_limits") {
-            BuildYsonFluently(consumer)
-                .Value(account->ClusterResourceLimits());
+            SerializeClusterResources(account->ClusterResourceLimits(), consumer);
             return true;
         }
 
@@ -111,9 +111,11 @@ private:
     {
         auto* account = GetThisImpl();
         auto securityManager = Bootstrap_->GetSecurityManager();
+        auto chunkManager = Bootstrap_->GetChunkManager();
 
         if (key == "resource_limits") {
-            account->ClusterResourceLimits() = ConvertTo<TClusterResources>(value);
+            auto limits = ConvertTo<TSerializableClusterResourcesPtr>(value);
+            account->ClusterResourceLimits() = limits->ToClusterResources(chunkManager);
             return true;
         }
 
@@ -124,6 +126,14 @@ private:
         }
 
         return TBase::SetBuiltinAttribute(key, value);
+    }
+
+    void SerializeClusterResources(const TClusterResources& clusterResources, NYson::IYsonConsumer* consumer)
+    {
+        auto chunkManager = Bootstrap_->GetChunkManager();
+        auto resourceSerializer = New<TSerializableClusterResources>(chunkManager, clusterResources);
+        BuildYsonFluently(consumer)
+            .Value(resourceSerializer);
     }
 
 };

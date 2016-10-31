@@ -2,6 +2,7 @@
 #include "private.h"
 #include "chunk.h"
 #include "chunk_list.h"
+#include "medium.h"
 
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/hydra_facade.h>
@@ -46,6 +47,10 @@ private:
                 return chunkManager->LostChunks();
             case EObjectType::LostVitalChunkMap:
                 return chunkManager->LostVitalChunks();
+            case EObjectType::PrecariousChunkMap:
+                return chunkManager->PrecariousChunks();
+            case EObjectType::PrecariousVitalChunkMap:
+                return chunkManager->PrecariousVitalChunks();
             case EObjectType::OverreplicatedChunkMap:
                 return chunkManager->OverreplicatedChunks();
             case EObjectType::UnderreplicatedChunkMap:
@@ -115,6 +120,10 @@ private:
                 return "//sys/lost_chunks";
             case EObjectType::LostVitalChunkMap:
                 return "//sys/lost_vital_chunks";
+            case EObjectType::PrecariousChunkMap:
+                return "//sys/precarious_chunks";
+            case EObjectType::PrecariousVitalChunkMap:
+                return "//sys/precarious_vital_chunks";
             case EObjectType::OverreplicatedChunkMap:
                 return "//sys/overreplicated_chunks";
             case EObjectType::UnderreplicatedChunkMap:
@@ -195,6 +204,68 @@ INodeTypeHandlerPtr CreateChunkListMapTypeHandler(TBootstrap* bootstrap)
         EObjectType::ChunkListMap,
         BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualChunkListMap>(bootstrap, owningNode);
+        }),
+        EVirtualNodeOptions::RedirectSelf);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVirtualMediumMap
+    : public TVirtualMapBase
+{
+public:
+    TVirtualMediumMap(TBootstrap* bootstrap, INodePtr owningNode)
+        : TVirtualMapBase(owningNode)
+        , Bootstrap_(bootstrap)
+    { }
+
+private:
+    TBootstrap* const Bootstrap_;
+
+    virtual std::vector<Stroka> GetKeys(i64 sizeLimit) const override
+    {
+        std::vector<Stroka> keys;
+        auto chunkManager = Bootstrap_->GetChunkManager();
+        for (const auto& pair : chunkManager->Media()) {
+            const auto* medium = pair.second;
+            keys.push_back(medium->GetName());
+        }
+        return keys;
+    }
+
+    virtual bool IsValid(TObjectBase* object) const
+    {
+        return object->GetType() == EObjectType::Medium;
+    }
+
+    virtual i64 GetSize() const override
+    {
+        auto chunkManager = Bootstrap_->GetChunkManager();
+        return chunkManager->Media().GetSize();
+    }
+
+    virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
+    {
+        auto chunkManager = Bootstrap_->GetChunkManager();
+        auto* medium = chunkManager->FindMediumByName(Stroka(key));
+        if (!IsObjectAlive(medium)) {
+            return nullptr;
+        }
+
+        auto objectManager = Bootstrap_->GetObjectManager();
+        return objectManager->GetProxy(medium);
+    }
+};
+
+INodeTypeHandlerPtr CreateMediumMapTypeHandler(TBootstrap* bootstrap)
+{
+    YCHECK(bootstrap);
+
+    return CreateVirtualTypeHandler(
+        bootstrap,
+        EObjectType::MediumMap,
+        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+            return New<TVirtualMediumMap>(bootstrap, owningNode);
         }),
         EVirtualNodeOptions::RedirectSelf);
 }

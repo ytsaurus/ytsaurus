@@ -83,7 +83,7 @@ void TInputChunkBase::SetReplicaList(const TChunkReplicaList& replicas)
                 Replicas_[index] = replica;
             }
         } else {
-            int erasureIndex = replica.GetIndex();
+            int erasureIndex = replica.GetReplicaIndex();
             YCHECK(erasureIndex < MaxInputChunkReplicaCount);
             Replicas_[erasureIndex] = replica;
         }
@@ -277,10 +277,11 @@ TChunkId EncodeChunkId(const TInputChunkPtr& inputChunk, TNodeId nodeId)
         });
     YCHECK(replicaIt != inputChunk->Replicas().end());
 
-    TChunkIdWithIndex chunkIdWithIndex(
+    TChunkIdWithIndexes chunkIdWithIndexes(
         inputChunk->ChunkId(),
-        replicaIt->GetIndex());
-    return EncodeChunkId(chunkIdWithIndex);
+        replicaIt->GetReplicaIndex(),
+        replicaIt->GetMediumIndex());
+    return EncodeChunkId(chunkIdWithIndexes);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -58,6 +58,7 @@ TChunkReplicaList AllocateWriteTargets(
     int desiredTargetCount,
     int minTargetCount,
     TNullable<int> replicationFactorOverride,
+    const Stroka& mediumName,
     bool preferLocalHost,
     const std::vector<Stroka>& forbiddenAddresses,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
@@ -78,7 +79,7 @@ i64 GetChunkDataSize(const NProto::TChunkSpec& chunkSpec);
 i64 GetChunkReaderMemoryEstimate(const NProto::TChunkSpec& chunkSpec, TMultiChunkReaderConfigPtr config);
 
 IChunkReaderPtr CreateRemoteReader(
-    const NProto::TChunkSpec& chunkSpec, 
+    const NProto::TChunkSpec& chunkSpec,
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
     NApi::INativeClientPtr client,
@@ -88,7 +89,7 @@ IChunkReaderPtr CreateRemoteReader(
     NConcurrency::IThroughputThrottlerPtr throttler);
 
 IChunkReaderPtr CreateRemoteReader(
-    const TChunkId& chunkId, 
+    const TChunkId& chunkId,
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
     NApi::INativeClientPtr client,

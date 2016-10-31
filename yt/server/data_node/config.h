@@ -44,6 +44,10 @@ public:
     //! (If not initialized then indicates to occupy all available space on drive).
     TNullable<i64> Quota;
 
+    // NB: actually registered as parameter by subclasses (because default value
+    // is subclass-specific).
+    Stroka MediumName;
+
     TStoreLocationConfigBase()
     {
         RegisterParameter("quota", Quota)
@@ -96,6 +100,10 @@ public:
         RegisterParameter("enable_journals", EnableJournals)
             .Default(true);
 
+        // NB: base class's field.
+        RegisterParameter("medium_name", MediumName)
+            .Default(NChunkClient::DefaultStoreMediumName);
+
         RegisterValidator([&] () {
             if (HighWatermark > LowWatermark) {
                 THROW_ERROR_EXCEPTION("\"high_watermark\" must be less than or equal to \"low_watermark\"");
@@ -111,7 +119,16 @@ DEFINE_REFCOUNTED_TYPE(TStoreLocationConfig);
 
 class TCacheLocationConfig
     : public TStoreLocationConfigBase
-{ };
+{
+public:
+
+    TCacheLocationConfig()
+    {
+        // NB: base class's field.
+        RegisterParameter("medium_name", MediumName)
+            .Default(NChunkClient::DefaultCacheMediumName);
+    }
+};
 
 DEFINE_REFCOUNTED_TYPE(TCacheLocationConfig);
 

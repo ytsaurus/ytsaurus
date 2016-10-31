@@ -88,7 +88,7 @@ class TestCypress(YTEnvSetup):
         remove("//tmp/@test_attribute")
 
         for path in ["//tmp/@test_attribute", "//tmp/@test_attribute/inner", "//tmp/@erasure_codec",
-                     "//tmp/@recursive_resource_usage/disk_space", "//tmp/@recursive_resource_usage/missing"]:
+                     "//tmp/@recursive_resource_usage/disk_space_per_medium", "//tmp/@recursive_resource_usage/missing"]:
             with pytest.raises(YtError):
                 remove(path)
             remove(path, force=True)

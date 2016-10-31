@@ -122,8 +122,7 @@ private:
         }
 
         if (key == "statistics") {
-            BuildYsonFluently(consumer)
-                .Value(chunkList->Statistics());
+            Serialize(chunkList->Statistics(), consumer, chunkManager);
             return true;
         }
 

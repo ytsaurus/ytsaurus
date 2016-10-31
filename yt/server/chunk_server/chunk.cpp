@@ -22,20 +22,6 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool operator== (const TChunkProperties& lhs, const TChunkProperties& rhs)
-{
-    return
-        lhs.ReplicationFactor == rhs.ReplicationFactor &&
-        lhs.Vital == rhs.Vital;
-}
-
-bool operator!= (const TChunkProperties& lhs, const TChunkProperties& rhs)
-{
-    return !(lhs == rhs);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 const TChunk::TCachedReplicas TChunk::EmptyCachedReplicas;
 const TChunk::TStoredReplicas TChunk::EmptyStoredReplicas;
 
@@ -44,6 +30,11 @@ const TChunk::TStoredReplicas TChunk::EmptyStoredReplicas;
 TChunk::TChunk(const TChunkId& id)
     : TChunkTree(id)
 {
+    LocalProperties_.SetVital(true);
+    for (auto& mediumProps : LocalProperties_) {
+        mediumProps.Clear();
+    }
+
     ChunkMeta_.set_type(static_cast<int>(EChunkType::Unknown));
     ChunkMeta_.set_version(-1);
     ChunkMeta_.mutable_extensions();
@@ -58,13 +49,11 @@ TChunkTreeStatistics TChunk::GetStatistics() const
         result.UncompressedDataSize = MiscExt_.uncompressed_data_size();
         result.CompressedDataSize = MiscExt_.compressed_data_size();
         result.DataWeight = MiscExt_.data_weight();
-
         if (IsErasure()) {
             result.ErasureDiskSpace = ChunkInfo_.disk_space();
         } else {
             result.RegularDiskSpace = ChunkInfo_.disk_space();
         }
-
         result.ChunkCount = 1;
         result.LogicalChunkCount = 1;
         result.Rank = 0;
@@ -77,9 +66,18 @@ TChunkTreeStatistics TChunk::GetStatistics() const
 
 TClusterResources TChunk::GetResourceUsage() const
 {
-    // NB: Use just the local RF as this only makes sense for staged chunks.
-    i64 diskSpace = IsConfirmed() ? ChunkInfo_.disk_space() * GetLocalReplicationFactor() : 0;
-    return TClusterResources(diskSpace, 0, 1);
+    TClusterResources result(0, 1);
+    if (!IsConfirmed()) {
+        return result;
+    }
+
+    for (int i = 0; i < MaxMediumCount; ++i) {
+        // NB: Use just the local RF as this only makes sense for staged chunks.
+        i64 diskSpace = ChunkInfo_.disk_space() * GetLocalReplicationFactor(i);
+        result.DiskSpace[i] = diskSpace;
+    }
+
+    return result;
 }
 
 void TChunk::Save(NCellMaster::TSaveContext& context) const
@@ -89,12 +87,11 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
     using NYT::Save;
     Save(context, ChunkInfo_);
     Save(context, ChunkMeta_);
-    Save(context, ReplicationFactor_);
+    Save(context, LocalProperties_);
     Save(context, ReadQuorum_);
     Save(context, WriteQuorum_);
     Save(context, GetErasureCodec());
     Save(context, GetMovable());
-    Save(context, GetLocalVital());
     Save(context, Parents_);
     // NB: RemoveReplica calls do not commute and their order is not
     // deterministic (i.e. when unregistering a node we traverse certain hashtables).
@@ -106,6 +103,16 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
     }
 }
 
+// Compatibility stuff; used by Load().
+struct TOldChunkExportData
+{
+    ui32 RefCounter : 24;
+    bool Vital : 1;
+    ui8 ReplicationFactor : 7;
+};
+static_assert(sizeof(TOldChunkExportData) == 4, "sizeof(TOldChunkExportData) != 4");
+using TOldChunkExportDataList = TOldChunkExportData[NObjectClient::MaxSecondaryMasterCells];
+
 void TChunk::Load(NCellMaster::TLoadContext& context)
 {
     TChunkTree::Load(context);
@@ -113,12 +120,21 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, ChunkInfo_);
     Load(context, ChunkMeta_);
-    SetLocalReplicationFactor(Load<i8>(context));
+    // COMPAT(shakurov)
+    if (context.GetVersion() < MEDIUM_TYPE_PATCH_CONTEXT_VERSION) {
+        LocalProperties_[DefaultMediumIndex]
+            .SetReplicationFactorOrThrow(Load<i8>(context)); // Never actually throws.
+    } else {
+        Load(context, LocalProperties_);
+    }
     SetReadQuorum(Load<i8>(context));
     SetWriteQuorum(Load<i8>(context));
     SetErasureCodec(Load<NErasure::ECodec>(context));
     SetMovable(Load<bool>(context));
-    SetLocalVital(Load<bool>(context));
+    // COMPAT(shakurov)
+    if (context.GetVersion() < MEDIUM_TYPE_PATCH_CONTEXT_VERSION) {
+        SetLocalVital(Load<bool>(context));
+    } // Local vital flag is now part of LocalProperties_.
     Load(context, Parents_);
     Load(context, StoredReplicas_);
     Load(context, CachedReplicas_);
@@ -135,7 +151,21 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     if (context.GetVersion() >= 203) {
         Load(context, ExportCounter_);
         if (ExportCounter_ > 0) {
-            TRangeSerializer::Load(context, TMutableRef::FromPod(ExportDataList_));
+            // COMPAT(shakurov)
+            if (context.GetVersion() < MEDIUM_TYPE_PATCH_CONTEXT_VERSION) {
+                TOldChunkExportDataList oldExportDataList = {};
+                TRangeSerializer::Load(context, TMutableRef::FromPod(oldExportDataList));
+                for (int i = 0; i < NObjectClient::MaxSecondaryMasterCells; ++i) {
+                    auto& exportData = ExportDataList_[i];
+                    auto& properties = exportData.Properties;
+                    auto& oldExportData = oldExportDataList[i];
+                    exportData.RefCounter = oldExportData.RefCounter;
+                    properties[DefaultMediumIndex].SetReplicationFactorOrThrow(oldExportData.ReplicationFactor);
+                    properties.SetVital(oldExportData.Vital);
+                }
+            } else {
+                TRangeSerializer::Load(context, TMutableRef::FromPod(ExportDataList_));
+            }
         }
     }
 
@@ -166,7 +196,7 @@ const TChunk::TStoredReplicas& TChunk::StoredReplicas() const
     return StoredReplicas_ ? *StoredReplicas_ : EmptyStoredReplicas;
 }
 
-void TChunk::AddReplica(TNodePtrWithIndex replica, bool cached)
+void TChunk::AddReplica(TNodePtrWithIndexes replica, bool cached)
 {
     if (cached) {
         Y_ASSERT(!IsJournal());
@@ -190,7 +220,7 @@ void TChunk::AddReplica(TNodePtrWithIndex replica, bool cached)
     }
 }
 
-void TChunk::RemoveReplica(TNodePtrWithIndex replica, bool cached)
+void TChunk::RemoveReplica(TNodePtrWithIndexes replica, bool cached)
 {
     if (cached) {
         Y_ASSERT(CachedReplicas_);
@@ -215,18 +245,18 @@ void TChunk::RemoveReplica(TNodePtrWithIndex replica, bool cached)
     }
 }
 
-TNodePtrWithIndexList TChunk::GetReplicas() const
+TNodePtrWithIndexesList TChunk::GetReplicas() const
 {
     const auto& storedReplicas = StoredReplicas();
     const auto& cachedReplicas = CachedReplicas();
-    TNodePtrWithIndexList result;
+    TNodePtrWithIndexesList result;
     result.reserve(storedReplicas.size() + cachedReplicas.size());
     result.insert(result.end(), storedReplicas.begin(), storedReplicas.end());
     result.insert(result.end(), cachedReplicas.begin(), cachedReplicas.end());
     return result;
 }
 
-void TChunk::ApproveReplica(TNodePtrWithIndex replica)
+void TChunk::ApproveReplica(TNodePtrWithIndexes replica)
 {
     if (IsJournal()) {
         YCHECK(StoredReplicas_);
@@ -274,7 +304,7 @@ bool TChunk::IsAvailable() const
         int dataPartCount = codec->GetDataPartCount();
         NErasure::TPartIndexSet missingIndexSet((1 << dataPartCount) - 1);
         for (auto replica : *StoredReplicas_) {
-            missingIndexSet.reset(replica.GetIndex());
+            missingIndexSet.reset(replica.GetReplicaIndex());
         }
         return !missingIndexSet.any();
     } else if (IsJournal()) {
@@ -282,7 +312,7 @@ bool TChunk::IsAvailable() const
             return true;
         }
         for (auto replica : *StoredReplicas_) {
-            if (replica.GetIndex() == SealedChunkReplicaIndex) {
+            if (replica.GetReplicaIndex() == SealedChunkReplicaIndex) {
                 return true;
             }
         }
@@ -330,56 +360,65 @@ void TChunk::Seal(const TMiscExt& info)
     ChunkInfo_.set_disk_space(info.uncompressed_data_size());  // an approximation
 }
 
-TChunkProperties TChunk::GetLocalProperties() const
+const TChunkProperties& TChunk::GetLocalProperties() const
 {
-    TChunkProperties result;
-    result.ReplicationFactor = GetLocalReplicationFactor();
-    result.Vital = GetLocalVital();
-    return result;
+    return LocalProperties_;
+}
+
+TMediumChunkProperties TChunk::GetLocalProperties(int mediumIndex) const
+{
+    return LocalProperties_[mediumIndex];
 }
 
 bool TChunk::UpdateLocalProperties(const TChunkProperties& properties)
 {
-    bool result = false;
-
-    if (GetLocalReplicationFactor() != properties.ReplicationFactor) {
-        SetLocalReplicationFactor(properties.ReplicationFactor);
-        result = true;
+    if (LocalProperties_ != properties) {
+        LocalProperties_ = properties;
+        return true;
     }
 
-    if (GetLocalVital() != properties.Vital) {
-        SetLocalVital(properties.Vital);
-        result = true;
-    }
-
-    return result;
+    return false;
 }
 
-bool TChunk::UpdateExternalProprties(int cellIndex, const TChunkProperties& properties)
+bool TChunk::UpdateExternalProperties(
+    int cellIndex,
+    const TChunkProperties& properties)
 {
-    bool result = false;
     auto& data = ExportDataList_[cellIndex];
+    auto& curProperties = data.Properties;
 
-    if (data.ReplicationFactor != properties.ReplicationFactor) {
-        data.ReplicationFactor = properties.ReplicationFactor;
-        result = true;
+    if (curProperties != properties) {
+        curProperties = properties;
+        return true;
     }
 
-    if (data.Vital != properties.Vital) {
-        data.Vital = properties.Vital;
-        result = true;
-    }
-
-    return result;
+    return false;
 }
 
-int TChunk::GetMaxReplicasPerRack(TNullable<int> replicationFactorOverride) const
+int TChunk::ComputeReplicationFactor(int mediumIndex) const
+{
+    // NB: Shortcut for non-exported chunk.
+    if (ExportCounter_ == 0) {
+        return GetLocalReplicationFactor(mediumIndex);
+    }
+
+    auto replicationFactor = GetLocalReplicationFactor(mediumIndex);
+    for (const auto& data : ExportDataList_) {
+        replicationFactor = std::max<int>(
+            replicationFactor,
+            data.Properties[mediumIndex].GetReplicationFactor());
+    }
+
+    return replicationFactor;
+}
+
+int TChunk::GetMaxReplicasPerRack(int mediumIndex, TNullable<int> replicationFactorOverride) const
 {
     switch (GetType()) {
         case EObjectType::Chunk: {
             int replicationFactor = replicationFactorOverride
             	? *replicationFactorOverride
-            	: ComputeReplicationFactor();
+            	: ComputeReplicationFactor(mediumIndex);
             return std::max(replicationFactor - 1, 1);
         }
 
@@ -424,3 +463,5 @@ void TChunk::Unexport(int cellIndex, int importRefCounter)
 
 } // namespace NChunkServer
 } // namespace NYT
+
+Y_DECLARE_PODTYPE(NYT::NChunkServer::TOldChunkExportDataList);

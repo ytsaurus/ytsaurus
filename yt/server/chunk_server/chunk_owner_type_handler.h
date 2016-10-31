@@ -33,6 +33,11 @@ public:
     virtual NSecurityServer::TClusterResources GetAccountingResourceUsage(
         const NCypressServer::TCypressNodeBase* node) override;
 
+private:
+    NSecurityServer::TClusterResources GetChunkOwnerDiskUsage(
+        const NChunkClient::NProto::TDataStatistics& statistics,
+        const TChunkOwner& chunkOwner);
+
 protected:
     NLogging::TLogger Logger;
 

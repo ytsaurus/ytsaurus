@@ -34,12 +34,15 @@ void FromProto(TAccountStatistics* statistics, const NProto::TAccountStatistics&
     FromProto(&statistics->CommittedResourceUsage, protoStatistics.committed_resource_usage());
 }
 
-void Serialize(const TAccountStatistics& statistics, IYsonConsumer* consumer)
+void Serialize(const TAccountStatistics& statistics, IYsonConsumer* consumer, const NChunkServer::TChunkManagerPtr& chunkManager)
 {
+    auto usage = New<TSerializableClusterResources>(chunkManager, statistics.ResourceUsage);
+    auto committedUsage = New<TSerializableClusterResources>(chunkManager, statistics.CommittedResourceUsage);
+
     BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("resource_usage").Value(statistics.ResourceUsage)
-            .Item("committed_resource_usage").Value(statistics.CommittedResourceUsage)
+            .Item("resource_usage").Value(usage)
+            .Item("committed_resource_usage").Value(committedUsage)
         .EndMap();
 }
 
@@ -99,7 +102,14 @@ TAccountStatistics& TAccount::LocalStatistics()
 
 bool TAccount::IsDiskSpaceLimitViolated() const
 {
-    return ClusterStatistics_.ResourceUsage.DiskSpace > ClusterResourceLimits_.DiskSpace;
+    const auto& usage = ClusterStatistics_.ResourceUsage.DiskSpace;
+    const auto& limits = ClusterResourceLimits_.DiskSpace;
+
+    return !std::equal(
+        std::begin(usage),
+        std::end(usage),
+        std::begin(limits),
+        std::less_equal<i64>());
 }
 
 bool TAccount::IsNodeCountLimitViolated() const

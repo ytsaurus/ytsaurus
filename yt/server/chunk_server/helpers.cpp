@@ -253,18 +253,6 @@ void RecomputeChunkListStatistics(TChunkList* chunkList)
     chunkList->Statistics() = statistics;
 }
 
-TClusterResources GetDiskUsage(
-    const NChunkClient::NProto::TDataStatistics& statistics,
-    int replicationFactor)
-{
-    TClusterResources result;
-    result.DiskSpace =
-        statistics.regular_disk_space() * replicationFactor +
-        statistics.erasure_disk_space();
-    result.ChunkCount = statistics.chunk_count();
-    return result;
-}
-
 std::vector<TChunkOwnerBase*> GetOwningNodes(TChunkTree* chunkTree)
 {
     yhash_set<TChunkOwnerBase*> owningNodes;
@@ -501,7 +489,7 @@ TOwningKey GetMaxKey(const TChunkTree* chunkTree)
                 return GetMaxKey(currentChunkTree->AsChunk());
 
             case EObjectType::ChunkList:
-                currentChunkTree = getLastNonemptyChild(currentChunkTree->AsChunkList()); 
+                currentChunkTree = getLastNonemptyChild(currentChunkTree->AsChunkList());
                 break;
 
             default:
@@ -554,7 +542,7 @@ TOwningKey GetMinKey(const TChunkTree* chunkTree)
                 return GetMinKey(currentChunkTree->AsChunk());
 
             case EObjectType::ChunkList:
-                currentChunkTree = getFirstNonemptyChild(currentChunkTree->AsChunkList()); 
+                currentChunkTree = getFirstNonemptyChild(currentChunkTree->AsChunkList());
                 break;
 
             default:

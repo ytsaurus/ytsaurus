@@ -26,13 +26,13 @@ public:
 
     size_t GetHash() const;
 
-    bool operator == (TPtrWithIndex other) const;
-    bool operator != (TPtrWithIndex other) const;
+    bool operator==(TPtrWithIndex other) const;
+    bool operator!=(TPtrWithIndex other) const;
 
-    bool operator <  (TPtrWithIndex other) const;
-    bool operator <= (TPtrWithIndex other) const;
-    bool operator >  (TPtrWithIndex other) const;
-    bool operator >= (TPtrWithIndex other) const;
+    bool operator< (TPtrWithIndex other) const;
+    bool operator<=(TPtrWithIndex other) const;
+    bool operator> (TPtrWithIndex other) const;
+    bool operator>=(TPtrWithIndex other) const;
 
     template <class C>
     void Save(C& context) const;
@@ -44,24 +44,61 @@ private:
 
     // Use compact 8-byte representation with index occupying the highest 8 bits.
     uintptr_t Value_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef TPtrWithIndex<NNodeTrackerServer::TNode> TNodePtrWithIndex;
-typedef SmallVector<TNodePtrWithIndex, TypicalReplicaCount> TNodePtrWithIndexList;
+//! A compact representation for a triplet of T*, an 8-bit number and a 4-bit
+//! number - all fit into a single 8-byte pointer.
+template <class T>
+class TPtrWithIndexes
+{
+public:
+    TPtrWithIndexes();
+    TPtrWithIndexes(T* ptr, int replicaIndex, int mediumIndex);
 
-typedef TPtrWithIndex<TChunk> TChunkPtrWithIndex;
+    T* GetPtr() const;
+    int GetReplicaIndex() const;
+    int GetMediumIndex() const;
+
+    size_t GetHash() const;
+
+    bool operator == (TPtrWithIndexes other) const;
+    bool operator != (TPtrWithIndexes other) const;
+
+    bool operator <  (TPtrWithIndexes other) const;
+    bool operator <= (TPtrWithIndexes other) const;
+    bool operator >  (TPtrWithIndexes other) const;
+    bool operator >= (TPtrWithIndexes other) const;
+
+    template <class C>
+    void Save(C& context) const;
+    template <class C>
+    void Load(C& context);
+
+private:
+    static_assert(sizeof (uintptr_t) == 8, "Pointer type must be of size 8.");
+
+    // Use compact 8-byte representation with indexes occupying the highest 8 bits.
+    uintptr_t Value_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka ToString(TNodePtrWithIndex value);
-Stroka ToString(TChunkPtrWithIndex value);
+using TNodePtrWithIndexes = TPtrWithIndexes<NNodeTrackerServer::TNode>;
+using TNodePtrWithIndexesList = SmallVector<TNodePtrWithIndexes, TypicalReplicaCount>;
 
-void ToProto(ui32* protoValue, TNodePtrWithIndex value);
+using TChunkPtrWithIndexes = TPtrWithIndexes<TChunk>;
+using TChunkPtrWithIndex = NChunkServer::TPtrWithIndex<TChunk>;
 
-TChunkId EncodeChunkId(TChunkPtrWithIndex chunkWithIndex);
+////////////////////////////////////////////////////////////////////////////////
+
+Stroka ToString(TNodePtrWithIndexes value);
+Stroka ToString(TChunkPtrWithIndexes value);
+
+void ToProto(ui32* protoValue, TNodePtrWithIndexes value);
+
+TChunkId EncodeChunkId(TChunkPtrWithIndexes chunkWithIndex);
 
 ////////////////////////////////////////////////////////////////////////////////
 

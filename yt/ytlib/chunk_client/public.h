@@ -47,10 +47,13 @@ extern const TChunkListId NullChunkListId;
 typedef NObjectClient::TObjectId TChunkTreeId;
 extern const TChunkTreeId NullChunkTreeId;
 
+typedef NObjectClient::TObjectId TMediumId;
+
 const int DefaultPartIndex = -1;
 
 const int MinReplicationFactor = 1;
 const int MaxReplicationFactor = 10;
+const int DefaultReplicationFactor = 3;
 
 //! Estimated memory overhead per chunk reader.
 const i64 ChunkReaderMemorySize = (i64) 16 * 1024;
@@ -61,6 +64,12 @@ const i64 ChunkReaderMemorySize = (i64) 16 * 1024;
  *  Additional +8 enables some flexibility during balancing.
  */
 const int TypicalReplicaCount = 24;
+
+constexpr int MaxMediumCount = 7;
+constexpr int DefaultMediumIndex = 0;
+constexpr int DefaultCacheMediumIndex = 1;
+extern const Stroka DefaultStoreMediumName;
+extern const Stroka DefaultCacheMediumName;
 
 const i64 DefaultMaxBlockSize = (i64) 16 * 1024 * 1024;;
 const int MaxInputChunkReplicaCount = 16;
@@ -106,6 +115,7 @@ DEFINE_ENUM(EErrorCode,
     ((ChunkCreationFailed)      (715))
     ((ChunkUnavailable)         (716))
     ((WriteThrottlingActive)    (718))
+    ((NoSuchMedium)             (719))
 );
 
 //! Values must be contiguous.
@@ -178,4 +188,3 @@ DECLARE_REFCOUNTED_TYPE(TRefCountedChunkMeta)
 
 } // namespace NChunkClient
 } // namespace NYT
-
