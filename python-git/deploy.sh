@@ -1,7 +1,7 @@
 #!/bin/bash -eux
 
 clean() {
-    rm -rf docs/ yt/wrapper/tests.sandbox/*
+    rm -rf docs/ yt/wrapper/tests.sandbox/* .pybuild *.egg-info docs
     python setup.py clean
     sudo make -f debian/rules clean
 }
@@ -94,8 +94,9 @@ fi
 
 # Build and upload debian package if necessary
 if [ -n "$REPOS_TO_UPLOAD" ] || [ -n "$FORCE_BUILD" ]; then
-    # Build debian package
-    DEB=1 python setup.py sdist --dist-dir=../
+    if [ "$PACKAGE" != "yandex-yt-python" ]; then
+        DEB=1 python setup.py sdist --dist-dir=../
+    fi
     # NB: Never strip binaries and so-libraries.
     DEB_STRIP_EXCLUDE=".*" DEB=1 dpkg-buildpackage -i -I -rfakeroot
 
