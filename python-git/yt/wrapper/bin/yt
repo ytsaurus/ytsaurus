@@ -851,6 +851,7 @@ def main():
     parser.add_argument("--version", action="version", version="Version: YT wrapper " + yt.get_version())
 
     subparsers = parser.add_subparsers(metavar="command")
+    subparsers.required = True
 
     def extract_help(help, function):
         if not help:

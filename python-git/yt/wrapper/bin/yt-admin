@@ -18,6 +18,7 @@ def clear_metadata_caches(*args, **kwargs):
 def main():
     parser = ArgumentParser(description="Script to run some administer stuff directly through driver")
     subparsers = parser.add_subparsers(metavar="command")
+    subparsers.required = True
 
     build_snapshot_parser = subparsers.add_parser("build-snapshot", help="Build snapshot")
     build_snapshot_parser.set_defaults(func=build_snapshot)
