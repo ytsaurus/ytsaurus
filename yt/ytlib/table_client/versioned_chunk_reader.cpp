@@ -255,7 +255,6 @@ public:
             rows->push_back(row);
             ++RowCount_;
 
-            ++CurrentRowIndex_;
             if (!BlockReader_->NextRow()) {
                 BlockEnded_ = true;
                 break;
@@ -268,7 +267,6 @@ public:
 
 private:
     int CurrentBlockIndex_ = 0;
-    i64 CurrentRowIndex_ = 0;
     TOwningKey LowerLimit_;
     TOwningKey UpperLimit_;
 
@@ -281,20 +279,11 @@ private:
         int endBlockIndex = ApplyUpperKeyLimit(blockIndexKeys, NChunkClient::TReadLimit(UpperLimit_));
 
         std::vector<TBlockFetcher::TBlockInfo> blocks;
-        if (CurrentBlockIndex_ >= blockMetaExt.blocks_size()) {
-            return blocks;
-        }
-
-        auto& blockMeta = blockMetaExt.blocks(CurrentBlockIndex_);
-        CurrentRowIndex_ = blockMeta.chunk_row_count() - blockMeta.row_count();
+        YCHECK(endBlockIndex <= blockMetaExt.blocks_size());
 
         for (int blockIndex = CurrentBlockIndex_; blockIndex < endBlockIndex; ++blockIndex) {
             auto& blockMeta = blockMetaExt.blocks(blockIndex);
-            TBlockFetcher::TBlockInfo blockInfo;
-            blockInfo.Index = blockIndex;
-            blockInfo.UncompressedDataSize = blockMeta.uncompressed_size();
-            blockInfo.Priority = blocks.size();
-            blocks.push_back(blockInfo);
+            blocks.push_back(TBlockFetcher::TBlockInfo(blockIndex, blockMeta.uncompressed_size(), blocks.size()));
         }
 
         return blocks;
@@ -318,9 +307,7 @@ private:
             KeyComparer_,
             Timestamp_));
 
-        auto blockRowIndex = BlockReader_->GetRowIndex();
         YCHECK(BlockReader_->SkipToKey(LowerLimit_));
-        CurrentRowIndex_ += BlockReader_->GetRowIndex() - blockRowIndex;
     }
 
     virtual void InitNextBlock() override
