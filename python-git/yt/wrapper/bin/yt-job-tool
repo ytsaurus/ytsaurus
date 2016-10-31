@@ -179,6 +179,7 @@ def main():
                                      epilog=EPILOG)
 
     subparsers = parser.add_subparsers(metavar="command", dest="command")
+    subparsers.required = True
 
     prepare_job_env_parser = subparsers.add_parser("prepare-job-environment",
                                                    help="prepare all necessary stuff for job")
