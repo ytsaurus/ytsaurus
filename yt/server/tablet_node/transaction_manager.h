@@ -77,6 +77,8 @@ public:
     void RegisterCommitActionHandler(const NHiveServer::TTransactionCommitActionHandlerDescriptor<TTransaction>& descriptor);
     void RegisterAbortActionHandler(const NHiveServer::TTransactionAbortActionHandlerDescriptor<TTransaction>& descriptor);
 
+    TTimestamp GetMinPrepareTimestamp();
+
     NYTree::IYPathServicePtr GetOrchidService();
 
 private:

@@ -133,6 +133,26 @@ TInstant TTransaction::GetStartTime() const
     return TimestampToInstant(StartTimestamp_).first;
 }
 
+bool TTransaction::IsAborted() const
+{
+    return State_ == ETransactionState::Aborted;
+}
+
+bool TTransaction::IsActive() const
+{
+    return State_ == ETransactionState::Active;
+}
+bool TTransaction::IsCommitted() const
+{
+    return State_ == ETransactionState::Committed;
+}
+
+bool TTransaction::IsPrepared() const
+{
+    return State_ == ETransactionState::TransientCommitPrepared ||
+        State_ == ETransactionState::PersistentCommitPrepared;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTabletNode
