@@ -44,6 +44,12 @@ class WrappedStreams(object):
     def get_original_stdout(self):
         return self.stdout
 
+class Context(object):
+    def __init__(self):
+        self.table_index = None
+        self.row_index = None
+        self.range_index = None
+
 def convert_callable_to_generator(func):
     def generator(*args):
         result = func(*args)
@@ -56,7 +62,7 @@ def convert_callable_to_generator(func):
 
     return generator
 
-def extract_operation_methods(operation):
+def extract_operation_methods(operation, context):
     if hasattr(operation, "start") and inspect.ismethod(operation.start):
         start = convert_callable_to_generator(operation.start)
     else:
@@ -67,7 +73,26 @@ def extract_operation_methods(operation):
     else:
         finish = lambda: EMPTY_GENERATOR
 
-    return start, convert_callable_to_generator(operation), finish
+
+    if context is not None:
+        operation_func = lambda *args: operation(*args, context=context)
+    else:
+        operation_func = operation
+
+    return start, convert_callable_to_generator(operation_func), finish
+
+def extract_context(rows):
+    context = Context()
+
+    def generate_rows():
+        for row in rows:
+            context.table_index = getattr(rows, "table_index", None)
+            context.row_index = getattr(rows, "row_index", None)
+            context.range_index = getattr(rows, "range_index", None)
+            yield row
+
+    return generate_rows(), context
+
 
 def check_job_environment_variables():
     for name in ["YT_OPERATION_ID", "YT_JOB_ID", "YT_JOB_INDEX"]:
@@ -107,7 +132,7 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
     if unpickler_name == "dill" and yt.wrapper.config.config["pickling"]["load_additional_dill_types"]:
         unpickler.load_types()
 
-    operation, attibutes, operation_type, input_format, output_format, group_by_keys, python_version = \
+    operation, attributes, operation_type, input_format, output_format, group_by_keys, python_version = \
         unpickler.load(open(operation_dump_filename, "rb"))
 
     if yt.wrapper.config["pickling"]["enable_job_statistics"]:
@@ -122,11 +147,11 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
         sys.stderr.write("Python version on cluster differs from local python version")
         sys.exit(1)
 
-    if attibutes.get("is_raw_io", False):
+    if attributes.get("is_raw_io", False):
         operation()
         return
 
-    raw = attibutes.get("is_raw", False)
+    raw = attributes.get("is_raw", False)
 
     if isinstance(input_format, YsonFormat) and yt.yson.TYPE != "BINARY":
         sys.stderr.write("YSON bindings not found. To resolve the problem "
@@ -135,10 +160,13 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
 
     rows = input_format.load_rows(get_binary_std_stream(sys.stdin), raw=raw)
 
-    start, run, finish = yt.wrapper.py_runner_helpers.extract_operation_methods(operation)
+    context = None
+    if attributes.get("with_context", False):
+        rows, context = extract_context(rows)
+    start, run, finish = yt.wrapper.py_runner_helpers.extract_operation_methods(operation, context)
     wrap_stdin = wrap_stdout = yt.wrapper.config["pickling"]["safe_stream_mode"]
     with yt.wrapper.py_runner_helpers.WrappedStreams(wrap_stdin, wrap_stdout) as streams:
-        if attibutes.get("is_aggregator", False):
+        if attributes.get("is_aggregator", False):
             result = run(rows)
         else:
             if operation_type == "mapper" or raw:
@@ -147,7 +175,7 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
                     chain.from_iterable(imap(run, rows)),
                     finish())
             else:
-                if attibutes.get("is_reduce_aggregator"):
+                if attributes.get("is_reduce_aggregator"):
                     result = run(groupby(rows, lambda row: extract_key(row, group_by_keys)))
                 else:
                     result = chain(

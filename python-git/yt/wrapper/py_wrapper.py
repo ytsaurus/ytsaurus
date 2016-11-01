@@ -17,8 +17,8 @@ try:
 except ImportError:
     from yt.packages.importlib import import_module
 
-from yt.packages.six import itervalues, iteritems, iterbytes, text_type, binary_type, PY3
-from yt.packages.six.moves import map as imap, filter as ifilter, xrange
+from yt.packages.six import iteritems, iterbytes, text_type, binary_type
+from yt.packages.six.moves import map as imap
 
 import re
 import imp
@@ -548,6 +548,16 @@ def initialize_python_job_processing():
     if getattr(sys, "is_standalone_binary", False) or is_arcadia_python():
         enable_python_job_processing_for_standalone_binary()
 
+def _get_callable_func(func):
+    if inspect.isfunction(func):
+        return func
+    else:
+        if not hasattr(func, "__call__"):
+            raise TypeError("Failed to apply yt decorator since object \"{0}\" is not a function "
+                            "or (instance of) class with method __call__"\
+                .format(repr(func)))
+        return func.__call__
+
 def _set_attribute(func, key, value):
     if not hasattr(func, "attributes"):
         func.attributes = {}
@@ -570,3 +580,9 @@ def raw_io(func):
     """Decorate function to run as is. No arguments are passed. Function handles IO."""
     return _set_attribute(func, "is_raw_io", True)
 
+def with_context(func):
+    """Decorate function to run with control attributes argument."""
+    callable = _get_callable_func(func)
+    if "context" not in inspect.getargspec(callable)[0]:
+        raise TypeError("Decorator \"with_context\" applied to function {0} that has no argument \"context\"".format(func.__name__))
+    return _set_attribute(func, "with_context", True)

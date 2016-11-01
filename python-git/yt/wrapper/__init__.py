@@ -17,7 +17,8 @@ from .ypath import YPath, TablePath, FilePath, ypath_join
 from .cypress_commands import escape_ypath_literal
 from .operation_commands import format_operation_stderrs, Operation, OperationsTracker
 from .py_wrapper import aggregator, raw, raw_io, reduce_aggregator, \
-                        enable_python_job_processing_for_standalone_binary, initialize_python_job_processing
+                        enable_python_job_processing_for_standalone_binary, initialize_python_job_processing, \
+                        with_context
 from .string_iter_io import StringIterIO
 from .user_statistics import write_statistics, get_blkio_cgroup_statistics, get_memory_cgroup_statistics
 from .yamr_mode import set_yamr_mode
