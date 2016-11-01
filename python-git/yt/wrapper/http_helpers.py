@@ -220,8 +220,9 @@ def make_request_with_retries(method, url=None, make_retries=True, response_form
             _raise_for_status(response, request_info)
             return response
         except tuple(retriable_errors) as error:
+            message = error.message if hasattr(error, "message") else str(error)
             logger.warning("HTTP %s request %s has failed with error %s, message: '%s', headers: %s",
-                           method, url, str(type(error)), error.message, str(hide_token(dict(headers))))
+                           method, url, str(type(error)), message, str(hide_token(dict(headers))))
             if isinstance(error, YtError):
                 logger.info("Full error message:\n%s", str(error))
             if proxy_provider is not None:
