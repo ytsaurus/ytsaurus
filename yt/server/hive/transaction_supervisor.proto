@@ -4,36 +4,54 @@ import "yt/core/misc/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqCommitSimpleTransaction
+message TReqCoordinatorCommitSimpleTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
     optional NYT.NProto.TGuid mutation_id = 2;
     required uint64 commit_timestamp = 3;
 }
 
-message TReqCommitDistributedTransactionPhaseOne
+message TReqCoordinatorCommitDistributedTransactionPhaseOne
 {
     required NYT.NProto.TGuid transaction_id = 1;
     optional NYT.NProto.TGuid mutation_id = 2;
     repeated NYT.NProto.TGuid participant_cell_ids = 3;
+    required uint64 coordinator_prepare_timestamp = 4;
 }
 
-message TReqCommitDistributedTransactionPhaseTwo
+message TReqCoordinatorCommitDistributedTransactionPhaseTwo
 {
     required NYT.NProto.TGuid transaction_id = 1;
     required uint64 commit_timestamp = 2;
 }
 
-message TReqFinishDistributedTransaction
+message TReqCoordinatorFinishDistributedTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
 }
 
-message TReqAbortTransaction
+message TReqCoordinatorAbortTransaction
 {
     optional NYT.NProto.TGuid mutation_id = 1;
     required NYT.NProto.TGuid transaction_id = 2;
     optional bool force = 3;
+}
+
+message TReqParticipantPrepareTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required uint64 prepare_timestamp = 2;
+}
+
+message TReqParticipantCommitTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required uint64 commit_timestamp = 2;
+}
+
+message TReqParticipantAbortTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

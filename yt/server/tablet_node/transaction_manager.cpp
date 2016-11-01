@@ -221,7 +221,8 @@ public:
     // ITransactionManager implementation.
     void PrepareTransactionCommit(
         const TTransactionId& transactionId,
-        bool persistent)
+        bool persistent,
+        TTimestamp prepareTimestamp)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -252,22 +253,18 @@ public:
                 signature);
         }
 
-        auto newState = persistent
-            ? ETransactionState::PersistentCommitPrepared
-            : ETransactionState::TransientCommitPrepared;
-
         if (state == ETransactionState::Active) {
-            auto timestampProvider = Bootstrap_
-                ->GetMasterClient()
-                ->GetNativeConnection()
-                ->GetTimestampProvider();
-            auto prepareTimestamp = timestampProvider->GetLatestTimestamp();
-            UpdatePrepareTimestamp(transaction, newState, prepareTimestamp);
+            UpdatePrepareTimestamp(transaction, prepareTimestamp);
+
+            transaction->SetState(persistent
+                ? ETransactionState::PersistentCommitPrepared
+                : ETransactionState::TransientCommitPrepared);
 
             TransactionPrepared_.Fire(transaction);
             RunPrepareTransactionActions(transaction, persistent);
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %v, Persistent: %v, PrepareTimestamp: %v)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %v, Persistent: %v, "
+                "PrepareTimestamp: %v)",
                 transactionId,
                 persistent,
                 prepareTimestamp);
@@ -854,11 +851,10 @@ private:
         }
     }
 
-    void UpdatePrepareTimestamp(TTransaction* transaction, ETransactionState state, TTimestamp prepareTimestamp)
+    void UpdatePrepareTimestamp(TTransaction* transaction, TTimestamp prepareTimestamp)
     {
         ErasePrepareTimestamp(transaction);
         transaction->SetPrepareTimestamp(prepareTimestamp);
-        transaction->SetState(state);
         PreparedTransactions_.emplace(transaction->GetPrepareTimestamp(), transaction);
     }
 
@@ -951,9 +947,10 @@ void TTransactionManager::RegisterAbortActionHandler(
 
 void TTransactionManager::PrepareTransactionCommit(
     const TTransactionId& transactionId,
-    bool persistent)
+    bool persistent,
+    TTimestamp prepareTimestamp)
 {
-    Impl_->PrepareTransactionCommit(transactionId, persistent);
+    Impl_->PrepareTransactionCommit(transactionId, persistent, prepareTimestamp);
 }
 
 void TTransactionManager::PrepareTransactionAbort(const TTransactionId& transactionId, bool force)

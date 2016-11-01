@@ -780,7 +780,8 @@ public:
     // ITransactionManager implementation.
     void PrepareTransactionCommit(
         const TTransactionId& transactionId,
-        bool persistent)
+        bool persistent,
+        TTimestamp prepareTimestamp)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -809,14 +810,16 @@ public:
             : ETransactionState::TransientCommitPrepared);
 
         if (oldState == ETransactionState::Active) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %v, Persistent: %v)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %v, Persistent: %v, PrepareTimestamp: %)",
                 transactionId,
-                persistent);
+                persistent,
+                prepareTimestamp);
         }
 
         if (persistent && Bootstrap_->IsPrimaryMaster()) {
             NProto::TReqPrepareTransactionCommit request;
             ToProto(request.mutable_transaction_id(), transactionId);
+            request.set_prepare_timestamp(prepareTimestamp);
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToMasters(request, transaction->SecondaryCellTags());
@@ -885,7 +888,8 @@ private:
     void HydraPrepareTransactionCommit(NProto::TReqPrepareTransactionCommit* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        PrepareTransactionCommit(transactionId, true);
+        auto prepareTimestamp = request->prepare_timestamp();
+        PrepareTransactionCommit(transactionId, true, prepareTimestamp);
     }
 
     void HydraCommitTransaction(NProto::TReqCommitTransaction* request)
@@ -1190,9 +1194,10 @@ void TTransactionManager::ImportObject(
 
 void TTransactionManager::PrepareTransactionCommit(
     const TTransactionId& transactionId,
-    bool persistent)
+    bool persistent,
+    TTimestamp prepareTimestamp)
 {
-    Impl_->PrepareTransactionCommit(transactionId, persistent);
+    Impl_->PrepareTransactionCommit(transactionId, persistent, prepareTimestamp);
 }
 
 void TTransactionManager::PrepareTransactionAbort(

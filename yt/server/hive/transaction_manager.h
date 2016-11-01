@@ -20,7 +20,8 @@ struct ITransactionManager
 {
     virtual void PrepareTransactionCommit(
         const TTransactionId& transactionId,
-        bool persistent) = 0;
+        bool persistent,
+        TTimestamp prepareTimestamp) = 0;
 
     virtual void PrepareTransactionAbort(
         const TTransactionId& transactionId,

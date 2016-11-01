@@ -88,7 +88,8 @@ private:
     /// ITransactionManager overrides.
     virtual void PrepareTransactionCommit(
         const TTransactionId& transactionId,
-        bool persistent) override;
+        bool persistent,
+        TTimestamp prepareTimestamp) override;
     virtual void PrepareTransactionAbort(
         const TTransactionId& transactionId,
         bool force) override;
