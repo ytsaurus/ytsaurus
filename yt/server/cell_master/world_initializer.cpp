@@ -446,7 +446,7 @@ private:
                         EObjectType::Link,
                         BuildYsonStringFluently()
                             .BeginMap()
-                                .Item("target_id").Value(objectManager->GetSchema(type)->GetId())
+                                .Item("target_path").Value(FromObjectId(objectManager->GetSchema(type)->GetId()))
                             .EndMap());
                 }
             }

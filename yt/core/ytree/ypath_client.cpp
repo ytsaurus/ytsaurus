@@ -164,18 +164,6 @@ void SetRequestYPath(NRpc::NProto::TRequestHeader* header, const TYPath& path)
     ext->set_path(path);
 }
 
-TYPath ComputeResolvedYPath(const TYPath& wholePath, const TYPath& unresolvedPath)
-{
-    int resolvedLength = static_cast<int>(wholePath.length()) - static_cast<int>(unresolvedPath.length());
-    Y_ASSERT(resolvedLength >= 0 && resolvedLength <= static_cast<int>(wholePath.length()));
-    Y_ASSERT(wholePath.substr(resolvedLength) == unresolvedPath);
-    // Take care of trailing slash but don't reduce / to empty string.
-    return
-        resolvedLength > 1 && wholePath[resolvedLength - 1] == '/'
-        ? wholePath.substr(0, resolvedLength - 1)
-        : wholePath.substr(0, resolvedLength);
-}
-
 void ResolveYPath(
     const IYPathServicePtr& rootService,
     const IServiceContextPtr& context,
@@ -191,7 +179,16 @@ void ResolveYPath(
     const auto& path = GetRequestYPath(context->RequestHeader());
     auto currentPath = path;
 
+    int iteration = 0;
     while (true) {
+        if (++iteration > MaxYPathResolveIterations) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::ResolveError,
+                "Path %v exceeds resolve depth limit",
+                path)
+                << TErrorAttribute("limit", MaxYPathResolveIterations);
+        }
+
         IYPathService::TResolveResult result;
         try {
             result = currentService->Resolve(currentPath, context);
@@ -201,7 +198,6 @@ void ResolveYPath(
                 "Error resolving path %v",
                 path)
                 << TErrorAttribute("method", context->GetMethod())
-                << TErrorAttribute("resolved_path", ComputeResolvedYPath(path, currentPath))
                 << ex;
         }
 

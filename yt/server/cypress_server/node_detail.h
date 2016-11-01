@@ -563,7 +563,7 @@ class TLinkNode
     : public TCypressNodeBase
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(NObjectServer::TObjectId, TargetId);
+    DEFINE_BYVAL_RW_PROPERTY(NYPath::TYPath, TargetPath);
 
 public:
     explicit TLinkNode(const TVersionedNodeId& id);

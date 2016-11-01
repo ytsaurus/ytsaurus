@@ -57,6 +57,13 @@ using NYPath::TYPath;
 //! Default limit for List and Get requests to virtual nodes.
 const i64 DefaultVirtualChildLimit = 1000;
 
+//! The global limit for the number of resolve iterations in #ResolveYPath.
+//! This effectively bounds the maximum depth of YPath the system can handle.
+//! Also this protects us from infinite cycles in resolution (which can be caused,
+//! e.g., by cyclic symlinks in Cypress).
+//! NB: Changing this value will invalidate all changelogs!
+static const int MaxYPathResolveIterations = 256;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A static node type.
