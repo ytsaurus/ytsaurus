@@ -1632,8 +1632,11 @@ IYPathService::TResolveResult TLinkNodeProxy::Resolve(
             return TBase::Resolve(tokenizer.GetSuffix(), context);
 
         case NYPath::ETokenType::EndOfStream: {
-            // NB: Always handle Remove and Create locally.
-            if (method == "Remove" || method == "Create") {
+            // NB: Always handle mutating Cypress verbs locally.
+            if (method == "Remove" ||
+                method == "Create" ||
+                method == "Copy")
+            {
                 return TResolveResult::Here(path);
             } else {
                 return propagate();
