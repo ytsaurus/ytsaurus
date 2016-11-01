@@ -1064,7 +1064,7 @@ TSortedDynamicRow TSortedDynamicStore::MigrateRow(TTransaction* transaction, TSo
                         transaction->GetPrepareTimestamp() == NullTimestamp ||
                         lock->PrepareTimestamp == transaction->GetPrepareTimestamp());
 
-                    // Validate the mirgated lock's sanity.
+                    // Validate the migrated lock's sanity.
                     Y_ASSERT(!migratedLock->Transaction);
                     Y_ASSERT(migratedLock->PrepareTimestamp == NotPreparedTimestamp);
 
