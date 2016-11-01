@@ -841,6 +841,35 @@ class TestCypress(YTEnvSetup):
         remove("//tmp/l1")
         assert get("//tmp/l2&/@broken")
 
+    def test_link_as_copy_target_fail(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        link("//tmp/t1", "//tmp/l")
+        with pytest.raises(YtError): copy("//tmp/t2", "//tmp/l")
+
+    def test_link_as_copy_target_success(self):
+        id1 = create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        link("//tmp/t1", "//tmp/l")
+        copy("//tmp/t2", "//tmp/l", force=True)
+        assert get("//tmp/l/@type") == "table"
+        assert get("//tmp/t1/@id") == id1
+                
+    def test_link_as_move_target_fail(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        link("//tmp/t1", "//tmp/l")
+        with pytest.raises(YtError): move("//tmp/t2", "//tmp/l")
+
+    def test_move_as_copy_target_success(self):
+        id1 = create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        link("//tmp/t1", "//tmp/l")
+        move("//tmp/t2", "//tmp/l", force=True)
+        assert get("//tmp/l/@type") == "table"
+        assert not exists("//tmp/t2")
+        assert get("//tmp/t1/@id") == id1
+                
 
     def test_access_stat1(self):
         time.sleep(1.0)
