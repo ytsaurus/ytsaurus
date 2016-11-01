@@ -497,8 +497,11 @@ private:
                 transactionId);
 
             auto owner = GetOwnerOrThrow();
+            NHiveServer::NProto::TReqParticipantPrepareTransaction hydraRequest;
+            ToProto(hydraRequest.mutable_transaction_id(), transactionId);
+            hydraRequest.set_prepare_timestamp(owner->TimestampProvider_->GetLatestTimestamp());
 
-            CreateMutation(owner->HydraManager_, context)
+            CreateMutation(owner->HydraManager_, hydraRequest)
                 ->CommitAndReply(context);
         }
 
@@ -514,8 +517,11 @@ private:
                 commitTimestamp);
 
             auto owner = GetOwnerOrThrow();
+            NHiveServer::NProto::TReqParticipantCommitTransaction hydraRequest;
+            ToProto(hydraRequest.mutable_transaction_id(), transactionId);
+            hydraRequest.set_commit_timestamp(commitTimestamp);
 
-            CreateMutation(owner->HydraManager_, context)
+            CreateMutation(owner->HydraManager_, hydraRequest)
                 ->CommitAndReply(context);
         }
 
@@ -529,8 +535,10 @@ private:
                 transactionId);
 
             auto owner = GetOwnerOrThrow();
+            NHiveServer::NProto::TReqParticipantAbortTransaction hydraRequest;
+            ToProto(hydraRequest.mutable_transaction_id(), transactionId);
 
-            CreateMutation(owner->HydraManager_, context)
+            CreateMutation(owner->HydraManager_, hydraRequest)
                 ->CommitAndReply(context);
         }
     };
@@ -581,7 +589,8 @@ private:
 
         try {
             // Any exception thrown here is replied to the client.
-            TransactionManager_->PrepareTransactionCommit(transactionId, false);
+            auto prepareTimestamp = TimestampProvider_->GetLatestTimestamp();
+            TransactionManager_->PrepareTransactionCommit(transactionId, false, prepareTimestamp);
         } catch (const std::exception& ex) {
             LOG_DEBUG(ex, "Error preparing simple transaction commit (TransactionId: %v)",
                 transactionId);
@@ -599,10 +608,13 @@ private:
     {
         YCHECK(!commit->GetPersistent());
 
-        NHiveServer::NProto::TReqCommitDistributedTransactionPhaseOne request;
+        auto prepareTimestamp = TimestampProvider_->GetLatestTimestamp();
+
+        NHiveServer::NProto::TReqCoordinatorCommitDistributedTransactionPhaseOne request;
         ToProto(request.mutable_transaction_id(), commit->GetTransactionId());
         ToProto(request.mutable_mutation_id(), commit->GetMutationId());
         ToProto(request.mutable_participant_cell_ids(), commit->ParticipantCellIds());
+        request.set_coordinator_prepare_timestamp(prepareTimestamp);
         CreateMutation(HydraManager_, request)
             ->CommitAndLog(Logger);
     }
@@ -628,7 +640,7 @@ private:
             return MakeFuture(responseMessage);
         }
 
-        NHiveServer::NProto::TReqAbortTransaction request;
+        NHiveServer::NProto::TReqCoordinatorAbortTransaction request;
         ToProto(request.mutable_transaction_id(), transactionId);
         ToProto(request.mutable_mutation_id(), mutationId);
         request.set_force(force);
@@ -657,7 +669,7 @@ private:
 
     // Hydra handlers.
 
-    void HydraCoordinatorCommitSimpleTransaction(NHiveServer::NProto::TReqCommitSimpleTransaction* request)
+    void HydraCoordinatorCommitSimpleTransaction(NHiveServer::NProto::TReqCoordinatorCommitSimpleTransaction* request)
     {
         auto mutationId = FromProto<TMutationId>(request->mutation_id());
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
@@ -694,11 +706,12 @@ private:
         RemoveTransientCommit(commit);
     }
 
-    void HydraCoordinatorCommitDistributedTransactionPhaseOne(NHiveServer::NProto::TReqCommitDistributedTransactionPhaseOne* request)
+    void HydraCoordinatorCommitDistributedTransactionPhaseOne(NHiveServer::NProto::TReqCoordinatorCommitDistributedTransactionPhaseOne* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto mutationId = FromProto<TMutationId>(request->mutation_id());
         auto participantCellIds = FromProto<std::vector<TCellId>>(request->participant_cell_ids());
+        auto prepareTimestamp = request->coordinator_prepare_timestamp();
 
         // Ensure commit existence (possibly moving it from transient to persistent).
         auto* commit = GetOrCreatePersistentCommit(
@@ -708,15 +721,14 @@ private:
             true);
 
         LOG_DEBUG_UNLESS(IsRecovery(),
-            "Distributed commit phase one started "
-            "(TransactionId: %v, ParticipantCellIds: %v)",
+            "Distributed commit phase one started (TransactionId: %v, ParticipantCellIds: %v)",
             transactionId,
             participantCellIds);
 
         // Prepare at coordinator.
         try {
             // Any exception thrown here is caught below.
-            TransactionManager_->PrepareTransactionCommit(transactionId, true);
+            TransactionManager_->PrepareTransactionCommit(transactionId, true, prepareTimestamp);
         } catch (const std::exception& ex) {
             LOG_DEBUG_UNLESS(IsRecovery(), ex, "Coordinator failure; will abort (TransactionId: %v, State: %v)",
                 transactionId,
@@ -735,7 +747,7 @@ private:
         ChangeCommitTransientState(commit, ECommitState::Prepare);
     }
 
-    void HydraCoordinatorCommitDistributedTransactionPhaseTwo(NHiveServer::NProto::TReqCommitDistributedTransactionPhaseTwo* request)
+    void HydraCoordinatorCommitDistributedTransactionPhaseTwo(NHiveServer::NProto::TReqCoordinatorCommitDistributedTransactionPhaseTwo* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto commitTimestamp = request->commit_timestamp();
@@ -785,7 +797,7 @@ private:
             ECommitState::Commit);
     }
 
-    void HydraCoordinatorAbortTransaction(NHiveServer::NProto::TReqAbortTransaction* request)
+    void HydraCoordinatorAbortTransaction(NHiveServer::NProto::TReqCoordinatorAbortTransaction* request)
     {
         auto mutationId = FromProto<TMutationId>(request->mutation_id());
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
@@ -836,7 +848,7 @@ private:
         }
     }
 
-    void HydraCoordinatorFinishDistributedTransaction(NHiveServer::NProto::TReqFinishDistributedTransaction* request)
+    void HydraCoordinatorFinishDistributedTransaction(NHiveServer::NProto::TReqCoordinatorFinishDistributedTransaction* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto* commit = FindPersistentCommit(transactionId);
@@ -852,13 +864,14 @@ private:
             transactionId);
     }
 
-    void HydraParticipantPrepareTransaction(NHiveClient::NProto::NTransactionParticipant::TReqPrepareTransaction* request)
+    void HydraParticipantPrepareTransaction(NHiveServer::NProto::TReqParticipantPrepareTransaction* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto prepareTimestamp = request->prepare_timestamp();
 
         try {
             // Any exception thrown here is caught below.
-            TransactionManager_->PrepareTransactionCommit(transactionId, true);
+            TransactionManager_->PrepareTransactionCommit(transactionId, true, prepareTimestamp);
         } catch (const std::exception& ex) {
             LOG_DEBUG_UNLESS(IsRecovery(), ex, "Participant failure (TransactionId: %v, State: %v)",
                 transactionId,
@@ -871,7 +884,7 @@ private:
             ECommitState::Prepare);
     }
 
-    void HydraParticipantCommitTransaction(NHiveClient::NProto::NTransactionParticipant::TReqCommitTransaction* request)
+    void HydraParticipantCommitTransaction(NHiveServer::NProto::TReqParticipantCommitTransaction* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto commitTimestamp = request->commit_timestamp();
@@ -891,7 +904,7 @@ private:
             ECommitState::Commit);
     }
 
-    void HydraParticipantAbortTransaction(NHiveClient::NProto::NTransactionParticipant::TReqAbortTransaction* request)
+    void HydraParticipantAbortTransaction(NHiveServer::NProto::TReqParticipantAbortTransaction* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
@@ -1035,13 +1048,13 @@ private:
             timestamp);
 
         if (commit->GetDistributed()) {
-            NHiveServer::NProto::TReqCommitDistributedTransactionPhaseTwo request;
+            NHiveServer::NProto::TReqCoordinatorCommitDistributedTransactionPhaseTwo request;
             ToProto(request.mutable_transaction_id(), transactionId);
             request.set_commit_timestamp(timestamp);
             CreateMutation(HydraManager_, request)
                 ->CommitAndLog(Logger);
         } else {
-            NHiveServer::NProto::TReqCommitSimpleTransaction request;
+            NHiveServer::NProto::TReqCoordinatorCommitSimpleTransaction request;
             ToProto(request.mutable_transaction_id(), transactionId);
             ToProto(request.mutable_mutation_id(), commit->GetMutationId());
             request.set_commit_timestamp(timestamp);
@@ -1122,7 +1135,7 @@ private:
                 break;
 
             case ECommitState::Finish: {
-                NHiveServer::NProto::TReqFinishDistributedTransaction request;
+                NHiveServer::NProto::TReqCoordinatorFinishDistributedTransaction request;
                 ToProto(request.mutable_transaction_id(), commit->GetTransactionId());
                 CreateMutation(HydraManager_, request)
                     ->CommitAndLog(Logger);
