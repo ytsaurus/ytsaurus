@@ -796,6 +796,8 @@ public:
                 PendingGlobalStripes.end(),
                 nodeId,
                 idealDataSizePerJob);
+
+            UpdateJobCounter(1);
         } else {
             auto lostIt = LostCookies.begin();
             while (true) {
@@ -905,6 +907,10 @@ public:
         YCHECK(maxDataSizePerJob > 0);
 
         MaxDataSizePerJob = maxDataSizePerJob;
+        if (DataSizePerJob > *MaxDataSizePerJob) {
+            DataSizePerJob = *MaxDataSizePerJob;
+            UpdateJobCounter();
+        }
     }
 
     // IPersistent implementation.
@@ -1010,9 +1016,9 @@ private:
             DivCeil(FreePendingDataSize + SuspendedDataSize, freePendingJobCount));
     }
 
-    void UpdateJobCounter()
+    void UpdateJobCounter(int unaccountedJobCount = 0)
     {
-        i64 newJobCount = DivCeil(FreePendingDataSize + SuspendedDataSize, DataSizePerJob);
+        i64 newJobCount = DivCeil(FreePendingDataSize + SuspendedDataSize, DataSizePerJob) + unaccountedJobCount;
         int freePendingJobCount = GetFreePendingJobCount();
         if (newJobCount != freePendingJobCount) {
             JobCounter.Increment(newJobCount - freePendingJobCount);
