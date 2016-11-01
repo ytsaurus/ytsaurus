@@ -86,7 +86,8 @@ TSerializableClusterResources::TSerializableClusterResources()
     RegisterParameter("disk_space_per_medium", DiskSpacePerMedium_);
     // NB: this is for (partial) compatibility: 'disk_space' is serialized when
     // read, but ignored when set. Hence no validation.
-    RegisterParameter("disk_space", DiskSpace_);
+    RegisterParameter("disk_space", DiskSpace_)
+        .Optional();
 
     RegisterValidator([this] {
             for (const auto& pair : DiskSpacePerMedium_) {
