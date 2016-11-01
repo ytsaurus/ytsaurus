@@ -149,10 +149,6 @@ protected:
 const TYPath& GetRequestYPath(const NRpc::NProto::TRequestHeader& header);
 void SetRequestYPath(NRpc::NProto::TRequestHeader* header, const TYPath& path);
 
-TYPath ComputeResolvedYPath(
-    const TYPath& wholePath,
-    const TYPath& unresolvedPath);
-
 //! Runs a sequence of IYPathService::Resolve calls aimed to discover the
 //! ultimate endpoint responsible for serving a given request.
 void ResolveYPath(

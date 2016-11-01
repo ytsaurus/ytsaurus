@@ -7,6 +7,8 @@
 #include <yt/server/security_server/security_manager.h>
 #include <yt/server/security_server/user.h>
 
+#include <yt/ytlib/object_client/helpers.h>
+
 namespace NYT {
 namespace NCypressServer {
 
@@ -512,7 +514,7 @@ void TLinkNode::Save(NCellMaster::TSaveContext& context) const
     TCypressNodeBase::Save(context);
     
     using NYT::Save;
-    Save(context, TargetId_);
+    Save(context, TargetPath_);
 }
 
 void TLinkNode::Load(NCellMaster::TLoadContext& context)
@@ -520,7 +522,13 @@ void TLinkNode::Load(NCellMaster::TLoadContext& context)
     TCypressNodeBase::Load(context);
     
     using NYT::Load;
-    Load(context, TargetId_);
+    // COMPAT(babenko)
+    if (context.GetVersion() < 505) {
+        auto id = Load<TNodeId>(context);
+        TargetPath_ = FromObjectId(id);
+    } else {
+        Load(context, TargetPath_);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -556,21 +564,21 @@ std::unique_ptr<TLinkNode> TLinkNodeTypeHandler::DoCreate(
     TTransaction* transaction,
     IAttributeDictionary* attributes)
 {
-    // Resolve target_path using the appropriate transaction.
-    auto targetPath = attributes->FindAndRemove<Stroka>("target_path");
-    if (targetPath) {
-        auto objectManager = Bootstrap_->GetObjectManager();
-        auto* resolver = objectManager->GetObjectResolver();
+    // Make sure that target_path is valid upon creation.
+    auto targetPath = attributes->GetAndRemove<Stroka>("target_path");
+    auto objectManager = Bootstrap_->GetObjectManager();
+    auto* resolver = objectManager->GetObjectResolver();
+    resolver->ResolvePath(targetPath, transaction);
 
-        auto targetProxy = resolver->ResolvePath(*targetPath, transaction);
-        attributes->Set("target_id", targetProxy->GetId());
-    }
-
-    return TBase::DoCreate(
+    auto implHolder = TBase::DoCreate(
         id,
         cellTag,
         transaction,
         attributes);
+
+    implHolder->SetTargetPath(targetPath);
+
+    return implHolder;
 }
 
 void TLinkNodeTypeHandler::DoBranch(
@@ -580,7 +588,7 @@ void TLinkNodeTypeHandler::DoBranch(
 {
     TBase::DoBranch(originatingNode, branchedNode, mode);
 
-    branchedNode->SetTargetId(originatingNode->GetTargetId());
+    branchedNode->SetTargetPath(originatingNode->GetTargetPath());
 }
 
 void TLinkNodeTypeHandler::DoMerge(
@@ -589,7 +597,7 @@ void TLinkNodeTypeHandler::DoMerge(
 {
     TBase::DoMerge(originatingNode, branchedNode);
 
-    originatingNode->SetTargetId(branchedNode->GetTargetId());
+    originatingNode->SetTargetPath(branchedNode->GetTargetPath());
 }
 
 void TLinkNodeTypeHandler::DoClone(
@@ -600,7 +608,7 @@ void TLinkNodeTypeHandler::DoClone(
 {
     TBase::DoClone(sourceNode, clonedNode, factory, mode);
 
-    clonedNode->SetTargetId(sourceNode->GetTargetId());
+    clonedNode->SetTargetPath(sourceNode->GetTargetPath());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

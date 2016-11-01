@@ -772,7 +772,7 @@ class TestCypress(YTEnvSetup):
         assert exists("//tmp/b&")
         assert exists("//tmp/b/@id")
         assert exists("//tmp/b/@row_count")
-        assert exists("//tmp/b&/@target_id")
+        assert exists("//tmp/b&/@target_path")
         assert not exists("//tmp/b/@x")
         assert not exists("//tmp/b/x")
         assert not exists("//tmp/b&/@x")
@@ -785,7 +785,7 @@ class TestCypress(YTEnvSetup):
         assert exists("//tmp/b&")
         assert not exists("//tmp/b/@id")
         assert not exists("//tmp/b/@row_count")
-        assert exists("//tmp/b&/@target_id")
+        assert exists("//tmp/b&/@target_path")
         assert not exists("//tmp/b/@x")
         assert not exists("//tmp/b/x")
         assert not exists("//tmp/b&/@x")
@@ -831,6 +831,15 @@ class TestCypress(YTEnvSetup):
     def test_link_ignore_existing_force_fail(self):
         id1 = create("table", "//tmp/t")
         with pytest.raises(YtError): link("//tmp/t", "//tmp/l", ignore_existing=True, force=True)
+
+    def test_link_to_link(self):
+        id = create("table", "//tmp/t")
+        link("//tmp/t", "//tmp/l1")
+        link("//tmp/l1", "//tmp/l2")
+        assert get("//tmp/l2/@id") == id
+        assert not get("//tmp/l2&/@broken")
+        remove("//tmp/l1")
+        assert get("//tmp/l2&/@broken")
 
 
     def test_access_stat1(self):

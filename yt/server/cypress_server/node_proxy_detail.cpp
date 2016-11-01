@@ -1612,19 +1612,14 @@ IYPathService::TResolveResult TLinkNodeProxy::Resolve(
     const TYPath& path,
     IServiceContextPtr context)
 {
-    const auto& method = context->GetMethod();
-
-    auto propagate = [&] () -> TResolveResult {
-        if (method == "Exists") {
-            auto proxy = FindTargetProxy();
-            return proxy
-                ? TResolveResult::There(proxy, path)
-                : TResolveResult::There(TNonexistingService::Get(), path);
-        } else {
-            return TResolveResult::There(GetTargetProxy(), path);
-        }
+    auto propagate = [&] () {
+        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto* impl = GetThisImpl();
+        auto combinedPath = impl->GetTargetPath() + path;
+        return TResolveResult::There(objectManager->GetRootService(), combinedPath);
     };
 
+    const auto& method = context->GetMethod();
     NYPath::TTokenizer tokenizer(path);
     switch (tokenizer.Advance()) {
         case NYPath::ETokenType::Ampersand:
@@ -1634,10 +1629,8 @@ IYPathService::TResolveResult TLinkNodeProxy::Resolve(
             // NB: Always handle Remove and Create locally.
             if (method == "Remove" || method == "Create") {
                 return TResolveResult::Here(path);
-            } else if (method == "Exists") {
-                return propagate();
             } else {
-                return TResolveResult::There(GetTargetProxy(), path);
+                return propagate();
             }
         }
 
@@ -1650,111 +1643,38 @@ void TLinkNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* des
 {
     TBase::ListSystemAttributes(descriptors);
 
-    descriptors->push_back(TAttributeDescriptor("target_id")
-        .SetReplicated(true));
-    descriptors->push_back(TAttributeDescriptor("target_path")
-        .SetOpaque(true));
+    descriptors->push_back("target_path");
     descriptors->push_back("broken");
 }
 
 bool TLinkNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
 {
-    const auto* impl = GetThisImpl();
-    const auto& targetId = impl->GetTargetId();
-
-    if (key == "target_id") {
-        BuildYsonFluently(consumer)
-            .Value(targetId);
-        return true;
-    }
-
     if (key == "target_path") {
-        auto target = FindTargetProxy();
-        if (target) {
-            auto objectManager = Bootstrap_->GetObjectManager();
-            auto* resolver = objectManager->GetObjectResolver();
-            auto path = resolver->GetPath(target);
-            BuildYsonFluently(consumer)
-                .Value(path);
-        } else {
-            BuildYsonFluently(consumer)
-                .Value(FromObjectId(impl->GetTargetId()));
-        }
+        const auto* impl = GetThisImpl();
+        BuildYsonFluently(consumer)
+            .Value(impl->GetTargetPath());
         return true;
     }
 
     if (key == "broken") {
         BuildYsonFluently(consumer)
-            .Value(IsBroken(targetId));
+            .Value(IsBroken());
         return true;
     }
 
     return TBase::GetBuiltinAttribute(key, consumer);
 }
 
-bool TLinkNodeProxy::SetBuiltinAttribute(const Stroka& key, const TYsonString& value)
+bool TLinkNodeProxy::IsBroken() const
 {
-    if (key == "target_id") {
-        auto targetId = ConvertTo<TObjectId>(value);
-        auto* impl = LockThisImpl();
-        impl->SetTargetId(targetId);
-        return true;
-    }
-
-    if (key == "target_path") {
-        auto targetPath = ConvertTo<Stroka>(value);
+    try {
+        const auto* impl = GetThisImpl();
         auto objectManager = Bootstrap_->GetObjectManager();
         auto* resolver = objectManager->GetObjectResolver();
-        auto targetProxy = resolver->ResolvePath(targetPath, Transaction);
-        auto* impl = LockThisImpl();
-        impl->SetTargetId(targetProxy->GetId());
-        return true;
-    }
-
-    return TBase::SetBuiltinAttribute(key, value);
-}
-
-IObjectProxyPtr TLinkNodeProxy::FindTargetProxy() const
-{
-    const auto* impl = GetThisImpl();
-    const auto& targetId = impl->GetTargetId();
-
-    if (IsBroken(targetId)) {
-        return nullptr;
-    }
-
-    auto objectManager = Bootstrap_->GetObjectManager();
-    auto* target = objectManager->GetObject(targetId);
-    return objectManager->GetProxy(target, Transaction);
-}
-
-IObjectProxyPtr TLinkNodeProxy::GetTargetProxy() const
-{
-    auto result = FindTargetProxy();
-    if (!result) {
-        const auto* impl = GetThisImpl();
-        THROW_ERROR_EXCEPTION("Link target %v does not exist",
-            impl->GetTargetId());
-    }
-    return result;
-}
-
-bool TLinkNodeProxy::IsBroken(const NObjectServer::TObjectId& id) const
-{
-    if (IsVersionedType(TypeFromId(id))) {
-        auto cypressManager = Bootstrap_->GetCypressManager();
-        auto* node = cypressManager->FindNode(TVersionedNodeId(id));
-        if (!node) {
-            return true;
-        }
-        if (!cypressManager->IsAlive(node, Transaction)) {
-            return true;
-        }
+        resolver->ResolvePath(impl->GetTargetPath(), Transaction);
         return false;
-    } else {
-        auto objectManager = Bootstrap_->GetObjectManager();
-        auto* obj = objectManager->FindObject(id);
-        return !IsObjectAlive(obj);
+    } catch (const std::exception&) {
+        return true;
     }
 }
 

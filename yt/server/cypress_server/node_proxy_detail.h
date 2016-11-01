@@ -473,12 +473,8 @@ private:
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
-    virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override;
 
-    NObjectServer::IObjectProxyPtr FindTargetProxy() const;
-    NObjectServer::IObjectProxyPtr GetTargetProxy() const;
-
-    bool IsBroken(const NObjectServer::TObjectId& id) const;
+    bool IsBroken() const;
 
 };
 
