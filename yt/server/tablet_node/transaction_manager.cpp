@@ -34,6 +34,8 @@
 
 #include <yt/core/misc/heap.h>
 
+#include <set>
+
 namespace NYT {
 namespace NTabletNode {
 
@@ -250,9 +252,9 @@ public:
                 signature);
         }
 
-        transaction->SetState(persistent
+        auto newState = persistent
             ? ETransactionState::PersistentCommitPrepared
-            : ETransactionState::TransientCommitPrepared);
+            : ETransactionState::TransientCommitPrepared;
 
         if (state == ETransactionState::Active) {
             auto timestampProvider = Bootstrap_
@@ -260,7 +262,7 @@ public:
                 ->GetNativeConnection()
                 ->GetTimestampProvider();
             auto prepareTimestamp = timestampProvider->GetLatestTimestamp();
-            transaction->SetPrepareTimestamp(prepareTimestamp);
+            UpdatePrepareTimestamp(transaction, newState, prepareTimestamp);
 
             TransactionPrepared_.Fire(transaction);
             RunPrepareTransactionActions(transaction, persistent);
@@ -278,12 +280,11 @@ public:
 
         auto* transaction = GetTransactionOrThrow(transactionId);
 
-        auto state = transaction->GetState();
-        if (state != ETransactionState::Active && !force) {
+        if (!transaction->IsActive() && !force) {
             transaction->ThrowInvalidState();
         }
 
-        if (state == ETransactionState::Active) {
+        if (transaction->IsActive()) {
             transaction->SetState(ETransactionState::TransientAbortPrepared);
 
             LOG_DEBUG("Transaction abort prepared (TransactionId: %v)",
@@ -365,6 +366,21 @@ public:
         LeaseTracker_->PingTransaction(transactionId, pingAncestors);
     }
 
+    TTimestamp GetMinPrepareTimestamp() const
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        if (PreparedTransactions_.empty()) {
+            const auto& timestampProvider = Bootstrap_
+                ->GetMasterClient()
+                ->GetConnection()
+                ->GetTimestampProvider();
+            return timestampProvider->GetLatestTimestamp();
+        } else {
+            return PreparedTransactions_.begin()->first;
+        }
+    }
+
 private:
     const TTransactionManagerConfigPtr Config_;
     const TTransactionLeaseTrackerPtr LeaseTracker_;
@@ -380,6 +396,8 @@ private:
     int NextBarrierEpochTransactionCount_;
 
     IYPathServicePtr OrchidService_;
+
+    std::set<std::pair<TTimestamp, TTransaction*>> PreparedTransactions_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -485,6 +503,8 @@ private:
 
     void FinishTransaction(TTransaction* transaction)
     {
+        ErasePrepareTimestamp(transaction);
+
         if (IsLeader()) {
             if (transaction->GetBarrierEpoch() == CurrentBarrierEpoch_) {
                 YCHECK(--CurrentBarrierEpochTransactionCount_ >= 0);
@@ -510,6 +530,7 @@ private:
             if (transaction->GetState() == ETransactionState::Committed) {
                 SerializingTransactionHeap_.push_back(transaction);
             }
+            InitPrepareTimestamp(transaction);
         }
         MakeHeap(SerializingTransactionHeap_.begin(), SerializingTransactionHeap_.end(), SerializingTransactionHeapComparer);
     }
@@ -653,6 +674,7 @@ private:
         TransientTransactionMap_.Clear();
         PersistentTransactionMap_.Clear();
         SerializingTransactionHeap_.clear();
+        PreparedTransactions_.clear();
         LastSerializedCommitTimestamp_ = MinTimestamp;
     }
 
@@ -825,12 +847,37 @@ private:
         LOG_DEBUG("Transaction barrier generation disabled");
     }
 
+    void InitPrepareTimestamp(TTransaction* transaction)
+    {
+        if (transaction->IsPrepared() && !transaction->IsCommitted()) {
+            PreparedTransactions_.emplace(transaction->GetPrepareTimestamp(), transaction);
+        }
+    }
+
+    void UpdatePrepareTimestamp(TTransaction* transaction, ETransactionState state, TTimestamp prepareTimestamp)
+    {
+        ErasePrepareTimestamp(transaction);
+        transaction->SetPrepareTimestamp(prepareTimestamp);
+        transaction->SetState(state);
+        PreparedTransactions_.emplace(transaction->GetPrepareTimestamp(), transaction);
+    }
+
+    void ErasePrepareTimestamp(TTransaction* transaction)
+    {
+        if (transaction->IsPrepared()) {
+            auto pair = std::make_pair(transaction->GetPrepareTimestamp(), transaction);
+            auto it = PreparedTransactions_.find(pair);
+            YCHECK(it != PreparedTransactions_.end());
+            PreparedTransactions_.erase(it);
+        }
+    }
+
     static bool SerializingTransactionHeapComparer(
         const TTransaction* lhs,
         const TTransaction* rhs)
     {
-        Y_ASSERT(lhs->GetState() == ETransactionState::Committed);
-        Y_ASSERT(rhs->GetState() == ETransactionState::Committed);
+        Y_ASSERT(lhs->IsCommitted());
+        Y_ASSERT(rhs->IsCommitted());
         return lhs->GetCommitTimestamp() < rhs->GetCommitTimestamp();
     }
 };
@@ -926,6 +973,11 @@ void TTransactionManager::AbortTransaction(const TTransactionId& transactionId, 
 void TTransactionManager::PingTransaction(const TTransactionId& transactionId, bool pingAncestors)
 {
     Impl_->PingTransaction(transactionId, pingAncestors);
+}
+
+TTimestamp TTransactionManager::GetMinPrepareTimestamp()
+{
+    return Impl_->GetMinPrepareTimestamp();
 }
 
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionStarted, *Impl_);
