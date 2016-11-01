@@ -4460,7 +4460,10 @@ TOperationControllerBase::TJobletPtr TOperationControllerBase::GetJobletOrThrow(
 {
     auto joblet = FindJoblet(jobId);
     if (!joblet) {
-        THROW_ERROR_EXCEPTION("No such job %v", jobId);
+        THROW_ERROR_EXCEPTION(
+            NScheduler::EErrorCode::NoSuchJob,
+            "No such job %v",
+            jobId);
     }
     return joblet;
 }
