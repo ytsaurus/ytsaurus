@@ -84,6 +84,9 @@ TSerializableClusterResources::TSerializableClusterResources()
     RegisterParameter("chunk_count", ChunkCount_)
         .GreaterThanOrEqual(0);
     RegisterParameter("disk_space_per_medium", DiskSpacePerMedium_);
+    // NB: this is for (partial) compatibility: 'disk_space' is serialized when
+    // read, but ignored when set. Hence no validation.
+    RegisterParameter("disk_space", DiskSpace_);
 
     RegisterValidator([this] {
             for (const auto& pair : DiskSpacePerMedium_) {
@@ -97,6 +100,7 @@ TSerializableClusterResources::TSerializableClusterResources(const NChunkServer:
 {
     NodeCount_ = clusterResources.NodeCount;
     ChunkCount_ = clusterResources.ChunkCount;
+    DiskSpace_ = clusterResources.DiskSpace[DefaultMediumIndex];
     for (int i = 0; i < NChunkClient::MaxMediumCount; ++i) {
         i64 mediumDiskSpace = clusterResources.DiskSpace[i];
         if (mediumDiskSpace) {
