@@ -188,7 +188,10 @@ public:
 
         auto* tablet = FindTablet(id);
         if (!tablet) {
-            THROW_ERROR_EXCEPTION("No such tablet %v", id);
+            THROW_ERROR_EXCEPTION(
+                NTabletClient::EErrorCode::NoSuchTablet,
+                "No such tablet %v",
+                id);
         }
         return tablet;
     }
@@ -2262,7 +2265,9 @@ private:
     void ValidateMemoryLimit()
     {
         if (Bootstrap_->GetTabletSlotManager()->IsOutOfMemory()) {
-            THROW_ERROR_EXCEPTION("Node is out of tablet memory, all writes disabled");
+            THROW_ERROR_EXCEPTION(
+                NTabletClient::EErrorCode::AllWritesDisabled,
+                "Node is out of tablet memory, all writes disabled");
         }
     }
 
@@ -2290,7 +2295,9 @@ private:
         auto storeCount = tablet->StoreIdMap().size();
         auto storeLimit = tablet->GetConfig()->MaxStoresPerTablet;
         if (storeCount >= storeLimit) {
-            THROW_ERROR_EXCEPTION("Too many stores in tablet, all writes disabled")
+            THROW_ERROR_EXCEPTION(
+                NTabletClient::EErrorCode::AllWritesDisabled,
+                "Too many stores in tablet, all writes disabled")
                 << TErrorAttribute("tablet_id", tablet->GetId())
                 << TErrorAttribute("store_count", storeCount)
                 << TErrorAttribute("store_limit", storeLimit);
@@ -2299,7 +2306,9 @@ private:
         auto overlappingStoreCount = tablet->GetOverlappingStoreCount();
         auto overlappingStoreLimit = tablet->GetConfig()->MaxOverlappingStoreCount;
         if (overlappingStoreCount >= overlappingStoreLimit) {
-            THROW_ERROR_EXCEPTION("Too many overlapping stores in tablet, all writes disabled")
+            THROW_ERROR_EXCEPTION(
+                NTabletClient::EErrorCode::AllWritesDisabled,
+                "Too many overlapping stores in tablet, all writes disabled")
                 << TErrorAttribute("tablet_id", tablet->GetId())
                 << TErrorAttribute("overlapping_store_count", overlappingStoreCount)
                 << TErrorAttribute("overlapping_store_limit", overlappingStoreLimit);
@@ -2321,7 +2330,9 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         if (tablet->GetState() != ETabletState::Mounted) {
-            THROW_ERROR_EXCEPTION("Tablet %v is not in \"mounted\" state",
+            THROW_ERROR_EXCEPTION(
+                NTabletClient::EErrorCode::TabletNotMounted,
+                "Tablet %v is not in \"mounted\" state",
                 tablet->GetId());
         }
     }

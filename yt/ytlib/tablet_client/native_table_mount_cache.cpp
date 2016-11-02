@@ -150,7 +150,10 @@ TTabletInfoPtr TTableMountInfo::GetRandomMountedTablet() const
     ValidateDynamic();
 
     if (MountedTablets.empty()) {
-        THROW_ERROR_EXCEPTION("Table %v has no mounted tablets", Path);
+        THROW_ERROR_EXCEPTION(
+            EErrorCode::TabletNotMounted,
+            "Table %v has no mounted tablets",
+            Path);
     }
 
     size_t index = RandomNumber(MountedTablets.size());

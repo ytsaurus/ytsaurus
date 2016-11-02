@@ -24,7 +24,7 @@ public:
 
 public:
     TColumnarChunkMeta(const NChunkClient::NProto::TChunkMeta& chunkMeta);
-    void InitBlockLastKeys(int keyColumnCount);
+    void InitBlockLastKeys(const TKeyColumns& keyColumns);
 
 protected:
     TColumnarChunkMeta() = default;

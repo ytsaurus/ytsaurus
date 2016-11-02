@@ -31,7 +31,7 @@ using NChunkClient::NProto::TChunkSpec;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int RowCount = 600000;
+int RowCount = 50000;
 auto StringValue = STRINGBUF("She sells sea shells on a sea shore");
 auto AnyValueList = STRINGBUF("[one; two; three]");
 auto AnyValueMap = STRINGBUF("{a=b; c=d}");
@@ -192,7 +192,7 @@ protected:
         auto memoryWriter = New<TMemoryWriter>();
 
         auto config = New<TChunkWriterConfig>();
-        config->BlockSize = 2 * 1024;
+        config->BlockSize = 256;
 
         auto options = New<TChunkWriterOptions>();
         options->OptimizeFor = std::get<0>(GetParam());
@@ -318,7 +318,7 @@ TEST_P(TSchemalessChunksTest, WithoutSampling)
         columnFilter,
         std::get<3>(GetParam()));
 
-    CheckSchemalessResult(expected, chunkReader, std::get<1>(GetParam()).GetKeyColumnCount());
+    CheckSchemalessResult(expected, chunkReader, 0);
 }
 
 INSTANTIATE_TEST_CASE_P(Unsorted,
@@ -361,10 +361,11 @@ INSTANTIATE_TEST_CASE_P(Sorted,
                 "{name = c4; type = boolean; sort_order = ascending};"
                 "{name = c5; type = double; sort_order = ascending};"
                 "{name = c6; type = any};]"))),
-        ::testing::Values(TColumnFilter()),
+        ::testing::Values(TColumnFilter(), TColumnFilter({0, 5})),
         ::testing::Values(
             TReadRange(),
             TReadRange(TReadLimit().SetKey(YsonToKey("<type=null>#")), TReadLimit().SetKey(YsonToKey("<type=null>#"))),
+            TReadRange(TReadLimit().SetKey(YsonToKey("-65537; -1; 1u; <type=null>#")), TReadLimit()),
             TReadRange(TReadLimit().SetKey(YsonToKey("-65537; -1; 1u; <type=null>#")), TReadLimit().SetKey(YsonToKey("350000.1; 1; 1; \"Z\""))))));
 
 // ToDo(psushin):
@@ -496,8 +497,8 @@ protected:
 
         auto options = New<TChunkWriterOptions>();
         options->OptimizeFor = optimizeFor;
-        options->ValidateSorted = true;
-        options->ValidateUniqueKeys = true;
+        options->ValidateSorted = schema.IsSorted();
+        options->ValidateUniqueKeys = schema.IsUniqueKeys();
         auto chunkWriter = CreateSchemalessChunkWriter(
             config,
             options,
@@ -617,12 +618,12 @@ INSTANTIATE_TEST_CASE_P(Sorted,
             EOptimizeFor::Scan,
             EOptimizeFor::Lookup),
         ::testing::Values(
-            ConvertTo<TTableSchema>(TYsonString("<strict=%true>["
+            ConvertTo<TTableSchema>(TYsonString("<strict=%true;unique_keys=%true>["
                 "{name = c1; type = boolean; sort_order = ascending};"
                 "{name = c2; type = uint64; sort_order = ascending};"
                 "{name = c3; type = int64; sort_order = ascending};"
                 "{name = c4; type = double};]")),
-            ConvertTo<TTableSchema>(TYsonString("<strict=%true>["
+            ConvertTo<TTableSchema>(TYsonString("<strict=%true;unique_keys=%true>["
                 "{name = c1; type = int64; sort_order = ascending};"
                 "{name = c2; type = uint64; sort_order = ascending};"
                 "{name = c3; type = string; sort_order = ascending};"

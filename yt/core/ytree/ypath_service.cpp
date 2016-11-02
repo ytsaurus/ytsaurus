@@ -64,12 +64,8 @@ private:
             return;
         }
 
-        TStringStream stream;
-        TBufferedBinaryYsonWriter writer(&stream);
-        Producer_.Run(&writer);
-        writer.Flush();
-
-        response->set_value(stream.Str());
+        auto yson = BuildStringFromProducer();
+        response->set_value(yson.Data());
         context->Reply();
     }
 
@@ -84,9 +80,24 @@ private:
     }
 
 
+    TYsonString BuildStringFromProducer()
+    {
+        TStringStream stream;
+        TBufferedBinaryYsonWriter writer(&stream);
+        Producer_.Run(&writer);
+        writer.Flush();
+
+        const auto& str = stream.Str();
+        if (str.empty()) {
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "No data is available");
+        }
+
+        return TYsonString(str);
+    }
+
     INodePtr BuildNodeFromProducer()
     {
-        return ConvertTo<INodePtr>(Producer_);
+        return ConvertTo<INodePtr>(BuildStringFromProducer());
     }
 };
 

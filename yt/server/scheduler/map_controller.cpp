@@ -14,6 +14,8 @@
 
 #include <yt/ytlib/api/transaction.h>
 
+#include <yt/core/concurrency/periodic_yielder.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -27,6 +29,7 @@ using namespace NChunkClient::NProto;
 using namespace NScheduler::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NTableClient;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -245,7 +248,9 @@ protected:
 
             std::vector<TInputChunkPtr> mergedChunks;
 
+            TPeriodicYielder yielder(PrepareYieldPeriod);
             for (const auto& chunk : CollectPrimaryUnversionedChunks()) {
+                yielder.TryYield();
                 if (IsTeleportChunk(chunk)) {
                     // Chunks not requiring merge go directly to the output chunk list.
                     LOG_TRACE("Teleport chunk added (ChunkId: %v, Partition: %v)",
@@ -447,6 +452,16 @@ private:
     virtual std::vector<TRichYPath> GetOutputTablePaths() const override
     {
         return Spec->OutputTablePaths;
+    }
+
+    virtual TNullable<TRichYPath> GetStderrTablePath() const override
+    {
+        return Spec->StderrTablePath;
+    }
+
+    virtual TBlobTableWriterConfigPtr GetStderrTableWriterConfig() const override
+    {
+        return Spec->StderrTableWriterConfig;
     }
 
     virtual std::vector<TPathWithStage> GetFilePaths() const override

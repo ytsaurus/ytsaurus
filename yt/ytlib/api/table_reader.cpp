@@ -188,13 +188,7 @@ void TSchemalessTableReader::DoOpen()
         auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
 
         dynamic = attributes->Get<bool>("dynamic");
-
-        if (dynamic) {
-            schema = attributes->Get<TTableSchema>("schema");
-            if (!schema.IsSorted()) {
-                THROW_ERROR_EXCEPTION("Table is not sorted");
-            }
-        }
+        schema = attributes->Get<TTableSchema>("schema");
     }
 
     auto nodeDirectory = New<TNodeDirectory>();
@@ -270,7 +264,7 @@ void TSchemalessTableReader::DoOpen()
             std::move(dataSliceDescriptors),
             New<TNameTable>(),
             TColumnFilter(),
-            TKeyColumns(),
+            schema.GetKeyColumns(),
             Null,
             NConcurrency::GetUnlimitedThrottler());
     }

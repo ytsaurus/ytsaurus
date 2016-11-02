@@ -60,6 +60,7 @@ public:
     NRpc::IChannelFactoryPtr GetTabletChannelFactory() const;
     NYTree::IMapNodePtr GetOrchidRoot() const;
     NJobAgent::TJobControllerPtr GetJobController() const;
+    NJobAgent::TStatisticsReporterPtr GetStatisticsReporter() const;
     NTabletNode::TSlotManagerPtr GetTabletSlotManager() const;
     NTabletNode::TSecurityManagerPtr GetSecurityManager() const;
     NTabletNode::TInMemoryManagerPtr GetInMemoryManager() const;
@@ -116,10 +117,12 @@ private:
     NApi::INativeClientPtr MasterClient;
     NHiveServer::TCellDirectorySynchronizerPtr CellDirectorySynchronizer;
     NRpc::IServerPtr RpcServer;
+    NRpc::IServicePtr MasterCacheService;
     std::unique_ptr<NHttp::TServer> HttpServer;
     NRpc::IChannelFactoryPtr TabletChannelFactory;
     NYTree::IMapNodePtr OrchidRoot;
     NJobAgent::TJobControllerPtr JobController;
+    NJobAgent::TStatisticsReporterPtr StatisticsReporter;
     NExecAgent::TSlotManagerPtr ExecSlotManager;
     NJobProxy::TJobProxyConfigPtr JobProxyConfig;
     std::unique_ptr<TMemoryUsageTracker<NNodeTrackerClient::EMemoryCategory>> MemoryUsageTracker;
@@ -159,6 +162,10 @@ private:
     void DoRun();
     void PopulateAlerts(std::vector<TError>* alerts);
     NObjectClient::TCellId ToRedirectorCellId(const NObjectClient::TCellId& cellId);
+
+    void OnMasterConnected();
+    void OnMasterDisconnected();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

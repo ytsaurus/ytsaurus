@@ -1638,8 +1638,9 @@ private:
             *subresponse->mutable_statistics() = chunk->GetStatistics().ToDataStatistics();
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Chunk confirmed (ChunkId: %v)",
-            chunkId);
+        LOG_DEBUG_UNLESS(IsRecovery(), "Chunk confirmed (ChunkId: %v, Replicas: %v)",
+            chunkId,
+            replicas);
     }
 
     void ExecuteSealChunkSubrequest(

@@ -40,15 +40,28 @@ struct TCacheBasedChunkState
     : public TIntrinsicRefCounted
 {
     TCacheBasedChunkState() = default;
-    TCacheBasedChunkState(const TCacheBasedChunkState& that)
-        : BlockCache(that.BlockCache)
-        , ChunkMeta(that.ChunkMeta)
-        , LookupHashTable(that.LookupHashTable)
-        , PerformanceCounters(that.PerformanceCounters)
-        , KeyComparer(that.KeyComparer)
+    TCacheBasedChunkState(
+        NChunkClient::IBlockCachePtr preloadedBlockCache,
+        TCachedVersionedChunkMetaPtr chunkMeta,
+        IChunkLookupHashTablePtr lookupHashTable,
+        TChunkReaderPerformanceCountersPtr performanceCounters,
+        TKeyComparer keyComparer)
+        : PreloadedBlockCache(std::move(preloadedBlockCache))
+        , ChunkMeta(std::move(chunkMeta))
+        , LookupHashTable(std::move(lookupHashTable))
+        , PerformanceCounters(std::move(performanceCounters))
+        , KeyComparer(std::move(keyComparer))
     { }
 
-    NChunkClient::IBlockCachePtr BlockCache;
+    TCacheBasedChunkState(const TCacheBasedChunkState& other)
+        : PreloadedBlockCache(other.PreloadedBlockCache)
+        , ChunkMeta(other.ChunkMeta)
+        , LookupHashTable(other.LookupHashTable)
+        , PerformanceCounters(other.PerformanceCounters)
+        , KeyComparer(other.KeyComparer)
+    { }
+
+    NChunkClient::IBlockCachePtr PreloadedBlockCache;
     TCachedVersionedChunkMetaPtr ChunkMeta;
     IChunkLookupHashTablePtr LookupHashTable;
     TChunkReaderPerformanceCountersPtr PerformanceCounters;

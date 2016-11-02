@@ -107,7 +107,15 @@ const char* TSchemafulDsvParser::Consume(const char* begin, const char* end)
     }
 
     Consumer_->OnKeyedItem(Columns_[FieldIndex_++]);
-    Consumer_->OnStringScalar(CurrentToken_);
+
+    if (Config_->MissingValueMode == EMissingSchemafulDsvValueMode::PrintSentinel &&
+        CurrentToken_ == Config_->MissingValueSentinel)
+    {
+        Consumer_->OnEntity();
+    } else {
+        Consumer_->OnStringScalar(CurrentToken_);
+    }
+
     CurrentToken_.clear();
 
     if (*next == Config_->RecordSeparator) {

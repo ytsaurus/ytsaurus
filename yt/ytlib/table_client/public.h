@@ -44,17 +44,22 @@ using TKeyColumns = std::vector<Stroka>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Keep values below consistent with https://wiki.yandex-team.ru/yt/userdoc/tables.
 const int TypicalColumnCount = 64;
-const int MaxKeyColumnCount = 32;
 const int MaxColumnLockCount = 32;
 extern const Stroka PrimaryLockName;
-const int MaxValuesPerRow = 1024;
-const int MaxRowsPerRowset = 1024 * 1024;
-const i64 MaxStringValueLength = (i64) 16 * 1024 * 1024;
-const i64 MaxRowWeightLimit = (i64) 128 * 1024 * 1024;
 const int MaxColumnNameLength = 256;
 const int MaxColumnLockLength = 256;
 const int MaxColumnGroupLength = 256;
+
+// Only for dynamic tables.
+const int MaxKeyColumnCount = 32;
+const int MaxValuesPerRow = 1024;
+const int MaxRowsPerRowset = 1024 * 1024;
+const i64 MaxStringValueLength = (i64) 16 * 1024 * 1024;
+
+// Only for static tables.
+const i64 MaxRowWeightLimit = (i64) 128 * 1024 * 1024;
 
 // NB(psushin): increasing this parameter requires rewriting all chunks,
 // so one probaly should never want to do it.
@@ -97,6 +102,7 @@ DEFINE_ENUM(EErrorCode,
     ((UniqueKeyViolation)         (306))
     ((SchemaViolation)            (307))
     ((RowWeightLimitExceeded)     (308))
+    ((InvalidColumnFilter)        (309))
 );
 
 DEFINE_ENUM(ETableChunkFormat,
@@ -240,6 +246,8 @@ DECLARE_REFCOUNTED_CLASS(TChunkReaderOptions)
 DECLARE_REFCOUNTED_CLASS(TTableWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TTableReaderConfig)
 
+DECLARE_REFCOUNTED_CLASS(TBlobTableWriterConfig)
+
 DECLARE_REFCOUNTED_CLASS(TBufferedTableWriterConfig)
 
 DECLARE_REFCOUNTED_CLASS(TRetentionConfig)
@@ -262,6 +270,9 @@ struct TBoundaryKeys;
 class TSaveContext;
 class TLoadContext;
 using TPersistenceContext = TCustomPersistenceContext<TSaveContext, TLoadContext>;
+
+struct TBlobTableSchema;
+class TBlobTableWriter;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -77,6 +77,10 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, OnJobFinished)
     if (request->has_statistics()) {
         job->SetStatistics(TYsonString(request->statistics()));
     }
+    job->ReportStatistics(
+        request->has_start_time() ? FromProto<TInstant>(request->start_time()) : TNullable<TInstant>{},
+        request->has_finish_time() ? FromProto<TInstant>(request->finish_time()) : TNullable<TInstant>{},
+        error);
 
     context->Reply();
 }

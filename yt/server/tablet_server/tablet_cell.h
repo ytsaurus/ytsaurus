@@ -50,7 +50,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TTabletCellConfigPtr, Config);
 
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TTablet*>, Tablets);
-    DEFINE_BYREF_RW_PROPERTY(TTabletStatistics, TotalStatistics);
+    DEFINE_BYREF_RW_PROPERTY(TTabletCellStatistics, TotalStatistics);
 
     DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, PrerequisiteTransaction);
 

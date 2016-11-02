@@ -44,6 +44,12 @@ public:
     //! Subscribers may provide additional dynamic alerts to be reported to master.
     DEFINE_SIGNAL(void(std::vector<TError>* alerts), PopulateAlerts);
 
+    //! Raised when node successfully connects and registers at the primary master.
+    DEFINE_SIGNAL(void(), MasterConnected);
+
+    //! Raised when node disconnects from masters.
+    DEFINE_SIGNAL(void(), MasterDisconnected);
+
 public:
     //! Creates an instance.
     TMasterConnector(

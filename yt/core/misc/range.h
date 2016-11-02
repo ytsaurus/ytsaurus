@@ -1,6 +1,7 @@
 #pragma once
 
 #include "small_vector.h"
+#include "nullable.h"
 
 #include <vector>
 
@@ -68,6 +69,13 @@ public:
     TRange(const T (&a)[N])
         : Data_(a)
         , Length_(N)
+    { }
+
+    //! Constructs a TRange from TNullable.
+    //! Range will contain 0-1 elements.
+    TRange(const TNullable<T>& element)
+        : Data_(element.GetPtr())
+        , Length_(element ? 1 : 0)
     { }
 
     const_iterator Begin() const
@@ -251,6 +259,12 @@ public:
     //! Constructs a TMutableRange from an std::vector.
     TMutableRange(std::vector<T>& elements)
         : TRange<T>(elements)
+    { }
+
+    //! Construct a TMutableRange from an TNullable
+    //! Range will contain 0-1 elements.
+    TMutableRange(TNullable<T>& nullable)
+        : TRange<T>(nullable)
     { }
 
     //! Constructs a TMutableRange from a C array.

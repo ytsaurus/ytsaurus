@@ -172,6 +172,29 @@ function tidyArchiveOperation(operation)
     return operation;
 }
 
+function idUint64ToStringNew(id_hi, id_lo)
+{
+    var hi, lo, mask, parts;
+    hi = id_hi instanceof UI64 ? id_hi : UI64(id_hi, 10);
+    lo = id_lo instanceof UI64 ? id_lo : UI64(id_lo, 10);
+    mask = UI64(1).shiftLeft(UI64(32)).subtract(UI64(1));
+    parts = [
+        lo.clone().shiftRight(UI64(32)).toString(16),
+        lo.clone().and(mask).toString(16),
+        hi.clone().shiftRight(UI64(32)).toString(16),
+        hi.clone().and(mask).toString(16)];
+    return parts.join("-");
+}
+
+function idStringToUint64New(id)
+{
+    var hi, lo, parts;
+    parts = id.split("-");
+    hi = UI64(parts[2], 16).shiftLeft(32).or(UI64(parts[3], 16));
+    lo = UI64(parts[0], 16).shiftLeft(32).or(UI64(parts[1], 16));
+    return [hi, lo];
+}
+
 function idUint64ToString(id_hi, id_lo)
 {
     var hi, lo, mask, parts;
@@ -399,6 +422,7 @@ function getArchiveCallbacks(timings, from_time, to_time, cursor_time, substr_fi
 }
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 
 function YtApplicationOperations(logger, driver)
@@ -409,6 +433,36 @@ function YtApplicationOperations(logger, driver)
 
 YtApplicationOperations._idUint64ToString = idUint64ToString;
 YtApplicationOperations._idStringToUint64 = idStringToUint64;
+YtApplicationOperations._idUint64ToStringNew = idUint64ToStringNew;
+YtApplicationOperations._idStringToUint64New = idStringToUint64New;
+
+YtApplicationOperations.prototype.makeErrorHandler = Q.method(
+function makeErrorHandler(message)
+{
+    var logger = this.logger;
+    return function(error) {
+        var err = YtError.ensureWrapped(error);
+        logger.error(message, {error: err.toJson()});
+        return Q.reject(new YtError(message, err));
+    };
+});
+
+YtApplicationOperations.prototype.getVersion = Q.method(
+function getVersion()
+{
+    return this.driver.executeSimple(
+        "get",
+        {
+            path: "{}/@version".format(OPERATIONS_ARCHIVE_DIRECTORY)
+        })
+        .catch(function(error) {
+            var err = YtError.ensureWrapped(error);
+            return err.getCode() === 500;
+        }, function(error) {
+            return 0;
+        })
+        .catch(this.makeErrorHandler("Failed to fetch archive version"));
+});
 
 YtApplicationOperations.prototype.list = Q.method(
 function YtApplicationOperations$list(parameters)
@@ -476,14 +530,6 @@ function YtApplicationOperations$list(parameters)
             max_size, MAX_SIZE_LIMIT)).withCode(1);
     }
 
-    function makeErrorHandler(message) {
-        return function(error) {
-            var err = YtError.ensureWrapped(error);
-            logger.error(message, {error: err.toJson()});
-            return Q.reject(new YtError(message, err));
-        };
-    }
-
     var timings = {};
 
     // Okay, now fetch & merge data.
@@ -497,23 +543,12 @@ function YtApplicationOperations$list(parameters)
             expire_after_successful_update_time: CYPRESS_OPERATIONS_SUCCESS_EXPIRATION_TIME,
             expire_after_failed_update_time: CYPRESS_OPERATIONS_FAILURE_EXPIRATION_TIME
         })
-        .catch(makeErrorHandler("Failed to fetch operations from Cypress"))
+        .catch(this.makeErrorHandler("Failed to fetch operations from Cypress"))
         .finally(function() {
             timings.cypress_data = new Date() - timings_start;
         });
 
-    var version = this.driver.executeSimple(
-        "get",
-        {
-            path: "{}/@version".format(OPERATIONS_ARCHIVE_DIRECTORY)
-        })
-        .catch(function(error) {
-            var err = YtError.ensureWrapped(error);
-            return err.getCode() === 500;
-        }, function(error) {
-            return 0;
-        })
-        .catch(makeErrorHandler("Failed to fetch archive version"))
+    var version = this.getVersion()
         .finally(function() {
             timings.version = new Date() - timings_start;
         });
@@ -548,8 +583,6 @@ function YtApplicationOperations$list(parameters)
     } else {
         archive_data = Q.resolve([]);
     }
-
-    var logger = this.logger;
 
     function makeRegister() {
         var user_counts = {};
@@ -600,16 +633,20 @@ function YtApplicationOperations$list(parameters)
 
     if (include_archive && include_counters) {
         archive_counts = archive_counts
-            .catch(makeErrorHandler("Failed to fetch operation counts from archive"));
+            .catch(this.makeErrorHandler("Failed to fetch operation counts from archive"));
     }
 
     if (include_archive) {
         archive_data = archive_data
-            .catch(makeErrorHandler("Failed to fetch operation items from archive"));
+            .catch(this.makeErrorHandler("Failed to fetch operation items from archive"));
     }
 
-    return Q.settle([cypress_data, archive_data, archive_counts])
-    .spread(function(cypress_data, archive_data, archive_counts) {
+    var logger = this.logger;
+
+    return Q.settle([version, cypress_data, archive_data, archive_counts])
+    .spread(function(version, cypress_data, archive_data, archive_counts) {
+        version = version.value();
+
         if (cypress_data.isRejected()) {
             return Q.reject(cypress_data.error());
         } else {
@@ -634,7 +671,7 @@ function YtApplicationOperations$list(parameters)
         var failed_jobs_count = 0;
 
         archive_data = archive_data.map(function(operation) {
-            var id = idUint64ToString(operation.id_hi.$value, operation.id_lo.$value);
+            var id = (version < 6 ? idUint64ToString : idUint64ToStringNew)(operation.id_hi.$value, operation.id_lo.$value);
 
             tidyArchiveOperation(operation);
 
@@ -792,27 +829,39 @@ function YtApplicationOperations$get(parameters)
 {
     var id = required(parameters, "id", validateId);
 
-    var id_parts = idStringToUint64(id);
-    var id_hi = id_parts[0];
-    var id_lo = id_parts[1];
+    var version = this.getVersion();
 
-    var cypress_data = this.driver.executeSimple(
-        "get",
-        {path: "//sys/operations/" + utils.escapeYPath(id) + "/@"});
+    var driver = this.driver;
 
-    var runtime_data = this.driver.executeSimple(
-        "get",
-        {path: "//sys/scheduler/orchid/scheduler/operations/" + utils.escapeYPath(id)});
+    var data = version.then(function(version) {
+        var id_parts = (version < 6 ? idStringToUint64 : idStringToUint64New)(id);
+        var id_hi = id_parts[0];
+        var id_lo = id_parts[1];
 
-    var archive_data = this.driver.executeSimple(
-        "select_rows",
-        {
-            query: "* FROM [{}] WHERE (id_hi, id_lo) = ({}u, {}u)".format(
-                OPERATIONS_ARCHIVE_PATH,
-                id_hi.toString(10),
-                id_lo.toString(10)),
-            output_format: ANNOTATED_JSON_FORMAT,
-        });
+        var cypress_data = driver.executeSimple(
+            "get",
+            {path: "//sys/operations/" + utils.escapeYPath(id) + "/@"});
+
+        var runtime_data = driver.executeSimple(
+            "get",
+            {path: "//sys/scheduler/orchid/scheduler/operations/" + utils.escapeYPath(id)});
+
+        var archive_data = driver.executeSimple(
+            "select_rows",
+            {
+                query: "* FROM [{}] WHERE (id_hi, id_lo) = ({}u, {}u)".format(
+                    OPERATIONS_ARCHIVE_PATH,
+                    id_hi.toString(10),
+                    id_lo.toString(10)),
+                output_format: ANNOTATED_JSON_FORMAT,
+            });
+
+        return [cypress_data, runtime_data, archive_data];
+    });
+
+    var cypress_data = data.then(function(data) { return data[0];});
+    var runtime_data = data.then(function(data) { return data[1];});
+    var archive_data = data.then(function(data) { return data[2];});
 
     return Q.settle([cypress_data, runtime_data])
     .spread(function(cypress_data, runtime_data) {

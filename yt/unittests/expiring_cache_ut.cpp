@@ -69,7 +69,7 @@ TEST(TExpiringCacheTest, TestBackgroundUpdate)
 
 TEST(TExpiringCacheTest, TestEntryRemoval)
 {
-    int interval = 100;
+    int interval = 20;
     auto config = New<TExpiringCacheConfig>();
     config->RefreshTime = TDuration::MilliSeconds(interval);
     auto cache = New<TSimpleExpiringCache>(config, 0.9);
@@ -79,14 +79,14 @@ TEST(TExpiringCacheTest, TestEntryRemoval)
 
     for (int i = 0; i < 10; ++i) {
         auto callback = BIND([=] () {
-                for (int i = 0; i < 1000; ++i) {
-                    cache->Get(0);
+            for (int i = 0; i < 1000; ++i) {
+                cache->Get(0);
 
-                    if (rand() % 20 == 0) {
-                        cache->TryRemove(0);
-                    }
+                if (rand() % 20 == 0) {
+                    cache->TryRemove(0);
                 }
-            });
+            }
+        });
         asyncResult.push_back(
             callback
             .AsyncVia(threadPool->GetInvoker())
@@ -125,12 +125,12 @@ TEST(TExpiringCacheTest, TestAccessTime1)
 TEST(TExpiringCacheTest, TestAccessTime2)
 {
     auto config = New<TExpiringCacheConfig>();
-    config->ExpireAfterAccessTime = TDuration::MilliSeconds(150);
+    config->ExpireAfterAccessTime = TDuration::MilliSeconds(50);
     auto cache = New<TSimpleExpiringCache>(config);
 
     for (int i = 0; i < 10; ++i) {
         cache->Get(0);
-        Sleep(TDuration::MilliSeconds(100));
+        Sleep(TDuration::MilliSeconds(30));
     }
 
     int actual = cache->GetCount();
@@ -141,12 +141,12 @@ TEST(TExpiringCacheTest, TestAccessTime2)
 TEST(TExpiringCacheTest, TestAccessTime3)
 {
     auto config = New<TExpiringCacheConfig>();
-    config->ExpireAfterAccessTime = TDuration::MilliSeconds(50);
+    config->ExpireAfterAccessTime = TDuration::MilliSeconds(30);
     auto cache = New<TSimpleExpiringCache>(config);
 
     for (int i = 0; i < 10; ++i) {
         cache->Get(0);
-        Sleep(TDuration::MilliSeconds(100));
+        Sleep(TDuration::MilliSeconds(50));
     }
 
     int actual = cache->GetCount();
@@ -157,12 +157,12 @@ TEST(TExpiringCacheTest, TestAccessTime3)
 TEST(TExpiringCacheTest, TestUpdateTime1)
 {
     auto config = New<TExpiringCacheConfig>();
-    config->ExpireAfterSuccessfulUpdateTime = TDuration::MilliSeconds(50);
+    config->ExpireAfterSuccessfulUpdateTime = TDuration::MilliSeconds(30);
     auto cache = New<TSimpleExpiringCache>(config);
 
     for (int i = 0; i < 10; ++i) {
         cache->Get(0);
-        Sleep(TDuration::MilliSeconds(100));
+        Sleep(TDuration::MilliSeconds(50));
     }
 
     int actual = cache->GetCount();
@@ -173,12 +173,12 @@ TEST(TExpiringCacheTest, TestUpdateTime1)
 TEST(TExpiringCacheTest, TestUpdateTime2)
 {
     auto config = New<TExpiringCacheConfig>();
-    config->ExpireAfterFailedUpdateTime = TDuration::MilliSeconds(50);
+    config->ExpireAfterFailedUpdateTime = TDuration::MilliSeconds(30);
     auto cache = New<TSimpleExpiringCache>(config, 0.0);
 
     for (int i = 0; i < 10; ++i) {
         cache->Get(0);
-        Sleep(TDuration::MilliSeconds(100));
+        Sleep(TDuration::MilliSeconds(50));
     }
 
     int actual = cache->GetCount();

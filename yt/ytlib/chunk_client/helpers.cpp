@@ -143,6 +143,7 @@ void ProcessFetchResponse(
                 static_cast<int>(foreignChunkSpecs.size()));
 
             auto req = proxy.LocateChunks();
+            req->SetHeavy(true);
             for (int index = beginIndex; index < endIndex; ++index) {
                 *req->add_subrequests() = foreignChunkSpecs[index]->chunk_id();
             }
@@ -398,6 +399,7 @@ IChunkReaderPtr CreateRemoteReader(
     TChunkServiceProxy proxy(channel);
 
     auto req = proxy.LocateChunks();
+    req->SetHeavy(true);
     ToProto(req->add_subrequests(), chunkId);
 
     auto rsp = WaitFor(req->Invoke())

@@ -8,6 +8,26 @@ import logging
 import time
 from threading import Thread
 
+
+def do_action_batched(action, tables, args, **kwargs):
+    cmd = None
+    if action == "mount":
+        cmd = "mount_table"
+    elif action == "unmount":
+        cmd = "unmount_table"
+    elif action == "remount":
+        cmd = "remount_table"
+    assert cmd is not None
+
+    reqs = []
+    for table in tables:
+        reqs.append({"command": cmd, "parameters": {"path": table}})
+
+    rsps = yt.execute_batch(reqs)
+    for table, rsp in zip(table, rsps):
+        if "error" in rsp:
+            logging.error("%s -> %r", table, rsp)
+
 def do_action(action, tables, args, **kwargs):
     def _mount(table, **kwargs):
         logging.info("Mounting table %s", table)

@@ -273,7 +273,7 @@ TEST(TCGroup, Bug)
             YCHECK(::read(exitBarier, &num, sizeof(num)) == sizeof(num));
             _exit(2);
         }
-        waitpid(otherPid, NULL, 0);
+        waitpid(otherPid, nullptr, 0);
         _exit(1);
     }
 
@@ -291,7 +291,7 @@ TEST(TCGroup, Bug)
     num = 1;
     EXPECT_TRUE(::write(exitBarier, &num, sizeof(num)) == sizeof(num));
 
-    auto waitedpid = waitpid(pid, NULL, 0);
+    auto waitedpid = waitpid(pid, nullptr, 0);
     EXPECT_TRUE(waitedpid == pid);
 }
 

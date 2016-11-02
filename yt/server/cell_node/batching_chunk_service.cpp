@@ -304,7 +304,9 @@ private:
     protected:
         virtual TChunkServiceProxy::TReqLocateChunksPtr CreateBatchRequest() override
         {
-            return FollowerProxy_.LocateChunks();
+            auto req = FollowerProxy_.LocateChunks();
+            req->SetHeavy(true);
+            return req;
         }
 
         virtual void BatchRequest(

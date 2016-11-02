@@ -42,7 +42,8 @@ DEFINE_ENUM(EErrorCode,
     ((TransactionLockConflict)  (1700))
     ((NoSuchTablet)             (1701))
     ((TabletNotMounted)         (1702))
-    ((InvalidMountRevision)     (1703))
+    ((AllWritesDisabled)        (1703))
+    ((InvalidMountRevision)     (1704))
 );
 
 static const int TypicalPeerCount = 5;

@@ -107,6 +107,45 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         assert get("//tmp/out/@sorted")
 
     @unix_only
+    def test_column_filter(self):
+        create("table", "//tmp/in1")
+        set("//tmp/in1/@optimize_for", "scan")
+
+        write_table(
+            "//tmp/in1",
+            [
+                {"key": 0, "value": 0},
+                {"key": 0, "value": 0},
+                {"key": 0, "value": 1},
+                {"key": 7, "value": 4}
+            ],
+            sorted_by = ["key", "value"])
+
+
+        create("table", "//tmp/out")
+
+        with pytest.raises(YtError):
+        # All reduce by columns must be included in column filter.
+            reduce(
+                in_="//tmp/in1{key}",
+                out="//tmp/out",
+                reduce_by=["key", "value"],
+                command="cat",
+                spec={"reducer": {"format": "dsv"}})
+
+        reduce(
+            in_="//tmp/in1{key}[(0, 1):]",
+            out="//tmp/out",
+            reduce_by=["key"],
+            command="cat")
+
+        assert read_table("//tmp/out") == \
+            [
+                {"key": 0},
+                {"key": 7}
+            ]
+
+    @unix_only
     def test_control_attributes_yson(self):
         create("table", "//tmp/in1")
         write_table(
@@ -221,8 +260,8 @@ class TestSchedulerReduceCommands(YTEnvSetup):
 
         reduce(
             in_ = ["<teleport=true>//tmp/in1", "<teleport=true>//tmp/in2", "//tmp/in3", "//tmp/in4"],
-            out = ["<sorted_by=[key]; teleport=true>//tmp/out1", "<sorted_by=[key]>//tmp/out2"],
-            command = "cat>/dev/fd/4",
+            out = ["<sorted_by=[key]>//tmp/out2", "<sorted_by=[key]; teleport=true>//tmp/out1"],
+            command = "cat",
             reduce_by = "key",
             sort_by=["key", "value"],
             spec={"reducer": {"format": "dsv"}})

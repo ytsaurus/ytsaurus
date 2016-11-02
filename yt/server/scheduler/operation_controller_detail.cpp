@@ -5,6 +5,8 @@
 #include "helpers.h"
 #include "master_connector.h"
 
+#include <yt/server/misc/stderr_table_schema.h>
+
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
 #include <yt/ytlib/chunk_client/chunk_teleporter.h>
@@ -110,6 +112,11 @@ void TOperationControllerBase::TJobBoundaryKeys::Persist(const TPersistenceConte
 
 ////////////////////////////////////////////////////////////////////
 
+bool TOperationControllerBase::TOutputTable::IsBeginUploadCompleted() const
+{
+    return static_cast<bool>(UploadTransactionId);
+}
+
 void TOperationControllerBase::TOutputTable::Persist(const TPersistenceContext& context)
 {
     TUserObject::Persist(context);
@@ -119,6 +126,7 @@ void TOperationControllerBase::TOutputTable::Persist(const TPersistenceContext& 
     Persist(context, TableUploadOptions);
     Persist(context, Options);
     Persist(context, ChunkPropertiesUpdateNeeded);
+    Persist(context, Type);
     Persist(context, UploadTransactionId);
     Persist(context, OutputChunkListId);
     Persist(context, DataStatistics);
@@ -324,6 +332,14 @@ bool TOperationControllerBase::TTask::IsIntermediateOutput() const
     return false;
 }
 
+bool TOperationControllerBase::TTask::IsStderrTableEnabled() const
+{
+    // We write stderr if corresponding options were specified and only for user-type jobs.
+    // For example we don't write stderr for sort stage in mapreduce operation
+    // even if stderr table were specified.
+    return Controller->GetStderrTablePath() && GetUserJobSpec();
+}
+
 i64 TOperationControllerBase::TTask::GetLocality(TNodeId nodeId) const
 {
     return HasInputLocality()
@@ -508,6 +524,10 @@ void TOperationControllerBase::TTask::ScheduleJob(
         }
     }
 
+    if (Controller->StderrTable && IsStderrTableEnabled()) {
+        joblet->StderrTableChunkListId = Controller->ExtractChunkList(Controller->StderrTable->CellTag);
+    }
+
     // Sync part.
     PrepareJoblet(joblet);
     Controller->CustomizeJoblet(joblet);
@@ -605,11 +625,16 @@ void TOperationControllerBase::TTask::OnJobCompleted(TJobletPtr joblet, const TC
         std::fill(chunkListIds.begin(), chunkListIds.end(), NullChunkListId);
     }
     GetChunkPoolOutput()->Completed(joblet->OutputCookie);
+
+    Controller->RegisterStderr(joblet, jobSummary);
 }
 
 void TOperationControllerBase::TTask::ReinstallJob(TJobletPtr joblet, EJobReinstallReason reason)
 {
     Controller->ReleaseChunkLists(joblet->ChunkListIds);
+    if (joblet->StderrTableChunkListId && reason != EJobReinstallReason::Failed) {
+        Controller->ReleaseChunkLists({joblet->StderrTableChunkListId});
+    }
 
     auto* chunkPoolOutput = GetChunkPoolOutput();
 
@@ -637,9 +662,11 @@ void TOperationControllerBase::TTask::ReinstallJob(TJobletPtr joblet, EJobReinst
     AddPendingHint();
 }
 
-void TOperationControllerBase::TTask::OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& /* jobSummary */)
+void TOperationControllerBase::TTask::OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary)
 {
     ReinstallJob(joblet, EJobReinstallReason::Failed);
+
+    Controller->RegisterStderr(joblet, jobSummary);
 }
 
 void TOperationControllerBase::TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& /* jobSummary */)
@@ -1147,6 +1174,14 @@ void TOperationControllerBase::InitializeStructures()
         OutputTables.push_back(table);
     }
 
+    if (auto stderrTablePath = GetStderrTablePath()) {
+        StderrTable.Emplace();
+        StderrTable->Path = *stderrTablePath;
+        StderrTable->OutputType = EOutputTableType::Stderr;
+    }
+
+    InitUpdatingTables();
+
     for (const auto& pair : GetFilePaths()) {
         TUserFile file;
         file.Path = pair.first;
@@ -1162,6 +1197,19 @@ void TOperationControllerBase::InitializeStructures()
     }
 
     DoInitialize();
+}
+
+void TOperationControllerBase::InitUpdatingTables()
+{
+    UpdatingTables.clear();
+
+    for (auto& table : OutputTables) {
+        UpdatingTables.push_back(&table);
+    }
+
+    if (StderrTable) {
+        UpdatingTables.push_back(StderrTable.GetPtr());
+    }
 }
 
 void TOperationControllerBase::DoInitialize()
@@ -1211,6 +1259,13 @@ void TOperationControllerBase::Prepare()
         }
         outputTableIds.insert(table.ObjectId);
     }
+
+    GetUserObjectBasicAttributes<TOutputTable>(
+        AuthenticatedMasterClient,
+        StderrTable,
+        OutputTransaction->GetId(),
+        Logger,
+        EPermission::Write);
 
     GetUserObjectBasicAttributes<TUserFile>(
         AuthenticatedMasterClient,
@@ -1330,10 +1385,10 @@ void TOperationControllerBase::Revive()
         return;
     }
 
-    InitChunkListPool();
-
     DoLoadSnapshot(Snapshot);
     Snapshot = TSharedRef();
+
+    InitChunkListPool();
 
     LockLivePreviewTables();
 
@@ -1449,8 +1504,15 @@ void TOperationControllerBase::InitChunkListPool()
         OperationId,
         OutputTransaction->GetId());
 
-    for (const auto& table : OutputTables) {
-        ++CellTagToOutputTableCount[table.CellTag];
+    CellTagToOutputRequiredChunkList.clear();
+    for (const auto* table : UpdatingTables) {
+        ++CellTagToOutputRequiredChunkList[table->CellTag];
+    }
+
+    CellTagToIntermediateRequiredChunkList.clear();
+    ++CellTagToIntermediateRequiredChunkList[IntermediateOutputCellTag];
+    if (StderrTable) {
+        ++CellTagToIntermediateRequiredChunkList[StderrTable->CellTag];
     }
 }
 
@@ -1593,8 +1655,8 @@ void TOperationControllerBase::Commit()
     }
 
     TeleportOutputChunks();
-    AttachOutputChunks();
-    EndUploadOutputTables();
+    AttachOutputChunks(UpdatingTables);
+    EndUploadOutputTables(UpdatingTables);
     CustomCommit();
 
     CommitTransactions();
@@ -1649,18 +1711,18 @@ void TOperationControllerBase::TeleportOutputChunks()
         .ThrowOnError();
 }
 
-void TOperationControllerBase::AttachOutputChunks()
+void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable*>& tableList)
 {
-    for (auto& table : OutputTables) {
-        auto objectIdPath = FromObjectId(table.ObjectId);
-        const auto& path = table.Path.GetPath();
+    for (auto* table : tableList) {
+        auto objectIdPath = FromObjectId(table->ObjectId);
+        const auto& path = table->Path.GetPath();
 
         LOG_INFO("Attaching output chunks (Path: %v)",
             path);
 
         auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(
             EMasterChannelKind::Leader,
-            table.CellTag);
+            table->CellTag);
         TChunkServiceProxy proxy(channel);
 
         // Split large outputs into separate requests.
@@ -1678,7 +1740,7 @@ void TOperationControllerBase::AttachOutputChunks()
                 const auto& batchRsp = batchRspOrError.Value();
                 const auto& rsp = batchRsp->attach_chunk_trees_subresponses(0);
                 if (requestStatistics) {
-                    table.DataStatistics = rsp.statistics();
+                    table->DataStatistics = rsp.statistics();
                 }
             }
 
@@ -1697,18 +1759,18 @@ void TOperationControllerBase::AttachOutputChunks()
                 GenerateMutationId(batchReq);
                 batchReq->set_suppress_upstream_sync(true);
                 req = batchReq->add_attach_chunk_trees_subrequests();
-                ToProto(req->mutable_parent_id(), table.OutputChunkListId);
+                ToProto(req->mutable_parent_id(), table->OutputChunkListId);
             }
 
             ToProto(req->add_child_ids(), chunkTreeId);
         };
 
-        if (table.TableUploadOptions.TableSchema.IsSorted() && ShouldVerifySortedOutput()) {
+        if (table->TableUploadOptions.TableSchema.IsSorted() && ShouldVerifySortedOutput()) {
             // Sorted output generated by user operation requires rearranging.
-            LOG_DEBUG("Sorting %v boundary key pairs", table.BoundaryKeys.size());
+            LOG_DEBUG("Sorting %v boundary key pairs %v", table->BoundaryKeys.size(), path);
             std::sort(
-                table.BoundaryKeys.begin(),
-                table.BoundaryKeys.end(),
+                table->BoundaryKeys.begin(),
+                table->BoundaryKeys.end(),
                 [&] (const TJobBoundaryKeys& lhs, const TJobBoundaryKeys& rhs) -> bool {
                     auto minKeyResult = CompareRows(lhs.MinKey, rhs.MinKey);
                     if (minKeyResult != 0) {
@@ -1717,21 +1779,21 @@ void TOperationControllerBase::AttachOutputChunks()
                     return lhs.MaxKey < rhs.MaxKey;
                 });
 
-            for (auto current = table.BoundaryKeys.begin(); current != table.BoundaryKeys.end(); ++current) {
+            for (auto current = table->BoundaryKeys.begin(); current != table->BoundaryKeys.end(); ++current) {
                 auto next = current + 1;
-                if (next != table.BoundaryKeys.end()) {
+                if (next != table->BoundaryKeys.end()) {
                     int cmp = CompareRows(next->MinKey, current->MaxKey);
 
                     if (cmp < 0) {
                         THROW_ERROR_EXCEPTION("Output table %v is not sorted: job outputs have overlapping key ranges",
-                            table.Path.GetPath())
+                            table->Path.GetPath())
                             << TErrorAttribute("current_range_max_key", current->MaxKey)
                             << TErrorAttribute("next_range_min_key", next->MinKey);
                     }
 
-                    if (cmp == 0 && table.Options->ValidateUniqueKeys) {
+                    if (cmp == 0 && table->Options->ValidateUniqueKeys) {
                         THROW_ERROR_EXCEPTION("Output table %v contains duplicate keys: job outputs have overlapping key ranges",
-                            table.Path.GetPath())
+                            table->Path.GetPath())
                             << TErrorAttribute("current_range_max_key", current->MaxKey)
                             << TErrorAttribute("next_range_min_key", next->MinKey);
                     }
@@ -1743,7 +1805,7 @@ void TOperationControllerBase::AttachOutputChunks()
                 }
             }
         } else {
-            for (const auto& pair : table.OutputChunkTreeIds) {
+            for (const auto& pair : table->OutputChunkTreeIds) {
                 addChunkTree(pair.second);
             }
         }
@@ -1753,35 +1815,35 @@ void TOperationControllerBase::AttachOutputChunks()
 
         LOG_INFO("Output chunks attached (Path: %v, Statistics: %v)",
             path,
-            table.DataStatistics);
+            table->DataStatistics);
     }
 }
 
 void TOperationControllerBase::CustomCommit()
 { }
 
-void TOperationControllerBase::EndUploadOutputTables()
+void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTable*>& tableList)
 {
     auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
     TObjectServiceProxy proxy(channel);
 
     auto batchReq = proxy.ExecuteBatch();
 
-    for (const auto& table : OutputTables) {
-        auto objectIdPath = FromObjectId(table.ObjectId);
-        const auto& path = table.Path.GetPath();
+    for (const auto* table : tableList) {
+        auto objectIdPath = FromObjectId(table->ObjectId);
+        const auto& path = table->Path.GetPath();
 
         LOG_INFO("Finishing upload to output table (Path: %v, Schema: %v)",
             path,
-            table.TableUploadOptions.TableSchema);
+            table->TableUploadOptions.TableSchema);
 
         {
             auto req = TTableYPathProxy::EndUpload(objectIdPath);
-            *req->mutable_statistics() = table.DataStatistics;
-            req->set_chunk_properties_update_needed(table.ChunkPropertiesUpdateNeeded);
-            ToProto(req->mutable_table_schema(), table.TableUploadOptions.TableSchema);
-            req->set_schema_mode(static_cast<int>(table.TableUploadOptions.SchemaMode));
-            SetTransactionId(req, table.UploadTransactionId);
+            *req->mutable_statistics() = table->DataStatistics;
+            req->set_chunk_properties_update_needed(table->ChunkPropertiesUpdateNeeded);
+            ToProto(req->mutable_table_schema(), table->TableUploadOptions.TableSchema);
+            req->set_schema_mode(static_cast<int>(table->TableUploadOptions.SchemaMode));
+            SetTransactionId(req, table->UploadTransactionId);
             GenerateMutationId(req);
             batchReq->AddRequest(req, "end_upload");
         }
@@ -2224,16 +2286,37 @@ void TOperationControllerBase::Abort()
 
     AreTransactionsActive = false;
 
+    // We always save stderr table.
+    // Stderr table chunks are kept by OutputTransaction,
+    // so we want save stderr table before aborting OutputTransaction.
+    if (StderrTable && StderrTable->IsBeginUploadCompleted()) {
+        AttachOutputChunks({StderrTable.GetPtr()});
+        EndUploadOutputTables({StderrTable.GetPtr()});
+    }
+
     abortTransaction(InputTransaction);
     abortTransaction(OutputTransaction);
     abortTransaction(SyncSchedulerTransaction);
     abortTransaction(AsyncSchedulerTransaction);
 
-    State = EControllerState::Finished;
+    Aborted = true;
 
     CancelableContext->Cancel();
 
     LOG_INFO("Operation aborted");
+}
+
+void TOperationControllerBase::Forget()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    auto codicilGuard = MakeCodicilGuard();
+
+    LOG_INFO("Forgetting operation");
+
+    CancelableContext->Cancel();
+
+    LOG_INFO("Operation forgotten");
 }
 
 void TOperationControllerBase::Complete()
@@ -2524,6 +2607,7 @@ void TOperationControllerBase::DoScheduleLocalJob(
             }
 
             if (!CheckJobLimits(task, jobLimits, nodeResourceLimits)) {
+                scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughResources);
                 continue;
             }
 
@@ -2547,7 +2631,7 @@ void TOperationControllerBase::DoScheduleLocalJob(
                 bestTask->GetPendingDataSize(),
                 bestTask->GetPendingJobCount());
 
-            if (!HasEnoughChunkLists(bestTask->IsIntermediateOutput())) {
+            if (!HasEnoughChunkLists(bestTask->IsIntermediateOutput(), bestTask->IsStderrTableEnabled())) {
                 LOG_DEBUG("Job chunk list demand is not met");
                 scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughChunkLists);
                 return;
@@ -2607,6 +2691,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
         // Consider candidates in the order of increasing memory demand.
         {
             int processedTaskCount = 0;
+            int noPendingJobsTaskCount = 0;
             auto it = candidateTasks.begin();
             while (it != candidateTasks.end()) {
                 ++processedTaskCount;
@@ -2619,11 +2704,13 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
                     candidateTasks.erase(it++);
                     YCHECK(nonLocalTasks.erase(task) == 1);
                     UpdateTask(task);
+                    ++noPendingJobsTaskCount;
                     continue;
                 }
 
                 // Check min memory demand for early exit.
                 if (task->GetMinNeededResources().GetMemory() > jobLimits.GetMemory()) {
+                    scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughResources);
                     break;
                 }
 
@@ -2662,7 +2749,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
                     task->GetPendingDataSize(),
                     task->GetPendingJobCount());
 
-                if (!HasEnoughChunkLists(task->IsIntermediateOutput())) {
+                if (!HasEnoughChunkLists(task->IsIntermediateOutput(), task->IsStderrTableEnabled())) {
                     LOG_DEBUG("Job chunk list demand is not met");
                     scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughChunkLists);
                     return;
@@ -2684,7 +2771,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
                     candidateTasks.insert(std::make_pair(minMemory, task));
                 }
             }
-            if (processedTaskCount == 0) {
+            if (processedTaskCount == noPendingJobsTaskCount) {
                 scheduleJobResult->RecordFail(EScheduleJobFailReason::NoCandidateTasks);
             }
 
@@ -2834,12 +2921,12 @@ bool TOperationControllerBase::IsPrepared() const
 
 bool TOperationControllerBase::IsRunning() const
 {
-    return State == EControllerState::Running;
+    return State == EControllerState::Running && !Aborted;
 }
 
 bool TOperationControllerBase::IsFinished() const
 {
-    return State == EControllerState::Finished;
+    return State == EControllerState::Finished || Aborted;
 }
 
 void TOperationControllerBase::CreateLivePreviewTables()
@@ -2880,7 +2967,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
     };
 
     if (IsOutputLivePreviewSupported()) {
-        LOG_INFO("Creating output tables for live preview");
+        LOG_INFO("Creating live preview for output tables");
 
         for (int index = 0; index < OutputTables.size(); ++index) {
             const auto& table = OutputTables[index];
@@ -2890,12 +2977,23 @@ void TOperationControllerBase::CreateLivePreviewTables()
                 table.CellTag,
                 table.Options->ReplicationFactor,
                 "create_output",
-                OutputTables[index].EffectiveAcl);
+                table.EffectiveAcl);
         }
     }
 
+    if (StderrTable) {
+        LOG_INFO("Creating live preview for stderr table");
+        auto path = GetLivePreviewStderrTablePath(OperationId);
+        addRequest(
+            path,
+            StderrTable->CellTag,
+            StderrTable->Options->ReplicationFactor,
+            "create_stderr",
+            StderrTable->EffectiveAcl);
+    }
+
     if (IsIntermediateLivePreviewSupported()) {
-        LOG_INFO("Creating intermediate table for live preview");
+        LOG_INFO("Creating live preview for intermediate table");
 
         auto path = GetLivePreviewIntermediatePath(OperationId);
         addRequest(
@@ -2941,14 +3039,21 @@ void TOperationControllerBase::CreateLivePreviewTables()
             handleResponse(OutputTables[index], rspsOrError[index].Value());
         }
 
-        LOG_INFO("Output live preview tables created");
+        LOG_INFO("Live preview for output tables created");
+    }
+
+    if (StderrTable) {
+        auto rspOrError = batchRsp->GetResponse<TCypressYPathProxy::TRspCreate>("create_stderr");
+        handleResponse(*StderrTable, rspOrError.Value());
+
+        LOG_INFO("Live preview for stderr table created");
     }
 
     if (IsIntermediateLivePreviewSupported()) {
         auto rspOrError = batchRsp->GetResponse<TCypressYPathProxy::TRspCreate>("create_intermediate");
         handleResponse(IntermediateTable, rspOrError.Value());
 
-        LOG_INFO("Intermediate live preview table created");
+        LOG_INFO("Live preview for intermediate table created");
     }
 }
 
@@ -2967,14 +3072,19 @@ void TOperationControllerBase::LockLivePreviewTables()
     };
 
     if (IsOutputLivePreviewSupported()) {
-        LOG_INFO("Locking live preview output tables");
+        LOG_INFO("Locking live preview for output tables");
         for (const auto& table : OutputTables) {
             addRequest(table, "lock_output");
         }
     }
 
+    if (StderrTable) {
+        LOG_INFO("Locking live preview for stderr table");
+        addRequest(*StderrTable, "lock_output");
+    }
+
     if (IsIntermediateLivePreviewSupported()) {
-        LOG_INFO("Locking live preview intermediate table");
+        LOG_INFO("Locking live preview for intermediate table");
         addRequest(IntermediateTable, "lock_intermediate");
     }
 
@@ -3177,8 +3287,8 @@ void TOperationControllerBase::GetOutputTablesSchema()
         TObjectServiceProxy proxy(channel);
         auto batchReq = proxy.ExecuteBatch();
 
-        for (const auto& table : OutputTables) {
-            auto objectIdPath = FromObjectId(table.ObjectId);
+        for (auto* table : UpdatingTables) {
+            auto objectIdPath = FromObjectId(table->ObjectId);
             {
                 auto req = TTableYPathProxy::Get(objectIdPath + "/@");
                 std::vector<Stroka> attributeKeys{
@@ -3196,19 +3306,27 @@ void TOperationControllerBase::GetOutputTablesSchema()
         const auto& batchRsp = batchRspOrError.Value();
 
         auto getOutAttributesRspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspGet>("get_attributes");
-        for (int index = 0; index < OutputTables.size(); ++index) {
-            auto& table = OutputTables[index];
-            const auto& path = table.Path;
+        for (int index = 0; index < UpdatingTables.size(); ++index) {
+            auto* table = UpdatingTables[index];
+            const auto& path = table->Path;
 
             const auto& rsp = getOutAttributesRspsOrError[index].Value();
             auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
 
-            table.TableUploadOptions = GetTableUploadOptions(
+            table->TableUploadOptions = GetTableUploadOptions(
                 path,
                 attributes->Get<TTableSchema>("schema"),
                 attributes->Get<ETableSchemaMode>("schema_mode"),
                 0); // Here we assume zero row count, we will do additional check later.
-            table.Options->EvaluateComputedColumns = table.TableUploadOptions.TableSchema.HasComputedColumns();
+            table->Options->EvaluateComputedColumns = table->TableUploadOptions.TableSchema.HasComputedColumns();
+        }
+
+        if (StderrTable) {
+            StderrTable->TableUploadOptions.TableSchema = GetStderrBlobTableSchema().ToTableSchema();
+            StderrTable->TableUploadOptions.SchemaMode = ETableSchemaMode::Strong;
+            if (StderrTable->TableUploadOptions.UpdateMode == EUpdateMode::Append) {
+                THROW_ERROR_EXCEPTION("Cannot write stderr table in append mode.");
+            }
         }
     }
 }
@@ -3226,30 +3344,19 @@ void TOperationControllerBase::BeginUploadOutputTables()
 
         {
             auto batchReq = proxy.ExecuteBatch();
-            for (const auto& table : OutputTables) {
-                auto objectIdPath = FromObjectId(table.ObjectId);
-                auto req = TTableYPathProxy::Lock(objectIdPath);
-                req->set_mode(static_cast<int>(table.TableUploadOptions.LockMode));
-                GenerateMutationId(req);
-                SetTransactionId(req, OutputTransaction->GetId());
-                batchReq->AddRequest(req, "lock");
-            }
-
-            auto batchRspOrError = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(
-                GetCumulativeError(batchRspOrError),
-                "Error locking output tables");
-        }
-
-        {
-            auto batchReq = proxy.ExecuteBatch();
-            for (const auto& table : OutputTables) {
-                auto objectIdPath = FromObjectId(table.ObjectId);
+            for (const auto* table : UpdatingTables) {
+                auto objectIdPath = FromObjectId(table->ObjectId);
                 auto req = TTableYPathProxy::BeginUpload(objectIdPath);
-                SetTransactionId(req, OutputTransaction->GetId());
+                if (table->OutputType == EOutputTableType::Output) {
+                    SetTransactionId(req, OutputTransaction->GetId());
+                } else {
+                    YCHECK(table->OutputType == EOutputTableType::Stderr);
+                    // We don't use transaction for stderr table
+                    // since we want it to be saved always.
+                }
                 GenerateMutationId(req);
-                req->set_update_mode(static_cast<int>(table.TableUploadOptions.UpdateMode));
-                req->set_lock_mode(static_cast<int>(table.TableUploadOptions.LockMode));
+                req->set_update_mode(static_cast<int>(table->TableUploadOptions.UpdateMode));
+                req->set_lock_mode(static_cast<int>(table->TableUploadOptions.LockMode));
                 batchReq->AddRequest(req, "begin_upload");
             }
             auto batchRspOrError = WaitFor(batchReq->Invoke());
@@ -3259,12 +3366,10 @@ void TOperationControllerBase::BeginUploadOutputTables()
             const auto& batchRsp = batchRspOrError.Value();
 
             auto beginUploadRspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspBeginUpload>("begin_upload");
-            for (int index = 0; index < OutputTables.size(); ++index) {
-                auto& table = OutputTables[index];
-                {
-                    const auto& rsp = beginUploadRspsOrError[index].Value();
-                    table.UploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
-                }
+            for (int index = 0; index < UpdatingTables.size(); ++index) {
+                auto* table = UpdatingTables[index];
+                const auto& rsp = beginUploadRspsOrError[index].Value();
+                table->UploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
             }
         }
     }
@@ -3276,8 +3381,8 @@ void TOperationControllerBase::BeginUploadOutputTables()
         TObjectServiceProxy proxy(channel);
         auto batchReq = proxy.ExecuteBatch();
 
-        for (const auto& table : OutputTables) {
-            auto objectIdPath = FromObjectId(table.ObjectId);
+        for (const auto* table : UpdatingTables) {
+            auto objectIdPath = FromObjectId(table->ObjectId);
             {
                 auto req = TTableYPathProxy::Get(objectIdPath + "/@");
 
@@ -3292,7 +3397,7 @@ void TOperationControllerBase::BeginUploadOutputTables()
                     "optimize_for"
                 };
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                SetTransactionId(req, OutputTransaction->GetId());
+                SetTransactionId(req, table->UploadTransactionId);
                 batchReq->AddRequest(req, "get_attributes");
             }
         }
@@ -3304,41 +3409,41 @@ void TOperationControllerBase::BeginUploadOutputTables()
         const auto& batchRsp = batchRspOrError.Value();
 
         auto getOutAttributesRspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspGet>("get_attributes");
-        for (int index = 0; index < OutputTables.size(); ++index) {
-            auto& table = OutputTables[index];
-            const auto& path = table.Path.GetPath();
+        for (int index = 0; index < UpdatingTables.size(); ++index) {
+            auto* table = UpdatingTables[index];
+            const auto& path = table->Path.GetPath();
             {
                 const auto& rsp = getOutAttributesRspsOrError[index].Value();
                 auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
 
                 if (attributes->Get<i64>("row_count") > 0 &&
-                    table.TableUploadOptions.TableSchema.IsSorted() &&
-                    table.TableUploadOptions.UpdateMode == EUpdateMode::Append)
+                    table->TableUploadOptions.TableSchema.IsSorted() &&
+                    table->TableUploadOptions.UpdateMode == EUpdateMode::Append)
                 {
                     THROW_ERROR_EXCEPTION("Cannot append sorted data to non-empty output table %v",
                         path);
                 }
 
-                if (table.TableUploadOptions.TableSchema.IsSorted()) {
-                    table.Options->ValidateSorted = true;
-                    table.Options->ValidateUniqueKeys = table.TableUploadOptions.TableSchema.GetUniqueKeys();
+                if (table->TableUploadOptions.TableSchema.IsSorted()) {
+                    table->Options->ValidateSorted = true;
+                    table->Options->ValidateUniqueKeys = table->TableUploadOptions.TableSchema.GetUniqueKeys();
                 } else {
-                    table.Options->ValidateSorted = false;
+                    table->Options->ValidateSorted = false;
                 }
 
-                table.Options->CompressionCodec = attributes->Get<NCompression::ECodec>("compression_codec");
-                table.Options->ErasureCodec = attributes->Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
-                table.Options->ReplicationFactor = attributes->Get<int>("replication_factor");
-                table.Options->Account = attributes->Get<Stroka>("account");
-                table.Options->ChunksVital = attributes->Get<bool>("vital");
-                table.Options->OptimizeFor = attributes->Get<EOptimizeFor>("optimize_for", EOptimizeFor::Lookup);
+                table->Options->CompressionCodec = attributes->Get<NCompression::ECodec>("compression_codec");
+                table->Options->ErasureCodec = attributes->Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
+                table->Options->ReplicationFactor = attributes->Get<int>("replication_factor");
+                table->Options->Account = attributes->Get<Stroka>("account");
+                table->Options->ChunksVital = attributes->Get<bool>("vital");
+                table->Options->OptimizeFor = attributes->Get<EOptimizeFor>("optimize_for", EOptimizeFor::Lookup);
 
-                table.EffectiveAcl = attributes->GetYson("effective_acl");
+                table->EffectiveAcl = attributes->GetYson("effective_acl");
             }
             LOG_INFO("Output table locked (Path: %v, Options: %v, UploadTransactionId: %v)",
                 path,
-                ConvertToYsonString(table.Options, EYsonFormat::Text).Data(),
-                table.UploadTransactionId);
+                ConvertToYsonString(table->Options, EYsonFormat::Text).Data(),
+                table->UploadTransactionId);
         }
     }
 }
@@ -3346,8 +3451,8 @@ void TOperationControllerBase::BeginUploadOutputTables()
 void TOperationControllerBase::GetOutputTablesUploadParams()
 {
     yhash<TCellTag, std::vector<TOutputTable*>> cellTagToTables;
-    for (auto& table : OutputTables) {
-        cellTagToTables[table.CellTag].push_back(&table);
+    for (auto* table : UpdatingTables) {
+        cellTagToTables[table->CellTag].push_back(table);
     }
 
     for (const auto& pair : cellTagToTables) {
@@ -3922,7 +4027,10 @@ i64 TOperationControllerBase::CalculateSliceDataSize(
     if (TotalEstimatedInputDataSize < maxSliceDataSize) {
         multiplier = 1.0;
     }
-    return Clamp(static_cast<i64>(jobSizeLimits.GetDataSizePerJob() * multiplier), 1, maxSliceDataSize);
+    return Clamp(
+        static_cast<i64>(multiplier * TotalEstimatedInputDataSize / jobSizeLimits.GetJobCount()),
+        1,
+        maxSliceDataSize);
 }
 
 void TOperationControllerBase::SliceUnversionedChunks(
@@ -3990,7 +4098,7 @@ TKeyColumns TOperationControllerBase::CheckInputTablesSorted(
     auto validateColumnFilter = [] (const TInputTable& table, const TKeyColumns& keyColumns) {
         for (const auto& keyColumn : keyColumns) {
             if (!table.Path.GetChannel().Contains(keyColumn)) {
-                THROW_ERROR_EXCEPTION("Columm filter for input table %v doesn't include key column %Qv",
+                THROW_ERROR_EXCEPTION("Column filter for input table %v doesn't include key column %Qv",
                     table.Path.GetPath(),
                     keyColumn);
             }
@@ -4096,6 +4204,30 @@ void TOperationControllerBase::RegisterOutput(
         tableIndex,
         chunkTreeId,
         key);
+}
+
+void TOperationControllerBase::RegisterStderr(TJobletPtr joblet, const TJobSummary& jobSummary)
+{
+    if (joblet->StderrTableChunkListId) {
+        YCHECK(StderrTable);
+
+        const auto& chunkListId = joblet->StderrTableChunkListId;
+        const auto& result = jobSummary.Result;
+        const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+
+        YCHECK(schedulerResultExt.has_stderr_table_boundary_keys());
+
+        StderrTable->OutputChunkTreeIds.emplace(0, chunkListId);
+        const auto& boundaryKeys = schedulerResultExt.stderr_table_boundary_keys();
+        RegisterBoundaryKeys(boundaryKeys, chunkListId, StderrTable.GetPtr());
+
+        auto masterConnector = Host->GetMasterConnector();
+        masterConnector->AttachToLivePreview(
+            OperationId,
+            AsyncSchedulerTransaction->GetId(),
+            StderrTable->LivePreviewTableId,
+            {chunkListId});
+    }
 }
 
 void TOperationControllerBase::RegisterBoundaryKeys(
@@ -4227,18 +4359,22 @@ void TOperationControllerBase::RegisterIntermediate(
     }
 }
 
-bool TOperationControllerBase::HasEnoughChunkLists(bool intermediate)
+bool TOperationControllerBase::HasEnoughChunkLists(bool intermediate, bool isWritingStderrTable)
 {
-    if (intermediate) {
-        return ChunkListPool->HasEnough(IntermediateOutputCellTag, 1);
-    } else {
-        for (const auto& pair : CellTagToOutputTableCount) {
-            if (!ChunkListPool->HasEnough(pair.first, pair.second)) {
-                return false;
-            }
+    const auto& cellTagToRequiredChunkList = intermediate
+        ? CellTagToIntermediateRequiredChunkList
+        : CellTagToOutputRequiredChunkList;
+    for (const auto& pair : cellTagToRequiredChunkList) {
+        const auto cellTag = pair.first;
+        auto requiredChunkList = pair.second;
+        if (StderrTable && !isWritingStderrTable) {
+            --requiredChunkList;
         }
-        return true;
+        if (requiredChunkList && !ChunkListPool->HasEnough(cellTag, requiredChunkList)) {
+            return false;
+        }
     }
+    return true;
 }
 
 TChunkListId TOperationControllerBase::ExtractChunkList(TCellTag cellTag)
@@ -4317,6 +4453,7 @@ void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
         .Item("live_preview").BeginMap()
             .Item("output_supported").Value(IsOutputLivePreviewSupported())
             .Item("intermediate_supported").Value(IsIntermediateLivePreviewSupported())
+            .Item("stderr_supported").Value(StderrTable.HasValue())
         .EndMap();
 }
 
@@ -4540,7 +4677,27 @@ void TOperationControllerBase::InitUserJobSpec(
             jobSpec->add_environment(Format("YT_SECURE_VAULT_%v=%v", pair.first, value));
         }
     }
+
+    if (joblet->StderrTableChunkListId) {
+        AddStderrOutputSpecs(jobSpec, joblet);
+    }
 }
+
+void TOperationControllerBase::AddStderrOutputSpecs(
+    NScheduler::NProto::TUserJobSpec* jobSpec,
+    TJobletPtr joblet)
+{
+    auto* stderrTableSpec = jobSpec->mutable_stderr_table_spec();
+    auto* outputSpec = stderrTableSpec->mutable_output_table_spec();
+    outputSpec->set_table_writer_options(ConvertToYsonString(StderrTable->Options).Data());
+    ToProto(outputSpec->mutable_table_schema(), StderrTable->TableUploadOptions.TableSchema);
+    ToProto(outputSpec->mutable_chunk_list_id(), joblet->StderrTableChunkListId);
+
+    auto writerConfig = GetStderrTableWriterConfig();
+    YCHECK(writerConfig);
+    stderrTableSpec->set_stderr_table_writer_config(ConvertToYsonString(writerConfig).Data());
+}
+
 
 i64 TOperationControllerBase::GetFinalOutputIOMemorySize(TJobIOConfigPtr ioConfig) const
 {
@@ -4816,6 +4973,8 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
 
     Persist(context, OutputTables);
 
+    Persist(context, StderrTable);
+
     Persist(context, IntermediateTable);
 
     Persist(context, Files);
@@ -4828,7 +4987,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
 
     Persist(context, IntermediateOutputCellTag);
 
-    Persist(context, CellTagToOutputTableCount);
+    Persist(context, CellTagToOutputRequiredChunkList);
 
     Persist(context, CachedPendingJobCount);
 
@@ -4873,12 +5032,23 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
         for (const auto& task : Tasks) {
             task->Initialize();
         }
+        InitUpdatingTables();
     }
 }
 
 TCodicilGuard TOperationControllerBase::MakeCodicilGuard() const
 {
     return TCodicilGuard(CodicilData_);
+}
+
+TBlobTableWriterConfigPtr TOperationControllerBase::GetStderrTableWriterConfig() const
+{
+    return nullptr;
+}
+
+TNullable<TRichYPath> TOperationControllerBase::GetStderrTablePath() const
+{
+    return Null;
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -4947,6 +5117,11 @@ public:
     virtual void Abort() override
     {
         Underlying_->Abort();
+    }
+
+    virtual void Forget() override
+    {
+        Underlying_->Forget();
     }
 
     virtual std::vector<ITransactionPtr> GetTransactions() override

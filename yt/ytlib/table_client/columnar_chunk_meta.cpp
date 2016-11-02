@@ -13,7 +13,7 @@ using NYT::FromProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 TColumnarChunkMeta::TColumnarChunkMeta(const TChunkMeta& chunkMeta)
-{ 
+{
     InitExtensions(chunkMeta);
 }
 
@@ -40,17 +40,21 @@ void TColumnarChunkMeta::InitExtensions(const TChunkMeta& chunkMeta)
     }
 }
 
-void TColumnarChunkMeta::InitBlockLastKeys(int keyColumnCount)
+void TColumnarChunkMeta::InitBlockLastKeys(const TKeyColumns& keyColumns)
 {
+    int prefixLength = 0;
+    while (prefixLength < keyColumns.size() && prefixLength < ChunkSchema_.GetKeyColumnCount()) {
+        if (keyColumns[prefixLength] != ChunkSchema_.Columns()[prefixLength].Name) {
+            break;
+        }
+        ++prefixLength;
+    }
+
     BlockLastKeys_.reserve(BlockMeta_.blocks_size());
     for (const auto& block : BlockMeta_.blocks()) {
         YCHECK(block.has_last_key());
         auto key = FromProto<TOwningKey>(block.last_key());
-        if (key.GetCount() > keyColumnCount) {
-            BlockLastKeys_.push_back(key);
-        } else {
-            BlockLastKeys_.push_back(WidenKey(key, keyColumnCount));
-        }
+        BlockLastKeys_.push_back(WidenKeyPrefix(key, prefixLength, keyColumns.size()));
     }
 }
 

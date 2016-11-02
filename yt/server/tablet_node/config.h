@@ -166,7 +166,8 @@ public:
 
         RegisterParameter("max_overlapping_store_count", MaxOverlappingStoreCount)
             .GreaterThan(0)
-            .Default(30);
+            // XXX(savrus) Raised from 30 until YT-5828 is resolved.
+            .Default(100);
 
         RegisterParameter("in_memory_mode", InMemoryMode)
             .Default(EInMemoryMode::None);

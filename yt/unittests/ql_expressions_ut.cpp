@@ -607,6 +607,33 @@ TEST_F(TPrepareExpressionTest, Basic)
         << "expr2: " << ::testing::PrintToString(expr2);
 }
 
+TEST_F(TPrepareExpressionTest, CompareTuple)
+{
+    TTableSchema schema({
+        TColumnSchema("a", EValueType::Int64),
+        TColumnSchema("b", EValueType::Int64),
+        TColumnSchema("c", EValueType::Int64),
+        TColumnSchema("d", EValueType::Int64),
+        TColumnSchema("e", EValueType::Int64),
+        TColumnSchema("f", EValueType::Int64),
+        TColumnSchema("g", EValueType::Int64),
+        TColumnSchema("h", EValueType::Int64),
+        TColumnSchema("i", EValueType::Int64),
+        TColumnSchema("j", EValueType::Int64),
+        TColumnSchema("k", EValueType::Int64),
+        TColumnSchema("l", EValueType::Int64),
+        TColumnSchema("m", EValueType::Int64),
+        TColumnSchema("n", EValueType::Int64)
+    });
+
+    TKeyColumns keyColumns;
+
+    auto expr = PrepareExpression("(a, b, c, d, e, f, g, h, i, j, k, l, m, n) < (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)", schema);
+
+    TCGVariables variables;
+    Profile(expr, schema, nullptr, &variables)();
+}
+
 TEST_P(TPrepareExpressionTest, Simple)
 {
     auto schema = GetSampleTableSchema();
