@@ -14,17 +14,15 @@ namespace NNodeTrackerServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRack
+class TDataCenter
     : public NObjectServer::TObjectBase
-    , public TRefTracked<TRack>
+    , public TRefTracked<TDataCenter>
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(Stroka, Name);
-    DEFINE_BYVAL_RW_PROPERTY(int, Index);
-    DEFINE_BYVAL_RW_PROPERTY(TDataCenter*, DataCenter);
 
 public:
-    explicit TRack(const TRackId& id);
+    explicit TDataCenter(const TDataCenterId& id);
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);

@@ -598,6 +598,7 @@ void TBootstrap::DoInitialize()
     CypressManager_->RegisterHandler(CreateClusterNodeNodeTypeHandler(this));
     CypressManager_->RegisterHandler(CreateClusterNodeMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateRackMapTypeHandler(this));
+    CypressManager_->RegisterHandler(CreateDataCenterMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateFileTypeHandler(this));
     CypressManager_->RegisterHandler(CreateTableTypeHandler(this));
     CypressManager_->RegisterHandler(CreateReplicatedTableTypeHandler(this));

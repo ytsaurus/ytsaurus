@@ -239,6 +239,9 @@ private:
     //! Updates the rack of the local node.
     void UpdateRack(const TNullable<Stroka>& rack);
 
+    //! Updates the data center of the local node.
+    void UpdateDataCenter(const TNullable<Stroka>& dc);
+
     TChunksDelta* GetChunksDelta(NObjectClient::TCellTag cellTag);
     TChunksDelta* GetChunksDelta(const NObjectClient::TObjectId& id);
 

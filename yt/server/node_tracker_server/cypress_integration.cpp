@@ -3,6 +3,7 @@
 #include "node.h"
 #include "node_tracker.h"
 #include "rack.h"
+#include "data_center.h"
 
 #include <yt/server/cell_master/bootstrap.h>
 
@@ -340,6 +341,63 @@ INodeTypeHandlerPtr CreateRackMapTypeHandler(TBootstrap* bootstrap)
         EObjectType::RackMap,
         BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualRackMap>(bootstrap, owningNode);
+        }),
+        EVirtualNodeOptions::RedirectSelf);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVirtualDataCenterMap
+    : public TVirtualMapBase
+{
+public:
+    TVirtualDataCenterMap(TBootstrap* bootstrap, INodePtr owningNode)
+        : TVirtualMapBase(owningNode)
+        , Bootstrap_(bootstrap)
+    { }
+
+private:
+    TBootstrap* const Bootstrap_;
+
+    virtual std::vector<Stroka> GetKeys(i64 sizeLimit) const override
+    {
+        std::vector<Stroka> keys;
+        auto nodeTracker = Bootstrap_->GetNodeTracker();
+        for (const auto& pair : nodeTracker->DataCenters()) {
+            const auto* dc = pair.second;
+            keys.push_back(dc->GetName());
+        }
+        return keys;
+    }
+
+    virtual i64 GetSize() const override
+    {
+        auto nodeTracker = Bootstrap_->GetNodeTracker();
+        return nodeTracker->DataCenters().GetSize();
+    }
+
+    virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
+    {
+        auto nodeTracker = Bootstrap_->GetNodeTracker();
+        auto* dc = nodeTracker->FindDataCenterByName(Stroka(key));
+        if (!IsObjectAlive(dc)) {
+            return nullptr;
+        }
+
+        auto objectManager = Bootstrap_->GetObjectManager();
+        return objectManager->GetProxy(dc);
+    }
+};
+
+INodeTypeHandlerPtr CreateDataCenterMapTypeHandler(TBootstrap* bootstrap)
+{
+    YCHECK(bootstrap);
+
+    return CreateVirtualTypeHandler(
+        bootstrap,
+        EObjectType::DataCenterMap,
+        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+            return New<TVirtualDataCenterMap>(bootstrap, owningNode);
         }),
         EVirtualNodeOptions::RedirectSelf);
 }

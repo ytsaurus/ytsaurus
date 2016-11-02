@@ -1,4 +1,5 @@
 #include "node.h"
+#include "data_center.h"
 #include "rack.h"
 
 #include <yt/server/cell_master/serialize.h>
@@ -111,7 +112,8 @@ TNodeDescriptor TNode::GetDescriptor() const
 {
     return TNodeDescriptor(
         Addresses_,
-        Rack_ ? MakeNullable(Rack_->GetName()) : Null);
+        Rack_ ? MakeNullable(Rack_->GetName()) : Null,
+        (Rack_ && Rack_->GetDataCenter()) ? MakeNullable(Rack_->GetDataCenter()->GetName()) : Null);
 }
 
 void TNode::InitializeStates(TCellTag cellTag, const TCellTagList& secondaryCellTags)
@@ -743,6 +745,9 @@ void TNode::RebuildTags()
     Tags_.insert(Stroka(GetServiceHostName(GetDefaultAddress())));
     if (Rack_) {
         Tags_.insert(Rack_->GetName());
+        if (auto* dc = Rack_->GetDataCenter()) {
+            Tags_.insert(dc->GetName());
+        }
     }
 }
 

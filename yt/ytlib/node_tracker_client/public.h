@@ -36,7 +36,8 @@ const TNodeId InvalidNodeId = 0;
 const TNodeId MaxNodeId = (1 << 24) - 1; // TNodeId must fit into 24 bits (see TChunkReplica)
 
 using TRackId = NObjectClient::TObjectId;
-extern const TRackId NullRackId;
+
+using TDataCenterId = NObjectClient::TObjectId;
 
 // Address type and value list.
 using TAddressList = std::vector<std::pair<Stroka, Stroka>>;
@@ -55,10 +56,11 @@ extern const Stroka DefaultNetworkName;
 extern const TNetworkPreferenceList DefaultNetworkPreferences;
 
 DEFINE_ENUM(EErrorCode,
-    ((NoSuchNode)    (1600))
-    ((InvalidState)  (1601))
-    ((NoSuchNetwork) (1602))
-    ((NoSuchRack)    (1603))
+    ((NoSuchNode)        (1600))
+    ((InvalidState)      (1601))
+    ((NoSuchNetwork)     (1602))
+    ((NoSuchRack)        (1603))
+    ((NoSuchDataCenter)  (1604))
 );
 
 DEFINE_ENUM(EMemoryCategory,

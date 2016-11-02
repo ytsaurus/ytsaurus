@@ -336,7 +336,7 @@ TJobResult TJobProxy::DoRun()
         CGroupsConfig_ = ConvertTo<TCGroupJobEnvironmentConfigPtr>(Config_->JobEnvironment);
     }
 
-    LocalDescriptor_ = NNodeTrackerClient::TNodeDescriptor(Config_->Addresses, Config_->Rack);
+    LocalDescriptor_ = NNodeTrackerClient::TNodeDescriptor(Config_->Addresses, Config_->Rack, Config_->DataCenter);
 
     RpcServer_ = CreateBusServer(CreateTcpBusServer(Config_->RpcServer));
     RpcServer_->RegisterService(CreateJobProberService(this));

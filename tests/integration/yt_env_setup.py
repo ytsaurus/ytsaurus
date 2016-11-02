@@ -236,6 +236,7 @@ class YTEnvSetup(object):
             self._remove_tablet_cells()
             self._remove_tablet_cell_bundles()
             self._remove_racks()
+            self._remove_data_centers()
             self._remove_pools()
 
             yt_commands.gc_collect()
@@ -388,6 +389,11 @@ class YTEnvSetup(object):
         racks = yt_commands.get_racks()
         for rack in racks:
             yt_commands.remove_rack(rack)
+
+    def _remove_data_centers(self):
+        data_centers = yt_commands.get_data_centers()
+        for dc in data_centers:
+            yt_commands.remove_data_center(dc)
 
     def _remove_pools(self):
         yt_commands.remove("//sys/pools/*")

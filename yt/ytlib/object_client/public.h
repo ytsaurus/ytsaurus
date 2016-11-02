@@ -175,6 +175,9 @@ DEFINE_ENUM(EObjectType,
     ((ClusterNode)                (802))
     ((ClusterNodeNode)            (803))
     ((ClusterNodeMap)             (804))
+    ((DataCenter)                 (805))
+    ((DataCenterMap)              (806))
+
 
     // Job Tracker stuff
     ((SchedulerJob)               (900))
