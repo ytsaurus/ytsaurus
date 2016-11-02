@@ -167,9 +167,11 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/node.proto
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/node_directory.cpp
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/node_directory_builder.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/node_directory_synchronizer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/node_statistics.cpp
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/node_tracker_service.proto
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/private.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/object_client/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/object_client/master_ypath.proto

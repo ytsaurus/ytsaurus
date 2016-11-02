@@ -37,6 +37,9 @@
 
 #include <yt/ytlib/chunk_client/throttler_manager.h>
 
+#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
+
 #include <yt/core/bus/config.h>
 #include <yt/core/bus/server.h>
 #include <yt/core/bus/tcp_server.h>
@@ -137,12 +140,20 @@ void TBootstrap::DoRun()
 
     ClusterDirectory_ = New<TClusterDirectory>(MasterClient_->GetConnection());
 
+    NodeDirectory_ = New<TNodeDirectory>();
+
+    NodeDirectorySynchronizer_ = New<TNodeDirectorySynchronizer>(
+        Config_->NodeDirectorySynchronizer,
+        connection,
+        NodeDirectory_);
+    NodeDirectorySynchronizer_->Start();
+
     Scheduler_ = New<TScheduler>(Config_->Scheduler, this);
 
     ChunkLocationThrottlerManager_ = New<TThrottlerManager>(
-            Config_->Scheduler->ChunkLocationThrottler,
-            SchedulerLogger,
-            SchedulerProfiler);
+        Config_->Scheduler->ChunkLocationThrottler,
+        SchedulerLogger,
+        SchedulerProfiler);
 
     ResponseKeeper_ = New<TResponseKeeper>(
         Config_->ResponseKeeper,
@@ -234,6 +245,11 @@ TSchedulerPtr TBootstrap::GetScheduler() const
 TClusterDirectoryPtr TBootstrap::GetClusterDirectory() const
 {
     return ClusterDirectory_;
+}
+
+const TNodeDirectoryPtr& TBootstrap::GetNodeDirectory() const
+{
+    return NodeDirectory_;
 }
 
 TResponseKeeperPtr TBootstrap::GetResponseKeeper() const

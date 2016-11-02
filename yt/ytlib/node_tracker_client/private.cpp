@@ -1,14 +1,13 @@
 #include "private.h"
 
 namespace NYT {
-namespace NNodeTrackerServer {
+namespace NNodeTrackerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const NLogging::TLogger NodeTrackerServerLogger("NodeTrackerServer");
-const NProfiling::TProfiler NodeTrackerServerProfiler("/node_tracker");
+const NLogging::TLogger NodeTrackerClientLogger("NodeTrackerClient");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NNodeTrackerServer
+} // namespace NNodeTrackerClient
 } // namespace NYT

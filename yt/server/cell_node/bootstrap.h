@@ -52,6 +52,7 @@ public:
     IInvokerPtr GetControlInvoker() const;
     IInvokerPtr GetQueryPoolInvoker() const;
     NApi::IClientPtr GetMasterClient() const;
+    const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const;
     NRpc::IServerPtr GetRpcServer() const;
     NRpc::IChannelFactoryPtr GetTabletChannelFactory() const;
     NYTree::IMapNodePtr GetOrchidRoot() const;
@@ -106,6 +107,8 @@ private:
     NBus::IBusServerPtr BusServer;
     NApi::IConnectionPtr MasterConnection;
     NApi::IClientPtr MasterClient;
+    NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
+    NNodeTrackerClient::TNodeDirectorySynchronizerPtr NodeDirectorySynchronizer;
     NHive::TCellDirectorySynchronizerPtr CellDirectorySynchronizer;
     NRpc::IServerPtr RpcServer;
     NRpc::IServicePtr MasterCacheService;

@@ -75,6 +75,9 @@
 
 #include <yt/ytlib/query_client/column_evaluator.h>
 
+#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
+
 #include <yt/core/bus/config.h>
 #include <yt/core/bus/server.h>
 #include <yt/core/bus/tcp_server.h>
@@ -192,6 +195,14 @@ void TBootstrap::DoRun()
     MasterConnection = CreateConnection(Config->ClusterConnection);
 
     MasterClient = MasterConnection->CreateClient(TClientOptions(NSecurityClient::RootUserName));
+
+    NodeDirectory = New<TNodeDirectory>();
+
+    NodeDirectorySynchronizer = New<TNodeDirectorySynchronizer>(
+        Config->NodeDirectorySynchronizer,
+        MasterConnection,
+        NodeDirectory);
+    NodeDirectorySynchronizer->Start();
 
     CellDirectorySynchronizer = New<TCellDirectorySynchronizer>(
         Config->CellDirectorySynchronizer,
@@ -517,6 +528,11 @@ IInvokerPtr TBootstrap::GetQueryPoolInvoker() const
 IClientPtr TBootstrap::GetMasterClient() const
 {
     return MasterClient;
+}
+
+const TNodeDirectoryPtr& TBootstrap::GetNodeDirectory() const
+{
+    return NodeDirectory;
 }
 
 IServerPtr TBootstrap::GetRpcServer() const

@@ -8,6 +8,8 @@
 
 #include <yt/ytlib/api/config.h>
 
+#include <yt/ytlib/node_tracker_client/config.h>
+
 #include <yt/core/rpc/config.h>
 
 namespace NYT {
@@ -22,6 +24,9 @@ public:
     //! Node-to-master connection.
     NApi::TConnectionConfigPtr ClusterConnection;
 
+    //! Node directory synchronization.
+    NNodeTrackerClient::TNodeDirectorySynchronizerConfigPtr NodeDirectorySynchronizer;
+
     NScheduler::TSchedulerConfigPtr Scheduler;
 
     NRpc::TResponseKeeperConfigPtr ResponseKeeper;
@@ -32,6 +37,8 @@ public:
     TCellSchedulerConfig()
     {
         RegisterParameter("cluster_connection", ClusterConnection);
+        RegisterParameter("node_directory_synchronizer", NodeDirectorySynchronizer)
+            .DefaultNew();
         RegisterParameter("scheduler", Scheduler)
             .DefaultNew();
         RegisterParameter("response_keeper", ResponseKeeper)

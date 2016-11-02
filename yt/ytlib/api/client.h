@@ -476,6 +476,18 @@ struct TAbortJobOptions
     : public TTimeoutOptions
 { };
 
+struct TGetClusterMetaOptions
+    : public TTimeoutOptions
+    , public TMasterReadOptions
+{
+    bool PopulateNodeDirectory = false;
+};
+
+struct TClusterMeta
+{
+    NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
+};
+
 typedef std::pair<IRowsetPtr, NQueryClient::TQueryStatistics> TSelectRowsResult;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -737,6 +749,12 @@ struct IClient
     virtual TFuture<void> AbortJob(
         const NJobTrackerClient::TJobId& jobId,
         const TAbortJobOptions& options = TAbortJobOptions()) = 0;
+
+
+    // Metadata
+    virtual TFuture<TClusterMeta> GetClusterMeta(
+        const TGetClusterMetaOptions& options = TGetClusterMetaOptions()) = 0;
+
 };
 
 DEFINE_REFCOUNTED_TYPE(IClient)
