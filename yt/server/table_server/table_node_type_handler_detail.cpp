@@ -146,6 +146,8 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBranch(
 {
     branchedNode->TableSchema() = originatingNode->TableSchema();
     branchedNode->SetSchemaMode(originatingNode->GetSchemaMode());
+    branchedNode->SetRetainedTimestamp(originatingNode->CalculateRetainedTimestamp());
+    branchedNode->SetUnflushedTimestamp(originatingNode->CalculateUnflushedTimestamp());
 
     TBase::DoBranch(originatingNode, branchedNode, mode);
 }
@@ -190,6 +192,8 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
     clonedNode->SetSchemaMode(sourceNode->GetSchemaMode());
     clonedNode->SetAtomicity(sourceNode->GetAtomicity());
     clonedNode->SetLastCommitTimestamp(sourceNode->GetLastCommitTimestamp());
+    clonedNode->SetRetainedTimestamp(sourceNode->GetRetainedTimestamp());
+    clonedNode->SetUnflushedTimestamp(sourceNode->GetUnflushedTimestamp());
 
     auto* trunkSourceNode = sourceNode->GetTrunkNode();
     tabletManager->SetTabletCellBundle(clonedNode, trunkSourceNode->GetTabletCellBundle());

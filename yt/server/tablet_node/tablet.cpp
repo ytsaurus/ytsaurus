@@ -1026,6 +1026,7 @@ TTimestamp TTablet::GetUnflushedTimestamp() const
             unflushedTimestamp = std::min(unflushedTimestamp, timestamp);
         }
     }
+
     return unflushedTimestamp;
 }
 

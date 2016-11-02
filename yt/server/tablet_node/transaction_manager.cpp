@@ -864,11 +864,12 @@ private:
 
     void ErasePrepareTimestamp(TTransaction* transaction)
     {
-        if (transaction->IsPrepared()) {
-            auto pair = std::make_pair(transaction->GetPrepareTimestamp(), transaction);
-            auto it = PreparedTransactions_.find(pair);
-            YCHECK(it != PreparedTransactions_.end());
+        auto pair = std::make_pair(transaction->GetPrepareTimestamp(), transaction);
+        auto it = PreparedTransactions_.find(pair);
+        if (it != PreparedTransactions_.end()) {
             PreparedTransactions_.erase(it);
+        } else {
+            YCHECK(transaction->GetPrepareTimestamp() == NullTimestamp);
         }
     }
 
