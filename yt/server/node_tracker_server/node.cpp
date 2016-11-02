@@ -242,7 +242,7 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, Rack_);
     Load(context, LeaseTransaction_);
     // COMPAT(shakurov)
-    if (context.GetVersion() < MEDIUM_TYPE_PATCH_CONTEXT_VERSION)  {
+    if (context.GetVersion() < 501)  {
         ReserveReplicas(DefaultMediumIndex, TSizeSerializer::Load(context), false);
         ReserveReplicas(DefaultCacheMediumIndex, TSizeSerializer::Load(context), true);
     } else {

@@ -1754,7 +1754,7 @@ private:
         ChunkMap_.LoadKeys(context);
         ChunkListMap_.LoadKeys(context);
         // COMPAT(shakurov)
-        if (context.GetVersion() >= MEDIUM_TYPE_PATCH_CONTEXT_VERSION) {
+        if (context.GetVersion() >= 501) {
             MediumMap_.LoadKeys(context);
         }
     }
@@ -1764,7 +1764,7 @@ private:
         ChunkMap_.LoadValues(context);
         ChunkListMap_.LoadValues(context);
         // COMPAT(shakurov)
-        if (context.GetVersion() >= MEDIUM_TYPE_PATCH_CONTEXT_VERSION) {
+        if (context.GetVersion() >= 501) {
             MediumMap_.LoadValues(context);
         }
 
