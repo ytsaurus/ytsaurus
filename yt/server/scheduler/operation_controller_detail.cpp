@@ -3679,8 +3679,8 @@ void TOperationControllerBase::CollectTotals()
     for (const auto& table : InputTables) {
         for (const auto& chunkSpec : table.Chunks) {
             if (const auto& chunkId = IsUnavailable(chunkSpec, IsParityReplicasFetchEnabled())) {
-                if (table.IsDynamic) {
-                    THROW_ERROR_EXCEPTION("Input chunk %v of dynamic table %v is unavailable",
+                if (table.IsDynamic && table.Schema.IsSorted()) {
+                    THROW_ERROR_EXCEPTION("Input chunk %v of sorted dynamic table %v is unavailable",
                         chunkId,
                         table.Path.GetPath());
                 }
@@ -3741,7 +3741,7 @@ std::vector<TInputChunkPtr> TOperationControllerBase::CollectPrimaryChunks(bool 
 {
     std::vector<TInputChunkPtr> result;
     for (const auto& table : InputTables) {
-        if (!table.IsForeign() && (table.IsDynamic == versioned)) {
+        if (!table.IsForeign() && ((table.IsDynamic && table.Schema.IsSorted()) == versioned)) {
             for (const auto& chunk : table.Chunks) {
                 if (!table.IsDynamic && IsUnavailable(chunk, IsParityReplicasFetchEnabled())) {
                     switch (Spec->UnavailableChunkStrategy) {
@@ -3777,7 +3777,7 @@ i64 TOperationControllerBase::CalculatePrimaryVersionedChunksSize() const
 {
     i64 dataSize = 0;
     for (const auto& table : InputTables) {
-        if (!table.IsForeign() && table.IsDynamic) {
+        if (!table.IsForeign() && table.IsDynamic && table.Schema.IsSorted()) {
             for (const auto& chunk : table.Chunks) {
                 dataSize += chunk->GetUncompressedDataSize();
             }
@@ -3803,7 +3803,7 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersione
     std::vector<TDataSliceFetcherPtr> fetchers;
 
     for (const auto& table : InputTables) {
-        if (!table.IsForeign() && table.IsDynamic) {
+        if (!table.IsForeign() && table.IsDynamic && table.Schema.IsSorted()) {
             auto fetcher = New<TDataSliceFetcher>(
                 Config->Fetcher,
                 sliceSize,
@@ -3849,7 +3849,7 @@ std::vector<std::deque<TInputDataSlicePtr>> TOperationControllerBase::CollectFor
         if (table.IsForeign()) {
             result.push_back(std::deque<TInputDataSlicePtr>());
 
-            if (table.IsDynamic) {
+            if (table.IsDynamic && table.Schema.IsSorted()) {
                 std::vector<TInputChunkSlicePtr> chunkSlices;
                 chunkSlices.reserve(table.Chunks.size());
                 for (const auto& chunkSpec : table.Chunks) {
@@ -3906,6 +3906,16 @@ bool TOperationControllerBase::InputHasDynamicTables() const
 {
     for (const auto& table : InputTables) {
         if (table.IsDynamic) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool TOperationControllerBase::InputHasVersionedTables() const
+{
+    for (const auto& table : InputTables) {
+        if (table.IsDynamic && table.Schema.IsSorted()) {
             return true;
         }
     }

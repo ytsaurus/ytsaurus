@@ -724,6 +724,7 @@ protected:
     void DoLoadSnapshot(const TSharedRef& snapshot);
 
     bool InputHasDynamicTables() const;
+    bool InputHasVersionedTables() const;
 
     //! Called to extract input table paths from the spec.
     virtual std::vector<NYPath::TRichYPath> GetInputTablePaths() const = 0;

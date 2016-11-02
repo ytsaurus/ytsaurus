@@ -510,10 +510,13 @@ class TestSchedulerMapCommands(YTEnvSetup):
         }
     }
 
-    def _create_simple_dynamic_table(self, path):
+    def _create_simple_dynamic_table(self, path, sort_order="ascending"):
         create("table", path,
             attributes = {
-                "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}, {"name": "value", "type": "string"}],
+                "schema": [
+                    {"name": "key", "type": "int64", "sort_order": sort_order},
+                    {"name": "value", "type": "string"}
+                ],
                 "dynamic": True
             })
 
@@ -1940,10 +1943,11 @@ print row + table_index
         with pytest.raises(YtError):
             op.track()
 
+    @pytest.mark.parametrize("sort_order", [None, "ascending"])
     @pytest.mark.parametrize("ordered", [False, True])
-    def test_map_on_dynamic_table(self, ordered):
+    def test_map_on_dynamic_table(self, ordered, sort_order):
         self.sync_create_cells(1)
-        self._create_simple_dynamic_table("//tmp/t")
+        self._create_simple_dynamic_table("//tmp/t", sort_order=sort_order)
         create("table", "//tmp/t_out")
 
         rows = [{"key": i, "value": str(i)} for i in range(10)]
@@ -1975,10 +1979,16 @@ print row + table_index
         self.sync_unmount_table("//tmp/t")
 
         def update(new):
+            def update_row(row):
+                if sort_order == "ascending":
+                    for r in rows:
+                        if r["key"] == row["key"]:
+                            r["value"] = row["value"]
+                            return
+                rows.append(row)
             for row in new:
-                for r in rows:
-                    if r["key"] == row["key"]:
-                        r["value"] = row["value"]
+                update_row(row)
+
         update(rows1)
         update(rows2)
         update(rows3)
@@ -1991,9 +2001,9 @@ print row + table_index
 
         assert_items_equal(read_table("//tmp/t_out"), rows)
 
-    def test_dynamic_table_as_user_file(self):
+    def test_sorted_dynamic_table_as_user_file(self):
         self.sync_create_cells(1)
-        self._create_simple_dynamic_table("//tmp/t")
+        self._create_simple_dynamic_table("//tmp/t", sort_order="ascending")
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
@@ -2031,8 +2041,39 @@ print row + table_index
                 update_row(row)
 
         update(rows1)
+        rows = sorted(rows, key = lambda r: r["key"])
+        assert read_table("//tmp/t_out") == rows
 
-        assert_items_equal(read_table("//tmp/t_out"), rows)
+    def test_ordered_dynamic_table_as_user_file(self):
+        self.sync_create_cells(1)
+        self._create_simple_dynamic_table("//tmp/t", sort_order=None)
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        rows = [{"key": i, "value": str(i)} for i in range(5)]
+        self.sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", rows)
+        self.sync_unmount_table("//tmp/t")
+
+        rows1 = [{"key": i, "value": str(i+1)} for i in range(3,8)]
+        self.sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", rows1)
+        self.sync_unmount_table("//tmp/t")
+
+        write_table("//tmp/t_in", [{"a": "b"}])
+
+        map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            file=["<format=<format=text>yson>//tmp/t"],
+            command="cat t",
+            spec={
+                "mapper": {
+                    "format": yson.loads("<format=text>yson")
+                }
+            })
+
+        assert read_table("//tmp/t_out") == rows + rows1
 
     def test_pipe_statistics(self):
         create("table", "//tmp/t_input")

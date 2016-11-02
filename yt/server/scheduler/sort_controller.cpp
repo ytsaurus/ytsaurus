@@ -1410,7 +1410,7 @@ protected:
     virtual void OnOperationCompleted(bool interrupted) override
     {
         if (!interrupted) {
-            if (IsRowCountPreserved() && !InputHasDynamicTables()) {
+            if (IsRowCountPreserved() && !InputHasVersionedTables()) {
                 i64 totalInputRowCount = 0;
                 for (auto partition : Partitions) {
                     totalInputRowCount += partition->ChunkPoolOutput->GetTotalRowCount();
