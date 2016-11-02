@@ -267,6 +267,20 @@ void Serialize(const SmallVector<T, N>& items, NYson::IYsonConsumer* consumer)
     SerializeVector(items, consumer);
 }
 
+// RepeatedPtrField
+template <class T>
+void Serialize(const NProtoBuf::RepeatedPtrField<T>& items, NYson::IYsonConsumer* consumer)
+{
+    SerializeVector(items, consumer);
+}
+
+// RepeatedField
+template <class T>
+void Serialize(const NProtoBuf::RepeatedField<T>& items, NYson::IYsonConsumer* consumer)
+{
+    SerializeVector(items, consumer);
+}
+
 // TErrorOr
 template <class T>
 void Serialize(const TErrorOr<T>& error, NYson::IYsonConsumer* consumer)

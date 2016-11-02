@@ -670,6 +670,16 @@ private:
         return Spec->StderrTableWriterConfig;
     }
 
+    virtual TNullable<TRichYPath> GetCoreTablePath() const override
+    {
+        return Spec->CoreTablePath;
+    }
+
+    virtual TBlobTableWriterConfigPtr GetCoreTableWriterConfig() const override
+    {
+        return Spec->CoreTableWriterConfig;
+    }
+
     virtual TNullable<int> GetTeleportTableIndex() const override
     {
         YUNREACHABLE();
@@ -1233,7 +1243,7 @@ protected:
         auto slices = ChunkSliceFetcher->GetChunkSlices();
         for (const auto& slice : slices) {
             if (slice->LowerLimit().Key >= slice->UpperLimit().Key) {
-                // This can happen if ranges were specified. 
+                // This can happen if ranges were specified.
                 // Chunk slice fetcher can produce empty slices.
                 continue;
             }
@@ -1605,7 +1615,7 @@ private:
         table.TableUploadOptions.LockMode = ELockMode::Exclusive;
 
         auto prepareOutputKeyColumns = [&] () {
-            if (table.TableUploadOptions.TableSchema.IsSorted()) { 
+            if (table.TableUploadOptions.TableSchema.IsSorted()) {
                 if (table.TableUploadOptions.TableSchema.GetKeyColumns() != SortKeyColumns) {
                     THROW_ERROR_EXCEPTION("Merge key columns do not match output table schema in \"strong\" schema mode")
                             << TErrorAttribute("output_schema", table.TableUploadOptions.TableSchema)
@@ -1613,7 +1623,7 @@ private:
                             << TErrorAttribute("schema_inference_mode", Spec->SchemaInferenceMode);
                 }
             } else {
-                table.TableUploadOptions.TableSchema = 
+                table.TableUploadOptions.TableSchema =
                     table.TableUploadOptions.TableSchema.ToSorted(SortKeyColumns);
             }
         };
@@ -1887,6 +1897,16 @@ protected:
     virtual TBlobTableWriterConfigPtr GetStderrTableWriterConfig() const override
     {
         return Spec->StderrTableWriterConfig;
+    }
+
+    virtual TNullable<TRichYPath> GetCoreTablePath() const override
+    {
+        return Spec->CoreTablePath;
+    }
+
+    virtual TBlobTableWriterConfigPtr GetCoreTableWriterConfig() const override
+    {
+        return Spec->CoreTableWriterConfig;
     }
 
     virtual TNullable<int> GetTeleportTableIndex() const override
