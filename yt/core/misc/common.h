@@ -24,9 +24,6 @@
 #include <vector>
 #include <type_traits>
 
-// TODO(shakurov): delete once the actual version is allocated.
-#define MEDIUM_TYPE_PATCH_CONTEXT_VERSION 0
-
 namespace std {
 
 // Assume sane platform by default.

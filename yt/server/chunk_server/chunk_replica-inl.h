@@ -235,7 +235,7 @@ Y_FORCE_INLINE void TPtrWithIndexes<T>::Load(C& context)
     int replicaIndex = Load<i8>(context);
     int mediumIndex = DefaultMediumIndex;
     // COMPAT(shakurov)
-    if (context.GetVersion() >= MEDIUM_TYPE_PATCH_CONTEXT_VERSION) {
+    if (context.GetVersion() >= 501) {
         mediumIndex = Load<i8>(context);
     }
     *this = TPtrWithIndexes<T>(ptr, replicaIndex, mediumIndex);

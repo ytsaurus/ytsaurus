@@ -121,7 +121,7 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     Load(context, ChunkInfo_);
     Load(context, ChunkMeta_);
     // COMPAT(shakurov)
-    if (context.GetVersion() < MEDIUM_TYPE_PATCH_CONTEXT_VERSION) {
+    if (context.GetVersion() < 501) {
         LocalProperties_[DefaultMediumIndex]
             .SetReplicationFactorOrThrow(Load<i8>(context)); // Never actually throws.
     } else {
@@ -132,7 +132,7 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     SetErasureCodec(Load<NErasure::ECodec>(context));
     SetMovable(Load<bool>(context));
     // COMPAT(shakurov)
-    if (context.GetVersion() < MEDIUM_TYPE_PATCH_CONTEXT_VERSION) {
+    if (context.GetVersion() < 501) {
         SetLocalVital(Load<bool>(context));
     } // Local vital flag is now part of LocalProperties_.
     Load(context, Parents_);
@@ -152,7 +152,7 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
         Load(context, ExportCounter_);
         if (ExportCounter_ > 0) {
             // COMPAT(shakurov)
-            if (context.GetVersion() < MEDIUM_TYPE_PATCH_CONTEXT_VERSION) {
+            if (context.GetVersion() < 501) {
                 TOldChunkExportDataList oldExportDataList = {};
                 TRangeSerializer::Load(context, TMutableRef::FromPod(oldExportDataList));
                 for (int i = 0; i < NObjectClient::MaxSecondaryMasterCells; ++i) {

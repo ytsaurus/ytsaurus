@@ -52,7 +52,7 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     Load(context, ChunkList_);
     Load(context, UpdateMode_);
     // COMPAT(shakurov)
-    if (context.GetVersion() < MEDIUM_TYPE_PATCH_CONTEXT_VERSION) {
+    if (context.GetVersion() < 501) {
         PrimaryMediumIndex_ = DefaultMediumIndex;
         Properties_[DefaultMediumIndex].SetReplicationFactorOrThrow(Load<int>(context));
         Properties_.SetVital(Load<bool>(context));
