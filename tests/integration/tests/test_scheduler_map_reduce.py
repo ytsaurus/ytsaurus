@@ -492,11 +492,15 @@ print "x={0}\ty={1}".format(x, y)
         actual = read_table("//tmp/t_output")
         assert_items_equal(actual, expected)
 
-    def test_map_reduce_on_dynamic_table(self):
+    @pytest.mark.parametrize("sort_order", [None, "ascending"])
+    def test_map_reduce_on_dynamic_table(self, sort_order):
         def _create_dynamic_table(path):
             create("table", path,
                 attributes = {
-                    "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}, {"name": "value", "type": "string"}],
+                    "schema": [
+                        {"name": "key", "type": "int64", "sort_order": sort_order},
+                        {"name": "value", "type": "string"}
+                    ],
                     "dynamic": True
                 })
 
@@ -505,7 +509,7 @@ print "x={0}\ty={1}".format(x, y)
 
         create("table", "//tmp/t_out")
 
-        rows = [{"key": i, "value": str(i)} for i in range(10)]
+        rows = [{"key": i, "value": str(i)} for i in range(6)]
         self.sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", rows)
         self.sync_unmount_table("//tmp/t")
@@ -519,9 +523,9 @@ print "x={0}\ty={1}".format(x, y)
 
         assert_items_equal(read_table("//tmp/t_out"), rows)
 
-        rows = [{"key": i, "value": str(i+1)} for i in range(10)]
+        rows1 = [{"key": i, "value": str(i+1)} for i in range(3, 10)]
         self.sync_mount_table("//tmp/t")
-        insert_rows("//tmp/t", rows)
+        insert_rows("//tmp/t", rows1)
         self.sync_unmount_table("//tmp/t")
 
         map_reduce(
@@ -530,6 +534,19 @@ print "x={0}\ty={1}".format(x, y)
             sort_by="key",
             mapper_command="cat",
             reducer_command="cat")
+
+        def update(new):
+            def update_row(row):
+                if sort_order == "ascending":
+                    for r in rows:
+                        if r["key"] == row["key"]:
+                            r["value"] = row["value"]
+                            return
+                rows.append(row)
+            for row in new:
+                update_row(row)
+
+        update(rows1)
 
         assert_items_equal(read_table("//tmp/t_out"), rows)
 

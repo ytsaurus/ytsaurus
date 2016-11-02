@@ -188,13 +188,7 @@ void TSchemalessTableReader::DoOpen()
         auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
 
         dynamic = attributes->Get<bool>("dynamic");
-
-        if (dynamic) {
-            schema = attributes->Get<TTableSchema>("schema");
-            if (!schema.IsSorted()) {
-                THROW_ERROR_EXCEPTION("Table is not sorted");
-            }
-        }
+        schema = attributes->Get<TTableSchema>("schema");
     }
 
     auto nodeDirectory = New<TNodeDirectory>();
@@ -236,7 +230,7 @@ void TSchemalessTableReader::DoOpen()
     options->EnableRangeIndex = true;
     options->EnableRowIndex = true;
 
-    if (dynamic) {
+    if (dynamic && schema.IsSorted()) {
         UnderlyingReader_ = CreateSchemalessMergingMultiChunkReader(
             Config_,
             options,
