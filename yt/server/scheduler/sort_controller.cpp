@@ -2567,6 +2567,16 @@ private:
         return Spec->StderrTableWriterConfig;
     }
 
+    virtual TNullable<TRichYPath> GetCoreTablePath() const override
+    {
+        return Spec->CoreTablePath;
+    }
+
+    virtual TBlobTableWriterConfigPtr GetCoreTableWriterConfig() const override
+    {
+        return Spec->CoreTableWriterConfig;
+    }
+
     virtual std::vector<TPathWithStage> GetFilePaths() const override
     {
         // Combine mapper and reducer files into a single collection.
