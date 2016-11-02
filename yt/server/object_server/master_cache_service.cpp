@@ -11,6 +11,7 @@
 #include <yt/core/misc/async_cache.h>
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/string.h>
+#include <yt/core/misc/checksum.h>
 
 #include <yt/core/rpc/dispatcher.h>
 #include <yt/core/rpc/helpers.h>
@@ -69,34 +70,52 @@ private:
         TYPath Path;
         Stroka Service;
         Stroka Method;
+        TSharedRef RequestBody;
+        size_t RequestBodyHash;
 
-        // Hasher.
+        TKey(
+            const Stroka& user,
+            const TYPath& path,
+            const Stroka& service,
+            const Stroka& method,
+            const TSharedRef& requestBody)
+            : User(user)
+            , Path(path)
+            , Method(method)
+            , RequestBody(requestBody)
+            , RequestBodyHash(GetChecksum(RequestBody))
+        { }
+
         operator size_t() const
         {
             size_t result = 0;
+            result = HashCombine(result, User);
             result = HashCombine(result, Path);
             result = HashCombine(result, Service);
             result = HashCombine(result, Method);
+            result = HashCombine(result, RequestBodyHash);
             return result;
         }
 
-        // Comparer.
         bool operator == (const TKey& other) const
         {
             return
+                User == other.User &&
                 Path == other.Path &&
                 Service == other.Service &&
-                Method == other.Method;
+                Method == other.Method &&
+                RequestBodyHash == other.RequestBodyHash &&
+                TRef::AreBitwiseEqual(RequestBody, other.RequestBody);
         }
 
-        // Formatter.
         friend Stroka ToString(const TKey& key)
         {
-            return Format("{%v %v:%v %v}",
+            return Format("{%v %v:%v %v %x}",
                 key.User,
                 key.Service,
                 key.Method,
-                key.Path);
+                key.Path,
+                key.RequestBodyHash);
         }
     };
 
@@ -377,22 +396,30 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
         auto subrequestMessage = TSharedRefArray(std::move(subrequestParts));
         attachmentIndex += partCount;
 
+        if (subrequestMessage.Size() < 2) {
+            THROW_ERROR_EXCEPTION("Malformed subrequest message: at least two parts are expected");
+        }
+
         TRequestHeader subrequestHeader;
         YCHECK(ParseRequestHeader(subrequestMessage, &subrequestHeader));
-
         const auto& ypathExt = subrequestHeader.GetExtension(TYPathHeaderExt::ypath_header_ext);
 
-        TKey key;
-        key.User = user;
-        key.Path = ypathExt.path();
-        key.Service = subrequestHeader.service();
-        key.Method = subrequestHeader.method();
+        TKey key(
+            user,
+            ypathExt.path(),
+            subrequestHeader.service(),
+            subrequestHeader.method(),
+            subrequestMessage[1]);
 
         if (subrequestHeader.HasExtension(TCachingHeaderExt::caching_header_ext)) {
             const auto& cachingRequestHeaderExt = subrequestHeader.GetExtension(TCachingHeaderExt::caching_header_ext);
 
             if (ypathExt.mutating()) {
                 THROW_ERROR_EXCEPTION("Cannot cache responses for mutating requests");
+            }
+
+            if (subrequestMessage.Size() > 2) {
+                THROW_ERROR_EXCEPTION("Cannot cache responses for requests with attachments");
             }
 
             LOG_DEBUG("Serving subrequest from cache (RequestId: %v, SubrequestIndex: %v, Key: %v)",
