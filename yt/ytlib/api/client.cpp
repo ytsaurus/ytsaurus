@@ -1434,6 +1434,11 @@ public:
         const TAbortJobOptions& options),
         (jobId, options))
 
+
+    IMPLEMENT_METHOD(TClusterMeta, GetClusterMeta, (
+        const TGetClusterMetaOptions& options),
+        (options))
+
 #undef DROP_BRACES
 #undef IMPLEMENT_METHOD
 
@@ -2999,6 +3004,26 @@ private:
 
         WaitFor(req->Invoke())
             .ThrowOnError();
+    }
+
+
+    TClusterMeta DoGetClusterMeta(
+        const TGetClusterMetaOptions& options)
+    {
+        auto req = TMasterYPathProxy::GetClusterMeta();
+        req->set_populate_node_directory(options.PopulateNodeDirectory);
+        SetCachingHeader(req, options);
+
+        auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
+        auto rsp = WaitFor(proxy->Execute(req))
+            .ValueOrThrow();
+
+        TClusterMeta meta;
+        if (options.PopulateNodeDirectory) {
+            meta.NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
+            meta.NodeDirectory->MergeFrom(rsp->node_directory());
+        }
+        return meta;
     }
 };
 

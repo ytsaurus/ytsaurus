@@ -1,6 +1,7 @@
 #include "master.h"
 #include "private.h"
 #include "type_handler_detail.h"
+#include "object.h"
 
 #include <yt/server/cell_master/bootstrap.h>
 
@@ -8,6 +9,10 @@
 
 #include <yt/server/transaction_server/transaction.h>
 #include <yt/server/transaction_server/transaction_manager.h>
+
+#include <yt/server/node_tracker_server/node_tracker.h>
+#include <yt/server/node_tracker_server/node.h>
+#include <yt/server/node_tracker_server/node_directory_builder.h>
 
 #include <yt/ytlib/object_client/master_ypath.pb.h>
 
@@ -18,6 +23,7 @@ namespace NObjectServer {
 
 using namespace NTransactionServer;
 using namespace NSecurityServer;
+using namespace NNodeTrackerServer;
 using namespace NObjectClient;
 using namespace NObjectClient::NProto;
 using namespace NYTree;
@@ -52,6 +58,7 @@ private:
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(CreateObject);
+        DISPATCH_YPATH_SERVICE_METHOD(GetClusterMeta);
         return TBase::DoInvoke(context);
     }
 
@@ -84,6 +91,27 @@ private:
         ToProto(response->mutable_object_id(), objectId);
 
         context->SetResponseInfo("ObjectId: %v", objectId);
+        context->Reply();
+    }
+
+    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, GetClusterMeta)
+    {
+        auto populateNodeDirectory = request->populate_node_directory();
+        context->SetRequestInfo("PopulateNodeNodeDirectory: %v",
+            populateNodeDirectory);
+
+        if (populateNodeDirectory) {
+            TNodeDirectoryBuilder builder(response->mutable_node_directory());
+            const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+            for (const auto& pair : nodeTracker->Nodes()) {
+                const auto* node = pair.second;
+                if (!IsObjectAlive(node)) {
+                    continue;
+                }
+                builder.Add(node);
+            }
+        }
+
         context->Reply();
     }
 };

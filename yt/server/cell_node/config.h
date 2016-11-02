@@ -18,7 +18,7 @@
 
 #include <yt/ytlib/api/config.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/ytlib/node_tracker_client/config.h>
 
 #include <yt/core/concurrency/config.h>
 
@@ -82,6 +82,9 @@ public:
     //! Cell directory synchronization.
     NHive::TCellDirectorySynchronizerConfigPtr CellDirectorySynchronizer;
 
+    //! Node directory synchronization.
+    NNodeTrackerClient::TNodeDirectorySynchronizerConfigPtr NodeDirectorySynchronizer;
+
     //! Data node configuration part.
     NDataNode::TDataNodeConfigPtr DataNode;
 
@@ -119,6 +122,8 @@ public:
             .Default(TDuration::Seconds(5));
         RegisterParameter("cluster_connection", ClusterConnection);
         RegisterParameter("cell_directory_synchronizer", CellDirectorySynchronizer)
+            .DefaultNew();
+        RegisterParameter("node_directory_synchronizer", NodeDirectorySynchronizer)
             .DefaultNew();
         RegisterParameter("data_node", DataNode)
             .DefaultNew();

@@ -10,7 +10,7 @@
 
 #include <yt/ytlib/monitoring/http_server.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/ytlib/transaction_client/public.h>
 
@@ -43,6 +43,7 @@ public:
     IInvokerPtr GetControlInvoker(EControlQueue queue = EControlQueue::Default) const;
     NScheduler::TSchedulerPtr GetScheduler() const;
     NHive::TClusterDirectoryPtr GetClusterDirectory() const;
+    const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const;
     NRpc::TResponseKeeperPtr GetResponseKeeper() const;
     NChunkClient::TThrottlerManagerPtr GetChunkLocationThrottlerManager() const;
 
@@ -59,6 +60,8 @@ private:
     NApi::IClientPtr MasterClient_;
     NScheduler::TSchedulerPtr Scheduler_;
     NHive::TClusterDirectoryPtr ClusterDirectory_;
+    NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
+    NNodeTrackerClient::TNodeDirectorySynchronizerPtr NodeDirectorySynchronizer_;
     NRpc::TResponseKeeperPtr ResponseKeeper_;
     NChunkClient::TThrottlerManagerPtr ChunkLocationThrottlerManager_;
 
