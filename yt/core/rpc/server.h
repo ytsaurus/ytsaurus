@@ -22,7 +22,8 @@ struct IServer
     virtual void RegisterService(IServicePtr service) = 0;
 
     //! Removes a previously registered #service.
-    virtual void UnregisterService(IServicePtr service) = 0;
+    //! Returns |true| if #service was indeed registered, |false| otherwise.
+    virtual bool UnregisterService(IServicePtr service) = 0;
 
     //! Finds a given by id, returns null if none is found.
     virtual IServicePtr FindService(const TServiceId& serviceId) = 0;

@@ -54,6 +54,7 @@ class TStatistics
 {
     using TSummaryMap = std::map<NYPath::TYPath, TSummary>;
     DEFINE_BYREF_RO_PROPERTY(TSummaryMap, Data);
+    DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, Timestamp);
 
 public:
     void AddSample(const NYPath::TYPath& path, i64 sample);

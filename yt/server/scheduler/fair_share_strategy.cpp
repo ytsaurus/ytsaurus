@@ -58,6 +58,7 @@ public:
         , Host(host)
         , NonPreemptiveProfilingCounters("/non_preemptive")
         , PreemptiveProfilingCounters("/preemptive")
+        , LastProfilingTime_(TInstant::Zero())
     {
         RootElement = New<TRootElement>(Host, config);
 
@@ -528,10 +529,13 @@ public:
             }
 
             // Profiling.
-            for (const auto& pair : Pools) {
-                ProfileSchedulerElement(pair.second);
+            if (LastProfilingTime_ + Config->FairShareProfilingPeriod < now) {
+                LastProfilingTime_ = now;
+                for (const auto& pair : Pools) {
+                    ProfileSchedulerElement(pair.second);
+                }
+                ProfileSchedulerElement(RootElement);
             }
-            ProfileSchedulerElement(RootElement);
         }
 
         LOG_INFO("Fair share successfully updated");
@@ -623,6 +627,8 @@ private:
     TProfilingCounters NonPreemptiveProfilingCounters;
     TProfilingCounters PreemptiveProfilingCounters;
 
+    TInstant LastProfilingTime_;
+
     TPeriodicExecutorPtr FairShareUpdateExecutor_;
     TPeriodicExecutorPtr FairShareLoggingExecutor_;
 
@@ -676,7 +682,7 @@ private:
             Profiler.Update(counters.ScheduleJobCallCounter, scheduleJobCount);
 
             for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
-                Profiler.Update(
+                Profiler.Increment(
                     counters.ControllerScheduleJobFailCounter[reason],
                     context.FailedScheduleJob[reason]);
             }
@@ -1007,7 +1013,7 @@ private:
         auto* oldParent = pool->GetParent();
         if (oldParent) {
             oldParent->IncreaseResourceUsage(-pool->GetResourceUsage());
-            IncreaseOperationCount(oldParent, -pool->RunningOperationCount());
+            IncreaseOperationCount(oldParent, -pool->OperationCount());
             IncreaseRunningOperationCount(oldParent, -pool->RunningOperationCount());
             oldParent->RemoveChild(pool);
         }
@@ -1016,7 +1022,7 @@ private:
         if (parent) {
             parent->AddChild(pool);
             parent->IncreaseResourceUsage(pool->GetResourceUsage());
-            IncreaseOperationCount(parent.Get(), pool->RunningOperationCount());
+            IncreaseOperationCount(parent.Get(), pool->OperationCount());
             IncreaseRunningOperationCount(parent.Get(), pool->RunningOperationCount());
 
             LOG_INFO("Parent pool set (Pool: %v, Parent: %v)",

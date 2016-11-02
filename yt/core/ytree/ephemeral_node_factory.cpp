@@ -253,8 +253,8 @@ public:
 
     virtual bool AddChild(INodePtr child, const Stroka& key) override
     {
-        Y_ASSERT(!key.empty());
         Y_ASSERT(child);
+        ValidateYTreeKey(key);
 
         if (KeyToChild.insert(std::make_pair(key, child)).second) {
             YCHECK(ChildToKey.insert(std::make_pair(child, key)).second);

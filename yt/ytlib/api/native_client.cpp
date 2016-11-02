@@ -316,6 +316,22 @@ IChannelPtr CreateTabletReadChannel(
         *options.BackupRequestDelay);
 }
 
+void ValidateTabletMountedOrFrozen(const TTableMountInfoPtr& tableInfo, const TTabletInfoPtr& tabletInfo)
+{
+    auto state = tabletInfo->State;
+    if (state != ETabletState::Mounted &&
+        state != ETabletState::Freezing &&
+        state != ETabletState::Frozen)
+    {
+        THROW_ERROR_EXCEPTION(
+            NTabletClient::EErrorCode::TabletNotMounted,
+            "Cannot read from tablet %v while it is in %Qlv state",
+            tabletInfo->TabletId,
+            state)
+            << TErrorAttribute("tablet_id", tabletInfo->TabletId);
+    }
+}
+
 void ValidateTabletMounted(const TTableMountInfoPtr& tableInfo, const TTabletInfoPtr& tabletInfo)
 {
     if (tabletInfo->State != ETabletState::Mounted) {
@@ -728,18 +744,8 @@ private:
         yhash_map<NTabletClient::TTabletCellId, TCellDescriptor> tabletCellReplicas;
 
         auto getAddress = [&] (const TTabletInfoPtr& tabletInfo) mutable {
-            auto state = tabletInfo->State;
-            if (state != ETabletState::Mounted &&
-                state != ETabletState::Freezing &&
-                state != ETabletState::Frozen)
-            {
-                THROW_ERROR_EXCEPTION(
-                    NTabletClient::EErrorCode::TabletNotMounted,
-                    "Cannot read from tablet %v while it is in %Qlv state",
-                    tabletInfo->TabletId,
-                    state)
-                    << TErrorAttribute("tablet_id", tabletInfo->TabletId);
-            }
+            // TODO(babenko): learn to work with unmounted tablets
+            ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
 
             auto insertResult = tabletCellReplicas.insert(std::make_pair(tabletInfo->CellId, TCellDescriptor()));
             auto& descriptor = insertResult.first->second;
@@ -1903,7 +1909,7 @@ private:
         auto evaluator = tableInfo->NeedKeyEvaluation ? evaluatorCache->Find(schema) : nullptr;
 
         for (int index = 0; index < keys.Size(); ++index) {
-            ValidateClientKey(keys[index], schema, idMapping);
+            ValidateClientKey(keys[index], schema, idMapping, nameTable);
             auto capturedKey = rowBuffer->CaptureAndPermuteRow(keys[index], schema, idMapping);
 
             if (evaluator) {
@@ -3634,7 +3640,7 @@ private:
         {
             switch (modification.Type) {
                 case ERowModificationType::Write:
-                    ValidateClientDataRow(modification.Row, schema, idMapping);
+                    ValidateClientDataRow(modification.Row, schema, idMapping, NameTable_);
                     break;
 
                 case ERowModificationType::Delete:
@@ -3642,7 +3648,7 @@ private:
                         THROW_ERROR_EXCEPTION("Cannot delete rows from a non-sorted table %v",
                             tableInfo->Path);
                     }
-                    ValidateClientKey(modification.Row, schema, idMapping);
+                    ValidateClientKey(modification.Row, schema, idMapping, NameTable_);
                     break;
 
                 default:

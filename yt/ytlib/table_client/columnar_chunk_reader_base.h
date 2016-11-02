@@ -41,12 +41,12 @@ protected:
 
     struct TColumn
     {
-        TColumn(NTableChunkFormat::IColumnReaderBase* reader, int chunkSchemaIndex)
-            : ColumnReader(reader)
-            , ColumnMetaIndex(chunkSchemaIndex)
+        TColumn(std::unique_ptr<NTableChunkFormat::IColumnReaderBase> reader, int columnMetaIndex = -1)
+            : ColumnReader(std::move(reader))
+            , ColumnMetaIndex(columnMetaIndex)
         { }
 
-        NTableChunkFormat::IColumnReaderBase* ColumnReader;
+        std::unique_ptr<NTableChunkFormat::IColumnReaderBase> ColumnReader;
         int ColumnMetaIndex;
         std::vector<int> BlockIndexSequence;
         int PendingBlockIndex_ = 0;
@@ -78,14 +78,22 @@ protected:
     NChunkClient::TReadLimit LowerLimit_;
     NChunkClient::TReadLimit UpperLimit_;
 
+    // Lower limit (both, key and row index) is greater or equal than this row index.
+    // No need to read and check keys with lesser row indexes.
     i64 LowerRowIndex_;
+
+    // Upper limit (both, key and row index) is greater or equal than this row index.
+    // No need to check keys below this row index.
     i64 SafeUpperRowIndex_;
+
+    // Upper limit (both, key and row index) is less or equal than this row index.
+    // We should check UpperLimit_.GetKey() between SafeUpperRowIndex and HardUpperRowIndex.
     i64 HardUpperRowIndex_;
 
     void InitLowerRowIndex();
     void InitUpperRowIndex();
 
-    void Initialize(TRange<std::unique_ptr<NTableChunkFormat::IUnversionedColumnReader>> keyReaders);
+    void Initialize(TRange<NTableChunkFormat::IUnversionedColumnReader*> keyReaders);
 
     void InitBlockFetcher();
     TFuture<void> RequestFirstBlocks();

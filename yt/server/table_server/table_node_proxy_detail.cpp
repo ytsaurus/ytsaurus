@@ -124,6 +124,9 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(TAttributeDescriptor("tablets")
         .SetPresent(isDynamic)
         .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor("tablet_count_by_state")
+        .SetPresent(isDynamic)
+        .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor("pivot_keys")
         .SetPresent(isDynamic && isSorted)
         .SetOpaque(true));
@@ -206,6 +209,18 @@ bool TTableNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* cons
     if (key == "tablet_count" && isDynamic) {
         BuildYsonFluently(consumer)
             .Value(trunkTable->Tablets().size());
+        return true;
+    }
+
+    if (key == "tablet_count_by_state" && isDynamic) {
+        TEnumIndexedVector<int, ETabletState> counts;
+        for (const auto& tablet : trunkTable->Tablets()) {
+            ++counts[tablet->GetState()];
+        }
+        BuildYsonFluently(consumer)
+            .DoMapFor(TEnumTraits<ETabletState>::GetDomainValues(), [&] (TFluentMap fluent, ETabletState state) {
+                fluent.Item(FormatEnum(state)).Value(counts[state]);
+            });
         return true;
     }
 

@@ -398,6 +398,33 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert get("//tmp/t_out/@sorted_by") ==  ["a"]
         assert get("//tmp/t_out/@schema/@unique_keys")
 
+    def test_sorted_unique_teleport(self):
+        create("table", "//tmp/t1", attributes={
+            "schema": make_schema([
+                {"name": "a", "type": "int64", "sort_order": "ascending"},
+                {"name": "b", "type": "int64"}],
+                unique_keys=True)
+            })
+        create("table", "//tmp/t_out", attributes={
+            "schema": make_schema([
+                {"name": "a", "type": "int64", "sort_order": "ascending"},
+                {"name": "b", "type": "int64"}],
+                unique_keys=True)
+            })
+
+        a1 = {"a": 1, "b": 1}
+        a2 = {"a": 2, "b": 2}
+
+        write_table("//tmp/t1", [a1, a2])
+
+        merge(mode="sorted",
+              in_="//tmp/t1",
+              out="//tmp/t_out",
+              merge_by="a")
+
+        assert read_table("//tmp/t_out") == [a1, a2]
+        assert get("//tmp/t_out/@schema/@unique_keys")
+
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_sorted_unique_with_wider_key_columns(self, optimize_for):
         create("table", "//tmp/t1")

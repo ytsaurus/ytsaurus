@@ -21,6 +21,12 @@ message TFileDescriptor
     optional bytes format = 7;
 }
 
+message TTableStderrSpec
+{
+    required TTableOutputSpec output_table_spec = 1;
+    required bytes stderr_table_writer_config = 2;
+}
+
 // Specification for starting user code during a job.
 message TUserJobSpec
 {
@@ -74,6 +80,8 @@ message TUserJobSpec
 
     optional int32 iops_threshold = 27 [default = 1000];
     optional int32 iops_throttler_limit = 28;
+
+    optional TTableStderrSpec stderr_table_spec = 29;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -204,6 +212,8 @@ message TSchedulerJobResultExt
 
     // Used for reordering chunks from operations that produce sorted output.
     repeated TOutputResult output_boundary_keys = 9;
+
+    optional TOutputResult stderr_table_boundary_keys = 10;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

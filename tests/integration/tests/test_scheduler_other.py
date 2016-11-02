@@ -8,6 +8,8 @@ from yt_commands import *
 import time
 import __builtin__
 
+import os
+
 ##################################################################
 
 def set_banned_flag(value, nodes=None):
@@ -54,6 +56,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
             "profiling_update_period": 100,
+            "fair_share_profiling_period": 100,
         }
     }
 
@@ -323,6 +326,7 @@ class TestSchedulerFunctionality2(YTEnvSetup, PrepareTables):
             "operation_time_limit_check_period" : 100,
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
+            "fair_share_profiling_period": 100,
         }
     }
 
@@ -594,6 +598,62 @@ class TestSchedulerRevive(YTEnvSetup):
 
         assert "failed" == get("//sys/operations/" + op.id + "/@state")
 
+
+class TestMultipleSchedulers(YTEnvSetup, PrepareTables):
+    NUM_MASTERS = 3
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 2
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "connect_retry_backoff_time": 1000,
+            "fair_share_update_period": 100,
+            "profiling_update_period": 100,
+            "snapshot_period": 500,
+            "master_disconnect_delay": 3000,
+        }
+    }
+
+    def _get_scheduler_transation(self):
+        while True:
+            scheduler_locks = get("//sys/scheduler/lock/@locks", verbose=False)
+            if len(scheduler_locks) > 0:
+                scheduler_transaction = scheduler_locks[0]["transaction_id"]
+                return scheduler_transaction
+            time.sleep(0.01)
+
+    def test_hot_standby(self):
+        self._prepare_tables()
+
+        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 5")
+
+        # Wait till snapshot is written
+        time.sleep(1)
+
+        transaction_id = self._get_scheduler_transation()
+
+        def get_transaction_title(transaction_id):
+            return get("#{0}/@title".format(transaction_id), verbose=False)
+
+        title = get_transaction_title(transaction_id)
+
+        while True:
+            abort_transaction(transaction_id)
+
+            new_transaction_id = self._get_scheduler_transation()
+            new_title = get_transaction_title(new_transaction_id)
+            if title != new_title:
+                break
+
+            title = new_title
+            transaction_id = new_transaction_id
+            time.sleep(0.3)
+
+        op.track()
+
+        assert read_table("//tmp/t_out") == [ {"foo" : "bar"} ]
+
+
 class TestStrategies(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 2
@@ -803,7 +863,8 @@ class TestSchedulerOperationLimits(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "max_running_operation_count_per_pool" : 1
+            "max_running_operation_count_per_pool" : 1,
+            "static_orchid_cache_update_period": 100,
         }
     }
 
@@ -999,6 +1060,54 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         for op in ops:
             op.abort()
 
+    def test_pool_changes(self):
+        create("map_node", "//sys/pools/research")
+        create("map_node", "//sys/pools/research/subpool")
+        create("map_node", "//sys/pools/production")
+
+        create("table", "//tmp/in")
+        write_table("//tmp/in", [{"foo": "bar"}])
+        for i in xrange(5):
+            create("table", "//tmp/out" + str(i))
+
+        ops = []
+        def run(index, pool):
+            ops.append(map(
+                dont_track=True,
+                command="sleep 1000; cat",
+                in_=["//tmp/in"],
+                out="//tmp/out" + str(index),
+                spec={"pool": pool}))
+
+        for i in xrange(1, 4):
+            run(i, "subpool")
+
+        time.sleep(0.5)
+
+        assert get("//sys/scheduler/orchid/scheduler/pools/subpool/running_operation_count") == 1
+        assert get("//sys/scheduler/orchid/scheduler/pools/subpool/operation_count") == 3
+
+        assert get("//sys/scheduler/orchid/scheduler/pools/research/running_operation_count") == 1
+        assert get("//sys/scheduler/orchid/scheduler/pools/research/operation_count") == 3
+
+        assert get("//sys/scheduler/orchid/scheduler/pools/production/running_operation_count") == 0
+        assert get("//sys/scheduler/orchid/scheduler/pools/production/operation_count") == 0
+
+        move("//sys/pools/research/subpool", "//sys/pools/production/subpool")
+
+        time.sleep(0.5)
+
+        assert get("//sys/scheduler/orchid/scheduler/pools/subpool/running_operation_count") == 1
+        assert get("//sys/scheduler/orchid/scheduler/pools/subpool/operation_count") == 3
+
+        assert get("//sys/scheduler/orchid/scheduler/pools/research/running_operation_count") == 0
+        assert get("//sys/scheduler/orchid/scheduler/pools/research/operation_count") == 0
+
+        assert get("//sys/scheduler/orchid/scheduler/pools/production/running_operation_count") == 1
+        assert get("//sys/scheduler/orchid/scheduler/pools/production/operation_count") == 3
+
+        for op in ops:
+            op.abort()
 
 class TestSchedulingTags(YTEnvSetup):
     NUM_MASTERS = 3
@@ -1651,42 +1760,50 @@ class TestSchedulerJobStatistics(YTEnvSetup):
 
 class TestSchedulerSuspiciousJobs(YTEnvSetup):
     NUM_MASTERS = 1
-    NUM_NODES = 3
+    NUM_NODES = 1
     NUM_SCHEDULERS = 1
 
     # This is a mix of options for 18.4 and 18.5
     DELTA_NODE_CONFIG = {
         "exec_agent": {
-            "enable_cgroups": True,                                       # <= 18.4
-            "supported_cgroups": ["cpuacct", "blkio", "memory", "cpu"],   # <= 18.4
             "slot_manager": {
-                "enforce_job_control": True,                              # <= 18.4
-                "memory_watchdog_period" : 100,                           # <= 18.4
-                "job_environment" : {
-                    "type" : "cgroups",                                   # >= 18.5
-                    "memory_watchdog_period" : 100,                       # >= 18.5
-                    "supported_cgroups": [                                # >= 18.5
+                "job_environment": {
+                    "type": "cgroups",
+                    "memory_watchdog_period": 100,
+                    "supported_cgroups": [
                         "cpuacct",
                         "blkio",
                         "memory",
                         "cpu"],
                 },
+            },
+            "scheduler_connector": {
+                "heartbeat_period": 100 # 100 msec
+            },
+            "job_proxy_heartbeat_period": 100, # 100 msec
+            "job_controller": {
+                "resource_limits": {
+                    "user_slots": 2,
+                    "cpu": 2
+                }
             }
         }
     }
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "suspicious_inactivity_timeout": 3000 # 3 sec
+            "suspicious_inactivity_timeout": 2000, # 2 sec
+            "running_jobs_update_period": 100 # 100 msec
         }
     }
 
-    def test_suspiciousness(self):
-        create("table", "//tmp/t")
-        create("table", "//tmp/t1")
-        create("table", "//tmp/t2")
+    def test_false_suspicious_jobs(self):
+        create("table", "//tmp/t", attributes={"replication_factor": 1})
+        create("table", "//tmp/t1", attributes={"replication_factor": 1})
+        create("table", "//tmp/t2", attributes={"replication_factor": 1})
         write_table("//tmp/t", [{"foo": i} for i in xrange(10)])
 
+        # Jobs below are not suspicious, they are just stupid.
         op1 = map(
             dont_track=True,
             command='echo -ne "x = 1\nwhile True:\n    x = (x * x + 1) % 424243" | python',
@@ -1715,30 +1832,76 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
             else:
                 break
 
+        time.sleep(5)
+
         job1_id = running_jobs1.keys()[0]
         job2_id = running_jobs2.keys()[0]
 
-        for i in xrange(200):
-            suspicious1 = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/suspicious".format(op1.id, job1_id))
-            get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}".format(op1.id, job1_id))
-            suspicious2 = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/suspicious".format(op2.id, job2_id))
-            get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}".format(op2.id, job2_id))
+        suspicious1 = get("//sys/scheduler/orchid/scheduler/job_by_id/{0}/suspicious".format(job1_id))
+        suspicious2 = get("//sys/scheduler/orchid/scheduler/job_by_id/{0}/suspicious".format(job2_id))
 
-            assert not suspicious1
-            if suspicious2:
-                break
-            time.sleep(1.0)
-        assert suspicious2
-
-        # Wait while static scheduler Orchid part (containing /suspicious_jobs) is being updated.
-        time.sleep(1.0)
-
-        suspicious_jobs = get("//sys/scheduler/orchid/scheduler/suspicious_jobs")
-        assert len(suspicious_jobs) == 1
-        assert job2_id in suspicious_jobs
+        assert not suspicious1
+        assert not suspicious2
 
         op1.abort()
         op2.abort()
+
+    def test_true_suspicious_job(self):
+        # This test involves dirty hack to make lots of retries for fetching feasible
+        # seeds from master making the job suspicious (as it doesn't give the input for the
+        # user job for a long time).
+        #
+        # We create a table consisting of the only chunk, temporarily set cpu = 0 to prevent
+        # the map from running via @resource_limits_overrides, then we remove the chunk from
+        # the chunk_store via the filesystem and return cpu back to the normal state.
+
+        create("table", "//tmp/t", attributes={"replication_factor": 1})
+        create("table", "//tmp/d", attributes={"replication_factor": 1})
+        write_table("//tmp/t", {"a": 2})
+
+        nodes = ls("//sys/nodes")
+        assert len(nodes) == 1
+        node = nodes[0]
+        set("//sys/nodes/{0}/@resource_limits_overrides".format(node), {"cpu": 0})
+
+        op = map(
+            dont_track=True,
+            command='cat',
+            in_="//tmp/t",
+            out="//tmp/d")
+
+        chunk_ids = get("//tmp/t/@chunk_ids")
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
+
+        chunk_store_path = self.Env.configs["node"][0]["data_node"]["store_locations"][0]["path"]
+        chunk_path = os.path.join(chunk_store_path, chunk_id[-2:], chunk_id)
+        os.remove(chunk_path)
+        os.remove(chunk_path + ".meta")
+
+        set("//sys/nodes/{0}/@resource_limits_overrides".format(node), {"cpu": 1})
+
+        while True:
+            if exists("//sys/scheduler/orchid/scheduler/operations/{0}".format(op.id)):
+                running_jobs = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
+                if len(running_jobs) > 0:
+                    break
+
+            time.sleep(1.0)
+
+        assert len(running_jobs) == 1
+        job_id = running_jobs.keys()[0]
+
+        for i in xrange(20):
+            suspicious = get("//sys/scheduler/orchid/scheduler/job_by_id/{0}/suspicious".format(job_id))
+            if not suspicious:
+                time.sleep(1.0)
+
+            if exists("//sys/scheduler/orchid/scheduler/job_by_id/{0}/brief_statistics".format(job_id)):
+                print >>sys.stderr, get("//sys/scheduler/orchid/scheduler/job_by_id/{0}/brief_statistics".format(job_id))
+
+        assert suspicious
+
 
 class TestSchedulerAlerts(YTEnvSetup):
     NUM_MASTERS = 1

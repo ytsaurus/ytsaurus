@@ -172,7 +172,7 @@ public:
 TEST(TIntrusivePtrTest, Empty)
 {
     TIntricateObjectPtr emptyPointer;
-    EXPECT_EQ(NULL, emptyPointer.Get());
+    EXPECT_EQ(nullptr, emptyPointer.Get());
 }
 
 TEST(TIntrusivePtrTest, Basic)
@@ -209,7 +209,7 @@ TEST(TIntrusivePtrTest, ResetToNull)
     ptr.Reset();
 
     EXPECT_THAT(object, HasRefCounts(1, 1, 1));
-    EXPECT_EQ(NULL, ptr.Get());
+    EXPECT_EQ(nullptr, ptr.Get());
 }
 
 TEST(TIntrusivePtrTest, ResetToOtherObject)
@@ -341,7 +341,7 @@ TEST(TIntrusivePtrTest, UnspecifiedBoolType)
 
 TEST(TIntrusivePtrTest, NewDoesNotAcquireAdditionalReferences)
 {
-    TIntricateObject* rawPtr = NULL;
+    TIntricateObject* rawPtr = nullptr;
     TIntricateObjectPtr ptr = New<TIntricateObject>();
 
     // There was no acquision during construction. Note that

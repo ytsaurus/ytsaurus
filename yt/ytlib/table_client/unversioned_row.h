@@ -329,7 +329,8 @@ void ValidateRowCount(int count);
 void ValidateClientDataRow(
     TUnversionedRow row,
     const TTableSchema& schema,
-    const TNameTableToSchemaIdMapping& idMapping);
+    const TNameTableToSchemaIdMapping& idMapping,
+    const TNameTablePtr& nameTable);
 
 //! Checks that #row is a valid server-side data row. Throws on failure.
 /*! The row must obey the following properties:
@@ -356,7 +357,8 @@ void ValidateClientKey(TKey key);
 void ValidateClientKey(
     TKey key,
     const TTableSchema& schema,
-    const TNameTableToSchemaIdMapping& idMapping);
+    const TNameTableToSchemaIdMapping& idMapping,
+    const TNameTablePtr& nameTable);
 
 //! Checks that #key is a valid server-side key. Throws on failure.
 /*! The key must obey the following properties:
@@ -394,6 +396,9 @@ TKey GetKeyPrefix(TKey key, int prefixLength, const TRowBufferPtr& rowBuffer);
 TOwningKey WidenKey(const TOwningKey& key, int keyColumnCount);
 TKey WidenKey(const TKey& key, int keyColumnCount, const TRowBufferPtr& rowBuffer);
 TKey WidenKeySuccessor(const TKey& key, int keyColumnCount, const TRowBufferPtr& rowBuffer);
+
+//! Takes prefix of a key and makes it wider.
+TOwningKey WidenKeyPrefix(const TOwningKey& key, int prefixLength, int keyColumnCount);
 
 //! Returns the key with no components.
 const TOwningKey EmptyKey();

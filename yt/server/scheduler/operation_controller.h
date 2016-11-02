@@ -176,6 +176,13 @@ struct IOperationController
      */
     virtual void Abort() = 0;
 
+    //! Notifies the controller that its current scheduling decisions should be discarded.
+    /*!
+     *  Happens when current scheduler gets disconnected from master and
+     *  the negotiation between scheduler and controller becomes no longer valid.
+     */
+    virtual void Forget() = 0;
+
     //! Notifies the controller that the operation has been completed.
     /*!
      *  All running jobs are aborted automatically.

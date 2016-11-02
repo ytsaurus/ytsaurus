@@ -51,22 +51,25 @@ private:
 
 ////////////////////////////////////////////////////////////////////
 
-bool CompareBriefJobStatistics(
+// Returns true if job proxy wasn't stalling and false otherwise.
+// This function is related to the suspicious jobs detection.
+bool CheckJobActivity(
     const TBriefJobStatisticsPtr& lhs,
     const TBriefJobStatisticsPtr& rhs,
     i64 cpuUsageThreshold,
-    i64 userJobIOReadThreshold)
+    double inputPipeIdleTimeFraction)
 {
-    return lhs->ProcessedInputRowCount < rhs->ProcessedInputRowCount ||
-        lhs->ProcessedInputDataSize < rhs->ProcessedInputDataSize ||
-        lhs->ProcessedOutputRowCount < rhs->ProcessedOutputRowCount ||
-        lhs->ProcessedOutputDataSize < rhs->ProcessedOutputDataSize ||
-        (lhs->UserJobCpuUsage && rhs->UserJobCpuUsage &&
-        *lhs->UserJobCpuUsage + cpuUsageThreshold < *rhs->UserJobCpuUsage) ||
-        (lhs->JobProxyCpuUsage && rhs->JobProxyCpuUsage &&
-        *lhs->JobProxyCpuUsage + cpuUsageThreshold < *rhs->JobProxyCpuUsage) ||
-        (lhs->UserJobBlockIORead && rhs->UserJobBlockIORead &&
-        *lhs->UserJobBlockIORead + userJobIOReadThreshold < *rhs->UserJobBlockIORead);
+    bool wasActive = lhs->ProcessedInputRowCount < rhs->ProcessedInputRowCount;
+    wasActive |= lhs->ProcessedInputDataSize < rhs->ProcessedInputDataSize;
+    wasActive |= lhs->ProcessedOutputRowCount < rhs->ProcessedOutputRowCount;
+    wasActive |= lhs->ProcessedOutputDataSize < rhs->ProcessedOutputDataSize;
+    if (lhs->JobProxyCpuUsage && rhs->JobProxyCpuUsage) {
+        wasActive |= *lhs->JobProxyCpuUsage + cpuUsageThreshold < *rhs->JobProxyCpuUsage;
+    }
+    if (lhs->InputPipeIdleTime && rhs->InputPipeIdleTime && lhs->Timestamp < rhs->Timestamp) {
+        wasActive |= (*rhs->InputPipeIdleTime - *lhs->InputPipeIdleTime) < (rhs->Timestamp - lhs->Timestamp).MilliSeconds() * inputPipeIdleTimeFraction;
+    }
+    return wasActive;
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -74,15 +77,15 @@ bool CompareBriefJobStatistics(
 void Serialize(const TBriefJobStatistics& briefJobStatistics, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
+        .BeginAttributes()
+            .Item("timestamp").Value(briefJobStatistics.Timestamp)
+        .EndAttributes()
         .BeginMap()
             .Item("processed_input_row_count").Value(briefJobStatistics.ProcessedInputRowCount)
             .Item("processed_input_data_size").Value(briefJobStatistics.ProcessedInputDataSize)
             .Item("processed_output_data_size").Value(briefJobStatistics.ProcessedOutputDataSize)
-            .DoIf(static_cast<bool>(briefJobStatistics.UserJobBlockIORead), [&] (TFluentMap fluent) {
-                fluent.Item("user_job_io_read").Value(*briefJobStatistics.UserJobBlockIORead);
-            })
-            .DoIf(static_cast<bool>(briefJobStatistics.UserJobCpuUsage), [&] (TFluentMap fluent) {
-                fluent.Item("user_job_cpu_usage").Value(*briefJobStatistics.UserJobCpuUsage);
+            .DoIf(static_cast<bool>(briefJobStatistics.InputPipeIdleTime), [&] (TFluentMap fluent) {
+                fluent.Item("input_pipe_idle_time").Value(*briefJobStatistics.InputPipeIdleTime);
             })
             .DoIf(static_cast<bool>(briefJobStatistics.JobProxyCpuUsage), [&] (TFluentMap fluent) {
                 fluent.Item("job_proxy_cpu_usage").Value(*briefJobStatistics.JobProxyCpuUsage);
@@ -128,9 +131,9 @@ TBriefJobStatisticsPtr TJob::BuildBriefStatistics(const TYsonString& statisticsY
     auto briefStatistics = New<TBriefJobStatistics>();
     briefStatistics->ProcessedInputRowCount = GetNumericValue(statistics, "/data/input/row_count");
     briefStatistics->ProcessedInputDataSize = GetNumericValue(statistics, "/data/input/uncompressed_data_size");
-    briefStatistics->UserJobCpuUsage = FindNumericValue(statistics, "/user_job/cpu/user");
+    briefStatistics->InputPipeIdleTime = FindNumericValue(statistics, "/user_job/pipes/input/idle_time");
     briefStatistics->JobProxyCpuUsage = FindNumericValue(statistics, "/job_proxy/cpu/user");
-    briefStatistics->UserJobBlockIORead = FindNumericValue(statistics, "/user_job/block_io/io_read");
+    briefStatistics->Timestamp = statistics.GetTimestamp().Get(TInstant::Now());
 
     auto outputDataStatistics = GetTotalOutputDataStatistics(statistics);
     briefStatistics->ProcessedOutputDataSize = outputDataStatistics.uncompressed_data_size();
@@ -142,23 +145,23 @@ TBriefJobStatisticsPtr TJob::BuildBriefStatistics(const TYsonString& statisticsY
 void TJob::AnalyzeBriefStatistics(
     TDuration suspiciousInactivityTimeout,
     i64 suspiciousCpuUsageThreshold,
-    i64 suspiciousUserJobBlockIOReadThreshold,
+    double suspiciousInputPipeIdleTimeFraction,
     const TBriefJobStatisticsPtr& briefStatistics)
 {
     bool wasActive = false;
 
-    if (!BriefStatistics_ || CompareBriefJobStatistics(
+    if (!BriefStatistics_ || CheckJobActivity(
         BriefStatistics_,
         briefStatistics,
         suspiciousCpuUsageThreshold,
-        suspiciousUserJobBlockIOReadThreshold))
+        suspiciousInputPipeIdleTimeFraction))
     {
         wasActive = true;
     }
     BriefStatistics_ = briefStatistics;
 
     bool wasSuspicious = Suspicious_;
-    Suspicious_ = (!wasActive && TInstant::Now() - LastActivityTime_ > suspiciousInactivityTimeout);
+    Suspicious_ = (!wasActive && BriefStatistics_->Timestamp - LastActivityTime_ > suspiciousInactivityTimeout);
     if (!wasSuspicious && Suspicious_) {
         LOG_DEBUG("Found a suspicious job (JobId: %v, LastActivityTime: %v, SuspiciousInactivityTimeout: %v)",
             Id_,
@@ -167,7 +170,7 @@ void TJob::AnalyzeBriefStatistics(
     }
 
     if (wasActive) {
-        LastActivityTime_ = TInstant::Now();
+        LastActivityTime_ = BriefStatistics_->Timestamp;
     }
 }
 
@@ -222,6 +225,9 @@ void TJobSummary::ParseStatistics()
 {
     if (StatisticsYson) {
         Statistics = ConvertTo<NJobTrackerClient::TStatistics>(*StatisticsYson);
+        // NB: we should remove timestamp from the statistics as it becomes a YSON-attribute
+        // when writing it to the event log, but top-level attributes are disallowed in table rows.
+        Statistics.SetTimestamp(Null);
     }
 }
 

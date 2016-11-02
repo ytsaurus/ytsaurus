@@ -13,6 +13,7 @@
 #include <yt/server/data_node/chunk.h>
 
 #include <yt/server/job_agent/job.h>
+#include <yt/server/job_agent/statistics_reporter.h>
 
 #include <yt/server/scheduler/config.h>
 
@@ -320,7 +321,7 @@ public:
     }
 
     virtual std::vector<TChunkId> DumpInputContext() override
-    {   
+    {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
         ValidateJobRunning();
@@ -406,6 +407,22 @@ public:
         const auto& rsp = rspOrError.Value();
 
         return TYsonString(rsp->result());
+    }
+
+    virtual void ReportStatistics(
+        const TNullable<TInstant>& startTime = {},
+        const TNullable<TInstant>& finishTime = {},
+        const TNullable<TError>& error = {}) override
+    {
+        Bootstrap_->GetStatisticsReporter()->ReportStatistics(
+            GetOperationId(),
+            GetId(),
+            GetType(),
+            GetState(),
+            startTime,
+            finishTime,
+            error,
+            Statistics_);
     }
 
 private:
@@ -605,6 +622,7 @@ private:
         }
 
         Cleanup();
+        ReportStatistics();
     }
 
     void GuardedAction(std::function<void()> action)
@@ -727,12 +745,20 @@ private:
         const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         if (schedulerJobSpecExt.has_user_job_spec()) {
             const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
-            if (userJobSpec.has_tmpfs_path() && Bootstrap_->GetConfig()->ExecAgent->SlotManager->EnableTmpfs) {
+            if (userJobSpec.has_tmpfs_path()) {
+                bool enable = Bootstrap_->GetConfig()->ExecAgent->SlotManager->EnableTmpfs;
                 TmpfsPath_ = WaitFor(Slot_->PrepareTmpfs(
                     ESandboxKind::User,
                     userJobSpec.tmpfs_size(),
-                    userJobSpec.tmpfs_path()))
+                    userJobSpec.tmpfs_path(),
+                    enable))
                 .ValueOrThrow();
+
+                // Slot just creates directory in that case and job proxy
+                // should not consider this directory as tmpfs.
+                if (!enable) {
+                    TmpfsPath_ = Null;
+                }
             }
         }
     }
@@ -932,7 +958,8 @@ private:
             error.FindMatching(NTableClient::EErrorCode::IncomparableType) ||
             error.FindMatching(NTableClient::EErrorCode::UnhashableType) ||
             error.FindMatching(NTableClient::EErrorCode::CorruptedNameTable) ||
-            error.FindMatching(NTableClient::EErrorCode::RowWeightLimitExceeded);
+            error.FindMatching(NTableClient::EErrorCode::RowWeightLimitExceeded) ||
+            error.FindMatching(NTableClient::EErrorCode::InvalidColumnFilter);
     }
 };
 

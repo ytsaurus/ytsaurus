@@ -250,7 +250,7 @@ public:
             auto securityManager = Bootstrap_->GetSecurityManager();
             auto* rootUser = securityManager->GetRootUser();
             TAuthenticatedUserGuard userGuard(securityManager, rootUser);
-            
+
             // Create Cypress node.
             {
                 auto req = TCypressYPathProxy::Create(cellNodePath);
@@ -300,6 +300,7 @@ public:
                 RemoveFromAddressToCellMap(peer.Descriptor, cell);
             }
         }
+        cell->Peers().clear();
 
         auto* cellBundle = cell->GetCellBundle();
         YCHECK(cellBundle->TabletCells().erase(cell) == 1);
@@ -541,6 +542,7 @@ public:
         tabletStatistics.PreloadPendingStoreCount = nodeStatistics.preload_pending_store_count();
         tabletStatistics.PreloadCompletedStoreCount = nodeStatistics.preload_completed_store_count();
         tabletStatistics.PreloadFailedStoreCount = nodeStatistics.preload_failed_store_count();
+        tabletStatistics.OverlappingStoreCount = nodeStatistics.overlapping_store_count();
         tabletStatistics.UnmergedRowCount = treeStatistics.RowCount;
         tabletStatistics.UncompressedDataSize = treeStatistics.UncompressedDataSize;
         tabletStatistics.CompressedDataSize = treeStatistics.CompressedDataSize;
@@ -614,6 +616,10 @@ public:
         TTableMountConfigPtr mountConfig;
         NTabletNode::TTabletWriterOptionsPtr writerOptions;
         GetTableSettings(table, &mountConfig, &writerOptions);
+
+        if (!table->IsSorted() && mountConfig->InMemoryMode != EInMemoryMode::None) {
+            THROW_ERROR_EXCEPTION("Cannot mount an ordered dynamic table in memory");
+        }
 
         auto serializedMountConfig = ConvertToYsonString(mountConfig);
         auto serializedWriterOptions = ConvertToYsonString(writerOptions);
@@ -778,6 +784,10 @@ public:
         TTableMountConfigPtr mountConfig;
         NTabletNode::TTabletWriterOptionsPtr writerOptions;
         GetTableSettings(table, &mountConfig, &writerOptions);
+
+        if (!table->IsSorted() && mountConfig->InMemoryMode != EInMemoryMode::None) {
+            THROW_ERROR_EXCEPTION("Cannot mount an ordered dynamic table in memory");
+        }
 
         auto serializedMountConfig = ConvertToYsonString(mountConfig);
         auto serializedWriterOptions = ConvertToYsonString(writerOptions);
@@ -1589,6 +1599,9 @@ private:
 
         for (const auto& pair : TabletCellMap_) {
             auto* cell = pair.second;
+            if (!IsObjectAlive(cell)) {
+                continue;
+            }
             for (const auto& peer : cell->Peers()) {
                 if (!peer.Descriptor.IsNull()) {
                     AddToAddressToCellMap(peer.Descriptor, cell);
@@ -1776,9 +1789,10 @@ private:
         yhash_set<TTabletCell*> expectedCells;
         for (const auto& slot : node->TabletSlots()) {
             auto* cell = slot.Cell;
-            if (IsObjectAlive(cell)) {
-                YCHECK(expectedCells.insert(cell).second);
+            if (!IsObjectAlive(cell)) {
+                continue;
             }
+            YCHECK(expectedCells.insert(cell).second);
         }
 
         // Figure out and analyze the reality.
@@ -1869,7 +1883,10 @@ private:
             auto range = AddressToCell_.equal_range(address);
             for (auto it = range.first; it != range.second; ++it) {
                 auto* cell = it->second;
-                if (IsObjectAlive(cell) && actualCells.find(cell) == actualCells.end()) {
+                if (!IsObjectAlive(cell)) {
+                    continue;
+                }
+                if (actualCells.find(cell) == actualCells.end()) {
                     requestCreateSlot(cell);
                     --availableSlots;
                 }
@@ -1952,8 +1969,9 @@ private:
 
         auto cellId = FromProto<TTabletCellId>(request->cell_id());
         auto* cell = FindTabletCell(cellId);
-        if (!IsObjectAlive(cell))
+        if (!IsObjectAlive(cell)) {
             return;
+        }
 
         const auto* mutationContext = GetCurrentMutationContext();
         auto mutationTimestamp = mutationContext->GetTimestamp();
@@ -1995,8 +2013,9 @@ private:
 
         auto cellId = FromProto<TTabletCellId>(request->cell_id());
         auto* cell = FindTabletCell(cellId);
-        if (!IsObjectAlive(cell))
+        if (!IsObjectAlive(cell)) {
             return;
+        }
 
         bool leadingPeerRevoked = false;
         for (auto peerId : request->peer_ids()) {
@@ -2506,6 +2525,9 @@ private:
 
         for (const auto& pair : TabletCellMap_) {
             auto* cell = pair.second;
+            if (!IsObjectAlive(cell)) {
+                continue;
+            }
             UpdateCellDirectory(cell);
         }
 
@@ -2564,7 +2586,12 @@ private:
     {
         for (const auto& pair : TabletCellMap_) {
             auto* cell = pair.second;
-            if (cell->GetCellBundle() == cellBundle && cell->GetHealth() == ETabletCellHealth::Good) {
+            if (!IsObjectAlive(cell)) {
+                continue;
+            }
+            if (cell->GetCellBundle() == cellBundle &&
+                cell->GetHealth() == ETabletCellHealth::Good)
+            {
                 return;
             }
         }
@@ -2623,6 +2650,9 @@ private:
         std::set<TCellKey> cellKeys;
         for (const auto& pair : TabletCellMap_) {
             auto* cell = pair.second;
+            if (!IsObjectAlive(cell)) {
+                continue;
+            }
             if (cell->GetCellBundle() == table->GetTabletCellBundle() &&
                 cell->GetHealth() == ETabletCellHealth::Good)
             {
@@ -2911,8 +2941,9 @@ private:
             for (const auto& pair : TabletCellMap_) {
                 const auto& cellId = pair.first;
                 const auto* cell = pair.second;
-                if (!IsObjectAlive(cell))
+                if (!IsObjectAlive(cell)) {
                     continue;
+                }
 
                 auto snapshotsPath = Format("//sys/tablet_cells/%v/snapshots", cellId);
                 IMapNodePtr snapshotsMap;

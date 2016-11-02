@@ -55,8 +55,9 @@ struct ISlot
     virtual TFuture<Stroka> PrepareTmpfs(
         ESandboxKind sandboxKind,
         i64 size,
-        Stroka path) = 0;
-
+        Stroka path,
+        bool enable) = 0;
+    
     virtual NJobProberClient::TJobProberServiceProxy GetJobProberProxy() = 0;
 
     virtual NBus::TTcpBusServerConfigPtr GetRpcServerConfig() const = 0;
