@@ -5,6 +5,8 @@
 #include "node_proxy.h"
 #include "rack.h"
 #include "rack_proxy.h"
+#include "data_center.h"
+#include "data_center_proxy.h"
 
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/hydra_facade.h>
@@ -166,6 +168,51 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TNodeTracker::TDataCenterTypeHandler
+    : public TObjectTypeHandlerWithMapBase<TDataCenter>
+{
+public:
+    explicit TDataCenterTypeHandler(TImpl* owner);
+
+    virtual ETypeFlags GetFlags() const override
+    {
+        return
+            ETypeFlags::ReplicateCreate |
+            ETypeFlags::ReplicateDestroy |
+            ETypeFlags::ReplicateAttributes |
+            ETypeFlags::Creatable;
+    }
+
+    virtual EObjectType GetType() const override
+    {
+        return EObjectType::DataCenter;
+    }
+
+    virtual TObjectBase* CreateObject(
+        const TObjectId& hintId,
+        IAttributeDictionary* attributes) override;
+
+private:
+    TImpl* const Owner_;
+
+    virtual TCellTagList DoGetReplicationCellTags(const TDataCenter* /*dc*/) override
+    {
+        return AllSecondaryCellTags();
+    }
+
+    virtual Stroka DoGetName(const TDataCenter* dc) override
+    {
+        return Format("DC %Qv", dc->GetName());
+    }
+
+    virtual IObjectProxyPtr DoGetProxy(TDataCenter* dc, TTransaction* transaction) override;
+
+    virtual void DoZombifyObject(TDataCenter* dc) override;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TNodeTracker::TImpl
     : public TMasterAutomatonPart
 {
@@ -215,6 +262,7 @@ public:
         auto objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(New<TClusterNodeTypeHandler>(this));
         objectManager->RegisterHandler(New<TRackTypeHandler>(this));
+        objectManager->RegisterHandler(New<TDataCenterTypeHandler>(this));
 
         if (Bootstrap_->IsPrimaryMaster()) {
             auto multicellManager = Bootstrap_->GetMulticellManager();
@@ -274,13 +322,14 @@ public:
 
     DECLARE_ENTITY_MAP_ACCESSORS(Node, TNode);
     DECLARE_ENTITY_MAP_ACCESSORS(Rack, TRack);
+    DECLARE_ENTITY_MAP_ACCESSORS(DataCenter, TDataCenter);
 
     DEFINE_SIGNAL(void(TNode* node), NodeRegistered);
     DEFINE_SIGNAL(void(TNode* node), NodeUnregistered);
     DEFINE_SIGNAL(void(TNode* node), NodeDisposed);
     DEFINE_SIGNAL(void(TNode* node), NodeBanChanged);
     DEFINE_SIGNAL(void(TNode* node), NodeDecommissionChanged);
-    DEFINE_SIGNAL(void(TNode* node), NodeRackChanged);
+    DEFINE_SIGNAL(void(TNode* node), NodeLocationChanged);
     DEFINE_SIGNAL(void(TNode* node, TReqFullHeartbeat* request), FullHeartbeat);
     DEFINE_SIGNAL(void(TNode* node, TReqIncrementalHeartbeat* request, TRspIncrementalHeartbeat* response), IncrementalHeartbeat);
 
@@ -367,6 +416,20 @@ public:
         return result;
     }
 
+    std::vector<TRack*> GetDataCenterRacks(const TDataCenter* dc)
+    {
+        std::vector<TRack*> result;
+        for (const auto& pair : RackMap_) {
+            auto* rack = pair.second;
+            if (!IsObjectAlive(rack))
+                continue;
+            if (rack->GetDataCenter() == dc) {
+                result.push_back(rack);
+            }
+        }
+        return result;
+    }
+
 
     void SetNodeBanned(TNode* node, bool value)
     {
@@ -432,7 +495,7 @@ public:
                 node->GetId(),
                 node->GetDefaultAddress(),
                 rack ? MakeNullable(rack->GetName()) : Null);
-            NodeRackChanged_.Fire(node);
+            NodeLocationChanged_.Fire(node);
         }
     }
 
@@ -530,6 +593,118 @@ public:
         return rack;
     }
 
+    void SetRackDataCenter(TRack* rack, TDataCenter* dc)
+    {
+        if (rack->GetDataCenter() != dc) {
+            rack->SetDataCenter(dc);
+
+            // Node's tags take into account not only its rack, but also its
+            // rack's DC.
+            auto nodes = GetRackNodes(rack);
+            for (auto* node : nodes) {
+                node->RebuildTags();
+            }
+
+            LOG_INFO_UNLESS(IsRecovery(), "Rack data center changed (Rack: %v, DataCenter: %v)",
+                MakeNullable(rack->GetName()),
+                dc ? MakeNullable(dc->GetName()) : Null);
+
+            for (auto* node : nodes) {
+                NodeLocationChanged_.Fire(node);
+            }
+        }
+    }
+
+
+    TDataCenter* CreateDataCenter(const Stroka& name, const TObjectId& hintId)
+    {
+        if (name.empty()) {
+            THROW_ERROR_EXCEPTION("Data center name cannot be empty");
+        }
+
+        if (FindDataCenterByName(name)) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::AlreadyExists,
+                "Data center %Qv already exists",
+                name);
+        }
+
+        if (DataCenterMap_.GetSize() >= MaxDataCenterCount) {
+            THROW_ERROR_EXCEPTION("Data center count limit %v is reached",
+                MaxDataCenterCount);
+        }
+
+        auto objectManager = Bootstrap_->GetObjectManager();
+        auto id = objectManager->GenerateId(EObjectType::DataCenter, hintId);
+
+        auto dcHolder = std::make_unique<TDataCenter>(id);
+        dcHolder->SetName(name);
+
+        auto* dc = DataCenterMap_.Insert(id, std::move(dcHolder));
+        YCHECK(NameToDataCenterMap_.insert(std::make_pair(name, dc)).second);
+
+        // Make the fake reference.
+        YCHECK(dc->RefObject() == 1);
+
+        return dc;
+    }
+
+    void DestroyDataCenter(TDataCenter* dc)
+    {
+        // Unbind racks from this DC.
+        for (auto* rack : GetDataCenterRacks(dc)) {
+            SetRackDataCenter(rack, nullptr);
+        }
+
+        // Remove DC from maps.
+        YCHECK(NameToDataCenterMap_.erase(dc->GetName()) == 1);
+    }
+
+    void RenameDataCenter(TDataCenter* dc, const Stroka& newName)
+    {
+        if (dc->GetName() == newName)
+            return;
+
+        if (FindDataCenterByName(newName)) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::AlreadyExists,
+                "Data center %Qv already exists",
+                newName);
+        }
+
+        // Update name.
+        YCHECK(NameToDataCenterMap_.erase(dc->GetName()) == 1);
+        YCHECK(NameToDataCenterMap_.insert(std::make_pair(newName, dc)).second);
+        dc->SetName(newName);
+
+        // Rebuild node tags since they depend on DC name.
+        auto racks = GetDataCenterRacks(dc);
+        for (auto* rack : racks) {
+            auto nodes = GetRackNodes(rack);
+            for (auto* node : nodes) {
+                node->RebuildTags();
+            }
+        }
+    }
+
+    TDataCenter* FindDataCenterByName(const Stroka& name)
+    {
+        auto it = NameToDataCenterMap_.find(name);
+        return it == NameToDataCenterMap_.end() ? nullptr : it->second;
+    }
+
+    TDataCenter* GetDataCenterByNameOrThrow(const Stroka& name)
+    {
+        auto* dc = FindDataCenterByName(name);
+        if (!dc) {
+            THROW_ERROR_EXCEPTION(
+                NNodeTrackerClient::EErrorCode::NoSuchDataCenter,
+                "No such data center %Qv",
+                name);
+        }
+        return dc;
+    }
+
 
     TTotalNodeStatistics GetTotalNodeStatistics()
     {
@@ -571,6 +746,7 @@ public:
 private:
     friend class TClusterNodeTypeHandler;
     friend class TRackTypeHandler;
+    friend class TDataCenterTypeHandler;
 
     const TNodeTrackerConfigPtr Config_;
 
@@ -581,6 +757,7 @@ private:
     TIdGenerator NodeIdGenerator_;
     NHydra::TEntityMap<TNode> NodeMap_;
     NHydra::TEntityMap<TRack> RackMap_;
+    NHydra::TEntityMap<TDataCenter> DataCenterMap_;
 
     int AggregatedOnlineNodeCount_ = 0;
     int LocalRegisteredNodeCount_ = 0;
@@ -594,6 +771,7 @@ private:
     yhash_multimap<Stroka, TNode*> HostNameToNodeMap_;
     yhash_map<TTransaction*, TNode*> TransactionToNodeMap_;
     yhash_map<Stroka, TRack*> NameToRackMap_;
+    yhash_map<Stroka, TDataCenter*> NameToDataCenterMap_;
 
     TPeriodicExecutorPtr NodeStatesGossipExecutor_;
 
@@ -836,8 +1014,11 @@ private:
             UpdateLastSeenTime(node);
 
             if (Bootstrap_->IsPrimaryMaster()) {
-                if (node->GetRack()) {
-                    response->set_rack(node->GetRack()->GetName());
+                if (auto* rack = node->GetRack()) {
+                    response->set_rack(rack->GetName());
+                    if (auto* dc = rack->GetDataCenter()) {
+                        response->set_data_center(dc->GetName());
+                    }
                 }
 
                 *response->mutable_resource_limits_overrides() = node->ResourceLimitsOverrides();
@@ -880,6 +1061,7 @@ private:
     {
         NodeMap_.SaveKeys(context);
         RackMap_.SaveKeys(context);
+        DataCenterMap_.SaveKeys(context);
     }
 
     void SaveValues(NCellMaster::TSaveContext& context) const
@@ -887,12 +1069,17 @@ private:
         Save(context, NodeIdGenerator_);
         NodeMap_.SaveValues(context);
         RackMap_.SaveValues(context);
+        DataCenterMap_.SaveValues(context);
     }
 
     void LoadKeys(NCellMaster::TLoadContext& context)
     {
         NodeMap_.LoadKeys(context);
         RackMap_.LoadKeys(context);
+        // COMPAT(shakurov)
+        if (context.GetVersion() >= 4242) {
+            DataCenterMap_.LoadKeys(context);
+        }
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -900,6 +1087,10 @@ private:
         Load(context, NodeIdGenerator_);
         NodeMap_.LoadValues(context);
         RackMap_.LoadValues(context);
+        // COMPAT(shakurov)
+        if (context.GetVersion() >= 4242) {
+            DataCenterMap_.LoadValues(context);
+        }
     }
 
 
@@ -910,12 +1101,14 @@ private:
         NodeIdGenerator_.Reset();
         NodeMap_.Clear();
         RackMap_.Clear();
+        DataCenterMap_.Clear();
 
         AddressToNodeMap_.clear();
         HostNameToNodeMap_.clear();
         TransactionToNodeMap_.clear();
 
         NameToRackMap_.clear();
+        NameToDataCenterMap_.clear();
 
         AggregatedOnlineNodeCount_ = 0;
         LocalRegisteredNodeCount_ = 0;
@@ -954,6 +1147,12 @@ private:
             auto rackIndex = rack->GetIndex();
             YCHECK(!UsedRackIndexes_.test(rackIndex));
             UsedRackIndexes_.set(rackIndex);
+        }
+
+        for (const auto& pair : DataCenterMap_) {
+            auto* dc = pair.second;
+
+            YCHECK(NameToDataCenterMap_.insert(std::make_pair(dc->GetName(), dc)).second);
         }
     }
 
@@ -1284,7 +1483,6 @@ private:
         UsedRackIndexes_.reset(index);
     }
 
-
     void OnValidateSecondaryMasterRegistration(TCellTag cellTag)
     {
         auto nodes = GetValuesSortedByKey(NodeMap_);
@@ -1323,6 +1521,11 @@ private:
         for (auto* rack : racks) {
             objectManager->ReplicateObjectCreationToSecondaryMaster(rack, cellTag);
         }
+
+        auto dcs = GetValuesSortedByKey(DataCenterMap_);
+        for (auto* dc : dcs) {
+            objectManager->ReplicateObjectCreationToSecondaryMaster(dc, cellTag);
+        }
     }
 
     void OnReplicateValuesToSecondaryMaster(TCellTag cellTag)
@@ -1337,6 +1540,11 @@ private:
         auto racks = GetValuesSortedByKey(RackMap_);
         for (auto* rack : racks) {
             objectManager->ReplicateObjectAttributesToSecondaryMaster(rack, cellTag);
+        }
+
+        auto dcs = GetValuesSortedByKey(DataCenterMap_);
+        for (auto* dc : dcs) {
+            objectManager->ReplicateObjectAttributesToSecondaryMaster(dc, cellTag);
         }
     }
 
@@ -1385,6 +1593,7 @@ private:
 
 DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker::TImpl, Node, TNode, NodeMap_)
 DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker::TImpl, Rack, TRack, RackMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker::TImpl, DataCenter, TDataCenter, DataCenterMap_)
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -1441,6 +1650,11 @@ std::vector<TNode*> TNodeTracker::GetRackNodes(const TRack* rack)
     return Impl_->GetRackNodes(rack);
 }
 
+std::vector<TRack*> TNodeTracker::GetDataCenterRacks(const TDataCenter* dc)
+{
+    return Impl_->GetDataCenterRacks(dc);
+}
+
 void TNodeTracker::SetNodeBanned(TNode* node, bool value)
 {
     Impl_->SetNodeBanned(node, value);
@@ -1491,6 +1705,36 @@ TRack* TNodeTracker::GetRackByNameOrThrow(const Stroka& name)
     return Impl_->GetRackByNameOrThrow(name);
 }
 
+void TNodeTracker::SetRackDataCenter(TRack* rack, TDataCenter* dc)
+{
+    return Impl_->SetRackDataCenter(rack, dc);
+}
+
+TDataCenter* TNodeTracker::CreateDataCenter(const Stroka& name)
+{
+    return Impl_->CreateDataCenter(name, NullObjectId);
+}
+
+void TNodeTracker::DestroyDataCenter(TDataCenter* dc)
+{
+    Impl_->DestroyDataCenter(dc);
+}
+
+void TNodeTracker::RenameDataCenter(TDataCenter* dc, const Stroka& newName)
+{
+    Impl_->RenameDataCenter(dc, newName);
+}
+
+TDataCenter* TNodeTracker::FindDataCenterByName(const Stroka& name)
+{
+    return Impl_->FindDataCenterByName(name);
+}
+
+TDataCenter* TNodeTracker::GetDataCenterByNameOrThrow(const Stroka& name)
+{
+    return Impl_->GetDataCenterByNameOrThrow(name);
+}
+
 void TNodeTracker::ProcessRegisterNode(TCtxRegisterNodePtr context)
 {
     Impl_->ProcessRegisterNode(context);
@@ -1518,13 +1762,14 @@ int TNodeTracker::GetOnlineNodeCount()
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TNodeTracker, Node, TNode, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TNodeTracker, Rack, TRack, *Impl_)
+DELEGATE_ENTITY_MAP_ACCESSORS(TNodeTracker, DataCenter, TDataCenter, *Impl_)
 
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeRegistered, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeUnregistered, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeDisposed, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeBanChanged, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeDecommissionChanged, *Impl_);
-DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeRackChanged, *Impl_);
+DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeLocationChanged, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*, TReqFullHeartbeat*), FullHeartbeat, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*, TReqIncrementalHeartbeat*, TRspIncrementalHeartbeat*), IncrementalHeartbeat, *Impl_);
 
@@ -1577,6 +1822,36 @@ void TNodeTracker::TRackTypeHandler::DoZombifyObject(TRack* rack)
 {
     TObjectTypeHandlerWithMapBase::DoDestroyObject(rack);
     Owner_->DestroyRack(rack);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+TNodeTracker::TDataCenterTypeHandler::TDataCenterTypeHandler(TImpl* owner)
+    : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->DataCenterMap_)
+    , Owner_(owner)
+{ }
+
+TObjectBase* TNodeTracker::TDataCenterTypeHandler::CreateObject(
+    const TObjectId& hintId,
+    IAttributeDictionary* attributes)
+{
+    auto name = attributes->Get<Stroka>("name");
+    attributes->Remove("name");
+
+    return Owner_->CreateDataCenter(name, hintId);
+}
+
+IObjectProxyPtr TNodeTracker::TDataCenterTypeHandler::DoGetProxy(
+    TDataCenter* dc,
+    TTransaction* /*transaction*/)
+{
+    return CreateDataCenterProxy(Owner_->Bootstrap_, &Metadata_, dc);
+}
+
+void TNodeTracker::TDataCenterTypeHandler::DoZombifyObject(TDataCenter* dc)
+{
+    TObjectTypeHandlerWithMapBase::DoDestroyObject(dc);
+    Owner_->DestroyDataCenter(dc);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -58,22 +58,21 @@ class TestRacks(YTEnvSetup):
         for node in nodes:
             self._reset_rack(node)
 
-    def _set_rack_map(self, map):
-        racks = __builtin__.set(map[node] for node in map)
+    def _set_rack_map(self, node_to_rack_map):
+        racks = frozenset(node_to_rack_map.itervalues())
         for rack in racks:
             create_rack(rack)
-        for node in map:
-            set("//sys/nodes/" + node + "/@rack", map[node])
+        for node, rack in node_to_rack_map.iteritems():
+            set("//sys/nodes/" + node + "/@rack", rack)
 
-    def _get_max_replicas_per_rack(self, map, chunk_id):
+    def _get_max_replicas_per_rack(self, node_to_rack_map, chunk_id):
         replicas = self._get_replica_nodes(chunk_id)
         rack_to_counter = {}
         for replica in replicas:
-            rack = map[replica]
-            if not rack in rack_to_counter:
-                rack_to_counter[rack] = 0
+            rack = node_to_rack_map[replica]
+            rack_to_counter.setdefault(rack, 0)
             rack_to_counter[rack] += 1
-        return max(rack_to_counter[rack] for rack in rack_to_counter)
+        return max(rack_to_counter.itervalues())
 
 
     def test_create(self):
@@ -211,7 +210,7 @@ class TestRacks(YTEnvSetup):
             if not node in replicas:
                 replicas_plus_nodes.append(node)
 
-        assert len(replicas_plus_nodes) == 20
+        assert len(replicas_plus_nodes) == TestRacks.NUM_NODES
         map = {
             replicas_plus_nodes[ 0] : "r1",
             replicas_plus_nodes[ 1] : "r1",

@@ -293,6 +293,11 @@ private:
                 EObjectType::RackMap);
 
             ScheduleCreateNode(
+                "//sys/data_centers",
+                transactionId,
+                EObjectType::DataCenterMap);
+
+            ScheduleCreateNode(
                 "//sys/primary_masters",
                 transactionId,
                 EObjectType::MapNode,

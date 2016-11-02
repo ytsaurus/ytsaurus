@@ -40,6 +40,7 @@ inline bool IsVersionedType(EObjectType type)
         type == EObjectType::UnsafelyPlacedChunkMap ||
         type == EObjectType::ForeignChunkMap ||
         type == EObjectType::RackMap ||
+        type == EObjectType::DataCenterMap ||
         type == EObjectType::ChunkListMap ||
         type == EObjectType::MediumMap ||
         type == EObjectType::TransactionMap ||

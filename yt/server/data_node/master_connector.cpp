@@ -728,6 +728,9 @@ void TMasterConnector::SendIncrementalNodeHeartbeat(TCellTag cellTag)
         auto rack = rsp->has_rack() ? MakeNullable(rsp->rack()) : Null;
         UpdateRack(rack);
 
+        auto dc = rsp->has_data_center() ? MakeNullable(rsp->data_center()) : Null;
+        UpdateDataCenter(dc);
+
         auto jobController = Bootstrap_->GetJobController();
         jobController->SetResourceLimitsOverrides(rsp->resource_limits_overrides());
         jobController->SetDisableSchedulerJobs(rsp->disable_scheduler_jobs());
@@ -927,7 +930,19 @@ IChannelPtr TMasterConnector::GetMasterChannel(TCellTag cellTag)
 void TMasterConnector::UpdateRack(const TNullable<Stroka>& rack)
 {
     TGuard<TSpinLock> guard(LocalDescriptorLock_);
-    LocalDescriptor_ = TNodeDescriptor(LocalAddresses_, rack);
+    LocalDescriptor_ = TNodeDescriptor(
+        LocalAddresses_,
+        rack,
+        LocalDescriptor_.GetDataCenter());
+}
+
+void TMasterConnector::UpdateDataCenter(const TNullable<Stroka>& dc)
+{
+    TGuard<TSpinLock> guard(LocalDescriptorLock_);
+    LocalDescriptor_ = TNodeDescriptor(
+        LocalAddresses_,
+        LocalDescriptor_.GetRack(),
+        dc);
 }
 
 TMasterConnector::TChunksDelta* TMasterConnector::GetChunksDelta(TCellTag cellTag)

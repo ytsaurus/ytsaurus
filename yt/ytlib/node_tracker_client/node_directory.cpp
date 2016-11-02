@@ -34,9 +34,11 @@ TNodeDescriptor::TNodeDescriptor(const TNullable<Stroka>& defaultAddress)
 
 TNodeDescriptor::TNodeDescriptor(
     const TAddressMap& addresses,
-    const TNullable<Stroka>& rack)
+    const TNullable<Stroka>& rack,
+    const TNullable<Stroka>& dc)
     : Addresses_(addresses)
     , Rack_(rack)
+    , DataCenter_(dc)
 { }
 
 bool TNodeDescriptor::IsNull() const
@@ -64,6 +66,7 @@ void TNodeDescriptor::Persist(const TStreamPersistenceContext& context)
     using NYT::Persist;
     Persist(context, Addresses_);
     Persist(context, Rack_);
+    Persist(context, DataCenter_);
 }
 
 Stroka ToString(const TNodeDescriptor& descriptor)
@@ -73,9 +76,13 @@ Stroka ToString(const TNodeDescriptor& descriptor)
         builder.AppendString("<Null>");
     } else {
         builder.AppendString(descriptor.GetDefaultAddress());
-        if (descriptor.GetRack()) {
+        if (auto rack = descriptor.GetRack()) {
             builder.AppendChar('@');
-            builder.AppendString(*descriptor.GetRack());
+            builder.AppendString(*rack);
+        }
+        if (auto dc = descriptor.GetDataCenter()) {
+            builder.AppendChar('#');
+            builder.AppendString(*dc);
         }
     }
     return builder.Flush();
@@ -101,6 +108,10 @@ EAddressLocality ComputeAddressLocality(const TNodeDescriptor& first, const TNod
 
         if (first.GetRack() && second.GetRack() && *first.GetRack() == *second.GetRack()) {
             return EAddressLocality::SameRack;
+        }
+
+        if (first.GetDataCenter() && second.GetDataCenter() && *first.GetDataCenter() == *second.GetDataCenter()) {
+            return EAddressLocality::SameDataCenter;
         }
     } catch (const std::exception&) {
         // If one of the descriptors is malformed, treat it as None locality and ignore errors.
@@ -140,6 +151,12 @@ void ToProto(NNodeTrackerClient::NProto::TNodeDescriptor* protoDescriptor, const
     } else {
         protoDescriptor->clear_rack();
     }
+
+    if (descriptor.GetDataCenter()) {
+        protoDescriptor->set_data_center(*descriptor.GetDataCenter());
+    } else {
+        protoDescriptor->clear_data_center();
+    }
 }
 
 void FromProto(NNodeTrackerClient::TNodeDescriptor* descriptor, const NNodeTrackerClient::NProto::TNodeDescriptor& protoDescriptor)
@@ -148,7 +165,8 @@ void FromProto(NNodeTrackerClient::TNodeDescriptor* descriptor, const NNodeTrack
 
     *descriptor = NNodeTrackerClient::TNodeDescriptor(
         FromProto<NNodeTrackerClient::TAddressMap>(protoDescriptor.addresses()),
-        protoDescriptor.has_rack() ? MakeNullable(protoDescriptor.rack()) : Null);
+        protoDescriptor.has_rack() ? MakeNullable(protoDescriptor.rack()) : Null,
+        protoDescriptor.has_data_center() ? MakeNullable(protoDescriptor.data_center()) : Null);
 }
 
 } // namespace NProto
@@ -157,7 +175,8 @@ bool operator == (const TNodeDescriptor& lhs, const TNodeDescriptor& rhs)
 {
     return
         lhs.GetDefaultAddress() == rhs.GetDefaultAddress() &&
-        lhs.GetRack() == rhs.GetRack();
+        lhs.GetRack() == rhs.GetRack() &&
+        lhs.GetDataCenter() == rhs.GetDataCenter();
 }
 
 bool operator != (const TNodeDescriptor& lhs, const TNodeDescriptor& rhs)

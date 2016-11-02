@@ -21,6 +21,7 @@ class TNodeDescriptor
 public:
     DEFINE_BYREF_RO_PROPERTY(TAddressMap, Addresses);
     DEFINE_BYVAL_RO_PROPERTY(TNullable<Stroka>, Rack);
+    DEFINE_BYVAL_RO_PROPERTY(TNullable<Stroka>, DataCenter);
 
 public:
     TNodeDescriptor() = default;
@@ -28,7 +29,8 @@ public:
     explicit TNodeDescriptor(const TNullable<Stroka>& defaultAddress);
     explicit TNodeDescriptor(
         const TAddressMap& addresses,
-        const TNullable<Stroka>& rack = Null);
+        const TNullable<Stroka>& rack = Null,
+        const TNullable<Stroka>& dc = Null);
 
     bool IsNull() const;
 
@@ -54,6 +56,7 @@ TNullable<Stroka> FindAddress(const TAddressMap& addresses, const TNetworkPrefer
 //! Please keep the items in this particular order: the further the better.
 DEFINE_ENUM(EAddressLocality,
     (None)
+    (SameDataCenter)
     (SameRack)
     (SameHost)
 );

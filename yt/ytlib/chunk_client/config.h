@@ -65,6 +65,9 @@ public:
     //! If |true| then fetched blocks are cached by the node.
     bool PopulateCache;
 
+    //! If |true| then local data center replicas are unconditionally preferred to remote replicas.
+    bool PreferLocalDataCenter;
+
     //! If |true| then local rack replicas are unconditionally preferred to remote replicas.
     bool PreferLocalRack;
 
@@ -112,6 +115,8 @@ public:
             .Default(false);
         RegisterParameter("prefer_local_rack", PreferLocalRack)
             .Default(false);
+        RegisterParameter("prefer_local_data_center", PreferLocalDataCenter)
+            .Default(true);
         RegisterParameter("max_ban_count", MaxBanCount)
             .Default(5);
         RegisterParameter("disk_queue_size_factor", DiskQueueSizeFactor)

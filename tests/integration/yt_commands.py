@@ -785,6 +785,17 @@ def disable_table_replica(replica_id, **kwargs):
     kwargs["replica_id"] = replica_id
     execute_command("disable_table_replica", kwargs)
 
+def create_data_center(name, **kwargs):
+    kwargs["type"] = "data_center"
+    if "attributes" not in kwargs:
+        kwargs["attributes"] = dict()
+    kwargs["attributes"]["name"] = name
+    execute_command("create", kwargs)
+
+def remove_data_center(name, **kwargs):
+    remove("//sys/data_centers/" + name, **kwargs)
+    gc_collect()
+
 def create_rack(name, **kwargs):
     kwargs["type"] = "rack"
     if "attributes" not in kwargs:
@@ -833,6 +844,10 @@ def get_groups():
 def get_tablet_cells():
     gc_collect()
     return ls("//sys/tablet_cells")
+
+def get_data_centers():
+    gc_collect()
+    return ls("//sys/data_centers")
 
 def get_racks():
     gc_collect()

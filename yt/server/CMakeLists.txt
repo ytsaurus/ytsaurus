@@ -206,6 +206,8 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/misc/private.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_server/cypress_integration.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/node_tracker_server/data_center.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/node_tracker_server/data_center_proxy.cpp
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_server/node.cpp
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_server/node_directory_builder.cpp
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_server/node_proxy.cpp

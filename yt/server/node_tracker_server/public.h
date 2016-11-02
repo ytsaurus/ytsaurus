@@ -31,7 +31,8 @@ using NNodeTrackerClient::TNodeId;
 using NNodeTrackerClient::InvalidNodeId;
 
 using NNodeTrackerClient::TRackId;
-using NNodeTrackerClient::NullRackId;
+
+using NNodeTrackerClient::TDataCenterId;
 
 using NNodeTrackerClient::TAddressMap;
 using NNodeTrackerClient::TNodeDescriptor;
@@ -44,6 +45,7 @@ DECLARE_REFCOUNTED_CLASS(TNodeTrackerConfig)
 
 DECLARE_ENTITY_TYPE(TNode, NObjectClient::TObjectId, ::THash<NObjectClient::TObjectId>)
 DECLARE_ENTITY_TYPE(TRack, TRackId, NObjectClient::TDirectObjectIdHash)
+DECLARE_ENTITY_TYPE(TDataCenter, TDataCenterId, NObjectClient::TDirectObjectIdHash)
 
 using TNodeList = SmallVector<TNode*, NChunkClient::TypicalReplicaCount>;
 
@@ -51,6 +53,11 @@ constexpr int MaxRackCount = 127;
 constexpr int NullRackIndex = 0;
 // NB: +1 is because of null rack.
 using TRackSet = std::bitset<MaxRackCount + 1>;
+
+constexpr int MaxDataCenterCount = 16;
+constexpr int NullDataCenterIndex = 0;
+// NB: +1 is because of null dataCenter.
+using TDataCenterSet = std::bitset<MaxDataCenterCount + 1>;
 
 ///////////////////////////////////////////////////////////////////////////////
 

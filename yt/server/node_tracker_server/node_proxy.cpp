@@ -1,4 +1,5 @@
 #include "node.h"
+#include "data_center.h"
 #include "rack.h"
 #include "node_tracker.h"
 
@@ -56,7 +57,7 @@ private:
             .SetPresent(node->GetRack())
             .SetRemovable(true)
             .SetReplicated(true));
-
+        descriptors->push_back("data_center");
         descriptors->push_back(TAttributeDescriptor("disable_scheduler_jobs")
             .SetReplicated(true));
         descriptors->push_back("state");
@@ -114,6 +115,14 @@ private:
         if (key == "rack" && node->GetRack()) {
             BuildYsonFluently(consumer)
                 .Value(node->GetRack()->GetName());
+            return true;
+        }
+
+        if (key == "data_center" &&
+            node->GetRack() && node->GetRack()->GetDataCenter())
+        {
+            BuildYsonFluently(consumer)
+                .Value(node->GetRack()->GetDataCenter()->GetName());
             return true;
         }
 

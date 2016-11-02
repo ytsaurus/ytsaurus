@@ -53,6 +53,7 @@ public:
 
     DECLARE_ENTITY_MAP_ACCESSORS(Node, TNode);
     DECLARE_ENTITY_MAP_ACCESSORS(Rack, TRack);
+    DECLARE_ENTITY_MAP_ACCESSORS(DataCenter, TDataCenter);
 
 
     //! Fired when a node gets registered.
@@ -70,8 +71,8 @@ public:
     //! Fired when node "decommissioned" flag changes.
     DECLARE_SIGNAL(void(TNode* node), NodeDecommissionChanged);
 
-    //! Fired when node rack changes.
-    DECLARE_SIGNAL(void(TNode* node), NodeRackChanged);
+    //! Fired when node rack or DC changes.
+    DECLARE_SIGNAL(void(TNode* node), NodeLocationChanged);
 
     //! Fired when a full heartbeat is received from a node.
     DECLARE_SIGNAL(void(
@@ -114,6 +115,12 @@ public:
      */
     std::vector<TNode*> GetRackNodes(const TRack* rack);
 
+    //! Returns the list of all racks belonging to a given data center.
+    /*!
+     *  #dc can be |nullptr|.
+     */
+    std::vector<TRack*> GetDataCenterRacks(const TDataCenter* dc);
+
 
     //! Sets the "banned" flag and notifies the subscribers.
     void SetNodeBanned(TNode* node, bool value);
@@ -145,6 +152,25 @@ public:
     //! Returns a rack with a given name (throws if none).
     TRack* GetRackByNameOrThrow(const Stroka& name);
 
+    //! Sets the data center and notifies the subscribers.
+    void SetRackDataCenter(TRack* rack, TDataCenter* dc);
+
+
+    //! Creates a new data center with a given name. Throws on name conflict.
+    TDataCenter* CreateDataCenter(const Stroka& name);
+
+    //! Destroys an existing data center.
+    void DestroyDataCenter(TDataCenter* dc);
+
+    //! Renames an existing data center. Throws on name conflict.
+    void RenameDataCenter(TDataCenter* dc, const Stroka& newName);
+
+    //! Returns a data center with a given name (|nullptr| if none).
+    TDataCenter* FindDataCenterByName(const Stroka& name);
+
+    //! Returns a data center with a given name (throws if none).
+    TDataCenter* GetDataCenterByNameOrThrow(const Stroka& name);
+
 
     //! Returns the total cluster statistics, aggregated over all nodes.
     NNodeTrackerClient::TTotalNodeStatistics GetTotalNodeStatistics();
@@ -156,6 +182,7 @@ private:
     class TImpl;
     class TClusterNodeTypeHandler;
     class TRackTypeHandler;
+    class TDataCenterTypeHandler;
 
     const TIntrusivePtr<TImpl> Impl_;
 

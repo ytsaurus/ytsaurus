@@ -53,6 +53,7 @@ public:
     //! Addresses derived from node local descriptor to leverage locality.
     NNodeTrackerClient::TAddressMap Addresses;
     TNullable<Stroka> Rack;
+    TNullable<Stroka> DataCenter;
 
     NYTree::INodePtr Logging;
     NYTree::INodePtr Tracing;
@@ -89,6 +90,9 @@ public:
             .Default();
 
         RegisterParameter("rack", Rack)
+            .Default(Null);
+
+        RegisterParameter("data_center", DataCenter)
             .Default(Null);
 
         RegisterParameter("logging", Logging)

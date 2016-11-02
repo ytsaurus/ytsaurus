@@ -740,6 +740,10 @@ private:
             if (Config_->PreferLocalRack && rhs.Locality < EAddressLocality::SameRack) {
                 return 1;
             }
+
+            if (Config_->PreferLocalDataCenter && rhs.Locality < EAddressLocality::SameDataCenter) {
+                return 1;
+            }
         } else if (lhs.Locality < rhs.Locality) {
             return -ComparePeerLocality(rhs, lhs);
         }
@@ -963,7 +967,7 @@ private:
         TNullable<TPeer> bestPeer;
 
         auto getLoad = [&] (const TDataNodeServiceProxy::TRspGetBlockSetPtr& rsp) {
-            return Config_->NetQueueSizeFactor * rsp->net_queue_size() + 
+            return Config_->NetQueueSizeFactor * rsp->net_queue_size() +
                 Config_->DiskQueueSizeFactor * rsp->disk_queue_size();
         };
 
@@ -1005,15 +1009,15 @@ private:
 
         if (bestPeer) {
             if (receivedNewPeers) {
-                LOG_DEBUG("Discard best peer since p2p was activated (Address: %v, PeerType: %v)", 
-                    bestPeer->Address, 
+                LOG_DEBUG("Discard best peer since p2p was activated (Address: %v, PeerType: %v)",
+                    bestPeer->Address,
                     bestPeer->Type);
                 ReinstallPeer(bestPeer->Address);
                 bestPeer = Null;
             } else {
-                LOG_DEBUG("Best peer selected (Address: %v, DiskQueueSize: %v, NetQueueSize: %v)", 
-                    bestPeer->Address, 
-                    bestRsp->disk_queue_size(), 
+                LOG_DEBUG("Best peer selected (Address: %v, DiskQueueSize: %v, NetQueueSize: %v)",
+                    bestPeer->Address,
+                    bestRsp->disk_queue_size(),
                     bestRsp->net_queue_size());
             }
         } else {
