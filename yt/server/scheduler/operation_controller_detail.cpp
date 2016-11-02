@@ -356,6 +356,12 @@ bool TOperationControllerBase::TTask::IsStderrTableEnabled() const
     return Controller->GetStderrTablePath() && GetUserJobSpec();
 }
 
+bool TOperationControllerBase::TTask::IsCoreTableEnabled() const
+{
+    // Same as above.
+    return Controller->GetCoreTablePath() && GetUserJobSpec();
+}
+
 i64 TOperationControllerBase::TTask::GetLocality(TNodeId nodeId) const
 {
     return HasInputLocality()
@@ -544,6 +550,10 @@ void TOperationControllerBase::TTask::ScheduleJob(
         joblet->StderrTableChunkListId = Controller->ExtractChunkList(Controller->StderrTable->CellTag);
     }
 
+    if (Controller->CoreTable && IsCoreTableEnabled()) {
+        joblet->CoreTableChunkListId = Controller->ExtractChunkList(Controller->CoreTable->CellTag);
+    }
+
     // Sync part.
     PrepareJoblet(joblet);
     Controller->CustomizeJoblet(joblet);
@@ -644,14 +654,20 @@ void TOperationControllerBase::TTask::OnJobCompleted(TJobletPtr joblet, const TC
     GetChunkPoolOutput()->Completed(joblet->OutputCookie);
 
     Controller->RegisterStderr(joblet, jobSummary);
+    Controller->RegisterCores(joblet, jobSummary);
 }
 
 void TOperationControllerBase::TTask::ReinstallJob(TJobletPtr joblet, EJobReinstallReason reason)
 {
     Controller->UpdateEstimatedHistogram(joblet, reason);
     Controller->ReleaseChunkLists(joblet->ChunkListIds);
-    if (joblet->StderrTableChunkListId && reason != EJobReinstallReason::Failed) {
-        Controller->ReleaseChunkLists({joblet->StderrTableChunkListId});
+    if (reason != EJobReinstallReason::Failed) {
+        if (joblet->StderrTableChunkListId) {
+            Controller->ReleaseChunkLists({joblet->StderrTableChunkListId});
+        }
+        if (joblet->CoreTableChunkListId) {
+            Controller->ReleaseChunkLists({joblet->CoreTableChunkListId});
+        }
     }
 
     auto* chunkPoolOutput = GetChunkPoolOutput();
@@ -685,6 +701,7 @@ void TOperationControllerBase::TTask::OnJobFailed(TJobletPtr joblet, const TFail
     ReinstallJob(joblet, EJobReinstallReason::Failed);
 
     Controller->RegisterStderr(joblet, jobSummary);
+    Controller->RegisterCores(joblet, jobSummary);
 }
 
 void TOperationControllerBase::TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& /* jobSummary */)
@@ -1223,6 +1240,12 @@ void TOperationControllerBase::InitializeStructures()
         StderrTable->OutputType = EOutputTableType::Stderr;
     }
 
+    if (auto coreTablePath = GetCoreTablePath()) {
+        CoreTable.Emplace();
+        CoreTable->Path = *coreTablePath;
+        CoreTable->OutputType = EOutputTableType::Core;
+    }
+
     InitUpdatingTables();
 
     for (const auto& pair : GetFilePaths()) {
@@ -1252,6 +1275,10 @@ void TOperationControllerBase::InitUpdatingTables()
 
     if (StderrTable) {
         UpdatingTables.push_back(StderrTable.GetPtr());
+    }
+
+    if (CoreTable) {
+        UpdatingTables.push_back(CoreTable.GetPtr());
     }
 }
 
@@ -1292,21 +1319,28 @@ void TOperationControllerBase::Prepare()
             Logger,
             EPermission::Write);
 
-        yhash_set<TObjectId> updatingTableIds;
-        for (const auto* table : UpdatingTables) {
-            const auto& path = table->Path.GetPath();
-            if (table->Type != EObjectType::Table) {
-                THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
-                    path,
-                    EObjectType::Table,
-                    table->Type);
-            }
-            const bool insertedNew = updatingTableIds.insert(table->ObjectId).second;
-            if (!insertedNew) {
-                THROW_ERROR_EXCEPTION("Output table %v is specified multiple times",
-                    path);
-            }
+    GetUserObjectBasicAttributes<TOutputTable>(
+        AuthenticatedMasterClient,
+        CoreTable,
+        DebugOutputTransaction->GetId(),
+        Logger,
+        EPermission::Write);
+
+    yhash_set<TObjectId> updatingTableIds;
+    for (const auto* table : UpdatingTables) {
+        const auto& path = table->Path.GetPath();
+        if (table->Type != EObjectType::Table) {
+            THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
+                path,
+                EObjectType::Table,
+                table->Type);
         }
+        const bool insertedNew = updatingTableIds.insert(table->ObjectId).second;
+        if (!insertedNew) {
+            THROW_ERROR_EXCEPTION("Output table %v is specified multiple times",
+                path);
+        }
+    }
 
         GetOutputTablesSchema();
         PrepareOutputTables();
@@ -1545,6 +1579,9 @@ void TOperationControllerBase::InitChunkListPool()
     ++CellTagToIntermediateRequiredChunkList[IntermediateOutputCellTag];
     if (StderrTable) {
         ++CellTagToIntermediateRequiredChunkList[StderrTable->CellTag];
+    }
+    if (CoreTable) {
+        ++CellTagToIntermediateRequiredChunkList[CoreTable->CellTag];
     }
 }
 
@@ -2430,14 +2467,11 @@ void TOperationControllerBase::Abort()
     AreTransactionsActive = false;
 
     try {
-        // We always save stderr table.
-        // Stderr table chunks are kept by DebugOutputTransaction,
-        // so we want save stderr table before commiting DebugOutputTransaction.
         if (StderrTable && StderrTable->IsBeginUploadCompleted()) {
             AttachOutputChunks({StderrTable.GetPtr()});
             EndUploadOutputTables({StderrTable.GetPtr()});
         }
-
+    
         CommitTransaction(DebugOutputTransaction);
     } catch (const std::exception& ex) {
         // Bad luck we can't commit transaction.
@@ -2786,7 +2820,7 @@ void TOperationControllerBase::DoScheduleLocalJob(
                 bestTask->GetPendingDataSize(),
                 bestTask->GetPendingJobCount());
 
-            if (!HasEnoughChunkLists(bestTask->IsIntermediateOutput(), bestTask->IsStderrTableEnabled())) {
+            if (!HasEnoughChunkLists(bestTask->IsIntermediateOutput(), bestTask->IsStderrTableEnabled(), bestTask->IsCoreTableEnabled())) {
                 LOG_DEBUG("Job chunk list demand is not met");
                 scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughChunkLists);
                 return;
@@ -2904,7 +2938,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
                     task->GetPendingDataSize(),
                     task->GetPendingJobCount());
 
-                if (!HasEnoughChunkLists(task->IsIntermediateOutput(), task->IsStderrTableEnabled())) {
+                if (!HasEnoughChunkLists(task->IsIntermediateOutput(), task->IsStderrTableEnabled(), task->IsCoreTableEnabled())) {
                     LOG_DEBUG("Job chunk list demand is not met");
                     scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughChunkLists);
                     return;
@@ -3489,7 +3523,7 @@ void TOperationControllerBase::GetOutputTablesSchema()
                 if (table->OutputType == EOutputTableType::Output) {
                     SetTransactionId(req, OutputTransaction->GetId());
                 } else {
-                    YCHECK(table->OutputType == EOutputTableType::Stderr);
+                    YCHECK(table->OutputType == EOutputTableType::Stderr || table->OutputType == EOutputTableType::Core);
                     SetTransactionId(req, DebugOutputTransaction->GetId());
                 }
                 batchReq->AddRequest(req, "get_attributes");
@@ -3523,6 +3557,14 @@ void TOperationControllerBase::GetOutputTablesSchema()
                 THROW_ERROR_EXCEPTION("Cannot write stderr table in append mode.");
             }
         }
+
+        if (CoreTable) {
+            CoreTable->TableUploadOptions.TableSchema = GetCoreBlobTableSchema().ToTableSchema();
+            CoreTable->TableUploadOptions.SchemaMode = ETableSchemaMode::Strong;
+            if (CoreTable->TableUploadOptions.UpdateMode == EUpdateMode::Append) {
+                THROW_ERROR_EXCEPTION("Cannot write core table in append mode.");
+            }
+        }
     }
 }
 
@@ -3545,7 +3587,7 @@ void TOperationControllerBase::BeginUploadOutputTables()
                 if (table->OutputType == EOutputTableType::Output) {
                     SetTransactionId(req, OutputTransaction->GetId());
                 } else {
-                    YCHECK(table->OutputType == EOutputTableType::Stderr);
+                    YCHECK(table->OutputType == EOutputTableType::Stderr || table->OutputType == EOutputTableType::Core);
                     SetTransactionId(req, DebugOutputTransaction->GetId());
                 }
                 GenerateMutationId(req);
@@ -3633,7 +3675,7 @@ void TOperationControllerBase::BeginUploadOutputTables()
                 table->Options->OptimizeFor = attributes->Get<EOptimizeFor>("optimize_for", EOptimizeFor::Lookup);
 
                 // Workaround for YT-5827.
-                if (table->TableUploadOptions.TableSchema.Columns().empty() && 
+                if (table->TableUploadOptions.TableSchema.Columns().empty() &&
                     table->TableUploadOptions.TableSchema.GetStrict())
                 {
                     table->Options->OptimizeFor = EOptimizeFor::Lookup;
@@ -4477,28 +4519,63 @@ void TOperationControllerBase::RegisterOutput(
 
 void TOperationControllerBase::RegisterStderr(TJobletPtr joblet, const TJobSummary& jobSummary)
 {
-    if (joblet->StderrTableChunkListId) {
-        YCHECK(StderrTable);
-
-        const auto& chunkListId = joblet->StderrTableChunkListId;
-        const auto& result = jobSummary.Result;
-        const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-
-        YCHECK(schedulerResultExt.has_stderr_table_boundary_keys());
-
-        StderrTable->OutputChunkTreeIds.emplace(0, chunkListId);
-        const auto& boundaryKeys = schedulerResultExt.stderr_table_boundary_keys();
-        RegisterBoundaryKeys(boundaryKeys, chunkListId, StderrTable.GetPtr());
-
-        auto masterConnector = Host->GetMasterConnector();
-        masterConnector->AttachToLivePreview(
-            OperationId,
-            AsyncSchedulerTransaction->GetId(),
-            StderrTable->LivePreviewTableId,
-            {chunkListId});
-        LOG_DEBUG("Stderr chunk tree registered (ChunkListId: %v)",
-            chunkListId);
+    if (!joblet->StderrTableChunkListId) {
+        return;
     }
+
+    YCHECK(StderrTable);
+
+    const auto& chunkListId = joblet->StderrTableChunkListId;
+    const auto& result = jobSummary.Result;
+
+    if (!result.HasExtension(TSchedulerJobResultExt::scheduler_job_result_ext)) {
+        return;
+    }
+    const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+
+    YCHECK(schedulerResultExt.has_stderr_table_boundary_keys());
+
+    StderrTable->OutputChunkTreeIds.emplace(0, chunkListId);
+    const auto& boundaryKeys = schedulerResultExt.stderr_table_boundary_keys();
+    RegisterBoundaryKeys(boundaryKeys, chunkListId, StderrTable.GetPtr());
+
+    auto masterConnector = Host->GetMasterConnector();
+    masterConnector->AttachToLivePreview(
+        OperationId,
+        AsyncSchedulerTransaction->GetId(),
+        StderrTable->LivePreviewTableId,
+        {chunkListId});
+    LOG_DEBUG("Stderr chunk tree registered (ChunkListId: %v)",
+        chunkListId);
+}
+
+void TOperationControllerBase::RegisterCores(TJobletPtr joblet, const TJobSummary& jobSummary)
+{
+    if (!joblet->CoreTableChunkListId) {
+        return;
+    }
+
+    YCHECK(CoreTable);
+
+    const auto& chunkListId = joblet->CoreTableChunkListId;
+    const auto& result = jobSummary.Result;
+
+    if (!result.HasExtension(TSchedulerJobResultExt::scheduler_job_result_ext)) {
+        return;
+    }
+    const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+
+    for (const auto& coreInfo : schedulerResultExt.core_infos()) {
+        LOG_DEBUG("Core file (JobId: %v, ProcessId: %v, ExecutableName: %v, Size: %v, Error: %v)",
+            joblet->JobId,
+            coreInfo.process_id(),
+            coreInfo.executable_name(),
+            coreInfo.size(),
+            coreInfo.has_error() ? FromProto<TError>(coreInfo.error()) : TError());
+    }
+
+    const auto& boundaryKeys = schedulerResultExt.core_table_boundary_keys();
+    RegisterBoundaryKeys(boundaryKeys, chunkListId, CoreTable.GetPtr());
 }
 
 void TOperationControllerBase::RegisterBoundaryKeys(
@@ -4632,7 +4709,7 @@ void TOperationControllerBase::RegisterIntermediate(
     RestartIntermediateChunkScraper();
 }
 
-bool TOperationControllerBase::HasEnoughChunkLists(bool intermediate, bool isWritingStderrTable)
+bool TOperationControllerBase::HasEnoughChunkLists(bool intermediate, bool isWritingStderrTable, bool isWritingCoreTable)
 {
     const auto& cellTagToRequiredChunkList = intermediate
         ? CellTagToIntermediateRequiredChunkList
@@ -4641,6 +4718,9 @@ bool TOperationControllerBase::HasEnoughChunkLists(bool intermediate, bool isWri
         const auto cellTag = pair.first;
         auto requiredChunkList = pair.second;
         if (StderrTable && !isWritingStderrTable) {
+            --requiredChunkList;
+        }
+        if (CoreTable && !isWritingCoreTable) {
             --requiredChunkList;
         }
         if (requiredChunkList && !ChunkListPool->HasEnough(cellTag, requiredChunkList)) {
@@ -4965,6 +5045,9 @@ void TOperationControllerBase::InitUserJobSpec(
     if (joblet->StderrTableChunkListId) {
         AddStderrOutputSpecs(jobSpec, joblet);
     }
+    if (joblet->CoreTableChunkListId) {
+        AddCoreOutputSpecs(jobSpec, joblet);
+    }
 }
 
 void TOperationControllerBase::AddStderrOutputSpecs(
@@ -4980,6 +5063,21 @@ void TOperationControllerBase::AddStderrOutputSpecs(
     auto writerConfig = GetStderrTableWriterConfig();
     YCHECK(writerConfig);
     stderrTableSpec->set_blob_table_writer_config(ConvertToYsonString(writerConfig).Data());
+}
+
+void TOperationControllerBase::AddCoreOutputSpecs(
+    NScheduler::NProto::TUserJobSpec* jobSpec,
+    TJobletPtr joblet)
+{
+    auto* coreTableSpec = jobSpec->mutable_core_table_spec();
+    auto* outputSpec = coreTableSpec->mutable_output_table_spec();
+    outputSpec->set_table_writer_options(ConvertToYsonString(CoreTable->Options).Data());
+    ToProto(outputSpec->mutable_table_schema(), CoreTable->TableUploadOptions.TableSchema);
+    ToProto(outputSpec->mutable_chunk_list_id(), joblet->CoreTableChunkListId);
+
+    auto writerConfig = GetCoreTableWriterConfig();
+    YCHECK(writerConfig);
+    coreTableSpec->set_blob_table_writer_config(ConvertToYsonString(writerConfig).Data());
 }
 
 
@@ -5255,6 +5353,8 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
 
     Persist(context, StderrTable);
 
+    Persist(context, CoreTable);
+
     Persist(context, IntermediateTable);
 
     Persist(context, Files);
@@ -5330,6 +5430,16 @@ TBlobTableWriterConfigPtr TOperationControllerBase::GetStderrTableWriterConfig()
 }
 
 TNullable<TRichYPath> TOperationControllerBase::GetStderrTablePath() const
+{
+    return Null;
+}
+
+TBlobTableWriterConfigPtr TOperationControllerBase::GetCoreTableWriterConfig() const
+{
+    return nullptr;
+}
+
+TNullable<TRichYPath> TOperationControllerBase::GetCoreTablePath() const
 {
     return Null;
 }

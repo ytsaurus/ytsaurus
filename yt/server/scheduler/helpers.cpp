@@ -8,6 +8,9 @@
 
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
 
+#include <yt/ytlib/core_dump/core_info.pb.h>
+#include <yt/ytlib/core_dump/helpers.h>
+
 #include <yt/ytlib/node_tracker_client/helpers.h>
 
 #include <yt/ytlib/api/transaction.h>
@@ -19,8 +22,10 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////
 
+using namespace NProto;
 using namespace NYTree;
 using namespace NYPath;
+using namespace NCoreDump::NProto;
 using namespace NYson;
 using namespace NObjectClient;
 using namespace NTransactionClient;
@@ -122,6 +127,15 @@ void BuildJobAttributes(TJobPtr job, NYson::IYsonConsumer* consumer)
         .DoIf(state == EJobState::Failed, [=] (TFluentMap fluent) {
             auto error = FromProto<TError>(job->Status().result().error());
             fluent.Item("error").Value(error);
+        })
+        // NB: This extension is missing while job is running. It appears only when job is complete,
+        // i.e. this item will be presented in Cypress but it will never appear when accessing
+        // scheduler via Orchid.
+        .DoIf(job->Status().result().HasExtension(TSchedulerJobResultExt::scheduler_job_result_ext),
+            [=] (TFluentMap fluent)
+        {
+            const auto& schedulerResultExt = job->Status().result().GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+            fluent.Item("core_infos").Value(schedulerResultExt.core_infos());
         });
 }
 
