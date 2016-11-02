@@ -146,8 +146,8 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBranch(
 {
     branchedNode->TableSchema() = originatingNode->TableSchema();
     branchedNode->SetSchemaMode(originatingNode->GetSchemaMode());
-    branchedNode->SetRetainedTimestamp(originatingNode->CalculateRetainedTimestamp());
-    branchedNode->SetUnflushedTimestamp(originatingNode->CalculateUnflushedTimestamp());
+    branchedNode->SetRetainedTimestamp(originatingNode->GetCurrentRetainedTimestamp());
+    branchedNode->SetUnflushedTimestamp(originatingNode->GetCurrentUnflushedTimestamp());
 
     TBase::DoBranch(originatingNode, branchedNode, mode);
 }
