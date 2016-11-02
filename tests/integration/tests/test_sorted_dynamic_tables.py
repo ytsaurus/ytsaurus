@@ -1638,6 +1638,23 @@ class TestSortedDynamicTables(YTEnvSetup):
         assert t2 < t4
         assert t3 < t4
 
+        tx = start_transaction()
+        lock("//tmp/t", mode="snapshot", tx=tx)
+        t5 = get("//tmp/t/@retained_timestamp", tx=tx)
+        t6 = get("//tmp/t/@unflushed_timestamp", tx=tx)
+        sleep(1)
+        self.sync_compact_table("//tmp/t")
+        sleep(1)
+        t7 = get("//tmp/t/@retained_timestamp")
+        t8 = get("//tmp/t/@unflushed_timestamp")
+        t9 = get("//tmp/t/@retained_timestamp", tx=tx)
+        t10 = get("//tmp/t/@unflushed_timestamp", tx=tx)
+        assert t5 == t9
+        assert t6 == t10
+        assert t5 < t7
+        assert t6 < t8
+        abort_transaction(tx)
+
 ##################################################################
 
 class TestSortedDynamicTablesMetadataCaching(YTEnvSetup):

@@ -28,6 +28,8 @@ TTableNode::TTableNode(const TVersionedNodeId& id)
     , TabletCellBundle_(nullptr)
     , Atomicity_(NTransactionClient::EAtomicity::Full)
     , CommitOrdering_(NTransactionClient::ECommitOrdering::Weak)
+    , RetainedTimestamp_(NTransactionClient::NullTimestamp)
+    , UnflushedTimestamp_(NTransactionClient::NullTimestamp)
 { }
 
 EObjectType TTableNode::GetObjectType() const
@@ -106,6 +108,8 @@ void TTableNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, CommitOrdering_);
     Save(context, TabletCellBundle_);
     Save(context, LastCommitTimestamp_);
+    Save(context, RetainedTimestamp_);
+    Save(context, UnflushedTimestamp_);
 }
 
 void TTableNode::Load(NCellMaster::TLoadContext& context)
@@ -161,6 +165,12 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
     // COMAPT(babenko)
     if (context.GetVersion() >= 404) {
         Load(context, LastCommitTimestamp_);
+    }
+
+    // COMPAT(savrus)
+    if (context.GetVersion() >= 503) {
+        Load(context, RetainedTimestamp_);
+        Load(context, UnflushedTimestamp_);
     }
 
     // COMPAT(max42)
@@ -262,6 +272,42 @@ bool TTableNode::IsDynamic() const
 bool TTableNode::IsEmpty() const
 {
     return ComputeTotalStatistics().chunk_count() == 0;
+}
+
+TTimestamp TTableNode::GetCurrentUnflushedTimestamp() const
+{
+    return UnflushedTimestamp_ != NullTimestamp
+        ? UnflushedTimestamp_
+        : CalculateUnflushedTimestamp();
+}
+
+TTimestamp TTableNode::GetCurrentRetainedTimestamp() const
+{
+    return RetainedTimestamp_ != NullTimestamp
+        ? RetainedTimestamp_
+        : CalculateRetainedTimestamp();
+}
+
+TTimestamp TTableNode::CalculateUnflushedTimestamp() const
+{
+    Y_ASSERT(this == GetTrunkNode());
+    auto result = MaxTimestamp;
+    for (const auto* tablet : Tablets_) {
+        auto timestamp = static_cast<TTimestamp>(tablet->NodeStatistics().unflushed_timestamp());
+        result = std::min(result, timestamp);
+    }
+    return result;
+}
+
+TTimestamp TTableNode::CalculateRetainedTimestamp() const
+{
+    Y_ASSERT(this == GetTrunkNode());
+    auto result = MinTimestamp;
+    for (const auto* tablet : Tablets_) {
+        auto timestamp = static_cast<TTimestamp>(tablet->GetRetainedTimestamp());
+        result = std::max(result, timestamp);
+    }
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

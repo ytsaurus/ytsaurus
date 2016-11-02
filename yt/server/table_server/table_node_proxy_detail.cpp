@@ -56,32 +56,6 @@ using NChunkClient::TReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-TTimestamp GetUnflushedTimestamp(const TTableNode* table)
-{
-    auto result = MaxTimestamp;
-    for (const auto* tablet : table->Tablets()) {
-        auto timestamp = static_cast<TTimestamp>(tablet->NodeStatistics().unflushed_timestamp());
-        result = std::min(result, timestamp);
-    }
-    return result;
-}
-
-TTimestamp GetRetainedTimestamp(const TTableNode* table)
-{
-    auto result = MinTimestamp;
-    for (const auto* tablet : table->Tablets()) {
-        auto timestamp = static_cast<TTimestamp>(tablet->GetRetainedTimestamp());
-        result = std::max(result, timestamp);
-    }
-    return result;
-}
-
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
 TTableNodeProxy::TTableNodeProxy(
     NCellMaster::TBootstrap* bootstrap,
     TObjectTypeMetadata* metadata,
@@ -262,13 +236,13 @@ bool TTableNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* cons
 
     if (key == "retained_timestamp" && isDynamic && isSorted) {
         BuildYsonFluently(consumer)
-            .Value(GetRetainedTimestamp(trunkTable));
+            .Value(table->GetCurrentRetainedTimestamp());
         return true;
     }
 
     if (key == "unflushed_timestamp" && isDynamic && isSorted) {
         BuildYsonFluently(consumer)
-            .Value(GetUnflushedTimestamp(trunkTable));
+            .Value(table->GetCurrentUnflushedTimestamp());
         return true;
     }
 

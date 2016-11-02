@@ -42,6 +42,9 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::EAtomicity, Atomicity);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::ECommitOrdering, CommitOrdering);
 
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, RetainedTimestamp);
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, UnflushedTimestamp);
+
 public:
     explicit TTableNode(const NCypressServer::TVersionedNodeId& id);
 
@@ -72,6 +75,11 @@ public:
     bool IsPhysicallySorted() const;
 
     NTabletClient::ETabletState GetTabletState() const;
+
+    NTransactionClient::TTimestamp GetCurrentRetainedTimestamp() const;
+    NTransactionClient::TTimestamp GetCurrentUnflushedTimestamp() const;
+    NTransactionClient::TTimestamp CalculateRetainedTimestamp() const;
+    NTransactionClient::TTimestamp CalculateUnflushedTimestamp() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
