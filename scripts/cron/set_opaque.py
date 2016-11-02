@@ -188,6 +188,8 @@ def main():
         except yt.YtResponseError as err:
             if err.is_resolve_error():
                 logger.info("Path %s is missing", elem)
+            elif err.is_concurrent_transaction_lock_conflict():
+                logger.info("Path %s is locked, failed to set opaque", elem)
             else:
                 raise
 
