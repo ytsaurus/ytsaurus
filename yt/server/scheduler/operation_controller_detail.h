@@ -82,6 +82,7 @@ DEFINE_ENUM(EControllerState,
 DEFINE_ENUM(EOutputTableType,
     (Output)
     (Stderr)
+    (Core)
 );
 
 DEFINE_ENUM(ETransactionType,
@@ -311,6 +312,7 @@ protected:
 
     std::vector<TOutputTable> OutputTables;
     TNullable<TOutputTable> StderrTable;
+    TNullable<TOutputTable> CoreTable;
 
     // All output tables and stderr table (if present).
     std::vector<TOutputTable*> UpdatingTables;
@@ -381,6 +383,7 @@ protected:
         std::vector<NChunkClient::TChunkListId> ChunkListIds;
 
         NChunkClient::TChunkListId StderrTableChunkListId;
+        NChunkClient::TChunkListId CoreTableChunkListId;
 
         TInstant StartTime;
         TInstant FinishTime;
@@ -460,6 +463,8 @@ protected:
         virtual bool IsIntermediateOutput() const;
 
         bool IsStderrTableEnabled() const;
+
+        bool IsCoreTableEnabled() const;
 
         virtual TDuration GetLocalityTimeout() const = 0;
         virtual i64 GetLocality(NNodeTrackerClient::TNodeId nodeId) const;
@@ -760,6 +765,11 @@ protected:
     //! Called to extract stderr table writer config from the spec.
     virtual NTableClient::TBlobTableWriterConfigPtr GetStderrTableWriterConfig() const;
 
+    //! Called to extract core table path from the spec.
+    virtual TNullable<NYPath::TRichYPath> GetCoreTablePath() const;
+    //! Called to extract core table writer config from the spec.
+    virtual NTableClient::TBlobTableWriterConfigPtr GetCoreTableWriterConfig() const;
+
     typedef std::pair<NYPath::TRichYPath, EOperationStage> TPathWithStage;
 
     //! Called to extract file paths from the spec.
@@ -910,8 +920,9 @@ protected:
         bool attachToLivePreview);
 
     void RegisterStderr(TJobletPtr joblet, const TJobSummary& jobSummary);
+    void RegisterCores(TJobletPtr joblet, const TJobSummary& jobSummary);
 
-    bool HasEnoughChunkLists(bool intermediate, bool isWritingStderrTable);
+    bool HasEnoughChunkLists(bool intermediate, bool isWritingStderrTable, bool isWritingCoreTable);
     NChunkClient::TChunkListId ExtractChunkList(NObjectClient::TCellTag cellTag);
     void ReleaseChunkLists(const std::vector<NChunkClient::TChunkListId>& ids);
 
@@ -955,6 +966,10 @@ protected:
         TJobletPtr joblet);
 
     void AddStderrOutputSpecs(
+        NScheduler::NProto::TUserJobSpec* jobSpec,
+        TJobletPtr joblet);
+
+    void AddCoreOutputSpecs(
         NScheduler::NProto::TUserJobSpec* jobSpec,
         TJobletPtr joblet);
 
