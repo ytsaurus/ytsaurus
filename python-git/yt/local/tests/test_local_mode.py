@@ -1,4 +1,5 @@
 from yt.local import start, stop, delete
+import yt.local as yt_local
 from yt.wrapper.client import Yt
 from yt.common import remove_file
 
@@ -119,6 +120,28 @@ class TestLocalMode(object):
         with local_yt() as environment:
             proxy_port = environment.get_proxy_address().rsplit(":", 1)[1]
             client = Yt(proxy="localhost:{0}".format(proxy_port))
+            client.config["tabular_data_format"] = yt.format.DsvFormat()
+            client.mkdir("//test")
+
+            client.set("//test/node", "abc")
+            assert client.get("//test/node") == "abc"
+            assert client.list("//test") == ["node"]
+
+            client.remove("//test/node")
+            assert not client.exists("//test/node")
+
+            client.mkdir("//test/folder")
+            assert client.get_type("//test/folder") == "map_node"
+
+            table = "//test/table"
+            client.create("table", table)
+            client.write_table(table, [{"a": "b"}])
+            assert [{"a": "b"}] == list(client.read_table(table))
+
+            assert set(client.search("//test")) == set(["//test", "//test/folder", table])
+
+    def test_use_context_manager(self):
+        with yt_local.LocalYt() as client:
             client.config["tabular_data_format"] = yt.format.DsvFormat()
             client.mkdir("//test")
 
