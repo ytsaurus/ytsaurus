@@ -33,7 +33,7 @@ public:
 
     // For dynamic tables only.
     typedef std::vector<NTabletServer::TTablet*> TTabletList;
-    typedef TTabletList::iterator TTabletListIterator; 
+    typedef TTabletList::iterator TTabletListIterator;
     DEFINE_BYREF_RW_PROPERTY(TTabletList, Tablets);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, LastCommitTimestamp);
 
@@ -78,6 +78,8 @@ public:
 
     NTransactionClient::TTimestamp GetCurrentRetainedTimestamp() const;
     NTransactionClient::TTimestamp GetCurrentUnflushedTimestamp() const;
+
+private:
     NTransactionClient::TTimestamp CalculateRetainedTimestamp() const;
     NTransactionClient::TTimestamp CalculateUnflushedTimestamp() const;
 };
