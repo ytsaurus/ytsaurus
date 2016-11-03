@@ -2,6 +2,7 @@ import pytest
 
 from random import shuffle
 from yt_env_setup import YTEnvSetup, make_schema, make_ace
+from yt.environment.helpers import assert_items_equal
 from yt_commands import *
 
 
@@ -481,7 +482,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         update(rows1)
 
-        assert read_table("//tmp/t_out") == sorted(rows, key=lambda r: r["key"])
+        assert_items_equal(read_table("//tmp/t_out"), rows)
 
     def test_computed_columns(self):
         create("table", "//tmp/t",
