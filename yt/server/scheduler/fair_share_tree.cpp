@@ -52,14 +52,14 @@ TFairShareContext::TFairShareContext(
     , DynamicAttributesList(treeSize)
 { }
 
-TDynamicAttributes& TFairShareContext::DynamicAttributes(ISchedulerElement* element)
+TDynamicAttributes& TFairShareContext::DynamicAttributes(TSchedulerElement* element)
 {
     int index = element->GetTreeIndex();
     YCHECK(index < DynamicAttributesList.size());
     return DynamicAttributesList[index];
 }
 
-const TDynamicAttributes& TFairShareContext::DynamicAttributes(ISchedulerElement* element) const
+const TDynamicAttributes& TFairShareContext::DynamicAttributes(TSchedulerElement* element) const
 {
     int index = element->GetTreeIndex();
     YCHECK(index < DynamicAttributesList.size());
@@ -68,35 +68,35 @@ const TDynamicAttributes& TFairShareContext::DynamicAttributes(ISchedulerElement
 
 ////////////////////////////////////////////////////////////////////
 
-TSchedulerElementBaseFixedState::TSchedulerElementBaseFixedState(ISchedulerStrategyHost* host)
-    : Host_(host)
-    , ResourceDemand_(ZeroJobResources())
+TSchedulerElementFixedState::TSchedulerElementFixedState(ISchedulerStrategyHost* host)
+    : ResourceDemand_(ZeroJobResources())
     , ResourceLimits_(InfiniteJobResources())
     , MaxPossibleResourceUsage_(ZeroJobResources())
+    , Host_(host)
     , TotalResourceLimits_(host->GetTotalResourceLimits())
 { }
 
 ////////////////////////////////////////////////////////////////////
 
-TSchedulerElementBaseSharedState::TSchedulerElementBaseSharedState()
+TSchedulerElementSharedState::TSchedulerElementSharedState()
     : ResourceUsage_(ZeroJobResources())
 { }
 
-TJobResources TSchedulerElementBaseSharedState::GetResourceUsage()
+TJobResources TSchedulerElementSharedState::GetResourceUsage()
 {
     TReaderGuard guard(ResourceUsageLock_);
 
     return ResourceUsage_;
 }
 
-void TSchedulerElementBaseSharedState::IncreaseResourceUsage(const TJobResources& delta)
+void TSchedulerElementSharedState::IncreaseResourceUsage(const TJobResources& delta)
 {
     TWriterGuard guard(ResourceUsageLock_);
 
     ResourceUsage_ += delta;
 }
 
-double TSchedulerElementBaseSharedState::GetResourceUsageRatio(
+double TSchedulerElementSharedState::GetResourceUsageRatio(
     EResourceType dominantResource,
     double dominantResourceLimit)
 {
@@ -110,9 +110,9 @@ double TSchedulerElementBaseSharedState::GetResourceUsageRatio(
 
 ////////////////////////////////////////////////////////////////////
 
-const TNullable<Stroka> TSchedulerElementBase::NullNodeTag;
+const TNullable<Stroka> TSchedulerElement::NullNodeTag;
 
-int TSchedulerElementBase::EnumerateNodes(int startIndex)
+int TSchedulerElement::EnumerateNodes(int startIndex)
 {
     YCHECK(!Cloned_);
 
@@ -120,12 +120,12 @@ int TSchedulerElementBase::EnumerateNodes(int startIndex)
     return startIndex;
 }
 
-int TSchedulerElementBase::GetTreeIndex() const
+int TSchedulerElement::GetTreeIndex() const
 {
     return TreeIndex_;
 }
 
-void TSchedulerElementBase::Update(TDynamicAttributesList& dynamicAttributesList)
+void TSchedulerElement::Update(TDynamicAttributesList& dynamicAttributesList)
 {
     YCHECK(!Cloned_);
 
@@ -133,44 +133,34 @@ void TSchedulerElementBase::Update(TDynamicAttributesList& dynamicAttributesList
     UpdateTopDown(dynamicAttributesList);
 }
 
-void TSchedulerElementBase::UpdateBottomUp(TDynamicAttributesList& dynamicAttributesList)
+void TSchedulerElement::UpdateBottomUp(TDynamicAttributesList& dynamicAttributesList)
 {
     YCHECK(!Cloned_);
 
     TotalResourceLimits_ = GetHost()->GetTotalResourceLimits();
     UpdateAttributes();
-    dynamicAttributesList[this->GetTreeIndex()].Active = true;
+    dynamicAttributesList[GetTreeIndex()].Active = true;
     UpdateDynamicAttributes(dynamicAttributesList);
 }
 
-void TSchedulerElementBase::UpdateTopDown(TDynamicAttributesList& dynamicAttributesList)
+void TSchedulerElement::UpdateTopDown(TDynamicAttributesList& dynamicAttributesList)
 {
     YCHECK(!Cloned_);
 }
 
-void TSchedulerElementBase::UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList)
+void TSchedulerElement::UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList)
 {
     YCHECK(IsActive(dynamicAttributesList));
-    dynamicAttributesList[this->GetTreeIndex()].SatisfactionRatio = ComputeLocalSatisfactionRatio();
-    dynamicAttributesList[this->GetTreeIndex()].Active = IsAlive();
+    dynamicAttributesList[GetTreeIndex()].SatisfactionRatio = ComputeLocalSatisfactionRatio();
+    dynamicAttributesList[GetTreeIndex()].Active = IsAlive();
 }
 
-void TSchedulerElementBase::PrescheduleJob(TFairShareContext& context, bool /*starvingOnly*/, bool /*aggressiveStarvationEnabled*/)
+void TSchedulerElement::PrescheduleJob(TFairShareContext& context, bool /*starvingOnly*/, bool /*aggressiveStarvationEnabled*/)
 {
     UpdateDynamicAttributes(context.DynamicAttributesList);
 }
 
-const TSchedulableAttributes& TSchedulerElementBase::Attributes() const
-{
-    return Attributes_;
-}
-
-TSchedulableAttributes& TSchedulerElementBase::Attributes()
-{
-    return Attributes_;
-}
-
-void TSchedulerElementBase::UpdateAttributes()
+void TSchedulerElement::UpdateAttributes()
 {
     YCHECK(!Cloned_);
 
@@ -199,76 +189,51 @@ void TSchedulerElementBase::UpdateAttributes()
         GetMaxShareRatio());
 }
 
-const TNullable<Stroka>& TSchedulerElementBase::GetNodeTag() const
+const TNullable<Stroka>& TSchedulerElement::GetNodeTag() const
 {
     return NullNodeTag;
 }
 
-bool TSchedulerElementBase::IsActive(const TDynamicAttributesList& dynamicAttributesList) const
+bool TSchedulerElement::IsActive(const TDynamicAttributesList& dynamicAttributesList) const
 {
     return dynamicAttributesList[GetTreeIndex()].Active;
 }
 
-bool TSchedulerElementBase::IsAlive() const
-{
-    return SharedState_->GetAlive();
-}
-
-void TSchedulerElementBase::SetAlive(bool alive)
-{
-    SharedState_->SetAlive(alive);
-}
-
-TCompositeSchedulerElement* TSchedulerElementBase::GetParent() const
+TCompositeSchedulerElement* TSchedulerElement::GetParent() const
 {
     return Parent_;
 }
 
-void TSchedulerElementBase::SetParent(TCompositeSchedulerElement* parent)
+void TSchedulerElement::SetParent(TCompositeSchedulerElement* parent)
 {
     YCHECK(!Cloned_);
 
     Parent_ = parent;
 }
 
-int TSchedulerElementBase::GetPendingJobCount() const
+int TSchedulerElement::GetPendingJobCount() const
 {
     return PendingJobCount_;
 }
 
-ESchedulableStatus TSchedulerElementBase::GetStatus() const
+ESchedulableStatus TSchedulerElement::GetStatus() const
 {
     return ESchedulableStatus::Normal;
 }
 
-bool TSchedulerElementBase::GetStarving() const
+bool TSchedulerElement::GetStarving() const
 {
     return Starving_;
 }
 
-void TSchedulerElementBase::SetStarving(bool starving)
+void TSchedulerElement::SetStarving(bool starving)
 {
     YCHECK(!Cloned_);
 
     Starving_ = starving;
 }
 
-const TJobResources& TSchedulerElementBase::ResourceDemand() const
-{
-    return ResourceDemand_;
-}
-
-const TJobResources& TSchedulerElementBase::ResourceLimits() const
-{
-    return ResourceLimits_;
-}
-
-const TJobResources& TSchedulerElementBase::MaxPossibleResourceUsage() const
-{
-    return MaxPossibleResourceUsage_;
-}
-
-TJobResources TSchedulerElementBase::GetResourceUsage() const
+TJobResources TSchedulerElement::GetResourceUsage() const
 {
     auto resourceUsage = SharedState_->GetResourceUsage();
     if (resourceUsage.GetUserSlots() > 0 && resourceUsage.GetMemory() == 0) {
@@ -277,30 +242,30 @@ TJobResources TSchedulerElementBase::GetResourceUsage() const
     return resourceUsage;
 }
 
-double TSchedulerElementBase::GetResourceUsageRatio() const
+double TSchedulerElement::GetResourceUsageRatio() const
 {
     return SharedState_->GetResourceUsageRatio(
         Attributes_.DominantResource,
         Attributes_.DominantLimit);
 }
 
-void TSchedulerElementBase::IncreaseLocalResourceUsage(const TJobResources& delta)
+void TSchedulerElement::IncreaseLocalResourceUsage(const TJobResources& delta)
 {
     SharedState_->IncreaseResourceUsage(delta);
 }
 
-TSchedulerElementBase::TSchedulerElementBase(
+TSchedulerElement::TSchedulerElement(
     ISchedulerStrategyHost* host,
     TFairShareStrategyConfigPtr strategyConfig)
-    : TSchedulerElementBaseFixedState(host)
+    : TSchedulerElementFixedState(host)
     , StrategyConfig_(strategyConfig)
-    , SharedState_(New<TSchedulerElementBaseSharedState>())
+    , SharedState_(New<TSchedulerElementSharedState>())
 { }
 
-TSchedulerElementBase::TSchedulerElementBase(
-    const TSchedulerElementBase& other,
+TSchedulerElement::TSchedulerElement(
+    const TSchedulerElement& other,
     TCompositeSchedulerElement* clonedParent)
-    : TSchedulerElementBaseFixedState(other)
+    : TSchedulerElementFixedState(other)
     , StrategyConfig_(other.StrategyConfig_)
     , SharedState_(other.SharedState_)
 {
@@ -308,14 +273,14 @@ TSchedulerElementBase::TSchedulerElementBase(
     Cloned_ = true;
 }
 
-ISchedulerStrategyHost* TSchedulerElementBase::GetHost() const
+ISchedulerStrategyHost* TSchedulerElement::GetHost() const
 {
     YCHECK(!Cloned_);
 
     return Host_;
 }
 
-double TSchedulerElementBase::ComputeLocalSatisfactionRatio() const
+double TSchedulerElement::ComputeLocalSatisfactionRatio() const
 {
     double minShareRatio = Attributes_.AdjustedMinShareRatio;
     double fairShareRatio = Attributes_.FairShareRatio;
@@ -335,7 +300,7 @@ double TSchedulerElementBase::ComputeLocalSatisfactionRatio() const
     }
 }
 
-ESchedulableStatus TSchedulerElementBase::GetStatus(double defaultTolerance) const
+ESchedulableStatus TSchedulerElement::GetStatus(double defaultTolerance) const
 {
     double usageRatio = GetResourceUsageRatio();
     double demandRatio = Attributes_.DemandRatio;
@@ -354,7 +319,7 @@ ESchedulableStatus TSchedulerElementBase::GetStatus(double defaultTolerance) con
            : ESchedulableStatus::BelowFairShare;
 }
 
-void TSchedulerElementBase::CheckForStarvationImpl(
+void TSchedulerElement::CheckForStarvationImpl(
     TDuration minSharePreemptionTimeout,
     TDuration fairSharePreemptionTimeout,
     TInstant now)
@@ -391,32 +356,25 @@ void TSchedulerElementBase::CheckForStarvationImpl(
 
 ////////////////////////////////////////////////////////////////////
 
-TCompositeSchedulerElementFixedState::TCompositeSchedulerElementFixedState()
-    : RunningOperationCount_(0)
-    , OperationCount_(0)
-{ }
-
-////////////////////////////////////////////////////////////////////
-
 TCompositeSchedulerElement::TCompositeSchedulerElement(
     ISchedulerStrategyHost* host,
     TFairShareStrategyConfigPtr strategyConfig,
     const Stroka& profilingName)
-    : TSchedulerElementBase(host, strategyConfig)
+    : TSchedulerElement(host, strategyConfig)
     , ProfilingTag_(NProfiling::TProfileManager::Get()->RegisterTag("pool", profilingName))
 { }
 
 TCompositeSchedulerElement::TCompositeSchedulerElement(
     const TCompositeSchedulerElement& other,
     TCompositeSchedulerElement* clonedParent)
-    : TSchedulerElementBase(other, clonedParent)
+    : TSchedulerElement(other, clonedParent)
     , TCompositeSchedulerElementFixedState(other)
     , ProfilingTag_(other.ProfilingTag_)
 {
     auto cloneChildren = [&] (
-        const std::vector<ISchedulerElementPtr>& list,
-        yhash_map<ISchedulerElementPtr, int>* clonedMap,
-        std::vector<ISchedulerElementPtr>* clonedList)
+        const std::vector<TSchedulerElementPtr>& list,
+        yhash_map<TSchedulerElementPtr, int>* clonedMap,
+        std::vector<TSchedulerElementPtr>* clonedList)
     {
         for (const auto& child : list) {
             auto childClone = child->Clone(this);
@@ -432,7 +390,7 @@ int TCompositeSchedulerElement::EnumerateNodes(int startIndex)
 {
     YCHECK(!Cloned_);
 
-    startIndex = TSchedulerElementBase::EnumerateNodes(startIndex);
+    startIndex = TSchedulerElement::EnumerateNodes(startIndex);
     for (const auto& child : EnabledChildren_) {
         startIndex = child->EnumerateNodes(startIndex);
     }
@@ -459,7 +417,7 @@ void TCompositeSchedulerElement::UpdateBottomUp(TDynamicAttributesList& dynamicA
         maxPossibleChildrenResourceUsage_ += child->MaxPossibleResourceUsage();
     }
     MaxPossibleResourceUsage_ = Min(maxPossibleChildrenResourceUsage_, ResourceLimits_);
-    TSchedulerElementBase::UpdateBottomUp(dynamicAttributesList);
+    TSchedulerElement::UpdateBottomUp(dynamicAttributesList);
 }
 
 void TCompositeSchedulerElement::UpdateTopDown(TDynamicAttributesList& dynamicAttributesList)
@@ -536,7 +494,7 @@ void TCompositeSchedulerElement::UpdatePreemptionSettingsLimits()
     }
 }
 
-void TCompositeSchedulerElement::UpdateChildPreemptionSettings(const ISchedulerElementPtr& child)
+void TCompositeSchedulerElement::UpdateChildPreemptionSettings(const TSchedulerElementPtr& child)
 {
     YCHECK(!Cloned_);
 
@@ -558,7 +516,7 @@ void TCompositeSchedulerElement::UpdateChildPreemptionSettings(const ISchedulerE
 void TCompositeSchedulerElement::UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList)
 {
     YCHECK(IsActive(dynamicAttributesList));
-    auto& attributes = dynamicAttributesList[this->GetTreeIndex()];
+    auto& attributes = dynamicAttributesList[GetTreeIndex()];
 
     if (!IsAlive()) {
         attributes.Active = false;
@@ -635,7 +593,7 @@ void TCompositeSchedulerElement::PrescheduleJob(TFairShareContext& context, bool
         child->PrescheduleJob(context, starvingOnlyChildren, aggressiveStarvationEnabled);
     }
 
-    TSchedulerElementBase::PrescheduleJob(context, starvingOnly, aggressiveStarvationEnabled);
+    TSchedulerElement::PrescheduleJob(context, starvingOnly, aggressiveStarvationEnabled);
 }
 
 bool TCompositeSchedulerElement::ScheduleJob(TFairShareContext& context)
@@ -683,7 +641,7 @@ bool TCompositeSchedulerElement::IsAggressiveStarvationEnabled() const
     return false;
 }
 
-void TCompositeSchedulerElement::AddChild(const ISchedulerElementPtr& child, bool enabled)
+void TCompositeSchedulerElement::AddChild(const TSchedulerElementPtr& child, bool enabled)
 {
     YCHECK(!Cloned_);
 
@@ -692,7 +650,7 @@ void TCompositeSchedulerElement::AddChild(const ISchedulerElementPtr& child, boo
     AddChild(&map, &list, child);
 }
 
-void TCompositeSchedulerElement::EnableChild(const ISchedulerElementPtr& child)
+void TCompositeSchedulerElement::EnableChild(const TSchedulerElementPtr& child)
 {
     YCHECK(!Cloned_);
 
@@ -700,7 +658,7 @@ void TCompositeSchedulerElement::EnableChild(const ISchedulerElementPtr& child)
     AddChild(&EnabledChildToIndex_, &EnabledChildren_, child);
 }
 
-void TCompositeSchedulerElement::RemoveChild(const ISchedulerElementPtr& child)
+void TCompositeSchedulerElement::RemoveChild(const TSchedulerElementPtr& child)
 {
     YCHECK(!Cloned_);
 
@@ -857,7 +815,7 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
 
     // Compute fair shares.
     ComputeByFitting(
-        [&] (double fitFactor, const ISchedulerElementPtr& child) -> double {
+        [&] (double fitFactor, const TSchedulerElementPtr& child) -> double {
             const auto& childAttributes = child->Attributes();
             double result = fitFactor * child->GetWeight() / minWeight;
             // Never give less than promised by min share.
@@ -868,7 +826,7 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
             result = std::min(result, childAttributes.BestAllocationRatio);
             return result;
         },
-        [&] (const ISchedulerElementPtr& child, double value) {
+        [&] (const TSchedulerElementPtr& child, double value) {
             auto& attributes = child->Attributes();
             attributes.FairShareRatio = value;
         },
@@ -876,14 +834,14 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
 
     // Compute guaranteed shares.
     ComputeByFitting(
-        [&] (double fitFactor, const ISchedulerElementPtr& child) -> double {
+        [&] (double fitFactor, const TSchedulerElementPtr& child) -> double {
             const auto& childAttributes = child->Attributes();
             double result = fitFactor * child->GetWeight() / minWeight;
             // Never give less than promised by min share.
             result = std::max(result, childAttributes.AdjustedMinShareRatio);
             return result;
         },
-        [&] (const ISchedulerElementPtr& child, double value) {
+        [&] (const TSchedulerElementPtr& child, double value) {
             auto& attributes = child->Attributes();
             attributes.GuaranteedResourcesRatio = value;
         },
@@ -901,7 +859,7 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
     }
 }
 
-ISchedulerElementPtr TCompositeSchedulerElement::GetBestActiveChild(const TDynamicAttributesList& dynamicAttributesList) const
+TSchedulerElementPtr TCompositeSchedulerElement::GetBestActiveChild(const TDynamicAttributesList& dynamicAttributesList) const
 {
     switch (Mode_) {
         case ESchedulingMode::Fifo:
@@ -913,9 +871,9 @@ ISchedulerElementPtr TCompositeSchedulerElement::GetBestActiveChild(const TDynam
     }
 }
 
-ISchedulerElementPtr TCompositeSchedulerElement::GetBestActiveChildFifo(const TDynamicAttributesList& dynamicAttributesList) const
+TSchedulerElementPtr TCompositeSchedulerElement::GetBestActiveChildFifo(const TDynamicAttributesList& dynamicAttributesList) const
 {
-    auto isBetter = [this, &dynamicAttributesList] (const ISchedulerElementPtr& lhs, const ISchedulerElementPtr& rhs) -> bool {
+    auto isBetter = [this, &dynamicAttributesList] (const TSchedulerElementPtr& lhs, const TSchedulerElementPtr& rhs) -> bool {
         for (auto parameter : FifoSortParameters_) {
             switch (parameter) {
                 case EFifoSortParameter::Weight:
@@ -946,7 +904,7 @@ ISchedulerElementPtr TCompositeSchedulerElement::GetBestActiveChildFifo(const TD
         return false;
     };
 
-    ISchedulerElement* bestChild = nullptr;
+    TSchedulerElement* bestChild = nullptr;
     for (const auto& child : EnabledChildren_) {
         if (child->IsActive(dynamicAttributesList)) {
             if (bestChild && isBetter(bestChild, child))
@@ -958,9 +916,9 @@ ISchedulerElementPtr TCompositeSchedulerElement::GetBestActiveChildFifo(const TD
     return bestChild;
 }
 
-ISchedulerElementPtr TCompositeSchedulerElement::GetBestActiveChildFairShare(const TDynamicAttributesList& dynamicAttributesList) const
+TSchedulerElementPtr TCompositeSchedulerElement::GetBestActiveChildFairShare(const TDynamicAttributesList& dynamicAttributesList) const
 {
-    ISchedulerElement* bestChild = nullptr;
+    TSchedulerElement* bestChild = nullptr;
     double bestChildSatisfactionRatio = std::numeric_limits<double>::max();
     for (const auto& child : EnabledChildren_) {
         if (child->IsActive(dynamicAttributesList)) {
@@ -978,7 +936,7 @@ ISchedulerElementPtr TCompositeSchedulerElement::GetBestActiveChildFairShare(con
 void TCompositeSchedulerElement::AddChild(
     TChildMap* map,
     TChildList* list,
-    const ISchedulerElementPtr& child)
+    const TSchedulerElementPtr& child)
 {
     list->push_back(child);
     YCHECK(map->emplace(child, list->size() - 1).second);
@@ -987,7 +945,7 @@ void TCompositeSchedulerElement::AddChild(
 void TCompositeSchedulerElement::RemoveChild(
     TChildMap* map,
     TChildList* list,
-    const ISchedulerElementPtr& child)
+    const TSchedulerElementPtr& child)
 {
     auto it = map->find(child);
     YCHECK(it != map->end());
@@ -1004,7 +962,7 @@ void TCompositeSchedulerElement::RemoveChild(
 
 bool TCompositeSchedulerElement::ContainsChild(
     const TChildMap& map,
-    const ISchedulerElementPtr& child)
+    const TSchedulerElementPtr& child)
 {
     return map.find(child) != map.end();
 }
@@ -1097,7 +1055,7 @@ double TPool::GetMaxShareRatio() const
 
 ESchedulableStatus TPool::GetStatus() const
 {
-    return TSchedulerElementBase::GetStatus(Attributes_.AdjustedFairShareStarvationTolerance);
+    return TSchedulerElement::GetStatus(Attributes_.AdjustedFairShareStarvationTolerance);
 }
 
 double TPool::GetFairShareStarvationTolerance() const
@@ -1135,12 +1093,12 @@ void TPool::SetStarving(bool starving)
     YCHECK(!Cloned_);
 
     if (starving && !GetStarving()) {
-        TSchedulerElementBase::SetStarving(true);
+        TSchedulerElement::SetStarving(true);
         LOG_INFO("Pool is now starving (PoolId: %v, Status: %v)",
             GetId(),
             GetStatus());
     } else if (!starving && GetStarving()) {
-        TSchedulerElementBase::SetStarving(false);
+        TSchedulerElement::SetStarving(false);
         LOG_INFO("Pool is no longer starving (PoolId: %v)",
             GetId());
     }
@@ -1150,7 +1108,7 @@ void TPool::CheckForStarvation(TInstant now)
 {
     YCHECK(!Cloned_);
 
-    TSchedulerElementBase::CheckForStarvationImpl(
+    TSchedulerElement::CheckForStarvationImpl(
         Attributes_.AdjustedMinSharePreemptionTimeout,
         Attributes_.AdjustedFairSharePreemptionTimeout,
         now);
@@ -1179,7 +1137,7 @@ int TPool::GetMaxOperationCount() const
     return Config_->MaxOperationCount.Get(StrategyConfig_->MaxOperationCountPerPool);
 }
 
-ISchedulerElementPtr TPool::Clone(TCompositeSchedulerElement* clonedParent)
+TSchedulerElementPtr TPool::Clone(TCompositeSchedulerElement* clonedParent)
 {
     return New<TPool>(*this, clonedParent);
 }
@@ -1203,11 +1161,11 @@ TJobResources TPool::ComputeResourceLimits() const
 ////////////////////////////////////////////////////////////////////
 
 TOperationElementFixedState::TOperationElementFixedState(TOperationPtr operation)
-    : OperationId_(operation->GetId())
+    : Controller_(operation->GetController())
+    , OperationId_(operation->GetId())
     , StartTime_(operation->GetStartTime())
-    , IsSchedulable_(operation->IsSchedulable())
+    , Schedulable_(operation->IsSchedulable())
     , Operation_(operation.Get())
-    , Controller_(operation->GetController())
 { }
 
 ////////////////////////////////////////////////////////////////////
@@ -1476,7 +1434,9 @@ bool TOperationElementSharedState::IsBlockedImpl(
         (BackingOff_ && LastScheduleJobFailTime_ + scheduleJobFailBackoffTime > now);
 }
 
-void TOperationElementSharedState::IncreaseJobResourceUsage(TJobProperties& properties, const TJobResources& resourcesDelta)
+void TOperationElementSharedState::IncreaseJobResourceUsage(
+    TJobProperties& properties,
+    const TJobResources& resourcesDelta)
 {
     properties.ResourceUsage += resourcesDelta;
     if (!properties.Preemptable) {
@@ -1492,7 +1452,7 @@ TOperationElement::TOperationElement(
     TOperationRuntimeParamsPtr runtimeParams,
     ISchedulerStrategyHost* host,
     TOperationPtr operation)
-    : TSchedulerElementBase(host, strategyConfig)
+    : TSchedulerElement(host, strategyConfig)
     , TOperationElementFixedState(operation)
     , RuntimeParams_(runtimeParams)
     , Spec_(spec)
@@ -1502,7 +1462,7 @@ TOperationElement::TOperationElement(
 TOperationElement::TOperationElement(
     const TOperationElement& other,
     TCompositeSchedulerElement* clonedParent)
-    : TSchedulerElementBase(other, clonedParent)
+    : TSchedulerElement(other, clonedParent)
     , TOperationElementFixedState(other)
     , RuntimeParams_(other.RuntimeParams_)
     , Spec_(other.Spec_)
@@ -1528,9 +1488,9 @@ void TOperationElement::UpdateBottomUp(TDynamicAttributesList& dynamicAttributes
 {
     YCHECK(!Cloned_);
 
-    TSchedulerElementBase::UpdateBottomUp(dynamicAttributesList);
+    TSchedulerElement::UpdateBottomUp(dynamicAttributesList);
 
-    IsSchedulable_ = Operation_->IsSchedulable();
+    Schedulable_ = Operation_->IsSchedulable();
     ResourceDemand_ = ComputeResourceDemand();
     ResourceLimits_ = ComputeResourceLimits();
     MaxPossibleResourceUsage_ = ComputeMaxPossibleResourceUsage();
@@ -1552,7 +1512,7 @@ void TOperationElement::UpdateTopDown(TDynamicAttributesList& dynamicAttributesL
 {
     YCHECK(!Cloned_);
 
-    TSchedulerElementBase::UpdateTopDown(dynamicAttributesList);
+    TSchedulerElement::UpdateTopDown(dynamicAttributesList);
 
     SharedState_->UpdatePreemptableJobsList(
         Attributes_.FairShareRatio,
@@ -1574,12 +1534,12 @@ TJobResources TOperationElement::ComputePossibleResourceUsage(TJobResources limi
 
 void TOperationElement::UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList)
 {
-    auto& attributes = dynamicAttributesList[this->GetTreeIndex()];
+    auto& attributes = dynamicAttributesList[GetTreeIndex()];
     attributes.Active = true;
     attributes.BestLeafDescendant = this;
     attributes.MinSubtreeStartTime = StartTime_;
 
-    TSchedulerElementBase::UpdateDynamicAttributes(dynamicAttributesList);
+    TSchedulerElement::UpdateDynamicAttributes(dynamicAttributesList);
 }
 
 void TOperationElement::PrescheduleJob(TFairShareContext& context, bool starvingOnly, bool aggressiveStarvationEnabled)
@@ -1608,7 +1568,7 @@ void TOperationElement::PrescheduleJob(TFairShareContext& context, bool starving
         return;
     }
 
-    TSchedulerElementBase::PrescheduleJob(context, starvingOnly, aggressiveStarvationEnabled);
+    TSchedulerElement::PrescheduleJob(context, starvingOnly, aggressiveStarvationEnabled);
 }
 
 bool TOperationElement::ScheduleJob(TFairShareContext& context)
@@ -1723,7 +1683,7 @@ const TNullable<Stroka>& TOperationElement::GetNodeTag() const
 
 ESchedulableStatus TOperationElement::GetStatus() const
 {
-    if (!IsSchedulable_) {
+    if (!Schedulable_) {
         return ESchedulableStatus::Normal;
     }
 
@@ -1731,7 +1691,7 @@ ESchedulableStatus TOperationElement::GetStatus() const
         return ESchedulableStatus::Normal;
     }
 
-    return TSchedulerElementBase::GetStatus(Attributes_.AdjustedFairShareStarvationTolerance);
+    return TSchedulerElement::GetStatus(Attributes_.AdjustedFairShareStarvationTolerance);
 }
 
 void TOperationElement::SetStarving(bool starving)
@@ -1739,12 +1699,12 @@ void TOperationElement::SetStarving(bool starving)
     YCHECK(!Cloned_);
 
     if (starving && !GetStarving()) {
-        TSchedulerElementBase::SetStarving(true);
+        TSchedulerElement::SetStarving(true);
         LOG_INFO("Operation is now starving (OperationId: %v, Status: %v)",
             GetId(),
             GetStatus());
     } else if (!starving && GetStarving()) {
-        TSchedulerElementBase::SetStarving(false);
+        TSchedulerElement::SetStarving(false);
         LOG_INFO("Operation is no longer starving (OperationId: %v)",
             GetId());
     }
@@ -1764,7 +1724,7 @@ void TOperationElement::CheckForStarvation(TInstant now)
         fairSharePreemptionTimeout *= jobCountRatio;
     }
 
-    TSchedulerElementBase::CheckForStarvationImpl(
+    TSchedulerElement::CheckForStarvationImpl(
         minSharePreemptionTimeout,
         fairSharePreemptionTimeout,
         now);
@@ -1841,21 +1801,14 @@ void TOperationElement::BuildOperationToElementMapping(TOperationElementByIdMap*
     operationElementByIdMap->emplace(OperationId_, this);
 }
 
-ISchedulerElementPtr TOperationElement::Clone(TCompositeSchedulerElement* clonedParent)
+TSchedulerElementPtr TOperationElement::Clone(TCompositeSchedulerElement* clonedParent)
 {
     return New<TOperationElement>(*this, clonedParent);
 }
 
-TOperation* TOperationElement::GetOperation() const
-{
-    YCHECK(!Cloned_);
-
-    return Operation_;
-}
-
 bool TOperationElement::IsBlocked(TInstant now) const
 {
-    return !IsSchedulable_ ||
+    return !Schedulable_ ||
         GetPendingJobCount() == 0 ||
         SharedState_->IsBlocked(
             now,
@@ -2084,7 +2037,7 @@ int TRootElement::GetMaxOperationCount() const
     return StrategyConfig_->MaxOperationCount;
 }
 
-ISchedulerElementPtr TRootElement::Clone(TCompositeSchedulerElement* /*clonedParent*/)
+TSchedulerElementPtr TRootElement::Clone(TCompositeSchedulerElement* /*clonedParent*/)
 {
     YUNREACHABLE();
 }
