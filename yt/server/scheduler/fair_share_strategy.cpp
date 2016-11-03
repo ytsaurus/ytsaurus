@@ -373,12 +373,6 @@ public:
         }
     }
 
-    virtual TStatistics GetOperationTimeStatistics(const TOperationId& operationId) override
-    {
-        auto element = GetOperationElement(operationId);
-        return element->GetControllerTimeStatistics();
-    }
-
     virtual void BuildOperationAttributes(const TOperationId& operationId, IYsonConsumer* consumer) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
