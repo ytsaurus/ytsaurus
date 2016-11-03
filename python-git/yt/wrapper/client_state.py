@@ -1,9 +1,17 @@
+from .common import get_value
 from .system_random import SystemRandom
 
+from copy import deepcopy
 import random
 
 class ClientState(object):
-    def __init__(self):
+    def __init__(self, other=None):
+        if other is None:
+            self._init_state()
+        else:
+            self._copy_init_state(other)
+
+    def _init_state(self):
         self.COMMAND_PARAMS = {
             "transaction_id": "0-0-0-0",
             "ping_ancestor_transactions": False,
@@ -12,6 +20,8 @@ class ClientState(object):
         self._ENABLE_READ_TABLE_CHAOS_MONKEY = False
         self._ENABLE_HTTP_CHAOS_MONKEY = False
         self._ENABLE_HEAVY_REQUEST_CHAOS_MONKEY = False
+
+        self._client_type = "single"
 
         self._transaction_stack = None
         self._driver = None
@@ -35,6 +45,16 @@ class ClientState(object):
         self._local_mode_fqdn = None
 
         self._random_generator = SystemRandom()
+
+    def _copy_init_state(self, other):
+        self.__dict__.update(deepcopy(other._as_dict()))
+
+    def _as_dict(self):
+        # Hacky way, can we do this more straightforward?
+        result = {}
+        for attr in filter(lambda attr: not attr.startswith("__"), ClientState().__dict__):
+            result[attr] = getattr(self, attr)
+        return result
 
     def init_pseudo_random_generator(self):
         """Changes client random generator to pseudo random generator,

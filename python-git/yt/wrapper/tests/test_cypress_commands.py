@@ -114,7 +114,7 @@ class TestCypressCommands(object):
         assert list(yt.search(TEST_DIR, node_type="file")) == [TEST_DIR + "/file"]
 
         assert list(yt.search(TEST_DIR, node_type="table",
-                             path_filter=lambda x: x.find("dir") != -1)) == [TEST_DIR + "/dir/table"]
+                              path_filter=lambda x: x.find("dir") != -1)) == [TEST_DIR + "/dir/table"]
 
         def subtree_filter(path, obj):
             is_in_dir = path.find("dir") != -1

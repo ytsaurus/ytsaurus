@@ -1,6 +1,7 @@
 from yt.wrapper.common import round_up_to, bool_to_string, MB, GB, update, get_disk_size
 from yt.wrapper.local_mode import enable_local_files_usage_in_job
 from yt.wrapper.ypath import ypath_join
+from yt.wrapper.http_helpers import _get_user_name
 from yt.tools.conversion_tools import transform
 from yt.common import get_value, set_pdeathsig
 
@@ -316,7 +317,7 @@ def _read_file_from_yt(source_client, file):
     return client.read_file(file)
 
 def check_permission(client, permission, path):
-     user_name = client.get_user_name(client.config["token"])
+     user_name = _get_user_name(client.config["token"], client=client)
      permission = client.check_permission(user_name, permission, path)
      return permission["action"] == "allow"
 

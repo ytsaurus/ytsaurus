@@ -422,7 +422,8 @@ default_config = {
         "enable": False,
         # Additional tmpfs size (in bytes) to reserve for user data.
         "additional_tmpfs_size": 0
-    }
+    },
+    "max_batch_size": 100
 }
 
 # pydoc :: default_config :: end

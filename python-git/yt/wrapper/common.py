@@ -102,6 +102,18 @@ def group_blobs_by_size(lines, chunk_size):
             chunk = []
     yield chunk
 
+def chunk_iter_list(lines, chunk_size):
+    size = 0
+    chunk = []
+    for line in lines:
+        size += 1
+        chunk.append(line)
+        if size >= chunk_size:
+            yield chunk
+            size = 0
+            chunk = []
+    yield chunk
+
 def chunk_iter_stream(stream, chunk_size):
     while True:
         chunk = stream.read(chunk_size)
