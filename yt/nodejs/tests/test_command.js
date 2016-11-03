@@ -94,6 +94,14 @@ function afterCommandTest(done) {
     this.driver = null;
 }
 
+function putStrippedHeader(headers, key, value)
+{
+    var blob = new Buffer(value).toString("base64");
+    for (var i = 0; i < 1 + blob.length / 10; ++i) {
+        headers[key + i] = blob.substr(i * 10, 10);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 describe("YtCommand - v2 http method selection", function() {
@@ -525,6 +533,26 @@ describe("YtCommand - v2 command parameters", function() {
         }, done).end();
     });
 
+    it("should take header base64-encoded parameters", function(done) {
+        var stub = this.stub;
+        var params = {
+            "input_format": "yson",
+            "output_format": "json",
+            "who": "me",
+            "path": "/",
+            "foo": "bar"
+        };
+        var headers = {};
+        putStrippedHeader(headers, "X-YT-Parameters", JSON.stringify(params));
+        ask("GET", V + "/get", headers,
+        function(rsp) {
+            rsp.should.be.http2xx;
+            rsp.body.should.be.empty;
+            stub.should.have.been.calledOnce;
+            stub.firstCall.args[6].Get().should.eql(params);
+        }, done).end();
+    });
+
     it("should not take invalid header parameters", function(done) {
         var stub = this.stub;
         ask("GET", V + "/get",
@@ -679,6 +707,29 @@ describe("YtCommand - v3 command parameters", function() {
         };
         ask("GET", V + "/get",
         { "X-YT-Parameters": JSON.stringify(params) },
+        function(rsp) {
+            rsp.should.be.http2xx;
+            rsp.body.should.be.empty;
+            stub.should.have.been.calledOnce;
+            stub.firstCall.args[6].Get().should.eql(params);
+        }, done).end();
+    });
+
+    it("should take header base64-encoded parameters", function(done) {
+        var stub = this.stub;
+        var params = {
+            "input_format": "yson",
+            "output_format": "json",
+            "who": "me",
+            "path": "/",
+            "foo": "bar"
+        };
+        var params_b64 = new Buffer(JSON.stringify(params)).toString("base64");
+        var headers = {};
+        for (var i = 0; i < 1 + params_b64.length / 10; ++i) {
+            headers["X-YT-Parameters" + i] = params_b64.substr(i * 10, 10);
+        }
+        ask("GET", V + "/get", headers,
         function(rsp) {
             rsp.should.be.http2xx;
             rsp.body.should.be.empty;
@@ -847,6 +898,25 @@ describe("YtCommand - v2 input format selection", function() {
         }, done).end();
     });
 
+    it("should support stripped X-YT-Input-Format", function(done) {
+        var stub = this.stub;
+        var headers = {};
+        putStrippedHeader(headers, "X-YT-Input-Format", JSON.stringify({
+            $attributes: { "foo": "bar" },
+            $value: "yson"
+        }));
+        ask("PUT", V + "/write", headers,
+        function(rsp) {
+            rsp.should.be.http2xx;
+            stub.should.have.been.calledOnce;
+            var ifmt = stub.firstCall.args[6].GetByYPath("/input_format").Print();
+            expect([
+                '<"foo"="bar";"boolean_as_string"=%true;>"yson"',
+                '<"boolean_as_string"=%true;"foo"="bar";>"yson"'
+            ]).to.include(ifmt);
+        }, done).end();
+    });
+
     it("should fail with bad Content-Type header", function(done) {
         var stub = this.stub;
         ask("PUT", V + "/write",
@@ -951,6 +1021,26 @@ describe("YtCommand - v2 output format selection", function() {
                 $value: "yson"
             })
         },
+        function(rsp) {
+            rsp.should.be.http2xx;
+            rsp.should.not.have.content_type;
+            stub.should.have.been.calledOnce;
+            var ofmt = stub.firstCall.args[6].GetByYPath("/output_format").Print();
+            expect([
+                '<"foo"="bar";"boolean_as_string"=%true;>"yson"',
+                '<"boolean_as_string"=%true;"foo"="bar";>"yson"',
+            ]).to.include(ofmt);
+        }, done).end();
+    });
+
+    it("should support stripped X-YT-Output-Format", function(done) {
+        var stub = this.stub;
+        var headers = {};
+        putStrippedHeader(headers, "X-YT-Output-Format", JSON.stringify({
+            $attributes: { "foo": "bar" },
+            $value: "yson"
+        }));
+        ask("GET", V + "/read", headers,
         function(rsp) {
             rsp.should.be.http2xx;
             rsp.should.not.have.content_type;
@@ -1156,6 +1246,21 @@ describe("YtCommand - v3 input format selection", function() {
         }, done).end();
     });
 
+    it("should support stripped X-YT-Input-Format", function(done) {
+        var stub = this.stub;
+        var headers = {};
+        putStrippedHeader(headers, "X-YT-Input-Format", JSON.stringify({
+            $attributes: { "foo": "bar" },
+            $value: "yson"
+        }));
+        ask("PUT", V + "/write_table", headers,
+        function(rsp) {
+            rsp.should.be.http2xx;
+            stub.should.have.been.calledOnce;
+            stub.firstCall.args[6].GetByYPath("/input_format").Print().should.eql('<"foo"="bar";>"yson"');
+        }, done).end();
+    });
+
     it("should fail with bad Content-Type header", function(done) {
         var stub = this.stub;
         ask("PUT", V + "/write_table",
@@ -1264,6 +1369,22 @@ describe("YtCommand - v3 output format selection", function() {
                 $value: "yson"
             })
         },
+        function(rsp) {
+            rsp.should.be.http2xx;
+            rsp.should.not.have.content_type;
+            stub.should.have.been.calledOnce;
+            stub.firstCall.args[6].GetByYPath("/output_format").Print().should.eql('<"foo"="bar";>"yson"');
+        }, done).end();
+    });
+
+    it("should support stripped X-YT-Output-Format", function(done) {
+        var stub = this.stub;
+        var headers = {};
+        putStrippedHeader(headers, "X-YT-Output-Format", JSON.stringify({
+            $attributes: { "foo": "bar" },
+            $value: "yson"
+        }));
+        ask("GET", V + "/read_table", headers,
         function(rsp) {
             rsp.should.be.http2xx;
             rsp.should.not.have.content_type;

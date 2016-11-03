@@ -306,7 +306,7 @@ exports.microsToUtcString = function(value)
 
 exports.pick = function(object, keys)
 {
-    var result = { };
+    var result = {};
     for (var i = 0, length = keys.length; i < length; ++i) {
         var key = keys[i];
         if (key in object) {
@@ -314,6 +314,47 @@ exports.pick = function(object, keys)
         }
     }
     return result;
+};
+
+exports.gather = function(object, prefix)
+{
+    if (typeof(object[prefix]) !== "undefined") {
+        return object[prefix];
+    }
+
+    var keys = Object.keys(object);
+    var result = [];
+
+    var i, n, m, l = prefix.length;
+    var kp, ks;
+
+    for (i = 0, n = keys.length; i < n; ++i) {
+        kp = keys[i].substr(0, l);
+        ks = keys[i].substr(l);
+        if (kp === prefix) {
+            if (/[0-9]+/.test(ks)) {
+                m = parseInt(ks);
+                if (m < 0 || m > 1000) {
+                    throw new Exception("Too many header parts for '" + prefix + "'");
+                }
+                result[parseInt(ks)] = object[keys[i]];
+            } else {
+                throw new Exception("Bad header part '" + k[i] + "'");
+            }
+        }
+    }
+
+    for (i = 0, n = result.length; i < n; ++i) {
+        if (typeof(result[i]) !== "string") {
+            throw new Exception("Missing part " + i + " for header '" + prefix + "'");
+        }
+    }
+
+    if (result.length === 0) {
+        return null;
+    } else {
+        return result;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

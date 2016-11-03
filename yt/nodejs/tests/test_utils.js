@@ -224,5 +224,32 @@ describe("#utcStringToMicros()", function() {
     });
 });
 
+describe("#gather", function() {
+    it("should return singleton item", function() {
+        expect(utils.gather({"k": "v"}, "k")).to.eql("v");
+    });
+
+    it("should return null when there is no item", function() {
+        expect(utils.gather({"k": "v"}, "l")).to.eql(null);
+    });
+
+    it("should return single part array", function() {
+        expect(utils.gather({"k0": "v"}, "k")).to.deep.equal(["v"]);
+    });
+
+    it("should return multi part array", function() {
+        expect(utils.gather({"k0": "v", "k1": "w"}, "k")).to.deep.equal(["v", "w"]);
+        expect(utils.gather({"k1": "w", "k0": "v"}, "k")).to.deep.equal(["v", "w"]);
+    });
+
+    it("should fail on missing parts", function() {
+        expect(function() { utils.gather({"k0": "v", "k2": "w"}, "k"); }).to.throw();
+    });
+
+    it("should fail on bad parts", function() {
+        expect(function() { utils.gather({"kk": "v"}, "k"); }).to.throw();
+    });
+});
+
 // Impicit scope.
 });
