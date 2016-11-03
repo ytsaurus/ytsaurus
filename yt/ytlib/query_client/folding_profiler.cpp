@@ -89,7 +89,7 @@ void TSchemaProfiler::Profile(const TTableSchema& tableSchema)
         const auto& column = columns[index];
         Fold(static_cast<ui16>(column.Type));
         Fold(column.Name.c_str());
-        int aux = (column.Expression ? 1 : 0) + (column.Aggregate ? 1 : 0);
+        int aux = (column.Expression ? 1 : 0) | ((column.Aggregate ? 1 : 0) << 1);
         Fold(aux);
         if (column.Expression) {
             Fold(column.Expression.Get().c_str());
