@@ -20,7 +20,14 @@ TNode MakeProtoFormatConfig(
 
 TNode MakeProtoFormatConfig(const ::google::protobuf::Message* prototype);
 
+yvector<const ::google::protobuf::Descriptor*> GetJobInputDescriptors();
 yvector<const ::google::protobuf::Descriptor*> GetJobOutputDescriptors();
+
+void ValidateProtoDescriptor(
+    const ::google::protobuf::Message& row,
+    size_t tableIndex,
+    const yvector<const ::google::protobuf::Descriptor*>& descriptors,
+    bool isRead);
 
 ////////////////////////////////////////////////////////////////////////////////
 

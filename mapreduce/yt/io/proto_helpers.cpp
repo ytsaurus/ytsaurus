@@ -1,5 +1,6 @@
 #include "proto_helpers.h"
 
+#include <mapreduce/yt/interface/io.h>
 #include <mapreduce/yt/common/fluent.h>
 
 #include <contrib/libs/protobuf/descriptor.h>
@@ -43,6 +44,25 @@ int SaveDependencies(
     return fileIndex;
 }
 
+yvector<const Descriptor*> GetJobDescriptors(const Stroka& fileName)
+{
+    yvector<const Descriptor*> descriptors;
+    if (!TFsPath(fileName).Exists()) {
+        ythrow TIOException() <<
+            "Cannot load '" << fileName << "' file";
+    }
+
+    TFileInput input(fileName);
+    Stroka line;
+    while (input.ReadLine(line)) {
+        const auto* pool = DescriptorPool::generated_pool();
+        const auto* descriptor = pool->FindMessageTypeByName(line);
+        descriptors.push_back(descriptor);
+    }
+
+    return descriptors;
+}
+
 } // namespace
 
 TNode MakeProtoFormatConfig(const yvector<const Descriptor*>& descriptors)
@@ -73,28 +93,44 @@ TNode MakeProtoFormatConfig(const yvector<const Descriptor*>& descriptors)
     .Value("protobuf");
 }
 
+yvector<const Descriptor*> GetJobInputDescriptors()
+{
+    return GetJobDescriptors("proto_input");
+}
+
 yvector<const Descriptor*> GetJobOutputDescriptors()
 {
-    yvector<const Descriptor*> descriptors;
-    if (!TFsPath("protoconfig").Exists()) {
-        ythrow yexception() << "Cannot load 'protoconfig' file";
-    }
-
-    TFileInput input("protoconfig");
-    Stroka line;
-    while (input.ReadLine(line)) {
-        const auto* pool = DescriptorPool::generated_pool();
-        const auto* descriptor = pool->FindMessageTypeByName(line);
-        descriptors.push_back(descriptor);
-    }
-
-    return descriptors;
+    return GetJobDescriptors("proto_output");
 }
 
 TNode MakeProtoFormatConfig(const Message* prototype)
 {
     yvector<const Descriptor*> descriptors(1, prototype->GetDescriptor());
     return MakeProtoFormatConfig(descriptors);
+}
+
+void ValidateProtoDescriptor(
+    const Message& row,
+    size_t tableIndex,
+    const yvector<const Descriptor*>& descriptors,
+    bool isRead)
+{
+    const char* direction = isRead ? "input" : "output";
+
+    if (tableIndex >= descriptors.size()) {
+        ythrow TIOException() <<
+            "Table index " << tableIndex <<
+            " is out of range [0, " << descriptors.size() <<
+            ") in " << direction;
+    }
+
+    if (row.GetDescriptor() != descriptors[tableIndex]) {
+        ythrow TIOException() <<
+            "Invalid row of type " << row.GetDescriptor()->full_name() <<
+            " at index " << tableIndex <<
+            ", row of type " << descriptors[tableIndex]->full_name() <<
+            " expected in " << direction;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

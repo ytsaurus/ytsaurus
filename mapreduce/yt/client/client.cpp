@@ -472,13 +472,18 @@ private:
         const TTableReaderOptions& options,
         const Message* prototype) override
     {
+        yvector<const ::google::protobuf::Descriptor*> descriptors;
+        descriptors.push_back(prototype->GetDescriptor());
+
         if (TConfig::Get()->UseClientProtobuf) {
             return new TProtoTableReader(
-                CreateClientReader(path, DSF_YSON_BINARY, options));
+                CreateClientReader(path, DSF_YSON_BINARY, options),
+                std::move(descriptors));
         } else {
             auto formatConfig = NodeToYsonString(MakeProtoFormatConfig(prototype));
             return new TLenvalProtoTableReader(
-                CreateClientReader(path, DSF_PROTO, options, formatConfig));
+                CreateClientReader(path, DSF_PROTO, options, formatConfig),
+                std::move(descriptors));
         }
     }
 

@@ -2,6 +2,7 @@
 
 #include "node_table_writer.h"
 #include "proxy_output.h"
+#include "proto_helpers.h"
 
 #include <mapreduce/yt/common/node_builder.h>
 #include <mapreduce/yt/interface/protos/extension.pb.h>
@@ -87,25 +88,6 @@ TNode MakeNodeFromMessage(const Message& row)
     return node;
 }
 
-void ValidateProtoDescriptor(
-    const Message& row,
-    size_t tableIndex,
-    const yvector<const Descriptor*>& descriptors)
-{
-    if (tableIndex >= descriptors.size()) {
-        ythrow TIOException() <<
-            "Table index " << tableIndex <<
-            " is out of range [0, " << descriptors.size() << ")";
-    }
-
-    if (row.GetDescriptor() != descriptors[tableIndex]) {
-        ythrow TIOException() <<
-            "Invalid row of type " << row.GetDescriptor()->full_name() <<
-            " at index " << tableIndex <<
-            ", row of type " << descriptors[tableIndex]->full_name() <<
-            " expected";
-    }
-}
 
 } // namespace
 
@@ -160,7 +142,7 @@ TOutputStream* TLenvalProtoTableWriter::GetStream(size_t tableIndex) const
 
 void TLenvalProtoTableWriter::AddRow(const Message& row, size_t tableIndex)
 {
-    ValidateProtoDescriptor(row, tableIndex, Descriptors_);
+    ValidateProtoDescriptor(row, tableIndex, Descriptors_, false);
 
     auto* stream = GetStream(tableIndex);
     i32 size = row.ByteSize();

@@ -128,17 +128,20 @@ public:
         const TUserJobSpec& spec,
         IJob* job,
         size_t outputTableCount,
+        const TMultiFormatDesc& inputDesc,
         const TMultiFormatDesc& outputDesc,
         const TOperationOptions& options)
         : Auth_(auth)
         , Spec_(spec)
+        , InputDesc_(inputDesc)
         , OutputDesc_(outputDesc)
         , Options_(options)
     {
         CreateStorage();
         UploadFilesFromSpec();
         UploadJobState(job);
-        UploadProtoConfig();
+        UploadProtoConfig("proto_input", inputDesc);
+        UploadProtoConfig("proto_output", outputDesc);
 
         BinaryPath_ = GetExecPath();
         if (TConfig::Get()->JobBinary) {
@@ -201,6 +204,7 @@ public:
 private:
     TAuth Auth_;
     TUserJobSpec Spec_;
+    TMultiFormatDesc InputDesc_;
     TMultiFormatDesc OutputDesc_;
     TOperationOptions Options_;
 
@@ -400,18 +404,18 @@ private:
         }
     }
 
-    void UploadProtoConfig() {
-        if (OutputDesc_.Format != TMultiFormatDesc::F_PROTO) {
+    void UploadProtoConfig(const Stroka& fileName, const TMultiFormatDesc& desc) {
+        if (desc.Format != TMultiFormatDesc::F_PROTO) {
             return;
         }
 
         TBufferOutput messageTypeList;
-        for (const auto& descriptor : OutputDesc_.ProtoDescriptors) {
+        for (const auto& descriptor : desc.ProtoDescriptors) {
             messageTypeList << descriptor->full_name() << Endl;
         }
 
         auto cachePath = UploadToCache(messageTypeList.Buffer());
-        Files_.push_back(TRichYPath(cachePath).FileName("protoconfig"));
+        Files_.push_back(TRichYPath(cachePath).FileName(fileName));
 
         if (ShouldMountSandbox()) {
             TotalFileSize_ += RoundUpFileSize(messageTypeList.Buffer().Size());
@@ -830,6 +834,7 @@ TOperationId ExecuteMap(
         spec.MapperSpec_,
         mapper,
         outputs.size(),
+        spec.InputDesc_,
         spec.OutputDesc_,
         options);
 
@@ -899,6 +904,7 @@ TOperationId ExecuteReduce(
         spec.ReducerSpec_,
         reducer,
         outputs.size(),
+        spec.InputDesc_,
         spec.OutputDesc_,
         options);
 
@@ -971,6 +977,7 @@ TOperationId ExecuteJoinReduce(
         spec.ReducerSpec_,
         reducer,
         outputs.size(),
+        spec.InputDesc_,
         spec.OutputDesc_,
         options);
 
@@ -1072,6 +1079,7 @@ TOperationId ExecuteMapReduce(
         spec.ReducerSpec_,
         reducer,
         outputs.size(),
+        inputReducerDesc,
         spec.OutputDesc_,
         options);
 
@@ -1084,6 +1092,7 @@ TOperationId ExecuteMapReduce(
                 spec.MapperSpec_,
                 mapper,
                 1,
+                spec.InputDesc_,
                 outputMapperDesc,
                 options);
 
@@ -1102,6 +1111,7 @@ TOperationId ExecuteMapReduce(
                 spec.ReduceCombinerSpec_,
                 reduceCombiner,
                 1,
+                inputReduceCombinerDesc,
                 outputReduceCombinerDesc,
                 options);
 
@@ -1285,9 +1295,13 @@ TIntrusivePtr<IYaMRReaderImpl> CreateJobYaMRReader()
 TIntrusivePtr<IProtoReaderImpl> CreateJobProtoReader()
 {
     if (TConfig::Get()->UseClientProtobuf) {
-        return new TProtoTableReader(MakeHolder<TJobReader>(0));
+        return new TProtoTableReader(
+            MakeHolder<TJobReader>(0),
+            GetJobInputDescriptors());
     } else {
-        return new TLenvalProtoTableReader(MakeHolder<TJobReader>(0));
+        return new TLenvalProtoTableReader(
+            MakeHolder<TJobReader>(0),
+            GetJobInputDescriptors());
     }
 }
 
