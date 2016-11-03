@@ -1397,32 +1397,16 @@ bool TOperationElementSharedState::TryStartScheduleJob(
     return true;
 }
 
-void TOperationElementSharedState::FinishScheduleJob(
-    bool success,
-    bool enableBackoff,
-    TDuration scheduleJobDuration,
-    TInstant now)
+void TOperationElementSharedState::FinishScheduleJob(bool enableBackoff, TInstant now)
 {
     TWriterGuard guard(ConcurrentScheduleJobCallsLock_);
 
     --ConcurrentScheduleJobCalls_;
 
-    static const Stroka failPath = "/schedule_job/fail";
-    static const Stroka successPath = "/schedule_job/success";
-    const Stroka& path = success ? successPath : failPath;
-    ControllerTimeStatistics_.AddSample(path, scheduleJobDuration.MicroSeconds());
-
     if (enableBackoff) {
         BackingOff_ = true;
         LastScheduleJobFailTime_ = now;
     }
-}
-
-TStatistics TOperationElementSharedState::GetControllerTimeStatistics()
-{
-    TReaderGuard guard(ConcurrentScheduleJobCallsLock_);
-
-    return ControllerTimeStatistics_;
 }
 
 bool TOperationElementSharedState::IsBlockedImpl(
@@ -1627,11 +1611,7 @@ bool TOperationElement::ScheduleJob(TFairShareContext& context)
             enableBackoff = true;
         }
 
-        SharedState_->FinishScheduleJob(
-            /*success*/ false,
-            /*enableBackoff*/ enableBackoff,
-            scheduleJobDuration,
-            now);
+        SharedState_->FinishScheduleJob(/*enableBackoff*/ enableBackoff, now);
         return false;
     }
 
@@ -1643,11 +1623,7 @@ bool TOperationElement::ScheduleJob(TFairShareContext& context)
     UpdateDynamicAttributes(context.DynamicAttributesList);
     updateAncestorsAttributes();
 
-    SharedState_->FinishScheduleJob(
-        /*success*/ true,
-        /*enableBackoff*/ false,
-        scheduleJobDuration,
-        now);
+    SharedState_->FinishScheduleJob(/*enableBackoff*/ false, now);
     return true;
 }
 
@@ -1789,11 +1765,6 @@ void TOperationElement::OnJobFinished(const TJobId& jobId)
 {
     auto resourceUsage = SharedState_->RemoveJob(jobId);
     IncreaseResourceUsage(-resourceUsage);
-}
-
-TStatistics TOperationElement::GetControllerTimeStatistics()
-{
-    return SharedState_->GetControllerTimeStatistics();
 }
 
 void TOperationElement::BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap)
