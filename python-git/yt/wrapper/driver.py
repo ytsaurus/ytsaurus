@@ -1,5 +1,6 @@
 from . import http_driver
 from . import native_driver
+from .batch_response import apply_function_to_result
 from .common import bool_to_string, YtError, update
 from .config import get_option, get_config, get_backend_type
 from .format import create_format
@@ -46,11 +47,12 @@ def make_request(command_name,
                  timeout=None,
                  allow_retries=None,
                  decode_content=True,
+                 batch_yson_dumps=True,
                  client=None):
     backend = get_backend_type(client)
-    if get_option("COMMAND_PARAMS", client) is not None:
-        command_params = deepcopy(get_option("COMMAND_PARAMS", client))
-        params = update(command_params, params)
+
+    command_params = deepcopy(get_option("COMMAND_PARAMS", client))
+    params = update(command_params, params)
 
     params = process_params(params)
 
@@ -58,6 +60,12 @@ def make_request(command_name,
 
     if enable_request_logging:
         logger.info("Executing %s (params: %r)", command_name, params)
+
+    if get_option("_client_type", client) == "batch":
+        result = client._batch_executor.add_task(command_name, params, data)
+        if batch_yson_dumps:
+            result = apply_function_to_result(lambda output: yson.dumps(output), result)
+        return result
 
     if backend == "native":
         if is_data_compressed:
@@ -115,8 +123,19 @@ def make_formatted_request(command_name, params, format, **kwargs):
             format = create_format(format)
         params["output_format"] = format.to_yson_type()
 
+    is_batch = get_option("_client_type", client) == "batch"
+    if is_batch and format is not None:
+        raise YtError("Batch request is not supported for formatted requests")
+
     decode_content = format is not None
-    result = make_request(command_name, params, response_format=response_format, decode_content=decode_content, **kwargs)
+    result = make_request(command_name, params,
+                          response_format=response_format,
+                          decode_content=decode_content,
+                          batch_yson_dumps=not is_batch,
+                          **kwargs)
+
+    if is_batch:
+        return result
 
     if format is None:
         if has_yson_bindings:
