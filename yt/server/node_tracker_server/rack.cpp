@@ -31,7 +31,7 @@ void TRack::Load(NCellMaster::TLoadContext& context)
     Load(context, Name_);
     Load(context, Index_);
     // COMPAT(shakurov)
-    if (context.GetVersion() >= 4242) {
+    if (context.GetVersion() >= 504) {
         Load(context, DataCenter_);
     }
 }
