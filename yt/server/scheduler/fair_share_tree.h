@@ -1,4 +1,4 @@
-#include "public.h"
+#include "private.h"
 #include "config.h"
 #include "job.h"
 #include "job_resources.h"
@@ -8,35 +8,6 @@
 
 namespace NYT {
 namespace NScheduler {
-
-////////////////////////////////////////////////////////////////////
-
-struct ISchedulerElement;
-typedef TIntrusivePtr<ISchedulerElement> ISchedulerElementPtr;
-
-class TOperationElement;
-typedef TIntrusivePtr<TOperationElement> TOperationElementPtr;
-
-class TCompositeSchedulerElement;
-typedef TIntrusivePtr<TCompositeSchedulerElement> TCompositeSchedulerElementPtr;
-
-class TPool;
-typedef TIntrusivePtr<TPool> TPoolPtr;
-
-class TRootElement;
-typedef TIntrusivePtr<TRootElement> TRootElementPtr;
-
-struct TFairShareContext;
-
-typedef yhash_map<TOperationId, TOperationElement*> TOperationElementByIdMap;
-
-////////////////////////////////////////////////////////////////////
-
-DEFINE_ENUM(ESchedulableStatus,
-    (Normal)
-    (BelowMinShare)
-    (BelowFairShare)
-);
 
 ////////////////////////////////////////////////////////////////////
 
@@ -61,7 +32,7 @@ struct TDynamicAttributes
 {
     double SatisfactionRatio = 0.0;
     bool Active = false;
-    ISchedulerElement* BestLeafDescendant = nullptr;
+    TSchedulerElement* BestLeafDescendant = nullptr;
     TInstant MinSubtreeStartTime;
     TJobResources ResourceUsageDiscount = ZeroJobResources();
 };
@@ -70,79 +41,12 @@ typedef std::vector<TDynamicAttributes> TDynamicAttributesList;
 
 ////////////////////////////////////////////////////////////////////
 
-struct ISchedulerElement
-    : public TIntrinsicRefCounted
-{
-    // Enumerates nodes of the tree using inorder traversal. Returns first unused index.
-    virtual int EnumerateNodes(int startIndex) = 0;
-    virtual int GetTreeIndex() const = 0;
-
-    virtual void Update(TDynamicAttributesList& dynamicAttributesList) = 0;
-    virtual void UpdateBottomUp(TDynamicAttributesList& dynamicAttributesList) = 0;
-    virtual void UpdateTopDown(TDynamicAttributesList& dynamicAttributesList) = 0;
-
-    virtual TJobResources ComputePossibleResourceUsage(TJobResources limit) const = 0;
-
-    virtual void UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList) = 0;
-
-    virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly, bool aggressiveStarvationEnabled) = 0;
-    virtual bool ScheduleJob(TFairShareContext& context) = 0;
-
-    virtual const TSchedulableAttributes& Attributes() const = 0;
-    virtual TSchedulableAttributes& Attributes() = 0;
-    virtual void UpdateAttributes() = 0;
-
-    virtual const TNullable<Stroka>& GetNodeTag() const = 0;
-
-    virtual bool IsActive(const TDynamicAttributesList& dynamicAttributesList) const = 0;
-
-    virtual bool IsAlive() const = 0;
-    virtual void SetAlive(bool alive) = 0;
-
-    virtual int GetPendingJobCount() const = 0;
-
-    virtual Stroka GetId() const = 0;
-
-    virtual double GetWeight() const = 0;
-    virtual double GetMinShareRatio() const = 0;
-    virtual TJobResources GetMinShareResources() const = 0;
-    virtual double GetMaxShareRatio() const = 0;
-
-    virtual double GetFairShareStarvationTolerance() const = 0;
-    virtual TDuration GetMinSharePreemptionTimeout() const = 0;
-    virtual TDuration GetFairSharePreemptionTimeout() const = 0;
-
-    virtual ESchedulableStatus GetStatus() const = 0;
-
-    virtual bool GetStarving() const = 0;
-    virtual void SetStarving(bool starving) = 0;
-    virtual void CheckForStarvation(TInstant now) = 0;
-
-    virtual const TJobResources& ResourceDemand() const = 0;
-    virtual const TJobResources& ResourceLimits() const = 0;
-    virtual const TJobResources& MaxPossibleResourceUsage() const = 0;
-
-    virtual TJobResources GetResourceUsage() const = 0;
-    virtual double GetResourceUsageRatio() const = 0;
-    virtual void IncreaseLocalResourceUsage(const TJobResources& delta) = 0;
-    virtual void IncreaseResourceUsage(const TJobResources& delta) = 0;
-
-    virtual TCompositeSchedulerElement* GetParent() const = 0;
-    virtual void SetParent(TCompositeSchedulerElement* parent) = 0;
-
-    virtual void BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap) = 0;
-
-    virtual ISchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) = 0;
-};
-
-////////////////////////////////////////////////////////////////////
-
 struct TFairShareContext
 {
     TFairShareContext(const ISchedulingContextPtr& schedulingContext, int treeSize);
 
-    TDynamicAttributes& DynamicAttributes(ISchedulerElement* element);
-    const TDynamicAttributes& DynamicAttributes(ISchedulerElement* element) const;
+    TDynamicAttributes& DynamicAttributes(TSchedulerElement* element);
+    const TDynamicAttributes& DynamicAttributes(TSchedulerElement* element) const;
 
     const ISchedulingContextPtr SchedulingContext;
     TDynamicAttributesList DynamicAttributesList;
@@ -156,23 +60,24 @@ struct TFairShareContext
 
 const int UnassignedTreeIndex = -1;
 
-class TSchedulerElementBaseFixedState
+class TSchedulerElementFixedState
 {
+public:
+    DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceDemand);
+    DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceLimits);
+    DEFINE_BYREF_RO_PROPERTY(TJobResources, MaxPossibleResourceUsage);
+    DEFINE_BYREF_RW_PROPERTY(TSchedulableAttributes, Attributes);
+
 protected:
-    explicit TSchedulerElementBaseFixedState(ISchedulerStrategyHost* host);
+    explicit TSchedulerElementFixedState(ISchedulerStrategyHost* host);
 
     ISchedulerStrategyHost* const Host_;
-
-    TSchedulableAttributes Attributes_;
 
     TCompositeSchedulerElement* Parent_ = nullptr;
 
     TNullable<TInstant> BelowFairShareSince_;
     bool Starving_ = false;
 
-    TJobResources ResourceDemand_;
-    TJobResources ResourceLimits_;
-    TJobResources MaxPossibleResourceUsage_;
     TJobResources TotalResourceLimits_;
 
     int PendingJobCount_ = 0;
@@ -183,11 +88,11 @@ protected:
 
 };
 
-class TSchedulerElementBaseSharedState
+class TSchedulerElementSharedState
     : public TIntrinsicRefCounted
 {
 public:
-    TSchedulerElementBaseSharedState();
+    TSchedulerElementSharedState();
 
     TJobResources GetResourceUsage();
     void IncreaseResourceUsage(const TJobResources& delta);
@@ -205,72 +110,86 @@ private:
 
 };
 
-typedef TIntrusivePtr<TSchedulerElementBaseSharedState> TSchedulerElementBaseSharedStatePtr;
+DEFINE_REFCOUNTED_TYPE(TSchedulerElementSharedState)
 
-class TSchedulerElementBase
-    : public ISchedulerElement
-    , public TSchedulerElementBaseFixedState
+class TSchedulerElement
+    : public TSchedulerElementFixedState
+    , public TIntrinsicRefCounted
 {
 public:
-    virtual int EnumerateNodes(int startIndex) override;
+    //! Enumerates nodes of the tree using inorder traversal. Returns first unused index.
+    virtual int EnumerateNodes(int startIndex);
 
-    virtual int GetTreeIndex() const override;
+    int GetTreeIndex() const;
 
-    virtual void Update(TDynamicAttributesList& dynamicAttributesList) override;
+    virtual void Update(TDynamicAttributesList& dynamicAttributesList);
 
-    // Updates attributes that need to be computed from leafs up to root.
-    // For example: parent->ResourceDemand = Sum(child->ResourceDemand).
-    virtual void UpdateBottomUp(TDynamicAttributesList& dynamicAttributesList) override;
+    //! Updates attributes that need to be computed from leafs up to root.
+    //! For example: |parent->ResourceDemand = Sum(child->ResourceDemand)|.
+    virtual void UpdateBottomUp(TDynamicAttributesList& dynamicAttributesList);
 
-    // Updates attributes that are propagated from root down to leafs.
-    // For example: child->FairShareRatio = fraction(parent->FairShareRatio).
-    virtual void UpdateTopDown(TDynamicAttributesList& dynamicAttributesList) override;
+    //! Updates attributes that are propagated from root down to leafs.
+    //! For example: |child->FairShareRatio = fraction(parent->FairShareRatio)|.
+    virtual void UpdateTopDown(TDynamicAttributesList& dynamicAttributesList);
 
-    virtual void UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList) override;
+    virtual TJobResources ComputePossibleResourceUsage(TJobResources limit) const = 0;
 
-    virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly, bool aggressiveStarvationEnabled) override;
+    virtual void UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList);
 
-    virtual const TSchedulableAttributes& Attributes() const override;
-    virtual TSchedulableAttributes& Attributes() override;
-    virtual void UpdateAttributes() override;
+    virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly, bool aggressiveStarvationEnabled);
+    virtual bool ScheduleJob(TFairShareContext& context) = 0;
 
-    virtual const TNullable<Stroka>& GetNodeTag() const override;
+    virtual const TNullable<Stroka>& GetNodeTag() const;
 
-    virtual bool IsActive(const TDynamicAttributesList& dynamicAttributesList) const override;
+    bool IsActive(const TDynamicAttributesList& dynamicAttributesList) const;
 
-    virtual bool IsAlive() const override;
-    virtual void SetAlive(bool alive) override;
+    bool IsAlive() const;
+    void SetAlive(bool alive);
 
-    virtual TCompositeSchedulerElement* GetParent() const override;
-    virtual void SetParent(TCompositeSchedulerElement* parent) override;
+    virtual Stroka GetId() const = 0;
 
-    virtual int GetPendingJobCount() const override;
+    virtual double GetWeight() const = 0;
+    virtual double GetMinShareRatio() const = 0;
+    virtual TJobResources GetMinShareResources() const = 0;
+    virtual double GetMaxShareRatio() const = 0;
 
-    virtual ESchedulableStatus GetStatus() const override;
+    virtual double GetFairShareStarvationTolerance() const = 0;
+    virtual TDuration GetMinSharePreemptionTimeout() const = 0;
+    virtual TDuration GetFairSharePreemptionTimeout() const = 0;
 
-    virtual bool GetStarving() const override;
-    virtual void SetStarving(bool starving) override;
+    TCompositeSchedulerElement* GetParent() const;
+    void SetParent(TCompositeSchedulerElement* parent);
 
-    virtual const TJobResources& ResourceDemand() const override;
-    virtual const TJobResources& ResourceLimits() const override;
-    virtual const TJobResources& MaxPossibleResourceUsage() const override;
+    int GetPendingJobCount() const;
 
-    TJobResources GetResourceUsage() const override;
-    virtual double GetResourceUsageRatio() const override;
-    virtual void IncreaseLocalResourceUsage(const TJobResources& delta) override;
+    virtual ESchedulableStatus GetStatus() const;
+
+    bool GetStarving() const;
+    virtual void SetStarving(bool starving);
+    virtual void CheckForStarvation(TInstant now) = 0;
+
+    TJobResources GetResourceUsage() const;
+    double GetResourceUsageRatio() const;
+
+    void IncreaseLocalResourceUsage(const TJobResources& delta);
+    virtual void IncreaseResourceUsage(const TJobResources& delta) = 0;
+
+    virtual void BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap) = 0;
+
+    virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) = 0;
 
 protected:
     const TFairShareStrategyConfigPtr StrategyConfig_;
 
-    TSchedulerElementBaseSharedStatePtr SharedState_;
+    TSchedulerElementSharedStatePtr SharedState_;
 
     static const TNullable<Stroka> NullNodeTag;
 
-    TSchedulerElementBase(
+    TSchedulerElement(
         ISchedulerStrategyHost* host,
         TFairShareStrategyConfigPtr strategyConfig);
-    TSchedulerElementBase(
-        const TSchedulerElementBase& other,
+    TSchedulerElement(
+        const TSchedulerElement& other,
         TCompositeSchedulerElement* clonedParent);
 
     ISchedulerStrategyHost* GetHost() const;
@@ -284,18 +203,17 @@ protected:
         TDuration fairSharePreemptionTimeout,
         TInstant now);
 
+    void UpdateAttributes();
+
 };
+
+DEFINE_REFCOUNTED_TYPE(TSchedulerElement)
 
 ////////////////////////////////////////////////////////////////////
 
 class TCompositeSchedulerElementFixedState
 {
-protected:
-    TCompositeSchedulerElementFixedState();
-
-    ESchedulingMode Mode_ = ESchedulingMode::Fifo;
-    std::vector<EFifoSortParameter> FifoSortParameters_;
-
+public:
     DEFINE_BYREF_RW_PROPERTY(int, RunningOperationCount);
     DEFINE_BYREF_RW_PROPERTY(int, OperationCount);
     DEFINE_BYREF_RW_PROPERTY(std::vector<TError>, UpdateFairShareAlerts);
@@ -304,10 +222,14 @@ protected:
     DEFINE_BYREF_RO_PROPERTY(TDuration, AdjustedMinSharePreemptionTimeoutLimit);
     DEFINE_BYREF_RO_PROPERTY(TDuration, AdjustedFairSharePreemptionTimeoutLimit);
 
+protected:
+    ESchedulingMode Mode_ = ESchedulingMode::Fifo;
+    std::vector<EFifoSortParameter> FifoSortParameters_;
+
 };
 
 class TCompositeSchedulerElement
-    : public TSchedulerElementBase
+    : public TSchedulerElement
     , public TCompositeSchedulerElementFixedState
 {
 public:
@@ -331,7 +253,7 @@ public:
     virtual TDuration GetFairSharePreemptionTimeoutLimit() const;
 
     void UpdatePreemptionSettingsLimits();
-    void UpdateChildPreemptionSettings(const ISchedulerElementPtr& child);
+    void UpdateChildPreemptionSettings(const TSchedulerElementPtr& child);
 
     virtual void UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList) override;
 
@@ -344,9 +266,9 @@ public:
     virtual bool IsExplicit() const;
     virtual bool IsAggressiveStarvationEnabled() const;
 
-    void AddChild(const ISchedulerElementPtr& child, bool enabled = true);
-    void EnableChild(const ISchedulerElementPtr& child);
-    void RemoveChild(const ISchedulerElementPtr& child);
+    void AddChild(const TSchedulerElementPtr& child, bool enabled = true);
+    void EnableChild(const TSchedulerElementPtr& child);
+    void RemoveChild(const TSchedulerElementPtr& child);
 
     bool IsEmpty() const;
 
@@ -360,8 +282,8 @@ public:
 protected:
     const NProfiling::TTagId ProfilingTag_;
 
-    using TChildMap = yhash_map<ISchedulerElementPtr, int>;
-    using TChildList = std::vector<ISchedulerElementPtr>;
+    using TChildMap = yhash_map<TSchedulerElementPtr, int>;
+    using TChildList = std::vector<TSchedulerElementPtr>;
 
     TChildMap EnabledChildToIndex_;
     TChildList EnabledChildren_;
@@ -375,15 +297,17 @@ protected:
     void UpdateFifo(TDynamicAttributesList& dynamicAttributesList);
     void UpdateFairShare(TDynamicAttributesList& dynamicAttributesList);
 
-    ISchedulerElementPtr GetBestActiveChild(const TDynamicAttributesList& dynamicAttributesList) const;
-    ISchedulerElementPtr GetBestActiveChildFifo(const TDynamicAttributesList& dynamicAttributesList) const;
-    ISchedulerElementPtr GetBestActiveChildFairShare(const TDynamicAttributesList& dynamicAttributesList) const;
+    TSchedulerElementPtr GetBestActiveChild(const TDynamicAttributesList& dynamicAttributesList) const;
+    TSchedulerElementPtr GetBestActiveChildFifo(const TDynamicAttributesList& dynamicAttributesList) const;
+    TSchedulerElementPtr GetBestActiveChildFairShare(const TDynamicAttributesList& dynamicAttributesList) const;
 
-    static void AddChild(TChildMap* map, TChildList* list, const ISchedulerElementPtr& child);
-    static void RemoveChild(TChildMap* map, TChildList* list, const ISchedulerElementPtr& child);
-    static bool ContainsChild(const TChildMap& map, const ISchedulerElementPtr& child);
+    static void AddChild(TChildMap* map, TChildList* list, const TSchedulerElementPtr& child);
+    static void RemoveChild(TChildMap* map, TChildList* list, const TSchedulerElementPtr& child);
+    static bool ContainsChild(const TChildMap& map, const TSchedulerElementPtr& child);
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TCompositeSchedulerElement)
 
 ////////////////////////////////////////////////////////////////////
 
@@ -446,7 +370,7 @@ public:
     virtual int GetMaxRunningOperationCount() const override;
     virtual int GetMaxOperationCount() const override;
 
-    virtual ISchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
+    virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
 
 private:
     TPoolConfigPtr Config_;
@@ -457,19 +381,22 @@ private:
 
 };
 
+DEFINE_REFCOUNTED_TYPE(TPool)
+
 ////////////////////////////////////////////////////////////////////
 
 class TOperationElementFixedState
 {
+public:
+    DEFINE_BYVAL_RO_PROPERTY(IOperationControllerPtr, Controller);
+
 protected:
     explicit TOperationElementFixedState(TOperationPtr operation);
 
     const TOperationId OperationId_;
     TInstant StartTime_;
-    bool IsSchedulable_;
+    bool Schedulable_;
     TOperation* const Operation_;
-
-    DEFINE_BYVAL_RO_PROPERTY(IOperationControllerPtr, Controller);
 };
 
 class TOperationElementSharedState
@@ -653,7 +580,7 @@ private:
 
     bool Finalized_ = false;
 
-    DEFINE_BYREF_RW_PROPERTY(NJobTrackerClient::TStatistics, ControllerTimeStatistics);
+    NJobTrackerClient::TStatistics ControllerTimeStatistics_;
 
     bool IsBlockedImpl(
         TInstant now,
@@ -663,12 +590,10 @@ private:
     void IncreaseJobResourceUsage(TJobProperties& properties, const TJobResources& resourcesDelta);
 };
 
-typedef TIntrusivePtr<TOperationElementSharedState> TOperationElementSharedStatePtr;
-
-////////////////////////////////////////////////////////////////////
+DEFINE_REFCOUNTED_TYPE(TOperationElementSharedState)
 
 class TOperationElement
-    : public TSchedulerElementBase
+    : public TSchedulerElement
     , public TOperationElementFixedState
 {
 public:
@@ -729,7 +654,7 @@ public:
 
     virtual void BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap) override;
 
-    virtual ISchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
+    virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
 
     TJobResources Finalize();
 
@@ -739,8 +664,6 @@ public:
 
 private:
     TOperationElementSharedStatePtr SharedState_;
-
-    TOperation* GetOperation() const;
 
     bool IsBlocked(TInstant now) const;
 
@@ -755,11 +678,13 @@ private:
 
 };
 
+DEFINE_REFCOUNTED_TYPE(TOperationElement)
+
 ////////////////////////////////////////////////////////////////////
 
 class TRootElementFixedState
 {
-protected:
+public:
     DEFINE_BYVAL_RO_PROPERTY(int, TreeSize);
 };
 
@@ -795,10 +720,12 @@ public:
     virtual int GetMaxRunningOperationCount() const override;
     virtual int GetMaxOperationCount() const override;
 
-    virtual ISchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
+    virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
     TRootElementPtr Clone();
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TRootElement)
 
 ////////////////////////////////////////////////////////////////////
 

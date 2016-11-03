@@ -634,7 +634,7 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
-    TDynamicAttributes GetGlobalDynamicAttributes(const ISchedulerElementPtr& element) const
+    TDynamicAttributes GetGlobalDynamicAttributes(const TSchedulerElementPtr& element) const
     {
         int index = element->GetTreeIndex();
         if (index == UnassignedTreeIndex) {
@@ -1128,7 +1128,7 @@ private:
                 });
     }
 
-    void BuildElementYson(const ISchedulerElementPtr& element, IYsonConsumer* consumer)
+    void BuildElementYson(const TSchedulerElementPtr& element, IYsonConsumer* consumer)
     {
         const auto& attributes = element->Attributes();
         auto dynamicAttributes = GetGlobalDynamicAttributes(element);
