@@ -1831,8 +1831,6 @@ private:
         if (!operation->GetFinished().IsSet()) {
             operation->SetFinished();
             operation->SetController(nullptr);
-            operation->UpdateControllerTimeStatistics(
-                Strategy_->GetOperationTimeStatistics(operation->GetId()));
             UnregisterOperation(operation);
         }
     }
