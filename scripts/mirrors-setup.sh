@@ -85,6 +85,7 @@ configure_github_mirror()
 
 mkdir -p $MIRRORS_DIRECTORY
 
+configure_arcadia_mirror contrib-libs-base64
 configure_arcadia_mirror contrib-libs-libiconv
 configure_arcadia_mirror contrib-libs-lz4
 configure_arcadia_mirror contrib-libs-minilzo
@@ -92,8 +93,8 @@ configure_arcadia_mirror contrib-libs-protobuf
 configure_arcadia_mirror contrib-libs-re2
 configure_arcadia_mirror contrib-libs-snappy
 configure_arcadia_mirror contrib-libs-sparsehash
-configure_arcadia_mirror contrib-libs-zlib
 configure_arcadia_mirror contrib-libs-yajl
+configure_arcadia_mirror contrib-libs-zlib
 
 configure_arcadia_mirror library-blockcodecs
 configure_arcadia_mirror library-getopt
@@ -104,8 +105,8 @@ configure_arcadia_mirror library-malloc-api
 configure_arcadia_mirror library-messagebus
 configure_arcadia_mirror library-streams-lz
 configure_arcadia_mirror library-streams-lzop
-configure_arcadia_mirror library-threading-future
 configure_arcadia_mirror library-string_utils-base64
+configure_arcadia_mirror library-threading-future
 
 configure_arcadia_mirror util
 
