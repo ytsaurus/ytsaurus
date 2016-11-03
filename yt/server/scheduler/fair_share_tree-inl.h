@@ -8,14 +8,26 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////
 
-inline bool TSchedulerElementBaseSharedState::GetAlive() const
+inline bool TSchedulerElementSharedState::GetAlive() const
 {
     return Alive_;
 }
 
-inline void TSchedulerElementBaseSharedState::SetAlive(bool alive)
+inline void TSchedulerElementSharedState::SetAlive(bool alive)
 {
     Alive_ = alive;
+}
+
+////////////////////////////////////////////////////////////////////
+
+inline bool TSchedulerElement::IsAlive() const
+{
+    return SharedState_->GetAlive();
+}
+
+inline void TSchedulerElement::SetAlive(bool alive)
+{
+    SharedState_->SetAlive(alive);
 }
 
 ////////////////////////////////////////////////////////////////////
