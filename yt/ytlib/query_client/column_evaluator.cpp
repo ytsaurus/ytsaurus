@@ -201,7 +201,7 @@ public:
     TColumnEvaluatorPtr Get(const TTableSchema& schema)
     {
         llvm::FoldingSetNodeID id;
-        Profile(schema, schema.GetKeyColumnCount(), &id);
+        Profile(schema, &id);
 
         auto cachedEvaluator = Find(id);
         if (!cachedEvaluator) {

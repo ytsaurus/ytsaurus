@@ -57,7 +57,7 @@ public:
         : Id_(id)
     { }
 
-    void Profile(const TTableSchema& tableSchema, int keySize = std::numeric_limits<int>::max());
+    void Profile(const TTableSchema& tableSchema);
 
 protected:
     void Fold(int numeric);
@@ -81,30 +81,19 @@ void TSchemaProfiler::Fold(const char* str)
     }
 }
 
-void TSchemaProfiler::Profile(const TTableSchema& tableSchema, int keySize)
+void TSchemaProfiler::Profile(const TTableSchema& tableSchema)
 {
     const auto& columns = tableSchema.Columns();
     Fold(static_cast<int>(EFoldingObjectType::TableSchema));
-    Fold(keySize);
-    for (int index = 0; index < columns.size() && index < keySize; ++index) {
+    for (int index = 0; index < columns.size(); ++index) {
         const auto& column = columns[index];
         Fold(static_cast<ui16>(column.Type));
         Fold(column.Name.c_str());
+        int aux = (column.Expression ? 1 : 0) + (column.Aggregate ? 1 : 0);
+        Fold(aux);
         if (column.Expression) {
             Fold(column.Expression.Get().c_str());
         }
-    }
-
-    int aggregateColumnCount = 0;
-    for (int index = keySize; index < columns.size(); ++index) {
-        if(columns[index].Aggregate) {
-            ++aggregateColumnCount;
-        }
-    }
-    Fold(aggregateColumnCount);
-    for (int index = keySize; index < columns.size(); ++index) {
-        const auto& column = columns[index];
-        Fold(index);
         if (column.Aggregate) {
             Fold(column.Aggregate.Get().c_str());
         }
@@ -463,11 +452,10 @@ TCodegenExpression TQueryProfiler::Profile(const TNamedItem& namedExpression, co
 
 void Profile(
     const TTableSchema& tableSchema,
-    int keySize,
     llvm::FoldingSetNodeID* id)
 {
     TSchemaProfiler profiler(id);
-    profiler.Profile(tableSchema, keySize);
+    profiler.Profile(tableSchema);
 }
 
 TCGExpressionCallbackGenerator Profile(
