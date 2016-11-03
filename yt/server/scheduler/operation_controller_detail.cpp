@@ -1912,7 +1912,7 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
 
             const auto* descriptor = globalNodeDirectory->FindDescriptor(nodeId);
             if (!descriptor) {
-                LOG_DEBUG("Job will is considered aborted since its output contains unresolved node id "
+                LOG_DEBUG("Job is considered aborted since its output contains unresolved node id "
                     "(JobId: %v, NodeId: %v)",
                     jobId,
                     nodeId);
