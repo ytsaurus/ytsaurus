@@ -435,13 +435,7 @@ public:
         int maxConcurrentScheduleJobCalls,
         TDuration scheduleJobFailBackoffTime);
 
-    void FinishScheduleJob(
-        bool success,
-        bool enableBackoff,
-        TDuration scheduleJobDuration,
-        TInstant now);
-
-    NJobTrackerClient::TStatistics GetControllerTimeStatistics();
+    void FinishScheduleJob(bool enableBackoff, TInstant now);
 
     TJobResources Finalize();
 
@@ -649,8 +643,6 @@ public:
 
     void OnJobStarted(const TJobId& jobId, const TJobResources& resourceUsage);
     void OnJobFinished(const TJobId& jobId);
-
-    NJobTrackerClient::TStatistics GetControllerTimeStatistics();
 
     virtual void BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap) override;
 
