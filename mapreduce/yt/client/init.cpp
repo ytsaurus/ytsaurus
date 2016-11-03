@@ -42,8 +42,6 @@ const TNode& GetJobSecureVault()
 
 void Initialize(int argc, const char* argv[])
 {
-    SetLogger(CreateStdErrLogger(ILogger::FATAL));
-
     auto logLevelStr = to_lower(TConfig::Get()->LogLevel);
     ILogger::ELevel logLevel;
     if (logLevelStr == "fatal") {
