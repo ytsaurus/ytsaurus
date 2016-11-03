@@ -20,7 +20,6 @@ typedef std::function<TCGExpressionCallback()> TCGExpressionCallbackGenerator;
 
 void Profile(
     const TTableSchema& tableSchema,
-    int keySize,
     llvm::FoldingSetNodeID* id);
 
 TCGExpressionCallbackGenerator Profile(
