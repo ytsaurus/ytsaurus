@@ -2,6 +2,7 @@
 
 #include "node_table_reader.h"
 #include "proxy_input.h"
+#include "proto_helpers.h"
 
 #include <mapreduce/yt/interface/protos/extension.pb.h>
 
@@ -9,6 +10,7 @@
 
 namespace NYT {
 
+using ::google::protobuf::Descriptor;
 using ::google::protobuf::FieldDescriptor;
 
 void ReadMessageFromNode(const TNode& node, Message* row)
@@ -111,8 +113,11 @@ void ReadMessageFromNode(const TNode& node, Message* row)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TProtoTableReader::TProtoTableReader(THolder<TProxyInput> input)
+TProtoTableReader::TProtoTableReader(
+    THolder<TProxyInput> input,
+    yvector<const Descriptor*>&& descriptors)
     : NodeReader_(new TNodeTableReader(std::move(input)))
+    , Descriptors_(std::move(descriptors))
 { }
 
 TProtoTableReader::~TProtoTableReader()
@@ -151,8 +156,11 @@ void TProtoTableReader::NextKey()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLenvalProtoTableReader::TLenvalProtoTableReader(THolder<TProxyInput> input)
+TLenvalProtoTableReader::TLenvalProtoTableReader(
+    THolder<TProxyInput> input,
+    yvector<const Descriptor*>&& descriptors)
     : TLenvalTableReader(std::move(input))
+    , Descriptors_(std::move(descriptors))
 {
     TLenvalTableReader::Next();
 }
@@ -162,6 +170,8 @@ TLenvalProtoTableReader::~TLenvalProtoTableReader()
 
 void TLenvalProtoTableReader::ReadRow(Message* row)
 {
+    ValidateProtoDescriptor(*row, GetTableIndex(), Descriptors_, true);
+
     TLengthLimitedInput stream(Input_.Get(), Length_);
     row->ParseFromStream(&stream);
     RowTaken_ = true;

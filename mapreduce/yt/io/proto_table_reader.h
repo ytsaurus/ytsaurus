@@ -15,7 +15,9 @@ class TProtoTableReader
     : public IProtoReaderImpl
 {
 public:
-    explicit TProtoTableReader(THolder<TProxyInput> input);
+    explicit TProtoTableReader(
+        THolder<TProxyInput> input,
+        yvector<const ::google::protobuf::Descriptor*>&& descriptors);
     ~TProtoTableReader() override;
 
     void ReadRow(Message* row) override;
@@ -28,6 +30,7 @@ public:
 
 private:
     THolder<TNodeTableReader> NodeReader_;
+    yvector<const ::google::protobuf::Descriptor*> Descriptors_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -37,7 +40,9 @@ class TLenvalProtoTableReader
     , public TLenvalTableReader
 {
 public:
-    explicit TLenvalProtoTableReader(THolder<TProxyInput> input);
+    explicit TLenvalProtoTableReader(
+        THolder<TProxyInput> input,
+        yvector<const ::google::protobuf::Descriptor*>&& descriptors);
     ~TLenvalProtoTableReader() override;
 
     void ReadRow(Message* row) override;
@@ -50,6 +55,9 @@ public:
 
 protected:
     void SkipRow() override;
+
+private:
+    yvector<const ::google::protobuf::Descriptor*> Descriptors_;
 };
 
 // Sometime useful outside mapreduce/yt
