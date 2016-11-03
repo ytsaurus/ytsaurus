@@ -133,6 +133,8 @@ struct TExecutionContext
     // Limit from LIMIT clause.
     i64 Limit;
 
+    bool IsOrdered = false;
+
     TExecuteQuery ExecuteCallback;
 
 };
