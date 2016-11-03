@@ -199,10 +199,8 @@ int RunMapJob(size_t outputTableCount, TInputStream& jobStateStream)
         e.BackTrace()->PrintTo(Cerr);
         return 1;
 
-    } catch (const std::exception& e) {
-        Cerr << "Exception caught: " << e.what() << Endl;
-        return 1;
     }
+    //skip other exceptions: bt_terminate_handler will print exception trace for this cases
 
     return 0;
 }
@@ -251,11 +249,8 @@ int RunReduceJob(size_t outputTableCount, TInputStream& jobStateStream)
         Cerr << "Exception caught: " << e.what() << Endl;
         e.BackTrace()->PrintTo(Cerr);
         return 1;
-
-    } catch (std::exception& e) {
-        Cerr << "Exception caught: " << e.what() << Endl;
-        return 1;
     }
+    //skip other exceptions: bt_terminate_handler will print exception trace for this cases
 
     return 0;
 }
