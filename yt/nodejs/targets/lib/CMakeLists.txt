@@ -20,6 +20,7 @@ PEERDIR(
   yt/${YT_ABI}/yt/ytlib
   library/streams/lz
   library/streams/lzop
+  library/string_utils/base64
 )
 
 SRCDIR(yt/${YT_ABI}/yt/nodejs)
