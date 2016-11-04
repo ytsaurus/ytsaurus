@@ -567,19 +567,12 @@ private:
     yhash_map<TJobId, TJobProperties> JobPropertiesMap_;
     NConcurrency::TReaderWriterSpinLock JobPropertiesMapLock_;
 
-    int ConcurrentScheduleJobCalls_ = 0;
-    TInstant LastScheduleJobFailTime_;
-    bool BackingOff_ = false;
-    NConcurrency::TReaderWriterSpinLock ConcurrentScheduleJobCallsLock_;
+    std::atomic<int> ConcurrentScheduleJobCalls_ = {0};
+    std::atomic<TInstant> LastScheduleJobFailTime_ = {TInstant::Zero()};
 
     bool Finalized_ = false;
 
     NJobTrackerClient::TStatistics ControllerTimeStatistics_;
-
-    bool IsBlockedImpl(
-        TInstant now,
-        int MaxConcurrentScheduleJobCalls,
-        TDuration ScheduleJobFailBackoffTime) const;
 
     void IncreaseJobResourceUsage(TJobProperties& properties, const TJobResources& resourcesDelta);
 };
