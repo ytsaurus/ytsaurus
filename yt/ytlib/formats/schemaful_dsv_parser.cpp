@@ -90,7 +90,7 @@ const char* TSchemafulDsvParser::Consume(const char* begin, const char* end)
         NewRecordStarted_ = true;
 
         if (Config_->EnableTableIndex) {
-            SwitchTable(FromString<i32>(CurrentToken_));
+            SwitchTable(FromString<int>(CurrentToken_));
         }
 
         Consumer_->OnListItem();
@@ -103,7 +103,8 @@ const char* TSchemafulDsvParser::Consume(const char* begin, const char* end)
     }
 
     if (FieldIndex_ == Columns_.size()) {
-        THROW_ERROR_EXCEPTION("Too many fields in row (expected %v)", Columns_.size());
+        THROW_ERROR_EXCEPTION("Too many fields in row: expected %v but found more",
+            Columns_.size());
     }
 
     Consumer_->OnKeyedItem(Columns_[FieldIndex_++]);
@@ -184,7 +185,8 @@ std::unique_ptr<IParser> CreateParserForSchemafulDsv(
     TSchemafulDsvFormatConfigPtr config)
 {
     if (config->EnableColumnNamesHeader) {
-        THROW_ERROR_EXCEPTION("Parameter %Qv must not be specified for schemaful dsv parser", "enable_column_names_header");
+        THROW_ERROR_EXCEPTION("Parameter %Qv must not be specified for schemaful DSV parser",
+            "enable_column_names_header");
     }
     return std::unique_ptr<IParser>(new TSchemafulDsvParser(consumer, config));
 }
