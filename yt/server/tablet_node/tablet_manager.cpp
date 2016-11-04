@@ -204,6 +204,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         ValidateReadTimestamp(timestamp);
+        ValidateTabletRetainedTimestamp(tabletSnapshot, timestamp);
 
         while (!reader->IsFinished()) {
             ExecuteSingleRead(
@@ -1288,11 +1289,15 @@ private:
                 backingStoreId);
         }
 
+        auto retainedTimestamp = static_cast<TTimestamp>(response->retained_timestamp());
+        tablet->SetRetainedTimestamp(retainedTimestamp);
+
         LOG_INFO_UNLESS(IsRecovery(), "Tablet stores updated successfully "
-            "(TabletId: %v, AddedStoreIds: %v, RemovedStoreIds: %v)",
+            "(TabletId: %v, AddedStoreIds: %v, RemovedStoreIds: %v, RetainedTimestamp: %v)",
             tabletId,
             addedStoreIds,
-            removedStoreIds);
+            removedStoreIds,
+            retainedTimestamp);
 
         UpdateTabletSnapshot(tablet);
         if (IsLeader()) {
@@ -2315,6 +2320,15 @@ private:
         }
     }
 
+    void ValidateTabletRetainedTimestamp(const TTabletSnapshotPtr& tabletSnapshot, TTimestamp timestamp)
+    {
+        if (timestamp < tabletSnapshot->RetainedTimestamp) {
+            THROW_ERROR_EXCEPTION("Timestamp %v is less than tablet %v retained timestamp %v",
+                timestamp,
+                tabletSnapshot->TabletId,
+                tabletSnapshot->RetainedTimestamp);
+        }
+    }
 
     void ValidateTabletMounted(TTablet* tablet)
     {

@@ -1615,6 +1615,7 @@ class TestSortedDynamicTables(YTEnvSetup):
 
         assert select_rows("* from [//tmp/t]") == []
 
+
     def test_retained_timestamp(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -1654,6 +1655,19 @@ class TestSortedDynamicTables(YTEnvSetup):
         assert t5 < t7
         assert t6 < t8
         abort_transaction(tx)
+
+    def test_expired_timestamp(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        set("//tmp/t/@min_data_ttl", 0)
+
+        ts = generate_timestamp()
+        sleep(1)
+        self.sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 0}])
+        self.sync_compact_table("//tmp/t")
+        with pytest.raises(YtError):
+            lookup_rows("//tmp/t", [{"key": 0}], timestamp=ts)
 
 ##################################################################
 
