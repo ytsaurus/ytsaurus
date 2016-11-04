@@ -29,7 +29,21 @@ using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TReadJournalCommand::Execute(ICommandContextPtr context)
+TReadJournalCommand::TReadJournalCommand()
+{
+    RegisterParameter("path", Path);
+    RegisterParameter("journal_reader", JournalReader)
+        .Default();
+}
+
+void TReadJournalCommand::OnLoaded()
+{
+    TCommandBase::OnLoaded();
+
+    Path = Path.Normalize();
+}
+
+void TReadJournalCommand::DoExecute(ICommandContextPtr context)
 {
     auto checkLimit = [] (const TReadLimit& limit) {
         if (limit.HasKey()) {
@@ -70,10 +84,8 @@ void TReadJournalCommand::Execute(ICommandContextPtr context)
         Path.GetPath(),
         Options);
 
-    {
-        WaitFor(reader->Open())
-            .ThrowOnError();
-    }
+    WaitFor(reader->Open())
+        .ThrowOnError();
 
     auto output = context->Request().OutputStream;
 
@@ -239,7 +251,12 @@ private:
 
 };
 
-void TWriteJournalCommand::Execute(ICommandContextPtr context)
+TWriteJournalCommand::TWriteJournalCommand()
+{
+    RegisterParameter("path", Path);
+}
+
+void TWriteJournalCommand::DoExecute(ICommandContextPtr context)
 {
     Options.Config = UpdateYsonSerializable(
         context->GetConfig()->JournalWriter,
@@ -249,10 +266,8 @@ void TWriteJournalCommand::Execute(ICommandContextPtr context)
         Path.GetPath(),
         Options);
 
-    {
-        WaitFor(writer->Open())
-            .ThrowOnError();
-    }
+    WaitFor(writer->Open())
+        .ThrowOnError();
 
     TJournalConsumer consumer(writer);
 
@@ -277,10 +292,8 @@ void TWriteJournalCommand::Execute(ICommandContextPtr context)
 
     parser->Finish();
 
-    {
-        WaitFor(writer->Close())
-            .ThrowOnError();
-    }
+    WaitFor(writer->Close())
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

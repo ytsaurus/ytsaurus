@@ -17,7 +17,13 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TDumpJobContextCommand::Execute(ICommandContextPtr context)
+TDumpJobContextCommand::TDumpJobContextCommand()
+{
+    RegisterParameter("job_id", JobId);
+    RegisterParameter("path", Path);
+}
+
+void TDumpJobContextCommand::DoExecute(ICommandContextPtr context)
 {
     WaitFor(context->GetClient()->DumpJobContext(JobId, Path))
         .ThrowOnError();
@@ -25,7 +31,13 @@ void TDumpJobContextCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TGetJobStderrCommand::Execute(ICommandContextPtr context)
+TGetJobStderrCommand::TGetJobStderrCommand()
+{
+    RegisterParameter("operation_id", OperationId);
+    RegisterParameter("job_id", JobId);
+}
+
+void TGetJobStderrCommand::DoExecute(ICommandContextPtr context)
 {
     auto result = WaitFor(context->GetClient()->GetJobStderr(OperationId, JobId, Options))
         .ValueOrThrow();
@@ -36,7 +48,12 @@ void TGetJobStderrCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TStraceJobCommand::Execute(ICommandContextPtr context)
+TStraceJobCommand::TStraceJobCommand()
+{
+    RegisterParameter("job_id", JobId);
+}
+
+void TStraceJobCommand::DoExecute(ICommandContextPtr context)
 {
     auto asyncResult = context->GetClient()->StraceJob(JobId, Options);
     auto result = WaitFor(asyncResult)
@@ -48,7 +65,13 @@ void TStraceJobCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSignalJobCommand::Execute(ICommandContextPtr context)
+TSignalJobCommand::TSignalJobCommand()
+{
+    RegisterParameter("job_id", JobId);
+    RegisterParameter("signal_name", SignalName);
+}
+
+void TSignalJobCommand::DoExecute(ICommandContextPtr context)
 {
     WaitFor(context->GetClient()->SignalJob(JobId, SignalName))
         .ThrowOnError();
@@ -56,7 +79,12 @@ void TSignalJobCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TAbandonJobCommand::Execute(ICommandContextPtr context)
+TAbandonJobCommand::TAbandonJobCommand()
+{
+    RegisterParameter("job_id", JobId);
+}
+
+void TAbandonJobCommand::DoExecute(ICommandContextPtr context)
 {
     WaitFor(context->GetClient()->AbandonJob(JobId))
         .ThrowOnError();
@@ -64,7 +92,23 @@ void TAbandonJobCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TPollJobShellCommand::Execute(ICommandContextPtr context)
+TPollJobShellCommand::TPollJobShellCommand()
+{
+    RegisterParameter("job_id", JobId);
+    RegisterParameter("parameters", Parameters);
+}
+
+void TPollJobShellCommand::OnLoaded()
+{
+    TCommandBase::OnLoaded();
+
+    // Compatibility with initial job shell protocol.
+    if (Parameters->GetType() == NYTree::ENodeType::String) {
+        Parameters = NYTree::ConvertToNode(NYson::TYsonString(Parameters->AsString()->GetValue()));
+    }
+}
+
+void TPollJobShellCommand::DoExecute(ICommandContextPtr context)
 {
     auto asyncResult = context->GetClient()->PollJobShell(
         JobId,
@@ -78,7 +122,12 @@ void TPollJobShellCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TAbortJobCommand::Execute(ICommandContextPtr context)
+TAbortJobCommand::TAbortJobCommand()
+{
+    RegisterParameter("job_id", JobId);
+}
+
+void TAbortJobCommand::DoExecute(ICommandContextPtr context)
 {
     WaitFor(context->GetClient()->AbortJob(JobId))
         .ThrowOnError();
@@ -86,7 +135,12 @@ void TAbortJobCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TStartOperationCommandBase::Execute(ICommandContextPtr context)
+TStartOperationCommandBase::TStartOperationCommandBase()
+{
+    RegisterParameter("spec", Spec);
+}
+
+void TStartOperationCommandBase::DoExecute(ICommandContextPtr context)
 {
     auto asyncOperationId = context->GetClient()->StartOperation(
         GetOperationType(),
@@ -99,8 +153,6 @@ void TStartOperationCommandBase::Execute(ICommandContextPtr context)
     context->ProduceOutputValue(BuildYsonStringFluently()
         .Value(operationId));
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -160,7 +212,13 @@ EOperationType TRemoteCopyCommand::GetOperationType() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TAbortOperationCommand::Execute(ICommandContextPtr context)
+TAbortOperationCommand::TAbortOperationCommand()
+{
+    RegisterParameter("abort_message", Options.AbortMessage)
+        .Default();
+}
+
+void TAbortOperationCommand::DoExecute(ICommandContextPtr context)
 {
     WaitFor(context->GetClient()->AbortOperation(OperationId, Options))
         .ThrowOnError();
@@ -168,7 +226,13 @@ void TAbortOperationCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSuspendOperationCommand::Execute(ICommandContextPtr context)
+TSuspendOperationCommand::TSuspendOperationCommand()
+{
+    RegisterParameter("abort_running_jobs", Options.AbortRunningJobs)
+        .Default(false);
+}
+
+void TSuspendOperationCommand::DoExecute(ICommandContextPtr context)
 {
     WaitFor(context->GetClient()->SuspendOperation(OperationId, Options))
         .ThrowOnError();
@@ -176,7 +240,7 @@ void TSuspendOperationCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TResumeOperationCommand::Execute(ICommandContextPtr context)
+void TResumeOperationCommand::DoExecute(ICommandContextPtr context)
 {
     WaitFor(context->GetClient()->ResumeOperation(OperationId))
         .ThrowOnError();
@@ -184,7 +248,7 @@ void TResumeOperationCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCompleteOperationCommand::Execute(ICommandContextPtr context)
+void TCompleteOperationCommand::DoExecute(ICommandContextPtr context)
 {
     WaitFor(context->GetClient()->CompleteOperation(OperationId))
         .ThrowOnError();

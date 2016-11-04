@@ -268,8 +268,6 @@ private:
         entry.Descriptor = descriptor;
         entry.Execute = BIND([] (ICommandContextPtr context) {
             TCommand command;
-            auto parameters = context->Request().Parameters;
-            Deserialize(command, parameters);
             command.Execute(context);
         });
         YCHECK(CommandNameToEntry_.insert(std::make_pair(descriptor.CommandName, entry)).second);

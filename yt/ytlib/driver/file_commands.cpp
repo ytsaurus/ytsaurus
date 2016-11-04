@@ -17,7 +17,19 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TReadFileCommand::Execute(ICommandContextPtr context)
+TReadFileCommand::TReadFileCommand()
+{
+    RegisterParameter("path", Path);
+    RegisterParameter("offset", Options.Offset)
+        .Optional();
+    RegisterParameter("length", Options.Length)
+        .Optional();
+    RegisterParameter("file_reader", FileReader)
+        .Default(nullptr);
+
+}
+
+void TReadFileCommand::DoExecute(ICommandContextPtr context)
 {
     Options.Config = UpdateYsonSerializable(
         context->GetConfig()->FileReader,
@@ -46,7 +58,14 @@ void TReadFileCommand::Execute(ICommandContextPtr context)
 
 //////////////////////////////////////////////////////////////////////////////////
 
-void TWriteFileCommand::Execute(ICommandContextPtr context)
+TWriteFileCommand::TWriteFileCommand()
+{
+    RegisterParameter("path", Path);
+    RegisterParameter("file_writer", FileWriter)
+        .Default();
+}
+
+void TWriteFileCommand::DoExecute(ICommandContextPtr context)
 {
     Options.Config = UpdateYsonSerializable(
         context->GetConfig()->FileWriter,

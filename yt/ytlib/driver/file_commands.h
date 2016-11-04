@@ -12,44 +12,29 @@ namespace NDriver {
 class TReadFileCommand
     : public TTypedCommand<NApi::TFileReaderOptions>
 {
+public:
+    TReadFileCommand();
+
 private:
     NYPath::TRichYPath Path;
     NYTree::INodePtr FileReader;
 
-public:
-    TReadFileCommand()
-    {
-        RegisterParameter("path", Path);
-        RegisterParameter("offset", Options.Offset)
-            .Optional();
-        RegisterParameter("length", Options.Length)
-            .Optional();
-        RegisterParameter("file_reader", FileReader)
-            .Default(nullptr);
-
-    }
-
-    void Execute(ICommandContextPtr context);
-
+    virtual void DoExecute(ICommandContextPtr context) override;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TWriteFileCommand
     : public TTypedCommand<NApi::TFileWriterOptions>
 {
+public:
+    TWriteFileCommand();
+
 private:
     NYPath::TRichYPath Path;
     NYTree::INodePtr FileWriter;
 
-public:
-    TWriteFileCommand()
-    {
-        RegisterParameter("path", Path);
-        RegisterParameter("file_writer", FileWriter)
-            .Default();
-    }
-
-    void Execute(ICommandContextPtr context);
-
+    virtual void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

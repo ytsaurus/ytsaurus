@@ -21,7 +21,23 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TStartTransactionCommand::Execute(ICommandContextPtr context)
+TStartTransactionCommand::TStartTransactionCommand()
+{
+    RegisterParameter("type", Type)
+        .Default(NTransactionClient::ETransactionType::Master);
+    RegisterParameter("attributes", Attributes)
+        .Default(nullptr);
+    RegisterParameter("sticky", Options.Sticky)
+        .Default(false);
+    RegisterParameter("timeout", Options.Timeout)
+        .Optional();
+    RegisterParameter("transaction_id", Options.ParentId)
+        .Optional();
+    RegisterParameter("ping_ancestor_transactions", Options.PingAncestors)
+        .Default(false);
+}
+
+void TStartTransactionCommand::DoExecute(ICommandContextPtr context)
 {
     Options.Ping = true;
     Options.AutoAbort = false;
@@ -47,7 +63,7 @@ void TStartTransactionCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TPingTransactionCommand::Execute(ICommandContextPtr context)
+void TPingTransactionCommand::DoExecute(ICommandContextPtr context)
 {
     // Specially for evvers@ :)
     if (!Options.TransactionId) {
@@ -61,20 +77,22 @@ void TPingTransactionCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCommitTransactionCommand::Execute(ICommandContextPtr context)
+void TCommitTransactionCommand::DoExecute(ICommandContextPtr context)
 {
     auto transaction = AttachTransaction(context, true);
     WaitFor(transaction->Commit(Options))
         .ThrowOnError();
-    //context->ProduceOutputValue(BuildYsonStringFluently()
-    //    .BeginMap()
-    //        .Item("commit_timestamp").Value(transaction->GetId())
-    //    .EndMap());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TAbortTransactionCommand::Execute(ICommandContextPtr context)
+TAbortTransactionCommand::TAbortTransactionCommand()
+{
+    RegisterParameter("force", Options.Force)
+        .Optional();
+}
+
+void TAbortTransactionCommand::DoExecute(ICommandContextPtr context)
 {
     auto transaction = AttachTransaction(context, true);
     WaitFor(transaction->Abort(Options))
@@ -83,7 +101,7 @@ void TAbortTransactionCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TGenerateTimestampCommand::Execute(ICommandContextPtr context)
+void TGenerateTimestampCommand::DoExecute(ICommandContextPtr context)
 {
     auto timestampProvider = context->GetClient()->GetConnection()->GetTimestampProvider();
     auto timestamp = WaitFor(timestampProvider->GenerateTimestamps())

@@ -26,7 +26,7 @@ using namespace NFormats;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TAddMemberCommand::Execute(ICommandContextPtr context)
+void TAddMemberCommand::DoExecute(ICommandContextPtr context)
 {
     WaitFor(context->GetClient()->AddMember(
         Group,
@@ -37,7 +37,7 @@ void TAddMemberCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TRemoveMemberCommand::Execute(ICommandContextPtr context)
+void TRemoveMemberCommand::DoExecute(ICommandContextPtr context)
 {
     WaitFor(context->GetClient()->RemoveMember(
         Group,
@@ -48,7 +48,12 @@ void TRemoveMemberCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TParseYPathCommand::Execute(ICommandContextPtr context)
+TParseYPathCommand::TParseYPathCommand()
+{
+    RegisterParameter("path", Path);
+}
+
+void TParseYPathCommand::DoExecute(ICommandContextPtr context)
 {
     auto richPath = TRichYPath::Parse(Path);
     context->ProduceOutputValue(ConvertToYsonString(richPath));
@@ -56,20 +61,28 @@ void TParseYPathCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TGetVersionCommand::Execute(ICommandContextPtr context)
+void TGetVersionCommand::DoExecute(ICommandContextPtr context)
 {
     context->ProduceOutputValue(ConvertToYsonString(GetVersion()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCheckPermissionCommand::Execute(ICommandContextPtr context)
+TCheckPermissionCommand::TCheckPermissionCommand()
 {
-    auto result = WaitFor(context->GetClient()->CheckPermission(
-        User,
-        Path.GetPath(),
-        Permission,
-        Options))
+    RegisterParameter("user", User);
+    RegisterParameter("permission", Permission);
+    RegisterParameter("path", Path);
+}
+
+void TCheckPermissionCommand::DoExecute(ICommandContextPtr context)
+{
+    auto result =
+        WaitFor(context->GetClient()->CheckPermission(
+            User,
+            Path.GetPath(),
+            Permission,
+            Options))
         .ValueOrThrow();
 
     context->ProduceOutputValue(BuildYsonStringFluently()
@@ -91,6 +104,14 @@ void TCheckPermissionCommand::Execute(ICommandContextPtr context)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TExecuteBatchCommand::TRequest::TRequest()
+{
+    RegisterParameter("command", Command);
+    RegisterParameter("parameters", Parameters);
+    RegisterParameter("input", Input)
+        .Default();
+}
 
 class TExecuteBatchCommand::TRequestExecutor
     : public TIntrinsicRefCounted
@@ -196,7 +217,15 @@ private:
     }
 };
 
-void TExecuteBatchCommand::Execute(ICommandContextPtr context)
+TExecuteBatchCommand::TExecuteBatchCommand()
+{
+    RegisterParameter("concurrency", Options.Concurrency)
+        .Default(50)
+        .GreaterThan(0);
+    RegisterParameter("requests", Requests);
+}
+
+void TExecuteBatchCommand::DoExecute(ICommandContextPtr context)
 {
     auto mutationId = Options.GetOrGenerateMutationId();
 

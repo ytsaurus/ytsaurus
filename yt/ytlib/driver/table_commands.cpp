@@ -40,7 +40,25 @@ static const auto& Logger = DriverLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TReadTableCommand::Execute(ICommandContextPtr context)
+TReadTableCommand::TReadTableCommand()
+{
+    RegisterParameter("path", Path);
+    RegisterParameter("table_reader", TableReader)
+        .Default(nullptr);
+    RegisterParameter("control_attributes", ControlAttributes)
+        .DefaultNew();
+    RegisterParameter("unordered", Unordered)
+        .Default(false);
+}
+
+void TReadTableCommand::OnLoaded()
+{
+    TCommandBase::OnLoaded();
+
+    Path = Path.Normalize();
+}
+
+void TReadTableCommand::DoExecute(ICommandContextPtr context)
 {
     Options.Ping = true;
     Options.Config = UpdateYsonSerializable(
@@ -77,7 +95,21 @@ void TReadTableCommand::Execute(ICommandContextPtr context)
 
 //////////////////////////////////////////////////////////////////////////////////
 
-void TWriteTableCommand::Execute(ICommandContextPtr context)
+TWriteTableCommand::TWriteTableCommand()
+{
+    RegisterParameter("path", Path);
+    RegisterParameter("table_writer", TableWriter)
+        .Default(nullptr);
+}
+
+void TWriteTableCommand::OnLoaded()
+{
+    TCommandBase::OnLoaded();
+
+    Path = Path.Normalize();
+}
+
+void TWriteTableCommand::DoExecute(ICommandContextPtr context)
 {
     auto transaction = AttachTransaction(context, false);
 
@@ -125,7 +157,15 @@ void TWriteTableCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TMountTableCommand::Execute(ICommandContextPtr context)
+TMountTableCommand::TMountTableCommand()
+{
+    RegisterParameter("cell_id", Options.CellId)
+        .Optional();
+    RegisterParameter("freeze", Options.Freeze)
+        .Default(false);
+}
+
+void TMountTableCommand::DoExecute(ICommandContextPtr context)
 {
     auto asyncResult = context->GetClient()->MountTable(
         Path.GetPath(),
@@ -136,7 +176,13 @@ void TMountTableCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TUnmountTableCommand::Execute(ICommandContextPtr context)
+TUnmountTableCommand::TUnmountTableCommand()
+{
+    RegisterParameter("force", Options.Force)
+        .Optional();
+}
+
+void TUnmountTableCommand::DoExecute(ICommandContextPtr context)
 {
     auto asyncResult = context->GetClient()->UnmountTable(
         Path.GetPath(),
@@ -147,7 +193,7 @@ void TUnmountTableCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TRemountTableCommand::Execute(ICommandContextPtr context)
+void TRemountTableCommand::DoExecute(ICommandContextPtr context)
 {
     auto asyncResult = context->GetClient()->RemountTable(
         Path.GetPath(),
@@ -158,7 +204,7 @@ void TRemountTableCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TFreezeTableCommand::Execute(ICommandContextPtr context)
+void TFreezeTableCommand::DoExecute(ICommandContextPtr context)
 {
     auto asyncResult = context->GetClient()->FreezeTable(
         Path.GetPath(),
@@ -169,7 +215,7 @@ void TFreezeTableCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TUnfreezeTableCommand::Execute(ICommandContextPtr context)
+void TUnfreezeTableCommand::DoExecute(ICommandContextPtr context)
 {
     auto asyncResult = context->GetClient()->UnfreezeTable(
         Path.GetPath(),
@@ -180,7 +226,25 @@ void TUnfreezeTableCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TReshardTableCommand::Execute(ICommandContextPtr context)
+TReshardTableCommand::TReshardTableCommand()
+{
+    RegisterParameter("pivot_keys", PivotKeys)
+        .Default();
+    RegisterParameter("tablet_count", TabletCount)
+        .Default()
+        .GreaterThan(0);
+
+    RegisterValidator([&] () {
+        if (PivotKeys && TabletCount) {
+            THROW_ERROR_EXCEPTION("Cannot specify both \"pivot_keys\" and \"tablet_count\"");
+        }
+        if (!PivotKeys && !TabletCount) {
+            THROW_ERROR_EXCEPTION("Must specify either \"pivot_keys\" or \"tablet_count\"");
+        }
+    });
+}
+
+void TReshardTableCommand::DoExecute(ICommandContextPtr context)
 {
     TFuture<void> asyncResult;
     if (PivotKeys) {
@@ -200,7 +264,16 @@ void TReshardTableCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TAlterTableCommand::Execute(ICommandContextPtr context)
+TAlterTableCommand::TAlterTableCommand()
+{
+    RegisterParameter("path", Path);
+    RegisterParameter("schema", Options.Schema)
+        .Optional();
+    RegisterParameter("dynamic", Options.Dynamic)
+        .Optional();
+}
+
+void TAlterTableCommand::DoExecute(ICommandContextPtr context)
 {
     auto asyncResult = context->GetClient()->AlterTable(
         Path.GetPath(),
@@ -211,7 +284,30 @@ void TAlterTableCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSelectRowsCommand::Execute(ICommandContextPtr context)
+TSelectRowsCommand::TSelectRowsCommand()
+{
+    RegisterParameter("query", Query);
+    RegisterParameter("timestamp", Options.Timestamp)
+        .Optional();
+    RegisterParameter("input_row_limit", Options.InputRowLimit)
+        .Optional();
+    RegisterParameter("output_row_limit", Options.OutputRowLimit)
+        .Optional();
+    RegisterParameter("range_expansion_limit", Options.RangeExpansionLimit)
+        .Optional();
+    RegisterParameter("fail_on_incomplete_result", Options.FailOnIncompleteResult)
+        .Optional();
+    RegisterParameter("verbose_logging", Options.VerboseLogging)
+        .Optional();
+    RegisterParameter("enable_code_cache", Options.EnableCodeCache)
+        .Optional();
+    RegisterParameter("max_subqueries", Options.MaxSubqueries)
+        .Optional();
+    RegisterParameter("workload_descriptor", Options.WorkloadDescriptor)
+        .Optional();
+}
+
+void TSelectRowsCommand::DoExecute(ICommandContextPtr context)
 {
     auto clientBase = GetClientBase(context);
     auto result = WaitFor(clientBase->SelectRows(Query, Options))
@@ -264,7 +360,18 @@ std::vector<TUnversionedRow> ParseRows(
 
 } // namespace
 
-void TInsertRowsCommand::Execute(ICommandContextPtr context)
+TInsertRowsCommand::TInsertRowsCommand()
+{
+    RegisterParameter("table_writer", TableWriter)
+        .Default();
+    RegisterParameter("path", Path);
+    RegisterParameter("update", Update)
+        .Default(false);
+    RegisterParameter("aggregate", Aggregate)
+        .Default(false);
+}
+
+void TInsertRowsCommand::DoExecute(ICommandContextPtr context)
 {
     auto config = UpdateYsonSerializable(
         context->GetConfig()->TableWriter,
@@ -313,7 +420,20 @@ void TInsertRowsCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TLookupRowsCommand::Execute(ICommandContextPtr context)
+TLookupRowsCommand::TLookupRowsCommand()
+{
+    RegisterParameter("table_writer", TableWriter)
+        .Default();
+    RegisterParameter("path", Path);
+    RegisterParameter("column_names", ColumnNames)
+        .Default();
+    RegisterParameter("timestamp", Options.Timestamp)
+        .Optional();
+    RegisterParameter("keep_missing_rows", Options.KeepMissingRows)
+        .Optional();
+}
+
+void TLookupRowsCommand::DoExecute(ICommandContextPtr context)
 {
     auto tableMountCache = context->GetClient()->GetConnection()->GetTableMountCache();
     auto asyncTableInfo = tableMountCache->GetTableInfo(Path.GetPath());
@@ -380,7 +500,14 @@ void TLookupRowsCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TDeleteRowsCommand::Execute(ICommandContextPtr context)
+TDeleteRowsCommand::TDeleteRowsCommand()
+{
+    RegisterParameter("table_writer", TableWriter)
+        .Default();
+    RegisterParameter("path", Path);
+}
+
+void TDeleteRowsCommand::DoExecute(ICommandContextPtr context)
 {
     auto config = UpdateYsonSerializable(
         context->GetConfig()->TableWriter,
@@ -423,7 +550,14 @@ void TDeleteRowsCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTrimRowsCommand::Execute(ICommandContextPtr context)
+TTrimRowsCommand::TTrimRowsCommand()
+{
+    RegisterParameter("path", Path);
+    RegisterParameter("tablet_index", TabletIndex);
+    RegisterParameter("trimmed_row_count", TrimmedRowCount);
+}
+
+void TTrimRowsCommand::DoExecute(ICommandContextPtr context)
 {
     auto client = context->GetClient();
     auto asyncResult = client->TrimTable(
@@ -437,7 +571,12 @@ void TTrimRowsCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TEnableTableReplicaCommand::Execute(ICommandContextPtr context)
+TEnableTableReplicaCommand::TEnableTableReplicaCommand()
+{
+    RegisterParameter("replica_id", ReplicaId);
+}
+
+void TEnableTableReplicaCommand::DoExecute(ICommandContextPtr context)
 {
     auto client = context->GetClient();
     auto asyncResult = client->EnableTableReplica(
@@ -449,7 +588,12 @@ void TEnableTableReplicaCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TDisableTableReplicaCommand::Execute(ICommandContextPtr context)
+TDisableTableReplicaCommand::TDisableTableReplicaCommand()
+{
+    RegisterParameter("replica_id", ReplicaId);
+}
+
+void TDisableTableReplicaCommand::DoExecute(ICommandContextPtr context)
 {
     auto client = context->GetClient();
     auto asyncResult = client->DisableTableReplica(
