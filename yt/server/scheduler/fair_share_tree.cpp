@@ -1376,46 +1376,31 @@ bool TOperationElementSharedState::IsBlocked(
     int maxConcurrentScheduleJobCalls,
     TDuration scheduleJobFailBackoffTime) const
 {
-    TReaderGuard guard(ConcurrentScheduleJobCallsLock_);
-
-    return IsBlockedImpl(now, maxConcurrentScheduleJobCalls, scheduleJobFailBackoffTime);
+    return ConcurrentScheduleJobCalls_ >= maxConcurrentScheduleJobCalls ||
+        LastScheduleJobFailTime_ + scheduleJobFailBackoffTime > now;
 }
+
 
 bool TOperationElementSharedState::TryStartScheduleJob(
     TInstant now,
     int maxConcurrentScheduleJobCalls,
     TDuration scheduleJobFailBackoffTime)
 {
-    TWriterGuard guard(ConcurrentScheduleJobCallsLock_);
-
-    if (IsBlockedImpl(now, maxConcurrentScheduleJobCalls, scheduleJobFailBackoffTime)) {
+    if (IsBlocked(now, maxConcurrentScheduleJobCalls, scheduleJobFailBackoffTime)) {
         return false;
     }
 
-    BackingOff_ = false;
     ++ConcurrentScheduleJobCalls_;
     return true;
 }
 
 void TOperationElementSharedState::FinishScheduleJob(bool enableBackoff, TInstant now)
 {
-    TWriterGuard guard(ConcurrentScheduleJobCallsLock_);
-
     --ConcurrentScheduleJobCalls_;
 
     if (enableBackoff) {
-        BackingOff_ = true;
         LastScheduleJobFailTime_ = now;
     }
-}
-
-bool TOperationElementSharedState::IsBlockedImpl(
-    TInstant now,
-    int maxConcurrentScheduleJobCalls,
-    TDuration scheduleJobFailBackoffTime) const
-{
-    return ConcurrentScheduleJobCalls_ >= maxConcurrentScheduleJobCalls ||
-        (BackingOff_ && LastScheduleJobFailTime_ + scheduleJobFailBackoffTime > now);
 }
 
 void TOperationElementSharedState::IncreaseJobResourceUsage(
@@ -1573,8 +1558,7 @@ bool TOperationElement::ScheduleJob(TFairShareContext& context)
     };
 
     auto now = context.SchedulingContext->GetNow();
-    if (IsBlocked(now))
-    {
+    if (IsBlocked(now)) {
         disableOperationElement();
         return false;
     }
