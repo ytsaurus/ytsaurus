@@ -257,6 +257,7 @@ default_config = {
     "spec_defaults": {
     },
     "memory_limit": None,
+    "pool": None,
 
     # Default value of table table writer configs.
     # It is passed to write_table and to job_io sections in operation specs.
