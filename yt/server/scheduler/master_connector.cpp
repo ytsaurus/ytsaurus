@@ -471,10 +471,8 @@ private:
     public:
         explicit TRegistrationPipeline(TIntrusivePtr<TImpl> owner)
             : Owner(owner)
-        {
-            int port = Owner->Bootstrap->GetConfig()->RpcPort;
-            ServiceAddresses = Owner->Bootstrap->GetLocalAddresses();
-        }
+            , ServiceAddresses(Owner->Bootstrap->GetLocalAddresses())
+        { }
 
         TMasterHandshakeResult Run()
         {
@@ -492,7 +490,7 @@ private:
     private:
         const TIntrusivePtr<TImpl> Owner;
 
-        TAddressMap ServiceAddresses;
+        const TAddressMap ServiceAddresses;
         std::vector<TOperationId> OperationIds;
         TMasterHandshakeResult Result;
 
