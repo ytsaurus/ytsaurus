@@ -66,9 +66,8 @@ class Config(types.ModuleType, client_state.ClientState):
 
             "PREFIX": "prefix",
 
-            "POOL": "spec_defaults/pool",
+            "POOL": "pool",
             "MEMORY_LIMIT": "memory_limit",
-            "INTERMEDIATE_DATA_ACCOUNT": "spec_defaults/intermediate_data_account",
             "SPEC": "spec_defaults",
             "TABLE_WRITER": "table_writer",
 

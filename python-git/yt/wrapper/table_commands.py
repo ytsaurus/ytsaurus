@@ -379,6 +379,8 @@ def _configure_spec(spec, client):
     started_by = get_started_by()
     spec = update({"started_by": started_by}, spec)
     spec = update(deepcopy(get_config(client)["spec_defaults"]), spec)
+    if get_config(client)["pool"] is not None:
+        spec = update(spec, {"pool": get_config(client)["pool"]})
     if get_config(client)["yamr_mode"]["use_yamr_defaults"]:
         spec = update({"data_size_per_job": 4 * GB}, spec)
     return spec
