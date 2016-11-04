@@ -684,16 +684,17 @@ private:
             auto currentTimestamp = WaitFor(timestampProvider->GenerateTimestamps())
                 .ValueOrThrow();
 
-            auto ttlTimestamp = InstantToTimestamp(TimestampToInstant(currentTimestamp).first - tablet->GetConfig()->MinDataTtl).first;
-            majorTimestamp = std::min(majorTimestamp, ttlTimestamp);
+            auto retainedTimestamp = InstantToTimestamp(TimestampToInstant(currentTimestamp).first - tablet->GetConfig()->MinDataTtl).first;
+            majorTimestamp = std::min(majorTimestamp, retainedTimestamp);
 
             partition->SetCompactionTime(TInstant::Now());
 
-            LOG_INFO("Partition compaction started (DataSize: %v, ChunkCount: %v, CurrentTimestamp: %v, MajorTimestamp: %v)",
+            LOG_INFO("Partition compaction started (DataSize: %v, ChunkCount: %v, CurrentTimestamp: %v, MajorTimestamp: %v, RetainedTimestamp: %v)",
                 dataSize,
                 stores.size(),
                 currentTimestamp,
-                majorTimestamp);
+                majorTimestamp,
+                retainedTimestamp);
 
             auto reader = CreateVersionedTabletReader(
                 Bootstrap_->GetQueryPoolInvoker(),
@@ -784,7 +785,7 @@ private:
             TReqCommitTabletStoresUpdate hydraRequest;
             ToProto(hydraRequest.mutable_tablet_id(), tabletId);
             hydraRequest.set_mount_revision(mountRevision);
-            hydraRequest.set_retained_timestamp(ttlTimestamp);
+            hydraRequest.set_retained_timestamp(retainedTimestamp);
             ToProto(hydraRequest.mutable_transaction_id(), transaction->GetId());
 
             SmallVector<TStoreId, TypicalStoreIdCount> storeIdsToAdd;

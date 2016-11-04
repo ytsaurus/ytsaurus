@@ -253,6 +253,7 @@ TTablet::TTablet(
     , Atomicity_(atomicity)
     , CommitOrdering_(commitOrdering)
     , HashTableSize_(config->EnableLookupHashTable ? config->MaxDynamicStoreRowCount : 0)
+    , RetainedTimestamp_(MinTimestamp)
     , Config_(config)
     , WriterOptions_(writerOptions)
     , Eden_(std::make_unique<TPartition>(
@@ -332,6 +333,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, RuntimeData_->TrimmedRowCount);
     Save(context, RuntimeData_->LastCommitTimestamp);
     Save(context, Replicas_);
+    Save(context, RetainedTimestamp_);
 
     TSizeSerializer::Save(context, StoreIdMap_.size());
     // NB: This is not stable.
@@ -372,6 +374,7 @@ void TTablet::Load(TLoadContext& context)
     Load(context, RuntimeData_->TrimmedRowCount);
     Load(context, RuntimeData_->LastCommitTimestamp);
     Load(context, Replicas_);
+    Load(context, RetainedTimestamp_);
 
     // NB: Stores that we're about to create may request some tablet properties (e.g. column lock count)
     // during construction. Initialize() will take care of this.
@@ -865,6 +868,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
     snapshot->Atomicity = Atomicity_;
     snapshot->HashTableSize = HashTableSize_;
     snapshot->OverlappingStoreCount = OverlappingStoreCount_;
+    snapshot->RetainedTimestamp = RetainedTimestamp_;
     snapshot->UnflushedTimestamp = GetUnflushedTimestamp();
 
     snapshot->Eden = Eden_->BuildSnapshot();

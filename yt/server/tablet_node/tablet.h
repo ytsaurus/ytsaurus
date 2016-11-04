@@ -87,6 +87,7 @@ struct TTabletSnapshot
     NTransactionClient::EAtomicity Atomicity;
     int HashTableSize = 0;
     int OverlappingStoreCount = 0;
+    NTransactionClient::TTimestamp RetainedTimestamp = NTransactionClient::MinTimestamp;
     NTransactionClient::TTimestamp UnflushedTimestamp = NTransactionClient::MaxTimestamp;
 
     TPartitionSnapshotPtr Eden;
@@ -244,6 +245,8 @@ public:
 
     using TReplicaMap = yhash_map<TTableReplicaId, TTableReplicaInfo>;
     DEFINE_BYREF_RW_PROPERTY(TReplicaMap, Replicas);
+
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, RetainedTimestamp);
 
 public:
     TTablet(

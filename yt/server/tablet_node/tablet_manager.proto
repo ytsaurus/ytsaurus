@@ -121,6 +121,7 @@ message TRspUpdateTabletStores
     optional NYT.NProto.TError error = 2;
     repeated TAddStoreDescriptor stores_to_add = 3;
     repeated TRemoveStoreDescriptor stores_to_remove = 4;
+    required uint64 retained_timestamp = 6;
 }
 
 message TReqSplitPartition
