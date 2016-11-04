@@ -19,7 +19,17 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TGetCommand::Execute(ICommandContextPtr context)
+TGetCommand::TGetCommand()
+{
+    RegisterParameter("path", Path);
+    RegisterParameter("attributes", Options.Attributes)
+        .Optional();
+    // TODO(babenko): rename to "limit"
+    RegisterParameter("max_size", Options.MaxSize)
+        .Optional();
+}
+
+void TGetCommand::DoExecute(ICommandContextPtr context)
 {
     Options.Options = IAttributeDictionary::FromMap(GetOptions());
 
@@ -34,7 +44,12 @@ void TGetCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSetCommand::Execute(ICommandContextPtr context)
+TSetCommand::TSetCommand()
+{
+    RegisterParameter("path", Path);
+}
+
+void TSetCommand::DoExecute(ICommandContextPtr context)
 {
     auto value = context->ConsumeInputValue();
 
@@ -48,7 +63,16 @@ void TSetCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TRemoveCommand::Execute(ICommandContextPtr context)
+TRemoveCommand::TRemoveCommand()
+{
+    RegisterParameter("path", Path);
+    RegisterParameter("recursive", Options.Recursive)
+        .Optional();
+    RegisterParameter("force", Options.Force)
+        .Optional();
+}
+
+void TRemoveCommand::DoExecute(ICommandContextPtr context)
 {
     auto asyncResult = context->GetClient()->RemoveNode(
         Path.GetPath(),
@@ -59,7 +83,17 @@ void TRemoveCommand::Execute(ICommandContextPtr context)
 
 //////////////////////////////////////////////////////////////////////////////////
 
-void TListCommand::Execute(ICommandContextPtr context)
+TListCommand::TListCommand()
+{
+    RegisterParameter("path", Path);
+    RegisterParameter("attributes", Options.Attributes)
+        .Default(std::vector<Stroka>());
+    // TODO(babenko): rename to "limit"
+    RegisterParameter("max_size", Options.MaxSize)
+        .Optional();
+}
+
+void TListCommand::DoExecute(ICommandContextPtr context)
 {
     auto asyncResult = context->GetClient()->ListNode(
         Path.GetPath(),
@@ -72,51 +106,108 @@ void TListCommand::Execute(ICommandContextPtr context)
 
 //////////////////////////////////////////////////////////////////////////////////
 
-void TCreateCommand::Execute(ICommandContextPtr context)
+TCreateCommand::TCreateCommand()
+{
+    RegisterParameter("type", Type);
+}
+
+void TCreateCommand::DoExecute(ICommandContextPtr context)
+{
+    // For historical reasons, we handle both CreateNode and CreateObject requests
+    // in a single command. Here we route the request to an appropriate backend command.
+    auto backend = IsVersionedType(Type)
+        ? std::unique_ptr<ICommand>(new TCreateNodeCommand())
+        : std::unique_ptr<ICommand>(new TCreateObjectCommand());
+    backend->Execute(context);
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+
+TCreateNodeCommand::TCreateNodeCommand()
+{
+    RegisterParameter("path", Path)
+        .Optional();
+    RegisterParameter("type", Type);
+    RegisterParameter("attributes", Attributes)
+        .Optional();
+    RegisterParameter("recursive", Options.Recursive)
+        .Default(false);
+    RegisterParameter("ignore_existing", Options.IgnoreExisting)
+        .Default(false);
+}
+
+void TCreateNodeCommand::DoExecute(ICommandContextPtr context)
 {
     Options.Attributes = Attributes
         ? ConvertToAttributes(Attributes)
         : CreateEphemeralAttributes();
 
-    if (IsVersionedType(Type)) {
-        if (!Path) {
-            THROW_ERROR_EXCEPTION("Object type is versioned, Cypress path required");
-        }
+    auto asyncNodeId = context->GetClient()->CreateNode(
+        Path.GetPath(),
+        Type,
+        Options);
+    auto nodeId = WaitFor(asyncNodeId)
+        .ValueOrThrow();
 
-        TCreateNodeOptions options;
-        static_cast<TCreateObjectOptions&>(options) = Options;
-        options.Recursive = Recursive;
-        options.IgnoreExisting = IgnoreExisting;
-        options.TransactionId = TransactionId;
-
-        auto asyncNodeId = context->GetClient()->CreateNode(
-            Path->GetPath(),
-            Type,
-            options);
-        auto nodeId = WaitFor(asyncNodeId)
-            .ValueOrThrow();
-
-        context->ProduceOutputValue(BuildYsonStringFluently()
-            .Value(nodeId));
-    } else {
-        if (Path) {
-            THROW_ERROR_EXCEPTION("Object type is nonversioned, Cypress path is not required");
-        }
-
-        auto asyncObjectId = context->GetClient()->CreateObject(
-            Type,
-            Options);
-        auto objectId = WaitFor(asyncObjectId)
-            .ValueOrThrow();
-
-        context->ProduceOutputValue(BuildYsonStringFluently()
-            .Value(objectId));
-    }
+    context->ProduceOutputValue(BuildYsonStringFluently()
+        .Value(nodeId));
 }
 
 //////////////////////////////////////////////////////////////////////////////////
 
-void TLockCommand::Execute(ICommandContextPtr context)
+TCreateObjectCommand::TCreateObjectCommand()
+{
+    RegisterParameter("type", Type);
+    RegisterParameter("attributes", Attributes)
+        .Optional();
+}
+
+void TCreateObjectCommand::DoExecute(ICommandContextPtr context)
+{
+    Options.Attributes = Attributes
+        ? ConvertToAttributes(Attributes)
+        : CreateEphemeralAttributes();
+
+    auto asyncObjectId = context->GetClient()->CreateObject(
+        Type,
+        Options);
+    auto objectId = WaitFor(asyncObjectId)
+        .ValueOrThrow();
+
+    context->ProduceOutputValue(BuildYsonStringFluently()
+        .Value(objectId));
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+
+TLockCommand::TLockCommand()
+{
+    RegisterParameter("path", Path);
+    RegisterParameter("mode", Mode)
+        .Default(NCypressClient::ELockMode::Exclusive);
+    RegisterParameter("waitable", Options.Waitable)
+        .Optional();
+    RegisterParameter("child_key", Options.ChildKey)
+        .Optional();
+    RegisterParameter("attribute_key", Options.AttributeKey)
+        .Optional();
+
+    RegisterValidator([&] () {
+        if (Mode != NCypressClient::ELockMode::Shared) {
+            if (Options.ChildKey) {
+                THROW_ERROR_EXCEPTION("\"child_key\" can only be specified for shared locks");
+            }
+            if (Options.AttributeKey) {
+                THROW_ERROR_EXCEPTION("\"attribute_key\" can only be specified for shared locks");
+            }
+        }
+        if (Options.ChildKey && Options.AttributeKey) {
+            THROW_ERROR_EXCEPTION("Cannot specify both \"child_key\" and \"attribute_key\"");
+        }
+    });
+}
+
+void TLockCommand::DoExecute(ICommandContextPtr context)
 {
     auto asyncLockId = context->GetClient()->LockNode(
         Path.GetPath(),
@@ -131,7 +222,19 @@ void TLockCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCopyCommand::Execute(ICommandContextPtr context)
+TCopyCommand::TCopyCommand()
+{
+    RegisterParameter("source_path", SourcePath);
+    RegisterParameter("destination_path", DestinationPath);
+    RegisterParameter("recursive", Options.Recursive)
+        .Optional();
+    RegisterParameter("force", Options.Force)
+        .Optional();
+    RegisterParameter("preserve_account", Options.PreserveAccount)
+        .Optional();
+}
+
+void TCopyCommand::DoExecute(ICommandContextPtr context)
 {
     auto asyncNodeId = context->GetClient()->CopyNode(
         SourcePath.GetPath(),
@@ -146,7 +249,19 @@ void TCopyCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TMoveCommand::Execute(ICommandContextPtr context)
+TMoveCommand::TMoveCommand()
+{
+    RegisterParameter("source_path", SourcePath);
+    RegisterParameter("destination_path", DestinationPath);
+    RegisterParameter("recursive", Options.Recursive)
+        .Optional();
+    RegisterParameter("force", Options.Force)
+        .Optional();
+    RegisterParameter("preserve_account", Options.PreserveAccount)
+        .Optional();
+}
+
+void TMoveCommand::DoExecute(ICommandContextPtr context)
 {
     auto asyncNodeId = context->GetClient()->MoveNode(
         SourcePath.GetPath(),
@@ -161,7 +276,12 @@ void TMoveCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TExistsCommand::Execute(ICommandContextPtr context)
+TExistsCommand::TExistsCommand()
+{
+    RegisterParameter("path", Path);
+}
+
+void TExistsCommand::DoExecute(ICommandContextPtr context)
 {
     auto asyncResult = context->GetClient()->NodeExists(
         Path.GetPath(),
@@ -175,7 +295,19 @@ void TExistsCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TLinkCommand::Execute(ICommandContextPtr context)
+TLinkCommand::TLinkCommand()
+{
+    RegisterParameter("link_path", LinkPath);
+    RegisterParameter("target_path", TargetPath);
+    RegisterParameter("attributes", Attributes)
+        .Optional();
+    RegisterParameter("recursive", Options.Recursive)
+        .Optional();
+    RegisterParameter("ignore_existing", Options.IgnoreExisting)
+        .Optional();
+}
+
+void TLinkCommand::DoExecute(ICommandContextPtr context)
 {
     Options.Attributes = Attributes
         ? ConvertToAttributes(Attributes)
@@ -194,7 +326,23 @@ void TLinkCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TConcatenateCommand::Execute(ICommandContextPtr context)
+TConcatenateCommand::TConcatenateCommand()
+{
+    RegisterParameter("source_paths", SourcePaths);
+    RegisterParameter("destination_path", DestinationPath);
+}
+
+void TConcatenateCommand::OnLoaded()
+{
+    TCommandBase::OnLoaded();
+
+    for (auto& path : SourcePaths) {
+        path = path.Normalize();
+    }
+    DestinationPath = DestinationPath.Normalize();
+}
+
+void TConcatenateCommand::DoExecute(ICommandContextPtr context)
 {
     std::vector<TYPath> sourcePaths;
     for (const auto& path : SourcePaths) {

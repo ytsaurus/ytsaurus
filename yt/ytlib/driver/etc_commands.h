@@ -26,67 +26,64 @@ protected:
     }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TAddMemberCommand
     : public TUpdateMembershipCommand<NApi::TAddMemberOptions>
 {
-public:
-    void Execute(ICommandContextPtr context);
-
+private:
+    virtual void DoExecute(ICommandContextPtr context) override;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TRemoveMemberCommand
     : public TUpdateMembershipCommand<NApi::TRemoveMemberOptions>
 {
-public:
-    void Execute(ICommandContextPtr context);
-
+private:
+    virtual void DoExecute(ICommandContextPtr context) override;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TParseYPathCommand
     : public TCommandBase
 {
+public:
+    TParseYPathCommand();
+
 private:
     Stroka Path;
 
-public:
-    TParseYPathCommand()
-    {
-        RegisterParameter("path", Path);
-    }
-
-    void Execute(ICommandContextPtr context);
-
+    virtual void DoExecute(ICommandContextPtr context) override;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TGetVersionCommand
     : public TCommandBase
 {
-public:
-    void Execute(ICommandContextPtr context);
-
+private:
+    virtual void DoExecute(ICommandContextPtr context) override;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TCheckPermissionCommand
     : public TTypedCommand<NApi::TCheckPermissionOptions>
 {
+public:
+    TCheckPermissionCommand();
+
 private:
     Stroka User;
     NYPath::TRichYPath Path;
     NYTree::EPermission Permission;
 
-public:
-    TCheckPermissionCommand()
-    {
-        RegisterParameter("user", User);
-        RegisterParameter("permission", Permission);
-        RegisterParameter("path", Path);
-
-    }
-
-    void Execute(ICommandContextPtr context);
-
+    virtual void DoExecute(ICommandContextPtr context) override;
 };
 
+////////////////////////////////////////////////////////////////////////////////
 
 struct TExecuteBatchOptions
     : public NApi::TMutatingOptions
@@ -97,6 +94,9 @@ struct TExecuteBatchOptions
 class TExecuteBatchCommand
     : public TTypedCommand<TExecuteBatchOptions>
 {
+public:
+    TExecuteBatchCommand();
+
 private:
     class TRequest
         : public NYTree::TYsonSerializable
@@ -106,32 +106,16 @@ private:
         NYTree::IMapNodePtr Parameters;
         NYTree::INodePtr Input;
 
-        TRequest()
-        {
-            RegisterParameter("command", Command);
-            RegisterParameter("parameters", Parameters);
-            RegisterParameter("input", Input)
-                .Default();
-        }
+        TRequest();
     };
 
     using TRequestPtr = TIntrusivePtr<TRequest>;
 
     std::vector<TRequestPtr> Requests;
 
-public:
     class TRequestExecutor;
 
-    TExecuteBatchCommand()
-    {
-        RegisterParameter("concurrency", Options.Concurrency)
-            .Default(50)
-            .GreaterThan(0);
-        RegisterParameter("requests", Requests);
-    }
-
-    void Execute(ICommandContextPtr context);
-
+    virtual void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

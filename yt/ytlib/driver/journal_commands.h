@@ -16,44 +16,30 @@ namespace NDriver {
 class TReadJournalCommand
     : public TTypedCommand<NApi::TJournalReaderOptions>
 {
+public:
+    TReadJournalCommand();
+
 private:
     NYPath::TRichYPath Path;
     NYTree::INodePtr JournalReader;
 
-    virtual void OnLoaded() override
-    {
-        TCommandBase::OnLoaded();
-
-        Path = Path.Normalize();
-    }
-
-public:
-    TReadJournalCommand()
-    {
-        RegisterParameter("path", Path);
-        RegisterParameter("journal_reader", JournalReader)
-            .Default();
-    }
-
-    void Execute(ICommandContextPtr context);
-
+    virtual void OnLoaded() override;
+    virtual void DoExecute(ICommandContextPtr context) override;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TWriteJournalCommand
     : public TTypedCommand<NApi::TJournalWriterOptions>
 {
+public:
+    TWriteJournalCommand();
+
 private:
     NYPath::TRichYPath Path;
     NYTree::INodePtr JournalWriter;
 
-public:
-    TWriteJournalCommand()
-    {
-        RegisterParameter("path", Path);
-    }
-
-    void Execute(ICommandContextPtr context);
-
+    virtual void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

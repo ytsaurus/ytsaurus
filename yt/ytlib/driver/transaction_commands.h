@@ -10,56 +10,47 @@ namespace NDriver {
 class TStartTransactionCommand
     : public TTypedCommand<NApi::TTransactionStartOptions>
 {
+public:
+    TStartTransactionCommand();
+
 private:
     NTransactionClient::ETransactionType Type;
     NYTree::INodePtr Attributes;
 
-public:
-    TStartTransactionCommand()
-    {
-        RegisterParameter("type", Type)
-            .Default(NTransactionClient::ETransactionType::Master);
-        RegisterParameter("attributes", Attributes)
-            .Default(nullptr);
-        RegisterParameter("sticky", Options.Sticky)
-            .Default(false);
-        RegisterParameter("timeout", Options.Timeout)
-            .Optional();
-        RegisterParameter("transaction_id", Options.ParentId)
-            .Optional();
-        RegisterParameter("ping_ancestor_transactions", Options.PingAncestors)
-            .Default(false);
-    }
-
-    void Execute(ICommandContextPtr context);
+    virtual void DoExecute(ICommandContextPtr context) override;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TPingTransactionCommand
     : public TTypedCommand<NApi::TTransactionalOptions>
 {
-public:
-    void Execute(ICommandContextPtr context);
+private:
+    virtual void DoExecute(ICommandContextPtr context) override;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TCommitTransactionCommand
     : public TTypedCommand<NApi::TTransactionCommitOptions>
 {
-public:
-    void Execute(ICommandContextPtr context);
+private:
+    void DoExecute(ICommandContextPtr context);
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TAbortTransactionCommand
     : public TTypedCommand<NApi::TTransactionAbortOptions>
 {
 public:
-    TAbortTransactionCommand()
-    {
-        RegisterParameter("force", Options.Force)
-            .Optional();
-    }
+    TAbortTransactionCommand();
 
-    void Execute(ICommandContextPtr context);
+private:
+    virtual void DoExecute(ICommandContextPtr context) override;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TGenerateTimestampOptions
 { };
@@ -67,8 +58,8 @@ struct TGenerateTimestampOptions
 class TGenerateTimestampCommand
     : public TTypedCommand<TGenerateTimestampOptions>
 {
-public:
-    void Execute(ICommandContextPtr context);
+private:
+    virtual void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

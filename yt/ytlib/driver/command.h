@@ -1,6 +1,5 @@
 #pragma once
 
-#include "public.h"
 #include "private.h"
 #include "driver.h"
 
@@ -18,6 +17,14 @@
 
 namespace NYT {
 namespace NDriver {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct ICommand
+{
+    virtual ~ICommand() = default;
+    virtual void Execute(ICommandContextPtr context) = 0;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,11 +50,22 @@ DEFINE_REFCOUNTED_TYPE(ICommandContext)
 
 class TCommandBase
     : public NYTree::TYsonSerializableLite
+    , public ICommand
 {
 protected:
     TCommandBase()
     {
         SetKeepOptions(true);
+    }
+
+    virtual void DoExecute(ICommandContextPtr context) = 0;
+
+public:
+    virtual void Execute(ICommandContextPtr context) override
+    {
+        const auto& parameters = context->Request().Parameters;
+        Deserialize(*this, parameters);
+        DoExecute(context);
     }
 };
 

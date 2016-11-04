@@ -17,60 +17,36 @@ namespace NDriver {
 class TReadTableCommand
     : public TTypedCommand<NApi::TTableReaderOptions>
 {
+public:
+    TReadTableCommand();
+
 private:
     NYPath::TRichYPath Path;
     NYTree::INodePtr TableReader;
     NFormats::TControlAttributesConfigPtr ControlAttributes;
     bool Unordered;
 
-    virtual void OnLoaded() override
-    {
-        TCommandBase::OnLoaded();
-
-        Path = Path.Normalize();
-    }
-
-public:
-    TReadTableCommand()
-    {
-        RegisterParameter("path", Path);
-        RegisterParameter("table_reader", TableReader)
-            .Default(nullptr);
-        RegisterParameter("control_attributes", ControlAttributes)
-            .DefaultNew();
-        RegisterParameter("unordered", Unordered)
-            .Default(false);
-    }
-
-    void Execute(ICommandContextPtr context);
-
+    virtual void OnLoaded() override;
+    virtual void DoExecute(ICommandContextPtr context) override;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TWriteTableCommand
     : public TTypedCommand<NApi::TTransactionalOptions>
 {
+public:
+    TWriteTableCommand();
+
 private:
     NYPath::TRichYPath Path;
     NYTree::INodePtr TableWriter;
 
-    virtual void OnLoaded() override
-    {
-        TCommandBase::OnLoaded();
-
-        Path = Path.Normalize();
-    }
-
-public:
-    TWriteTableCommand()
-    {
-        RegisterParameter("path", Path);
-        RegisterParameter("table_writer", TableWriter)
-            .Default(nullptr);
-    }
-
-    void Execute(ICommandContextPtr context);
-
+    virtual void OnLoaded() override;
+    virtual void DoExecute(ICommandContextPtr context) override;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <class TOptions>
 class TTabletCommandBase
@@ -89,108 +65,87 @@ protected:
     }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TMountTableCommand
     : public TTabletCommandBase<NApi::TMountTableOptions>
 {
 public:
-    TMountTableCommand()
-    {
-        RegisterParameter("cell_id", Options.CellId)
-            .Optional();
-        RegisterParameter("freeze", Options.Freeze)
-            .Default(false);
-    }
+    TMountTableCommand();
 
-    void Execute(ICommandContextPtr context);
-
+private:
+    virtual void DoExecute(ICommandContextPtr context) override;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TUnmountTableCommand
     : public TTabletCommandBase<NApi::TUnmountTableOptions>
 {
 public:
-    TUnmountTableCommand()
-    {
-        RegisterParameter("force", Options.Force)
-            .Optional();
-    }
+    TUnmountTableCommand();
 
-    void Execute(ICommandContextPtr context);
-
+private:
+    virtual void DoExecute(ICommandContextPtr context) override;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TRemountTableCommand
     : public TTabletCommandBase<NApi::TRemountTableOptions>
 {
 public:
-    void Execute(ICommandContextPtr context);
-
+    virtual void DoExecute(ICommandContextPtr context) override;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TFreezeTableCommand
     : public TTabletCommandBase<NApi::TFreezeTableOptions>
 {
-public:
-    void Execute(ICommandContextPtr context);
-
+private:
+    virtual void DoExecute(ICommandContextPtr context) override;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TUnfreezeTableCommand
     : public TTabletCommandBase<NApi::TUnfreezeTableOptions>
 {
 public:
-    void Execute(ICommandContextPtr context);
-
+    virtual void DoExecute(ICommandContextPtr context) override;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TReshardTableCommand
     : public TTabletCommandBase<NApi::TReshardTableOptions>
 {
+public:
+    TReshardTableCommand();
+
 private:
     TNullable<std::vector<NTableClient::TOwningKey>> PivotKeys;
     TNullable<int> TabletCount;
 
-public:
-    TReshardTableCommand()
-    {
-        RegisterParameter("pivot_keys", PivotKeys)
-            .Default();
-        RegisterParameter("tablet_count", TabletCount)
-            .Default()
-            .GreaterThan(0);
-
-        RegisterValidator([&] () {
-            if (PivotKeys && TabletCount) {
-                THROW_ERROR_EXCEPTION("Cannot specify both \"pivot_keys\" and \"tablet_count\"");
-            }
-            if (!PivotKeys && !TabletCount) {
-                THROW_ERROR_EXCEPTION("Must specify either \"pivot_keys\" or \"tablet_count\"");
-            }
-        });
-    }
-
-    void Execute(ICommandContextPtr context);
-
+    virtual void DoExecute(ICommandContextPtr context) override;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TAlterTableCommand
     : public TTypedCommand<NApi::TAlterTableOptions>
 {
 public: 
-    TAlterTableCommand()
-    {
-        RegisterParameter("path", Path);
-        RegisterParameter("schema", Options.Schema)
-            .Optional();
-        RegisterParameter("dynamic", Options.Dynamic)
-            .Optional();
-    }
-
-    void Execute(ICommandContextPtr context);
+    TAlterTableCommand();
 
 private:
     NYPath::TRichYPath Path;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TSelectRowsOptions
     : public NApi::TSelectRowsOptions
@@ -200,61 +155,33 @@ struct TSelectRowsOptions
 class TSelectRowsCommand
     : public TTypedCommand<TSelectRowsOptions>
 {
+public:
+    TSelectRowsCommand();
+
 private:
     Stroka Query;
 
-public:
-    TSelectRowsCommand()
-    {
-        RegisterParameter("query", Query);
-        RegisterParameter("timestamp", Options.Timestamp)
-            .Optional();
-        RegisterParameter("input_row_limit", Options.InputRowLimit)
-            .Optional();
-        RegisterParameter("output_row_limit", Options.OutputRowLimit)
-            .Optional();
-        RegisterParameter("range_expansion_limit", Options.RangeExpansionLimit)
-            .Optional();
-        RegisterParameter("fail_on_incomplete_result", Options.FailOnIncompleteResult)
-            .Optional();
-        RegisterParameter("verbose_logging", Options.VerboseLogging)
-            .Optional();
-        RegisterParameter("enable_code_cache", Options.EnableCodeCache)
-            .Optional();
-        RegisterParameter("max_subqueries", Options.MaxSubqueries)
-            .Optional();
-        RegisterParameter("workload_descriptor", Options.WorkloadDescriptor)
-            .Optional();
-    }
-
-    void Execute(ICommandContextPtr context);
-
+    virtual void DoExecute(ICommandContextPtr context) override;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TInsertRowsCommand
     : public TTypedCommand<TTabletWriteOptions>
 {
+public:
+    TInsertRowsCommand();
+
 private:
     NYTree::INodePtr TableWriter;
     NYPath::TRichYPath Path;
     bool Update;
     bool Aggregate;
 
-public:
-    TInsertRowsCommand()
-    {
-        RegisterParameter("table_writer", TableWriter)
-            .Default();
-        RegisterParameter("path", Path);
-        RegisterParameter("update", Update)
-            .Default(false);
-        RegisterParameter("aggregate", Aggregate)
-            .Default(false);
-    }
-
-    void Execute(ICommandContextPtr context);
-
+    virtual void DoExecute(ICommandContextPtr context) override;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TLookupRowsOptions
     : public NApi::TLookupRowsOptions
@@ -264,98 +191,74 @@ struct TLookupRowsOptions
 class TLookupRowsCommand
     : public TTypedCommand<TLookupRowsOptions>
 {
+public:
+    TLookupRowsCommand();
+
 private:
     NYTree::INodePtr TableWriter;
     NYPath::TRichYPath Path;
     TNullable<std::vector<Stroka>> ColumnNames;
 
-public:
-    TLookupRowsCommand()
-    {
-        RegisterParameter("table_writer", TableWriter)
-            .Default();
-        RegisterParameter("path", Path);
-        RegisterParameter("column_names", ColumnNames)
-            .Default();
-        RegisterParameter("timestamp", Options.Timestamp)
-            .Optional();
-        RegisterParameter("keep_missing_rows", Options.KeepMissingRows)
-            .Optional();
-    }
-
-    void Execute(ICommandContextPtr context);
-
+    virtual void DoExecute(ICommandContextPtr context) override;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TDeleteRowsCommand
     : public TTypedCommand<TTabletWriteOptions>
 {
+public:
+    TDeleteRowsCommand();
+
 private:
     NYTree::INodePtr TableWriter;
     NYPath::TRichYPath Path;
 
-public:
-    TDeleteRowsCommand()
-    {
-        RegisterParameter("table_writer", TableWriter)
-            .Default();
-        RegisterParameter("path", Path);
-    }
-
-    void Execute(ICommandContextPtr context);
-
+    virtual void DoExecute(ICommandContextPtr context) override;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TTrimRowsCommand
     : public TTypedCommand<NApi::TTrimTableOptions>
 {
+public:
+    TTrimRowsCommand();
+
 private:
     NYPath::TRichYPath Path;
     int TabletIndex;
     i64 TrimmedRowCount;
 
-public:
-    TTrimRowsCommand()
-    {
-        RegisterParameter("path", Path);
-        RegisterParameter("tablet_index", TabletIndex);
-        RegisterParameter("trimmed_row_count", TrimmedRowCount);
-    }
-
-    void Execute(ICommandContextPtr context);
-
+    virtual void DoExecute(ICommandContextPtr context) override;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TEnableTableReplicaCommand
     : public TTypedCommand<NApi::TEnableTableReplicaOptions>
 {
+public:
+    TEnableTableReplicaCommand();
+
 private:
     NTabletClient::TTableReplicaId ReplicaId;
 
-public:
-    TEnableTableReplicaCommand()
-    {
-        RegisterParameter("replica_id", ReplicaId);
-    }
-
-    void Execute(ICommandContextPtr context);
-
+    virtual void DoExecute(ICommandContextPtr context) override;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TDisableTableReplicaCommand
     : public TTypedCommand<NApi::TDisableTableReplicaOptions>
 {
+public:
+    TDisableTableReplicaCommand();
+
 private:
     NTabletClient::TTableReplicaId ReplicaId;
 
-public:
-    TDisableTableReplicaCommand()
-    {
-        RegisterParameter("replica_id", ReplicaId);
-    }
-
-    void Execute(ICommandContextPtr context);
-
+    virtual void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
