@@ -329,6 +329,11 @@ public:
         }
     }
 
+    void UpdateConfig(const TSchedulerConfigPtr& config)
+    {
+        Config = config;
+    }
+
 
     DEFINE_SIGNAL(void(const TMasterHandshakeResult& result), MasterConnected);
     DEFINE_SIGNAL(void(), MasterDisconnected);
@@ -337,7 +342,7 @@ public:
     DEFINE_SIGNAL(void(TOperationPtr operation), SchedulerTransactionAborted);
 
 private:
-    const TSchedulerConfigPtr Config;
+    TSchedulerConfigPtr Config;
     NCellScheduler::TBootstrap* const Bootstrap;
 
     NHive::TClusterDirectoryPtr ClusterDirectory;
@@ -2122,6 +2127,11 @@ void TMasterConnector::AttachJobContext(
     const TJobId& jobId)
 {
     return Impl->AttachJobContext(path, chunkId, operationId, jobId);
+}
+
+void TMasterConnector::UpdateConfig(const TSchedulerConfigPtr& config)
+{
+    Impl->UpdateConfig(config);
 }
 
 TFuture<void> TMasterConnector::AttachToLivePreview(
