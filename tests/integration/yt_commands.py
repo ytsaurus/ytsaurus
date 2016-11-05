@@ -77,11 +77,16 @@ def prepare_parameters(parameters):
     change(parameters, "ping_ancestor_txs", "ping_ancestor_transactions")
     return parameters
 
-def execute_command(command_name, parameters, input_stream=None, output_stream=None, verbose=None, ignore_result=False):
+def execute_command(command_name, parameters, input_stream=None, output_stream=None, verbose=None, verbose_error=None, ignore_result=False):
     if "verbose" in parameters:
         verbose = parameters["verbose"]
         del parameters["verbose"]
     verbose = verbose is None or verbose
+    
+    if "verbose_error" in parameters:
+        verbose = parameters["verbose_error"]
+        del parameters["verbose_error"]
+    verbose_error = verbose_error is None or verbose_error
 
     if "ignore_result" in parameters:
         ignore_result = parameters["ignore_result"]
@@ -129,9 +134,10 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
     response.wait()
     if not response.is_ok():
         error = YtResponseError(response.error())
-        print >>sys.stderr, str(error)
-        print >>sys.stderr
-        # NB: we want to see inner errors in teamcity.
+        if verbose_error:
+            print >>sys.stderr, str(error)
+            print >>sys.stderr
+            # NB: we want to see inner errors in teamcity.
         raise error
     if isinstance(output_stream, cStringIO.OutputType):
         result = output_stream.getvalue()
@@ -460,7 +466,7 @@ class Operation(object):
             time.sleep(self._poll_frequency)
             timeout -= self._poll_frequency
             try:
-                progress = get(progress_path + "/jobs", verbose=False)
+                progress = get(progress_path + "/jobs", verbose=False, verbose_error=False)
                 running_count = progress["running"]
                 pending_count = progress["pending"]
             except YtResponseError as error:
@@ -648,7 +654,10 @@ def start_op(op_type, **kwargs):
     operation.id = execute_command(op_type, kwargs).strip().replace('"', '')
 
     if waiting_jobs:
-        operation.ensure_jobs_running()
+        wait_timeout = kwargs.get("wait_timeout", 20)
+        if "wait_timeout" in kwargs:
+            del kwargs["wait_timeout"]
+        operation.ensure_jobs_running(wait_timeout)
 
     if track:
         operation.track()
