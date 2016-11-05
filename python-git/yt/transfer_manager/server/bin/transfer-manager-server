@@ -1208,7 +1208,21 @@ class Application(object):
         return Response(data, mimetype="application/json")
 
     def config(self):
-        return jsonify(self._get_config())
+        def hide_token(obj):
+            if isinstance(obj, dict):
+                for key in obj:
+                    if key == "token":
+                        obj[key] = "token_is_hidden"
+                    else:
+                        hide_token(obj[key])
+            elif isinstance(obj, list):
+                for elem in obj:
+                    hide_token(elem)
+
+        config = self._get_config()
+        hide_token(config)
+
+        return jsonify(config)
 
     def ping(self):
         return "OK", 200
