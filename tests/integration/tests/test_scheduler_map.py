@@ -756,6 +756,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         op = map(
             dont_track=True,
+            wait_timeout=60,
             waiting_jobs=True,
             label="stderr_of_failed_jobs",
             in_="//tmp/t1",
