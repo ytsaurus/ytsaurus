@@ -52,14 +52,20 @@ def create_task(task_dict):
     state = task_dict["state"]
     finish_time = None
     if state in ["failed", "completed", "aborted"]:
-        finish_time = parse(task_dict["finish_time"]).replace(tzinfo=None)
+        if "finish_time" not in task_dict:
+            finish_time = datetime.utcnow()
+        else:
+            finish_time = parse(task_dict["finish_time"]).replace(tzinfo=None)
 
     return Task(start_time, finish_time, id_, user, state)
 
-def clean_tasks(url, token, count, total_count, failed_timeout, max_regular_tasks_per_user,
+def clean_tasks(url, token, token_path, count, total_count, failed_timeout, max_regular_tasks_per_user,
                 max_failed_tasks_per_user, robots, batch_size, finished_persist_timeout):
     if robots is None:
         robots = []
+
+    if token is None:
+        token = open(token_path).read().strip()
 
     logger.info("Requesting all tasks")
     rsp = requests.get("{0}/tasks/".format(url),
@@ -127,6 +133,7 @@ def main():
     parser = argparse.ArgumentParser(description="Clean transfer manager tasks.")
     parser.add_argument("url", help="Transfer Manager url")
     parser.add_argument("--token", help="token of administer user")
+    parser.add_argument("--token-path", help="path to file with token of administer user")
     parser.add_argument("--count", metavar="N", type=int, default=500,
                         help="leave no more than N completed (without stderr) or aborted tasks")
     parser.add_argument("--total-count", metavar="N", type=int, default=2000,
