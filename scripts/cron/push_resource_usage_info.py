@@ -141,7 +141,7 @@ def main():
 
     request_retry_enable = False
 
-    if args.robot_password is None:
+    if args.robot_password is None and args.robot_password_path is not None:
         args.robot_password = open(args.robot_password_path).read().strip()
 
     if args.push_to_statface:
