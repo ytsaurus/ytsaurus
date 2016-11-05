@@ -882,10 +882,12 @@ class Application(object):
                                  .format(type_, object_id, task_id))
 
         def safe_abort_operation(operation_id, client):
-            if not client.exists("//sys/operations/{0}".format(operation_id)) or \
-                   client.get_operation_state(operation_id).is_finished():
+            root_client = clone_client(client)
+            root_client.config["token"] = self._yt.config["token"]
+            if not root_client.exists("//sys/operations/{0}".format(operation_id)) or \
+                   root_client.get_operation_state(operation_id).is_finished():
                 return
-            client.abort_operation(operation_id)
+            root_client.abort_operation(operation_id)
 
         def abort_operations_and_transactions(task):
             if not task.progress:
