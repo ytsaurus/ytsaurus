@@ -128,6 +128,7 @@ def main():
 
     parser.add_argument("--robot-login", default=os.environ.get("STATFACE_ROBOT_LOGIN"))
     parser.add_argument("--robot-password", default=os.environ.get("STATFACE_ROBOT_PASSWORD"))
+    parser.add_argument("--robot-password-path", default=os.environ.get("STATFACE_ROBOT_PASSWORD_PATH"))
     parser.add_argument("--clusters-config-url", default="http://yt.yandex.net/config.json",
                         help="url to json with all available clusters")
     parser.add_argument("--push-to-statface", action="store_true", default=False)
@@ -139,6 +140,9 @@ def main():
         sys.exit(1)
 
     request_retry_enable = False
+
+    if args.robot_password is None:
+        args.robot_password = open(args.robot_password_path).read().strip()
 
     if args.push_to_statface:
         if args.robot_login is None or args.robot_password is None:
