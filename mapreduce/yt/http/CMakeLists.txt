@@ -14,6 +14,7 @@ SRCS(
 
 PEERDIR(
     util
+    library/string_utils/base64
     library/http/io
     mapreduce/yt/interface
     mapreduce/yt/common

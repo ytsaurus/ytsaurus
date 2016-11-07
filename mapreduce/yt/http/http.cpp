@@ -6,6 +6,7 @@
 #include <mapreduce/yt/common/config.h>
 
 #include <library/json/json_writer.h>
+#include <library/string_utils/base64/base64.h>
 
 #include <util/string/quote.h>
 #include <util/string/printf.h>
@@ -193,17 +194,32 @@ Stroka THttpHeader::GetHeader(const Stroka& hostName, const Stroka& requestId) c
             break;
     }
 
-    if (InputFormat) {
-        header << "X-YT-Input-Format: " << InputFormat << "\r\n";
-    }
+    auto printYTHeader = [&header] (const char* headerName, const Stroka& value) {
+        static const size_t maxHttpHeaderSize = 64 << 10;
+        if (!value) {
+            return;
+        }
+        if (value.Size() <= maxHttpHeaderSize) {
+            header << headerName << ": " << value << "\r\n";
+            return;
+        }
 
-    if (OutputFormat) {
-        header << "X-YT-Output-Format: " << OutputFormat << "\r\n";
-    }
+        Stroka encoded;
+        Base64Encode(value, encoded);
+        auto ptr = encoded.Data();
+        auto finish = encoded.Data() + encoded.Size();
+        size_t index = 0;
+        do {
+            auto end = Min(ptr + maxHttpHeaderSize, finish);
+            header << headerName << index++ << ": " <<
+                TStringBuf(ptr, end) << "\r\n";
+            ptr = end;
+        } while (ptr != finish);
+    };
 
-    if (Parameters) {
-        header << "X-YT-Parameters: " << Parameters << "\r\n";
-    }
+    printYTHeader("X-YT-Input-Format", InputFormat);
+    printYTHeader("X-YT-Output-Format", OutputFormat);
+    printYTHeader("X-YT-Parameters", Parameters);
 
     header << "\r\n";
     return header.Str();
