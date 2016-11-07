@@ -2076,6 +2076,41 @@ print row + table_index
 
         assert read_table("//tmp/t_out") == rows + rows1
 
+    def test_dynamic_table_timestamp(self):
+        self.sync_create_cells(1)
+        self._create_simple_dynamic_table("//tmp/t")
+        create("table", "//tmp/t_out")
+
+        rows = [{"key": i, "value": str(i)} for i in range(2)]
+        self.sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", rows)
+
+        time.sleep(1)
+        ts = generate_timestamp()
+
+        self.sync_compact_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": i, "value": str(i+1)} for i in range(2)])
+        self.sync_compact_table("//tmp/t")
+
+        map(
+            in_="<timestamp=%s>//tmp/t" % ts,
+            out="//tmp/t_out",
+            command="cat")
+
+        assert_items_equal(read_table("//tmp/t_out"), rows)
+
+        with pytest.raises(YtError):
+            map(
+                in_="<timestamp=%s>//tmp/t" % generate_timestamp(),
+                out="//tmp/t_out",
+                command="cat")
+
+        with pytest.raises(YtError):
+            map(
+                in_="<timestamp=%s>//tmp/t" % MinTimestamp,
+                out="//tmp/t_out",
+                command="cat")
+
     def test_pipe_statistics(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")

@@ -10,6 +10,8 @@
 
 #include <yt/ytlib/chunk_client/read_limit.h>
 
+#include <yt/ytlib/transaction_client/public.h>
+
 namespace NYT {
 namespace NYPath {
 
@@ -79,6 +81,9 @@ public:
 
     // "row_count_limit"
     TNullable<i64> GetRowCountLimit() const;
+
+    // "timestamp"
+    TNullable<NTransactionClient::TTimestamp> GetTimestamp() const;
 
 private:
     TYPath Path_;

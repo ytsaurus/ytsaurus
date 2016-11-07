@@ -290,9 +290,9 @@ TTimestamp TTableNode::GetCurrentRetainedTimestamp() const
 
 TTimestamp TTableNode::CalculateUnflushedTimestamp() const
 {
-    Y_ASSERT(this == GetTrunkNode());
+    auto trunkNode = GetTrunkNode();
     auto result = MaxTimestamp;
-    for (const auto* tablet : Tablets_) {
+    for (const auto* tablet : trunkNode->Tablets()) {
         auto timestamp = static_cast<TTimestamp>(tablet->NodeStatistics().unflushed_timestamp());
         result = std::min(result, timestamp);
     }
@@ -301,10 +301,10 @@ TTimestamp TTableNode::CalculateUnflushedTimestamp() const
 
 TTimestamp TTableNode::CalculateRetainedTimestamp() const
 {
-    Y_ASSERT(this == GetTrunkNode());
+    auto trunkNode = GetTrunkNode();
     auto result = MinTimestamp;
-    for (const auto* tablet : Tablets_) {
-        auto timestamp = static_cast<TTimestamp>(tablet->GetRetainedTimestamp());
+    for (const auto* tablet : trunkNode->Tablets()) {
+        auto timestamp = tablet->GetRetainedTimestamp();
         result = std::max(result, timestamp);
     }
     return result;
