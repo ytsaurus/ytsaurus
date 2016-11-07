@@ -47,15 +47,14 @@ MASTER_CONFIG_PATCHES = [
             "allow_multiple_erasure_parts_per_node": True
         }
     },
+    {
+        "node_tracker": {
+            "node_states_gossip_period": None
+        },
+        "tablet_manager": None,
+        "multicell_manager": None
+    }
 ]
-
-MASTER_18_PATCH = {
-    "node_tracker": {
-        "node_states_gossip_period": None
-    },
-    "tablet_manager": None,
-    "multicell_manager": None
-}
 
 SCHEDULER_CONFIG_PATCH = {
     "cluster_connection": {
@@ -159,27 +158,18 @@ NODE_CONFIG_PATCHES = [
                 "heartbeat_splay": 50
             }
         }
+    },
+    {
+        "cell_directory_synchronizer": None,
+        "exec_agent": {
+            "scheduler_connector": {
+                "unsuccess_heartbeat_backoff_time": 50
+            }
+        }
     }
 ]
 
 NODE_MEMORY_LIMIT_ADDITION = 500 * MB + 200 * MB + 500 * MB  # block_cache + tablet_node, see above
-
-NODE_18_PATCH = {
-    "cell_directory_synchronizer": None,
-    "exec_agent": {
-        "scheduler_connector": {
-            "unsuccess_heartbeat_backoff_time": 50
-        }
-    }
-}
-
-NODE_17_PATCH = {
-    "exec_agent": {
-        "scheduler_connector": {
-            "failed_heartbeat_backoff_time": 50
-        }
-    }
-}
 
 DRIVER_CONFIG_PATCH = {
     "transaction_manager": None
@@ -222,9 +212,6 @@ def modify_cluster_configuration(cluster_configuration, ytserver_version, master
             if master_config_patch:
                 update(config, master_config_patch)
 
-            if versions_cmp(ytserver_version, "0.18") >= 0:
-                update(config, MASTER_18_PATCH)
-
     for config in itervalues(cluster_configuration["driver"]):
         update(config, DRIVER_CONFIG_PATCH)
 
@@ -239,11 +226,6 @@ def modify_cluster_configuration(cluster_configuration, ytserver_version, master
 
             if node_config_patch:
                 update(config, node_config_patch)
-
-            if versions_cmp(ytserver_version, "0.18") >= 0:
-                update(config, NODE_18_PATCH)
-            else:
-                update(config, NODE_17_PATCH)
 
     if proxy_config_patch:
         update(cluster_configuration["proxy"], proxy_config_patch)

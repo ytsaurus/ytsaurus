@@ -58,8 +58,6 @@ Configs for YT are generated the following way:
 """
 
 VERSION_TO_CONFIGS_PROVIDER_CLASS = {
-    "0.17.4": "ConfigsProvider_17_4",
-    "0.17.5": "ConfigsProvider_17_5",
     "18.3": "ConfigsProvider_18_3",
     "18.4": "ConfigsProvider_18_4",
     "18.5": "ConfigsProvider_18_5",
@@ -68,7 +66,7 @@ VERSION_TO_CONFIGS_PROVIDER_CLASS = {
 
 def create_configs_provider(version):
     if version.startswith("18.") or version.startswith("19."):
-        # XXX(asaitgalin): Drops git depth from version.
+        # XXX(asaitgalin): Dropping git depth from version.
         # Only major and minor version components are important.
         version = ".".join(version.split(".")[:2])
 
@@ -267,201 +265,6 @@ def _get_node_resource_limits_config(provision):
     memory += BLOB_SESSIONS_MEMORY
 
     return {"memory": memory}
-
-class ConfigsProvider_17(ConfigsProvider):
-    def _build_master_configs(self, provision, master_dirs, master_tmpfs_dirs, ports_generator):
-        if provision["master"]["secondary_cell_count"] > 0:
-            raise YtError("Secondary master cells are not supported in YT version <= 0.18")
-
-        master_dirs = unlist(master_dirs)
-        master_tmpfs_dirs = unlist(master_tmpfs_dirs)
-
-        master_cell_size = provision["master"]["cell_size"]
-
-        ports = [next(ports_generator) for _ in xrange(2 * master_cell_size)]
-        addresses = ["{0}:{1}".format(provision["fqdn"], ports[2 * i]) for i in xrange(master_cell_size)]
-
-        cell_tag = str(provision["master"]["primary_cell_tag"])
-        connection_configs = {
-            cell_tag: {
-                "addresses": addresses,
-                "cell_tag": int(cell_tag),
-                "cell_id": "ffffffff-ffffffff-ffffffff-ffffffff"
-            },
-            "primary_cell_tag": cell_tag,
-            "secondary_cell_tags": []
-        }
-
-        configs = []
-        for i in xrange(master_cell_size):
-            config = default_configs.get_master_config()
-
-            config["rpc_port"] = ports[2 * i]
-            config["monitoring_port"] = ports[2 * i + 1]
-            set_at(config, "address_resolver/localhost_fqdn", provision["fqdn"])
-
-            config["master"] = connection_configs[cell_tag]
-            set_at(config, "timestamp_provider/addresses", addresses)
-
-            if master_tmpfs_dirs is None:
-                set_at(config, "changelogs/path", os.path.join(master_dirs[i], "changelogs"))
-            else:
-                set_at(config, "changelogs/path", os.path.join(master_tmpfs_dirs[i], "changelogs"))
-
-            set_at(config, "snapshots/path", os.path.join(master_dirs[i], "snapshots"))
-            config["logging"] = init_logging(config.get("logging"), master_dirs[i], "master-" + str(i),
-                                             provision["enable_debug_logging"])
-
-            set_at(config, "node_tracker/online_node_timeout", 1000)
-            _set_bind_retry_options(config)
-
-            config["hydra_manager"] = _get_hydra_manager_config()
-
-            configs.append(config)
-
-        cell_configs = {
-            cell_tag: configs,
-            "primary_cell_tag": cell_tag,
-            "secondary_cell_tags": []
-        }
-
-        return cell_configs, connection_configs
-
-    def _build_cluster_connection_config(self, master_connection_configs, enable_master_cache=False):
-        primary_cell_tag = master_connection_configs["primary_cell_tag"]
-        connection_config = master_connection_configs[primary_cell_tag]
-
-        cluster_connection = {
-            "master": connection_config,
-            "timestamp_provider": {
-                "addresses": connection_config["addresses"]
-            },
-            "transaction_manager": {
-                "ping_period": DEFAULT_TRANSACTION_PING_PERIOD
-            }
-        }
-        update(cluster_connection["master"], _get_retrying_channel_config())
-        update(cluster_connection["master"], _get_rpc_config())
-
-        if enable_master_cache:
-            cluster_connection["master_cache"] = connection_config
-
-        return cluster_connection
-
-    def _build_scheduler_configs(self, provision, scheduler_dirs, master_connection_configs,
-                                 ports_generator):
-        configs = []
-
-        for i in xrange(provision["scheduler"]["count"]):
-            config = default_configs.get_scheduler_config()
-
-            set_at(config, "address_resolver/localhost_fqdn", provision["fqdn"])
-            update(config["cluster_connection"],
-                   self._build_cluster_connection_config(master_connection_configs))
-
-            config["rpc_port"] = next(ports_generator)
-            config["monitoring_port"] = next(ports_generator)
-            set_at(config, "scheduler/snapshot_temp_path", os.path.join(scheduler_dirs[i], "snapshots"))
-            set_at(config, "scheduler/orchid_cache_update_period", 0)
-
-            config["logging"] = init_logging(config.get("logging"), scheduler_dirs[i], "scheduler-" + str(i),
-                                             provision["enable_debug_logging"])
-            _set_bind_retry_options(config)
-
-            configs.append(config)
-
-        return configs
-
-    def _build_node_configs(self, provision, node_dirs, master_connection_configs, ports_generator):
-        current_user = 10001
-
-        configs = []
-
-        for i in xrange(provision["node"]["count"]):
-            config = default_configs.get_node_config(provision["enable_debug_logging"])
-
-            set_at(config, "address_resolver/localhost_fqdn", provision["fqdn"])
-
-            config["addresses"] = {
-                "default": provision["fqdn"],
-                "interconnect": provision["fqdn"]
-            }
-
-            config["rpc_port"] = next(ports_generator)
-            config["monitoring_port"] = next(ports_generator)
-
-            update(config["cluster_connection"],
-                   self._build_cluster_connection_config(master_connection_configs, enable_master_cache=True))
-
-            set_at(config, "data_node/store_locations", [])
-            config["data_node"]["store_locations"].append({
-                "path": os.path.join(node_dirs[i], "chunk_store"),
-                "low_watermark": 0,
-                "high_watermark": 0
-            })
-
-            set_at(config, "data_node/cache_locations", [{
-                "path": os.path.join(node_dirs[i], "chunk_cache"),
-                "quota": 256 * MB,
-            }])
-
-            set_at(config, "exec_agent/slot_manager/start_uid", current_user)
-            set_at(config, "exec_agent/slot_manager/paths", [os.path.join(node_dirs[i], "slots")])
-
-            current_user += provision["node"]["jobs_resource_limits"]["user_slots"] + 1
-
-            config["logging"] = init_logging(config.get("logging"), node_dirs[i], "node-{0}".format(i),
-                                             provision["enable_debug_logging"])
-
-            set_at(config, "exec_agent/enable_cgroups", False)
-            set_at(config, "exec_agent/environment_manager", {"environments": {"default": {"type": "unsafe"}}})
-
-            job_proxy_logging = get_at(config, "exec_agent/job_proxy_logging")
-            log_name = "job_proxy-{0}".format(i)
-            set_at(
-                config,
-                "exec_agent/job_proxy_logging",
-                init_logging(job_proxy_logging, node_dirs[i], log_name, provision["enable_debug_logging"]))
-
-            set_at(config, "exec_agent/job_controller/resource_limits",
-                   deepcopy(provision["node"]["jobs_resource_limits"]), merge=True)
-            set_at(config, "resource_limits", _get_node_resource_limits_config(provision), merge=True)
-
-            _set_bind_retry_options(config)
-
-            configs.append(config)
-
-        return configs
-
-    def _build_proxy_config(self, provision, proxy_dir, master_connection_configs, ports_generator):
-        driver_config = default_configs.get_driver_config()
-        update(driver_config, self._build_cluster_connection_config(master_connection_configs))
-
-        proxy_config = _generate_common_proxy_config(proxy_dir, provision["proxy"]["http_port"],
-                                                     provision["enable_debug_logging"], provision["fqdn"],
-                                                     ports_generator)
-        set_at(proxy_config, "proxy/driver", driver_config)
-
-        return proxy_config
-
-    def _build_driver_configs(self, provision, master_connection_configs):
-        connection_config = self._build_cluster_connection_config(master_connection_configs)
-        driver_config = update(default_configs.get_driver_config(), connection_config)
-        return {str(provision["master"]["primary_cell_tag"]): driver_config}
-
-    def _build_ui_config(self, provision, master_connection_configs, proxy_address):
-        cell_tag = master_connection_configs["primary_cell_tag"]
-        return default_configs.get_ui_config()\
-            .replace("%%proxy_address%%", "'{0}'".format(proxy_address))\
-            .replace("%%masters%%", "masters: [ {0} ]".format(
-                     ", ".join(["'{0}'".format(address)
-                               for address in master_connection_configs[cell_tag]["addresses"]])))
-
-class ConfigsProvider_17_4(ConfigsProvider_17):
-    pass
-
-class ConfigsProvider_17_5(ConfigsProvider_17):
-    pass
 
 class ConfigsProvider_18(ConfigsProvider):
     def _build_master_configs(self, provision, master_dirs, master_tmpfs_dirs, ports_generator):
