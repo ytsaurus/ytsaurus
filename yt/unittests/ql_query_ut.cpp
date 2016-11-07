@@ -3,7 +3,6 @@
 #include "udf/invalid_ir.h"
 #include "udf/malloc_udf.h"
 #include "udf/test_udfs.h"
-#include "udf/test_udfs_o.h"
 
 #include <yt/ytlib/query_client/callbacks.h>
 #include <yt/ytlib/query_client/column_evaluator.h>
@@ -481,11 +480,6 @@ protected:
             test_udfs_bc_len,
             nullptr);
 
-        auto soImplementations = TSharedRef(
-            test_udfs_o_o,
-            test_udfs_o_o_len,
-            nullptr);
-
         MergeFrom(TypeInferers_.Get(), BuiltinTypeInferrersMap.Get());
         MergeFrom(FunctionProfilers_.Get(), BuiltinFunctionCG.Get());
         MergeFrom(AggregateProfilers_.Get(), BuiltinAggregateCG.Get());
@@ -542,14 +536,6 @@ protected:
         ///
 
         builder.RegisterFunction(
-            "exp_udf_o",
-            "exp_udf",
-            std::vector<TType>{EValueType::Int64, EValueType::Int64},
-            EValueType::Int64,
-            soImplementations,
-            ECallingConvention::Simple);
-
-        builder.RegisterFunction(
             "invalid_ir",
             std::vector<TType>{EValueType::Int64},
             EValueType::Int64,
@@ -570,23 +556,6 @@ protected:
             std::vector<TType>{EValueType::Double},
             EValueType::Int64,
             bcImplementations,
-            ECallingConvention::Simple);
-
-        builder.RegisterAggregate(
-            "max_udaf",
-            std::unordered_map<TTypeArgument, TUnionType>(),
-            EValueType::Uint64,
-            EValueType::Uint64,
-            EValueType::Uint64,
-            soImplementations,
-            ECallingConvention::Simple);
-
-        builder.RegisterFunction(
-            "abs_udf_o",
-            "abs_udf",
-            std::vector<TType>{EValueType::Int64},
-            EValueType::Int64,
-            soImplementations,
             ECallingConvention::Simple);
 
         builder.RegisterFunction(
@@ -2727,36 +2696,6 @@ TEST_F(TQueryEvaluateTest, TestVarargUdf)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestObjectUdf)
-{
-    auto split = MakeSplit({
-        {"a", EValueType::Int64},
-        {"b", EValueType::Int64}
-    });
-
-    std::vector<Stroka> source = {
-        "a=1;b=10",
-        "a=2;b=2",
-        "a=3;b=3",
-        "a=10"
-    };
-
-    auto resultSplit = MakeSplit({
-        {"x", EValueType::Int64}
-    });
-
-    auto result = BuildRows({
-        "x=10",
-        "x=4",
-        "x=27",
-        ""
-    }, resultSplit);
-
-    Evaluate("exp_udf_o(b, a) as x FROM [//t]", split, source, ResultMatcher(result));
-
-    SUCCEED();
-}
-
 TEST_F(TQueryEvaluateTest, TestFarmHash)
 {
     auto split = MakeSplit({
@@ -3112,34 +3051,6 @@ TEST_F(TQueryEvaluateTest, CardinalityAggregate)
     }, resultSplit);
 
     Evaluate("cardinality(a) < 2020u as upper, cardinality(a) > 1980u as lower from [//t] group by 1", split, source, ResultMatcher(result));
-}
-
-TEST_F(TQueryEvaluateTest, TestObjectUdaf)
-{
-    auto split = MakeSplit({
-        {"a", EValueType::Uint64}
-    });
-
-    std::vector<Stroka> source = {
-        "a=3u",
-        "a=53u",
-        "a=8u",
-        "a=24u",
-        "a=33u",
-        "a=333u",
-        "a=23u",
-        "a=33u"
-    };
-
-    auto resultSplit = MakeSplit({
-        {"r", EValueType::Uint64},
-    });
-
-    auto result = BuildRows({
-        "r=333u"
-    }, resultSplit);
-
-    Evaluate("max_udaf(a) as r from [//t] group by 1", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, TestLinkingError1)

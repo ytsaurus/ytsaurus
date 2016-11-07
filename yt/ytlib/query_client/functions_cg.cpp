@@ -6,12 +6,14 @@
 
 #include <yt/core/codegen/routine_registry.h>
 
-#include <llvm/IRReader/IRReader.h>
-#include <llvm/Linker/Linker.h>
-#include <llvm/Object/ObjectFile.h>
-#include <llvm/Support/SourceMgr.h>
-#include <llvm/Support/raw_ostream.h>
 #include <llvm/IR/DiagnosticPrinter.h>
+
+#include <llvm/IRReader/IRReader.h>
+
+#include <llvm/Linker/Linker.h>
+
+#include <llvm/Support/raw_ostream.h>
+#include <llvm/Support/SourceMgr.h>
 
 using namespace llvm;
 
@@ -26,6 +28,16 @@ using NCodegen::DemangleSymbol;
 static const char* ExecutionContextStructName = "struct.TExecutionContext";
 static const char* FunctionContextStructName = "struct.NYT::NQueryClient::TFunctionContext";
 static const char* UnversionedValueStructName = "struct.TUnversionedValue";
+
+StringRef ToStringRef(const Stroka& stroka)
+{
+    return StringRef(stroka.c_str(), stroka.length());
+}
+
+StringRef ToStringRef(const TSharedRef& sharedRef)
+{
+    return StringRef(sharedRef.Begin(), sharedRef.Size());
+}
 
 Stroka ToString(llvm::Type* tp)
 {
@@ -445,88 +457,7 @@ ICallingConventionPtr GetCallingConvention(ECallingConvention callingConvention)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ObjectContainsFunction(
-    const std::unique_ptr<llvm::object::ObjectFile>& objectFile,
-    const Stroka& functionName)
-{
-    auto mangledName = MangleSymbol(functionName);
-    auto symbols = objectFile->symbols();
-    for (const auto symbol : symbols) {
-        // Skip symbols specific to the object file format (e.g. section symbols).
-        auto symbolFlags = symbol.getFlags();
-        if (symbolFlags & llvm::object::SymbolRef::SF_FormatSpecific) {
-            continue;
-        }
-
-        auto name = symbol.getName();
-        if (name && name->equals(StringRef(mangledName))) {
-            return !(symbolFlags & llvm::object::SymbolRef::SF_Undefined);
-        }
-    }
-    return false;
-}
-
-bool LoadSharedObject(
-    TCGContext& builder,
-    const Stroka& functionName,
-    std::vector<Stroka> requiredSymbols,
-    TSharedRef implementationFile)
-{
-    auto buffer = llvm::MemoryBufferRef(
-        llvm::StringRef(implementationFile.Begin(), implementationFile.Size()),
-        llvm::StringRef());
-    auto objectFileOrError = llvm::object::ObjectFile::createObjectFile(buffer);
-
-    if (!objectFileOrError) {
-        return false;
-    }
-
-    for (auto symbol : requiredSymbols) {
-        if (!ObjectContainsFunction(*objectFileOrError, symbol)) {
-            THROW_ERROR_EXCEPTION(
-                "Could not find implementation for %Qv",
-                symbol);
-        }
-        if (builder.Module->GetModule()->getFunction(StringRef(symbol))) {
-            THROW_ERROR_EXCEPTION(
-                "Error loading shared object for function %Qv: symbol %Qv already exists",
-                functionName,
-                symbol);
-        }
-    }
-
-    for (auto symbol : (*objectFileOrError)->symbols()) {
-        // Skip symbols specific to the object file format (e.g. section symbols).
-        auto symbolFlags = symbol.getFlags();
-        if (symbolFlags & llvm::object::SymbolRef::SF_FormatSpecific) {
-            continue;
-        }
-
-        auto name = symbol.getName();
-        if (name) {
-            auto mangledName = Stroka(name->begin(), name->size());
-            auto nameStroka = DemangleSymbol(mangledName);
-            if (nameStroka.empty()) {
-                THROW_ERROR_EXCEPTION(
-                    "Error loading shared object for function %Qv: invalid symbol name %Qv",
-                    functionName,
-                    mangledName);
-            }
-            if (builder.Module->SymbolIsLoaded(nameStroka)) {
-                THROW_ERROR_EXCEPTION(
-                    "Error loading shared object for function %Qv: symbol %Qv already exists",
-                    functionName,
-                    nameStroka);
-            }
-            builder.Module->AddLoadedSymbol(nameStroka);
-        }
-    }
-
-    builder.Module->AddObjectFile(std::move(*objectFileOrError));
-    return true;
-}
-
-bool LoadLlvmBitcode(
+void LoadLlvmBitcode(
     TCGContext& builder,
     const Stroka& functionName,
     std::vector<Stroka> requiredSymbols,
@@ -534,23 +465,23 @@ bool LoadLlvmBitcode(
 {
     auto diag = SMDiagnostic();
 
-    std::vector<char> nullTerminatedBuffer(implementationFile.Size() + 1, 0);
-    std::copy(implementationFile.Begin(), implementationFile.End(), nullTerminatedBuffer.data());
-
-    auto buffer = MemoryBufferRef(
-        StringRef(nullTerminatedBuffer.data(), implementationFile.Size()),
-        StringRef("impl"));
-    auto implModule = parseIR(buffer, diag, builder.getContext());
+    auto implBuffer = MemoryBufferRef(ToStringRef(implementationFile), StringRef("implementation"));
+    auto implModule = parseIR(implBuffer, diag, builder.getContext());
 
     if (!implModule) {
-        return false;
+        THROW_ERROR_EXCEPTION("Could not parse LLVM bitcode for function %Qv", functionName)
+            << TErrorAttribute("line_no", diag.getLineNo())
+            << TErrorAttribute("column_no", diag.getColumnNo())
+            << TErrorAttribute("content", TStringBuf(diag.getLineContents().data(), diag.getLineContents().size()))
+            << TErrorAttribute("message", TStringBuf(diag.getMessage().data(), diag.getMessage().size()));
     }
 
-    for (auto symbol : requiredSymbols) {
-        auto callee = implModule->getFunction(StringRef(symbol));
+    for (const auto& symbol : requiredSymbols) {
+        auto callee = implModule->getFunction(ToStringRef(symbol));
         if (!callee) {
             THROW_ERROR_EXCEPTION(
-                "Could not find LLVM bitcode for %Qv",
+                "LLVM bitcode for function %Qv is missing required symbol %Qv",
+                functionName,
                 symbol);
         }
         callee->addFnAttr(Attribute::AttrKind::AlwaysInline);
@@ -561,7 +492,7 @@ bool LoadLlvmBitcode(
         auto nameStroka = Stroka(name.begin(), name.size());
         if (builder.Module->SymbolIsLoaded(nameStroka)) {
             THROW_ERROR_EXCEPTION(
-                "Error loading LLVM bitcode for function %Qv: symbol %Qv already exists",
+                "LLVM bitcode for function %Qv redefines already defined symbol %Qv",
                 functionName,
                 nameStroka);
         }
@@ -585,10 +516,8 @@ bool LoadLlvmBitcode(
         THROW_ERROR_EXCEPTION(
             "Error linking LLVM bitcode for function %Qv",
             functionName)
-            << TErrorAttribute("messages",  os.str().c_str());
+            << TErrorAttribute("message", os.str().c_str());
     }
-
-    return true;
 }
 
 void LoadLlvmFunctions(
@@ -610,7 +539,7 @@ void LoadLlvmFunctions(
         requiredSymbols.push_back(function.first);
     }
 
-    auto loaded = LoadLlvmBitcode(
+    LoadLlvmBitcode(
         builder,
         functionName,
         requiredSymbols,
@@ -618,40 +547,15 @@ void LoadLlvmFunctions(
 
     auto module = builder.Module->GetModule();
 
-    if (loaded) {
-        builder.Module->AddLoadedFunction(functionName);
-        for (auto function : functions) {
-            auto callee = module->getFunction(StringRef(function.first));
-            CheckCallee(
-                builder,
-                function.first,
-                callee,
-                function.second);
-        }
-        return;
+    builder.Module->AddLoadedFunction(functionName);
+    for (const auto& function : functions) {
+        auto callee = module->getFunction(ToStringRef(function.first));
+        CheckCallee(
+            builder,
+            function.first,
+            callee,
+            function.second);
     }
-
-    loaded = LoadSharedObject(
-        builder,
-        functionName,
-        requiredSymbols,
-        implementationFile);
-
-    if (loaded) {
-        builder.Module->AddLoadedFunction(functionName);
-        for (auto function : functions) {
-            Function::Create(
-                function.second,
-                Function::ExternalLinkage,
-                function.first.c_str(),
-                module);
-        }
-        return;
-    }
-
-    THROW_ERROR_EXCEPTION(
-        "Error loading implementation file for function %Qv",
-        functionName);
 }
 
 TCodegenExpression TExternalFunctionCodegen::Profile(
@@ -665,7 +569,7 @@ TCodegenExpression TExternalFunctionCodegen::Profile(
     YCHECK(!ImplementationFile_.Empty());
 
     if (id) {
-        id->AddString(llvm::StringRef(Fingerprint_.Begin(), Fingerprint_.Size()));
+        id->AddString(ToStringRef(Fingerprint_));
     }
 
     auto codegenBody = [
@@ -685,7 +589,7 @@ TCodegenExpression TExternalFunctionCodegen::Profile(
             this_->ImplementationFile_);
 
         auto callee = builder.Module->GetModule()->getFunction(
-            StringRef(this_->SymbolName_));
+            ToStringRef(this_->SymbolName_));
         YCHECK(callee);
 
         auto result = builder.CreateCall(callee, argumentValues);
@@ -712,7 +616,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
     YCHECK(!ImplementationFile_.Empty());
 
     if (id) {
-        id->AddString(llvm::StringRef(Fingerprint_.Begin(), Fingerprint_.Size()));
+        id->AddString(ToStringRef(Fingerprint_));
     }
 
     auto initName = AggregateName_ + "_init";
@@ -783,8 +687,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
                 aggregateFunctions,
                 this_->ImplementationFile_);
 
-            auto callee = builder.Module->GetModule()->getFunction(
-                StringRef(functionName));
+            auto callee = builder.Module->GetModule()->getFunction(ToStringRef(functionName));
             YCHECK(callee);
 
             return builder.CreateCall(callee, argumentValues);
