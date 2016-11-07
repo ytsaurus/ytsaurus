@@ -1,3 +1,3 @@
-from .yt_env import YTEnv, YTInstance
+from .yt_env import YTInstance
 
-__all__ = ["YTEnv", "YTInstance"]
+__all__ = ["YTInstance"]
