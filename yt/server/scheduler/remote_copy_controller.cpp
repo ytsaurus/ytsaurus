@@ -246,6 +246,7 @@ private:
         StartAsyncSchedulerTransaction();
         StartInputTransaction(NullTransactionId);
         StartOutputTransaction(UserTransactionId);
+        StartDebugOutputTransaction();
     }
 
     virtual void DoInitialize() override

@@ -218,6 +218,7 @@ protected:
     NApi::ITransactionPtr AsyncSchedulerTransaction;
     NApi::ITransactionPtr InputTransaction;
     NApi::ITransactionPtr OutputTransaction;
+    NApi::ITransactionPtr DebugOutputTransaction;
 
     TSharedRef Snapshot;
 
@@ -722,8 +723,9 @@ protected:
     // Initialize transactions
     void StartAsyncSchedulerTransaction();
     void StartSyncSchedulerTransaction();
-    virtual void StartInputTransaction(const NObjectClient::TTransactionId& parentTransactionId);
-    virtual void StartOutputTransaction(const NObjectClient::TTransactionId& parentTransactionId);
+    void StartInputTransaction(const NObjectClient::TTransactionId& parentTransactionId);
+    void StartOutputTransaction(const NObjectClient::TTransactionId& parentTransactionId);
+    void StartDebugOutputTransaction();
 
     // Completion.
     void TeleportOutputChunks();

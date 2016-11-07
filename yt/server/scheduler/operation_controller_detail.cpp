@@ -76,6 +76,22 @@ using NTableClient::TTableReaderOptions;
 
 ////////////////////////////////////////////////////////////////////
 
+namespace {
+
+void CommitTransaction(ITransactionPtr transaction)
+{
+    if (!transaction) {
+        return;
+    }
+    auto result = WaitFor(transaction->Commit());
+    THROW_ERROR_EXCEPTION_IF_FAILED(result, "Transaction %v has failed to commit",
+        transaction->GetId());
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////
+
 void TOperationControllerBase::TLivePreviewTableBase::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -1048,6 +1064,7 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
         checkTransaction(controllerTransactions->Sync);
         checkTransaction(controllerTransactions->Input);
         checkTransaction(controllerTransactions->Output);
+        checkTransaction(controllerTransactions->DebugOutput);
     }
 
     // Downloading snapshot.
@@ -1082,11 +1099,13 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
             scheduleAbort(controllerTransactions->Sync);
             scheduleAbort(controllerTransactions->Input);
             scheduleAbort(controllerTransactions->Output);
+            scheduleAbort(controllerTransactions->DebugOutput);
         } else {
             LOG_INFO("Reusing operation transactions");
             SyncSchedulerTransaction = controllerTransactions->Sync;
             InputTransaction = controllerTransactions->Input;
             OutputTransaction = controllerTransactions->Output;
+            DebugOutputTransaction = controllerTransactions->DebugOutput;
 
             StartAsyncSchedulerTransaction();
 
@@ -1227,28 +1246,28 @@ void TOperationControllerBase::Prepare()
         Logger,
         EPermission::Write);
 
-    yhash_set<TObjectId> outputTableIds;
-    for (const auto& table : OutputTables) {
-        const auto& path = table.Path.GetPath();
-        if (table.Type != EObjectType::Table) {
-            THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
-                path,
-                EObjectType::Table,
-                table.Type);
-        }
-        if (outputTableIds.find(table.ObjectId) != outputTableIds.end()) {
-            THROW_ERROR_EXCEPTION("Output table %v is specified multiple times",
-                path);
-        }
-        outputTableIds.insert(table.ObjectId);
-    }
-
     GetUserObjectBasicAttributes<TOutputTable>(
         AuthenticatedMasterClient,
         StderrTable,
-        OutputTransaction->GetId(),
+        DebugOutputTransaction->GetId(),
         Logger,
         EPermission::Write);
+
+    yhash_set<TObjectId> updatingTableIds;
+    for (auto table : UpdatingTables) {
+        const auto& path = table->Path.GetPath();
+        if (table->Type != EObjectType::Table) {
+            THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
+                path,
+                EObjectType::Table,
+                table->Type);
+        }
+        const bool insertedNew = updatingTableIds.insert(table->ObjectId).second;
+        if (!insertedNew) {
+            THROW_ERROR_EXCEPTION("Output table %v is specified multiple times",
+                path);
+        }
+    }
 
     GetUserObjectBasicAttributes<TUserFile>(
         AuthenticatedMasterClient,
@@ -1395,6 +1414,7 @@ void TOperationControllerBase::InitializeTransactions()
     StartSyncSchedulerTransaction();
     StartInputTransaction(SyncSchedulerTransaction->GetId());
     StartOutputTransaction(SyncSchedulerTransaction->GetId());
+    StartDebugOutputTransaction();
     AreTransactionsActive = true;
 }
 
@@ -1467,6 +1487,14 @@ void TOperationControllerBase::StartOutputTransaction(const TTransactionId& pare
 
     LOG_INFO("Output transaction started (OutputTransactionId: %v)",
         OutputTransaction->GetId());
+}
+
+void TOperationControllerBase::StartDebugOutputTransaction()
+{
+    DebugOutputTransaction = StartTransaction("debug_output", AuthenticatedMasterClient);
+
+    LOG_INFO("Debug output transaction started (DebugOutputTransactionId: %v)",
+        DebugOutputTransaction->GetId());
 }
 
 void TOperationControllerBase::PickIntermediateDataCell()
@@ -1651,19 +1679,12 @@ void TOperationControllerBase::CommitTransactions()
 {
     LOG_INFO("Committing scheduler transactions");
 
-    auto commitTransaction = [&] (ITransactionPtr transaction) {
-        if (!transaction) {
-            return;
-        }
-        auto result = WaitFor(transaction->Commit());
-        THROW_ERROR_EXCEPTION_IF_FAILED(result, "Operation has failed to commit");
-    };
-
     AreTransactionsActive = false;
 
-    commitTransaction(InputTransaction);
-    commitTransaction(OutputTransaction);
-    commitTransaction(SyncSchedulerTransaction);
+    CommitTransaction(InputTransaction);
+    CommitTransaction(OutputTransaction);
+    CommitTransaction(SyncSchedulerTransaction);
+    CommitTransaction(DebugOutputTransaction);
 
     LOG_INFO("Scheduler transactions committed");
 
@@ -2262,7 +2283,13 @@ bool TOperationControllerBase::IsIntermediateLivePreviewSupported() const
 std::vector<ITransactionPtr> TOperationControllerBase::GetTransactions()
 {
     if (AreTransactionsActive) {
-        return {AsyncSchedulerTransaction, SyncSchedulerTransaction, InputTransaction, OutputTransaction};
+        return {
+            AsyncSchedulerTransaction,
+            SyncSchedulerTransaction,
+            InputTransaction,
+            OutputTransaction,
+            DebugOutputTransaction
+        };
     } else {
         return {};
     }
@@ -2291,6 +2318,14 @@ void TOperationControllerBase::Abort()
     if (StderrTable && StderrTable->IsBeginUploadCompleted()) {
         AttachOutputChunks({StderrTable.GetPtr()});
         EndUploadOutputTables({StderrTable.GetPtr()});
+    }
+
+    try {
+        CommitTransaction(DebugOutputTransaction);
+    } catch (const std::exception& ex) {
+        // Bad luck we can't commit transaction.
+        // Such a pity can happen for example if somebody aborted our transaction manualy.
+        LOG_ERROR(ex, "Failed to commit debug output transaction");
     }
 
     abortTransaction(InputTransaction);
@@ -3262,7 +3297,12 @@ void TOperationControllerBase::GetOutputTablesSchema()
                     "schema"
                 };
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                SetTransactionId(req, OutputTransaction->GetId());
+                if (table->OutputType == EOutputTableType::Output) {
+                    SetTransactionId(req, OutputTransaction->GetId());
+                } else {
+                    YCHECK(table->OutputType == EOutputTableType::Stderr);
+                    SetTransactionId(req, DebugOutputTransaction->GetId());
+                }
                 batchReq->AddRequest(req, "get_attributes");
             }
         }
@@ -3316,8 +3356,7 @@ void TOperationControllerBase::BeginUploadOutputTables()
                     SetTransactionId(req, OutputTransaction->GetId());
                 } else {
                     YCHECK(table->OutputType == EOutputTableType::Stderr);
-                    // We don't use transaction for stderr table
-                    // since we want it to be saved always.
+                    SetTransactionId(req, DebugOutputTransaction->GetId());
                 }
                 GenerateMutationId(req);
                 req->set_update_mode(static_cast<int>(table->TableUploadOptions.UpdateMode));
@@ -4052,6 +4091,8 @@ void TOperationControllerBase::RegisterStderr(TJobletPtr joblet, const TJobSumma
             AsyncSchedulerTransaction->GetId(),
             StderrTable->LivePreviewTableId,
             {chunkListId});
+        LOG_DEBUG("Stderr chunk tree registered (ChunkListId: %v)",
+            chunkListId);
     }
 }
 
@@ -4254,7 +4295,8 @@ void TOperationControllerBase::BuildOperationAttributes(IYsonConsumer* consumer)
         .Item("sync_scheduler_transaction_id").Value(SyncSchedulerTransaction ? SyncSchedulerTransaction->GetId() : NullTransactionId)
         .Item("async_scheduler_transaction_id").Value(AsyncSchedulerTransaction ? AsyncSchedulerTransaction->GetId() : NullTransactionId)
         .Item("input_transaction_id").Value(InputTransaction ? InputTransaction->GetId() : NullTransactionId)
-        .Item("output_transaction_id").Value(OutputTransaction ? OutputTransaction->GetId() : NullTransactionId);
+        .Item("output_transaction_id").Value(OutputTransaction ? OutputTransaction->GetId() : NullTransactionId)
+        .Item("debug_output_transaction_id").Value(DebugOutputTransaction ? DebugOutputTransaction->GetId() : NullTransactionId);
 }
 
 void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
@@ -5075,4 +5117,3 @@ IOperationControllerPtr CreateControllerWrapper(
 
 } // namespace NScheduler
 } // namespace NYT
-

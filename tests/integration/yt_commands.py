@@ -8,7 +8,7 @@ import os, stat
 import sys
 import tempfile
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 import cStringIO
 from cStringIO import StringIO
 
@@ -378,8 +378,55 @@ def get_batch_output(result):
         return result["output"]
     return None
 
+
 class TimeoutError(Exception):
     pass
+
+class EventsOnFs(object):
+    """ EventsOnFs helps to exchange information between test code
+    and test MR jobs about different events."""
+    def __init__(self, label="eventdir"):
+        self._tmpdir = create_tmpdir(label)
+
+    def notify_event(self, event_name):
+        file_name = self._get_event_filename(event_name)
+        print >>sys.stderr, "touching", file_name
+        with open(file_name, 'w'):
+            pass
+
+    def notify_event_cmd(self, event_name):
+        return "touch '{0}'".format(self._get_event_filename(event_name))
+
+    def wait_event(self, event_name, timeout=timedelta(seconds=60)):
+        file_name = self._get_event_filename(event_name)
+        deadline = datetime.now() + timeout
+        while True:
+            if os.path.exists(file_name):
+                break
+            if datetime.now() > deadline:
+                raise TimeoutError("Timeout exceeded while waiting for {0}".format(event_name))
+            time.sleep(0.1)
+
+    def wait_event_cmd(self, event_name, timeout=timedelta(seconds=60)):
+        return (
+            " {{ wait_limit={wait_limit}\n"
+            " while ! [ -f {event_file_name} ]\n"
+            " do\n"
+            "     sleep 0.1 ; ((wait_limit--)) ;\n"
+            "     if [ $wait_limit -le 0 ] ; then \n"
+            "         echo timeout for event {event_name} exceeded >&2 ; exit 1 ;\n"
+            "     fi\n"
+            " done \n"
+            "}}").format(
+                event_name=event_name,
+                event_file_name=self._get_event_filename(event_name),
+                wait_limit=timeout.seconds*10)
+
+    def _get_event_filename(self, event_name):
+        if not event_name:
+            raise ValueError("event_name must be non empty")
+        return os.path.join(self._tmpdir, event_name)
+
 
 class Operation(object):
     def __init__(self):
