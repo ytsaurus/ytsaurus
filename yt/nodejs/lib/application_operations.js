@@ -481,29 +481,27 @@ function YtApplicationOperations$list(parameters)
     var max_size = optional(parameters, "max_size", validateInteger, MAX_SIZE_LIMIT);
 
     // Process |from_time| & |to_time|.
-    if (from_time === null) {
-        if (to_time === null) {
-            to_time = (new Date()).getTime() * 1000;
+    if (include_archive) {
+        if (from_time === null) {
+            throw new YtError("Missing required parameter \"from_time\"")
+                .withCode(1);
         }
-        from_time = to_time - TIME_SPAN_LIMIT;
-    } else {
         if (to_time === null) {
-            to_time = from_time + TIME_SPAN_LIMIT;
+            throw new YtError("Missing required parameter \"to_time\"")
+                .withCode(1);
         }
-    }
-
-    var time_span = to_time - from_time;
-    if (time_span > TIME_SPAN_LIMIT) {
-        throw new YtError("Time span exceedes allowed limit ({} days > {} days)".format(
-            time_span / TIME_SPAN_DAY, TIME_SPAN_LIMIT / TIME_SPAN_DAY)).withCode(1);
+        var time_span = to_time - from_time;
+        if (time_span > TIME_SPAN_LIMIT) {
+            throw new YtError("Time span exceedes allowed limit ({} days > {} days)".format(
+                time_span / TIME_SPAN_DAY, TIME_SPAN_LIMIT / TIME_SPAN_DAY)).withCode(1);
+        }
     }
 
     // Process |cursor_time|, |cursor_direction|.
-    if (cursor_time === null) {
-        cursor_time = to_time;
-    }
-
-    if (cursor_time > to_time || cursor_time < from_time) {
+    if (cursor_time !== null && (
+        to_time !== null && cursor_time > to_time ||
+        from_time !== null && cursor_time < from_time))
+    {
         throw new YtError("Time cursor is out of range").withCode(1);
     }
 
@@ -553,35 +551,32 @@ function YtApplicationOperations$list(parameters)
             timings.version = new Date() - timings_start;
         });
 
-    var archive_callbacks = version.then(getArchiveCallbacks.bind(
-        this,
-        timings,
-        from_time,
-        to_time,
-        cursor_time,
-        substr_filter,
-        cursor_direction,
-        state_filter,
-        type_filter,
-        user_filter,
-        max_size));
+    var archive_counts = Q.resolve([]);
+    var archive_data = Q.resolve([]);
 
-    var archive_counts = null;
-    if (include_archive && include_counters) {
-        archive_counts = archive_callbacks.then(function(callbacks) {
-            return callbacks.getCounts();
-        });
-    } else {
-        archive_counts = Q.resolve([]);
-    }
-
-    var archive_data = null;
     if (include_archive) {
+        var archive_callbacks = version.then(getArchiveCallbacks.bind(
+            this,
+            timings,
+            from_time,
+            to_time,
+            cursor_time,
+            substr_filter,
+            cursor_direction,
+            state_filter,
+            type_filter,
+            user_filter,
+            max_size));
+
+        if (include_counters) {
+            archive_counts = archive_callbacks.then(function(callbacks) {
+                return callbacks.getCounts();
+            });
+        }
+
         archive_data = archive_callbacks.then(function(callbacks) {
             return callbacks.getItems();
         });
-    } else {
-        archive_data = Q.resolve([]);
     }
 
     function makeRegister() {
@@ -688,7 +683,7 @@ function YtApplicationOperations$list(parameters)
 
             // Check time filter.
             var start_time = utils.utcStringToMicros(attributes.start_time);
-            if (start_time < from_time || start_time >= to_time) {
+            if ((from_time !== null && start_time < from_time) || (to_time !== null && start_time >= to_time)) {
                 return false;
             }
 
@@ -725,13 +720,15 @@ function YtApplicationOperations$list(parameters)
                 return false;
             }
 
-            // Check cursor position.
-            if (cursor_direction === "past" && start_time >= cursor_time) {
-                return false;
-            }
+            if (cursor_time !== null) {
+                // Check cursor position.
+                if (cursor_direction === "past" && start_time >= cursor_time) {
+                    return false;
+                }
 
-            if (cursor_direction === "future" && start_time <= cursor_time) {
-                return false;
+                if (cursor_direction === "future" && start_time <= cursor_time) {
+                    return false;
+                }
             }
 
             return true;
