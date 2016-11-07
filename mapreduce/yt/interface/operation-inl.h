@@ -9,6 +9,7 @@
 #include <util/generic/bt_exception.h>
 #include <util/stream/file.h>
 #include <util/stream/buffer.h>
+#include <util/string/subst.h>
 
 namespace NYT {
 
@@ -361,9 +362,17 @@ struct TReducerRegistrator
     }
 };
 
+inline Stroka YtRegistryTypeName(const Stroka& name) {
+    Stroka res = name;
+#ifdef _win_
+    SubstGlobal(res, "class ", "");
+#endif
+    return res;
+}
+
 #define REGISTER_MAPPER(...) \
 static NYT::TMapperRegistrator<__VA_ARGS__> \
-Y_GENERATE_UNIQUE_ID(TJobRegistrator)(~TypeName<__VA_ARGS__>());
+Y_GENERATE_UNIQUE_ID(TJobRegistrator)(~NYT::YtRegistryTypeName(TypeName<__VA_ARGS__>()));
 
 #define REGISTER_NAMED_MAPPER(name, ...) \
 static NYT::TMapperRegistrator<__VA_ARGS__> \
@@ -371,7 +380,7 @@ Y_GENERATE_UNIQUE_ID(TJobRegistrator)(name);
 
 #define REGISTER_REDUCER(...) \
 static NYT::TReducerRegistrator<__VA_ARGS__> \
-Y_GENERATE_UNIQUE_ID(TJobRegistrator)(~TypeName<__VA_ARGS__>());
+Y_GENERATE_UNIQUE_ID(TJobRegistrator)(~NYT::YtRegistryTypeName(TypeName<__VA_ARGS__>()));
 
 #define REGISTER_NAMED_REDUCER(name, ...) \
 static NYT::TReducerRegistrator<__VA_ARGS__> \
