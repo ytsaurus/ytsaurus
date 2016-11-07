@@ -545,6 +545,11 @@ TNullable<i64> TRichYPath::GetRowCountLimit() const
     return FindAttribute<i64>(*this, "row_count_limit");
 }
 
+TNullable<NTransactionClient::TTimestamp> TRichYPath::GetTimestamp() const
+{
+    return FindAttribute<NTransactionClient::TTimestamp>(*this, "timestamp");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 Stroka ToString(const TRichYPath& path)

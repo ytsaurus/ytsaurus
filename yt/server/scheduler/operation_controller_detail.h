@@ -489,6 +489,7 @@ protected:
         virtual IChunkPoolOutput* GetChunkPoolOutput() const = 0;
 
         const NTableClient::TTableSchema& GetInputTableSchema(int tableIndex) const;
+        const NTransactionClient::TTimestamp GetInputTableTimestamp(int tableIndex) const;
 
         virtual void Persist(const TPersistenceContext& context) override;
 
@@ -1048,6 +1049,11 @@ private:
     virtual NYson::IYsonConsumer* GetEventLogConsumer() override;
 
     TCodicilGuard MakeCodicilGuard() const;
+
+    void ValidateDynamicTableTimestamp(
+        const NYPath::TRichYPath& path,
+        const NYTree::IAttributeDictionary& attributes) const;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

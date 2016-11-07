@@ -776,18 +776,27 @@ const TTableSchema& TOperationControllerBase::TTask::GetInputTableSchema(int tab
     }
 }
 
+const TTimestamp TOperationControllerBase::TTask::GetInputTableTimestamp(int tableIndex) const
+{
+    if (tableIndex == -1) {
+        return AsyncLastCommittedTimestamp;
+    } else {
+        YCHECK(tableIndex >= 0 && tableIndex < Controller->InputTables.size());
+        return Controller->InputTables[tableIndex].Path.GetTimestamp().Get(AsyncLastCommittedTimestamp);
+    }
+}
+
 void TOperationControllerBase::TTask::AddChunksToInputSpec(
     TNodeDirectoryBuilder* directoryBuilder,
     TTableInputSpec* inputSpec,
     TChunkStripePtr stripe)
 {
     for (const auto& dataSlice : stripe->DataSlices) {
-        //FIXME(savrus) Get appropriate timestamp for a table.
         ToProto(
             inputSpec->add_data_slice_descriptors(),
             dataSlice,
             GetInputTableSchema(dataSlice->GetTableIndex()),
-            AsyncLastCommittedTimestamp);
+            GetInputTableTimestamp(dataSlice->GetTableIndex()));
 
         for (const auto& chunkSlice : dataSlice->ChunkSlices) {
             auto replicas = chunkSlice->GetInputChunk()->GetReplicaList();
@@ -3133,8 +3142,10 @@ void TOperationControllerBase::LockInputTables()
                 std::vector<Stroka> attributeKeys{
                     "dynamic",
                     "chunk_count",
+                    "retained_timestamp",
                     "schema_mode",
-                    "schema"
+                    "schema",
+                    "unflushed_timestamp"
                 };
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
                 SetTransactionId(req, InputTransaction->GetId());
@@ -3159,6 +3170,11 @@ void TOperationControllerBase::LockInputTables()
                 table.Schema = attributes->Get<TTableSchema>("schema");
                 table.SchemaMode = attributes->Get<ETableSchemaMode>("schema_mode");
                 table.ChunkCount = attributes->Get<int>("chunk_count");
+
+                // Validate that timestamp is correct.
+                if (table.IsDynamic) {
+                    ValidateDynamicTableTimestamp(table.Path, *attributes);
+                }
             }
             LOG_INFO("Input table locked (Path: %v, Schema: %v, ChunkCount: %v)",
                 path,
@@ -3455,6 +3471,24 @@ void TOperationControllerBase::FetchUserFiles(std::vector<TUserFile>* files)
     }
 }
 
+void TOperationControllerBase::ValidateDynamicTableTimestamp(
+    const TRichYPath& path,
+    const IAttributeDictionary& attributes) const
+{
+    auto requested = path.GetTimestamp().Get(AsyncLastCommittedTimestamp);
+    if (requested != AsyncLastCommittedTimestamp) {
+        auto retained = attributes.Get<TTimestamp>("retained_timestamp");
+        auto unflushed = attributes.Get<TTimestamp>("unflushed_timestamp");
+        if (requested < retained || requested >= unflushed) {
+            THROW_ERROR_EXCEPTION("Requested timestamp is out of range for table %v",
+                path)
+                << TErrorAttribute("requested_timestamp", requested)
+                << TErrorAttribute("retained_timestamp", retained)
+                << TErrorAttribute("unflushed_timestamp", unflushed);
+        }
+    }
+}
+
 void TOperationControllerBase::LockUserFiles(std::vector<TUserFile>* files)
 {
     LOG_INFO("Locking user files");
@@ -3503,6 +3537,8 @@ void TOperationControllerBase::LockUserFiles(std::vector<TUserFile>* files)
                         attributeKeys.push_back("format");
                         attributeKeys.push_back("dynamic");
                         attributeKeys.push_back("schema");
+                        attributeKeys.push_back("retained_timestamp");
+                        attributeKeys.push_back("unflushed_timestamp");
                         break;
 
                     default:
@@ -3599,6 +3635,11 @@ void TOperationControllerBase::LockUserFiles(std::vector<TUserFile>* files)
                             THROW_ERROR_EXCEPTION("Failed to parse format of table file %v",
                                 file.Path) << ex;
                         }
+                        // Validate that timestamp is correct.
+                        if (file.IsDynamic) {
+                            ValidateDynamicTableTimestamp(file.Path, attributes);
+                        }
+
                         break;
 
                     default:
@@ -4476,7 +4517,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
                 EDataSliceDescriptorType::VersionedTable,
                 file.ChunkSpecs);
             dataSliceDescriptor.Schema = file.Schema;
-            dataSliceDescriptor.Timestamp = AsyncLastCommittedTimestamp;
+            dataSliceDescriptor.Timestamp = file.Path.GetTimestamp().Get(AsyncLastCommittedTimestamp);
             ToProto(descriptor->add_data_slice_descriptors(), dataSliceDescriptor);
         } else {
             for (const auto& chunkSpec : file.ChunkSpecs) {
