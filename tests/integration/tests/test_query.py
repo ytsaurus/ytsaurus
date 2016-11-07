@@ -499,7 +499,7 @@ class TestQuery(YTEnvSetup):
                 "calling_convention": "simple"}})
 
         local_implementation_path = self._find_ut_file("test_udfs.bc")
-        write_local_file(sum_path, local_implementation_path)
+        write_local_file(abs_path, local_implementation_path)
 
         self._sample_data(path="//tmp/u")
         expected = [{"s": 2 * i} for i in xrange(1, 10)]
