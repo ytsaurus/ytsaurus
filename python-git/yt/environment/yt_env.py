@@ -640,11 +640,7 @@ class YTInstance(object):
         return Yt(config=config)
 
     def _remove_scheduler_lock(self):
-        if self.has_proxy:
-            client = Yt(proxy=self.get_proxy_address())
-        else:
-            client = self.create_native_client("driver")
-
+        client = self.create_client()
         try:
             tx_id = client.get("//sys/scheduler/lock/@locks/0/transaction_id")
             if tx_id:
