@@ -498,29 +498,12 @@ class TestQuery(YTEnvSetup):
                     "value": "int64"},
                 "calling_convention": "simple"}})
 
-        sum_path = os.path.join(registry_path, "sum_udf2")
-        create("file", sum_path,
-            attributes = { "function_descriptor": {
-                "name": "sum_udf2",
-                "argument_types": [{
-                    "tag": "concrete_type",
-                    "value": "int64"}],
-                "repeated_argument_type": {
-                    "tag": "concrete_type",
-                    "value": "int64"},
-                "result_type": {
-                    "tag": "concrete_type",
-                    "value": "int64"},
-                "calling_convention": "unversioned_value"}})
-
-        abs_impl_path = self._find_ut_file("test_udfs.bc")
-        sum_impl_path = self._find_ut_file("sum_udf2.bc")
-        write_local_file(abs_path, abs_impl_path)
-        write_local_file(sum_path, sum_impl_path)
+        local_implementation_path = self._find_ut_file("test_udfs.bc")
+        write_local_file(sum_path, local_implementation_path)
 
         self._sample_data(path="//tmp/u")
         expected = [{"s": 2 * i} for i in xrange(1, 10)]
-        actual = select_rows("abs_udf(-2 * a) as s from [{0}//tmp/u] where sum_udf2(b, 1, 2) = sum_udf2(3, b)".format(TestQuery.yson_schema_attribute))
+        actual = select_rows("abs_udf(-2 * a) as s from [{0}//tmp/u]".format(TestQuery.yson_schema_attribute))
         assert_items_equal(actual, expected)
 
     def test_udaf(self):
@@ -648,30 +631,6 @@ class TestQuery(YTEnvSetup):
         assert actual[0]["b"] < 1.05 * 10000
         assert actual[1]["b"] > .95 * 10000
         assert actual[1]["b"] < 1.05 * 10000
-
-    def test_object_udf(self):
-        registry_path =  "//tmp/udfs"
-        create("map_node", registry_path)
-
-        abs_path = os.path.join(registry_path, "abs_udf_o")
-        create("file", abs_path,
-            attributes = { "function_descriptor": {
-                "name": "abs_udf",
-                "argument_types": [{
-                    "tag": "concrete_type",
-                    "value": "int64"}],
-                "result_type": {
-                    "tag": "concrete_type",
-                    "value": "int64"},
-                "calling_convention": "simple"}})
-
-        abs_impl_path = self._find_ut_file("test_udfs_o.o")
-        write_local_file(abs_path, abs_impl_path)
-
-        self._sample_data(path="//tmp/sou")
-        expected = [{"s": 2 * i} for i in xrange(1, 10)]
-        actual = select_rows("abs_udf_o(-2 * a) as s from [{0}//tmp/sou]".format(TestQuery.yson_schema_attribute))
-        assert_items_equal(actual, expected)
 
     def test_yt_2375(self):
         self.sync_create_cells(3, 3)
