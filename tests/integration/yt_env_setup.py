@@ -12,10 +12,13 @@ import gc
 import os
 import sys
 import logging
-import uuid
+import resource
 import shutil
+import stat
 import subprocess
+import uuid
 import __builtin__
+from distutils.spawn import find_executable
 from time import sleep, time
 from threading import Thread
 
@@ -30,6 +33,25 @@ def skip_if_multicell(func):
     def wrapped_func(self, *args, **kwargs):
         if hasattr(self, "NUM_SECONDARY_MASTER_CELLS") and self.NUM_SECONDARY_MASTER_CELLS > 0:
             pytest.skip("This test does not support multicell mode")
+        func(self, *args, **kwargs)
+    return wrapped_func
+
+def require_ytserver_root_privileges(func):
+    def wrapped_func(self, *args, **kwargs):
+        ytserver_path = find_executable("ytserver")
+        ytserver_stat = os.stat(ytserver_path)
+        if (ytserver_stat.st_mode & stat.S_ISUID) == 0:
+            pytest.fail("This test requires a suid bit set for ytserver")
+        if ytserver_stat.st_uid != 0:
+            pytest.fail("This test requires ytserver being owned by root")
+        func(self, *args, **kwargs)
+    return wrapped_func
+
+def require_enabled_core_dump(func):
+    def wrapped_func(self, *args, **kwargs):
+        rlimit_core = resource.getrlimit(resource.RLIMIT_CORE)
+        if rlimit_core[0] == 0:
+            pytest.skip("This test requires enabled core dump (how about 'ulimit -c unlimited'?)")
         func(self, *args, **kwargs)
     return wrapped_func
 
@@ -354,7 +376,6 @@ class YTEnvSetup(object):
         yt_commands.remove("//sys/pools/*")
 
     def _find_ut_file(self, file_name):
-        from distutils.spawn import find_executable
         ytserver_path = find_executable("ytserver")
         assert ytserver_path is not None
         unittests_path = os.path.join(os.path.dirname(ytserver_path), "..", "yt", "unittests")
