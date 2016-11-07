@@ -1,12 +1,19 @@
-from yt_env_setup import YTEnvSetup, make_schema, unix_only, wait
-
+from yt_env_setup import YTEnvSetup, make_schema, unix_only, wait, require_enabled_core_dump, require_ytserver_root_privileges
 from yt_commands import *
 
-import pytest
-
+import binascii
 import itertools
+import pytest
+import os
+import psutil
+import signal
+import subprocess
+import sys
 import time
+import threading
+from multiprocessing import Queue
 
+##################################################################
 
 def get_stderr_spec(stderr_file):
     return {
@@ -44,7 +51,7 @@ def expect_to_find_in_stderr_table(stderr_table_path, content):
     assert get("{0}/@sorted_by".format(stderr_table_path)) == ["job_id", "part_index"]
     table_row_list = list(read_table(stderr_table_path))
     assert sorted(row["data"] for row in table_row_list) == sorted(content)
-    job_id_list = [row['job_id'] for row in table_row_list]
+    job_id_list = [row["job_id"] for row in table_row_list]
     assert sorted(job_id_list) == job_id_list
 
 
@@ -374,3 +381,411 @@ class TestStderrTable(YTEnvSetup):
                                                               "complete_while_scheduler_dead\n"]
         assert get("//tmp/t_stderr/@sorted")
         assert get("//tmp/t_stderr/@sorted_by") == ["job_id", "part_index"]
+
+
+##################################################################
+
+def random_cookie():
+    return binascii.hexlify(os.urandom(16))
+
+def queue_iterator(queue):
+    while True:
+        chunk = queue.get()
+        if chunk is None:
+            return
+        yield chunk
+
+class TestCoreTable(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    CORE_TABLE = "//tmp/t_core"
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "scheduler_connector": {
+                "heartbeat_period": 100 # 100 msec
+            },
+            "job_proxy_heartbeat_period": 100, # 100 msec
+            "job_controller": {
+                "resource_limits": {
+                    "user_slots": 2,
+                    "cpu": 2,
+                }
+            },
+            "core_forwarder_timeout": 5000
+        }
+    }
+
+    @classmethod
+    def modify_node_config(cls, config):
+        jp_uds_name_dir = os.path.join(cls.path_to_run, "jp_socket")
+        cls.JOB_PROXY_UDS_NAME_DIR = jp_uds_name_dir
+        config["exec_agent"]["slot_manager"]["job_proxy_socket_name_directory"] = jp_uds_name_dir
+        if not os.path.exists(jp_uds_name_dir):
+            os.mkdir(jp_uds_name_dir)
+        return jp_uds_name_dir
+
+    def setup(self):
+        create("table", self.CORE_TABLE)
+
+    # In order to find out the correspondence between job id and user id,
+    # We create a special file in self.JOB_PROXY_UDS_NAME_DIR where we put
+    # the user id and job id.
+    def _start_operation(self, num_jobs, max_failed_job_count=5, kill_self=False):
+        cookie = random_cookie()
+        # We do not care about the job input and output.
+        in_table = "//tmp/t_in_" + cookie
+        out_table = "//tmp/t_out_" + cookie
+        create("table", in_table)
+        create("table", out_table)
+
+        write_table(in_table, [{"id": i} for i in range(num_jobs)])
+
+        correspondence_file_path = os.path.join(self.JOB_PROXY_UDS_NAME_DIR, cookie)
+        open(correspondence_file_path, "w").close()
+        os.chmod(correspondence_file_path, 0777)
+
+        if kill_self:
+            command="trap 'kill -ABRT $$' exit; echo $YT_JOB_ID $UID >>{0} && cat".format(correspondence_file_path)
+        else:
+            command="echo $YT_JOB_ID $UID >>{0} && cat".format(correspondence_file_path)
+
+        op = map(
+            dont_track=True,
+            waiting_jobs=True,
+            command=command,
+            in_=[in_table],
+            out=out_table,
+            spec={
+                "core_table_path": "//tmp/t_core",
+                "data_size_per_job": 1,
+                "max_failed_job_count": max_failed_job_count
+            })
+
+        return (op, correspondence_file_path)
+
+    def _get_job_uid_correspondence(self, op, correspondence_file_path):
+        op.ensure_jobs_running()
+
+        job_id_to_uid = dict()
+
+        for line in open(correspondence_file_path):
+            job_id, uid = line.split()
+            if job_id in op.jobs:
+                job_id_to_uid[job_id] = uid
+
+        assert len(job_id_to_uid) == len(op.jobs)
+        return job_id_to_uid
+
+    # This method starts a core forwarder process and passes given iterable
+    # to its stdin. It returns the thread the process is being executed in.
+    # The internal procedure returns:
+    #   * The core forwarder process return code;
+    #   * The core info dictionary that is supposed to be written in Cypress
+    #   * The string with a complete core data.
+    # It returns the described information by writing it into a given `ret_dict` dictionary
+    # (as there is no convenient way to return a value from a thread in Python).
+    def _send_core(self, uid, exec_name, pid, input_data, ret_dict, fallback_path="/dev/null"):
+        def run_core_forwarder(self, uid, exec_name, pid, input_data, ret_dict, fallback_path):
+            process = psutil.Popen([
+                    "ytserver",
+                    "--core-forwarder",
+                    str(pid),
+                    str(uid),
+                    exec_name,
+                    "1", # rlimit_core is always 1 when core forwarder is called in our case.
+                    self.JOB_PROXY_UDS_NAME_DIR,
+                    fallback_path
+                ],
+                bufsize=0,
+                stdin=subprocess.PIPE)
+            size = 0
+            core_data = ""
+            for chunk in input_data:
+                process.stdin.write(chunk)
+                process.stdin.flush()
+                size += len(chunk)
+                core_data += chunk
+            process.stdin.close()
+            ret_dict["return_code"] = process.wait()
+            ret_dict["core_info"] = {
+                "executable_name": exec_name,
+                "process_id": pid,
+                "size": size
+            }
+            ret_dict["core_data"] = core_data
+
+        thread = threading.Thread(target=run_core_forwarder, args=(self, uid, exec_name, pid, input_data, ret_dict, fallback_path))
+        thread.start()
+        return thread
+
+    def _get_core_infos(self, op):
+        jobs = get("//sys/operations/{0}/jobs".format(op.id), attributes=["core_infos"])
+        return {job_id: value.attributes["core_infos"] for job_id, value in jobs.iteritems()}
+
+    def _get_core_table_content(self, assert_rows_number_geq=0):
+        rows = read_table(self.CORE_TABLE, verbose=False)
+        assert len(rows) >= assert_rows_number_geq
+        content = {}
+        last_key = None
+        for row in rows:
+            key = (row["job_id"], row["core_id"], row["part_index"])
+            # Check that the table is sorted.
+            assert last_key is None or last_key < key
+            last_key = key
+            if not row["job_id"] in content:
+                content[row["job_id"]] = []
+            if row["core_id"] >= len(content[row["job_id"]]):
+                content[row["job_id"]].append("")
+            content[row["job_id"]][row["core_id"]] += row["data"]
+        return content
+
+    @require_ytserver_root_privileges
+    @unix_only
+    def test_no_cores(self):
+        op, correspondence_file_path = self._start_operation(2)
+
+        op.resume_jobs()
+        op.track()
+
+        assert self._get_core_infos(op) == {}
+        assert self._get_core_table_content() == {}
+
+    @require_ytserver_root_privileges
+    @unix_only
+    def test_simple(self):
+        op, correspondence_file_path = self._start_operation(2)
+        job_id_to_uid = self._get_job_uid_correspondence(op, correspondence_file_path)
+
+        job, uid = job_id_to_uid.items()[0]
+
+        ret_dict = {}
+        t = self._send_core(uid, "user_process", 42, ["core_data"], ret_dict)
+        t.join()
+        assert ret_dict["return_code"] == 0
+
+        op.resume_jobs()
+        op.track()
+
+        assert self._get_core_infos(op) == {job: [ret_dict["core_info"]]}
+        assert self._get_core_table_content() == {job: [ret_dict["core_data"]]}
+
+    @require_ytserver_root_privileges
+    @unix_only
+    def test_large_core(self):
+        op, correspondence_file_path = self._start_operation(1)
+        job_id_to_uid = self._get_job_uid_correspondence(op, correspondence_file_path)
+
+        job, uid = job_id_to_uid.items()[0]
+
+        ret_dict = {}
+        t = self._send_core(uid, "user_process", 42, ["abcdefgh" * 10**6], ret_dict)
+        t.join()
+        assert ret_dict["return_code"] == 0
+
+        op.resume_jobs()
+        op.track()
+
+        assert self._get_core_infos(op) == {job: [ret_dict["core_info"]]}
+        assert self._get_core_table_content(assert_rows_number_geq=2) == {job: [ret_dict["core_data"]]}
+
+    @require_ytserver_root_privileges
+    @unix_only
+    def test_core_order(self):
+        # In this test we check that cores are being processed
+        # strictly in the order of their appearance.
+        op, correspondence_file_path = self._start_operation(1)
+        job_id_to_uid = self._get_job_uid_correspondence(op, correspondence_file_path)
+
+        job, uid = job_id_to_uid.items()[0]
+
+        q1 = Queue()
+        ret_dict1 = {}
+        t1 = self._send_core(uid, "user_process", 42, queue_iterator(q1), ret_dict1)
+        q1.put("abc")
+        while not q1.empty():
+            time.sleep(0.1)
+
+        time.sleep(1)
+
+        # Check that second core writer blocks on writing to the named pipe by
+        # providing a core that is sufficiently larger than pipe buffer size.
+        ret_dict2 = {}
+        t2 = self._send_core(uid, "user_process2", 43, ["qwert" * (2 * 10**4)], ret_dict2)
+
+        q1.put("def")
+        while not q1.empty():
+            time.sleep(0.1)
+        assert t2.isAlive()
+        # Signalize end of the stream.
+        q1.put(None)
+        t1.join()
+        t2.join()
+
+        assert ret_dict1["return_code"] == 0
+        assert ret_dict2["return_code"] == 0
+
+        op.resume_jobs()
+        op.track()
+
+        assert self._get_core_infos(op) == {job: [ret_dict1["core_info"], ret_dict2["core_info"]]}
+        assert self._get_core_table_content() == {job: [ret_dict1["core_data"], ret_dict2["core_data"]]}
+
+    @require_ytserver_root_privileges
+    @unix_only
+    def test_operation_fails(self):
+        op, correspondence_file_path = self._start_operation(1, max_failed_job_count=1)
+        job_id_to_uid = self._get_job_uid_correspondence(op, correspondence_file_path)
+
+        job, uid = job_id_to_uid.items()[0]
+
+        ret_dict = {}
+        t = self._send_core(uid, "user_process", 42, ["core_data"], ret_dict)
+        t.join()
+        assert ret_dict["return_code"] == 0
+
+        op.resume_jobs()
+        with pytest.raises(YtError):
+            op.track()
+
+        assert self._get_core_infos(op) == {job: [ret_dict["core_info"]]}
+        assert self._get_core_table_content() == {job: [ret_dict["core_data"]]}
+
+    @require_ytserver_root_privileges
+    @unix_only
+    def test_writing_core_to_fallback_path(self):
+        ret_dict = {}
+        # We use a definitely inexistent uid.
+        temp_file_path = self.JOB_PROXY_UDS_NAME_DIR + random_cookie()
+        t = self._send_core(12345678, "process", 42, ["core_data"], ret_dict, fallback_path=temp_file_path)
+        t.join()
+        assert ret_dict["return_code"] == 0
+        assert open(temp_file_path).read() == "core_data"
+
+    @require_ytserver_root_privileges
+    @unix_only
+    def test_cores_with_job_revival(self):
+        op, correspondence_file_path = self._start_operation(1)
+        job_id_to_uid = self._get_job_uid_correspondence(op, correspondence_file_path)
+
+        job, uid = job_id_to_uid.items()[0]
+
+        q = Queue()
+        ret_dict1 = {}
+        t = self._send_core(uid, "user_process", 42, queue_iterator(q), ret_dict1)
+        q.put("abc")
+        while not q.empty():
+            time.sleep(0.1)
+
+        self.Env.kill_schedulers()
+        self.Env.start_schedulers()
+
+        op.resume_job(job)
+
+        q.put("def")
+        q.put(None)
+        
+        # One may think that we can check if core forwarder process finished with 
+        # non-zero return code because of a broken pipe, but we do not do it because 
+        # it really depends on system and may not be true.
+        t.join()
+
+        # First running job is discarded with is core, so we repeat the process with
+        # a newly scheduled job.
+
+        job_id_to_uid = self._get_job_uid_correspondence(op, correspondence_file_path)
+
+        job, uid = job_id_to_uid.items()[0]
+
+        q = Queue()
+        ret_dict2 = {}
+        t = self._send_core(uid, "user_process", 43, queue_iterator(q), ret_dict2)
+        q.put("abc")
+        while not q.empty():
+            time.sleep(0.1)
+        q.put("def")
+        q.put(None)
+        t.join()
+
+        assert ret_dict2["return_code"] == 0
+
+        op.resume_jobs()
+        op.track()
+
+        assert self._get_core_infos(op) == {job: [ret_dict2["core_info"]]}
+        assert self._get_core_table_content() == {job: [ret_dict2["core_data"]]}
+
+    @require_ytserver_root_privileges
+    @unix_only
+    def test_timeout_while_receiving_core(self):
+        op, correspondence_file_path = self._start_operation(1)
+        job_id_to_uid = self._get_job_uid_correspondence(op, correspondence_file_path)
+
+        job, uid = job_id_to_uid.items()[0]
+
+        q = Queue()
+        ret_dict = {}
+        t = self._send_core(uid, "user_process", 42, queue_iterator(q), ret_dict)
+        q.put("abc")
+        time.sleep(7)
+        q.put(None)
+        t.join()
+
+        op.resume_jobs()
+        op.track()
+        core_infos = self._get_core_infos(op)
+        assert len(core_infos[job]) == 1
+        core_info = core_infos[job][0]
+        assert core_info["executable_name"] == "user_process"
+        assert core_info["process_id"] == 42
+        assert not "size" in core_info
+        assert "error" in core_info
+
+    @require_enabled_core_dump
+    @require_ytserver_root_privileges
+    @unix_only
+    def test_core_when_user_job_was_killed(self):
+        op, correspondence_file_path = self._start_operation(1, kill_self=True, max_failed_job_count=1)
+        job_id_to_uid = self._get_job_uid_correspondence(op, correspondence_file_path)
+
+        job, uid = job_id_to_uid.items()[0]
+
+        op.resume_jobs()
+
+        time.sleep(2)
+
+        ret_dict = {}
+        t = self._send_core(uid, "user_process", 42, ["core_data"], ret_dict)
+        t.join()
+
+        with pytest.raises(YtError):
+            op.track()
+
+        assert self._get_core_infos(op) == {job: [ret_dict["core_info"]]}
+        assert self._get_core_table_content() == {job: [ret_dict["core_data"]]}
+
+    @require_enabled_core_dump
+    @require_ytserver_root_privileges
+    @unix_only
+    def test_core_timeout_when_user_job_was_killed(self):
+        op, correspondence_file_path = self._start_operation(1, kill_self=True, max_failed_job_count=1)
+        job_id_to_uid = self._get_job_uid_correspondence(op, correspondence_file_path)
+
+        job, uid = job_id_to_uid.items()[0]
+
+        op.resume_jobs()
+
+        time.sleep(7)
+
+        with pytest.raises(YtError):
+            op.track()
+
+        core_infos = self._get_core_infos(op)
+        assert len(core_infos[job]) == 1
+        core_info = core_infos[job][0]
+        assert core_info["executable_name"] == "n/a"
+        assert core_info["process_id"] == -1
+        assert not "size" in core_info
+        assert "error" in core_info
