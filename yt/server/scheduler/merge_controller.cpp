@@ -2050,7 +2050,7 @@ private:
             Endpoints.begin(),
             Endpoints.end(),
             [=] (const TKeyEndpoint& lhs, const TKeyEndpoint& rhs) -> bool {
-                int cmpResult = CompareRows(lhs.GetKey(), rhs.GetKey());
+                i64 cmpResult = CompareRows(lhs.GetKey(), rhs.GetKey());
                 if (cmpResult != 0) {
                     return cmpResult < 0;
                 }
