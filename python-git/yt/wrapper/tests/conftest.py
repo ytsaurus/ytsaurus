@@ -4,6 +4,7 @@ from yt.environment import YTInstance
 from yt.wrapper.config import set_option
 from yt.wrapper.default_config import get_default_config
 from yt.wrapper.common import update
+import yt.yson as yson
 import yt.logger as logger
 import yt.tests_runner as tests_runner
 
@@ -131,8 +132,13 @@ class YtTestEnvironment(object):
         self.config["enable_token"] = False
         self.config["pickling"]["enable_tmpfs_archive"] = ENABLE_JOB_CONTROL
         self.config["pickling"]["module_filter"] = lambda module: hasattr(module, "__file__") and not "driver_lib" in module.__file__
-        self.config["driver_config"] = self.env.configs["console_driver"][0]["driver"]
-        self.config["driver_config_path"] = self.env.config_paths["console_driver"][0]
+        self.config["driver_config"] = self.env.configs["driver"]
+
+        python_driver_config = os.path.join(dir, "driver_config_for_python.yson")
+        with open(python_driver_config, "w") as fout:
+            yson.dump({"driver": self.env.configs["driver"]}, fout)
+        self.config["driver_config_path"] = python_driver_config
+
         update(yt.config.config, self.config)
 
         os.environ["PATH"] = ".:" + os.environ["PATH"]
