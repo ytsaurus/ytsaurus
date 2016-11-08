@@ -54,7 +54,6 @@ from .transaction_commands import _make_transactional_request, abort_transaction
 from .transaction import Transaction, null_transaction_id
 from .format import create_format, YsonFormat, YamrFormat
 from .heavy_commands import make_write_request, make_read_request
-from .http_helpers import get_api_version
 
 import yt.logger as logger
 import yt.json as json
@@ -1711,3 +1710,11 @@ def run_remote_copy(source_table, destination_table,
     )(spec)
 
     return _make_operation_request("remote_copy", spec, sync, client=client)
+
+def enable_table_replica(replica_id, client=None):
+    """ TODO """
+    return make_request("enable_table_replica", params={"replica_id": replica_id}, client=client)
+
+def disable_table_replica(replica_id, client=None):
+    """ TODO """
+    return make_request("disable_table_replica", params={"replica_id": replica_id}, client=client)

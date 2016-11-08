@@ -7,7 +7,8 @@ from .table_commands import create_table, create_temp_table, write_table, read_t
                             run_map, run_reduce, run_join_reduce, run_map_reduce, run_remote_copy, \
                             mount_table, alter_table, unmount_table, remount_table, reshard_table, \
                             freeze_table, unfreeze_table, \
-                            select_rows, lookup_rows, insert_rows, delete_rows
+                            select_rows, lookup_rows, insert_rows, delete_rows, \
+                            enable_table_replica, disable_table_replica
 from .operation_commands import get_operation_state, abort_operation, suspend_operation, resume_operation, \
                                 complete_operation, get_operation_attributes
 from .file_commands import read_file, write_file, smart_upload_file
