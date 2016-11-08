@@ -39,12 +39,6 @@ else()
   message(STATUS "Omitting benchmarks from build (YT_BUILD_ENABLE_BENCHMARKS = OFF)")
 endif()
 
-if(YT_BUILD_ENABLE_DRIVER)
-  add_subdirectory(driver)
-else()
-  message(STATUS "Omitting driver from build (YT_BUILD_ENABLE_DRIVER = OFF)")
-endif()
-
 if(YT_BUILD_ENABLE_EXPERIMENTS)
   add_subdirectory(experiments)
 else()
