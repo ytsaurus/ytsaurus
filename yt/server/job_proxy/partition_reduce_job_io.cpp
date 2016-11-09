@@ -19,6 +19,8 @@ using namespace NTableClient;
 using namespace NChunkClient;
 using namespace NTransactionClient;
 
+using NChunkClient::TDataSliceDescriptor;
+
 ////////////////////////////////////////////////////////////////////
 
 class TPartitionReduceJobIO

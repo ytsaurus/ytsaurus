@@ -27,6 +27,7 @@ using namespace NConcurrency;
 
 using NRpc::IChannelPtr;
 using NNodeTrackerClient::TNodeDirectoryPtr;
+using NChunkClient::TDataSliceDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 

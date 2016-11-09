@@ -2,10 +2,10 @@
 
 #include "public.h"
 #include "schemaless_reader.h"
-#include "data_slice_descriptor.h"
 
 #include <yt/ytlib/api/public.h>
 
+#include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/reader_base.h>
 #include <yt/ytlib/chunk_client/read_limit.h>
 
@@ -83,7 +83,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiChunkReader(
     const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-    const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
+    const std::vector<NChunkClient::TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
     TColumnFilter columnFilter = TColumnFilter(),
     const TKeyColumns& keyColumns = TKeyColumns(),
@@ -99,7 +99,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiChunkReader(
     const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-    const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
+    const std::vector<NChunkClient::TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
     TColumnFilter columnFilter = TColumnFilter(),
     const TKeyColumns& keyColumns = TKeyColumns(),

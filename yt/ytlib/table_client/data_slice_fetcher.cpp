@@ -1,7 +1,7 @@
 #include "chunk_slices_fetcher.h"
-#include "data_slice_descriptor.h"
 #include "data_slice_fetcher.h"
 
+#include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/ytlib/chunk_client/input_data_slice.h>
 

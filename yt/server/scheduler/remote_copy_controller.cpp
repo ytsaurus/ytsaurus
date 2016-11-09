@@ -8,6 +8,7 @@
 #include <yt/ytlib/api/config.h>
 #include <yt/ytlib/api/native_connection.h>
 
+#include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
@@ -19,7 +20,6 @@
 #include <yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/ytlib/table_client/config.h>
-#include <yt/ytlib/table_client/data_slice_descriptor.h>
 
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/transaction.h>

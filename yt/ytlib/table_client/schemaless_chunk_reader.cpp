@@ -57,6 +57,7 @@ using namespace NYTree;
 using namespace NRpc;
 using namespace NApi;
 
+using NChunkClient::TDataSliceDescriptor;
 using NChunkClient::TReadLimit;
 using NChunkClient::TReadRange;
 using NChunkClient::TChannel;
@@ -1626,7 +1627,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
     const TNodeDescriptor& localDescriptor,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
-    const std::vector<NTableClient::TDataSliceDescriptor>& dataSliceDescriptors,
+    const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
     TColumnFilter columnFilter,
     const TKeyColumns& keyColumns,
@@ -1723,7 +1724,7 @@ public:
         const TNodeDescriptor& localDescriptor,
         IBlockCachePtr blockCache,
         TNodeDirectoryPtr nodeDirectory,
-        const std::vector<NTableClient::TDataSliceDescriptor>& dataSliceDescriptors,
+        const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
         TNameTablePtr nameTable,
         TColumnFilter columnFilter,
         const TKeyColumns& keyColumns,
@@ -1766,7 +1767,7 @@ TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
     const TNodeDescriptor& localDescriptor,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
-    const std::vector<NTableClient::TDataSliceDescriptor>& dataSliceDescriptors,
+    const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
     TColumnFilter columnFilter,
     const TKeyColumns& keyColumns,
@@ -1867,7 +1868,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiChunkReader(
     const TNodeDescriptor& localDescriptor,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
-    const std::vector<NTableClient::TDataSliceDescriptor>& dataSliceDescriptors,
+    const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
     TColumnFilter columnFilter,
     const TKeyColumns& keyColumns,
@@ -1901,7 +1902,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiChunkReader(
     const TNodeDescriptor& localDescriptor,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
-    const std::vector<NTableClient::TDataSliceDescriptor>& dataSliceDescriptors,
+    const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
     TColumnFilter columnFilter,
     const TKeyColumns& keyColumns,

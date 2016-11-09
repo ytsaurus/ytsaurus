@@ -35,6 +35,8 @@ using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NObjectClient;
 
+using NChunkClient::TDataSliceDescriptor;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TUserJobIOBase::TUserJobIOBase(IJobHostPtr host)

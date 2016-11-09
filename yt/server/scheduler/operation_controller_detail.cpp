@@ -10,6 +10,7 @@
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
 #include <yt/ytlib/chunk_client/chunk_teleporter.h>
+#include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/data_statistics.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
@@ -28,7 +29,6 @@
 #include <yt/ytlib/scheduler/helpers.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
-#include <yt/ytlib/table_client/data_slice_descriptor.h>
 #include <yt/ytlib/table_client/data_slice_fetcher.h>
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/schema.h>

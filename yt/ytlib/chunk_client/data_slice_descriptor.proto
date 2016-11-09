@@ -1,4 +1,4 @@
-package NYT.NTableClient.NProto;
+package NYT.NChunkClient.NProto;
 
 import "yt/ytlib/chunk_client/chunk_spec.proto";
 import "yt/ytlib/table_client/chunk_meta.proto";
@@ -11,7 +11,7 @@ message TDataSliceDescriptor
     required int32 type = 1;
 
     // Chunks comprising the input.
-    repeated NYT.NChunkClient.NProto.TChunkSpec chunks = 2;
+    repeated TChunkSpec chunks = 2;
 
     extensions 100 to max;
 }
@@ -24,7 +24,7 @@ message TTableSliceDescriptor
     }
 
     // Table schema.
-    required TTableSchemaExt schema = 1;
+    required NYT.NTableClient.NProto.TTableSchemaExt schema = 1;
 
     // Timestamp (for versioned table).
     optional int64 timestamp = 2 [default = 0];

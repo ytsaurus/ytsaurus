@@ -19,6 +19,7 @@
 #include <yt/ytlib/chunk_client/chunk_meta.pb.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/client_block_cache.h>
+#include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/file_writer.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/ytlib/chunk_client/block_fetcher.h>
@@ -63,6 +64,8 @@ using namespace NChunkClient::NProto;
 using namespace NConcurrency;
 using namespace NApi;
 using namespace NFormats;
+
+using NChunkClient::TDataSliceDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 

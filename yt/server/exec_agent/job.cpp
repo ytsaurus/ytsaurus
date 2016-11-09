@@ -17,11 +17,11 @@
 
 #include <yt/server/scheduler/config.h>
 
+#include <yt/ytlib/chunk_client/data_slice_descriptor.h>
+
 #include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
 #include <yt/ytlib/security_client/public.h>
-
-#include <yt/ytlib/table_client/data_slice_descriptor.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/actions/cancelable_context.h>
@@ -55,6 +55,7 @@ using namespace NApi;
 
 using NNodeTrackerClient::TNodeDirectory;
 using NScheduler::NProto::TUserJobSpec;
+using NChunkClient::TDataSliceDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
