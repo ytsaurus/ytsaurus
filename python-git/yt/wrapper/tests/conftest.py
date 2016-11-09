@@ -55,6 +55,8 @@ class YtTestEnvironment(object):
         if config is None:
             config = {}
 
+        has_proxy = config["backend"] != "native"
+
         logging.getLogger("Yt.local").setLevel(logging.INFO)
         logger.LOGGER.setLevel(logging.WARNING)
 
@@ -105,7 +107,7 @@ class YtTestEnvironment(object):
                               master_count=1,
                               node_count=5,
                               scheduler_count=1,
-                              has_proxy=True,
+                              has_proxy=has_proxy,
                               port_locks_path=os.path.join(TESTS_SANDBOX, "ports"),
                               fqdn="localhost",
                               modify_configs_func=modify_configs)
@@ -124,7 +126,8 @@ class YtTestEnvironment(object):
 
         self.config = update(get_default_config(), config)
         self.config["operation_tracker"]["poll_period"] = 100
-        self.config["proxy"]["url"] = "localhost:" + self.env.get_proxy_address().split(":", 1)[1]
+        if has_proxy:
+            self.config["proxy"]["url"] = "localhost:" + self.env.get_proxy_address().split(":", 1)[1]
         # NB: to decrease probability of retries test failure.
         self.config["proxy"]["request_retry_count"] = 10
         self.config["retry_backoff"]["policy"] = "constant_time"
@@ -133,12 +136,6 @@ class YtTestEnvironment(object):
         self.config["pickling"]["enable_tmpfs_archive"] = ENABLE_JOB_CONTROL
         self.config["pickling"]["module_filter"] = lambda module: hasattr(module, "__file__") and not "driver_lib" in module.__file__
         self.config["driver_config"] = self.env.configs["driver"]
-
-        python_driver_config = os.path.join(dir, "driver_config_for_python.yson")
-        with open(python_driver_config, "w") as fout:
-            yson.dump({"driver": self.env.configs["driver"]}, fout)
-        self.config["driver_config_path"] = python_driver_config
-
         update(yt.config.config, self.config)
 
         os.environ["PATH"] = ".:" + os.environ["PATH"]
@@ -163,6 +160,8 @@ def init_environment_for_test_session(mode):
     config = {"api_version": "v3"}
     if mode == "native":
         config["backend"] = "native"
+    else:
+        config["backend"] = "http"
 
     environment = YtTestEnvironment("TestYtWrapper" + mode.capitalize(), config)
 
@@ -197,7 +196,8 @@ def test_environment_for_yamr(request):
     return environment
 
 def test_method_teardown():
-    assert yt.config["proxy"]["url"].startswith("localhost")
+    if yt.config["backend"] == "proxy":
+        assert yt.config["proxy"]["url"].startswith("localhost")
 
     for tx in yt.list("//sys/transactions", attributes=["title"]):
         title = tx.attributes.get("title", "")

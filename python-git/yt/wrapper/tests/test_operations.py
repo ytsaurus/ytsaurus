@@ -2,7 +2,7 @@ from __future__ import print_function
 
 from .helpers import TEST_DIR, PYTHONPATH, get_test_file_path, check, set_config_option, \
                      build_python_egg, TESTS_SANDBOX, run_python_script_with_check, \
-                     ENABLE_JOB_CONTROL
+                     ENABLE_JOB_CONTROL, dumps_yt_config
 
 from yt.wrapper.py_wrapper import create_modules_archive_default, TempfilesManager
 from yt.common import which, makedirp
@@ -205,7 +205,12 @@ class TestOperations(object):
         yt.write_table(table, [{"x": 1}, {"x": 2}])
 
         binary = get_test_file_path("standalone_binary.py")
-        subprocess.check_call(["python", binary, table, other_table], env={"YT_PROXY": yt.config["proxy"]["url"], "PYTHONPATH": PYTHONPATH}, stderr=sys.stderr)
+
+        env = {
+            "YT_CONFIG_PATCHES": dumps_yt_config(),
+            "PYTHONPATH": PYTHONPATH
+        }
+        subprocess.check_call(["python", binary, table, other_table], env=env, stderr=sys.stderr)
         check([{"x": 1}, {"x": 2}], yt.read_table(other_table))
 
     @add_failed_operation_stderrs_to_error_message
@@ -266,10 +271,17 @@ class TestOperations(object):
 from __future__ import print_function
 import yt.wrapper as yt
 
+import yt.yson as yson
+import sys
+
 {mapper_code}
 
 if __name__ == "__main__":
-    yt.config["proxy"]["url"] = "{proxy}"
+    stdin = sys.stdin
+    if sys.version_info[0] >= 3:
+        stdin = sys.stdin.buffer
+
+    yt.update_config(yson.load(stdin))
     yt.config["pickling"]["enable_tmpfs_archive"] = False
     print(yt.run_map({mapper}, "{source_table}", "{destination_table}", format="json").id)
 """
@@ -319,7 +331,6 @@ def mapper(rec):
 
         def _format_script(script, **kwargs):
             kwargs.update(dict(zip(("mapper_code", "mapper"), script)))
-            kwargs["proxy"] = yt_env.config["proxy"]["url"]
             return test_script.format(**kwargs)
 
         def change_x(rec):
@@ -590,9 +601,10 @@ print(op.id)
         yt.write_table(table, [{"x": 1}])
 
         env = {
-            "YT_PROXY": yt.config["proxy"]["url"],
-            "PYTHONPATH": PYTHONPATH
+            "PYTHONPATH": PYTHONPATH,
+            "YT_CONFIG_PATCHES": dumps_yt_config()
         }
+
         op_id = subprocess.check_output(["python", file.name, table, table, PYTHONPATH],
                                         env=env, stderr=sys.stderr).strip()
         time.sleep(3)
@@ -860,6 +872,9 @@ print(op.id)
         check([{"x": 1}, {"x": 2}], yt.read_table(TEST_DIR + "/other"), ordered=False)
 
     def test_disable_yt_accesses_from_job(self, yt_env):
+        if yt.config["backend"] == "native":
+            pytest.skip()
+
         first_script = """\
 from __future__ import print_function
 

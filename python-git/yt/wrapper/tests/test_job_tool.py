@@ -126,7 +126,7 @@ class TestJobTool(object):
         shutil.rmtree(job_path)
 
     def test_job_tool(self, yt_env):
-        if yt.config["api_version"] != "v3":
+        if yt.config["backend"] == "native":
             pytest.skip()
 
         def failing_mapper(rec):

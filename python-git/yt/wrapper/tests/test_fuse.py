@@ -1,7 +1,6 @@
 from .helpers import TEST_DIR
 
 from yt.wrapper.cypress_fuse import CachedYtClient, Cypress
-from yt.wrapper.http_helpers import get_proxy_url
 
 from yt.packages.fuse import fuse_file_info, FuseOSError
 from yt.packages.six import iterkeys, PY3
@@ -16,26 +15,26 @@ import json
 @pytest.mark.usefixtures("yt_env")
 class TestCachedYtClient(object):
     def test_list(self):
-        client = CachedYtClient(proxy=get_proxy_url(), config=yt.config.config)
+        client = CachedYtClient(config=yt.config.config)
         assert sorted(client.list("/")) == sorted(yt.list("/"))
 
     def test_list_nonexistent(self):
-        client = CachedYtClient(proxy=get_proxy_url(), config=yt.config.config)
+        client = CachedYtClient(config=yt.config.config)
         with pytest.raises(yt.YtError):
             client.list("//nonexistent")
 
     def test_get_attributes_empty(self):
-        client = CachedYtClient(proxy=get_proxy_url(), config=yt.config.config)
+        client = CachedYtClient(config=yt.config.config)
         assert client.get_attributes("//sys", []) == {}
 
     def test_get_attributes_nonexistent(self):
-        client = CachedYtClient(proxy=get_proxy_url(), config=yt.config.config)
+        client = CachedYtClient(config=yt.config.config)
         assert client.get_attributes("//sys", ["nonexistent"]) == {}
         # Get cached attribute again.
         assert client.get_attributes("//sys", ["nonexistent"]) == {}
 
     def test_get_attributes_list(self, yt_env):
-        client = CachedYtClient(proxy=get_proxy_url(), config=yt.config.config)
+        client = CachedYtClient(config=yt.config.config)
 
         real_attributes = yt.get("//home/@")
         # TODO(acid): Replace this with single get when YT-3522 is ready.
@@ -68,14 +67,14 @@ class TestCachedYtClient(object):
 class TestCypress(object):
     def test_readdir(self):
         cypress = Cypress(
-            CachedYtClient(proxy=get_proxy_url(), config=yt.config.config),
+            CachedYtClient(config=yt.config.config),
             enable_write_access=False)
 
         assert sorted(cypress.readdir("/", None)) == sorted(yt.list("/"))
 
     def test_read_file(self):
         cypress = Cypress(
-            CachedYtClient(proxy=get_proxy_url(), config=yt.config.config),
+            CachedYtClient(config=yt.config.config),
             enable_write_access=False)
 
         filepath = TEST_DIR + "/file"
@@ -101,7 +100,7 @@ class TestCypress(object):
 
     def test_read_table(self):
         cypress = Cypress(
-            CachedYtClient(proxy=get_proxy_url(), config=yt.config.config),
+            CachedYtClient(config=yt.config.config),
             enable_write_access=False)
 
         filepath = TEST_DIR + "/file"
@@ -133,7 +132,7 @@ class TestCypress(object):
 
     def test_create_file(self):
         cypress = Cypress(
-            CachedYtClient(proxy=get_proxy_url(), config=yt.config.config),
+            CachedYtClient(config=yt.config.config),
             enable_write_access=True)
 
         filepath = TEST_DIR + "/file"
@@ -147,7 +146,7 @@ class TestCypress(object):
 
     def test_unlink_file(self):
         cypress = Cypress(
-            CachedYtClient(proxy=get_proxy_url(), config=yt.config.config),
+            CachedYtClient(config=yt.config.config),
             enable_write_access=True)
 
         filepath = TEST_DIR + "/file"
@@ -162,7 +161,7 @@ class TestCypress(object):
 
     def test_truncate_file(self):
         cypress = Cypress(
-            CachedYtClient(proxy=get_proxy_url(), config=yt.config.config),
+            CachedYtClient(config=yt.config.config),
             enable_write_access=True)
 
         filepath = TEST_DIR + "/file"
@@ -182,7 +181,7 @@ class TestCypress(object):
 
     def test_write_file(self):
         cypress = Cypress(
-            CachedYtClient(proxy=get_proxy_url(), config=yt.config.config),
+            CachedYtClient(config=yt.config.config),
             enable_write_access=True)
 
         filepath = TEST_DIR + "/file"
@@ -200,7 +199,7 @@ class TestCypress(object):
 
     def test_write_multipart_file(self):
         cypress = Cypress(
-            CachedYtClient(proxy=get_proxy_url(), config=yt.config.config),
+            CachedYtClient(config=yt.config.config),
             enable_write_access=True)
 
         filepath = TEST_DIR + "/file"
@@ -230,7 +229,7 @@ class TestCypress(object):
 
     def test_create_directory(self):
         cypress = Cypress(
-            CachedYtClient(proxy=get_proxy_url(), config=yt.config.config),
+            CachedYtClient(config=yt.config.config),
             enable_write_access=True)
 
         dirpath = TEST_DIR + "/dir"
@@ -247,7 +246,7 @@ class TestCypress(object):
 
     def test_remove_directory(self):
         cypress = Cypress(
-            CachedYtClient(proxy=get_proxy_url(), config=yt.config.config),
+            CachedYtClient(config=yt.config.config),
             enable_write_access=True)
 
         dirpath = TEST_DIR + "/dir"
@@ -271,7 +270,7 @@ class TestCypress(object):
 
     def test_write_access_guards(self):
         cypress = Cypress(
-            CachedYtClient(proxy=get_proxy_url(), config=yt.config.config),
+            CachedYtClient(config=yt.config.config),
             enable_write_access=False)
 
         filepath = TEST_DIR + "/file"

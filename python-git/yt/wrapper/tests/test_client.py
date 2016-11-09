@@ -161,9 +161,10 @@ class TestClient(object):
             assert not client.exists(table)
 
     def test_default_api_version(self):
-        client = Yt(proxy=yt.config["proxy"]["url"])
-        client.get("/")
-        assert client._api_version == "v3"
+        if yt.config["backend"] != "native":
+            client = Yt(proxy=yt.config["proxy"]["url"])
+            client.get("/")
+            assert client._api_version == "v3"
 
     def test_client_with_unknown_api_version(self):
         client = Yt(config=yt.config.config)
