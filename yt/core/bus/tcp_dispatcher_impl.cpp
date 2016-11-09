@@ -24,7 +24,7 @@ using namespace NProfiling;
 static const auto& Logger = BusLogger;
 static const auto& Profiler = BusProfiler;
 
-static const int ClientThreadCount = 8;
+static const int DefaultClientThreadCount = 8;
 
 static const auto ProfilingPeriod = TDuration::MilliSeconds(100);
 static const auto CheckPeriod = TDuration::Seconds(15);
@@ -145,7 +145,7 @@ TTcpDispatcher::TImpl::TImpl()
     auto serverThread = New<TTcpDispatcherThread>("BusServer");
     Threads_.push_back(serverThread);
 
-    SetClientThreadCount(ClientThreadCount);
+    SetClientThreadCount(DefaultClientThreadCount);
 
     ProfilingExecutor_ = New<TPeriodicExecutor>(
         GetServerThread()->GetInvoker(),
@@ -210,7 +210,7 @@ TTcpDispatcherThreadPtr TTcpDispatcher::TImpl::GetClientThread()
 {
     TReaderGuard guard(SpinLock_);
 
-    auto index = CurrentClientThreadIndex_++ % ClientThreadCount;
+    auto index = CurrentClientThreadIndex_++ % ClientThreadCount_;
     const auto& thread = Threads_[index + 1];
     if (Y_UNLIKELY(!thread->IsStarted())) {
         thread->Start();
