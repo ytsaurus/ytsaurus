@@ -1,6 +1,8 @@
 #include "helpers.h"
+#include "chunk_meta_extensions.h"
 #include "config.h"
 #include "schemaless_chunk_reader.h"
+#include "schemaless_chunk_writer.h"
 #include "private.h"
 
 #include "schemaless_reader.h"
@@ -8,6 +10,8 @@
 #include "name_table.h"
 
 #include <yt/ytlib/formats/parser.h>
+
+#include <yt/ytlib/scheduler/job.pb.h>
 
 #include <yt/ytlib/ypath/rich.h>
 
@@ -20,8 +24,12 @@
 namespace NYT {
 namespace NTableClient {
 
+using namespace NChunkClient;
 using namespace NConcurrency;
+using namespace NCypressClient;
 using namespace NFormats;
+using namespace NProto;
+using namespace NScheduler::NProto;
 using namespace NYson;
 using namespace NYTree;
 using namespace NCypressClient;
@@ -29,6 +37,7 @@ using namespace NChunkClient;
 
 using NChunkClient::TChannel;
 using NYPath::TRichYPath;
+
 
 //////////////////////////////////////////////////////////////////////////////////
 
@@ -498,6 +507,35 @@ TUnversionedOwningRow YsonToKey(const Stroka& yson)
 Stroka KeyToYson(TUnversionedRow row)
 {
     return ConvertToYsonString(row, EYsonFormat::Text).Data();
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+
+TOutputResult GetWrittenChunksBoundaryKeys(ISchemalessMultiChunkWriterPtr writer)
+{
+    TOutputResult result;
+
+    const auto& chunks = writer->GetWrittenChunksMasterMeta();
+    result.set_empty(chunks.empty());
+
+    if (chunks.empty()) {
+        return result;
+    }
+
+    result.set_sorted(writer->GetSchema().IsSorted());
+
+    if (!writer->GetSchema().IsSorted()) {
+        return result;
+    }
+
+    result.set_unique_keys(writer->GetSchema().GetUniqueKeys());
+
+    auto frontBoundaryKeys = GetProtoExtension<TBoundaryKeysExt>(chunks.front().chunk_meta().extensions());
+    result.set_min(frontBoundaryKeys.min());
+    auto backBoundaryKeys = GetProtoExtension<TBoundaryKeysExt>(chunks.back().chunk_meta().extensions());
+    result.set_max(backBoundaryKeys.max());
+
+    return result;
 }
 
 //////////////////////////////////////////////////////////////////////////////////

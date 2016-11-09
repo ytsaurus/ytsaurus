@@ -133,9 +133,7 @@ public:
             "HiveManager.Values",
             BIND(&TImpl::SaveValues, Unretained(this)));
 
-        OrchidService_ = IYPathService::FromProducer(BIND(&TImpl::BuildOrchidYson, MakeStrong(this)))
-            ->Via(automatonInvoker)
-            ->Cached(TDuration::Seconds(1));
+        OrchidService_ = CreateOrchidService(automatonInvoker);
     }
 
     IServicePtr GetRpcService()
@@ -1252,6 +1250,14 @@ private:
         return HydraManager_;
     }
 
+
+    IYPathServicePtr CreateOrchidService(IInvokerPtr automatonInvoker)
+    {
+        auto producer = BIND(&TImpl::BuildOrchidYson, MakeWeak(this));
+        return IYPathService::FromProducer(producer)
+            ->Via(automatonInvoker)
+            ->Cached(TDuration::Seconds(1));
+    }
 
     void BuildOrchidYson(IYsonConsumer* consumer)
     {

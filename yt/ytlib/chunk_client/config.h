@@ -389,8 +389,6 @@ public:
     i64 DesiredChunkSize;
     i64 MaxMetaSize;
 
-    NErasure::ECodec ErasureCodec;
-
     TMultiChunkWriterConfig()
     {
         RegisterParameter("desired_chunk_size", DesiredChunkSize)

@@ -39,6 +39,7 @@ public:
     double FairShareStarvationToleranceLimit;
 
     TDuration FairShareUpdatePeriod;
+    TDuration FairShareProfilingPeriod;
     TDuration FairShareLogPeriod;
 
     //! Any operation with usage less than this cannot be preempted.
@@ -97,6 +98,10 @@ public:
         RegisterParameter("fair_share_update_period", FairShareUpdatePeriod)
             .InRange(TDuration::MilliSeconds(10), TDuration::Seconds(60))
             .Default(TDuration::MilliSeconds(1000));
+
+        RegisterParameter("fair_share_profiling_period", FairShareProfilingPeriod)
+            .InRange(TDuration::MilliSeconds(10), TDuration::Seconds(60))
+            .Default(TDuration::MilliSeconds(5000));
 
         RegisterParameter("fair_share_log_period", FairShareLogPeriod)
             .InRange(TDuration::MilliSeconds(10), TDuration::Seconds(60))
@@ -622,14 +627,17 @@ public:
 
     // Cpu usage delta that is considered insignificant when checking if job is suspicious.
     i64 SuspiciousCpuUsageThreshold;
-    // User job block IO read value that is considered insignificant when checking if job is suspicious.
-    i64 SuspiciousUserJobBlockIOReadThreshold;
+    // Time fraction spent in idle state enough for job to be considered suspicious.
+    double SuspiciousInputPipeIdleTimeFraction;
 
     // Testing option that enables snapshot build/load cycle after operation materialization.
     bool EnableSnapshotCycleAfterMaterialization;
 
     // Testing option that enables sleeping between intermediate and final states of operation.
     TNullable<TDuration> FinishOperationTransitionDelay;
+
+    // Testing option that enables sleeping during master disconnect.
+    TNullable<TDuration> MasterDisconnectDelay;
 
     // If user job iops threshold is exceeded, iops throttling is enabled via cgroups.
     TNullable<i32> IopsThreshold;
@@ -864,8 +872,8 @@ public:
             .Default(TDuration::Minutes(1));
         RegisterParameter("suspicious_cpu_usage_threshold", SuspiciousCpuUsageThreshold)
             .Default(300);
-        RegisterParameter("suspicious_user_job_block_io_read_threshold", SuspiciousUserJobBlockIOReadThreshold)
-            .Default(20);
+        RegisterParameter("suspicious_input_pipe_time_idle_fraction", SuspiciousInputPipeIdleTimeFraction)
+            .Default(0.95);
 
         RegisterParameter("enable_snapshot_cycle_after_materialization", EnableSnapshotCycleAfterMaterialization)
             .Default(false);
@@ -873,6 +881,9 @@ public:
             .Default(TDuration::Seconds(1));
 
         RegisterParameter("finish_operation_transition_delay", FinishOperationTransitionDelay)
+            .Default(Null);
+
+        RegisterParameter("master_disconnect_delay", MasterDisconnectDelay)
             .Default(Null);
 
         RegisterParameter("iops_threshold", IopsThreshold)

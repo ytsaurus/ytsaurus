@@ -86,7 +86,7 @@ void TCachedVersionedChunkMeta::Init(
     KeyColumnCount_ = keyColumns.size();
 
     TColumnarChunkMeta::InitExtensions(chunkMeta);
-    TColumnarChunkMeta::InitBlockLastKeys(GetKeyColumnCount());
+    TColumnarChunkMeta::InitBlockLastKeys(keyColumns);
 
     ValidateChunkMeta();
     //FIXME(savrus) Dirty hack here. In future we will read schema from meta.

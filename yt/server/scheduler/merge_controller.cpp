@@ -17,6 +17,8 @@
 #include <yt/ytlib/table_client/chunk_slices_fetcher.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
 
+#include <yt/core/concurrency/periodic_yielder.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -388,7 +390,7 @@ protected:
                 CurrentPartitionIndex);
 
             // Place the chunk directly to the output table.
-            RegisterOutput(chunkSpec, CurrentPartitionIndex, 0);
+            RegisterOutput(chunkSpec, CurrentPartitionIndex, *tableIndex);
             ++CurrentPartitionIndex;
         }
     }
@@ -441,13 +443,18 @@ protected:
         PROFILE_TIMING ("/input_processing_time") {
             LOG_INFO("Processing inputs");
 
+            TPeriodicYielder yielder(PrepareYieldPeriod);
+
             InitTeleportableInputTables();
             ClearCurrentTaskStripes();
+
             for (const auto& chunk : CollectPrimaryUnversionedChunks()) {
                 ProcessInputDataSlice(CreateInputDataSlice(CreateInputChunkSlice(chunk)));
+                yielder.TryYield();
             }
             for (const auto& slice : CollectPrimaryVersionedDataSlices(ChunkSliceSize)) {
                 ProcessInputDataSlice(slice);
+                yielder.TryYield();
             }
         }
     }
@@ -669,6 +676,16 @@ private:
     virtual std::vector<TRichYPath> GetOutputTablePaths() const override
     {
         return Spec->OutputTablePaths;
+    }
+
+    virtual TNullable<TRichYPath> GetStderrTablePath() const override
+    {
+        return Spec->StderrTablePath;
+    }
+
+    virtual TBlobTableWriterConfigPtr GetStderrTableWriterConfig() const override
+    {
+        return Spec->StderrTableWriterConfig;
     }
 
     virtual TNullable<int> GetTeleportTableIndex() const override
@@ -1384,10 +1401,13 @@ private:
             return;
         }
 
+        TPeriodicYielder yielder(PrepareYieldPeriod);
+
         int openedSlicesCount = 0;
         TInputChunkPtr currentChunkSpec;
         int startTeleportIndex = -1;
         for (int i = 0; i < static_cast<int>(Endpoints.size()); ++i) {
+            yielder.TryYield();
             const auto& endpoint = Endpoints[i];
             const auto& dataSlice = endpoint.DataSlice;
 
@@ -1450,6 +1470,8 @@ private:
 
     virtual void BuildTasks() override
     {
+        TPeriodicYielder yielder(PrepareYieldPeriod);
+
         const int prefixLength = static_cast<int>(SortKeyColumns.size());
 
         yhash_set<TInputDataSlicePtr> globalOpenedSlices;
@@ -1457,6 +1479,7 @@ private:
 
         int startIndex = 0;
         while (startIndex < static_cast<int>(Endpoints.size())) {
+            yielder.TryYield();
             auto key = Endpoints[startIndex].GetKey();
 
             std::vector<TInputChunkPtr> teleportChunks;
@@ -1894,6 +1917,16 @@ protected:
         return Spec->OutputTablePaths;
     }
 
+    virtual TNullable<TRichYPath> GetStderrTablePath() const override
+    {
+        return Spec->StderrTablePath;
+    }
+
+    virtual TBlobTableWriterConfigPtr GetStderrTableWriterConfig() const override
+    {
+        return Spec->StderrTableWriterConfig;
+    }
+
     virtual TNullable<int> GetTeleportTableIndex() const override
     {
         return TeleportOutputTable;
@@ -2119,6 +2152,8 @@ private:
 
     virtual void FindTeleportChunks() override
     {
+        TPeriodicYielder yielder(PrepareYieldPeriod);
+
         const int prefixLength = ReduceKeyColumnCount;
 
         TInputChunkPtr currentChunkSpec;
@@ -2128,6 +2163,7 @@ private:
         auto previousKey = EmptyKey().Get();
 
         for (int i = 0; i < static_cast<int>(Endpoints.size()); ++i) {
+            yielder.TryYield();
             const auto& endpoint = Endpoints[i];
             auto key = endpoint.GetKey();
             const auto& dataSlice = endpoint.DataSlice;
@@ -2202,6 +2238,7 @@ private:
 
     virtual void BuildTasks() override
     {
+        TPeriodicYielder yielder(PrepareYieldPeriod);
         const int prefixLength = ReduceKeyColumnCount;
 
         yhash_set<TInputDataSlicePtr> openedSlices;
@@ -2214,6 +2251,7 @@ private:
 
         int startIndex = 0;
         while (startIndex < static_cast<int>(Endpoints.size())) {
+            yielder.TryYield();
             auto key = Endpoints[startIndex].GetKey();
 
             int currentIndex = startIndex;
@@ -2282,11 +2320,6 @@ private:
 
         YCHECK(openedSlices.empty());
         EndTaskIfActive();
-    }
-
-    virtual TNullable<int> GetTeleportTableIndex() const override
-    {
-        return TeleportOutputTable;
     }
 };
 
@@ -2387,7 +2420,11 @@ private:
 
     virtual void BuildTasks() override
     {
+        TPeriodicYielder yielder(PrepareYieldPeriod);
+
         auto processSlice = [&] (const TInputDataSlicePtr& slice) {
+            yielder.TryYield();
+
             try {
                 ValidateClientKey(slice->LowerLimit().Key);
                 ValidateClientKey(slice->UpperLimit().Key);

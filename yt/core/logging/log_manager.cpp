@@ -429,7 +429,7 @@ private:
             sigset_t ss;
             sigemptyset(&ss);
             sigaddset(&ss, SIGHUP);
-            sigprocmask(SIG_UNBLOCK, &ss, NULL);
+            sigprocmask(SIG_UNBLOCK, &ss, nullptr);
 
             // Set handler.
             struct sigaction sa;

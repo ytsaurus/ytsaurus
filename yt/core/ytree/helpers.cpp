@@ -177,5 +177,14 @@ void TAttributeDictionaryValueSerializer::Load(TStreamLoadContext& context, IAtt
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ValidateYTreeKey(const TStringBuf& key)
+{
+    if (key.empty()) {
+        THROW_ERROR_EXCEPTION("Empty keys are not allowed in map nodes");
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYTree
 } // namespace NYT

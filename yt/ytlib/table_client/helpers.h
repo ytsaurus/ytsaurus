@@ -11,7 +11,17 @@
 #include <yt/core/misc/phoenix.h>
 
 namespace NYT {
+
+namespace NScheduler {
+namespace NProto {
+
+class TOutputResult;
+
+} // namespace NProto
+} // namespace NScheduler
+
 namespace NTableClient {
+
 
 //////////////////////////////////////////////////////////////////////////////////
 
@@ -93,6 +103,10 @@ TUnversionedOwningRow YsonToRow(
     bool treatMissingAsNull);
 TUnversionedOwningRow YsonToKey(const Stroka& yson);
 Stroka KeyToYson(TUnversionedRow row);
+
+//////////////////////////////////////////////////////////////////////////////////
+
+NScheduler::NProto::TOutputResult GetWrittenChunksBoundaryKeys(ISchemalessMultiChunkWriterPtr writer);
 
 //////////////////////////////////////////////////////////////////////////////////
 

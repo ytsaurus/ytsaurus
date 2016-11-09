@@ -30,9 +30,9 @@ class TestSchedulerUserStatistics(YTEnvSetup):
                 "job_environment" : {
                     "type" : "cgroups",                                   # >= 18.4
                     "supported_cgroups": [                                # >= 18.4
-                        "cpuacct", 
-                        "blkio", 
-                        "memory", 
+                        "cpuacct",
+                        "blkio",
+                        "memory",
                         "cpu"],
                 },
             }
@@ -53,6 +53,28 @@ class TestSchedulerUserStatistics(YTEnvSetup):
         assert get_statistics(statistics, "custom.cpu.k1.$.completed.map.max") == 4
         assert get_statistics(statistics, "custom.k2.$.completed.map.count") == 2
         assert get_statistics(statistics, "custom.k2.$.completed.map.max") == 1
+
+    def test_tricky_names(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"a": "b"})
+
+        # Keys with special symbols not allowed inside YPath are ok (they are represented as is).
+        op = map(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={"max_failed_job_count": 1},
+            command='cat; echo "{\\"name/with/slashes\\"={\\"@table_index\\"=42}}">&5')
+        statistics = get("//sys/operations/{0}/@progress/job_statistics".format(op.id))
+        assert get_statistics(statistics, "custom.name/with/slashes.@table_index.$.completed.map.max") == 42
+
+        # But the empty keys are not ok (as well as for any other map nodes).
+        with pytest.raises(YtError):
+            op = map(
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                spec={"max_failed_job_count": 1},
+                command='cat; echo "{\\"\\"=42}">&5')
 
     def test_name_is_too_long(self):
         create("table", "//tmp/t1")

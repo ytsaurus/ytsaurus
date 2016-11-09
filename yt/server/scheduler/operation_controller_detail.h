@@ -78,6 +78,12 @@ DEFINE_ENUM(EControllerState,
     (Finished)
 );
 
+DEFINE_ENUM(EOutputTableType,
+    (Output)
+    (Stderr)
+);
+
+
 class TOperationControllerBase
     : public IOperationController
     , public TEventLogHostBase
@@ -110,6 +116,7 @@ public:
 
     virtual void Commit() override;
     virtual void Abort() override;
+    virtual void Forget() override;
     virtual void Complete() override;
 
     virtual TScheduleJobResultPtr ScheduleJob(
@@ -166,10 +173,13 @@ protected:
     const TInstant StartTime;
     const Stroka AuthenticatedUser;
 
+    // Usually these clients are all the same (and connected to master of the current cluster).
+    // But `remote copy' operation connects AuthenticatedInputMasterClient to remote cluster master server.
+    // AuthenticatedOutputMasterClient is created for the sake of symmetry with Input,
+    // i.e. AuthenticatedMasterClient and AuthenticatedOutputMasterClient are always connected to the same master.
     NApi::INativeClientPtr AuthenticatedMasterClient;
     NApi::INativeClientPtr AuthenticatedInputMasterClient;
     NApi::INativeClientPtr AuthenticatedOutputMasterClient;
-
 
     mutable NLogging::TLogger Logger;
 
@@ -179,7 +189,9 @@ protected:
     ISuspendableInvokerPtr SuspendableInvoker;
     IInvokerPtr CancelableInvoker;
 
-    std::atomic<EControllerState> State = {EControllerState::Preparing};
+    EControllerState State = EControllerState::Preparing;
+
+    std::atomic<bool> Aborted = {false};
 
     // These totals are approximate.
     int TotalEstimatedInputChunkCount = 0;
@@ -268,6 +280,7 @@ protected:
         NTableClient::TTableWriterOptionsPtr Options = New<NTableClient::TTableWriterOptions>();
         NTableClient::TTableUploadOptions TableUploadOptions;
         bool ChunkPropertiesUpdateNeeded = false;
+        EOutputTableType OutputType = EOutputTableType::Output;
 
         // Server-side upload transaction.
         NTransactionClient::TTransactionId UploadTransactionId;
@@ -287,11 +300,15 @@ protected:
 
         NYson::TYsonString EffectiveAcl;
 
+        bool IsBeginUploadCompleted() const;
         void Persist(const TPersistenceContext& context);
     };
 
     std::vector<TOutputTable> OutputTables;
+    TNullable<TOutputTable> StderrTable;
 
+    // All output tables and stderr table (if present).
+    std::vector<TOutputTable*> UpdatingTables;
 
     struct TIntermediateTable
         : public TLivePreviewTableBase
@@ -359,6 +376,8 @@ protected:
          *  For jobs with final output this list typically contains one element per each output table.
          */
         std::vector<NChunkClient::TChunkListId> ChunkListIds;
+
+        NChunkClient::TChunkListId StderrTableChunkListId;
 
         TInstant StartTime;
         TInstant FinishTime;
@@ -436,6 +455,8 @@ protected:
         TJobResources GetTotalNeededResourcesDelta();
 
         virtual bool IsIntermediateOutput() const;
+
+        bool IsStderrTableEnabled() const;
 
         virtual TDuration GetLocalityTimeout() const = 0;
         virtual i64 GetLocality(NNodeTrackerClient::TNodeId nodeId) const;
@@ -678,6 +699,7 @@ protected:
     virtual void InitializeConnections();
     virtual void InitializeTransactions();
     virtual void InitializeStructures();
+    void InitUpdatingTables();
 
 
     // Preparation.
@@ -712,8 +734,8 @@ protected:
 
     // Completion.
     void TeleportOutputChunks();
-    void AttachOutputChunks();
-    void EndUploadOutputTables();
+    void AttachOutputChunks(const std::vector<TOutputTable*>& tableList);
+    void EndUploadOutputTables(const std::vector<TOutputTable*>& tableList);
     void CommitTransactions();
     virtual void CustomCommit();
 
@@ -732,6 +754,11 @@ protected:
 
     //! Called to extract output table paths from the spec.
     virtual std::vector<NYPath::TRichYPath> GetOutputTablePaths() const = 0;
+
+    //! Called to extract stderr table path from the spec.
+    virtual TNullable<NYPath::TRichYPath> GetStderrTablePath() const;
+    //! Called to extract stderr table writer config from the spec.
+    virtual NTableClient::TBlobTableWriterConfigPtr GetStderrTableWriterConfig() const;
 
     typedef std::pair<NYPath::TRichYPath, EOperationStage> TPathWithStage;
 
@@ -876,7 +903,9 @@ protected:
         TChunkStripePtr stripe,
         bool attachToLivePreview);
 
-    bool HasEnoughChunkLists(bool intermediate);
+    void RegisterStderr(TJobletPtr joblet, const TJobSummary& jobSummary);
+
+    bool HasEnoughChunkLists(bool intermediate, bool isWritingStderrTable);
     NChunkClient::TChunkListId ExtractChunkList(NObjectClient::TCellTag cellTag);
     void ReleaseChunkLists(const std::vector<NChunkClient::TChunkListId>& ids);
 
@@ -927,6 +956,10 @@ protected:
         NScheduler::NProto::TUserJobSpec* proto,
         TJobletPtr joblet);
 
+    void AddStderrOutputSpecs(
+        NScheduler::NProto::TUserJobSpec* jobSpec,
+        TJobletPtr joblet);
+
     // Amount of memory reserved for output table writers in job proxy.
     i64 GetFinalOutputIOMemorySize(TJobIOConfigPtr ioConfig) const;
 
@@ -972,7 +1005,8 @@ private:
 
     NObjectClient::TCellTag IntermediateOutputCellTag = NObjectClient::InvalidCellTag;
     TChunkListPoolPtr ChunkListPool;
-    yhash<NObjectClient::TCellTag, int> CellTagToOutputTableCount;
+    yhash<NObjectClient::TCellTag, int> CellTagToOutputRequiredChunkList;
+    yhash<NObjectClient::TCellTag, int> CellTagToIntermediateRequiredChunkList;
 
     std::atomic<int> CachedPendingJobCount = {0};
 

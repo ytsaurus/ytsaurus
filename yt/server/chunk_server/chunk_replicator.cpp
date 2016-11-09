@@ -50,6 +50,7 @@
 #include <yt/core/ytree/ypath_proxy.h>
 
 #include <array>
+#include <yt/core/profiling/scoped_timer.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -1566,14 +1567,21 @@ void TChunkReplicator::OnRefresh()
 
     int totalCount = 0;
     int aliveCount = 0;
-    PROFILE_TIMING ("/incremental_refresh_time") {
+    NProfiling::TScopedTimer timer;
+
+    LOG_DEBUG("Incremental chunk refresh iteration started");
+
+    PROFILE_TIMING ("/refresh_time") {
         auto chunkManager = Bootstrap_->GetChunkManager();
         auto deadline = GetCpuInstant() - ChunkRefreshDelay_;
         while (totalCount < Config_->MaxChunksPerRefresh &&
                RefreshScanner_->HasUnscannedChunk(deadline))
         {
-            ++totalCount;
+            if (timer.GetElapsed() > Config_->MaxTimePerRefresh) {
+                break;
+            }
 
+            ++totalCount;
             auto* chunk = RefreshScanner_->DequeueChunk();
             if (!IsObjectAlive(chunk)) {
                 continue;
@@ -1584,7 +1592,7 @@ void TChunkReplicator::OnRefresh()
         }
     }
 
-    LOG_DEBUG("Incremental chunk refresh completed (TotalCount: %v, AliveCount: %v)",
+    LOG_DEBUG("Incremental chunk refresh iteration completed (TotalCount: %v, AliveCount: %v)",
         totalCount,
         aliveCount);
 }
@@ -1789,13 +1797,20 @@ void TChunkReplicator::OnPropertiesUpdate()
     TReqUpdateChunkProperties request;
     request.set_cell_tag(Bootstrap_->GetCellTag());
 
-    // Extract up to MaxChunksPerPropertiesUpdate objects and post a mutation.
     int totalCount = 0;
     int aliveCount = 0;
+    NProfiling::TScopedTimer timer;
+
+    LOG_DEBUG("Chunk properties update iteration started");
+
     PROFILE_TIMING ("/properties_update_time") {
         while (totalCount < Config_->MaxChunksPerPropertiesUpdate &&
                PropertiesUpdateScanner_->HasUnscannedChunk())
         {
+            if (timer.GetElapsed() > Config_->MaxTimePerPropertiesUpdate) {
+                break;
+            }
+
             ++totalCount;
             auto* chunk = PropertiesUpdateScanner_->DequeueChunk();
             if (!IsObjectAlive(chunk)) {
@@ -1807,20 +1822,18 @@ void TChunkReplicator::OnPropertiesUpdate()
         }
     }
 
-    if (request.updates_size() == 0) {
-        return;
-    }
-
-    LOG_DEBUG("Starting chunk properties update (TotalCount: %v, AliveCount: %v, UpdateCount: %v)",
+    LOG_DEBUG("Chunk chunk properties update iteration completed (TotalCount: %v, AliveCount: %v, UpdateCount: %v)",
         totalCount,
         aliveCount,
         request.updates_size());
 
-    auto chunkManager = Bootstrap_->GetChunkManager();
-    auto asyncResult = chunkManager
-        ->CreateUpdateChunkPropertiesMutation(request)
-        ->CommitAndLog(Logger);
-    WaitFor(asyncResult);
+    if (request.updates_size() > 0) {
+        auto chunkManager = Bootstrap_->GetChunkManager();
+        auto asyncResult = chunkManager
+            ->CreateUpdateChunkPropertiesMutation(request)
+            ->CommitAndLog(Logger);
+        WaitFor(asyncResult);
+    }
 }
 
 void TChunkReplicator::UpdateChunkProperties(TChunk* chunk, TReqUpdateChunkProperties* request)

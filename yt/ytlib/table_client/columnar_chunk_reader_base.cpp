@@ -173,7 +173,7 @@ void TColumnarRangeChunkReaderBase::InitUpperRowIndex()
     }
 }
 
-void TColumnarRangeChunkReaderBase::Initialize(NYT::TRange<std::unique_ptr<IUnversionedColumnReader>> keyReaders)
+void TColumnarRangeChunkReaderBase::Initialize(NYT::TRange<IUnversionedColumnReader*> keyReaders)
 {
     for (auto& column : Columns_) {
         column.ColumnReader->SkipToRowIndex(LowerRowIndex_);
@@ -209,6 +209,12 @@ void TColumnarRangeChunkReaderBase::InitBlockFetcher()
     std::vector<TBlockFetcher::TBlockInfo> blockInfos;
 
     for (auto& column : Columns_) {
+        if (column.ColumnMetaIndex < 0) {
+            // Column without meta, blocks, etc.
+            // E.g. NullColumnReader.
+            continue;
+        }
+
         const auto& columnMeta = ChunkMeta_->ColumnMeta().columns(column.ColumnMetaIndex);
         i64 segmentIndex = GetSegmentIndex(column, LowerRowIndex_);
         column.BlockIndexSequence.push_back(columnMeta.segments(segmentIndex).block_index());
@@ -240,15 +246,23 @@ void TColumnarRangeChunkReaderBase::InitBlockFetcher()
 TFuture<void> TColumnarRangeChunkReaderBase::RequestFirstBlocks()
 {
     PendingBlocks_.clear();
+
+    std::vector<TFuture<void>> blockFetchResult;
     for (auto& column : Columns_) {
-        PendingBlocks_.push_back(BlockFetcher_->FetchBlock(column.BlockIndexSequence.front()));
-        column.PendingBlockIndex_ = column.BlockIndexSequence.front();
+        if (column.BlockIndexSequence.empty()) {
+            // E.g. NullColumnReader.
+            PendingBlocks_.emplace_back();
+        } else {
+            PendingBlocks_.push_back(BlockFetcher_->FetchBlock(column.BlockIndexSequence.front()));
+            column.PendingBlockIndex_ = column.BlockIndexSequence.front();
+            blockFetchResult.push_back(PendingBlocks_.back().template As<void>());
+        }
     }
 
     if (PendingBlocks_.empty()) {
         return VoidFuture;
     } else {
-        return Combine(PendingBlocks_).template As<void>();
+        return Combine(blockFetchResult);
     }
 }
 
@@ -288,6 +302,11 @@ void TColumnarLookupChunkReaderBase::Initialize()
     }
 
     for (auto& column : Columns_) {
+        if (column.ColumnMetaIndex < 0) {
+            // E.g. null column reader for widened keys.
+            continue;
+        }
+
         for (auto rowIndex : RowIndexes_) {
             if (rowIndex < ChunkMeta_->Misc().row_count()) {
                 const auto& columnMeta = ChunkMeta_->ColumnMeta().columns(column.ColumnMetaIndex);
@@ -342,6 +361,12 @@ bool TColumnarLookupChunkReaderBase::TryFetchNextRow()
     PendingBlocks_.clear();
     for (int i = 0; i < Columns_.size(); ++i) {
         auto& column = Columns_[i];
+
+        if (column.ColumnMetaIndex < 0) {
+            // E.g. null column reader for widened keys.
+            continue;
+        }
+
         if (column.ColumnReader->GetCurrentBlockIndex() != column.BlockIndexSequence[NextKeyIndex_]) {
             while (PendingBlocks_.size() < i) {
                 PendingBlocks_.emplace_back();

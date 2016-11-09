@@ -308,6 +308,8 @@ void TMasterConnector::RegisterAtMaster()
         delta->State = EState::Registered;
     }
 
+    MasterConnected_.Fire();
+
     LOG_INFO("Successfully registered at primary master (NodeId: %v)",
         NodeId_);
 
@@ -651,6 +653,7 @@ void TMasterConnector::SendIncrementalNodeHeartbeat(TCellTag cellTag)
             protoTabletStatistics->set_preload_pending_store_count(tabletSnapshot->PreloadPendingStoreCount);
             protoTabletStatistics->set_preload_completed_store_count(tabletSnapshot->PreloadCompletedStoreCount);
             protoTabletStatistics->set_preload_failed_store_count(tabletSnapshot->PreloadFailedStoreCount);
+            protoTabletStatistics->set_overlapping_store_count(tabletSnapshot->OverlappingStoreCount);
             protoTabletStatistics->set_last_commit_timestamp(tabletSnapshot->RuntimeData->LastCommitTimestamp);
             protoTabletStatistics->set_unflushed_timestamp(tabletSnapshot->UnflushedTimestamp);
 
@@ -876,6 +879,8 @@ void TMasterConnector::Reset()
         delta->AddedSinceLastSuccess.clear();
         delta->RemovedSinceLastSuccess.clear();
     }
+
+    MasterDisconnected_.Fire();
 
     LOG_INFO("Master disconnected");
 }

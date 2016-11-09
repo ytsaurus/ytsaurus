@@ -4,7 +4,10 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 
+#include <yt/core/ypath/token.h>
+
 #include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/helpers.h>
 
 #include <util/string/util.h>
 
@@ -135,7 +138,7 @@ void TStatistics::AddSample(const NYPath::TYPath& path, const INodePtr& sample)
 
         case ENodeType::Map:
             for (auto& pair : sample->AsMap()->GetChildren()) {
-                AddSample(path + "/" + pair.first, pair.second);
+                AddSample(path + "/" + ToYPathLiteral(pair.first), pair.second);
             }
             break;
 
@@ -172,6 +175,9 @@ void TStatistics::Persist(NPhoenix::TPersistenceContext& context)
 void Serialize(const TStatistics& statistics, NYson::IYsonConsumer* consumer)
 {
     auto root = GetEphemeralNodeFactory()->CreateMap();
+    if (statistics.GetTimestamp()) {
+        root->MutableAttributes()->Set("timestamp", *statistics.GetTimestamp());
+    }
     for (const auto& pair : statistics.Data()) {
         ForceYPath(root, pair.first);
         auto value = ConvertToNode(pair.second);
@@ -222,11 +228,17 @@ class TStatisticsBuildingConsumer
 public:
     virtual void OnStringScalar(const TStringBuf& value) override
     {
-        THROW_ERROR_EXCEPTION("String scalars are not allowed for statistics");
+        if (!AtAttributes_) {
+            THROW_ERROR_EXCEPTION("String scalars are not allowed for statistics");
+        }
+        Statistics_.SetTimestamp(ConvertTo<TInstant>(value));
     }
 
     virtual void OnInt64Scalar(i64 value) override
     {
+        if (AtAttributes_) {
+            THROW_ERROR_EXCEPTION("Timestamp should have string type");
+        }
         AtSummaryMap_ = true;
         if (LastKey_ == "sum") {
             CurrentSummary_.Sum_ = value;
@@ -297,7 +309,13 @@ public:
 
     virtual void OnKeyedItem(const TStringBuf& key) override
     {
-        LastKey_ = key;
+        if (AtAttributes_) {
+            if (key != "timestamp") {
+                THROW_ERROR_EXCEPTION("Attributes other than \"timestamp\" are not allowed");
+            }
+        } else {
+            LastKey_ = ToYPathLiteral(key);
+        }
     }
 
     virtual void OnEndMap() override
@@ -320,12 +338,15 @@ public:
 
     virtual void OnBeginAttributes() override
     {
-        THROW_ERROR_EXCEPTION("Attributes are not allowed for statistics");
+        if (!CurrentPath_.empty()) {
+            THROW_ERROR_EXCEPTION("Attributes are not allowed for statistics");
+        }
+        AtAttributes_ = true;
     }
 
     virtual void OnEndAttributes() override
     {
-        THROW_ERROR_EXCEPTION("Attributes are not allowed for statistics");
+        AtAttributes_ = false;
     }
 
     virtual TStatistics Finish() override
@@ -345,7 +366,7 @@ private:
     Stroka LastKey_;
 
     bool AtSummaryMap_ = false;
-
+    bool AtAttributes_ = false;
 };
 
 void CreateBuildingYsonConsumer(std::unique_ptr<IBuildingYsonConsumer<TStatistics>>* buildingConsumer, EYsonType ysonType)

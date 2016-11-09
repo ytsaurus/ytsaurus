@@ -203,7 +203,7 @@ class TServerBase
 {
 public:
     virtual void RegisterService(IServicePtr service) override;
-    virtual void UnregisterService(IServicePtr service) override;
+    virtual bool UnregisterService(IServicePtr service) override;
     
     virtual IServicePtr FindService(const TServiceId& serviceId) override;
 

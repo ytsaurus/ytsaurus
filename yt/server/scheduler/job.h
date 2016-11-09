@@ -25,12 +25,14 @@ namespace NScheduler {
 struct TBriefJobStatistics
     : public TIntrinsicRefCounted
 {
+    TInstant Timestamp = TInstant::Zero();
+
     i64 ProcessedInputRowCount = 0;
     i64 ProcessedInputDataSize = 0;
     i64 ProcessedOutputRowCount = 0;
     i64 ProcessedOutputDataSize = 0;
-    TNullable<i64> UserJobBlockIORead = Null;
-    TNullable<i64> UserJobCpuUsage = Null;
+    // Time is given in milliseconds.
+    TNullable<i64> InputPipeIdleTime = Null;
     TNullable<i64> JobProxyCpuUsage = Null;
 };
 
@@ -118,7 +120,7 @@ public:
     void AnalyzeBriefStatistics(
         TDuration suspiciousInactivityTimeout,
         i64 suspiciousCpuUsageThreshold,
-        i64 suspiciousUserJobIOReadThreshold,
+        double suspiciousInputPipeIdleTimeFraction,
         const TBriefJobStatisticsPtr& briefStatistics);
 
     TBriefJobStatisticsPtr BuildBriefStatistics(const NYson::TYsonString& statisticsYson) const;

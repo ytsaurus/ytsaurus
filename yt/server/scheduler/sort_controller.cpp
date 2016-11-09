@@ -2428,7 +2428,7 @@ private:
             GetPartitionJobCounter(),
             // IntermediateSortJobs
             IntermediateSortJobCounter,
-            // FinaSortJobs
+            // FinalSortJobs
             FinalSortJobCounter,
             // SortedMergeJobs
             SortedMergeJobCounter,
@@ -2573,6 +2573,16 @@ private:
     virtual std::vector<TRichYPath> GetOutputTablePaths() const override
     {
         return Spec->OutputTablePaths;
+    }
+
+    virtual TNullable<TRichYPath> GetStderrTablePath() const override
+    {
+        return Spec->StderrTablePath;
+    }
+
+    virtual TBlobTableWriterConfigPtr GetStderrTableWriterConfig() const override
+    {
+        return Spec->StderrTableWriterConfig;
     }
 
     virtual std::vector<TPathWithStage> GetFilePaths() const override

@@ -26,7 +26,7 @@ namespace NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTabletStatistics
+struct TTabletCellStatistics
 {
     i64 UnmergedRowCount = 0;
     i64 UncompressedDataSize = 0;
@@ -40,17 +40,29 @@ struct TTabletStatistics
     int PreloadCompletedStoreCount = 0;
     int PreloadFailedStoreCount = 0;
 
-    TTabletStatistics();
+    TTabletCellStatistics();
 
     void Persist(NCellMaster::TPersistenceContext& context);
 };
 
+struct TTabletStatistics
+    : public TTabletCellStatistics
+{
+    int OverlappingStoreCount = 0;
+
+    void Persist(NCellMaster::TPersistenceContext& context);
+};
+
+TTabletCellStatistics& operator += (TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs);
+TTabletCellStatistics  operator +  (const TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs);
+
 TTabletStatistics& operator += (TTabletStatistics& lhs, const TTabletStatistics& rhs);
 TTabletStatistics  operator +  (const TTabletStatistics& lhs, const TTabletStatistics& rhs);
 
-TTabletStatistics& operator -= (TTabletStatistics& lhs, const TTabletStatistics& rhs);
-TTabletStatistics  operator -  (const TTabletStatistics& lhs, const TTabletStatistics& rhs);
+TTabletCellStatistics& operator -= (TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs);
+TTabletCellStatistics  operator -  (const TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs);
 
+void Serialize(const TTabletCellStatistics& statistics, NYson::IYsonConsumer* consumer);
 void Serialize(const TTabletStatistics& statistics, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////

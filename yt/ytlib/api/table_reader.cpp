@@ -264,7 +264,7 @@ void TSchemalessTableReader::DoOpen()
             std::move(dataSliceDescriptors),
             New<TNameTable>(),
             TColumnFilter(),
-            TKeyColumns(),
+            schema.GetKeyColumns(),
             Null,
             NConcurrency::GetUnlimitedThrottler());
     }

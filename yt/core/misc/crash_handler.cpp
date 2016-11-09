@@ -70,12 +70,12 @@ void* GetPC(void* uc)
 {
     // TODO(sandello): Merge with code from Bind() internals.
 #if (defined(HAVE_UCONTEXT_H) || defined(HAVE_SYS_UCONTEXT_H)) && defined(PC_FROM_UCONTEXT)
-    if (uc != NULL) {
+    if (uc != nullptr) {
         ucontext_t* context = reinterpret_cast<ucontext_t*>(uc);
         return (void*)context->PC_FROM_UCONTEXT;
     }
 #endif
-    return NULL;
+    return nullptr;
 }
 
 //! Returns the symbol for address at given program counter.
@@ -251,7 +251,7 @@ void InvokeDefaultSignalHandler(int signal)
     memset(&sa, 0, sizeof(sa));
     sigemptyset(&sa.sa_mask);
     sa.sa_handler = SIG_DFL;
-    YCHECK(sigaction(signal, &sa, NULL) == 0);
+    YCHECK(sigaction(signal, &sa, nullptr) == 0);
 
     kill(getpid(), signal);
 }
