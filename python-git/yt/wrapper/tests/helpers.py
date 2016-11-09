@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-from yt.packages.six import iteritems, integer_types, text_type, binary_type
+from yt.packages.six import iteritems, integer_types, text_type, binary_type, b
 from yt.packages.six.moves import map as imap
 
 import yt.yson as yson
@@ -104,6 +104,10 @@ def build_python_egg(egg_contents_dir, temp_dir=None):
     finally:
         shutil.rmtree(dir_, ignore_errors=True)
 
+def dumps_yt_config():
+    config = _filter_simple_types(yt.config.config)
+    return yson._dumps_to_native_str(config)
+
 def run_python_script_with_check(yt_env, script):
     dir_ = yt_env.env.path
 
@@ -111,9 +115,9 @@ def run_python_script_with_check(yt_env, script):
         f.write(script)
         f.close()
 
-        proc = subprocess.Popen([sys.executable, f.name], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        proc = subprocess.Popen([sys.executable, f.name], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-        out, err = proc.communicate()
+        out, err = proc.communicate(b(dumps_yt_config()))
         assert proc.returncode == 0, err
 
         return out, err

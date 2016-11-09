@@ -1,5 +1,5 @@
 from .cli_helpers import write_silently
-from .http_driver import make_request
+from .driver import make_request
 
 def run_job_shell(job_id, timeout=None, client=None):
     """ Run interactive shell in the job sandbox
