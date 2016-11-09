@@ -1,7 +1,7 @@
 import os
 import subprocess
 
-from yt.environment import YTEnv
+from yt.environment import YTInstance
 from yt_env_setup import resolve_test_paths
 
 import pytest
@@ -36,16 +36,20 @@ class ExecutableItem(pytest.Item):
         print 'Sandbox path: ' + self.sandbox_path
         print 'Environment path: ' + self.environment_path
 
-        class CurrentYTEnvironment(YTEnv):
-            pass
+        params_map = {
+            "NUM_MASTERS": "master_count",
+            "NUM_SCHEDULERS": "scheduler_count",
+            "NUM_NODES": "node_count"
+        }
 
+        kwargs = {}
         for key, value in self.extract_attrs(str(self.fspath)):
             print 'Setting "%s" to "%s"' % (key, value)
-            setattr(CurrentYTEnvironment, key, value)
+            kwargs[params_map[key]] = value
 
-        env = CurrentYTEnvironment()
+        env = YTInstance(self.environment_path, **kwargs)
         try:
-            env.start(self.environment_path, self.pids_file)
+            env.start()
             self.on_runtest(env)
         finally:
             env.clear_environment()
@@ -62,7 +66,7 @@ class PerlItem(ExecutableItem):
             os.path.join(os.path.dirname(str(self.fspath)), ".."))
 
         environment = {}
-        if env.NUM_MASTERS > 0:
+        if env.master_count > 0:
             environment["YT_DRIVER_CONFIG_PATH"] = env.config_paths["driver"]
 
         child = subprocess.Popen(
