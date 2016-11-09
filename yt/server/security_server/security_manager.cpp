@@ -1088,8 +1088,6 @@ private:
 
     TUser* AuthenticatedUser_ = nullptr;
 
-    bool SetInitialRequestQueueSizeLimits_ = false;
-
 
     void UpdateNodeCachedResourceUsage(TCypressNodeBase* node)
     {
@@ -1337,8 +1335,6 @@ private:
         AccountMap_.LoadValues(context);
         UserMap_.LoadValues(context);
         GroupMap_.LoadValues(context);
-        // COMPAT(babenko)
-        SetInitialRequestQueueSizeLimits_ = (context.GetVersion() < 213);
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -1492,13 +1488,6 @@ private:
             ReplicatorUser_ = DoCreateUser(ReplicatorUserId_, ReplicatorUserName);
             ReplicatorUser_->SetRequestRateLimit(1000000);
             ReplicatorUser_->SetRequestQueueSizeLimit(1000000);
-        }
-
-        // COMPAT(babenko)
-        if (SetInitialRequestQueueSizeLimits_) {
-            RootUser_->SetRequestQueueSizeLimit(1000000);
-            JobUser_->SetRequestQueueSizeLimit(1000000);
-            SchedulerUser_->SetRequestQueueSizeLimit(1000000);
         }
 
         // Accounts

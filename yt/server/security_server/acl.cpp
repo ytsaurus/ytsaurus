@@ -50,7 +50,8 @@ void TAccessControlEntry::Load(NCellMaster::TLoadContext& context)
     Load(context, Subjects);
     Load(context, Permissions);
     Load(context, Action);
-    if (context.GetVersion() >= 403) {
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 356) {
         Load(context, InheritanceMode);
     } else {
         InheritanceMode = EAceInheritanceMode::ObjectAndDescendants;

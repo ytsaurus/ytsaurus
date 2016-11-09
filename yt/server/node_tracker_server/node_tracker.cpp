@@ -1070,7 +1070,7 @@ private:
         NodeMap_.LoadKeys(context);
         RackMap_.LoadKeys(context);
         // COMPAT(shakurov)
-        if (context.GetVersion() >= 504) {
+        if (context.GetVersion() >= 400) {
             DataCenterMap_.LoadKeys(context);
         }
     }
@@ -1081,7 +1081,7 @@ private:
         NodeMap_.LoadValues(context);
         RackMap_.LoadValues(context);
         // COMPAT(shakurov)
-        if (context.GetVersion() >= 504) {
+        if (context.GetVersion() >= 400) {
             DataCenterMap_.LoadValues(context);
         }
     }

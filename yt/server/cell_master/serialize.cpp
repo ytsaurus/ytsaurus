@@ -7,53 +7,16 @@ namespace NCellMaster {
 
 int GetCurrentSnapshotVersion()
 {
-    return 506;
+    return 400;
 }
 
 bool ValidateSnapshotVersion(int version)
 {
     return
-        version == 125 ||
-        version == 200 ||
-        version == 201 ||
-        version == 202 ||
-        version == 203 ||
-        version == 204 ||
-        version == 205 ||
-        version == 206 ||
-        version == 207 ||
-        version == 208 ||
-        version == 209 ||
-        version == 210 ||
-        version == 211 ||
-        version == 212 ||
-        version == 213 ||
-        version == 300 ||
-        version == 301 ||
-        version == 302 ||
-        version == 303 ||
-        version == 304 ||
-        version == 350 ||
-        version == 351 ||
-        version == 352 ||
-        version == 353 ||
         version == 354 ||
         version == 355 ||
         version == 356 ||
-        version == 400 ||
-        version == 401 ||
-        version == 402 ||
-        version == 403 ||
-        version == 404 ||
-        version == 405 ||
-        version == 406 ||
-        version == 500 ||
-        version == 501 ||
-        version == 502 ||
-        version == 503 ||
-        version == 504 ||
-        version == 506 ||
-        version == 505;
+        version == 400;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

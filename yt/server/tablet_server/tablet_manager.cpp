@@ -1548,13 +1548,11 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        if (context.GetVersion() >= 202) {
-            TabletCellBundleMap_.LoadKeys(context);
-        }
+        TabletCellBundleMap_.LoadKeys(context);
         TabletCellMap_.LoadKeys(context);
         TabletMap_.LoadKeys(context);
         // COMPAT(babenko)
-        if (context.GetVersion() >= 500) {
+        if (context.GetVersion() >= 400) {
             TableReplicaMap_.LoadKeys(context);
         }
     }
@@ -1563,21 +1561,18 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        // COMPAT(babenko): YT-4348
-        if (context.GetVersion() >= 202) {
-            TabletCellBundleMap_.LoadValues(context);
-        }
+        TabletCellBundleMap_.LoadValues(context);
         TabletCellMap_.LoadValues(context);
         TabletMap_.LoadValues(context);
         // COMPAT(babenko)
-        if (context.GetVersion() >= 500) {
+        if (context.GetVersion() >= 400) {
             TableReplicaMap_.LoadValues(context);
         }
 
         // COMPAT(babenko)
         InitializeCellBundles_ = (context.GetVersion() < 400);
         // COMPAT(babenko)
-        UpdateChunkListsOrderedMode_ = (context.GetVersion() < 401);
+        UpdateChunkListsOrderedMode_ = (context.GetVersion() < 400);
     }
 
 

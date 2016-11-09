@@ -40,12 +40,9 @@ void TTabletCellStatistics::Persist(NCellMaster::TPersistenceContext& context)
     Persist(context, ChunkCount);
     Persist(context, PartitionCount);
     Persist(context, StoreCount);
-    // COMPAT(sandello)
-    if (context.IsSave() || context.LoadContext().GetVersion() >= 122) {
-        Persist(context, PreloadPendingStoreCount);
-        Persist(context, PreloadCompletedStoreCount);
-        Persist(context, PreloadFailedStoreCount);
-    }
+    Persist(context, PreloadPendingStoreCount);
+    Persist(context, PreloadCompletedStoreCount);
+    Persist(context, PreloadFailedStoreCount);
 }
 
 void TTabletStatistics::Persist(NCellMaster::TPersistenceContext& context)
@@ -54,10 +51,7 @@ void TTabletStatistics::Persist(NCellMaster::TPersistenceContext& context)
 
     TTabletCellStatistics::Persist(context);
 
-    // COMPAT(lukyan) YT-5909
-    if (context.IsSave() || context.LoadContext().GetVersion() >= 354) {
-        Persist(context, OverlappingStoreCount);
-    }
+    Persist(context, OverlappingStoreCount);
 }
 
 TTabletCellStatistics& operator +=(TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs)
@@ -244,15 +238,9 @@ void TTablet::Load(TLoadContext& context)
     Load(context, NodeStatistics_);
     Load(context, InMemoryMode_);
     // COMPAT(babenko)
-    if (context.GetVersion() >= 401) {
+    if (context.GetVersion() >= 400) {
         Load(context, TrimmedRowCount_);
-    }
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 500) {
         Load(context, Replicas_);
-    }
-    // COMPAT(savrus)
-    if (context.GetVersion() >= 502) {
         Load(context, RetainedTimestamp_);
     }
 }

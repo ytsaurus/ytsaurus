@@ -1787,7 +1787,7 @@ private:
         ChunkMap_.LoadKeys(context);
         ChunkListMap_.LoadKeys(context);
         // COMPAT(shakurov)
-        if (context.GetVersion() >= 501) {
+        if (context.GetVersion() >= 400) {
             MediumMap_.LoadKeys(context);
         }
     }
@@ -1797,13 +1797,8 @@ private:
         ChunkMap_.LoadValues(context);
         ChunkListMap_.LoadValues(context);
         // COMPAT(shakurov)
-        if (context.GetVersion() >= 501) {
+        if (context.GetVersion() >= 400) {
             MediumMap_.LoadValues(context);
-        }
-
-        // COMPAT(savrus): Cf. YT-5120
-        if (context.GetVersion() < 303) {
-            ScheduleRecomputeStatistics();
         }
     }
 

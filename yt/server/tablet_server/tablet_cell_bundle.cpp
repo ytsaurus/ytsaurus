@@ -46,7 +46,7 @@ void TTabletCellBundle::Load(TLoadContext& context)
         Load(context, NodeTag_);
     }
     // COMAPT(babenko)
-    if (context.GetVersion() >= 402) {
+    if (context.GetVersion() >= 400) {
         Load(context, TabletCells_);
     }
 }

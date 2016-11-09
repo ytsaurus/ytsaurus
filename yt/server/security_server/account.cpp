@@ -87,10 +87,7 @@ void TAccount::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, Name_);
     Load(context, ClusterStatistics_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 200) {
-        Load(context, MulticellStatistics_);
-    }
+    Load(context, MulticellStatistics_);
     Load(context, ClusterResourceLimits_);
     Load(context, Acd_);
 }

@@ -264,10 +264,7 @@ private:
         void Load(NCellMaster::TLoadContext& context)
         {
             using NYT::Load;
-            // COMPAT(babenko)
-            if (context.GetVersion() >= 351) {
-                Load(context, Index);
-            }
+            Load(context, Index);
             Load(context, Statistics);
         }
     };
@@ -346,15 +343,8 @@ private:
     void LoadValues(TLoadContext& context)
     {
         using NYT::Load;
-
         Load(context, RegisteredMasterMap_);
-
-        // COMPAT(babenko)
-        if (context.GetVersion() >= 207) {
-            Load(context, RegisterState_);
-        } else {
-            RegisterState_ = Load<bool>(context) ? EPrimaryRegisterState::Registered : EPrimaryRegisterState::None;
-        }
+        Load(context, RegisterState_);
     }
 
     void SaveValues(TSaveContext& context) const

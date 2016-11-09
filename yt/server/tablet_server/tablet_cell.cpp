@@ -65,10 +65,7 @@ void TTabletCell::Load(TLoadContext& context)
     if (context.GetVersion() < 400) {
         Load<int>(context);
     }
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 206) {
-        Load(context, LeadingPeerId_);
-    }
+    Load(context, LeadingPeerId_);
     Load(context, Peers_);
     Load(context, ConfigVersion_);
     Load(context, *Config_);

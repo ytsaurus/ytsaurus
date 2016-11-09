@@ -83,7 +83,7 @@ void TChunkTreeStatistics::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, RowCount);
     // COMPAT(babenko)
-    if (context.GetVersion() >= 500) {
+    if (context.GetVersion() >= 400) {
         Load(context, LogicalRowCount);
     } else {
         LogicalRowCount = RowCount;
@@ -95,7 +95,7 @@ void TChunkTreeStatistics::Load(NCellMaster::TLoadContext& context)
     Load(context, ErasureDiskSpace);
     Load(context, ChunkCount);
     // COMPAT(babenko)
-    if (context.GetVersion() >= 500) {
+    if (context.GetVersion() >= 400) {
         Load(context, LogicalChunkCount);
     } else {
         LogicalChunkCount = ChunkCount;
