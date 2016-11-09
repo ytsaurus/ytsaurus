@@ -567,7 +567,7 @@ public:
         operation->SetSuspended(true);
 
         if (abortRunningJobs) {
-            AbortOperationJobs(operation, TError("Suspend operation by user request"));
+            AbortOperationJobs(operation, TError("Suspend operation by user request"), /* terminated */ false);
         }
 
         LOG_INFO("Operation suspended (OperationId: %v)",
@@ -590,6 +590,15 @@ public:
                 "Operation is not suspended. Its state %Qlv",
                 operation->GetState()));
         }
+
+        std::vector<TFuture<void>> resumeFutures;
+        for (auto& nodeShard : NodeShards_) {
+            resumeFutures.push_back(BIND(&TNodeShard::ResumeOperationJobs, nodeShard)
+                .AsyncVia(nodeShard->GetInvoker())
+                .Run(operation->GetId()));
+        }
+        WaitFor(Combine(resumeFutures))
+            .ThrowOnError();
 
         operation->SetSuspended(false);
 
@@ -1765,13 +1774,13 @@ private:
             operation->GetId());
     }
 
-    void AbortOperationJobs(TOperationPtr operation, const TError& error)
+    void AbortOperationJobs(TOperationPtr operation, const TError& error, bool terminated)
     {
         std::vector<TFuture<void>> abortFutures;
         for (auto& nodeShard : NodeShards_) {
             abortFutures.push_back(BIND(&TNodeShard::AbortOperationJobs, nodeShard)
                 .AsyncVia(nodeShard->GetInvoker())
-                .Run(operation->GetId(), error));
+                .Run(operation->GetId(), error, terminated));
         }
         WaitFor(Combine(abortFutures))
             .ThrowOnError();
@@ -1934,7 +1943,7 @@ private:
         operation->SetState(EOperationState::Completing);
 
         // The operation may still have running jobs (e.g. those started speculatively).
-        AbortOperationJobs(operation, TError("Operation completed"));
+        AbortOperationJobs(operation, TError("Operation completed"), /* terminated */ true);
 
         try {
             // First flush: ensure that all stderrs are attached and the
@@ -2035,7 +2044,8 @@ private:
             operation,
             TError("Operation terminated")
                 << TErrorAttribute("state", state)
-                << error);
+                << error,
+            /* terminated */ true);
 
         // First flush: ensure that all stderrs are attached and the
         // state is changed to its intermediate value.

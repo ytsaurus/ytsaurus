@@ -548,6 +548,12 @@ class Operation(object):
         kwargs["operation_id"] = self.id
         execute_command("complete_op", kwargs)
 
+    def suspend(self, **kwargs):
+        suspend_op(self.id, **kwargs)
+
+    def resume(self, **kwargs):
+        resume_op(self.id, **kwargs)
+
 def create_tmpdir(prefix):
     basedir = os.path.join(path_to_run_tests, "tmp")
     try:
@@ -645,6 +651,14 @@ def start_op(op_type, **kwargs):
 def abort_op(op_id, **kwargs):
     kwargs["operation_id"] = op_id
     execute_command("abort_op", kwargs)
+
+def suspend_op(op_id, **kwargs):
+    kwargs["operation_id"] = op_id
+    execute_command("suspend_op", kwargs)
+
+def resume_op(op_id, **kwargs):
+    kwargs["operation_id"] = op_id
+    execute_command("resume_op", kwargs)
 
 def map(**kwargs):
     change(kwargs, "ordered", ["spec", "ordered"])
