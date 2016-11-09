@@ -2409,6 +2409,10 @@ void TOperationControllerBase::ResetTaskLocalityDelays()
             auto task = pair.second;
             if (task->GetPendingJobCount() > 0) {
                 MoveTaskToCandidates(task, group->CandidateTasks);
+            } else {
+                LOG_DEBUG("Task pending hint removed (Task: %v)",
+                    task->GetId());
+                YCHECK(group->NonLocalTasks.erase(task) == 1);
             }
         }
         group->DelayedTasks.clear();
