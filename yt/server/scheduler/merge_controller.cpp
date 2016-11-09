@@ -1330,26 +1330,34 @@ private:
             Endpoints.begin(),
             Endpoints.end(),
             [=] (const TKeyEndpoint& lhs, const TKeyEndpoint& rhs) -> bool {
-                int cmpResult = CompareRows(lhs.GetKey(), rhs.GetKey(), prefixLength);
-                if (cmpResult != 0) {
-                    return cmpResult < 0;
+                {
+                    auto cmpResult = CompareRows(lhs.GetKey(), rhs.GetKey(), prefixLength);
+                    if (cmpResult != 0) {
+                        return cmpResult < 0;
+                    }
                 }
 
-                cmpResult = CompareRows(lhs.MinBoundaryKey, rhs.MinBoundaryKey, prefixLength);
-                if (cmpResult != 0) {
-                    return cmpResult < 0;
+                {
+                    auto cmpResult = CompareRows(lhs.MinBoundaryKey, rhs.MinBoundaryKey, prefixLength);
+                    if (cmpResult != 0) {
+                        return cmpResult < 0;
+                    }
                 }
 
-                cmpResult = CompareRows(lhs.MaxBoundaryKey, rhs.MaxBoundaryKey, prefixLength);
-                if (cmpResult != 0) {
-                    return cmpResult < 0;
+                {
+                    auto cmpResult = CompareRows(lhs.MaxBoundaryKey, rhs.MaxBoundaryKey, prefixLength);
+                    if (cmpResult != 0) {
+                        return cmpResult < 0;
+                    }
                 }
 
-                // ChunkSpec address is used to identify the slices of one chunk.
-                auto cmpPtr = reinterpret_cast<intptr_t>(lhs.ChunkSlice->GetInputChunk().Get())
-                    - reinterpret_cast<intptr_t>(rhs.ChunkSlice->GetInputChunk().Get());
-                if (cmpPtr != 0) {
-                    return cmpPtr < 0;
+                {
+                    // ChunkSpec address is used to identify the slices of one chunk.
+                    auto cmpResult = reinterpret_cast<intptr_t>(lhs.ChunkSlice->GetInputChunk().Get())
+                        - reinterpret_cast<intptr_t>(rhs.ChunkSlice->GetInputChunk().Get());
+                    if (cmpResult != 0) {
+                        return cmpResult < 0;
+                    }
                 }
 
                 return lhs.Type < rhs.Type;
@@ -2067,22 +2075,28 @@ private:
             Endpoints.begin(),
             Endpoints.end(),
             [=] (const TKeyEndpoint& lhs, const TKeyEndpoint& rhs) -> bool {
-                i64 cmpResult = CompareRows(lhs.GetKey(), rhs.GetKey());
-                if (cmpResult != 0) {
-                    return cmpResult < 0;
+                {
+                    auto cmpResult = CompareRows(lhs.GetKey(), rhs.GetKey());
+                    if (cmpResult != 0) {
+                        return cmpResult < 0;
+                    }
                 }
 
-                cmpResult = static_cast<int>(lhs.Type) - static_cast<int>(rhs.Type);
-                if (cmpResult != 0) {
-                    return cmpResult < 0;
+                {
+                    auto cmpResult = static_cast<int>(lhs.Type) - static_cast<int>(rhs.Type);
+                    if (cmpResult != 0) {
+                        return cmpResult < 0;
+                    }
                 }
 
-                // If keys (trimmed to key columns) are equal, we put slices in
-                // the same order they are in the original table.
-                cmpResult = lhs.ChunkSlice->GetInputChunk()->GetTableRowIndex() -
-                    rhs.ChunkSlice->GetInputChunk()->GetTableRowIndex();
-                if (cmpResult != 0) {
-                    return cmpResult < 0;
+                {
+                    // If keys (trimmed to key columns) are equal, we put slices in
+                    // the same order they are in the original table.
+                    auto cmpResult = lhs.ChunkSlice->GetInputChunk()->GetTableRowIndex() -
+                        rhs.ChunkSlice->GetInputChunk()->GetTableRowIndex();
+                    if (cmpResult != 0) {
+                        return cmpResult < 0;
+                    }
                 }
 
                 return (reinterpret_cast<intptr_t>(lhs.ChunkSlice->GetInputChunk().Get())
