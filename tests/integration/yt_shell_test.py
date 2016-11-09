@@ -52,7 +52,7 @@ class ExecutableItem(pytest.Item):
             env.start()
             self.on_runtest(env)
         finally:
-            env.clear_environment()
+            env.stop()
 
     def reportinfo(self):
         return self.fspath, 0, '%s: %s (%s)' % \
