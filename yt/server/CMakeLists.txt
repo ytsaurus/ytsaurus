@@ -171,8 +171,8 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/job_agent/job.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_agent/job_controller.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_agent/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_agent/statistics_reporter.cpp
 
-  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/job_detail.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/job_prober_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/job_proxy.cpp
@@ -205,6 +205,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/misc/disk_health_checker.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/disk_location.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/stderr_table_schema.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_server/cypress_integration.cpp
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_server/data_center.cpp

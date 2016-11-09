@@ -348,7 +348,7 @@ static void* AsynchronousDeleter(void* param)
     TSlowlyDyingObjectPtr* indirectObject =
         reinterpret_cast<TSlowlyDyingObjectPtr*>(param);
     indirectObject->Reset();
-    return NULL;
+    return nullptr;
 }
 
 TEST_F(TWeakPtrTest, DISABLED_AcquisionOfSlowlyDyingObject)

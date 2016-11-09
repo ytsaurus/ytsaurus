@@ -17,6 +17,7 @@ NYPath::TYPath GetJobPath(const TOperationId& operationId, const TJobId& jobId);
 NYPath::TYPath GetStderrPath(const TOperationId& operationId, const TJobId& jobId);
 NYPath::TYPath GetFailContextPath(const TOperationId& operationId, const TJobId& jobId);
 NYPath::TYPath GetLivePreviewOutputPath(const TOperationId& operationId, int tableIndex);
+NYPath::TYPath GetLivePreviewStderrTablePath(const TOperationId& operationId);
 NYPath::TYPath GetLivePreviewIntermediatePath(const TOperationId& operationId);
 NYPath::TYPath GetSnapshotPath(const TOperationId& operationId);
 NYPath::TYPath GetPoolsPath();

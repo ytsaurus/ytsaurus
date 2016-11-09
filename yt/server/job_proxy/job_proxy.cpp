@@ -215,10 +215,12 @@ void TJobProxy::RetrieveJobSpec()
 
 void TJobProxy::Run()
 {
+    auto startTime = Now();
     auto resultOrError = BIND(&TJobProxy::DoRun, Unretained(this))
         .AsyncVia(JobThread_->GetInvoker())
         .Run()
         .Get();
+    auto finishTime = Now();
 
     TJobResult result;
     if (!resultOrError.IsOK()) {
@@ -261,7 +263,9 @@ void TJobProxy::Run()
         statistics = ConvertToYsonString(GetStatistics());
     }
 
-    ReportResult(result, statistics);
+    CheckResult(result);
+
+    ReportResult(result, statistics, startTime, finishTime);
 }
 
 std::unique_ptr<IUserJobIO> TJobProxy::CreateUserJobIO()
@@ -410,7 +414,11 @@ TJobResult TJobProxy::DoRun()
     return Job_->Run();
 }
 
-void TJobProxy::ReportResult(const TJobResult& result, const TNullable<TYsonString>& statistics)
+void TJobProxy::ReportResult(
+    const TJobResult& result,
+    const TNullable<TYsonString>& statistics,
+    TInstant startTime,
+    TInstant finishTime)
 {
     if (!SupervisorProxy_) {
         LOG_ERROR("Supervisor channel is not available");
@@ -423,6 +431,8 @@ void TJobProxy::ReportResult(const TJobResult& result, const TNullable<TYsonStri
     if (statistics) {
         req->set_statistics(statistics->Data());
     }
+    req->set_start_time(ToProto(startTime));
+    req->set_finish_time(ToProto(finishTime));
 
     auto rspOrError = req->Invoke().Get();
     if (!rspOrError.IsOK()) {
@@ -450,6 +460,8 @@ TStatistics TJobProxy::GetStatistics() const
 
     statistics.AddSample("/job_proxy/max_memory", JobProxyMaxMemoryUsage_);
     statistics.AddSample("/job_proxy/memory_reserve", JobProxyMemoryReserve_);
+
+    statistics.SetTimestamp(TInstant::Now());
 
     return statistics;
 }
@@ -594,6 +606,16 @@ void TJobProxy::CheckMemoryUsage()
         TotalMaxMemoryUsage_ = totalMemoryUsage;
         UpdateResourceUsage();
     }
+}
+
+void TJobProxy::CheckResult(const TJobResult& jobResult)
+{
+    const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+    const auto& schedulerJobResultExt = jobResult.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+    const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
+
+    // If we were provided with stderr_table_spec we are expected to write stderr and provide some results.
+    YCHECK(!userJobSpec.has_stderr_table_spec() || schedulerJobResultExt.has_stderr_table_boundary_keys());
 }
 
 void TJobProxy::Exit(EJobProxyExitCode exitCode)

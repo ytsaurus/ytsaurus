@@ -391,7 +391,7 @@ public:
         CurrentRowIndex_ = rowIndex;
         int segmentIndex = FindSegmentByRow(rowIndex);
 
-        YCHECK(segmentIndex <= LastBlockSegmentIndex_);
+        YCHECK(segmentIndex >= CurrentSegmentIndex_);
         if (segmentIndex != CurrentSegmentIndex_) {
             CurrentSegmentIndex_ = segmentIndex;
             ResetSegmentReader();
@@ -499,7 +499,6 @@ protected:
             }
         );
 
-        YCHECK(it != ColumnMeta_.segments().end());
         return std::distance(ColumnMeta_.segments().begin(), it);
     }
 };

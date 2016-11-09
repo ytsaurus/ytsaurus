@@ -44,7 +44,7 @@ void ExportYT(Handle<Object> target)
 } // namespace NYT
 
 #ifdef STATIC_NODE_EXTENSION
-NODE_MODULE_X(ytnode, NYT::NNodeJS::ExportYT, NULL, NM_F_LINKED)
+NODE_MODULE_X(ytnode, NYT::NNodeJS::ExportYT, nullptr, NM_F_LINKED)
 #else
 NODE_MODULE(ytnode, NYT::NNodeJS::ExportYT)
 #endif

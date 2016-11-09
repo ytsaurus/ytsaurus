@@ -106,7 +106,11 @@ private:
     void OnHeartbeatResponse(const TError& error);
 
     void RetrieveJobSpec();
-    void ReportResult(const NJobTrackerClient::NProto::TJobResult& result, const TNullable<NYson::TYsonString>& statitstics);
+    void ReportResult(
+        const NJobTrackerClient::NProto::TJobResult& result,
+        const TNullable<NYson::TYsonString>& statistics,
+        TInstant startTime,
+        TInstant finishTime);
 
     NJobTrackerClient::TStatistics GetStatistics() const;
 
@@ -142,6 +146,8 @@ private:
     virtual NLogging::TLogger GetLogger() const override;
 
     void CheckMemoryUsage();
+
+    void CheckResult(const NJobTrackerClient::NProto::TJobResult& jobResult);
 
     void Exit(EJobProxyExitCode exitCode);
 

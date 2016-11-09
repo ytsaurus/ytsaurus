@@ -17,6 +17,11 @@ struct TMultipleProducerSingleConsumerLockFreeStack<T>::TNode
         : Value(value)
         , Next(nullptr)
     { }
+
+    TNode(T&& value)
+        : Value(std::move(value))
+        , Next(nullptr)
+    { }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,6 +46,17 @@ template <class T>
 void TMultipleProducerSingleConsumerLockFreeStack<T>::Enqueue(const T& value)
 {
     auto* node = new TNode(value);
+    TNode* expected;
+    do {
+        expected = Head.load(std::memory_order_relaxed);
+        node->Next = expected;
+    } while (!Head.compare_exchange_weak(expected, node));
+}
+
+template <class T>
+void TMultipleProducerSingleConsumerLockFreeStack<T>::Enqueue(T&& value)
+{
+    auto* node = new TNode(std::move(value));
     TNode* expected;
     do {
         expected = Head.load(std::memory_order_relaxed);

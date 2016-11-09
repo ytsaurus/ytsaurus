@@ -103,7 +103,7 @@ void TStderrWriter::DoWrite(const void* buf_, size_t len)
     const char* buf = static_cast<const char*>(buf_);
 
     if (Head_.Size() < PartLimit_) {
-        const size_t toWrite = std::min(PartLimit_, len);
+        const size_t toWrite = std::min(PartLimit_ - Head_.Size(), len);
         Head_.Write(buf, toWrite);
         Y_ASSERT(Head_.Size() <= PartLimit_);
         if (toWrite == len) {

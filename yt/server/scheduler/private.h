@@ -39,6 +39,8 @@ extern const NLogging::TLogger SchedulerLogger;
 extern const NLogging::TLogger OperationLogger;
 extern const NProfiling::TProfiler SchedulerProfiler;
 
+extern const TDuration PrepareYieldPeriod;
+
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler

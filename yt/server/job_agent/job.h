@@ -12,6 +12,8 @@
 
 #include <yt/core/misc/error.h>
 
+#include <yt/core/misc/nullable.h>
+
 namespace NYT {
 namespace NJobAgent {
 
@@ -66,6 +68,11 @@ struct IJob
     virtual NYson::TYsonString Strace() = 0;
     virtual void SignalJob(const Stroka& signalName) = 0;
     virtual NYson::TYsonString PollJobShell(const NYson::TYsonString& parameters) = 0;
+
+    virtual void ReportStatistics(
+        const TNullable<TInstant>& startTime,
+        const TNullable<TInstant>& finishTime,
+        const TNullable<TError>& error) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJob)

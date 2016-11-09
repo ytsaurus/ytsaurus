@@ -114,6 +114,7 @@ private:
 
         auto startIndex = NextChunkIndex_;
         auto req = Proxy_.LocateChunks();
+        req->SetHeavy(true);
 
         for (int chunkCount = 0; chunkCount < Config_->MaxChunksPerScratch; ++chunkCount) {
             ToProto(req->add_subrequests(), ChunkIds_[NextChunkIndex_]);

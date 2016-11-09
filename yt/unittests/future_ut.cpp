@@ -159,7 +159,7 @@ static void* AsynchronousIntSetter(void* param)
     auto* promise = reinterpret_cast<TPromise<int>*>(param);
     promise->Set(42);
 
-    return NULL;
+    return nullptr;
 }
 
 static void* AsynchronousVoidSetter(void* param)
@@ -169,7 +169,7 @@ static void* AsynchronousVoidSetter(void* param)
     auto* promise = reinterpret_cast<TPromise<void>*>(param);
     promise->Set();
 
-    return NULL;
+    return nullptr;
 }
 
 TEST_F(TFutureTest, SubscribeWithAsynchronousSet)

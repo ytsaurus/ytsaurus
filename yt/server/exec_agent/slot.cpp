@@ -93,10 +93,10 @@ public:
     {
         return RunPrepareAction<void>([&] () {
             return Location_->MakeSandboxLink(
-                SlotIndex_, 
-                sandboxKind, 
-                targetPath, 
-                linkName, 
+                SlotIndex_,
+                sandboxKind,
+                targetPath,
+                linkName,
                 executable);
         });
     }
@@ -109,10 +109,10 @@ public:
     {
         return RunPrepareAction<void>([&] () {
             return Location_->MakeSandboxCopy(
-                SlotIndex_, 
-                sandboxKind, 
-                sourcePath, 
-                destinationName, 
+                SlotIndex_,
+                sandboxKind,
+                sourcePath,
+                destinationName,
                 executable);
         });
     }
@@ -120,7 +120,8 @@ public:
     virtual TFuture<Stroka> PrepareTmpfs(
         ESandboxKind sandboxKind,
         i64 size,
-        Stroka path) override
+        Stroka path,
+        bool enable) override
     {
         return RunPrepareAction<Stroka>([&] () {
             return Location_->MakeSandboxTmpfs(
@@ -128,8 +129,9 @@ public:
                 sandboxKind,
                 size,
                 JobEnvironment_->GetUserId(SlotIndex_),
-                path);
-        }, 
+                path,
+                enable);
+        },
         // Tmpfs mounting is uncancelable since it includes tool invokation in separate process.
         true);
     }
@@ -188,13 +190,13 @@ private:
     TFuture<T> RunPrepareAction(std::function<TFuture<T>()> action, bool uncancelable = false)
     {
         if (PreparationCanceled_) {
-            return MakeFuture<T>(TError("Slot preparation canceled") 
+            return MakeFuture<T>(TError("Slot preparation canceled")
                 << TErrorAttribute("slot_index", SlotIndex_));
         } else {
             auto future = action();
             auto preparationFuture = future.template As<void>();
-            PreparationFutures_.push_back(uncancelable 
-                ? preparationFuture.ToUncancelable() 
+            PreparationFutures_.push_back(uncancelable
+                ? preparationFuture.ToUncancelable()
                 : preparationFuture);
             return future;
         }

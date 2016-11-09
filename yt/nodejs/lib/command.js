@@ -193,6 +193,7 @@ YtCommand.prototype.dispatch = function(req, rsp) {
             self._checkAvailability();
             self._redirectHeavyRequests();
             self._getHeaderFormat();
+            self._captureParametersFromHeadersAndUrl();
             self._getInputFormat();
             self._getInputCompression();
             self._getOutputFormat();
@@ -564,16 +565,21 @@ YtCommand.prototype._getOutputFormat = function() {
     this.__DBG("_getOutputFormat");
 
     var result_format, result_mime, header;
-    var filename;
     var disposition = "attachment";
 
     // First, resolve content disposition.
     if (this.descriptor.is_heavy) {
         // Do our best to guess filename.
+        var filename;
         var passed_path = this.req.parsedQuery.path;
         if (typeof(passed_path) !== "undefined") {
             filename = "yt_" + passed_path;
         }
+
+        if (this.command == "get_job_stderr") {
+            filename = "job_stderr_{}_{}".format(this.parameters.operation_id, this.parameters.job_id);
+        }
+
         var passed_filename = this.req.parsedQuery.filename;
         if (typeof(passed_filename) !== "undefined") {
             filename = passed_filename;
@@ -591,10 +597,11 @@ YtCommand.prototype._getOutputFormat = function() {
         // Do our best to guess disposition.
         // XXX(sandello): For STDERRs -- use inline disposition.
         if (typeof(filename) !== "undefined") {
-            if (filename.match(/sys_operations_.*_stderr$/)) {
+            if (filename.match(/sys_operations_.*_stderr$/) || this.command == "get_job_stderr") {
                 disposition = "inline";
             }
         }
+
         var passed_disposition = this.req.parsedQuery["disposition"];
         if (typeof(passed_disposition) !== "undefined") {
             disposition = passed_disposition.toLowerCase();
@@ -706,21 +713,10 @@ YtCommand.prototype._getOutputCompression = function() {
     this.mime_compression = result_mime;
 };
 
-YtCommand.prototype._captureParameters = function() {
-    this.__DBG("_captureParameters");
+YtCommand.prototype._captureParametersFromHeadersAndUrl = function() {
+    this.__DBG("_captureParametersFromHeadersAndUrl");
 
-    var header;
-    var from_formats, from_url, from_header, from_body;
-
-    try {
-        from_formats = {
-            input_format: this.input_format,
-            output_format: this.output_format
-        };
-        from_formats = binding.CreateV8Node(from_formats);
-    } catch (err) {
-        throw new YtError("Unable to parse formats", err);
-    }
+    var from_url, from_header;
 
     try {
         from_url = utils.numerify(qs.parse(this.req.parsedUrl.query));
@@ -737,7 +733,7 @@ YtCommand.prototype._captureParameters = function() {
     }
 
     try {
-        header = this.req.headers["x-yt-parameters"];
+        var header = this.req.headers["x-yt-parameters"];
         if (typeof(header) === "string") {
             from_header = new binding.TNodeWrap(
                 header,
@@ -746,6 +742,29 @@ YtCommand.prototype._captureParameters = function() {
         }
     } catch (err) {
         throw new YtError("Unable to parse parameters from the request header X-YT-Parameters", err);
+    }
+
+    this.parameters = binding.CreateMergedNode.apply(
+        undefined,
+        [from_url, from_header]);
+    if (this.parameters.GetNodeType() !== "map") {
+        throw new YtError("Parameters must be a map");
+    }
+};
+
+YtCommand.prototype._captureParameters = function() {
+    this.__DBG("_captureParameters");
+
+    var from_formats, from_body;
+
+    try {
+        from_formats = {
+            input_format: this.input_format,
+            output_format: this.output_format
+        };
+        from_formats = binding.CreateV8Node(from_formats);
+    } catch (err) {
+        throw new YtError("Unable to parse formats", err);
     }
 
     if (this.req.method === "POST") {
@@ -772,7 +791,7 @@ YtCommand.prototype._captureParameters = function() {
     var self = this;
 
     return Q
-        .all([from_formats, from_url, from_header, from_body])
+        .all([from_formats, self.parameters, from_body])
         .spread(function() {
             self.parameters = binding.CreateMergedNode.apply(
                 undefined,

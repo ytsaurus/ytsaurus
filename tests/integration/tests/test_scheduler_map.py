@@ -6,6 +6,7 @@ from yt.wrapper import JsonFormat
 from yt.environment.helpers import assert_items_equal
 
 import pytest
+import random
 import time
 import __builtin__
 import os
@@ -1638,6 +1639,23 @@ print row + table_index
                 command="sleep 0.250; exit 1",
                 spec={"data_size_per_job": 1, "max_failed_job_count": 10, "testing": testing_options})
 
+    def test_job_per_row(self):
+        create("table", "//tmp/input")
+
+        job_count = 976
+        original_data = [{"index": str(i)} for i in xrange(job_count)]
+        write_table("//tmp/input", original_data)
+
+        create("table", "//tmp/output", ignore_existing=True)
+        op = map(dont_track=True,
+                 in_="//tmp/input",
+                 out="//tmp/output",
+                 command="sleep 100",
+                 spec={"job_count": 976})
+        time.sleep(1)
+        assert op.get_job_count("total") == 976
+        op.abort()
+
     def test_many_parallel_operations(self):
         create("table", "//tmp/input")
 
@@ -2636,6 +2654,41 @@ class TestSandboxTmpfs(YTEnvSetup):
             })
 
         assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op.id)) == 0
+
+class TestDisabledSandboxTmpfs(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "slot_manager": {
+                "enable_tmpfs": False
+            }
+        }
+    }
+
+    def test_simple(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        op = map(
+            command="cat; echo 'content' > tmpfs/file; ls tmpfs/ >&2; cat tmpfs/file >&2;",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={
+                "mapper": {
+                    "tmpfs_size": 1024 * 1024,
+                    "tmpfs_path": "tmpfs",
+                }
+            })
+
+        jobs_path = "//sys/operations/" + op.id + "/jobs"
+        assert get(jobs_path + "/@count") == 1
+        words = read_file(jobs_path + "/" + ls(jobs_path)[0] + "/stderr").strip().split()
+        assert ["file", "content"] == words
+
 
 
 class TestFilesInSandbox(YTEnvSetup):

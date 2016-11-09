@@ -628,7 +628,7 @@ void ChunkedCopy(
 
 TError AttachLsofOutput(TError error, const Stroka& path)
 {
-    auto lsofOutput = TShellCommand(Format("lsof %v", path))
+    auto lsofOutput = TShellCommand("lsof", {path})
         .Run()
         .Wait()
         .GetOutput();
@@ -638,7 +638,7 @@ TError AttachLsofOutput(TError error, const Stroka& path)
 
 TError AttachFindOutput(TError error, const Stroka& path)
 {
-    auto findOutput = TShellCommand(Format("find %v -name '*'", path))
+    auto findOutput = TShellCommand("find", {path, "-name", "*"})
         .Run()
         .Wait()
         .GetOutput();

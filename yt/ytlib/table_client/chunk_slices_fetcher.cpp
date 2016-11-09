@@ -89,6 +89,7 @@ TFuture<void> TChunkSliceFetcher::DoFetchFromNode(TNodeId nodeId, const std::vec
     proxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
 
     auto req = proxy.GetChunkSlices();
+    req->SetHeavy(true);
     req->set_slice_data_size(ChunkSliceSize_);
     req->set_slice_by_keys(SliceByKeys_);
     ToProto(req->mutable_key_columns(), KeyColumns_);

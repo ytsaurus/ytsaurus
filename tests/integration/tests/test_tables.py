@@ -314,7 +314,7 @@ class TestTables(YTEnvSetup):
         assert read_table("//tmp/table[a,c]") == [v1, v2, v5]
 
         # combination of row and key selectors
-        assert read_table('//tmp/table{s, i, d}[aa: (b, 10)]') == [{"s" : "b", "i" : 5, "d" : 20.}]
+        assert read_table('//tmp/table{s, d}[aa: (b, 10)]') == [{"s" : "b", "d" : 20.}]
 
         # limits of different types
         assert read_table("//tmp/table[#0:c]") == [v1, v2, v3, v4]

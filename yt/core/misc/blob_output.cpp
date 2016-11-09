@@ -61,6 +61,11 @@ size_t TBlobOutput::Size() const
     return Blob_.Size();
 }
 
+size_t TBlobOutput::Capacity() const
+{
+    return Blob_.Capacity();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
