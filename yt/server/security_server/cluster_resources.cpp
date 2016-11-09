@@ -43,7 +43,7 @@ void TClusterResources::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
     // COMPAT(shakurov)
-    if (context.GetVersion() < 500) {
+    if (context.GetVersion() < 400) {
         DiskSpace[DefaultMediumIndex] = Load<i64>(context);
     } else {
         Load(context, DiskSpace);

@@ -76,23 +76,13 @@ void TObjectBase::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
     Load(context, RefCounter_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 200) {
-        Load(context, ImportRefCounter_);
-    }
+    Load(context, ImportRefCounter_);
     if (Load<bool>(context)) {
         Attributes_ = std::make_unique<TAttributeSet>();
         Load(context, *Attributes_);
     }
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 204) {
-        if (Load<bool>(context)) {
-            SetForeign();
-        }
-    } else {
-        if (CellTagFromId(Id_) != context.GetBootstrap()->GetCellTag()) {
-            SetForeign();
-        }
+    if (Load<bool>(context)) {
+        SetForeign();
     }
 }
 

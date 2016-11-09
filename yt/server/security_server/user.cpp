@@ -101,20 +101,9 @@ void TUser::Load(NCellMaster::TLoadContext& context)
 
     using NYT::Load;
     Load(context, Banned_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 213) {
-        Load(context, RequestRateLimit_);
-    } else {
-        RequestRateLimit_ = static_cast<int>(Load<double>(context));
-    }
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 213) {
-        Load(context, RequestQueueSizeLimit_);
-    }
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 200) {
-        Load(context, MulticellStatistics_);
-    }
+    Load(context, RequestRateLimit_);
+    Load(context, RequestQueueSizeLimit_);
+    Load(context, MulticellStatistics_);
     Load(context, ClusterStatistics_);
 }
 

@@ -52,7 +52,7 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     Load(context, ChunkList_);
     Load(context, UpdateMode_);
     // COMPAT(shakurov)
-    if (context.GetVersion() < 501) {
+    if (context.GetVersion() < 400) {
         PrimaryMediumIndex_ = DefaultMediumIndex;
         Properties_[DefaultMediumIndex].SetReplicationFactorOrThrow(Load<int>(context));
         Properties_.SetVital(Load<bool>(context));
@@ -60,15 +60,9 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
         Load(context, Properties_);
         PrimaryMediumIndex_ = Load<int>(context);
     }
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 203) {
-        Load(context, ChunkPropertiesUpdateNeeded_);
-    }
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 200) {
-        Load(context, SnapshotStatistics_);
-        Load(context, DeltaStatistics_);
-    }
+    Load(context, ChunkPropertiesUpdateNeeded_);
+    Load(context, SnapshotStatistics_);
+    Load(context, DeltaStatistics_);
 }
 
 const TChunkList* TChunkOwnerBase::GetSnapshotChunkList() const

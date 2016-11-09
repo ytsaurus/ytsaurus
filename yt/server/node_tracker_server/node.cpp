@@ -209,42 +209,26 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
 
 void TNode::Load(NCellMaster::TLoadContext& context)
 {
-    // COMPAT(babenko)
-    YCHECK(context.GetVersion() >= 208);
-
     TObjectBase::Load(context);
 
     using NYT::Load;
     Load(context, Banned_);
     Load(context, Decommissioned_);
-
-    // COMPAT(psushin)
-    if (context.GetVersion() >= 353) {
-        Load(context, DisableWriteSessions_);
-        Load(context, DisableSchedulerJobs_);
-    }
-
+    Load(context, DisableWriteSessions_);
+    Load(context, DisableSchedulerJobs_);
     Load(context, Addresses_);
     Load(context, MulticellStates_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 300) {
-        Load(context, UserTags_);
-        Load(context, NodeTags_);
-    }
+    Load(context, UserTags_);
+    Load(context, NodeTags_);
     Load(context, RegisterTime_);
     Load(context, LastSeenTime_);
-
     Load(context, Statistics_);
-
     Load(context, Alerts_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 212) {
-        Load(context, ResourceLimitsOverrides_);
-    }
+    Load(context, ResourceLimitsOverrides_);
     Load(context, Rack_);
     Load(context, LeaseTransaction_);
     // COMPAT(shakurov)
-    if (context.GetVersion() < 501)  {
+    if (context.GetVersion() < 400)  {
         ReserveReplicas(DefaultMediumIndex, TSizeSerializer::Load(context), false);
         ReserveReplicas(DefaultCacheMediumIndex, TSizeSerializer::Load(context), true);
     } else {

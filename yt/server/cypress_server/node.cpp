@@ -146,13 +146,10 @@ void TCypressNodeBase::Load(TLoadContext& context)
     TObjectBase::Load(context);
 
     using NYT::Load;
+    Load(context, ExternalCellTag_);
+    Load(context, AccountingEnabled_);
     // COMPAT(babenko)
-    if (context.GetVersion() >= 200) {
-        Load(context, ExternalCellTag_);
-        Load(context, AccountingEnabled_);
-    }
-    // COMPAT(babenko)
-    if (context.GetVersion() < 500) {
+    if (context.GetVersion() < 400) {
         YCHECK(TSizeSerializer::Load(context) == 0);
         YCHECK(TSizeSerializer::Load(context) == 0);
         YCHECK(TSizeSerializer::Load(context) == 0);
@@ -164,10 +161,7 @@ void TCypressNodeBase::Load(TLoadContext& context)
     }
     TNonversionedObjectRefSerializer::Load(context, Parent_);
     Load(context, LockMode_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 211) {
-        Load(context, ExpirationTime_);
-    }
+    Load(context, ExpirationTime_);
     Load(context, CreationTime_);
     Load(context, ModificationTime_);
     Load(context, Revision_);

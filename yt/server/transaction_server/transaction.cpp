@@ -67,17 +67,12 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     // TODO(babenko): call TTransactionBase::Load
     TNonversionedObjectBase::Load(context);
 
-    // COMPAT(babenko)
-    YCHECK(context.GetVersion() >= 200);
-
     using NYT::Load;
     Load(context, State_);
     Load(context, Timeout_);
     Load(context, AccountingEnabled_);
     Load(context, Title_);
-    if (context.GetVersion() >= 209) {
-        Load(context, SecondaryCellTags_);
-    }
+    Load(context, SecondaryCellTags_);
     Load(context, NestedTransactions_);
     Load(context, Parent_);
     Load(context, StartTime_);

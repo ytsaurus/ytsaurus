@@ -514,7 +514,7 @@ ENodeType TLinkNode::GetNodeType() const
 void TLinkNode::Save(NCellMaster::TSaveContext& context) const
 {
     TCypressNodeBase::Save(context);
-    
+
     using NYT::Save;
     Save(context, TargetPath_);
 }
@@ -522,10 +522,10 @@ void TLinkNode::Save(NCellMaster::TSaveContext& context) const
 void TLinkNode::Load(NCellMaster::TLoadContext& context)
 {
     TCypressNodeBase::Load(context);
-    
+
     using NYT::Load;
     // COMPAT(babenko)
-    if (context.GetVersion() < 506) {
+    if (context.GetVersion() < 400) {
         auto id = Load<TNodeId>(context);
         TargetPath_ = FromObjectId(id);
     } else {

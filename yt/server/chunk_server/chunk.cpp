@@ -121,7 +121,7 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     Load(context, ChunkInfo_);
     Load(context, ChunkMeta_);
     // COMPAT(shakurov)
-    if (context.GetVersion() < 501) {
+    if (context.GetVersion() < 400) {
         LocalProperties_[DefaultMediumIndex]
             .SetReplicationFactorOrThrow(Load<i8>(context)); // Never actually throws.
     } else {
@@ -132,40 +132,28 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     SetErasureCodec(Load<NErasure::ECodec>(context));
     SetMovable(Load<bool>(context));
     // COMPAT(shakurov)
-    if (context.GetVersion() < 501) {
+    if (context.GetVersion() < 400) {
         SetLocalVital(Load<bool>(context));
     } // Local vital flag is now part of LocalProperties_.
     Load(context, Parents_);
     Load(context, StoredReplicas_);
     Load(context, CachedReplicas_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 201 && context.GetVersion() < 203) {
-        TRangeSerializer::Load(context, TMutableRef::FromPod(ExportDataList_));
-        for (auto data : ExportDataList_) {
-            if (data.RefCounter > 0) {
-                ++ExportCounter_;
+    Load(context, ExportCounter_);
+    if (ExportCounter_ > 0) {
+        // COMPAT(shakurov)
+        if (context.GetVersion() < 400) {
+            TOldChunkExportDataList oldExportDataList = {};
+            TRangeSerializer::Load(context, TMutableRef::FromPod(oldExportDataList));
+            for (int i = 0; i < NObjectClient::MaxSecondaryMasterCells; ++i) {
+                auto& exportData = ExportDataList_[i];
+                auto& properties = exportData.Properties;
+                auto& oldExportData = oldExportDataList[i];
+                exportData.RefCounter = oldExportData.RefCounter;
+                properties[DefaultMediumIndex].SetReplicationFactorOrThrow(oldExportData.ReplicationFactor);
+                properties.SetVital(oldExportData.Vital);
             }
-        }
-    }
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 203) {
-        Load(context, ExportCounter_);
-        if (ExportCounter_ > 0) {
-            // COMPAT(shakurov)
-            if (context.GetVersion() < 501) {
-                TOldChunkExportDataList oldExportDataList = {};
-                TRangeSerializer::Load(context, TMutableRef::FromPod(oldExportDataList));
-                for (int i = 0; i < NObjectClient::MaxSecondaryMasterCells; ++i) {
-                    auto& exportData = ExportDataList_[i];
-                    auto& properties = exportData.Properties;
-                    auto& oldExportData = oldExportDataList[i];
-                    exportData.RefCounter = oldExportData.RefCounter;
-                    properties[DefaultMediumIndex].SetReplicationFactorOrThrow(oldExportData.ReplicationFactor);
-                    properties.SetVital(oldExportData.Vital);
-                }
-            } else {
-                TRangeSerializer::Load(context, TMutableRef::FromPod(ExportDataList_));
-            }
+        } else {
+            TRangeSerializer::Load(context, TMutableRef::FromPod(ExportDataList_));
         }
     }
 

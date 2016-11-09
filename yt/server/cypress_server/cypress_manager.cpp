@@ -19,10 +19,6 @@
 #include <yt/server/security_server/security_manager.h>
 #include <yt/server/security_server/user.h>
 
-// COMPAT(babenko)
-#include <yt/server/chunk_server/chunk_owner_base.h>
-#include <yt/server/chunk_server/chunk_list.h>
-
 #include <yt/ytlib/cypress_client/cypress_ypath.pb.h>
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
@@ -49,7 +45,6 @@ using namespace NObjectServer;
 using namespace NSecurityClient;
 using namespace NSecurityServer;
 using namespace NCypressClient::NProto;
-using namespace NChunkServer; // COMPAT(babenko)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1098,9 +1093,6 @@ private:
     TNodeId RootNodeId_;
     TMapNode* RootNode_ = nullptr;
 
-    // COMPAT(babenko)
-    bool RecomputeChunkOwnerStatistics_ = false;
-
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
@@ -1131,9 +1123,6 @@ private:
 
         NodeMap_.LoadValues(context);
         LockMap_.LoadValues(context);
-
-        // COMPAT(babenko)
-        RecomputeChunkOwnerStatistics_ = (context.GetVersion() < 304);
     }
 
 
@@ -1205,17 +1194,6 @@ private:
                 for (auto it = lockingState->SnapshotLocks.begin(); it != lockingState->SnapshotLocks.end(); ++it) {
                     auto* lock = it->second;
                     lock->SetSnapshotLocksIterator(it);
-                }
-            }
-
-            // COMPAT(babenko)
-            if (RecomputeChunkOwnerStatistics_ &&
-                (node->GetType() == EObjectType::Table || node->GetType() == EObjectType::File))
-            {
-                auto* chunkOwnerNode = node->As<TChunkOwnerBase>();
-                const auto* chunkList = chunkOwnerNode->GetChunkList();
-                if (chunkList) {
-                    chunkOwnerNode->SnapshotStatistics() = chunkList->Statistics().ToDataStatistics();
                 }
             }
 
