@@ -115,7 +115,9 @@ public:
 
     void AbortAllJobs(const TError& error);
 
-    void AbortOperationJobs(const TOperationId& operationId, const TError& abortReason);
+    void AbortOperationJobs(const TOperationId& operationId, const TError& abortReason, bool terminated);
+
+    void ResumeOperationJobs(const TOperationId& operationId);
 
     NYson::TYsonString StraceJob(const TJobId& jobId, const Stroka& user);
 
@@ -188,6 +190,7 @@ private:
 
         yhash_map<TJobId, TJobPtr> Jobs;
         IOperationControllerPtr Controller;
+        bool Terminated = false;
         bool JobsAborted = false;
     };
 

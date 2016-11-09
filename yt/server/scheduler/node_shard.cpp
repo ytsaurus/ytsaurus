@@ -223,6 +223,11 @@ yhash_set<TOperationId> TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeart
                     response,
                     &operationsToLog);
 
+                // NB: some jobs maybe considered aborted after processing scheduled jobs.
+                PROFILE_TIMING ("/strategy_job_processing_time") {
+                    SubmitUpdatedAndCompletedJobsToStrategy();
+                }
+
                 response->set_scheduling_skipped(false);
             }
 
@@ -324,7 +329,7 @@ void TNodeShard::AbortAllJobs(const TError& abortReason)
     }
 }
 
-void TNodeShard::AbortOperationJobs(const TOperationId& operationId, const TError& abortReason)
+void TNodeShard::AbortOperationJobs(const TOperationId& operationId, const TError& abortReason, bool terminated)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -333,6 +338,7 @@ void TNodeShard::AbortOperationJobs(const TOperationId& operationId, const TErro
         return;
     }
 
+    operationState->Terminated = terminated;
     operationState->JobsAborted = true;
     auto jobs = operationState->Jobs;
     for (const auto& job : jobs) {
@@ -343,6 +349,18 @@ void TNodeShard::AbortOperationJobs(const TOperationId& operationId, const TErro
     for (const auto& job : operationState->Jobs) {
         YCHECK(job.second->GetHasPendingUnregistration());
     }
+}
+
+void TNodeShard::ResumeOperationJobs(const TOperationId& operationId)
+{
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    auto* operationState = FindOperationState(operationId);
+    if (!operationState || operationState->Terminated) {
+        return;
+    }
+
+    operationState->JobsAborted = false;
 }
 
 TYsonString TNodeShard::StraceJob(const TJobId& jobId, const Stroka& user)
@@ -1131,6 +1149,16 @@ TFuture<void> TNodeShard::ProcessScheduledJobs(
             LOG_DEBUG("Dangling started job found (JobId: %v, OperationId: %v)",
                 job->GetId(),
                 job->GetOperationId());
+            if (operationState && !operationState->Terminated) {
+                const auto& controller = operationState->Controller;
+                controller->GetCancelableInvoker()->Invoke(BIND(
+                    &IOperationController::OnJobAborted,
+                    controller,
+                    Passed(std::make_unique<TAbortedJobSummary>(
+                        job->GetId(),
+                        EAbortReason::SchedulingOperationSuspended))));
+                CompletedJobs_.emplace_back(job->GetOperationId(), job->GetId());
+            }
             continue;
         }
 
