@@ -89,27 +89,32 @@ class TestCypressCommands(object):
         yt.create_table(TEST_DIR + "/dir/table")
         yt.write_file(TEST_DIR + "/file", b"")
 
-        res = set([TEST_DIR, TEST_DIR + "/dir",
-                   TEST_DIR + "/dir/other_dir",
-                   TEST_DIR + "/dir/table",
-                   TEST_DIR + "/file"])
-        assert set(yt.search(TEST_DIR)) == res
+        res = sorted([
+            TEST_DIR,
+            TEST_DIR + "/dir",
+            TEST_DIR + "/dir/other_dir",
+            TEST_DIR + "/dir/table",
+            TEST_DIR + "/file"])
+        assert list(yt.search(TEST_DIR)) == res
         yt.set_attribute(TEST_DIR + "/dir", "opaque", True)
-        assert set(yt.search(TEST_DIR)) == res
+
+        assert list(yt.search(TEST_DIR)) == res
         yt.remove(TEST_DIR + "/dir/@opaque")
 
-        assert set(yt.search(TEST_DIR, depth_bound=1)) == set([TEST_DIR, TEST_DIR + "/dir",
-                                                               TEST_DIR + "/file"])
-        assert set(yt.search(TEST_DIR, exclude=[TEST_DIR + "/dir"])) == set([TEST_DIR, TEST_DIR + "/file"])
+        assert list(yt.search(TEST_DIR, depth_bound=1)) == sorted([
+            TEST_DIR,
+            TEST_DIR + "/dir",
+            TEST_DIR + "/file"])
+        assert list(yt.search(TEST_DIR, exclude=[TEST_DIR + "/dir"])) == sorted([TEST_DIR, TEST_DIR + "/file"])
 
         res = yt.search(TEST_DIR, map_node_order=lambda path, object: sorted(object))
         assert list(res) == [TEST_DIR, TEST_DIR + "/dir", TEST_DIR + "/dir/other_dir",
                              TEST_DIR + "/dir/table", TEST_DIR + "/file"]
 
-        assert set(yt.search(TEST_DIR, node_type="file")) == set([TEST_DIR + "/file"])
+        assert list(yt.search(TEST_DIR, node_type="file")) == [TEST_DIR + "/file"]
 
-        assert set(yt.search(TEST_DIR, node_type="table",
-                             path_filter=lambda x: x.find("dir") != -1)) == set([TEST_DIR + "/dir/table"])
+        assert list(yt.search(TEST_DIR, node_type="table",
+                             path_filter=lambda x: x.find("dir") != -1)) == [TEST_DIR + "/dir/table"]
 
         def subtree_filter(path, obj):
             is_in_dir = path.find("dir") != -1
@@ -121,15 +126,15 @@ class TestCypressCommands(object):
         # Search empty tables
         res = yt.search(TEST_DIR, attributes=["row_count"],
                         object_filter=lambda x: x.attributes.get("row_count", -1) == 0)
-        assert sorted(list(res)) == sorted([yson.to_yson_type(TEST_DIR + "/dir/table",
-                                                              {"row_count": 0})])
+        assert sorted(res) == sorted([yson.to_yson_type(TEST_DIR + "/dir/table",
+                                                        {"row_count": 0})])
 
         # Search in list nodes
         list_node = TEST_DIR + "/list_node"
         yt.set(list_node, ["x"])
         yt.create_table(list_node + "/end")
         yt.create_table(list_node + "/end")
-        assert set(yt.search(list_node, node_type="table")) == set([list_node + "/1", list_node + "/2"])
+        assert list(yt.search(list_node, node_type="table")) == sorted([list_node + "/1", list_node + "/2"])
         assert list(yt.search(list_node, list_node_order=lambda p, obj: [2, 0, 1])) == \
                [list_node] + ["{0}/{1}".format(list_node, i) for i in [2, 0, 1]]
         assert "//sys/accounts/tmp" in yt.search("//sys", node_type="account")
@@ -212,9 +217,9 @@ class TestCypressCommands(object):
         tables = ["{0}/{1}".format(TEST_DIR, name) for name in ("a", "b", "c")]
         for table in tables:
             yt.create_table(table)
-        assert set(yt.list(TEST_DIR)) == set(["a", "b", "c"])
-        assert set(yt.list(TEST_DIR, absolute=True)) == \
-                set(["{0}/{1}".format(TEST_DIR, x) for x in ("a", "b", "c")])
+        assert yt.list(TEST_DIR) == sorted(["a", "b", "c"])
+        assert yt.list(TEST_DIR, absolute=True) == \
+            sorted(["{0}/{1}".format(TEST_DIR, x) for x in ("a", "b", "c")])
         yt.mkdir(TEST_DIR + "/subdir")
         yt.create_table(TEST_DIR + "/subdir/table")
 

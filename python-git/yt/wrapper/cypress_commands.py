@@ -163,7 +163,7 @@ def link(target_path, link_path, recursive=False, ignore_existing=False, force=F
         client=client)
 
 
-def list(path, max_size=None, format=None, absolute=None, attributes=None, client=None):
+def list(path, max_size=None, format=None, absolute=None, attributes=None, sort=True, client=None):
     """List directory (map_node) content.
 
     Node type must be 'map_node'.
@@ -172,6 +172,9 @@ def list(path, max_size=None, format=None, absolute=None, attributes=None, clien
     :param attributes: (list) desired node attributes in the response.
     :param format: (descendant of `Format`) command response format, by default - None.
     :param absolute: (bool) convert relative paths to absolute. Works only if format isn't specified.
+    :param sort: (bool) if set to True output will be sorted;
+        NOTE output is never sorted if format is specified or result is incomplete,
+        i.e. path children count exceeds max_size.
     :return: raw YSON (string) by default, parsed YSON or JSON if format is not specified (=None).
     .. seealso:: `list on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#list>`_
     """
@@ -194,6 +197,8 @@ def list(path, max_size=None, format=None, absolute=None, attributes=None, clien
         params=params,
         format=format,
         client=client)
+    if format is None and not result.attributes.get("incomplete", False) and sort:
+        result.sort()
     if absolute and format is None:
         result = builtins.list(imap(join, result))
     return result
@@ -314,7 +319,8 @@ def find_free_subpath(path, client=None):
 
 def search(root="", node_type=None,
            path_filter=None, object_filter=None, subtree_filter=None,
-           map_node_order=None, list_node_order=None,
+           map_node_order=lambda path, obj: sorted(obj),
+           list_node_order=None,
            attributes=None, exclude=None, depth_bound=None,
            follow_links=False, client=None):
     """Search for some nodes in Cypress subtree.
@@ -322,11 +328,16 @@ def search(root="", node_type=None,
     :param root: (string or `YPath`) path to search
     :param node_type: (list of string)
     :param object_filter: (predicate)
+    :param map_node_order: function that specifies order of traversing map_node children;
+        that function should take two arguments (path, object)
+        and should return iterable over object children;
+        default map_node_order sorts children lexicographically;
+        set it to None in order to switch off sorting
     :param attributes: (list of string) these attributes will be added to result objects
     :param exclude: (list of string) excluded paths
     :param depth_bound: (int) recursion depth
     :param follow_links: (bool) follow links
-    :return: (list of YsonString) result paths
+    :return: (iterable over YsonString) result paths
     """
     # Deprecated. Default value "/" should be removed.
     if not root and not get_config(client)["prefix"]:
