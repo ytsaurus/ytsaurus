@@ -20,6 +20,8 @@ using namespace NJobTrackerClient::NProto;
 using namespace NYTree;
 using namespace NYson;
 
+using NChunkClient::TDataSliceDescriptor;
+
 ////////////////////////////////////////////////////////////////////
 
 class TSortedReduceJobIO

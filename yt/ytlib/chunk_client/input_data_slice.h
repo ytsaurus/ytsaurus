@@ -6,7 +6,8 @@
 #include <yt/core/misc/nullable.h>
 #include <yt/core/misc/phoenix.h>
 
-#include <yt/ytlib/table_client/data_slice_descriptor.h>
+#include <yt/ytlib/chunk_client/data_slice_descriptor.h>
+
 #include <yt/ytlib/table_client/schema.h>
 
 namespace NYT {
@@ -25,7 +26,7 @@ struct TInputDataSlice
 public:
     TInputDataSlice() = default;
     TInputDataSlice(
-        NTableClient::EDataSliceDescriptorType type,
+        NChunkClient::EDataSliceDescriptorType type,
         TChunkSliceList chunkSlices,
         TInputSliceLimit lowerLimit,
         TInputSliceLimit upperLimit);
@@ -45,7 +46,7 @@ public:
     TInputChunkPtr GetSingleUnversionedChunkOrThrow() const;
 
     TChunkSliceList ChunkSlices;
-    NTableClient::EDataSliceDescriptorType Type;
+    NChunkClient::EDataSliceDescriptorType Type;
 };
 
 DEFINE_REFCOUNTED_TYPE(TInputDataSlice)
@@ -55,7 +56,7 @@ DEFINE_REFCOUNTED_TYPE(TInputDataSlice)
 Stroka ToString(const TInputDataSlicePtr& dataSlice);
 
 void ToProto(
-    NTableClient::NProto::TDataSliceDescriptor* dataSliceDescriptor,
+    NProto::TDataSliceDescriptor* dataSliceDescriptor,
     TInputDataSlicePtr inputDataSlice,
     const NTableClient::TTableSchema& schema,
     NTableClient::TTimestamp timestamp);
@@ -63,7 +64,7 @@ void ToProto(
 ////////////////////////////////////////////////////////////////////////////////
 
 TInputDataSlicePtr CreateInputDataSlice(
-    NTableClient::EDataSliceDescriptorType type,
+    NChunkClient::EDataSliceDescriptorType type,
     const std::vector<TInputChunkSlicePtr>& inputChunks,
     NTableClient::TKey lowerKey,
     NTableClient::TKey upperKey);

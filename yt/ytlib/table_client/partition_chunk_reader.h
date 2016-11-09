@@ -3,8 +3,8 @@
 #include "chunk_reader_base.h"
 #include "public.h"
 #include "schemaless_block_reader.h"
-#include "data_slice_descriptor.h"
 
+#include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/multi_reader_base.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
@@ -109,7 +109,7 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
     NApi::INativeClientPtr client,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-    const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
+    const std::vector<NChunkClient::TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
     int partitionTag);

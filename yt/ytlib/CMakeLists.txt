@@ -44,6 +44,8 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/client_block_cache.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/confirming_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/data_node_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/data_slice_descriptor.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/data_slice_descriptor.proto
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/data_statistics.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/data_statistics.proto
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/dispatcher.cpp
@@ -300,8 +302,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_sorted_merging_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_sorting_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/table_consumer.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/table_client/data_slice_descriptor.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/table_client/data_slice_descriptor.proto
   ${CMAKE_CURRENT_LIST_DIR}/table_client/data_slice_fetcher.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/table_ypath.proto
   ${CMAKE_CURRENT_LIST_DIR}/table_client/unordered_schemaful_reader.cpp

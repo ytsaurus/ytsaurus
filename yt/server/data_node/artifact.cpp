@@ -3,7 +3,7 @@
 #include <yt/core/misc/hash.h>
 #include <yt/core/misc/protobuf_helpers.h>
 
-#include <yt/ytlib/table_client/data_slice_descriptor.h>
+#include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 
 namespace NYT {
 namespace NDataNode {

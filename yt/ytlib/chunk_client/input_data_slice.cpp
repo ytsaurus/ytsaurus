@@ -95,7 +95,7 @@ Stroka ToString(const TInputDataSlicePtr& dataSlice)
 }
 
 void ToProto(
-    NTableClient::NProto::TDataSliceDescriptor* dataSliceDescriptor,
+    NProto::TDataSliceDescriptor* dataSliceDescriptor,
     TInputDataSlicePtr inputDataSlice,
     const TTableSchema& schema,
     TTimestamp timestamp)
@@ -103,7 +103,7 @@ void ToProto(
     std::vector<NProto::TChunkSpec> chunkSpecs;
 
     for (const auto& slice : inputDataSlice->ChunkSlices) {
-        NChunkClient::NProto::TChunkSpec spec;
+        NProto::TChunkSpec spec;
         ToProto(&spec, slice);
         chunkSpecs.push_back(std::move(spec));
     }

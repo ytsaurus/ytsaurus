@@ -52,6 +52,8 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NRpc;
 
+using NChunkClient::TDataSliceDescriptor;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemalessTableReader

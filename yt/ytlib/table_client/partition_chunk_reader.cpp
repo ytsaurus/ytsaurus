@@ -27,6 +27,8 @@ using namespace NApi;
 using namespace NNodeTrackerClient;
 using namespace NYTree;
 
+using NChunkClient::TDataSliceDescriptor;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TPartitionChunkReader::TPartitionChunkReader(

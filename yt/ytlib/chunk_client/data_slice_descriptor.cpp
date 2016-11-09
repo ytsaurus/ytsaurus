@@ -1,19 +1,15 @@
-#include  "data_slice_descriptor.h"
-
-#include <yt/ytlib/chunk_client/chunk_spec.h>
-#include <yt/ytlib/chunk_client/helpers.h>
+#include "data_slice_descriptor.h"
+#include "chunk_spec.h"
+#include "helpers.h"
 
 namespace NYT {
-namespace NTableClient {
-
-using namespace NChunkClient;
-using namespace NChunkClient::NProto;
+namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TDataSliceDescriptor::TDataSliceDescriptor(
     EDataSliceDescriptorType type,
-    std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs)
+    std::vector<NProto::TChunkSpec> chunkSpecs)
     : Type(type)
     , ChunkSpecs(std::move(chunkSpecs))
 { }
@@ -38,13 +34,13 @@ void ToProto(NProto::TDataSliceDescriptor* protoDataSliceDescriptor, const TData
 void FromProto(TDataSliceDescriptor* dataSliceDescriptor, const NProto::TDataSliceDescriptor& protoDataSliceDescriptor)
 {
     dataSliceDescriptor->Type = EDataSliceDescriptorType(protoDataSliceDescriptor.type());
-    dataSliceDescriptor->ChunkSpecs = std::vector<TChunkSpec>(protoDataSliceDescriptor.chunks().begin(), protoDataSliceDescriptor.chunks().end());
+    dataSliceDescriptor->ChunkSpecs = std::vector<NProto::TChunkSpec>(protoDataSliceDescriptor.chunks().begin(), protoDataSliceDescriptor.chunks().end());
     if (dataSliceDescriptor->Type == EDataSliceDescriptorType::UnversionedTable ||
         dataSliceDescriptor->Type == EDataSliceDescriptorType::VersionedTable)
     {
         auto tableSliceDescriptor = protoDataSliceDescriptor.GetExtension(NProto::TTableSliceDescriptor::table_slice_descriptor);
         FromProto(&dataSliceDescriptor->Schema, tableSliceDescriptor.schema());
-        dataSliceDescriptor->Timestamp = TTimestamp(tableSliceDescriptor.timestamp());
+        dataSliceDescriptor->Timestamp = NTableClient::TTimestamp(tableSliceDescriptor.timestamp());
     }
 }
 
@@ -54,7 +50,7 @@ i64 GetCumulativeRowCount(const std::vector<TDataSliceDescriptor>& dataSliceDesc
 {
     i64 result = 0;
     for (const auto& dataSliceDescriptor : dataSliceDescriptors) {
-        result += NChunkClient::GetCumulativeRowCount(dataSliceDescriptor.ChunkSpecs);
+        result += GetCumulativeRowCount(dataSliceDescriptor.ChunkSpecs);
     }
     return result;
 }
