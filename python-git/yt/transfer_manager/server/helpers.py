@@ -1,5 +1,7 @@
 from __future__ import print_function
 
+from copy import deepcopy
+
 from .errors import IncorrectTokenError
 
 import yt.logger as logger
@@ -50,9 +52,11 @@ def log_yt_exception(logger, message=None):
     # To overcome it we convert exception to string before logging through socket handler.
     # https://bugs.python.org/issue1692335
     exc_type, exc_value, exc_traceback = sys.exc_info()
-    exception_string = "\n".join(traceback.format_exception(exc_type, str(exc_value), exc_traceback))
+    exception_string = "\\n".join(traceback.format_exception(exc_type, str(exc_value), exc_traceback))
+    exception_string = exception_string.replace("\n", "\\n")
     if message is not None:
-        logger.error(message + "\n" + exception_string)
+        message = message.replace("\n", "\\n")
+        logger.error(message + "\\n" + exception_string)
     else:
         logger.error(exception_string)
 
@@ -116,3 +120,11 @@ def configure_logging(logging_config):
     new_logger.setLevel(level)
     new_logger.handlers = [handler]
     logger.LOGGER = new_logger
+
+
+def filter_out_keys(dict_, keys):
+    result = deepcopy(dict_)
+    for key in keys:
+        if key in result:
+            del result[key]
+    return result

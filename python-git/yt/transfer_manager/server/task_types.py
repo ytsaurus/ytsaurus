@@ -14,8 +14,9 @@ class Task(object):
                  skip_if_destination_exists=None, progress=None, history=None, backend_tag=None, kiwi_user=None,
                  kwworm_options=None, pool=None, meta=None, destination_compression_codec=None,
                  destination_erasure_codec=None, destination_force_sort=None, copy_spec=None, postprocess_spec=None,
-                 job_timeout=None, intermediate_format=None, lease_timeout=None, queue_name=None, force_copy_with_operation=None,
-                 additional_attributes=None, table_for_errors=None, schema_inference_mode=None, temp_files_dir=None):
+                 job_timeout=None, intermediate_format=None, lease_timeout=None, queue_name=None,
+                 force_copy_with_operation=None, additional_attributes=None, table_for_errors=None,
+                 schema_inference_mode=None, temp_files_dir=None, logger=None):
         self.source_cluster = source_cluster
         self.source_table = source_table
         self.source_cluster_token = get_value(source_cluster_token, token)
@@ -66,6 +67,8 @@ class Task(object):
         self._last_ping_time = None
         self._subtasks = None
 
+        self.logger = logger
+
     def get_direction_id(self):
         return self.queue_name, self.source_cluster, self.destination_cluster
 
@@ -94,6 +97,7 @@ class Task(object):
 
     def dict(self, hide_token=False, fields=None):
         result = self.__dict__.copy()
+        del result["logger"]
         if hide_token:
             for key in ["token", "source_cluster_token", "destination_cluster_token"]:
                 del result[key]
