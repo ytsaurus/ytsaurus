@@ -41,13 +41,9 @@ ui32 TVersionedValueExtractorBase::GetTimestampIndex(i64 valueIndex) const
     return TimestampIndexReader_[valueIndex];
 }
 
-void TVersionedValueExtractorBase::SetAggregate(TVersionedValue* value, i64 valueIndex) const
+bool TVersionedValueExtractorBase::GetAggregate(i64 valueIndex) const
 {
-    if (Aggregate_) {
-        value->Aggregate = AggregateBitmap_[valueIndex];
-    } else {
-        value->Aggregate = false;
-    }
+    return Aggregate_ ? AggregateBitmap_[valueIndex] : false;
 }
 
 size_t TVersionedValueExtractorBase::InitTimestampIndexReader(const char* ptr)
