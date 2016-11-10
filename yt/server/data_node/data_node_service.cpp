@@ -341,7 +341,11 @@ private:
         bool diskThrottling = diskQueueSize > Config_->DiskReadThrottlingLimit;
         response->set_disk_throttling(diskThrottling);
 
-        i64 netQueueSize = GetNetOutQueueSize();
+        const auto& throttler = Bootstrap_->GetOutThrottler(workloadDescriptor);
+        i64 netThrottlerQueueSize = throttler->GetQueueTotalCount();
+        i64 netOutQueueSize = GetNetOutQueueSize();
+        i64 netQueueSize = netThrottlerQueueSize + netOutQueueSize;
+
         response->set_net_queue_size(netQueueSize);
 
         bool netThrottling = netQueueSize > Config_->NetOutThrottlingLimit;
@@ -402,22 +406,25 @@ private:
         }
 
         context->SetResponseInfo(
-            "HasCompleteChunk: %v, NetThrottling: %v, NetQueueSize: %v, "
-            "DiskThrottling: %v, DiskQueueSize: %v, "
+            "HasCompleteChunk: %v, NetThrottling: %v, NetOutQueueSize: %v, "
+            "NetThrottlerQueueSize: %v, DiskThrottling: %v, DiskQueueSize: %v, "
             "BlocksWithData: %v, BlocksWithPeers: %v, BlocksSize: %v",
             hasCompleteChunk,
             netThrottling,
-            netQueueSize,
+            netOutQueueSize,
+            netThrottlerQueueSize,
             diskThrottling,
             diskQueueSize,
             blocksWithData,
             response->peer_descriptors_size(),
             blocksSize);
 
-        // Throttle response.
+        // NB: We throttle only heavy responses that contain a non-empty attachment
+        // as we want responses containing the information about disk/net throttling
+        // to be delivered immediately.
+        auto replyFuture = blocksSize > 0 ? throttler->Throttle(blocksSize) : VoidFuture;
         context->SetComplete();
-        auto throttler = Bootstrap_->GetOutThrottler(workloadDescriptor);
-        context->ReplyFrom(throttler->Throttle(blocksSize));
+        context->ReplyFrom(replyFuture);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlockRange)
@@ -454,7 +461,11 @@ private:
         bool diskThrottling = diskQueueSize > Config_->DiskReadThrottlingLimit;
         response->set_disk_throttling(diskThrottling);
 
-        i64 netQueueSize = GetNetOutQueueSize();
+        const auto& throttler = Bootstrap_->GetOutThrottler(workloadDescriptor);
+        i64 netThrottlerQueueSize = throttler->GetQueueTotalCount();
+        i64 netOutQueueSize = GetNetOutQueueSize();
+        i64 netQueueSize = netThrottlerQueueSize + netOutQueueSize;
+
         response->set_net_queue_size(netQueueSize);
 
         bool netThrottling = netQueueSize > Config_->NetOutThrottlingLimit;
@@ -483,21 +494,24 @@ private:
         i64 blocksSize = GetByteSize(response->Attachments());
 
         context->SetResponseInfo(
-            "HasCompleteChunk: %v, NetThrottling: %v, NetQueuSize: %v, "
-            "DiskThrottling: %v, DiskQueueSize: %v, "
+            "HasCompleteChunk: %v, NetThrottling: %v, NetOutQueueSize: %v, "
+            "NetThrottlerQueueSize: %v, DiskThrottling: %v, DiskQueueSize: %v, "
             "BlocksWithData: %v, BlocksSize: %v",
             hasCompleteChunk,
             netThrottling,
-            netQueueSize,
+            netOutQueueSize,
+            netThrottlerQueueSize,
             diskThrottling,
             diskQueueSize,
             blocksWithData,
             blocksSize);
 
-        // Throttle response.
+        // NB: We throttle only heavy responses that contain a non-empty attachment
+        // as we want responses containing the information about disk/net throttling
+        // to be delivered immediately.
+        auto replyFuture = blocksSize > 0 ? throttler->Throttle(blocksSize) : VoidFuture;
         context->SetComplete();
-        auto throttler = Bootstrap_->GetOutThrottler(workloadDescriptor);
-        context->ReplyFrom(throttler->Throttle(blocksSize));
+        context->ReplyFrom(replyFuture);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkMeta)
@@ -730,8 +744,8 @@ private:
     }
 
     static void SerializeSample(
-        TRspGetTableSamples::TSample* protoSample, 
-        std::vector<TUnversionedValue> values, 
+        TRspGetTableSamples::TSample* protoSample,
+        std::vector<TUnversionedValue> values,
         i32 maxSampleSize,
         i64 weight)
     {
@@ -899,7 +913,7 @@ private:
             auto chunkId = FromProto<TChunkId>(sampleRequest->chunk_id());
             LOG_WARNING(ex, "Failed to gather samples (ChunkId: %v)", chunkId);
 
-            // We failed to deserialize name table, so we don't return any samples. 
+            // We failed to deserialize name table, so we don't return any samples.
             return;
         }
 
