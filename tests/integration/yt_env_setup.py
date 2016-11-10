@@ -183,8 +183,12 @@ class YTEnvSetup(object):
             makedirp(SANDBOX_STORAGE_ROOTDIR)
 
             # XXX(asaitgalin): Ensure tests running user has enough permissions to manipulate YT sandbox.
-            subprocess.check_call(["sudo", "chown", "-R", "{0}:{1}".format(os.getuid(), os.getgid()),
-                                   cls.path_to_run])
+            chown_command = ["sudo", "chown", "-R", "{0}:{1}".format(os.getuid(), os.getgid()), cls.path_to_run]
+            p = subprocess.Popen(chown_command, stderr=subprocess.PIPE)
+            _, stderr = p.communicate()
+            if p.returncode != 0:
+                print >>sys.stderr, stderr
+                raise subprocess.CalledProcessError(p.returncode, " ".join(chown_command))
 
             # XXX(dcherednik): Detete named pipes
             subprocess.check_call(["find", cls.path_to_run, "-type", "p", "-delete"])
