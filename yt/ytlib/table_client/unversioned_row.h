@@ -449,9 +449,12 @@ Stroka ToString(const TUnversionedOwningRow& row);
 TSharedRange<TUnversionedRow> CaptureRows(
     const TRange<TUnversionedRow>& rows,
     TRefCountedTypeCookie tagCookie);
+TSharedRange<TUnversionedRow> CaptureRows(
+    const TRange<TUnversionedOwningRow>& rows,
+    TRefCountedTypeCookie tagCookie);
 
-template <class TTag>
-TSharedRange<TUnversionedRow> CaptureRows(const TRange<TUnversionedRow>& rows)
+template <class TTag, class TRow>
+TSharedRange<TUnversionedRow> CaptureRows(const TRange<TRow>& rows)
 {
     return CaptureRows(rows, GetRefCountedTypeCookie<TTag>());
 }
@@ -624,6 +627,19 @@ public:
         StringData_ = std::move(other.StringData_);
         return *this;
     }
+
+
+    // STL interop.
+    const TUnversionedValue* begin()
+    {
+        return Begin();
+    }
+
+    const TUnversionedValue* end()
+    {
+        return End();
+    }
+
 
     void Save(TStreamSaveContext& context) const;
     void Load(TStreamLoadContext& context);
