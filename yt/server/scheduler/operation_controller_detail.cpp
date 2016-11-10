@@ -3824,7 +3824,8 @@ void TOperationControllerBase::CollectTotals()
 {
     for (const auto& table : InputTables) {
         for (const auto& chunkSpec : table.Chunks) {
-            if (const auto& chunkId = IsUnavailable(chunkSpec, IsParityReplicasFetchEnabled())) {
+            if (IsUnavailable(chunkSpec, IsParityReplicasFetchEnabled())) {
+                const auto& chunkId = chunkSpec->ChunkId();
                 if (table.IsDynamic && table.Schema.IsSorted()) {
                     THROW_ERROR_EXCEPTION("Input chunk %v of sorted dynamic table %v is unavailable",
                         chunkId,
