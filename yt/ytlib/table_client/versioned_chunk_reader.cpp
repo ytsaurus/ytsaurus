@@ -43,6 +43,7 @@ using namespace NTableChunkFormat::NProto;
 
 using NChunkClient::TReadLimit;
 using NChunkClient::TReadRange;
+using NChunkClient::TDataSliceDescriptor;
 
 using NYT::ToProto;
 
@@ -1258,7 +1259,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 options->DynamicTable = true;
 
                 return CreateSchemalessChunkReader(
-                    chunkSpec,
+                    MakeUnversionedDataSliceDescriptor(std::move(chunkSpec)),
                     config,
                     options,
                     chunkReader,
@@ -1337,7 +1338,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 options->DynamicTable = true;
 
                 return CreateSchemalessChunkReader(
-                    chunkSpec,
+                    MakeUnversionedDataSliceDescriptor(std::move(chunkSpec)),
                     config,
                     options,
                     chunkReader,

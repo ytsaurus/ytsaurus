@@ -14,6 +14,13 @@ TDataSliceDescriptor::TDataSliceDescriptor(
     , ChunkSpecs(std::move(chunkSpecs))
 { }
 
+const NProto::TChunkSpec& TDataSliceDescriptor::GetSingleUnversionedChunk() const
+{
+    YCHECK(Type == EDataSliceDescriptorType::UnversionedTable);
+    YCHECK(ChunkSpecs.size() == 1);
+    return ChunkSpecs[0];
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void ToProto(NProto::TDataSliceDescriptor* protoDataSliceDescriptor, const TDataSliceDescriptor& dataSliceDescriptor)
@@ -62,6 +69,23 @@ i64 GetDataSliceDescriptorReaderMemoryEstimate(const TDataSliceDescriptor& dataS
         result += GetChunkReaderMemoryEstimate(chunkSpec, config);
     }
     return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TDataSliceDescriptor MakeFileDataSliceDescriptor(NProto::TChunkSpec chunkSpec)
+{
+    return TDataSliceDescriptor(EDataSliceDescriptorType::File, {std::move(chunkSpec)});
+}
+
+TDataSliceDescriptor MakeUnversionedDataSliceDescriptor(NProto::TChunkSpec chunkSpec)
+{
+    return TDataSliceDescriptor(EDataSliceDescriptorType::UnversionedTable, {std::move(chunkSpec)});
+}
+
+TDataSliceDescriptor MakeVersionedDataSliceDescriptor(std::vector<NProto::TChunkSpec> chunkSpecs)
+{
+    return TDataSliceDescriptor(EDataSliceDescriptorType::VersionedTable, std::move(chunkSpecs));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

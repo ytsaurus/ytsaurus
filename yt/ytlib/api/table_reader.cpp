@@ -241,15 +241,14 @@ void TSchemalessTableReader::DoOpen()
             TNodeDescriptor(),
             Client_->GetNativeConnection()->GetBlockCache(),
             nodeDirectory,
-            std::move(chunkSpecs),
+            MakeVersionedDataSliceDescriptor(std::move(chunkSpecs)),
             New<TNameTable>(),
             TColumnFilter(),
             schema);
     } else {
         std::vector<TDataSliceDescriptor> dataSliceDescriptors;
         for (auto& chunkSpec : chunkSpecs) {
-            TDataSliceDescriptor dataSliceDescriptor(EDataSliceDescriptorType::UnversionedTable, {std::move(chunkSpec)});
-            dataSliceDescriptors.push_back(std::move(dataSliceDescriptor));
+            dataSliceDescriptors.push_back(MakeUnversionedDataSliceDescriptor(std::move(chunkSpec)));
         }
 
         auto factory = Unordered_

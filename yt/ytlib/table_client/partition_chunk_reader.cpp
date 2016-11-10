@@ -162,8 +162,8 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
     for (const auto& dataSliceDescriptor : dataSliceDescriptors) {
         switch (dataSliceDescriptor.Type) {
             case EDataSliceDescriptorType::UnversionedTable: {
-                YCHECK(dataSliceDescriptor.ChunkSpecs.size() == 1);
-                const auto& chunkSpec = dataSliceDescriptor.ChunkSpecs[0];
+                const auto& chunkSpec = dataSliceDescriptor.GetSingleUnversionedChunk();
+
                 auto memoryEstimate = GetChunkReaderMemoryEstimate(chunkSpec, config);
                 auto createReader = [=] () {
                     auto remoteReader = CreateRemoteReader(

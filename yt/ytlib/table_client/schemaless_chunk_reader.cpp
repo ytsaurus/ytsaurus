@@ -1487,7 +1487,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
-    const TChunkSpec& chunkSpec,
+    const TDataSliceDescriptor& dataSliceDescriptor,
     TChunkReaderConfigPtr config,
     TChunkReaderOptionsPtr options,
     NChunkClient::IChunkReaderPtr underlyingReader,
@@ -1498,6 +1498,8 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     const TReadRange& readRange,
     TNullable<int> partitionTag)
 {
+    const auto& chunkSpec = dataSliceDescriptor.GetSingleUnversionedChunk();
+
     auto type = EChunkType(chunkSpec.chunk_meta().type());
     YCHECK(type == EChunkType::Table);
 
@@ -1552,7 +1554,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
-    const TChunkSpec& chunkSpec,
+    const TDataSliceDescriptor& dataSliceDescriptor,
     TChunkReaderConfigPtr config,
     TChunkReaderOptionsPtr options,
     NChunkClient::IChunkReaderPtr underlyingReader,
@@ -1564,6 +1566,8 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     TChunkReaderPerformanceCountersPtr performanceCounters,
     TNullable<int> partitionTag)
 {
+    const auto& chunkSpec = dataSliceDescriptor.GetSingleUnversionedChunk();
+
     auto type = EChunkType(chunkSpec.chunk_meta().type());
     YCHECK(type == EChunkType::Table);
 
@@ -1636,8 +1640,8 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
     for (const auto& dataSliceDescriptor : dataSliceDescriptors) {
         switch (dataSliceDescriptor.Type) {
             case EDataSliceDescriptorType::UnversionedTable: {
-                YCHECK(dataSliceDescriptor.ChunkSpecs.size() == 1);
-                const auto& chunkSpec = dataSliceDescriptor.ChunkSpecs[0];
+                const auto& chunkSpec = dataSliceDescriptor.GetSingleUnversionedChunk();
+
                 auto memoryEstimate = GetChunkReaderMemoryEstimate(chunkSpec, config);
                 auto createReader = [=] () {
                     auto remoteReader = CreateRemoteReader(
@@ -1661,7 +1665,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                     };
 
                     return CreateSchemalessChunkReader(
-                        chunkSpec,
+                        dataSliceDescriptor,
                         PatchConfig(config, memoryEstimate),
                         options,
                         remoteReader,
@@ -1687,7 +1691,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         localDescriptor,
                         blockCache,
                         nodeDirectory,
-                        dataSliceDescriptor.ChunkSpecs,
+                        dataSliceDescriptor,
                         nameTable,
                         columnFilter,
                         dataSliceDescriptor.Schema,
@@ -1938,7 +1942,7 @@ public:
         const TNodeDescriptor& localDescriptor,
         IBlockCachePtr blockCache,
         TNodeDirectoryPtr nodeDirectory,
-        const std::vector<TChunkSpec>& chunkSpecs,
+        const TDataSliceDescriptor& dataSliceDescriptor,
         TNameTablePtr nameTable,
         TColumnFilter columnFilter,
         const TTableSchema& tableSchema,
@@ -1985,13 +1989,15 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     const TNodeDescriptor& localDescriptor,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
-    const std::vector<TChunkSpec>& chunkSpecs,
+    const TDataSliceDescriptor& dataSliceDescriptor,
     TNameTablePtr nameTable,
     TColumnFilter columnFilter,
     const TTableSchema& tableSchema,
     IThroughputThrottlerPtr throttler,
     TTimestamp timestamp)
 {
+    const auto& chunkSpecs = dataSliceDescriptor.ChunkSpecs;
+
     std::vector<TOwningKey> boundaries;
     boundaries.reserve(chunkSpecs.size());
 
@@ -2184,7 +2190,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessMergingMultiChunkReader(
     const TNodeDescriptor& localDescriptor,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
-    const std::vector<TChunkSpec>& chunkSpecs,
+    const TDataSliceDescriptor& dataSliceDescriptor,
     TNameTablePtr nameTable,
     TColumnFilter columnFilter,
     const TTableSchema& tableSchema,
@@ -2198,7 +2204,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessMergingMultiChunkReader(
         localDescriptor,
         blockCache,
         nodeDirectory,
-        chunkSpecs,
+        dataSliceDescriptor,
         nameTable,
         columnFilter,
         tableSchema,
