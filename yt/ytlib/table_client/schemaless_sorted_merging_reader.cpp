@@ -252,7 +252,7 @@ bool TSchemalessSortedMergingReader::IsFetchingCompleted() const
 std::vector<TChunkId> TSchemalessSortedMergingReader::GetFailedChunkIds() const
 {
     std::vector<TChunkId> result;
-    for (auto& session : SessionHolder_) {
+    for (const auto& session : SessionHolder_) {
         auto failedChunks = session.Reader->GetFailedChunkIds();
         result.insert(result.end(), failedChunks.begin(), failedChunks.end());
     }
