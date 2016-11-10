@@ -391,7 +391,7 @@ class YsonFormat(Format):
     .. seealso:: `YSON on wiki <https://wiki.yandex-team.ru/yt/userdoc/formats#yson>`_
     """
 
-    def __init__(self, format=None, process_table_index=True, control_attributes_mode="iterator",
+    def __init__(self, format=None, process_table_index=None, control_attributes_mode="iterator",
                  ignore_inner_attributes=None, boolean_as_string=None, table_index_column="@table_index",
                  attributes=None, raw=None, always_create_attributes=None, encoding=_ENCODING_SENTINEL):
         """
@@ -764,7 +764,7 @@ class JsonFormat(Format):
             "dumps": json_module.dumps,
         })
 
-    def __init__(self, process_table_index=True, table_index_column="@table_index", attributes=None,
+    def __init__(self, process_table_index=False, table_index_column="@table_index", attributes=None,
                  raw=None, enable_ujson=True):
         attributes = get_value(attributes, {})
         super(JsonFormat, self).__init__("json", attributes, raw, self._ENCODING)
