@@ -11,8 +11,6 @@ import random
 from time import sleep
 import sys
 
-yt.config.VERSION = "v3"
-
 class TInt64():
     def random(self):
         return yson.YsonInt64(random.randint(-2**63, 2**63 - 1))
@@ -467,8 +465,9 @@ def do_single_execution(table, schema, attributes, tablet_count, key_count, iter
 def single_execution(table, schema, attributes, tablet_count, key_count, iterations, job_count, force, keep):
     try:
          do_single_execution(table, schema, attributes, tablet_count, key_count, iterations, job_count, force, keep)
-    except Exception:
-        pass
+    except Exception as ex:
+        print "Test %s failed" % (table)
+        print ex
 
 def variate_modes(table, args):
     schema = Schema()
