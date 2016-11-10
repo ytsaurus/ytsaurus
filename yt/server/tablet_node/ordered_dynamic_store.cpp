@@ -278,6 +278,7 @@ TCallback<void(TSaveContext&)> TOrderedDynamicStore::AsyncSave()
         auto chunkWriter = New<TMemoryWriter>();
         auto tableWriterConfig = New<TChunkWriterConfig>();
         auto tableWriterOptions = New<TChunkWriterOptions>();
+        tableWriterOptions->OptimizeFor = EOptimizeFor::Scan;
 
         auto schemalessTableWriter = CreateSchemalessChunkWriter(
             tableWriterConfig,
