@@ -194,10 +194,6 @@ def package(options):
 
 @build_step
 def run_prepare(options):
-    with cwd(options.checkout_directory):
-        run(["make", "-C", "./python/yt/wrapper"])
-        run(["make", "-C", "./python", "version"])
-
     with cwd(options.working_directory, "yt/nodejs"):
         if os.path.exists("node_modules"):
             rmtree("node_modules")
