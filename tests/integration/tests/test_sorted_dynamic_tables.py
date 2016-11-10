@@ -556,6 +556,18 @@ class TestSortedDynamicTables(YTEnvSetup):
             {"key": 3, "time": 2}], aggregate=True)
         assert_items_equal(select_rows("max(value) as max from [//tmp/t] group by 1"), [{"max": 20}])
 
+    @pytest.mark.parametrize("aggregate", ["min", "max", "sum"])
+    def test_aggregate_update(self, aggregate):
+        self.sync_create_cells(1)
+        self._create_table_with_aggregate_column("//tmp/t", aggregate=aggregate)
+        self.sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 1, "time": 1}], aggregate=True)
+        assert lookup_rows("//tmp/t", [{"key": 1}]) == [{"key": 1, "time": 1, "value": None}]
+        insert_rows("//tmp/t", [{"key": 1, "time": 2, "value": 10}], aggregate=True)
+        assert lookup_rows("//tmp/t", [{"key": 1}]) == [{"key": 1, "time": 2, "value": 10}]
+        insert_rows("//tmp/t", [{"key": 1, "time": 3}], aggregate=True)
+        assert lookup_rows("//tmp/t", [{"key": 1}]) == [{"key": 1, "time": 3, "value": 10}]
+
     def test_aggregate_alter(self):
         self.sync_create_cells(1)
         schema = [
