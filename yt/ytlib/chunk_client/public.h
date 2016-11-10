@@ -17,6 +17,7 @@ namespace NProto {
 class TChunkInfo;
 class TChunkSpec;
 class TChunkMeta;
+class TDataSliceDescriptor;
 class TMiscExt;
 
 class TReadRange;

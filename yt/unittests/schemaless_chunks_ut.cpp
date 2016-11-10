@@ -4,7 +4,7 @@
 #include <yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/ytlib/chunk_client/memory_reader.h>
 #include <yt/ytlib/chunk_client/memory_writer.h>
-#include <yt/ytlib/chunk_client/chunk_spec.pb.h>
+#include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 
 #include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/name_table.h>
@@ -52,7 +52,7 @@ public:
 protected:
     IChunkReaderPtr MemoryReader_;
     TNameTablePtr WriteNameTable_;
-    TChunkSpec Spec_;
+    TDataSliceDescriptor DataSliceDescriptor_;
 
     static TChunkedMemoryPool Pool_;
     static std::vector<TUnversionedRow> Rows_;
@@ -213,10 +213,11 @@ protected:
             std::move(memoryWriter->GetChunkMeta()),
             std::move(memoryWriter->GetBlocks()));
 
-        ToProto(Spec_.mutable_chunk_id(), NullChunkId);
-        Spec_.mutable_chunk_meta()->MergeFrom(memoryWriter->GetChunkMeta());
-        Spec_.set_table_row_index(42);
-
+        TChunkSpec chunkSpec;
+        ToProto(chunkSpec.mutable_chunk_id(), NullChunkId);
+        chunkSpec.mutable_chunk_meta()->MergeFrom(memoryWriter->GetChunkMeta());
+        chunkSpec.set_table_row_index(42);
+        DataSliceDescriptor_ = MakeUnversionedDataSliceDescriptor(std::move(chunkSpec));
     }
 
     static void InitNameTable(TNameTablePtr nameTable, int idShift = 0)
@@ -308,7 +309,7 @@ TEST_P(TSchemalessChunksTest, WithoutSampling)
         std::get<1>(GetParam()).GetKeyColumnCount());
 
     auto chunkReader = CreateSchemalessChunkReader(
-        Spec_,
+        DataSliceDescriptor_,
         New<TChunkReaderConfig>(),
         New<TChunkReaderOptions>(),
         MemoryReader_,
@@ -516,9 +517,11 @@ protected:
             std::move(memoryWriter->GetChunkMeta()),
             std::move(memoryWriter->GetBlocks()));
 
-        ToProto(Spec_.mutable_chunk_id(), NullChunkId);
-        Spec_.mutable_chunk_meta()->MergeFrom(memoryWriter->GetChunkMeta());
-        Spec_.set_table_row_index(42);
+        TChunkSpec chunkSpec;
+        ToProto(chunkSpec.mutable_chunk_id(), NullChunkId);
+        chunkSpec.mutable_chunk_meta()->MergeFrom(memoryWriter->GetChunkMeta());
+        chunkSpec.set_table_row_index(42);
+        DataSliceDescriptor_ = MakeUnversionedDataSliceDescriptor(std::move(chunkSpec));
     }
 
     ISchemalessChunkReaderPtr LookupRows(
@@ -529,7 +532,7 @@ protected:
         options->DynamicTable = true;
 
         return CreateSchemalessChunkReader(
-            Spec_,
+            DataSliceDescriptor_,
             New<TChunkReaderConfig>(),
             options,
             MemoryReader_,
@@ -550,7 +553,7 @@ protected:
     TTableSchema Schema_;
     IChunkReaderPtr MemoryReader_;
     TNameTablePtr WriteNameTable_;
-    TChunkSpec Spec_;
+    TDataSliceDescriptor DataSliceDescriptor_;
 
     TChunkedMemoryPool Pool_;
     std::vector<TUnversionedRow> Rows_;

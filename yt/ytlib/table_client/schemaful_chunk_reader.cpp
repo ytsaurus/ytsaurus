@@ -65,7 +65,7 @@ ISchemafulReaderPtr CreateSchemafulChunkReader(
         case ETableChunkFormat::SchemalessHorizontal: {
             auto createSchemalessReader = [=] (TNameTablePtr nameTable, TColumnFilter columnFilter) {
                 return CreateSchemalessChunkReader(
-                    chunkSpec,
+                    MakeUnversionedDataSliceDescriptor(std::move(chunkSpec)),
                     std::move(config),
                     New<TChunkReaderOptions>(),
                     std::move(chunkReader),
@@ -108,7 +108,7 @@ ISchemafulReaderPtr CreateSchemafulChunkReader(
         case ETableChunkFormat::SchemalessHorizontal: {
             auto createSchemalessReader = [=] (TNameTablePtr nameTable, TColumnFilter columnFilter) {
                 return CreateSchemalessChunkReader(
-                    chunkSpec,
+                    MakeUnversionedDataSliceDescriptor(std::move(chunkSpec)),
                     std::move(config),
                     New<TChunkReaderOptions>(),
                     std::move(chunkReader),

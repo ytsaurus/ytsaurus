@@ -2,7 +2,6 @@
 
 #include "public.h"
 
-#include <yt/ytlib/chunk_client/public.h>
 #include <yt/ytlib/chunk_client/data_slice_descriptor.pb.h>
 
 #include <yt/ytlib/table_client/schema.h>
@@ -31,6 +30,8 @@ struct TDataSliceDescriptor
     TDataSliceDescriptor(
         EDataSliceDescriptorType type,
         std::vector<NProto::TChunkSpec> chunkSpecs);
+
+    const NProto::TChunkSpec& GetSingleUnversionedChunk() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -48,6 +49,12 @@ i64 GetCumulativeRowCount(const std::vector<TDataSliceDescriptor>& dataSliceDesc
 i64 GetDataSliceDescriptorReaderMemoryEstimate(
     const TDataSliceDescriptor& dataSliceDescriptor,
     TMultiChunkReaderConfigPtr config);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TDataSliceDescriptor MakeFileDataSliceDescriptor(NProto::TChunkSpec chunkSpec);
+TDataSliceDescriptor MakeUnversionedDataSliceDescriptor(NProto::TChunkSpec chunkSpec);
+TDataSliceDescriptor MakeVersionedDataSliceDescriptor(std::vector<NProto::TChunkSpec> chunkSpecs);
 
 ////////////////////////////////////////////////////////////////////////////////
 

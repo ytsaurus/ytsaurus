@@ -18,6 +18,8 @@
 namespace NYT {
 namespace NTableClient {
 
+using namespace NChunkClient;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ISchemalessChunkReader
@@ -34,7 +36,7 @@ DEFINE_REFCOUNTED_TYPE(ISchemalessChunkReader)
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
-    const NChunkClient::NProto::TChunkSpec& chunkSpec,
+    const TDataSliceDescriptor& dataSliceDescriptor,
     TChunkReaderConfigPtr config,
     TChunkReaderOptionsPtr options,
     NChunkClient::IChunkReaderPtr underlyingReader,
@@ -46,7 +48,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     TNullable<int> partitionTag = Null);
 
 ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
-    const NChunkClient::NProto::TChunkSpec& chunkSpec,
+    const TDataSliceDescriptor& dataSliceDescriptor,
     TChunkReaderConfigPtr config,
     TChunkReaderOptionsPtr options,
     NChunkClient::IChunkReaderPtr underlyingReader,
@@ -115,7 +117,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessMergingMultiChunkReader(
     const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-    const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
+    const TDataSliceDescriptor& dataSliceDescriptor,
     TNameTablePtr nameTable,
     TColumnFilter columnFilter,
     const TTableSchema& tableSchema,
