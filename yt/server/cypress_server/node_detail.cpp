@@ -525,7 +525,7 @@ void TLinkNode::Load(NCellMaster::TLoadContext& context)
     
     using NYT::Load;
     // COMPAT(babenko)
-    if (context.GetVersion() < 505) {
+    if (context.GetVersion() < 506) {
         auto id = Load<TNodeId>(context);
         TargetPath_ = FromObjectId(id);
     } else {
