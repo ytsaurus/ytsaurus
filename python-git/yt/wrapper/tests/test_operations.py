@@ -979,7 +979,6 @@ def mapper(rec):
     yield {{"x": hello_provider.get_message()}}
 
 if __name__ == "__main__":
-    yt.config["proxy"]["url"] = "{0}"
     yt.config["pickling"]["enable_tmpfs_archive"] = False
     print(yt.run_map(mapper, "{1}", "{2}", sync=False).id)
 """
@@ -994,9 +993,12 @@ if __name__ == "__main__":
 
         module_egg = build_python_egg(get_test_file_path("yt_test_module"), temp_dir=dir_)
 
-        operation_id = subprocess.check_output(
-            "PYTHONPATH={0}:$PYTHONPATH python {1}".format(module_egg, f.name),
-            shell=True).strip()
+        env = {
+            "YT_CONFIG_PATCHES": dumps_yt_config(),
+            "PYTHONPATH": os.pathsep.join([module_egg, PYTHONPATH])
+        }
+
+        operation_id = subprocess.check_output([sys.executable, f.name], env=env).strip()
 
         op = yt.Operation("map", operation_id)
         op.wait()
