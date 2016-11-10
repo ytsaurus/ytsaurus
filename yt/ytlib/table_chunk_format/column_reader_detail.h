@@ -168,9 +168,7 @@ private:
 
     void SetValue(NTableClient::TUnversionedValue* value, i64 rowIndex) const
     {
-        value->Id = ColumnId_;
-        value->Aggregate = false;
-        ValueExtractor_.ExtractValue(value, rowIndex);
+        ValueExtractor_.ExtractValue(value, rowIndex, ColumnId_, false);
     }
 
     template<class TRow>
@@ -327,9 +325,7 @@ private:
 
     void SetValue(NTableClient::TUnversionedValue* value, i64 valueIndex) const
     {
-        value->Id = ColumnId_;
-        value->Aggregate = false;
-        ValueExtractor_.ExtractValue(value, valueIndex);
+        ValueExtractor_.ExtractValue(value, valueIndex, ColumnId_, false);
     }
 
     template <class TRow>
@@ -638,7 +634,7 @@ public:
 
     ui32 GetTimestampIndex(i64 valueIndex) const;
 
-    void SetAggregate(NTableClient::TVersionedValue* value, i64 valueIndex) const;
+    bool GetAggregate(i64 valueIndex) const;
 
 protected:
     const bool Aggregate_;
@@ -757,10 +753,9 @@ protected:
             auto* value = row.BeginValues() + row.GetValueCount();
             row.SetValueCount(row.GetValueCount() + 1);
             value->Timestamp = timestampIndex;
-            value->Id = ColumnId_;
 
-            ValueExtractor_.SetAggregate(value, valueIndex);
-            ValueExtractor_.ExtractValue(value, valueIndex);
+            bool aggregate = ValueExtractor_.GetAggregate(valueIndex);
+            ValueExtractor_.ExtractValue(value, valueIndex, ColumnId_, aggregate);
 
             if (!Aggregate_) {
                 // If column is not aggregate we emit only first value.
@@ -779,10 +774,8 @@ protected:
             auto* value = row.BeginValues() + row.GetValueCount();
             row.SetValueCount(row.GetValueCount() + 1);
             value->Timestamp = ValueExtractor_.GetTimestampIndex(valueIndex);
-            value->Id = ColumnId_;
-
-            ValueExtractor_.SetAggregate(value, valueIndex);
-            ValueExtractor_.ExtractValue(value, valueIndex);
+            bool aggregate = ValueExtractor_.GetAggregate(valueIndex);
+            ValueExtractor_.ExtractValue(value, valueIndex, ColumnId_, aggregate);
         }
     }
 };

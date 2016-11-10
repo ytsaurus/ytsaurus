@@ -16,13 +16,12 @@ using namespace NProto;
 class TDoubleValueExtractorBase
 {
 public:
-    void ExtractValue(TUnversionedValue* value, i64 valueIndex) const
+    void ExtractValue(TUnversionedValue* value, i64 valueIndex, int id, bool aggregate) const
     {
         if (NullBitmap_[valueIndex]) {
-            value->Type = EValueType::Null;
+            *value = MakeUnversionedSentinelValue(EValueType::Null, id, aggregate);
         } else {
-            value->Type = EValueType::Double;
-            value->Data.Double = Values_[valueIndex];
+            *value = MakeUnversionedDoubleValue(Values_[valueIndex], id, aggregate);
         }
     }
 

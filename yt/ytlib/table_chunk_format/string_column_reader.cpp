@@ -43,15 +43,29 @@ protected:
             ZigZagDecode32(OffsetsReader_[offsetIndex]);
     }
 
-    void SetStringValue(TUnversionedValue* value, i64 offsetIndex) const
+    void SetStringValue(TUnversionedValue* value, i64 offsetIndex, int id, bool aggregate) const
     {
         ui32 padding = offsetIndex == 0 ? 0 : GetOffset(offsetIndex - 1);
-        value->Data.String = StringData_ + padding;
-        value->Length = GetOffset(offsetIndex) - padding;
-        value->Type = ValueType;
+        const char* begin = StringData_ + padding;
+        ui32 length = GetOffset(offsetIndex) - padding;
+        auto string = TStringBuf(begin, length);
 
-        if (ValueType == EValueType::Any && UnpackValue) {
-            *value = NTableClient::MakeUnversionedValue(TStringBuf(value->Data.String, value->Length), value->Id, Lexer_);
+        switch (ValueType) {
+            case EValueType::String:
+                *value = MakeUnversionedStringValue(string, id, aggregate);
+                break;
+
+            case EValueType::Any:
+                if (UnpackValue) {
+                    YCHECK(aggregate == false);
+                    *value = MakeUnversionedValue(string, id, Lexer_);
+                } else {
+                    *value = MakeUnversionedAnyValue(string, id, aggregate);
+                }
+                break;
+
+            default:
+                Y_UNREACHABLE();
         }
     }
 };
@@ -65,12 +79,13 @@ class TDictionaryStringValueExtractorBase
 public:
     using TStringValueExtractorBase<ValueType, Scan, UnpackValue>::TStringValueExtractorBase;
 
-    void ExtractValue(TUnversionedValue* value, i64 valueIndex) const
+    void ExtractValue(TUnversionedValue* value, i64 valueIndex, int id, bool aggregate) const
     {
-        if (IdsReader_[valueIndex] == 0) {
-            value->Type = EValueType::Null;
+        auto dictionaryId = IdsReader_[valueIndex];
+        if (dictionaryId == 0) {
+            *value = MakeUnversionedSentinelValue(EValueType::Null, id, aggregate);
         } else {
-            SetStringValue(value, IdsReader_[valueIndex] - 1);
+            SetStringValue(value, dictionaryId - 1, id, aggregate);
         }
     }
 
@@ -105,12 +120,12 @@ class TDirectStringValueExtractorBase
 public:
     using TStringValueExtractorBase<ValueType, Scan, UnpackValue>::TStringValueExtractorBase;
 
-    void ExtractValue(TUnversionedValue* value, i64 valueIndex) const
+    void ExtractValue(TUnversionedValue* value, i64 valueIndex, int id, bool aggregate) const
     {
         if (NullBitmap_[valueIndex]) {
-            value->Type = EValueType::Null;
+            *value = MakeUnversionedSentinelValue(EValueType::Null, id, aggregate);
         } else {
-            SetStringValue(value, valueIndex);
+            SetStringValue(value, valueIndex, id, aggregate);
         }
     }
 
