@@ -169,6 +169,7 @@ private:
     void SetValue(NTableClient::TUnversionedValue* value, i64 rowIndex) const
     {
         value->Id = ColumnId_;
+        value->Aggregate = false;
         ValueExtractor_.ExtractValue(value, rowIndex);
     }
 
@@ -327,6 +328,7 @@ private:
     void SetValue(NTableClient::TUnversionedValue* value, i64 valueIndex) const
     {
         value->Id = ColumnId_;
+        value->Aggregate = false;
         ValueExtractor_.ExtractValue(value, valueIndex);
     }
 
