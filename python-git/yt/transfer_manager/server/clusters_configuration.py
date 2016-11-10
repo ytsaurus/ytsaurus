@@ -1,3 +1,4 @@
+from yt.transfer_manager.server.helpers import filter_out_keys
 from yt.transfer_manager.server.yt_client import YtClientWithNotifications
 
 from yt.tools.yamr import Yamr
@@ -19,12 +20,6 @@ class ClustersConfiguration(object):
         self.kiwi_transmitter = kiwi_transmitter
         self.hadoop_transmitter = hadoop_transmitter
 
-def filter_out_keys(dict_, keys):
-    result = deepcopy(dict_)
-    for key in keys:
-        if key in result:
-            del result[key]
-    return result
 
 def get_clusters_configuration_from_config(config):
     config = deepcopy(config)

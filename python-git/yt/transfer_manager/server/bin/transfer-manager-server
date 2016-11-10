@@ -2,7 +2,7 @@
 
 from __future__ import print_function
 
-from yt.transfer_manager.server.logger import TaskIdLogger
+from yt.transfer_manager.server.logger import TaskIdLogger, RequestIdLogger
 from yt.transfer_manager.server.yt_client import clone_client
 from yt.transfer_manager.server.flask_helpers import process_gzip
 from yt.transfer_manager.server.pattern_matching import match_copy_pattern
@@ -13,7 +13,7 @@ from yt.transfer_manager.server.clusters_configuration import get_clusters_confi
 from yt.transfer_manager.server.errors import RequestFailed, SchedulingError
 from yt.transfer_manager.server.precheck import perform_precheck
 from yt.transfer_manager.server.helpers import log_yt_exception, get_token_and_user, \
-                                               SafeThread, get_cluster_version, configure_logging
+                                               SafeThread, get_cluster_version, configure_logging, filter_out_keys
 from yt.transfer_manager.server.task_executor import run_executor
 
 from yt.tools.logging_server import LogRecordSocketReceiver
@@ -251,12 +251,17 @@ class Application(object):
     def _log_request(self, func):
         def decorator(*args, **kwargs):
             id = generate_uuid()
-            logger.info("Request recieved (id: %s, url: %s, data: %s, headers: %s)",
-                        id, repr(request.url), repr(request.data), repr(request.headers))
+            request_logger = RequestIdLogger(id)
+            headers = dict(request.headers)
+            filtered_headers = filter_out_keys(headers, ["Content-Length", "Host", "Accept",
+                                               "Content-Type", "Authorization"])
+            request_logger.info("Request recieved (url: %s, data: %s, headers: %s)",
+                                request.url, str(request.data), filtered_headers)
+            request.id = id
             try:
                 return func(*args, **kwargs)
             finally:
-                logger.info("Request processing finished (id: %s)", id)
+                request_logger.info("Request processing finished")
         return decorator
 
     def _process_lock(self, func, depends_on_lock):
@@ -288,12 +293,13 @@ class Application(object):
     def _process_exception(self, func):
         def decorator(*args, **kwargs):
             try:
+                request_logger = RequestIdLogger(request.id)
                 return func(*args, **kwargs)
             except RequestFailed as error:
-                log_yt_exception(logger)
+                log_yt_exception(request_logger)
                 return json.dumps(error.simplify()), error.attributes["http_code"]
             except Exception as error:
-                logger.exception("Unknown error:")
+                log_yt_exception(request_logger)
                 return json.dumps({"code": 1, "message": "Unknown error: " + traceback.format_exc()}), 404
 
         return decorator
@@ -491,22 +497,24 @@ class Application(object):
 
             task_options = response["output"]
             id = task_options["id"]
+            task_logger = TaskIdLogger(id)
             try:
+                task_options["logger"] = task_logger
                 task = Task(**task_options)
                 task._last_ping_time = time.time()
             except Exception as err:
-                logger.warning("Failed to load task %s: %s", id, str(err))
+                task_logger.warning("Failed to load task: %s", str(err))
                 continue
 
             try:
                 active_client, passive_client = task.get_active_and_passive_clients(
                     self._get_clusters_configuration())
             except yt.YtError as err:
-                logger.warning("Failed to load task %s: %s", id, str(err))
+                task_logger.warning("Failed to load task: %s", str(err))
                 continue
 
             if active_client._type == "yt" and task.pool is None:
-                logger.warning("Failed load task %s: task has no pool", id)
+                task_logger.warning("Failed load task: task has no pool")
                 continue
 
             self._tasks[id] = task
@@ -541,7 +549,7 @@ class Application(object):
             old_state = self._tasks[id].state
             self._tasks[id].state = new_state
             self._dump_task(id)
-            logger.info("Task %s change state: %s -> %s", id, old_state, new_state)
+            self._tasks[id].logger.info("Task change state: %s -> %s", old_state, new_state)
 
     def _dump_task(self, id):
         with self._mutex:
@@ -568,8 +576,8 @@ class Application(object):
                     end_set_time = time.time()
             if not self._cypress_mutexes[path].is_acquired():
                 del self._cypress_mutexes[path]
-            logger.info("State of task %s dumped to cypress (total time: %.2lf, cypress_set time: %.2lf)",
-                        id, time.time() - start_time, end_set_time - start_set_time)
+            self._tasks[id].logger.info("State of task dumped to cypress (total time: %.2lf, cypress_set time: %.2lf)",
+                                        time.time() - start_time, end_set_time - start_set_time)
 
     def _create_pool(self, yt_client, destination_cluster_name):
         pool_name = "transfer_" + destination_cluster_name
@@ -673,7 +681,7 @@ class Application(object):
             if self._tasks[id].state in ["aborting", "aborted", "completed", "failed"]:
                 return
 
-            logger.info("Aborting task %s", id)
+            self._tasks[id].logger.info("Aborting task")
 
             task_was_executed = id in self._task_processes
             task_is_aborted = False
@@ -682,7 +690,7 @@ class Application(object):
                 process, _ = self._task_processes[id]
                 process.aborting = True
                 process.aborting_start_time = datetime.now()
-                logger.info("Killing process with pid %d", process.pid)
+                self._tasks[id].logger.info("Killing process with pid %d", process.pid)
                 try:
                     os.kill(process.pid, signal.SIGINT)
                 except OSError:
@@ -733,11 +741,12 @@ class Application(object):
                 for id in chain(self._pending_tasks, self._task_processes):
                     task = self._tasks[id]
                     if task.lease_timeout is not None and (now - task._last_ping_time > task.lease_timeout):
-                        logger.info("Lease of task %s has expired", id)
+                        task.logger.info("Lease of task has expired")
                         self._abort_task(id)
 
                 for id, (process, message_queue) in list(iteritems(self._task_processes)):
-                    logger.info("Task %s %s", id, self._tasks[id].state)
+                    task = self._tasks[id]
+                    task.logger.info("Task %s", self._tasks[id].state)
 
                     error = None
                     completed = False
@@ -766,7 +775,7 @@ class Application(object):
                         else:
                             assert False, "Incorrect message type: " + message["type"]
 
-                    logger.info("Task %s: messages from queue fetched", id)
+                    task.logger.info("Messages from queue fetched")
 
                     if process.aborting and not process.aborted:
                         if (datetime.now() - process.aborting_start_time).total_seconds() > self._sleep_step:
@@ -776,8 +785,8 @@ class Application(object):
                             continue
 
                     if not process_is_alive and not (process.aborting or process.aborted or error is not None or completed):
-                        message = "Process of task {0} died silently".format(id)
-                        logger.warning(message)
+                        message = "Process of task died silently"
+                        task.logger.warning(message)
                         error = {"message": message, "code": 1}
 
                     if process.aborted or error is not None or completed:
@@ -789,7 +798,7 @@ class Application(object):
                             self._change_task_state(id, "failed")
                         elif completed:
                             if process_is_alive:
-                                logger.warning("Task completed, but process still alive!")
+                                task.logger.warning("Task completed, but process still alive!")
                             self._change_task_state(id, complete_type)
 
                         self._dump_task(id)
@@ -806,15 +815,16 @@ class Application(object):
                         message_queue.delete()
                         del self._task_processes[id]
 
-                    logger.info("Task %s processed", id)
+                        task.logger.info("Task processed")
 
                 # Prepare config once.
                 temporary_config = None
                 runned_tasks = 0
                 for id in self._pending_tasks:
+                    task = self._tasks[id]
                     try:
                         if not self._can_run(self._tasks[id]):
-                            logger.info("Task %s pending", id)
+                            task.logger.info("Task pending")
                             continue
                     except SchedulingError as error:
                         self._tasks[id].error = error.simplify()
@@ -838,9 +848,9 @@ class Application(object):
                             temporary_config = fout.name
                             json.dump(self._get_config(), fout)
 
-                    logger.info("Starting subprocess for task %s", id)
+                    task.logger.info("Starting subprocess for task")
                     task_process = run_executor(temporary_config)
-                    logger.info("Subprocess for task %s started", id)
+                    task.logger.info("Subprocess for task started")
                     task_process.stdin.write(json.dumps(self._tasks[id].dict()))
                     task_process.stdin.close()
                     task_process.aborting = False
@@ -899,11 +909,10 @@ class Application(object):
                 # NB: To avoid aborting Hadoop tasks.
                 # TODO(ignat): support aborting Hadoop task.
                 return
-
             if clusters[cluster_name]._type != "yt":
-                logger.warning("Transfer manager does not support progress for non-YT cluster, "
-                               "but it unexpectedly found for %s cluster (task: %s)",
-                               clusters[cluster_name]._type, task_id)
+                task.logger.warning("Transfer manager does not support progress for non-YT cluster, "
+                                    "but it unexpectedly found for %s cluster",
+                                    clusters[cluster_name]._type)
                 return
 
             cluster_client = clusters[cluster_name]
@@ -914,10 +923,9 @@ class Application(object):
 
             try:
                 abort_func(object_id, cluster_client)
-                logger.info("Aborted outdated {0} {1} of task {2}".format(type_, object_id, task_id))
+                task.logger.info("Aborted outdated {0} {1} ".format(type_, object_id))
             except yt.YtError:
-                log_yt_exception(logger, "Failed abort {0} {1} of task {2}"
-                                 .format(type_, object_id, task_id))
+                log_yt_exception(task.logger, "Failed abort {0} {1}".format(type_, object_id))
 
         def safe_abort_operation(operation_id, client):
             root_client = clone_client(client)
@@ -943,8 +951,9 @@ class Application(object):
 
     def _create_task(self, params, token, user, dry_run, make_precheck):
         id = generate_uuid()
-        logger.info("Adding task %s with id %s", json.dumps(params), id)
-
+        task_logger = TaskIdLogger(id, request.id)
+        task_logger.info("Adding task %s", json.dumps(params))
+        task_logger.request_id = None
         # Move this check to precheck function
         required_parameters = set(["source_cluster", "source_table", "destination_cluster"])
         if not set(params) >= required_parameters:
@@ -955,7 +964,14 @@ class Application(object):
             params["backend_tag"] = self._config.get("backend_tag")
 
         try:
-            task = Task(id=id, creation_time=now_str(), user=user, token=token, state="pending", **params)
+            task = Task(
+                id=id,
+                creation_time=now_str(),
+                user=user,
+                token=token,
+                state="pending",
+                logger=task_logger,
+                **params)
         except TypeError as error:
             raise RequestFailed("Cannot create task", inner_errors=[yt.YtError(error.message)])
 
@@ -982,7 +998,7 @@ class Application(object):
         if make_precheck:
             try:
                 perform_precheck(task, clusters_configuration,
-                                 ignore_timeout=True, yamr_timeout=5.0, custom_logger=TaskIdLogger(task.id))
+                                 ignore_timeout=True, yamr_timeout=5.0, custom_logger=task_logger)
             except yt.YtError as error:
                 raise RequestFailed("Precheck of task {} failed".format(task.id), inner_errors=[error]), None, sys.exc_info()[2]
 
@@ -1012,13 +1028,13 @@ class Application(object):
                 self._tasks[task.id] = task
 
                 if task.state == "skipped":
-                    logger.info('Task %s skipped since "skip_if_destination_exists" option '
-                                'is specified and destination table exists', task.id)
+                    task_logger.info('Task skipped since "skip_if_destination_exists" option '
+                                     'is specified and destination table exists')
                     return task.id
 
                 self._append_pending_task(task)
 
-            logger.info("Task %s added", task.id)
+            task_logger.info("Task added")
 
         return task.id
 
@@ -1076,11 +1092,21 @@ class Application(object):
         if isinstance(params, list):
             ids = []
             for task_params in params:
-                ids.append(self._create_task(params=task_params, token=token, user=user, dry_run=dry_run, make_precheck=False))
+                ids.append(
+                    self._create_task(
+                        params=task_params,
+                        token=token, user=user,
+                        dry_run=dry_run,
+                        make_precheck=False))
             return ids
         else:
             enable_early_precheck = self._config.get("enable_early_precheck", True)
-            return self._create_task(params=params, token=token, user=user, dry_run=dry_run, make_precheck=enable_early_precheck)
+            return self._create_task(
+                params=params,
+                token=token,
+                user=user,
+                dry_run=dry_run,
+                make_precheck=enable_early_precheck)
 
     def abort_task(self, id):
         if id not in self._tasks:
@@ -1100,7 +1126,7 @@ class Application(object):
         if id not in self._tasks:
             raise RequestFailed("Unknown task " + id)
 
-        logger.info("Restarting task %s", id)
+        self._tasks[id].logger.info("Restarting task")
 
         with self._mutex:
             self._check_permission(id, request.headers, "Restarting")
@@ -1227,7 +1253,7 @@ class Application(object):
             try:
                 json.dumps(description)
             except UnicodeDecodeError:
-                logger.warning("Cannot decode in JSON struct '%s'", repr(description))
+                task.logger.warning("Cannot decode in JSON struct '%s'", repr(description))
                 continue
 
             tasks_descriptions.append(description)
