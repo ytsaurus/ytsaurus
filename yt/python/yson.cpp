@@ -21,34 +21,29 @@ using namespace NYPath;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-Py::Exception CreateYsonError(const NYT::TError& error)
+Py::Exception CreateYsonError(const Stroka& message, const NYT::TError& error = TError())
 {
     auto ysonModule = Py::Module(PyImport_ImportModule("yt.yson.common"), true);
     auto ysonErrorClass = Py::Callable(GetAttr(ysonModule, "YsonError"));
 
+    std::vector<TError> innerErrors({error});
+
     Py::Dict options;
-    options.setItem("message", ConvertTo<Py::Object>(error.GetMessage()));
-    options.setItem("code", ConvertTo<Py::Object>(error.GetCode()));
-    options.setItem("inner_errors", ConvertTo<Py::Object>(error.InnerErrors()));
-    auto ysonError = ysonErrorClass.apply(options);
-    return Py::Exception(*ysonError, ysonError);
+    options.setItem("message", ConvertTo<Py::Object>(message));
+    options.setItem("code", ConvertTo<Py::Object>(1));
+    options.setItem("inner_errors", ConvertTo<Py::Object>(innerErrors));
+    auto ysonError = ysonErrorClass.apply(Py::Tuple(), options);
+    return Py::Exception(*ysonError.type(), ysonError);
 }
 
-Py::Exception CreateYsonError(const std::string& message)
-{
-    auto ysonModule = Py::Module(PyImport_ImportModule("yt.yson.common"), true);
-    auto ysonErrorClass = Py::Object(GetAttr(ysonModule, "YsonError"));
-    return Py::Exception(*ysonErrorClass, message);
-}
-
-#define CATCH \
+#define CATCH(message) \
     catch (const NYT::TErrorException& error) { \
-        throw CreateYsonError(error.Error()); \
+        throw CreateYsonError(message, error.Error()); \
     } catch (const std::exception& ex) { \
         if (PyErr_ExceptionMatches(PyExc_BaseException)) { \
             throw; \
         } else { \
-            throw CreateYsonError(ex.what()); \
+            throw CreateYsonError(message, TError(ex)); \
         } \
     }
 
@@ -104,7 +99,7 @@ public:
             // We should return pointer to alive object
             result.increment_reference_count();
             return result.ptr();
-        } CATCH;
+        } CATCH("Yson load failed");
     }
 
     virtual ~TYsonIterator()
@@ -166,7 +161,7 @@ public:
             auto result = Py::Bytes(item.Begin(), item.Size());
             result.increment_reference_count();
             return result.ptr();
-        } CATCH;
+        } CATCH("Yson load failed");
     }
 
     virtual ~TRawYsonIterator()
@@ -224,7 +219,7 @@ public:
 
         try {
             return LoadImpl(args, kwargs, nullptr);
-        } CATCH;
+        } CATCH("Yson load failed");
     }
 
     Py::Object Loads(const Py::Tuple& args_, const Py::Dict& kwargs_)
@@ -243,7 +238,7 @@ public:
 
         try {
             return LoadImpl(args, kwargs, std::move(stringStream));
-        } CATCH;
+        } CATCH("Yson load failed");
     }
 
     Py::Object Dump(const Py::Tuple& args_, const Py::Dict& kwargs_)
@@ -253,7 +248,7 @@ public:
 
         try {
             DumpImpl(args, kwargs, nullptr);
-        } CATCH;
+        } CATCH("Yson dumps failed");
 
         return Py::None();
     }
@@ -268,7 +263,7 @@ public:
 
         try {
             DumpImpl(args, kwargs, &stringOutput);
-        } CATCH;
+        } CATCH("Yson dumps failed");
 
         return Py::ConvertToPythonString(result);
     }

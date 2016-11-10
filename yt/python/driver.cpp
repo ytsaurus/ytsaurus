@@ -56,34 +56,29 @@ const NLogging::TLogger Logger("PythonDriver");
 
 ///////////////////////////////////////////////////////////////////////////////
 
-Py::Exception CreateYtError(const NYT::TError& error)
+Py::Exception CreateYtError(const std::string& message, const NYT::TError& error = TError())
 {
     auto ytModule = Py::Module(PyImport_ImportModule("yt.common"), true);
     auto ytErrorClass = Py::Callable(GetAttr(ytModule, "YtError"));
 
+    std::vector<TError> innerErrors({error});
+
     Py::Dict options;
     options.setItem("message", ConvertTo<Py::Object>(error.GetMessage()));
     options.setItem("code", ConvertTo<Py::Object>(error.GetCode()));
-    options.setItem("inner_errors", ConvertTo<Py::Object>(error.InnerErrors()));
+    options.setItem("inner_errors", ConvertTo<Py::Object>(innerErrors));
     auto ytError = ytErrorClass.apply(Py::Tuple(), options);
-    return Py::Exception(*ytErrorClass, ytError);
+    return Py::Exception(*ytErrorClass.type(), ytError);
 }
 
-Py::Exception CreateYtError(const std::string& message)
-{
-    auto ytModule = Py::Module(PyImport_ImportModule("yt.common"), true);
-    auto ytErrorClass = Py::Object(GetAttr(ytModule, "YtError"));
-    return Py::Exception(*ytErrorClass, message);
-}
-
-#define CATCH \
+#define CATCH(message) \
     catch (const NYT::TErrorException& error) { \
-        throw CreateYtError(error.Error()); \
+        throw CreateYtError(message, error.Error()); \
     } catch (const std::exception& ex) { \
         if (PyErr_ExceptionMatches(PyExc_BaseException)) { \
             throw; \
         } else { \
-            throw CreateYtError(ex.what()); \
+            throw CreateYtError(message, TError(ex)); \
         } \
     }
 
@@ -196,7 +191,7 @@ public:
                     outputStream->Finish();
                 }));
             }
-        } CATCH;
+        } CATCH("Driver command execution failed");
 
         LOG_DEBUG("Request execution started (RequestId: %v, CommandName: %v, User: %v)",
             request.Id,
@@ -216,7 +211,7 @@ public:
         Py::PythonClassObject<TCommandDescriptor> descriptor(class_type.apply(Py::Tuple(), Py::Dict()));
         try {
             descriptor.getCxxObject()->SetDescriptor(DriverInstance_->GetCommandDescriptor(commandName));
-        } CATCH;
+        } CATCH("Failed to get command descriptor");
 
         return descriptor;
     }
@@ -235,7 +230,7 @@ public:
                 descriptors.setItem(~nativeDescriptor.CommandName, descriptor);
             }
             return descriptors;
-        } CATCH;
+        } CATCH("Failed to get command descriptors");
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, GetCommandDescriptors)
 
@@ -246,7 +241,7 @@ public:
             WaitFor(admin->GCCollect())
                 .ThrowOnError();
             return Py::None();
-        } CATCH;
+        } CATCH("Failed to perform garbage collect");
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, GCCollect)
 
@@ -274,7 +269,7 @@ public:
             int snapshotId = WaitFor(admin->BuildSnapshot(options))
                 .ValueOrThrow();
             return Py::Long(snapshotId);
-        } CATCH;
+        } CATCH("Failed to build snapshot");
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, BuildSnapshot)
 
@@ -285,7 +280,7 @@ public:
         try {
             DriverInstance_->GetConnection()->ClearMetadataCaches();
             return Py::None();
-        } CATCH;
+        } CATCH("Failed to clear metadata caches");
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, ClearMetadataCaches)
 
