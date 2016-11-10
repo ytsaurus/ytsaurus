@@ -254,11 +254,11 @@ class TestOperations(object):
             def func(key, rows):
                 assert list(key) == ["x"]
                 for row in rows:
-                    del row["@table_index"]
                     yield row
 
             yt.run_reduce(func, [table1, "<foreign=true>" + table2], table,
-                          reduce_by=["x","y"], join_by=["x"])
+                          reduce_by=["x","y"], join_by=["x"],
+                          spec={"reducer": {"enable_input_table_index": False}})
             check([{"x": 1, "y": 1}, {"x": 1}], yt.read_table(table))
 
             # Reduce with join_by, but without foreign tables
@@ -948,10 +948,10 @@ if __name__ == "__main__":
 
         outputTable = TEST_DIR + "/output"
 
-        yt.run_map(mapper, [tableA, tableB], outputTable, format=yt.YsonFormat(),
+        yt.run_map(mapper, [tableA, tableB], outputTable, format=yt.YsonFormat(control_attributes_mode="row_fields"),
                    spec={"job_io": {"control_attributes": {"enable_row_index": True}}, "ordered": True})
 
-        result = sorted(list(yt.read_table(outputTable, raw=False, format=yt.YsonFormat(process_table_index=False))),
+        result = sorted(list(yt.read_table(outputTable, raw=False, format=yt.YsonFormat())),
                         key=lambda item: (item["table_index"], item["row_index"]))
 
         assert [
@@ -1154,7 +1154,7 @@ if __name__ == "__main__":
         output = TEST_DIR + "/output"
         yt.write_table(input, [{"x": 1, "y": "a"}, {"x": 1, "y": "b"}, {"x": 2, "y": "b"}])
         yt.run_map(mapper, input, output,
-                   format=yt.YsonFormat(process_table_index=None),
+                   format=yt.YsonFormat(),
                    spec={"job_io": {"control_attributes": {"enable_row_index": True}}})
 
         check(yt.read_table(output), [{"row_index": index} for index in xrange(3)], ordered=True)
@@ -1162,6 +1162,6 @@ if __name__ == "__main__":
         yt.run_sort(input, input, sort_by=["x"])
         yt.run_reduce(reducer, input, output,
                       reduce_by=["x"],
-                      format=yt.YsonFormat(process_table_index=None),
+                      format=yt.YsonFormat(),
                       spec={"job_io": {"control_attributes": {"enable_row_index": True}}})
         check(yt.read_table(output), [{"row_index": index} for index in xrange(3)], ordered=True)

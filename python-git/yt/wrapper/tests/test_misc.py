@@ -248,7 +248,7 @@ class TestRetries(object):
 
             assert [{"x": 1},
                     {"x": 3}] == \
-                list(yt.read_table(table + '[#0,#2]', format=yt.JsonFormat(),
+                list(yt.read_table(table + '[#0,#2]', format=yt.JsonFormat(process_table_index=True),
                                    control_attributes={"enable_row_index": True, "enable_range_index": True}))
 
             with pytest.raises(yt.YtError):
