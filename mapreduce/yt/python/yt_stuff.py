@@ -101,7 +101,12 @@ class YtStuff(object):
         self._extract_tar(yt_archive_path, self.yt_path)
         self._replace_binaries()
 
-        self.yt_work_dir = yatest.common.output_path("yt_wd")
+        user_yt_work_dir_base = yatest.common.get_param("yt_work_dir")
+        if user_yt_work_dir_base:
+            self.yt_work_dir = os.path.join(user_yt_work_dir_base, "yt_wd")
+        else:
+            self.yt_work_dir = yatest.common.output_path("yt_wd")
+
         if not os.path.isdir(self.yt_work_dir):
             os.mkdir(self.yt_work_dir)
 
