@@ -122,6 +122,19 @@ public:
     }
 
 
+    const T& Front() const
+    {
+        Y_ASSERT(Length_ > 0);
+        return Data_[0];
+    }
+
+    const T& Back() const
+    {
+        Y_ASSERT(Length_ > 0);
+        return Data_[Length_ - 1];
+    }
+
+
     TRange<T> Slice(size_t startOffset, size_t endOffset) const
     {
         Y_ASSERT(startOffset <= Size());
@@ -273,6 +286,11 @@ public:
         : TRange<T>(elements)
     { }
 
+    using TRange<T>::Begin;
+    using TRange<T>::End;
+    using TRange<T>::Front;
+    using TRange<T>::Back;
+    using TRange<T>::operator[];
 
     iterator Begin() const
     {
@@ -284,12 +302,23 @@ public:
         return this->Begin() + this->Size();
     }
 
-    T& operator[](size_t index) const
+    T& operator[](size_t index)
     {
         Y_ASSERT(index <= this->Size());
-        return this->Begin()[index];
+        return Begin()[index];
     }
 
+    T& Front()
+    {
+        Y_ASSERT(this->Length_ > 0);
+        return Begin()[0];
+    }
+
+    T& Back()
+    {
+        Y_ASSERT(this->Length_ > 0);
+        return Begin()[this->Length_ - 1];
+    }
 
     TMutableRange<T> Slice(T* begin, T* end) const
     {
@@ -297,7 +326,6 @@ public:
         Y_ASSERT(end <= End());
         return TMutableRange<T>(begin, end);
     }
-
 };
 
 // STL interop.
