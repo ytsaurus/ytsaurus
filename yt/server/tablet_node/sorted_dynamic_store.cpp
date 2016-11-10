@@ -1761,8 +1761,7 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
         auto chunkWriter = New<TMemoryWriter>();
         auto tableWriterConfig = New<TChunkWriterConfig>();
         auto tableWriterOptions = New<TTabletWriterOptions>();
-        // XXX(sandello): Disabled due to YT-5161
-        // tableWriterOptions->OptimizeFor = EOptimizeFor::Scan;
+        tableWriterOptions->OptimizeFor = EOptimizeFor::Scan;
         auto tableWriter = CreateVersionedChunkWriter(
             tableWriterConfig,
             tableWriterOptions,
