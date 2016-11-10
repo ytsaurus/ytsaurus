@@ -180,7 +180,7 @@ void TJobProxy::RetrieveJobSpec()
     JobSpec_ = rsp->job_spec();
     const auto& resourceUsage = rsp->resource_usage();
 
-    LOG_INFO("Job spec received (JobType: %v, ResourceLimits: {Cpu: %v, Memory: %v, Network: %v)\n%v",
+    LOG_INFO("Job spec received (JobType: %v, ResourceLimits: {Cpu: %v, Memory: %v, Network: %v})\n%v",
         NScheduler::EJobType(rsp->job_spec().type()),
         resourceUsage.cpu(),
         resourceUsage.memory(),
