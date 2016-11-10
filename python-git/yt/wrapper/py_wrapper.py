@@ -553,8 +553,8 @@ def _get_callable_func(func):
         return func
     else:
         if not hasattr(func, "__call__"):
-            raise TypeError("Failed to apply yt decorator since object \"{0}\" is not a function "
-                            "or (instance of) class with method __call__"\
+            raise TypeError('Failed to apply yt decorator since object "{0}" is not a function '
+                            "or (instance of) class with method __call__"
                 .format(repr(func)))
         return func.__call__
 
@@ -584,5 +584,5 @@ def with_context(func):
     """Decorate function to run with control attributes argument."""
     callable = _get_callable_func(func)
     if "context" not in inspect.getargspec(callable)[0]:
-        raise TypeError("Decorator \"with_context\" applied to function {0} that has no argument \"context\"".format(func.__name__))
+        raise TypeError('Decorator "with_context" applied to function {0} that has no argument "context"'.format(func.__name__))
     return _set_attribute(func, "with_context", True)
