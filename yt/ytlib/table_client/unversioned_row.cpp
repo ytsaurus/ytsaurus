@@ -1258,8 +1258,11 @@ Stroka ToString(const TUnversionedOwningRow& row)
     return ToString(row.Get());
 }
 
-TSharedRange<TUnversionedRow> CaptureRows(
-    const TRange<TUnversionedRow>& rows,
+namespace {
+
+template <class TRow>
+TSharedRange<TUnversionedRow> CaptureRowsImpl(
+    const TRange<TRow>& rows,
     TRefCountedTypeCookie tagCookie)
 {
     size_t bufferSize = 0;
@@ -1309,6 +1312,22 @@ TSharedRange<TUnversionedRow> CaptureRows(
     YCHECK(alignedPtr == unalignedPtr);
 
     return MakeSharedRange(MakeRange(capturedRows, rows.Size()), std::move(buffer));
+}
+
+} // namespace
+
+TSharedRange<TUnversionedRow> CaptureRows(
+    const TRange<TUnversionedRow>& rows,
+    TRefCountedTypeCookie tagCookie)
+{
+    return CaptureRowsImpl(rows, tagCookie);
+}
+
+TSharedRange<TUnversionedRow> CaptureRows(
+    const TRange<TUnversionedOwningRow>& rows,
+    TRefCountedTypeCookie tagCookie)
+{
+    return CaptureRowsImpl(rows, tagCookie);
 }
 
 void FromProto(TUnversionedOwningRow* row, const NChunkClient::NProto::TKey& protoKey)
