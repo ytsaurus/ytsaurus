@@ -351,7 +351,7 @@ TEST_F(TSchemafulRowMergerTest, Aggregate2)
     merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=100;aggregate=true> 1"));
     merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=200;aggregate=true> 2"));
     merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=300;aggregate=true> 3"));
-    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=300;aggregate=true> #"));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=400;aggregate=true> #"));
 
     EXPECT_EQ(
         BuildUnversionedRow("<id=0> 0; <id=1> #; <id=2> #; <id=3;aggregate=false> 6;"),

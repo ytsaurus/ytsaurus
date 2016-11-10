@@ -305,7 +305,10 @@ void TBuildingValueConsumer::OnEndRow()
         if (WrittenFlags_[id]) {
             WrittenFlags_[id] = false;
         } else if ((TreatMissingAsNull_ || id < Schema_.GetKeyColumnCount()) && !Schema_.Columns()[id].Expression) {
-            Builder_.AddValue(MakeUnversionedSentinelValue(EValueType::Null, id));
+            Builder_.AddValue(MakeUnversionedSentinelValue(
+                EValueType::Null,
+                id,
+                Schema_.Columns()[id].Aggregate && Aggregate_));
         }
     }
 
