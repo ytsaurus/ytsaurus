@@ -18,7 +18,6 @@ import pytest
 import tempfile
 import shutil
 import time
-import contextlib
 from io import BytesIO
 
 @pytest.mark.usefixtures("yt_env")

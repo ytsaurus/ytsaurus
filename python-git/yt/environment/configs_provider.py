@@ -2,7 +2,7 @@ from . import default_configs
 
 from yt.wrapper.common import MB, GB
 from yt.wrapper.mappings import VerifiedDict
-from yt.common import YtError, unlist, update, get_value
+from yt.common import YtError, update, get_value
 from yt.yson import to_yson_type
 
 from yt.packages.six import iteritems, add_metaclass

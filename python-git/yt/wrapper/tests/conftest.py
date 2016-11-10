@@ -4,7 +4,6 @@ from yt.environment import YTInstance
 from yt.wrapper.config import set_option
 from yt.wrapper.default_config import get_default_config
 from yt.wrapper.common import update
-import yt.yson as yson
 import yt.logger as logger
 import yt.tests_runner as tests_runner
 
