@@ -251,6 +251,8 @@ class YTInstance(object):
         if modify_configs_func:
             modify_configs_func(cluster_configuration, self._ytserver_version)
 
+        self._cluster_configuration = cluster_configuration
+
         self._prepare_masters(cluster_configuration["master"], master_dirs)
         if self.node_count > 0:
             self._prepare_nodes(cluster_configuration["node"], node_dirs)
@@ -489,7 +491,7 @@ class YTInstance(object):
 
         self._run_ytserver("master", name=master_name)
 
-        def masters_ready():
+        def quorum_ready():
             logger = logging.getLogger("Yt")
             old_level = logger.level
             logger.setLevel(logging.ERROR)
@@ -510,7 +512,22 @@ class YTInstance(object):
             finally:
                 logger.setLevel(old_level)
 
-        self._wait_for(masters_ready, name=master_name, max_wait_time=30)
+        cell_ready = quorum_ready
+
+        if secondary:
+            primary_cell_client = self.create_client()
+            cell_tag = int(
+                self._cluster_configuration["master"]["secondary_cell_tags"][cell_index - 1])
+
+            def quorum_ready_and_cell_registered():
+                if not quorum_ready():
+                    return False
+
+                return cell_tag in primary_cell_client.get("//sys/@registered_master_cell_tags")
+
+            cell_ready = quorum_ready_and_cell_registered
+
+        self._wait_for(cell_ready, master_name, max_wait_time=30)
 
     def start_all_masters(self, start_secondary_master_cells):
         self.start_master_cell()
@@ -521,18 +538,6 @@ class YTInstance(object):
     def start_secondary_master_cells(self):
         for i in xrange(self.secondary_master_cell_count):
             self.start_master_cell(i + 1)
-
-        def all_masters_ready():
-            try:
-                # XXX(asaitgalin): This is attribute is fetched from all secondary cells
-                # so it throws an error if any of required secondary master cells are
-                # not started or ready.
-                self.create_client().get("//sys/chunks/@count")
-                return True
-            except (requests.RequestException, YtError):
-                return False
-
-        self._wait_for(all_masters_ready, name="all master cells", max_wait_time=20)
 
     def _prepare_nodes(self, node_configs, node_dirs):
         for node_index in xrange(self.node_count):
@@ -559,7 +564,7 @@ class YTInstance(object):
             nodes = native_client.list("//sys/nodes", attributes=["state"])
             return len(nodes) == self.node_count and all(node.attributes["state"] == "online" for node in nodes)
 
-        self._wait_for(nodes_ready, name="node", max_wait_time=max(self.node_count * 6.0, 20))
+        self._wait_for(nodes_ready, "node", max_wait_time=max(self.node_count * 6.0, 20))
 
     def _prepare_schedulers(self, scheduler_configs, scheduler_dirs):
         for scheduler_index in xrange(self.scheduler_count):
@@ -607,7 +612,7 @@ class YTInstance(object):
                     raise
                 return False
 
-        self._wait_for(schedulers_ready, name="scheduler")
+        self._wait_for(schedulers_ready, "scheduler")
 
     def create_client(self):
         if self.has_proxy:
@@ -747,9 +752,9 @@ class YTInstance(object):
 
             return True
 
-        self._wait_for(proxy_ready, name="proxy", max_wait_time=20)
+        self._wait_for(proxy_ready, "proxy", max_wait_time=20)
 
-    def _wait_for(self, condition, max_wait_time=40, sleep_quantum=0.1, name=""):
+    def _wait_for(self, condition, name, max_wait_time=40, sleep_quantum=0.1):
         current_wait_time = 0
         logger.info("Waiting for %s...", name)
         while current_wait_time < max_wait_time:
