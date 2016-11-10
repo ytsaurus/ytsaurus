@@ -1,3 +1,5 @@
+from .ypath import TablePath
+
 from contextlib import contextmanager
 
 @contextmanager
