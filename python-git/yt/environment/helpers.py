@@ -10,7 +10,6 @@ import os
 import fcntl
 import random
 import codecs
-import subprocess
 
 GEN_PORT_ATTEMPTS = 10
 START_PORT = 10000

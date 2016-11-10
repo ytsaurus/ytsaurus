@@ -12,7 +12,7 @@ import yt.logger as logger
 from yt.common import format_error, date_string_to_datetime, to_native_str
 
 from yt.packages.decorator import decorator
-from yt.packages.six import iteritems, iterkeys, PY3
+from yt.packages.six import iteritems, iterkeys
 from yt.packages.six.moves import builtins, filter as ifilter
 
 import logging

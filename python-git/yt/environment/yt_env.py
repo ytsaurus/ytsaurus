@@ -4,8 +4,7 @@ from .configs_provider import init_logging, get_default_provision, create_config
 from .helpers import versions_cmp, read_config, write_config, \
                      is_dead_or_zombie, get_open_port
 
-from yt.common import update, YtError, remove_file, makedirp, set_pdeathsig, \
-                      which
+from yt.common import YtError, remove_file, makedirp, set_pdeathsig, which
 from yt.wrapper.client import Yt
 from yt.wrapper.errors import YtResponseError
 import yt.yson as yson
@@ -17,7 +16,6 @@ import yt.packages.requests as requests
 
 import logging
 import os
-import re
 import uuid
 import time
 import signal
