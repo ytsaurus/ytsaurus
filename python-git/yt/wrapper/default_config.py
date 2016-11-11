@@ -151,6 +151,11 @@ default_config = {
         "check_python_version": False,
         # Enables uploading local python to jobs and using it to run job.
         "use_local_python_in_jobs": None,
+        # In local mode (if client and server are on the same node) this option enables job to
+        # use local files without uploading them to cypress.
+        # Possible values: False | True | None
+        # If value is None then it will be auto-detected (basing on client and server fqdns)
+        "enable_local_files_usage_in_job": None,
         # Command to run python in jobs, by default it is simple "python".
         "python_binary": None,
         # Enable wrapping of stdin and stdout streams to avoid their unintentional usage.
@@ -166,13 +171,6 @@ default_config = {
         "add_tmpfs_archive_size_to_memory_limit": True,
         # Enable collecting different statistics of job.
         "enable_job_statistics": True,
-        # Should we assume that client and server are run on the same node.
-        # Possible values:
-        # False - all pickled data will be uploaded to cluster and then used in jobs.
-        # True - we assumed that cluster run in local mode and the client code executed on the same node.
-        # In this case jobs can use local files without uploading it on cluster.
-        # None - client will try to auto-detect that server and client are run on the same node.
-        "local_mode": None,
         # Collect dependencies for shared libraries automatically. All dependencies listed by
         # ldd command (and not filtered by "library_filter") will be added to special dir in
         # job sandbox and LD_LIBRARY_PATH will be set accordingly.
@@ -181,6 +179,16 @@ default_config = {
             "library_filter": None
         }
     },
+
+    # Enables special behavior if client works with local mode cluster.
+    # This behavior includes:
+    #   - files are uploaded with replication factor equal to 1 by default
+    #   - jobs use local files without uploading them to cluster.
+    #     This is controlled by `pickling/enable_local_files_usage_in_job` option.
+    #   - binary yson library is not required in job if format is YSON (python library will be allowed)
+    # Possible values: False | True | None
+    # If value is None client will use auto-detection.
+    "is_local_mode": None,
 
     # By default HTTP requests to YT are forbidden inside jobs to avoid strange errors
     # and unnecessary cluster accesses.

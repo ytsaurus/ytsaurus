@@ -1,12 +1,11 @@
 from .cypress_commands import get
-from .config import get_option, set_option
+from .config import get_config, get_option, set_option
 from .errors import YtResponseError
+from .http_helpers import get_fqdn
 
-import socket
-
-def is_local_mode(client):
-    if get_option("_is_local_mode", client) is not None:
-        return get_option("_is_local_mode", client)
+def get_local_mode_fqdn(client):
+    if get_option("_local_mode_fqdn", client) is not None:
+        return get_option("_local_mode_fqdn", client)
 
     fqdn = None
     try:
@@ -15,9 +14,18 @@ def is_local_mode(client):
         if not err.is_resolve_error():
             raise
 
-    is_local_mode = (fqdn is not None) and fqdn == socket.getfqdn()
+    set_option("_local_mode_fqdn", fqdn, client)
 
-    set_option("_is_local_mode", is_local_mode, client)
+    return fqdn
 
-    return is_local_mode
+def is_local_mode(client):
+    if get_config(client)["is_local_mode"] is not None:
+        return get_config(client)["is_local_mode"]
 
+    return get_local_mode_fqdn(client) is not None
+
+def enable_local_files_usage_in_job(client):
+    if get_config(client)["pickling"]["enable_local_files_usage_in_job"] is not None:
+        return get_config(client)["pickling"]["enable_local_files_usage_in_job"]
+
+    return is_local_mode(client) and get_local_mode_fqdn(client) == get_fqdn(client)

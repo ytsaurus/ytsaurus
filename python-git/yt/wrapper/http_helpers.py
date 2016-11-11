@@ -17,6 +17,7 @@ import sys
 import random
 import time
 import types
+import socket
 from datetime import datetime
 from socket import error as SocketError
 from abc import ABCMeta, abstractmethod
@@ -301,6 +302,15 @@ def get_api_commands(client=None):
     set_option("_commands", commands, client)
 
     return commands
+
+def get_fqdn(client=None):
+    if get_option("_fqdn", client):
+        return get_option("_fqdn", client)
+
+    fqdn = socket.getfqdn()
+    set_option("_fqdn", fqdn, client)
+
+    return fqdn
 
 def get_token(token=None, client=None):
     """Extracts token from given `token` and `client` arguments. Also checks token for correctness."""
