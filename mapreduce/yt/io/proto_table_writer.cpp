@@ -14,8 +14,6 @@ using ::google::protobuf::FieldDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
 TNode MakeNodeFromMessage(const Message& row)
 {
     TNode node;
@@ -87,9 +85,6 @@ TNode MakeNodeFromMessage(const Message& row)
     builder.OnEndMap();
     return node;
 }
-
-
-} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
