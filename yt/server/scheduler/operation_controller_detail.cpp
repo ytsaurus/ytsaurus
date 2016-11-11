@@ -1254,7 +1254,7 @@ void TOperationControllerBase::Prepare()
         EPermission::Write);
 
     yhash_set<TObjectId> updatingTableIds;
-    for (auto table : UpdatingTables) {
+    for (const auto* table : UpdatingTables) {
         const auto& path = table->Path.GetPath();
         if (table->Type != EObjectType::Table) {
             THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
