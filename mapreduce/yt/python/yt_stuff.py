@@ -248,10 +248,13 @@ class YtStuff(object):
             for i in xrange(NUM_TRIES):
                 if os.path.lexists(special_file):
                     break
+                if not yt_daemon.is_alive():
+                    self._log("yt_local process failed.")
+                    break
                 time.sleep(SLEEP_TIME)
             else:
-                yt_daemon.stop()
                 self._log("Can't find 'started' file for %d seconds.", MAX_WAIT_TIME)
+                yt_daemon.stop()
                 return False
             if self.config.proxy_port is None:
                 info_yson_file = os.path.join(self.yt_work_dir, self.yt_id, "info.yson")
