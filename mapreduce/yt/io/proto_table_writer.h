@@ -49,6 +49,9 @@ private:
     yvector<const ::google::protobuf::Descriptor*> Descriptors_;
 };
 
+// Sometime useful outside mapreduce/yt
+TNode MakeNodeFromMessage(const ::google::protobuf::Message& row);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
