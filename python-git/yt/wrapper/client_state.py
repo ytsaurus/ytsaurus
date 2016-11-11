@@ -18,11 +18,12 @@ class ClientState(object):
         self._requests_session = None
         self._heavy_proxy_provider = None
 
+        # socket.getfqdn can be slow so fqdn is cached
+        self._fqdn = None
+
         # Cache for API version (to check it only once)
         self._api_version = None
         self._commands = None
-        self._is_local_mode = None
-
         self._is_testing_mode = None
 
         self._random_generator = SystemRandom()

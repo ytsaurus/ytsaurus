@@ -5,7 +5,7 @@ from .config import get_config
 from .pickling import Pickler
 from .common import get_python_version, YtError, chunk_iter_stream, chunk_iter_string, get_value, which, get_disk_size
 from .py_runner_helpers import process_rows
-from .local_mode import is_local_mode
+from .local_mode import is_local_mode, enable_local_files_usage_in_job
 from ._py_runner import main as run_py_runner
 
 from yt.zip import ZipFile
@@ -396,7 +396,7 @@ def build_caller_arguments(is_standalone_binary, use_local_python_in_jobs, file_
     return arguments
 
 def build_function_and_config_arguments(function, operation_type, input_format, output_format, group_by,
-                                        create_temp_file, file_argument_builder, client):
+                                        create_temp_file, file_argument_builder, is_local_mode, client):
     function_filename = create_temp_file(prefix=get_function_name(function) + ".pickle")
 
     pickler_name = get_config(client)["pickling"]["framework"]
@@ -406,7 +406,8 @@ def build_function_and_config_arguments(function, operation_type, input_format, 
 
     with open(function_filename, "wb") as fout:
         attributes = function.attributes if hasattr(function, "attributes") else {}
-        pickler.dump((function, attributes, operation_type, input_format, output_format, group_by, get_python_version()), fout)
+        pickler.dump((function, attributes, operation_type, input_format,
+            output_format, group_by, get_python_version(), is_local_mode), fout)
 
     config_filename = create_temp_file(prefix="config_dump")
     with open(config_filename, "wb") as fout:
@@ -473,7 +474,7 @@ def do_wrap(function, operation_type, tempfiles_manager, input_format, output_fo
             filename = file
         else:
             filename = file["filename"]
-        if local_mode:
+        if enable_local_files_usage_in_job(client):
             return os.path.abspath(filename)
         else:
             uploaded_files.append(uploader(file))
@@ -496,6 +497,7 @@ def do_wrap(function, operation_type, tempfiles_manager, input_format, output_fo
         function, operation_type, input_format, output_format, group_by,
         create_temp_file,
         file_argument_builder,
+        local_mode,
         client)
 
     if is_standalone_binary:
@@ -516,7 +518,7 @@ def wrap(client, **kwargs):
 
     with TempfilesManager(remove_temp_files, get_config(client)["local_temp_directory"]) as tempfiles_manager:
         cmd, uploaded_files, tmpfs_size, environment = do_wrap(tempfiles_manager=tempfiles_manager, client=client, local_mode=local_mode, **kwargs)
-        local_files_to_remove = tempfiles_manager._tempfiles_pool if local_mode else []
+        local_files_to_remove = tempfiles_manager._tempfiles_pool if enable_local_files_usage_in_job(client) else []
         return cmd, uploaded_files, tmpfs_size, environment, local_files_to_remove
 
 

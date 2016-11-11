@@ -465,26 +465,24 @@ def mapper(rec):
 
     @add_failed_operation_stderrs_to_error_message
     def test_python_operations_in_local_mode(self):
-        old_value = yt.config["pickling"]["local_mode"]
-        yt.config["pickling"]["local_mode"] = True
+        with set_config_option("is_local_mode", True):
+            with set_config_option("pickling/enable_local_files_usage_in_job", True):
+                old_tmp_dir = yt.config["local_temp_directory"]
+                yt.config["local_temp_directory"] = tempfile.mkdtemp(dir=old_tmp_dir)
 
-        old_tmp_dir = yt.config["local_temp_directory"]
-        yt.config["local_temp_directory"] = tempfile.mkdtemp(dir=old_tmp_dir)
+                os.chmod(yt.config["local_temp_directory"], 0o755)
 
-        os.chmod(yt.config["local_temp_directory"], 0o755)
+                try:
+                    def foo(rec):
+                        yield rec
 
-        try:
-            def foo(rec):
-                yield rec
+                    table = TEST_DIR + "/table"
 
-            table = TEST_DIR + "/table"
-
-            yt.write_table(table, [{"x": 1}, {"y": 2}])
-            yt.run_map(foo, table, table, format=None)
-            check(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
-        finally:
-            yt.config["pickling"]["local_mode"] = old_value
-            yt.config["local_temp_directory"] = old_tmp_dir
+                    yt.write_table(table, [{"x": 1}, {"y": 2}])
+                    yt.run_map(foo, table, table, format=None)
+                    check(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
+                finally:
+                    yt.config["local_temp_directory"] = old_tmp_dir
 
     @add_failed_operation_stderrs_to_error_message
     def test_cross_format_operations(self):

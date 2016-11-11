@@ -132,8 +132,9 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
     if unpickler_name == "dill" and yt.wrapper.config.config["pickling"]["load_additional_dill_types"]:
         unpickler.load_types()
 
-    operation, attributes, operation_type, input_format, output_format, group_by_keys, python_version = \
-        unpickler.load(open(operation_dump_filename, "rb"))
+    operation, attributes, operation_type, \
+        input_format, output_format, group_by_keys, python_version, is_local_mode = \
+            unpickler.load(open(operation_dump_filename, "rb"))
 
     if yt.wrapper.config["pickling"]["enable_job_statistics"]:
         try:
@@ -153,7 +154,7 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
 
     raw = attributes.get("is_raw", False)
 
-    if isinstance(input_format, YsonFormat) and yt.yson.TYPE != "BINARY":
+    if isinstance(input_format, YsonFormat) and yt.yson.TYPE != "BINARY" and not is_local_mode:
         sys.stderr.write("YSON bindings not found. To resolve the problem "
                          "try to use JsonFormat format or install yandex-yt-python-yson package.")
         sys.exit(1)
