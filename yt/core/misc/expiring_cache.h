@@ -41,6 +41,8 @@ private:
         TInstant AccessDeadline;
         //! When this entry must be evicted with respect to update timeout.
         TInstant UpdateDeadline;
+        //! When this entry must be evicted with respect to execution timeout.
+        TInstant ExecutionDeadline;
         //! Some latest known value (possibly not yet set).
         TPromise<TValue> Promise;
         //! Corresponds to a future probation request.

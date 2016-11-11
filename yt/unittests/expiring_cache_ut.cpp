@@ -48,6 +48,43 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+TFuture<T> MakeDelayedFuture(const TDuration& duration, T x)
+{
+    return TDelayedExecutor::MakeDelayed(duration)
+        .Apply(BIND([=] () { return x; }));
+}
+
+class TDelayedExpiringCache
+    : public TExpiringCache<int, int>
+{
+public:
+    TDelayedExpiringCache(TExpiringCacheConfigPtr config, const TDuration& delay)
+        : TExpiringCache<int, int>(std::move(config))
+        , Delay_(delay)
+    { }
+
+    int GetCount()
+    {
+        return Count_;
+    }
+
+protected:
+    virtual TFuture<int> DoGet(const int&) override
+    {
+        ++Count_;
+
+        int count = Count_;
+        return MakeDelayedFuture(Delay_, count);
+    }
+
+private:
+    TDuration Delay_;
+    std::atomic<int> Count_ = {0};
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TEST(TExpiringCacheTest, TestBackgroundUpdate)
 {
     int interval = 100;
@@ -184,6 +221,51 @@ TEST(TExpiringCacheTest, TestUpdateTime2)
     int actual = cache->GetCount();
 
     EXPECT_EQ(10, actual);
+}
+
+TEST(TExpiringCacheTest, TestZeroCache1)
+{
+    auto config = New<TExpiringCacheConfig>();
+    config->ExpireAfterAccessTime = TDuration::Seconds(0);
+    config->ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(0);
+    config->ExpireAfterFailedUpdateTime = TDuration::Seconds(0);
+
+    auto cache = New<TDelayedExpiringCache>(config, TDuration::MilliSeconds(5));
+    for (int i = 0; i < 10; ++i) {
+        auto future = cache->Get(0);
+        EXPECT_EQ(i + 1, cache->GetCount());
+        Sleep(TDuration::MilliSeconds(1));
+        auto valueOrError = future.Get();
+        EXPECT_TRUE(valueOrError.IsOK());
+        EXPECT_EQ(i + 1, valueOrError.Value());
+        Sleep(TDuration::MilliSeconds(1));
+    }
+
+    int actual = cache->GetCount();
+    EXPECT_EQ(10, actual);
+}
+
+TEST(TExpiringCacheTest, TestZeroCache2)
+{
+    auto config = New<TExpiringCacheConfig>();
+    config->ExpireAfterAccessTime = TDuration::Seconds(0);
+    config->ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(0);
+    config->ExpireAfterFailedUpdateTime = TDuration::Seconds(0);
+
+    auto cache = New<TDelayedExpiringCache>(config, TDuration::MilliSeconds(10));
+    std::vector<TFuture<int>> futures;
+    for (int i = 0; i < 10; ++i) {
+        futures.push_back(cache->Get(0));
+    }
+
+    for (auto future : futures) {
+        auto result = future.Get();
+        EXPECT_TRUE(result.IsOK());
+        EXPECT_EQ(1, result.Value());
+    }
+
+    int actual = cache->GetCount();
+    EXPECT_EQ(1, actual);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
