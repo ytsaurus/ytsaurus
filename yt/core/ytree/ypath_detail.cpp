@@ -832,7 +832,15 @@ void TSupportsAttributes::SetAttribute(
     TCtxSetPtr context)
 {
     context->SetRequestInfo();
-    auto result = DoSetAttribute(path, TYsonString(request->value()));
+
+    // Request instances are pooled, and thus are request->values.
+    // Check if this pooled string has a small overhead (<= 25%).
+    // Otherwise make a deep copy.
+    const auto& requestValue = request->value();
+    const auto& safeValue = requestValue.capacity() <= requestValue.length() * 5 / 4
+        ? requestValue
+        : Stroka(TStringBuf(requestValue));
+    auto result = DoSetAttribute(path, TYsonString(safeValue));
     context->ReplyFrom(result);
 }
 
