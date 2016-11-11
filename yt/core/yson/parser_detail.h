@@ -4,6 +4,8 @@
 
 #include <yt/core/misc/finally.h>
 
+#include <util/string/escape.h>
+
 namespace NYT {
 namespace NYson {
 
@@ -13,12 +15,12 @@ namespace NDetail {
 /*! \internal */
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TConsumer, class TBlockStream, bool EnableLinePositionInfo>
+template <class TConsumer, class TBlockStream, size_t MaxContextSize, bool EnableLinePositionInfo>
 class TParser
-    : public TLexerBase<TBlockStream, EnableLinePositionInfo>
+    : public TLexerBase<TReaderWithContext<TBlockStream, MaxContextSize>, EnableLinePositionInfo>
 {
 private:
-    typedef TLexerBase<TBlockStream, EnableLinePositionInfo> TBase;
+    typedef TLexerBase<TReaderWithContext<TBlockStream, MaxContextSize>, EnableLinePositionInfo> TBase;
     TConsumer* Consumer;
     int NestingLevel = 0;
     static const int NestingLevelLimit = 128;
@@ -31,58 +33,78 @@ public:
         : TBase(blockStream, memoryLimit)
         , Consumer(consumer)
     { }
-    
+
     void DoParse(EYsonType parsingMode)
     {
-        switch (parsingMode) {
-            case EYsonType::Node:
-                ParseNode<true>();
-                break;
+        try {
+            switch (parsingMode) {
+                case EYsonType::Node:
+                    ParseNode<true>();
+                    break;
 
-            case EYsonType::ListFragment:
-                ParseListFragment<true>(EndSymbol);
-                break;
+                case EYsonType::ListFragment:
+                    ParseListFragment<true>(EndSymbol);
+                    break;
 
-            case EYsonType::MapFragment:
-                ParseMapFragment<true>(EndSymbol);
-                break;
+                case EYsonType::MapFragment:
+                    ParseMapFragment<true>(EndSymbol);
+                    break;
 
-            default:
-                YUNREACHABLE();
-        }
-
-        while (!(TBase::IsFinished() && TBase::IsEmpty())) {
-            if (TBase::template SkipSpaceAndGetChar<true>() != EndSymbol) {
-                THROW_ERROR_EXCEPTION("Stray %Qv found",
-                    *TBase::Begin())
-                    << *this;
-            } else if (!TBase::IsEmpty()) {
-                TBase::Advance(1);
+                default:
+                    YUNREACHABLE();
             }
+
+            while (!(TBase::IsFinished() && TBase::IsEmpty())) {
+                if (TBase::template SkipSpaceAndGetChar<true>() != EndSymbol) {
+                    THROW_ERROR_EXCEPTION("Stray %Qv found",
+                        *TBase::Begin())
+                        << *this;
+                } else if (!TBase::IsEmpty()) {
+                    TBase::Advance(1);
+                }
+            }
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error occured while parsing YSON, context: %Qv",
+                EscapeC(TBase::GetContextFromCheckpoint()))
+                << ex;
         }
     }
+
+private:
 
     /// Parse routines
     void ParseAttributes()
     {
+        TBase::CheckpointContext();
         Consumer->OnBeginAttributes();
+
         ParseMapFragment(EndAttributesSymbol);
+
+        TBase::CheckpointContext();
         TBase::SkipCharToken(EndAttributesSymbol);
         Consumer->OnEndAttributes();
     }
 
     void ParseMap()
     {
+        TBase::CheckpointContext();
         Consumer->OnBeginMap();
+
         ParseMapFragment(EndMapSymbol);
+
+        TBase::CheckpointContext();
         TBase::SkipCharToken(EndMapSymbol);
         Consumer->OnEndMap();
     }
 
     void ParseList()
     {
+        TBase::CheckpointContext();
         Consumer->OnBeginList();
+
         ParseListFragment(EndListSymbol);
+
+        TBase::CheckpointContext();
         TBase::SkipCharToken(EndListSymbol);
         Consumer->OnEndList();
     }
@@ -108,10 +130,12 @@ public:
             --NestingLevel;
         });
 
+        TBase::CheckpointContext();
         if (ch == BeginAttributesSymbol) {
             TBase::Advance(1);
             ParseAttributes();
             ch = TBase::SkipSpaceAndGetChar();
+            TBase::CheckpointContext();
         }
 
         switch (ch) {
@@ -201,6 +225,7 @@ public:
 
     void ParseKey(char ch)
     {
+        TBase::CheckpointContext();
         switch (ch) {
             case '"': {
                 TBase::Advance(1);
@@ -237,6 +262,7 @@ public:
         while (ch != endSymbol) {
             ParseKey(ch);
             ch = TBase::template SkipSpaceAndGetChar<AllowFinish>();
+            TBase::CheckpointContext();
             if (ch == KeyValueSeparatorSymbol) {
                 TBase::Advance(1);
             } else {
@@ -247,6 +273,7 @@ public:
             }
             ParseNode<AllowFinish>();
             ch = TBase::template SkipSpaceAndGetChar<AllowFinish>();
+            TBase::CheckpointContext();
             if (ch == ItemSeparatorSymbol) {
                 TBase::Advance(1);
                 ch = TBase::template SkipSpaceAndGetChar<AllowFinish>();
@@ -257,7 +284,6 @@ public:
                     ch)
                     << *this;
             }
-
         }
     }
 
@@ -271,9 +297,11 @@ public:
     {
         char ch = TBase::template SkipSpaceAndGetChar<AllowFinish>();
         while (ch != endSymbol) {
+            TBase::CheckpointContext();
             Consumer->OnListItem();
             ParseNode<AllowFinish>(ch);
             ch = TBase::template SkipSpaceAndGetChar<AllowFinish>();
+            TBase::CheckpointContext();
             if (ch == ItemSeparatorSymbol) {
                 TBase::Advance(1);
                 ch = TBase::template SkipSpaceAndGetChar<AllowFinish>();
@@ -283,7 +311,7 @@ public:
                     endSymbol,
                     ch)
                     << *this;
-            }            
+            }
         }
     }
 
@@ -291,7 +319,7 @@ public:
     {
         ParseListFragment<false>(endSymbol);
     }
-    
+
     template <bool AllowFinish>
     void ReadNumeric()
     {
@@ -344,18 +372,27 @@ public:
 
 template <class TConsumer, class TBlockStream>
 void ParseYsonStreamImpl(
-    const TBlockStream& blockStream, 
-    IYsonConsumer* consumer, 
-    EYsonType parsingMode, 
+    const TBlockStream& blockStream,
+    IYsonConsumer* consumer,
+    EYsonType parsingMode,
     bool enableLinePositionInfo,
-    i64 memoryLimit)
+    i64 memoryLimit,
+    bool enableContext)
 {
-    if (enableLinePositionInfo) {
-        typedef NDetail::TParser<TConsumer, TBlockStream, true> TImpl;
+    if (enableLinePositionInfo && enableContext) {
+        typedef NDetail::TParser<TConsumer, TBlockStream, 64, true> TImpl;
+        TImpl impl(blockStream, consumer, memoryLimit);
+        impl.DoParse(parsingMode);
+    } else if (enableLinePositionInfo && !enableContext) {
+        typedef NDetail::TParser<TConsumer, TBlockStream, 0, true> TImpl;
+        TImpl impl(blockStream, consumer, memoryLimit);
+        impl.DoParse(parsingMode);
+    } else if (!enableLinePositionInfo && enableContext) {
+        typedef NDetail::TParser<TConsumer, TBlockStream, 64, false> TImpl;
         TImpl impl(blockStream, consumer, memoryLimit);
         impl.DoParse(parsingMode);
     } else {
-        typedef NDetail::TParser<TConsumer, TBlockStream, false> TImpl;
+        typedef NDetail::TParser<TConsumer, TBlockStream, 0, false> TImpl;
         TImpl impl(blockStream, consumer, memoryLimit);
         impl.DoParse(parsingMode);
     }
@@ -370,12 +407,12 @@ public:
     { }
 };
 
-template <class TConsumer, bool EnableLinePositionInfo>
+template <class TConsumer, size_t MaxContextSize, bool EnableLinePositionInfo>
 class TStatelessYsonParserImpl
     : public TStatelessYsonParserImplBase
 {
 private:
-    typedef NDetail::TParser<TConsumer, TStringReader, EnableLinePositionInfo> TParser;
+    typedef NDetail::TParser<TConsumer, TStringReader, MaxContextSize, EnableLinePositionInfo> TParser;
     TParser Parser;
 
 public:
