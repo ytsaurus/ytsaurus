@@ -8,7 +8,7 @@ except NameError:  # Python 3
 _test_scheduling_func = None
 
 def split_test_suites(suites, process_count):
-    suites_per_process = len(suites) // process_count
+    suites_per_process = max(1, len(suites) // process_count)
     suites_keys = list(suites)
 
     slaves_tasks = []
