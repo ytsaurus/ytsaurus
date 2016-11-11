@@ -56,6 +56,8 @@
 
 #include <yt/server/election/election_manager.h>
 
+#include <yt/ytlib/admin/admin_service.h>
+
 #include <yt/ytlib/election/cell_manager.h>
 
 #include <yt/ytlib/hive/cell_directory.h>
@@ -95,6 +97,7 @@
 namespace NYT {
 namespace NCellMaster {
 
+using namespace NAdmin;
 using namespace NBus;
 using namespace NRpc;
 using namespace NYTree;
@@ -563,6 +566,7 @@ void TBootstrap::DoInitialize()
     RpcServer_->RegisterService(CreateObjectService(Config_->ObjectService, this)); // master hydra service
     RpcServer_->RegisterService(CreateJobTrackerService(this)); // master hydra service
     RpcServer_->RegisterService(CreateChunkService(this)); // master hydra service
+    RpcServer_->RegisterService(CreateAdminService(GetControlInvoker()));
 
     CypressManager_->RegisterHandler(CreateSysNodeTypeHandler(this));
     CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::ChunkMap));
