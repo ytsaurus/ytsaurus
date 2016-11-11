@@ -176,6 +176,9 @@ public:
 
 void Exit(EExitCode exitCode)
 {
+    // Sleep a little bit to flush errors to log file.
+    Sleep(TDuration::MilliSeconds(100));
+
     // Currently we don't support graceful shutdown.
     _exit(static_cast<int>(exitCode));
 }
