@@ -61,6 +61,19 @@ class YtTestEnvironment(object):
 
         dir = os.path.join(TESTS_SANDBOX, self.test_name, "run_" + uuid.uuid4().hex[:8])
 
+        delta_proxy_config = {
+            "proxy": {
+                "driver": {
+                    # Disable cache
+                    "table_mount_cache": {
+                        "expire_after_successful_update_time": 0,
+                        "expire_after_failed_update_time": 0,
+                        "expire_after_access_time": 0,
+                        "refresh_time": 0
+                    }
+                }
+            }
+        }
         delta_node_config = {
             "exec_agent" : {
                 "enable_cgroups" : ENABLE_JOB_CONTROL,
@@ -101,6 +114,8 @@ class YtTestEnvironment(object):
                 update(config, delta_scheduler_config)
             for config in configs["node"]:
                 update(config, delta_node_config)
+            for config in configs["proxy"]:
+                update(config, delta_proxy_config)
 
         self.env = YTInstance(dir,
                               master_count=1,
