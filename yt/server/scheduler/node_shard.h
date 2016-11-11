@@ -247,7 +247,7 @@ private:
         NJobTrackerClient::NProto::TRspHeartbeat* response,
         yhash_set<TOperationId>* operationsToLog);
 
-    void OnJobAborted(const TJobPtr& job, TJobStatus* status);
+    void OnJobAborted(const TJobPtr& job, TJobStatus* status, bool operationTerminated = false);
     void OnJobFinished(const TJobPtr& job);
     void OnJobRunning(const TJobPtr& job, TJobStatus* status);
     void OnJobWaiting(const TJobPtr& /*job*/);

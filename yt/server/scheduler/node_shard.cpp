@@ -343,7 +343,7 @@ void TNodeShard::AbortOperationJobs(const TOperationId& operationId, const TErro
     auto jobs = operationState->Jobs;
     for (const auto& job : jobs) {
         auto status = JobStatusFromError(abortReason);
-        OnJobAborted(job.second, &status);
+        OnJobAborted(job.second, &status, terminated);
     }
 
     for (const auto& job : operationState->Jobs) {
@@ -1286,7 +1286,7 @@ void TNodeShard::OnJobFailed(const TJobPtr& job, TJobStatus* status)
     UnregisterJob(job);
 }
 
-void TNodeShard::OnJobAborted(const TJobPtr& job, TJobStatus* status)
+void TNodeShard::OnJobAborted(const TJobPtr& job, TJobStatus* status, bool operationTerminated)
 {
     // Only update the status for the first time.
     // Typically the scheduler decides to abort the job on its own.
@@ -1308,7 +1308,7 @@ void TNodeShard::OnJobAborted(const TJobPtr& job, TJobStatus* status)
         }
 
         auto* operationState = FindOperationState(job->GetOperationId());
-        if (operationState) {
+        if (operationState && !operationTerminated) {
             const auto& controller = operationState->Controller;
             controller->GetCancelableInvoker()->Invoke(BIND(
                 &IOperationController::OnJobAborted,
