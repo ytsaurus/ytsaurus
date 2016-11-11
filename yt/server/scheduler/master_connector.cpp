@@ -821,7 +821,7 @@ private:
             true,
             "OutputTransaction");
 
-        // NB. We use NullTransactionId as default value for the transition period.
+        // COMPAT. We use NullTransactionId as default value for the transition period.
         // Once all clusters are updated to version that creates debug_output transaction
         // this default value can be removed as in other transactions above.
         result.ControllerTransactions->DebugOutput = getTransaction(
