@@ -18,13 +18,16 @@ class ClientState(object):
         self._requests_session = None
         self._heavy_proxy_provider = None
 
-        # socket.getfqdn can be slow so fqdn is cached
+        # YtError uses socket.getfqdn that can be slow so fqdn is cached.
         self._fqdn = None
 
-        # Cache for API version (to check it only once)
+        # Cache for API version (to check it only once).
         self._api_version = None
         self._commands = None
         self._is_testing_mode = None
+
+        # Cache for local_mode_fqdn (used to detect local mode in client).
+        self._local_mode_fqdn = None
 
         self._random_generator = SystemRandom()
 
