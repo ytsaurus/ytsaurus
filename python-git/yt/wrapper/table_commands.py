@@ -40,7 +40,7 @@ from . import py_wrapper
 from .config import get_config
 from .common import flatten, require, unlist, update, parse_bool, is_prefix, get_value, \
                     compose, bool_to_string, chunk_iter_stream, get_started_by, MB, GB, EMPTY_GENERATOR, \
-                    run_with_retries, forbidden_inside_job, get_disk_size, round_up_to
+                    run_with_retries, forbidden_inside_job, get_disk_size, round_up_to, set_option
 from .errors import YtIncorrectResponse, YtError, YtOperationFailedError, YtConcurrentOperationsLimitExceeded
 from .driver import make_request
 from .exceptions_catcher import KeyboardInterruptsCatcher
@@ -85,14 +85,6 @@ import collections
 # Auxiliary methods
 
 DEFAULT_EMPTY_TABLE = TablePath("//sys/empty_yamr_table", simplify=False)
-
-def _set_option(params, name, value, transform=None):
-    if value is not None:
-        if transform is not None:
-            params[name] = transform(value)
-        else:
-            params[name] = value
-    return params
 
 def _to_chunk_stream(stream, format, raw, split_rows, chunk_size):
     if isinstance(stream, (text_type, binary_type)):
@@ -1030,10 +1022,10 @@ def reshard_table(path, pivot_keys=None, tablet_count=None, first_tablet_index=N
     """
     params = {"path": TablePath(path, client=client)}
 
-    _set_option(params, "pivot_keys", pivot_keys)
-    _set_option(params, "tablet_count", tablet_count)
-    _set_option(params, "first_tablet_index", first_tablet_index)
-    _set_option(params, "last_tablet_index", last_tablet_index)
+    set_option(params, "pivot_keys", pivot_keys)
+    set_option(params, "tablet_count", tablet_count)
+    set_option(params, "first_tablet_index", first_tablet_index)
+    set_option(params, "last_tablet_index", last_tablet_index)
 
     make_request("reshard_table", params, client=client)
 
@@ -1056,15 +1048,15 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
     params = {
         "query": query,
         "output_format": format.to_yson_type()}
-    _set_option(params, "timestamp", timestamp)
-    _set_option(params, "input_row_limit", input_row_limit)
-    _set_option(params, "output_row_limit", output_row_limit)
-    _set_option(params, "range_expansion_limit", range_expansion_limit)
-    _set_option(params, "fail_on_incomplete_result", fail_on_incomplete_result, transform=bool_to_string)
-    _set_option(params, "verbose_logging", verbose_logging, transform=bool_to_string)
-    _set_option(params, "enable_code_cache", enable_code_cache, transform=bool_to_string)
-    _set_option(params, "max_subqueries", max_subqueries)
-    _set_option(params, "workload_descriptor", workload_descriptor)
+    set_option(params, "timestamp", timestamp)
+    set_option(params, "input_row_limit", input_row_limit)
+    set_option(params, "output_row_limit", output_row_limit)
+    set_option(params, "range_expansion_limit", range_expansion_limit)
+    set_option(params, "fail_on_incomplete_result", fail_on_incomplete_result, transform=bool_to_string)
+    set_option(params, "verbose_logging", verbose_logging, transform=bool_to_string)
+    set_option(params, "enable_code_cache", enable_code_cache, transform=bool_to_string)
+    set_option(params, "max_subqueries", max_subqueries)
+    set_option(params, "workload_descriptor", workload_descriptor)
 
     response = _make_transactional_request(
         "select_rows",
@@ -1097,9 +1089,9 @@ def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_mis
     params["path"] = table
     params["input_format"] = format.to_yson_type()
     params["output_format"] = format.to_yson_type()
-    _set_option(params, "timestamp", timestamp)
-    _set_option(params, "column_names", column_names)
-    _set_option(params, "keep_missing_rows", keep_missing_rows, transform=bool_to_string)
+    set_option(params, "timestamp", timestamp)
+    set_option(params, "column_names", column_names)
+    set_option(params, "keep_missing_rows", keep_missing_rows, transform=bool_to_string)
 
     input_stream = _to_chunk_stream(input_stream, format, raw, split_rows=False, chunk_size=get_config(client)["write_retries"]["chunk_size"])
 
@@ -1139,10 +1131,10 @@ def insert_rows(table, input_stream, update=None, aggregate=None, atomicity=None
     params = {}
     params["path"] = table
     params["input_format"] = format.to_yson_type()
-    _set_option(params, "update", update, transform=bool_to_string)
-    _set_option(params, "aggregate", aggregate, transform=bool_to_string)
-    _set_option(params, "atomicity", atomicity)
-    _set_option(params, "durability", durability)
+    set_option(params, "update", update, transform=bool_to_string)
+    set_option(params, "aggregate", aggregate, transform=bool_to_string)
+    set_option(params, "atomicity", atomicity)
+    set_option(params, "durability", durability)
 
     input_stream = _to_chunk_stream(input_stream, format, raw, split_rows=False, chunk_size=get_config(client)["write_retries"]["chunk_size"])
 
@@ -1174,8 +1166,8 @@ def delete_rows(table, input_stream, atomicity=None, durability=None, format=Non
     params = {}
     params["path"] = table
     params["input_format"] = format.to_yson_type()
-    _set_option(params, "atomicity", atomicity)
-    _set_option(params, "durability", durability)
+    set_option(params, "atomicity", atomicity)
+    set_option(params, "durability", durability)
 
     input_stream = _to_chunk_stream(input_stream, format, raw, split_rows=False, chunk_size=get_config(client)["write_retries"]["chunk_size"])
 
@@ -1699,10 +1691,10 @@ def run_remote_copy(source_table, destination_table,
                                                            client=client))
     spec = compose(
         lambda _: _configure_spec(_, client),
-        lambda _: _set_option(_, "network_name", network_name),
-        lambda _: _set_option(_, "cluster_name", cluster_name),
-        lambda _: _set_option(_, "cluster_connection", cluster_connection),
-        lambda _: _set_option(_, "copy_attributes", copy_attributes),
+        lambda _: set_option(_, "network_name", network_name),
+        lambda _: set_option(_, "cluster_name", cluster_name),
+        lambda _: set_option(_, "cluster_connection", cluster_connection),
+        lambda _: set_option(_, "copy_attributes", copy_attributes),
         lambda _: update({"input_table_paths": list(imap(get_input_name, source_table)),
                           "output_table_path": destination_table},
                           _),

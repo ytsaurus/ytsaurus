@@ -1,9 +1,10 @@
 """Permissions commands"""
 
+from .common import set_option
 from .driver import make_request
 from .transaction_commands import _make_formatted_transactional_request
 
-def check_permission(user, permission, path, format=None, client=None):
+def check_permission(user, permission, path, format=None, read_from=None, client=None):
     """Check permission for Cypress node
 
     :param user: (string) user login
@@ -11,13 +12,15 @@ def check_permission(user, permission, path, format=None, client=None):
     :return: permission in specified format (YSON by default)
     .. seealso:: `permissions on wiki <https://wiki.yandex-team.ru/yt/userdoc/accesscontrol#polzovateligruppyisubekty>`_
     """
+    params ={
+        "user": user,
+        "permission": permission,
+        "path": path
+    }
+    set_option(params, "read_from", read_from)
     return _make_formatted_transactional_request(
         "check_permission",
-        {
-            "user": user,
-            "permission": permission,
-            "path": path
-        },
+        params,
         format=format,
         client=client)
 
