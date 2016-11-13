@@ -33,6 +33,13 @@ DEFINE_ENUM(ESecurityAction,
     ((Deny)     (2))  // No way!
 );
 
+DEFINE_ENUM(EAceInheritanceMode,
+    ((ObjectAndDescendants)    (0))  // ACE applies both to the object itself and its descendants.
+    ((ObjectOnly)              (1))  // ACE applies to the object only.
+    ((DescendantsOnly)         (2))  // ACE applies to descendants only.
+    ((ImmediateDescendantsOnly)(3))  // ACE applies to immediate (direct) descendants only.
+);
+
 DEFINE_ENUM(EErrorCode,
     ((AuthenticationError)          (900))
     ((AuthorizationError)           (901))
