@@ -106,7 +106,7 @@ public:
     TDuration MaxRepeatDelay;
     int MaxItemsInProgress;
     int MaxItemsInBatch;
-    Stroka TableName;
+    NYPath::TYPath TableName;
 
     TStatisticsReporterConfig()
     {

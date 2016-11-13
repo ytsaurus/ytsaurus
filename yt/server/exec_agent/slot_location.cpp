@@ -338,7 +338,7 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
             config->Detach = DetachedTmpfsUmount_;
 
             try {
-                // Due to bug in the kernel, this can sometimes fail with error"Directory is not empty".
+                // Due to bug in the kernel, this can sometimes fail with "Directory is not empty" error.
                 // More info: https://bugzilla.redhat.com/show_bug.cgi?id=1066751
                 RunTool<TRemoveDirContentAsRootTool>(path);
             } catch (const std::exception& ex) {

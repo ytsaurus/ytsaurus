@@ -81,7 +81,7 @@ Py::Bytes EncodeStringObject(const Py::Object& obj, const TNullable<Stroka>& enc
     }
 }
 
-void SerializeMapFragment(const Py::Object& map, IYsonConsumer* consumer, const TNullable<Stroka> &encoding,
+void SerializeMapFragment(const Py::Object& map, IYsonConsumer* consumer, const TNullable<Stroka>& encoding,
                           bool ignoreInnerAttributes, EYsonType ysonType, int depth)
 {
     auto items = Py::Object(PyDict_CheckExact(*map) ? PyDict_Items(*map) : PyMapping_Items(*map), true);
@@ -242,7 +242,8 @@ TPythonObjectBuilder::TPythonObjectBuilder(bool alwaysCreateAttributes, const TN
 // unnecessary checks.
 using PyObjectPtr = std::unique_ptr<PyObject, decltype(&Py::_XDECREF)>;
 
-PyObjectPtr MakePyObjectPtr(PyObject* obj) {
+PyObjectPtr MakePyObjectPtr(PyObject* obj)
+{
     return std::unique_ptr<PyObject, decltype(&Py::_XDECREF)>(obj, &Py::_XDECREF);
 }
 
