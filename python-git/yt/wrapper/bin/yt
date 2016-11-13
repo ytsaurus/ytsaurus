@@ -243,6 +243,9 @@ def exists(**args):
 def add_exists_parser(add_parser):
     parser = add_parser("exists", exists)
     add_ypath_argument(parser, "path", hybrid=True)
+    parser.add_argument("--read-from",
+                        help='You can specify read-from equaled to "cache"'
+                             'for enabling using system cache')
 
 def formatted_print(obj, path, long_format):
     if long_format:
@@ -284,6 +287,9 @@ def add_list_parser(add_parser):
                               "if actual directory size exceeds that value only subset "
                               "of entries will be listed (it's not specified which subset); "
                               "default value is enough to list any nonsystem directory."))
+    parser.add_argument("--read-from",
+                        help='You can specify read-from equaled to "cache"'
+                             'for enabling using system cache')
 
 def find(**args):
     path_filter = None
@@ -303,7 +309,8 @@ def find(**args):
                        attributes=builtins.list(attributes),
                        object_filter=object_filter,
                        depth_bound=args["depth"],
-                       follow_links=args["follow_links"])
+                       follow_links=args["follow_links"],
+                       read_from=args["read_from"])
 
     for elem in result:
         formatted_print(elem, elem, args["long_format"])
@@ -319,6 +326,9 @@ def add_find_parser(add_parser):
     parser.add_argument("--attribute-filter", help="yson map fragment with filtering attributes, e.g. k1=v1;k2=v2")
     parser.add_argument("--depth", type=int, help="recursion depth (infinite by default)")
     parser.add_argument("-l", "--long-format", action="store_true", help="print some extra information about nodes")
+    parser.add_argument("--read-from",
+                        help='You can specify read-from equaled to "cache"'
+                             'for enabling using system cache')
     parser.set_defaults(func=find)
 
 @copy_docstring_from(yt.read_table)
@@ -401,6 +411,9 @@ def add_get_parser(add_parser):
     parser.add_argument("--ignore-opaque", action="store_true")
     add_structured_format_argument(parser, default=output_format)
     parser.add_argument("--attribute", action="append", dest="attributes", help="desired node attributes in the response")
+    parser.add_argument("--read-from",
+                        help='You can specify read-from equaled to "cache"'
+                             'for enabling using system cache')
 
 @copy_docstring_from(yt.set)
 def set(**args):
