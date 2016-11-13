@@ -33,6 +33,7 @@ using NYTree::EPermission;
 using NYTree::EPermissionSet;
 
 using NSecurityClient::ESecurityAction;
+using NSecurityClient::EAceInheritanceMode;
 
 DECLARE_ENTITY_TYPE(TAccount, TAccountId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TUser, TUserId, NObjectClient::TDirectObjectIdHash)

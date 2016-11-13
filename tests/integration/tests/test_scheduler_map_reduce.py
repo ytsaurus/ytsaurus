@@ -275,7 +275,7 @@ print "x={0}\ty={1}".format(x, y)
 
     def test_intermediate_live_preview(self):
         create_user("u")
-        acl = [{"action": "allow", "subjects": ["u"], "permissions": ["write"]}]
+        acl = [{"action": "allow", "subjects": ["u"], "permissions": ["write"], "inheritance_mode": "object_and_descendants"}]
 
         create("table", "//tmp/t1")
         write_table("//tmp/t1", {"foo": "bar"})
