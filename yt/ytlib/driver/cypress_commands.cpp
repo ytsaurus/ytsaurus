@@ -211,15 +211,15 @@ TLockCommand::TLockCommand()
 
 void TLockCommand::DoExecute(ICommandContextPtr context)
 {
-    auto asyncLockId = context->GetClient()->LockNode(
+    auto asyncLockResult = context->GetClient()->LockNode(
         Path.GetPath(),
         Mode,
         Options);
-    auto lockId = WaitFor(asyncLockId)
+    auto lockResult = WaitFor(asyncLockResult)
         .ValueOrThrow();
 
     context->ProduceOutputValue(BuildYsonStringFluently()
-        .Value(lockId));
+        .Value(lockResult.LockId));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
