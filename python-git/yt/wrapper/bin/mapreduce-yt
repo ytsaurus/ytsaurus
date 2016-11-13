@@ -534,7 +534,7 @@ Examples:
     if args.ytspec is not None:
         for spec_arg in args.ytspec:
             ytspec = update(ytspec, yson.json_to_yson(json.loads(spec_arg)))
-    yt.config["spec_defaults"] = update(yt.config["spec_defaults"], ytspec)
+    yt.config["spec_overrides"] = update(yt.config["spec_overrides"], ytspec)
 
     spec = {}
     if args.title is not None:
