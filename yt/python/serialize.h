@@ -82,8 +82,11 @@ private:
     std::stack<Stroka> Keys_;
     TNullable<Py::Object> Attributes_;
 
-    void AddObject(PyObject* obj, const Py::Callable& type, EPythonObjectType objType = EPythonObjectType::Other,
-                   bool forceYsonTypeCreation = false);
+    void AddObject(
+        PyObject* obj,
+        const Py::Callable& type,
+        EPythonObjectType objType = EPythonObjectType::Other,
+        bool forceYsonTypeCreation = false);
     void AddObject(PyObject* obj);
 
     void Push(const Py::Object& obj, EPythonObjectType objectType);

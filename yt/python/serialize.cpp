@@ -81,8 +81,13 @@ Py::Bytes EncodeStringObject(const Py::Object& obj, const TNullable<Stroka>& enc
     }
 }
 
-void SerializeMapFragment(const Py::Object& map, IYsonConsumer* consumer, const TNullable<Stroka> &encoding,
-                          bool ignoreInnerAttributes, EYsonType ysonType, int depth)
+void SerializeMapFragment(
+    const Py::Object& map,
+    IYsonConsumer* consumer,
+    const TNullable<Stroka> &encoding,
+    bool ignoreInnerAttributes,
+    EYsonType ysonType,
+    int depth)
 {
     auto items = Py::Object(PyDict_CheckExact(*map) ? PyDict_Items(*map) : PyMapping_Items(*map), true);
     auto iterator = Py::Object(PyObject_GetIter(*items), true);
@@ -160,8 +165,13 @@ void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer)
     }
 }
 
-void Serialize(const Py::Object& obj, IYsonConsumer* consumer, const TNullable<Stroka>& encoding,
-               bool ignoreInnerAttributes, EYsonType ysonType, int depth)
+void Serialize(
+    const Py::Object& obj,
+    IYsonConsumer* consumer,
+    const TNullable<Stroka>& encoding,
+    bool ignoreInnerAttributes,
+    EYsonType ysonType,
+    int depth)
 {
     static Py::Callable YsonEntityClass = GetYsonType("YsonEntity");
 
@@ -341,8 +351,11 @@ void TPythonObjectBuilder::OnEndAttributes()
     Attributes_ = Pop();
 }
 
-void TPythonObjectBuilder::AddObject(PyObject* obj, const Py::Callable& type, EPythonObjectType objType,
-                                     bool forceYsonTypeCreation)
+void TPythonObjectBuilder::AddObject(
+    PyObject* obj,
+    const Py::Callable& type,
+    EPythonObjectType objType,
+    bool forceYsonTypeCreation)
 {
     if (!obj) {
         throw Py::Exception();
