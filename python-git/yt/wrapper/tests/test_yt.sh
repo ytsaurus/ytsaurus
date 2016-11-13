@@ -73,9 +73,11 @@ test_cypress_commands()
     $YT set //home/wrapper_test/folder "{}"
     check "" "$($YT list //home/wrapper_test/folder)"
     check "folder" "$($YT list //home/wrapper_test)"
+    check "folder" "$($YT list //home/wrapper_test --read-from cache)"
     check "{\"folder\"={}}" "$(fix_yson_repr $($YT get //home/wrapper_test --format "<format=text>yson"))"
     check "" "$($YT find //home/wrapper_test --name "xxx")"
     check "//home/wrapper_test/folder" "$($YT find //home/wrapper_test --name "folder")"
+    check "//home/wrapper_test/folder" "$($YT find //home/wrapper_test --name "folder" --read-from cache)"
     check "//home/wrapper_test/folder" "$(YT_PREFIX="//home/" $YT find wrapper_test --name "folder")"
 
     $YT set //home/wrapper_test/folder/@attr '<a=b>c'

@@ -183,8 +183,8 @@ def list(path, max_size=None, format=None, absolute=None, attributes=None, sort=
     params = {
         "path": YPath(path, client=client),
         "max_size": max_size}
-    set_option(params, "read_from", read_from)
     set_option(params, "attributes", attributes)
+    set_option(params, "read_from", read_from)
     result = _make_formatted_transactional_request(
         "list",
         params=params,
@@ -317,7 +317,7 @@ def search(root="", node_type=None,
            map_node_order=lambda path, obj: sorted(obj),
            list_node_order=None,
            attributes=None, exclude=None, depth_bound=None,
-           follow_links=False, client=None):
+           follow_links=False, read_from=None, client=None):
     """Search for some nodes in Cypress subtree.
 
     :param root: (string or `YPath`) path to search
@@ -350,7 +350,7 @@ def search(root="", node_type=None,
 
     def safe_get(path, ignore_resolve_error=True):
         try:
-            return get(path, attributes=request_attributes, client=client)
+            return get(path, attributes=request_attributes, read_from=read_from, client=client)
         except YtResponseError as rsp:
             if rsp.is_access_denied():
                 logger.warning("Cannot traverse %s, access denied" % path)
