@@ -270,6 +270,10 @@ default_config = {
     "memory_limit": None,
     "pool": None,
 
+    # Defaults that will be passed to all operation specs with highest priority.
+    "spec_overrides": {
+    },
+
     # Default value of table table writer configs.
     # It is passed to write_table and to job_io sections in operation specs.
     "table_writer": {
