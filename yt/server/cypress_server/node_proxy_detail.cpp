@@ -881,8 +881,10 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
         Transaction,
         lockRequest,
         waitable);
+    
     auto lockId = lock->GetId();
     ToProto(response->mutable_lock_id(), lockId);
+    ToProto(response->mutable_node_id(), lock->GetTrunkNode()->GetId());
 
     context->SetResponseInfo("LockId: %v",
         lockId);

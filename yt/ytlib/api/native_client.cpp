@@ -1343,7 +1343,7 @@ public:
         EObjectType type,
         const TCreateNodeOptions& options),
         (path, type, options))
-    IMPLEMENT_METHOD(TLockId, LockNode, (
+    IMPLEMENT_METHOD(TLockNodeResult, LockNode, (
         const TYPath& path,
         ELockMode mode,
         const TLockNodeOptions& options),
@@ -2418,7 +2418,7 @@ private:
         return FromProto<TNodeId>(rsp->node_id());
     }
 
-    TLockId DoLockNode(
+    TLockNodeResult DoLockNode(
         const TYPath& path,
         ELockMode mode,
         const TLockNodeOptions& options)
@@ -2444,7 +2444,8 @@ private:
             .ValueOrThrow();
         auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspLock>(0)
             .ValueOrThrow();
-        return FromProto<TLockId>(rsp->lock_id());
+
+        return TLockNodeResult({FromProto<TLockId>(rsp->lock_id()), FromProto<TNodeId>(rsp->lock_id())});
     }
 
     TNodeId DoCopyNode(
@@ -3519,7 +3520,7 @@ public:
         EObjectType type,
         const TCreateNodeOptions& options),
         (path, type, options))
-    DELEGATE_TRANSACTIONAL_METHOD(TFuture<TLockId>, LockNode, (
+    DELEGATE_TRANSACTIONAL_METHOD(TFuture<TLockNodeResult>, LockNode, (
         const TYPath& path,
         NCypressClient::ELockMode mode,
         const TLockNodeOptions& options),

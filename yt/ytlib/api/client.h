@@ -363,6 +363,12 @@ struct TLockNodeOptions
     TNullable<Stroka> AttributeKey;
 };
 
+struct TLockNodeResult
+{
+    NCypressClient::TLockId LockId;
+    NCypressClient::TNodeId NodeId;
+};
+
 struct TCopyNodeOptions
     : public TTimeoutOptions
     , public TTransactionalOptions
@@ -584,7 +590,7 @@ struct IClientBase
         NObjectClient::EObjectType type,
         const TCreateNodeOptions& options = TCreateNodeOptions()) = 0;
 
-    virtual TFuture<NCypressClient::TLockId> LockNode(
+    virtual TFuture<TLockNodeResult> LockNode(
         const NYPath::TYPath& path,
         NCypressClient::ELockMode mode,
         const TLockNodeOptions& options = TLockNodeOptions()) = 0;
