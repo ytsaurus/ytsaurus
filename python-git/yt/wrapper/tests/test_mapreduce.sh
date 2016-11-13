@@ -330,6 +330,15 @@ test_spec()
     op_id="`$MAPREDUCE_YT -read "ignat/output" | tr -d '[[:space:]]'`"
     check '"hello"' "`$MAPREDUCE_YT -get "//sys/operations/${op_id}/@spec/opt3"`"
     check 'null' "`$MAPREDUCE_YT -get "//sys/operations/${op_id}/@spec/opt4"`"
+
+    YT_USE_YAMR_DEFAULTS=1 ./mapreduce \
+        -map 'cat >/dev/null; echo -e "${YT_OPERATION_ID}\t"' \
+        -ytspec '{"mapper": {"memory_limit": 1234567890}}' \
+        -src "ignat/input" \
+        -dst "ignat/output"
+
+    op_id="`./mapreduce -read "ignat/output" | tr -d '[[:space:]]'`"
+    check '1234567890' "`./mapreduce -get "//sys/operations/${op_id}/@spec/mapper/memory_limit"`"
 }
 
 test_smart_format()
