@@ -245,6 +245,7 @@ template <class C>
 struct ICustomPersistent
     : public virtual TDynamicTag
 {
+    virtual ~ICustomPersistent() = default;
     virtual void Persist(const C& context) = 0;
 };
 
