@@ -1710,7 +1710,7 @@ def run_remote_copy(source_table, destination_table,
                           "output_table_path": destination_table},
                           _),
         lambda _: _apply_spec_overrides(_, client=client),
-        lambda _: get_value(spec, {})
+        lambda _: get_value(_, {})
     )(spec)
 
     return _make_operation_request("remote_copy", spec, sync, client=client)
