@@ -1472,7 +1472,7 @@ void TChunkReplicator::OnPropertiesUpdate()
 
 TChunkProperties TChunkReplicator::ComputeChunkProperties(TChunk* chunk)
 {
-    bool parentsVisited = false;
+    bool found = false;
     TChunkProperties properties;
 
     if (chunk->IsErasure()) {
@@ -1506,18 +1506,14 @@ TChunkProperties TChunkReplicator::ComputeChunkProperties(TChunk* chunk)
         auto* chunkList = queue[frontIndex++];
 
         // Examine owners, if any.
-        for (const auto* owningNode : chunkList->OwningNodes()) {
-            if (owningNode->IsTrunk()) {
-                parentsVisited = true;
-
-                if (!chunk->IsErasure()) {
-                    properties.ReplicationFactor = std::max(
-                        properties.ReplicationFactor,
-                        owningNode->GetReplicationFactor());
-                }
-
-                properties.Vital |= owningNode->GetVital();
+        for (const auto* owningNode : chunkList->TrunkOwningNodes()) {
+            if (!chunk->IsErasure()) {
+                properties.ReplicationFactor = std::max(
+                    properties.ReplicationFactor,
+                    owningNode->GetReplicationFactor());
             }
+            properties.Vital |= owningNode->GetVital();
+            found = true;
         }
 
         // Proceed to parents.
@@ -1529,14 +1525,14 @@ TChunkProperties TChunkReplicator::ComputeChunkProperties(TChunk* chunk)
         }
     }
 
-    return parentsVisited ? properties : chunk->GetLocalProperties();
+    return found ? properties : chunk->GetLocalProperties();
 }
 
 TChunkList* TChunkReplicator::FollowParentLinks(TChunkList* chunkList)
 {
-    while (chunkList->OwningNodes().empty()) {
+    while (chunkList->TrunkOwningNodes().Empty()) {
         const auto& parents = chunkList->Parents();
-        size_t parentCount = parents.size();
+        auto parentCount = parents.Size();
         if (parentCount == 0) {
             return nullptr;
         }

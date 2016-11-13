@@ -704,7 +704,7 @@ public:
     void ClearChunkList(TChunkList* chunkList)
     {
         // TODO(babenko): currently we only support clearing a chunklist with no parents.
-        YCHECK(chunkList->Parents().empty());
+        YCHECK(chunkList->Parents().Empty());
         chunkList->IncrementVersion();
 
         auto objectManager = Bootstrap_->GetObjectManager();
