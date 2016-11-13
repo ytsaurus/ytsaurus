@@ -17,9 +17,9 @@ void VisitUniqueAncestors(TChunkList* chunkList, F functor)
     while (chunkList != nullptr) {
         functor(chunkList);
         const auto& parents = chunkList->Parents();
-        if (parents.empty())
+        if (parents.Empty())
             break;
-        YCHECK(parents.size() == 1);
+        YCHECK(parents.Size() == 1);
         chunkList = *parents.begin();
     }
 }
@@ -42,7 +42,7 @@ void VisitAncestors(TChunkList* chunkList, F functor)
         while (chunkList != nullptr) {
             functor(chunkList);
             const auto& parents = chunkList->Parents();
-            if (parents.size() != 1)
+            if (parents.Size() != 1)
                 break;
             chunkList = *parents.begin();
         }

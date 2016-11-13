@@ -8,6 +8,8 @@
 
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref_tracked.h>
+#include <yt/core/misc/indexed_vector.h>
+#include <yt/core/misc/range.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -43,12 +45,6 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(TChunkTreeStatistics, Statistics);
 
-    // These lists is typically small, e.g. has the length of 1.
-    // However it may become pretty large in some real-world scenarios.
-    // Hence we maintain a separate item-to-index maps to speedup deletions.
-    DEFINE_BYREF_RO_PROPERTY(std::vector<TChunkList*>, Parents);
-    DEFINE_BYREF_RO_PROPERTY(std::vector<TChunkOwnerBase*>, OwningNodes);
-
     // Increases each time the list changes.
     // Enables optimistic locking during chunk tree traversing.
     DEFINE_BYVAL_RO_PROPERTY(int, Version);
@@ -61,9 +57,12 @@ public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
+    TRange<TChunkList*> Parents() const;
     void AddParent(TChunkList* parent);
     void RemoveParent(TChunkList* parent);
 
+    TRange<TChunkOwnerBase*> TrunkOwningNodes() const;
+    TRange<TChunkOwnerBase*> BranchedOwningNodes() const;
     void AddOwningNode(TChunkOwnerBase* node);
     void RemoveOwningNode(TChunkOwnerBase* node);
 
@@ -78,8 +77,9 @@ public:
     virtual int GetGCWeight() const override;
 
 private:
-    yhash_map<TChunkList*, int> ParentToIndex_;
-    yhash_map<TChunkOwnerBase*, int> OwningNodeToIndex_;
+    TIndexedVector<TChunkList*> Parents_;
+    TIndexedVector<TChunkOwnerBase*> TrunkOwningNodes_;
+    TIndexedVector<TChunkOwnerBase*> BranchedOwningNodes_;
 
 };
 
