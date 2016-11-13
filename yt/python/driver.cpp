@@ -89,7 +89,8 @@ Py::Exception CreateYtError(const std::string& message)
 
 ///////////////////////////////////////////////////////////////////////////////
 
-INodePtr ConvertObjectToNode(const Py::Object& obj) {
+INodePtr ConvertObjectToNode(const Py::Object& obj)
+{
     auto factory = GetEphemeralNodeFactory();
     auto builder = CreateBuilderFromFactory(factory);
     builder->BeginTree();
