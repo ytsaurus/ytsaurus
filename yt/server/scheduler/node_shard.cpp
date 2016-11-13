@@ -371,8 +371,9 @@ TYsonString TNodeShard::StraceJob(const TJobId& jobId, const Stroka& user)
 
     Host_->ValidateOperationPermission(user, job->GetOperationId(), EPermission::Write);
 
-    LOG_INFO("Getting strace dump (JobId: %v)",
-        jobId);
+    LOG_DEBUG("Getting strace dump (JobId: %v, OperationId: %v)",
+        job->GetId(),
+        job->GetOperationId());
 
     auto proxy = CreateJobProberProxy(job);
     auto req = proxy.Strace();
@@ -384,8 +385,9 @@ TYsonString TNodeShard::StraceJob(const TJobId& jobId, const Stroka& user)
 
     const auto& rsp = rspOrError.Value();
 
-    LOG_INFO("Strace dump received (JobId: %v)",
-        jobId);
+    LOG_DEBUG("Strace dump received (JobId: %v, OperationId: %v)",
+        job->GetId(),
+        job->GetOperationId());
 
     return TYsonString(rsp->trace());
 }
@@ -407,8 +409,9 @@ void TNodeShard::DumpJobInputContext(const TJobId& jobId, const TYPath& path, co
 
     Host_->ValidateOperationPermission(user, job->GetOperationId(), EPermission::Write);
 
-    LOG_INFO("Saving input contexts (JobId: %v, Path: %v)",
-        jobId,
+    LOG_DEBUG("Saving input contexts (JobId: %v, OperationId: %v, Path: %v)",
+        job->GetId(),
+        job->GetOperationId(),
         path);
 
     auto proxy = CreateJobProberProxy(job);
@@ -418,8 +421,9 @@ void TNodeShard::DumpJobInputContext(const TJobId& jobId, const TYPath& path, co
     auto rspOrError = WaitFor(req->Invoke());
     THROW_ERROR_EXCEPTION_IF_FAILED(
         rspOrError,
-        "Error saving input context of job %v into %v",
-        jobId,
+        "Error saving input context of job %v of operation %v into %v",
+        job->GetId(),
+        job->GetOperationId(),
         path);
 
     const auto& rsp = rspOrError.Value();
@@ -430,8 +434,9 @@ void TNodeShard::DumpJobInputContext(const TJobId& jobId, const TYPath& path, co
     WaitFor(asyncResult)
         .ThrowOnError();
 
-    LOG_INFO("Input contexts saved (JobId: %v)",
-        jobId);
+    LOG_DEBUG("Input contexts saved (JobId: %v, OperationId: %v)",
+        job->GetId(),
+        job->GetOperationId());
 }
 
 TNodeDescriptor TNodeShard::GetJobNode(const TJobId& jobId, const Stroka& user)
@@ -452,8 +457,9 @@ void TNodeShard::SignalJob(const TJobId& jobId, const Stroka& signalName, const 
 
     Host_->ValidateOperationPermission(user, job->GetOperationId(), EPermission::Write);
 
-    LOG_INFO("Sending job signal (JobId: %v, Signal: %v)",
-        jobId,
+    LOG_DEBUG("Sending job signal (JobId: %v, OperationId: %v, Signal: %v)",
+        job->GetId(),
+        job->GetOperationId(),
         signalName);
 
     auto proxy = CreateJobProberProxy(job);
@@ -466,8 +472,9 @@ void TNodeShard::SignalJob(const TJobId& jobId, const Stroka& signalName, const 
         signalName,
         jobId);
 
-    LOG_INFO("Job signal sent (JobId: %v)",
-        jobId);
+    LOG_DEBUG("Job signal sent (JobId: %v, OperationId: %v)",
+        job->GetId(),
+        job->GetOperationId());
 }
 
 void TNodeShard::AbandonJob(const TJobId& jobId, const Stroka& user)
@@ -478,6 +485,11 @@ void TNodeShard::AbandonJob(const TJobId& jobId, const Stroka& user)
 
     Host_->ValidateOperationPermission(user, job->GetOperationId(), EPermission::Write);
 
+    LOG_DEBUG("Abandoning job by user request (JobId: %v, OperationId: %v, User: %v)",
+        job->GetId(),
+        job->GetOperationId(),
+        user);
+
     switch (job->GetType()) {
         case EJobType::Map:
         case EJobType::OrderedMap:
@@ -487,16 +499,18 @@ void TNodeShard::AbandonJob(const TJobId& jobId, const Stroka& user)
         case EJobType::PartitionReduce:
             break;
         default:
-            THROW_ERROR_EXCEPTION("Cannot abandon job %v of type %Qlv",
-                jobId,
+            THROW_ERROR_EXCEPTION("Cannot abandon job %v of operation %v since it has type %Qlv",
+                job->GetId(),
+                job->GetOperationId(),
                 job->GetType());
     }
 
     if (job->GetState() != EJobState::Running &&
         job->GetState() != EJobState::Waiting)
     {
-        THROW_ERROR_EXCEPTION("Cannot abandon job %v since it is not running",
-            jobId);
+        THROW_ERROR_EXCEPTION("Cannot abandon job %v of operation %v since it is not running",
+            job->GetId(),
+            job->GetOperationId());
     }
 
     OnJobCompleted(job, nullptr /* jobStatus */, true /* abandoned */);
@@ -514,8 +528,9 @@ TYsonString TNodeShard::PollJobShell(const TJobId& jobId, const TYsonString& par
         Host_->ValidateOperationPermission(user, job->GetOperationId(), EPermission::Write);
     }
 
-    LOG_INFO("Polling job shell (JobId: %v, Parameters: %v)",
-        jobId,
+    LOG_DEBUG("Polling job shell (JobId: %v, OperationId: %v, Parameters: %v)",
+        job->GetId(),
+        job->GetOperationId(),
         ConvertToYsonString(parameters, EYsonFormat::Text));
 
     auto proxy = CreateJobProberProxy(job);
@@ -542,11 +557,17 @@ void TNodeShard::AbortJob(const TJobId& jobId, const Stroka& user)
 
     Host_->ValidateOperationPermission(user, job->GetOperationId(), EPermission::Write);
 
+    LOG_DEBUG("Aborting job by user request (JobId: %v, OperationId: %v, User: %v)",
+        job->GetId(),
+        job->GetOperationId(),
+        user);
+
     if (job->GetState() != EJobState::Running &&
         job->GetState() != EJobState::Waiting)
     {
-        THROW_ERROR_EXCEPTION("Cannot abort job %v since it is not running",
-            jobId);
+        THROW_ERROR_EXCEPTION("Cannot abort job %v of operation %v since it is not running",
+            job->GetId(),
+            job->GetOperationId());
     }
 
     auto status = JobStatusFromError(TError("Job aborted by user request")
