@@ -42,25 +42,24 @@ DEFINE_REFCOUNTED_TYPE(TSlruCacheConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Cache which removes entries after a while.
+//! Cache which removes entries after a while.
 /*!
  * TExpiringCache acts like a proxy between a client and a remote service:
- * reuests are sent to the service and responces are saved in the cache as entries.
- * Next time the client makes a request, the responce can be taken from the cache
+ * reuests are sent to the service and responses are saved in the cache as entries.
+ * Next time the client makes a request, the response can be taken from the cache
  * unless it is expired.
  *
  * An entry is considered expired if at least one of the following conditions is true:
  * 1) last access was longer than expire_after_access_time miliseconds ago,
  * 2) last update was longer than expire_after_*_update_time miliseconds ago.
  *
- * To elimimnate client awaiting time on subsequent requests and keep the responce
+ * To elimimnate client awaiting time on subsequent requests and keep the response
  * up to date, the cache updates entries in the background:
  * If request was successful, the cache performs the same request after refresh_time
  * miliseconds and updates the entry.
- * If request was unsuccessful, the entry (which contains error responce) will be expired
+ * If request was unsuccessful, the entry (which contains error response) will be expired
  * after expire_after_failed_update_time.
  */
-
 class TExpiringCacheConfig
     : public virtual NYTree::TYsonSerializable
 {
