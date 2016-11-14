@@ -1474,6 +1474,13 @@ private:
             return MakeFuture<T>(TError(EErrorCode::TooManyConcurrentRequests, "Too many concurrent requests"));
         }
 
+        // XXX(sandello): Deprecate me in 19.x ; remove two separate thread pools, use just one.
+        auto invoker = Connection_->GetLightInvoker();
+        if (commandName == "SelectRows" || commandName == "LookupRows" ||
+            commandName == "GetJobStderr") {
+            invoker = Connection_->GetHeavyInvoker();
+        }
+
         return
             BIND([commandName, callback = std::move(callback), this_ = MakeWeak(this), guard = std::move(guard)] () {
                 auto client = this_.Lock();
@@ -3105,7 +3112,7 @@ public:
         }
 
         return BIND(&TTransaction::DoCommit, MakeStrong(this))
-            .AsyncVia(Client_->GetConnection()->GetLightInvoker())
+            .AsyncVia(Client_->GetConnection()->GetHeavyInvoker())
             .Run(options);
     }
 
