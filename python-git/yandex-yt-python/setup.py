@@ -39,7 +39,7 @@ def main():
         "yt/wrapper/bin/yt",
         "yt/wrapper/bin/yt-fuse",
         "yt/wrapper/bin/yt-admin",
-        "yt/wrapper/bin/yt-job-tool"])
+        "yt/wrapper/bin/yt-job-tool"], add_major_version_suffix=True)
 
     if "DEB" in os.environ:
         if sys.version_info[0] < 3:

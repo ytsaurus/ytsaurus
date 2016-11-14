@@ -14,11 +14,13 @@ def get_version():
         version = version.decode("ascii")
     return version.strip()
 
-def prepare_files(files):
+def prepare_files(files, add_major_version_suffix=False):
     scripts = []
     data_files = []
     for file in files:
-        file_name_suffix = str(sys.version_info[0])
+        file_name_suffix = ""
+        if add_major_version_suffix and not file.endswith(".py"):
+            file_name_suffix = str(sys.version_info[0])
         # In egg and debian cases strategy of binary distribution is different
         if "DEB" in os.environ:
             data_files.append(("/usr/bin", [file + file_name_suffix]))
