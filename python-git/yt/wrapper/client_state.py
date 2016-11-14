@@ -18,7 +18,7 @@ class ClientState(object):
         self._requests_session = None
         self._heavy_proxy_provider = None
 
-        # YtError uses socket.getfqdn that can be slow so fqdn is cached.
+        # socket.getfqdn can be slow so client fqdn is cached.
         self._fqdn = None
 
         # Cache for API version (to check it only once).
