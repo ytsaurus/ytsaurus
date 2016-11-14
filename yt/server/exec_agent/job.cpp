@@ -50,6 +50,7 @@ using namespace NCellNode;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient;
+using namespace NJobAgent;
 using namespace NJobProberClient;
 using namespace NJobTrackerClient::NProto;
 using namespace NScheduler;
@@ -90,6 +91,15 @@ public:
             Id_,
             OperationId_,
             GetType());
+
+        JobEvents_.emplace_back(JobState_, JobPhase_);
+        ReportStatistics(
+            TJobStatistics()
+                .Type(GetType())
+                .State(GetState())
+                .Spec(JobSpec_)
+                .SpecVersion(0) // TODO: fill correct spec version
+                .Events(JobEvents_));
     }
 
     virtual void Start() override
@@ -103,8 +113,8 @@ public:
             return;
         }
 
-        GuardedAction([&] {
-            JobState_ = EJobState::Running;
+        GuardedAction([&] () {
+            SetJobState(EJobState::Running);
             PrepareTime_ = TInstant::Now();
 
             InitializeArtifacts();
@@ -112,7 +122,7 @@ public:
             auto slotManager = Bootstrap_->GetExecSlotManager();
             Slot_ = slotManager->AcquireSlot();
 
-            JobPhase_ = EJobPhase::PreparingNodeDirectory;
+            SetJobPhase(EJobPhase::PreparingNodeDirectory);
             BIND(&TJob::PrepareNodeDirectory, MakeWeak(this))
                 .AsyncVia(Invoker_)
                 .Run()
@@ -133,7 +143,7 @@ public:
             case EJobPhase::PreparingNodeDirectory:
             case EJobPhase::DownloadingArtifacts:
             case EJobPhase::Running:
-                JobState_ = EJobState::Aborting;
+                SetJobState(EJobState::Aborting);
                 ArtifactsFuture_.Cancel();
                 DoSetResult(error);
                 Cleanup();
@@ -143,8 +153,7 @@ public:
             case EJobPhase::PreparingArtifacts:
             case EJobPhase::PreparingProxy:
                 // Wait for the next event handler to complete the abortion.
-                JobState_ = EJobState::Aborting;
-                JobPhase_ = EJobPhase::WaitingAbort;
+                SetJobStatePhase(EJobState::Aborting, EJobPhase::WaitingAbort);
                 DoSetResult(error);
                 Slot_->CancelPreparation();
                 break;
@@ -161,7 +170,7 @@ public:
 
         GuardedAction([&] {
             ValidateJobPhase(EJobPhase::PreparingProxy);
-            JobPhase_ = EJobPhase::Running;
+            SetJobPhase(EJobPhase::Running);
         });
     }
 
@@ -169,8 +178,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
-        GuardedAction([&] {
-            JobPhase_ = EJobPhase::FinalizingProxy;
+        GuardedAction([&] () {
+            SetJobPhase(EJobPhase::FinalizingProxy);
             DoSetResult(jobResult);
         });
     }
@@ -324,6 +333,7 @@ public:
 
         if (JobPhase_ == EJobPhase::Running || JobPhase_ == EJobPhase::FinalizingProxy) {
             Statistics_ = statistics;
+            ReportStatistics(TJobStatistics().Statistics(Statistics_).Priority(EReportPriority::Low));
         }
     }
 
@@ -416,20 +426,10 @@ public:
         return TYsonString(rsp->result());
     }
 
-    virtual void ReportStatistics(
-        const TNullable<TInstant>& startTime = {},
-        const TNullable<TInstant>& finishTime = {},
-        const TNullable<TError>& error = {}) override
+    virtual void ReportStatistics(TJobStatistics&& statistics) override
     {
         Bootstrap_->GetStatisticsReporter()->ReportStatistics(
-            GetOperationId(),
-            GetId(),
-            GetType(),
-            GetState(),
-            startTime,
-            finishTime,
-            error,
-            Statistics_);
+            std::move(statistics).OperationId(GetOperationId()).JobId(GetId()));
     }
 
 private:
@@ -481,7 +481,35 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(ControllerThread);
     NLogging::TLogger Logger = ExecAgentLogger;
 
+    TJobEvents JobEvents_;
+
     // Helpers.
+
+    template <class... U>
+    void AddJobEvent(U&&... u)
+    {
+        JobEvents_.emplace_back(std::forward<U>(u)...);
+        ReportStatistics(TJobStatistics().Events(JobEvents_).State(JobState_));
+    }
+
+    void SetJobState(EJobState state)
+    {
+        JobState_ = state;
+        AddJobEvent(state);
+    }
+
+    void SetJobPhase(EJobPhase phase)
+    {
+        JobPhase_ = phase;
+        AddJobEvent(phase);
+    }
+
+    void SetJobStatePhase(EJobState state, EJobPhase phase)
+    {
+        JobState_ = state;
+        JobPhase_ = phase;
+        AddJobEvent(state, phase);
+    }
 
     void ValidateJobRunning() const
     {
@@ -553,7 +581,7 @@ private:
                 NExecAgent::EErrorCode::NodeDirectoryPreparationFailed,
                 "Failed to prepare job node directory");
 
-            JobPhase_ = EJobPhase::DownloadingArtifacts;
+            SetJobPhase(EJobPhase::DownloadingArtifacts);
             auto artifactsFuture = DownloadArtifacts();
             artifactsFuture.Subscribe(
                 BIND(&TJob::OnArtifactsDownloaded, MakeWeak(this))
@@ -576,7 +604,7 @@ private:
             }
 
             CopyTime_ = TInstant::Now();
-            JobPhase_ = EJobPhase::PreparingSandboxDirectories;
+            SetJobPhase(EJobPhase::PreparingSandboxDirectories);
             BIND(&TJob::PrepareSandboxDirectories, MakeStrong(this))
                 .AsyncVia(Invoker_)
                 .Run()
@@ -596,7 +624,7 @@ private:
             ValidateJobPhase(EJobPhase::PreparingSandboxDirectories);
             THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to prepare sandbox directories");
 
-            JobPhase_ = EJobPhase::PreparingArtifacts;
+            SetJobPhase(EJobPhase::PreparingArtifacts);
             BIND(&TJob::PrepareArtifacts, MakeWeak(this))
                 .AsyncVia(Invoker_)
                 .Run()
@@ -616,7 +644,7 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to prepare artifacts");
 
             ExecTime_ = TInstant::Now();
-            JobPhase_ = EJobPhase::PreparingProxy;
+            SetJobPhase(EJobPhase::PreparingProxy);
 
             BIND(
                 &ISlot::RunJobProxy,
@@ -646,7 +674,6 @@ private:
         }
 
         Cleanup();
-        ReportStatistics();
     }
 
     void GuardedAction(std::function<void()> action)
@@ -674,7 +701,7 @@ private:
         }
 
         FinishTime_ = TInstant::Now();
-        JobPhase_ = EJobPhase::Cleanup;
+        SetJobPhase(EJobPhase::Cleanup);
 
         if (Slot_) {
             try {
@@ -687,7 +714,7 @@ private:
             Bootstrap_->GetExecSlotManager()->ReleaseSlot(Slot_->GetSlotIndex());
         }
 
-        JobPhase_ = EJobPhase::Finished;
+        SetJobPhase(EJobPhase::Finished);
         FinalizeJob();
     }
 
@@ -706,14 +733,14 @@ private:
         auto error = FromProto<TError>(JobResult_->error());
 
         if (error.IsOK()) {
-            JobState_ = EJobState::Completed;
+            SetJobState(EJobState::Completed);
             return;
         }
 
         if (IsFatalError(error)) {
             error.Attributes().Set("fatal", IsFatalError(error));
             ToProto(JobResult_->mutable_error(), error);
-            JobState_ = EJobState::Failed;
+            SetJobState(EJobState::Failed);
             return;
         }
 
@@ -721,11 +748,11 @@ private:
         if (abortReason) {
             error.Attributes().Set("abort_reason", abortReason);
             ToProto(JobResult_->mutable_error(), error);
-            JobState_ = EJobState::Aborted;
+            SetJobState(EJobState::Aborted);
             return;
         }
 
-        JobState_ = EJobState::Failed;
+        SetJobState(EJobState::Failed);
     }
 
     // Preparation.
