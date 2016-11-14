@@ -1038,7 +1038,7 @@ private:
             // at all participants. We _must_ forcefully abort it.
             LOG_DEBUG(timestampOrError, "Error generating commit timestamp (TransactionId: %v)",
                 transactionId);
-                AbortTransaction(transactionId, true);
+            AbortTransaction(transactionId, true);
             return;
         }
 
