@@ -2406,15 +2406,15 @@ void TOperationControllerBase::Abort()
 
     AreTransactionsActive = false;
 
-    // We always save stderr table.
-    // Stderr table chunks are kept by OutputTransaction,
-    // so we want save stderr table before aborting OutputTransaction.
-    if (StderrTable && StderrTable->IsBeginUploadCompleted()) {
-        AttachOutputChunks({StderrTable.GetPtr()});
-        EndUploadOutputTables({StderrTable.GetPtr()});
-    }
-
     try {
+        // We always save stderr table.
+        // Stderr table chunks are kept by DebugOutputTransaction,
+        // so we want save stderr table before commiting DebugOutputTransaction.
+        if (StderrTable && StderrTable->IsBeginUploadCompleted()) {
+            AttachOutputChunks({StderrTable.GetPtr()});
+            EndUploadOutputTables({StderrTable.GetPtr()});
+        }
+    
         CommitTransaction(DebugOutputTransaction);
     } catch (const std::exception& ex) {
         // Bad luck we can't commit transaction.
