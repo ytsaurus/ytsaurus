@@ -402,6 +402,7 @@ add_library(yt-library-server ${YT_SRCS_RESOLVED})
 
 target_link_libraries(yt-library-server
   yt-library-client
+  deps-yt-contrib-coredumper
 )
 
 target_link_libraries(ytserver
