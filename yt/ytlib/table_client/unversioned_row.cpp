@@ -1721,7 +1721,7 @@ TKey WidenKeyPrefix(TKey key, int prefixLength, int keyColumnCount, const TRowBu
     auto wideKey = rowBuffer->Allocate(keyColumnCount);
 
     for (int index = 0; index < prefixLength; ++index) {
-        wideKey[index] = key[index];
+        wideKey[index] = rowBuffer->Capture(key[index]);
     }
 
     for (int index = prefixLength; index < keyColumnCount; ++index) {
