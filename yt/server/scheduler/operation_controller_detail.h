@@ -761,14 +761,19 @@ protected:
     //! Called when a job is unable to read a chunk.
     void OnChunkFailed(const NChunkClient::TChunkId& chunkId);
 
+    //! Gets the list of all intermediate chunks that are not lost.
+    yhash_set<NChunkClient::TChunkId> GetAliveIntermediateChunks() const;
+
+    //! Called by #IntermediateChunkScraper.
+    void OnIntermediateChunkLocated(const NChunkClient::TChunkId& chunkId, const NChunkClient::TChunkReplicaList& replicas);
+
     //! Called when a job is unable to read an intermediate chunk
     //! (i.e. that is not a part of the input).
-    /*!
-     *  The default implementation fails the operation immediately.
-     *  Those operations providing some fault tolerance for intermediate chunks
-     *  must override this method.
-     */
-    void OnIntermediateChunkUnavailable(const NChunkClient::TChunkId& chunkId);
+    //! Returns false if chunks was already considered lost.
+    bool OnIntermediateChunkUnavailable(const NChunkClient::TChunkId& chunkId);
+
+    void StartIntermediateChunkScraper();
+    void RestartIntermediateChunkScraper();
 
 
     struct TStripeDescriptor
@@ -1001,6 +1006,8 @@ private:
 
     //! Maps an intermediate chunk id to its originating completed job.
     yhash_map<NChunkClient::TChunkId, TCompletedJobPtr> ChunkOriginMap;
+
+    NChunkClient::TChunkScraperPtr IntermediateChunkScraper;
 
     //! Maps scheduler's job ids to controller's joblets.
     //! NB: |TJobPtr -> TJobletPtr| mapping would be faster but
