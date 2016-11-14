@@ -241,10 +241,7 @@ public:
         YUNREACHABLE();
     }
 
-    virtual void ReportStatistics(
-        const TNullable<TInstant>& startTime,
-        const TNullable<TInstant>& finishTime,
-        const TNullable<TError>& error) override
+    virtual void ReportStatistics(TJobStatistics&&) override
     {
         YUNREACHABLE();
     }
