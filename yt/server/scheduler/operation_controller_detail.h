@@ -769,7 +769,7 @@ protected:
 
     //! Called when a job is unable to read an intermediate chunk
     //! (i.e. that is not a part of the input).
-    //! Returns false if chunks was already considered lost.
+    //! Returns false if the chunk was already considered lost.
     bool OnIntermediateChunkUnavailable(const NChunkClient::TChunkId& chunkId);
 
     void StartIntermediateChunkScraper();
