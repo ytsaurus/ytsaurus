@@ -1242,7 +1242,7 @@ def run_merge(source_table, destination_table, mode=None,
 
     mode = get_value(mode, "auto")
     if mode == "auto":
-        mode = "sorted" if all(imap(is_sorted, source_table)) else "unordered"
+        mode = "sorted" if all(imap(is_sorted, source_table)) else "ordered"
 
     table_writer = _prepare_table_writer(table_writer, client)
     spec = compose(
@@ -1348,7 +1348,7 @@ class Finalizer(object):
         data_size_per_job = min(data_size_per_job, data_size // max(1, chunk_count // chunk_count_per_job_limit))
         data_size_per_job = max(data_size_per_job, chunk_count_per_job_limit)
 
-        mode = "sorted" if is_sorted(table, client=self.client) else "unordered"
+        mode = "sorted" if is_sorted(table, client=self.client) else "ordered"
 
         if get_config(self.client)["auto_merge_output"]["action"] == "merge":
             table = TablePath(table, client=self.client)
