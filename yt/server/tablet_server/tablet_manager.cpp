@@ -898,7 +898,7 @@ public:
         auto* oldRootChunkList = table->GetChunkList();
 
         if (table->IsSorted() && !oldRootChunkList->Children().empty()) {
-            THROW_ERROR_EXCEPTION("Cannot switch a static non-empty sorted table into dynamic mode");
+            THROW_ERROR_EXCEPTION("Cannot switch mode from static to dynamic: table is not empty");
         }
 
         auto chunkManager = Bootstrap_->GetChunkManager();
@@ -942,11 +942,11 @@ public:
         }
 
         if (table->IsSorted()) {
-            THROW_ERROR_EXCEPTION("Cannot switch a sorted table static to dynamic mode");
+            THROW_ERROR_EXCEPTION("Cannot alter sorted dynamic table to static");
         }
 
         if (table->HasMountedTablets()) {
-            THROW_ERROR_EXCEPTION("Cannot switch a dynamic table with mounted tablets to static mode");
+            THROW_ERROR_EXCEPTION("Cannot switch mode from dynamic to static: table has mounted tablets");
         }
 
         auto* oldRootChunkList = table->GetChunkList();
