@@ -23,7 +23,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TTableSchema, ChunkSchema);
 
 public:
-    TColumnarChunkMeta(const NChunkClient::NProto::TChunkMeta& chunkMeta);
+    explicit TColumnarChunkMeta(const NChunkClient::NProto::TChunkMeta& chunkMeta);
     void InitBlockLastKeys(const TKeyColumns& keyColumns);
 
 protected:
