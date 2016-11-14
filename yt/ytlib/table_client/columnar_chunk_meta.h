@@ -19,7 +19,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(NProto::TBlockMetaExt, BlockMeta);
     DEFINE_BYREF_RO_PROPERTY(NProto::TColumnMetaExt, ColumnMeta);
     DEFINE_BYREF_RO_PROPERTY(NChunkClient::NProto::TMiscExt, Misc);
-    DEFINE_BYREF_RO_PROPERTY(std::vector<TOwningKey>, BlockLastKeys);
+    DEFINE_BYREF_RO_PROPERTY(TSharedRange<TKey>, BlockLastKeys);
     DEFINE_BYREF_RO_PROPERTY(TTableSchema, ChunkSchema);
 
 public:
@@ -29,6 +29,7 @@ public:
 protected:
     TColumnarChunkMeta() = default;
     void InitExtensions(const NChunkClient::NProto::TChunkMeta& chunkMeta);
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TColumnarChunkMeta)

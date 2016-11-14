@@ -298,7 +298,7 @@ protected:
             rbegin,
             rend,
             key,
-            [this] (TKey pivot, const TOwningKey& indexKey) {
+            [&] (TKey pivot, TKey indexKey) {
                 return ChunkState_->KeyComparer(pivot, indexKey) > 0;
             });
 
@@ -430,7 +430,8 @@ TCacheBasedVersionedChunkReaderBase<THorizontalSchemalessVersionedBlockReader>::
         ChunkState_->ChunkMeta->GetKeyColumnCount());
 }
 
-template <> TSimpleVersionedBlockReader*
+template <>
+TSimpleVersionedBlockReader*
 TCacheBasedVersionedChunkReaderBase<TSimpleVersionedBlockReader>::CreateBlockReaderPtr(
     const TSharedRef& block,
     const NProto::TBlockMeta& meta,
@@ -448,7 +449,8 @@ TCacheBasedVersionedChunkReaderBase<TSimpleVersionedBlockReader>::CreateBlockRea
         initialize);
 }
 
-template <> THorizontalSchemalessVersionedBlockReader*
+template <>
+THorizontalSchemalessVersionedBlockReader*
 TCacheBasedVersionedChunkReaderBase<THorizontalSchemalessVersionedBlockReader>::CreateBlockReaderPtr(
     const TSharedRef& block,
     const NProto::TBlockMeta& meta,

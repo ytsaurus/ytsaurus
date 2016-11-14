@@ -487,14 +487,14 @@ private:
                 blockIndexKeys,
                 BlockIndexes_.empty() ? 0 : BlockIndexes_.back());
 
-            if (blockIndex == blockIndexKeys.size()) {
+            if (blockIndex == blockIndexKeys.Size()) {
                 break;
             }
             if (BlockIndexes_.empty() || BlockIndexes_.back() < blockIndex) {
                 BlockIndexes_.push_back(blockIndex);
             }
             YCHECK(blockIndex == BlockIndexes_.back());
-            YCHECK(blockIndex < blockIndexKeys.size());
+            YCHECK(blockIndex < blockIndexKeys.Size());
         }
 
         for (int blockIndex : BlockIndexes_) {

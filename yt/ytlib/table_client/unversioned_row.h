@@ -399,6 +399,7 @@ TKey WidenKeySuccessor(const TKey& key, int keyColumnCount, const TRowBufferPtr&
 
 //! Takes prefix of a key and makes it wider.
 TOwningKey WidenKeyPrefix(const TOwningKey& key, int prefixLength, int keyColumnCount);
+TKey WidenKeyPrefix(TKey key, int prefixLength, int keyColumnCount, const TRowBufferPtr& rowBuffer);
 
 //! Returns the key with no components.
 const TOwningKey EmptyKey();
