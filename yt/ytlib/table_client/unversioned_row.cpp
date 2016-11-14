@@ -1715,7 +1715,7 @@ TKey WidenKeyPrefix(TKey key, int prefixLength, int keyColumnCount, const TRowBu
     YCHECK(prefixLength <= key.GetCount() && prefixLength <= keyColumnCount);
 
     if (key.GetCount() == prefixLength && prefixLength == keyColumnCount) {
-        return key;
+        return rowBuffer->Capture(key);
     }
 
     auto wideKey = rowBuffer->Allocate(keyColumnCount);
