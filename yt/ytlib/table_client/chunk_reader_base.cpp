@@ -17,21 +17,21 @@ using namespace NTableClient::NProto;
 using NConcurrency::TAsyncSemaphore;
 
 using NYT::FromProto;
+using NChunkClient::TReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkReaderBase::TChunkReaderBase(
     TBlockFetcherConfigPtr config,
-    NChunkClient::IChunkReaderPtr underlyingReader,
+    IChunkReaderPtr underlyingReader,
     IBlockCachePtr blockCache)
     : Config_(std::move(config))
     , BlockCache_(std::move(blockCache))
     , UnderlyingReader_(std::move(underlyingReader))
     , AsyncSemaphore_(New<TAsyncSemaphore>(Config_->WindowSize))
-{
-    Logger = TableClientLogger;
-    Logger.AddTag("ChunkId: %v", UnderlyingReader_->GetChunkId());
-}
+    , Logger(NLogging::TLogger(TableClientLogger)
+        .AddTag("ChunkId: %v", UnderlyingReader_->GetChunkId()))
+{ }
 
 TFuture<void> TChunkReaderBase::DoOpen(
     std::vector<TBlockFetcher::TBlockInfo> blockSequence,
@@ -97,13 +97,16 @@ bool TChunkReaderBase::OnBlockEnded()
     return true;
 }
 
-int TChunkReaderBase::GetBlockIndexByKey(const TKey& pivotKey, const std::vector<TOwningKey>& blockIndexKeys, int beginBlockIndex)
+int TChunkReaderBase::GetBlockIndexByKey(
+    TKey pivotKey,
+    const TSharedRange<TKey>& blockIndexKeys,
+    int beginBlockIndex)
 {
-    YCHECK(!blockIndexKeys.empty());
-    YCHECK(beginBlockIndex < blockIndexKeys.size());
-    const auto& maxKey = blockIndexKeys.back();
+    YCHECK(!blockIndexKeys.Empty());
+    YCHECK(beginBlockIndex < blockIndexKeys.Size());
+    auto maxKey = blockIndexKeys.Back();
     if (pivotKey > maxKey) {
-        return blockIndexKeys.size();
+        return blockIndexKeys.Size();
     }
 
     typedef decltype(blockIndexKeys.end()) TIter;
@@ -113,7 +116,7 @@ int TChunkReaderBase::GetBlockIndexByKey(const TKey& pivotKey, const std::vector
         rbegin,
         rend,
         pivotKey,
-        [] (const TKey& pivot, const TOwningKey& key) {
+        [] (TKey pivot, TKey key) {
             return pivot > key;
         });
 
@@ -122,7 +125,7 @@ int TChunkReaderBase::GetBlockIndexByKey(const TKey& pivotKey, const std::vector
 
 void TChunkReaderBase::CheckBlockUpperLimits(
     const TBlockMeta& blockMeta,
-    const NChunkClient::TReadLimit& upperLimit,
+    const TReadLimit& upperLimit,
     TNullable<int> keyColumnCount)
 {
     if (upperLimit.HasRowIndex()) {
@@ -142,7 +145,7 @@ void TChunkReaderBase::CheckBlockUpperLimits(
     }
 }
 
-int TChunkReaderBase::ApplyLowerRowLimit(const TBlockMetaExt& blockMeta, const NChunkClient::TReadLimit& lowerLimit) const
+int TChunkReaderBase::ApplyLowerRowLimit(const TBlockMetaExt& blockMeta, const TReadLimit& lowerLimit) const
 {
     if (!lowerLimit.HasRowIndex()) {
         return 0;
@@ -176,22 +179,22 @@ int TChunkReaderBase::ApplyLowerRowLimit(const TBlockMetaExt& blockMeta, const N
     return (it != rend) ? std::distance(it, rend) : 0;
 }
 
-int TChunkReaderBase::ApplyLowerKeyLimit(const std::vector<TOwningKey>& blockIndexKeys, const NChunkClient::TReadLimit& lowerLimit) const
+int TChunkReaderBase::ApplyLowerKeyLimit(const TSharedRange<TKey>& blockIndexKeys, const TReadLimit& lowerLimit) const
 {
     if (!lowerLimit.HasKey()) {
         return 0;
     }
 
     int blockIndex = GetBlockIndexByKey(lowerLimit.GetKey(), blockIndexKeys);
-    if (blockIndex == blockIndexKeys.size()) {
-        LOG_DEBUG("Lower limit oversteps chunk boundaries (LowerLimit: %v, MaxKey: {%v})",
+    if (blockIndex == blockIndexKeys.Size()) {
+        LOG_DEBUG("Lower limit oversteps chunk boundaries (LowerLimit: %v, MaxKey: %v)",
             lowerLimit,
-            blockIndexKeys.back());
+            blockIndexKeys.Back());
     }
     return blockIndex;
 }
 
-int TChunkReaderBase::ApplyLowerKeyLimit(const TBlockMetaExt& blockMeta, const NChunkClient::TReadLimit& lowerLimit, TNullable<int> keyColumnCount) const
+int TChunkReaderBase::ApplyLowerKeyLimit(const TBlockMetaExt& blockMeta, const TReadLimit& lowerLimit, TNullable<int> keyColumnCount) const
 {
     if (!lowerLimit.HasKey()) {
         return 0;
@@ -207,7 +210,7 @@ int TChunkReaderBase::ApplyLowerKeyLimit(const TBlockMetaExt& blockMeta, const N
         wideMaxKey.data(),
         wideMaxKey.data() + wideMaxKey.size()) > 0;
     if (overstep) {
-        LOG_DEBUG("Lower limit oversteps chunk boundaries (LowerLimit: %v, MaxKey: {%v})",
+        LOG_DEBUG("Lower limit oversteps chunk boundaries (LowerLimit: %v, MaxKey: %v)",
             lowerLimit,
             maxKey);
         return blockMetaEntries.size();
@@ -234,7 +237,7 @@ int TChunkReaderBase::ApplyLowerKeyLimit(const TBlockMetaExt& blockMeta, const N
     return (it != rend) ? std::distance(it, rend) : 0;
 }
 
-int TChunkReaderBase::ApplyUpperRowLimit(const TBlockMetaExt& blockMeta, const NChunkClient::TReadLimit& upperLimit) const
+int TChunkReaderBase::ApplyUpperRowLimit(const TBlockMetaExt& blockMeta, const TReadLimit& upperLimit) const
 {
     if (!upperLimit.HasRowIndex()) {
         return blockMeta.blocks_size();
@@ -254,11 +257,11 @@ int TChunkReaderBase::ApplyUpperRowLimit(const TBlockMetaExt& blockMeta, const N
     return  (it != end) ? std::distance(begin, it) + 1 : blockMeta.blocks_size();
 }
 
-int TChunkReaderBase::ApplyUpperKeyLimit(const std::vector<TOwningKey>& blockIndexKeys, const NChunkClient::TReadLimit& upperLimit) const
+int TChunkReaderBase::ApplyUpperKeyLimit(const TSharedRange<TKey>& blockIndexKeys, const TReadLimit& upperLimit) const
 {
-    YCHECK(!blockIndexKeys.empty());
+    YCHECK(!blockIndexKeys.Empty());
     if (!upperLimit.HasKey()) {
-        return blockIndexKeys.size();
+        return blockIndexKeys.Size();
     }
 
     auto begin = blockIndexKeys.begin();
@@ -267,14 +270,14 @@ int TChunkReaderBase::ApplyUpperKeyLimit(const std::vector<TOwningKey>& blockInd
         begin,
         end,
         upperLimit.GetKey(),
-        [] (const TOwningKey& key, const TOwningKey& pivot) {
+        [] (TKey key, TKey pivot) {
             return key < pivot;
         });
 
-    return  (it != end) ? std::distance(begin, it) + 1 : blockIndexKeys.size();
+    return  (it != end) ? std::distance(begin, it) + 1 : blockIndexKeys.Size();
 }
 
-int TChunkReaderBase::ApplyUpperKeyLimit(const TBlockMetaExt& blockMeta, const NChunkClient::TReadLimit& upperLimit, TNullable<int> keyColumnCount) const
+int TChunkReaderBase::ApplyUpperKeyLimit(const TBlockMetaExt& blockMeta, const TReadLimit& upperLimit, TNullable<int> keyColumnCount) const
 {
     if (!upperLimit.HasKey()) {
         return blockMeta.blocks_size();

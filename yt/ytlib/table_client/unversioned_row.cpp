@@ -1663,39 +1663,12 @@ void TUnversionedOwningRow::Init(const TUnversionedValue* begin, const TUnversio
 
 TOwningKey WidenKey(const TOwningKey& key, int keyColumnCount)
 {
-    YCHECK(keyColumnCount >= key.GetCount());
-
-    if (key.GetCount() == keyColumnCount) {
-        return key;
-    }
-
-    TUnversionedOwningRowBuilder builder;
-    for (const auto* value = key.Begin(); value != key.End(); ++value) {
-        builder.AddValue(*value);
-    }
-
-    for (int i = key.GetCount(); i < keyColumnCount; ++i) {
-        builder.AddValue(MakeUnversionedSentinelValue(EValueType::Null));
-    }
-
-    return builder.FinishRow();
+    return WidenKeyPrefix(key, key.GetCount(), keyColumnCount);
 }
 
 TKey WidenKey(const TKey& key, int keyColumnCount, const TRowBufferPtr& rowBuffer)
 {
-    YCHECK(keyColumnCount >= key.GetCount());
-
-    auto wideKey = rowBuffer->Allocate(keyColumnCount);
-
-    for (int index = 0; index < key.GetCount(); ++index) {
-        wideKey[index] = rowBuffer->Capture(key[index]);
-    }
-
-    for (int index = key.GetCount(); index < keyColumnCount; ++index) {
-        wideKey[index] = MakeUnversionedSentinelValue(EValueType::Null);
-    }
-
-    return wideKey;
+    return WidenKeyPrefix(key, key.GetCount(), keyColumnCount, rowBuffer);
 }
 
 TKey WidenKeySuccessor(const TKey& key, int keyColumnCount, const TRowBufferPtr& rowBuffer)
@@ -1735,6 +1708,27 @@ TOwningKey WidenKeyPrefix(const TOwningKey& key, int prefixLength, int keyColumn
     }
 
     return builder.FinishRow();
+}
+
+TKey WidenKeyPrefix(TKey key, int prefixLength, int keyColumnCount, const TRowBufferPtr& rowBuffer)
+{
+    YCHECK(prefixLength <= key.GetCount() && prefixLength <= keyColumnCount);
+
+    if (key.GetCount() == prefixLength && prefixLength == keyColumnCount) {
+        return key;
+    }
+
+    auto wideKey = rowBuffer->Allocate(keyColumnCount);
+
+    for (int index = 0; index < prefixLength; ++index) {
+        wideKey[index] = key[index];
+    }
+
+    for (int index = prefixLength; index < keyColumnCount; ++index) {
+        wideKey[index] = MakeUnversionedSentinelValue(EValueType::Null);
+    }
+
+    return wideKey;
 }
 
 

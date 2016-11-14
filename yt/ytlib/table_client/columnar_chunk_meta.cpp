@@ -1,4 +1,5 @@
 #include "columnar_chunk_meta.h"
+#include "row_buffer.h"
 
 namespace NYT {
 namespace NTableClient {
@@ -50,12 +51,19 @@ void TColumnarChunkMeta::InitBlockLastKeys(const TKeyColumns& keyColumns)
         ++prefixLength;
     }
 
-    BlockLastKeys_.reserve(BlockMeta_.blocks_size());
+    struct TBlockLastKeysBufferTag { };
+    auto tempBuffer = New<TRowBuffer>(TBlockLastKeysBufferTag());
+
+    std::vector<TKey> blockLastKeys;
+    blockLastKeys.reserve(BlockMeta_.blocks_size());
     for (const auto& block : BlockMeta_.blocks()) {
         YCHECK(block.has_last_key());
-        auto key = FromProto<TOwningKey>(block.last_key());
-        BlockLastKeys_.push_back(WidenKeyPrefix(key, prefixLength, keyColumns.size()));
+        auto key = FromProto<TKey>(block.last_key(), tempBuffer);
+        auto wideKey = WidenKeyPrefix(key, prefixLength, keyColumns.size(), tempBuffer);
+        blockLastKeys.push_back(wideKey);
     }
+
+    BlockLastKeys_ = CaptureRows<TBlockLastKeysBufferTag>(MakeRange(blockLastKeys));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
