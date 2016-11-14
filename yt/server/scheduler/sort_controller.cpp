@@ -1495,18 +1495,13 @@ protected:
                 continue;
             }
 
-            if (partition->Maniac) {
-                if (partition->UnorderedMergeTask->IsCompleted()) {
-                    continue;
-                }
-            } else {
-                // Not maniac.
-                if (partition->SortTask->IsCompleted()) {
-                    continue;
-                }
+            const auto& task = partition->Maniac 
+                ? static_cast<TTaskPtr>(partition->UnorderedMergeTask)
+                : static_cast<TTaskPtr>(partition->SortTask);
+
+            if (!task->IsCompleted()) {
+              return false;
             }
-            // Shuffle is not completed yet.
-            return false;
         }
 
         return true;
