@@ -91,6 +91,7 @@ public:
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCoordinatorCommitSimpleTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCoordinatorCommitDistributedTransactionPhaseOne, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCoordinatorCommitDistributedTransactionPhaseTwo, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCoordinatorAbortDistributedTransactionPhaseTwo, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCoordinatorAbortTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCoordinatorFinishDistributedTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraParticipantPrepareTransaction, Unretained(this)));
@@ -735,7 +736,12 @@ private:
                 ECommitState::Prepare);
             SetCommitFailed(commit, ex);
             RemovePersistentCommit(commit);
-            TransactionManager_->AbortTransaction(transactionId, true);
+            try {
+                TransactionManager_->AbortTransaction(transactionId, true);
+            } catch (const std::exception& ex) {
+                LOG_DEBUG_UNLESS(IsRecovery(), ex, "Error aborting transaction at coordinator; ignored (TransactionId: %v)",
+                    transactionId);
+            }
             return;
         }
 
@@ -754,7 +760,7 @@ private:
 
         auto* commit = FindPersistentCommit(transactionId);
         if (!commit) {
-            LOG_ERROR_UNLESS(IsRecovery(), "Requested to start phase two for a non-existing transaction commit, ignored (TransactionId: %v)",
+            LOG_ERROR_UNLESS(IsRecovery(), "Requested to execute phase two commit for a non-existing transaction; ignored (TransactionId: %v)",
                 transactionId);
             return;
         }
@@ -770,9 +776,10 @@ private:
         YCHECK(commit->GetPersistent());
 
         if (commit->GetPersistentState() != ECommitState::Prepare) {
-            LOG_ERROR_UNLESS(IsRecovery(), "Requested to start phase two for transaction commit in %Qlv state, ignored (TransactionId: %v)",
-                commit->GetPersistentState(),
-                transactionId);
+            LOG_ERROR_UNLESS(IsRecovery(),
+                "Requested to excute phase two commit for transaction in wrong state; ignored (TransactionId: %v, State: %v)",
+                transactionId,
+                commit->GetPersistentState());
             return;
         }
 
@@ -797,6 +804,48 @@ private:
             ECommitState::Commit);
     }
 
+    void HydraCoordinatorAbortDistributedTransactionPhaseTwo(NHiveServer::NProto::TReqCoordinatorAbortDistributedTransactionPhaseTwo* request)
+    {
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto error = FromProto<TError>(request->error());
+
+        auto* commit = FindPersistentCommit(transactionId);
+        if (!commit) {
+            LOG_ERROR_UNLESS(IsRecovery(),
+                "Requested to execute phase two abort for a non-existing transaction; ignored (TransactionId: %v)",
+                transactionId);
+            return;
+        }
+
+        YCHECK(commit->GetDistributed());
+        YCHECK(commit->GetPersistent());
+
+        if (commit->GetPersistentState() != ECommitState::Commit) {
+            LOG_ERROR_UNLESS(IsRecovery(),
+                "Requested to execute phase two abort for transaction in wrong state; ignored (TransactionId: %v, State: %v)",
+                transactionId,
+                commit->GetPersistentState());
+            return;
+        }
+
+        try {
+            // Any exception thrown here is caught below.
+            TransactionManager_->AbortTransaction(transactionId, true);
+        } catch (const std::exception& ex) {
+            LOG_ERROR_UNLESS(IsRecovery(), ex, "Error aborting transaction at coordinator; ignored (TransactionId: %v, State: %v)",
+                transactionId,
+                ECommitState::Abort);
+        }
+
+        SetCommitFailed(commit, error);
+        ChangeCommitPersistentState(commit, ECommitState::Abort);
+        ChangeCommitTransientState(commit, ECommitState::Abort);
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Coordinator aborted (TransactionId: %v, State: %v)",
+            transactionId,
+            ECommitState::Abort);
+    }
+
     void HydraCoordinatorAbortTransaction(NHiveServer::NProto::TReqCoordinatorAbortTransaction* request)
     {
         auto mutationId = FromProto<TMutationId>(request->mutation_id());
@@ -807,7 +856,7 @@ private:
             // All exceptions thrown here are caught below.
             TransactionManager_->AbortTransaction(transactionId, force);
         } catch (const std::exception& ex) {
-            LOG_DEBUG_UNLESS(IsRecovery(), ex, "Error aborting transaction, ignored (TransactionId: %v)",
+            LOG_DEBUG_UNLESS(IsRecovery(), ex, "Error aborting transaction; ignored (TransactionId: %v)",
                 transactionId);
 
             auto responseMessage = CreateErrorResponseMessage(ex);
@@ -1251,14 +1300,21 @@ private:
         auto state = commit->GetTransientState();
         if (!IsParticipantResponseSuccessful(commit, participant, error)) {
             switch (state) {
-                case ECommitState::Prepare:
+                case ECommitState::Prepare: {
                     LOG_DEBUG(error, "Coordinator observes participant failure; will abort "
                         "(TransactionId: %v, ParticipantCellId: %v, State: %v)",
                         commit->GetTransactionId(),
                         participantCellId,
                         state);
-                    ChangeCommitTransientState(commit, ECommitState::Abort);
+                    auto wrappedError = TError("Participant %v has failed to prepare", participantCellId)
+                        << error;
+                    NHiveServer::NProto::TReqCoordinatorAbortDistributedTransactionPhaseTwo request;
+                    ToProto(request.mutable_transaction_id(), transactionId);
+                    ToProto(request.mutable_error(), wrappedError);
+                    CreateMutation(HydraManager_, request)
+                        ->CommitAndLog(Logger);
                     break;
+                }
 
                 case ECommitState::Commit:
                 case ECommitState::Abort:
@@ -1271,7 +1327,7 @@ private:
                     break;
 
                 default:
-                    LOG_DEBUG(error, "Coordinator observes participant failure observed; ignored "
+                    LOG_DEBUG(error, "Coordinator observes participant failure; ignored "
                         "(TransactionId: %v, ParticipantCellId: %v, State: %v)",
                         commit->GetTransactionId(),
                         participantCellId,
