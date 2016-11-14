@@ -866,7 +866,7 @@ void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
     options->Account = Controller->Spec->IntermediateDataAccount;
     options->ChunksVital = false;
     options->ChunksMovable = false;
-    options->ReplicationFactor = 1;
+    options->ReplicationFactor = Controller->Spec->IntermediateDataReplicationFactor;
     options->CompressionCodec = Controller->Spec->IntermediateCompressionCodec;
 
     // Intermediate data MUST be sorted if we expect it to be sorted.
@@ -4682,7 +4682,7 @@ i64 TOperationControllerBase::GetFinalIOMemorySize(
 void TOperationControllerBase::InitIntermediateOutputConfig(TJobIOConfigPtr config)
 {
     // Don't replicate intermediate output.
-    config->TableWriter->UploadReplicationFactor = 1;
+    config->TableWriter->UploadReplicationFactor = Spec->IntermediateDataReplicationFactor;
     config->TableWriter->MinUploadReplicationFactor = 1;
 
     // Cache blocks on nodes.
