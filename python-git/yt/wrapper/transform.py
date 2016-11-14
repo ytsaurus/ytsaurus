@@ -19,7 +19,7 @@ def _get_compression_ratio(table, codec, client, spec):
         })
         set(tmp + "/@compression_codec", codec, client=client)
         chunk_index = get_config(client)["transform_options"]["chunk_count_to_compute_compression_ratio"]
-        run_merge(TablePath(table, ranges=[{"upper_limit": {"chunk_index": chunk_index}}], client=client), tmp, mode="unordered", spec=spec, client=client)
+        run_merge(TablePath(table, ranges=[{"upper_limit": {"chunk_index": chunk_index}}], client=client), tmp, mode="ordered", spec=spec, client=client)
         return get(table + "/@compression_ratio", client=client)
 
 def _check_codec(table, codec_name, codec_value, client):
