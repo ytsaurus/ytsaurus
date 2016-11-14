@@ -1330,7 +1330,7 @@ void TOperationControllerBase::Materialize()
         if (InputChunkMap.empty()) {
             // Possible reasons:
             // - All input chunks are unavailable && Strategy == Skip
-            // - Merge decided to passthrough all input chunks
+            // - Merge decided to teleport all input chunks
             // - Anything else?
             LOG_INFO("No jobs needed");
             OnOperationCompleted(false /* interrupted */);
@@ -1546,8 +1546,7 @@ void TOperationControllerBase::InitInputChunkScraper()
         AuthenticatedInputMasterClient,
         InputNodeDirectory,
         std::move(chunkIds),
-        BIND(&TThis::OnInputChunkLocated, MakeWeak(this))
-            .Via(CancelableInvoker),
+        BIND(&TThis::OnInputChunkLocated, MakeWeak(this)),
         Logger
     );
 
@@ -1555,6 +1554,19 @@ void TOperationControllerBase::InitInputChunkScraper()
         LOG_INFO("Waiting for %v unavailable input chunks", UnavailableInputChunkCount);
         InputChunkScraper->Start();
     }
+}
+
+yhash_set<TChunkId> TOperationControllerBase::GetAliveIntermediateChunks() const
+{
+    yhash_set<TChunkId> intermediateChunks;
+
+    for (const auto& pair : ChunkOriginMap) {
+        if (!pair.second->Lost) {
+            intermediateChunks.insert(pair.first);
+        }
+    }
+
+    return intermediateChunks;
 }
 
 void TOperationControllerBase::SuspendUnavailableInputStripes()
@@ -2092,10 +2104,6 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
         UpdateJobStatistics(*jobSummary);
     }
 
-    joblet->Task->OnJobAborted(joblet, *jobSummary);
-
-    RemoveJoblet(jobId);
-
     if (abortReason == EAbortReason::FailedChunks) {
         const auto& result = jobSummary->Result;
         const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
@@ -2103,6 +2111,10 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
             OnChunkFailed(FromProto<TChunkId>(chunkId));
         }
     }
+
+    joblet->Task->OnJobAborted(joblet, *jobSummary);
+
+    RemoveJoblet(jobId);
 }
 
 void TOperationControllerBase::FinalizeJoblet(
@@ -2150,16 +2162,52 @@ IYsonConsumer* TOperationControllerBase::GetEventLogConsumer()
     return EventLogTableConsumer_.get();
 }
 
+void TOperationControllerBase::RestartIntermediateChunkScraper()
+{
+    if (IntermediateChunkScraper) {
+        IntermediateChunkScraper->Reset(GetAliveIntermediateChunks());
+    }
+}
+
+void TOperationControllerBase::StartIntermediateChunkScraper()
+{
+    if (IntermediateChunkScraper) {
+        return;
+    }
+
+    IntermediateChunkScraper = New<TChunkScraper>(
+        Config,
+        CancelableInvoker,
+        Host->GetChunkLocationThrottlerManager(),
+        AuthenticatedInputMasterClient,
+        InputNodeDirectory,
+        GetAliveIntermediateChunks(),
+        BIND(&TThis::OnIntermediateChunkLocated, MakeWeak(this)),
+        Logger);
+    IntermediateChunkScraper->Start();
+}
 
 void TOperationControllerBase::OnChunkFailed(const TChunkId& chunkId)
 {
     auto it = InputChunkMap.find(chunkId);
     if (it == InputChunkMap.end()) {
         LOG_WARNING("Intermediate chunk %v has failed", chunkId);
-        OnIntermediateChunkUnavailable(chunkId);
+        if (!OnIntermediateChunkUnavailable(chunkId)) {
+            return;
+        }
+
+        StartIntermediateChunkScraper();
     } else {
         LOG_WARNING("Input chunk %v has failed", chunkId);
         OnInputChunkUnavailable(chunkId, it->second);
+    }
+}
+
+void TOperationControllerBase::OnIntermediateChunkLocated(const TChunkId& chunkId, const TChunkReplicaList& replicas)
+{
+    // Intermediate chunks are always replicated.
+    if (IsUnavailable(replicas, NErasure::ECodec::None)) {
+        OnIntermediateChunkUnavailable(chunkId);
     }
 }
 
@@ -2284,13 +2332,13 @@ void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, 
     }
 }
 
-void TOperationControllerBase::OnIntermediateChunkUnavailable(const TChunkId& chunkId)
+bool TOperationControllerBase::OnIntermediateChunkUnavailable(const TChunkId& chunkId)
 {
     auto it = ChunkOriginMap.find(chunkId);
     YCHECK(it != ChunkOriginMap.end());
     auto completedJob = it->second;
     if (completedJob->Lost)
-        return;
+        return false;
 
     LOG_DEBUG("Job is lost (Address: %v, JobId: %v, SourceTask: %v, OutputCookie: %v, InputCookie: %v)",
         completedJob->NodeDescriptor.Address,
@@ -2305,6 +2353,7 @@ void TOperationControllerBase::OnIntermediateChunkUnavailable(const TChunkId& ch
     completedJob->SourceTask->GetChunkPoolOutput()->Lost(completedJob->OutputCookie);
     completedJob->SourceTask->OnJobLost(completedJob);
     AddTaskPendingHint(completedJob->SourceTask);
+    return true;
 }
 
 bool TOperationControllerBase::IsOutputLivePreviewSupported() const
@@ -4262,6 +4311,8 @@ void TOperationControllerBase::RegisterIntermediate(
                 {chunkId});
         }
     }
+
+    RestartIntermediateChunkScraper();
 }
 
 bool TOperationControllerBase::HasEnoughChunkLists(bool intermediate, bool isWritingStderrTable)

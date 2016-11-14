@@ -532,6 +532,11 @@ protected:
             TTask::OnJobLost(completedJob);
 
             UpdateNodeDataSize(completedJob->NodeDescriptor, -completedJob->DataSize);
+
+            if (!Controller->IsShuffleCompleted()) {
+                // Add pending hint if shuffle is in progress and some partition jobs were lost.
+                Controller->AddTaskPendingHint(this);
+            }
         }
 
         virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override
@@ -846,6 +851,10 @@ protected:
             Controller->SortDataSizeCounter.Lost(stripeList->TotalDataSize);
 
             TTask::OnJobLost(completedJob);
+
+            if (!Partition->Completed) {
+                Controller->AddTaskPendingHint(this);
+            }
         }
 
         virtual void OnTaskCompleted() override
@@ -1123,7 +1132,6 @@ protected:
 
             TMergeTask::OnJobAborted(joblet, jobSummary);
         }
-
     };
 
     //! Implements unordered merge of maniac partitions for sort operation.
@@ -1478,6 +1486,30 @@ protected:
 
         SortStartThresholdReached = true;
         AddSortTasksPendingHints();
+    }
+
+    bool IsShuffleCompleted() const
+    {
+        for (const auto& partition : Partitions) {
+            if (partition->Completed) {
+                continue;
+            }
+
+            if (partition->Maniac) {
+                if (partition->UnorderedMergeTask->IsCompleted()) {
+                    continue;
+                }
+            } else {
+                // Not maniac.
+                if (partition->SortTask->IsCompleted()) {
+                    continue;
+                }
+            }
+            // Shuffle is not completed yet.
+            return false;
+        }
+
+        return true;
     }
 
     int AdjustPartitionCountToWriterBufferSize(
