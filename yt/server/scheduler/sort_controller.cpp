@@ -2641,7 +2641,7 @@ private:
 
         InitPartitionPool(jobSizeLimits.GetDataSizePerJob());
 
-        if (Config->EnableJobSizeManager && !Spec->PartitionJobCount && !Spec->DataSizePerPartitionJob) {
+        if (Config->EnablePartitionMapJobSizeManager && !Spec->PartitionJobCount && !Spec->DataSizePerPartitionJob) {
             LOG_DEBUG("Activating job size manager (DataSizePerPartitionJob: %v, MaxJobDataSize: %v, MinPartitionJobTime: %v, ExecToPrepareTimeRatio: %v",
                 jobSizeLimits.GetDataSizePerJob(),
                 Spec->MaxDataSizePerJob,

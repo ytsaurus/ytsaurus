@@ -277,7 +277,7 @@ protected:
 
                 InitUnorderedPool(jobSizeLimits.GetDataSizePerJob());
 
-                if (Config->EnableJobSizeManager && !Spec->JobCount && !Spec->DataSizePerJob) {
+                if (Config->EnableMapJobSizeManager && !Spec->JobCount && !Spec->DataSizePerJob) {
                     LOG_DEBUG("Activating job size manager (DataSizePerJob: %v, MaxJobDataSize: %v, MinJobTime: %v, ExecToPrepareTimeRatio: %v",
                         jobSizeLimits.GetDataSizePerJob(),
                         Spec->MaxDataSizePerJob,
