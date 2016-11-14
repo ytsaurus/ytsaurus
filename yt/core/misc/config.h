@@ -50,10 +50,10 @@ DEFINE_REFCOUNTED_TYPE(TSlruCacheConfig)
  * unless it is expired.
  *
  * An entry is considered expired if at least one of the following conditions is true:
- * 1) last access was longer than expire_after_access_time miliseconds ago,
- * 2) last update was longer than expire_after_*_update_time miliseconds ago.
+ * 1) last access was more than expire_after_access_time miliseconds ago,
+ * 2) last update was more than expire_after_*_update_time miliseconds ago.
  *
- * To elimimnate client awaiting time on subsequent requests and keep the response
+ * To avoid client awaiting time on subsequent requests and keep the response
  * up to date, the cache updates entries in the background:
  * If request was successful, the cache performs the same request after refresh_time
  * miliseconds and updates the entry.
