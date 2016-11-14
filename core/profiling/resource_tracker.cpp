@@ -80,7 +80,7 @@ void TResourceTracker::EnqueueCpuUsage()
         return;
 
     Stroka procPath("/proc/self/task");
-    
+
     TDirsList dirsList;
     try {
         dirsList.Fill(procPath);
@@ -95,7 +95,7 @@ void TResourceTracker::EnqueueCpuUsage()
         auto threadStatPath = NFS::CombinePaths(procPath, dirsList.Next());
         auto cpuStatPath = NFS::CombinePaths(threadStatPath, "stat");
 
-        VectorStrok fields;
+        yvector<Stroka> fields;
         try {
             TIFStream cpuStatFile(cpuStatPath);
             fields = splitStroku(cpuStatFile.ReadLine(), " ");
