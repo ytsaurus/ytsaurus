@@ -532,8 +532,8 @@ def add_alter_table_parser(add_parser):
     add_ypath_argument(parser, "path", hybrid=True)
     parser.add_argument("--schema", action=ParseStructuredArgument, nargs="?", help="new schema value, in {0} format.".format(YT_ARGUMENTS_FORMAT))
     dynamic_parser = parser.add_mutually_exclusive_group(required=False)
-    dynamic_parser.add_argument('--dynamic', dest='dynamic', action='store_true')
-    dynamic_parser.add_argument('--static', dest='dynamic', action='store_false')
+    dynamic_parser.add_argument("--dynamic", dest="dynamic", default=None, action="store_true")
+    dynamic_parser.add_argument("--static", dest="dynamic", default=None, action="store_false")
 
 def add_enable_table_replica_parser(add_parser):
     parser = add_parser("enable-table-replica", yt.enable_table_replica)
