@@ -958,7 +958,7 @@ protected:
         TJobIOConfigPtr ioConfig,
         const TChunkStripeStatisticsVector& stripeStatistics) const;
 
-    static void InitIntermediateOutputConfig(TJobIOConfigPtr config);
+    void InitIntermediateOutputConfig(TJobIOConfigPtr config);
     void InitFinalOutputConfig(TJobIOConfigPtr config);
 
     static NTableClient::TTableReaderOptionsPtr CreateTableReaderOptions(TJobIOConfigPtr ioConfig);
