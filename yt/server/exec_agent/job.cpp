@@ -779,7 +779,7 @@ private:
 
             TNullable<TNodeId> unresolvedNodeId;
 
-            auto validateValidateNodeIds = [&] (
+            auto validateNodeIds = [&] (
                 const ::google::protobuf::RepeatedPtrField<TChunkSpec>& chunkSpecs,
                 const TNodeDirectoryPtr& nodeDirectory,
                 TNodeDirectoryBuilder* nodeDirectoryBuilder)
@@ -802,7 +802,7 @@ private:
 
             auto validateTableSpecs = [&] (const ::google::protobuf::RepeatedPtrField<TTableInputSpec>& tableSpecs) {
                 for (const auto& tableSpec : tableSpecs) {
-                    validateValidateNodeIds(tableSpec.chunks(), nodeDirectory, &inputNodeDirectoryBuilder);
+                    validateNodeIds(tableSpec.chunks(), nodeDirectory, &inputNodeDirectoryBuilder);
                 }
             };
 
@@ -811,7 +811,7 @@ private:
 
             // NB: No need to add these descriptors to the input node directory.
             for (const auto& artifact : Artifacts_) {
-                validateValidateNodeIds(artifact.Key.chunks(), nodeDirectory, nullptr);
+                validateNodeIds(artifact.Key.chunks(), nodeDirectory, nullptr);
             }
 
             if (!unresolvedNodeId) {
@@ -829,7 +829,7 @@ private:
             WaitFor(TDelayedExecutor::MakeDelayed(Config_->NodeDirectoryPrepareBackoffTime));
         }
 
-        LOG_INFO("Node directory is constructed by Exec Agent");
+        LOG_INFO("Node directory is constructed locally");
     }
 
     TJobProxyConfigPtr CreateConfig()
