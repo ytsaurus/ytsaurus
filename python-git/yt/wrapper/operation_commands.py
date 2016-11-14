@@ -17,7 +17,7 @@ from yt.packages.six.moves import builtins, filter as ifilter
 
 import logging
 from datetime import datetime
-from time import sleep, time
+from time import sleep
 
 try:
     from cStringIO import StringIO
@@ -55,42 +55,25 @@ class OperationState(object):
 
 class TimeWatcher(object):
     """Class for proper sleeping in waiting operation."""
-    def __init__(self, min_interval, max_interval, slowdown_coef, timeout=None):
+    def __init__(self, min_interval, max_interval, slowdown_coef):
         """
-        Initialise time watcher.
+        Initialize time watcher.
 
         :param min_interval: minimal sleeping interval
         :param max_interval: maximal sleeping interval
         :param slowdown_coef: growth coefficient of sleeping interval
-        :param timeout: maximal total interval of waiting. If ``timeout`` is ``None``, time watcher wait for eternally.
         """
         self.min_interval = min_interval
         self.max_interval = max_interval
         self.slowdown_coef = slowdown_coef
         self.total_time = 0.0
-        self.timeout_time = (time() + timeout) if (timeout is not None) else None
 
     def _bound(self, interval):
         return min(max(interval, self.min_interval), self.max_interval)
 
-    def _is_time_up(self, time):
-        """Is passed time up?"""
-        if not self.timeout_time:
-            return False
-        return time >= self.timeout_time
-
-    def is_time_up(self):
-        """Is time elapsed?"""
-        return self._is_time_up(time())
-
     def wait(self):
-        """Sleep proper time. If timeout occurred, wake up."""
-        if self.is_time_up():
-            return
+        """Sleep proper time."""
         pause = self._bound(self.total_time * self.slowdown_coef)
-        current_time = time()
-        if self._is_time_up(current_time + pause):
-            pause = self.timeout_time - current_time
         self.total_time += pause
         sleep(pause)
 
@@ -248,11 +231,6 @@ def get_operation_state_monitor(operation, time_watcher, action=lambda: None, cl
     :return: iterator over operation states.
     """
     while True:
-        if time_watcher.is_time_up():
-            abort_operation(operation, client=client)
-            for state in get_operation_state_monitor(operation, TimeWatcher(1.0, 1.0, 0, timeout=None), client=client):
-                yield state
-
         action()
 
         state = get_operation_state(operation, client=client)
@@ -442,23 +420,19 @@ class Operation(object):
         operation_poll_period = get_config(self.client)["operation_tracker"]["poll_period"] / 1000.0
         time_watcher = TimeWatcher(min_interval=operation_poll_period / 5.0,
                                    max_interval=operation_poll_period,
-                                   slowdown_coef=0.1, timeout=timeout)
+                                   slowdown_coef=0.1)
         print_info = self.printer if print_progress else lambda state: None
 
         def abort():
-            for state in self.get_state_monitor(TimeWatcher(1.0, 1.0, 0.0, timeout=None), self.abort):
+            for state in self.get_state_monitor(TimeWatcher(1.0, 1.0, 0.0), self.abort):
                 print_info(state)
             finalize(state)
 
-
-        with ExceptionCatcher(self.abort_exceptions, abort, enable=get_config(self.client)["operation_tracker"]["abort_on_sigint"]):
+        abort_on_sigint = get_config(self.client)["operation_tracker"]["abort_on_sigint"]
+        with ExceptionCatcher(self.abort_exceptions, abort, enable=abort_on_sigint):
             for state in self.get_state_monitor(time_watcher):
                 print_info(state)
-            timeout_occurred = time_watcher.is_time_up()
             finalize(state)
-            if timeout_occurred:
-                logger.info("Timeout occurred.")
-                raise YtTimeoutError()
 
         if check_result and state.is_unsuccessfully_finished():
             raise _create_operation_failed_error(self, state)
