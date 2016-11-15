@@ -4,8 +4,6 @@
 #include "connection.h"
 #include "private.h"
 
-#include <yt/ytlib/admin/admin_service_proxy.h>
-
 #include <yt/ytlib/hive/cell_directory.h>
 
 #include <yt/ytlib/hydra/hydra_service_proxy.h>
@@ -21,7 +19,6 @@ namespace NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using namespace NAdmin;
 using namespace NConcurrency;
 using namespace NRpc;
 using namespace NObjectClient;
@@ -66,10 +63,6 @@ public:
     IMPLEMENT_METHOD(void, GCCollect, (
         const TGCCollectOptions& options),
         (options))
-    IMPLEMENT_METHOD(void, KillProcess, (
-        const Stroka& address,
-        const TKillProcessOptions& options),
-        (address, options))
 
 private:
     const IConnectionPtr Connection_;
@@ -138,21 +131,6 @@ private:
         }
 
         WaitFor(Combine(asyncResults))
-            .ThrowOnError();
-    }
-
-    void DoKillProcess(const Stroka& address, const TKillProcessOptions& options)
-    {
-        auto channel = Connection_->GetLightChannelFactory()->CreateChannel(address);
-
-        TAdminServiceProxy proxy(channel);
-        auto req = proxy.Die();
-        req->set_exit_code(options.ExitCode);
-        auto asyncResult = req->Invoke().As<void>();
-        // NB: this will always throw an error since the service can
-        // never reply to the request because it makes _exit immediately.
-        // This is an intended behavior.
-        WaitFor(asyncResult)
             .ThrowOnError();
     }
 };
