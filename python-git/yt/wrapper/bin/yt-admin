@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from __future__ import print_function
+import sys
 
 from yt.wrapper.native_driver import get_driver_instance
 
@@ -11,6 +12,10 @@ def build_snapshot(*args, **kwargs):
 
 def gc_collect(*args, **kwargs):
     get_driver_instance(None).gc_collect(*args, **kwargs)
+
+def kill_process(*args, **kwargs):
+    print('NB: If process was actually killed, there should be a "Socket was closed" below\n', file=sys.stderr)
+    get_driver_instance(None).kill_process(*args, **kwargs)
 
 def clear_metadata_caches(*args, **kwargs):
     get_driver_instance(None).clear_metadata_caches(*args, **kwargs)
@@ -27,6 +32,12 @@ def main():
 
     gc_collect_parser = subparsers.add_parser("gc-collect", help="Run garbage collection")
     gc_collect_parser.set_defaults(func=gc_collect)
+
+    kill_process_parser = subparsers.add_parser("kill-process", help="Force remote YT process (node, scheduler or master) " +
+                                                                     "listening to a given address exit immediately, use with care. " +
+                                                                     "This command always finishes with an error")
+    kill_process_parser.add_argument("address")
+    kill_process_parser.set_defaults(func=kill_process)
 
     clear_metadata_caches_parser = subparsers.add_parser("clear-caches", help="Clear metadata caches")
     clear_metadata_caches_parser.set_defaults(func=clear_metadata_caches)
