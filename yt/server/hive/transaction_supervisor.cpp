@@ -820,7 +820,7 @@ private:
         YCHECK(commit->GetDistributed());
         YCHECK(commit->GetPersistent());
 
-        if (commit->GetPersistentState() != ECommitState::Commit) {
+        if (commit->GetPersistentState() != ECommitState::Prepare) {
             LOG_ERROR_UNLESS(IsRecovery(),
                 "Requested to execute phase two abort for transaction in wrong state; ignored (TransactionId: %v, State: %v)",
                 transactionId,
