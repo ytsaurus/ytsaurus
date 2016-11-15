@@ -246,8 +246,8 @@ class TestRetries(object):
                 list(yt.read_table(table + '[#0,#2]', format=yt.JsonFormat(process_table_index=False),
                                    control_attributes={"enable_row_index": True, "enable_range_index": True}))
 
-            assert [{"x": 1},
-                    {"x": 3}] == \
+            assert [{"x": 1, "@row_index": 0, "@range_index": 0},
+                    {"x": 3, "@row_index": 2, "@range_index": 1}] == \
                 list(yt.read_table(table + '[#0,#2]', format=yt.JsonFormat(process_table_index=True),
                                    control_attributes={"enable_row_index": True, "enable_range_index": True}))
 

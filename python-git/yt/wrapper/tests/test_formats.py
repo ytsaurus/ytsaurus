@@ -82,7 +82,7 @@ def test_yson_table_switch():
 
     yson_rows = format.load_rows(BytesIO(input))
     parsed_rows = [dict(yson) for yson in yson_rows]
-    true_input_rows = [{'a': 1, '@table_index': 0, "@row_index": 0},
+    true_input_rows = [{'a': 1, "@row_index": 0},
                        {'a': 1, '@table_index': 1, "@row_index": 1},
                        {'b': 2, '@table_index': 1, "@row_index": 2}]
     assert true_input_rows == parsed_rows
@@ -170,7 +170,7 @@ def test_yamr_record_index():
     assert list(format.load_rows(BytesIO(data))) == records
 
 def test_json_format():
-    format = yt.JsonFormat(process_table_index=True, enable_ujson=False)
+    format = yt.JsonFormat(process_table_index=False, enable_ujson=False)
     check_format(format, b'{"a": 1}', {"a": 1})
 
     stream = BytesIO(b'{"a": 1}\n{"b": 2}')
@@ -187,6 +187,30 @@ def test_json_format_table_index():
     assert [{"@table_index": 1, "a": 1}] == \
         list(format.load_rows(BytesIO(b'{"$value": null, "$attributes": {"table_index": 1}}\n'
                                       b'{"a": 1}')))
+
+def test_json_format_row_index():
+    format = yt.JsonFormat(process_table_index=None, control_attributes_mode="row_fields", enable_ujson=False)
+    assert [{"@table_index": 1, "@row_index": 5, "a": 1},
+            {"@table_index": 1, "@row_index": 6, "a": 2}] == \
+        list(format.load_rows(BytesIO(b'{"$value": null, "$attributes": {"table_index": 1, "row_index": 5}}\n'
+                                      b'{"a": 1}\n'
+                                      b'{"a": 2}')))
+
+def test_json_format_row_iterator():
+    format = yt.JsonFormat(process_table_index=None, control_attributes_mode="iterator", enable_ujson=False)
+    iterator = format.load_rows(BytesIO(b'{"$value": null, "$attributes": {"table_index": 1, "row_index": 5}}\n'
+                                        b'{"a": 1}\n'
+                                        b'{"a": 2}'))
+
+    assert iterator.next() == {"a": 1}
+    assert iterator.table_index == 1
+    assert iterator.row_index == 5
+    assert iterator.range_index is None
+
+    assert iterator.next() == {"a": 2}
+    assert iterator.table_index == 1
+    assert iterator.row_index == 6
+    assert iterator.range_index is None
 
 def test_schemaful_dsv_format():
     format = yt.SchemafulDsvFormat(columns=["a", "b"])
