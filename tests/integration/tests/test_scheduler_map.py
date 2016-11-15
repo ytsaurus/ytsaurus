@@ -2106,8 +2106,10 @@ print row + table_index
         time.sleep(1)
         ts = generate_timestamp()
 
+        self.sync_flush_table("//tmp/t")
         self.sync_compact_table("//tmp/t")
         insert_rows("//tmp/t", [{"key": i, "value": str(i+1)} for i in range(2)])
+        self.sync_flush_table("//tmp/t")
         self.sync_compact_table("//tmp/t")
 
         map(
