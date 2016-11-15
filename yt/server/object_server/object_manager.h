@@ -45,7 +45,6 @@ struct IObjectResolver
 
     //! Returns a path corresponding to a given object.
     virtual NYPath::TYPath GetPath(IObjectProxyPtr proxy) = 0;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -92,6 +91,9 @@ public:
     //! Returns the strong reference counter.
     int UnrefObject(TObjectBase* object, int count = 1);
 
+    //! Returns the current strong reference counter.
+    int GetObjectRefCounter(TObjectBase* object);
+
     //! Increments the object weak reference counter thus temporarily preventing it from being destructed.
     //! Returns the weak reference counter.
     int WeakRefObject(TObjectBase* object);
@@ -99,6 +101,9 @@ public:
     //! Decrements the object weak reference counter thus making it eligible for destruction.
     //! Returns the weak reference counter.
     int WeakUnrefObject(TObjectBase* object);
+
+    //! Returns the current weak reference counter.
+    int GetObjectWeakRefCounter(TObjectBase* object);
 
     //! Finds object by id, returns |nullptr| if nothing is found.
     TObjectBase* FindObject(const TObjectId& id);
@@ -209,6 +214,8 @@ public:
     NProfiling::TTagId GetTypeTagId(EObjectType type);
     NProfiling::TTagId GetMethodTagId(const Stroka& method);
 
+    TEpoch GetCurrentEpoch();
+
 private:
     friend class TObjectProxyBase;
 
@@ -252,6 +259,8 @@ private:
 
     //! Stores schemas (for serialization mostly).
     NHydra::TEntityMap<TSchemaObject> SchemaMap_;
+
+    TEpoch CurrentEpoch_ = 0;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 

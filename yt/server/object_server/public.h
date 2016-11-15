@@ -61,6 +61,8 @@ class TMasterObject;
 DECLARE_REFCOUNTED_STRUCT(IObjectProxy)
 DECLARE_REFCOUNTED_STRUCT(IObjectTypeHandler)
 
+using TEpoch = ui32;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NObjectServer

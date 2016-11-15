@@ -37,8 +37,8 @@ public:
 
     TFuture<void> Collect();
 
-    int WeakRefObject(TObjectBase* object);
-    int WeakUnrefObject(TObjectBase* object);
+    int WeakRefObject(TObjectBase* object, TEpoch epoch);
+    int WeakUnrefObject(TObjectBase* object, TEpoch epoch);
 
     void RegisterZombie(TObjectBase* object);
     void UnregisterZombie(TObjectBase* object);
@@ -69,10 +69,6 @@ private:
     //! This promise is set each time #GCQueue becomes empty.
     TPromise<void> CollectPromise_;
 
-    //! Contains pointer to all locked objects except for ghosts.
-    //! Cf. #TObjectDynamicData::LockedListIndex.
-    std::vector<TObjectBase*> LockedObjects_;
-
     //! The total number of locked objects, including ghosts.
     int LockedObjectCount_ = 0;
 
@@ -81,9 +77,6 @@ private:
 
     void OnSweep();
     bool IsRecovery();
-
-    void RegisterLocked(TObjectBase* object);
-    void UnregisterLocked(TObjectBase* object);
 
 };
 

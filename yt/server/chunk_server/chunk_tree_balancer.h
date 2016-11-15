@@ -27,6 +27,7 @@ struct IChunkTreeBalancerCallbacks
 {
     virtual void RefObject(NObjectServer::TObjectBase* object) = 0;
     virtual void UnrefObject(NObjectServer::TObjectBase* object) = 0;
+    virtual int GetObjectRefCounter(NObjectServer::TObjectBase* object) = 0;
 
     virtual TChunkList* CreateChunkList() = 0;
     virtual void ClearChunkList(TChunkList* chunkList) = 0;
@@ -50,15 +51,15 @@ class TChunkTreeBalancer
 {
 public:
     explicit TChunkTreeBalancer(
-        IChunkTreeBalancerCallbacksPtr bootstrap,
+        IChunkTreeBalancerCallbacksPtr callbacks,
         const TChunkTreeBalancerSettings& settings = TChunkTreeBalancerSettings());
 
     bool IsRebalanceNeeded(TChunkList* root);
     void Rebalance(TChunkList* root);
 
 private:
-    IChunkTreeBalancerCallbacksPtr Bootstrap_;
-    TChunkTreeBalancerSettings Settings_;
+    const IChunkTreeBalancerCallbacksPtr Callbacks_;
+    const TChunkTreeBalancerSettings Settings_;
 
     void MergeChunkTrees(
         std::vector<TChunkTree*>* children,

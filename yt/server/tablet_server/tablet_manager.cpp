@@ -2277,7 +2277,7 @@ private:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& objectManager = Bootstrap_->GetObjectManager();
 
-        if (oldRootChunkList->GetObjectRefCounter() > 1) {
+        if (objectManager->GetObjectRefCounter(oldRootChunkList) > 1) {
             auto statistics = oldRootChunkList->Statistics();
             auto* newRootChunkList = chunkManager->CreateChunkList(false);
 
@@ -2310,7 +2310,7 @@ private:
 
             for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
                 auto* tabletChunkList = chunkLists[index]->AsChunkList();
-                if (tabletChunkList->GetObjectRefCounter() > 1) {
+                if (objectManager->GetObjectRefCounter(tabletChunkList) > 1) {
                     auto* newTabletChunkList = chunkManager->CreateChunkList(!table->IsPhysicallySorted());
                     chunkManager->AttachToChunkList(newTabletChunkList, tabletChunkList->Children());
                     chunkLists[index] = newTabletChunkList;

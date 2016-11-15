@@ -464,6 +464,7 @@ const yhash_set<const char*>& TObjectProxyBase::GetBuiltinAttributeKeys()
 bool TObjectProxyBase::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
 {
     const auto& securityManager = Bootstrap_->GetSecurityManager();
+    const auto& objectManager = Bootstrap_->GetObjectManager();
 
     bool isForeign = Object_->IsForeign();
 
@@ -487,13 +488,13 @@ bool TObjectProxyBase::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* con
 
     if (key == "ref_counter") {
         BuildYsonFluently(consumer)
-            .Value(Object_->GetObjectRefCounter());
+            .Value(objectManager->GetObjectRefCounter(Object_));
         return true;
     }
 
     if (key == "weak_ref_counter") {
         BuildYsonFluently(consumer)
-            .Value(Object_->GetObjectWeakRefCounter());
+            .Value(objectManager->GetObjectWeakRefCounter(Object_));
         return true;
     }
 
@@ -767,11 +768,11 @@ void TNontemplateNonversionedObjectProxyBase::RemoveSelf(TReqRemove* /*request*/
     ValidatePermission(EPermissionCheckScope::This, EPermission::Remove);
     ValidateRemoval();
 
-    if (Object_->GetObjectRefCounter() != 1) {
+    const auto& objectManager = Bootstrap_->GetObjectManager();
+    if (objectManager->GetObjectRefCounter(Object_) != 1) {
         THROW_ERROR_EXCEPTION("Object is in use");
     }
 
-    const auto& objectManager = Bootstrap_->GetObjectManager();
     objectManager->UnrefObject(Object_);
 
     context->Reply();

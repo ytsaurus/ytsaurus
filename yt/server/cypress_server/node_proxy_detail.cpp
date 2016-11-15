@@ -638,8 +638,8 @@ void TNontemplateCypressNodeProxyBase::RemoveSelf(
     if (node->IsForeign()) {
         YCHECK(node->IsTrunk());
         YCHECK(node->LockingState().AcquiredLocks.empty());
-        YCHECK(node->GetObjectRefCounter() == 1);
         const auto& objectManager = Bootstrap_->GetObjectManager();
+        YCHECK(objectManager->GetObjectRefCounter(node) == 1);
         objectManager->UnrefObject(node);
     } else {
         TNodeBase::RemoveSelf(request, response, std::move(context));
