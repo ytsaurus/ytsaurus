@@ -678,6 +678,13 @@ private:
 
         auto* commit = FindCommit(transactionId);
 
+        if (commit && commit->GetPersistentState() != ECommitState::Start) {
+            LOG_DEBUG_UNLESS(IsRecovery(), "Requested to commit simple transaction in wrong state; ignored (TransactionId: %v, State: %v)",
+                transactionId,
+                commit->GetPersistentState());
+            return;
+        }
+
         try {
             // Any exception thrown here is caught below.
             TransactionManager_->CommitTransaction(transactionId, commitTimestamp);
@@ -720,6 +727,13 @@ private:
             mutationId,
             participantCellIds,
             true);
+
+        if (commit && commit->GetPersistentState() != ECommitState::Start) {
+            LOG_DEBUG_UNLESS(IsRecovery(), "Requested to commit distributed transaction in wrong state; ignored (TransactionId: %v, State: %v)",
+                transactionId,
+                commit->GetPersistentState());
+            return;
+        }
 
         LOG_DEBUG_UNLESS(IsRecovery(),
             "Distributed commit phase one started (TransactionId: %v, ParticipantCellIds: %v)",
@@ -1283,6 +1297,12 @@ private:
         const TWrappedParticipantPtr& participant,
         const TError& error)
     {
+        if (IsParticipantUp(error)) {
+            participant->SetUp();
+        } else {
+            participant->SetDown(error);
+        }
+
         const auto& participantCellId = participant->GetCellId();
 
         auto* commit = FindPersistentCommit(transactionId);
@@ -1291,12 +1311,6 @@ private:
                 transactionId,
                 participantCellId);
             return;
-        }
-
-        if (IsParticipantUp(error)) {
-            participant->SetUp();
-        } else {
-            participant->SetDown(error);
         }
 
         if (state != commit->GetTransientState()) {
