@@ -359,6 +359,7 @@ class TestSortedDynamicTables(YTEnvSetup):
         lock("//tmp/t", mode="snapshot", tx=tx)
         verify_chunk_tree_refcount("//tmp/t", 2, [1, 1])
 
+        self.sync_mount_table("//tmp/t")
         self.sync_compact_table("//tmp/t")
         verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
         assert_items_equal(read_table("//tmp/t"), rows1 + rows2 + rows3)
@@ -490,16 +491,14 @@ class TestSortedDynamicTables(YTEnvSetup):
         test_row({"key": 1, "time": 2, "value": 10}, {"key": 1, "time": 2, "value": 20}, aggregate=True)
         test_row({"key": 1, "time": 3, "value": 10}, {"key": 1, "time": 3, "value": 30}, aggregate=True)
 
-        self.sync_unmount_table("//tmp/t")
-        self.sync_mount_table("//tmp/t")
+        self.sync_flush_table("//tmp/t")
 
         verify_after_flush({"key": 1, "time": 3, "value": 30})
         test_row({"key": 1, "time": 4, "value": 10}, {"key": 1, "time": 4, "value": 40}, aggregate=True)
         test_row({"key": 1, "time": 5, "value": 10}, {"key": 1, "time": 5, "value": 50}, aggregate=True)
         test_row({"key": 1, "time": 6, "value": 10}, {"key": 1, "time": 6, "value": 60}, aggregate=True)
 
-        self.sync_unmount_table("//tmp/t")
-        self.sync_mount_table("//tmp/t")
+        self.sync_flush_table("//tmp/t")
 
         verify_after_flush({"key": 1, "time": 6, "value": 60})
         test_row({"key": 1, "time": 7, "value": 10}, {"key": 1, "time": 7, "value": 70}, aggregate=True)
@@ -512,16 +511,14 @@ class TestSortedDynamicTables(YTEnvSetup):
         test_row({"key": 1, "time": 11, "value": 10}, {"key": 1, "time": 11, "value": 20}, aggregate=True)
         test_row({"key": 1, "time": 12, "value": 10}, {"key": 1, "time": 12, "value": 30}, aggregate=True)
 
-        self.sync_unmount_table("//tmp/t")
-        self.sync_mount_table("//tmp/t")
+        self.sync_flush_table("//tmp/t")
 
         verify_after_flush({"key": 1, "time": 12, "value": 30})
         test_row({"key": 1, "time": 13, "value": 10}, {"key": 1, "time": 13, "value": 40}, aggregate=True)
         test_row({"key": 1, "time": 14, "value": 10}, {"key": 1, "time": 14, "value": 50}, aggregate=True)
         test_row({"key": 1, "time": 15, "value": 10}, {"key": 1, "time": 15, "value": 60}, aggregate=True)
 
-        self.sync_unmount_table("//tmp/t")
-        self.sync_mount_table("//tmp/t")
+        self.sync_flush_table("//tmp/t")
 
         verify_after_flush({"key": 1, "time": 15, "value": 60})
         delete_rows("//tmp/t", [{"key": 1}])
@@ -530,6 +527,7 @@ class TestSortedDynamicTables(YTEnvSetup):
         test_row({"key": 1, "time": 17, "value": 10}, {"key": 1, "time": 17, "value": 20}, aggregate=True)
         test_row({"key": 1, "time": 18, "value": 10}, {"key": 1, "time": 18, "value": 30}, aggregate=True)
 
+        self.sync_flush_table("//tmp/t")
         self.sync_compact_table("//tmp/t")
 
         verify_after_flush({"key": 1, "time": 18, "value": 30})
@@ -537,6 +535,7 @@ class TestSortedDynamicTables(YTEnvSetup):
         test_row({"key": 1, "time": 20, "value": 10}, {"key": 1, "time": 20, "value": 20}, aggregate=True)
         test_row({"key": 1, "time": 21, "value": 10}, {"key": 1, "time": 21, "value": 10})
 
+        self.sync_flush_table("//tmp/t")
         self.sync_compact_table("//tmp/t")
 
         verify_after_flush({"key": 1, "time": 21, "value": 10})
@@ -930,8 +929,7 @@ class TestSortedDynamicTables(YTEnvSetup):
         rows = [{"key": i, "value": str(i + 1)} for i in xrange(10)]
         keys = [{"key" : row["key"]} for row in rows]
         insert_rows("//tmp/t", rows)
-        self.sync_freeze_table("//tmp/t")
-        self.sync_unfreeze_table("//tmp/t")
+        self.sync_flush_table("//tmp/t")
 
         sleep(3.0)
 
@@ -1311,6 +1309,7 @@ class TestSortedDynamicTables(YTEnvSetup):
         self.sync_unmount_table("//tmp/t")
         chunk_list_id = get("//tmp/t/@chunk_list_id")
         statistics1 = get("#" + chunk_list_id + "/@statistics")
+        self.sync_mount_table("//tmp/t")
         self.sync_compact_table("//tmp/t")
         statistics2 = get("#" + chunk_list_id + "/@statistics")
         assert statistics1 == statistics2
@@ -1667,6 +1666,7 @@ class TestSortedDynamicTables(YTEnvSetup):
 
         rows = [{"key": i, "value": str(i)} for i in xrange(2)]
         insert_rows("//tmp/t", rows)
+        self.sync_flush_table("//tmp/t")
         self.sync_compact_table("//tmp/t")
         t3 = get("//tmp/t/@retained_timestamp")
         t4 = get("//tmp/t/@unflushed_timestamp")
@@ -1679,6 +1679,7 @@ class TestSortedDynamicTables(YTEnvSetup):
         t5 = get("//tmp/t/@retained_timestamp", tx=tx)
         t6 = get("//tmp/t/@unflushed_timestamp", tx=tx)
         sleep(1)
+        self.sync_flush_table("//tmp/t")
         self.sync_compact_table("//tmp/t")
         sleep(1)
         t7 = get("//tmp/t/@retained_timestamp")
@@ -1700,6 +1701,8 @@ class TestSortedDynamicTables(YTEnvSetup):
         sleep(1)
         self.sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", [{"key": 0}])
+        self.sync_unmount_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
         self.sync_compact_table("//tmp/t")
         with pytest.raises(YtError):
             lookup_rows("//tmp/t", [{"key": 0}], timestamp=ts)
