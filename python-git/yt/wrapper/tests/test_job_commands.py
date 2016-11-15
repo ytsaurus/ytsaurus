@@ -140,7 +140,7 @@ class TestJobCommands(object):
         self._ensure_jobs_running(op)
         job_id = self.jobs[0]
 
-        assert "STDERR OUTPUT\n" == yt.get_job_stderr(op.id, job_id).read()
+        assert b"STDERR OUTPUT\n" == yt.get_job_stderr(op.id, job_id).read()
 
         self._resume_jobs()
         op.wait()

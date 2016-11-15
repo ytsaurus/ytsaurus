@@ -12,6 +12,7 @@ from yt.packages.six.moves import xrange
 import yt.wrapper as yt
 
 import os
+import sys
 import argparse
 import subprocess
 import shutil
@@ -25,6 +26,8 @@ def preexec_dup2(new_fds, output_path):
         os.dup2(fd, new_fd)
         if fd != new_fd:
             os.close(fd)
+        if sys.version_info[:2] >= (3, 4):
+            os.set_inheritable(new_fd, True)
 
 def main():
     parser = argparse.ArgumentParser(description="Job runner for yt-job-tool")
@@ -37,7 +40,7 @@ def main():
     with open(args.config_path, "rb") as f:
         config = yson.load(f)
 
-    with open(config["command_path"], "rb") as fin:
+    with open(config["command_path"], "r") as fin:
         command = fin.read()
 
     use_yamr_descriptors = parse_bool(config["use_yamr_descriptors"])
