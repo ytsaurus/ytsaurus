@@ -77,7 +77,6 @@ void TGarbageCollector::Clear()
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     Zombies_.clear();
-    LockedObjects_.clear();
 
     Reset();
 }
@@ -90,34 +89,29 @@ TFuture<void> TGarbageCollector::Collect()
     return CollectPromise_;
 }
 
-int TGarbageCollector::WeakRefObject(TObjectBase* object)
+int TGarbageCollector::WeakRefObject(TObjectBase* object, TEpoch epoch)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     Y_ASSERT(!IsRecovery());
     Y_ASSERT(object->IsAlive());
     Y_ASSERT(object->IsTrunk());
 
-    int weakRefCounter = object->WeakRefObject();
+    int weakRefCounter = object->WeakRefObject(epoch);
     if (weakRefCounter == 1) {
         ++LockedObjectCount_;
-        RegisterLocked(object);
     }
     return weakRefCounter;
 }
 
-int TGarbageCollector::WeakUnrefObject(TObjectBase* object)
+int TGarbageCollector::WeakUnrefObject(TObjectBase* object, TEpoch epoch)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     Y_ASSERT(!IsRecovery());
     Y_ASSERT(object->IsTrunk());
 
-    int weakRefCounter = object->WeakUnrefObject();
+    int weakRefCounter = object->WeakUnrefObject(epoch);
     if (weakRefCounter == 0) {
         --LockedObjectCount_;
-
-        if (!object->IsDestroyed()) {
-            UnregisterLocked(object);
-        }
 
         if (!object->IsAlive() && object->IsDestroyed()) {
             LOG_TRACE("Ghost disposed (ObjectId: %v)",
@@ -161,24 +155,22 @@ void TGarbageCollector::DestroyZombie(TObjectBase* object)
 
     YCHECK(Zombies_.erase(object) == 1);
 
-    if (object->GetObjectWeakRefCounter() > 0) {
-        UnregisterLocked(object);
-    }
-
     const auto& objectManager = Bootstrap_->GetObjectManager();
+    int weakRefCounter = objectManager->GetObjectWeakRefCounter(object);
+
     const auto& handler = objectManager->GetHandler(object->GetType());
     handler->DestroyObject(object);
 
-    if (object->GetObjectWeakRefCounter() > 0) {
+    if (weakRefCounter > 0) {
         LOG_TRACE_UNLESS(IsRecovery(), "Zombie has become ghost (ObjectId: %v, WeakRefCounter: %v)",
             object->GetId(),
-            object->GetObjectWeakRefCounter());
+            weakRefCounter);
         YCHECK(Ghosts_.insert(object).second);
         object->SetDestroyed();
     } else {
         LOG_TRACE_UNLESS(IsRecovery(), "Zombie disposed (ObjectId: %v)",
             object->GetId(),
-            object->GetObjectWeakRefCounter());
+            weakRefCounter);
         delete object;
     }
 }
@@ -186,20 +178,6 @@ void TGarbageCollector::DestroyZombie(TObjectBase* object)
 void TGarbageCollector::Reset()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    LOG_INFO("Started resetting locked objects (Count: %v)",
-        LockedObjects_.size());
-    for (int index = 0; index < static_cast<int>(LockedObjects_.size()); ++index) {
-        auto* object = LockedObjects_[index];
-        Y_ASSERT(!object->IsDestroyed());
-        object->ResetWeakRefCounter();
-        auto* data = object->GetDynamicData();
-        Y_ASSERT(data->LockedListIndex == index);
-        data->LockedListIndex = -1;
-    }
-    LockedObjects_.clear();
-
-    LOG_INFO("Finished resetting locked objects");
 
     LOG_INFO("Started deleting ghost objects (Count: %v)",
         Ghosts_.size());
@@ -273,33 +251,6 @@ int TGarbageCollector::GetLockedCount() const
 bool TGarbageCollector::IsRecovery()
 {
     return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsRecovery();
-}
-
-void TGarbageCollector::RegisterLocked(TObjectBase* object)
-{
-    Y_ASSERT(object->IsAlive());
-    auto* data = object->GetDynamicData();
-    Y_ASSERT(data->LockedListIndex == -1);
-    data->LockedListIndex = static_cast<int>(LockedObjects_.size());
-    LockedObjects_.push_back(object);
-}
-
-void TGarbageCollector::UnregisterLocked(TObjectBase* object)
-{
-    auto* thisObject = object;
-    auto* thisData = thisObject->GetDynamicData();
-    int thisIndex = thisData->LockedListIndex;
-    Y_ASSERT(thisIndex >= 0);
-    Y_ASSERT(LockedObjects_[thisIndex] == thisObject);
-    auto* lastObject = LockedObjects_.back();
-    auto* lastData = lastObject->GetDynamicData();
-    Y_ASSERT(lastData->LockedListIndex == LockedObjects_.size() - 1);
-    if (thisObject != lastObject) {
-        LockedObjects_[thisIndex] = lastObject;
-        lastData->LockedListIndex = thisIndex;
-    }
-    thisData->LockedListIndex = -1;
-    LockedObjects_.pop_back();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

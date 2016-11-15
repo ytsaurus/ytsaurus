@@ -14,12 +14,7 @@ namespace NObjectServer {
 
 struct TObjectDynamicData
     : public NHydra::TEntityDynamicDataBase
-{
-    //! If the object is not locked or is a ghost then this is -1.
-    //! If the object is locked and is not a ghost then this is the index in the global list of
-    //! locked objects maintained by TGarbageCollector.
-    int LockedListIndex = -1;
-};
+{ };
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,13 +65,13 @@ public:
     /*!
      *  \returns the incremented counter.
      */
-    int WeakRefObject();
+    int WeakRefObject(TEpoch epoch);
 
     //! Decrements the object's weak reference counter by one.
     /*!
      *  \returns the decremented counter.
      */
-    int WeakUnrefObject();
+    int WeakUnrefObject(TEpoch epoch);
 
 
     //! Increments the object's import reference counter by one.
@@ -92,14 +87,11 @@ public:
     int ImportUnrefObject();
 
 
-    //! Sets weak reference counter to zero.
-    void ResetWeakRefCounter();
-
     //! Returns the current reference counter.
     int GetObjectRefCounter() const;
 
     //! Returns the current weak reference counter.
-    int GetObjectWeakRefCounter() const;
+    int GetObjectWeakRefCounter(TEpoch epoch) const;
 
     //! Returns the current import reference counter.
     int GetImportRefCounter() const;
@@ -148,6 +140,7 @@ protected:
 
     int RefCounter_ = 0;
     int WeakRefCounter_ = 0;
+    TEpoch WeakLockEpoch_ = 0;
     int ImportRefCounter_ = 0;
 
     struct {

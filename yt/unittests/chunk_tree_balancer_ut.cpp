@@ -89,6 +89,11 @@ public:
         object->UnrefObject();
     }
 
+    virtual int GetObjectRefCounter(NObjectServer::TObjectBase* object) override
+    {
+        return object->GetObjectRefCounter();
+    }
+
     virtual TChunkList* CreateChunkList() override
     {
         auto chunkList = std::unique_ptr<TChunkList>(new TChunkList(GenerateChunkListId()));

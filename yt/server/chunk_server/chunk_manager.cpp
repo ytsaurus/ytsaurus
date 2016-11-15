@@ -134,6 +134,11 @@ public:
         Bootstrap_->GetObjectManager()->UnrefObject(object);
     }
 
+    virtual int GetObjectRefCounter(TObjectBase* object) override
+    {
+        return Bootstrap_->GetObjectManager()->GetObjectRefCounter(object);
+    }
+
     virtual TChunkList* CreateChunkList() override
     {
         return Bootstrap_->GetChunkManager()->CreateChunkList();

@@ -549,7 +549,7 @@ int TObjectManager::RefObject(TObjectBase* object)
     LOG_TRACE_UNLESS(IsRecovery(), "Object referenced (Id: %v, RefCounter: %v, WeakRefCounter: %v)",
         object->GetId(),
         refCounter,
-        object->GetObjectWeakRefCounter());
+        GetObjectWeakRefCounter(object));
 
     if (refCounter == 1) {
         GarbageCollector_->UnregisterZombie(object);
@@ -568,7 +568,7 @@ int TObjectManager::UnrefObject(TObjectBase* object, int count)
     LOG_TRACE_UNLESS(IsRecovery(), "Object unreferenced (Id: %v, RefCounter: %v, WeakRefCounter: %v)",
         object->GetId(),
         refCounter,
-        object->GetObjectWeakRefCounter());
+        GetObjectWeakRefCounter(object));
 
     if (refCounter == 0) {
         const auto& handler = GetHandler(object);
@@ -591,14 +591,24 @@ int TObjectManager::UnrefObject(TObjectBase* object, int count)
     return refCounter;
 }
 
+int TObjectManager::GetObjectRefCounter(TObjectBase* object)
+{
+    return object->GetObjectRefCounter();
+}
+
 int TObjectManager::WeakRefObject(TObjectBase* object)
 {
-    return GarbageCollector_->WeakRefObject(object);
+    return GarbageCollector_->WeakRefObject(object, CurrentEpoch_);
 }
 
 int TObjectManager::WeakUnrefObject(TObjectBase* object)
 {
-    return GarbageCollector_->WeakUnrefObject(object);
+    return GarbageCollector_->WeakUnrefObject(object, CurrentEpoch_);
+}
+
+int TObjectManager::GetObjectWeakRefCounter(TObjectBase* object)
+{
+    return object->GetObjectWeakRefCounter(CurrentEpoch_);
 }
 
 void TObjectManager::SaveKeys(NCellMaster::TSaveContext& context) const
@@ -686,6 +696,7 @@ void TObjectManager::OnRecoveryStarted()
 {
     Profiler.SetEnabled(false);
 
+    ++CurrentEpoch_;
     GarbageCollector_->Reset();
 }
 
@@ -1251,6 +1262,11 @@ TTagId TObjectManager::GetMethodTagId(const Stroka& method)
     auto tag = TProfileManager::Get()->RegisterTag("method", method);
     YCHECK(MethodToTag_.insert(std::make_pair(method, tag)).second);
     return tag;
+}
+
+TEpoch TObjectManager::GetCurrentEpoch()
+{
+    return CurrentEpoch_;
 }
 
 void TObjectManager::OnProfiling()

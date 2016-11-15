@@ -53,16 +53,22 @@ inline int TObjectBase::UnrefObject(int count)
     return RefCounter_ -= count;
 }
 
-inline int TObjectBase::WeakRefObject()
+inline int TObjectBase::WeakRefObject(TEpoch epoch)
 {
     YCHECK(IsAlive());
     Y_ASSERT(WeakRefCounter_ >= 0);
+
+    if (epoch != WeakLockEpoch_) {
+        WeakRefCounter_ = 0;
+        WeakLockEpoch_ = epoch;
+    }
     return ++WeakRefCounter_;
 }
 
-inline int TObjectBase::WeakUnrefObject()
+inline int TObjectBase::WeakUnrefObject(TEpoch epoch)
 {
     Y_ASSERT(WeakRefCounter_ > 0);
+    Y_ASSERT(WeakLockEpoch_ == epoch);
     return --WeakRefCounter_;
 }
 
@@ -77,19 +83,14 @@ inline int TObjectBase::ImportUnrefObject()
     return --ImportRefCounter_;
 }
 
-inline void TObjectBase::ResetWeakRefCounter()
-{
-    WeakRefCounter_ = 0;
-}
-
 inline int TObjectBase::GetObjectRefCounter() const
 {
     return RefCounter_;
 }
 
-inline int TObjectBase::GetObjectWeakRefCounter() const
+inline int TObjectBase::GetObjectWeakRefCounter(TEpoch epoch) const
 {
-    return WeakRefCounter_;
+    return WeakLockEpoch_== epoch ? WeakRefCounter_ : 0;
 }
 
 inline int TObjectBase::GetImportRefCounter() const
