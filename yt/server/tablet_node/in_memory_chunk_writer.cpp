@@ -1,4 +1,5 @@
 #include "tablet.h"
+#include "in_memory_chunk_writer.h"
 #include "in_memory_manager.h"
 
 #include <yt/ytlib/chunk_client/chunk_spec.h>
@@ -20,14 +21,15 @@ using NYT::TRange;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TVersionedChunkInMemoryWriter
-    : public IVersionedChunkWriter
+template <class TWriter, class TRow>
+class TInMemoryChunkWriterBase
+    : public TWriter
 {
 public:
-    TVersionedChunkInMemoryWriter(
+    TInMemoryChunkWriterBase(
         TInMemoryManagerPtr inMemoryManager,
         TTabletSnapshotPtr tabletSnapshot,
-        IVersionedChunkWriterPtr underlyingWriter,
+        TIntrusivePtr<TWriter> underlyingWriter,
         IChunkWriterPtr underlyingChunkWriter)
         : InMemoryManager_(std::move(inMemoryManager))
         , TabletSnapshot_(std::move(tabletSnapshot))
@@ -35,7 +37,7 @@ public:
         , UnderlyingChunkWriter_(std::move(underlyingChunkWriter))
     { }
 
-    virtual bool Write(const TRange<TVersionedRow>& rows) override
+    virtual bool Write(const TRange<TRow>& rows) override
     {
         return UnderlyingWriter_->Write(rows);
     }
@@ -65,11 +67,6 @@ public:
         }));
 
         return result;
-    }
-
-    virtual i64 GetRowCount() const override
-    {
-        return UnderlyingWriter_->GetRowCount();
     }
 
     virtual i64 GetMetaSize() const override
@@ -107,20 +104,75 @@ public:
         return UnderlyingWriter_->GetDataStatistics();
     }
 
-private:
+protected:
     const TInMemoryManagerPtr InMemoryManager_;
     const TTabletSnapshotPtr TabletSnapshot_;
-    const IVersionedChunkWriterPtr UnderlyingWriter_;
+    const TIntrusivePtr<TWriter> UnderlyingWriter_;
     const IChunkWriterPtr UnderlyingChunkWriter_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TVersionedMultiChunkInMemoryWriter
+class TInMemorySchemalessChunkWriter
+    : public TInMemoryChunkWriterBase<ISchemalessChunkWriter, TUnversionedRow>
+{
+    using TBase = TInMemoryChunkWriterBase<ISchemalessChunkWriter, TUnversionedRow>;
+
+public:
+    TInMemorySchemalessChunkWriter(
+        TInMemoryManagerPtr inMemoryManager,
+        TTabletSnapshotPtr tabletSnapshot,
+        ISchemalessChunkWriterPtr underlyingWriter,
+        IChunkWriterPtr underlyingChunkWriter)
+        : TBase(std::move(inMemoryManager),
+            std::move(tabletSnapshot),
+            std::move(underlyingWriter),
+            std::move(underlyingChunkWriter))
+    { }
+
+    virtual const TNameTablePtr& GetNameTable() const override
+    {
+        return UnderlyingWriter_->GetNameTable();
+    }
+
+    virtual const TTableSchema& GetSchema() const override
+    {
+        return UnderlyingWriter_->GetSchema();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TInMemoryVersionedChunkWriter
+    : public TInMemoryChunkWriterBase<IVersionedChunkWriter, TVersionedRow>
+{
+    using TBase = TInMemoryChunkWriterBase<IVersionedChunkWriter, TVersionedRow>;
+
+public:
+    TInMemoryVersionedChunkWriter(
+        TInMemoryManagerPtr inMemoryManager,
+        TTabletSnapshotPtr tabletSnapshot,
+        IVersionedChunkWriterPtr underlyingWriter,
+        IChunkWriterPtr underlyingChunkWriter)
+        : TBase(std::move(inMemoryManager),
+            std::move(tabletSnapshot),
+            std::move(underlyingWriter),
+            std::move(underlyingChunkWriter))
+    { }
+
+    virtual i64 GetRowCount() const override
+    {
+        return UnderlyingWriter_->GetRowCount();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TInMemoryVersionedMultiChunkWriter
     : public IVersionedMultiChunkWriter
 {
 public:
-    TVersionedMultiChunkInMemoryWriter(
+    TInMemoryVersionedMultiChunkWriter(
         TInMemoryManagerPtr inMemoryManager,
         TTabletSnapshotPtr tabletSnapshot,
         IVersionedMultiChunkWriterPtr underlyingWriter)
@@ -197,7 +249,31 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IVersionedChunkWriterPtr CreateVersionedChunkInMemoryWriter(
+ISchemalessChunkWriterPtr CreateInMemorySchemalessChunkWriter(
+    TChunkWriterConfigPtr config,
+    TChunkWriterOptionsPtr options,
+    TInMemoryManagerPtr inMemoryManager,
+    TTabletSnapshotPtr tabletSnapshot,
+    IChunkWriterPtr chunkWriter,
+    const TChunkTimestamps& chunkTimestamps,
+    NChunkClient::IBlockCachePtr blockCache)
+{
+    auto underlyingWriter = CreateSchemalessChunkWriter(
+        config,
+        options,
+        tabletSnapshot->PhysicalSchema,
+        chunkWriter,
+        chunkTimestamps,
+        std::move(blockCache));
+
+    return New<TInMemorySchemalessChunkWriter>(
+        std::move(inMemoryManager),
+        std::move(tabletSnapshot),
+        std::move(underlyingWriter),
+        std::move(chunkWriter));
+}
+
+IVersionedChunkWriterPtr CreateInMemoryVersionedChunkWriter(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
     TInMemoryManagerPtr inMemoryManager,
@@ -212,19 +288,19 @@ IVersionedChunkWriterPtr CreateVersionedChunkInMemoryWriter(
         chunkWriter,
         std::move(blockCache));
 
-    return New<TVersionedChunkInMemoryWriter>(
+    return New<TInMemoryVersionedChunkWriter>(
         std::move(inMemoryManager),
         std::move(tabletSnapshot),
         std::move(underlyingWriter),
         std::move(chunkWriter));
 }
 
-IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkInMemoryWriter(
+IVersionedMultiChunkWriterPtr CreateInMemoryVersionedMultiChunkWriter(
     TInMemoryManagerPtr inMemoryManager,
     TTabletSnapshotPtr tabletSnapshot,
     IVersionedMultiChunkWriterPtr underlyingWriter)
 {
-    return New<TVersionedMultiChunkInMemoryWriter>(
+    return New<TInMemoryVersionedMultiChunkWriter>(
         std::move(inMemoryManager),
         std::move(tabletSnapshot),
         std::move(underlyingWriter));

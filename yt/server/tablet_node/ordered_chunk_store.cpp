@@ -214,7 +214,7 @@ ISchemafulReaderPtr TOrderedChunkStore::CreateReader(
         std::move(blockCache),
         readSchema,
         TKeyColumns(),
-        *ChunkMeta_,
+        GetChunkMeta(),
         {readRange});
 
     return New<TReader>(
@@ -226,9 +226,9 @@ ISchemafulReaderPtr TOrderedChunkStore::CreateReader(
         lowerRowIndex);
 }
 
-IBlockCachePtr TOrderedChunkStore::GetBlockCache()
+TKeyComparer TOrderedChunkStore::GetKeyComparer()
 {
-    return GetNullBlockCache();
+    return TKeyComparer();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
