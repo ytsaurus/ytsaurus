@@ -13,8 +13,6 @@
 #include <yt/server/scheduler/scheduler.h>
 #include <yt/server/scheduler/scheduler_service.h>
 
-#include <yt/ytlib/admin/admin_service.h>
-
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/connection.h>
 
@@ -66,7 +64,6 @@
 namespace NYT {
 namespace NCellScheduler {
 
-using namespace NAdmin;
 using namespace NBus;
 using namespace NElection;
 using namespace NHydra;
@@ -192,8 +189,6 @@ void TBootstrap::DoRun()
             ->GetOrchidService()));
 
     SetBuildAttributes(orchidRoot, "scheduler");
-
-    RpcServer_->RegisterService(CreateAdminService(GetControlInvoker()));
 
     RpcServer_->RegisterService(CreateOrchidService(
         orchidRoot,

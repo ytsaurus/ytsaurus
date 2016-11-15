@@ -6,10 +6,6 @@ ENDIF()
 SET(PROTO_NAMESPACE yt/${YT_ABI})
 
 SET(YT_SRCS
-  ${CMAKE_CURRENT_LIST_DIR}/admin/admin_service.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/admin/admin_service.proto
-  ${CMAKE_CURRENT_LIST_DIR}/admin/private.cpp 
-
   ${CMAKE_CURRENT_LIST_DIR}/api/admin.cpp
   ${CMAKE_CURRENT_LIST_DIR}/api/client.cpp
   ${CMAKE_CURRENT_LIST_DIR}/api/config.cpp

@@ -54,8 +54,6 @@
 
 #include <yt/server/hive/cell_directory_synchronizer.h>
 
-#include <yt/ytlib/admin/admin_service.h>
-
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/connection.h>
 
@@ -106,7 +104,6 @@
 namespace NYT {
 namespace NCellNode {
 
-using namespace NAdmin;
 using namespace NBus;
 using namespace NObjectClient;
 using namespace NChunkClient;
@@ -490,8 +487,6 @@ void TBootstrap::DoRun()
     RpcServer->RegisterService(CreateOrchidService(
         OrchidRoot,
         GetControlInvoker()));
-
-    RpcServer->RegisterService(CreateAdminService(GetControlInvoker()));
 
     LOG_INFO("Listening for HTTP requests on port %v", Config->MonitoringPort);
 

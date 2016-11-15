@@ -132,7 +132,6 @@ public:
         PYCXX_ADD_KEYWORDS_METHOD(execute, Execute, "Executes the request");
         PYCXX_ADD_KEYWORDS_METHOD(get_command_descriptor, GetCommandDescriptor, "Describes the command");
         PYCXX_ADD_KEYWORDS_METHOD(get_command_descriptors, GetCommandDescriptors, "Describes all commands");
-        PYCXX_ADD_KEYWORDS_METHOD(kill_process, KillProcess, "Force remote YT process (node, scheduler or master) to exit immediately");
         PYCXX_ADD_KEYWORDS_METHOD(build_snapshot, BuildSnapshot, "Force to build a snapshot");
         PYCXX_ADD_KEYWORDS_METHOD(gc_collect, GCCollect, "Run garbage collection");
         PYCXX_ADD_KEYWORDS_METHOD(clear_metadata_caches, ClearMetadataCaches, "Clear metadata caches");
@@ -251,30 +250,6 @@ public:
         } CATCH;
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, GCCollect)
-
-    Py::Object KillProcess(Py::Tuple& args, Py::Dict& kwargs)
-    {
-        auto options = NApi::TKillProcessOptions();
-
-        if (!HasArgument(args, kwargs, "address")) {
-            throw CreateYtError("Missing argument 'address'");
-        }
-        auto address = ConvertStringObjectToStroka(ExtractArgument(args, kwargs, "address"));
-
-        if (HasArgument(args, kwargs, "exit_code")) {
-            options.ExitCode = static_cast<int>(Py::Int(ExtractArgument(args, kwargs, "exit_code")));
-        }
-
-        ValidateArgumentsEmpty(args, kwargs);
-
-        try {
-            auto admin = DriverInstance_->GetConnection()->CreateAdmin();
-            WaitFor(admin->KillProcess(address, options))
-                .ThrowOnError();
-            return Py::None();
-        } CATCH;
-    }
-    PYCXX_KEYWORDS_METHOD_DECL(TDriver, KillProcess)
 
     Py::Object BuildSnapshot(Py::Tuple& args, Py::Dict& kwargs)
     {
