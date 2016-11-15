@@ -97,9 +97,10 @@ class TestOperations(object):
         assert parse_bool(yt.get_attribute(res_table, "sorted"))
         check([{"x": 1}], yt.read_table(res_table))
 
-        yt.run_merge(yt.TablePath(tableX, columns=["y"]), res_table)
-        assert not parse_bool(yt.get_attribute(res_table, "sorted"))
-        check([{}], yt.read_table(res_table))
+        # XXX(asaitgalin): Uncomment when st/YT-5770 is done.
+        # yt.run_merge(yt.TablePath(tableX, columns=["y"]), res_table)
+        # assert not parse_bool(yt.get_attribute(res_table, "sorted"))
+        # check([{}], yt.read_table(res_table))
 
     def test_auto_merge(self):
         table = TEST_DIR + "/table"
@@ -603,7 +604,7 @@ print(op.id)
             "YT_CONFIG_PATCHES": dumps_yt_config()
         }
 
-        op_id = subprocess.check_output(["python", file.name, table, table, PYTHONPATH],
+        op_id = subprocess.check_output([sys.executable, file.name, table, table, PYTHONPATH],
                                         env=env, stderr=sys.stderr).strip()
         time.sleep(3)
 
@@ -910,7 +911,8 @@ if __name__ == "__main__":
                                        TEST_DIR + "/other_table")
                 f.write(mapper)
 
-            op_id = subprocess.check_output(["python", f.name]).strip()
+            op_id = subprocess.check_output([sys.executable, f.name],
+                                            env={"PYTHONPATH": PYTHONPATH}).strip()
             op_path = "//sys/operations/{0}".format(op_id)
             while not yt.exists(op_path) \
                     or yt.get(op_path + "/@state") not in ["aborted", "failed", "completed"]:

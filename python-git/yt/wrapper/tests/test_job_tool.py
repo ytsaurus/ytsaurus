@@ -47,12 +47,12 @@ assert os.environ["YT_JOB_INDEX"] == "0"
 
 for line in sys.stdin:
     fd = int(line)
-    os.write(fd, "message for " + str(fd))
+    os.fdopen(fd, "w").write("message for " + str(fd))
 """
         with open(os.path.join(sandbox_path, "script.py"), "w") as fout:
             fout.write(script)
         with open(command_path, "w") as fout:
-            fout.write("python script.py")
+            fout.write(sys.executable + " script.py")
         with open(input_path, "w") as fout:
             if use_yamr_descriptors:
                 descriptors = [1, 3, 4, 5, 6]
@@ -96,6 +96,7 @@ class TestJobTool(object):
                     break
 
         job_path = subprocess.check_output([
+            sys.executable,
             self.JOB_TOOL_BINARY,
             "prepare-job-environment",
             operation_id,

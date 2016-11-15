@@ -13,7 +13,7 @@ import yt.yson as yson
 import yt.json as json
 import yt.subprocess_wrapper as subprocess
 
-from yt.packages.six import iterkeys, itervalues, iteritems, PY3, Iterator
+from yt.packages.six import iterkeys, itervalues, iteritems, PY3, Iterator, b
 from yt.packages.six.moves import xrange, filter as ifilter
 
 import yt.wrapper as yt
@@ -449,8 +449,8 @@ def test_frozen_dict():
 
 class TestResponseStream(object):
     def test_chunk_iterator(self):
-        random_line = lambda: ''.join(random.choice(string.ascii_lowercase) for _ in xrange(100))
-        s = '\n'.join(random_line() for _ in xrange(3))
+        random_line = lambda: b(''.join(random.choice(string.ascii_lowercase) for _ in xrange(100)))
+        s = b'\n'.join(random_line() for _ in xrange(3))
 
         class StringIterator(Iterator):
             def __init__(self, string, chunk_size=10):
@@ -471,7 +471,7 @@ class TestResponseStream(object):
                     if not self.empty_string_before_finish_yielded:
                         # Check that ResponseStream will call next one more time after empty response.
                         self.empty_string_before_finish_yielded = True
-                        return ""
+                        return b""
                     else:
                         self.stop_iteration_raised = True
                         raise StopIteration()
@@ -509,17 +509,17 @@ class TestResponseStream(object):
         assert string_iterator.process_error_called
 
         assert len(chunks) == 10
-        assert "".join(chunks) == s[210:]
-        assert stream.read() == ""
+        assert b"".join(chunks) == s[210:]
+        assert stream.read() == b""
 
         stream.close()
         assert len(close_list) > 0
 
     def test_empty_response_stream(self):
         stream = EmptyResponseStream()
-        assert stream.read() == ""
+        assert stream.read() == b""
         assert len([x for x in stream.chunk_iter()]) == 0
-        assert stream.readline() == ""
+        assert stream.readline() == b""
 
         values = []
         for value in stream:

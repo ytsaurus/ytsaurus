@@ -622,7 +622,7 @@ class YTInstance(object):
     def create_native_client(self, driver_name="driver"):
         driver_config_path = self.config_paths[driver_name]
 
-        with open(driver_config_path) as f:
+        with open(driver_config_path, "rb") as f:
             driver_config = yson.load(f)
 
         config = {
