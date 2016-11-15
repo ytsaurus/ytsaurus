@@ -57,6 +57,10 @@ public:
         TChunk* chunk,
         double maxFillFactor);
 
+    int GetMaxReplicasPerRack(
+        TChunk* chunk,
+        TNullable<int> replicationFactorOverride = Null);
+
 private:
     class TTargetCollector;
 
@@ -107,10 +111,6 @@ private:
     void AddSessionHint(
         TNode* node,
         NChunkClient::ESessionType sessionType);
-
-    int GetMaxReplicasPerRack(
-        TChunk* chunk,
-        TNullable<int> replicationFactorOverride);
 
 };
 

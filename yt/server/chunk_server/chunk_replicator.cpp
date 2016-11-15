@@ -181,7 +181,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
     TChunkStatistics result;
 
     int replicationFactor = chunk->ComputeReplicationFactor();
-    int maxReplicasPerRack = std::min(Config_->MaxReplicasPerRack, chunk->GetMaxReplicasPerRack(Null));
+    int maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(chunk);
 
     int replicaCount = 0;
     int decommissionedReplicaCount = 0;
@@ -247,7 +247,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
     auto* codec = NErasure::GetCodec(chunk->GetErasureCodec());
     int totalPartCount = codec->GetTotalPartCount();
     int dataPartCount = codec->GetDataPartCount();
-    int maxReplicasPerRack = std::min(Config_->MaxReplicasPerRack, codec->GetGuaranteedRepairablePartCount());
+    int maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(chunk);
     std::array<TNodePtrWithIndexList, ChunkReplicaIndexBound> decommissionedReplicas{};
     std::array<ui8, MaxRackCount + 1> perRackReplicaCounters{};
     int unsafelyPlacedReplicaIndex = -1; // an arbitrary replica collocated with too may others within a single rack
@@ -326,7 +326,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
 
     int replicationFactor = chunk->ComputeReplicationFactor();
     int readQuorum = chunk->GetReadQuorum();
-    int maxReplicasPerRack = chunk->GetMaxReplicasPerRack(Null);
+    int maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(chunk, Null);
 
     int replicaCount = 0;
     int decommissionedReplicaCount = 0;
