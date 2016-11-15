@@ -23,6 +23,11 @@ struct TBuildSnapshotOptions
 struct TGCCollectOptions
 { };
 
+struct TKillProcessOptions
+{
+    int ExitCode = 42;
+};
+
 struct IAdmin
     : public virtual TRefCounted
 {
@@ -31,6 +36,10 @@ struct IAdmin
 
     virtual TFuture<void> GCCollect(
         const TGCCollectOptions& options = TGCCollectOptions()) = 0;
+
+    virtual TFuture<void> KillProcess(
+        const Stroka& address,
+        const TKillProcessOptions& options = TKillProcessOptions()) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IAdmin)
