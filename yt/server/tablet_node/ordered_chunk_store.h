@@ -49,8 +49,7 @@ public:
 private:
     class TReader;
 
-    virtual NChunkClient::IBlockCachePtr GetBlockCache() override;
-
+    virtual NTableClient::TKeyComparer GetKeyComparer() override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TOrderedChunkStore)
