@@ -499,9 +499,15 @@ void TChunkPlacement::AddSessionHint(TNode* node, ESessionType sessionType)
 
 int TChunkPlacement::GetMaxReplicasPerRack(TChunk* chunk, TNullable<int> replicationFactorOverride)
 {
-    return std::min(
-        Config_->MaxReplicasPerRack,
-        chunk->GetMaxReplicasPerRack(replicationFactorOverride));
+    int result = chunk->GetMaxReplicasPerRack(replicationFactorOverride);
+    result = std::min(result, Config_->MaxReplicasPerRack);
+    switch (chunk->GetType()) {
+        case EObjectType::Chunk:         result = std::min(result, Config_->MaxRegularReplicasPerRack); break;
+        case EObjectType::ErasureChunk:  result = std::min(result, Config_->MaxErasureReplicasPerRack); break;
+        case EObjectType::JournalChunk:  result = std::min(result, Config_->MaxJournalReplicasPerRack); break;
+        default:                         YUNREACHABLE();
+    }
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
