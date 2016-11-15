@@ -409,7 +409,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
 
         auto chunkWriter = CreateConfirmingWriter(
             Config_->ChunkWriter,
-            tabletSnapshot->WriterOptions,
+            writerOptions,
             Client_->GetNativeConnection()->GetPrimaryMasterCellTag(),
             transaction->GetId(),
             NullChunkListId,
@@ -418,7 +418,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
 
         auto tableWriter = CreateVersionedChunkWriter(
             Config_->ChunkWriter,
-            tabletSnapshot->WriterOptions,
+            writerOptions,
             tabletSnapshot->PhysicalSchema,
             chunkWriter);
 
