@@ -139,9 +139,6 @@ void TChunkReplicator::Stop()
         auto* node = pair.second;
         node->Jobs().clear();
     }
-
-    RefreshScanner_->Stop();
-    PropertiesUpdateScanner_->Stop();
 }
 
 void TChunkReplicator::TouchChunk(TChunk* chunk)
@@ -913,7 +910,8 @@ bool TChunkReplicator::CreateReplicationJob(
         return true;
     }
 
-    if (chunk->GetScanFlag(EChunkScanKind::Refresh)) {
+    const auto& objectManager = Bootstrap_->GetObjectManager();
+    if (chunk->GetScanFlag(EChunkScanKind::Refresh, objectManager->GetCurrentEpoch())) {
         return true;
     }
 
@@ -981,7 +979,9 @@ bool TChunkReplicator::CreateBalancingJob(
     TJobPtr* job)
 {
     auto* chunk = chunkWithIndexes.GetPtr();
-    if (chunk->GetScanFlag(EChunkScanKind::Refresh)) {
+
+    const auto& objectManager = Bootstrap_->GetObjectManager();
+    if (chunk->GetScanFlag(EChunkScanKind::Refresh, objectManager->GetCurrentEpoch())) {
         return true;
     }
 
@@ -1016,10 +1016,12 @@ bool TChunkReplicator::CreateRemovalJob(
     TJobPtr* job)
 {
     const auto& chunkManager = Bootstrap_->GetChunkManager();
+    const auto& objectManager = Bootstrap_->GetObjectManager();
+
     auto* chunk = chunkManager->FindChunk(chunkIdWithIndexes.Id);
     // NB: Allow more than one job for dead chunks.
     if (IsObjectAlive(chunk)) {
-        if (chunk->GetScanFlag(EChunkScanKind::Refresh)) {
+        if (chunk->GetScanFlag(EChunkScanKind::Refresh, objectManager->GetCurrentEpoch())) {
             return true;
         }
         if (chunk->IsJobScheduled()) {
@@ -1052,7 +1054,8 @@ bool TChunkReplicator::CreateRepairJob(
         return true;
     }
 
-    if (chunk->GetScanFlag(EChunkScanKind::Refresh)) {
+    const auto& objectManager = Bootstrap_->GetObjectManager();
+    if (chunk->GetScanFlag(EChunkScanKind::Refresh, objectManager->GetCurrentEpoch())) {
         return true;
     }
 

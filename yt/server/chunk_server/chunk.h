@@ -43,6 +43,9 @@ struct TChunkDynamicData
     //! Indicates that certain background scans were scheduled for this chunk.
     EChunkScanKind ScanFlags = EChunkScanKind::None;
 
+    //! Indicates for which epoch #ScanFlags are valid.
+    NObjectServer::TEpoch ScanEpoch = 0;
+
     //! Contains a valid iterator for those chunks belonging to the repair queue
     //! and |Null| for others.
     TNullable<TChunkRepairQueueIterator> RepairQueueIterator;
@@ -110,9 +113,9 @@ public:
     bool GetMovable() const;
     void SetMovable(bool value);
 
-    bool GetScanFlag(EChunkScanKind kind) const;
-    void SetScanFlag(EChunkScanKind kind);
-    void ClearScanFlag(EChunkScanKind kind);
+    bool GetScanFlag(EChunkScanKind kind, NObjectServer::TEpoch epoch) const;
+    void SetScanFlag(EChunkScanKind kind, NObjectServer::TEpoch epoch);
+    void ClearScanFlag(EChunkScanKind kind, NObjectServer::TEpoch epoch);
     TChunk* GetNextScannedChunk(EChunkScanKind kind) const;
 
     const TNullable<TChunkRepairQueueIterator>& GetRepairQueueIterator() const;
