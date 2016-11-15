@@ -18,6 +18,8 @@
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/public.h>
 
+#include <yt/ytlib/object_client/helpers.h>
+
 #include <yt/ytlib/cypress_client/public.h>
 
 #include <yt/ytlib/file_client/file_ypath_proxy.h>
@@ -238,8 +240,19 @@ protected:
         void Persist(const TPersistenceContext& context);
     };
 
-    struct TInputTable
+    //! Common pattern in scheduler is to lock input object and
+    //! then request attributes of this object by id.
+    struct TLockedUserObject
         : public NChunkClient::TUserObject
+    {
+        virtual Stroka GetPath() const override
+        {
+            return NObjectClient::FromObjectId(ObjectId);
+        }
+    };
+
+    struct TInputTable
+        : public TLockedUserObject
     {
         //! Number of chunks in the whole table (without range selectors).
         int ChunkCount = -1;
@@ -320,7 +333,7 @@ protected:
 
 
     struct TUserFile
-        : public NChunkClient::TUserObject
+        : public TLockedUserObject
     {
         std::shared_ptr<NYTree::IAttributeDictionary> Attributes;
         EOperationStage Stage = EOperationStage::None;
@@ -707,12 +720,14 @@ protected:
     // Preparation.
     void FetchInputTables();
     void LockInputTables();
+    void GetInputTablesAttributes();
     void GetOutputTablesSchema();
     virtual void PrepareOutputTables();
     void BeginUploadOutputTables();
     void GetOutputTablesUploadParams();
-    void FetchUserFiles(std::vector<TUserFile>* files);
-    void LockUserFiles(std::vector<TUserFile>* files);
+    void FetchUserFiles();
+    void LockUserFiles();
+    void GetUserFilesAttributes();
     void CreateLivePreviewTables();
     void LockLivePreviewTables();
     void CollectTotals();

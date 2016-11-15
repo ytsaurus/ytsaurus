@@ -40,6 +40,18 @@ class TestLocks(YTEnvSetup):
 
         abort_transaction(tx)
 
+    # Uncomment when new response format will be supported in api/v4.
+    #def test_lock_full_response(self):
+    #    create("map_node", "//tmp/node")
+
+    #    tx = start_transaction()
+    #    rsp = lock("//tmp/node", mode="snapshot", tx=tx, full_response=True)
+    #    assert rsp.keys() == ["lock_id", "node_id"]
+    #    assert rsp["lock_id"] == get("//tmp/node/@locks/0/id")
+
+    #    set("//tmp/node", {})
+    #    assert rsp["node_id"] == get("//tmp/node/@id", tx=tx)
+
     def test_shared_lock_inside_tx(self):
         tx_outer = start_transaction()
         create("table", "//tmp/table", tx=tx_outer)
@@ -623,7 +635,7 @@ class TestLocks(YTEnvSetup):
     def test_nested_tx1(self):
         tx1 = start_transaction()
         tx2 = start_transaction(tx = tx1)
-        lock_id = lock("//tmp", tx = tx2)
+        lock("//tmp", tx = tx2)
         assert len(get("//tmp/@locks")) == 1
         abort_transaction(tx2)
         assert len(get("//tmp/@locks")) == 0

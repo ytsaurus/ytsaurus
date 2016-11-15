@@ -43,7 +43,7 @@ void GetUserObjectBasicAttributes(
 
     for (auto iterator = objects.Begin(); iterator != objects.End(); ++iterator) {
         const auto& userObject = *iterator;
-        auto req = NObjectClient::TObjectYPathProxy::GetBasicAttributes(userObject.Path.GetPath());
+        auto req = NObjectClient::TObjectYPathProxy::GetBasicAttributes(userObject.GetPath());
         req->set_permissions(static_cast<ui32>(permission));
         NCypressClient::SetTransactionId(req, transactionId);
         NCypressClient::SetSuppressAccessTracking(req, suppressAccessTracking);
@@ -57,7 +57,7 @@ void GetUserObjectBasicAttributes(
     auto rspsOrError = batchRsp->GetResponses<NObjectClient::TObjectYPathProxy::TRspGetBasicAttributes>("get_basic_attributes");
     for (auto iterator = objects.Begin(); iterator != objects.End(); ++iterator) {
         auto& userObject = *iterator;
-        const auto& path = userObject.Path.GetPath();
+        const auto& path = userObject.GetPath();
         const auto& rspOrError = rspsOrError[iterator - objects.Begin()];
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting basic attributes of user object %v",
             path);

@@ -2445,7 +2445,7 @@ private:
         auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspLock>(0)
             .ValueOrThrow();
 
-        return TLockNodeResult({FromProto<TLockId>(rsp->lock_id()), FromProto<TNodeId>(rsp->lock_id())});
+        return TLockNodeResult({FromProto<TLockId>(rsp->lock_id()), FromProto<TNodeId>(rsp->node_id())});
     }
 
     TNodeId DoCopyNode(

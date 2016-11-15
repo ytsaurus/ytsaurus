@@ -1261,78 +1261,56 @@ void TOperationControllerBase::Prepare()
 
     auto codicilGuard = MakeCodicilGuard();
 
-    GetUserObjectBasicAttributes<TInputTable>(
-        AuthenticatedInputMasterClient,
-        InputTables,
-        InputTransaction->GetId(),
-        Logger,
-        EPermission::Read);
-
-    for (const auto& table : InputTables) {
-        if (table.Type != EObjectType::Table) {
-            THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
-                table.Path.GetPath(),
-                EObjectType::Table,
-                table.Type);
-        }
+    // Process input tables.
+    {
+        LockInputTables();
+        GetInputTablesAttributes();
     }
 
-    GetUserObjectBasicAttributes<TOutputTable>(
-        AuthenticatedOutputMasterClient,
-        OutputTables,
-        OutputTransaction->GetId(),
-        Logger,
-        EPermission::Write);
-
-    GetUserObjectBasicAttributes<TOutputTable>(
-        AuthenticatedMasterClient,
-        StderrTable,
-        DebugOutputTransaction->GetId(),
-        Logger,
-        EPermission::Write);
-
-    yhash_set<TObjectId> updatingTableIds;
-    for (const auto* table : UpdatingTables) {
-        const auto& path = table->Path.GetPath();
-        if (table->Type != EObjectType::Table) {
-            THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
-                path,
-                EObjectType::Table,
-                table->Type);
-        }
-        const bool insertedNew = updatingTableIds.insert(table->ObjectId).second;
-        if (!insertedNew) {
-            THROW_ERROR_EXCEPTION("Output table %v is specified multiple times",
-                path);
-        }
+    // Process files.
+    {
+        LockUserFiles();
+        GetUserFilesAttributes();
     }
 
-    GetUserObjectBasicAttributes<TUserFile>(
-        AuthenticatedMasterClient,
-        Files,
-        InputTransaction->GetId(),
-        Logger,
-        EPermission::Read);
+    // Process output and stderr tables.
+    {
+        GetUserObjectBasicAttributes<TOutputTable>(
+            AuthenticatedOutputMasterClient,
+            OutputTables,
+            OutputTransaction->GetId(),
+            Logger,
+            EPermission::Write);
 
-    for (const auto& file : Files) {
-        const auto& path = file.Path.GetPath();
-        if (file.Type != EObjectType::Table && file.Type != EObjectType::File) {
-            THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv or %Qlv, actual %Qlv",
-                path,
-                EObjectType::Table,
-                EObjectType::File,
-                file.Type);
+        GetUserObjectBasicAttributes<TOutputTable>(
+            AuthenticatedMasterClient,
+            StderrTable,
+            DebugOutputTransaction->GetId(),
+            Logger,
+            EPermission::Write);
+
+        yhash_set<TObjectId> updatingTableIds;
+        for (const auto* table : UpdatingTables) {
+            const auto& path = table->Path.GetPath();
+            if (table->Type != EObjectType::Table) {
+                THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
+                    path,
+                    EObjectType::Table,
+                    table->Type);
+            }
+            const bool insertedNew = updatingTableIds.insert(table->ObjectId).second;
+            if (!insertedNew) {
+                THROW_ERROR_EXCEPTION("Output table %v is specified multiple times",
+                    path);
+            }
         }
+
+        GetOutputTablesSchema();
+        PrepareOutputTables();
+
+        BeginUploadOutputTables();
+        GetOutputTablesUploadParams();
     }
-
-    LockInputTables();
-    LockUserFiles(&Files);
-
-    GetOutputTablesSchema();
-    PrepareOutputTables();
-
-    BeginUploadOutputTables();
-    GetOutputTablesUploadParams();
 }
 
 void TOperationControllerBase::Materialize()
@@ -1348,7 +1326,7 @@ void TOperationControllerBase::Materialize()
 
     try {
         FetchInputTables();
-        FetchUserFiles(&Files);
+        FetchUserFiles();
 
         PickIntermediateDataCell();
         InitChunkListPool();
@@ -2456,7 +2434,7 @@ void TOperationControllerBase::Abort()
             AttachOutputChunks({StderrTable.GetPtr()});
             EndUploadOutputTables({StderrTable.GetPtr()});
         }
-    
+
         CommitTransaction(DebugOutputTransaction);
     } catch (const std::exception& ex) {
         // Bad luck we can't commit transaction.
@@ -3379,30 +3357,55 @@ void TOperationControllerBase::FetchInputTables()
 
 void TOperationControllerBase::LockInputTables()
 {
+    //! TODO(ignat): Merge in with lock input files method.
     LOG_INFO("Locking input tables");
 
-    {
-        auto channel = AuthenticatedInputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
-        TObjectServiceProxy proxy(channel);
+    auto channel = AuthenticatedInputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+    TObjectServiceProxy proxy(channel);
 
-        auto batchReq = proxy.ExecuteBatch();
+    auto batchReq = proxy.ExecuteBatch();
 
-        for (const auto& table : InputTables) {
-            auto objectIdPath = FromObjectId(table.ObjectId);
-            {
-                auto req = TTableYPathProxy::Lock(objectIdPath);
-                req->set_mode(static_cast<int>(ELockMode::Snapshot));
-                SetTransactionId(req, InputTransaction->GetId());
-                GenerateMutationId(req);
-                batchReq->AddRequest(req, "lock");
-            }
-        }
-
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error locking input tables");
+    for (const auto& table : InputTables) {
+        auto req = TTableYPathProxy::Lock(table.Path.GetPath());
+        req->set_mode(static_cast<int>(ELockMode::Snapshot));
+        SetTransactionId(req, InputTransaction->GetId());
+        GenerateMutationId(req);
+        batchReq->AddRequest(req);
     }
 
+    auto batchRspOrError = WaitFor(batchReq->Invoke());
+    THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error locking input tables");
+
+    const auto& batchRsp = batchRspOrError.Value()->GetResponses<TCypressYPathProxy::TRspLock>();
+    for (int index = 0; index < InputTables.size(); ++index) {
+        auto& table = InputTables[index];
+        const auto& path = table.Path.GetPath();
+        const auto& rspOrError = batchRsp[index];
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to lock input table %Qv", path);
+        const auto& rsp = rspOrError.Value();
+        table.ObjectId = FromProto<TObjectId>(rsp->node_id());
+    }
+}
+
+void TOperationControllerBase::GetInputTablesAttributes()
+{
     LOG_INFO("Getting input tables attributes");
+
+    GetUserObjectBasicAttributes<TInputTable>(
+        AuthenticatedInputMasterClient,
+        InputTables,
+        InputTransaction->GetId(),
+        Logger,
+        EPermission::Read);
+
+    for (const auto& table : InputTables) {
+        if (table.Type != EObjectType::Table) {
+            THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
+                table.Path.GetPath(),
+                EObjectType::Table,
+                table.Type);
+        }
+    }
 
     {
         auto channel = AuthenticatedInputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
@@ -3683,9 +3686,9 @@ void TOperationControllerBase::GetOutputTablesUploadParams()
     }
 }
 
-void TOperationControllerBase::FetchUserFiles(std::vector<TUserFile>* files)
+void TOperationControllerBase::FetchUserFiles()
 {
-    for (auto& file : *files) {
+    for (auto& file : Files) {
         auto objectIdPath = FromObjectId(file.ObjectId);
         const auto& path = file.Path.GetPath();
 
@@ -3772,39 +3775,64 @@ void TOperationControllerBase::ValidateDynamicTableTimestamp(
 
 }
 
-void TOperationControllerBase::LockUserFiles(std::vector<TUserFile>* files)
+void TOperationControllerBase::LockUserFiles()
 {
     LOG_INFO("Locking user files");
 
-    {
-        auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
-        TObjectServiceProxy proxy(channel);
-        auto batchReq = proxy.ExecuteBatch();
+    auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+    TObjectServiceProxy proxy(channel);
+    auto batchReq = proxy.ExecuteBatch();
 
-        for (const auto& file : *files) {
-            auto objectIdPath = FromObjectId(file.ObjectId);
-
-            {
-                auto req = TCypressYPathProxy::Lock(objectIdPath);
-                req->set_mode(static_cast<int>(ELockMode::Snapshot));
-                GenerateMutationId(req);
-                SetTransactionId(req, InputTransaction->GetId());
-                batchReq->AddRequest(req, "lock");
-            }
-        }
-
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error locking user files");
+    for (const auto& file : Files) {
+        auto req = TCypressYPathProxy::Lock(file.Path.GetPath());
+        req->set_mode(static_cast<int>(ELockMode::Snapshot));
+        GenerateMutationId(req);
+        SetTransactionId(req, InputTransaction->GetId());
+        batchReq->AddRequest(req);
     }
 
+    auto batchRspOrError = WaitFor(batchReq->Invoke());
+    THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error locking user files");
+
+    const auto& batchRsp = batchRspOrError.Value()->GetResponses<TCypressYPathProxy::TRspLock>();
+    for (int index = 0; index < Files.size(); ++index) {
+        auto& file = Files[index];
+        const auto& path = file.Path.GetPath();
+        const auto& rspOrError = batchRsp[index];
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to lock user file %Qv", path);
+        const auto& rsp = rspOrError.Value();
+        file.ObjectId = FromProto<TObjectId>(rsp->node_id());
+    }
+}
+
+void TOperationControllerBase::GetUserFilesAttributes()
+{
     LOG_INFO("Getting user files attributes");
+
+    GetUserObjectBasicAttributes<TUserFile>(
+        AuthenticatedMasterClient,
+        Files,
+        InputTransaction->GetId(),
+        Logger,
+        EPermission::Read);
+
+    for (const auto& file : Files) {
+        const auto& path = file.Path.GetPath();
+        if (file.Type != EObjectType::Table && file.Type != EObjectType::File) {
+            THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv or %Qlv, actual %Qlv",
+                path,
+                EObjectType::Table,
+                EObjectType::File,
+                file.Type);
+        }
+    }
 
     {
         auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
         TObjectServiceProxy proxy(channel);
         auto batchReq = proxy.ExecuteBatch();
 
-        for (const auto& file : *files) {
+        for (const auto& file : Files) {
             auto objectIdPath = FromObjectId(file.ObjectId);
             {
                 auto req = TYPathProxy::Get(objectIdPath + "/@");
@@ -3867,8 +3895,8 @@ void TOperationControllerBase::LockUserFiles(std::vector<TUserFile>* files)
 
         auto getAttributesRspsOrError = batchRsp->GetResponses<TYPathProxy::TRspGetKey>("get_attributes");
         auto getLinkAttributesRspsOrError = batchRsp->GetResponses<TYPathProxy::TRspGetKey>("get_link_attributes");
-        for (int index = 0; index < files->size(); ++index) {
-            auto& file = (*files)[index];
+        for (int index = 0; index < Files.size(); ++index) {
+            auto& file = Files[index];
             const auto& path = file.Path.GetPath();
 
             {
