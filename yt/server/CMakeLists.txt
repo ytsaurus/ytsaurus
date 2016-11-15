@@ -305,6 +305,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/tablet_node/automaton.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_node/chunk_writer_pool.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_node/in_memory_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_node/in_memory_chunk_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_node/lookup.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_node/object_detail.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_node/partition.cpp

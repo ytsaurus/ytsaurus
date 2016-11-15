@@ -1,11 +1,9 @@
 #include "private.h"
 #include "config.h"
 #include "in_memory_manager.h"
+#include "in_memory_chunk_writer.h"
 #include "tablet.h"
 #include "chunk_writer_pool.h"
-
-#include <yt/ytlib/chunk_client/chunk_spec.h>
-#include <yt/ytlib/chunk_client/config.h>
 
 #include <yt/ytlib/object_client/helpers.h>
 
@@ -25,87 +23,6 @@ using namespace NChunkClient::NProto;
 using namespace NConcurrency;
 using namespace NNodeTrackerClient;
 using namespace NTableClient;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TChunkWriterPool::TFinalizingWriter
-    : public IVersionedMultiChunkWriter
-{
-public:
-    TFinalizingWriter(
-        TInMemoryManagerPtr inMemoryManager,
-        TTabletSnapshotPtr tabletSnapshot,
-        IVersionedMultiChunkWriterPtr underlyingWriter)
-        : InMemoryManager_(std::move(inMemoryManager))
-        , TabletSnapshot_(std::move(tabletSnapshot))
-        , UnderlyingWriter_(std::move(underlyingWriter))
-    { }
-
-    virtual bool Write(const std::vector<TVersionedRow>& rows) override
-    {
-        return UnderlyingWriter_->Write(rows);
-    }
-
-    virtual TFuture<void> Open() override
-    {
-        return UnderlyingWriter_->Open();
-    }
-
-    virtual TFuture<void> GetReadyEvent() override
-    {
-        return UnderlyingWriter_->GetReadyEvent();
-    }
-
-    virtual TFuture<void> Close() override
-    {
-        auto result = UnderlyingWriter_->Close();
-        result.Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<void>& valueOrError) {
-            if (!valueOrError.IsOK()) {
-                return;
-            }
-
-            auto chunkSpecs = GetWrittenChunksFullMeta();
-            for (const auto& chunkSpec : chunkSpecs) {
-                InMemoryManager_->FinalizeChunk(
-                    FromProto<TChunkId>(chunkSpec.chunk_id()),
-                    chunkSpec.chunk_meta(),
-                    TabletSnapshot_);
-            }
-        }));
-
-        return result;
-    }
-
-    virtual void SetProgress(double progress) override
-    {
-        UnderlyingWriter_->SetProgress(progress);
-    }
-
-    virtual const std::vector<TChunkSpec>& GetWrittenChunksMasterMeta() const override
-    {
-        return UnderlyingWriter_->GetWrittenChunksMasterMeta();
-    }
-
-    virtual const std::vector<TChunkSpec>& GetWrittenChunksFullMeta() const override
-    {
-        return UnderlyingWriter_->GetWrittenChunksFullMeta();
-    }
-
-    virtual TNodeDirectoryPtr GetNodeDirectory() const override
-    {
-        return UnderlyingWriter_->GetNodeDirectory();
-    }
-
-    virtual TDataStatistics GetDataStatistics() const override
-    {
-        return UnderlyingWriter_->GetDataStatistics();
-    }
-
-private:
-    const TInMemoryManagerPtr InMemoryManager_;
-    const TTabletSnapshotPtr TabletSnapshot_;
-    const IVersionedMultiChunkWriterPtr UnderlyingWriter_;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -142,7 +59,10 @@ IVersionedMultiChunkWriterPtr TChunkWriterPool::AllocateWriter()
                 NullChunkListId,
                 GetUnlimitedThrottler(),
                 blockCache);
-            auto writer = New<TFinalizingWriter>(InMemoryManager_, TabletSnapshot_, std::move(underlyingWriter));
+            auto writer = CreateVersionedMultiChunkInMemoryWriter(
+                InMemoryManager_,
+                TabletSnapshot_,
+                std::move(underlyingWriter));
             FreshWriters_.push_back(writer);
             asyncResults.push_back(writer->Open());
         }

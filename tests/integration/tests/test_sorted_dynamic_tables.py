@@ -914,6 +914,7 @@ class TestSortedDynamicTables(YTEnvSetup):
             assert get("//tmp/t/@tablets/0/statistics/preload_pending_store_count") == 0
             assert get("//tmp/t/@tablets/0/statistics/preload_failed_store_count") == 0
 
+        # Check preload after mount.
         rows = [{"key": i, "value": str(i)} for i in xrange(10)]
         keys = [{"key" : row["key"]} for row in rows]
         insert_rows("//tmp/t", rows)
@@ -925,6 +926,27 @@ class TestSortedDynamicTables(YTEnvSetup):
         _check_preload_state("complete")
         assert lookup_rows("//tmp/t", keys) == rows
 
+        # Check preload after flush.
+        rows = [{"key": i, "value": str(i + 1)} for i in xrange(10)]
+        keys = [{"key" : row["key"]} for row in rows]
+        insert_rows("//tmp/t", rows)
+        self.sync_freeze_table("//tmp/t")
+        self.sync_unfreeze_table("//tmp/t")
+
+        sleep(3.0)
+
+        _check_preload_state("complete")
+        assert lookup_rows("//tmp/t", keys) == rows
+
+        # Check preload after compaction.
+        self.sync_compact_table("//tmp/t")
+
+        sleep(3.0)
+
+        _check_preload_state("complete")
+        assert lookup_rows("//tmp/t", keys) == rows
+
+        # Disable in-memory mode
         set("//tmp/t/@in_memory_mode", "none")
         remount_table("//tmp/t")
 
@@ -933,6 +955,7 @@ class TestSortedDynamicTables(YTEnvSetup):
         _check_preload_state("disabled")
         assert lookup_rows("//tmp/t", keys) == rows
 
+        # Re-enable in-memory mode
         set("//tmp/t/@in_memory_mode", mode)
         remount_table("//tmp/t")
 
