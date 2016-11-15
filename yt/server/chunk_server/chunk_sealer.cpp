@@ -80,7 +80,6 @@ public:
 
     void Stop()
     {
-        SealScanner_->Stop();
         SealExecutor_->Stop();
     }
 

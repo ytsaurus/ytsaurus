@@ -47,10 +47,6 @@ public:
     //! Schedules #chunkCount chunks starting from #frontChunk for the global scan.
     void Start(TChunk* frontChunk, int chunkCont);
 
-    //! Must be called exactly once upon finalization.
-    //! Clears all schedule flags on chunks in the queue.
-    void Stop();
-
     //! Notifies the scanner that a certain #chunk is dead.
     //! Enables advancing global iterator to avoid pointing to dead chunks.
     void OnChunkDestroyed(TChunk* chunk);

@@ -143,6 +143,8 @@ private:
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
         auto* chunk = GetThisImpl();
         auto isForeign = chunk->IsForeign();
@@ -154,21 +156,21 @@ private:
 
             auto* medium = chunkManager->GetMediumByIndexOrThrow(replica.GetMediumIndex());
             fluent.Item()
-            .BeginAttributes()
-                .DoIf(!chunk->IsJournal(), [&] (TFluentAttributes fluent) {
-                        fluent
-                            .Item("medium").Value(medium->GetName());
-                    })
-                .DoIf(chunk->IsErasure(), [&] (TFluentAttributes fluent) {
-                        fluent
-                            .Item("index").Value(replica.GetReplicaIndex());
-                    })
-                .DoIf(chunk->IsJournal(), [&] (TFluentAttributes fluent) {
-                        fluent
-                            .Item("type").Value(EJournalReplicaType(replica.GetReplicaIndex()));
-                    })
-            .EndAttributes()
-            .Value(replica.GetPtr()->GetDefaultAddress());
+                .BeginAttributes()
+                    .DoIf(!chunk->IsJournal(), [&] (TFluentAttributes fluent) {
+                            fluent
+                                .Item("medium").Value(medium->GetName());
+                        })
+                    .DoIf(chunk->IsErasure(), [&] (TFluentAttributes fluent) {
+                            fluent
+                                .Item("index").Value(replica.GetReplicaIndex());
+                        })
+                    .DoIf(chunk->IsJournal(), [&] (TFluentAttributes fluent) {
+                            fluent
+                                .Item("type").Value(EJournalReplicaType(replica.GetReplicaIndex()));
+                        })
+                .EndAttributes()
+                .Value(replica.GetPtr()->GetDefaultAddress());
         };
 
         auto serializeReplicas = [&] (IYsonConsumer* consumer, TNodePtrWithIndexesList& replicas) {
@@ -273,8 +275,6 @@ private:
         }
 
         if (key == "exports") {
-            const auto& chunkManager = Bootstrap_->GetChunkManager();
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
             const auto& cellTags = multicellManager->GetRegisteredMasterCellTags();
             BuildYsonFluently(consumer)
                 .DoMapFor(0, static_cast<int>(cellTags.size()), [&] (TFluentMap fluent, int index) {
@@ -433,11 +433,12 @@ private:
         }
 
         if (key == "scan_flags") {
+            RequireLeader();
             BuildYsonFluently(consumer)
                 .DoMapFor(TEnumTraits<EChunkScanKind>::GetDomainValues(), [&] (TFluentMap fluent, EChunkScanKind kind) {
                     if (kind != EChunkScanKind::None) {
                         fluent
-                            .Item(FormatEnum(kind)).Value(chunk->GetScanFlag(kind));
+                            .Item(FormatEnum(kind)).Value(chunk->GetScanFlag(kind, objectManager->GetCurrentEpoch()));
                     }
                 });
             return true;

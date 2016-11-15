@@ -32,17 +32,6 @@ void TChunkScanner::Start(TChunk* frontChunk, int chunkCount)
         GlobalCount_);
 }
 
-void TChunkScanner::Stop()
-{
-    LOG_INFO("Started clearing chunk scan flags (ChunkCount: %v)",
-        Queue_.size());
-    while (!Queue_.empty()) {
-        Queue_.front().Chunk->ClearScanFlag(Kind_);
-        Queue_.pop();
-    }
-    LOG_INFO("Finished clearing chunk scan flags");
-}
-
 void TChunkScanner::OnChunkDestroyed(TChunk* chunk)
 {
     if (chunk == GlobalIterator_) {
@@ -52,10 +41,11 @@ void TChunkScanner::OnChunkDestroyed(TChunk* chunk)
 
 bool TChunkScanner::EnqueueChunk(TChunk* chunk)
 {
-    if (chunk->GetScanFlag(Kind_)) {
+    auto epoch = ObjectManager_->GetCurrentEpoch();
+    if (chunk->GetScanFlag(Kind_, epoch)) {
         return false;
     }
-    chunk->SetScanFlag(Kind_);
+    chunk->SetScanFlag(Kind_, epoch);
     ObjectManager_->WeakRefObject(chunk);
     Queue_.push({chunk, NProfiling::GetCpuInstant()});
     return true;
@@ -80,8 +70,9 @@ TChunk* TChunkScanner::DequeueChunk()
         return nullptr;
     }
 
-    Y_ASSERT(chunk->GetScanFlag(Kind_));
-    chunk->ClearScanFlag(Kind_);
+    auto epoch = ObjectManager_->GetCurrentEpoch();
+    Y_ASSERT(chunk->GetScanFlag(Kind_, epoch));
+    chunk->ClearScanFlag(Kind_, epoch);
     ObjectManager_->WeakUnrefObject(chunk);
     return chunk;
 }

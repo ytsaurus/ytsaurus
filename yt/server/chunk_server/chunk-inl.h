@@ -23,19 +23,31 @@ inline void TChunk::SetMovable(bool value)
     Movable_ = value;
 }
 
-inline bool TChunk::GetScanFlag(EChunkScanKind kind) const
+inline bool TChunk::GetScanFlag(EChunkScanKind kind, NObjectServer::TEpoch epoch) const
 {
-    return Any(GetDynamicData()->ScanFlags & kind);
+    auto* data = GetDynamicData();
+    return data->ScanEpoch == epoch ? Any(data->ScanFlags & kind) : false;
 }
 
-inline void TChunk::SetScanFlag(EChunkScanKind kind)
+inline void TChunk::SetScanFlag(EChunkScanKind kind, NObjectServer::TEpoch epoch)
 {
-    GetDynamicData()->ScanFlags |= kind;
+    auto* data = GetDynamicData();
+    if (epoch != data->ScanEpoch) {
+        data->ScanFlags = EChunkScanKind::None;
+        data->ScanEpoch = epoch;
+    }
+    data->ScanFlags |= kind;
 }
 
-inline void TChunk::ClearScanFlag(EChunkScanKind kind)
+
+inline void TChunk::ClearScanFlag(EChunkScanKind kind, NObjectServer::TEpoch epoch)
 {
-    GetDynamicData()->ScanFlags &= ~kind;
+    auto* data = GetDynamicData();
+    if (epoch != data->ScanEpoch) {
+        data->ScanFlags = EChunkScanKind::None;
+        data->ScanEpoch = epoch;
+    }
+    data->ScanFlags &= ~kind;
 }
 
 inline TChunk* TChunk::GetNextScannedChunk(EChunkScanKind kind) const
