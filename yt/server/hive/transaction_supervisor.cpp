@@ -1219,7 +1219,8 @@ private:
         auto participant = GetParticipant(cellId);
 
         TFuture<void> response;
-        switch (commit->GetTransientState()) {
+        auto state = commit->GetTransientState();
+        switch (state) {
             case ECommitState::Prepare:
                 response = participant->PrepareTransaction(commit->GetTransactionId());
                 break;
@@ -1236,7 +1237,7 @@ private:
                 Y_UNREACHABLE();
         }
         response.Subscribe(
-            BIND(&TImpl::OnParticipantResponse, MakeWeak(this), commit->GetTransactionId(), participant)
+            BIND(&TImpl::OnParticipantResponse, MakeWeak(this), commit->GetTransactionId(), state, participant)
                 .Via(EpochAutomatonInvoker_));
     }
 
@@ -1278,6 +1279,7 @@ private:
 
     void OnParticipantResponse(
         const TTransactionId& transactionId,
+        ECommitState state,
         const TWrappedParticipantPtr& participant,
         const TError& error)
     {
@@ -1297,7 +1299,16 @@ private:
             participant->SetDown(error);
         }
 
-        auto state = commit->GetTransientState();
+        if (state != commit->GetTransientState()) {
+            LOG_DEBUG("Received participant response for a commit in wrong state; ignored (TransactionId: %v, "
+                "ParticipantCellId: %v, ExpectedState: %v, ActualState: %v)",
+                transactionId,
+                participantCellId,
+                state,
+                commit->GetTransientState());
+            return;
+        }
+
         if (!IsParticipantResponseSuccessful(commit, participant, error)) {
             switch (state) {
                 case ECommitState::Prepare: {
