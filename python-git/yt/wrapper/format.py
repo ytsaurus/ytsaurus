@@ -237,9 +237,86 @@ class Format(object):
         Call once after creating all subclasses."""
         for cl in Format.__subclasses__():
             cl_dict = cl.__dict__
-            for name in ('load_row', 'load_rows', 'dump_row', 'dump_rows', 'loads_row', 'dumps_row'):
+            for name in ("load_row", "load_rows", "dump_row", "dump_rows", "loads_row", "dumps_row"):
                 if name in cl_dict and not cl_dict[name].__doc__:
                     cl_dict[name].__doc__ = Format.__dict__[name].__doc__
+
+    @staticmethod
+    def _process_input_rows(rows, process_table_index, control_attributes_mode,
+                            extract_control_attributes, table_index_column_name, transform_column_name):
+        table_index_attribute_name, row_index_attribute_name, range_index_attribute_name = \
+            list(imap(transform_column_name, [b"table_index", b"row_index", b"range_index"]))
+        table_index_column_name, range_index_column_name, row_index_column_name = \
+            list(imap(transform_column_name, [table_index_column_name, "@range_index", "@row_index"]))
+
+        def generator():
+            table_index = None
+            row_index = None
+            range_index = None
+            for row in rows:
+                attributes = extract_control_attributes(row)
+                if attributes is not None:
+                    if table_index_attribute_name in attributes:
+                        table_index = attributes[table_index_attribute_name]
+                    if row_index_attribute_name in attributes:
+                        row_index = attributes[row_index_attribute_name]
+                    if range_index_attribute_name in attributes:
+                        range_index = attributes[range_index_attribute_name]
+                    continue
+
+                if table_index is not None:
+                    row[table_index_column_name] = table_index
+                if range_index is not None:
+                    row[range_index_column_name] = range_index
+                if row_index is not None:
+                    row[row_index_column_name] = row_index
+
+                yield row
+
+                if row_index is not None:
+                    row_index += 1
+
+        class RowsIterator(Iterator):
+            def __init__(self):
+                self.table_index = None
+                self.row_index = None
+                self.range_index = None
+                self._increment_row_index = False
+
+            def __next__(self):
+                for row in rows:
+                    attributes = extract_control_attributes(row)
+                    if attributes is not None:
+                        self._increment_row_index = False
+                        if table_index_attribute_name in attributes:
+                            self.table_index = attributes[table_index_attribute_name]
+                        if row_index_attribute_name in attributes:
+                            self.row_index = attributes[row_index_attribute_name]
+                        if range_index_attribute_name in attributes:
+                            self.range_index = attributes[range_index_attribute_name]
+                        continue
+                    else:
+                        if self._increment_row_index and self.row_index is not None:
+                            self.row_index += 1
+                        self._increment_row_index = True
+                        return row
+
+                raise StopIteration()
+
+            def __iter__(self):
+                return self
+
+        if process_table_index is None:
+            if control_attributes_mode == "row_fields":
+                return generator()
+            elif control_attributes_mode == "iterator":
+                return RowsIterator()
+            else:
+                return rows
+        elif process_table_index:
+            return generator()
+        else:
+            return rows
 
 class DsvFormat(Format):
     """
@@ -434,80 +511,11 @@ class YsonFormat(Format):
         """Not supported"""
         raise YtFormatError("load_row is not supported in Yson")
 
-    def _process_input_rows(self, rows):
-        column_names = list(imap(self._coerce_column_key, [b"table_index", b"row_index", b"range_index"]))
-        table_index_name, row_index_name, range_index_name = column_names
-
-        range_index_column, row_index_column = \
-            self._coerce_column_key("@range_index"), self._coerce_column_key("@row_index")
-
-        def generator():
-            table_index = 0
-            row_index = None
-            range_index = None
-            for row in rows:
-                if isinstance(row, yson.YsonEntity):
-                    if table_index_name in row.attributes:
-                        table_index = row.attributes[table_index_name]
-                    if row_index_name in row.attributes:
-                        row_index = row.attributes[row_index_name]
-                    if range_index_name in row.attributes:
-                        range_index = row.attributes[range_index_name]
-                    continue
-
-                row[self._coerced_table_index_column] = table_index
-                if range_index is not None:
-                    row[range_index_column] = range_index
-                if row_index is not None:
-                    row[row_index_column] = row_index
-
-                yield row
-
-                if row_index is not None:
-                    row_index += 1
-
-        class RowsIterator(Iterator):
-            def __init__(self):
-                self.table_index = None
-                self.row_index = None
-                self.range_index = None
-                self._increment_row_index = False
-
-            def __next__(self):
-                for row in rows:
-                    if isinstance(row, yson.YsonEntity):
-                        self._increment_row_index = False
-                        if table_index_name in row.attributes:
-                            self.table_index = row.attributes[table_index_name]
-                        if row_index_name in row.attributes:
-                            self.row_index = row.attributes[row_index_name]
-                        if range_index_name in row.attributes:
-                            self.range_index = row.attributes[range_index_name]
-                        continue
-                    else:
-                        if self._increment_row_index and self.row_index is not None:
-                            self.row_index += 1
-                        self._increment_row_index = True
-                        return row
-
-                raise StopIteration()
-
-            def __iter__(self):
-                return self
-
-        if self.process_table_index is None:
-            if self.control_attributes_mode == "row_fields":
-                return generator()
-            elif self.control_attributes_mode == "iterator":
-                return RowsIterator()
-            else:
-                return rows
-        elif self.process_table_index:
-            return generator()
-        else:
-            return rows
-
     def load_rows(self, stream, raw=None):
+        def control_attributes_extractor(row):
+            if isinstance(row, yson.YsonEntity):
+                return row.attributes
+
         self._check_bindings()
         rows = yson.load(stream,
                          yson_type="list_fragment",
@@ -517,7 +525,9 @@ class YsonFormat(Format):
         if raw:
             return rows
         else:
-            return self._process_input_rows(rows)
+            return self._process_input_rows(rows, self.process_table_index, self.control_attributes_mode,
+                                            control_attributes_extractor, self._coerced_table_index_column,
+                                            self._coerce_column_key)
 
     def _dump_row(self, row, stream):
         self._check_bindings()
@@ -764,11 +774,12 @@ class JsonFormat(Format):
             "dumps": json_module.dumps,
         })
 
-    def __init__(self, process_table_index=False, table_index_column="@table_index", attributes=None,
-                 raw=None, enable_ujson=True):
+    def __init__(self, process_table_index=None, control_attributes_mode="generator",
+                 table_index_column="@table_index", attributes=None, raw=None, enable_ujson=True):
         attributes = get_value(attributes, {})
         super(JsonFormat, self).__init__("json", attributes, raw, self._ENCODING)
         self.process_table_index = process_table_index
+        self.control_attributes_mode = control_attributes_mode
         self.table_index_column = table_index_column
         self.json_module = JsonFormat._wrap_json_module(json)
 
@@ -805,32 +816,26 @@ class JsonFormat(Format):
             return None
         return self._loads(row, self._is_raw(raw))
 
-    def _process_input_rows(self, rows):
-        table_index = None
-        for row in rows:
-            # NOTE: Row dictionary in JSON format cannot contain binary strings,
-            # so its ok to work with unicode strings here in Python 3
-            if "$value" in row:
-                if row["$value"] is not None:
-                    raise YtFormatError("Incorrect $value of table switch in JSON format")
-                if "table_index" in row["$attributes"]:
-                    table_index = row["$attributes"]["table_index"]
-                # TODO(ignat): support row_index and other attributes.
-            else:
-                if table_index is not None:
-                    row[self.table_index_column] = table_index
-                yield row
-
     def load_rows(self, stream, raw=None):
         raw = self._is_raw(raw)
+
         def _load_rows(stream):
             for line in stream:
                 yield self._loads(line, raw)
 
+        def control_attributes_extractor(row):
+            if "$value" in row:
+                if row["$value"] is not None:
+                    raise YtFormatError("Incorrect $value of table switch in JSON format")
+                return row["$attributes"]
+
         rows = _load_rows(stream)
-        if self.process_table_index and not raw:
-            return self._process_input_rows(rows)
-        return rows
+        if raw:
+            return rows
+        else:
+            return self._process_input_rows(rows, self.process_table_index, self.control_attributes_mode,
+                                            control_attributes_extractor, self.table_index_column,
+                                            to_native_str)
 
     def _dump_row(self, row, stream):
         self._dump(row, stream)
