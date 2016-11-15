@@ -561,7 +561,7 @@ private:
             };
 
             int immediateRowCount = applyWriteLog(transaction->ImmediateWriteLog());
-            int delayedRowCount = applyWriteLog(transaction->ImmediateWriteLog());
+            int delayedRowCount = applyWriteLog(transaction->DelayedWriteLog());
 
             LOG_DEBUG_IF(immediateRowCount + delayedRowCount > 0, "Transaction write log applied (TransactionId: %v, "
                 "ImmediateRowCount: %v, DelayedRowCount: %v)",
