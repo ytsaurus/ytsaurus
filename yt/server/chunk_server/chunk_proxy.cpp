@@ -137,6 +137,7 @@ private:
             .SetPresent(chunk->IsJournal()));
         descriptors->push_back(TAttributeDescriptor("eden")
             .SetPresent(chunk->IsConfirmed()));
+        descriptors->push_back("scan_flags");
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
@@ -429,6 +430,17 @@ private:
                     .Value(FromProto<TOwningKey>(boundaryKeysExt->max()));
                 return true;
             }
+        }
+
+        if (key == "scan_flags") {
+            BuildYsonFluently(consumer)
+                .DoMapFor(TEnumTraits<EChunkScanKind>::GetDomainValues(), [&] (TFluentMap fluent, EChunkScanKind kind) {
+                    if (kind != EChunkScanKind::None) {
+                        fluent
+                            .Item(FormatEnum(kind)).Value(chunk->GetScanFlag(kind));
+                    }
+                });
+            return true;
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);
