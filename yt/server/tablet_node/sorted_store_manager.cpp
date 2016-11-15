@@ -1,7 +1,9 @@
-#include "sorted_store_manager.h"
-#include "sorted_chunk_store.h"
 #include "config.h"
+#include "in_memory_chunk_writer.h"
+#include "in_memory_manager.h"
+#include "sorted_chunk_store.h"
 #include "sorted_dynamic_store.h"
+#include "sorted_store_manager.h"
 #include "tablet.h"
 #include "tablet_slot.h"
 #include "transaction_manager.h"
@@ -407,6 +409,8 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
         writerOptions->ChunksEden = true;
 
+        auto blockCache = InMemoryManager_->CreateInterceptingBlockCache(tabletSnapshot->Config->InMemoryMode);
+
         auto chunkWriter = CreateConfirmingWriter(
             Config_->ChunkWriter,
             writerOptions,
@@ -414,21 +418,22 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             transaction->GetId(),
             NullChunkListId,
             New<TNodeDirectory>(),
-            Client_);
+            Client_,
+            blockCache);
 
-        auto tableWriter = CreateVersionedChunkWriter(
+        auto tableWriter = CreateVersionedChunkInMemoryWriter(
             Config_->ChunkWriter,
             writerOptions,
-            tabletSnapshot->PhysicalSchema,
-            chunkWriter);
+            InMemoryManager_,
+            tabletSnapshot,
+            chunkWriter,
+            blockCache);
 
         WaitFor(tableWriter->Open())
             .ThrowOnError();
 
         std::vector<TVersionedRow> rows;
         rows.reserve(MaxRowsPerFlushRead);
-
-        i64 rowCount = 0;
 
         while (true) {
             // NB: Memory store reader is always synchronous.
@@ -437,14 +442,13 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
                 break;
             }
 
-            rowCount += rows.size();
             if (!tableWriter->Write(rows)) {
                 WaitFor(tableWriter->GetReadyEvent())
                     .ThrowOnError();
             }
         }
 
-        if (rowCount == 0) {
+        if (tableWriter->GetRowCount() == 0) {
             return std::vector<TAddStoreDescriptor>();
         }
 
