@@ -35,8 +35,7 @@ namespace NObjectServer {
 //! Similar to NYTree::INodeResolver but works for arbitrary objects rather than nodes.
 struct IObjectResolver
 {
-    virtual ~IObjectResolver()
-    { }
+    virtual ~IObjectResolver() = default;
 
     //! Resolves a given path in the context of a given transaction.
     //! Throws if resolution fails.
