@@ -303,9 +303,11 @@ class YTEnvSetup(object):
         print "Waiting for tablets to become mounted..."
         self._wait_for_tablets(path, "mounted", **kwargs)
 
-    def sync_compact_table(self, path):
+    def sync_flush_table(self, path):
         self.sync_freeze_table(path)
         self.sync_unfreeze_table(path)
+
+    def sync_compact_table(self, path):
         chunk_ids = __builtin__.set(yt_commands.get(path + "/@chunk_ids"))
         yt_commands.set(path + "/@forced_compaction_revision", yt_commands.get(path + "/@revision"))
         yt_commands.remount_table(path)
