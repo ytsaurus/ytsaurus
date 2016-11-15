@@ -430,6 +430,11 @@ IChunkReaderPtr CreateRemoteReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+Stroka TUserObject::GetPath() const
+{
+    return Path.GetPath();
+}
+
 void TUserObject::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;

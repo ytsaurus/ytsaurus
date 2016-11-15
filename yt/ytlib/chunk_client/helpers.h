@@ -106,6 +106,8 @@ struct TUserObject
     NObjectClient::TCellTag CellTag;
     NObjectClient::EObjectType Type = NObjectClient::EObjectType::Null;
 
+    virtual Stroka GetPath() const;
+
     void Persist(const TStreamPersistenceContext& context);
 };
 
