@@ -296,6 +296,12 @@ public:
         auto* transaction = GetPersistentTransactionOrThrow(transactionId);
 
         auto state = transaction->GetPersistentState();
+        if (state == ETransactionState::Committed) {
+            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction is already committed (TransactionId: %v)",
+                transactionId);
+            return;
+        }
+
         if (state != ETransactionState::Active &&
             state != ETransactionState::PersistentCommitPrepared)
         {

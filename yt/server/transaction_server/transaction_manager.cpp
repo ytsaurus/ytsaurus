@@ -566,8 +566,12 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        auto transactionId = transaction->GetId();
+
         auto state = transaction->GetPersistentState();
         if (state == ETransactionState::Committed) {
+            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction is already committed (TransactionId: %v)",
+                transactionId);
             return;
         }
 
@@ -576,8 +580,6 @@ public:
         {
             transaction->ThrowInvalidState();
         }
-
-        auto transactionId = transaction->GetId();
 
         if (Bootstrap_->IsPrimaryMaster()) {
             NProto::TReqCommitTransaction request;
