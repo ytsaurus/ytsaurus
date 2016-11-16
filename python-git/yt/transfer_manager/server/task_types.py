@@ -15,7 +15,7 @@ class Task(object):
                  kwworm_options=None, pool=None, meta=None, destination_compression_codec=None,
                  destination_erasure_codec=None, destination_force_sort=None, copy_spec=None, postprocess_spec=None,
                  job_timeout=None, intermediate_format=None, lease_timeout=None, queue_name=None, force_copy_with_operation=None,
-                 additional_attributes=None, table_for_errors=None, schema_inference_mode=None):
+                 additional_attributes=None, table_for_errors=None, schema_inference_mode=None, temp_files_dir=None):
         self.source_cluster = source_cluster
         self.source_table = source_table
         self.source_cluster_token = get_value(source_cluster_token, token)
@@ -51,6 +51,7 @@ class Task(object):
         self.additional_attributes = additional_attributes
         self.table_for_errors = table_for_errors
         self.schema_inference_mode = schema_inference_mode
+        self.temp_files_dir = temp_files_dir
 
         self.destination_compression_codec = destination_compression_codec
         self.destination_erasure_codec = destination_erasure_codec

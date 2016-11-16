@@ -257,9 +257,10 @@ class TransferManager(object):
         src_dst_pairs = [(source_table, destination_table)]
         return self.add_tasks_from_src_dst_pairs(src_dst_pairs, source_cluster, destination_cluster, **kwargs)[0]
 
-    def add_tasks(self, source_cluster, source_pattern, destination_cluster, destination_pattern, **kwargs):
+    def add_tasks(self, source_cluster, source_pattern, destination_cluster, destination_pattern, include_files=False,
+                  **kwargs):
         src_dst_pairs = self.match_src_dst_pattern(source_cluster, source_pattern,
-                                                   destination_cluster, destination_pattern)
+                                                   destination_cluster, destination_pattern, include_files)
         return self.add_tasks_from_src_dst_pairs(src_dst_pairs, source_cluster, destination_cluster, **kwargs)
 
     def abort_task(self, task_id):
@@ -293,12 +294,14 @@ class TransferManager(object):
     def get_backend_config(self):
         return self._make_request("GET", "{0}/config/".format(self.backend_url)).json()
 
-    def match_src_dst_pattern(self, source_cluster, source_table, destination_cluster, destination_table):
+    def match_src_dst_pattern(self, source_cluster, source_table, destination_cluster, destination_table,
+                              include_files=False):
         data = {
             "source_cluster": source_cluster,
             "source_pattern": source_table,
             "destination_cluster": destination_cluster,
-            "destination_pattern": destination_table
+            "destination_pattern": destination_table,
+            "include_files": include_files,
         }
 
         return self._make_request(

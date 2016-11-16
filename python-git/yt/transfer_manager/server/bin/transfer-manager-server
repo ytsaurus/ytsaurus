@@ -1233,6 +1233,7 @@ class Application(object):
         source_pattern = params["source_pattern"]
         destination_pattern = params["destination_pattern"]
         source_cluster = params["source_cluster"]
+        include_files = params.get("include_files", False)
 
         clusters_configuration = self._get_clusters_configuration()
         if source_cluster not in clusters_configuration.clusters:
@@ -1247,7 +1248,7 @@ class Application(object):
         else:
             client = deepcopy(client)
 
-        matchings = match_copy_pattern(client, source_pattern, destination_pattern)
+        matchings = match_copy_pattern(client, source_pattern, destination_pattern, include_files)
         return Response(json.dumps(matchings), mimetype="application/json")
 
     def profiling_call_tracker(self):

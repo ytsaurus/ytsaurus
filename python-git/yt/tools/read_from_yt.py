@@ -86,7 +86,7 @@ def main():
     parser.add_argument("--input-type", required=True)
     parser.add_argument("--tx")
     parser.add_argument("--config-file", help="File with client config in JSON format")
-    parser.add_argument("--token-file", help="Gzipped file with token")
+    parser.add_argument("--token-file", help="File with token")
     parser.add_argument("--package-file", action="append")
     args = parser.parse_args()
 
