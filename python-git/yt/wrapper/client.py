@@ -1,5 +1,6 @@
 from .common import update
 from .default_config import get_default_config
+from .config import get_config, get_option, set_option
 from .client_state import ClientState
 from . import client_api
 
@@ -97,10 +98,14 @@ class YtClient(ClientState):
         if token is not None:
             self.config["token"] = token
 
+def create_client_with_command_params(client=None, **kwargs):
+    """ Create new client with command params """
+    new_client = YtClient(config=deepcopy(get_config(client)))
+    set_option("COMMAND_PARAMS", kwargs, new_client)
+    return new_client
 
 for name in client_api.all_names:
     setattr(YtClient, name, create_class_method(getattr(client_api, name)))
 
 # Backward compatibility.
 Yt = YtClient
-
