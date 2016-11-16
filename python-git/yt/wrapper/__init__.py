@@ -9,7 +9,7 @@ Be ready to catch :class:`YtError <yt.common.YtError>` after all commands!
 from . import version_check
 
 from .client_api import *
-from .client import YtClient
+from .client import YtClient, create_client_with_command_params
 
 from .errors import YtError, YtOperationFailedError, YtResponseError, YtHttpResponseError, \
                     YtProxyUnavailable, YtTokenError, YtTransactionPingError

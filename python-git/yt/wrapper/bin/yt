@@ -1022,7 +1022,7 @@ def main():
         yt.config["proxy"]["url"] = config_args.proxy
     if config_args.prefix is not None:
         yt.config["prefix"] = config_args.prefix
-    yt.config.TRACE = config_args.trace
+    yt.config.COMMAND_PARAMS["trace"] = bool_to_string(config_args.trace)
     yt.config.update_config(config_args.config)
 
     yt.config["default_value_of_raw_option"] = True

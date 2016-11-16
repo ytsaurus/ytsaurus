@@ -1,5 +1,5 @@
 from .cypress_commands import set, get, list, exists, remove, search, mkdir, copy, move, link, get_type, create, concatenate, \
-                              has_attribute, get_attribute, set_attribute, list_attributes, find_free_subpath
+                              has_attribute, get_attribute, set_attribute, list_attributes, find_free_subpath, create_revision_parameter
 from .acl_commands import check_permission, add_member, remove_member
 from .table_commands import create_table, create_temp_table, write_table, read_table, \
                             row_count, is_sorted, is_empty, enable_table_replica, disable_table_replica

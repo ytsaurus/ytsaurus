@@ -211,6 +211,8 @@ class Config(types.ModuleType, client_state.ClientState):
                 if var_type is bool:
                     value = int(value)
                 self._set(name, apply_type(var_type, key, value))
+            elif key == "TRACE":
+                self.COMMAND_PARAMS["trace"] = common.bool_to_string(bool(value))
             elif key in self._env_configurable_options:
                 var_type = get_var_type(self.__dict__[key])
                 self.__dict__[key] = apply_type(var_type, key, value)

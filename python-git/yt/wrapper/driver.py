@@ -1,7 +1,7 @@
 """YT requests misc"""
 from . import http_driver
 from . import native_driver
-from .common import bool_to_string, YtError
+from .common import bool_to_string, YtError, update
 from .config import get_option, get_config, get_backend_type
 from .format import create_format
 
@@ -13,7 +13,7 @@ from yt.yson.convert import json_to_yson
 from yt.packages.six import iteritems
 from yt.packages.six.moves import map as imap
 
-from copy import copy
+from copy import copy, deepcopy
 
 def process_params(obj):
     attributes = None
@@ -51,12 +51,11 @@ def make_request(command_name,
                  decode_content=True,
                  client=None):
     backend = get_backend_type(client)
+    if get_option("COMMAND_PARAMS", client) is not None:
+        command_params = deepcopy(get_option("COMMAND_PARAMS", client))
+        params = update(command_params, params)
 
     params = process_params(params)
-    if get_option("MUTATION_ID", client) is not None:
-        params["mutation_id"] = get_option("MUTATION_ID", client)
-    if get_option("TRACE", client) is not None and get_option("TRACE", client):
-        params["trace"] = bool_to_string(get_option("TRACE", client))
     if get_option("RETRY", client) is not None:
         params["retry"] = bool_to_string(get_option("RETRY", client))
 

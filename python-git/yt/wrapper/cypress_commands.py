@@ -475,3 +475,12 @@ def remove_with_empty_dirs(path, force=True, client=None):
             else:
                 raise
 
+def create_revision_parameter(path, client=None):
+    """Create revision parameter of the path
+
+    :param path: (string)
+    :return: (dict)
+    """
+    revision = get_attribute(path, "revision")
+    transaction_id = get_option("TRANSACTION", client)
+    return {"path": path, "transaction_id": transaction_id, "revision": revision}
