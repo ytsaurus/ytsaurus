@@ -262,8 +262,8 @@ public:
     //! Period between peer updates (see TPeerBlockUpdater).
     TDuration PeerUpdatePeriod;
 
-    //! Updated expiration timeout (see TPeerBlockUpdater).
-    TDuration PeerUpdateExpirationTimeout;
+    //! Peer update expiration time (see TPeerBlockUpdater).
+    TDuration PeerUpdateExpirationTime;
 
     //! Read requests are throttled when the number of bytes queued at Bus layer exceeds this limit.
     //! This is a global limit.
@@ -347,6 +347,8 @@ public:
     //! Enables block checksums validation.
     bool ValidateBlockChecksums;
 
+    //! The time after which any registered placement info expires.
+    TDuration PlacementExpirationTime;
 
     TDataNodeConfig()
     {
@@ -389,7 +391,7 @@ public:
             .Default(TDuration::Seconds(120));
         RegisterParameter("peer_update_period", PeerUpdatePeriod)
             .Default(TDuration::Seconds(30));
-        RegisterParameter("peer_update_expiration_timeout", PeerUpdateExpirationTimeout)
+        RegisterParameter("peer_update_expiration_time", PeerUpdateExpirationTime)
             .Default(TDuration::Seconds(40));
 
         RegisterParameter("net_out_throttling_limit", NetOutThrottlingLimit)
@@ -461,6 +463,9 @@ public:
             .Default((i64) 64 * 1024 * 1024);
         RegisterParameter("validate_block_checksums", ValidateBlockChecksums)
             .Default(true);
+
+        RegisterParameter("placement_expiration_time", PlacementExpirationTime)
+            .Default(TDuration::Hours(1));
 
         RegisterInitializer([&] () {
             ChunkMetaCache->Capacity = (i64) 1024 * 1024 * 1024;

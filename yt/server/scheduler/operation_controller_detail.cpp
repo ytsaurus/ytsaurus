@@ -862,15 +862,18 @@ void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
     YCHECK(joblet->ChunkListIds.size() == 1);
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
     auto* outputSpec = schedulerJobSpecExt->add_output_table_specs();
+
     auto options = New<TTableWriterOptions>();
     options->Account = Controller->Spec->IntermediateDataAccount;
     options->ChunksVital = false;
     options->ChunksMovable = false;
     options->ReplicationFactor = Controller->Spec->IntermediateDataReplicationFactor;
     options->CompressionCodec = Controller->Spec->IntermediateCompressionCodec;
-
+    // Distribute intermediate chunks uniformly across storage locations.
+    options->PlacementId = Controller->OperationId;
     // Intermediate data MUST be sorted if we expect it to be sorted.
     options->ExplodeOnValidationError = true;
+
     outputSpec->set_table_writer_options(ConvertToYsonString(options).Data());
 
     ToProto(outputSpec->mutable_table_schema(), TTableSchema::FromKeyColumns(keyColumns));
@@ -4693,9 +4696,6 @@ void TOperationControllerBase::InitIntermediateOutputConfig(TJobIOConfigPtr conf
 
     // Don't sync intermediate chunks.
     config->TableWriter->SyncOnClose = false;
-
-    // Distribute intermediate chunks uniformly across storage locations.
-    config->TableWriter->EnableUniformPlacement = true;
 }
 
 void TOperationControllerBase::InitFinalOutputConfig(TJobIOConfigPtr /* config */)
