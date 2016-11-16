@@ -3282,9 +3282,7 @@ void TOperationControllerBase::LockInputTables()
                 table.ChunkCount = attributes->Get<int>("chunk_count");
 
                 // Validate that timestamp is correct.
-                if (table.IsDynamic) {
-                    ValidateDynamicTableTimestamp(table.Path, *attributes);
-                }
+                ValidateDynamicTableTimestamp(table.Path, table.IsDynamic, table.Schema, *attributes);
             }
             LOG_INFO("Input table locked (Path: %v, Schema: %v, ChunkCount: %v)",
                 path,
@@ -3578,9 +3576,18 @@ void TOperationControllerBase::FetchUserFiles(std::vector<TUserFile>* files)
 
 void TOperationControllerBase::ValidateDynamicTableTimestamp(
     const TRichYPath& path,
+    bool dynamic,
+    const TTableSchema& schema,
     const IAttributeDictionary& attributes) const
 {
-    auto requested = path.GetTimestamp().Get(AsyncLastCommittedTimestamp);
+    auto nullableRequested = path.GetTimestamp();
+    if (nullableRequested && !(dynamic && schema.IsSorted())) {
+        THROW_ERROR_EXCEPTION("Invalid attribute %Qv: table %Qv is not sorted dynamic",
+            "timestamp",
+            path.GetPath());
+    }
+
+    auto requested = nullableRequested.Get(AsyncLastCommittedTimestamp);
     if (requested != AsyncLastCommittedTimestamp) {
         auto retained = attributes.Get<TTimestamp>("retained_timestamp");
         auto unflushed = attributes.Get<TTimestamp>("unflushed_timestamp");
@@ -3592,6 +3599,8 @@ void TOperationControllerBase::ValidateDynamicTableTimestamp(
                 << TErrorAttribute("unflushed_timestamp", unflushed);
         }
     }
+
+
 }
 
 void TOperationControllerBase::LockUserFiles(std::vector<TUserFile>* files)
@@ -3741,9 +3750,7 @@ void TOperationControllerBase::LockUserFiles(std::vector<TUserFile>* files)
                                 file.Path) << ex;
                         }
                         // Validate that timestamp is correct.
-                        if (file.IsDynamic) {
-                            ValidateDynamicTableTimestamp(file.Path, attributes);
-                        }
+                        ValidateDynamicTableTimestamp(file.Path, file.IsDynamic, file.Schema, attributes);
 
                         break;
 
@@ -4654,9 +4661,10 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         descriptor->set_file_name(file.FileName);
 
         if (file.Type == EObjectType::Table && file.IsDynamic && file.Schema.IsSorted()) {
-            auto dataSliceDescriptor = MakeVersionedDataSliceDescriptor(file.ChunkSpecs);
-            dataSliceDescriptor.Schema = file.Schema;
-            dataSliceDescriptor.Timestamp = file.Path.GetTimestamp().Get(AsyncLastCommittedTimestamp);
+            auto dataSliceDescriptor = MakeVersionedDataSliceDescriptor(
+                file.ChunkSpecs,
+                file.Schema,
+                file.Path.GetTimestamp().Get(AsyncLastCommittedTimestamp));
             ToProto(descriptor->add_data_slice_descriptors(), dataSliceDescriptor);
         } else {
             for (const auto& chunkSpec : file.ChunkSpecs) {

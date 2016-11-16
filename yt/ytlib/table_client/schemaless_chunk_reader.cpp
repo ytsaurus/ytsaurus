@@ -1694,9 +1694,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         dataSliceDescriptor,
                         nameTable,
                         columnFilter,
-                        dataSliceDescriptor.Schema,
-                        throttler,
-                        dataSliceDescriptor.Timestamp);
+                        throttler);
                 };
 
                 factories.emplace_back(CreateReaderFactory(createReader, memoryEstimate));
@@ -1945,9 +1943,7 @@ public:
         const TDataSliceDescriptor& dataSliceDescriptor,
         TNameTablePtr nameTable,
         TColumnFilter columnFilter,
-        const TTableSchema& tableSchema,
-        IThroughputThrottlerPtr throttler,
-        TTimestamp timestamp);
+        IThroughputThrottlerPtr throttler);
 
     virtual TFuture<void> GetReadyEvent() override;
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
@@ -1992,11 +1988,11 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     const TDataSliceDescriptor& dataSliceDescriptor,
     TNameTablePtr nameTable,
     TColumnFilter columnFilter,
-    const TTableSchema& tableSchema,
-    IThroughputThrottlerPtr throttler,
-    TTimestamp timestamp)
+    IThroughputThrottlerPtr throttler)
 {
     const auto& chunkSpecs = dataSliceDescriptor.ChunkSpecs;
+    const auto& tableSchema = dataSliceDescriptor.Schema;
+    auto timestamp = dataSliceDescriptor.Timestamp;
 
     std::vector<TOwningKey> boundaries;
     boundaries.reserve(chunkSpecs.size());
@@ -2193,9 +2189,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessMergingMultiChunkReader(
     const TDataSliceDescriptor& dataSliceDescriptor,
     TNameTablePtr nameTable,
     TColumnFilter columnFilter,
-    const TTableSchema& tableSchema,
-    IThroughputThrottlerPtr throttler,
-    TTimestamp timestamp)
+    IThroughputThrottlerPtr throttler)
 {
     return TSchemalessMergingMultiChunkReader::Create(
         config,
@@ -2207,9 +2201,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessMergingMultiChunkReader(
         dataSliceDescriptor,
         nameTable,
         columnFilter,
-        tableSchema,
-        throttler,
-        timestamp);
+        throttler);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

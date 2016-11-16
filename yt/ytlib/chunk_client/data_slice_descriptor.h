@@ -29,7 +29,9 @@ struct TDataSliceDescriptor
     TDataSliceDescriptor() = default;
     TDataSliceDescriptor(
         EDataSliceDescriptorType type,
-        std::vector<NProto::TChunkSpec> chunkSpecs);
+        std::vector<NProto::TChunkSpec> chunkSpecs,
+        const NTableClient::TTableSchema& = NTableClient::TTableSchema(),
+        NTransactionClient::TTimestamp timestamp = 0);
 
     const NProto::TChunkSpec& GetSingleUnversionedChunk() const;
     const NProto::TChunkSpec& GetSingleFileChunk() const;
@@ -55,7 +57,10 @@ i64 GetDataSliceDescriptorReaderMemoryEstimate(
 
 TDataSliceDescriptor MakeFileDataSliceDescriptor(NProto::TChunkSpec chunkSpec);
 TDataSliceDescriptor MakeUnversionedDataSliceDescriptor(NProto::TChunkSpec chunkSpec);
-TDataSliceDescriptor MakeVersionedDataSliceDescriptor(std::vector<NProto::TChunkSpec> chunkSpecs);
+TDataSliceDescriptor MakeVersionedDataSliceDescriptor(
+    std::vector<NProto::TChunkSpec> chunkSpecs,
+    const NTableClient::TTableSchema& schema,
+    NTransactionClient::TTimestamp timestam);
 
 ////////////////////////////////////////////////////////////////////////////////
 

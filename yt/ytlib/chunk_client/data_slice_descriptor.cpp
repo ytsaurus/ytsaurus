@@ -5,13 +5,20 @@
 namespace NYT {
 namespace NChunkClient {
 
+using namespace NTableClient;
+using namespace NTransactionClient;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TDataSliceDescriptor::TDataSliceDescriptor(
     EDataSliceDescriptorType type,
-    std::vector<NProto::TChunkSpec> chunkSpecs)
+    std::vector<NProto::TChunkSpec> chunkSpecs,
+    const TTableSchema& schema,
+    TTimestamp timestamp)
     : Type(type)
     , ChunkSpecs(std::move(chunkSpecs))
+    , Schema(schema)
+    , Timestamp(timestamp)
 { }
 
 const NProto::TChunkSpec& TDataSliceDescriptor::GetSingleUnversionedChunk() const
@@ -90,9 +97,16 @@ TDataSliceDescriptor MakeUnversionedDataSliceDescriptor(NProto::TChunkSpec chunk
     return TDataSliceDescriptor(EDataSliceDescriptorType::UnversionedTable, {std::move(chunkSpec)});
 }
 
-TDataSliceDescriptor MakeVersionedDataSliceDescriptor(std::vector<NProto::TChunkSpec> chunkSpecs)
+TDataSliceDescriptor MakeVersionedDataSliceDescriptor(
+    std::vector<NProto::TChunkSpec> chunkSpecs,
+    const NTableClient::TTableSchema& schema,
+    NTransactionClient::TTimestamp timestamp)
 {
-    return TDataSliceDescriptor(EDataSliceDescriptorType::VersionedTable, std::move(chunkSpecs));
+    return TDataSliceDescriptor(
+        EDataSliceDescriptorType::VersionedTable,
+        std::move(chunkSpecs),
+        schema,
+        timestamp);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
