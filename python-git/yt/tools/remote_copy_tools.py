@@ -2,6 +2,7 @@ from .yamr import _check_output
 
 from yt.wrapper.common import generate_uuid, bool_to_string, MB, GB, update, \
                               round_up_to
+from yt.wrapper.ypath import ypath_join
 from yt.tools.conversion_tools import transform
 from yt.common import get_value
 
@@ -25,6 +26,9 @@ from copy import deepcopy
 DEFAULT_MAXIMUM_YT_JOB_COUNT = 100000
 
 class IncorrectRowCount(yt.YtError):
+    pass
+
+class IncorrectFileSize(yt.YtError):
     pass
 
 class Kiwi(object):
@@ -129,6 +133,16 @@ def _split(item_count, split_size, total_size):
     return [(i * split_item_count, min((i + 1) * split_item_count, item_count))
             for i in xrange(1 + ((item_count - 1) // split_item_count))]
 
+def _split_file(split_size, total_size):
+    offset = 0
+    while total_size > 0:
+        yield offset, min(split_size, total_size)
+        total_size -= split_size
+        offset += split_size
+
+def _get_temp_file_names(temp_dir, ranges):
+    return [temp_dir + "/part_" + str(range["offset"]) for range in ranges]
+
 def _estimate_split_size(total_size):
     # XXX(asaitgalin): if table is bigger than 100 TiB and sorted it is not ok to
     # use default 1 GB split_size because job count will be greater than
@@ -161,6 +175,13 @@ def _slice_yt_table_evenly(client, table, split_size=None):
     split_size = get_value(split_size, _estimate_split_size(data_size))
     return [{"lower_limit": {"chunk_index": start}, "upper_limit": {"chunk_index": end}}
             for start, end in _split(chunk_count, split_size, data_size)]
+
+def _slice_yt_file_evenly(client, file, split_size=None):
+    """ Return list with correct YT ranges. """
+    data_size = client.get(file + "/@uncompressed_data_size")
+    split_size = get_value(split_size, _estimate_split_size(data_size))
+    return [{"offset": offset, "limit": limit}
+            for offset, limit in _split_file(split_size, data_size)]
 
 def _set_mapper_settings_for_read_from_yt(spec):
     if "mapper" not in spec:
@@ -205,16 +226,43 @@ def _set_tmpfs_settings(client, spec, files, yt_files=None, reserved_size=0):
 def shellquote(s):
     return "'" + s.replace("'", "'\\''") + "'"
 
-def _prepare_read_from_yt_command(yt_client, src, format, tmp_dir, fastbone, pack=False, enable_row_count_check=True,
-                                  input_type="json", token_file=None):
-    package_files = []
-    if pack:
-        package_files += [
-            _pack_module("yt", tmp_dir),
-            _pack_module("yt_yson_bindings", tmp_dir),
-        ]
+class ReadCommandBuilder(object):
+    def __init__(self, script_name):
+        self._script_name = script_name
+        self._args = []
+        self._package_files = []
 
-    assert yt_client.TRANSACTION is not None
+    def add_string_argument(self, argument, value):
+        self._args.append((argument, value))
+        return self
+
+    def add_file_argument(self, argument, file_path):
+        self._package_files.append(file_path)
+        self._args.append((argument, os.path.basename(file_path)))
+        return self
+
+    def add_file(self, file_path):
+        self._package_files.append(file_path)
+        return self
+
+    def get_command(self):
+        args = " ".join("{0} {1}".format(argument, value) for argument, value in self._args)
+        command = self._script_name + " " + args
+        return command
+
+    def get_package_files(self):
+        return self._package_files
+
+    def build(self):
+        return self.get_command(), self.get_package_files()
+
+def _prepare_read_builder(script_name, tmp_dir, fastbone, pack=False, token_file=None):
+    builder = ReadCommandBuilder(script_name)
+    if pack:
+        builder \
+            .add_file_argument("--package-file", _pack_module("yt", tmp_dir)) \
+            .add_file_argument("--package-file", _pack_module("yt_yson_bindings", tmp_dir))
+
     config = {
         "proxy": {
             "proxy_discovery_url": ("hosts/fb" if fastbone else "hosts")
@@ -227,38 +275,56 @@ def _prepare_read_from_yt_command(yt_client, src, format, tmp_dir, fastbone, pac
         "default_api_version_for_http": None
     }
 
+    if token_file is not None:
+        builder.add_string_argument("--token-file", token_file)
+
+    config_file = _pack_string("config.json", json.dumps(config, indent=2), tmp_dir)
+    builder.add_file_argument("--config-file", config_file)
+    return builder
+
+def _prepare_read_table_from_yt_command(yt_client, src, format, tmp_dir, fastbone, pack=False, input_type="json",
+                                        token_file=None):
     if len(yt.TablePath(src, client=yt_client).attributes.get("ranges", [])) > 1:
         raise yt.YtError("Reading slices from table with multiple ranges is not supported")
+    assert yt_client.TRANSACTION is not None
+    builder = _prepare_read_builder("python read_from_yt.py", tmp_dir, fastbone, pack, token_file)
+    command, files = builder \
+        .add_string_argument("--proxy", yt_client.config["proxy"]["url"]) \
+        .add_string_argument("--format", shellquote(format)) \
+        .add_string_argument("--table", shellquote(src)) \
+        .add_string_argument("--input-type", input_type) \
+        .add_string_argument("--tx", yt_client.TRANSACTION) \
+        .add_file(os.path.abspath(os.path.join(os.path.dirname(__file__), "read_from_yt.py"))) \
+        .build()
+    return command, files
 
-    command = "python read_from_yt.py --proxy {proxy} --format {format} --table {table} --input-type {input_type}"\
-        .format(proxy=yt_client.config["proxy"]["url"],
-                format=shellquote(format),
-                table=shellquote(src),
-                input_type=input_type,
-                tx=yt_client.TRANSACTION)
-
-    if yt_client.TRANSACTION is not None:
-        command += " --tx " + yt_client.TRANSACTION
-
-    for file in package_files:
-        command += " --package-file " + os.path.basename(file)
-
-    files = package_files + [os.path.abspath(os.path.join(os.path.dirname(__file__), "read_from_yt.py"))]
-
-    if token_file is not None:
-        command += " --token-file " + token_file
-
-    if config:
-        config_file = _pack_string("config.json", json.dumps(config, indent=2), tmp_dir)
-        files.append(config_file)
-        command += " --config-file " + os.path.basename(config_file)
-
+def _prepare_read_file_from_yt_command(destination_client, source_client, src, temp_files_dir, tmp_dir, fastbone,
+                                       pack=False, token_file=None, erasure_codec=None, compression_codec=None):
+    assert source_client.TRANSACTION is not None
+    assert destination_client.TRANSACTION is not None
+    builder = _prepare_read_builder("python read_file_from_yt.py", tmp_dir, fastbone, pack, token_file)
+    command, files = builder \
+        .add_string_argument("--source-proxy", source_client.config["proxy"]["url"]) \
+        .add_string_argument("--destination-proxy", destination_client.config["proxy"]["url"]) \
+        .add_string_argument("--file", shellquote(src)) \
+        .add_string_argument("--tmp-dir", temp_files_dir) \
+        .add_string_argument("--erasure-codec", erasure_codec) \
+        .add_string_argument("--compression-codec", compression_codec) \
+        .add_string_argument("--src-tx", source_client.TRANSACTION) \
+        .add_string_argument("--dst-tx", destination_client.TRANSACTION) \
+        .add_file(os.path.abspath(os.path.join(os.path.dirname(__file__), "read_file_from_yt.py"))) \
+        .build()
     return command, files
 
 def _raw_read_table_from_yt(source_client, table, format):
     client = deepcopy(source_client)
     client.config["read_retries"]["create_transaction_and_take_snapshot_lock"] = False
     return client.read_table(table, format, raw=True)
+
+def _read_file_from_yt(source_client, file):
+    client = deepcopy(source_client)
+    client.config["read_retries"]["create_transaction_and_take_snapshot_lock"] = False
+    return client.read_file(file)
 
 def check_permission(client, permission, path):
      user_name = client.get_user_name(client.config["token"])
@@ -281,11 +347,11 @@ def copy_additional_attributes(source_client, destination_client, source_table, 
         if attribute in source_attributes:
             destination_client.set_attribute(destination_table, attribute, source_attributes[attribute])
 
-def set_codec(yt_client, dst, codec, codec_type):
+def set_codec(yt_client, dst, codec, codec_type, dst_type="table"):
     attribute_name = codec_type + "_codec"
     if codec is not None:
         if not yt_client.exists(dst):
-            yt_client.create_table(dst, attributes={attribute_name: codec})
+            yt_client.create(dst_type, dst, attributes={attribute_name: codec})
         yt_client.set_attribute(dst, attribute_name, codec)
 
 def copy_yt_to_yt(source_client, destination_client, src, dst, network_name,
@@ -349,16 +415,14 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name,
 def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fastbone, token_storage_path,
                                 copy_spec_template=None, postprocess_spec_template=None, default_tmp_dir=None,
                                 compression_codec=None, erasure_codec=None, intermediate_format=None,
-                                enable_row_count_check=True, small_table_size_threshold=None,
-                                force_copy_with_operation=False, additional_attributes=None,
-                                schema_inference_mode=None):
+                                small_table_size_threshold=None, force_copy_with_operation=False,
+                                additional_attributes=None, schema_inference_mode=None):
     if schema_inference_mode is None:
         schema_inference_mode = "auto"
 
     tmp_dir = tempfile.mkdtemp(dir=default_tmp_dir)
 
     intermediate_format = yt.create_format(get_value(intermediate_format, "json"))
-    enable_row_count_check = get_value(enable_row_count_check, True)
 
     attributes = {"title": "copy_yt_to_yt_through_proxy"}
 
@@ -392,6 +456,15 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
                 dst_table.attributes["sorted_by"] = sorted_by
             row_count = source_client.get(src + "/@row_count")
 
+            if schema_inference_mode == "from_input":
+                destination_client.run_erase(dst_table)
+                destination_client.alter_table(dst_table, source_client.get(src + "/@schema"))
+            if schema_inference_mode == "auto":
+                dst_table.attributes["schema"] = source_client.get(src + "/@schema")
+                # TODO(ignat): use schema initially instead of sorted_by
+                if "sorted_by" in dst_table.attributes:
+                    del dst_table.attributes["sorted_by"]
+
             if small_table_size_threshold is not None and \
                     source_client.get(str(src) + "/@uncompressed_data_size") < small_table_size_threshold and \
                     not force_copy_with_operation:
@@ -407,14 +480,13 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
                 yt_token_file = _secure_upload_token(source_client.config["token"], destination_client,
                                                      token_storage_path, tmp_dir)
                 try:
-                    command, files = _prepare_read_from_yt_command(
+                    command, files = _prepare_read_table_from_yt_command(
                         source_client,
                         src.to_yson_string(),
                         str(intermediate_format),
                         tmp_dir,
                         fastbone,
                         pack=True,
-                        enable_row_count_check=enable_row_count_check,
                         token_file=yt_token_file.attributes["file_name"])
 
                     ranges = _slice_yt_table_evenly(source_client, src)
@@ -424,14 +496,6 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
 
                     spec = deepcopy(get_value(copy_spec_template, {}))
                     spec["data_size_per_job"] = 1
-                    if schema_inference_mode == "from_input":
-                        destination_client.run_erase(dst_table)
-                        destination_client.alter_table(dst_table, source_client.get(src + "/@schema"))
-                    if schema_inference_mode == "auto":
-                        dst_table.attributes["schema"] = source_client.get(src + "/@schema")
-                        # TODO(ignat): use schema initially instead of schema
-                        if "sorted_by" in dst_table.attributes:
-                            del dst_table.attributes["sorted_by"]
 
                     _set_tmpfs_settings(destination_client, spec, files, [yt_token_file])
                     _set_mapper_settings_for_read_from_yt(spec)
@@ -467,6 +531,115 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
 
     finally:
         shutil.rmtree(tmp_dir)
+
+def copy_file_yt_to_yt(source_client, destination_client, src, dst, fastbone, token_storage_path,
+                       copy_spec_template=None, default_tmp_dir=None, compression_codec=None,
+                       erasure_codec=None, intermediate_format=None, small_file_size_threshold=None,
+                       force_copy_with_operation=False, additional_attributes=None, temp_files_dir=None):
+    tmp_dir = tempfile.mkdtemp(dir=default_tmp_dir)
+    intermediate_format = yt.create_format(get_value(intermediate_format, "json"))
+
+    attributes = {"title": "copy_file_yt_to_yt"}
+
+    destination_client.create("map_node", os.path.dirname(dst), recursive=True, ignore_existing=True)
+    destination_client.create("map_node", token_storage_path, recursive=True, ignore_existing=True)
+
+    try:
+        with source_client.Transaction(attributes=attributes), destination_client.Transaction(attributes=attributes):
+            src_name = src
+            src = yt.FilePath(src, client=source_client)
+            src.name = yson.to_yson_type("#" + source_client.get(src_name + "/@id"), attributes=src.attributes)
+            source_client.lock(src, mode="snapshot")
+
+            if temp_files_dir is None:
+                temp_files_dir = ypath_join(destination_client.config["remote_temp_files_directory"],
+                                            destination_client.TRANSACTION)
+            if not destination_client.exists(temp_files_dir):
+                destination_client.mkdir(temp_files_dir, recursive=True)
+
+            if compression_codec is None:
+                compression_codec = source_client.get(str(src) + "/@compression_codec")
+            if erasure_codec is None:
+                erasure_codec = source_client.get(str(src) + "/@erasure_codec")
+
+            set_codec(destination_client, dst, erasure_codec, "erasure", "file")
+            set_codec(destination_client, dst, compression_codec, "compression", "file")
+
+            data_size = source_client.get(src.name + "/@uncompressed_data_size")
+
+            if small_file_size_threshold is not None and \
+                    source_client.get(str(src) + "/@uncompressed_data_size") < small_file_size_threshold and \
+                    not force_copy_with_operation:
+                logger.info("Source file '%s' is small, copying without operation on destination cluster",
+                            str(src_name))
+
+                stream = _read_file_from_yt(source_client, src)
+                try:
+                    destination_client.write_file(dst, stream)
+                finally:
+                    stream.close()
+            else:
+                yt_token_file = _secure_upload_token(source_client.config["token"], destination_client,
+                                                     token_storage_path, tmp_dir)
+                temp_table_input = None
+                temp_table_output = None
+                try:
+                    command, files = _prepare_read_file_from_yt_command(
+                        destination_client,
+                        source_client,
+                        src.to_yson_string(),
+                        temp_files_dir,
+                        tmp_dir,
+                        fastbone,
+                        pack=True,
+                        token_file=yt_token_file.attributes["file_name"],
+                        erasure_codec=erasure_codec,
+                        compression_codec=compression_codec)
+
+                    ranges = _slice_yt_file_evenly(source_client, src.name)
+
+                    temp_table_input = destination_client.create_temp_table(prefix=os.path.basename(src.name))
+                    temp_table_output = destination_client.create_temp_table(prefix=os.path.basename(src.name))
+                    destination_client.write_table(temp_table_input, ranges, format=yt.JsonFormat(), raw=False)
+
+                    spec = deepcopy(get_value(copy_spec_template, {}))
+                    spec["data_size_per_job"] = 1
+                    _set_tmpfs_settings(destination_client, spec, files, [yt_token_file])
+                    _set_mapper_settings_for_read_from_yt(spec)
+
+                    destination_client.run_map(
+                        command,
+                        temp_table_input,
+                        temp_table_output,
+                        files=files,
+                        yt_files=[yt_token_file],
+                        spec=spec,
+                        input_format=yt.JsonFormat(),
+                        output_format=intermediate_format)
+
+                    destination_client.concatenate(_get_temp_file_names(temp_files_dir, ranges), dst)
+
+                finally:
+                    destination_client.remove(str(yt_token_file), force=True)
+                    destination_client.remove(temp_files_dir, force=True, recursive=True)
+                    if temp_table_input is not None:
+                        destination_client.remove(temp_table_input, force=True)
+                    if temp_table_output is not None:
+                        destination_client.remove(temp_table_output, force=True)
+
+            result_data_size = destination_client.get(dst + "/@uncompressed_data_size")
+            if data_size != result_data_size:
+                error = "Incorrect file size (expected: %d, actual: %d)" % (data_size, result_data_size)
+                logger.error(error)
+                raise IncorrectFileSize(error)
+
+            copy_user_attributes(source_client, destination_client, src.name, dst)
+
+        copy_additional_attributes(source_client, destination_client, src, dst, additional_attributes)
+
+    finally:
+        shutil.rmtree(tmp_dir)
+
 
 def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, copy_spec_template=None,
                          postprocess_spec_template=None, compression_codec=None, erasure_codec=None,
@@ -586,8 +759,8 @@ done"""
             yamr_client.drop(temp_yamr_table)
 
 def copy_yt_to_yamr_pull(yt_client, yamr_client, src, dst, parallel_job_count=None, force_sort=None,
-                         fastbone=True, default_tmp_dir=None, enable_row_count_check=True,
-                         small_table_size_threshold=None, force_copy_with_operation=False):
+                         fastbone=True, default_tmp_dir=None, small_table_size_threshold=None,
+                         force_copy_with_operation=False):
     tmp_dir = tempfile.mkdtemp(dir=default_tmp_dir)
 
     try:
@@ -618,14 +791,13 @@ def copy_yt_to_yamr_pull(yt_client, yamr_client, src, dst, parallel_job_count=No
                 yamr_client.write_rows_as_values(temp_yamr_table, ranges)
 
                 token_file = _pack_token(yt_client.config["token"], tmp_dir)
-                command, files = _prepare_read_from_yt_command(
+                command, files = _prepare_read_table_from_yt_command(
                     yt_client,
                     src.to_yson_string(),
                     "<has_subkey=true;lenval=true>yamr",
                     tmp_dir,
                     fastbone,
                     pack=True,
-                    enable_row_count_check=enable_row_count_check,
                     input_type="lenval",
                     token_file=os.path.basename(token_file))
                 files.append(token_file)
@@ -808,7 +980,6 @@ client.write_table(table, gen_rows())
         del kwargs["fastbone"]
 
     tmp_dir = tempfile.mkdtemp(dir=kwargs.get("default_tmp_dir"))
-    enable_row_count_check = get_value(kwargs.pop("enable_row_count_check", None), False)
     kiwi_transmittor.create("map_node", token_storage_path, ignore_existing=True, recursive=True)
     try:
         with yt_client.Transaction(attributes={"title": "copy_yt_to_kiwi"}):
@@ -817,14 +988,13 @@ client.write_table(table, gen_rows())
             yt_token_file = _secure_upload_token(yt_client.config["token"], kiwi_transmittor,
                                                  token_storage_path, tmp_dir)
             try:
-                command, files = _prepare_read_from_yt_command(
+                command, files = _prepare_read_table_from_yt_command(
                     yt_client,
                     src,
                     "<lenval=true>yamr",
                     tmp_dir,
                     fastbone,
                     pack=True,
-                    enable_row_count_check=enable_row_count_check,
                     token_file=yt_token_file.attributes["file_name"])
 
                 write_errors_script = None

@@ -57,7 +57,7 @@ def _is_directory(client, path):
     else:
         raise yt.YtError("Failed to check if {} is a directory, unsupported client: {}".format(path, client._type))
 
-def match_copy_pattern(client, source_pattern, destination_pattern):
+def match_copy_pattern(client, source_pattern, destination_pattern, include_files=False):
     source_tokens = _tokenize(source_pattern)
     for i in xrange(len(source_tokens) - 1):
         if _is_placeholder(source_tokens[i]) and _is_placeholder(source_tokens[i + 1]):
@@ -80,8 +80,12 @@ def match_copy_pattern(client, source_pattern, destination_pattern):
     if client._type == "yt":
         if not client.exists(prefix):
             raise yt.YtError("Prefix of source pattern does not exist")
-        for table in client.search(prefix, node_type="table"):
-            _match(table, source_tokens, destination_tokens, result)
+        node_type = ["table"]
+        if include_files:
+            node_type.append("file")
+        for node in client.search(prefix, node_type=node_type):
+            _match(node, source_tokens, destination_tokens, result)
+
     elif client._type == "yamr":
         for table_info in client.list(prefix):
             _match(table_info["name"], source_tokens, destination_tokens, result)

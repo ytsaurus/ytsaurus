@@ -21,18 +21,23 @@ class TestPatternMatching(object):
 
         class YtClientMock(object):
             TEST_TABLE_NAMES = ["//a/table", "//a/b/table2", "//a/b/c/table3", "//d/table",
-                                "//d/d1/a/table", "//d/d2/a/table", "//d/d3/a/b/table"]
+                                "//d/d1/a/table", "//d/d2/a/table", "//d/d3/a/b/table", "//a/file",
+                                "//d/file", "//d/d1/file2"]
             def __init__(self):
                 self._type = "yt"
 
             def search(self, *args, **kwargs):
                 """ Emulates YT client search() method """
-                return (name for name in self.TEST_TABLE_NAMES)
+                return (name for name in self.TEST_TABLE_NAMES
+                        if not kwargs.get("node_type") or self.get_type(name) == kwargs.get("node_type"))
 
             def get_type(self, path, *args, **kwargs):
                 """ Emulates YT client get_type() method """
                 map_nodes = ["//a", "//a/b", "//a/b/c", "//d", "//d/d1", "//d/d1/a", "//d/d2", "//d/d2/a",
                              "//d/d3", "//d/d3/a", "//d/d3/a/b"]
+                files = ["//a/file", "//d/file", "//d/d1/file2"]
+                if path in files:
+                    return "file"
                 return "map_node" if path in map_nodes else "table"
 
             def exists(self, path, *args, **kwargs):
@@ -40,8 +45,11 @@ class TestPatternMatching(object):
 
         client = YtClientMock()
 
+
         with pytest.raises(yt.YtError):
             match(client, "//a/{p}", "//a")
+        with pytest.raises(yt.YtError):
+            match(client, "//a/{p}", "//a", include_files=True)
         with pytest.raises(yt.YtError):
             match(client, "//a/{b}/{c}", "//a/{c}/{b}")
         with pytest.raises(yt.YtError):
@@ -52,6 +60,9 @@ class TestPatternMatching(object):
             match(client, "//{*}/{*}", "tmp/{*}/{*}")
 
         assert match(client, "//a/{p}", "tmp/{p}") == [("//a/table", "tmp/table")]
+        assert match(client, "//a/{p}", "tmp/{p}", include_files=True) == [("//a/table", "tmp/table"),
+                                                                           ('//a/file', 'tmp/file')]
+        
         assert match(client, "//{p1}/{p2}/table2", "tmp/{p1}/{p2}/table2") == [("//a/b/table2",
                                                                                 "tmp/a/b/table2")]
         assert match(client, "//a/table", "tmp/table") == [("//a/table", "tmp/table")]
@@ -59,6 +70,7 @@ class TestPatternMatching(object):
         assert match(client, "//d/{p}/a/b/table", "tmp/{p}/a/b/other") == [("//d/d3/a/b/table", "tmp/d3/a/b/other")]
         assert match(client, "//d/{p}/a/{p}", "tmp/{p}/a/{p}") == [("//d/d1/a/table", "tmp/d1/a/table"),
                                                                    ("//d/d2/a/table", "tmp/d2/a/table")]
+
 
         assert match(client, "//a/{*}", "tmp/{*}") == [("//a/table", "tmp/table"),
                                                        ("//a/b/table2", "tmp/b/table2"),
@@ -74,3 +86,10 @@ class TestPatternMatching(object):
         assert match(client, "//d/{p}/{*}", "tmp/{p}/{*}") == [("//d/d1/a/table", "tmp/d1/a/table"),
                                                                ("//d/d2/a/table", "tmp/d2/a/table"),
                                                                ("//d/d3/a/b/table", "tmp/d3/a/b/table")]
+
+        assert match(client, "//d/{p}/{*}", "tmp/{p}/{*}", include_files=True) == \
+                [("//d/d1/a/table", "tmp/d1/a/table"),
+                ("//d/d2/a/table", "tmp/d2/a/table"),
+                ("//d/d3/a/b/table", "tmp/d3/a/b/table"),
+                ('//d/d1/file2', 'tmp/d1/file2')]
+

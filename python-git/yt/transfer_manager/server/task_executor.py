@@ -14,6 +14,7 @@ from yt.tools.remote_copy_tools import \
     copy_yt_to_kiwi, \
     copy_yt_to_yt, \
     copy_yt_to_yt_through_proxy, \
+    copy_file_yt_to_yt, \
     copy_hive_to_yt, \
     copy_hadoop_to_hadoop_with_airflow
 
@@ -86,7 +87,24 @@ def execute_task(task, message_queue, config):
 
         if source_client._type == "yt" and destination_client._type == "yt":
             logger.info("Running YT -> YT remote copy operation")
-            if task.copy_method == "proxy":
+            if source_client.get(yt.YPath(task.source_table, client=source_client).to_yson_type() + "/@type") == "file":
+                copy_file_yt_to_yt(
+                    source_client,
+                    destination_client,
+                    task.source_table,
+                    task.destination_table,
+                    fastbone=fastbone,
+                    token_storage_path=config["token_storage_path"],
+                    copy_spec_template=copy_spec,
+                    compression_codec=task.destination_compression_codec,
+                    erasure_codec=task.destination_erasure_codec,
+                    intermediate_format=task.intermediate_format,
+                    default_tmp_dir=config.get("default_tmp_dir"),
+                    small_file_size_threshold=config.get("small_table_size_threshold"),
+                    force_copy_with_operation=force_copy_with_operation,
+                    additional_attributes=task.additional_attributes,
+                    temp_files_dir=task.temp_files_dir)
+            elif task.copy_method == "proxy":
                 copy_yt_to_yt_through_proxy(
                     source_client,
                     destination_client,
@@ -100,7 +118,6 @@ def execute_task(task, message_queue, config):
                     erasure_codec=task.destination_erasure_codec,
                     intermediate_format=task.intermediate_format,
                     default_tmp_dir=config.get("default_tmp_dir"),
-                    enable_row_count_check=config.get("enable_row_count_check"),
                     small_table_size_threshold=config.get("small_table_size_threshold"),
                     force_copy_with_operation=force_copy_with_operation,
                     additional_attributes=task.additional_attributes,
@@ -139,7 +156,6 @@ def execute_task(task, message_queue, config):
                     fastbone=fastbone,
                     force_sort=task.destination_force_sort,
                     default_tmp_dir=config.get("default_tmp_dir"),
-                    enable_row_count_check=config.get("enable_row_count_check"),
                     small_table_size_threshold=config.get("small_table_size_threshold"),
                     force_copy_with_operation=force_copy_with_operation)
         elif source_client._type == "yamr" and destination_client._type == "yt":
@@ -179,8 +195,7 @@ def execute_task(task, message_queue, config):
                 kwworm_options=task.kwworm_options,
                 copy_spec_template=copy_spec,
                 table_for_errors=task.table_for_errors,
-                default_tmp_dir=config.get("default_tmp_dir"),
-                enable_row_count_check=config.get("enable_row_count_check"))
+                default_tmp_dir=config.get("default_tmp_dir"))
         elif source_client._type == "hive" and destination_client._type == "yt":
             copy_hive_to_yt(
                 source_client,
