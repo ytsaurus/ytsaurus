@@ -232,11 +232,25 @@ def wait_until(path, state):
     while not all(x["state"] == state for x in yt.get(path + "/@tablets")):
         sleep(1)
 def mount_table(path):
+    sys.stdout.write("Mounting table %s... " % (path))
     yt.mount_table(path)
     wait_until(path, "mounted")
+    print "done"
 def unmount_table(path):
+    sys.stdout.write("Unmounting table %s... " % (path))
     yt.unmount_table(path)
     wait_until(path, "unmounted")
+    print "done"
+def freeze_table(path):
+    sys.stdout.write("Freezing table %s... " % (path))
+    yt.freeze_table(path)
+    wait_until(path, "frozen")
+    print "done"
+def unfreeze_table(path):
+    sys.stdout.write("Unfreezing table %s... " % (path))
+    yt.unfreeze_table(path)
+    wait_until(path, "mounted")
+    print "done"
 
 def create_dynamic_table(table, schema, attributes, tablet_count):
     print "Create dynamic table %s" % table
@@ -255,9 +269,8 @@ def reshard_table(table, schema, tablet_count):
 
 @yt.aggregator
 class DataCreationMapper(SchemafulMapper):
-    def __init__(self, schema, table, iteration):
+    def __init__(self, schema, table):
         super(DataCreationMapper, self).__init__(schema, table)
-        self.iteration = iteration
     def __call__(self, records):
         for record in records:
             for k in record.keys():
@@ -265,13 +278,12 @@ class DataCreationMapper(SchemafulMapper):
                     record.pop(k)
             data = self.schema.generate_data()
             record.update(data)
-            record["iteration"] = self.iteration
             yield record
 
 def create_random_data(schema, key_table, iter_table, iteration, job_count):
     print "Generate random data, iteration %s" % iteration
     yt.run_map(
-        DataCreationMapper(schema, iter_table, iteration),
+        DataCreationMapper(schema, iter_table),
         key_table,
         iter_table,
         spec={"job_count": job_count, "max_failed_job_count": 100},
@@ -288,7 +300,7 @@ class WriterMapper(SchemafulMapper):
         rows = []
         for record in records:
             for k in record.keys():
-                if k[0] == '@' or k == "iteration":
+                if k[0] == '@':
                     record.pop(k)
             rows.append(record)
 
@@ -345,15 +357,22 @@ class AggregateReducer:
 
 def aggregate_data(schema, data_table, iter_table, new_data_table, aggregate, update, job_count):
     print "Aggregate data"
-    key = schema.get_key_column_names()
-    yt.run_sort(data_table, sort_by=key + ["iteration"])
+    key_columns = schema.get_key_column_names()
+    yt.run_sort(data_table, sort_by=key_columns)
     yt.run_reduce(
         AggregateReducer(schema, aggregate, update),
         [data_table, iter_table],
         new_data_table,
-        reduce_by=schema.get_key_column_names(),
-        spec={"job_count": job_count, "max_failed_job_count": 100},
+        reduce_by=key_columns,
         format=yt.YsonFormat(boolean_as_string=False))
+
+def equal(columns, x, y):
+    if (x == None) + (y == None) > 0:
+        return (x == None) == (y == None)
+    for c in columns:
+        if ((c in x) != (c in y)) or ((c in x) and (x[c] != y[c])):
+            return False
+    return True
 
 @yt.aggregator
 class VerifierMapper(SchemafulMapper):
@@ -383,18 +402,10 @@ class VerifierMapper(SchemafulMapper):
         data = self.make_request("lookup_rows", params, self.prepare(keys), client)
         results = yson.loads(data, yson_type="list_fragment")
 
-        def equal(x, y):
-            if (x == None) + (y == None) > 0:
-                return (x == None) == (y == None)
-            for c in self.schema.get_column_names():
-                if ((c in x) != (c in y)) or ((c in x) and (x[c] != y[c])):
-                    return False
-            return True
-
         for i in xrange(len(keys)):
             record = records[i]
             result = next(results, None)
-            if not equal(result, record):
+            if not equal(self.schema.get_column_names(), result, record):
                 yield {"expected": record, "actual": result}
 
 def verify(schema, data_table, table, result_table, job_count):
@@ -406,12 +417,93 @@ def verify(schema, data_table, table, result_table, job_count):
         spec={"job_count": job_count, "max_failed_job_count": 100},
         format=yt.YsonFormat(process_table_index=False, boolean_as_string=False))
     rows = yt.read_table(result_table, raw=False)
-    if next(rows, None) == None:
-        print "Everything OK"
-        return True
-    else:
-        print "FAILED, see %s" % result_table
-        return False
+    if next(rows, None) != None:
+        raise Exception("Verification failed")
+    print "Everything OK"
+
+class VerifierReducer(SchemafulMapper):
+    def __init__(self, schema):
+        self.schema = schema
+    def __call__(self, key, records):
+        rows = [None, None]
+        for r in records:
+            rows[r["@table_index"]] = r
+        if not equal(self.schema.get_column_names(), rows[0], rows[1]):
+            yield {"expected": record, "actual": result}
+
+def verify_output(schema, data_table, dump_table, result_table):
+    print "Verify output"
+    key_columns = schema.get_key_column_names()
+
+    yt.run_sort(dump_table, sort_by=key_columns)
+    yt.run_reduce(
+        VerifierReducer(schema),
+        [data_table, dump_table],
+        result_table,
+        reduce_by=key_columns,
+        format=yt.YsonFormat(boolean_as_string=False))
+
+    rows = yt.read_table(result_table, raw=False)
+    if next(rows, None) != None:
+        raise Exception("Verification failed")
+    yt.remove(dump_table)
+    print "Everything OK"
+
+def verify_merge(schema, data_table, table, dump_table, result_table, mode):
+    print "Run %s merge" % (mode)
+    yt.run_merge(table, dump_table, mode=mode)
+    verify_output(schema, data_table, dump_table, result_table)
+
+def verify_map(schema, data_table, table, dump_table, result_table, ordered):
+    print "Run %s map" % ("ordered" if ordered else "unordered")
+    def mapper(record):
+        yield record
+    yt.run_map(mapper, table, dump_table, ordered=ordered)
+    verify_output(schema, data_table, dump_table, result_table)
+
+def verify_sort(schema, data_table, table, dump_table, result_table, sort_by):
+    print "Run sort by %s" % (sort_by)
+    yt.run_sort(table, dump_table, sort_by=sort_by)
+    verify_output(schema, data_table, dump_table, result_table)
+
+def verify_reduce(schema, data_table, table, dump_table, result_table, reduce_by):
+    print "Run reduce by %s" % (reduce_by)
+    def reducer(key, records):
+        for r in records:
+            yield r
+    yt.run_reduce(reducer, table, dump_table, reduce_by=reduce_by)
+    verify_output(schema, data_table, dump_table, result_table)
+
+def verify_map_reduce(schema, data_table, table, dump_table, result_table, reduce_by):
+    print "Run map reduce by %s" % (reduce_by)
+    def mapper(record):
+        yield record
+    def reducer(key, records):
+        for r in records:
+            yield r
+    yt.run_map_reduce(mapper, reducer, table, dump_table, reduce_by=reduce_by)
+    verify_output(schema, data_table, dump_table, result_table)
+
+def verify_mapreduce(schema, data_table, table, dump_table, result_table):
+    key_columns = schema.get_key_column_names()
+    yt.run_sort(data_table, sort_by=key_columns)
+
+    verify_merge(schema, data_table, table, dump_table, result_table, "unordered")
+    verify_merge(schema, data_table, table, dump_table, result_table, "ordered")
+    verify_merge(schema, data_table, table, dump_table, result_table, "sorted")
+    verify_sort(schema, data_table, table, dump_table, result_table, key_columns)
+    #FIXME(savrus)
+    #verify_sort(schema, data_table, table, dump_table, result_table, list(reversed(key_columns)))
+    verify_map(schema, data_table, table, dump_table, result_table, False)
+    verify_map(schema, data_table, table, dump_table, result_table, True)
+    verify_reduce(schema, data_table, table, dump_table, result_table, key_columns)
+    verify_map_reduce(schema, data_table, table, dump_table, result_table, key_columns)
+
+    if len(key_columns) > 1:
+        #FIXME(savrus)
+        #verify_sort(schema, data_table, table, dump_table, result_table, key_columns[:-1])
+        verify_reduce(schema, data_table, table, dump_table, result_table, key_columns[:-1])
+        verify_map_reduce(schema, data_table, table, dump_table, result_table, key_columns[:-1])
 
 def remove_existing(paths, force):
     for path in paths:
@@ -421,7 +513,11 @@ def remove_existing(paths, force):
             else:
                 raise Exception("Table %s already exists. Use --force" % path)
 
-def single_iteration(schema, table, key_table, data_table, result_table, job_count, iterno, force, keep):
+def single_iteration(schema, table, key_table, data_table, dump_table, result_table, iterno, args):
+    job_count = args.job_count
+    force = args.force
+    mapreduce = args.mapreduce
+
     aggregate_probability = 0.9
     update_probability = 0.5
     aggregate = random.random() < aggregate_probability
@@ -434,37 +530,48 @@ def single_iteration(schema, table, key_table, data_table, result_table, job_cou
     create_random_data(schema, key_table, iter_table, iterno, job_count)
     write_data(schema, iter_table, table, iterno, aggregate, update, job_count)
     aggregate_data(schema, data_table, iter_table, new_data_table, aggregate, update, job_count)
-    good = verify(schema, new_data_table, table, result_table, job_count)
+    verify(schema, new_data_table, table, result_table, job_count)
 
-    if good:
-        yt.move(new_data_table, data_table, force=True)
-    else:
-        raise Exception("Verification failed at iteration %s" % iterno)
+    freeze_table(table)
+    unfreeze_table(table)
+
+    if mapreduce:
+        verify_mapreduce(schema, new_data_table, table, dump_table, result_table)
+
+    yt.move(new_data_table, data_table, force=True)
     return iter_table
 
-def do_single_execution(table, schema, attributes, tablet_count, key_count, iterations, job_count, force, keep):
+def do_single_execution(table, schema, attributes, args):
+    tablet_count = args.tablet_count
+    key_count = args.key_count
+    iterations = args.iterations
+    job_count = args.job_count
+    force = args.force
+    keep = args.keep
+
     key_table = table + ".keys"
     data_table = table + ".data"
     result_table = table + ".result"
-    remove_existing([table, key_table, data_table, result_table], force)
+    dump_table = table + ".dump"
+    remove_existing([table, key_table, data_table, result_table, dump_table], force)
     yt.create_table(data_table)
 
     create_dynamic_table(table, schema, attributes, tablet_count)
     create_keys(schema, key_table, key_count, job_count)
 
+    #TODO(savrus): generate data and mount static table initially
+
     iter_tables = []
     for i in xrange(iterations):
-        iter_table = single_iteration(schema, table, key_table, data_table, result_table, job_count, i, force, keep)
+        iter_table = single_iteration(schema, table, key_table, data_table, dump_table, result_table, i, args)
         iter_tables.append(iter_table)
-    unmount_table(table)
-    mount_table(table)
     if not keep:
         for path in [table, key_table, data_table, result_table] + iter_tables:
             yt.remove(path)
 
-def single_execution(table, schema, attributes, tablet_count, key_count, iterations, job_count, force, keep):
+def single_execution(table, schema, attributes, args):
     try:
-         do_single_execution(table, schema, attributes, tablet_count, key_count, iterations, job_count, force, keep)
+         do_single_execution(table, schema, attributes, args)
     except Exception as ex:
         print "Test %s failed" % (table)
         print ex
@@ -473,10 +580,10 @@ def variate_modes(table, args):
     schema = Schema()
 
     for optimize_for in ["lookup", "scan"]:
-        single_execution(table + "." + optimize_for + ".none", schema, {"optimize_for": optimize_for}, args.tablet_count, args.key_count, args.iterations, args.job_count, args.force, args.keep)
-        single_execution(table + "." + optimize_for + ".compressed", schema, {"optimize_for": optimize_for, "in_memory_mode": "compressed"}, args.tablet_count, args.key_count, args.iterations, args.job_count, args.force, args.keep)
-        single_execution(table + "." + optimize_for + ".uncompressed", schema, {"optimize_for": optimize_for, "in_memory_mode": "uncompressed"}, args.tablet_count, args.key_count, args.iterations, args.job_count, args.force, args.keep)
-        single_execution(table + "." + optimize_for + ".uncompressed.lookuptable", schema, {"optimize_for": optimize_for, "in_memory_mode": "uncompressed", "enable_lookup_hash_table": True}, args.tablet_count, args.key_count, args.iterations, args.job_count, args.force, args.keep)
+        single_execution(table + "." + optimize_for + ".none", schema, {"optimize_for": optimize_for}, args)
+        single_execution(table + "." + optimize_for + ".compressed", schema, {"optimize_for": optimize_for, "in_memory_mode": "compressed"}, args)
+        single_execution(table + "." + optimize_for + ".uncompressed", schema, {"optimize_for": optimize_for, "in_memory_mode": "uncompressed"}, args)
+        single_execution(table + "." + optimize_for + ".uncompressed.lookuptable", schema, {"optimize_for": optimize_for, "in_memory_mode": "uncompressed", "enable_lookup_hash_table": True}, args)
 
 def run_test(args):
     module_filter = lambda module: hasattr(module, "__file__") and \
@@ -485,9 +592,8 @@ def run_test(args):
                                    "yt_driver_bindings" not in getattr(module, "__name__", "")
     yt.config["pickling"]["module_filter"] = module_filter
 
-    for i in range(100):
+    for i in range(args.generations):
         variate_modes(args.table + "." + str(i), args)
-    #variate_modes(args.table, args)
 
 def main():
     parser = argparse.ArgumentParser(description="Map-Reduce table manipulator.")
@@ -499,6 +605,8 @@ def main():
     parser.add_argument("--job_count", type=int, default=10, help="Nuber of jobs")
     parser.add_argument("--tablet_count", type=int, default=10, help="Nuber of tablets")
     parser.add_argument("--iterations", type=int, default=2, help="Nuber of iterations")
+    parser.add_argument("--generations", type=int, default=100, help="Number of generations")
+    parser.add_argument("--mapreduce", action="store_true", default=False, help="Test map-reduce over dynamic tables")
     args = parser.parse_args()
 
     run_test(args)
