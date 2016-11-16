@@ -145,6 +145,8 @@ void ParseFromStream(TInputStream* stream, Message& row, ui32 length)
     CodedInputStream codedStream(&adaptor);
     codedStream.SetTotalBytesLimit(length + 1, length + 1);
     row.ParseFromCodedStream(&codedStream);
+
+    Y_ENSURE(input.Left() == 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
