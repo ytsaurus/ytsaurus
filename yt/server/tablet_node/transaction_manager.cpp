@@ -543,7 +543,6 @@ private:
 
         for (const auto& pair : TransientTransactionMap_) {
             auto* transaction = pair.second;
-            YCHECK(transaction->GetState() == ETransactionState::Active);
             transaction->ResetFinished();
             TransactionTransientReset_.Fire(transaction);
         }
