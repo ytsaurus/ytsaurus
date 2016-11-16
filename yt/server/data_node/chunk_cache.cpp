@@ -678,8 +678,8 @@ private:
         std::vector<TChunkSpec> chunkSpecs;
 
         for (const auto& descriptor : key.data_slice_descriptors()) {
-            YCHECK(descriptor.type() == EDataSliceDescriptorType::File && descriptor.chunks_size() == 1);
-            chunkSpecs.push_back(descriptor.chunks(0));
+            auto dataSliceDescriptor = FromProto<TDataSliceDescriptor>(descriptor);
+            chunkSpecs.push_back(dataSliceDescriptor.GetSingleFileChunk());
         }
 
         auto options = New<TMultiChunkReaderOptions>();

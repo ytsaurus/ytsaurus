@@ -21,6 +21,13 @@ const NProto::TChunkSpec& TDataSliceDescriptor::GetSingleUnversionedChunk() cons
     return ChunkSpecs[0];
 }
 
+const NProto::TChunkSpec& TDataSliceDescriptor::GetSingleFileChunk() const
+{
+    YCHECK(Type == EDataSliceDescriptorType::File);
+    YCHECK(ChunkSpecs.size() == 1);
+    return ChunkSpecs[0];
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void ToProto(NProto::TDataSliceDescriptor* protoDataSliceDescriptor, const TDataSliceDescriptor& dataSliceDescriptor)

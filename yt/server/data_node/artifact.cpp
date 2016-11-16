@@ -19,8 +19,7 @@ TArtifactKey::TArtifactKey(const TChunkId& chunkId)
     set_type(static_cast<int>(EObjectType::File));
     NChunkClient::NProto::TChunkSpec chunkSpec;
     ToProto(chunkSpec.mutable_chunk_id(), chunkId);
-    TDataSliceDescriptor dataSliceDescriptor(EDataSliceDescriptorType::File, {chunkSpec});
-    ToProto(add_data_slice_descriptors(), dataSliceDescriptor);
+    ToProto(add_data_slice_descriptors(), MakeFileDataSliceDescriptor(chunkSpec));
 }
 
 TArtifactKey::TArtifactKey(const NScheduler::NProto::TFileDescriptor& descriptor)
