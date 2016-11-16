@@ -630,9 +630,9 @@ void BuildUserJobFluently(
 {
     TMaybe<i64> memoryLimit = preparer.GetSpec().MemoryLimit_;
 
-    i64 tmpfsSize = 0;
+    auto tmpfsSize = preparer.GetSpec().ExtraTmpfsSize_.GetOrElse(0LL);
     if (preparer.ShouldMountSandbox()) {
-        tmpfsSize = preparer.GetTotalFileSize();
+        tmpfsSize += preparer.GetTotalFileSize();
         memoryLimit = memoryLimit.GetOrElse(512ll << 20) + tmpfsSize;
     }
 
