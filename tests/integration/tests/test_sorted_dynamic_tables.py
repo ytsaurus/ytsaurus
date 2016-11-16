@@ -282,10 +282,20 @@ class TestSortedDynamicTables(YTEnvSetup):
 
         rows1 = [{"key": i, "value": str(i)} for i in xrange(10)]
         insert_rows("//tmp/t", rows1)
-        self.sync_unmount_table("//tmp/t")
+        self.sync_freeze_table("//tmp/t")
 
         assert read_table("//tmp/t") == rows1
         assert get("//tmp/t/@chunk_count") == 1
+
+        ts = generate_timestamp()
+
+        self.sync_unfreeze_table("//tmp/t")
+        rows2 = [{"key": i, "value": str(i+1)} for i in xrange(10)]
+        insert_rows("//tmp/t", rows2)
+        self.sync_freeze_table("//tmp/t")
+
+        assert read_table("<timestamp=%s>//tmp/t" %(ts)) == rows1
+        assert get("//tmp/t/@chunk_count") == 2
 
     def test_read_snapshot_lock(self):
         self.sync_create_cells(1)

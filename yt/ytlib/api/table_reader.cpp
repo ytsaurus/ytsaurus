@@ -166,6 +166,7 @@ void TSchemalessTableReader::DoOpen()
 
     bool dynamic;
     TTableSchema schema;
+    auto timestamp = RichPath_.GetTimestamp();
 
     {
         LOG_INFO("Requesting table schema");
@@ -191,6 +192,12 @@ void TSchemalessTableReader::DoOpen()
 
         dynamic = attributes->Get<bool>("dynamic");
         schema = attributes->Get<TTableSchema>("schema");
+
+        if (timestamp && !(dynamic && schema.IsSorted())) {
+            THROW_ERROR_EXCEPTION("Invalid attribute %Qv: table %Qv is not sorted dynamic",
+                "timestamp",
+                path);
+        }
     }
 
     auto nodeDirectory = New<TNodeDirectory>();
@@ -233,6 +240,11 @@ void TSchemalessTableReader::DoOpen()
     options->EnableRowIndex = true;
 
     if (dynamic && schema.IsSorted()) {
+        auto dataSliceDescriptor = MakeVersionedDataSliceDescriptor(
+            std::move(chunkSpecs),
+            schema,
+            timestamp.Get(AsyncLastCommittedTimestamp));
+
         UnderlyingReader_ = CreateSchemalessMergingMultiChunkReader(
             Config_,
             options,
@@ -241,10 +253,9 @@ void TSchemalessTableReader::DoOpen()
             TNodeDescriptor(),
             Client_->GetNativeConnection()->GetBlockCache(),
             nodeDirectory,
-            MakeVersionedDataSliceDescriptor(std::move(chunkSpecs)),
+            dataSliceDescriptor,
             New<TNameTable>(),
-            TColumnFilter(),
-            schema);
+            TColumnFilter());
     } else {
         std::vector<TDataSliceDescriptor> dataSliceDescriptors;
         for (auto& chunkSpec : chunkSpecs) {

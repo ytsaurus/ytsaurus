@@ -1086,6 +1086,8 @@ private:
 
     void ValidateDynamicTableTimestamp(
         const NYPath::TRichYPath& path,
+        bool dynamic,
+        const NTableClient::TTableSchema& schema,
         const NYTree::IAttributeDictionary& attributes) const;
 
 };
