@@ -280,7 +280,7 @@ public:
     {
         RegisterParameter("allow_allocating_new_target_nodes", AllowAllocatingNewTargetNodes)
             .Default(true);
-        RegisterParameter("uniform_placement_id", PlacementId)
+        RegisterParameter("placement_id", PlacementId)
             .Default();
     }
 };
