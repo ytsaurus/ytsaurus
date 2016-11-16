@@ -172,8 +172,7 @@ void TLenvalProtoTableReader::ReadRow(Message* row)
 {
     ValidateProtoDescriptor(*row, GetTableIndex(), Descriptors_, true);
 
-    TLengthLimitedInput stream(Input_.Get(), Length_);
-    row->ParseFromStream(&stream);
+    ParseFromStream(Input_.Get(), *row, Length_);
     RowTaken_ = true;
 }
 

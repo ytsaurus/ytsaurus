@@ -11,6 +11,8 @@ class Descriptor;
 }
 }
 
+class TInputStream;
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -28,6 +30,11 @@ void ValidateProtoDescriptor(
     size_t tableIndex,
     const yvector<const ::google::protobuf::Descriptor*>& descriptors,
     bool isRead);
+
+void ParseFromStream(
+    TInputStream* stream,
+    ::google::protobuf::Message& row,
+    ui32 size);
 
 ////////////////////////////////////////////////////////////////////////////////
 

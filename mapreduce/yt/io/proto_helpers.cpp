@@ -5,6 +5,8 @@
 
 #include <contrib/libs/protobuf/descriptor.h>
 #include <contrib/libs/protobuf/google/protobuf/descriptor.pb.h>
+#include <contrib/libs/protobuf/messagext.h>
+#include <contrib/libs/protobuf/io/coded_stream.h>
 
 #include <util/stream/str.h>
 #include <util/stream/file.h>
@@ -17,6 +19,9 @@ using ::google::protobuf::Descriptor;
 using ::google::protobuf::FileDescriptor;
 using ::google::protobuf::FileDescriptorSet;
 using ::google::protobuf::DescriptorPool;
+
+using ::google::protobuf::io::CodedInputStream;
+using ::google::protobuf::io::TCopyingInputStreamAdaptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -131,6 +136,15 @@ void ValidateProtoDescriptor(
             ", row of type " << descriptors[tableIndex]->full_name() <<
             " expected in " << direction;
     }
+}
+
+void ParseFromStream(TInputStream* stream, Message& row, ui32 length)
+{
+    TLengthLimitedInput input(stream, length);
+    TCopyingInputStreamAdaptor adaptor(&input);
+    CodedInputStream codedStream(&adaptor);
+    codedStream.SetTotalBytesLimit(length + 1, length + 1);
+    row.ParseFromCodedStream(&codedStream);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
