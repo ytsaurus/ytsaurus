@@ -906,6 +906,8 @@ class TestTables(YTEnvSetup):
             init_table("//tmp/t", schema)
             with pytest.raises(YtError):
                 write_table("<append=%true>//tmp/t", rows)
+            # XXX(babenko): workaround for YT-5604
+            sleep(1.0)
 
         schema = make_schema([
             {"name": "key", "type": "int64"}],
