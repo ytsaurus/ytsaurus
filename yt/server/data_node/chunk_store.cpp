@@ -457,7 +457,9 @@ TChunkStore::TPlacementInfo* TChunkStore::GetOrCreatePlacementInfo(const TPlacem
     auto deadline = Config_->PlacementExpirationTime.ToDeadLine();
     auto it = PlacementIdToInfo_.find(placementId);
     if (it == PlacementIdToInfo_.end()) {
-        auto pair = PlacementIdToInfo_.emplace(placementId, TPlacementInfo());
+        TPlacementInfo placementInfo;
+        placementInfo.CurrentLocationIndex = static_cast<int>(RandomNumber(Locations_.size()));
+        auto pair = PlacementIdToInfo_.emplace(placementId, placementInfo);
         YCHECK(pair.second);
         it = pair.first;
         LOG_DEBUG("Placement info registered (PlacementId: %v)",

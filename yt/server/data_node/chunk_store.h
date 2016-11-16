@@ -131,7 +131,7 @@ private:
 
     struct TPlacementInfo
     {
-        int CurrentLocationIndex = 0;
+        int CurrentLocationIndex;
         std::multimap<TInstant, NChunkClient::TPlacementId>::iterator DeadlineIterator;
     };
 
