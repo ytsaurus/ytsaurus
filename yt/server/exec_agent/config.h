@@ -196,6 +196,9 @@ public:
 
     TDuration JobProxyHeartbeatPeriod;
 
+    int NodeDirectoryPrepareRetryCount;
+    TDuration NodeDirectoryPrepareBackoffTime;
+
     TExecAgentConfig()
     {
         RegisterParameter("slot_manager", SlotManager)
@@ -219,6 +222,11 @@ public:
 
         RegisterParameter("job_proxy_heartbeat_period", JobProxyHeartbeatPeriod)
             .Default(TDuration::Seconds(5));
+
+        RegisterParameter("node_directory_prepare_retry_count", NodeDirectoryPrepareRetryCount)
+            .Default(10);
+        RegisterParameter("node_directory_prepare_backoff_time", NodeDirectoryPrepareBackoffTime)
+            .Default(TDuration::Seconds(3));
     }
 };
 

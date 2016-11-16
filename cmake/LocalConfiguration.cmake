@@ -110,7 +110,7 @@ if(_is_gcc)
     endif()
   endif()
 
-  if(CPU_VENDOR STREQUAL "GenuineIntel")
+  if(CPU_VENDOR STREQUAL "GenuineIntel" OR CPU_VENDOR STREQUAL "AuthenticAMD")
     set(ARCH_FLAGS "-march=native -msse -msse2 -msse3")
     set(ARCH_FLAGS "${ARCH_FLAGS} -mno-avx -mpclmul")
     if(YT_USE_SSE)

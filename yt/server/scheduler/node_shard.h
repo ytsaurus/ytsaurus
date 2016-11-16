@@ -115,7 +115,9 @@ public:
 
     void AbortAllJobs(const TError& error);
 
-    void AbortOperationJobs(const TOperationId& operationId, const TError& abortReason);
+    void AbortOperationJobs(const TOperationId& operationId, const TError& abortReason, bool terminated);
+
+    void ResumeOperationJobs(const TOperationId& operationId);
 
     NYson::TYsonString StraceJob(const TJobId& jobId, const Stroka& user);
 
@@ -188,6 +190,7 @@ private:
 
         yhash_map<TJobId, TJobPtr> Jobs;
         IOperationControllerPtr Controller;
+        bool Terminated = false;
         bool JobsAborted = false;
     };
 
@@ -244,7 +247,7 @@ private:
         NJobTrackerClient::NProto::TRspHeartbeat* response,
         yhash_set<TOperationId>* operationsToLog);
 
-    void OnJobAborted(const TJobPtr& job, TJobStatus* status);
+    void OnJobAborted(const TJobPtr& job, TJobStatus* status, bool operationTerminated = false);
     void OnJobFinished(const TJobPtr& job);
     void OnJobRunning(const TJobPtr& job, TJobStatus* status);
     void OnJobWaiting(const TJobPtr& /*job*/);

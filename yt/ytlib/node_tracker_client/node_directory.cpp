@@ -188,44 +188,57 @@ bool operator != (const TNodeDescriptor& lhs, const TNodeDescriptor& rhs)
 
 void TNodeDirectory::MergeFrom(const NProto::TNodeDirectory& source)
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    NConcurrency::TWriterGuard guard(SpinLock_);
     for (const auto& item : source.items()) {
         DoAddDescriptor(item.node_id(), FromProto<TNodeDescriptor>(item.node_descriptor()));
     }
 }
 
+void TNodeDirectory::MergeFrom(const TNodeDirectoryPtr& source)
+{
+    if (this == source.Get()) {
+        return;
+    }
+    NConcurrency::TWriterGuard thisGuard(SpinLock_);
+    NConcurrency::TReaderGuard sourceGuard(source->SpinLock_);
+    for (const auto& pair : source->IdToDescriptor_) {
+        DoAddDescriptor(pair.first, *pair.second);
+    }
+}
+
 void TNodeDirectory::DumpTo(NProto::TNodeDirectory* destination)
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    NConcurrency::TReaderGuard guard(SpinLock_);
     for (const auto& pair : IdToDescriptor_) {
         auto* item = destination->add_items();
         item->set_node_id(pair.first);
-        ToProto(item->mutable_node_descriptor(), pair.second);
+        ToProto(item->mutable_node_descriptor(), *pair.second);
     }
 }
 
 void TNodeDirectory::AddDescriptor(TNodeId id, const TNodeDescriptor& descriptor)
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    NConcurrency::TWriterGuard guard(SpinLock_);
     DoAddDescriptor(id, descriptor);
 }
 
 void TNodeDirectory::DoAddDescriptor(TNodeId id, const TNodeDescriptor& descriptor)
 {
     auto it = IdToDescriptor_.find(id);
-    if (it != IdToDescriptor_.end()) {
-        YCHECK(it->second.GetDefaultAddress() == descriptor.GetDefaultAddress());
+    if (it != IdToDescriptor_.end() && descriptor == *it->second) {
         return;
     }
-    IdToDescriptor_[id] = descriptor;
-    AddressToDescriptor_[descriptor.GetDefaultAddress()] = descriptor;
+    Descriptors_.emplace_back(std::make_unique<TNodeDescriptor>(descriptor));
+    const auto* capturedDescriptor = Descriptors_.back().get();
+    IdToDescriptor_[id] = capturedDescriptor;
+    AddressToDescriptor_[descriptor.GetDefaultAddress()] = capturedDescriptor;
 }
 
 const TNodeDescriptor* TNodeDirectory::FindDescriptor(TNodeId id) const
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    NConcurrency::TReaderGuard guard(SpinLock_);
     auto it = IdToDescriptor_.find(id);
-    return it == IdToDescriptor_.end() ? nullptr : &it->second;
+    return it == IdToDescriptor_.end() ? nullptr : it->second;
 }
 
 const TNodeDescriptor& TNodeDirectory::GetDescriptor(TNodeId id) const
@@ -251,9 +264,9 @@ std::vector<TNodeDescriptor> TNodeDirectory::GetDescriptors(const TChunkReplicaL
 
 const TNodeDescriptor* TNodeDirectory::FindDescriptor(const Stroka& address)
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    NConcurrency::TReaderGuard guard(SpinLock_);
     auto it = AddressToDescriptor_.find(address);
-    return it == AddressToDescriptor_.end() ? nullptr : &it->second;
+    return it == AddressToDescriptor_.end() ? nullptr : it->second;
 }
 
 const TNodeDescriptor& TNodeDirectory::GetDescriptor(const Stroka& address)
@@ -263,11 +276,27 @@ const TNodeDescriptor& TNodeDirectory::GetDescriptor(const Stroka& address)
     return *result;
 }
 
-void TNodeDirectory::Persist(const TStreamPersistenceContext& context)
+void TNodeDirectory::Save(TStreamSaveContext& context) const
 {
-    using NYT::Persist;
-    Persist(context, IdToDescriptor_);
-    Persist(context, AddressToDescriptor_);
+    yhash_map<TNodeId, TNodeDescriptor> idToDescriptor;
+    {
+        NConcurrency::TReaderGuard guard(SpinLock_);
+        for (const auto& pair : IdToDescriptor_) {
+            YCHECK(idToDescriptor.emplace(pair.first, *pair.second).second);
+        }
+    }
+    using NYT::Save;
+    Save(context, idToDescriptor);
+}
+
+void TNodeDirectory::Load(TStreamLoadContext& context)
+{
+    using NYT::Load;
+    auto idToDescriptor = Load<yhash_map<TNodeId, TNodeDescriptor>>(context);
+    NConcurrency::TWriterGuard guard(SpinLock_);
+    for (const auto& pair : idToDescriptor) {
+        DoAddDescriptor(pair.first, pair.second);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -286,7 +315,7 @@ TAddressMap::const_iterator SelectAddress(const TAddressMap& addresses, const TN
     return addresses.cend();
 }
 
-}
+} // namespace
 
 TNullable<Stroka> FindAddress(const TAddressMap& addresses, const TNetworkPreferenceList& networks)
 {

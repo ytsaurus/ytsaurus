@@ -54,9 +54,9 @@ public:
         std::vector<ISchemalessMultiChunkReaderPtr> readers;
         nameTable = TNameTable::FromKeyColumns(keyColumns);
         auto options = ConvertTo<TTableReaderOptionsPtr>(TYsonString(
-            SchedulerJobSpec_.input_specs(0).table_reader_options()));
+            SchedulerJobSpec_.input_table_specs(0).table_reader_options()));
 
-        for (const auto& inputSpec : SchedulerJobSpec_.input_specs()) {
+        for (const auto& inputSpec : SchedulerJobSpec_.input_table_specs()) {
             // ToDo(psushin): validate that input chunks are sorted.
             auto dataSliceDescriptors = FromProto<std::vector<TDataSliceDescriptor>>(inputSpec.data_slice_descriptors());
 
@@ -83,7 +83,7 @@ public:
         std::vector<ISchemalessMultiChunkReaderPtr> joinReaders;
         keyColumns.resize(ForeignKeyColumnCount_);
 
-        for (const auto& inputSpec : SchedulerJobSpec_.foreign_input_specs()) {
+        for (const auto& inputSpec : SchedulerJobSpec_.foreign_input_table_specs()) {
             auto dataSliceDescriptors = FromProto<std::vector<TDataSliceDescriptor>>(inputSpec.data_slice_descriptors());
 
             auto reader = CreateSchemalessSequentialMultiChunkReader(

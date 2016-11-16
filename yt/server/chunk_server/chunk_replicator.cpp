@@ -1856,7 +1856,7 @@ void TChunkReplicator::UpdateChunkProperties(TChunk* chunk, TReqUpdateChunkPrope
 
 TChunkProperties TChunkReplicator::ComputeChunkProperties(TChunk* chunk)
 {
-    bool parentsVisited = false;
+    bool found = false;
     TChunkProperties properties;
     // Below, properties of this chunk's owners are combined together. Since
     // 'data parts only' flags are combined by ANDing, we should start with
@@ -1892,14 +1892,11 @@ TChunkProperties TChunkReplicator::ComputeChunkProperties(TChunk* chunk)
         auto* chunkList = queue[frontIndex++];
 
         // Examine owners, if any.
-        for (const auto* owningNode : chunkList->OwningNodes()) {
-            if (owningNode->IsTrunk()) {
-                parentsVisited = true;
-
-                // Overloaded; MAXes replication factors, ANDs "data-part-only"s,
-                // ORs vitalities.
-                properties |= owningNode->Properties();
-            }
+        for (const auto* owningNode : chunkList->TrunkOwningNodes()) {
+            // Overloaded; MAXes replication factors, ANDs "data-part-only"s,
+            // ORs vitalities.
+            properties |= owningNode->Properties();
+            found = true;
         }
 
         // Proceed to parents.
@@ -1922,18 +1919,18 @@ TChunkProperties TChunkReplicator::ComputeChunkProperties(TChunk* chunk)
         }
     }
 
-    Y_ASSERT(!parentsVisited || properties.Validate());
+    Y_ASSERT(!found || properties.Validate());
 
-    return parentsVisited
+    return found
         ? properties
         : chunk->GetLocalProperties();
 }
 
 TChunkList* TChunkReplicator::FollowParentLinks(TChunkList* chunkList)
 {
-    while (chunkList->OwningNodes().empty()) {
+    while (chunkList->TrunkOwningNodes().Empty()) {
         const auto& parents = chunkList->Parents();
-        size_t parentCount = parents.size();
+        auto parentCount = parents.Size();
         if (parentCount == 0) {
             return nullptr;
         }

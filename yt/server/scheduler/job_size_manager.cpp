@@ -51,7 +51,7 @@ public:
         }
     }
 
-    virtual i64 GetIdealDataSizePerJob() const
+    virtual i64 GetIdealDataSizePerJob() const override
     {
         return static_cast<i64>(IdealDataSizePerJob_);
     }

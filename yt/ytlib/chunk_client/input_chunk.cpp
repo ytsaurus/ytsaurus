@@ -15,45 +15,28 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TInputChunkBase::TInputChunkBase(
-    const NProto::TChunkSpec& chunkSpec)
-    : TInputChunkBase(
-        FromProto<TChunkId>(chunkSpec.chunk_id()),
-        FromProto<TChunkReplicaList>(chunkSpec.replicas()),
-        chunkSpec.chunk_meta(),
-        NErasure::ECodec(chunkSpec.erasure_codec()))
+TInputChunkBase::TInputChunkBase(const NProto::TChunkSpec& chunkSpec)
+    : ChunkId_(FromProto<TChunkId>(chunkSpec.chunk_id()))
+    , ErasureCodec_(NErasure::ECodec(chunkSpec.erasure_codec()))
+    , TableRowIndex_(chunkSpec.table_row_index())
+    , RangeIndex_(chunkSpec.range_index())
 {
-    TableRowIndex_ = chunkSpec.table_row_index();
-    RangeIndex_ = chunkSpec.range_index();
-}
+    SetReplicaList(FromProto<TChunkReplicaList>(chunkSpec.replicas()));
 
-TInputChunkBase::TInputChunkBase(
-    const TChunkId& chunkId,
-    const TChunkReplicaList& replicas,
-    const NChunkClient::NProto::TChunkMeta& chunkMeta,
-    NErasure::ECodec erasureCodec)
-    : ChunkId_(chunkId)
-    , ErasureCodec_(erasureCodec)
-{
-    SetReplicaList(replicas);
-
+    const auto& chunkMeta = chunkSpec.chunk_meta();
     auto miscExt = GetProtoExtension<NProto::TMiscExt>(chunkMeta.extensions());
-    auto sizeOverrideExt = FindProtoExtension<NProto::TSizeOverrideExt>(chunkMeta.extensions());
 
-    if (sizeOverrideExt) {
-        UncompressedDataSize_ = sizeOverrideExt->uncompressed_data_size();
-        RowCount_ = sizeOverrideExt->row_count();
-    } else {
-        UncompressedDataSize_ = miscExt.uncompressed_data_size();
-        RowCount_ = miscExt.row_count();
-    }
+    UncompressedDataSize_ = chunkSpec.has_uncompressed_data_size_override()
+        ? chunkSpec.uncompressed_data_size_override()
+        : miscExt.uncompressed_data_size();
+    RowCount_ = chunkSpec.has_row_count_override()
+        ? chunkSpec.row_count_override()
+        : miscExt.row_count();
+
     CompressedDataSize_ = miscExt.compressed_data_size();
-    if (miscExt.has_max_block_size()) {
-        MaxBlockSize_ = miscExt.max_block_size();
-    } else {
-        MaxBlockSize_ = DefaultMaxBlockSize;
-    }
-
+    MaxBlockSize_ = miscExt.has_max_block_size()
+        ? miscExt.max_block_size()
+        : DefaultMaxBlockSize;
     UniqueKeys_ = miscExt.unique_keys();
 
     YCHECK(EChunkType(chunkMeta.type()) == EChunkType::Table);
@@ -132,19 +115,6 @@ TInputChunk::TInputChunk(const NProto::TChunkSpec& chunkSpec)
         ? std::make_unique<NTableClient::NProto::TPartitionsExt>(
             GetProtoExtension<NTableClient::NProto::TPartitionsExt>(chunkSpec.chunk_meta().extensions()))
         : nullptr)
-{ }
-
-TInputChunk::TInputChunk(
-    const TChunkId& chunkId,
-    const TChunkReplicaList& replicas,
-    const NChunkClient::NProto::TChunkMeta& chunkMeta,
-    const TOwningKey& lowerLimit,
-    const TOwningKey& upperLimit,
-    NErasure::ECodec erasureCodec)
-    : TInputChunkBase(chunkId, replicas, chunkMeta, erasureCodec)
-    , LowerLimit_(std::make_unique<TReadLimit>(lowerLimit))
-    , UpperLimit_(std::make_unique<TReadLimit>(upperLimit))
-    , BoundaryKeys_(FindBoundaryKeys(chunkMeta))
 { }
 
 void TInputChunk::Persist(const TStreamPersistenceContext& context)

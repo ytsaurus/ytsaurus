@@ -252,7 +252,8 @@ TPythonObjectBuilder::TPythonObjectBuilder(bool alwaysCreateAttributes, const TN
 // unnecessary checks.
 using PyObjectPtr = std::unique_ptr<PyObject, decltype(&Py::_XDECREF)>;
 
-PyObjectPtr MakePyObjectPtr(PyObject* obj) {
+PyObjectPtr MakePyObjectPtr(PyObject* obj)
+{
     return std::unique_ptr<PyObject, decltype(&Py::_XDECREF)>(obj, &Py::_XDECREF);
 }
 

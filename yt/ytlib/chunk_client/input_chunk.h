@@ -22,7 +22,7 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Compact representation of some fields from proto TChunkSpec.
+//! Compact representation of some fields from NProto::TChunkSpec.
 //! Used inside scheduler to reduce memory footprint.
 //! The content of TInputChunkBase is stored in a scheduler snapshot as a POD.
 class TInputChunkBase
@@ -48,13 +48,7 @@ class TInputChunkBase
 public:
     TInputChunkBase() = default;
     TInputChunkBase(TInputChunkBase&& other) = default;
-
     explicit TInputChunkBase(const NProto::TChunkSpec& chunkSpec);
-    TInputChunkBase(
-        const TChunkId& chunkId,
-        const TChunkReplicaList& replicas,
-        const NChunkClient::NProto::TChunkMeta& chunkMeta,
-        NErasure::ECodec erasureCodec);
 
     TChunkReplicaList GetReplicaList() const;
     void SetReplicaList(const TChunkReplicaList& replicas);
@@ -90,16 +84,7 @@ class TInputChunk
 public:
     TInputChunk() = default;
     TInputChunk(TInputChunk&& other) = default;
-
     explicit TInputChunk(const NProto::TChunkSpec& chunkSpec);
-
-    TInputChunk(
-        const TChunkId& chunkId,
-        const TChunkReplicaList& replicas,
-        const NChunkClient::NProto::TChunkMeta& chunkMeta,
-        const NTableClient::TOwningKey& lowerLimit,
-        const NTableClient::TOwningKey& upperLimit,
-        NErasure::ECodec erasureCodec);
 
     void Persist(const TStreamPersistenceContext& context);
 

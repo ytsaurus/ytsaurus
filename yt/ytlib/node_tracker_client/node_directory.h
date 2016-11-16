@@ -6,6 +6,8 @@
 
 #include <yt/ytlib/node_tracker_client/node_tracker_service.pb.h>
 
+#include <yt/core/concurrency/rw_spinlock.h>
+
 #include <yt/core/misc/enum.h>
 #include <yt/core/misc/nullable.h>
 #include <yt/core/misc/property.h>
@@ -85,6 +87,7 @@ class TNodeDirectory
 {
 public:
     void MergeFrom(const NProto::TNodeDirectory& source);
+    void MergeFrom(const TNodeDirectoryPtr& source);
     void DumpTo(NProto::TNodeDirectory* destination);
 
     void AddDescriptor(TNodeId id, const TNodeDescriptor& descriptor);
@@ -97,12 +100,14 @@ public:
     const TNodeDescriptor* FindDescriptor(const Stroka& address);
     const TNodeDescriptor& GetDescriptor(const Stroka& address);
 
-    void Persist(const TStreamPersistenceContext& context);
+    void Save(TStreamSaveContext& context) const;
+    void Load(TStreamLoadContext& context);
 
 private:
-    TSpinLock SpinLock_;
-    yhash_map<TNodeId, TNodeDescriptor> IdToDescriptor_;
-    yhash_map<Stroka, TNodeDescriptor> AddressToDescriptor_;
+    NConcurrency::TReaderWriterSpinLock SpinLock_;
+    yhash_map<TNodeId, const TNodeDescriptor*> IdToDescriptor_;
+    yhash_map<Stroka, const TNodeDescriptor*> AddressToDescriptor_;
+    std::vector<std::unique_ptr<TNodeDescriptor>> Descriptors_;
 
     void DoAddDescriptor(TNodeId id, const TNodeDescriptor& descriptor);
 

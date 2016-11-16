@@ -743,7 +743,6 @@ private:
             InitQuerySpec(schedulerJobSpecExt, Spec->InputQuery.Get(), Spec->InputSchema.Get());
         }
 
-        AuxNodeDirectory->DumpTo(schedulerJobSpecExt->mutable_aux_node_directory());
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
@@ -886,7 +885,6 @@ private:
             InitQuerySpec(schedulerJobSpecExt, Spec->InputQuery.Get(), Spec->InputSchema.Get());
         }
 
-        AuxNodeDirectory->DumpTo(schedulerJobSpecExt->mutable_aux_node_directory());
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
@@ -1364,19 +1362,25 @@ private:
             Endpoints.begin(),
             Endpoints.end(),
             [=] (const TKeyEndpoint& lhs, const TKeyEndpoint& rhs) -> bool {
-                int cmpResult = CompareRows(lhs.GetKey(), rhs.GetKey(), prefixLength);
-                if (cmpResult != 0) {
-                    return cmpResult < 0;
+                {
+                    auto cmpResult = CompareRows(lhs.GetKey(), rhs.GetKey(), prefixLength);
+                    if (cmpResult != 0) {
+                        return cmpResult < 0;
+                    }
                 }
 
-                cmpResult = CompareRows(lhs.MinBoundaryKey, rhs.MinBoundaryKey, prefixLength);
-                if (cmpResult != 0) {
-                    return cmpResult < 0;
+                {
+                    auto cmpResult = CompareRows(lhs.MinBoundaryKey, rhs.MinBoundaryKey, prefixLength);
+                    if (cmpResult != 0) {
+                        return cmpResult < 0;
+                    }
                 }
 
-                cmpResult = CompareRows(lhs.MaxBoundaryKey, rhs.MaxBoundaryKey, prefixLength);
-                if (cmpResult != 0) {
-                    return cmpResult < 0;
+                {
+                    auto cmpResult = CompareRows(lhs.MaxBoundaryKey, rhs.MaxBoundaryKey, prefixLength);
+                    if (cmpResult != 0) {
+                        return cmpResult < 0;
+                    }
                 }
 
                 try {
@@ -1963,7 +1967,6 @@ protected:
         JobSpecTemplate.set_type(static_cast<int>(EJobType::SortedReduce));
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
-        AuxNodeDirectory->DumpTo(schedulerJobSpecExt->mutable_aux_node_directory());
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
@@ -2003,6 +2006,11 @@ protected:
                 return false;
             }
         }
+        return true;
+    }
+
+    virtual bool IsInputDataSizeHistogramSupported() const override
+    {
         return true;
     }
 
@@ -2114,31 +2122,32 @@ private:
             Endpoints.begin(),
             Endpoints.end(),
             [=] (const TKeyEndpoint& lhs, const TKeyEndpoint& rhs) -> bool {
-                int cmpResult = CompareRows(lhs.GetKey(), rhs.GetKey());
-                if (cmpResult != 0) {
-                    return cmpResult < 0;
+                {
+                    auto cmpResult = CompareRows(lhs.GetKey(), rhs.GetKey());
+                    if (cmpResult != 0) {
+                        return cmpResult < 0;
+                    }
                 }
 
-                cmpResult = static_cast<int>(lhs.Type) - static_cast<int>(rhs.Type);
-                if (cmpResult != 0) {
-                    return cmpResult < 0;
-                }
-
-                cmpResult = lhs.DataSlice->GetTableIndex() - rhs.DataSlice->GetTableIndex();
-                if (cmpResult != 0) {
-                    return cmpResult < 0;
+                {
+                    auto cmpResult = static_cast<int>(lhs.Type) - static_cast<int>(rhs.Type);
+                    if (cmpResult != 0) {
+                        return cmpResult < 0;
+                    }
                 }
 
                 try {
-                    // If keys (trimmed to key columns) are equal, we put slices in
-                    // the same order they are in the original table.
                     const auto& lhsChunk = lhs.DataSlice->GetSingleUnversionedChunkOrThrow();
                     const auto& rhsChunk = rhs.DataSlice->GetSingleUnversionedChunkOrThrow();
 
-                    cmpResult = lhsChunk->GetTableRowIndex() -
-                        rhsChunk->GetTableRowIndex();
-                    if (cmpResult != 0) {
-                        return cmpResult < 0;
+                    {
+                        // If keys (trimmed to key columns) are equal, we put slices in
+                        // the same order they are in the original table.
+                        auto cmpResult = lhsChunk->GetTableRowIndex() -
+                            rhsChunk->GetTableRowIndex();
+                        if (cmpResult != 0) {
+                            return cmpResult < 0;
+                        }
                     }
 
                     return (reinterpret_cast<intptr_t>(lhsChunk.Get())

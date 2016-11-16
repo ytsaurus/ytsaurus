@@ -51,9 +51,6 @@ static const NProfiling::TProfiler Profiler("/operations/sort");
 //! Maximum number of buckets for partition progress aggregation.
 static const int MaxProgressBuckets = 100;
 
-//! Maximum number of buckets for partition size histogram aggregation.
-static const int MaxSizeHistogramBuckets = 100;
-
 ////////////////////////////////////////////////////////////////////
 
 class TSortControllerBase
@@ -489,7 +486,7 @@ protected:
 
             auto& result = const_cast<TJobResult&>(jobSummary.Result);
             auto* resultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-            auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_output_chunks());
+            auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_output_chunk_specs());
 
             RegisterIntermediate(
                 joblet,
@@ -535,6 +532,11 @@ protected:
             TTask::OnJobLost(completedJob);
 
             UpdateNodeDataSize(completedJob->NodeDescriptor, -completedJob->DataSize);
+
+            if (!Controller->IsShuffleCompleted()) {
+                // Add pending hint if shuffle is in progress and some partition jobs were lost.
+                Controller->AddTaskPendingHint(this);
+            }
         }
 
         virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override
@@ -794,7 +796,7 @@ protected:
                 // Construct a stripe consisting of sorted chunks and put it into the pool.
                 auto& result = const_cast<TJobResult&>(jobSummary.Result);
                 auto* resultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-                auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_output_chunks());
+                auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_output_chunk_specs());
 
                 RegisterIntermediate(
                     joblet,
@@ -849,6 +851,10 @@ protected:
             Controller->SortDataSizeCounter.Lost(stripeList->TotalDataSize);
 
             TTask::OnJobLost(completedJob);
+
+            if (!Partition->Completed) {
+                Controller->AddTaskPendingHint(this);
+            }
         }
 
         virtual void OnTaskCompleted() override
@@ -1126,7 +1132,6 @@ protected:
 
             TMergeTask::OnJobAborted(joblet, jobSummary);
         }
-
     };
 
     //! Implements unordered merge of maniac partitions for sort operation.
@@ -1483,6 +1488,25 @@ protected:
         AddSortTasksPendingHints();
     }
 
+    bool IsShuffleCompleted() const
+    {
+        for (const auto& partition : Partitions) {
+            if (partition->Completed) {
+                continue;
+            }
+
+            const auto& task = partition->Maniac 
+                ? static_cast<TTaskPtr>(partition->UnorderedMergeTask)
+                : static_cast<TTaskPtr>(partition->SortTask);
+
+            if (!task->IsCompleted()) {
+              return false;
+            }
+        }
+
+        return true;
+    }
+
     int AdjustPartitionCountToWriterBufferSize(
         int partitionCount,
         TChunkWriterConfigPtr config) const
@@ -1703,55 +1727,17 @@ protected:
 
     // Partition sizes histogram.
 
-    struct TPartitionSizeHistogram
+    std::unique_ptr<IHistogram> ComputePartitionSizeHistogram() const
     {
-        i64 Min;
-        i64 Max;
-        std::vector<i64> Count;
-    };
-
-    TPartitionSizeHistogram ComputePartitionSizeHistogram() const
-    {
-        TPartitionSizeHistogram result;
-
-        result.Min = std::numeric_limits<i64>::max();
-        result.Max = std::numeric_limits<i64>::min();
+        auto histogram = CreateHistogram();
         for (auto partition : Partitions) {
             i64 size = partition->ChunkPoolOutput->GetTotalDataSize();
-            if (size == 0)
-                continue;
-            result.Min = std::min(result.Min, size);
-            result.Max = std::max(result.Max, size);
-        }
-
-        if (result.Min > result.Max)
-            return result;
-
-        int bucketCount = result.Min == result.Max ? 1 : MaxSizeHistogramBuckets;
-        result.Count.resize(bucketCount);
-
-        auto computeBucket = [&] (i64 size) -> int {
-            if (result.Min == result.Max) {
-                return 0;
+            if (size != 0) {
+                histogram->AddValue(size);
             }
-
-            int bucket = (size - result.Min) * MaxSizeHistogramBuckets / (result.Max - result.Min);
-            if (bucket == bucketCount) {
-                bucket = bucketCount - 1;
-            }
-
-            return bucket;
-        };
-
-        for (auto partition : Partitions) {
-            i64 size = partition->ChunkPoolOutput->GetTotalDataSize();
-            if (size == 0)
-                continue;
-            int bucket = computeBucket(size);
-            ++result.Count[bucket];
         }
-
-        return result;
+        histogram->BuildHistogramView();
+        return histogram;
     }
 
     void BuildPartitionsProgressYson(IYsonConsumer* consumer) const
@@ -1772,11 +1758,7 @@ protected:
 
         auto sizeHistogram = ComputePartitionSizeHistogram();
         BuildYsonMapFluently(consumer)
-            .Item("partition_size_histogram").BeginMap()
-                .Item("min").Value(sizeHistogram.Min)
-                .Item("max").Value(sizeHistogram.Max)
-                .Item("count").Value(sizeHistogram.Count)
-            .EndMap();
+            .Item("partition_size_histogram").Value(*sizeHistogram);
     }
 
     virtual void RegisterOutput(TJobletPtr joblet, int key, const TCompletedJobSummary& jobSummary) override
@@ -2674,7 +2656,7 @@ private:
 
         InitPartitionPool(jobSizeLimits.GetDataSizePerJob());
 
-        if (Config->EnableJobSizeManager && !Spec->PartitionJobCount && !Spec->DataSizePerPartitionJob) {
+        if (Config->EnablePartitionMapJobSizeManager && !Spec->PartitionJobCount && !Spec->DataSizePerPartitionJob) {
             LOG_DEBUG("Activating job size manager (DataSizePerPartitionJob: %v, MaxJobDataSize: %v, MinPartitionJobTime: %v, ExecToPrepareTimeRatio: %v",
                 jobSizeLimits.GetDataSizePerJob(),
                 Spec->MaxDataSizePerJob,
@@ -2756,8 +2738,6 @@ private:
                 InitQuerySpec(schedulerJobSpecExt, *Spec->InputQuery, *Spec->InputSchema);
             }
 
-            AuxNodeDirectory->DumpTo(schedulerJobSpecExt->mutable_aux_node_directory());
-
             auto* partitionJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
 
             ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
@@ -2785,7 +2765,6 @@ private:
 
             if (Spec->ReduceCombiner) {
                 IntermediateSortJobSpecTemplate.set_type(static_cast<int>(EJobType::ReduceCombiner));
-                AuxNodeDirectory->DumpTo(schedulerJobSpecExt->mutable_aux_node_directory());
 
                 auto* reduceJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
                 ToProto(reduceJobSpecExt->mutable_key_columns(), Spec->SortBy);
@@ -2807,8 +2786,6 @@ private:
             FinalSortJobSpecTemplate.set_type(static_cast<int>(EJobType::PartitionReduce));
 
             auto* schedulerJobSpecExt = FinalSortJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-            AuxNodeDirectory->DumpTo(schedulerJobSpecExt->mutable_aux_node_directory());
-
             auto* reduceJobSpecExt = FinalSortJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
 
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
@@ -2829,8 +2806,6 @@ private:
             SortedMergeJobSpecTemplate.set_type(static_cast<int>(EJobType::SortedReduce));
 
             auto* schedulerJobSpecExt = SortedMergeJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-            AuxNodeDirectory->DumpTo(schedulerJobSpecExt->mutable_aux_node_directory());
-
             auto* reduceJobSpecExt = SortedMergeJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
 
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
@@ -2903,6 +2878,11 @@ private:
     }
 
     virtual bool IsIntermediateLivePreviewSupported() const override
+    {
+        return true;
+    }
+
+    virtual bool IsInputDataSizeHistogramSupported() const override
     {
         return true;
     }

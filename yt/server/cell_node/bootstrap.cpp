@@ -58,6 +58,8 @@
 #include <yt/ytlib/api/native_client.h>
 #include <yt/ytlib/api/native_connection.h>
 
+#include <yt/ytlib/admin/admin_service.h>
+
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/client_block_cache.h>
 
@@ -78,6 +80,9 @@
 #include <yt/ytlib/orchid/orchid_service.h>
 
 #include <yt/ytlib/query_client/column_evaluator.h>
+
+#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
 #include <yt/core/bus/config.h>
 #include <yt/core/bus/server.h>
@@ -106,6 +111,7 @@
 namespace NYT {
 namespace NCellNode {
 
+using namespace NAdmin;
 using namespace NBus;
 using namespace NObjectClient;
 using namespace NChunkClient;
@@ -197,6 +203,14 @@ void TBootstrap::DoRun()
     MasterConnection = CreateNativeConnection(Config->ClusterConnection);
 
     MasterClient = MasterConnection->CreateNativeClient(TClientOptions(NSecurityClient::RootUserName));
+
+    NodeDirectory = New<TNodeDirectory>();
+
+    NodeDirectorySynchronizer = New<TNodeDirectorySynchronizer>(
+        Config->NodeDirectorySynchronizer,
+        MasterConnection,
+        NodeDirectory);
+    NodeDirectorySynchronizer->Start();
 
     CellDirectorySynchronizer = New<TCellDirectorySynchronizer>(
         Config->CellDirectorySynchronizer,
@@ -496,6 +510,8 @@ void TBootstrap::DoRun()
         OrchidRoot,
         GetControlInvoker()));
 
+    RpcServer->RegisterService(CreateAdminService(GetControlInvoker()));
+
     LOG_INFO("Listening for HTTP requests on port %v", Config->MonitoringPort);
 
     LOG_INFO("Listening for RPC requests on port %v", Config->RpcPort);
@@ -657,6 +673,11 @@ const TMasterConnectorPtr& TBootstrap::GetMasterConnector() const
 const TClusterDirectoryPtr& TBootstrap::GetClusterDirectory()
 {
     return ClusterDirectory;
+}
+
+const TNodeDirectoryPtr& TBootstrap::GetNodeDirectory() const
+{
+    return NodeDirectory;
 }
 
 const NQueryClient::ISubexecutorPtr& TBootstrap::GetQueryExecutor() const

@@ -42,9 +42,9 @@ public:
         const TColumnFilter& columnFilter) override
     {
         YCHECK(nameTable->GetSize() == 0 && columnFilter.All);
-        YCHECK(SchedulerJobSpec_.input_specs_size() == 1);
+        YCHECK(SchedulerJobSpec_.input_table_specs_size() == 1);
 
-        const auto& inputSpec = SchedulerJobSpec_.input_specs(0);
+        const auto& inputSpec = SchedulerJobSpec_.input_table_specs(0);
         auto dataSliceDescriptors = FromProto<std::vector<TDataSliceDescriptor>>(inputSpec.data_slice_descriptors());
 
         const auto& reduceJobSpecExt = Host_->GetJobSpec().GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
@@ -84,8 +84,7 @@ public:
 
         // Partition reduce may come as intermediate job (reduce-combiner),
         // so we return written chunks to scheduler.
-        writer->GetNodeDirectory()->DumpTo(schedulerJobResult->mutable_output_node_directory());
-        ToProto(schedulerJobResult->mutable_output_chunks(), writer->GetWrittenChunksMasterMeta());
+        ToProto(schedulerJobResult->mutable_output_chunk_specs(), writer->GetWrittenChunksMasterMeta());
     }
 
 private:

@@ -43,6 +43,7 @@
 #include <yt/core/misc/nullable.h>
 #include <yt/core/misc/ref_tracked.h>
 #include <yt/core/misc/digest.h>
+#include <yt/core/misc/histogram.h>
 
 #include <yt/core/ytree/ypath_client.h>
 
@@ -211,8 +212,6 @@ protected:
 
     // Maps node ids to descriptors for job input chunks.
     NNodeTrackerClient::TNodeDirectoryPtr InputNodeDirectory;
-    // Maps node ids to descriptors for job auxiliary chunks.
-    NNodeTrackerClient::TNodeDirectoryPtr AuxNodeDirectory;
 
     const NObjectClient::TTransactionId UserTransactionId;
 
@@ -220,6 +219,7 @@ protected:
     NApi::ITransactionPtr AsyncSchedulerTransaction;
     NApi::ITransactionPtr InputTransaction;
     NApi::ITransactionPtr OutputTransaction;
+    NApi::ITransactionPtr DebugOutputTransaction;
 
     TSharedRef Snapshot;
 
@@ -556,6 +556,8 @@ protected:
 
         void ReinstallJob(TJobletPtr joblet, EJobReinstallReason reason);
 
+        std::unique_ptr<NNodeTrackerClient::TNodeDirectoryBuilder> MakeNodeDirectoryBuilder(
+            NScheduler::NProto::TSchedulerJobSpecExt* schedulerJobSpec);
         void AddSequentialInputSpec(
             NJobTrackerClient::NProto::TJobSpec* jobSpec,
             TJobletPtr joblet);
@@ -729,8 +731,9 @@ protected:
     // Initialize transactions
     void StartAsyncSchedulerTransaction();
     void StartSyncSchedulerTransaction();
-    virtual void StartInputTransaction(const NObjectClient::TTransactionId& parentTransactionId);
-    virtual void StartOutputTransaction(const NObjectClient::TTransactionId& parentTransactionId);
+    void StartInputTransaction(const NObjectClient::TTransactionId& parentTransactionId);
+    void StartOutputTransaction(const NObjectClient::TTransactionId& parentTransactionId);
+    void StartDebugOutputTransaction();
 
     // Completion.
     void TeleportOutputChunks();
@@ -768,14 +771,19 @@ protected:
     //! Called when a job is unable to read a chunk.
     void OnChunkFailed(const NChunkClient::TChunkId& chunkId);
 
+    //! Gets the list of all intermediate chunks that are not lost.
+    yhash_set<NChunkClient::TChunkId> GetAliveIntermediateChunks() const;
+
+    //! Called by #IntermediateChunkScraper.
+    void OnIntermediateChunkLocated(const NChunkClient::TChunkId& chunkId, const NChunkClient::TChunkReplicaList& replicas);
+
     //! Called when a job is unable to read an intermediate chunk
     //! (i.e. that is not a part of the input).
-    /*!
-     *  The default implementation fails the operation immediately.
-     *  Those operations providing some fault tolerance for intermediate chunks
-     *  must override this method.
-     */
-    void OnIntermediateChunkUnavailable(const NChunkClient::TChunkId& chunkId);
+    //! Returns false if the chunk was already considered lost.
+    bool OnIntermediateChunkUnavailable(const NChunkClient::TChunkId& chunkId);
+
+    void StartIntermediateChunkScraper();
+    void RestartIntermediateChunkScraper();
 
 
     struct TStripeDescriptor
@@ -825,6 +833,7 @@ protected:
 
     virtual bool IsOutputLivePreviewSupported() const;
     virtual bool IsIntermediateLivePreviewSupported() const;
+    virtual bool IsInputDataSizeHistogramSupported() const;
 
     //! Successfully terminate and finalize operation.
     /*!
@@ -967,7 +976,7 @@ protected:
         TJobIOConfigPtr ioConfig,
         const TChunkStripeStatisticsVector& stripeStatistics) const;
 
-    static void InitIntermediateOutputConfig(TJobIOConfigPtr config);
+    void InitIntermediateOutputConfig(TJobIOConfigPtr config);
     void InitFinalOutputConfig(TJobIOConfigPtr config);
 
     static NTableClient::TTableReaderOptionsPtr CreateTableReaderOptions(TJobIOConfigPtr ioConfig);
@@ -1016,6 +1025,8 @@ private:
     //! Maps an intermediate chunk id to its originating completed job.
     yhash_map<NChunkClient::TChunkId, TCompletedJobPtr> ChunkOriginMap;
 
+    NChunkClient::TChunkScraperPtr IntermediateChunkScraper;
+
     //! Maps scheduler's job ids to controller's joblets.
     //! NB: |TJobPtr -> TJobletPtr| mapping would be faster but
     //! it cannot be serialized that easily.
@@ -1058,7 +1069,15 @@ private:
 
     std::atomic<bool> AreTransactionsActive = {false};
 
-    void UpdateMemoryDigests(TJobletPtr joblet, NJobTrackerClient::TStatistics statistics);
+    std::unique_ptr<IHistogram> EstimatedInputDataSizeHistogram_;
+    std::unique_ptr<IHistogram> InputDataSizeHistogram_;
+
+    void UpdateMemoryDigests(TJobletPtr joblet, const NJobTrackerClient::TStatistics& statistics);
+
+    void InitializeHistograms();
+    void UpdateEstimatedHistogram(TJobletPtr joblet);
+    void UpdateEstimatedHistogram(TJobletPtr joblet, EJobReinstallReason reason);
+    void UpdateActualHistogram(const NJobTrackerClient::TStatistics& statistics);
 
     void GetExecNodesInformation();
     int GetExecNodeCount();

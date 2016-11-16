@@ -54,6 +54,12 @@ struct IThroughputThrottler
      *  \note Thread affinity: any
      */
     virtual bool IsOverdraft() const = 0;
+
+    //! Returns total byte count of all waiting requests.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual i64 GetQueueTotalCount() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IThroughputThrottler)
