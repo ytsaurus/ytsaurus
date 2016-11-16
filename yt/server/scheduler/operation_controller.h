@@ -44,6 +44,7 @@ struct TControllerTransactions
     NApi::ITransactionPtr Async;
     NApi::ITransactionPtr Input;
     NApi::ITransactionPtr Output;
+    NApi::ITransactionPtr DebugOutput;
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerTransactions)
@@ -68,6 +69,11 @@ struct IOperationHost
      *  \note Thread affinity: any
      */
     virtual NHiveClient::TClusterDirectoryPtr GetClusterDirectory() = 0;
+
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() = 0;
 
     //! Returns the control invoker of the scheduler.
     /*!

@@ -1,6 +1,8 @@
 #pragma once
 
 #include "public.h"
+#include "job_statistics.h"
+#include "statistics_reporter.h"
 
 #include <yt/ytlib/chunk_client/public.h>
 
@@ -69,10 +71,7 @@ struct IJob
     virtual void SignalJob(const Stroka& signalName) = 0;
     virtual NYson::TYsonString PollJobShell(const NYson::TYsonString& parameters) = 0;
 
-    virtual void ReportStatistics(
-        const TNullable<TInstant>& startTime,
-        const TNullable<TInstant>& finishTime,
-        const TNullable<TError>& error) = 0;
+    virtual void ReportStatistics(TJobStatistics&& statistics) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJob)
@@ -91,4 +90,3 @@ void FillJobStatus(NJobTrackerClient::NProto::TJobStatus* jobStatus, IJobPtr job
 
 } // namespace NJobAgent
 } // namespace NYT
-

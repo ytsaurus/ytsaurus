@@ -82,19 +82,5 @@ message TOperationResult
     required NYT.NProto.TError error = 1;
 }
 
-message TReqWaitForOperation
-{
-    required NYT.NProto.TGuid operation_id = 1;
-    // Specifies a timeout to wait for the operation to complete.
-    required int64 timeout = 4;
-}
-
-message TRspWaitForOperation
-{
-    // If True then the operation may have just finished (either successfully or not).
-    // The client will be retrieving the outcome from Cypress.
-    required bool maybe_finished = 1;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 

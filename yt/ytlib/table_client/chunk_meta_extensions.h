@@ -17,7 +17,7 @@ DECLARE_PROTO_EXTENSION(NTableClient::NProto::TBlockMetaExt, 51)
 DECLARE_PROTO_EXTENSION(NTableClient::NProto::TNameTableExt, 53)
 DECLARE_PROTO_EXTENSION(NTableClient::NProto::TBoundaryKeysExt, 55)
 DECLARE_PROTO_EXTENSION(NTableClient::NProto::TSamplesExt, 56)
-DECLARE_PROTO_EXTENSION(NTableClient::NProto::TPartitionsExt, 57)
+DECLARE_PROTO_EXTENSION(NTableClient::NProto::TPartitionsExt, 59)
 DECLARE_PROTO_EXTENSION(NTableClient::NProto::TColumnMetaExt, 58)
 
 // Moved from old table client.

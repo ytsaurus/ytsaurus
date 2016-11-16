@@ -205,7 +205,7 @@ TJobSummary::TJobSummary(const TJobPtr& job)
         PrepareDuration = FromProto<TDuration>(status.prepare_duration());
     }
     if (status.has_download_duration()) {
-        PrepareDuration = FromProto<TDuration>(status.download_duration());
+        DownloadDuration = FromProto<TDuration>(status.download_duration());
     }
     if (status.has_exec_duration()) {
         ExecDuration.Emplace();
@@ -240,14 +240,19 @@ TCompletedJobSummary::TCompletedJobSummary(const TJobPtr& job, bool abandoned)
 
 ////////////////////////////////////////////////////////////////////
 
+TAbortedJobSummary::TAbortedJobSummary(const TJobPtr& job)
+    : TJobSummary(job)
+      , AbortReason(GetAbortReason(job->Status().result()))
+{ }
+
 TAbortedJobSummary::TAbortedJobSummary(const TJobId& id, EAbortReason abortReason)
     : TJobSummary(id)
     , AbortReason(abortReason)
 { }
 
-TAbortedJobSummary::TAbortedJobSummary(const TJobPtr& job)
-    : TJobSummary(job)
-    , AbortReason(GetAbortReason(job->Status().result()))
+TAbortedJobSummary::TAbortedJobSummary(const TJobSummary& other, EAbortReason abortReason)
+    : TJobSummary(other)
+    , AbortReason(abortReason)
 { }
 
 ////////////////////////////////////////////////////////////////////

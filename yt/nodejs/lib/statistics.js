@@ -16,11 +16,16 @@ function computeKey(metric, tags)
     return parts.join(" ");
 }
 
-function YtStatistics()
+function YtStatistics(ttl)
 {
     "use strict";
 
     this.gauges = {};
+
+    if (ttl) {
+        this.ttl = ttl;
+        setInterval(this.clearExpiredGauges.bind(this), ttl);
+    }
 }
 
 YtStatistics.prototype.getGauge = function(metric, tags)
@@ -29,7 +34,21 @@ YtStatistics.prototype.getGauge = function(metric, tags)
     if (typeof(this.gauges[key]) === "undefined") {
         this.gauges[key] = {};
     }
+    this.gauges[key].ts = new Date();
     return this.gauges[key];
+};
+
+YtStatistics.prototype.clearExpiredGauges = function()
+{
+    var now = new Date();
+    var keys = Object.keys(this.gauges);
+    for (var i = 0, n = keys.length; i < n; ++i) {
+        var key = keys[i];
+        var gauge = this.gauges[key];
+        if (this.ttl && (now - gauge.ts) > this.ttl) {
+            delete this.gauges[key];
+        }
+    }
 };
 
 YtStatistics.prototype.inc = function(metric, tags, value)

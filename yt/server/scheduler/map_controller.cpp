@@ -284,7 +284,7 @@ protected:
 
                 InitUnorderedPool(jobSizeLimits.GetDataSizePerJob());
 
-                if (Config->EnableJobSizeManager && !Spec->JobCount && !Spec->DataSizePerJob) {
+                if (Config->EnableMapJobSizeManager && !Spec->JobCount && !Spec->DataSizePerJob) {
                     LOG_DEBUG("Activating job size manager (DataSizePerJob: %v, MaxJobDataSize: %v, MinJobTime: %v, ExecToPrepareTimeRatio: %v",
                         jobSizeLimits.GetDataSizePerJob(),
                         Spec->MaxDataSizePerJob,
@@ -384,7 +384,6 @@ protected:
             InitQuerySpec(schedulerJobSpecExt, *Spec->InputQuery, *Spec->InputSchema);
         }
 
-        AuxNodeDirectory->DumpTo(schedulerJobSpecExt->mutable_aux_node_directory());
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
@@ -519,6 +518,11 @@ private:
         InitUserJobSpec(
             schedulerJobSpecExt->mutable_user_job_spec(),
             joblet);
+    }
+
+    virtual bool IsInputDataSizeHistogramSupported() const override
+    {
+        return true;
     }
 };
 

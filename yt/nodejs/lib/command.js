@@ -516,16 +516,16 @@ YtCommand.prototype._getInputFormat = function() {
     }
 
     // Secondly, try to deduce output format from our custom header.
-    header = this.req.headers["x-yt-input-format"];
-    if (typeof(header) === "string") {
-        try {
+    try {
+        header = utils.gather(this.req.headers, "x-yt-input-format");
+        if (header) {
             result = new binding.TNodeWrap(
-                header.trim(),
+                header,
                 binding.ECompression_None,
                 this.header_format);
-        } catch (err) {
-            throw new YtError("Unable to parse X-YT-Input-Format header", err);
         }
+    } catch (err) {
+        throw new YtError("Unable to parse X-YT-Input-Format header", err);
     }
 
     // Lastly, provide a default option, i. e. YSON.
@@ -657,17 +657,17 @@ YtCommand.prototype._getOutputFormat = function() {
     }
 
     // Now, try to deduce output format from our custom header.
-    header = this.req.headers["x-yt-output-format"];
-    if (typeof(header) === "string") {
-        try {
+    try {
+        header = utils.gather(this.req.headers, "x-yt-output-format");
+        if (header) {
             result_mime = "application/octet-stream";
             result_format = new binding.TNodeWrap(
-                header.trim(),
+                header,
                 binding.ECompression_None,
                 this.header_format);
-        } catch (err) {
-            throw new YtError("Unable to parse X-YT-Output-Format header", err);
         }
+    } catch (err) {
+        throw new YtError("Unable to parse X-YT-Output-Format header", err);
     }
 
     // Lastly, provide a default option.
@@ -717,6 +717,7 @@ YtCommand.prototype._captureParametersFromHeadersAndUrl = function() {
     this.__DBG("_captureParametersFromHeadersAndUrl");
 
     var from_url, from_header;
+    var header;
 
     try {
         from_url = utils.numerify(qs.parse(this.req.parsedUrl.query));
@@ -733,8 +734,8 @@ YtCommand.prototype._captureParametersFromHeadersAndUrl = function() {
     }
 
     try {
-        var header = this.req.headers["x-yt-parameters"];
-        if (typeof(header) === "string") {
+        header = utils.gather(this.req.headers, "x-yt-parameters");
+        if (header) {
             from_header = new binding.TNodeWrap(
                 header,
                 binding.ECompression_None,

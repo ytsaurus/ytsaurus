@@ -54,7 +54,8 @@ void TChunkList::Save(NCellMaster::TSaveContext& context) const
     using NYT::Save;
     Save(context, Children_);
     Save(context, Parents_);
-    Save(context, OwningNodes_);
+    Save(context, TrunkOwningNodes_);
+    Save(context, BranchedOwningNodes_);
     Save(context, Statistics_);
     Save(context, CumulativeStatistics_);
     Save(context, Ordered_);
@@ -68,8 +69,23 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, Children_);
     Load(context, Parents_);
-    Load(context, OwningNodes_);
+    // COMPAT(babenko)
+    if (context.GetVersion() < 355) {
+        auto owningNodes = Load<std::vector<TChunkOwnerBase*>>(context);
+        // NB: Node is not fully loaded yet, its IsTrunk method may not work properly.
+        for (auto* node : owningNodes) {
+            if (node->GetVersionedId().TransactionId) {
+                BranchedOwningNodes_.PushBack(node);
+            } else {
+                TrunkOwningNodes_.PushBack(node);
+            }
+        }
+    } else {
+        Load(context, TrunkOwningNodes_);
+        Load(context, BranchedOwningNodes_);
+    }
     Load(context, Statistics_);
+
     // COMPAT(babenko)
     if (context.GetVersion() >= 403) {
         Load(context, CumulativeStatistics_);
@@ -93,14 +109,6 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
         Load(context, TrimmedChildCount_);
     }
 
-    for (int index = 0; index < Parents_.size(); ++index) {
-        YCHECK(ParentToIndex_.emplace(Parents_[index], index).second);
-    }
-
-    for (int index = 0; index < OwningNodes_.size(); ++index) {
-        YCHECK(OwningNodeToIndex_.emplace(OwningNodes_[index], index).second);
-    }
-
     if (!Ordered_) {
         for (int index = 0; index < Children_.size(); ++index) {
             YCHECK(ChildToIndex_.emplace(Children_[index], index).second);
@@ -108,44 +116,47 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
     }
 }
 
+TRange<TChunkList*> TChunkList::Parents() const
+{
+    return MakeRange(Parents_.begin(), Parents_.end());
+}
+
 void TChunkList::AddParent(TChunkList* parent)
 {
-    int index = Parents_.size();
-    Parents_.push_back(parent);
-    YCHECK(ParentToIndex_.insert(std::make_pair(parent, index)).second);
+    Parents_.PushBack(parent);
 }
 
 void TChunkList::RemoveParent(TChunkList* parent)
 {
-    auto it = ParentToIndex_.find(parent);
-    Y_ASSERT(it != ParentToIndex_.end());
-    int index = it->second;
-    if (index != ParentToIndex_.size() - 1) {
-        std::swap(Parents_[index], Parents_.back());
-        ParentToIndex_[Parents_[index]] = index;
-    }
-    Parents_.pop_back();
-    ParentToIndex_.erase(it);
+    Parents_.Remove(parent);
 }
 
 void TChunkList::AddOwningNode(TChunkOwnerBase* node)
 {
-    int index = OwningNodes_.size();
-    OwningNodes_.push_back(node);
-    YCHECK(OwningNodeToIndex_.insert(std::make_pair(node, index)).second);
+    if (node->IsTrunk()) {
+        TrunkOwningNodes_.PushBack(node);
+    } else {
+        BranchedOwningNodes_.PushBack(node);
+    }
 }
 
 void TChunkList::RemoveOwningNode(TChunkOwnerBase* node)
 {
-    auto it = OwningNodeToIndex_.find(node);
-    Y_ASSERT(it != OwningNodeToIndex_.end());
-    int index = it->second;
-    if (index != OwningNodes_.size() - 1) {
-        std::swap(OwningNodes_[index], OwningNodes_.back());
-        OwningNodeToIndex_[OwningNodes_[index]] = index;
+    if (node->IsTrunk()) {
+        TrunkOwningNodes_.Remove(node);
+    } else {
+        BranchedOwningNodes_.Remove(node);
     }
-    OwningNodes_.pop_back();
-    OwningNodeToIndex_.erase(it);
+}
+
+TRange<TChunkOwnerBase*> TChunkList::TrunkOwningNodes() const
+{
+    return MakeRange(TrunkOwningNodes_.begin(), TrunkOwningNodes_.end());
+}
+
+TRange<TChunkOwnerBase*> TChunkList::BranchedOwningNodes() const
+{
+    return MakeRange(BranchedOwningNodes_.begin(), BranchedOwningNodes_.end());
 }
 
 ui64 TChunkList::GenerateVisitMark()

@@ -351,9 +351,9 @@ def run_integration_tests(options):
 
 @build_step
 def run_python_libraries_tests(options):
-    kill_by_name("ytserver")
-    kill_by_name("node")
-    kill_by_name("run_proxy")
+    kill_by_name("^ytserver")
+    kill_by_name("^node")
+    kill_by_name("^run_proxy")
 
     pytest_args = []
     if options.enable_parallel_testing:
@@ -378,6 +378,8 @@ def build_python_packages(options):
 
     for package in packages:
         if package == "yandex-yt-fennel" and not options.build_enable_python_2_7:
+            continue
+        if package == "yandex-yt-fennel" and options.codename == "lucid":
             continue
         if package == "yandex-yt-local" and options.codename == "lucid":
             continue

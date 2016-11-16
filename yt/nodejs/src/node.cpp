@@ -15,9 +15,7 @@
 #include <yt/core/ytree/tree_builder.h>
 #include <yt/core/ytree/ypath_client.h>
 
-#include <library/streams/lz/lz.h>
-
-#include <util/stream/zlib.h>
+#include <library/string_utils/base64/base64.h>
 
 namespace NYT {
 namespace NNodeJS {
@@ -373,6 +371,15 @@ Handle<Value> TNodeWrap::New(const Arguments& args)
                     argValue.length(),
                     compression,
                     format);
+            } else if (arg->IsArray()) {
+                auto arr = Local<Array>::Cast(Local<Value>::New(arg));
+                Stroka buf1;
+                for (ui32 i = 0; i < arr->Length(); ++i) {
+                    String::Utf8Value arrValue(arr->Get(i));
+                    buf1.append(*arrValue, arrValue.length());
+                }
+                Stroka buf2 = Base64Decode(buf1);
+                node = ConvertBytesToNode(buf2.data(), buf2.size(), compression, format);
             } else {
                 THROW_ERROR_EXCEPTION(
                     "3-ary constructor of TNodeWrap can consume either String or Buffer with compression (Uint32) and format (TNodeWrap)");

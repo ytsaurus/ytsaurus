@@ -16,6 +16,8 @@
 #include <yt/ytlib/api/native_client.h>
 #include <yt/ytlib/api/native_connection.h>
 
+#include <yt/ytlib/admin/admin_service.h>
+
 #include <yt/ytlib/hive/cell_directory.h>
 #include <yt/ytlib/hive/cluster_directory.h>
 
@@ -36,6 +38,9 @@
 #include <yt/ytlib/transaction_client/timestamp_provider.h>
 
 #include <yt/ytlib/chunk_client/throttler_manager.h>
+
+#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
 #include <yt/core/bus/config.h>
 #include <yt/core/bus/server.h>
@@ -62,6 +67,7 @@
 namespace NYT {
 namespace NCellScheduler {
 
+using namespace NAdmin;
 using namespace NBus;
 using namespace NElection;
 using namespace NHydra;
@@ -137,6 +143,14 @@ void TBootstrap::DoRun()
 
     ClusterDirectory_ = New<TClusterDirectory>();
 
+    NodeDirectory_ = New<TNodeDirectory>();
+
+    NodeDirectorySynchronizer_ = New<TNodeDirectorySynchronizer>(
+        Config_->NodeDirectorySynchronizer,
+        connection,
+        NodeDirectory_);
+    NodeDirectorySynchronizer_->Start();
+
     Scheduler_ = New<TScheduler>(Config_->Scheduler, this);
 
     ChunkLocationThrottlerManager_ = New<TThrottlerManager>(
@@ -180,6 +194,8 @@ void TBootstrap::DoRun()
             ->GetOrchidService()));
 
     SetBuildAttributes(orchidRoot, "scheduler");
+
+    RpcServer_->RegisterService(CreateAdminService(GetControlInvoker()));
 
     RpcServer_->RegisterService(CreateOrchidService(
         orchidRoot,
@@ -236,6 +252,11 @@ TSchedulerPtr TBootstrap::GetScheduler() const
 TClusterDirectoryPtr TBootstrap::GetClusterDirectory() const
 {
     return ClusterDirectory_;
+}
+
+const TNodeDirectoryPtr& TBootstrap::GetNodeDirectory() const
+{
+    return NodeDirectory_;
 }
 
 TResponseKeeperPtr TBootstrap::GetResponseKeeper() const

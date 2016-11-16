@@ -171,6 +171,12 @@ void TExpiringCache<TKey, TValue>::SetResult(const TWeakPtr<TEntry>& weakEntry, 
     } else {
         entry->Promise.Set(valueOrError);
     }
+    YCHECK(entry->Promise.IsSet());
+
+    if (TInstant::Now() > entry->AccessDeadline) {
+        Map_.erase(key);
+        return;
+    }
 
     if (TInstant::Now() > entry->AccessDeadline) {
         Map_.erase(key);

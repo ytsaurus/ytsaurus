@@ -281,7 +281,8 @@ std::vector<TChunkOwnerBase*> GetOwningNodes(TChunkTree* chunkTree)
             }
             case EObjectType::ChunkList: {
                 auto* chunkList = chunkTree->AsChunkList();
-                owningNodes.insert(chunkList->OwningNodes().begin(), chunkList->OwningNodes().end());
+                owningNodes.insert(chunkList->TrunkOwningNodes().begin(), chunkList->TrunkOwningNodes().end());
+                owningNodes.insert(chunkList->BranchedOwningNodes().begin(), chunkList->BranchedOwningNodes().end());
                 for (auto* parent : chunkList->Parents()) {
                     visit(parent);
                 }

@@ -42,20 +42,6 @@ static const TProfiler StatisticsProfiler("/statistics_reporter");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TStatisticsItem
-{
-    TOperationId OperationId;
-    TJobId JobId;
-    Stroka JobType;
-    Stroka JobState;
-    TNullable<ui64> StartTime;
-    TNullable<ui64> FinishTime;
-    TNullable<Stroka> Error;
-    TNullable<Stroka> Statistics;
-};
-
-using TStatisticsBatch = std::vector<TStatisticsItem>;
-
 struct TStatisticsTableDescriptor
 {
     TStatisticsTableDescriptor()
@@ -76,7 +62,10 @@ struct TStatisticsTableDescriptor
             , FinishTime(n->RegisterName("finish_time"))
             , Address(n->RegisterName("address"))
             , Error(n->RegisterName("error"))
+            , Spec(n->RegisterName("spec"))
+            , SpecVersion(n->RegisterName("spec_version"))
             , Statistics(n->RegisterName("statistics"))
+            , Events(n->RegisterName("events"))
         { }
 
         const int OperationIdHi;
@@ -89,7 +78,10 @@ struct TStatisticsTableDescriptor
         const int FinishTime;
         const int Address;
         const int Error;
+        const int Spec;
+        const int SpecVersion;
         const int Statistics;
+        const int Events;
     };
 
     const TNameTablePtr NameTable;
@@ -111,42 +103,62 @@ public:
         : Config_(std::move(reporterConfig))
         , Client_(bootstrap->GetMasterClient())
         , DefaultLocalAddress_(bootstrap->GetMasterConnector()->GetLocalDescriptor().GetDefaultAddress())
-        , Batcher_(New<TNonblockingBatch<TStatisticsItem>>(Config_->MaxItemsInBatch, Config_->ReportingPeriod))
+        , NormalPriorityCounter_(Config_->MaxItemsInProgressNormalPriority)
+        , LowPriorityCounter_(Config_->MaxItemsInProgressLowPriority)
+        , Batcher_(New<TNonblockingBatch<TJobStatistics>>(Config_->MaxItemsInBatch, Config_->ReportingPeriod))
     {
         Reporter_->GetInvoker()->Invoke(BIND(&TImpl::OnReporting, MakeWeak(this)));
     }
 
-    void ReportStatistics(TStatisticsItem&& item)
+    void ReportStatistics(TJobStatistics&& statistics)
     {
-        if (!Config_->Enabled) {
-            return;
-        }
-        if (++InProgressCount_ > Config_->MaxItemsInProgress) {
+        auto& counter = GetCounter(statistics.Priority());
+        if (++counter.InProgressCount > counter.MaxInProgressCount) {
             ++DroppedCount_;
-            --InProgressCount_;
+            --counter.InProgressCount;
             StatisticsProfiler.Increment(DroppedCounter_);
         } else {
-            Batcher_->Enqueue(std::move(item));
+            Batcher_->Enqueue(std::move(statistics));
             StatisticsProfiler.Increment(EnqueuedCounter_);
         }
     }
 
 private:
+    using TStatisticsBatch = std::vector<TJobStatistics>;
+
+    struct TPriorityCounter
+    {
+        TPriorityCounter(int maxInProgressCount)
+            : MaxInProgressCount(maxInProgressCount)
+        { }
+
+        const int MaxInProgressCount;
+        std::atomic<int> InProgressCount = {0};
+    };
+
     const TStatisticsReporterConfigPtr Config_;
     const INativeClientPtr Client_;
     const TActionQueuePtr Reporter_ = New<TActionQueue>("Reporter");
     const Stroka DefaultLocalAddress_;
-    const TNonblockingBatchPtr<TStatisticsItem> Batcher_;
     const TStatisticsTableDescriptor Table_;
 
-    std::atomic<int> InProgressCount_ = {0};
+    TPriorityCounter NormalPriorityCounter_;
+    TPriorityCounter LowPriorityCounter_;
     std::atomic<int> DroppedCount_ = {0};
+    const TNonblockingBatchPtr<TJobStatistics> Batcher_;
 
     TSimpleCounter EnqueuedCounter_ = {"/enqueued"};
     TSimpleCounter DequeuedCounter_ = {"/dequeued"};
     TSimpleCounter DroppedCounter_ = {"/dropped"};
     TSimpleCounter CommittedCounter_ = {"/committed"};
     TSimpleCounter CommittedDataWeightCounter_ = {"/committed_data_weight"};
+
+    TPriorityCounter& GetCounter(EReportPriority priority)
+    {
+        return priority == EReportPriority::Normal
+            ? NormalPriorityCounter_
+            : LowPriorityCounter_;
+    }
 
     void OnReporting()
     {
@@ -157,21 +169,23 @@ private:
 
             StatisticsProfiler.Increment(DequeuedCounter_, batch.size());
 
-            WriteBatchWithExpBackoff(batch);
+            size_t dataWeight = WriteBatchWithExpBackoff(batch);
+
+            StatisticsProfiler.Increment(CommittedCounter_, batch.size());
+            StatisticsProfiler.Increment(CommittedDataWeightCounter_, dataWeight);
         }
     }
 
-    void WriteBatchWithExpBackoff(const TStatisticsBatch& batch)
+    size_t WriteBatchWithExpBackoff(const TStatisticsBatch& batch)
     {
         auto delay = Config_->MinRepeatDelay;
         while (true) {
             auto dropped = DroppedCount_.exchange(0);
             if (dropped) {
-                LOG_WARNING("Maximum items reached, dropping statistics (DroppedItems: %v)", dropped);
+                LOG_WARNING("Maximum items reached, dropping job statistics (DroppedItems: %v)", dropped);
             }
             try {
-                TryWriteBatch(batch);
-                return;
+                return TryWriteBatch(batch);
             } catch (const std::exception& ex) {
                 LOG_WARNING(ex, "Failed to report job statistics (RetryDelay: %v)", delay.Seconds());
             }
@@ -183,11 +197,13 @@ private:
         }
     }
 
-    void TryWriteBatch(const TStatisticsBatch& batch)
+    size_t TryWriteBatch(const TStatisticsBatch& batch)
     {
-        LOG_DEBUG("Job statistics transaction starting (ItemCount: %v, PendingItems: %v)",
+        LOG_DEBUG("Job statistics transaction starting "
+            "(ItemCount: %v, PendingItemsNormalPriority: %v, PendingItemsLowPriority: %v)",
             batch.size(),
-            InProgressCount_.load());
+            NormalPriorityCounter_.InProgressCount.load(std::memory_order_relaxed),
+            LowPriorityCounter_.InProgressCount.load(std::memory_order_relaxed));
         auto asyncTransaction = Client_->StartTransaction(ETransactionType::Tablet);
         auto transactionOrError = WaitFor(asyncTransaction);
         auto transaction = transactionOrError.ValueOrThrow();
@@ -199,26 +215,41 @@ private:
         auto rowBuffer = New<TRowBuffer>(TJobStatisticsTag());
 
         size_t dataWeight = 0;
-        for (auto&& item : batch) {
+        TEnumIndexedVector<int, EReportPriority> counters = {0, 0};
+        for (auto&& statistics : batch) {
+            ++counters[statistics.Priority()];
             TUnversionedRowBuilder builder;
-            builder.AddValue(MakeUnversionedUint64Value(item.OperationId.Parts64[0], Table_.Ids.OperationIdHi));
-            builder.AddValue(MakeUnversionedUint64Value(item.OperationId.Parts64[1], Table_.Ids.OperationIdLo));
-            builder.AddValue(MakeUnversionedUint64Value(item.JobId.Parts64[0], Table_.Ids.JobIdHi));
-            builder.AddValue(MakeUnversionedUint64Value(item.JobId.Parts64[1], Table_.Ids.JobIdLo));
-            builder.AddValue(MakeUnversionedStringValue(item.JobType, Table_.Ids.Type));
-            builder.AddValue(MakeUnversionedStringValue(item.JobState, Table_.Ids.State));
-            if (item.StartTime) {
-                builder.AddValue(MakeUnversionedInt64Value(*item.StartTime, Table_.Ids.StartTime));
+            builder.AddValue(MakeUnversionedUint64Value(statistics.OperationId().Parts64[0], Table_.Ids.OperationIdHi));
+            builder.AddValue(MakeUnversionedUint64Value(statistics.OperationId().Parts64[1], Table_.Ids.OperationIdLo));
+            builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[0], Table_.Ids.JobIdHi));
+            builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[1], Table_.Ids.JobIdLo));
+            if (statistics.Type()) {
+                builder.AddValue(MakeUnversionedStringValue(*statistics.Type(), Table_.Ids.Type));
             }
-            if (item.FinishTime) {
-                builder.AddValue(MakeUnversionedInt64Value(*item.FinishTime, Table_.Ids.FinishTime));
+            if (statistics.State()) {
+                builder.AddValue(MakeUnversionedStringValue(*statistics.State(), Table_.Ids.State));
+            }
+            if (statistics.StartTime()) {
+                builder.AddValue(MakeUnversionedInt64Value(*statistics.StartTime(), Table_.Ids.StartTime));
+            }
+            if (statistics.FinishTime()) {
+                builder.AddValue(MakeUnversionedInt64Value(*statistics.FinishTime(), Table_.Ids.FinishTime));
             }
             builder.AddValue(MakeUnversionedStringValue(DefaultLocalAddress_, Table_.Ids.Address));
-            if (item.Error) {
-                builder.AddValue(MakeUnversionedAnyValue(*item.Error, Table_.Ids.Error));
+            if (statistics.Error()) {
+                builder.AddValue(MakeUnversionedAnyValue(*statistics.Error(), Table_.Ids.Error));
             }
-            if (item.Statistics) {
-                builder.AddValue(MakeUnversionedAnyValue(*item.Statistics, Table_.Ids.Statistics));
+            if (statistics.Spec()) {
+                builder.AddValue(MakeUnversionedStringValue(*statistics.Spec(), Table_.Ids.Spec));
+            }
+            if (statistics.SpecVersion()) {
+                builder.AddValue(MakeUnversionedInt64Value(*statistics.SpecVersion(), Table_.Ids.SpecVersion));
+            }
+            if (statistics.Statistics()) {
+                builder.AddValue(MakeUnversionedAnyValue(*statistics.Statistics(), Table_.Ids.Statistics));
+            }
+            if (statistics.Events()) {
+                builder.AddValue(MakeUnversionedAnyValue(*statistics.Events(), Table_.Ids.Events));
             }
             rows.push_back(rowBuffer->Capture(builder.GetRow()));
             dataWeight += GetDataWeight(rows.back());
@@ -232,14 +263,16 @@ private:
         auto asyncResult = WaitFor(transaction->Commit());
         asyncResult.ThrowOnError();
 
-        InProgressCount_ -= batch.size();
-        StatisticsProfiler.Increment(CommittedCounter_, batch.size());
-        StatisticsProfiler.Increment(CommittedDataWeightCounter_, dataWeight);
-        LOG_DEBUG("Job statistics transaction committed (TransactionId: %v, CommittedItems: %v, "
-            "CommittedDataWeight: %v)",
+        NormalPriorityCounter_.InProgressCount -= counters[EReportPriority::Normal];
+        LowPriorityCounter_.InProgressCount -= counters[EReportPriority::Low];
+
+        LOG_DEBUG("Job statistics transaction committed (TransactionId: %v, "
+            "CommittedItemsNormalPriority: %v, CommittedItemsLowPriority: %v, CommittedDataWeight: %v)",
             transaction->GetId(),
-            batch.size(),
+            counters[EReportPriority::Normal],
+            counters[EReportPriority::Low],
             dataWeight);
+        return dataWeight;
     }
 };
 
@@ -248,30 +281,17 @@ private:
 TStatisticsReporter::TStatisticsReporter(
     TStatisticsReporterConfigPtr reporterConfig,
     TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(
-        std::move(reporterConfig),
-        bootstrap))
+    : Impl_(
+        reporterConfig->Enabled
+            ? New<TImpl>(std::move(reporterConfig), bootstrap)
+            : nullptr)
 { }
 
-void TStatisticsReporter::ReportStatistics(
-    TOperationId operationId,
-    TJobId jobId,
-    EJobType jobType,
-    EJobState jobState,
-    const TNullable<TInstant>& startTime,
-    const TNullable<TInstant>& finishTime,
-    const TNullable<TError>& error,
-    const TNullable<TYsonString>& statistics)
+void TStatisticsReporter::ReportStatistics(TJobStatistics&& statistics)
 {
-    Impl_->ReportStatistics({
-        operationId,
-        jobId,
-        FormatEnum(jobType),
-        FormatEnum(jobState),
-        startTime ? startTime->MicroSeconds() : TNullable<ui64>(),
-        finishTime ? finishTime->MicroSeconds() : TNullable<ui64>(),
-        (error && !error->IsOK()) ? ConvertToYsonString(*error).Data() : TNullable<Stroka>(),
-        statistics ? statistics->Data() : TNullable<Stroka>()});
+    if (Impl_) {
+        Impl_->ReportStatistics(std::move(statistics));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

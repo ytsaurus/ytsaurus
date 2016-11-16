@@ -244,53 +244,11 @@ private:
             YCHECK(responseHandler);
             VERIFY_THREAD_AFFINITY_ANY();
 
-            auto requestId = request->GetRequestId();
-
             auto requestControl = New<TClientRequestControl>(
                 this,
                 request,
                 timeout,
                 responseHandler);
-
-            IBusPtr bus;
-            IClientResponseHandlerPtr existingResponseHandler;
-            {
-                TGuard<TSpinLock> guard(SpinLock_);
-
-                if (Terminated_) {
-                    auto error = TerminationError_;
-                    guard.Release();
-
-                    LOG_DEBUG("Request via terminated channel is dropped (RequestId: %v, Method: %v:%v)",
-                        requestId,
-                        request->GetService(),
-                        request->GetMethod());
-
-                    responseHandler->HandleError(error);
-                    return nullptr;
-                }
-
-                // NB: We're OK with duplicate request ids.
-                auto pair = ActiveRequestMap_.insert(std::make_pair(requestId, requestControl));
-                if (!pair.second) {
-                    const auto& existingRequestControl = pair.first->second;
-                    LOG_DEBUG("Request resent (RequestId: %v)",
-                        requestId);
-                    existingResponseHandler = existingRequestControl->GetResponseHandler();
-                    existingRequestControl->Finalize();
-                    pair.first->second = requestControl;
-                }
-
-                bus = Bus_;
-            }
-
-            requestControl->Initialize();
-
-            if (existingResponseHandler) {
-                existingResponseHandler->HandleError(TError(
-                    NRpc::EErrorCode::TransportError,
-                    "Request resent"));
-            }
 
             auto& header = request->Header();
             header.set_start_time(ToProto(TInstant::Now()));
@@ -307,15 +265,15 @@ private:
                     .Subscribe(BIND(
                         &TSession::OnRequestSerialized,
                         MakeStrong(this),
-                        std::move(bus),
                         request,
+                        requestControl,
                         timeout,
                         requestAck));
             } else {
                 auto requestMessage = request->Serialize();
                 OnRequestSerialized(
-                    std::move(bus),
-                    std::move(request),
+                    request,
+                    requestControl,
                     timeout,
                     requestAck,
                     std::move(requestMessage));
@@ -520,8 +478,8 @@ private:
 
 
         void OnRequestSerialized(
-            IBusPtr bus,
-            IClientRequestPtr request,
+            const IClientRequestPtr& request,
+            const TClientRequestControlPtr& requestControl,
             TNullable<TDuration> timeout,
             bool requestAck,
             const TErrorOr<TSharedRefArray>& requestMessageOrError)
@@ -531,34 +489,57 @@ private:
             const auto& requestId = request->GetRequestId();
 
             if (!requestMessageOrError.IsOK()) {
-                TGuard<TSpinLock> guard(SpinLock_);
-                auto it = ActiveRequestMap_.find(requestId);
-                if (it == ActiveRequestMap_.end()) {
-                    // This one may easily get the actual response before the acknowledgment.
-                    LOG_DEBUG(requestMessageOrError, "Failed to serialize an incorrect or obsolete request (RequestId: %v)",
-                        requestId);
-                } else {
-                    // NB: Make copies, the instance will die soon.
-                    auto requestControl = it->second;
-                    auto request = requestControl->GetRequest();
-                    auto responseHandler = requestControl->GetResponseHandler();
-                    requestControl->Finalize();
-                    ActiveRequestMap_.erase(it);
-
-                    // Don't need the guard anymore.
-                    guard.Release();
-
-                    NotifyError(
-                        requestControl,
-                        request,
-                        responseHandler,
-                        TError(NRpc::EErrorCode::TransportError, "Request serialization failed")
-                            << requestMessageOrError);
-                }
+                auto responseHandler = requestControl->GetResponseHandler();
+                NotifyError(
+                    requestControl,
+                    request,
+                    responseHandler,
+                    TError(NRpc::EErrorCode::TransportError, "Request serialization failed")
+                        << requestMessageOrError);
                 return;
             }
 
             const auto& requestMessage = requestMessageOrError.Value();
+
+            IBusPtr bus;
+            IClientResponseHandlerPtr existingResponseHandler;
+            {
+                TGuard<TSpinLock> guard(SpinLock_);
+
+                if (Terminated_) {
+                    auto error = TerminationError_;
+                    guard.Release();
+
+                    LOG_DEBUG("Request via terminated channel is dropped (RequestId: %v, Method: %v:%v)",
+                        requestId,
+                        request->GetService(),
+                        request->GetMethod());
+
+                    requestControl->GetResponseHandler()->HandleError(error);
+                    return;
+                }
+
+                requestControl->Initialize();
+
+                // NB: We're OK with duplicate request ids.
+                auto pair = ActiveRequestMap_.insert(std::make_pair(requestId, requestControl));
+                if (!pair.second) {
+                    const auto& existingRequestControl = pair.first->second;
+                    LOG_DEBUG("Request resent (RequestId: %v)",
+                        requestId);
+                    existingResponseHandler = existingRequestControl->GetResponseHandler();
+                    existingRequestControl->Finalize();
+                    pair.first->second = requestControl;
+                }
+
+                bus = Bus_;
+            }
+
+            if (existingResponseHandler) {
+                existingResponseHandler->HandleError(TError(
+                    NRpc::EErrorCode::TransportError,
+                    "Request resent"));
+            }
 
             auto level = requestAck
                 ? EDeliveryTrackingLevel::Full

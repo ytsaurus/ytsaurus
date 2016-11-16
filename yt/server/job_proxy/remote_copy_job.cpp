@@ -66,10 +66,10 @@ public:
         , ReaderConfig_(Host_->GetConfig()->JobIO->TableReader)
         , WriterConfig_(Host_->GetConfig()->JobIO->TableWriter)
     {
-        YCHECK(SchedulerJobSpecExt_.input_specs_size() == 1);
-        YCHECK(SchedulerJobSpecExt_.output_specs_size() == 1);
+        YCHECK(SchedulerJobSpecExt_.input_table_specs_size() == 1);
+        YCHECK(SchedulerJobSpecExt_.output_table_specs_size() == 1);
 
-        for (const auto& dataSliceDescriptor : SchedulerJobSpecExt_.input_specs(0).data_slice_descriptors()) {
+        for (const auto& dataSliceDescriptor : SchedulerJobSpecExt_.input_table_specs(0).data_slice_descriptors()) {
             for (const auto& inputChunkSpec : dataSliceDescriptor.chunks()) {
                 YCHECK(!inputChunkSpec.has_lower_limit());
                 YCHECK(!inputChunkSpec.has_upper_limit());
@@ -80,9 +80,9 @@ public:
     virtual void Initialize() override
     {
         WriterOptionsTemplate_ = ConvertTo<TTableWriterOptionsPtr>(
-            TYsonString(SchedulerJobSpecExt_.output_specs(0).table_writer_options()));
+            TYsonString(SchedulerJobSpecExt_.output_table_specs(0).table_writer_options()));
         OutputChunkListId_ = FromProto<TChunkListId>(
-            SchedulerJobSpecExt_.output_specs(0).chunk_list_id());
+            SchedulerJobSpecExt_.output_table_specs(0).chunk_list_id());
 
         const auto& remoteCopySpec = JobSpec_.GetExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext);
         auto remoteConnectionConfig = ConvertTo<TNativeConnectionConfigPtr>(TYsonString(remoteCopySpec.connection_config()));
@@ -94,7 +94,7 @@ public:
     virtual TJobResult Run() override
     {
         PROFILE_TIMING ("/remote_copy_time") {
-            for (const auto& dataSliceDescriptor : SchedulerJobSpecExt_.input_specs(0).data_slice_descriptors()) {
+            for (const auto& dataSliceDescriptor : SchedulerJobSpecExt_.input_table_specs(0).data_slice_descriptors()) {
                 for (const auto& inputChunkSpec : dataSliceDescriptor.chunks()) {
                     CopyChunk(inputChunkSpec);
                 }
@@ -113,7 +113,7 @@ public:
     {
         // Caution: progress calculated approximately (assuming all chunks have equal size).
         double chunkProgress = TotalChunkSize_ ? static_cast<double>(CopiedChunkSize_) / *TotalChunkSize_ : 0.0;
-        return (CopiedChunkCount_ + chunkProgress) / SchedulerJobSpecExt_.input_specs(0).data_slice_descriptors_size();
+        return (CopiedChunkCount_ + chunkProgress) / SchedulerJobSpecExt_.input_table_specs(0).data_slice_descriptors_size();
     }
 
     virtual std::vector<TChunkId> GetFailedChunkIds() const override

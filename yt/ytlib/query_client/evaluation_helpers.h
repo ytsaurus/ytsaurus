@@ -194,6 +194,7 @@ struct TExecutionContext
         Y_UNUSED(context);
         CHECK_STACK();
     }
+    bool IsOrdered = false;
 
 };
 

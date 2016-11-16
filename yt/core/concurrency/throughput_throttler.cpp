@@ -57,6 +57,7 @@ public:
         LOG_DEBUG("Started waiting for throttler (Count: %v)", count);
         TRequest request{count, NewPromise<void>()};
         Requests_.push(request);
+        QueueTotalCount_ += count;
         return request.Promise;
     }
 
@@ -118,7 +119,14 @@ public:
             Available_ = -1;
         }
 
-        ProcessRequests(&guard);
+        ProcessRequests(std::move(guard));
+    }
+
+    virtual i64 GetQueueTotalCount() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return QueueTotalCount_;
     }
 
 private:
@@ -140,6 +148,7 @@ private:
         TPromise<void> Promise;
     };
 
+    std::atomic<i64> QueueTotalCount_ = {0};
     std::queue<TRequest> Requests_;
 
 
@@ -154,10 +163,10 @@ private:
             Available_ = ThroughputPerPeriod_;
         }
 
-        ProcessRequests(&guard);
+        ProcessRequests(std::move(guard));
     }
 
-    void ProcessRequests(TGuard<TSpinLock>* guard)
+    void ProcessRequests(TGuard<TSpinLock> guard)
     {
         std::vector<TPromise<void>> readyList;
         std::vector<TPromise<void>> canceledList;
@@ -173,10 +182,11 @@ private:
                 }
                 readyList.push_back(std::move(request.Promise));
             }
+            QueueTotalCount_ -= request.Count;
             Requests_.pop();
         }
 
-        guard->Release();
+        guard.Release();
 
         for (auto& promise : readyList) {
             promise.Set();
@@ -233,6 +243,12 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
         return false;
     }
+
+    virtual i64 GetQueueTotalCount() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        return 0;
+    }
 };
 
 IThroughputThrottlerPtr GetUnlimitedThrottler()
@@ -255,11 +271,18 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
         YCHECK(count >= 0);
 
+        QueueTotalCount_ += count;
+
         std::vector<TFuture<void>> asyncResults;
         for (const auto& throttler : Throttlers_) {
             asyncResults.push_back(throttler->Throttle(count));
         }
-        return Combine(asyncResults);
+
+        return Combine(asyncResults).Apply(BIND([weakThis = MakeWeak(this), count] {
+            if (auto this_ = weakThis.Lock()) {
+                this_->QueueTotalCount_ -= count;
+            }
+        }));
     }
 
     virtual bool TryAcquire(i64 /*count*/) override
@@ -289,9 +312,17 @@ public:
         return false;
     }
 
+    virtual i64 GetQueueTotalCount() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return QueueTotalCount_;
+    }
+
 private:
     const std::vector<IThroughputThrottlerPtr> Throttlers_;
 
+    std::atomic<i64> QueueTotalCount_ = {0};
 };
 
 IThroughputThrottlerPtr CreateCombinedThrottler(

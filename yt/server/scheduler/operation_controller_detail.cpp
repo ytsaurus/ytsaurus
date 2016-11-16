@@ -80,6 +80,22 @@ using NTableClient::TTableReaderOptions;
 
 ////////////////////////////////////////////////////////////////////
 
+namespace {
+
+void CommitTransaction(ITransactionPtr transaction)
+{
+    if (!transaction) {
+        return;
+    }
+    auto result = WaitFor(transaction->Commit());
+    THROW_ERROR_EXCEPTION_IF_FAILED(result, "Transaction %v has failed to commit",
+        transaction->GetId());
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////
+
 void TOperationControllerBase::TLivePreviewTableBase::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -533,6 +549,7 @@ void TOperationControllerBase::TTask::ScheduleJob(
     Controller->CustomizeJoblet(joblet);
 
     Controller->RegisterJoblet(joblet);
+    Controller->UpdateEstimatedHistogram(joblet);
 
     OnJobStarted(joblet);
 }
@@ -631,6 +648,7 @@ void TOperationControllerBase::TTask::OnJobCompleted(TJobletPtr joblet, const TC
 
 void TOperationControllerBase::TTask::ReinstallJob(TJobletPtr joblet, EJobReinstallReason reason)
 {
+    Controller->UpdateEstimatedHistogram(joblet, reason);
     Controller->ReleaseChunkLists(joblet->ChunkListIds);
     if (joblet->StderrTableChunkListId && reason != EJobReinstallReason::Failed) {
         Controller->ReleaseChunkLists({joblet->StderrTableChunkListId});
@@ -757,19 +775,27 @@ void TOperationControllerBase::TTask::AddLocalityHint(TNodeId nodeId)
     Controller->AddTaskLocalityHint(this, nodeId);
 }
 
+std::unique_ptr<TNodeDirectoryBuilder> TOperationControllerBase::TTask::MakeNodeDirectoryBuilder(
+    TSchedulerJobSpecExt* schedulerJobSpec)
+{
+    return Controller->OperationType == EOperationType::RemoteCopy
+        ? std::make_unique<TNodeDirectoryBuilder>(
+            Controller->InputNodeDirectory,
+            schedulerJobSpec->mutable_input_node_directory())
+        : nullptr;
+}
+
 void TOperationControllerBase::TTask::AddSequentialInputSpec(
     TJobSpec* jobSpec,
     TJobletPtr joblet)
 {
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-    TNodeDirectoryBuilder directoryBuilder(
-        Controller->InputNodeDirectory,
-        schedulerJobSpecExt->mutable_input_node_directory());
-    auto* inputSpec = schedulerJobSpecExt->add_input_specs();
+    auto directoryBuilder = MakeNodeDirectoryBuilder(schedulerJobSpecExt);
+    auto* inputSpec = schedulerJobSpecExt->add_input_table_specs();
     inputSpec->set_table_reader_options(ConvertToYsonString(GetTableReaderOptions()).Data());
     const auto& list = joblet->InputStripeList;
     for (const auto& stripe : list->Stripes) {
-        AddChunksToInputSpec(&directoryBuilder, inputSpec, stripe);
+        AddChunksToInputSpec(directoryBuilder.get(), inputSpec, stripe);
     }
     UpdateInputSpecTotals(jobSpec, joblet);
 }
@@ -779,15 +805,14 @@ void TOperationControllerBase::TTask::AddParallelInputSpec(
     TJobletPtr joblet)
 {
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-    TNodeDirectoryBuilder directoryBuilder(
-        Controller->InputNodeDirectory,
-        schedulerJobSpecExt->mutable_input_node_directory());
+    auto directoryBuilder = MakeNodeDirectoryBuilder(schedulerJobSpecExt);
     const auto& list = joblet->InputStripeList;
     for (const auto& stripe : list->Stripes) {
-        auto* inputSpec = stripe->Foreign ? schedulerJobSpecExt->add_foreign_input_specs() :
-            schedulerJobSpecExt->add_input_specs();
+        auto* inputSpec = stripe->Foreign
+            ? schedulerJobSpecExt->add_foreign_input_table_specs()
+            : schedulerJobSpecExt->add_input_table_specs();
         inputSpec->set_table_reader_options(ConvertToYsonString(GetTableReaderOptions()).Data());
-        AddChunksToInputSpec(&directoryBuilder, inputSpec, stripe);
+        AddChunksToInputSpec(directoryBuilder.get(), inputSpec, stripe);
     }
     UpdateInputSpecTotals(jobSpec, joblet);
 }
@@ -825,9 +850,11 @@ void TOperationControllerBase::TTask::AddChunksToInputSpec(
             GetInputTableSchema(dataSlice->GetTableIndex()),
             GetInputTableTimestamp(dataSlice->GetTableIndex()));
 
-        for (const auto& chunkSlice : dataSlice->ChunkSlices) {
-            auto replicas = chunkSlice->GetInputChunk()->GetReplicaList();
-            directoryBuilder->Add(replicas);
+        if (directoryBuilder) {
+            for (const auto& chunkSlice : dataSlice->ChunkSlices) {
+                auto replicas = chunkSlice->GetInputChunk()->GetReplicaList();
+                directoryBuilder->Add(replicas);
+            }
         }
     }
 }
@@ -854,7 +881,7 @@ void TOperationControllerBase::TTask::AddFinalOutputSpecs(
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
     for (int index = 0; index < Controller->OutputTables.size(); ++index) {
         const auto& table = Controller->OutputTables[index];
-        auto* outputSpec = schedulerJobSpecExt->add_output_specs();
+        auto* outputSpec = schedulerJobSpecExt->add_output_table_specs();
         outputSpec->set_table_writer_options(ConvertToYsonString(table.Options).Data());
         ToProto(outputSpec->mutable_table_schema(), table.TableUploadOptions.TableSchema);
         ToProto(outputSpec->mutable_chunk_list_id(), joblet->ChunkListIds[index]);
@@ -868,12 +895,12 @@ void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
 {
     YCHECK(joblet->ChunkListIds.size() == 1);
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-    auto* outputSpec = schedulerJobSpecExt->add_output_specs();
+    auto* outputSpec = schedulerJobSpecExt->add_output_table_specs();
     auto options = New<TTableWriterOptions>();
     options->Account = Controller->Spec->IntermediateDataAccount;
     options->ChunksVital = false;
     options->ChunksMovable = false;
-    options->ReplicationFactor = 1;
+    options->ReplicationFactor = Controller->Spec->IntermediateDataReplicationFactor;
     options->CompressionCodec = Controller->Spec->IntermediateCompressionCodec;
 
     // Intermediate data MUST be sorted if we expect it to be sorted.
@@ -985,8 +1012,10 @@ TChunkStripePtr TOperationControllerBase::TTask::BuildIntermediateChunkStripe(
 {
     auto stripe = New<TChunkStripe>();
     for (auto& chunkSpec : *chunkSpecs) {
-        auto chunkSlice = CreateInputChunkSlice(New<TInputChunk>(std::move(chunkSpec)));
-        stripe->DataSlices.push_back(CreateInputDataSlice(chunkSlice));
+        auto inputChunk = New<TInputChunk>(std::move(chunkSpec));
+        auto chunkSlice = CreateInputChunkSlice(std::move(inputChunk));
+        auto dataSlice = CreateInputDataSlice(std::move(chunkSlice));
+        stripe->DataSlices.emplace_back(std::move(dataSlice));
     }
     return stripe;
 }
@@ -1073,6 +1102,7 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
         checkTransaction(controllerTransactions->Sync);
         checkTransaction(controllerTransactions->Input);
         checkTransaction(controllerTransactions->Output);
+        checkTransaction(controllerTransactions->DebugOutput);
     }
 
     // Downloading snapshot.
@@ -1107,11 +1137,13 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
             scheduleAbort(controllerTransactions->Sync);
             scheduleAbort(controllerTransactions->Input);
             scheduleAbort(controllerTransactions->Output);
+            scheduleAbort(controllerTransactions->DebugOutput);
         } else {
             LOG_INFO("Reusing operation transactions");
             SyncSchedulerTransaction = controllerTransactions->Sync;
             InputTransaction = controllerTransactions->Input;
             OutputTransaction = controllerTransactions->Output;
+            DebugOutputTransaction = controllerTransactions->DebugOutput;
 
             StartAsyncSchedulerTransaction();
 
@@ -1159,7 +1191,6 @@ void TOperationControllerBase::Initialize()
 void TOperationControllerBase::InitializeStructures()
 {
     InputNodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
-    AuxNodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
 
     for (const auto& path : GetInputTablePaths()) {
         TInputTable table;
@@ -1253,28 +1284,28 @@ void TOperationControllerBase::Prepare()
         Logger,
         EPermission::Write);
 
-    yhash_set<TObjectId> outputTableIds;
-    for (const auto& table : OutputTables) {
-        const auto& path = table.Path.GetPath();
-        if (table.Type != EObjectType::Table) {
-            THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
-                path,
-                EObjectType::Table,
-                table.Type);
-        }
-        if (outputTableIds.find(table.ObjectId) != outputTableIds.end()) {
-            THROW_ERROR_EXCEPTION("Output table %v is specified multiple times",
-                path);
-        }
-        outputTableIds.insert(table.ObjectId);
-    }
-
     GetUserObjectBasicAttributes<TOutputTable>(
         AuthenticatedMasterClient,
         StderrTable,
-        OutputTransaction->GetId(),
+        DebugOutputTransaction->GetId(),
         Logger,
         EPermission::Write);
+
+    yhash_set<TObjectId> updatingTableIds;
+    for (const auto* table : UpdatingTables) {
+        const auto& path = table->Path.GetPath();
+        if (table->Type != EObjectType::Table) {
+            THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
+                path,
+                EObjectType::Table,
+                table->Type);
+        }
+        const bool insertedNew = updatingTableIds.insert(table->ObjectId).second;
+        if (!insertedNew) {
+            THROW_ERROR_EXCEPTION("Output table %v is specified multiple times",
+                path);
+        }
+    }
 
     GetUserObjectBasicAttributes<TUserFile>(
         AuthenticatedMasterClient,
@@ -1330,10 +1361,12 @@ void TOperationControllerBase::Materialize()
 
         CustomPrepare();
 
+        InitializeHistograms();
+
         if (InputChunkMap.empty()) {
             // Possible reasons:
             // - All input chunks are unavailable && Strategy == Skip
-            // - Merge decided to passthrough all input chunks
+            // - Merge decided to teleport all input chunks
             // - Anything else?
             LOG_INFO("No jobs needed");
             OnOperationCompleted(false /* interrupted */);
@@ -1421,6 +1454,7 @@ void TOperationControllerBase::InitializeTransactions()
     StartSyncSchedulerTransaction();
     StartInputTransaction(SyncSchedulerTransaction->GetId());
     StartOutputTransaction(SyncSchedulerTransaction->GetId());
+    StartDebugOutputTransaction();
     AreTransactionsActive = true;
 }
 
@@ -1495,6 +1529,14 @@ void TOperationControllerBase::StartOutputTransaction(const TTransactionId& pare
         OutputTransaction->GetId());
 }
 
+void TOperationControllerBase::StartDebugOutputTransaction()
+{
+    DebugOutputTransaction = StartTransaction("debug_output", AuthenticatedMasterClient);
+
+    LOG_INFO("Debug output transaction started (DebugOutputTransactionId: %v)",
+        DebugOutputTransaction->GetId());
+}
+
 void TOperationControllerBase::PickIntermediateDataCell()
 {
     auto connection = AuthenticatedOutputMasterClient->GetNativeConnection();
@@ -1540,8 +1582,7 @@ void TOperationControllerBase::InitInputChunkScraper()
         AuthenticatedInputMasterClient,
         InputNodeDirectory,
         std::move(chunkIds),
-        BIND(&TThis::OnInputChunkLocated, MakeWeak(this))
-            .Via(CancelableInvoker),
+        BIND(&TThis::OnInputChunkLocated, MakeWeak(this)),
         Logger
     );
 
@@ -1549,6 +1590,19 @@ void TOperationControllerBase::InitInputChunkScraper()
         LOG_INFO("Waiting for %v unavailable input chunks", UnavailableInputChunkCount);
         InputChunkScraper->Start();
     }
+}
+
+yhash_set<TChunkId> TOperationControllerBase::GetAliveIntermediateChunks() const
+{
+    yhash_set<TChunkId> intermediateChunks;
+
+    for (const auto& pair : ChunkOriginMap) {
+        if (!pair.second->Lost) {
+            intermediateChunks.insert(pair.first);
+        }
+    }
+
+    return intermediateChunks;
 }
 
 void TOperationControllerBase::SuspendUnavailableInputStripes()
@@ -1677,19 +1731,12 @@ void TOperationControllerBase::CommitTransactions()
 {
     LOG_INFO("Committing scheduler transactions");
 
-    auto commitTransaction = [&] (ITransactionPtr transaction) {
-        if (!transaction) {
-            return;
-        }
-        auto result = WaitFor(transaction->Commit());
-        THROW_ERROR_EXCEPTION_IF_FAILED(result, "Operation has failed to commit");
-    };
-
     AreTransactionsActive = false;
 
-    commitTransaction(InputTransaction);
-    commitTransaction(OutputTransaction);
-    commitTransaction(SyncSchedulerTransaction);
+    CommitTransaction(InputTransaction);
+    CommitTransaction(OutputTransaction);
+    CommitTransaction(SyncSchedulerTransaction);
+    CommitTransaction(DebugOutputTransaction);
 
     LOG_INFO("Scheduler transactions committed");
 
@@ -1879,7 +1926,7 @@ void TOperationControllerBase::OnJobStarted(const TJobId& jobId, TInstant startT
         .Item("job_type").Value(joblet->JobType);
 }
 
-void TOperationControllerBase::UpdateMemoryDigests(TJobletPtr joblet, TStatistics statistics)
+void TOperationControllerBase::UpdateMemoryDigests(TJobletPtr joblet, const TStatistics& statistics)
 {
     auto jobType = joblet->JobType;
     bool taskUpdateNeeded = false;
@@ -1914,33 +1961,88 @@ void TOperationControllerBase::UpdateMemoryDigests(TJobletPtr joblet, TStatistic
     }
 }
 
+void TOperationControllerBase::InitializeHistograms()
+{
+    if (IsInputDataSizeHistogramSupported()) {
+        EstimatedInputDataSizeHistogram_ = CreateHistogram();
+        InputDataSizeHistogram_ = CreateHistogram();
+    }
+}
+
+void TOperationControllerBase::UpdateEstimatedHistogram(TJobletPtr joblet)
+{
+    if (EstimatedInputDataSizeHistogram_) {
+        EstimatedInputDataSizeHistogram_->AddValue(joblet->InputStripeList->TotalDataSize);
+    }
+}
+
+void TOperationControllerBase::UpdateEstimatedHistogram(TJobletPtr joblet, EJobReinstallReason reason)
+{
+    if (EstimatedInputDataSizeHistogram_) {
+        EstimatedInputDataSizeHistogram_->RemoveValue(joblet->InputStripeList->TotalDataSize);
+    }
+}
+
+void TOperationControllerBase::UpdateActualHistogram(const TStatistics& statistics)
+{
+    if (InputDataSizeHistogram_) {
+        auto dataSize = FindNumericValue(statistics, "/data/input/uncompressed_data_size");
+        if (dataSize && *dataSize > 0) {
+            InputDataSizeHistogram_->AddValue(*dataSize);
+        }
+    }
+}
+
 void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
     auto codicilGuard = MakeCodicilGuard();
 
-    jobSummary->ParseStatistics();
-
     const auto& jobId = jobSummary->Id;
     const auto& result = jobSummary->Result;
+
+    const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+
+    // Validate all node ids of the output chunks and populate the local node directory.
+    // In case any id is not known, abort the job.
+    const auto& globalNodeDirectory = Host->GetNodeDirectory();
+    for (const auto& chunkSpec : schedulerResultExt.output_chunk_specs()) {
+        auto replicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
+        for (auto replica : replicas) {
+            auto nodeId = replica.GetNodeId();
+            if (InputNodeDirectory->FindDescriptor(nodeId)) {
+                continue;
+            }
+
+            const auto* descriptor = globalNodeDirectory->FindDescriptor(nodeId);
+            if (!descriptor) {
+                LOG_DEBUG("Job is considered aborted since its output contains unresolved node id "
+                    "(JobId: %v, NodeId: %v)",
+                    jobId,
+                    nodeId);
+                auto abortedJobSummary = std::make_unique<TAbortedJobSummary>(*jobSummary, EAbortReason::Other);
+                OnJobAborted(std::move(abortedJobSummary));
+                return;
+            }
+
+            InputNodeDirectory->AddDescriptor(nodeId, *descriptor);
+        }
+    }
+
+    jobSummary->ParseStatistics();
 
     JobCounter.Completed(1);
 
     auto joblet = GetJoblet(jobId);
 
     UpdateMemoryDigests(joblet, jobSummary->Statistics);
+    UpdateActualHistogram(jobSummary->Statistics);
 
     FinalizeJoblet(joblet, jobSummary.get());
     LogFinishedJobFluently(ELogEventType::JobCompleted, joblet, *jobSummary);
 
     UpdateJobStatistics(*jobSummary);
-
-    const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-
-    // Populate node directory by adding additional nodes returned from the job.
-    // NB: Job's output may become some other job's input.
-    InputNodeDirectory->MergeFrom(schedulerResultExt.output_node_directory());
 
     joblet->Task->OnJobCompleted(joblet, *jobSummary);
 
@@ -2039,10 +2141,6 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
         UpdateJobStatistics(*jobSummary);
     }
 
-    joblet->Task->OnJobAborted(joblet, *jobSummary);
-
-    RemoveJoblet(jobId);
-
     if (abortReason == EAbortReason::FailedChunks) {
         const auto& result = jobSummary->Result;
         const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
@@ -2050,6 +2148,10 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
             OnChunkFailed(FromProto<TChunkId>(chunkId));
         }
     }
+
+    joblet->Task->OnJobAborted(joblet, *jobSummary);
+
+    RemoveJoblet(jobId);
 }
 
 void TOperationControllerBase::FinalizeJoblet(
@@ -2066,6 +2168,9 @@ void TOperationControllerBase::FinalizeJoblet(
 
     if (jobSummary->PrepareDuration) {
         statistics.AddSample("/time/prepare", jobSummary->PrepareDuration->MilliSeconds());
+    }
+    if (jobSummary->DownloadDuration) {
+        statistics.AddSample("/time/artifacts_download", jobSummary->DownloadDuration->MilliSeconds());
     }
     if (jobSummary->ExecDuration) {
         statistics.AddSample("/time/exec", jobSummary->ExecDuration->MilliSeconds());
@@ -2097,16 +2202,52 @@ IYsonConsumer* TOperationControllerBase::GetEventLogConsumer()
     return EventLogTableConsumer_.get();
 }
 
+void TOperationControllerBase::RestartIntermediateChunkScraper()
+{
+    if (IntermediateChunkScraper) {
+        IntermediateChunkScraper->Reset(GetAliveIntermediateChunks());
+    }
+}
+
+void TOperationControllerBase::StartIntermediateChunkScraper()
+{
+    if (IntermediateChunkScraper) {
+        return;
+    }
+
+    IntermediateChunkScraper = New<TChunkScraper>(
+        Config,
+        CancelableInvoker,
+        Host->GetChunkLocationThrottlerManager(),
+        AuthenticatedInputMasterClient,
+        InputNodeDirectory,
+        GetAliveIntermediateChunks(),
+        BIND(&TThis::OnIntermediateChunkLocated, MakeWeak(this)),
+        Logger);
+    IntermediateChunkScraper->Start();
+}
 
 void TOperationControllerBase::OnChunkFailed(const TChunkId& chunkId)
 {
     auto it = InputChunkMap.find(chunkId);
     if (it == InputChunkMap.end()) {
         LOG_WARNING("Intermediate chunk %v has failed", chunkId);
-        OnIntermediateChunkUnavailable(chunkId);
+        if (!OnIntermediateChunkUnavailable(chunkId)) {
+            return;
+        }
+
+        StartIntermediateChunkScraper();
     } else {
         LOG_WARNING("Input chunk %v has failed", chunkId);
         OnInputChunkUnavailable(chunkId, it->second);
+    }
+}
+
+void TOperationControllerBase::OnIntermediateChunkLocated(const TChunkId& chunkId, const TChunkReplicaList& replicas)
+{
+    // Intermediate chunks are always replicated.
+    if (IsUnavailable(replicas, NErasure::ECodec::None)) {
+        OnIntermediateChunkUnavailable(chunkId);
     }
 }
 
@@ -2236,13 +2377,13 @@ void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, 
     }
 }
 
-void TOperationControllerBase::OnIntermediateChunkUnavailable(const TChunkId& chunkId)
+bool TOperationControllerBase::OnIntermediateChunkUnavailable(const TChunkId& chunkId)
 {
     auto it = ChunkOriginMap.find(chunkId);
     YCHECK(it != ChunkOriginMap.end());
     auto completedJob = it->second;
     if (completedJob->Lost)
-        return;
+        return false;
 
     LOG_DEBUG("Job is lost (Address: %v, JobId: %v, SourceTask: %v, OutputCookie: %v, InputCookie: %v)",
         completedJob->NodeDescriptor.Address,
@@ -2257,6 +2398,7 @@ void TOperationControllerBase::OnIntermediateChunkUnavailable(const TChunkId& ch
     completedJob->SourceTask->GetChunkPoolOutput()->Lost(completedJob->OutputCookie);
     completedJob->SourceTask->OnJobLost(completedJob);
     AddTaskPendingHint(completedJob->SourceTask);
+    return true;
 }
 
 bool TOperationControllerBase::IsOutputLivePreviewSupported() const
@@ -2272,10 +2414,21 @@ bool TOperationControllerBase::IsIntermediateLivePreviewSupported() const
 std::vector<ITransactionPtr> TOperationControllerBase::GetTransactions()
 {
     if (AreTransactionsActive) {
-        return {AsyncSchedulerTransaction, SyncSchedulerTransaction, InputTransaction, OutputTransaction};
+        return {
+            AsyncSchedulerTransaction,
+            SyncSchedulerTransaction,
+            InputTransaction,
+            OutputTransaction,
+            DebugOutputTransaction
+        };
     } else {
         return {};
     }
+}
+
+bool TOperationControllerBase::IsInputDataSizeHistogramSupported() const
+{
+    return false;
 }
 
 void TOperationControllerBase::Abort()
@@ -2295,12 +2448,20 @@ void TOperationControllerBase::Abort()
 
     AreTransactionsActive = false;
 
-    // We always save stderr table.
-    // Stderr table chunks are kept by OutputTransaction,
-    // so we want save stderr table before aborting OutputTransaction.
-    if (StderrTable && StderrTable->IsBeginUploadCompleted()) {
-        AttachOutputChunks({StderrTable.GetPtr()});
-        EndUploadOutputTables({StderrTable.GetPtr()});
+    try {
+        // We always save stderr table.
+        // Stderr table chunks are kept by DebugOutputTransaction,
+        // so we want save stderr table before commiting DebugOutputTransaction.
+        if (StderrTable && StderrTable->IsBeginUploadCompleted()) {
+            AttachOutputChunks({StderrTable.GetPtr()});
+            EndUploadOutputTables({StderrTable.GetPtr()});
+        }
+    
+        CommitTransaction(DebugOutputTransaction);
+    } catch (const std::exception& ex) {
+        // Bad luck we can't commit transaction.
+        // Such a pity can happen for example if somebody aborted our transaction manualy.
+        LOG_ERROR(ex, "Failed to commit debug output transaction");
     }
 
     abortTransaction(InputTransaction);
@@ -2522,6 +2683,10 @@ void TOperationControllerBase::ResetTaskLocalityDelays()
             auto task = pair.second;
             if (task->GetPendingJobCount() > 0) {
                 MoveTaskToCandidates(task, group->CandidateTasks);
+            } else {
+                LOG_DEBUG("Task pending hint removed (Task: %v)",
+                    task->GetId());
+                YCHECK(group->NonLocalTasks.erase(task) == 1);
             }
         }
         group->DelayedTasks.clear();
@@ -3199,10 +3364,10 @@ void TOperationControllerBase::FetchInputTables()
                 Logger,
                 &chunkSpecs);
 
-            for (auto& chunk : chunkSpecs) {
-                auto chunkSpec = New<TInputChunk>(std::move(chunk));
-                chunkSpec->SetTableIndex(tableIndex);
-                table.Chunks.push_back(chunkSpec);
+            for (const auto& chunkSpec : chunkSpecs) {
+                auto inputChunk = New<TInputChunk>(chunkSpec);
+                inputChunk->SetTableIndex(tableIndex);
+                table.Chunks.emplace_back(std::move(inputChunk));
             }
         }
 
@@ -3312,7 +3477,12 @@ void TOperationControllerBase::GetOutputTablesSchema()
                     "schema"
                 };
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                SetTransactionId(req, OutputTransaction->GetId());
+                if (table->OutputType == EOutputTableType::Output) {
+                    SetTransactionId(req, OutputTransaction->GetId());
+                } else {
+                    YCHECK(table->OutputType == EOutputTableType::Stderr);
+                    SetTransactionId(req, DebugOutputTransaction->GetId());
+                }
                 batchReq->AddRequest(req, "get_attributes");
             }
         }
@@ -3367,8 +3537,7 @@ void TOperationControllerBase::BeginUploadOutputTables()
                     SetTransactionId(req, OutputTransaction->GetId());
                 } else {
                     YCHECK(table->OutputType == EOutputTableType::Stderr);
-                    // We don't use transaction for stderr table
-                    // since we want it to be saved always.
+                    SetTransactionId(req, DebugOutputTransaction->GetId());
                 }
                 GenerateMutationId(req);
                 req->set_update_mode(static_cast<int>(table->TableUploadOptions.UpdateMode));
@@ -3563,7 +3732,7 @@ void TOperationControllerBase::FetchUserFiles(std::vector<TUserFile>* files)
                 AuthenticatedInputMasterClient,
                 rsp,
                 file.CellTag,
-                AuxNodeDirectory,
+                nullptr,
                 Config->MaxChunksPerLocateRequest,
                 Null,
                 Logger,
@@ -3816,8 +3985,6 @@ void TOperationControllerBase::InitQuerySpec(
     auto* querySpec = schedulerJobSpecExt->mutable_input_query_spec();
     ToProto(querySpec->mutable_query(), query);
     ToProto(querySpec->mutable_external_functions(), externalCGInfo->Functions);
-
-    externalCGInfo->NodeDirectory->DumpTo(querySpec->mutable_node_directory());
 }
 
 void TOperationControllerBase::CollectTotals()
@@ -4279,6 +4446,8 @@ void TOperationControllerBase::RegisterStderr(TJobletPtr joblet, const TJobSumma
             AsyncSchedulerTransaction->GetId(),
             StderrTable->LivePreviewTableId,
             {chunkListId});
+        LOG_DEBUG("Stderr chunk tree registered (ChunkListId: %v)",
+            chunkListId);
     }
 }
 
@@ -4409,6 +4578,8 @@ void TOperationControllerBase::RegisterIntermediate(
                 {chunkId});
         }
     }
+
+    RestartIntermediateChunkScraper();
 }
 
 bool TOperationControllerBase::HasEnoughChunkLists(bool intermediate, bool isWritingStderrTable)
@@ -4487,7 +4658,8 @@ void TOperationControllerBase::BuildOperationAttributes(IYsonConsumer* consumer)
         .Item("sync_scheduler_transaction_id").Value(SyncSchedulerTransaction ? SyncSchedulerTransaction->GetId() : NullTransactionId)
         .Item("async_scheduler_transaction_id").Value(AsyncSchedulerTransaction ? AsyncSchedulerTransaction->GetId() : NullTransactionId)
         .Item("input_transaction_id").Value(InputTransaction ? InputTransaction->GetId() : NullTransactionId)
-        .Item("output_transaction_id").Value(OutputTransaction ? OutputTransaction->GetId() : NullTransactionId);
+        .Item("output_transaction_id").Value(OutputTransaction ? OutputTransaction->GetId() : NullTransactionId)
+        .Item("debug_output_transaction_id").Value(DebugOutputTransaction ? DebugOutputTransaction->GetId() : NullTransactionId);
 }
 
 void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
@@ -4509,7 +4681,17 @@ void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
             .Item("output_supported").Value(IsOutputLivePreviewSupported())
             .Item("intermediate_supported").Value(IsIntermediateLivePreviewSupported())
             .Item("stderr_supported").Value(StderrTable.HasValue())
-        .EndMap();
+        .EndMap()
+        .DoIf(EstimatedInputDataSizeHistogram_.operator bool(), [=] (TFluentMap fluent) {
+            EstimatedInputDataSizeHistogram_->BuildHistogramView();
+            fluent
+                .Item("estimated_input_data_size_histogram").Value(*EstimatedInputDataSizeHistogram_);
+        })
+        .DoIf(InputDataSizeHistogram_.operator bool(), [=] (TFluentMap fluent) {
+            InputDataSizeHistogram_->BuildHistogramView();
+            fluent
+                .Item("input_data_size_histogram").Value(*InputDataSizeHistogram_);
+        });
 }
 
 void TOperationControllerBase::BuildBriefProgress(IYsonConsumer* consumer) const
@@ -4787,7 +4969,7 @@ i64 TOperationControllerBase::GetFinalIOMemorySize(
 void TOperationControllerBase::InitIntermediateOutputConfig(TJobIOConfigPtr config)
 {
     // Don't replicate intermediate output.
-    config->TableWriter->UploadReplicationFactor = 1;
+    config->TableWriter->UploadReplicationFactor = Spec->IntermediateDataReplicationFactor;
     config->TableWriter->MinUploadReplicationFactor = 1;
 
     // Cache blocks on nodes.
@@ -5022,7 +5204,6 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, JobCounter);
 
     Persist(context, InputNodeDirectory);
-    Persist(context, AuxNodeDirectory);
 
     Persist(context, InputTables);
 
@@ -5082,6 +5263,9 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
             TUnsortedTag
         >
     >(context, UserJobMemoryDigests_);
+
+    Persist(context, EstimatedInputDataSizeHistogram_);
+    Persist(context, InputDataSizeHistogram_);
 
     if (context.IsLoad()) {
         for (const auto& task : Tasks) {

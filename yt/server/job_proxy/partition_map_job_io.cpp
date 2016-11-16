@@ -79,8 +79,7 @@ public:
 
         YCHECK(Writers_.size() == 1);
         auto& writer = Writers_.front();
-        writer->GetNodeDirectory()->DumpTo(schedulerJobResult->mutable_output_node_directory());
-        ToProto(schedulerJobResult->mutable_output_chunks(), writer->GetWrittenChunksMasterMeta());
+        ToProto(schedulerJobResult->mutable_output_chunk_specs(), writer->GetWrittenChunksMasterMeta());
     }
 
 };

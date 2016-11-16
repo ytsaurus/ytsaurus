@@ -131,8 +131,10 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoDestroy(TChunkOwner* node)
 
     auto* chunkList = node->GetChunkList();
     if (chunkList) {
-        const auto& chunkManager = TBase::Bootstrap_->GetChunkManager();
-        chunkManager->ScheduleChunkPropertiesUpdate(chunkList);
+        if (node->IsTrunk()) {
+            const auto& chunkManager = TBase::Bootstrap_->GetChunkManager();
+            chunkManager->ScheduleChunkPropertiesUpdate(chunkList);
+        }
 
         chunkList->RemoveOwningNode(node);
 

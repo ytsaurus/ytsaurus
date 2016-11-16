@@ -206,7 +206,8 @@ function testApplicationOperations(version)
     it("should fail when from_time & to_time are invalid", function(done) {
         this.application_operations.list({
             from_time: "2015-01-01T00:00:00Z",
-            to_time: "2015-12-12T00:00:00Z"
+            to_time: "2015-12-12T00:00:00Z",
+            include_archive: true
         }).then(
             function() { throw new Error("This should fail."); },
             function(err) {
@@ -328,6 +329,50 @@ function testApplicationOperations(version)
             expect(result.operations.map(function(item) { return item.$value; })).to.deep.equal([
                 "d7df8-7d0c30ec-582ebd65-9ad7535a",
                 "1dee545-fe4c4006-cd95617-54f87a31",
+            ]);
+            mock.verify();
+        })
+        .then(done, done);
+    });
+
+    it("should list operations from cypress without cursor_time/past filter", function(done) {
+        var mock = sinon.mock(this.driver);
+        mockForList(mock, Q.resolve(clone(CYPRESS_OPERATIONS)));
+        this.application_operations.list({
+            cursor_direction: "past",
+            max_size: 2
+        }).then(function(result) {
+            // counters are intact
+            expect(result.user_counts).to.deep.equal({psushin: 1, odin: 1, ignat: 1, data_quality_robot: 1});
+            expect(result.state_counts).to.deep.equal({completed: 1, failed: 1, running: 2});
+            expect(result.type_counts).to.deep.equal({map: 2, map_reduce: 1, sort: 1});
+            expect(result.failed_jobs_count).to.deep.equal(1);
+            // result list is reduced
+            expect(utils.getYsonValue(result.operations).map(function(item) { return item.$value; })).to.deep.equal([
+                "bd90befa-101169a-3fc03e8-1cb90ada",
+                "d7df8-7d0c30ec-582ebd65-9ad7535a",
+            ]);
+            mock.verify();
+        })
+        .then(done, done);
+    });
+
+    it("should list operations from cypress without cursor_time/future filter", function(done) {
+        var mock = sinon.mock(this.driver);
+        mockForList(mock, Q.resolve(clone(CYPRESS_OPERATIONS)));
+        this.application_operations.list({
+            cursor_direction: "future",
+            max_size: 2
+        }).then(function(result) {
+            // counters are intact
+            expect(result.user_counts).to.deep.equal({psushin: 1, odin: 1, ignat: 1, data_quality_robot: 1});
+            expect(result.state_counts).to.deep.equal({completed: 1, failed: 1, running: 2});
+            expect(result.type_counts).to.deep.equal({map: 2, map_reduce: 1, sort: 1});
+            expect(result.failed_jobs_count).to.deep.equal(1);
+            // result list is reduced
+            expect(utils.getYsonValue(result.operations).map(function(item) { return item.$value; })).to.deep.equal([
+                "1dee545-fe4c4006-cd95617-54f87a31",
+                "19b5c14-c41a6620-7fa0d708-29a241d2",
             ]);
             mock.verify();
         })

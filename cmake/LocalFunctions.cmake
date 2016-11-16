@@ -11,26 +11,28 @@
 # filename is the name of the UD(A)F being defined (e.g. is_null.c defines
 # is_null).
 #
-# udf(udf output type
+# udf(udf output
 #     [[SYMBOLS] symbols...]
 #     [FILES files...])
 #
-function(UDF udf output type)
-  get_filename_component( _realpath ${udf} REALPATH )
-  get_filename_component( _filename ${_realpath} NAME_WE )
-  get_filename_component( _extension ${_realpath} EXT )
+
+function(UDF_BC udf output)
+  get_filename_component(_realpath ${udf} REALPATH)
+  get_filename_component(_filename ${_realpath} NAME_WE)
+  get_filename_component(_extension ${_realpath} EXT)
 
   set(_h_dirname ${CMAKE_BINARY_DIR}/include/udf)
   set(_h_file ${_h_dirname}/${_filename}.h)
+
   set(${output} ${${output}} ${_h_file} PARENT_SCOPE)
 
-  set(_extraargs ${ARGN})
-  set(_list _extrasymbols_list)
-  foreach(_arg ${_extraargs})
+  set(_args ${ARGN})
+  set(_list _extra_symbols)
+  foreach(_arg ${_args})
     if(${_arg} STREQUAL "SYMBOLS")
-      set(_list _extrasymbols_list)
+      set(_list _extra_symbols)
     elseif(${_arg} STREQUAL "FILES")
-      set(_list _extrafiles)
+      set(_list _extra_files)
     elseif(${_arg} STREQUAL "INCLUDE_DIRECTORIES")
       set(_list _include_dirs)
     else()
@@ -38,27 +40,25 @@ function(UDF udf output type)
     endif()
   endforeach()
 
-  set(_inter_dirname ${CMAKE_CURRENT_BINARY_DIR})
-  set(_inter_filename ${_filename}.${type})
   set(_bc_filename ${_filename}.bc)
-  foreach(_file ${_extrafiles})
-    get_filename_component( _extra_realpath ${_file} REALPATH )
-    get_filename_component( _extra_filename ${_extra_realpath} NAME_WE )
+
+  foreach(_extra_file ${_extra_files})
+    get_filename_component(_extra_realpath ${_extra_file} REALPATH)
+    get_filename_component(_extra_filename ${_extra_realpath} NAME_WE)
     set(_extra_bc_filenames ${_extra_bc_filenames} ${_extra_filename}.bc)
   endforeach()
 
-  foreach(_symbol ${_extrasymbols_list})
-    set(_extrasymbols ${_extrasymbols},${_symbol})
+  foreach(_extra_symbol ${_extra_symbols})
+    set(_extra_symbols_comma ${_extra_symbols_comma},${_extra_symbol})
   endforeach()
 
-  get_property( _dirs
-    DIRECTORY
-      ${CMAKE_SOURCE_DIR}/yt
-    PROPERTY
-      INCLUDE_DIRECTORIES
+  get_property(_project_include_dirs
+    DIRECTORY ${CMAKE_SOURCE_DIR}/yt
+    PROPERTY INCLUDE_DIRECTORIES
   )
+
   set(_include_dir ${CMAKE_SOURCE_DIR}/yt/ytlib/query_client/udf)
-  set(_dirs ${_include_dirs} ${_dirs} ${_include_dir})
+  set(_dirs ${_include_dirs} ${_project_include_dirs} ${CMAKE_SOURCE_DIR}/yt/ytlib/query_client/udf)
   set(_include_dirs)
 
   foreach(_dir ${_dirs})
@@ -68,15 +68,12 @@ function(UDF udf output type)
   if(${_extension} STREQUAL ".cpp")
     set(_compiler ${CLANGPP_EXECUTABLE})
     set(_options -std=c++1y -Wglobal-constructors)
-    set(_depends
-        ${_include_dir}/yt_udf_cpp.h
-    )
+    set(_depends ${_include_dir}/yt_udf_cpp.h)
     set(_lang "CXX")
   else()
     set(_compiler ${CLANG_EXECUTABLE})
-    set(_depends
-        ${_include_dir}/yt_udf.h
-    )
+    set(_options)
+    set(_depends ${_include_dir}/yt_udf.h)
     set(_lang "C")
   endif()
 
@@ -86,7 +83,7 @@ function(UDF udf output type)
     COMMAND
       ${CMAKE_COMMAND} -E make_directory ${_h_dirname}
     COMMAND
-      for f in ${_realpath} ${_extrafiles}\; do
+      for f in ${_realpath} ${_extra_files} \; do
         ${_compiler} -c
           -emit-llvm
           -g
@@ -106,7 +103,7 @@ function(UDF udf output type)
       ${LLVM_OPT_EXECUTABLE}
         -O2
         -internalize
-        -internalize-public-api-list=${_filename},${_filename}_init,${_filename}_update,${_filename}_merge,${_filename}_finalize,${_extrasymbols}
+        -internalize-public-api-list=${_filename},${_filename}_init,${_filename}_update,${_filename}_merge,${_filename}_finalize${_extra_symbols_comma}
         -globalopt
         -globaldce
         -o ${_bc_filename}.tmp
@@ -114,12 +111,7 @@ function(UDF udf output type)
     COMMAND
       mv ${_bc_filename}.tmp ${_bc_filename}
     COMMAND
-      test ${type} = "o"
-        && ${CLANG_EXECUTABLE} -c -fPIC -o ${_inter_filename} ${_bc_filename}
-        && rm ${_bc_filename}
-        || true
-    COMMAND
-      xxd -i ${_inter_filename} > ${_h_file}
+      xxd -i ${_bc_filename} > ${_h_file}
     MAIN_DEPENDENCY
       ${_realpath}
     DEPENDS
@@ -128,22 +120,14 @@ function(UDF udf output type)
       ${LLVM_OPT_EXECUTABLE}
       ${LLVM_LINK_EXECUTABLE}
       ${_depends}
-      ${_extrafiles}
+      ${_extra_files}
     IMPLICIT_DEPENDS
-      ${_lang} ${_realpath} ${_extrafiles}
+      ${_lang} ${_realpath} ${_extra_files}
     WORKING_DIRECTORY
-      ${_inter_dirname}
+      ${CMAKE_CURRENT_BINARY_DIR}
     COMMENT "Generating UDF header for ${_filename}..."
   )
 endfunction()
-
-macro(UDF_BC udf_impl output)
-    udf(${udf_impl} ${output} bc ${ARGN})
-endmacro()
-
-macro(UDF_O udf_impl output)
-    udf(${udf_impl} ${output} o ${ARGN})
-endmacro()
 
 function(PROTOC proto output)
   get_filename_component(_proto_realpath ${proto} REALPATH)

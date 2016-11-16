@@ -1,9 +1,11 @@
-import itertools
-import pytest
-
-from yt_env_setup import YTEnvSetup, make_schema, unix_only
+from yt_env_setup import YTEnvSetup, make_schema, unix_only, wait
 
 from yt_commands import *
+
+import pytest
+
+import itertools
+import time
 
 
 def get_stderr_spec(stderr_file):
@@ -305,3 +307,70 @@ class TestStderrTable(YTEnvSetup):
             assert item["job_id"] == stderr_rows[0]["job_id"]
 
         assert str("".join(item["data"] for item in stderr_rows)) == str("x " * (30 * 1024 * 1024))
+
+    @unix_only
+    def test_scheduler_revive(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        create("table", "//tmp/t_stderr")
+
+        # NOTE all values are of same size so our chunks are also of the same size so our
+        # scheduler can split them evenly
+        write_table("//tmp/t_input",               [{"key": "complete_before_scheduler_dies  "}])
+        write_table("<append=%true>//tmp/t_input", [{"key": "complete_after_scheduler_restart"}])
+        write_table("<append=%true>//tmp/t_input", [{"key": "complete_while_scheduler_dead   "}])
+
+        events = EventsOnFs()
+
+        op = map(
+            dont_track=True,
+            waiting_jobs=True,
+            command=(
+                # one job completes before scheduler is dead
+                # second job completes while scheduler is dead
+                # third one completes after scheduler restart
+                "cat > input\n"
+                     "grep complete_while_scheduler_dead input >/dev/null "
+                     "  && {wait_scheduler_dead} "
+                     "  && echo complete_while_scheduler_dead >&2\n"
+                     "grep complete_after_scheduler_restart input >/dev/null "
+                     "  && {wait_scheduler_restart} "
+                     "  && echo complete_after_scheduler_restart >&2\n"
+                     "grep complete_before_scheduler_dies input >/dev/null "
+                     "  && echo complete_before_scheduler_dies >&2\n"
+                     "cat input"
+            ).format(
+                wait_scheduler_dead=events.wait_event_cmd("scheduler_dead"),
+                wait_scheduler_restart=events.wait_event_cmd("scheduler_restart")),
+            format="dsv",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={
+                "job_count": 3,
+                "data_size_per_job": 1,
+                "max_failed_job_count": 1,
+                "stderr_table_path": "//tmp/t_stderr",
+            }
+        )
+        assert op.get_job_count("total") == 3
+        op.resume_jobs()
+
+        wait(lambda: op.get_job_count("running") == 2);
+
+        self.Env.kill_schedulers()
+
+        events.notify_event("scheduler_dead")
+
+        # Wait some time to give `complete_while_scheduler_dead'-job time to complete.
+        time.sleep(1)
+
+        self.Env.start_schedulers()
+        events.notify_event("scheduler_restart")
+        op.track()
+
+        stderr_rows = read_table("//tmp/t_stderr")
+        assert sorted(row["data"] for row in stderr_rows) == ["complete_after_scheduler_restart\n",
+                                                              "complete_before_scheduler_dies\n",
+                                                              "complete_while_scheduler_dead\n"]
+        assert get("//tmp/t_stderr/@sorted")
+        assert get("//tmp/t_stderr/@sorted_by") == ["job_id", "part_index"]

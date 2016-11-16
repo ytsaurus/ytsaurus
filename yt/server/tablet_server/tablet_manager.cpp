@@ -1325,7 +1325,7 @@ public:
         auto lastCommitTimestamp = NTransactionClient::MinTimestamp;
         for (auto* chunk : chunks) {
             if (!chunkSet.insert(chunk).second) {
-                THROW_ERROR_EXCEPTION("Cannot switch table into dynamic mode since it contains duplicate chunk %v",
+                THROW_ERROR_EXCEPTION("Cannot switch mode from static to dynamic: table contains duplicate chunk %v",
                     chunk->GetId());
             }
 
@@ -1375,16 +1375,15 @@ public:
         }
 
         if (table->IsReplicated()) {
-            THROW_ERROR_EXCEPTION("Cannot switch replicated table to static mode");
+            THROW_ERROR_EXCEPTION("Cannot switch mode from dynamic to static: table is replicated");
         }
 
         if (table->IsSorted()) {
-            THROW_ERROR_EXCEPTION("Cannot switch sorted dynamic table to static mode");
+            THROW_ERROR_EXCEPTION("Cannot switch mode from dynamic to static: table is sorted");
         }
 
         if (table->GetTabletState() != ETabletState::Unmounted) {
-            THROW_ERROR_EXCEPTION("Cannot switch dynamic table to static mode since not all of its tablets are in %Qlv state",
-                ETabletState::Unmounted);
+            THROW_ERROR_EXCEPTION("Cannot switch mode from dynamic to static: table has mounted tablets");
         }
 
         auto* oldRootChunkList = table->GetChunkList();

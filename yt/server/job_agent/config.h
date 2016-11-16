@@ -104,9 +104,10 @@ public:
     TDuration ReportingPeriod;
     TDuration MinRepeatDelay;
     TDuration MaxRepeatDelay;
-    int MaxItemsInProgress;
+    int MaxItemsInProgressNormalPriority;
+    int MaxItemsInProgressLowPriority;
     int MaxItemsInBatch;
-    Stroka TableName;
+    NYPath::TYPath TableName;
 
     TStatisticsReporterConfig()
     {
@@ -118,8 +119,10 @@ public:
             .Default(TDuration::Seconds(5));
         RegisterParameter("max_repeat_delay", MaxRepeatDelay)
             .Default(TDuration::Minutes(5));
-        RegisterParameter("max_items_in_progress", MaxItemsInProgress)
+        RegisterParameter("max_items_in_progress_normal_priority", MaxItemsInProgressNormalPriority)
             .Default(200000);
+        RegisterParameter("max_items_in_progress_low_priority", MaxItemsInProgressLowPriority)
+            .Default(50000);
         RegisterParameter("max_items_in_batch", MaxItemsInBatch)
             .Default(20000);
         RegisterParameter("table_name", TableName)
