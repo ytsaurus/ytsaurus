@@ -3538,6 +3538,13 @@ void TOperationControllerBase::BeginUploadOutputTables()
                 table->Options->ChunksVital = attributes->Get<bool>("vital");
                 table->Options->OptimizeFor = attributes->Get<EOptimizeFor>("optimize_for", EOptimizeFor::Lookup);
 
+                // Workaround for YT-5827.
+                if (table->TableUploadOptions.TableSchema.Columns().empty() && 
+                    table->TableUploadOptions.TableSchema.GetStrict())
+                {
+                    table->Options->OptimizeFor = EOptimizeFor::Lookup;
+                }
+
                 table->EffectiveAcl = attributes->GetYson("effective_acl");
             }
             LOG_INFO("Output table locked (Path: %v, Options: %v, UploadTransactionId: %v)",
