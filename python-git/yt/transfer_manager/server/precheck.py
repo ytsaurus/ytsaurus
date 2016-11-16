@@ -73,8 +73,8 @@ def perform_precheck(task, clusters_configuration, ignore_timeout=False, yamr_ti
                                  "supplied and ACLs are correctly configured".format(destination_user, destination_dir))
 
         if destination_client._type == "yt" and destination_exists and source_client._type == "yt":
-            src_type = source_client.get(yt.TablePath(task.source_table, client=source_client).name + "/@type")
-            dst_type = destination_client.get(yt.TablePath(task.destination_table, client=destination_client).name + "/@type")
+            src_type = source_client.get(yt.TablePath(task.source_table, client=source_client) + "/@type")
+            dst_type = destination_client.get(yt.TablePath(task.destination_table, client=destination_client) + "/@type")
             if src_type != dst_type:
                 raise yt.YtError("Source '{0}' and destination '{1}' "
                                  "must have the same type".format(task.source_table, task.destination_table))
