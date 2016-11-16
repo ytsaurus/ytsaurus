@@ -24,7 +24,7 @@ struct TSessionOptions
     TWorkloadDescriptor WorkloadDescriptor;
     bool SyncOnClose = false;
     bool EnableMultiplexing = false;
-    bool EnableUniformPlacement = false;
+    NChunkClient::TPlacementId PlacementId;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

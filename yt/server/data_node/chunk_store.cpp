@@ -351,19 +351,24 @@ TFuture<void> TChunkStore::RemoveChunk(IChunkPtr chunk)
 }
 
 TStoreLocationPtr TChunkStore::GetNewChunkLocation(
-    EObjectType chunkType,
+    const TChunkId& chunkId,
     const TSessionOptions& options)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    std::vector<TStoreLocationPtr> candidates;
+    ExpirePlacementInfos();
+
+    auto chunkType = TypeFromId(DecodeChunkId(chunkId).Id);
+
+    std::vector<int> candidates;
     int minCount = std::numeric_limits<int>::max();
-    for (const auto& location : Locations_) {
+    for (int index = 0; index < static_cast<int>(Locations_.size()); ++index) {
+        const auto& location = Locations_[index];
         if (!CanStartNewSession(location, chunkType, options.WorkloadDescriptor)) {
             continue;
         }
-        if (options.EnableUniformPlacement) {
-            candidates.push_back(location);
+        if (options.PlacementId) {
+            candidates.push_back(index);
         } else {
             int count = location->GetSessionCount();
             if (count < minCount) {
@@ -371,7 +376,7 @@ TStoreLocationPtr TChunkStore::GetNewChunkLocation(
                 minCount = count;
             }
             if (count == minCount) {
-                candidates.push_back(location);
+                candidates.push_back(index);
             }
         }
     }
@@ -379,10 +384,32 @@ TStoreLocationPtr TChunkStore::GetNewChunkLocation(
     if (candidates.empty()) {
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::NoLocationAvailable,
-            "No write location is available");
+            "No write location is available")
+            << TErrorAttribute("chunk_type", chunkType);
     }
 
-    return candidates[RandomNumber(candidates.size())];
+    TStoreLocationPtr result;
+    if (options.PlacementId) {
+        auto* placementInfo = GetOrCreatePlacementInfo(options.PlacementId);
+        auto& currentIndex = placementInfo->CurrentLocationIndex;
+        do {
+            ++currentIndex;
+            if (currentIndex >= Locations_.size()) {
+                currentIndex = 0;
+            }
+        } while (std::find(candidates.begin(), candidates.end(), currentIndex) == candidates.end());
+        result = Locations_[currentIndex];
+        LOG_DEBUG("Next round-robin location is chosen for chunk (PlacementId: %v, ChunkId: %v, LocationId: %v)",
+            options.PlacementId,
+            chunkId,
+            result->GetId());
+    } else {
+        result = Locations_[candidates[RandomNumber(candidates.size())]];
+        LOG_INFO("Random location is chosen for chunk (ChunkId: %v, LocationId: %v)",
+            chunkId,
+            result->GetId());
+    }
+    return result;
 }
 
 bool TChunkStore::CanStartNewSession(
@@ -422,6 +449,38 @@ IChunkPtr TChunkStore::CreateFromDescriptor(
 
         default:
             YUNREACHABLE();
+    }
+}
+
+TChunkStore::TPlacementInfo* TChunkStore::GetOrCreatePlacementInfo(const TPlacementId& placementId)
+{
+    auto deadline = Config_->PlacementExpirationTime.ToDeadLine();
+    auto it = PlacementIdToInfo_.find(placementId);
+    if (it == PlacementIdToInfo_.end()) {
+        auto pair = PlacementIdToInfo_.emplace(placementId, TPlacementInfo());
+        YCHECK(pair.second);
+        it = pair.first;
+        LOG_INFO("Placement info registered (PlacementId: %v)",
+            placementId);
+    } else {
+        DeadlineToPlacementId_.erase(it->second.DeadlineIterator);
+    }
+    auto* placementInfo = &it->second;
+    placementInfo->DeadlineIterator = DeadlineToPlacementId_.emplace(deadline, placementId);
+    return placementInfo;
+}
+
+void TChunkStore::ExpirePlacementInfos()
+{
+    auto now = TInstant::Now();
+    while (!DeadlineToPlacementId_.empty()) {
+        auto it = DeadlineToPlacementId_.begin();
+        if (it->first > now) {
+            break;
+        }
+        LOG_INFO("Placement info unregistered (PlacementId: %v)",
+            it->second);
+        DeadlineToPlacementId_.erase(it);
     }
 }
 

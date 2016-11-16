@@ -212,8 +212,8 @@ public:
     //! If |true| then written blocks are cached by the node.
     bool PopulateCache;
 
+    //! If |true| then the chunk is fsynced to disk upon closing.
     bool SyncOnClose;
-    bool EnableUniformPlacement;
 
     TDuration AllocateWriteTargetsBackoffTime;
 
@@ -247,8 +247,6 @@ public:
             .Default(false);
         RegisterParameter("sync_on_close", SyncOnClose)
             .Default(true);
-        RegisterParameter("enable_uniform_placement", EnableUniformPlacement)
-            .Default(false);
         RegisterParameter("allocate_write_targets_backoff_time", AllocateWriteTargetsBackoffTime)
             .Default(TDuration::Seconds(5));
         RegisterParameter("allocate_write_targets_retry_count", AllocateWriteTargetsRetryCount)
@@ -276,11 +274,14 @@ class TRemoteWriterOptions
 {
 public:
     bool AllowAllocatingNewTargetNodes;
+    TPlacementId PlacementId;
 
     TRemoteWriterOptions()
     {
         RegisterParameter("allow_allocating_new_target_nodes", AllowAllocatingNewTargetNodes)
             .Default(true);
+        RegisterParameter("uniform_placement_id", PlacementId)
+            .Default();
     }
 };
 
