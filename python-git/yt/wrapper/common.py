@@ -152,7 +152,7 @@ def generate_uuid(generator=None):
 def get_version():
     """ Returns python wrapper version """
     try:
-        from version import VERSION
+        from .version import VERSION
         return VERSION
     except:
         return "unknown"
