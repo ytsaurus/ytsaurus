@@ -232,7 +232,6 @@ class TTransactionManagerConfig
 public:
     TDuration MaxTransactionTimeout;
     TDuration MaxTransactionDuration;
-    TDuration BarrierBackoffTime;
 
     TTransactionManagerConfig()
     {
@@ -241,8 +240,6 @@ public:
             .Default(TDuration::Seconds(60));
         RegisterParameter("max_transaction_duration", MaxTransactionDuration)
             .Default(TDuration::Seconds(60));
-        RegisterParameter("barrier_backoff_time", BarrierBackoffTime)
-            .Default(TDuration::Seconds(5));
     }
 };
 
