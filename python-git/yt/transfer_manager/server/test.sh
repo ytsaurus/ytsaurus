@@ -142,6 +142,7 @@ test_copy_from_banach_to_freud() {
 }
 
 test_various_transfers() {
+    yt2 remove //tmp/test_table --proxy freud.yt.yandex.net
     echo -e "a\tb\nc\td\ne\tf" | yt2 write //tmp/test_table --format yamr --proxy freud.yt.yandex.net
     yt2 sort --src //tmp/test_table --dst //tmp/test_table --sort-by key --sort-by subkey --proxy freud.yt.yandex.net
 
@@ -658,6 +659,27 @@ test_schema_copy()
     check '%true' "$(yt2 get //tmp/test_table/@schema/@strict --proxy banach)"
 }
 
+test_pattern_matching() {
+    echo "Importing from Banach to Freud (pattern matching test)"
+    yt2 remove //tmp/yt_test --force --proxy banach --recursive
+
+    yt2 create table //tmp/yt_test/table1 --proxy banach --ignore-existing --recursive
+    yt2 create table //tmp/yt_test/table2 --proxy banach --ignore-existing --recursive
+    yt2 create file //tmp/yt_test/file1 --proxy banach --ignore-existing --recursive
+
+    res=$(request "POST" "match/" -d '{"source_pattern": "//tmp/yt_test/{*}", "source_cluster": "banach", "destination_pattern": "//tmp/{*}"}' -f)
+    res=$(echo $res | jq sort)
+    check \
+        '[ [ "//tmp/yt_test/table1", "//tmp/table1" ], [ "//tmp/yt_test/table2", "//tmp/table2" ] ]' \
+        "$(echo $res)"
+
+    res=$(request "POST" "match/" -d '{"source_pattern": "//tmp/yt_test/{*}", "source_cluster": "banach", "destination_pattern": "//tmp/{*}", "include_files": "true"}' -f)
+    res=$(echo $res | jq sort)
+    check \
+        '[ [ "//tmp/yt_test/file1", "//tmp/file1" ], [ "//tmp/yt_test/table1", "//tmp/table1" ], [ "//tmp/yt_test/table2", "//tmp/table2" ] ]' \
+        "$(echo $res)"
+}
+
 # Different transfers
 test_copy_empty_table
 test_copy_empty_file
@@ -680,6 +702,7 @@ for flag in true false; do
 done
 FORCE_COPY_WITH_OPERATION=false
 
+test_pattern_matching
 test_lease
 test_abort_restart_task
 test_recursive_path_creation

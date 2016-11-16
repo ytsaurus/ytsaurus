@@ -410,7 +410,7 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name,
             transform(str(dst), compression_codec=compression_codec, erasure_codec=erasure_codec,
                       yt_client=destination_client, spec=postprocess_spec_template, check_codecs=True)
 
-    copy_additional_attributes(source_client, destination_client, src.name, dst, additional_attributes)
+    copy_additional_attributes(source_client, destination_client, src, dst, additional_attributes)
 
 def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fastbone, token_storage_path,
                                 copy_spec_template=None, postprocess_spec_template=None, default_tmp_dir=None,
@@ -439,7 +439,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
             # NB: for reliable access to table under snapshot lock we should use id.
             src_name = src
             src = yt.TablePath(src, client=source_client)
-            src = yt.TablePath("#" + source_client.get(src.name + "/@id"), attributes=src.attributes, simplify=False, client=source_client)
+            src = yt.TablePath("#" + source_client.get(src + "/@id"), attributes=src.attributes, simplify=False, client=source_client)
             source_client.lock(src, mode="snapshot")
 
             if compression_codec is None:
@@ -450,7 +450,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
 
             sorted_by = None
             dst_table = yt.TablePath(dst, simplify=False)
-            if source_client.exists(src.name + "/@sorted_by"):
+            if source_client.exists(src + "/@sorted_by"):
                 sorted_by = source_client.get(src + "/@sorted_by")
                 dst_table = yt.TablePath(dst, client=source_client)
                 dst_table.attributes["sorted_by"] = sorted_by
@@ -768,7 +768,7 @@ def copy_yt_to_yamr_pull(yt_client, yamr_client, src, dst, parallel_job_count=No
             # NB: for reliable access to table under snapshot lock we should use id.
             src_name = src
             src = yt.TablePath(src, client=yt_client)
-            src = yt.TablePath("#" + yt_client.get(src.name + "/@id"), simplify=False, attributes=src.attributes, client=yt_client)
+            src = yt.TablePath("#" + yt_client.get(src + "/@id"), simplify=False, attributes=src.attributes, client=yt_client)
             yt_client.lock(src, mode="snapshot")
 
             is_sorted = yt_client.exists(src + "/@sorted_by")
