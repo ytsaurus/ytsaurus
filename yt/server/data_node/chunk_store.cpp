@@ -405,7 +405,7 @@ TStoreLocationPtr TChunkStore::GetNewChunkLocation(
             result->GetId());
     } else {
         result = Locations_[candidates[RandomNumber(candidates.size())]];
-        LOG_INFO("Random location is chosen for chunk (ChunkId: %v, LocationId: %v)",
+        LOG_DEBUG("Random location is chosen for chunk (ChunkId: %v, LocationId: %v)",
             chunkId,
             result->GetId());
     }
@@ -460,7 +460,7 @@ TChunkStore::TPlacementInfo* TChunkStore::GetOrCreatePlacementInfo(const TPlacem
         auto pair = PlacementIdToInfo_.emplace(placementId, TPlacementInfo());
         YCHECK(pair.second);
         it = pair.first;
-        LOG_INFO("Placement info registered (PlacementId: %v)",
+        LOG_DEBUG("Placement info registered (PlacementId: %v)",
             placementId);
     } else {
         DeadlineToPlacementId_.erase(it->second.DeadlineIterator);
@@ -478,8 +478,10 @@ void TChunkStore::ExpirePlacementInfos()
         if (it->first > now) {
             break;
         }
-        LOG_INFO("Placement info unregistered (PlacementId: %v)",
-            it->second);
+        const auto& placementId = it->second;
+        LOG_DEBUG("Placement info unregistered (PlacementId: %v)",
+            placementId);
+        YCHECK(PlacementIdToInfo_.erase(placementId) == 1);
         DeadlineToPlacementId_.erase(it);
     }
 }
