@@ -791,8 +791,7 @@ private:
                 key.set_type(static_cast<int>(NObjectClient::EObjectType::File));
 
                 for (const auto& chunkSpec : function.chunk_specs()) {
-                    TDataSliceDescriptor dataSliceDescriptor(EDataSliceDescriptorType::File, {chunkSpec});
-                    ToProto(key.add_data_slice_descriptors(), dataSliceDescriptor);
+                    ToProto(key.add_data_slice_descriptors(), MakeFileDataSliceDescriptor(chunkSpec));
                 }
 
                 Artifacts_.push_back(TArtifact{

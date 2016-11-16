@@ -32,6 +32,7 @@ struct TDataSliceDescriptor
         std::vector<NProto::TChunkSpec> chunkSpecs);
 
     const NProto::TChunkSpec& GetSingleUnversionedChunk() const;
+    const NProto::TChunkSpec& GetSingleFileChunk() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

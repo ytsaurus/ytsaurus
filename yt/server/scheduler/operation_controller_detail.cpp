@@ -4654,18 +4654,15 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         descriptor->set_file_name(file.FileName);
 
         if (file.Type == EObjectType::Table && file.IsDynamic && file.Schema.IsSorted()) {
-            auto dataSliceDescriptor = TDataSliceDescriptor(
-                EDataSliceDescriptorType::VersionedTable,
-                file.ChunkSpecs);
+            auto dataSliceDescriptor = MakeVersionedDataSliceDescriptor(file.ChunkSpecs);
             dataSliceDescriptor.Schema = file.Schema;
             dataSliceDescriptor.Timestamp = file.Path.GetTimestamp().Get(AsyncLastCommittedTimestamp);
             ToProto(descriptor->add_data_slice_descriptors(), dataSliceDescriptor);
         } else {
             for (const auto& chunkSpec : file.ChunkSpecs) {
-                auto type = file.Type == EObjectType::File
-                    ? EDataSliceDescriptorType::File
-                    : EDataSliceDescriptorType::UnversionedTable;
-                TDataSliceDescriptor dataSliceDescriptor(type, {chunkSpec});
+                auto dataSliceDescriptor = file.Type == EObjectType::File
+                    ? MakeFileDataSliceDescriptor(chunkSpec)
+                    : MakeUnversionedDataSliceDescriptor(chunkSpec);
                 ToProto(descriptor->add_data_slice_descriptors(), dataSliceDescriptor);
             }
         }
