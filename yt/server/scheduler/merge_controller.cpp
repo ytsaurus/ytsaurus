@@ -1379,16 +1379,13 @@ private:
                     return cmpResult < 0;
                 }
 
-                try {
-                    // ChunkSpec address is used to identify the slices of one chunk.
-                    auto cmpPtr = reinterpret_cast<intptr_t>(lhs.DataSlice->GetSingleUnversionedChunkOrThrow().Get())
-                        - reinterpret_cast<intptr_t>(rhs.DataSlice->GetSingleUnversionedChunkOrThrow().Get());
+                {
+                    // DataSlice address is used to identify the slices of one chunk.
+                    auto cmpPtr = reinterpret_cast<intptr_t>(lhs.DataSlice.Get())
+                        - reinterpret_cast<intptr_t>(rhs.DataSlice.Get());
                     if (cmpPtr != 0) {
                         return cmpPtr < 0;
                     }
-                } catch (const std::exception& ex) {
-                    // FIXME(savrus): Do something if failed.
-                    THROW_ERROR_EXCEPTION("Failed to compare data slices") << ex;
                 }
 
                 return lhs.Type < rhs.Type;
@@ -2129,23 +2126,23 @@ private:
                     return cmpResult < 0;
                 }
 
-                try {
+                if (lhs.DataSlice->Type == EDataSliceDescriptorType::UnversionedTable) {
                     // If keys (trimmed to key columns) are equal, we put slices in
                     // the same order they are in the original table.
                     const auto& lhsChunk = lhs.DataSlice->GetSingleUnversionedChunkOrThrow();
                     const auto& rhsChunk = rhs.DataSlice->GetSingleUnversionedChunkOrThrow();
 
-                    cmpResult = lhsChunk->GetTableRowIndex() -
+                    auto cmpResult = lhsChunk->GetTableRowIndex() -
                         rhsChunk->GetTableRowIndex();
                     if (cmpResult != 0) {
                         return cmpResult < 0;
                     }
+                }
 
-                    return (reinterpret_cast<intptr_t>(lhsChunk.Get())
-                        - reinterpret_cast<intptr_t>(rhsChunk.Get())) < 0;
-                } catch (const std::exception& ex) {
-                    // XXX(savrus): If failed here, do something with comparison. 
-                    THROW_ERROR_EXCEPTION("Failed to compare data slices") << ex;
+                {
+                    auto cmpPtr = reinterpret_cast<intptr_t>(lhs.DataSlice.Get())
+                        - reinterpret_cast<intptr_t>(rhs.DataSlice.Get());
+                    return cmpPtr < 0;
                 }
             });
     }
