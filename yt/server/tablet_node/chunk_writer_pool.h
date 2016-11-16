@@ -36,8 +36,6 @@ public:
     const std::vector<NTableClient::IVersionedMultiChunkWriterPtr>& GetAllWriters();
 
 private:
-    class TFinalizingWriter;
-
     const TInMemoryManagerPtr InMemoryManager_;
     const TTabletSnapshotPtr TabletSnapshot_;
     const int PoolSize_;
