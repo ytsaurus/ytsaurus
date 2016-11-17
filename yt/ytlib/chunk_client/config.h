@@ -77,6 +77,10 @@ public:
     double NetQueueSizeFactor;
     double DiskQueueSizeFactor;
 
+    //! If |true|, then workload descriptors are annotated with the read session start time
+    //! and are thus scheduled in FIFO order.
+    bool EnableWorkloadFifoScheduling;
+
     TReplicationReaderConfig()
     {
         RegisterParameter("block_rpc_timeout", BlockRpcTimeout)
@@ -117,6 +121,8 @@ public:
             .Default(1.0);
         RegisterParameter("net_queue_size_factor", NetQueueSizeFactor)
             .Default(0.5);
+        RegisterParameter("enable_workload_fifo_scheduling", EnableWorkloadFifoScheduling)
+            .Default(true);
     }
 };
 
