@@ -283,8 +283,8 @@ print "x={0}\ty={1}".format(x, y)
         create("table", "//tmp/t2")
 
         op = map_reduce(dont_track=True, mapper_command="cat", reducer_command="cat; sleep 2",
-                           in_="//tmp/t1", out="//tmp/t2",
-                           sort_by=["foo"], spec={"intermediate_data_acl": acl})
+                        in_="//tmp/t1", out="//tmp/t2",
+                        sort_by=["foo"], spec={"intermediate_data_acl": acl})
 
         time.sleep(1)
         assert exists("//sys/operations/{0}/intermediate".format(op.id))
@@ -305,6 +305,19 @@ print "x={0}\ty={1}".format(x, y)
             map_reduce(mapper_command="cat", reducer_command="cat",
                        in_="//tmp/t1", out="//tmp/t2",
                        sort_by=["foo"], spec={"intermediate_data_acl": acl})
+
+    def test_intermediate_compression_codec(self):
+        create("table", "//tmp/t1")
+        write_table("//tmp/t1", {"foo": "bar"})
+        create("table", "//tmp/t2")
+
+        op = map_reduce(dont_track=True,
+                        mapper_command="cat", reducer_command="sleep 5; cat",
+                        in_="//tmp/t1", out="//tmp/t2",
+                        sort_by=["foo"], spec={"intermediate_compression_codec": "brotli_3"})
+        time.sleep(1)
+        assert "brotli_3" == get("//sys/operations/{0}/intermediate/@compression_codec".format(op.id))
+        op.abort()
 
     @unix_only
     def test_query_simple(self):

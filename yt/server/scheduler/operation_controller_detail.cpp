@@ -3077,6 +3077,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
         const Stroka& path,
         TCellTag cellTag,
         int replicationFactor,
+        NCompression::ECodec compressionCodec,
         const Stroka& key,
         const TYsonString& acl)
     {
@@ -3087,6 +3088,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
 
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("replication_factor", replicationFactor);
+        attributes->Set("compression_codec", compressionCodec);
         if (cellTag == connection->GetPrimaryMasterCellTag()) {
             attributes->Set("external", false);
         } else {
@@ -3109,6 +3111,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
                 path,
                 table.CellTag,
                 table.Options->ReplicationFactor,
+                table.Options->CompressionCodec,
                 "create_output",
                 table.EffectiveAcl);
         }
@@ -3121,6 +3124,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
             path,
             StderrTable->CellTag,
             StderrTable->Options->ReplicationFactor,
+            StderrTable->Options->CompressionCodec,
             "create_stderr",
             StderrTable->EffectiveAcl);
     }
@@ -3133,6 +3137,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
             path,
             IntermediateOutputCellTag,
             1,
+            Spec->IntermediateCompressionCodec,
             "create_intermediate",
             ConvertToYsonString(Spec->IntermediateDataAcl));
     }
