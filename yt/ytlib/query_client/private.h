@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/ytlib/table_client/public.h>
-
 #include <yt/core/logging/log.h>
 
 // FIXME(lukyan): try to fix in new visual studio
@@ -19,8 +17,6 @@ namespace NQueryClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const NLogging::TLogger QueryClientLogger;
-
-NLogging::TLogger BuildLogger(TConstQueryPtr query);
 
 ////////////////////////////////////////////////////////////////////////////////
 
