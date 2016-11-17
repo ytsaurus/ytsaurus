@@ -1392,6 +1392,7 @@ void TOperationControllerBase::SaveSnapshot(TOutputStream* output)
 void TOperationControllerBase::DoSaveSnapshot(TOutputStream* output)
 {
     TSaveContext context;
+    context.SetVersion(GetCurrentSnapshotVersion());
     context.SetOutput(output);
 
     Save(context, this);

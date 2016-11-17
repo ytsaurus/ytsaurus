@@ -21,7 +21,7 @@ void TUserStatistics::Persist(NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, RequestCount);
-    if (context.IsSave() || context.LoadContext().GetVersion() >= 200) {
+    if (context.GetVersion() >= 200) {
         Persist(context, ReadRequestTime);
         Persist(context, WriteRequestTime);
     }
