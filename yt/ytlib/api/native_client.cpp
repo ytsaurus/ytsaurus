@@ -53,6 +53,10 @@
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/schema.h>
 #include <yt/ytlib/table_client/schemaful_writer.h>
+#include <yt/ytlib/table_client/table_ypath_proxy.h>
+#include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/schemaful_reader.h>
+#include <yt/ytlib/table_client/row_merger.h>
 
 #include <yt/ytlib/tablet_client/table_mount_cache.h>
 #include <yt/ytlib/tablet_client/tablet_service_proxy.h>
@@ -80,13 +84,6 @@
 #include <yt/core/ytree/ypath_proxy.h>
 
 #include <yt/core/misc/collection_helpers.h>
-
-// TODO(babenko): refactor this
-#include <yt/ytlib/table_client/chunk_meta_extensions.h>
-#include <yt/ytlib/table_client/schemaful_reader.h>
-#include <yt/ytlib/table_client/table_ypath_proxy.h>
-#include <yt/ytlib/table_client/row_merger.h>
-#include <yt/ytlib/table_client/row_base.h>
 
 namespace NYT {
 namespace NApi {
@@ -598,152 +595,23 @@ private:
         const TQueryOptions& options,
         const NLogging::TLogger& Logger)
     {
+        LOG_DEBUG_IF(options.VerboseLogging, "Started splitting table ranges (TableId: %v, RangeCount: %v)",
+            tableId,
+            ranges.Size());
+
         auto tableMountCache = Connection_->GetTableMountCache();
         auto tableInfo = WaitFor(tableMountCache->GetTableInfo(FromObjectId(tableId)))
             .ValueOrThrow();
 
-        auto result = tableInfo->Dynamic
-            ? SplitDynamicTable(tableId, ranges, rowBuffer, tableInfo)
-            : SplitStaticTable(tableId, ranges, rowBuffer, tableInfo);
+        tableInfo->ValidateDynamic();
+        tableInfo->ValidateNotReplicated();
 
-        LOG_DEBUG_IF(options.VerboseLogging, "Got %v sources for input %v",
-            result.size(),
-            tableId);
-
-        return result;
-    }
-
-    std::vector<std::pair<TDataRanges, Stroka>> SplitStaticTable(
-        const TObjectId& tableId,
-        const TSharedRange<TRowRange>& ranges,
-        const TRowBufferPtr& rowBuffer,
-        const TTableMountInfoPtr& tableInfo)
-    {
-        if (!tableInfo->IsSorted()) {
-            THROW_ERROR_EXCEPTION("Table %v is not sorted",
-                tableInfo->Path);
-        }
-
-        std::vector<TReadRange> readRanges;
-        for (const auto& range : ranges) {
-            readRanges.emplace_back(TReadLimit(TOwningKey(range.first)), TReadLimit(TOwningKey(range.second)));
-        }
-
-        // TODO(babenko): refactor and optimize
-        TObjectServiceProxy proxy(MasterChannel_);
-
-        // XXX(babenko): multicell
-        auto req = TTableYPathProxy::Fetch(FromObjectId(tableId));
-        ToProto(req->mutable_ranges(), readRanges);
-        req->set_fetch_all_meta_extensions(true);
-
-        auto rsp = WaitFor(proxy.Execute(req))
-            .ValueOrThrow();
-
-        auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
-        nodeDirectory->MergeFrom(rsp->node_directory());
-
-        auto chunkSpecs = FromProto<std::vector<NChunkClient::NProto::TChunkSpec>>(rsp->chunks());
-
-        // Remove duplicate chunks.
-        std::sort(chunkSpecs.begin(), chunkSpecs.end(), [] (const TDataSplit& lhs, const TDataSplit& rhs) {
-            return GetObjectIdFromDataSplit(lhs) < GetObjectIdFromDataSplit(rhs);
-        });
-        chunkSpecs.erase(
-            std::unique(
-                chunkSpecs.begin(),
-                chunkSpecs.end(),
-                [] (const TDataSplit& lhs, const TDataSplit& rhs) {
-                    return GetObjectIdFromDataSplit(lhs) == GetObjectIdFromDataSplit(rhs);
-                }),
-            chunkSpecs.end());
-
-        // Sort chunks by lower bound.
-        std::sort(chunkSpecs.begin(), chunkSpecs.end(), [] (const TDataSplit& lhs, const TDataSplit& rhs) {
-            return GetLowerBoundFromDataSplit(lhs) < GetLowerBoundFromDataSplit(rhs);
-        });
-
-        const auto& networks = Connection_->GetNetworks();
-
-        for (auto& chunkSpec : chunkSpecs) {
-            auto chunkSchema = FindProtoExtension<TTableSchemaExt>(chunkSpec.chunk_meta().extensions());
-
-            // TODO(sandello): One day we should validate consistency.
-            // Now we just check we do _not_ have any of these.
-            YCHECK(!chunkSchema);
-
-            TOwningKey chunkLowerBound, chunkUpperBound;
-            if (FindBoundaryKeys(chunkSpec.chunk_meta(), &chunkLowerBound, &chunkUpperBound)) {
-                chunkUpperBound = GetKeySuccessor(chunkUpperBound);
-                SetLowerBound(&chunkSpec, chunkLowerBound);
-                SetUpperBound(&chunkSpec, chunkUpperBound);
-            }
-        }
-
-        std::vector<std::pair<TDataRanges, Stroka>> subsources;
-        for (const auto& range : ranges) {
-            auto lowerBound = range.first;
-            auto upperBound = range.second;
-
-            // Run binary search to find the relevant chunks.
-            auto startIt = std::lower_bound(
-                chunkSpecs.begin(),
-                chunkSpecs.end(),
-                lowerBound,
-                [] (const TDataSplit& chunkSpec, TRow key) {
-                    return GetUpperBoundFromDataSplit(chunkSpec) <= key;
-                });
-
-            for (auto it = startIt; it != chunkSpecs.end(); ++it) {
-                const auto& chunkSpec = *it;
-                auto keyRange = GetBothBoundsFromDataSplit(chunkSpec);
-
-                if (upperBound <= keyRange.first) {
-                    break;
-                }
-
-                auto replicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
-                if (replicas.empty()) {
-                    auto objectId = GetObjectIdFromDataSplit(chunkSpec);
-                    THROW_ERROR_EXCEPTION("No alive replicas for chunk %v",
-                        objectId);
-                }
-
-                const TChunkReplica& selectedReplica = replicas[RandomNumber(replicas.size())];
-                const auto& descriptor = nodeDirectory->GetDescriptor(selectedReplica);
-                const auto& address = descriptor.GetAddress(networks);
-
-                TRowRange subrange;
-                subrange.first = rowBuffer->Capture(std::max(lowerBound, keyRange.first.Get()));
-                subrange.second = rowBuffer->Capture(std::min(upperBound, keyRange.second.Get()));
-
-                TDataRanges dataSource;
-                dataSource.Id = GetObjectIdFromDataSplit(chunkSpec);
-                dataSource.Ranges = MakeSharedRange(
-                    SmallVector<TRowRange, 1>{subrange},
-                    rowBuffer,
-                    ranges.GetHolder());
-
-                subsources.emplace_back(std::move(dataSource), address);
-            }
-        }
-
-        return subsources;
-    }
-
-    std::vector<std::pair<TDataRanges, Stroka>> SplitDynamicTable(
-        const TObjectId& tableId,
-        const TSharedRange<TRowRange>& ranges,
-        const TRowBufferPtr& rowBuffer,
-        const TTableMountInfoPtr& tableInfo)
-    {
         const auto& cellDirectory = Connection_->GetCellDirectory();
         const auto& networks = Connection_->GetNetworks();
 
         yhash_map<NTabletClient::TTabletCellId, TCellDescriptor> tabletCellReplicas;
 
         auto getAddress = [&] (const TTabletInfoPtr& tabletInfo) mutable {
-            // TODO(babenko): learn to work with unmounted tablets
             ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
 
             auto insertResult = tabletCellReplicas.insert(std::make_pair(tabletInfo->CellId, TCellDescriptor()));
@@ -847,6 +715,10 @@ private:
                 ++rangesIt;
             }
         }
+
+        LOG_DEBUG_IF(options.VerboseLogging, "Finished splitting table ranges (TableId: %v, SubsourceCount: %v)",
+            tableId,
+            subsources.size());
 
         return subsources;
     }
