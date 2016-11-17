@@ -33,6 +33,7 @@
 
 #include <yt/ytlib/object_client/helpers.h>
 #include <yt/ytlib/object_client/object_ypath_proxy.h>
+#include <yt/ytlib/object_client/master_ypath_proxy.h>
 
 #include <yt/core/erasure/public.h>
 
@@ -188,20 +189,23 @@ private:
 
     TResolveResult DoResolveThere(const TYPath& path, IServiceContextPtr context)
     {
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
         const auto& objectManager = Bootstrap_->GetObjectManager();
+        if (context->GetService() == TMasterYPathProxy::GetServiceName()) {
+            return TResolveResult::There(objectManager->GetMasterProxy(), TYPath());
+        }
+
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
 
-        TTransaction* transaction = nullptr;
         auto transactionId = GetTransactionId(context);
-        if (transactionId) {
-            transaction = transactionManager->GetTransactionOrThrow(transactionId);
-        }
+        auto* transaction = transactionId
+            ? transactionManager->GetTransactionOrThrow(transactionId)
+            : nullptr;
 
         NYPath::TTokenizer tokenizer(path);
         switch (tokenizer.Advance()) {
             case NYPath::ETokenType::EndOfStream:
-                return TResolveResult::There(objectManager->GetMasterProxy(), tokenizer.GetSuffix());
+                THROW_ERROR_EXCEPTION("YPath cannot be empty");
 
             case NYPath::ETokenType::Slash: {
                 auto root = cypressManager->GetNodeProxy(
