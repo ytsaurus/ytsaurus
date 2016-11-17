@@ -69,6 +69,7 @@ DEFINE_ENUM(EAbortReason,
     (Preemption)
     (SchedulingTimeout)
     (SchedulingResourceOvercommit)
+    (SchedulingOperationSuspended)
     (UserRequest)
     (NodeOffline)
     (WaitingTimeout)

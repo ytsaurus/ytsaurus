@@ -1488,6 +1488,11 @@ public:
         const TAbortJobOptions& options),
         (jobId, options))
 
+
+    IMPLEMENT_METHOD(TClusterMeta, GetClusterMeta, (
+        const TGetClusterMetaOptions& options),
+        (options))
+
 #undef DROP_BRACES
 #undef IMPLEMENT_METHOD
 
@@ -1521,6 +1526,13 @@ private:
         auto guard = TAsyncSemaphoreGuard::TryAcquire(ConcurrentRequestsSemaphore_);
         if (!guard) {
             return MakeFuture<T>(TError(EErrorCode::TooManyConcurrentRequests, "Too many concurrent requests"));
+        }
+
+        // XXX(sandello): Deprecate me in 19.x ; remove two separate thread pools, use just one.
+        auto invoker = Connection_->GetLightInvoker();
+        if (commandName == "SelectRows" || commandName == "LookupRows" ||
+            commandName == "GetJobStderr") {
+            invoker = Connection_->GetHeavyInvoker();
         }
 
         return
@@ -3129,6 +3141,26 @@ private:
         WaitFor(req->Invoke())
             .ThrowOnError();
     }
+
+
+    TClusterMeta DoGetClusterMeta(
+        const TGetClusterMetaOptions& options)
+    {
+        auto req = TMasterYPathProxy::GetClusterMeta();
+        req->set_populate_node_directory(options.PopulateNodeDirectory);
+        SetCachingHeader(req, options);
+
+        auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
+        auto rsp = WaitFor(proxy->Execute(req))
+            .ValueOrThrow();
+
+        TClusterMeta meta;
+        if (options.PopulateNodeDirectory) {
+            meta.NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
+            meta.NodeDirectory->MergeFrom(rsp->node_directory());
+        }
+        return meta;
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TNativeClient)
@@ -3229,7 +3261,7 @@ public:
 
         State_ = ETransactionState::Commit;
         return BIND(&TNativeTransaction::DoCommit, MakeStrong(this))
-            .AsyncVia(CommitInvoker_)
+            .AsyncVia(Client_->GetConnection()->GetHeavyInvoker())
             .Run(options);
     }
 

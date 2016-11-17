@@ -612,8 +612,11 @@ public:
 
     // Enables using tmpfs if tmpfs_path is specified in user spec.
     bool EnableTmpfs;
+
     // Enable dynamic change of job sizes.
-    bool EnableJobSizeManager;
+    bool EnablePartitionMapJobSizeManager;
+
+    bool EnableMapJobSizeManager;
 
     //! Acl used for intermediate tables and stderrs additional to acls specified by user.
     NYTree::IListNodePtr AdditionalIntermediateDataAcl;
@@ -850,13 +853,18 @@ public:
 
         RegisterParameter("enable_tmpfs", EnableTmpfs)
             .Default(true);
-        RegisterParameter("enable_job_size_manager", EnableJobSizeManager)
+        RegisterParameter("enable_map_job_size_manager", EnableMapJobSizeManager)
             .Default(true);
 
         RegisterParameter("additional_intermediate_data_acl", AdditionalIntermediateDataAcl)
             .Default(NYTree::BuildYsonNodeFluently()
                 .BeginList()
                 .EndList()->AsList());
+
+        //! By default we disable job size manager for partition maps, 
+        //! since it may lead to partition data skew between nodes.
+        RegisterParameter("enable_partition_map_job_size_manager", EnablePartitionMapJobSizeManager)
+            .Default(false);
 
         RegisterParameter("user_job_memory_digest_precision", UserJobMemoryDigestPrecision)
             .Default(0.01)

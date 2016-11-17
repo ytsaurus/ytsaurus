@@ -743,7 +743,6 @@ private:
             InitQuerySpec(schedulerJobSpecExt, Spec->InputQuery.Get(), Spec->InputSchema.Get());
         }
 
-        AuxNodeDirectory->DumpTo(schedulerJobSpecExt->mutable_aux_node_directory());
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
@@ -886,7 +885,6 @@ private:
             InitQuerySpec(schedulerJobSpecExt, Spec->InputQuery.Get(), Spec->InputSchema.Get());
         }
 
-        AuxNodeDirectory->DumpTo(schedulerJobSpecExt->mutable_aux_node_directory());
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
@@ -1364,19 +1362,25 @@ private:
             Endpoints.begin(),
             Endpoints.end(),
             [=] (const TKeyEndpoint& lhs, const TKeyEndpoint& rhs) -> bool {
-                int cmpResult = CompareRows(lhs.GetKey(), rhs.GetKey(), prefixLength);
-                if (cmpResult != 0) {
-                    return cmpResult < 0;
+                {
+                    auto cmpResult = CompareRows(lhs.GetKey(), rhs.GetKey(), prefixLength);
+                    if (cmpResult != 0) {
+                        return cmpResult < 0;
+                    }
                 }
 
-                cmpResult = CompareRows(lhs.MinBoundaryKey, rhs.MinBoundaryKey, prefixLength);
-                if (cmpResult != 0) {
-                    return cmpResult < 0;
+                {
+                    auto cmpResult = CompareRows(lhs.MinBoundaryKey, rhs.MinBoundaryKey, prefixLength);
+                    if (cmpResult != 0) {
+                        return cmpResult < 0;
+                    }
                 }
 
-                cmpResult = CompareRows(lhs.MaxBoundaryKey, rhs.MaxBoundaryKey, prefixLength);
-                if (cmpResult != 0) {
-                    return cmpResult < 0;
+                {
+                    auto cmpResult = CompareRows(lhs.MaxBoundaryKey, rhs.MaxBoundaryKey, prefixLength);
+                    if (cmpResult != 0) {
+                        return cmpResult < 0;
+                    }
                 }
 
                 {
@@ -1960,7 +1964,6 @@ protected:
         JobSpecTemplate.set_type(static_cast<int>(EJobType::SortedReduce));
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
-        AuxNodeDirectory->DumpTo(schedulerJobSpecExt->mutable_aux_node_directory());
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
@@ -2000,6 +2003,11 @@ protected:
                 return false;
             }
         }
+        return true;
+    }
+
+    virtual bool IsInputDataSizeHistogramSupported() const override
+    {
         return true;
     }
 
@@ -2111,19 +2119,18 @@ private:
             Endpoints.begin(),
             Endpoints.end(),
             [=] (const TKeyEndpoint& lhs, const TKeyEndpoint& rhs) -> bool {
-                int cmpResult = CompareRows(lhs.GetKey(), rhs.GetKey());
-                if (cmpResult != 0) {
-                    return cmpResult < 0;
+                {
+                    auto cmpResult = CompareRows(lhs.GetKey(), rhs.GetKey());
+                    if (cmpResult != 0) {
+                        return cmpResult < 0;
+                    }
                 }
 
-                cmpResult = static_cast<int>(lhs.Type) - static_cast<int>(rhs.Type);
-                if (cmpResult != 0) {
-                    return cmpResult < 0;
-                }
-
-                cmpResult = lhs.DataSlice->GetTableIndex() - rhs.DataSlice->GetTableIndex();
-                if (cmpResult != 0) {
-                    return cmpResult < 0;
+                {
+                    auto cmpResult = static_cast<int>(lhs.Type) - static_cast<int>(rhs.Type);
+                    if (cmpResult != 0) {
+                        return cmpResult < 0;
+                    }
                 }
 
                 if (lhs.DataSlice->Type == EDataSliceDescriptorType::UnversionedTable) {

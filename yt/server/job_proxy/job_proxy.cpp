@@ -375,11 +375,6 @@ TJobResult TJobProxy::DoRun()
     InputNodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
     InputNodeDirectory_->MergeFrom(schedulerJobSpecExt.input_node_directory());
 
-    AuxNodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
-    if (schedulerJobSpecExt.has_aux_node_directory()) {
-        AuxNodeDirectory_->MergeFrom(schedulerJobSpecExt.aux_node_directory());
-    }
-
     HeartbeatExecutor_ = New<TPeriodicExecutor>(
         GetSyncInvoker(),
         BIND(&TJobProxy::SendHeartbeat, MakeWeak(this)),
@@ -547,11 +542,6 @@ IBlockCachePtr TJobProxy::GetBlockCache() const
 TNodeDirectoryPtr TJobProxy::GetInputNodeDirectory() const
 {
     return InputNodeDirectory_;
-}
-
-TNodeDirectoryPtr TJobProxy::GetAuxNodeDirectory() const
-{
-    return AuxNodeDirectory_;
 }
 
 const NNodeTrackerClient::TNodeDescriptor& TJobProxy::LocalDescriptor() const

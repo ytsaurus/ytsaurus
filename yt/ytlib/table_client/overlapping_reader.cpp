@@ -271,8 +271,8 @@ private:
     };
 
     void OpenSession(int index);
-    bool RefillSession(TSession* session);
-    void RefillSessions();
+    bool RefillSession(TSession* session, size_t readerCapacity);
+    void RefillSessions(size_t readerCapacity);
     void UpdateReadyEvent();
 };
 
@@ -431,7 +431,7 @@ bool TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoRead(
     rows->clear();
     RowMerger_->Reset();
 
-    RefillSessions();
+    RefillSessions(std::min(rows->capacity(), MaxRowsPerRead));
 
     while (AwaitingSessions_.empty() && !ActiveSessions_.empty() && rows->size() < rows->capacity()) {
         readRow();
@@ -457,14 +457,13 @@ TFuture<void> TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoGetReadyEvent(
 template <class TRowMerger>
 void TSchemafulOverlappingRangeReaderBase<TRowMerger>::OpenSession(int index)
 {
-    Sessions_[index].Rows.reserve(MaxRowsPerRead);
     Sessions_[index].Reader = ReaderFactory_(Sessions_[index].Index);
     Sessions_[index].ReadyEvent = Sessions_[index].Reader->Open();
     AwaitingSessions_.push_back(&Sessions_[index]);
 }
 
 template <class TRowMerger>
-bool TSchemafulOverlappingRangeReaderBase<TRowMerger>::RefillSession(TSession* session)
+bool TSchemafulOverlappingRangeReaderBase<TRowMerger>::RefillSession(TSession* session, size_t readerCapacity)
 {
     YCHECK(session->ReadyEvent);
 
@@ -472,6 +471,7 @@ bool TSchemafulOverlappingRangeReaderBase<TRowMerger>::RefillSession(TSession* s
         return false;
     }
 
+    session->Rows.reserve(readerCapacity);
     bool finished = !session->Reader->Read(&session->Rows);
 
     session->Rows.erase(
@@ -497,7 +497,7 @@ bool TSchemafulOverlappingRangeReaderBase<TRowMerger>::RefillSession(TSession* s
 }
 
 template <class TRowMerger>
-void TSchemafulOverlappingRangeReaderBase<TRowMerger>::RefillSessions()
+void TSchemafulOverlappingRangeReaderBase<TRowMerger>::RefillSessions(size_t readerCapacity)
 {
     if (AwaitingSessions_.empty()) {
         return;
@@ -506,7 +506,7 @@ void TSchemafulOverlappingRangeReaderBase<TRowMerger>::RefillSessions()
     std::vector<TSession*> awaitingSessions;
 
     for (auto* session : AwaitingSessions_) {
-        if (!RefillSession(session)) {
+        if (!RefillSession(session, readerCapacity)) {
             awaitingSessions.push_back(session);
         }
     }

@@ -104,6 +104,7 @@ public:
                 executionContext.GroupRowLimit = query->OutputRowLimit;
                 executionContext.JoinRowLimit = query->OutputRowLimit;
                 executionContext.Limit = query->Limit;
+                executionContext.IsOrdered = query->IsOrdered();
 
                 // Used in joins
                 executionContext.ExecuteCallback = executeCallback;

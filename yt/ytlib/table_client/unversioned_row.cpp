@@ -509,7 +509,7 @@ int CompareRows(
             return result;
         }
     }
-    return (lhsEnd - lhsBegin) - (rhsEnd - rhsBegin);
+    return static_cast<int>(lhsEnd - lhsBegin) - static_cast<int>(rhsEnd - rhsBegin);
 }
 
 int CompareRows(TUnversionedRow lhs, TUnversionedRow rhs, int prefixLength)

@@ -40,6 +40,10 @@ message TChunkSpec
 
     // Mapping to ranges.
     optional int32 range_index = 13;
+
+    // Overrides the corresponding values in TMiscExt.
+    optional int64 row_count_override = 14;
+    optional int64 uncompressed_data_size_override = 15;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -72,6 +72,16 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(ECodec, i8,
     ((Lzma_8)                    (55))
     ((Lzma_9)                    (56))
 
+    ((Bzip2_1)                   (57))
+    ((Bzip2_2)                   (58))
+    ((Bzip2_3)                   (59))
+    ((Bzip2_4)                   (60))
+    ((Bzip2_5)                   (61))
+    ((Bzip2_6)                   (62))
+    ((Bzip2_7)                   (63))
+    ((Bzip2_8)                   (64))
+    ((Bzip2_9)                   (65))
+
     // Deprecated
     ((Zlib6)                      (2))
     ((GzipNormal)                 (2))

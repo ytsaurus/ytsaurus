@@ -34,10 +34,10 @@ public:
     TChunkSlice(
         const NProto::TSliceRequest& sliceReq,
         const NProto::TChunkMeta& meta,
-        const TNullable<NTableClient::TOwningKey>& lowerKey,
-        const TNullable<NTableClient::TOwningKey>& upperKey,
-        i64 dataSize = -1,
-        i64 rowCount = -1);
+        const NTableClient::TOwningKey& lowerKey,
+        const NTableClient::TOwningKey& upperKey,
+        TNullable<i64> dataSize = Null,
+        TNullable<i64> rowCount = Null);
 
     TChunkSlice(
         const TChunkSlice& chunkSlice,

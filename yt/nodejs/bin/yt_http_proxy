@@ -241,7 +241,7 @@ function createLogger() {
 
 function createProfiler() {
     return Q.try(function() {
-        return new (require(__dirname + "/../lib/statistics.js").that)();
+        return new (require(__dirname + "/../lib/statistics.js").that)(30 * 60 * 1000);
     });
 }
 

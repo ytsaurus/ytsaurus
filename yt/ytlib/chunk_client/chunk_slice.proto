@@ -2,7 +2,6 @@ package NYT.NChunkClient.NProto;
 
 import "yt/core/misc/guid.proto";
 import "yt/ytlib/chunk_client/schema.proto";
-import "yt/ytlib/chunk_client/chunk_meta.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,7 +16,8 @@ message TChunkSlice
     // Upper boundary, exclusive.
     required TReadLimit upper_limit = 3;
 
-    optional TSizeOverrideExt size_override_ext = 4;
+    optional int64 row_count_override = 4;
+    optional int64 uncompressed_data_size_override = 5;
 }
 
 message TSliceRequest

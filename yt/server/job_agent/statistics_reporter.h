@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "job.h"
 
 #include <yt/server/cell_node/public.h>
 
@@ -24,15 +25,7 @@ public:
         TStatisticsReporterConfigPtr reporterConfig,
         NCellNode::TBootstrap* bootstrap);
 
-    void ReportStatistics(
-        TOperationId operationId,
-        TJobId jobId,
-        EJobType jobType,
-        EJobState jobState,
-        const TNullable<TInstant>& startTime,
-        const TNullable<TInstant>& finishTime,
-        const TNullable<TError>& error,
-        const TNullable<NYson::TYsonString>& statistics);
+    void ReportStatistics(TJobStatistics&& statistics);
 
 private:
     class TImpl;

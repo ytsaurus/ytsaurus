@@ -71,7 +71,7 @@ public:
     const NDataNode::TChunkCachePtr& GetChunkCache() const;
     const NDataNode::TChunkRegistryPtr& GetChunkRegistry() const;
     const NDataNode::TSessionManagerPtr& GetSessionManager() const;
-    const  NDataNode::TChunkMetaManagerPtr& GetChunkMetaManager() const;
+    const NDataNode::TChunkMetaManagerPtr& GetChunkMetaManager() const;
     const NDataNode::TChunkBlockManagerPtr& GetChunkBlockManager() const;
     const NChunkClient::IBlockCachePtr& GetBlockCache() const;
     const NDataNode::TPeerBlockTablePtr& GetPeerBlockTable() const;
@@ -81,6 +81,7 @@ public:
     const NHiveClient::TClusterDirectoryPtr& GetClusterDirectory();
     const NQueryClient::TColumnEvaluatorCachePtr& GetColumnEvaluatorCache() const;
     const NQueryClient::ISubexecutorPtr& GetQueryExecutor() const;
+    const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const;
 
     const NConcurrency::IThroughputThrottlerPtr& GetReplicationInThrottler() const;
     const NConcurrency::IThroughputThrottlerPtr& GetReplicationOutThrottler() const;
@@ -116,6 +117,8 @@ private:
     NApi::INativeConnectionPtr MasterConnection;
     NApi::INativeClientPtr MasterClient;
     NHiveServer::TCellDirectorySynchronizerPtr CellDirectorySynchronizer;
+    NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
+    NNodeTrackerClient::TNodeDirectorySynchronizerPtr NodeDirectorySynchronizer;
     NRpc::IServerPtr RpcServer;
     NRpc::IServicePtr MasterCacheService;
     std::unique_ptr<NHttp::TServer> HttpServer;

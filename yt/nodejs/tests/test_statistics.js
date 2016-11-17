@@ -112,5 +112,19 @@ describe("YtStatistics", function() {
 
         expect(profiler.dump()).to.eql("foo a=1 1\nfoo a=2 3\nfoo a=3 4");
     });
+
+    it("should expire old entries", function(done) {
+        var profiler = new YtStatistics(100);
+
+        profiler.inc("foo", null, 1);
+        setTimeout(function() {
+            profiler.clearExpiredGauges();
+            if (profiler.dump() === "") {
+                done();
+            } else {
+                done(new Error(":("));
+            }
+        }, 200);
+    });
 });
 
