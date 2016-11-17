@@ -193,6 +193,7 @@ class TStreamSaveContext
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(TOutputStream*, Output);
+    DEFINE_BYVAL_RW_PROPERTY(int, Version);
 
 public:
     TStreamSaveContext();
@@ -207,6 +208,7 @@ class TStreamLoadContext
 public:
     DEFINE_BYVAL_RW_PROPERTY(TInputStream*, Input);
     DEFINE_BYREF_RW_PROPERTY(TSerializationDumper, Dumper);
+    DEFINE_BYVAL_RW_PROPERTY(int, Version);
 
 public:
     TStreamLoadContext();
@@ -256,6 +258,11 @@ public:
     operator TOtherContext() const
     {
         return IsSave() ? TOtherContext(*SaveContext_) : TOtherContext(*LoadContext_);
+    }
+
+    int GetVersion() const
+    {
+        return IsSave() ? SaveContext().GetVersion() : LoadContext().GetVersion();
     }
 
 private:

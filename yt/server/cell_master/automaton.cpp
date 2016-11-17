@@ -17,6 +17,7 @@ std::unique_ptr<NHydra::TSaveContext> TMasterAutomaton::CreateSaveContext(
     ICheckpointableOutputStream* output)
 {
     auto context = std::make_unique<TSaveContext>();
+    context->SetVersion(GetCurrentSnapshotVersion());
     TCompositeAutomaton::InitSaveContext(*context, output);
     return std::unique_ptr<NHydra::TSaveContext>(std::move(context));
 }

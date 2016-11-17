@@ -70,7 +70,6 @@ class TLoadContext
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(ICheckpointableInputStream*, CheckpointableInput);
-    DEFINE_BYVAL_RW_PROPERTY(int, Version);
 
 public:
     virtual ~TLoadContext() = default;
