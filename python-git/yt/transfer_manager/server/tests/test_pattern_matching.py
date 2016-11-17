@@ -29,7 +29,7 @@ class TestPatternMatching(object):
             def search(self, *args, **kwargs):
                 """ Emulates YT client search() method """
                 return (name for name in self.TEST_TABLE_NAMES
-                        if not kwargs.get("node_type") or self.get_type(name) == kwargs.get("node_type"))
+                        if not kwargs.get("node_type") or self.get_type(name) in kwargs.get("node_type"))
 
             def get_type(self, path, *args, **kwargs):
                 """ Emulates YT client get_type() method """
@@ -61,7 +61,7 @@ class TestPatternMatching(object):
 
         assert match(client, "//a/{p}", "tmp/{p}") == [("//a/table", "tmp/table")]
         assert match(client, "//a/{p}", "tmp/{p}", include_files=True) == [("//a/table", "tmp/table"),
-                                                                           ('//a/file', 'tmp/file')]
+                                                                           ("//a/file", "tmp/file")]
         
         assert match(client, "//{p1}/{p2}/table2", "tmp/{p1}/{p2}/table2") == [("//a/b/table2",
                                                                                 "tmp/a/b/table2")]
@@ -91,5 +91,5 @@ class TestPatternMatching(object):
                 [("//d/d1/a/table", "tmp/d1/a/table"),
                 ("//d/d2/a/table", "tmp/d2/a/table"),
                 ("//d/d3/a/b/table", "tmp/d3/a/b/table"),
-                ('//d/d1/file2', 'tmp/d1/file2')]
+                ("//d/d1/file2", "tmp/d1/file2")]
 
