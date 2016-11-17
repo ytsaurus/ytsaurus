@@ -888,7 +888,7 @@ private:
         int subrangesCount,
         std::function<std::pair<std::vector<TDataRanges>, Stroka>(int)> getSubsources)
     {
-        auto Logger = BuildQueryLogger(query);
+        auto Logger = MakeQueryLogger(query);
 
         std::vector<TRefiner> refiners(subrangesCount, [] (
             TConstExpressionPtr expr,
@@ -942,7 +942,7 @@ private:
         const TQueryOptions& options,
         ISchemafulWriterPtr writer)
     {
-        auto Logger = BuildQueryLogger(query);
+        auto Logger = MakeQueryLogger(query);
 
         auto rowBuffer = New<TRowBuffer>(TQueryHelperRowBufferTag{});
         auto allSplits = InferRanges(
@@ -988,7 +988,7 @@ private:
         const TQueryOptions& options,
         ISchemafulWriterPtr writer)
     {
-        auto Logger = BuildQueryLogger(query);
+        auto Logger = MakeQueryLogger(query);
 
         auto rowBuffer = New<TRowBuffer>(TQueryHelperRowBufferTag());
         auto allSplits = InferRanges(
@@ -1032,7 +1032,7 @@ private:
         std::vector<TDataRanges> dataSources,
         const Stroka& address)
     {
-        auto Logger = BuildQueryLogger(query);
+        auto Logger = MakeQueryLogger(query);
 
         TRACE_CHILD("QueryClient", "Delegate") {
             auto channel = NodeChannelFactory_->CreateChannel(address);
