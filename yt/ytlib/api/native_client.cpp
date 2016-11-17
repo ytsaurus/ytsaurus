@@ -38,7 +38,6 @@
 #include <yt/ytlib/query_client/helpers.h>
 #include <yt/ytlib/query_client/query.h>
 #include <yt/ytlib/query_client/query_helpers.h>
-#include <yt/ytlib/query_client/private.h> // XXX(sandello): refactor BuildLogger
 #include <yt/ytlib/query_client/query_preparer.h>
 #include <yt/ytlib/query_client/query_service_proxy.h>
 #include <yt/ytlib/query_client/query_statistics.h>
@@ -889,7 +888,7 @@ private:
         int subrangesCount,
         std::function<std::pair<std::vector<TDataRanges>, Stroka>(int)> getSubsources)
     {
-        auto Logger = BuildLogger(query);
+        auto Logger = BuildQueryLogger(query);
 
         std::vector<TRefiner> refiners(subrangesCount, [] (
             TConstExpressionPtr expr,
@@ -943,7 +942,7 @@ private:
         const TQueryOptions& options,
         ISchemafulWriterPtr writer)
     {
-        auto Logger = BuildLogger(query);
+        auto Logger = BuildQueryLogger(query);
 
         auto rowBuffer = New<TRowBuffer>(TQueryHelperRowBufferTag{});
         auto allSplits = InferRanges(
@@ -989,7 +988,7 @@ private:
         const TQueryOptions& options,
         ISchemafulWriterPtr writer)
     {
-        auto Logger = BuildLogger(query);
+        auto Logger = BuildQueryLogger(query);
 
         auto rowBuffer = New<TRowBuffer>(TQueryHelperRowBufferTag());
         auto allSplits = InferRanges(
@@ -1033,7 +1032,7 @@ private:
         std::vector<TDataRanges> dataSources,
         const Stroka& address)
     {
-        auto Logger = BuildLogger(query);
+        auto Logger = BuildQueryLogger(query);
 
         TRACE_CHILD("QueryClient", "Delegate") {
             auto channel = NodeChannelFactory_->CreateChannel(address);

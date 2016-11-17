@@ -31,7 +31,7 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     TConstQueryPtr query,
     const std::vector<TRefiner>& refiners)
 {
-    auto Logger = BuildLogger(query);
+    auto Logger = BuildQueryLogger(query);
 
     auto subqueryInputRowLimit = query->InputRowLimit;
     auto subqueryOutputRowLimit = query->OutputRowLimit;
@@ -191,7 +191,7 @@ TRowRanges GetPrunedRanges(
     const TConstRangeExtractorMapPtr& rangeExtractors,
     const TQueryOptions& options)
 {
-    auto Logger = BuildLogger(query);
+    auto Logger = BuildQueryLogger(query);
     return GetPrunedRanges(
         query->WhereClause,
         query->OriginalSchema,
@@ -212,7 +212,7 @@ TQueryStatistics CoordinateAndExecute(
     std::function<TEvaluateResult(TConstQueryPtr, int)> evaluateSubquery,
     std::function<TQueryStatistics(TConstQueryPtr, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop)
 {
-    auto Logger = BuildLogger(query);
+    auto Logger = BuildQueryLogger(query);
 
     LOG_DEBUG("Begin coordinating query");
 

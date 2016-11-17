@@ -70,7 +70,7 @@ public:
             auto queryFingerprint = InferName(query, true);
             TRACE_ANNOTATION("query_fingerprint", queryFingerprint);
 
-            auto Logger = BuildLogger(query);
+            auto Logger = BuildQueryLogger(query);
 
             LOG_DEBUG("Executing query (Fingerprint: %v, InputSchema: %v, ResultSchema: %v)",
                 queryFingerprint,
@@ -157,7 +157,7 @@ private:
 
         auto makeCodegenQuery = Profile(query, &id, &variables, functionProfilers, aggregateProfilers);
 
-        auto Logger = BuildLogger(query);
+        auto Logger = BuildQueryLogger(query);
 
         auto compileWithLogging = [&] () {
             TRACE_CHILD("QueryClient", "Compile") {

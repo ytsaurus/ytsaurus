@@ -4,6 +4,8 @@
 
 #include <yt/ytlib/object_client/public.h>
 
+#include <yt/core/logging/log.h>
+
 namespace NYT {
 namespace NQueryClient {
 
@@ -37,6 +39,8 @@ void SetTimestamp(TDataSplit* dataSplit, TTimestamp timestamp);
 
 // XXX(sandello): For testing purposes only.
 void SetSorted(TDataSplit* dataSplit, bool isSorted);
+
+NLogging::TLogger BuildQueryLogger(TConstQueryPtr query);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,5 +1,6 @@
 #include "helpers.h"
-#include "public.h"
+#include "query.h"
+#include "private.h"
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
@@ -21,6 +22,9 @@ using namespace NTableClient::NProto;
 using NChunkClient::TReadLimit;
 using NTableClient::MinKey;
 using NTableClient::MaxKey;
+
+using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -135,6 +139,12 @@ void SetSorted(TDataSplit* dataSplit, bool isSorted)
     SetProtoExtension<TMiscExt>(
         dataSplit->mutable_chunk_meta()->mutable_extensions(),
         *miscProto);
+}
+
+NLogging::TLogger BuildQueryLogger(TConstQueryPtr query)
+{
+    return NLogging::TLogger(QueryClientLogger)
+        .AddTag("FragmentId: %v", query->Id);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
