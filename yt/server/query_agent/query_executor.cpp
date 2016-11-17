@@ -174,7 +174,7 @@ public:
         , Evaluator_(std::move(evaluator))
         , Query_(std::move(query))
         , Options_(std::move(options))
-        , Logger(BuildQueryLogger(Query_))
+        , Logger(MakeQueryLogger(Query_))
         , TabletSnapshots_(bootstrap->GetTabletSlotManager())
     { }
 

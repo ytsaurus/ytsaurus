@@ -40,7 +40,7 @@ void SetTimestamp(TDataSplit* dataSplit, TTimestamp timestamp);
 // XXX(sandello): For testing purposes only.
 void SetSorted(TDataSplit* dataSplit, bool isSorted);
 
-NLogging::TLogger BuildQueryLogger(TConstQueryPtr query);
+NLogging::TLogger MakeQueryLogger(TConstQueryPtr query);
 
 ////////////////////////////////////////////////////////////////////////////////
 
