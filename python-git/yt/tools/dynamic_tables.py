@@ -15,6 +15,7 @@ import time
 import logging
 from itertools import takewhile, chain
 from random import shuffle
+from collections import Counter
 
 # XXXX/TODO: global stuff. Find a way to avoid this.
 yt_module.config["pickling"]["module_filter"] = lambda module: not hasattr(module, "__file__") or "yt_driver_bindings" not in module.__file__
@@ -251,9 +252,9 @@ class DynamicTablesClient(object):
 
     def _make_tablets_state_checker(self, table, possible_states):
         def state_checker():
-            tablets = {tablet["tablet_id"]: tablet["state"] for tablet in self.yt.get_attribute(table, "tablets", default=[])}
-            logging.info("Table %s tablets: %s" % (table, str(tablets)))
-            return all(state in possible_states for state in itervalues(tablets))
+            states = [tablet["state"] for tablet in self.yt.get_attribute(table, "tablets", default=[])]
+            logging.info("Table %s tablets: %s", table, dict(Counter(states)))
+            return all(state in possible_states for state in states)
         return state_checker
 
     def _wait_for_table_consistency(self, table, timeout, pause):
