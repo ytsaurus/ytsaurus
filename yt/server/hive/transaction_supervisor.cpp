@@ -1173,7 +1173,7 @@ private:
     }
 
 
-    void ChangeCommitTransientState(TCommit* commit, ECommitState state)
+    void ChangeCommitTransientState(TCommit* commit, ECommitState state, const TError& error = TError())
     {
         if (!IsLeader()) {
             return;
@@ -1187,7 +1187,7 @@ private:
         commit->RespondedCellIds().clear();
 
         switch (state) {
-            case ECommitState::GenerateCommitTimestamp:
+            case ECommitState::GeneratingCommitTimestamp:
                 GenerateCommitTimestamp(commit);
                 break;
 
@@ -1197,7 +1197,16 @@ private:
                 SendParticipantRequests(commit);
                 break;
 
-            case ECommitState::Finish: {
+            case ECommitState::Aborting: {
+                NHiveServer::NProto::TReqCoordinatorAbortDistributedTransactionPhaseTwo request;
+                ToProto(request.mutable_transaction_id(), commit->GetTransactionId());
+                ToProto(request.mutable_error(), error);
+                CreateMutation(HydraManager_, request)
+                    ->CommitAndLog(Logger);
+                break;
+            }
+
+            case ECommitState::Finishing: {
                 NHiveServer::NProto::TReqCoordinatorFinishDistributedTransaction request;
                 ToProto(request.mutable_transaction_id(), commit->GetTransactionId());
                 CreateMutation(HydraManager_, request)
@@ -1323,7 +1332,17 @@ private:
             return;
         }
 
-        if (!IsParticipantResponseSuccessful(commit, participant, error)) {
+        if (IsParticipantResponseSuccessful(commit, participant, error)) {
+            LOG_DEBUG("Coordinator observes participant success "
+                "(TransactionId: %v, ParticipantCellId: %v, State: %v)",
+                commit->GetTransactionId(),
+                participantCellId,
+                state);
+
+            // NB: Duplicates are fine.
+            commit->RespondedCellIds().insert(participantCellId);
+            CheckAllParticipantsResponded(commit);
+        } else {
             switch (state) {
                 case ECommitState::Prepare: {
                     LOG_DEBUG(error, "Coordinator observes participant failure; will abort "
@@ -1333,11 +1352,7 @@ private:
                         state);
                     auto wrappedError = TError("Participant %v has failed to prepare", participantCellId)
                         << error;
-                    NHiveServer::NProto::TReqCoordinatorAbortDistributedTransactionPhaseTwo request;
-                    ToProto(request.mutable_transaction_id(), transactionId);
-                    ToProto(request.mutable_error(), wrappedError);
-                    CreateMutation(HydraManager_, request)
-                        ->CommitAndLog(Logger);
+                    ChangeCommitTransientState(commit, ECommitState::Aborting, wrappedError);
                     break;
                 }
 
@@ -1361,16 +1376,6 @@ private:
             }
             return;
         }
-
-        LOG_DEBUG("Coordinator observes participant success "
-            "(TransactionId: %v, ParticipantCellId: %v, State: %v)",
-            commit->GetTransactionId(),
-            participantCellId,
-            state);
-
-        // NB: Duplicates are fine.
-        commit->RespondedCellIds().insert(participantCellId);
-        CheckAllParticipantsResponded(commit);
     }
 
     void CheckAllParticipantsResponded(TCommit* commit)
@@ -1385,14 +1390,14 @@ private:
     {
         switch (state) {
             case ECommitState::Prepare:
-                return ECommitState::GenerateCommitTimestamp;
+                return ECommitState::GeneratingCommitTimestamp;
 
-            case ECommitState::GenerateCommitTimestamp:
+            case ECommitState::GeneratingCommitTimestamp:
                 return ECommitState::Commit;
 
             case ECommitState::Commit:
             case ECommitState::Abort:
-                return ECommitState::Finish;
+                return ECommitState::Finishing;
 
             default:
                 Y_UNREACHABLE();

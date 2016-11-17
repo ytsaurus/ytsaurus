@@ -19,12 +19,13 @@ namespace NHiveServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ECommitState,
-    (Start)
-    (Prepare)
-    (GenerateCommitTimestamp) // transient only
-    (Commit)
-    (Abort)
-    (Finish)                  // transient only
+    ((Start)                    (0))
+    ((Prepare)                  (1))
+    ((GeneratingCommitTimestamp)(2)) // transient only
+    ((Commit)                   (3))
+    ((Aborting)                 (4)) // transient only
+    ((Abort)                    (5))
+    ((Finishing)                (6)) // transient only
 );
 
 class TCommit
