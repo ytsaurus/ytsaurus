@@ -94,9 +94,6 @@ fi
 
 # Build and upload debian package if necessary
 if [ -n "$REPOS_TO_UPLOAD" ] || [ -n "$FORCE_BUILD" ]; then
-    if [ "$PACKAGE" != "yandex-yt-python" ]; then
-        DEB=1 python setup.py sdist --dist-dir=../
-    fi
     # NB: Never strip binaries and so-libraries.
     DEB_STRIP_EXCLUDE=".*" DEB=1 dpkg-buildpackage -i -I -rfakeroot
 
