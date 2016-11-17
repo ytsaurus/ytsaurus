@@ -97,7 +97,9 @@ void ScanOpHelper(
     auto& reader = context->Reader;
 
     std::vector<TRow> rows;
-    rows.reserve(RowsetProcessingSize);
+    rows.reserve(context->IsOrdered && context->Limit < RowsetProcessingSize
+        ? context->Limit
+        : RowsetProcessingSize);
 
     auto* statistics = context->Statistics;
 

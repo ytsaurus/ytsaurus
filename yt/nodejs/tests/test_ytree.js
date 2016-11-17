@@ -156,6 +156,22 @@ describe("yson conversion specifics", function() {
             binding.CreateV8Node("json"));
         node.Get().should.eql({ a : 0, b : 1 });
     });
+
+    it("should support base64-encoded lists 1", function() {
+        var node = new binding.TNodeWrap(
+            ["eyJhIjowLCJiIjoxfQ=="],
+            binding.ECompression_None,
+            binding.CreateV8Node("json"));
+        node.Get().should.eql({ a : 0, b : 1 });
+    });
+
+    it("should support base64-encoded lists 2", function() {
+        var node = new binding.TNodeWrap(
+            ["e", "y", "J", "h", "I", "j", "o", "w", "L", "C", "J", "i", "I", "j", "o", "x", "f", "Q", "=", "="],
+            binding.ECompression_None,
+            binding.CreateV8Node("json"));
+        node.Get().should.eql({ a : 0, b : 1 });
+    });
 });
 
 describe("ytree & ypath", function() {

@@ -637,6 +637,7 @@ private:
                             "async_scheduler_transaction_id",
                             "input_transaction_id",
                             "output_transaction_id",
+                            "debug_output_transaction_id",
                             "spec",
                             "authenticated_user",
                             "start_time",
@@ -819,6 +820,14 @@ private:
             attributes.Get<TTransactionId>("output_transaction_id"),
             true,
             "OutputTransaction");
+
+        // COMPAT. We use NullTransactionId as default value for the transition period.
+        // Once all clusters are updated to version that creates debug_output transaction
+        // this default value can be removed as in other transactions above.
+        result.ControllerTransactions->DebugOutput = getTransaction(
+            attributes.Get<TTransactionId>("debug_output_transaction_id", NullTransactionId),
+            true,
+            "DebugOutputTransaction");
 
         auto spec = attributes.Get<INodePtr>("spec")->AsMap();
         TOperationSpecBasePtr operationSpec;

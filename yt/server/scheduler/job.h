@@ -171,6 +171,7 @@ struct TAbortedJobSummary
 {
     explicit TAbortedJobSummary(const TJobPtr& job);
     TAbortedJobSummary(const TJobId& id, EAbortReason abortReason);
+    TAbortedJobSummary(const TJobSummary& other, EAbortReason abortReason);
 
     const EAbortReason AbortReason;
 };

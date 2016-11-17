@@ -42,6 +42,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/guid_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hash_filter_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/heap_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/histogram_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hyperloglog_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/intrusive_ptr_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/integer_column_ut.cpp
@@ -131,10 +132,8 @@ set( SRCS
 
 protoc( ${CMAKE_CURRENT_LIST_DIR}/rpc_ut.proto SRCS )
 
-udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/sum_udf2.c SRCS )
 udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/malloc_udf.c SRCS )
-udf_bc(
-  ${CMAKE_CURRENT_LIST_DIR}/udf/test_udfs.c
+udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/test_udfs.c
   SRCS
   SYMBOLS
     seventyfive
@@ -149,18 +148,6 @@ udf_bc(
     avg_udaf_update
     avg_udaf_merge
     avg_udaf_finalize
-)
-udf_o(
-  ${CMAKE_CURRENT_LIST_DIR}/udf/test_udfs_o.c
-  SRCS
-  SYMBOLS
-    abs_udf
-    abs_udf_o
-    exp_udf
-    max_udaf_init
-    max_udaf_update
-    max_udaf_merge
-    max_udaf_finalize
 )
 
 if(MSVC)

@@ -58,7 +58,7 @@ void TUserJobIOBase::Init()
     });
 
     auto transactionId = FromProto<TTransactionId>(SchedulerJobSpec_.output_transaction_id());
-    for (const auto& outputSpec : SchedulerJobSpec_.output_specs()) {
+    for (const auto& outputSpec : SchedulerJobSpec_.output_table_specs()) {
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
         options->ValidateDuplicateIds = true;
         options->ValidateRowWeight = true;
@@ -115,7 +115,7 @@ void TUserJobIOBase::CreateReader()
 
 TSchemalessReaderFactory TUserJobIOBase::GetReaderFactory()
 {
-    for (const auto& inputSpec : SchedulerJobSpec_.input_specs()) {
+    for (const auto& inputSpec : SchedulerJobSpec_.input_table_specs()) {
         for (const auto& dataSliceDescriptor : inputSpec.data_slice_descriptors()) {
             for (const auto& chunkSpec : dataSliceDescriptor.chunks()) {
                 if (chunkSpec.has_channel() && !FromProto<NChunkClient::TChannel>(chunkSpec.channel()).IsUniversal()) {
@@ -204,7 +204,7 @@ ISchemalessMultiChunkReaderPtr TUserJobIOBase::CreateRegularReader(
     const TColumnFilter& columnFilter)
 {
     std::vector<TDataSliceDescriptor> dataSliceDescriptors;
-    for (const auto& inputSpec : SchedulerJobSpec_.input_specs()) {
+    for (const auto& inputSpec : SchedulerJobSpec_.input_table_specs()) {
         for (const auto& descriptor : inputSpec.data_slice_descriptors()) {
             auto dataSliceDescriptor = FromProto<TDataSliceDescriptor>(descriptor);
             dataSliceDescriptors.push_back(std::move(dataSliceDescriptor));
@@ -212,7 +212,7 @@ ISchemalessMultiChunkReaderPtr TUserJobIOBase::CreateRegularReader(
     }
 
     auto options = ConvertTo<TTableReaderOptionsPtr>(TYsonString(
-        SchedulerJobSpec_.input_specs(0).table_reader_options()));
+        SchedulerJobSpec_.input_table_specs(0).table_reader_options()));
 
     return CreateTableReader(options, std::move(dataSliceDescriptors), std::move(nameTable), columnFilter, isParallel);
 }

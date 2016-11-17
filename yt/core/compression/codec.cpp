@@ -1,4 +1,5 @@
 #include "codec.h"
+#include "bzip2.h"
 #include "details.h"
 #include "lz.h"
 #include "lzma.h"
@@ -348,6 +349,41 @@ private:
     const int Level_;
 };
 
+class TBzip2Codec
+    : public TCodecBase<TBzip2Codec>
+{
+public:
+    TBzip2Codec(int level)
+        : Level_(level)
+    { }
+
+    void DoCompress(StreamSource* source, TBlob* output)
+    {
+        NCompression::Bzip2Compress(Level_, source, output);
+    }
+
+    void DoDecompress(StreamSource* source, TBlob* output)
+    {
+        NCompression::Bzip2Decompress(source, output);
+    }
+
+    virtual ECodec GetId() const override
+    {
+        switch (Level_) {
+
+#define CASE(level) case level: return PP_CONCAT(ECodec::Bzip2_, level);
+            PP_FOR_EACH(CASE, (1)(2)(3)(4)(5)(6)(7)(8)(9))
+#undef CASE
+
+            default:
+                Y_UNREACHABLE();
+        }
+    }
+
+private:
+    const int Level_;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 ICodec* GetCodec(ECodec id)
@@ -400,6 +436,10 @@ ICodec* GetCodec(ECodec id)
 
 #define CODEC Lzma
         PP_FOR_EACH(CASE, (0)(1)(2)(3)(4)(5)(6)(7)(8)(9))
+#undef CODEC
+
+#define CODEC Bzip2
+        PP_FOR_EACH(CASE, (1)(2)(3)(4)(5)(6)(7)(8)(9))
 #undef CODEC
 
 #define CODEC Zstd

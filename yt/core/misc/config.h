@@ -64,7 +64,7 @@ class TExpiringCacheConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
-    //! Time since last Get() after which an entry is removed.
+    //! Time since last finished Get() after which an entry is removed.
     TDuration ExpireAfterAccessTime;
 
     //! Time since last update, if succeeded, after which an entry is removed.

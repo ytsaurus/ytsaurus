@@ -1,7 +1,5 @@
 package NYT.NTableClient.NProto;
 
-import "yt/ytlib/chunk_client/chunk_meta.proto";
-
 import "yt/ytlib/table_chunk_format/column_meta.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -78,7 +76,8 @@ message TSamplesExt
 
 message TPartitionsExt
 {
-    repeated NChunkClient.NProto.TSizeOverrideExt partitions = 1;
+    repeated int64 row_counts = 1;
+    repeated int64 uncompressed_data_sizes = 2;
 }
 
 message TKeyColumnsExt

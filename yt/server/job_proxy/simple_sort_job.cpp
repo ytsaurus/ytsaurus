@@ -44,8 +44,8 @@ public:
         auto keyColumns = FromProto<TKeyColumns>(SortJobSpecExt_.key_columns());
         auto nameTable = TNameTable::FromKeyColumns(keyColumns);
 
-        YCHECK(SchedulerJobSpecExt_.input_specs_size() == 1);
-        const auto& inputSpec = SchedulerJobSpecExt_.input_specs(0);
+        YCHECK(SchedulerJobSpecExt_.input_table_specs_size() == 1);
+        const auto& inputSpec = SchedulerJobSpecExt_.input_table_specs(0);
         auto dataSliceDescriptors = FromProto<std::vector<TDataSliceDescriptor>>(inputSpec.data_slice_descriptors());
         auto readerOptions = ConvertTo<NTableClient::TTableReaderOptionsPtr>(TYsonString(inputSpec.table_reader_options()));
         TotalRowCount_ = GetCumulativeRowCount(dataSliceDescriptors);
@@ -63,7 +63,7 @@ public:
         Reader_ = CreateSchemalessSortingReader(reader, nameTable, keyColumns);
 
         auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
-        const auto& outputSpec = SchedulerJobSpecExt_.output_specs(0);
+        const auto& outputSpec = SchedulerJobSpecExt_.output_table_specs(0);
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
         auto schema = FromProto<TTableSchema>(outputSpec.table_schema());

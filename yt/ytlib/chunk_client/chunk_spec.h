@@ -27,13 +27,6 @@ bool IsUnavailable(
     NErasure::ECodec codecId,
     bool checkParityParts = false);
 
-//! Extracts various chunk statistics by first looking at
-//! TSizeOverrideExt (if present) and then at TMiscExt.
-void GetStatistics(
-    const NProto::TChunkMeta& meta,
-    i64* dataSize = nullptr,
-    i64* rowCount = nullptr);
-
 i64 GetCumulativeRowCount(const std::vector<NProto::TChunkSpec>& chunkSpecs);
 
 ////////////////////////////////////////////////////////////////////////////////

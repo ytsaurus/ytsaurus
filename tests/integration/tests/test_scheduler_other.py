@@ -315,6 +315,35 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         assert self._get_metric_maximum_value("resource_demand/cpu", "unique_pool") == 1
         assert self._get_metric_maximum_value("resource_demand/user_slots", "unique_pool") == 1
 
+    def test_suspend_resume(self):
+        self._create_table("//tmp/t_in")
+        self._create_table("//tmp/t_out")
+        write_table("//tmp/t_in", [{"foo": i} for i in xrange(10)])
+
+        op = map(
+            dont_track=True,
+            command="sleep 1; cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"data_size_per_job": 1})
+
+        for i in xrange(5):
+            time.sleep(0.5)
+            op.suspend(abort_running_jobs=True)
+            time.sleep(0.5)
+            op.resume()
+
+        for i in xrange(5):
+            op.suspend()
+            op.resume()
+
+        for i in xrange(5):
+            op.suspend(abort_running_jobs=True)
+            op.resume()
+
+        op.track()
+
+        assert sorted(read_table("//tmp/t_out")) == [{"foo": i} for i in xrange(10)]
 
 class TestSchedulerFunctionality2(YTEnvSetup, PrepareTables):
     NUM_MASTERS = 3

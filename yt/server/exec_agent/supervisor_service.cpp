@@ -74,13 +74,19 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, OnJobFinished)
 
     job->SetResult(result);
 
+    auto statistics = TJobStatistics().Error(error);
     if (request->has_statistics()) {
-        job->SetStatistics(TYsonString(request->statistics()));
+        auto ysonStatistics = TYsonString(request->statistics());
+        job->SetStatistics(ysonStatistics);
+        statistics.SetStatistics(ysonStatistics);
     }
-    job->ReportStatistics(
-        request->has_start_time() ? FromProto<TInstant>(request->start_time()) : TNullable<TInstant>{},
-        request->has_finish_time() ? FromProto<TInstant>(request->finish_time()) : TNullable<TInstant>{},
-        error);
+    if (request->has_start_time()) {
+        statistics.SetStartTime(FromProto<TInstant>(request->start_time()));
+    }
+    if (request->has_finish_time()) {
+        statistics.SetFinishTime(FromProto<TInstant>(request->finish_time()));
+    }
+    job->ReportStatistics(std::move(statistics));
 
     context->Reply();
 }

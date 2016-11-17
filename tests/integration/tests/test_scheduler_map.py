@@ -2779,6 +2779,12 @@ class TestJobSizeManager(YTEnvSetup):
         expected = [{"lines": str(2**i)} for i in xrange(5)]
         actual = read_table("//tmp/t_output")
         assert_items_equal(actual, expected)
+        estimated = get("//sys/operations/{0}/@progress/estimated_input_data_size_histogram".format(op.id))
+        histogram = get("//sys/operations/{0}/@progress/input_data_size_histogram".format(op.id))
+        assert estimated == histogram
+        assert histogram["max"]/histogram["min"] == 16
+        assert histogram["count"][0] == 1
+        assert sum(histogram["count"]) == 5
 
     def test_map_job_size_manager_max_limit(self):
         create("table", "//tmp/t_input")

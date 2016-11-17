@@ -22,7 +22,7 @@ TChunkTreeBalancer::TChunkTreeBalancer(
 
 bool TChunkTreeBalancer::IsRebalanceNeeded(TChunkList* root)
 {
-    if (!root->Parents().empty()) {
+    if (!root->Parents().Empty()) {
         return false;
     }
 
