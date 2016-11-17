@@ -144,7 +144,8 @@ void ParseFromStream(TInputStream* stream, Message& row, ui32 length)
     TCopyingInputStreamAdaptor adaptor(&input);
     CodedInputStream codedStream(&adaptor);
     codedStream.SetTotalBytesLimit(length + 1, length + 1);
-    row.ParseFromCodedStream(&codedStream);
+    bool parsedOk = row.ParseFromCodedStream(&codedStream);
+    Y_ENSURE(parsedOk, "Failed to parse protobuf message");
 
     Y_ENSURE(input.Left() == 0);
 }
