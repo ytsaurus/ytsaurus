@@ -1037,7 +1037,7 @@ void ValidatePivotKey(const TOwningKey& pivotKey, const TTableSchema& schema)
     }
 
     for (int index = 0; index < pivotKey.GetCount(); ++index) {
-        if (pivotKey[index].Type != schema.Columns()[index].Type) {
+        if (pivotKey[index].Type != EValueType::Null && pivotKey[index].Type != schema.Columns()[index].Type) {
             THROW_ERROR_EXCEPTION(
                 "Mismatched type of column %Qv in pivot key: expected %Qlv, found %Qlv",
                 schema.Columns()[index].Name,
