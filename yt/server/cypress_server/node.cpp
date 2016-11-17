@@ -152,7 +152,7 @@ void TCypressNodeBase::Load(TLoadContext& context)
         Load(context, AccountingEnabled_);
     }
     // COMPAT(babenko)
-    if (context.GetVersion() < 212) {
+    if (context.GetVersion() < 500) {
         YCHECK(TSizeSerializer::Load(context) == 0);
         YCHECK(TSizeSerializer::Load(context) == 0);
         YCHECK(TSizeSerializer::Load(context) == 0);
