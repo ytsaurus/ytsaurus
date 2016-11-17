@@ -42,7 +42,12 @@ void TClusterResources::Save(NCellMaster::TSaveContext& context) const
 void TClusterResources::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
-    Load(context, DiskSpace);
+    // COMPAT(shakurov)
+    if (context.GetVersion() < 500) {
+        DiskSpace[DefaultMediumIndex] = Load<i64>(context);
+    } else {
+        Load(context, DiskSpace);
+    }
     Load(context, NodeCount);
     Load(context, ChunkCount);
 }
