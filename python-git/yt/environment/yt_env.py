@@ -140,7 +140,7 @@ class YTInstance(object):
         self._ytserver_version_long = _get_ytserver_version()
         logger.info("Logging started (ytserver version: %s)", self._ytserver_version_long)
 
-        self._ytserver_version = self._ytserver_version_long.split("-", 1)[0].strip()
+        self.ytserver_version = self._ytserver_version_long.split("-", 1)[0].strip()
 
         self.master_count = master_count
         self.nonvoting_master_count = nonvoting_master_count
@@ -199,7 +199,7 @@ class YTInstance(object):
 
     def _prepare_environment(self, jobs_memory_limit, jobs_cpu_limit, jobs_user_slot_count,
                              node_memory_limit_addition, port_range_start, proxy_port, modify_configs_func):
-        if self.secondary_master_cell_count > 0 and versions_cmp(self._ytserver_version, "0.18") < 0:
+        if self.secondary_master_cell_count > 0 and versions_cmp(self.ytserver_version, "0.18") < 0:
             raise YtError("Multicell is not supported for ytserver version < 0.18")
 
         logger.info("Preparing cluster instance as follows:")
@@ -217,7 +217,7 @@ class YTInstance(object):
             logger.warning("Master count is equal to zero. Instance is not prepared.")
             return
 
-        configs_provider = create_configs_provider(self._ytserver_version)
+        configs_provider = create_configs_provider(self.ytserver_version)
 
         provision = get_default_provision()
         provision["master"]["cell_size"] = self.master_count
@@ -249,7 +249,7 @@ class YTInstance(object):
             provision)
 
         if modify_configs_func:
-            modify_configs_func(cluster_configuration, self._ytserver_version)
+            modify_configs_func(cluster_configuration, self.ytserver_version)
 
         self._cluster_configuration = cluster_configuration
 
@@ -718,7 +718,7 @@ class YTInstance(object):
         nodejs_binary_path = _find_nodejs()
 
         proxy_version = _get_proxy_version(nodejs_binary_path, proxy_binary_path)[:2]  # major, minor
-        ytserver_version = list(imap(int, self._ytserver_version.split(".")))[:2]
+        ytserver_version = list(imap(int, self.ytserver_version.split(".")))[:2]
         if proxy_version and proxy_version != ytserver_version:
             raise YtError("Proxy version does not match ytserver version. "
                           "Expected: {0}.{1}, actual: {2}.{3}".format(*(ytserver_version + proxy_version)))
