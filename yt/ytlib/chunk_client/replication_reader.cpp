@@ -412,7 +412,7 @@ protected:
         const TWorkloadDescriptor& workloadDescriptor)
         : Reader_(reader)
         , Config_(reader->Config_)
-        , WorkloadDescriptor_(workloadDescriptor.SetCurrentInstant())
+        , WorkloadDescriptor_(Config_->EnableWorkloadFifoScheduling ? workloadDescriptor.SetCurrentInstant() : workloadDescriptor)
         , NodeDirectory_(reader->NodeDirectory_)
         , Networks_(reader->Networks_)
     {
