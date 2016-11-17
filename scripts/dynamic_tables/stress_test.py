@@ -154,8 +154,6 @@ class Schema():
         return self.data_columns
     def yson(self):
         return [c.yson() for c in self.columns]
-    def generate_pivot_key(self):
-        return [c.generate_value() for c in self.key_columns]
     def generate_key(self):
         return self.generate_row_from_schema(self.key_columns)
     def generate_data(self):
@@ -167,6 +165,8 @@ class Schema():
             result = {c.name: c.generate_value() for c in columns if random.random() < self.appearance_probability}
             if len(result) > 0:
                 return result
+    def generate_pivot_key(self):
+        return [c.generate_value() if random.random() < self.appearance_probability else None for c in self.key_columns]
 
 class SchemafulMapper(object):
     def __init__(self, schema, table):
