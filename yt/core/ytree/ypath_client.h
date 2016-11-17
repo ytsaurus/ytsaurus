@@ -133,7 +133,7 @@ protected:
     typedef ::NYT::TIntrusivePtr<TRsp##method> TRsp##method##Ptr; \
     typedef ::NYT::TErrorOr<TRsp##method##Ptr> TErrorOrRsp##method##Ptr; \
     \
-    static TReq##method##Ptr method(const NYT::NYPath::TYPath& path = "") \
+    static TReq##method##Ptr method(const NYT::NYPath::TYPath& path = NYT::NYPath::TYPath()) \
     { \
         return New<TReq##method>(GetServiceName(), #method, path, isMutating); \
     }
