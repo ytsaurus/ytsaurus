@@ -9,6 +9,7 @@ import yt.yson as yson
 import yt.json as json
 
 from yt.packages.six.moves import map as imap, filter as ifilter
+from yt.packages.six import iteritems
 
 import yt.wrapper as yt
 
@@ -157,17 +158,21 @@ def _safe_kill(pid):
             # (EINVAL, EPERM, ESRCH)
             raise
 
-def _initialize_world(client, cluster_connection, wait_tablet_cell_initialization):
+def _initialize_world(client, cluster_connection, wait_tablet_cell_initialization,
+                      ytserver_version):
     initialize_world(client)
-    # Create tablet cell.
+    # Create tablet cell and wait for its initialization
     attributes = {
         "changelog_replication_factor": 1,
         "changelog_read_quorum": 1,
         "changelog_write_quorum": 1
     }
+    if ytserver_version >= "19.0":
+        client.set("//sys/tablet_cell_bundles/default/@options", attributes)
+        attributes.clear()
     tablet_cell_id = client.create("tablet_cell", attributes=attributes)
     if wait_tablet_cell_initialization:
-        logger.info("Waiting tablet cell initialization...")
+        logger.info("Waiting for tablet cell initialization...")
         while client.get("//sys/tablet_cells/{0}/@health".format(tablet_cell_id)) != "good":
             time.sleep(0.3)
         logger.info("Tablet cell is ready")
@@ -258,7 +263,8 @@ def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=
         if not environment._load_existing_environment:
             client = environment.create_client()
 
-            _initialize_world(client, environment.configs["driver"], wait_tablet_cell_initialization)
+            _initialize_world(client, environment.configs["driver"],
+                              wait_tablet_cell_initialization, environment.ytserver_version)
             if local_cypress_dir is not None:
                 _synchronize_cypress_with_local_dir(local_cypress_dir, client)
 
