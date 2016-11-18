@@ -1426,11 +1426,12 @@ void TOperationControllerBase::InitializeTransactions()
 }
 
 ITransactionPtr TOperationControllerBase::StartTransaction(
-    const Stroka& transactionName,
+    ETransactionType type,
     IClientPtr client,
-    const TTransactionId& parentTransactionId = NullTransactionId)
+    const TTransactionId& parentTransactionId)
 {
-    LOG_INFO("Starting %v transaction", transactionName);
+    LOG_INFO("Starting transaction (Type: %v)",
+        type);
 
     TTransactionStartOptions options;
     options.AutoAbort = false;
@@ -1438,7 +1439,9 @@ ITransactionPtr TOperationControllerBase::StartTransaction(
     auto attributes = CreateEphemeralAttributes();
     attributes->Set(
         "title",
-        Format("Scheduler %v for operation %v", transactionName, OperationId));
+        Format("Scheduler %Qlv transaction for operation %v",
+            type,
+            OperationId));
     attributes->Set("operation_id", OperationId);
     if (Spec->Title) {
         attributes->Set("operation_title", Spec->Title);
@@ -1451,57 +1454,53 @@ ITransactionPtr TOperationControllerBase::StartTransaction(
         client->StartTransaction(NTransactionClient::ETransactionType::Master, options));
     THROW_ERROR_EXCEPTION_IF_FAILED(
         transactionOrError,
-        "Error starting %v transaction",
-        transactionName);
+        "Error starting %Qlv transaction",
+        type);
     auto transaction = transactionOrError.Value();
+
+    LOG_INFO("Transaction started (Type: %v, TransactionId: %v)",
+        type,
+        transaction->GetId());
 
     return transaction;
 }
 
 void TOperationControllerBase::StartSyncSchedulerTransaction()
 {
-    SyncSchedulerTransaction = StartTransaction("sync", AuthenticatedMasterClient, UserTransactionId);
-
-    LOG_INFO("Scheduler sync transaction started (SyncTransactionId: %v)",
-        SyncSchedulerTransaction->GetId());
+    SyncSchedulerTransaction = StartTransaction(
+        ETransactionType::Sync,
+        AuthenticatedMasterClient,
+        UserTransactionId);
 }
 
 void TOperationControllerBase::StartAsyncSchedulerTransaction()
 {
-    AsyncSchedulerTransaction = StartTransaction("async", AuthenticatedMasterClient);
-
-    LOG_INFO("Scheduler async transaction started (AsyncTransactionId: %v)",
-        AsyncSchedulerTransaction->GetId());
+    AsyncSchedulerTransaction = StartTransaction(
+        ETransactionType::Async,
+        AuthenticatedMasterClient);
 }
 
 void TOperationControllerBase::StartInputTransaction(const TTransactionId& parentTransactionId)
 {
     InputTransaction = StartTransaction(
-        "input",
+        ETransactionType::Input,
         AuthenticatedInputMasterClient,
         parentTransactionId);
-
-    LOG_INFO("Input transaction started (InputTransactionId: %v)",
-        InputTransaction->GetId());
 }
 
 void TOperationControllerBase::StartOutputTransaction(const TTransactionId& parentTransactionId)
 {
     OutputTransaction = StartTransaction(
-        "output",
+        ETransactionType::Output,
         AuthenticatedOutputMasterClient,
         parentTransactionId);
-
-    LOG_INFO("Output transaction started (OutputTransactionId: %v)",
-        OutputTransaction->GetId());
 }
 
 void TOperationControllerBase::StartDebugOutputTransaction()
 {
-    DebugOutputTransaction = StartTransaction("debug_output", AuthenticatedMasterClient);
-
-    LOG_INFO("Debug output transaction started (DebugOutputTransactionId: %v)",
-        DebugOutputTransaction->GetId());
+    DebugOutputTransaction = StartTransaction(
+        ETransactionType::DebugOutput,
+        AuthenticatedMasterClient);
 }
 
 void TOperationControllerBase::PickIntermediateDataCell()
