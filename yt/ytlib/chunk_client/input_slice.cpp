@@ -10,6 +10,8 @@
 
 #include <yt/core/erasure/codec.h>
 
+#include <yt/core/misc/numeric_helpers.h>
+
 #include <cmath>
 
 namespace NYT {
@@ -250,7 +252,7 @@ std::vector<TInputSlicePtr> TInputSlice::SliceEvenly(i64 sliceDataSize, i64 slic
                 *this,
                 sliceLowerRowIndex,
                 sliceUpperRowIndex,
-                NScheduler::DivCeil(GetDataSize(), count)));
+                DivCeil(GetDataSize(), count)));
         }
     }
     return result;
