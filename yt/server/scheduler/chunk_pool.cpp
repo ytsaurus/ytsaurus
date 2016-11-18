@@ -13,6 +13,8 @@
 
 #include <yt/ytlib/object_client/helpers.h>
 
+#include <yt/core/misc/numeric_helpers.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -988,7 +990,7 @@ private:
         YCHECK(freePendingJobCount > 0);
         return std::max(
             static_cast<i64>(1),
-            DivCeil(FreePendingDataSize + SuspendedDataSize, freePendingJobCount));
+            DivCeil<i64>(FreePendingDataSize + SuspendedDataSize, freePendingJobCount));
     }
 
     void UpdateJobCounter()
