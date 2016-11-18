@@ -714,6 +714,8 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
                 if format_name == "yson":
                     return row.endswith(b"#;")
                 elif format_name == "json":
+                    if "$value" not in row:
+                        return False
                     loaded_row = json.loads(row)
                     return "$value" in loaded_row and loaded_row["$value"] is None
                 else:
