@@ -160,23 +160,33 @@ class YTInstance(object):
         self._lock = RLock()
 
         self.path = os.path.abspath(path)
+        self.logs_path = os.path.abspath(os.path.join(self.path, "logs"))
+        self.configs_path = os.path.abspath(os.path.join(self.path, "configs"))
+        self.runtime_data_path = os.path.abspath(os.path.join(self.path, "runtime_data"))
         self.pids_filename = os.path.join(self.path, "pids.txt")
 
         self.configs = defaultdict(list)
         self.config_paths = defaultdict(list)
         self.log_paths = defaultdict(list)
 
+        self.master_logs_dir = os.path.join(self.logs_path, "master")
+        self.scheduler_logs_dir = os.path.join(self.logs_path, "scheduler")
+        self.node_logs_dir = os.path.join(self.logs_path, "node")
+        self.proxy_logs_dir = os.path.join(self.logs_path, "proxy")
+
         self._load_existing_environment = False
         if os.path.exists(self.path):
             if not preserve_working_dir:
                 shutil.rmtree(self.path, ignore_errors=True)
-                makedirp(self.path)
             else:
                 self._load_existing_environment = True
 
         makedirp(self.path)
+        makedirp(self.logs_path)
+        makedirp(self.configs_path)
+        makedirp(self.runtime_data_path)
 
-        self._stderrs_path = os.path.join(self.path, "stderrs")
+        self._stderrs_path = os.path.join(self.logs_path, "stderrs")
         makedirp(self._stderrs_path)
         self._stderr_paths = defaultdict(list)
 
@@ -242,7 +252,7 @@ class YTInstance(object):
 
         for cell_index in xrange(self.secondary_master_cell_count + 1):
             name = self._get_master_name("master", cell_index)
-            master_dirs.append([os.path.join(self.path, name, str(i)) for i in xrange(self.master_count)])
+            master_dirs.append([os.path.join(self.runtime_data_path, name, str(i)) for i in xrange(self.master_count)])
             for dir_ in master_dirs[cell_index]:
                 makedirp(dir_)
 
@@ -251,16 +261,21 @@ class YTInstance(object):
                 for dir_ in master_tmpfs_dirs[cell_index]:
                     makedirp(dir_)
 
-        scheduler_dirs = [os.path.join(self.path, "scheduler", str(i)) for i in xrange(self.scheduler_count)]
+        scheduler_dirs = [os.path.join(self.runtime_data_path, "scheduler", str(i)) for i in xrange(self.scheduler_count)]
         for dir_ in scheduler_dirs:
             makedirp(dir_)
 
-        node_dirs = [os.path.join(self.path, "node", str(i)) for i in xrange(self.node_count)]
+        node_dirs = [os.path.join(self.runtime_data_path, "node", str(i)) for i in xrange(self.node_count)]
         for dir_ in node_dirs:
             makedirp(dir_)
 
-        proxy_dir = os.path.join(self.path, "proxy")
+        proxy_dir = os.path.join(self.runtime_data_path, "proxy")
         makedirp(proxy_dir)
+
+        makedirp(self.master_logs_dir)
+        makedirp(self.scheduler_logs_dir)
+        makedirp(self.node_logs_dir)
+        makedirp(self.proxy_logs_dir)
 
         return master_dirs, master_tmpfs_dirs, scheduler_dirs, node_dirs, proxy_dir
 
@@ -307,9 +322,13 @@ class YTInstance(object):
             self._get_ports_generator(port_range_start),
             master_dirs,
             master_tmpfs_dirs,
+            self.master_logs_dir,
             scheduler_dirs,
+            self.scheduler_logs_dir,
             node_dirs,
+            self.node_logs_dir,
             proxy_dir,
+            self.proxy_logs_dir,
             provision)
 
         if modify_configs_func:
@@ -532,7 +551,7 @@ class YTInstance(object):
                         handle.write(str(os.getpid()))
                         handle.write("\n")
 
-            p = subprocess.Popen(args, shell=False, close_fds=True, preexec_fn=preexec, cwd=self.path,
+            p = subprocess.Popen(args, shell=False, close_fds=True, preexec_fn=preexec, cwd=self.runtime_data_path,
                                  stdout=stdout, stderr=stderr)
 
             time.sleep(timeout)
@@ -596,7 +615,8 @@ class YTInstance(object):
                 cell_tag = master_configs["secondary_cell_tags"][cell_index - 1]
 
             for master_index in xrange(self.master_count):
-                config_path = os.path.join(master_dirs[cell_index][master_index], "master_config.yson")
+                master_config_name = "master-" + str(cell_index) + "-" + str(master_index) + "-config.yson"
+                config_path = os.path.join(self.configs_path, master_config_name)
                 if self._load_existing_environment:
                     if not os.path.isfile(config_path):
                         raise YtError("Master config {0} not found. It is possible that you requested "
@@ -667,7 +687,8 @@ class YTInstance(object):
 
     def _prepare_nodes(self, node_configs, node_dirs):
         for node_index in xrange(self.node_count):
-            config_path = os.path.join(node_dirs[node_index], "node_config.yson")
+            node_config_name = "node-" + str(node_index) + "-config.yson"
+            config_path = os.path.join(self.configs_path, node_config_name)
             if self._load_existing_environment:
                 if not os.path.isfile(config_path):
                     raise YtError("Node config {0} not found. It is possible that you requested "
@@ -694,7 +715,8 @@ class YTInstance(object):
 
     def _prepare_schedulers(self, scheduler_configs, scheduler_dirs):
         for scheduler_index in xrange(self.scheduler_count):
-            config_path = os.path.join(scheduler_dirs[scheduler_index], "scheduler_config.yson")
+            scheduler_config_name = "scheduler-" + str(scheduler_index) + "-config.yson"
+            config_path = os.path.join(self.configs_path, scheduler_config_name)
             if self._load_existing_environment:
                 if not os.path.isfile(config_path):
                     raise YtError("Scheduler config {0} not found. It is possible that you requested "
@@ -788,7 +810,7 @@ class YTInstance(object):
                 tag = master_configs["secondary_cell_tags"][cell_index - 1]
                 name = "driver_secondary_" + str(cell_index - 1)
 
-            config_path = os.path.join(self.path, name + ".yson")
+            config_path = os.path.join(self.configs_path, name + ".yson")
             if self._load_existing_environment:
                 if not os.path.isfile(config_path):
                     raise YtError("Driver config {0} not found".format(config_path))
@@ -800,8 +822,7 @@ class YTInstance(object):
             self.configs[name] = config
             self.config_paths[name] = config_path
 
-        self.driver_logging_config = init_logging(None,
-            self.path, "driver", self._enable_debug_logging)
+        self.driver_logging_config = init_logging(None, self.logs_path, "driver", self._enable_debug_logging)
 
     def _prepare_console_driver(self):
         config = {}
@@ -817,7 +838,7 @@ class YTInstance(object):
         self.log_paths["console_driver"].append(config["logging"]["writers"]["info"]["file_name"])
 
     def _prepare_proxy(self, proxy_config, ui_config, proxy_dir):
-        config_path = os.path.join(proxy_dir, "proxy_config.json")
+        config_path = os.path.join(self.configs_path, "proxy_config.json")
         if self._load_existing_environment:
             if not os.path.isfile(config_path):
                 raise YtError("Proxy config {0} not found".format(config_path))
@@ -828,7 +849,7 @@ class YTInstance(object):
 
         self.configs["proxy"] = config
         self.config_paths["proxy"] = config_path
-        self.log_paths["proxy"] = os.path.join(proxy_dir, "http_application.log")
+        self.log_paths["proxy"] = _config_safe_get(config, config_path, "logging/filename")
 
         # UI configuration
         web_interface_resources_path = os.environ.get("YT_LOCAL_THOR_PATH", "/usr/share/yt-thor")
@@ -837,7 +858,7 @@ class YTInstance(object):
                            "Try to install yandex-yt-web-interface or set YT_LOCAL_THOR_PATH.")
             return
 
-        ui_config_path = os.path.join(proxy_dir, "ui", "config.js")
+        ui_config_path = os.path.join(self.configs_path, "ui_config.js")
         if not self._load_existing_environment:
             shutil.copytree(web_interface_resources_path, os.path.join(proxy_dir, "ui"))
             write_config(ui_config, ui_config_path, format=None)

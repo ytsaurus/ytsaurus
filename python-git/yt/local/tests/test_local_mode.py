@@ -18,6 +18,7 @@ import yt.json as json
 import os
 import sys
 import pytest
+import shutil
 import tempfile
 import signal
 import contextlib
@@ -122,6 +123,51 @@ class TestLocalMode(object):
             os.environ["YT_LOCAL_USE_PROXY_FROM_SOURCE"] = \
                     cls.old_yt_local_use_proxy_from_source
         del os.environ["YT_LOCAL_PORT_LOCKS_PATH"]
+
+    def test_logging(self):
+        path = os.environ.get("YT_LOCAL_ROOT_PATH")
+        log_path = os.path.join(path, "test_logging", "logs")
+        if os.path.exists(os.path.join(path, "test_logging")):
+            shutil.rmtree(os.path.join(path, "test_logging"), ignore_errors=True)
+
+        with local_yt(id="test_logging", master_count=3, node_count=2, scheduler_count=4,
+                      enable_debug_logging=True, start_proxy=True):
+            pass
+
+        assert os.path.exists(log_path)
+        for dir in ["master", "node", "scheduler", "proxy", "stderrs"]:
+            assert os.path.exists(os.path.join(log_path, dir))
+
+    def test_user_config_path(self):
+        path = os.environ.get("YT_LOCAL_ROOT_PATH")
+        config_path = os.path.join(path, "test_configs", "configs")
+        if os.path.exists(os.path.join(path, "test_configs")):
+            shutil.rmtree(os.path.join(path, "test_configs"), ignore_errors=True)
+
+        MASTER_COUNT = 3
+        NODE_COUNT = 2
+        SCHEDULER_COUNT = 4
+        with local_yt(id="test_configs", master_count=MASTER_COUNT,
+                      node_count=NODE_COUNT, scheduler_count=SCHEDULER_COUNT,
+                      enable_debug_logging=True, start_proxy=True):
+            pass
+
+        assert os.path.exists(config_path)
+        assert os.path.exists(os.path.join(config_path, "driver.yson"))
+
+        for index in range(MASTER_COUNT):
+            path = "master-0-" + str(index) + "-config.yson"
+            assert os.path.exists(os.path.join(config_path, path))
+
+        for index in range(NODE_COUNT):
+            path = "node-" + str(index) + "-config.yson"
+            assert os.path.exists(os.path.join(config_path, path))
+
+        for index in range(SCHEDULER_COUNT):
+            path = "scheduler-" + str(index) + "-config.yson"
+            assert os.path.exists(os.path.join(config_path, path))
+
+        assert os.path.exists(os.path.join(config_path, "proxy_config.json"))
 
     def test_commands_sanity(self):
         with local_yt() as environment:

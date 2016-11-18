@@ -100,8 +100,9 @@ def get_default_provision():
 
 @add_metaclass(abc.ABCMeta)
 class ConfigsProvider(object):
-    def build_configs(self, ports_generator, master_dirs, master_tmpfs_dirs=None, scheduler_dirs=None,
-                      node_dirs=None, proxy_dir=None, provision=None):
+    def build_configs(self, ports_generator, master_dirs, master_tmpfs_dirs=None, master_logs_dir=None,
+                      scheduler_dirs=None, scheduler_logs_dir=None, node_dirs=None, node_logs_dir=None,
+                      proxy_dir=None, proxy_logs_dir=None, provision=None):
         provision = get_value(provision, get_default_provision())
 
         # XXX(asaitgalin): All services depend on master so it is useful to make
@@ -110,13 +111,16 @@ class ConfigsProvider(object):
             provision,
             master_dirs,
             master_tmpfs_dirs,
-            ports_generator)
+            ports_generator,
+            master_logs_dir)
 
         driver_configs = self._build_driver_configs(provision, deepcopy(connection_configs))
         scheduler_configs = self._build_scheduler_configs(provision, scheduler_dirs, deepcopy(connection_configs),
-                                                          ports_generator)
-        node_configs = self._build_node_configs(provision, node_dirs, deepcopy(connection_configs), ports_generator)
-        proxy_config = self._build_proxy_config(provision, proxy_dir, deepcopy(connection_configs), ports_generator)
+                                                          ports_generator, scheduler_logs_dir)
+        node_configs = self._build_node_configs(provision, node_dirs, deepcopy(connection_configs), ports_generator,
+                                                node_logs_dir)
+        proxy_config = self._build_proxy_config(provision, proxy_dir, deepcopy(connection_configs), ports_generator,
+                                                proxy_logs_dir)
         ui_config = self._build_ui_config(provision, deepcopy(connection_configs),
                                           "{0}:{1}".format(provision["fqdn"], proxy_config["port"]))
 
@@ -132,20 +136,20 @@ class ConfigsProvider(object):
         return cluster_configuration
 
     @abc.abstractmethod
-    def _build_master_configs(self, provision, master_dirs, master_tmpfs_dirs, ports_generator):
+    def _build_master_configs(self, provision, master_dirs, master_tmpfs_dirs, ports_generator, master_logs_dir):
         pass
 
     @abc.abstractmethod
     def _build_scheduler_configs(self, provision, scheduler_dirs, master_connection_configs,
-                                 ports_generator):
+                                 ports_generator, scheduler_logs_dir):
         pass
 
     @abc.abstractmethod
-    def _build_node_configs(self, provision, node_dirs, master_connection_configs, ports_generator):
+    def _build_node_configs(self, provision, node_dirs, master_connection_configs, ports_generator, node_logs_dir):
         pass
 
     @abc.abstractmethod
-    def _build_proxy_config(self, provision, proxy_dir, master_connection_configs, ports_generator):
+    def _build_proxy_config(self, provision, proxy_dir, master_connection_configs, ports_generator, proxy_logs_dir):
         pass
 
     @abc.abstractmethod
@@ -204,7 +208,7 @@ def _set_bind_retry_options(config):
     set_at(config, "bus_server/bind_retry_count", 10)
     set_at(config, "bus_server/bind_retry_backoff", 3000)
 
-def _generate_common_proxy_config(proxy_dir, proxy_port, enable_debug_logging, fqdn, ports_generator):
+def _generate_common_proxy_config(proxy_dir, proxy_port, enable_debug_logging, fqdn, ports_generator, proxy_logs_dir):
     proxy_config = default_configs.get_proxy_config()
     proxy_config["port"] = proxy_port if proxy_port else next(ports_generator)
     proxy_config["fqdn"] = "{0}:{1}".format(fqdn, proxy_config["port"])
@@ -212,8 +216,8 @@ def _generate_common_proxy_config(proxy_dir, proxy_port, enable_debug_logging, f
 
     logging_config = get_at(proxy_config, "proxy/logging")
     set_at(proxy_config, "proxy/logging",
-           init_logging(logging_config, proxy_dir, "http_proxy", enable_debug_logging))
-    set_at(proxy_config, "logging/filename", os.path.join(proxy_dir, "http_application.log"))
+           init_logging(logging_config, proxy_logs_dir, "http_proxy", enable_debug_logging))
+    set_at(proxy_config, "logging/filename", os.path.join(proxy_logs_dir, "http_application.log"))
 
     _set_bind_retry_options(proxy_config)
 
@@ -260,7 +264,7 @@ def _get_node_resource_limits_config(provision):
     return {"memory": memory}
 
 class ConfigsProvider_18(ConfigsProvider):
-    def _build_master_configs(self, provision, master_dirs, master_tmpfs_dirs, ports_generator):
+    def _build_master_configs(self, provision, master_dirs, master_tmpfs_dirs, ports_generator, master_logs_dir):
         ports = []
 
         cell_tags = [str(provision["master"]["primary_cell_tag"] + index)
@@ -325,7 +329,7 @@ class ConfigsProvider_18(ConfigsProvider):
                     set_at(config, "changelogs/path",
                            os.path.join(master_tmpfs_dirs[cell_index][master_index], "changelogs"))
 
-                config["logging"] = init_logging(config.get("logging"), master_dirs[cell_index][master_index],
+                config["logging"] = init_logging(config.get("logging"), master_logs_dir,
                                                  "master-" + str(master_index), provision["enable_debug_logging"])
 
                 update(config, {
@@ -379,10 +383,10 @@ class ConfigsProvider_18(ConfigsProvider):
         return cluster_connection
 
     def _build_scheduler_configs(self, provision, scheduler_dirs, master_connection_configs,
-                                 ports_generator):
+                                 ports_generator, scheduler_logs_dir):
         configs = []
 
-        for i in xrange(provision["scheduler"]["count"]):
+        for index in xrange(provision["scheduler"]["count"]):
             config = default_configs.get_scheduler_config()
 
             set_at(config, "address_resolver/localhost_fqdn", provision["fqdn"])
@@ -391,32 +395,32 @@ class ConfigsProvider_18(ConfigsProvider):
 
             config["rpc_port"] = next(ports_generator)
             config["monitoring_port"] = next(ports_generator)
-            set_at(config, "scheduler/snapshot_temp_path", os.path.join(scheduler_dirs[i], "snapshots"))
+            set_at(config, "scheduler/snapshot_temp_path", os.path.join(scheduler_dirs[index], "snapshots"))
             set_at(config, "scheduler/orchid_cache_update_period", 0)
 
-            config["logging"] = init_logging(config.get("logging"), scheduler_dirs[i], "scheduler-" + str(i),
-                                             provision["enable_debug_logging"])
+            config["logging"] = init_logging(config.get("logging"), scheduler_logs_dir,
+                                             "scheduler-" + str(index), provision["enable_debug_logging"])
             _set_bind_retry_options(config)
 
             configs.append(config)
 
         return configs
 
-    def _build_proxy_config(self, provision, proxy_dir, master_connection_configs, ports_generator):
+    def _build_proxy_config(self, provision, proxy_dir, master_connection_configs, ports_generator, proxy_logs_dir):
         driver_config = default_configs.get_driver_config()
         update(driver_config, self._build_cluster_connection_config(master_connection_configs))
 
         proxy_config = _generate_common_proxy_config(proxy_dir, provision["proxy"]["http_port"],
                                                      provision["enable_debug_logging"], provision["fqdn"],
-                                                     ports_generator)
+                                                     ports_generator, proxy_logs_dir)
         proxy_config["proxy"]["driver"] = driver_config
 
         return proxy_config
 
-    def _build_node_configs(self, provision, node_dirs, master_connection_configs, ports_generator):
+    def _build_node_configs(self, provision, node_dirs, master_connection_configs, ports_generator, node_logs_dir):
         configs = []
 
-        for i in xrange(provision["node"]["count"]):
+        for index in xrange(provision["node"]["count"]):
             config = default_configs.get_node_config(provision["enable_debug_logging"])
 
             set_at(config, "address_resolver/localhost_fqdn", provision["fqdn"])
@@ -438,30 +442,30 @@ class ConfigsProvider_18(ConfigsProvider):
             set_at(config, "data_node/read_thread_count", 2)
             set_at(config, "data_node/write_thread_count", 2)
 
-            set_at(config, "data_node/multiplexed_changelog/path", os.path.join(node_dirs[i], "multiplexed"))
+            set_at(config, "data_node/multiplexed_changelog/path", os.path.join(node_dirs[index], "multiplexed"))
 
             set_at(config, "data_node/cache_locations", [])
             config["data_node"]["cache_locations"].append({
-                "path": os.path.join(node_dirs[i], "chunk_cache"),
+                "path": os.path.join(node_dirs[index], "chunk_cache"),
                 "quota": 256 * MB,
             })
 
             set_at(config, "data_node/store_locations", [])
             config["data_node"]["store_locations"].append({
-                "path": os.path.join(node_dirs[i], "chunk_store"),
+                "path": os.path.join(node_dirs[index], "chunk_store"),
                 "low_watermark": 0,
                 "high_watermark": 0
             })
 
-            config["logging"] = init_logging(config.get("logging"), node_dirs[i], "node-{0}".format(i),
+            config["logging"] = init_logging(config.get("logging"), node_logs_dir, "node-{0}".format(index),
                                              provision["enable_debug_logging"])
 
             job_proxy_logging = get_at(config, "exec_agent/job_proxy_logging")
-            log_name = "job_proxy-{0}".format(i)
+            log_name = "job_proxy-{0}".format(index)
             set_at(
                 config,
                 "exec_agent/job_proxy_logging",
-                init_logging(job_proxy_logging, node_dirs[i], log_name, provision["enable_debug_logging"]))
+                init_logging(job_proxy_logging, node_logs_dir, log_name, provision["enable_debug_logging"]))
 
             set_at(config, "tablet_node/hydra_manager", _get_hydra_manager_config(), merge=True)
             set_at(config, "tablet_node/hydra_manager/restart_backoff_time", 100)
@@ -527,9 +531,9 @@ class ConfigsProvider_18(ConfigsProvider):
             .replace("%%masters%%", masters)
 
 class ConfigsProvider_18_3_18_4(ConfigsProvider_18):
-    def _build_node_configs(self, provision, node_dirs, master_connection_configs, ports_generator):
+    def _build_node_configs(self, provision, node_dirs, master_connection_configs, ports_generator, node_logs_dir):
         configs = super(ConfigsProvider_18_3_18_4, self)._build_node_configs(
-                provision, node_dirs, master_connection_configs, ports_generator)
+                provision, node_dirs, master_connection_configs, ports_generator, node_logs_dir)
 
         current_user = 10000
 
@@ -551,9 +555,9 @@ class ConfigsProvider_18_4(ConfigsProvider_18_3_18_4):
     pass
 
 class ConfigsProvider_18_5(ConfigsProvider_18):
-    def _build_node_configs(self, provision, node_dirs, master_connection_configs, ports_generator):
+    def _build_node_configs(self, provision, node_dirs, master_connection_configs, ports_generator, node_logs_dir):
         configs = super(ConfigsProvider_18_5, self)._build_node_configs(
-                provision, node_dirs, master_connection_configs, ports_generator)
+                provision, node_dirs, master_connection_configs, ports_generator, node_logs_dir)
 
         current_user = 10000
         for i, config in enumerate(configs):
@@ -578,9 +582,9 @@ class ConfigsProvider_18_5(ConfigsProvider_18):
         return configs
 
     def _build_scheduler_configs(self, provision, scheduler_dirs, master_connection_configs,
-                                 ports_generator):
+                                 ports_generator, log_path):
         configs = super(ConfigsProvider_18_5, self)._build_scheduler_configs(
-                provision, scheduler_dirs, master_connection_configs, ports_generator)
+                provision, scheduler_dirs, master_connection_configs, ports_generator, log_path)
 
         for config in configs:
             # Since 18.5 scheduler Orchid consists of a static part (that is periodically cached)
