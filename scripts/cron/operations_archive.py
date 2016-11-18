@@ -43,6 +43,20 @@ class TableInfo(object):
 
         yt.mount_table(path)
 
+    def alter_table(self, path):
+        logging.info("Unmounting table %s", path)
+        dynamic_tables.unmount_table(path)
+        attributes = make_dynamic_table_attributes(yt, self.schema, self.key_columns, "scan")
+
+        logging.info("Alter table %s with attributes %s", path, attributes)
+        yt.alter_table(path, schema=attributes['schema'])
+
+        if self.pivot_keys:
+            yt.reshard_table(path, self.pivot_keys)
+
+        logging.info("Mounting table %s", path)
+        dynamic_tables.mount_table(path)
+
     def get_default_mapper(self):
         column_names = self.user_columns
 
@@ -59,12 +73,13 @@ class Convert(object):
         self.source = source
 
     def __call__(self, table_info, target_table, source_table, base_path):
-        if not self.mapper and not self.source:
-            #alter table
-            pass
-
         if self.table_info:
             table_info = self.table_info
+
+        if not self.mapper and not self.source and source_table:
+            source_table = yt.ypath_join(base_path, source_table)
+            table_info.alter_table(source_table)
+            return True  # in place transformation
 
         table_info.create_table(target_table)
 
@@ -72,7 +87,7 @@ class Convert(object):
         client = dynamic_tables.DynamicTablesClient(job_count=100, job_memory_limit=4*2**30, batch_size=10000)
 
         if source_table:
-            source_table = "{}/{}".format(base_path, source_table)
+            source_table = yt.ypath_join(base_path, source_table)
             mapper = self.mapper
             if not mapper:
                 mapper = table_info.get_default_mapper()
@@ -84,6 +99,7 @@ class Convert(object):
             if table_info.in_memory:
                 yt.set(target_table + "/@in_memory_mode", "compressed")
             client.mount_table(target_table)
+        return False  # need additional swap
 
 SHARD_COUNT = 100
 DEFAULT_PIVOTS = [[]] + [[yson.YsonUint64((i * 2 ** 64) / SHARD_COUNT)] for i in xrange(1, SHARD_COUNT)]
@@ -287,6 +303,36 @@ TRANSFORMS[6] = [
         mapper=convert_job_id_mapper)
 ]
 
+def convert_statistics_remove_attributes_mapper(row):
+    statistics = row['statistics']
+    if hasattr(statistics):
+        statistics.attributes = {}
+    yield row
+
+TRANSFORMS[7] = [
+    Convert(
+        "jobs",
+        table_info=TableInfo([
+                ("operation_id_hi", "uint64"),
+                ("operation_id_lo", "uint64"),
+                ("job_id_hi", "uint64"),
+                ("job_id_lo", "uint64")
+            ], [
+                ("type", "string"),
+                ("state", "string"),
+                ("start_time", "int64"),
+                ("finish_time", "int64"),
+                ("address", "string"),
+                ("error", "any"),
+                ("statistics", "any"),
+                ("stderr_size", "uint64"),
+                ("spec", "string"),
+                ("spec_version", "int64"),
+                ("events", "any")
+            ],
+            pivot_keys=DEFAULT_PIVOTS))
+]
+
 BASE_PATH = "//sys/operations_archive"
 
 def swap_table(target, source):
@@ -321,8 +367,9 @@ def transform_archive(transform_begin, transform_end, force, archive_path):
             tmp_path = "{}/{}.tmp.{}".format(archive_path, table, version)
             if force and yt.exists(tmp_path):
                 yt.remove(tmp_path)
-            convertion(schemas.get(table), tmp_path, table if table in schemas else None, archive_path)
-            swap_tasks.append(("{}/{}".format(archive_path, table), tmp_path))
+            in_place = convertion(schemas.get(table), tmp_path, table if table in schemas else None, archive_path)
+            if not in_place:
+                swap_tasks.append((yt.ypath_join(archive_path, table), tmp_path))
 
         for target_path, tmp_path in swap_tasks:
             swap_table(target_path, tmp_path)
