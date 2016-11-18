@@ -17,6 +17,8 @@
 
 #include <yt/ytlib/ypath/rich.h>
 
+#include <yt/core/misc/numeric_helpers.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -56,8 +58,8 @@ TJobSizeLimits::TJobSizeLimits(
 
 void TJobSizeLimits::SetJobCount(i64 jobCount)
 {
-    JobCount_ = Clamp(jobCount, 1, MaxJobCount_);
-    DataSizePerJob_ = DivCeil(TotalDataSize_, JobCount_);
+    JobCount_ = Clamp<i64>(jobCount, 1, MaxJobCount_);
+    DataSizePerJob_ = DivCeil<i64>(TotalDataSize_, JobCount_);
 }
 
 int TJobSizeLimits::GetJobCount() const
@@ -67,7 +69,7 @@ int TJobSizeLimits::GetJobCount() const
 
 void TJobSizeLimits::SetDataSizePerJob(i64 dataSizePerJob)
 {
-    SetJobCount(DivCeil(TotalDataSize_, dataSizePerJob));
+    SetJobCount(DivCeil<i64>(TotalDataSize_, dataSizePerJob));
 }
 
 i64 TJobSizeLimits::GetDataSizePerJob() const
@@ -78,7 +80,7 @@ i64 TJobSizeLimits::GetDataSizePerJob() const
 void TJobSizeLimits::UpdateStripeCount(i64 stripeCount, i64 maxStripesPerJob)
 {
     i64 minJobCount = DivCeil(stripeCount, maxStripesPerJob);
-    i64 jobCount = Clamp(GetJobCount(), minJobCount, stripeCount);
+    i64 jobCount = Clamp<i64>(GetJobCount(), minJobCount, stripeCount);
     SetJobCount(jobCount);
 }
 
@@ -258,19 +260,6 @@ TYsonString BuildInputPaths(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-i64 Clamp(i64 value, i64 minValue, i64 maxValue)
-{
-    value = std::min(value, maxValue);
-    value = std::max(value, minValue);
-    return value;
-}
-
-i64 DivCeil(i64 numerator, i64 denominator)
-{
-    auto res = std::div(numerator, denominator);
-    return res.quot + (res.rem > 0 ? 1 : 0);
-}
 
 Stroka TrimCommandForBriefSpec(const Stroka& command)
 {
