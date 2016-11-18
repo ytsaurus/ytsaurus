@@ -1585,8 +1585,6 @@ private:
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
 
-        InitBuiltins();
-
         NameToTabletCellBundleMap_.clear();
         for (const auto& pair : TabletCellBundleMap_) {
             auto* cellBundle = pair.second;
@@ -1594,7 +1592,6 @@ private:
         }
 
         AddressToCell_.clear();
-
         for (const auto& pair : TabletCellMap_) {
             auto* cell = pair.second;
             if (!IsObjectAlive(cell)) {
@@ -1610,6 +1607,8 @@ private:
                 YCHECK(TransactionToCellMap_.insert(std::make_pair(transaction, cell)).second);
             }
         }
+
+        InitBuiltins();
 
         // COMPAT(babenko)
         if (InitializeCellBundles_) {
