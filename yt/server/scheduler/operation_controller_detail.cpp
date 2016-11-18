@@ -3920,10 +3920,10 @@ void TOperationControllerBase::CollectTotals()
         }
     }
 
-    LOG_INFO("Estimated input totals collected (ChunkCount: %v, DataSize: %v, RowCount: %v, CompressedDataSize: %v)",
+    LOG_INFO("Estimated input totals collected (ChunkCount: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
         TotalEstimatedInputChunkCount,
-        TotalEstimatedInputDataSize,
         TotalEstimatedInputRowCount,
+        TotalEstimatedInputDataSize,
         TotalEstimatedCompressedDataSize);
 }
 
