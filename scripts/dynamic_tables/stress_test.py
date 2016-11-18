@@ -152,8 +152,18 @@ class Schema():
         return [c.name for c in self.columns]
     def get_data_columns(self):
         return self.data_columns
+    def create_pivot_keys(self, tablet_count):
+        self.pivot_keys = self.generate_pivot_keys(tablet_count)
+        return self.pivot_keys
+    def get_pivot_keys(self):
+        return self.pivot_keys
     def yson(self):
         return [c.yson() for c in self.columns]
+    def flaten_key(self, map_key):
+        list_key = []
+        for c in self.key_columns:
+            list_key.append(map_key.get(c.name, None))
+        return list_key
     def generate_key(self):
         return self.generate_row_from_schema(self.key_columns)
     def generate_data(self):
@@ -167,6 +177,16 @@ class Schema():
                 return result
     def generate_pivot_key(self):
         return [c.generate_value() if random.random() < self.appearance_probability else None for c in self.key_columns]
+    def generate_pivot_keys(self, tablet_count):
+        if tablet_count <= 1:
+            return [[]]
+        pivots = sorted([self.generate_pivot_key() for i in xrange(tablet_count - 1)])
+        unique_pivots = [pivots[0]]
+        for pivot in pivots[1:]:
+            if pivot != unique_pivots[-1]:
+                unique_pivots.append(pivot)
+        return [[]] + unique_pivots
+
 
 class SchemafulMapper(object):
     def __init__(self, schema, table):
@@ -199,17 +219,51 @@ class SchemafulMapper(object):
             value = [value]
         return yson.dumps(value, yson_type="list_fragment", yson_format="text", boolean_as_string=False)
 
+def compare_keys(a, b):
+    def compare_values(a,b):
+        if a == None and b == None: return 0
+        if a == None: return -1
+        if b == None: return 1
+        if a == b: return 0
+        return -1 if a < b else 1
+    for i in xrange(min(len(a), len(b))):
+        res = compare_values(a[i], b[i])
+        if res != 0: return res
+    if len(a) == len(b): return 0
+    return -1 if len(a) < len(b) else 1
+
 def create_keys(schema, dst, count, job_count):
     print "Generate random keys"
     class Mapper():
         def __init__(self, schema):
             self.schema = schema
         def __call__(self, record):
-            for i in xrange(record["count"]):
-                yield self.schema.generate_key()
+            pivot_keys = schema.get_pivot_keys()
+            count = [0] * len(pivot_keys)
+            total_count = 0
+            fail_count = 0
+            max_bucket_size = (record["count"] + len(count) - 1) / len(count)
+            while total_count < record["count"] and fail_count < 2 * record["count"]:
+                key = self.schema.generate_key()
+                flat_key = schema.flaten_key(key)
+                index = self.search_index(flat_key, pivot_keys)
+                if count[index] < max_bucket_size:
+                    count[index] += 1
+                    total_count += 1
+                    yield key
+                else:
+                    fail_count += 1
+        def search_index(self, key, pivot_keys):
+            s = 0
+            t = len(pivot_keys)
+            while t - s > 1:
+                m = (s + t) / 2
+                if compare_keys(key, pivot_keys[m]) >= 0: s = m
+                else: t = m
+            return s
 
     tmp = yt.create_temp_table()
-    rows = [{"count": count/job_count} for i in xrange(job_count)]
+    rows = [{"count": (count + job_count - 1) / job_count} for i in xrange(job_count)]
     yt.write_table(tmp, rows, raw=False)
     yt.run_map(Mapper(schema), tmp, dst, spec={"job_count": job_count, "max_failed_job_count": 100})
     yt.run_sort(dst, sort_by=schema.get_key_column_names())
@@ -217,16 +271,6 @@ def create_keys(schema, dst, count, job_count):
         yield next(records)
     yt.run_reduce(reducer, dst, dst, reduce_by=schema.get_key_column_names())
     yt.remove(tmp)
-
-def create_pivot_keys(schema, tablet_count):
-    if tablet_count <= 1:
-        return [[]]
-    pivots = sorted([schema.generate_pivot_key() for i in xrange(tablet_count - 1)])
-    unique_pivots = [pivots[0]]
-    for pivot in pivots[1:]:
-        if pivot != unique_pivots[-1]:
-            unique_pivots.append(pivot)
-    return [[]] + unique_pivots
 
 def wait_until(path, state):
     while not all(x["state"] == state for x in yt.get(path + "/@tablets")):
@@ -259,12 +303,12 @@ def create_dynamic_table(table, schema, attributes, tablet_count):
     yt.create_table(table, attributes=attributes)
     owner = yt.get(table + "/@owner")
     yt.set(table + "/@acl", [{"permissions": ["mount"], "action": "allow", "subjects": [owner]}])
-    yt.reshard_table(table, create_pivot_keys(schema, tablet_count))
+    yt.reshard_table(table, schema.create_pivot_keys(tablet_count))
     mount_table(table)
 
 def reshard_table(table, schema, tablet_count):
     unmount_table(table)
-    yt.reshard_table(table, create_pivot_keys(schema, tablet_count + random.randint(-3,3)))
+    yt.reshard_table(table, schema.create_pivot_keys(tablet_count + random.randint(-3,3)))
     mount_table(table)
 
 @yt.aggregator
