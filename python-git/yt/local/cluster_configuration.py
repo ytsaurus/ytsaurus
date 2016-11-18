@@ -1,6 +1,5 @@
 from yt.wrapper.common import MB, GB
 from yt.common import update
-from yt.environment.helpers import versions_cmp
 
 from yt.packages.six import iteritems, itervalues
 
