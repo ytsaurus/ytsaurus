@@ -19,6 +19,8 @@
 
 #include <yt/core/concurrency/periodic_yielder.h>
 
+#include <yt/core/misc/numeric_helpers.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -429,8 +431,8 @@ protected:
             Spec->JobCount,
             GetMaxJobCount(Spec->MaxJobCount, Options->MaxJobCount));
 
-        MaxDataSizePerJob = DivCeil(PrimaryInputDataSize_, jobSizeLimits.GetJobCount());
-        ChunkSliceSize = Clamp(MaxDataSizePerJob, 1, Options->JobMaxSliceDataSize);
+        MaxDataSizePerJob = DivCeil<i64>(PrimaryInputDataSize_, jobSizeLimits.GetJobCount());
+        ChunkSliceSize = Clamp<i64>(MaxDataSizePerJob, 1, Options->JobMaxSliceDataSize);
 
         LOG_INFO("Calculated operation parameters (JobCount: %v, MaxDataSizePerJob: %v, ChunkSliceSize: %v)",
             jobSizeLimits.GetJobCount(),

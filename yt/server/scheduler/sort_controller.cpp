@@ -20,6 +20,8 @@
 
 #include <yt/core/ytree/permission.h>
 
+#include <yt/core/misc/numeric_helpers.h>
+
 #include <cmath>
 
 namespace NYT {
@@ -1644,7 +1646,7 @@ protected:
             result = std::min(static_cast<i64>(dataSizeAfterPartition / partitionDataSize), maxPartitionCount);
         }
         // Cast to int32 is safe since MaxPartitionCount is int32.
-        return static_cast<int>(Clamp(result, 1, Options->MaxPartitionCount));
+        return static_cast<int>(Clamp<i64>(result, 1, Options->MaxPartitionCount));
     }
 
     TJobSizeLimits SuggestPartitionJobLimits() const

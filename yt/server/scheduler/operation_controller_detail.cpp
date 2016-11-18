@@ -46,6 +46,7 @@
 
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/collection_helpers.h>
+#include <yt/core/misc/numeric_helpers.h>
 
 #include <yt/core/profiling/scoped_timer.h>
 
@@ -4349,7 +4350,7 @@ i64 TOperationControllerBase::CalculateSliceDataSize(
     if (TotalEstimatedInputDataSize < maxSliceDataSize) {
         multiplier = 1.0;
     }
-    return Clamp(
+    return Clamp<i64>(
         static_cast<i64>(multiplier * TotalEstimatedInputDataSize / jobSizeLimits.GetJobCount()),
         1,
         maxSliceDataSize);
