@@ -1124,13 +1124,16 @@ if __name__ == "__main__":
         with set_config_option("mount_sandbox_in_tmpfs", True):
             table = TEST_DIR + "/table"
             file = TEST_DIR + "/test_file"
+            table_file = TEST_DIR + "/test_table_file"
 
             dir_ = yt_env.env.path
             with tempfile.NamedTemporaryFile(dir=dir_, prefix="local_file", delete=False) as local_file:
                 local_file.write(b"bbbbb")
             yt.write_table(table, [{"x": 1}, {"y": 2}])
+            yt.write_table(table_file, [{"x": 1}, {"y": 2}])
             yt.write_file(file, b"aaaaa")
-            op = yt.run_map(foo, table, table, local_files=[local_file.name], yt_files=[file], format=None)
+            table_file_object = yt.FilePath(table_file, attributes={"format": "json", "disk_size": 1000})
+            op = yt.run_map(foo, table, table, local_files=[local_file.name], yt_files=[file, table_file_object], format=None)
             check(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
 
             tmpfs_size = get_spec_option(op.id, "mapper/tmpfs_size")

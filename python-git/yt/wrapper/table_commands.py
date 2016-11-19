@@ -341,7 +341,15 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
     if get_config(client)["mount_sandbox_in_tmpfs"]:
         disk_size = file_uploader.disk_size
         for file in file_paths:
-            disk_size += round_up_to(get(file + "/@uncompressed_data_size", client=client), 4 * 1024)
+            file_disk_size = None
+            if hasattr(file, "attributes") and "disk_size" in file.attributes:
+                file_disk_size = file.attributes["disk_size"]
+            else:
+                attributes = get(file + "/@")
+                if attributes["type"] == "table":
+                    raise YtError('Attributes "disk_size" must be specified for table file "{0}"'.format(str(file)))
+                file_disk_size = attributes["uncompressed_data_size"]
+            disk_size += round_up_to(file_disk_size, 4 * 1024)
         tmpfs_size += disk_size
         spec = update({op_type: {"tmpfs_size": tmpfs_size, "tmpfs_path": ".", "copy_files": True}}, spec)
     else:
