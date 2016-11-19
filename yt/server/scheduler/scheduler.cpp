@@ -237,6 +237,12 @@ public:
             BIND(&TImpl::UpdateExecNodeDescriptors, MakeWeak(this)),
             Config_->UpdateExecNodeDescriptorsPeriod);
         UpdateExecNodeDescriptorsExecutor_->Start();
+
+        UpdateNodeShardsExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetControlInvoker(),
+            BIND(&TImpl::UpdateNodeShards, MakeWeak(this)),
+            Config_->NodeShardsUpdatePeriod);
+        UpdateNodeShardsExecutor_->Start();
     }
 
     virtual ISchedulerStrategyPtr GetStrategy() override
@@ -892,7 +898,7 @@ public:
         NYson::TYsonString jobAttributes,
         const TChunkId& stderrChunkId,
         const TChunkId& failContextChunkId,
-        TFuture<TNullable<TYsonString>> inputPathsFuture) override
+        TFuture<TYsonString> inputPathsFuture) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -974,6 +980,7 @@ private:
     TPeriodicExecutorPtr LoggingExecutor_;
     TPeriodicExecutorPtr PendingEventLogRowsFlushExecutor_;
     TPeriodicExecutorPtr UpdateExecNodeDescriptorsExecutor_;
+    TPeriodicExecutorPtr UpdateNodeShardsExecutor_;
 
     Stroka ServiceAddress_;
 
@@ -1037,6 +1044,7 @@ private:
 
     bool ShouldCreateJobNode(const TOperationPtr& operation, bool jobFailedOrAborted, bool hasStderr)
     {
+        // Keep it sync with same checks in TNodeShard::ProcessFinishedJobResult.
         if (operation->GetJobNodeCount() >= Config_->MaxJobNodesPerOperation) {
             return false;
         }
@@ -1053,7 +1061,7 @@ private:
         NYson::TYsonString jobAttributes,
         const TChunkId& stderrChunkId,
         const TChunkId& failContextChunkId,
-        TFuture<TNullable<TYsonString>> inputPathsFuture)
+        TFuture<TYsonString> inputPathsFuture)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1544,6 +1552,23 @@ private:
             TWriterGuard guard(ExecNodeDescriptorsLock_);
 
             CachedExecNodeDescriptors_ = result;
+        }
+    }
+
+    void UpdateNodeShards()
+    {
+        TNodeShard::TNodeShardPatch patch;
+        for (const auto& pair : IdToOperation_) {
+            const auto& operation = pair.second;
+            auto& operationPatch = patch.OperationPatches[operation->GetId()];
+            operationPatch.CanCreateJobNodeForAbortedOrFailedJobs =
+                operation->GetJobNodeCount() < Config_->MaxJobNodesPerOperation;
+            operationPatch.CanCreateJobNodeForJobsWithStderr =
+                operation->GetStderrCount() < operation->GetMaxStderrCount();
+        }
+
+        for (auto& nodeShard : NodeShards_) {
+            nodeShard->GetInvoker()->Invoke(BIND(&TNodeShard::UpdateState, nodeShard, patch));
         }
     }
 

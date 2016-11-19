@@ -1329,7 +1329,7 @@ private:
             const auto& jobId = request.JobId;
             auto jobPath = GetJobPath(operation->GetId(), jobId);
             auto req = TYPathProxy::Set(jobPath);
-            TNullable<TYsonString> inputPaths;
+            TYsonString inputPaths;
             if (request.InputPathsFuture) {
                 auto inputPathsOrError = WaitFor(request.InputPathsFuture);
                 if (!inputPathsOrError.IsOK()) {
@@ -1347,9 +1347,9 @@ private:
                     .Do(BIND([=] (IYsonConsumer* consumer) {
                         consumer->OnRaw(request.Attributes);
                     }))
-                    .DoIf(static_cast<bool>(inputPaths), BIND([=] (IYsonConsumer* consumer) {
+                    .DoIf(inputPaths.GetType() != EYsonType::None, BIND([=] (IYsonConsumer* consumer) {
                         consumer->OnKeyedItem("input_paths");
-                        consumer->OnRaw(*inputPaths);
+                        consumer->OnRaw(inputPaths);
                     }))
                 .EndAttributes()
                 .BeginMap()
