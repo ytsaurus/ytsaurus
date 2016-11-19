@@ -49,7 +49,7 @@ struct INodeShardHost
         NYson::TYsonString jobAttributes,
         const NChunkClient::TChunkId& stderrChunkId,
         const NChunkClient::TChunkId& failContextChunkId,
-        TFuture<TNullable<NYson::TYsonString>> inputPathsFuture) = 0;
+        TFuture<NYson::TYsonString> inputPathsFuture) = 0;
 
     virtual TFuture<void> AttachJobContext(
         const NYTree::TYPath& path,
@@ -154,6 +154,19 @@ public:
     int GetExecNodeCount();
     int GetTotalNodeCount();
 
+    struct TOperationStatePatch
+    {
+        bool CanCreateJobNodeForAbortedOrFailedJobs;
+        bool CanCreateJobNodeForJobsWithStderr;
+    };
+
+    struct TNodeShardPatch
+    {
+        yhash_map<TOperationId, TOperationStatePatch> OperationPatches;
+    };
+
+    void UpdateState(const TNodeShardPatch& patch);
+
 private:
     const int Id_;
     const NConcurrency::TActionQueuePtr ActionQueue_;
@@ -192,6 +205,8 @@ private:
         IOperationControllerPtr Controller;
         bool Terminated = false;
         bool JobsAborted = false;
+        bool CanCreateJobNodeForAbortedOrFailedJobs = true;
+        bool CanCreateJobNodeForJobsWithStderr = true;
     };
 
     yhash_map<TOperationId, TOperationState> OperationStates_;

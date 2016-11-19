@@ -146,7 +146,7 @@ public:
     virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildMemoryDigestStatistics(NYson::IYsonConsumer* consumer) const override;
 
-    TNullable<NYson::TYsonString> BuildInputPathYson(const TJobId& jobId) const override;
+    NYson::TYsonString BuildInputPathYson(const TJobId& jobId) const override;
 
     virtual void Persist(const TPersistenceContext& context) override;
 

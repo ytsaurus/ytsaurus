@@ -150,7 +150,7 @@ static void BuildInputSliceLimit(
         .EndMap();
 }
 
-TNullable<TYsonString> BuildInputPaths(
+TYsonString BuildInputPaths(
     const std::vector<TRichYPath>& inputPaths,
     const TChunkStripeListPtr& inputStripeList,
     EOperationType operationType,
@@ -168,7 +168,7 @@ TNullable<TYsonString> BuildInputPaths(
         }
     }
     if (!hasSlices) {
-        return Null;
+        return TYsonString();
     }
 
     std::vector<char> isForeignTable(inputPaths.size());
