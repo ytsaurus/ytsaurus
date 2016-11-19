@@ -462,12 +462,25 @@ bool TSlotLocation::IsInsideTmpfs(const Stroka& path) const
     return false;
 }
 
+void TSlotLocation::ValidateEnabled() const
+{
+    if (!IsEnabled()) {
+        THROW_ERROR_EXCEPTION(
+            EErrorCode::SlotLocationDisabled, 
+            "Slot location at %v is disabled", 
+            Config_->Path);
+    }
+}
+
 void TSlotLocation::Disable(const TError& error)
 {
     if (!Enabled_.exchange(false))
         return;
 
-    auto alert = TError("Slot location at %v is disabled", Config_->Path) << error;
+    auto alert = TError(
+        EErrorCode::SlotLocationDisabled, 
+        "Slot location at %v is disabled", 
+        Config_->Path) << error;
 
     LOG_ERROR(alert);
 

@@ -1044,6 +1044,7 @@ private:
             resultError.FindMatching(NExecAgent::EErrorCode::JobEnvironmentDisabled) ||
             resultError.FindMatching(NExecAgent::EErrorCode::ArtifactCopyingFailed) ||
             resultError.FindMatching(NExecAgent::EErrorCode::NodeDirectoryPreparationFailed) ||
+            resultError.FindMatching(NExecAgent::EErrorCode::SlotLocationDisabled) ||
             resultError.FindMatching(NJobProxy::EErrorCode::MemoryCheckFailed))
         {
             return EAbortReason::Other;
