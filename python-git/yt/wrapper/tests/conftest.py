@@ -127,7 +127,7 @@ class YtTestEnvironment(object):
                               modify_configs_func=modify_configs)
         self.env.start()
 
-        self.version = self.env._ytserver_version
+        self.version = self.env.ytserver_version
 
         reload_module(yt)
         reload_module(yt.config)
