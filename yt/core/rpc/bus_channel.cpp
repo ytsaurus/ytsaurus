@@ -86,7 +86,7 @@ public:
 
         TSessionPtr session;
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            auto guard = Guard(SpinLock_);
 
             if (Terminated_) {
                 return VoidFuture;
@@ -125,7 +125,7 @@ private:
         IBusPtr bus;
         TSessionPtr session;
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            auto guard = Guard(SpinLock_);
 
             if (Session_) {
                 return Session_;
@@ -164,7 +164,8 @@ private:
         }
 
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            auto guard = Guard(SpinLock_);
+
             if (Session_ == session_) {
                 Session_.Reset();
             }
@@ -214,8 +215,9 @@ private:
             // Mark the channel as terminated to disallow any further usage.
             std::vector<IClientResponseHandlerPtr> responseHandlers;
 
+
             {
-                TGuard<TSpinLock> guard(SpinLock_);
+                auto guard = Guard(SpinLock_);
                 Terminated_ = true;
                 TerminationError_ = error;
                 for (const auto& pair : ActiveRequestMap_) {
@@ -290,7 +292,7 @@ private:
             IClientRequestPtr request;
             IClientResponseHandlerPtr responseHandler;
             {
-                TGuard<TSpinLock> guard(SpinLock_);
+                auto guard = Guard(SpinLock_);
 
                 auto it = ActiveRequestMap_.find(requestId);
                 if (it == ActiveRequestMap_.end()) {
@@ -323,10 +325,11 @@ private:
 
             IBusPtr bus;
             {
-                TGuard<TSpinLock> guard(SpinLock_);
+                auto guard = Guard(SpinLock_);
 
-                if (Terminated_)
+                if (Terminated_) {
                     return;
+                }
 
                 bus = Bus_;
             }
@@ -349,7 +352,7 @@ private:
 
             TClientRequestControlPtr requestControl;
             {
-                TGuard<TSpinLock> guard(SpinLock_);
+                auto guard = Guard(SpinLock_);
 
                 auto it = ActiveRequestMap_.find(requestId);
                 if (it == ActiveRequestMap_.end()) {
@@ -394,7 +397,7 @@ private:
             IClientRequestPtr request;
             IClientResponseHandlerPtr responseHandler;
             {
-                TGuard<TSpinLock> guard(SpinLock_);
+                auto guard = Guard(SpinLock_);
 
                 if (Terminated_) {
                     LOG_WARNING("Response received via a terminated channel (RequestId: %v)",
@@ -504,7 +507,7 @@ private:
             IBusPtr bus;
             IClientResponseHandlerPtr existingResponseHandler;
             {
-                TGuard<TSpinLock> guard(SpinLock_);
+                auto guard = Guard(SpinLock_);
 
                 if (Terminated_) {
                     auto error = TerminationError_;
@@ -567,7 +570,7 @@ private:
             IClientRequestPtr request;
             IClientResponseHandlerPtr responseHandler;
             {
-                TGuard<TSpinLock> guard(SpinLock_);
+                auto guard = Guard(SpinLock_);
 
                 auto it = ActiveRequestMap_.find(requestId);
                 if (it == ActiveRequestMap_.end()) {
