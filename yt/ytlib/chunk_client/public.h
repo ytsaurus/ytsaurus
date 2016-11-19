@@ -4,6 +4,8 @@
 
 #include <yt/ytlib/object_client/public.h>
 
+#include <yt/ytlib/node_tracker_client/public.h>
+
 #include <yt/core/misc/public.h>
 #include <yt/core/misc/small_vector.h>
 
@@ -39,16 +41,16 @@ class TRspExecuteBatch;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-typedef NObjectClient::TObjectId TChunkId;
+using TChunkId = NObjectClient::TObjectId;
 extern const TChunkId NullChunkId;
 
-typedef NObjectClient::TObjectId TChunkListId;
+using TChunkListId = NObjectClient::TObjectId;
 extern const TChunkListId NullChunkListId;
 
-typedef NObjectClient::TObjectId TChunkTreeId;
+using TChunkTreeId = NObjectClient::TObjectId;
 extern const TChunkTreeId NullChunkTreeId;
 
-typedef NObjectClient::TObjectId TMediumId;
+using TMediumId = NObjectClient::TObjectId;
 
 const int DefaultPartIndex = -1;
 
@@ -76,10 +78,11 @@ const i64 DefaultMaxBlockSize = (i64) 16 * 1024 * 1024;;
 const int MaxInputChunkReplicaCount = 16;
 
 class TChunkReplica;
-typedef SmallVector<TChunkReplica, TypicalReplicaCount> TChunkReplicaList;
+using TChunkReplicaList = SmallVector<TChunkReplica, TypicalReplicaCount>;
+using TNodeIdList = SmallVector<NNodeTrackerClient::TNodeId, TypicalReplicaCount>;
 
 //! Represents an offset inside a chunk.
-typedef i64 TBlockOffset;
+using TBlockOffset = i64;
 
 //! A |(chunkId, blockIndex)| pair.
 struct TBlockId;
@@ -180,7 +183,7 @@ DECLARE_REFCOUNTED_CLASS(TChunkTeleporter)
 class TReadLimit;
 
 class TChannel;
-typedef std::vector<TChannel> TChannels;
+using TChannels = std::vector<TChannel>;
 
 using TRefCountedChunkMeta = TRefCountedProto<NChunkClient::NProto::TChunkMeta>;
 DECLARE_REFCOUNTED_TYPE(TRefCountedChunkMeta)
