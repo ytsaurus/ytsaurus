@@ -15,7 +15,7 @@ logger = logging.getLogger("Fennel")
 def get_tables():
     pattern = re.compile(TABLE_NAME + "(\.\d*)?$")
     return [str(obj)
-            for obj in yt.list(yt.config.PREFIX[:-1], attributes=["type"])
+            for obj in yt.list(yt.config["prefix"][:-1], attributes=["type"])
             if obj.attributes.get("type") == "table"
                 and pattern.match(str(obj))]
 
