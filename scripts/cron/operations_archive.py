@@ -66,17 +66,18 @@ class TableInfo(object):
         return default_mapper
 
 class Convert(object):
-    def __init__(self, table, table_info=None, mapper=None, source=None):
+    def __init__(self, table, table_info=None, mapper=None, source=None, use_default_mapper=False):
         self.table = table
         self.table_info = table_info
         self.mapper = mapper
         self.source = source
+        self.use_default_mapper = use_default_mapper
 
     def __call__(self, table_info, target_table, source_table, base_path):
         if self.table_info:
             table_info = self.table_info
 
-        if not self.mapper and not self.source and source_table:
+        if not self.use_default_mapper and not self.mapper and not self.source and source_table:
             source_table = yt.ypath_join(base_path, source_table)
             table_info.alter_table(source_table)
             return True  # in place transformation
@@ -313,6 +314,7 @@ TRANSFORMS[7] = [
     Convert(
         "jobs",
         table_info=TableInfo([
+                ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
                 ("operation_id_hi", "uint64"),
                 ("operation_id_lo", "uint64"),
                 ("job_id_hi", "uint64"),
@@ -330,7 +332,8 @@ TRANSFORMS[7] = [
                 ("spec_version", "int64"),
                 ("events", "any")
             ],
-            pivot_keys=DEFAULT_PIVOTS))
+            pivot_keys=DEFAULT_PIVOTS),
+        use_default_mapper=True)
 ]
 
 BASE_PATH = "//sys/operations_archive"
