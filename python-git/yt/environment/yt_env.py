@@ -609,7 +609,7 @@ class YTInstance(object):
                 return len(nodes) == self.node_count and all(node["state"] == "online" for node in nodes)
             except YtResponseError as err:
                 # Orchid connection refused
-                if not err.contains_code(105):
+                if not err.contains_code(105) and not err.contains_code(100):
                     raise
                 return False
 
