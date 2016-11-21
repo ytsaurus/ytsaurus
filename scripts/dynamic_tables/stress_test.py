@@ -2,7 +2,6 @@
 
 import yt.wrapper as yt
 import yt.yson as yson
-import yt_yson_bindings
 from yt.common import YtError
 from yt.wrapper.table import TablePath
 from yt.wrapper.client import Yt
