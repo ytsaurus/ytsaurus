@@ -261,6 +261,7 @@ class YTInstance(object):
         if self.has_proxy:
             self._prepare_proxy(cluster_configuration["proxy"], cluster_configuration["ui"], proxy_dir)
         self._prepare_driver(cluster_configuration["driver"], cluster_configuration["master"])
+        self._prepare_console_driver()
 
     def start(self, use_proxy_from_package=False, start_secondary_master_cells=False, on_masters_started_func=None):
         self._process_to_kill.clear()
@@ -675,6 +676,19 @@ class YTInstance(object):
 
         self.driver_logging_config = init_logging(None,
             self.path, "driver", self._enable_debug_logging)
+
+    def _prepare_console_driver(self):
+        config = {}
+        config["driver"] = self.configs["driver"]
+        config["logging"] = init_logging(None, self.path, "console_driver", self._enable_debug_logging)
+
+        config_path = os.path.join(self.path, "console_driver_config.yson")
+
+        write_config(config, config_path)
+
+        self.configs["console_driver"].append(config)
+        self.config_paths["console_driver"].append(config_path)
+        self.log_paths["console_driver"].append(config["logging"]["writers"]["info"]["file_name"])
 
     def _prepare_proxy(self, proxy_config, ui_config, proxy_dir):
         config_path = os.path.join(proxy_dir, "proxy_config.json")
