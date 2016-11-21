@@ -209,13 +209,13 @@ def add_integer_args(parser, args):
         parser.add_argument(*arg_to_names(arg), type=int)
 
 def add_help_message(parser, arg_name, message):
-    arg_name = ", ".join(arg_to_names(arg_name))
+    arg_name = arg_to_names(arg_name)[0]
     args_tuple = parser._get_option_tuples(arg_name)
     for arg in args_tuple:
         if arg[1] == arg_name:
             arg[0].help = message
             return
-    assert "There is no such option"
+    assert False, "There is no such option " + arg_name
 
 def add_help_messages(parser, args):
     for arg, message in args:
