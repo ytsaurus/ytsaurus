@@ -380,7 +380,7 @@ def build_caller_arguments(is_standalone_binary, use_local_python_in_jobs, file_
         if python_binary is not None:
             arguments = [python_binary]
         else:
-            if use_local_python_in_jobs is not None:
+            if use_local_python_in_jobs is not None and use_local_python_in_jobs:
                 arguments = [file_argument_builder(sys.executable, caller=True)]
                 if is_arcadia_python() and "yt.wrapper._py_runner" in getattr(sys, "extra_modules", []):
                     use_py_runner = False
