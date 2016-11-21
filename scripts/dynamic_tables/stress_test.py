@@ -2,6 +2,7 @@
 
 import yt.wrapper as yt
 import yt.yson as yson
+import yt_yson_bindings
 from yt.common import YtError
 from yt.wrapper.table import TablePath
 from yt.wrapper.client import Yt
@@ -10,6 +11,7 @@ import argparse
 import random
 from time import sleep
 import sys
+import traceback
 
 class TInt64():
     def random(self):
@@ -131,8 +133,8 @@ class Schema():
     def __init__(self):
         self.appearance_probability = 0.9
         self.aggregate_probability = 0.5
-        key_column_count = random.randint(1,10)
-        data_column_count = random.randint(1,20)
+        key_column_count = random.randint(3,5)
+        data_column_count = random.randint(5,10)
         key_columns = [random.choice(key_types) for i in xrange(key_column_count)]
         data_columns = [random.choice(types) for i in xrange(data_column_count)]
         key_names = ["k%s" % str(i) for i in range(len(key_columns))]
@@ -304,6 +306,22 @@ def create_dynamic_table(table, schema, attributes, tablet_count):
     owner = yt.get(table + "/@owner")
     yt.set(table + "/@acl", [{"permissions": ["mount"], "action": "allow", "subjects": [owner]}])
     yt.reshard_table(table, schema.create_pivot_keys(tablet_count))
+    mount_table(table)
+
+def create_dynamic_table_from_data(data_table, table, schema, attributes, tablet_count):
+    print "Create dynamic table %s from %s" % (table, data_table)
+    yschema = yson.YsonList(schema.yson())
+    yschema.attributes["strict"] = True
+    yschema.attributes["unique_keys"] = True
+    # TODO: chunk_writer config here
+    attributes["schema"] = yschema
+    attributes["external"] = False
+    yt.create_table(table, attributes=attributes)
+    yt.run_merge(data_table, table)
+    yt.alter_table(table, dynamic=True)
+    owner = yt.get(table + "/@owner")
+    yt.set(table + "/@acl", [{"permissions": ["mount"], "action": "allow", "subjects": [owner]}])
+    yt.reshard_table(table, schema.get_pivot_keys())
     mount_table(table)
 
 def reshard_table(table, schema, tablet_count):
@@ -600,13 +618,17 @@ def do_single_execution(table, schema, attributes, args):
     remove_existing([table, key_table, data_table, result_table, dump_table], force)
     yt.create_table(data_table)
 
-    create_dynamic_table(table, schema, attributes, tablet_count)
+    schema.create_pivot_keys(tablet_count)
     create_keys(schema, key_table, key_count, job_count)
-
-    #TODO(savrus): generate data and mount static table initially
+    create_random_data(schema, key_table, data_table, 0, job_count)
+    create_dynamic_table_from_data(data_table, table, schema, attributes, tablet_count)
+    empty_table = yt.create_temp_table()
+    aggregate_data(schema, empty_table, data_table, data_table, False, True, job_count)
+    yt.remove(empty_table)
+    verify(schema, data_table, table, result_table, job_count)
 
     iter_tables = []
-    for i in xrange(iterations):
+    for i in xrange(1, iterations + 1):
         iter_table = single_iteration(schema, table, key_table, data_table, dump_table, result_table, i, args)
         iter_tables.append(iter_table)
     if not keep:
@@ -617,8 +639,8 @@ def single_execution(table, schema, attributes, args):
     try:
          do_single_execution(table, schema, attributes, args)
     except Exception as ex:
-        print "Test %s failed" % (table)
-        print ex
+        sys.stdout.write(traceback.format_exc())
+        print "Test %s failed\n" % (table)
 
 def variate_modes(table, args):
     schema = Schema()
