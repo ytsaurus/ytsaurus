@@ -103,7 +103,7 @@ public:
                 auto intermediateBuffer = New<TRowBuffer>(TEvaluatorBufferTag());
 
                 std::vector<TRow> outputBatchRows;
-                outputBatchRows.reserve(RowsetProcessingSize);
+                outputBatchRows.reserve(WriteRowsetSize);
 
                 // NB: function contexts need to be destroyed before cgQuery since it hosts destructors.
                 TExecutionContext executionContext;
