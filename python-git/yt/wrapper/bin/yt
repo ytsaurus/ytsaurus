@@ -941,6 +941,8 @@ def main():
     add_remount_table_parser(add_parser)
     add_reshard_table_parser(add_parser)
     add_alter_table_parser(add_parser)
+    add_freeze_table_parser(add_parser)
+    add_unfreeze_table_parser(add_parser)
 
     add_enable_table_replica_parser(add_parser)
     add_disable_table_replica_parser(add_parser)
