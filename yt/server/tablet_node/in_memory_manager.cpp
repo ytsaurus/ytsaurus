@@ -182,6 +182,8 @@ private:
     void ScanSlot(TTabletSlotPtr slot)
     {
         if (IsMemoryLimitExceeded()) {
+            LOG_DEBUG("Store preload is disabled due to memory pressure (CellId: %v)",
+                slot->GetCellId());
             return;
         }
 
@@ -300,16 +302,14 @@ private:
                 return;
             }
 
-            if (Owner_->IsMemoryLimitExceeded()) {
-                TGuard<TSpinLock> guard(SpinLock_);
-                Dropped_ = true;
-                Owner_->DropChunkData(id.ChunkId);
-                return;
-            }
-
             TGuard<TSpinLock> guard(SpinLock_);
 
+            if (Owner_->IsMemoryLimitExceeded()) {
+                Dropped_ = true;
+            }
+
             if (Dropped_) {
+                Owner_->DropChunkData(id.ChunkId);
                 return;
             }
 

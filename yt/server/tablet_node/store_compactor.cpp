@@ -731,9 +731,6 @@ private:
                 Logger.AddTag("TransactionId: %v", transaction->GetId());
             }
 
-            auto inMemoryManager = Bootstrap_->GetInMemoryManager();
-            auto blockCache = inMemoryManager->CreateInterceptingBlockCache(tabletSnapshot->Config->InMemoryMode);
-
             auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
             writerOptions->ChunksEden = partition->IsEden();
 
