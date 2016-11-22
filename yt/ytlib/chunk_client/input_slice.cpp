@@ -461,7 +461,6 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputSlicePtr& inputSlice)
         ToProto(chunkSpec->mutable_upper_limit(), inputSlice->UpperLimit());
     }
 
-    // Since we don't serialize MiscExt into proto, we always create SizeOverrideExt to track progress.
     if (inputSlice->GetSizeOverridden()) {
         chunkSpec->set_uncompressed_data_size_override(inputSlice->GetDataSize());
         chunkSpec->set_row_count_override(inputSlice->GetRowCount());
