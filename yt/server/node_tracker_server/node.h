@@ -231,6 +231,7 @@ public:
 
 private:
     TAddressMap Addresses_;
+    Stroka DefaultAddress_;
 
     int HintedUserSessionCount_;
     int HintedReplicationSessionCount_;
