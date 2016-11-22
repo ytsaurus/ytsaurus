@@ -69,9 +69,13 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TSchedulableAttributes, Attributes);
 
 protected:
-    explicit TSchedulerElementFixedState(ISchedulerStrategyHost* host);
+    explicit TSchedulerElementFixedState(
+        ISchedulerStrategyHost* host,
+        const TFairShareStrategyConfigPtr& strategyConfig);
 
     ISchedulerStrategyHost* const Host_;
+
+    TFairShareStrategyConfigPtr StrategyConfig_;
 
     TCompositeSchedulerElement* Parent_ = nullptr;
 
@@ -121,6 +125,8 @@ public:
     virtual int EnumerateNodes(int startIndex);
 
     int GetTreeIndex() const;
+
+    virtual void UpdateStrategyConfig(const TFairShareStrategyConfigPtr& config);
 
     virtual void Update(TDynamicAttributesList& dynamicAttributesList);
 
@@ -179,15 +185,13 @@ public:
     virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) = 0;
 
 protected:
-    const TFairShareStrategyConfigPtr StrategyConfig_;
-
     TSchedulerElementSharedStatePtr SharedState_;
 
     static const TNullable<Stroka> NullNodeTag;
 
     TSchedulerElement(
         ISchedulerStrategyHost* host,
-        TFairShareStrategyConfigPtr strategyConfig);
+        const TFairShareStrategyConfigPtr& strategyConfig);
     TSchedulerElement(
         const TSchedulerElement& other,
         TCompositeSchedulerElement* clonedParent);
@@ -242,6 +246,8 @@ public:
         TCompositeSchedulerElement* clonedParent);
 
     virtual int EnumerateNodes(int startIndex) override;
+
+    virtual void UpdateStrategyConfig(const TFairShareStrategyConfigPtr& config) override;
 
     virtual void UpdateBottomUp(TDynamicAttributesList& dynamicAttributesList) override;
     virtual void UpdateTopDown(TDynamicAttributesList& dynamicAttributesList) override;

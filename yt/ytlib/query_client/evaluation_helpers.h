@@ -23,6 +23,7 @@ namespace NYT {
 namespace NQueryClient {
 
 const size_t RowsetProcessingSize = 1024;
+const size_t WriteRowsetSize = 64 * RowsetProcessingSize;
 
 ////////////////////////////////////////////////////////////////////////////////
 

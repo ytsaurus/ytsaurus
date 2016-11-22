@@ -86,6 +86,13 @@ DEFINE_ENUM(EOutputTableType,
     (Stderr)
 );
 
+DEFINE_ENUM(ETransactionType,
+    (Sync)
+    (Async)
+    (Input)
+    (Output)
+    (DebugOutput)
+);
 
 class TOperationControllerBase
     : public IOperationController
@@ -148,7 +155,7 @@ public:
     virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildMemoryDigestStatistics(NYson::IYsonConsumer* consumer) const override;
 
-    TNullable<NYson::TYsonString> BuildInputPathYson(const TJobId& jobId) const override;
+    NYson::TYsonString BuildInputPathYson(const TJobId& jobId) const override;
 
     virtual void Persist(const TPersistenceContext& context) override;
 
@@ -650,9 +657,9 @@ protected:
     };
 
     NApi::ITransactionPtr StartTransaction(
-        const Stroka& transactionName,
+        ETransactionType type,
         NApi::INativeClientPtr client,
-        const NTransactionClient::TTransactionId& parentTransactionId);
+        const NTransactionClient::TTransactionId& parentTransactionId = NTransactionClient::NullTransactionId);
 
     //! All task groups declared by calling #RegisterTaskGroup, in the order of decreasing priority.
     std::vector<TTaskGroupPtr> TaskGroups;

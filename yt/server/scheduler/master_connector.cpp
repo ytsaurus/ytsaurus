@@ -336,6 +336,11 @@ public:
         }
     }
 
+    void UpdateConfig(const TSchedulerConfigPtr& config)
+    {
+        Config = config;
+    }
+
 
     DEFINE_SIGNAL(void(const TMasterHandshakeResult& result), MasterConnected);
     DEFINE_SIGNAL(void(), MasterDisconnected);
@@ -344,7 +349,7 @@ public:
     DEFINE_SIGNAL(void(TOperationPtr operation), SchedulerTransactionAborted);
 
 private:
-    const TSchedulerConfigPtr Config;
+    TSchedulerConfigPtr Config;
     NCellScheduler::TBootstrap* const Bootstrap;
 
     NHiveClient::TClusterDirectoryPtr ClusterDirectory;
@@ -1316,7 +1321,7 @@ private:
             const auto& jobId = request.JobId;
             auto jobPath = GetJobPath(operation->GetId(), jobId);
             auto req = TYPathProxy::Set(jobPath);
-            TNullable<TYsonString> inputPaths;
+            TYsonString inputPaths;
             if (request.InputPathsFuture) {
                 auto inputPathsOrError = WaitFor(request.InputPathsFuture);
                 if (!inputPathsOrError.IsOK()) {
@@ -1334,8 +1339,9 @@ private:
                     .Do([=] (IYsonConsumer* consumer) {
                         consumer->OnRaw(request.Attributes);
                     })
-                    .DoIf(static_cast<bool>(inputPaths), [=] (TFluentAttributes fluent) {
-                        fluent.Item("input_paths").Value(*inputPaths);
+                    .DoIf(inputPaths.GetType() != EYsonType::None, [=] (TFluentAttributes fluent) {
+                        fluent
+                            .Item("input_paths").Value(inputPaths);
                     })
                 .EndAttributes()
                 .BeginMap()
@@ -2090,6 +2096,11 @@ void TMasterConnector::AttachJobContext(
     const TJobId& jobId)
 {
     return Impl->AttachJobContext(path, chunkId, operationId, jobId);
+}
+
+void TMasterConnector::UpdateConfig(const TSchedulerConfigPtr& config)
+{
+    Impl->UpdateConfig(config);
 }
 
 TFuture<void> TMasterConnector::AttachToLivePreview(

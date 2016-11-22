@@ -97,18 +97,16 @@ public:
      *  are not full, support chunks of a given type
      *  and don't currently throttle writes for a given workload.
      *
-     *  Next, the algorithm depends on #TSessionOptions::EnableUniformPlacement flag.
-     *
-     *  If #TSessionOptions::EnableUniformPlacement is |true| then
-     *  a random candidate is returned.
-     *
-     *  If #TSessionOptions::EnableUniformPlacement is |false| then
+     *  If #TSessionOptions::PlacementId is null then
      *  a random candidate with the minimum number of active sessions is returned.
+     *
+     *  Otherwise the next (in round-robin order) candidate for this
+     *  placement id is returned.
      *
      *  Throws exception if no suitable location could be found.
      */
     TStoreLocationPtr GetNewChunkLocation(
-        NObjectClient::EObjectType chunkType,
+        const NChunkClient::TChunkId& chunkId,
         const TSessionOptions& options);
 
     //! Storage locations.
@@ -133,6 +131,15 @@ private:
     NConcurrency::TReaderWriterSpinLock ChunkMapLock_;
     yhash_map<TChunkId, TChunkEntry> ChunkMap_;
 
+    struct TPlacementInfo
+    {
+        int CurrentLocationIndex;
+        std::multimap<TInstant, NChunkClient::TPlacementId>::iterator DeadlineIterator;
+    };
+
+    yhash_map<NChunkClient::TPlacementId, TPlacementInfo> PlacementIdToInfo_;
+    std::multimap<TInstant, NChunkClient::TPlacementId> DeadlineToPlacementId_;
+
 
     bool CanStartNewSession(
         const TStoreLocationPtr& location,
@@ -143,6 +150,9 @@ private:
 
     static TChunkEntry BuildEntry(IChunkPtr chunk);
     IChunkPtr CreateFromDescriptor(const TStoreLocationPtr& location, const TChunkDescriptor& descriptor);
+
+    TPlacementInfo* GetOrCreatePlacementInfo(const NChunkClient::TPlacementId& placementId);
+    void ExpirePlacementInfos();
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 

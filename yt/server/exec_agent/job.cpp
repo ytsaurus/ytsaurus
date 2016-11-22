@@ -782,7 +782,7 @@ private:
 
             TNullable<TNodeId> unresolvedNodeId;
 
-            auto validateValidateNodeIds = [&] (
+            auto validateNodeIds = [&] (
                 const ::google::protobuf::RepeatedPtrField<NChunkClient::NProto::TDataSliceDescriptor>& dataSliceDescriptors,
                 const TNodeDirectoryPtr& nodeDirectory,
                 TNodeDirectoryBuilder* nodeDirectoryBuilder)
@@ -807,7 +807,7 @@ private:
 
             auto validateTableSpecs = [&] (const ::google::protobuf::RepeatedPtrField<TTableInputSpec>& tableSpecs) {
                 for (const auto& tableSpec : tableSpecs) {
-                    validateValidateNodeIds(tableSpec.data_slice_descriptors(), nodeDirectory, &inputNodeDirectoryBuilder);
+                    validateNodeIds(tableSpec.data_slice_descriptors(), nodeDirectory, &inputNodeDirectoryBuilder);
                 }
             };
 
@@ -816,7 +816,7 @@ private:
 
             // NB: No need to add these descriptors to the input node directory.
             for (const auto& artifact : Artifacts_) {
-                validateValidateNodeIds(artifact.Key.data_slice_descriptors(), nodeDirectory, nullptr);
+                validateNodeIds(artifact.Key.data_slice_descriptors(), nodeDirectory, nullptr);
             }
 
             if (!unresolvedNodeId) {
@@ -834,7 +834,7 @@ private:
             WaitFor(TDelayedExecutor::MakeDelayed(Config_->NodeDirectoryPrepareBackoffTime));
         }
 
-        LOG_INFO("Node directory is constructed by Exec Agent");
+        LOG_INFO("Node directory is constructed locally");
     }
 
     TJobProxyConfigPtr CreateConfig()
@@ -1052,6 +1052,7 @@ private:
             resultError.FindMatching(NExecAgent::EErrorCode::JobEnvironmentDisabled) ||
             resultError.FindMatching(NExecAgent::EErrorCode::ArtifactCopyingFailed) ||
             resultError.FindMatching(NExecAgent::EErrorCode::NodeDirectoryPreparationFailed) ||
+            resultError.FindMatching(NExecAgent::EErrorCode::SlotLocationDisabled) ||
             resultError.FindMatching(NJobProxy::EErrorCode::MemoryCheckFailed))
         {
             return EAbortReason::Other;

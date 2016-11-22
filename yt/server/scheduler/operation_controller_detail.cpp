@@ -896,15 +896,18 @@ void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
     YCHECK(joblet->ChunkListIds.size() == 1);
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
     auto* outputSpec = schedulerJobSpecExt->add_output_table_specs();
+
     auto options = New<TTableWriterOptions>();
     options->Account = Controller->Spec->IntermediateDataAccount;
     options->ChunksVital = false;
     options->ChunksMovable = false;
     options->ReplicationFactor = Controller->Spec->IntermediateDataReplicationFactor;
     options->CompressionCodec = Controller->Spec->IntermediateCompressionCodec;
-
+    // Distribute intermediate chunks uniformly across storage locations.
+    options->PlacementId = Controller->OperationId;
     // Intermediate data MUST be sorted if we expect it to be sorted.
     options->ExplodeOnValidationError = true;
+
     outputSpec->set_table_writer_options(ConvertToYsonString(options).Data());
 
     ToProto(outputSpec->mutable_table_schema(), TTableSchema::FromKeyColumns(keyColumns));
@@ -1437,11 +1440,12 @@ void TOperationControllerBase::InitializeTransactions()
 }
 
 ITransactionPtr TOperationControllerBase::StartTransaction(
-    const Stroka& transactionName,
+    ETransactionType type,
     INativeClientPtr client,
-    const TTransactionId& parentTransactionId = NullTransactionId)
+    const TTransactionId& parentTransactionId)
 {
-    LOG_INFO("Starting %v transaction", transactionName);
+    LOG_INFO("Starting transaction (Type: %v)",
+        type);
 
     TTransactionStartOptions options;
     options.AutoAbort = false;
@@ -1449,7 +1453,9 @@ ITransactionPtr TOperationControllerBase::StartTransaction(
     auto attributes = CreateEphemeralAttributes();
     attributes->Set(
         "title",
-        Format("Scheduler %v for operation %v", transactionName, OperationId));
+        Format("Scheduler %Qlv transaction for operation %v",
+            type,
+            OperationId));
     attributes->Set("operation_id", OperationId);
     if (Spec->Title) {
         attributes->Set("operation_title", Spec->Title);
@@ -1462,57 +1468,53 @@ ITransactionPtr TOperationControllerBase::StartTransaction(
         client->StartTransaction(NTransactionClient::ETransactionType::Master, options));
     THROW_ERROR_EXCEPTION_IF_FAILED(
         transactionOrError,
-        "Error starting %v transaction",
-        transactionName);
+        "Error starting %Qlv transaction",
+        type);
     auto transaction = transactionOrError.Value();
+
+    LOG_INFO("Transaction started (Type: %v, TransactionId: %v)",
+        type,
+        transaction->GetId());
 
     return transaction;
 }
 
 void TOperationControllerBase::StartSyncSchedulerTransaction()
 {
-    SyncSchedulerTransaction = StartTransaction("sync", AuthenticatedMasterClient, UserTransactionId);
-
-    LOG_INFO("Scheduler sync transaction started (SyncTransactionId: %v)",
-        SyncSchedulerTransaction->GetId());
+    SyncSchedulerTransaction = StartTransaction(
+        ETransactionType::Sync,
+        AuthenticatedMasterClient,
+        UserTransactionId);
 }
 
 void TOperationControllerBase::StartAsyncSchedulerTransaction()
 {
-    AsyncSchedulerTransaction = StartTransaction("async", AuthenticatedMasterClient);
-
-    LOG_INFO("Scheduler async transaction started (AsyncTransactionId: %v)",
-        AsyncSchedulerTransaction->GetId());
+    AsyncSchedulerTransaction = StartTransaction(
+        ETransactionType::Async,
+        AuthenticatedMasterClient);
 }
 
 void TOperationControllerBase::StartInputTransaction(const TTransactionId& parentTransactionId)
 {
     InputTransaction = StartTransaction(
-        "input",
+        ETransactionType::Input,
         AuthenticatedInputMasterClient,
         parentTransactionId);
-
-    LOG_INFO("Input transaction started (InputTransactionId: %v)",
-        InputTransaction->GetId());
 }
 
 void TOperationControllerBase::StartOutputTransaction(const TTransactionId& parentTransactionId)
 {
     OutputTransaction = StartTransaction(
-        "output",
+        ETransactionType::Output,
         AuthenticatedOutputMasterClient,
         parentTransactionId);
-
-    LOG_INFO("Output transaction started (OutputTransactionId: %v)",
-        OutputTransaction->GetId());
 }
 
 void TOperationControllerBase::StartDebugOutputTransaction()
 {
-    DebugOutputTransaction = StartTransaction("debug_output", AuthenticatedMasterClient);
-
-    LOG_INFO("Debug output transaction started (DebugOutputTransactionId: %v)",
-        DebugOutputTransaction->GetId());
+    DebugOutputTransaction = StartTransaction(
+        ETransactionType::DebugOutput,
+        AuthenticatedMasterClient);
 }
 
 void TOperationControllerBase::PickIntermediateDataCell()
@@ -3096,6 +3098,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
         const Stroka& path,
         TCellTag cellTag,
         int replicationFactor,
+        NCompression::ECodec compressionCodec,
         const Stroka& key,
         const TYsonString& acl)
     {
@@ -3106,6 +3109,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
 
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("replication_factor", replicationFactor);
+        attributes->Set("compression_codec", compressionCodec);
         if (cellTag == connection->GetPrimaryMasterCellTag()) {
             attributes->Set("external", false);
         } else {
@@ -3128,6 +3132,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
                 path,
                 table.CellTag,
                 table.Options->ReplicationFactor,
+                table.Options->CompressionCodec,
                 "create_output",
                 table.EffectiveAcl);
         }
@@ -3140,6 +3145,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
             path,
             StderrTable->CellTag,
             StderrTable->Options->ReplicationFactor,
+            StderrTable->Options->CompressionCodec,
             "create_stderr",
             StderrTable->EffectiveAcl);
     }
@@ -3152,6 +3158,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
             path,
             IntermediateOutputCellTag,
             1,
+            Spec->IntermediateCompressionCodec,
             "create_intermediate",
             BuildYsonStringFluently()
                 .BeginList()
@@ -3624,6 +3631,13 @@ void TOperationControllerBase::BeginUploadOutputTables()
                 table->Options->ChunksVital = attributes->Get<bool>("vital");
                 table->Options->OptimizeFor = attributes->Get<EOptimizeFor>("optimize_for", EOptimizeFor::Lookup);
 
+                // Workaround for YT-5827.
+                if (table->TableUploadOptions.TableSchema.Columns().empty() && 
+                    table->TableUploadOptions.TableSchema.GetStrict())
+                {
+                    table->Options->OptimizeFor = EOptimizeFor::Lookup;
+                }
+
                 table->EffectiveAcl = attributes->GetYson("effective_acl");
             }
             LOG_INFO("Output table locked (Path: %v, Options: %v, UploadTransactionId: %v)",
@@ -4064,10 +4078,10 @@ void TOperationControllerBase::CollectTotals()
         }
     }
 
-    LOG_INFO("Estimated input totals collected (ChunkCount: %v, DataSize: %v, RowCount: %v, CompressedDataSize: %v)",
+    LOG_INFO("Estimated input totals collected (ChunkCount: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
         TotalEstimatedInputChunkCount,
-        TotalEstimatedInputDataSize,
         TotalEstimatedInputRowCount,
+        TotalEstimatedInputDataSize,
         TotalEstimatedCompressedDataSize);
 }
 
@@ -4763,7 +4777,7 @@ void TOperationControllerBase::BuildBriefSpec(IYsonConsumer* consumer) const
         .Item("output_table_paths").ListLimited(GetOutputTablePaths(), 1);
 }
 
-TNullable<TYsonString> TOperationControllerBase::BuildInputPathYson(const TJobId& jobId) const
+TYsonString TOperationControllerBase::BuildInputPathYson(const TJobId& jobId) const
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
@@ -5010,9 +5024,6 @@ void TOperationControllerBase::InitIntermediateOutputConfig(TJobIOConfigPtr conf
 
     // Don't sync intermediate chunks.
     config->TableWriter->SyncOnClose = false;
-
-    // Distribute intermediate chunks uniformly across storage locations.
-    config->TableWriter->EnableUniformPlacement = true;
 }
 
 void TOperationControllerBase::InitFinalOutputConfig(TJobIOConfigPtr /* config */)
@@ -5518,7 +5529,7 @@ public:
         Underlying_->BuildBriefSpec(consumer);
     }
 
-    virtual TNullable<TYsonString> BuildInputPathYson(const TJobId& jobId) const override
+    virtual TYsonString BuildInputPathYson(const TJobId& jobId) const override
     {
         return Underlying_->BuildInputPathYson(jobId);
     }
