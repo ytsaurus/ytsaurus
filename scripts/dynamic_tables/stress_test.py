@@ -724,11 +724,11 @@ def variate_modes(table, args):
         single_execution(table + "." + optimize_for + ".uncompressed.lookuptable", schema, {"optimize_for": optimize_for, "in_memory_mode": "uncompressed", "enable_lookup_hash_table": True}, args)
 
 def run_test(args):
-    module_filter = lambda module: hasattr(module, "__file__") and \
-                                   not module.__file__.endswith(".so") and \
-                                   "yt_yson_bindings" not in getattr(module, "__name__", "") and \
-                                   "yt_driver_bindings" not in getattr(module, "__name__", "")
-    yt.config["pickling"]["module_filter"] = module_filter
+    #module_filter = lambda module: hasattr(module, "__file__") and \
+    #                               not module.__file__.endswith(".so") and \
+    #                               "yt_yson_bindings" not in getattr(module, "__name__", "") and \
+    #                               "yt_driver_bindings" not in getattr(module, "__name__", "")
+    #yt.config["pickling"]["module_filter"] = module_filter
 
     for i in range(args.generations):
         variate_modes(args.table + "." + str(i), args)
