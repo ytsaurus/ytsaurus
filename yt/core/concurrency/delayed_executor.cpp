@@ -81,14 +81,6 @@ public:
         return promise;
     }
 
-    static void ClosureToDelayedCallbackAdapter(const TClosure& closure, bool aborted)
-    {
-        if (aborted) {
-            return;
-        }
-        closure.Run();
-    }
-
     TDelayedExecutorCookie Submit(TClosure closure, TDuration delay)
     {
         YCHECK(closure);
@@ -116,51 +108,43 @@ public:
         YCHECK(callback);
         auto entry = New<TDelayedExecutorEntry>(std::move(callback), deadline);
         SubmitQueue_.Enqueue(entry);
-        EnsureStarted();
-        PurgeQueuesIfFinished();
+        if (!EnsureStarted()) {
+            // Failure in #EnsureStarted indicates that the Sleeper Thread has already been
+            // shut down. It is guaranteed that no access to #entry is possible at this point
+            // and it is thus safe to run the handler right away. Checking #TDelayedExecutorEntry::Callback
+            // for null ensures that we don't attempt to re-run the callback (cf. #SleeperThreadStep).
+            if (entry->Callback) {
+                entry->Callback.Run(true);
+                entry->Callback.Reset();
+            }
+        }
         return entry;
     }
 
-    void Cancel(TDelayedExecutorCookie entry)
+    void Cancel(TDelayedExecutorEntryPtr entry)
     {
         if (!entry) {
             return;
         }
-        EnsureStarted();
         CancelQueue_.Enqueue(std::move(entry));
-        PurgeQueuesIfFinished();
+        // No #EnsureStarted call is needed here: having #entry implies that #Submit call has been previously made.
+        // Also in contrast to #Submit we have no special handling for #entry in case the Sleeper Thread
+        // has been already terminated.
     }
 
     void Shutdown()
     {
-        bool doJoinSleeper;
-
-        {
-            auto guard = Guard(SpinLock_);
-
-            if (Stopped_) {
-                return;
-            }
-
-            Stopped_ = true;
-            doJoinSleeper = Started_;
+        auto guard = Guard(SpinLock_);
+        Stopping_ = true;
+        if (Started_) {
+            guard.Release();
+            Exited_.Get();
         }
-
-        if (doJoinSleeper) {
-            SleeperThread_.Join();
-            DelayedQueue_->Shutdown();
-            DelayedQueue_.Reset();
-            DelayedInvoker_.Reset();
-        }
-
-        Finished_ = true;
-
-        PurgeQueues();
     }
 
 private:
     //! Only touched from DelayedSleeper thread.
-    std::set<TDelayedExecutorCookie, TDelayedExecutorEntry::TComparer> ScheduledEntries_;
+    std::set<TDelayedExecutorEntryPtr, TDelayedExecutorEntry::TComparer> ScheduledEntries_;
 
     //! Enqueued from any thread, dequeued from DelayedSleeper thread.
     TMultipleProducerSingleConsumerLockFreeStack<TDelayedExecutorEntryPtr> SubmitQueue_;
@@ -169,37 +153,54 @@ private:
     TInstant PrevOnTimerInstant_;
 
     TThread SleeperThread_;
-    TThread::TId SleeperThreadId_ = TThread::ImpossibleThreadId();
 
     TSpinLock SpinLock_;
     TActionQueuePtr DelayedQueue_;
     IInvokerPtr DelayedInvoker_;
 
     std::atomic<bool> Started_ = {false};
-    std::atomic<bool> Stopped_ = {false};
-    std::atomic<bool> Finished_ = {false};
+    std::atomic<bool> Stopping_ = {false};
+    TPromise<void> Stopped_ = NewPromise<void>();
+    TPromise<void> Exited_ = NewPromise<void>();
 
+    /*!
+     * If |true| is returned then it is guaranteed that all entries enqueued up to this call
+     * are (or will be) dequeued and taken care of by the Sleeper Thread.
+     *
+     * If |false| is returned then the Sleeper Thread has been already shut down.
+     * It is guaranteed that no further handling will take place.
+     */
     bool EnsureStarted()
     {
+        auto handleStarted = [&] (TGuard<TSpinLock>* guard) {
+            if (Stopping_) {
+                if (guard) {
+                    guard->Release();
+                }
+                // Must wait for the Sleeper Thread to finish to prevent simultaneous access to shared state.
+                Stopped_.Get();
+                return false;
+            } else {
+                return true;
+            }
+        };
+
         if (Started_) {
-            return true;
+            return handleStarted(nullptr);
         }
 
         auto guard = Guard(SpinLock_);
 
         if (Started_) {
-            return true;
+            return handleStarted(&guard);
         }
 
-        if (Stopped_) {
+        if (Stopping_) {
+            // Stopped without being started.
             return false;
         }
 
-        DelayedQueue_ = New<TActionQueue>("DelayedExecutor", false, false);
-        DelayedInvoker_ = DelayedQueue_->GetInvoker();
-
         SleeperThread_.Start();
-        SleeperThreadId_ = SleeperThread_.Id();
 
         Started_ = true;
 
@@ -216,16 +217,56 @@ private:
     {
         TThread::CurrentThreadSetName("DelayedSleeper");
 
-        while (!Stopped_) {
+        // Boot the Delayed Executor thread up.
+        // NB: Delayed Sleeper is solely responsible for the lifetime of this thread.
+        DelayedQueue_ = New<TActionQueue>("DelayedExecutor", false, false);
+        DelayedInvoker_ = DelayedQueue_->GetInvoker();
+
+        // Run the main loop.
+        while (!Stopping_) {
             Sleep(SleepQuantum);
             SleeperThreadStep();
         }
 
-        for (const auto& entry : ScheduledEntries_) {
-            PurgeEntry(entry);
-        }
+        // Perform graceful shutdown.
 
+        // First run the scheduled callbacks with |aborted = true|.
+        // NB: The callbacks are forwarded to the DelayedExecutor thread to prevent any user-code
+        // from leaking to the Delayed Sleeper thread, which is, e.g., fiber-unfriendly.
+        auto runAbort = [&] (const TDelayedExecutorEntryPtr& entry) {
+            if (entry->Callback) {
+                DelayedInvoker_->Invoke(BIND(std::move(entry->Callback), true));
+            }
+        };
+        for (const auto& entry : ScheduledEntries_) {
+            runAbort(entry);
+        }
         ScheduledEntries_.clear();
+
+        // Now we handle the queued callbacks similarly.
+        SubmitQueue_.DequeueAll(false, runAbort);
+
+        // As for the cancelation queue, we just drop these entries.
+        CancelQueue_.DequeueAll(false, [] (const TDelayedExecutorEntryPtr&) { });
+
+        // From now on, shared state is not touched.
+        Stopped_.Set();
+
+        // Finally we wait for all callbacks in the Delayed Executor thread to finish running.
+        // This certainly cannot prevent any malicious code in the callbacks from starting new fibers there
+        // but we don't care.
+        BIND([] () { })
+            .AsyncVia(DelayedInvoker_)
+            .Run()
+            .Get();
+
+        // Shut the Delayed Executor thread down.
+        DelayedQueue_->Shutdown();
+        DelayedQueue_.Reset();
+        DelayedInvoker_.Reset();
+
+        // Release those waiting for shutdown.
+        Exited_.Set();
     }
 
     void SleeperThreadStep()
@@ -278,42 +319,18 @@ private:
                     now);
             }
             YCHECK(entry->Callback);
-            auto boundFalseCallback = BIND(entry->Callback, false);
-            auto boundTrueCallback = BIND(entry->Callback, true);
-            entry->Callback.Reset();
+            DelayedInvoker_->Invoke(BIND(std::move(entry->Callback), false));
             entry->Iterator.Reset();
             ScheduledEntries_.erase(it);
-            GuardedInvoke(DelayedInvoker_, std::move(boundFalseCallback), std::move(boundTrueCallback));
         }
     }
 
-    void PurgeQueues()
+    static void ClosureToDelayedCallbackAdapter(const TClosure& closure, bool aborted)
     {
-        SubmitQueue_.DequeueAll(false, &TImpl::PurgeEntry);
-        CancelQueue_.DequeueAll(false, &TImpl::PurgeEntry);
-    }
-
-    void PurgeQueuesIfFinished()
-    {
-        if (Stopped_) {
-            if (TThread::CurrentThreadId() != SleeperThreadId_) {
-                while (!Finished_) {
-                    Sleep(SleepQuantum);
-                }
-            }
-            PurgeQueues();
+        if (aborted) {
+            return;
         }
-    }
-
-    static void PurgeEntry(const TDelayedExecutorEntryPtr &entry)
-    {
-        if (entry->Callback) {
-            entry->Callback.Run(true);
-            entry->Callback.Reset();
-        }
-        if (entry->Iterator) {
-            entry->Iterator.Reset();
-        }
+        closure.Run();
     }
 };
 
