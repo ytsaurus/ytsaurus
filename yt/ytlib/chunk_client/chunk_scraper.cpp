@@ -181,7 +181,6 @@ TChunkScraper::TChunkScraper(
     CreateTasks(chunkIds);
 }
 
-//! Starts periodic polling.
 void TChunkScraper::Start()
 {
     TGuard<TSpinLock> guard(SpinLock_);
@@ -195,7 +194,6 @@ void TChunkScraper::DoStart()
     }
 }
 
-//! Stops periodic polling.
 TFuture<void> TChunkScraper::Stop()
 {
     TGuard<TSpinLock> guard(SpinLock_);
@@ -211,7 +209,6 @@ TFuture<void> TChunkScraper::DoStop()
     return Combine(futures);
 }
 
-//! Reset a set of chunks scraper and start/stop scraper if necessary.
 void TChunkScraper::Reset(const yhash_set<TChunkId>& chunkIds)
 {
     TGuard<TSpinLock> guard(SpinLock_);
@@ -221,7 +218,6 @@ void TChunkScraper::Reset(const yhash_set<TChunkId>& chunkIds)
     DoStart();
 }
 
-//! Create scraper tasks for each cell.
 void TChunkScraper::CreateTasks(const yhash_set<TChunkId>& chunkIds)
 {
     // Group chunks by cell tags.
