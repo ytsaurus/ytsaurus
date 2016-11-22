@@ -307,6 +307,7 @@ public:
         RegisterParameter("memory_limit", MemoryLimit)
             .Default((i64) 512 * 1024 * 1024)
             .GreaterThan(0);
+            .LessThanOrEqual((i64)1024 * 1024 * 1024 * 1024);
         RegisterParameter("memory_reserve_factor", MemoryReserveFactor)
             .Default(0.5)
             .GreaterThan(0.)
