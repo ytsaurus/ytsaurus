@@ -12,7 +12,8 @@ from teamcity import build_step, cleanup_step, teamcity_main, \
 from helpers import mkdirp, run, run_captured, cwd, copytree, \
                     kill_by_name, sudo_rmtree, ls, get_size, \
                     rmtree, rm_content, clear_system_tmp, \
-                    format_yes_no, parse_yes_no_bool, ChildHasNonZeroExitCode
+                    format_yes_no, parse_yes_no_bool, cleanup_cgroups, \
+                    ChildHasNonZeroExitCode
 
 from pytest_helpers import get_sandbox_dirs, save_failed_test, find_and_report_core_dumps
 
@@ -90,22 +91,7 @@ def prepare(options):
         if os.path.exists(sandbox_storage):
             rmtree(sandbox_storage)
 
-    teamcity_message("Creating cgroups...", status="WARNING")
-    cgroup_names = ("blkio", "cpu", "cpuacct", "freezer", "memory")
-    teamcity_cgpaths = [os.path.join("/sys/fs/cgroup", name, "teamcity") for name in cgroup_names]
-    yt_cgpaths = [os.path.join(path, "yt") for path in teamcity_cgpaths]
-    run(["sudo", "mkdir", "-p"] + yt_cgpaths)
-    run(["sudo", "chown", "-R", str(os.getuid())+":"+str(os.getgid())] + teamcity_cgpaths)
-    run(["sudo", "chmod", "-R", "u+rw"] + teamcity_cgpaths)
-
-    teamcity_message("Cleaning cgroups...", status="WARNING")
-    for cgpath in yt_cgpaths:
-        for root, subFolders, files in os.walk(cgpath, topdown=False):
-            if root != cgpath:
-                try:
-                    os.rmdir(root)
-                except:
-                    pass
+    cleanup_cgroups()
 
     clear_system_tmp()
 
