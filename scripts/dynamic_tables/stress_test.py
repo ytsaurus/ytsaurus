@@ -151,6 +151,8 @@ class Schema():
         return [c.name for c in self.data_columns]
     def get_column_names(self):
         return [c.name for c in self.columns]
+    def get_key_columns(self):
+        return self.key_columns
     def get_data_columns(self):
         return self.data_columns
     def create_pivot_keys(self, tablet_count):
@@ -263,14 +265,16 @@ def create_keys(schema, dst, count, job_count):
                 else: t = m
             return s
 
+    key_columns = schema.get_key_column_names()
     tmp = yt.create_temp_table()
     rows = [{"count": (count + job_count - 1) / job_count} for i in xrange(job_count)]
     yt.write_table(tmp, rows, raw=False)
     yt.run_map(Mapper(schema), tmp, dst, spec={"job_count": job_count, "max_failed_job_count": 100})
-    yt.run_sort(dst, sort_by=schema.get_key_column_names())
+    yt.run_sort(dst, sort_by=key_columns)
     def reducer(key, records):
         yield next(records)
-    yt.run_reduce(reducer, dst, dst, reduce_by=schema.get_key_column_names())
+    yt.run_reduce(reducer, dst, dst, reduce_by=key_columns)
+    yt.run_sort(dst, sort_by=key_columns)
     yt.remove(tmp)
 
 def wait_until(path, state):
@@ -419,13 +423,13 @@ class AggregateReducer:
 def aggregate_data(schema, data_table, iter_table, new_data_table, aggregate, update, job_count):
     print "Aggregate data"
     key_columns = schema.get_key_column_names()
-    yt.run_sort(data_table, sort_by=key_columns)
     yt.run_reduce(
         AggregateReducer(schema, aggregate, update),
         [data_table, iter_table],
         new_data_table,
         reduce_by=key_columns,
         format=yt.YsonFormat(boolean_as_string=False))
+    yt.run_sort(new_data_table, sort_by=key_columns)
 
 def equal(columns, x, y):
     if (x == None) + (y == None) > 0:
@@ -471,6 +475,7 @@ class VerifierMapper(SchemafulMapper):
 
 def verify(schema, data_table, table, result_table, job_count):
     print "Verify data"
+    yt.set_attribute(result_table, "stack", traceback.format_stack())
     yt.run_map(
         VerifierMapper(schema, table),
         data_table,
@@ -486,17 +491,25 @@ class VerifierReducer(SchemafulMapper):
     def __init__(self, schema):
         self.schema = schema
     def __call__(self, key, records):
-        rows = [None, None]
+        rows = [[], []]
         for r in records:
-            rows[r["@table_index"]] = r
+            rows[r["@table_index"]].append(r)
+        if len(rows[0]) > 1 or len(rows[1]) > 1:
+            for i in [0, 1]:
+                rows[i] = {"variant%s" % j : rows[i][j] for j in len(rows[i])}
+            yield {"expected": rows[0], "actual": rows[1]}
+        else:
+            for i in [0, 1]:
+                rows[i] = rows[i][0] if len(rows[i]) == 1 else None
         if not equal(self.schema.get_column_names(), rows[0], rows[1]):
-            yield {"expected": record, "actual": result}
+            yield {"expected": rows[0], "actual": rows[1]}
 
 def verify_output(schema, data_table, dump_table, result_table):
     print "Verify output"
     key_columns = schema.get_key_column_names()
 
     yt.run_sort(dump_table, sort_by=key_columns)
+    yt.set_attribute(result_table, "stack", traceback.format_stack())
     yt.run_reduce(
         VerifierReducer(schema),
         [data_table, dump_table],
@@ -509,6 +522,51 @@ def verify_output(schema, data_table, dump_table, result_table):
         raise Exception("Verification failed")
     yt.remove(dump_table)
     print "Everything OK"
+
+@yt.reduce_aggregator
+class SelectReducer(SchemafulMapper):
+    def __init__(self, schema, table, key_columns):
+        super(SelectReducer, self).__init__(schema, table)
+        self.key_columns = key_columns
+    def __call__(self, row_groups):
+        config = {"driver_config_path": "/etc/ytdriver.conf", "api_version": "v3"}
+        client = Yt(config=config)
+
+        keys = []
+        for key, rows in row_groups:
+            row = next(rows)
+            keylist = ["null" if row.get(k, None) == None else yson.dumps(row[k]) for k in self.key_columns]
+            keys.append("(%s)" % (",".join(keylist)))
+        query = "* from [%s] where (%s) in (%s)" % (self.table, ",".join(self.key_columns), ",".join(keys))
+        params = {
+            "query": query,
+            "output_format": "yson",
+        }
+        data = self.make_request("select_rows", params, "", client=client)
+        rows = yson.loads(data, yson_type="list_fragment")
+        for row in rows:
+            yield row
+
+def verify_select(schema, data_table, table, dump_table, result_table, job_count, key_columns):
+    def check_bool(schema, key_columns):
+        yschema = schema.yson()
+        for k in key_columns:
+            for c in yschema:
+                if c["name"] == k and c["type"] != "boolean":
+                    return True
+        return False
+    print "Verify select for key %s" % (key_columns)
+    if not check_bool(schema, key_columns):
+        print "Disabled since all keys are boolean"
+        return
+    yt.run_reduce(
+        SelectReducer(schema, table, key_columns),
+        data_table,
+        dump_table,
+        reduce_by=key_columns,
+        spec={"job_count": job_count, "max_failed_job_count": 1},
+        format=yt.YsonFormat(boolean_as_string=False))
+    verify_output(schema, data_table, dump_table, result_table)
 
 def verify_merge(schema, data_table, table, dump_table, result_table, mode):
     print "Run %s merge" % (mode)
@@ -547,7 +605,6 @@ def verify_map_reduce(schema, data_table, table, dump_table, result_table, reduc
 
 def verify_mapreduce(schema, data_table, table, dump_table, result_table):
     key_columns = schema.get_key_column_names()
-    yt.run_sort(data_table, sort_by=key_columns)
 
     verify_merge(schema, data_table, table, dump_table, result_table, "unordered")
     verify_merge(schema, data_table, table, dump_table, result_table, "ordered")
@@ -593,6 +650,10 @@ def single_iteration(schema, table, key_table, data_table, dump_table, result_ta
     aggregate_data(schema, data_table, iter_table, new_data_table, aggregate, update, job_count)
     verify(schema, new_data_table, table, result_table, job_count)
 
+    key_columns = schema.get_key_column_names()
+    verify_select(schema, data_table, table, dump_table, result_table, job_count, key_columns)
+    verify_select(schema, data_table, table, dump_table, result_table, job_count, key_columns[:-1])
+
     freeze_table(table)
     unfreeze_table(table)
 
@@ -600,6 +661,9 @@ def single_iteration(schema, table, key_table, data_table, dump_table, result_ta
         verify_mapreduce(schema, new_data_table, table, dump_table, result_table)
 
     yt.move(new_data_table, data_table, force=True)
+
+    #TODO delete a few rows here.
+
     return iter_table
 
 def do_single_execution(table, schema, attributes, args):
@@ -609,6 +673,7 @@ def do_single_execution(table, schema, attributes, args):
     job_count = args.job_count
     force = args.force
     keep = args.keep
+    mapreduce = args.mapreduce
 
     key_table = table + ".keys"
     data_table = table + ".data"
@@ -616,15 +681,23 @@ def do_single_execution(table, schema, attributes, args):
     dump_table = table + ".dump"
     remove_existing([table, key_table, data_table, result_table, dump_table], force)
     yt.create_table(data_table)
+    yt.create_table(result_table)
 
     schema.create_pivot_keys(tablet_count)
     create_keys(schema, key_table, key_count, job_count)
     create_random_data(schema, key_table, data_table, 0, job_count)
     create_dynamic_table_from_data(data_table, table, schema, attributes, tablet_count)
-    empty_table = yt.create_temp_table()
+    empty_table = yt.create_temp_table(attributes={"schema": schema.yson()})
     aggregate_data(schema, empty_table, data_table, data_table, False, True, job_count)
     yt.remove(empty_table)
     verify(schema, data_table, table, result_table, job_count)
+
+    key_columns = schema.get_key_column_names()
+    verify_select(schema, data_table, table, dump_table, result_table, job_count, key_columns)
+    verify_select(schema, data_table, table, dump_table, result_table, job_count, key_columns[:-1])
+
+    if mapreduce:
+        verify_mapreduce(schema, data_table, table, dump_table, result_table)
 
     iter_tables = []
     for i in xrange(1, iterations + 1):
