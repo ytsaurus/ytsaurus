@@ -1540,7 +1540,7 @@ class TestSortedDynamicTables(YTEnvSetup):
                     unique_keys=True)
             })
         rows = [{"key": i, "value": str(i), "avalue": 1} for i in xrange(2)]
-        keys = [{"key": row["key"]} for row in rows]
+        keys = [{"key": row["key"]} for row in rows] + [{"key": -1}]
 
         write_table("//tmp/t", rows)
         alter_table("//tmp/t", dynamic=True)
@@ -1552,6 +1552,8 @@ class TestSortedDynamicTables(YTEnvSetup):
 
         actual = lookup_rows("//tmp/t", keys)
         assert actual == rows
+        actual = lookup_rows("//tmp/t", keys, keep_missing_rows=True)
+        assert actual == rows + [None]
         actual = select_rows("* from [//tmp/t]")
         assert_items_equal(actual, rows)
 
@@ -1561,12 +1563,16 @@ class TestSortedDynamicTables(YTEnvSetup):
         expected = [{"key": i, "value": str(i), "avalue": 2} for i in xrange(2)]
         actual = lookup_rows("//tmp/t", keys)
         assert actual == expected
+        actual = lookup_rows("//tmp/t", keys, keep_missing_rows=True)
+        assert actual == expected + [None]
         actual = select_rows("* from [//tmp/t]")
         assert_items_equal(actual, expected)
 
         expected = [{"key": i, "avalue": 2} for i in xrange(2)]
         actual = lookup_rows("//tmp/t", keys, column_names=["key", "avalue"])
         assert actual == expected
+        actual = lookup_rows("//tmp/t", keys, column_names=["key", "avalue"], keep_missing_rows=True)
+        assert actual == expected + [None]
         actual = select_rows("key, avalue from [//tmp/t]")
         assert_items_equal(actual, expected)
 
@@ -1587,12 +1593,16 @@ class TestSortedDynamicTables(YTEnvSetup):
         expected = [{"key": i, "key2": None, "nvalue": None, "value": str(i), "avalue": 3} for i in xrange(2)]
         actual = lookup_rows("//tmp/t", keys)
         assert actual == expected
+        actual = lookup_rows("//tmp/t", keys, keep_missing_rows=True)
+        assert actual == expected + [None]
         actual = select_rows("* from [//tmp/t]")
         assert_items_equal(actual, expected)
 
         expected = [{"key": i, "avalue": 3} for i in xrange(2)]
         actual = lookup_rows("//tmp/t", keys, column_names=["key", "avalue"])
         assert actual == expected
+        actual = lookup_rows("//tmp/t", keys, column_names=["key", "avalue"], keep_missing_rows=True)
+        assert actual == expected + [None]
         actual = select_rows("key, avalue from [//tmp/t]")
         assert_items_equal(actual, expected)
 
