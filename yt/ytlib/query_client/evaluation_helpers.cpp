@@ -177,7 +177,7 @@ TGroupByClosure::TGroupByClosure(
 TWriteOpClosure::TWriteOpClosure()
     : OutputBuffer(New<TRowBuffer>(TOutputBufferTag()))
 {
-    OutputRowsBatch.reserve(RowsetProcessingSize);
+    OutputRowsBatch.reserve(WriteRowsetSize);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

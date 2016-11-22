@@ -432,7 +432,7 @@ protected:
         MaxDataSizePerJob = DivCeil(PrimaryInputDataSize_, jobSizeLimits.GetJobCount());
         ChunkSliceSize = Clamp(MaxDataSizePerJob, 1, Options->JobMaxSliceDataSize);
 
-        LOG_DEBUG("Calculated operation parameters (JobCount: %v, MaxDataSizePerJob: %v, ChunkSliceSize: %v)",
+        LOG_INFO("Calculated operation parameters (JobCount: %v, MaxDataSizePerJob: %v, ChunkSliceSize: %v)",
             jobSizeLimits.GetJobCount(),
             MaxDataSizePerJob,
             ChunkSliceSize);

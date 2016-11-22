@@ -49,13 +49,6 @@ i64 TDiskLocation::GetTotalSpace() const
     return statistics.TotalSpace;
 }
 
-void TDiskLocation::ValidateEnabled() const
-{
-    if (!Enabled_) {
-        THROW_ERROR_EXCEPTION("Slot location at %v is disabled", Config_->Path);
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

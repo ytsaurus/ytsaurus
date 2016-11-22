@@ -75,6 +75,7 @@ private:
     TDiskHealthCheckerPtr HealthChecker_;
 
     void Disable(const TError& error);
+    void ValidateEnabled() const;
 
     void ValidateNotExists(const Stroka& path) const;
     bool IsInsideTmpfs(const Stroka& path) const;

@@ -1,6 +1,9 @@
 #include "framework.h"
 
+#include <yt/ytlib/table_client/table_consumer.h>
+
 #include <yt/core/yson/consumer_mock.h>
+#include <yt/core/yson/null_consumer.h>
 #include <yt/core/yson/parser.h>
 
 #include <util/stream/mem.h>
@@ -13,6 +16,7 @@ using ::testing::InSequence;
 using ::testing::StrictMock;
 using ::testing::HasSubstr;
 
+using namespace NTableClient;
 using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -45,6 +49,34 @@ public:
         parser.Finish();
     }
 
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TEmptyValueConsumer
+    : public IValueConsumer
+{
+    virtual TNameTablePtr GetNameTable() const
+    {
+        return NameTable;
+    }
+
+    virtual bool GetAllowUnknownColumns() const
+    {
+        return true;
+    }
+
+    virtual void OnBeginRow()
+    { }
+
+    virtual void OnValue(const TUnversionedValue& /*value*/)
+    { }
+
+    virtual void OnEndRow()
+    { }
+
+private:
+    TNameTablePtr NameTable = New<TNameTable>();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -495,6 +527,50 @@ TEST_F(TYsonParserTest, DepthLimitExceeded)
         "]";
 
     EXPECT_THROW(Run(yson, EYsonType::Node, 1024), std::exception);
+}
+
+TEST_F(TYsonParserTest, ContextInExceptions)
+{
+    EXPECT_CALL(Mock, OnBeginMap());
+    EXPECT_CALL(Mock, OnKeyedItem("foo"));
+    try {
+        Run("{foo bar = 580}");
+    } catch (const std::exception& ex) {
+        EXPECT_THAT(ex.what(), testing::HasSubstr("bar = 580}"));
+        return;
+    }
+    GTEST_FAIL() << "Expected exception to be thrown";
+}
+
+TEST_F(TYsonParserTest, ContextInExceptions_ManyBlocks)
+{
+    try {
+        TYsonParser parser(GetNullYsonConsumer(), EYsonType::Node);
+        parser.Read("{fo");
+        parser.Read(Stroka(100, 'o')); // try to overflow 64 byte context
+        parser.Read("o bar = 580}");
+        parser.Finish();
+    } catch (const std::exception& ex) {
+        EXPECT_THAT(ex.what(), testing::HasSubstr("bar = 580}"));
+        return;
+    }
+    GTEST_FAIL() << "Expected exception to be thrown";
+}
+
+TEST_F(TYsonParserTest, ContextInExceptions_TableConsumer)
+{
+    try {
+        TEmptyValueConsumer emptyValueConsumer;
+        TYsonParser parser(new TTableConsumer(&emptyValueConsumer), EYsonType::ListFragment);
+        parser.Read("{foo=bar};");
+        parser.Read("{bar=baz};LOG_IN");
+        parser.Read("FO something happened");
+        parser.Finish();
+    } catch (const std::exception& ex) {
+        EXPECT_THAT(ex.what(), testing::HasSubstr("LOG_INFO something happened"));
+        return;
+    }
+    GTEST_FAIL() << "Expected exception to be thrown";
 }
 
 ////////////////////////////////////////////////////////////////////////////////

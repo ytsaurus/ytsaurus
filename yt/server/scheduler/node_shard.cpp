@@ -629,6 +629,22 @@ void TNodeShard::BuildSuspiciousJobsYson(IYsonConsumer* consumer)
     }
 }
 
+void TNodeShard::UpdateState(const TNodeShardPatch& patch)
+{
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    for (const auto& pair : patch.OperationPatches) {
+        const auto& operationId = pair.first;
+        const auto& operationPatch = pair.second;
+        auto* operationState = FindOperationState(operationId);
+        if (!operationState) {
+            continue;
+        }
+        operationState->CanCreateJobNodeForAbortedOrFailedJobs = operationPatch.CanCreateJobNodeForAbortedOrFailedJobs;
+        operationState->CanCreateJobNodeForJobsWithStderr = operationPatch.CanCreateJobNodeForJobsWithStderr;
+    }
+}
+
 TJobResources TNodeShard::GetTotalResourceLimits()
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -1393,16 +1409,21 @@ void TNodeShard::ProcessFinishedJobResult(const TJobPtr& job)
     }
 
     auto* operationState = FindOperationState(job->GetOperationId());
-    TFuture<TNullable<TYsonString>> inputPathsFuture;
+    TFuture<TYsonString> inputPathsFuture;
     if (operationState) {
-        auto& controller = operationState->Controller;
-        auto cb = BIND(&IOperationController::BuildInputPathYson, controller);
-        cb.AsyncVia(controller->GetCancelableInvoker());
-        inputPathsFuture = BIND(&IOperationController::BuildInputPathYson, controller)
-            .AsyncVia(controller->GetCancelableInvoker())
-            .Run(job->GetId());
+        // Keep it sync with TScheduler::ShouldCreateJobNode
+        if ((jobFailedOrAborted && operationState->CanCreateJobNodeForAbortedOrFailedJobs) ||
+            (stderrChunkId && operationState->CanCreateJobNodeForJobsWithStderr))
+        {
+            const auto& controller = operationState->Controller;
+            inputPathsFuture = BIND(&IOperationController::BuildInputPathYson, controller)
+                .AsyncVia(controller->GetCancelableInvoker())
+                .Run(job->GetId());
+        } else {
+            inputPathsFuture = MakeFuture(TYsonString());
+        }
     } else {
-        inputPathsFuture = MakeFuture<TNullable<TYsonString>>(
+        inputPathsFuture = MakeFuture<TYsonString>(
             TError("No controller for operation %v", job->GetOperationId()));
     }
 

@@ -26,7 +26,8 @@ public:
         IYsonConsumer* consumer,
         EYsonType parsingMode,
         bool enableLinePositionInfo,
-        i64 memoryLimit)
+        i64 memoryLimit,
+        bool enableContext)
         : ParserCoroutine_(BIND(
             [=] (TParserCoroutine& self, const char* begin, const char* end, bool finish) {
                 ParseYsonStreamImpl<IYsonConsumer, TBlockReader<TParserCoroutine>>(
@@ -34,7 +35,8 @@ public:
                     consumer,
                     parsingMode,
                     enableLinePositionInfo,
-                    memoryLimit);
+                    memoryLimit,
+                    enableContext);
             }))
     { }
 
@@ -64,12 +66,14 @@ TYsonParser::TYsonParser(
     IYsonConsumer* consumer,
     EYsonType type,
     bool enableLinePositionInfo,
-    i64 memoryLimit)
+    i64 memoryLimit,
+    bool enableContext)
     : Impl(std::make_unique<TImpl>(
         consumer,
         type,
         enableLinePositionInfo,
-        memoryLimit))
+        memoryLimit,
+        enableContext))
 { }
 
 TYsonParser::~TYsonParser()
@@ -96,13 +100,22 @@ public:
     TImpl(
         IYsonConsumer* consumer,
         bool enableLinePositionInfo,
-        i64 memoryLimit)
-        : Impl(enableLinePositionInfo
-            ? static_cast<TStatelessYsonParserImplBase*>(new TStatelessYsonParserImpl<IYsonConsumer, true>(consumer, memoryLimit))
-            : static_cast<TStatelessYsonParserImplBase*>(new TStatelessYsonParserImpl<IYsonConsumer, false>(consumer, memoryLimit)))
+        i64 memoryLimit,
+        bool enableContext)
+        : Impl([=] () -> TStatelessYsonParserImplBase* {
+            if (enableContext && enableLinePositionInfo) {
+                return new TStatelessYsonParserImpl<IYsonConsumer, 64, true>(consumer, memoryLimit);
+            } else if (enableContext && !enableLinePositionInfo) {
+                return new TStatelessYsonParserImpl<IYsonConsumer, 64, false>(consumer, memoryLimit);
+            } else if (!enableContext && enableLinePositionInfo) {
+                return new TStatelessYsonParserImpl<IYsonConsumer, 0, true>(consumer, memoryLimit);
+            } else {
+                return new TStatelessYsonParserImpl<IYsonConsumer, 0, false>(consumer, memoryLimit);
+            }
+        }())
     { }
 
-    void Parse(const TStringBuf& data, EYsonType type = EYsonType::Node) 
+    void Parse(const TStringBuf& data, EYsonType type = EYsonType::Node)
     {
         Impl->Parse(data, type);
     }
@@ -113,8 +126,9 @@ public:
 TStatelessYsonParser::TStatelessYsonParser(
     IYsonConsumer* consumer,
     bool enableLinePositionInfo,
-    i64 memoryLimit)
-    : Impl(new TImpl(consumer, enableLinePositionInfo, memoryLimit))
+    i64 memoryLimit,
+    bool enableContext)
+    : Impl(new TImpl(consumer, enableLinePositionInfo, memoryLimit, enableContext))
 { }
 
 TStatelessYsonParser::~TStatelessYsonParser()
@@ -132,14 +146,16 @@ void ParseYsonStringBuffer(
     EYsonType type,
     IYsonConsumer* consumer,
     bool enableLinePositionInfo,
-    i64 memoryLimit)
+    i64 memoryLimit,
+    bool enableContext)
 {
     ParseYsonStreamImpl<IYsonConsumer, TStringReader>(
         TStringReader(buffer.begin(), buffer.end()),
         consumer,
         type,
         enableLinePositionInfo,
-        memoryLimit);
+        memoryLimit,
+        enableContext);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

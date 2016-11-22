@@ -212,9 +212,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
 
         if (rack) {
             int rackIndex = rack->GetIndex();
-            int maxReplicasPerRack = std::min(
-                Config_->MaxReplicasPerRack,
-                chunk->GetMaxReplicasPerRack(mediumIndex, Null));
+            int maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(chunk, mediumIndex, Null);
             if (++perRackReplicaCounters[mediumIndex][rackIndex] > maxReplicasPerRack) {
                 hasUnsafelyPlacedReplicas[mediumIndex] = true;
             }
@@ -384,9 +382,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
         const auto* rack = node->GetRack();
         if (rack) {
             int rackIndex = rack->GetIndex();
-            int maxReplicasPerRack = std::min(
-                Config_->MaxReplicasPerRack,
-                chunk->GetMaxReplicasPerRack(mediumIndex, Null));
+            int maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(chunk, mediumIndex);
             if (++perRackReplicaCounters[mediumIndex][rackIndex] > maxReplicasPerRack) {
                 // A erasure chunk is considered placed unsafely if some non-null rack
                 // contains more replicas than returned by TChunk::GetMaxReplicasPerRack.
@@ -623,7 +619,6 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
     auto replicationFactors = chunk->ComputeReplicationFactors();
     int replicationFactor = replicationFactors[DefaultMediumIndex];
     int readQuorum = chunk->GetReadQuorum();
-    int maxReplicasPerRack = std::min(Config_->MaxReplicasPerRack, chunk->GetMaxReplicasPerRack(DefaultMediumIndex, Null));
 
     int replicaCount = 0;
     int decommissionedReplicaCount = 0;
@@ -650,6 +645,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
         const auto* rack = replica.GetPtr()->GetRack();
         if (rack) {
             int rackIndex = rack->GetIndex();
+            int maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(chunk, DefaultMediumIndex, Null);
             if (++perRackReplicaCounters[rackIndex] > maxReplicasPerRack) {
                 // A journal chunk is considered placed unsafely if some non-null rack
                 // contains more replicas than returned by TChunk::GetMaxReplicasPerRack.

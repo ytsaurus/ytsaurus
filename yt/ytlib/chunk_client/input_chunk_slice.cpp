@@ -221,7 +221,7 @@ TInputChunkSlice::TInputChunkSlice(
         SetRowCount(protoChunkSlice.row_count_override());
     }
     if (protoChunkSlice.has_uncompressed_data_size_override()) {
-        SetRowCount(protoChunkSlice.uncompressed_data_size_override());
+        SetDataSize(protoChunkSlice.uncompressed_data_size_override());
     }
 }
 

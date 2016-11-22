@@ -185,6 +185,8 @@ typedef std::vector<TChannel> TChannels;
 using TRefCountedChunkMeta = TRefCountedProto<NChunkClient::NProto::TChunkMeta>;
 DECLARE_REFCOUNTED_TYPE(TRefCountedChunkMeta)
 
+using TPlacementId = TGuid;
+
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient

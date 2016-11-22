@@ -33,6 +33,7 @@ DEFINE_ENUM(EErrorCode,
     ((JobProxyConnectionFailed)      (1106))
     ((ArtifactCopyingFailed)         (1107))
     ((NodeDirectoryPreparationFailed)(1108))
+    ((SlotLocationDisabled)          (1109))
 );
 
 DEFINE_ENUM(ESandboxKind,
