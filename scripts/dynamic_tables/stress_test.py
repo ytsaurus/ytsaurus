@@ -428,7 +428,7 @@ def aggregate_data(schema, data_table, iter_table, new_data_table, aggregate, up
         [data_table, iter_table],
         new_data_table,
         reduce_by=key_columns,
-        format=yt.YsonFormat(boolean_as_string=False))
+        format=yt.YsonFormat(control_attributes_mode="row_fields", boolean_as_string=False))
     yt.run_sort(new_data_table, sort_by=key_columns)
 
 def equal(columns, x, y):
@@ -515,7 +515,7 @@ def verify_output(schema, data_table, dump_table, result_table):
         [data_table, dump_table],
         result_table,
         reduce_by=key_columns,
-        format=yt.YsonFormat(boolean_as_string=False))
+        format=yt.YsonFormat(control_attributes_mode="row_fields", boolean_as_string=False))
 
     rows = yt.read_table(result_table, raw=False)
     if next(rows, None) != None:
