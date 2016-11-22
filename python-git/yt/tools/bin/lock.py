@@ -14,9 +14,11 @@ import subprocess
 def main():
     parser = argparse.ArgumentParser(description="Run command under lock")
     parser.add_argument("path")
-    parser.add_argument("command")
+    parser.add_argument("command", nargs="+")
     parser.add_argument("--step", type=float, default=1.0)
     parser.add_argument("--conflict-exit-code", type=int, default=1)
+    # TODO: support `--proxy` to allow running subcommands without changing their env.
+    # TODO: support `--auto-create-file`.
     args = parser.parse_args()
 
     with yt.Transaction(attributes={"title": "yt_lock transaction"}) as tx:
@@ -34,8 +36,16 @@ def main():
 
         signal.signal(signal.SIGTERM, lambda signum, frame: handler())
 
+        if len(args.command) == 1:
+            # Support for commands like `yt_lock.py ... "sleep 1000"`
+            command = args.command[0]
+            run_shell = True
+        else:
+            # Support for commands like `yt_lock.py ... sleep 1000`
+            command = args.command
+            run_shell = False
         logger.info("Running command %s", args.command)
-        proc = subprocess.Popen(args.command, stdout=sys.stdout, stderr=sys.stderr, shell=True, env=os.environ.copy(),
+        proc = subprocess.Popen(command, stdout=sys.stdout, stderr=sys.stderr, shell=run_shell, env=os.environ.copy(),
                                 preexec_fn=set_pdeathsig)
 
         while True:
