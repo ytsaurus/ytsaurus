@@ -89,11 +89,12 @@ const TAddressMap& TNode::GetAddresses() const
 void TNode::SetAddresses(const TAddressMap& addresses)
 {
     Addresses_ = addresses;
+    DefaultAddress_ = NNodeTrackerClient::GetDefaultAddress(Addresses_);
 }
 
 const Stroka& TNode::GetDefaultAddress() const
 {
-    return NNodeTrackerClient::GetDefaultAddress(Addresses_);
+    return DefaultAddress_;
 }
 
 TNodeDescriptor TNode::GetDescriptor() const
