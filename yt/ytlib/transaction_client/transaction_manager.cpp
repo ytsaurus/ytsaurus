@@ -275,7 +275,7 @@ public:
                     Atomicity_);
             }
 
-            return SendPing();
+            return SendPing(true);
         } catch (const std::exception& ex) {
             return MakeFuture<void>(ex);
         }
@@ -719,7 +719,7 @@ private:
     }
 
 
-    TFuture<void> SendPing()
+    TFuture<void> SendPing(bool retry)
     {
         std::vector<TFuture<void>> asyncResults;
         auto participantIds = GetParticipantIds();
@@ -733,7 +733,7 @@ private:
                 continue;
             }
 
-            auto proxy = Owner_->MakeSupervisorProxy(std::move(channel), false);
+            auto proxy = Owner_->MakeSupervisorProxy(std::move(channel), retry);
             auto req = proxy.PingTransaction();
             ToProto(req->mutable_transaction_id(), Id_);
             if (cellId == Owner_->CellId_) {
@@ -779,7 +779,7 @@ private:
             return;
         }
 
-        SendPing().Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+        SendPing(false).Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
             if (!IsPingableState()) {
                 return;
             }
