@@ -55,6 +55,10 @@ public:
 
         try {
             for (int i = 0; i < rows->size(); ++i) {
+                if (!rows_[i]) {
+                    continue;
+                }
+
                 auto row = RowReorderer_.ReorderKey(rows_[i], &MemoryPool_);
                 for (int valueIndex = 0; valueIndex < ReaderSchema_.Columns().size(); ++valueIndex) {
                     const auto& value = row[valueIndex];
