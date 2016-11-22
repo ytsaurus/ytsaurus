@@ -61,6 +61,8 @@ private:
 
     void DoStart();
     TFuture<void> DoStop();
+
+    //! Create scraper tasks for each cell.
     void CreateTasks(const yhash_set<TChunkId>& chunkIds);
 };
 
