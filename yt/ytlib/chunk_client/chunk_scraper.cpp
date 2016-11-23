@@ -116,14 +116,14 @@ private:
         auto req = Proxy_.LocateChunks();
         req->SetHeavy(true);
 
-        for (int chunkCount = 0; chunkCount < Config_->MaxChunksPerScratch; ++chunkCount) {
+        for (int chunkCount = 0; chunkCount < Config_->MaxChunksPerRequest; ++chunkCount) {
             ToProto(req->add_subrequests(), ChunkIds_[NextChunkIndex_]);
             ++NextChunkIndex_;
             if (NextChunkIndex_ >= ChunkIds_.size()) {
                 NextChunkIndex_ = 0;
             }
             if (NextChunkIndex_ == startIndex) {
-                // Total number of chunks is less than MaxChunksPerScratch.
+                // Total number of chunks is less than MaxChunksPerRequest.
                 break;
             }
         }
@@ -183,12 +183,6 @@ TChunkScraper::TChunkScraper(
 
 void TChunkScraper::Start()
 {
-    TGuard<TSpinLock> guard(SpinLock_);
-    DoStart();
-}
-
-void TChunkScraper::DoStart()
-{
     for (const auto& task : ScraperTasks_) {
         task->Start();
     }
@@ -196,26 +190,11 @@ void TChunkScraper::DoStart()
 
 TFuture<void> TChunkScraper::Stop()
 {
-    TGuard<TSpinLock> guard(SpinLock_);
-    return DoStop();
-}
-
-TFuture<void> TChunkScraper::DoStop()
-{
     std::vector<TFuture<void>> futures;
     for (auto& task : ScraperTasks_) {
         futures.push_back(task->Stop());
     }
     return Combine(futures);
-}
-
-void TChunkScraper::Reset(const yhash_set<TChunkId>& chunkIds)
-{
-    TGuard<TSpinLock> guard(SpinLock_);
-    DoStop();
-    ScraperTasks_.clear();
-    CreateTasks(chunkIds);
-    DoStart();
 }
 
 void TChunkScraper::CreateTasks(const yhash_set<TChunkId>& chunkIds)
