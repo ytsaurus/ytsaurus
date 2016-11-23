@@ -133,6 +133,7 @@ void DetachFromChunkList(
                 children[index] = children.back();
                 childToIndex[children[index]] = index;
             }
+            childToIndex.erase(indexIt);
             children.pop_back();
         }
     }
