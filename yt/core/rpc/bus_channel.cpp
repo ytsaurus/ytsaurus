@@ -86,7 +86,7 @@ public:
 
         TSessionPtr session;
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            auto guard = Guard(SpinLock_);
 
             if (Terminated_) {
                 return VoidFuture;
@@ -116,7 +116,7 @@ private:
     const IBusClientPtr Client_;
 
     TSpinLock SpinLock_;
-    volatile bool Terminated_ = false;
+    bool Terminated_ = false;
     TError TerminationError_;
     TSessionPtr Session_;
 
@@ -125,7 +125,7 @@ private:
         IBusPtr bus;
         TSessionPtr session;
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            auto guard = Guard(SpinLock_);
 
             if (Session_) {
                 return Session_;
@@ -164,7 +164,8 @@ private:
         }
 
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            auto guard = Guard(SpinLock_);
+
             if (Session_ == session_) {
                 Session_.Reset();
             }
@@ -211,26 +212,33 @@ private:
 
         void Terminate(const TError& error)
         {
-            // Mark the channel as terminated to disallow any further usage.
-            std::vector<IClientResponseHandlerPtr> responseHandlers;
+            std::vector<std::tuple<TClientRequestControlPtr, IClientResponseHandlerPtr>> existingRequests;
 
+            // Mark the channel as terminated to disallow any further usage.
             {
-                TGuard<TSpinLock> guard(SpinLock_);
+                auto guard = Guard(SpinLock_);
                 Terminated_ = true;
                 TerminationError_ = error;
+
+                existingRequests.reserve(ActiveRequestMap_.size());
                 for (const auto& pair : ActiveRequestMap_) {
-                    const auto& requestId = pair.first;
-                    const auto& requestControl = pair.second;
-                    LOG_DEBUG(error, "Request failed due to channel termination (RequestId: %v)",
-                        requestId);
-                    responseHandlers.push_back(requestControl->GetResponseHandler());
-                    requestControl->Finalize();
+                    auto& requestControl = pair.second;
+
+                    IClientResponseHandlerPtr responseHandler;
+                    requestControl->Finalize(guard, &responseHandler);
+
+                    existingRequests.emplace_back(std::move(requestControl), std::move(responseHandler));
                 }
+
                 ActiveRequestMap_.clear();
             }
 
-            for (const auto& responseHandler : responseHandlers) {
-                responseHandler->HandleError(error);
+            for (const auto& existingRequest : existingRequests) {
+                NotifyError(
+                    std::get<0>(existingRequest),
+                    std::get<1>(existingRequest),
+                    STRINGBUF("Request failed due to channel termination"),
+                    error);
             }
         }
 
@@ -244,16 +252,16 @@ private:
             YCHECK(responseHandler);
             VERIFY_THREAD_AFFINITY_ANY();
 
-            auto requestControl = New<TClientRequestControl>(
-                this,
-                request,
-                timeout,
-                responseHandler);
+            auto requestControl = New<TClientRequestControl>(this, request, timeout, responseHandler);
 
             auto& header = request->Header();
             header.set_start_time(ToProto(TInstant::Now()));
             if (timeout) {
                 header.set_timeout(ToProto(*timeout));
+                auto timeoutCookie = TDelayedExecutor::Submit(
+                    BIND(&TSession::HandleTimeout, MakeWeak(this), requestControl),
+                    *timeout);
+                requestControl->SetTimeoutCookie(Guard(SpinLock_), std::move(timeoutCookie));
             } else {
                 header.clear_timeout();
             }
@@ -265,16 +273,12 @@ private:
                     .Subscribe(BIND(
                         &TSession::OnRequestSerialized,
                         MakeStrong(this),
-                        request,
                         requestControl,
-                        timeout,
                         requestAck));
             } else {
-                auto requestMessage = request->Serialize();
+                auto&& requestMessage = request->Serialize();
                 OnRequestSerialized(
-                    request,
                     requestControl,
-                    timeout,
                     requestAck,
                     std::move(requestMessage));
             }
@@ -282,15 +286,15 @@ private:
             return requestControl;
         }
 
-        void Cancel(TClientRequestControlPtr requestControl)
+        void Cancel(const TClientRequestControlPtr& requestControl)
         {
             VERIFY_THREAD_AFFINITY_ANY();
 
             const auto& requestId = requestControl->GetRequestId();
-            IClientRequestPtr request;
+
             IClientResponseHandlerPtr responseHandler;
             {
-                TGuard<TSpinLock> guard(SpinLock_);
+                auto guard = Guard(SpinLock_);
 
                 auto it = ActiveRequestMap_.find(requestId);
                 if (it == ActiveRequestMap_.end()) {
@@ -305,51 +309,51 @@ private:
                     return;
                 }
 
-                request = requestControl->GetRequest();
-                responseHandler = requestControl->GetResponseHandler();
                 requestControl->TimingCheckpoint(STRINGBUF("cancel"));
-                requestControl->Finalize();
+                requestControl->Finalize(guard, &responseHandler);
                 ActiveRequestMap_.erase(it);
             }
 
-            LOG_DEBUG("Request canceled (RequestId: %v)",
-                requestId);
-
             NotifyError(
                 requestControl,
-                request,
                 responseHandler,
-                TError(NYT::EErrorCode::Canceled, "RPC request canceled"));
+                STRINGBUF("Request canceled"),
+                TError(NYT::EErrorCode::Canceled, "Request canceled"));
 
             IBusPtr bus;
             {
-                TGuard<TSpinLock> guard(SpinLock_);
+                auto guard = Guard(SpinLock_);
 
-                if (Terminated_)
+                if (Terminated_) {
                     return;
+                }
 
                 bus = Bus_;
             }
 
+            const auto& realmId = requestControl->GetRealmId();
+            const auto& service = requestControl->GetService();
+            const auto& method = requestControl->GetMethod();
+
             NProto::TRequestCancelationHeader header;
             ToProto(header.mutable_request_id(), requestId);
-            header.set_service(request->GetService());
-            header.set_method(request->GetMethod());
-            if (request->GetRealmId()) {
-                ToProto(header.mutable_realm_id(), request->GetRealmId());
-            }
+            header.set_service(service);
+            header.set_method(method);
+            ToProto(header.mutable_realm_id(), realmId);
 
             auto message = CreateRequestCancelationMessage(header);
             bus->Send(std::move(message), EDeliveryTrackingLevel::None);
         }
 
-        void HandleTimeout(const TRequestId& requestId, bool aborted)
+        void HandleTimeout(const TClientRequestControlPtr& requestControl, bool aborted)
         {
             VERIFY_THREAD_AFFINITY_ANY();
 
-            TClientRequestControlPtr requestControl;
+            const auto& requestId = requestControl->GetRequestId();
+
+            IClientResponseHandlerPtr responseHandler;
             {
-                TGuard<TSpinLock> guard(SpinLock_);
+                auto guard = Guard(SpinLock_);
 
                 auto it = ActiveRequestMap_.find(requestId);
                 if (it == ActiveRequestMap_.end()) {
@@ -358,24 +362,24 @@ private:
                     return;
                 }
 
-                requestControl = it->second;
+                if (requestControl != it->second) {
+                    LOG_DEBUG("Timeout occured for a resent request, ignored (RequestId: %v)",
+                        requestId);
+                    return;
+                }
+
+                requestControl->TimingCheckpoint(STRINGBUF("timeout"));
+                requestControl->Finalize(guard, &responseHandler);
                 ActiveRequestMap_.erase(it);
             }
 
-            auto request = requestControl->GetRequest();
-            auto responseHandler = requestControl->GetResponseHandler();
-
-            requestControl->TimingCheckpoint(STRINGBUF("timeout"));
-            requestControl->Finalize();
-
-            TError error;
-            if (aborted) {
-                error = TError(NYT::EErrorCode::Canceled, "Request timed out (timer was aborted)");
-            } else {
-                error = TError(NYT::EErrorCode::Timeout, "Request timed out");
-            }
-
-            NotifyError(requestControl, request, responseHandler, error);
+            NotifyError(
+                requestControl,
+                responseHandler,
+                STRINGBUF("Request timed out"),
+                TError(NYT::EErrorCode::Timeout, aborted
+                    ? "Request timed out or timer was aborted"
+                    : "Request timed out"));
         }
 
         virtual void HandleMessage(TSharedRefArray message, IBusPtr /*replyBus*/) throw() override
@@ -391,10 +395,9 @@ private:
             auto requestId = FromProto<TRequestId>(header.request_id());
 
             TClientRequestControlPtr requestControl;
-            IClientRequestPtr request;
             IClientResponseHandlerPtr responseHandler;
             {
-                TGuard<TSpinLock> guard(SpinLock_);
+                auto guard = Guard(SpinLock_);
 
                 if (Terminated_) {
                     LOG_WARNING("Response received via a terminated channel (RequestId: %v)",
@@ -410,11 +413,9 @@ private:
                     return;
                 }
 
-                requestControl = it->second;
-                request = requestControl->GetRequest();
-                responseHandler = requestControl->GetResponseHandler();
+                requestControl = std::move(it->second);
                 requestControl->TimingCheckpoint(STRINGBUF("reply"));
-                requestControl->Finalize();
+                requestControl->Finalize(guard, &responseHandler);
                 ActiveRequestMap_.erase(it);
             }
 
@@ -424,12 +425,16 @@ private:
                     error = FromProto<TError>(header.error());
                 }
                 if (error.IsOK()) {
-                    NotifyResponse(request, responseHandler, std::move(message));
+                    NotifyResponse(requestId, responseHandler, std::move(message));
                 } else {
                     if (error.GetCode() == EErrorCode::PoisonPill) {
                         LOG_FATAL(error, "Poison pill received");
                     }
-                    NotifyError(requestControl, request, responseHandler, error);
+                    NotifyError(
+                        requestControl,
+                        responseHandler,
+                        STRINGBUF("Request failed"),
+                        error);
                 }
             }
         }
@@ -468,67 +473,68 @@ private:
         IBusPtr Bus_;
 
         TSpinLock SpinLock_;
+        bool Terminated_ = false;
+        TError TerminationError_;
         typedef yhash_map<TRequestId, TClientRequestControlPtr> TActiveRequestMap;
         TActiveRequestMap ActiveRequestMap_;
-        volatile bool Terminated_ = false;
-        TError TerminationError_;
 
         NConcurrency::TReaderWriterSpinLock CachedMethodMetadataLock_;
         yhash_map<std::pair<Stroka, Stroka>, TMethodMetadata> CachedMethodMetadata_;
 
 
         void OnRequestSerialized(
-            const IClientRequestPtr& request,
             const TClientRequestControlPtr& requestControl,
-            TNullable<TDuration> timeout,
             bool requestAck,
             const TErrorOr<TSharedRefArray>& requestMessageOrError)
         {
             VERIFY_THREAD_AFFINITY_ANY();
 
-            const auto& requestId = request->GetRequestId();
-
-            if (!requestMessageOrError.IsOK()) {
-                auto responseHandler = requestControl->GetResponseHandler();
-                NotifyError(
-                    requestControl,
-                    request,
-                    responseHandler,
-                    TError(NRpc::EErrorCode::TransportError, "Request serialization failed")
-                        << requestMessageOrError);
-                return;
-            }
-
-            const auto& requestMessage = requestMessageOrError.Value();
+            const auto& requestId = requestControl->GetRequestId();
 
             IBusPtr bus;
+
+            TClientRequestControlPtr existingRequestControl;
             IClientResponseHandlerPtr existingResponseHandler;
             {
-                TGuard<TSpinLock> guard(SpinLock_);
+                auto guard = Guard(SpinLock_);
 
-                if (Terminated_) {
-                    auto error = TerminationError_;
-                    guard.Release();
-
-                    LOG_DEBUG("Request via terminated channel is dropped (RequestId: %v, Method: %v:%v)",
-                        requestId,
-                        request->GetService(),
-                        request->GetMethod());
-
-                    requestControl->GetResponseHandler()->HandleError(error);
+                if (!requestControl->IsActive(guard)) {
                     return;
                 }
 
-                requestControl->Initialize();
+                if (!requestMessageOrError.IsOK()) {
+                    IClientResponseHandlerPtr responseHandler;
+                    requestControl->Finalize(guard, &responseHandler);
+                    guard.Release();
+
+                    NotifyError(
+                        requestControl,
+                        responseHandler,
+                        STRINGBUF("Request serialization failed"),
+                        TError(NRpc::EErrorCode::TransportError, "Request serialization failed")
+                            << requestMessageOrError);
+                    return;
+                }
+
+                if (Terminated_) {
+                    IClientResponseHandlerPtr responseHandler;
+                    requestControl->Finalize(guard, &responseHandler);
+                    guard.Release();
+
+                    NotifyError(
+                        requestControl,
+                        responseHandler,
+                        STRINGBUF("Request is dropped because channel is terminated"),
+                        TError(NRpc::EErrorCode::TransportError, "Channel terminated")
+                            << TerminationError_);
+                    return;
+                }
 
                 // NB: We're OK with duplicate request ids.
                 auto pair = ActiveRequestMap_.insert(std::make_pair(requestId, requestControl));
                 if (!pair.second) {
-                    const auto& existingRequestControl = pair.first->second;
-                    LOG_DEBUG("Request resent (RequestId: %v)",
-                        requestId);
-                    existingResponseHandler = existingRequestControl->GetResponseHandler();
-                    existingRequestControl->Finalize();
+                    existingRequestControl = std::move(pair.first->second);
+                    existingRequestControl->Finalize(guard, &existingResponseHandler);
                     pair.first->second = requestControl;
                 }
 
@@ -536,10 +542,14 @@ private:
             }
 
             if (existingResponseHandler) {
-                existingResponseHandler->HandleError(TError(
-                    NRpc::EErrorCode::TransportError,
-                    "Request resent"));
+                NotifyError(
+                    existingRequestControl,
+                    existingResponseHandler,
+                    "Request resent",
+                    TError(NRpc::EErrorCode::TransportError, "Request resent"));
             }
+
+            const auto& requestMessage = requestMessageOrError.Value();
 
             auto level = requestAck
                 ? EDeliveryTrackingLevel::Full
@@ -550,10 +560,14 @@ private:
                 MakeStrong(this),
                 requestId));
 
+            const auto& service = requestControl->GetService();
+            const auto& method = requestControl->GetMethod();
+            const auto& timeout = requestControl->GetTimeout();
+
             LOG_DEBUG("Request sent (RequestId: %v, Method: %v:%v, Timeout: %v, TrackingLevel: %v, Endpoint: %v)",
                 requestId,
-                request->GetService(),
-                request->GetMethod(),
+                service,
+                method,
                 timeout,
                 level,
                 bus->GetEndpointDescription());
@@ -564,10 +578,9 @@ private:
             VERIFY_THREAD_AFFINITY_ANY();
 
             TClientRequestControlPtr requestControl;
-            IClientRequestPtr request;
             IClientResponseHandlerPtr responseHandler;
             {
-                TGuard<TSpinLock> guard(SpinLock_);
+                auto guard = Guard(SpinLock_);
 
                 auto it = ActiveRequestMap_.find(requestId);
                 if (it == ActiveRequestMap_.end()) {
@@ -578,69 +591,71 @@ private:
                 }
 
                 requestControl = it->second;
-                request = requestControl->GetRequest();
-                responseHandler = requestControl->GetResponseHandler();
                 requestControl->TimingCheckpoint(STRINGBUF("ack"));
-                if (!error.IsOK() || request->IsOneWay()) {
-                    requestControl->Finalize();
+                if (!error.IsOK() || requestControl->IsOneWay()) {
+                    requestControl->Finalize(guard, &responseHandler);
                     ActiveRequestMap_.erase(it);
+                } else {
+                    requestControl->GetResponseHandler(guard, &responseHandler);
                 }
             }
 
             if (error.IsOK()) {
-                NotifyAcknowledgement(request, responseHandler);
+                NotifyAcknowledgement(requestId, responseHandler);
             } else {
                 NotifyError(
                     requestControl,
-                    request,
                     responseHandler,
+                    STRINGBUF("Request acknowledgment failed"),
                     TError(NRpc::EErrorCode::TransportError, "Request acknowledgment failed")
                          << error);
             }
         }
 
-
-        void NotifyAcknowledgement(
-            const IClientRequestPtr& request,
-            const IClientResponseHandlerPtr& responseHandler)
-        {
-            LOG_DEBUG("Request acknowledged (RequestId: %v)",
-                request->GetRequestId());
-
-            responseHandler->HandleAcknowledgement();
-        }
-
         void NotifyError(
             const TClientRequestControlPtr& requestControl,
-            const IClientRequestPtr& request,
             const IClientResponseHandlerPtr& responseHandler,
+            const TStringBuf& reason,
             const TError& error)
         {
+            YCHECK(responseHandler);
+
             auto detailedError = error
-                << TErrorAttribute("request_id", request->GetRequestId())
-                << TErrorAttribute("service", request->GetService())
-                << TErrorAttribute("method", request->GetMethod())
+                << TErrorAttribute("realm_id", requestControl->GetRealmId())
+                << TErrorAttribute("service", requestControl->GetService())
+                << TErrorAttribute("method", requestControl->GetMethod())
+                << TErrorAttribute("request_id", requestControl->GetRequestId())
                 << Bus_->GetEndpointAttributes();
 
-            auto timeout = requestControl->GetTimeout();
-            if (timeout) {
+            if (requestControl->GetTimeout()) {
                 detailedError = detailedError
-                    << TErrorAttribute("timeout", *timeout);
+                    << TErrorAttribute("timeout", *requestControl->GetTimeout());
             }
 
-            LOG_DEBUG(detailedError, "Request failed (RequestId: %v)",
-                request->GetRequestId());
+            LOG_DEBUG(detailedError, "%v (RequestId: %v)", reason, requestControl->GetRequestId());
 
             responseHandler->HandleError(detailedError);
         }
 
+        void NotifyAcknowledgement(
+            const TRequestId& requestId,
+            const IClientResponseHandlerPtr& responseHandler)
+        {
+            YCHECK(responseHandler);
+
+            LOG_DEBUG("Request acknowledged (RequestId: %v)", requestId);
+
+            responseHandler->HandleAcknowledgement();
+        }
+
         void NotifyResponse(
-            const IClientRequestPtr& request,
+            const TRequestId& requestId,
             const IClientResponseHandlerPtr& responseHandler,
             TSharedRefArray message)
         {
-            LOG_DEBUG("Response received (RequestId: %v)",
-                request->GetRequestId());
+            YCHECK(responseHandler);
+
+            LOG_DEBUG("Response received (RequestId: %v)", requestId);
 
             responseHandler->HandleResponse(std::move(message));
         }
@@ -658,21 +673,44 @@ private:
             TNullable<TDuration> timeout,
             IClientResponseHandlerPtr responseHandler)
             : Session_(std::move(session))
-            , Request_(std::move(request))
-            , RequestId_(Request_->GetRequestId())
+            , RealmId_(request->GetRealmId())
+            , Service_(request->GetService())
+            , Method_(request->GetMethod())
+            , OneWay_(request->IsOneWay())
+            , RequestId_(request->GetRequestId())
             , Timeout_(timeout)
             , ResponseHandler_(std::move(responseHandler))
         {
-            const auto& descriptor = Session_->GetMethodMetadata(Request_->GetService(), Request_->GetMethod());
+            const auto& descriptor = Session_->GetMethodMetadata(Service_, Method_);
             Timer_ = Profiler.TimingStart(
                 "/request_time",
                 descriptor.TagIds,
                 NProfiling::ETimerMode::Sequential);
         }
 
-        const IClientRequestPtr& GetRequest() const
+        ~TClientRequestControl()
         {
-            return Request_;
+            TDelayedExecutor::CancelAndClear(TimeoutCookie_);
+        }
+
+        const TRealmId& GetRealmId() const
+        {
+            return RealmId_;
+        }
+
+        const Stroka& GetService() const
+        {
+            return Service_;
+        }
+
+        const Stroka& GetMethod() const
+        {
+            return Method_;
+        }
+
+        bool IsOneWay() const
+        {
+            return OneWay_;
         }
 
         const TRequestId& GetRequestId() const
@@ -680,36 +718,37 @@ private:
             return RequestId_;
         }
 
-        TNullable<TDuration> GetTimeout() const
+        const TNullable<TDuration>& GetTimeout() const
         {
             return Timeout_;
         }
 
-        const IClientResponseHandlerPtr& GetResponseHandler() const
+        bool IsActive(const TGuard<TSpinLock>&) const
         {
-            return ResponseHandler_;
+            return static_cast<bool>(ResponseHandler_);
+        }
+
+        void SetTimeoutCookie(const TGuard<TSpinLock>&, TDelayedExecutorEntryPtr newTimeoutCookie)
+        {
+            TDelayedExecutor::CancelAndClear(TimeoutCookie_);
+            TimeoutCookie_ = std::move(newTimeoutCookie);
+        }
+
+        void GetResponseHandler(const TGuard<TSpinLock>&, IClientResponseHandlerPtr* responseHandler)
+        {
+            *responseHandler = ResponseHandler_;
+        }
+
+        void Finalize(const TGuard<TSpinLock>&, IClientResponseHandlerPtr* responseHandler)
+        {
+            *responseHandler = std::move(ResponseHandler_);
+            Profiler.TimingStop(Timer_, STRINGBUF("total"));
+            TDelayedExecutor::CancelAndClear(TimeoutCookie_);
         }
 
         void TimingCheckpoint(const TStringBuf& key)
         {
             Profiler.TimingCheckpoint(Timer_, key);
-        }
-
-        void Initialize()
-        {
-            if (Timeout_) {
-                TimeoutCookie_ = TDelayedExecutor::Submit(
-                    BIND(&TSession::HandleTimeout, Session_, RequestId_),
-                    *Timeout_);
-            }
-        }
-
-        void Finalize()
-        {
-            TDelayedExecutor::CancelAndClear(TimeoutCookie_);
-            Profiler.TimingStop(Timer_, STRINGBUF("total"));
-            Request_.Reset();
-            ResponseHandler_.Reset();
         }
 
         virtual void Cancel() override
@@ -722,14 +761,17 @@ private:
 
     private:
         const TSessionPtr Session_;
-        IClientRequestPtr Request_;
+        const TRealmId RealmId_;
+        const Stroka Service_;
+        const Stroka Method_;
+        const bool OneWay_;
         const TRequestId RequestId_;
         const TNullable<TDuration> Timeout_;
-        IClientResponseHandlerPtr ResponseHandler_;
 
         TDelayedExecutorCookie TimeoutCookie_;
-        NProfiling::TTimer Timer_;
+        IClientResponseHandlerPtr ResponseHandler_;
 
+        NProfiling::TTimer Timer_;
     };
 
 };

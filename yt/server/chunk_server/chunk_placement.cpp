@@ -581,9 +581,15 @@ int TChunkPlacement::GetMaxReplicasPerRack(
     int mediumIndex,
     TNullable<int> replicationFactorOverride)
 {
-    int replicasPerRack =
-        chunk->GetMaxReplicasPerRack(mediumIndex, replicationFactorOverride);
-    return std::min(Config_->MaxReplicasPerRack, replicasPerRack);
+    int result = chunk->GetMaxReplicasPerRack(mediumIndex, replicationFactorOverride);
+    result = std::min(result, Config_->MaxReplicasPerRack);
+    switch (chunk->GetType()) {
+        case EObjectType::Chunk:         result = std::min(result, Config_->MaxRegularReplicasPerRack); break;
+        case EObjectType::ErasureChunk:  result = std::min(result, Config_->MaxErasureReplicasPerRack); break;
+        case EObjectType::JournalChunk:  result = std::min(result, Config_->MaxJournalReplicasPerRack); break;
+        default:                         Y_UNREACHABLE();
+    }
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

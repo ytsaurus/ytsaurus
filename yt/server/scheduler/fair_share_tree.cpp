@@ -68,11 +68,14 @@ const TDynamicAttributes& TFairShareContext::DynamicAttributes(TSchedulerElement
 
 ////////////////////////////////////////////////////////////////////
 
-TSchedulerElementFixedState::TSchedulerElementFixedState(ISchedulerStrategyHost* host)
+TSchedulerElementFixedState::TSchedulerElementFixedState(
+    ISchedulerStrategyHost* host,
+    const TFairShareStrategyConfigPtr& strategyConfig)
     : ResourceDemand_(ZeroJobResources())
     , ResourceLimits_(InfiniteJobResources())
     , MaxPossibleResourceUsage_(ZeroJobResources())
     , Host_(host)
+    , StrategyConfig_(strategyConfig)
     , TotalResourceLimits_(host->GetTotalResourceLimits())
 { }
 
@@ -123,6 +126,11 @@ int TSchedulerElement::EnumerateNodes(int startIndex)
 int TSchedulerElement::GetTreeIndex() const
 {
     return TreeIndex_;
+}
+
+void TSchedulerElement::UpdateStrategyConfig(const TFairShareStrategyConfigPtr& config)
+{
+    StrategyConfig_ = config;
 }
 
 void TSchedulerElement::Update(TDynamicAttributesList& dynamicAttributesList)
@@ -256,9 +264,8 @@ void TSchedulerElement::IncreaseLocalResourceUsage(const TJobResources& delta)
 
 TSchedulerElement::TSchedulerElement(
     ISchedulerStrategyHost* host,
-    TFairShareStrategyConfigPtr strategyConfig)
-    : TSchedulerElementFixedState(host)
-    , StrategyConfig_(strategyConfig)
+    const TFairShareStrategyConfigPtr& strategyConfig)
+    : TSchedulerElementFixedState(host, strategyConfig)
     , SharedState_(New<TSchedulerElementSharedState>())
 { }
 
@@ -266,7 +273,6 @@ TSchedulerElement::TSchedulerElement(
     const TSchedulerElement& other,
     TCompositeSchedulerElement* clonedParent)
     : TSchedulerElementFixedState(other)
-    , StrategyConfig_(other.StrategyConfig_)
     , SharedState_(other.SharedState_)
 {
     Parent_ = clonedParent;
@@ -395,6 +401,20 @@ int TCompositeSchedulerElement::EnumerateNodes(int startIndex)
         startIndex = child->EnumerateNodes(startIndex);
     }
     return startIndex;
+}
+
+void TCompositeSchedulerElement::UpdateStrategyConfig(const TFairShareStrategyConfigPtr& config)
+{
+    TSchedulerElement::UpdateStrategyConfig(config);
+
+    auto updateChildrenConfig = [&config] (TChildList& list) {
+        for (const auto& child : list) {
+            child->UpdateStrategyConfig(config);
+        }
+    };
+
+    updateChildrenConfig(EnabledChildren_);
+    updateChildrenConfig(DisabledChildren_);
 }
 
 void TCompositeSchedulerElement::UpdateBottomUp(TDynamicAttributesList& dynamicAttributesList)
@@ -1815,7 +1835,8 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(TFairShareContext& contex
     if (!scheduleJobResultWithTimeoutOrError.IsOK()) {
         auto scheduleJobResult = New<TScheduleJobResult>();
         if (scheduleJobResultWithTimeoutOrError.GetCode() == NYT::EErrorCode::Timeout) {
-            LOG_WARNING("Controller is scheduling for too long, aborting ScheduleJob");
+            LOG_WARNING("Controller of operation %v is scheduling for too long, aborting ScheduleJob",
+                OperationId_);
             ++scheduleJobResult->Failed[EScheduleJobFailReason::Timeout];
             // If ScheduleJob was not canceled we need to abort created job.
             scheduleJobResultFuture.Subscribe(

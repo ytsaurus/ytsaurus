@@ -327,11 +327,7 @@ public:
             }
 
             RootElement->Update(GlobalDynamicAttributes_);
-            auto rootElementSnapshot = CreateRootElementSnapshot();
-            {
-                TWriterGuard guard(RootElementSnapshotLock);
-                RootElementSnapshot = rootElementSnapshot;
-            }
+            AssignRootElementSnapshot(CreateRootElementSnapshot());
         } catch (const std::exception& ex) {
             auto error = TError("Error updating pools")
                 << ex;
@@ -371,6 +367,14 @@ public:
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error parsing operation runtime parameters");
         }
+    }
+
+    void UpdateConfig(const TFairShareStrategyConfigPtr& config)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        Config = config;
+        RootElement->UpdateStrategyConfig(Config);
     }
 
     virtual void BuildOperationAttributes(const TOperationId& operationId, IYsonConsumer* consumer) override
@@ -512,15 +516,7 @@ public:
                 }
             }
 
-            auto rootElementSnapshot = CreateRootElementSnapshot();
-
-            TRootElementSnapshotPtr oldRootElementSnapshot;
-            {
-                // NB: Avoid destroying the cloned tree inside critical section.
-                TWriterGuard guard(RootElementSnapshotLock);
-                std::swap(RootElementSnapshot, oldRootElementSnapshot);
-                RootElementSnapshot = rootElementSnapshot;
-            }
+            AssignRootElementSnapshot(CreateRootElementSnapshot());
 
             // Profiling.
             if (LastProfilingTime_ + Config->FairShareProfilingPeriod < now) {
@@ -556,7 +552,7 @@ public:
     }
 
 private:
-    const TFairShareStrategyConfigPtr Config;
+    TFairShareStrategyConfigPtr Config;
     ISchedulerStrategyHost* const Host;
 
     INodePtr LastPoolsNodeUpdate;
@@ -575,6 +571,7 @@ private:
     {
         TRootElementPtr RootElement;
         TOperationElementByIdMap OperationIdToElement;
+        TFairShareStrategyConfigPtr Config;
 
         TOperationElement* FindOperationElement(const TOperationId& operationId) const
         {
@@ -654,6 +651,7 @@ private:
         const TIntrusivePtr<TAsyncLockReaderGuard>& /*guard*/)
     {
         auto& rootElement = rootElementSnapshot->RootElement;
+        auto& config = rootElementSnapshot->Config;
         auto context = TFairShareContext(schedulingContext, rootElement->GetTreeSize());
 
         auto profileTimings = [&] (
@@ -717,7 +715,11 @@ private:
                     continue;
                 }
 
-                if (IsJobPreemptable(job, operationElement, context.HasAggressivelyStarvingNodes) && !operationElement->HasStarvingParent()) {
+                if (operationElement->HasStarvingParent()) {
+                    continue;
+                }
+
+                if (IsJobPreemptable(job, operationElement, context.HasAggressivelyStarvingNodes, config)) {
                     auto* parent = operationElement->GetParent();
                     while (parent) {
                         discountedPools.insert(parent);
@@ -852,17 +854,18 @@ private:
     bool IsJobPreemptable(
         const TJobPtr& job,
         const TOperationElementPtr& element,
-        bool aggressivePreemptionEnabled) const
+        bool aggressivePreemptionEnabled,
+        const TFairShareStrategyConfigPtr& config) const
     {
         double usageRatio = element->GetResourceUsageRatio();
-        if (usageRatio < Config->MinPreemptableRatio) {
+        if (usageRatio < config->MinPreemptableRatio) {
             return false;
         }
 
         const auto& attributes = element->Attributes();
         auto threshold = aggressivePreemptionEnabled
-            ? Config->AggressivePreemptionSatisfactionThreshold
-            : Config->PreemptionSatisfactionThreshold;
+            ? config->AggressivePreemptionSatisfactionThreshold
+            : config->PreemptionSatisfactionThreshold;
         if (usageRatio < attributes.FairShareRatio * threshold) {
             return false;
         }
@@ -1076,7 +1079,15 @@ private:
         auto snapshot = New<TRootElementSnapshot>();
         snapshot->RootElement = RootElement->Clone();
         snapshot->RootElement->BuildOperationToElementMapping(&snapshot->OperationIdToElement);
+        snapshot->Config = Config;
         return snapshot;
+    }
+
+    void AssignRootElementSnapshot(TRootElementSnapshotPtr rootElementSnapshot)
+    {
+        // NB: Avoid destroying the cloned tree inside critical section.
+        TWriterGuard guard(RootElementSnapshotLock);
+        std::swap(RootElementSnapshot, rootElementSnapshot);
     }
 
     void BuildPoolsInformation(IYsonConsumer* consumer)

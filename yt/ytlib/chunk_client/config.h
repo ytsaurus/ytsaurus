@@ -81,6 +81,10 @@ public:
     double NetQueueSizeFactor;
     double DiskQueueSizeFactor;
 
+    //! If |true|, then workload descriptors are annotated with the read session start time
+    //! and are thus scheduled in FIFO order.
+    bool EnableWorkloadFifoScheduling;
+
     TReplicationReaderConfig()
     {
         RegisterParameter("block_rpc_timeout", BlockRpcTimeout)
@@ -123,6 +127,8 @@ public:
             .Default(1.0);
         RegisterParameter("net_queue_size_factor", NetQueueSizeFactor)
             .Default(0.5);
+        RegisterParameter("enable_workload_fifo_scheduling", EnableWorkloadFifoScheduling)
+            .Default(true);
     }
 };
 
@@ -218,8 +224,8 @@ public:
     //! If |true| then written blocks are cached by the node.
     bool PopulateCache;
 
+    //! If |true| then the chunk is fsynced to disk upon closing.
     bool SyncOnClose;
-    bool EnableUniformPlacement;
 
     TDuration AllocateWriteTargetsBackoffTime;
 
@@ -253,8 +259,6 @@ public:
             .Default(false);
         RegisterParameter("sync_on_close", SyncOnClose)
             .Default(true);
-        RegisterParameter("enable_uniform_placement", EnableUniformPlacement)
-            .Default(false);
         RegisterParameter("allocate_write_targets_backoff_time", AllocateWriteTargetsBackoffTime)
             .Default(TDuration::Seconds(5));
         RegisterParameter("allocate_write_targets_retry_count", AllocateWriteTargetsRetryCount)
@@ -283,6 +287,7 @@ class TRemoteWriterOptions
 public:
     bool AllowAllocatingNewTargetNodes;
     Stroka MediumName;
+    TPlacementId PlacementId;
 
     TRemoteWriterOptions()
     {
@@ -290,6 +295,8 @@ public:
             .Default(true);
         RegisterParameter("medium_name", MediumName)
             .Default(DefaultStoreMediumName);
+        RegisterParameter("placement_id", PlacementId)
+            .Default();
     }
 };
 

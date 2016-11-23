@@ -8,6 +8,8 @@
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/zigzag.h>
 
+#include <util/generic/stroka.h>
+
 #include <util/string/escape.h>
 
 namespace NYT {
@@ -116,6 +118,87 @@ public:
     {
         return error
             << TErrorAttribute("offset", info.Offset);
+    }
+};
+
+template <class TBlockStream, size_t MaxContextSize>
+class TReaderWithContext
+    : public TBlockStream
+{
+private:
+    // ContextBegin points to the first byte of current buffer we want to append to context.
+    // We set ContextBegin to nullptr when we want to write context but we haven't see any data yet,
+    // we'll save context from the first data we'll see.
+    // We set ContextBegin to Null when we don't' write context currently (or saved contexts already reached maximum size).
+    TNullable<const char*> ContextBegin;
+    size_t ContextSize = 0;
+    char Context[MaxContextSize];
+
+public:
+    TReaderWithContext(const TBlockStream& blockStream)
+        : TBlockStream(blockStream)
+    { }
+
+    void CheckpointContext()
+    {
+        ContextBegin = TBlockStream::Begin();
+        ContextSize = 0;
+    }
+
+    Stroka GetContextFromCheckpoint() const
+    {
+        Stroka result;
+        result.append(Context, ContextSize);
+        if (ContextBegin && *ContextBegin != nullptr) {
+            size_t remainingSize = MaxContextSize - ContextSize;
+            remainingSize = std::min<size_t>(remainingSize, TBlockStream::End() - *ContextBegin);
+            result.append(*ContextBegin, *ContextBegin + remainingSize);
+        }
+        return result;
+    }
+
+    void RefreshBlock()
+    {
+        if (ContextBegin) {
+            // ContextBegin can be defined but set to nullptr if someone called CheckpointContext
+            // before any data was read by TBlockStream (when both Begin()/End() == nullptr).
+            if (*ContextBegin != nullptr) {
+                const auto sizeToCopy = std::min<size_t>(MaxContextSize - ContextSize, TBlockStream::End() - *ContextBegin);
+                memcpy(Context + ContextSize, *ContextBegin, sizeToCopy);
+                ContextSize += sizeToCopy;
+            }
+
+            TBlockStream::RefreshBlock();
+
+            // If we reached maximum size set ContextBegin to Null (not nullptr).
+            // By doing this we disable further context saving.
+            // Otherwise our context is continued from the beginning of the next block.
+            if (ContextSize == MaxContextSize) {
+                ContextBegin = Null;
+            } else {
+                ContextBegin = TBlockStream::Begin();
+            }
+        } else {
+            TBlockStream::RefreshBlock();
+        }
+    }
+};
+
+template <class TBlockStream>
+class TReaderWithContext<TBlockStream, 0>
+    : public TBlockStream
+{
+public:
+    TReaderWithContext(const TBlockStream& blockStream)
+        : TBlockStream(blockStream)
+    { }
+
+    void CheckpointContext()
+    { }
+
+    Stroka GetContextFromCheckpoint() const
+    {
+        return "<context is disabled>";
     }
 };
 
@@ -800,7 +883,6 @@ public:
         return FinishFlag;
     }
 };
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

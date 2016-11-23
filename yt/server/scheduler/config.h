@@ -465,6 +465,8 @@ public:
 
     NHiveClient::TClusterDirectorySynchronizerConfigPtr ClusterDirectorySynchronizer;
 
+    TDuration NodeShardsUpdatePeriod;
+
     TDuration ResourceDemandSanityCheckPeriod;
 
     TDuration LockTransactionTimeout;
@@ -682,6 +684,9 @@ public:
             .Default(TDuration::Seconds(1));
         RegisterParameter("cluster_directory_synchronizer", ClusterDirectorySynchronizer)
             .DefaultNew();
+        RegisterParameter("node_shards_update_period", NodeShardsUpdatePeriod)
+            .Default(TDuration::Seconds(10));
+
         RegisterParameter("resource_demand_sanity_check_period", ResourceDemandSanityCheckPeriod)
             .Default(TDuration::Seconds(15));
         RegisterParameter("lock_transaction_timeout", LockTransactionTimeout)
