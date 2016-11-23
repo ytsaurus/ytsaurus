@@ -102,7 +102,9 @@ void TChunkScanner::AdvanceGlobalIterator()
 
     GlobalIterator_ = GlobalIterator_->GetNextScannedChunk(Kind_);
     if (!GlobalIterator_) {
-        YCHECK(GlobalCount_ == 0);
+        // NB: Some chunks could vanish during the scan so this is not
+        // necessary zero.
+        YCHECK(GlobalCount_ >= 0);
         LOG_INFO("Global chunk scan finished");
     }
 }
