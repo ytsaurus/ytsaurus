@@ -126,9 +126,18 @@ public:
         YCHECK(bootstrap);
         VERIFY_INVOKER_THREAD_AFFINITY(GetControlInvoker(), ControlThread);
 
-        auto primaryMasterCellTag = GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellTag();
-        for (int i = 0; i < Config_->NodeShardCount; ++i) {
-            NodeShards_.push_back(New<TNodeShard>(i, primaryMasterCellTag, Config_, this, Bootstrap_));
+        auto primaryMasterCellTag = Bootstrap_
+            ->GetMasterClient()
+            ->GetNativeConnection()
+            ->GetPrimaryMasterCellTag();
+
+        for (int index = 0; index < Config_->NodeShardCount; ++index) {
+            NodeShards_.push_back(New<TNodeShard>(
+                index,
+                primaryMasterCellTag,
+                Config_,
+                this,
+                Bootstrap_));
         }
 
         auto localHostName = TAddressResolver::Get()->GetLocalHostName();
@@ -232,6 +241,12 @@ public:
             BIND(&TImpl::UpdateExecNodeDescriptors, MakeWeak(this)),
             Config_->UpdateExecNodeDescriptorsPeriod);
         UpdateExecNodeDescriptorsExecutor_->Start();
+
+        UpdateNodeShardsExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetControlInvoker(),
+            BIND(&TImpl::UpdateNodeShards, MakeWeak(this)),
+            Config_->NodeShardsUpdatePeriod);
+        UpdateNodeShardsExecutor_->Start();
     }
 
     virtual ISchedulerStrategyPtr GetStrategy() override
@@ -887,7 +902,7 @@ public:
         NYson::TYsonString jobAttributes,
         const TChunkId& stderrChunkId,
         const TChunkId& failContextChunkId,
-        TFuture<TNullable<TYsonString>> inputPathsFuture) override
+        TFuture<TYsonString> inputPathsFuture) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -929,7 +944,7 @@ public:
     }
 
 private:
-    const TSchedulerConfigPtr Config_;
+    TSchedulerConfigPtr Config_;
     const INodePtr InitialConfig_;
     TBootstrap* const Bootstrap_;
 
@@ -969,6 +984,7 @@ private:
     TPeriodicExecutorPtr LoggingExecutor_;
     TPeriodicExecutorPtr PendingEventLogRowsFlushExecutor_;
     TPeriodicExecutorPtr UpdateExecNodeDescriptorsExecutor_;
+    TPeriodicExecutorPtr UpdateNodeShardsExecutor_;
 
     Stroka ServiceAddress_;
 
@@ -1032,6 +1048,7 @@ private:
 
     bool ShouldCreateJobNode(const TOperationPtr& operation, bool jobFailedOrAborted, bool hasStderr)
     {
+        // Keep it sync with same checks in TNodeShard::ProcessFinishedJobResult.
         if (operation->GetJobNodeCount() >= Config_->MaxJobNodesPerOperation) {
             return false;
         }
@@ -1048,7 +1065,7 @@ private:
         NYson::TYsonString jobAttributes,
         const TChunkId& stderrChunkId,
         const TChunkId& failContextChunkId,
-        TFuture<TNullable<TYsonString>> inputPathsFuture)
+        TFuture<TYsonString> inputPathsFuture)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1469,51 +1486,50 @@ private:
             return;
         }
 
-        auto oldConfig = ConvertToNode(Config_);
-
-        bool errorFound = false;
+        TSchedulerConfigPtr newConfig = New<TSchedulerConfig>();
         try {
             const auto& rsp = rspOrError.Value();
             auto configFromCypress = ConvertToNode(TYsonString(rsp->value()));
-
             auto mergedConfig = UpdateNode(InitialConfig_, configFromCypress);
+
             try {
-                Config_->Load(mergedConfig, /* validate */ true, /* setDefaults */ true);
+                newConfig->Load(mergedConfig, /* validate */ true, /* setDefaults */ true);
             } catch (const std::exception& ex) {
-                errorFound = true;
                 auto error = TError("Error updating cell scheduler configuration")
                     << ex;
                 RegisterAlert(EAlertType::UpdateConfig, error);
-                Config_->Load(oldConfig, /* validate */ true, /* setDefaults */ true);
+                return;
             }
         } catch (const std::exception& ex) {
-            errorFound = true;
             auto error = TError("Error parsing updated scheduler configuration")
                 << ex;
             RegisterAlert(EAlertType::UpdateConfig, error);
+            return;
         }
 
-        if (!errorFound) {
-            UnregisterAlert(EAlertType::UpdateConfig);
-        }
+        UnregisterAlert(EAlertType::UpdateConfig);
 
-        auto newConfig = ConvertToNode(Config_);
+        auto oldConfigNode = ConvertToNode(Config_);
+        auto newConfigNode = ConvertToNode(newConfig);
 
-        if (!AreNodesEqual(oldConfig, newConfig)) {
+        if (!AreNodesEqual(oldConfigNode, newConfigNode)) {
             LOG_INFO("Scheduler configuration updated");
-            auto config = CloneYsonSerializable(Config_);
+            Config_ = newConfig;
             for (const auto& operation : GetOperations()) {
                 auto controller = operation->GetController();
-                BIND(&IOperationController::UpdateConfig, controller, config)
+                BIND(&IOperationController::UpdateConfig, controller, Config_)
                     .AsyncVia(controller->GetCancelableInvoker())
                     .Run();
             }
 
             for (auto& nodeShard : NodeShards_) {
-                BIND(&TNodeShard::UpdateConfig, nodeShard, config)
+                BIND(&TNodeShard::UpdateConfig, nodeShard, Config_)
                     .AsyncVia(nodeShard->GetInvoker())
                     .Run();
             }
+
+            Strategy_->UpdateConfig(Config_);
+            MasterConnector_->UpdateConfig(Config_);
         }
     }
 
@@ -1540,6 +1556,23 @@ private:
             TWriterGuard guard(ExecNodeDescriptorsLock_);
 
             CachedExecNodeDescriptors_ = result;
+        }
+    }
+
+    void UpdateNodeShards()
+    {
+        TNodeShard::TNodeShardPatch patch;
+        for (const auto& pair : IdToOperation_) {
+            const auto& operation = pair.second;
+            auto& operationPatch = patch.OperationPatches[operation->GetId()];
+            operationPatch.CanCreateJobNodeForAbortedOrFailedJobs =
+                operation->GetJobNodeCount() < Config_->MaxJobNodesPerOperation;
+            operationPatch.CanCreateJobNodeForJobsWithStderr =
+                operation->GetStderrCount() < operation->GetMaxStderrCount();
+        }
+
+        for (auto& nodeShard : NodeShards_) {
+            nodeShard->GetInvoker()->Invoke(BIND(&TNodeShard::UpdateState, nodeShard, patch));
         }
     }
 
@@ -1852,33 +1885,31 @@ private:
 
     IOperationControllerPtr CreateController(TOperation* operation)
     {
-        auto config = CloneYsonSerializable(Config_);
-
         IOperationControllerPtr controller;
         switch (operation->GetType()) {
             case EOperationType::Map:
-                controller = CreateMapController(config, this, operation);
+                controller = CreateMapController(Config_, this, operation);
                 break;
             case EOperationType::Merge:
-                controller = CreateMergeController(config, this, operation);
+                controller = CreateMergeController(Config_, this, operation);
                 break;
             case EOperationType::Erase:
-                controller = CreateEraseController(config, this, operation);
+                controller = CreateEraseController(Config_, this, operation);
                 break;
             case EOperationType::Sort:
-                controller = CreateSortController(config, this, operation);
+                controller = CreateSortController(Config_, this, operation);
                 break;
             case EOperationType::Reduce:
-                controller = CreateReduceController(config, this, operation);
+                controller = CreateReduceController(Config_, this, operation);
                 break;
             case EOperationType::JoinReduce:
-                controller = CreateJoinReduceController(config, this, operation);
+                controller = CreateJoinReduceController(Config_, this, operation);
                 break;
             case EOperationType::MapReduce:
-                controller = CreateMapReduceController(config, this, operation);
+                controller = CreateMapReduceController(Config_, this, operation);
                 break;
             case EOperationType::RemoteCopy:
-                controller = CreateRemoteCopyController(config, this, operation);
+                controller = CreateRemoteCopyController(Config_, this, operation);
                 break;
             default:
                 Y_UNREACHABLE();

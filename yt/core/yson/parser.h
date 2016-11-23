@@ -16,7 +16,8 @@ public:
         IYsonConsumer* consumer,
         EYsonType type = EYsonType::Node,
         bool enableLinePositionInfo = false,
-        i64 memoryLimit = std::numeric_limits<i64>::max());
+        i64 memoryLimit = std::numeric_limits<i64>::max(),
+        bool enableContext = true);
 
     ~TYsonParser();
 
@@ -37,7 +38,8 @@ public:
     TStatelessYsonParser(
         IYsonConsumer* consumer,
         bool enableLinePositionInfo = false,
-        i64 memoryLimit = std::numeric_limits<i64>::max());
+        i64 memoryLimit = std::numeric_limits<i64>::max(),
+        bool enableContext = true);
 
     ~TStatelessYsonParser();
 
@@ -56,7 +58,8 @@ void ParseYsonStringBuffer(
     EYsonType type,
     IYsonConsumer* consumer,
     bool enableLinePositionInfo = false,
-    i64 memoryLimit = std::numeric_limits<i64>::max());
+    i64 memoryLimit = std::numeric_limits<i64>::max(),
+    bool enableContext = true);
 
 ////////////////////////////////////////////////////////////////////////////////
 

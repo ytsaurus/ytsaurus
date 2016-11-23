@@ -26,7 +26,7 @@ struct TCreateJobNodeRequest
     NYson::TYsonString Attributes;
     NChunkClient::TChunkId StderrChunkId;
     NChunkClient::TChunkId FailContextChunkId;
-    TFuture<TNullable<NYson::TYsonString>> InputPathsFuture;
+    TFuture<NYson::TYsonString> InputPathsFuture;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -91,6 +91,8 @@ public:
 
     void AddOperationWatcherRequester(TOperationPtr operation, TWatcherRequester requester);
     void AddOperationWatcherHandler(TOperationPtr operation, TWatcherHandler handler);
+
+    void UpdateConfig(const TSchedulerConfigPtr& config);
 
     DECLARE_SIGNAL(void(const TMasterHandshakeResult& result), MasterConnected);
     DECLARE_SIGNAL(void(), MasterDisconnected);

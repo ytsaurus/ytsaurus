@@ -8,6 +8,7 @@ namespace NYT {
 namespace NJobAgent {
 
 using namespace NYTree;
+using namespace NYson;
 
 void Serialize(const TJobEvents& events, NYson::IYsonConsumer* consumer)
 {
@@ -26,6 +27,129 @@ void Serialize(const TJobEvents& events, NYson::IYsonConsumer* consumer)
                 .EndMap();
         })
         .EndList();
+}
+
+class TYsonAtributesStripper
+    : public IYsonConsumer
+{
+public:
+    TYsonAtributesStripper(IYsonConsumer* output)
+        : Output_(output)
+    { }
+
+    virtual void OnStringScalar(const TStringBuf& value) override
+    {
+        if (AttributesDepth_ == 0) {
+            Output_->OnStringScalar(value);
+        }
+    }
+
+    virtual void OnInt64Scalar(i64 value) override
+    {
+        if (AttributesDepth_ == 0) {
+            Output_->OnInt64Scalar(value);
+        }
+    }
+
+    virtual void OnUint64Scalar(ui64 value) override
+    {
+        if (AttributesDepth_ == 0) {
+            Output_->OnInt64Scalar(value);
+        }
+    }
+
+    virtual void OnDoubleScalar(double value) override
+    {
+        if (AttributesDepth_ == 0) {
+            Output_->OnDoubleScalar(value);
+        }
+    }
+
+    virtual void OnBooleanScalar(bool value) override
+    {
+        if (AttributesDepth_ == 0) {
+            Output_->OnBooleanScalar(value);
+        }
+    }
+
+    virtual void OnEntity() override
+    {
+        if (AttributesDepth_ == 0) {
+            Output_->OnEntity();
+        }
+    }
+
+    virtual void OnBeginList() override
+    {
+        if (AttributesDepth_ == 0) {
+            Output_->OnBeginList();
+        }
+    }
+
+    virtual void OnListItem() override
+    {
+        if (AttributesDepth_ == 0) {
+            Output_->OnListItem();
+        }
+    }
+
+    virtual void OnEndList() override
+    {
+        if (AttributesDepth_ == 0) {
+            Output_->OnEndList();
+        }
+    }
+
+    virtual void OnBeginMap() override
+    {
+        if (AttributesDepth_ == 0) {
+            Output_->OnBeginMap();
+        }
+    }
+
+    virtual void OnKeyedItem(const TStringBuf& key) override
+    {
+        if (AttributesDepth_ == 0) {
+            Output_->OnKeyedItem(key);
+        }
+    }
+
+    virtual void OnEndMap() override
+    {
+        if (AttributesDepth_ == 0) {
+            Output_->OnEndMap();
+        }
+    }
+
+    virtual void OnBeginAttributes() override
+    {
+        ++AttributesDepth_;
+    }
+
+    virtual void OnEndAttributes() override
+    {
+        --AttributesDepth_;
+    }
+
+    virtual void OnRaw(const TStringBuf& yson, EYsonType type) override
+    {
+        if (AttributesDepth_ == 0) {
+            Output_->OnRaw(yson, type);
+        }
+    }
+
+private:
+    IYsonConsumer* Output_;
+    int AttributesDepth_ = 0;
+};
+
+TYsonString StripAttributes(const TYsonString& yson)
+{
+    TStringStream outputStream;
+    TYsonWriter writer(&outputStream);
+    TYsonAtributesStripper stripper(&writer);
+    ParseYsonStringBuffer(yson.Data(), yson.GetType(), &stripper);
+    return TYsonString(outputStream.Str(), yson.GetType());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -89,9 +213,9 @@ void TJobStatistics::SetSpecVersion(i64 specVersion)
     SpecVersion_ = specVersion;
 }
 
-void TJobStatistics::SetStatistics(const NYson::TYsonString& statistics)
+void TJobStatistics::SetStatistics(const TYsonString& statistics)
 {
-    Statistics_ = ConvertToYsonString(statistics).Data();
+    Statistics_ = StripAttributes(statistics).Data();
 }
 
 void TJobStatistics::SetEvents(const TJobEvents& events)

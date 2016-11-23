@@ -61,6 +61,11 @@ public:
         TChunk* chunk,
         double maxFillFactor);
 
+    int GetMaxReplicasPerRack(
+        TChunk* chunk,
+        int mediumIndex,
+        TNullable<int> replicationFactorOverride = Null);
+
 private:
     class TTargetCollector;
 
@@ -119,10 +124,6 @@ private:
         TNode* node,
         NChunkClient::ESessionType sessionType);
 
-    int GetMaxReplicasPerRack(
-        TChunk* chunk,
-        int mediumIndex,
-        TNullable<int> replicationFactorOverride);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkPlacement)

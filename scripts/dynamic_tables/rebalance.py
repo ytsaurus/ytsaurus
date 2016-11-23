@@ -48,12 +48,13 @@ class Tablet(namedtuple("Tablet", ["tablet_id", "cell_id", "index", "pivot_key",
         leading_peers = filter(lambda p: p["state"] == "leading", all_peers)
         assert len(leading_peers) == 1
         assert "address" in leading_peers[0]
+        # TODO(sandello): Rewrite this in YSON, because we are on 18-19 now!
         # Due to 0.16-0.17 incompatibilities in YSON we load information in JSON and deserialize it manually.
         attributes = yt.get(
             "//sys/nodes/{}/orchid/tablet_cells/{}/tablets/{}".format(
                 leading_peers[0]["address"], self.cell_id, self.tablet_id),
             format=yt.JsonFormat())
-        self.attributes.update(json.loads(attributes)["$value"])
+        self.attributes.update(json.loads(attributes)))
 
     def _ensure_attributes(self):
         if len(self.attributes) == 0:

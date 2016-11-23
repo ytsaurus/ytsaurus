@@ -107,6 +107,9 @@ struct ISchedulerStrategy
         const TOperationPtr& operation,
         const NYTree::INodePtr& update) = 0;
 
+    //! Updates current config used by strategy.
+    virtual void UpdateConfig(const TFairShareStrategyConfigPtr& config) = 0;
+
     //! Builds a YSON structure containing a set of attributes to be assigned to operation's node
     //! in Cypress during creation.
     virtual void BuildOperationAttributes(
