@@ -12,7 +12,7 @@ download_and_extract() {
     apt-get download "$package$version_suffix" -qq 1>&2
     dpkg -x ${package}_*.deb $package 1>&2
 }
-    
+
 prepare_archive_directory() {
     local yt_version="$1" && shift
     local yt_python_version="$1" && shift
@@ -50,7 +50,8 @@ prepare_archive_directory() {
 
     cp -r yandex-yt-python/usr/share/pyshared/yt/* "$archive_dir/python/yt"
     cp -r yandex-yt-python/usr/bin/yt2 "$archive_dir/bin"
-    cp -r yandex-yt-python/usr/bin/mapreduce-yt "$archive_dir/bin"
+    cp -r yandex-yt-python/usr/bin/mapreduce-yt2 "$archive_dir/bin"
+    ln -s "$archive_dir/bin/mapreduce-yt2" "$archive_dir/bin/mapreduce-yt"
 
     cp -r yandex-yt-local/usr/share/pyshared/yt/* "$archive_dir/python/yt"
     cp -r yandex-yt-local/usr/bin/yt_local "$archive_dir/bin"
