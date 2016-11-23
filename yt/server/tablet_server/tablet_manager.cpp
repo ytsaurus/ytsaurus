@@ -1313,6 +1313,10 @@ public:
             return;
         }
 
+        if (table->IsExternal()) {
+            THROW_ERROR_EXCEPTION("Cannot switch mode from static to dynamic: table is external");
+        }
+
         auto* oldRootChunkList = table->GetChunkList();
 
         std::vector<TChunk*> chunks;
