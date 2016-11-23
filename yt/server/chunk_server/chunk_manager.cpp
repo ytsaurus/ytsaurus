@@ -642,7 +642,7 @@ public:
         NChunkServer::DetachFromChunkList(chunkList, childrenBegin, childrenEnd);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        for (auto it = childrenBegin; it != childrenBegin; ++it) {
+        for (auto it = childrenBegin; it != childrenEnd; ++it) {
             auto* child = *it;
             objectManager->UnrefObject(child);
         }
