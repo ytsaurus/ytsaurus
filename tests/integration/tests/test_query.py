@@ -596,17 +596,27 @@ class TestQuery(YTEnvSetup):
         assert_items_equal(actual, expected_sum)
 
     def test_aggregate_string_capture(self):
-        create("table", "//tmp/t")
+        self.sync_create_cells(1)
+
+        create("table", "//tmp/t",
+            attributes={
+                "dynamic": True,
+                "schema": [
+                    {"name": "a", "type": "string", "sort_order": "ascending"},
+                    {"name": "b", "type": "int64"}
+                ]
+            })
+
+        self.sync_mount_table("//tmp/t")
 
         # Need at least 1024 items to ensure a second batch in the scan operator
         data = [
             {"a": "A" + str(j) + "BCD"}
             for j in xrange(1, 2048)]
-        write_table("//tmp/t", data)
-        sort(in_="//tmp/t", out="//tmp/t", sort_by=["a"])
+        insert_rows("//tmp/t", data)
 
         expected = [{"m": "a1000bcd"}]
-        actual = select_rows("min(lower(a)) as m from [<schema=[{name=a;type=string}]>//tmp/t] group by 1")
+        actual = select_rows("min(lower(a)) as m from [//tmp/t] group by 1")
         assert_items_equal(actual, expected)
 
     def test_cardinality(self):
