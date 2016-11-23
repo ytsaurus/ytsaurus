@@ -310,7 +310,7 @@ def create_modules_archive_default(tempfiles_manager, custom_python_used, client
         archives.append(fresh_zip)
 
     enable_tmpfs_archive = get_config(client)["pickling"]["enable_tmpfs_archive"] or \
-        get_config(client)["pickling"]["mount_sandbox_in_tmpfs"]
+        get_config(client)["mount_sandbox_in_tmpfs"]
 
     result = [{
             "filename": archive.filename,
