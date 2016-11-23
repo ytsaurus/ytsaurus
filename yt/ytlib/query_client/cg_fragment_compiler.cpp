@@ -411,6 +411,9 @@ Function* CodegenTupleComparerFunction(
                             break;
                         }
 
+                        case EValueType::Null:
+                            break;
+
                         default:
                             Y_UNREACHABLE();
                     }
@@ -614,6 +617,13 @@ TCodegenExpression MakeCodegenLogicalBinaryOpExpr(
             auto lhsValue = codegenLhs(builder, row);
             auto rhsValue = codegenRhs(builder, row);
 
+            if (lhsValue.GetStaticType() == EValueType::Null) {
+                lhsValue = TCGValue::CreateNull(builder, type);
+            }
+            if (rhsValue.GetStaticType() == EValueType::Null) {
+                rhsValue = TCGValue::CreateNull(builder, type);
+            }
+
             return CodegenIf<TCGExprContext, TCGValue>(
                 builder,
                 lhsValue.IsNull(),
@@ -733,6 +743,13 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                         return compareNulls();
                     },
                     [&] (TCGBaseContext& builder) {
+                        if (lhsValue.GetStaticType() == EValueType::Null ||
+                            rhsValue.GetStaticType() == EValueType::Null)
+                        {
+                            // Stub value. Nulls are handled above.
+                            return TCGValue::CreateNull(builder, type);
+                        }
+
                         YCHECK(lhsValue.GetStaticType() == rhsValue.GetStaticType());
                         auto operandType = lhsValue.GetStaticType();
 

@@ -665,3 +665,24 @@ class TestQuery(YTEnvSetup):
         insert_rows("//tmp/t", [{"key": i, "value": 10 * i} for i in xrange(0, 1000)])
         # should not raise
         select_rows("sleep(value) from [//tmp/t]", output_row_limit=1, fail_on_incomplete_result=False)
+
+    def test_null(self):
+        self.sync_create_cells(1)
+
+        create("table", "//tmp/t",
+            attributes={
+                "dynamic": True,
+                "optimize_for": "scan",
+                "schema": [
+                    {"name": "a", "type": "int64", "sort_order": "ascending"},
+                    {"name": "b", "type": "int64"}]
+            })
+
+        self.sync_mount_table("//tmp/t")
+
+        data = [{"a" : None, "b" : 0}, {"a" : 1, "b" : 1}]
+        insert_rows("//tmp/t", data)
+
+        expected = data[0:1]
+        actual = select_rows("* from [//tmp/t] where a = null")
+        assert actual == expected
