@@ -147,10 +147,10 @@ void TBlobTableWriter::DoFinish()
     if (Finished_) {
         return;
     }
+    Finished_ = true;
     Flush();
     WaitFor(MultiChunkWriter_->Close())
         .ThrowOnError();
-    Finished_ = true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
