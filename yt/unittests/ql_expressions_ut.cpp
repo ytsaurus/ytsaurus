@@ -1054,6 +1054,68 @@ TEST_P(TExpressionTest, Evaluate)
         << "row: " << ::testing::PrintToString(row);
 }
 
+TEST_P(TExpressionTest, EvaluateLhsValueRhsLiteral)
+{
+    auto& param = GetParam();
+    auto type = std::get<0>(param);
+    auto lhs = std::get<1>(param);
+    auto& op = std::get<2>(param);
+    auto rhs = std::get<3>(param);
+    auto& expected = std::get<4>(param);
+
+    TUnversionedValue result;
+    TCGVariables variables;
+
+    auto columns = GetSampleTableSchema().Columns();
+    columns[0].Type = type;
+    columns[1].Type = type;
+    auto schema = TTableSchema(columns);
+
+    auto expr = PrepareExpression(Stroka("k") + " " + op + " " + rhs, schema);
+
+    auto callback = Profile(expr, schema, nullptr, &variables)();
+
+    auto row = YsonToRow(Stroka("k=") + lhs, schema, true);
+
+    auto buffer = New<TRowBuffer>();
+
+    callback(variables.GetOpaqueData(), &result, row, buffer.Get());
+
+    EXPECT_EQ(result, expected)
+        << "row: " << ::testing::PrintToString(row);
+}
+
+TEST_P(TExpressionTest, EvaluateLhsLiteralRhsValue)
+{
+    auto& param = GetParam();
+    auto type = std::get<0>(param);
+    auto lhs = std::get<1>(param);
+    auto& op = std::get<2>(param);
+    auto rhs = std::get<3>(param);
+    auto& expected = std::get<4>(param);
+
+    TUnversionedValue result;
+    TCGVariables variables;
+
+    auto columns = GetSampleTableSchema().Columns();
+    columns[0].Type = type;
+    columns[1].Type = type;
+    auto schema = TTableSchema(columns);
+
+    auto expr = PrepareExpression(Stroka(lhs) + " " + op + " " + "l", schema);
+
+    auto callback = Profile(expr, schema, nullptr, &variables)();
+
+    auto row = YsonToRow(Stroka("l=") + rhs, schema, true);
+
+    auto buffer = New<TRowBuffer>();
+
+    callback(variables.GetOpaqueData(), &result, row, buffer.Get());
+
+    EXPECT_EQ(result, expected)
+        << "row: " << ::testing::PrintToString(row);
+}
+
 INSTANTIATE_TEST_CASE_P(
     TArithmeticTest,
     TExpressionTest,

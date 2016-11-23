@@ -326,6 +326,10 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
                 break;
             }
 
+            case EValueType::Null: {
+                break;
+            }
+
             default:
                 Y_UNREACHABLE();
         }
@@ -398,6 +402,11 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
 
                 case EValueType::Boolean: {
                     result->Value = MakeUnversionedBooleanValue(ext.boolean_value());
+                    break;
+                }
+
+                case EValueType::Null: {
+                    result->Value = MakeUnversionedSentinelValue(EValueType::Null);
                     break;
                 }
 
