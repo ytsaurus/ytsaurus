@@ -854,6 +854,7 @@ protected:
 
             if (!Partition->Completed) {
                 Controller->AddTaskPendingHint(this);
+                Controller->AddTaskPendingHint(Controller->PartitionTask);
             }
         }
 
@@ -1928,7 +1929,7 @@ private:
             TScrapeChunksCallback scraperCallback;
             if (Spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait) {
                 scraperCallback = CreateScrapeChunksSessionCallback(
-                    Config,
+                    Config->ChunkScraper,
                     GetCancelableInvoker(),
                     Host->GetChunkLocationThrottlerManager(),
                     AuthenticatedInputMasterClient,

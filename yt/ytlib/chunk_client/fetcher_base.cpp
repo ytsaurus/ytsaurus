@@ -39,17 +39,11 @@ public:
         IClientPtr client,
         TNodeDirectoryPtr nodeDirectory,
         const NLogging::TLogger& logger = ChunkClientLogger)
-        : Scraper_(
-            New<TChunkScraper>(
-                config,
-                invoker,
-                throttlerManager,
-                client,
-                nodeDirectory,
-                yhash_set<TChunkId>(),
-                BIND(&TScrapeChunksSession::OnChunkLocated, MakeWeak(this)),
-                logger))
-        , Config_(config)
+        : Config_(config)
+        , Invoker_(invoker)
+        , ThrottlerManager_(throttlerManager)
+        , Client_(client)
+        , NodeDirectory_(nodeDirectory)
         , Logger(logger)
     { }
 
@@ -63,19 +57,52 @@ public:
             ChunkMap_[chunkId].ChunkSpecs.push_back(chunkSpec);
         }
         UnavailableFetcherChunkCount_ = chunkIds.size();
-        Scraper_->Reset(std::move(chunkIds));
+
+        Scraper_ = New<TChunkScraper>(
+            Config_,
+            Invoker_,
+            ThrottlerManager_,
+            Client_,
+            NodeDirectory_,
+            std::move(chunkIds),
+            BIND(&TScrapeChunksSession::OnChunkLocated, MakeWeak(this)),
+            Logger);
+        Scraper_->Start();
+
         BatchLocatedPromise_ = NewPromise<void>();
         return BatchLocatedPromise_;
     }
 
 private:
+    struct TFetcherChunkDescriptor
+    {
+        SmallVector<NChunkClient::TInputChunkPtr, 1> ChunkSpecs;
+        bool IsWaiting = true;
+    };
+
+    const TChunkScraperConfigPtr Config_;
+    const IInvokerPtr Invoker_;
+    const TThrottlerManagerPtr ThrottlerManager_;
+    const IClientPtr Client_;
+    const TNodeDirectoryPtr NodeDirectory_;
+
+    TChunkScraperPtr Scraper_;
+
+    yhash_map<TChunkId, TFetcherChunkDescriptor> ChunkMap_;
+    int UnavailableFetcherChunkCount_ = 0;
+    TPromise<void> BatchLocatedPromise_ = NewPromise<void>();
+
+    int ChunkLocatedCallCount_ = 0;
+
+    NLogging::TLogger Logger;
+
     void OnChunkLocated(const TChunkId& chunkId, const TChunkReplicaList& replicas)
     {
         ++ChunkLocatedCallCount_;
-        if (ChunkLocatedCallCount_ >= Config_->MaxChunksPerScratch) {
+        if (ChunkLocatedCallCount_ >= Config_->MaxChunksPerRequest) {
             ChunkLocatedCallCount_ = 0;
             LOG_DEBUG("Located another batch of chunks (Count: %v, UnavailableFetcherChunkCount: %v)",
-                Config_->MaxChunksPerScratch,
+                Config_->MaxChunksPerRequest,
                 UnavailableFetcherChunkCount_);
         }
 
@@ -109,22 +136,6 @@ private:
             BatchLocatedPromise_.SetFrom(Scraper_->Stop());
         }
     }
-
-    struct TFetcherChunkDescriptor
-    {
-        SmallVector<NChunkClient::TInputChunkPtr, 1> ChunkSpecs;
-        bool IsWaiting = true;
-    };
-
-    TChunkScraperPtr Scraper_;
-    TChunkScraperConfigPtr Config_;
-    NLogging::TLogger Logger;
-
-    yhash_map<TChunkId, TFetcherChunkDescriptor> ChunkMap_;
-    int UnavailableFetcherChunkCount_ = 0;
-    TPromise<void> BatchLocatedPromise_ = NewPromise<void>();
-
-    int ChunkLocatedCallCount_ = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TScrapeChunksSession)

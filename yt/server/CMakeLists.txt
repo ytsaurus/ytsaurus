@@ -245,6 +245,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/fair_share_strategy.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/fair_share_tree.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/intermediate_chunk_scraper.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/job.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/job_memory.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/job_prober_service.cpp
