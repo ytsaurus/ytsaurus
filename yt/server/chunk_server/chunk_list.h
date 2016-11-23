@@ -34,8 +34,8 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(int, TrimmedChildCount);
     DEFINE_BYREF_RW_PROPERTY(std::vector<TChunkTree*>, Children);
 
-    //! If |true|, then child-to-index map is maintained but no sums are accumulated.
-    //! If |false|, then vice versa, sums are accumulated but no child-to-index map exists.
+    //! If |false|, then child-to-index map is maintained but no sums are accumulated.
+    //! If |true|, then vice versa, sums are accumulated but no child-to-index map exists.
     DEFINE_BYVAL_RO_PROPERTY(bool, Ordered);
 
     using TChildToIndexMap = yhash_map<TChunkTree*, int>;
