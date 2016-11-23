@@ -309,9 +309,12 @@ def create_modules_archive_default(tempfiles_manager, custom_python_used, client
     if fresh_zip.size > 0:
         archives.append(fresh_zip)
 
+    enable_tmpfs_archive = get_config(client)["pickling"]["enable_tmpfs_archive"] or \
+        get_config(client)["pickling"]["mount_sandbox_in_tmpfs"]
+
     result = [{
             "filename": archive.filename,
-            "tmpfs": get_config(client)["pickling"]["enable_tmpfs_archive"] and not is_local_mode(client),
+            "tmpfs": enable_tmpfs_archive and not is_local_mode(client),
             "size": archive.size,
             "hash": archive.md5,
             "eggs": archive.python_eggs

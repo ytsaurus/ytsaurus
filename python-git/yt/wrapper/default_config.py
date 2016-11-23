@@ -355,7 +355,7 @@ default_config = {
     },
 
     # Enables mounting sandbox in tmpfs. Automatically calculates file sizes and adds them to memory limit.
-    "mount_sandbox_in_tmpfs": None,
+    "mount_sandbox_in_tmpfs": False,
 }
 
 def transform_value(value, original_value):
