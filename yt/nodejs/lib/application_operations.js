@@ -304,7 +304,12 @@ function required(parameters, key, validator)
     }
 }
 
-function getArchiveCallbacks(timings, from_time, to_time, cursor_time, substr_filter, cursor_direction, state_filter, type_filter, user_filter, max_size, version)
+function getArchiveCallbacks(
+    timings,
+    from_time, to_time, cursor_time, cursor_direction,
+    user_filter, state_filter, type_filter, substr_filter,
+    max_size,
+    version)
 {
     var start_time_name = version < 2 ? "index.start_time" : "start_time";
     var counts_filter_conditions = [
@@ -362,18 +367,38 @@ function getArchiveCallbacks(timings, from_time, to_time, cursor_time, substr_fi
 
     var logger = this.logger;
     var driver = this.driver;
+
+    function makeErrorHandler(message, meta)
+    {
+        return function(err) {
+            var error = YtError.ensureWrapped(err);
+            var cloned_meta = _.clone(meta || {});
+            cloned_meta.error = error.toJson();
+            logger.error(message, cloned_meta);
+            return Q.reject(error);
+        };
+    }
+
+    function makeSlowOpHandler(key, ts, meta)
+    {
+        return function() {
+            var dt = timings[key] = new Date() - ts;
+            if (dt > SLOW_QUERY_TIMEOUT) {
+                var cloned_meta = _.clone(meta || {});
+                cloned_meta.time = dt;
+                logger.debug("Slow operation '" + key + "'", cloned_meta);
+            }
+        };
+    }
+
     return {
         getCounts: function() {
             var timing_start = new Date();
             return driver.executeSimple(
                 "select_rows",
                 {query: query_for_counts})
-                .finally(function() {
-                    var dt = timings.archive_counts = new Date() - timing_start;
-                    if (dt > SLOW_QUERY_TIMEOUT) {
-                        logger.debug("Slow query", {query: query_for_counts, time: dt});
-                    }
-                });
+                .catch(makeErrorHandler("Failed to select operation counts from archive index", {query: query_for_counts}))
+                .finally(makeSlowOpHandler("archive_counts", timing_start, {query: query_for_counts}));
         },
         getItems: function() {
             var timing_start = new Date();
@@ -381,47 +406,34 @@ function getArchiveCallbacks(timings, from_time, to_time, cursor_time, substr_fi
                 return driver.executeSimple(
                     "select_rows",
                     {query: query_for_items, output_format: ANNOTATED_JSON_FORMAT})
-                    .finally(function() {
-                        var dt = timings.archive_items = new Date() - timing_start;
-                        if (dt > SLOW_QUERY_TIMEOUT) {
-                            logger.debug("Slow query", {query: query_for_items, time: dt});
-                        }
-                    });
+                    .catch(makeErrorHandler("Failed to select operations from archive", {query: query_for_items}))
+                    .finally(makeSlowOpHandler("archive_items", timing_start, {query: query_for_items}));
             } else {
-                var timing_archive_items_start;
+                var timing_start_interim;
+
                 var archive_item_ids = driver
                     .executeSimple(
                         "select_rows",
                         {query: query_for_items, output_format: ANNOTATED_JSON_FORMAT})
                     .then(function(value) {
-                        timing_archive_items_start = new Date();
+                        timing_start_interim = new Date();
                         return value;
                     })
-                    .finally(function() {
-                        var dt = timings.archive_item_ids = new Date() - timing_start;
-                        if (dt > SLOW_QUERY_TIMEOUT) {
-                            logger.debug("Slow query", {query: query_for_items, time: dt});
-                        }
-                    });
+                    .catch(makeErrorHandler("Failed to select operations from archive index", {query: query_for_items}))
+                    .finally(makeSlowOpHandler("archive_item_select", timing_start, {query: query_for_items}));
 
                 var archive_items = archive_item_ids.then(driver.executeSimple.bind(driver, "lookup_rows", {
                         path: OPERATIONS_ARCHIVE_PATH,
                         input_format: ANNOTATED_JSON_FORMAT,
                         output_format: ANNOTATED_JSON_FORMAT}))
-                    .finally(function() {
-                        var dt = timings.archive_items_lookup = new Date() - timing_archive_items_start;
-                        if (dt > SLOW_QUERY_TIMEOUT) {
-                            logger.debug("Slow lookup", {time: dt});
-                        }
-                    });
+                    .catch(makeErrorHandler("Failed to lookup operations from archive"))
+                    .finally(makeSlowOpHandler("archive_items_lookup", timing_start_interim));
 
                 return archive_items;
             }
         }
-    }
+    };
 }
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -561,11 +573,11 @@ function YtApplicationOperations$list(parameters)
             from_time,
             to_time,
             cursor_time,
-            substr_filter,
             cursor_direction,
+            user_filter,
             state_filter,
             type_filter,
-            user_filter,
+            substr_filter,
             max_size));
 
         if (include_counters) {
