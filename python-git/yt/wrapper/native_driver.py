@@ -31,18 +31,19 @@ def read_config(path):
     return driver_config["driver"]
 
 def get_driver_instance(client):
-    config = get_config(client)
-    if config["driver_config"] is not None:
-        driver_config = config["driver_config"]
-    elif config["driver_config_path"] is not None:
-        driver_config = read_config(config["driver_config_path"])
-    else:
-        raise YtError("Driver config is not specified")
-
     driver = get_option("_driver", client=client)
     if driver is None:
         if Driver is None:
             raise YtError("Driver class not found, install yt driver bindings.")
+
+        config = get_config(client)
+        if config["driver_config"] is not None:
+            driver_config = config["driver_config"]
+        elif config["driver_config_path"] is not None:
+            driver_config = read_config(config["driver_config_path"])
+        else:
+            raise YtError("Driver config is not specified")
+
         set_option("_driver", Driver(driver_config), client=client)
         driver = get_option("_driver", client=client)
     return driver
