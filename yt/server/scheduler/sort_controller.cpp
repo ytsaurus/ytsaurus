@@ -1334,6 +1334,11 @@ protected:
             }
         }
 
+        if (nodeHeap.empty()) {
+            LOG_DEBUG("No alive exec nodes to assign partitions");
+            return;
+        }
+
         std::vector<TPartitionPtr> partitionsToAssign;
         for (const auto& partition : Partitions) {
             // Only take partitions for which no jobs are launched yet.
