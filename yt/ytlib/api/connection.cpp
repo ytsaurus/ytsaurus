@@ -171,6 +171,12 @@ public:
         TableMountCache_->Clear();
     }
 
+    virtual void Terminate() override
+    {
+        LightPool_.Reset();
+        HeavyPool_.Reset();
+    }
+
 private:
     const TConnectionConfigPtr Config_;
     const TConnectionOptions Options_;
