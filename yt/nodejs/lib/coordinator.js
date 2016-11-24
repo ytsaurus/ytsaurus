@@ -306,12 +306,14 @@ YtCoordinator.prototype._refresh = function()
 
     var sync = Q.resolve();
 
+    self.__DBG("Refreshing coordination information");
+
     if (self.announce) {
         if (!self.initialized) {
             return void self._initialize();
         }
 
-        self.__DBG("Updating coordination information");
+        self.__DBG("Announcing coordination information");
 
         var now = new Date();
 
@@ -340,6 +342,7 @@ YtCoordinator.prototype._refresh = function()
         });
     })
     .then(function(entries) {
+        __DBG("Got coordination information");
         entries.forEach(function(entry) {
             var otherName = utils.getYsonValue(entry);
 
