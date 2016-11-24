@@ -85,7 +85,6 @@ private:
     void DoRun()
     {
         LOG_INFO("Aborting journal chunk session quroum (Addresses: %v)",
-            ChunkId_,
             Replicas_);
 
         if (Replicas_.size() < Quorum_) {
@@ -119,19 +118,16 @@ private:
         if (rspOrError.IsOK() || rspOrError.GetCode() == NChunkClient::EErrorCode::NoSuchSession) {
             ++SuccessCounter_;
             LOG_INFO("Journal chunk session aborted successfully (Address: %v)",
-                ChunkId_,
                 descriptor.GetDefaultAddress());
 
         } else {
             InnerErrors_.push_back(rspOrError);
             LOG_WARNING(rspOrError, "Failed to abort journal chunk session (Address: %v)",
-                ChunkId_,
                 descriptor.GetDefaultAddress());
         }
 
         if (SuccessCounter_ == Quorum_) {
-            LOG_INFO("Journal chunk session quroum aborted successfully",
-                ChunkId_);
+            LOG_INFO("Journal chunk session quroum aborted successfully");
             Promise_.TrySet();
         }
 
