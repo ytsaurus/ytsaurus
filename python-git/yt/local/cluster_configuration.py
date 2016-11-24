@@ -199,8 +199,9 @@ def _remove_none_fields(node):
 
     traverse(node)
 
-def modify_cluster_configuration(cluster_configuration, ytserver_version, master_config_patch=None,
-                                 node_config_patch=None, scheduler_config_patch=None, proxy_config_patch=None):
+def modify_cluster_configuration(cluster_configuration, abi_version,
+                                 master_config_patch=None, node_config_patch=None, scheduler_config_patch=None,
+                                 proxy_config_patch=None):
     master = cluster_configuration["master"]
 
     for tag in [master["primary_cell_tag"]] + master["secondary_cell_tags"]:

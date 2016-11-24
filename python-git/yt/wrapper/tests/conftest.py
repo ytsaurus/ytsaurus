@@ -109,7 +109,7 @@ class YtTestEnvironment(object):
             }
         }
 
-        def modify_configs(configs, ytserver_version):
+        def modify_configs(configs, abi_version):
             for config in configs["scheduler"]:
                 update(config, delta_scheduler_config)
             for config in configs["node"]:
@@ -127,7 +127,7 @@ class YtTestEnvironment(object):
                               modify_configs_func=modify_configs)
         self.env.start()
 
-        self.version = self.env.ytserver_version
+        self.version = "{0}.{1}".format(*self.env.abi_version)
 
         reload_module(yt)
         reload_module(yt.config)

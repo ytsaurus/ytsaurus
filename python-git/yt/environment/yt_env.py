@@ -5,6 +5,7 @@ from .helpers import versions_cmp, read_config, write_config, \
                      is_dead_or_zombie, get_open_port
 
 from yt.common import YtError, remove_file, makedirp, set_pdeathsig, which
+from yt.wrapper.common import generate_uuid
 from yt.wrapper.client import Yt
 from yt.wrapper.errors import YtResponseError
 import yt.yson as yson
@@ -23,18 +24,36 @@ import socket
 import shutil
 import sys
 import getpass
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 from threading import RLock
 from itertools import count
 
 logger = logging.getLogger("Yt.local")
 
-def _get_ytserver_version():
-    if not which("ytserver"):
-        raise YtError("Failed to start ytserver. Make sure that ytserver binary is installed")
-    # Output example: "\nytserver  version: 0.17.3-unknown~debug~0+local\n\n"
-    output = subprocess.check_output(["ytserver", "--version"])
-    return output.split(":", 1)[1].strip()
+CGROUP_TYPES = frozenset(["cpuacct", "cpu", "blkio", "memory", "freezer"])
+
+BinaryVersion = namedtuple("BinaryVersion", ["abi", "literal"])
+
+def _parse_version(s):
+    if "version:" in s:
+        # "ytserver  version: 0.17.3-unknown~debug~0+local"
+        # "ytserver  version: 18.5.0-local~local"
+        literal = s.split(":", 1)[1].strip()
+    else:
+        # "19.0.0-local~debug~local"
+        literal = s.strip()
+    parts = list(imap(int, literal.split("-")[0].split(".")[:3]))
+    abi = tuple(parts[:2])
+    return BinaryVersion(abi, literal)
+
+def _which_yt_binaries():
+    result = {}
+    binaries = ["ytserver", "ytserver-master", "ytserver-node", "ytserver-scheduler"]
+    for binary in binaries:
+        if which(binary):
+            version_string = subprocess.check_output([binary, "--version"], stderr=subprocess.STDOUT)
+            result[binary] = _parse_version(version_string)
+    return result
 
 def _find_nodejs():
     nodejs_binary = None
@@ -87,6 +106,25 @@ def _configure_logger():
     else:
         logger.handlers[0].setFormatter(logging.Formatter("%(message)s"))
 
+
+def _has_cgroups():
+    if not sys.platform.startswith("linux"):
+        return False
+    if not os.path.exists("/sys/fs/cgroup"):
+        return False
+    for cgroup_type in CGROUP_TYPES:
+        checked_path = "/sys/fs/cgroup/{0}/{1}".format(cgroup_type, getpass.getuser())
+        if not os.path.exists(checked_path):
+            checked_path = "/sys/fs/cgroup/{0}".format(cgroup_type)
+        if not os.access(checked_path, os.R_OK | os.W_OK):
+            return False
+    return True
+
+
+def _get_cgroup_path(cgroup_type, *args):
+    return "/sys/fs/cgroup/{0}/{1}/{2}".format(cgroup_type, getpass.getuser(), "/".join(imap(str, args)))
+
+
 class YTInstance(object):
     def __init__(self, path, master_count=1, nonvoting_master_count=0, secondary_master_cell_count=0,
                  node_count=1, scheduler_count=1, has_proxy=False, cell_tag=0, proxy_port=None,
@@ -96,6 +134,31 @@ class YTInstance(object):
                  modify_configs_func=None, kill_child_processes=False):
         _configure_logger()
 
+        self._binaries = _which_yt_binaries()
+        if "ytserver" in self._binaries:
+            # Pre-19 era.
+            logging.info('Using single binary "ytserver"')
+            logging.info("  ytserver  %s", self._binaries["ytserver"].literal)
+
+            self.abi_version = self._binaries["ytserver"].abi
+        elif (
+            "ytserver-master" in self._binaries and
+            "ytserver-node" in self._binaries and
+            "ytserver-scheduler" in self._binaries):
+            # Post-19 era.
+            logging.info('Using multiple binaries "ytserver-master", "ytserver-node", "ytserver-scheduler"')
+            logging.info("  ytserver-master     %s", self._binaries["ytserver-master"].literal)
+            logging.info("  ytserver-node       %s", self._binaries["ytserver-node"].literal)
+            logging.info("  ytserver-scheduler  %s", self._binaries["ytserver-scheduler"].literal)
+
+            abi_versions = set(imap(lambda v: v.abi, self._binaries.values()))
+            if len(abi_versions) > 1:
+                raise YtError("Mismatching YT versions. Make sure that all binaries are of compatible versions.")
+            self.abi_version = abi_versions.pop()
+        else:
+            raise YtError("Failed to find YT binaries (ytserver, ytserver-*) in $PATH. Make sure that YT is installed.")
+
+        self._uuid = generate_uuid()
         self._lock = RLock()
 
         self.path = os.path.abspath(path)
@@ -136,11 +199,7 @@ class YTInstance(object):
 
         self._process_to_kill = defaultdict(list)
         self._all_processes = {}
-
-        self._ytserver_version_long = _get_ytserver_version()
-        logger.info("Logging started (ytserver version: %s)", self._ytserver_version_long)
-
-        self.ytserver_version = self._ytserver_version_long.split("-", 1)[0].strip()
+        self._all_cgroups = []
 
         self.master_count = master_count
         self.nonvoting_master_count = nonvoting_master_count
@@ -168,6 +227,16 @@ class YTInstance(object):
             return count(port_range_start)
         else:
             return random_port_generator()
+
+    def _get_cgroup_path(self, cgroup_type, *args):
+        return _get_cgroup_path(cgroup_type, "yt", self._uuid, *args)
+
+    def _prepare_cgroups(self):
+        if _has_cgroups():
+            for cgroup_type in CGROUP_TYPES:
+                cgroup_path = self._get_cgroup_path(cgroup_type)
+                makedirp(cgroup_path)
+                self._all_cgroups.append(cgroup_path)
 
     def _prepare_directories(self):
         master_dirs = []
@@ -199,9 +268,6 @@ class YTInstance(object):
 
     def _prepare_environment(self, jobs_memory_limit, jobs_cpu_limit, jobs_user_slot_count,
                              node_memory_limit_addition, port_range_start, proxy_port, modify_configs_func):
-        if self.secondary_master_cell_count > 0 and versions_cmp(self.ytserver_version, "0.18") < 0:
-            raise YtError("Multicell is not supported for ytserver version < 0.18")
-
         logger.info("Preparing cluster instance as follows:")
         logger.info("  masters          %d (%d nonvoting)", self.master_count, self.nonvoting_master_count)
         logger.info("  nodes            %d", self.node_count)
@@ -214,10 +280,10 @@ class YTInstance(object):
         logger.info("  working dir      %s", self.path)
 
         if self.master_count == 0:
-            logger.warning("Master count is equal to zero. Instance is not prepared.")
+            logger.warning("Master count is zero. Instance is not prepared.")
             return
 
-        configs_provider = create_configs_provider(self.ytserver_version)
+        configs_provider = create_configs_provider(self.abi_version)
 
         provision = get_default_provision()
         provision["master"]["cell_size"] = self.master_count
@@ -249,10 +315,11 @@ class YTInstance(object):
             provision)
 
         if modify_configs_func:
-            modify_configs_func(cluster_configuration, self.ytserver_version)
+            modify_configs_func(cluster_configuration, self.abi_version)
 
         self._cluster_configuration = cluster_configuration
 
+        self._prepare_cgroups()
         self._prepare_masters(cluster_configuration["master"], master_dirs)
         if self.node_count > 0:
             self._prepare_nodes(cluster_configuration["node"], node_dirs)
@@ -293,31 +360,77 @@ class YTInstance(object):
         if not self._started:
             return
 
-        killed_services = set()
         with self._lock:
-            for name in ["proxy", "node", "scheduler", "master"]:
-                if name in self.configs:
-                    self.kill_service(name)
-                    killed_services.add(name)
-            for name in self.configs:
-                if name not in killed_services:
-                    self.kill_service(name)
+            self.stop_impl()
 
-            remove_file(self.pids_filename, force=True)
-
-            for lock_fd in get_open_port.lock_fds:
-                try:
-                    os.close(lock_fd)
-                except OSError as err:
-                    logger.warning("Failed to close file descriptor %d: %s",
-                                   lock_fd, os.strerror(err.errno))
         self._started = False
+
+    def stop_impl(self):
+        killed_services = set()
+
+        for name in ["proxy", "node", "scheduler", "master"]:
+            if name in self.configs:
+                self.kill_service(name)
+                killed_services.add(name)
+
+        for name in self.configs:
+            if name not in killed_services:
+                self.kill_service(name)
+
+        remove_file(self.pids_filename, force=True)
+
+        for lock_fd in get_open_port.lock_fds:
+            try:
+                os.close(lock_fd)
+            except OSError as err:
+                logger.warning("Failed to close file descriptor %d: %s",
+                               lock_fd, os.strerror(err.errno))
 
     def get_proxy_address(self):
         if not self.has_proxy:
             raise YtError("Proxy is not started")
         return "{0}:{1}".format(self._hostname, _config_safe_get(self.configs["proxy"],
                                                                  self.config_paths["proxy"], "port"))
+
+    def kill_cgroups(self):
+        if not _has_cgroups():
+            return
+
+        with self._lock:
+            self.kill_cgroups_impl()
+
+    def kill_cgroups_impl(self):
+        def _put_freezer_state(cgroup_path, state):
+            with open(os.path.join(cgroup_path, "freezer.state"), "w") as handle:
+                handle.write(state)
+                handle.write("\n")
+
+        def _get_freezer_state(cgroup_path):
+            with open(os.path.join(cgroup_path, "freezer.state"), "r") as handle:
+                return handle.read().strip()
+
+        freezer_cgroups = []
+        for cgroup_path in self._all_cgroups:
+            if "cgroup/freezer" in cgroup_path:
+                _put_freezer_state(cgroup_path, "FROZEN")
+                freezer_cgroups.append(cgroup_path)
+
+        while not all(_get_freezer_state(cgroup_path) == "FROZEN" for cgroup_path in freezer_cgroups):
+            time.sleep(0.1)
+
+        for cgroup_path in freezer_cgroups:
+            with open(os.path.join(cgroup_path, "tasks"), "r") as handle:
+                for line in handle:
+                    pid = int(line)
+                    os.kill(signal.SIGKILL)
+
+        for cgroup_path in self._all_cgroups:
+            for dirpath, dirnames, _ in os.walk(cgroup_path, topdown=False):
+                for dirname in dirnames:
+                    os.rmdir(os.path.join(dirpath, dirname))
+            os.rmdir(cgroup_path)
+
+        self._all_cgroups = []
 
     def kill_schedulers(self):
         self.kill_service("scheduler")
@@ -394,11 +507,19 @@ class YTInstance(object):
             for i, stderr_path in enumerate(self._stderr_paths[name]):
                 print_stderr(stderr_path, i)
 
-    def _run(self, args, name, number=None, timeout=0.1):
+    def _run(self, args, name, number=None, cgroup_paths=None, timeout=0.1):
+        if cgroup_paths is None:
+            cgroup_paths = []
+
         with self._lock:
-            number_suffix = "-" + str(number) if number is not None else ""
-            stderr_path = os.path.join(self._stderrs_path, "stderr.{0}{1}".format(name, number_suffix))
+            name_with_number = name
+            if number:
+                name_with_number = "{0}-{1}".format(name, number)
+            stderr_path = os.path.join(self._stderrs_path, "stderr.{0}".format(name_with_number))
             self._stderr_paths[name].append(stderr_path)
+
+            for cgroup_path in cgroup_paths:
+                makedirp(cgroup_path)
 
             stdout = open(os.devnull, "w")
             stderr = None
@@ -409,6 +530,10 @@ class YTInstance(object):
                 os.setsid()
                 if self._kill_child_processes:
                     set_pdeathsig()
+                for cgroup_path in cgroup_paths:
+                    with open(os.path.join(cgroup_path, "tasks"), "at") as handle:
+                        handle.write(str(os.getpid()))
+                        handle.write("\n")
 
             p = subprocess.Popen(args, shell=False, close_fds=True, preexec_fn=preexec, cwd=self.path,
                                  stdout=stdout, stderr=stderr)
@@ -416,9 +541,9 @@ class YTInstance(object):
             time.sleep(timeout)
             if p.poll():
                 self._print_stderrs(name, number)
-                raise YtError("Process {0}{1} unexpectedly terminated with error code {2}. "
+                raise YtError("Process {0} unexpectedly terminated with error code {1}. "
                               "If the problem is reproducible please report to yt@yandex-team.ru mailing list."
-                              .format(name, number_suffix, p.returncode))
+                              .format(name_with_number, p.returncode))
 
             self._process_to_kill[name].append(p)
             self._all_processes[p.pid] = (p, args)
@@ -427,38 +552,41 @@ class YTInstance(object):
     def _supports_pdeath_signal(self):
         if hasattr(self, "_supports_pdeath_signal_result"):
             return self._supports_pdeath_signal_result
-
-        help_output = subprocess.check_output(["ytserver", "-h"])
-        self._supports_pdeath_signal_result = "pdeath-signal" in help_output
+        help_output = subprocess.check_output(["ytserver", "--help"])
+        self._supports_pdeath_signal_result = "--pdeath-signal" in help_output
         return self._supports_pdeath_signal_result
 
-    def _run_ytserver(self, service_name, name=None):
+    def _run_yt_component(self, component, name=None):
         if name is None:
-            name = service_name
+            name = component
 
         logger.info("Starting %s", name)
 
-        if not which("ytserver"):
-            raise YtError("Failed to start ytserver. Make sure that ytserver binary is installed")
-
         for i in xrange(len(self.configs[name])):
-            command = [
-                "ytserver", "--" + service_name,
-                "--config", self.config_paths[name][i]
-            ]
-            if self._supports_pdeath_signal() and self._kill_child_processes:
-                command.extend(["--pdeath-signal", str(signal.SIGTERM)])
-            if service_name == "node" and sys.platform.startswith("linux"):
-                user_name = getpass.getuser()
-                for type_ in ["cpuacct", "cpu", "blkio", "memory", "freezer"]:
-                    cgroup_path = "/sys/fs/cgroup/{0}/{1}/yt/{2}/node{3}".format(
-                            type_, user_name, uuid.uuid4().hex, i)
-                    command.extend(["--cgroup", cgroup_path])
-            self._run(command, name, i)
+            args = None
+            cgroup_paths = None
+            if self.abi_version[0] == 18:
+                args = ["ytserver", "--" + component]
+                if self._kill_child_processes and self._supports_pdeath_signal():
+                    args.extend(["--pdeath-signal", str(signal.SIGTERM)])
+            elif self.abi_version[0] == 19:
+                args = ["ytserver-" + component]
+                if self._kill_child_processes:
+                    args.extend(["--pdeathsig", str(signal.SIGKILL)])
+            else:
+                raise YtError("Unsupported YT ABI version {0}".format(self.abi_version))
+            args.extend(["--config", self.config_paths[name][i]])
+            cgroup_paths = None
+            if _has_cgroups():
+                cgroup_paths = []
+                for cgroup_type in CGROUP_TYPES:
+                    cgroup_path = self._get_cgroup_path(cgroup_type, "{0}-{1}".format(name, i))
+                    cgroup_paths.append(cgroup_path)
+            self._run(args, name, number=i, cgroup_paths=cgroup_paths)
 
     def _get_master_name(self, master_name, cell_index):
         if cell_index == 0:
-            return master_name
+            return master_name # + "_primary"
         else:
             return master_name + "_secondary_" + str(cell_index - 1)
 
@@ -490,7 +618,7 @@ class YTInstance(object):
         master_name = self._get_master_name("master", cell_index)
         secondary = cell_index > 0
 
-        self._run_ytserver("master", name=master_name)
+        self._run_yt_component("master", name=master_name)
 
         def quorum_ready():
             logger = logging.getLogger("Yt")
@@ -557,7 +685,7 @@ class YTInstance(object):
             self.log_paths["node"].append(_config_safe_get(config, config_path, "logging/writers/info/file_name"))
 
     def start_nodes(self):
-        self._run_ytserver("node")
+        self._run_yt_component("node")
 
         native_client = self.create_client()
 
@@ -586,7 +714,7 @@ class YTInstance(object):
     def start_schedulers(self):
         self._remove_scheduler_lock()
 
-        self._run_ytserver("scheduler")
+        self._run_yt_component("scheduler")
 
         client = self.create_client()
 
@@ -634,9 +762,10 @@ class YTInstance(object):
         try:
             import yt_driver_bindings
         except ImportError:
+            guessed_version = self._binaries.items()[0][1].literal
             raise YtError("YT driver bindings not found. Make sure you have installed "
                           "yandex-yt-python-driver package (appropriate version: {0})"
-                          .format(self._ytserver_version_long))
+                          .format(self.guessed_version))
 
         yt_driver_bindings.configure_logging(self.driver_logging_config)
 
@@ -732,10 +861,9 @@ class YTInstance(object):
         nodejs_binary_path = _find_nodejs()
 
         proxy_version = _get_proxy_version(nodejs_binary_path, proxy_binary_path)[:2]  # major, minor
-        ytserver_version = list(imap(int, self.ytserver_version.split(".")))[:2]
-        if proxy_version and proxy_version != ytserver_version:
-            raise YtError("Proxy version does not match ytserver version. "
-                          "Expected: {0}.{1}, actual: {2}.{3}".format(*(ytserver_version + proxy_version)))
+        if proxy_version and proxy_version != self.abi_version:
+            raise YtError("Proxy version (which is {0}.{1}) is incompatible with ytserver* ABI "
+                          "(which is {2}.{3})".format(*(proxy_version + self.abi_version)))
 
         self._run([nodejs_binary_path,
                    proxy_binary_path,

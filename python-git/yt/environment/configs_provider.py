@@ -57,23 +57,16 @@ Configs for YT are generated the following way:
         defining its own modify_configs_func.
 """
 
-VERSION_TO_CONFIGS_PROVIDER_CLASS = {
-    "18.3": "ConfigsProvider_18_3",
-    "18.4": "ConfigsProvider_18_4",
-    "18.5": "ConfigsProvider_18_5",
-    "19.0": "ConfigsProvider_19_0"
-}
+VERSION_TO_CONFIGS_PROVIDER_CLASS = {}  # this dict is filled at the end of file
 
 def create_configs_provider(version):
-    if version.startswith("18.") or version.startswith("19."):
-        # XXX(asaitgalin): Dropping git depth from version.
-        # Only major and minor version components are important.
-        version = ".".join(version.split(".")[:2])
+    assert isinstance(version, tuple), "version must be a (MAJOR, MINOR) tuple"
+    assert all(isinstance(component, int) for component in version), "version components must be integral"
 
-    configs_provider_class = VERSION_TO_CONFIGS_PROVIDER_CLASS.get(version)
-    if configs_provider_class is None:
-        raise YtError("Cannot create configs provider for version: {0}".format(version))
-    return globals()[configs_provider_class]()
+    if version not in VERSION_TO_CONFIGS_PROVIDER_CLASS:
+        raise YtError("Cannot create config provider for version {0}".format(version))
+
+    return VERSION_TO_CONFIGS_PROVIDER_CLASS[version]()
 
 _default_provision = {
     "master": {
@@ -599,3 +592,12 @@ class ConfigsProvider_18_5(ConfigsProvider_18):
 
 class ConfigsProvider_19_0(ConfigsProvider_18_5):
     pass
+
+
+VERSION_TO_CONFIGS_PROVIDER_CLASS = {
+    (18, 3): ConfigsProvider_18_3,
+    (18, 4): ConfigsProvider_18_4,
+    (18, 5): ConfigsProvider_18_5,
+    (19, 0): ConfigsProvider_19_0
+}
+
