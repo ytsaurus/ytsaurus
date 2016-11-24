@@ -200,6 +200,14 @@ private:
             return false;
         }
 
+        // Boot the Delayed Executor thread up.
+        // Do it here to avoid weird crashes when execl is being used in another thread.
+        DelayedQueue_ = New<TActionQueue>("DelayedExecutor", false, false);
+        DelayedInvoker_ = DelayedQueue_->GetInvoker();
+
+        // Finally boot the Sleeper Thread up.
+        // It is crucial for DelayedQueue_ and DelayedInvoker_ to be initialized when
+        // SleeperThreadMain starts running.
         SleeperThread_.Start();
 
         Started_ = true;
@@ -216,11 +224,6 @@ private:
     void SleeperThreadMain()
     {
         TThread::CurrentThreadSetName("DelayedSleeper");
-
-        // Boot the Delayed Executor thread up.
-        // NB: Delayed Sleeper is solely responsible for the lifetime of this thread.
-        DelayedQueue_ = New<TActionQueue>("DelayedExecutor", false, false);
-        DelayedInvoker_ = DelayedQueue_->GetInvoker();
 
         // Run the main loop.
         while (!Stopping_) {
