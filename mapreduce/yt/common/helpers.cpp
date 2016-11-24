@@ -20,12 +20,7 @@
 
 namespace NYT {
 
-////////////////////////////////////////////////////////////////////////////////
-
-TNode NodeFromYsonString(const Stroka& input, EYsonType type)
-{
-    TStringInput stream(input);
-
+TNode CreateEmptyNodeByType(EYsonType type) {
     TNode result;
     switch (type) {
         case YT_LIST_FRAGMENT:
@@ -37,6 +32,14 @@ TNode NodeFromYsonString(const Stroka& input, EYsonType type)
         default:
             break;
     }
+    return result;
+}
+
+TNode NodeFromYsonString(const Stroka& input, EYsonType type)
+{
+    TStringInput stream(input);
+
+    TNode result = CreateEmptyNodeByType(type);
 
     TNodeBuilder builder(&result);
     TYsonParser parser(&builder, &stream, type);
@@ -51,6 +54,17 @@ Stroka NodeToYsonString(const TNode& node, EYsonFormat format)
     TNodeVisitor visitor(&writer);
     visitor.Visit(node);
     return stream.Str();
+}
+
+TNode NodeFromJsonString(const Stroka& input, EYsonType type) {
+    TStringInput stream(input);
+
+    TNode result = CreateEmptyNodeByType(type);
+
+    TNodeBuilder builder(&result);
+    TYson2JsonCallbacksAdapter callbacks(&builder, /*throwException*/ true);
+    NJson::ReadJson(&stream, &callbacks);
+    return result;
 }
 
 Stroka NodeListToYsonString(const TNode::TList& nodes)

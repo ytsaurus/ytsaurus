@@ -14,6 +14,8 @@ namespace NYT {
 TNode NodeFromYsonString(const Stroka& input, EYsonType type = YT_NODE);
 Stroka NodeToYsonString(const TNode& node, EYsonFormat format = YF_TEXT);
 
+TNode NodeFromJsonString(const Stroka& input, EYsonType type = YT_NODE);
+
 Stroka NodeListToYsonString(const TNode::TList& nodes);
 
 TNode NodeFromYPath(const TRichYPath& path);

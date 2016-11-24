@@ -86,8 +86,9 @@ void TNodeBuilder::AddNode(TNode value, bool pop)
         Stack_.pop();
 }
 
-TYson2JsonCallbacksAdapter::TYson2JsonCallbacksAdapter(TYsonConsumerBase* impl)
-    : Impl(impl)
+TYson2JsonCallbacksAdapter::TYson2JsonCallbacksAdapter(TYsonConsumerBase* impl, bool throwException)
+    : NJson::TJsonCallbacks(throwException)
+    , Impl(impl)
 {}
 
 bool TYson2JsonCallbacksAdapter::OnNull()
