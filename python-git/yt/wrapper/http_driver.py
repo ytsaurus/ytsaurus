@@ -1,6 +1,6 @@
 from . import yson
 from .config import get_config, get_option, set_option
-from .compression import create_zlib_generator
+from .compression import get_compressor
 from .common import require, generate_uuid, bool_to_string, get_version, total_seconds, forbidden_inside_job, get_value
 from .errors import YtError, YtHttpResponseError, YtProxyUnavailable, YtConcurrentOperationsLimitExceeded, YtRequestTimedOut
 from .http_helpers import make_request_with_retries, get_token, get_api_version, get_api_commands, get_proxy_url, \
@@ -245,11 +245,11 @@ def make_request(command_name,
         content_encoding =  get_config(client)["proxy"]["content_encoding"]
         headers["Content-Encoding"] = content_encoding
 
-        require(content_encoding in ["gzip", "identity"],
+        require(content_encoding in ["gzip", "identity", "br"],
                 lambda: YtError("Content encoding '{0}' is not supported".format(content_encoding)))
 
-        if content_encoding == "gzip" and not is_data_compressed:
-            data = create_zlib_generator(data)
+        if content_encoding in ["br", "gzip"] and not is_data_compressed:
+            data = get_compressor(content_encoding)(data)
 
     stream = (command.output_type in ["binary", "tabular"])
     response = make_request_with_retries(
