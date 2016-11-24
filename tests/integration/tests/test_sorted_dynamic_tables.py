@@ -78,11 +78,12 @@ class TestSortedDynamicTables(YTEnvSetup):
                     {"name": "value", "type": "string"}]
             })
 
-    def _create_table_with_aggregate_column(self, path, aggregate = "sum", optimize_for="lookup"):
+    def _create_table_with_aggregate_column(self, path, aggregate = "sum", optimize_for="lookup", atomicity="full"):
         create("table", path,
             attributes={
                 "dynamic": True,
                 "optimize_for" : optimize_for,
+                "atomicity": atomicity,
                 "schema": [
                     {"name": "key", "type": "int64", "sort_order": "ascending"},
                     {"name": "time", "type": "int64"},
@@ -606,6 +607,22 @@ class TestSortedDynamicTables(YTEnvSetup):
 
         verify_row(1, [{"key": 1, "time": 2, "value": 20}])
         test_row({"key": 1, "time": 3, "value": 10}, {"key": 1, "time": 3, "value": 30}, aggregate=True)
+
+    def test_aggregate_non_atomic(self):
+        self.sync_create_cells(1)
+        self._create_table_with_aggregate_column("//tmp/t", aggregate="sum", atomicity="none")
+        self.sync_mount_table("//tmp/t")
+
+        tx1 = start_transaction(type="tablet", sticky=True, atomicity="none")
+        tx2 = start_transaction(type="tablet", sticky=True, atomicity="none")
+
+        insert_rows("//tmp/t", [{"key": 1, "time": 1, "value": 10}], aggregate=True, atomicity="none", tx=tx1)
+        insert_rows("//tmp/t", [{"key": 1, "time": 2, "value": 20}], aggregate=True, atomicity="none", tx=tx2)
+
+        commit_transaction(tx1, sticky=True)
+        commit_transaction(tx2, sticky=True)
+
+        assert lookup_rows("//tmp/t", [{"key": 1}]) == [{"key": 1, "time": 2, "value": 30}]
 
     def test_reshard_data(self):
         self.sync_create_cells(1)
