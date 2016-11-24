@@ -79,6 +79,12 @@ bool IsArtifactChunkId(const TChunkId& id)
 {
     return TypeFromId(id) == EObjectType::Artifact;
 }
+
+bool IsJournalChunkId(const TChunkId& id)
+{
+    return TypeFromId(id) == EObjectType::JournalChunk;
+}
+
 bool IsErasureChunkId(const TChunkId& id)
 {
     return TypeFromId(id) == EObjectType::ErasureChunk;

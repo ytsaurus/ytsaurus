@@ -57,14 +57,14 @@ inline TChunk* TChunk::GetNextScannedChunk(EChunkScanKind kind) const
     return node.Next;
 }
 
-inline const TNullable<TChunkRepairQueueIterator>& TChunk::GetRepairQueueIterator() const
+inline const TNullable<TChunkRepairQueueIterator>& TChunk::GetRepairQueueIterator(int mediumIndex) const
 {
-    return GetDynamicData()->RepairQueueIterator;
+    return GetDynamicData()->RepairQueueIterators[mediumIndex];
 }
 
-inline void TChunk::SetRepairQueueIterator(const TNullable<TChunkRepairQueueIterator>& value)
+inline void TChunk::SetRepairQueueIterator(int mediumIndex, const TNullable<TChunkRepairQueueIterator>& value)
 {
-    GetDynamicData()->RepairQueueIterator = value;
+    GetDynamicData()->RepairQueueIterators[mediumIndex] = value;
 }
 
 inline bool TChunk::IsJobScheduled() const
@@ -86,7 +86,7 @@ inline void TChunk::Reset()
 {
     auto* data = GetDynamicData();
     data->ScanFlags = EChunkScanKind::None;
-    data->RepairQueueIterator.Reset();
+    data->RepairQueueIterators.fill(Null);
     data->Job.Reset();
 }
 

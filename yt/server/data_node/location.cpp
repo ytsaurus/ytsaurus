@@ -542,16 +542,16 @@ void TLocation::DoStart()
     HealthChecker_->Start();
 }
 
-Stroka TLocation::GetMediumName() const
+const Stroka& TLocation::GetMediumName() const
 {
     return Config_->MediumName;
 }
 
 int TLocation::GetMediumIndex() const
 {
-    Y_ASSERT(MediumIndex_);
+    YCHECK(MediumIndex_ != InvalidMediumIndex);
 
-    return *MediumIndex_;
+    return MediumIndex_;
 }
 
 void TLocation::SetMediumIndex(int mediumIndex)

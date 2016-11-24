@@ -34,6 +34,37 @@ using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+TChunkPtrWithIndexes ToUnapprovedKey(TChunkPtrWithIndexes replica)
+{
+    auto* chunk = replica.GetPtr();
+    auto replicaIndex = chunk->IsJournal() ? GenericChunkReplicaIndex : replica.GetReplicaIndex();
+    return TChunkPtrWithIndexes(chunk, replicaIndex, replica.GetMediumIndex());
+}
+
+TChunkIdWithIndexes ToRemovalKey(const TChunkIdWithIndexes& replica)
+{
+    auto replicaIndex = IsJournalChunkId(replica.Id) ? GenericChunkReplicaIndex : replica.ReplicaIndex;
+    return TChunkIdWithIndexes(replica.Id, replicaIndex, DefaultStoreMediumIndex);
+}
+
+TChunkPtrWithIndexes ToReplicationKey(TChunkPtrWithIndexes replica)
+{
+    auto* chunk = replica.GetPtr();
+    auto replicaIndex = chunk->IsJournal() ? GenericChunkReplicaIndex : replica.GetReplicaIndex();
+    return TChunkPtrWithIndexes(chunk, replicaIndex, replica.GetMediumIndex());
+}
+
+TChunk* ToSealKey(TChunkPtrWithIndexes replica)
+{
+    return replica.GetPtr();
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TNode::TTabletSlot::Persist(NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -303,7 +334,7 @@ bool TNode::RemoveReplica(TChunkPtrWithIndexes replica, bool cached)
         } else {
             RemoveStoredReplica(replica);
         }
-        return UnapprovedReplicas_.erase(ToGeneric(replica)) == 0;
+        return UnapprovedReplicas_.erase(ToUnapprovedKey(replica)) == 0;
     }
 }
 
@@ -353,70 +384,63 @@ void TNode::ClearReplicas()
     UnapprovedReplicas_.clear();
 }
 
-void TNode::AddUnapprovedReplica(TChunkPtrWithIndex replica, TInstant timestamp)
+void TNode::AddUnapprovedReplica(TChunkPtrWithIndexes replica, TInstant timestamp)
 {
-    YCHECK(UnapprovedReplicas_.insert(
-            std::make_pair(ToGeneric(replica), timestamp)).second);
+    YCHECK(UnapprovedReplicas_.emplace(ToUnapprovedKey(replica), timestamp).second);
 }
 
-bool TNode::HasUnapprovedReplica(TChunkPtrWithIndex replica) const
+bool TNode::HasUnapprovedReplica(TChunkPtrWithIndexes replica) const
 {
-    return UnapprovedReplicas_.find(ToGeneric(replica)) != UnapprovedReplicas_.end();
+    return UnapprovedReplicas_.find(ToUnapprovedKey(replica)) != UnapprovedReplicas_.end();
 }
 
-void TNode::ApproveReplica(TChunkPtrWithIndex replica)
+void TNode::ApproveReplica(TChunkPtrWithIndexes replica)
 {
-    YCHECK(UnapprovedReplicas_.erase(ToGeneric(replica)) == 1);
+    YCHECK(UnapprovedReplicas_.erase(ToUnapprovedKey(replica)) == 1);
     auto* chunk = replica.GetPtr();
     if (chunk->IsJournal()) {
-        RemoveStoredReplica(TChunkPtrWithIndexes(chunk, ActiveChunkReplicaIndex, DefaultStoreMediumIndex));
-        RemoveStoredReplica(TChunkPtrWithIndexes(chunk, UnsealedChunkReplicaIndex, DefaultStoreMediumIndex));
-        RemoveStoredReplica(TChunkPtrWithIndexes(chunk, SealedChunkReplicaIndex, DefaultStoreMediumIndex));
-        YCHECK(AddStoredReplica({chunk, replica.GetIndex(), DefaultStoreMediumIndex}));
+        int mediumIndex = replica.GetMediumIndex();
+        RemoveStoredReplica(TChunkPtrWithIndexes(chunk, ActiveChunkReplicaIndex, mediumIndex));
+        RemoveStoredReplica(TChunkPtrWithIndexes(chunk, UnsealedChunkReplicaIndex, mediumIndex));
+        RemoveStoredReplica(TChunkPtrWithIndexes(chunk, SealedChunkReplicaIndex, mediumIndex));
+        YCHECK(AddStoredReplica(replica));
     }
 }
 
 void TNode::AddToChunkRemovalQueue(const TChunkIdWithIndexes& replica)
 {
     Y_ASSERT(GetLocalState() == ENodeState::Online);
-    ChunkRemovalQueue_[ToGeneric(replica)].set(replica.MediumIndex);
+    ChunkRemovalQueue_[ToRemovalKey(replica)].set(replica.MediumIndex);
 }
 
 void TNode::RemoveFromChunkRemovalQueue(const TChunkIdWithIndexes& replica)
 {
-    auto genericReplica = ToGeneric(replica);
-    if (replica.MediumIndex == AllMediaIndex) {
-        ChunkRemovalQueue_.erase(genericReplica);
-    } else {
-        auto it = ChunkRemovalQueue_.find(genericReplica);
-        if (it != ChunkRemovalQueue_.end()) {
-            it->second.reset(replica.MediumIndex);
-            if (it->second.none()) {
-                ChunkRemovalQueue_.erase(it);
-            }
+    auto key = ToRemovalKey(replica);
+    auto it = ChunkRemovalQueue_.find(key);
+    if (it != ChunkRemovalQueue_.end()) {
+        it->second.reset(replica.MediumIndex);
+        if (it->second.none()) {
+            ChunkRemovalQueue_.erase(it);
         }
     }
 }
 
-void TNode::AddToChunkReplicationQueue(TChunkPtrWithIndexes replica, int priority)
+void TNode::AddToChunkReplicationQueue(TChunkPtrWithIndexes replica, int targetMediumIndex, int priority)
 {
     Y_ASSERT(GetLocalState() == ENodeState::Online);
-    ChunkReplicationQueues_[priority][ToGeneric(replica)].set(replica.GetMediumIndex());
+    ChunkReplicationQueues_[priority][ToReplicationKey(replica)].set(targetMediumIndex);
 }
 
-void TNode::RemoveFromChunkReplicationQueues(TChunkPtrWithIndexes replica)
+void TNode::RemoveFromChunkReplicationQueues(TChunkPtrWithIndexes replica, int targetMediumIndex)
 {
-    auto genericReplica = ToGeneric(replica);
-    auto mediumIndex = replica.GetMediumIndex();
-    if (mediumIndex == AllMediaIndex) {
-        for (auto& queue : ChunkReplicationQueues_) {
-            queue.erase(genericReplica);
-        }
-    } else {
-        for (auto& queue : ChunkReplicationQueues_) {
-            auto it = queue.find(genericReplica);
-            if (it != queue.end()) {
-                it->second.reset(mediumIndex);
+    auto key = ToReplicationKey(replica);
+    for (auto& queue : ChunkReplicationQueues_) {
+        auto it = queue.find(key);
+        if (it != queue.end()) {
+            if (targetMediumIndex == AllMediaIndex) {
+                queue.erase(it);
+            } else {
+                it->second.reset(targetMediumIndex);
                 if (it->second.none()) {
                     queue.erase(it);
                 }
@@ -425,15 +449,23 @@ void TNode::RemoveFromChunkReplicationQueues(TChunkPtrWithIndexes replica)
     }
 }
 
-void TNode::AddToChunkSealQueue(TChunk* chunk)
+void TNode::AddToChunkSealQueue(TChunkPtrWithIndexes chunkWithIndexes)
 {
     Y_ASSERT(GetLocalState() == ENodeState::Online);
-    ChunkSealQueue_.insert(chunk);
+    auto key = ToSealKey(chunkWithIndexes);
+    ChunkSealQueue_[key].set(chunkWithIndexes.GetMediumIndex());
 }
 
-void TNode::RemoveFromChunkSealQueue(TChunk* chunk)
+void TNode::RemoveFromChunkSealQueue(TChunkPtrWithIndexes chunkWithIndexes)
 {
-    ChunkSealQueue_.erase(chunk);
+    auto key = ToSealKey(chunkWithIndexes);
+    auto it = ChunkSealQueue_.find(key);
+    if (it != ChunkSealQueue_.end()) {
+        it->second.reset(chunkWithIndexes.GetMediumIndex());
+        if (it->second.none()) {
+            ChunkSealQueue_.erase(it);
+        }
+    }
 }
 
 void TNode::ClearSessionHints()
@@ -627,28 +659,6 @@ bool TNode::IsFull(int mediumIndex) const
     return full && !Statistics_.locations().empty();
 }
 
-TChunkPtrWithIndex TNode::ToGeneric(TChunkPtrWithIndexes replica)
-{
-    auto* chunk = replica.GetPtr();
-    auto replicaIndex = chunk->IsJournal() ? GenericChunkReplicaIndex : replica.GetReplicaIndex();
-    return TChunkPtrWithIndex(chunk, replicaIndex);
-}
-
-TChunkPtrWithIndex TNode::ToGeneric(TChunkPtrWithIndex replica)
-{
-    auto* chunk = replica.GetPtr();
-    return TChunkPtrWithIndex(chunk, chunk->IsJournal() ? GenericChunkReplicaIndex : replica.GetIndex());
-}
-
-TChunkIdWithIndex TNode::ToGeneric(const TChunkIdWithIndexes& replica)
-{
-    auto replicaIndex = TypeFromId(replica.Id) == EObjectType::JournalChunk
-        ? GenericChunkReplicaIndex
-        : replica.ReplicaIndex;
-
-    return TChunkIdWithIndex(replica.Id, replicaIndex);
-}
-
 bool TNode::AddStoredReplica(TChunkPtrWithIndexes replica)
 {
     auto mediumIndex = replica.GetMediumIndex();
@@ -741,6 +751,13 @@ void TNode::RebuildTags()
             Tags_.insert(dc->GetName());
         }
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TNodePtrAddressFormatter::operator()(TStringBuilder* builder, TNode* node) const
+{
+    builder->AppendString(node->GetDefaultAddress());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -5,7 +5,6 @@
 #include <yt/server/cell_master/public.h>
 
 #include <yt/server/chunk_server/chunk_replica.h>
-#include <yt/server/chunk_server/public.h>
 
 #include <yt/server/hydra/entity_map.h>
 
@@ -118,19 +117,32 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TReplicaSet, CachedReplicas);
 
     //! Maps replicas to the leader timestamp when this replica was registered by a client.
-    typedef yhash_map<TChunkPtrWithIndex, TInstant> TUnapprovedReplicaMap;
+    typedef yhash_map<TChunkPtrWithIndexes, TInstant> TUnapprovedReplicaMap;
     DEFINE_BYREF_RW_PROPERTY(TUnapprovedReplicaMap, UnapprovedReplicas);
 
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);
 
-    //! Indexed by priority. Each queue maps (chunk ptr, replica) pair to a set of destination media.
-    using TChunkReplicationQueues = std::vector<yhash_map<TChunkPtrWithIndex, TMediumIndexSet>>;
+    //! Indexed by priority. Each map is as follows:
+    //! Key:
+    //!   Encodes chunk and one of its parts (for erasure chunks only, others use GenericChunkReplicaIndex).
+    //!   Medium index indicates the medium where this replica is being stored.
+    //! Value:
+    //!   Indicates media where acting as replication targets for this chunk.
+    using TChunkReplicationQueues = std::vector<yhash_map<TChunkPtrWithIndexes, TMediumIndexSet>>;
     DEFINE_BYREF_RW_PROPERTY(TChunkReplicationQueues, ChunkReplicationQueues);
 
+    //! Key:
+    //!   Encodes chunk and one of its parts (for erasure chunks only, others use GenericChunkReplicaIndex).
+    //! Value:
+    //!   Indicates media where removal of this chunk is scheduled.
     using TChunkRemovalQueue = yhash_map<NChunkClient::TChunkIdWithIndex, TMediumIndexSet>;
     DEFINE_BYREF_RW_PROPERTY(TChunkRemovalQueue, ChunkRemovalQueue);
 
-    typedef yhash_set<TChunk*> TChunkSealQueue;
+    //! Key:
+    //!   Indicates an unsealed chunk.
+    //! Value:
+    //!   Indicates media where seal of this chunk is scheduled.
+    typedef yhash_map<TChunk*, TMediumIndexSet> TChunkSealQueue;
     DEFINE_BYREF_RW_PROPERTY(TChunkSealQueue, ChunkSealQueue);
 
     // Tablet Manager stuff.
@@ -185,20 +197,19 @@ public:
     TChunkPtrWithIndexes PickRandomReplica(int mediumIndex);
     void ClearReplicas();
 
-    void AddUnapprovedReplica(TChunkPtrWithIndex replica, TInstant timestamp);
-    bool HasUnapprovedReplica(TChunkPtrWithIndex replica) const;
-    void ApproveReplica(TChunkPtrWithIndex replica);
+    void AddUnapprovedReplica(TChunkPtrWithIndexes replica, TInstant timestamp);
+    bool HasUnapprovedReplica(TChunkPtrWithIndexes replica) const;
+    void ApproveReplica(TChunkPtrWithIndexes replica);
 
     void AddToChunkRemovalQueue(const NChunkClient::TChunkIdWithIndexes& replica);
-    // Handles the case when #replica.GetMediumIndex() == AllMediaIndex correctly.
     void RemoveFromChunkRemovalQueue(const NChunkClient::TChunkIdWithIndexes& replica);
 
-    void AddToChunkReplicationQueue(TChunkPtrWithIndexes replica, int priority);
-    // Handles the case when #replica.GetMediumIndex() == AllMediaIndex correctly.
-    void RemoveFromChunkReplicationQueues(TChunkPtrWithIndexes replica);
+    void AddToChunkReplicationQueue(TChunkPtrWithIndexes replica, int targetMediumIndex, int priority);
+    //! Handles the case |targetMediumIndex == AllMediaIndex| correctly.
+    void RemoveFromChunkReplicationQueues(TChunkPtrWithIndexes replica, int targetMediumIndex);
 
-    void AddToChunkSealQueue(TChunk* chunk);
-    void RemoveFromChunkSealQueue(TChunk* chunk);
+    void AddToChunkSealQueue(TChunkPtrWithIndexes chunkWithIndexes);
+    void RemoveFromChunkSealQueue(TChunkPtrWithIndexes chunkWithIndexes);
 
     void ClearSessionHints();
 
@@ -245,10 +256,6 @@ private:
     void ComputeAggregatedState();
     void ComputeDefaultAddress();
 
-    static TChunkPtrWithIndex ToGeneric(TChunkPtrWithIndexes replica);
-    static TChunkPtrWithIndex ToGeneric(TChunkPtrWithIndex replica);
-    static NChunkClient::TChunkIdWithIndex ToGeneric(const NChunkClient::TChunkIdWithIndexes& replica);
-
     bool AddStoredReplica(TChunkPtrWithIndexes replica);
     bool RemoveStoredReplica(TChunkPtrWithIndexes replica);
     bool ContainsStoredReplica(TChunkPtrWithIndexes replica) const;
@@ -275,10 +282,7 @@ private:
 
 struct TNodePtrAddressFormatter
 {
-    void operator()(TStringBuilder* builder, TNode* node) const
-    {
-        builder->AppendString(node->GetDefaultAddress());
-    }
+    void operator()(TStringBuilder* builder, TNode* node) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

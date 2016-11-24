@@ -67,7 +67,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, UnsafelyPlacedChunks);
 
     void OnChunkDestroyed(TChunk* chunk);
-    void OnReplicaRemoved(TNode* node, TChunkPtrWithIndexes chunkWithIndexes, ERemoveReplicaReason reason);
+    void OnReplicaRemoved(TNode* node, TChunkPtrWithIndexes chunkWithIndexes);
 
     void ScheduleChunkRefresh(TChunk* chunk);
     void ScheduleNodeRefresh(TNode* node);
@@ -79,7 +79,7 @@ public:
     void SchedulePropertiesUpdate(TChunk* chunk);
     void SchedulePropertiesUpdate(TChunkList* chunkList);
 
-    void TouchChunk(TChunk* chunk);
+    void TouchChunk(TChunkPtrWithIndexes chunkWithIndexes);
 
     TJobPtr FindJob(const TJobId& id);
 
@@ -109,7 +109,6 @@ private:
 
         //! Number of decommissioned replicas, per each replica index.
         int DecommissionedReplicaCount[NChunkClient::ChunkReplicaIndexBound];
-
 
         //! Indexes of replicas whose replication is advised.
         SmallVector<int, TypicalReplicaCount> ReplicationIndexes;
@@ -148,6 +147,10 @@ private:
 
     yhash_map<TJobId, TJobPtr> JobMap_;
 
+    //! A single queue for all chunks and media is maintained.
+    //! Replica index is always GenericChunkReplicaIndex.
+    //! Medium index is designates the medium where the chunk is lacking some of its parts.
+    //! A single chunk may appear multiple times here (but at most once per medium).
     TChunkRepairQueue ChunkRepairQueue_;
 
     const NConcurrency::TPeriodicExecutorPtr EnabledCheckExecutor_;
@@ -167,6 +170,7 @@ private:
     bool CreateReplicationJob(
         TNode* sourceNode,
         TChunkPtrWithIndexes chunkWithIndex,
+        int targetMediumIndex,
         TJobPtr* job);
     bool CreateBalancingJob(
         TNode* sourceNode,
@@ -179,12 +183,11 @@ private:
         TJobPtr* job);
     bool CreateRepairJob(
         TNode* node,
-        TChunk* chunk,
-        int mediumIndex,
+        TChunkPtrWithIndexes chunkWithIndexes,
         TJobPtr* job);
     bool CreateSealJob(
         TNode* node,
-        TChunk* chunk,
+        TChunkPtrWithIndexes chunkWithIndexes,
         TJobPtr* job);
     void ScheduleNewJobs(
         TNode* node,
@@ -195,8 +198,8 @@ private:
     void RefreshChunk(TChunk* chunk);
 
     void ResetChunkStatus(TChunk* chunk);
-    void RemoveChunkFromQueues(TChunk* chunk, int mediumIndex, bool dropRemovals);
-    void RemoveReplicaFromQueues(TChunk* chunk, TNodePtrWithIndexes nodeWithIndexes, bool dropRemovals);
+    void RemoveChunkFromQueuesOnRefresh(TChunk* chunk, int mediumIndex);
+    void RemoveChunkFromQueuesOnDestroy(TChunk* chunk);
     void CancelChunkJobs(TChunk* chunk);
 
     TChunkStatistics ComputeChunkStatistics(TChunk* chunk);
@@ -249,8 +252,8 @@ private:
 
     void UnregisterJob(const TJobPtr& job, EJobUnregisterFlags flags = EJobUnregisterFlags::All);
 
-    void AddToChunkRepairQueue(TChunk* chunk, int mediumIndex);
-    void RemoveFromChunkRepairQueue(TChunk* chunk);
+    void AddToChunkRepairQueue(TChunkPtrWithIndexes chunkWithIndexes);
+    void RemoveFromChunkRepairQueue(TChunkPtrWithIndexes chunkWithIndexes);
 
     void OnCheckEnabled();
     void OnCheckEnabledPrimary();

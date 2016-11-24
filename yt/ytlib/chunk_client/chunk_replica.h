@@ -66,31 +66,6 @@ struct TChunkIdWithIndexes
 
 ///////////////////////////////////////////////////////////////////////////////
 
-const int GenericChunkReplicaIndex = 16;  // no specific replica; the default one for regular chunks
-
-// Journal chunks only:
-const int ActiveChunkReplicaIndex   = 0; // the replica is currently being written
-const int UnsealedChunkReplicaIndex = 1; // the replica is finished but not sealed yet
-const int SealedChunkReplicaIndex   = 2; // the replica is finished and sealed
-
-//! Valid indexes are in range |[0, ChunkReplicaIndexBound)|.
-const int ChunkReplicaIndexBound = 32;
-
-//! For pretty-printing only.
-DEFINE_ENUM(EJournalReplicaType,
-    ((Generic)   (GenericChunkReplicaIndex))
-    ((Active)    (ActiveChunkReplicaIndex))
-    ((Unsealed)  (UnsealedChunkReplicaIndex))
-    ((Sealed)    (SealedChunkReplicaIndex))
-);
-
-const int AllMediaIndex = MaxMediumCount; // passed to various APIs to indicate that any medium is OK
-
-//! Valid indexes are in range |[0, MediumIndexBound)|.
-const int MediumIndexBound = MaxMediumCount + 1;
-
-///////////////////////////////////////////////////////////////////////////////
-
 bool operator==(const TChunkIdWithIndex& lhs, const TChunkIdWithIndex& rhs);
 bool operator!=(const TChunkIdWithIndex& lhs, const TChunkIdWithIndex& rhs);
 
@@ -103,6 +78,9 @@ Stroka ToString(const TChunkIdWithIndexes& id);
 
 //! Returns |true| iff this is an artifact chunk.
 bool IsArtifactChunkId(const TChunkId& id);
+
+//! Returns |true| iff this is a journal chunk.
+bool IsJournalChunkId(const TChunkId& id);
 
 //! Returns |true| iff this is a erasure chunk.
 bool IsErasureChunkId(const TChunkId& id);

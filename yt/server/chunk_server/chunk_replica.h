@@ -6,8 +6,6 @@
 
 #include <yt/server/node_tracker_server/public.h>
 
-#include <yt/core/misc/small_vector.h>
-
 namespace NYT {
 namespace NChunkServer {
 
@@ -82,14 +80,6 @@ private:
     // Use compact 8-byte representation with indexes occupying the highest 8 bits.
     uintptr_t Value_;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-using TNodePtrWithIndexes = TPtrWithIndexes<NNodeTrackerServer::TNode>;
-using TNodePtrWithIndexesList = SmallVector<TNodePtrWithIndexes, TypicalReplicaCount>;
-
-using TChunkPtrWithIndexes = TPtrWithIndexes<TChunk>;
-using TChunkPtrWithIndex = NChunkServer::TPtrWithIndex<TChunk>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

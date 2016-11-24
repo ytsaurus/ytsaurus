@@ -23,16 +23,14 @@ TJob::TJob(
     const TJobId& jobId,
     const TChunkIdWithIndexes& chunkIdWithIndexes,
     TNode* node,
-    const TNodeList& targets,
-    const TPartIndexList& erasedIndexes,
+    const TNodePtrWithIndexesList& targetReplicas,
     TInstant startTime,
     const TNodeResources& resourceUsage)
     : JobId_(jobId)
     , Type_(type)
     , ChunkIdWithIndexes_(chunkIdWithIndexes)
     , Node_(node)
-    , Targets_(targets)
-    , ErasedIndexes_(erasedIndexes)
+    , TargetReplicas_(targetReplicas)
     , StartTime_(startTime)
     , ResourceUsage_(resourceUsage)
     , State_(EJobState::Running)
@@ -42,7 +40,7 @@ TJobPtr TJob::CreateReplicate(
     const TJobId& jobId,
     TChunkPtrWithIndexes chunkWithIndexes,
     TNode* node,
-    const TNodeList& targets)
+    const TNodePtrWithIndexesList& targetReplicas)
 {
     auto* chunk = chunkWithIndexes.GetPtr();
     i64 dataSize = chunk->ChunkInfo().disk_space();
@@ -60,13 +58,9 @@ TJobPtr TJob::CreateReplicate(
     return New<TJob>(
         EJobType::ReplicateChunk,
         jobId,
-        TChunkIdWithIndexes(
-            chunk->GetId(),
-            chunkWithIndexes.GetReplicaIndex(),
-            chunkWithIndexes.GetMediumIndex()),
+        TChunkIdWithIndexes(chunkWithIndexes.GetPtr()->GetId(), chunkWithIndexes.GetReplicaIndex(), chunkWithIndexes.GetMediumIndex()),
         node,
-        targets,
-        TPartIndexList(),
+        targetReplicas,
         TInstant::Now(),
         resourceUsage);
 }
@@ -74,7 +68,7 @@ TJobPtr TJob::CreateReplicate(
 TJobPtr TJob::CreateRemove(
     const TJobId& jobId,
     const TChunkIdWithIndexes& chunkIdWithIndexes,
-    NNodeTrackerServer::TNode* node)
+    TNode* node)
 {
     TNodeResources resourceUsage;
     resourceUsage.set_removal_slots(1);
@@ -84,8 +78,7 @@ TJobPtr TJob::CreateRemove(
         jobId,
         chunkIdWithIndexes,
         node,
-        TNodeList(),
-        TPartIndexList(),
+        TNodePtrWithIndexesList(),
         TInstant::Now(),
         resourceUsage);
 }
@@ -93,10 +86,8 @@ TJobPtr TJob::CreateRemove(
 TJobPtr TJob::CreateRepair(
     const TJobId& jobId,
     TChunk* chunk,
-    int mediumIndex,
-    NNodeTrackerServer::TNode* node,
-    const TNodeList& targets,
-    const TPartIndexList& erasedIndexes,
+    TNode* node,
+    const TNodePtrWithIndexesList& targetReplicas,
     i64 memoryUsage)
 {
     auto codecId = chunk->GetErasureCodec();
@@ -111,29 +102,29 @@ TJobPtr TJob::CreateRepair(
     return New<TJob>(
         EJobType::RepairChunk,
         jobId,
-        TChunkIdWithIndexes(chunk->GetId(), 0, mediumIndex),
+        TChunkIdWithIndexes(chunk->GetId(), GenericChunkReplicaIndex, InvalidMediumIndex),
         node,
-        targets,
-        erasedIndexes,
+        targetReplicas,
         TInstant::Now(),
         resourceUsage);
 }
 
 TJobPtr TJob::CreateSeal(
     const TJobId& jobId,
-    TChunk* chunk,
+    TChunkPtrWithIndexes chunkWithIndexes,
     TNode* node)
 {
+    YCHECK(chunkWithIndexes.GetReplicaIndex() == GenericChunkReplicaIndex);
+
     TNodeResources resourceUsage;
     resourceUsage.set_seal_slots(1);
 
     return New<TJob>(
         EJobType::SealChunk,
         jobId,
-        TChunkIdWithIndexes(chunk->GetId(), 0, DefaultStoreMediumIndex),
+        TChunkIdWithIndexes(chunkWithIndexes.GetPtr()->GetId(), GenericChunkReplicaIndex, chunkWithIndexes.GetMediumIndex()),
         node,
-        TNodeList(),
-        TPartIndexList(),
+        TNodePtrWithIndexesList(),
         TInstant::Now(),
         resourceUsage);
 }
