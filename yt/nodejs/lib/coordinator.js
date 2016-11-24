@@ -31,7 +31,8 @@ function YtCoordinatedHost(config, name)
     var liveness = {
         updated_at: new Date(0),
         load_average: 0.0,
-        network_coef: 0,
+        network_coef: 0.0,
+        network_coef_pow: 1.0,
     };
     var randomness = Math.random();
     var dampening = 0.0;
@@ -130,6 +131,7 @@ function YtCoordinatedHost(config, name)
             liveness.updated_at = new Date(value.updated_at);
             liveness.load_average = parseFloat(value.load_average) || 0.0;
             liveness.network_coef = parseFloat(value.network_coef) || 0.0;
+            liveness.network_coef_pow = 1.0 - Math.pow(1.0 - liveness.network_coef, 1.5);
 
             randomness = Math.random();
             dampening = 0.0;
@@ -183,7 +185,7 @@ function YtCoordinatedHost(config, name)
         get: function() {
             return 0.0 +
                 config.fitness_la_coefficient  * liveness.load_average +
-                config.fitness_net_coefficient * liveness.network_coef +
+                config.fitness_net_coefficient * liveness.network_coef_pow +
                 config.fitness_phi_coefficient * afd.phiTS() +
                 config.fitness_rnd_coefficient * randomness +
                 config.fitness_dmp_coefficient * dampening;
