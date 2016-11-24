@@ -57,7 +57,8 @@ TFuture<size_t> TNodeJSInputStack::Read(const TSharedMutableRef& buffer)
 
 size_t TNodeJSInputStack::SyncRead(const TSharedMutableRef& buffer)
 {
-    return Top()->Read(buffer.Begin(), buffer.Size());
+    // Using Load() here to amortize context switching costs.
+    return Top()->Load(buffer.Begin(), buffer.Size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

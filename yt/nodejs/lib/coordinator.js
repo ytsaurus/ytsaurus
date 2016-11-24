@@ -31,7 +31,9 @@ function YtCoordinatedHost(config, name)
     var liveness = {
         updated_at: new Date(0),
         load_average: 0.0,
-        network_coef: 0,
+        network_load: {},
+        network_coef: 0.0,
+        network_coef_pow: 0.0,
     };
     var randomness = Math.random();
     var dampening = 0.0;
@@ -129,7 +131,9 @@ function YtCoordinatedHost(config, name)
 
             liveness.updated_at = new Date(value.updated_at);
             liveness.load_average = parseFloat(value.load_average) || 0.0;
+            liveness.network_load = value.network_load;
             liveness.network_coef = parseFloat(value.network_coef) || 0.0;
+            liveness.network_coef_pow = 1.0 - Math.pow(1.0 - liveness.network_coef, 1.5);
 
             randomness = Math.random();
             dampening = 0.0;
@@ -183,7 +187,7 @@ function YtCoordinatedHost(config, name)
         get: function() {
             return 0.0 +
                 config.fitness_la_coefficient  * liveness.load_average +
-                config.fitness_net_coefficient * liveness.network_coef +
+                config.fitness_net_coefficient * liveness.network_coef_pow +
                 config.fitness_phi_coefficient * afd.phiTS() +
                 config.fitness_rnd_coefficient * randomness +
                 config.fitness_dmp_coefficient * dampening;
@@ -304,12 +308,14 @@ YtCoordinator.prototype._refresh = function()
 
     var sync = Q.resolve();
 
+    self.__DBG("Refreshing coordination information");
+
     if (self.announce) {
         if (!self.initialized) {
             return void self._initialize();
         }
 
-        self.__DBG("Updating coordination information");
+        self.__DBG("Announcing coordination information");
 
         var now = new Date();
 
@@ -338,6 +344,7 @@ YtCoordinator.prototype._refresh = function()
         });
     })
     .then(function(entries) {
+        __DBG("Got coordination information");
         entries.forEach(function(entry) {
             var otherName = utils.getYsonValue(entry);
 

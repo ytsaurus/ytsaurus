@@ -42,6 +42,7 @@ DECLARE_REFCOUNTED_CLASS(TExecNode)
 
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategyConfig)
 DECLARE_REFCOUNTED_CLASS(TEventLogConfig)
+DECLARE_REFCOUNTED_CLASS(TIntermediateChunkScraperConfig)
 DECLARE_REFCOUNTED_CLASS(TJobSizeManagerConfig)
 
 DECLARE_REFCOUNTED_CLASS(TOperationOptions)
@@ -72,6 +73,8 @@ struct IOperationHost;
 
 DECLARE_REFCOUNTED_STRUCT(ISchedulingContext);
 DECLARE_REFCOUNTED_STRUCT(IOperationController);
+
+DECLARE_REFCOUNTED_CLASS(TIntermediateChunkScraper)
 
 class TMasterConnector;
 

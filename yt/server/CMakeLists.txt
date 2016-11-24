@@ -56,6 +56,10 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/core_dump/core_processor_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/core_dump/core_processor_service.proto
 
+  ${CMAKE_CURRENT_LIST_DIR}/core_dump/core_forwarder.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/core_dump/core_processor_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/core_dump/core_processor_service.proto
+
   ${CMAKE_CURRENT_LIST_DIR}/cypress_server/access_tracker.cpp
   ${CMAKE_CURRENT_LIST_DIR}/cypress_server/cypress_integration.cpp
   ${CMAKE_CURRENT_LIST_DIR}/cypress_server/cypress_manager.cpp
@@ -256,6 +260,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/fair_share_strategy.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/fair_share_tree.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/intermediate_chunk_scraper.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/job.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/job_memory.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/job_prober_service.cpp

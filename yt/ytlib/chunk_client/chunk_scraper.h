@@ -44,9 +44,6 @@ public:
     //! Stops periodic polling.
     TFuture<void> Stop();
 
-    //! Reset a set of chunks scraper and start/stop scraper if necessary.
-    void Reset(const yhash_set<TChunkId>& chunkIds);
-
 private:
     const TChunkScraperConfigPtr Config_;
     const IInvokerPtr Invoker_;
@@ -56,7 +53,6 @@ private:
     const TChunkLocatedHandler OnChunkLocated_;
     const NLogging::TLogger Logger;
 
-    TSpinLock SpinLock_;
     std::vector<TScraperTaskPtr> ScraperTasks_;
 
     void DoStart();

@@ -172,6 +172,23 @@ DEFINE_REFCOUNTED_TYPE(TFairShareStrategyConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TIntermediateChunkScraperConfig
+    : public NChunkClient::TChunkScraperConfig
+{
+public:
+    TDuration RestartTimeout;
+
+    TIntermediateChunkScraperConfig()
+    {
+        RegisterParameter("restart_timeout", RestartTimeout)
+            .Default(TDuration::Seconds(10));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TIntermediateChunkScraperConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TEventLogConfig
     : public NTableClient::TBufferedTableWriterConfig
 {
@@ -429,7 +446,6 @@ DEFINE_REFCOUNTED_TYPE(TRemoteCopyOperationOptions)
 
 class TSchedulerConfig
     : public TFairShareStrategyConfig
-    , public NChunkClient::TChunkScraperConfig
     , public NChunkClient::TChunkTeleporterConfig
 {
 public:
@@ -649,6 +665,9 @@ public:
     TNullable<i32> IopsThrottlerLimit;
 
     TDuration StaticOrchidCacheUpdatePeriod;
+
+    // We use the same config for input chunk scraper and intermediate chunk scraper.
+    TIntermediateChunkScraperConfigPtr ChunkScraper;
 
     TSchedulerConfig()
     {
@@ -903,6 +922,9 @@ public:
             .Default(Null);
         RegisterParameter("iops_throttler_limit", IopsThrottlerLimit)
             .Default(Null);
+
+        RegisterParameter("chunk_scraper", ChunkScraper)
+            .DefaultNew();
 
         RegisterInitializer([&] () {
             ChunkLocationThrottler->Limit = 10000;

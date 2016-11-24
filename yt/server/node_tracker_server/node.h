@@ -242,7 +242,8 @@ private:
     ENodeState* LocalStatePtr_;
     ENodeState AggregatedState_;
 
-    void RecomputeAggregatedState();
+    void ComputeAggregatedState();
+    void ComputeDefaultAddress();
 
     static TChunkPtrWithIndex ToGeneric(TChunkPtrWithIndexes replica);
     static TChunkPtrWithIndex ToGeneric(TChunkPtrWithIndex replica);

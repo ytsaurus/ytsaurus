@@ -549,11 +549,11 @@ class TChunkScraperConfig
 {
 public:
     //! Number of chunks scratched per one LocateChunks.
-    int MaxChunksPerScratch;
+    int MaxChunksPerRequest;
 
     TChunkScraperConfig()
     {
-        RegisterParameter("max_chunks_per_scratch", MaxChunksPerScratch)
+        RegisterParameter("max_chunks_per_request", MaxChunksPerRequest)
             .Default(1000)
             .GreaterThan(0)
             .LessThan(100000);

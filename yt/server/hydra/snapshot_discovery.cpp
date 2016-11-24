@@ -40,15 +40,18 @@ public:
     TFuture<TRemoteSnapshotParams> Run()
     {
         if (ExactId_) {
-            LOG_INFO("Running snapshot discovery (SnapshotId: %v)",
+            LOG_INFO("Running remote snapshot discovery (SnapshotId: %v)",
                 MaxSnapshotId_);
         } else {
-            LOG_INFO("Running latest snapshot discovery (MaxSnapshotId: %v)",
+            LOG_INFO("Running remote snapshot discovery (MaxSnapshotId: %v)",
                 MaxSnapshotId_);
         }
 
         std::vector<TFuture<void>> asyncResults;
         for (auto peerId = 0; peerId < CellManager_->GetTotalPeerCount(); ++peerId) {
+            if (peerId == CellManager_->GetSelfPeerId())
+                continue;
+
             auto channel = CellManager_->GetPeerChannel(peerId);
             if (!channel)
                 continue;
@@ -123,7 +126,7 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         if (ExactId_ && Params_.SnapshotId == InvalidSegmentId) {
-            LOG_INFO("Snapshot discovery failed, no suitable peer found");
+            LOG_INFO("Remote snapshot discovery failed, no suitable peer found");
             auto error = TError("Unable to find a download source for snapshot %v",
                 MaxSnapshotId_);
             Promise_.Set(error);
@@ -131,9 +134,9 @@ private:
         }
 
         if (Params_.SnapshotId == InvalidSegmentId) {
-            LOG_INFO("Snapshot discovery finished, no feasible snapshot is found");
+            LOG_INFO("Remote snapshot discovery finished, no feasible snapshot is found");
         } else {
-            LOG_INFO("Snapshot discovery succeeded (PeerId: %v, SnapshotId: %v)",
+            LOG_INFO("Remote snapshot discovery succeeded (PeerId: %v, SnapshotId: %v)",
                 Params_.PeerId,
                 Params_.SnapshotId);
         }
