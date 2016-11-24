@@ -67,7 +67,7 @@ const i64 ChunkReaderMemorySize = (i64) 16 * 1024;
 const int TypicalReplicaCount = 24;
 
 constexpr int MaxMediumCount = 7;
-constexpr int DefaultMediumIndex = 0;
+constexpr int DefaultStoreMediumIndex = 0;
 constexpr int DefaultCacheMediumIndex = 1;
 extern const Stroka DefaultStoreMediumName;
 extern const Stroka DefaultCacheMediumName;

@@ -250,7 +250,7 @@ private:
         auto addJournalReplica = [&] (TNodePtrWithIndexes replica) {
             // For journal chunks, replica indexes are used to track states.
             // Hence we must replace index with #GenericChunkReplicaIndex.
-            replicas.push_back(TNodePtrWithIndexes(replica.GetPtr(), GenericChunkReplicaIndex, DefaultMediumIndex));
+            replicas.push_back(TNodePtrWithIndexes(replica.GetPtr(), GenericChunkReplicaIndex, DefaultStoreMediumIndex));
             return true;
         };
 

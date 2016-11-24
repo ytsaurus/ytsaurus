@@ -13,7 +13,7 @@ namespace NSecurityServer {
 using namespace NYson;
 
 using NChunkClient::MaxMediumCount;
-using NChunkServer::DefaultMediumIndex;
+using NChunkServer::DefaultStoreMediumIndex;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,7 +44,7 @@ void TClusterResources::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     // COMPAT(shakurov)
     if (context.GetVersion() < 400) {
-        DiskSpace[DefaultMediumIndex] = Load<i64>(context);
+        DiskSpace[DefaultStoreMediumIndex] = Load<i64>(context);
     } else {
         Load(context, DiskSpace);
     }
@@ -106,7 +106,7 @@ TSerializableClusterResources::TSerializableClusterResources(const NChunkServer:
 {
     NodeCount_ = clusterResources.NodeCount;
     ChunkCount_ = clusterResources.ChunkCount;
-    DiskSpace_ = clusterResources.DiskSpace[DefaultMediumIndex];
+    DiskSpace_ = clusterResources.DiskSpace[DefaultStoreMediumIndex];
     for (int i = 0; i < NChunkClient::MaxMediumCount; ++i) {
         i64 mediumDiskSpace = clusterResources.DiskSpace[i];
         if (mediumDiskSpace) {

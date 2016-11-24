@@ -130,7 +130,7 @@ TJobPtr TJob::CreateSeal(
     return New<TJob>(
         EJobType::SealChunk,
         jobId,
-        TChunkIdWithIndexes(chunk->GetId(), 0, DefaultMediumIndex),
+        TChunkIdWithIndexes(chunk->GetId(), 0, DefaultStoreMediumIndex),
         node,
         TNodeList(),
         TPartIndexList(),

@@ -158,6 +158,7 @@ protected:
     virtual int GetCurrentSnapshotVersion();
 
     virtual void Clear();
+    virtual void SetZeroState();
 
     virtual void OnBeforeSnapshotLoaded();
     virtual void OnAfterSnapshotLoaded();
@@ -207,6 +208,7 @@ public:
     virtual void ApplyMutation(TMutationContext* context) override;
 
     virtual void Clear() override;
+    virtual void SetZeroState() override;
 
 protected:
     bool SerializationDumpEnabled_ = false;

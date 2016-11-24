@@ -614,10 +614,10 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
 {
     TChunkStatistics results;
     // Journal chunks never use non-default media.
-    auto& result = results.PerMediumStatistics[DefaultMediumIndex];
+    auto& result = results.PerMediumStatistics[DefaultStoreMediumIndex];
 
     auto replicationFactors = chunk->ComputeReplicationFactors();
-    int replicationFactor = replicationFactors[DefaultMediumIndex];
+    int replicationFactor = replicationFactors[DefaultStoreMediumIndex];
     int readQuorum = chunk->GetReadQuorum();
 
     int replicaCount = 0;
@@ -629,7 +629,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
     bool hasUnsafelyPlacedReplicas = false;
 
     for (auto replica : chunk->StoredReplicas()) {
-        Y_ASSERT(replica.GetMediumIndex() == DefaultMediumIndex);
+        Y_ASSERT(replica.GetMediumIndex() == DefaultStoreMediumIndex);
 
         if (replica.GetReplicaIndex() == SealedChunkReplicaIndex) {
             ++sealedReplicaCount;
@@ -645,7 +645,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
         const auto* rack = replica.GetPtr()->GetRack();
         if (rack) {
             int rackIndex = rack->GetIndex();
-            int maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(chunk, DefaultMediumIndex, Null);
+            int maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(chunk, DefaultStoreMediumIndex, Null);
             if (++perRackReplicaCounters[rackIndex] > maxReplicasPerRack) {
                 // A journal chunk is considered placed unsafely if some non-null rack
                 // contains more replicas than returned by TChunk::GetMaxReplicasPerRack.

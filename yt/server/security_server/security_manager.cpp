@@ -343,19 +343,17 @@ public:
 
     TAccount* GetSysAccount()
     {
-        YCHECK(SysAccount_);
-        return SysAccount_;
+        return GetBuiltin(SysAccount_);
     }
 
     TAccount* GetTmpAccount()
     {
-        YCHECK(TmpAccount_);
-        return TmpAccount_;
+        return GetBuiltin(TmpAccount_);
     }
 
     TAccount* GetIntermediateAccount()
     {
-        return IntermediateAccount_;
+        return GetBuiltin(IntermediateAccount_);
     }
 
 
@@ -530,16 +528,15 @@ public:
         return user;
     }
 
+
     TUser* GetRootUser()
     {
-        YCHECK(RootUser_);
-        return RootUser_;
+        return GetBuiltin(RootUser_);
     }
 
     TUser* GetGuestUser()
     {
-        YCHECK(GuestUser_);
-        return GuestUser_;
+        return GetBuiltin(GuestUser_);
     }
 
 
@@ -589,20 +586,17 @@ public:
 
     TGroup* GetEveryoneGroup()
     {
-        YCHECK(EveryoneGroup_);
-        return EveryoneGroup_;
+        return GetBuiltin(EveryoneGroup_);
     }
 
     TGroup* GetUsersGroup()
     {
-        YCHECK(UsersGroup_);
-        return UsersGroup_;
+        return GetBuiltin(UsersGroup_);
     }
 
     TGroup* GetSuperusersGroup()
     {
-        YCHECK(SuperusersGroup_);
-        return SuperusersGroup_;
+        return GetBuiltin(SuperusersGroup_);
     }
 
 
@@ -1147,7 +1141,7 @@ private:
         accountHolder->SetName(name);
         // Give some reasonable initial resource limits.
         accountHolder->ClusterResourceLimits()
-            .DiskSpace[NChunkServer::DefaultMediumIndex] = (i64) 1024 * 1024 * 1024; // 1 GB
+            .DiskSpace[NChunkServer::DefaultStoreMediumIndex] = (i64) 1024 * 1024 * 1024; // 1 GB
         accountHolder->ClusterResourceLimits().NodeCount = 1000;
         accountHolder->ClusterResourceLimits().ChunkCount = 100000;
 
@@ -1374,7 +1368,6 @@ private:
         }
 
         InitBuiltins();
-        ResetAuthenticatedUser();
     }
 
     virtual void Clear() override
@@ -1390,8 +1383,24 @@ private:
         GroupMap_.Clear();
         GroupNameMap_.clear();
 
-        InitBuiltins();
+
+        RootUser_ = nullptr;
+        GuestUser_ = nullptr;
+        JobUser_ = nullptr;
+        SchedulerUser_ = nullptr;
+        ReplicatorUser_ = nullptr;
+        EveryoneGroup_ = nullptr;
+        UsersGroup_ = nullptr;
+        SuperusersGroup_ = nullptr;
+
         ResetAuthenticatedUser();
+    }
+
+    virtual void SetZeroState() override
+    {
+        TMasterAutomatonPart::SetZeroState();
+
+        InitBuiltins();
         InitDefaultSchemaAcds();
     }
 
@@ -1426,111 +1435,137 @@ private:
         }
     }
 
+    template <class T>
+    T* GetBuiltin(T*& builtin)
+    {
+        if (!builtin) {
+            InitBuiltins();
+        }
+        YCHECK(builtin);
+        return builtin;
+    }
+
     void InitBuiltins()
     {
         // Groups
 
-        UsersGroup_ = FindGroup(UsersGroupId_);
-        if (!UsersGroup_) {
-            // users
-            UsersGroup_ = DoCreateGroup(UsersGroupId_, UsersGroupName);
-        }
+        // users
+        EnsureBuiltinGroupInitialized(UsersGroup_, UsersGroupId_, UsersGroupName);
 
-        EveryoneGroup_ = FindGroup(EveryoneGroupId_);
-        if (!EveryoneGroup_) {
-            // everyone
-            EveryoneGroup_ = DoCreateGroup(EveryoneGroupId_, EveryoneGroupName);
+        // everyone
+        if (EnsureBuiltinGroupInitialized(EveryoneGroup_, EveryoneGroupId_, EveryoneGroupName)) {
             DoAddMember(EveryoneGroup_, UsersGroup_);
         }
 
-        SuperusersGroup_ = FindGroup(SuperusersGroupId_);
-        if (!SuperusersGroup_) {
-            // superusers
-            SuperusersGroup_ = DoCreateGroup(SuperusersGroupId_, SuperusersGroupName);
+        // superusers
+        if (EnsureBuiltinGroupInitialized(SuperusersGroup_, SuperusersGroupId_, SuperusersGroupName)) {
             DoAddMember(UsersGroup_, SuperusersGroup_);
         }
 
         // Users
 
-        RootUser_ = FindUser(RootUserId_);
-        if (!RootUser_) {
-            // root
-            RootUser_ = DoCreateUser(RootUserId_, RootUserName);
+        // root
+        if (EnsureBuiltinUserInitialized(RootUser_, RootUserId_, RootUserName)) {
             RootUser_->SetRequestRateLimit(1000000);
             RootUser_->SetRequestQueueSizeLimit(1000000);
         }
 
-        GuestUser_ = FindUser(GuestUserId_);
-        if (!GuestUser_) {
-            // guest
-            GuestUser_ = DoCreateUser(GuestUserId_, GuestUserName);
-        }
+        // guest
+        EnsureBuiltinUserInitialized(GuestUser_, GuestUserId_, GuestUserName);
 
-        JobUser_ = FindUser(JobUserId_);
-        if (!JobUser_) {
+        if (EnsureBuiltinUserInitialized(JobUser_, JobUserId_, JobUserName)) {
             // job
-            JobUser_ = DoCreateUser(JobUserId_, JobUserName);
             JobUser_->SetRequestRateLimit(1000000);
             JobUser_->SetRequestQueueSizeLimit(1000000);
         }
 
-        SchedulerUser_ = FindUser(SchedulerUserId_);
-        if (!SchedulerUser_) {
-            // scheduler
-            SchedulerUser_ = DoCreateUser(SchedulerUserId_, SchedulerUserName);
+        // scheduler
+        if (EnsureBuiltinUserInitialized(SchedulerUser_, SchedulerUserId_, SchedulerUserName)) {
             SchedulerUser_->SetRequestRateLimit(1000000);
             SchedulerUser_->SetRequestQueueSizeLimit(1000000);
         }
 
-        ReplicatorUser_ = FindUser(ReplicatorUserId_);
-        if (!ReplicatorUser_) {
-            // replicator
-            ReplicatorUser_ = DoCreateUser(ReplicatorUserId_, ReplicatorUserName);
+        // replicator
+        if (EnsureBuiltinUserInitialized(ReplicatorUser_, ReplicatorUserId_, ReplicatorUserName)) {
             ReplicatorUser_->SetRequestRateLimit(1000000);
             ReplicatorUser_->SetRequestQueueSizeLimit(1000000);
         }
 
         // Accounts
 
-        SysAccount_ = FindAccount(SysAccountId_);
-        if (!SysAccount_) {
-            // sys, 1 TB disk space, 100 000 nodes, 1 000 000 chunks allowed for: root
-            SysAccount_ = DoCreateAccount(SysAccountId_, SysAccountName);
+        // sys, 1 TB disk space, 100 000 nodes, 1 000 000 chunks allowed for: root
+        if (EnsureBuiltinAccountInitialized(SysAccount_, SysAccountId_, SysAccountName)) {
             SysAccount_->ClusterResourceLimits() = TClusterResources(100000, 1000000000);
             SysAccount_->ClusterResourceLimits()
-                .DiskSpace[NChunkServer::DefaultMediumIndex] = (i64) 1024 * 1024 * 1024 * 1024;
+                .DiskSpace[NChunkServer::DefaultStoreMediumIndex] = (i64) 1024 * 1024 * 1024 * 1024;
             SysAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 RootUser_,
                 EPermission::Use));
         }
 
-        TmpAccount_ = FindAccount(TmpAccountId_);
-        if (!TmpAccount_) {
-            // tmp, 1 TB disk space, 100 000 nodes, 1 000 000 chunks allowed for: users
-            TmpAccount_ = DoCreateAccount(TmpAccountId_, TmpAccountName);
+        // tmp, 1 TB disk space, 100 000 nodes, 1 000 000 chunks allowed for: users
+        if (EnsureBuiltinAccountInitialized(TmpAccount_, TmpAccountId_, TmpAccountName)) {
             TmpAccount_->ClusterResourceLimits() = TClusterResources(100000, 1000000000);
             TmpAccount_->ClusterResourceLimits()
-                .DiskSpace[NChunkServer::DefaultMediumIndex] = (i64) 1024 * 1024 * 1024 * 1024;
+                .DiskSpace[NChunkServer::DefaultStoreMediumIndex] = (i64) 1024 * 1024 * 1024 * 1024;
             TmpAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 UsersGroup_,
                 EPermission::Use));
         }
 
-        IntermediateAccount_ = FindAccount(IntermediateAccountId_);
-        if (!IntermediateAccount_) {
-            // tmp, 1 TB disk space, 100 000 nodes, 1 000 000 chunks allowed for: users
-            IntermediateAccount_ = DoCreateAccount(IntermediateAccountId_, IntermediateAccountName);
+        // intermediate, 1 TB disk space, 100 000 nodes, 1 000 000 chunks allowed for: users
+        if (EnsureBuiltinAccountInitialized(IntermediateAccount_, IntermediateAccountId_, IntermediateAccountName)) {
             IntermediateAccount_->ClusterResourceLimits() = TClusterResources(100000, 1000000000);
             IntermediateAccount_->ClusterResourceLimits()
-                .DiskSpace[NChunkServer::DefaultMediumIndex] = (i64) 1024 * 1024 * 1024 * 1024;
+                .DiskSpace[NChunkServer::DefaultStoreMediumIndex] = (i64) 1024 * 1024 * 1024 * 1024;
             IntermediateAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 UsersGroup_,
                 EPermission::Use));
         }
     }
+
+    bool EnsureBuiltinGroupInitialized(TGroup*& group, const TGroupId& id, const Stroka& name)
+    {
+        if (group) {
+            return false;
+        }
+        group = FindGroup(id);
+        if (group) {
+            return false;
+        }
+        group = DoCreateGroup(id, name);
+        return true;
+    }
+
+    bool EnsureBuiltinUserInitialized(TUser*& user, const TUserId& id, const Stroka& name)
+    {
+        if (user) {
+            return false;
+        }
+        user = FindUser(id);
+        if (user) {
+            return false;
+        }
+        user = DoCreateUser(id, name);
+        return true;
+    }
+
+    bool EnsureBuiltinAccountInitialized(TAccount*& account, const TAccountId& id, const Stroka& name)
+    {
+        if (account) {
+            return false;
+        }
+        account = FindAccount(id);
+        if (account) {
+            return false;
+        }
+        account = DoCreateAccount(id, name);
+        return true;
+    }
+
 
     virtual void OnRecoveryComplete() override
     {

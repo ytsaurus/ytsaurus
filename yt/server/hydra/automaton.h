@@ -23,8 +23,12 @@ struct IAutomaton
     //! It is guaranteed that the instance is cleared (via #Clear) prior to this call.
     virtual void LoadSnapshot(NConcurrency::IAsyncZeroCopyInputStreamPtr reader) = 0;
 
-    //! Clears the instance bringing it to the initial state.
+    //! Clears the instance.
     virtual void Clear() = 0;
+
+    //! Brings the instance it to the state corresponding to zero version.
+    //! It is guaranteed that the instance is cleared (via #Clear) prior to this call.
+    virtual void SetZeroState() = 0;
 
     //! Applies a certain deterministic mutation to the instance.
     virtual void ApplyMutation(TMutationContext* context) = 0;
