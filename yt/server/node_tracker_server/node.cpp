@@ -235,7 +235,7 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, LeaseTransaction_);
     // COMPAT(shakurov)
     if (context.GetVersion() < 400)  {
-        ReserveReplicas(DefaultMediumIndex, TSizeSerializer::Load(context), false);
+        ReserveReplicas(DefaultStoreMediumIndex, TSizeSerializer::Load(context), false);
         ReserveReplicas(DefaultCacheMediumIndex, TSizeSerializer::Load(context), true);
     } else {
         auto loadReplicaSetSizes =
@@ -276,7 +276,7 @@ bool TNode::AddReplica(TChunkPtrWithIndexes replica, bool cached)
     } else  {
         if (chunk->IsJournal()) {
             auto mediumIndex = replica.GetMediumIndex();
-            Y_ASSERT(mediumIndex == DefaultMediumIndex);
+            Y_ASSERT(mediumIndex == DefaultStoreMediumIndex);
             RemoveStoredReplica(TChunkPtrWithIndexes(chunk, ActiveChunkReplicaIndex, mediumIndex));
             RemoveStoredReplica(TChunkPtrWithIndexes(chunk, UnsealedChunkReplicaIndex, mediumIndex));
             RemoveStoredReplica(TChunkPtrWithIndexes(chunk, SealedChunkReplicaIndex, mediumIndex));
@@ -296,7 +296,7 @@ bool TNode::RemoveReplica(TChunkPtrWithIndexes replica, bool cached)
     } else {
         if (chunk->IsJournal()) {
             auto mediumIndex = replica.GetMediumIndex();
-            Y_ASSERT(mediumIndex == DefaultMediumIndex);
+            Y_ASSERT(mediumIndex == DefaultStoreMediumIndex);
             RemoveStoredReplica(TChunkPtrWithIndexes(chunk, ActiveChunkReplicaIndex, mediumIndex));
             RemoveStoredReplica(TChunkPtrWithIndexes(chunk, UnsealedChunkReplicaIndex, mediumIndex));
             RemoveStoredReplica(TChunkPtrWithIndexes(chunk, SealedChunkReplicaIndex, mediumIndex));
@@ -316,7 +316,7 @@ bool TNode::HasReplica(TChunkPtrWithIndexes replica, bool cached) const
     } else {
         if (chunk->IsJournal()) {
             auto mediumIndex = replica.GetMediumIndex();
-            Y_ASSERT(mediumIndex == DefaultMediumIndex);
+            Y_ASSERT(mediumIndex == DefaultStoreMediumIndex);
             return
                 ContainsStoredReplica(TChunkPtrWithIndexes(chunk, ActiveChunkReplicaIndex, mediumIndex)) ||
                 ContainsStoredReplica(TChunkPtrWithIndexes(chunk, UnsealedChunkReplicaIndex, mediumIndex)) ||
@@ -369,10 +369,10 @@ void TNode::ApproveReplica(TChunkPtrWithIndex replica)
     YCHECK(UnapprovedReplicas_.erase(ToGeneric(replica)) == 1);
     auto* chunk = replica.GetPtr();
     if (chunk->IsJournal()) {
-        RemoveStoredReplica(TChunkPtrWithIndexes(chunk, ActiveChunkReplicaIndex, DefaultMediumIndex));
-        RemoveStoredReplica(TChunkPtrWithIndexes(chunk, UnsealedChunkReplicaIndex, DefaultMediumIndex));
-        RemoveStoredReplica(TChunkPtrWithIndexes(chunk, SealedChunkReplicaIndex, DefaultMediumIndex));
-        YCHECK(AddStoredReplica({chunk, replica.GetIndex(), DefaultMediumIndex}));
+        RemoveStoredReplica(TChunkPtrWithIndexes(chunk, ActiveChunkReplicaIndex, DefaultStoreMediumIndex));
+        RemoveStoredReplica(TChunkPtrWithIndexes(chunk, UnsealedChunkReplicaIndex, DefaultStoreMediumIndex));
+        RemoveStoredReplica(TChunkPtrWithIndexes(chunk, SealedChunkReplicaIndex, DefaultStoreMediumIndex));
+        YCHECK(AddStoredReplica({chunk, replica.GetIndex(), DefaultStoreMediumIndex}));
     }
 }
 

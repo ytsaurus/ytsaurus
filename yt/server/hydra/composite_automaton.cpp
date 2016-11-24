@@ -126,6 +126,9 @@ int TCompositeAutomatonPart::GetCurrentSnapshotVersion()
 void TCompositeAutomatonPart::Clear()
 { }
 
+void TCompositeAutomatonPart::SetZeroState()
+{ }
+
 void TCompositeAutomatonPart::OnBeforeSnapshotLoaded()
 { }
 
@@ -377,6 +380,13 @@ void TCompositeAutomaton::Clear()
 {
     for (const auto& part : GetParts()) {
         part->Clear();
+    }
+}
+
+void TCompositeAutomaton::SetZeroState()
+{
+    for (const auto& part : GetParts()) {
+        part->SetZeroState();
     }
 }
 

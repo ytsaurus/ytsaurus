@@ -181,7 +181,7 @@ protected:
             attributes);
         auto* node = nodeHolder.get();
 
-        node->SetReplicationFactorOrThrow(DefaultMediumIndex, replicationFactor);
+        node->SetReplicationFactorOrThrow(DefaultStoreMediumIndex, replicationFactor);
         node->SetReadQuorum(readQuorum);
         node->SetWriteQuorum(writeQuorum);
 

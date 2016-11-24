@@ -335,7 +335,7 @@ IChunkReaderPtr CreateRemoteReader(
         std::array<TNodeId, MaxTotalPartCount> partIndexToNodeId;
         std::fill(partIndexToNodeId.begin(), partIndexToNodeId.end(), InvalidNodeId);
         std::array<int, MaxTotalPartCount> partIndexToMediumIndex;
-        std::fill(partIndexToMediumIndex.begin(), partIndexToMediumIndex.end(), DefaultMediumIndex);
+        std::fill(partIndexToMediumIndex.begin(), partIndexToMediumIndex.end(), DefaultStoreMediumIndex);
         for (auto replica : replicas) {
             auto replicaIndex = replica.GetReplicaIndex();
             partIndexToNodeId[replicaIndex] = replica.GetNodeId();

@@ -122,7 +122,7 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     Load(context, ChunkMeta_);
     // COMPAT(shakurov)
     if (context.GetVersion() < 400) {
-        LocalProperties_[DefaultMediumIndex]
+        LocalProperties_[DefaultStoreMediumIndex]
             .SetReplicationFactorOrThrow(Load<i8>(context)); // Never actually throws.
     } else {
         Load(context, LocalProperties_);
@@ -149,7 +149,7 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
                 auto& properties = exportData.Properties;
                 auto& oldExportData = oldExportDataList[i];
                 exportData.RefCounter = oldExportData.RefCounter;
-                properties[DefaultMediumIndex].SetReplicationFactorOrThrow(oldExportData.ReplicationFactor);
+                properties[DefaultStoreMediumIndex].SetReplicationFactorOrThrow(oldExportData.ReplicationFactor);
                 properties.SetVital(oldExportData.Vital);
             }
         } else {

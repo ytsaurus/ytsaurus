@@ -35,7 +35,7 @@ using NChunkClient::EChunkType;
 using NChunkClient::TBlockId;
 using NChunkClient::TypicalReplicaCount;
 using NChunkClient::MaxMediumCount;
-using NChunkClient::DefaultMediumIndex;
+using NChunkClient::DefaultStoreMediumIndex;
 
 using NJobTrackerClient::TJobId;
 using NJobTrackerClient::EJobType;

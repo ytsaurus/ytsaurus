@@ -53,8 +53,8 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     Load(context, UpdateMode_);
     // COMPAT(shakurov)
     if (context.GetVersion() < 400) {
-        PrimaryMediumIndex_ = DefaultMediumIndex;
-        Properties_[DefaultMediumIndex].SetReplicationFactorOrThrow(Load<int>(context));
+        PrimaryMediumIndex_ = DefaultStoreMediumIndex;
+        Properties_[DefaultStoreMediumIndex].SetReplicationFactorOrThrow(Load<int>(context));
         Properties_.SetVital(Load<bool>(context));
     } else {
         Load(context, Properties_);

@@ -78,7 +78,7 @@ Y_FORCE_INLINE bool operator!=(const TChunkIdWithIndex& lhs, const TChunkIdWithI
 
 Y_FORCE_INLINE TChunkIdWithIndexes::TChunkIdWithIndexes()
     : TChunkIdWithIndex()
-    , MediumIndex(DefaultMediumIndex)
+    , MediumIndex(DefaultStoreMediumIndex)
 { }
 
 Y_FORCE_INLINE TChunkIdWithIndexes::TChunkIdWithIndexes(const TChunkIdWithIndex& chunkIdWithIndex, int mediumIndex)

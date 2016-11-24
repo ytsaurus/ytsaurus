@@ -634,7 +634,10 @@ TDecoratedAutomaton::TDecoratedAutomaton(
 
 void TDecoratedAutomaton::Initialize()
 {
-    AutomatonInvoker_->Invoke(BIND(&IAutomaton::Clear, Automaton_));
+    AutomatonInvoker_->Invoke(BIND([=, this_ = MakeStrong(this)] () {
+        Automaton_->Clear();
+        Automaton_->SetZeroState();
+    }));
 }
 
 void TDecoratedAutomaton::OnStartLeading(TEpochContextPtr epochContext)

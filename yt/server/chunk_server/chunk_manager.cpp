@@ -404,7 +404,7 @@ public:
             BIND(&TImpl::SaveValues, Unretained(this)));
 
         auto cellTag = Bootstrap_->GetPrimaryCellTag();
-        DefaultMediumId_ = MakeWellKnownId(EObjectType::Medium, cellTag, 0xffffffffffffffff);
+        DefaultStoreMediumId_ = MakeWellKnownId(EObjectType::Medium, cellTag, 0xffffffffffffffff);
         DefaultCacheMediumId_ = MakeWellKnownId(EObjectType::Medium, cellTag, 0xfffffffffffffffe);
 
         auto* profileManager = TProfileManager::Get();
@@ -530,7 +530,7 @@ public:
             }
 
             auto chunkWithIndexes = chunk->IsJournal()
-                ? TChunkPtrWithIndexes(chunk, ActiveChunkReplicaIndex, DefaultMediumIndex)
+                ? TChunkPtrWithIndexes(chunk, ActiveChunkReplicaIndex, DefaultStoreMediumIndex)
                 : TChunkPtrWithIndexes(chunk, replica.GetReplicaIndex(), replica.GetMediumIndex());
 
             if (node->GetLocalState() != ENodeState::Online) {
@@ -979,7 +979,7 @@ public:
     int AllocateMediumIndex()
     {
         for (int index = 0; index < UsedMediumIndexes_.size(); ++index) {
-            if (index == DefaultMediumIndex || index == DefaultCacheMediumIndex) {
+            if (index == DefaultStoreMediumIndex || index == DefaultCacheMediumIndex) {
                 continue;
             }
             if (!UsedMediumIndexes_.test(index)) {
@@ -1142,8 +1142,8 @@ private:
     yhash_map<Stroka, TMedium*> NameToMediumMap_;
     TMediumSet UsedMediumIndexes_;
 
-    TMediumId DefaultMediumId_;
-    TMedium* DefaultMedium_ = nullptr;
+    TMediumId DefaultStoreMediumId_;
+    TMedium* DefaultStoreMedium_ = nullptr;
 
     TMediumId DefaultCacheMediumId_;
     TMedium* DefaultCacheMedium_ = nullptr;
@@ -1357,7 +1357,7 @@ private:
                 // This also removes replica from unapprovedReplicas.
                 RemoveChunkReplica(
                     node,
-                    {replica.GetPtr(), replica.GetIndex(), DefaultMediumIndex},
+                    {replica.GetPtr(), replica.GetIndex(), DefaultStoreMediumIndex},
                     false,
                     reason);
             }
@@ -1804,6 +1804,8 @@ private:
 
     virtual void OnBeforeSnapshotLoaded() override
     {
+        TMasterAutomatonPart::OnBeforeSnapshotLoaded();
+
         NeedToRecomputeStatistics_ = false;
     }
 
@@ -1888,46 +1890,72 @@ private:
         ChunkListsCreated_ = 0;
         ChunkListsDestroyed_ = 0;
 
+
+        DefaultStoreMedium_ = nullptr;
+        DefaultCacheMedium_ = nullptr;
+    }
+
+    virtual void SetZeroState() override
+    {
+        TMasterAutomatonPart::SetZeroState();
+
         InitBuiltins();
     }
 
+
     void InitBuiltins()
     {
-        EnsureDefaultMediumInitialized(
-            DefaultMedium_,
-            DefaultMediumId_,
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+
+        // Media
+
+        // default
+        if (EnsureBuiltinMediumInitialized(
+            DefaultStoreMedium_,
+            DefaultStoreMediumId_,
             DefaultStoreMediumName,
-            DefaultMediumIndex,
-            false);
-
-        EnsureDefaultMediumInitialized(
-            DefaultCacheMedium_,
-            DefaultCacheMediumId_,
-            DefaultCacheMediumName,
-            DefaultCacheMediumIndex,
-            true);
-    }
-
-    void EnsureDefaultMediumInitialized(
-        TMedium*& medium,
-        const TMediumId& mediumId,
-        const Stroka& mediumName,
-        int mediumIndex,
-        bool cache)
-    {
-        medium = FindMedium(mediumId);
-        if (!medium) {
-            medium = CreateDefaultMedium(mediumId, mediumName, mediumIndex, cache);
-
-            const auto& securityManager = Bootstrap_->GetSecurityManager();
-            medium->Acd().AddEntry(TAccessControlEntry(
+            DefaultStoreMediumIndex,
+            false))
+        {
+            DefaultStoreMedium_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 securityManager->GetUsersGroup(),
                 EPermission::Use));
         }
-        YCHECK(medium);
-        YCHECK(UsedMediumIndexes_.test(mediumIndex));
+
+        // cache
+        if (EnsureBuiltinMediumInitialized(
+            DefaultCacheMedium_,
+            DefaultCacheMediumId_,
+            DefaultCacheMediumName,
+            DefaultCacheMediumIndex,
+            true))
+        {
+            DefaultCacheMedium_->Acd().AddEntry(TAccessControlEntry(
+                ESecurityAction::Allow,
+                securityManager->GetUsersGroup(),
+                EPermission::Use));
+        }
     }
+
+    bool EnsureBuiltinMediumInitialized(
+        TMedium*& medium,
+        const TMediumId& id,
+        const Stroka& name,
+        int index,
+        bool cache)
+    {
+        if (medium) {
+            return false;
+        }
+        medium = FindMedium(id);
+        if (medium) {
+            return false;
+        }
+        medium = CreateDefaultMedium(id, name, index, cache);
+        return true;
+    }
+
 
     void ScheduleRecomputeStatistics()
     {
@@ -2204,11 +2232,11 @@ private:
         }
 
         if (chunkAddInfo.active()) {
-            return {ActiveChunkReplicaIndex, DefaultMediumIndex};
+            return {ActiveChunkReplicaIndex, DefaultStoreMediumIndex};
         } else if (chunkAddInfo.sealed()) {
-            return {SealedChunkReplicaIndex, DefaultMediumIndex};
+            return {SealedChunkReplicaIndex, DefaultStoreMediumIndex};
         } else {
-            return {UnsealedChunkReplicaIndex, DefaultMediumIndex};
+            return {UnsealedChunkReplicaIndex, DefaultStoreMediumIndex};
         }
     }
 

@@ -1137,7 +1137,16 @@ private:
         NodeMap_.Clear();
         LockMap_.Clear();
 
-        InitBuiltin();
+        RootNode_ = nullptr;
+    }
+
+    virtual void SetZeroState() override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TCompositeAutomatonPart::SetZeroState();
+
+        InitBuiltins();
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -1203,11 +1212,11 @@ private:
         }
         LOG_INFO("Finished initializing nodes");
 
-        InitBuiltin();
+        InitBuiltins();
     }
 
 
-    void InitBuiltin()
+    void InitBuiltins()
     {
         auto* untypedRootNode = FindNode(TVersionedNodeId(RootNodeId_));
         if (untypedRootNode) {
@@ -2222,7 +2231,7 @@ private:
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TCypressManager::TImpl, Node, TCypressNodeBase, NodeMap_);
-DEFINE_ENTITY_MAP_ACCESSORS(TCypressManager::TImpl, Lock, TLock, LockMap_);
+DEFINE_ENTITY_MAP_ACCESSORS(TCypressManager::TImpl, Lock, TLock, LockMap_)
 
 ////////////////////////////////////////////////////////////////////////////////
 

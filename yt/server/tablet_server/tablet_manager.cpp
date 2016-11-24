@@ -1474,7 +1474,7 @@ public:
 
     TTabletCellBundle* GetDefaultTabletCellBundle()
     {
-        return DefaultTabletCellBundle_;
+        return GetBuiltin(DefaultTabletCellBundle_);
     }
 
     void SetTabletCellBundle(TTableNode* table, TTabletCellBundle* cellBundle)
@@ -1666,23 +1666,51 @@ private:
         AddressToCell_.clear();
         TransactionToCellMap_.clear();
 
+
+        DefaultTabletCellBundle_ = nullptr;
+    }
+
+    virtual void SetZeroState() override
+    {
         InitBuiltins();
+    }
+
+    template <class T>
+    T* GetBuiltin(T*& builtin)
+    {
+        if (!builtin) {
+            InitBuiltins();
+        }
+        YCHECK(builtin);
+        return builtin;
     }
 
     void InitBuiltins()
     {
-        DefaultTabletCellBundle_ = FindTabletCellBundle(DefaultTabletCellBundleId_);
-        if (!DefaultTabletCellBundle_) {
-            DefaultTabletCellBundle_ = DoCreateTabletCellBundle(
-                DefaultTabletCellBundleId_,
-                DefaultTabletCellBundleName);
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
 
-            const auto& securityManager = Bootstrap_->GetSecurityManager();
+        // Cell bundles
+
+        // default
+        if (EnsureBuiltinCellBundleInitialized(DefaultTabletCellBundle_, DefaultTabletCellBundleId_, DefaultTabletCellBundleName)) {
             DefaultTabletCellBundle_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 securityManager->GetUsersGroup(),
                 EPermission::Use));
         }
+    }
+
+    bool EnsureBuiltinCellBundleInitialized(TTabletCellBundle*& cellBundle, const TTabletCellBundleId& id, const Stroka& name)
+    {
+        if (cellBundle) {
+            return false;
+        }
+        cellBundle = FindTabletCellBundle(id);
+        if (cellBundle) {
+            return false;
+        }
+        cellBundle = DoCreateTabletCellBundle(id, name);
+        return true;
     }
 
 
