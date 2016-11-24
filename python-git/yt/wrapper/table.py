@@ -1,3 +1,4 @@
+# DEPRECATED! Do not remove this import, it is used by some people.
 from .ypath import TablePath
 
 from contextlib import contextmanager
