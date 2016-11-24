@@ -43,9 +43,7 @@ TCellManager::TCellManager(
 
     PeerChannels_.resize(TotalPeerCount_);
     for (TPeerId id = 0; id < TotalPeerCount_; ++id) {
-        if (id != selfId) {
-            PeerChannels_[id] = CreatePeerChannel(id);
-        }
+        PeerChannels_[id] = CreatePeerChannel(id);
     }
 
     Logger.AddTag("CellId: %v", Config_->CellId);
