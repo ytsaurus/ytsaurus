@@ -888,8 +888,6 @@ void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
     options->CompressionCodec = Controller->Spec->IntermediateCompressionCodec;
     // Distribute intermediate chunks uniformly across storage locations.
     options->PlacementId = Controller->OperationId;
-    // Intermediate data MUST be sorted if we expect it to be sorted.
-    options->ExplodeOnValidationError = true;
 
     outputSpec->set_table_writer_options(ConvertToYsonString(options).Data());
 
