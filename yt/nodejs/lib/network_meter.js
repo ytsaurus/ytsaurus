@@ -10,6 +10,11 @@ var __DBG = require("./debug").that("X", "Network");
 var asyncReadDir = Q.promisify(fs.readdir);
 var asyncReadFile = Q.promisify(fs.readFile);
 
+function toString(x)
+{
+    return x.toString().replace(/\s+/, "");
+}
+
 function toFloat(x)
 {
     return parseFloat(x.toString());
@@ -41,7 +46,8 @@ YtNetworkMeter.prototype._getIface = function YtNetworkMeter$_getIface(iface)
     var rx_bytes = asyncReadFile(path + "/statistics/rx_bytes").then(toFloat);
     var tx_bytes = asyncReadFile(path + "/statistics/tx_bytes").then(toFloat);
     var speed = asyncReadFile(path + "/speed").then(toFloat);
-    return Q.all([rx_bytes, tx_bytes, speed]).catch(function() {});
+    var operstate = asyncReadFile(path + "/operstate").then(toString);
+    return Q.all([rx_bytes, tx_bytes, speed, operstate]).catch(function() {});
 };
 
 YtNetworkMeter.prototype._getState = function YtNetworkMeter$_getState()
@@ -82,19 +88,25 @@ YtNetworkMeter.prototype.refresh = function YtNetworkMeter$refresh()
         var load = {};
         var coef = 0.0;
         for (var iface in state) {
-            if (iface !== "_ts" && self.state[iface]) {
-                var drx = state[iface][0] - self.state[iface][0];
-                var dtx = state[iface][1] - self.state[iface][1];
-                load[iface] = {
-                    speed: state[iface][2] + 0.0,
-                    rx_abs: drx / 1024.0 / 1024.0 / dt + 0.0,
-                    tx_abs: dtx / 1024.0 / 1024.0 / dt + 0.0,
-                };
-                load[iface].rx_rel = load[iface].rx_abs / load[iface].speed;
-                load[iface].tx_rel = load[iface].tx_abs / load[iface].speed;
-                load[iface].coef = Math.max(load[iface].rx_rel, load[iface].tx_rel);
-                coef = Math.max(coef, load[iface].coef);
+            if (iface === "_ts" || !self.state[iface]) {
+                continue;
             }
+            var drx = state[iface][0] - self.state[iface][0];
+            var dtx = state[iface][1] - self.state[iface][1];
+            var speed = state[iface][2];
+            var operstate = state[iface][3];
+            if (operstate !== "up") {
+                continue;
+            }
+            load[iface] = {
+                speed: speed,
+                rx_abs: (1000.0 / dt) * (drx / 1024.0 / 1024.0) + 0.0,
+                tx_abs: (1000.0 / dt) * (dtx / 1024.0 / 1024.0) + 0.0,
+            };
+            load[iface].rx_rel = load[iface].rx_abs / speed;
+            load[iface].tx_rel = load[iface].tx_abs / speed;
+            load[iface].coef = Math.max(load[iface].rx_rel, load[iface].tx_rel);
+            coef = Math.max(coef, load[iface].coef);
         }
         coef = Math.max(0.0, Math.min(1.0, coef));
         self.reservoir.push(coef);

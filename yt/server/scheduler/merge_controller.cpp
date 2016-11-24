@@ -1203,7 +1203,7 @@ protected:
         TScrapeChunksCallback scraperCallback;
         if (Spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait) {
             scraperCallback = CreateScrapeChunksSessionCallback(
-                Config,
+                Config->ChunkScraper,
                 GetCancelableInvoker(),
                 Host->GetChunkLocationThrottlerManager(),
                 AuthenticatedInputMasterClient,

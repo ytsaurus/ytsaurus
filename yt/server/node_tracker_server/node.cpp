@@ -68,7 +68,7 @@ TNode::TNode(const TObjectId& objectId)
     ClearSessionHints();
 }
 
-void TNode::RecomputeAggregatedState()
+void TNode::ComputeAggregatedState()
 {
     TNullable<ENodeState> result;
     for (const auto& pair : MulticellStates_) {
@@ -81,6 +81,11 @@ void TNode::RecomputeAggregatedState()
         }
     }
     AggregatedState_ = *result;
+}
+
+void TNode::ComputeDefaultAddress()
+{
+    DefaultAddress_ = NNodeTrackerClient::GetDefaultAddress(Addresses_);
 }
 
 TNodeId TNode::GetId() const
@@ -96,7 +101,7 @@ const TAddressMap& TNode::GetAddresses() const
 void TNode::SetAddresses(const TAddressMap& addresses)
 {
     Addresses_ = addresses;
-    DefaultAddress_ = NNodeTrackerClient::GetDefaultAddress(Addresses_);
+    ComputeDefaultAddress();
 }
 
 const Stroka& TNode::GetDefaultAddress() const
@@ -132,7 +137,7 @@ void TNode::InitializeStates(TCellTag cellTag, const TCellTagList& secondaryCell
 
     LocalStatePtr_ = &MulticellStates_[cellTag];
 
-    RecomputeAggregatedState();
+    ComputeAggregatedState();
 }
 
 ENodeState TNode::GetLocalState() const
@@ -143,13 +148,13 @@ ENodeState TNode::GetLocalState() const
 void TNode::SetLocalState(ENodeState state)
 {
     *LocalStatePtr_ = state;
-    RecomputeAggregatedState();
+    ComputeAggregatedState();
 }
 
 void TNode::SetState(TCellTag cellTag, ENodeState state)
 {
     MulticellStates_[cellTag] = state;
-    RecomputeAggregatedState();
+    ComputeAggregatedState();
 }
 
 ENodeState TNode::GetAggregatedState() const
@@ -248,6 +253,8 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     }
     Load(context, UnapprovedReplicas_);
     Load(context, TabletSlots_);
+
+    ComputeDefaultAddress();
 }
 
 void TNode::ReserveReplicas(int mediumIndex, int sizeHint, bool cache)

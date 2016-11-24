@@ -73,6 +73,7 @@ public:
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
         options->ExplodeOnValidationError = true;
+
         auto schema = FromProto<TTableSchema>(outputSpec.table_schema());
 
         Writer_ = CreateSchemalessMultiChunkWriter(

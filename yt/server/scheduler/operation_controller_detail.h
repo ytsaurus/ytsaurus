@@ -746,6 +746,7 @@ protected:
     virtual void CustomPrepare();
     void AddAllTaskPendingHints();
     void InitInputChunkScraper();
+    void InitIntermediateChunkScraper();
     void SuspendUnavailableInputStripes();
     void InitQuerySpec(
         NProto::TSchedulerJobSpecExt* schedulerJobSpecExt,
@@ -813,10 +814,6 @@ protected:
     //! (i.e. that is not a part of the input).
     //! Returns false if the chunk was already considered lost.
     bool OnIntermediateChunkUnavailable(const NChunkClient::TChunkId& chunkId);
-
-    void StartIntermediateChunkScraper();
-    void RestartIntermediateChunkScraper();
-
 
     struct TStripeDescriptor
     {
@@ -1062,7 +1059,7 @@ private:
     //! Maps an intermediate chunk id to its originating completed job.
     yhash_map<NChunkClient::TChunkId, TCompletedJobPtr> ChunkOriginMap;
 
-    NChunkClient::TChunkScraperPtr IntermediateChunkScraper;
+    TIntermediateChunkScraperPtr IntermediateChunkScraper;
 
     //! Maps scheduler's job ids to controller's joblets.
     //! NB: |TJobPtr -> TJobletPtr| mapping would be faster but

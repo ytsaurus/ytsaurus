@@ -3,6 +3,7 @@
 #include "chunk_list_pool.h"
 #include "chunk_pool.h"
 #include "helpers.h"
+#include "intermediate_chunk_scraper.h"
 #include "master_connector.h"
 
 #include <yt/server/misc/job_table_schema.h>
@@ -922,8 +923,6 @@ void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
     options->CompressionCodec = Controller->Spec->IntermediateCompressionCodec;
     // Distribute intermediate chunks uniformly across storage locations.
     options->PlacementId = Controller->OperationId;
-    // Intermediate data MUST be sorted if we expect it to be sorted.
-    options->ExplodeOnValidationError = true;
 
     outputSpec->set_table_writer_options(ConvertToYsonString(options).Data());
 
@@ -1326,6 +1325,13 @@ void TOperationControllerBase::Prepare()
         Logger,
         EPermission::Write);
 
+    GetUserObjectBasicAttributes<TOutputTable>(
+        AuthenticatedMasterClient,
+        CoreTable,
+        DebugOutputTransaction->GetId(),
+        Logger,
+        EPermission::Write);
+
     yhash_set<TObjectId> updatingTableIds;
     for (const auto* table : UpdatingTables) {
         const auto& path = table->Path.GetPath();
@@ -1402,6 +1408,7 @@ void TOperationControllerBase::Materialize()
         // Input chunk scraper initialization should be the last step to avoid races,
         // because input chunk scraper works in control thread.
         InitInputChunkScraper();
+        InitIntermediateChunkScraper();
 
         CheckTimeLimitExecutor->Start();
 
@@ -1594,7 +1601,7 @@ void TOperationControllerBase::InitInputChunkScraper()
 
     YCHECK(!InputChunkScraper);
     InputChunkScraper = New<TChunkScraper>(
-        Config,
+        Config->ChunkScraper,
         CancelableInvoker,
         Host->GetChunkLocationThrottlerManager(),
         AuthenticatedInputMasterClient,
@@ -1608,6 +1615,25 @@ void TOperationControllerBase::InitInputChunkScraper()
         LOG_INFO("Waiting for %v unavailable input chunks", UnavailableInputChunkCount);
         InputChunkScraper->Start();
     }
+}
+
+void TOperationControllerBase::InitIntermediateChunkScraper()
+{
+    IntermediateChunkScraper = New<TIntermediateChunkScraper>(
+        Config->ChunkScraper,
+        CancelableInvoker,
+        Host->GetChunkLocationThrottlerManager(),
+        AuthenticatedInputMasterClient,
+        InputNodeDirectory,
+        [weakThis = MakeWeak(this)] () {
+            if (auto this_ = weakThis.Lock()) {
+                return this_->GetAliveIntermediateChunks();
+            } else {
+                return yhash_set<TChunkId>();
+            }
+        },
+        BIND(&TThis::OnIntermediateChunkLocated, MakeWeak(this)),
+        Logger);
 }
 
 yhash_set<TChunkId> TOperationControllerBase::GetAliveIntermediateChunks() const
@@ -2220,43 +2246,18 @@ IYsonConsumer* TOperationControllerBase::GetEventLogConsumer()
     return EventLogTableConsumer_.get();
 }
 
-void TOperationControllerBase::RestartIntermediateChunkScraper()
-{
-    if (IntermediateChunkScraper) {
-        IntermediateChunkScraper->Reset(GetAliveIntermediateChunks());
-    }
-}
-
-void TOperationControllerBase::StartIntermediateChunkScraper()
-{
-    if (IntermediateChunkScraper) {
-        return;
-    }
-
-    IntermediateChunkScraper = New<TChunkScraper>(
-        Config,
-        CancelableInvoker,
-        Host->GetChunkLocationThrottlerManager(),
-        AuthenticatedInputMasterClient,
-        InputNodeDirectory,
-        GetAliveIntermediateChunks(),
-        BIND(&TThis::OnIntermediateChunkLocated, MakeWeak(this)),
-        Logger);
-    IntermediateChunkScraper->Start();
-}
-
 void TOperationControllerBase::OnChunkFailed(const TChunkId& chunkId)
 {
     auto it = InputChunkMap.find(chunkId);
     if (it == InputChunkMap.end()) {
-        LOG_WARNING("Intermediate chunk %v has failed", chunkId);
+        LOG_DEBUG("Intermediate chunk has failed (ChunkId: %v)", chunkId);
         if (!OnIntermediateChunkUnavailable(chunkId)) {
             return;
         }
 
-        StartIntermediateChunkScraper();
+        IntermediateChunkScraper->Start();
     } else {
-        LOG_WARNING("Input chunk %v has failed", chunkId);
+        LOG_DEBUG("Input chunk has failed (ChunkId: %v)", chunkId);
         OnInputChunkUnavailable(chunkId, it->second);
     }
 }
@@ -2331,10 +2332,10 @@ void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, 
         return;
 
     ++ChunkLocatedCallCount;
-    if (ChunkLocatedCallCount >= Config->MaxChunksPerScratch) {
+    if (ChunkLocatedCallCount >= Config->ChunkScraper->MaxChunksPerRequest) {
         ChunkLocatedCallCount = 0;
         LOG_DEBUG("Located another batch of chunks (Count: %v, UnavailableInputChunkCount: %v)",
-            Config->MaxChunksPerScratch,
+            Config->ChunkScraper->MaxChunksPerRequest,
             UnavailableInputChunkCount);
     }
 
@@ -2471,7 +2472,12 @@ void TOperationControllerBase::Abort()
             AttachOutputChunks({StderrTable.GetPtr()});
             EndUploadOutputTables({StderrTable.GetPtr()});
         }
-    
+
+        if (CoreTable && CoreTable->IsBeginUploadCompleted()) {
+            AttachOutputChunks({CoreTable.GetPtr()});
+            EndUploadOutputTables({CoreTable.GetPtr()});
+        }
+
         CommitTransaction(DebugOutputTransaction);
     } catch (const std::exception& ex) {
         // Bad luck we can't commit transaction.
@@ -4706,7 +4712,7 @@ void TOperationControllerBase::RegisterIntermediate(
         }
     }
 
-    RestartIntermediateChunkScraper();
+    IntermediateChunkScraper->Restart();
 }
 
 bool TOperationControllerBase::HasEnoughChunkLists(bool intermediate, bool isWritingStderrTable, bool isWritingCoreTable)

@@ -854,6 +854,7 @@ protected:
 
             if (!Partition->Completed) {
                 Controller->AddTaskPendingHint(this);
+                Controller->AddTaskPendingHint(Controller->PartitionTask);
             }
         }
 
@@ -1332,6 +1333,11 @@ protected:
                 auto assignedNode = New<TAssignedNode>(node, weight);
                 nodeHeap.push_back(assignedNode);
             }
+        }
+
+        if (nodeHeap.empty()) {
+            LOG_DEBUG("No alive exec nodes to assign partitions");
+            return;
         }
 
         std::vector<TPartitionPtr> partitionsToAssign;
@@ -1923,7 +1929,7 @@ private:
             TScrapeChunksCallback scraperCallback;
             if (Spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait) {
                 scraperCallback = CreateScrapeChunksSessionCallback(
-                    Config,
+                    Config->ChunkScraper,
                     GetCancelableInvoker(),
                     Host->GetChunkLocationThrottlerManager(),
                     AuthenticatedInputMasterClient,
