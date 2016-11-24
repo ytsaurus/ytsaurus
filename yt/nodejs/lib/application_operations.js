@@ -324,12 +324,16 @@ function getArchiveCallbacks(
     var items_sort_direction;
 
     if (cursor_direction === "past") {
-        items_filter_conditions.push("{} <= {}".format(start_time_name, cursor_time));
+        if (cursor_time !== null) {
+            items_filter_conditions.push("{} <= {}".format(start_time_name, cursor_time));
+        }
         items_sort_direction = "DESC";
     }
 
     if (cursor_direction === "future") {
-        items_filter_conditions.push("{} > {}".format(start_time_name, cursor_time));
+        if (cursor_time !== null) {
+            items_filter_conditions.push("{} > {}".format(start_time_name, cursor_time));
+        }
         items_sort_direction = "ASC";
     }
 
