@@ -43,7 +43,7 @@ class TYson2JsonCallbacksAdapter
     : public NJson::TJsonCallbacks
 {
 public:
-    TYson2JsonCallbacksAdapter(TYsonConsumerBase* impl);
+    TYson2JsonCallbacksAdapter(TYsonConsumerBase* impl, bool throwException = false);
 
     bool OnNull() override;
     bool OnBoolean(bool val) override;
