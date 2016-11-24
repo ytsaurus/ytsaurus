@@ -497,7 +497,7 @@ def create_table(path, recursive=None, ignore_existing=False,
     """Create empty table.
 
     Shortcut for `create("table", ...)`.
-    :param path: (string or :py:class:`yt.wrapper.table.TablePath`) path to table
+    :param path: (string or :py:class:`yt.wrapper.TablePath`) path to table
     :param recursive: (bool) create the path automatically, `config["yamr_mode"]["create_recursive"]` by default
     :param ignore_existing: (bool) if it sets to `False` and table exists, \
                             Python Wrapper raises `YtResponseError`.
@@ -515,7 +515,7 @@ def create_table(path, recursive=None, ignore_existing=False,
 def create_temp_table(path=None, prefix=None, attributes=None, client=None):
     """Create temporary table by given path with given prefix and return name.
 
-    :param path: (string or :py:class:`yt.wrapper.table.TablePath`) existing path, \
+    :param path: (string or :py:class:`yt.wrapper.TablePath`) existing path, \
                  by default `config["remote_temp_tables_directory"]`
     :param prefix: (string) prefix of table name
     :return: (string) name of result table
@@ -540,7 +540,7 @@ def write_table(table, input_stream, format=None, table_writer=None,
                 client=None):
     """Write rows from input_stream to table.
 
-    :param table: (string or :py:class:`yt.wrapper.table.TablePath`) output table. Specify \
+    :param table: (string or :py:class:`yt.wrapper.TablePath`) output table. Specify \
                 `TablePath` attributes for append mode or something like this. Table can not exist.
     :param input_stream: python file-like object, string, list of strings, `StringIterIO`.
     :param format: (string or subclass of `Format`) format of input data, \
@@ -612,7 +612,7 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
                raw=None, response_parameters=None, read_transaction=None, client=None):
     """Read rows from table and parse (optionally).
 
-    :param table: string or :py:class:`yt.wrapper.table.TablePath`
+    :param table: string or :py:class:`yt.wrapper.TablePath`
     :param table_reader: (dict) spec of "read" operation
     :param raw: (bool) don't parse response to rows
     :return: if `raw` is specified -- string or :class:`yt.wrapper.driver.ResponseStream`,\
@@ -1125,7 +1125,7 @@ def insert_rows(table, input_stream, update=None, aggregate=None, atomicity=None
                 format=None, raw=None, client=None):
     """Insert rows from input_stream to dynamic table.
 
-    :param table: (string or :py:class:`yt.wrapper.table.TablePath`) output table. Specify \
+    :param table: (string or :py:class:`yt.wrapper.TablePath`) output table. Specify \
                 `TablePath` attributes for append mode or something like this. Table can not exist.
     :param input_stream: python file-like object, string, list of strings, `StringIterIO`.
     :param format: (string or subclass of `Format`) format of input data, \
@@ -1161,7 +1161,7 @@ def insert_rows(table, input_stream, update=None, aggregate=None, atomicity=None
 def delete_rows(table, input_stream, atomicity=None, durability=None, format=None, raw=None, client=None):
     """Delete rows with keys from input_stream from dynamic table.
 
-    :param table: (string or :py:class:`yt.wrapper.table.TablePath`) table to remove rows from.
+    :param table: (string or :py:class:`yt.wrapper.TablePath`) table to remove rows from.
     :param input_stream: python file-like object, string, list of strings, `StringIterIO`.
     :param format: (string or subclass of `Format`) format of input data, \
                     `yt.wrapper.config["tabular_data_format"]` by default.
