@@ -320,7 +320,7 @@ def create_dynamic_table_from_data(data_table, table, schema, attributes, tablet
     attributes["schema"] = yschema
     attributes["external"] = False
     yt.create_table(table, attributes=attributes)
-    yt.run_merge(data_table, table)
+    yt.run_merge(data_table, table, mode="ordered")
     yt.alter_table(table, dynamic=True)
     owner = yt.get(table + "/@owner")
     yt.set(table + "/@acl", [{"permissions": ["mount"], "action": "allow", "subjects": [owner]}])
@@ -564,7 +564,7 @@ def verify_select(schema, data_table, table, dump_table, result_table, job_count
         data_table,
         dump_table,
         reduce_by=key_columns,
-        spec={"job_count": job_count, "max_failed_job_count": 1},
+        spec={"job_count": job_count, "max_failed_job_count": 100},
         format=yt.YsonFormat(boolean_as_string=False))
     verify_output(schema, data_table, dump_table, result_table)
 
