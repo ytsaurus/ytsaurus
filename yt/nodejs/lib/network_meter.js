@@ -100,8 +100,8 @@ YtNetworkMeter.prototype.refresh = function YtNetworkMeter$refresh()
             }
             load[iface] = {
                 speed: speed,
-                rx_abs: (1000.0 / dt) * (drx / 1024.0 / 1024.0) + 0.0,
-                tx_abs: (1000.0 / dt) * (dtx / 1024.0 / 1024.0) + 0.0,
+                rx_abs: (1000.0 / dt) * (8.0 * drx / 1024.0 / 1024.0) + 0.0,
+                tx_abs: (1000.0 / dt) * (8.0 * dtx / 1024.0 / 1024.0) + 0.0,
             };
             load[iface].rx_rel = load[iface].rx_abs / speed;
             load[iface].tx_rel = load[iface].tx_abs / speed;

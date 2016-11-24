@@ -41,8 +41,8 @@ public:
         const IAttributeDictionary& endpointAttributes,
         const Stroka& serviceName,
         TDiscoverRequestHook discoverRequestHook)
-        : Config_(config)
-        , ChannelFactory_(channelFactory)
+        : Config_(std::move(config))
+        , ChannelFactory_(std::move(channelFactory))
         , EndpointDescription_(endpointDescription)
         , EndpointAttributes_(ConvertToAttributes(BuildYsonStringFluently()
             .BeginMap()
@@ -50,13 +50,13 @@ public:
                 .Item("service").Value(serviceName)
             .EndMap()))
         , ServiceName_(serviceName)
-        , DiscoverRequestHook_(discoverRequestHook)
+        , DiscoverRequestHook_(std::move(discoverRequestHook))
     {
         AddPeers(Config_->Addresses);
 
         Logger = RpcClientLogger;
-        Logger.AddTag("This: %p, Endpoint: %v, Service: %v",
-            this,
+        Logger.AddTag("This: %v, Endpoint: %v, Service: %v",
+            TGuid::Create(),
             EndpointDescription_,
             ServiceName_);
     }
@@ -187,7 +187,7 @@ private:
 
         void OnResponse(
             const Stroka& address,
-            IChannelPtr channel,
+            const IChannelPtr& channel,
             const TGenericProxy::TErrorOrRspDiscoverPtr& rspOrError)
         {
             OnPeerQueried(address);
@@ -211,6 +211,7 @@ private:
                     auto error = TError("Peer %v is down", address)
                          << *Owner_->EndpointAttributes_;
                     BanPeer(address, error, Owner_->Config_->SoftBackoffTime);
+                    InvalidatePeer(address);
                 }
             } else {
                 auto error = TError("Discovery request failed for peer %v", address)
@@ -246,10 +247,15 @@ private:
             Owner_->BanPeer(address, backoffTime);
         }
 
-        void AddViablePeer(const Stroka& address, IChannelPtr channel)
+        void AddViablePeer(const Stroka& address, const IChannelPtr& channel)
         {
             auto wrappedChannel = Owner_->AddViablePeer(address, channel);
             TrySetResult(wrappedChannel);
+        }
+
+        void InvalidatePeer(const Stroka& address)
+        {
+            Owner_->InvalidatePeer(address);
         }
 
         void OnFinished()
@@ -418,7 +424,7 @@ private:
         LOG_DEBUG("Peer unbanned (Address: %v)", address);
     }
 
-    IChannelPtr AddViablePeer(const Stroka& address, IChannelPtr channel)
+    IChannelPtr AddViablePeer(const Stroka& address, const IChannelPtr& channel)
     {
         auto wrappedChannel = CreateFailureDetectingChannel(
             channel,
@@ -436,7 +442,7 @@ private:
                 }
             }
             if (!updated) {
-                ViableChannels_.push_back(std::make_pair(address, wrappedChannel));
+                ViableChannels_.emplace_back(address, wrappedChannel);
             }
         }
 
@@ -445,6 +451,18 @@ private:
             updated);
 
         return wrappedChannel;
+    }
+
+    void InvalidatePeer(const Stroka& address)
+    {
+        TWriterGuard guard(SpinLock_);
+        for (auto& pair : ViableChannels_) {
+            if (pair.first == address) {
+                std::swap(pair, ViableChannels_.back());
+                ViableChannels_.pop_back();
+                break;
+            }
+        }
     }
 
     void OnChannelFailed(const Stroka& address, IChannelPtr channel)
