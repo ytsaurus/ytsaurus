@@ -1866,6 +1866,8 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
         job1_id = running_jobs1.keys()[0]
         job2_id = running_jobs2.keys()[0]
 
+        time.sleep(1)
+
         suspicious1 = get("//sys/scheduler/orchid/scheduler/job_by_id/{0}/suspicious".format(job1_id))
         suspicious2 = get("//sys/scheduler/orchid/scheduler/job_by_id/{0}/suspicious".format(job2_id))
 
