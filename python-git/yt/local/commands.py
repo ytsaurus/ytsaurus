@@ -160,23 +160,27 @@ def _safe_kill(pid):
             raise
 
 def _initialize_world(client, cluster_connection, wait_tablet_cell_initialization,
-                      ytserver_version):
+                      configure_default_tablet_cell_bundle):
     initialize_world(client)
-    # Create tablet cell and wait for its initialization
-    attributes = {
+
+    tablet_cell_attributes = {
         "changelog_replication_factor": 1,
         "changelog_read_quorum": 1,
         "changelog_write_quorum": 1
     }
-    if ytserver_version >= "19.0":
-        client.set("//sys/tablet_cell_bundles/default/@options", attributes)
-        attributes.clear()
-    tablet_cell_id = client.create("tablet_cell", attributes=attributes)
+
+    if configure_default_tablet_cell_bundle:
+        client.set("//sys/tablet_cell_bundles/default/@options", tablet_cell_attributes)
+        tablet_cell_attributes.clear()
+
+    tablet_cell_id = client.create("tablet_cell", attributes=tablet_cell_attributes)
+
     if wait_tablet_cell_initialization:
-        logger.info("Waiting for tablet cell initialization...")
+        logger.info("Waiting for tablet cells to become ready...")
         while client.get("//sys/tablet_cells/{0}/@health".format(tablet_cell_id)) != "good":
-            time.sleep(0.3)
-        logger.info("Tablet cell is ready")
+            time.sleep(0.1)
+        logger.info("Tablet cells are ready")
+
     # Used to automatically determine local mode from python wrapper.
     client.set("//sys/@local_mode_fqdn", socket.getfqdn())
     # Cluster connection.
@@ -264,8 +268,8 @@ def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=
         if not environment._load_existing_environment:
             client = environment.create_client()
 
-            _initialize_world(client, environment.configs["driver"],
-                              wait_tablet_cell_initialization, environment.ytserver_version)
+            _initialize_world(client, environment.configs["driver"], wait_tablet_cell_initialization,
+                              (environment.abi_version[0] == 19))
             if local_cypress_dir is not None:
                 _synchronize_cypress_with_local_dir(local_cypress_dir, client)
 

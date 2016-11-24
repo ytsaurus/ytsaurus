@@ -13,8 +13,11 @@ except ImportError:
     import subprocess
 
 Popen = subprocess.Popen
-check_call = subprocess.check_call
 PIPE = subprocess.PIPE
+STDOUT = subprocess.STDOUT
+
+def check_call(*args, **kwargs):
+    return subprocess.check_call(*args, **kwargs)
 
 def check_output(*args, **kwargs):
     return to_native_str(subprocess.check_output(*args, **kwargs))
