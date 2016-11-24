@@ -265,28 +265,34 @@ bool TChunk::IsAvailable() const
         // Actually it makes no sense calling IsAvailable for foreign chunks.
         return false;
     }
-    if (IsRegular()) {
-        return StoredReplicas_->empty();
-    } else if (IsErasure()) {
-        auto* codec = NErasure::GetCodec(GetErasureCodec());
-        int dataPartCount = codec->GetDataPartCount();
-        NErasure::TPartIndexSet missingIndexSet((1 << dataPartCount) - 1);
-        for (auto replica : *StoredReplicas_) {
-            missingIndexSet.reset(replica.GetIndex());
+
+    switch (GetType()) {
+        case EObjectType::Chunk:
+            return !StoredReplicas_->empty();
+
+        case EObjectType::ErasureChunk: {
+            auto* codec = NErasure::GetCodec(GetErasureCodec());
+            int dataPartCount = codec->GetDataPartCount();
+            NErasure::TPartIndexSet missingIndexSet((1 << dataPartCount) - 1);
+            for (auto replica : *StoredReplicas_) {
+                missingIndexSet.reset(replica.GetIndex());
+            }
+            return missingIndexSet.none();
         }
-        return !missingIndexSet.any();
-    } else if (IsJournal()) {
-        if (StoredReplicas_->size() >= GetReadQuorum()) {
-            return true;
-        }
-        for (auto replica : *StoredReplicas_) {
-            if (replica.GetIndex() == SealedChunkReplicaIndex) {
+
+        case EObjectType::JournalChunk:
+            if (StoredReplicas_->size() >= GetReadQuorum()) {
                 return true;
             }
-        }
-        return false;
-    } else {
-        YUNREACHABLE();
+            for (auto replica : *StoredReplicas_) {
+                if (replica.GetIndex() == SealedChunkReplicaIndex) {
+                    return true;
+                }
+            }
+            return false;
+
+        default:
+            YUNREACHABLE();
     }
 }
 
