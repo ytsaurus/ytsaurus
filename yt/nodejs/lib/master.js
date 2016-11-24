@@ -193,6 +193,10 @@ YtClusterHandle.prototype.ageToDeath = function()
         return;
     }
 
+    if (process.env.YT_NO_DEATH) {
+        return;
+    }
+
     this.logger.info("Worker is not responding", {
         worker_wid: this.getWid(),
         worker_pid: this.getPid(),
@@ -205,6 +209,10 @@ YtClusterHandle.prototype.ageToDeath = function()
 YtClusterHandle.prototype.certifyDeath = function()
 {
     if (!this.alive) {
+        return;
+    }
+
+    if (process.env.YT_NO_DEATH) {
         return;
     }
 
