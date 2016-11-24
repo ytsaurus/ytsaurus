@@ -306,7 +306,7 @@ bool TChunk::IsAvailable() const
         }
         return false;
     } else {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 }
 

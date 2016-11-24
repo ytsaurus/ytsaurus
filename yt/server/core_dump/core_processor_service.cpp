@@ -119,7 +119,7 @@ public:
 
 private:
     const TJobId JobId_;
-    const IClientPtr Client_;
+    const INativeClientPtr Client_;
     TAsyncSemaphorePtr AsyncSemaphore_;
     const IInvokerPtr ControlInvoker_;
     const TBlobTableWriterConfigPtr BlobTableWriterConfig_;
