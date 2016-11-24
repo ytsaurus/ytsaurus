@@ -8,6 +8,7 @@ var Q = require("bluebird");
 var YtAccrualFailureDetector = require("./accrual_failure_detector").that;
 var YtError = require("./error").that;
 var YtReservoir = require("./reservoir").that;
+var YtNetworkMeter = require("./network_meter").that;
 var utils = require("./utils");
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,7 +31,7 @@ function YtCoordinatedHost(config, name)
     var liveness = {
         updated_at: new Date(0),
         load_average: 0.0,
-        network_traffic: 0,
+        network_coef: 0,
     };
     var randomness = Math.random();
     var dampening = 0.0;
@@ -128,7 +129,7 @@ function YtCoordinatedHost(config, name)
 
             liveness.updated_at = new Date(value.updated_at);
             liveness.load_average = parseFloat(value.load_average) || 0.0;
-            liveness.network_traffic = parseFloat(value.network_traffic) || 0;
+            liveness.network_coef = parseFloat(value.network_coef) || 0.0;
 
             randomness = Math.random();
             dampening = 0.0;
@@ -182,7 +183,7 @@ function YtCoordinatedHost(config, name)
         get: function() {
             return 0.0 +
                 config.fitness_la_coefficient  * liveness.load_average +
-                config.fitness_net_coefficient * liveness.network_traffic +
+                config.fitness_net_coefficient * liveness.network_coef +
                 config.fitness_phi_coefficient * afd.phiTS() +
                 config.fitness_rnd_coefficient * randomness +
                 config.fitness_dmp_coefficient * dampening;
@@ -229,8 +230,7 @@ function YtCoordinator(config, logger, driver, fqdn, port)
     if (this.config.enable) {
         this.sync_at = new Date(0);
 
-        this.network_bytes = null;
-        this.network_traffic_reservoir = new YtReservoir(this.config.afd_window_size);
+        this.network_meter = new YtNetworkMeter(this.logger, this.config.net_window_size);
 
         this.timer = setInterval(this._refresh.bind(this), this.config.heartbeat_interval);
         if (this.timer && this.timer.unref) { this.timer.unref(); }
@@ -296,33 +296,6 @@ YtCoordinator.prototype._initialize = function()
     .done();
 };
 
-YtCoordinator.prototype._refreshNetworkLoad = function()
-{
-    if (!/^linux/.test(process.platform)) {
-        return Q.resolve(null);
-    }
-    return Q.promisify(fs.readFile)("/proc/net/dev")
-    .then(function(data) {
-        var lines = data.toString().split("\n");
-        var bytes = 0;
-        for (var i = 0; i < lines.length; ++i) {
-            var match = lines[i].match(/^\s*eth\d+:\s*(\d+)/);
-            if (match && match[1]) {
-                bytes += parseFloat(match[1]);
-            }
-        }
-        return bytes;
-    })
-    .catch(function(err) {
-        var error = YtError.ensureWrapped(err);
-        self.logger.error(
-            "An error occured while reading network load information",
-            // TODO(sandello): Embed.
-            { error: error.toJson() });
-        return null;
-    });
-};
-
 YtCoordinator.prototype._refresh = function()
 {
     var self = this;
@@ -340,20 +313,13 @@ YtCoordinator.prototype._refresh = function()
 
         var now = new Date();
 
-        sync = self._refreshNetworkLoad()
-        .then(function(network_bytes) {
-            var network_traffic;
-            if (self.network_bytes !== null) {
-                network_traffic = (network_bytes - self.network_bytes) / 1024.0 / 1024.0;
-            } else {
-                network_traffic = 1.0;
-            }
-            self.network_bytes = network_bytes;
-            self.network_traffic_reservoir.push(network_traffic);
+        sync = self.network_meter.refresh()
+        .then(function() {
             return self.driver.executeSimple("set", { path: path + "/@liveness" }, {
                 updated_at: now.toISOString(),
                 load_average: os.loadavg()[0],
-                network_traffic: self.network_traffic_reservoir.mean,
+                network_load: self.network_meter.load,
+                network_coef: self.network_meter.coef,
             });
         });
     }
