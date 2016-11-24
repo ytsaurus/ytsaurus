@@ -484,10 +484,6 @@ private:
                 EDurability::Sync,
                 EAtomicity::Full);
         }
-        if (options.Sticky && options.Atomicity != EAtomicity::Full) {
-            THROW_ERROR_EXCEPTION("Atomicity must be %Qlv for sticky transactions",
-                EAtomicity::Full);
-        }
     }
 
     static void ValidateAttachOptions(
