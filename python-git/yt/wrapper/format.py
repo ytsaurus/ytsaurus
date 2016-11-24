@@ -556,11 +556,13 @@ class YsonFormat(Format):
         kwargs = {}
         if yson.TYPE == "BINARY":
             kwargs = {"ignore_inner_attributes": self.attributes["ignore_inner_attributes"]}
+        if PY3:
+            kwargs["encoding"] = self._encoding
+
         yson.dump(rows, stream,
                   yson_type="list_fragment",
                   yson_format=self.attributes["format"],
                   boolean_as_string=self.attributes["boolean_as_string"],
-                  encoding=self._encoding,
                   **kwargs)
 
 class YamrFormat(Format):
