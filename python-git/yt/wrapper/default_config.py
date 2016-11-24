@@ -59,7 +59,7 @@ default_config = {
         "default_suffix": ".yt.yandex.net",
 
         "accept_encoding": "gzip, identity",
-        # "gzip" | "identity"
+        # "gzip" | "br" | "identity"
         "content_encoding": "gzip",
 
         # Options for backward compatibility
