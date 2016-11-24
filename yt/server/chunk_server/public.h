@@ -14,6 +14,7 @@
 #include <yt/ytlib/object_client/public.h>
 
 #include <yt/core/misc/public.h>
+#include <yt/core/misc/small_vector.h>
 
 #include <map>
 #include <array>
@@ -63,6 +64,15 @@ class TDataNode;
 
 template <class T>
 class TPtrWithIndex;
+
+template <class T>
+class TPtrWithIndexes;
+
+using TNodePtrWithIndexes = TPtrWithIndexes<NNodeTrackerServer::TNode>;
+using TNodePtrWithIndexesList = SmallVector<TNodePtrWithIndexes, TypicalReplicaCount>;
+
+using TChunkPtrWithIndexes = TPtrWithIndexes<TChunk>;
+using TChunkPtrWithIndex = NChunkServer::TPtrWithIndex<TChunk>;
 
 struct TChunkTreeStatistics;
 struct TTotalNodeStatistics;
@@ -116,7 +126,7 @@ DEFINE_BIT_ENUM(EChunkScanKind,
     ((Seal)             (0x0004))
 );
 
-typedef std::list<std::pair<TChunk*, int>> TChunkRepairQueue; // chunk + medium index
+typedef std::list<TChunkPtrWithIndexes> TChunkRepairQueue;
 typedef TChunkRepairQueue::iterator TChunkRepairQueueIterator;
 
 typedef std::multimap<double, NNodeTrackerServer::TNode*> TFillFactorToNodeMap;

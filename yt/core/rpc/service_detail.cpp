@@ -471,7 +471,7 @@ TServiceBase::TServiceBase(
     , ServiceId_(descriptor.ServiceName, realmId)
     , ProtocolVersion_(descriptor.ProtocolVersion)
 {
-    YCHECK(defaultInvoker);
+    YCHECK(DefaultInvoker_);
 
     ServiceTagId_ = NProfiling::TProfileManager::Get()->RegisterTag("service", ServiceId_.ServiceName);
 

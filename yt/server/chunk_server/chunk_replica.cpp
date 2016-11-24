@@ -32,18 +32,23 @@ Stroka ToString(TNodePtrWithIndexes value)
 Stroka ToString(TChunkPtrWithIndexes value)
 {
     auto* chunk = value.GetPtr();
+    const auto& id = chunk->GetId();
     int replicaIndex = value.GetReplicaIndex();
+    int mediumIndex = value.GetMediumIndex();
     if (chunk->IsJournal()) {
-        return Format("%v/%v",
-            chunk->GetId(),
-            EJournalReplicaType(replicaIndex));
+        return Format("%v/%v@v",
+            id,
+            EJournalReplicaType(replicaIndex),
+            mediumIndex);
     } else if (replicaIndex != GenericChunkReplicaIndex) {
         return Format("%v/%v@%v",
-            chunk->GetId(),
+            id,
             replicaIndex,
-            value.GetMediumIndex());
+            mediumIndex);
     } else {
-        return Format("%v@%v", chunk->GetId(), value.GetMediumIndex());
+        return Format("%v@%v",
+            id,
+            mediumIndex);
     }
 }
 

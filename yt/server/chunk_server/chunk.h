@@ -46,9 +46,9 @@ struct TChunkDynamicData
     //! Indicates for which epoch #ScanFlags are valid.
     NObjectServer::TEpoch ScanEpoch = 0;
 
-    //! Contains a valid iterator for those chunks belonging to the repair queue
+    //! For each medium, contains a valid iterator for those chunks belonging to the repair queue
     //! and |Null| for others.
-    TNullable<TChunkRepairQueueIterator> RepairQueueIterator;
+    std::array<TNullable<TChunkRepairQueueIterator>, MaxMediumCount> RepairQueueIterators;
 
     //! The job that is currently scheduled for this chunk (at most one).
     TJobPtr Job;
@@ -118,8 +118,8 @@ public:
     void ClearScanFlag(EChunkScanKind kind, NObjectServer::TEpoch epoch);
     TChunk* GetNextScannedChunk(EChunkScanKind kind) const;
 
-    const TNullable<TChunkRepairQueueIterator>& GetRepairQueueIterator() const;
-    void SetRepairQueueIterator(const TNullable<TChunkRepairQueueIterator>& value);
+    const TNullable<TChunkRepairQueueIterator>& GetRepairQueueIterator(int mediumIndex) const;
+    void SetRepairQueueIterator(int mediumIndex, const TNullable<TChunkRepairQueueIterator>& value);
 
     bool IsJobScheduled() const;
     TJobPtr GetJob() const;

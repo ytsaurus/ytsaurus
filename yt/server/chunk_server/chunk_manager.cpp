@@ -547,7 +547,7 @@ public:
                     chunkWithIndexes,
                     false,
                     EAddReplicaReason::Confirmation);
-                node->AddUnapprovedReplica({chunkWithIndexes.GetPtr(), chunkWithIndexes.GetReplicaIndex()}, mutationTimestamp);
+                node->AddUnapprovedReplica(chunkWithIndexes, mutationTimestamp);
             }
         }
 
@@ -745,16 +745,14 @@ public:
         auto mediumIndex = chunkWithIndexes.GetMediumIndex();
 
         if (ChunkReplicator_) {
-            ChunkReplicator_->TouchChunk(chunk);
+            ChunkReplicator_->TouchChunk(chunkWithIndexes);
         }
 
         TNodePtrWithIndexesList result;
         auto replicas = chunk->GetReplicas();
         for (auto replica : replicas) {
-            if ((replicaIndex == GenericChunkReplicaIndex ||
-                 replica.GetReplicaIndex() == replicaIndex) &&
-                (mediumIndex == AllMediaIndex ||
-                 replica.GetMediumIndex() == mediumIndex))
+            if ((replicaIndex == GenericChunkReplicaIndex || replica.GetReplicaIndex() == replicaIndex) &&
+                (mediumIndex == AllMediaIndex || replica.GetMediumIndex() == mediumIndex))
             {
                 result.push_back(replica);
             }
@@ -1355,11 +1353,7 @@ private:
             }
             if (reason != ERemoveReplicaReason::None) {
                 // This also removes replica from unapprovedReplicas.
-                RemoveChunkReplica(
-                    node,
-                    {replica.GetPtr(), replica.GetIndex(), DefaultStoreMediumIndex},
-                    false,
-                    reason);
+                RemoveChunkReplica(node, replica, false, reason);
             }
         }
 
@@ -1825,11 +1819,11 @@ private:
             RegisterChunk(chunk);
 
             auto addReplica = [&] (TNodePtrWithIndexes nodePtrWithIndexes, bool cached) {
-                TChunkPtrWithIndexes chunkPtrWithIndexes(
+                TChunkPtrWithIndexes chunkWithIndexes(
                     chunk,
                     nodePtrWithIndexes.GetReplicaIndex(),
                     nodePtrWithIndexes.GetMediumIndex());
-                nodePtrWithIndexes.GetPtr()->AddReplica(chunkPtrWithIndexes, cached);
+                nodePtrWithIndexes.GetPtr()->AddReplica(chunkWithIndexes, cached);
                 ++TotalReplicaCount_;
             };
 
@@ -2189,8 +2183,8 @@ private:
             case ERemoveReplicaReason::ApproveTimeout:
             case ERemoveReplicaReason::ChunkDestroyed:
                 node->RemoveReplica(chunkWithIndexes, cached);
-                if (ChunkReplicator_ && !cached) {
-                    ChunkReplicator_->OnReplicaRemoved(node, chunkWithIndexes, reason);
+                if (ChunkReplicator_ && !cached && reason != ERemoveReplicaReason::ChunkDestroyed) {
+                    ChunkReplicator_->OnReplicaRemoved(node, chunkWithIndexes);
                 }
                 break;
             case ERemoveReplicaReason::NodeDisposed:
@@ -2282,17 +2276,16 @@ private:
         }
 
         auto indexes = GetAddedChunkIndexes(chunk, chunkAddInfo, chunkIdWithIndexes);
-        TChunkPtrWithIndex chunkWithIndex(chunk, indexes.first);
         TChunkPtrWithIndexes chunkWithIndexes(chunk, indexes.first, indexes.second);
         TNodePtrWithIndexes nodeWithIndexes(node, indexes.first, indexes.second);
 
-        if (!cached && node->HasUnapprovedReplica(chunkWithIndex)) {
+        if (!cached && node->HasUnapprovedReplica(chunkWithIndexes)) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Chunk approved (NodeId: %v, Address: %v, ChunkId: %v)",
                 nodeId,
                 node->GetDefaultAddress(),
                 chunkWithIndexes);
 
-            node->ApproveReplica(chunkWithIndex);
+            node->ApproveReplica(chunkWithIndexes);
             chunk->ApproveReplica(nodeWithIndexes);
             return;
         }

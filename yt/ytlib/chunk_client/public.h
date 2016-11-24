@@ -79,7 +79,6 @@ const int MaxInputChunkReplicaCount = 16;
 
 class TChunkReplica;
 using TChunkReplicaList = SmallVector<TChunkReplica, TypicalReplicaCount>;
-using TNodeIdList = SmallVector<NNodeTrackerClient::TNodeId, TypicalReplicaCount>;
 
 //! Represents an offset inside a chunk.
 using TBlockOffset = i64;
@@ -99,6 +98,30 @@ DEFINE_ENUM(EChunkType,
     ((Table)   (2))
     ((Journal) (3))
 );
+
+const int GenericChunkReplicaIndex = 16;  // no specific replica; the default one for regular chunks
+
+// Journal chunks only:
+const int ActiveChunkReplicaIndex   = 0; // the replica is currently being written
+const int UnsealedChunkReplicaIndex = 1; // the replica is finished but not sealed yet
+const int SealedChunkReplicaIndex   = 2; // the replica is finished and sealed
+
+//! Valid indexes are in range |[0, ChunkReplicaIndexBound)|.
+const int ChunkReplicaIndexBound = 32;
+
+//! For pretty-printing only.
+DEFINE_ENUM(EJournalReplicaType,
+    ((Generic)   (GenericChunkReplicaIndex))
+    ((Active)    (ActiveChunkReplicaIndex))
+    ((Unsealed)  (UnsealedChunkReplicaIndex))
+    ((Sealed)    (SealedChunkReplicaIndex))
+);
+
+const int AllMediaIndex = MaxMediumCount; // passed to various APIs to indicate that any medium is OK
+const int InvalidMediumIndex = -1;
+
+//! Valid indexes are in range |[0, MediumIndexBound)|.
+const int MediumIndexBound = MaxMediumCount + 1;
 
 DEFINE_ENUM(EErrorCode,
     ((AllTargetNodesFailed)     (700))

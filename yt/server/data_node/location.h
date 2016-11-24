@@ -147,7 +147,7 @@ public:
     //! Removes a chunk permanently or moves it to the trash (if available).
     virtual void RemoveChunkFiles(const TChunkId& chunkId, bool force);
 
-    Stroka GetMediumName() const;
+    const Stroka& GetMediumName() const;
 
     int GetMediumIndex() const;
     void SetMediumIndex(int mediumIndex);
@@ -191,7 +191,7 @@ private:
     //! Indexed by |(ioDirection, ioCategory)|.
     std::vector<NProfiling::TSimpleCounter> PendingIOSizeCounters_;
 
-    TNullable<int> MediumIndex_;
+    int MediumIndex_ = NChunkClient::InvalidMediumIndex;
 
     static EIOCategory ToIOCategory(const TWorkloadDescriptor& workloadDescriptor);
     NProfiling::TSimpleCounter& GetPendingIOSizeCounter(
