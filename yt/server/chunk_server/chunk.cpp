@@ -286,7 +286,7 @@ bool TChunk::IsAvailable() const
         return false;
     }
     if (IsRegular()) {
-        return StoredReplicas_->empty();
+        return !StoredReplicas_->empty();
     } else if (IsErasure()) {
         auto* codec = NErasure::GetCodec(GetErasureCodec());
         int dataPartCount = codec->GetDataPartCount();
@@ -294,7 +294,7 @@ bool TChunk::IsAvailable() const
         for (auto replica : *StoredReplicas_) {
             missingIndexSet.reset(replica.GetReplicaIndex());
         }
-        return !missingIndexSet.any();
+        return missingIndexSet.none();
     } else if (IsJournal()) {
         if (StoredReplicas_->size() >= GetReadQuorum()) {
             return true;
@@ -306,7 +306,7 @@ bool TChunk::IsAvailable() const
         }
         return false;
     } else {
-        Y_UNREACHABLE();
+        YUNREACHABLE();
     }
 }
 
