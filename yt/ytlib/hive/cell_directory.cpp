@@ -265,7 +265,7 @@ public:
             }
         }
         if (result) {
-            LOG_INFO("Cell reconfigured (CellId: %v, ConfigVersion: %v)",
+            LOG_DEBUG("Cell reconfigured (CellId: %v, ConfigVersion: %v)",
                 descriptor.CellId,
                 descriptor.ConfigVersion);
         }
