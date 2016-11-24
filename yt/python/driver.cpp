@@ -117,6 +117,8 @@ public:
         }
 
         DriverInstance_ = CreateDriver(config);
+
+        RegisteredDriverInstances.push_back(DriverInstance_);
     }
 
     virtual ~TDriver()
@@ -315,9 +317,12 @@ public:
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, ClearMetadataCaches)
 
+    static std::vector<IDriverPtr> RegisteredDriverInstances;
 private:
     IDriverPtr DriverInstance_;
 };
+
+std::vector<IDriverPtr> TDriver::RegisteredDriverInstances = {};
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -331,7 +336,11 @@ public:
     {
         PyEval_InitThreads();
 
-        RegisterShutdown();
+        RegisterShutdown(BIND([=] () {
+            for (auto driver : TDriver::RegisteredDriverInstances) {
+                driver->Terminate();
+            }
+        }));
         //InstallCrashSignalHandler(std::set<int>({SIGSEGV}));
 
         TDriver::InitType();

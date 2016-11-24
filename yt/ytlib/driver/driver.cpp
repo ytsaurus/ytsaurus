@@ -237,6 +237,17 @@ public:
         return Connection_;
     }
 
+    virtual void Terminate() override
+    {
+        // TODO(ignat): find and eliminate reference loop.
+        // Reset of the connection should be sufficient to release this connection.
+        // But there is some reference loop and it does not work.
+
+        // Release the connection with entire thread pools.
+        Connection_->Terminate();
+        Connection_.Reset();
+    }
+
 private:
     class TCommandContext;
     typedef TIntrusivePtr<TCommandContext> TCommandContextPtr;
