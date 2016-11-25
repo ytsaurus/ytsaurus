@@ -430,8 +430,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
                 sort_by="key",
                 spec={"schema_inference_mode" : "from_output"})
 
-    #TODO(savrus) add optimize_for=scan
-    @pytest.mark.parametrize("optimize_for", ["lookup"])
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     @pytest.mark.parametrize("sort_order", [None, "ascending"])
     def test_sort_on_dynamic_table(self, sort_order, optimize_for):
         schema= [

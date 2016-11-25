@@ -3553,7 +3553,12 @@ void TOperationControllerBase::GetOutputTablesSchema()
                 attributes->Get<TTableSchema>("schema"),
                 attributes->Get<ETableSchemaMode>("schema_mode"),
                 0); // Here we assume zero row count, we will do additional check later.
-            table->Options->EvaluateComputedColumns = table->TableUploadOptions.TableSchema.HasComputedColumns();
+
+            LOG_DEBUG("Received output table schema (Path: %v, Schema: %v, SchemaMode: %v, LockMode: %v)",
+                path,
+                table->TableUploadOptions.TableSchema,
+                table->TableUploadOptions.SchemaMode,
+                table->TableUploadOptions.LockMode);
         }
 
         if (StderrTable) {
@@ -3679,6 +3684,7 @@ void TOperationControllerBase::BeginUploadOutputTables()
                 table->Options->Account = attributes->Get<Stroka>("account");
                 table->Options->ChunksVital = attributes->Get<bool>("vital");
                 table->Options->OptimizeFor = attributes->Get<EOptimizeFor>("optimize_for", EOptimizeFor::Lookup);
+                table->Options->EvaluateComputedColumns = table->TableUploadOptions.TableSchema.HasComputedColumns();
 
                 // Workaround for YT-5827.
                 if (table->TableUploadOptions.TableSchema.Columns().empty() &&
@@ -4243,10 +4249,11 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersione
     std::vector<TInputDataSlicePtr> result;
     for (const auto& fetcher : fetchers) {
         for (auto& dataSlice : fetcher->GetDataSlices()) {
-            LOG_TRACE("Added dynamic table slice (TablePath: %v, Range: %v..%v)",
+            LOG_INFO("Added dynamic table slice (TablePath: %v, Range: %v..%v, ChunkIds: %v)",
                 InputTables[dataSlice->GetTableIndex()].Path.GetPath(),
                 dataSlice->LowerLimit(),
-                dataSlice->UpperLimit());
+                dataSlice->UpperLimit(),
+                dataSlice->ChunkSlices);
             result.emplace_back(std::move(dataSlice));
         }
     }
