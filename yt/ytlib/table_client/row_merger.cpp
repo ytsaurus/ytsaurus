@@ -214,11 +214,11 @@ TUnversionedRowMerger::TUnversionedRowMerger(
     TRowBufferPtr rowBuffer,
     int columnCount,
     int keyColumnCount,
-    TColumnEvaluatorPtr columnEvauator)
+    TColumnEvaluatorPtr columnEvaluator)
     : RowBuffer_(rowBuffer)
     , ColumnCount_(columnCount)
     , KeyColumnCount_(keyColumnCount)
-    , ColumnEvaluator_(std::move(columnEvauator))
+    , ColumnEvaluator_(std::move(columnEvaluator))
 {
     ValidValues_.resize(ColumnCount_);
 
@@ -350,13 +350,13 @@ TVersionedRowMerger::TVersionedRowMerger(
     TRetentionConfigPtr config,
     TTimestamp currentTimestamp,
     TTimestamp majorTimestamp,
-    TColumnEvaluatorPtr columnEvauator)
+    TColumnEvaluatorPtr columnEvaluator)
     : RowBuffer_(rowBuffer)
     , KeyColumnCount_(keyColumnCount)
     , Config_(std::move(config))
     , CurrentTimestamp_(currentTimestamp)
     , MajorTimestamp_(majorTimestamp)
-    , ColumnEvaluator_(std::move(columnEvauator))
+    , ColumnEvaluator_(std::move(columnEvaluator))
     , Keys_(KeyColumnCount_)
 {
     Cleanup();
@@ -610,6 +610,54 @@ void TVersionedRowMerger::Cleanup()
     DeleteTimestamps_.clear();
 
     Started_ = false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSamplingRowMerger::TSamplingRowMerger(
+    TRowBufferPtr rowBuffer,
+    const TTableSchema& schema)
+    : RowBuffer_(std::move(rowBuffer))
+    , Schema_(schema)
+    , LatestTimestamps_(schema.GetColumnCount(), NullTimestamp)
+{ }
+
+TUnversionedRow TSamplingRowMerger::MergeRow(TVersionedRow row)
+{
+    auto mergedRow = RowBuffer_->Allocate(Schema_.GetColumnCount());
+
+    YCHECK(row.GetKeyCount() == Schema_.GetKeyColumnCount());
+    for (int index = 0; index < row.GetKeyCount(); ++index) {
+        mergedRow[index] = row.BeginKeys()[index];
+    }
+
+    for (int index = row.GetKeyCount(); index < Schema_.GetColumnCount(); ++index) {
+        mergedRow[index] = MakeUnversionedSentinelValue(EValueType::Null, index);
+    }
+
+    auto deleteTimestamp = row.GetDeleteTimestampCount() > 0
+        ? row.BeginDeleteTimestamps()[0]
+        : NullTimestamp;
+
+    for (int index = 0; index < row.GetValueCount(); ++index) {
+        const auto& value = row.BeginValues()[index];
+        if (value.Timestamp < deleteTimestamp || value.Timestamp < LatestTimestamps_[value.Id]) {
+            continue;
+        }
+
+        mergedRow[value.Id] = value;
+        LatestTimestamps_[value.Id] = value.Timestamp;
+    }
+
+    return mergedRow;
+}
+
+void TSamplingRowMerger::Reset()
+{
+    RowBuffer_->Clear();
+    for (auto& timestamp : LatestTimestamps_) {
+        timestamp = NullTimestamp;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

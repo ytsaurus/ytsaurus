@@ -368,6 +368,7 @@ private:
 
         auto samplesFetcher = New<TSamplesFetcher>(
             Config_->SamplesFetcher,
+            ESamplingPolicy::Partitioning,
             maxSampleCount,
             tablet->PhysicalSchema().GetKeyColumns(),
             NTableClient::MaxSampleSize,

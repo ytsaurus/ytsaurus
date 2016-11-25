@@ -5,6 +5,11 @@
 #include "unversioned_row.h"
 #include "versioned_block_writer.h"
 #include "versioned_writer.h"
+#include "row_merger.h"
+#include "row_buffer.h"
+
+#include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/native_connection.h>
 
 #include <yt/ytlib/table_chunk_format/column_writer.h>
 #include <yt/ytlib/table_chunk_format/data_block_writer.h>
@@ -62,6 +67,9 @@ public:
     , MaxTimestamp_(MinTimestamp)
     , RandomGenerator_(RandomNumber<ui64>())
     , SamplingThreshold_(static_cast<ui64>(std::numeric_limits<ui64>::max() * Config_->SampleRate))
+    , SamplingRowMerger_(New<TSamplingRowMerger>(
+        New<TRowBuffer>(TVersionedChunkWriterBaseTag()),
+        schema))
 #if 0
     , KeyFilter_(Config_->MaxKeyFilterSize, Config_->KeyFilterFalsePositiveRate)
 #endif
@@ -85,6 +93,8 @@ public:
     virtual bool Write(const std::vector<TVersionedRow>& rows) override
     {
         YCHECK(rows.size() > 0);
+
+        SamplingRowMerger_->Reset();
 
         if (RowCount_ == 0) {
             ToProto(
@@ -163,6 +173,9 @@ protected:
     TRandomGenerator RandomGenerator_;
     const ui64 SamplingThreshold_;
 
+    struct TVersionedChunkWriterBaseTag { };
+    TSamplingRowMergerPtr SamplingRowMerger_;
+
 #if 0
     TBloomFilterBuilder KeyFilter_;
 #endif
@@ -179,9 +192,9 @@ protected:
 
     void EmitSample(TVersionedRow row)
     {
-        auto entry = SerializeToString(row.BeginKeys(), row.EndKeys());
-        SamplesExt_.add_entries(entry);
-        SamplesExtSize_ += entry.length();
+        auto mergedRow = SamplingRowMerger_->MergeRow(row);
+        ToProto(SamplesExt_.add_entries(), mergedRow);
+        SamplesExtSize_ += SamplesExt_.entries(SamplesExt_.entries_size() - 1).length();
     }
 
     void ValidateRow(

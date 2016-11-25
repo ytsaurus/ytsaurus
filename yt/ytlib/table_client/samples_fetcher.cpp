@@ -49,6 +49,7 @@ bool operator<(const TSample& lhs, const TSample& rhs)
 
 TSamplesFetcher::TSamplesFetcher(
     TFetcherConfigPtr config,
+    ESamplingPolicy samplingPolicy,
     int desiredSampleCount,
     const TKeyColumns& keyColumns,
     i64 maxSampleSize,
@@ -66,6 +67,7 @@ TSamplesFetcher::TSamplesFetcher(
         scraperCallback,
         client,
         logger)
+    , SamplingPolicy_(samplingPolicy)
     , KeyColumns_(keyColumns)
     , DesiredSampleCount_(desiredSampleCount)
     , MaxSampleSize_(maxSampleSize)
@@ -116,6 +118,7 @@ TFuture<void> TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector
     req->SetHeavy(true);
     ToProto(req->mutable_key_columns(), KeyColumns_);
     req->set_max_sample_size(MaxSampleSize_);
+    req->set_sampling_policy(static_cast<int>(SamplingPolicy_));
     // TODO(babenko): make configurable
     ToProto(req->mutable_workload_descriptor(), TWorkloadDescriptor(EWorkloadCategory::UserBatch));
 
