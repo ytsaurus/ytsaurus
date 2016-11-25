@@ -640,7 +640,7 @@ TUnversionedRow TSamplingRowMerger::MergeRow(TVersionedRow row)
         mergedRow[index] = row.BeginKeys()[index];
     }
 
-    for (int index = row.GetKeyCount(); index < Schema_.GetColumnCount(); ++index) {
+    for (int index = row.GetKeyCount(); index < ColumnCount_; ++index) {
         mergedRow[index] = MakeUnversionedSentinelValue(EValueType::Null, index);
     }
 
