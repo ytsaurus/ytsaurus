@@ -96,6 +96,7 @@ describe("input stream interface", function() {
     it("should be able to read whole input at-a-time", function() {
         this.stream.Push(new Buffer("foo"), 0, 3);
         this.stream.Push(new Buffer("bar"), 0, 3);
+        this.stream.End();
 
         GC();
 
@@ -106,6 +107,7 @@ describe("input stream interface", function() {
     it("should be able to return if there is any data", function() {
         this.stream.Push(new Buffer("foo"), 0, 3);
         this.stream.Push(new Buffer("bar"), 0, 3);
+        this.stream.End();
 
         GC();
 
