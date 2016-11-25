@@ -564,6 +564,8 @@ TStoreLocation::TStoreLocation(
         BIND(&TStoreLocation::OnCheckTrash, MakeWeak(this)),
         TrashCheckPeriod,
         EPeriodicExecutorMode::Automatic))
+    , RepairInThrottler_(CreateReconfigurableThroughputThrottler(config->RepairInThrottler))
+    , ReplicationInThrottler_(CreateReconfigurableThroughputThrottler(config->ReplicationInThrottler))
 { }
 
 TJournalManagerPtr TStoreLocation::GetJournalManager()
@@ -606,6 +608,20 @@ bool TStoreLocation::IsChunkTypeAccepted(EObjectType chunkType)
 
         default:
             YUNREACHABLE();
+    }
+}
+
+IThroughputThrottlerPtr TStoreLocation::GetInThrottler(const TWorkloadDescriptor& descriptor) const
+{
+   switch (descriptor.Category) {
+        case EWorkloadCategory::SystemRepair:
+            return RepairInThrottler_;
+
+        case EWorkloadCategory::SystemReplication:
+            return ReplicationInThrottler_;
+
+        default:
+            return GetUnlimitedThrottler();
     }
 }
 
@@ -981,7 +997,13 @@ TCacheLocation::TCacheLocation(
         config,
         bootstrap)
     , Config_(config)
+    , InThrottler_(CreateReconfigurableThroughputThrottler(config->InThrottler))
 { }
+
+IThroughputThrottlerPtr TCacheLocation::GetInThrottler() const
+{
+    return InThrottler_;
+}
 
 TNullable<TChunkDescriptor> TCacheLocation::Repair(
     const TChunkId& chunkId,

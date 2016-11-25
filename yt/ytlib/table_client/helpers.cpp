@@ -70,7 +70,8 @@ void PipeReaderToWriter(
     ISchemalessReaderPtr reader,
     ISchemalessWriterPtr writer,
     int bufferRowCount,
-    bool validateValues)
+    bool validateValues,
+    NConcurrency::IThroughputThrottlerPtr throttler)
 {
     std::vector<TUnversionedRow> rows;
     rows.reserve(bufferRowCount);
@@ -83,11 +84,20 @@ void PipeReaderToWriter(
         }
 
         if (validateValues) {
-            for (const auto& row : rows) {
+            for (const auto row : rows) {
                 for (const auto& value : row) {
                     ValidateStaticValue(value);
                 }
             }
+        }
+
+        if (throttler) {
+            i64 dataWeight = 0;
+            for (const auto row : rows) {
+                dataWeight += GetDataWeight(row);
+            }
+            WaitFor(throttler->Throttle(dataWeight))
+                .ThrowOnError();
         }
 
         if (!writer->Write(rows)) {

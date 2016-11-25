@@ -352,7 +352,7 @@ private:
     const TDataNodeConfigPtr Config_;
     TBootstrap* const Bootstrap_;
 
-    std::vector<TLocationPtr> Locations_;
+    std::vector<TCacheLocationPtr> Locations_;
 
     DEFINE_SIGNAL(void(IChunkPtr), ChunkAdded);
     DEFINE_SIGNAL(void(IChunkPtr), ChunkRemoved);
@@ -361,7 +361,7 @@ private:
 
 
     void OnChunkCreated(
-        TLocationPtr location,
+        TCacheLocationPtr location,
         const TChunkDescriptor& descriptor)
     {
         Bootstrap_->GetControlInvoker()->Invoke(BIND([=] () {
@@ -371,11 +371,11 @@ private:
     }
 
     void OnChunkDestroyed(
-        TLocationPtr location,
+        TCacheLocationPtr location,
         const TChunkDescriptor& descriptor)
     {
         location->GetWritePoolInvoker()->Invoke(BIND(
-            &TLocation::RemoveChunkFilesPermanently,
+            &TCacheLocation::RemoveChunkFilesPermanently,
             location,
             descriptor.Id));
 
@@ -386,7 +386,7 @@ private:
     }
 
     TCachedBlobChunkPtr CreateChunk(
-        TLocationPtr location,
+        TCacheLocationPtr location,
         const TArtifactKey& key,
         const TChunkDescriptor& descriptor,
         const NChunkClient::NProto::TChunkMeta* meta = nullptr)
@@ -404,7 +404,7 @@ private:
     }
 
     void RegisterChunk(
-        TLocationPtr location,
+        TCacheLocationPtr location,
         const TChunkDescriptor& descriptor)
     {
         const auto& chunkId = descriptor.Id;
@@ -455,9 +455,9 @@ private:
         ChunkRemoved_.Fire(chunk);
     }
 
-    TLocationPtr FindNewChunkLocation() const
+    TCacheLocationPtr FindNewChunkLocation() const
     {
-        std::vector<TLocationPtr> candidates;
+        std::vector<TCacheLocationPtr> candidates;
         for (const auto& location : Locations_) {
             if (location->IsEnabled()) {
                 candidates.push_back(location);
@@ -471,7 +471,7 @@ private:
         return *std::min_element(
             candidates.begin(),
             candidates.end(),
-            [] (const TLocationPtr& lhs, const TLocationPtr& rhs) -> bool {
+            [] (const TCacheLocationPtr& lhs, const TCacheLocationPtr& rhs) -> bool {
                 if (lhs->GetSessionCount() < rhs->GetSessionCount()) {
                     return true;
                 }
@@ -527,7 +527,7 @@ private:
 
     void DownloadChunk(
         const TArtifactKey& key,
-        TLocationPtr location,
+        TCacheLocationPtr location,
         const TChunkId& chunkId,
         TNodeDirectoryPtr nodeDirectory,
         TInsertCookie cookie)
@@ -603,6 +603,9 @@ private:
                     WaitFor(chunkWriter->GetReadyEvent())
                         .ThrowOnError();
                 }
+
+                WaitFor(location->GetInThrottler()->Throttle(block.Size()))
+                    .ThrowOnError();
             }
 
             LOG_DEBUG("Closing chunk");
@@ -630,7 +633,7 @@ private:
 
     void DownloadFile(
         const TArtifactKey& key,
-        TLocationPtr location,
+        TCacheLocationPtr location,
         const TChunkId& chunkId,
         TNodeDirectoryPtr nodeDirectory,
         TInsertCookie cookie)
@@ -661,6 +664,8 @@ private:
                             .ThrowOnError();
                     } else {
                         output->Write(block.Begin(), block.Size());
+                        WaitFor(location->GetInThrottler()->Throttle(block.Size()))
+                            .ThrowOnError();
                     }
                 }
             };
@@ -681,7 +686,7 @@ private:
 
     void DownloadTable(
         const TArtifactKey& key,
-        TLocationPtr location,
+        TCacheLocationPtr location,
         const TChunkId& chunkId,
         TNodeDirectoryPtr nodeDirectory,
         TInsertCookie cookie)
@@ -708,7 +713,6 @@ private:
             Null,
             Bootstrap_->GetArtifactCacheInThrottler());
 
-
         try {
             auto format = ConvertTo<NFormats::TFormat>(TYsonString(key.format()));
 
@@ -722,7 +726,12 @@ private:
                     false, /* enableContextSaving */
                     New<TControlAttributesConfig>(),
                     0);
-                PipeReaderToWriter(reader, writer, TableArtifactBufferRowCount);
+                PipeReaderToWriter(
+                    reader, 
+                    writer, 
+                    TableArtifactBufferRowCount, 
+                    false, 
+                    location->GetInThrottler());
             };
 
             auto chunk = ProduceArtifactFile(key, location, chunkId, producer);
@@ -740,7 +749,7 @@ private:
 
     TCachedBlobChunkPtr ProduceArtifactFile(
         const TArtifactKey& key,
-        TLocationPtr location,
+        TCacheLocationPtr location,
         const TChunkId& chunkId,
         std::function<void(TOutputStream*)> producer)
     {
@@ -791,7 +800,7 @@ private:
         return CreateChunk(location, key, descriptor);
     }
 
-    TNullable<TArtifactKey> TryParseArtifactMeta(TLocationPtr location, const TChunkId& chunkId)
+    TNullable<TArtifactKey> TryParseArtifactMeta(TCacheLocationPtr location, const TChunkId& chunkId)
     {
         if (!IsArtifactChunkId(chunkId)) {
             return TArtifactKey(chunkId);
