@@ -116,9 +116,11 @@ void TChunkPlacement::OnNodeRegistered(TNode* node)
         node->GetLocalState() != ENodeState::Online)
         return;
 
-    InsertToLoadFactorMap(node);
+    if (IsValidWriteTarget(node)) {
+        InsertToLoadFactorMap(node);
+    }
 
-    if (node->GetSessionCount(ESessionType::Replication) < Config_->MaxReplicationWriteSessions) {
+    if (IsValidBalancingTarget(node)) {
         InsertToFillFactorMap(node);
     }
 }
@@ -184,7 +186,7 @@ void TChunkPlacement::InsertToFillFactorMap(TNode* node)
     RemoveFromFillFactorMap(node);
 
     double fillFactor = node->GetFillFactor();
-    auto it = FillFactorToNode_.insert(std::make_pair(fillFactor, node));
+    auto it = FillFactorToNode_.emplace(fillFactor, node);
     node->SetFillFactorIterator(it);
 }
 
@@ -201,7 +203,7 @@ void TChunkPlacement::InsertToLoadFactorMap(TNode* node)
     RemoveFromLoadFactorMap(node);
 
     double loadFactor = node->GetLoadFactor();
-    auto it = LoadFactorToNode_.insert(std::make_pair(loadFactor, node));
+    auto it = LoadFactorToNode_.emplace(loadFactor, node);
     node->SetLoadFactorIterator(it);
 }
 
@@ -366,11 +368,7 @@ TNode* TChunkPlacement::GetBalancingTarget(
     return nullptr;
 }
 
-bool TChunkPlacement::IsValidWriteTarget(
-    TNode* node,
-    EObjectType chunkType,
-    TTargetCollector* collector,
-    bool enableRackAwareness)
+bool TChunkPlacement::IsValidWriteTarget(TNode* node)
 {
     if (node->GetLocalState() != ENodeState::Online) {
         // Do not write anything to a node before its first heartbeat or after it is unregistered.
@@ -379,11 +377,6 @@ bool TChunkPlacement::IsValidWriteTarget(
 
     if (node->IsFull()) {
         // Do not write anything to full nodes.
-        return false;
-    }
-
-    if (!IsAcceptedChunkType(node, chunkType)) {
-        // Do not write anything to nodes not accepting this type of chunks.
         return false;
     }
 
@@ -397,8 +390,44 @@ bool TChunkPlacement::IsValidWriteTarget(
         return false;
     }
 
+    // Seems OK :)
+    return true;
+}
+
+bool TChunkPlacement::IsValidWriteTarget(
+    TNode* node,
+    EObjectType chunkType,
+    TTargetCollector* collector,
+    bool enableRackAwareness)
+{
+    // Check node first.
+    if (!IsValidWriteTarget(node)) {
+        return false;
+    }
+
+    if (!IsAcceptedChunkType(node, chunkType)) {
+        // Do not write anything to nodes not accepting this type of chunks.
+        return false;
+    }
+
     if (!collector->CheckNode(node, enableRackAwareness)) {
         // The collector does not like this node.
+        return false;
+    }
+
+    // Seems OK :)
+    return true;
+}
+
+bool TChunkPlacement::IsValidBalancingTarget(TNode* node)
+{
+    // Balancing implies write, after all.
+    if (!IsValidWriteTarget(node)) {
+        return false;
+    }
+
+    if (node->GetSessionCount(ESessionType::Replication) >= Config_->MaxReplicationWriteSessions) {
+        // Do not write anything to a node with too many write sessions.
         return false;
     }
 
