@@ -159,6 +159,36 @@ class YsonParserTestBase(object):
             assert self.loads(u"1") == 1
             assert self.load(StringIO(u"abcdef")) == u"abcdef"
 
+    def test_always_create_attributes(self):
+        obj = self.loads(b"{a=[b;1]}")
+        assert isinstance(obj, YsonMap)
+        assert isinstance(obj["a"], YsonList)
+        if PY3:
+            assert isinstance(obj["a"][0], YsonUnicode)
+        else:
+            assert isinstance(obj["a"][0], YsonString)
+        assert isinstance(obj["a"][1], YsonInt64)
+
+        obj = self.loads(b"{a=[b;1]}", always_create_attributes=False)
+        assert not isinstance(obj, YsonMap)
+        assert not isinstance(obj["a"], YsonList)
+        assert not isinstance(obj["a"][0], (YsonUnicode, YsonString))
+        assert not isinstance(obj["a"][1], YsonInt64)
+        assert isinstance(obj, dict)
+        assert isinstance(obj["a"], list)
+        assert isinstance(obj["a"][0], str)
+        if not PY3:
+            assert isinstance(obj["a"][1], long)
+        else:
+            assert isinstance(obj["a"][1], int)
+
+        obj = self.loads(b"{a=[b;<attr=#>1]}", always_create_attributes=False)
+        assert not isinstance(obj, YsonMap)
+        assert not isinstance(obj["a"], YsonList)
+        assert not isinstance(obj["a"][0], (YsonUnicode, YsonString))
+        assert isinstance(obj["a"][1], YsonInt64)
+        assert obj["a"][1].attributes["attr"] is None
+
 
 class TestParserDefault(YsonParserTestBase):
     @staticmethod
@@ -204,33 +234,3 @@ if yt_yson_bindings:
                 self.loads(b"{a=b")
             with pytest.raises(Exception):
                 self.loads(b"{a=b}{c=d}")
-
-        def test_always_create_attributes(self):
-            obj = self.loads(b"{a=[b;1]}")
-            assert isinstance(obj, YsonMap)
-            assert isinstance(obj["a"], YsonList)
-            if PY3:
-                assert isinstance(obj["a"][0], YsonUnicode)
-            else:
-                assert isinstance(obj["a"][0], YsonString)
-            assert isinstance(obj["a"][1], YsonInt64)
-
-            obj = self.loads(b"{a=[b;1]}", always_create_attributes=False)
-            assert not isinstance(obj, YsonMap)
-            assert not isinstance(obj["a"], YsonList)
-            assert not isinstance(obj["a"][0], (YsonUnicode, YsonString))
-            assert not isinstance(obj["a"][1], YsonInt64)
-            assert isinstance(obj, dict)
-            assert isinstance(obj["a"], list)
-            assert isinstance(obj["a"][0], str)
-            if not PY3:
-                assert isinstance(obj["a"][1], long)
-            else:
-                assert isinstance(obj["a"][1], int)
-
-            obj = self.loads(b"{a=[b;<attr=#>1]}", always_create_attributes=False)
-            assert not isinstance(obj, YsonMap)
-            assert not isinstance(obj["a"], YsonList)
-            assert not isinstance(obj["a"][0], (YsonUnicode, YsonString))
-            assert isinstance(obj["a"][1], YsonInt64)
-            assert obj["a"][1].attributes["attr"] is None

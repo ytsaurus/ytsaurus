@@ -48,13 +48,14 @@ def _zig_zag_decode(value):
     return (value >> 1) ^ -(value & 1)
 
 class YsonParserBase(object):
-    def __init__(self, stream, encoding):
+    def __init__(self, stream, encoding, always_create_attributes):
         self._line_index = 1
         self._position = 1
         self._offset = 0
         self._stream = stream
         self._lookahead = None
         self._encoding = encoding
+        self._always_create_attributes = always_create_attributes
 
     def _get_position_info(self):
         return self._line_index, self._position, self._offset
@@ -147,7 +148,7 @@ class YsonParserBase(object):
             count += 1
             read_next = byte & 0x80 != 0
 
-        return result
+        return yson_types._YsonIntegerBase(result)
 
     def _read_quoted_string(self):
         self._expect_char(b'"')
@@ -256,7 +257,7 @@ class YsonParserBase(object):
                 "Unexpected character %s in Yson" % ch,
                 self._get_position_info())
 
-        return convert.to_yson_type(result, attributes)
+        return convert.to_yson_type(result, attributes, self._always_create_attributes)
 
     def _parse_list(self):
         self._expect_char(b'[')
@@ -343,7 +344,7 @@ class YsonParserBase(object):
         numeric_type = _get_numeric_type(string)
         if numeric_type == _SEEMS_INT64:
             try:
-                result = int(string)
+                result = yson_types._YsonIntegerBase(string)
                 if result > 2 ** 63 - 1 or result < -(2 ** 63):
                     raise ValueError()
             except ValueError:
@@ -404,12 +405,12 @@ class YsonParserBase(object):
         return result
 
 class YsonParser(YsonParserBase):
-    def __init__(self, stream, encoding):
+    def __init__(self, stream, encoding, always_create_attributes):
         # COMPAT: Before porting YSON to Python 3 it supported parsing from
         # unicode strings.
         if _is_text_reader(stream) and PY3:
             raise RuntimeError("Only binary streams are supported by YSON parser")
-        super(YsonParser, self).__init__(stream, encoding)
+        super(YsonParser, self).__init__(stream, encoding, always_create_attributes)
 
     def parse(self):
         result = self._parse_any()
@@ -463,7 +464,7 @@ class StreamWrap(object):
             return b""
 
 
-def load(stream, yson_type=None, encoding=_ENCODING_SENTINEL):
+def load(stream, yson_type=None, encoding=_ENCODING_SENTINEL, always_create_attributes=True):
     """Deserialize `object` from YSON formatted stream `stream`.
 
     :param yson_type: (string) type of YSON ("node", "list_fragment" or "map_fragment").
@@ -479,10 +480,11 @@ def load(stream, yson_type=None, encoding=_ENCODING_SENTINEL):
     if yson_type == "map_fragment":
         stream = StreamWrap(stream, b"{", b"}")
 
-    parser = YsonParser(stream, encoding)
+    parser = YsonParser(stream, encoding, always_create_attributes)
     return parser.parse()
 
-def loads(string, yson_type=None, encoding=_ENCODING_SENTINEL):
+def loads(string, yson_type=None, encoding=_ENCODING_SENTINEL, always_create_attributes=True):
     """Deserialize `object` from YSON formatted string `string`. See `load`.
     """
-    return load(BytesIO(string), yson_type, encoding=encoding)
+    return load(BytesIO(string), yson_type, encoding=encoding,
+                always_create_attributes=always_create_attributes)

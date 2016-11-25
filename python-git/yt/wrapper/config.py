@@ -144,7 +144,8 @@ class Config(types.ModuleType, client_state.ClientState):
         if "YT_CONFIG_PATCHES" in os.environ:
             try:
                 patches = self.yson_module._loads_from_native_str(os.environ["YT_CONFIG_PATCHES"],
-                                                                  yson_type="list_fragment")
+                                                                  yson_type="list_fragment",
+                                                                  always_create_attributes=False)
             except self.yson_module.YsonError:
                 print("Failed to parse YT config patches from 'YT_CONFIG_PATCHES' environment variable", file=sys.stderr)
                 raise

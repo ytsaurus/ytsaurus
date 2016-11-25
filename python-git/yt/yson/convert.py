@@ -4,8 +4,13 @@ from .common import YsonError
 from yt.packages.six import text_type, binary_type, integer_types, iteritems, PY3
 from yt.packages.six.moves import map as imap
 
-def to_yson_type(value, attributes=None):
+def to_yson_type(value, attributes=None, always_create_attributes=True):
     """ Wrap value with YSON type """
+    if not always_create_attributes and attributes is None:
+        if isinstance(value, text_type) and not PY3:
+            return value.encode("utf-8")
+        return value
+
     if isinstance(value, text_type):
         if PY3:
             result = YsonUnicode(value)
