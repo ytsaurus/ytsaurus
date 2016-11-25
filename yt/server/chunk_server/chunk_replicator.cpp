@@ -1592,9 +1592,14 @@ void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk)
 
 void TChunkReplicator::ScheduleNodeRefresh(TNode* node)
 {
-    const auto& replicas = node->StoredReplicas();
-    for (const auto& mediumReplicas : replicas) {
-        for (const auto& replica : mediumReplicas) {
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+    for (int mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
+        const auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
+        if (medium->GetCache()) {
+            continue;
+        }
+        const auto& replicas = node->Replicas()[mediumIndex];
+        for (auto replica : replicas) {
             ScheduleChunkRefresh(replica.GetPtr());
         }
     }

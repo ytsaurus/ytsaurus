@@ -521,11 +521,21 @@ public:
         auto mutationTimestamp = mutationContext->GetTimestamp();
 
         for (auto replica : replicas) {
-            auto* node = nodeTracker->FindNode(replica.GetNodeId());
+            auto nodeId = replica.GetNodeId();
+            auto* node = nodeTracker->FindNode(nodeId);
             if (!IsObjectAlive(node)) {
-                LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk %v at an unknown node %v",
+                LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk at an unknown node (ChunkId: %v, NodeId: %v)",
                     id,
                     replica.GetNodeId());
+                continue;
+            }
+
+            auto mediumIndex = replica.GetMediumIndex();
+            const auto* medium = GetMediumByIndex(mediumIndex);
+            if (medium->GetCache()) {
+                LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk at a cache medium (ChunkId: %v, Medium: %v)",
+                    id,
+                    medium->GetName());
                 continue;
             }
 
@@ -541,11 +551,11 @@ public:
                 continue;
             }
 
-            if (!node->HasReplica(chunkWithIndexes, false)) {
+            if (!node->HasReplica(chunkWithIndexes)) {
                 AddChunkReplica(
+                    medium,
                     node,
                     chunkWithIndexes,
-                    false,
                     EAddReplicaReason::Confirmation);
                 node->AddUnapprovedReplica(chunkWithIndexes, mutationTimestamp);
             }
@@ -1193,7 +1203,10 @@ private:
                 chunk,
                 nodeWithIndexes.GetReplicaIndex(),
                 nodeWithIndexes.GetMediumIndex());
-            if (!node->RemoveReplica(chunkWithIndexes, cached)) {
+            if (!node->RemoveReplica(chunkWithIndexes)) {
+                return;
+            }
+            if (cached) {
                 return;
             }
             if (!ChunkReplicator_) {
@@ -1275,13 +1288,10 @@ private:
     void OnNodeDisposed(TNode* node)
     {
         for (const auto& pair : Media()) {
-            auto mediumIndex = pair.second->GetIndex();
-            for (auto replica : node->StoredReplicas()[mediumIndex]) {
-                RemoveChunkReplica(node, replica, false, ERemoveReplicaReason::NodeDisposed);
-            }
-
-            for (auto replica : node->CachedReplicas()[mediumIndex]) {
-                RemoveChunkReplica(node, replica, true, ERemoveReplicaReason::NodeDisposed);
+            const auto* medium = pair.second;
+            auto mediumIndex = medium->GetIndex();
+            for (auto replica : node->Replicas()[mediumIndex]) {
+                RemoveChunkReplica(medium, node, replica, ERemoveReplicaReason::NodeDisposed);
             }
         }
 
@@ -1307,17 +1317,13 @@ private:
         TNode* node,
         NNodeTrackerServer::NProto::TReqFullHeartbeat* request)
     {
-        for (const auto& mediumReplicas : node->StoredReplicas()) {
-            YCHECK(mediumReplicas.empty());
-        }
-        for (const auto& mediumReplicas : node->CachedReplicas()) {
+        for (const auto& mediumReplicas : node->Replicas()) {
             YCHECK(mediumReplicas.empty());
         }
 
         for (const auto& stats : request->chunk_statistics()) {
             auto mediumIndex = stats.medium_index();
-            auto* medium = GetMediumByIndexOrThrow(mediumIndex);
-            node->ReserveReplicas(mediumIndex, stats.chunk_count(), medium->GetCache());
+            node->ReserveReplicas(mediumIndex, stats.chunk_count());
         }
 
         for (const auto& chunkInfo : request->chunks()) {
@@ -1359,8 +1365,10 @@ private:
                 reason = ERemoveReplicaReason::ApproveTimeout;
             }
             if (reason != ERemoveReplicaReason::None) {
-                // This also removes replica from unapprovedReplicas.
-                RemoveChunkReplica(node, replica, false, reason);
+                // This also removes replica from unapproved set.
+                auto mediumIndex = replica.GetMediumIndex();
+                const auto* medium = GetMediumByIndex(mediumIndex);
+                RemoveChunkReplica(medium, node, replica, reason);
             }
         }
 
@@ -1824,21 +1832,18 @@ private:
 
             RegisterChunk(chunk);
 
-            auto addReplica = [&] (TNodePtrWithIndexes nodePtrWithIndexes, bool cached) {
-                TChunkPtrWithIndexes chunkWithIndexes(
-                    chunk,
-                    nodePtrWithIndexes.GetReplicaIndex(),
-                    nodePtrWithIndexes.GetMediumIndex());
-                nodePtrWithIndexes.GetPtr()->AddReplica(chunkWithIndexes, cached);
-                ++TotalReplicaCount_;
+            auto addReplicas = [&] (const auto& replicas) {
+                for (auto replica : replicas) {
+                    TChunkPtrWithIndexes chunkWithIndexes(
+                        chunk,
+                        replica.GetReplicaIndex(),
+                        replica.GetMediumIndex());
+                    replica.GetPtr()->AddReplica(chunkWithIndexes);
+                    ++TotalReplicaCount_;
+                }
             };
-
-            for (auto nodePtrWithIndexes : chunk->StoredReplicas()) {
-                addReplica(nodePtrWithIndexes, false);
-            }
-            for (auto nodePtrWithIndexes : chunk->CachedReplicas()) {
-                addReplica(nodePtrWithIndexes, true);
-            }
+            addReplicas(chunk->StoredReplicas());
+            addReplicas(chunk->CachedReplicas());
 
             if (chunk->IsForeign()) {
                 YCHECK(ForeignChunks_.insert(chunk).second);
@@ -2131,27 +2136,32 @@ private:
     }
 
 
-    void AddChunkReplica(TNode* node, TChunkPtrWithIndexes chunkWithIndexes, bool cached, EAddReplicaReason reason)
+    void AddChunkReplica(
+        const TMedium* medium,
+        TNode* node,
+        TChunkPtrWithIndexes chunkWithIndexes,
+        EAddReplicaReason reason)
     {
         auto* chunk = chunkWithIndexes.GetPtr();
+        bool cached = medium->GetCache();
         auto nodeId = node->GetId();
         TNodePtrWithIndexes nodeWithIndexes(
             node,
             chunkWithIndexes.GetReplicaIndex(),
             chunkWithIndexes.GetMediumIndex());
 
-        if (!node->AddReplica(chunkWithIndexes, cached))
+        if (!node->AddReplica(chunkWithIndexes)) {
             return;
+        }
 
-        chunk->AddReplica(nodeWithIndexes, cached);
+        chunk->AddReplica(nodeWithIndexes, medium->GetCache());
 
         if (!IsRecovery()) {
             LOG_EVENT(
                 Logger,
                 reason == EAddReplicaReason::FullHeartbeat ? NLogging::ELogLevel::Trace : NLogging::ELogLevel::Debug,
-                "Chunk replica added (ChunkId: %v, Cached: %v, NodeId: %v, Address: %v)",
+                "Chunk replica added (ChunkId: %v, NodeId: %v, Address: %v)",
                 chunkWithIndexes,
-                cached,
                 nodeId,
                 node->GetDefaultAddress());
         }
@@ -2169,16 +2179,21 @@ private:
         }
     }
 
-    void RemoveChunkReplica(TNode* node, TChunkPtrWithIndexes chunkWithIndexes, bool cached, ERemoveReplicaReason reason)
+    void RemoveChunkReplica(
+        const TMedium* medium,
+        TNode* node,
+        TChunkPtrWithIndexes chunkWithIndexes,
+        ERemoveReplicaReason reason)
     {
         auto* chunk = chunkWithIndexes.GetPtr();
+        bool cached = medium->GetCache();
         auto nodeId = node->GetId();
         TNodePtrWithIndexes nodeWithIndexes(
             node,
             chunkWithIndexes.GetReplicaIndex(),
             chunkWithIndexes.GetMediumIndex());
 
-        if (reason == ERemoveReplicaReason::IncrementalHeartbeat && !node->HasReplica(chunkWithIndexes, cached)) {
+        if (reason == ERemoveReplicaReason::IncrementalHeartbeat && !node->HasReplica(chunkWithIndexes)) {
             return;
         }
 
@@ -2188,7 +2203,7 @@ private:
             case ERemoveReplicaReason::IncrementalHeartbeat:
             case ERemoveReplicaReason::ApproveTimeout:
             case ERemoveReplicaReason::ChunkDestroyed:
-                node->RemoveReplica(chunkWithIndexes, cached);
+                node->RemoveReplica(chunkWithIndexes);
                 if (ChunkReplicator_ && !cached && reason != ERemoveReplicaReason::ChunkDestroyed) {
                     ChunkReplicator_->OnReplicaRemoved(node, chunkWithIndexes);
                 }
@@ -2206,9 +2221,8 @@ private:
                 reason == ERemoveReplicaReason::NodeDisposed ||
                 reason == ERemoveReplicaReason::ChunkDestroyed
                 ? NLogging::ELogLevel::Trace : NLogging::ELogLevel::Debug,
-                "Chunk replica removed (ChunkId: %v, Cached: %v, Reason: %v, NodeId: %v, Address: %v)",
+                "Chunk replica removed (ChunkId: %v, Reason: %v, NodeId: %v, Address: %v)",
                 chunkWithIndexes,
-                cached,
                 reason,
                 nodeId,
                 node->GetDefaultAddress());
@@ -2247,8 +2261,9 @@ private:
     {
         auto nodeId = node->GetId();
         auto chunkId = FromProto<TChunkId>(chunkAddInfo.chunk_id());
-        auto chunkIdWithReplicaIndex = DecodeChunkId(chunkId);
-        TChunkIdWithIndexes chunkIdWithIndexes(chunkIdWithReplicaIndex, chunkAddInfo.medium_index());
+        auto chunkIdWithIndex = DecodeChunkId(chunkId);
+        TChunkIdWithIndexes chunkIdWithIndexes(chunkIdWithIndex, chunkAddInfo.medium_index());
+
         auto* medium = FindMediumByIndex(chunkIdWithIndexes.MediumIndex);
         if (!medium) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Cannot add chunk with unknown medium (NodeId: %v, Address: %v, ChunkId: %v)",
@@ -2268,11 +2283,10 @@ private:
                 return;
             }
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Unknown chunk added, removal scheduled (NodeId: %v, Address: %v, ChunkId: %v, Cached: %v)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Unknown chunk added, removal scheduled (NodeId: %v, Address: %v, ChunkId: %v)",
                 nodeId,
                 node->GetDefaultAddress(),
-                chunkIdWithIndexes,
-                cached);
+                chunkIdWithIndexes);
 
             if (ChunkReplicator_) {
                 ChunkReplicator_->ScheduleUnknownReplicaRemoval(node, chunkIdWithIndexes);
@@ -2297,9 +2311,9 @@ private:
         }
 
         AddChunkReplica(
+            medium,
             node,
             chunkWithIndexes,
-            cached,
             incremental ? EAddReplicaReason::IncrementalHeartbeat : EAddReplicaReason::FullHeartbeat);
     }
 
@@ -2309,24 +2323,22 @@ private:
     {
         auto nodeId = node->GetId();
         auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
-        auto* medium = FindMediumByIndex(chunkInfo.medium_index());
+        TChunkIdWithIndexes chunkIdWithIndexes(chunkIdWithIndex, chunkInfo.medium_index());
+
+        auto* medium = FindMediumByIndex(chunkIdWithIndexes.MediumIndex);
         if (!medium) {
-            LOG_WARNING_UNLESS(IsRecovery(), "Cannot remove chunk from unknown medium (NodeId: %v, Address: %v, ChunkId: %v, MediumIndex: %v)",
+            LOG_WARNING_UNLESS(IsRecovery(), "Cannot remove chunk with unknown medium (NodeId: %v, Address: %v, ChunkId: %v)",
                 nodeId,
                 node->GetDefaultAddress(),
-                chunkIdWithIndex,
-                chunkInfo.medium_index());
+                chunkIdWithIndexes);
             return;
         }
-
-        bool cached = medium->GetCache();
 
         auto* chunk = FindChunk(chunkIdWithIndex.Id);
         // NB: Chunk could already be a zombie but we still need to remove the replica.
         if (!chunk) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Unknown chunk replica removed (ChunkId: %v, Cached: %v, Address: %v, NodeId: %v)",
-                chunkIdWithIndex,
-                cached,
+            LOG_DEBUG_UNLESS(IsRecovery(), "Unknown chunk replica removed (ChunkId: %v, Address: %v, NodeId: %v)",
+                chunkIdWithIndexes,
                 node->GetDefaultAddress(),
                 nodeId);
             return;
@@ -2334,12 +2346,12 @@ private:
 
         TChunkPtrWithIndexes chunkWithIndexes(
             chunk,
-            chunkIdWithIndex.ReplicaIndex,
-            chunkInfo.medium_index());
+            chunkIdWithIndexes.ReplicaIndex,
+            chunkIdWithIndexes.MediumIndex);
         RemoveChunkReplica(
+            medium,
             node,
             chunkWithIndexes,
-            cached,
             ERemoveReplicaReason::IncrementalHeartbeat);
     }
 

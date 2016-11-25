@@ -92,8 +92,8 @@ TNode::TNode(const TObjectId& objectId)
     AggregatedState_ = ENodeState::Offline;
     ChunkReplicationQueues_.resize(ReplicationPriorityCount);
     std::transform(
-        StoredReplicas_.begin(),
-        StoredReplicas_.end(),
+        Replicas_.begin(),
+        Replicas_.end(),
         RandomReplicaIters_.begin(),
         [] (const TMediumReplicaSet& i) { return i.end(); });
     ClearSessionHints();
@@ -214,31 +214,18 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, Rack_);
     Save(context, LeaseTransaction_);
 
-    auto countActiveMedia =
-        [] (const TReplicaSet& replicaSet) -> int {
-            return std::count_if(
-                replicaSet.begin(),
-                replicaSet.end(),
-                [] (const TMediumReplicaSet& i) { return !i.empty(); });
-        };
-
-    auto saveReplicaSetSizes =
-        [&] (NCellMaster::TSaveContext& context, const TReplicaSet& replicaSet) {
-            // The format is: the number of active media followed by that number
-            // of (mediumIndex, replicaCount) pairs.
-            Save(context, countActiveMedia(replicaSet));
-            int mediumIndex = 0;
-            for (const auto& replicas : replicaSet) {
-                if (!replicas.empty()) {
-                    Save(context, mediumIndex);
-                    Save<int>(context, replicas.size());
-                }
-                ++mediumIndex;
-            }
-        };
-
-    saveReplicaSetSizes(context, StoredReplicas_);
-    saveReplicaSetSizes(context, CachedReplicas_);
+    // The format is:
+    //  (replicaCount, mediumIndex) pairs
+    //  0
+    int mediumIndex = 0;
+    for (const auto& replicas : Replicas_) {
+        if (!replicas.empty()) {
+            TSizeSerializer::Save(context, replicas.size());
+            Save(context, mediumIndex);
+        }
+        ++mediumIndex;
+    }
+    TSizeSerializer::Save(context, 0);
 
     Save(context, UnapprovedReplicas_);
     Save(context, TabletSlots_);
@@ -264,23 +251,22 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, ResourceLimitsOverrides_);
     Load(context, Rack_);
     Load(context, LeaseTransaction_);
-    // COMPAT(shakurov)
+    // COMPAT(shakurov, babenko)
     if (context.GetVersion() < 400)  {
-        ReserveReplicas(DefaultStoreMediumIndex, TSizeSerializer::Load(context), false);
-        ReserveReplicas(DefaultCacheMediumIndex, TSizeSerializer::Load(context), true);
+        YCHECK(Load<size_t>(context) == 0);
+        YCHECK(Load<size_t>(context) == 0);
+    } else if (context.GetVersion() < 401) {
+        YCHECK(Load<int>(context) == 0);
+        YCHECK(Load<int>(context) == 0);
     } else {
-        auto loadReplicaSetSizes =
-            [&] (NCellMaster::TLoadContext& context, bool cache) {
-                auto activeMediumCount = Load<int>(context);
-                for (int i = 0; i < activeMediumCount; ++i) {
-                    auto mediumIndex = Load<int>(context);
-                    auto replicaCount = Load<int>(context);
-                    ReserveReplicas(mediumIndex, replicaCount, cache);
-                }
-            };
-
-        loadReplicaSetSizes(context, false);
-        loadReplicaSetSizes(context, true);
+        while (true) {
+            auto replicaCount = TSizeSerializer::Load(context);
+            if (replicaCount == 0) {
+                break;
+            }
+            auto mediumIndex = Load<int>(context);
+            ReserveReplicas(mediumIndex, replicaCount);
+        }
     }
     Load(context, UnapprovedReplicas_);
     Load(context, TabletSlots_);
@@ -288,86 +274,63 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     ComputeDefaultAddress();
 }
 
-void TNode::ReserveReplicas(int mediumIndex, int sizeHint, bool cache)
+void TNode::ReserveReplicas(int mediumIndex, int sizeHint)
 {
-    if (cache) {
-        CachedReplicas_[mediumIndex].reserve(sizeHint);
-    } else {
-        StoredReplicas_[mediumIndex].reserve(sizeHint);
-        RandomReplicaIters_[mediumIndex] = StoredReplicas_[mediumIndex].end();
-    }
+    Replicas_[mediumIndex].reserve(sizeHint);
+    RandomReplicaIters_[mediumIndex] = Replicas_[mediumIndex].end();
 }
 
-bool TNode::AddReplica(TChunkPtrWithIndexes replica, bool cached)
+bool TNode::AddReplica(TChunkPtrWithIndexes replica)
 {
     auto* chunk = replica.GetPtr();
-    if (cached) {
-        Y_ASSERT(!chunk->IsJournal());
-        return AddCachedReplica(replica);
-    } else  {
-        if (chunk->IsJournal()) {
-            auto mediumIndex = replica.GetMediumIndex();
-            Y_ASSERT(mediumIndex == DefaultStoreMediumIndex);
-            RemoveStoredReplica(TChunkPtrWithIndexes(chunk, ActiveChunkReplicaIndex, mediumIndex));
-            RemoveStoredReplica(TChunkPtrWithIndexes(chunk, UnsealedChunkReplicaIndex, mediumIndex));
-            RemoveStoredReplica(TChunkPtrWithIndexes(chunk, SealedChunkReplicaIndex, mediumIndex));
-        }
-        // NB: For journal chunks result is always true.
-        return AddStoredReplica(replica);
+    if (chunk->IsJournal()) {
+        auto mediumIndex = replica.GetMediumIndex();
+        DoRemoveReplica(TChunkPtrWithIndexes(chunk, ActiveChunkReplicaIndex, mediumIndex));
+        DoRemoveReplica(TChunkPtrWithIndexes(chunk, UnsealedChunkReplicaIndex, mediumIndex));
+        DoRemoveReplica(TChunkPtrWithIndexes(chunk, SealedChunkReplicaIndex, mediumIndex));
     }
+    // NB: For journal chunks result is always true.
+    return DoAddReplica(replica);
 }
 
-bool TNode::RemoveReplica(TChunkPtrWithIndexes replica, bool cached)
+bool TNode::RemoveReplica(TChunkPtrWithIndexes replica)
 {
     auto* chunk = replica.GetPtr();
-    if (cached) {
-        Y_ASSERT(!chunk->IsJournal());
-        RemoveCachedReplica(replica);
-        return false;
+    if (chunk->IsJournal()) {
+        auto mediumIndex = replica.GetMediumIndex();
+        DoRemoveReplica(TChunkPtrWithIndexes(chunk, ActiveChunkReplicaIndex, mediumIndex));
+        DoRemoveReplica(TChunkPtrWithIndexes(chunk, UnsealedChunkReplicaIndex, mediumIndex));
+        DoRemoveReplica(TChunkPtrWithIndexes(chunk, SealedChunkReplicaIndex, mediumIndex));
     } else {
-        if (chunk->IsJournal()) {
-            auto mediumIndex = replica.GetMediumIndex();
-            Y_ASSERT(mediumIndex == DefaultStoreMediumIndex);
-            RemoveStoredReplica(TChunkPtrWithIndexes(chunk, ActiveChunkReplicaIndex, mediumIndex));
-            RemoveStoredReplica(TChunkPtrWithIndexes(chunk, UnsealedChunkReplicaIndex, mediumIndex));
-            RemoveStoredReplica(TChunkPtrWithIndexes(chunk, SealedChunkReplicaIndex, mediumIndex));
-        } else {
-            RemoveStoredReplica(replica);
-        }
-        return UnapprovedReplicas_.erase(ToUnapprovedKey(replica)) == 0;
+        DoRemoveReplica(replica);
     }
+    return UnapprovedReplicas_.erase(ToUnapprovedKey(replica)) == 0;
 }
 
-bool TNode::HasReplica(TChunkPtrWithIndexes replica, bool cached) const
+bool TNode::HasReplica(TChunkPtrWithIndexes replica) const
 {
     auto* chunk = replica.GetPtr();
-    if (cached) {
-        Y_ASSERT(!chunk->IsJournal());
-        return ContainsCachedReplica(replica);
+    if (chunk->IsJournal()) {
+        auto mediumIndex = replica.GetMediumIndex();
+        return
+            DoHasReplica(TChunkPtrWithIndexes(chunk, ActiveChunkReplicaIndex, mediumIndex)) ||
+            DoHasReplica(TChunkPtrWithIndexes(chunk, UnsealedChunkReplicaIndex, mediumIndex)) ||
+            DoHasReplica(TChunkPtrWithIndexes(chunk, SealedChunkReplicaIndex, mediumIndex));
     } else {
-        if (chunk->IsJournal()) {
-            auto mediumIndex = replica.GetMediumIndex();
-            Y_ASSERT(mediumIndex == DefaultStoreMediumIndex);
-            return
-                ContainsStoredReplica(TChunkPtrWithIndexes(chunk, ActiveChunkReplicaIndex, mediumIndex)) ||
-                ContainsStoredReplica(TChunkPtrWithIndexes(chunk, UnsealedChunkReplicaIndex, mediumIndex)) ||
-                ContainsStoredReplica(TChunkPtrWithIndexes(chunk, SealedChunkReplicaIndex, mediumIndex));
-        } else {
-            return ContainsStoredReplica(replica);
-        }
+        return DoHasReplica(replica);
     }
 }
 
 TChunkPtrWithIndexes TNode::PickRandomReplica(int mediumIndex)
 {
-    if (StoredReplicas_[mediumIndex].empty()) {
+    if (Replicas_[mediumIndex].empty()) {
         return TChunkPtrWithIndexes();
     }
 
     auto& randomReplicaIt = RandomReplicaIters_[mediumIndex];
 
-    if (randomReplicaIt == StoredReplicas_[mediumIndex].end()) {
-        randomReplicaIt = StoredReplicas_[mediumIndex].begin();
+    if (randomReplicaIt == Replicas_[mediumIndex].end()) {
+        randomReplicaIt = Replicas_[mediumIndex].begin();
     }
 
     return *(randomReplicaIt++);
@@ -375,10 +338,7 @@ TChunkPtrWithIndexes TNode::PickRandomReplica(int mediumIndex)
 
 void TNode::ClearReplicas()
 {
-    for (auto& replicas : StoredReplicas_) {
-        replicas.clear();
-    }
-    for (auto& replicas : CachedReplicas_) {
+    for (auto& replicas : Replicas_) {
         replicas.clear();
     }
     UnapprovedReplicas_.clear();
@@ -400,10 +360,10 @@ void TNode::ApproveReplica(TChunkPtrWithIndexes replica)
     auto* chunk = replica.GetPtr();
     if (chunk->IsJournal()) {
         int mediumIndex = replica.GetMediumIndex();
-        RemoveStoredReplica(TChunkPtrWithIndexes(chunk, ActiveChunkReplicaIndex, mediumIndex));
-        RemoveStoredReplica(TChunkPtrWithIndexes(chunk, UnsealedChunkReplicaIndex, mediumIndex));
-        RemoveStoredReplica(TChunkPtrWithIndexes(chunk, SealedChunkReplicaIndex, mediumIndex));
-        YCHECK(AddStoredReplica(replica));
+        DoRemoveReplica(TChunkPtrWithIndexes(chunk, ActiveChunkReplicaIndex, mediumIndex));
+        DoRemoveReplica(TChunkPtrWithIndexes(chunk, UnsealedChunkReplicaIndex, mediumIndex));
+        DoRemoveReplica(TChunkPtrWithIndexes(chunk, SealedChunkReplicaIndex, mediumIndex));
+        YCHECK(DoAddReplica(replica));
     }
 }
 
@@ -553,12 +513,9 @@ void TNode::ClearTabletSlots()
 void TNode::ShrinkHashTables()
 {
     for (int mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
-        if (ShrinkHashTable(&StoredReplicas_[mediumIndex])) {
-            RandomReplicaIters_[mediumIndex] = StoredReplicas_[mediumIndex].end();
+        if (ShrinkHashTable(&Replicas_[mediumIndex])) {
+            RandomReplicaIters_[mediumIndex] = Replicas_[mediumIndex].end();
         }
-    }
-    for (auto& mediumCachedReplicas : CachedReplicas_) {
-        ShrinkHashTable(&mediumCachedReplicas);
     }
     ShrinkHashTable(&UnapprovedReplicas_);
     ShrinkHashTable(&Jobs_);
@@ -659,10 +616,10 @@ bool TNode::IsFull(int mediumIndex) const
     return full && !Statistics_.locations().empty();
 }
 
-bool TNode::AddStoredReplica(TChunkPtrWithIndexes replica)
+bool TNode::DoAddReplica(TChunkPtrWithIndexes replica)
 {
     auto mediumIndex = replica.GetMediumIndex();
-    auto pair = StoredReplicas_[mediumIndex].insert(replica);
+    auto pair = Replicas_[mediumIndex].insert(replica);
     if (pair.second) {
         RandomReplicaIters_[mediumIndex] = pair.first;
         return true;
@@ -671,11 +628,11 @@ bool TNode::AddStoredReplica(TChunkPtrWithIndexes replica)
     }
 }
 
-bool TNode::RemoveStoredReplica(TChunkPtrWithIndexes replica)
+bool TNode::DoRemoveReplica(TChunkPtrWithIndexes replica)
 {
     auto mediumIndex = replica.GetMediumIndex();
     auto& randomReplicaIt = RandomReplicaIters_[mediumIndex];
-    auto& mediumStoredReplicas = StoredReplicas_[mediumIndex];
+    auto& mediumStoredReplicas = Replicas_[mediumIndex];
     if (randomReplicaIt != mediumStoredReplicas.end() &&
         *randomReplicaIt == replica)
     {
@@ -684,26 +641,10 @@ bool TNode::RemoveStoredReplica(TChunkPtrWithIndexes replica)
     return mediumStoredReplicas.erase(replica) == 1;
 }
 
-bool TNode::ContainsStoredReplica(TChunkPtrWithIndexes replica) const
+bool TNode::DoHasReplica(TChunkPtrWithIndexes replica) const
 {
     auto mediumIndex = replica.GetMediumIndex();
-    return StoredReplicas_[mediumIndex].find(replica) != StoredReplicas_[mediumIndex].end();
-}
-
-bool TNode::AddCachedReplica(TChunkPtrWithIndexes replica)
-{
-    return CachedReplicas_[replica.GetMediumIndex()].insert(replica).second;
-}
-
-bool TNode::RemoveCachedReplica(TChunkPtrWithIndexes replica)
-{
-    return CachedReplicas_[replica.GetMediumIndex()].erase(replica) == 1;
-}
-
-bool TNode::ContainsCachedReplica(TChunkPtrWithIndexes replica) const
-{
-    auto mediumCachedReplicas = CachedReplicas_[replica.GetMediumIndex()];
-    return mediumCachedReplicas.find(replica) != mediumCachedReplicas.end();
+    return Replicas_[mediumIndex].find(replica) != Replicas_[mediumIndex].end();
 }
 
 void TNode::SetRack(TRack* rack)
