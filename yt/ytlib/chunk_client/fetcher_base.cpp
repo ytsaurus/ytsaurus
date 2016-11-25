@@ -83,7 +83,7 @@ private:
     const TChunkScraperConfigPtr Config_;
     const IInvokerPtr Invoker_;
     const TThrottlerManagerPtr ThrottlerManager_;
-    const IClientPtr Client_;
+    const INativeClientPtr Client_;
     const TNodeDirectoryPtr NodeDirectory_;
 
     TChunkScraperPtr Scraper_;
