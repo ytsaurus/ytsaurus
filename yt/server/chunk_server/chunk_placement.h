@@ -67,7 +67,9 @@ private:
     const TChunkManagerConfigPtr Config_;
     NCellMaster::TBootstrap* const Bootstrap_;
 
+    //! Nodes listed here must pass #IsValidBalancingTarget test.
     TFillFactorToNodeMap FillFactorToNode_;
+    //! Nodes listed here must pass #IsValidWriteTarget test.
     TFillFactorToNodeMap LoadFactorToNode_;
 
 
@@ -94,12 +96,16 @@ private:
         TNode* node,
         NObjectClient::EObjectType type);
 
+    bool IsValidWriteTarget(TNode* node);
+    
     bool IsValidWriteTarget(
         TNode* node,
         NObjectClient::EObjectType chunkType,
         TTargetCollector* collector,
         bool enableRackAwareness);
-    
+
+    bool IsValidBalancingTarget(TNode* node);
+
     bool IsValidBalancingTarget(
         TNode* node,
         NObjectClient::EObjectType chunkType,
