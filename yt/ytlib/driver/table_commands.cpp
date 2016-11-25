@@ -162,7 +162,7 @@ TMountTableCommand::TMountTableCommand()
     RegisterParameter("cell_id", Options.CellId)
         .Optional();
     RegisterParameter("freeze", Options.Freeze)
-        .Default(false);
+        .Optional();
 }
 
 void TMountTableCommand::DoExecute(ICommandContextPtr context)

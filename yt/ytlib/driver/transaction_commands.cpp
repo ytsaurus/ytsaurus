@@ -28,13 +28,13 @@ TStartTransactionCommand::TStartTransactionCommand()
     RegisterParameter("attributes", Attributes)
         .Default(nullptr);
     RegisterParameter("sticky", Options.Sticky)
-        .Default(false);
+        .Optional();
     RegisterParameter("timeout", Options.Timeout)
         .Optional();
     RegisterParameter("transaction_id", Options.ParentId)
         .Optional();
     RegisterParameter("ping_ancestor_transactions", Options.PingAncestors)
-        .Default(false);
+        .Optional();
     RegisterParameter("atomicity", Options.Atomicity)
         .Optional();
     RegisterParameter("durability", Options.Durability)
