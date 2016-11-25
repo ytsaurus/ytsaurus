@@ -559,7 +559,7 @@ std::vector<TChunkPtrWithIndexes> TChunkPlacement::GetBalancingChunks(
 
     // Let's bound the number of iterations somehow.
     // Never consider more chunks than the node has to avoid going into a loop (cf. YT-4258).
-    int iterationCount = std::min(replicaCount * 2, static_cast<int>(node->StoredReplicas().size()));
+    int iterationCount = std::min(replicaCount * 2, static_cast<int>(node->Replicas()[mediumIndex].size()));
     for (int index = 0; index < iterationCount; ++index) {
         auto replica = node->PickRandomReplica(mediumIndex);
         Y_ASSERT(replica.GetMediumIndex() == mediumIndex);

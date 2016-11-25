@@ -110,11 +110,9 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, DisableSchedulerJobs);
 
     // NB: Randomize replica hashing to avoid collisions during balancing.
-    // NB: There's no need to store medium indexes in these per-medium containers.
     using TMediumReplicaSet = yhash_set<TChunkPtrWithIndexes>;
     using TReplicaSet = TPerMediumArray<TMediumReplicaSet>;
-    DEFINE_BYREF_RO_PROPERTY(TReplicaSet, StoredReplicas);
-    DEFINE_BYREF_RO_PROPERTY(TReplicaSet, CachedReplicas);
+    DEFINE_BYREF_RO_PROPERTY(TReplicaSet, Replicas);
 
     //! Maps replicas to the leader timestamp when this replica was registered by a client.
     typedef yhash_map<TChunkPtrWithIndexes, TInstant> TUnapprovedReplicaMap;
@@ -189,11 +187,13 @@ public:
     void Load(NCellMaster::TLoadContext& context);
 
     // Chunk Manager stuff.
-    void ReserveReplicas(int mediumIndex, int sizeHint, bool cache);
-    bool AddReplica(TChunkPtrWithIndexes replica, bool cached);
-    //! Returns |true| if this was an approved non-cached replica.
-    bool RemoveReplica(TChunkPtrWithIndexes replica, bool cached);
-    bool HasReplica(TChunkPtrWithIndexes, bool cached) const;
+    void ReserveReplicas(int mediumIndex, int sizeHint);
+    //! Returns |true| if the replica was actually added.
+    bool AddReplica(TChunkPtrWithIndexes replica);
+    //! Returns |true| if the replica was approved
+    bool RemoveReplica(TChunkPtrWithIndexes replica);
+
+    bool HasReplica(TChunkPtrWithIndexes) const;
     TChunkPtrWithIndexes PickRandomReplica(int mediumIndex);
     void ClearReplicas();
 
@@ -256,13 +256,9 @@ private:
     void ComputeAggregatedState();
     void ComputeDefaultAddress();
 
-    bool AddStoredReplica(TChunkPtrWithIndexes replica);
-    bool RemoveStoredReplica(TChunkPtrWithIndexes replica);
-    bool ContainsStoredReplica(TChunkPtrWithIndexes replica) const;
-
-    bool AddCachedReplica(TChunkPtrWithIndexes replica);
-    bool RemoveCachedReplica(TChunkPtrWithIndexes replica);
-    bool ContainsCachedReplica(TChunkPtrWithIndexes replica) const;
+    bool DoAddReplica(TChunkPtrWithIndexes replica);
+    bool DoRemoveReplica(TChunkPtrWithIndexes replica);
+    bool DoHasReplica(TChunkPtrWithIndexes replica) const;
 
     // Private accessors for TNodeTracker.
     friend class TNodeTracker;
