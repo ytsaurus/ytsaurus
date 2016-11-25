@@ -585,7 +585,7 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
         .SetReplicated(true));
     descriptors->push_back(TAttributeDescriptor("media")
         .SetReplicated(true));
-    descriptors->push_back(TAttributeDescriptor("primary_medium_name")
+    descriptors->push_back(TAttributeDescriptor("primary_medium")
         .SetReplicated(true));
 }
 
@@ -661,7 +661,7 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
         return true;
     }
 
-    if (key == "primary_medium_name") {
+    if (key == "primary_medium") {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto primaryMediumIndex = node->GetPrimaryMediumIndex();
         auto* medium = chunkManager->GetMediumByIndexOrThrow(primaryMediumIndex);
@@ -757,7 +757,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
         return true;
     }
 
-    if (key == "primary_medium_name") {
+    if (key == "primary_medium") {
         ValidateNoTransaction();
         auto mediumName = ConvertTo<Stroka>(value);
         auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
