@@ -94,7 +94,6 @@ public:
     using TCachedReplicas = yhash_set<TNodePtrWithIndexes>;
     const TCachedReplicas& CachedReplicas() const;
 
-    // TODO(shakurov): make these per-medium?
     using TStoredReplicas = TNodePtrWithIndexesList;
     const TStoredReplicas& StoredReplicas() const;
 
