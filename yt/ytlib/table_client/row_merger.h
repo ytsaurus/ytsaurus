@@ -156,6 +156,8 @@ private:
     const TRowBufferPtr RowBuffer_;
     const TTableSchema Schema_;
     std::vector<TTimestamp> LatestTimestamps_;
+    std::vector<int> IdMapping_;
+    int ColumnCount_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSamplingRowMerger)

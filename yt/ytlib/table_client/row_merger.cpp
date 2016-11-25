@@ -620,11 +620,20 @@ TSamplingRowMerger::TSamplingRowMerger(
     : RowBuffer_(std::move(rowBuffer))
     , Schema_(schema)
     , LatestTimestamps_(schema.GetColumnCount(), NullTimestamp)
-{ }
+    , IdMapping_(Schema_.GetColumnCount(), -1)
+{
+    ColumnCount_ = 0;
+    for (const auto& column : Schema_.Columns()) {
+        if (!column.Aggregate) {
+            IdMapping_[Schema_.GetColumnIndex(column)] = ColumnCount_;
+            ++ColumnCount_;
+        }
+    }
+}
 
 TUnversionedRow TSamplingRowMerger::MergeRow(TVersionedRow row)
 {
-    auto mergedRow = RowBuffer_->Allocate(Schema_.GetColumnCount());
+    auto mergedRow = RowBuffer_->Allocate(ColumnCount_);
 
     YCHECK(row.GetKeyCount() == Schema_.GetKeyColumnCount());
     for (int index = 0; index < row.GetKeyCount(); ++index) {
@@ -641,12 +650,17 @@ TUnversionedRow TSamplingRowMerger::MergeRow(TVersionedRow row)
 
     for (int index = 0; index < row.GetValueCount(); ++index) {
         const auto& value = row.BeginValues()[index];
+        YCHECK(value.Id < Schema_.GetColumnCount());
+
         if (value.Timestamp < deleteTimestamp || value.Timestamp < LatestTimestamps_[value.Id]) {
             continue;
         }
 
-        mergedRow[value.Id] = value;
-        LatestTimestamps_[value.Id] = value.Timestamp;
+        auto id = IdMapping_[value.Id];
+        if (id != -1) {
+            mergedRow[id] = value;
+            LatestTimestamps_[id] = value.Timestamp;
+        }
     }
 
     return mergedRow;
