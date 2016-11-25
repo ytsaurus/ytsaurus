@@ -100,7 +100,7 @@ class TestMedia(YTEnvSetup):
         assert replication_factor > 0
         assert get("//tmp/t1/@vital")
 
-        assert get("//tmp/t1/@primary_medium_name") == "default"
+        assert get("//tmp/t1/@primary_medium") == "default"
 
         tbl_media = get("//tmp/t1/@media")
         assert tbl_media["default"]["replication_factor"] == replication_factor
@@ -121,9 +121,9 @@ class TestMedia(YTEnvSetup):
         assert tbl_media["hdd6"]["replication_factor"] == 7
         assert not tbl_media["hdd6"]["data_parts_only"]
 
-        set("//tmp/t2/@primary_medium_name", "hdd6")
+        set("//tmp/t2/@primary_medium", "hdd6")
 
-        assert get("//tmp/t2/@primary_medium_name") == "hdd6"
+        assert get("//tmp/t2/@primary_medium") == "hdd6"
         assert get("//tmp/t2/@replication_factor") == 7
 
     def test_move_between_media(self):
@@ -136,7 +136,7 @@ class TestMedia(YTEnvSetup):
         tbl_media[TestMedia.NON_DEFAULT_MEDIUM] = {"replication_factor": 3, "data_parts_only": False}
 
         set("//tmp/t3/@media", tbl_media)
-        set("//tmp/t3/@primary_medium_name", TestMedia.NON_DEFAULT_MEDIUM)
+        set("//tmp/t3/@primary_medium", TestMedia.NON_DEFAULT_MEDIUM)
 
         tbl_media["default"] = {"replication_factor": 0, "data_parts_only": False}
         set("//tmp/t3/@media", tbl_media)
@@ -146,7 +146,7 @@ class TestMedia(YTEnvSetup):
         assert tbl_media[TestMedia.NON_DEFAULT_MEDIUM]["replication_factor"] == 3
         assert not tbl_media[TestMedia.NON_DEFAULT_MEDIUM]["data_parts_only"]
 
-        assert get("//tmp/t3/@primary_medium_name") == TestMedia.NON_DEFAULT_MEDIUM
+        assert get("//tmp/t3/@primary_medium") == TestMedia.NON_DEFAULT_MEDIUM
         assert get("//tmp/t3/@replication_factor") == 3
 
         sleep(TestMedia.REPLICATOR_REACTION_TIME)
@@ -160,14 +160,14 @@ class TestMedia(YTEnvSetup):
         write_table("//tmp/t4", {"a" : "b"})
 
         # Shortcut: making a previously disabled medium primary *moves* the table to that medium.
-        set("//tmp/t4/@primary_medium_name", TestMedia.NON_DEFAULT_MEDIUM)
+        set("//tmp/t4/@primary_medium", TestMedia.NON_DEFAULT_MEDIUM)
 
         tbl_media = get("//tmp/t4/@media")
         assert "default" not in tbl_media
         assert tbl_media[TestMedia.NON_DEFAULT_MEDIUM]["replication_factor"] == 3
         assert not tbl_media[TestMedia.NON_DEFAULT_MEDIUM]["data_parts_only"]
 
-        assert get("//tmp/t4/@primary_medium_name") == TestMedia.NON_DEFAULT_MEDIUM
+        assert get("//tmp/t4/@primary_medium") == TestMedia.NON_DEFAULT_MEDIUM
         assert get("//tmp/t4/@replication_factor") == 3
 
         sleep(TestMedia.REPLICATOR_REACTION_TIME)
@@ -187,7 +187,7 @@ class TestMedia(YTEnvSetup):
     # def test_write_to_non_default_medium(self):
     #     create("table", "//tmp/t6")
     #     # Move table into non-default medium.
-    #     set("//tmp/t6/@primary_medium_name", TestMedia.NON_DEFAULT_MEDIUM)
+    #     set("//tmp/t6/@primary_medium", TestMedia.NON_DEFAULT_MEDIUM)
     #     write_table("<append=true>//tmp/t6", {"a" : "b"}, table_writer={"medium_name": TestMedia.NON_DEFAULT_MEDIUM})
     #     self._assert_all_chunks_on_nodes_with_medium("t6", TestMedia.NON_DEFAULT_MEDIUM)
 
