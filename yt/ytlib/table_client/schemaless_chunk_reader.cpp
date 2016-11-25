@@ -3,7 +3,6 @@
 #include "columnar_chunk_reader_base.h"
 #include "config.h"
 #include "helpers.h"
-#include "legacy_table_chunk_reader.h"
 #include "name_table.h"
 #include "overlapping_reader.h"
 #include "private.h"
@@ -1521,21 +1520,6 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
                 columnFilter,
                 readRange,
                 std::move(partitionTag));
-
-        case ETableChunkFormat::Old: {
-            YCHECK(readRange.LowerLimit().IsTrivial() && readRange.UpperLimit().IsTrivial());
-            YCHECK(!partitionTag);
-
-            return New<TLegacyTableChunkReader>(
-                chunkSpec,
-                config,
-                options,
-                columnFilter,
-                nameTable,
-                keyColumns,
-                underlyingReader,
-                blockCache);
-        }
 
         case ETableChunkFormat::UnversionedColumnar:
             return New<TColumnarSchemalessRangeChunkReader>(

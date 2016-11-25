@@ -279,9 +279,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/table_client/columnar_chunk_reader_base.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/columnar_chunk_meta.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/helpers.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/table_client/legacy_channel_reader.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/table_client/legacy_chunk_meta.proto
-  ${CMAKE_CURRENT_LIST_DIR}/table_client/legacy_table_chunk_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/name_table.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/overlapping_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/partition_chunk_reader.cpp

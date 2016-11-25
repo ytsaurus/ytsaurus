@@ -298,8 +298,7 @@ void TConfirmingWriter::DoClose()
 
     static const yhash_set<int> masterMetaTags{
         TProtoExtensionTag<TMiscExt>::Value,
-        TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value,
-        TProtoExtensionTag<NTableClient::NProto::TOldBoundaryKeysExt>::Value
+        TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value
     };
 
     auto masterChunkMeta = ChunkMeta_;

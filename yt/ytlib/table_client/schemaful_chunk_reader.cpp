@@ -61,7 +61,6 @@ ISchemafulReaderPtr CreateSchemafulChunkReader(
     chunkSpec.mutable_chunk_meta()->MergeFrom(chunkMeta);
 
     switch (formatVersion) {
-        case ETableChunkFormat::Old:
         case ETableChunkFormat::SchemalessHorizontal: {
             auto createSchemalessReader = [=] (TNameTablePtr nameTable, TColumnFilter columnFilter) {
                 return CreateSchemalessChunkReader(
@@ -103,7 +102,6 @@ ISchemafulReaderPtr CreateSchemafulChunkReader(
     chunkSpec.mutable_chunk_meta()->MergeFrom(chunkMeta);
 
     switch (formatVersion) {
-        case ETableChunkFormat::Old:
         case ETableChunkFormat::UnversionedColumnar:
         case ETableChunkFormat::SchemalessHorizontal: {
             auto createSchemalessReader = [=] (TNameTablePtr nameTable, TColumnFilter columnFilter) {
