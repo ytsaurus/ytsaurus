@@ -45,9 +45,9 @@ public:
         const TRealmId& masterCellId)
         : TServiceBase(
             NRpc::TDispatcher::Get()->GetLightInvoker(),
-            TServiceId(TObjectServiceProxy::GetServiceName(), masterCellId),
+            TObjectServiceProxy::GetDescriptor(),
             ObjectServerLogger,
-            TObjectServiceProxy::GetProtocolVersion())
+            masterCellId)
         , Config_(config)
         , MasterChannel_(CreateThrottlingChannel(
             config,

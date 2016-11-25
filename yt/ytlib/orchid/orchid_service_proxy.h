@@ -13,17 +13,9 @@ class TOrchidServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    static Stroka GetServiceName()
-    {
-        return "OrchidService";
-    }
-
-    explicit TOrchidServiceProxy(NRpc::IChannelPtr channel)
-        : TProxyBase(channel, GetServiceName())
-    { }
+    DEFINE_RPC_PROXY(TOrchidServiceProxy, RPC_PROXY_DESC(OrchidService));
 
     DEFINE_RPC_PROXY_METHOD(NProto, Execute);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

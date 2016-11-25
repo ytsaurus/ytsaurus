@@ -43,10 +43,9 @@ public:
     explicit TChunkService(TBootstrap* bootstrap)
         : TMasterHydraServiceBase(
             bootstrap,
-            TChunkServiceProxy::GetServiceName(),
+            TChunkServiceProxy::GetDescriptor(),
             EAutomatonThreadQueue::ChunkService,
-            ChunkServerLogger,
-            TChunkServiceProxy::GetProtocolVersion())
+            ChunkServerLogger)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LocateChunks)
             .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkLocator))

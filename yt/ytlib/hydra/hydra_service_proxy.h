@@ -15,19 +15,8 @@ class THydraServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    static Stroka GetServiceName()
-    {
-        return "HydraService";
-    }
-
-    static int GetProtocolVersion()
-    {
-        return 2;
-    }
-
-    explicit THydraServiceProxy(NRpc::IChannelPtr channel)
-        : TProxyBase(channel, GetServiceName(), GetProtocolVersion())
-    { }
+    DEFINE_RPC_PROXY(THydraServiceProxy, RPC_PROXY_DESC(HydraService)
+        .SetProtocolVersion(2));
 
     DEFINE_RPC_PROXY_METHOD(NProto, ReadChangeLog);
     DEFINE_RPC_PROXY_METHOD(NProto, LookupChangelog);
@@ -38,7 +27,6 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, PingFollower);
     DEFINE_RPC_PROXY_METHOD(NProto, SyncWithLeader);
     DEFINE_RPC_PROXY_METHOD(NProto, CommitMutation);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

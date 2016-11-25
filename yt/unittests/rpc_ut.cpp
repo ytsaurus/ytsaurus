@@ -32,14 +32,8 @@ class TMyProxy
     : public TProxyBase
 {
 public:
-    static const Stroka GetServiceName()
-    {
-        return "MyService";
-    }
-
-    explicit TMyProxy(IChannelPtr channel, int protocolVersion = DefaultProtocolVersion)
-        : TProxyBase(channel, GetServiceName(), protocolVersion)
-    { }
+    DEFINE_RPC_PROXY(TMyProxy, RPC_PROXY_DESC(MyService)
+        .SetProtocolVersion(1));
 
     DEFINE_RPC_PROXY_METHOD(NMyRpc, SomeCall);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, RegularAttachments);
@@ -53,21 +47,26 @@ public:
 
     DEFINE_ONE_WAY_RPC_PROXY_METHOD(NMyRpc, OneWay);
     DEFINE_ONE_WAY_RPC_PROXY_METHOD(NMyRpc, NotRegistredOneWay);
-
 };
-
-////////////////////////////////////////////////////////////////////////////////
 
 class TNonExistingServiceProxy
     : public TProxyBase
 {
 public:
-    explicit TNonExistingServiceProxy(IChannelPtr channel)
-        : TProxyBase(channel, "NonExistingService")
-    { }
+    DEFINE_RPC_PROXY(TNonExistingServiceProxy, RPC_PROXY_DESC(NonExistingService));
 
     DEFINE_RPC_PROXY_METHOD(NMyRpc, DoNothing);
     DEFINE_ONE_WAY_RPC_PROXY_METHOD(NMyRpc, OneWay);
+};
+
+class TMyIncorrectProtocolVersionProxy
+    : public TProxyBase
+{
+public:
+    DEFINE_RPC_PROXY(TMyIncorrectProtocolVersionProxy, RPC_PROXY_DESC(MyService)
+        .SetProtocolVersion(2));
+
+    DEFINE_RPC_PROXY_METHOD(NMyRpc, SomeCall);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -91,7 +90,7 @@ public:
     explicit TMyService(IInvokerPtr invoker)
         : TServiceBase(
             invoker,
-            TMyProxy::GetServiceName(),
+            TMyProxy::GetDescriptor(),
             NLogging::TLogger("Main"))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SomeCall));
@@ -483,7 +482,7 @@ TEST_F(TRpcTest, ConnectionLost)
 
 TEST_F(TRpcTest, ProtocolVersionMismatch)
 {
-    TMyProxy proxy(CreateChannel(), 1);
+    TMyIncorrectProtocolVersionProxy proxy(CreateChannel());
     auto req = proxy.SomeCall();
     req->set_a(42);
     auto rspOrError = req->Invoke().Get();

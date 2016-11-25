@@ -48,7 +48,7 @@ public:
         : TServiceBase(
             // Ignored, method handlers use TimestampInvoker_.
             GetSyncInvoker(),
-            TTimestampServiceProxy::GetServiceName(),
+            TTimestampServiceProxy::GetDescriptor(),
             TransactionServerLogger)
         , TCompositeAutomatonPart(
             hydraManager,

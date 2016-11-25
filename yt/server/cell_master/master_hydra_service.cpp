@@ -12,15 +12,14 @@ using namespace NHydra;
 
 TMasterHydraServiceBase::TMasterHydraServiceBase(
     TBootstrap* bootstrap,
-    const Stroka& serviceName,
+    const NRpc::TServiceDescriptor& descriptor,
     EAutomatonThreadQueue defaultQueue,
-    const NLogging::TLogger& logger,
-    int protocolVersion)
+    const NLogging::TLogger& logger)
     : THydraServiceBase(
         bootstrap->GetHydraFacade()->GetGuardedAutomatonInvoker(defaultQueue),
-        NRpc::TServiceId(serviceName, bootstrap->GetCellId()),
+        descriptor,
         logger,
-        protocolVersion)
+        bootstrap->GetCellId())
     , Bootstrap_(bootstrap)
 {
     YCHECK(Bootstrap_);

@@ -24,8 +24,9 @@ TLocalSnapshotService::TLocalSnapshotService(
     TFileSnapshotStorePtr fileStore)
     : TServiceBase(
         GetHydraIOInvoker(),
-        TServiceId(TSnapshotServiceProxy::GetServiceName(), cellId),
-        HydraLogger)
+        TSnapshotServiceProxy::GetDescriptor(),
+        HydraLogger,
+        cellId)
     , FileStore_(fileStore)
 {
     RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupSnapshot));

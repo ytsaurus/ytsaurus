@@ -13,16 +13,13 @@ using namespace NBus;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TObjectServiceProxy::TReqExecuteBatch::TReqExecuteBatch(
-    IChannelPtr channel,
-    const Stroka& path,
-    const Stroka& method)
+TObjectServiceProxy::TReqExecuteBatch::TReqExecuteBatch(IChannelPtr channel)
     : TClientRequest(
         std::move(channel),
-        path,
-        method,
+        TObjectServiceProxy::GetDescriptor().ServiceName,
+        "Execute",
         false,
-        TObjectServiceProxy::GetProtocolVersion())
+        TObjectServiceProxy::GetDescriptor().ProtocolVersion)
 { }
 
 TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>
@@ -202,25 +199,9 @@ TSharedRefArray TObjectServiceProxy::TRspExecuteBatch::GetResponseMessage(int in
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka TObjectServiceProxy::GetServiceName()
-{
-    return "ObjectService";
-}
-
-int TObjectServiceProxy::GetProtocolVersion()
-{
-    return 11;
-}
-
-TObjectServiceProxy::TObjectServiceProxy(IChannelPtr channel)
-    : TProxyBase(channel, GetServiceName(), GetProtocolVersion())
-{ }
-
 TObjectServiceProxy::TReqExecuteBatchPtr TObjectServiceProxy::ExecuteBatch()
 {
-    // Keep this in sync with DEFINE_RPC_PROXY_METHOD.
-    return
-        New<TReqExecuteBatch>(Channel_, ServiceName_, "Execute")
+    return New<TReqExecuteBatch>(Channel_)
         ->SetTimeout(DefaultTimeout_);
 }
 

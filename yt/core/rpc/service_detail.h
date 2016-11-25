@@ -533,9 +533,9 @@ protected:
      */
     TServiceBase(
         IInvokerPtr defaultInvoker,
-        const TServiceId& serviceId,
+        const TServiceDescriptor& descriptor,
         const NLogging::TLogger& logger,
-        int protocolVersion = TProxyBase::DefaultProtocolVersion);
+        const TRealmId& realmId = NullRealmId);
 
     //! Registers a method.
     TRuntimeMethodInfoPtr RegisterMethod(const TMethodDescriptor& descriptor);

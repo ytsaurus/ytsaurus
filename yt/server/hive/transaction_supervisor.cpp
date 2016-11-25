@@ -352,13 +352,12 @@ private:
     protected:
         explicit TOwnedServiceBase(
             TImplPtr owner,
-            const Stroka& serviceName,
-            int protocolVersion)
+            const TServiceDescriptor& descriptor)
             : THydraServiceBase(
                 owner->HydraManager_->CreateGuardedAutomatonInvoker(owner->AutomatonInvoker_),
-                TServiceId(serviceName, owner->SelfCellId_),
+                descriptor,
                 HiveServerLogger,
-                protocolVersion)
+                owner->SelfCellId_)
             , Owner_(owner)
             , HydraManager_(owner->HydraManager_)
         { }
@@ -390,8 +389,7 @@ private:
         explicit TTransactionSupervisorService(TImplPtr owner)
             : TOwnedServiceBase(
                 owner,
-                TTransactionSupervisorServiceProxy::GetServiceName(),
-                TTransactionSupervisorServiceProxy::GetProtocolVersion())
+                TTransactionSupervisorServiceProxy::GetDescriptor())
         {
             TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitTransaction));
             TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortTransaction));
@@ -479,8 +477,7 @@ private:
         explicit TTransactionParticipantService(TImplPtr owner)
             : TOwnedServiceBase(
                 owner,
-                TTransactionParticipantServiceProxy::GetServiceName(),
-                TTransactionParticipantServiceProxy::GetProtocolVersion())
+                TTransactionParticipantServiceProxy::GetDescriptor())
         {
             TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(PrepareTransaction));
             TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitTransaction));

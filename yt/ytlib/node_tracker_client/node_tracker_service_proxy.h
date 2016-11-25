@@ -15,24 +15,12 @@ class TNodeTrackerServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    static Stroka GetServiceName()
-    {
-        return "NodeTracker";
-    }
-
-    static int GetProtocolVersion()
-    {
-        return 9;
-    }
-
-    explicit TNodeTrackerServiceProxy(NRpc::IChannelPtr channel)
-        : TProxyBase(channel, GetServiceName(), GetProtocolVersion())
-    { }
+    DEFINE_RPC_PROXY(TNodeTrackerServiceProxy, RPC_PROXY_DESC(NodeTrackerService)
+        .SetProtocolVersion(9));
 
     DEFINE_RPC_PROXY_METHOD(NProto, RegisterNode);
     DEFINE_RPC_PROXY_METHOD(NProto, FullHeartbeat);
     DEFINE_RPC_PROXY_METHOD(NProto, IncrementalHeartbeat);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -35,9 +35,8 @@ public:
     TJobProberService(TBootstrap* bootstrap)
         : TServiceBase(
             bootstrap->GetControlInvoker(),
-            TJobProberServiceProxy::GetServiceName(),
-            SchedulerLogger,
-            TJobProberServiceProxy::GetProtocolVersion())
+            TJobProberServiceProxy::GetDescriptor(),
+            SchedulerLogger)
         , Bootstrap_(bootstrap)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DumpInputContext));

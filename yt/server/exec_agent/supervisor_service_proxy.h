@@ -15,19 +15,7 @@ class TSupervisorServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    static Stroka GetServiceName()
-    {
-        return "SupervisorService";
-    }
-
-    static int GetProtocolVersion()
-    {
-        return 1;
-    }
-
-    explicit TSupervisorServiceProxy(NRpc::IChannelPtr channel)
-        : TProxyBase(channel, GetServiceName(), GetProtocolVersion())
-    { }
+    DEFINE_RPC_PROXY(TSupervisorServiceProxy, RPC_PROXY_DESC(SupervisorService));
 
     DEFINE_RPC_PROXY_METHOD(NProto, GetJobSpec);
     DEFINE_RPC_PROXY_METHOD(NProto, OnJobFinished);

@@ -72,7 +72,7 @@ public:
         TBootstrap* bootstrap)
         : TServiceBase(
             CreatePrioritizedInvoker(bootstrap->GetControlInvoker()),
-            TDataNodeServiceProxy::GetServiceName(),
+            TDataNodeServiceProxy::GetDescriptor(),
             DataNodeLogger)
         , Config_(config)
         , Bootstrap_(bootstrap)

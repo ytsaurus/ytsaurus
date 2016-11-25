@@ -463,13 +463,13 @@ private:
 
 TServiceBase::TServiceBase(
     IInvokerPtr defaultInvoker,
-    const TServiceId& serviceId,
+    const TServiceDescriptor& descriptor,
     const NLogging::TLogger& logger,
-    int protocolVersion)
+    const TRealmId& realmId)
     : Logger(logger)
-    , DefaultInvoker_(defaultInvoker)
-    , ServiceId_(serviceId)
-    , ProtocolVersion_(protocolVersion)
+    , DefaultInvoker_(std::move(defaultInvoker))
+    , ServiceId_(descriptor.ServiceName, realmId)
+    , ProtocolVersion_(descriptor.ProtocolVersion)
 {
     YCHECK(defaultInvoker);
 
@@ -503,7 +503,7 @@ void TServiceBase::HandleRequest(
                 "Service is stopped");
         }
 
-        if (requestProtocolVersion != TProxyBase::GenericProtocolVersion &&
+        if (requestProtocolVersion != GenericProtocolVersion &&
             requestProtocolVersion != ProtocolVersion_)
         {
             THROW_ERROR_EXCEPTION(

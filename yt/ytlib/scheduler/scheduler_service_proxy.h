@@ -15,26 +15,14 @@ class TSchedulerServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    static Stroka GetServiceName()
-    {
-        return "SchedulerService";
-    }
-
-    static int GetProtocolVersion()
-    {
-        return 4;
-    }
-
-    explicit TSchedulerServiceProxy(NRpc::IChannelPtr channel)
-        : TProxyBase(channel, GetServiceName(), GetProtocolVersion())
-    { }
+    DEFINE_RPC_PROXY(TSchedulerServiceProxy, RPC_PROXY_DESC(SchdulerService)
+        .SetProtocolVersion(4));
 
     DEFINE_RPC_PROXY_METHOD(NScheduler::NProto, StartOperation);
     DEFINE_RPC_PROXY_METHOD(NScheduler::NProto, AbortOperation);
     DEFINE_RPC_PROXY_METHOD(NScheduler::NProto, SuspendOperation);
     DEFINE_RPC_PROXY_METHOD(NScheduler::NProto, ResumeOperation);
     DEFINE_RPC_PROXY_METHOD(NScheduler::NProto, CompleteOperation);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -23,7 +23,8 @@ namespace NCoreDump {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCoreResult {
+struct TCoreResult
+{
     std::vector<NProto::TCoreInfo> CoreInfos;
     NScheduler::NProto::TOutputResult BoundaryKeys;
 };
@@ -51,7 +52,7 @@ public:
 
 private:
     class TCoreProcessor;
-    TIntrusivePtr<TCoreProcessor> CoreProcessor_;
+    const TIntrusivePtr<TCoreProcessor> CoreProcessor_;
 
     DECLARE_RPC_SERVICE_METHOD(NProto, StartCoreDump);
 };

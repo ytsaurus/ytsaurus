@@ -25,9 +25,8 @@ public:
     explicit TJobProberService(TJobProxyPtr jobProxy)
         : TServiceBase(
             jobProxy->GetControlInvoker(),
-            TJobProberServiceProxy::GetServiceName(),
-            JobProxyLogger,
-            TJobProberServiceProxy::GetProtocolVersion())
+            TJobProberServiceProxy::GetDescriptor(),
+            JobProxyLogger)
         , JobProxy_(jobProxy)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DumpInputContext));

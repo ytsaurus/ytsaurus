@@ -35,9 +35,8 @@ public:
     TSchedulerService(TBootstrap* bootstrap)
         : TServiceBase(
             bootstrap->GetControlInvoker(),
-            TSchedulerServiceProxy::GetServiceName(),
-            SchedulerLogger,
-            TSchedulerServiceProxy::GetProtocolVersion())
+            TSchedulerServiceProxy::GetDescriptor(),
+            SchedulerLogger)
         , Bootstrap_(bootstrap)
         , ResponseKeeper_(Bootstrap_->GetResponseKeeper())
     {

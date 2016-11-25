@@ -126,6 +126,13 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#define DEFINE_YPATH_PROXY(descriptor) \
+    static const ::NYT::NRpc::TServiceDescriptor& GetDescriptor() \
+    { \
+        static const ::NYT::NRpc::TServiceDescriptor result = (descriptor); \
+        return result; \
+    }
+
 #define DEFINE_YPATH_PROXY_METHOD_IMPL(ns, method, isMutating) \
     typedef ::NYT::NYTree::TTypedYPathRequest<ns::TReq##method, ns::TRsp##method> TReq##method; \
     typedef ::NYT::NYTree::TTypedYPathResponse<ns::TReq##method, ns::TRsp##method> TRsp##method; \
@@ -135,7 +142,7 @@ protected:
     \
     static TReq##method##Ptr method(const NYT::NYPath::TYPath& path = NYT::NYPath::TYPath()) \
     { \
-        return New<TReq##method>(GetServiceName(), #method, path, isMutating); \
+        return New<TReq##method>(GetDescriptor().ServiceName, #method, path, isMutating); \
     }
 
 #define DEFINE_YPATH_PROXY_METHOD(ns, method) \

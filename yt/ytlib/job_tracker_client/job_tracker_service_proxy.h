@@ -15,22 +15,10 @@ class TJobTrackerServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    static Stroka GetServiceName()
-    {
-        return "JobTracker";
-    }
-
-    static int GetProtocolVersion()
-    {
-        return 3;
-    }
-
-    explicit TJobTrackerServiceProxy(NRpc::IChannelPtr channel)
-        : TProxyBase(channel, GetServiceName(), GetProtocolVersion())
-    { }
+    DEFINE_RPC_PROXY(TJobTrackerServiceProxy, RPC_PROXY_DESC(JobTracker)
+        .SetProtocolVersion(3));
 
     DEFINE_RPC_PROXY_METHOD(NProto, Heartbeat);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

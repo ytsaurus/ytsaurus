@@ -95,9 +95,9 @@ public:
         TCompositeAutomatonPtr automaton)
         : THydraServiceBase(
             hydraManager->CreateGuardedAutomatonInvoker(automatonInvoker),
-            TServiceId(THiveServiceProxy::GetServiceName(), selfCellId),
+            THiveServiceProxy::GetDescriptor(),
             HiveServerLogger,
-            THiveServiceProxy::GetProtocolVersion())
+            selfCellId)
         , TCompositeAutomatonPart(
             hydraManager,
             automaton,

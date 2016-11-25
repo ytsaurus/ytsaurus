@@ -11,10 +11,7 @@ namespace NObjectClient {
 
 struct TMasterYPathProxy
 {
-    static Stroka GetServiceName()
-    {
-        return "Master";
-    }
+    DEFINE_YPATH_PROXY(RPC_PROXY_DESC(Master));
 
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, CreateObject);
     DEFINE_YPATH_PROXY_METHOD(NProto, GetClusterMeta);

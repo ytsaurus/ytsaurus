@@ -15,23 +15,11 @@ class TElectionServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    static Stroka GetServiceName()
-    {
-        return "ElectionService";
-    }
-
-    static int GetProtocolVersion()
-    {
-        return 1;
-    }
-
-    explicit TElectionServiceProxy(NRpc::IChannelPtr channel)
-        : NRpc::TProxyBase(channel, GetServiceName(), GetProtocolVersion())
-    { }
+    DEFINE_RPC_PROXY(TElectionServiceProxy, RPC_PROXY_DESC(ElectionService)
+        .SetProtocolVersion(1));
 
     DEFINE_RPC_PROXY_METHOD(NElection::NProto, PingFollower);
     DEFINE_RPC_PROXY_METHOD(NElection::NProto, GetStatus);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

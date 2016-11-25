@@ -173,11 +173,9 @@ struct TServiceId
 {
     TServiceId();
     TServiceId(const Stroka& serviceName, const TRealmId& realmId = NullRealmId);
-    TServiceId(const char* serviceName, const TRealmId& realmId = NullRealmId);
 
     Stroka ServiceName;
     TRealmId RealmId;
-
 };
 
 bool operator == (const TServiceId& lhs, const TServiceId& rhs);

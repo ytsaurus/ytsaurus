@@ -14,10 +14,7 @@ namespace NTableClient {
 struct TTableYPathProxy
     : public NChunkClient::TChunkOwnerYPathProxy
 {
-    static Stroka GetServiceName()
-    {
-        return "Table";
-    }
+    DEFINE_YPATH_PROXY(RPC_PROXY_DESC(Table));
 
     DEFINE_YPATH_PROXY_METHOD(NProto, GetMountInfo);
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Mount);
