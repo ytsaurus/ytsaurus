@@ -1804,6 +1804,18 @@ protected:
                 user,
                 account);
         }
+
+        for (const auto& table : InputTables) {
+            for (const auto& name : Spec->SortBy) {
+                if (auto column = table.Schema.FindColumn(name)) {
+                    if (column->Aggregate) {
+                        THROW_ERROR_EXCEPTION("Sort by aggreate column is not alowed")
+                            << TErrorAttribute("table_path", table.Path.GetPath())
+                            << TErrorAttribute("column_name", name);
+                    }
+                }
+            }
+        }
     }
 
     virtual EJobType GetPartitionJobType() const = 0;
@@ -1939,6 +1951,7 @@ private:
 
             samplesFetcher = New<TSamplesFetcher>(
                 Config->Fetcher,
+                ESamplingPolicy::Sorting,
                 sampleCount,
                 Spec->SortBy,
                 Options->MaxSampleSize,

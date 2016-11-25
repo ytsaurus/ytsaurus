@@ -190,9 +190,6 @@ class TBlockWriter;
 
 class THorizontalSchemalessBlockReader;
 
-class TSchemafulRowMerger;
-class TVersionedRowMerger;
-
 DECLARE_REFCOUNTED_CLASS(TNameTable)
 class TNameTableReader;
 class TNameTableWriter;
@@ -257,9 +254,10 @@ DECLARE_REFCOUNTED_CLASS(TTypeConversionConfig)
 DECLARE_REFCOUNTED_CLASS(TLegacyChannelReader)
 DECLARE_REFCOUNTED_CLASS(TLegacyTableChunkReader)
 
-DECLARE_REFCOUNTED_CLASS(TSchemafulRowMerger);
+DECLARE_REFCOUNTED_CLASS(TSchemafulRowMerger)
 DECLARE_REFCOUNTED_CLASS(TUnversionedRowMerger)
 DECLARE_REFCOUNTED_CLASS(TVersionedRowMerger)
+DECLARE_REFCOUNTED_CLASS(TSamplingRowMerger)
 
 DECLARE_REFCOUNTED_STRUCT(IChunkLookupHashTable)
 

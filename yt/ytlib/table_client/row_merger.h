@@ -26,7 +26,7 @@ public:
         int columnCount,
         int keyColumnCount,
         const TColumnFilter& columnFilter,
-        NQueryClient::TColumnEvaluatorPtr columnEvauator);
+        NQueryClient::TColumnEvaluatorPtr columnEvaluator);
 
     void AddPartialRow(TVersionedRow row);
     TUnversionedRow BuildMergedRow();
@@ -67,7 +67,7 @@ public:
         TRowBufferPtr rowBuffer,
         int columnCount,
         int keyColumnCount,
-        NQueryClient::TColumnEvaluatorPtr columnEvauator);
+        NQueryClient::TColumnEvaluatorPtr columnEvaluator);
 
     void AddPartialRow(TUnversionedRow row);
     void DeletePartialRow(TUnversionedRow row);
@@ -106,7 +106,7 @@ public:
         TRetentionConfigPtr config,
         TTimestamp currentTimestamp,
         TTimestamp majorTimestamp,
-        NQueryClient::TColumnEvaluatorPtr columnEvauator);
+        NQueryClient::TColumnEvaluatorPtr columnEvaluator);
 
     void AddPartialRow(TVersionedRow row);
     TVersionedRow BuildMergedRow();
@@ -137,6 +137,28 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TVersionedRowMerger)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSamplingRowMerger
+    : public TIntrinsicRefCounted
+{
+public:
+
+    TSamplingRowMerger(
+        TRowBufferPtr rowBuffer,
+        const TTableSchema& schema);
+
+    TUnversionedRow MergeRow(TVersionedRow row);
+    void Reset();
+
+private:
+    const TRowBufferPtr RowBuffer_;
+    const TTableSchema Schema_;
+    std::vector<TTimestamp> LatestTimestamps_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TSamplingRowMerger)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -15,7 +15,14 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSample 
+DEFINE_ENUM(ESamplingPolicy,
+    ((Sorting)             (0))
+    ((Partitioning)        (1))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSample
 {
     //! The key is stored in row buffer.
     TKey Key;
@@ -40,6 +47,7 @@ class TSamplesFetcher
 public:
     TSamplesFetcher(
         NChunkClient::TFetcherConfigPtr config,
+        ESamplingPolicy samplingPolicy,
         int desiredSampleCount,
         const TKeyColumns& keyColumns,
         i64 maxSampleSize,
@@ -56,6 +64,7 @@ public:
     const std::vector<TSample>& GetSamples() const;
 
 private:
+    const ESamplingPolicy SamplingPolicy_;
     const TKeyColumns KeyColumns_;
     const int DesiredSampleCount_;
     const i64 MaxSampleSize_;

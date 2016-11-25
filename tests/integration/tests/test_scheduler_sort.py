@@ -430,16 +430,22 @@ class TestSchedulerSortCommands(YTEnvSetup):
                 sort_by="key",
                 spec={"schema_inference_mode" : "from_output"})
 
+    #TODO(savrus) add optimize_for=scan
+    @pytest.mark.parametrize("optimize_for", ["lookup"])
     @pytest.mark.parametrize("sort_order", [None, "ascending"])
-    def test_sort_on_dynamic_table(self, sort_order):
+    def test_sort_on_dynamic_table(self, sort_order, optimize_for):
+        schema= [
+            {"name": "key1", "type": "int64", "sort_order": sort_order},
+            {"name": "key2", "type": "int64", "sort_order": sort_order},
+            {"name": "value", "type": "string"}
+        ]
+
         def _create_dynamic_table(path):
             create("table", path,
                 attributes = {
-                    "schema": [
-                        {"name": "key", "type": "int64", "sort_order": sort_order},
-                        {"name": "value", "type": "string"}
-                    ],
-                    "dynamic": True
+                    "schema": schema,
+                    "dynamic": True,
+                    "optimize_for": optimize_for
                 })
 
         self.sync_create_cells(1)
@@ -447,7 +453,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         create("table", "//tmp/t_out")
 
-        rows = [{"key": i, "value": str(i)} for i in range(6)]
+        rows = [{"key1": i, "key2": i, "value": str(i)} for i in range(6)]
         self.sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", rows)
         self.sync_unmount_table("//tmp/t")
@@ -455,25 +461,19 @@ class TestSchedulerSortCommands(YTEnvSetup):
         sort(
             in_="//tmp/t",
             out="//tmp/t_out",
-            sort_by="key")
-
+            sort_by=["key1", "key2"])
         assert read_table("//tmp/t_out") == rows
 
-        rows1 = [{"key": i, "value": str(i+1)} for i in range(3, 10)]
+        rows1 = [{"key1": i, "key2": i, "value": str(i+1)} for i in range(3, 10)]
         self.sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", rows1)
         self.sync_unmount_table("//tmp/t")
-
-        sort(
-            in_="//tmp/t",
-            out="//tmp/t_out",
-            sort_by="key")
 
         def update(new):
             def update_row(row):
                 if sort_order == "ascending":
                     for r in rows:
-                        if r["key"] == row["key"]:
+                        if all(r[k] == row[k] for k in ("key1", "key2")):
                             r["value"] = row["value"]
                             return
                 rows.append(row)
@@ -482,7 +482,26 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         update(rows1)
 
-        assert_items_equal(read_table("//tmp/t_out"), rows)
+        def verify_sort(sort_by):
+            sort(
+                in_="//tmp/t",
+                out="//tmp/t_out",
+                sort_by=sort_by)
+            actual = read_table("//tmp/t_out")
+
+            key = lambda r: [r[k] for k in sort_by]
+            for i in xrange(1, len(actual)):
+                assert key(actual[i-1]) <= key(actual[i])
+
+            wide_by = sort_by + [c["name"] for c in schema if c["name"] not in sort_by]
+            key = lambda r: [r[k] for k in wide_by]
+            assert sorted(actual, key=key) == sorted(rows, key=key)
+
+        verify_sort(["key1"])
+        verify_sort(["key2"])
+        verify_sort(["key2", "key1"])
+        verify_sort(["key1", "key2", "value"])
+        verify_sort(["value", "key2", "key1"])
 
     def test_computed_columns(self):
         create("table", "//tmp/t",

@@ -200,6 +200,7 @@ message TReqGetTableSamples
     repeated string key_columns = 2;
     required int32 max_sample_size = 3;
     required NYT.NProto.TWorkloadDescriptor workload_descriptor = 4;
+    required int32 sampling_policy = 5;
 }
 
 message TRspGetTableSamples

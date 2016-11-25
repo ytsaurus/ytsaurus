@@ -30,6 +30,7 @@
 #include <yt/ytlib/table_client/schema.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
 #include <yt/ytlib/table_client/helpers.h>
+#include <yt/ytlib/table_client/samples_fetcher.h>
 
 #include <yt/core/bus/tcp_dispatcher.h>
 
@@ -662,10 +663,12 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetTableSamples)
     {
+        auto samplingPolicy = ESamplingPolicy(request->sampling_policy());
         auto keyColumns = FromProto<TKeyColumns>(request->key_columns());
         auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
 
-        context->SetRequestInfo("KeyColumns: %v, ChunkCount: %v, Workload: %v",
+        context->SetRequestInfo("SamplingPolicy: %v, KeyColumns: %v, ChunkCount: %v, Workload: %v",
+            samplingPolicy,
             keyColumns,
             request->sample_requests_size(),
             workloadDescriptor);
@@ -697,6 +700,7 @@ private:
                     MakeStrong(this),
                     &sampleRequest,
                     sampleResponse,
+                    samplingPolicy,
                     keyColumns,
                     request->max_sample_size())
                 .AsyncVia(WorkerThread_->GetInvoker())));
@@ -708,6 +712,7 @@ private:
     void ProcessSample(
         const TReqGetTableSamples::TSampleRequest* sampleRequest,
         TRspGetTableSamples::TChunkSamples* sampleResponse,
+        ESamplingPolicy samplingPolicy,
         const TKeyColumns& keyColumns,
         i32 maxSampleSize,
         const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
@@ -727,26 +732,24 @@ private:
             }
 
             auto formatVersion = ETableChunkFormat(meta.version());
-            switch (formatVersion) {
-                case ETableChunkFormat::Old:
-                    ProcessOldChunkSamples(sampleRequest, sampleResponse, keyColumns, maxSampleSize, meta);
+            if (formatVersion == ETableChunkFormat::Old) {
+                ProcessOldChunkSamples(sampleRequest, sampleResponse, keyColumns, maxSampleSize, meta);
+                return;
+            }
+
+            switch (samplingPolicy) {
+                case ESamplingPolicy::Sorting:
+                    ProcessSortingSamples(sampleRequest, sampleResponse, keyColumns, maxSampleSize, meta);
                     break;
 
-                case ETableChunkFormat::VersionedSimple:
-                case ETableChunkFormat::VersionedColumnar:
-                    ProcessVersionedChunkSamples(sampleRequest, sampleResponse, keyColumns, meta);
-                    break;
-
-                case ETableChunkFormat::SchemalessHorizontal:
-                case ETableChunkFormat::UnversionedColumnar:
-                    ProcessUnversionedChunkSamples(sampleRequest, sampleResponse, keyColumns, maxSampleSize, meta);
+                case ESamplingPolicy::Partitioning:
+                    ProcessPartitioningSamples(sampleRequest, sampleResponse, keyColumns, meta);
                     break;
 
                 default:
-                    THROW_ERROR_EXCEPTION("Invalid version %v of chunk %v",
-                        meta.version(),
-                        chunkId);
+                    Y_UNREACHABLE();
             }
+
         } catch (const std::exception& ex) {
             auto error = TError(ex);
             LOG_WARNING(error);
@@ -790,7 +793,7 @@ private:
     {
         auto samplesExt = GetProtoExtension<TOldSamplesExt>(chunkMeta.extensions());
 
-        std::vector<TSample> samples;
+        std::vector<NTableClient::NProto::TSample> samples;
         RandomSampleN(
             samplesExt.items().begin(),
             samplesExt.items().end(),
@@ -834,7 +837,7 @@ private:
         }
     }
 
-    void ProcessVersionedChunkSamples(
+    void ProcessPartitioningSamples(
         const TReqGetTableSamples::TSampleRequest* sampleRequest,
         TRspGetTableSamples::TChunkSamples* chunkSamples,
         const TKeyColumns& keyColumns,
@@ -852,14 +855,15 @@ private:
             chunkKeyColumns = FromProto<TTableSchema>(schemaExt).GetKeyColumns();
         }
 
-        int prefixLength = std::min(chunkKeyColumns.size(), keyColumns.size());
-        bool isCompatibleKeyColumns = std::equal(
-            chunkKeyColumns.begin(),
-            chunkKeyColumns.begin() + prefixLength,
-            keyColumns.begin());
+        bool isCompatibleKeyColumns =
+            keyColumns.size() >= chunkKeyColumns.size() &&
+            std::equal(
+                chunkKeyColumns.begin(),
+                chunkKeyColumns.end(),
+                keyColumns.begin());
 
         // Requested key can be wider than stored.
-        if (!isCompatibleKeyColumns || chunkKeyColumns.size() > prefixLength) {
+        if (!isCompatibleKeyColumns) {
             auto error = TError("Incompatible key columns in chunk %v: requested key columns %v, chunk key columns %v",
                 chunkId,
                 keyColumns,
@@ -903,7 +907,7 @@ private:
         }
     }
 
-    void ProcessUnversionedChunkSamples(
+    void ProcessSortingSamples(
         const TReqGetTableSamples::TSampleRequest* sampleRequest,
         TRspGetTableSamples::TChunkSamples* chunkSamples,
         const TKeyColumns& keyColumns,
@@ -914,8 +918,13 @@ private:
         std::vector<int> keyIds;
 
         try {
-            auto nameTableExt = GetProtoExtension<TNameTableExt>(chunkMeta.extensions());
-            nameTable = FromProto<TNameTablePtr>(nameTableExt);
+            auto nameTableExt = FindProtoExtension<TNameTableExt>(chunkMeta.extensions());
+            if (nameTableExt) {
+                nameTable = FromProto<TNameTablePtr>(*nameTableExt);
+            } else {
+                auto schemaExt = GetProtoExtension<TTableSchemaExt>(chunkMeta.extensions());
+                nameTable = TNameTable::FromSchema(FromProto<TTableSchema>(schemaExt));
+            }
 
             for (const auto& column : keyColumns) {
                 keyIds.push_back(nameTable->GetIdOrRegisterName(column));
@@ -936,6 +945,8 @@ private:
         auto samplesExt = GetProtoExtension<TSamplesExt>(chunkMeta.extensions());
         std::vector<TProtoStringType> samples;
         samples.reserve(sampleRequest->sample_count());
+
+        // TODO: respect sampleRequest lower_limit and upper_limit.
 
         RandomSampleN(
             samplesExt.entries().begin(),
