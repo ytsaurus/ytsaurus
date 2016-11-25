@@ -155,6 +155,7 @@ public:
             case ETableChunkFormat::SchemalessHorizontal:
             case ETableChunkFormat::UnversionedColumnar:
             case ETableChunkFormat::VersionedSimple:
+            case ETableChunkFormat::VersionedColumnar:
                 break;
             default:
                 auto chunkId = FromProto<TChunkId>(SliceReq_.chunk_id());

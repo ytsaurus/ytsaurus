@@ -13,11 +13,12 @@ class TestSchedulerReduceCommands(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
-    def _create_simple_dynamic_table(self, path):
+    def _create_simple_dynamic_table(self, path, optimize_for="lookup"):
         create("table", path,
             attributes = {
                 "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}, {"name": "value", "type": "string"}],
-                "dynamic": True
+                "dynamic": True,
+                "optimize_for": optimize_for
             })
 
     @unix_only
@@ -1024,9 +1025,10 @@ echo {v = 2} >&7
         assert read_table("//tmp/t2") == [{"k1": i * 2, "k2": i} for i in xrange(2)]
 
     @unix_only
-    def test_reduce_on_dynamic_table(self):
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_reduce_on_dynamic_table(self, optimize_for):
         self.sync_create_cells(1)
-        self._create_simple_dynamic_table("//tmp/t")
+        self._create_simple_dynamic_table("//tmp/t", optimize_for)
         create("table", "//tmp/t_out")
 
         rows = [{"key": i, "value": str(i)} for i in range(10)]
@@ -1056,9 +1058,10 @@ echo {v = 2} >&7
         assert_items_equal(read_table("//tmp/t_out"), rows)
 
     @unix_only
-    def test_reduce_with_foreign_dynamic(self):
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_reduce_with_foreign_dynamic(self, optimize_for):
         self.sync_create_cells(1)
-        self._create_simple_dynamic_table("//tmp/t2")
+        self._create_simple_dynamic_table("//tmp/t2", optimize_for)
         create("table", "//tmp/t1")
         create("table", "//tmp/t_out")
 

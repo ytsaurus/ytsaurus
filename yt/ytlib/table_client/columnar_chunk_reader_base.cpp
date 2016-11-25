@@ -195,7 +195,9 @@ void TColumnarRangeChunkReaderBase::Initialize(NYT::TRange<IUnversionedColumnRea
             upperRowIndex);
     }
 
-    LowerRowIndex_ = lowerRowIndex;
+    LowerRowIndex_ = count == LowerLimit_.GetKey().GetCount()
+        ? lowerRowIndex
+        : upperRowIndex;
     YCHECK(LowerRowIndex_ < ChunkMeta_->Misc().row_count());
     for (auto& column : Columns_) {
         column.ColumnReader->SkipToRowIndex(LowerRowIndex_);

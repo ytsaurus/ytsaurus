@@ -975,7 +975,7 @@ public:
             }
             rowLimit = std::min(rowLimit, MaxRowsPerRead_);
             YCHECK(rowLimit > 0);
-            
+
             auto range = RowBuilder_.AllocateRows(rows, rowLimit, RowIndex_, SafeUpperRowIndex_);
 
             // Read key values.
@@ -1002,9 +1002,9 @@ public:
             }
 
             if (RowIndex_ + rowLimit == HardUpperRowIndex_) {
-                Completed_ = true; 
+                Completed_ = true;
             }
-            
+
             RowBuilder_.ReadValues(range, RowIndex_);
 
             PerformanceCounters_->StaticChunkRowReadCount += range.Size();

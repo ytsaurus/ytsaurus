@@ -761,12 +761,14 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                 out="//tmp/output",
                 spec={"schema_inference_mode" : "from_output"})
 
-    def test_sorted_merge_on_dynamic_table(self):
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_sorted_merge_on_dynamic_table(self, optimize_for):
         def _create_dynamic_table(path):
             create("table", path,
                 attributes = {
                     "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}, {"name": "value", "type": "string"}],
-                    "dynamic": True
+                    "dynamic": True,
+                    "optimize_for": optimize_for
                 })
 
         self.sync_create_cells(1)

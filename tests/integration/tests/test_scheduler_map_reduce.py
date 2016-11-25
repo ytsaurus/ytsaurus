@@ -506,8 +506,9 @@ print "x={0}\ty={1}".format(x, y)
         actual = read_table("//tmp/t_output")
         assert_items_equal(actual, expected)
 
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     @pytest.mark.parametrize("sort_order", [None, "ascending"])
-    def test_map_reduce_on_dynamic_table(self, sort_order):
+    def test_map_reduce_on_dynamic_table(self, sort_order, optimize_for):
         def _create_dynamic_table(path):
             create("table", path,
                 attributes = {
@@ -515,7 +516,8 @@ print "x={0}\ty={1}".format(x, y)
                         {"name": "key", "type": "int64", "sort_order": sort_order},
                         {"name": "value", "type": "string"}
                     ],
-                    "dynamic": True
+                    "dynamic": True,
+                    "optimize_for": optimize_for
                 })
 
         self.sync_create_cells(1)

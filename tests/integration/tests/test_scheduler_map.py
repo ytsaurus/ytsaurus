@@ -511,14 +511,15 @@ class TestSchedulerMapCommands(YTEnvSetup):
         }
     }
 
-    def _create_simple_dynamic_table(self, path, sort_order="ascending"):
+    def _create_simple_dynamic_table(self, path, sort_order="ascending", optimize_for="lookup"):
         create("table", path,
             attributes = {
                 "schema": [
                     {"name": "key", "type": "int64", "sort_order": sort_order},
                     {"name": "value", "type": "string"}
                 ],
-                "dynamic": True
+                "dynamic": True,
+                "optimize_for": optimize_for
             })
 
     def test_empty_table(self):
@@ -1962,11 +1963,13 @@ print row + table_index
         with pytest.raises(YtError):
             op.track()
 
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     @pytest.mark.parametrize("sort_order", [None, "ascending"])
     @pytest.mark.parametrize("ordered", [False, True])
-    def test_map_on_dynamic_table(self, ordered, sort_order):
+    def test_map_on_dynamic_table(self, ordered, sort_order, optimize_for):
         self.sync_create_cells(1)
-        self._create_simple_dynamic_table("//tmp/t", sort_order=sort_order)
+        self._create_simple_dynamic_table("//tmp/t", sort_order=sort_order, optimize_for=optimize_for)
+        set("//tmp/t/@min_compaction_store_count", 5)
         create("table", "//tmp/t_out")
 
         rows = [{"key": i, "value": str(i)} for i in range(10)]
@@ -1997,6 +2000,8 @@ print row + table_index
         insert_rows("//tmp/t", rows3)
         self.sync_unmount_table("//tmp/t")
 
+        assert len(get("//tmp/t/@chunk_ids")) == 4
+
         def update(new):
             def update_row(row):
                 if sort_order == "ascending":
@@ -2020,9 +2025,10 @@ print row + table_index
 
         assert_items_equal(read_table("//tmp/t_out"), rows)
 
-    def test_sorted_dynamic_table_as_user_file(self):
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_sorted_dynamic_table_as_user_file(self, optimize_for):
         self.sync_create_cells(1)
-        self._create_simple_dynamic_table("//tmp/t", sort_order="ascending")
+        self._create_simple_dynamic_table("//tmp/t", optimize_for=optimize_for)
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
