@@ -121,25 +121,6 @@ DEFINE_ENUM(EControlAttribute,
     (RowIndex)
 );
 
-// COMPAT(psushin): Legacy enum for old chunks.
-DEFINE_ENUM(ELegacyKeyPartType,
-    // A special sentinel used by #GetKeySuccessor.
-    ((MinSentinel)(-1))
-    // Denotes a missing (null) component in a composite key.
-    ((Null)(0))
-    // Integer value.
-    ((Int64)(1))
-    // Floating-point value.
-    ((Double)(2))
-    // String value.
-    ((String)(3))
-    // Any structured value.
-    ((Composite)(4))
-
-    // A special sentinel used by #GetKeyPrefixSuccessor.
-    ((MaxSentinel)(100))
-);
-
 struct TColumnIdMapping
 {
     int ChunkSchemaIndex;
@@ -250,9 +231,6 @@ DECLARE_REFCOUNTED_CLASS(TBufferedTableWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TRetentionConfig)
 
 DECLARE_REFCOUNTED_CLASS(TTypeConversionConfig)
-
-DECLARE_REFCOUNTED_CLASS(TLegacyChannelReader)
-DECLARE_REFCOUNTED_CLASS(TLegacyTableChunkReader)
 
 DECLARE_REFCOUNTED_CLASS(TSchemafulRowMerger)
 DECLARE_REFCOUNTED_CLASS(TUnversionedRowMerger)

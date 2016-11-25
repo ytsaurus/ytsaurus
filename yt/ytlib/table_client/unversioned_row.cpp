@@ -1330,48 +1330,6 @@ TSharedRange<TUnversionedRow> CaptureRows(
     return CaptureRowsImpl(rows, tagCookie);
 }
 
-void FromProto(TUnversionedOwningRow* row, const NChunkClient::NProto::TKey& protoKey)
-{
-    TUnversionedOwningRowBuilder rowBuilder(protoKey.parts_size());
-    for (int id = 0; id < protoKey.parts_size(); ++id) {
-        auto& keyPart = protoKey.parts(id);
-        switch (ELegacyKeyPartType(keyPart.type())) {
-            case ELegacyKeyPartType::Null:
-                rowBuilder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, id));
-                break;
-
-            case ELegacyKeyPartType::MinSentinel:
-                rowBuilder.AddValue(MakeUnversionedSentinelValue(EValueType::Min, id));
-                break;
-
-            case ELegacyKeyPartType::MaxSentinel:
-                rowBuilder.AddValue(MakeUnversionedSentinelValue(EValueType::Max, id));
-                break;
-
-            case ELegacyKeyPartType::Int64:
-                rowBuilder.AddValue(MakeUnversionedInt64Value(keyPart.int64_value(), id));
-                break;
-
-            case ELegacyKeyPartType::Double:
-                rowBuilder.AddValue(MakeUnversionedDoubleValue(keyPart.double_value(), id));
-                break;
-
-            case ELegacyKeyPartType::String:
-                rowBuilder.AddValue(MakeUnversionedStringValue(keyPart.str_value(), id));
-                break;
-
-            case ELegacyKeyPartType::Composite:
-                rowBuilder.AddValue(MakeUnversionedAnyValue(TStringBuf(), id));
-                break;
-
-            default:
-                Y_UNREACHABLE();
-        }
-    }
-
-    *row = rowBuilder.FinishRow();
-}
-
 void Serialize(const TUnversionedValue& value, IYsonConsumer* consumer)
 {
     auto type = value.Type;

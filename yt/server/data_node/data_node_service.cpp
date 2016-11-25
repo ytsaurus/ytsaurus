@@ -731,12 +731,6 @@ private:
                     type);
             }
 
-            auto formatVersion = ETableChunkFormat(meta.version());
-            if (formatVersion == ETableChunkFormat::Old) {
-                ProcessOldChunkSamples(sampleRequest, sampleResponse, keyColumns, maxSampleSize, meta);
-                return;
-            }
-
             switch (samplingPolicy) {
                 case ESamplingPolicy::Sorting:
                     ProcessSortingSamples(sampleRequest, sampleResponse, keyColumns, maxSampleSize, meta);
@@ -783,59 +777,6 @@ private:
         protoSample->set_weight(weight);
     }
 
-
-    void ProcessOldChunkSamples(
-        const TReqGetTableSamples::TSampleRequest* sampleRequest,
-        TRspGetTableSamples::TChunkSamples* chunkSamples,
-        const TKeyColumns& keyColumns,
-        i32 maxSampleSize,
-        const TChunkMeta& chunkMeta)
-    {
-        auto samplesExt = GetProtoExtension<TOldSamplesExt>(chunkMeta.extensions());
-
-        std::vector<NTableClient::NProto::TSample> samples;
-        RandomSampleN(
-            samplesExt.items().begin(),
-            samplesExt.items().end(),
-            std::back_inserter(samples),
-            sampleRequest->sample_count());
-
-        for (const auto& sample : samples) {
-            std::vector<TUnversionedValue> values;
-
-            for (const auto& column : keyColumns) {
-                auto it = std::lower_bound(
-                    sample.parts().begin(),
-                    sample.parts().end(),
-                    column,
-                    [] (const TSamplePart& part, const Stroka& column) {
-                        return part.column() < column;
-                    });
-
-                auto keyPart = MakeUnversionedSentinelValue(EValueType::Null);
-                if (it != sample.parts().end() && it->column() == column) {
-                    switch (ELegacyKeyPartType(it->key_part().type())) {
-                        case ELegacyKeyPartType::Composite:
-                            keyPart = MakeUnversionedAnyValue(TStringBuf());
-                            break;
-                        case ELegacyKeyPartType::Int64:
-                            keyPart = MakeUnversionedInt64Value(it->key_part().int64_value());
-                            break;
-                        case ELegacyKeyPartType::Double:
-                            keyPart = MakeUnversionedDoubleValue(it->key_part().double_value());
-                            break;
-                        case ELegacyKeyPartType::String:
-                            keyPart = MakeUnversionedStringValue(it->key_part().str_value());
-                            break;
-                        default:
-                            Y_UNREACHABLE();
-                    }
-                }
-                values.push_back(keyPart);
-            }
-            SerializeSample(chunkSamples->add_samples(), std::move(values), maxSampleSize, 1);
-        }
-    }
 
     void ProcessPartitioningSamples(
         const TReqGetTableSamples::TSampleRequest* sampleRequest,

@@ -426,7 +426,6 @@ void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row);
 void ToProto(TProtoStringType* protoRow, const TUnversionedValue* begin, const TUnversionedValue* end);
 
 void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow);
-void FromProto(TUnversionedOwningRow* row, const NChunkClient::NProto::TKey& protoKey);
 void FromProto(TUnversionedRow* row, const TProtoStringType& protoRow, const TRowBufferPtr& rowBuffer);
 
 void Serialize(const TUnversionedValue& value, NYson::IYsonConsumer* consumer);
@@ -647,7 +646,6 @@ public:
     void Load(TStreamLoadContext& context);
 
 private:
-    friend void FromProto(TUnversionedOwningRow* row, const NChunkClient::NProto::TKey& protoKey);
     friend TOwningKey GetKeySuccessorImpl(const TOwningKey& key, int prefixLength, EValueType sentinelType);
     friend TUnversionedOwningRow DeserializeFromString(const Stroka& data);
 

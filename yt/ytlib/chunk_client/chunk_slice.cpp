@@ -151,7 +151,6 @@ public:
     {
         auto chunkFormat = ETableChunkFormat(Meta_.version());
         switch (chunkFormat) {
-            case ETableChunkFormat::Old:
             case ETableChunkFormat::SchemalessHorizontal:
             case ETableChunkFormat::UnversionedColumnar:
             case ETableChunkFormat::VersionedSimple:
@@ -174,50 +173,22 @@ public:
 
         i64 dataSizePerRow = std::max((i64)1, chunkDataSize / chunkRowCount);
 
-        if (chunkFormat == ETableChunkFormat::Old) {
-            auto indexExt = GetProtoExtension<TIndexExt>(Meta_.extensions());
+        auto blockMetaExt = GetProtoExtension<TBlockMetaExt>(Meta_.extensions());
 
-            IndexKeys_.reserve(indexExt.items_size() + 1);
-            for (int i = 0; i < indexExt.items_size(); ++i) {
-                TOwningKey indexKey;
-                FromProto(&indexKey, indexExt.items(i).key());
-                i64 rowCount = indexExt.items(i).row_index() + 1;
-                if (i != 0) {
-                    rowCount -= IndexKeys_.back().ChunkRowCount;
-                }
-                IndexKeys_.push_back({
-                    indexKey,
-                    rowCount,
-                    indexExt.items(i).row_index() + 1,
-                    rowCount * dataSizePerRow});
-            }
-            i64 rowCount = chunkRowCount;
-            if (!IndexKeys_.empty()) {
-                rowCount -= IndexKeys_.back().ChunkRowCount;
-            }
+        IndexKeys_.reserve(blockMetaExt.blocks_size() + 0);
+        for (int i = 0; i < blockMetaExt.blocks_size(); ++i) {
+            YCHECK(i == blockMetaExt.blocks(i).block_index());
+            auto indexKey = FromProto<TOwningKey>(blockMetaExt.blocks(i).last_key());
+            i64 chunkRowCount = blockMetaExt.blocks(i).chunk_row_count();
+            i64 rowCount = IndexKeys_.empty() 
+                ? chunkRowCount
+                : chunkRowCount - IndexKeys_.back().ChunkRowCount;
+
             IndexKeys_.push_back({
-                MaxKey_,
+                indexKey,
                 rowCount,
                 chunkRowCount,
                 rowCount * dataSizePerRow});
-        } else {
-            auto blockMetaExt = GetProtoExtension<TBlockMetaExt>(Meta_.extensions());
-
-            IndexKeys_.reserve(blockMetaExt.blocks_size() + 0);
-            for (int i = 0; i < blockMetaExt.blocks_size(); ++i) {
-                YCHECK(i == blockMetaExt.blocks(i).block_index());
-                auto indexKey = FromProto<TOwningKey>(blockMetaExt.blocks(i).last_key());
-                i64 chunkRowCount = blockMetaExt.blocks(i).chunk_row_count();
-                i64 rowCount = IndexKeys_.empty() 
-                    ? chunkRowCount
-                    : chunkRowCount - IndexKeys_.back().ChunkRowCount;
-
-                IndexKeys_.push_back({
-                    indexKey,
-                    rowCount,
-                    chunkRowCount,
-                    rowCount * dataSizePerRow});
-            }
         }
 
         BeginIndex_ = 0;

@@ -452,17 +452,9 @@ bool IsEmpty(const TChunkTree* chunkTree)
 TOwningKey GetMaxKey(const TChunk* chunk)
 {
     TOwningKey key;
-    auto chunkFormat = ETableChunkFormat(chunk->ChunkMeta().version());
-    if (chunkFormat == ETableChunkFormat::Old) {
-        // Deprecated chunks.
-        auto boundaryKeysExt = GetProtoExtension<TOldBoundaryKeysExt>(
-            chunk->ChunkMeta().extensions());
-        FromProto(&key, boundaryKeysExt.end());
-    } else {
-        auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(
-            chunk->ChunkMeta().extensions());
-        FromProto(&key, boundaryKeysExt.max());
-    }
+    auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(
+        chunk->ChunkMeta().extensions());
+    FromProto(&key, boundaryKeysExt.max());
 
     return GetKeySuccessor(key);
 }
@@ -505,17 +497,9 @@ TOwningKey GetMaxKey(const TChunkTree* chunkTree)
 TOwningKey GetMinKey(const TChunk* chunk)
 {
     TOwningKey key;
-    auto chunkFormat = ETableChunkFormat(chunk->ChunkMeta().version());
-    if (chunkFormat == ETableChunkFormat::Old) {
-        // Deprecated chunks.
-        auto boundaryKeysExt = GetProtoExtension<TOldBoundaryKeysExt>(
-            chunk->ChunkMeta().extensions());
-        FromProto(&key, boundaryKeysExt.start());
-    } else {
-        auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(
-            chunk->ChunkMeta().extensions());
-        FromProto(&key, boundaryKeysExt.min());
-    }
+    auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(
+        chunk->ChunkMeta().extensions());
+    FromProto(&key, boundaryKeysExt.min());
 
     return key;
 }
