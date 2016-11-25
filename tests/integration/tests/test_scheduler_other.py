@@ -1878,6 +1878,7 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
         op1.abort()
         op2.abort()
 
+    @pytest.mark.xfail(reason="TODO(max42)")
     def test_true_suspicious_job(self):
         # This test involves dirty hack to make lots of retries for fetching feasible
         # seeds from master making the job suspicious (as it doesn't give the input for the
