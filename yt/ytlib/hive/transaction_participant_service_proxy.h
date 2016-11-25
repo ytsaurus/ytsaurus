@@ -15,19 +15,8 @@ class TTransactionParticipantServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    static Stroka GetServiceName()
-    {
-        return "TransactionParticipantService";
-    }
-
-    static int GetProtocolVersion()
-    {
-        return 0;
-    }
-
-    explicit TTransactionParticipantServiceProxy(NRpc::IChannelPtr channel)
-        : TProxyBase(channel, GetServiceName(), GetProtocolVersion())
-    { }
+    DEFINE_RPC_PROXY(TTransactionParticipantServiceProxy, RPC_PROXY_DESC(TransactionParticipantService)
+        .SetProtocolVersion(0));
 
     DEFINE_RPC_PROXY_METHOD(NProto::NTransactionParticipant, PrepareTransaction);
     DEFINE_RPC_PROXY_METHOD(NProto::NTransactionParticipant, CommitTransaction);

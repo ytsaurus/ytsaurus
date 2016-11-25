@@ -50,9 +50,9 @@ public:
         NCellNode::TBootstrap* bootstrap)
         : THydraServiceBase(
             slot->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Write),
-            TServiceId(TTabletServiceProxy::GetServiceName(), slot->GetCellId()),
+            TTabletServiceProxy::GetDescriptor(),
             TabletNodeLogger,
-            TTabletServiceProxy::GetProtocolVersion())
+            slot->GetCellId())
         , Slot_(slot)
         , Bootstrap_(bootstrap)
     {

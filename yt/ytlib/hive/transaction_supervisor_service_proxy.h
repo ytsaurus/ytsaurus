@@ -15,24 +15,12 @@ class TTransactionSupervisorServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    static Stroka GetServiceName()
-    {
-        return "TransactionSupervisorService";
-    }
-
-    static int GetProtocolVersion()
-    {
-        return 1;
-    }
-
-    explicit TTransactionSupervisorServiceProxy(NRpc::IChannelPtr channel)
-        : TProxyBase(channel, GetServiceName(), GetProtocolVersion())
-    { }
+    DEFINE_RPC_PROXY(TTransactionSupervisorServiceProxy, RPC_PROXY_DESC(JobTrackerService)
+        .SetProtocolVersion(1));
 
     DEFINE_RPC_PROXY_METHOD(NProto::NTransactionSupervisor, CommitTransaction);
     DEFINE_RPC_PROXY_METHOD(NProto::NTransactionSupervisor, AbortTransaction);
     DEFINE_RPC_PROXY_METHOD(NProto::NTransactionSupervisor, PingTransaction);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

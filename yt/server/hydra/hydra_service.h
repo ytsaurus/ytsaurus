@@ -15,9 +15,9 @@ class THydraServiceBase
 protected:
     THydraServiceBase(
         IInvokerPtr invoker,
-        const NRpc::TServiceId& serviceId,
+        const NRpc::TServiceDescriptor& descriptor,
         const NLogging::TLogger& logger,
-        int protocolVersion = NRpc::TProxyBase::DefaultProtocolVersion);
+        const NRpc::TRealmId& realmId);
 
     void ValidatePeer(EPeerKind kind);
     void SyncWithUpstream();

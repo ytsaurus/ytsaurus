@@ -15,23 +15,11 @@ class TQueryServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    static Stroka GetServiceName()
-    {
-        return "QueryService";
-    }
-
-    static int GetProtocolVersion()
-    {
-        return 30;
-    }
-
-    explicit TQueryServiceProxy(NRpc::IChannelPtr channel)
-        : TProxyBase(channel, GetServiceName(), GetProtocolVersion())
-    { }
+    DEFINE_RPC_PROXY(TQueryServiceProxy, RPC_PROXY_DESC(QueryService)
+        .SetProtocolVersion(30));
 
     DEFINE_RPC_PROXY_METHOD(NProto, Execute);
     DEFINE_RPC_PROXY_METHOD(NProto, Read);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

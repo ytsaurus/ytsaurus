@@ -15,19 +15,8 @@ class TJobProberServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    static Stroka GetServiceName()
-    {
-        return "JobProberService";
-    }
-
-    static int GetProtocolVersion()
-    {
-        return 0;
-    }
-
-    explicit TJobProberServiceProxy(NRpc::IChannelPtr channel)
-        : TProxyBase(channel, GetServiceName(), GetProtocolVersion())
-    { }
+    DEFINE_RPC_PROXY(TJobProberServiceProxy, RPC_PROXY_DESC(JobProberService)
+        .SetProtocolVersion(0));
 
     DEFINE_RPC_PROXY_METHOD(NProto, DumpInputContext);
     DEFINE_RPC_PROXY_METHOD(NProto, GetJobNode);

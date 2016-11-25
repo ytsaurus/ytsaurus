@@ -236,9 +236,8 @@ TCoreProcessorService::TCoreProcessorService(
     TDuration readWriteTimeout)
     : TServiceBase(
         controlInvoker,
-        TCoreProcessorServiceProxy::GetServiceName(),
-        jobHost->GetLogger(),
-        TCoreProcessorServiceProxy::GetProtocolVersion())
+        TCoreProcessorServiceProxy::GetDescriptor(),
+        jobHost->GetLogger())
     , CoreProcessor_(New<TCoreProcessor>(
         jobHost,
         blobTableWriterConfig,
@@ -260,7 +259,9 @@ TCoreResult TCoreProcessorService::Finalize(TDuration timeout) const
 
 DEFINE_RPC_SERVICE_METHOD(TCoreProcessorService, StartCoreDump)
 {
-    auto namedPipePath = CoreProcessor_->ProcessCore(request->process_id(), request->executable_name());
+    auto namedPipePath = CoreProcessor_->ProcessCore(
+        request->process_id(),
+        request->executable_name());
     response->set_named_pipe_path(namedPipePath);
     context->Reply();
 }

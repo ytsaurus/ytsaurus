@@ -26,9 +26,8 @@ public:
     TJobTrackerService(TBootstrap* bootstrap)
         : NRpc::TServiceBase(
             bootstrap->GetControlInvoker(),
-            TJobTrackerServiceProxy::GetServiceName(),
-            SchedulerLogger,
-            TJobTrackerServiceProxy::GetProtocolVersion())
+            TJobTrackerServiceProxy::GetDescriptor(),
+            SchedulerLogger)
         , Bootstrap_(bootstrap)
     {
         RegisterMethod(

@@ -38,10 +38,9 @@ public:
         NCellMaster::TBootstrap* bootstrap)
         : TMasterHydraServiceBase(
             bootstrap,
-            TNodeTrackerServiceProxy::GetServiceName(),
+            TNodeTrackerServiceProxy::GetDescriptor(),
             EAutomatonThreadQueue::NodeTrackerService,
-            NodeTrackerServerLogger,
-            TNodeTrackerServiceProxy::GetProtocolVersion())
+            NodeTrackerServerLogger)
         , Config_(config)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterNode));

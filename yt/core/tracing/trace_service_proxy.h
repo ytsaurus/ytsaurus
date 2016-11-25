@@ -13,14 +13,7 @@ class TTraceServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    static Stroka GetServiceName()
-    {
-        return "TraceService";
-    }
-
-    explicit TTraceServiceProxy(NRpc::IChannelPtr channel)
-        : TProxyBase(channel, GetServiceName())
-    { }
+    DEFINE_RPC_PROXY(TTraceServiceProxy, RPC_PROXY_DESC(TraceService));
 
     DEFINE_ONE_WAY_RPC_PROXY_METHOD(NProto, SendBatch);
 };

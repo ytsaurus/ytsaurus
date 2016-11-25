@@ -15,18 +15,10 @@ class TSnapshotServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    static Stroka GetServiceName()
-    {
-        return "SnapshotService";
-    }
-
-    explicit TSnapshotServiceProxy(NRpc::IChannelPtr channel)
-        : TProxyBase(channel, GetServiceName())
-    { }
+    DEFINE_RPC_PROXY(TSnapshotServiceProxy, RPC_PROXY_DESC(SnapshotService));
 
     DEFINE_RPC_PROXY_METHOD(NProto, ReadSnapshot);
     DEFINE_RPC_PROXY_METHOD(NProto, LookupSnapshot);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

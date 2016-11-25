@@ -15,19 +15,8 @@ class TTabletServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    static Stroka GetServiceName()
-    {
-        return "TabletService";
-    }
-
-    static int GetProtocolVersion()
-    {
-        return 9;
-    }
-
-    explicit TTabletServiceProxy(NRpc::IChannelPtr channel)
-        : TProxyBase(channel, GetServiceName(), GetProtocolVersion())
-    { }
+    DEFINE_RPC_PROXY(TTabletServiceProxy, RPC_PROXY_DESC(TabletService)
+        .SetProtocolVersion(9));
 
     DEFINE_RPC_PROXY_METHOD(NProto, Write);
     DEFINE_RPC_PROXY_METHOD(NProto, RegisterTransactionActions);

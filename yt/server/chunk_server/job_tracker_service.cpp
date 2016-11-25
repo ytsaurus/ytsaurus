@@ -45,10 +45,9 @@ public:
     explicit TJobTrackerService(TBootstrap* bootstrap)
         : TMasterHydraServiceBase(
             bootstrap,
-            TJobTrackerServiceProxy::GetServiceName(),
+            TJobTrackerServiceProxy::GetDescriptor(),
             EAutomatonThreadQueue::JobTracker,
-            ChunkServerLogger,
-            TJobTrackerServiceProxy::GetProtocolVersion())
+            ChunkServerLogger)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat)
             .SetHeavy(true));

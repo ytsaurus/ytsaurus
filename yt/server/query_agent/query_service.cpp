@@ -55,9 +55,8 @@ public:
         NCellNode::TBootstrap* bootstrap)
         : TServiceBase(
             CreatePrioritizedInvoker(bootstrap->GetQueryPoolInvoker()),
-            TQueryServiceProxy::GetServiceName(),
-            QueryAgentLogger,
-            TQueryServiceProxy::GetProtocolVersion())
+            TQueryServiceProxy::GetDescriptor(),
+            QueryAgentLogger)
         , Config_(config)
         , Bootstrap_(bootstrap)
     {

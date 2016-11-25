@@ -26,7 +26,7 @@ public:
         IInvokerPtr invoker)
         : TServiceBase(
             invoker,
-            TOrchidServiceProxy::GetServiceName(),
+            TOrchidServiceProxy::GetDescriptor(),
             OrchidLogger)
         , RootService_(CreateRootService(root))
     {

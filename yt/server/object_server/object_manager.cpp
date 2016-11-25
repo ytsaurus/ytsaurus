@@ -190,7 +190,7 @@ private:
     TResolveResult DoResolveThere(const TYPath& path, IServiceContextPtr context)
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        if (context->GetService() == TMasterYPathProxy::GetServiceName()) {
+        if (context->GetService() == TMasterYPathProxy::GetDescriptor().ServiceName) {
             return TResolveResult::There(objectManager->GetMasterProxy(), TYPath());
         }
 

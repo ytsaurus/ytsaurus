@@ -70,11 +70,10 @@ public:
         TBootstrap* bootstrap)
         : TMasterHydraServiceBase(
             bootstrap,
-            NObjectClient::TObjectServiceProxy::GetServiceName(),
+            NObjectClient::TObjectServiceProxy::GetDescriptor(),
             // Execute method is being handled in RPC thread pool anyway.
             EAutomatonThreadQueue::Default,
-            ObjectServerLogger,
-            NObjectClient::TObjectServiceProxy::GetProtocolVersion())
+            ObjectServerLogger)
         , Config_(std::move(config))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)

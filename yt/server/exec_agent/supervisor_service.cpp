@@ -23,9 +23,8 @@ using namespace NYson;
 TSupervisorService::TSupervisorService(TBootstrap* bootstrap)
     : NRpc::TServiceBase(
         bootstrap->GetControlInvoker(),
-        TSupervisorServiceProxy::GetServiceName(),
-        ExecAgentLogger,
-        TSupervisorServiceProxy::GetProtocolVersion())
+        TSupervisorServiceProxy::GetDescriptor(),
+        ExecAgentLogger)
     , Bootstrap(bootstrap)
 {
     RegisterMethod(

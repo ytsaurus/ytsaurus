@@ -340,6 +340,39 @@ DEFINE_REFCOUNTED_TYPE(TOneWayClientResponse)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const int DefaultProtocolVersion = 0;
+static const int GenericProtocolVersion = -1;
+
+struct TServiceDescriptor
+{
+    Stroka ServiceName;
+    int ProtocolVersion = DefaultProtocolVersion;
+
+    explicit TServiceDescriptor(const Stroka& serviceName)
+        : ServiceName(serviceName)
+    { }
+
+    TServiceDescriptor& SetProtocolVersion(int value)
+    {
+        ProtocolVersion = value;
+        return *this;
+    }
+};
+
+#define DEFINE_RPC_PROXY(type, descriptor) \
+    static const ::NYT::NRpc::TServiceDescriptor& GetDescriptor() \
+    { \
+        static const ::NYT::NRpc::TServiceDescriptor result = (descriptor); \
+        return result; \
+    } \
+    \
+    explicit type(::NYT::NRpc::IChannelPtr channel) \
+        : ::NYT::NRpc::TProxyBase(std::move(channel), GetDescriptor()) \
+    { }
+
+#define RPC_PROXY_DESC(name) \
+    NYT::NRpc::TServiceDescriptor(#name)
+
 #define DEFINE_RPC_PROXY_METHOD(ns, method) \
     typedef ::NYT::NRpc::TTypedClientResponse<ns::TRsp##method> TRsp##method; \
     typedef ::NYT::NRpc::TTypedClientRequest<ns::TReq##method, TRsp##method> TReq##method; \
@@ -370,9 +403,6 @@ DEFINE_REFCOUNTED_TYPE(TOneWayClientResponse)
 class TProxyBase
 {
 public:
-    static const int DefaultProtocolVersion = 0;
-    static const int GenericProtocolVersion = -1;
-
     DEFINE_RPC_PROXY_METHOD(NProto, Discover);
 
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, DefaultTimeout);
@@ -380,18 +410,21 @@ public:
 
 protected:
     const IChannelPtr Channel_;
-    const Stroka ServiceName_;
-    const int ProtocolVersion_;
+    const TServiceDescriptor Descriptor_;
 
     TProxyBase(
         IChannelPtr channel,
-        const Stroka& serviceName,
-        int protocolVersion = DefaultProtocolVersion);
+        const TServiceDescriptor& descriptor);
 
     template <class T>
     TIntrusivePtr<T> CreateRequest(const Stroka& methodName, bool oneWay)
     {
-        auto request = New<T>(Channel_, ServiceName_, methodName, oneWay, ProtocolVersion_);
+        auto request = New<T>(
+            Channel_,
+            Descriptor_.ServiceName,
+            methodName,
+            oneWay,
+            Descriptor_.ProtocolVersion);
         request->SetTimeout(DefaultTimeout_);
         request->SetRequestAck(DefaultRequestAck_);
         return request;
@@ -406,8 +439,7 @@ class TGenericProxy
 public:
     TGenericProxy(
         IChannelPtr channel,
-        const Stroka& serviceName);
-
+        const TServiceDescriptor& descriptor);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

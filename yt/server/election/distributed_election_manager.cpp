@@ -506,9 +506,9 @@ TDistributedElectionManager::TDistributedElectionManager(
     IServerPtr rpcServer)
     : TServiceBase(
         controlInvoker,
-        TServiceId(TElectionServiceProxy::GetServiceName(), cellManager->GetCellId()),
+        TElectionServiceProxy::GetDescriptor(),
         ElectionLogger,
-        TElectionServiceProxy::GetProtocolVersion())
+        cellManager->GetCellId())
     , Config(config)
     , CellManager(cellManager)
     , ControlInvoker(controlInvoker)

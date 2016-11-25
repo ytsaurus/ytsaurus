@@ -19,10 +19,8 @@ class TObjectServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    static Stroka GetServiceName();
-    static int GetProtocolVersion();
-
-    explicit TObjectServiceProxy(NRpc::IChannelPtr channel);
+    DEFINE_RPC_PROXY(TObjectServiceProxy, RPC_PROXY_DESC(ObjectService)
+        .SetProtocolVersion(10));
 
     DEFINE_RPC_PROXY_METHOD(NProto, Execute);
     DEFINE_RPC_PROXY_METHOD(NProto, GCCollect);
@@ -46,11 +44,6 @@ public:
         : public NRpc::TClientRequest
     {
     public:
-        TReqExecuteBatch(
-            NRpc::IChannelPtr channel,
-            const Stroka& path,
-            const Stroka& method);
-
         //! Runs asynchronous invocation.
         TFuture<TRspExecuteBatchPtr> Invoke();
 
@@ -92,12 +85,10 @@ public:
         bool SuppressUpstreamSync = false;
 
 
-        virtual TSharedRef SerializeBody() override;
+        explicit TReqExecuteBatch(NRpc::IChannelPtr channel);
+        DECLARE_NEW_FRIEND();
 
-        void OnResponse(
-            TNullable<TInstant> deadline,
-            TPromise<TRspExecuteBatchPtr> promise,
-            TRspExecuteBatchPtr response);
+        virtual TSharedRef SerializeBody() override;
 
     };
 
@@ -119,10 +110,6 @@ public:
     {
     public:
         typedef std::multimap<Stroka, int> TKeyToIndexMultimap;
-
-        TRspExecuteBatch(
-            NRpc::TClientContextPtr clientContext,
-            const TKeyToIndexMultimap& keyToIndexes);
 
         TPromise<TRspExecuteBatchPtr> GetPromise();
 
@@ -171,6 +158,11 @@ public:
         TPromise<TRspExecuteBatchPtr> Promise = NewPromise<TRspExecuteBatchPtr>();
         std::vector<std::pair<int, int>> PartRanges;
 
+        TRspExecuteBatch(
+            NRpc::TClientContextPtr clientContext,
+            const TKeyToIndexMultimap& keyToIndexes);
+        DECLARE_NEW_FRIEND();
+
         void SetEmpty();
 
         virtual void SetPromise(const TError& error) override;
@@ -193,7 +185,9 @@ public:
  *  If all individual responses were successful then OK is returned.
  *  If |key| is specified, only the responses marked with corresponding |key| are considered.
  */
-TError GetCumulativeError(const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError, const Stroka& key = Stroka());
+TError GetCumulativeError(
+    const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError,
+    const Stroka& key = Stroka());
 
 ////////////////////////////////////////////////////////////////////////////////
 

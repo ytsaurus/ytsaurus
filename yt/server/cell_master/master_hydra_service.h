@@ -17,10 +17,9 @@ protected:
 
     TMasterHydraServiceBase(
         TBootstrap* bootstrap,
-        const Stroka& serviceName,
+        const NRpc::TServiceDescriptor& descriptor,
         EAutomatonThreadQueue defaultQueue,
-        const NLogging::TLogger& logger,
-        int protocolVersion = NRpc::TProxyBase::DefaultProtocolVersion);
+        const NLogging::TLogger& logger);
 
 
     IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue);

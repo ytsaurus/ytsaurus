@@ -22,7 +22,7 @@ public:
         const IInvokerPtr& invoker)
         : TServiceBase(
             invoker,
-            TAdminServiceProxy::GetServiceName(),
+            TAdminServiceProxy::GetDescriptor(),
             AdminLogger)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Die));

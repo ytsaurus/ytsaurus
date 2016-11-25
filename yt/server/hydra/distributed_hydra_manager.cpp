@@ -129,9 +129,9 @@ public:
         const TDistributedHydraManagerOptions& options)
         : THydraServiceBase(
             controlInvoker,
-            NRpc::TServiceId(THydraServiceProxy::GetServiceName(), cellManager->GetCellId()),
+            THydraServiceProxy::GetDescriptor(),
             HydraLogger,
-            THydraServiceProxy::GetProtocolVersion())
+            cellManager->GetCellId())
         , Config_(config)
         , RpcServer_(rpcServer)
         , ElectionManager_(electionManager)

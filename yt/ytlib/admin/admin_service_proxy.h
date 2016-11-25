@@ -13,14 +13,7 @@ class TAdminServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    static Stroka GetServiceName()
-    {
-        return "AdminService";
-    }
-
-    explicit TAdminServiceProxy(NRpc::IChannelPtr channel)
-        : TProxyBase(channel, GetServiceName())
-    { }
+    DEFINE_RPC_PROXY(TAdminServiceProxy, RPC_PROXY_DESC(AdminService));
 
     DEFINE_RPC_PROXY_METHOD(NProto, Die);
 };

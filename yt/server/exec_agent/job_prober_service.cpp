@@ -27,9 +27,8 @@ public:
     TJobProberService(NCellNode::TBootstrap* bootstrap)
         : TServiceBase(
             bootstrap->GetControlInvoker(),
-            TJobProberServiceProxy::GetServiceName(),
-            ExecAgentLogger,
-            TJobProberServiceProxy::GetProtocolVersion())
+            TJobProberServiceProxy::GetDescriptor(),
+            ExecAgentLogger)
         , Bootstrap_(bootstrap)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DumpInputContext));

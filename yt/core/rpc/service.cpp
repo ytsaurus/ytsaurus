@@ -41,15 +41,9 @@ void IServiceContext::ReplyFrom(TFuture<void> asyncError)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TServiceId::TServiceId()
-{ }
+TServiceId::TServiceId() = default;
 
 TServiceId::TServiceId(const Stroka& serviceName, const TRealmId& realmId)
-    : ServiceName(serviceName)
-    , RealmId(realmId)
-{ }
-
-TServiceId::TServiceId(const char* serviceName, const TRealmId& realmId)
     : ServiceName(serviceName)
     , RealmId(realmId)
 { }

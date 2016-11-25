@@ -17,14 +17,14 @@ using namespace NRpc;
 
 THydraServiceBase::THydraServiceBase(
     IInvokerPtr invoker,
-    const TServiceId& serviceId,
+    const TServiceDescriptor& descriptor,
     const NLogging::TLogger& logger,
-    int protocolVersion)
+    const TRealmId& realmId)
     : TServiceBase(
         invoker,
-        serviceId,
+        descriptor,
         logger,
-        protocolVersion)
+        realmId)
 { }
 
 void THydraServiceBase::ValidatePeer(EPeerKind kind)

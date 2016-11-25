@@ -15,19 +15,8 @@ class TChunkServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    static Stroka GetServiceName()
-    {
-        return "ChunkService";
-    }
-
-    static int GetProtocolVersion()
-    {
-        return 4;
-    }
-
-    explicit TChunkServiceProxy(NRpc::IChannelPtr channel)
-        : TProxyBase(channel, GetServiceName(), GetProtocolVersion())
-    { }
+    DEFINE_RPC_PROXY(TChunkServiceProxy, RPC_PROXY_DESC(ChunkService)
+        .SetProtocolVersion(4));
 
     DEFINE_RPC_PROXY_METHOD(NProto, LocateChunks);
     DEFINE_RPC_PROXY_METHOD(NProto, AllocateWriteTargets);
@@ -35,7 +24,6 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, ImportChunks);
     DEFINE_RPC_PROXY_METHOD(NProto, GetChunkOwningNodes);
     DEFINE_RPC_PROXY_METHOD(NProto, ExecuteBatch);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

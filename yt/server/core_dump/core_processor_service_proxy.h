@@ -13,19 +13,7 @@ class TCoreProcessorServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    static Stroka GetServiceName()
-    {
-        return "CoreProcessorService";
-    }
-
-    static int GetProtocolVersion()
-    {
-        return 0;
-    }
-
-    explicit TCoreProcessorServiceProxy(NRpc::IChannelPtr channel)
-        : TProxyBase(channel, GetServiceName(), GetProtocolVersion())
-    { }
+    DEFINE_RPC_PROXY(TCoreProcessorServiceProxy, RPC_PROXY_DESC(CoreProcessorService));
 
     DEFINE_RPC_PROXY_METHOD(NCoreDump::NProto, StartCoreDump);
 };

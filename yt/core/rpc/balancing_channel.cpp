@@ -170,7 +170,10 @@ private:
 
             auto channel = Owner_->ChannelFactory_->CreateChannel(address);
 
-            TGenericProxy proxy(channel, Owner_->ServiceName_);
+            TGenericProxy proxy(
+                channel,
+                TServiceDescriptor(Owner_->ServiceName_)
+                    .SetProtocolVersion(GenericProtocolVersion));
             proxy.SetDefaultTimeout(Owner_->Config_->DiscoverTimeout);
 
             auto req = proxy.Discover();

@@ -15,19 +15,8 @@ class TDataNodeServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    static Stroka GetServiceName()
-    {
-        return "DataNode";
-    }
-
-    static int GetProtocolVersion()
-    {
-        return 4;
-    }
-
-    explicit TDataNodeServiceProxy(NRpc::IChannelPtr channel)
-        : TProxyBase(channel, GetServiceName())
-    { }
+    DEFINE_RPC_PROXY(TDataNodeServiceProxy, RPC_PROXY_DESC(DataNodeService)
+        .SetProtocolVersion(4));
 
     DEFINE_RPC_PROXY_METHOD(NProto, StartChunk);
     DEFINE_RPC_PROXY_METHOD(NProto, FinishChunk);
@@ -42,7 +31,6 @@ public:
     DEFINE_ONE_WAY_RPC_PROXY_METHOD(NProto, UpdatePeer);
     DEFINE_RPC_PROXY_METHOD(NProto, GetTableSamples);
     DEFINE_RPC_PROXY_METHOD(NChunkClient::NProto, GetChunkSlices);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -300,12 +300,10 @@ void TOneWayClientResponse::SetPromise(const TError& error)
 
 TProxyBase::TProxyBase(
     IChannelPtr channel,
-    const Stroka& serviceName,
-    int protocolVersion)
+    const TServiceDescriptor& descriptor)
     : DefaultRequestAck_(true)
     , Channel_(std::move(channel))
-    , ServiceName_(serviceName)
-    , ProtocolVersion_(protocolVersion)
+    , Descriptor_(descriptor)
 {
     Y_ASSERT(Channel_);
 }
@@ -314,8 +312,8 @@ TProxyBase::TProxyBase(
 
 TGenericProxy::TGenericProxy(
     IChannelPtr channel,
-    const Stroka& serviceName)
-    : TProxyBase(channel, serviceName, GenericProtocolVersion)
+    const TServiceDescriptor& descriptor)
+    : TProxyBase(std::move(channel), descriptor)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -53,9 +53,9 @@ public:
         IChannelFactoryPtr channelFactory)
         : TServiceBase(
             NRpc::TDispatcher::Get()->GetHeavyInvoker(),
-            TServiceId(TChunkServiceProxy::GetServiceName(), cellId),
+            TChunkServiceProxy::GetDescriptor(),
             CellNodeLogger,
-            TChunkServiceProxy::GetProtocolVersion())
+            cellId)
         , ServiceConfig_(std::move(serviceConfig))
         , ConnectionConfig_(std::move(connectionConfig))
         , LeaderChannel_(CreateMasterChannel(channelFactory, ConnectionConfig_, EPeerKind::Leader))

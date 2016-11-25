@@ -15,17 +15,9 @@ class TTimestampServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    static Stroka GetServiceName()
-    {
-        return "TimestampService";
-    }
-
-    explicit TTimestampServiceProxy(NRpc::IChannelPtr channel)
-        : TProxyBase(channel, GetServiceName())
-    { }
+    DEFINE_RPC_PROXY(TTimestampServiceProxy, RPC_PROXY_DESC(TimestampService));
 
     DEFINE_RPC_PROXY_METHOD(NProto, GenerateTimestamps);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
