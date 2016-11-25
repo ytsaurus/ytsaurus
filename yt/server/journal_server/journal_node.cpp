@@ -164,6 +164,7 @@ protected:
         int readQuorum = attributes->GetAndRemove<int>("read_quorum", config->DefaultJournalReadQuorum);
         int writeQuorum = attributes->GetAndRemove<int>("write_quorum", config->DefaultJournalWriteQuorum);
 
+        ValidateReplicationFactor(replicationFactor);
         if (readQuorum > replicationFactor) {
             THROW_ERROR_EXCEPTION("\"read_quorum\" cannot be greater than \"replication_factor\"");
         }
@@ -181,7 +182,7 @@ protected:
             attributes);
         auto* node = nodeHolder.get();
 
-        node->SetReplicationFactorOrThrow(DefaultStoreMediumIndex, replicationFactor);
+        node->Properties()[DefaultStoreMediumIndex].SetReplicationFactor(replicationFactor);
         node->SetReadQuorum(readQuorum);
         node->SetWriteQuorum(writeQuorum);
 
@@ -195,12 +196,10 @@ protected:
     {
         // NB: Don't call TBase::DoBranch.
 
-        branchedNode->SetPrimaryMediumIndexAndPropertiesOrThrow(
-            originatingNode->GetPrimaryMediumIndex(),
-            originatingNode->Properties()); // Never actually throws.
+        branchedNode->SetPrimaryMediumIndex(originatingNode->GetPrimaryMediumIndex());
+        branchedNode->Properties() = originatingNode->Properties();
         branchedNode->SetReadQuorum(originatingNode->GetReadQuorum());
         branchedNode->SetWriteQuorum(originatingNode->GetWriteQuorum());
-        branchedNode->SetVital(originatingNode->GetVital());
 
         if (!originatingNode->IsExternal()) {
             auto* chunkList = originatingNode->GetChunkList();
@@ -218,14 +217,16 @@ protected:
         TJournalNode* branchedNode,
         ELockMode mode) override
     {
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto* primaryMedium = chunkManager->GetMediumByIndex(originatingNode->GetPrimaryMediumIndex());
         LOG_DEBUG_UNLESS(
             IsRecovery(),
             "Node branched (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v, "
-            "PrimaryMediumIndex: %v, Properties: %v, ReadQuorum: %v, WriteQuorum: %v, Mode: %v)",
+            "PrimaryMedium: %v, Properties: %v, ReadQuorum: %v, WriteQuorum: %v, Mode: %v)",
             originatingNode->GetVersionedId(),
             branchedNode->GetVersionedId(),
             GetObjectId(originatingNode->GetChunkList()),
-            originatingNode->GetPrimaryMediumIndex(),
+            primaryMedium->GetName(),
             originatingNode->Properties(),
             originatingNode->GetReadQuorum(),
             originatingNode->GetWriteQuorum(),

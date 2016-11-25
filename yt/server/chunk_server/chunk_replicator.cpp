@@ -1948,14 +1948,13 @@ TChunkProperties TChunkReplicator::ComputeChunkProperties(TChunk* chunk)
         static_assert(MinReplicationFactor <= 1 && 1 <= MaxReplicationFactor,
                      "Replication factor limits are incorrect.");
         for (auto& mediumProperties : properties) {
-            // This never actually throws as 1 is always a valid replication count.
             if (mediumProperties) {
-                mediumProperties.SetReplicationFactorOrThrow(1);
+                mediumProperties.SetReplicationFactor(1);
             }
         }
     }
 
-    Y_ASSERT(!found || properties.Validate());
+    Y_ASSERT(!found || properties.IsValid());
 
     return found
         ? properties

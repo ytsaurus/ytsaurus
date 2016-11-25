@@ -252,7 +252,7 @@ private:
         if (key == "media") {
             const auto& properties = chunk->ComputeProperties();
             BuildYsonFluently(consumer)
-                .Value(TMediaSerializer(properties, chunkManager));
+                .Value(TSerializableChunkProperties(properties, chunkManager));
             return true;
         }
 
@@ -286,7 +286,7 @@ private:
                             .Item(ToString(cellTag)).BeginMap()
                                 .Item("ref_counter").Value(exportData.RefCounter)
                                 .Item("vital").Value(props.GetVital())
-                                .Item("media").Value(TMediaSerializer(props, chunkManager))
+                                .Item("media").Value(TSerializableChunkProperties(props, chunkManager))
                             .EndMap();
                     }
                 });

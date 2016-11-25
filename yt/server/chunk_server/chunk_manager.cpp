@@ -1022,6 +1022,13 @@ public:
         Y_UNREACHABLE();
     }
 
+    TMedium* GetMediumByIndex(int index) const
+    {
+        auto* medium = FindMediumByIndex(index);
+        YCHECK(medium);
+        return medium;
+    }
+
     TMedium* GetMediumByIndexOrThrow(int index) const
     {
         auto* medium = FindMediumByIndex(index);
@@ -1398,14 +1405,12 @@ private:
                     mediumUpdate.has_data_parts_only())
                 {
                     auto mediumIndex = mediumUpdate.medium_index();
-                    properties[mediumIndex].SetReplicationFactorOrThrow(
-                            mediumUpdate.replication_factor());
-                    properties[mediumIndex].SetDataPartsOnly(
-                        mediumUpdate.data_parts_only());
+                    properties[mediumIndex].SetReplicationFactor(mediumUpdate.replication_factor());
+                    properties[mediumIndex].SetDataPartsOnly(mediumUpdate.data_parts_only());
                 }
             }
 
-            Y_ASSERT(!local || properties.Validate());
+            Y_ASSERT(!local || properties.IsValid());
 
             bool updated = local
                 ? chunk->UpdateLocalProperties(properties)
@@ -1613,7 +1618,8 @@ private:
         TChunkProperties properties;
         properties[mediumIndex].SetReplicationFactorOrThrow(replicationFactor);
         properties.SetVital(subrequest->vital());
-        Y_ASSERT(properties.Validate());
+
+        Y_ASSERT(properties.IsValid());
         chunk->UpdateLocalProperties(properties);
 
         StageChunkTree(chunk, transaction, account);
@@ -2742,6 +2748,11 @@ TFuture<TMiscExt> TChunkManager::GetChunkQuorumInfo(TChunk* chunk)
 TMedium* TChunkManager::FindMediumByIndex(int index) const
 {
     return Impl_->FindMediumByIndex(index);
+}
+
+TMedium* TChunkManager::GetMediumByIndex(int index) const
+{
+    return Impl_->GetMediumByIndex(index);
 }
 
 TMedium* TChunkManager::GetMediumByIndexOrThrow(int index) const

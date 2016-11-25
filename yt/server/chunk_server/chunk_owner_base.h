@@ -20,7 +20,7 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Base classes for cypress nodes that own chunks.
+//! Base classes for Сypress nodes that own chunks.
 class TChunkOwnerBase
     : public NCypressServer::TCypressNodeBase
 {
@@ -28,35 +28,12 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NChunkServer::TChunkList*, ChunkList);
     DEFINE_BYVAL_RW_PROPERTY(NChunkClient::EUpdateMode, UpdateMode);
     DEFINE_BYREF_RW_PROPERTY(TChunkProperties, Properties);
-    DEFINE_BYVAL_RO_PROPERTY(int, PrimaryMediumIndex);
+    DEFINE_BYVAL_RW_PROPERTY(int, PrimaryMediumIndex);
     //! Only makes sense for branched nodes.
     //! If |true| then properties update will be performed for the newly added chunks upon top-level commit.
     DEFINE_BYVAL_RW_PROPERTY(bool, ChunkPropertiesUpdateNeeded);
     DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TDataStatistics, SnapshotStatistics);
     DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TDataStatistics, DeltaStatistics);
-
-    int GetReplicationFactor(int mediumIndex) const;
-    void SetReplicationFactorOrThrow(int mediumIndex, int replicationFactor);
-
-    bool GetDataPartsOnly(int mediumIndex) const;
-    void SetDataPartsOnlyOrThrow(int mediumIndex, bool dataPartsOnly);
-
-    bool GetVital() const;
-    void SetVital(bool vital);
-
-    int GetPrimaryMediumReplicationFactor() const;
-    void SetPrimaryMediumReplicationFactorOrThrow(int replicationFactor);
-
-    int GetPrimaryMediumDataPartsOnly() const;
-
-    void SetPrimaryMediumIndexOrThrow(int mediumIndex);
-    void SetPropertiesOrThrow(const TChunkProperties& props);
-    // Since every Set*OrThrow method validates current state before applying
-    // necessary changes, we need to be able to modify both properties and
-    // primary medium index at once.
-    void SetPrimaryMediumIndexAndPropertiesOrThrow(
-        int primaryMediumIndex,
-        const TChunkProperties& props);
 
 public:
     explicit TChunkOwnerBase(const NCypressServer::TVersionedNodeId& id);
@@ -78,9 +55,6 @@ public:
 
     virtual void Save(NCellMaster::TSaveContext& context) const override;
     virtual void Load(NCellMaster::TLoadContext& context) override;
-
-private:
-    static void ValidateMedia(const TChunkProperties& props, int primaryMediumIndex);
 
 };
 

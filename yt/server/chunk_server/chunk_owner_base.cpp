@@ -54,7 +54,7 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     // COMPAT(shakurov)
     if (context.GetVersion() < 400) {
         PrimaryMediumIndex_ = DefaultStoreMediumIndex;
-        Properties_[DefaultStoreMediumIndex].SetReplicationFactorOrThrow(Load<int>(context));
+        Properties_[DefaultStoreMediumIndex].SetReplicationFactor(Load<int>(context));
         Properties_.SetVital(Load<bool>(context));
     } else {
         Load(context, Properties_);
@@ -170,99 +170,6 @@ TDataStatistics TChunkOwnerBase::ComputeUpdateStatistics() const
 
         default:
             Y_UNREACHABLE();
-    }
-}
-
-int TChunkOwnerBase::GetReplicationFactor(int mediumIndex) const
-{
-    return Properties_[mediumIndex].GetReplicationFactor();
-}
-
-void TChunkOwnerBase::SetReplicationFactorOrThrow(int mediumIndex, int replicationFactor)
-{
-    auto properties = Properties_;
-    properties[mediumIndex].SetReplicationFactorOrThrow(replicationFactor);
-
-    ValidateMedia(properties, PrimaryMediumIndex_);
-
-    Properties_ = properties;
-}
-
-bool TChunkOwnerBase::GetDataPartsOnly(int mediumIndex) const
-{
-    return Properties_[mediumIndex].GetDataPartsOnly();
-}
-
-void TChunkOwnerBase::SetDataPartsOnlyOrThrow(int mediumIndex, bool dataPartsOnly)
-{
-    auto properties = Properties_;
-    properties[mediumIndex].SetDataPartsOnly(dataPartsOnly);
-
-    ValidateMedia(properties, PrimaryMediumIndex_);
-
-    Properties_ = properties;
-}
-
-bool TChunkOwnerBase::GetVital() const
-{
-    return Properties_.GetVital();
-}
-
-void TChunkOwnerBase::SetVital(bool vital)
-{
-    Properties_.SetVital(vital);
-}
-
-void TChunkOwnerBase::SetPrimaryMediumIndexOrThrow(int mediumIndex)
-{
-    ValidateMedia(Properties_, mediumIndex);
-    PrimaryMediumIndex_ = mediumIndex;
-}
-
-int TChunkOwnerBase::GetPrimaryMediumReplicationFactor() const
-{
-    return GetReplicationFactor(GetPrimaryMediumIndex());
-}
-
-void TChunkOwnerBase::SetPrimaryMediumReplicationFactorOrThrow(int replicationFactor)
-{
-    SetReplicationFactorOrThrow(
-        GetPrimaryMediumIndex(),
-        replicationFactor);
-}
-
-int TChunkOwnerBase::GetPrimaryMediumDataPartsOnly() const
-{
-    return GetDataPartsOnly(GetPrimaryMediumIndex());
-}
-
-void TChunkOwnerBase::SetPropertiesOrThrow(const TChunkProperties& props)
-{
-    ValidateMedia(props, GetPrimaryMediumIndex());
-    Properties_ = props;
-}
-
-void TChunkOwnerBase::SetPrimaryMediumIndexAndPropertiesOrThrow(
-    int primaryMediumIndex,
-    const TChunkProperties& props)
-{
-    ValidateMedia(props, primaryMediumIndex);
-    PrimaryMediumIndex_ = primaryMediumIndex;
-    Properties_ = props;
-}
-
-/*static*/ void TChunkOwnerBase::ValidateMedia(const TChunkProperties& props, int primaryMediumIndex) {
-    ValidateMediumIndex(primaryMediumIndex);
-
-    props.ValidateOrThrow();
-
-    auto& primaryMediumProps = props[primaryMediumIndex];
-
-    if (primaryMediumProps.GetReplicationFactor() == 0) {
-        THROW_ERROR_EXCEPTION("Medium %v stores no chunk replicas and cannot be made primary", primaryMediumIndex);
-    }
-    if (primaryMediumProps.GetDataPartsOnly()) {
-        THROW_ERROR_EXCEPTION("Medium %v stores no parity parts and cannot be made primary", primaryMediumIndex);
     }
 }
 

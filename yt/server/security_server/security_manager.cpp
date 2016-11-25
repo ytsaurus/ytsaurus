@@ -918,17 +918,17 @@ public:
         const auto& usage = account->ClusterStatistics().ResourceUsage;
         const auto& limits = account->ClusterResourceLimits();
 
-        for (int i = 0; i < NChunkClient::MaxMediumCount; ++i) {
-            if (delta.DiskSpace[i] > 0 && usage.DiskSpace[i] + delta.DiskSpace[i] > limits.DiskSpace[i]) {
+        for (int index = 0; index < NChunkClient::MaxMediumCount; ++index) {
+            if (delta.DiskSpace[index] > 0 && usage.DiskSpace[index] + delta.DiskSpace[index] > limits.DiskSpace[index]) {
+                const auto& chunkManager = Bootstrap_->GetChunkManager();
+                const auto* medium = chunkManager->GetMediumByIndex(index);
                 THROW_ERROR_EXCEPTION(
                     NSecurityClient::EErrorCode::AccountLimitExceeded,
-                    "Account %Qv is over disk space limit",
-                    account->GetName())
+                    "Account %Qv is over disk space limit in medium %Qv",
+                    account->GetName(),
+                    medium->GetName())
                     << TErrorAttribute("usage", usage.DiskSpace)
-                    << TErrorAttribute("limit", limits.DiskSpace)
-                    << TErrorAttribute("medium_index", i);
-                // TODO(shakurov): should we provide medium_name instead? (We'll
-                // need to access chunk manager for that.)
+                    << TErrorAttribute("limit", limits.DiskSpace);
             }
         }
         if (delta.NodeCount > 0 && usage.NodeCount + delta.NodeCount > limits.NodeCount) {
