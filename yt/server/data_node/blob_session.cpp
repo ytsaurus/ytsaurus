@@ -205,8 +205,11 @@ TFuture<void> TBlobSession::DoPutBlocks(
         ++WindowIndex_;
     }
 
-    auto throttler = Bootstrap_->GetInThrottler(Options_.WorkloadDescriptor);
-    return throttler->Throttle(totalSize);
+    auto netThrottler = Bootstrap_->GetInThrottler(Options_.WorkloadDescriptor);
+    auto diskThrottler = Location_->GetInThrottler(Options_.WorkloadDescriptor);
+    return Combine(std::vector<TFuture<void>>({ 
+        netThrottler->Throttle(totalSize), 
+        diskThrottler->Throttle(totalSize) }));
 }
 
 TFuture<void> TBlobSession::DoSendBlocks(

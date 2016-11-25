@@ -50,7 +50,8 @@ void PipeReaderToWriter(
     ISchemalessReaderPtr reader,
     ISchemalessWriterPtr writer,
     int bufferRowCount,
-    bool validateValues = false);
+    bool validateValues = false,
+    NConcurrency::IThroughputThrottlerPtr throttler = nullptr);
 
 void PipeInputToOutput(
     TInputStream* input,
