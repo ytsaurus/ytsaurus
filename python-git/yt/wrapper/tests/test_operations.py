@@ -1118,7 +1118,7 @@ if __name__ == "__main__":
         def get_spec_option(id, name):
             return yt.get("//sys/operations/{0}/@spec/".format(id) + name)
 
-        with set_config_option("mount_sandbox_in_tmpfs", True):
+        with set_config_option("mount_sandbox_in_tmpfs/enable", True):
             table = TEST_DIR + "/table"
             file = TEST_DIR + "/test_file"
             table_file = TEST_DIR + "/test_table_file"
