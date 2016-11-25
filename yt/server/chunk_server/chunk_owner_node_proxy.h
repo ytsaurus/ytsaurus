@@ -52,10 +52,10 @@ protected:
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, EndUpload);
 
 private:
-    void SetReplicationFactor(int mediumIndex, int replicationFactor);
+    void SetReplicationFactor(int replicationFactor);
     void SetVital(bool vital);
-    void SetProperties(const TChunkProperties& properties);
-    void SetPrimaryMedium(int mediumIndex);
+    void SetMediaProperties(const TChunkProperties& properties);
+    void SetPrimaryMedium(TMedium* medium);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

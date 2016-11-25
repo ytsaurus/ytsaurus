@@ -77,7 +77,7 @@ NSecurityServer::TClusterResources TChunkOwnerTypeHandler<TChunkOwner>::GetChunk
     for (int mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
         // Replication factor should be 1 in case of erasure coding.
         result.DiskSpace[mediumIndex] =
-            chunkOwner.GetReplicationFactor(mediumIndex) *
+            chunkOwner.Properties()[mediumIndex].GetReplicationFactor() *
             (statistics.regular_disk_space() + statistics.erasure_disk_space());
     }
     result.ChunkCount = statistics.chunk_count();
@@ -161,9 +161,8 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoBranch(
         objectManager->RefObject(chunkList);
     }
 
-    branchedNode->SetPrimaryMediumIndexAndPropertiesOrThrow(
-        originatingNode->GetPrimaryMediumIndex(),
-        originatingNode->Properties()); // Never actually throws.
+    branchedNode->SetPrimaryMediumIndex(originatingNode->GetPrimaryMediumIndex());
+    branchedNode->Properties() = originatingNode->Properties();
     branchedNode->SnapshotStatistics() = originatingNode->ComputeTotalStatistics();
 }
 
@@ -173,14 +172,16 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoLogBranch(
     TChunkOwner* branchedNode,
     NCypressServer::ELockMode mode)
 {
+    const auto& chunkManager = TBase::Bootstrap_->GetChunkManager();
+    const auto* primaryMedium = chunkManager->GetMediumByIndex(originatingNode->GetPrimaryMediumIndex());
     LOG_DEBUG_UNLESS(
         TBase::IsRecovery(),
         "Node branched (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v, "
-        "Mode: %v, PrimaryMediumIndex: %v, Properties: %v)",
+        "Mode: %v, PrimaryMedium: %v, Properties: %v)",
         originatingNode->GetVersionedId(),
         branchedNode->GetVersionedId(),
         NObjectServer::GetObjectId(originatingNode->GetChunkList()),
-        originatingNode->GetPrimaryMediumIndex(),
+        primaryMedium->GetName(),
         originatingNode->Properties(),
         mode);
 }
@@ -310,19 +311,22 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoLogMerge(
     TChunkOwner* originatingNode,
     TChunkOwner* branchedNode)
 {
+    const auto& chunkManager = TBase::Bootstrap_->GetChunkManager();
+    const auto* originatingPrimaryMedium = chunkManager->GetMediumByIndex(originatingNode->GetPrimaryMediumIndex());
+    const auto* branchedPrimaryMedium = chunkManager->GetMediumByIndex(branchedNode->GetPrimaryMediumIndex());
     LOG_DEBUG_UNLESS(
         TBase::IsRecovery(),
-        "Node merged (OriginatingNodeId: %v, OriginatingPrimaryMediumIndex: %v, "
+        "Node merged (OriginatingNodeId: %v, OriginatingPrimaryMedium: %v, "
         "OriginatingProperties: %v, BranchedNodeId: %v, BranchedChunkListId: %v, "
-        "BranchedUpdateMode: %v, BranchedPrimaryMediumIndex: %v, BranchedProperties: %v, "
+        "BranchedUpdateMode: %v, BranchedPrimaryMedium: %v, BranchedProperties: %v, "
         "NewOriginatingChunkListId: %v, NewOriginatingUpdateMode: %v)",
         originatingNode->GetVersionedId(),
-        originatingNode->GetPrimaryMediumIndex(),
+        originatingPrimaryMedium->GetName(),
         originatingNode->Properties(),
         branchedNode->GetVersionedId(),
         NObjectServer::GetObjectId(branchedNode->GetChunkList()),
         branchedNode->GetUpdateMode(),
-        branchedNode->GetPrimaryMediumIndex(),
+        branchedPrimaryMedium->GetName(),
         branchedNode->Properties(),
         NObjectServer::GetObjectId(originatingNode->GetChunkList()),
         originatingNode->GetUpdateMode());
@@ -346,9 +350,8 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoClone(
         chunkList->AddOwningNode(clonedNode);
     }
 
-    clonedNode->SetPrimaryMediumIndexAndPropertiesOrThrow(
-        sourceNode->GetPrimaryMediumIndex(),
-        sourceNode->Properties());
+    clonedNode->SetPrimaryMediumIndex(sourceNode->GetPrimaryMediumIndex());
+    clonedNode->Properties() = sourceNode->Properties();
     clonedNode->SnapshotStatistics() = sourceNode->SnapshotStatistics();
     clonedNode->DeltaStatistics() = sourceNode->DeltaStatistics();
 }

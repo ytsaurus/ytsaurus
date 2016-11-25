@@ -561,7 +561,7 @@ public:
         }
         for (int mediumIndex = 0; mediumIndex < NChunkClient::MaxMediumCount; ++mediumIndex) {
             tabletStatistics.DiskSpace[mediumIndex] =
-                table->GetReplicationFactor(mediumIndex) *
+                table->Properties()[mediumIndex].GetReplicationFactor() *
                 (treeStatistics.RegularDiskSpace + treeStatistics.ErasureDiskSpace);
         }
         tabletStatistics.ChunkCount = treeStatistics.ChunkCount;
@@ -2906,12 +2906,14 @@ private:
         }
 
         // Prepare tablet writer options.
+        // TODO(babenko): is this media-aware?
+        const auto& chunkProperties = table->Properties();
         *writerOptions = New<TTableWriterOptions>();
-        (*writerOptions)->ReplicationFactor = table->GetPrimaryMediumReplicationFactor();
+        (*writerOptions)->ReplicationFactor = chunkProperties[table->GetPrimaryMediumIndex()].GetReplicationFactor();
         (*writerOptions)->Account = table->GetAccount()->GetName();
         (*writerOptions)->CompressionCodec = tableAttributes.Get<NCompression::ECodec>("compression_codec");
         (*writerOptions)->ErasureCodec = tableAttributes.Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
-        (*writerOptions)->ChunksVital = table->GetVital();
+        (*writerOptions)->ChunksVital = chunkProperties.GetVital();
         (*writerOptions)->OptimizeFor = tableAttributes.Get<EOptimizeFor>("optimize_for", NTableClient::EOptimizeFor::Lookup);
     }
 

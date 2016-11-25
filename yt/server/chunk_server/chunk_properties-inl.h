@@ -7,32 +7,6 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline void ValidateReplicationFactor(int replicationFactor)
-{
-    if (replicationFactor != 0 && // Zero is a special - and permitted - case.
-        (replicationFactor < NChunkClient::MinReplicationFactor ||
-         replicationFactor > NChunkClient::MaxReplicationFactor))
-    {
-        THROW_ERROR_EXCEPTION("Replication factor %v is out of range [%v,%v]",
-            replicationFactor,
-            NChunkClient::MinReplicationFactor,
-            NChunkClient::MaxReplicationFactor);
-    }
-}
-
-inline void ValidateMediumIndex(int mediumIndex)
-{
-    if (mediumIndex < 0 || mediumIndex >= MaxMediumCount) {
-        THROW_ERROR_EXCEPTION(
-            "Medium index %v is out of range [%v,%v]",
-            mediumIndex,
-            0,
-            MaxMediumCount);
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 inline TMediumChunkProperties::TMediumChunkProperties()
     : ReplicationFactor_(0)
     , DataPartsOnly_(false)
@@ -48,10 +22,15 @@ inline int TMediumChunkProperties::GetReplicationFactor() const
     return ReplicationFactor_;
 }
 
+inline void TMediumChunkProperties::SetReplicationFactor(int replicationFactor)
+{
+    ReplicationFactor_ = replicationFactor;
+}
+
 inline void TMediumChunkProperties::SetReplicationFactorOrThrow(int replicationFactor)
 {
     ValidateReplicationFactor(replicationFactor);
-    ReplicationFactor_ = replicationFactor;
+    SetReplicationFactor(replicationFactor);
 }
 
 inline bool TMediumChunkProperties::GetDataPartsOnly() const
@@ -81,6 +60,11 @@ inline bool operator!=(const TMediumChunkProperties& lhs, const TMediumChunkProp
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+inline TChunkProperties::TChunkProperties()
+    : MediumChunkProperties_{}
+    , Vital_(false)
+{ }
 
 inline TChunkProperties::const_iterator TChunkProperties::begin() const
 {
@@ -114,13 +98,11 @@ inline TChunkProperties::iterator TChunkProperties::end()
 
 inline const TMediumChunkProperties& TChunkProperties::operator[](int mediumIndex) const
 {
-    ValidateMediumIndex(mediumIndex);
     return MediumChunkProperties_[mediumIndex];
 }
 
 inline TMediumChunkProperties& TChunkProperties::operator[](int mediumIndex)
 {
-    ValidateMediumIndex(mediumIndex);
     return MediumChunkProperties_[mediumIndex];
 }
 

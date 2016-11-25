@@ -18,8 +18,7 @@ TMediumChunkProperties& TMediumChunkProperties::operator|=(const TMediumChunkPro
     if (this == &rhs)
         return *this;
 
-    SetReplicationFactorOrThrow(
-        std::max(GetReplicationFactor(), rhs.GetReplicationFactor()));
+    SetReplicationFactor(std::max(GetReplicationFactor(), rhs.GetReplicationFactor()));
     SetDataPartsOnly(GetDataPartsOnly() && rhs.GetDataPartsOnly());
 
     return *this;
@@ -47,11 +46,6 @@ Stroka ToString(const TMediumChunkProperties& properties)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TChunkProperties::TChunkProperties()
-    : MediumChunkProperties_{}
-    , Vital_(false)
-{ }
 
 void TChunkProperties::Save(NCellMaster::TSaveContext& context) const
 {
@@ -82,16 +76,7 @@ TChunkProperties& TChunkProperties::operator|=(const TChunkProperties& rhs)
     return *this;
 }
 
-void TChunkProperties::ValidateOrThrow() const
-{
-    if (!Validate()) {
-        THROW_ERROR_EXCEPTION(
-            "At least one medium should store replicas (including parity parts), "
-            "configuring otherwise would result in a data loss");
-    }
-}
-
-bool TChunkProperties::Validate() const
+bool TChunkProperties::IsValid() const
 {
     for (const auto& mediumProps : MediumChunkProperties_) {
         if (mediumProps && !mediumProps.GetDataPartsOnly()) {
@@ -125,12 +110,12 @@ Stroka ToString(const TChunkProperties& properties)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMediaSerializer::TMediaSerializer(
-    const TChunkProperties& props,
+TSerializableChunkProperties::TSerializableChunkProperties(
+    const TChunkProperties& properties,
     const TChunkManagerPtr& chunkManager)
 {
     int mediumIndex = 0;
-    for (const auto& mediumProps : props) {
+    for (const auto& mediumProps : properties) {
         if (mediumProps) {
             auto* medium = chunkManager->GetMediumByIndexOrThrow(mediumIndex);
 
@@ -146,48 +131,47 @@ TMediaSerializer::TMediaSerializer(
     }
 }
 
-void TMediaSerializer::ToChunkPropertiesOrThrow(
-    TChunkProperties* props,
+void TSerializableChunkProperties::ToChunkProperties(
+    TChunkProperties* properties,
     const TChunkManagerPtr& chunkManager)
 {
-    for (auto& mediumProps : *props) {
-        mediumProps.Clear();
+    for (auto& mediumProperties : *properties) {
+        mediumProperties.Clear();
     }
 
     for (const auto& pair : MediumProperties_) {
         auto* medium = chunkManager->GetMediumByNameOrThrow(pair.first);
         auto mediumIndex = medium->GetIndex();
-        (*props)[mediumIndex].SetReplicationFactorOrThrow(pair.second.ReplicationFactor);
-        (*props)[mediumIndex].SetDataPartsOnly(pair.second.DataPartsOnly);
+        auto& mediumProperties = (*properties)[mediumIndex];
+        mediumProperties.SetReplicationFactorOrThrow(pair.second.ReplicationFactor);
+        mediumProperties.SetDataPartsOnly(pair.second.DataPartsOnly);
     }
-
-    props->ValidateOrThrow();
 }
 
-void TMediaSerializer::Serialize(NYson::IYsonConsumer* consumer) const
+void TSerializableChunkProperties::Serialize(NYson::IYsonConsumer* consumer) const
 {
     BuildYsonFluently(consumer)
         .Value(MediumProperties_);
 }
 
-void TMediaSerializer::Deserialize(INodePtr node)
+void TSerializableChunkProperties::Deserialize(INodePtr node)
 {
     YCHECK(node);
 
     MediumProperties_ = ConvertTo<std::map<Stroka, TMediumProperties>>(node);
 }
 
-void Serialize(const TMediaSerializer& serializer, NYson::IYsonConsumer* consumer)
+void Serialize(const TSerializableChunkProperties& serializer, NYson::IYsonConsumer* consumer)
 {
     serializer.Serialize(consumer);
 }
 
-void Deserialize(TMediaSerializer& serializer, INodePtr node)
+void Deserialize(TSerializableChunkProperties& serializer, INodePtr node)
 {
     serializer.Deserialize(node);
 }
 
-void Serialize(const TMediaSerializer::TMediumProperties& properties, NYson::IYsonConsumer* consumer)
+void Serialize(const TSerializableChunkProperties::TMediumProperties& properties, NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
@@ -196,11 +180,49 @@ void Serialize(const TMediaSerializer::TMediumProperties& properties, NYson::IYs
         .EndMap();
 }
 
-void Deserialize(TMediaSerializer::TMediumProperties& properties, INodePtr node)
+void Deserialize(TSerializableChunkProperties::TMediumProperties& properties, INodePtr node)
 {
     auto map = node->AsMap();
     properties.ReplicationFactor = map->GetChild("replication_factor")->AsInt64()->GetValue();
     properties.DataPartsOnly = map->GetChild("data_parts_only")->AsBoolean()->GetValue();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ValidateReplicationFactor(int replicationFactor)
+{
+    if (replicationFactor != 0 && // Zero is a special - and permitted - case.
+        (replicationFactor < NChunkClient::MinReplicationFactor ||
+         replicationFactor > NChunkClient::MaxReplicationFactor))
+    {
+        THROW_ERROR_EXCEPTION("Replication factor %v is out of range [%v,%v]",
+            replicationFactor,
+            NChunkClient::MinReplicationFactor,
+            NChunkClient::MaxReplicationFactor);
+    }
+}
+
+void ValidateChunkProperties(
+    const TChunkManagerPtr& chunkManager,
+    const TChunkProperties& properties,
+    int primaryMediumIndex)
+{
+    if (!properties.IsValid()) {
+        THROW_ERROR_EXCEPTION(
+            "At least one medium should store replicas (including parity parts); "
+                "configuring otherwise would result in a data loss");
+    }
+
+    const auto* medium = chunkManager->GetMediumByIndexOrThrow(primaryMediumIndex);
+    const auto& primaryMediumProperties = properties[primaryMediumIndex];
+    if (primaryMediumProperties.GetReplicationFactor() == 0) {
+        THROW_ERROR_EXCEPTION("Medium %Qv stores no chunk replicas and cannot be made primary",
+            medium->GetName());
+    }
+    if (primaryMediumProperties.GetDataPartsOnly()) {
+        THROW_ERROR_EXCEPTION("Medium %Qv stores no parity parts and cannot be made primary",
+            medium->GetName());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
