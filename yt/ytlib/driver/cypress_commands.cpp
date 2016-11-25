@@ -131,11 +131,11 @@ TCreateNodeCommand::TCreateNodeCommand()
     RegisterParameter("attributes", Attributes)
         .Optional();
     RegisterParameter("recursive", Options.Recursive)
-        .Default(false);
+        .Optional();
     RegisterParameter("ignore_existing", Options.IgnoreExisting)
-        .Default(false);
+        .Optional();
     RegisterParameter("force", Options.Force)
-        .Default(false);
+        .Optional();
 }
 
 void TCreateNodeCommand::DoExecute(ICommandContextPtr context)

@@ -321,9 +321,9 @@ protected:
     TTabletWriteCommandBase()
     {
         this->RegisterParameter("atomicity", this->Options.Atomicity)
-            .Default(NTransactionClient::EAtomicity::Full);
+            .Default();
         this->RegisterParameter("durability", this->Options.Durability)
-            .Default(NTransactionClient::EDurability::Sync);
+            .Default();
     }
 
     NApi::ITransactionPtr GetTransaction(ICommandContextPtr context)

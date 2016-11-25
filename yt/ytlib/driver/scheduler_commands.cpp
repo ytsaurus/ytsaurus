@@ -215,7 +215,7 @@ EOperationType TRemoteCopyCommand::GetOperationType() const
 TAbortOperationCommand::TAbortOperationCommand()
 {
     RegisterParameter("abort_message", Options.AbortMessage)
-        .Default();
+        .Optional();
 }
 
 void TAbortOperationCommand::DoExecute(ICommandContextPtr context)
@@ -229,7 +229,7 @@ void TAbortOperationCommand::DoExecute(ICommandContextPtr context)
 TSuspendOperationCommand::TSuspendOperationCommand()
 {
     RegisterParameter("abort_running_jobs", Options.AbortRunningJobs)
-        .Default(false);
+        .Optional();
 }
 
 void TSuspendOperationCommand::DoExecute(ICommandContextPtr context)
