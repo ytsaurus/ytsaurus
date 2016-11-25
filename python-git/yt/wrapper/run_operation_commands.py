@@ -685,7 +685,15 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
         },
         spec)
 
-    if get_config(client)["mount_sandbox_in_tmpfs"]:
+    mount_sandbox_in_tmpfs = get_config(client)["mount_sandbox_in_tmpfs"]
+    if isinstance(mount_sandbox_in_tmpfs, bool):  # COMPAT
+        enable_mount_sandbox_in_tmpfs = mount_sandbox_in_tmpfs
+        additional_tmpfs_size = 0
+    else:  # dict
+        enable_mount_sandbox_in_tmpfs = mount_sandbox_in_tmpfs["enable"]
+        additional_tmpfs_size = mount_sandbox_in_tmpfs["additional_tmpfs_size"]
+
+    if enable_mount_sandbox_in_tmpfs:
         disk_size = file_uploader.disk_size
         for file in file_paths:
             file_disk_size = None
@@ -698,6 +706,7 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
                 file_disk_size = attributes["uncompressed_data_size"]
             disk_size += round_up_to(file_disk_size, 4 * 1024)
         tmpfs_size += disk_size
+        tmpfs_size += additional_tmpfs_size
         spec = update({op_type: {"tmpfs_size": tmpfs_size, "tmpfs_path": ".", "copy_files": True}}, spec)
     else:
         if tmpfs_size > 0:

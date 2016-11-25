@@ -223,7 +223,6 @@ class Config(types.ModuleType, client_state.ClientState):
     def set_proxy(self, value):
         self._set("proxy/url", value)
 
-
     # Helpers
     def get_backend_type(self, client):
         config = self.get_config(client)
