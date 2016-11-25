@@ -67,8 +67,6 @@ prepare_archive_directory() {
         cp -r yandex-yt-python-driver/usr/lib/pyshared/python2.7/yt_driver_bindings/* "$archive_dir/python/yt_driver_bindings"
     fi
 
-    cp -r yandex-yt-python-driver/usr/lib/python2.7/dist-packages/yt_driver_bindings/* "$archive_dir/python/yt_driver_bindings"
-
     cp -r yandex-yt-web-interface/usr/share/yt-thor/* "$archive_dir/yt-thor"
 
     cp -r nodejs/usr/* "$archive_dir/node"
