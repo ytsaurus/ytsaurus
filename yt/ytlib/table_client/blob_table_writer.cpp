@@ -98,7 +98,7 @@ TBlobTableWriter::~TBlobTableWriter()
     } catch (const std::exception& ex) {
         LOG_ERROR(ex, "Error finishing blob table writer");
     } catch (...) {
-        YUNREACHABLE();
+        Y_UNREACHABLE();
     }
 }
 
