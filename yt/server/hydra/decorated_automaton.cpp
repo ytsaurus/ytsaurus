@@ -442,6 +442,7 @@ public:
         for (const auto& syncBlock : SyncBlocks_) {
             ForwardBlock(syncBlock);
         }
+        SyncBlocks_.clear();
         guard.Release();
         suspendedPromise.Set();
     }
