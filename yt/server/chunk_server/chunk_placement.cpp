@@ -441,13 +441,13 @@ bool TChunkPlacement::IsValidBalancingTarget(
     TTargetCollector* collector,
     bool enableRackAwareness)
 {
-    // Balancing implies write, after all.
-    if (!IsValidWriteTarget(node, chunkType, collector, enableRackAwareness)) {
+    // Check node first.
+    if (!IsValidBalancingTarget(node)) {
         return false;
     }
 
-    if (node->GetSessionCount(ESessionType::Replication) >= Config_->MaxReplicationWriteSessions) {
-        // Do not write anything to a node with too many write sessions.
+    // Balancing implies write, after all.
+    if (!IsValidWriteTarget(node, chunkType, collector, enableRackAwareness)) {
         return false;
     }
 
