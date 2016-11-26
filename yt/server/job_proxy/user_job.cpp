@@ -736,9 +736,10 @@ private:
                 : 3 * i + 1;
 
             // In case of YAMR jobs dup 1 and 3 fd for YAMR compatibility
+            auto wrappingError = TError("Error writing to output table %v", i);
             auto reader = (UserJobSpec_.use_yamr_descriptors() && jobDescriptor == 3)
-                ? PrepareOutputPipe({1, jobDescriptor}, TableOutputs_[i].get(), &OutputActions_)
-                : PrepareOutputPipe({jobDescriptor}, TableOutputs_[i].get(), &OutputActions_);
+                ? PrepareOutputPipe({1, jobDescriptor}, TableOutputs_[i].get(), &OutputActions_, wrappingError)
+                : PrepareOutputPipe({jobDescriptor}, TableOutputs_[i].get(), &OutputActions_, wrappingError);
             TablePipeReaders_.push_back(reader);
         }
 
@@ -757,7 +758,11 @@ private:
         }));
     }
 
-    TAsyncReaderPtr PrepareOutputPipe(const std::vector<int>& jobDescriptors, TOutputStream* output, std::vector<TCallback<void()>>* actions)
+    TAsyncReaderPtr PrepareOutputPipe(
+        const std::vector<int>& jobDescriptors, 
+        TOutputStream* output, 
+        std::vector<TCallback<void()>>* actions, 
+        const TError& wrappingError)
     {
         auto pipe = TNamedPipe::Create(CreateNamedPipePath());
 
@@ -773,15 +778,17 @@ private:
                 auto input = CreateSyncAdapter(asyncInput);
                 PipeInputToOutput(input.get(), output, BufferSize);
             } catch (const std::exception& ex) {
-                LOG_ERROR(ex, "Output action failed (Pipes: %v)", jobDescriptors);
+                auto error = wrappingError 
+                    << ex;
+                LOG_ERROR(error);
 
-                // We aborting asyncInput mainly for stderr.
+                // We abort asyncInput mainly for stderr.
                 // Almost all readers are aborted in `OnIOErrorOrFinished', but stderr doesn't,
                 // because we want to read and save as much stderr as possible even if job is failing.
-                // But if stderr transfering fiber itself failed child process may hang
-                // if it wants to write more stderr. So we abort input (and therefore closing the pipe) here.
+                // But if stderr transferring fiber itself fails, child process may hang
+                // if it wants to write more stderr. So we abort input (and therefore close the pipe) here.
                 asyncInput->Abort();
-                throw;
+                THROW_ERROR error;
             }
         }));
 
@@ -961,12 +968,20 @@ private:
         CreateControlPipe();
 
         // Configure stderr pipe.
-        StderrPipeReader_ = PrepareOutputPipe({STDERR_FILENO}, CreateErrorOutput(), &StderrActions_);
+        StderrPipeReader_ = PrepareOutputPipe(
+            {STDERR_FILENO}, 
+            CreateErrorOutput(), 
+            &StderrActions_, 
+            TError("Error writing to stderr"));
 
         PrepareOutputTablePipes();
 
         if (!UserJobSpec_.use_yamr_descriptors()) {
-            StatisticsPipeReader_ = PrepareOutputPipe({JobStatisticsFD}, CreateStatisticsOutput(), &OutputActions_);
+            StatisticsPipeReader_ = PrepareOutputPipe(
+                {JobStatisticsFD}, 
+                CreateStatisticsOutput(), 
+                &OutputActions_,
+                TError("Error writing custom job statistics"));
         }
 
         PrepareInputTablePipe();

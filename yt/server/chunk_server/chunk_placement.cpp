@@ -120,10 +120,7 @@ void TChunkPlacement::OnNodeRegistered(TNode* node)
         return;
 
     InsertToLoadFactorMaps(node);
-
-    if (node->GetSessionCount(ESessionType::Replication) < Config_->MaxReplicationWriteSessions) {
-        InsertToFillFactorMaps(node);
-    }
+    InsertToFillFactorMaps(node);
 }
 
 void TChunkPlacement::OnNodeUnregistered(TNode* node)
@@ -203,13 +200,17 @@ void TChunkPlacement::InsertToFillFactorMaps(TNode* node)
 
     for (const auto& pair : Bootstrap_->GetChunkManager()->Media()) {
         auto mediumIndex = pair.second->GetIndex();
+ 
+        if (!IsValidBalancingTarget(mediumIndex, node)) {
+            continue;
+        }
+
         auto fillFactor = node->GetFillFactor(mediumIndex);
         if (!fillFactor) {
             continue;
         }
 
-        auto it = MediumToFillFactorToNode_[mediumIndex]
-            .insert(std::make_pair(*fillFactor, node));
+        auto it = MediumToFillFactorToNode_[mediumIndex].emplace(*fillFactor, node);
         node->SetFillFactorIterator(mediumIndex, it);
     }
 }
@@ -234,13 +235,17 @@ void TChunkPlacement::InsertToLoadFactorMaps(TNode* node)
 
     for (const auto& pair : Bootstrap_->GetChunkManager()->Media()) {
         auto mediumIndex = pair.second->GetIndex();
+        
+        if (!IsValidWriteTarget(mediumIndex, node)) {
+            continue;
+        }
+
         auto loadFactor = node->GetLoadFactor(mediumIndex);
         if (!loadFactor) {
             continue;
         }
 
-        auto it = MediumToLoadFactorToNode_[mediumIndex]
-            .insert(std::make_pair(*loadFactor, node));
+        auto it = MediumToLoadFactorToNode_[mediumIndex].emplace(*loadFactor, node);
         node->SetLoadFactorIterator(mediumIndex, it);
     }
 }
@@ -434,10 +439,7 @@ TNode* TChunkPlacement::GetBalancingTarget(
 
 bool TChunkPlacement::IsValidWriteTarget(
     int mediumIndex,
-    TNode* node,
-    EObjectType chunkType,
-    TTargetCollector* collector,
-    bool enableRackAwareness)
+    TNode* node)
 {
     if (node->GetLocalState() != ENodeState::Online) {
         // Do not write anything to a node before its first heartbeat or after it is unregistered.
@@ -446,6 +448,32 @@ bool TChunkPlacement::IsValidWriteTarget(
 
     if (node->IsFull(mediumIndex)) {
         // Do not write anything to full nodes.
+        return false;
+    }
+    
+    if (node->GetDecommissioned()) {
+        // Do not write anything to decommissioned nodes.
+        return false;
+    }
+
+    if (node->GetDisableWriteSessions()) {
+        // Do not start new sessions if they are explicitly disabled.
+        return false;
+    }
+
+    // Seems OK :)
+    return true;
+}
+
+bool TChunkPlacement::IsValidWriteTarget(
+    int mediumIndex,
+    TNode* node,
+    EObjectType chunkType,
+    TTargetCollector* collector,
+    bool enableRackAwareness)
+{
+    // Check node first.
+    if (!IsValidWriteTarget(mediumIndex, node)) {
         return false;
     }
 
@@ -460,18 +488,26 @@ bool TChunkPlacement::IsValidWriteTarget(
         return false;
     }
 
-    if (node->GetDecommissioned()) {
-        // Do not write anything to decommissioned nodes.
-        return false;
-    }
-
-    if (node->GetDisableWriteSessions()) {
-        // Do not start new sessions if they are explicitly disabled.
-        return false;
-    }
-
     if (!collector->CheckNode(node, enableRackAwareness)) {
         // The collector does not like this node.
+        return false;
+    }
+
+    // Seems OK :)
+    return true;
+}
+
+bool TChunkPlacement::IsValidBalancingTarget(
+    int mediumIndex,
+    TNode* node)
+{
+    // Balancing implies write, after all.
+    if (!IsValidWriteTarget(mediumIndex, node)) {
+        return false;
+    }
+
+    if (node->GetSessionCount(ESessionType::Replication) >= Config_->MaxReplicationWriteSessions) {
+        // Do not write anything to a node with too many write sessions.
         return false;
     }
 
@@ -486,13 +522,13 @@ bool TChunkPlacement::IsValidBalancingTarget(
     TTargetCollector* collector,
     bool enableRackAwareness)
 {
-    // Balancing implies write, after all.
-    if (!IsValidWriteTarget(mediumIndex, node, chunkType, collector, enableRackAwareness)) {
+    // Check node first.
+    if (!IsValidWriteTarget(mediumIndex, node)) {
         return false;
     }
 
-    if (node->GetSessionCount(ESessionType::Replication) >= Config_->MaxReplicationWriteSessions) {
-        // Do not write anything to a node with too many write sessions.
+    // Balancing implies write, after all.
+    if (!IsValidWriteTarget(mediumIndex, node, chunkType, collector, enableRackAwareness)) {
         return false;
     }
 

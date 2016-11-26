@@ -442,18 +442,19 @@ public:
         for (const auto& syncBlock : SyncBlocks_) {
             ForwardBlock(syncBlock);
         }
+        SyncBlocks_.clear();
         guard.Release();
         suspendedPromise.Set();
     }
 
-    void Abort(const TError& error)
+    void Abort()
     {
         TGuard<TSpinLock> guard(SpinLock_);
         auto suspendedPromise = SuspendedPromise_;
         guard.Release();
 
         if (suspendedPromise) {
-            suspendedPromise.TrySet(error);
+            suspendedPromise.TrySet(TError("Snapshot writer aborted"));
         }
     }
 
@@ -525,6 +526,13 @@ public:
         : TDecoratedAutomaton::TSnapshotBuilderBase(owner, snapshotVersion)
     { }
 
+    ~TNoForkSnapshotBuilder()
+    {
+        if (SwitchableSnapshotWriter_) {
+            SwitchableSnapshotWriter_->Abort();
+        }
+    }
+
 private:
     TIntrusivePtr<TSwitchableSnapshotWriter> SwitchableSnapshotWriter_;
 
@@ -555,32 +563,28 @@ private:
 
     void DoRunAsync()
     {
-        try {
-            WaitFor(AsyncOpenWriterResult_)
-                .ThrowOnError();
+        VERIFY_THREAD_AFFINITY_ANY();
 
-            LOG_INFO("Switching to async snapshot writer");
+        WaitFor(AsyncOpenWriterResult_)
+            .ThrowOnError();
 
-            SwitchableSnapshotWriter_->ResumeAsAsync(SnapshotWriter_);
+        LOG_INFO("Switching to async snapshot writer");
 
-            WaitFor(AsyncSaveSnapshotResult_)
-                .ThrowOnError();
+        SwitchableSnapshotWriter_->ResumeAsAsync(SnapshotWriter_);
 
-            LOG_INFO("Snapshot async phase completed (SyncSize: %v, AsyncSize: %v)",
-                SwitchableSnapshotWriter_->GetSyncSize(),
-                SwitchableSnapshotWriter_->GetAsyncSize());
+        WaitFor(AsyncSaveSnapshotResult_)
+            .ThrowOnError();
 
-            WaitFor(SwitchableSnapshotWriter_->Finish())
-                .ThrowOnError();
+        LOG_INFO("Snapshot async phase completed (SyncSize: %v, AsyncSize: %v)",
+            SwitchableSnapshotWriter_->GetSyncSize(),
+            SwitchableSnapshotWriter_->GetAsyncSize());
 
-            WaitFor(SnapshotWriter_->Close())
-                .ThrowOnError();
-        } catch (const std::exception& ex) {
-            SwitchableSnapshotWriter_->Abort(ex);
-            throw;
-        }
+        WaitFor(SwitchableSnapshotWriter_->Finish())
+            .ThrowOnError();
+
+        WaitFor(SnapshotWriter_->Close())
+            .ThrowOnError();
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -73,9 +73,11 @@ private:
     NCellMaster::TBootstrap* const Bootstrap_;
 
     using TFillFactorToNodeMaps = TPerMediumArray<TFillFactorToNodeMap>;
-    using TLoadFactorToNodeMaps = TFillFactorToNodeMaps;
+    using TLoadFactorToNodeMaps = TPerMediumArray<TLoadFactorToNodeMap>;
 
+    //! Nodes listed here must pass #IsValidBalancingTarget test.
     TFillFactorToNodeMaps MediumToFillFactorToNode_;
+    //! Nodes listed here must pass #IsValidWriteTarget test.
     TLoadFactorToNodeMaps MediumToLoadFactorToNode_;
 
     void InsertToFillFactorMaps(TNode* node);
@@ -106,10 +108,18 @@ private:
 
     bool IsValidWriteTarget(
         int mediumIndex,
+        TNode* node);
+    
+    bool IsValidWriteTarget(
+        int mediumIndex,
         TNode* node,
         NObjectClient::EObjectType chunkType,
         TTargetCollector* collector,
         bool enableRackAwareness);
+
+    bool IsValidBalancingTarget(
+        int mediumIndex,
+        TNode* node);
 
     bool IsValidBalancingTarget(
         int mediumIndex,

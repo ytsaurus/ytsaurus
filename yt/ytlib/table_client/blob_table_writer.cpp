@@ -93,7 +93,13 @@ TBlobTableWriter::TBlobTableWriter(
 
 TBlobTableWriter::~TBlobTableWriter()
 {
-    DoFinish();
+    try {
+        DoFinish();
+    } catch (const std::exception& ex) {
+        LOG_ERROR(ex, "Error finishing blob table writer");
+    } catch (...) {
+        YUNREACHABLE();
+    }
 }
 
 NScheduler::NProto::TOutputResult TBlobTableWriter::GetOutputResult() const
