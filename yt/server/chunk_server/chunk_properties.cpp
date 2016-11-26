@@ -114,20 +114,18 @@ TSerializableChunkProperties::TSerializableChunkProperties(
     const TChunkProperties& properties,
     const TChunkManagerPtr& chunkManager)
 {
-    int mediumIndex = 0;
-    for (const auto& mediumProps : properties) {
-        if (mediumProps) {
-            auto* medium = chunkManager->GetMediumByIndexOrThrow(mediumIndex);
+    for (int mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
+        const auto& mediumProperties = properties[mediumIndex];
+        if (mediumProperties) {
+            auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
 
             TMediumProperties resultMediumProps;
-            resultMediumProps.ReplicationFactor = mediumProps.GetReplicationFactor();
-            resultMediumProps.DataPartsOnly = mediumProps.GetDataPartsOnly();
+            resultMediumProps.ReplicationFactor = mediumProperties.GetReplicationFactor();
+            resultMediumProps.DataPartsOnly = mediumProperties.GetDataPartsOnly();
+            YCHECK(resultMediumProps.ReplicationFactor != 0);
 
-            Y_ASSERT(resultMediumProps.ReplicationFactor != 0);
-
-            MediumProperties_.emplace(medium->GetName(), resultMediumProps);
+            YCHECK(MediumProperties_.emplace(medium->GetName(), resultMediumProps).second);
         }
-        ++mediumIndex;
     }
 }
 
@@ -213,7 +211,7 @@ void ValidateChunkProperties(
                 "configuring otherwise would result in a data loss");
     }
 
-    const auto* medium = chunkManager->GetMediumByIndexOrThrow(primaryMediumIndex);
+    const auto* medium = chunkManager->GetMediumByIndex(primaryMediumIndex);
     const auto& primaryMediumProperties = properties[primaryMediumIndex];
     if (primaryMediumProperties.GetReplicationFactor() == 0) {
         THROW_ERROR_EXCEPTION("Medium %Qv stores no chunk replicas and cannot be made primary",

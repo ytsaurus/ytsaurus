@@ -892,30 +892,6 @@ public:
         return chunkList;
     }
 
-    TMedium* CreateDefaultMedium(
-        const TMediumId& mediumId,
-        const Stroka& mediumName,
-        int mediumIndex,
-        bool cache)
-    {
-        ValidateMediumName(mediumName);
-
-        auto mediumHolder = std::make_unique<TMedium>(mediumId);
-        mediumHolder->SetName(mediumName);
-        mediumHolder->SetIndex(mediumIndex);
-        mediumHolder->SetTransient(false);
-        mediumHolder->SetCache(cache);
-        UsedMediumIndexes_.set(mediumIndex);
-
-        TMedium* medium = MediumMap_.Insert(mediumId, std::move(mediumHolder));
-        YCHECK(NameToMediumMap_.insert(std::make_pair(mediumName, medium)).second);
-
-        // Make the fake reference.
-        YCHECK(medium->RefObject() == 1);
-
-        return medium;
-    }
-
     TMedium* CreateMedium(
         const Stroka& name,
         TNullable<bool> transient,
@@ -938,10 +914,25 @@ public:
 
         auto objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::Medium, hintId);
+        auto mediumIndex = GetFreeMediumIndex();
+        return DoCreateMedium(
+            id,
+            mediumIndex,
+            name,
+            transient,
+            cache);
+    }
 
+    TMedium* DoCreateMedium(
+        const TMediumId& id,
+        int mediumIndex,
+        const Stroka& name,
+        TNullable<bool> transient,
+        TNullable<bool> cache)
+    {
         auto mediumHolder = std::make_unique<TMedium>(id);
         mediumHolder->SetName(name);
-        mediumHolder->SetIndex(AllocateMediumIndex());
+        mediumHolder->SetIndex(mediumIndex);
         if (transient) {
             mediumHolder->SetTransient(*transient);
         }
@@ -950,7 +941,7 @@ public:
         }
 
         auto* medium = MediumMap_.Insert(id, std::move(mediumHolder));
-        YCHECK(NameToMediumMap_.insert(std::make_pair(name, medium)).second);
+        RegisterMedium(medium);
 
         // Make the fake reference.
         YCHECK(medium->RefObject() == 1);
@@ -978,20 +969,14 @@ public:
 
         // Update name.
         YCHECK(NameToMediumMap_.erase(medium->GetName()) == 1);
-        YCHECK(NameToMediumMap_.insert(std::make_pair(newName, medium)).second);
+        YCHECK(NameToMediumMap_.emplace(newName, medium).second);
         medium->SetName(newName);
     }
 
-    // There's no FreeMediumIndex() method because media are never deleted, just
-    // renamed.
-    int AllocateMediumIndex()
+    int GetFreeMediumIndex()
     {
-        for (int index = 0; index < UsedMediumIndexes_.size(); ++index) {
-            if (index == DefaultStoreMediumIndex || index == DefaultCacheMediumIndex) {
-                continue;
-            }
-            if (!UsedMediumIndexes_.test(index)) {
-                UsedMediumIndexes_.set(index);
+        for (int index = 0; index < MaxMediumCount; ++index) {
+            if (!UsedMediumIndexes_[index]) {
                 return index;
             }
         }
@@ -1018,36 +1003,15 @@ public:
 
     TMedium* FindMediumByIndex(int index) const
     {
-        if (UsedMediumIndexes_.test(index)) {
-            for (const auto& pair : MediumMap_) {
-                auto* medium = pair.second;
-                if (medium->GetIndex() == index) {
-                    return medium;
-                }
-            }
-        } else {
-            return nullptr;
-        }
-
-        Y_UNREACHABLE();
+        return index >= 0 && index < MaxMediumCount
+            ? IndexToMediumMap_[index]
+            : nullptr;
     }
 
     TMedium* GetMediumByIndex(int index) const
     {
         auto* medium = FindMediumByIndex(index);
         YCHECK(medium);
-        return medium;
-    }
-
-    TMedium* GetMediumByIndexOrThrow(int index) const
-    {
-        auto* medium = FindMediumByIndex(index);
-        if (!medium) {
-            THROW_ERROR_EXCEPTION(
-                NChunkClient::EErrorCode::NoSuchMedium,
-                "No such medium %v",
-                index);
-        }
         return medium;
     }
 
@@ -1155,6 +1119,7 @@ private:
 
     NHydra::TEntityMap<TMedium> MediumMap_;
     yhash_map<Stroka, TMedium*> NameToMediumMap_;
+    std::vector<TMedium*> IndexToMediumMap_;
     TMediumSet UsedMediumIndexes_;
 
     TMediumId DefaultStoreMediumId_;
@@ -1386,7 +1351,7 @@ private:
             auto cellTag = CellTagFromId(chunk->GetId());
             auto it = crossCellRequestMap.find(cellTag);
             if (it == crossCellRequestMap.end()) {
-                it = crossCellRequestMap.insert(std::make_pair(cellTag, NProto::TReqUpdateChunkProperties())).first;
+                it = crossCellRequestMap.emplace(cellTag, NProto::TReqUpdateChunkProperties()).first;
                 it->second.set_cell_tag(Bootstrap_->GetCellTag());
             }
             return it->second;
@@ -1826,7 +1791,6 @@ private:
 
         LOG_INFO("Started initializing chunks");
 
-        TotalReplicaCount_ = 0;
         for (const auto& pair : ChunkMap_) {
             auto* chunk = pair.second;
 
@@ -1850,16 +1814,9 @@ private:
             }
         }
 
-        NameToMediumMap_.clear();
-        UsedMediumIndexes_.reset();
         for (const auto& pair : MediumMap_) {
             auto* medium = pair.second;
-
-            YCHECK(NameToMediumMap_.insert(std::make_pair(medium->GetName(), medium)).second);
-
-            auto mediumIndex = medium->GetIndex();
-            YCHECK(!UsedMediumIndexes_.test(mediumIndex));
-            UsedMediumIndexes_.set(mediumIndex);
+            RegisterMedium(medium);
         }
 
         InitBuiltins();
@@ -1886,6 +1843,7 @@ private:
 
         MediumMap_.Clear();
         NameToMediumMap_.clear();
+        IndexToMediumMap_ = std::vector<TMedium*>(MaxMediumCount, nullptr);
         UsedMediumIndexes_.reset();
 
         ChunksCreated_ = 0;
@@ -1894,7 +1852,6 @@ private:
         ChunkReplicasRemoved_ = 0;
         ChunkListsCreated_ = 0;
         ChunkListsDestroyed_ = 0;
-
 
         DefaultStoreMedium_ = nullptr;
         DefaultCacheMedium_ = nullptr;
@@ -1918,8 +1875,8 @@ private:
         if (EnsureBuiltinMediumInitialized(
             DefaultStoreMedium_,
             DefaultStoreMediumId_,
-            DefaultStoreMediumName,
             DefaultStoreMediumIndex,
+            DefaultStoreMediumName,
             false))
         {
             DefaultStoreMedium_->Acd().AddEntry(TAccessControlEntry(
@@ -1932,8 +1889,8 @@ private:
         if (EnsureBuiltinMediumInitialized(
             DefaultCacheMedium_,
             DefaultCacheMediumId_,
-            DefaultCacheMediumName,
             DefaultCacheMediumIndex,
+            DefaultCacheMediumName,
             true))
         {
             DefaultCacheMedium_->Acd().AddEntry(TAccessControlEntry(
@@ -1946,8 +1903,8 @@ private:
     bool EnsureBuiltinMediumInitialized(
         TMedium*& medium,
         const TMediumId& id,
+        int mediumIndex,
         const Stroka& name,
-        int index,
         bool cache)
     {
         if (medium) {
@@ -1957,7 +1914,7 @@ private:
         if (medium) {
             return false;
         }
-        medium = CreateDefaultMedium(id, name, index, cache);
+        medium = DoCreateMedium(id, mediumIndex, name, false, cache);
         return true;
     }
 
@@ -2432,13 +2389,26 @@ private:
         Profiler.Enqueue("/unsafely_placed_chunk_count", UnsafelyPlacedChunks().size(), EMetricType::Gauge);
     }
 
-    void ValidateMediumName(const Stroka& name)
+
+    void RegisterMedium(TMedium* medium)
+    {
+        YCHECK(NameToMediumMap_.emplace(medium->GetName(), medium).second);
+
+        auto mediumIndex = medium->GetIndex();
+
+        YCHECK(!UsedMediumIndexes_[mediumIndex]);
+        UsedMediumIndexes_.set(mediumIndex);
+
+        YCHECK(!IndexToMediumMap_[mediumIndex]);
+        IndexToMediumMap_[mediumIndex] = medium;
+    }
+
+    static void ValidateMediumName(const Stroka& name)
     {
         if (name.empty()) {
             THROW_ERROR_EXCEPTION("Medium name cannot be empty");
         }
     }
-
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager::TImpl, Chunk, TChunk, ChunkMap_)
@@ -2765,11 +2735,6 @@ TMedium* TChunkManager::FindMediumByIndex(int index) const
 TMedium* TChunkManager::GetMediumByIndex(int index) const
 {
     return Impl_->GetMediumByIndex(index);
-}
-
-TMedium* TChunkManager::GetMediumByIndexOrThrow(int index) const
-{
-    return Impl_->GetMediumByIndexOrThrow(index);
 }
 
 void TChunkManager::RenameMedium(TMedium* medium, const Stroka& newName)

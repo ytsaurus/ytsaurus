@@ -1594,8 +1594,8 @@ void TChunkReplicator::ScheduleNodeRefresh(TNode* node)
 {
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     for (int mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
-        const auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
-        if (medium->GetCache()) {
+        const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+        if (!medium || medium->GetCache()) {
             continue;
         }
         const auto& replicas = node->Replicas()[mediumIndex];

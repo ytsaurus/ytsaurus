@@ -664,7 +664,7 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
     if (key == "primary_medium") {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto primaryMediumIndex = node->GetPrimaryMediumIndex();
-        auto* medium = chunkManager->GetMediumByIndexOrThrow(primaryMediumIndex);
+        auto* medium = chunkManager->GetMediumByIndex(primaryMediumIndex);
 
         BuildYsonFluently(consumer)
             .Value(medium->GetName());
@@ -783,7 +783,7 @@ void TChunkOwnerNodeProxy::SetReplicationFactor(int replicationFactor)
 
     auto mediumIndex = node->GetPrimaryMediumIndex();
     const auto& chunkManager = Bootstrap_->GetChunkManager();
-    auto* medium = chunkManager->GetMediumByIndexOrThrow(mediumIndex);
+    auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
 
     auto properties = node->Properties();
     if (properties[mediumIndex].GetReplicationFactor() == replicationFactor) {
@@ -835,14 +835,11 @@ void TChunkOwnerNodeProxy::SetMediaProperties(const TChunkProperties& properties
         return;
     }
 
-    {
-        int mediumIndex = 0;
-        for (const auto& mediumProps : properties) {
-            if (mediumProps) {
-                auto* medium = chunkManager->GetMediumByIndexOrThrow(mediumIndex);
-                ValidatePermission(medium, EPermission::Use);
-            }
-            ++mediumIndex;
+    for (int mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
+        const auto& mediumProperties = properties[mediumIndex];
+        if (mediumProperties) {
+            auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
+            ValidatePermission(medium, EPermission::Use);
         }
     }
 
