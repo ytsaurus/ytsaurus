@@ -4249,7 +4249,7 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersione
     std::vector<TInputDataSlicePtr> result;
     for (const auto& fetcher : fetchers) {
         for (auto& dataSlice : fetcher->GetDataSlices()) {
-            LOG_INFO("Added dynamic table slice (TablePath: %v, Range: %v..%v, ChunkIds: %v)",
+            LOG_TRACE("Added dynamic table slice (TablePath: %v, Range: %v..%v, ChunkIds: %v)",
                 InputTables[dataSlice->GetTableIndex()].Path.GetPath(),
                 dataSlice->LowerLimit(),
                 dataSlice->UpperLimit(),
