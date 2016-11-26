@@ -452,7 +452,8 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         create("table", "//tmp/t_out")
 
-        rows = [{"key1": i, "key2": i, "value": str(i)} for i in range(6)]
+        rows = [{"key1": None, "key2": i, "value": str(i)} for i in range(2)]
+        rows += [{"key1": i, "key2": i, "value": str(i)} for i in range(6)]
         self.sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", rows)
         self.sync_unmount_table("//tmp/t")
@@ -487,6 +488,12 @@ class TestSchedulerSortCommands(YTEnvSetup):
                 out="//tmp/t_out",
                 sort_by=sort_by)
             actual = read_table("//tmp/t_out")
+
+            # Oh Yson
+            for row in actual:
+                for k in row.iterkeys():
+                    if row[k] == None:
+                        row[k] = None
 
             key = lambda r: [r[k] for k in sort_by]
             for i in xrange(1, len(actual)):
