@@ -149,12 +149,8 @@ private:
         auto* chunk = GetThisImpl();
         auto isForeign = chunk->IsForeign();
 
-        typedef std::function<void(TFluentList fluent, TNodePtrWithIndexes replica)> TReplicaSerializer;
-
-        TReplicaSerializer serializeReplica =
-            [&] (TFluentList fluent, TNodePtrWithIndexes replica) {
-
-            auto* medium = chunkManager->GetMediumByIndexOrThrow(replica.GetMediumIndex());
+        auto serializeReplica = [&] (TFluentList fluent, TNodePtrWithIndexes replica) {
+            auto* medium = chunkManager->GetMediumByIndex(replica.GetMediumIndex());
             fluent.Item()
                 .BeginAttributes()
                     .DoIf(!chunk->IsJournal(), [&] (TFluentAttributes fluent) {

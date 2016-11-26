@@ -187,49 +187,57 @@ private:
 
                 yhash_map<Stroka, yhash_set<EObjectType>> acceptedChunkTypes;
                 for (const auto& mediumTypePair : statistics.accepted_chunk_types()) {
-                    auto* medium = chunkManager->GetMediumByIndexOrThrow(mediumTypePair.medium_index());
-                    acceptedChunkTypes[medium->GetName()].insert(
-                        static_cast<EObjectType>(mediumTypePair.chunk_type()));
+                    auto mediumIndex = mediumTypePair.medium_index();
+                    auto chunkType = EObjectType(mediumTypePair.chunk_type());
+                    const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+                    if (!medium) {
+                        continue;
+                    }
+                    acceptedChunkTypes[medium->GetName()].insert(chunkType);
                 }
 
                 BuildYsonFluently(consumer)
                     .BeginMap()
-                    .Item("total_available_space").Value(statistics.total_available_space())
-                    .Item("total_used_space").Value(statistics.total_used_space())
-                    .Item("total_stored_chunk_count").Value(statistics.total_stored_chunk_count())
-                    .Item("total_cached_chunk_count").Value(statistics.total_cached_chunk_count())
-                    .Item("total_session_count").Value(node->GetTotalSessionCount())
-                    .Item("full").Value(statistics.full())
-                    .Item("accepted_chunk_types").Value(acceptedChunkTypes)
-                    .Item("locations").DoListFor(statistics.locations(), [&] (TFluentList fluent, const TLocationStatistics& locationStatistics) {
-                        auto* medium = chunkManager->GetMediumByIndexOrThrow(locationStatistics.medium_index());
-                        fluent
-                            .Item().BeginMap()
-                                .Item("medium_name").Value(medium->GetName())
-                                .Item("available_space").Value(locationStatistics.available_space())
-                                .Item("used_space").Value(locationStatistics.used_space())
-                                .Item("low_watermark_space").Value(locationStatistics.low_watermark_space())
-                                .Item("chunk_count").Value(locationStatistics.chunk_count())
-                                .Item("session_count").Value(locationStatistics.session_count())
-                                .Item("full").Value(locationStatistics.full())
-                                .Item("enabled").Value(locationStatistics.enabled())
-                            .EndMap();
-                    })
-                    .Item("memory").BeginMap()
-                    .Item("total").BeginMap()
-                    .Item("used").Value(statistics.memory().total_used())
-                    .Item("limit").Value(statistics.memory().total_limit())
-                    .EndMap()
-                    .DoFor(statistics.memory().categories(), [] (TFluentMap fluent, const TMemoryStatistics::TCategory& category) {
-                        fluent.Item(FormatEnum(EMemoryCategory(category.type())))
-                            .BeginMap()
-                            .DoIf(category.has_limit(), [&] (TFluentMap fluent) {
-                                fluent.Item("limit").Value(category.limit());
-                            })
-                            .Item("used").Value(category.used())
-                            .EndMap();
-                    })
-                    .EndMap()
+                        .Item("total_available_space").Value(statistics.total_available_space())
+                        .Item("total_used_space").Value(statistics.total_used_space())
+                        .Item("total_stored_chunk_count").Value(statistics.total_stored_chunk_count())
+                        .Item("total_cached_chunk_count").Value(statistics.total_cached_chunk_count())
+                        .Item("total_session_count").Value(node->GetTotalSessionCount())
+                        .Item("full").Value(statistics.full())
+                        .Item("accepted_chunk_types").Value(acceptedChunkTypes)
+                        .Item("locations").DoListFor(statistics.locations(), [&] (TFluentList fluent, const TLocationStatistics& locationStatistics) {
+                            auto mediumIndex = locationStatistics.medium_index();
+                            const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+                            if (!medium) {
+                                return;
+                            }
+                            fluent
+                                .Item().BeginMap()
+                                    .Item("medium_name").Value(medium->GetName())
+                                    .Item("available_space").Value(locationStatistics.available_space())
+                                    .Item("used_space").Value(locationStatistics.used_space())
+                                    .Item("low_watermark_space").Value(locationStatistics.low_watermark_space())
+                                    .Item("chunk_count").Value(locationStatistics.chunk_count())
+                                    .Item("session_count").Value(locationStatistics.session_count())
+                                    .Item("full").Value(locationStatistics.full())
+                                    .Item("enabled").Value(locationStatistics.enabled())
+                                .EndMap();
+                        })
+                        .Item("memory").BeginMap()
+                        .Item("total").BeginMap()
+                        .Item("used").Value(statistics.memory().total_used())
+                        .Item("limit").Value(statistics.memory().total_limit())
+                        .EndMap()
+                        .DoFor(statistics.memory().categories(), [] (TFluentMap fluent, const TMemoryStatistics::TCategory& category) {
+                            fluent.Item(FormatEnum(EMemoryCategory(category.type())))
+                                .BeginMap()
+                                .DoIf(category.has_limit(), [&] (TFluentMap fluent) {
+                                    fluent.Item("limit").Value(category.limit());
+                                })
+                                .Item("used").Value(category.used())
+                                .EndMap();
+                        })
+                        .EndMap()
                     .EndMap();
                 return true;
             }

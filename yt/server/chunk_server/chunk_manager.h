@@ -161,9 +161,6 @@ public:
     //! Returns the medium with a given index (fails if none).
     TMedium* GetMediumByIndex(int index) const;
 
-    //! Returns the medium with a given index (throws if none).
-    TMedium* GetMediumByIndexOrThrow(int index) const;
-
     //! Renames an existing medium. Throws on name conflict.
     void RenameMedium(TMedium* medium, const Stroka& newName);
 
