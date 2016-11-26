@@ -412,6 +412,7 @@ TTableSchema TTableSchema::ToCanonical() const
 
 TTableSchema TTableSchema::ToSorted(const TKeyColumns& keyColumns) const
 {
+    auto uniqueKeys = UniqueKeys_ && keyColumns.size() == GetKeyColumnCount();
     auto columns = Columns();
     for (int index = 0; index < keyColumns.size(); ++index) {
         auto it = std::find_if(
@@ -427,6 +428,10 @@ TTableSchema TTableSchema::ToSorted(const TKeyColumns& keyColumns) const
                 << TErrorAttribute("key_columns", keyColumns);
         }
 
+        if (!it->SortOrder) {
+            uniqueKeys = false;
+        }
+
         std::swap(columns[index], *it);
         columns[index].SetSortOrder(ESortOrder::Ascending);
     }
@@ -435,7 +440,7 @@ TTableSchema TTableSchema::ToSorted(const TKeyColumns& keyColumns) const
         it->SetSortOrder(Null);
     }
 
-    return TTableSchema(columns, Strict_, UniqueKeys_);
+    return TTableSchema(columns, Strict_, uniqueKeys);
 }
 
 void TTableSchema::Save(TStreamSaveContext& context) const
