@@ -130,7 +130,7 @@ class Column():
 
 class Schema():
     def __init__(self):
-        self.appearance_probability = 0.9
+        self.appearance_probability = 0.99
         self.aggregate_probability = 0.5
         key_column_count = random.randint(3,5)
         data_column_count = random.randint(5,10)
@@ -537,6 +537,7 @@ class SelectReducer(SchemafulMapper):
             row = next(rows)
             keylist = ["null" if row.get(k, None) == None else yson.dumps(row[k]) for k in self.key_columns]
             keys.append("(%s)" % (",".join(keylist)))
+
         query = "* from [%s] where (%s) in (%s)" % (self.table, ",".join(self.key_columns), ",".join(keys))
         params = {
             "query": query,
@@ -610,16 +611,14 @@ def verify_mapreduce(schema, data_table, table, dump_table, result_table):
     verify_merge(schema, data_table, table, dump_table, result_table, "ordered")
     verify_merge(schema, data_table, table, dump_table, result_table, "sorted")
     verify_sort(schema, data_table, table, dump_table, result_table, key_columns)
-    #FIXME(savrus)
-    #verify_sort(schema, data_table, table, dump_table, result_table, list(reversed(key_columns)))
+    verify_sort(schema, data_table, table, dump_table, result_table, list(reversed(key_columns)))
     verify_map(schema, data_table, table, dump_table, result_table, False)
     verify_map(schema, data_table, table, dump_table, result_table, True)
     verify_reduce(schema, data_table, table, dump_table, result_table, key_columns)
     verify_map_reduce(schema, data_table, table, dump_table, result_table, key_columns)
 
     if len(key_columns) > 1:
-        #FIXME(savrus)
-        #verify_sort(schema, data_table, table, dump_table, result_table, key_columns[:-1])
+        verify_sort(schema, data_table, table, dump_table, result_table, key_columns[:-1])
         verify_reduce(schema, data_table, table, dump_table, result_table, key_columns[:-1])
         verify_map_reduce(schema, data_table, table, dump_table, result_table, key_columns[:-1])
 
@@ -651,8 +650,8 @@ def single_iteration(schema, table, key_table, data_table, dump_table, result_ta
     verify(schema, new_data_table, table, result_table, job_count)
 
     key_columns = schema.get_key_column_names()
-    verify_select(schema, data_table, table, dump_table, result_table, job_count, key_columns)
-    verify_select(schema, data_table, table, dump_table, result_table, job_count, key_columns[:-1])
+    verify_select(schema, new_data_table, table, dump_table, result_table, job_count, key_columns)
+    verify_select(schema, new_data_table, table, dump_table, result_table, job_count, key_columns[:-1])
 
     freeze_table(table)
     unfreeze_table(table)
