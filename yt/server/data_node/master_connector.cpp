@@ -423,7 +423,6 @@ void TMasterConnector::ReportNodeHeartbeat(TCellTag cellTag)
             if (CanSendFullNodeHeartbeat(cellTag)) {
                 ReportFullNodeHeartbeat(cellTag);
             } else {
-            } else {
                 ScheduleNodeHeartbeat(cellTag);
             }
             break;
