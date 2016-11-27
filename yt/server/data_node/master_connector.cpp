@@ -213,23 +213,27 @@ TNodeDescriptor TMasterConnector::GetLocalDescriptor() const
     return LocalDescriptor_;
 }
 
-void TMasterConnector::ScheduleNodeHeartbeat(TCellTag cellTag)
+void TMasterConnector::ScheduleNodeHeartbeat(TCellTag cellTag, bool immedately)
 {
+    auto period = immedately
+        ? TDuration::Zero()
+        : Config_->IncrementalHeartbeatPeriod;
     TDelayedExecutor::Submit(
-        BIND(&TMasterConnector::SendNodeHeartbeat, MakeStrong(this), cellTag)
+        BIND(&TMasterConnector::ReportNodeHeartbeat, MakeStrong(this), cellTag)
             .Via(HeartbeatInvoker_),
-        Config_->IncrementalHeartbeatPeriod);
+        period);
 }
 
-void TMasterConnector::ScheduleJobHeartbeat()
+void TMasterConnector::ScheduleJobHeartbeat(bool immediately)
 {
     // NB: Job heartbeats are sent in round-robin fashion,
-    // adjust the period accordingly.
-    auto period =
-        Config_->IncrementalHeartbeatPeriod /
-        (1 + Bootstrap_->GetMasterClient()->GetConnection()->GetSecondaryMasterCellTags().size());
+    // adjust the period accordingly. Also handle #immediately flag.
+    auto period = immediately
+        ? TDuration::Zero()
+        : Config_->IncrementalHeartbeatPeriod /
+            (1 + Bootstrap_->GetMasterClient()->GetConnection()->GetSecondaryMasterCellTags().size());
     TDelayedExecutor::Submit(
-        BIND(&TMasterConnector::SendJobHeartbeat, MakeStrong(this))
+        BIND(&TMasterConnector::ReportJobHeartbeat, MakeStrong(this))
             .Via(HeartbeatInvoker_),
         period);
 }
@@ -305,16 +309,9 @@ void TMasterConnector::RegisterAtMaster()
         NodeId_);
 
     for (auto cellTag : MasterCellTags_) {
-        SendNodeHeartbeat(cellTag);
-        // NB: SendNodeHeartbeat can fail during sending full heartbeat.
-        if (!IsConnected()) {
-            break;
-        }
+        ScheduleNodeHeartbeat(cellTag, true);
     }
-
-    if (IsConnected()) {
-        SendJobHeartbeat();
-    }
+    ScheduleJobHeartbeat(true);
 }
 
 void TMasterConnector::OnLeaseTransactionAborted()
@@ -416,7 +413,7 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
     return result;
 }
 
-void TMasterConnector::SendNodeHeartbeat(TCellTag cellTag)
+void TMasterConnector::ReportNodeHeartbeat(TCellTag cellTag)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -424,14 +421,15 @@ void TMasterConnector::SendNodeHeartbeat(TCellTag cellTag)
     switch (delta->State) {
         case EState::Registered:
             if (CanSendFullNodeHeartbeat(cellTag)) {
-                SendFullNodeHeartbeat(cellTag);
+                ReportFullNodeHeartbeat(cellTag);
+            } else {
             } else {
                 ScheduleNodeHeartbeat(cellTag);
             }
             break;
 
         case EState::Online:
-            SendIncrementalNodeHeartbeat(cellTag);
+            ReportIncrementalNodeHeartbeat(cellTag);
             break;
 
         default:
@@ -456,7 +454,7 @@ bool TMasterConnector::CanSendFullNodeHeartbeat(TCellTag cellTag)
     return true;
 }
 
-void TMasterConnector::SendFullNodeHeartbeat(TCellTag cellTag)
+void TMasterConnector::ReportFullNodeHeartbeat(TCellTag cellTag)
 {
     auto Logger = DataNodeLogger;
     Logger.AddTag("CellTag: %v", cellTag);
@@ -536,7 +534,7 @@ void TMasterConnector::SendFullNodeHeartbeat(TCellTag cellTag)
     ScheduleNodeHeartbeat(cellTag);
 }
 
-void TMasterConnector::SendIncrementalNodeHeartbeat(TCellTag cellTag)
+void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
 {
     auto Logger = DataNodeLogger;
     Logger.AddTag("CellTag: %v", cellTag);
@@ -734,7 +732,7 @@ TChunkRemoveInfo TMasterConnector::BuildRemoveChunkInfo(IChunkPtr chunk)
     return result;
 }
 
-void TMasterConnector::SendJobHeartbeat()
+void TMasterConnector::ReportJobHeartbeat()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
     YCHECK(NodeId_ != InvalidNodeId);
