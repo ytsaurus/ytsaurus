@@ -282,7 +282,7 @@ if __name__ == "__main__":
     if sys.version_info[0] >= 3:
         stdin = sys.stdin.buffer
 
-    yt.update_config(yson.load(stdin))
+    yt.update_config(yson.load(stdin, always_create_attributes=False))
     yt.config["pickling"]["enable_tmpfs_archive"] = False
     print(yt.run_map({mapper}, "{source_table}", "{destination_table}", format="json").id)
 """
