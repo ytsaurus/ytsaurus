@@ -36,7 +36,7 @@ target_link_libraries( yt_old
   deps-arcadia-library-lfalloc
 )
 
-if (NOT WIN32)
+if (NOT OS_WINDOWS)
   set_target_properties( yt_old
     PROPERTIES
     LINK_FLAGS "-static-libstdc++"
