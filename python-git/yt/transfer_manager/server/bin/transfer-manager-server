@@ -27,9 +27,11 @@ import yt.json as json
 from yt.packages.expiringdict import ExpiringDict
 from yt.packages.cherrypy import wsgiserver
 from yt.packages.six import iteritems, PY3
-from yt.packages.six.moves import queue
+from yt.packages.six.moves import queue, xrange
+
 import yt.packages.pympler.muppy as pympler_muppy
 import yt.packages.pympler.summary as pympler_summary
+from yt.packages.pympler.asizeof import asizeof
 
 import yt.wrapper as yt
 
@@ -63,7 +65,15 @@ from subprocess32 import TimeoutExpired
 
 OS_PAGE_SIZE = os.sysconf("SC_PAGE_SIZE")
 
-yt.config["read_retries"]["enable"] = True
+def get_node_size(obj):
+    result = 1
+    if isinstance(obj, list):
+        for item in obj:
+            result += get_node_size(item)
+    elif isinstance(obj, dict):
+        for item in obj.values():
+            result += get_node_size(item)
+    return result
 
 SIGTERM_SENT = False
 def sigterm_handler(signum, frame):
@@ -463,9 +473,26 @@ class Application(object):
 
         running_tasks = []
 
-        for id, options in iteritems(self._yt.get(tasks_path)):
+        portion_size = 1000
+
+        responses = []
+        task_ids = self._yt.list(tasks_path)
+        for portion_index in xrange(1 + len(task_ids) / portion_size):
+            start_index = min(portion_index * portion_size, len(task_ids))
+            end_index = min((portion_index + 1) * portion_size, len(task_ids))
+            requests = [{"command": "get", "parameters": {"path": yt.ypath_join(tasks_path, task_ids[index])}}
+                        for index in xrange(start_index, end_index)]
+            responses += self._yt.execute_batch(requests)
+
+        for response in responses:
+            if "error" in response and response["error"]:
+                logger.warning("Failed to load task %s: %s", id, str(yt.YtResponseError(response["error"])))
+                continue
+
+            task_options = response["output"]
+            id = task_options["id"]
             try:
-                task = Task(**options)
+                task = Task(**task_options)
                 task._last_ping_time = time.time()
             except Exception as err:
                 logger.warning("Failed to load task %s: %s", id, str(err))
@@ -521,6 +548,17 @@ class Application(object):
             start_time = time.time()
             path = os.path.join(self._tasks_path, id)
             value = self._tasks[id].dict()
+
+            node_count = get_node_size(value)
+            node_count_limit = self._config.get("task_node_count_limit", 1000)
+            if node_count > node_count_limit:
+                logger.info("Task %s takes %d nodes (>%d)", id, node_count, node_count_limit)
+
+            object_size = asizeof(value)
+            object_size_limit = self._config.get("task_object_size_limit", 1000000)
+            if object_size > object_size_limit:
+                logger.info("Task %s takes %d bytes in python (>%d)", id, object_size, object_size_limit)
+
             os.path.join(self._tasks_path, id)
             client = Yt(**self._config["yt_backend_options"])
             with self._mutex.discharge():
@@ -965,7 +1003,7 @@ class Application(object):
             self._initialize_pool(task, clusters_configuration)
 
             client = Yt(**self._config["yt_backend_options"])
-            client.set(os.path.join(self._tasks_path, task.id), task.dict())
+            client.create("document", os.path.join(self._tasks_path, task.id), attributes={"value": task.dict()})
 
             if task.lease_timeout is not None:
                 task._last_ping_time = time.time()
