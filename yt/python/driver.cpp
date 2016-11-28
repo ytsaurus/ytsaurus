@@ -68,7 +68,7 @@ Py::Exception CreateYtError(const std::string& message, const NYT::TError& error
     options.setItem("code", ConvertTo<Py::Object>(error.GetCode()));
     options.setItem("inner_errors", ConvertTo<Py::Object>(innerErrors));
     auto ytError = ytErrorClass.apply(Py::Tuple(), options);
-    return Py::Exception(*ytErrorClass.type(), ytError);
+    return Py::Exception(*ytError.type(), ytError);
 }
 
 #define CATCH(message) \
