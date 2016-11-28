@@ -1673,7 +1673,7 @@ private:
         switch (Spec->SchemaInferenceMode) {
             case ESchemaInferenceMode::Auto:
                 if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
-                    InferSchemaFromInputSorted(SortKeyColumns);
+                    InferSchemaFromInput(SortKeyColumns);
                 } else {
                     prepareOutputKeyColumns();
 
@@ -1690,7 +1690,7 @@ private:
                 break;
 
             case ESchemaInferenceMode::FromInput:
-                InferSchemaFromInputSorted(SortKeyColumns);
+                InferSchemaFromInput(SortKeyColumns);
                 break;
 
             case ESchemaInferenceMode::FromOutput:

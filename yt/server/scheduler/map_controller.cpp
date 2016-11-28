@@ -628,7 +628,7 @@ private:
         switch (Spec->SchemaInferenceMode) {
             case ESchemaInferenceMode::Auto:
                 if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
-                    InferSchemaFromInputUnordered();
+                    InferSchemaFromInput();
                 } else {
                     validateOutputNotSorted();
 
@@ -645,7 +645,7 @@ private:
                 break;
 
             case ESchemaInferenceMode::FromInput:
-                InferSchemaFromInputUnordered();
+                InferSchemaFromInput();
                 break;
 
             case ESchemaInferenceMode::FromOutput:
