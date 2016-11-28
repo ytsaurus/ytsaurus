@@ -1892,7 +1892,7 @@ private:
         switch (Spec->SchemaInferenceMode) {
             case ESchemaInferenceMode::Auto:
                 if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
-                    InferSchemaFromInputSorted(Spec->SortBy);
+                    InferSchemaFromInput(Spec->SortBy);
                 } else {
                     table.TableUploadOptions.TableSchema =
                         table.TableUploadOptions.TableSchema.ToSorted(Spec->SortBy);
@@ -1910,7 +1910,7 @@ private:
                 break;
 
             case ESchemaInferenceMode::FromInput:
-                InferSchemaFromInputSorted(Spec->SortBy);
+                InferSchemaFromInput(Spec->SortBy);
                 break;
 
             case ESchemaInferenceMode::FromOutput:
