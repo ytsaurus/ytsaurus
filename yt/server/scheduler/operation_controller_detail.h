@@ -1035,9 +1035,8 @@ protected:
 
     i64 ComputeUserJobMemoryReserve(EJobType jobType, TUserJobSpecPtr jobSpec) const;
 
-    void InferSchemaFromInputUnordered();
+    void InferSchemaFromInput(const NTableClient::TKeyColumns& keyColumns = NTableClient::TKeyColumns());
     void InferSchemaFromInputOrdered();
-    void InferSchemaFromInputSorted(const NTableClient::TKeyColumns& keyColumns);
     void ValidateOutputSchemaOrdered() const;
 
 private:
