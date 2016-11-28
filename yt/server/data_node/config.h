@@ -82,6 +82,12 @@ public:
     //! Controls if new journal chunks are accepted by this location.
     bool EnableJournals;
 
+    //! Controls incoming location bandwidth used by repair jobs.
+    NConcurrency::TThroughputThrottlerConfigPtr RepairInThrottler;
+
+    //! Controls incoming location bandwidth used by replication jobs.
+    NConcurrency::TThroughputThrottlerConfigPtr ReplicationInThrottler;
+
     TStoreLocationConfig()
     {
         RegisterParameter("low_watermark", LowWatermark)
@@ -99,6 +105,10 @@ public:
             .Default(true);
         RegisterParameter("enable_journals", EnableJournals)
             .Default(true);
+        RegisterParameter("repair_in_throttler", RepairInThrottler)
+            .DefaultNew();
+        RegisterParameter("replication_in_throttler", ReplicationInThrottler)
+            .DefaultNew();
 
         // NB: base class's field.
         RegisterParameter("medium_name", MediumName)
@@ -121,9 +131,14 @@ class TCacheLocationConfig
     : public TStoreLocationConfigBase
 {
 public:
+    //! Controls incoming location bandwidth used by cache.
+    NConcurrency::TThroughputThrottlerConfigPtr InThrottler;
 
     TCacheLocationConfig()
     {
+        RegisterParameter("in_throttler", InThrottler)
+            .DefaultNew();
+
         // NB: base class's field.
         RegisterParameter("medium_name", MediumName)
             .Default(NChunkClient::DefaultCacheMediumName);

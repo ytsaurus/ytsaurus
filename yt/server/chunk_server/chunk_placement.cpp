@@ -523,7 +523,7 @@ bool TChunkPlacement::IsValidBalancingTarget(
     bool enableRackAwareness)
 {
     // Check node first.
-    if (!IsValidWriteTarget(mediumIndex, node)) {
+    if (!IsValidBalancingTarget(mediumIndex, node)) {
         return false;
     }
 

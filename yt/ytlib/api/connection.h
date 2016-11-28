@@ -65,6 +65,8 @@ struct IConnection
         const TTransactionParticipantOptions& options = TTransactionParticipantOptions()) = 0;
 
     virtual void ClearMetadataCaches() = 0;
+
+    virtual void Terminate() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IConnection)

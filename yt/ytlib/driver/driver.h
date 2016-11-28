@@ -111,6 +111,9 @@ struct IDriver
     //! Returns the underlying connection.
     virtual NApi::IConnectionPtr GetConnection() = 0;
 
+    //! Terminates connection.
+    virtual void Terminate() = 0;
+
 };
 
 DEFINE_REFCOUNTED_TYPE(IDriver)

@@ -9,12 +9,22 @@ namespace NPython {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-void RegisterShutdown()
+static TCallback<void()> AdditionalShutdownCallback;
+
+void Shutdown()
+{
+    AdditionalShutdownCallback.Run();
+    NYT::Shutdown();
+}
+
+void RegisterShutdown(TCallback<void()> additionalCallback)
 {
     static bool registered = false;
+
     if (!registered) {
+        AdditionalShutdownCallback = additionalCallback;
         registered = true;
-        Py_AtExit(NYT::Shutdown);
+        Py_AtExit(Shutdown);
     }
 }
 
