@@ -1,7 +1,6 @@
 package NYT.NCoreDump.NProto;
 
 import "yt/core/misc/error.proto";
-import "yt/ytlib/scheduler/output_result.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
