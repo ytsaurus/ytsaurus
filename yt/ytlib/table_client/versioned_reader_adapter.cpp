@@ -33,7 +33,7 @@ public:
 
     virtual TFuture<void> Open() override
     {
-        return VoidFuture;
+        return UnderlyingReader_->GetReadyEvent();
     }
 
     virtual bool Read(std::vector<TVersionedRow>* rows) override
