@@ -350,20 +350,24 @@ void TConnectionPool::Refresh()
         TConfig::Get()->ConnectionPoolSize;
 
     // simple, since we don't expect too many connections
-    std::vector<TConnectionMap::iterator> sortedConnections;
+    using TItem = std::pair<TInstant, TConnectionMap::iterator>;
+    std::vector<TItem> sortedConnections;
     for (auto it = Connections_.begin(); it != Connections_.end(); ++it) {
-        sortedConnections.push_back(it);
+        // We save DeadLine here cause it can be changed (from Connect) during our sorting.
+        // TODO: we access DeadLine in nonatomic way
+        sortedConnections.emplace_back(it->second->DeadLine, it);
     }
 
     std::sort(
         sortedConnections.begin(),
         sortedConnections.end(),
-        [] (TConnectionMap::iterator a, TConnectionMap::iterator b) -> bool {
-            return a->second->DeadLine < b->second->DeadLine;
+        [] (const TItem& a, const TItem& b) -> bool {
+            return a.first < b.first;
         });
 
     auto now = TInstant::Now();
-    for (auto mapIterator : sortedConnections) {
+    for (const auto& item : sortedConnections) {
+        const auto& mapIterator = item.second;
         auto connection = mapIterator->second;
         if (AtomicGet(connection->Busy)) {
             continue;
