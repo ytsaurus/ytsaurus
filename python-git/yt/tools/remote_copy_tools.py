@@ -584,40 +584,43 @@ def copy_file_yt_to_yt(source_client, destination_client, src, dst, fastbone, to
                 temp_table_input = None
                 temp_table_output = None
                 try:
-                    command, files = _prepare_read_file_from_yt_command(
-                        destination_client,
-                        source_client,
-                        src.to_yson_string(),
-                        temp_files_dir,
-                        tmp_dir,
-                        fastbone,
-                        pack=True,
-                        token_file=yt_token_file.attributes["file_name"],
-                        erasure_codec=erasure_codec,
-                        compression_codec=compression_codec)
-
                     ranges = _slice_yt_file_evenly(source_client, src.name)
+                    if not ranges:
+                        destination_client.write_file(dst, "")
+                    else:
+                        command, files = _prepare_read_file_from_yt_command(
+                            destination_client,
+                            source_client,
+                            src.to_yson_string(),
+                            temp_files_dir,
+                            tmp_dir,
+                            fastbone,
+                            pack=True,
+                            token_file=yt_token_file.attributes["file_name"],
+                            erasure_codec=erasure_codec,
+                            compression_codec=compression_codec)
 
-                    temp_table_input = destination_client.create_temp_table(prefix=os.path.basename(src.name))
-                    temp_table_output = destination_client.create_temp_table(prefix=os.path.basename(src.name))
-                    destination_client.write_table(temp_table_input, ranges, format=yt.JsonFormat(), raw=False)
+                        temp_table_input = destination_client.create_temp_table(prefix=os.path.basename(src.name))
+                        temp_table_output = destination_client.create_temp_table(prefix=os.path.basename(src.name))
+                        destination_client.write_table(temp_table_input, ranges, format=yt.JsonFormat(), raw=False)
 
-                    spec = deepcopy(get_value(copy_spec_template, {}))
-                    spec["data_size_per_job"] = 1
-                    _set_tmpfs_settings(destination_client, spec, files, [yt_token_file])
-                    _set_mapper_settings_for_read_from_yt(spec)
+                        spec = deepcopy(get_value(copy_spec_template, {}))
+                        spec["data_size_per_job"] = 1
+                        _set_tmpfs_settings(destination_client, spec, files, [yt_token_file])
+                        _set_mapper_settings_for_read_from_yt(spec)
 
-                    destination_client.run_map(
-                        command,
-                        temp_table_input,
-                        temp_table_output,
-                        files=files,
-                        yt_files=[yt_token_file],
-                        spec=spec,
-                        input_format=yt.JsonFormat(),
-                        output_format=intermediate_format)
+                        destination_client.run_map(
+                            command,
+                            temp_table_input,
+                            temp_table_output,
+                            files=files,
+                            yt_files=[yt_token_file],
+                            spec=spec,
+                            input_format=yt.JsonFormat(),
+                            output_format=intermediate_format)
 
-                    destination_client.concatenate(_get_temp_file_names(temp_files_dir, ranges), dst)
+                        destination_client.concatenate(_get_temp_file_names(temp_files_dir, ranges), dst)
+
 
                 finally:
                     destination_client.remove(str(yt_token_file), force=True)
