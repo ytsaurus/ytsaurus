@@ -22,9 +22,7 @@ class TestAclCommands(object):
         assert yt.check_permission("root", "write", "//sys")["action"] == "allow"
         assert yt.check_permission("root", "administer", "//home")["action"] == "allow"
         assert yt.check_permission("root", "use", "//home")["action"] == "allow"
-        permissions = ["read", "write", "administer"]
-        if yt_env.version >= "0.17.4":
-            permissions.append("remove")
+        permissions = ["read", "write", "administer", "remove"]
         yt.create("map_node", "//home/tester", attributes={"inherit_acl": "false",
             "acl": [{"action": "allow",
                      "subjects": ["tester"],

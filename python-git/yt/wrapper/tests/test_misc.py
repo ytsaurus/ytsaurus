@@ -205,9 +205,6 @@ class TestRetries(object):
             yt.config["read_retries"]["enable"] = old_value
 
     def test_read_ranges_with_retries(self, yt_env):
-        if yt_env.version < "0.17.4":
-            pytest.skip()
-
         old_value = yt.config["read_retries"]["enable"], yt.config["read_retries"]["allow_multiple_ranges"]
         yt.config["read_retries"]["enable"] = True
         yt.config["read_retries"]["allow_multiple_ranges"] = True

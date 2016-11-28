@@ -224,47 +224,44 @@ class TestOperations(object):
         yt.write_table(unsorted_table, [{"x": 3}])
         table = TEST_DIR + "/table"
 
-        if yt_env.version >= "0.17.3":
-            yt.run_join_reduce("cat", ["<primary=true>" + table1, table2], table, join_by=["x"])
-            check([{"x": 1}], yt.read_table(table))
+        yt.run_join_reduce("cat", ["<primary=true>" + table1, table2], table, join_by=["x"])
+        check([{"x": 1}], yt.read_table(table))
 
-            # Run join-reduce without join_by
-            with pytest.raises(yt.YtError):
-                yt.run_join_reduce("cat", ["<primary=true>" + table1, table2], table)
+        # Run join-reduce without join_by
+        with pytest.raises(yt.YtError):
+            yt.run_join_reduce("cat", ["<primary=true>" + table1, table2], table)
 
-            # Run join-reduce on unsorted table
-            with pytest.raises(yt.YtError):
-                yt.run_join_reduce("cat", ["<primary=true>" + unsorted_table, table2], table, join_by=["x"])
+        # Run join-reduce on unsorted table
+        with pytest.raises(yt.YtError):
+            yt.run_join_reduce("cat", ["<primary=true>" + unsorted_table, table2], table, join_by=["x"])
 
-        if yt_env.version >= "0.17.5" and yt_env.version < "0.18.0" or yt_env.version >= "18.2.0":
-            yt.run_join_reduce("cat", [table1, "<foreign=true>" + table2], table, join_by=["x"])
-            check([{"x": 1}], yt.read_table(table))
+        yt.run_join_reduce("cat", [table1, "<foreign=true>" + table2], table, join_by=["x"])
+        check([{"x": 1}], yt.read_table(table))
 
-            # Run join-reduce without join_by
-            with pytest.raises(yt.YtError):
-                yt.run_join_reduce("cat", [table1, "<foreign=true>" + table2], table)
+        # Run join-reduce without join_by
+        with pytest.raises(yt.YtError):
+            yt.run_join_reduce("cat", [table1, "<foreign=true>" + table2], table)
 
-            # Run join-reduce on unsorted table
-            with pytest.raises(yt.YtError):
-                yt.run_join_reduce("cat", [unsorted_table, "<foreign=true>" + table2], table, join_by=["x"])
+        # Run join-reduce on unsorted table
+        with pytest.raises(yt.YtError):
+            yt.run_join_reduce("cat", [unsorted_table, "<foreign=true>" + table2], table, join_by=["x"])
 
-        if yt_env.version >= "18.2.0":
-            yt.write_table("<sorted_by=[x;y]>" + table1, [{"x": 1, "y": 1}])
-            yt.write_table("<sorted_by=[x]>" + table2, [{"x": 1}])
+        yt.write_table("<sorted_by=[x;y]>" + table1, [{"x": 1, "y": 1}])
+        yt.write_table("<sorted_by=[x]>" + table2, [{"x": 1}])
 
-            def func(key, rows):
-                assert list(key) == ["x"]
-                for row in rows:
-                    yield row
+        def func(key, rows):
+            assert list(key) == ["x"]
+            for row in rows:
+                yield row
 
-            yt.run_reduce(func, [table1, "<foreign=true>" + table2], table,
-                          reduce_by=["x","y"], join_by=["x"],
-                          format=yt.YsonFormat(process_table_index=None))
-            check([{"x": 1, "y": 1}, {"x": 1}], yt.read_table(table))
+        yt.run_reduce(func, [table1, "<foreign=true>" + table2], table,
+                      reduce_by=["x","y"], join_by=["x"],
+                      format=yt.YsonFormat(process_table_index=None))
+        check([{"x": 1, "y": 1}, {"x": 1}], yt.read_table(table))
 
-            # Reduce with join_by, but without foreign tables
-            with pytest.raises(yt.YtError):
-                yt.run_reduce("cat", [table1, table2], table, join_by=["x"])
+        # Reduce with join_by, but without foreign tables
+        with pytest.raises(yt.YtError):
+            yt.run_reduce("cat", [table1, table2], table, join_by=["x"])
 
     @add_failed_operation_stderrs_to_error_message
     def test_python_operations(self, yt_env):
