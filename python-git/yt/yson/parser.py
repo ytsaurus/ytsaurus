@@ -473,7 +473,10 @@ def load(stream, yson_type=None, encoding=_ENCODING_SENTINEL, always_create_attr
         raise YsonError("Encoding parameter is not supported for Python 2")
 
     if encoding is _ENCODING_SENTINEL:
-        encoding = "utf-8"
+        if PY3:
+            encoding = "utf-8"
+        else:
+            encoding = None
 
     if yson_type == "list_fragment":
         stream = StreamWrap(stream, b"[", b"]")
