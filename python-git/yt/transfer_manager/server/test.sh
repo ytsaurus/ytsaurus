@@ -135,16 +135,18 @@ test_copy_from_banach_to_freud() {
     wait_task $id
 
     check \
-        "$(yt2 read //tmp/test_table --proxy banach.yt.yandex.net --format yamr)" \
-        "$(yt2 read //tmp/test_table_from_banach --proxy freud.yt.yandex.net --format yamr)"
+        "$(yt2 read //tmp/test_table --proxy banach --format yamr)" \
+        "$(yt2 read //tmp/test_table_from_banach --proxy freud --format yamr)"
 
-    check "true" "$(yt2 exists //tmp/test_table_from_banach/@sorted --proxy freud.yt.yandex.net)"
+    check "true" "$(yt2 exists //tmp/test_table_from_banach/@sorted --proxy freud)"
 }
 
 test_various_transfers() {
-    yt2 remove //tmp/test_table --proxy freud.yt.yandex.net
-    echo -e "a\tb\nc\td\ne\tf" | yt2 write //tmp/test_table --format yamr --proxy freud.yt.yandex.net
-    yt2 sort --src //tmp/test_table --dst //tmp/test_table --sort-by key --sort-by subkey --proxy freud.yt.yandex.net
+    echo "Test various transfers"
+
+    yt2 remove //tmp/test_table --proxy freud --force
+    echo -e "a\tb\nc\td\ne\tf" | yt2 write //tmp/test_table --format yamr --proxy freud
+    yt2 sort --src //tmp/test_table --dst //tmp/test_table --sort-by key --sort-by subkey --proxy freud
 
     test_copy_from_freud_to_banach
     test_copy_from_banach_to_freud
@@ -153,7 +155,7 @@ test_various_transfers() {
 test_copy_file() {
     echo "Importing from Freud to Banach (file copying test)"
 
-    echo -e "TestFile" | yt2 write-file //tmp/test_file --proxy freud.yt.yandex.net
+    echo -e "TestFile" | yt2 write-file //tmp/test_file --proxy freud
 
     id=$(run_task '{"source_table": "//tmp/test_file", "source_cluster": "freud",
                     "destination_table": "//tmp/test_file", "destination_cluster": "banach", "pool": "ignat"}')
@@ -162,17 +164,17 @@ test_copy_file() {
     check "true" "$(yt2 exists //tmp/test_file --proxy banach)"
 
     check \
-        "$(yt2 read-file //tmp/test_file --proxy freud.yt.yandex.net)" \
-        "$(yt2 read-file //tmp/test_file --proxy banach.yt.yandex.net)"
+        "$(yt2 read-file //tmp/test_file --proxy freud)" \
+        "$(yt2 read-file //tmp/test_file --proxy banach)"
 }
 
 test_copy_file_attributes() {
     echo "Importing from Freud to Banach (file attributes copying test)"
 
-    echo -e "Test file" | yt2 write-file //tmp/test_file --proxy freud.yt.yandex.net
+    echo -e "Test file" | yt2 write-file //tmp/test_file --proxy freud
 
     set_attribute() {
-        yt2 set //tmp/test_file/@$1 "$2" --proxy freud.yt.yandex.net
+        yt2 set //tmp/test_file/@$1 "$2" --proxy freud
     }
 
     set_attribute "test_key" "test_value"
@@ -185,15 +187,15 @@ test_copy_file_attributes() {
 
     check_attribute() {
         check \
-            "$(yt2 get //tmp/test_file/@$1 --proxy banach.yt.yandex.net)" \
-            "$(yt2 get //tmp/test_file/@$1 --proxy freud.yt.yandex.net)"
+            "$(yt2 get //tmp/test_file/@$1 --proxy banach)" \
+            "$(yt2 get //tmp/test_file/@$1 --proxy freud)"
     }
 
     for attribute in "test_key" "erasure_codec" "compression_codec" "expiration_time"; do
         check_attribute $attribute
     done
 
-    yt2 remove //tmp/test_file --proxy banach.yt.yandex.net --force
+    yt2 remove //tmp/test_file --proxy banach --force
 
     unset -f set_attribute
     unset -f check_attribute
@@ -202,7 +204,7 @@ test_copy_file_attributes() {
 test_destination_file_codecs() {
     echo "Test destination file codecs"
 
-    echo 'Test Content' | yt2 write-file //tmp/test_file --proxy freud
+    echo "Test Content" | yt2 write-file //tmp/test_file --proxy freud
 
     id=$(run_task '{"source_table": "//tmp/test_file", "source_cluster": "freud", "destination_table": "//tmp/test_file", "destination_cluster": "banach", "destination_compression_codec": "zlib6"}')
     wait_task $id
@@ -216,7 +218,7 @@ test_source_file_codecs() {
 
     yt2 remove //tmp/test_file --proxy freud --force
     yt2 create file //tmp/test_file --proxy freud --attributes '{compression_codec=zlib6}'
-    echo 'test' | yt2 write-file //tmp/test_file --proxy freud
+    echo "test" | yt2 write-file //tmp/test_file --proxy freud
 
     id=$(run_task '{"source_table": "//tmp/test_file", "source_cluster": "freud", "destination_table": "//tmp/test_file", "destination_cluster": "banach"}')
     wait_task $id
@@ -238,8 +240,8 @@ test_abort_restart_task() {
     wait_task $id
 
     check \
-        "$(yt2 read //tmp/test_table --proxy freud.yt.yandex.net --format yson)" \
-        "$(yt2 read //tmp/test_table_from_banach --proxy freud.yt.yandex.net --format yson)"
+        "$(yt2 read //tmp/test_table --proxy banach --format yson)" \
+        "$(yt2 read //tmp/test_table_from_banach --proxy freud --format yson)"
 }
 
 test_lease() {
@@ -255,44 +257,44 @@ test_lease() {
 test_copy_table_range() {
     echo "Test copy table with specified range"
 
-    echo -e "a\tb\nc\td\ne\tf" | yt2 write //tmp/test_table --format yamr --proxy freud.yt.yandex.net
+    echo -e "a\tb\nc\td\ne\tf" | yt2 write //tmp/test_table --format yamr --proxy freud
 
     id=$(run_task '{"source_table": "//tmp/test_table[#1:#2]", "source_cluster": "freud", "destination_table": "//tmp/test_table_from_freud", "destination_cluster": "banach", "pool" : "ignat", "copy_method": "proxy"}')
     wait_task $id
 
     check \
         "c\td\n" \
-        "$(yt2 read //tmp/test_table_from_freud --proxy banach.yt.yandex.net --format yamr)"
+        "$(yt2 read //tmp/test_table_from_freud --proxy banach --format yamr)"
 }
 
 test_copy_table_range_with_codec() {
     echo "Test copy table with specified range and codecs"
 
-    echo -e "a\tb\nc\td\ne\tf" | yt2 write //tmp/test_table --format yamr --proxy freud.yt.yandex.net
+    echo -e "a\tb\nc\td\ne\tf" | yt2 write //tmp/test_table --format yamr --proxy freud
 
     id=$(run_task '{"source_table": "//tmp/test_table[#1:#2]", "source_cluster": "freud", "destination_table": "//tmp/test_table_from_freud", "destination_cluster": "banach", "pool" : "ignat", "copy_method": "proxy", "destination_compression_codec": "zlib9"}')
     wait_task $id
 
     check \
         "c\td\n" \
-        "$(yt2 read //tmp/test_table_from_freud --proxy banach.yt.yandex.net --format yamr)"
+        "$(yt2 read //tmp/test_table_from_freud --proxy banach --format yamr)"
 
     # Remote copy do not support ranges.
-    #id=$(run_task '{"source_table": "//tmp/test_table[#1:#2]", "source_cluster": "smith", "destination_table": "//tmp/test_table_from_smith", "destination_cluster": "banach", "pool" : "ignat", "destination_compression_codec": "zlib9"}')
+    #id=$(run_task '{"source_table": "//tmp/test_table[#1:#2]", "source_cluster": "hume", "destination_table": "//tmp/test_table_from_hume", "destination_cluster": "banach", "pool" : "ignat", "destination_compression_codec": "zlib9"}')
     #wait_task $id
 
     #check \
     #    "c\td\n" \
-    #    "$(yt2 read //tmp/test_table_from_smith --proxy banach.yt.yandex.net --format yamr)"
+    #    "$(yt2 read //tmp/test_table_from_hume --proxy banach --format yamr)"
 }
 
 test_copy_table_attributes() {
     echo "Importing from Freud to Banach (attributes copying test)"
 
-    echo -e "a\tb\nc\td\ne\tf" | yt2 write //tmp/test_table --format yamr --proxy freud.yt.yandex.net
+    echo -e "a\tb\nc\td\ne\tf" | yt2 write //tmp/test_table --format yamr --proxy freud
 
     set_attribute() {
-        yt2 set //tmp/test_table/@$1 "$2" --proxy freud.yt.yandex.net
+        yt2 set //tmp/test_table/@$1 "$2" --proxy freud
     }
 
     set_attribute "test_key" "test_value"
@@ -305,15 +307,15 @@ test_copy_table_attributes() {
 
     check_attribute() {
         check \
-            "$(yt2 get //tmp/test_table_from_freud/@$1 --proxy banach.yt.yandex.net)" \
-            "$(yt2 get //tmp/test_table/@$1 --proxy freud.yt.yandex.net)"
+            "$(yt2 get //tmp/test_table_from_freud/@$1 --proxy banach)" \
+            "$(yt2 get //tmp/test_table/@$1 --proxy freud)"
     }
 
     for attribute in "test_key" "erasure_codec" "compression_codec" "expiration_time"; do
         check_attribute $attribute
     done
 
-    yt2 remove //tmp/test_table_from_freud --proxy banach.yt.yandex.net --force
+    yt2 remove //tmp/test_table_from_freud --proxy banach --force
 
     unset -f set_attribute
     unset -f check_attribute
@@ -323,14 +325,14 @@ test_copy_table_attributes() {
 test_recursive_path_creation() {
     echo "Test recursive path creation at destination"
 
-    echo -e "a\tb\nc\td\ne\tf" | yt2 write //tmp/test_table --format yamr --proxy banach.yt.yandex.net
+    echo -e "a\tb\nc\td\ne\tf" | yt2 write //tmp/test_table --format yamr --proxy banach
 
     id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "banach", "destination_table": "//tmp/test/table/from/banach", "destination_cluster": "freud", "pool": "ignat"}')
     wait_task $id
 
     check \
-        "$(yt2 read //tmp/test_table --proxy banach.yt.yandex.net --format yamr)" \
-        "$(yt2 read //tmp/test/table/from/banach --proxy freud.yt.yandex.net --format yamr)"
+        "$(yt2 read //tmp/test_table --proxy banach --format yamr)" \
+        "$(yt2 read //tmp/test/table/from/banach --proxy freud --format yamr)"
 }
 
 strip_quotes() {
@@ -429,16 +431,16 @@ test_mutating_requests_retries() {
 
     local task='{"source_table": "//tmp/test_table", "source_cluster": "freud", "destination_table": "//tmp/test_table", "destination_cluster": "banach"}'
     echo "Adding task with mutation id"
-    task_id=$(request "POST" "tasks/" -d "$task" --header 'X-TM-Parameters:{"mutation_id": "tm_test_mutation_id_123"}')
+    task_id=$(request "POST" "tasks/" -d "$task" --header 'X-TM-Parameters:{"mutation_id": "test_mutation_id_123"}')
     sleep 3.0
 
     echo "Adding task with the same mutation id and retry"
-    retry_task_id=$(request "POST" "tasks/" -d "$task" --header 'X-TM-Parameters:{"mutation_id": "tm_test_mutation_id_123", "retry": "true"}')
+    retry_task_id=$(request "POST" "tasks/" -d "$task" --header 'X-TM-Parameters:{"mutation_id": "test_mutation_id_123", "retry": "true"}')
     echo "Checking that these tasks have the same id"
     check "$task_id" "$retry_task_id"
 
     echo "Checking that request with the same mutation id but without retry flag will fail"
-    retry_task_id2=$(request "POST" "tasks/" -d "$task" --header 'X-TM-Parameters:{"mutation_id": "tm_test_mutation_id_123"}')
+    retry_task_id2=$(request "POST" "tasks/" -d "$task" --header 'X-TM-Parameters:{"mutation_id": "test_mutation_id_123"}')
     grep_result=$(echo $retry_task_id2 | grep "is not marked as")
     check "$?" "0"
 
