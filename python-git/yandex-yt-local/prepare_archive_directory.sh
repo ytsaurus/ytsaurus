@@ -51,7 +51,11 @@ prepare_archive_directory() {
     cp -r yandex-yt-python/usr/share/pyshared/yt/* "$archive_dir/python/yt"
     cp -r yandex-yt-python/usr/bin/yt2 "$archive_dir/bin"
     cp -r yandex-yt-python/usr/bin/mapreduce-yt2 "$archive_dir/bin"
-    ln -s "$archive_dir/bin/mapreduce-yt2" "$archive_dir/bin/mapreduce-yt"
+
+    local current_path="$(pwd)"
+    cd "$archive_path/bin"
+    ln -s mapreduce-yt2 mapreduce-yt
+    cd "$current_path"
 
     cp -r yandex-yt-local/usr/share/pyshared/yt/* "$archive_dir/python/yt"
     cp -r yandex-yt-local/usr/bin/yt_local "$archive_dir/bin"
