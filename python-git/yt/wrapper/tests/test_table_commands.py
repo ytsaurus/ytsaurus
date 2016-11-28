@@ -140,17 +140,12 @@ class TestTableCommands(object):
 
     def test_mount_unmount(self, yt_env):
         table = TEST_DIR + "/table"
-        if yt_env.version < "0.18":
-            yt.create_table(table, attributes={"dynamic": True})
-            yt.set(table + "/@schema", [{"name": name, "type": "string"} for name in ["x", "y"]])
-            yt.set(table + "/@key_columns", ["x"])
-        else:
-            yt.create_table(table, attributes={
-                "dynamic": True,
-                "schema": [
-                    {"name": "x", "type": "string", "sort_order": "ascending"},
-                    {"name": "y", "type": "string"}
-                ]})
+        yt.create_table(table, attributes={
+            "dynamic": True,
+            "schema": [
+                {"name": "x", "type": "string", "sort_order": "ascending"},
+                {"name": "y", "type": "string"}
+            ]})
 
         tablet_id = yt.create("tablet_cell", attributes={"size": 1})
         while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != 'good':
@@ -195,17 +190,12 @@ class TestTableCommands(object):
         with set_config_option("tabular_data_format", None):
             # Name must differ with name of table in select test because of metadata caches
             table = TEST_DIR + "/table2"
-            if yt_env.version < "0.18":
-                yt.create_table(table, attributes={"dynamic": True})
-                yt.set(table + "/@schema", [{"name": name, "type": "string"} for name in ["x", "y"]])
-                yt.set(table + "/@key_columns", ["x"])
-            else:
-                yt.create_table(table, attributes={
-                    "dynamic": True,
-                    "schema": [
-                        {"name": "x", "type": "string", "sort_order": "ascending"},
-                        {"name": "y", "type": "string"}
-                    ]})
+            yt.create_table(table, attributes={
+                "dynamic": True,
+                "schema": [
+                    {"name": "x", "type": "string", "sort_order": "ascending"},
+                    {"name": "y", "type": "string"}
+                ]})
 
             tablet_id = yt.create("tablet_cell", attributes={"size": 1})
             while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != 'good':
@@ -232,17 +222,12 @@ class TestTableCommands(object):
             # Name must differ with name of table in select test because of metadata caches
             table = TEST_DIR + "/table3"
             yt.remove(table, force=True)
-            if yt_env.version < "0.18":
-                yt.create_table(table, attributes={"dynamic": True})
-                yt.set(table + "/@schema", [{"name": name, "type": "string"} for name in ["x", "y"]])
-                yt.set(table + "/@key_columns", ["x"])
-            else:
-                yt.create_table(table, attributes={
-                    "dynamic": True,
-                    "schema": [
-                        {"name": "x", "type": "string", "sort_order": "ascending"},
-                        {"name": "y", "type": "string"}
-                    ]})
+            yt.create_table(table, attributes={
+                "dynamic": True,
+                "schema": [
+                    {"name": "x", "type": "string", "sort_order": "ascending"},
+                    {"name": "y", "type": "string"}
+                ]})
 
             tablet_id = yt.create("tablet_cell", attributes={"size": 1})
             while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != 'good':
@@ -388,9 +373,8 @@ class TestTableCommands(object):
         with pytest.raises(yt.YtError):
             read_table(name=TablePath(table, upper_key="c", end_index=1))
 
-        if yt_env.version >= "0.18":
-            table_path = TablePath(table, exact_index=1)
-            assert list(yt.read_table(table_path.to_yson_string(), format=yt.DsvFormat())) == [{"x": "a", "y": "w2"}]
+        table_path = TablePath(table, exact_index=1)
+        assert list(yt.read_table(table_path.to_yson_string(), format=yt.DsvFormat())) == [{"x": "a", "y": "w2"}]
 
         yt.write_table(table, [{"x": "b"}, {"x": "a"}, {"x": "c"}])
         with pytest.raises(yt.YtError):
