@@ -5,7 +5,7 @@ OWNER(
 
 LIBRARY()
 
-BUILD_ONLY_IF(LINUX)
+BUILD_ONLY_IF(OS_LINUX)
 
 PY_SRCS(
     __init__.py
