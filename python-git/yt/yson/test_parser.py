@@ -149,6 +149,13 @@ class YsonParserTestBase(object):
             with pytest.raises(Exception):
                 self.loads(b"{a=1}", encoding="utf-8")
 
+    def test_default_encoding(self):
+        if PY3:
+            with pytest.raises(Exception):
+                self.loads('"\xFF"')
+        else:
+            assert self.loads('"\xFF"') == "\xFF"
+
     def test_parse_from_non_binary_stream(self):
         if PY3:
             with pytest.raises(TypeError):
