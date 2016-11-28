@@ -327,6 +327,12 @@ public:
         return transaction;
     }
 
+    virtual void Terminate() override
+    {
+        LightPool_.Reset();
+        HeavyPool_.Reset();
+    }
+
 private:
     const TNativeConnectionConfigPtr Config_;
     const TNativeConnectionOptions Options_;

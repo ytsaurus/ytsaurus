@@ -244,6 +244,8 @@ public:
     //! Returns |true| if the location accepts new chunks of a given type.
     bool IsChunkTypeAccepted(NObjectClient::EObjectType chunkType);
 
+    NConcurrency::IThroughputThrottlerPtr GetInThrottler(const TWorkloadDescriptor& descriptor) const;
+
     //! Removes a chunk permanently or moves it to the trash.
     virtual void RemoveChunkFiles(const TChunkId& chunkId, bool force) override;
 
@@ -263,6 +265,9 @@ private:
     std::multimap<TInstant, TTrashChunkEntry> TrashMap_;
     i64 TrashDiskSpace_ = 0;
     const NConcurrency::TPeriodicExecutorPtr TrashCheckExecutor_;
+
+    NConcurrency::IThroughputThrottlerPtr RepairInThrottler_;
+    NConcurrency::IThroughputThrottlerPtr ReplicationInThrottler_;
 
 
     Stroka GetTrashPath() const;
@@ -301,8 +306,12 @@ public:
         TCacheLocationConfigPtr config,
         NCellNode::TBootstrap* bootstrap);
 
+    NConcurrency::IThroughputThrottlerPtr GetInThrottler() const;
+
 private:
     const TCacheLocationConfigPtr Config_;
+
+    NConcurrency::IThroughputThrottlerPtr InThrottler_;
 
     TNullable<TChunkDescriptor> Repair(const TChunkId& chunkId, const Stroka& metaSuffix);
     virtual TNullable<TChunkDescriptor> RepairChunk(const TChunkId& chunkId) override;

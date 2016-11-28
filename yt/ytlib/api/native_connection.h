@@ -40,6 +40,8 @@ struct INativeConnection
 
     virtual INativeTransactionPtr RegisterStickyTransaction(INativeTransactionPtr transaction) = 0;
     virtual INativeTransactionPtr GetStickyTransaction(const NTransactionClient::TTransactionId& transactionId) = 0;
+
+    virtual void Terminate() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(INativeConnection)

@@ -163,16 +163,17 @@ private:
     std::vector<TError> GetAlerts();
 
     //! Schedules a new node heartbeat via TDelayedExecutor.
-    void ScheduleNodeHeartbeat(NObjectClient::TCellTag cellTag);
+    void ScheduleNodeHeartbeat(NObjectClient::TCellTag cellTag, bool immediately = false);
 
     //! Schedules a new job heartbeat via TDelayedExecutor.
-    void ScheduleJobHeartbeat();
+    void ScheduleJobHeartbeat(bool immediately = false);
 
     //! Calls #Reset and schedules a new registration attempt.
     void ResetAndScheduleRegisterAtMaster();
 
     //! Sends an appropriate node heartbeat.
-    void SendNodeHeartbeat(NObjectClient::TCellTag cellTag);
+    //! Handles the outcome and schedules the next heartbeat.
+    void ReportNodeHeartbeat(NObjectClient::TCellTag cellTag);
 
     //! Starts a lease transaction.
     //! Sends out a registration request to master.
@@ -201,13 +202,16 @@ private:
     bool CanSendFullNodeHeartbeat(NObjectClient::TCellTag cellTag);
 
     //! Sends out a full heartbeat to Node Tracker.
-    void SendFullNodeHeartbeat(NObjectClient::TCellTag cellTag);
+    //! Handles the outcome and schedules the next heartbeat.
+    void ReportFullNodeHeartbeat(NObjectClient::TCellTag cellTag);
 
     //! Sends out an incremental heartbeat to Node Tracker.
-    void SendIncrementalNodeHeartbeat(NObjectClient::TCellTag cellTag);
+    //! Handles the outcome and schedules the next heartbeat.
+    void ReportIncrementalNodeHeartbeat(NObjectClient::TCellTag cellTag);
 
     //! Sends out a heartbeat to Job Tracker.
-    void SendJobHeartbeat();
+    //! Handles the outcome and schedules the next heartbeat.
+    void ReportJobHeartbeat();
 
     //! Similar to #ForceRegisterAtMaster but handled in Control thread.
     void StartHeartbeats();

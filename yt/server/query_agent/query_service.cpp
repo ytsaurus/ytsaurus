@@ -85,7 +85,17 @@ private:
 
         auto dataSources = FromProto<std::vector<TDataRanges>>(request->data_sources());
 
-        LOG_DEBUG("Deserialized subfragment");
+        LOG_DEBUG("Deserialized subfragment (FragmentId: %v, InputRowLimit: %v, OutputRowLimit: %v, "
+            "RangeExpansionLimit: %v, MaxSubqueries: %v, EnableCodeCache: %v, WorkloadDescriptor: %v, "
+            "DataRangesCount: %v)",
+            query->Id,
+            query->InputRowLimit,
+            query->OutputRowLimit,
+            options.RangeExpansionLimit,
+            options.MaxSubqueries,
+            options.EnableCodeCache,
+            options.WorkloadDescriptor,
+            dataSources.size());
 
         const auto& user = context->GetUser();
         const auto& securityManager = Bootstrap_->GetSecurityManager();
