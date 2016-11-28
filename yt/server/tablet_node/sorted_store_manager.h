@@ -93,8 +93,6 @@ private:
     TSortedDynamicStorePtr ActiveStore_;
     std::multimap<TTimestamp, ISortedStorePtr> MaxTimestampToStore_;
 
-    IInvokerPtr EpochInvoker_;
-
     virtual IDynamicStore* GetActiveStore() const override;
     virtual void ResetActiveStore() override;
     virtual void OnActiveStoreRotated() override;

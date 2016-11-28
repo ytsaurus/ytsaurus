@@ -614,11 +614,7 @@ void TSortedStoreManager::DoMergePartitions(int firstPartitionIndex, int lastPar
 
 void TSortedStoreManager::StartEpoch(TTabletSlotPtr slot)
 {
-    TStoreManagerBase::StartEpoch(slot);
-
-    if (slot) {
-        EpochInvoker_ = slot->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Read);
-    }
+    TStoreManagerBase::StartEpoch(std::move(slot));
 
     for (const auto& pair : Tablet_->StoreIdMap()) {
         const auto& store = pair.second;
@@ -638,15 +634,15 @@ void TSortedStoreManager::StopEpoch()
         }
     }
 
-    EpochInvoker_.Reset();
-
     TStoreManagerBase::StopEpoch();
 }
 
 TSortedDynamicStore::TRowBlockedHandler TSortedStoreManager::CreateRowBlockedHandler(
     const IStorePtr& store)
 {
-    if (!EpochInvoker_) {
+    auto epochInvoker = Tablet_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Read);
+
+    if (!epochInvoker) {
         return TSortedDynamicStore::TRowBlockedHandler();
     }
 
@@ -654,7 +650,7 @@ TSortedDynamicStore::TRowBlockedHandler TSortedStoreManager::CreateRowBlockedHan
         &TSortedStoreManager::OnRowBlocked,
         MakeWeak(this),
         Unretained(store.Get()),
-        EpochInvoker_);
+        std::move(epochInvoker));
 }
 
 void TSortedStoreManager::OnRowBlocked(
