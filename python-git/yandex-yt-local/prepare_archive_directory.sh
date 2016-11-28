@@ -53,7 +53,7 @@ prepare_archive_directory() {
     cp -r yandex-yt-python/usr/bin/mapreduce-yt2 "$archive_dir/bin"
 
     local current_path="$(pwd)"
-    cd "$archive_path/bin"
+    cd "$archive_dir/bin"
     ln -s mapreduce-yt2 mapreduce-yt
     cd "$current_path"
 
