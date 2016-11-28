@@ -34,9 +34,11 @@ TColumnSchema::TColumnSchema()
 
 TColumnSchema::TColumnSchema(
     const Stroka& name,
-    EValueType type)
+    EValueType type,
+    TNullable<ESortOrder> SortOrder)
     : Name(name)
     , Type(type)
+    , SortOrder(SortOrder)
 { }
 
 TColumnSchema& TColumnSchema::SetSortOrder(const TNullable<ESortOrder>& value)
@@ -383,6 +385,15 @@ TTableSchema TTableSchema::ToStrippedColumnAttributes() const
     std::vector<TColumnSchema> strippedColumns;
     for (auto& column : Columns_) {
         strippedColumns.emplace_back(column.Name, column.Type);
+    }
+    return TTableSchema(strippedColumns, Strict_, false);
+}
+
+TTableSchema TTableSchema::ToSortedStrippedColumnAttributes() const
+{
+    std::vector<TColumnSchema> strippedColumns;
+    for (auto& column : Columns_) {
+        strippedColumns.emplace_back(column.Name, column.Type, column.SortOrder);
     }
     return TTableSchema(strippedColumns, Strict_, UniqueKeys_);
 }

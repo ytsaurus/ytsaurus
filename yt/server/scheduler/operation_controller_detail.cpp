@@ -4924,23 +4924,7 @@ void TOperationControllerBase::RegisterJobProxyMemoryDigest(EJobType jobType, co
     JobProxyMemoryDigests_[jobType] = CreateLogDigest(config);
 }
 
-void TOperationControllerBase::InferSchemaFromInputSorted(const TKeyColumns& keyColumns)
-{
-    // We infer schema only for operations with one output table.
-    YCHECK(OutputTables.size() == 1);
-    YCHECK(InputTables.size() >= 1);
-
-    InferSchemaFromInputUnordered();
-
-    if (OutputTables[0].TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
-        OutputTables[0].TableUploadOptions.TableSchema = TTableSchema::FromKeyColumns(keyColumns);
-    } else {
-        OutputTables[0].TableUploadOptions.TableSchema =
-            OutputTables[0].TableUploadOptions.TableSchema.ToSorted(keyColumns);
-    }
-}
-
-void TOperationControllerBase::InferSchemaFromInputUnordered()
+void TOperationControllerBase::InferSchemaFromInput(const TKeyColumns& keyColumns)
 {
     // We infer schema only for operations with one output table.
     YCHECK(OutputTables.size() == 1);
@@ -4954,7 +4938,7 @@ void TOperationControllerBase::InferSchemaFromInputUnordered()
     }
 
     if (OutputTables[0].TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
-        OutputTables[0].TableUploadOptions.TableSchema = TTableSchema();
+        OutputTables[0].TableUploadOptions.TableSchema = TTableSchema::FromKeyColumns(keyColumns);
     } else {
         auto schema = InputTables[0].Schema
             .ToStrippedColumnAttributes()
@@ -4966,7 +4950,10 @@ void TOperationControllerBase::InferSchemaFromInputUnordered()
             }
         }
 
-        OutputTables[0].TableUploadOptions.TableSchema = schema;
+        OutputTables[0].TableUploadOptions.TableSchema = InputTables[0].Schema
+            .ToSorted(keyColumns)
+            .ToSortedStrippedColumnAttributes()
+            .ToCanonical();
     }
 }
 
@@ -4985,7 +4972,7 @@ void TOperationControllerBase::InferSchemaFromInputOrdered()
         return;
     }
 
-    InferSchemaFromInputUnordered();
+    InferSchemaFromInput();
 }
 
 void TOperationControllerBase::ValidateOutputSchemaOrdered() const
