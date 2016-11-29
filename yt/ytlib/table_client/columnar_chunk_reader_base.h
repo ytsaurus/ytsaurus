@@ -115,6 +115,8 @@ protected:
 
     void Initialize();
     void InitBlockFetcher();
+    TFuture<void> RequestFirstBlocks();
+
     bool TryFetchNextRow();
 };
 
