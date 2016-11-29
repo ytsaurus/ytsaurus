@@ -4,6 +4,8 @@
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/native_connection.h>
 
+#include <yt/ytlib/hive/cluster_directory.pb.h>
+
 #include <yt/ytlib/object_client/helpers.h>
 
 namespace NYT {
@@ -90,6 +92,24 @@ void TClusterDirectory::UpdateCluster(const Stroka& name, INodePtr config)
         CellTagToCluster_.erase(GetCellTag(it->second));
         NameToCluster_.erase(it);
         addNewCluster(cluster);
+    }
+}
+
+void TClusterDirectory::UpdateDirectory(const NProto::TClusterDirectory& protoDirectory)
+{
+    yhash_map<Stroka, INodePtr> nameToConfig;
+    for (const auto& item : protoDirectory.items()) {
+        YCHECK(nameToConfig.emplace(item.name(), ConvertToNode(item.config())).second);
+    }
+
+    for (const auto& name : GetClusterNames()) {
+        if (nameToConfig.find(name) == nameToConfig.end()) {
+            RemoveCluster(name);
+        }
+    }
+
+    for (const auto& pair : nameToConfig) {
+        UpdateCluster(pair.first, pair.second);
     }
 }
 

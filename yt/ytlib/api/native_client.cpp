@@ -22,6 +22,7 @@
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/ytlib/hive/cell_directory.h>
+#include <yt/ytlib/hive/cluster_directory.h>
 #include <yt/ytlib/hive/config.h>
 
 #include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
@@ -3021,6 +3022,7 @@ private:
     {
         auto req = TMasterYPathProxy::GetClusterMeta();
         req->set_populate_node_directory(options.PopulateNodeDirectory);
+        req->set_populate_cluster_directory(options.PopulateClusterDirectory);
         SetCachingHeader(req, options);
 
         auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
@@ -3029,8 +3031,12 @@ private:
 
         TClusterMeta meta;
         if (options.PopulateNodeDirectory) {
-            meta.NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
-            meta.NodeDirectory->MergeFrom(rsp->node_directory());
+            meta.NodeDirectory = std::make_shared<NNodeTrackerClient::NProto::TNodeDirectory>();
+            meta.NodeDirectory->Swap(rsp->mutable_node_directory());
+        }
+        if (options.PopulateClusterDirectory) {
+            meta.ClusterDirectory = std::make_shared<NHiveClient::NProto::TClusterDirectory>();
+            meta.ClusterDirectory->Swap(rsp->mutable_cluster_directory());
         }
         return meta;
     }
