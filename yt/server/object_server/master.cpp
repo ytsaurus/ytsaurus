@@ -27,6 +27,7 @@ using namespace NNodeTrackerServer;
 using namespace NObjectClient;
 using namespace NObjectClient::NProto;
 using namespace NYTree;
+using namespace NYson;
 using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -96,8 +97,10 @@ private:
     DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, GetClusterMeta)
     {
         auto populateNodeDirectory = request->populate_node_directory();
-        context->SetRequestInfo("PopulateNodeNodeDirectory: %v",
-            populateNodeDirectory);
+        auto populateClusterDirectory = request->populate_cluster_directory();
+        context->SetRequestInfo("PopulateNodeNodeDirectory: %v, PopulateClusterDirectory: %v",
+            populateNodeDirectory,
+            populateClusterDirectory);
 
         if (populateNodeDirectory) {
             TNodeDirectoryBuilder builder(response->mutable_node_directory());
@@ -108,6 +111,18 @@ private:
                     continue;
                 }
                 builder.Add(node);
+            }
+        }
+
+        if (populateClusterDirectory) {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            const auto& rootService = objectManager->GetRootService();
+            auto mapNode = ConvertToNode(SyncYPathGet(rootService, "//sys/clusters"))->AsMap();
+            auto* protoClusterDirectory = response->mutable_cluster_directory();
+            for (const auto& pair : mapNode->GetChildren()) {
+                auto* protoItem = protoClusterDirectory->add_items();
+                protoItem->set_name(pair.first);
+                protoItem->set_config(ConvertToYsonString(pair.second).Data());
             }
         }
 

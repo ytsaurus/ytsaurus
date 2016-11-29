@@ -28,6 +28,8 @@
 
 #include <yt/ytlib/ypath/public.h>
 
+#include <yt/ytlib/hive/public.h>
+
 #include <yt/core/actions/future.h>
 
 #include <yt/core/misc/error.h>
@@ -525,11 +527,13 @@ struct TGetClusterMetaOptions
     , public TMasterReadOptions
 {
     bool PopulateNodeDirectory = false;
+    bool PopulateClusterDirectory = false;
 };
 
 struct TClusterMeta
 {
-    NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
+    std::shared_ptr<NNodeTrackerClient::NProto::TNodeDirectory> NodeDirectory;
+    std::shared_ptr<NHiveClient::NProto::TClusterDirectory> ClusterDirectory;
 };
 
 ///////////////////////////////////////////////////////////////////////////////

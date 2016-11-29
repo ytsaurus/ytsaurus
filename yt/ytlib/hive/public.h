@@ -17,6 +17,7 @@ class TCellPeerDescriptor;
 class TCellDescriptor;
 class TCellInfo;
 class TEncapsulatedMessage;
+class TClusterDirectory;
 
 } // namespace NProto
 

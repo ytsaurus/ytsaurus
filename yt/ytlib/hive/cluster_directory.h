@@ -41,6 +41,10 @@ public:
     //! Updates the configuration of a cluster with a given #name, recreates the connection.
     void UpdateCluster(const Stroka& name, NYTree::INodePtr config);
 
+    //! Updates configuration of all clusters given in #protoDirectory.
+    //! Removes all clusters that are currently known but are missing in #protoDirectory.
+    void UpdateDirectory(const NProto::TClusterDirectory& protoDirectory);
+
 private:
     struct TCluster
     {

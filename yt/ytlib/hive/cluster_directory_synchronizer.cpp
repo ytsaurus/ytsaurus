@@ -75,21 +75,13 @@ private:
         try {
             LOG_DEBUG("Started updating cluster directory");
 
-            auto asyncResult = DirectoryClient_->GetNode("//sys/clusters");
+            TGetClusterMetaOptions options;
+            options.PopulateClusterDirectory = true;
+            auto asyncResult = DirectoryClient_->GetClusterMeta(options);
             auto result = WaitFor(asyncResult)
                 .ValueOrThrow();
 
-            auto clustersNode = ConvertToNode(result)->AsMap();
-
-            for (const auto& name : ClusterDirectory_->GetClusterNames()) {
-                if (!clustersNode->FindChild(name)) {
-                    ClusterDirectory_->RemoveCluster(name);
-                }
-            }
-
-            for (const auto& pair : clustersNode->GetChildren()) {
-                ClusterDirectory_->UpdateCluster(pair.first, pair.second);
-            }
+            ClusterDirectory_->UpdateDirectory(*result.ClusterDirectory);
 
             LOG_DEBUG("Finished updating cluster directory");
         } catch (const std::exception& ex) {

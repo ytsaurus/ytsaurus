@@ -3,6 +3,7 @@ package NYT.NObjectClient.NProto;
 import "yt/core/misc/guid.proto";
 import "yt/core/ytree/attributes.proto";
 import "yt/ytlib/node_tracker_client/node.proto";
+import "yt/ytlib/hive/cluster_directory.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,11 +23,13 @@ message TRspCreateObject
 message TReqGetClusterMeta
 {
     optional bool populate_node_directory = 1 [default = false];
+    optional bool populate_cluster_directory = 2 [default = false];
 }
 
 message TRspGetClusterMeta
 {
-    required NNodeTrackerClient.NProto.TNodeDirectory node_directory = 1;
+    optional NNodeTrackerClient.NProto.TNodeDirectory node_directory = 1;
+    optional NHiveClient.NProto.TClusterDirectory cluster_directory = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

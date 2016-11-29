@@ -73,7 +73,7 @@ private:
             auto meta = WaitFor(DirectoryClient_->GetClusterMeta(options))
                 .ValueOrThrow();
 
-            NodeDirectory_->MergeFrom(meta.NodeDirectory);
+            NodeDirectory_->MergeFrom(*meta.NodeDirectory);
 
             LOG_DEBUG("Finished updating node directory");
         } catch (const std::exception& ex) {
