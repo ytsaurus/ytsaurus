@@ -102,17 +102,4 @@ message TNodeDescriptor
     optional string data_center = 3;
 }
 
-// Provides a mapping from node ids to descriptors.
-// Used for unpacking replica information.
-message TNodeDirectory
-{
-    message TItem
-    {
-        required int32 node_id = 1;
-        required TNodeDescriptor node_descriptor = 2;
-    }
-
-    repeated TItem items = 1;
-}
-
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,6 +2,8 @@
 
 #include <yt/server/node_tracker_server/node.h>
 
+#include <yt/ytlib/node_tracker_client/node_directory.pb.h>
+
 namespace NYT {
 namespace NNodeTrackerServer {
 
