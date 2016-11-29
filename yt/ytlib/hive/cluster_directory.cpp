@@ -99,7 +99,9 @@ void TClusterDirectory::UpdateDirectory(const NProto::TClusterDirectory& protoDi
 {
     yhash_map<Stroka, INodePtr> nameToConfig;
     for (const auto& item : protoDirectory.items()) {
-        YCHECK(nameToConfig.emplace(item.name(), ConvertToNode(item.config())).second);
+        YCHECK(nameToConfig.emplace(
+            item.name(),
+            ConvertToNode(NYson::TYsonString(item.config()))).second);
     }
 
     for (const auto& name : GetClusterNames()) {
