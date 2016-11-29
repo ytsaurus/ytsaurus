@@ -49,7 +49,6 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyBase):
                 "secondary_masters": self.remote_env.configs["master"][0]["secondary_masters"],
                 "timestamp_provider": self.remote_env.configs["master"][0]["timestamp_provider"],
                 "transaction_manager": self.remote_env.configs["master"][0]["transaction_manager"],
-                "cell_tag": 10
             })
         self.remote_driver = Driver(config=self.remote_env.configs["driver"])
         time.sleep(1.0)
@@ -349,8 +348,7 @@ class TestSchedulerRemoteCopyNetworks(TestSchedulerRemoteCopyBase):
                 "primary_master": self.remote_env.configs["master"][0]["primary_master"],
                 "secondary_masters": self.remote_env.configs["master"][0]["secondary_masters"],
                 "timestamp_provider": self.remote_env.configs["master"][0]["timestamp_provider"],
-                "transaction_manager": self.remote_env.configs["master"][0]["transaction_manager"],
-                "cell_tag": 10
+                "transaction_manager": self.remote_env.configs["master"][0]["transaction_manager"]
             })
         self.remote_driver = Driver(config=self.remote_env.configs["driver"])
         time.sleep(1.0)
