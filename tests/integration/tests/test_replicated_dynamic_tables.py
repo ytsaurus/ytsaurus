@@ -64,12 +64,10 @@ class TestReplicatedDynamicTables(YTEnvSetup):
                 "primary_master": self.Env.configs["master"][0]["primary_master"],
                 "secondary_masters": self.Env.configs["master"][0]["secondary_masters"],
                 "timestamp_provider": self.Env.configs["master"][0]["timestamp_provider"],
-                "cell_tag": 0
             })
 
     def setup(self):
         self._init_cluster("r1")
-        self._init_cluster("r2")
 
     def test_replicated_table_must_be_dynamic(self):
         with pytest.raises(YtError): create("replicated_table", "//tmp/t")
