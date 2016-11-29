@@ -63,7 +63,7 @@ class TestReplicatedDynamicTables(YTEnvSetup):
             {
                 "primary_master": self.Env.configs["master"][0]["primary_master"],
                 "secondary_masters": self.Env.configs["master"][0]["secondary_masters"],
-                "timestamp_provider": self.Env.configs["master"][0]["timestamp_provider"],
+                "timestamp_provider": self.Env.configs["master"][0]["timestamp_provider"]
             })
 
     def setup(self):
