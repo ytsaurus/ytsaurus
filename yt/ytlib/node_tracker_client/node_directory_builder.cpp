@@ -1,6 +1,8 @@
 #include "node_directory_builder.h"
 #include "node_directory.h"
 
+#include <yt/ytlib/node_tracker_client/node_directory.pb.h>
+
 namespace NYT {
 namespace NNodeTrackerClient {
 
@@ -26,7 +28,6 @@ void TNodeDirectoryBuilder::Add(TChunkReplica replica)
     item->set_node_id(nodeId);
     ToProto(item->mutable_node_descriptor(), descriptor);
 }
-
 
 void TNodeDirectoryBuilder::Add(const TChunkReplicaList& replicas)
 {

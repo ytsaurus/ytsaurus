@@ -181,6 +181,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/channel.cpp
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/node.proto
+  ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/node_directory.proto
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/node_directory.cpp
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/node_directory_builder.cpp
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/node_directory_synchronizer.cpp

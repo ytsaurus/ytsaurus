@@ -4,7 +4,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_replica.h>
 
-#include <yt/ytlib/node_tracker_client/node.pb.h>
+#include <yt/ytlib/node_tracker_client/public.h>
 
 namespace NYT {
 namespace NNodeTrackerClient {

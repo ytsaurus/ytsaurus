@@ -4,7 +4,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_replica.h>
 
-#include <yt/ytlib/node_tracker_client/node_tracker_service.pb.h>
+#include <yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/core/concurrency/rw_spinlock.h>
 

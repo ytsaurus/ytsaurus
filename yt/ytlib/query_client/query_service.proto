@@ -1,6 +1,6 @@
 package NYT.NQueryClient.NProto;
 
-import "yt/ytlib/node_tracker_client/node.proto";
+import "yt/ytlib/node_tracker_client/node_directory.proto";
 import "yt/ytlib/query_client/query_statistics.proto";
 import "yt/ytlib/query_client/query.proto";
 import "yt/core/misc/guid.proto";
