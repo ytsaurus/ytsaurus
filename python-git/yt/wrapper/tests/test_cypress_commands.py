@@ -194,7 +194,7 @@ class TestCypressCommands(object):
         assert str(result[0]) == table
         assert result[0].attributes['my_attribute'] == {'000': 10}
 
-    def test_link(self):
+    def test_link(self, yt_env):
         table = TEST_DIR + "/table_with_attributes"
         link = TEST_DIR + "/table_link"
         yt.create_table(table)
@@ -206,12 +206,18 @@ class TestCypressCommands(object):
             yt.link(table, link)
         yt.link(table, link, ignore_existing=True)
 
+        if yt_env.version >= "19.0":
+            expected = link
+        else:
+            expected = table
+
         other_link = TEST_DIR + "/other_link"
         yt.link(link, other_link, recursive=False)
-        assert yt.get_attribute(other_link + "&", "target_path") == link
+
+        assert yt.get_attribute(other_link + "&", "target_path") == expected
         yt.remove(other_link, force=True)
         yt.link(link, other_link, recursive=True)
-        assert yt.get_attribute(other_link + "&", "target_path") == link
+        assert yt.get_attribute(other_link + "&", "target_path") == expected
 
     def test_list(self):
         tables = ["{0}/{1}".format(TEST_DIR, name) for name in ("a", "b", "c")]
