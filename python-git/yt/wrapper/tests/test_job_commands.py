@@ -3,6 +3,8 @@ from .helpers import ENABLE_JOB_CONTROL, TEST_DIR, TESTS_SANDBOX
 from yt.wrapper.job_shell import JobShell
 from yt.wrapper.http_helpers import get_api_commands
 
+from yt.packages.six import b
+
 import yt.wrapper as yt
 
 import os
@@ -103,7 +105,7 @@ class TestJobCommands(object):
         self._poll_until_prompt(shell)
 
         command = "echo $TERM; tput lines; tput cols; id -u; id -g\r"
-        shell.make_request("update", keys=command, input_offset=0)
+        shell.make_request("update", keys=b(command), input_offset=0)
         output = self._poll_until_prompt(shell)
 
         expected = "{0}\nscreen-256color\r\n50\r\n132\r\n".format(command)

@@ -2,6 +2,7 @@ from yt.local import start, stop, delete
 import yt.local as yt_local
 from yt.wrapper.client import Yt
 from yt.common import remove_file
+import yt.subprocess_wrapper as subprocess
 
 from yt.packages.six.moves import map as imap
 
@@ -11,10 +12,10 @@ import yt.yson as yson
 import yt.json as json
 
 import os
+import sys
 import pytest
 import tempfile
 import contextlib
-import subprocess32 as subprocess
 
 TESTS_LOCATION = os.path.dirname(os.path.abspath(__file__))
 TESTS_SANDBOX = os.environ.get("TESTS_SANDBOX", os.path.join(TESTS_LOCATION, "sandbox"))
@@ -47,7 +48,7 @@ class YtLocalBinary(object):
     def __call__(self, *args, **kwargs):
         args_str = " ".join(args)
         kwargs_str = " ".join("--{0} {1}".format(key.replace("_", "-"), value) for key, value in kwargs.items())
-        command = "{0} {1} {2}".format(YT_LOCAL_BINARY, args_str, kwargs_str)
+        command = "{0} {1} {2} {3}".format(sys.executable, YT_LOCAL_BINARY, args_str, kwargs_str)
         env = {
             "YT_LOCAL_ROOT_PATH": self.root_path,
             "YT_LOCAL_PORT_LOCKS_PATH": self.port_locks_path,
@@ -187,7 +188,7 @@ class TestLocalMode(object):
         try:
             with tempfile.NamedTemporaryFile(dir=TESTS_SANDBOX, delete=False) as yson_file:
                 yson.dump(patch, yson_file)
-            with tempfile.NamedTemporaryFile(dir=TESTS_SANDBOX, delete=False) as json_file:
+            with tempfile.NamedTemporaryFile(mode="w", dir=TESTS_SANDBOX, delete=False) as json_file:
                 json.dump(patch, json_file)
 
             with local_yt(master_config=yson_file.name,

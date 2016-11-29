@@ -2,13 +2,17 @@ from .new_fennel import StringIOWrapper, round_down_to, monitor, convert_rows_to
 
 from yt.packages.six.moves import xrange
 
-import pytest
-
 from datetime import datetime, timedelta
-from cStringIO import StringIO
+
+try:
+    from cStringIO import StringIO
+except ImportError:  # Python 3
+    from io import BytesIO as StringIO
+
 from gzip import GzipFile
 
-pytestmark = pytest.mark.skipif("sys.version_info < (2,7)", reason="requires python2.7")
+import pytest
+pytestmark = pytest.mark.skipif("sys.version_info[:2] != (2, 7)", reason="requires python2.7")
 
 def test_string_io_wrapper():
     stream = StringIOWrapper()

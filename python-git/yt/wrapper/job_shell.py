@@ -1,11 +1,12 @@
 from __future__ import print_function
 
 from . import yson
-from .common import generate_uuid, get_version, YtError
+from .common import generate_uuid, get_version, YtError, get_binary_std_stream
 from .errors import YtResponseError
 from .config import get_backend_type
 from .http_helpers import get_proxy_url, get_api_version, get_token
 
+from yt.common import to_native_str
 # yt.packages is imported here just to set sys.path for further loading of local tornado module
 from yt.packages import PackagesImporter
 with PackagesImporter():
@@ -16,6 +17,7 @@ with PackagesImporter():
     import tornado.simple_httpclient
 
 from copy import deepcopy
+from binascii import hexlify
 import sys
 import os
 import json
@@ -40,7 +42,7 @@ class JobShell(object):
         self._save_termios()
         if self.interactive:
             self.width, self.height = self._terminal_size()
-        self.key_buffer = ""
+        self.key_buffer = b""
         self.input_offset = 0
         self.ioloop = IOLoop.current() if hasattr(IOLoop, "current") else IOLoop.instance()
         self.sync = HTTPClient()
@@ -86,7 +88,7 @@ class JobShell(object):
         if width is not None:
             parameters["width"] = width
         if keys is not None:
-            parameters["keys"] = keys.encode("hex")
+            parameters["keys"] = to_native_str(hexlify(keys))
         if input_offset is not None:
             parameters["input_offset"] = input_offset
         if term is not None:
@@ -204,10 +206,10 @@ class JobShell(object):
 
     def _on_keyboard_input(self, fd, events):
         try:
-            keys = sys.stdin.read()
+            keys = get_binary_std_stream(sys.stdin).read()
         except (IOError):
             pass
-        if "\6" in keys:
+        if b"\6" in keys:
             self._terminate("Terminated by user request")
         elif len(keys) > 0:
             self.key_buffer += keys

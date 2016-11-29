@@ -20,6 +20,7 @@ import logging
 import shutil
 import socket
 import time
+import codecs
 from functools import partial
 
 logger = logging.getLogger("Yt.local")
@@ -27,11 +28,11 @@ logger = logging.getLogger("Yt.local")
 def _load_config(path, is_proxy_config=False):
     if path is None:
         return {}
-    with open(path) as f:
+    with open(path, "rb") as f:
         if not is_proxy_config:
             return yson.load(f)
         else:
-            return json.load(f)
+            return json.load(codecs.getreader("utf-8")(f))
 
 def get_root_path(path=None):
     if path is not None:
@@ -55,7 +56,7 @@ def _get_bool_from_env(name, default=False):
 def _get_attributes_from_local_dir(local_path):
     meta_file_path = os.path.join(local_path, ".meta")
     if os.path.isfile(meta_file_path):
-        with open(meta_file_path) as f:
+        with open(meta_file_path, "rb") as f:
             try:
                 meta = yson.load(f)
             except yson.YsonError:
@@ -73,7 +74,7 @@ def _create_node_from_local_file(local_filename, dest_filename, client):
         logger.warning("Found file {0} without meta info, skipping".format(file))
         return
 
-    with open(local_filename + ".meta") as f:
+    with open(local_filename + ".meta", "rb") as f:
         try:
             meta = yson.load(f)
         except yson.YsonError:
@@ -89,7 +90,7 @@ def _create_node_from_local_file(local_filename, dest_filename, client):
             logger.warning("Found table {0} with unspecified format".format(local_filename))
             return
 
-        with open(local_filename) as table_file:
+        with open(local_filename, "rb") as table_file:
             client.write_table(dest_filename, table_file, format=meta["format"], raw=True)
 
         attributes = meta.get("attributes", {})
@@ -320,7 +321,7 @@ def get_proxy(id, path=None):
     require(os.path.exists(info_file_path),
             lambda: yt.YtError("Information file for local YT with id {0} not found".format(id)))
 
-    with open(info_file_path) as f:
+    with open(info_file_path, "rb") as f:
         info = yson.load(f)
         if not "proxy" in info:
             raise yt.YtError("Local YT with id {0} does not have started proxy".format(id))
