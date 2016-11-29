@@ -324,7 +324,10 @@ void TColumnarLookupChunkReaderBase::Initialize()
     }
 
     InitBlockFetcher();
-    TryFetchNextRow();
+
+    // NB: We must complete initialization before ReadyEvent is set in the constructor.
+    WaitFor(RequestFirstBlocks())
+        .ThrowOnError();
 }
 
 void TColumnarLookupChunkReaderBase::InitBlockFetcher()
@@ -355,8 +358,14 @@ void TColumnarLookupChunkReaderBase::InitBlockFetcher()
 
 bool TColumnarLookupChunkReaderBase::TryFetchNextRow()
 {
+    ReadyEvent_ = RequestFirstBlocks();
+    return PendingBlocks_.empty();
+}
+
+TFuture<void> TColumnarLookupChunkReaderBase::RequestFirstBlocks()
+{
     if (RowIndexes_[NextKeyIndex_] >= ChunkMeta_->Misc().row_count()) {
-        return true;
+        return VoidFuture;
     }
 
     std::vector<TFuture<void>> blockFetchResult;
@@ -380,11 +389,7 @@ bool TColumnarLookupChunkReaderBase::TryFetchNextRow()
         }
     }
 
-    if (!blockFetchResult.empty()) {
-        ReadyEvent_ = Combine(blockFetchResult);
-    }
-
-    return PendingBlocks_.empty();
+    return Combine(blockFetchResult);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
