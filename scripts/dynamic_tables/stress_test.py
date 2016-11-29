@@ -104,6 +104,7 @@ class TAny():
 
 types = [TInt64(), TUnt64(), TBoolean(), TString(), TAny()]
 key_types = [t for t in types if t.comparable()]
+types_map = {t.str(): t for t in types}
 
 class Column():
     def __init__(self, ttype, name, sort_order=None, aggregate=None):
@@ -144,6 +145,16 @@ class Schema():
                 return l[random.randint(0, len(l) - 1)]
             return random_aggr(t.aggregatable()) if t.aggregatable() and random.random() < self.aggregate_probability else None
         self.data_columns = [Column(t, n, None, aggr(t)) for (t,n) in zip(data_columns, data_names)]
+        self.columns = self.key_columns + self.data_columns
+    def from_yson(self, yson):
+        self.key_columns = []
+        self.data_columns = []
+        for c in yson:
+            column = Column(types_map[c["type"]], c["name"], c.get("sort_order", None), c.get("aggregate", None))
+            if "sort_order" in c and c["sort_order"] == "ascending":
+                self.key_columns.append(column)
+            else:
+                self.data_columns.append(column)
         self.columns = self.key_columns + self.data_columns
     def get_key_column_names(self):
         return [c.name for c in self.key_columns]
@@ -707,6 +718,7 @@ def do_single_execution(table, schema, attributes, args):
             yt.remove(path)
 
 def single_execution(table, schema, attributes, args):
+    #schema.from_yson(yt.get_attribute(table, "schema"))
     try:
          do_single_execution(table, schema, attributes, args)
     except Exception as ex:
@@ -716,7 +728,7 @@ def single_execution(table, schema, attributes, args):
 def variate_modes(table, args):
     schema = Schema()
 
-    for optimize_for in ["lookup", "scan"]:
+    for optimize_for in ["scan", "lookup"]:
         single_execution(table + "." + optimize_for + ".none", schema, {"optimize_for": optimize_for}, args)
         single_execution(table + "." + optimize_for + ".compressed", schema, {"optimize_for": optimize_for, "in_memory_mode": "compressed"}, args)
         single_execution(table + "." + optimize_for + ".uncompressed", schema, {"optimize_for": optimize_for, "in_memory_mode": "uncompressed"}, args)
