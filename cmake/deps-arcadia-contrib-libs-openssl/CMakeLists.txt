@@ -657,7 +657,13 @@ set(SRCS
   ${BASE}/ssl/t1_trce.c
   ${BASE}/ssl/tls_srp.c
 
-  # Platform-specific. See original CMakeLists.txt in Arcadia.
+  ${BASE}/crypto/bn/asm/x86_64-gcc.c
+  ${BASE}/crypto/bn/rsaz_exp.c
+  ${BASE}/crypto/ec/ecp_nistz256.c
+  ${BASE}/crypto/evp/m_md2.c
+)
+
+set(ASMS
   ${BASE}/crypto/aes/aesni-mb-x86_64.s
   ${BASE}/crypto/aes/aesni-sha1-x86_64.s
   ${BASE}/crypto/aes/aesni-sha256-x86_64.s
@@ -665,17 +671,13 @@ set(SRCS
   ${BASE}/crypto/aes/aes-x86_64.s
   ${BASE}/crypto/aes/bsaes-x86_64.s
   ${BASE}/crypto/aes/vpaes-x86_64.s
-  ${BASE}/crypto/bn/asm/x86_64-gcc.c
   ${BASE}/crypto/bn/rsaz-avx2.s
-  ${BASE}/crypto/bn/rsaz_exp.c
   ${BASE}/crypto/bn/rsaz-x86_64.s
   ${BASE}/crypto/bn/x86_64-gf2m.s
   ${BASE}/crypto/bn/x86_64-mont5.s
   ${BASE}/crypto/bn/x86_64-mont.s
   ${BASE}/crypto/camellia/cmll-x86_64.s
-  ${BASE}/crypto/ec/ecp_nistz256.c
   ${BASE}/crypto/ec/ecp_nistz256-x86_64.s
-  ${BASE}/crypto/evp/m_md2.c
   ${BASE}/crypto/md5/md5-x86_64.s
   ${BASE}/crypto/modes/aesni-gcm-x86_64.s
   ${BASE}/crypto/modes/ghash-x86_64.s
@@ -688,8 +690,38 @@ set(SRCS
   ${BASE}/crypto/sha/sha512-x86_64.s
   ${BASE}/crypto/whrlpool/wp-x86_64.s
   ${BASE}/crypto/x86_64cpuid.s
-
 )
+
+# XXX(sandello): In Arcadia there are Clang-compatible ASMs only.
+set(_o_)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+  # Pass it to the compiler directly.
+  set(SRCS ${SRCS} ${ASMS})
+else()
+  # Manually produce object files.
+  foreach(_a_ ${ASMS})
+    get_filename_component(_f_ ${_a_} NAME)
+    add_custom_command(
+      OUTPUT
+        ${CMAKE_CURRENT_BINARY_DIR}/${_f_}.o
+      COMMAND
+        ${CLANG_EXECUTABLE} -O2
+        -o ${CMAKE_CURRENT_BINARY_DIR}/${_f_}.o
+        -c ${_a_}
+      DEPENDS
+        ${_a_}
+      WORKING_DIRECTORY
+        ${CMAKE_CURRENT_BINARY_DIR}
+      COMMENT
+        "Clang-compiling OpenSSL assembly ${_f_}"
+    )
+    set_source_files_properties(
+      ${CMAKE_CURRENT_BINARY_DIR}/${_f_}.o
+      PROPERTIES EXTERNAL_OBJECT TRUE
+    )
+    set(_o_ ${_o_} ${CMAKE_CURRENT_BINARY_DIR}/${_f_}.o)
+  endforeach()
+endif()
 
 set_source_files_properties(${SRCS} PROPERTIES LANGUAGE C)
 
@@ -723,4 +755,4 @@ include_directories(
   ${BASE}/include
 )
 
-add_library(${NAME} STATIC ${SRCS})
+add_library(${NAME} STATIC ${SRCS} ${_o_})
