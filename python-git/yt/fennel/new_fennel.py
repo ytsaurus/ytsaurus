@@ -1,7 +1,7 @@
 from yt.common import date_string_to_timestamp
 
 from yt.packages.six import iteritems
-from yt.packages.six.moves import xrange
+from yt.packages.six.moves import xrange, map as imap
 from yt.packages.six.moves.queue import Queue
 
 import yt.packages.requests as requests
@@ -16,9 +16,14 @@ import logging
 import struct
 from copy import deepcopy
 from datetime import datetime
-from cStringIO import StringIO
+
+try:
+    from cStringIO import StringIO
+except ImportError:  # Python 3
+    from io import BytesIO as StringIO
+
 from gzip import GzipFile
-from itertools import starmap, imap
+from itertools import starmap
 from threading import Thread
 
 # Brief description.

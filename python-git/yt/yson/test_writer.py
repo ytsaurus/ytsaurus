@@ -60,7 +60,7 @@ class YsonWriterTestBase(object):
             {"a": "b", "c": "d"},
             yson_format="text",
             yson_type="map_fragment"
-        ) == b'"a"="b";\n"c"="d";\n'
+        ) in [b'"a"="b";\n"c"="d";\n', b'"c"="d";\n"a"="b";\n']
 
     def test_list_fragment_pretty(self):
         assert self.dumps(
@@ -74,7 +74,7 @@ class YsonWriterTestBase(object):
             {"a": "b", "c": "d"},
             yson_format="pretty",
             yson_type="map_fragment"
-        ) == b'"a" = "b";\n"c" = "d";\n'
+        ) in [b'"a" = "b";\n"c" = "d";\n', b'"c" = "d";\n"a" = "b";\n']
 
     def test_invalid_attributes(self):
         obj = YsonEntity()

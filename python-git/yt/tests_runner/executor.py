@@ -80,7 +80,7 @@ class Executor(object):
             makedirp(path)
 
             with open(os.path.join(path, file_name), "a") as fout:
-                fout.write(stderr.encode("utf-8") + "\n")
+                fout.write(stderr + "\n")
 
         self._send_to_channel("report", _serialize_report(report))
 
@@ -95,7 +95,7 @@ def _configure_logger(config):
         logger.addHandler(handler)
     logger.handlers[0].setFormatter(logging.Formatter("%(asctime)-15s\t%(levelname)s\t%(message)s"))
 
-if __name__ == '__channelexec__':
+if __name__ == "__channelexec__":
     channel = channel  # noqa
     option_dict, args = channel.receive()
     option_dict["plugins"].append("no:terminal")

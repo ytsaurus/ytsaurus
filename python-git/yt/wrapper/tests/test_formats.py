@@ -13,6 +13,7 @@ except ImportError:  # Python 3
     from io import BytesIO
 
 import pytest
+from itertools import chain
 
 def test_string_iter_io_read():
     strings = [b"ab", b"", b"c", b"de", b""]
@@ -36,17 +37,25 @@ def test_string_iter_io_readline():
                 line += b"\n"
             assert line == io.readline()
 
-def check_format(format, string, row):
-    assert format.loads_row(string) == row
-    if format.is_raw_load_supported():
-        assert format.load_row(BytesIO(string), raw=True) == string
-    assert format.load_row(BytesIO(string)) == row
-    assert list(format.load_rows(BytesIO(string))) == [row]
+def check_format(format, strings, row):
+    # In some formats (e.g. dsv) dict '{"a": "b", "c": "d"}' can be
+    # dumped to "a=b\tc=d\n" or "c=d\ta=b\n" and both variants are
+    # correct. So strings list contain all valid representations of row and
+    # checks are performed appropriately.
+    if not isinstance(strings, list):
+        strings = [strings]
 
-    assert format.dumps_row(row) == string
+    assert all(format.loads_row(s) == row for s in strings)
+    if format.is_raw_load_supported():
+        assert all(format.load_row(BytesIO(s), raw=True) == s for s in strings)
+    assert all(format.load_row(BytesIO(s)) == row for s in strings)
+    assert list(chain.from_iterable(format.load_rows(BytesIO(s)) for s in strings)) == \
+        [row] * len(strings)
+
+    assert any(format.dumps_row(row) == s for s in strings)
     stream = BytesIO()
     format.dump_row(row, stream)
-    assert stream.getvalue().rstrip(b"\n") == string.rstrip(b"\n")
+    assert any(stream.getvalue().rstrip(b"\n") == s.rstrip(b"\n") for s in strings)
 
 def check_table_index(format, raw_row, raw_table_switcher, rows, process_output=None):
     input_stream = BytesIO(b''.join([raw_row, raw_table_switcher, raw_row]))
@@ -71,7 +80,7 @@ def test_yson_format():
     stream = BytesIO()
     format.dump_row(row, stream)
     # COMPAT: '.replace(";}", "}")' is for compatibility with different yson representations in different branches.
-    assert stream.getvalue().rstrip(b";\n").replace(b";}", b"}") == serialized_row
+    assert stream.getvalue().rstrip(b";\n").replace(b";}", b"}") in [serialized_row, b'{"b"=2;"a"=1}']
 
     format = yt.YsonFormat(format="binary")
     assert format.dumps_row({"a": 1}).rstrip(b";\n") == yson.dumps({"a": 1}, yson_format="binary")
@@ -119,8 +128,8 @@ def test_yson_iterator_mode():
 
 def test_dsv_format():
     format = yt.DsvFormat()
-    check_format(format, b"a=1\tb=2\n", {"a": "1", "b": "2"})
-    check_format(format, b"a=1\\t\tb=2\n", {"a": "1\t", "b": "2"})
+    check_format(format, [b"a=1\tb=2\n", b"b=2\ta=1\n"], {"a": "1", "b": "2"})
+    check_format(format, [b"a=1\\t\tb=2\n", b"b=2\ta=1\\t\n"], {"a": "1\t", "b": "2"})
 
 def test_yamr_format():
     format = yt.YamrFormat(lenval=False, has_subkey=False)
@@ -181,8 +190,8 @@ def test_json_format_table_index():
 
     stream = BytesIO()
     format.dump_rows([{"a": 1, "@table_index": 1}], stream)
-    assert stream.getvalue() == b'{"$value": null, "$attributes": {"table_index": 1}}\n'\
-                                b'{"a": 1}\n'
+    assert stream.getvalue() in [b'{"$value": null, "$attributes": {"table_index": 1}}\n{"a": 1}\n',
+                                 b'{"$attributes": {"table_index": 1}, "$value": null}\n{"a": 1}\n']
 
     assert [{"@table_index": 1, "a": 1}] == \
         list(format.load_rows(BytesIO(b'{"$value": null, "$attributes": {"table_index": 1}}\n'
@@ -202,12 +211,12 @@ def test_json_format_row_iterator():
                                         b'{"a": 1}\n'
                                         b'{"a": 2}'))
 
-    assert iterator.next() == {"a": 1}
+    assert next(iterator) == {"a": 1}
     assert iterator.table_index == 1
     assert iterator.row_index == 5
     assert iterator.range_index is None
 
-    assert iterator.next() == {"a": 2}
+    assert next(iterator) == {"a": 2}
     assert iterator.table_index == 1
     assert iterator.row_index == 6
     assert iterator.range_index is None
