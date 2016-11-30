@@ -4,22 +4,15 @@ from yt.wrapper.cli_helpers import run_main
 from yt.wrapper.client import Yt
 from yt.wrapper.http_helpers import get_token
 from yt.common import YtError, remove_file
-from yt.tools.yamr import Yamr
 from yt.transfer_manager.client import TransferManager
 import yt.json as json
 
-from yt.packages.six import itervalues, iteritems
+from yt.packages.six import itervalues
 from yt.packages.six.moves import map as imap
 
 import yt.wrapper as yt
 
-import os
-import stat
-import socket
-import random
 import atexit
-import string
-import tempfile
 import argparse
 import subprocess
 import logging
@@ -47,40 +40,34 @@ def configure_logger():
     logger.setLevel(logging.INFO)
 
 def get_src_dst_table(src_client, dst_client):
-    CHARSET = string.ascii_letters + string.digits
-
     if src_client._type == "yt":
         src_path = src_client.create_temp_table()
         src_client.write_table(src_path, ["k\tv\n"], format=yt.YamrFormat(), raw=True)
-    elif src_client._type == "yamr":
-        src_path = "tmp/yt_" + "".join(random.sample(CHARSET, 7))
-        src_client.write(src_path, "k\tv\n")
     else:
         raise YtError("Unsupported source client type: {0}".format(src_client._type))
 
     if dst_client._type == "yt":
         dst_path = dst_client.create_temp_table()
-    elif dst_client._type == "yamr":
-        dst_path = "tmp/yt_" + "".join(random.sample(CHARSET, 7))
     else:
         raise YtError("Unsupported destination client type: {0}".format(dst_client._type))
 
     return src_path, dst_path
 
-def check_direction(src_cluster, dst_cluster, clusters_clients, availability_graph, params):
+def check_direction(src_cluster, dst_cluster, clusters_configurations, token, params=None):
     logger.info("Starting direction check (from: %s, to: %s)", src_cluster, dst_cluster)
 
     def get_client(cluster):
-        client = clusters_clients.get(cluster)
-        if client is None:
+        cluster_config = clusters_configurations.get(cluster)
+        if cluster_config is None:
             raise YtError("Check failed: cluster {0} not found".format(cluster))
+        client = create_cluster_client(cluster, token, clusters_configurations)
         return client
 
-    src_client, dst_client = get_client(src_cluster), get_client(dst_cluster)
-    if src_client._type not in ["yt", "yamr"] or dst_client._type not in ["yt", "yamr"]:
-        logger.warning("Direction from %s to %s skipped because it has non-YT and non-YAMR cluster",
-                       src_cluster, dst_cluster)
+    if clusters_configurations[src_cluster]["type"] != "yt" or clusters_configurations[dst_cluster]["type"] != "yt":
+        logger.warning("Direction from %s to %s skipped because it has non-YT cluster", src_cluster, dst_cluster)
         return
+
+    src_client, dst_client = get_client(src_cluster), get_client(dst_cluster)
 
     try:
         src_path, dst_path = get_src_dst_table(src_client, dst_client)
@@ -91,9 +78,6 @@ def check_direction(src_cluster, dst_cluster, clusters_clients, availability_gra
         params = {}
     else:
         params = json.loads(params)
-    if (src_client._type == "yamr" or dst_client._type == "yamr") and "mr_user" not in params:
-        # NB: Usually userdata user has big enough quota on YAMR clusters.
-        params = {"mr_user": "userdata"}
 
     try:
         get_tm_client().add_task(src_cluster, src_path, dst_cluster, dst_path, params=params, sync=True)
@@ -101,10 +85,6 @@ def check_direction(src_cluster, dst_cluster, clusters_clients, availability_gra
         raise YtError("Check failed", inner_errors=[err])
 
     logger.info("Check successfully finished")
-
-def get_active_transfer_manager_server_address(backend_config):
-    client = Yt(**backend_config["yt_backend_options"])
-    return client.get(backend_config["path"] + "/@address")
 
 def run_process(*args, **kwargs):
     kwargs.pop("stdout", None)
@@ -116,69 +96,33 @@ def run_process(*args, **kwargs):
         raise YtError("Failed to run {0}: {1}".format(" ".join(*args), err))
     return out, err
 
-class FilesCache(dict):
-    def __init__(self, *args, **kwargs):
-        super(FilesCache, self).__init__(*args, **kwargs)
-        atexit.register(self.cleanup)
+def create_cluster_client(name, token, clusters_configurations):
+    if not hasattr(create_cluster_client, "_cache_clients"):
+        create_cluster_client._cache_clients = {}
+    if name in create_cluster_client._cache_clients:
+        return create_cluster_client._cache_clients[name]
 
-    def cleanup(self):
-        for path in itervalues(self):
-            remove_file(path, force=True)
+    logger.info("Preparing client for cluster %s", name)
+    type_ = clusters_configurations[name]["type"]
+    options = clusters_configurations[name].get("options", {})
 
-def get_yamr_binary(options, active_tm_server_address):
-    # YAMR binary is heavy. No need to download the same client for each cluster.
-    if not hasattr(get_yamr_binary, "_cache"):
-        get_yamr_binary._cache = FilesCache()
-    if not hasattr(get_yamr_binary, "_fqdn"):
-        get_yamr_binary._fqdn = socket.getfqdn()
+    if type_ == "yt":
+        options.pop("token", None)  # Do not use token from TM backend config if present.
+        client = Yt(token=token, **options)
+    else:
+        client = FakeClient()
+        logger.warning("Check is now available only for YT clusters. "
+                       "Skipping %s cluster %s", type_, name)
 
-    binary_path = options["binary"]
-    if get_yamr_binary._fqdn == active_tm_server_address:
-        logger.info("Running on the same host as active Transfer Manager. "
-                    "Local mapreduce binaries will be used.")
-        return binary_path
+    client._type = type_
+    create_cluster_client._cache_clients[name] = client
+    return client
 
-    local_binary_path = get_yamr_binary._cache.get(binary_path)
-    if local_binary_path is not None:
-        return local_binary_path
-
-    fd, filepath = tempfile.mkstemp(prefix="mapreduce")
-    os.close(fd)
-    logger.info("Copying mapreduce binary from %s:%s to %s", active_tm_server_address, binary_path, filepath)
-    run_process(["scp", "{0}:{1}".format(active_tm_server_address, binary_path), filepath])
-    os.chmod(filepath, stat.S_IXUSR | stat.S_IRUSR | stat.S_IWUSR)
-
-    get_yamr_binary._cache[binary_path] = filepath
-    return filepath
-
-def create_clusters_clients(backend_config, token):
-    clusters = backend_config.get("clusters")
-    if clusters is None:
+def get_clusters_configurations(backend_config):
+    clusters_configurations = backend_config.get("clusters")
+    if clusters_configurations is None:
         raise YtError("Failed to get clusters configuration from backend config")
-
-    active_tm_server_address = get_active_transfer_manager_server_address(backend_config)
-
-    result = {}
-    for name, configuration in iteritems(clusters):
-        logger.info("Preparing client for cluster %s", name)
-        type_ = configuration["type"]
-        options = configuration.get("options", {})
-
-        if type_ == "yt":
-            options.pop("token", None)  # Do not use token from TM backend config if present.
-            result[name] = Yt(token=token, **options)
-        elif type_ == "yamr":
-            # Copy remote YAMR binary if necessary and use it for checks.
-            options["binary"] = get_yamr_binary(options, active_tm_server_address)
-            result[name] = Yamr(**options)
-        else:
-            result[name] = FakeClient()
-            logger.warning("Check is now available only for YT and YAMR clusters. "
-                           "Skipping %s cluster %s", type_, name)
-
-        result[name]._type = type_
-
-    return result
+    return clusters_configurations
 
 def get_cluster_graphs(backend_config):
     graph = backend_config.get("availability_graph")
@@ -228,7 +172,7 @@ def main():
     init_tm_client(args.url, token)
 
     backend_config = get_tm_client().get_backend_config()
-    clusters_clients = create_clusters_clients(backend_config, token)
+    clusters_configurations = get_clusters_configurations(backend_config)
     graph, transposed_graph = get_cluster_graphs(backend_config)
 
     if not args.direction:
@@ -236,7 +180,7 @@ def main():
         for cluster in graph:
             for neighbour in graph[cluster]:
                 try:
-                    check_direction(cluster, neighbour, clusters_clients, graph)
+                    check_direction(cluster, neighbour, clusters_configurations, token)
                 except:
                     logger.exception("Check from %s to %s failed", cluster, neighbour)
         return
@@ -246,13 +190,13 @@ def main():
             if dst_cluster not in graph[src_cluster]:
                 raise YtError("Check failed: cluster {0} is not available from {1}"
                               .format(dst_cluster, src_cluster))
-            check_direction(src_cluster, dst_cluster, clusters_clients, graph, args.params)
+            check_direction(src_cluster, dst_cluster, clusters_configurations, token, args.params)
         elif src_cluster and not dst_cluster:
             for neighbour in graph[src_cluster]:
-                check_direction(src_cluster, neighbour, clusters_clients, graph, args.params)
+                check_direction(src_cluster, neighbour, clusters_configurations, token, args.params)
         else:
             for neighbour in transposed_graph[dst_cluster]:
-                check_direction(neighbour, dst_cluster, clusters_clients, graph, args.params)
+                check_direction(neighbour, dst_cluster, clusters_configurations, token, args.params)
 
 if __name__ == "__main__":
     run_main(main)
