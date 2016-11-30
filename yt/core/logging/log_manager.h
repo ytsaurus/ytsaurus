@@ -22,9 +22,7 @@ public:
 
     static void StaticShutdown();
 
-    void Configure(NYTree::INodePtr node);
-    void Configure(const Stroka& fileName, const NYPath::TYPath& path);
-    void Configure(TLogConfigPtr&& config);
+    void Configure(TLogConfigPtr config);
 
     virtual void Shutdown() override;
 

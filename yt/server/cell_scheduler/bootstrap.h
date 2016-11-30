@@ -33,7 +33,7 @@ DEFINE_ENUM(EControlQueue,
 class TBootstrap
 {
 public:
-    explicit TBootstrap(const NYTree::INodePtr configNode);
+    TBootstrap(TCellSchedulerConfigPtr config, NYTree::INodePtr configNode);
     ~TBootstrap();
 
     TCellSchedulerConfigPtr GetConfig() const;
@@ -50,9 +50,9 @@ public:
     void Run();
 
 private:
+    const TCellSchedulerConfigPtr Config_;
     const NYTree::INodePtr ConfigNode_;
 
-    TCellSchedulerConfigPtr Config_;
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     std::unique_ptr<NLFAlloc::TLFAllocProfiler> LFAllocProfiler_;
     NConcurrency::TFairShareActionQueuePtr ControlQueue_;

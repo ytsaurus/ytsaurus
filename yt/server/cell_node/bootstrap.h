@@ -48,7 +48,7 @@ namespace NCellNode {
 class TBootstrap
 {
 public:
-    explicit TBootstrap(NYTree::INodePtr configNode);
+    TBootstrap(TCellNodeConfigPtr config, NYTree::INodePtr configNode);
     ~TBootstrap();
 
     const TCellNodeConfigPtr& GetConfig() const;
@@ -101,9 +101,8 @@ public:
     void Run();
 
 private:
+    const TCellNodeConfigPtr Config;
     const NYTree::INodePtr ConfigNode;
-
-    TCellNodeConfigPtr Config;
 
     NConcurrency::TActionQueuePtr ControlQueue;
 

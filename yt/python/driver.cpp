@@ -25,11 +25,13 @@
 #include <yt/core/concurrency/async_stream.h>
 
 #include <yt/core/logging/log_manager.h>
+#include <yt/core/logging/config.h>
 
 #include <yt/core/misc/intrusive_ptr.h>
 #include <yt/core/misc/crash_handler.h>
 
 #include <yt/core/tracing/trace_manager.h>
+#include <yt/core/tracing/config.h>
 
 #include <yt/core/ytree/convert.h>
 
@@ -359,10 +361,11 @@ public:
         auto args = args_;
         auto kwargs = kwargs_;
 
-        auto config = ConvertObjectToNode(ExtractArgument(args, kwargs, "config"));
+        auto configNode = ConvertObjectToNode(ExtractArgument(args, kwargs, "config"));
         ValidateArgumentsEmpty(args, kwargs);
+        auto config = ConvertTo<NLogging::TLogConfigPtr>(configNode);
 
-        NLogging::TLogManager::Get()->Configure(config->AsMap());
+        NLogging::TLogManager::Get()->Configure(config);
 
         return Py::None();
     }
@@ -372,10 +375,11 @@ public:
         auto args = args_;
         auto kwargs = kwargs_;
 
-        auto config = ConvertObjectToNode(ExtractArgument(args, kwargs, "config"));
+        auto configNode = ConvertObjectToNode(ExtractArgument(args, kwargs, "config"));
         ValidateArgumentsEmpty(args, kwargs);
+        auto config = ConvertTo<NTracing::TTraceManagerConfigPtr>(configNode);
 
-        NTracing::TTraceManager::Get()->Configure(config->AsMap());
+        NTracing::TTraceManager::Get()->Configure(config);
 
         return Py::None();
     }

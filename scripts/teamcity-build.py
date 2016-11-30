@@ -147,9 +147,10 @@ def slow_build(options):
 
 @build_step
 def set_suid_bit(options):
-    path = "{0}/bin/ytserver".format(options.working_directory)
-    run(["sudo", "chown", "root", path])
-    run(["sudo", "chmod", "4755", path])
+    for binary in ["ytserver-node", "ytserver-exec", "ytserver-job-proxy"]:
+        path = "{0}/bin/{1}".format(options.working_directory, binary)
+        run(["sudo", "chown", "root", path])
+        run(["sudo", "chmod", "4755", path])
 
 
 @build_step

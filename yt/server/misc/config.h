@@ -10,6 +10,10 @@
 
 #include <yt/core/bus/config.h>
 
+#include <yt/core/tracing/config.h>
+
+#include <yt/core/logging/config.h>
+
 #include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
@@ -20,10 +24,14 @@ class TServerConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
+    // Singletons.
     TAddressResolverConfigPtr AddressResolver;
+    NChunkClient::TDispatcherConfigPtr ChunkClientDispatcher;
+    NLogging::TLogConfigPtr Logging;
+    NTracing::TTraceManagerConfigPtr Tracing;
+
     NBus::TTcpBusServerConfigPtr BusServer;
     NRpc::TServerConfigPtr RpcServer;
-    NChunkClient::TDispatcherConfigPtr ChunkClientDispatcher;
 
     //! RPC interface port number.
     int RpcPort;
@@ -35,11 +43,16 @@ public:
     {
         RegisterParameter("address_resolver", AddressResolver)
             .DefaultNew();
+        RegisterParameter("chunk_client_dispatcher", ChunkClientDispatcher)
+            .DefaultNew();
+        RegisterParameter("logging", Logging)
+            .Default(NLogging::TLogConfig::CreateDefault());
+        RegisterParameter("tracing", Tracing)
+            .DefaultNew();
+
         RegisterParameter("bus_server", BusServer)
             .DefaultNew();
         RegisterParameter("rpc_server", RpcServer)
-            .DefaultNew();
-        RegisterParameter("chunk_client_dispatcher", ChunkClientDispatcher)
             .DefaultNew();
 
         RegisterParameter("rpc_port", RpcPort)
@@ -55,10 +68,10 @@ public:
 
     virtual void OnLoaded() final
     {
-        if (BusServer->Port || BusServer->UnixDomainName) {
-            THROW_ERROR_EXCEPTION("Explicit socket configuration for bus server is forbidden");
-        }
         if (RpcPort > 0) {
+            if (BusServer->Port || BusServer->UnixDomainName) {
+                THROW_ERROR_EXCEPTION("Explicit socket configuration for bus server is forbidden");
+            }
             BusServer->Port = RpcPort;
         }
     }

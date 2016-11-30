@@ -195,8 +195,8 @@ public:
     NJobAgent::TStatisticsReporterConfigPtr StatisticsReporter;
     TSchedulerConnectorConfigPtr SchedulerConnector;
 
-    NYTree::INodePtr JobProxyLogging;
-    NYTree::INodePtr JobProxyTracing;
+    NLogging::TLogConfigPtr JobProxyLogging;
+    NTracing::TTraceManagerConfigPtr JobProxyTracing;
 
     TDuration SupervisorRpcTimeout;
     TDuration JobProberRpcTimeout;
@@ -220,9 +220,9 @@ public:
             .DefaultNew();
 
         RegisterParameter("job_proxy_logging", JobProxyLogging)
-            .Default();
+            .DefaultNew();
         RegisterParameter("job_proxy_tracing", JobProxyTracing)
-            .Default();
+            .DefaultNew();
 
         RegisterParameter("supervisor_rpc_timeout", SupervisorRpcTimeout)
             .Default(TDuration::Seconds(30));

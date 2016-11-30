@@ -540,7 +540,6 @@ private:
                 return;
             }
         }
-
         JobResult_ = jobResult;
         FinishTime_ = TInstant::Now();
     }
@@ -860,7 +859,7 @@ private:
 
         auto proxyConfig = CloneYsonSerializable(Bootstrap_->GetJobProxyConfig());
         proxyConfig->JobIO = ioConfig;
-        proxyConfig->RpcServer = Slot_->GetRpcServerConfig();
+        proxyConfig->BusServer = Slot_->GetBusServerConfig();
         proxyConfig->TmpfsPath = TmpfsPath_;
         proxyConfig->SlotIndex = Slot_->GetSlotIndex();
 

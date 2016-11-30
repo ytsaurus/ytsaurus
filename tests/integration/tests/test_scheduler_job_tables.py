@@ -489,18 +489,11 @@ class TestCoreTable(YTEnvSetup):
     # (as there is no convenient way to return a value from a thread in Python).
     def _send_core(self, uid, exec_name, pid, input_data, ret_dict, fallback_path="/dev/null"):
         def run_core_forwarder(self, uid, exec_name, pid, input_data, ret_dict, fallback_path):
-            process = psutil.Popen([
-                    "ytserver",
-                    "--core-forwarder",
-                    str(pid),
-                    str(uid),
-                    exec_name,
+            args = ["ytserver-core-forwarder", str(pid), str(uid), exec_name,
                     "1", # rlimit_core is always 1 when core forwarder is called in our case.
-                    self.JOB_PROXY_UDS_NAME_DIR,
-                    fallback_path
-                ],
-                bufsize=0,
-                stdin=subprocess.PIPE)
+                    self.JOB_PROXY_UDS_NAME_DIR, fallback_path]
+            print >>sys.stderr, repr(args)
+            process = psutil.Popen(args, bufsize=0, stdin=subprocess.PIPE)
             size = 0
             core_data = ""
             for chunk in input_data:

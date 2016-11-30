@@ -52,11 +52,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/public.cpp
 
-  ${CMAKE_CURRENT_LIST_DIR}/core_dump/core_forwarder.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/core_dump/core_processor_service.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/core_dump/core_processor_service.proto
-
-  ${CMAKE_CURRENT_LIST_DIR}/core_dump/core_forwarder.cpp
   ${CMAKE_CURRENT_LIST_DIR}/core_dump/core_processor_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/core_dump/core_processor_service.proto
 
@@ -210,6 +205,7 @@ SET(YT_SRCS
 
   ${CMAKE_CURRENT_LIST_DIR}/misc/address_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/build_attributes.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/configure_singletons.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/fork_executor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/disk_health_checker.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/disk_location.cpp
@@ -247,6 +243,13 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/object_server/type_handler.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/orchid/cypress_integration.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/program/names.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/program/program.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/program/program_config_mixin.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/program/program_cgroup_mixin.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/program/program_tool_mixin.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/program/program_pdeathsig_mixin.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/query_agent/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_agent/private.cpp
@@ -428,32 +431,103 @@ ELSE()
 ################################################################################
 
 resolve_srcs(YT_SRCS YT_SRCS_RESOLVED)
-add_executable(ytserver
-  ${CMAKE_CURRENT_LIST_DIR}/main.cpp
-)
 
 add_library(yt-library-server ${YT_SRCS_RESOLVED})
 
-target_link_libraries(yt-library-server
-  yt-library-client
+target_link_libraries(yt-library-server yt-library-client)
+
+### master
+
+add_executable(ytserver-master
+  ${CMAKE_CURRENT_LIST_DIR}/cell_master_program/main.cpp
 )
 
-target_link_libraries(ytserver
+target_link_libraries(ytserver-master
   yt-library-server
+  deps-arcadia-library-getopt
   deps-arcadia-library-lfalloc
 )
 
-set_target_properties(ytserver
-  PROPERTIES
-  LINK_FLAGS "-static-libstdc++"
+set_target_properties(ytserver-master PROPERTIES LINK_FLAGS "-static-libstdc++")
+
+### node
+
+add_executable(ytserver-node
+  ${CMAKE_CURRENT_LIST_DIR}/cell_node_program/main.cpp
 )
+
+target_link_libraries(ytserver-node
+  yt-library-server
+  deps-arcadia-library-getopt
+  deps-arcadia-library-lfalloc
+)
+
+set_target_properties(ytserver-node PROPERTIES LINK_FLAGS "-static-libstdc++")
+
+### scheduler
+
+add_executable(ytserver-scheduler
+  ${CMAKE_CURRENT_LIST_DIR}/cell_scheduler_program/main.cpp
+)
+
+target_link_libraries(ytserver-scheduler
+  yt-library-server
+  deps-arcadia-library-getopt
+  deps-arcadia-library-lfalloc
+)
+
+set_target_properties(ytserver-scheduler PROPERTIES LINK_FLAGS "-static-libstdc++")
+
+### job proxy
+
+add_executable(ytserver-job-proxy
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy_program/main.cpp
+)
+
+target_link_libraries(ytserver-job-proxy
+  yt-library-server
+  deps-arcadia-library-getopt
+  deps-arcadia-library-lfalloc
+)
+
+set_target_properties(ytserver-job-proxy PROPERTIES LINK_FLAGS "-static-libstdc++")
+
+### executor & shell
+
+add_executable(ytserver-exec
+  ${CMAKE_CURRENT_LIST_DIR}/exec_program/main.cpp
+)
+
+target_link_libraries(ytserver-exec
+  yt-library-server
+  deps-arcadia-library-getopt
+  deps-arcadia-library-lfalloc
+)
+
+set_target_properties(ytserver-exec PROPERTIES LINK_FLAGS "-static-libstdc++")
+
+### core-forwarder
+
+add_executable(ytserver-core-forwarder
+  ${CMAKE_CURRENT_LIST_DIR}/core_forwarder/main.cpp
+)
+
+target_link_libraries(ytserver-core-forwarder
+  yt-library-server
+  deps-arcadia-library-getopt
+  deps-arcadia-library-lfalloc
+)
+
+###
 
 if(YT_BUILD_ENABLE_GDB_INDEX AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   add_gdb_index(ytserver)
 endif()
 
 install(
-  TARGETS ytserver
+  TARGETS
+    ytserver-master ytserver-scheduler ytserver-node
+    ytserver-job-proxy ytserver-exec ytserver-core-forwarder
   RUNTIME DESTINATION bin
   PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE SETUID
 )

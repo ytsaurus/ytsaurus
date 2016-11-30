@@ -89,8 +89,9 @@ public:
         Writer_ = pty.CreateMasterAsyncWriter();
         ZeroCopyWriter_ = CreateZeroCopyAdapter(Writer_);
 
-        Process_->AddArguments({"--shell", ::ToString(pty.GetSlaveFD())});
-        Process_->AddArguments({"--working-dir", home});
+        Process_->SetWorkingDirectory(home);
+
+        Process_->AddArguments({"--pty", ::ToString(pty.GetSlaveFD())});
         Process_->AddArguments({"--uid", ::ToString(uid)});
 
         PrepareCGroups();
@@ -104,8 +105,9 @@ public:
             "--env", "LANG=en_US.UTF-8",
             "--env", "YT_SHELL_ID=" + ToString(Id_),
         });
+
         for (const auto& var : Options_->Environment) {
-            Process_->AddArguments({ "--env", var });
+            Process_->AddArguments({"--env", var});
         }
 
         if (Options_->MessageOfTheDay) {

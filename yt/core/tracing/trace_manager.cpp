@@ -51,14 +51,13 @@ public:
         return Thread_->IsStarted();
     }
 
-    void Configure(NYTree::INodePtr node, const NYTree::TYPath& path)
+    void Configure(TTraceManagerConfigPtr config)
     {
         if (Y_UNLIKELY(!IsStarted())) {
             Start();
         }
 
-        Config_ = New<TTraceManagerConfig>();
-        Config_->Load(node, true, true, path);
+        Config_ = std::move(config);
 
         if (Config_->Address) {
             Endpoint_ = GetLocalEndpoint();
@@ -71,18 +70,6 @@ public:
             SendExecutor_->Start();
         }
     }
-
-    void Configure(const Stroka& fileName, const NYPath::TYPath& path)
-    {
-        try {
-            TIFStream stream(fileName);
-            auto root = NYTree::ConvertToNode(&stream);
-            auto node = NYTree::GetNodeByYPath(root, path);
-            Configure(node, path);
-        } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Error while configuring tracing");
-        }
-   }
 
     void Shutdown()
     {
@@ -317,14 +304,9 @@ void TTraceManager::StaticShutdown()
     Get()->Shutdown();
 }
 
-void TTraceManager::Configure(NYTree::INodePtr node, const NYPath::TYPath& path)
+void TTraceManager::Configure(TTraceManagerConfigPtr config)
 {
-    Impl_->Configure(node, path);
-}
-
-void TTraceManager::Configure(const Stroka& fileName, const NYPath::TYPath& path)
-{
-    Impl_->Configure(fileName, path);
+    Impl_->Configure(std::move(config));
 }
 
 void TTraceManager::Shutdown()

@@ -6,6 +6,8 @@
 
 #include <yt/server/data_node/master_connector.h>
 
+#include <yt/server/program/names.h>
+
 #include <yt/ytlib/cgroup/cgroup.h>
 
 #include <yt/core/concurrency/scheduler.h>
@@ -55,16 +57,15 @@ public:
         ValidateEnabled();
 
         try {
-            // JobProxy is the same ytserver binary as we are.
-            auto jobProxy = New<TProcess>(GetExecPath());
+            auto jobProxy = New<TProcess>(JobProxyProgramName);
 
             jobProxy->AddArguments({
-                "--job-proxy",
                 "--config", ProxyConfigFileName,
-                "--job-id", ToString(jobId),
                 "--operation-id", ToString(operationId),
-                "--working-dir", workingDirectory
+                "--job-id", ToString(jobId),
             });
+
+            jobProxy->SetWorkingDirectory(workingDirectory);
 
             AddArguments(jobProxy, slotIndex);
 

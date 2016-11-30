@@ -145,8 +145,9 @@ static const i64 FootprintMemorySize = (i64) 1024 * 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBootstrap::TBootstrap(INodePtr configNode)
-    : ConfigNode(configNode)
+TBootstrap::TBootstrap(TCellNodeConfigPtr config, INodePtr configNode)
+    : Config(std::move(config))
+    , ConfigNode(std::move(configNode))
 { }
 
 TBootstrap::~TBootstrap() = default;
@@ -168,13 +169,6 @@ void TBootstrap::Run()
 
 void TBootstrap::DoRun()
 {
-    try {
-        Config = ConvertTo<TCellNodeConfigPtr>(ConfigNode);
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error parsing cell node configuration")
-            << ex;
-    }
-
     auto localAddresses = GetLocalAddresses();
     if (!Config->ClusterConnection->Networks) {
         Config->ClusterConnection->Networks = GetLocalNetworks();

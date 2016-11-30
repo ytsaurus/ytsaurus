@@ -8,6 +8,10 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
+#include <yt/core/logging/config.h>
+
+#include <yt/core/tracing/config.h>
+
 namespace NYT {
 namespace NNodeJS {
 
@@ -17,16 +21,18 @@ class THttpProxyConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    NYTree::INodePtr Logging;
-    NYTree::INodePtr Tracing;
     NChunkClient::TDispatcherConfigPtr ChunkClientDispatcher;
     NDriver::TDriverConfigPtr Driver;
     TAddressResolverConfigPtr AddressResolver;
+    NLogging::TLogConfigPtr Logging;
+    NTracing::TTraceManagerConfigPtr Tracing;
 
     THttpProxyConfig()
     {
-        RegisterParameter("logging", Logging);
-        RegisterParameter("tracing", Tracing);
+        RegisterParameter("logging", Logging)
+            .DefaultNew();
+        RegisterParameter("tracing", Tracing)
+            .DefaultNew();
         RegisterParameter("chunk_client_dispatcher", ChunkClientDispatcher)
             .DefaultNew();
         RegisterParameter("driver", Driver)

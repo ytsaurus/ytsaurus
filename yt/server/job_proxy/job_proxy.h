@@ -31,7 +31,7 @@ class TJobProxy
 {
 public:
     TJobProxy(
-        NYTree::INodePtr configNode,
+        TJobProxyConfigPtr config,
         const NJobTrackerClient::TOperationId& operationId,
         const NJobTrackerClient::TJobId& jobId);
 
@@ -49,7 +49,7 @@ public:
     virtual NRpc::IServerPtr GetRpcServer() const override;
 
 private:
-    const NYTree::INodePtr ConfigNode_;
+    const TJobProxyConfigPtr Config_;
     const NJobTrackerClient::TOperationId OperationId_;
     const NJobTrackerClient::TJobId JobId_;
 
@@ -77,8 +77,6 @@ private:
     const NConcurrency::TActionQueuePtr ControlThread_;
 
     NLogging::TLogger Logger;
-
-    const TJobProxyConfigPtr Config_ = New<TJobProxyConfig>();
 
     NNodeTrackerClient::TNodeDescriptor LocalDescriptor_;
 

@@ -12,6 +12,8 @@
 #include <yt/server/exec_agent/public.h>
 #include <yt/server/exec_agent/supervisor_service_proxy.h>
 
+#include <yt/server/program/names.h>
+
 #include <yt/server/job_proxy/job_signaler.h>
 
 #include <yt/ytlib/cgroup/cgroup.h>
@@ -68,7 +70,7 @@
 
 #include <yt/core/ypath/tokenizer.h>
 
-#include <util/folder/dirut.h>
+#include <util/system/fs.h>
 
 #include <util/stream/null.h>
 
@@ -150,7 +152,7 @@ public:
         , PipeIOPool_(New<TThreadPool>(Config_->JobIO->PipeIOPoolSize, "PipeIO"))
         , AuxQueue_(New<TActionQueue>("JobAux"))
         , ReadStderrInvoker_(CreateSerializedInvoker(PipeIOPool_->GetInvoker()))
-        , Process_(New<TProcess>(GetExecPath(), false))
+        , Process_(New<TProcess>(ExecProgramName, false))
         , CpuAccounting_(CGroupPrefix + ToString(jobId))
         , BlockIO_(CGroupPrefix + ToString(jobId))
         , Memory_(CGroupPrefix + ToString(jobId))
@@ -437,9 +439,9 @@ private:
 
         PreparePipes();
 
-        Process_->AddArgument("--executor");
         Process_->AddArguments({"--command", UserJobSpec_.shell_command()});
-        Process_->AddArguments({"--working-dir", SandboxDirectoryNames[ESandboxKind::User]});
+        Process_->SetWorkingDirectory(SandboxDirectoryNames[ESandboxKind::User]);
+
         if (UserJobSpec_.has_core_table_spec()) {
             Process_->AddArgument("--enable-core-dump");
         }
@@ -450,7 +452,9 @@ private:
 
         // Init environment variables.
         TPatternFormatter formatter;
-        formatter.AddProperty("SandboxPath", NFS::CombinePaths(~NFs::CurrentWorkingDirectory(), SandboxDirectoryNames[ESandboxKind::User]));
+        formatter.AddProperty(
+            "SandboxPath",
+            NFS::CombinePaths(~NFs::CurrentWorkingDirectory(), SandboxDirectoryNames[ESandboxKind::User]));
 
         for (int i = 0; i < UserJobSpec_.environment_size(); ++i) {
             Environment_.emplace_back(formatter.Format(UserJobSpec_.environment(i)));
@@ -768,7 +772,7 @@ private:
 
         for (auto jobDescriptor : jobDescriptors) {
             TNamedPipeConfig pipeId(pipe->GetPath(), jobDescriptor, true);
-            Process_->AddArguments({ "--prepare-named-pipe", ConvertToYsonString(pipeId, EYsonFormat::Text).Data() });
+            Process_->AddArguments({"--pipe", ConvertToYsonString(pipeId, EYsonFormat::Text).Data()});
         }
 
         auto asyncInput = pipe->CreateAsyncReader();
@@ -799,7 +803,7 @@ private:
     {
         auto pipe = TNamedPipe::Create(CreateNamedPipePath());
 
-        Process_->AddArguments({ "--control-pipe", pipe->GetPath() });
+        Process_->AddArguments({"--control-pipe-path", pipe->GetPath()});
 
         ControlPipeReader_ = pipe->CreateAsyncReader();
 
@@ -908,7 +912,7 @@ private:
         InputPipePath_= CreateNamedPipePath();
         auto pipe = TNamedPipe::Create(InputPipePath_);
         TNamedPipeConfig pipeId(pipe->GetPath(), jobDescriptor, false);
-        Process_->AddArguments({ "--prepare-named-pipe", ConvertToYsonString(pipeId, EYsonFormat::Text).Data() });
+        Process_->AddArguments({"--pipe", ConvertToYsonString(pipeId, EYsonFormat::Text).Data()});
         auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.input_format()));
 
         auto reader = pipe->CreateAsyncReader();
@@ -999,24 +1003,24 @@ private:
             {
                 TGuard<TSpinLock> guard(FreezerLock_);
                 Freezer_.Create();
-                Process_->AddArguments({ "--cgroup", Freezer_.GetFullPath() });
+                Process_->AddArguments({"--cgroup", Freezer_.GetFullPath()});
             }
 
             if (CGroupsConfig_->IsCGroupSupported(TCpuAccounting::Name)) {
                 CpuAccounting_.Create();
-                Process_->AddArguments({ "--cgroup", CpuAccounting_.GetFullPath() });
+                Process_->AddArguments({"--cgroup", CpuAccounting_.GetFullPath()});
                 Environment_.emplace_back(Format("YT_CGROUP_CPUACCT=%v", CpuAccounting_.GetFullPath()));
             }
 
             if (CGroupsConfig_->IsCGroupSupported(TBlockIO::Name)) {
                 BlockIO_.Create();
-                Process_->AddArguments({ "--cgroup", BlockIO_.GetFullPath() });
+                Process_->AddArguments({"--cgroup", BlockIO_.GetFullPath()});
                 Environment_.emplace_back(Format("YT_CGROUP_BLKIO=%v", BlockIO_.GetFullPath()));
             }
 
             if (CGroupsConfig_->IsCGroupSupported(TMemory::Name)) {
                 Memory_.Create();
-                Process_->AddArguments({ "--cgroup", Memory_.GetFullPath() });
+                Process_->AddArguments({"--cgroup", Memory_.GetFullPath()});
                 Environment_.emplace_back(Format("YT_CGROUP_MEMORY=%v", Memory_.GetFullPath()));
             }
         } catch (const std::exception& ex) {

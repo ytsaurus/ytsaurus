@@ -151,7 +151,7 @@ TEST_F(TLoggingTest, LogManager)
     NFs::Remove("test.log");
     NFs::Remove("test.error.log");
 
-    auto config = R"({
+    auto configText = R"({
         rules = [
             {
                 "min_level" = "info";
@@ -174,8 +174,11 @@ TEST_F(TLoggingTest, LogManager)
         };
     })";
 
+    auto configNode = ConvertToNode(TYsonString(configText));
 
-    TLogManager::Get()->Configure(ConvertToNode(TYsonString(config)));
+    auto config = ConvertTo<TLogConfigPtr>(configNode);
+
+    TLogManager::Get()->Configure(config);
 
     LOG_DEBUG("Debug message");
     LOG_INFO("Info message");
@@ -199,7 +202,7 @@ TEST_F(TLoggingTest, DISABLED_LogFatal)
     NFs::Remove("test.log");
     NFs::Remove("test.error.log");
 
-    auto config = R"({
+    auto configText = R"({
         rules = [
             {
                 "min_level" = "info";
@@ -214,7 +217,11 @@ TEST_F(TLoggingTest, DISABLED_LogFatal)
         };
     })";
 
-    TLogManager::Get()->Configure(ConvertToNode(TYsonString(config)));
+    auto configNode = ConvertToNode(TYsonString(configText));
+
+    auto config = ConvertTo<TLogConfigPtr>(configNode);
+
+    TLogManager::Get()->Configure(config);
 
     LOG_INFO("Info message");
 
