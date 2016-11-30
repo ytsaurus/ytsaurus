@@ -33,6 +33,7 @@ public:
     { }
 
     virtual ISchemalessMultiChunkWriterPtr DoCreateWriter(
+        TTableWriterConfigPtr config,
         TTableWriterOptionsPtr options,
         const TChunkListId& chunkListId,
         const TTransactionId& transactionId,
@@ -51,9 +52,9 @@ public:
 
         // We pass partitioning columns through schema but input stream is not sorted.
         options->ValidateSorted = false;
-        
+
         return CreatePartitionMultiChunkWriter(
-            JobIOConfig_->TableWriter,
+            config,
             options,
             nameTable,
             TTableSchema::FromKeyColumns(keyColumns),

@@ -178,7 +178,7 @@ ISchemafulReaderPtr TOrderedChunkStore::CreateReader(
     auto blockCache = GetBlockCache();
     auto chunkReader = GetChunkReader();
 
-    auto config = CloneYsonSerializable(Config_->ChunkReader);
+    auto config = CloneYsonSerializable(ReaderConfig_);
     config->WorkloadDescriptor = workloadDescriptor;
 
     TReadLimit lowerLimit;

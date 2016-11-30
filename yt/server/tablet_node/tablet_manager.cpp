@@ -665,6 +665,8 @@ private:
         auto pivotKey = request->has_pivot_key() ? FromProto<TOwningKey>(request->pivot_key()) : TOwningKey();
         auto nextPivotKey = request->has_next_pivot_key() ? FromProto<TOwningKey>(request->next_pivot_key()) : TOwningKey();
         auto mountConfig = DeserializeTableMountConfig((TYsonString(request->mount_config())), tabletId);
+        auto readerConfig = DeserializeTabletChunkReaderConfig(TYsonString(request->reader_config()), tabletId);
+        auto writerConfig = DeserializeTabletChunkWriterConfig(TYsonString(request->writer_config()), tabletId);
         auto writerOptions = DeserializeTabletWriterOptions(TYsonString(request->writer_options()), tabletId);
         auto atomicity = EAtomicity(request->atomicity());
         auto commitOrdering = ECommitOrdering(request->commit_ordering());
@@ -674,6 +676,8 @@ private:
 
         auto tabletHolder = std::make_unique<TTablet>(
             mountConfig,
+            readerConfig,
+            writerConfig,
             writerOptions,
             tabletId,
             mountRevision,
@@ -793,10 +797,12 @@ private:
         }
 
         auto mountConfig = DeserializeTableMountConfig((TYsonString(request->mount_config())), tabletId);
+        auto readerConfig = DeserializeTabletChunkReaderConfig(TYsonString(request->writer_config()), tabletId);
+        auto writerConfig = DeserializeTabletChunkWriterConfig(TYsonString(request->writer_config()), tabletId);
         auto writerOptions = DeserializeTabletWriterOptions(TYsonString(request->writer_options()), tabletId);
 
         const auto& storeManager = tablet->GetStoreManager();
-        storeManager->Remount(mountConfig, writerOptions);
+        storeManager->Remount(mountConfig, readerConfig, writerConfig, writerOptions);
 
         UpdateTabletSnapshot(tablet);
 
@@ -2367,6 +2373,28 @@ private:
             LOG_ERROR_UNLESS(IsRecovery(), ex, "Error deserializing tablet mount config (TabletId: %v)",
                  tabletId);
             return New<TTableMountConfig>();
+        }
+    }
+
+    TTabletChunkReaderConfigPtr DeserializeTabletChunkReaderConfig(const TYsonString& str, const TTabletId& tabletId)
+    {
+        try {
+            return ConvertTo<TTabletChunkReaderConfigPtr>(str);
+        } catch (const std::exception& ex) {
+            LOG_ERROR_UNLESS(IsRecovery(), ex, "Error deserializing reader config (TabletId: %v)",
+                 tabletId);
+            return New<TTabletChunkReaderConfig>();
+        }
+    }
+
+    TTabletChunkWriterConfigPtr DeserializeTabletChunkWriterConfig(const TYsonString& str, const TTabletId& tabletId)
+    {
+        try {
+            return ConvertTo<TTabletChunkWriterConfigPtr>(str);
+        } catch (const std::exception& ex) {
+            LOG_ERROR_UNLESS(IsRecovery(), ex, "Error deserializing writer config (TabletId: %v)",
+                 tabletId);
+            return New<TTabletChunkWriterConfig>();
         }
     }
 

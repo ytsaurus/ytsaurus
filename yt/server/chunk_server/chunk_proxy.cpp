@@ -110,6 +110,8 @@ private:
             .SetPresent(chunk->IsConfirmed() && miscExt.has_compression_codec()));
         descriptors->push_back(TAttributeDescriptor("row_count")
             .SetPresent(chunk->IsConfirmed() && miscExt.has_row_count()));
+        descriptors->push_back(TAttributeDescriptor("max_block_size")
+            .SetPresent(chunk->IsConfirmed() && miscExt.has_max_block_size()));
         descriptors->push_back(TAttributeDescriptor("quorum_row_count")
             .SetPresent(chunk->IsJournal())
             .SetOpaque(true));
@@ -377,6 +379,12 @@ private:
             if (key == "max_timestamp" && miscExt.has_max_timestamp()) {
                 BuildYsonFluently(consumer)
                     .Value(miscExt.max_timestamp());
+                return true;
+            }
+
+            if (key == "max_block_size" && miscExt.has_max_block_size()) {
+                BuildYsonFluently(consumer)
+                    .Value(miscExt.max_block_size());
                 return true;
             }
 

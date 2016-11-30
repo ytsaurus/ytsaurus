@@ -977,6 +977,18 @@ class TestTables(YTEnvSetup):
             write_table("//tmp/t", row, is_raw=True, input_format=yson_without_type_conversion)
         write_table("//tmp/t", row, is_raw=True, input_format=yson_with_type_conversion)
 
+    def test_writer_config(self):
+        create("table", "//tmp/t",
+            attributes={
+                "chunk_writer": {"block_size": 1024},
+                "compression_codec": "none"
+            })
+
+        write_table("//tmp/t", [{"value": "A"*1024} for i in xrange(10)])
+        chunks = get("//tmp/t/@chunk_ids")
+        assert len(chunks) == 1
+        assert get("#" + chunks[0] + "/@compressed_data_size") > 1024 * 10
+        assert get("#" + chunks[0] + "/@max_block_size") < 1024 * 2
 
 ##################################################################
 

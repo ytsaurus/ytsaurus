@@ -1,5 +1,6 @@
 #include "job_detail.h"
 #include "private.h"
+#include "config.h"
 
 #include <yt/server/exec_agent/public.h>
 
@@ -218,6 +219,17 @@ TStatistics TSimpleJobBase::GetStatistics() const
     }
 
     return result;
+}
+
+TTableWriterConfigPtr TSimpleJobBase::GetWriterConfig(const TTableOutputSpec& outputSpec)
+{
+    auto config = Host_->GetConfig()->JobIO->TableWriter;
+    if (outputSpec.has_table_writer_config()) {
+        config = UpdateYsonSerializable(
+            config,
+            ConvertTo<INodePtr>(TYsonString(outputSpec.table_writer_config())));
+    }
+    return config;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -74,10 +74,11 @@ public:
         auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
+        auto writerConfig = GetWriterConfig(outputSpec);
         auto schema = FromProto<TTableSchema>(outputSpec.table_schema());
 
         Writer_ = CreateSchemalessMultiChunkWriter(
-            config->JobIO->TableWriter,
+            writerConfig,
             options,
             nameTable,
             schema,

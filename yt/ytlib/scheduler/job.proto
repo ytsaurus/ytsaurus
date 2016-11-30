@@ -115,6 +115,9 @@ message TTableOutputSpec
     // YSON-serialized writer options obtained from table attributes.
     required string table_writer_options = 6;
 
+    // YSON-serialized writer config obtained from table attributes.
+    optional string table_writer_config = 9;
+
     required NTableClient.NProto.TTableSchemaExt table_schema = 8;
 }
 

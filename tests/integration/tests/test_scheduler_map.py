@@ -2151,6 +2151,26 @@ print row + table_index
         assert get_statistics(statistics, "user_job.pipes.input.bytes.$.completed.map.sum") == 15
         assert get_statistics(statistics, "user_job.pipes.output.0.bytes.$.completed.map.sum") ==15
 
+    def test_writer_config(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out",
+            attributes={
+                "chunk_writer": {"block_size": 1024},
+                "compression_codec": "none"
+            })
+
+        write_table("//tmp/t_in", [{"value": "A"*1024} for i in xrange(10)])
+
+        map(
+            command="cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"job_count": 1})
+
+        chunks = get("//tmp/t_out/@chunk_ids")
+        assert len(chunks) == 1
+        assert get("#" + chunks[0] + "/@compressed_data_size") > 1024 * 10
+        assert get("#" + chunks[0] + "/@max_block_size") < 1024 * 2
 
 class TestSchedulerControllerThrottling(YTEnvSetup):
     NUM_MASTERS = 3

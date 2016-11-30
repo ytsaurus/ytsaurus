@@ -227,12 +227,16 @@ TTablet::TTablet(
     ITabletContext* context)
     : TObjectBase(tabletId)
     , Config_(New<TTableMountConfig>())
+    , ReaderConfig_(New<TTabletChunkReaderConfig>())
+    , WriterConfig_(New<TTabletChunkWriterConfig>())
     , WriterOptions_(New<TTabletWriterOptions>())
     , Context_(context)
 { }
 
 TTablet::TTablet(
     TTableMountConfigPtr config,
+    TTabletChunkReaderConfigPtr readerConfig,
+    TTabletChunkWriterConfigPtr writerConfig,
     TTabletWriterOptionsPtr writerOptions,
     const TTabletId& tabletId,
     i64 mountRevision,
@@ -255,6 +259,8 @@ TTablet::TTablet(
     , HashTableSize_(config->EnableLookupHashTable ? config->MaxDynamicStoreRowCount : 0)
     , RetainedTimestamp_(MinTimestamp)
     , Config_(config)
+    , ReaderConfig_(readerConfig)
+    , WriterConfig_(writerConfig)
     , WriterOptions_(writerOptions)
     , Eden_(std::make_unique<TPartition>(
         this,
@@ -291,6 +297,26 @@ const TTableMountConfigPtr& TTablet::GetConfig() const
 void TTablet::SetConfig(TTableMountConfigPtr config)
 {
     Config_ = config;
+}
+
+const TTabletChunkReaderConfigPtr& TTablet::GetReaderConfig() const
+{
+    return ReaderConfig_;
+}
+
+void TTablet::SetReaderConfig(TTabletChunkReaderConfigPtr config)
+{
+    ReaderConfig_ = config;
+}
+
+const TTabletChunkWriterConfigPtr& TTablet::GetWriterConfig() const
+{
+    return WriterConfig_;
+}
+
+void TTablet::SetWriterConfig(TTabletChunkWriterConfigPtr config)
+{
+    WriterConfig_ = config;
 }
 
 const TTabletWriterOptionsPtr& TTablet::GetWriterOptions() const
@@ -458,6 +484,7 @@ TCallback<void(TSaveContext&)> TTablet::AsyncSave()
             using NYT::Save;
 
             Save(context, *snapshot->Config);
+            Save(context, *snapshot->WriterConfig);
             Save(context, *snapshot->WriterOptions);
             Save(context, snapshot->PivotKey);
             Save(context, snapshot->NextPivotKey);
@@ -480,6 +507,7 @@ void TTablet::AsyncLoad(TLoadContext& context)
     using NYT::Load;
 
     Load(context, *Config_);
+    Load(context, *WriterConfig_);
     Load(context, *WriterOptions_);
     Load(context, PivotKey_);
     Load(context, NextPivotKey_);
@@ -859,6 +887,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
     snapshot->MountRevision = MountRevision_;
     snapshot->TableId = TableId_;
     snapshot->Config = Config_;
+    snapshot->WriterConfig = WriterConfig_;
     snapshot->WriterOptions = WriterOptions_;
     snapshot->PivotKey = PivotKey_;
     snapshot->NextPivotKey = NextPivotKey_;

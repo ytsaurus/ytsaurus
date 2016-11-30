@@ -76,6 +76,8 @@ protected:
 
     virtual void CreateReader() = 0;
     virtual void CreateWriter() = 0;
+
+    NTableClient::TTableWriterConfigPtr GetWriterConfig(const NScheduler::NProto::TTableOutputSpec& outputSpec);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

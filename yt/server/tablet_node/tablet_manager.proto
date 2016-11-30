@@ -40,6 +40,8 @@ message TReqMountTablet
     optional bytes pivot_key = 5;
     optional bytes next_pivot_key = 6;
     required string mount_config = 7;
+    required string reader_config = 16;
+    required string writer_config = 17;
     required string writer_options = 8;
     required int32 atomicity = 10; // EAtomicity
     required int32 commit_ordering = 15; // ECommitOrdering
@@ -59,6 +61,8 @@ message TReqRemountTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;
     required string mount_config = 7;
+    required string reader_config = 9;
+    required string writer_config = 10;
     required string writer_options = 8;
 }
 

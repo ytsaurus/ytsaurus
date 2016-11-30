@@ -322,7 +322,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     TReadLimit upperLimit;
     upperLimit.SetKey(std::move(upperKey));
 
-    auto config = CloneYsonSerializable(Config_->ChunkReader);
+    auto config = CloneYsonSerializable(ReaderConfig_);
     config->WorkloadDescriptor = workloadDescriptor;
 
     return CreateVersionedChunkReader(
@@ -396,7 +396,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     auto blockCache = GetBlockCache();
     auto chunkReader = GetChunkReader();
     auto cachedVersionedChunkMeta = PrepareCachedVersionedChunkMeta(chunkReader);
-    auto config = CloneYsonSerializable(Config_->ChunkReader);
+    auto config = CloneYsonSerializable(ReaderConfig_);
     config->WorkloadDescriptor = workloadDescriptor;
 
     return CreateVersionedChunkReader(

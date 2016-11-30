@@ -59,6 +59,7 @@ TStoreBase::TStoreBase(
     const TStoreId& id,
     TTablet* tablet)
     : Config_(std::move(config))
+    , ReaderConfig_(tablet->GetReaderConfig())
     , StoreId_(id)
     , Tablet_(tablet)
     , PerformanceCounters_(Tablet_->GetPerformanceCounters())
@@ -562,12 +563,10 @@ IChunkReaderPtr TChunkStoreBase::PrepareChunkReader(IChunkPtr chunk)
         }
     }
 
-    const auto& readerConfig = Config_->ChunkReader;
-
     IChunkReaderPtr chunkReader;
-    if (readerConfig->PreferLocalReplicas && chunk && !chunk->IsRemoveScheduled()) {
+    if (ReaderConfig_->PreferLocalReplicas && chunk && !chunk->IsRemoveScheduled()) {
         chunkReader = CreateLocalChunkReader(
-            readerConfig,
+            ReaderConfig_,
             chunk,
             ChunkBlockManager_,
             GetBlockCache(),
@@ -580,7 +579,7 @@ IChunkReaderPtr TChunkStoreBase::PrepareChunkReader(IChunkPtr chunk)
 
         chunkReader = CreateRemoteReader(
             chunkSpec,
-            readerConfig,
+            ReaderConfig_,
             New<TRemoteReaderOptions>(),
             Client_,
             New<TNodeDirectory>(),

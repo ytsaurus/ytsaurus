@@ -459,7 +459,7 @@ private:
                 Bootstrap_->GetInMemoryManager(),
                 tabletSnapshot,
                 writerPoolSize,
-                Config_->TabletManager->ChunkWriter,
+                tabletSnapshot->WriterConfig,
                 tabletSnapshot->WriterOptions,
                 Bootstrap_->GetMasterClient(),
                 transaction->GetId());
@@ -738,7 +738,7 @@ private:
                 Bootstrap_->GetInMemoryManager(),
                 tabletSnapshot,
                 1,
-                Config_->TabletManager->ChunkWriter,
+                tabletSnapshot->WriterConfig,
                 writerOptions,
                 Bootstrap_->GetMasterClient(),
                 transaction->GetId());

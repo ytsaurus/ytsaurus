@@ -238,9 +238,15 @@ void TReplicatedStoreManager::Mount(
 
 void TReplicatedStoreManager::Remount(
     TTableMountConfigPtr mountConfig,
+    TTabletChunkReaderConfigPtr readerConfig,
+    TTabletChunkWriterConfigPtr writerConfig,
     TTabletWriterOptionsPtr writerOptions)
 {
-    Underlying_->Remount(std::move(mountConfig), std::move(writerOptions));
+    Underlying_->Remount(
+        std::move(mountConfig),
+        std::move(readerConfig),
+        std::move(writerConfig),
+        std::move(writerOptions));
 }
 
 ISortedStoreManagerPtr TReplicatedStoreManager::AsSorted()

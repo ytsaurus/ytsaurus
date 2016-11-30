@@ -106,12 +106,13 @@ public:
     }
 
     virtual ISchemalessMultiChunkWriterPtr DoCreateWriter(
+        TTableWriterConfigPtr config,
         TTableWriterOptionsPtr options,
         const TChunkListId& chunkListId,
         const TTransactionId& transactionId,
         const TTableSchema& tableSchema) override
     {
-        return CreateTableWriter(options, chunkListId, transactionId, tableSchema);
+        return CreateTableWriter(config, options, chunkListId, transactionId, tableSchema);
     }
 
 private:

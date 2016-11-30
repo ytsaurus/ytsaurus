@@ -283,9 +283,6 @@ public:
     //! timestamp estimates.
     TDuration ClientTimestampThreshold;
 
-    TTabletChunkReaderConfigPtr ChunkReader;
-    NTableClient::TTableWriterConfigPtr ChunkWriter;
-
     int ReplicatorThreadPoolSize;
     TDuration ReplicatorSoftBackoffTime;
     TDuration ReplicatorHardBackoffTime;
@@ -312,11 +309,6 @@ public:
         RegisterParameter("client_timestamp_threshold", ClientTimestampThreshold)
             .Default(TDuration::Minutes(1));
 
-        RegisterParameter("chunk_reader", ChunkReader)
-            .DefaultNew();
-        RegisterParameter("chunk_writer", ChunkWriter)
-            .DefaultNew();
-
         RegisterParameter("replicator_thread_pool_size", ReplicatorThreadPoolSize)
             .GreaterThan(0)
             .Default(1);
@@ -324,11 +316,6 @@ public:
             .Default(TDuration::Seconds(3));
         RegisterParameter("replicator_hard_backoff_time", ReplicatorHardBackoffTime)
             .Default(TDuration::Seconds(60));
-
-        RegisterInitializer([&] () {
-            // Override default workload descriptors.
-            ChunkReader->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserRealtime);
-        });
     }
 };
 

@@ -1363,7 +1363,8 @@ private:
                 "row_count",
                 "schema",
                 "vital",
-                "optimize_for"
+                "optimize_for",
+                "chunk_writer"
             };
             ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
 
@@ -1392,6 +1393,11 @@ private:
             Options_->ValidateUniqueKeys = TableUploadOptions_.TableSchema.GetUniqueKeys();
             Options_->OptimizeFor = attributes.Get<EOptimizeFor>("optimize_for", EOptimizeFor::Lookup);
             Options_->EvaluateComputedColumns = TableUploadOptions_.TableSchema.HasComputedColumns();
+
+            auto writerConfig = attributes.FindYson("chunk_writer");
+            if (writerConfig) {
+                ReconfigureYsonSerializable(Config_, *writerConfig);
+            }
 
             LOG_INFO("Extended attributes received (Account: %v, CompressionCodec: %v, ErasureCodec: %v)",
                 Options_->Account,

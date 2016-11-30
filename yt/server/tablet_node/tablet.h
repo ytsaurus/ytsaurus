@@ -78,6 +78,7 @@ struct TTabletSnapshot
     i64 MountRevision = 0;
     NObjectClient::TObjectId TableId;
     TTableMountConfigPtr Config;
+    TTabletChunkWriterConfigPtr WriterConfig;
     TTabletWriterOptionsPtr WriterOptions;
     TOwningKey PivotKey;
     TOwningKey NextPivotKey;
@@ -254,6 +255,8 @@ public:
         ITabletContext* context);
     TTablet(
         TTableMountConfigPtr config,
+        TTabletChunkReaderConfigPtr readerConfig,
+        TTabletChunkWriterConfigPtr rriterConfig,
         TTabletWriterOptionsPtr writerOptions,
         const TTabletId& tabletId,
         i64 mountRevision,
@@ -269,6 +272,12 @@ public:
 
     const TTableMountConfigPtr& GetConfig() const;
     void SetConfig(TTableMountConfigPtr config);
+
+    const TTabletChunkReaderConfigPtr& GetReaderConfig() const;
+    void SetReaderConfig(TTabletChunkReaderConfigPtr config);
+
+    const TTabletChunkWriterConfigPtr& GetWriterConfig() const;
+    void SetWriterConfig(TTabletChunkWriterConfigPtr config);
 
     const TTabletWriterOptionsPtr& GetWriterOptions() const;
     void SetWriterOptions(TTabletWriterOptionsPtr options);
@@ -336,6 +345,8 @@ private:
     const TRuntimeTabletDataPtr RuntimeData_ = New<TRuntimeTabletData>();
 
     TTableMountConfigPtr Config_;
+    TTabletChunkReaderConfigPtr ReaderConfig_;
+    TTabletChunkWriterConfigPtr WriterConfig_;
     TTabletWriterOptionsPtr WriterOptions_;
 
     IStoreManagerPtr StoreManager_;

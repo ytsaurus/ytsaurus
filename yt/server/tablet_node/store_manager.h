@@ -90,6 +90,8 @@ struct IStoreManager
         const std::vector<NTabletNode::NProto::TAddStoreDescriptor>& storeDescriptors) = 0;
     virtual void Remount(
         TTableMountConfigPtr mountConfig,
+        TTabletChunkReaderConfigPtr readerConfig,
+        TTabletChunkWriterConfigPtr writerConfig,
         TTabletWriterOptionsPtr writerOptions) = 0;
 
     virtual ISortedStoreManagerPtr AsSorted() = 0;

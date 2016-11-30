@@ -15,6 +15,7 @@ namespace NTabletNode {
 
 using namespace NApi;
 using namespace NChunkClient;
+using namespace NTableClient;
 using namespace NTransactionClient;
 
 using NTabletNode::NProto::TAddStoreDescriptor;
@@ -370,9 +371,15 @@ void TStoreManagerBase::Mount(const std::vector<TAddStoreDescriptor>& storeDescr
     Tablet_->SetState(ETabletState::Mounted);
 }
 
-void TStoreManagerBase::Remount(TTableMountConfigPtr mountConfig, TTabletWriterOptionsPtr writerOptions)
+void TStoreManagerBase::Remount(
+    TTableMountConfigPtr mountConfig,
+    TTabletChunkReaderConfigPtr readerConfig,
+    TTabletChunkWriterConfigPtr writerConfig,
+    TTabletWriterOptionsPtr writerOptions)
 {
     Tablet_->SetConfig(mountConfig);
+    Tablet_->SetReaderConfig(readerConfig);
+    Tablet_->SetWriterConfig(writerConfig);
     Tablet_->SetWriterOptions(writerOptions);
 
     UpdateInMemoryMode();
