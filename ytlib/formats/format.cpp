@@ -12,8 +12,8 @@
 #include "yamred_dsv_parser.h"
 #include "yamred_dsv_writer.h"
 #include "yson_parser.h"
-//include "protobuf_parser.h"
-//include "protobuf_writer.h"
+#include "protobuf_parser.h"
+#include "protobuf_writer.h"
 
 #include <yt/core/misc/error.h>
 
@@ -302,8 +302,6 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
                 controlAttributesConfig,
                 keyColumnCount);
         case EFormatType::Protobuf:
-            return nullptr;
-            /*
             return CreateSchemalessWriterForProtobuf(
                 format.Attributes(),
                 nameTable,
@@ -311,7 +309,6 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
                 enableContextSaving,
                 controlAttributesConfig,
                 keyColumnCount);
-                */
         default:
             auto adapter = New<TSchemalessWriterAdapter>(
                 nameTable,
@@ -461,11 +458,8 @@ std::unique_ptr<IParser> CreateParserForFormat(
 {
     switch (format.GetType()) {
         case EFormatType::Protobuf: {
-            return nullptr;
-            /*
             auto config = ConvertTo<TProtobufFormatConfigPtr>(&format.Attributes());
             return CreateParserForProtobuf(valueConsumers[tableIndex], config, tableIndex);
-            */
         }
         default:
             return std::unique_ptr<IParser>(
