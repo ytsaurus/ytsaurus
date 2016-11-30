@@ -487,6 +487,10 @@ public:
 
     TDuration OperationTransactionTimeout;
 
+    //! Timeout on operation initialization.
+    //! It is needed to prevent hanging of remote copy when remote cluster is unavailable.
+    TDuration OperationInitializationTimeout;
+
     TDuration JobProberRpcTimeout;
 
     TDuration ClusterInfoLoggingPeriod;
@@ -704,6 +708,8 @@ public:
             .Default(TDuration::Seconds(15));
         RegisterParameter("lock_transaction_timeout", LockTransactionTimeout)
             .Default(TDuration::Seconds(15));
+        RegisterParameter("operation_initialization_timeout", OperationInitializationTimeout)
+            .Default(TDuration::Seconds(10));
         RegisterParameter("operation_transaction_timeout", OperationTransactionTimeout)
             .Default(TDuration::Minutes(60));
         RegisterParameter("job_prober_rpc_timeout", JobProberRpcTimeout)
@@ -874,7 +880,7 @@ public:
         RegisterParameter("enable_map_job_size_manager", EnableMapJobSizeManager)
             .Default(true);
 
-        //! By default we disable job size manager for partition maps, 
+        //! By default we disable job size manager for partition maps,
         //! since it may lead to partition data skew between nodes.
         RegisterParameter("enable_partition_map_job_size_manager", EnablePartitionMapJobSizeManager)
             .Default(false);
