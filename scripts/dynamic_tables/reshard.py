@@ -93,7 +93,7 @@ def process_manual(table, shards, yes=False):
 
 
 def process_auto(tables, include_regexps=[], exclude_regexps=[], root="/",
-                 desired_size_gbs=0, desired_slack=1.15, in_memory_only=False, yes=False):
+                 desired_size_gbs=None, desired_slack=1.15, in_memory_only=False, yes=False):
     tables = copy.deepcopy(tables)
 
     if root != "/" and len(tables) == 0 and len(include_regexps) == 0 and len(exclude_regexps) == 0:
@@ -124,11 +124,11 @@ def process_auto(tables, include_regexps=[], exclude_regexps=[], root="/",
 
         in_memory_mode = table_attributes.get("in_memory_mode", "none")
 
-        if desired_size_gbs == 0:
+        if not desired_size_gbs:
             if in_memory_mode == "none":
-                desired_size_gbs = 80
+                desired_size_gbs = 80.0
             else:
-                desired_size_gbs = 1
+                desired_size_gbs = 1.0
 
         if in_memory_mode == "compressed":
             desired_size_kind = "compressed"
@@ -143,7 +143,7 @@ def process_auto(tables, include_regexps=[], exclude_regexps=[], root="/",
                          table, min(slacks), max(slacks))
             continue
 
-        shards = 1 + sum(sizes) / (desired_size_gbs * GB)
+        shards = int(1.0 + float(sum(sizes)) / float(desired_size_gbs * GB))
 
         try:
             if shards > len(tablets):
@@ -183,7 +183,7 @@ if __name__ == "__main__":
                              help="Root path to use for --include/--exclude search")
     auto_parser.add_argument("--in-memory-only", action="store_true", default=False,
                              help="Process only in-memory tables")
-    auto_parser.add_argument("--size-gbs", dest="desired_size_gbs", metavar="N", type=long, required=False, default=0,
+    auto_parser.add_argument("--size-gbs", dest="desired_size_gbs", metavar="N", type=float, required=False, default=None,
                              help="Desired tablet size (in GBs)")
     auto_parser.add_argument("--slack", dest="desired_slack", metavar="S", type=float, required=False, default=1.15,
                              help="Allowed slack (1 = no slack; 1.15 = default)")
