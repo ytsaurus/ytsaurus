@@ -270,27 +270,11 @@ public:
 
     void Configure(INodePtr node, const TYPath& path = "")
     {
-        if (LoggingThread_->IsShutdown()) {
-            return;
-        }
-
         auto config = TLogConfig::CreateFromNode(node, path);
-        LoggerQueue_.Enqueue(std::move(config));
+        Configure(std::move(config));
     }
 
-    void Configure(const Stroka& fileName, const TYPath& path)
-    {
-        try {
-            TIFStream configStream(fileName);
-            auto root = ConvertToNode(&configStream);
-            auto configNode = GetNodeByYPath(root, path);
-            Configure(configNode, path);
-        } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error while configuring logging");
-        }
-    }
-
-    void Configure(TLogConfigPtr&& config)
+    void Configure(TLogConfigPtr config)
     {
         if (LoggingThread_->IsShutdown()) {
             return;
@@ -816,17 +800,7 @@ void TLogManager::StaticShutdown()
     Get()->Shutdown();
 }
 
-void TLogManager::Configure(INodePtr node)
-{
-    Impl_->Configure(node);
-}
-
-void TLogManager::Configure(const Stroka& fileName, const TYPath& path)
-{
-    Impl_->Configure(fileName, path);
-}
-
-void TLogManager::Configure(TLogConfigPtr&& config)
+void TLogManager::Configure(TLogConfigPtr config)
 {
     Impl_->Configure(std::move(config));
 }

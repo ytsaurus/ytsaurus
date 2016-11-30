@@ -152,7 +152,7 @@ public:
         return SlotIndex_;
     }
 
-    virtual TTcpBusServerConfigPtr GetRpcServerConfig() const override
+    virtual TTcpBusServerConfigPtr GetBusServerConfig() const override
     {
         auto unixDomainName = Format("%v-job-proxy-%v", NodeTag_, SlotIndex_);
         return TTcpBusServerConfig::CreateUnixDomain(unixDomainName);

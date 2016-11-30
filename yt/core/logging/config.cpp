@@ -69,6 +69,16 @@ TLogConfigPtr TLogConfig::CreateSilent()
     return config;
 }
 
+TLogConfigPtr TLogConfig::CreateFromFile(const Stroka& file, const NYPath::TYPath& path)
+{
+    NYTree::INodePtr node;
+    {
+        TIFStream stream(file);
+        node = NYTree::ConvertToNode(&stream);
+    }
+    return CreateFromNode(std::move(node), path);
+}
+
 TLogConfigPtr TLogConfig::CreateFromNode(NYTree::INodePtr node, const NYPath::TYPath& path)
 {
     auto config = New<TLogConfig>();

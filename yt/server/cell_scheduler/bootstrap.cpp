@@ -91,8 +91,9 @@ static const NLogging::TLogger Logger("Bootstrap");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBootstrap::TBootstrap(const INodePtr configNode)
-    : ConfigNode_(configNode)
+TBootstrap::TBootstrap(TCellSchedulerConfigPtr config, INodePtr configNode)
+    : Config_(std::move(config))
+    , ConfigNode_(std::move(configNode))
 { }
 
 TBootstrap::~TBootstrap() = default;
@@ -114,13 +115,6 @@ void TBootstrap::Run()
 
 void TBootstrap::DoRun()
 {
-    try {
-        Config_ = ConvertTo<TCellSchedulerConfigPtr>(ConfigNode_);
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error parsing cell scheduler configuration")
-                << ex;
-    }
-
     LOG_INFO("Starting scheduler (MasterAddresses: %v)",
         Config_->ClusterConnection->PrimaryMaster->Addresses);
 

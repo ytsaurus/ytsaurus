@@ -47,7 +47,7 @@ namespace NCellMaster {
 class TBootstrap
 {
 public:
-    explicit TBootstrap(NYTree::INodePtr configNode);
+    TBootstrap(TCellMasterConfigPtr config, NYTree::INodePtr configNode);
     ~TBootstrap();
 
     const TCellMasterConfigPtr& GetConfig() const;
@@ -94,8 +94,8 @@ public:
     void TryLoadSnapshot(const Stroka& fileName, bool dump);
 
 private:
+    const TCellMasterConfigPtr Config_;
     const NYTree::INodePtr ConfigNode_;
-    TCellMasterConfigPtr Config_;
 
     bool PrimaryMaster_ = false;
     bool SecondaryMaster_ = false;

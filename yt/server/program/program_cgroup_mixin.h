@@ -1,0 +1,20 @@
+#include "program.h"
+
+namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TProgramCgroupMixin
+{
+protected:
+    TProgramCgroupMixin(NLastGetopt::TOpts& opts);
+
+    bool HandleCgroupOptions();
+
+private:
+    std::vector<Stroka> CgroupPaths_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT

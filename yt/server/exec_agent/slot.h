@@ -60,7 +60,7 @@ struct ISlot
     
     virtual NJobProberClient::TJobProberServiceProxy GetJobProberProxy() = 0;
 
-    virtual NBus::TTcpBusServerConfigPtr GetRpcServerConfig() const = 0;
+    virtual NBus::TTcpBusServerConfigPtr GetBusServerConfig() const = 0;
 
     virtual int GetSlotIndex() const = 0;
 };

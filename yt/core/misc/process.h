@@ -35,6 +35,8 @@ public:
     void AddArguments(std::initializer_list<TStringBuf> args);
     void AddArguments(const std::vector<Stroka>& args);
 
+    void SetWorkingDirectory(const Stroka& path);
+
     // File actions are done after fork but before exec.
     void AddCloseFileAction(int fd);
 
@@ -66,6 +68,8 @@ private:
     std::vector<Stroka> StringHolders_;
     std::vector<const char*> Args_;
     std::vector<const char*> Env_;
+    Stroka ResolvedPath_;
+    Stroka WorkingDirectory_;
 
     struct TSpawnAction
     {

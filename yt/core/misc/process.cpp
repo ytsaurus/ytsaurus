@@ -8,7 +8,11 @@
 #include <yt/core/misc/finally.h>
 #include <yt/core/pipes/pipe.h>
 
+#include <util/folder/dirut.h>
+
 #include <util/system/execpath.h>
+#include <util/system/maxlen.h>
+#include <util/system/env.h>
 
 #ifdef _unix_
   #include <unistd.h>
@@ -120,6 +124,72 @@ bool TryResetSignals()
     return true;
 }
 
+TErrorOr<Stroka> ResolveBinaryPath(const Stroka& binary)
+{
+    std::vector<TError> accumulatedErrors;
+
+    auto test = [&] (const char* path) {
+        if (access(path, R_OK | X_OK) == 0) {
+            return true;
+        } else {
+            auto error = TError("No capabilities to run %Qlv", path) << TError::FromSystem();
+            accumulatedErrors.push_back(std::move(error));
+            return false;
+        }
+    };
+
+    auto done = [&] () {
+        auto error = TError("Could not resolve binary %Qlv", binary);
+        error.InnerErrors().swap(accumulatedErrors);
+        return error;
+    };
+
+    if (test(binary.c_str())) {
+        return binary;
+    }
+
+    // If this is an absolute path, stop here.
+    if (binary.length() == 0 || binary[0] == '/') {
+        return done();
+    }
+
+    // XXX(sandello): Sometimes we drop PATH from environment when spawning isolated processes.
+    // In this case, try to locate somewhere nearby.
+    {
+        auto probe = Stroka::Join(GetDirName(GetExecPath()), "/", binary);
+        if (test(probe.c_str())) {
+            return probe;
+        }
+    }
+
+    std::array<char, MAX_PATH> buffer;
+
+    auto envPathStr = GetEnv("PATH");
+    TStringBuf envPath(envPathStr);
+    TStringBuf envPathItem;
+
+    while (envPath.NextTok(':', envPathItem)) {
+        if (buffer.size() < 2 + envPathItem.size() + binary.size()) {
+            continue;
+        }
+
+        size_t i = 0;
+        std::copy(envPathItem.begin(), envPathItem.end(), buffer.begin() + i);
+        i += envPathItem.size();
+        buffer[i] = '/';
+        i += 1;
+        std::copy(binary.begin(), binary.end(), buffer.begin() + i);
+        i += binary.size();
+        buffer[i] = 0;
+
+        if (test(buffer.data())) {
+            return Stroka(buffer.data(), i);
+        }
+    }
+
+    return done();
+}
+
 #endif
 
 } // namespace
@@ -169,6 +239,11 @@ void TProcess::AddArguments(const std::vector<Stroka>& args)
     for (const auto& arg : args) {
         AddArgument(arg);
     }
+}
+
+void TProcess::SetWorkingDirectory(const Stroka& path)
+{
+    WorkingDirectory_ = path;
 }
 
 void TProcess::AddCloseFileAction(int fd)
@@ -239,13 +314,16 @@ void TProcess::DoSpawn()
 
     YCHECK(ProcessId_ == InvalidProcessId && !Finished_);
 
+    // Resolve binary path.
+    ResolvedPath_ = ResolveBinaryPath(Path_).ValueOrThrow();
+
     // Make sure no spawn action closes Pipe_.WriteFD
     TPipeFactory pipeFactory(MaxSpawnActionFD_ + 1);
     Pipe_ = pipeFactory.Create();
     pipeFactory.Clear();
 
     LOG_DEBUG("Spawning new process (Path: %v, ErrorPipe: %v,  Arguments: %v, Environment: %v)",
-        Path_,
+        ResolvedPath_,
         Pipe_,
         Args_,
         Env_);
@@ -284,8 +362,18 @@ void TProcess::DoSpawn()
         "Error unblocking signals in child process: pthread_sigmask failed"
     });
 
+    if (!WorkingDirectory_.empty()) {
+        SpawnActions_.push_back(TSpawnAction{
+            [&] () {
+                NFs::SetCurrentWorkingDirectory(WorkingDirectory_);
+                return true;
+            },
+            "Error changing working directory"
+        });
+    }
+
     SpawnActions_.push_back(TSpawnAction{
-        std::bind(TryExecve, Path_.c_str(), Args_.data(), Env_.data()),
+        std::bind(TryExecve, ResolvedPath_.c_str(), Args_.data(), Env_.data()),
         "Error starting child process: execve failed"
     });
 
@@ -316,7 +404,7 @@ void TProcess::SpawnChild()
 
     if (pid < 0) {
         THROW_ERROR_EXCEPTION("Error starting child process: vfork failed")
-            << TErrorAttribute("path", Path_)
+            << TErrorAttribute("path", ResolvedPath_)
             << TError::FromSystem();
     }
 

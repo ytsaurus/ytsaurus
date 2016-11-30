@@ -126,6 +126,7 @@ public:
     static TLogConfigPtr CreateDefault();
     static TLogConfigPtr CreateQuiet();
     static TLogConfigPtr CreateSilent();
+    static TLogConfigPtr CreateFromFile(const Stroka& file, const NYPath::TYPath& path = "");
     static TLogConfigPtr CreateFromNode(NYTree::INodePtr node, const NYPath::TYPath& path = "");
 };
 

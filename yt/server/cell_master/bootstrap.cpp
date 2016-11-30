@@ -133,8 +133,9 @@ static const auto& Logger = CellMasterLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBootstrap::TBootstrap(INodePtr configNode)
-    : ConfigNode_(configNode)
+TBootstrap::TBootstrap(TCellMasterConfigPtr config, INodePtr configNode)
+    : Config_(std::move(config))
+    , ConfigNode_(std::move(configNode))
 { }
 
 TBootstrap::~TBootstrap() = default;
@@ -346,13 +347,6 @@ TPeerId TBootstrap::ComputePeerId(TCellConfigPtr config, const Stroka& localAddr
 
 void TBootstrap::DoInitialize()
 {
-    try {
-        Config_ = ConvertTo<TCellMasterConfigPtr>(ConfigNode_);
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error parsing cell master configuration")
-            << ex;
-    }
-
     Config_->PrimaryMaster->ValidateAllPeersPresent();
     for (auto cellConfig : Config_->SecondaryMasters) {
         cellConfig->ValidateAllPeersPresent();

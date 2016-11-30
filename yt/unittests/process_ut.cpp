@@ -38,9 +38,9 @@ TEST(TProcessTest, InvalidPath)
 
     TFuture<void> finished;
     ASSERT_NO_THROW(finished = p->Spawn());
-    ASSERT_TRUE(p->IsStarted());
+    ASSERT_FALSE(p->IsStarted());
     auto error = WaitFor(finished);
-    EXPECT_TRUE(p->IsFinished());
+    EXPECT_FALSE(p->IsFinished());
     EXPECT_FALSE(error.IsOK());
 }
 

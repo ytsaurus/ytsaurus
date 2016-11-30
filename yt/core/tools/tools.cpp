@@ -21,9 +21,9 @@ TYsonString SpawnTool(const Stroka& toolName, const TYsonString& serializedArgum
 {
     auto process = TSubprocess::CreateCurrentProcessSpawner();
     process.AddArguments({
-        "--tool",
+        "--tool-name",
         toolName,
-        "--spec",
+        "--tool-spec",
         serializedArgument.Data()
     });
 

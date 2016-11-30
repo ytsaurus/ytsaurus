@@ -1,0 +1,21 @@
+#include "program.h"
+
+namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TProgramToolMixin
+{
+protected:
+    TProgramToolMixin(NLastGetopt::TOpts& opts);
+
+    bool HandleToolOptions();
+
+private:
+    Stroka ToolName_;
+    Stroka ToolSpec_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT

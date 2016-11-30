@@ -4,6 +4,8 @@
 
 #include <yt/server/exec_agent/config.h>
 
+#include <yt/server/misc/config.h>
+
 #include <yt/ytlib/cgroup/config.h>
 
 #include <yt/ytlib/file_client/config.h>
@@ -25,12 +27,10 @@ namespace NJobProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobProxyConfig
-    : public NYTree::TYsonSerializable
+    : public TServerConfig
 {
 public:
     // Job-specific parameters.
-    NBus::TTcpBusServerConfigPtr RpcServer;
-
     int SlotIndex;
 
     TNullable<Stroka> TmpfsPath;
@@ -43,8 +43,6 @@ public:
     NBus::TTcpBusClientConfigPtr SupervisorConnection;
     TDuration SupervisorRpcTimeout;
 
-    TAddressResolverConfigPtr AddressResolver;
-
     TDuration HeartbeatPeriod;
     TDuration InputPipeBlinkerPeriod;
 
@@ -55,17 +53,22 @@ public:
     TNullable<Stroka> Rack;
     TNullable<Stroka> DataCenter;
 
-    NYTree::INodePtr Logging;
-    NYTree::INodePtr Tracing;
-
     TDuration CoreForwarderTimeout;
 
     TJobProxyConfig()
     {
-        RegisterParameter("rpc_server", RpcServer)
+        RegisterParameter("slot_index", SlotIndex);
+
+        RegisterParameter("tmpfs_path", TmpfsPath)
+            .Default();
+
+        RegisterParameter("job_io", JobIO)
             .DefaultNew();
+
         RegisterParameter("cluster_connection", ClusterConnection);
+
         RegisterParameter("supervisor_connection", SupervisorConnection);
+
         RegisterParameter("supervisor_rpc_timeout", SupervisorRpcTimeout)
             .Default(TDuration::Seconds(30));
 
@@ -77,17 +80,6 @@ public:
 
         RegisterParameter("job_environment", JobEnvironment);
 
-        RegisterParameter("address_resolver", AddressResolver)
-            .DefaultNew();
-
-        RegisterParameter("slot_index", SlotIndex);
-
-        RegisterParameter("tmpfs_path", TmpfsPath)
-            .Default();
-
-        RegisterParameter("job_io", JobIO)
-            .DefaultNew();
-
         RegisterParameter("addresses", Addresses)
             .Default();
 
@@ -96,11 +88,6 @@ public:
 
         RegisterParameter("data_center", DataCenter)
             .Default(Null);
-
-        RegisterParameter("logging", Logging)
-            .Default();
-        RegisterParameter("tracing", Tracing)
-            .Default();
 
         RegisterParameter("core_forwarder_timeout", CoreForwarderTimeout)
             .Default();

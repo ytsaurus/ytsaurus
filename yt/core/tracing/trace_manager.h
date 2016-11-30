@@ -23,8 +23,7 @@ public:
 
     static void StaticShutdown();
 
-    void Configure(NYTree::INodePtr node, const NYPath::TYPath& path = "");
-    void Configure(const Stroka& fileName, const NYPath::TYPath& path);
+    void Configure(TTraceManagerConfigPtr config);
 
     virtual void Shutdown() override;
 

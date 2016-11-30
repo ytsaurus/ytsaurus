@@ -79,10 +79,10 @@ static const auto RpcServerShutdownTimeout = TDuration::Seconds(15);
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobProxy::TJobProxy(
-    INodePtr configNode,
+    TJobProxyConfigPtr config,
     const TOperationId& operationId,
     const TJobId& jobId)
-    : ConfigNode_(configNode)
+    : Config_(std::move(config))
     , OperationId_(operationId)
     , JobId_(jobId)
     , JobThread_(New<TActionQueue>("JobMain"))
@@ -333,13 +333,6 @@ IJobPtr TJobProxy::CreateBuiltinJob()
 
 TJobResult TJobProxy::DoRun()
 {
-    try {
-        Config_->Load(ConfigNode_);
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error parsing job proxy configuration")
-            << ex;
-    }
-
     auto environmentConfig = ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment);
     if (environmentConfig->Type == EJobEnvironmentType::Cgroups) {
         CGroupsConfig_ = ConvertTo<TCGroupJobEnvironmentConfigPtr>(Config_->JobEnvironment);
@@ -347,7 +340,7 @@ TJobResult TJobProxy::DoRun()
 
     LocalDescriptor_ = NNodeTrackerClient::TNodeDescriptor(Config_->Addresses, Config_->Rack, Config_->DataCenter);
 
-    RpcServer_ = CreateBusServer(CreateTcpBusServer(Config_->RpcServer));
+    RpcServer_ = CreateBusServer(CreateTcpBusServer(Config_->BusServer));
     RpcServer_->RegisterService(CreateJobProberService(this));
     RpcServer_->Start();
 

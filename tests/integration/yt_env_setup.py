@@ -38,12 +38,12 @@ def skip_if_multicell(func):
 
 def require_ytserver_root_privileges(func):
     def wrapped_func(self, *args, **kwargs):
-        ytserver_path = find_executable("ytserver")
-        ytserver_stat = os.stat(ytserver_path)
-        if (ytserver_stat.st_mode & stat.S_ISUID) == 0:
-            pytest.fail("This test requires a suid bit set for ytserver")
-        if ytserver_stat.st_uid != 0:
-            pytest.fail("This test requires ytserver being owned by root")
+        ytserver_node_path = find_executable("ytserver-node")
+        ytserver_node_stat = os.stat(ytserver_node_path)
+        if (ytserver_node_stat.st_mode & stat.S_ISUID) == 0:
+            pytest.fail("This test requires a suid bit set for \"ytserver-node\"")
+        if ytserver_node_stat.st_uid != 0:
+            pytest.fail("This test requires \"ytserver-node\" being owned by root")
         func(self, *args, **kwargs)
     return wrapped_func
 
@@ -214,6 +214,7 @@ class YTEnvSetup(object):
             cls.liveness_checker.stop()
 
         cls.Env.stop()
+        cls.Env.kill_cgroups()
         yt_commands.driver = None
         gc.collect()
 
@@ -428,9 +429,9 @@ class YTEnvSetup(object):
         yt_commands.remove("//sys/pools/*")
 
     def _find_ut_file(self, file_name):
-        ytserver_path = find_executable("ytserver")
-        assert ytserver_path is not None
-        unittests_path = os.path.join(os.path.dirname(ytserver_path), "..", "yt", "unittests")
+        unittester_path = find_executable("unittester")
+        assert unittester_path is not None
+        unittests_path = os.path.join(os.path.dirname(unittester_path), "..", "yt", "unittests")
         assert os.path.exists(unittests_path)
         result_path = os.path.join(unittests_path, file_name)
         assert os.path.exists(result_path)

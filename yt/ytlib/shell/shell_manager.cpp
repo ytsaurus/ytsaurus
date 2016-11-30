@@ -2,6 +2,8 @@
 #include "private.h"
 #include "config.h"
 
+#include <yt/server/program/names.h>
+
 #include <yt/ytlib/shell/shell.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
@@ -88,7 +90,7 @@ public:
         switch (parameters.Operation) {
             case EShellOperation::Spawn: {
                 auto options = std::make_unique<TShellOptions>();
-                options->ExePath = GetExecPath();
+                options->ExePath = ExecProgramName;
                 if (parameters.Term && !parameters.Term->empty()) {
                     options->Term = *parameters.Term;
                 }
