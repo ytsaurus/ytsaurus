@@ -4,7 +4,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
 import copy
-import random
+
 
 from time import sleep
 
@@ -12,17 +12,35 @@ from time import sleep
 
 class TestMedia(YTEnvSetup):
     NUM_MASTERS = 1
-    NUM_NODES = 20
+    NUM_NODES = 10
 
     REPLICATOR_REACTION_TIME = 3.5
 
     NON_DEFAULT_MEDIUM = "hdd2"
 
     @classmethod
+    def setup_class(cls, delayed_secondary_cells_start=False):
+        super(TestMedia, cls).setup_class()
+        disk_space_limit = get_account_disk_space_limit("tmp", "default")
+        set_account_disk_space_limit("tmp", disk_space_limit, TestMedia.NON_DEFAULT_MEDIUM)
+
+    @classmethod
     def modify_node_config(cls, config):
-        # Patch half of nodes to be configured with something other than default medium.
+        # Add second location with non-default medium to each node.
         assert len(config["data_node"]["store_locations"]) == 1
-        config["data_node"]["store_locations"][0]["medium_name"] = random.choice(("default", cls.NON_DEFAULT_MEDIUM))
+        location_prototype = config["data_node"]["store_locations"][0]
+
+        default_location = copy.deepcopy(location_prototype)
+        default_location["path"] += "_0";
+        default_location["medium_name"] = "default"
+
+        non_default_location = copy.deepcopy(location_prototype)
+        non_default_location["path"] += "_1";
+        non_default_location["medium_name"] = cls.NON_DEFAULT_MEDIUM
+
+        config["data_node"]["store_locations"] = []
+        config["data_node"]["store_locations"].append(default_location)
+        config["data_node"]["store_locations"].append(non_default_location)
 
     @classmethod
     def on_masters_started(cls):
@@ -34,12 +52,24 @@ class TestMedia(YTEnvSetup):
             create_medium("hdd" + str(medium_count))
             medium_count += 1
 
-    def _assert_all_chunks_on_nodes_with_medium(self, tbl, medium):
+    def _assert_all_chunks_on_medium(self, tbl, medium):
         chunk_ids = get("//tmp/{0}/@chunk_ids".format(tbl))
         for chunk_id in chunk_ids:
             replicas = get("#" + chunk_id + "/@stored_replicas")
             for replica in replicas:
                 assert replica.attributes["medium"] == medium
+
+    def _count_chunks_on_medium(self, tbl, medium):
+        chunk_count = 0
+        chunk_ids = get("//tmp/{0}/@chunk_ids".format(tbl))
+        for chunk_id in chunk_ids:
+            replicas = get("#" + chunk_id + "/@stored_replicas")
+            for replica in replicas:
+                if replica.attributes["medium"] == medium:
+                    chunk_count += 1
+
+        return chunk_count
+
 
     def test_default_store_medium_name(self):
         assert get("//sys/media/default/@name") == "default"
@@ -113,18 +143,23 @@ class TestMedia(YTEnvSetup):
         write_table("//tmp/t2", {"a" : "b"})
 
         tbl_media = get("//tmp/t2/@media")
-        tbl_media["hdd6"] = {"replication_factor": 7, "data_parts_only": False}
+        tbl_media[TestMedia.NON_DEFAULT_MEDIUM] = {"replication_factor": 7, "data_parts_only": False}
 
         set("//tmp/t2/@media", tbl_media)
 
         tbl_media = get("//tmp/t2/@media")
-        assert tbl_media["hdd6"]["replication_factor"] == 7
-        assert not tbl_media["hdd6"]["data_parts_only"]
+        assert tbl_media[TestMedia.NON_DEFAULT_MEDIUM]["replication_factor"] == 7
+        assert not tbl_media[TestMedia.NON_DEFAULT_MEDIUM]["data_parts_only"]
 
-        set("//tmp/t2/@primary_medium", "hdd6")
+        set("//tmp/t2/@primary_medium", TestMedia.NON_DEFAULT_MEDIUM)
 
-        assert get("//tmp/t2/@primary_medium") == "hdd6"
+        assert get("//tmp/t2/@primary_medium") == TestMedia.NON_DEFAULT_MEDIUM
         assert get("//tmp/t2/@replication_factor") == 7
+
+        sleep(TestMedia.REPLICATOR_REACTION_TIME)
+
+        assert self._count_chunks_on_medium("t2", "default") == 3
+        assert self._count_chunks_on_medium("t2", TestMedia.NON_DEFAULT_MEDIUM) == 7
 
     def test_move_between_media(self):
         self._ensure_max_num_of_media_created()
@@ -151,7 +186,7 @@ class TestMedia(YTEnvSetup):
 
         sleep(TestMedia.REPLICATOR_REACTION_TIME)
 
-        self._assert_all_chunks_on_nodes_with_medium("t3", TestMedia.NON_DEFAULT_MEDIUM)
+        self._assert_all_chunks_on_medium("t3", TestMedia.NON_DEFAULT_MEDIUM)
 
     def test_move_between_media_shortcut(self):
         self._ensure_max_num_of_media_created()
@@ -172,7 +207,7 @@ class TestMedia(YTEnvSetup):
 
         sleep(TestMedia.REPLICATOR_REACTION_TIME)
 
-        self._assert_all_chunks_on_nodes_with_medium("t4", TestMedia.NON_DEFAULT_MEDIUM)
+        self._assert_all_chunks_on_medium("t4", TestMedia.NON_DEFAULT_MEDIUM)
 
     def test_assign_empty_medium_fails(self):
         create("table", "//tmp/t5")
@@ -184,23 +219,23 @@ class TestMedia(YTEnvSetup):
         partity_loss_tbl_media = {"default": {"replication_factor": 3, "data_parts_only": True}}
         with pytest.raises(YtError): set("//tmp/t5/@media", partity_loss_tbl_media)
 
-    # def test_write_to_non_default_medium(self):
-    #     create("table", "//tmp/t6")
-    #     # Move table into non-default medium.
-    #     set("//tmp/t6/@primary_medium", TestMedia.NON_DEFAULT_MEDIUM)
-    #     write_table("<append=true>//tmp/t6", {"a" : "b"}, table_writer={"medium_name": TestMedia.NON_DEFAULT_MEDIUM})
-    #     self._assert_all_chunks_on_nodes_with_medium("t6", TestMedia.NON_DEFAULT_MEDIUM)
+    def test_write_to_non_default_medium(self):
+        create("table", "//tmp/t6")
+        # Move table into non-default medium.
+        set("//tmp/t6/@primary_medium", TestMedia.NON_DEFAULT_MEDIUM)
+        write_table("<append=true>//tmp/t6", {"a" : "b"}, table_writer={"medium_name": TestMedia.NON_DEFAULT_MEDIUM})
+        self._assert_all_chunks_on_medium("t6", TestMedia.NON_DEFAULT_MEDIUM)
 
     def test_chunks_inherit_properties(self):
         self._ensure_max_num_of_media_created()
 
-        create("table", "//tmp/t2")
-        write_table("//tmp/t2", {"a" : "b"})
+        create("table", "//tmp/t7")
+        write_table("//tmp/t7", {"a" : "b"})
 
-        tbl_media_1 = get("//tmp/t2/@media")
-        tbl_vital_1 = get("//tmp/t2/@vital")
+        tbl_media_1 = get("//tmp/t7/@media")
+        tbl_vital_1 = get("//tmp/t7/@vital")
 
-        chunk_ids = get("//tmp/t2/@chunk_ids")
+        chunk_ids = get("//tmp/t7/@chunk_ids")
         assert len(chunk_ids) == 1
         chunk_id = chunk_ids[0]
 
@@ -215,11 +250,11 @@ class TestMedia(YTEnvSetup):
         tbl_vital_2 = not tbl_vital_1
         tbl_media_2["hdd6"] = {"replication_factor": 7, "data_parts_only": True}
 
-        set("//tmp/t2/@media", tbl_media_2)
-        set("//tmp/t2/@vital", tbl_vital_2)
+        set("//tmp/t7/@media", tbl_media_2)
+        set("//tmp/t7/@vital", tbl_vital_2)
 
-        assert tbl_media_2 == get("//tmp/t2/@media")
-        assert tbl_vital_2 == get("//tmp/t2/@vital")
+        assert tbl_media_2 == get("//tmp/t7/@media")
+        assert tbl_vital_2 == get("//tmp/t7/@vital")
 
         chunk_media_2 = copy.deepcopy(tbl_media_2)
         chunk_vital_2 = tbl_vital_2
@@ -231,6 +266,53 @@ class TestMedia(YTEnvSetup):
 
     def test_no_create_cache_media(self):
         with pytest.raises(YtError): create_medium("new_cache", attributes={"cache": True})
+
+    def test_chunks_intersecting_by_nodes(self):
+        self._ensure_max_num_of_media_created()
+
+        create("table", "//tmp/t8")
+        write_table("//tmp/t8", {"a" : "b"})
+
+        tbl_media = get("//tmp/t8/@media")
+        # Forcing chunks to be placed on twice on one node (once for each medium) by making
+        # replication factor equal to the number of nodes.
+        tbl_media["default"]["replication_factor"] = TestMedia.NUM_NODES
+        tbl_media[TestMedia.NON_DEFAULT_MEDIUM] = {"replication_factor": TestMedia.NUM_NODES, "data_parts_only": False}
+
+        set("//tmp/t8/@media", tbl_media)
+
+        assert get("//tmp/t8/@replication_factor") == TestMedia.NUM_NODES
+        assert get("//tmp/t8/@media/default/replication_factor") == TestMedia.NUM_NODES
+        assert get("//tmp/t8/@media/{}/replication_factor".format(TestMedia.NON_DEFAULT_MEDIUM)) == TestMedia.NUM_NODES
+
+        sleep(60.0)
+
+        assert self._count_chunks_on_medium("t8", "default") == TestMedia.NUM_NODES
+        assert self._count_chunks_on_medium("t8", TestMedia.NON_DEFAULT_MEDIUM) == TestMedia.NUM_NODES
+
+    def test_default_media_priorities(self):
+        assert get("//sys/media/default/@priority") == 0
+        assert get("//sys/media/cache/@priority") == 0
+
+    def test_new_medium_default_priority(self):
+        self._ensure_max_num_of_media_created()
+        assert get("//sys/media/{}/@priority".format(TestMedia.NON_DEFAULT_MEDIUM)) == 0
+
+    def test_set_medium_priority(self):
+        self._ensure_max_num_of_media_created()
+        assert get("//sys/media/hdd4/@priority") == 0
+        set("//sys/media/hdd4/@priority", 7)
+        assert get("//sys/media/hdd4/@priority") == 7
+        set("//sys/media/hdd4/@priority", 10)
+        assert get("//sys/media/hdd4/@priority") == 10
+        set("//sys/media/hdd4/@priority", 0)
+        assert get("//sys/media/hdd4/@priority") == 0
+
+    def test_set_incorrect_medium_priority(self):
+        self._ensure_max_num_of_media_created()
+        assert get("//sys/media/hdd5/@priority") == 0
+        with pytest.raises(YtError): set("//sys/media/hdd5/@priority", 11)
+        with pytest.raises(YtError): set("//sys/media/hdd5/@priority", -1)
 
 ################################################################################
 

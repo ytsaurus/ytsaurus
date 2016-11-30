@@ -35,22 +35,6 @@ static TSimpleCounter DiskBlobWriteByteCounter("/disk_blob_write_bytes");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBlobSession::TBlobSession(
-    TDataNodeConfigPtr config,
-    TBootstrap* bootstrap,
-    const TChunkId& chunkId,
-    const TSessionOptions& options,
-    TStoreLocationPtr location,
-    TLease lease)
-    : TSessionBase(
-        config,
-        bootstrap,
-        chunkId,
-        options,
-        location,
-        lease)
-{ }
-
 TFuture<void> TBlobSession::DoStart()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -70,12 +54,12 @@ TFuture<IChunkPtr> TBlobSession::DoFinish(
 
     if (!blockCount) {
         THROW_ERROR_EXCEPTION("Attempt to finish a blob session %v without specifying block count",
-            ChunkId_);
+            SessionId_);
     }
 
     if (*blockCount != BlockCount_) {
         THROW_ERROR_EXCEPTION("Block count mismatch in blob session %v: expected %v, got %v",
-            ChunkId_,
+            SessionId_,
             BlockCount_,
             *blockCount);
     }
@@ -86,7 +70,7 @@ TFuture<IChunkPtr> TBlobSession::DoFinish(
             THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::WindowError,
                 "Attempt to finish a session with an unflushed block %v:%v",
-                ChunkId_,
+                GetChunkId(),
                 blockIndex);
         }
     }
@@ -134,7 +118,7 @@ TFuture<void> TBlobSession::DoPutBlocks(
     for (int localIndex = 0; localIndex < static_cast<int>(blocks.size()); ++localIndex) {
         int blockIndex = startBlockIndex + localIndex;
         const auto& block = blocks[localIndex];
-        TBlockId blockId(ChunkId_, blockIndex);
+        TBlockId blockId(GetChunkId(), blockIndex);
         ValidateBlockIsInWindow(blockIndex);
 
         if (!Location_->HasEnoughSpace(block.Size())) {
@@ -153,7 +137,7 @@ TFuture<void> TBlobSession::DoPutBlocks(
             return MakeFuture(TError(
                 NChunkClient::EErrorCode::BlockContentMismatch,
                 "Block %v:%v with a different content already received",
-                ChunkId_,
+                GetChunkId(),
                 blockIndex)
                 << TErrorAttribute("window_start", WindowStartBlockIndex_));
         }
@@ -207,8 +191,8 @@ TFuture<void> TBlobSession::DoPutBlocks(
 
     auto netThrottler = Bootstrap_->GetInThrottler(Options_.WorkloadDescriptor);
     auto diskThrottler = Location_->GetInThrottler(Options_.WorkloadDescriptor);
-    return Combine(std::vector<TFuture<void>>({ 
-        netThrottler->Throttle(totalSize), 
+    return Combine(std::vector<TFuture<void>>({
+        netThrottler->Throttle(totalSize),
         diskThrottler->Throttle(totalSize) }));
 }
 
@@ -221,7 +205,7 @@ TFuture<void> TBlobSession::DoSendBlocks(
     proxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
 
     auto req = proxy.PutBlocks();
-    ToProto(req->mutable_chunk_id(), ChunkId_);
+    ToProto(req->mutable_session_id(), SessionId_);
     req->set_first_block_index(firstBlockIndex);
 
     i64 requestSize = 0;
@@ -255,7 +239,7 @@ void TBlobSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
             Y_UNREACHABLE();
         }
     } catch (const std::exception& ex) {
-        TBlockId blockId(ChunkId_, blockIndex);
+        TBlockId blockId(GetChunkId(), blockIndex);
         SetFailed(TError(
             NChunkClient::EErrorCode::IOError,
             "Error writing chunk block %v",
@@ -302,7 +286,7 @@ TFuture<void> TBlobSession::DoFlushBlocks(int blockIndex)
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::WindowError,
             "Attempt to flush an unreceived block %v:%v",
-            ChunkId_,
+            GetChunkId(),
             blockIndex);
     }
 
@@ -337,8 +321,8 @@ void TBlobSession::DoOpenWriter()
 
     PROFILE_TIMING ("/blob_chunk_open_time") {
         try {
-            auto fileName = Location_->GetChunkPath(ChunkId_);
-            Writer_ = New<TFileWriter>(ChunkId_, fileName, Options_.SyncOnClose);
+            auto fileName = Location_->GetChunkPath(GetChunkId());
+            Writer_ = New<TFileWriter>(GetChunkId(), fileName, Options_.SyncOnClose);
             // File writer opens synchronously.
             Writer_->Open()
                 .Get()
@@ -348,7 +332,7 @@ void TBlobSession::DoOpenWriter()
             SetFailed(TError(
                 NChunkClient::EErrorCode::IOError,
                 "Error creating chunk %v",
-                ChunkId_)
+                SessionId_)
                 << ex);
             return;
         }
@@ -381,7 +365,7 @@ void TBlobSession::DoAbortWriter()
             SetFailed(TError(
                 NChunkClient::EErrorCode::IOError,
                 "Error aborting chunk %v",
-                ChunkId_)
+                SessionId_)
                 << ex);
         }
         Writer_.Reset();
@@ -430,7 +414,7 @@ void TBlobSession::DoCloseWriter(const TChunkMeta& chunkMeta)
             SetFailed(TError(
                 NChunkClient::EErrorCode::IOError,
                 "Error closing chunk %v",
-                ChunkId_)
+                SessionId_)
                 << ex);
         }
     }
@@ -453,7 +437,7 @@ IChunkPtr TBlobSession::OnWriterClosed(const TError& error)
     }
 
     TChunkDescriptor descriptor;
-    descriptor.Id = ChunkId_;
+    descriptor.Id = GetChunkId();
     descriptor.DiskSpace = Writer_->GetChunkInfo().disk_space();
     auto chunk = New<TStoredBlobChunk>(
         Bootstrap_,
@@ -503,7 +487,7 @@ void TBlobSession::ValidateBlockIsInWindow(int blockIndex)
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::WindowError,
             "Block %v:%v is out of the window",
-            ChunkId_,
+            GetChunkId(),
             blockIndex);
     }
 }
@@ -536,7 +520,7 @@ TSharedRef TBlobSession::GetBlock(int blockIndex)
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::WindowError,
             "Trying to retrieve a block %v:%v that is not received yet",
-            ChunkId_,
+            GetChunkId(),
             blockIndex);
     }
 

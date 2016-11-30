@@ -77,6 +77,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/replication_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/schema.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/schema.proto
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/session_id.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/block_fetcher.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/throttler_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/heartbeat.proto

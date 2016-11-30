@@ -59,30 +59,67 @@ TSessionManager::TSessionManager(
     }
 }
 
-ISessionPtr TSessionManager::FindSession(const TChunkId& chunkId)
+ISessionPtr TSessionManager::FindSession(const TSessionId& sessionId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    auto it = SessionMap_.find(chunkId);
+    YCHECK(sessionId.MediumIndex != AllMediaIndex);
+
+    auto it = SessionMap_.find(sessionId);
     return it == SessionMap_.end() ? nullptr : it->second;
 }
 
-ISessionPtr TSessionManager::GetSession(const TChunkId& chunkId)
+ISessionPtr TSessionManager::GetSession(const TSessionId& sessionId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    auto session = FindSession(chunkId);
+    auto session = FindSession(sessionId);
     if (!session) {
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::NoSuchSession,
             "Session %v is invalid or expired",
-            chunkId);
+            sessionId);
     }
     return session;
 }
 
+TSessionManager::TSessionPtrList TSessionManager::FindSessions(const TSessionId& sessionId)
+{
+    TSessionPtrList result;
+
+    if (sessionId.MediumIndex != AllMediaIndex) {
+        auto session = FindSession(sessionId);
+        if (session) {
+            result.emplace_back(std::move(session));
+        }
+    } else {
+        const auto& chunkId = sessionId.ChunkId;
+
+        for (int mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
+            auto session = FindSession(TSessionId(chunkId, mediumIndex));
+            if (session) {
+                result.emplace_back(std::move(session));
+            }
+        }
+    }
+
+    return result;
+}
+
+TSessionManager::TSessionPtrList TSessionManager::GetSessions(const TSessionId& sessionId)
+{
+    auto result = FindSessions(sessionId);
+    if (result.empty()) {
+       THROW_ERROR_EXCEPTION(
+            NChunkClient::EErrorCode::NoSuchSession,
+            "Session %v is invalid or expired",
+            sessionId);
+    }
+    return result;
+}
+
 ISessionPtr TSessionManager::StartSession(
-    const TChunkId& chunkId,
+    const TSessionId& sessionId,
     const TSessionOptions& options)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -93,8 +130,8 @@ ISessionPtr TSessionManager::StartSession(
         LOG_ERROR(error);
         THROW_ERROR(error);
     }
-    
-    auto session = CreateSession(chunkId, options);
+
+    auto session = CreateSession(sessionId, options);
 
     session->SubscribeFinished(
         BIND(&TSessionManager::OnSessionFinished, MakeStrong(this), Unretained(session.Get()))
@@ -106,17 +143,17 @@ ISessionPtr TSessionManager::StartSession(
 }
 
 ISessionPtr TSessionManager::CreateSession(
-    const TChunkId& chunkId,
+    const TSessionId& sessionId,
     const TSessionOptions& options)
 {
-    auto chunkType = TypeFromId(DecodeChunkId(chunkId).Id);
+    auto chunkType = TypeFromId(DecodeChunkId(sessionId.ChunkId).Id);
 
     auto chunkStore = Bootstrap_->GetChunkStore();
-    auto location = chunkStore->GetNewChunkLocation(chunkId, options);
+    auto location = chunkStore->GetNewChunkLocation(sessionId, options);
 
     auto lease = TLeaseManager::CreateLease(
         Config_->SessionTimeout,
-        BIND(&TSessionManager::OnSessionLeaseExpired, MakeStrong(this), chunkId)
+        BIND(&TSessionManager::OnSessionLeaseExpired, MakeStrong(this), sessionId)
             .Via(Bootstrap_->GetControlInvoker()));
 
     ISessionPtr session;
@@ -126,7 +163,7 @@ ISessionPtr TSessionManager::CreateSession(
             session = New<TBlobSession>(
                 Config_,
                 Bootstrap_,
-                chunkId,
+                sessionId,
                 options,
                 location,
                 lease);
@@ -136,7 +173,7 @@ ISessionPtr TSessionManager::CreateSession(
             session = New<TJournalSession>(
                 Config_,
                 Bootstrap_,
-                chunkId,
+                sessionId,
                 options,
                 location,
                 lease);
@@ -150,16 +187,16 @@ ISessionPtr TSessionManager::CreateSession(
     return session;
 }
 
-void TSessionManager::OnSessionLeaseExpired(const TChunkId& chunkId)
+void TSessionManager::OnSessionLeaseExpired(const TSessionId& sessionId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    auto session = FindSession(chunkId);
+    auto session = FindSession(sessionId);
     if (!session)
         return;
 
-    LOG_INFO("Session lease expired (ChunkId: %v)",
-        chunkId);
+    LOG_INFO("Session lease expired (SessionId: %v)",
+        sessionId);
 
     session->Cancel(TError("Session lease expired"));
 }
@@ -168,8 +205,8 @@ void TSessionManager::OnSessionFinished(ISession* session, const TError& /*error
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    LOG_INFO("Session finished (ChunkId: %v)",
-        session->GetChunkId());
+    LOG_INFO("Session finished (SessionId: %v)",
+        session->GetId());
 
     UnregisterSession(session);
 }
@@ -184,13 +221,13 @@ int TSessionManager::GetSessionCount(ESessionType type)
 void TSessionManager::RegisterSession(ISessionPtr session)
 {
     Profiler.Increment(PerTypeSessionCounters_[session->GetType()], +1);
-    YCHECK(SessionMap_.insert(std::make_pair(session->GetChunkId(), session)).second);
+    YCHECK(SessionMap_.insert(std::make_pair(session->GetId(), session)).second);
 }
 
 void TSessionManager::UnregisterSession(ISessionPtr session)
 {
     Profiler.Increment(PerTypeSessionCounters_[session->GetType()], -1);
-    YCHECK(SessionMap_.erase(session->GetChunkId()) == 1);
+    YCHECK(SessionMap_.erase(session->GetId()) == 1);
 }
 
 std::vector<ISessionPtr> TSessionManager::GetSessions()

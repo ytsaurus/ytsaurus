@@ -75,22 +75,6 @@ void TChunkStore::Initialize()
         GetChunkCount());
 }
 
-void TChunkStore::SetMediumIndexes(const yhash_map<Stroka, int>& mediumNameToIndex)
-{
-    for (const auto& location : Locations_) {
-        auto mediumName = location->GetMediumName();
-        auto it = mediumNameToIndex.find(mediumName);
-        if (it == mediumNameToIndex.end()) {
-            THROW_ERROR_EXCEPTION(
-                "Location %v is configured with medium %Qv, but no such medium is known at master",
-                location->GetId(),
-                mediumName);
-        }
-
-        location->SetMediumIndex(it->second);
-    }
-}
-
 void TChunkStore::RegisterNewChunk(IChunkPtr chunk)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -101,20 +85,137 @@ void TChunkStore::RegisterNewChunk(IChunkPtr chunk)
     if (!location->IsEnabled())
         return;
 
+    auto oldChunk = FindExistingChunk(chunk).Chunk;
+
+    LOG_FATAL_IF(
+        oldChunk,
+        "Duplicate chunk: %v vs %v",
+        chunk->GetLocation()->GetChunkPath(chunk->GetId()),
+        oldChunk->GetLocation()->GetChunkPath(oldChunk->GetId()));
+
     auto entry = BuildEntry(chunk);
 
     {
         TWriterGuard guard(ChunkMapLock_);
-        auto result = ChunkMap_.insert(std::make_pair(chunk->GetId(), entry));
-        if (!result.second) {
-            auto oldChunk = result.first->second.Chunk;
-            LOG_FATAL("Duplicate chunk: %v vs %v",
-                chunk->GetLocation()->GetChunkPath(chunk->GetId()),
-                oldChunk->GetLocation()->GetChunkPath(oldChunk->GetId()));
+        ChunkMap_.emplace(chunk->GetId(), entry);
+    }
+
+    DoRegisterChunk(chunk);
+}
+
+TChunkStore::TChunkEntry TChunkStore::FindExistingChunk(IChunkPtr chunk) const
+{
+    TReaderGuard guard(ChunkMapLock_);
+
+    auto itRange = ChunkMap_.equal_range(chunk->GetId());
+    if (itRange.first == itRange.second) {
+        return {};
+    }
+
+    const auto& mediumName = chunk->GetLocation()->GetMediumName();
+
+    // Do not convert medium names to indexes here. Name-to-index mapping may
+    // not be available because this method is called before the node is
+    // registered at master.
+    for (auto it = itRange.first; it != itRange.second; ++it) {
+        if (it->second.Chunk->GetLocation()->GetMediumName() == mediumName) {
+            return it->second;
         }
     }
 
-    DoRegisterChunk(entry);
+    return {};
+}
+
+IChunkPtr TChunkStore::FindChunk(const TChunkId& chunkId, int mediumIndex) const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TReaderGuard guard(ChunkMapLock_);
+
+    auto itRange = ChunkMap_.equal_range(chunkId);
+    if (itRange.first == itRange.second) {
+        return nullptr;
+    }
+
+    if (mediumIndex == AllMediaIndex) {
+        auto masterConnector = Bootstrap_->GetMasterConnector();
+
+        // Find chunk copy on a medium with the highest priority.
+        auto resultIt = std::max_element(
+            itRange.first,
+            itRange.second,
+            [=] (const TChunkIdEntryPair& lhs, const TChunkIdEntryPair& rhs) {
+                return masterConnector->GetChunkMediumPriorityOrThrow(lhs.second.Chunk) <
+                       masterConnector->GetChunkMediumPriorityOrThrow(rhs.second.Chunk);
+            });
+
+        return resultIt->second.Chunk;
+    }
+
+    for (auto it = itRange.first; it != itRange.second; ++it) {
+        if (GetChunkMediumIndexOrThrow(it->second.Chunk) == mediumIndex) {
+            return it->second.Chunk;
+        }
+    }
+
+    return nullptr;
+}
+
+TChunkStore::TChunkEntry TChunkStore::DoUpdateChunk(IChunkPtr oldChunk, IChunkPtr newChunk)
+{
+    Y_ASSERT(oldChunk->GetId() == newChunk->GetId());
+    Y_ASSERT(GetChunkMediumIndexOrThrow(oldChunk) == GetChunkMediumIndexOrThrow(newChunk));
+
+    auto itRange = ChunkMap_.equal_range(oldChunk->GetId());
+    YCHECK(itRange.first != itRange.second);
+
+    auto it = std::find_if(
+        itRange.first,
+        itRange.second,
+        [=] (const TChunkIdEntryPair& pair) {
+            return pair.second.Chunk == oldChunk;
+        });
+
+    YCHECK(it != itRange.second);
+
+    it->second = BuildEntry(newChunk);
+
+    return it->second;
+}
+
+TChunkStore::TChunkEntry TChunkStore::DoEraseChunk(IChunkPtr chunk)
+{
+    auto itRange = ChunkMap_.equal_range(chunk->GetId());
+    if (itRange.first == itRange.second) {
+        return {};
+    }
+
+    auto it = std::find_if(
+        itRange.first,
+        itRange.second,
+        [=] (const TChunkIdEntryPair& pair) {
+            return pair.second.Chunk == chunk;
+        });
+
+    if (it == itRange.second) {
+        return {};
+    }
+
+    auto result = it->second;
+    ChunkMap_.erase(it);
+    return result;
+}
+
+int TChunkStore::GetChunkMediumIndexOrThrow(IChunkPtr chunk) const
+{
+    auto masterConnector = Bootstrap_->GetMasterConnector();
+    return masterConnector->GetChunkMediumIndexOrThrow(chunk);
+}
+
+int TChunkStore::GetLocationMediumIndexOrThrow(TLocationPtr location) const
+{
+    auto masterConnector = Bootstrap_->GetMasterConnector();
+    return masterConnector->GetLocationMediumIndexOrThrow(location);
 }
 
 void TChunkStore::RegisterExistingChunk(IChunkPtr chunk)
@@ -123,9 +224,9 @@ void TChunkStore::RegisterExistingChunk(IChunkPtr chunk)
     YCHECK(chunk->GetLocation()->IsEnabled());
 
     bool doRegister = true;
-    auto it = ChunkMap_.find(chunk->GetId());
-    if (it != ChunkMap_.end()) {
-        auto oldChunk = it->second.Chunk;
+
+    auto oldChunk = FindExistingChunk(chunk).Chunk;
+    if (oldChunk) {
         auto oldPath = oldChunk->GetLocation()->GetChunkPath(oldChunk->GetId());
         auto currentPath = chunk->GetLocation()->GetChunkPath(chunk->GetId());
 
@@ -187,20 +288,20 @@ void TChunkStore::RegisterExistingChunk(IChunkPtr chunk)
         auto entry = BuildEntry(chunk);
         {
             TWriterGuard guard(ChunkMapLock_);
-            YCHECK(ChunkMap_.insert(std::make_pair(chunk->GetId(), entry)).second);
+            ChunkMap_.emplace(chunk->GetId(), entry);
         }
-        DoRegisterChunk(entry);
+        DoRegisterChunk(chunk);
     }
 }
 
-void TChunkStore::DoRegisterChunk(const TChunkEntry& entry)
+void TChunkStore::DoRegisterChunk(const IChunkPtr& chunk)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    auto chunk = entry.Chunk;
+    auto diskSpace = chunk->GetInfo().disk_space();
     auto location = chunk->GetLocation();
     location->UpdateChunkCount(+1);
-    location->UpdateUsedSpace(+entry.DiskSpace);
+    location->UpdateUsedSpace(+diskSpace);
 
     switch (TypeFromId(DecodeChunkId(chunk->GetId()).Id)) {
         case EObjectType::Chunk:
@@ -208,7 +309,7 @@ void TChunkStore::DoRegisterChunk(const TChunkEntry& entry)
             LOG_DEBUG("Blob chunk registered (ChunkId: %v, LocationId: %v, DiskSpace: %v)",
                 chunk->GetId(),
                 location->GetId(),
-                entry.DiskSpace);
+                diskSpace);
             break;
 
         case EObjectType::JournalChunk:
@@ -237,15 +338,14 @@ void TChunkStore::UpdateExistingChunk(IChunkPtr chunk)
 
     chunk->IncrementVersion();
 
-    auto it = ChunkMap_.find(chunk->GetId());
-    YCHECK(it != ChunkMap_.end());
-    auto& entry = it->second;
+    auto oldChunkEntry = FindExistingChunk(chunk);
+    YCHECK(oldChunkEntry.Chunk);
+    location->UpdateUsedSpace(-oldChunkEntry.DiskSpace);
 
-    location->UpdateUsedSpace(-entry.DiskSpace);
+    // TODO(shakurov): shouldn't we be write-locking ChunkMap_ here?
+    auto newChunkEntry = DoUpdateChunk(oldChunkEntry.Chunk, chunk);
 
-    entry = BuildEntry(chunk);
-
-    location->UpdateUsedSpace(+entry.DiskSpace);
+    location->UpdateUsedSpace(+newChunkEntry.DiskSpace);
 
     switch (chunk->GetType()) {
         case EObjectType::JournalChunk: {
@@ -273,24 +373,22 @@ void TChunkStore::UnregisterChunk(IChunkPtr chunk)
     if (!location->IsEnabled())
         return;
 
-    auto it = ChunkMap_.find(chunk->GetId());
-    // NB: Concurrent chunk removals are possible.
-    if (it == ChunkMap_.end())
-        return;
-
-    const auto& entry = it->second;
+    TChunkEntry entry;
+    {
+        TWriterGuard guard(ChunkMapLock_);
+        entry = DoEraseChunk(chunk);
+        // NB: Concurrent chunk removals are possible.
+        if (!entry.Chunk) {
+            return;
+        }
+        chunk->SetDead();
+    }
 
     location->UpdateChunkCount(-1);
     location->UpdateUsedSpace(-entry.DiskSpace);
 
-    {
-        TWriterGuard guard(ChunkMapLock_);
-        chunk->SetDead();
-        ChunkMap_.erase(it);
-    }
-
-    LOG_DEBUG("Chunk unregistered (ChunkId: %v)",
-        chunk->GetId());
+    LOG_DEBUG("Chunk unregistered (ChunkId: %v, LocationId: %v)",
+        chunk->GetId(), location->GetId());
 
     ChunkRemoved_.Fire(chunk);
 }
@@ -303,20 +401,11 @@ TChunkStore::TChunkEntry TChunkStore::BuildEntry(IChunkPtr chunk)
     return result;
 }
 
-IChunkPtr TChunkStore::FindChunk(const TChunkId& chunkId) const
+IChunkPtr TChunkStore::GetChunkOrThrow(const TChunkId& chunkId, int mediumIndex) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TReaderGuard guard(ChunkMapLock_);
-    auto it = ChunkMap_.find(chunkId);
-    return it == ChunkMap_.end() ? nullptr : it->second.Chunk;
-}
-
-IChunkPtr TChunkStore::GetChunkOrThrow(const TChunkId& chunkId) const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    auto chunk = FindChunk(chunkId);
+    auto chunk = FindChunk(chunkId, mediumIndex);
     if (!chunk) {
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::NoSuchChunk,
@@ -353,7 +442,9 @@ TFuture<void> TChunkStore::RemoveChunk(IChunkPtr chunk)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     auto sessionManager = Bootstrap_->GetSessionManager();
-    auto session = sessionManager->FindSession(chunk->GetId());
+
+    auto sessionId = TSessionId(chunk->GetId(), GetLocationMediumIndexOrThrow(chunk->GetLocation()));
+    auto session = sessionManager->FindSession(sessionId);
     if (session) {
         // NB: Cannot remove the chunk while there's a corresponding session for it.
         // Must wait for the session cancelation (which is an asynchronous process).
@@ -369,20 +460,21 @@ TFuture<void> TChunkStore::RemoveChunk(IChunkPtr chunk)
 }
 
 TStoreLocationPtr TChunkStore::GetNewChunkLocation(
-    const TChunkId& chunkId,
+    const TSessionId& sessionId,
     const TSessionOptions& options)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     ExpirePlacementInfos();
 
+    const auto& chunkId = sessionId.ChunkId;
     auto chunkType = TypeFromId(DecodeChunkId(chunkId).Id);
 
     std::vector<int> candidates;
     int minCount = std::numeric_limits<int>::max();
     for (int index = 0; index < static_cast<int>(Locations_.size()); ++index) {
         const auto& location = Locations_[index];
-        if (!CanStartNewSession(location, chunkType, options.WorkloadDescriptor)) {
+        if (!CanStartNewSession(location, chunkType, sessionId.MediumIndex, options.WorkloadDescriptor)) {
             continue;
         }
         if (options.PlacementId) {
@@ -417,14 +509,14 @@ TStoreLocationPtr TChunkStore::GetNewChunkLocation(
             }
         } while (std::find(candidates.begin(), candidates.end(), currentIndex) == candidates.end());
         result = Locations_[currentIndex];
-        LOG_DEBUG("Next round-robin location is chosen for chunk (PlacementId: %v, ChunkId: %v, LocationId: %v)",
+        LOG_DEBUG("Next round-robin location is chosen for chunk (PlacementId: %v, SessionId: %v, LocationId: %v)",
             options.PlacementId,
-            chunkId,
+            sessionId,
             result->GetId());
     } else {
         result = Locations_[candidates[RandomNumber(candidates.size())]];
-        LOG_DEBUG("Random location is chosen for chunk (ChunkId: %v, LocationId: %v)",
-            chunkId,
+        LOG_DEBUG("Random location is chosen for chunk (SessionId: %v, LocationId: %v)",
+            sessionId,
             result->GetId());
     }
     return result;
@@ -433,6 +525,7 @@ TStoreLocationPtr TChunkStore::GetNewChunkLocation(
 bool TChunkStore::CanStartNewSession(
     const TStoreLocationPtr& location,
     EObjectType chunkType,
+    int mediumIndex,
     const TWorkloadDescriptor& workloadDescriptor)
 {
     if (!location->IsChunkTypeAccepted(chunkType)) {
@@ -440,6 +533,10 @@ bool TChunkStore::CanStartNewSession(
     }
 
     if (location->GetPendingIOSize(EIODirection::Write, workloadDescriptor) > Config_->DiskWriteThrottlingLimit) {
+        return false;
+    }
+
+    if (GetLocationMediumIndexOrThrow(location) != mediumIndex) {
         return false;
     }
 

@@ -51,6 +51,8 @@ extern const TChunkTreeId NullChunkTreeId;
 
 using TMediumId = NObjectClient::TObjectId;
 
+struct TSessionId;
+
 const int DefaultPartIndex = -1;
 
 const int MinReplicationFactor = 1;
@@ -72,6 +74,7 @@ constexpr int DefaultStoreMediumIndex = 0;
 constexpr int DefaultCacheMediumIndex = 1;
 extern const Stroka DefaultStoreMediumName;
 extern const Stroka DefaultCacheMediumName;
+constexpr int MaxMediumPriority = 10;
 
 const i64 DefaultMaxBlockSize = (i64) 16 * 1024 * 1024;;
 const int MaxInputChunkReplicaCount = 16;
