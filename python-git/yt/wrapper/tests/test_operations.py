@@ -890,8 +890,8 @@ print(op.id)
 
     def test_retrying_operation_count_limit_exceeded(self):
         # TODO(ignat): Rewrite test without sleeps.
-        old_value = yt.config["start_operation_retries"]["retry_timeout"]
-        yt.config["start_operation_retries"]["retry_timeout"] = 2000
+        old_value = yt.config["start_operation_request_timeout"]
+        yt.config["start_operation_request_timeout"] = 2000
 
         yt.create("map_node", "//sys/pools/with_operation_count_limit", attributes={"max_operation_count": 1})
         time.sleep(1)
@@ -921,7 +921,7 @@ print(op.id)
             assert time.time() - start_time > 10.0
 
         finally:
-            yt.config["start_operation_retries"]["retry_timeout"] = old_value
+            yt.config["start_operation_request_timeout"] = old_value
 
     @add_failed_operation_stderrs_to_error_message
     def test_reduce_key_modification(self):

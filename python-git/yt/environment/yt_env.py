@@ -630,7 +630,7 @@ class YTInstance(object):
                     client = self.create_client()
                 else:
                     client = self.create_native_client(master_name.replace("master", "driver"))
-                client.config["proxy"]["request_retry_enable"] = False
+                client.config["proxy"]["retries"]["enable"] = False
                 client.get("/")
                 return True
             except (requests.RequestException, YtError) as err:

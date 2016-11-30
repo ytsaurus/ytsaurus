@@ -454,7 +454,7 @@ class TestTableCommands(object):
         yt.create_table(table)
 
         self._set_banned("true")
-        with set_config_option("proxy/request_retry_count", 1,
+        with set_config_option("proxy/retries/count", 1,
                                final_action=lambda: self._set_banned("false")):
             with pytest.raises(yt.YtProxyUnavailable):
                 yt.get(table)

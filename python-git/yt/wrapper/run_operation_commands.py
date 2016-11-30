@@ -38,7 +38,9 @@ from . import py_wrapper
 from .table_helpers import _prepare_source_tables, _are_default_empty_table, _prepare_table_writer, _remove_tables
 from .common import flatten, require, unlist, update, parse_bool, is_prefix, get_value, \
                     compose, bool_to_string, get_started_by, MB, GB, \
-                    run_with_retries, forbidden_inside_job, get_disk_size, round_up_to, set_param
+                    forbidden_inside_job, get_disk_size, round_up_to, set_param, \
+                    remove_nones_from_dict
+from .retries import Retrier, build_backoff_config
 from .config import get_config
 from .cypress_commands import exists, remove, remove_with_empty_dirs, get_attribute, get, \
                               _make_formatted_transactional_request
@@ -798,21 +800,42 @@ def _add_job_io_spec(job_types, job_io, table_writer, spec):
             spec = update({job_type: job_io}, spec)
     return spec
 
+class OperationRequestRetrier(Retrier):
+    def __init__(self, command_name, spec, client=None):
+        self.command_name = command_name
+        self.spec = spec
+        self.client = client
+
+        backoff_config = get_config(client)["retry_backoff"]
+        retry_config = {
+            "enable": get_config(client)["start_operation_retries"]["enable"],
+            "count": get_config(client)["start_operation_retries"]["retry_count"],
+            "backoff": build_backoff_config(backoff_config)
+        }
+        retry_config = remove_nones_from_dict(retry_config)
+        retry_config = update(get_config(client)["start_operation_retries"], retry_config)
+        timeout = get_value(get_config(client)["start_operation_retries"]["retry_timeout"],
+                            get_config(client)["start_operation_request_timeout"])
+
+        super(OperationRequestRetrier, self).__init__(retry_config=retry_config,
+                                                      timeout=timeout,
+                                                      exceptions=(YtConcurrentOperationsLimitExceeded,))
+
+    def action(self):
+        return _make_formatted_transactional_request(self.command_name, {"spec": self.spec}, format=None,
+                                                     client=self.client)
+
+    def backoff_action(self, iter_number, sleep_backoff):
+        logger.warning("Failed to start operation since concurrent operation limit exceeded. "
+                       "Sleep for %.2lf seconds before next (%d) retry.",
+                       sleep_backoff, iter_number)
+        time.sleep(sleep_backoff)
 
 def _make_operation_request(command_name, spec, sync,
                             finalizer=None, client=None):
     def _manage_operation(finalizer):
-        def log_backoff_message(error, iter_number, sleep_backoff):
-            logger.warning("Failed to start operation since concurrent operation limit exceeded. "
-                           "Sleep for %.2lf seconds before next (%d) retry.",
-                           sleep_backoff, iter_number)
-        operation_id = run_with_retries(
-            action=lambda: _make_formatted_transactional_request(command_name, {"spec": spec}, format=None, client=client),
-            retry_count=get_config(client)["start_operation_retries"]["retry_count"],
-            backoff=get_config(client)["start_operation_retries"]["retry_timeout"] / 1000.0,
-            backoff_action=log_backoff_message,
-            exceptions=(YtConcurrentOperationsLimitExceeded,))
-
+        retrier = OperationRequestRetrier(command_name=command_name, spec=spec, client=client)
+        operation_id = retrier.run()
         operation = Operation(command_name, operation_id, finalize=finalizer, client=client)
 
         if operation.url:

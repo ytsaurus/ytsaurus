@@ -1,5 +1,4 @@
 """Some common useful misc"""
-
 from yt.common import require, flatten, update, which, YtError, update_from_env, \
                       unlist, get_value, filter_dict, date_string_to_timestamp, datetime_to_string
 import yt.yson as yson
@@ -10,14 +9,14 @@ from yt.packages.six.moves import xrange, map as imap, filter as ifilter
 
 import os
 import sys
-import inspect
 import socket
 import getpass
 import argparse
 import platform
 import random
-import time
-from datetime import datetime
+import copy
+
+from collections import Mapping
 from itertools import chain
 from functools import reduce
 
@@ -123,21 +122,6 @@ def chunk_iter_string(string, chunk_size):
 def total_seconds(td):
     return float(td.microseconds + (td.seconds + td.days * 24 * 3600) * 10 ** 6) / 10 ** 6
 
-def get_backoff(request_start_time, request_timeout, is_request_heavy, attempt, backoff_config):
-    now = datetime.now()
-    if backoff_config["policy"] == "rounded_up_to_request_timeout":
-        if is_request_heavy:
-            return request_timeout / 1000.0
-        else:
-            return max(0.0, request_timeout / 1000.0 - total_seconds(now - request_start_time))
-    elif backoff_config["policy"] == "constant_time":
-        return backoff_config["constant_time"] / 1000.0
-    elif backoff_config["policy"] == "exponential":
-        return  min(backoff_config["exponential_max_timeout"] / 1000.0,
-                    backoff_config["exponential_start_timeout"] * (backoff_config["exponential_multiplier"] ** attempt))
-    else:
-        raise YtError("Incorrect retry backoff policy '{0}'".format(backoff_config["policy"]))
-
 def generate_int64(generator=None):
     if generator is None:
         generator = random
@@ -189,28 +173,6 @@ def get_started_by():
 
     return started_by
 
-def run_with_retries(action, retry_count=6, backoff=20.0, exceptions=(YtError,), except_action=None,
-                     backoff_action=None):
-    for iter in xrange(retry_count):
-        start_time = datetime.now()
-        try:
-            return action()
-        except exceptions as err:
-            if iter + 1 == retry_count:
-                raise
-
-            if except_action:
-                if len(inspect.getargspec(except_action).args) == 0:
-                    except_action()
-                else:
-                    except_action(err)
-
-            sleep_backoff = max(0.0, backoff - total_seconds(datetime.now() - start_time))
-
-            if backoff_action:
-                backoff_action(err, iter, sleep_backoff)
-
-            time.sleep(sleep_backoff)
 
 def is_inside_job():
     """Returns `True` if the code is currently being run in the context of a YT job."""
@@ -264,3 +226,12 @@ def set_param(params, name, value, transform=None):
             params[name] = value
     return params
 
+def remove_nones_from_dict(obj):
+    result = copy.deepcopy(obj)
+    for key, value in iteritems(obj):
+        if value is None:
+            del result[key]
+            continue
+        if isinstance(value, Mapping):
+            result[key] = remove_nones_from_dict(value)
+    return result

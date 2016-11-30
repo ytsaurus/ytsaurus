@@ -144,9 +144,17 @@ class YtTestEnvironment(object):
         if has_proxy:
             self.config["proxy"]["url"] = "localhost:" + self.env.get_proxy_address().split(":", 1)[1]
         # NB: to decrease probability of retries test failure.
-        self.config["proxy"]["request_retry_count"] = 10
-        self.config["retry_backoff"]["policy"] = "constant_time"
-        self.config["retry_backoff"]["constant_time"] = 500
+        self.config["proxy"]["retries"]["count"] = 10
+
+        self.config["proxy"]["retries"]["backoff"]["constant_time"] = 500
+        self.config["proxy"]["retries"]["backoff"]["policy"] = "constant_time"
+
+        self.config["read_retries"]["backoff"]["constant_time"] = 500
+        self.config["read_retries"]["backoff"]["policy"] = "constant_time"
+
+        self.config["write_retries"]["backoff"]["constant_time"] = 500
+        self.config["write_retries"]["backoff"]["policy"] = "constant_time"
+
         self.config["enable_token"] = False
         self.config["is_local_mode"] = False
         self.config["pickling"]["enable_tmpfs_archive"] = ENABLE_JOB_CONTROL

@@ -13,6 +13,7 @@ default_config = {
     # If backend equals None, thenits value will be automatically detected.
     "backend": None,
 
+    # Option for backward compatibility
     "retry_backoff": {
         # Policy of backoff for failed requests.
         # Supported values:
@@ -20,11 +21,11 @@ default_config = {
         #     For heavy requests we will sleep heave_request_timeout time.
         # constant_time - we will sleep time specified in constant time option.
         # exponential - we will sleep min(exponnetial_max_timeout, exponential_start_timeout * exponential_base ^ retry_attempt)
-        "policy": "rounded_up_to_request_timeout",
-        "constant_time": 1000.0,
-        "exponential_start_timeout": 1000.0,
-        "exponential_base": 2.0,
-        "exponnetial_max_timeout": 60000.0,
+        "policy": None,
+        "constant_time": None,
+        "exponential_start_timeout": None,
+        "exponential_base": None,
+        "exponential_max_timeout": None
     },
 
     # Configuration of proxy connection.
@@ -37,16 +38,41 @@ default_config = {
         # "gzip" | "identity"
         "content_encoding": "gzip",
 
-        # Number of retries and timeout between retries.
-        "request_retry_timeout": 20000,
-        "request_retry_count": 6,
-        "request_retry_enable": True,
+        # Options for backward compatibility
+        "request_retry_count": None,
+        "request_retry_enable": None,
+        "request_retry_timeout": None,
+        "heavy_request_retry_timeout": None,
+
+
+        "request_timeout": 20000,
 
         # Heavy commands have increased timeout.
-        "heavy_request_retry_timeout": 60000,
+        "heavy_request_timeout": 60000,
 
-        # More retries in case of operation state discovery.
         "operation_state_discovery_retry_count": 100,
+
+        # Number of retries and timeout between retries.
+        "retries": {
+            "count": 6,
+            "enable": True,
+            "backoff": {
+                # Policy of backoff for failed requests.
+                # Supported values:
+                # rounded_up_to_request_timeout - we will sleep due to the timeout of the request.
+                #     For heavy requests we will sleep heave_request_timeout time.
+                # constant_time - we will sleep time specified in constant time option.
+                # exponential - we will sleep min(max_timeout, start_timeout * base ^ retry_attempt)
+                #               where max_timeout, start_timeout and base are options from exponential_policy
+                "policy": "rounded_up_to_request_timeout",
+                "constant_time": None,
+                "exponential_policy": {
+                    "start_timeout": None,
+                    "base": None,
+                    "max_timeout": None
+                }
+            }
+        },
 
         # Forces backoff between consequent requests (for all requests, not just failed).
         # !!! It is not proxy specific !!!
@@ -304,16 +330,28 @@ default_config = {
 
     # Retries for read request. This type of retries parse data stream, if it is enabled, reading may be much slower.
     "read_retries": {
+        # Options for backward compatibility
+        "retry_count": None,
+
         "enable": True,
+        "count": 30,
         "allow_multiple_ranges": False,
-        "retry_count": 30,
-        "chunk_unavailable_timeout": 60000,
-        "create_transaction_and_take_snapshot_lock": True
+        "create_transaction_and_take_snapshot_lock": True,
+        "backoff": {
+            "policy": "rounded_up_to_request_timeout",
+            "constant_time": None,
+            "exponential_policy": {
+                "start_timeout": None,
+                "base": None,
+                "max_timeout": None
+            }
+        }
     },
 
     # Retries for write commands. It split data stream into chunks and writes it separately under transactions.
     "write_retries": {
         "enable": True,
+        "count": 6,
         # The size of data chunk that retried.
         # It is also used as a portion of reading file stream even if retries are disabled.
         "chunk_size": 512 * common.MB,
@@ -321,15 +359,39 @@ default_config = {
         # Id of parent transaction in write process.
         # New transaction created if None value is specified.
         # Otherwise specified transaction will be used.
-        "transaction_id": None
+        "transaction_id": None,
+        "backoff": {
+            "policy": "rounded_up_to_request_timeout",
+            "constant_time": None,
+            "exponential_policy": {
+                "start_timeout": None,
+                "base": None,
+                "max_timeout": None
+            }
+        }
     },
 
     # Retries for start operation requests.
     # It may fail due to violation of cluster operation limit.
     "start_operation_retries": {
-        "retry_count": 30,
-        "retry_timeout": 60000
+        # Options for backward compatibility
+        "retry_count": None,
+        "retry_timeout": None,
+
+        "count": 30,
+        "enable": True,
+
+        "backoff": {
+            "policy": "rounded_up_to_request_timeout",
+            "constant_time": None,
+            "exponential_policy": {
+                "start_timeout": None,
+                "base": None,
+                "max_timeout": None
+            }
+        }
     },
+    "start_operation_request_timeout": 60000,
 
     "auto_merge_output": {
         # Action can be:
