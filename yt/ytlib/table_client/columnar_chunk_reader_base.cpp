@@ -324,10 +324,6 @@ void TColumnarLookupChunkReaderBase::Initialize()
     }
 
     InitBlockFetcher();
-
-    // NB: We must complete initialization before ReadyEvent is set in the constructor.
-    WaitFor(RequestFirstBlocks())
-        .ThrowOnError();
 }
 
 void TColumnarLookupChunkReaderBase::InitBlockFetcher()

@@ -1062,6 +1062,8 @@ public:
         Columns_.emplace_back(std::unique_ptr<IColumnReaderBase>(TimestampReader_), timestampReaderIndex);
 
         Initialize();
+
+        ReadyEvent_ = RequestFirstBlocks();
     }
 
     virtual bool Read(std::vector<TVersionedRow>* rows) override
