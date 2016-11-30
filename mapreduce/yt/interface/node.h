@@ -327,7 +327,7 @@ public:
 
     // map
 
-    bool HasKey(const Stroka& key) const
+    bool HasKey(const TStringBuf key) const
     {
         CheckType(MAP);
         return Map_->find(key) != Map_->end();
@@ -347,7 +347,7 @@ public:
         return *this;
     }
 
-    const TNode& operator[](const Stroka& key) const
+    const TNode& operator[](const TStringBuf key) const
     {
         CheckType(MAP);
         static TNode notFound;
@@ -409,7 +409,7 @@ public:
         }
     }
 
-    static Stroka TypeToString(EType type)
+    static const Stroka& TypeToString(EType type)
     {
         static Stroka typeNames[] = {
             "UNDEFINED",
