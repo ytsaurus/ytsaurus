@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 
+import argparse
+
 import yt.wrapper as yt
 
 GB = 1024 * 1024 * 1024
 
-def main():
+def main(root):
     rows = []
     rows.append(["Table", "# Tablets", "Mode", "Total Size (GBs)", "Tablet Size (Min/Med/Max; GBs)"])
 
@@ -20,8 +22,8 @@ def main():
     print "Cluster Usage: %.2f / %.2f GBs (%.2f%%)" % (
         memory_used, memory_limit, 100.0 * memory_used / memory_limit)
 
-    tables = yt.search("/", node_type="table", attributes=["dynamic", "compressed_data_size",
-                                                           "uncompressed_data_size", "in_memory_mode"])
+    tables = yt.search(root, node_type="table", attributes=["dynamic", "compressed_data_size",
+                                                            "uncompressed_data_size", "in_memory_mode"])
     for n, table in enumerate(tables):
         if not table.attributes.get("dynamic", False):
             continue
@@ -60,4 +62,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--root", type=str, default="/")
+
+    args = parser.parse_args()
+
+    main(args.root)
