@@ -845,6 +845,29 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                 out="//tmp/output",
                 spec={"schema_inference_mode" : "from_output"})
 
+    def test_writer_config(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out",
+            attributes={
+                "chunk_writer": {"block_size": 1024},
+                "compression_codec": "none"
+            })
+
+        write_table("//tmp/t_in", [{"value": "A"*1024} for i in xrange(10)])
+
+        merge(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={
+                "force_transform": "true",
+                "job_count": 1})
+
+        chunks = get("//tmp/t_out/@chunk_ids")
+        assert len(chunks) == 1
+        assert get("#" + chunks[0] + "/@compressed_data_size") > 1024 * 10
+        assert get("#" + chunks[0] + "/@max_block_size") < 1024 * 2
+
+
 ##################################################################
 
 class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):

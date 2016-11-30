@@ -611,14 +611,18 @@ public:
         }
 
         TTableMountConfigPtr mountConfig;
+        NTabletNode::TTabletChunkReaderConfigPtr readerConfig;
+        NTabletNode::TTabletChunkWriterConfigPtr writerConfig;
         NTabletNode::TTabletWriterOptionsPtr writerOptions;
-        GetTableSettings(table, &mountConfig, &writerOptions);
+        GetTableSettings(table, &mountConfig, &readerConfig, &writerConfig, &writerOptions);
 
         if (!table->IsSorted() && mountConfig->InMemoryMode != EInMemoryMode::None) {
             THROW_ERROR_EXCEPTION("Cannot mount an ordered dynamic table in memory");
         }
 
         auto serializedMountConfig = ConvertToYsonString(mountConfig);
+        auto serializedReaderConfig = ConvertToYsonString(readerConfig);
+        auto serializedWriterConfig = ConvertToYsonString(writerConfig);
         auto serializedWriterOptions = ConvertToYsonString(writerOptions);
 
         std::vector<TTablet*> tabletsToMount;
@@ -674,6 +678,8 @@ public:
                     req.set_trimmed_row_count(tablet->GetTrimmedRowCount());
                 }
                 req.set_mount_config(serializedMountConfig.Data());
+                req.set_reader_config(serializedReaderConfig.Data());
+                req.set_writer_config(serializedWriterConfig.Data());
                 req.set_writer_options(serializedWriterOptions.Data());
                 req.set_atomicity(static_cast<int>(table->GetAtomicity()));
                 req.set_commit_ordering(static_cast<int>(table->GetCommitOrdering()));
@@ -781,14 +787,18 @@ public:
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
 
         TTableMountConfigPtr mountConfig;
+        NTabletNode::TTabletChunkReaderConfigPtr readerConfig;
+        NTabletNode::TTabletChunkWriterConfigPtr writerConfig;
         NTabletNode::TTabletWriterOptionsPtr writerOptions;
-        GetTableSettings(table, &mountConfig, &writerOptions);
+        GetTableSettings(table, &mountConfig, &readerConfig, &writerConfig, &writerOptions);
 
         if (!table->IsSorted() && mountConfig->InMemoryMode != EInMemoryMode::None) {
             THROW_ERROR_EXCEPTION("Cannot mount an ordered dynamic table in memory");
         }
 
         auto serializedMountConfig = ConvertToYsonString(mountConfig);
+        auto serializedReaderConfig = ConvertToYsonString(readerConfig);
+        auto serializedWriterConfig = ConvertToYsonString(writerConfig);
         auto serializedWriterOptions = ConvertToYsonString(writerOptions);
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
@@ -814,6 +824,8 @@ public:
 
                 TReqRemountTablet request;
                 request.set_mount_config(serializedMountConfig.Data());
+                request.set_reader_config(serializedReaderConfig.Data());
+                request.set_writer_config(serializedWriterConfig.Data());
                 request.set_writer_options(serializedWriterOptions.Data());
                 ToProto(request.mutable_tablet_id(), tablet->GetId());
 
@@ -2891,6 +2903,8 @@ private:
     void GetTableSettings(
         TTableNode* table,
         TTableMountConfigPtr* mountConfig,
+        NTabletNode::TTabletChunkReaderConfigPtr *readerConfig,
+        NTabletNode::TTabletChunkWriterConfigPtr* writerConfig,
         TTableWriterOptionsPtr* writerOptions)
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -2902,6 +2916,19 @@ private:
             *mountConfig = ConvertTo<TTableMountConfigPtr>(tableAttributes);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing table mount configuration")
+                << ex;
+        }
+
+        // Prepare table reader config.
+        *readerConfig = Config_->ChunkReader;
+
+        // Parse and prepare table writer config.
+        try {
+            *writerConfig = UpdateYsonSerializable(
+                Config_->ChunkWriter,
+                tableAttributes.FindYson("chunk_writer"));
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error parsing chunk writer config")
                 << ex;
         }
 

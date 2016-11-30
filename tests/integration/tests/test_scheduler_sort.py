@@ -554,6 +554,27 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert get("//tmp/t/@schema/0") == {"name": "k1", "type": "int64", "expression": "k2 * 2", "sort_order": "ascending"}
         assert read_table("//tmp/t") == [{"k1": i * 2, "k2": i} for i in xrange(2)]
 
+    def test_writer_config(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out",
+            attributes={
+                "chunk_writer": {"block_size": 1024},
+                "compression_codec": "none"
+            })
+
+        write_table("//tmp/t_in", [{"value": "A"*1024} for i in xrange(10)])
+
+        sort(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            sort_by="value",
+            spec={"job_count": 1})
+
+        chunks = get("//tmp/t_out/@chunk_ids")
+        assert len(chunks) == 1
+        assert get("#" + chunks[0] + "/@compressed_data_size") > 1024 * 10
+        assert get("#" + chunks[0] + "/@max_block_size") < 1024 * 2
+
 ##################################################################
 
 class TestSchedulerSortCommandsMulticell(TestSchedulerSortCommands):

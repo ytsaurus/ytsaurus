@@ -119,6 +119,8 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(TAttributeDescriptor("optimize_for")
         .SetCustom(true));
     descriptors->push_back(TAttributeDescriptor("schema_mode"));
+    descriptors->push_back(TAttributeDescriptor("chunk_writer")
+        .SetCustom(true));
 }
 
 bool TTableNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
@@ -401,7 +403,12 @@ void TTableNodeProxy::ValidateCustomAttributeUpdate(
         if (!newValue) {
             ThrowCannotRemoveAttribute(key);
         }
-        ConvertTo<NTableClient::EOptimizeFor>(*newValue);
+        ConvertTo<EOptimizeFor>(*newValue);
+        return;
+    }
+
+    if (key == "chunk_writer") {
+        ConvertTo<TTableWriterConfigPtr>(newValue);
         return;
     }
 

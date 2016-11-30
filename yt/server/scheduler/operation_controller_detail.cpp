@@ -157,6 +157,7 @@ void TOperationControllerBase::TOutputTable::Persist(const TPersistenceContext& 
     >(context, OutputChunkTreeIds);
     Persist(context, BoundaryKeys);
     Persist(context, EffectiveAcl);
+    Persist(context, WriterConfig);
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -901,6 +902,9 @@ void TOperationControllerBase::TTask::AddFinalOutputSpecs(
         const auto& table = Controller->OutputTables[index];
         auto* outputSpec = schedulerJobSpecExt->add_output_table_specs();
         outputSpec->set_table_writer_options(ConvertToYsonString(table.Options).Data());
+        if (table.WriterConfig) {
+            outputSpec->set_table_writer_config(table.WriterConfig->Data());
+        }
         ToProto(outputSpec->mutable_table_schema(), table.TableUploadOptions.TableSchema);
         ToProto(outputSpec->mutable_chunk_list_id(), joblet->ChunkListIds[index]);
     }
@@ -3634,13 +3638,14 @@ void TOperationControllerBase::BeginUploadOutputTables()
 
                 std::vector<Stroka> attributeKeys{
                     "account",
+                    "chunk_writer",
                     "compression_codec",
                     "effective_acl",
                     "erasure_codec",
+                    "optimize_for",
                     "replication_factor",
                     "row_count",
-                    "vital",
-                    "optimize_for"
+                    "vital"
                 };
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
                 SetTransactionId(req, table->UploadTransactionId);
@@ -3693,6 +3698,7 @@ void TOperationControllerBase::BeginUploadOutputTables()
                 }
 
                 table->EffectiveAcl = attributes->GetYson("effective_acl");
+                table->WriterConfig = attributes->FindYson("chunk_writer");
             }
             LOG_INFO("Output table locked (Path: %v, Options: %v, UploadTransactionId: %v)",
                 path,

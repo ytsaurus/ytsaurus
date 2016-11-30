@@ -2,6 +2,10 @@
 
 #include "public.h"
 
+#include <yt/server/tablet_node/config.h>
+
+#include <yt/ytlib/table_client/config.h>
+
 #include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
@@ -35,6 +39,12 @@ public:
     //! NB: Changing this value will invalidate all changelogs!
     i64 TabletDataSizeFootprint;
 
+    //! Chunk reader config for all dynamic tables.
+    NTabletNode::TTabletChunkReaderConfigPtr ChunkReader;
+
+    //! Chunk writer config for all dynamic tables.
+    NTabletNode::TTabletChunkWriterConfigPtr ChunkWriter;
+
     TTabletManagerConfig()
     {
         RegisterParameter("peer_revocation_timeout", PeerRevocationTimeout)
@@ -52,6 +62,15 @@ public:
         RegisterParameter("tablet_data_size_footprint", TabletDataSizeFootprint)
             .GreaterThanOrEqual(0)
             .Default((i64) 64 * 1024 * 1024);
+        RegisterParameter("chunk_reader", ChunkReader)
+            .DefaultNew();
+        RegisterParameter("chunk_writer", ChunkWriter)
+            .DefaultNew();
+
+        RegisterInitializer([&] () {
+            // Override default workload descriptors.
+            ChunkReader->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserRealtime);
+        });
     }
 };
 

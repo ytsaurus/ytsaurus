@@ -331,12 +331,18 @@ void TSortedStoreManager::Mount(const std::vector<TAddStoreDescriptor>& storeDes
 
 void TSortedStoreManager::Remount(
     TTableMountConfigPtr mountConfig,
+    TTabletChunkReaderConfigPtr readerConfig,
+    TTabletChunkWriterConfigPtr writerConfig,
     TTabletWriterOptionsPtr writerOptions)
 {
     int oldSamplesPerPartition = Tablet_->GetConfig()->SamplesPerPartition;
     int newSamplesPerPartition = mountConfig->SamplesPerPartition;
 
-    TStoreManagerBase::Remount(mountConfig, writerOptions);
+    TStoreManagerBase::Remount(
+        std::move(mountConfig),
+        std::move(readerConfig),
+        std::move(writerConfig),
+        std::move(writerOptions));
 
     if (oldSamplesPerPartition != newSamplesPerPartition) {
         SchedulePartitionsSampling(0, Tablet_->PartitionList().size());
@@ -412,7 +418,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         auto blockCache = InMemoryManager_->CreateInterceptingBlockCache(tabletSnapshot->Config->InMemoryMode);
 
         auto chunkWriter = CreateConfirmingWriter(
-            Config_->ChunkWriter,
+            tabletSnapshot->WriterConfig,
             writerOptions,
             Client_->GetNativeConnection()->GetPrimaryMasterCellTag(),
             transaction->GetId(),
@@ -422,7 +428,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             blockCache);
 
         auto tableWriter = CreateVersionedChunkInMemoryWriter(
-            Config_->ChunkWriter,
+            tabletSnapshot->WriterConfig,
             writerOptions,
             InMemoryManager_,
             tabletSnapshot,

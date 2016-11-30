@@ -245,7 +245,7 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
 
     return BIND([=, this_ = MakeStrong(this)] (ITransactionPtr transaction) {
         auto chunkWriter = CreateConfirmingWriter(
-            Config_->ChunkWriter,
+            tabletSnapshot->WriterConfig,
             tabletSnapshot->WriterOptions,
             Client_->GetNativeConnection()->GetPrimaryMasterCellTag(),
             transaction->GetId(),
@@ -258,7 +258,7 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
         chunkTimestamps.MaxTimestamp = orderedDynamicStore->GetMaxTimestamp();
 
         auto tableWriter = CreateSchemalessChunkWriter(
-            Config_->ChunkWriter,
+            tabletSnapshot->WriterConfig,
             tabletSnapshot->WriterOptions,
             tabletSnapshot->PhysicalSchema,
             chunkWriter,

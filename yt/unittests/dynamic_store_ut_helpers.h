@@ -114,6 +114,8 @@ protected:
 
         Tablet_ = std::make_unique<TTablet>(
             New<TTableMountConfig>(),
+            New<TTabletChunkReaderConfig>(),
+            New<TTabletChunkWriterConfig>(),
             New<TTabletWriterOptions>(),
             NullTabletId,
             0,

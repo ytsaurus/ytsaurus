@@ -52,6 +52,7 @@ protected:
 
 
     virtual NTableClient::ISchemalessMultiChunkWriterPtr DoCreateWriter(
+        NTableClient::TTableWriterConfigPtr config,
         NTableClient::TTableWriterOptionsPtr options,
         const NChunkClient::TChunkListId& chunkListId,
         const NTransactionClient::TTransactionId& transactionId,
@@ -75,6 +76,7 @@ protected:
         bool isParallel);
 
     NTableClient::ISchemalessMultiChunkWriterPtr CreateTableWriter(
+        NTableClient::TTableWriterConfigPtr config,
         NTableClient::TTableWriterOptionsPtr options,
         const NChunkClient::TChunkListId& chunkListId,
         const NTransactionClient::TTransactionId& transactionId,

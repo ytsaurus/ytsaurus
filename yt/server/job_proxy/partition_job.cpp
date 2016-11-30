@@ -80,11 +80,12 @@ public:
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
         // We pass key column for partitioning through schema, but input stream is not sorted.
         options->ValidateSorted = false;
+        auto writerConfig = GetWriterConfig(outputSpec);
 
         WriterFactory_ = [=] (TNameTablePtr nameTable) mutable {
             YCHECK(!Writer_);
             Writer_ = CreatePartitionMultiChunkWriter(
-                config->JobIO->TableWriter,
+                writerConfig,
                 options,
                 nameTable,
                 TTableSchema::FromKeyColumns(keyColumns),

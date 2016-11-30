@@ -421,6 +421,18 @@ TIntrusivePtr<T> UpdateYsonSerializable(
 }
 
 template <class T>
+TIntrusivePtr<T> UpdateYsonSerializable(
+    TIntrusivePtr<T> obj,
+    const TNullable<NYson::TYsonString>& patch)
+{
+    if (!patch) {
+        return obj;
+    }
+
+    return UpdateYsonSerializable(obj, ConvertToNode(*patch));
+}
+
+template <class T>
 bool ReconfigureYsonSerializable(
     TIntrusivePtr<T> config,
     const NYson::TYsonString& newConfigYson)
@@ -449,5 +461,5 @@ bool ReconfigureYsonSerializable(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
 } // namespace NYTree
+} // namespace NYT

@@ -246,6 +246,9 @@ class TEditList;
 using TValueList = TEditList<TDynamicValue>;
 using TRevisionList = TEditList<ui32>;
 
+using TTabletChunkWriterConfig = NTableClient::TTableWriterConfig;
+using TTabletChunkWriterConfigPtr = NTableClient::TTableWriterConfigPtr;
+
 using TTabletWriterOptions = NTableClient::TTableWriterOptions;
 using TTabletWriterOptionsPtr = NTableClient::TTableWriterOptionsPtr;
 

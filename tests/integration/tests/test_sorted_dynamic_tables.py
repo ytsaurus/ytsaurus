@@ -1744,6 +1744,22 @@ class TestSortedDynamicTables(YTEnvSetup):
         with pytest.raises(YtError):
             lookup_rows("//tmp/t", [{"key": 0}], timestamp=ts)
 
+    def test_writer_config(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        set("//tmp/t/@chunk_writer", {"block_size": 1024})
+        set("//tmp/t/@compression_codec", "none")
+        self.sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": i, "value": "A"*1024} for i in xrange(10)])
+        self.sync_unmount_table("//tmp/t")
+
+        chunks = get("//tmp/t/@chunk_ids")
+        assert len(chunks) == 1
+        assert get("#" + chunks[0] + "/@compressed_data_size") > 1024 * 10
+        assert get("#" + chunks[0] + "/@max_block_size") < 1024 * 2
+
+
 ##################################################################
 
 class TestSortedDynamicTablesMetadataCaching(YTEnvSetup):

@@ -85,6 +85,8 @@ public:
         const std::vector<NTabletNode::NProto::TAddStoreDescriptor>& storeDescriptors) override;
     virtual void Remount(
         TTableMountConfigPtr mountConfig,
+        TTabletChunkReaderConfigPtr readerConfig,
+        TTabletChunkWriterConfigPtr writerConfig,
         TTabletWriterOptionsPtr writerOptions) override;
 
     virtual ISortedStoreManagerPtr AsSorted() override;

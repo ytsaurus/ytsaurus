@@ -65,6 +65,13 @@ void TUserJobIOBase::Init()
         options->ValidateRowWeight = true;
         options->ValidateColumnCount = true;
 
+        auto writerConfig = JobIOConfig_->TableWriter;
+        if (outputSpec.has_table_writer_config()) {
+            writerConfig = UpdateYsonSerializable(
+                writerConfig,
+                ConvertTo<INodePtr>(TYsonString(outputSpec.table_writer_config())));
+        }
+
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
 
         TTableSchema schema;
@@ -72,7 +79,7 @@ void TUserJobIOBase::Init()
             schema = FromProto<TTableSchema>(outputSpec.table_schema());
         }
 
-        auto writer = DoCreateWriter(options, chunkListId, transactionId, schema);
+        auto writer = DoCreateWriter(writerConfig, options, chunkListId, transactionId, schema);
         // ToDo(psushin): open writers in parallel.
         auto error = WaitFor(writer->Open());
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
@@ -179,6 +186,7 @@ void TUserJobIOBase::PopulateStderrResult(NScheduler::NProto::TSchedulerJobResul
 }
 
 ISchemalessMultiChunkWriterPtr TUserJobIOBase::CreateTableWriter(
+    TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
     const TChunkListId& chunkListId,
     const TTransactionId& transactionId,
@@ -188,7 +196,7 @@ ISchemalessMultiChunkWriterPtr TUserJobIOBase::CreateTableWriter(
     nameTable->SetEnableColumnNameValidation();
 
     return CreateSchemalessMultiChunkWriter(
-        JobIOConfig_->TableWriter,
+        std::move(config),
         std::move(options),
         std::move(nameTable),
         tableSchema,

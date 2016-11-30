@@ -142,6 +142,11 @@ TIntrusivePtr<T> UpdateYsonSerializable(
     NYTree::INodePtr patch);
 
 template <class T>
+TIntrusivePtr<T> UpdateYsonSerializable(
+    TIntrusivePtr<T> obj,
+    const TNullable<NYson::TYsonString>& patch);
+
+template <class T>
 bool ReconfigureYsonSerializable(
     TIntrusivePtr<T> config,
     const NYson::TYsonString& newConfigYson);
