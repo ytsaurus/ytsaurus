@@ -365,8 +365,8 @@ class TestCypressCommands(object):
         new_client = yt.client.Yt(token=yt.config["token"], config=yt.config)
 
         yt.config["transaction_use_signal_if_ping_failed"] = True
-        old_retry_timeout = yt.config["proxy"]["request_retry_timeout"]
-        yt.config["proxy"]["request_retry_timeout"] = 3000.0
+        old_request_timeout = yt.config["proxy"]["request_timeout"]
+        yt.config["proxy"]["request_timeout"] = 3000.0
         try:
             caught = False
             try:
@@ -391,7 +391,7 @@ class TestCypressCommands(object):
             assert caught
         finally:
             yt.config["transaction_use_signal_if_ping_failed"] = False
-            yt.config["proxy"]["request_retry_timeout"] = old_retry_timeout
+            yt.config["proxy"]["request_timeout"] = old_request_timeout
 
     def test_lock(self, yt_env):
         dir = TEST_DIR + "/dir"

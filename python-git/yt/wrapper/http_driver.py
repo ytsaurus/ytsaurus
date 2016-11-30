@@ -1,7 +1,7 @@
 from . import yson
 from .config import get_config, get_option, set_option
 from .compression import create_zlib_generator
-from .common import require, generate_uuid, bool_to_string, get_version, total_seconds, forbidden_inside_job
+from .common import require, generate_uuid, bool_to_string, get_version, total_seconds, forbidden_inside_job, get_value
 from .errors import YtError, YtHttpResponseError, YtProxyUnavailable, YtConcurrentOperationsLimitExceeded, YtRequestTimedOut
 from .http_helpers import make_request_with_retries, get_token, get_api_version, get_api_commands, get_proxy_url, \
                           parse_error_from_headers, get_header_format, ProxyProvider
@@ -160,9 +160,11 @@ def make_request(command_name,
 
     if timeout is None:
         if command.is_heavy:
-            timeout = get_config(client)["proxy"]["heavy_request_retry_timeout"] / 1000.0
+            timeout = get_value(get_config(client)["proxy"]["heavy_request_retry_timeout"],
+                                get_config(client)["proxy"]["heavy_request_timeout"]) / 1000.0
         else:
-            timeout = get_config(client)["proxy"]["request_retry_timeout"] / 1000.0
+            timeout = get_value(get_config(client)["proxy"]["request_retry_timeout"],
+                                get_config(client)["proxy"]["request_timeout"]) / 1000.0
 
     if command.is_volatile and allow_retries:
         if "mutation_id" not in params:

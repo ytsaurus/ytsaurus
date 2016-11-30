@@ -1,5 +1,7 @@
-from .config import get_config, get_option, set_option, get_backend_type, get_request_retry_count
-from .common import require, get_backoff, get_value, total_seconds, generate_uuid
+from .config import get_config, get_option, set_option, get_backend_type
+from .common import require, get_value, total_seconds, generate_uuid, update, \
+                    remove_nones_from_dict
+from .retries import Retrier, build_backoff_config
 from .errors import YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, YtHttpResponseError, \
                     YtRequestRateLimitExceeded, YtRequestQueueSizeLimitExceeded, YtRequestTimedOut, \
                     YtRetriableError, YtNoSuchTransaction, hide_token
@@ -10,11 +12,9 @@ import yt.yson as yson
 import yt.json as json
 
 from yt.packages.six import reraise, add_metaclass, PY3
-from yt.packages.six.moves import xrange
 
 import os
 import sys
-import random
 import time
 import types
 import socket
@@ -154,97 +154,117 @@ def _raise_for_status(response, request_info):
     if not response.is_ok():
         raise YtHttpResponseError(error=response.error(), **request_info)
 
-def make_request_with_retries(method, url=None, make_retries=True, response_format=None,
-                              params=None, timeout=None, retry_action=None, log_body=True,
-                              is_ping=False, proxy_provider=None, client=None, **kwargs):
-    """Performs HTTP request to YT proxy with retries."""
-    configure_ip(_get_session(client),
-                 get_config(client)["proxy"]["force_ipv4"],
-                 get_config(client)["proxy"]["force_ipv6"])
 
-    if timeout is None:
-        timeout = get_config(client)["proxy"]["request_retry_timeout"] / 1000.0
+class RequestRetrier(Retrier):
+    def __init__(self, method, url = None, make_retries = True, response_format = None,
+                 params=None, timeout=None, retry_action=None, log_body=True, is_ping=False,
+                 proxy_provider=None, client=None, **kwargs):
+        self.method = method
+        self.url = url
+        self.make_retries = make_retries
+        self.response_format = response_format
+        self.params = params
+        self.retry_action = retry_action
+        self.log_body = log_body
+        self.proxy_provider = proxy_provider
+        self.client = client
+        self.kwargs = kwargs
 
-    retriable_errors = list(get_retriable_errors())
-    if is_ping:
-        retriable_errors.append(YtNoSuchTransaction)
+        configure_ip(_get_session(client),
+                     get_config(client)["proxy"]["force_ipv4"],
+                     get_config(client)["proxy"]["force_ipv6"])
 
-    headers = get_value(kwargs.get("headers", {}), {})
-    headers["X-YT-Correlation-Id"] = generate_uuid(get_option("_random_generator", client))
+        backoff_config = get_config(client)["retry_backoff"]
+        retry_config = {
+            "enable": get_config(client)["proxy"]["request_retry_enable"],
+            "count": get_config(client)["proxy"]["request_retry_count"],
+            "backoff": build_backoff_config(backoff_config)
+        }
+        retry_config = remove_nones_from_dict(retry_config)
+        retry_config = update(get_config(client)["proxy"]["retries"], retry_config)
+        if timeout is None:
+            timeout = get_value(get_config(client)["proxy"]["request_retry_timeout"],
+                                get_config(client)["proxy"]["request_timeout"]) / 1000.0
+        self.timeout = timeout
 
-    if proxy_provider is not None:
-        url_pattern = url
+        retriable_errors = list(get_retriable_errors())
+        if is_ping:
+            retriable_errors.append(YtNoSuchTransaction)
 
-    request_retry_count = get_request_retry_count(client)
-    for attempt in xrange(request_retry_count):
-        if proxy_provider is not None:
-            proxy = proxy_provider()
-            url = url_pattern.format(proxy=proxy)
+        headers = get_value(kwargs.get("headers", {}), {})
+        headers["X-YT-Correlation-Id"] = generate_uuid(get_option("_random_generator", client))
+        self.headers = headers
 
+        super(RequestRetrier, self).__init__(exceptions=tuple(retriable_errors),
+                                             timeout=timeout,
+                                             retry_config=retry_config,
+                                             chaos_monkey_enable=get_option("_ENABLE_HTTP_CHAOS_MONKEY", client))
+
+    def action(self):
+        url = self.url
+        if self.proxy_provider is not None:
+            proxy = self.proxy_provider()
+            url = self.url.format(proxy=proxy)
         logger.debug("Request url: %r", url)
-        logger.debug("Headers: %r", headers)
-        if log_body and "data" in kwargs and kwargs["data"] is not None:
-            logger.debug("Body: %r", kwargs["data"])
+        logger.debug("Headers: %r", self.headers)
+        if self.log_body and "data" in self.kwargs and self.kwargs["data"] is not None:
+            logger.debug("Body: %r", self.kwargs["data"])
 
         request_start_time = datetime.now()
-        _process_request_backoff(request_start_time, client=client)
-        request_info = {"headers": headers, "url": url, "params": params}
+        _process_request_backoff(request_start_time, client=self.client)
+        request_info = {"headers": self.headers, "url": url, "params": self.params}
+
         try:
-            try:
-                response = create_response(_get_session(client=client).request(method, url, timeout=timeout, **kwargs),
-                                           request_info, client)
+            session = _get_session(client=self.client)
+            response = create_response(session.request(self.method, url, timeout=self.timeout, **self.kwargs),
+                                       request_info, self.client)
 
-                if get_option("_ENABLE_HTTP_CHAOS_MONKEY", client) and random.randint(1, 5) == 1:
-                    raise YtIncorrectResponse("", response)
-            except requests.ConnectionError as error:
-                # Module requests patched to process response from YT proxy
-                # in case of large chunked-encoding write requests.
-                # Here we check that this response was added to the error.
-                if hasattr(error, "response"):
-                    exc_info = sys.exc_info()
-                    try:
-                        # We should perform it under try..except due to response may be incomplete.
-                        # See YT-4053.
-                        rsp = create_response(error.response, request_info, client)
-                    except:
-                        reraise(*exc_info)
-                    _raise_for_status(rsp, request_info)
-                raise
+        except requests.ConnectionError as error:
+            # Module requests patched to process response from YT proxy
+            # in case of large chunked-encoding write requests.
+            # Here we check that this response was added to the error.
+            if hasattr(error, "response"):
+                exc_info = sys.exc_info()
+                try:
+                    # We should perform it under try..except due to response may be incomplete.
+                    # See YT-4053.
+                    rsp = create_response(error.response, request_info, self.client)
+                except:
+                    reraise(*exc_info)
+                _raise_for_status(rsp, request_info)
+            raise
 
-            # Sometimes (quite often) we obtain incomplete response with body expected to be JSON.
-            # So we should retry such requests.
-            if response_format is not None and get_config(client)["proxy"]["check_response_format"]:
-                check_response_is_decodable(response, response_format)
+        # Sometimes (quite often) we obtain incomplete response with body expected to be JSON.
+        # So we should retry such requests.
+        if self.response_format is not None and get_config(self.client)["proxy"]["check_response_format"]:
+            check_response_is_decodable(response, self.response_format)
 
-            logger.debug("Response headers %r", response.headers)
+        logger.debug("Response headers %r", response.headers)
 
-            _raise_for_status(response, request_info)
-            return response
-        except tuple(retriable_errors) as error:
-            message = error.message if hasattr(error, "message") else str(error)
-            logger.warning("HTTP %s request %s has failed with error %s, message: '%s', headers: %s",
-                           method, url, str(type(error)), message, str(hide_token(dict(headers))))
-            if isinstance(error, YtError):
-                logger.info("Full error message:\n%s", str(error))
-            if proxy_provider is not None:
-                proxy_provider.on_error_occured(error)
-            if make_retries and attempt + 1 < request_retry_count:
-                if retry_action is not None:
-                    retry_action(error, kwargs)
-                backoff = get_backoff(
-                    request_start_time=request_start_time,
-                    request_timeout=get_config(client)["proxy"]["request_retry_timeout"],
-                    is_request_heavy=False,
-                    attempt=attempt,
-                    backoff_config=get_config(client)["retry_backoff"])
-                if backoff:
-                    logger.warning("Sleep for %.2lf seconds before next retry", backoff)
-                    time.sleep(backoff)
-                logger.warning("New retry (%d) ...", attempt + 2)
-            else:
-                raise
+        _raise_for_status(response, request_info)
+        return response
 
-    assert False, "Unknown error: this point should not be reachable"
+    def except_action(self, error, attempt):
+        message = error.message if hasattr(error, "message") else str(error)
+        logger.warning("HTTP %s request %s has failed with error %s, message: '%s', headers: %s",
+                       self.method, self.url, str(type(error)), message, str(hide_token(dict(self.headers))))
+        if isinstance(error, YtError):
+            logger.info("Full error message:\n%s", str(error))
+        if self.proxy_provider is not None:
+            self.proxy_provider.on_error_occured(error)
+        if self.make_retries:
+            if self.retry_action is not None:
+                self.retry_action(error, self.kwargs)
+        else:
+            raise
+
+def make_request_with_retries(method, url=None, **kwargs):
+    """Performs HTTP request to YT proxy with retries.
+
+    This function is for backward compatibility and convenience of use.
+    """
+    return RequestRetrier(method=method, url=url, **kwargs).run()
+
 
 def get_proxy_url(required=True, client=None):
     """Extracts proxy url from client and checks that url is specified."""

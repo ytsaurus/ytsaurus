@@ -268,11 +268,11 @@ class TestRetries(object):
     def test_heavy_requests_with_retries(self):
         table = TEST_DIR + "/table"
 
-        old_request_retry_timeout = yt.config["proxy"]["request_retry_timeout"]
+        old_request_timeout = yt.config["proxy"]["heavy_request_timeout"]
         old_enable_write_retries = yt.config["write_retries"]["enable"]
 
         yt.config["write_retries"]["enable"] = True
-        yt.config["proxy"]["request_retry_timeout"] = 1000
+        yt.config["proxy"]["heavy_request_timeout"] = 1000
         yt.config._ENABLE_HEAVY_REQUEST_CHAOS_MONKEY = True
 
         _, filename = tempfile.mkstemp()
@@ -289,13 +289,13 @@ class TestRetries(object):
             yt.write_table(table, [{"x": 1}])
         finally:
             yt.config._ENABLE_HEAVY_REQUEST_CHAOS_MONKEY = False
-            yt.config["proxy"]["request_retry_timeout"] = old_request_retry_timeout
+            yt.config["proxy"]["heavy_request_timeout"] = old_request_timeout
             yt.config["write_retries"]["enable"] = old_enable_write_retries
 
     def test_http_retries(self):
-        old_request_retry_timeout = yt.config["proxy"]["request_retry_timeout"]
+        old_request_timeout = yt.config["proxy"]["request_timeout"]
         yt.config._ENABLE_HTTP_CHAOS_MONKEY = True
-        yt.config["proxy"]["request_retry_timeout"] = 1000
+        yt.config["proxy"]["request_timeout"] = 1000
         try:
             for backoff_time in [3000, None]:
                 yt.config["proxy"]["request_backoff_time"] = backoff_time
@@ -309,7 +309,7 @@ class TestRetries(object):
                 yt.list(TEST_DIR)
         finally:
             yt.config._ENABLE_HTTP_CHAOS_MONKEY = False
-            yt.config["proxy"]["request_retry_timeout"] = old_request_retry_timeout
+            yt.config["proxy"]["request_timeout"] = old_request_timeout
             yt.config["proxy"]["request_backoff_time"] = None
 
     def test_download_with_retries(self):
