@@ -1708,8 +1708,7 @@ def run_remote_copy(source_table, destination_table,
         return table.to_yson_type()
 
     source_table = _prepare_source_tables(source_table, client=client)
-    destination_table = unlist(_prepare_destination_tables(destination_table, None, None,
-                                                           client=client))
+    destination_table = unlist(_prepare_destination_tables(destination_table, client=client))
     spec = compose(
         lambda _: _configure_spec(_, client),
         lambda _: set_option(_, "network_name", network_name),
