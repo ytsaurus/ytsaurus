@@ -6,7 +6,7 @@ import yt.wrapper as yt
 
 GB = 1024 * 1024 * 1024
 
-def main(root):
+def main(root, fix_options):
     rows = []
     rows.append(["Table", "# Tablets", "Mode", "Total Size (GBs)", "Tablet Size (Min/Med/Max; GBs)"])
 
@@ -35,6 +35,10 @@ def main(root):
             key = "uncompressed_data_size"
         elif imm == "compressed":
             key = "compressed_data_size"
+        if fix_options:
+            yt.set(table + "/@compression_codec", "lz4")
+            yt.set(table + "/@min_compaction_store_count", 2)
+            yt.remount_table(table)
         tablets = yt.get("%s/@tablets" % table)
         tablet_sizes = list(sorted(t["statistics"][key] for t in tablets))
         table_size = float(table.attributes.get(key)) / GB
@@ -42,7 +46,7 @@ def main(root):
         med_tablet_size = float(tablet_sizes[len(tablet_sizes) / 2]) / GB
         max_tablet_size = float(tablet_sizes[-1]) / GB
         columns = []
-        columns.append(table)
+        columns.append(table + (" ^" if fix_options else ""))
         columns.append(len(tablets))
         columns.append(imm)
         columns.append("%.2f" % table_size)
@@ -64,7 +68,8 @@ def main(root):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=str, default="/")
+    parser.add_argument("--fix-options", action="store_true", default=False)
 
     args = parser.parse_args()
 
-    main(args.root)
+    main(args.root, args.fix_options)
