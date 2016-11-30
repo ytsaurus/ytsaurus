@@ -67,7 +67,6 @@ using namespace NYTree;
 using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NQueryClient;
-using namespace NChunkClient;
 using namespace NTabletClient;
 using namespace NTableClient;
 using namespace NTableClient::NProto;
@@ -466,10 +465,6 @@ private:
                 std::function<ISchemafulReaderPtr()> bottomSplitReaderGenerator;
 
                 switch (TypeFromId(tablePartId)) {
-                    case EObjectType::Chunk:
-                    case EObjectType::ErasureChunk:
-                        return GetChunkReader(tablePartId, keys);
-
                     case EObjectType::Tablet:
                         return GetTabletReader(tablePartId, keys);
 
@@ -782,10 +777,6 @@ private:
         const TRowRange& range)
     {
         switch (TypeFromId(objectId)) {
-            case EObjectType::Chunk:
-            case EObjectType::ErasureChunk:
-                return GetChunkReader(objectId, range);
-
             case EObjectType::Tablet:
                 return GetTabletReader(objectId, range);
 
@@ -800,10 +791,6 @@ private:
         const TSharedRange<TRow>& keys)
     {
         switch (TypeFromId(objectId)) {
-            case EObjectType::Chunk:
-            case EObjectType::ErasureChunk:
-                return GetChunkReader(objectId, keys);
-
             case EObjectType::Tablet:
                 return GetTabletReader(objectId, keys);
 
@@ -811,101 +798,6 @@ private:
                 THROW_ERROR_EXCEPTION("Unsupported data split type %Qlv",
                     TypeFromId(objectId));
         }
-    }
-
-    ISchemafulReaderPtr GetChunkReader(
-        const TObjectId& chunkId,
-        const TRowRange& range)
-    {
-        TReadRange readRange;
-        readRange.LowerLimit().SetKey(TOwningKey(range.first));
-        readRange.UpperLimit().SetKey(TOwningKey(range.second));
-        return GetChunkReader(chunkId, readRange);
-    }
-
-    std::tuple<NChunkClient::IChunkReaderPtr, NChunkClient::NProto::TChunkMeta, TTabletChunkReaderConfigPtr> GetUnderlyingChunkReader(
-        const TChunkId& chunkId)
-    {
-        auto blockCache = Bootstrap_->GetBlockCache();
-        auto chunkRegistry = Bootstrap_->GetChunkRegistry();
-        auto chunk = chunkRegistry->FindChunk(chunkId);
-
-        auto config = CloneYsonSerializable(Bootstrap_->GetConfig()->TabletNode->TabletManager->ChunkReader);
-        config->WorkloadDescriptor = Options_.WorkloadDescriptor;
-
-        NChunkClient::IChunkReaderPtr chunkReader;
-        if (chunk && !chunk->IsRemoveScheduled()) {
-            LOG_DEBUG("Creating local reader for chunk split (ChunkId: %v, Timestamp: %v)",
-                chunkId,
-                Options_.Timestamp);
-
-            chunkReader = CreateLocalChunkReader(
-                config,
-                chunk,
-                Bootstrap_->GetChunkBlockManager(),
-                blockCache);
-        } else {
-            LOG_DEBUG("Creating remote reader for chunk split (ChunkId: %v, Timestamp: %v)",
-                chunkId,
-                Options_.Timestamp);
-
-            // TODO(babenko): seed replicas?
-            // TODO(babenko): throttler?
-            chunkReader = CreateRemoteReader(
-                chunkId,
-                config,
-                New<TRemoteReaderOptions>(),
-                Bootstrap_->GetMasterClient(),
-                Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
-                Bootstrap_->GetBlockCache(),
-                GetUnlimitedThrottler());
-        }
-
-        auto asyncChunkMeta = chunkReader->GetMeta(config->WorkloadDescriptor);
-        auto chunkMeta = WaitFor(asyncChunkMeta)
-            .ValueOrThrow();
-
-        return std::make_tuple(chunkReader, chunkMeta, config);
-    }
-
-    ISchemafulReaderPtr GetChunkReader(
-        const TChunkId& chunkId,
-        const TSharedRange<TRow>& keys)
-    {
-        NChunkClient::IChunkReaderPtr chunkReader;
-        NChunkClient::NProto::TChunkMeta chunkMeta;
-        TTabletChunkReaderConfigPtr config;
-        std::tie(chunkReader, chunkMeta, config) = GetUnderlyingChunkReader(chunkId);
-
-        return CreateSchemafulChunkReader(
-            std::move(config),
-            std::move(chunkReader),
-            Bootstrap_->GetBlockCache(),
-            Query_->GetReadSchema(),
-            Query_->OriginalSchema.GetKeyColumns(),
-            chunkMeta,
-            keys,
-            Options_.Timestamp);
-    }
-
-    ISchemafulReaderPtr GetChunkReader(
-        const TChunkId& chunkId,
-        const TReadRange& readRange)
-    {
-        NChunkClient::IChunkReaderPtr chunkReader;
-        NChunkClient::NProto::TChunkMeta chunkMeta;
-        TTabletChunkReaderConfigPtr config;
-        std::tie(chunkReader, chunkMeta, config) = GetUnderlyingChunkReader(chunkId);
-
-        return CreateSchemafulChunkReader(
-            std::move(config),
-            std::move(chunkReader),
-            Bootstrap_->GetBlockCache(),
-            Query_->GetReadSchema(),
-            Query_->OriginalSchema.GetKeyColumns(),
-            chunkMeta,
-            readRange,
-            Options_.Timestamp);
     }
 
     ISchemafulReaderPtr GetTabletReader(
