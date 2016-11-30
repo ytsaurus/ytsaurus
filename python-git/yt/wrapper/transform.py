@@ -2,7 +2,7 @@ from .common import get_value, update
 from .errors import YtResponseError
 from .config import get_config
 from .cypress_commands import get, set, list, exists, create
-from .table_commands import run_merge
+from .run_operation_commands import run_merge
 from .ypath import TablePath
 from .table import TempTable
 

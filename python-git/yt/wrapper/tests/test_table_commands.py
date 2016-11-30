@@ -329,11 +329,11 @@ class TestTableCommands(object):
             row["_table_index_"] = 2
             yield row
 
-        yt.table_commands.run_map(binary=mix_table_indexes,
-                                  source_table=[src_table_a, src_table_b],
-                                  destination_table=[dst_table_a, dst_table_b, dst_table_ab],
-                                  input_format=dsv,
-                                  output_format=schemaful_dsv)
+        yt.run_operation_commands.run_map(binary=mix_table_indexes,
+                                          source_table=[src_table_a, src_table_b],
+                                          destination_table=[dst_table_a, dst_table_b, dst_table_ab],
+                                          input_format=dsv,
+                                          output_format=schemaful_dsv)
         assert yt.row_count(dst_table_b) == len_b
         assert yt.row_count(dst_table_a) == len_a
         assert yt.row_count(dst_table_ab) == len_a + len_b
@@ -424,7 +424,7 @@ class TestTableCommands(object):
         assert row_count == 10 ** power
 
     def test_remove_locks(self):
-        from yt.wrapper.table_commands import _remove_locks
+        from yt.wrapper.table_helpers import _remove_locks
         table = TEST_DIR + "/table"
         yt.create_table(table)
         try:
