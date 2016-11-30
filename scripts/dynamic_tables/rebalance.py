@@ -28,9 +28,6 @@ from collections import namedtuple
 import yt.wrapper as yt
 import yt.yson as yson
 
-yt.config.VERSION = "v3"
-yt.config.http.HEADER_FORMAT = "yson"
-
 GB = 1024 * 1024 * 1024
 MAX_ITERATIONS = 5  # Maximum number of iterations until balance convergance.
 
@@ -54,7 +51,7 @@ class Tablet(namedtuple("Tablet", ["tablet_id", "cell_id", "index", "pivot_key",
             "//sys/nodes/{}/orchid/tablet_cells/{}/tablets/{}".format(
                 leading_peers[0]["address"], self.cell_id, self.tablet_id),
             format=yt.JsonFormat())
-        self.attributes.update(json.loads(attributes)))
+        self.attributes.update(json.loads(attributes))
 
     def _ensure_attributes(self):
         if len(self.attributes) == 0:
