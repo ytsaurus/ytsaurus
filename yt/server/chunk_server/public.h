@@ -37,6 +37,7 @@ using NChunkClient::TBlockId;
 using NChunkClient::TypicalReplicaCount;
 using NChunkClient::MaxMediumCount;
 using NChunkClient::DefaultStoreMediumIndex;
+using NChunkClient::MaxMediumPriority;
 
 using NJobTrackerClient::TJobId;
 using NJobTrackerClient::EJobType;
@@ -140,6 +141,8 @@ using TMediumSet = std::bitset<MaxMediumCount>;
 template <typename T>
 using TPerMediumArray = std::array<T, MaxMediumCount>;
 using TPerMediumIntArray = TPerMediumArray<int>;
+
+const int MediumDefaultPriority = 0;
 
 ////////////////////////////////////////////////////////////////////////////////
 

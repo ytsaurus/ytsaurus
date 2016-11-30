@@ -16,13 +16,7 @@ class TJournalSession
     : public TSessionBase
 {
 public:
-    TJournalSession(
-        TDataNodeConfigPtr config,
-        NCellNode::TBootstrap* bootstrap,
-        const TChunkId& chunkId,
-        const TSessionOptions& options,
-        TStoreLocationPtr location,
-        NConcurrency::TLease lease);
+    using TSessionBase::TSessionBase;
 
     virtual NChunkClient::NProto::TChunkInfo GetChunkInfo() const override;
 

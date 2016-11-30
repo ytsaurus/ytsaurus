@@ -105,6 +105,8 @@ public:
     //! Replication factor for intermediate data.
     int IntermediateDataReplicationFactor;
 
+    Stroka IntermediateDataMediumName;
+
     //! Acl used for intermediate tables and stderrs.
     NYTree::IListNodePtr IntermediateDataAcl;
 
@@ -160,6 +162,8 @@ public:
             .Default(NCompression::ECodec::Lz4);
         RegisterParameter("intermediate_data_replication_factor", IntermediateDataReplicationFactor)
             .Default(1);
+        RegisterParameter("intermediate_data_medium", IntermediateDataMediumName)
+            .Default(NChunkClient::DefaultStoreMediumName);
         RegisterParameter("intermediate_data_acl", IntermediateDataAcl)
             .Default(NYTree::BuildYsonNodeFluently()
                 .BeginList()

@@ -60,6 +60,8 @@ using namespace NConcurrency;
 using namespace NYson;
 
 using NNodeTrackerClient::TNodeDescriptor;
+using NYT::ToProto;
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -302,12 +304,10 @@ protected:
         DoSetFinished(EJobState::Aborted, error);
     }
 
-
-    IChunkPtr GetLocalChunkOrThrow(const TChunkId& chunkId, int /*mediumIndex*/)
+    IChunkPtr GetLocalChunkOrThrow(const TChunkId& chunkId, int mediumIndex)
     {
-        // TODO(babenko): use mediumIndex
         auto chunkStore = Bootstrap_->GetChunkStore();
-        return chunkStore->GetChunkOrThrow(chunkId);
+        return chunkStore->GetChunkOrThrow(chunkId, mediumIndex);
     }
 
 private:
@@ -391,7 +391,6 @@ public:
 private:
     const TReplicateChunkJobSpecExt JobSpecExt_;
 
-
     virtual void DoRun() override
     {
         auto chunkId = FromProto<TChunkId>(JobSpecExt_.chunk_id());
@@ -405,7 +404,8 @@ private:
             sourceMediumIndex,
             MakeFormattableRange(targetReplicas, TChunkReplicaAddressFormatter(nodeDirectory)));
 
-        auto chunk = GetLocalChunkOrThrow(chunkId, sourceMediumIndex);
+        // Find chunk on the highest priority medium.
+        auto chunk = GetLocalChunkOrThrow(chunkId, AllMediaIndex);
 
         LOG_INFO("Fetching chunk meta");
 

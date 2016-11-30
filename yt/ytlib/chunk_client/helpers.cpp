@@ -65,10 +65,11 @@ TChunkId CreateChunk(
 {
     const auto& Logger = logger;
 
-    LOG_DEBUG("Creating chunk (ReplicationFactor: %v, TransactionId: %v, ChunkListId: %v)",
+    LOG_DEBUG("Creating chunk (ReplicationFactor: %v, TransactionId: %v, ChunkListId: %v, MediumName: %v)",
         options->ReplicationFactor,
         transactionId,
-        chunkListId);
+        chunkListId,
+        options->MediumName);
 
     auto chunkType = options->ErasureCodec == ECodec::None
         ? EObjectType::Chunk

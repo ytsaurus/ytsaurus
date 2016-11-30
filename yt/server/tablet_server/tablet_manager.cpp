@@ -2939,10 +2939,13 @@ private:
         }
 
         // Prepare tablet writer options.
-        // TODO(babenko): is this media-aware?
         const auto& chunkProperties = table->Properties();
+        auto primaryMediumIndex = table->GetPrimaryMediumIndex();
+        auto chunkManager = Bootstrap_->GetChunkManager();
+        auto* primaryMedium = chunkManager->GetMediumByIndex(primaryMediumIndex);
         *writerOptions = New<TTableWriterOptions>();
-        (*writerOptions)->ReplicationFactor = chunkProperties[table->GetPrimaryMediumIndex()].GetReplicationFactor();
+        (*writerOptions)->ReplicationFactor = chunkProperties[primaryMediumIndex].GetReplicationFactor();
+        (*writerOptions)->MediumName = primaryMedium->GetName();
         (*writerOptions)->Account = table->GetAccount()->GetName();
         (*writerOptions)->CompressionCodec = tableAttributes.Get<NCompression::ECodec>("compression_codec");
         (*writerOptions)->ErasureCodec = tableAttributes.Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
