@@ -468,6 +468,7 @@ void TOperationControllerBase::TTask::ScheduleJob(
     auto controller = MakeStrong(Controller); // hold the controller
     auto jobSpecBuilder = BIND([=, this_ = MakeStrong(this)] (TJobSpec* jobSpec) {
         BuildJobSpec(joblet, jobSpec);
+        jobSpec->set_version(GetJobSpecVersion());
         controller->CustomizeJobSpec(joblet, jobSpec);
 
         auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);

@@ -114,13 +114,11 @@ void ProcessFetchResponse(
     const NLogging::TLogger& logger,
     std::vector<NProto::TChunkSpec>* chunkSpecs)
 {
-    const auto& Logger = logger;
-
     if (nodeDirectory) {
         nodeDirectory->MergeFrom(fetchResponse->node_directory());
     }
 
-    yhash_map<TCellTag, std::vector<NProto::TChunkSpec*>> foreignChunkMap;
+    std::vector<NProto::TChunkSpec*> foreignChunkList;
     for (auto& chunkSpec : *fetchResponse->mutable_chunks()) {
         if (rangeIndex) {
             chunkSpec.set_range_index(*rangeIndex);
@@ -128,58 +126,10 @@ void ProcessFetchResponse(
         auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
         auto chunkCellTag = CellTagFromId(chunkId);
         if (chunkCellTag != fetchCellTag) {
-            foreignChunkMap[chunkCellTag].push_back(&chunkSpec);
+            foreignChunkList.push_back(&chunkSpec);
         }
     }
-
-    for (const auto& pair : foreignChunkMap) {
-        auto foreignCellTag = pair.first;
-        auto& foreignChunkSpecs = pair.second;
-
-        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Follower, foreignCellTag);
-        TChunkServiceProxy proxy(channel);
-
-        for (int beginIndex = 0; beginIndex < foreignChunkSpecs.size(); beginIndex += maxChunksPerLocateRequest) {
-            int endIndex = std::min(
-                beginIndex + maxChunksPerLocateRequest,
-                static_cast<int>(foreignChunkSpecs.size()));
-
-            auto req = proxy.LocateChunks();
-            req->SetHeavy(true);
-            for (int index = beginIndex; index < endIndex; ++index) {
-                *req->add_subrequests() = foreignChunkSpecs[index]->chunk_id();
-            }
-
-            LOG_DEBUG("Locating foreign chunks (CellTag: %v, ChunkCount: %v)",
-                foreignCellTag,
-                req->subrequests_size());
-
-            auto rspOrError = WaitFor(req->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error locating foreign chunks at cell %v",
-                foreignCellTag);
-            const auto& rsp = rspOrError.Value();
-            YCHECK(req->subrequests_size() == rsp->subresponses_size());
-
-            if (nodeDirectory) {
-                nodeDirectory->MergeFrom(rsp->node_directory());
-            }
-
-            for (int globalIndex = beginIndex; globalIndex < endIndex; ++globalIndex) {
-                int localIndex = globalIndex - beginIndex;
-                const auto& subrequest = req->subrequests(localIndex);
-                auto* subresponse = rsp->mutable_subresponses(localIndex);
-                auto chunkId = FromProto<TChunkId>(subrequest);
-                if (subresponse->missing()) {
-                    THROW_ERROR_EXCEPTION(
-                        NChunkClient::EErrorCode::NoSuchChunk,
-                        "No such chunk %v",
-                        chunkId);
-                }
-                foreignChunkSpecs[globalIndex]->mutable_replicas()->Swap(subresponse->mutable_replicas());
-                foreignChunkSpecs[globalIndex]->set_erasure_codec(subresponse->erasure_codec());
-            }
-        }
-    }
+    LocateChunks(client, maxChunksPerLocateRequest, foreignChunkList, nodeDirectory, logger);
 
     for (auto& chunkSpec : *fetchResponse->mutable_chunks()) {
         chunkSpecs->push_back(NProto::TChunkSpec());
@@ -427,6 +377,74 @@ IChunkReaderPtr CreateRemoteReader(
         localDescriptor,
         blockCache,
         throttler);
+}
+
+void LocateChunks(
+    NApi::INativeClientPtr client,
+    int maxChunksPerLocateRequest,
+    const std::vector<NProto::TChunkSpec*> chunkSpecList,
+    const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,
+    const NLogging::TLogger& logger)
+{
+    const auto& Logger = logger;
+
+    yhash_map<NObjectClient::TCellTag, std::vector<NProto::TChunkSpec*>> chunkMap;
+
+    for (auto* chunkSpec : chunkSpecList) {
+        auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());
+        auto chunkCellTag = CellTagFromId(chunkId);
+        auto& cellChunkList = chunkMap[chunkCellTag];
+        cellChunkList.push_back(chunkSpec);
+    }
+
+    for (auto& pair : chunkMap) {
+        auto cellTag = pair.first;
+        auto& chunkSpecs = pair.second;
+
+        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag);
+        TChunkServiceProxy proxy(channel);
+
+        for (int beginIndex = 0; beginIndex < chunkSpecs.size(); beginIndex += maxChunksPerLocateRequest) {
+            int endIndex = std::min(
+                beginIndex + maxChunksPerLocateRequest,
+                static_cast<int>(chunkSpecs.size()));
+
+            auto req = proxy.LocateChunks();
+            req->SetHeavy(true);
+            for (int index = beginIndex; index < endIndex; ++index) {
+                *req->add_subrequests() = chunkSpecs[index]->chunk_id();
+            }
+
+            LOG_DEBUG("Locating chunks (CellTag: %v, ChunkCount: %v)",
+                cellTag,
+                req->subrequests_size());
+
+            auto rspOrError = WaitFor(req->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error locating chunks at cell %v",
+                cellTag);
+            const auto& rsp = rspOrError.Value();
+            YCHECK(req->subrequests_size() == rsp->subresponses_size());
+
+            if (nodeDirectory) {
+                nodeDirectory->MergeFrom(rsp->node_directory());
+            }
+
+            for (int globalIndex = beginIndex; globalIndex < endIndex; ++globalIndex) {
+                int localIndex = globalIndex - beginIndex;
+                const auto& subrequest = req->subrequests(localIndex);
+                auto* subresponse = rsp->mutable_subresponses(localIndex);
+                auto chunkId = FromProto<TChunkId>(subrequest);
+                if (subresponse->missing()) {
+                    THROW_ERROR_EXCEPTION(
+                        NChunkClient::EErrorCode::NoSuchChunk,
+                        "No such chunk %v",
+                        chunkId);
+                }
+                chunkSpecs[globalIndex]->mutable_replicas()->Swap(subresponse->mutable_replicas());
+                chunkSpecs[globalIndex]->set_erasure_codec(subresponse->erasure_codec());
+            }
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

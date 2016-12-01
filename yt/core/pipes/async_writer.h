@@ -13,7 +13,7 @@ namespace NPipes {
 
 //! Implements IAsyncOutputStream interface on top of a file descriptor.
 class TAsyncWriter
-    : public NConcurrency::IAsyncOutputStream
+    : public NConcurrency::IAsyncClosableOutputStream
 {
 public:
     //! Takes ownership of #fd.
@@ -27,11 +27,10 @@ public:
 
     virtual TFuture<void> Write(const TSharedRef& buffer) override;
 
-    TFuture<void> Close();
+    virtual TFuture<void> Close() override;
 
     //! Thread-safe, can be called multiple times.
     TFuture<void> Abort();
-
 
     //! Time spent waiting for write requests.
     TFuture<TDuration> GetIdleDuration() const;

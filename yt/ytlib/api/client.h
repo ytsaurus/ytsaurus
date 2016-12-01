@@ -492,6 +492,10 @@ struct TDumpJobContextOptions
     : public TTimeoutOptions
 { };
 
+struct TGetJobInputOptions
+    : public TTimeoutOptions
+{ };
+
 struct TGetJobStderrOptions
     : public TTimeoutOptions
 { };
@@ -780,6 +784,11 @@ struct IClient
         const NJobTrackerClient::TJobId& jobId,
         const NYPath::TYPath& path,
         const TDumpJobContextOptions& options = TDumpJobContextOptions()) = 0;
+
+    virtual TFuture<IFileReaderPtr> GetJobInput(
+        const NJobTrackerClient::TOperationId& operationId,
+        const NJobTrackerClient::TJobId& jobId,
+        const TGetJobInputOptions& options = TGetJobInputOptions()) = 0;
 
     virtual TFuture<TSharedRef> GetJobStderr(
         const NJobTrackerClient::TOperationId& operationId,

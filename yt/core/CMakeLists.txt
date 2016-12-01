@@ -45,6 +45,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/async_semaphore.cpp
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/async_rw_lock.cpp
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/async_stream.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/async_stream_pipe.cpp
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/coroutine.cpp
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/delayed_executor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/ev_scheduler_thread.cpp

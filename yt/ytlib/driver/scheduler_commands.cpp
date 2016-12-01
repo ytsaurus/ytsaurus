@@ -2,6 +2,8 @@
 #include "config.h"
 #include "driver.h"
 
+#include <yt/ytlib/api/file_reader.h>
+
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/ytree/fluent.h>
@@ -27,6 +29,36 @@ void TDumpJobContextCommand::DoExecute(ICommandContextPtr context)
 {
     WaitFor(context->GetClient()->DumpJobContext(JobId, Path))
         .ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TGetJobInputCommand::TGetJobInputCommand()
+{
+    RegisterParameter("operation_id", OperationId);
+    RegisterParameter("job_id", JobId);
+}
+
+void TGetJobInputCommand::DoExecute(ICommandContextPtr context)
+{
+    auto jobInputReader = WaitFor(context->GetClient()->GetJobInput(OperationId, JobId, Options))
+        .ValueOrThrow();
+
+    WaitFor(jobInputReader->Open())
+        .ThrowOnError();
+
+    auto output = context->Request().OutputStream;
+
+    while (true) {
+        auto block = WaitFor(jobInputReader->Read())
+            .ValueOrThrow();
+
+        if (!block)
+            break;
+
+        WaitFor(output->Write(block))
+            .ThrowOnError();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

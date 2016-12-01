@@ -30,6 +30,8 @@ bool IsOperationInProgress(EOperationState state);
 
 void ValidateEnvironmentVariableName(const TStringBuf& name);
 
+int GetJobSpecVersion();
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler
