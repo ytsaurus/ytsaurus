@@ -122,8 +122,10 @@ public:
         });
     }
 
+    static TLogConfigPtr CreateStderrLogger(ELogLevel logLevel);
     static TLogConfigPtr CreateDefault();
     static TLogConfigPtr CreateQuiet();
+    static TLogConfigPtr CreateSilent();
     static TLogConfigPtr CreateFromNode(NYTree::INodePtr node, const NYPath::TYPath& path = "");
 };
 

@@ -332,10 +332,12 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
         // Configure singletons.
 
-        if (!isMasterSnapshotDump && !isMasterSnapshotValidate) {
-            NLogging::TLogManager::Get()->Configure(configFileName, "/logging");
-        } else {
+        if (isMasterSnapshotDump) {
+            NLogging::TLogManager::Get()->Configure(NLogging::TLogConfig::CreateSilent());
+        } else if (isMasterSnapshotValidate) {
             NLogging::TLogManager::Get()->Configure(NLogging::TLogConfig::CreateQuiet());
+        } else {
+            NLogging::TLogManager::Get()->Configure(configFileName, "/logging");
         }
 
         TAddressResolver::Get()->Configure(genericConfig->AddressResolver);
