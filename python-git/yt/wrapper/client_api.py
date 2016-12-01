@@ -9,7 +9,7 @@ from .dynamic_table_commands import select_rows, insert_rows, delete_rows, looku
 from .run_operation_commands import run_erase, run_merge, run_sort, run_map_reduce, run_map, run_reduce, \
                                     run_join_reduce, run_remote_copy
 from .operation_commands import get_operation_state, abort_operation, suspend_operation, resume_operation, \
-                                        complete_operation, get_operation_attributes
+                                complete_operation, get_operation_attributes
 from .file_commands import read_file, write_file, smart_upload_file
 from .transaction_commands import start_transaction, abort_transaction, commit_transaction, ping_transaction
 from .http_helpers import get_user_name

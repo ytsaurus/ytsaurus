@@ -52,7 +52,7 @@ from .errors import YtIncorrectResponse, YtError
 from .format import create_format, YsonFormat
 from .heavy_commands import make_write_request, make_read_request
 from .table_helpers import _prepare_source_tables, _are_default_empty_table, _prepare_table_writer, \
-                          _remove_tables, DEFAULT_EMPTY_TABLE, _to_chunk_stream, _prepare_format
+                           _remove_tables, DEFAULT_EMPTY_TABLE, _to_chunk_stream, _prepare_format
 from .ypath import TablePath, ypath_join
 
 try:

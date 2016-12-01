@@ -1,7 +1,3 @@
-from copy import deepcopy
-import types
-
-import yt.logger as logger
 from .common import flatten, update, get_value, chunk_iter_stream, require
 from .config import get_config
 from .errors import YtError
@@ -10,7 +6,11 @@ from .ypath import TablePath
 from .cypress_commands import exists, remove, get_attribute, get_type
 from .transaction_commands import abort_transaction
 
+import yt.logger as logger
 from yt.packages.six import text_type, binary_type, PY3
+
+import types
+from copy import deepcopy
 
 try:
     # It is used to checks iterable type.
