@@ -253,8 +253,8 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, LeaseTransaction_);
     // COMPAT(shakurov, babenko)
     if (context.GetVersion() < 400)  {
-        YCHECK(Load<size_t>(context) == 0);
-        YCHECK(Load<size_t>(context) == 0);
+        YCHECK(TSizeSerializer::Load(context) == 0);
+        YCHECK(TSizeSerializer::Load(context) == 0);
     } else if (context.GetVersion() < 401) {
         YCHECK(Load<int>(context) == 0);
         YCHECK(Load<int>(context) == 0);
