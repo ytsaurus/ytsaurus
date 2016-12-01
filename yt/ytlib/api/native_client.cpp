@@ -1,5 +1,6 @@
 #include "client.h"
 #include "private.h"
+
 #include "box.h"
 #include "config.h"
 #include "native_connection.h"
@@ -25,6 +26,9 @@
 #include <yt/ytlib/hive/cluster_directory.h>
 #include <yt/ytlib/hive/config.h>
 
+#include <yt/ytlib/job_proxy/job_spec_helper.h>
+#include <yt/ytlib/job_proxy/user_job_read_controller.h>
+
 #include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
 #include <yt/ytlib/node_tracker_client/channel.h>
@@ -45,6 +49,7 @@
 #include <yt/ytlib/query_client/functions_cache.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
+#include <yt/ytlib/scheduler/job.pb.h>
 #include <yt/ytlib/scheduler/job_prober_service_proxy.h>
 #include <yt/ytlib/scheduler/scheduler_service_proxy.h>
 
@@ -71,9 +76,10 @@
 
 #include <yt/core/compression/helpers.h>
 
-#include <yt/core/concurrency/scheduler.h>
 #include <yt/core/concurrency/async_semaphore.h>
+#include <yt/core/concurrency/async_stream_pipe.h>
 #include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/profiling/scoped_timer.h>
 
@@ -105,6 +111,7 @@ using namespace NTabletClient::NProto;
 using namespace NSecurityClient;
 using namespace NQueryClient;
 using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 using namespace NScheduler;
 using namespace NHiveClient;
 using namespace NHydra;
@@ -118,11 +125,13 @@ using NNodeTrackerClient::TNetworkPreferenceList;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TQueryHelper)
+DECLARE_REFCOUNTED_CLASS(TJobInputReader)
 DECLARE_REFCOUNTED_CLASS(TNativeClient)
 DECLARE_REFCOUNTED_CLASS(TNativeTransaction)
+DECLARE_REFCOUNTED_CLASS(TQueryHelper)
 
 ////////////////////////////////////////////////////////////////////////////////
+
 
 TUserWorkloadDescriptor::operator TWorkloadDescriptor() const
 {
@@ -385,6 +394,18 @@ TTabletInfoPtr GetOrderedTabletForRow(
     return tabletInfo;
 }
 
+TUnversionedOwningRow CreateOperationJobKey(const TOperationId& operationId, const TJobId& jobId, const TNameTablePtr& nameTable)
+{
+    TOwningRowBuilder keyBuilder(4);
+
+    keyBuilder.AddValue(MakeUnversionedUint64Value(operationId.Parts64[0], nameTable->GetIdOrRegisterName("operation_id_hi")));
+    keyBuilder.AddValue(MakeUnversionedUint64Value(operationId.Parts64[1], nameTable->GetIdOrRegisterName("operation_id_lo")));
+    keyBuilder.AddValue(MakeUnversionedUint64Value(jobId.Parts64[0], nameTable->GetIdOrRegisterName("job_id_hi")));
+    keyBuilder.AddValue(MakeUnversionedUint64Value(jobId.Parts64[1], nameTable->GetIdOrRegisterName("job_id_lo")));
+
+    return keyBuilder.FinishRow();
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -425,6 +446,47 @@ TError TCheckPermissionResult::ToError(const Stroka& user, EPermission permissio
             Y_UNREACHABLE();
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TJobInputReader
+    : public IFileReader
+{
+public:
+    TJobInputReader(NJobProxy::TUserJobReadControllerPtr userJobReadController, IInvokerPtr invoker)
+        : Invoker_(std::move(invoker))
+        , UserJobReadController_(std::move(userJobReadController))
+        , AsyncStreamPipe_(New<TAsyncStreamPipe>())
+    { }
+
+    ~TJobInputReader()
+    {
+        TransferResultFuture_.Cancel();
+    }
+
+    virtual TFuture<void> Open() override
+    {
+        auto transferClosure = UserJobReadController_->PrepareJobInputTransfer(AsyncStreamPipe_);
+        TransferResultFuture_ = transferClosure
+            .AsyncVia(Invoker_)
+            .Run();
+        return VoidFuture;
+    }
+
+    virtual TFuture<TSharedRef> Read() override
+    {
+        return AsyncStreamPipe_->Read();
+    }
+
+private:
+    const IInvokerPtr Invoker_;
+    NJobProxy::TUserJobReadControllerPtr UserJobReadController_;
+    NConcurrency::TAsyncStreamPipePtr AsyncStreamPipe_;
+    TFuture<void> TransferResultFuture_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobInputReader);
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1333,6 +1395,11 @@ public:
         const TYPath& path,
         const TDumpJobContextOptions& options),
         (jobId, path, options))
+    IMPLEMENT_METHOD(IFileReaderPtr, GetJobInput, (
+        const TOperationId& operationId,
+        const TJobId& jobId,
+        const TGetJobInputOptions& options),
+        (operationId, jobId, options))
     IMPLEMENT_METHOD(TSharedRef, GetJobStderr, (
         const TOperationId& operationId,
         const TJobId& jobId,
@@ -2808,6 +2875,123 @@ private:
 
         WaitFor(req->Invoke())
             .ThrowOnError();
+    }
+
+    IFileReaderPtr DoGetJobInput(
+        const TOperationId& operationId,
+        const TJobId& jobId,
+        const TGetJobInputOptions& /*options*/)
+    {
+        auto nameTable = New<TNameTable>();
+
+        TLookupRowsOptions lookupOptions;
+        lookupOptions.ColumnFilter = NTableClient::TColumnFilter({nameTable->RegisterName("spec")});
+        lookupOptions.KeepMissingRows = true;
+
+        auto owningKey = CreateOperationJobKey(operationId, jobId, nameTable);
+
+        std::vector<TUnversionedRow> keys;
+        keys.push_back(owningKey);
+
+        auto lookupResult = WaitFor(LookupRows(
+            GetOperationsArchiveJobsPath(),
+            nameTable,
+            MakeSharedRange(keys, owningKey),
+            lookupOptions));
+
+        if (!lookupResult.IsOK()) {
+            THROW_ERROR_EXCEPTION(lookupResult)
+                .Wrap("Lookup job spec in operation archive failed")
+                << TErrorAttribute("job_id", jobId)
+                << TErrorAttribute("operation_id", operationId);
+        }
+
+        const auto& rows = lookupResult.Value()->Rows();
+
+        YCHECK(!rows.empty());
+
+        if (!rows[0]) {
+            THROW_ERROR_EXCEPTION("Missing job spec in job archive table")
+                << TErrorAttribute("job_id", jobId)
+                << TErrorAttribute("operation_id", operationId);
+        }
+
+        auto value = rows[0][0];
+
+        if (value.Type != EValueType::String) {
+            THROW_ERROR_EXCEPTION("Found job spec has unexpected value type")
+                << TErrorAttribute("job_id", jobId)
+                << TErrorAttribute("operation_id", operationId)
+                << TErrorAttribute("value_type", value.Type);
+        }
+
+        NJobTrackerClient::NProto::TJobSpec jobSpec;
+        bool ok = jobSpec.ParseFromArray(value.Data.String, value.Length);
+        if (!ok) {
+            THROW_ERROR_EXCEPTION("Cannot parse job spec")
+                << TErrorAttribute("job_id", jobId)
+                << TErrorAttribute("operation_id", operationId);
+        }
+
+        if (!jobSpec.has_version() || jobSpec.version() != GetJobSpecVersion()) {
+            THROW_ERROR_EXCEPTION("Job spec found in operation archive is of unsupported version")
+                << TErrorAttribute("job_id", jobId)
+                << TErrorAttribute("operation_id", operationId)
+                << TErrorAttribute("found_version", jobSpec.version())
+                << TErrorAttribute("supported_version", GetJobSpecVersion());
+        }
+
+        auto* schedulerJobSpecExt = jobSpec.MutableExtension(NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext);
+
+        auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
+        auto locateChunks = BIND([=] {
+            std::vector<TChunkSpec*> chunkSpecList;
+            for (auto& tableSpec : *schedulerJobSpecExt->mutable_input_table_specs()) {
+                for (auto& dataSliceDescriptor : *tableSpec.mutable_data_slice_descriptors()) {
+                    for (auto& chunkSpec : *dataSliceDescriptor.mutable_chunks()) {
+                        chunkSpecList.push_back(&chunkSpec);
+                    }
+                }
+            }
+            for (auto& tableSpec : *schedulerJobSpecExt->mutable_foreign_input_table_specs()) {
+                for (auto& dataSliceDescriptor : *tableSpec.mutable_data_slice_descriptors()) {
+                    for (auto& chunkSpec : *dataSliceDescriptor.mutable_chunks()) {
+                        chunkSpecList.push_back(&chunkSpec);
+                    }
+                }
+            }
+            LocateChunks(
+                MakeStrong(this),
+                New<TMultiChunkReaderConfig>()->MaxChunksPerLocateRequest,
+                chunkSpecList,
+                nodeDirectory,
+                Logger);
+            nodeDirectory->DumpTo(schedulerJobSpecExt->mutable_input_node_directory());
+        });
+
+        auto locateChunksResult = WaitFor(locateChunks
+            .AsyncVia(GetConnection()->GetHeavyInvoker())
+            .Run());
+
+        if (!locateChunksResult.IsOK()) {
+            THROW_ERROR_EXCEPTION("Failed to locate chunks used in job input")
+                << TErrorAttribute("job_id", jobId)
+                << TErrorAttribute("operation_id", operationId);
+        }
+
+        auto jobSpecHelper = NJobProxy::CreateJobSpecHelper(jobSpec);
+
+        auto userJobReader = New<NJobProxy::TUserJobReadController>(
+            jobSpecHelper,
+            MakeStrong(this),
+            GetConnection()->GetHeavyInvoker(),
+            NNodeTrackerClient::TNodeDescriptor(),
+            TClosure(),
+            Null);
+
+        auto jobInputReader = New<TJobInputReader>(userJobReader, GetConnection()->GetHeavyInvoker());
+
+        return jobInputReader;
     }
 
     TSharedRef DoGetJobStderr(

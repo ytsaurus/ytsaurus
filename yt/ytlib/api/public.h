@@ -69,6 +69,8 @@ DECLARE_REFCOUNTED_CLASS(TPersistentQueuePollerConfig)
 
 DECLARE_REFCOUNTED_STRUCT(TPrerequisiteRevisionConfig)
 
+DECLARE_REFCOUNTED_CLASS(TJobInputReader)
+
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NApi

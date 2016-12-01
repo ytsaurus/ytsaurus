@@ -29,6 +29,7 @@
 
 #include <yt/ytlib/formats/parser.h>
 
+#include <yt/ytlib/job_proxy/user_job_read_controller.h>
 #include <yt/ytlib/job_tracker_client/statistics.h>
 
 #include <yt/ytlib/query_client/evaluator.h>
@@ -149,9 +150,10 @@ public:
         , JobIO_(std::move(userJobIO))
         , UserJobSpec_(userJobSpec)
         , Config_(Host_->GetConfig())
+        , JobIOConfig_(Host_->GetJobSpecHelper()->GetJobIOConfig())
         , CGroupsConfig_(Host_->GetCGroupsConfig())
         , JobErrorPromise_(NewPromise<void>())
-        , PipeIOPool_(New<TThreadPool>(Config_->JobIO->PipeIOPoolSize, "PipeIO"))
+        , PipeIOPool_(New<TThreadPool>(JobIOConfig_->PipeIOPoolSize, "PipeIO"))
         , AuxQueue_(New<TActionQueue>("JobAux"))
         , ReadStderrInvoker_(CreateSerializedInvoker(PipeIOPool_->GetInvoker()))
         , Process_(New<TProcess>(ExecProgramName, false))
@@ -163,6 +165,14 @@ public:
     {
         auto jobEnvironmentConfig = ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment);
         MemoryWatchdogPeriod_ = jobEnvironmentConfig->MemoryWatchdogPeriod;
+
+        UserJobReadController_ = New<TUserJobReadController>(
+            Host_->GetJobSpecHelper(),
+            Host_->GetClient(),
+            PipeIOPool_->GetInvoker(),
+            Host_->LocalDescriptor(),
+            BIND(&IJobHost::ReleaseNetwork, Host_),
+            SandboxDirectoryNames[ESandboxKind::Udf]);
 
         InputPipeBlinker_ = New<TPeriodicExecutor>(
             AuxQueue_->GetInvoker(),
@@ -196,7 +206,7 @@ public:
             auto chunkList = FromProto<TChunkListId>(coreTableSpec.output_table_spec().chunk_list_id());
             auto blobTableWriterConfig = ConvertTo<TBlobTableWriterConfigPtr>(TYsonString(coreTableSpec.blob_table_writer_config()));
             auto transactionId = FromProto<TTransactionId>(
-                Host_->GetJobSpec().GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext).output_transaction_id());
+                Host_->GetJobSpecHelper()->GetSchedulerJobSpecExt().output_transaction_id());
 
             CoreProcessorService_ = New<TCoreProcessorService>(
                 Host_,
@@ -327,43 +337,27 @@ public:
 
     virtual double GetProgress() const override
     {
-        const auto& reader = JobIO_->GetReader();
-        if (!reader) {
-            return 0;
-        }
-
-        i64 total = reader->GetTotalRowCount();
-        i64 current = reader->GetSessionRowIndex();
-
-        if (total == 0) {
-            return 0.0;
-        }
-
-        return Clamp(current / static_cast<double>(total), 0.0, 1.0);
+        return UserJobReadController_->GetProgress();
     }
 
     virtual std::vector<TChunkId> GetFailedChunkIds() const override
     {
-        std::vector<TChunkId> failedChunks;
-        const auto& reader = JobIO_->GetReader();
-        if (reader) {
-            auto chunks = reader->GetFailedChunkIds();
-            failedChunks.insert(failedChunks.end(), chunks.begin(), chunks.end());
-        }
-        return failedChunks;
+        return UserJobReadController_->GetFailedChunkIds();
     }
 
     virtual std::vector<TDataSliceDescriptor> GetUnreadDataSliceDescriptors() const override
     {
-        return JobIO_->GetUnreadDataSliceDescriptors();
+        return UserJobReadController_->GetUnreadDataSliceDescriptors();
     }
 
 private:
     const std::unique_ptr<IUserJobIO> JobIO_;
+    TUserJobReadControllerPtr UserJobReadController_;
 
     const TUserJobSpec& UserJobSpec_;
 
     const TJobProxyConfigPtr Config_;
+    const NScheduler::TJobIOConfigPtr JobIOConfig_;
 
     Stroka InputPipePath_;
 
@@ -404,8 +398,6 @@ private:
     TAsyncReaderPtr ControlPipeReader_;
     TAsyncReaderPtr StatisticsPipeReader_;
     TAsyncReaderPtr StderrPipeReader_;
-
-    std::vector<ISchemalessFormatWriterPtr> FormatWriters_;
 
     // Actually StartActions_ and InputActions_ has only one element,
     // but use vector to reuse runAction code
@@ -538,7 +530,7 @@ private:
     TOutputStream* CreateErrorOutput()
     {
         ErrorOutput_.reset(new TStderrWriter(
-            Config_->JobIO->ErrorFileWriter,
+            JobIOConfig_->ErrorFileWriter,
             CreateFileOptions(),
             Host_->GetClient(),
             FromProto<TTransactionId>(UserJobSpec_.async_scheduler_transaction_id()),
@@ -568,7 +560,9 @@ private:
 
     void DumpFailContexts(TSchedulerJobResultExt* schedulerResultExt)
     {
-        auto contexts = DoGetInputContexts();
+        auto contexts = WaitFor(UserJobReadController_->GetInputContext())
+            .ValueOrThrow();
+
         auto contextChunkIds = DoDumpInputContext(contexts);
 
         YCHECK(contextChunkIds.size() <= 1);
@@ -581,9 +575,7 @@ private:
     {
         ValidatePrepared();
 
-        auto result = WaitFor(BIND(&TUserJob::DoGetInputContexts, MakeStrong(this))
-            .AsyncVia(PipeIOPool_->GetInvoker())
-            .Run());
+        auto result = WaitFor(UserJobReadController_->GetInputContext());
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error collecting job input context");
         const auto& contexts = result.Value();
 
@@ -604,7 +596,7 @@ private:
         auto transactionId = FromProto<TTransactionId>(UserJobSpec_.async_scheduler_transaction_id());
         for (int index = 0; index < contexts.size(); ++index) {
             TFileChunkOutput contextOutput(
-                Config_->JobIO->ErrorFileWriter,
+                JobIOConfig_->ErrorFileWriter,
                 CreateFileOptions(),
                 Host_->GetClient(),
                 transactionId);
@@ -619,17 +611,6 @@ private:
                 index);
 
             result.push_back(contextChunkId);
-        }
-
-        return result;
-    }
-
-    std::vector<TBlob> DoGetInputContexts()
-    {
-        std::vector<TBlob> result;
-
-        for (const auto& input : FormatWriters_) {
-            result.push_back(input->GetContext());
         }
 
         return result;
@@ -708,7 +689,7 @@ private:
     {
         ValidatePrepared();
 
-        JobIO_->InterruptReader();
+        UserJobReadController_->InterruptReader();
     }
 
     void ValidatePrepared()
@@ -846,79 +827,6 @@ private:
         }));
     }
 
-    void PrepareInputActionsPassthrough(
-        int jobDescriptor,
-        const TFormat& format,
-        TAsyncWriterPtr asyncOutput)
-    {
-        JobIO_->CreateReader();
-        const auto& reader = JobIO_->GetReader();
-        auto writer = CreateSchemalessWriterForFormat(
-            format,
-            reader->GetNameTable(),
-            asyncOutput,
-            true,
-            Config_->JobIO->ControlAttributes,
-            JobIO_->GetKeySwitchColumnCount());
-
-        FormatWriters_.push_back(writer);
-
-        auto bufferRowCount = Config_->JobIO->BufferRowCount;
-
-        InputActions_.push_back(BIND([=] () {
-            try {
-                PipeReaderToWriter(
-                    reader,
-                    writer,
-                    bufferRowCount);
-                WaitFor(asyncOutput->Close())
-                    .ThrowOnError();
-            } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Table input pipe failed")
-                        << TErrorAttribute("fd", jobDescriptor)
-                        << ex;
-            }
-        }));
-    }
-
-    void PrepareInputActionsQuery(
-        const TQuerySpec& querySpec,
-        int jobDescriptor,
-        const TFormat& format,
-        TAsyncWriterPtr asyncOutput)
-    {
-        if (Config_->JobIO->ControlAttributes->EnableKeySwitch) {
-            THROW_ERROR_EXCEPTION("enable_key_switch is not supported when query is set");
-        }
-
-        auto readerFactory = JobIO_->GetReaderFactory();
-
-        InputActions_.push_back(BIND([=] () {
-            try {
-                RunQuery(querySpec, readerFactory, [&] (TNameTablePtr nameTable) {
-                    auto schemalessWriter = CreateSchemalessWriterForFormat(
-                        format,
-                        nameTable,
-                        asyncOutput,
-                        true,
-                        Config_->JobIO->ControlAttributes,
-                        0);
-
-                    FormatWriters_.push_back(schemalessWriter);
-
-                    return schemalessWriter;
-                });
-
-                WaitFor(asyncOutput->Close())
-                    .ThrowOnError();
-            } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Query evaluation failed")
-                    << TErrorAttribute("fd", jobDescriptor)
-                    << ex;
-            }
-        }));
-    }
-
     void PrepareInputTablePipe()
     {
         int jobDescriptor = 0;
@@ -933,12 +841,18 @@ private:
 
         TablePipeWriters_.push_back(asyncOutput);
 
-        auto jobSpec = Host_->GetJobSpec().GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        if (jobSpec.has_input_query_spec()) {
-            PrepareInputActionsQuery(jobSpec.input_query_spec(), jobDescriptor, format, asyncOutput);
-        } else {
-            PrepareInputActionsPassthrough(jobDescriptor, format, asyncOutput);
-        }
+        auto transferInput = UserJobReadController_->PrepareJobInputTransfer(asyncOutput);
+        InputActions_.push_back(BIND([=] () {
+            try {
+                auto transferComplete = transferInput();
+                WaitFor(transferComplete)
+                      .ThrowOnError();
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Table input pipe failed")
+                        << TErrorAttribute("fd", jobDescriptor)
+                        << ex;
+            }
+        }));
 
         FinalizeActions_.push_back(BIND([=] () {
             if (!UserJobSpec_.check_input_fully_consumed()) {
@@ -986,17 +900,17 @@ private:
 
         // Configure stderr pipe.
         StderrPipeReader_ = PrepareOutputPipe(
-            {STDERR_FILENO}, 
-            CreateErrorOutput(), 
-            &StderrActions_, 
+            {STDERR_FILENO},
+            CreateErrorOutput(),
+            &StderrActions_,
             TError("Error writing to stderr"));
 
         PrepareOutputTablePipes();
 
         if (!UserJobSpec_.use_yamr_descriptors()) {
             StatisticsPipeReader_ = PrepareOutputPipe(
-                {JobStatisticsFD}, 
-                CreateStatisticsOutput(), 
+                {JobStatisticsFD},
+                CreateStatisticsOutput(),
                 &OutputActions_,
                 TError("Error writing custom job statistics"));
         }
@@ -1077,9 +991,8 @@ private:
             statistics = CustomStatistics_;
         }
 
-        const auto& reader = JobIO_->GetReader();
-        if (reader) {
-            statistics.AddSample("/data/input", reader->GetDataStatistics());
+        if (const auto& dataStatistics = UserJobReadController_->GetDataStatistics()) {
+            statistics.AddSample("/data/input", *dataStatistics);
         }
 
         int i = 0;

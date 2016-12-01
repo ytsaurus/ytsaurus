@@ -101,6 +101,7 @@ function YtDriverFacadeV2(logger, driver)
     delete descriptors.poll_job_shell;
     delete descriptors.abort_job;
     delete descriptors.get_job_stderr;
+    delete descriptors.get_job_input;
 
     delete descriptors.join_reduce;
 

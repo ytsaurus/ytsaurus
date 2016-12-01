@@ -157,6 +157,12 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/job_prober_client/job_prober_service.proto
   ${CMAKE_CURRENT_LIST_DIR}/job_prober_client/job_signal.cpp
 
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/job_spec_helper.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/user_job_io_factory.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/user_job_read_controller.cpp
+
   ${CMAKE_CURRENT_LIST_DIR}/job_tracker_client/job.proto
   ${CMAKE_CURRENT_LIST_DIR}/job_tracker_client/job_tracker_service.proto
   ${CMAKE_CURRENT_LIST_DIR}/job_tracker_client/public.cpp

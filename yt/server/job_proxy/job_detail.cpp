@@ -137,8 +137,8 @@ void RunQuery(
 
 TSimpleJobBase::TSimpleJobBase(IJobHostPtr host)
     : TJob(host)
-    , JobSpec_(host->GetJobSpec())
-    , SchedulerJobSpecExt_(JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext))
+    , JobSpec_(host->GetJobSpecHelper()->GetJobSpec())
+    , SchedulerJobSpecExt_(host->GetJobSpecHelper()->GetSchedulerJobSpecExt())
 { }
 
 TJobResult TSimpleJobBase::Run()
@@ -148,7 +148,7 @@ TJobResult TSimpleJobBase::Run()
 
         Host_->OnPrepared();
 
-        const auto& jobSpec = Host_->GetJobSpec().GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        const auto& jobSpec = Host_->GetJobSpecHelper()->GetSchedulerJobSpecExt();
         if (jobSpec.has_input_query_spec()) {
             RunQuery(jobSpec.input_query_spec(), ReaderFactory_, WriterFactory_);
         } else {
@@ -229,7 +229,7 @@ TStatistics TSimpleJobBase::GetStatistics() const
 
 TTableWriterConfigPtr TSimpleJobBase::GetWriterConfig(const TTableOutputSpec& outputSpec)
 {
-    auto config = Host_->GetConfig()->JobIO->TableWriter;
+    auto config = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableWriter;
     if (outputSpec.has_table_writer_config()) {
         config = UpdateYsonSerializable(
             config,

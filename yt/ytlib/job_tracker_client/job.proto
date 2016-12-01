@@ -10,6 +10,7 @@ import "yt/ytlib/node_tracker_client/node.proto";
 message TJobSpec
 {
     required int32 type = 1;
+    optional int32 version = 2;
 
     extensions 100 to max;
 }

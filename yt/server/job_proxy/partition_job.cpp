@@ -1,6 +1,5 @@
 #include "partition_job.h"
 #include "private.h"
-#include "config.h"
 #include "job_detail.h"
 
 #include <yt/ytlib/object_client/helpers.h>
@@ -34,13 +33,11 @@ class TPartitionJob
 public:
     explicit TPartitionJob(IJobHostPtr host)
         : TSimpleJobBase(host)
-        , PartitionJobSpecExt_(host->GetJobSpec().GetExtension(TPartitionJobSpecExt::partition_job_spec_ext))
+        , PartitionJobSpecExt_(host->GetJobSpecHelper()->GetJobSpec().GetExtension(TPartitionJobSpecExt::partition_job_spec_ext))
     { }
 
     virtual void Initialize() override
     {
-        auto config = Host_->GetConfig();
-
         YCHECK(SchedulerJobSpecExt_.input_table_specs_size() == 1);
         const auto& inputSpec = SchedulerJobSpecExt_.input_table_specs(0);
 
@@ -58,7 +55,7 @@ public:
             // NB: don't create parallel reader to eliminate non-deterministic behavior,
             // which is a nightmare for restarted (lost) jobs.
             Reader_ = CreateSchemalessSequentialMultiChunkReader(
-                config->JobIO->TableReader,
+                Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader,
                 readerOptions,
                 Host_->GetClient(),
                 Host_->LocalDescriptor(),
@@ -114,7 +111,7 @@ private:
         WriterFactory_(NameTable_);
     }
 
-    virtual bool ShouldSendBoundaryKeys() const
+    virtual bool ShouldSendBoundaryKeys() const override
     {
         return false;
     }

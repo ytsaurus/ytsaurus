@@ -853,25 +853,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
-        INodePtr ioConfigNode;
-        try {
-            const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-            ioConfigNode = ConvertToNode(TYsonString(schedulerJobSpecExt.io_config()));
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error deserializing job IO configuration")
-                << ex;
-        }
-
-        auto ioConfig = New<TJobIOConfig>();
-        try {
-            ioConfig->Load(ioConfigNode);
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error validating job IO configuration")
-                << ex;
-        }
-
         auto proxyConfig = CloneYsonSerializable(Bootstrap_->GetJobProxyConfig());
-        proxyConfig->JobIO = ioConfig;
         proxyConfig->BusServer = Slot_->GetBusServerConfig();
         proxyConfig->TmpfsPath = TmpfsPath_;
         proxyConfig->SlotIndex = Slot_->GetSlotIndex();

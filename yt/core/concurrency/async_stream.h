@@ -67,6 +67,21 @@ struct IAsyncOutputStream
 
 DEFINE_REFCOUNTED_TYPE(IAsyncOutputStream)
 
+// TODO(ermolovd): actually IAsyncOutputStream should implement #Close method
+// as most of its implementations implement Close/Finish method in some way.
+struct IAsyncClosableOutputStream
+    : public IAsyncOutputStream
+{
+    //! Finalizes stream.
+    /*! Call #Close to complete writes.
+     *  #Close shouldn't be called before previous #Write call is complete.
+     *  #Write/#Close mustn't be called after #Close was called.
+     */
+    virtual TFuture<void> Close() = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IAsyncClosableOutputStream);
+
 //! Creates a synchronous adapter from a given asynchronous stream.
 std::unique_ptr<TOutputStream> CreateSyncAdapter(
     IAsyncOutputStreamPtr underlyingStream,

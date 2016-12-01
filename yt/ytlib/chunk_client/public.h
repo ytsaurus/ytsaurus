@@ -212,6 +212,8 @@ DECLARE_REFCOUNTED_TYPE(TRefCountedChunkMeta)
 
 using TPlacementId = TGuid;
 
+struct TDataSliceDescriptor;
+
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient

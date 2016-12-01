@@ -1,6 +1,5 @@
 #include "simple_sort_job.h"
 #include "private.h"
-#include "config.h"
 #include "job_detail.h"
 
 #include <yt/ytlib/object_client/helpers.h>
@@ -39,8 +38,6 @@ public:
 
     virtual void Initialize() override
     {
-        auto config = Host_->GetConfig();
-
         auto keyColumns = FromProto<TKeyColumns>(SortJobSpecExt_.key_columns());
         auto nameTable = TNameTable::FromKeyColumns(keyColumns);
 
@@ -51,7 +48,7 @@ public:
         TotalRowCount_ = GetCumulativeRowCount(dataSliceDescriptors);
 
         auto reader = CreateSchemalessParallelMultiChunkReader(
-            config->JobIO->TableReader,
+            Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader,
             readerOptions,
             Host_->GetClient(),
             Host_->LocalDescriptor(),
