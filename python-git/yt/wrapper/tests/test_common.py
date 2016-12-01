@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 from yt.wrapper.errors import YtHttpResponseError
 from yt.wrapper.common import update, unlist, parse_bool, dict_depth, bool_to_string, \
                               is_prefix, prefix, first_not_none, chunk_iter_blobs, \
@@ -94,3 +96,6 @@ def test_error_pickling():
     pickled_error = pickle.dumps(error)
     assert pickle.loads(pickled_error).message == error.message
 
+def test_error_str():
+    error = yt.YtError(u"моя ошибка", code=100, attributes={"аттрибут": 10, "другой атрибут": "со странным значением"})
+    assert "10" in str(error)

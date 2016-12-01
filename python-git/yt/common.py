@@ -1,4 +1,4 @@
-from yt.packages.six import iteritems, PY3, text_type, binary_type
+from yt.packages.six import iteritems, PY3, text_type, binary_type, string_types
 from yt.packages.six.moves import map as imap
 import yt.json as json
 
@@ -136,11 +136,15 @@ class PrettyPrintableDict(dict):
 
 def _pretty_format(error, attribute_length_limit=None):
     def format_attribute(name, value):
+        name = to_native_str(name)
         if isinstance(value, PrettyPrintableDict):
             value = json.dumps(value, indent=2)
             value = value.replace("\n", "\n" + " " * (15 + 1 + 4))
         else:
-            value = str(value)
+            if isinstance(value, string_types):
+                value = to_native_str(value)
+            else:
+                value = str(value)
             if attribute_length_limit is not None and len(value) > attribute_length_limit:
                 value = value[:attribute_length_limit] + "...message truncated..."
             value = value.replace("\n", "\\n")
@@ -158,7 +162,7 @@ def _pretty_format(error, attribute_length_limit=None):
 
         result = []
         if not error.get("attributes", {}).get("transparent", False):
-            result.append(" " * indent + error["message"])
+            result.append(" " * indent + to_native_str(error["message"]))
             new_indent = indent + 4
         else:
             new_indent = indent
@@ -173,7 +177,7 @@ def _pretty_format(error, attribute_length_limit=None):
 
         lines = []
         if "message" in error:
-            lines.append(error["message"])
+            lines.append(to_native_str(error["message"]))
 
         if "code" in error and int(error["code"]) != 1:
             lines.append(format_attribute("code", error["code"]))
