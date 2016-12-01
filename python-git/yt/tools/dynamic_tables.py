@@ -408,7 +408,7 @@ class DynamicTablesClient(object):
                         output_row_limit=output_row_limit,
                         workload_descriptor=self.workload_descriptor,
                         raw=False)
-                rows = run_with_retries(do_select, except_action=log_exception)
+                rows = run_with_retries(do_select, retry_count=10, backoff=60.0, except_action=log_exception)
                 if mapper is not None:
                     rows = mapper(rows)
                 for res in rows:
@@ -446,7 +446,7 @@ class DynamicTablesClient(object):
             for rowset in rowsets:
                 # Avoiding a closure inside the loop just in case
                 do_insert_these = make_inserter(rowset)
-                run_with_retries(do_insert_these, except_action=log_exception)
+                run_with_retries(do_insert_these, retry_count=10, backoff=60.0, except_action=log_exception)
 
             # Make a generator out of this function.
             if False:
