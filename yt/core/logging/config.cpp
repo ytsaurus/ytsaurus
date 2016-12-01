@@ -28,10 +28,10 @@ bool TRuleConfig::IsApplicable(const Stroka& category, ELogLevel level) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLogConfigPtr TLogConfig::CreateDefault()
+TLogConfigPtr TLogConfig::CreateStderrLogger(ELogLevel logLevel)
 {
     auto rule = New<TRuleConfig>();
-    rule->MinLevel = DefaultStderrMinLevel;
+    rule->MinLevel = logLevel;
     rule->Writers.push_back(DefaultStderrWriterName);
 
     auto stderrWriterConfig = New<TWriterConfig>();
@@ -48,7 +48,17 @@ TLogConfigPtr TLogConfig::CreateDefault()
     return config;
 }
 
+TLogConfigPtr TLogConfig::CreateDefault()
+{
+    return CreateStderrLogger(DefaultStderrMinLevel);
+}
+
 TLogConfigPtr TLogConfig::CreateQuiet()
+{
+    return CreateStderrLogger(DefaultStderrQuietLevel);
+}
+
+TLogConfigPtr TLogConfig::CreateSilent()
 {
     auto config = New<TLogConfig>();
 
