@@ -18,10 +18,10 @@ public:
     bool Main(const std::vector<Stroka>& args);
 
 private:
-    int ProcessId_ = -1;
-    int UserId_ = -1;
+    int ProcessId_ = 0;
+    int UserId_ = 0;
     Stroka ExecutableName_;
-    i64 RLimitCore_ = -1;
+    ui64 RLimitCore_ = 0;
     Stroka JobProxySocketNameDirectory_;
     Stroka FallbackPath_;
 
