@@ -91,20 +91,6 @@ TBlobTableWriter::TBlobTableWriter(
         .ThrowOnError();
 }
 
-<<<<<<< HEAD
-TBlobTableWriter::~TBlobTableWriter()
-{
-    try {
-        DoFinish();
-    } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Error finishing blob table writer");
-    } catch (...) {
-        Y_UNREACHABLE();
-    }
-}
-
-=======
->>>>>>> prestable/18.5
 NScheduler::NProto::TOutputResult TBlobTableWriter::GetOutputResult() const
 {
     return GetWrittenChunksBoundaryKeys(MultiChunkWriter_);
