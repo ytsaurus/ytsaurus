@@ -259,13 +259,13 @@ class TestOrderedDynamicTables(YTEnvSetup):
 
         for i in xrange(10):
             trim_rows("//tmp/t", 0, i * 100 + 10)
-            sleep(0.2)
+            sleep(0.5)
             assert get("//tmp/t/@tablets/0/trimmed_row_count") == i * 100 + 10
             assert get("#{0}/@statistics/row_count".format(tablet_chunk_list_id)) == 100 * (10 - i)
             assert get("#{0}/@child_ids".format(tablet_chunk_list_id)) == chunk_ids[i:]
 
         trim_rows("//tmp/t", 0, 1000)
-        sleep(0.2)
+        sleep(0.5)
         assert get("#{0}/@statistics/row_count".format(tablet_chunk_list_id)) == 0
 
     def test_read_obeys_trim(self):
