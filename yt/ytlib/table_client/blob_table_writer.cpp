@@ -91,9 +91,6 @@ TBlobTableWriter::TBlobTableWriter(
         .ThrowOnError();
 }
 
-TBlobTableWriter::~TBlobTableWriter()
-{ }
-
 NScheduler::NProto::TOutputResult TBlobTableWriter::GetOutputResult() const
 {
     return GetWrittenChunksBoundaryKeys(MultiChunkWriter_);

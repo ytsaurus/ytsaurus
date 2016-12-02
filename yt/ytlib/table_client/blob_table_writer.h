@@ -57,8 +57,6 @@ public:
         const NCypressClient::TTransactionId& transactionId,
         const NChunkClient::TChunkListId& chunkListId);
 
-    ~TBlobTableWriter();
-
     NScheduler::NProto::TOutputResult GetOutputResult() const;
 
 private:
