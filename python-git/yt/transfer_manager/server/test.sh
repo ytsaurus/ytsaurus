@@ -100,6 +100,23 @@ wait_task() {
     done
 }
 
+wait_task_to_fail() {
+    local id="$1"
+    log "Waiting task $id (should fail)"
+    while true; do
+        state=$(get_task_state $id)
+        echo "STATE: $state"
+        if [ "$state" = '"failed"' ]; then
+            echo "Task $id failed as expected"
+            break
+        fi
+        if [ "$state" = '"completed"' ] || [ "$state" = '"skipped"' ] || [ "$state" = '"aborted"' ]; then
+            die "Task $id $state, but expected to fail"
+        fi
+        sleep 1.0
+    done
+}
+
 test_copy_empty_table() {
     echo "Importing empty table from Banach to Freud"
     yt2 create table //tmp/empty_table --proxy banach --ignore-existing
@@ -627,38 +644,58 @@ test_schema_copy()
     echo "Test schema copy"
 
     yt2 remove //tmp/test_table --proxy banach --force
-    yt2 remove //tmp/test_table2 --proxy banach --force
 
     yt2 remove //tmp/test_table --proxy freud --force
     yt2 create table //tmp/test_table --proxy freud --attributes '{schema=[{type=string;name=a}]}'
     echo 'a=1' | yt2 write //tmp/test_table --proxy freud --format dsv
 
-
-    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "freud", "destination_table": "//tmp/test_table", "destination_cluster": "banach"}')
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "freud", "destination_table": "//tmp/test_table", "destination_cluster": "banach", "copy_method": "proxy"}')
     wait_task $id
 
     check "a=1" "$(yt2 read //tmp/test_table --proxy banach --format dsv)"
     check '"string"' "$(yt2 get //tmp/test_table/@schema/0/type --proxy banach)"
     check '%true' "$(yt2 get //tmp/test_table/@schema/@strict --proxy banach)"
+    check '"strong"' "$(yt2 get //tmp/test_table/@schema_mode --proxy banach)"
 
+    yt2 remove //tmp/test_table --proxy banach --force
 
-    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "freud", "destination_table": "//tmp/test_table2", "destination_cluster": "banach", "schema_inference_mode": "from_output"}')
-    wait_task $id
+    yt2 remove //tmp/test_table --proxy freud --force
+    yt2 create table //tmp/test_table --proxy freud --attributes '{schema=[{type=string;name=b}]}'
+    echo "b=2" | yt2 write //tmp/test_table --proxy freud --format dsv
 
-    check "a=1" "$(yt2 read //tmp/test_table2 --proxy banach --format dsv)"
-    check '%false' "$(yt2 get //tmp/test_table2/@schema/@strict --proxy banach)"
-
-
-    yt2 remove //tmp/test_table2 --proxy freud --force
-    yt2 create table //tmp/test_table2 --proxy freud --attributes '{schema=[{type=string;name=b}]}'
-    echo 'b=2' | yt2 write //tmp/test_table2 --proxy freud --format dsv
-
-    id=$(run_task '{"source_table": "//tmp/test_table2", "source_cluster": "freud", "destination_table": "//tmp/test_table", "destination_cluster": "banach", "schema_inference_mode": "from_input"}')
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "freud", "destination_table": "//tmp/test_table", "destination_cluster": "banach", "schema_inference_mode": "from_input", "copy_method": "proxy"}')
     wait_task $id
 
     check "b=2" "$(yt2 read //tmp/test_table --proxy banach --format dsv)"
     check '"string"' "$(yt2 get //tmp/test_table/@schema/0/type --proxy banach)"
     check '%true' "$(yt2 get //tmp/test_table/@schema/@strict --proxy banach)"
+    check '"strong"' "$(yt2 get //tmp/test_table/@schema_mode --proxy banach)"
+
+    yt2 remove //tmp/test_table --proxy banach --force
+
+    yt2 remove //tmp/test_table --proxy freud --force
+    echo -ne "a=2\na=1\n" | yt2 write //tmp/test_table --proxy freud --format dsv
+    yt2 sort --src //tmp/test_table --dst //tmp/test_table --sort-by a --proxy freud
+
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "freud", "destination_table": "//tmp/test_table", "destination_cluster": "banach", "schema_inference_mode": "from_input", "copy_method": "proxy"}')
+    wait_task $id
+
+    check '"weak"' "$(yt2 get //tmp/test_table/@schema_mode --proxy banach)"
+    check 'a=1\na=2' "$(yt2 read //tmp/test_table --proxy banach --format dsv)"
+    check '"ascending"' "$(yt2 get //tmp/test_table/@schema/0/sort_order --proxy banach)"
+
+    yt2 remove //tmp/test_table --proxy freud --force
+    yt2 remove //tmp/test_table --proxy banach --force
+
+    yt2 create table //tmp/test_table --proxy banach --attributes '{schema=[{type=string;name=k}]}'
+    echo "k=1" | yt2 write //tmp/test_table --proxy banach --format dsv
+
+    echo -ne "a=1\n" | yt2 write //tmp/test_table --proxy freud --format dsv
+    yt2 sort --src //tmp/test_table --dst //tmp/test_table --sort-by a --proxy freud
+
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "freud", "destination_table": "//tmp/test_table", "destination_cluster": "banach", "schema_inference_mode": "from_input", "copy_method": "proxy"}')
+    wait_task_to_fail $id
+    yt2 remove //tmp/test_table --proxy banach --force
 }
 
 test_pattern_matching() {
@@ -701,6 +738,7 @@ for flag in true false; do
     test_source_codecs
     test_copy_inefficiently_stored_table
     test_intermediate_format
+    test_schema_copy
 done
 FORCE_COPY_WITH_OPERATION=false
 
@@ -715,7 +753,6 @@ test_mutating_requests_retries
 test_delete_tasks
 test_copy_with_annotated_json
 test_kiwi_copy
-test_schema_copy
 
-# Test it manually since in required killing TM instance.
+# Test it manually since it requires killing TM instance.
 #test_abort_operations_on_startup
