@@ -1,48 +1,3 @@
-"""
-Commands for table working and Map-Reduce operations.
-.. seealso:: `operations on wiki <https://wiki.yandex-team.ru/yt/userdoc/operations>`_
-
-Python wrapper has some improvements over bare YT operations:
-
-* upload files automatically
-
-* create or erase output table
-
-* delete files after
-
-.. _operation_parameters:
-
-Common operations parameters
------------------------
-
-
-* **spec** : (dict) universal method to set operation parameters
-
-* **job_io** : (dict) spec for job io of all stages of operation \
-<https://wiki.yandex-team.ru/yt/userdoc/api#write>`_.
-
-* **table_writer** : (dict) spec of `"write_table" operation \
-<https://wiki.yandex-team.ru/yt/userdoc/api#writetable>`_.
-
-* **table_reader** : (dict) spec of `"read_table" operation \
-<https://wiki.yandex-team.ru/yt/userdoc/api#readtable>`_.
-
-* **format** : (string or descendant of `yt.wrapper.format.Format`) format of input and output \
-data of operation
-
-* **memory_limit** : (integer) memory limit in Mb in *scheduler* for every *job* (512Mb by default)
-
-
-Operation run under self-pinged transaction, if `yt.wrapper.get_config(client)["detached"]` is `False`.
-"""
-
-
-import yt.json as json
-import yt.logger as logger
-import yt.yson as yson
-from yt.packages.six import PY3
-from yt.packages.six.moves import map as imap, filter as ifilter
-
 from .common import flatten, require, update, parse_bool, get_value, MB, EMPTY_GENERATOR
 from .config import get_config
 from .cypress_commands import exists, remove, get_attribute, copy, \
@@ -54,6 +9,12 @@ from .heavy_commands import make_write_request, make_read_request
 from .table_helpers import _prepare_source_tables, _are_default_empty_table, _prepare_table_writer, \
                            _remove_tables, DEFAULT_EMPTY_TABLE, _to_chunk_stream, _prepare_format
 from .ypath import TablePath, ypath_join
+
+import yt.json as json
+import yt.yson as yson
+import yt.logger as logger
+from yt.packages.six import PY3
+from yt.packages.six.moves import map as imap, filter as ifilter
 
 try:
     from cStringIO import StringIO as BytesIO
