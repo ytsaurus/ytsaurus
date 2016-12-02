@@ -50,12 +50,12 @@ void TCoreForwarder::ParseArgs(const std::vector<Stroka>& args)
     ProcessId_ = FromString<int>(args[0]);
     UserId_ = FromString<int>(args[1]);
     ExecutableName_ = args[2];
-    RLimitCore_ = FromString<i64>(args[3]);
+    RLimitCore_ = FromString<ui64>(args[3]);
     JobProxySocketNameDirectory_ = args[4];
     FallbackPath_ = args[5];
 
     syslog(LOG_INFO,
-        "Processing core dump (Uid: %d, Pid: %d, ExecutableName: %s, RLimitCore: %" PRId64 ", FallbackPath: %s)",
+        "Processing core dump (Uid: %d, Pid: %d, ExecutableName: %s, RLimitCore: %" PRIu64 ", FallbackPath: %s)",
         UserId_,
         ProcessId_,
         ExecutableName_.data(),
