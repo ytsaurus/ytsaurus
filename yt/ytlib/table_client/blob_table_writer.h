@@ -39,6 +39,11 @@ struct TBlobTableSchema
 //   - BlobIdColumns: bunch of string columns that identify blob (blobIdColumnValues)
 //   - PartIndexColumn: int64 column that shows part index inside blob
 //   - DataColumn: string column that contains actual data from blob
+//
+// IMPORTANT:
+//   `Finish()` ought to be called once all writes are complete.
+//   Destructor doesn't call Finish, since it involves complicated logic including WaitFor
+//   that is not good to call from destructor.
 class TBlobTableWriter
     : public TOutputStream
 {
@@ -51,8 +56,6 @@ public:
         TTableWriterOptionsPtr tableWriterOptions,
         const NCypressClient::TTransactionId& transactionId,
         const NChunkClient::TChunkListId& chunkListId);
-
-    ~TBlobTableWriter();
 
     NScheduler::NProto::TOutputResult GetOutputResult() const;
 

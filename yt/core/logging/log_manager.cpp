@@ -240,6 +240,17 @@ public:
     {
         SystemWriters_.push_back(New<TStderrLogWriter>());
         UpdateConfig(TLogConfig::CreateDefault(), false);
+    }
+
+    void EnsureStarted()
+    {
+        if (LoggingThread_->IsShutdown()) {
+            return;
+        }
+
+        if (LoggingThread_->IsStarted()) {
+            return;
+        }
 
         LoggingThread_->Start();
         EventQueue_->SetThreadId(LoggingThread_->GetId());
@@ -290,7 +301,7 @@ public:
 
     void Shutdown()
     {
-        if (LoggingThread_->GetId() != ::TThread::CurrentThreadId()) {
+        if (LoggingThread_->IsStarted() && LoggingThread_->GetId() != ::TThread::CurrentThreadId()) {
             // Waiting for output of all previous messages.
             // Waiting no more than 1 second to prevent hanging.
             auto now = TInstant::Now();
@@ -368,6 +379,8 @@ public:
         if (LoggingThread_->IsShutdown()) {
             return;
         }
+
+        EnsureStarted();
 
         // Order matters here; inherent race may lead to negative backlog and integer overflow.
         auto writtenEvents = WrittenEvents_.load();
@@ -531,6 +544,16 @@ private:
         if (verifyThreadAffinity) {
             VERIFY_THREAD_AFFINITY(LoggingThread);
         }
+
+        if (ShutdownRequested_) {
+            return;
+        }
+
+        if (LoggingThread_->IsShutdown()) {
+            return;
+        }
+
+        EnsureStarted();
 
         FlushWriters();
 

@@ -91,6 +91,7 @@ TBlobTableWriter::TBlobTableWriter(
         .ThrowOnError();
 }
 
+<<<<<<< HEAD
 TBlobTableWriter::~TBlobTableWriter()
 {
     try {
@@ -102,6 +103,8 @@ TBlobTableWriter::~TBlobTableWriter()
     }
 }
 
+=======
+>>>>>>> prestable/18.5
 NScheduler::NProto::TOutputResult TBlobTableWriter::GetOutputResult() const
 {
     return GetWrittenChunksBoundaryKeys(MultiChunkWriter_);

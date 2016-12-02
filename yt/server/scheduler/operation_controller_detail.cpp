@@ -1204,9 +1204,19 @@ void TOperationControllerBase::Initialize()
     LOG_INFO("Initializing operation (Title: %v)",
         Spec->Title);
 
-    InitializeConnections();
-    InitializeTransactions();
-    InitializeStructures();
+    auto initializeAction = BIND([this_ = MakeStrong(this), this] () {
+        InitializeConnections();
+        InitializeTransactions();
+        InitializeStructures();
+    });
+
+    auto initializeFuture = initializeAction
+        .AsyncVia(Host->GetControlInvoker())
+        .Run()
+        .WithTimeout(Config->OperationInitializationTimeout);
+
+    WaitFor(initializeFuture)
+        .ThrowOnError();
 
     LOG_INFO("Operation initialized");
 }
