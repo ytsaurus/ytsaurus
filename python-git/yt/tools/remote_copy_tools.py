@@ -417,9 +417,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
                                 compression_codec=None, erasure_codec=None, intermediate_format=None,
                                 small_table_size_threshold=None, force_copy_with_operation=False,
                                 additional_attributes=None, schema_inference_mode=None):
-    if schema_inference_mode is None:
-        schema_inference_mode = "auto"
-
+    schema_inference_mode = get_value(schema_inference_mode, "auto")
     tmp_dir = tempfile.mkdtemp(dir=default_tmp_dir)
 
     intermediate_format = yt.create_format(get_value(intermediate_format, "json"))
@@ -442,6 +440,8 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
             src = yt.TablePath("#" + source_client.get(src + "/@id"), attributes=src.attributes, simplify=False, client=source_client)
             source_client.lock(src, mode="snapshot")
 
+            dst_table = yt.TablePath(dst, simplify=False)
+
             if compression_codec is None:
                 compression_codec = source_client.get(str(src) + "/@compression_codec")
             if erasure_codec is None:
@@ -449,21 +449,18 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
             set_codec(destination_client, dst, compression_codec, "compression")
 
             sorted_by = None
-            dst_table = yt.TablePath(dst, simplify=False)
             if source_client.exists(src + "/@sorted_by"):
                 sorted_by = source_client.get(src + "/@sorted_by")
-                dst_table = yt.TablePath(dst, client=source_client)
-                dst_table.attributes["sorted_by"] = sorted_by
-            row_count = source_client.get(src + "/@row_count")
+            src_schema = source_client.get(src + "/@schema")
+            src_schema_mode = source_client.get(src + "/@schema_mode")
+            dst_schema_mode = destination_client.get(dst_table + "/@schema_mode")
 
-            if schema_inference_mode == "from_input":
-                destination_client.run_erase(dst_table)
-                destination_client.alter_table(dst_table, source_client.get(src + "/@schema"))
-            if schema_inference_mode == "auto":
-                dst_table.attributes["schema"] = source_client.get(src + "/@schema")
-                # TODO(ignat): use schema initially instead of sorted_by
-                if "sorted_by" in dst_table.attributes:
-                    del dst_table.attributes["sorted_by"]
+            if schema_inference_mode == "from_input" or (schema_inference_mode == "auto" and dst_schema_mode == "weak"):
+                if src_schema_mode == "strong":
+                    dst_table.attributes["schema"] = src_schema
+                else:
+                    if sorted_by is not None:
+                        dst_table.attributes["sorted_by"] = sorted_by
 
             if small_table_size_threshold is not None and \
                     source_client.get(str(src) + "/@uncompressed_data_size") < small_table_size_threshold and \
@@ -512,6 +509,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
                 finally:
                     destination_client.remove(str(yt_token_file), force=True)
 
+            row_count = source_client.get(src + "/@row_count")
             result_row_count = destination_client.row_count(dst)
             if not src.has_delimiters() and row_count != result_row_count:
                 error = "Incorrect record count (expected: %d, actual: %d)" % (row_count, result_row_count)
