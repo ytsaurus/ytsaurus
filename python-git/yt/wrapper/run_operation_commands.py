@@ -1,3 +1,41 @@
+"""
+Commands for table working and Map-Reduce operations.
+.. seealso:: `operations on wiki <https://wiki.yandex-team.ru/yt/userdoc/operations>`_
+
+Python wrapper has some improvements over bare YT operations:
+
+* upload files automatically
+
+* create or erase output table
+
+* delete files after
+
+.. _operation_parameters:
+
+Common operations parameters
+-----------------------
+
+
+* **spec** : (dict) universal method to set operation parameters
+
+* **job_io** : (dict) spec for job io of all stages of operation \
+<https://wiki.yandex-team.ru/yt/userdoc/api#write>`_.
+
+* **table_writer** : (dict) spec of `"write_table" operation \
+<https://wiki.yandex-team.ru/yt/userdoc/api#writetable>`_.
+
+* **table_reader** : (dict) spec of `"read_table" operation \
+<https://wiki.yandex-team.ru/yt/userdoc/api#readtable>`_.
+
+* **format** : (string or descendant of `yt.wrapper.format.Format`) format of input and output \
+data of operation
+
+* **memory_limit** : (integer) memory limit in Mb in *scheduler* for every *job* (512Mb by default)
+
+
+Operation run under self-pinged transaction, if `yt.wrapper.get_config(client)["detached"]` is `False`.
+"""
+
 from . import py_wrapper
 from .table_helpers import _prepare_source_tables, _are_default_empty_table, _prepare_table_writer, _remove_tables
 from .common import flatten, require, unlist, update, parse_bool, is_prefix, get_value, \
