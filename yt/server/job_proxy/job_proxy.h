@@ -107,7 +107,7 @@ private:
     void RetrieveJobSpec();
     void ReportResult(
         const NJobTrackerClient::NProto::TJobResult& result,
-        const TNullable<NYson::TYsonString>& statistics,
+        const NYson::TYsonString& statistics,
         TInstant startTime,
         TInstant finishTime);
 
