@@ -233,10 +233,10 @@ TCodegenSource TQueryProfiler::Profile(TConstQueryPtr query)
     auto schema = query->GetRenamedSchema();
     auto whereClause = query->WhereClause;
 
+    TSchemaProfiler::Profile(schema);
+
     for (const auto& joinClause : query->JoinClauses) {
         Fold(static_cast<int>(EFoldingObjectType::JoinOp));
-
-        TSchemaProfiler::Profile(schema);
 
         std::vector<std::pair<TCodegenExpression, bool>> selfKeys;
 
@@ -287,6 +287,7 @@ TCodegenSource TQueryProfiler::Profile(TConstQueryPtr query)
             std::move(codegenSource));
 
         schema = joinClause->GetTableSchema(schema);
+        TSchemaProfiler::Profile(schema);
     }
 
     if (whereClause) {
