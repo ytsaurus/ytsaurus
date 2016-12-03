@@ -63,8 +63,8 @@ class YtParallelTestsRunnerPlugin(object):
             os.environ.get("TESTS_SANDBOX", ""),
             "executor_{0}.strace{1}".format(process_index, suffix))
 
-        gateway = self.group.makegateway('popen//python={0} {1}'.format(
-            WRAP_PYTHON_SCRIPT, output_file_name))
+        gateway = self.group.makegateway('popen//python={0} {1} {2}'.format(
+            WRAP_PYTHON_SCRIPT, output_file_name, sys.executable))
         channel = gateway.remote_exec(executor)
         return TestProcess(gateway, channel)
 
