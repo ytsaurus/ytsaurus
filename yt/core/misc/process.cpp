@@ -10,9 +10,12 @@
 
 #include <util/folder/dirut.h>
 
+#include <util/string/ascii.h>
+
+#include <util/system/env.h>
 #include <util/system/execpath.h>
 #include <util/system/maxlen.h>
-#include <util/system/env.h>
+#include <util/system/shellcommand.h>
 
 #ifdef _unix_
   #include <unistd.h>
@@ -576,23 +579,39 @@ Stroka TProcess::GetCommandLine() const
     builder.AppendString(Path_);
 
     bool first = true;
-    for (auto arg : Args_) {
+    for (const auto& arg_ : Args_) {
+        TStringBuf arg(arg_);
         if (first) {
             first = false;
         } else {
             if (arg) {
                 builder.AppendChar(' ');
-                bool needQuote = (TStringBuf(arg).find(' ') != Stroka::npos);
-                if (needQuote) {
-                    builder.AppendChar('"');
+                bool needQuote = false;
+                for (size_t i = 0; i < arg.length(); ++i) {
+                    if (!IsAsciiAlnum(arg[i]) &&
+                        arg[i] != '-' && arg[i] != '_' && arg[i] != '=' && arg[i] != '/')
+                    {
+                        needQuote = true;
+                        break;
+                    }
                 }
-                builder.AppendString(arg);
                 if (needQuote) {
                     builder.AppendChar('"');
+                    TStringBuf left, right;
+                    while (arg.TrySplit('"', left, right)) {
+                        builder.AppendString(left);
+                        builder.AppendString("\\\"");
+                        arg = right;
+                    }
+                    builder.AppendString(arg);
+                    builder.AppendChar('"');
+                } else {
+                    builder.AppendString(arg);
                 }
             }
         }
     }
+
     return builder.Flush();
 }
 
