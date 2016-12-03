@@ -250,8 +250,6 @@ void TJobProxy::Run()
         .WithTimeout(RpcServerShutdownTimeout)
         .Get();
 
-    TNullable<TYsonString> statistics;
-
     if (Job_) {
         auto failedChunkIds = Job_->GetFailedChunkIds();
         LOG_INFO("Found %v failed chunks", static_cast<int>(failedChunkIds.size()));
@@ -264,9 +262,9 @@ void TJobProxy::Run()
                 : chunkId;
             ToProto(schedulerResultExt->add_failed_chunk_ids(), actualChunkId);
         }
-
-        statistics = ConvertToYsonString(GetStatistics());
     }
+
+    auto statistics = ConvertToYsonString(GetStatistics());
 
     CheckResult(result);
 
@@ -409,7 +407,7 @@ TJobResult TJobProxy::DoRun()
 
 void TJobProxy::ReportResult(
     const TJobResult& result,
-    const TNullable<TYsonString>& statistics,
+    const TYsonString& statistics,
     TInstant startTime,
     TInstant finishTime)
 {
@@ -421,9 +419,7 @@ void TJobProxy::ReportResult(
     auto req = SupervisorProxy_->OnJobFinished();
     ToProto(req->mutable_job_id(), JobId_);
     *req->mutable_result() = result;
-    if (statistics) {
-        req->set_statistics(statistics->Data());
-    }
+    req->set_statistics(statistics.Data());
     req->set_start_time(ToProto(startTime));
     req->set_finish_time(ToProto(finishTime));
 
@@ -436,8 +432,7 @@ void TJobProxy::ReportResult(
 
 TStatistics TJobProxy::GetStatistics() const
 {
-    YCHECK(Job_);
-    auto statistics = Job_->GetStatistics();
+    auto statistics = Job_ ? Job_->GetStatistics() : TStatistics();
 
     if (CGroupsConfig_ && CGroupsConfig_->IsCGroupSupported(TCpuAccounting::Name)) {
         auto cpuAccounting = GetCurrentCGroup<TCpuAccounting>();
@@ -451,8 +446,13 @@ TStatistics TJobProxy::GetStatistics() const
         statistics.AddSample("/job_proxy/block_io", blockIOStatistics);
     }
 
-    statistics.AddSample("/job_proxy/max_memory", JobProxyMaxMemoryUsage_);
-    statistics.AddSample("/job_proxy/memory_reserve", JobProxyMemoryReserve_);
+    if (JobProxyMaxMemoryUsage_ > 0) {
+        statistics.AddSample("/job_proxy/max_memory", JobProxyMaxMemoryUsage_);
+    }
+
+    if (JobProxyMemoryReserve_ > 0) {
+        statistics.AddSample("/job_proxy/memory_reserve", JobProxyMemoryReserve_);
+    }
 
     statistics.SetTimestamp(TInstant::Now());
 
