@@ -63,7 +63,7 @@ TEST(TProcessTest, StdOut)
     EXPECT_TRUE(sz > 0);
 }
 
-TEST(TProcess, GetCommandLine)
+TEST(TProcess, GetCommandLine1)
 {
     auto p = New<TProcess>("/bin/bash");
     EXPECT_EQ("/bin/bash", p->GetCommandLine());
@@ -71,6 +71,16 @@ TEST(TProcess, GetCommandLine)
     EXPECT_EQ("/bin/bash -c", p->GetCommandLine());
     p->AddArgument("exit 0");
     EXPECT_EQ("/bin/bash -c \"exit 0\"", p->GetCommandLine());
+}
+
+TEST(TProcess, GetCommandLine2)
+{
+    auto p = New<TProcess>("/bin/bash");
+    EXPECT_EQ("/bin/bash", p->GetCommandLine());
+    p->AddArgument("-c");
+    EXPECT_EQ("/bin/bash -c", p->GetCommandLine());
+    p->AddArgument("\"quoted\"");
+    EXPECT_EQ("/bin/bash -c \"\\\"quoted\\\"\"", p->GetCommandLine());
 }
 
 TEST(TProcess, IgnoreCloseInvalidFD)
