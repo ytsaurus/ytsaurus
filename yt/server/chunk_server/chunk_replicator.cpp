@@ -1346,6 +1346,10 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
         return;
     }
 
+    if (chunk->IsForeign()) {
+        return;
+    }
+
     ResetChunkStatus(chunk);
 
     auto allMediaStatistics = ComputeChunkStatistics(chunk);
