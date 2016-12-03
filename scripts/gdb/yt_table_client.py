@@ -106,6 +106,7 @@ def print_unversioned_row_with_header(val, val_name):
 def print_unversioned_row(val):
     assert val.type.strip_typedefs() == get_unversioned_row_type()
     row_header = val["Header_"]
+    row_header = row_header.cast(get_unversioned_row_header_type().pointer())
     return print_unversioned_row_with_header(row_header, "TUnversionedRow")
 
 
