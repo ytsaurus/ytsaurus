@@ -333,13 +333,7 @@ public:
                 Sleep(TDuration::Max());
             }
 
-            // Add fatal message to log and notify event log queue.
-            PushLogEvent(std::move(event));
-
-            // Flush everything and die.
-            Shutdown();
-
-            // Last-minute information.
+            // Collect last-minute information.
             TRawFormatter<1024> formatter;
             formatter.AppendString("\n*** Fatal error encountered in ");
             formatter.AppendString(event.Function);
@@ -352,6 +346,12 @@ public:
             formatter.AppendString("\n*** Aborting ***\n");
 
             HandleEintr(::write, 2, formatter.GetData(), formatter.GetBytesWritten());
+
+            // Add fatal message to log and notify event log queue.
+            PushLogEvent(std::move(event));
+
+            // Flush everything and die.
+            Shutdown();
 
             std::terminate();
         }
