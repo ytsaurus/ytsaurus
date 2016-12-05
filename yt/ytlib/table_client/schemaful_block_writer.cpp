@@ -33,7 +33,7 @@ TBlockWriter::TBlockWriter(const std::vector<int> columnSizes)
         TColumn column;
         column.Stream = TChunkedOutputStream(TBlockWriterTag());
         column.ValueSize = size;
-        FixedColumns.push_back(column);
+        FixedColumns.emplace_back(std::move(column));
         RowSize += size;
     }
 }

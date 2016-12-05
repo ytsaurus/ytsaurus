@@ -144,9 +144,10 @@ function(PROTOC proto output)
       ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}${_relative_path}
     COMMAND
     $<TARGET_FILE:protoc>
-        -I${_source_realpath}
-        --cpp_out=${CMAKE_BINARY_DIR}
-        ${_proto_realpath}
+      -I${_source_realpath}
+      -I${CMAKE_SOURCE_DIR}/contrib/libs/protobuf
+      --cpp_out=${CMAKE_BINARY_DIR}
+      ${_proto_realpath}
     MAIN_DEPENDENCY
       ${_proto_realpath}
     DEPENDS

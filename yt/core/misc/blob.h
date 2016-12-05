@@ -59,7 +59,7 @@ public:
     TBlob(const TBlob& other);
 
     //! Moves the data (takes the ownership).
-    TBlob(TBlob&& other);
+    TBlob(TBlob&& other) noexcept;
 
     //! Reclaims the memory.
     ~TBlob();
@@ -146,7 +146,7 @@ public:
     TBlob& operator = (const TBlob& rhs);
 
     //! Takes the ownership.
-    TBlob& operator = (TBlob&& rhs);
+    TBlob& operator = (TBlob&& rhs) noexcept;
 
     //! Appends a chunk of memory to the end.
     void Append(const void* data, size_t size);
