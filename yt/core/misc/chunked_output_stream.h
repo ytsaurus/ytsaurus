@@ -28,6 +28,9 @@ public:
 
     TChunkedOutputStream();
 
+    TChunkedOutputStream(TChunkedOutputStream&&) = default;
+    TChunkedOutputStream& operator=(TChunkedOutputStream&&) = default;
+
     //! Remind user about the tag argument.
     template <typename U> TChunkedOutputStream(i32, U size = 0) = delete;
     template <typename U> TChunkedOutputStream(i64, U size = 0) = delete;

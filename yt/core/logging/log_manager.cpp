@@ -402,7 +402,7 @@ public:
             }
         }
 
-        // NB: Always allow system messages to pass through. 
+        // NB: Always allow system messages to pass through.
         if (Suspended_ && event.Category != SystemLoggingCategory) {
             return;
         }
@@ -488,7 +488,7 @@ private:
         if (event.Category == SystemLoggingCategory) {
             return SystemWriters_;
         }
-        
+
         std::pair<Stroka, ELogLevel> cacheKey(event.Category, event.Level);
         auto it = CachedWriters_.find(cacheKey);
         if (it != CachedWriters_.end()) {
@@ -573,7 +573,7 @@ private:
             guard.Release();
 
             // writers and cachedWriter will die here where we don't
-            // hold the spinlock anymore. 
+            // hold the spinlock anymore.
         }
 
         for (const auto& pair : Config_->WriterConfigs) {
@@ -882,18 +882,18 @@ void SimpleConfigureLogging(
         rule->MinLevel = ELogLevel::Fatal;
     }
 
-    VectorStrok logExcludeCategories;
+    std::vector<Stroka> logExcludeCategories;
     if (logExcludeCategoriesStr) {
-        SplitStroku(&logExcludeCategories, logExcludeCategoriesStr, ",");
+        logExcludeCategories = splitStroku(logExcludeCategoriesStr, ",");
     }
 
     for (const auto& excludeCategory : logExcludeCategories) {
         rule->ExcludeCategories.insert(excludeCategory);
     }
 
-    VectorStrok logIncludeCategories;
+    std::vector<Stroka> logIncludeCategories;
     if (logIncludeCategoriesStr) {
-        SplitStroku(&logIncludeCategories, logIncludeCategoriesStr, ",");
+        logIncludeCategories = splitStroku(logIncludeCategoriesStr, ",");
     }
 
     if (!logIncludeCategories.empty()) {

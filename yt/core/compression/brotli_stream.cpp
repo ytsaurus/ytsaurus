@@ -113,9 +113,10 @@ public:
             }
 
             size_t bytesRead = 0;
-            auto result = BrotliDecompressStream(
+            auto result = BrotliDecompressBufferStreaming(
                 &InputSize_,
                 &InputBuffer_,
+                0,
                 &availableOut,
                 (uint8_t**)&buffer,
                 &bytesRead,
