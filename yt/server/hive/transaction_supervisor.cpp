@@ -552,7 +552,7 @@ private:
         bool force2PC,
         const TMutationId& mutationId)
     {
-        Y_ASSERT(!HasMutationContext());
+        YCHECK(!HasMutationContext());
 
         auto* commit = FindCommit(transactionId);
         if (commit) {
@@ -622,7 +622,7 @@ private:
         const TMutationId& mutationId,
         bool force)
     {
-        Y_ASSERT(!HasMutationContext());
+        YCHECK(!HasMutationContext());
 
         try {
             // Any exception thrown here is caught below..
