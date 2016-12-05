@@ -107,26 +107,23 @@ public:
     int MaxItemsInProgressNormalPriority;
     int MaxItemsInProgressLowPriority;
     int MaxItemsInBatch;
-    NYPath::TYPath TableName;
 
     TStatisticsReporterConfig()
     {
         RegisterParameter("enabled", Enabled)
             .Default(false);
         RegisterParameter("reporting_period", ReportingPeriod)
-            .Default(TDuration::Seconds(1));
-        RegisterParameter("min_repeat_delay", MinRepeatDelay)
             .Default(TDuration::Seconds(5));
+        RegisterParameter("min_repeat_delay", MinRepeatDelay)
+            .Default(TDuration::Seconds(10));
         RegisterParameter("max_repeat_delay", MaxRepeatDelay)
             .Default(TDuration::Minutes(5));
         RegisterParameter("max_items_in_progress_normal_priority", MaxItemsInProgressNormalPriority)
-            .Default(200000);
+            .Default(100000);
         RegisterParameter("max_items_in_progress_low_priority", MaxItemsInProgressLowPriority)
-            .Default(50000);
-        RegisterParameter("max_items_in_batch", MaxItemsInBatch)
             .Default(20000);
-        RegisterParameter("table_name", TableName)
-            .Default("//sys/operations_archive/jobs");
+        RegisterParameter("max_items_in_batch", MaxItemsInBatch)
+            .Default(1000);
     }
 };
 

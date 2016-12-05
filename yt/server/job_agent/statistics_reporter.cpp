@@ -15,6 +15,8 @@
 #include <yt/ytlib/table_client/row_buffer.h>
 #include <yt/ytlib/table_client/name_table.h>
 
+#include <yt/ytlib/scheduler/helpers.h>
+
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/nonblocking_batch.h>
@@ -36,6 +38,7 @@ using namespace NApi;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NProfiling;
+using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -286,7 +289,7 @@ private:
         }
 
         transaction->WriteRows(
-            Config_->TableName,
+            GetOperationsArchiveJobsPath(),
             Table_.NameTable,
             MakeSharedRange(std::move(rows))
         );
