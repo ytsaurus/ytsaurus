@@ -67,7 +67,7 @@ TYPath GetLivePreviewOutputPath(const TOperationId& operationId, int tableIndex)
         + "/output_" + ToString(tableIndex);
 }
 
-NYPath::TYPath GetLivePreviewStderrTablePath(const TOperationId& operationId)
+TYPath GetLivePreviewStderrTablePath(const TOperationId& operationId)
 {
     return
         GetOperationPath(operationId)
@@ -79,6 +79,11 @@ TYPath GetLivePreviewIntermediatePath(const TOperationId& operationId)
     return
         GetOperationPath(operationId)
         + "/intermediate";
+}
+
+TYPath GetOperationsArchiveJobsPath()
+{
+    return "//sys/operations_archive/jobs";
 }
 
 bool IsOperationFinished(EOperationState state)

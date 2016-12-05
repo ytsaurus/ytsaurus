@@ -3,7 +3,7 @@
 #include "config.h"
 
 #include <contrib/libs/protobuf/descriptor.h>
-#include <contrib/libs/protobuf/descriptor.pb.h>
+#include <contrib/libs/protobuf/google/protobuf/descriptor.pb.h>
 
 namespace NYT {
 namespace NFormats {

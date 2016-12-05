@@ -520,7 +520,7 @@ struct TSharedRefSerializer
     }
 
     template <class C, class TTag>
-    static void Load(C& context, TSharedRef& value, TTag tag)
+    static void Load(C& context, TSharedRef& value, TTag)
     {
         size_t size = TSizeSerializer::LoadSuspended(context);
         auto mutableValue = TSharedMutableRef::Allocate<TTag>(size, false);

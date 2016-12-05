@@ -20,8 +20,9 @@ set(SRCS_PROTOBUF
   ${BASE}/compiler/importer.cc
   ${BASE}/compiler/parser.cc
 
+  ${BASE}/google/protobuf/descriptor.pb.cc
+
   ${BASE}/descriptor.cc
-  ${BASE}/descriptor.pb.cc
   ${BASE}/descriptor_database.cc
   ${BASE}/dynamic_message.cc
   ${BASE}/extension_set.cc
@@ -108,6 +109,7 @@ add_executable(protoc ${SRCS_PROTOC})
 include_directories(
   ${BASE}
   ${BASE}/io
+  ${BASE}/google/protobuf
   ${CMAKE_SOURCE_DIR}
 )
 

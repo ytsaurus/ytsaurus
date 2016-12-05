@@ -21,6 +21,7 @@ NYPath::TYPath GetLivePreviewStderrTablePath(const TOperationId& operationId);
 NYPath::TYPath GetLivePreviewIntermediatePath(const TOperationId& operationId);
 NYPath::TYPath GetSnapshotPath(const TOperationId& operationId);
 NYPath::TYPath GetPoolsPath();
+NYPath::TYPath GetOperationsArchiveJobsPath();
 
 bool IsOperationFinished(EOperationState state);
 bool IsOperationFinishing(EOperationState state);

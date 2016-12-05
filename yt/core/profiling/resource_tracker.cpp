@@ -94,7 +94,7 @@ void TResourceTracker::EnqueueCpuUsage()
         auto threadStatPath = NFS::CombinePaths(procPath, dirsList.Next());
         auto cpuStatPath = NFS::CombinePaths(threadStatPath, "stat");
 
-        VectorStrok fields;
+        std::vector<Stroka> fields;
         try {
             TIFStream cpuStatFile(cpuStatPath);
             fields = splitStroku(cpuStatFile.ReadLine(), " ");
