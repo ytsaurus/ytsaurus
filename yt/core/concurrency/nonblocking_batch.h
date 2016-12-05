@@ -12,6 +12,12 @@ namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ETimerState,
+    (Initial)
+    (Started)
+    (Finished)
+);
+
 //! Nonblocking MPMC queue that supports batching.
 /*!
  * TNonblockingBatch accepts 2 parameters:
@@ -34,6 +40,7 @@ public:
     void Enqueue(U&& ... u);
 
     TFuture<TBatch> DequeueBatch();
+    void Drop();
 
 private:
     const size_t MaxBatchElements_;
@@ -42,13 +49,13 @@ private:
     TSpinLock SpinLock_;
 
     TBatch CurrentBatch_;
-    bool TimeReady_ = false;
+    ETimerState TimerState_ = ETimerState::Initial;
     std::queue<TBatch> Batches_;
-    std::queue<TPromise<TBatch>> Promises_;
+    std::deque<TPromise<TBatch>> Promises_;
     TDelayedExecutorCookie BatchFlushCookie_;
     ui64 FlushGeneration_ = 0;
 
-    void ResetTimer();
+    void ResetTimer(TGuard<TSpinLock>& guard);
     void StartTimer(TGuard<TSpinLock>& guard);
     bool IsFlushNeeded(TGuard<TSpinLock>& guard) const;
     void CheckFlush(TGuard<TSpinLock>& guard);

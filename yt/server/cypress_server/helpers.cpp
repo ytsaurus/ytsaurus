@@ -90,7 +90,7 @@ std::vector<std::pair<Stroka, TCypressNodeBase*>> SortKeyToChild(
         keyToChildList.emplace_back(pair.first, pair.second);
     }
     std::sort(keyToChildList.begin(), keyToChildList.end(),
-        [] (const std::pair<Stroka, TCypressNodeBase*>& lhs, std::pair<Stroka, TCypressNodeBase*>& rhs) {
+        [] (const std::pair<Stroka, TCypressNodeBase*>& lhs, const std::pair<Stroka, TCypressNodeBase*>& rhs) {
             return lhs.first < rhs.first;
         });
     return keyToChildList;

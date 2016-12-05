@@ -8,9 +8,9 @@
 #include <yt/ytlib/table_client/value_consumer.h>
 #include <yt/ytlib/table_client/name_table.h>
 
-#include <yt/ytlib/formats/protobuf_extension.pb.h>
-
 #include <yt/core/misc/varint.h>
+
+#include <mapreduce/yt/interface/protos/extension.pb.h>
 
 #include <util/generic/buffer.h>
 

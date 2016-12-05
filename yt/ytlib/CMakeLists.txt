@@ -122,7 +122,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/formats/json_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/parser.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/protobuf.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/formats/protobuf_extension.proto
   ${CMAKE_CURRENT_LIST_DIR}/formats/protobuf_parser.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/protobuf_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/schemaful_dsv_parser.cpp
@@ -385,7 +384,9 @@ SRCS(
 PEERDIR(
   contrib/libs/llvm37/lib
   contrib/libs/re2
+  contrib/libs/protobuf
   contrib/libs/yajl
+  mapreduce/yt/interface/protos
   yt/${YT_ABI}/yt/core
 )
 
@@ -396,6 +397,7 @@ ELSE()
 ################################################################################
 
 set(YT_SOURCE_FILES)
+protoc(${CMAKE_SOURCE_DIR}/mapreduce/yt/interface/protos/extension.proto YT_SOURCE_FILES)
 include(query_client/CMakeLists.txt)
 
 resolve_srcs(YT_SRCS YT_SRCS_RESOLVED)

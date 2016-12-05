@@ -18,7 +18,8 @@ TNonblockingBatch<T>::TNonblockingBatch(size_t batchElements, TDuration batchDur
 template <class T>
 TNonblockingBatch<T>::~TNonblockingBatch()
 {
-    ResetTimer();
+    TGuard<TSpinLock> guard(SpinLock_);
+    ResetTimer(guard);
 }
 
 template <class T>
@@ -26,10 +27,8 @@ template <class... U>
 void TNonblockingBatch<T>::Enqueue(U&& ... u)
 {
     TGuard<TSpinLock> guard(SpinLock_);
-    if (CurrentBatch_.empty()) {
-        StartTimer(guard);
-    }
     CurrentBatch_.emplace_back(std::forward<U>(u)...);
+    StartTimer(guard);
     CheckFlush(guard);
 }
 
@@ -38,30 +37,55 @@ TFuture<typename TNonblockingBatch<T>::TBatch> TNonblockingBatch<T>::DequeueBatc
 {
     TGuard<TSpinLock> guard(SpinLock_);
     auto promise = NewPromise<TBatch>();
-    Promises_.push(promise);
+    Promises_.push_back(promise);
+    StartTimer(guard);
     CheckReturn(guard);
     guard.Release();
     return promise.ToFuture();
 }
 
 template <class T>
-void TNonblockingBatch<T>::ResetTimer()
+void TNonblockingBatch<T>::Drop()
 {
-    TDelayedExecutor::CancelAndClear(BatchFlushCookie_);
+    std::queue<TBatch> batches;
+    std::deque<TPromise<TBatch>> promises;
+    {
+        TGuard<TSpinLock> guard(SpinLock_);
+        Batches_.swap(batches);
+        Promises_.swap(promises);
+        CurrentBatch_.clear();
+        ResetTimer(guard);
+    }
+    for (auto&& promise : promises) {
+        promise.Set(TBatch{});
+    }
+}
+
+template <class T>
+void TNonblockingBatch<T>::ResetTimer(TGuard<TSpinLock>& guard)
+{
+    if (TimerState_ == ETimerState::Started) {
+        ++FlushGeneration_;
+        TDelayedExecutor::CancelAndClear(BatchFlushCookie_);
+    }
+    TimerState_ = ETimerState::Initial;
 }
 
 template <class T>
 void TNonblockingBatch<T>::StartTimer(TGuard<TSpinLock>& guard)
 {
-    BatchFlushCookie_ = TDelayedExecutor::Submit(
-        BIND(&TNonblockingBatch::OnBatchTimeout, MakeWeak(this), ++FlushGeneration_),
-        BatchDuration_);
+    if (TimerState_ == ETimerState::Initial && !Promises_.empty() && !CurrentBatch_.empty()) {
+        TimerState_ = ETimerState::Started;
+        BatchFlushCookie_ = TDelayedExecutor::Submit(
+            BIND(&TNonblockingBatch::OnBatchTimeout, MakeWeak(this), FlushGeneration_),
+            BatchDuration_);
+    }
 }
 
 template <class T>
 bool TNonblockingBatch<T>::IsFlushNeeded(TGuard<TSpinLock>& guard) const
 {
-    return CurrentBatch_.size() == MaxBatchElements_ || TimeReady_ && !Promises_.empty();
+    return CurrentBatch_.size() == MaxBatchElements_ || TimerState_ == ETimerState::Finished;
 }
 
 template <class T>
@@ -70,10 +94,9 @@ void TNonblockingBatch<T>::CheckFlush(TGuard<TSpinLock>& guard)
     if (!IsFlushNeeded(guard)) {
         return;
     }
-    ResetTimer();
+    ResetTimer(guard);
     Batches_.push(std::move(CurrentBatch_));
     CurrentBatch_.clear();
-    TimeReady_ = false;
     CheckReturn(guard);
 }
 
@@ -86,7 +109,7 @@ void TNonblockingBatch<T>::CheckReturn(TGuard<TSpinLock>& guard)
     auto batch = std::move(Batches_.front());
     Batches_.pop();
     auto promise = std::move(Promises_.front());
-    Promises_.pop();
+    Promises_.pop_front();
     promise.Set(std::move(batch));
 }
 
@@ -98,7 +121,7 @@ void TNonblockingBatch<T>::OnBatchTimeout(ui64 gen)
         // chunk had been prepared
         return;
     }
-    TimeReady_ = true;
+    TimerState_ = ETimerState::Finished;
     CheckFlush(guard);
 }
 
