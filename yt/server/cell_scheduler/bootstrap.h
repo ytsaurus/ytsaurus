@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/server/misc/public.h>
+
 #include <yt/server/scheduler/public.h>
 
 #include <yt/ytlib/api/public.h>
@@ -64,6 +66,7 @@ private:
     NNodeTrackerClient::TNodeDirectorySynchronizerPtr NodeDirectorySynchronizer_;
     NRpc::TResponseKeeperPtr ResponseKeeper_;
     NChunkClient::TThrottlerManagerPtr ChunkLocationThrottlerManager_;
+    TCoreDumperPtr CoreDumper_;
 
     void DoRun();
 };

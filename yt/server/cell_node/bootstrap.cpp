@@ -54,7 +54,7 @@
 
 #include <yt/server/hive/cell_directory_synchronizer.h>
 
-#include <yt/ytlib/admin/admin_service.h>
+#include <yt/server/admin_server/admin_service.h>
 
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/connection.h>
@@ -89,6 +89,7 @@
 
 #include <yt/core/misc/address.h>
 #include <yt/core/misc/collection_helpers.h>
+#include <yt/core/misc/core_dumper.h>
 #include <yt/core/misc/ref_counted_tracker.h>
 
 #include <yt/core/profiling/profile_manager.h>
@@ -271,6 +272,10 @@ void TBootstrap::DoRun()
     MasterConnector->SubscribePopulateAlerts(BIND(&TBootstrap::PopulateAlerts, this));
     MasterConnector->SubscribeMasterConnected(BIND(&TBootstrap::OnMasterConnected, this));
     MasterConnector->SubscribeMasterDisconnected(BIND(&TBootstrap::OnMasterDisconnected, this));
+
+    if (Config->CoreDumper) {
+        CoreDumper = New<TCoreDumper>(Config->CoreDumper);
+    }
 
     ChunkStore = New<NDataNode::TChunkStore>(Config->DataNode, this);
 
@@ -493,7 +498,7 @@ void TBootstrap::DoRun()
         OrchidRoot,
         GetControlInvoker()));
 
-    RpcServer->RegisterService(CreateAdminService(GetControlInvoker()));
+    RpcServer->RegisterService(CreateAdminService(GetControlInvoker(), CoreDumper));
 
     LOG_INFO("Listening for HTTP requests on port %v", Config->MonitoringPort);
 

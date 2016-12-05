@@ -1,6 +1,8 @@
 #include "bootstrap.h"
 #include "config.h"
 
+#include <yt/server/admin_server/admin_service.h>
+
 #include <yt/server/job_proxy/config.h>
 
 #include <yt/server/misc/address_helpers.h>
@@ -12,8 +14,6 @@
 #include <yt/server/scheduler/private.h>
 #include <yt/server/scheduler/scheduler.h>
 #include <yt/server/scheduler/scheduler_service.h>
-
-#include <yt/ytlib/admin/admin_service.h>
 
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/connection.h>
@@ -50,6 +50,7 @@
 #include <yt/core/concurrency/thread_pool.h>
 
 #include <yt/core/misc/address.h>
+#include <yt/core/misc/core_dumper.h>
 #include <yt/core/misc/ref_counted_tracker.h>
 
 #include <yt/core/profiling/profile_manager.h>
@@ -163,6 +164,10 @@ void TBootstrap::DoRun()
         SchedulerLogger,
         SchedulerProfiler);
 
+    if (Config_->CoreDumper) {
+        CoreDumper_ = New<TCoreDumper>(Config_->CoreDumper);
+    }
+
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
         "/ref_counted",
@@ -193,7 +198,7 @@ void TBootstrap::DoRun()
 
     SetBuildAttributes(orchidRoot, "scheduler");
 
-    RpcServer_->RegisterService(CreateAdminService(GetControlInvoker()));
+    RpcServer_->RegisterService(CreateAdminService(GetControlInvoker(), CoreDumper_));
 
     RpcServer_->RegisterService(CreateOrchidService(
         orchidRoot,

@@ -23,6 +23,8 @@ public:
     { }
 
     DEFINE_RPC_PROXY_METHOD(NProto, Die);
+
+    DEFINE_RPC_PROXY_METHOD(NProto, WriteCoreDump);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

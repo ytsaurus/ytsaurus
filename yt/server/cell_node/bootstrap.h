@@ -12,6 +12,8 @@
 
 #include <yt/server/job_proxy/public.h>
 
+#include <yt/server/misc/public.h>
+
 #include <yt/server/tablet_node/public.h>
 
 #include <yt/ytlib/api/public.h>
@@ -133,6 +135,7 @@ private:
     NDataNode::TBlobReaderCachePtr BlobReaderCache;
     NDataNode::TJournalDispatcherPtr JournalDispatcher;
     NDataNode::TMasterConnectorPtr MasterConnector;
+    TCoreDumperPtr CoreDumper;
 
     NConcurrency::IThroughputThrottlerPtr TotalInThrottler;
     NConcurrency::IThroughputThrottlerPtr TotalOutThrottler;
@@ -149,7 +152,6 @@ private:
 
     NQueryClient::TColumnEvaluatorCachePtr ColumnEvaluatorCache;
     NQueryClient::ISubexecutorPtr QueryExecutor;
-
 
     void DoRun();
     void PopulateAlerts(std::vector<TError>* alerts);
