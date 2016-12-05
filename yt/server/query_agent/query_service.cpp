@@ -87,7 +87,7 @@ private:
 
         LOG_DEBUG("Deserialized subfragment (FragmentId: %v, InputRowLimit: %v, OutputRowLimit: %v, "
             "RangeExpansionLimit: %v, MaxSubqueries: %v, EnableCodeCache: %v, WorkloadDescriptor: %v, "
-            "DataRangesCount: %v)",
+            "DataRangeCount: %v)",
             query->Id,
             query->InputRowLimit,
             query->OutputRowLimit,
