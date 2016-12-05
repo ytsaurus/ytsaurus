@@ -882,18 +882,18 @@ void SimpleConfigureLogging(
         rule->MinLevel = ELogLevel::Fatal;
     }
 
-    yvector<Stroka> logExcludeCategories;
+    std::vector<Stroka> logExcludeCategories;
     if (logExcludeCategoriesStr) {
-        SplitStroku(&logExcludeCategories, logExcludeCategoriesStr, ",");
+        logExcludeCategories = splitStroku(logExcludeCategoriesStr, ",");
     }
 
     for (const auto& excludeCategory : logExcludeCategories) {
         rule->ExcludeCategories.insert(excludeCategory);
     }
 
-    yvector<Stroka> logIncludeCategories;
+    std::vector<Stroka> logIncludeCategories;
     if (logIncludeCategoriesStr) {
-        SplitStroku(&logIncludeCategories, logIncludeCategoriesStr, ",");
+        logIncludeCategories = splitStroku(logIncludeCategoriesStr, ",");
     }
 
     if (!logIncludeCategories.empty()) {
