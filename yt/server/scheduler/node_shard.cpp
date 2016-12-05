@@ -165,6 +165,8 @@ yhash_set<TOperationId> TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeart
             Config_->SoftConcurrentHeartbeatLimit);
     }
 
+    response->set_enable_statistics_reporter(Config_->EnableStatisticsReporter);
+
     yhash_set<TOperationId> operationsToLog;
     TFuture<void> scheduleJobsAsyncResult = VoidFuture;
 
