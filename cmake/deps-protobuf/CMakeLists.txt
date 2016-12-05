@@ -1,6 +1,6 @@
-set( BASE ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf )
+set(BASE ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf)
 
-set( SRCS_PROTOBUF
+set(SRCS_PROTOBUF
   ${BASE}/stubs/common.cc
   ${BASE}/stubs/once.cc
   ${BASE}/stubs/structurally_valid.cc
@@ -20,8 +20,9 @@ set( SRCS_PROTOBUF
   ${BASE}/compiler/importer.cc
   ${BASE}/compiler/parser.cc
 
+  ${BASE}/google/protobuf/descriptor.pb.cc
+
   ${BASE}/descriptor.cc
-  ${BASE}/descriptor.pb.cc
   ${BASE}/descriptor_database.cc
   ${BASE}/dynamic_message.cc
   ${BASE}/extension_set.cc
@@ -40,7 +41,7 @@ set( SRCS_PROTOBUF
   ${BASE}/wire_format_lite.cc
 )
 
-set( SRCS_PROTOC
+set(SRCS_PROTOC
   ${BASE}/compiler/main.cc
 
   ${BASE}/compiler/code_generator.cc
@@ -99,28 +100,18 @@ set( SRCS_PROTOC
   ${BASE}/compiler/perlxs/perlxs_helpers.cc
 )
 
-add_library( protobuf STATIC
-  ${SRCS_PROTOBUF}
-)
+add_library(protobuf STATIC ${SRCS_PROTOBUF})
 
-target_link_libraries( protobuf
-  deps-arcadia-util
-)
+target_link_libraries(protobuf deps-arcadia-util)
 
-add_executable( protoc
-  ${SRCS_PROTOC}
-)
+add_executable(protoc ${SRCS_PROTOC})
 
 include_directories(
   ${BASE}
   ${BASE}/io
+  ${BASE}/google/protobuf
   ${CMAKE_SOURCE_DIR}
 )
 
-target_link_libraries( protoc
-  protobuf -ldl
-)
+target_link_libraries(protoc protobuf -ldl)
 
-if (MSVC)
-  target_link_libraries( protoc ytext-zlib )
-endif()

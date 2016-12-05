@@ -42,7 +42,7 @@ TBlob::TBlob(const TBlob& other)
     }
 }
 
-TBlob::TBlob(TBlob&& other)
+TBlob::TBlob(TBlob&& other) noexcept
     : Begin_(other.Begin_)
     , Size_(other.Size_)
     , Capacity_(other.Capacity_)
@@ -96,7 +96,7 @@ TBlob& TBlob::operator = (const TBlob& rhs)
     return *this;
 }
 
-TBlob& TBlob::operator = (TBlob&& rhs)
+TBlob& TBlob::operator = (TBlob&& rhs) noexcept
 {
     if (this != &rhs) {
         Free();
