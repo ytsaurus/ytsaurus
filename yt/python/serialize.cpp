@@ -238,7 +238,9 @@ TPythonObjectBuilder::TPythonObjectBuilder(bool alwaysCreateAttributes, const TN
     : YsonMap(GetYsonType("YsonMap"))
     , YsonList(GetYsonType("YsonList"))
     , YsonString(GetYsonType("YsonString"))
+#if PY_MAJOR_VERSION >= 3
     , YsonUnicode(GetYsonType("YsonUnicode"))
+#endif
     , YsonInt64(GetYsonType("YsonInt64"))
     , YsonUint64(GetYsonType("YsonUint64"))
     , YsonDouble(GetYsonType("YsonDouble"))
