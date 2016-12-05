@@ -11,4 +11,12 @@ message TReqDie
 message TRspDie
 { }
 
+message TReqWriteCoreDump
+{ }
+
+message TRspWriteCoreDump
+{
+    required string path = 1;
+}
+
 ////////////////////////////////////////////////////////////////////////////////

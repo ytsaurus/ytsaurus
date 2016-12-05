@@ -95,6 +95,12 @@ const i64 DefaultEnvelopePartSize = 1LL << 28;
 
 DECLARE_REFCOUNTED_CLASS(TProcess)
 
+const ui32 YTCoreNoteType = 0x5f59545f; // = hex("_YT_") ;)
+extern const Stroka YTCoreNoteName;
+
+DECLARE_REFCOUNTED_CLASS(TCoreDumperConfig)
+DECLARE_REFCOUNTED_CLASS(TCoreDumper)
+
 ///////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EErrorCode,
