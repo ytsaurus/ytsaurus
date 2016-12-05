@@ -108,6 +108,8 @@ configure_arcadia_mirror library-streams-lzop
 configure_arcadia_mirror library-string_utils-base64
 configure_arcadia_mirror library-threading-future
 
+configure_arcadia_mirror mapreduce-yt-interface-protos
+
 configure_arcadia_mirror util
 
 configure_github_mirror lloyd-yajl
