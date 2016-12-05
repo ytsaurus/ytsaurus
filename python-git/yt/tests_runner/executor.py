@@ -79,6 +79,9 @@ class Executor(object):
 
             makedirp(path)
 
+            if sys.version_info[0] < 3:
+                stderr = stderr.encode("utf-8")
+
             with open(os.path.join(path, file_name), "a") as fout:
                 fout.write(stderr + "\n")
 
