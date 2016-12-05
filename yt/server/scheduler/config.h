@@ -667,6 +667,9 @@ public:
     // We use the same config for input chunk scraper and intermediate chunk scraper.
     TIntermediateChunkScraperConfigPtr ChunkScraper;
 
+    // Enables statistics reporter to send job events/statistics/specs etc.
+    bool EnableStatisticsReporter;
+
     TSchedulerConfig()
     {
         RegisterParameter("controller_thread_count", ControllerThreadCount)
@@ -920,6 +923,9 @@ public:
 
         RegisterParameter("chunk_scraper", ChunkScraper)
             .DefaultNew();
+
+        RegisterParameter("enable_statistics_reporter", EnableStatisticsReporter)
+            .Default(false);
 
         RegisterInitializer([&] () {
             ChunkLocationThrottler->Limit = 10000;

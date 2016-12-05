@@ -20,6 +20,8 @@
 #include <yt/core/concurrency/nonblocking_batch.h>
 
 #include <yt/core/profiling/profiler.h>
+#include <yt/core/concurrency/async_semaphore.h>
+#include <yt/core/utilex/random.h>
 
 namespace NYT {
 namespace NJobAgent {
@@ -90,6 +92,17 @@ struct TStatisticsTableDescriptor
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TryDecNonnegativeCounter(std::atomic<int>& counter, int dec)
+{
+    if (counter.fetch_sub(dec, std::memory_order_relaxed) < dec) {
+        // rollback operation on negative result
+        // negative result can be in case of batcher data dropping and on-the-fly transaction
+        counter.fetch_add(dec, std::memory_order_relaxed);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TJobStatisticsTag
 { };
 
@@ -112,6 +125,9 @@ public:
 
     void ReportStatistics(TJobStatistics&& statistics)
     {
+        if (!IsEnabled()) {
+            return;
+        }
         auto& counter = GetCounter(statistics.Priority());
         if (++counter.InProgressCount > counter.MaxInProgressCount) {
             ++DroppedCount_;
@@ -120,6 +136,14 @@ public:
         } else {
             Batcher_->Enqueue(std::move(statistics));
             StatisticsProfiler.Increment(EnqueuedCounter_);
+        }
+    }
+
+    void SetEnabled(bool enable)
+    {
+        bool oldEnable = Enabled_.exchange(enable);
+        if (oldEnable != enable) {
+            enable ? DoEnable() : DoDisable();
         }
     }
 
@@ -142,6 +166,8 @@ private:
     const Stroka DefaultLocalAddress_;
     const TStatisticsTableDescriptor Table_;
 
+    std::atomic<bool> Enabled_ = {false};
+
     TPriorityCounter NormalPriorityCounter_;
     TPriorityCounter LowPriorityCounter_;
     std::atomic<int> DroppedCount_ = {0};
@@ -153,6 +179,8 @@ private:
     TSimpleCounter CommittedCounter_ = {"/committed"};
     TSimpleCounter CommittedDataWeightCounter_ = {"/committed_data_weight"};
 
+    TAsyncSemaphore EnableSemaphore_ {0};
+
     TPriorityCounter& GetCounter(EReportPriority priority)
     {
         return priority == EReportPriority::Normal
@@ -163,33 +191,35 @@ private:
     void OnReporting()
     {
         while (true) {
+            WaitEnabling();
             auto asyncBatch = Batcher_->DequeueBatch();
             auto batchOrError = WaitFor(asyncBatch);
             auto batch = batchOrError.ValueOrThrow();
 
+            if (batch.empty()) {
+                continue; // reporting has been disabled
+            }
+
             StatisticsProfiler.Increment(DequeuedCounter_, batch.size());
-
-            size_t dataWeight = WriteBatchWithExpBackoff(batch);
-
-            StatisticsProfiler.Increment(CommittedCounter_, batch.size());
-            StatisticsProfiler.Increment(CommittedDataWeightCounter_, dataWeight);
+            WriteBatchWithExpBackoff(batch);
         }
     }
 
-    size_t WriteBatchWithExpBackoff(const TStatisticsBatch& batch)
+    void WriteBatchWithExpBackoff(const TStatisticsBatch& batch)
     {
         auto delay = Config_->MinRepeatDelay;
-        while (true) {
+        while (IsEnabled()) {
             auto dropped = DroppedCount_.exchange(0);
             if (dropped) {
                 LOG_WARNING("Maximum items reached, dropping job statistics (DroppedItems: %v)", dropped);
             }
             try {
-                return TryWriteBatch(batch);
+                TryWriteBatch(batch);
+                return;
             } catch (const std::exception& ex) {
                 LOG_WARNING(ex, "Failed to report job statistics (RetryDelay: %v)", delay.Seconds());
             }
-            WaitFor(TDelayedExecutor::MakeDelayed(delay));
+            WaitFor(TDelayedExecutor::MakeDelayed(RandomDuration(delay)));
             delay *= 2;
             if (delay > Config_->MaxRepeatDelay) {
                 delay = Config_->MaxRepeatDelay;
@@ -197,7 +227,7 @@ private:
         }
     }
 
-    size_t TryWriteBatch(const TStatisticsBatch& batch)
+    void TryWriteBatch(const TStatisticsBatch& batch)
     {
         LOG_DEBUG("Job statistics transaction starting "
             "(ItemCount: %v, PendingItemsNormalPriority: %v, PendingItemsLowPriority: %v)",
@@ -263,8 +293,11 @@ private:
         auto asyncResult = WaitFor(transaction->Commit());
         asyncResult.ThrowOnError();
 
-        NormalPriorityCounter_.InProgressCount -= counters[EReportPriority::Normal];
-        LowPriorityCounter_.InProgressCount -= counters[EReportPriority::Low];
+        TryDecNonnegativeCounter(NormalPriorityCounter_.InProgressCount, counters[EReportPriority::Normal]);
+        TryDecNonnegativeCounter(LowPriorityCounter_.InProgressCount, counters[EReportPriority::Low]);
+
+        StatisticsProfiler.Increment(CommittedCounter_, batch.size());
+        StatisticsProfiler.Increment(CommittedDataWeightCounter_, dataWeight);
 
         LOG_DEBUG("Job statistics transaction committed (TransactionId: %v, "
             "CommittedItemsNormalPriority: %v, CommittedItemsLowPriority: %v, CommittedDataWeight: %v)",
@@ -272,7 +305,37 @@ private:
             counters[EReportPriority::Normal],
             counters[EReportPriority::Low],
             dataWeight);
-        return dataWeight;
+    }
+
+    void DoEnable()
+    {
+        EnableSemaphore_.Release();
+        LOG_INFO("Job statistics reporter enabled");
+    }
+
+    void DoDisable()
+    {
+        EnableSemaphore_.Acquire();
+        Batcher_->Drop();
+        NormalPriorityCounter_.InProgressCount = 0;
+        LowPriorityCounter_.InProgressCount = 0;
+        LOG_INFO("Job statistics reporter disabled");
+    }
+
+    bool IsEnabled()
+    {
+        return EnableSemaphore_.IsReady();
+    }
+
+    void WaitEnabling()
+    {
+        if (IsEnabled()) {
+            return;
+        }
+        LOG_INFO("Waiting for job statistics reporter to become enabled");
+        auto event = EnableSemaphore_.GetReadyEvent();
+        WaitFor(event).ThrowOnError();
+        LOG_INFO("Job statistics reporter became enabled, resuming statistics writing");
     }
 };
 
@@ -291,6 +354,13 @@ void TStatisticsReporter::ReportStatistics(TJobStatistics&& statistics)
 {
     if (Impl_) {
         Impl_->ReportStatistics(std::move(statistics));
+    }
+}
+
+void TStatisticsReporter::SetEnabled(bool enable)
+{
+    if (Impl_) {
+        Impl_->SetEnabled(enable);
     }
 }
 

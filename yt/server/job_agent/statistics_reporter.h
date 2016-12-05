@@ -26,6 +26,7 @@ public:
         NCellNode::TBootstrap* bootstrap);
 
     void ReportStatistics(TJobStatistics&& statistics);
+    void SetEnabled(bool enable);
 
 private:
     class TImpl;
