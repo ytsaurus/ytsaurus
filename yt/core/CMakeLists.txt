@@ -224,7 +224,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/ytree/yson_serializable.cpp
 )
 
-IF(NOT WIN32)
+IF(NOT OS_WINDOWS)
   SET(YT_SRCS ${YT_SRCS} ${CMAKE_CURRENT_LIST_DIR}/concurrency/execution_context-supp.S)
 ENDIF()
 

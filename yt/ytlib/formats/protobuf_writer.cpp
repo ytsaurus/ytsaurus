@@ -5,9 +5,9 @@
 
 #include <yt/ytlib/table_client/name_table.h>
 
-#include <yt/ytlib/formats/protobuf_extension.pb.h>
-
 #include <yt/core/misc/varint.h>
+
+#include <mapreduce/yt/interface/protos/extension.pb.h>
 
 #include <contrib/libs/protobuf/wire_format_lite_inl.h>
 
