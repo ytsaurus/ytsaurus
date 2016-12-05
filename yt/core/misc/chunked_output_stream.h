@@ -28,6 +28,9 @@ public:
 
     TChunkedOutputStream();
 
+    TChunkedOutputStream(TChunkedOutputStream&&) noexcept = default;
+    TChunkedOutputStream& operator=(TChunkedOutputStream&&) noexcept = default;
+
     //! Remind user about the tag argument.
     template <typename U> TChunkedOutputStream(i32, U size = 0) = delete;
     template <typename U> TChunkedOutputStream(i64, U size = 0) = delete;
