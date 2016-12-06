@@ -1,0 +1,14 @@
+package NYT.NDataNode.NProto;
+
+import "yt/ytlib/chunk_client/data_slice_descriptor.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TArtifactKey
+{
+    required int32 type = 1;
+    repeated NYT.NChunkClient.NProto.TDataSliceDescriptor data_slice_descriptors = 2;
+    optional bytes format = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////

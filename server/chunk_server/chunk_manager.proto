@@ -1,0 +1,28 @@
+package NYT.NChunkServer.NProto;
+
+import "yt/core/misc/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqUpdateChunkProperties
+{
+    message TUpdate
+    {
+        message TMediumUpdate
+        {
+            optional int32 medium_index = 1;
+            optional int32 replication_factor = 2;
+            optional bool data_parts_only = 3;
+        }
+
+        required NYT.NProto.TGuid chunk_id = 1;
+        required bool vital = 3;
+        repeated TMediumUpdate medium_updates = 4;
+    }
+
+    required int32 cell_tag = 1;
+    repeated TUpdate updates = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+

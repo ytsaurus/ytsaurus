@@ -1,0 +1,36 @@
+package NYT.NHydra.NProto;
+
+import "yt/ytlib/hydra/hydra_manager.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqLookupSnapshot
+{
+    required int32 max_snapshot_id = 1;
+    required bool exact_id = 2;
+}
+
+message TRspLookupSnapshot
+{
+    required int32 snapshot_id = 1;
+    required int64 compressed_length = 2;
+    required int64 uncompressed_length = 3;
+    required uint64 checksum = 4;
+    required TSnapshotMeta meta = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqReadSnapshot
+{
+    required int32 snapshot_id = 1;
+    required int64 offset = 2;
+    required int64 length = 3;
+}
+
+message TRspReadSnapshot
+{
+    // Snapshot data is passed via attachment.
+}
+
+////////////////////////////////////////////////////////////////////////////////

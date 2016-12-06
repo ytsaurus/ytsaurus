@@ -1,0 +1,35 @@
+package NYT.NObjectClient.NProto;
+
+import "yt/core/misc/guid.proto";
+import "yt/core/ytree/attributes.proto";
+import "yt/ytlib/node_tracker_client/node_directory.proto";
+import "yt/ytlib/hive/cluster_directory.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqCreateObject
+{
+    required int32 type = 1;
+    optional NYT.NYTree.NProto.TAttributes object_attributes = 2;
+}
+
+message TRspCreateObject
+{
+    required NYT.NProto.TGuid object_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetClusterMeta
+{
+    optional bool populate_node_directory = 1 [default = false];
+    optional bool populate_cluster_directory = 2 [default = false];
+}
+
+message TRspGetClusterMeta
+{
+    optional NNodeTrackerClient.NProto.TNodeDirectory node_directory = 1;
+    optional NHiveClient.NProto.TClusterDirectory cluster_directory = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////

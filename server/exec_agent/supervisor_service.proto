@@ -1,0 +1,70 @@
+package NYT.NExecAgent.NProto;
+
+import "yt/core/misc/guid.proto";
+import "yt/ytlib/job_tracker_client/job.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetJobSpec
+{
+    required NYT.NProto.TGuid job_id = 1;
+}
+
+message TRspGetJobSpec
+{
+    required NJobTrackerClient.NProto.TJobSpec job_spec = 1;
+    required TJobProxyResources resource_usage = 2;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+// One-way.
+message TReqOnJobPrepared
+{
+    required NYT.NProto.TGuid job_id = 1;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+message TReqOnJobFinished
+{
+    required NYT.NProto.TGuid job_id = 1;
+    required NJobTrackerClient.NProto.TJobResult result = 2;
+    required string statistics = 3;
+    optional uint64 start_time = 4;
+    optional uint64 finish_time = 5;
+}
+
+message TRspOnJobFinished
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+// One-way.
+message TReqOnJobProgress
+{
+    required NYT.NProto.TGuid job_id = 1;
+    required double progress = 2;
+    required string statistics = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// One-way.
+message TReqUpdateResourceUsage
+{
+    required NYT.NProto.TGuid job_id = 1;
+    required TJobProxyResources resource_usage = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Describes the resource usage of job proxy (possibly, combined with user job resource usage).
+message TJobProxyResources
+{
+    required int64 memory = 1;
+    required int32 cpu = 2;
+    required int32 network = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////

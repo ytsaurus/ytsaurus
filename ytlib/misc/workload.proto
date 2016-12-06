@@ -1,0 +1,13 @@
+package NYT.NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TWorkloadDescriptor
+{
+    required int32 category = 1; // EWorkloadCategory
+    required int32 band = 2;
+    optional int64 instant = 3 [default = 0];
+    repeated string annotations = 4;
+}
+
+////////////////////////////////////////////////////////////////////////////////
