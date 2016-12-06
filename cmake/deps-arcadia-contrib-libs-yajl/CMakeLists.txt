@@ -1,6 +1,6 @@
 set(NAME deps-arcadia-contrib-libs-yajl)
 set(BASE ${CMAKE_SOURCE_DIR}/contrib/libs/yajl)
-set(SRCS
+set(SRCS_C
   ${BASE}/yajl_alloc.c
   ${BASE}/yajl_buf.c
   ${BASE}/yajl.c
@@ -11,12 +11,18 @@ set(SRCS
   ${BASE}/yajl_tree.c
   ${BASE}/yajl_version.c
 )
+  
+set(SRCS_CPP
+  ${BASE}/yajl_parser.cpp
+)
 
-set_source_files_properties(${SRCS} PROPERTIES LANGUAGE C)
+set_source_files_properties(${SRCS_C} PROPERTIES LANGUAGE C)
+set_source_files_properties(${SRCS_CPP} PROPERTIES LANGUAGE CXX)
+
 
 include_directories(${CMAKE_SOURCE_DIR})
 
-add_library(${NAME} STATIC ${SRCS})
+add_library(${NAME} STATIC ${SRCS_C} ${SRCS_CPP})
 
 if(CMAKE_COMPILER_IS_GNUCXX)
   set_target_properties(${NAME} PROPERTIES COMPILE_FLAGS -w)
