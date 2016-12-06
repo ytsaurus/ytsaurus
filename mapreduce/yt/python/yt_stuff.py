@@ -303,7 +303,10 @@ class YtStuff(object):
 
     @_timing
     def start_local_yt(self):
-        max_retries = int(yatest.common.get_param("yt_start_max_tries", default=_YT_MAX_START_RETRIES))
+        max_retries = int(yatest.common.get_param(
+            "yt_start_max_tries",
+            default=os.environ.get("YT_STUFF_MAX_START_RETRIES", _YT_MAX_START_RETRIES)
+        ))
         for i in xrange(max_retries):
             self._log("Start local YT, attempt %d.", i)
             if self._start_local_yt():
