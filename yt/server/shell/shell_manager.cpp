@@ -1,10 +1,9 @@
 #include "shell_manager.h"
+#include "shell.h"
 #include "private.h"
 #include "config.h"
 
 #include <yt/server/program/names.h>
-
-#include <yt/ytlib/shell/shell.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
 

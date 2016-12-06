@@ -304,6 +304,10 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/security_server/user.cpp
   ${CMAKE_CURRENT_LIST_DIR}/security_server/user_proxy.cpp
 
+  ${CMAKE_CURRENT_LIST_DIR}/shell/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/shell/shell.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/shell/shell_manager.cpp
+
   ${CMAKE_CURRENT_LIST_DIR}/table_server/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_server/public.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_server/table_node.cpp
