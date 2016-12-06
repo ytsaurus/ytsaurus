@@ -229,6 +229,9 @@ class TestMedia(YTEnvSetup):
         assert chunk_media_2 == get("#" + chunk_id + "/@media")
         assert chunk_vital_2 == get("#" + chunk_id + "/@vital")
 
+    def test_no_create_cache_media(self):
+        with pytest.raises(YtError): create_medium("new_cache", attributes={"cache": True})
+
 ################################################################################
 
 class TestMediaMulticell(TestMedia):
