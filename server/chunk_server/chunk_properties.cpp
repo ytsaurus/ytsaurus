@@ -208,18 +208,31 @@ void ValidateChunkProperties(
     if (!properties.IsValid()) {
         THROW_ERROR_EXCEPTION(
             "At least one medium should store replicas (including parity parts); "
-                "configuring otherwise would result in a data loss");
+            "configuring otherwise would result in a data loss");
     }
 
-    const auto* medium = chunkManager->GetMediumByIndex(primaryMediumIndex);
+    for (int index = 0; index < MaxMediumCount; ++index) {
+        const auto* medium = chunkManager->FindMediumByIndex(index);
+        if (!medium) {
+            continue;
+        }
+
+        const auto& mediumProperties = properties[index];
+        if (mediumProperties && medium->GetCache()) {
+            THROW_ERROR_EXCEPTION("Cache medium %Qv cannot be configured explicitly",
+                medium->GetName());
+        }
+    }
+
+    const auto* primaryMedium = chunkManager->GetMediumByIndex(primaryMediumIndex);
     const auto& primaryMediumProperties = properties[primaryMediumIndex];
-    if (primaryMediumProperties.GetReplicationFactor() == 0) {
-        THROW_ERROR_EXCEPTION("Medium %Qv stores no chunk replicas and cannot be made primary",
-            medium->GetName());
+    if (!primaryMediumProperties) {
+        THROW_ERROR_EXCEPTION("Medium %Qv is not configured and cannot be made primary",
+            primaryMedium->GetName());
     }
     if (primaryMediumProperties.GetDataPartsOnly()) {
         THROW_ERROR_EXCEPTION("Medium %Qv stores no parity parts and cannot be made primary",
-            medium->GetName());
+            primaryMedium->GetName());
     }
 }
 
