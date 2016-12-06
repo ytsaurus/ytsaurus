@@ -464,7 +464,6 @@ THorizontalSchemalessVersionedBlockReader::THorizontalSchemalessVersionedBlockRe
         idMapping,
         chunkKeyColumnCount,
         keyColumnCount))
-    , KeyColumnCount_(keyColumnCount)
     , Timestamp_(timestamp)
 { }
 
