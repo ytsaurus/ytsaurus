@@ -1,5 +1,7 @@
 from mapreduce.yt.python.yt_stuff import yt_stuff
 
+from os import environ
+environ["YT_STUFF_MAX_START_RETRIES"] = "2"
 
 def test_suspend(yt_stuff):
     wrapper = yt_stuff.get_yt_wrapper()

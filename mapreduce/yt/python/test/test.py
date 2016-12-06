@@ -5,6 +5,8 @@ import yatest.common
 from mapreduce.yt.python.yt_stuff import YtStuff
 from mapreduce.yt.python.yt_stuff import yt_stuff
 
+from os import environ
+environ["YT_STUFF_MAX_START_RETRIES"] = "2"
 
 def test_start_stop():
     yt = YtStuff()

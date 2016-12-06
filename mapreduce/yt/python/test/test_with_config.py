@@ -5,6 +5,9 @@ import yatest.common
 from mapreduce.yt.python.yt_stuff import YtStuff, YtConfig
 from mapreduce.yt.python.yt_stuff import yt_stuff
 
+from os import environ
+environ["YT_STUFF_MAX_START_RETRIES"] = "2"
+
 TEST_ID = "test_with_config"
 
 @pytest.fixture(scope="module")
