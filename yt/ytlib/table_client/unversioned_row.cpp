@@ -630,16 +630,95 @@ TMutableUnversionedRow TMutableUnversionedRow::Allocate(TChunkedMemoryPool* pool
 
 namespace {
 
+class TYsonAnyValidator
+    : public IYsonConsumer
+{
+public:
+    virtual void OnStringScalar(const TStringBuf& value) override
+    { }
+
+    virtual void OnInt64Scalar(i64 value) override
+    { }
+
+    virtual void OnUint64Scalar(ui64 value) override
+    { }
+
+    virtual void OnDoubleScalar(double value) override
+    { }
+
+    virtual void OnBooleanScalar(bool value) override
+    { }
+
+    virtual void OnEntity() override
+    { }
+
+    virtual void OnBeginList() override
+    {
+        ++Depth_;
+    }
+
+    virtual void OnListItem() override
+    { }
+
+    virtual void OnEndList() override
+    {
+        --Depth_;
+    }
+
+    virtual void OnBeginMap() override
+    {
+        ++Depth_;
+    }
+
+    virtual void OnKeyedItem(const TStringBuf& key) override
+    { }
+
+    virtual void OnEndMap() override
+    {
+        --Depth_;
+    }
+
+    virtual void OnBeginAttributes() override
+    {
+        if (Depth_ == 0) {
+            THROW_ERROR_EXCEPTION("Table values cannot have top-level attributes");
+        }
+    }
+
+    virtual void OnEndAttributes() override
+    { }
+
+    virtual void OnRaw(const TStringBuf& yson, EYsonType type) override
+    { }
+
+private:
+    int Depth_ = 0;
+};
+
+void ValidateAnyValue(const Stroka& yson)
+{
+    TYsonAnyValidator validator;
+    ParseYsonStringBuffer(yson.Data(), EYsonType::Node, &validator);
+}
+
 void ValidateDynamicValue(const TUnversionedValue& value)
 {
     switch (value.Type) {
         case EValueType::String:
-        case EValueType::Any:
             if (value.Length > MaxStringValueLength) {
                 THROW_ERROR_EXCEPTION("Value is too long: length %v, limit %v",
                     value.Length,
                     MaxStringValueLength);
             }
+            break;
+
+        case EValueType::Any:
+            if (value.Length > MaxAnyValueLength) {
+                THROW_ERROR_EXCEPTION("Value is too long: length %v, limit %v",
+                    value.Length,
+                    MaxAnyValueLength);
+            }
+            ValidateAnyValue(value.Data.String);
             break;
 
         case EValueType::Double:

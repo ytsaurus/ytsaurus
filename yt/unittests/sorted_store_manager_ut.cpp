@@ -43,14 +43,20 @@ protected:
         return StoreManager_->WriteRowAtomic(transaction, row, prelock);
     }
 
-    void WriteRow(const TUnversionedOwningRow& row)
+    void WriteRow(const TUnversionedOwningRow& row, bool prelock = false)
     {
         auto transaction = StartTransaction();
 
-        StoreManager_->WriteRowAtomic(transaction.get(), row, false);
+        StoreManager_->WriteRowAtomic(transaction.get(), row, prelock);
 
-        EXPECT_EQ(1, transaction->LockedSortedRows().size());
-        auto rowRef = transaction->LockedSortedRows()[0];
+        TSortedDynamicRowRef rowRef;
+        if (prelock) {
+            EXPECT_EQ(1, transaction->PrelockedSortedRows().size());
+            rowRef = transaction->PrelockedSortedRows().front();
+        } else {
+            EXPECT_EQ(1, transaction->LockedSortedRows().size());
+            rowRef = transaction->LockedSortedRows().front();
+        }
 
         PrepareTransaction(transaction.get());
         StoreManager_->PrepareRow(transaction.get(), rowRef);
@@ -627,7 +633,8 @@ protected:
             TColumnSchema("key", EValueType::String).SetSortOrder(ESortOrder::Ascending),
             TColumnSchema("a", EValueType::Int64),
             TColumnSchema("b", EValueType::Double),
-            TColumnSchema("c", EValueType::String)
+            TColumnSchema("c", EValueType::String),
+            TColumnSchema("d", EValueType::Any)
         });
         return schema;
     }
@@ -650,6 +657,15 @@ TEST_F(TSingleLockStoreManagerTestWithStringKeys, NullKey)
     WriteRow(BuildRow("key=another_test;a=101", false));
     WriteRow(BuildRow("b=3.14", false));
     EXPECT_TRUE(AreRowsEqual(LookupRow(BuildKey("<type=null>#"), AsyncLastCommittedTimestamp), "b=3.14"));
+}
+
+TEST_F(TSingleLockStoreManagerTestWithStringKeys, ValidateAnyValue)
+{
+    EXPECT_THROW(
+        WriteRow(BuildRow("key=test;d=<timestamp=12>{value=3;x=5}", false), true),
+        std::exception);
+    EXPECT_NO_THROW(
+        WriteRow(BuildRow("key=test2;d={value=3;x=<ts=12>5}", false), true));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
