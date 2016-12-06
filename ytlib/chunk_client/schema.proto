@@ -1,0 +1,38 @@
+package NYT.NChunkClient.NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TRange
+{
+    required bytes begin = 1;
+    required bytes end = 2;
+    required bool infinite = 3;
+}
+
+message TChannel
+{
+    repeated bytes columns = 1;
+    repeated TRange ranges = 2;
+}
+
+// A boundary can be given by:
+// * row index (for tables and journals only)
+// * chunk index
+// * offset (for files only)
+// * key (for tables only)
+// A boundary is either inclusive or exclusive depending of the context.
+message TReadLimit
+{
+    optional int64 row_index = 1;
+    optional int32 chunk_index = 2;
+    optional int64 offset = 3;
+    optional bytes key = 4;
+}
+
+message TReadRange
+{
+    optional TReadLimit lower_limit = 1;
+    optional TReadLimit upper_limit = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
