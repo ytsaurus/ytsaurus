@@ -3,13 +3,12 @@ from .cluster_configuration import modify_cluster_configuration, NODE_MEMORY_LIM
 from yt.environment import YTInstance
 from yt.environment.init_cluster import initialize_world
 from yt.wrapper.common import generate_uuid, GB
-from yt.common import YtError, require, get_value
+from yt.common import YtError, require, get_value, is_process_alive
 
 import yt.yson as yson
 import yt.json as json
 
 from yt.packages.six.moves import map as imap, filter as ifilter
-from yt.packages.six import iteritems
 
 import yt.wrapper as yt
 
@@ -121,20 +120,6 @@ def _synchronize_cypress_with_local_dir(local_cypress_dir, client):
                                          os.path.join(cypress_path_prefix, rel_path, file),
                                          client)
 
-def _is_pid_exists(pid):
-    try:
-        os.kill(pid, 0)
-    except OSError as err:
-        if err.errno == errno.ESRCH:
-            return False
-        elif err.errno == errno.EPERM:
-            return True
-        else:
-            # According to "man 2 kill" possible error values are
-            # (EINVAL, EPERM, ESRCH)
-            raise
-    return True
-
 def _read_pids_file(pids_file_path):
     with open(pids_file_path) as f:
         return list(imap(int, f))
@@ -200,7 +185,7 @@ def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=
           proxy_port=None, id=None, local_cypress_dir=None, use_proxy_from_yt_source=False,
           enable_debug_logging=False, tmpfs_path=None, port_range_start=None, fqdn=None, path=None,
           prepare_only=False, jobs_memory_limit=None, jobs_cpu_limit=None, jobs_user_slot_count=None,
-          wait_tablet_cell_initialization=False):
+          wait_tablet_cell_initialization=False, set_pdeath_sig=False):
 
     options = {}
     for name in _START_DEFAULTS:
@@ -237,6 +222,7 @@ def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=
                              node_memory_limit_addition=NODE_MEMORY_LIMIT_ADDITION,
                              tmpfs_path=sandbox_tmpfs_path,
                              modify_configs_func=modify_configs_func,
+                             kill_child_processes=set_pdeath_sig,
                              **options)
 
     environment.id = sandbox_id
@@ -248,7 +234,7 @@ def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=
     # Consider instance running if "pids.txt" file exists
     if os.path.isfile(pids_filename):
         pids = _read_pids_file(pids_filename)
-        alive_pids = list(ifilter(_is_pid_exists, pids))
+        alive_pids = list(ifilter(is_process_alive, pids))
         if len(pids) == 0 or len(pids) > len(alive_pids):
             for pid in alive_pids:
                 logger.warning("Killing alive process (pid: {0}) from previously run instance".format(pid))
@@ -286,7 +272,7 @@ def _is_stopped(id, path=None):
 
     pids_file_path = os.path.join(sandbox_path, "pids.txt")
     if os.path.isfile(pids_file_path):
-        alive_pids = list(ifilter(_is_pid_exists, _read_pids_file(pids_file_path)))
+        alive_pids = list(ifilter(is_process_alive, _read_pids_file(pids_file_path)))
         if not alive_pids:
             os.remove(pids_file_path)
         return not alive_pids

@@ -1,10 +1,14 @@
+from __future__ import print_function
+
 from yt.local import start, stop, delete
 import yt.local as yt_local
 from yt.wrapper.client import Yt
-from yt.common import remove_file
+from yt.common import remove_file, is_process_alive
+from yt.wrapper.common import generate_uuid
 import yt.subprocess_wrapper as subprocess
 
-from yt.packages.six.moves import map as imap
+from yt.packages.six.moves import map as imap, xrange
+from yt.packages.six import iteritems
 
 import yt.wrapper as yt
 
@@ -15,20 +19,45 @@ import os
 import sys
 import pytest
 import tempfile
+import signal
 import contextlib
+import time
 
 TESTS_LOCATION = os.path.dirname(os.path.abspath(__file__))
 TESTS_SANDBOX = os.environ.get("TESTS_SANDBOX", os.path.join(TESTS_LOCATION, "sandbox"))
+LOCAL_MODE_TESTS_SANDBOX = os.path.join(TESTS_SANDBOX, "TestLocalMode")
 YT_LOCAL_BINARY = os.path.join(os.path.dirname(TESTS_LOCATION), "bin", "yt_local")
 
-def _read_pids_file(environment):
-    if not os.path.exists(environment.pids_filename):
+def _get_instance_path(instance_id):
+    return os.path.join(LOCAL_MODE_TESTS_SANDBOX, instance_id)
+
+def _read_pids_file(instance_id):
+    pids_filename = os.path.join(_get_instance_path(instance_id), "pids.txt")
+    if not os.path.exists(pids_filename):
         return []
-    with open(environment.pids_filename) as f:
+    with open(pids_filename) as f:
         return list(imap(int, f))
 
 def _is_exists(environment):
-    return os.path.exists(os.path.join(TESTS_SANDBOX, environment.id))
+    return os.path.exists(_get_instance_path(environment.id))
+
+def _wait_instance_to_become_ready(process, instance_id):
+    special_file = os.path.join(_get_instance_path(instance_id), "started")
+
+    attempt_count = 10
+    for _ in xrange(attempt_count):
+        print("Waiting instance", instance_id, "to become ready...")
+        if os.path.exists(special_file):
+            return
+
+        if process.poll() is not None:
+            stderr = process.stderr.read()
+            raise yt.YtError("Local YT instance process exited with error code {0}: {1}"
+                             .format(process.returncode, stderr))
+
+        time.sleep(1.0)
+
+    raise yt.YtError("Local YT is not started")
 
 @contextlib.contextmanager
 def local_yt(*args, **kwargs):
@@ -45,10 +74,15 @@ class YtLocalBinary(object):
         self.root_path = root_path
         self.port_locks_path = port_locks_path
 
-    def __call__(self, *args, **kwargs):
-        args_str = " ".join(args)
-        kwargs_str = " ".join("--{0} {1}".format(key.replace("_", "-"), value) for key, value in kwargs.items())
-        command = "{0} {1} {2} {3}".format(sys.executable, YT_LOCAL_BINARY, args_str, kwargs_str)
+    def _prepare_binary_command_and_env(self, *args, **kwargs):
+        command = [sys.executable, YT_LOCAL_BINARY] + list(args)
+
+        for key, value in iteritems(kwargs):
+            if value is True:
+                command.extend(["--" + key])
+            else:
+                command.extend(["--" + key, value])
+
         env = {
             "YT_LOCAL_ROOT_PATH": self.root_path,
             "YT_LOCAL_PORT_LOCKS_PATH": self.port_locks_path,
@@ -56,7 +90,15 @@ class YtLocalBinary(object):
             "PATH": os.environ["PATH"],
             "YT_LOCAL_USE_PROXY_FROM_SOURCE": "1"
         }
-        return subprocess.check_output(command, shell=True, env=env).strip()
+        return command, env
+
+    def __call__(self, *args, **kwargs):
+        command, env = self._prepare_binary_command_and_env(*args, **kwargs)
+        return subprocess.check_output(command, env=env).strip()
+
+    def run_async(self, *args, **kwargs):
+        command, env = self._prepare_binary_command_and_env(*args, **kwargs)
+        return subprocess.Popen(command, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 class TestLocalMode(object):
     @classmethod
@@ -64,7 +106,7 @@ class TestLocalMode(object):
         cls.old_yt_local_root_path = os.environ.get("YT_LOCAL_ROOT_PATH", None)
         cls.old_yt_local_use_proxy_from_source = \
                 os.environ.get("YT_LOCAL_USE_PROXY_FROM_SOURCE", None)
-        os.environ["YT_LOCAL_ROOT_PATH"] = os.path.join(TESTS_SANDBOX, "TestLocalMode")
+        os.environ["YT_LOCAL_ROOT_PATH"] = LOCAL_MODE_TESTS_SANDBOX
         os.environ["YT_LOCAL_USE_PROXY_FROM_SOURCE"] = '1'
         # Add ports_lock_path argument to YTEnvironment for parallel testing.
         os.environ["YT_LOCAL_PORT_LOCKS_PATH"] = os.path.join(TESTS_SANDBOX, "ports")
@@ -82,7 +124,7 @@ class TestLocalMode(object):
 
     def test_commands_sanity(self):
         with local_yt() as environment:
-            pids = _read_pids_file(environment)
+            pids = _read_pids_file(environment.id)
             assert len(pids) == 4
             # Should not delete running instance
             with pytest.raises(yt.YtError):
@@ -100,22 +142,22 @@ class TestLocalMode(object):
 
         with local_yt(master_count=3, node_count=0, scheduler_count=0,
                       enable_debug_logging=True) as environment:
-            assert len(_read_pids_file(environment)) == 4  # + proxy
+            assert len(_read_pids_file(environment.id)) == 4  # + proxy
             assert len(environment.configs["master"]) == 3
 
         with local_yt(node_count=5, scheduler_count=2, start_proxy=False) as environment:
             assert len(environment.configs["node"]) == 5
             assert len(environment.configs["scheduler"]) == 2
             assert len(environment.configs["master"]) == 1
-            assert len(_read_pids_file(environment)) == 8
+            assert len(_read_pids_file(environment.id)) == 8
             with pytest.raises(yt.YtError):
                 environment.get_proxy_address()
 
         with local_yt(node_count=1) as environment:
-            assert len(_read_pids_file(environment)) == 4  # + proxy
+            assert len(_read_pids_file(environment.id)) == 4  # + proxy
 
         with local_yt(node_count=0, scheduler_count=0, start_proxy=False) as environment:
-            assert len(_read_pids_file(environment)) == 1
+            assert len(_read_pids_file(environment.id)) == 1
 
     def test_use_local_yt(self):
         with local_yt() as environment:
@@ -259,3 +301,15 @@ class TestLocalMode(object):
             tablet_cells = client.list("//sys/tablet_cells")
             assert len(tablet_cells) == 1
             assert client.get("//sys/tablet_cells/{0}/@health".format(tablet_cells[0])) == "good"
+
+    def test_all_processes_are_killed(self):
+        for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGKILL):
+            env_id = generate_uuid()
+            process = self.yt_local.run_async("start", sync=True, id=env_id)
+            _wait_instance_to_become_ready(process, env_id)
+
+            pids = _read_pids_file(env_id)
+            assert all(is_process_alive(pid) for pid in pids)
+            process.send_signal(sig)
+            time.sleep(3.0)
+            assert all(not is_process_alive(pid) for pid in pids)
