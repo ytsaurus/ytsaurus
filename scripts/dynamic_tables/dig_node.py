@@ -11,27 +11,83 @@ import yt.wrapper as yt
 
 GB = 1024 * 1024 * 1024
 
+def checked(rsp, default=None):
+    if "error" in rsp:
+        if default:
+            return default
+        raise RuntimeError(rsp["error"])
+    return rsp["output"]
+
 def dig(node):
     path_cache = dict()
     mode_cache = dict()
-    items = []
 
-    print "Digging {}...".format(node)
-
+    print "Digging tablet cells from node {}...".format(node)
     cells = yt.list("//sys/nodes/{}:9012/orchid/tablet_cells".format(node))
+
+    reqs = []
     for cell in cells:
-        tablets = yt.list("//sys/nodes/{}:9012/orchid/tablet_cells/{}/tablets".format(node, cell))
-        for tablet in tablets:
-            datum = yt.get("//sys/nodes/{}:9012/orchid/tablet_cells/{}/tablets/{}".format(
-                node, cell, tablet))
-            if datum["table_id"] not in path_cache:
-                path_cache[datum["table_id"]] = yt.get_attribute("#" + datum["table_id"], "path", None)
-            if datum["table_id"] not in mode_cache:
-                mode_cache[datum["table_id"]] = yt.get_attribute("#" + datum["table_id"], "in_memory_mode", "none")
-            path = path_cache[datum["table_id"]]
-            mode = mode_cache[datum["table_id"]]
-            if mode != "none":
-                items.append((path, yt.get("#" + tablet + "/@statistics/" + mode + "_data_size")))
+        reqs.append({"command": "list", "parameters": {
+            "path": "//sys/nodes/{}:9012/orchid/tablet_cells/{}/tablets".format(node, cell)}})
+
+    print "Digging {} tablet cells...".format(len(reqs))
+    rsps = yt.execute_batch(reqs)
+    tablets = []
+
+    reqs = []
+    for cell, rsp in zip(cells, rsps):
+        for tablet in checked(rsp):
+            tablets.append(tablet)
+            reqs.append({"command": "get", "parameters": {
+                "path": "//sys/nodes/{}:9012/orchid/tablet_cells/{}/tablets/{}".format(
+                    node, cell, tablet)}})
+
+    print "Digging {} tablets...".format(len(reqs))
+    rsps = yt.execute_batch(reqs)
+
+    tables = []
+    for rsp in rsps:
+        tables.append(checked(rsp)["table_id"])
+
+    assert len(tablets) == len(tables)
+    unique_tables = list(set(tables))
+    print "Digging {} table modes...".format(len(unique_tables))
+
+    reqs = []
+    for table in unique_tables:
+        reqs.append({"command": "get", "parameters": {"path": "#" + table + "/@in_memory_mode"}})
+    rsps = yt.execute_batch(reqs)
+    for table, rsp in zip(unique_tables, rsps):
+        mode_cache[table] = checked(rsp, "none")
+
+    filtered_tables = []
+    filtered_tablets = []
+    for table, tablet in zip(tables, tablets):
+        if mode_cache[table] != "none":
+            filtered_tables.append(table)
+            filtered_tablets.append(tablet)
+
+    unique_tables = list(set(filtered_tables))
+    print "Digging {} table paths...".format(len(unique_tables))
+
+    reqs = []
+    for table in unique_tables:
+        reqs.append({"command": "get", "parameters": {"path": "#" + table + "/@path"}})
+    rsps = yt.execute_batch(reqs)
+    for table, rsp in zip(unique_tables, rsps):
+        path_cache[table] = checked(rsp)
+
+    reqs = []
+    for table, tablet in zip(filtered_tables, filtered_tablets):
+        reqs.append({"command": "get", "parameters": {
+            "path": "#" + tablet + "/@statistics/" + mode_cache[table] + "_data_size"}})
+
+    print "Digging {} tablet statistics...".format(len(reqs))
+    rsps = yt.execute_batch(reqs)
+
+    items = []
+    for table, rsp in zip(filtered_tables, rsps):
+        items.append((path_cache[table], checked(rsp)))
 
     result = []
     for key, group in groupby(sorted(items), key=lambda p: p[0]):
