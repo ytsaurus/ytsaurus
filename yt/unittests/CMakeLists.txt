@@ -157,10 +157,11 @@ endif()
 
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}
+  ${CMAKE_SOURCE_DIR}/contrib/libs/gtest
+  ${CMAKE_SOURCE_DIR}/contrib/libs/gmock
 )
 
 add_executable(unittester
-  ${CMAKE_SOURCE_DIR}/contrib/testing/framework.cpp
   ${SRCS}
 )
 
@@ -168,4 +169,6 @@ target_link_libraries(unittester
   yt-library-client
   yt-library-server
   deps-arcadia-library-lfalloc
+  deps-arcadia-contrib-libs-gtest
+  deps-arcadia-contrib-libs-gmock
 )

@@ -1,13 +1,13 @@
 #include "framework.h"
+#include "election_manager_mock.h"
+#include "election_service_mock.h"
 
 #include <yt/server/election/config.h>
-#include <yt/server/election/election_manager_mock.h>
 #include <yt/server/election/election_manager.h>
 #include <yt/server/election/distributed_election_manager.h>
 
 #include <yt/ytlib/election/cell_manager.h>
 #include <yt/ytlib/election/config.h>
-#include <yt/ytlib/election/election_service_mock.h>
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/scheduler.h>

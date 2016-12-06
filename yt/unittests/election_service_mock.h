@@ -1,10 +1,10 @@
 #pragma once
 
-#include "election_service_proxy.h"
+#include "framework.h"
+
+#include <yt/ytlib/election/election_service_proxy.h>
 
 #include <yt/core/rpc/service_detail.h>
-
-#include <yt/unittests/framework.h>
 
 namespace NYT {
 namespace NElection {
