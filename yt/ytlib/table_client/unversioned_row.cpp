@@ -695,10 +695,10 @@ private:
     int Depth_ = 0;
 };
 
-void ValidateAnyValue(const Stroka& yson)
+void ValidateAnyValue(TStringBuf yson)
 {
     TYsonAnyValidator validator;
-    ParseYsonStringBuffer(yson.Data(), EYsonType::Node, &validator);
+    ParseYsonStringBuffer(yson, EYsonType::Node, &validator);
 }
 
 void ValidateDynamicValue(const TUnversionedValue& value)
@@ -718,7 +718,7 @@ void ValidateDynamicValue(const TUnversionedValue& value)
                     value.Length,
                     MaxAnyValueLength);
             }
-            ValidateAnyValue(value.Data.String);
+            ValidateAnyValue(TStringBuf(value.Data.String, value.Length));
             break;
 
         case EValueType::Double:
