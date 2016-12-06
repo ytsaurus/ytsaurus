@@ -141,7 +141,6 @@ public:
 
 private:
     std::unique_ptr<THorizontalSchemalessBlockReader> UnderlyingReader_;
-    int KeyColumnCount_;
     TTimestamp Timestamp_;
 };
 
