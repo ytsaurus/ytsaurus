@@ -44,6 +44,9 @@ def get(path, trimmed_nodes=None):
                     walk(new_path, value)
 
     try:
+        # NOTE: Each node in Cypress has "type" attribute and after yt.get this
+        # attribute will be represented with YsonString. To avoid this and reduce
+        # memory consumption using yson.loads with always_create_attributes=False here.
         result = yson.loads(yt.get(path, attributes=["type", "opaque"], format="yson"),
                             always_create_attributes=False)
     except yt.YtResponseError as err:
