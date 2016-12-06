@@ -50,10 +50,10 @@ public:
         String_ = new Stroka(s);
     }
 
-    TNode(const Stroka& s)
+    TNode(Stroka s)
         : Type_(STRING)
     {
-        String_ = new Stroka(s);
+        String_ = new Stroka(std::move(s));
     }
 
     TNode(int i)
