@@ -21,18 +21,16 @@ def get_path(object):
 def get_size(object):
     return object.attributes["size"]
 
-def join(path, dir):
-    return "{0}/{1}".format(path, dir)
-
 # Make recursive get on cypress. Add attrbiute path.
-def get(path, trimmed_nodes = None):
-    if trimmed_nodes is None: trimmed_nodes = ["//sys"]
+def get(path, trimmed_nodes=None):
+    if trimmed_nodes is None:
+        trimmed_nodes = ["//sys"]
 
     def walk(path, object):
         object.attributes["path"] = path
         if is_map_node(object):
             for key, value in object.iteritems():
-                new_path = join(path, key)
+                new_path = yt.ypath_join(path, key)
                 if new_path in trimmed_nodes:
                     object[key] = yson.to_yson_type({}, object[key].attributes)
                     object[key].attributes["path"] = new_path
@@ -46,7 +44,8 @@ def get(path, trimmed_nodes = None):
                     walk(new_path, value)
 
     try:
-        result = yt.get(path, attributes=["type", "opaque"])
+        result = yson.loads(yt.get(path, attributes=["type", "opaque"], format="yson"),
+                            always_create_attributes=False)
     except yt.YtResponseError as err:
         if err.is_access_denied():
             # TODO(ignat): remove this code since set_opaque performed by superuser.
@@ -200,7 +199,6 @@ def main():
         except yt.YtResponseError as err:
             if not err.is_resolve_error():
                 raise
-
 
 if __name__ == "__main__":
     main()
