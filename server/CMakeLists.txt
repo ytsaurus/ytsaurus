@@ -393,7 +393,7 @@ SET(YT_SRCS
 IF(YMAKE)
 ################################################################################
 
-PROGRAM(ytserver)
+LIBRARY(ytserver)
 
 OWNER(sandello)
 
@@ -418,7 +418,6 @@ ADDINCL(
 
 SRCS(
   ${YT_SRCS}
-  ${CMAKE_CURRENT_LIST_DIR}/main.cpp
 )
 
 PEERDIR(
