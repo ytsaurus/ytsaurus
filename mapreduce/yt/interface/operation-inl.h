@@ -168,10 +168,31 @@ TDerived& TOperationIOSpec<TDerived>::AddInput(const TRichYPath& path)
 
 template <class TDerived>
 template <class T>
+TDerived& TOperationIOSpec<TDerived>::SetInput(size_t tableIndex, const TRichYPath& path)
+{
+    TOperationIOSpecBase::TFormatAdder<T>::Add(InputDesc_);
+    Inputs_.resize(std::max(Inputs_.size(), tableIndex + 1));
+    Inputs_[tableIndex] = path;
+    return *static_cast<TDerived*>(this);
+}
+
+
+template <class TDerived>
+template <class T>
 TDerived& TOperationIOSpec<TDerived>::AddOutput(const TRichYPath& path)
 {
     TOperationIOSpecBase::TFormatAdder<T>::Add(OutputDesc_);
     Outputs_.push_back(path);
+    return *static_cast<TDerived*>(this);
+}
+
+template <class TDerived>
+template <class T>
+TDerived& TOperationIOSpec<TDerived>::SetOutput(size_t tableIndex, const TRichYPath& path)
+{
+    TOperationIOSpecBase::TFormatAdder<T>::Add(OutputDesc_);
+    Outputs_.resize(std::max(Outputs_.size(), tableIndex + 1));
+    Outputs_[tableIndex] = path;
     return *static_cast<TDerived*>(this);
 }
 

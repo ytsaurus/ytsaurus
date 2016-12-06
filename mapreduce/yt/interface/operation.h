@@ -45,7 +45,13 @@ struct TOperationIOSpec
     TDerived& AddInput(const TRichYPath& path);
 
     template <class T>
+    TDerived& SetInput(size_t tableIndex, const TRichYPath& path);
+
+    template <class T>
     TDerived& AddOutput(const TRichYPath& path);
+
+    template <class T>
+    TDerived& SetOutput(size_t tableIndex, const TRichYPath& path);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
