@@ -16,6 +16,8 @@
 
 #include <yt/server/job_proxy/job_signaler.h>
 
+#include <yt/server/shell/shell_manager.h>
+
 #include <yt/ytlib/cgroup/cgroup.h>
 
 #include <yt/ytlib/chunk_client/public.h>
@@ -34,8 +36,6 @@
 #include <yt/ytlib/query_client/public.h>
 #include <yt/ytlib/query_client/query_statistics.h>
 #include <yt/ytlib/query_client/functions_cache.h>
-
-#include <yt/ytlib/shell/shell_manager.h>
 
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/name_table.h>
