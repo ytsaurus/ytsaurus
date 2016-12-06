@@ -353,3 +353,17 @@ def copy_docstring_from(documented_function):
         ...
     """
     return functools.wraps(documented_function, assigned=("__doc__",), updated=())
+
+def is_process_alive(pid):
+    try:
+        os.kill(pid, 0)
+    except OSError as err:
+        if err.errno == errno.ESRCH:
+            return False
+        elif err.errno == errno.EPERM:
+            return True
+        else:
+            # According to "man 2 kill" possible error values are
+            # (EINVAL, EPERM, ESRCH)
+            raise
+    return True

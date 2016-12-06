@@ -1,8 +1,7 @@
 from __future__ import print_function
 
 from .configs_provider import init_logging, get_default_provision, create_configs_provider
-from .helpers import versions_cmp, read_config, write_config, \
-                     is_dead_or_zombie, get_open_port
+from .helpers import read_config, write_config, is_dead_or_zombie, get_open_port
 
 from yt.common import YtError, remove_file, makedirp, set_pdeathsig, which
 from yt.wrapper.common import generate_uuid
@@ -17,7 +16,6 @@ import yt.packages.requests as requests
 
 import logging
 import os
-import uuid
 import time
 import signal
 import socket
@@ -137,8 +135,8 @@ class YTInstance(object):
         self._binaries = _which_yt_binaries()
         if "ytserver" in self._binaries:
             # Pre-19 era.
-            logging.info('Using single binary "ytserver"')
-            logging.info("  ytserver  %s", self._binaries["ytserver"].literal)
+            logger.info('Using single binary "ytserver"')
+            logger.info("  ytserver  %s", self._binaries["ytserver"].literal)
 
             self.abi_version = self._binaries["ytserver"].abi
         elif (
@@ -146,10 +144,10 @@ class YTInstance(object):
             "ytserver-node" in self._binaries and
             "ytserver-scheduler" in self._binaries):
             # Post-19 era.
-            logging.info('Using multiple binaries "ytserver-master", "ytserver-node", "ytserver-scheduler"')
-            logging.info("  ytserver-master     %s", self._binaries["ytserver-master"].literal)
-            logging.info("  ytserver-node       %s", self._binaries["ytserver-node"].literal)
-            logging.info("  ytserver-scheduler  %s", self._binaries["ytserver-scheduler"].literal)
+            logger.info("Using multiple YT binaries with the following versions:")
+            logger.info("  ytserver-master     %s", self._binaries["ytserver-master"].literal)
+            logger.info("  ytserver-node       %s", self._binaries["ytserver-node"].literal)
+            logger.info("  ytserver-scheduler  %s", self._binaries["ytserver-scheduler"].literal)
 
             abi_versions = set(imap(lambda v: v.abi, self._binaries.values()))
             if len(abi_versions) > 1:
@@ -421,8 +419,7 @@ class YTInstance(object):
         for cgroup_path in freezer_cgroups:
             with open(os.path.join(cgroup_path, "tasks"), "r") as handle:
                 for line in handle:
-                    pid = int(line)
-                    os.kill(signal.SIGKILL)
+                    os.kill(int(line), signal.SIGKILL)
 
         for cgroup_path in self._all_cgroups:
             for dirpath, dirnames, _ in os.walk(cgroup_path, topdown=False):
@@ -765,7 +762,7 @@ class YTInstance(object):
             guessed_version = self._binaries.items()[0][1].literal
             raise YtError("YT driver bindings not found. Make sure you have installed "
                           "yandex-yt-python-driver package (appropriate version: {0})"
-                          .format(self.guessed_version))
+                          .format(guessed_version))
 
         yt_driver_bindings.configure_logging(self.driver_logging_config)
 

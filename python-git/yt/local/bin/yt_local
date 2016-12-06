@@ -8,7 +8,6 @@ from yt.local.commands import _START_DEFAULTS
 
 from yt.wrapper.cli_helpers import run_main
 from yt.wrapper.exceptions_catcher import KeyboardInterruptsCatcher
-from yt.wrapper.common import GB
 
 import argparse
 import logging
@@ -82,6 +81,9 @@ def start_func(**kwargs):
         kwargs["jobs_memory_limit"] = kwargs["operations_memory_limit"]
     for opt in ("masters_count", "nodes_count", "schedulers_count", "ports_range_start", "operations_memory_limit"):
         del kwargs[opt]
+
+    if sync:
+        kwargs["set_pdeath_sig"] = True
 
     environment = start(**kwargs)
 
