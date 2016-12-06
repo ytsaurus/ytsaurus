@@ -11,6 +11,12 @@ RECURSE(
   server
   python
   nodejs
+  server/cell_master_program
+  server/cell_node_program
+  server/cell_scheduler_program
+  server/job_proxy_program
+  server/exec_program
+  server/core_forwarder
 )
 
 ################################################################################

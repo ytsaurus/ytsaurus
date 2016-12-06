@@ -17,6 +17,7 @@ SET(NODE_DIR contrib/libs/node_0_8_28)
 PEERDIR(
   ${NODE_DIR}/targets/libnode
   yt/${YT_ABI}/yt/nodejs/targets/lib
+  library/streams/bzip2
 )
 
 SRCS(
