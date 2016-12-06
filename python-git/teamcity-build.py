@@ -143,9 +143,10 @@ def slow_build(options):
 
 @build_step
 def set_ytserver_permissions(options):
-    ytserver_path = "{0}/bin/ytserver".format(options.yt_build_directory)
-    run(["sudo", "chown", "root", ytserver_path])
-    run(["sudo", "chmod", "4755", ytserver_path])
+    for binary in ["ytserver-node", "ytserver-exec", "ytserver-job-proxy"]:
+        path = os.path.join(options.yt_build_directory, "bin", binary)
+        run(["sudo", "chown", "root", path])
+        run(["sudo", "chmod", "4755", path])
 
 @build_step
 def copy_modules_from_contrib(options):
