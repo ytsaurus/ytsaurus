@@ -1,8 +1,9 @@
 #include "framework.h"
 
+#include "yson_consumer_mock.h"
+
 #include <yt/core/yson/writer.h>
 #include <yt/core/yson/parser.h>
-#include <yt/core/yson/consumer_mock.h>
 #include <yt/core/yson/stream.h>
 
 #include <util/string/escape.h>
