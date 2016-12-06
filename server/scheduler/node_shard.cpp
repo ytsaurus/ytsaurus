@@ -9,9 +9,9 @@
 
 #include <yt/server/cell_scheduler/bootstrap.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/server/shell/config.h>
 
-#include <yt/ytlib/shell/config.h>
+#include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/core/misc/finally.h>
 
