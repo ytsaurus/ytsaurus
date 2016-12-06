@@ -373,6 +373,9 @@ class YTEnvSetup(object):
                 yt_commands.set("//sys/nodes/%s/@user_tags" % node_name, [])
 
     def _remove_operations(self):
+        if self.NUM_SCHEDULERS == 0:
+            return
+
         try:
             for operation_id in yt_commands.ls("//sys/scheduler/orchid/scheduler/operations"):
                 yt_commands.abort_op(operation_id)
