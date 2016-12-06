@@ -2505,6 +2505,9 @@ TObjectBase* TChunkManager::TMediumTypeHandler::CreateObject(
     // These two are optional.
     auto transient = attributes->FindAndRemove<bool>("transient");
     auto cache = attributes->FindAndRemove<bool>("cache");
+    if (cache) {
+        THROW_ERROR_EXCEPTION("Cannot create a new cache medium");
+    }
 
     return Owner_->CreateMedium(name, transient, cache, hintId);
 }
