@@ -197,6 +197,61 @@ class TestOperations(object):
             yt.run_map("cat", table, table, local_files=get_test_file_path("capitalize_b.py"),
                                             files=get_test_file_path("capitalize_b.py"))
 
+
+    def test_stderr_table(self):
+        table = TEST_DIR + "/table"
+        other_table = TEST_DIR + "/other_table"
+        yt.write_table(TablePath(table, sorted_by=["x"]), [{"x": 1}, {"x": 2}])
+
+        stderr_table = TEST_DIR + "/stderr_table"
+
+        yt.run_map("echo map >&2 ; cat", table, other_table, stderr_table=stderr_table)
+        row_list = list(yt.read_table(stderr_table, raw=False))
+        assert len(row_list) > 0
+        for r in row_list:
+            assert r["data"] == "map\n"
+
+        yt.run_reduce("echo reduce >&2 ; cat",
+                      table, other_table, stderr_table=stderr_table,
+                      reduce_by=["x"])
+        row_list = list(yt.read_table(stderr_table, raw=False))
+        assert len(row_list) > 0
+        for r in row_list:
+            assert r["data"] == "reduce\n"
+
+        yt.run_map_reduce(
+            "echo mr-map >&2 ; cat",
+            "echo mr-reduce >&2 ; cat",
+            table, other_table,
+            stderr_table=stderr_table, reduce_by=["x"])
+
+        row_list = list(yt.read_table(stderr_table, raw=False))
+        assert len(row_list) > 0
+        for r in row_list:
+            assert r["data"] in ["mr-map\n", "mr-reduce\n"]
+
+    def test_stderr_table_inside_transaction(self):
+        table = TEST_DIR + "/table"
+        other_table = TEST_DIR + "/other_table"
+        yt.write_table(TablePath(table, sorted_by=["x"]), [{"x": 1}, {"x": 2}])
+
+        stderr_table = TEST_DIR + "/stderr_table"
+        try:
+            with yt.Transaction() as t:
+                yt.run_map("echo map >&2 ; cat", table, other_table, stderr_table=stderr_table)
+                raise RuntimeError
+        except RuntimeError:
+            pass
+
+        assert not yt.exists(other_table)
+
+        # We expect stderr to be saved nevertheless.
+        row_list = list(yt.read_table(stderr_table, raw=False))
+        assert len(row_list) > 0
+        for r in row_list:
+            assert r["data"] == "map\n"
+
+
     def test_run_standalone_binary(self):
         if sys.version_info[0] >= 3:
             pytest.skip()
