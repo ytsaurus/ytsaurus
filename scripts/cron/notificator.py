@@ -78,8 +78,8 @@ def process_email(config, dry_run):
             send_notification(cluster, 
                               notification_id, 
                               notification, 
-                              cluster_config.get("send-all", []), 
-                              cluster_config.get("send-major", []),
+                              cluster_config.get("send_all", []), 
+                              cluster_config.get("send_major", []),
                               dry_run)
             if not dry_run:
                 yt.set("//sys/notifications/local/{0}/{1}/sent_via_mail".format(cluster, notification_id), True)
