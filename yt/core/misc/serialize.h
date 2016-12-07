@@ -687,11 +687,8 @@ private:
 
 };
 
-template <class C, bool IsSet = std::is_same<typename C::key_type, typename C::value_type>::value>
-struct TContainerSorterComparer;
-
 template <class C>
-struct TContainerSorterComparer<C, true>
+struct TValueSorterComparer
 {
     template <class TIterator>
     static bool Compare(TIterator lhs, TIterator rhs)
@@ -703,7 +700,7 @@ struct TContainerSorterComparer<C, true>
 };
 
 template <class C>
-struct TContainerSorterComparer<C, false>
+struct TKeySorterComparer
 {
     template <class TIterator>
     static bool Compare(TIterator lhs, TIterator rhs)
@@ -711,6 +708,26 @@ struct TContainerSorterComparer<C, false>
         typedef typename std::remove_const<typename std::remove_reference<decltype(lhs->first)>::type>::type T;
         typedef typename TSerializerTraits<T, C>::TComparer TComparer;
         return TComparer::Compare(lhs->first, rhs->first);
+    }
+};
+
+template <class C>
+struct TKeyValueSorterComparer
+{
+    template <class TIterator>
+    static bool Compare(TIterator lhs, TIterator rhs)
+    {
+        typedef typename std::remove_const<typename std::remove_reference<decltype(lhs->first)>::type>::type TKey;
+        typedef typename std::remove_const<typename std::remove_reference<decltype(lhs->second)>::type>::type TValue;
+        typedef typename TSerializerTraits<TKey, C>::TComparer TKeyComparer;
+        typedef typename TSerializerTraits<TValue, C>::TComparer TValueComparer;
+        if (TKeyComparer::Compare(lhs->first, rhs->first)) {
+            return true;
+        }
+        if (TKeyComparer::Compare(rhs->first, lhs->first)) {
+            return false;
+        }
+        return TValueComparer::Compare(lhs->second, rhs->second);
     }
 };
 
@@ -802,13 +819,13 @@ struct TSorterSelector<T, C, TUnsortedTag>
 template <class T, class C>
 struct TSorterSelector<std::vector<T>, C, TSortedTag>
 {
-    typedef TCollectionSorter<std::vector<T>, TContainerSorterComparer<C, true>> TSorter;
+    typedef TCollectionSorter<std::vector<T>, TValueSorterComparer<C>> TSorter;
 };
 
 template <class T, class C, unsigned size>
 struct TSorterSelector<SmallVector<T, size>, C, TSortedTag>
 {
-    typedef TCollectionSorter<SmallVector<T, size>, TContainerSorterComparer<C, true>> TSorter;
+    typedef TCollectionSorter<SmallVector<T, size>, TValueSorterComparer<C>> TSorter;
 };
 
 template <class C, class... T>
@@ -823,12 +840,52 @@ struct TSorterSelector<std::map<T...>, C, TSortedTag>
     typedef TNoopSorter<std::map<T...>, C> TSorter;
 };
 
-template <class T, class C>
-struct TSorterSelector<T, C, TSortedTag>
+template <class C, class... T>
+struct TSorterSelector<std::unordered_set<T...>, C, TSortedTag>
 {
-    static_assert(std::is_member_function_pointer<decltype(&T::key_eq)>::value,
-        "Only for std::unordered_ and yhash_ map or set.");
-    typedef TCollectionSorter<T, TContainerSorterComparer<T>> TSorter;
+    typedef TCollectionSorter<std::unordered_set<T...>, TValueSorterComparer<C>> TSorter;
+};
+
+template <class C, class... T>
+struct TSorterSelector<yhash_set<T...>, C, TSortedTag>
+{
+    typedef TCollectionSorter<yhash_set<T...>, TValueSorterComparer<C>> TSorter;
+};
+
+template <class C, class... T>
+struct TSorterSelector<std::unordered_multiset<T...>, C, TSortedTag>
+{
+    typedef TCollectionSorter<std::unordered_multiset<T...>, TValueSorterComparer<C>> TSorter;
+};
+
+template <class C, class... T>
+struct TSorterSelector<yhash_multiset<T...>, C, TSortedTag>
+{
+    typedef TCollectionSorter<yhash_multiset<T...>, TValueSorterComparer<C>> TSorter;
+};
+
+template <class C, class... T>
+struct TSorterSelector<std::unordered_map<T...>, C, TSortedTag>
+{
+    typedef TCollectionSorter<std::unordered_map<T...>, TKeySorterComparer<C>> TSorter;
+};
+
+template <class C, class... T>
+struct TSorterSelector<yhash_map<T...>, C, TSortedTag>
+{
+    typedef TCollectionSorter<yhash_map<T...>, TKeySorterComparer<C>> TSorter;
+};
+
+template <class C, class... T>
+struct TSorterSelector<std::unordered_multimap<T...>, C, TSortedTag>
+{
+    typedef TCollectionSorter<std::unordered_map<T...>, TKeyValueSorterComparer<C>> TSorter;
+};
+
+template <class C, class... T>
+struct TSorterSelector<yhash_multimap<T...>, C, TSortedTag>
+{
+    typedef TCollectionSorter<yhash_multimap<T...>, TKeyValueSorterComparer<C>> TSorter;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
