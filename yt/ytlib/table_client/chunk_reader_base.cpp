@@ -167,7 +167,7 @@ int TChunkReaderBase::ApplyLowerRowLimit(const TBlockMetaExt& blockMeta, const N
         rbegin,
         rend,
         lowerLimit.GetRowIndex(),
-        [] (int index, const TBlockMeta& blockMeta) {
+        [] (i64 index, const TBlockMeta& blockMeta) {
             // Global (chunk-wide) index of last row in block.
             auto maxRowIndex = blockMeta.chunk_row_count() - 1;
             return index > maxRowIndex;
@@ -234,7 +234,7 @@ int TChunkReaderBase::ApplyUpperRowLimit(const TBlockMetaExt& blockMeta, const N
         begin,
         end,
         upperLimit.GetRowIndex(),
-        [] (const TBlockMeta& blockMeta, int index) {
+        [] (const TBlockMeta& blockMeta, i64 index) {
             auto maxRowIndex = blockMeta.chunk_row_count() - 1;
             return maxRowIndex < index;
         });
