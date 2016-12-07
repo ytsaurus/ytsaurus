@@ -58,7 +58,7 @@ protected:
         // TODO(babenko): This memory leak is intentional.
         // We should avoid destroying bootstrap since some of the subsystems
         // may be holding a reference to it and continue running some actions in background threads.
-        auto* bootstrap = new NCellMaster::TBootstrap(std::move(config), std::move(configNode));
+        auto* bootstrap = new NCellMaster::TBootstrap(config, std::move(configNode));
 
         if (parseResult.Has("dump-snapshot")) {
             NLogging::TLogManager::Get()->Configure(NLogging::TLogConfig::CreateSilent());
