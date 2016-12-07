@@ -41,7 +41,7 @@ Operation commands:
 Transaction commands:
     lock, start-tx, abort-tx, commit-tx, ping-tx
 Job commands:
-    get-job-stderr, run-job-shell
+    get-job-stderr, run-job-shell, abort-job
 Other commands:
     transform'''
 
@@ -844,6 +844,12 @@ def add_run_job_shell_parser(add_parser):
     parser.add_argument("--timeout", type=int, help="inactivity timeout in milliseconds after job has "
                                                     "finished, by default 60000 milliseconds")
 
+def add_abort_job_parser(add_parser):
+    parser = add_parser("abort-job", yt.abort_job)
+    parser.add_argument("job_id", help="job id, for example: 5c51-24e204-384-9f3f6437")
+    parser.add_argument("--timeout", type=int, help="try to interrupt job before abort during timeout, "
+                                                    "by default 10000 milliseconds")
+
 @copy_docstring_from(yt.get_job_stderr)
 def get_job_stderr(**args):
     write_silently(chunk_iter_stream(yt.get_job_stderr(**args), 16 * MB))
@@ -984,6 +990,7 @@ def main():
 
     add_run_job_shell_parser(add_parser)
     add_run_get_job_stderr_parser(add_parser)
+    add_abort_job_parser(add_parser)
 
     add_transform_parser(add_parser)
 

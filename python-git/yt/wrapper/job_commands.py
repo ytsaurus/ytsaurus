@@ -20,3 +20,14 @@ def get_job_stderr(operation_id, job_id, client=None):
         {"operation_id": operation_id, "job_id": job_id},
         return_content=False,
         client=client)
+
+def abort_job(job_id, interrupt_timeout, client=None):
+    """ Interrupt running job with preserved result
+
+    :param job_id: (string) job_id
+    :param interrupt_timeout: (milliseconds) wait for interrupt before abort
+    """
+    make_request(
+        "abort_job",
+        {"job_id": job_id, "interrupt_timeout": interrupt_timeout},
+        client=client)
