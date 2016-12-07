@@ -140,6 +140,19 @@ void TChunkReplicator::Stop()
         auto* node = pair.second;
         node->Jobs().clear();
     }
+
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+    for (const auto& pair : JobMap_) {
+        const auto& job = pair.second;
+        auto* chunk = chunkManager->FindChunk(job->GetChunkIdWithIndexes().Id);
+        if (chunk) {
+            chunk->SetJob(nullptr);
+        }
+    }
+
+    for (auto chunkWithIndexes : ChunkRepairQueue_) {
+        chunkWithIndexes.GetPtr()->SetRepairQueueIterator(chunkWithIndexes.GetMediumIndex(), Null);
+    }
 }
 
 void TChunkReplicator::TouchChunk(TChunkPtrWithIndexes chunkWithIndexes)
