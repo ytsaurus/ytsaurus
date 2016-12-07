@@ -202,6 +202,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
                    reduce_combiner_input_format=None, reduce_combiner_output_format=None,
                    reduce_combiner_files=None, reduce_combiner_local_files=None, reduce_combiner_yt_files=None,
                    reduce_combiner_memory_limit=None,
+                   stderr_table=None,
                    client=None):
     """Run map (optionally), sort, reduce and reduce-combine (optionally) operations.
 
@@ -209,6 +210,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
     :param reducer: (python generator, callable object-generator or string (with bash commands)).
     :param source_table: (string, `TablePath` or list of them) input tables
     :param destination_table: (string, `TablePath` or list of them) output tables
+    :param stderr_table: (string, `TablePath`) stderr table
     :param format: (string or descendant of `yt.wrapper.format.Format`) common format of input, \
                     intermediate and output data. More specific formats will override it.
     :param map_input_format: (string or descendant of `yt.wrapper.format.Format`)
@@ -248,6 +250,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
 
     source_table = _prepare_source_tables(source_table, client=client)
     destination_table = _prepare_destination_tables(destination_table, client=client)
+    stderr_table = _prepare_stderr_table(stderr_table, client=client)
 
     if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and _are_default_empty_table(source_table):
         _remove_tables(destination_table, client=client)
@@ -262,6 +265,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
     table_writer = _prepare_table_writer(table_writer, client)
     spec = compose(
         lambda _: _configure_spec(_, client),
+        lambda _: update({"stderr_table_path": stderr_table}, _) if stderr_table is not None else _,
         lambda _: _add_job_io_spec(["map_job_io", "reduce_job_io", "sort_job_io"],
                                    job_io, table_writer, _),
         lambda _: _add_input_output_spec(source_table, destination_table, _),
@@ -289,20 +293,21 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
 
 @forbidden_inside_job
 def _run_operation(binary, source_table, destination_table,
-                  files=None, local_files=None, yt_files=None,
-                  format=None, input_format=None, output_format=None,
-                  sync=True,
-                  job_io=None,
-                  table_writer=None,
-                  job_count=None,
-                  memory_limit=None,
-                  spec=None,
-                  op_name=None,
-                  sort_by=None,
-                  reduce_by=None,
-                  join_by=None,
-                  ordered=None,
-                  client=None):
+                   files=None, local_files=None, yt_files=None,
+                   format=None, input_format=None, output_format=None,
+                   sync=True,
+                   job_io=None,
+                   table_writer=None,
+                   job_count=None,
+                   memory_limit=None,
+                   spec=None,
+                   op_name=None,
+                   sort_by=None,
+                   reduce_by=None,
+                   join_by=None,
+                   ordered=None,
+                   stderr_table=None,
+                   client=None):
     """Run script operation.
 
     :param binary: (python generator, callable object-generator or string (with bash commands))
@@ -320,6 +325,7 @@ def _run_operation(binary, source_table, destination_table,
     op_name = get_value(op_name, "map")
     source_table = _prepare_source_tables(source_table, client=client)
     destination_table = _prepare_destination_tables(destination_table, client=client)
+    stderr_table = _prepare_stderr_table(stderr_table, client=client)
 
     are_sorted_output = False
     for table in destination_table:
@@ -402,6 +408,7 @@ def _run_operation(binary, source_table, destination_table,
     try:
         spec = compose(
             lambda _: _configure_spec(_, client),
+            lambda _: update({"stderr_table_path": stderr_table}, _) if stderr_table is not None else _,
             lambda _: _add_job_io_spec("job_io", job_io, table_writer, _),
             lambda _: _add_input_output_spec(source_table, destination_table, _),
             lambda _: update({"reduce_by": reduce_by}, _) if op_name == "reduce" else _,
@@ -437,6 +444,7 @@ def run_map(binary, source_table, destination_table,
             memory_limit=None,
             spec=None,
             ordered=None,
+            stderr_table=None,
             client=None):
     """Run map operation.
 
@@ -462,6 +470,7 @@ def run_reduce(binary, source_table, destination_table,
                sort_by=None,
                reduce_by=None,
                join_by=None,
+               stderr_table=None,
                client=None):
     """Run reduce operation.
 
@@ -485,6 +494,7 @@ def run_join_reduce(binary, source_table, destination_table,
                     sort_by=None,
                     reduce_by=None,
                     join_by=None,
+                    stderr_table=None,
                     client=None):
     """Run join-reduce operation.
 
@@ -635,6 +645,15 @@ def _prepare_destination_tables(tables, client=None):
     for table in tables:
         create_table(table, ignore_existing=True, client=client)
     return tables
+
+def _prepare_stderr_table(name, client=None):
+    if name is None:
+        return None
+
+    table = TablePath(name, client=client)
+    with Transaction(transaction_id=null_transaction_id, client=client):
+        create_table(table, ignore_existing=True, client=client)
+    return table
 
 
 def _add_user_command_spec(op_type, binary, format, input_format, output_format,
