@@ -55,27 +55,24 @@ protected:
         auto config = GetConfig();
         auto configNode = GetConfigNode();
 
-        ConfigureServerSingletons(config);
-
         // TODO(babenko): This memory leak is intentional.
         // We should avoid destroying bootstrap since some of the subsystems
         // may be holding a reference to it and continue running some actions in background threads.
         auto* bootstrap = new NCellMaster::TBootstrap(std::move(config), std::move(configNode));
-        bootstrap->Initialize();
 
         if (parseResult.Has("dump-snapshot")) {
             NLogging::TLogManager::Get()->Configure(NLogging::TLogConfig::CreateSilent());
+            bootstrap->Initialize();
             bootstrap->TryLoadSnapshot(DumpSnapshot_, true);
-            return;
-        }
-
-        if (parseResult.Has("validate-snapshot")) {
+        } else if (parseResult.Has("validate-snapshot")) {
             NLogging::TLogManager::Get()->Configure(NLogging::TLogConfig::CreateQuiet());
+            bootstrap->Initialize();
             bootstrap->TryLoadSnapshot(ValidateSnapshot_, false);
-            return;
+        } else {
+            ConfigureServerSingletons(config);
+            bootstrap->Initialize();
+            bootstrap->Run();
         }
-
-        bootstrap->Run();
     }
 
 private:
