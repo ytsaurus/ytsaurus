@@ -82,14 +82,6 @@ inline void TChunk::SetJob(TJobPtr job)
     GetDynamicData()->Job = std::move(job);
 }
 
-inline void TChunk::Reset()
-{
-    auto* data = GetDynamicData();
-    data->ScanFlags = EChunkScanKind::None;
-    data->RepairQueueIterators.fill(Null);
-    data->Job.Reset();
-}
-
 inline bool TChunk::ComputeVital() const
 {
     // NB: Shortcut for non-exported chunk.

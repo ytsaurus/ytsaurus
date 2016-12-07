@@ -124,8 +124,6 @@ public:
     TJobPtr GetJob() const;
     void SetJob(TJobPtr job);
 
-    void Reset();
-
     //! Computes the vitality flag by ORing the local and the external values.
     bool ComputeVital() const;
 
