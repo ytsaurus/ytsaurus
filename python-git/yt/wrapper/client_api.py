@@ -17,7 +17,7 @@ from .transaction import Transaction, PingTransaction
 from .lock_commands import lock
 from .table import TempTable
 from .transform import transform
-from .job_commands import get_job_stderr, run_job_shell
+from .job_commands import get_job_stderr, run_job_shell, abort_job
 from .etc_commands import execute_batch, dump_job_context
 from .ypath import TablePath
 
