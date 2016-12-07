@@ -93,15 +93,7 @@
 0 14 * * * TITLE="resharding in-memory tables" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN_PATH=/opt/cron/token YT_PROXY=seneca-fin.yt.yandex.net yt_lock.py --conflict-exit-code 0 //sys/cron/reshard_in_memory_tables_lock "/opt/cron/reshard.py --yes auto --in-memory-only --root //yabs"' >>/opt/cron/reshard_in_memory_seneca_fin.log 2>&1
 
 # Send cluster notification via mail
-# Normal clusters:
-*/2 * * * * TITLE="sending notification via mail" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN_PATH=/opt/cron/token /opt/cron/send_notifications_via_mail.py hahn banach -r yt-announces@yandex-team.ru yt-ops@yandex-team.ru -R yql@yandex-team.ru yql-announces@yandex-team.ru' >>/opt/cron/send_notifications_via_mail.log 2>&1
-*/2 * * * * TITLE="sending notification via mail" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN_PATH=/opt/cron/token /opt/cron/send_notifications_via_mail.py locke freud marx smith -r yt-announces@yandex-team.ru yt-ops@yandex-team.ru' >>/opt/cron/send_notifications_via_mail.log 2>&1
-*/2 * * * * TITLE="sending notification via mail" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN_PATH=/opt/cron/token /opt/cron/send_notifications_via_mail.py vanga -r yt-announces@yandex-team.ru yt-ops@yandex-team.ru -R rem@yandex-team.ru' >>/opt/cron/send_notifications_via_mail.log 2>&1
-*/2 * * * * TITLE="sending notification via mail" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN_PATH=/opt/cron/token /opt/cron/send_notifications_via_mail.py hume popper socrates -r yt-testing-announces@yandex-team.ru yt-ops@yandex-team.ru' >>/opt/cron/send_testing_notifications_via_mail.log 2>&1
-*/2 * * * * TITLE="sending notification via mail" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN_PATH=/opt/cron/token /opt/cron/send_notifications_via_mail.py pythia -r yt-testing-announces@yandex-team.ru yt-ops@yandex-team.ru -R rem@yandex-team.ru' >>/opt/cron/send_testing_notifications_via_mail.log 2>&1
-# BS clusters:
-*/2 * * * * TITLE="sending notification via mail" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN_PATH=/opt/cron/token /opt/cron/send_notifications_via_mail.py alyx seneca-sas seneca-fin -r yt-announces@yandex-team.ru yt-ops@yandex-team.ru yt-yabs@yandex-team.ru' >>/opt/cron/send_notifications_via_mail.log 2>&1
-*/2 * * * * TITLE="sending notification via mail" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN_PATH=/opt/cron/token /opt/cron/send_notifications_via_mail.py barney pareto-man pareto-myt -r yt-testing-announces@yandex-team.ru yt-ops@yandex-team.ru yt-yabs@yandex-team.ru' >>/opt/cron/send_testing_notifications_via_mail.log 2>&1
+*/2 * * * * TITLE="notificator script" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN_PATH=/opt/cron/token /opt/cron/notificator.py' >>/opt/cron/notificator.log 2>&1
 
 # Prune empty tables and map nodes
 0 3 * * * TITLE="empty tables and map nodes pruning" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN_PATH=/opt/cron/token YT_PROXY=smith.yt.yandex.net /opt/cron/prune_empty_nodes.py >>/opt/cron/prune_empty_nodes_smith.log 2>&1
