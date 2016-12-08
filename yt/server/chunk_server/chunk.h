@@ -77,6 +77,9 @@ public:
     using TParents = SmallVector<TChunkList*, TypicalChunkParentCount>;
     DEFINE_BYREF_RO_PROPERTY(TParents, Parents);
 
+    DEFINE_BYVAL_RW_PROPERTY(bool, Movable);
+    DEFINE_BYREF_RW_PROPERTY(TChunkProperties, LocalProperties);
+
 public:
     explicit TChunk(const TChunkId& id);
 
@@ -109,9 +112,6 @@ public:
 
     bool IsConfirmed() const;
 
-    bool GetMovable() const;
-    void SetMovable(bool value);
-
     bool GetScanFlag(EChunkScanKind kind, NObjectServer::TEpoch epoch) const;
     void SetScanFlag(EChunkScanKind kind, NObjectServer::TEpoch epoch);
     void ClearScanFlag(EChunkScanKind kind, NObjectServer::TEpoch epoch);
@@ -142,8 +142,6 @@ public:
     //! the external values. See #ComputeProperties(int).
     //! NB: most of the time, most of the elements of the returned array will be zero.
     TPerMediumIntArray ComputeReplicationFactors() const;
-
-    int GetLocalReplicationFactor(int mediumIndex) const;
 
     int GetReadQuorum() const;
     void SetReadQuorum(int value);
@@ -180,19 +178,11 @@ public:
     //! Marks the chunk as sealed, i.e. sets its ultimate row count, data size etc.
     void Seal(const NChunkClient::NProto::TMiscExt& info);
 
-    //! Obtains the local properties of the chunk.
-    const TChunkProperties& GetLocalProperties() const;
+    //! Provides read-only access to external properties.
+    const TChunkProperties& ExternalProperties(int cellIndex) const;
 
-    //! Obtains the local properties of the chunk for the specified medium.
-    TMediumChunkProperties GetLocalProperties(int mediumIndex) const;
-
-    //! Updates the local properties of the chunk.
-    //! Returns |true| if anything changes.
-    bool UpdateLocalProperties(const TChunkProperties& properties);
-
-    //! Updates the properties of the chunk, as seen by the external cell.
-    //! Returns |true| if anything changes.
-    bool UpdateExternalProperties(int cellIndex, const TChunkProperties& properties);
+    //! Provides write access to external properties.
+    TChunkProperties& ExternalProperties(int cellIndex);
 
     //! Returns the maximum number of replicas that can be stored in the same
     //! rack without violating the availability guarantees.
@@ -215,10 +205,6 @@ public:
     void Unexport(int cellIndex, int importRefCounter);
 
 private:
-    bool Movable_ : 1;
-
-    TChunkProperties LocalProperties_;
-
     ui8 ReadQuorum_ = 0;
     ui8 WriteQuorum_ = 0;
     NErasure::ECodec ErasureCodec_ = NErasure::ECodec::None;

@@ -141,7 +141,7 @@ void TSerializableChunkProperties::ToChunkProperties(
         auto* medium = chunkManager->GetMediumByNameOrThrow(pair.first);
         auto mediumIndex = medium->GetIndex();
         auto& mediumProperties = (*properties)[mediumIndex];
-        mediumProperties.SetReplicationFactorOrThrow(pair.second.ReplicationFactor);
+        mediumProperties.SetReplicationFactor(pair.second.ReplicationFactor);
         mediumProperties.SetDataPartsOnly(pair.second.DataPartsOnly);
     }
 }

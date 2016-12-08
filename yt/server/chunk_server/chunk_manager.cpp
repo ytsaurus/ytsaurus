@@ -1369,29 +1369,27 @@ private:
                 continue;
             }
 
-            TChunkProperties properties;
-            properties.SetVital(update.vital());
-
+            TChunkProperties newProperties;
+            newProperties.SetVital(update.vital());
             for (const auto& mediumUpdate : update.medium_updates()) {
                 if (mediumUpdate.has_medium_index() &&
                     mediumUpdate.has_replication_factor() &&
                     mediumUpdate.has_data_parts_only())
                 {
                     auto mediumIndex = mediumUpdate.medium_index();
-                    properties[mediumIndex].SetReplicationFactor(mediumUpdate.replication_factor());
-                    properties[mediumIndex].SetDataPartsOnly(mediumUpdate.data_parts_only());
+                    newProperties[mediumIndex].SetReplicationFactor(mediumUpdate.replication_factor());
+                    newProperties[mediumIndex].SetDataPartsOnly(mediumUpdate.data_parts_only());
                 }
             }
 
-            Y_ASSERT(!local || properties.IsValid());
+            Y_ASSERT(!local || newProperties.IsValid());
 
-            bool updated = local
-                ? chunk->UpdateLocalProperties(properties)
-                : chunk->UpdateExternalProperties(cellIndex, properties);
-            if (!updated) {
+            auto& curProperties = local ? chunk->LocalProperties() : chunk->ExternalProperties(cellIndex);
+            if (newProperties == curProperties) {
                 continue;
             }
 
+            curProperties = newProperties;
             if (chunk->IsForeign()) {
                 Y_ASSERT(local);
                 auto& crossCellRequest = getCrossCellRequest(chunk);
@@ -1564,6 +1562,8 @@ private:
         int readQuorum = isJournal ? subrequest->read_quorum() : 0;
         int writeQuorum = isJournal ? subrequest->write_quorum() : 0;
 
+        ValidateReplicationFactor(replicationFactor);
+
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
 
@@ -1588,12 +1588,9 @@ private:
         chunk->SetMovable(subrequest->movable());
         chunk->SetLocalVital(subrequest->vital());
 
-        TChunkProperties properties;
-        properties[mediumIndex].SetReplicationFactorOrThrow(replicationFactor);
-        properties.SetVital(subrequest->vital());
-
-        Y_ASSERT(properties.IsValid());
-        chunk->UpdateLocalProperties(properties);
+        auto& chunkProperties = chunk->LocalProperties();
+        chunkProperties[mediumIndex].SetReplicationFactor(replicationFactor);
+        chunkProperties.SetVital(subrequest->vital());
 
         StageChunkTree(chunk, transaction, account);
 
@@ -1618,9 +1615,9 @@ private:
             account->GetName(),
             mediumName,
             mediumIndex,
-            chunk->GetLocalReplicationFactor(mediumIndex),
-            chunk->GetReadQuorum(),
-            chunk->GetWriteQuorum(),
+            replicationFactor,
+            readQuorum,
+            writeQuorum,
             erasureCodecId,
             subrequest->movable(),
             subrequest->vital());
