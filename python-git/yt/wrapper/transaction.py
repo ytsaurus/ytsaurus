@@ -83,6 +83,7 @@ class Transaction(object):
         self._ping = ping
         self._ping_ancestor_transactions = ping_ancestor_transactions
         self._finished = False
+        self._used_with_statement = False
 
         if get_option("_transaction_stack", self._client) is None:
             set_option("_transaction_stack", TransactionStack(), self._client)
@@ -114,7 +115,16 @@ class Transaction(object):
             self._ping_thread.start()
 
     def abort(self):
-        """Abort transaction."""
+        """
+        Abort transaction.
+
+        NOTE: abort() must not be called explicitly when transaction is used with with_statement::
+        >>> with Transaction() as t:
+        >>>     ...
+        >>>     t.abort() # Wrong!
+        """
+        if self._used_with_statement:
+            raise RuntimeError("Transaction is used with with_statement; explicit abort() is not allowed")
         if self._finished or self.transaction_id == null_transaction_id:
             return
         self._stop_pinger()
@@ -122,7 +132,16 @@ class Transaction(object):
         self._finished = True
 
     def commit(self):
-        """Commit transaction."""
+        """
+        Commit transaction.
+
+        NOTE: commit() must not be called explicitly when transaction is used with with_statement::
+        >>> with Transaction() as t:
+        >>>     ...
+        >>>     t.commit() # Wrong!
+        """
+        if self._used_with_statement:
+            raise RuntimeError("Transaction is used with with_statement; explicit commit() is not allowed")
         if self.transaction_id == null_transaction_id:
             return
         if self._finished:
@@ -141,12 +160,15 @@ class Transaction(object):
         self._stack.append(self.transaction_id, self._ping_ancestor_transactions)
         set_option("TRANSACTION", self.transaction_id, self._client)
         set_option("PING_ANCESTOR_TRANSACTIONS", self._ping_ancestor_transactions, self._client)
+        self._used_with_statement = True
         return self
 
     def __exit__(self, type, value, traceback):
         if self._finished:
             return
 
+        # Allow abort() and commit() temorary
+        self._used_with_statement = False
         try:
             if not self._started or self.transaction_id == null_transaction_id:
                 return
@@ -174,6 +196,8 @@ class Transaction(object):
                 else:
                     raise
         finally:
+            self._used_with_statement = True
+
             self._stack.pop()
             if get_config(self._client)["transaction_use_signal_if_ping_failed"]:
                 signal.signal(signal.SIGUSR1, self._old_sigusr_handler)

@@ -353,6 +353,13 @@ class TestCypressCommands(object):
 
         assert not yt.exists("//sys/transactions/" + transaction_id)
 
+        with yt.Transaction() as t:
+            with pytest.raises(RuntimeError):
+                t.abort()
+            with pytest.raises(RuntimeError):
+                t.commit()
+
+
     @pytest.mark.skipif("True")  # Enable when st/YT-4182 is done.
     def test_signal_in_transactions(self):
         new_client = yt.client.Yt(token=yt.config["token"], config=yt.config)
