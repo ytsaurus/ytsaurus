@@ -692,38 +692,32 @@ set(ASMS
   ${BASE}/crypto/x86_64cpuid.s
 )
 
+set_source_files_properties(${SRCS} PROPERTIES LANGUAGE C)
+
 # XXX(sandello): In Arcadia there are Clang-compatible ASMs only.
 set(_o_)
-if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-  # Pass it to the compiler directly.
-  set(SRCS ${SRCS} ${ASMS})
-else()
-  # Manually produce object files.
-  foreach(_a_ ${ASMS})
-    get_filename_component(_f_ ${_a_} NAME)
-    add_custom_command(
-      OUTPUT
-        ${CMAKE_CURRENT_BINARY_DIR}/${_f_}.o
-      COMMAND
-        ${CLANG_EXECUTABLE} -O2
-        -o ${CMAKE_CURRENT_BINARY_DIR}/${_f_}.o
-        -c ${_a_}
-      DEPENDS
-        ${_a_}
-      WORKING_DIRECTORY
-        ${CMAKE_CURRENT_BINARY_DIR}
-      COMMENT
-        "Clang-compiling OpenSSL assembly ${_f_}"
-    )
-    set_source_files_properties(
+foreach(_a_ ${ASMS})
+  get_filename_component(_f_ ${_a_} NAME)
+  add_custom_command(
+    OUTPUT
       ${CMAKE_CURRENT_BINARY_DIR}/${_f_}.o
-      PROPERTIES EXTERNAL_OBJECT TRUE
-    )
-    set(_o_ ${_o_} ${CMAKE_CURRENT_BINARY_DIR}/${_f_}.o)
-  endforeach()
-endif()
-
-set_source_files_properties(${SRCS} PROPERTIES LANGUAGE C)
+    COMMAND
+      ${CLANG_EXECUTABLE} -O2
+      -o ${CMAKE_CURRENT_BINARY_DIR}/${_f_}.o
+      -c ${_a_}
+    DEPENDS
+      ${_a_}
+    WORKING_DIRECTORY
+      ${CMAKE_CURRENT_BINARY_DIR}
+    COMMENT
+      "Clang-compiling OpenSSL assembly ${_f_}"
+  )
+  set_source_files_properties(
+    ${CMAKE_CURRENT_BINARY_DIR}/${_f_}.o
+    PROPERTIES EXTERNAL_OBJECT TRUE
+  )
+  set(_o_ ${_o_} ${CMAKE_CURRENT_BINARY_DIR}/${_f_}.o)
+endforeach()
 
 add_definitions(
   -DOPENSSL_THREADS

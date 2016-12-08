@@ -17,4 +17,7 @@ include_directories(${CMAKE_SOURCE_DIR})
 
 add_library(${NAME} STATIC ${SRCS})
 
-target_link_libraries(${NAME} deps-arcadia-util)
+target_link_libraries(${NAME}
+  deps-arcadia-library-openssl
+  deps-arcadia-util
+)
