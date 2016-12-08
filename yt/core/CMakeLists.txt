@@ -125,6 +125,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/misc/ref.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/ref_counted.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/ref_counted_tracker.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/safe_assert.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/serialize.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/small_vector.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/source_location.cpp

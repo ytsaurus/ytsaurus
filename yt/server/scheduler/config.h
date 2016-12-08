@@ -61,8 +61,12 @@ public:
     // discounted proportionally to this coefficient.
     double JobCountPreemptionTimeoutCoefficient;
 
-    //! Limit on number of concurrent calls to ScheduleJob of single controller.
+    //! Limit on the number of concurrent calls to ScheduleJob of single controller.
     int MaxConcurrentControllerScheduleJobCalls;
+
+    //! Limit on the number of concurrent core dumps that can be written because
+    //! of failed safe assertions inside controllers.
+    int MaxConcurrentSafeCoreDumps;
 
     //! Maximum allowed time for single job scheduling.
     TDuration ControllerScheduleJobTimeLimit;
@@ -141,6 +145,10 @@ public:
         RegisterParameter("max_concurrent_controller_schedule_job_calls", MaxConcurrentControllerScheduleJobCalls)
             .Default(10)
             .GreaterThan(0);
+
+        RegisterParameter("max_concurrent_safe_core_dumps", MaxConcurrentSafeCoreDumps)
+            .Default(1)
+            .GreaterThanOrEqual(0);
 
         RegisterParameter("schedule_job_time_limit", ControllerScheduleJobTimeLimit)
             .Default(TDuration::Seconds(60));

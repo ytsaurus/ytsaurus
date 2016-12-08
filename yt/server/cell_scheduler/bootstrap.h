@@ -48,6 +48,7 @@ public:
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const;
     NRpc::TResponseKeeperPtr GetResponseKeeper() const;
     NChunkClient::TThrottlerManagerPtr GetChunkLocationThrottlerManager() const;
+    const TCoreDumperPtr& GetCoreDumper() const;
 
     void Run();
 

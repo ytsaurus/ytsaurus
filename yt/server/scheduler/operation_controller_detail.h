@@ -44,6 +44,7 @@
 #include <yt/core/misc/ref_tracked.h>
 #include <yt/core/misc/digest.h>
 #include <yt/core/misc/histogram.h>
+#include <yt/core/misc/safe_assert.h>
 
 #include <yt/core/ytree/ypath_client.h>
 
@@ -99,38 +100,76 @@ class TOperationControllerBase
     , public IPersistent
     , public NPhoenix::TFactoryTag<NPhoenix::TNullFactory>
 {
+    // In order to make scheduler more stable, we do not allow
+    // pure YCHECK to be executed from the controller code (directly
+    // or indirectly). Thus, all interface methods of IOperationController
+    // are divided into two groups: those that involve YCHECKs
+    // to make assertions essential for further execution, and pure ones.
+
+    // All potentially faulty controller interface methods are
+    // guarded by enclosing into an extra method. Two intermediate
+    // macro below are needed due to
+    // http://stackoverflow.com/questions/1489932.
+    // Welcome to the beautiful world of preprocessor!
+#define VERIFY_PASTER(affinity) VERIFY_ ## affinity
+#define VERIFY_EVALUATOR(affinity) VERIFY_PASTER(affinity)
+#define IMPLEMENT_SAFE_METHOD(returnType, method, signature, args, affinity, defaultValue) \
+public: \
+    virtual returnType method signature override final \
+    { \
+        VERIFY_EVALUATOR(affinity); \
+        TSafeAssertionsGuard guard(Host->GetCoreDumper(), Host->GetCoreSemaphore()); \
+        try { \
+            return Safe ## method args; \
+        } catch (const TAssertionFailedException& ex) { \
+            FailOperation(ex); \
+            return defaultValue; \
+        } \
+    } \
+private: \
+    returnType Safe ## method signature;
+
+#define IMPLEMENT_SAFE_VOID_METHOD(method, signature, args, affinity) \
+    IMPLEMENT_SAFE_METHOD(void, method, signature, args, affinity, )
+
+    IMPLEMENT_SAFE_VOID_METHOD(Prepare, (), (), INVOKER_AFFINITY(CancelableInvoker))
+    IMPLEMENT_SAFE_VOID_METHOD(Materialize, (), (), INVOKER_AFFINITY(CancelableInvoker))
+
+    IMPLEMENT_SAFE_VOID_METHOD(
+        InitializeReviving,
+        (TControllerTransactionsPtr operationTransactions),
+        (operationTransactions),
+        THREAD_AFFINITY(ControlThread))
+    IMPLEMENT_SAFE_VOID_METHOD(Revive, (), (), INVOKER_AFFINITY(CancelableInvoker))
+
+    IMPLEMENT_SAFE_VOID_METHOD(OnJobStarted, (const TJobId& jobId, TInstant startTime), (jobId, startTime), INVOKER_AFFINITY(CancelableInvoker))
+    IMPLEMENT_SAFE_VOID_METHOD(OnJobCompleted, (std::unique_ptr<TCompletedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
+    IMPLEMENT_SAFE_VOID_METHOD(OnJobFailed, (std::unique_ptr<TFailedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
+    IMPLEMENT_SAFE_VOID_METHOD(OnJobAborted, (std::unique_ptr<TAbortedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
+
+    IMPLEMENT_SAFE_VOID_METHOD(SaveSnapshot, (TOutputStream* output), (output), THREAD_AFFINITY_ANY())
+
+    IMPLEMENT_SAFE_VOID_METHOD(Commit, (), (), INVOKER_AFFINITY(CancelableInvoker))
+    IMPLEMENT_SAFE_VOID_METHOD(Abort, (), (), THREAD_AFFINITY(ControlThread))
+    IMPLEMENT_SAFE_VOID_METHOD(Forget, (), (), THREAD_AFFINITY(ControlThread))
+    IMPLEMENT_SAFE_VOID_METHOD(Complete, (), (), THREAD_AFFINITY(ControlThread))
+
+    IMPLEMENT_SAFE_METHOD(
+        TScheduleJobResultPtr,
+        ScheduleJob,
+        (ISchedulingContextPtr context, const TJobResources& jobLimits),
+        (context, jobLimits),
+        INVOKER_AFFINITY(CancelableInvoker),
+        New<TScheduleJobResult>())
+
 public:
-    TOperationControllerBase(
-        TSchedulerConfigPtr config,
-        TOperationSpecBasePtr spec,
-        TOperationOptionsPtr options,
-        IOperationHost* host,
-        TOperation* operation);
+    // These are "pure" interface methods, i. e. those that do not involve YCHECKs.
+    // If some of these methods still fails due to unnoticed YCHECK, consider
+    // moving it to the section above.
 
-    virtual void Initialize() override final;
-    virtual void Prepare() override;
-    virtual void Materialize() override;
-
-    virtual void InitializeReviving(TControllerTransactionsPtr operationTransactions) override final;
-    virtual void Revive() override;
-
-    virtual void OnJobStarted(const TJobId& jobId, TInstant startTime) override;
-    virtual void OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary) override;
-    virtual void OnJobFailed(std::unique_ptr<TFailedJobSummary> jobSummary) override;
-    virtual void OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary) override;
-
-    virtual void SaveSnapshot(TOutputStream* output) override;
+    virtual void Initialize() override;
 
     virtual std::vector<NApi::ITransactionPtr> GetTransactions() override;
-
-    virtual void Commit() override;
-    virtual void Abort() override;
-    virtual void Forget() override;
-    virtual void Complete() override;
-
-    virtual TScheduleJobResultPtr ScheduleJob(
-        ISchedulingContextPtr context,
-        const TJobResources& jobLimits) override;
 
     virtual void UpdateConfig(TSchedulerConfigPtr config) override;
 
@@ -139,14 +178,14 @@ public:
     virtual IInvokerPtr GetCancelableInvoker() const override;
     virtual IInvokerPtr GetInvoker() const override;
 
-    virtual TFuture<void> Suspend() override;
-    virtual void Resume() override;
-
-    virtual int GetPendingJobCount() const override;
     virtual int GetTotalJobCount() const override;
+    virtual int GetPendingJobCount() const override;
     virtual TJobResources GetNeededResources() const override;
 
     virtual bool HasProgress() const override;
+
+    virtual void Resume() override;
+    virtual TFuture<void> Suspend() override;
 
     virtual void BuildOperationAttributes(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildProgress(NYson::IYsonConsumer* consumer) const override;
@@ -157,6 +196,13 @@ public:
     NYson::TYsonString BuildInputPathYson(const TJobId& jobId) const override;
 
     virtual void Persist(const TPersistenceContext& context) override;
+
+    TOperationControllerBase(
+        TSchedulerConfigPtr config,
+        TOperationSpecBasePtr spec,
+        TOperationOptionsPtr options,
+        IOperationHost* host,
+        TOperation* operation);
 
 protected:
     // Forward declarations.
@@ -750,7 +796,6 @@ protected:
     void ReinstallLivePreview();
     void AbortAllJoblets();
 
-    void DoSaveSnapshot(TOutputStream* output);
     void DoLoadSnapshot(const TSharedRef& snapshot);
 
     //! Called to extract input table paths from the spec.
@@ -1096,6 +1141,10 @@ private:
     virtual NYson::IYsonConsumer* GetEventLogConsumer() override;
 
     TCodicilGuard MakeCodicilGuard() const;
+
+    //! An internal helper for invoking OnOperationFailed with an error
+    //! built by data from `ex`.
+    void FailOperation(const TAssertionFailedException& ex);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
