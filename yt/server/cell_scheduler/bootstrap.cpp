@@ -272,6 +272,11 @@ TThrottlerManagerPtr TBootstrap::GetChunkLocationThrottlerManager() const
     return ChunkLocationThrottlerManager_;
 }
 
+const TCoreDumperPtr& TBootstrap::GetCoreDumper() const
+{
+    return CoreDumper_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCellScheduler

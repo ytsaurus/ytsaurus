@@ -41,6 +41,7 @@
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 
+#include <yt/core/concurrency/async_semaphore.h>
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/thread_pool.h>
@@ -120,6 +121,7 @@ public:
         , TotalCompletedJobTimeCounter_("/total_completed_job_time")
         , TotalFailedJobTimeCounter_("/total_failed_job_time")
         , TotalAbortedJobTimeCounter_("/total_aborted_job_time")
+        , CoreSemaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentSafeCoreDumps))
     {
         YCHECK(config);
         YCHECK(bootstrap);
@@ -409,6 +411,20 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         GetMasterConnector()->UnregisterAlert(alertType);
+    }
+
+    virtual const TCoreDumperPtr& GetCoreDumper() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return Bootstrap_->GetCoreDumper();
+    }
+
+    virtual const TAsyncSemaphorePtr& GetCoreSemaphore() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return CoreSemaphore_;
     }
 
     virtual TFuture<void> CheckPoolPermission(
@@ -981,6 +997,8 @@ private:
     TPeriodicExecutorPtr PendingEventLogRowsFlushExecutor_;
     TPeriodicExecutorPtr UpdateExecNodeDescriptorsExecutor_;
     TPeriodicExecutorPtr UpdateNodeShardsExecutor_;
+
+    const TAsyncSemaphorePtr CoreSemaphore_;
 
     Stroka ServiceAddress_;
 

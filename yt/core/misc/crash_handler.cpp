@@ -43,43 +43,12 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 #ifdef _unix_
-namespace {
+namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// See http://pubs.opengroup.org/onlinepubs/009695399/functions/xsh_chap02_04.html
-// for a list of async signal safe functions.
-
-// We will install the failure signal handler for these signals.
-// We could use strsignal() to get signal names, but we do not use it to avoid
-// introducing yet another #ifdef complication.
-const struct {
-    int Number;
-    const char* Name;
-} FailureSignals[] = {
-    { SIGSEGV, "SIGSEGV" },
-    { SIGILL,  "SIGILL"  },
-    { SIGFPE,  "SIGFPE"  },
-    { SIGABRT, "SIGABRT" },
-    { SIGBUS,  "SIGBUS"  },
-    { SIGTERM, "SIGTERM" },
-};
-
-//! Returns the program counter from a signal context, NULL if unknown.
-void* GetPC(void* uc)
-{
-    // TODO(sandello): Merge with code from Bind() internals.
-#if (defined(HAVE_UCONTEXT_H) || defined(HAVE_SYS_UCONTEXT_H)) && defined(PC_FROM_UCONTEXT)
-    if (uc) {
-        const auto* context = reinterpret_cast<ucontext_t*>(uc);
-        return reinterpret_cast<void*>(context->PC_FROM_UCONTEXT);
-    }
-#endif
-    return nullptr;
-}
-
 //! Returns the symbol for address at given program counter.
-int GetSymbol(void* pc, char* buffer, int length)
+int GetSymbolInfo(void* pc, char* buffer, int length)
 {
     TRawFormatter<0> formatter(buffer, length);
 
@@ -148,6 +117,41 @@ int GetSymbol(void* pc, char* buffer, int length)
     return formatter.GetBytesWritten();
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NDetail
+
+// See http://pubs.opengroup.org/onlinepubs/009695399/functions/xsh_chap02_04.html
+// for a list of async signal safe functions.
+
+// We will install the failure signal handler for these signals.
+// We could use strsignal() to get signal names, but we do not use it to avoid
+// introducing yet another #ifdef complication.
+const struct {
+    int Number;
+    const char* Name;
+} FailureSignals[] = {
+    { SIGSEGV, "SIGSEGV" },
+    { SIGILL,  "SIGILL"  },
+    { SIGFPE,  "SIGFPE"  },
+    { SIGABRT, "SIGABRT" },
+    { SIGBUS,  "SIGBUS"  },
+    { SIGTERM, "SIGTERM" },
+};
+
+//! Returns the program counter from a signal context, NULL if unknown.
+void* GetPC(void* uc)
+{
+    // TODO(sandello): Merge with code from Bind() internals.
+#if (defined(HAVE_UCONTEXT_H) || defined(HAVE_SYS_UCONTEXT_H)) && defined(PC_FROM_UCONTEXT)
+    if (uc) {
+        const auto* context = reinterpret_cast<ucontext_t*>(uc);
+        return reinterpret_cast<void*>(context->PC_FROM_UCONTEXT);
+    }
+#endif
+    return nullptr;
+}
+
 //! Writes the given buffer with the length to the standard error.
 void WriteToStderr(const char* buffer, int length)
 {
@@ -174,6 +178,36 @@ void DumpTimeInfo()
     formatter.AppendString("\" if you are using GNU date ***\n");
 
     WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
+}
+
+// This variable is used for protecting CrashSignalHandler() from
+// dumping stuff while another thread is doing it. Our policy is to let
+// the first thread dump stuff and let other threads wait.
+std::atomic<pthread_t*> CrashingThreadId;
+
+NConcurrency::TFls<std::vector<Stroka>> CodicilsStack;
+
+//! Dump codicils.
+void DumpCodicils()
+{
+    TRawFormatter<256> formatter;
+
+    if (!CodicilsStack->empty()) {
+        formatter.Reset();
+        formatter.AppendString("*** Begin codicils ***\n");
+        WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
+
+        for (const auto& data : *CodicilsStack) {
+            formatter.Reset();
+            formatter.AppendString(data.c_str());
+            formatter.AppendString("\n");
+            WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
+        }
+
+        formatter.Reset();
+        formatter.AppendString("*** End codicils ***\n");
+        WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
+    }
 }
 
 //! Dumps information about the signal.
@@ -223,27 +257,6 @@ void DumpSignalInfo(int signal, siginfo_t* si)
     WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
 }
 
-//! Dumps information about the stack frame.
-void DumpStackFrameInfo(void* pc)
-{
-    TRawFormatter<1024> formatter;
-
-    formatter.AppendString("@ ");
-    const int width = (sizeof(void*) == 8 ? 12 : 8) + 2;
-    // +2 for "0x"; 12 for x86_64 because higher bits are always zeroed.
-    formatter.AppendNumberAsHexWithPadding(reinterpret_cast<uintptr_t>(pc), width);
-    formatter.AppendString(" ");
-    // Get the symbol from the previous address of PC,
-    // because PC may be in the next function.
-    formatter.Advance(GetSymbol(
-        reinterpret_cast<char*>(pc) - 1,
-        formatter.GetCursor(),
-        formatter.GetBytesRemaining()));
-    formatter.AppendString("\n");
-
-    WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
-}
-
 //! Invoke the default signal handler.
 void InvokeDefaultSignalHandler(int signal)
 {
@@ -266,13 +279,6 @@ void Terminate(int signal)
         InvokeDefaultSignalHandler(signal);
     }
 }
-
-// This variable is used for protecting CrashSignalHandler() from
-// dumping stuff while another thread is doing it. Our policy is to let
-// the first thread dump stuff and let other threads wait.
-std::atomic<pthread_t*> CrashingThreadId;
-
-NConcurrency::TFls<std::vector<Stroka>> CodicilsStack;
 
 // Dumps signal and stack frame information, and invokes the default
 // signal handler once our job is done.
@@ -317,22 +323,7 @@ void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
     DumpTimeInfo();
 
     // Dump codicils.
-    if (!CodicilsStack->empty()) {
-        formatter.Reset();
-        formatter.AppendString("*** Begin codicils ***\n");
-        WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
-
-        for (const auto& data : *CodicilsStack) {
-            formatter.Reset();
-            formatter.AppendString(data.c_str());
-            formatter.AppendString("\n");
-            WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
-        }
-
-        formatter.Reset();
-        formatter.AppendString("*** End codicils ***\n");
-        WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
-    }
+    DumpCodicils();
 
     // Where did the crash happen?
     {
@@ -340,23 +331,12 @@ void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
         formatter.Reset();
         formatter.AppendString("PC: ");
         WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
-        DumpStackFrameInfo(pc);
+        NDetail::DumpStackFrameInfo(pc, WriteToStderr);
     }
 
     DumpSignalInfo(signal, si);
 
-    // Get the stack trace (without current frame hence +1).
-    std::array<void*, 99> stack; // 99 is to keep formatting. :)
-    const int depth = GetStackTrace(stack.data(), stack.size(), 1);
-
-    // Dump the stack trace.
-    for (int i = 0; i < depth; ++i) {
-        formatter.Reset();
-        formatter.AppendNumber(i + 1, 10, 2);
-        formatter.AppendString(". ");
-        WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
-        DumpStackFrameInfo(stack[i]);
-    }
+    DumpStackTrace(WriteToStderr);
 
     formatter.Reset();
     formatter.AppendString("*** Wait for logger to shut down ***\n");
@@ -373,10 +353,6 @@ void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
     // Kill ourself by the default signal handler.
     Terminate(signal);
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace
 #endif
 
 void InstallCrashSignalHandler()
