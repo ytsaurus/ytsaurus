@@ -258,6 +258,10 @@ INodePtr GetNodeByYPath(
     const INodePtr& root,
     const TYPath& path);
 
+INodePtr FindNodeByYPath(
+    const INodePtr& root,
+    const TYPath& path);
+
 void SetNodeByYPath(
     const INodePtr& root,
     const TYPath& path,

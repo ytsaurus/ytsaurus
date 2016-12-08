@@ -445,9 +445,11 @@ void ApplyYPathOverride(
     SyncYPathSet(root, path, value);
 }
 
-INodePtr GetNodeByYPath(
+static INodePtr WalkNodeByYPath(
     const INodePtr& root,
-    const TYPath& path)
+    const TYPath& path,
+    std::function<INodePtr(const IMapNodePtr&, const Stroka&)> handleMissingChildKey,
+    std::function<INodePtr(const IListNodePtr&, int)> handleMissingChildIndex)
 {
     auto currentNode = root;
     NYPath::TTokenizer tokenizer(path);
@@ -460,25 +462,63 @@ INodePtr GetNodeByYPath(
             case ENodeType::Map: {
                 auto currentMap = currentNode->AsMap();
                 auto key = tokenizer.GetLiteralValue();
-                currentNode = currentMap->GetChild(key);
+                currentNode = currentMap->FindChild(key);
+                if (!currentNode) {
+                    return handleMissingChildKey(currentMap, key);
+                }
                 break;
             }
-
             case ENodeType::List: {
                 auto currentList = currentNode->AsList();
                 const auto& token = tokenizer.GetToken();
                 int index = ParseListIndex(token);
                 int adjustedIndex = currentList->AdjustChildIndex(index);
-                currentNode = currentList->GetChild(adjustedIndex);
+                currentNode = currentList->FindChild(adjustedIndex);
+                if (!currentNode) {
+                    return handleMissingChildIndex(currentList, adjustedIndex);
+                }
                 break;
             }
-
             default:
                 ThrowCannotHaveChildren(currentNode);
                 Y_UNREACHABLE();
         }
     }
     return currentNode;
+}
+
+INodePtr GetNodeByYPath(
+    const INodePtr& root,
+    const TYPath& path)
+{
+    return WalkNodeByYPath(
+        root,
+        path,
+        [] (const IMapNodePtr& node, const Stroka& key) {
+            ThrowNoSuchChildKey(node, key);
+            return nullptr;
+        },
+        [] (const IListNodePtr& node, int index) {
+            ThrowNoSuchChildIndex(node, index);
+            return nullptr;
+        }
+    );
+}
+
+INodePtr FindNodeByYPath(
+    const INodePtr& root,
+    const TYPath& path)
+{
+    return WalkNodeByYPath(
+        root,
+        path,
+        [] (const IMapNodePtr& node, const Stroka& key) {
+            return nullptr;
+        },
+        [] (const IListNodePtr& node, int index) {
+            return nullptr;
+        }
+    );
 }
 
 void SetNodeByYPath(
