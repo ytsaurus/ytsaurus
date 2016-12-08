@@ -27,12 +27,6 @@ inline void TMediumChunkProperties::SetReplicationFactor(int replicationFactor)
     ReplicationFactor_ = replicationFactor;
 }
 
-inline void TMediumChunkProperties::SetReplicationFactorOrThrow(int replicationFactor)
-{
-    ValidateReplicationFactor(replicationFactor);
-    SetReplicationFactor(replicationFactor);
-}
-
 inline bool TMediumChunkProperties::GetDataPartsOnly() const
 {
     return DataPartsOnly_;

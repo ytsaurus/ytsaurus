@@ -13,16 +13,6 @@ inline TChunkDynamicData* TChunk::GetDynamicData() const
     return GetTypedDynamicData<TChunkDynamicData>();
 }
 
-inline bool TChunk::GetMovable() const
-{
-    return Movable_;
-}
-
-inline void TChunk::SetMovable(bool value)
-{
-    Movable_ = value;
-}
-
 inline bool TChunk::GetScanFlag(EChunkScanKind kind, NObjectServer::TEpoch epoch) const
 {
     auto* data = GetDynamicData();
@@ -112,16 +102,17 @@ inline void TChunk::SetLocalVital(bool value)
 
 inline TChunkProperties TChunk::ComputeProperties() const
 {
-    // NB: Shortcut for non-exported chunk.
+    auto result = LocalProperties_;
+
+    // Shortcut for non-exported chunk.
     if (ExportCounter_ == 0) {
-        return GetLocalProperties();
+        return result;
     }
 
-    TChunkProperties combinedProps = GetLocalProperties();
     for (const auto& data : ExportDataList_) {
-        combinedProps |= data.Properties;
+        result |= data.Properties;
     }
-    return combinedProps;
+    return result;
 }
 
 inline TPerMediumIntArray TChunk::ComputeReplicationFactors() const
@@ -135,11 +126,6 @@ inline TPerMediumIntArray TChunk::ComputeReplicationFactors() const
     }
 
     return result;
-}
-
-inline int TChunk::GetLocalReplicationFactor(int mediumIndex) const
-{
-    return LocalProperties_[mediumIndex].GetReplicationFactor();
 }
 
 inline int TChunk::GetReadQuorum() const

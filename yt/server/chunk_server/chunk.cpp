@@ -30,11 +30,6 @@ const TChunk::TStoredReplicas TChunk::EmptyStoredReplicas;
 TChunk::TChunk(const TChunkId& id)
     : TChunkTree(id)
 {
-    LocalProperties_.SetVital(true);
-    for (auto& mediumProps : LocalProperties_) {
-        mediumProps.Clear();
-    }
-
     ChunkMeta_.set_type(static_cast<int>(EChunkType::Unknown));
     ChunkMeta_.set_version(-1);
     ChunkMeta_.mutable_extensions();
@@ -71,10 +66,10 @@ TClusterResources TChunk::GetResourceUsage() const
         return result;
     }
 
-    for (int i = 0; i < MaxMediumCount; ++i) {
+    for (int index = 0; index < MaxMediumCount; ++index) {
         // NB: Use just the local RF as this only makes sense for staged chunks.
-        i64 diskSpace = ChunkInfo_.disk_space() * GetLocalReplicationFactor(i);
-        result.DiskSpace[i] = diskSpace;
+        i64 diskSpace = ChunkInfo_.disk_space() * LocalProperties_[index].GetReplicationFactor();
+        result.DiskSpace[index] = diskSpace;
     }
 
     return result;
@@ -353,56 +348,32 @@ void TChunk::Seal(const TMiscExt& info)
     ChunkInfo_.set_disk_space(info.uncompressed_data_size());  // an approximation
 }
 
-const TChunkProperties& TChunk::GetLocalProperties() const
+const TChunkProperties& TChunk::ExternalProperties(int cellIndex) const
 {
-    return LocalProperties_;
+    return ExportDataList_[cellIndex].Properties;
 }
 
-TMediumChunkProperties TChunk::GetLocalProperties(int mediumIndex) const
+TChunkProperties& TChunk::ExternalProperties(int cellIndex)
 {
-    return LocalProperties_[mediumIndex];
-}
-
-bool TChunk::UpdateLocalProperties(const TChunkProperties& properties)
-{
-    if (LocalProperties_ != properties) {
-        LocalProperties_ = properties;
-        return true;
-    }
-
-    return false;
-}
-
-bool TChunk::UpdateExternalProperties(
-    int cellIndex,
-    const TChunkProperties& properties)
-{
-    auto& data = ExportDataList_[cellIndex];
-    auto& curProperties = data.Properties;
-
-    if (curProperties != properties) {
-        curProperties = properties;
-        return true;
-    }
-
-    return false;
+    return ExportDataList_[cellIndex].Properties;
 }
 
 int TChunk::ComputeReplicationFactor(int mediumIndex) const
 {
-    // NB: Shortcut for non-exported chunk.
+    int result = LocalProperties_[mediumIndex].GetReplicationFactor();
+
+    // Shortcut for non-exported chunk.
     if (ExportCounter_ == 0) {
-        return GetLocalReplicationFactor(mediumIndex);
+        return result;
     }
 
-    auto replicationFactor = GetLocalReplicationFactor(mediumIndex);
     for (const auto& data : ExportDataList_) {
-        replicationFactor = std::max<int>(
-            replicationFactor,
+        result = std::max<int>(
+            result,
             data.Properties[mediumIndex].GetReplicationFactor());
     }
 
-    return replicationFactor;
+    return result;
 }
 
 int TChunk::GetMaxReplicasPerRack(int mediumIndex, TNullable<int> replicationFactorOverride) const

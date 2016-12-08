@@ -1895,8 +1895,8 @@ void TChunkReplicator::OnPropertiesUpdate()
 
 void TChunkReplicator::UpdateChunkProperties(TChunk* chunk, TReqUpdateChunkProperties* request)
 {
+    const auto& oldProperties = chunk->LocalProperties();
     auto newProperties = ComputeChunkProperties(chunk);
-    auto oldProperties = chunk->GetLocalProperties();
     if (newProperties != oldProperties) {
         auto* update = request->add_updates();
         ToProto(update->mutable_chunk_id(), chunk->GetId());
@@ -1978,9 +1978,7 @@ TChunkProperties TChunkReplicator::ComputeChunkProperties(TChunk* chunk)
 
     Y_ASSERT(!found || properties.IsValid());
 
-    return found
-        ? properties
-        : chunk->GetLocalProperties();
+    return found ? properties : chunk->LocalProperties();
 }
 
 TChunkList* TChunkReplicator::FollowParentLinks(TChunkList* chunkList)

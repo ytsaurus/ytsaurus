@@ -31,8 +31,6 @@ public:
 
     int GetReplicationFactor() const;
     void SetReplicationFactor(int replicationFactor);
-    // Throws if #replicationFactor is out of range.
-    void SetReplicationFactorOrThrow(int replicationFactor);
 
     bool GetDataPartsOnly() const;
     void SetDataPartsOnly(bool dataPartsOnly);
