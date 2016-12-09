@@ -854,7 +854,7 @@ protected:
 
             TTask::OnJobLost(completedJob);
 
-            if (!Partition->Completed) {
+            if (!Partition->Completed && Controller->PartitionTask) {
                 Controller->AddTaskPendingHint(this);
                 Controller->AddTaskPendingHint(Controller->PartitionTask);
             }
