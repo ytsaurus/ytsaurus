@@ -61,7 +61,7 @@ if __name__ == "__main__":
     elif args.command == "unmount":
         if args.tables is None:
             raise Exception("--tables argument is required")
-        with open(args.tables, "w+") as f:
+        with open(args.tables, "a") as f:
             tables = get_mounted_tables()
             for table in tables:
                 f.write(table + "\n")
