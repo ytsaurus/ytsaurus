@@ -26,7 +26,10 @@ TNode MakeNodeFromMessage(const Message& row)
     int count = descriptor->field_count();
     for (int i = 0; i < count; ++i) {
         auto* fieldDesc = descriptor->field(i);
-        if (!reflection->HasField(row, fieldDesc)) {
+        if (fieldDesc->is_repeated()) {
+            Y_ENSURE(reflection->FieldSize(row, fieldDesc) == 0, "Storing repeated protobuf fields is not supported yet");
+            continue;
+        } else if (!reflection->HasField(row, fieldDesc)) {
             continue;
         }
 
