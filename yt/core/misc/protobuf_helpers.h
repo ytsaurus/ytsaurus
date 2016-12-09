@@ -115,111 +115,53 @@ typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type FromProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TSerializedArray, class TOriginalArray>
-void ToProtoArrayImpl(
-    TSerializedArray* serializedArray,
-    const TOriginalArray& originalArray)
-{
-    serializedArray->Clear();
-    serializedArray->Reserve(serializedArray->size());
-    for (const auto& item : originalArray) {
-        ToProto(serializedArray->Add(), item);
-    }
-}
-
 template <class TSerialized, class TOriginal>
 void ToProto(
     ::google::protobuf::RepeatedPtrField<TSerialized>* serializedArray,
-    const std::vector<TOriginal>& originalArray)
-{
-    ToProtoArrayImpl(serializedArray, originalArray);
-}
+    const std::vector<TOriginal>& originalArray);
 
 template <class TSerialized, class TOriginal>
 void ToProto(
     ::google::protobuf::RepeatedField<TSerialized>* serializedArray,
-    const std::vector<TOriginal>& originalArray)
-{
-    ToProtoArrayImpl(serializedArray, originalArray);
-}
+    const std::vector<TOriginal>& originalArray);
 
 template <class TSerialized, class TOriginal>
 void ToProto(
     ::google::protobuf::RepeatedPtrField<TSerialized>* serializedArray,
-    const SmallVectorImpl<TOriginal>& originalArray)
-{
-    ToProtoArrayImpl(serializedArray, originalArray);
-}
+    const SmallVectorImpl<TOriginal>& originalArray);
 
 template <class TSerialized, class TOriginal>
 void ToProto(
     ::google::protobuf::RepeatedField<TSerialized>* serializedArray,
-    const SmallVectorImpl<TOriginal>& originalArray)
-{
-    ToProtoArrayImpl(serializedArray, originalArray);
-}
+    const SmallVectorImpl<TOriginal>& originalArray);
 
 template <class TSerialized, class TOriginal>
 void ToProto(
     ::google::protobuf::RepeatedPtrField<TSerialized>* serializedArray,
-    const TRange<TOriginal>& originalArray)
-{
-    ToProtoArrayImpl(serializedArray, originalArray);
-}
+    const TRange<TOriginal>& originalArray);
 
 template <class TSerialized, class TOriginal>
 void ToProto(
     ::google::protobuf::RepeatedField<TSerialized>* serializedArray,
-    const TRange<TOriginal>& originalArray)
-{
-    ToProtoArrayImpl(serializedArray, originalArray);
-}
-
-template <class TOriginalArray, class TSerializedArray>
-void FromProtoArrayImpl(
-    TOriginalArray* originalArray,
-    const TSerializedArray& serializedArray)
-{
-    originalArray->clear();
-    originalArray->resize(serializedArray.size());
-    for (int i = 0; i < serializedArray.size(); ++i) {
-        FromProto(&(*originalArray)[i], serializedArray.Get(i));
-    }
-}
+    const TRange<TOriginal>& originalArray);
 
 template <class TOriginalArray, class TSerialized>
 void FromProto(
     TOriginalArray* originalArray,
-    const ::google::protobuf::RepeatedPtrField<TSerialized>& serializedArray)
-{
-    FromProtoArrayImpl(originalArray, serializedArray);
-}
+    const ::google::protobuf::RepeatedPtrField<TSerialized>& serializedArray);
 
 template <class TOriginalArray, class TSerialized>
 void FromProto(
     TOriginalArray* originalArray,
-    const ::google::protobuf::RepeatedField<TSerialized>& serializedArray)
-{
-    FromProtoArrayImpl(originalArray, serializedArray);
-}
+    const ::google::protobuf::RepeatedField<TSerialized>& serializedArray);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TSerialized, class TOriginal, class... TArgs>
-TSerialized ToProto(const TOriginal& original, TArgs&&... args)
-{
-    TSerialized serialized;
-    ToProto(&serialized, original, std::forward<TArgs>(args)...);
-    return serialized;
-}
+TSerialized ToProto(const TOriginal& original, TArgs&&... args);
 
 template <class TOriginal, class TSerialized, class... TArgs>
-TOriginal FromProto(const TSerialized& serialized, TArgs&&... args)
-{
-    TOriginal original;
-    FromProto(&original, serialized, std::forward<TArgs>(args)...);
-    return original;
-}
+TOriginal FromProto(const TSerialized& serialized, TArgs&&... args);
 
 ////////////////////////////////////////////////////////////////////////////////
 
