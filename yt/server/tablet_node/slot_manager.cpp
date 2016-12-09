@@ -62,13 +62,8 @@ public:
 
     void Initialize()
     {
-        LOG_INFO("Initializing tablet node");
-
         Slots_.resize(Config_->ResourceLimits->Slots);
-
         SlotScanExecutor_->Start();
-
-        LOG_INFO("Tablet node initialized");
     }
 
 
@@ -226,7 +221,7 @@ public:
         for (auto it = range.first; it != range.second; ++it) {
             auto& snapshot = it->second;
             if (snapshot->CellId == slot->GetCellId()) {
-                LOG_INFO("Tablet snapshot updated (TabletId: %v, CellId: %v)",
+                LOG_DEBUG("Tablet snapshot updated (TabletId: %v, CellId: %v)",
                     tablet->GetId(),
                     slot->GetCellId());
                 snapshot = newSnapshot;
@@ -235,7 +230,7 @@ public:
         }
         TabletIdToSnapshot_.emplace(tablet->GetId(), newSnapshot);
 
-        LOG_INFO("Tablet snapshot registered (TabletId: %v, CellId: %v)",
+        LOG_DEBUG("Tablet snapshot registered (TabletId: %v, CellId: %v)",
             tablet->GetId(),
             slot->GetCellId());
     }
@@ -250,7 +245,7 @@ public:
             const auto& snapshot = it->second;
             if (snapshot->CellId == slot->GetCellId()) {
                 TabletIdToSnapshot_.erase(it);
-                LOG_INFO("Tablet snapshot unregistered (TabletId: %v, CellId: %v)",
+                LOG_DEBUG("Tablet snapshot unregistered (TabletId: %v, CellId: %v)",
                     tablet->GetId(),
                     slot->GetCellId());
                 return;
@@ -268,7 +263,7 @@ public:
             auto jt = it++;
             const auto& snapshot = jt->second;
             if (snapshot->CellId == slot->GetCellId()) {
-                LOG_INFO("Tablet snapshot unregistered (TabletId: %v, CellId: %v)",
+                LOG_DEBUG("Tablet snapshot unregistered (TabletId: %v, CellId: %v)",
                     jt->first,
                     slot->GetCellId());
                 TabletIdToSnapshot_.erase(jt);
@@ -425,7 +420,6 @@ private:
         }
         Y_UNREACHABLE();
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

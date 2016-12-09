@@ -124,6 +124,7 @@ public:
         , Batcher_(New<TNonblockingBatch<TJobStatistics>>(Config_->MaxItemsInBatch, Config_->ReportingPeriod))
     {
         Reporter_->GetInvoker()->Invoke(BIND(&TImpl::OnReporting, MakeWeak(this)));
+        EnableSemaphore_.Acquire();
     }
 
     void ReportStatistics(TJobStatistics&& statistics)
@@ -182,7 +183,7 @@ private:
     TSimpleCounter CommittedCounter_ = {"/committed"};
     TSimpleCounter CommittedDataWeightCounter_ = {"/committed_data_weight"};
 
-    TAsyncSemaphore EnableSemaphore_ {0};
+    TAsyncSemaphore EnableSemaphore_ {1};
 
     TPriorityCounter& GetCounter(EReportPriority priority)
     {

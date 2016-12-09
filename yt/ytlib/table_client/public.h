@@ -57,6 +57,7 @@ const int MaxKeyColumnCount = 32;
 const int MaxValuesPerRow = 1024;
 const int MaxRowsPerRowset = 1024 * 1024;
 const i64 MaxStringValueLength = (i64) 16 * 1024 * 1024;
+const i64 MaxAnyValueLength = (i64) 16 * 1024 * 1024;
 
 // Only for static tables.
 const i64 MaxRowWeightLimit = (i64) 128 * 1024 * 1024;
