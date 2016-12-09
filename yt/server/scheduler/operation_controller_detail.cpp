@@ -645,7 +645,7 @@ void TOperationControllerBase::TTask::OnJobCompleted(TJobletPtr joblet, const TC
         Controller->ChunkListPool->Release(chunkListIds);
         std::fill(chunkListIds.begin(), chunkListIds.end(), NullChunkListId);
     }
-    GetChunkPoolOutput()->Completed(joblet->OutputCookie);
+    GetChunkPoolOutput()->Completed(joblet->OutputCookie, jobSummary);
 
     Controller->RegisterStderr(joblet, jobSummary);
     Controller->RegisterCores(joblet, jobSummary);
@@ -3962,7 +3962,7 @@ void TOperationControllerBase::CollectTotals()
             }
 
             if (table.IsPrimary()) {
-                PrimaryInputDataSize_ += chunkSpec->GetUncompressedDataSize();
+                PrimaryInputDataSize += chunkSpec->GetUncompressedDataSize();
             }
 
             TotalEstimatedInputDataSize += chunkSpec->GetUncompressedDataSize();
@@ -4049,8 +4049,7 @@ std::vector<std::deque<TInputChunkPtr>> TOperationControllerBase::CollectForeign
 
 std::vector<TChunkStripePtr> TOperationControllerBase::SliceChunks(
     const std::vector<TInputChunkPtr>& chunkSpecs,
-    i64 maxSliceDataSize,
-    TJobSizeLimits* jobSizeLimits)
+    const IJobSizeConstraintsPtr& jobSizeConstraints)
 {
     std::vector<TChunkStripePtr> result;
     auto appendStripes = [&] (const std::vector<TInputSlicePtr>& slices) {
@@ -4059,18 +4058,6 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceChunks(
         }
     };
 
-    double multiplier = Config->SliceDataSizeMultiplier;
-    // Non-trivial multiplier should be used only if input data size is large enough.
-    // Otherwise we do not want to have more slices than job count.
-    if (TotalEstimatedInputDataSize < maxSliceDataSize) {
-        multiplier = 1.0;
-    }
-
-    i64 sliceDataSize = Clamp(
-        static_cast<i64>(multiplier * TotalEstimatedInputDataSize / jobSizeLimits->GetJobCount()),
-        1,
-        maxSliceDataSize);
-
     for (const auto& chunkSpec : chunkSpecs) {
         int oldSize = result.size();
 
@@ -4078,11 +4065,18 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceChunks(
 
         auto codecId = NErasure::ECodec(chunkSpec->GetErasureCodec());
         if (hasNontrivialLimits || codecId == NErasure::ECodec::None) {
-            auto slices = SliceChunkByRowIndexes(chunkSpec, sliceDataSize);
+            auto slices = SliceChunkByRowIndexes(
+                chunkSpec, 
+                jobSizeConstraints->GetInputSliceDataSize(),
+                jobSizeConstraints->GetInputSliceRowCount());
+
             appendStripes(slices);
         } else {
             for (const auto& slice : CreateErasureInputSlices(chunkSpec, codecId)) {
-                auto slices = slice->SliceEvenly(sliceDataSize);
+                auto slices = slice->SliceEvenly(
+                    jobSizeConstraints->GetInputSliceDataSize(),
+                    jobSizeConstraints->GetInputSliceRowCount());
+
                 appendStripes(slices);
             }
         }
@@ -4092,18 +4086,13 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceChunks(
             result.size() - oldSize);
     }
 
-    i64 stripeCount = result.size();
-    i64 minJobCount = DivCeil(stripeCount, Config->MaxChunkStripesPerJob);
-    i64 jobCount = Clamp(jobSizeLimits->GetJobCount(), minJobCount, stripeCount);
-    jobSizeLimits->SetJobCount(jobCount);
     return result;
 }
 
 std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(
-    i64 maxSliceDataSize,
-    TJobSizeLimits* jobSizeLimits)
+    const IJobSizeConstraintsPtr& jobSizeConstraints)
 {
-    return SliceChunks(CollectPrimaryInputChunks(), maxSliceDataSize, jobSizeLimits);
+    return SliceChunks(CollectPrimaryInputChunks(), jobSizeConstraints);
 }
 
 TKeyColumns TOperationControllerBase::CheckInputTablesSorted(

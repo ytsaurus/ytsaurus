@@ -8,20 +8,19 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IJobSizeManager
+struct IJobSizeAdjuster
     : public virtual IPersistent
 {
-    virtual void OnJobCompleted(const TCompletedJobSummary& jobSummary) = 0;
-    virtual void OnJobCompleted(i64 jobDataSize, TDuration prepareDuration, TDuration execDuration) = 0;
-    virtual i64 GetIdealDataSizePerJob() const = 0;
+    virtual void UpdateStatistics(const TCompletedJobSummary& jobSummary) = 0;
+    virtual void UpdateStatistics(i64 jobDataSize, TDuration prepareDuration, TDuration execDuration) = 0;
+    virtual i64 GetDataSizePerJob() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IJobSizeManager> CreateJobSizeManager(
+std::unique_ptr<IJobSizeAdjuster> CreateJobSizeAdjuster(
     i64 dataSizePerJob,
-    i64 maxDataSizePerJob,
-    TJobSizeManagerConfigPtr config);
+    const TJobSizeAdjusterConfigPtr& config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

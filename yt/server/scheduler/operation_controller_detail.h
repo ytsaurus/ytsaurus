@@ -210,7 +210,7 @@ protected:
 
     // Total uncompressed data size for primary tables.
     // Used only during preparation, not persisted.
-    i64 PrimaryInputDataSize_ = 0;
+    i64 PrimaryInputDataSize = 0;
 
     int ChunkLocatedCallCount = 0;
     int UnavailableInputChunkCount = 0;
@@ -941,12 +941,10 @@ protected:
     //! appropriately.
     std::vector<TChunkStripePtr> SliceChunks(
         const std::vector<NChunkClient::TInputChunkPtr>& chunkSpecs,
-        i64 maxSliceDataSize,
-        TJobSizeLimits* jobSizeLimits);
+        const IJobSizeConstraintsPtr& jobSizeConstraints);
 
     std::vector<TChunkStripePtr> SliceInputChunks(
-        i64 maxSliceDataSize,
-        TJobSizeLimits* jobSizeLimits);
+        const IJobSizeConstraintsPtr& jobSizeConstraints);
 
     int GetMaxJobCount(
         TNullable<int> userMaxJobCount,

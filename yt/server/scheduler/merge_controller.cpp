@@ -354,7 +354,7 @@ protected:
     bool HasLargeActiveTask()
     {
         YCHECK(MaxDataSizePerJob > 0);
-        return CurrentTaskDataSize >= MaxDataSizePerJob || CurrentChunkCount >= Config->MaxChunkStripesPerJob;
+        return CurrentTaskDataSize >= MaxDataSizePerJob || CurrentChunkCount >= Options->MaxChunkStripesPerJob;
     }
 
     //! Add chunk to the current task's pool.
@@ -418,17 +418,16 @@ protected:
 
     void CalculateSizes()
     {
-        TJobSizeLimits jobSizeLimits(
-            TotalEstimatedInputDataSize,
-            Spec->DataSizePerJob.Get(Options->DataSizePerJob),
-            Spec->JobCount,
-            GetMaxJobCount(Spec->MaxJobCount, Options->MaxJobCount));
+        auto jobSizeConstraints = CreateSimpleJobSizeConstraints(
+            Spec, 
+            Options, 
+            PrimaryInputDataSize);
 
-        MaxDataSizePerJob = DivCeil(PrimaryInputDataSize_, jobSizeLimits.GetJobCount());
-        ChunkSliceSize = Clamp(MaxDataSizePerJob, 1, Options->JobMaxSliceDataSize);
+        MaxDataSizePerJob = jobSizeConstraints->GetDataSizePerJob();
+        ChunkSliceSize = jobSizeConstraints->GetInputSliceDataSize();
 
         LOG_INFO("Calculated operation parameters (JobCount: %v, MaxDataSizePerJob: %v, ChunkSliceSize: %v)",
-            jobSizeLimits.GetJobCount(),
+            jobSizeConstraints->GetJobCount(),
             MaxDataSizePerJob,
             ChunkSliceSize);
     }
@@ -589,7 +588,7 @@ private:
         }
 
         // NB: During ordered merge all chunks go to a single chunk stripe.
-        for (const auto& slice : SliceChunkByRowIndexes(chunkSpec, ChunkSliceSize)) {
+        for (const auto& slice : SliceChunkByRowIndexes(chunkSpec, ChunkSliceSize, std::numeric_limits<i64>::max())) {
             AddPendingChunkSlice(slice);
             EndTaskIfLarge();
         }
@@ -1314,7 +1313,6 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedMergeController, 0xbc6daa18);
 
     TSortedMergeOperationSpecPtr Spec;
-    TSortedMergeOperationOptionsPtr Options;
 
     bool IsLargeEnoughToTeleport(const TInputChunkPtr& chunkSpec)
     {
@@ -1533,7 +1531,7 @@ private:
 
             auto hasLargeActiveTask = [&] () {
                 return HasLargeActiveTask() ||
-                    CurrentChunkCount + globalOpenedSlices.size() >= Config->MaxChunkStripesPerJob;
+                    CurrentChunkCount + globalOpenedSlices.size() >= Options->MaxChunkStripesPerJob;
             };
 
             while (!hasLargeActiveTask() && !maniacs.empty()) {
@@ -2219,7 +2217,7 @@ private:
 
         auto hasLargeActiveTask = [&] () {
             return HasLargeActiveTask() ||
-                CurrentChunkCount + openedSlices.size() >= Config->MaxChunkStripesPerJob;
+                CurrentChunkCount + openedSlices.size() >= Options->MaxChunkStripesPerJob;
         };
 
         int startIndex = 0;
