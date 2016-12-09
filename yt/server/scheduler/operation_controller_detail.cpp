@@ -1451,6 +1451,7 @@ void TOperationControllerBase::Revive()
 
     // Input chunk scraper initialization should be the last step to avoid races.
     InitInputChunkScraper();
+    InitIntermediateChunkScraper();
 
     ReinstallLivePreview();
 
