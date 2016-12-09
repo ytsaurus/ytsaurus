@@ -1060,7 +1060,43 @@ class TestSchedulerMapCommands(YTEnvSetup):
             assert read_table(table_name) == [{"hello": "world"} for i in xrange(expected_num_records)]
 
         check("//tmp/t2", 3, 3)
-        check("//tmp/t3", 10, 5) # number of jobs can"t be more that number of chunks
+        check("//tmp/t3", 10, 5) # number of jobs cannot be more than number of rows.
+
+
+    @unix_only
+    def test_skewed_rows(self):
+        create("table", "//tmp/t1")
+        # 5 small rows
+        write_table("<append=true>//tmp/t1", [{"foo": "bar"}] * 5)
+        # and one large row
+        write_table("<append=true>//tmp/t1", {"foo": "".join(["r"] * 1024)})
+
+        create("table", "//tmp/t2")
+        map(in_="//tmp/t1",
+            out="//tmp/t2",
+            command="cat > /dev/null; echo {hello=world}",
+            spec={"job_count": 6})
+        assert read_table("//tmp/t2") == [{"hello": "world"} for i in xrange(6)]
+
+    @unix_only
+    def test_job_per_row(self):
+        create("table", "//tmp/input")
+
+        job_count = 976
+        original_data = [{"index": str(i)} for i in xrange(job_count)]
+        write_table("//tmp/input", original_data)
+
+        create("table", "//tmp/output", ignore_existing=True)
+
+        for job_count in xrange(976, 950, -1):
+            op = map(dont_track=True,
+                     in_="//tmp/input",
+                     out="//tmp/output",
+                     command="sleep 100",
+                     spec={"job_count": job_count})
+            time.sleep(1)
+            assert op.get_job_count("total") == job_count
+            op.abort()
 
     @unix_only
     def test_with_user_files(self):
@@ -2534,7 +2570,7 @@ class TestFilesInSandbox(YTEnvSetup):
         assert get("//sys/scheduler/orchid/scheduler/cell/resource_usage/cpu") == 0
 
 
-class TestJobSizeManager(YTEnvSetup):
+class TestJobSizeAdjuster(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
@@ -2547,7 +2583,7 @@ class TestJobSizeManager(YTEnvSetup):
       }
     }
 
-    def test_map_job_size_manager_boost(self):
+    def test_map_job_size_adjuster_boost(self):
         create("table", "//tmp/t_input")
         original_data = [{"index": "%05d" % i} for i in xrange(31)]
         for row in original_data:
@@ -2574,7 +2610,7 @@ class TestJobSizeManager(YTEnvSetup):
         assert histogram["count"][0] == 1
         assert sum(histogram["count"]) == 5
 
-    def test_map_job_size_manager_max_limit(self):
+    def test_map_job_size_adjuster_max_limit(self):
         create("table", "//tmp/t_input")
         original_data = [{"index": "%05d" % i} for i in xrange(31)]
         for row in original_data:
