@@ -25,11 +25,6 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletCellStatistics::TTabletCellStatistics()
-{
-    std::fill_n(DiskSpace, NChunkClient::MaxMediumCount, 0);
-}
-
 void TTabletCellStatistics::Persist(NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -45,6 +40,10 @@ void TTabletCellStatistics::Persist(NCellMaster::TPersistenceContext& context)
     Persist(context, PreloadPendingStoreCount);
     Persist(context, PreloadCompletedStoreCount);
     Persist(context, PreloadFailedStoreCount);
+    // COMPAT(savrus)
+    if (context.LoadContext().GetVersion() >= 506) {
+        Persist(context, TabletCountPerMemoryMode);
+    }
 }
 
 void TTabletStatistics::Persist(NCellMaster::TPersistenceContext& context)
@@ -74,6 +73,12 @@ TTabletCellStatistics& operator +=(TTabletCellStatistics& lhs, const TTabletCell
     lhs.PreloadPendingStoreCount += rhs.PreloadPendingStoreCount;
     lhs.PreloadCompletedStoreCount += rhs.PreloadCompletedStoreCount;
     lhs.PreloadFailedStoreCount += rhs.PreloadFailedStoreCount;
+    std::transform(
+        std::begin(lhs.TabletCountPerMemoryMode),
+        std::end(lhs.TabletCountPerMemoryMode),
+        std::begin(rhs.TabletCountPerMemoryMode),
+        std::begin(lhs.TabletCountPerMemoryMode),
+        std::plus<i64>());
     return lhs;
 }
 
@@ -117,6 +122,12 @@ TTabletCellStatistics& operator -=(TTabletCellStatistics& lhs, const TTabletCell
     lhs.PreloadPendingStoreCount -= rhs.PreloadPendingStoreCount;
     lhs.PreloadCompletedStoreCount -= rhs.PreloadCompletedStoreCount;
     lhs.PreloadFailedStoreCount -= rhs.PreloadFailedStoreCount;
+    std::transform(
+        std::begin(lhs.TabletCountPerMemoryMode),
+        std::end(lhs.TabletCountPerMemoryMode),
+        std::begin(rhs.TabletCountPerMemoryMode),
+        std::begin(lhs.TabletCountPerMemoryMode),
+        std::minus<i64>());
     return lhs;
 }
 
@@ -140,7 +151,12 @@ void SerializeMembers(const TTabletCellStatistics& statistics, TFluentMap fluent
         .Item("store_count").Value(statistics.StoreCount)
         .Item("preload_pending_store_count").Value(statistics.PreloadPendingStoreCount)
         .Item("preload_completed_store_count").Value(statistics.PreloadCompletedStoreCount)
-        .Item("preload_failed_store_count").Value(statistics.PreloadFailedStoreCount);
+        .Item("preload_failed_store_count").Value(statistics.PreloadFailedStoreCount)
+        .Item("tablet_count").Value(std::accumulate(
+            statistics.TabletCountPerMemoryMode.begin(),
+            statistics.TabletCountPerMemoryMode.end(),
+            0))
+        .Item("tablet_count_per_memory_mode").Value(statistics.TabletCountPerMemoryMode);
 }
 
 void Serialize(const TTabletCellStatistics& statistics, NYson::IYsonConsumer* consumer)
