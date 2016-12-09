@@ -106,7 +106,6 @@ public:
 
         auto strategy = Bootstrap->GetScheduler()->GetStrategy();
 
-        auto path = GetOperationPath(operationId);
         auto batchReq = StartObjectBatchRequest();
 
         auto owners = operation->GetOwners();
@@ -115,7 +114,7 @@ public:
         {
             auto controller = operation->GetController();
 
-            auto req = TYPathProxy::Set(path);
+            auto req = TYPathProxy::Set(GetOperationPath(operationId));
             req->set_value(BuildYsonStringFluently()
                 .BeginAttributes()
                     .Do(BIND(&ISchedulerStrategy::BuildOperationAttributes, strategy, operationId))
@@ -150,8 +149,7 @@ public:
 
         if (operation->GetSecureVault()) {
             // Create secure vault.
-            auto secureVaultPath = path + "/secure_vault";
-            auto req = TCypressYPathProxy::Create(path + "/secure_vault");
+            auto req = TCypressYPathProxy::Create(GetSecureVaultPath(operationId));
             req->set_type(static_cast<int>(EObjectType::Document));
 
             auto attributes = CreateEphemeralAttributes();
@@ -655,7 +653,7 @@ private:
                     }
                     // Retrieve secure vault.
                     {
-                        auto req = TYPathProxy::Get(GetOperationPath(operationId) + "/secure_vault");
+                        auto req = TYPathProxy::Get(GetSecureVaultPath(operationId));
                         batchReq->AddRequest(req, "get_op_secure_vault");
                     }
                 }
@@ -686,8 +684,8 @@ private:
                         if (secureVaultNode->GetType() == ENodeType::Map) {
                             secureVault = secureVaultNode->AsMap();
                         } else {
-                            LOG_ERROR("Node %v has type %v, while %v is expected",
-                                GetOperationPath(operationId) + "/secure_vault",
+                            LOG_ERROR("Invalid secure vault node type (OperationId: %v, ActualType: %v, ExpectedType: %v)",
+                                operationId,
                                 secureVaultNode->GetType(),
                                 ENodeType::Map);
                             // TODO(max42): (YT-5651) Do not just ignore such a situation!
