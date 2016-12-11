@@ -1929,15 +1929,16 @@ private:
         auto prelockedOrderedDelta = prelockedOrderedAfter - prelockedOrderedBefore;
 
         if (prelockedSortedDelta + prelockedOrderedDelta > 0) {
+            auto adjustedSignature = reader->IsFinished() ? signature : 0;
             LOG_DEBUG("Rows prelocked (TransactionId: %v, TabletId: %v, SortedRows: %v, OrderedRows: %v, "
                 "Signature: %x)",
                 transactionId,
                 tabletId,
                 prelockedSortedDelta,
                 prelockedOrderedDelta,
-                signature);
+                adjustedSignature);
 
-            transaction->SetTransientSignature(transaction->GetTransientSignature() + signature);
+            transaction->SetTransientSignature(transaction->GetTransientSignature() + adjustedSignature);
 
             auto readerEnd = reader->GetCurrent();
             auto recordData = reader->Slice(readerBegin, readerEnd);
@@ -1952,14 +1953,14 @@ private:
             hydraRequest.set_mount_revision(tablet->GetMountRevision());
             hydraRequest.set_codec(static_cast<int>(ChangelogCodec_->GetId()));
             hydraRequest.set_compressed_data(ToString(compressedRecordData));
-            hydraRequest.set_signature(signature);
+            hydraRequest.set_signature(adjustedSignature);
             *commitResult = CreateMutation(Slot_->GetHydraManager(), hydraRequest)
                 ->SetHandler(BIND(
                     &TImpl::HydraLeaderExecuteWriteAtomic,
                     MakeStrong(this),
                     transactionId,
                     tabletId,
-                    signature,
+                    adjustedSignature,
                     prelockedSortedDelta,
                     prelockedOrderedDelta,
                     writeRecord))
