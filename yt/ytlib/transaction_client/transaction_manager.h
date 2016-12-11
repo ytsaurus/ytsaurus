@@ -79,9 +79,12 @@ public:
     TTimestamp GetCommitTimestamp() const;
 
 
-    //! Marks a given cell as a transaction participant.
-    //! The transaction must have already been started at the participant.
-    void AddParticipant(const NElection::TCellId& cellId);
+    //! Once a participant is registered, it will be pinged.
+    void RegisterParticipant(const NElection::TCellId& cellId);
+
+    //! Once a participant is confirmed, its pings must succeeded, otherwise
+    //! the transaction fails.
+    void ConfirmParticipant(const NElection::TCellId& cellId);
 
 
     //! Raised when the transaction is committed.
