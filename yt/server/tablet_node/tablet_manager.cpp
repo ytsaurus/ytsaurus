@@ -1890,11 +1890,13 @@ private:
         const auto& storeManager = tablet->GetStoreManager();
 
         const auto& transactionManager = Slot_->GetTransactionManager();
+        bool transactionIsFresh;
         auto* transaction = transactionManager->GetOrCreateTransaction(
             transactionId,
             transactionStartTimestamp,
             transactionTimeout,
-            true);
+            true,
+            &transactionIsFresh);
         ValidateTransactionActive(transaction);
 
         auto prelockedSortedBefore = transaction->PrelockedSortedRows().size();
@@ -1966,7 +1968,10 @@ private:
                     writeRecord))
                 ->Commit()
                  .As<void>();
+        } else if (transactionIsFresh) {
+            transactionManager->DropTransaction(transaction);
         }
+
 
         // NB: Yielding is now possible.
         // Cannot neither access tablet, nor transaction.
