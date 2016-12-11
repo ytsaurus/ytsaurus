@@ -2124,7 +2124,7 @@ private:
             GetCompressionRatio());
         auto stripes = SliceInputChunks(jobSizeConstraints);
 
-        InitPartitionPool(std::move(jobSizeConstraints), nullptr);
+        InitPartitionPool(jobSizeConstraints, nullptr);
 
         PartitionTask = New<TPartitionTask>(this);
         PartitionTask->Initialize();
