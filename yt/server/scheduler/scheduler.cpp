@@ -420,7 +420,7 @@ public:
         const Stroka& user,
         EPermission permission) override
     {
-        auto client = GetMasterClient();
+        const auto& client = GetMasterClient();
         return client->CheckPermission(user, GetPoolsPath() + path, permission)
             .Apply(BIND([=] (const TCheckPermissionResult& result) {
                 if (result.Action == ESecurityAction::Deny) {
@@ -444,7 +444,7 @@ public:
 
         auto path = GetOperationPath(operationId);
 
-        auto client = GetMasterClient();
+        const auto& client = GetMasterClient();
         auto asyncResult = client->CheckPermission(user, path, permission);
         auto resultOrError = WaitFor(asyncResult);
         if (!resultOrError.IsOK()) {
@@ -815,12 +815,12 @@ public:
 
 
     // IOperationHost implementation
-    virtual NApi::INativeClientPtr GetMasterClient() override
+    virtual const NApi::INativeClientPtr& GetMasterClient() override
     {
         return Bootstrap_->GetMasterClient();
     }
 
-    virtual NHiveClient::TClusterDirectoryPtr GetClusterDirectory() override
+    virtual const NHiveClient::TClusterDirectoryPtr& GetClusterDirectory() override
     {
         return Bootstrap_->GetClusterDirectory();
     }
@@ -840,7 +840,7 @@ public:
         return CreateSerializedInvoker(ControllerThreadPool_->GetInvoker());
     }
 
-    virtual TThrottlerManagerPtr GetChunkLocationThrottlerManager() const override
+    virtual const TThrottlerManagerPtr& GetChunkLocationThrottlerManager() const override
     {
         return Bootstrap_->GetChunkLocationThrottlerManager();
     }

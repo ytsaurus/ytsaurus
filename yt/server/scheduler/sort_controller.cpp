@@ -1793,7 +1793,7 @@ protected:
         auto user = AuthenticatedUser;
         auto account = Spec->IntermediateDataAccount;
 
-        auto client = Host->GetMasterClient();
+        const auto& client = Host->GetMasterClient();
         auto asyncResult = client->CheckPermission(
             user,
             "//sys/accounts/" + account,

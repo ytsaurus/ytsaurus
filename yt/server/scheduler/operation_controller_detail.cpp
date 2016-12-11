@@ -1751,7 +1751,7 @@ void TOperationControllerBase::Commit()
 
     // XXX(babenko): hotfix for YT-4636
     {
-        auto client = Host->GetMasterClient();
+        const auto& client = Host->GetMasterClient();
 
         // NB: use root credentials.
         auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
@@ -3141,7 +3141,7 @@ bool TOperationControllerBase::IsFinished() const
 
 void TOperationControllerBase::CreateLivePreviewTables()
 {
-    auto client = Host->GetMasterClient();
+    const auto& client = Host->GetMasterClient();
     auto connection = client->GetNativeConnection();
 
     // NB: use root credentials.
