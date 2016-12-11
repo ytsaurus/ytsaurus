@@ -751,7 +751,7 @@ private:
                 Id_,
                 cellId)
                 << rspOrError;
-            DoAbort(error);
+            OnFailure(error);
             THROW_ERROR error;
         }
 
@@ -763,7 +763,7 @@ private:
     TFuture<void> SendPing(bool retry)
     {
         std::vector<TFuture<void>> asyncResults;
-        auto participantIds = GetRegisteredParticipantIds();
+        auto participantIds = GetConfirmedParticipantIds();
         for (const auto& cellId : participantIds) {
             LOG_DEBUG("Pinging transaction (TransactionId: %v, CellId: %v)",
                 Id_,
@@ -790,8 +790,7 @@ private:
                             cellId);
                     } else if (
                         rspOrError.GetCode() == NTransactionClient::EErrorCode::NoSuchTransaction &&
-                        GetState() == ETransactionState::Active &&
-                        IsParticipantConfirmed(cellId))
+                        GetState() == ETransactionState::Active)
                     {
                         // Hard error.
                         LOG_WARNING("Transaction has expired or was aborted (TransactionId: %v, CellId: %v)",
@@ -800,7 +799,7 @@ private:
                         auto error = TError("Transaction %v has expired or was aborted at cell %v",
                             Id_,
                             cellId);
-                        DoAbort(error);
+                        OnFailure(error);
                         THROW_ERROR error;
                     } else {
                         // Soft error.
@@ -921,22 +920,29 @@ private:
         FireAborted();
     }
 
+    void OnFailure(const TError& error)
+    {
+        DoAbort(error);
+        // Best-effort, fire-and-forget.
+        SendAbort();
+    }
+
     std::vector<TCellId> GetRegisteredParticipantIds()
     {
         auto guard = Guard(SpinLock_);
         return std::vector<TCellId>(RegisteredParticipantIds_.begin(), RegisteredParticipantIds_.end());
     }
 
+    std::vector<TCellId> GetConfirmedParticipantIds()
+    {
+        auto guard = Guard(SpinLock_);
+        return std::vector<TCellId>(ConfirmedParticipantIds_.begin(), ConfirmedParticipantIds_.end());
+    }
+
     bool IsParticipantRegistered(const TCellId& cellId)
     {
         auto guard = Guard(SpinLock_);
         return RegisteredParticipantIds_.find(cellId) != RegisteredParticipantIds_.end();
-    }
-
-    bool IsParticipantConfirmed(const TCellId& cellId)
-    {
-        auto guard = Guard(SpinLock_);
-        return ConfirmedParticipantIds_.find(cellId) != ConfirmedParticipantIds_.end();
     }
 };
 
