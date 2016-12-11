@@ -83,7 +83,8 @@ public:
     void RegisterParticipant(const NElection::TCellId& cellId);
 
     //! Once a participant is confirmed, its pings must succeeded, otherwise
-    //! the transaction fails.
+    //! the transaction fails. The transaction must already be registered prior
+    //! to this call.
     void ConfirmParticipant(const NElection::TCellId& cellId);
 
 

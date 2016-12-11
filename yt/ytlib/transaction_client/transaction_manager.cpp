@@ -389,6 +389,7 @@ public:
                 return;
             }
 
+            YCHECK(RegisteredParticipantIds_.find(cellId) != RegisteredParticipantIds_.end());
             if (ConfirmedParticipantIds_.insert(cellId).second) {
                 LOG_DEBUG("Transaction participant confirmed (TransactionId: %v, CellId: %v)",
                     Id_,

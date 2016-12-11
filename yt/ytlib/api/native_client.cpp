@@ -3195,8 +3195,6 @@ public:
                 EAtomicity::Full);
         }
 
-        Transaction_->RegisterParticipant(cellId);
-
         auto session = GetOrCreateCellCommitSession(cellId);
         session->RegisterAction(data);
 
@@ -3984,6 +3982,11 @@ private:
             int requestCount = tabletSession->Prepare();
             auto cellSession = GetOrCreateCellCommitSession(cellId);
             cellSession->RegisterRequests(requestCount);
+        }
+
+        for (auto& pair : CellIdToSession_) {
+            const auto& cellId = pair.first;
+            Transaction_->RegisterParticipant(cellId);
         }
 
         std::vector<TFuture<void>> asyncResults;
