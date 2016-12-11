@@ -15,7 +15,7 @@ class TJobTrackerServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    DEFINE_RPC_PROXY(TJobTrackerServiceProxy, RPC_PROXY_DESC(JobTrackerService)
+    DEFINE_RPC_PROXY(TJobTrackerServiceProxy, RPC_PROXY_DESC(JobTracker)
         .SetProtocolVersion(3));
 
     DEFINE_RPC_PROXY_METHOD(NProto, Heartbeat);
