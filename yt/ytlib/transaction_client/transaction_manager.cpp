@@ -679,8 +679,9 @@ private:
 
         FireCommitted();
 
-        LOG_DEBUG("Transaction committed (TransactionId: %v)",
-            Id_);
+        LOG_DEBUG("Transaction committed (TransactionId: %v, CommitTimestamp: %v)",
+            Id_,
+            CommitTimestamp_);
     }
 
     TFuture<void> DoCommitAtomic(const TTransactionCommitOptions& options)
