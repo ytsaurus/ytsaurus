@@ -183,7 +183,7 @@ public:
 #define Y_SAVELOAD_JOB(...) \
     virtual void Save(TOutputStream& stream) const override { Save(&stream); } \
     virtual void Load(TInputStream& stream) override { Load(&stream); } \
-    Y_SAVELOAD_DEFINE(__VA_ARGS__);
+    Y_PASS_VA_ARGS(Y_SAVELOAD_DEFINE(__VA_ARGS__));
 
 template <class TR, class TW>
 class IMapper
