@@ -211,12 +211,12 @@ void TBootstrap::DoRun()
     RpcServer_->Start();
 }
 
-TCellSchedulerConfigPtr TBootstrap::GetConfig() const
+const TCellSchedulerConfigPtr& TBootstrap::GetConfig() const
 {
     return Config_;
 }
 
-INativeClientPtr TBootstrap::GetMasterClient() const
+const INativeClientPtr& TBootstrap::GetMasterClient() const
 {
     return MasterClient_;
 }
@@ -238,12 +238,12 @@ IInvokerPtr TBootstrap::GetControlInvoker(EControlQueue queue) const
     return ControlQueue_->GetInvoker(static_cast<int>(queue));
 }
 
-TSchedulerPtr TBootstrap::GetScheduler() const
+const TSchedulerPtr& TBootstrap::GetScheduler() const
 {
     return Scheduler_;
 }
 
-TClusterDirectoryPtr TBootstrap::GetClusterDirectory() const
+const TClusterDirectoryPtr& TBootstrap::GetClusterDirectory() const
 {
     return ClusterDirectory_;
 }
@@ -253,12 +253,12 @@ const TNodeDirectoryPtr& TBootstrap::GetNodeDirectory() const
     return NodeDirectory_;
 }
 
-TResponseKeeperPtr TBootstrap::GetResponseKeeper() const
+const TResponseKeeperPtr& TBootstrap::GetResponseKeeper() const
 {
     return ResponseKeeper_;
 }
 
-TThrottlerManagerPtr TBootstrap::GetChunkLocationThrottlerManager() const
+const TThrottlerManagerPtr& TBootstrap::GetChunkLocationThrottlerManager() const
 {
     return ChunkLocationThrottlerManager_;
 }

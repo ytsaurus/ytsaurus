@@ -497,7 +497,7 @@ private:
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).Data());
 
-        auto clusterDirectory = Host->GetClusterDirectory();
+        const auto& clusterDirectory = Host->GetClusterDirectory();
         TNativeConnectionConfigPtr connectionConfig;
         if (Spec_->ClusterConnection) {
             connectionConfig = *Spec_->ClusterConnection;
