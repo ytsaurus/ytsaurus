@@ -419,12 +419,6 @@ private:
 
         Load(context, LastCommittedTimestamp_);
         TabletMap_.LoadValues(context);
-
-        for (const auto& pair : TabletMap_) {
-            auto* tablet = pair.second;
-            auto storeManager = CreateStoreManager(tablet);
-            tablet->SetStoreManager(storeManager);
-        }
     }
 
     void LoadAsync(TLoadContext& context)
@@ -453,6 +447,8 @@ private:
 
         for (const auto& pair : TabletMap_) {
             auto* tablet = pair.second;
+            auto storeManager = CreateStoreManager(tablet);
+            tablet->SetStoreManager(storeManager);
             if (tablet->GetState() >= ETabletState::WaitingForLocks) {
                 YCHECK(UnmountingTablets_.insert(tablet).second);
             }
