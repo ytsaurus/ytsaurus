@@ -496,12 +496,6 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         TabletMap_.LoadValues(context);
-
-        for (const auto& pair : TabletMap_) {
-            auto* tablet = pair.second;
-            auto storeManager = CreateStoreManager(tablet);
-            tablet->SetStoreManager(storeManager);
-        }
     }
 
     void LoadAsync(TLoadContext& context)
@@ -530,6 +524,8 @@ private:
 
         for (const auto& pair : TabletMap_) {
             auto* tablet = pair.second;
+            auto storeManager = CreateStoreManager(tablet);
+            tablet->SetStoreManager(storeManager);
             auto state = tablet->GetState();
             if (state >= ETabletState::UnmountFirst && state <= ETabletState::UnmountLast) {
                 YCHECK(UnmountingTablets_.insert(tablet).second);
