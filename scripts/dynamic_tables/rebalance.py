@@ -689,6 +689,20 @@ def main_improve(table, old_spans, new_spans, delta_coefs, yes):
         logging.warning("`--yes` was not specified; performing dry run")
 
     try:
+        ctors = []
+        for schemata in yt.get(table + "/@schema"):
+            if schemata.get("sort_order", None) != "ascending":
+                break
+            ty = schemata.get("type", None)
+            if ty == "string":
+                ctors.append(yson.YsonString)
+            elif ty == "int64":
+                ctors.append(yson.YsonInt64)
+            elif ty == "uint64":
+                ctors.append(yson.YsonUint64)
+            else:
+                raise RuntimeError("Unknown key column type %s" % ty)
+
         if yes:
             logging.info("Unmounting %s", table)
             yt.unmount_table(table)
@@ -698,8 +712,13 @@ def main_improve(table, old_spans, new_spans, delta_coefs, yes):
         for span in reversed(new_spans):
             if yes:
                 logging.info("Resharding tablets %s-%s in table %s", span.first_index, span.last_index, table)
-                # TODO(sandello): Schematize keys here.
-                yt.reshard_table(table, span.pivot_keys,
+                pivot_keys = []
+                for parts in span.pivot_keys:
+                    pivot_key = []
+                    for ctor, value in zip(ctors, parts):
+                        pivot_key.append(ctor(value))
+                    pivot_keys.append(pivot_key)
+                yt.reshard_table(table, pivot_keys,
                                  first_tablet_index=span.first_index, last_tablet_index=span.last_index)
             else:
                 print "yt reshard_table --first '%s' --last '%s' '%s' %s" % (
