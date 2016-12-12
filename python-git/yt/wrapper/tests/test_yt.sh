@@ -382,6 +382,9 @@ test_transform()
     $YT transform //home/wrapper_test/table_to_transform //home/wrapper_test/other_table --compression-codec zlib_6
     check '"zlib_6"' "$($YT get //home/wrapper_test/other_table/@compression_codec)"
 
+    $YT transform //home/wrapper_test/table_to_transform //home/wrapper_test/other_table --optimize-for scan
+    check '"scan"' "$($YT get //home/wrapper_test/other_table/@optimize_for)"
+
     unset YT_TABULAR_DATA_FORMAT
 }
 

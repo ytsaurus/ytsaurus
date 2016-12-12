@@ -860,6 +860,8 @@ def add_transform_parser(add_parser):
                         help="destination table (if not specified source table will be overwritten)")
     parser.add_argument("--erasure-codec", help="desired erasure codec for table")
     parser.add_argument("--compression-codec", help="desired compression codec for table")
+    parser.add_argument("--optimize-for",
+                        help='desired chunk format for table. Possible values: ["scan", "lookup"]')
     parser.add_argument("--desired-chunk-size", type=int, help="desired chunk size in bytes")
     parser.add_argument("--check-codecs", action="store_true",
                         help="check if table already has proper codecs before transforming")

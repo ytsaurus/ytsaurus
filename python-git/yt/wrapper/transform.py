@@ -36,9 +36,10 @@ def _check_codec(table, codec_name, codec_value, client):
                 raise
 
 def transform(source_table, destination_table=None, erasure_codec=None, compression_codec=None,
-              desired_chunk_size=None, spec=None, check_codecs=False, client=None):
+              desired_chunk_size=None, spec=None, check_codecs=False, optimize_for=None, client=None):
     """Transforms source table to destination table writing data with given compression and erasure codecs.
-    Automatically calculates desired chunk size and data size per job.
+    Automatically calculates desired chunk size and data size per job. Also can be used to convert chunks in
+    table between old and new formats (optimize_for parameter).
     """
 
     spec = get_value(spec, {})
@@ -67,6 +68,12 @@ def transform(source_table, destination_table=None, erasure_codec=None, compress
         set(dst + "/@erasure_codec", erasure_codec, client=client)
     else:
         erasure_codec = get(dst + "/@erasure_codec", client=client)
+
+    if optimize_for is not None:
+        set(dst + "/@optimize_for", optimize_for, client=client)
+        # NOTE: Currently there is no way to check if chunks are actually in specified format
+        # (optimized for scan or lookup) so operation is always started if optimize_for is specified.
+        check_codecs = False
 
     if check_codecs and \
             _check_codec(dst, "compression", compression_codec, client=client) and \
