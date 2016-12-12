@@ -4066,7 +4066,7 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceChunks(
         auto codecId = NErasure::ECodec(chunkSpec->GetErasureCodec());
         if (hasNontrivialLimits || codecId == NErasure::ECodec::None) {
             auto slices = SliceChunkByRowIndexes(
-                chunkSpec, 
+                chunkSpec,
                 jobSizeConstraints->GetInputSliceDataSize(),
                 jobSizeConstraints->GetInputSliceRowCount());
 
@@ -4574,16 +4574,6 @@ std::vector<TOperationControllerBase::TPathWithStage> TOperationControllerBase::
 bool TOperationControllerBase::IsRowCountPreserved() const
 {
     return false;
-}
-
-int TOperationControllerBase::GetMaxJobCount(
-    TNullable<int> userMaxJobCount,
-    int maxJobCount)
-{
-    if (userMaxJobCount) {
-        maxJobCount = std::min(maxJobCount, *userMaxJobCount);
-    }
-    return maxJobCount;
 }
 
 void TOperationControllerBase::InitUserJobSpecTemplate(

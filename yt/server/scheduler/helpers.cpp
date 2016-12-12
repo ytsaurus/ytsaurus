@@ -64,13 +64,17 @@ public:
         } else {
             i64 dataSizePerJob = Spec_->DataSizePerJob.Get(Options_->DataSizePerJob);
             JobCount_ = DivCeil(InputDataSize_, dataSizePerJob);
-
-            if (Spec_->MaxJobCount) {
-                JobCount_ = std::min(JobCount_, static_cast<i64>(*Spec_->MaxJobCount));
-            }
-
-            JobCount_ = std::min(JobCount_, InputRowCount_);
         }
+
+        i64 maxJobCount = Options_->MaxJobCount;
+
+        if (Spec_->MaxJobCount) {
+            maxJobCount = std::min(maxJobCount, static_cast<i64>(*Spec_->MaxJobCount));
+        }
+
+        JobCount_ = std::min(JobCount_, maxJobCount);
+        JobCount_ = std::min(JobCount_, InputRowCount_);
+
         YCHECK(JobCount_ >= 0);
         YCHECK(JobCount_ != 0 || InputDataSize_ == 0);
     }
