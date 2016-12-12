@@ -67,13 +67,20 @@ public:
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, UnsafelyPlacedChunks);
 
     void OnChunkDestroyed(TChunk* chunk);
-    void OnReplicaRemoved(TNode* node, TChunkPtrWithIndexes chunkWithIndexes);
+    void OnReplicaRemoved(
+        TNode* node,
+        TChunkPtrWithIndexes chunkWithIndexes,
+        ERemoveReplicaReason reason);
 
     void ScheduleChunkRefresh(TChunk* chunk);
     void ScheduleNodeRefresh(TNode* node);
 
-    void ScheduleUnknownReplicaRemoval(TNode* node, const NChunkClient::TChunkIdWithIndexes& chunkdIdWithIndexes);
-    void ScheduleReplicaRemoval(TNode* node, TChunkPtrWithIndexes chunkWithIndexes);
+    void ScheduleUnknownReplicaRemoval(
+        TNode* node,
+        const NChunkClient::TChunkIdWithIndexes& chunkdIdWithIndexes);
+    void ScheduleReplicaRemoval(
+        TNode* node,
+        TChunkPtrWithIndexes chunkWithIndexes);
 
     void SchedulePropertiesUpdate(TChunkTree* chunkTree);
     void SchedulePropertiesUpdate(TChunk* chunk);
