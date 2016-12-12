@@ -672,6 +672,20 @@ class TestLocks(YTEnvSetup):
         set("//tmp/x", 3, tx = tx2)
         with pytest.raises(YtError): set("//tmp/x", 4, tx = tx1)
 
+    def test_manual_lock_not_recursive1(self):
+        set("//tmp/x", {"y":{}})
+        tx = start_transaction()
+        lock("//tmp/x", tx=tx, mode="shared", child_key="a")
+        assert len(get("//tmp/x/@locks")) == 1
+        assert len(get("//tmp/x/y/@locks")) == 0
+
+    def test_manual_lock_not_recursive2(self):
+        set("//tmp/x", {"y":{}})
+        tx1 = start_transaction()
+        tx2 = start_transaction()
+        lock("//tmp/x/y", tx=tx1, mode="shared", child_key="a")
+        lock("//tmp/x", tx=tx2, mode="shared", child_key="a")
+
 ##################################################################
 
 class TestLocksMulticell(TestLocks):
