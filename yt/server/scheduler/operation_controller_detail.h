@@ -946,10 +946,6 @@ protected:
     std::vector<TChunkStripePtr> SliceInputChunks(
         const IJobSizeConstraintsPtr& jobSizeConstraints);
 
-    int GetMaxJobCount(
-        TNullable<int> userMaxJobCount,
-        int maxJobCount);
-
     void InitUserJobSpecTemplate(
         NScheduler::NProto::TUserJobSpec* proto,
         TUserJobSpecPtr config,
