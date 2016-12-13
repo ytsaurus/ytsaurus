@@ -5,6 +5,9 @@ OWNER(
     monster
 )
 
-SRCS(extension.proto)
+SRCS(
+    extension.proto
+    yamr.proto
+)
 
 END()
