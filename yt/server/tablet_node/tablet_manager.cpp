@@ -1288,9 +1288,10 @@ private:
                 SetBackingStore(tablet, store, backingStore);
             }
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Store added (TabletId: %v, StoreId: %v, BackingStoreId: %v)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Store added (TabletId: %v, StoreId: %v, MaxTimestamp: %v, BackingStoreId: %v)",
                 tabletId,
                 storeId,
+                store->GetMaxTimestamp(),
                 backingStoreId);
         }
 
