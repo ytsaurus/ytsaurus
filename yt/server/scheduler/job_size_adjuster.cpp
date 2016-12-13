@@ -1,68 +1,68 @@
-#include "job_size_manager.h"
+#include "job_size_adjuster.h"
 #include "private.h"
 #include "config.h"
 
 namespace NYT {
 namespace NScheduler {
 
-using namespace NLogging;
-
 ////////////////////////////////////////////////////////////////////
 
-class TJobSizeManager
-    : public IJobSizeManager
+class TJobSizeAdjuster
+    : public IJobSizeAdjuster
     , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
 {
 public:
-    TJobSizeManager()
+    TJobSizeAdjuster()
     { }
 
-    TJobSizeManager(
+    TJobSizeAdjuster(
         i64 dataSizePerJob,
-        i64 maxDataSizePerJob,
-        TJobSizeManagerConfigPtr config)
-        : IdealDataSizePerJob_(static_cast<double>(dataSizePerJob))
-        , MaxDataSizePerJob_(static_cast<double>(maxDataSizePerJob))
-        , DesiredMinJobTime_(static_cast<double>(config->MinJobTime.MicroSeconds()))
-        , DesiredExecToPrepareTimeRatio_(config->ExecToPrepareTimeRatio)
+        const TJobSizeAdjusterConfigPtr& config)
+        : DataSizePerJob_(static_cast<double>(dataSizePerJob))
+        , MinJobTime_(static_cast<double>(config->MinJobTime.MicroSeconds()))
+        , MaxJobTime_(static_cast<double>(config->MaxJobTime.MicroSeconds()))
+        , ExecToPrepareTimeRatio_(config->ExecToPrepareTimeRatio)
     { }
 
-    virtual void OnJobCompleted(const TCompletedJobSummary& summary) override
+    virtual void UpdateStatistics(const TCompletedJobSummary& summary) override
     {
         if (!summary.Abandoned) {
-            OnJobCompleted(
+            UpdateStatistics(
                 GetNumericValue(summary.Statistics, "/data/input/uncompressed_data_size"),
                 summary.PrepareDuration.Get(TDuration()) - summary.DownloadDuration.Get(TDuration()),
                 summary.ExecDuration.Get(TDuration()));
         }
     }
 
-    virtual void OnJobCompleted(i64 jobDataSize, TDuration prepareDuration, TDuration execDuration) override
+    virtual void UpdateStatistics(i64 jobDataSize, TDuration prepareDuration, TDuration execDuration) override
     {
         Statistics_.AddSample(jobDataSize, prepareDuration, execDuration);
 
         if (!Statistics_.IsEmpty()) {
-            double idealExecTime = std::max(DesiredMinJobTime_, DesiredExecToPrepareTimeRatio_ * Statistics_.GetMeanPrepareTime());
+            double idealExecTime = std::max(MinJobTime_, ExecToPrepareTimeRatio_ * Statistics_.GetMeanPrepareTime());
+            idealExecTime = std::min(idealExecTime, MaxJobTime_);
+
             double idealDataSize = idealExecTime / Statistics_.GetMeanExecTimePerByte();
-            IdealDataSizePerJob_ = ClampVal(
+
+            DataSizePerJob_ = ClampVal(
                 idealDataSize,
-                IdealDataSizePerJob_,
-                std::min(IdealDataSizePerJob_ * JobSizeBoostFactor, MaxDataSizePerJob_));
+                DataSizePerJob_,
+                DataSizePerJob_ * JobSizeBoostFactor);
         }
     }
 
-    virtual i64 GetIdealDataSizePerJob() const override
+    virtual i64 GetDataSizePerJob() const override
     {
-        return static_cast<i64>(IdealDataSizePerJob_);
+        return static_cast<i64>(DataSizePerJob_);
     }
 
     void Persist(const TPersistenceContext& context)
     {
         using NYT::Persist;
-        Persist(context, IdealDataSizePerJob_);
-        Persist(context, MaxDataSizePerJob_);
-        Persist(context, DesiredMinJobTime_);
-        Persist(context, DesiredExecToPrepareTimeRatio_);
+        Persist(context, DataSizePerJob_);
+        Persist(context, MinJobTime_);
+        Persist(context, MaxJobTime_);
+        Persist(context, ExecToPrepareTimeRatio_);
         Persist(context, Statistics_);
     }
 
@@ -118,25 +118,27 @@ private:
         double DataSizeMax_ = 0.0;
     };
 
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TJobSizeManager, 0xf8338721);
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TJobSizeAdjuster, 0xf8338721);
 
-    double IdealDataSizePerJob_ = 0.0;
+    double DataSizePerJob_ = 0.0;
     double MaxDataSizePerJob_ = 0.0;
-    double DesiredMinJobTime_ = 0.0;
-    double DesiredExecToPrepareTimeRatio_ = 0.0;
+    double MinJobTime_ = 0.0;
+    double MaxJobTime_ = 0.0;
+    double ExecToPrepareTimeRatio_ = 0.0;
+
     TStatistics Statistics_;
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TJobSizeManager);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TJobSizeAdjuster);
 
-std::unique_ptr<IJobSizeManager> CreateJobSizeManager(
+////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<IJobSizeAdjuster> CreateJobSizeAdjuster(
     i64 dataSizePerJob,
-    i64 maxDataSizePerJob,
-    TJobSizeManagerConfigPtr config)
+    const TJobSizeAdjusterConfigPtr& config)
 {
-    return std::unique_ptr<IJobSizeManager>(new TJobSizeManager(
+    return std::unique_ptr<IJobSizeAdjuster>(new TJobSizeAdjuster(
         dataSizePerJob,
-        maxDataSizePerJob,
         config));
 }
 
@@ -144,3 +146,4 @@ std::unique_ptr<IJobSizeManager> CreateJobSizeManager(
 
 } // namespace NScheduler
 } // namespace NYT
+

@@ -212,7 +212,7 @@ protected:
 
     // Total uncompressed data size for primary tables.
     // Used only during preparation, not persisted.
-    i64 PrimaryInputDataSize_ = 0;
+    i64 PrimaryInputDataSize = 0;
 
     int ChunkLocatedCallCount = 0;
     int UnavailableInputChunkCount = 0;
@@ -957,13 +957,11 @@ protected:
     std::vector<NChunkClient::TInputChunkPtr> CollectPrimaryChunks(bool versioned) const;
     std::vector<NChunkClient::TInputChunkPtr> CollectPrimaryUnversionedChunks() const;
     std::vector<NChunkClient::TInputChunkPtr> CollectPrimaryVersionedChunks() const;
-    i64 CalculatePrimaryVersionedChunksSize() const;
+    std::pair<i64, i64> CalculatePrimaryVersionedChunksStatistics() const;
     std::vector<NChunkClient::TInputDataSlicePtr> CollectPrimaryVersionedDataSlices(i64 sliceSize) const;
 
     //! Returns the list of lists of all input chunks collected from all foreign input tables.
     std::vector<std::deque<NChunkClient::TInputDataSlicePtr>> CollectForeignInputDataSlices(int foreignKeyColumnCount) const;
-
-    i64 CalculateSliceDataSize(i64 maxSliceDataSize, const TJobSizeLimits& jobSizeLimits) const;
 
     //! Converts a list of input chunks into a list of chunk stripes for further
     //! processing. Each stripe receives exactly one chunk (as suitable for most
@@ -974,18 +972,14 @@ protected:
     //! appropriately.
     void SliceUnversionedChunks(
         const std::vector<NChunkClient::TInputChunkPtr>& unversionedChunks,
-        i64 sliceDataSize,
+        const IJobSizeConstraintsPtr& jobSizeConstraints,
         std::vector<TChunkStripePtr>* result) const;
     void SlicePrimaryUnversionedChunks(
-        i64 sliceDataSize,
+        const IJobSizeConstraintsPtr& jobSizeConstraints,
         std::vector<TChunkStripePtr>* result) const;
     void SlicePrimaryVersionedChunks(
-        i64 sliceDataSize,
+        const IJobSizeConstraintsPtr& jobSizeConstraints,
         std::vector<TChunkStripePtr>* result) const;
-
-    int GetMaxJobCount(
-        TNullable<int> userMaxJobCount,
-        int maxJobCount);
 
     void InitUserJobSpecTemplate(
         NScheduler::NProto::TUserJobSpec* proto,
