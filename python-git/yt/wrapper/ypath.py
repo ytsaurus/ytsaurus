@@ -191,6 +191,10 @@ class TablePath(YPathSupportingAppend):
 
     * exact_index, start_index, end_index -- tuple of indexes to identify range of rows
 
+    * ranges -- list of dicts, allows to specify arbitrary ranges on the table, see more details on wiki
+
+    * schema -- dict with schema, see `static schema doc <https://wiki.yandex-team.ru/yt/userdoc/staticschema/#kakzadat/izmenitsxemustaticheskojjtablicy>`
+
     .. seealso:: `YPath on wiki <https://wiki.yandex-team.ru/yt/userdoc/ypath>`_
     """
     def __init__(self,
