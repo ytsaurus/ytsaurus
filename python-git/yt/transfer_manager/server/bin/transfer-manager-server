@@ -877,7 +877,7 @@ class Application(object):
         with self._clusters_config_mutex:
             # Clusters configuration is reloadable. Apply available changes to config.
             for key in self._clusters_configuration.__dict__:
-                config[key] = self._last_successfully_loaded_config[key]
+                config[key] = deepcopy(self._last_successfully_loaded_config[key])
         return config
 
     def _get_task_description(self, task):
