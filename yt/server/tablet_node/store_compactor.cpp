@@ -614,8 +614,8 @@ private:
 
             LOG_INFO("Eden partitioning completed (RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v)",
                 readRowCount,
-                storeIdsToRemove,
-                storeIdsToAdd);
+                storeIdsToAdd,
+                storeIdsToRemove);
 
             for (const auto& store : stores) {
                 storeManager->EndStoreCompaction(store);
