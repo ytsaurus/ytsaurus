@@ -7,14 +7,14 @@
 #include <yt/core/misc/preprocessor.h>
 
 // Custom includes to glue Google and YT stuff together.
-#include <util/generic/stroka.h>
-#include <util/generic/strbuf.h>
+// #include <util/generic/stroka.h>
+// #include <util/generic/strbuf.h>
 
 // Include Google Test and Google Mock headers.
 #define GTEST_DONT_DEFINE_FAIL 1
 
-#include <contrib/testing/gmock.h>
-#include <contrib/testing/gtest.h>
+#include <contrib/libs/gmock/gmock/gmock.h>
+#include <contrib/libs/gtest/gtest/gtest.h>
 
 namespace NYT {
 

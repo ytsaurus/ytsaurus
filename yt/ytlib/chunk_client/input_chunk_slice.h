@@ -93,7 +93,7 @@ public:
         const NProto::TChunkSlice& protoChunkSlice);
 
     //! Tries to split chunk slice into parts of almost equal size, about #sliceDataSize.
-    std::vector<TInputChunkSlicePtr> SliceEvenly(i64 sliceDataSize) const;
+    std::vector<TInputChunkSlicePtr> SliceEvenly(i64 sliceDataSize, i64 sliceRowCount) const;
 
     i64 GetLocality(int replicaIndex) const;
 
@@ -141,7 +141,8 @@ std::vector<TInputChunkSlicePtr> CreateErasureInputChunkSlices(
 
 std::vector<TInputChunkSlicePtr> SliceChunkByRowIndexes(
     const TInputChunkPtr& inputChunk,
-    i64 sliceDataSize);
+    i64 sliceDataSize,
+    i64 sliceRowCount);
 
 void ToProto(
     NProto::TChunkSpec* chunkSpec,

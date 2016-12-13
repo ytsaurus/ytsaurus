@@ -1,8 +1,8 @@
 #pragma once
 
-#include "election_manager.h"
+#include "framework.h"
 
-#include <contrib/testing/gmock.h>
+#include <yt/server/election/election_manager.h>
 
 namespace NYT {
 namespace NElection {
