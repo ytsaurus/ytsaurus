@@ -31,6 +31,9 @@ def get_cluster_version(client):
     version = client.get("//sys/{0}/{1}/orchid/service/version".format(masters_key, master_name)).split(".")[:2]
     return version
 
+def get_cluster_major_version(client):
+    return int(get_cluster_version(client)[0])
+
 def convert_to_new_schema(schema, key_columns):
     result = []
     for column in schema:
@@ -44,7 +47,7 @@ def get_dynamic_table_attributes(client, path):
     schema = client.get(path + "/@schema")
     optimize_for = client.get_attribute(path, "optimize_for", default="lookup")
 
-    if get_cluster_version(client)[0] == "18":
+    if get_cluster_major_version(client) >= 18:
        key_columns = [column["name"] for column in schema if "sort_order" in column]
     else:
        key_columns = client.get(path + "/@key_columns")
@@ -55,7 +58,7 @@ def make_dynamic_table_attributes(client, schema, key_columns, optimize_for):
     attributes = {
         "dynamic": True
     }
-    if get_cluster_version(client)[0] == "18":
+    if get_cluster_major_version(client) >= 18:
         attributes["schema"] = convert_to_new_schema(schema, key_columns)
         attributes["optimize_for"] = optimize_for
     else:
