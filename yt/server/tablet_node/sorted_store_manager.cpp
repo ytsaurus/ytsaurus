@@ -465,6 +465,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         descriptor.set_store_type(static_cast<int>(EStoreType::SortedChunk));
         ToProto(descriptor.mutable_store_id(), chunkWriter->GetChunkId());
         descriptor.mutable_chunk_meta()->CopyFrom(tableWriter->GetMasterMeta());
+        ToProto(descriptor.mutable_backing_store_id(), store->GetId());
         return std::vector<TAddStoreDescriptor>{descriptor};
     });
 }
