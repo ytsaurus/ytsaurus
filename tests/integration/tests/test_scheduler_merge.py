@@ -458,7 +458,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert get("//tmp/t_out/@sorted_by") == ["key1", "key2"]
         assert get("//tmp/t_out/@schema/@unique_keys") == True
 
-    def test_empty_in(self):
+    def test_empty_in_ordered(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         create("table", "//tmp/t_out")
@@ -471,6 +471,17 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                out="//tmp/t_out")
 
         assert read_table("//tmp/t_out") == [v]
+
+    def test_empty_in_sorted(self):
+        create("table", "//tmp/t1", attributes = {"schema" : [
+            {"name" : "a", "type" : "int64", "sort_order" : "ascending"}]})
+        create("table", "//tmp/t_out")
+
+        merge(mode="sorted",
+               in_="//tmp/t1",
+               out="//tmp/t_out")
+
+        assert read_table("//tmp/t_out") == []
 
     def test_non_empty_out(self):
         create("table", "//tmp/t1")
@@ -602,9 +613,9 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         create("table", "//tmp/input_loose", attributes={"schema" : loose_schema})
         create("table", "//tmp/input_weak")
         create("table", "//tmp/output_weak", attributes={"optimize_for" : optimize_for})
-        create("table", "//tmp/output_loose", 
+        create("table", "//tmp/output_loose",
             attributes={"optimize_for" : optimize_for, "schema" : loose_schema})
-        create("table", "//tmp/output_strict", 
+        create("table", "//tmp/output_strict",
             attributes={"optimize_for" : optimize_for, "schema" : strict_schema})
 
         assert get("//tmp/input_loose/@schema_mode") == "strong"
@@ -624,7 +635,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert not get("//tmp/output_loose/@schema/@strict")
 
         with pytest.raises(YtError):
-            # changing from strict schema to nonstrict is not allowed 
+            # changing from strict schema to nonstrict is not allowed
             merge(in_="//tmp/input_loose", out="//tmp/output_strict")
 
         # schema validation must pass
@@ -634,9 +645,9 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         merge(in_=["//tmp/input_weak", "//tmp/input_loose"], out="//tmp/output_loose")
 
-        create("table", "//tmp/output_sorted", 
+        create("table", "//tmp/output_sorted",
             attributes={
-                "optimize_for" : optimize_for, 
+                "optimize_for" : optimize_for,
                 "schema" : make_schema([{"name" : "key", "type" : "int64", "sort_order" : "ascending"}], strict=False)})
 
         with pytest.raises(YtError):
@@ -803,7 +814,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         assert get("#" + chunk_id2 + "/@ref_counter") == 1
         assert_items_equal(get("#" + chunk_id1 + "/@exports"), {})
         assert_items_equal(get("#" + chunk_id2 + "/@exports"), {})
-        
+
         create("table", "//tmp/t", attributes={"external": False})
         merge(mode="ordered",
               in_=["//tmp/t1", "//tmp/t2"],
@@ -815,9 +826,9 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         assert_items_equal(get("#" + chunk_id1 + "/@exports"), {"0": {"ref_counter": 1, "vital": True, "replication_factor": 3}})
         assert_items_equal(get("#" + chunk_id2 + "/@exports"), {"0": {"ref_counter": 1, "vital": True, "replication_factor": 3}})
         assert_items_equal(ls("//sys/foreign_chunks", driver=get_driver(0)), [chunk_id1, chunk_id2])
-        
+
         assert read_table("//tmp/t") == [{"a": 1}, {"a": 2}]
-        
+
         remove("//tmp/t")
 
         gc_collect()
@@ -827,7 +838,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         assert_items_equal(get("#" + chunk_id1 + "/@exports"), {})
         assert_items_equal(get("#" + chunk_id2 + "/@exports"), {})
         assert_items_equal(ls("//sys/foreign_chunks", driver=get_driver(0)), [])
-        
+
     @unix_only
     def test_multicell_merge_multi_teleport(self):
         create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
@@ -838,7 +849,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         assert_items_equal(get("#" + chunk_id + "/@exports"), {})
         assert not get("#" + chunk_id + "/@foreign")
         assert not exists("#" + chunk_id + "&")
-        
+
         create("table", "//tmp/t2", attributes={"external": False})
         merge(mode="ordered",
               in_=["//tmp/t1", "//tmp/t1"],
@@ -849,9 +860,9 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         assert_items_equal(get("#" + chunk_id + "/@exports"), {"0": {"ref_counter": 2, "vital": True, "replication_factor": 3}})
         assert_items_equal(ls("//sys/foreign_chunks", driver=get_driver(0)), [chunk_id])
         assert get("#" + chunk_id + "&/@import_ref_counter") == 2
-        
+
         assert read_table("//tmp/t2") == [{"a": 1}, {"a": 1}]
-        
+
         create("table", "//tmp/t3", attributes={"external": False})
         merge(mode="ordered",
               in_=["//tmp/t1", "//tmp/t1"],
@@ -864,7 +875,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         assert get("#" + chunk_id + "&/@import_ref_counter") == 4
 
         assert read_table("//tmp/t3") == [{"a": 1}, {"a": 1}]
-        
+
         remove("//tmp/t2")
 
         gc_collect()
@@ -872,7 +883,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         assert get("#" + chunk_id + "/@ref_counter") == 5
         assert_items_equal(get("#" + chunk_id + "/@exports"), {"0": {"ref_counter": 4, "vital": True, "replication_factor": 3}})
         assert_items_equal(ls("//sys/foreign_chunks", driver=get_driver(0)), [chunk_id])
-        
+
         remove("//tmp/t3")
 
         gc_collect()
@@ -880,7 +891,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         assert get("#" + chunk_id + "/@ref_counter") == 1
         assert_items_equal(get("#" + chunk_id + "/@exports"), {})
         assert_items_equal(ls("//sys/foreign_chunks", driver=get_driver(0)), [])
-        
+
         remove("//tmp/t1")
 
         gc_collect()
@@ -919,7 +930,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
 
         sleep(0.2)
         assert get("#" + chunk_id + "/@vital")
-        
+
         set("//tmp/t1/@replication_factor", 4)
 
         sleep(0.2)
@@ -941,7 +952,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         create("table", "//tmp/t", attributes={"external": False})
         create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
         create("table", "//tmp/t2", attributes={"external_cell_tag": 2})
-        
+
         write_table("//tmp/t", [{"a": 1}])
         chunk_id = get("//tmp/t/@chunk_ids/0")
 

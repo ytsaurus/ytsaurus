@@ -113,7 +113,7 @@ public:
 
     virtual i64 GetInputSliceDataSize() const override
     {
-        if (JobCount_ == 0) {
+        if (JobCount_ == 0 || InputDataSize_ == 0) {
             return 1;
         }
 
@@ -221,7 +221,7 @@ public:
 
     virtual i64 GetInputSliceDataSize() const override
     {
-        if (JobCount_ == 0) {
+        if (JobCount_ == 0 || InputDataSize_ == 0) {
             return 1;
         }
 
@@ -349,7 +349,7 @@ public:
 
     virtual i64 GetInputSliceDataSize() const override
     {
-        if (JobCount_ == 0) {
+        if (JobCount_ == 0 || InputDataSize_ == 0) {
             return 1;
         }
 
