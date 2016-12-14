@@ -16,47 +16,65 @@ const TSharedRef EmptySharedRef(EmptyRef, nullptr);
 ////////////////////////////////////////////////////////////////////////////////
 
 TSharedRef::TBlobHolder::TBlobHolder(TBlob&& blob)
-    : Blob(std::move(blob))
+    : Blob_(std::move(blob))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TSharedMutableRef::TBlobHolder::TBlobHolder(TBlob&& blob)
-    : Blob(std::move(blob))
+    : Blob_(std::move(blob))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef::TStringHolder::TStringHolder(const Stroka& string)
-    : Data(string)
+TSharedMutableRef::TAllocationHolder::TAllocationHolder(
+    size_t size,
+    bool initializeStorage,
+    TRefCountedTypeCookie cookie)
+    : Size_(size)
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    , Cookie(NullRefCountedTypeCookie)
+    , Cookie_(cookie)
 #endif
-{ }
+{
+    if (initializeStorage) {
+        ::memset(GetExtraSpacePtr(), 0, Size_);
+    }
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
+    TRefCountedTracker::Get()->Allocate(Cookie_, Size_);
+#endif
+}
+
+TSharedMutableRef::TAllocationHolder::~TAllocationHolder()
+{
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
+    TRefCountedTracker::Get()->Free(Cookie_, Size_);
+#endif
+}
+
+TMutableRef TSharedMutableRef::TAllocationHolder::GetRef()
+{
+    return TMutableRef(GetExtraSpacePtr(), Size_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSharedRef::TStringHolder::TStringHolder(Stroka&& string, TRefCountedTypeCookie cookie)
+    : String_(std::move(string))
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
+    , Cookie_(cookie)
+#endif
+{
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
+    TRefCountedTracker::Get()->Allocate(Cookie_, String_.length());
+#endif
+}
 
 TSharedRef::TStringHolder::~TStringHolder()
 {
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    FinalizeTracking();
+    TRefCountedTracker::Get()->Free(Cookie_, String_.length());
 #endif
 }
-
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
-
-void TSharedRef::TStringHolder::InitializeTracking(TRefCountedTypeCookie cookie)
-{
-    Y_ASSERT(Cookie == NullRefCountedTypeCookie);
-    Cookie = cookie;
-    TRefCountedTracker::Get()->Allocate(Cookie, Data.length());
-}
-
-void TSharedRef::TStringHolder::FinalizeTracking()
-{
-    Y_ASSERT(Cookie != NullRefCountedTypeCookie);
-    TRefCountedTracker::Get()->Free(Cookie, Data.length());
-}
-
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 

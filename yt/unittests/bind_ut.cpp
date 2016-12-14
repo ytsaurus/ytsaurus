@@ -24,8 +24,7 @@ class TIncompleteType;
 class TObject
 {
 public:
-    TObject()
-    { }
+    TObject() = default;
 
     MOCK_METHOD0(VoidMethod0, void());
     MOCK_CONST_METHOD0(VoidConstMethod0, void());
@@ -48,8 +47,7 @@ class TObjectWithRC
     : public TObject
 {
 public:
-    TObjectWithRC()
-    { }
+    TObjectWithRC() = default;
 
     MOCK_CONST_METHOD0(Ref, void());
     MOCK_CONST_METHOD0(Unref, void());
@@ -71,20 +69,19 @@ class TObjectWithRCAndPrivateDtor
     : public TObjectWithRC
 {
 private:
-    ~TObjectWithRCAndPrivateDtor()
-    { }
+    ~TObjectWithRCAndPrivateDtor() = default;
 };
 
-// A simple mock object with real extrinsic reference counting.
-class TObjectWithExtrinsicRC
+// A simple mock object with weak ptr support.
+class TObjectWithFullRC
     : public TObject
-    , public TExtrinsicRefCounted
+    , public TRefCounted
 { };
 
-typedef TIntrusivePtr<TObjectWithExtrinsicRC> TObjectWithExtrinsicRCPtr;
-typedef TIntrusivePtr<const TObjectWithExtrinsicRC> TObjectWithExtrinsicRCConstPtr;
-typedef TWeakPtr<TObjectWithExtrinsicRC> TObjectWithExtrinsicRCWkPtr;
-typedef TWeakPtr<const TObjectWithExtrinsicRC> TObjectWithExtrinsicRCConstWkPtr;
+typedef TIntrusivePtr<TObjectWithFullRC> TObjectWithExtrinsicRCPtr;
+typedef TIntrusivePtr<const TObjectWithFullRC> TObjectWithExtrinsicRCConstPtr;
+typedef TWeakPtr<TObjectWithFullRC> TObjectWithExtrinsicRCWkPtr;
+typedef TWeakPtr<const TObjectWithFullRC> TObjectWithExtrinsicRCConstWkPtr;
 
 // Below there is a serie of either reference-counted or not classes
 // with simple inheritance and both virtual and non-virtual methods.
@@ -92,12 +89,13 @@ typedef TWeakPtr<const TObjectWithExtrinsicRC> TObjectWithExtrinsicRCConstWkPtr;
 static const int SomeParentValue = 1;
 static const int SomeChildValue = 2;
 
-class RefParent
+class TRefParent
 {
 public:
     // Stub methods for reference counting.
     void Ref()
     { }
+
     void Unref()
     { }
 
@@ -105,6 +103,7 @@ public:
     {
         Value = SomeParentValue;
     }
+
     void NonVirtualSet()
     {
         Value = SomeParentValue;
@@ -113,27 +112,29 @@ public:
     int Value;
 };
 
-class RefChild
-    : public RefParent
+class TRefChild
+    : public TRefParent
 {
 public:
     virtual void VirtualSet()
     {
         Value = SomeChildValue;
     }
+
     void NonVirtualSet()
     {
         Value = SomeChildValue;
     }
 };
 
-class NoRefParent
+class TNoRefParent
 {
 public:
     virtual void VirtualSet()
     {
         Value = SomeParentValue;
     }
+
     void NonVirtualSet()
     {
         Value = SomeParentValue;
@@ -143,29 +144,30 @@ public:
 };
 
 class NoRefChild
-    : public NoRefParent
+    : public TNoRefParent
 {
     virtual void VirtualSet()
     {
         Value = SomeChildValue;
     }
+
     void NonVirtualSet()
     {
         Value = SomeChildValue;
     }
 };
 
-int UnwrapNoRefParent(NoRefParent p)
+int UnwrapNoRefParent(TNoRefParent p)
 {
     return p.Value;
 }
 
-int UnwrapNoRefParentPtr(NoRefParent* p)
+int UnwrapNoRefParentPtr(TNoRefParent* p)
 {
     return p->Value;
 }
 
-int UnwrapNoRefParentConstRef(const NoRefParent& p)
+int UnwrapNoRefParentConstRef(const TNoRefParent& p)
 {
     return p.Value;
 }
@@ -235,10 +237,11 @@ void InvokeClosure(const TClosure& callback)
 ////////////////////////////////////////////////////////////////////////////////
 // Test fixture.
 
-class TBindTest : public ::testing::Test {
+class TBindTest
+    : public ::testing::Test
+{
 public:
-    TBindTest()
-    { }
+    TBindTest() = default;
 
     virtual void SetUp()
     {
@@ -406,15 +409,15 @@ TEST_F(TBindTest, FunctionTypeSupport)
     constMethodConstObject.Run();
 
     // Virtual calls.
-    RefChild child;
+    TRefChild child;
 
     child.Value = 0;
-    TClosure virtualSet = BIND(&RefParent::VirtualSet, &child);
+    TClosure virtualSet = BIND(&TRefParent::VirtualSet, &child);
     virtualSet.Run();
     EXPECT_EQ(SomeChildValue, child.Value);
 
     child.Value = 0;
-    TClosure nonVirtualSet = BIND(&RefParent::NonVirtualSet, &child);
+    TClosure nonVirtualSet = BIND(&TRefParent::NonVirtualSet, &child);
     nonVirtualSet.Run();
     EXPECT_EQ(SomeParentValue, child.Value);
 }
@@ -514,7 +517,7 @@ TEST_F(TBindTest, ArgumentBindingSupport)
         BIND(&PolymorphicIdentity<int>, 3);
     EXPECT_EQ(3, templateFunctionBind.Run());
 
-    NoRefParent p;
+    TNoRefParent p;
     p.Value = 4;
 
     TCallback<int()> objectBind = BIND(&UnwrapNoRefParent, p);
@@ -678,7 +681,7 @@ TEST_F(TBindTest, UnretainedWrapper)
 //     not canceled.
 TEST_F(TBindTest, WeakPtr)
 {
-    TObjectWithExtrinsicRCPtr object = New<TObjectWithExtrinsicRC>();
+    TObjectWithExtrinsicRCPtr object = New<TObjectWithFullRC>();
     TObjectWithExtrinsicRCWkPtr objectWk(object);
 
     EXPECT_CALL(*object, VoidMethod0());
@@ -686,7 +689,7 @@ TEST_F(TBindTest, WeakPtr)
 
     TClosure boundMethod =
         BIND(
-            &TObjectWithExtrinsicRC::VoidMethod0,
+            &TObjectWithFullRC::VoidMethod0,
             TObjectWithExtrinsicRCWkPtr(object));
     boundMethod.Run();
 
@@ -704,7 +707,7 @@ TEST_F(TBindTest, WeakPtr)
 
     TCallback<int(int)> normalFunc =
         BIND(
-            &FunctionWithWeakParam<TObjectWithExtrinsicRC>,
+            &FunctionWithWeakParam<TObjectWithFullRC>,
             TObjectWithExtrinsicRCWkPtr(object));
 
     EXPECT_EQ(1, normalFunc.Run(1));

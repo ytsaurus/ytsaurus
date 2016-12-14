@@ -11,8 +11,8 @@ namespace NPhoenix {
 template <class T>
 void* TRegistry::DoInstantiate()
 {
-    typedef typename TFactoryTraits<T>::TFactory TFactory;
-    typedef typename TPolymorphicTraits<T>::TBase TBase;
+    using TFactory = typename TFactoryTraits<T>::TFactory;
+    using TBase = typename TPolymorphicTraits<T>::TBase;
 
     T* ptr = TFactory::template Instantiate<T>();
     TBase* basePtr = static_cast<TBase*>(ptr);
@@ -22,19 +22,20 @@ void* TRegistry::DoInstantiate()
 template <class T>
 void TRegistry::Register(ui32 tag)
 {
-    auto entry = New<TEntry>();
-    entry->Tag = tag;
-    entry->TypeInfo = &typeid (T);
-    entry->Factory = BIND(&DoInstantiate<T>);
-    YCHECK(TypeInfoToEntry.insert(std::make_pair(entry->TypeInfo, entry)).second);
-    YCHECK(TagToEntry.insert(std::make_pair(entry->Tag, entry)).second);
+    auto pair = TagToEntry_.emplace(tag, TEntry());
+    YCHECK(pair.second);
+    auto& entry = pair.first->second;
+    entry.Tag = tag;
+    entry.TypeInfo = &typeid (T);
+    entry.Factory = std::bind(&DoInstantiate<T>);
+    YCHECK(TypeInfoToEntry_.insert(std::make_pair(entry.TypeInfo, &entry)).second);
 }
 
 template <class T>
 T* TRegistry::Instantiate(ui32 tag)
 {
-    typedef typename TPolymorphicTraits<T>::TBase TBase;
-    TBase* basePtr = static_cast<TBase*>(GetEntry(tag).Factory.Run());
+    using TBase = typename TPolymorphicTraits<T>::TBase;
+    TBase* basePtr = static_cast<TBase*>(GetEntry(tag).Factory());
     return dynamic_cast<T*>(basePtr);
 }
 
@@ -50,24 +51,15 @@ struct TInstantiatedRegistrar
 template <class T>
 struct TInstantiatedRegistrar<
     T,
-    typename NMpl::TEnableIfC<NMpl::TIsConvertible<T&, TIntrinsicRefCounted&>::Value>::TType
+    typename NMpl::TEnableIfC<
+        NMpl::TIsConvertible<T&, TRefCountedImpl<false>&>::Value ||
+        NMpl::TIsConvertible<T&, TRefCountedImpl<true>&>::Value
+    >::TType
 >
 {
     static void Do(TLoadContext& context, T* rawPtr)
     {
-        context.IntrinsicInstantiated.push_back(rawPtr);
-    }
-};
-
-template <class T>
-struct TInstantiatedRegistrar<
-    T,
-    typename NMpl::TEnableIfC<NMpl::TIsConvertible<T&, TExtrinsicRefCounted&>::Value>::TType
->
-{
-    static void Do(TLoadContext& context, T* rawPtr)
-    {
-        context.ExtrinsicInstantiated.push_back(rawPtr);
+        context.Deletors_.push_back([=] { Unref(rawPtr); });
     }
 };
 
@@ -102,7 +94,7 @@ struct TSerializer
     template <class T, class C>
     static void SaveImpl(C& context, T* ptr)
     {
-        typedef typename TPolymorphicTraits<T>::TBase TBase;
+        using TBase = typename TPolymorphicTraits<T>::TBase;
         using NYT::Save;
 
         if (ptr) {
@@ -177,7 +169,7 @@ struct TSerializer
     template <class T, class C>
     static void LoadImpl(C& context, T*& rawPtr, bool inplace)
     {
-        typedef typename TPolymorphicTraits<T>::TBase TBase;
+        using TBase = typename TPolymorphicTraits<T>::TBase;
         using NYT::Load;
 
         ui32 id = Load<ui32>(context);
@@ -233,7 +225,7 @@ struct TSerializer
     {
         static T* Instantiate(const C& /*context*/)
         {
-            typedef typename TFactoryTraits<T>::TFactory TFactory;
+            using TFactory = typename TFactoryTraits<T>::TFactory;
             return TFactory::template Instantiate<T>();
         }
 
@@ -264,7 +256,7 @@ struct TSerializerTraits<
     >::TType
 >
 {
-    typedef NPhoenix::TSerializer TSerializer;
+    using TSerializer = NPhoenix::TSerializer;
 };
 
 template <class T, class C>
@@ -279,7 +271,7 @@ struct TSerializerTraits<
     >::TType
 >
 {
-    typedef NPhoenix::TSerializer TSerializer;
+    using TSerializer = NPhoenix::TSerializer;
 };
 
 template <class T, class C>
@@ -294,7 +286,7 @@ struct TSerializerTraits<
     >::TType
 >
 {
-    typedef NPhoenix::TSerializer TSerializer;
+    using TSerializer = NPhoenix::TSerializer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
