@@ -3,9 +3,10 @@
 #include "chunk_meta_extensions.h"
 #include "schema.h"
 
-#include <yt/core/erasure/codec.h>
-
 #include <yt/ytlib/table_client/serialize.h>
+
+#include <yt/core/erasure/codec.h>
+#include <yt/core/misc/numeric_helpers.h>
 
 #include <cmath>
 
@@ -225,21 +226,21 @@ TInputChunkSlice::TInputChunkSlice(
     }
 }
 
-std::vector<TInputChunkSlicePtr> TInputChunkSlice::SliceEvenly(i64 sliceDataSize) const
+std::vector<TInputChunkSlicePtr> TInputChunkSlice::SliceEvenly(i64 sliceDataSize, i64 sliceRowCount) const
 {
     YCHECK(sliceDataSize > 0);
-
-    i64 rowCount = GetRowCount();
+    YCHECK(sliceRowCount > 0);
 
     i64 lowerRowIndex = LowerLimit_.RowIndex.Get(0);
-    i64 upperRowIndex = UpperLimit_.RowIndex.Get(rowCount);
+    i64 upperRowIndex = UpperLimit_.RowIndex.Get(GetRowCount());
 
-    rowCount = upperRowIndex - lowerRowIndex;
-    
-    int count = std::max(std::min(GetDataSize() / sliceDataSize, rowCount), static_cast<i64>(1));
+    i64 rowCount = upperRowIndex - lowerRowIndex;
+
+    i64 count = std::max(GetDataSize() / sliceDataSize, rowCount / sliceRowCount);
+    count = std::max(std::min(count, rowCount), static_cast<i64>(1));
 
     std::vector<TInputChunkSlicePtr> result;
-    for (int i = 0; i < count; ++i) {
+    for (i64 i = 0; i < count; ++i) {
         i64 sliceLowerRowIndex = lowerRowIndex + rowCount * i / count;
         i64 sliceUpperRowIndex = lowerRowIndex + rowCount * (i + 1) / count;
         if (sliceLowerRowIndex < sliceUpperRowIndex) {
@@ -247,7 +248,7 @@ std::vector<TInputChunkSlicePtr> TInputChunkSlice::SliceEvenly(i64 sliceDataSize
                 *this,
                 sliceLowerRowIndex,
                 sliceUpperRowIndex,
-                (GetDataSize() + count - 1) / count));
+                DivCeil(GetDataSize(), count)));
         }
     }
     return result;
@@ -392,9 +393,10 @@ std::vector<TInputChunkSlicePtr> CreateErasureInputChunkSlices(
 
 std::vector<TInputChunkSlicePtr> SliceChunkByRowIndexes(
     const TInputChunkPtr& inputChunk,
-    i64 sliceDataSize)
+    i64 sliceDataSize,
+    i64 sliceRowCount)
 {
-    return CreateInputChunkSlice(inputChunk)->SliceEvenly(sliceDataSize);
+    return CreateInputChunkSlice(inputChunk)->SliceEvenly(sliceDataSize, sliceRowCount);
 }
 
 void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkSlicePtr& inputSlice)

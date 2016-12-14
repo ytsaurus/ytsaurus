@@ -1038,7 +1038,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRemoteCopyOperationSpec
-    : public TOperationSpecBase
+    : public TSimpleOperationSpecBase
 {
 public:
     TNullable<Stroka> ClusterName;
@@ -1046,18 +1046,11 @@ public:
     TNullable<NApi::TNativeConnectionConfigPtr> ClusterConnection;
     std::vector<NYPath::TRichYPath> InputTablePaths;
     NYPath::TRichYPath OutputTablePath;
-    TNullable<int> JobCount;
-    TNullable<int> MaxJobCount;
-    TNullable<i64> DataSizePerJob;
-    TJobIOConfigPtr JobIO;
     int MaxChunkCountPerJob;
     bool CopyAttributes;
     TNullable<std::vector<Stroka>> AttributeKeys;
 
     ESchemaInferenceMode SchemaInferenceMode;
-
-    // For remote_copy jobs.
-    TLogDigestConfigPtr JobProxyMemoryDigest;
 
     TRemoteCopyOperationSpec()
     {
@@ -1066,17 +1059,6 @@ public:
         RegisterParameter("input_table_paths", InputTablePaths)
             .NonEmpty();
         RegisterParameter("output_table_path", OutputTablePath);
-        RegisterParameter("job_count", JobCount)
-            .Default()
-            .GreaterThan(0);
-        RegisterParameter("max_job_count", MaxJobCount)
-            .Default()
-            .GreaterThan(0);
-        RegisterParameter("data_size_per_job", DataSizePerJob)
-            .Default()
-            .GreaterThan(0);
-        RegisterParameter("job_io", JobIO)
-            .DefaultNew();
         RegisterParameter("network_name", NetworkName)
             .Default();
         RegisterParameter("cluster_connection", ClusterConnection)
@@ -1087,8 +1069,6 @@ public:
             .Default(false);
         RegisterParameter("attribute_keys", AttributeKeys)
             .Default();
-        RegisterParameter("job_proxy_memory_digest", JobProxyMemoryDigest)
-            .Default(New<TLogDigestConfig>(0.5, 2.0, 1.0));
         RegisterParameter("schema_inference_mode", SchemaInferenceMode)
             .Default(ESchemaInferenceMode::Auto);
     }

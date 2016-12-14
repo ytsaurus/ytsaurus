@@ -805,8 +805,18 @@ class TestSchedulerMaxChunkPerJob(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "max_chunk_stripes_per_job" : 1,
-            "max_chunk_count_per_fetch" : 1
+            "map_operation_options" : {
+                "max_chunk_stripes_per_job" : 1,
+            },
+            "ordered_merge_operation_options" : {
+                "max_chunk_stripes_per_job" : 1,
+            },
+            "sorted_merge_operation_options" : {
+                "max_chunk_stripes_per_job" : 1,
+            },
+            "reduce_operation_options" : {
+                "max_chunk_stripes_per_job" : 1,
+            },
         }
     }
 

@@ -308,16 +308,18 @@ public:
         objectManager->UnrefObject(cellBundle);
         cell->SetCellBundle(nullptr);
 
+        // NB: Code below interacts with other master parts and may require root permissions
+        // (for example, when aborting a transaction).
+        // We want this code to always succeed.
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        auto* rootUser = securityManager->GetRootUser();
+        TAuthenticatedUserGuard userGuard(securityManager, rootUser);
+
         AbortPrerequisiteTransaction(cell);
         AbortCellSubtreeTransactions(cell);
 
         auto cellNodeProxy = FindCellNode(cell->GetId());
         if (cellNodeProxy) {
-            // NB: This should succeed regardless of user permissions.
-            const auto& securityManager = Bootstrap_->GetSecurityManager();
-            auto* rootUser = securityManager->GetRootUser();
-            TAuthenticatedUserGuard userGuard(securityManager, rootUser);
-
             try {
                 // NB: Subtree transactions were already aborted in AbortPrerequisiteTransaction.
                 cellNodeProxy->GetParent()->RemoveChild(cellNodeProxy);

@@ -6,7 +6,6 @@
 #include "job_memory.h"
 #include "private.h"
 #include "operation_controller_detail.h"
-#include "job_size_manager.h"
 
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
 
@@ -64,7 +63,6 @@ public:
         Persist(context, UnorderedPool);
         Persist(context, UnorderedTask);
         Persist(context, UnorderedTaskGroup);
-        Persist(context, JobSizeManager);
     }
 
 protected:
@@ -90,7 +88,7 @@ protected:
             : Controller(nullptr)
         { }
 
-        TUnorderedTask(TUnorderedOperationControllerBase* controller, i64 dataSizePerJob)
+        explicit TUnorderedTask(TUnorderedOperationControllerBase* controller)
             : TTask(controller)
             , Controller(controller)
         { }
@@ -181,13 +179,6 @@ protected:
             TTask::OnJobCompleted(joblet, jobSummary);
 
             RegisterOutput(joblet, joblet->JobIndex, jobSummary);
-
-            if (Controller->JobSizeManager) {
-                Controller->JobSizeManager->OnJobCompleted(jobSummary);
-                Controller->UnorderedPool->SetDataSizePerJob(Controller->JobSizeManager->GetIdealDataSizePerJob());
-                LOG_DEBUG("Set ideal data size per job (DataSizePerJob: %v)",
-                    Controller->JobSizeManager->GetIdealDataSizePerJob());
-            }
         }
 
         virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
@@ -203,8 +194,6 @@ protected:
 
     TUnorderedTaskPtr UnorderedTask;
     TTaskGroupPtr UnorderedTaskGroup;
-
-    std::unique_ptr<IJobSizeManager> JobSizeManager;
 
 
     // Custom bits of preparation pipeline.
@@ -222,11 +211,9 @@ protected:
         RegisterTaskGroup(UnorderedTaskGroup);
     }
 
-    void InitUnorderedPool(i64 dataSizePerJob)
+    void InitUnorderedPool(IJobSizeConstraintsPtr jobSizeConstraints, TJobSizeAdjusterConfigPtr jobSizeAdjusterConfig)
     {
-        UnorderedPool = CreateUnorderedChunkPool(
-            dataSizePerJob,
-            Config->MaxChunkStripesPerJob);
+        UnorderedPool = CreateUnorderedChunkPool(jobSizeConstraints, jobSizeAdjusterConfig);
     }
 
     virtual bool IsCompleted() const override
@@ -238,6 +225,7 @@ protected:
     {
         // The total data size for processing (except teleport chunks).
         i64 totalDataSize = 0;
+        i64 totalRowCount = 0;
 
         // The number of output partitions generated so far.
         // Each partition either corresponds to a teleport chunk.
@@ -261,52 +249,44 @@ protected:
                     RegisterOutput(chunk, currentPartitionIndex, 0);
                     ++currentPartitionIndex;
                 } else {
+
                     mergedChunks.push_back(chunk);
                     totalDataSize += chunk->GetUncompressedDataSize();
+                    totalRowCount += chunk->GetRowCount();
                 }
             }
 
-            totalDataSize += CalculatePrimaryVersionedChunksSize();
+            auto versionedInputStatistics = CalculatePrimaryVersionedChunksStatistics();
+            totalDataSize += versionedInputStatistics.first;
+            totalRowCount += versionedInputStatistics.second;
 
             // Create the task, if any data.
             if (totalDataSize > 0) {
-                TJobSizeLimits jobSizeLimits(
+                auto jobSizeConstraints = CreateSimpleJobSizeConstraints(
+                    Spec,
+                    Options,
                     totalDataSize,
-                    Spec->DataSizePerJob.Get(Options->DataSizePerJob),
-                    Spec->JobCount,
-                    GetMaxJobCount(Spec->MaxJobCount, Options->MaxJobCount));
+                    totalRowCount);
 
                 std::vector<TChunkStripePtr> stripes;
-                auto sliceDataSize = CalculateSliceDataSize(Options->JobMaxSliceDataSize, jobSizeLimits);
-                SliceUnversionedChunks(mergedChunks, sliceDataSize, &stripes);
-                SlicePrimaryVersionedChunks(sliceDataSize, &stripes);
-                jobSizeLimits.UpdateStripeCount(stripes.size(), Config->MaxChunkStripesPerJob);
+                SliceUnversionedChunks(mergedChunks, jobSizeConstraints, &stripes);
+                SlicePrimaryVersionedChunks(jobSizeConstraints, &stripes);
 
-                InitUnorderedPool(jobSizeLimits.GetDataSizePerJob());
+                //auto stripes = SliceChunks(mergedChunks, jobSizeConstraints);
 
-                if (Config->EnableMapJobSizeManager && !Spec->JobCount && !Spec->DataSizePerJob) {
-                    LOG_DEBUG("Activating job size manager (DataSizePerJob: %v, MaxJobDataSize: %v, MinJobTime: %v, ExecToPrepareTimeRatio: %v",
-                        jobSizeLimits.GetDataSizePerJob(),
-                        Spec->MaxDataSizePerJob,
-                        Options->JobSizeManager->MinJobTime,
-                        Options->JobSizeManager->ExecToPrepareTimeRatio);
-                    JobSizeManager = CreateJobSizeManager(
-                        jobSizeLimits.GetDataSizePerJob(),
-                        Spec->MaxDataSizePerJob,
-                        Options->JobSizeManager);
-                    UnorderedPool->SetMaxDataSizePerJob(Spec->MaxDataSizePerJob);
-                }
+                InitUnorderedPool(
+                    std::move(jobSizeConstraints),
+                    GetJobSizeAdjusterConfig());
 
-                UnorderedTask = New<TUnorderedTask>(this, jobSizeLimits.GetDataSizePerJob());
+                UnorderedTask = New<TUnorderedTask>(this);
                 UnorderedTask->Initialize();
                 UnorderedTask->AddInput(stripes);
                 UnorderedTask->FinishInput();
                 RegisterTask(UnorderedTask);
 
-                LOG_INFO("Inputs processed (JobCount: %v)",
-                    jobSizeLimits.GetJobCount());
+                LOG_INFO("Inputs processed (JobCount: %v)", UnorderedTask->GetPendingJobCount());
             } else {
-                LOG_INFO("Inputs processed (JobCount: 0). All chunks were teleported");
+                LOG_INFO("Inputs processed, all chunks were teleported");
             }
         }
 
@@ -345,6 +325,8 @@ protected:
 
     // Unsorted helpers.
     virtual EJobType GetJobType() const = 0;
+
+    virtual TJobSizeAdjusterConfigPtr GetJobSizeAdjusterConfig() const = 0;
 
     virtual TUserJobSpecPtr GetUserJobSpec() const
     {
@@ -406,6 +388,7 @@ public:
         TOperation* operation)
         : TUnorderedOperationControllerBase(config, spec, options, host, operation)
         , Spec(spec)
+        , Options(options)
     {
         RegisterJobProxyMemoryDigest(EJobType::Map, spec->JobProxyMemoryDigest);
         RegisterUserJobMemoryDigest(EJobType::Map, spec->Mapper->MemoryReserveFactor);
@@ -433,6 +416,7 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TMapController, 0xbac5fd82);
 
     TMapOperationSpecPtr Spec;
+    TMapOperationOptionsPtr Options;
 
     i64 StartRowIndex = 0;
 
@@ -441,6 +425,13 @@ private:
     virtual EJobType GetJobType() const override
     {
         return EJobType::Map;
+    }
+
+    virtual TJobSizeAdjusterConfigPtr GetJobSizeAdjusterConfig() const override
+    {
+        return Config->EnableMapJobSizeAdjustment
+            ? Options->JobSizeAdjuster
+            : nullptr;
     }
 
     virtual TUserJobSpecPtr GetUserJobSpec() const override
@@ -579,6 +570,11 @@ private:
     virtual EJobType GetJobType() const override
     {
         return EJobType::UnorderedMerge;
+    }
+
+    virtual TJobSizeAdjusterConfigPtr GetJobSizeAdjusterConfig() const override
+    {
+        return nullptr;
     }
 
     virtual std::vector<TRichYPath> GetOutputTablePaths() const override

@@ -12,28 +12,64 @@
 
 #include <yt/core/ytree/public.h>
 
+#include <yt/core/misc/phoenix.h>
+
 namespace NYT {
 namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobSizeLimits
+struct IJobSizeConstraints
+    : public virtual TRefCounted
+    , public virtual NPhoenix::IPersistent
 {
-public:
-    TJobSizeLimits(i64 totalDataSize, i64 dataSizePerJob, TNullable<int> configJobCount, int maxJobCount);
-    void SetJobCount(i64 jobCount);
-    int GetJobCount() const;
-    void SetDataSizePerJob(i64 dataSizePerJob);
-    i64 GetDataSizePerJob() const;
+    //! True if neither job count nor data size per job were explicitly specified by user in spec.
+    virtual bool CanAdjustDataSizePerJob() const = 0;
 
-    void UpdateStripeCount(i64 stripeCount, i64 maxStripesPerJob);
+    //! True if job count was explicitly specified by user in spec.
+    virtual bool IsExplicitJobCount() const = 0;
 
-private:
-    i64 TotalDataSize_ = 0;
-    int MaxJobCount_ = 0;
-    int JobCount_ = 0;
-    i64 DataSizePerJob_ = 0;
+    //! Job count, estimated from input statistics or provided via operation spec.
+    virtual int GetJobCount() const = 0;
+
+    //! Approximate data size, estimated from input statistics or provided via operation spec.
+    virtual i64 GetDataSizePerJob() const = 0;
+
+    //! Recommended upper limit on the number of chunk stripes per job.
+    //! Can be overflown if exact job count is provided.
+    virtual i64 GetMaxChunkStripesPerJob() const = 0;
+
+    //! Recommended upper limit on the data size per job.
+    //! Can be overflown if exact job count is provided.
+    virtual i64 GetMaxDataSizePerJob() const = 0;
+
+    virtual i64 GetInputSliceDataSize() const = 0;
+    virtual i64 GetInputSliceRowCount() const = 0;
+
+    virtual void Persist(const NPhoenix::TPersistenceContext& context) = 0;
 };
+
+DEFINE_REFCOUNTED_TYPE(IJobSizeConstraints)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IJobSizeConstraintsPtr CreateSimpleJobSizeConstraints(
+    const TSimpleOperationSpecBasePtr& spec,
+    const TSimpleOperationOptionsPtr& options,
+    i64 inputDataSize,
+    i64 inputRowCount = std::numeric_limits<i64>::max());
+
+IJobSizeConstraintsPtr CreateSimpleSortJobSizeConstraints(
+    const TSortOperationSpecBasePtr& spec,
+    const TSortOperationOptionsBasePtr& options,
+    i64 inputDataSize);
+
+IJobSizeConstraintsPtr CreatePartitionJobSizeConstraints(
+    const TSortOperationSpecBasePtr& spec,
+    const TSortOperationOptionsBasePtr& options,
+    i64 inputDataSize,
+    i64 inputRowCount,
+    double compressionRatio);
 
 ////////////////////////////////////////////////////////////////////////////////
 

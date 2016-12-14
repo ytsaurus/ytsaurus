@@ -98,6 +98,8 @@ configure_arcadia_mirror contrib-libs-snappy
 configure_arcadia_mirror contrib-libs-sparsehash
 configure_arcadia_mirror contrib-libs-yajl
 configure_arcadia_mirror contrib-libs-zlib
+configure_arcadia_mirror contrib-libs-gtest
+configure_arcadia_mirror contrib-libs-gmock
 
 configure_arcadia_mirror library-blockcodecs
 configure_arcadia_mirror library-getopt

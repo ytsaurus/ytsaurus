@@ -22,7 +22,7 @@ class TestSchedulerMapReduceCommands(YTEnvSetup):
         "map_reduce_operation_options" : {
           "min_uncompressed_block_size" : 1
         },
-        "enable_partition_map_job_size_manager" : True
+        "enable_partition_map_job_size_adjustment" : True
       }
     }
 
@@ -481,7 +481,7 @@ print "x={0}\ty={1}".format(x, y)
                 assert job["job_type"] == "partition_reduce"
                 assert "input_paths" not in job
 
-    def test_map_reduce_job_size_manager_boost(self):
+    def test_map_reduce_job_size_adjuster_boost(self):
         create("table", "//tmp/t_input")
         # original_data should have at least 1Mb of data
         original_data = [{"index": "%05d" % i, "foo": "a"*35000} for i in xrange(31)]
