@@ -496,12 +496,6 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         TabletMap_.LoadValues(context);
-
-        for (const auto& pair : TabletMap_) {
-            auto* tablet = pair.second;
-            auto storeManager = CreateStoreManager(tablet);
-            tablet->SetStoreManager(storeManager);
-        }
     }
 
     void LoadAsync(TLoadContext& context)
@@ -530,6 +524,8 @@ private:
 
         for (const auto& pair : TabletMap_) {
             auto* tablet = pair.second;
+            auto storeManager = CreateStoreManager(tablet);
+            tablet->SetStoreManager(storeManager);
             auto state = tablet->GetState();
             if (state >= ETabletState::UnmountFirst && state <= ETabletState::UnmountLast) {
                 YCHECK(UnmountingTablets_.insert(tablet).second);
@@ -930,6 +926,12 @@ private:
             case ETabletState::Frozen: {
                 tablet->SetState(ETabletState::Frozen);
 
+                for (const auto& pair : tablet->StoreIdMap()) {
+                    if (pair.second->IsChunk()) {
+                        pair.second->AsChunk()->SetBackingStore(nullptr);
+                    }
+                }
+
                 LOG_INFO_UNLESS(IsRecovery(), "Tablet frozen (TabletId: %v)",
                     tabletId);
 
@@ -1292,9 +1294,10 @@ private:
                 SetBackingStore(tablet, store, backingStore);
             }
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Store added (TabletId: %v, StoreId: %v, BackingStoreId: %v)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Store added (TabletId: %v, StoreId: %v, MaxTimestamp: %v, BackingStoreId: %v)",
                 tabletId,
                 storeId,
+                store->GetMaxTimestamp(),
                 backingStoreId);
         }
 
@@ -1890,11 +1893,13 @@ private:
         const auto& storeManager = tablet->GetStoreManager();
 
         const auto& transactionManager = Slot_->GetTransactionManager();
+        bool transactionIsFresh;
         auto* transaction = transactionManager->GetOrCreateTransaction(
             transactionId,
             transactionStartTimestamp,
             transactionTimeout,
-            true);
+            true,
+            &transactionIsFresh);
         ValidateTransactionActive(transaction);
 
         auto prelockedSortedBefore = transaction->PrelockedSortedRows().size();
@@ -1929,15 +1934,16 @@ private:
         auto prelockedOrderedDelta = prelockedOrderedAfter - prelockedOrderedBefore;
 
         if (prelockedSortedDelta + prelockedOrderedDelta > 0) {
+            auto adjustedSignature = reader->IsFinished() ? signature : 0;
             LOG_DEBUG("Rows prelocked (TransactionId: %v, TabletId: %v, SortedRows: %v, OrderedRows: %v, "
                 "Signature: %x)",
                 transactionId,
                 tabletId,
                 prelockedSortedDelta,
                 prelockedOrderedDelta,
-                signature);
+                adjustedSignature);
 
-            transaction->SetTransientSignature(transaction->GetTransientSignature() + signature);
+            transaction->SetTransientSignature(transaction->GetTransientSignature() + adjustedSignature);
 
             auto readerEnd = reader->GetCurrent();
             auto recordData = reader->Slice(readerBegin, readerEnd);
@@ -1952,20 +1958,23 @@ private:
             hydraRequest.set_mount_revision(tablet->GetMountRevision());
             hydraRequest.set_codec(static_cast<int>(ChangelogCodec_->GetId()));
             hydraRequest.set_compressed_data(ToString(compressedRecordData));
-            hydraRequest.set_signature(signature);
+            hydraRequest.set_signature(adjustedSignature);
             *commitResult = CreateMutation(Slot_->GetHydraManager(), hydraRequest)
                 ->SetHandler(BIND(
                     &TImpl::HydraLeaderExecuteWriteAtomic,
                     MakeStrong(this),
                     transactionId,
                     tabletId,
-                    signature,
+                    adjustedSignature,
                     prelockedSortedDelta,
                     prelockedOrderedDelta,
                     writeRecord))
                 ->Commit()
                  .As<void>();
+        } else if (transactionIsFresh) {
+            transactionManager->DropTransaction(transaction);
         }
+
 
         // NB: Yielding is now possible.
         // Cannot neither access tablet, nor transaction.

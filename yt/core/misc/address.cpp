@@ -576,6 +576,10 @@ const std::vector<TNetworkAddress>& TAddressResolver::TImpl::GetLocalAddresses()
         currentAddress;
         currentAddress = currentAddress->ifa_next)
     {
+        if (currentAddress->ifa_addr == nullptr) {
+            continue;
+        }
+
         auto family = currentAddress->ifa_addr->sa_family;
         if (family != AF_INET && family != AF_INET6) {
             continue;

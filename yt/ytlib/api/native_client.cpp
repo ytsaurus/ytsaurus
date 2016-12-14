@@ -3195,8 +3195,6 @@ public:
                 EAtomicity::Full);
         }
 
-        Transaction_->AddParticipant(cellId);
-
         auto session = GetOrCreateCellCommitSession(cellId);
         session->RegisterAction(data);
 
@@ -3601,20 +3599,9 @@ private:
             , ColumnCount_(TableInfo_->Schemas[ETableSchemaKind::Primary].Columns().size())
             , KeyColumnCount_(TableInfo_->Schemas[ETableSchemaKind::Primary].GetKeyColumnCount())
             , ColumnEvaluator_(std::move(columnEvauator))
-            , Logger(owner->Logger)
-        {
-            Logger.AddTag("TabletId: %v", TabletInfo_->TabletId);
-        }
-
-        TWireProtocolWriter* GetWriter()
-        {
-            if (Batches_.empty() || Batches_.back()->RowCount >= Config_->MaxRowsPerWriteRequest) {
-                Batches_.emplace_back(new TBatch());
-            }
-            auto& batch = Batches_.back();
-            ++batch->RowCount;
-            return &batch->Writer;
-        }
+            , Logger(NLogging::TLogger(owner->Logger)
+                .AddTag("TabletId: %v", TabletInfo_->TabletId))
+        { }
 
         void SubmitRow(
             EWireProtocolCommand command,
@@ -3812,7 +3799,7 @@ private:
             req->set_signature(cellSession->AllocateRequestSignature());
             req->Attachments() = std::move(batch->RequestData);
 
-            LOG_DEBUG("Sending batch (BatchIndex: %v/%v, RowCount: %v, Signature: %x)",
+            LOG_DEBUG("Sending transaction rows (BatchIndex: %v/%v, RowCount: %v, Signature: %x)",
                 InvokeBatchIndex_,
                 Batches_.size(),
                 batch->RowCount,
@@ -3826,7 +3813,7 @@ private:
         void OnResponse(const TTabletServiceProxy::TErrorOrRspWritePtr& rspOrError)
         {
             if (!rspOrError.IsOK()) {
-                LOG_DEBUG(rspOrError, "Error sending batch");
+                LOG_DEBUG(rspOrError, "Error sending transaction rows");
                 InvokePromise_.Set(rspOrError);
                 return;
             }
@@ -3836,8 +3823,8 @@ private:
                 return;
             }
 
-            LOG_DEBUG("Batch sent successfully");
-            owner->Transaction_->AddParticipant(TabletInfo_->CellId);
+            LOG_DEBUG("Transaction rows sent successfully");
+            owner->Transaction_->ConfirmParticipant(TabletInfo_->CellId);
             ++InvokeBatchIndex_;
             InvokeNextBatch();
         }
@@ -3852,8 +3839,11 @@ private:
         : public TIntrinsicRefCounted
     {
     public:
-        explicit TCellCommitSession(TNativeTransactionPtr owner)
+        TCellCommitSession(TNativeTransactionPtr owner, const TCellId& cellId)
             : Owner_(std::move(owner))
+            , CellId_(cellId)
+            , Logger(NLogging::TLogger(owner->Logger)
+                .AddTag("CellId: %v", CellId_))
         { }
 
         void RegisterRequests(int count)
@@ -3898,16 +3888,42 @@ private:
             req->set_transaction_timeout(ToProto(owner->GetTimeout()));
             req->set_signature(AllocateRequestSignature());
             ToProto(req->mutable_actions(), Actions_);
-            return req->Invoke().As<void>();
+
+            LOG_DEBUG("Sending transaction actions (ActionCount: %v, Signature: %x)",
+                Actions_.size(),
+                req->signature());
+
+            return req->Invoke().Apply(
+                BIND(&TCellCommitSession::OnResponse, MakeStrong(this))
+                    .Via(owner->CommitInvoker_));
         }
 
     private:
         const TWeakPtr<TNativeTransaction> Owner_;
+        const TCellId CellId_;
 
         std::vector<TTransactionActionData> Actions_;
         TTransactionSignature CurrentSignature_ = InitialTransactionSignature;
         int RequestsRemaining_ = 0;
 
+        NLogging::TLogger Logger;
+
+
+        void OnResponse(const TTabletServiceProxy::TErrorOrRspRegisterTransactionActionsPtr& rspOrError)
+        {
+            if (!rspOrError.IsOK()) {
+                LOG_DEBUG(rspOrError, "Error sending transaction actions");
+                THROW_ERROR rspOrError;
+            }
+
+            auto owner = Owner_.Lock();
+            if (!owner) {
+                return;
+            }
+
+            LOG_DEBUG("Transaction actions sent successfully");
+            owner->Transaction_->ConfirmParticipant(CellId_);
+        }
     };
 
     using TCellCommitSessionPtr = TIntrusivePtr<TCellCommitSession>;
@@ -3968,6 +3984,11 @@ private:
             cellSession->RegisterRequests(requestCount);
         }
 
+        for (auto& pair : CellIdToSession_) {
+            const auto& cellId = pair.first;
+            Transaction_->RegisterParticipant(cellId);
+        }
+
         std::vector<TFuture<void>> asyncResults;
 
         for (const auto& pair : TabletIdToSession_) {
@@ -4005,7 +4026,8 @@ private:
             for (const auto& flushResult : flushResults) {
                 asyncRequestResults.push_back(flushResult.AsyncResult);
                 for (const auto& cellId : flushResult.ParticipantCellIds) {
-                    Transaction_->AddParticipant(cellId);
+                    Transaction_->RegisterParticipant(cellId);
+                    Transaction_->ConfirmParticipant(cellId);
                 }
             }
 
@@ -4034,7 +4056,7 @@ private:
     {
         auto it = CellIdToSession_.find(cellId);
         if (it == CellIdToSession_.end()) {
-            it = CellIdToSession_.emplace(cellId, New<TCellCommitSession>(this)).first;
+            it = CellIdToSession_.emplace(cellId, New<TCellCommitSession>(this, cellId)).first;
         }
         return it->second;
     }

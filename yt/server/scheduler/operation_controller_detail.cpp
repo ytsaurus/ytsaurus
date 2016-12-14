@@ -653,7 +653,7 @@ void TOperationControllerBase::TTask::OnJobCompleted(TJobletPtr joblet, const TC
         Controller->ChunkListPool->Release(chunkListIds);
         std::fill(chunkListIds.begin(), chunkListIds.end(), NullChunkListId);
     }
-    GetChunkPoolOutput()->Completed(joblet->OutputCookie);
+    GetChunkPoolOutput()->Completed(joblet->OutputCookie, jobSummary);
 
     Controller->RegisterStderr(joblet, jobSummary);
     Controller->RegisterCores(joblet, jobSummary);
@@ -1477,6 +1477,7 @@ void TOperationControllerBase::Revive()
 
     // Input chunk scraper initialization should be the last step to avoid races.
     InitInputChunkScraper();
+    InitIntermediateChunkScraper();
 
     ReinstallLivePreview();
 
@@ -1750,7 +1751,7 @@ void TOperationControllerBase::Commit()
 
     // XXX(babenko): hotfix for YT-4636
     {
-        auto client = Host->GetMasterClient();
+        const auto& client = Host->GetMasterClient();
 
         // NB: use root credentials.
         auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
@@ -3140,7 +3141,7 @@ bool TOperationControllerBase::IsFinished() const
 
 void TOperationControllerBase::CreateLivePreviewTables()
 {
-    auto client = Host->GetMasterClient();
+    const auto& client = Host->GetMasterClient();
     auto connection = client->GetNativeConnection();
 
     // NB: use root credentials.
@@ -4138,7 +4139,7 @@ void TOperationControllerBase::CollectTotals()
             }
 
             if (table.IsPrimary()) {
-                PrimaryInputDataSize_ += chunkSpec->GetUncompressedDataSize();
+                PrimaryInputDataSize += chunkSpec->GetUncompressedDataSize();
             }
 
             TotalEstimatedInputDataSize += chunkSpec->GetUncompressedDataSize();
@@ -4206,17 +4207,19 @@ std::vector<TInputChunkPtr> TOperationControllerBase::CollectPrimaryVersionedChu
     return CollectPrimaryChunks(true);
 }
 
-i64 TOperationControllerBase::CalculatePrimaryVersionedChunksSize() const
+std::pair<i64, i64> TOperationControllerBase::CalculatePrimaryVersionedChunksStatistics() const
 {
     i64 dataSize = 0;
+    i64 rowCount = 0;
     for (const auto& table : InputTables) {
         if (!table.IsForeign() && table.IsDynamic && table.Schema.IsSorted()) {
             for (const auto& chunk : table.Chunks) {
                 dataSize += chunk->GetUncompressedDataSize();
+                rowCount += chunk->GetRowCount();
             }
         }
     }
-    return dataSize;
+    return std::make_pair(dataSize, rowCount);
 }
 
 std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersionedDataSlices(i64 sliceSize) const
@@ -4356,25 +4359,9 @@ bool TOperationControllerBase::InputHasVersionedTables() const
     return false;
 }
 
-i64 TOperationControllerBase::CalculateSliceDataSize(
-    i64 maxSliceDataSize,
-    const TJobSizeLimits& jobSizeLimits) const
-{
-    double multiplier = Config->SliceDataSizeMultiplier;
-    // Non-trivial multiplier should be used only if input data size is large enough.
-    // Otherwise we do not want to have more slices than job count.
-    if (TotalEstimatedInputDataSize < maxSliceDataSize) {
-        multiplier = 1.0;
-    }
-    return Clamp<i64>(
-        static_cast<i64>(multiplier * TotalEstimatedInputDataSize / jobSizeLimits.GetJobCount()),
-        1,
-        maxSliceDataSize);
-}
-
 void TOperationControllerBase::SliceUnversionedChunks(
     const std::vector<TInputChunkPtr>& unversionedChunks,
-    i64 sliceDataSize,
+    const IJobSizeConstraintsPtr& jobSizeConstraints,
     std::vector<TChunkStripePtr>* result) const
 {
     auto appendStripes = [&] (const std::vector<TInputChunkSlicePtr>& slices) {
@@ -4390,11 +4377,18 @@ void TOperationControllerBase::SliceUnversionedChunks(
 
         auto codecId = NErasure::ECodec(chunkSpec->GetErasureCodec());
         if (hasNontrivialLimits || codecId == NErasure::ECodec::None) {
-            auto slices = SliceChunkByRowIndexes(chunkSpec, sliceDataSize);
+            auto slices = SliceChunkByRowIndexes(
+                chunkSpec,
+                jobSizeConstraints->GetInputSliceDataSize(),
+                jobSizeConstraints->GetInputSliceRowCount());
+
             appendStripes(slices);
         } else {
             for (const auto& slice : CreateErasureInputChunkSlices(chunkSpec, codecId)) {
-                auto slices = slice->SliceEvenly(sliceDataSize);
+                auto slices = slice->SliceEvenly(
+                    jobSizeConstraints->GetInputSliceDataSize(),
+                    jobSizeConstraints->GetInputSliceRowCount());
+
                 appendStripes(slices);
             }
         }
@@ -4406,17 +4400,17 @@ void TOperationControllerBase::SliceUnversionedChunks(
 }
 
 void TOperationControllerBase::SlicePrimaryUnversionedChunks(
-    i64 sliceDataSize,
+    const IJobSizeConstraintsPtr& jobSizeConstraints,
     std::vector<TChunkStripePtr>* result) const
 {
-    SliceUnversionedChunks(CollectPrimaryUnversionedChunks(), sliceDataSize, result);
+    SliceUnversionedChunks(CollectPrimaryUnversionedChunks(), jobSizeConstraints, result);
 }
 
 void TOperationControllerBase::SlicePrimaryVersionedChunks(
-    i64 sliceDataSize,
+    const IJobSizeConstraintsPtr& jobSizeConstraints,
     std::vector<TChunkStripePtr>* result) const
 {
-    for (const auto& dataSlice : CollectPrimaryVersionedDataSlices(sliceDataSize)) {
+    for (const auto& dataSlice : CollectPrimaryVersionedDataSlices(jobSizeConstraints->GetInputSliceDataSize())) {
         result->push_back(New<TChunkStripe>(dataSlice));
     }
 }
@@ -4906,16 +4900,6 @@ std::vector<TOperationControllerBase::TPathWithStage> TOperationControllerBase::
 bool TOperationControllerBase::IsRowCountPreserved() const
 {
     return false;
-}
-
-int TOperationControllerBase::GetMaxJobCount(
-    TNullable<int> userMaxJobCount,
-    int maxJobCount)
-{
-    if (userMaxJobCount) {
-        maxJobCount = std::min(maxJobCount, *userMaxJobCount);
-    }
-    return maxJobCount;
 }
 
 void TOperationControllerBase::InitUserJobSpecTemplate(

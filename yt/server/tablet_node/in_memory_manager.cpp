@@ -518,5 +518,7 @@ void PreloadInMemoryStore(
     LOG_INFO("Store preload completed (LookupHashTable: %v)", static_cast<bool>(chunkData->LookupHashTable));
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NTabletNode
 } // namespace NYT

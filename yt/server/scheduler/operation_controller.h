@@ -58,7 +58,7 @@ struct IOperationHost
     /*!
      *  \note Thread affinity: any
      */
-    virtual NApi::INativeClientPtr GetMasterClient() = 0;
+    virtual const NApi::INativeClientPtr& GetMasterClient() = 0;
 
     /*!
      *  \note Thread affinity: any
@@ -68,7 +68,7 @@ struct IOperationHost
     /*!
      *  \note Thread affinity: any
      */
-    virtual NHiveClient::TClusterDirectoryPtr GetClusterDirectory() = 0;
+    virtual const NHiveClient::TClusterDirectoryPtr& GetClusterDirectory() = 0;
 
     /*!
      *  \note Thread affinity: any
@@ -88,7 +88,7 @@ struct IOperationHost
     virtual IInvokerPtr CreateOperationControllerInvoker() = 0;
 
     //! Returns the manager of the throttlers to limit #LocateChunk requests from chunk scraper.
-    virtual NChunkClient::TThrottlerManagerPtr GetChunkLocationThrottlerManager() const = 0;
+    virtual const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() const = 0;
 
     //! Returns the total number of online exec nodes.
     virtual int GetExecNodeCount() const = 0;
@@ -324,8 +324,8 @@ struct IOperationController
     /*!
      *  \note Thread affinity: Controller invoker
      */
-    //! Start building YSON representaion of all input paths with all ranges processed
-    //! by the job with specified ID.
+    //! Start building YSON representation of all input paths with all ranges processed
+    //! by the job with the specified ID.
     virtual NYson::TYsonString BuildInputPathYson(const TJobId& jobId) const = 0;
 };
 

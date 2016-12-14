@@ -206,24 +206,29 @@ DEFINE_REFCOUNTED_TYPE(TEventLogConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobSizeManagerConfig
+class TJobSizeAdjusterConfig
     : public NYTree::TYsonSerializable
 {
 public:
     TDuration MinJobTime;
+    TDuration MaxJobTime;
+
     double ExecToPrepareTimeRatio;
 
-    TJobSizeManagerConfig()
+    TJobSizeAdjusterConfig()
     {
         RegisterParameter("min_job_time", MinJobTime)
             .Default(TDuration::Seconds(60));
+
+        RegisterParameter("max_job_time", MaxJobTime)
+            .Default(TDuration::Minutes(10));
 
         RegisterParameter("exec_to_prepare_time_ratio", ExecToPrepareTimeRatio)
             .Default(20.0);
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TJobSizeManagerConfig)
+DEFINE_REFCOUNTED_TYPE(TJobSizeAdjusterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -233,10 +238,43 @@ class TOperationOptions
 public:
     NYTree::INodePtr SpecTemplate;
 
+    //! Controls finer initial slicing of input data to ensure even distribution of data split sizes among jobs.
+    double SliceDataSizeMultiplier;
+
+    //! Maximum number of chunk stripes per job.
+    int MaxChunkStripesPerJob;
+
+    i64 MaxSliceDataSize;
+    i64 MinSliceDataSize;
+
     TOperationOptions()
     {
         RegisterParameter("spec_template", SpecTemplate)
             .Default();
+
+        RegisterParameter("slice_data_size_multiplier", SliceDataSizeMultiplier)
+            .Default(0.51)
+            .GreaterThan(0.0);
+
+        RegisterParameter("max_chunk_stripes_per_job", MaxChunkStripesPerJob)
+            .Default(10000)
+            .GreaterThan(0);
+
+        RegisterParameter("max_slice_data_size", MaxSliceDataSize)
+            .Default((i64)256 * 1024 * 1024)
+            .GreaterThan(0);
+
+        RegisterParameter("min_slice_data_size", MinSliceDataSize)
+            .Default((i64)1 * 1024 * 1024)
+            .GreaterThan(0);
+
+        RegisterValidator([&] () {
+            if (MaxSliceDataSize < MinSliceDataSize) {
+                THROW_ERROR_EXCEPTION("Minimum slice data size must be less than or equal to maximum slice data size")
+                    << TErrorAttribute("min_slice_data_size", MinSliceDataSize)
+                    << TErrorAttribute("max_slice_data_size", MaxSliceDataSize);
+            }
+        });
     }
 };
 
@@ -247,25 +285,16 @@ class TSimpleOperationOptions
 {
 public:
     int MaxJobCount;
-    i64 JobMaxSliceDataSize;
     i64 DataSizePerJob;
-    TJobSizeManagerConfigPtr JobSizeManager;
 
     TSimpleOperationOptions()
     {
         RegisterParameter("max_job_count", MaxJobCount)
             .Default(100000);
 
-        RegisterParameter("job_max_slice_data_size", JobMaxSliceDataSize)
-            .Default((i64)256 * 1024 * 1024)
-            .GreaterThan(0);
-
         RegisterParameter("data_size_per_job", DataSizePerJob)
             .Default((i64) 256 * 1024 * 1024)
             .GreaterThan(0);
-
-        RegisterParameter("job_size_manager", JobSizeManager)
-            .DefaultNew();
     }
 };
 
@@ -277,8 +306,13 @@ class TMapOperationOptions
     : public TSimpleOperationOptions
 {
 public:
+    TJobSizeAdjusterConfigPtr JobSizeAdjuster;
+
     TMapOperationOptions()
     {
+        RegisterParameter("job_size_adjuster", JobSizeAdjuster)
+            .DefaultNew();
+
         RegisterInitializer([&] () {
             DataSizePerJob = (i64) 128 * 1024 * 1024;
         });
@@ -357,7 +391,7 @@ public:
     i64 CompressedBlockSize;
     i64 MinPartitionSize;
     i64 MinUncompressedBlockSize;
-    TJobSizeManagerConfigPtr PartitionJobSizeManager;
+    TJobSizeAdjusterConfigPtr PartitionJobSizeAdjuster;
 
     TSortOperationOptionsBase()
     {
@@ -396,7 +430,7 @@ public:
             .Default(1024 * 1024)
             .GreaterThanOrEqual(1);
 
-        RegisterParameter("partition_job_size_manager", PartitionJobSizeManager)
+        RegisterParameter("partition_job_size_adjuster", PartitionJobSizeAdjuster)
             .DefaultNew();
     }
 };
@@ -422,23 +456,8 @@ DEFINE_REFCOUNTED_TYPE(TMapReduceOperationOptions)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRemoteCopyOperationOptions
-    : public TOperationOptions
-{
-public:
-    int MaxJobCount;
-    i64 DataSizePerJob;
-
-    TRemoteCopyOperationOptions()
-    {
-        RegisterParameter("max_job_count", MaxJobCount)
-            .Default(100000)
-            .GreaterThan(0);
-
-        RegisterParameter("data_size_per_job", DataSizePerJob)
-            .Default((i64) 1024 * 1024 * 1024)
-            .GreaterThan(0);
-    }
-};
+    : public TSimpleOperationOptions
+{ };
 
 DEFINE_REFCOUNTED_TYPE(TRemoteCopyOperationOptions)
 
@@ -547,14 +566,8 @@ public:
     //! Maximum number of chunks per single fetch.
     int MaxChunksPerFetch;
 
-    //! Maximum number of chunk stripes per job.
-    int MaxChunkStripesPerJob;
-
     //! Maximum number of chunk trees to attach per request.
     int MaxChildrenPerAttachRequest;
-
-    //! Controls finer initial slicing of input data to ensure even distribution of data split sizes among jobs.
-    double SliceDataSizeMultiplier;
 
     //! Maximum size of file allowed to be passed to jobs.
     i64 MaxFileSize;
@@ -636,9 +649,9 @@ public:
     bool EnableTmpfs;
 
     // Enable dynamic change of job sizes.
-    bool EnablePartitionMapJobSizeManager;
+    bool EnablePartitionMapJobSizeAdjustment;
 
-    bool EnableMapJobSizeManager;
+    bool EnableMapJobSizeAdjustment;
 
     //! Acl used for intermediate tables and stderrs additional to acls specified by user.
     NYTree::IListNodePtr AdditionalIntermediateDataAcl;
@@ -778,17 +791,9 @@ public:
             .Default(100000)
             .GreaterThan(0);
 
-        RegisterParameter("max_chunk_stripes_per_job", MaxChunkStripesPerJob)
-            .Default(50000)
-            .GreaterThan(0);
-
         RegisterParameter("max_children_per_attach_request", MaxChildrenPerAttachRequest)
             .Default(10000)
             .GreaterThan(0);
-
-        RegisterParameter("slice_data_size_multiplier", SliceDataSizeMultiplier)
-            .Default(0.51)
-            .GreaterThan(0.0);
 
         RegisterParameter("max_file_size", MaxFileSize)
             .Default((i64) 10 * 1024 * 1024 * 1024);
@@ -886,7 +891,7 @@ public:
 
         RegisterParameter("enable_tmpfs", EnableTmpfs)
             .Default(true);
-        RegisterParameter("enable_map_job_size_manager", EnableMapJobSizeManager)
+        RegisterParameter("enable_map_job_size_adjustment", EnableMapJobSizeAdjustment)
             .Default(true);
 
         RegisterParameter("additional_intermediate_data_acl", AdditionalIntermediateDataAcl)
@@ -894,9 +899,9 @@ public:
                 .BeginList()
                 .EndList()->AsList());
 
-        //! By default we disable job size manager for partition maps,
+        //! By default we disable job size adjustment for partition maps, 
         //! since it may lead to partition data skew between nodes.
-        RegisterParameter("enable_partition_map_job_size_manager", EnablePartitionMapJobSizeManager)
+        RegisterParameter("enable_partition_map_job_size_adjustment", EnablePartitionMapJobSizeAdjustment)
             .Default(false);
 
         RegisterParameter("user_job_memory_digest_precision", UserJobMemoryDigestPrecision)
