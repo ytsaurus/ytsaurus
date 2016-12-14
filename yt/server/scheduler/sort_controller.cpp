@@ -6,7 +6,6 @@
 #include "job_memory.h"
 #include "map_controller.h"
 #include "operation_controller_detail.h"
-#include "job_size_manager.h"
 
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/transaction.h>
@@ -126,7 +125,6 @@ public:
         Persist(context, MergeTaskGroup);
 
         Persist(context, PartitionTask);
-        Persist(context, JobSizeManager);
     }
 
 private:
@@ -301,7 +299,6 @@ protected:
 
     TPartitionTaskPtr PartitionTask;
 
-    std::unique_ptr<IJobSizeManager> JobSizeManager;
 
     //! Implements partition phase for sort operations and map phase for map-reduce operations.
     class TPartitionTask
@@ -495,14 +492,6 @@ protected:
                 stripe,
                 Controller->ShufflePool->GetInput(),
                 true);
-
-            if (Controller->JobSizeManager) {
-                Controller->JobSizeManager->OnJobCompleted(jobSummary);
-                Controller->PartitionPool->SetDataSizePerJob(
-                    Controller->JobSizeManager->GetIdealDataSizePerJob());
-                LOG_DEBUG("Set ideal data size per job (DataSizePerJob: %v)",
-                    Controller->JobSizeManager->GetIdealDataSizePerJob());
-            }
 
             // Kick-start sort and unordered merge tasks.
             // Compute sort data size delta.
@@ -854,7 +843,7 @@ protected:
 
             TTask::OnJobLost(completedJob);
 
-            if (!Partition->Completed) {
+            if (!Partition->Completed && Controller->PartitionTask) {
                 Controller->AddTaskPendingHint(this);
                 Controller->AddTaskPendingHint(Controller->PartitionTask);
             }
@@ -1390,11 +1379,11 @@ protected:
         LOG_DEBUG("Partitions assigned");
     }
 
-    void InitPartitionPool(i64 dataSizePerJob)
+    void InitPartitionPool(IJobSizeConstraintsPtr jobSizeConstraints, TJobSizeAdjusterConfigPtr jobSizeAdjusterConfig)
     {
         PartitionPool = CreateUnorderedChunkPool(
-            dataSizePerJob,
-            Config->MaxChunkStripesPerJob);
+            std::move(jobSizeConstraints),
+            std::move(jobSizeAdjusterConfig));
     }
 
     void InitShufflePool()
@@ -1408,11 +1397,11 @@ protected:
         }
     }
 
-    void InitSimpleSortPool(i64 dataSizePerJob)
+    void InitSimpleSortPool(IJobSizeConstraintsPtr jobSizeConstraints)
     {
         SimpleSortPool = CreateUnorderedChunkPool(
-            dataSizePerJob,
-            Config->MaxChunkStripesPerJob);
+            std::move(jobSizeConstraints),
+            nullptr);
     }
 
     virtual bool IsCompleted() const override
@@ -1503,7 +1492,7 @@ protected:
                 continue;
             }
 
-            const auto& task = partition->Maniac 
+            const auto& task = partition->Maniac
                 ? static_cast<TTaskPtr>(partition->UnorderedMergeTask)
                 : static_cast<TTaskPtr>(partition->SortTask);
 
@@ -1649,28 +1638,6 @@ protected:
         return static_cast<int>(Clamp<i64>(result, 1, Options->MaxPartitionCount));
     }
 
-    TJobSizeLimits SuggestPartitionJobLimits() const
-    {
-        TJobSizeLimits jobSizeLimits(
-            TotalEstimatedInputDataSize,
-            Spec->DataSizePerPartitionJob.Get(TotalEstimatedInputDataSize),
-            Spec->PartitionJobCount,
-            Options->MaxPartitionJobCount);
-        if (!Spec->PartitionJobCount && !Spec->DataSizePerPartitionJob) {
-            // Rationale and details are on the wiki.
-            // https://wiki.yandex-team.ru/yt/design/partitioncount/
-            i64 uncompressedBlockSize = static_cast<i64>(Options->CompressedBlockSize / GetCompressionRatio());
-            uncompressedBlockSize = std::min(uncompressedBlockSize, Spec->PartitionJobIO->TableWriter->BlockSize);
-
-            // Product may not fit into i64.
-            double partitionJobDataSize = sqrt(TotalEstimatedInputDataSize) * sqrt(uncompressedBlockSize);
-            partitionJobDataSize = std::min(partitionJobDataSize, static_cast<double>(GetMaxPartitionJobBufferSize()));
-
-            jobSizeLimits.SetDataSizePerJob(static_cast<i64>(partitionJobDataSize));
-        }
-        return jobSizeLimits;
-    }
-
     // Partition progress.
 
     struct TPartitionProgress
@@ -1793,7 +1760,7 @@ protected:
         auto user = AuthenticatedUser;
         auto account = Spec->IntermediateDataAccount;
 
-        auto client = Host->GetMasterClient();
+        const auto& client = Host->GetMasterClient();
         auto asyncResult = client->CheckPermission(
             user,
             "//sys/accounts/" + account,
@@ -2048,19 +2015,17 @@ private:
     void BuildSinglePartition()
     {
         // Choose sort job count and initialize the pool.
-        TJobSizeLimits jobSizeLimits(
-            TotalEstimatedInputDataSize,
-            Spec->DataSizePerSortJob,
-            TNullable<int>(),
-            Options->MaxPartitionJobCount);
+        auto jobSizeConstraints = CreateSimpleSortJobSizeConstraints(
+            Spec,
+            Options,
+            TotalEstimatedInputDataSize);
+
         std::vector<TChunkStripePtr> stripes;
-        auto sliceDataSize = CalculateSliceDataSize(Options->SortJobMaxSliceDataSize, jobSizeLimits);
-        SlicePrimaryUnversionedChunks(sliceDataSize, &stripes);
-        SlicePrimaryVersionedChunks(sliceDataSize, &stripes);
-        jobSizeLimits.UpdateStripeCount(stripes.size(), Config->MaxChunkStripesPerJob);
+        SlicePrimaryUnversionedChunks(jobSizeConstraints, &stripes);
+        SlicePrimaryVersionedChunks(jobSizeConstraints, &stripes);
 
         // Create the fake partition.
-        InitSimpleSortPool(jobSizeLimits.GetDataSizePerJob());
+        InitSimpleSortPool(jobSizeConstraints);
         auto partition = New<TPartition>(this, 0);
         Partitions.push_back(partition);
         partition->ChunkPoolOutput = SimpleSortPool.get();
@@ -2071,8 +2036,8 @@ private:
         SortDataSizeCounter.Set(SimpleSortPool->GetTotalDataSize());
 
         LOG_INFO("Sorting without partitioning (SortJobCount: %v, DataSizePerJob: %v)",
-            jobSizeLimits.GetJobCount(),
-            jobSizeLimits.GetDataSizePerJob());
+            jobSizeConstraints->GetJobCount(),
+            jobSizeConstraints->GetDataSizePerJob());
 
         // Kick-start the sort task.
         SortStartThresholdReached = true;
@@ -2171,14 +2136,18 @@ private:
 
         InitShufflePool();
 
-        auto jobSizeLimits = SuggestPartitionJobLimits();
-        std::vector<TChunkStripePtr> stripes;
-        auto sliceDataSize = CalculateSliceDataSize(Options->PartitionJobMaxSliceDataSize, jobSizeLimits);
-        SlicePrimaryUnversionedChunks(sliceDataSize, &stripes);
-        SlicePrimaryVersionedChunks(sliceDataSize, &stripes);
-        jobSizeLimits.UpdateStripeCount(stripes.size(), Config->MaxChunkStripesPerJob);
+        auto jobSizeConstraints = CreatePartitionJobSizeConstraints(
+            Spec,
+            Options,
+            TotalEstimatedInputDataSize,
+            TotalEstimatedInputRowCount,
+            GetCompressionRatio());
 
-        InitPartitionPool(jobSizeLimits.GetDataSizePerJob());
+        std::vector<TChunkStripePtr> stripes;
+        SlicePrimaryUnversionedChunks(jobSizeConstraints, &stripes);
+        SlicePrimaryVersionedChunks(jobSizeConstraints, &stripes);
+
+        InitPartitionPool(jobSizeConstraints, nullptr);
 
         PartitionTask = New<TPartitionTask>(this);
         PartitionTask->Initialize();
@@ -2188,8 +2157,8 @@ private:
 
         LOG_INFO("Sorting with partitioning (PartitionCount: %v, PartitionJobCount: %v, DataSizePerPartitionJob: %v)",
             partitionCount,
-            jobSizeLimits.GetJobCount(),
-            jobSizeLimits.GetDataSizePerJob());
+            jobSizeConstraints->GetJobCount(),
+            jobSizeConstraints->GetDataSizePerJob());
     }
 
     void InitJobIOConfigs()
@@ -2678,27 +2647,20 @@ private:
 
         InitShufflePool();
 
-        auto jobSizeLimits = SuggestPartitionJobLimits();
+        auto jobSizeConstraints = CreatePartitionJobSizeConstraints(
+            Spec,
+            Options,
+            TotalEstimatedInputDataSize,
+            TotalEstimatedInputRowCount,
+            GetCompressionRatio());
+
         std::vector<TChunkStripePtr> stripes;
-        auto sliceDataSize = CalculateSliceDataSize(Options->PartitionJobMaxSliceDataSize, jobSizeLimits);
-        SlicePrimaryUnversionedChunks(sliceDataSize, &stripes);
-        SlicePrimaryVersionedChunks(sliceDataSize, &stripes);
-        jobSizeLimits.UpdateStripeCount(stripes.size(), Config->MaxChunkStripesPerJob);
+        SlicePrimaryUnversionedChunks(jobSizeConstraints, &stripes);
+        SlicePrimaryVersionedChunks(jobSizeConstraints, &stripes);
 
-        InitPartitionPool(jobSizeLimits.GetDataSizePerJob());
-
-        if (Config->EnablePartitionMapJobSizeManager && !Spec->PartitionJobCount && !Spec->DataSizePerPartitionJob) {
-            LOG_DEBUG("Activating job size manager (DataSizePerPartitionJob: %v, MaxJobDataSize: %v, MinPartitionJobTime: %v, ExecToPrepareTimeRatio: %v",
-                jobSizeLimits.GetDataSizePerJob(),
-                Spec->MaxDataSizePerJob,
-                Options->PartitionJobSizeManager->MinJobTime,
-                Options->PartitionJobSizeManager->ExecToPrepareTimeRatio);
-            JobSizeManager = CreateJobSizeManager(
-                jobSizeLimits.GetDataSizePerJob(),
-                Spec->MaxDataSizePerJob,
-                Options->PartitionJobSizeManager);
-            PartitionPool->SetMaxDataSizePerJob(Spec->MaxDataSizePerJob);
-        }
+        InitPartitionPool(jobSizeConstraints, Config->EnablePartitionMapJobSizeAdjustment
+            ? Options->PartitionJobSizeAdjuster
+            : nullptr);
 
         PartitionTask = New<TPartitionTask>(this);
         PartitionTask->Initialize();
@@ -2708,8 +2670,8 @@ private:
 
         LOG_INFO("Map-reducing with partitioning (PartitionCount: %v, PartitionJobCount: %v, PartitionDataSizePerJob: %v)",
             partitionCount,
-            jobSizeLimits.GetJobCount(),
-            jobSizeLimits.GetDataSizePerJob());
+            jobSizeConstraints->GetJobCount(),
+            jobSizeConstraints->GetDataSizePerJob());
     }
 
     void InitJobIOConfigs()

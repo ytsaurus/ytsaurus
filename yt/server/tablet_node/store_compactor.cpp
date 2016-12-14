@@ -590,23 +590,23 @@ private:
             hydraRequest.set_mount_revision(mountRevision);
             ToProto(hydraRequest.mutable_transaction_id(), transaction->GetId());
 
-            SmallVector<TStoreId, TypicalStoreIdCount> storeIdsToAdd;
+            SmallVector<TStoreId, TypicalStoreIdCount> storeIdsToRemove;
             for (const auto& store : stores) {
                 auto* descriptor = hydraRequest.add_stores_to_remove();
                 auto storeId = store->GetId();
                 ToProto(descriptor->mutable_store_id(), storeId);
-                storeIdsToAdd.push_back(storeId);
+                storeIdsToRemove.push_back(storeId);
             }
 
             // TODO(sandello): Move specs?
-            SmallVector<TStoreId, TypicalStoreIdCount> storeIdsToRemove;
+            SmallVector<TStoreId, TypicalStoreIdCount> storeIdsToAdd;
             for (const auto& writer : writerPool.GetAllWriters()) {
                 for (const auto& chunkSpec : writer->GetWrittenChunksMasterMeta()) {
                     auto* descriptor = hydraRequest.add_stores_to_add();
                     descriptor->set_store_type(static_cast<int>(EStoreType::SortedChunk));
                     descriptor->mutable_store_id()->CopyFrom(chunkSpec.chunk_id());
                     descriptor->mutable_chunk_meta()->CopyFrom(chunkSpec.chunk_meta());
-                    storeIdsToRemove.push_back(FromProto<TStoreId>(chunkSpec.chunk_id()));
+                    storeIdsToAdd.push_back(FromProto<TStoreId>(chunkSpec.chunk_id()));
                 }
             }
 

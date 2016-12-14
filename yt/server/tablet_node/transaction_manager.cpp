@@ -140,13 +140,22 @@ public:
         const TTransactionId& transactionId,
         TTimestamp startTimestamp,
         TDuration timeout,
-        bool transient)
+        bool transient,
+        bool* fresh = nullptr)
     {
+        if (fresh) {
+            *fresh = false;
+        }
+
         if (auto* transaction = TransientTransactionMap_.Find(transactionId)) {
             return transaction;
         }
         if (auto* transaction = PersistentTransactionMap_.Find(transactionId)) {
             return transaction;
+        }
+
+        if (fresh) {
+            *fresh = true;
         }
 
         auto transactionHolder = std::make_unique<TTransaction>(transactionId);
@@ -191,6 +200,17 @@ public:
         }
 
         Y_UNREACHABLE();
+    }
+
+    void DropTransaction(TTransaction* transaction)
+    {
+        YCHECK(transaction->GetTransient());
+
+        auto transactionId = transaction->GetId();
+        TransientTransactionMap_.Remove(transactionId);
+
+        LOG_DEBUG("Transaction dropped (TransactionId: %v)",
+            transactionId);
     }
 
     std::vector<TTransaction*> GetTransactions()
@@ -541,6 +561,7 @@ private:
 
         LeaseTracker_->Stop();
 
+        // Drop all transient transactions.
         for (const auto& pair : TransientTransactionMap_) {
             auto* transaction = pair.second;
             transaction->ResetFinished();
@@ -795,18 +816,25 @@ TTransaction* TTransactionManager::GetOrCreateTransaction(
     const TTransactionId& transactionId,
     TTimestamp startTimestamp,
     TDuration timeout,
-    bool transient)
+    bool transient,
+    bool* fresh)
 {
     return Impl_->GetOrCreateTransaction(
         transactionId,
         startTimestamp,
         timeout,
-        transient);
+        transient,
+        fresh);
 }
 
 TTransaction* TTransactionManager::MakeTransactionPersistent(const TTransactionId& transactionId)
 {
     return Impl_->MakeTransactionPersistent(transactionId);
+}
+
+void TTransactionManager::DropTransaction(TTransaction* transaction)
+{
+    Impl_->DropTransaction(transaction);
 }
 
 std::vector<TTransaction*> TTransactionManager::GetTransactions()

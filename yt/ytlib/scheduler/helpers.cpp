@@ -55,6 +55,13 @@ TYPath GetSnapshotPath(const TOperationId& operationId)
         + "/snapshot";
 }
 
+TYPath GetSecureVaultPath(const TOperationId& operationId)
+{
+    return
+        GetOperationPath(operationId)
+        + "/secure_vault";
+}
+
 TYPath GetPoolsPath()
 {
     return "//sys/pools";

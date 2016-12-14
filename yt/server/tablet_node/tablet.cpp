@@ -900,12 +900,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
     snapshot->RetainedTimestamp = RetainedTimestamp_;
     snapshot->UnflushedTimestamp = GetUnflushedTimestamp();
 
-    snapshot->Eden = Eden_->BuildSnapshot();
-
-    snapshot->PartitionList.reserve(PartitionList_.size());
-    for (const auto& partition : PartitionList_) {
-        auto partitionSnapshot = partition->BuildSnapshot();
-        snapshot->PartitionList.push_back(partitionSnapshot);
+    auto addPartitionStatistics = [&] (const TPartitionSnapshotPtr& partitionSnapshot) {
         snapshot->StoreCount += partitionSnapshot->Stores.size();
         for (const auto& store : partitionSnapshot->Stores) {
             if (store->IsChunk()) {
@@ -924,6 +919,16 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
                 }
             }
         }
+    };
+
+    snapshot->Eden = Eden_->BuildSnapshot();
+    addPartitionStatistics(snapshot->Eden);
+
+    snapshot->PartitionList.reserve(PartitionList_.size());
+    for (const auto& partition : PartitionList_) {
+        auto partitionSnapshot = partition->BuildSnapshot();
+        snapshot->PartitionList.push_back(partitionSnapshot);
+        addPartitionStatistics(partitionSnapshot);
     }
 
     if (IsPhysicallyOrdered()) {

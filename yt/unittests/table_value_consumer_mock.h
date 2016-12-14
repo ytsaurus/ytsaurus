@@ -1,9 +1,9 @@
 #pragma once
 
-#include "name_table.h"
-#include "value_consumer.h"
+#include "framework.h"
 
-#include <contrib/testing/gmock.h>
+#include <yt/ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/value_consumer.h>
 
 namespace NYT {
 namespace NTableClient {

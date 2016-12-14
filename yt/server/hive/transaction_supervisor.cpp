@@ -236,7 +236,7 @@ private:
 
             LOG_DEBUG("Participant cell is up");
 
-            for (const auto& sender : PendingSenders_) {
+            for (const auto& sender : senders) {
                 sender.Run();
             }
         }

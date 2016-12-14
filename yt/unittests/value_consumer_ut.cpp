@@ -1,10 +1,10 @@
 #include "framework.h"
 
+#include "table_value_consumer_mock.h"
 #include "ql_helpers.h"
 
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/value_consumer.h>
-#include <yt/ytlib/table_client/value_consumer_mock.h>
 
 #include <yt/core/ytree/fluent.h>
 

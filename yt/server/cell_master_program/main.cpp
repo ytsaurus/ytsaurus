@@ -40,6 +40,9 @@ protected:
     {
         TThread::CurrentThreadSetName("MasterMain");
 
+        bool dumpSnapshot = parseResult.Has("dump-snapshot");
+        bool validateSnapshot = parseResult.Has("validate-snapshot");
+
         ConfigureUids();
         ConfigureSignals();
         ConfigureCrashHandler();
@@ -55,22 +58,25 @@ protected:
         auto config = GetConfig();
         auto configNode = GetConfigNode();
 
+        if (dumpSnapshot) {
+            config->Logging = NLogging::TLogConfig::CreateSilent();
+        } else if (validateSnapshot) {
+            config->Logging = NLogging::TLogConfig::CreateQuiet();
+        }
+
+        ConfigureServerSingletons(config);
+
         // TODO(babenko): This memory leak is intentional.
         // We should avoid destroying bootstrap since some of the subsystems
         // may be holding a reference to it and continue running some actions in background threads.
-        auto* bootstrap = new NCellMaster::TBootstrap(config, std::move(configNode));
+        auto* bootstrap = new NCellMaster::TBootstrap(std::move(config), std::move(configNode));
+        bootstrap->Initialize();
 
-        if (parseResult.Has("dump-snapshot")) {
-            NLogging::TLogManager::Get()->Configure(NLogging::TLogConfig::CreateSilent());
-            bootstrap->Initialize();
+        if (dumpSnapshot) {
             bootstrap->TryLoadSnapshot(DumpSnapshot_, true);
-        } else if (parseResult.Has("validate-snapshot")) {
-            NLogging::TLogManager::Get()->Configure(NLogging::TLogConfig::CreateQuiet());
-            bootstrap->Initialize();
+        } else if (validateSnapshot) {
             bootstrap->TryLoadSnapshot(ValidateSnapshot_, false);
         } else {
-            ConfigureServerSingletons(config);
-            bootstrap->Initialize();
             bootstrap->Run();
         }
     }

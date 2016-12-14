@@ -26,15 +26,15 @@ namespace NYT {
 
 static void PrintVersionAndExit()
 {
-    Cerr << GetVersion() << Endl;
+    Cout << GetVersion() << Endl;
     _exit(0);
 }
 
 static void PrintBuildAndExit()
 {
-    Cerr << "Build Time: " << GetBuildTime() << Endl;
-    Cerr << "Build Host: " << GetBuildHost() << Endl;
-    Cerr << "Build Machine: " << GetBuildMachine() << Endl;
+    Cout << "Build Time: " << GetBuildTime() << Endl;
+    Cout << "Build Host: " << GetBuildHost() << Endl;
+    Cout << "Build Machine: " << GetBuildMachine() << Endl;
     _exit(0);
 }
 

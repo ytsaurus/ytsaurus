@@ -119,6 +119,7 @@ private:
             // Each attempt causes a mutation to be enqueued to Hydra.
             // Since all these mutations are enqueued within a single epoch, only the last commit outcome is
             // actually relevant.
+            // Note that we're passing signature to every such call but only the last one actually uses it.
             tabletManager->Write(
                 tabletSnapshot,
                 transactionId,

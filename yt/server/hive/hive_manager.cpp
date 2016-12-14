@@ -932,10 +932,13 @@ private:
             nextPersistentIncomingMessageId,
             nextTransientIncomingMessageId);
 
-        if (nextPersistentIncomingMessageId) {
-            HandlePersistentIncomingMessages(mailbox, *nextPersistentIncomingMessageId);
+        if (nextPersistentIncomingMessageId && !HandlePersistentIncomingMessages(mailbox, *nextPersistentIncomingMessageId)) {
+            return;
         }
-        HandleTransientIncomingMessages(mailbox, nextTransientIncomingMessageId);
+
+        if (!HandleTransientIncomingMessages(mailbox, nextTransientIncomingMessageId)) {
+            return;
+        }
 
         MaybePostOutcomingMessages(mailbox, false);
     }
@@ -998,17 +1001,46 @@ private:
     }
 
 
-    void HandlePersistentIncomingMessages(TMailbox* mailbox, TMessageId nextPersistentIncomingMessageId)
+    bool CheckRequestedMessageIdAgainstMailbox(TMailbox* mailbox, TMessageId requestedMessageId)
     {
-        if (mailbox->GetAcknowledgeInProgress()) {
-            return;
+        if (requestedMessageId < mailbox->GetFirstOutcomingMessageId()) {
+            LOG_ERROR_UNLESS(IsRecovery(), "Destination is out of sync: requested to receive already truncated messages (SrcCellId: %v, DstCellId: %v, "
+                "RequestedMessageId: %v, FirstOutcomingMessageId: %v)",
+                SelfCellId_,
+                mailbox->GetCellId(),
+                requestedMessageId,
+                mailbox->GetFirstOutcomingMessageId());
+            SetMailboxDisconnected(mailbox);
+            return false;
         }
 
-        YCHECK(nextPersistentIncomingMessageId >= mailbox->GetFirstOutcomingMessageId());
-        YCHECK(nextPersistentIncomingMessageId <= mailbox->GetFirstOutcomingMessageId() + mailbox->OutcomingMessages().size());
+        if (requestedMessageId > mailbox->GetFirstOutcomingMessageId() + mailbox->OutcomingMessages().size()) {
+            LOG_ERROR_UNLESS(IsRecovery(), "Destination is out of sync: requested to receive nonexisting messages (SrcCellId: %v, DstCellId: %v, "
+                "RequestedMessageId: %v, FirstOutcomingMessageId: %v, OutcomingMessageCount: %v)",
+                SelfCellId_,
+                mailbox->GetCellId(),
+                requestedMessageId,
+                mailbox->GetFirstOutcomingMessageId(),
+                mailbox->OutcomingMessages().size());
+            SetMailboxDisconnected(mailbox);
+            return false;
+        }
+
+        return true;
+    }
+
+    bool HandlePersistentIncomingMessages(TMailbox* mailbox, TMessageId nextPersistentIncomingMessageId)
+    {
+        if (!CheckRequestedMessageIdAgainstMailbox(mailbox, nextPersistentIncomingMessageId)) {
+            return false;
+        }
+
+        if (mailbox->GetAcknowledgeInProgress()) {
+            return true;
+        }
 
         if (nextPersistentIncomingMessageId == mailbox->GetFirstOutcomingMessageId()) {
-            return;
+            return true;
         }
 
         NHiveServer::NProto::TReqAcknowledgeMessages req;
@@ -1026,36 +1058,18 @@ private:
 
         CreateAcknowledgeMessagesMutation(req)
             ->CommitAndLog(Logger);
+
+        return true;
     }
 
-    void HandleTransientIncomingMessages(TMailbox* mailbox, TMessageId nextTransientIncomingMessageId)
+    bool HandleTransientIncomingMessages(TMailbox* mailbox, TMessageId nextTransientIncomingMessageId)
     {
-        if (nextTransientIncomingMessageId < mailbox->GetFirstOutcomingMessageId()) {
-            LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: requested to receive already truncated messages (SrcCellId: %v, DstCellId: %v, "
-                "NextTransientIncomingMessageId: %v, FirstOutcomingMessageId: %v)",
-                SelfCellId_,
-                mailbox->GetCellId(),
-                nextTransientIncomingMessageId,
-                mailbox->GetFirstOutcomingMessageId());
-            // NB: This is not likely to help.
-            mailbox->SetFirstInFlightOutcomingMessageId(mailbox->GetFirstOutcomingMessageId());
-            return;
-        }
-
-        if (nextTransientIncomingMessageId > mailbox->GetFirstOutcomingMessageId() + mailbox->OutcomingMessages().size()) {
-            LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: requested to receive nonexisting messages (SrcCellId: %v, DstCellId: %v, "
-                "NextTransientIncomingMessageId: %v, FirstOutcomingMessageId: %v, OutcomingMessageCount: %v)",
-                SelfCellId_,
-                mailbox->GetCellId(),
-                nextTransientIncomingMessageId,
-                mailbox->GetFirstOutcomingMessageId(),
-                mailbox->OutcomingMessages().size());
-            // NB: This is not likely to help.
-            mailbox->SetFirstInFlightOutcomingMessageId(mailbox->GetFirstOutcomingMessageId());
-            return;
+        if (!CheckRequestedMessageIdAgainstMailbox(mailbox, nextTransientIncomingMessageId)) {
+            return false;
         }
 
         mailbox->SetFirstInFlightOutcomingMessageId(nextTransientIncomingMessageId);
+        return true;
     }
 
     

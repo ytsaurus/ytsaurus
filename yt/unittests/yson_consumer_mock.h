@@ -1,8 +1,8 @@
 #pragma once
 
-#include "consumer.h"
+#include <yt/core/yson/consumer.h>
 
-#include <contrib/testing/gmock.h>
+#include <contrib/libs/gmock/gmock/gmock.h>
 
 namespace NYT {
 namespace NYson {

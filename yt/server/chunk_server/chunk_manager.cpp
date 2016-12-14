@@ -2158,8 +2158,8 @@ private:
             case ERemoveReplicaReason::ApproveTimeout:
             case ERemoveReplicaReason::ChunkDestroyed:
                 node->RemoveReplica(chunkWithIndexes);
-                if (ChunkReplicator_ && !cached && reason != ERemoveReplicaReason::ChunkDestroyed) {
-                    ChunkReplicator_->OnReplicaRemoved(node, chunkWithIndexes);
+                if (ChunkReplicator_ && !cached) {
+                    ChunkReplicator_->OnReplicaRemoved(node, chunkWithIndexes, reason);
                 }
                 break;
             case ERemoveReplicaReason::NodeDisposed:

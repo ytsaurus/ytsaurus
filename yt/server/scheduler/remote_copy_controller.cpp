@@ -347,17 +347,12 @@ private:
             stripes.push_back(New<TChunkStripe>(CreateInputDataSlice(CreateInputChunkSlice(chunkSpec))));
         }
 
-        TJobSizeLimits jobSizeLimits(
-            TotalEstimatedInputDataSize,
-            Spec_->DataSizePerJob.Get(Options_->DataSizePerJob),
-            Spec_->JobCount,
-            GetMaxJobCount(Spec_->MaxJobCount, Options_->MaxJobCount));
-        jobSizeLimits.SetJobCount(std::min(jobSizeLimits.GetJobCount(), static_cast<int>(stripes.size())));
+        auto jobSizeConstraints = CreateSimpleJobSizeConstraints(Spec_, Options_, TotalEstimatedInputDataSize);
 
-        if (stripes.size() > Spec_->MaxChunkCountPerJob * jobSizeLimits.GetJobCount()) {
+        if (stripes.size() > Spec_->MaxChunkCountPerJob * jobSizeConstraints->GetJobCount()) {
             THROW_ERROR_EXCEPTION("Too many chunks per job: actual %v, limit %v; "
                 "please merge input tables before starting Remote Copy",
-                stripes.size() / jobSizeLimits.GetJobCount(),
+                stripes.size() / jobSizeConstraints->GetJobCount(),
                 Spec_->MaxChunkCountPerJob);
         }
 
@@ -433,7 +428,7 @@ private:
         for (auto stripe : stripes) {
             currentStripes.push_back(stripe);
             currentDataSize += stripe->GetStatistics().DataSize;
-            if (currentDataSize >= dataSizePerJob || currentStripes.size() == Config->MaxChunkStripesPerJob) {
+            if (currentDataSize >= dataSizePerJob || currentStripes.size() == Options_->MaxChunkStripesPerJob) {
                 addTask(currentStripes, Tasks.size());
                 currentStripes.clear();
                 currentDataSize = 0;
@@ -497,7 +492,7 @@ private:
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).Data());
 
-        auto clusterDirectory = Host->GetClusterDirectory();
+        const auto& clusterDirectory = Host->GetClusterDirectory();
         TNativeConnectionConfigPtr connectionConfig;
         if (Spec_->ClusterConnection) {
             connectionConfig = *Spec_->ClusterConnection;

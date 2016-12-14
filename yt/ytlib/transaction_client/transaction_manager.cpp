@@ -175,7 +175,8 @@ public:
         Ping_ = options.Ping;
         PingAncestors_ = options.PingAncestors;
         State_ = ETransactionState::Active;
-        YCHECK(ParticiapantCellIds_.insert(Owner_->CellId_).second);
+        YCHECK(RegisteredParticipantIds_.insert(Owner_->CellId_).second);
+        YCHECK(ConfirmedParticipantIds_.insert(Owner_->CellId_).second);
 
         Register();
 
@@ -348,7 +349,7 @@ public:
     }
 
 
-    void AddParticipant(const TCellId& cellId)
+    void RegisterParticipant(const TCellId& cellId)
     {
         YCHECK(TypeFromId(cellId) == EObjectType::TabletCell);
 
@@ -364,8 +365,33 @@ public:
                 return;
             }
 
-            if (ParticiapantCellIds_.insert(cellId).second) {
-                LOG_DEBUG("Transaction participant added (TransactionId: %v, CellId: %v)",
+            if (RegisteredParticipantIds_.insert(cellId).second) {
+                LOG_DEBUG("Transaction participant registered (TransactionId: %v, CellId: %v)",
+                    Id_,
+                    cellId);
+            }
+        }
+    }
+
+    void ConfirmParticipant(const TCellId& cellId)
+    {
+        YCHECK(TypeFromId(cellId) == EObjectType::TabletCell);
+
+
+        if (Atomicity_ != EAtomicity::Full) {
+            return;
+        }
+
+        {
+            auto guard = Guard(SpinLock_);
+
+            if (State_ != ETransactionState::Active) {
+                return;
+            }
+
+            YCHECK(RegisteredParticipantIds_.find(cellId) != RegisteredParticipantIds_.end());
+            if (ConfirmedParticipantIds_.insert(cellId).second) {
+                LOG_DEBUG("Transaction participant confirmed (TransactionId: %v, CellId: %v)",
                     Id_,
                     cellId);
             }
@@ -423,7 +449,8 @@ private:
     TSingleShotCallbackList<void()> Committed_;
     TSingleShotCallbackList<void()> Aborted_;
 
-    yhash_set<TCellId> ParticiapantCellIds_;
+    yhash_set<TCellId> RegisteredParticipantIds_;
+    yhash_set<TCellId> ConfirmedParticipantIds_;
 
     TError Error_;
 
@@ -567,7 +594,8 @@ private:
         }
 
         State_ = ETransactionState::Active;
-        YCHECK(ParticiapantCellIds_.insert(Owner_->CellId_).second);
+        YCHECK(RegisteredParticipantIds_.insert(Owner_->CellId_).second);
+        YCHECK(ConfirmedParticipantIds_.insert(Owner_->CellId_).second);
 
         const auto& rsp = rspOrError.Value();
         Id_ = FromProto<TTransactionId>(rsp->object_id());
@@ -651,13 +679,14 @@ private:
 
         FireCommitted();
 
-        LOG_DEBUG("Transaction committed (TransactionId: %v)",
-            Id_);
+        LOG_DEBUG("Transaction committed (TransactionId: %v, CommitTimestamp: %v)",
+            Id_,
+            CommitTimestamp_);
     }
 
     TFuture<void> DoCommitAtomic(const TTransactionCommitOptions& options)
     {
-        if (ParticiapantCellIds_.empty()) {
+        if (RegisteredParticipantIds_.empty()) {
             SetTransactionCommitted(NullTimestamp);
             return VoidFuture;
         }
@@ -673,7 +702,8 @@ private:
             auto proxy = Owner_->MakeSupervisorProxy(std::move(coordinatorChannel), true);
             auto req = proxy.CommitTransaction();
             ToProto(req->mutable_transaction_id(), Id_);
-            for (const auto& cellId : ParticiapantCellIds_) {
+            auto participantIds = GetRegisteredParticipantIds();
+            for (const auto& cellId : participantIds) {
                 if (cellId != coordinatorCellId) {
                     ToProto(req->add_participant_cell_ids(), cellId);
                 }
@@ -701,15 +731,15 @@ private:
         }
 
         if (options.CoordinatorCellId) {
-            if (ParticiapantCellIds_.find(options.CoordinatorCellId) == ParticiapantCellIds_.end()) {
+            if (!IsParticipantRegistered(options.CoordinatorCellId)) {
                 THROW_ERROR_EXCEPTION("Cell %v is not a participant",
                     options.CoordinatorCellId);
             }
             return options.CoordinatorCellId;
         }
 
-        auto participantCellIds = GetParticipantCellIds();
-        return participantCellIds[RandomNumber(participantCellIds.size())];
+        auto participantIds = GetRegisteredParticipantIds();
+        return participantIds[RandomNumber(participantIds.size())];
     }
 
     void OnAtomicTransactionCommitted(
@@ -721,7 +751,7 @@ private:
                 Id_,
                 cellId)
                 << rspOrError;
-            DoAbort(error);
+            OnFailure(error);
             THROW_ERROR error;
         }
 
@@ -733,7 +763,7 @@ private:
     TFuture<void> SendPing(bool retry)
     {
         std::vector<TFuture<void>> asyncResults;
-        auto participantIds = GetParticipantCellIds();
+        auto participantIds = GetConfirmedParticipantIds();
         for (const auto& cellId : participantIds) {
             LOG_DEBUG("Pinging transaction (TransactionId: %v, CellId: %v)",
                 Id_,
@@ -758,7 +788,10 @@ private:
                         LOG_DEBUG("Transaction pinged (TransactionId: %v, CellId: %v)",
                             Id_,
                             cellId);
-                    } else if (rspOrError.GetCode() == NTransactionClient::EErrorCode::NoSuchTransaction && GetState() == ETransactionState::Active) {
+                    } else if (
+                        rspOrError.GetCode() == NTransactionClient::EErrorCode::NoSuchTransaction &&
+                        GetState() == ETransactionState::Active)
+                    {
                         // Hard error.
                         LOG_WARNING("Transaction has expired or was aborted (TransactionId: %v, CellId: %v)",
                             Id_,
@@ -766,7 +799,7 @@ private:
                         auto error = TError("Transaction %v has expired or was aborted at cell %v",
                             Id_,
                             cellId);
-                        DoAbort(error);
+                        OnFailure(error);
                         THROW_ERROR error;
                     } else {
                         // Soft error.
@@ -820,7 +853,7 @@ private:
     TFuture<void> SendAbort(const TTransactionAbortOptions& options = TTransactionAbortOptions())
     {
         std::vector<TFuture<void>> asyncResults;
-        auto participantIds = GetParticipantCellIds();
+        auto participantIds = GetRegisteredParticipantIds();
         for (const auto& cellId : participantIds) {
             LOG_DEBUG("Aborting transaction (TransactionId: %v, CellId: %v)",
                 Id_,
@@ -887,10 +920,29 @@ private:
         FireAborted();
     }
 
-    std::vector<TCellId> GetParticipantCellIds()
+    void OnFailure(const TError& error)
+    {
+        DoAbort(error);
+        // Best-effort, fire-and-forget.
+        SendAbort();
+    }
+
+    std::vector<TCellId> GetRegisteredParticipantIds()
     {
         auto guard = Guard(SpinLock_);
-        return std::vector<TCellId>(ParticiapantCellIds_.begin(), ParticiapantCellIds_.end());
+        return std::vector<TCellId>(RegisteredParticipantIds_.begin(), RegisteredParticipantIds_.end());
+    }
+
+    std::vector<TCellId> GetConfirmedParticipantIds()
+    {
+        auto guard = Guard(SpinLock_);
+        return std::vector<TCellId>(ConfirmedParticipantIds_.begin(), ConfirmedParticipantIds_.end());
+    }
+
+    bool IsParticipantRegistered(const TCellId& cellId)
+    {
+        auto guard = Guard(SpinLock_);
+        return RegisteredParticipantIds_.find(cellId) != RegisteredParticipantIds_.end();
     }
 };
 
@@ -1025,9 +1077,14 @@ TTimestamp TTransaction::GetCommitTimestamp() const
     return Impl_->GetCommitTimestamp();
 }
 
-void TTransaction::AddParticipant(const TCellId& cellId)
+void TTransaction::RegisterParticipant(const TCellId& cellId)
 {
-    Impl_->AddParticipant(cellId);
+    Impl_->RegisterParticipant(cellId);
+}
+
+void TTransaction::ConfirmParticipant(const TCellId& cellId)
+{
+    Impl_->ConfirmParticipant(cellId);
 }
 
 DELEGATE_SIGNAL(TTransaction, void(), Committed, *Impl_);

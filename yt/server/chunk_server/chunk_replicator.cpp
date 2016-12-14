@@ -772,7 +772,8 @@ void TChunkReplicator::OnChunkDestroyed(TChunk* chunk)
 
 void TChunkReplicator::OnReplicaRemoved(
     TNode* node,
-    TChunkPtrWithIndexes chunkWithIndexes)
+    TChunkPtrWithIndexes chunkWithIndexes,
+    ERemoveReplicaReason reason)
 {
     const auto* chunk = chunkWithIndexes.GetPtr();
     TChunkIdWithIndexes chunkIdWithIndexes(
@@ -780,7 +781,9 @@ void TChunkReplicator::OnReplicaRemoved(
         chunkWithIndexes.GetReplicaIndex(),
         chunkWithIndexes.GetMediumIndex());
     node->RemoveFromChunkReplicationQueues(chunkWithIndexes, AllMediaIndex);
-    node->RemoveFromChunkRemovalQueue(chunkIdWithIndexes);
+    if (reason != ERemoveReplicaReason::ChunkDestroyed) {
+        node->RemoveFromChunkRemovalQueue(chunkIdWithIndexes);
+    }
     if (chunk->IsJournal()) {
         node->RemoveFromChunkSealQueue(chunkWithIndexes);
     }

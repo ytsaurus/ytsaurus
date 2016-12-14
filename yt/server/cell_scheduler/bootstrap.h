@@ -36,16 +36,16 @@ public:
     TBootstrap(TCellSchedulerConfigPtr config, NYTree::INodePtr configNode);
     ~TBootstrap();
 
-    TCellSchedulerConfigPtr GetConfig() const;
-    NApi::INativeClientPtr GetMasterClient() const;
+    const TCellSchedulerConfigPtr& GetConfig() const;
+    const NApi::INativeClientPtr& GetMasterClient() const;
     NNodeTrackerClient::TAddressMap GetLocalAddresses() const;
     NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks() const;
     IInvokerPtr GetControlInvoker(EControlQueue queue = EControlQueue::Default) const;
-    NScheduler::TSchedulerPtr GetScheduler() const;
-    NHiveClient::TClusterDirectoryPtr GetClusterDirectory() const;
+    const NScheduler::TSchedulerPtr& GetScheduler() const;
+    const NHiveClient::TClusterDirectoryPtr& GetClusterDirectory() const;
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const;
-    NRpc::TResponseKeeperPtr GetResponseKeeper() const;
-    NChunkClient::TThrottlerManagerPtr GetChunkLocationThrottlerManager() const;
+    const NRpc::TResponseKeeperPtr& GetResponseKeeper() const;
+    const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() const;
 
     void Run();
 
