@@ -9,6 +9,8 @@
 #include <yt/core/ytree/ypath_client.h>
 #include <yt/core/ytree/yson_serializable.h>
 
+#include <array>
+
 namespace NYT {
 namespace NYTree {
 namespace {

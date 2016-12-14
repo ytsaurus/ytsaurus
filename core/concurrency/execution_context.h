@@ -2,22 +2,8 @@
 
 #include <util/system/defaults.h>
 
-// MSVC compiler has /GT option for supporting fiber-safe thread-local storage.
-// For CXXABIv1-compliant systems we can hijack __cxa_eh_globals.
-// See http://mentorembedded.github.io/cxx-abi/abi-eh.html
 #if defined(__GNUC__) || defined(__clang__)
 #   define CXXABIv1
-namespace __cxxabiv1 {
-// We do not care about actual type here, so erase it.
-typedef void __untyped_cxa_exception;
-struct __cxa_eh_globals
-{
-    __untyped_cxa_exception* caughtExceptions;
-    unsigned int uncaughtExceptions;
-};
-extern "C" __cxa_eh_globals* __cxa_get_globals();
-extern "C" __cxa_eh_globals* __cxa_get_globals_fast();
-} // namespace __cxxabiv1
 #endif
 
 namespace NYT {
@@ -36,10 +22,13 @@ public:
     TExecutionContext(TExecutionContext&& other);
     TExecutionContext(const TExecutionContext&) = delete;
 
+    static const int EH_SIZE = 16;
+
 private:
     void* SP_;
+
 #ifdef CXXABIv1
-    __cxxabiv1::__cxa_eh_globals EH_;
+    char EH_[EH_SIZE];
 #endif
 
     friend TExecutionContext CreateExecutionContext(

@@ -27,7 +27,7 @@ protected:
     {
         TNullable<TStored> Data;
         TTimestamp Timestamp;
-        bool Aggregate;
+        bool Aggregate = false;
     };
 
     TVersionedIntegerColumnTest(TStored base, bool aggregate)

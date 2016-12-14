@@ -1,6 +1,6 @@
 #include "framework.h"
+#include "yson_consumer_mock.h"
 
-#include <yt/core/yson/consumer_mock.h>
 #include <yt/core/yson/parser.h>
 
 #include <util/stream/mem.h>

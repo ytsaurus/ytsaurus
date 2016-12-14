@@ -1,8 +1,7 @@
 #include "framework.h"
+#include "yson_consumer_mock.h"
 
 #include <yt/ytlib/formats/json_parser.h>
-
-#include <yt/core/yson/consumer_mock.h>
 
 namespace NYT {
 namespace NFormats {
