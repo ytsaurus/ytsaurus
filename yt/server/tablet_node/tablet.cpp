@@ -1066,7 +1066,8 @@ void TTablet::UpdateUnflushedTimestamp() const
         }
     }
 
-    YCHECK(RuntimeData_->UnflushedTimestamp <= unflushedTimestamp);
+    //XXX(savrus): Fix this check.
+    //YCHECK(RuntimeData_->UnflushedTimestamp <= unflushedTimestamp);
     RuntimeData_->UnflushedTimestamp = unflushedTimestamp;
 }
 
