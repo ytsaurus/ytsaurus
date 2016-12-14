@@ -1,6 +1,6 @@
 """Permissions commands"""
 
-from .common import set_option
+from .common import set_param
 from .driver import make_request
 from .transaction_commands import _make_formatted_transactional_request
 
@@ -17,7 +17,7 @@ def check_permission(user, permission, path, format=None, read_from=None, client
         "permission": permission,
         "path": path
     }
-    set_option(params, "read_from", read_from)
+    set_param(params, "read_from", read_from)
     return _make_formatted_transactional_request(
         "check_permission",
         params,

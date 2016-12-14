@@ -1,4 +1,5 @@
-from .common import flatten, require, update, parse_bool, get_value, MB, EMPTY_GENERATOR
+from .common import flatten, require, update, parse_bool, get_value, set_param, \
+                    MB, EMPTY_GENERATOR
 from .config import get_config
 from .cypress_commands import exists, remove, get_attribute, copy, \
                               move, mkdir, find_free_subpath, create, get, has_attribute
@@ -141,8 +142,7 @@ def write_table(table, input_stream, format=None, table_writer=None,
 
     params = {}
     params["input_format"] = format.to_yson_type()
-    if table_writer is not None:
-        params["table_writer"] = table_writer
+    set_param(params, "table_writer", table_writer)
 
     def prepare_table(path):
         if not force_create:
@@ -211,12 +211,9 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
         "path": table,
         "output_format": format.to_yson_type()
     }
-    if table_reader is not None:
-        params["table_reader"] = table_reader
-    if control_attributes is not None:
-        params["control_attributes"] = control_attributes
-    if unordered is not None:
-        params["unordered"] = unordered
+    set_param(params, "table_reader", table_reader)
+    set_param(params, "control_attributes", control_attributes)
+    set_param(params, "unordered", unordered)
 
     def set_response_parameters(parameters):
         if response_parameters is not None:

@@ -40,7 +40,7 @@ from . import py_wrapper
 from .table_helpers import _prepare_source_tables, _are_default_empty_table, _prepare_table_writer, _remove_tables
 from .common import flatten, require, unlist, update, parse_bool, is_prefix, get_value, \
                     compose, bool_to_string, get_started_by, MB, GB, \
-                    run_with_retries, forbidden_inside_job, get_disk_size, round_up_to, set_option
+                    run_with_retries, forbidden_inside_job, get_disk_size, round_up_to, set_param
 from .config import get_config
 from .cypress_commands import exists, remove, remove_with_empty_dirs, get_attribute, get, \
                               _make_formatted_transactional_request
@@ -523,10 +523,10 @@ def run_remote_copy(source_table, destination_table,
     destination_table = unlist(_prepare_destination_tables(destination_table, client=client))
     spec = compose(
         lambda _: _configure_spec(_, client),
-        lambda _: set_option(_, "network_name", network_name),
-        lambda _: set_option(_, "cluster_name", cluster_name),
-        lambda _: set_option(_, "cluster_connection", cluster_connection),
-        lambda _: set_option(_, "copy_attributes", copy_attributes),
+        lambda _: set_param(_, "network_name", network_name),
+        lambda _: set_param(_, "cluster_name", cluster_name),
+        lambda _: set_param(_, "cluster_connection", cluster_connection),
+        lambda _: set_param(_, "copy_attributes", copy_attributes),
         lambda _: update({"input_table_paths": list(imap(get_input_name, source_table)),
                           "output_table_path": destination_table},
                           _),
