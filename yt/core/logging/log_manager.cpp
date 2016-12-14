@@ -784,11 +784,10 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TLogManager::TLogManager()
-    : Impl_(new TImpl())
+    : Impl_(New<TImpl>())
 { }
 
-TLogManager::~TLogManager()
-{ }
+TLogManager::~TLogManager() = default;
 
 TLogManager* TLogManager::Get()
 {

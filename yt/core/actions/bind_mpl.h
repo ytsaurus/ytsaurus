@@ -27,9 +27,9 @@ namespace NYT {
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-// XXX(sandello): These are forward declarations.
-class TIntrinsicRefCounted;
-class TExtrinsicRefCounted;
+// Forward declarations.
+template <bool EnableWeak>
+class TRefCountedImpl;
 
 template <class T>
 class TIntrusivePtr;
@@ -372,10 +372,10 @@ struct TIsRawPtrToRefCountedType
 {
     enum {
         Value = (NMpl::TIsPointer<T>::Value && (
-            NMpl::TIsConvertible<T, const TIntrinsicRefCounted*>::Value ||
-            NMpl::TIsConvertible<T, const TExtrinsicRefCounted*>::Value ||
-            NMpl::TIsConvertible<T, TIntrinsicRefCounted*>::Value ||
-            NMpl::TIsConvertible<T, TExtrinsicRefCounted*>::Value
+            NMpl::TIsConvertible<T, const TRefCountedImpl<true>*>::Value ||
+            NMpl::TIsConvertible<T, const TRefCountedImpl<false>*>::Value ||
+            NMpl::TIsConvertible<T, TRefCountedImpl<true>*>::Value ||
+            NMpl::TIsConvertible<T, TRefCountedImpl<false>*>::Value
         ))
     };
 };

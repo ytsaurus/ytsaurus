@@ -12,271 +12,204 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRefCountedBase;
-class TExtrinsicRefCounted;
-class TIntrinsicRefCounted;
 
-// This is a reasonable default.
-// For performance-critical bits of code use TIntrinsicRefCounted instead.
-typedef TExtrinsicRefCounted TRefCounted;
+template <bool EnableWeak>
+class TRefCountedImpl;
 
-typedef int TRefCountedTypeCookie;
+//! Default base class for all ref-counted types.
+/*!
+ *  Supports weak pointers.
+ *
+ *  Instances are created with a single memory allocation.
+ */
+using TRefCounted = TRefCountedImpl<true>;
+
+//! Lightweight version of TRefCounted.
+/*!
+ *  Does not support weak pointers.
+ *
+ *  Compared to TRefCounted, Ref/unref calls are somewhat cheaper.
+ *  Also instances of TSimpleRefCounted have smaller memory footprint.
+ */
+using TSimpleRefCounted = TRefCountedImpl<false>;
+// Compatibility alias.
+using TIntrinsicRefCounted = TRefCountedImpl<false>;
+
+using TRefCountedTypeCookie = int;
 const int NullRefCountedTypeCookie = -1;
 
-typedef const void* TRefCountedTypeKey;
+using TRefCountedTypeKey = const void*;
 
 ///////////////////////////////////////////////////////////////////////////////
 
 namespace NDetail {
 
-static inline int AtomicallyIncrementIfNonZero(std::atomic<int>& atomicCounter);
+template <bool EnableWeak>
+class TRefCounter;
 
-//! An atomic reference counter for extrinsic reference counting.
-class TRefCounter
+template <>
+class TRefCounter<false>
 {
 public:
-    explicit TRefCounter(TExtrinsicRefCounted* object)
-        : That_(object)
-    { }
+    // Default-constructable.
+    TRefCounter() = default;
 
-    //! This method is called when there are no strong references remaining
-    //! and the object have to be disposed (technically this means that
-    //! there are no more strong references being held).
-    void Dispose();
-
-    //! This method is called when the counter is about to be destroyed
-    //! (technically this means that there are neither strong
-    //! nor weak references being held).
-    void Destroy();
+    // Non-copyable, non-assignable.
+    TRefCounter(const TRefCounter&) = delete;
+    TRefCounter(TRefCounter&&) = delete;
+    TRefCounter& operator=(const TRefCounter&) = delete;
+    TRefCounter& operator=(TRefCounter&&) = delete;
 
     //! Adds a strong reference to the counter.
-    inline void Ref() noexcept
-    {
-        auto oldStrongCount = StrongCount_++;
-        Y_ASSERT(oldStrongCount > 0 && WeakCount_.load() > 0);
-    }
+    void Ref() noexcept;
 
     //! Removes a strong reference from the counter.
-    inline void Unref() // noexcept
-    {
-        auto oldStrongCount = StrongCount_--;
-        Y_ASSERT(oldStrongCount > 0);
-
-        if (oldStrongCount == 1) {
-            Dispose();
-
-            auto oldWeakCount = WeakCount_--;
-            Y_ASSERT(oldWeakCount > 0);
-
-            if (oldWeakCount == 1) {
-                Destroy();
-            }
-        }
-    }
+    void Unref(const TRefCountedBase* object);
 
     //! Tries to add a strong reference to the counter.
-    inline bool TryRef() noexcept
-    {
-        Y_ASSERT(WeakCount_.load() > 0);
-        return AtomicallyIncrementIfNonZero(StrongCount_) > 0;
-    }
-
-    //! Adds a weak reference to the counter.
-    inline void WeakRef() noexcept
-    {
-        auto oldWeakCount = WeakCount_++;
-        Y_ASSERT(oldWeakCount > 0);
-    }
-
-    //! Removes a weak reference from the counter.
-    inline void WeakUnref() // noexcept
-    {
-        auto oldWeakCount = WeakCount_--;
-        Y_ASSERT(oldWeakCount > 0);
-        if (oldWeakCount == 1) {
-            Destroy();
-        }
-    }
+    bool TryRef() noexcept;
 
     //! Returns the current number of strong references.
-    int GetRefCount() const noexcept
-    {
-        return StrongCount_.load();
-    }
-
-    //! Returns the current number of weak references.
-    int GetWeakRefCount() const noexcept
-    {
-        return WeakCount_.load();
-    }
+    int GetRefCount() const noexcept;
 
 private:
-    // Explicitly prohibit forbidden constructors and operators.
-    TRefCounter();
-    TRefCounter(const TRefCounter&) = delete;
-    TRefCounter(const TRefCounter&&) = delete;
-    TRefCounter& operator=(const TRefCounter&) = delete;
-    TRefCounter& operator=(const TRefCounter&&) = delete;
-
     //! Number of strong references.
     std::atomic<int> StrongCount_ = {1};
+
+    //! This method is called when there are no strong references remaining
+    //! and the object's dtor must to be called and the memory must be reclaimed.
+    void DestroyAndDispose(const TRefCountedBase* object);
+};
+
+template <>
+class TRefCounter<true>
+{
+public:
+    // Default-constructable.
+    TRefCounter() = default;
+
+    // Non-copyable, non-assignable.
+    TRefCounter(const TRefCounter&) = delete;
+    TRefCounter(TRefCounter&&) = delete;
+    TRefCounter& operator=(const TRefCounter&) = delete;
+    TRefCounter& operator=(TRefCounter&&) = delete;
+
+    //! Initializes the memory region pointer.
+    void SetPtr(void* ptr) noexcept;
+
+    //! Adds a strong reference to the counter.
+    void Ref() noexcept;
+
+    //! Removes a strong reference from the counter.
+    void Unref(const TRefCountedBase* object);
+
+    //! Tries to add a strong reference to the counter.
+    bool TryRef() noexcept;
+
+    //! Adds a weak reference to the counter.
+    void WeakRef() noexcept;
+
+    //! Removes a weak reference from the counter.
+    void WeakUnref();
+
+    //! Returns the current number of strong references.
+    int GetRefCount() const noexcept;
+
+    //! Returns the current number of weak references.
+    int GetWeakRefCount() const noexcept;
+
+private:
+    //! Number of strong references.
+    std::atomic<int> StrongCount_ = {1};
+
     //! Number of weak references plus one if there is at least one strong reference.
     std::atomic<int> WeakCount_ = {1};
-    //! The object.
-    TExtrinsicRefCounted* That_ = nullptr;
+
+    //! Pointer to the start of the memory region where the object is allocated.
+    void* Ptr_ = nullptr;
+
+    //! This method is called when there are no strong references remaining
+    //! and the object's dtor must be called.
+    void Destroy(const TRefCountedBase* object);
+
+    //! This method is called when neither strong
+    //! nor weak references being held and the memory must be reclaimed.
+    void Dispose();
 };
+
+//! Normally delegates to #TRefCountedBase::InitializeTracking.
+void InitializeRefCountedTracking(
+    TRefCountedBase* object,
+    TRefCountedTypeCookie typeCookie,
+    size_t instanceSize);
 
 } // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
-
-//! A helper called by #New to register the just-created instance.
-void InitializeTracking(TRefCountedBase* object, TRefCountedTypeCookie typeCookie, size_t instanceSize);
-
-#endif
-
-//! Base class for all reference-counted objects.
+//! A technical base class for TRefCountedImpl and promise states.
 class TRefCountedBase
 {
 protected:
     TRefCountedBase() = default;
+    virtual ~TRefCountedBase() noexcept;
+
+private:
+    template <bool EnableWeak>
+    friend class NDetail::TRefCounter;
+
     TRefCountedBase(const TRefCountedBase&) = delete;
     TRefCountedBase(TRefCountedBase&&) = delete;
 
-    virtual ~TRefCountedBase();
+    TRefCountedBase& operator=(const TRefCountedBase&) = delete;
+    TRefCountedBase& operator=(TRefCountedBase&&) = delete;
 
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    void FinalizeTracking();
-#endif
-
-private:
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    friend void InitializeTracking(TRefCountedBase* object, TRefCountedTypeCookie typeCookie, size_t instanceSize);
+    friend void NDetail::InitializeRefCountedTracking(
+        TRefCountedBase* object,
+        TRefCountedTypeCookie typeCookie,
+        size_t instanceSize);
 
     TRefCountedTypeCookie TypeCookie_ = NullRefCountedTypeCookie;
     size_t InstanceSize_ = 0;
 
-    void InitializeTracking(TRefCountedTypeCookie typeCookie, size_t instanceSize);
+    void InitializeTracking(
+        TRefCountedTypeCookie typeCookie,
+        size_t instanceSize);
+    void FinalizeTracking();
 #endif
-
 };
-
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
-
-Y_FORCE_INLINE void InitializeTracking(TRefCountedBase* object, TRefCountedTypeCookie typeCookie, size_t instanceSize)
-{
-    object->InitializeTracking(typeCookie, instanceSize);
-}
-
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Base class for all reference-counted objects with extrinsic reference counting.
-class TExtrinsicRefCounted
+//! Base class for all reference-counted objects.
+template <bool EnableWeak = true>
+class TRefCountedImpl
     : public TRefCountedBase
 {
 public:
-    TExtrinsicRefCounted();
-    virtual ~TExtrinsicRefCounted();
+    TRefCountedImpl() = default;
+    ~TRefCountedImpl() noexcept;
 
     //! Increments the reference counter.
-    inline void Ref() const noexcept
-    {
-#ifdef YT_ENABLE_REF_COUNTED_DEBUGGING
-        auto refCount = RefCounter_->GetRefCount();
-        ::std::fprintf(stderr, "=== %p === Ref(): %" PRId32 " -> %" PRId32, this, refCount, refCount + 1);
-#endif
-        RefCounter_->Ref();
-    }
+    void Ref() const noexcept;
 
     //! Decrements the reference counter.
-    inline void Unref() const // noexcept
-    {
-#ifdef YT_ENABLE_REF_COUNTED_DEBUGGING
-        auto refCount = RefCounter_->GetRefCount();
-        ::std::fprintf(stderr, "=== %p === Unref(): %" PRId32 " -> %" PRId32, this, refCount, refCount - 1);
-#endif
-        RefCounter_->Unref();
-    }
+    void Unref() const;
 
     //! Returns current number of references to the object.
     /*!
      * Note that you should never ever use this method in production code.
      * This method is mainly for debugging purposes.
      */
-    inline int GetRefCount() const noexcept
-    {
-        return RefCounter_->GetRefCount();
-    }
+    int GetRefCount() const noexcept;
 
     //! Returns pointer to the underlying reference counter of the object.
     /*!
      * Note that you should never ever use this method in production code.
      * This method is mainly for debugging purposes and for TWeakPtr.
      */
-    inline NDetail::TRefCounter* GetRefCounter() const noexcept
-    {
-        return RefCounter_;
-    }
-
-    //! See #TIntrinsicRefCounted::DangerousGetPtr.
-    template <class T>
-    static TIntrusivePtr<T> DangerousGetPtr(T* object)
-    {
-        return object->RefCounter_->TryRef()
-            ? TIntrusivePtr<T>(object, false)
-            : TIntrusivePtr<T>();
-    }
-
-private:
-    mutable NDetail::TRefCounter* RefCounter_;
-
-};
-
-//! Base class for all reference-counted objects with intrinsic reference counting.
-class TIntrinsicRefCounted
-    : public TRefCountedBase
-{
-public:
-    TIntrinsicRefCounted();
-    virtual ~TIntrinsicRefCounted();
-
-    //! Increments the reference counter.
-    inline void Ref() const noexcept
-    {
-        auto oldRefCount = RefCounter_++;
-
-#ifdef YT_ENABLE_REF_COUNTED_DEBUGGING
-        ::std::fprintf(stderr, "=== %p === Ref(): %" PRId64 " -> %" PRId64, this, oldRefCount, oldRefCount + 1);
-#endif
-        Y_ASSERT(oldRefCount > 0);
-    }
-
-    //! Decrements the reference counter.
-    inline void Unref() const // noexcept
-    {
-        auto oldRefCount = RefCounter_--;
-
-#ifdef YT_ENABLE_REF_COUNTED_DEBUGGING
-        ::std::fprintf(stderr, "=== %p === Unref(): %" PRId64 " -> %" PRId64, this, oldRefCount, oldRefCount - 1);
-#endif
-        Y_ASSERT(oldRefCount > 0);
-        if (oldRefCount == 1) {
-            delete this;
-        }
-    }
-
-    //! Returns current number of references to the object.
-    /*!
-     * Note that you should never ever use this method in production code.
-     * This method is mainly for debugging purposes.
-     */
-    inline int GetRefCount() const noexcept
-    {
-        return RefCounter_.load();
-    }
+    NDetail::TRefCounter<EnableWeak>* GetRefCounter() const noexcept;
 
     //! Tries to obtain an intrusive pointer for an object that may had
     //! already lost all of its references and, thus, is about to be deleted.
@@ -295,15 +228,12 @@ public:
      * its raw pointer from the collection there.
      */
     template <class T>
-    static TIntrusivePtr<T> DangerousGetPtr(T* object)
-    {
-        return NDetail::AtomicallyIncrementIfNonZero(object->RefCounter_) > 0
-            ? TIntrusivePtr<T>(object, false)
-            : TIntrusivePtr<T>();
-    }
+    static TIntrusivePtr<T> DangerousGetPtr(T* object);
+
+    void operator delete(void* ptr) noexcept;
 
 private:
-    mutable std::atomic<int> RefCounter_;
+    mutable NDetail::TRefCounter<EnableWeak> RefCounter_;
 
 };
 

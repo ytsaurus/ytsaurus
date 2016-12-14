@@ -147,7 +147,7 @@ protected:
 TEST_F(TPipeReadWriteTest, ReadSomethingSpin)
 {
     Stroka message("Hello pipe!\n");
-    auto buffer = TSharedRef::FromString(std::move(message));
+    auto buffer = TSharedRef::FromString(message);
     Writer->Write(buffer).Get();
     Writer->Close();
 
@@ -168,7 +168,7 @@ TEST_F(TPipeReadWriteTest, ReadSomethingSpin)
 TEST_F(TNamedPipeReadWriteTest, ReadSomethingSpin)
 {
     Stroka message("Hello pipe!\n");
-    auto buffer = TSharedRef::FromString(std::move(message));
+    auto buffer = TSharedRef::FromString(message);
 
     Writer->Write(buffer).Get();
     Writer->Close();
@@ -190,7 +190,7 @@ TEST_F(TNamedPipeReadWriteTest, ReadSomethingSpin)
 TEST_F(TPipeReadWriteTest, ReadSomethingWait)
 {
     Stroka message("Hello pipe!\n");
-    auto buffer = TSharedRef::FromString(std::move(message));
+    auto buffer = TSharedRef::FromString(message);
     EXPECT_TRUE(Writer->Write(buffer).Get().IsOK());
     WaitFor(Writer->Close())
         .ThrowOnError();
@@ -201,7 +201,7 @@ TEST_F(TPipeReadWriteTest, ReadSomethingWait)
 TEST_F(TNamedPipeReadWriteTest, ReadSomethingWait)
 {
     Stroka message("Hello pipe!\n");
-    auto buffer = TSharedRef::FromString(std::move(message));
+    auto buffer = TSharedRef::FromString(message);
     EXPECT_TRUE(Writer->Write(buffer).Get().IsOK());
     WaitFor(Writer->Close())
         .ThrowOnError();
@@ -212,7 +212,7 @@ TEST_F(TNamedPipeReadWriteTest, ReadSomethingWait)
 TEST_F(TPipeReadWriteTest, ReadWrite)
 {
     Stroka text("Hello cruel world!\n");
-    auto buffer = TSharedRef::FromString(std::move(text));
+    auto buffer = TSharedRef::FromString(text);
     Writer->Write(buffer).Get();
     auto errorsOnClose = Writer->Close();
 
@@ -226,7 +226,7 @@ TEST_F(TPipeReadWriteTest, ReadWrite)
 TEST_F(TNamedPipeReadWriteTest, ReadWrite)
 {
     Stroka text("Hello cruel world!\n");
-    auto buffer = TSharedRef::FromString(std::move(text));
+    auto buffer = TSharedRef::FromString(text);
     Writer->Write(buffer).Get();
     auto errorsOnClose = Writer->Close();
 

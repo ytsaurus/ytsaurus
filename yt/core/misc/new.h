@@ -72,101 +72,67 @@ template <class T>
 struct TRefCountedTypeTag { };
 
 template <class T>
-TRefCountedTypeKey GetRefCountedTypeKey()
-{
-    return &typeid(T);
-}
+TRefCountedTypeKey GetRefCountedTypeKey();
 
 TRefCountedTypeCookie GetRefCountedTypeCookie(
     TRefCountedTypeKey typeKey,
     const TSourceLocation& location);
 
 template <class T>
-Y_FORCE_INLINE TRefCountedTypeCookie GetRefCountedTypeCookie()
-{
-    static auto cookie = NullRefCountedTypeCookie;
-    if (Y_UNLIKELY(cookie == NullRefCountedTypeCookie)) {
-        cookie = GetRefCountedTypeCookie(
-            GetRefCountedTypeKey<T>(),
-            NYT::TSourceLocation());
-    }
-    return cookie;
-}
+TRefCountedTypeCookie GetRefCountedTypeCookie();
 
 template <class T, class TTag, int Counter>
-Y_FORCE_INLINE TRefCountedTypeCookie GetRefCountedTypeCookieWithLocation(const TSourceLocation& location)
-{
-    static auto cookie = NullRefCountedTypeCookie;
-    if (Y_UNLIKELY(cookie == NullRefCountedTypeCookie)) {
-        cookie = GetRefCountedTypeCookie(
-            GetRefCountedTypeKey<T>(),
-            location);
-    }
-    return cookie;
-}
-
-namespace {
-
-//! A per-translation unit tag type.
-struct TCurrentTranslationUnitTag
-{ };
-
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
+TRefCountedTypeCookie GetRefCountedTypeCookieWithLocation(
+    const TSourceLocation& location);
 
 template <class T>
-size_t SpaceUsed(const TIntrusivePtr<T>&)
-{
-    return sizeof(T);
-}
+size_t SpaceUsed(const T* instance);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
-
-#define REF_COUNTED_NEW_EPILOGUE() \
-    InitializeTracking(result.Get(), cookie, SpaceUsed(result))
-
-#else // !YT_ENABLE_REF_COUNTED_TRACKING
-
-#define REF_COUNTED_NEW_EPILOGUE() \
-    (void) 0
-
-#endif // YT_ENABLE_REF_COUNTED_TRACKING
-
+//! Allocates a new instance of |T|.
 template <class T, class... As>
-inline TIntrusivePtr<T> New(As&&... args)
-{
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    auto cookie = GetRefCountedTypeCookie<T>();
-#endif
-    TIntrusivePtr<T> result(new T(std::forward<As>(args)...), false);
-    REF_COUNTED_NEW_EPILOGUE();
-    return result;
-}
+TIntrusivePtr<T> New(As&&... args);
 
+//! Allocates a new instance of |T|.
+//! The allocation is additionally marked with #location.
 template <class T, class TTag, int Counter, class... As>
 inline TIntrusivePtr<T> NewWithLocation(
     const TSourceLocation& location,
-    As&&... args)
-{
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    auto cookie = GetRefCountedTypeCookieWithLocation<T, TTag, Counter>(location);
-#endif
-    TIntrusivePtr<T> result(new T(std::forward<As>(args)...), false);
-    REF_COUNTED_NEW_EPILOGUE();
-    return result;
-}
+    As&&... args);
 
-#undef REF_COUNTED_NEW_EPILOGUE
-
+//! Enables calling #New and co for types with private ctors.
 #define DECLARE_NEW_FRIEND() \
     template <class T, class... As> \
-    friend TIntrusivePtr<T> NYT::New(As&&... args)
+    friend ::NYT::TIntrusivePtr<T> NYT::NDetail::NewImpl( \
+        ::NYT::TRefCountedTypeCookie cookie, \
+        size_t extraSpaceSize, \
+        As&& ... args) noexcept
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Allocates an instance of |T| with additional storage of #extraSpaceSize bytes.
+template <class T, class... As>
+TIntrusivePtr<T> NewWithExtraSpace(
+    size_t extraSpaceSize,
+    As&&... args);
+
+//! CRTP mixin enabling access to instance's extra space.
+template <class T>
+class TWithExtraSpace
+{
+protected:
+    const void* GetExtraSpacePtr() const;
+    void* GetExtraSpacePtr();
+
+};
 
 /*! \} */
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+
+#define NEW_INL_H_
+#include "new-inl.h"
+#undef NEW_INL_H_

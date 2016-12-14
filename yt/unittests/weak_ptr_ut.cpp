@@ -37,7 +37,7 @@ void ResetShadowState()
 }
 
 class TIntricateObject
-    : public TExtrinsicRefCounted
+    : public TRefCounted
 {
 public:
     TIntricateObject()
@@ -101,7 +101,7 @@ MATCHER_P2(HasRefCounts, strongRefs, weakRefs,
 }
 
 class TSlowlyDyingObject
-    : public TExtrinsicRefCounted
+    : public TRefCounted
 {
 public:
     TSlowlyDyingObject()
