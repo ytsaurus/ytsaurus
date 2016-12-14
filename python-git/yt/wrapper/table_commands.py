@@ -1,4 +1,4 @@
-from .common import flatten, require, update, parse_bool, get_value, set_param, \
+from .common import flatten, require, update, parse_bool, get_value, set_param, datetime_to_string, \
                     MB, EMPTY_GENERATOR
 from .config import get_config
 from .cypress_commands import exists, remove, get_attribute, copy, \
@@ -16,6 +16,8 @@ import yt.yson as yson
 import yt.logger as logger
 from yt.packages.six import PY3
 from yt.packages.six.moves import map as imap, filter as ifilter
+
+from datetime import datetime, timedelta
 
 try:
     from cStringIO import StringIO as BytesIO
@@ -101,6 +103,10 @@ def create_temp_table(path=None, prefix=None, attributes=None, client=None):
         if not path.endswith("/"):
             path = path + "/"
     name = find_free_subpath(path, client=client)
+    timeout = timedelta(milliseconds=get_config(client)["temp_expiration_timeout"])
+    attributes = update(
+        {"expiration_time": datetime_to_string(datetime.utcnow() + timeout)},
+        get_value(attributes, {}))
     create_table(name, attributes=attributes, client=client)
     return name
 
