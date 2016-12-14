@@ -1057,6 +1057,12 @@ public:
                 ETabletState::Unmounted);
         }
 
+        // Calculate retained timestamp for removed tablets.
+        auto retainedTimestamp = MinTimestamp;
+        for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+            retainedTimestamp = std::max(retainedTimestamp, tablets[index]->GetRetainedTimestamp());
+        }
+
         // For ordered tablets, if the number of tablets decreases then validate that the trailing ones
         // (which are about to drop) are properly trimmed.
         if (newTabletCount < oldTabletCount) {
@@ -1081,6 +1087,7 @@ public:
             } else if (oldTablet) {
                 newTablet->SetTrimmedRowCount(oldTablet->GetTrimmedRowCount());
             }
+            newTablet->SetRetainedTimestamp(retainedTimestamp);
             newTablets.push_back(newTablet);
         }
 
