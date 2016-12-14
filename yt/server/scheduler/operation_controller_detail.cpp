@@ -481,13 +481,10 @@ void TOperationControllerBase::TTask::ScheduleJob(
         }
 
         if (schedulerJobSpecExt->input_uncompressed_data_size() > controller->Spec->MaxDataSizePerJob) {
-            controller->GetCancelableInvoker()->Invoke(BIND(
-                &TOperationControllerBase::OnOperationFailed,
-                controller,
-                TError(
-                    "Maximum allowed data size per job violated: %v > %v",
-                    schedulerJobSpecExt->input_uncompressed_data_size(),
-                    controller->Spec->MaxDataSizePerJob)));
+            controller->OnOperationFailed(TError(
+                "Maximum allowed data size per job violated: %v > %v",
+                schedulerJobSpecExt->input_uncompressed_data_size(),
+                controller->Spec->MaxDataSizePerJob));
         }
     });
 
@@ -2472,7 +2469,7 @@ void TOperationControllerBase::Abort()
     abortTransaction(SyncSchedulerTransaction);
     abortTransaction(AsyncSchedulerTransaction);
 
-    Aborted = true;
+    State = EControllerState::Finished;
 
     CancelableContext->Cancel();
 
@@ -3077,7 +3074,7 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
 
 void TOperationControllerBase::OnOperationFailed(const TError& error)
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+    VERIFY_THREAD_AFFINITY_ANY();
 
     // During operation failing job aborting can lead to another operation fail, we don't want to invoke it twice.
     if (IsFinished()) {
@@ -3096,12 +3093,12 @@ bool TOperationControllerBase::IsPrepared() const
 
 bool TOperationControllerBase::IsRunning() const
 {
-    return State == EControllerState::Running && !Aborted;
+    return State == EControllerState::Running;
 }
 
 bool TOperationControllerBase::IsFinished() const
 {
-    return State == EControllerState::Finished || Aborted;
+    return State == EControllerState::Finished;
 }
 
 void TOperationControllerBase::CreateLivePreviewTables()
