@@ -56,7 +56,6 @@ struct TChunkStripe
     SmallVector<NChunkClient::TInputDataSlicePtr, 1> DataSlices;
     int WaitingChunkCount = 0;
     bool Foreign = false;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkStripe)
@@ -85,7 +84,6 @@ struct TChunkStripeList
 
     int TotalChunkCount = 0;
     int LocalChunkCount = 0;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkStripeList)
@@ -103,7 +101,6 @@ struct IChunkPoolInput
     virtual void Suspend(TCookie cookie) = 0;
     virtual void Resume(TCookie cookie, TChunkStripePtr stripe) = 0;
     virtual void Finish() = 0;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -136,14 +133,10 @@ struct IChunkPoolOutput
 
     virtual TChunkStripeListPtr GetStripeList(TCookie cookie) = 0;
 
-    virtual void Completed(TCookie cookie) = 0;
+    virtual void Completed(TCookie cookie, const TCompletedJobSummary& jobSummary) = 0;
     virtual void Failed(TCookie cookie) = 0;
     virtual void Aborted(TCookie cookie) = 0;
     virtual void Lost(TCookie cookie) = 0;
-
-    virtual void SetDataSizePerJob(i64 dataSizePerJob) = 0;
-    virtual void SetMaxDataSizePerJob(i64 maxDataSizePerJob) = 0;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -156,8 +149,8 @@ struct IChunkPool
 std::unique_ptr<IChunkPool> CreateAtomicChunkPool();
 
 std::unique_ptr<IChunkPool> CreateUnorderedChunkPool(
-    i64 dataSizePerJob,
-    int maxChunkStripesPerJob);
+    IJobSizeConstraintsPtr jobSizeConstraints,
+    TJobSizeAdjusterConfigPtr jobSizeAdjusterConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 

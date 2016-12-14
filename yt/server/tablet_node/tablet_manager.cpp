@@ -926,6 +926,12 @@ private:
             case ETabletState::Frozen: {
                 tablet->SetState(ETabletState::Frozen);
 
+                for (const auto& pair : tablet->StoreIdMap()) {
+                    if (pair.second->IsChunk()) {
+                        pair.second->AsChunk()->SetBackingStore(nullptr);
+                    }
+                }
+
                 LOG_INFO_UNLESS(IsRecovery(), "Tablet frozen (TabletId: %v)",
                     tabletId);
 

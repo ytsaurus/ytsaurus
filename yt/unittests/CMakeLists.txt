@@ -46,7 +46,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/hyperloglog_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/intrusive_ptr_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/integer_column_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/job_size_manager_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_size_adjuster_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_signaler_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/json_parser_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/json_writer_ut.cpp
@@ -157,10 +157,11 @@ endif()
 
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}
+  ${CMAKE_SOURCE_DIR}/contrib/libs/gtest
+  ${CMAKE_SOURCE_DIR}/contrib/libs/gmock
 )
 
 add_executable(unittester
-  ${CMAKE_SOURCE_DIR}/contrib/testing/framework.cpp
   ${SRCS}
 )
 
@@ -168,4 +169,6 @@ target_link_libraries(unittester
   yt-library-client
   yt-library-server
   deps-arcadia-library-lfalloc
+  deps-arcadia-contrib-libs-gtest
+  deps-arcadia-contrib-libs-gmock
 )

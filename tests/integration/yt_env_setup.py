@@ -337,6 +337,7 @@ class YTEnvSetup(object):
     def sync_compact_table(self, path):
         chunk_ids = __builtin__.set(yt_commands.get(path + "/@chunk_ids"))
         yt_commands.set(path + "/@forced_compaction_revision", yt_commands.get(path + "/@revision"))
+        yt_commands.set(path + "/@forced_compaction_revision", yt_commands.get(path + "/@revision"))
         yt_commands.remount_table(path)
 
         print "Waiting for tablets to become compacted..."

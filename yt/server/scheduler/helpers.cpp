@@ -1,6 +1,7 @@
 #include "helpers.h"
 #include "public.h"
 #include "exec_node.h"
+#include "config.h"
 #include "job.h"
 #include "operation.h"
 #include "operation_controller.h"
@@ -41,47 +42,393 @@ static const auto& Logger = SchedulerLogger;
 
 ////////////////////////////////////////////////////////////////////
 
-TJobSizeLimits::TJobSizeLimits(
-    i64 totalDataSize,
-    i64 dataSizePerJob,
-    TNullable<int> configJobCount,
-    int maxJobCount)
-    : TotalDataSize_(totalDataSize)
-    , MaxJobCount_(maxJobCount)
+class TSimpleJobSizeConstraints
+    : public IJobSizeConstraints
 {
-    if (configJobCount) {
-        SetJobCount(*configJobCount);
-    } else {
-        SetDataSizePerJob(dataSizePerJob);
+public:
+    TSimpleJobSizeConstraints()
+        : InputDataSize_(-1)
+        , InputRowCount_(-1)
+    { }
+
+    TSimpleJobSizeConstraints(
+        const TSimpleOperationSpecBasePtr& spec,
+        const TSimpleOperationOptionsPtr& options,
+        i64 inputDataSize,
+        i64 inputRowCount)
+        : Spec_(spec)
+        , Options_(options)
+        , InputDataSize_(inputDataSize)
+        , InputRowCount_(inputRowCount)
+    {
+        if (Spec_->JobCount) {
+            JobCount_ = *Spec_->JobCount;
+        } else {
+            i64 dataSizePerJob = Spec_->DataSizePerJob.Get(Options_->DataSizePerJob);
+            JobCount_ = DivCeil(InputDataSize_, dataSizePerJob);
+        }
+
+        i64 maxJobCount = Options_->MaxJobCount;
+
+        if (Spec_->MaxJobCount) {
+            maxJobCount = std::min(maxJobCount, static_cast<i64>(*Spec_->MaxJobCount));
+        }
+
+        JobCount_ = std::min(JobCount_, maxJobCount);
+        JobCount_ = std::min(JobCount_, InputRowCount_);
+
+        YCHECK(JobCount_ >= 0);
+        YCHECK(JobCount_ != 0 || InputDataSize_ == 0);
     }
+
+    virtual bool CanAdjustDataSizePerJob() const override
+    {
+        return !Spec_->DataSizePerJob && !Spec_->JobCount;
+    }
+
+    virtual bool IsExplicitJobCount() const override
+    {
+        return static_cast<bool>(Spec_->JobCount);
+    }
+
+    virtual int GetJobCount() const override
+    {
+        return JobCount_;
+    }
+
+    virtual i64 GetDataSizePerJob() const override
+    {
+        return JobCount_ > 0
+            ? DivCeil(InputDataSize_, JobCount_)
+            : 1;
+    }
+
+    virtual i64 GetMaxChunkStripesPerJob() const override
+    {
+        return Options_->MaxChunkStripesPerJob;
+    }
+
+    virtual i64 GetMaxDataSizePerJob() const override
+    {
+        return Spec_->MaxDataSizePerJob;
+    }
+
+    virtual i64 GetInputSliceDataSize() const override
+    {
+        if (JobCount_ == 0) {
+            return 1;
+        }
+
+        i64 sliceDataSize = Clamp(
+            static_cast<i64>(Options_->SliceDataSizeMultiplier * InputDataSize_ / JobCount_),
+            (i64)1,
+            Options_->MaxSliceDataSize);
+
+        if (sliceDataSize < Options_->MinSliceDataSize) {
+            // Non-trivial multiplier should be used only if input data size is large enough.
+            // Otherwise we do not want to have more slices than job count.
+
+            sliceDataSize = DivCeil(InputDataSize_, JobCount_);
+        }
+
+        return sliceDataSize;
+    }
+
+    virtual i64 GetInputSliceRowCount() const override
+    {
+        return JobCount_ > 0
+            ? DivCeil(InputRowCount_, JobCount_)
+            : 1;
+    }
+
+    virtual void Persist(const NPhoenix::TPersistenceContext& context) override
+    {
+        using NYT::Persist;
+        Persist(context, Spec_);
+        Persist(context, Options_);
+        Persist(context, InputDataSize_);
+        Persist(context, InputRowCount_);
+        Persist(context, JobCount_);
+    }
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TSimpleJobSizeConstraints, 0xb45cfe0d);
+
+    TSimpleOperationSpecBasePtr Spec_;
+    TSimpleOperationOptionsPtr Options_;
+
+    i64 InputDataSize_;
+    i64 InputRowCount_;
+
+    i64 JobCount_;
+};
+
+DEFINE_DYNAMIC_PHOENIX_TYPE(TSimpleJobSizeConstraints);
+DEFINE_REFCOUNTED_TYPE(TSimpleJobSizeConstraints)
+
+////////////////////////////////////////////////////////////////////
+
+class TSimpleSortJobSizeConstraints
+    : public IJobSizeConstraints
+{
+public:
+    TSimpleSortJobSizeConstraints()
+        : InputDataSize_(-1)
+    { }
+
+    TSimpleSortJobSizeConstraints(
+        const TSortOperationSpecBasePtr& spec,
+        const TSortOperationOptionsBasePtr& options,
+        i64 inputDataSize)
+        : Spec_(spec)
+        , Options_(options)
+        , InputDataSize_(inputDataSize)
+    {
+        JobCount_ = DivCeil(InputDataSize_, Spec_->DataSizePerSortJob);
+        YCHECK(JobCount_ >= 0);
+        YCHECK(JobCount_ != 0 || InputDataSize_ == 0);
+    }
+
+    virtual bool CanAdjustDataSizePerJob() const override
+    {
+        return false;
+    }
+
+    virtual bool IsExplicitJobCount() const override
+    {
+        return false;
+    }
+
+    virtual int GetJobCount() const override
+    {
+        return JobCount_;
+    }
+
+    virtual i64 GetDataSizePerJob() const override
+    {
+        return JobCount_ > 0
+            ? DivCeil(InputDataSize_, JobCount_)
+            : 1;
+    }
+
+    virtual i64 GetMaxChunkStripesPerJob() const override
+    {
+        return Options_->MaxChunkStripesPerJob;
+    }
+
+    virtual i64 GetMaxDataSizePerJob() const override
+    {
+        return Spec_->MaxDataSizePerJob;
+    }
+
+    virtual i64 GetInputSliceDataSize() const override
+    {
+        if (JobCount_ == 0) {
+            return 1;
+        }
+
+        i64 sliceDataSize = Clamp(
+            static_cast<i64>(Options_->SliceDataSizeMultiplier * InputDataSize_ / JobCount_),
+            (i64) 1,
+            Options_->MaxSliceDataSize);
+
+        if (sliceDataSize < Options_->MinSliceDataSize) {
+            // Non-trivial multiplier should be used only if input data size is large enough.
+            // Otherwise we do not want to have more slices than job count.
+
+            sliceDataSize = DivCeil(InputDataSize_, JobCount_);
+        }
+
+        return sliceDataSize;
+    }
+
+    virtual i64 GetInputSliceRowCount() const override
+    {
+        return std::numeric_limits<i64>::max();
+    }
+
+    virtual void Persist(const NPhoenix::TPersistenceContext& context) override
+    {
+        using NYT::Persist;
+        Persist(context, Spec_);
+        Persist(context, Options_);
+        Persist(context, InputDataSize_);
+        Persist(context, JobCount_);
+    }
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TSimpleSortJobSizeConstraints, 0xef270530);
+
+    TSortOperationSpecBasePtr Spec_;
+    TSortOperationOptionsBasePtr Options_;
+
+    i64 InputDataSize_;
+
+    i64 JobCount_;
+};
+
+DEFINE_DYNAMIC_PHOENIX_TYPE(TSimpleSortJobSizeConstraints);
+DEFINE_REFCOUNTED_TYPE(TSimpleSortJobSizeConstraints)
+
+////////////////////////////////////////////////////////////////////
+
+class TPartitionJobSizeConstraints
+    : public IJobSizeConstraints
+{
+public:
+    TPartitionJobSizeConstraints()
+        : InputDataSize_(-1)
+        , InputRowCount_(-1)
+    { }
+
+    TPartitionJobSizeConstraints(
+        const TSortOperationSpecBasePtr& spec,
+        const TSortOperationOptionsBasePtr& options,
+        i64 inputDataSize,
+        i64 inputRowCount,
+        double compressionRatio)
+        : Spec_(spec)
+        , Options_(options)
+        , InputDataSize_(inputDataSize)
+        , InputRowCount_(inputRowCount)
+    {
+        if (Spec_->PartitionJobCount) {
+            JobCount_ = *Spec_->PartitionJobCount;
+        } else if (Spec_->DataSizePerPartitionJob) {
+            i64 dataSizePerJob = *Spec_->DataSizePerPartitionJob;
+            JobCount_ = DivCeil(InputDataSize_, dataSizePerJob);
+        } else {
+            // Rationale and details are on the wiki.
+            // https://wiki.yandex-team.ru/yt/design/partitioncount/
+            i64 uncompressedBlockSize = static_cast<i64>(Options_->CompressedBlockSize / compressionRatio);
+            uncompressedBlockSize = std::min(uncompressedBlockSize, Spec_->PartitionJobIO->TableWriter->BlockSize);
+
+            // Product may not fit into i64.
+            double partitionJobDataSize = sqrt(InputDataSize_) * sqrt(uncompressedBlockSize);
+            partitionJobDataSize = std::min(partitionJobDataSize, static_cast<double>(Spec_->PartitionJobIO->TableWriter->MaxBufferSize));
+
+            JobCount_ = DivCeil(InputDataSize_, static_cast<i64>(partitionJobDataSize));
+        }
+
+        YCHECK(JobCount_ >= 0);
+        YCHECK(JobCount_ != 0 || InputDataSize_ == 0);
+
+        JobCount_ = std::min(JobCount_, static_cast<i64>(Options_->MaxPartitionJobCount));
+        JobCount_ = std::min(JobCount_, InputRowCount_);
+    }
+
+    virtual bool CanAdjustDataSizePerJob() const override
+    {
+        return !Spec_->DataSizePerPartitionJob && !Spec_->PartitionJobCount;
+    }
+
+    virtual bool IsExplicitJobCount() const override
+    {
+        return static_cast<bool>(Spec_->PartitionJobCount);
+    }
+
+    virtual int GetJobCount() const override
+    {
+        return JobCount_;
+    }
+
+    virtual i64 GetDataSizePerJob() const override
+    {
+        return JobCount_ > 0
+            ? DivCeil(InputDataSize_, JobCount_)
+            : 1;
+    }
+
+    virtual i64 GetMaxChunkStripesPerJob() const override
+    {
+        return Options_->MaxChunkStripesPerJob;
+    }
+
+    virtual i64 GetMaxDataSizePerJob() const override
+    {
+        return Spec_->MaxDataSizePerJob;
+    }
+
+    virtual i64 GetInputSliceDataSize() const override
+    {
+        if (JobCount_ == 0) {
+            return 1;
+        }
+
+        i64 sliceDataSize = Clamp(
+            static_cast<i64>(Options_->SliceDataSizeMultiplier * InputDataSize_ / JobCount_),
+            (i64) 1,
+            Options_->MaxSliceDataSize);
+
+        if (sliceDataSize < Options_->MinSliceDataSize) {
+            // Non-trivial multiplier should be used only if input data size is large enough.
+            // Otherwise we do not want to have more slices than job count.
+
+            sliceDataSize = DivCeil(InputDataSize_, JobCount_);
+        }
+
+        return sliceDataSize;
+    }
+
+    virtual i64 GetInputSliceRowCount() const override
+    {
+        return JobCount_ > 0
+            ? DivCeil(InputRowCount_, JobCount_)
+            : 1;
+    }
+
+    virtual void Persist(const NPhoenix::TPersistenceContext& context) override
+    {
+        using NYT::Persist;
+        Persist(context, Spec_);
+        Persist(context, Options_);
+        Persist(context, InputDataSize_);
+        Persist(context, InputRowCount_);
+        Persist(context, JobCount_);
+    }
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TPartitionJobSizeConstraints, 0xeea00714);
+
+    TSortOperationSpecBasePtr Spec_;
+    TSortOperationOptionsBasePtr Options_;
+
+    i64 InputDataSize_;
+    i64 InputRowCount_;
+
+    i64 JobCount_;
+};
+
+DEFINE_DYNAMIC_PHOENIX_TYPE(TPartitionJobSizeConstraints);
+DEFINE_REFCOUNTED_TYPE(TPartitionJobSizeConstraints)
+
+////////////////////////////////////////////////////////////////////
+
+IJobSizeConstraintsPtr CreateSimpleJobSizeConstraints(
+    const TSimpleOperationSpecBasePtr& spec,
+    const TSimpleOperationOptionsPtr& options,
+    i64 inputDataSize,
+    i64 inputRowCount)
+{
+    return New<TSimpleJobSizeConstraints>(spec, options, inputDataSize, inputRowCount);
 }
 
-void TJobSizeLimits::SetJobCount(i64 jobCount)
+IJobSizeConstraintsPtr CreateSimpleSortJobSizeConstraints(
+    const TSortOperationSpecBasePtr& spec,
+    const TSortOperationOptionsBasePtr& options,
+    i64 inputDataSize)
 {
-    JobCount_ = Clamp<i64>(jobCount, 1, MaxJobCount_);
-    DataSizePerJob_ = DivCeil<i64>(TotalDataSize_, JobCount_);
+    return New<TSimpleSortJobSizeConstraints>(spec, options, inputDataSize);
 }
 
-int TJobSizeLimits::GetJobCount() const
+IJobSizeConstraintsPtr CreatePartitionJobSizeConstraints(
+    const TSortOperationSpecBasePtr& spec,
+    const TSortOperationOptionsBasePtr& options,
+    i64 inputDataSize,
+    i64 inputRowCount,
+    double compressionRatio)
 {
-    return JobCount_;
-}
-
-void TJobSizeLimits::SetDataSizePerJob(i64 dataSizePerJob)
-{
-    SetJobCount(DivCeil<i64>(TotalDataSize_, dataSizePerJob));
-}
-
-i64 TJobSizeLimits::GetDataSizePerJob() const
-{
-    return DataSizePerJob_;
-}
-
-void TJobSizeLimits::UpdateStripeCount(i64 stripeCount, i64 maxStripesPerJob)
-{
-    i64 minJobCount = DivCeil(stripeCount, maxStripesPerJob);
-    i64 jobCount = Clamp<i64>(GetJobCount(), minJobCount, stripeCount);
-    SetJobCount(jobCount);
+    return New<TPartitionJobSizeConstraints>(spec, options, inputDataSize, inputRowCount, compressionRatio);
 }
 
 ////////////////////////////////////////////////////////////////////
