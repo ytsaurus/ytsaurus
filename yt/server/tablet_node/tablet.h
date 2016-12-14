@@ -62,6 +62,7 @@ struct TRuntimeTabletData
     std::atomic<i64> TotalRowCount = {0};
     std::atomic<i64> TrimmedRowCount = {0};
     std::atomic<TTimestamp> LastCommitTimestamp = {NullTimestamp};
+    std::atomic<TTimestamp> UnflushedTimestamp = {MinTimestamp};
 };
 
 DEFINE_REFCOUNTED_TYPE(TRuntimeTabletData)
@@ -89,7 +90,6 @@ struct TTabletSnapshot
     int HashTableSize = 0;
     int OverlappingStoreCount = 0;
     NTransactionClient::TTimestamp RetainedTimestamp = NTransactionClient::MinTimestamp;
-    NTransactionClient::TTimestamp UnflushedTimestamp = NTransactionClient::MaxTimestamp;
 
     TPartitionSnapshotPtr Eden;
 
@@ -341,6 +341,8 @@ public:
 
     void ValidateMountRevision(i64 mountRevision);
 
+    void UpdateUnflushedTimestamp() const;
+
 private:
     const TRuntimeTabletDataPtr RuntimeData_ = New<TRuntimeTabletData>();
 
@@ -377,7 +379,6 @@ private:
     TPartition* GetContainingPartition(const ISortedStorePtr& store);
 
  	void UpdateOverlappingStoreCount();
-    TTimestamp GetUnflushedTimestamp() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

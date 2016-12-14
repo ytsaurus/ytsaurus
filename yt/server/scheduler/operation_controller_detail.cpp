@@ -3850,7 +3850,7 @@ void TOperationControllerBase::ValidateDynamicTableTimestamp(
         auto unflushed = attributes.Get<TTimestamp>("unflushed_timestamp");
         if (requested < retained || requested >= unflushed) {
             THROW_ERROR_EXCEPTION("Requested timestamp is out of range for table %v",
-                path)
+                path.GetPath())
                 << TErrorAttribute("requested_timestamp", requested)
                 << TErrorAttribute("retained_timestamp", retained)
                 << TErrorAttribute("unflushed_timestamp", unflushed);

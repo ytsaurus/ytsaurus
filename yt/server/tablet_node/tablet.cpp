@@ -898,7 +898,6 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
     snapshot->HashTableSize = HashTableSize_;
     snapshot->OverlappingStoreCount = OverlappingStoreCount_;
     snapshot->RetainedTimestamp = RetainedTimestamp_;
-    snapshot->UnflushedTimestamp = GetUnflushedTimestamp();
 
     auto addPartitionStatistics = [&] (const TPartitionSnapshotPtr& partitionSnapshot) {
         snapshot->StoreCount += partitionSnapshot->Stores.size();
@@ -954,6 +953,8 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
     for (const auto& pair : Replicas_) {
         YCHECK(snapshot->Replicas.emplace(pair.first, pair.second.BuildSnapshot()).second);
     }
+
+    UpdateUnflushedTimestamp();
 
     return snapshot;
 }
@@ -1046,7 +1047,7 @@ void TTablet::UpdateOverlappingStoreCount()
     OverlappingStoreCount_ += Eden_->Stores().size();
 }
 
-TTimestamp TTablet::GetUnflushedTimestamp() const
+void TTablet::UpdateUnflushedTimestamp() const
 {
     auto unflushedTimestamp = MaxTimestamp;
 
@@ -1065,7 +1066,8 @@ TTimestamp TTablet::GetUnflushedTimestamp() const
         }
     }
 
-    return unflushedTimestamp;
+    YCHECK(RuntimeData_->UnflushedTimestamp <= unflushedTimestamp);
+    RuntimeData_->UnflushedTimestamp = unflushedTimestamp;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

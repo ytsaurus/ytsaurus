@@ -1711,6 +1711,10 @@ class TestSortedDynamicTables(YTEnvSetup):
         assert t2 < t4
         assert t3 < t4
 
+        sleep(1)
+        t11 = get("//tmp/t/@unflushed_timestamp")
+        assert t4 < t11
+
         tx = start_transaction()
         lock("//tmp/t", mode="snapshot", tx=tx)
         t5 = get("//tmp/t/@retained_timestamp", tx=tx)
