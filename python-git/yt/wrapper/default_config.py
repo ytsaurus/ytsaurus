@@ -408,10 +408,6 @@ default_config = {
     # Enable printing argcomplete errors.
     "argcomplete_verbose": False,
 
-    # Enables using parse ypath that comes with yson bindigs for optimization.
-    # Use this option with caution. YPath syntax in yson bindings and on cluster may differ.
-    "enable_native_parse_ypath": False,
-
     # Do not fail with resolve error (just print warning) in yt.search(root, ...)
     # if root path does not exist.
     "ignore_root_path_resolve_error_in_search": False,
