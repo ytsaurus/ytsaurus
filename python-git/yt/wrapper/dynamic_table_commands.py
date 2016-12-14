@@ -1,6 +1,6 @@
 from .driver import make_request
 from .table_helpers import _prepare_format, _to_chunk_stream
-from .common import set_option, bool_to_string
+from .common import set_param, bool_to_string
 from .config import get_config
 from .transaction_commands import _make_transactional_request
 from .ypath import TablePath
@@ -25,15 +25,15 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
     params = {
         "query": query,
         "output_format": format.to_yson_type()}
-    set_option(params, "timestamp", timestamp)
-    set_option(params, "input_row_limit", input_row_limit)
-    set_option(params, "output_row_limit", output_row_limit)
-    set_option(params, "range_expansion_limit", range_expansion_limit)
-    set_option(params, "fail_on_incomplete_result", fail_on_incomplete_result, transform=bool_to_string)
-    set_option(params, "verbose_logging", verbose_logging, transform=bool_to_string)
-    set_option(params, "enable_code_cache", enable_code_cache, transform=bool_to_string)
-    set_option(params, "max_subqueries", max_subqueries)
-    set_option(params, "workload_descriptor", workload_descriptor)
+    set_param(params, "timestamp", timestamp)
+    set_param(params, "input_row_limit", input_row_limit)
+    set_param(params, "output_row_limit", output_row_limit)
+    set_param(params, "range_expansion_limit", range_expansion_limit)
+    set_param(params, "fail_on_incomplete_result", fail_on_incomplete_result, transform=bool_to_string)
+    set_param(params, "verbose_logging", verbose_logging, transform=bool_to_string)
+    set_param(params, "enable_code_cache", enable_code_cache, transform=bool_to_string)
+    set_param(params, "max_subqueries", max_subqueries)
+    set_param(params, "workload_descriptor", workload_descriptor)
 
     response = _make_transactional_request(
         "select_rows",
@@ -71,10 +71,10 @@ def insert_rows(table, input_stream, update=None, aggregate=None, atomicity=None
     params = {}
     params["path"] = table
     params["input_format"] = format.to_yson_type()
-    set_option(params, "update", update, transform=bool_to_string)
-    set_option(params, "aggregate", aggregate, transform=bool_to_string)
-    set_option(params, "atomicity", atomicity)
-    set_option(params, "durability", durability)
+    set_param(params, "update", update, transform=bool_to_string)
+    set_param(params, "aggregate", aggregate, transform=bool_to_string)
+    set_param(params, "atomicity", atomicity)
+    set_param(params, "durability", durability)
 
     input_stream = _to_chunk_stream(input_stream, format, raw, split_rows=False, chunk_size=get_config(client)["write_retries"]["chunk_size"])
 
@@ -107,8 +107,8 @@ def delete_rows(table, input_stream, atomicity=None, durability=None, format=Non
     params = {}
     params["path"] = table
     params["input_format"] = format.to_yson_type()
-    set_option(params, "atomicity", atomicity)
-    set_option(params, "durability", durability)
+    set_param(params, "atomicity", atomicity)
+    set_param(params, "durability", durability)
 
     input_stream = _to_chunk_stream(input_stream, format, raw, split_rows=False, chunk_size=get_config(client)["write_retries"]["chunk_size"])
 
@@ -139,9 +139,9 @@ def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_mis
     params["path"] = table
     params["input_format"] = format.to_yson_type()
     params["output_format"] = format.to_yson_type()
-    set_option(params, "timestamp", timestamp)
-    set_option(params, "column_names", column_names)
-    set_option(params, "keep_missing_rows", keep_missing_rows, transform=bool_to_string)
+    set_param(params, "timestamp", timestamp)
+    set_param(params, "column_names", column_names)
+    set_param(params, "keep_missing_rows", keep_missing_rows, transform=bool_to_string)
 
     input_stream = _to_chunk_stream(input_stream, format, raw, split_rows=False, chunk_size=get_config(client)["write_retries"]["chunk_size"])
 
@@ -168,10 +168,8 @@ def alter_table(path, schema=None, dynamic=None, client=None):
     """
 
     params = {"path": TablePath(path, client=client)}
-    if schema is not None:
-        params["schema"] = schema
-    if dynamic is not None:
-        params["dynamic"] = dynamic
+    set_param(params, "schema", schema)
+    set_param(params, "dynamic", dynamic)
 
     _make_transactional_request("alter_table", params, client=client)
 
@@ -183,14 +181,10 @@ def mount_table(path, first_tablet_index=None, last_tablet_index=None, cell_id=N
     TODO
     """
     params = {"path": TablePath(path, client=client)}
-    if first_tablet_index is not None:
-        params["first_tablet_index"] = first_tablet_index
-    if last_tablet_index is not None:
-        params["last_tablet_index"] = last_tablet_index
-    if cell_id is not None:
-        params["cell_id"] = cell_id
-    if freeze is not None:
-        params["freeze"] = freeze
+    set_param(params, "first_tablet_index", first_tablet_index)
+    set_param(params, "last_tablet_index", last_tablet_index)
+    set_param(params, "cell_id", cell_id)
+    set_param(params, "freeze", freeze)
 
     make_request("mount_table", params, client=client)
 
@@ -201,12 +195,9 @@ def unmount_table(path, first_tablet_index=None, last_tablet_index=None, force=N
     TODO
     """
     params = {"path": TablePath(path, client=client)}
-    if first_tablet_index is not None:
-        params["first_tablet_index"] = first_tablet_index
-    if last_tablet_index is not None:
-        params["last_tablet_index"] = last_tablet_index
-    if force is not None:
-        params["force"] = bool_to_string(force)
+    set_param(params, "first_tablet_index", first_tablet_index)
+    set_param(params, "last_tablet_index", last_tablet_index)
+    set_param(params, "force", force)
 
     make_request("unmount_table", params, client=client)
 
@@ -217,10 +208,8 @@ def remount_table(path, first_tablet_index=None, last_tablet_index=None, client=
     TODO
     """
     params = {"path": path}
-    if first_tablet_index is not None:
-        params["first_tablet_index"] = first_tablet_index
-    if last_tablet_index is not None:
-        params["last_tablet_index"] = last_tablet_index
+    set_param(params, "first_tablet_index", first_tablet_index)
+    set_param(params, "last_tablet_index", last_tablet_index)
 
     make_request("remount_table", params, client=client)
 
@@ -231,10 +220,8 @@ def freeze_table(path, first_tablet_index=None, last_tablet_index=None, client=N
     TODO
     """
     params = {"path": TablePath(path, client=client)}
-    if first_tablet_index is not None:
-        params["first_tablet_index"] = first_tablet_index
-    if last_tablet_index is not None:
-        params["last_tablet_index"] = last_tablet_index
+    set_param(params, "first_tablet_index", first_tablet_index)
+    set_param(params, "last_tablet_index", last_tablet_index)
 
     make_request("freeze_table", params, client=client)
 
@@ -245,10 +232,8 @@ def unfreeze_table(path, first_tablet_index=None, last_tablet_index=None, client
     TODO
     """
     params = {"path": TablePath(path, client=client)}
-    if first_tablet_index is not None:
-        params["first_tablet_index"] = first_tablet_index
-    if last_tablet_index is not None:
-        params["last_tablet_index"] = last_tablet_index
+    set_param(params, "first_tablet_index", first_tablet_index)
+    set_param(params, "last_tablet_index", last_tablet_index)
 
     make_request("unfreeze_table", params, client=client)
 
@@ -260,9 +245,9 @@ def reshard_table(path, pivot_keys=None, tablet_count=None, first_tablet_index=N
     """
     params = {"path": TablePath(path, client=client)}
 
-    set_option(params, "pivot_keys", pivot_keys)
-    set_option(params, "tablet_count", tablet_count)
-    set_option(params, "first_tablet_index", first_tablet_index)
-    set_option(params, "last_tablet_index", last_tablet_index)
+    set_param(params, "pivot_keys", pivot_keys)
+    set_param(params, "tablet_count", tablet_count)
+    set_param(params, "first_tablet_index", first_tablet_index)
+    set_param(params, "last_tablet_index", last_tablet_index)
 
     make_request("reshard_table", params, client=client)

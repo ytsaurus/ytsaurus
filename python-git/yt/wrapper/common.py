@@ -242,7 +242,7 @@ def get_disk_space_from_resources(resources):
     else:
         return resources["disk_space_per_medium"].get("default", 0)
 
-def set_option(params, name, value, transform=None):
+def set_param(params, name, value, transform=None):
     if value is not None:
         if transform is not None:
             params[name] = transform(value)

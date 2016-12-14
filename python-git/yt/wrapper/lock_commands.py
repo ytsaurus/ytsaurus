@@ -1,4 +1,4 @@
-from .common import bool_to_string, get_value, YtError
+from .common import bool_to_string, get_value, YtError, set_param
 from .ypath import YPath
 from .cypress_commands import get
 from .transaction_commands import _make_formatted_transactional_request
@@ -24,10 +24,8 @@ def lock(path, mode=None, waitable=False, wait_for=None, child_key=None, attribu
         "mode": get_value(mode, "exclusive"),
         "waitable": bool_to_string(waitable)}
 
-    if child_key is not None:
-        params["child_key"] = child_key
-    if attribute_key is not None:
-        params["attribute_key"] = attribute_key
+    set_param(params, "child_key", child_key)
+    set_param(params, "attribute_key", attribute_key)
 
     lock_id = _make_formatted_transactional_request("lock", params, format=None, client=client)
     if not lock_id:

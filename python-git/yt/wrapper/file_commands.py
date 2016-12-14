@@ -2,7 +2,7 @@
 
 import yt.logger as logger
 from .config import get_config, get_option
-from .common import require, chunk_iter_stream, chunk_iter_string, bool_to_string, parse_bool
+from .common import require, chunk_iter_stream, chunk_iter_string, bool_to_string, parse_bool, set_param
 from .errors import YtError, YtResponseError
 from .heavy_commands import make_write_request, make_read_request
 from .cypress_commands import remove, exists, set_attribute, mkdir, find_free_subpath, \
@@ -50,12 +50,9 @@ def read_file(path, file_reader=None, offset=None, length=None, client=None):
     """
     path = FilePath(path, client=client)
     params = {"path": path}
-    if file_reader is not None:
-        params["file_reader"] = file_reader
-    if length is not None:
-        params["length"] = length
-    if offset is not None:
-        params["offset"] = offset
+    set_param(params, "file_reader", file_reader)
+    set_param(params, "length", length)
+    set_param(params, "offset", offset)
 
     def process_response(response):
         pass
@@ -137,8 +134,7 @@ def write_file(destination, stream, file_writer=None, is_stream_compressed=False
             stream = chunk_iter_string(stream, chunk_size)
 
     params = {}
-    if file_writer is not None:
-        params["file_writer"] = file_writer
+    set_param(params, "file_writer", file_writer)
 
     enable_retries = get_config(client)["write_retries"]["enable"]
     if not is_one_small_blob and is_stream_compressed:

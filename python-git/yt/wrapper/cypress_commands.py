@@ -1,6 +1,6 @@
 from . import yson
 from .config import get_config, get_option
-from .common import parse_bool, flatten, get_value, bool_to_string, YtError, set_option
+from .common import parse_bool, flatten, get_value, bool_to_string, YtError, set_param
 from .errors import YtResponseError
 from .transaction_commands import _make_transactional_request, \
                                   _make_formatted_transactional_request
@@ -44,8 +44,8 @@ def get(path, attributes=None, format=None, ignore_opaque=False, read_from=None,
     params = {
         "path": YPath(path, client=client),
         "ignore_opaque": bool_to_string(ignore_opaque)}
-    set_option(params, "attributes", attributes)
-    set_option(params, "read_from", read_from)
+    set_param(params, "attributes", attributes)
+    set_param(params, "read_from", read_from)
     return _make_formatted_transactional_request(
         "get",
         params=params,
@@ -91,9 +91,9 @@ def copy(source_path, destination_path, recursive=None, preserve_account=None, f
               "destination_path": YPath(destination_path, client=client)}
 
     recursive = get_value(recursive, get_config(client)["yamr_mode"]["create_recursive"])
-    set_option(params, "recursive", recursive, bool_to_string)
-    set_option(params, "force", force, bool_to_string)
-    set_option(params, "preserve_account", preserve_account, bool_to_string)
+    set_param(params, "recursive", recursive, bool_to_string)
+    set_param(params, "force", force, bool_to_string)
+    set_param(params, "preserve_account", preserve_account, bool_to_string)
     return _make_formatted_transactional_request("copy", params, format=None, client=client)
 
 def move(source_path, destination_path, recursive=None, preserve_account=None, force=None, client=None):
@@ -110,9 +110,9 @@ def move(source_path, destination_path, recursive=None, preserve_account=None, f
               "destination_path": YPath(destination_path, client=client)}
 
     recursive = get_value(recursive, get_config(client)["yamr_mode"]["create_recursive"])
-    set_option(params, "recursive", recursive, bool_to_string)
-    set_option(params, "force", force, bool_to_string)
-    set_option(params, "preserve_account", preserve_account, bool_to_string)
+    set_param(params, "recursive", recursive, bool_to_string)
+    set_param(params, "force", force, bool_to_string)
+    set_param(params, "preserve_account", preserve_account, bool_to_string)
     return _make_formatted_transactional_request("move", params, format=None, client=client)
 
 def concatenate(source_paths, destination_path, client=None):
@@ -148,7 +148,7 @@ def link(target_path, link_path, recursive=False, ignore_existing=False, force=F
         "recursive": bool_to_string(recursive),
         "ignore_existing": bool_to_string(ignore_existing),
         "force": bool_to_string(force)}
-    set_option(params, "attributes", attributes)
+    set_param(params, "attributes", attributes)
     return _make_formatted_transactional_request(
         "link",
         params,
@@ -183,8 +183,8 @@ def list(path, max_size=None, format=None, absolute=None, attributes=None, sort=
     params = {
         "path": YPath(path, client=client),
         "max_size": max_size}
-    set_option(params, "attributes", attributes)
-    set_option(params, "read_from", read_from)
+    set_param(params, "attributes", attributes)
+    set_param(params, "read_from", read_from)
     result = _make_formatted_transactional_request(
         "list",
         params=params,
@@ -203,7 +203,7 @@ def exists(path, read_from=None, client=None):
     .. seealso:: `exists on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#exists>`_
     """
     params = {"path": YPath(path, client=client)}
-    set_option(params, "read_from", read_from)
+    set_param(params, "read_from", read_from)
     return parse_bool(
         _make_formatted_transactional_request(
             "exists",
