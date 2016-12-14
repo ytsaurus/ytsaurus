@@ -9,7 +9,7 @@ def main():
     setup(
         name = "yandex-yt-transfer-manager",
         version = get_version(),
-        packages = ["yt.transfer_manager.server"],
+        packages = ["yt.transfer_manager", "yt.transfer_manager.server"],
 
         scripts = scripts,
         data_files = data_files,
