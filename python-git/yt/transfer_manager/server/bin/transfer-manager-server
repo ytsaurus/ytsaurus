@@ -27,7 +27,7 @@ import yt.json as json
 from yt.packages.expiringdict import ExpiringDict
 from yt.packages.cherrypy import wsgiserver
 from yt.packages.six import iteritems, PY3
-from yt.packages.six.moves import queue, xrange
+from yt.packages.six.moves import queue, xrange, zip as izip
 
 import yt.packages.pympler.muppy as pympler_muppy
 import yt.packages.pympler.summary as pympler_summary
@@ -490,7 +490,7 @@ class Application(object):
                         for index in xrange(start_index, end_index)]
             responses += self._yt.execute_batch(requests)
 
-        for task_id, response in zip(task_ids, responses):
+        for task_id, response in izip(task_ids, responses):
             task_logger = TaskIdLogger(task_id)
 
             if "error" in response and response["error"]:
