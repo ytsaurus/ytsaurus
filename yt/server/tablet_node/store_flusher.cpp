@@ -163,6 +163,8 @@ private:
         const auto& tabletManager = slot->GetTabletManager();
         const auto& storeManager = tablet->GetStoreManager();
 
+        tablet->UpdateUnflushedTimestamp();
+
         if (storeManager->IsOverflowRotationNeeded()) {
             LOG_DEBUG("Scheduling store rotation due to overflow (TabletId: %v)",
                 tablet->GetId());
