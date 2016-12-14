@@ -28,7 +28,7 @@ TEST(THeapTest, MakeThenExtract)
     }
 
     auto sorted = words;
-    sort(sorted.begin(), sorted.end());
+    std::sort(sorted.begin(), sorted.end());
 
     NYT::MakeHeap(words.begin(), words.end(), std::greater<Stroka>());
     auto end = words.end();
@@ -50,7 +50,7 @@ TEST(THeapTest, InsertThenExtract)
     }
 
     auto sorted = words;
-    sort(sorted.begin(), sorted.end());
+    std::sort(sorted.begin(), sorted.end());
 
     for (auto it = words.begin(); it != words.end(); ++it) {
         NYT::AdjustHeapBack(words.begin(), it, std::greater<Stroka>());
