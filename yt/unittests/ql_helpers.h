@@ -54,38 +54,15 @@ using namespace NYPath;
 
 void PrintTo(TConstExpressionPtr expr, ::std::ostream* os);
 
-static TValue MakeInt64(i64 value)
-{
-    return MakeUnversionedInt64Value(value);
-}
-
-static TValue MakeUint64(i64 value)
-{
-    return MakeUnversionedUint64Value(value);
-}
-
-static TValue MakeDouble(i64 value)
-{
-    return MakeUnversionedDoubleValue(value);
-}
-
-static TValue MakeBoolean(bool value)
-{
-    return MakeUnversionedBooleanValue(value);
-}
-
-static TValue MakeString(const TStringBuf& value)
-{
-    return MakeUnversionedStringValue(value);
-}
-
-static TValue MakeNull()
-{
-    return MakeUnversionedSentinelValue(EValueType::Null);
-}
+TValue MakeInt64(i64 value);
+TValue MakeUint64(i64 value);
+TValue MakeDouble(i64 value);
+TValue MakeBoolean(bool value);
+TValue MakeString(const TStringBuf& value);
+TValue MakeNull();
 
 template <class TTypedExpression, class... TArgs>
-static TConstExpressionPtr Make(TArgs&&... args)
+TConstExpressionPtr Make(TArgs&&... args)
 {
     return New<TTypedExpression>(
         EValueType::TheBottom,

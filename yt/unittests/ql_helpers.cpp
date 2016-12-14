@@ -40,6 +40,36 @@ void PrintTo(TConstExpressionPtr expr, ::std::ostream* os)
     *os << InferName(expr);
 }
 
+TValue MakeInt64(i64 value)
+{
+    return MakeUnversionedInt64Value(value);
+}
+
+TValue MakeUint64(i64 value)
+{
+    return MakeUnversionedUint64Value(value);
+}
+
+TValue MakeDouble(i64 value)
+{
+    return MakeUnversionedDoubleValue(value);
+}
+
+TValue MakeBoolean(bool value)
+{
+    return MakeUnversionedBooleanValue(value);
+}
+
+TValue MakeString(const TStringBuf& value)
+{
+    return MakeUnversionedStringValue(value);
+}
+
+TValue MakeNull()
+{
+    return MakeUnversionedSentinelValue(EValueType::Null);
+}
+
 TKeyColumns GetSampleKeyColumns()
 {
     TKeyColumns keyColumns;
