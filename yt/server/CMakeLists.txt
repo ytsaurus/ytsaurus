@@ -352,7 +352,7 @@ SET(YT_SRCS
 IF(YMAKE)
 ################################################################################
 
-PROGRAM(ytserver)
+LIBRARY()
 
 OWNER(sandello)
 

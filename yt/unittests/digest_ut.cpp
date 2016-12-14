@@ -3,6 +3,8 @@
 #include <yt/core/misc/digest.h>
 #include <yt/core/misc/config.h>
 
+#include <random>
+
 using namespace NYT;
 
 class TLogDigestTest
