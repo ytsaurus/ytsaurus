@@ -479,7 +479,7 @@ class Application(object):
 
         running_tasks = []
 
-        portion_size = 1000
+        portion_size = 500
 
         responses = []
         task_ids = self._yt.list(tasks_path)
@@ -490,21 +490,23 @@ class Application(object):
                         for index in xrange(start_index, end_index)]
             responses += self._yt.execute_batch(requests)
 
-        for response in responses:
+        for task_id, response in zip(task_ids, responses):
+            task_logger = TaskIdLogger(task_id)
+
             if "error" in response and response["error"]:
-                logger.warning("Failed to load task %s: %s", id, str(yt.YtResponseError(response["error"])))
+                task_logger.warning("Failed to load task: %s", str(yt.YtResponseError(response["error"])))
                 continue
 
             task_options = response["output"]
-            id = task_options["id"]
-            task_logger = TaskIdLogger(id)
+            task_options["logger"] = task_logger
+
             try:
-                task_options["logger"] = task_logger
                 task = Task(**task_options)
-                task._last_ping_time = time.time()
             except Exception as err:
                 task_logger.warning("Failed to load task: %s", str(err))
                 continue
+
+            task._last_ping_time = time.time()
 
             try:
                 active_client, passive_client = task.get_active_and_passive_clients(
@@ -517,9 +519,9 @@ class Application(object):
                 task_logger.warning("Failed load task: task has no pool")
                 continue
 
-            self._tasks[id] = task
+            self._tasks[task_id] = task
             if task.state == "running":
-                running_tasks.append(id)
+                running_tasks.append(task_id)
                 task.state = "pending"
                 # To optimize start time we do not change state in Cypress here.
                 # It lead us to the situation when state in cypress differ from state in memory,
@@ -530,7 +532,7 @@ class Application(object):
 
         logger.info("Tasks loaded from cypress")
 
-        self._pending_tasks.sort(key=lambda id: self._tasks[id].creation_time)
+        self._pending_tasks.sort(key=lambda id: self._tasks[task_id].creation_time)
 
         # Abort tasks operations (TM can fail but operations will go on)
         self._abort_running_operations(running_tasks)
