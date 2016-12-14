@@ -137,7 +137,7 @@ class YtStuff(object):
         self.mapreduce_yt_path = [yatest.common.binary_path('yt/packages/contrib/python/yt/bin/mapreduce-yt/mapreduce-yt')]
         self.yt_local_path = [yatest.common.binary_path('yt/packages/contrib/python/yt_local/bin/local/yt_local')]
 
-        yt_server_arcadia_path = yatest.common.binary_path('yt/packages/yt/{}/yt/server/ytserver'.format(version))
+        yt_server_arcadia_path = yatest.common.binary_path('yt/packages/yt/{}/yt/server/ytserver_program/ytserver'.format(version))
         yt_server_custom_path = yatest.common.get_param("yt_ytserver_path")
         shutil.copy(yt_server_custom_path or yt_server_arcadia_path, os.path.join(self.yt_bins_path, 'ytserver'))
 
