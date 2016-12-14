@@ -511,6 +511,12 @@ class TestSchedulerMapCommands(YTEnvSetup):
         }
     }
 
+    DELTA_NODE_CONFIG = {
+        "tablet_manager" : {
+            "error_backoff_time" : 0
+        }
+    }
+
     def _create_simple_dynamic_table(self, path, sort_order="ascending", optimize_for="lookup"):
         create("table", path,
             attributes = {

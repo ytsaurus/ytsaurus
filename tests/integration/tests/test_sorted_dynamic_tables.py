@@ -32,6 +32,9 @@ class TestSortedDynamicTables(YTEnvSetup):
             "timestamp_provider" : {
                 "update_period": 100
             }
+        },
+        "tablet_manager" : {
+            "error_backoff_time" : 0
         }
     }
 
