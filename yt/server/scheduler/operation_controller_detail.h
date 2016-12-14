@@ -198,9 +198,7 @@ protected:
     ISuspendableInvokerPtr SuspendableInvoker;
     IInvokerPtr CancelableInvoker;
 
-    EControllerState State = EControllerState::Preparing;
-
-    std::atomic<bool> Aborted = {false};
+    std::atomic<EControllerState> State = {EControllerState::Preparing};
 
     // These totals are approximate.
     int TotalEstimatedInputChunkCount = 0;
@@ -841,7 +839,7 @@ protected:
 
     //! Successfully terminate and finalize operation.
     /*!
-     *  #interrupted flag indicates premature completion and disables standard validatoin
+     *  #interrupted flag indicates premature completion and disables standard validation
      */
     virtual void OnOperationCompleted(bool interrupted);
 
