@@ -19,6 +19,7 @@ import tempfile
 import shutil
 import time
 from io import BytesIO
+from copy import deepcopy
 
 @pytest.mark.usefixtures("yt_env")
 class TestTableCommands(object):
@@ -123,6 +124,14 @@ class TestTableCommands(object):
         with TempTable() as table:
             assert yt.exists(table)
         assert not yt.exists(table)
+
+        config = deepcopy(yt.config.config)
+        config["temp_expiration_timeout"] = 5 * 1000
+        client = yt.YtClient(config=config)
+        with client.TempTable() as table:
+            assert client.exists(table)
+            time.sleep(5.5)
+            assert not client.exists(table)
 
     def test_write_many_chunks(self):
         with set_config_option("write_retries/chunk_size", 1):

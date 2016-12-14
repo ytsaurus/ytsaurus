@@ -231,6 +231,7 @@ default_config = {
     # Attributes of automatically created tables.
     "create_table_attributes": None,
 
+    # TODO(ignat): make sections about local temp and remote temp.
     # Remove temporary files after creation.
     "clear_local_temp_files": True,
     "local_temp_directory": "/tmp",
@@ -238,6 +239,9 @@ default_config = {
     # Path to remote directories for temporary files and tables.
     "remote_temp_files_directory": "//tmp/yt_wrapper/file_storage",
     "remote_temp_tables_directory": "//tmp/yt_wrapper/table_storage",
+
+    # Expiration timeout for temporary objects (in milliseconds).
+    "temp_expiration_timeout": 7 * 24 * 60 * 1000,
 
     "file_cache": {
         "replication_factor": 10,
