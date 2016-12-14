@@ -11,6 +11,8 @@ RECURSE(
   server
   python
   nodejs
+  unittests
+  server/ytserver_program
 )
 
 ################################################################################

@@ -1,5 +1,12 @@
-#:yt-updatable
-set( SRCS
+IF(YMAKE)
+  SET(CMAKE_CURRENT_LIST_DIR .)
+  SET(YT_ABI 18_5)
+ENDIF()
+
+SET(PROTO_NAMESPACE yt/${YT_ABI})
+
+# Some tests are commented due to arcadia issues.
+SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/any_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/any_column_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/async_rw_lock_ut.cpp
@@ -9,7 +16,6 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/boolean_column_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/bus_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/callback_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/cgroup_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/checkpointable_stream_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_schema_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_slice_ut.cpp
@@ -66,11 +72,6 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/pipes_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/preprocessor_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/process_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/ql_computed_columns_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/ql_expressions_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/ql_helpers.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/ql_query_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/ql_range_inference_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ring_queue_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/random_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/read_limit_ut.cpp
@@ -78,6 +79,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/row_merger_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/row_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc_ut.proto
   ${CMAKE_CURRENT_LIST_DIR}/scheduler_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/schemaful_dsv_parser_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/schemaful_dsv_writer_ut.cpp
@@ -108,7 +110,6 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/url_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/variant_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/varint_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/value_consumer_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/versioned_blocks_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/versioned_chunks_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/weak_ptr_ut.cpp
@@ -127,6 +128,71 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/yverify_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/zigzag_ut.cpp
 )
+
+################################################################################
+IF(YMAKE)
+################################################################################
+
+PROGRAM(unittester)
+
+OWNER(sandello)
+
+CXXFLAGS(
+  -std=c++1y
+  -Wno-sign-compare
+  -Wno-unused-parameter
+  -Wno-unused-value
+  -Wno-unused-const-variable
+  -Wno-unused-function
+  -Wno-switch
+  -Wno-type-limits
+  -Wno-c++14-extensions
+  -DYT_IN_ARCADIA
+)
+
+IF(GCC)
+  CXXFLAGS(-Wno-maybe-uninitialized)
+ENDIF()
+
+ADDINCL(
+  yt/${YT_ABI}/yt
+  contrib/libs/gtest
+  contrib/libs/gmock
+)
+
+SRCS(
+  ${YT_SRCS}
+)
+
+PEERDIR(
+  yt/${YT_ABI}/yt/ytlib
+  yt/${YT_ABI}/yt/server
+  contrib/libs/gtest
+  contrib/libs/gmock
+)
+
+END()
+
+################################################################################
+ELSE()
+################################################################################
+
+set(YT_SOURCE_FILES)
+include(query_client/CMakeLists.txt)
+
+set(YT_SRCS
+  ${YT_SRCS}
+  ${CMAKE_CURRENT_LIST_DIR}/cgroup_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ql_computed_columns_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ql_expressions_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ql_helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ql_query_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ql_range_inference_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/value_consumer_ut.cpp
+)
+
+resolve_srcs(YT_SRCS YT_SRCS_RESOLVED)
+list(APPEND YT_SRCS_RESOLVED ${YT_SOURCE_FILES})
 
 protoc( ${CMAKE_CURRENT_LIST_DIR}/rpc_ut.proto SRCS )
 
@@ -173,7 +239,7 @@ include_directories(
 
 add_executable(unittester
   ${CMAKE_SOURCE_DIR}/contrib/testing/framework.cpp
-  ${SRCS}
+  ${YT_SRCS_RESOLVED}
 )
 
 target_link_libraries(unittester
@@ -181,3 +247,9 @@ target_link_libraries(unittester
   yt-library-server
   deps-arcadia-library-lfalloc
 )
+
+
+################################################################################
+ENDIF()
+################################################################################
+
