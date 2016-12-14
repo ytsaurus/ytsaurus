@@ -1250,6 +1250,8 @@ void TOperationControllerBase::DoInitialize()
 
 void TOperationControllerBase::SafePrepare()
 {
+    YCHECK(!(Config->EnableFailControllerSpecOption && Spec->FailController));
+
     GetUserObjectBasicAttributes<TInputTable>(
         AuthenticatedInputMasterClient,
         InputTables,

@@ -79,6 +79,10 @@ public:
     double PreemptionSatisfactionThreshold;
     double AggressivePreemptionSatisfactionThreshold;
 
+    //! Enable option that allows to fail a controller by passing "fail_controller = %true"
+    //! in operation spec. Used only for testing purposes.
+    bool EnableFailControllerSpecOption;
+
     TFairShareStrategyConfig()
     {
         RegisterParameter("min_share_preemption_timeout", MinSharePreemptionTimeout)
@@ -163,6 +167,9 @@ public:
         RegisterParameter("aggressive_preemption_satisfaction_threshold", AggressivePreemptionSatisfactionThreshold)
             .Default(0.5)
             .GreaterThan(0);
+
+        RegisterParameter("enable_fail_controller_spec_option", EnableFailControllerSpecOption)
+            .Default(false);
 
         RegisterValidator([&] () {
             if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
