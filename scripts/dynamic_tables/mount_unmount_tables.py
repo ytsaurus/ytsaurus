@@ -1,4 +1,4 @@
-#!/usr/bin/ytserver
+#!/usr/bin/python
 import yt.wrapper as yt
 import sys
 import logging
