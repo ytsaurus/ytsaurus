@@ -78,6 +78,7 @@ class YtLocalBinary(object):
         command = [sys.executable, YT_LOCAL_BINARY] + list(args)
 
         for key, value in iteritems(kwargs):
+            key = key.replace("_", "-")
             if value is True:
                 command.extend(["--" + key])
             else:
