@@ -2130,7 +2130,7 @@ private:
         const auto& storeManager = tablet->GetStoreManager();
         if (storeManager) {
             // Store Manager could be null if snapshot loading is aborted.
-            storeManager->StopEpoch(Slot_);
+            storeManager->StopEpoch();
         }
 
         auto slotManager = Bootstrap_->GetTabletSlotManager();
