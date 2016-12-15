@@ -1089,8 +1089,7 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
     }
 
     // Downloading snapshot.
-    if (!cleanStart)
-    {
+    if (!cleanStart) {
         auto snapshotOrError = WaitFor(Host->GetMasterConnector()->DownloadSnapshot(OperationId));
         if (!snapshotOrError.IsOK()) {
             LOG_INFO(snapshotOrError, "Failed to download snapshot, will use clean start");
@@ -2096,14 +2095,14 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
             case EJobType::OrderedMap:
             case EJobType::SortedReduce:
             case EJobType::PartitionReduce:
-                auto path = Format("/data/output/%d/row_count%s", *RowCountLimitTableIndex, jobSummary->StatisticsSuffix);
+                auto path = Format("/data/output/%v/row_count%v", *RowCountLimitTableIndex, jobSummary->StatisticsSuffix);
                 i64 count = GetNumericValue(JobStatistics, path);
                 if (count >= RowCountLimit) {
                     OnOperationCompleted(true /* interrupted */);
                 }
+                break;
         }
     }
-
 }
 
 void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jobSummary)

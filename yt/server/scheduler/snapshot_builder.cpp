@@ -80,7 +80,12 @@ TFuture<void> TSnapshotBuilder::Run()
         job.OutputFile = std::make_unique<TFile>(FHANDLE(pipe.ReleaseWriteFD()));
         Jobs_.push_back(std::move(job));
 
-        operationSuspendFutures.push_back(operation->GetController()->Suspend());
+        operationSuspendFutures.push_back(operation
+            ->GetController()
+            ->Suspend().Apply(BIND([=, this_ = MakeStrong(this)] () {
+                LOG_DEBUG("Controller suspended (OperationId: %v)",
+                    operation->GetId());
+            })));
         operationIds.push_back(operation->GetId());
 
         LOG_INFO("Snapshot job registered (OperationId: %v)",

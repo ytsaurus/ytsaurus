@@ -79,6 +79,9 @@ class TDerivedIntricateObject
     : public TIntricateObject
 {
 private:
+    // To suppress warning about unused Payload.
+    friend void i_do_not_exist();
+
     // Payload.
     std::array<char, 32> Payload;
 };
