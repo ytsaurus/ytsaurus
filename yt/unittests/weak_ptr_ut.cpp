@@ -80,7 +80,7 @@ class TDerivedIntricateObject
 {
 private:
     // To suppress warning about unused Payload.
-    friend void i_do_not_exist();
+    friend void NonExistingFunction();
 
     // Payload.
     std::array<char, 32> Payload;
