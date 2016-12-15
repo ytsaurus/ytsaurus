@@ -81,7 +81,7 @@ class YtLocalBinary(object):
             if value is True:
                 command.extend(["--" + key])
             else:
-                command.extend(["--" + key, value])
+                command.extend(["--" + key, str(value)])
 
         env = {
             "YT_LOCAL_ROOT_PATH": self.root_path,
@@ -311,5 +311,5 @@ class TestLocalMode(object):
             pids = _read_pids_file(env_id)
             assert all(is_process_alive(pid) for pid in pids)
             process.send_signal(sig)
-            time.sleep(3.0)
+            time.sleep(5.0)
             assert all(not is_process_alive(pid) for pid in pids)
