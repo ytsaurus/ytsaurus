@@ -578,7 +578,7 @@ public:
 
         if (jobSizeAdjusterConfig && JobSizeConstraints->CanAdjustDataSizePerJob()) {
             JobSizeAdjuster = CreateJobSizeAdjuster(
-                JobSizeConstraints->GetDataSizePerJob(), 
+                JobSizeConstraints->GetDataSizePerJob(),
                 std::move(jobSizeAdjusterConfig));
             // ToDo(psushin): add logging here.
         }
@@ -1080,8 +1080,8 @@ private:
             }
 
             // NB: We should ignore check of chunk stripe count in case of last job.
-            if (list->Stripes.size() >= JobSizeConstraints->GetMaxChunkStripesPerJob() && 
-                (!JobSizeConstraints->IsExplicitJobCount() || GetFreePendingJobCount() > 1)) 
+            if (list->Stripes.size() >= JobSizeConstraints->GetMaxChunkStripesPerJob() &&
+                (!JobSizeConstraints->IsExplicitJobCount() || GetFreePendingJobCount() > 1))
             {
                 break;
             }
@@ -1091,8 +1091,8 @@ private:
             auto stat = suspendableStripe.GetStatistics();
 
             // We should always return at least one stripe, even we get MaxDataSizePerJob overflow.
-            if (list->TotalDataSize > 0 && list->TotalDataSize + stat.DataSize > JobSizeConstraints->GetMaxDataSizePerJob() && 
-                (!JobSizeConstraints->IsExplicitJobCount() || GetFreePendingJobCount() > 1)) 
+            if (list->TotalDataSize > 0 && list->TotalDataSize + stat.DataSize > JobSizeConstraints->GetMaxDataSizePerJob() &&
+                (!JobSizeConstraints->IsExplicitJobCount() || GetFreePendingJobCount() > 1))
             {
                 break;
             }
@@ -1127,6 +1127,7 @@ private:
             for (int stripeIndex : extractedStripeList.StripeIndexes) {
                 auto& suspendableStripe = Stripes[stripeIndex];
                 suspendableStripe.SetExtractedCookie(IChunkPoolOutput::NullCookie);
+                ++PendingStripeCount;
                 if (suspendableStripe.IsSuspended()) {
                     SuspendedDataSize += suspendableStripe.GetStatistics().DataSize;
                 } else {
@@ -1354,8 +1355,8 @@ private:
         {
             auto* run = &Runs.back();
             if (run->TotalDataSize > 0) {
-                if (run->TotalDataSize + dataSize > Owner->DataSizeThreshold || 
-                    run->TotalRowCount + rowCount > Owner->RowCountThreshold) 
+                if (run->TotalDataSize + dataSize > Owner->DataSizeThreshold ||
+                    run->TotalRowCount + rowCount > Owner->RowCountThreshold)
                 {
                     SealLastRun();
                     AddNewRun();
