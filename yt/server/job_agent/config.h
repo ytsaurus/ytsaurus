@@ -111,7 +111,7 @@ public:
     TStatisticsReporterConfig()
     {
         RegisterParameter("enabled", Enabled)
-            .Default(false);
+            .Default(true);
         RegisterParameter("reporting_period", ReportingPeriod)
             .Default(TDuration::Seconds(5));
         RegisterParameter("min_repeat_delay", MinRepeatDelay)
