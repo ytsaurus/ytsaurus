@@ -10,12 +10,45 @@
 #   include <windows.h>
 #endif
 
+#ifdef CXXABIv1
+
+#ifdef YT_IN_ARCADIA
+
+#include <cxxabi.h>
+
+#else
+
+// MSVC compiler has /GT option for supporting fiber-safe thread-local storage.
+// For CXXABIv1-compliant systems we can hijack __cxa_eh_globals.
+// See http://mentorembedded.github.io/cxx-abi/abi-eh.html
+namespace __cxxabiv1 {
+// We do not care about actual type here, so erase it.
+typedef void __untyped_cxa_exception;
+struct __cxa_eh_globals
+{
+    __untyped_cxa_exception* caughtExceptions;
+    unsigned int uncaughtExceptions;
+};
+extern "C" __cxa_eh_globals* __cxa_get_globals();
+extern "C" __cxa_eh_globals* __cxa_get_globals_fast();
+} // namespace __cxxabiv1
+
+#endif // YT_IN_ARCADIA
+
+#endif // CXXABIv1
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NYT {
 namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+#ifdef CXXABIv1
+static_assert(
+    sizeof(__cxxabiv1::__cxa_eh_globals) == TExecutionContext::EH_SIZE,
+    "Size mismatch of __cxa_eh_globals structure");
+#endif
 
 #if defined(_unix_)
 
@@ -27,7 +60,7 @@ extern "C" void* __attribute__((__regparm__(3))) SwitchExecutionContextImpl(
 TExecutionContext::TExecutionContext()
     : SP_(nullptr)
 {
-    memset(&EH_, 0, sizeof(EH_));
+    memset(EH_, 0, EH_SIZE);
 }
 
 TExecutionContext::TExecutionContext(TExecutionContext&& other)
@@ -36,8 +69,8 @@ TExecutionContext::TExecutionContext(TExecutionContext&& other)
     other.SP_ = nullptr;
 
 #ifdef CXXABIv1
-    EH_ = other.EH_;
-    memset(&other.EH_, 0, sizeof(other.EH_));
+    memcpy(EH_, other.EH_, EH_SIZE);
+    memset(other.EH_, 0, EH_SIZE);
 #endif
 }
 
@@ -67,8 +100,8 @@ void* SwitchExecutionContext(
 {
 #ifdef CXXABIv1
     auto* eh = __cxxabiv1::__cxa_get_globals();
-    caller->EH_ = *eh;
-    *eh = target->EH_;
+    memcpy(caller->EH_, eh, TExecutionContext::EH_SIZE);
+    memcpy(eh, target->EH_, TExecutionContext::EH_SIZE);
 #endif
     return SwitchExecutionContextImpl(&caller->SP_, &target->SP_, opaque);
 }
