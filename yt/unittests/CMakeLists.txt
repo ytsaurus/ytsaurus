@@ -192,13 +192,12 @@ list(APPEND YT_SRCS
 )
 
 resolve_srcs(YT_SRCS YT_SRCS_RESOLVED)
-list(APPEND YT_SRCS_RESOLVED ${YT_SOURCE_FILES})
 
 protoc( ${CMAKE_CURRENT_LIST_DIR}/rpc_ut.proto SRCS )
 
-udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/malloc_udf.c SRCS )
+udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/malloc_udf.c YT_SRCS_RESOLVED )
 udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/test_udfs.c
-  SRCS
+  YT_SRCS_RESOLVED
   SYMBOLS
     seventyfive
     strtol_udf
@@ -213,6 +212,8 @@ udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/test_udfs.c
     avg_udaf_merge
     avg_udaf_finalize
 )
+
+list(APPEND YT_SRCS_RESOLVED ${YT_SOURCE_FILES})
 
 if(MSVC)
   add_definitions(-D_VARIADIC_MAX=10)
