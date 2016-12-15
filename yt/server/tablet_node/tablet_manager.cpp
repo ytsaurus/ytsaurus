@@ -1650,7 +1650,10 @@ private:
     void StopTabletEpoch(TTablet* tablet)
     {
         const auto& storeManager = tablet->GetStoreManager();
-        storeManager->StopEpoch();
+        if (storeManager) {
+            // Store Manager could be null if snapshot loading is aborted.
+            storeManager->StopEpoch(Slot_);
+        }
 
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->UnregisterTabletSnapshot(Slot_, tablet);
