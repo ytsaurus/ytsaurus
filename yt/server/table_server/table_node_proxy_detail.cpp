@@ -76,8 +76,10 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     bool isDynamic = table->IsDynamic();
     bool isSorted = table->IsSorted();
 
+    descriptors->push_back(TAttributeDescriptor("chunk_row_count"));
     descriptors->push_back(TAttributeDescriptor("row_count")
         .SetPresent(!isDynamic));
+    // TODO(savrus) remove "unmerged_row_count" in 20.0
     descriptors->push_back(TAttributeDescriptor("unmerged_row_count")
         .SetPresent(isDynamic && isSorted));
     descriptors->push_back("sorted");
@@ -133,6 +135,12 @@ bool TTableNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* cons
     auto statistics = table->ComputeTotalStatistics();
 
     const auto& tabletManager = Bootstrap_->GetTabletManager();
+
+    if (key == "chunk_row_count") {
+        BuildYsonFluently(consumer)
+            .Value(statistics.row_count());
+        return true;
+    }
 
     if (key == "row_count" && !isDynamic) {
         BuildYsonFluently(consumer)
