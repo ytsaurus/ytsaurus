@@ -4,12 +4,19 @@ import sys
 import logging
 import argparse
 
+def execute_batch(reqs):
+    rsps = []
+    step = 100
+    for i in xrange(0, len(reqs), step):
+        rsps += yt.execute_batch(reqs[i:i+step])
+    return rsps
+
 def get_mounted_tables():
     tables = set()
     reqs = []
     for tablet_cell in yt.list("//sys/tablet_cells"):
         reqs.append({"command": "get", "parameters": {"path": "#" + tablet_cell + "/@tablet_ids"}})
-    rsps = yt.execute_batch(reqs)
+    rsps = execute_batch(reqs)
     tablets = []
     for rsp in rsps:
         if "error" in rsp:
@@ -19,7 +26,7 @@ def get_mounted_tables():
     reqs = []
     for tablet in tablets:
         reqs.append({"command": "get", "parameters": {"path": "#" + tablet + "/@table_id"}})
-    rsps = yt.execute_batch(reqs)
+    rsps = execute_batch(reqs)
     tables = set()
     for rsp in rsps:
         if "error" in rsp:
@@ -35,8 +42,8 @@ def action(tables, command):
     reqs = []
     for table in tables:
         reqs.append({"command": command, "parameters": {"path": table}})
-    rsps = yt.execute_batch(reqs)
-    for table, rsp in zip(table, rsps):
+    rsps = execute_batch(reqs)
+    for table, rsp in zip(tables, rsps):
         if "error" in rsp:
             logging.error("%s -> %r", table, rsp)
 
