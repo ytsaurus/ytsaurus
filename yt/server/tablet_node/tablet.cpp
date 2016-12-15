@@ -1061,13 +1061,18 @@ void TTablet::UpdateUnflushedTimestamp() const
     if (Context_) {
         auto transactionManager = Context_->GetTransactionManager();
         if (transactionManager) {
-            auto timestamp = transactionManager->GetMinPrepareTimestamp();
-            unflushedTimestamp = std::min(unflushedTimestamp, timestamp);
+            auto prepareTimestamp = transactionManager->GetMinPrepareTimestamp();
+            auto commitTimestamp = transactionManager->GetMinCommitTimestamp();
+            unflushedTimestamp = std::min({
+                unflushedTimestamp,
+                prepareTimestamp,
+                commitTimestamp});
         }
     }
 
-    //XXX(savrus): Fix this check.
-    //YCHECK(RuntimeData_->UnflushedTimestamp <= unflushedTimestamp);
+    if (Atomicity_ == EAtomicity::Full) {
+        YCHECK(RuntimeData_->UnflushedTimestamp <= unflushedTimestamp);
+    }
     RuntimeData_->UnflushedTimestamp = unflushedTimestamp;
 }
 
