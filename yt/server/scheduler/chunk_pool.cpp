@@ -1136,6 +1136,7 @@ private:
             for (int stripeIndex : extractedStripeList.StripeIndexes) {
                 auto& suspendableStripe = Stripes[stripeIndex];
                 suspendableStripe.SetExtractedCookie(IChunkPoolOutput::NullCookie);
+                ++PendingStripeCount;
                 if (suspendableStripe.IsSuspended()) {
                     SuspendedDataSize += suspendableStripe.GetStatistics().DataSize;
                 } else {

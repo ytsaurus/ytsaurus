@@ -1129,8 +1129,7 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
     }
 
     // Downloading snapshot.
-    if (!cleanStart)
-    {
+    if (!cleanStart) {
         auto snapshotOrError = WaitFor(Host->GetMasterConnector()->DownloadSnapshot(OperationId));
         if (!snapshotOrError.IsOK()) {
             LOG_INFO(snapshotOrError, "Failed to download snapshot, will use clean start");
