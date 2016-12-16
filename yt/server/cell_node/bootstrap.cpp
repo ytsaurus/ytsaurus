@@ -517,7 +517,7 @@ void TBootstrap::DoRun()
     TabletSlotManager->Initialize();
     ChunkStore->Initialize();
     ChunkCache->Initialize();
-    ExecSlotManager->Initialize(Config->ExecAgent->JobController->ResourceLimits->UserSlots);
+    ExecSlotManager->Initialize();
     MonitoringManager_->Start();
     PeerBlockUpdater->Start();
     MasterConnector->Start();
