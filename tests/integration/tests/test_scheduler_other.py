@@ -1430,7 +1430,9 @@ class TestSchedulerSnapshots(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "snapshot_period": 500
+            "snapshot_period": 500,
+            "operation_controller_suspend_timeout": 2000,
+            "max_concurrent_controller_schedule_job_calls": 1,
         }
     }
 
@@ -1493,6 +1495,38 @@ class TestSchedulerSnapshots(YTEnvSetup):
 
         for op in ops:
             op.track()
+
+    def test_suspend_time_limit(self):
+        create("table", "//tmp/in")
+        write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
+
+        create("table", "//tmp/out1")
+        create("table", "//tmp/out2")
+
+        op1 = map(
+            dont_track=True,
+            command="sleep 5; cat",
+            in_="//tmp/in",
+            out="//tmp/out1",
+            spec={"data_size_per_job": 1})
+
+        op2 = map(
+            dont_track=True,
+            command="cat",
+            in_="//tmp/in",
+            out="//tmp/out2",
+            spec={"data_size_per_job": 1, "testing": {"scheduling_delay": 5000}})
+
+        time.sleep(4)
+
+        snapshot_path1 = "//sys/operations/{0}/snapshot".format(op1.id)
+        snapshot_path2 = "//sys/operations/{0}/snapshot".format(op2.id)
+
+        assert exists(snapshot_path1)
+        assert not exists(snapshot_path2)
+
+        op1.abort()
+        op2.abort()
 
 class TestSchedulerPreemption(YTEnvSetup):
     NUM_MASTERS = 1
