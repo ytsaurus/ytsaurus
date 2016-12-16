@@ -46,12 +46,12 @@ public:
         , OwningNode_(std::move(owningProxy))
     { }
 
-    TResolveResult Resolve(const TYPath& path, IServiceContextPtr /*context*/) override
+    virtual TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& /*context*/) override
     {
         return TResolveResult::Here(path);
     }
 
-    void Invoke(IServiceContextPtr context) override
+    virtual void Invoke(const IServiceContextPtr& context) override
     {
         const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
         if (ypathExt.mutating()) {
@@ -123,8 +123,8 @@ private:
     }
 
     static void OnResponse(
-        IServiceContextPtr context,
-        TOrchidManifestPtr manifest,
+        const IServiceContextPtr& context,
+        const TOrchidManifestPtr& manifest,
         const TYPath& path,
         const Stroka& method,
         const TOrchidServiceProxy::TErrorOrRspExecutePtr& rspOrError)

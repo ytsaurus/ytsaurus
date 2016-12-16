@@ -2329,12 +2329,18 @@ private:
             , Scheduler_(scheduler)
         { }
 
-        virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context) override
+        virtual void GetSelf(
+            TReqGet* request,
+            TRspGet* response,
+            const TCtxGetPtr& context) override
         {
             THROW_ERROR_EXCEPTION("Methods Get and List are not supported by this node, query `job_by_id/${job_id}` instead");
         }
 
-        virtual void ListSelf(TReqList* request, TRspList* response, TCtxListPtr context) override
+        virtual void ListSelf(
+            TReqList* request,
+            TRspList* response,
+            const TCtxListPtr& context) override
         {
             THROW_ERROR_EXCEPTION("Methods Get and List are not supported by this node, query `job_by_id/${job_id}` instead");
         }

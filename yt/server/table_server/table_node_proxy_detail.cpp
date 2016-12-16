@@ -449,7 +449,7 @@ void TTableNodeProxy::ValidateFetchParameters(
 }
 
 
-bool TTableNodeProxy::DoInvoke(IServiceContextPtr context)
+bool TTableNodeProxy::DoInvoke(const IServiceContextPtr& context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(Mount);
     DISPATCH_YPATH_SERVICE_METHOD(Unmount);

@@ -42,7 +42,7 @@ public:
     virtual const TObjectId& GetId() const override;
     virtual const NYTree::IAttributeDictionary& Attributes() const override;
     virtual NYTree::IAttributeDictionary* MutableAttributes() override;
-    virtual void Invoke(NRpc::IServiceContextPtr context) override;
+    virtual void Invoke(const NRpc::IServiceContextPtr& context) override;
     virtual void WriteAttributesFragment(
         NYson::IAsyncYsonConsumer* consumer,
         const TNullable<std::vector<Stroka>>& attributeKeys,
@@ -71,19 +71,19 @@ protected:
     //! Returns the ACD for the object or |nullptr| is none exists.
     virtual NSecurityServer::TAccessControlDescriptor* FindThisAcd() = 0;
 
-    virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
+    virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
 
     // NYTree::TSupportsAttributes members
     virtual void SetAttribute(
         const NYTree::TYPath& path,
         TReqSet* request,
         TRspSet* response,
-        TCtxSetPtr context) override;
+        const TCtxSetPtr& context) override;
     virtual void RemoveAttribute(
         const NYTree::TYPath& path,
         TReqRemove* request,
         TRspRemove* response,
-        TCtxRemovePtr context) override;
+        const TCtxRemovePtr& context) override;
 
     void ReplicateAttributeUpdate(NRpc::IServiceContextPtr context);
 
@@ -161,13 +161,13 @@ public:
         TObjectBase* object);
 
 protected:
-    virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
+    virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
 
-    virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context) override;
+    virtual void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
 
     virtual void ValidateRemoval();
 
-    virtual void RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemovePtr context) override;
+    virtual void RemoveSelf(TReqRemove* request, TRspRemove* response, const TCtxRemovePtr& context) override;
 
     virtual TVersionedObjectId GetVersionedId() const override;
     virtual NSecurityServer::TAccessControlDescriptor* FindThisAcd() override;

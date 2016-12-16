@@ -470,7 +470,7 @@ private:
         return TBase::GetBuiltinAttributeAsync(key);
     }
 
-    virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
+    virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(Fetch);
         return TBase::DoInvoke(context);

@@ -212,7 +212,7 @@ class TMapNode
     YTREE_NODE_TYPE_OVERRIDES(Map)
 
 public:
-    TMapNode(bool shouldHideAttributes)
+    explicit TMapNode(bool shouldHideAttributes)
         : TCompositeNodeBase<IMapNode>(shouldHideAttributes)
     { }
 
@@ -329,7 +329,7 @@ private:
     yhash_map<Stroka, INodePtr> KeyToChild;
     yhash_map<INodePtr, Stroka> ChildToKey;
 
-    virtual bool DoInvoke(IServiceContextPtr context) override
+    virtual bool DoInvoke(const IServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(List);
         return TEphemeralNodeBase::DoInvoke(context);
@@ -337,7 +337,7 @@ private:
 
     virtual IYPathService::TResolveResult ResolveRecursive(
         const TYPath& path,
-        IServiceContextPtr context) override
+        const IServiceContextPtr& context) override
     {
         return TMapNodeMixin::ResolveRecursive(path, context);
     }
@@ -460,7 +460,7 @@ private:
 
     virtual TResolveResult ResolveRecursive(
         const TYPath& path,
-        IServiceContextPtr context) override
+        const IServiceContextPtr& context) override
     {
         return TListNodeMixin::ResolveRecursive(path, context);
     }

@@ -595,24 +595,24 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
     return TObjectProxyBase::GetBuiltinAttribute(key, consumer);
 }
 
-void TNontemplateCypressNodeProxyBase::BeforeInvoke(IServiceContextPtr context)
+void TNontemplateCypressNodeProxyBase::BeforeInvoke(const IServiceContextPtr& context)
 {
     AccessTrackingSuppressed = GetSuppressAccessTracking(context->RequestHeader());
     ModificationTrackingSuppressed = GetSuppressModificationTracking(context->RequestHeader());
 
-    TObjectProxyBase::BeforeInvoke(std::move(context));
+    TObjectProxyBase::BeforeInvoke(context);
 }
 
-void TNontemplateCypressNodeProxyBase::AfterInvoke(IServiceContextPtr context)
+void TNontemplateCypressNodeProxyBase::AfterInvoke(const IServiceContextPtr& context)
 {
     if (!AccessTrackingSuppressed) {
         SetAccessed();
     }
 
-    TObjectProxyBase::AfterInvoke(std::move(context));
+    TObjectProxyBase::AfterInvoke(context);
 }
 
-bool TNontemplateCypressNodeProxyBase::DoInvoke(NRpc::IServiceContextPtr context)
+bool TNontemplateCypressNodeProxyBase::DoInvoke(const NRpc::IServiceContextPtr& context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(Lock);
     DISPATCH_YPATH_SERVICE_METHOD(Create);
@@ -632,7 +632,7 @@ bool TNontemplateCypressNodeProxyBase::DoInvoke(NRpc::IServiceContextPtr context
 void TNontemplateCypressNodeProxyBase::RemoveSelf(
     TReqRemove* request,
     TRspRemove* response,
-    TCtxRemovePtr context)
+    const TCtxRemovePtr& context)
 {
     auto* node = GetThisImpl();
     if (node->IsForeign()) {
@@ -642,7 +642,7 @@ void TNontemplateCypressNodeProxyBase::RemoveSelf(
         YCHECK(objectManager->GetObjectRefCounter(node) == 1);
         objectManager->UnrefObject(node);
     } else {
-        TNodeBase::RemoveSelf(request, response, std::move(context));
+        TNodeBase::RemoveSelf(request, response, context);
     }
 }
 
@@ -650,7 +650,7 @@ void TNontemplateCypressNodeProxyBase::GetAttribute(
     const TYPath& path,
     TReqGet* request,
     TRspGet* response,
-    TCtxGetPtr context)
+    const TCtxGetPtr& context)
 {
     SuppressAccessTracking();
     TObjectProxyBase::GetAttribute(path, request, response, context);
@@ -660,7 +660,7 @@ void TNontemplateCypressNodeProxyBase::ListAttribute(
     const TYPath& path,
     TReqList* request,
     TRspList* response,
-    TCtxListPtr context)
+    const TCtxListPtr& context)
 {
     SuppressAccessTracking();
     TObjectProxyBase::ListAttribute(path, request, response, context);
@@ -669,7 +669,7 @@ void TNontemplateCypressNodeProxyBase::ListAttribute(
 void TNontemplateCypressNodeProxyBase::ExistsSelf(
     TReqExists* request,
     TRspExists* response,
-    TCtxExistsPtr context)
+    const TCtxExistsPtr& context)
 {
     SuppressAccessTracking();
     TObjectProxyBase::ExistsSelf(request, response, context);
@@ -679,7 +679,7 @@ void TNontemplateCypressNodeProxyBase::ExistsRecursive(
     const TYPath& path,
     TReqExists* request,
     TRspExists* response,
-    TCtxExistsPtr context)
+    const TCtxExistsPtr& context)
 {
     SuppressAccessTracking();
     TObjectProxyBase::ExistsRecursive(path, request, response, context);
@@ -689,7 +689,7 @@ void TNontemplateCypressNodeProxyBase::ExistsAttribute(
     const TYPath& path,
     TReqExists* request,
     TRspExists* response,
-    TCtxExistsPtr context)
+    const TCtxExistsPtr& context)
 {
     SuppressAccessTracking();
     TObjectProxyBase::ExistsAttribute(path, request, response, context);
@@ -1354,7 +1354,7 @@ Stroka TMapNodeProxy::GetChildKey(IConstNodePtr child)
     return "?";
 }
 
-bool TMapNodeProxy::DoInvoke(NRpc::IServiceContextPtr context)
+bool TMapNodeProxy::DoInvoke(const NRpc::IServiceContextPtr& context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(List);
     return TBase::DoInvoke(context);
@@ -1385,7 +1385,7 @@ int TMapNodeProxy::GetMaxKeyLength() const
 
 IYPathService::TResolveResult TMapNodeProxy::ResolveRecursive(
     const TYPath& path,
-    IServiceContextPtr context)
+    const IServiceContextPtr& context)
 {
     return TMapNodeMixin::ResolveRecursive(path, context);
 }
@@ -1597,7 +1597,7 @@ int TListNodeProxy::GetMaxChildCount() const
 
 IYPathService::TResolveResult TListNodeProxy::ResolveRecursive(
     const TYPath& path,
-    IServiceContextPtr context)
+    const IServiceContextPtr& context)
 {
     return TListNodeMixin::ResolveRecursive(path, context);
 }
@@ -1618,7 +1618,7 @@ TLinkNodeProxy::TLinkNodeProxy(
 
 IYPathService::TResolveResult TLinkNodeProxy::Resolve(
     const TYPath& path,
-    IServiceContextPtr context)
+    const IServiceContextPtr& context)
 {
     auto propagate = [&] () {
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -1718,7 +1718,9 @@ TIntrusivePtr<IEntityNode> TDocumentNodeProxy::AsEntity()
     return this;
 }
 
-IYPathService::TResolveResult TDocumentNodeProxy::ResolveRecursive(const TYPath& path, IServiceContextPtr context)
+IYPathService::TResolveResult TDocumentNodeProxy::ResolveRecursive(
+    const TYPath& path,
+    const IServiceContextPtr& /*context*/)
 {
     return TResolveResult::Here("/" + path);
 }
@@ -1754,21 +1756,31 @@ void DelegateInvocation(
 
 } // namespace
 
-void TDocumentNodeProxy::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
+void TDocumentNodeProxy::GetSelf(
+    TReqGet* request,
+    TRspGet* response,
+    const TCtxGetPtr& context)
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
     const auto* impl = GetThisImpl();
     DelegateInvocation(impl->GetValue(), request, response, context);
 }
 
-void TDocumentNodeProxy::GetRecursive(const TYPath& /*path*/, TReqGet* request, TRspGet* response, TCtxGetPtr context)
+void TDocumentNodeProxy::GetRecursive(
+    const TYPath& /*path*/,
+    TReqGet* request,
+    TRspGet* response,
+    const TCtxGetPtr& context)
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
     const auto* impl = GetThisImpl();
     DelegateInvocation(impl->GetValue(), request, response, context);
 }
 
-void TDocumentNodeProxy::SetSelf(TReqSet* request, TRspSet* /*response*/, TCtxSetPtr context)
+void TDocumentNodeProxy::SetSelf(
+    TReqSet* request,
+    TRspSet* /*response*/,
+    const TCtxSetPtr& context)
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
     auto* impl = LockThisImpl();
@@ -1776,35 +1788,53 @@ void TDocumentNodeProxy::SetSelf(TReqSet* request, TRspSet* /*response*/, TCtxSe
     context->Reply();
 }
 
-void TDocumentNodeProxy::SetRecursive(const TYPath& /*path*/, TReqSet* request, TRspSet* response, TCtxSetPtr context)
+void TDocumentNodeProxy::SetRecursive(
+    const TYPath& /*path*/,
+    TReqSet* request,
+    TRspSet* response,
+    const TCtxSetPtr& context)
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
     auto* impl = LockThisImpl();
     DelegateInvocation(impl->GetValue(), request, response, context);
 }
 
-void TDocumentNodeProxy::ListSelf(TReqList* request, TRspList* response, TCtxListPtr context)
+void TDocumentNodeProxy::ListSelf(
+    TReqList* request,
+    TRspList* response,
+    const TCtxListPtr& context)
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
     const auto* impl = GetThisImpl();
     DelegateInvocation(impl->GetValue(), request, response, context);
 }
 
-void TDocumentNodeProxy::ListRecursive(const TYPath& /*path*/, TReqList* request, TRspList* response, TCtxListPtr context)
+void TDocumentNodeProxy::ListRecursive(
+    const TYPath& /*path*/,
+    TReqList* request,
+    TRspList* response,
+    const TCtxListPtr& context)
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
     const auto* impl = GetThisImpl();
     DelegateInvocation(impl->GetValue(), request, response, context);
 }
 
-void TDocumentNodeProxy::RemoveRecursive(const TYPath& /*path*/, TReqRemove* request, TRspRemove* response, TCtxRemovePtr context)
+void TDocumentNodeProxy::RemoveRecursive(
+    const TYPath& /*path*/,
+    TReqRemove* request,
+    TRspRemove* response,
+    const TCtxRemovePtr& context)
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
     auto* impl = LockThisImpl();
     DelegateInvocation(impl->GetValue(), request, response, context);
 }
 
-void TDocumentNodeProxy::ExistsRecursive(const TYPath& /*path*/, TReqExists* request, TRspExists* response, TCtxExistsPtr context)
+void TDocumentNodeProxy::ExistsRecursive(
+    const TYPath& /*path*/,
+    TReqExists* request,
+    TRspExists* response, const TCtxExistsPtr& context)
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
     const auto* impl = GetThisImpl();

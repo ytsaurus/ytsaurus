@@ -51,7 +51,7 @@ public:
     IMPLEMENT_AS_METHODS(Map)
 #undef IMPLEMENT_AS_METHODS
 
-    virtual TResolveResult ResolveRecursive(const NYPath::TYPath& path, NRpc::IServiceContextPtr context) override;
+    virtual TResolveResult ResolveRecursive(const NYPath::TYPath& path, const NRpc::IServiceContextPtr& context) override;
 
 protected:
     template <class TNode>
@@ -66,11 +66,11 @@ protected:
         factory->Commit();
     }
 
-    virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
+    virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
 
-    virtual void GetKeySelf(TReqGetKey* request, TRspGetKey* response, TCtxGetKeyPtr context) override;
-    virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context) override;
-    virtual void RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemovePtr context) override;
+    virtual void GetKeySelf(TReqGetKey* request, TRspGetKey* response, const TCtxGetKeyPtr& context) override;
+    virtual void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
+    virtual void RemoveSelf(TReqRemove* request, TRspRemove* response, const TCtxRemovePtr& context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -87,13 +87,13 @@ protected:
         const TYPath &path,
         TReqRemove* request,
         TRspRemove* response,
-        TCtxRemovePtr context) override;
+        const TCtxRemovePtr& context) override;
 
     virtual void SetRecursive(
         const TYPath& path,
         TReqSet* request,
         TRspSet* response,
-        TCtxSetPtr context) override;
+        const TCtxSetPtr& context) override;
 
     virtual void SetChild(
         INodeFactory* factory,
@@ -115,12 +115,12 @@ class TMapNodeMixin
 protected:
     virtual IYPathService::TResolveResult ResolveRecursive(
         const TYPath& path,
-        NRpc::IServiceContextPtr context) override;
+        const NRpc::IServiceContextPtr& context) override;
 
     virtual void ListSelf(
         TReqList* request,
         TRspList* response,
-        TCtxListPtr context) override;
+        const TCtxListPtr& context) override;
 
     virtual void SetChild(
         INodeFactory* factory,
@@ -140,7 +140,7 @@ class TListNodeMixin
 protected:
     virtual IYPathService::TResolveResult ResolveRecursive(
         const TYPath& path,
-        NRpc::IServiceContextPtr context) override;
+        const NRpc::IServiceContextPtr& context) override;
 
     virtual void SetChild(
         INodeFactory* factory,
@@ -160,30 +160,30 @@ public:
     static IYPathServicePtr Get();
 
 private:
-    virtual bool DoInvoke(NRpc::IServiceContextPtr context);
+    virtual bool DoInvoke(const NRpc::IServiceContextPtr& context);
 
     virtual TResolveResult Resolve(
         const TYPath& path,
-        NRpc::IServiceContextPtr /*context*/);
+        const NRpc::IServiceContextPtr& context);
 
     virtual void ExistsSelf(
-        TReqExists* /*request*/,
-        TRspExists* /*response*/,
-        TCtxExistsPtr context);
+        TReqExists* request,
+        TRspExists* response,
+        const TCtxExistsPtr& context);
 
     virtual void ExistsRecursive(
-        const TYPath& /*path*/,
-        TReqExists* /*request*/,
-        TRspExists* /*response*/,
-        TCtxExistsPtr context);
+        const TYPath& path,
+        TReqExists* request,
+        TRspExists* response,
+        const TCtxExistsPtr& context);
 
     virtual void ExistsAttribute(
-        const TYPath& /*path*/,
-        TReqExists* /*request*/,
-        TRspExists* /*response*/,
-        TCtxExistsPtr context);
+        const TYPath& path,
+        TReqExists* request,
+        TRspExists* response,
+        const TCtxExistsPtr& context);
 
-    void ExistsAny(TCtxExistsPtr context);
+    void ExistsAny(const TCtxExistsPtr& context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -206,7 +206,7 @@ public: \
     } \
     \
 protected: \
-    virtual void SetSelf(TReqSet* request, TRspSet* response, TCtxSetPtr context) override \
+    virtual void SetSelf(TReqSet* request, TRspSet* response, const TCtxSetPtr& context) override \
     { \
         Y_UNUSED(response); \
         context->SetRequestInfo(); \
