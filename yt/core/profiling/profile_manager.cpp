@@ -223,7 +223,7 @@ private:
     private:
         std::deque<TStoredSample> Samples;
 
-        virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
+        virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override
         {
             DISPATCH_YPATH_SERVICE_METHOD(Get);
             return TYPathServiceBase::DoInvoke(context);
@@ -234,7 +234,10 @@ private:
             return value ? MakeNullable(TInstant::MicroSeconds(*value)) : Null;
         }
 
-        virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
+        virtual void GetSelf(
+            TReqGet* request,
+            TRspGet* response,
+            const TCtxGetPtr& context)
         {
             auto profilingManager = TProfileManager::Get()->Impl_;
             TGuard<TForkAwareSpinLock> tagGuard(profilingManager->GetTagSpinLock());
@@ -263,7 +266,6 @@ private:
 
             context->Reply();
         }
-
     };
 
     typedef TIntrusivePtr<TBucket> TBucketPtr;
@@ -284,7 +286,7 @@ private:
         { }
 
     private:
-        TImpl* Owner;
+        TImpl* const Owner;
 
         virtual EBeginExecuteResult BeginExecute() override
         {

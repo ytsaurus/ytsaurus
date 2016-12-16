@@ -545,7 +545,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
     Y_UNUSED(request);
     Y_UNUSED(response);
 
-    New<TExecuteSession>(this, std::move(context))->Run();
+    New<TExecuteSession>(this, context)->Run();
 }
 
 DEFINE_RPC_SERVICE_METHOD(TObjectService, GCCollect)

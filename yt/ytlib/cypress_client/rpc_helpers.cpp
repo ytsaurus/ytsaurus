@@ -14,7 +14,7 @@ using namespace NCypressClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTransactionId GetTransactionId(IServiceContextPtr context)
+TTransactionId GetTransactionId(const IServiceContextPtr& context)
 {
     return GetTransactionId(context->RequestHeader());
 }
@@ -24,7 +24,7 @@ TTransactionId GetTransactionId(const TRequestHeader& header)
     return FromProto<TTransactionId>(header.GetExtension(TTransactionalExt::transaction_id));
 }
 
-void SetTransactionId(IClientRequestPtr request, const TTransactionId& transactionId)
+void SetTransactionId(const IClientRequestPtr& request, const TTransactionId& transactionId)
 {
     SetTransactionId(&request->Header(), transactionId);
 }
@@ -34,7 +34,7 @@ void SetTransactionId(TRequestHeader* header, const TTransactionId& transactionI
     ToProto(header->MutableExtension(TTransactionalExt::transaction_id), transactionId);
 }
 
-void SetSuppressAccessTracking(IClientRequestPtr request, bool value)
+void SetSuppressAccessTracking(const IClientRequestPtr& request, bool value)
 {
     SetSuppressAccessTracking(&request->Header(), value);
 }
@@ -51,7 +51,7 @@ bool GetSuppressAccessTracking(const TRequestHeader& header)
         : false;
 }
 
-void SetSuppressModificationTracking(IClientRequestPtr request, bool value)
+void SetSuppressModificationTracking(const IClientRequestPtr& request, bool value)
 {
     SetSuppressModificationTracking(&request->Header(), value);
 }
