@@ -1,10 +1,10 @@
 from .common import flatten, require, update, parse_bool, get_value, set_param, datetime_to_string, \
                     MB, EMPTY_GENERATOR
-from .config import get_config
+from .config import get_config, get_option
 from .cypress_commands import exists, remove, get_attribute, copy, \
                               move, mkdir, find_free_subpath, create, get, has_attribute
 from .driver import make_request
-from .errors import YtIncorrectResponse, YtError
+from .errors import YtIncorrectResponse, YtError, YtRetriableError
 from .format import create_format, YsonFormat
 from .heavy_commands import make_write_request, make_read_request
 from .table_helpers import _prepare_source_tables, _are_default_empty_table, _prepare_table_writer, \
@@ -17,6 +17,7 @@ import yt.logger as logger
 from yt.packages.six import PY3
 from yt.packages.six.moves import map as imap, filter as ifilter
 
+import random
 from datetime import datetime, timedelta
 
 try:
@@ -259,9 +260,17 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
                 raise YtError("Unordered read cannot be performed with retries, try ordered read or disable retries")
 
         def prepare_params_for_retry(self):
+            def fix_range(range):
+                if "exact" in range:
+                    if self.range_started:
+                        del range["exact"]
+                        range["lower_limit"] = range["upper_limit"] = {"row_index": 0}
+                else:
+                    range["lower_limit"] = {"row_index": self.next_row_index}
+
             if "ranges" not in table.attributes:
                 if self.started:
-                    table.attributes["lower_limit"] = {"row_index": self.next_row_index}
+                    fix_range(table.attributes)
             else:
                 if len(table.attributes["ranges"]) > 1:
                     if get_config(client)["read_retries"]["allow_multiple_ranges"]:
@@ -278,7 +287,7 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
                         raise YtError("Read table with multiple ranges using retries is not supported for pretty JSON format")
 
                 if self.range_started and table.attributes["ranges"]:
-                    table.attributes["ranges"][0]["lower_limit"] = {"row_index": self.next_row_index}
+                    fix_range(table.attributes["ranges"][0])
                 self.range_started = False
 
             params["path"] = table
@@ -327,6 +336,10 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
                 self.started = True
 
             for row in format.load_rows(response, raw=True):
+                chaos_monkey_enabled = get_option("_ENABLE_READ_TABLE_CHAOS_MONKEY", client)
+                if chaos_monkey_enabled and random.randint(1, 5) == 1:
+                    raise YtRetriableError()
+
                 # NB: Low level check for optimization purposes. Only YSON and JSON format supported!
                 if is_control_row(row):
                     row = load_control_row(row)
