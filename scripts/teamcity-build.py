@@ -28,6 +28,12 @@ import shutil
 import xml.etree.ElementTree as etree
 import xml.parsers.expat
 
+def yt_processes_cleanup():
+    kill_by_name("^ytserver")
+    kill_by_name("^node")
+    kill_by_name("^run_proxy")
+
+
 @build_step
 def prepare(options):
     os.environ["LANG"] = "en_US.UTF-8"
@@ -94,6 +100,8 @@ def prepare(options):
     cleanup_cgroups()
 
     clear_system_tmp()
+
+    yt_processes_cleanup()
 
     # Clean core path from previous builds.
     rm_content(options.core_path)
@@ -241,6 +249,8 @@ def run_javascript_tests(options):
 
 
 def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
+    yt_processes_cleanup()
+
     if not options.build_enable_python:
         return
 
@@ -326,8 +336,6 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
 
 @build_step
 def run_integration_tests(options):
-    kill_by_name("^ytserver")
-
     pytest_args = []
     if options.enable_parallel_testing:
         pytest_args.extend(["--process-count", "6"])
@@ -338,10 +346,6 @@ def run_integration_tests(options):
 
 @build_step
 def run_python_libraries_tests(options):
-    kill_by_name("^ytserver")
-    kill_by_name("^node")
-    kill_by_name("^run_proxy")
-
     pytest_args = []
     if options.enable_parallel_testing:
         pytest_args.extend(["--process-count", "4"])
@@ -382,7 +386,6 @@ def build_python_packages(options):
 def run_perl_tests(options):
     if not options.build_enable_perl:
         return
-    kill_by_name("^ytserver")
     run_pytest(options, "perl", "{0}/perl/tests".format(options.checkout_directory))
 
 
