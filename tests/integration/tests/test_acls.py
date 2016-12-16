@@ -129,10 +129,7 @@ class TestAcls(YTEnvSetup):
             set("//tmp/t/@account", "a", authenticated_user="u")
 
         set("//sys/accounts/a/@acl/end", make_ace("allow", "u", "use"))
-        with pytest.raises(YtError):
-            set("//tmp/t/@account", "a", authenticated_user="u")
-
-        set("//tmp/t/@acl/end", make_ace("allow", "u", "administer"))
+        set("//tmp/t/@acl/end", make_ace("deny", "u", "administer"))
         set("//tmp/t/@account", "a", authenticated_user="u")
         assert get("//tmp/t/@account") == "a"
 
@@ -274,7 +271,6 @@ class TestAcls(YTEnvSetup):
         acl = [make_ace("allow", "u", "administer"), make_ace("deny", "u", "write")]
         set("//tmp/t/@acl", acl)
 
-        set("//tmp/t/@account", "tmp", authenticated_user="u")
         set("//tmp/t/@inherit_acl", False, authenticated_user="u")
         set("//tmp/t/@acl", acl, authenticated_user="u")
         remove("//tmp/t/@acl/1", authenticated_user="u")
@@ -287,7 +283,9 @@ class TestAcls(YTEnvSetup):
         set("//tmp/t/@acl", acl)
 
         with pytest.raises(YtError):
-            set("//tmp/t/@account", "tmp", authenticated_user="u")
+            set("//tmp/t/@acl", [], authenticated_user="u")
+        with pytest.raises(YtError):
+            set("//tmp/t/@inherit_acl", False, authenticated_user="u")
 
     def test_user_rename_success(self):
         create_user("u1")
