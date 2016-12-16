@@ -527,6 +527,8 @@ public:
 
     TDuration JobProberRpcTimeout;
 
+    TDuration OperationControllerSuspendTimeout;
+
     TDuration ClusterInfoLoggingPeriod;
 
     TDuration PendingEventLogRowsFlushPeriod;
@@ -745,6 +747,9 @@ public:
             .Default(TDuration::Minutes(60));
         RegisterParameter("job_prober_rpc_timeout", JobProberRpcTimeout)
             .Default(TDuration::Seconds(300));
+
+        RegisterParameter("operation_controller_suspend_timeout", OperationControllerSuspendTimeout)
+            .Default(TDuration::Seconds(5));
 
         RegisterParameter("task_update_period", TaskUpdatePeriod)
             .Default(TDuration::Seconds(3));
