@@ -30,8 +30,8 @@ TSlotManager::TSlotManager(
     TSlotManagerConfigPtr config,
     TBootstrap* bootstrap)
     : Config_(config)
-    , SlotCount_(Bootstrap_->GetConfig()->ExecAgent->JobController->ResourceLimits->UserSlots)
     , Bootstrap_(bootstrap)
+    , SlotCount_(Bootstrap_->GetConfig()->ExecAgent->JobController->ResourceLimits->UserSlots)
     , NodeTag_(Format("yt-node-%v", Bootstrap_->GetConfig()->RpcPort))
 { }
 
