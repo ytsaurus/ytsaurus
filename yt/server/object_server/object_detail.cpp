@@ -406,7 +406,7 @@ void TObjectProxyBase::ReplicateAttributeUpdate(IServiceContextPtr context)
         return;
 
     auto replicationCellTags = handler->GetReplicationCellTags(Object_);
-    PostToMasters(context, replicationCellTags);
+    PostToMasters(std::move(context), replicationCellTags);
 }
 
 IAttributeDictionary* TObjectProxyBase::GetCustomAttributes()
