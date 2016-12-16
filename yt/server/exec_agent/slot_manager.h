@@ -35,8 +35,8 @@ public:
 
 private:
     const TSlotManagerConfigPtr Config_;
-    const int SlotCount_;
     const NCellNode::TBootstrap* Bootstrap_;
+    const int SlotCount_;
     const Stroka NodeTag_;
 
     std::vector<TSlotLocationPtr> Locations_;
