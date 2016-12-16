@@ -149,6 +149,13 @@ def set_ytserver_permissions(options):
         run(["sudo", "chmod", "4755", path])
 
 @build_step
+def run_prepare(options):
+    with cwd(options.yt_build_directory, "yt", "nodejs"):
+        if os.path.exists("node_modules"):
+            rmtree("node_modules")
+        run(["npm", "install"])
+
+@build_step
 def copy_modules_from_contrib(options):
     run(["cmake", "."], cwd=options.checkout_directory)
 
