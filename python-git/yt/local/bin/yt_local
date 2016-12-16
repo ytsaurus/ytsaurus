@@ -81,6 +81,8 @@ def start_func(**kwargs):
         kwargs["jobs_memory_limit"] = kwargs["operations_memory_limit"]
     for opt in ("masters_count", "nodes_count", "schedulers_count", "ports_range_start", "operations_memory_limit"):
         del kwargs[opt]
+    # Tests options
+    sync_mode_sleep_timeout = kwargs.pop("sync_mode_sleep_timeout")
 
     if sync:
         kwargs["set_pdeath_sig"] = True
@@ -91,7 +93,7 @@ def start_func(**kwargs):
         if quiet:
             print(environment.id)
 
-        checking_thread = YTCheckingThread(environment, delay=2, timeout=timeout)
+        checking_thread = YTCheckingThread(environment, delay=sync_mode_sleep_timeout, timeout=timeout)
         checking_thread.start()
 
         def interrupt_action():
@@ -102,7 +104,7 @@ def start_func(**kwargs):
 
         with KeyboardInterruptsCatcher(interrupt_action):
             while True:
-                time.sleep(2.5)
+                time.sleep(sync_mode_sleep_timeout)
     else:
         print(environment.id)
 
@@ -158,6 +160,8 @@ def add_start_subparser(subparsers):
     parser.add_argument("--schedulers-count", type=int, help=argparse.SUPPRESS)
     parser.add_argument("--ports-range-start", type=int, help=argparse.SUPPRESS)
     parser.add_argument("--operations-memory-limit", type=int, help=argparse.SUPPRESS)
+    # Options for tests
+    parser.add_argument("--sync-mode-sleep-timeout", type=int, default=2, help=argparse.SUPPRESS)
 
 def add_stop_subparser(subparsers):
     parser = subparsers.add_parser("stop", help="Stop local YT with given id", func=stop)

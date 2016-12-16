@@ -352,7 +352,8 @@ class TestLocalMode(object):
     def test_all_processes_are_killed(self):
         for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGKILL):
             env_id = generate_uuid()
-            process = self.yt_local.run_async("start", sync=True, id=env_id)
+            process = self.yt_local.run_async("start", sync=True, id=env_id,
+                                              sync_mode_sleep_timeout=1)
             _wait_instance_to_become_ready(process, env_id)
 
             pids = _read_pids_file(env_id)
