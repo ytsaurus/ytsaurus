@@ -219,6 +219,10 @@ class TestRetries(object):
             assert b'{"x":1}\n{"x":2}\n{"x":3}\n' == yt.read_table(table, format=yt.JsonFormat(), raw=True).read()
             assert [{"x":1}] == list(yt.read_table(table + "[#0]", format=yt.JsonFormat()))
 
+            table_path = yt.TablePath(table, exact_key=[2])
+            for i in xrange(10):
+                assert [{"x": 2}] == list(yt.read_table(table_path))
+
             assert [{"x": 1}, {"x": 3}, {"x": 2}, {"x": 1}, {"x": 2}] == \
                 [{"x": elem["x"]} for elem in yt.read_table(table + '[#0,"2":"1",#2,#1,1:3]', format=yt.YsonFormat())]
 
