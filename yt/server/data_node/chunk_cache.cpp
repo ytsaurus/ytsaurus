@@ -263,6 +263,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        LOG_INFO("Initializing chunk cache");
+
         for (int i = 0; i < Config_->CacheLocations.size(); ++i) {
             auto locationConfig = Config_->CacheLocations[i];
 
@@ -917,8 +919,7 @@ TChunkCache::TChunkCache(TDataNodeConfigPtr config, TBootstrap* bootstrap)
     : Impl_(New<TImpl>(config, bootstrap))
 { }
 
-TChunkCache::~TChunkCache()
-{ }
+TChunkCache::~TChunkCache() = default;
 
 void TChunkCache::Initialize()
 {

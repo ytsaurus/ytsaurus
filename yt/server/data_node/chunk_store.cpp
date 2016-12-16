@@ -48,6 +48,8 @@ void TChunkStore::Initialize()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
+    LOG_INFO("Initializing chunk store");
+
     for (int i = 0; i < Config_->StoreLocations.size(); ++i) {
         auto locationConfig = Config_->StoreLocations[i];
 
