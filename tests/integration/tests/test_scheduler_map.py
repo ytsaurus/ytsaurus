@@ -2168,13 +2168,15 @@ print row + table_index
 
         with pytest.raises(YtError):
             map(
-                in_="<timestamp=%s>//tmp/t" % generate_timestamp(),
+                in_="<timestamp=%s>//tmp/t" % MinTimestamp,
                 out="//tmp/t_out",
                 command="cat")
 
+        insert_rows("//tmp/t", rows)
+
         with pytest.raises(YtError):
             map(
-                in_="<timestamp=%s>//tmp/t" % MinTimestamp,
+                in_="<timestamp=%s>//tmp/t" % generate_timestamp(),
                 out="//tmp/t_out",
                 command="cat")
 
