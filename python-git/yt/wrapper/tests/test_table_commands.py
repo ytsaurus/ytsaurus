@@ -126,7 +126,7 @@ class TestTableCommands(object):
         assert not yt.exists(table)
 
         config = deepcopy(yt.config.config)
-        config["temp_expiration_timeout"] = 5 * 1000
+        config["temp_expiration_timeout"] = 4 * 1000
         client = yt.YtClient(config=config)
         with client.TempTable() as table:
             assert client.exists(table)
