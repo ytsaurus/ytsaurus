@@ -438,8 +438,7 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     descriptors->push_back(TAttributeDescriptor("recursive_resource_usage")
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor("account")
-        .SetReplicated(true)
-        .SetWritePermission(EPermission::Administer));
+        .SetReplicated(true));
     descriptors->push_back("user_attribute_keys");
 }
 
