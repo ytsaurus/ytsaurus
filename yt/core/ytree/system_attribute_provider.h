@@ -116,12 +116,6 @@ struct ISystemAttributeProvider
      */
     virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) = 0;
 
-    //! Asynchronously sets the value of a builtin attribute.
-    /*!
-     *  \returns A future representing the outcome of the operation or |Null| if no such asynchronous attribute is known.
-     */
-    virtual TFuture<void> SetBuiltinAttributeAsync(const Stroka& key, const NYson::TYsonString& value) = 0;
-
     //! Removes the builtin attribute.
     /*!
      *  \returns |false| if there is no removable builtin attribute with the given key.
