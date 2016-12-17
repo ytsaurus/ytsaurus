@@ -331,6 +331,8 @@ public:
     TTimestamp GetLastCommitTimestamp() const;
     void SetLastCommitTimestamp(TTimestamp value);
 
+    TTimestamp GetUnflushedTimestamp() const;
+
     void StartEpoch(TTabletSlotPtr slot);
     void StopEpoch();
     IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default);

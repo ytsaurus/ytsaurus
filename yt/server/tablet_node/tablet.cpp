@@ -833,6 +833,11 @@ void TTablet::SetLastCommitTimestamp(TTimestamp value)
     RuntimeData_->LastCommitTimestamp = value;
 }
 
+TTimestamp TTablet::GetUnflushedTimestamp() const
+{
+    return RuntimeData_->UnflushedTimestamp;
+}
+
 void TTablet::StartEpoch(TTabletSlotPtr slot)
 {
     CancelableContext_ = New<TCancelableContext>();
@@ -1070,9 +1075,6 @@ void TTablet::UpdateUnflushedTimestamp() const
         }
     }
 
-    if (Atomicity_ == EAtomicity::Full) {
-        YCHECK(RuntimeData_->UnflushedTimestamp <= unflushedTimestamp);
-    }
     RuntimeData_->UnflushedTimestamp = unflushedTimestamp;
 }
 
