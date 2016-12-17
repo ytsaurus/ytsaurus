@@ -546,6 +546,10 @@ bool TStoreManagerBase::IsRecovery() const
 
 void TStoreManagerBase::UpdateLastCommitTimestamp(TTimestamp timestamp)
 {
+    if (Tablet_->GetAtomicity() == EAtomicity::Full) {
+        YCHECK(Tablet_->GetUnflushedTimestamp() <= timestamp);
+    }
+
     Tablet_->SetLastCommitTimestamp(std::max(
         Tablet_->GetLastCommitTimestamp(),
         timestamp));
