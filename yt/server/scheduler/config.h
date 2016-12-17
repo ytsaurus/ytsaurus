@@ -740,7 +740,7 @@ public:
         RegisterParameter("lock_transaction_timeout", LockTransactionTimeout)
             .Default(TDuration::Seconds(15));
         RegisterParameter("operation_initialization_timeout", OperationInitializationTimeout)
-            .Default(TDuration::Seconds(10));
+            .Default(TDuration::Seconds(60));
         RegisterParameter("operation_transaction_timeout", OperationTransactionTimeout)
             .Default(TDuration::Minutes(60));
         RegisterParameter("job_prober_rpc_timeout", JobProberRpcTimeout)
