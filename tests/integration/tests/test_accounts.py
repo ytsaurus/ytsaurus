@@ -690,6 +690,7 @@ class TestAccounts(YTEnvSetup):
         create("table", "//tmp/t")
         write_table("//tmp/t", {"a" : "b"})
         assert get("//tmp/t/@account") == "tmp"
+        multicell_sleep()
         assert get("//sys/accounts/tmp/@resource_usage/disk_space") > 0
         assert get("//sys/accounts/a/@resource_usage/disk_space") == 0
         create_user("u")
