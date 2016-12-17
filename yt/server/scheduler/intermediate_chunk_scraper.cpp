@@ -48,13 +48,12 @@ void TIntermediateChunkScraper::Restart()
 {
     VERIFY_INVOKER_AFFINITY(Invoker_);
 
-    if (!Started_) {
+    if (!Started_ || ResetScheduled_) {
         return;
     }
 
     auto deadline = ResetInstant_ + Config_->RestartTimeout;
-
-    if (!ResetScheduled_ && (deadline < TInstant::Now())) {
+    if (deadline < TInstant::Now()) {
         ResetChunkScraper();
     } else {
         TDelayedExecutor::Submit(
