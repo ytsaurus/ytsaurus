@@ -29,6 +29,8 @@ struct TTransactionWriteRecord
 
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
+
+    i64 GetByteSize() const;
 };
 
 const size_t TransactionWriteLogChunkSize = 256;

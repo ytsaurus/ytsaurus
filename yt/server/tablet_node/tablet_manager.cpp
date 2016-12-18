@@ -112,6 +112,11 @@ public:
         , ChangelogCodec_(GetCodec(Config_->ChangelogCodec))
         , TabletContext_(this)
         , TabletMap_(TTabletMapTraits(this))
+        , WriteLogsMemoryTrackerGuard_(TNodeMemoryTrackerGuard::Acquire(
+            Bootstrap_->GetMemoryUsageTracker(),
+            EMemoryCategory::TabletDynamic,
+            0,
+            MemoryUsageGranularity))
         , OrchidService_(TOrchidService::Create(MakeWeak(this), Slot_->GetGuardedAutomatonInvoker()))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
@@ -452,6 +457,8 @@ private:
 
     yhash_set<IDynamicStorePtr> OrphanedStores_;
 
+    TNodeMemoryTrackerGuard WriteLogsMemoryTrackerGuard_;
+
     const IYPathServicePtr OrchidService_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
@@ -542,7 +549,8 @@ private:
         for (auto* transaction : transactions) {
             YCHECK(!transaction->GetTransient());
 
-            auto applyWriteLog = [&] (const TTransactionWriteLog& writeLog) {
+            auto handleWriteLog = [&] (const TTransactionWriteLog& writeLog) {
+                WriteLogsMemoryTrackerGuard_.UpdateSize(GetTransactionWriteLogMemoryUsage(writeLog));
                 int rowCount = 0;
                 for (const auto& record : writeLog) {
                     auto* tablet = FindTablet(record.TabletId);
@@ -560,9 +568,8 @@ private:
                 }
                 return rowCount;
             };
-
-            int immediateRowCount = applyWriteLog(transaction->ImmediateWriteLog());
-            int delayedRowCount = applyWriteLog(transaction->DelayedWriteLog());
+            int immediateRowCount = handleWriteLog(transaction->ImmediateWriteLog());
+            int delayedRowCount = handleWriteLog(transaction->DelayedWriteLog());
 
             LOG_DEBUG_IF(immediateRowCount + delayedRowCount > 0, "Transaction write log applied (TransactionId: %v, "
                 "ImmediateRowCount: %v, DelayedRowCount: %v)",
@@ -585,6 +592,7 @@ private:
         TabletMap_.Clear();
         UnmountingTablets_.clear();
         OrphanedStores_.clear();
+        WriteLogsMemoryTrackerGuard_.SetSize(0);
     }
 
 
@@ -977,14 +985,12 @@ private:
         auto* transaction = transactionManager->MakeTransactionPersistent(transactionId);
 
         auto* tablet = FindTablet(tabletId);
-        bool immediate = !tablet || tablet->GetCommitOrdering() == ECommitOrdering::Weak;
 
         HandleRowsOnLeaderExecuteWriteAtomic(transaction, transaction->PrelockedSortedRows(), sortedRowCount);
         HandleRowsOnLeaderExecuteWriteAtomic(transaction, transaction->PrelockedOrderedRows(), orderedRowCount);
 
-        auto& writeLog = immediate ? transaction->ImmediateWriteLog() : transaction->DelayedWriteLog();
-        writeLog.Enqueue(writeRecord);
-        transaction->SetPersistentSignature(transaction->GetPersistentSignature() + signature);
+        bool immediate = !tablet || tablet->GetCommitOrdering() == ECommitOrdering::Weak;
+        EnqueueTransactionWriteRecord(transaction, writeRecord, signature, immediate);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Rows confirmed (TabletId: %v, TransactionId: %v, "
             "SortedRows: %v, OrderedRows: %v, WriteRecordSize: %v, Immediate: %v)",
@@ -992,7 +998,7 @@ private:
             transactionId,
             sortedRowCount,
             orderedRowCount,
-            writeRecord.Data.Size(),
+            writeRecord.GetByteSize(),
             immediate);
     }
 
@@ -1051,6 +1057,7 @@ private:
         auto* codec = GetCodec(codecId);
         auto compressedRecordData = TSharedRef::FromString(request->compressed_data());
         auto recordData = codec->Decompress(compressedRecordData);
+        TTransactionWriteRecord writeRecord{tabletId, recordData};
 
         TWireProtocolReader reader(recordData);
         int rowCount = 0;
@@ -1071,11 +1078,8 @@ private:
                     ++rowCount;
                 }
 
-                auto& writeLog = tablet->GetCommitOrdering() == ECommitOrdering::Weak
-                    ? transaction->ImmediateWriteLog()
-                    : transaction->DelayedWriteLog();
-                writeLog.Enqueue(TTransactionWriteRecord{tabletId, recordData});
-                transaction->SetPersistentSignature(transaction->GetPersistentSignature() + signature);
+                bool immediate = tablet->GetCommitOrdering() == ECommitOrdering::Weak;
+                EnqueueTransactionWriteRecord(transaction, writeRecord, signature, immediate);
             }
 
             case EAtomicity::None: {
@@ -1095,7 +1099,7 @@ private:
             transactionId,
             tabletId,
             rowCount,
-            recordData.Size(),
+            writeRecord.GetByteSize(),
             signature);
     }
 
@@ -1719,7 +1723,7 @@ private:
 
         YCHECK(transaction->LockedSortedRows().empty());
 
-        transaction->ImmediateWriteLog().Clear();
+        ClearTransactionWriteLog(&transaction->ImmediateWriteLog());
 
         LOG_DEBUG_UNLESS(IsRecovery() || (sortedRowCount + orderedRowCount == 0),
             "Immediate locked rows committed (TransactionId: %v, SortedRows: %v, OrderedRows: %v)",
@@ -1741,7 +1745,7 @@ private:
         YCHECK(transaction->LockedSortedRows().empty());
         YCHECK(transaction->LockedOrderedRows().empty());
 
-        transaction->DelayedWriteLog().Clear();
+        ClearTransactionWriteLog(&transaction->DelayedWriteLog());
 
         LOG_DEBUG_UNLESS(IsRecovery() || orderedRowCount == 0,
             "Delayed locked rows committed (TransactionId: %v, OrderedRows: %v)",
@@ -1771,6 +1775,9 @@ private:
 
         AbortRows(transaction, transaction->LockedSortedRows(), transaction->PrelockedSortedRows());
         AbortRows(transaction, transaction->LockedOrderedRows(), transaction->PrelockedOrderedRows());
+
+        ClearTransactionWriteLog(&transaction->ImmediateWriteLog());
+        ClearTransactionWriteLog(&transaction->DelayedWriteLog());
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows aborted (TransactionId: %v, "
             "SortedRows: %v, OrderedRows: %v)",
@@ -1806,6 +1813,34 @@ private:
                 CheckIfFullyUnlocked(tablet);
             }
         }
+    }
+
+
+    static i64 GetTransactionWriteLogMemoryUsage(const TTransactionWriteLog& writeLog)
+    {
+        i64 result = 0;
+        for (const auto& record : writeLog) {
+            result += record.GetByteSize();
+        }
+        return result;
+    }
+
+    void EnqueueTransactionWriteRecord(
+        TTransaction* transaction,
+        const TTransactionWriteRecord& record,
+        TTransactionSignature signature,
+        bool immediate)
+    {
+        WriteLogsMemoryTrackerGuard_.UpdateSize(record.GetByteSize());
+        auto& writeLog = immediate ? transaction->ImmediateWriteLog() : transaction->DelayedWriteLog();
+        writeLog.Enqueue(record);
+        transaction->SetPersistentSignature(transaction->GetPersistentSignature() + signature);
+    }
+
+    void ClearTransactionWriteLog(TTransactionWriteLog* writeLog)
+    {
+        WriteLogsMemoryTrackerGuard_.UpdateSize(-GetTransactionWriteLogMemoryUsage(*writeLog));
+        writeLog->Clear();
     }
 
 
