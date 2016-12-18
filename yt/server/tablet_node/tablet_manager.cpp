@@ -959,8 +959,9 @@ private:
         }
     }
 
+
     template <class TPrelockedRows>
-    void HandleRowsOnLeaderExecuteWriteAtomic(TTransaction* transaction, TPrelockedRows& rows, int rowCount)
+    void ConfirmRows(TTransaction* transaction, TPrelockedRows& rows, int rowCount)
     {
         for (int index = 0; index < rowCount; ++index) {
             Y_ASSERT(!rows.empty());
@@ -974,7 +975,6 @@ private:
 
     void HydraLeaderExecuteWriteAtomic(
         const TTransactionId& transactionId,
-        const TTabletId& tabletId,
         TTransactionSignature signature,
         int sortedRowCount,
         int orderedRowCount,
@@ -984,10 +984,10 @@ private:
         const auto& transactionManager = Slot_->GetTransactionManager();
         auto* transaction = transactionManager->MakeTransactionPersistent(transactionId);
 
-        auto* tablet = FindTablet(tabletId);
+        auto* tablet = FindTablet(writeRecord.TabletId);
 
-        HandleRowsOnLeaderExecuteWriteAtomic(transaction, transaction->PrelockedSortedRows(), sortedRowCount);
-        HandleRowsOnLeaderExecuteWriteAtomic(transaction, transaction->PrelockedOrderedRows(), orderedRowCount);
+        ConfirmRows(transaction, transaction->PrelockedSortedRows(), sortedRowCount);
+        ConfirmRows(transaction, transaction->PrelockedOrderedRows(), orderedRowCount);
 
         bool immediate = !tablet || tablet->GetCommitOrdering() == ECommitOrdering::Weak;
         EnqueueTransactionWriteRecord(transaction, writeRecord, signature, immediate);
@@ -2004,7 +2004,6 @@ private:
                     &TImpl::HydraLeaderExecuteWriteAtomic,
                     MakeStrong(this),
                     transactionId,
-                    tabletId,
                     adjustedSignature,
                     prelockedSortedDelta,
                     prelockedOrderedDelta,
