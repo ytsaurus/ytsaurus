@@ -395,6 +395,11 @@ private:
             return Owner_->Slot_->GetCellId();
         }
 
+        virtual EPeerState GetAutomatonState() override
+        {
+            return Owner_->Slot_->GetAutomatonState();
+        }
+
         virtual TColumnEvaluatorCachePtr GetColumnEvaluatorCache() override
         {
             return Owner_->Bootstrap_->GetColumnEvaluatorCache();

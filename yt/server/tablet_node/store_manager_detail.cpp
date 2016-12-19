@@ -15,6 +15,7 @@ namespace NTabletNode {
 
 using namespace NApi;
 using namespace NChunkClient;
+using namespace NHydra;
 using namespace NTableClient;
 using namespace NTransactionClient;
 
@@ -546,7 +547,9 @@ bool TStoreManagerBase::IsRecovery() const
 
 void TStoreManagerBase::UpdateLastCommitTimestamp(TTimestamp timestamp)
 {
-    if (Tablet_->GetAtomicity() == EAtomicity::Full) {
+    if (Tablet_->GetAtomicity() == EAtomicity::Full &&
+        TabletContext_->GetAutomatonState() == EPeerState::Leading)
+    {
         YCHECK(Tablet_->GetUnflushedTimestamp() <= timestamp);
     }
 
