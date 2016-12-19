@@ -5,6 +5,7 @@ import yt.local as yt_local
 from yt.wrapper.client import Yt
 from yt.common import remove_file, is_process_alive
 from yt.wrapper.common import generate_uuid
+from yt.environment.helpers import is_dead_or_zombie
 import yt.subprocess_wrapper as subprocess
 
 from yt.packages.six.moves import map as imap, xrange
@@ -359,5 +360,18 @@ class TestLocalMode(object):
             pids = _read_pids_file(env_id)
             assert all(is_process_alive(pid) for pid in pids)
             process.send_signal(sig)
-            time.sleep(5.0)
-            assert all(not is_process_alive(pid) for pid in pids)
+            process.wait()
+
+            start_time = time.time()
+            WAIT_TIMEOUT = 10
+            while True:
+                print("Waiting all YT processes to exit...")
+
+                all_processes_dead = all(is_dead_or_zombie(pid) for pid in pids)
+                if all_processes_dead:
+                    break
+
+                if time.time() - start_time > WAIT_TIMEOUT:
+                    assert False, "Not all processes were killed"
+
+                time.sleep(1.0)
