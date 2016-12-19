@@ -453,7 +453,7 @@ private:
 
     TTabletContext TabletContext_;
     TEntityMap<TTablet, TTabletMapTraits> TabletMap_;
-    yhash_set<TTablet*> UnmountingTablets_;
+    yhash_set<TTablet*> WaitingForLocksTablets_;
 
     yhash_set<IDynamicStorePtr> OrphanedStores_;
 
@@ -539,8 +539,10 @@ private:
             auto storeManager = CreateStoreManager(tablet);
             tablet->SetStoreManager(storeManager);
             auto state = tablet->GetState();
-            if (state >= ETabletState::UnmountFirst && state <= ETabletState::UnmountLast) {
-                YCHECK(UnmountingTablets_.insert(tablet).second);
+            if (state == ETabletState::UnmountWaitingForLocks ||
+                state == ETabletState::FreezeWaitingForLocks)
+            {
+                YCHECK(WaitingForLocksTablets_.insert(tablet).second);
             }
         }
 
@@ -590,7 +592,7 @@ private:
         TTabletAutomatonPart::Clear();
 
         TabletMap_.Clear();
-        UnmountingTablets_.clear();
+        WaitingForLocksTablets_.clear();
         OrphanedStores_.clear();
         WriteLogsMemoryTrackerGuard_.SetSize(0);
     }
@@ -771,7 +773,8 @@ private:
             }
 
             TabletMap_.Remove(tabletId);
-            UnmountingTablets_.erase(tablet); // don't check the result
+            // NB: Don't check the result.
+            WaitingForLocksTablets_.erase(tablet);
             return;
         }
 
@@ -787,7 +790,8 @@ private:
             tabletId);
 
         tablet->SetState(ETabletState::UnmountWaitingForLocks);
-        YCHECK(UnmountingTablets_.insert(tablet).second);
+        // NB: Don't check the result.
+        WaitingForLocksTablets_.insert(tablet);
 
         LOG_INFO_IF(IsLeader(), "Waiting for all tablet locks to be released (TabletId: %v)",
             tabletId);
@@ -841,6 +845,8 @@ private:
             tabletId);
 
         tablet->SetState(ETabletState::FreezeWaitingForLocks);
+        // NB: Don't check the result.
+        WaitingForLocksTablets_.insert(tablet);
 
         LOG_INFO_IF(IsLeader(), "Waiting for all tablet locks to be released (TabletId: %v)",
             tabletId);
@@ -928,7 +934,8 @@ private:
                 }
 
                 TabletMap_.Remove(tabletId);
-                YCHECK(UnmountingTablets_.erase(tablet) == 1);
+                // NB: Don't check the result.
+                WaitingForLocksTablets_.erase(tablet);
 
                 TRspUnmountTablet response;
                 ToProto(response.mutable_tablet_id(), tabletId);
@@ -947,6 +954,9 @@ private:
 
                 LOG_INFO_UNLESS(IsRecovery(), "Tablet frozen (TabletId: %v)",
                     tabletId);
+
+                // NB: Don't check the result.
+                WaitingForLocksTablets_.erase(tablet);
 
                 TRspFreezeTablet response;
                 ToProto(response.mutable_tablet_id(), tabletId);
@@ -1809,7 +1819,7 @@ private:
     void OnTransactionFinished(TTransaction* /*transaction*/)
     {
         if (IsLeader()) {
-            for (auto* tablet : UnmountingTablets_) {
+            for (auto* tablet : WaitingForLocksTablets_) {
                 CheckIfFullyUnlocked(tablet);
             }
         }
