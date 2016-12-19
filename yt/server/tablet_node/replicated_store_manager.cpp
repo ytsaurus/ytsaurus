@@ -45,11 +45,6 @@ TReplicatedStoreManager::TReplicatedStoreManager(
         Client_))
 { }
 
-TTablet* TReplicatedStoreManager::GetTablet() const
-{
-    return Tablet_;
-}
-
 bool TReplicatedStoreManager::HasActiveLocks() const
 {
     return Underlying_->HasActiveLocks();
