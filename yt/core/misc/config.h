@@ -146,4 +146,25 @@ DEFINE_REFCOUNTED_TYPE(TLogDigestConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCoreDumperConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! A path to store the core files.
+    Stroka Path;
+
+    //! A name that identifies current component (master/scheduler/node).
+    Stroka ComponentName;
+
+    TCoreDumperConfig()
+    {
+        RegisterParameter("path", Path);
+        RegisterParameter("component_name", ComponentName);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TCoreDumperConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
