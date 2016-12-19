@@ -68,6 +68,8 @@ TFuture<void> TSnapshotBuilder::Run()
     std::vector<TFuture<void>> operationSuspendFutures;
     std::vector<TOperationId> operationIds;
 
+    LOG_INFO("Suspending controllers");
+
     // Capture everything needed in Build.
     for (auto operation : Scheduler_->GetOperations()) {
         if (operation->GetState() != EOperationState::Running)
@@ -92,8 +94,6 @@ TFuture<void> TSnapshotBuilder::Run()
             operation->GetId());
     }
 
-    LOG_INFO("Suspending controllers");
-
     PROFILE_TIMING ("/controllers_suspend_time") {
         auto result = WaitFor(Combine(operationSuspendFutures));
         if (!result.IsOK()) {
@@ -107,6 +107,8 @@ TFuture<void> TSnapshotBuilder::Run()
     PROFILE_TIMING ("/fork_time") {
         forkFuture = Fork();
     }
+
+    LOG_INFO("Resuming controllers");
 
     for (const auto& job : Jobs_) {
         job.Operation->GetController()->Resume();

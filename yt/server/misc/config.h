@@ -4,6 +4,8 @@
 
 #include <yt/ytlib/chunk_client/config.h>
 
+#include <yt/ytlib/misc/config.h>
+
 #include <yt/core/misc/address.h>
 
 #include <yt/core/rpc/config.h>
@@ -32,6 +34,7 @@ public:
 
     NBus::TTcpBusServerConfigPtr BusServer;
     NRpc::TServerConfigPtr RpcServer;
+    TCoreDumperConfigPtr CoreDumper;
 
     //! RPC interface port number.
     int RpcPort;
@@ -54,6 +57,8 @@ public:
             .DefaultNew();
         RegisterParameter("rpc_server", RpcServer)
             .DefaultNew();
+        RegisterParameter("core_dumper", CoreDumper)
+            .Default();
 
         RegisterParameter("rpc_port", RpcPort)
             .Default(0)

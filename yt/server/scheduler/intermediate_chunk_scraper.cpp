@@ -48,13 +48,12 @@ void TIntermediateChunkScraper::Restart()
 {
     VERIFY_INVOKER_AFFINITY(Invoker_);
 
-    if (!Started_) {
+    if (!Started_ || ResetScheduled_) {
         return;
     }
 
     auto deadline = ResetInstant_ + Config_->RestartTimeout;
-
-    if (!ResetScheduled_ && (deadline > TInstant::Now())) {
+    if (deadline < TInstant::Now()) {
         ResetChunkScraper();
     } else {
         TDelayedExecutor::Submit(
@@ -78,7 +77,7 @@ void TIntermediateChunkScraper::ResetChunkScraper()
 
     auto intermediateChunks = GetChunksCallback_();
 
-    LOG_DEBUG("Reset intermediate chunk scraper (ChunkCount: %v)", 
+    LOG_DEBUG("Reset intermediate chunk scraper (ChunkCount: %v)",
         intermediateChunks.size());
     ChunkScraper_ = New<TChunkScraper>(
         Config_,

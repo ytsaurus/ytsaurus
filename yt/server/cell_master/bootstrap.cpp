@@ -59,7 +59,7 @@
 
 #include <yt/server/election/election_manager.h>
 
-#include <yt/ytlib/admin/admin_service.h>
+#include <yt/server/admin_server/admin_service.h>
 
 #include <yt/ytlib/election/cell_manager.h>
 
@@ -81,6 +81,7 @@
 #include <yt/core/bus/server.h>
 #include <yt/core/bus/tcp_server.h>
 
+#include <yt/core/misc/core_dumper.h>
 #include <yt/core/misc/ref_counted_tracker.h>
 #include <yt/core/misc/lfalloc_helpers.h>
 
@@ -424,6 +425,10 @@ void TBootstrap::DoInitialize()
         Config_->BusServer->BindRetryCount,
         Config_->BusServer->BindRetryBackoff);
 
+    if (Config_->CoreDumper) {
+        CoreDumper_ = New<TCoreDumper>(Config_->CoreDumper);
+    }
+
     auto busServer = CreateTcpBusServer(Config_->BusServer);
 
     RpcServer_ = CreateBusServer(busServer);
@@ -573,7 +578,7 @@ void TBootstrap::DoInitialize()
     RpcServer_->RegisterService(CreateObjectService(Config_->ObjectService, this)); // master hydra service
     RpcServer_->RegisterService(CreateJobTrackerService(this)); // master hydra service
     RpcServer_->RegisterService(CreateChunkService(this)); // master hydra service
-    RpcServer_->RegisterService(CreateAdminService(GetControlInvoker()));
+    RpcServer_->RegisterService(CreateAdminService(GetControlInvoker(), CoreDumper_));
 
     CypressManager_->RegisterHandler(CreateSysNodeTypeHandler(this));
     CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::ChunkMap));

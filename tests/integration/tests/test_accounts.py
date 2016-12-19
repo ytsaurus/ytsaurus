@@ -1,4 +1,5 @@
 import pytest
+from time import sleep
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
@@ -674,6 +675,52 @@ class TestAccounts(YTEnvSetup):
         create_account("a1")
         create_account("a2")
         with pytest.raises(YtError): set("//sys/accounts/a1/@name", "a2")
+
+
+    def test_set_account_fail_yt_6207(self):
+        create_account("a")
+        create("table", "//tmp/t")
+        write_table("//tmp/t", {"a" : "b"})
+        assert get("//tmp/t/@account") == "tmp"
+        multicell_sleep()
+        assert get("//sys/accounts/tmp/@resource_usage/disk_space") > 0
+        assert get("//sys/accounts/a/@resource_usage/disk_space") == 0
+        create_user("u")
+        with pytest.raises(YtError):  set("//tmp/t/@account", "a", user="u")
+        multicell_sleep()
+        assert get("//sys/accounts/tmp/@resource_usage/disk_space") > 0
+        assert get("//sys/accounts/a/@resource_usage/disk_space") == 0
+
+
+    def test_change_account_with_snapshot_lock(self):
+        tmp_nc = get("//sys/accounts/tmp/@resource_usage/node_count")
+        tmp_rc = get("//sys/accounts/tmp/@ref_counter")
+        create("table", "//tmp/t")
+        create_account("a")
+        multicell_sleep()
+        assert get("//sys/accounts/tmp/@ref_counter") == tmp_rc + 1
+        assert get("//sys/accounts/a/@ref_counter") == 1
+        assert get("//sys/accounts/tmp/@resource_usage/node_count") == tmp_nc + 1
+        assert get("//sys/accounts/a/@resource_usage/node_count") == 0
+        tx = start_transaction()
+        lock("//tmp/t", mode="snapshot", tx=tx)
+        multicell_sleep()
+        assert get("//sys/accounts/tmp/@ref_counter") == tmp_rc + 2
+        assert get("//sys/accounts/a/@ref_counter") == 1
+        assert get("//sys/accounts/tmp/@resource_usage/node_count") == tmp_nc + 2
+        assert get("//sys/accounts/a/@resource_usage/node_count") == 0
+        set("//tmp/t/@account", "a")
+        multicell_sleep()
+        assert get("//sys/accounts/tmp/@ref_counter") == tmp_rc + 1
+        assert get("//sys/accounts/a/@ref_counter") == 2
+        assert get("//sys/accounts/tmp/@resource_usage/node_count") == tmp_nc + 1
+        assert get("//sys/accounts/a/@resource_usage/node_count") == 1
+        abort_transaction(tx)
+        multicell_sleep()
+        assert get("//sys/accounts/tmp/@resource_usage/node_count") == tmp_nc
+        assert get("//sys/accounts/a/@resource_usage/node_count") == 1
+        assert get("//sys/accounts/tmp/@ref_counter") == tmp_rc
+        assert get("//sys/accounts/a/@ref_counter") == 2
 
 ##################################################################
 
