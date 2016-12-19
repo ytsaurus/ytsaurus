@@ -31,10 +31,6 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NTableClient::TTableSchema, TableSchema);
     DEFINE_BYVAL_RW_PROPERTY(NTableClient::ETableSchemaMode, SchemaMode);
 
-    // For dynamic tables only.
-    typedef std::vector<NTabletServer::TTablet*> TTabletList;
-    typedef TTabletList::iterator TTabletListIterator;
-    DEFINE_BYREF_RW_PROPERTY(TTabletList, Tablets);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, LastCommitTimestamp);
 
     DEFINE_BYVAL_RW_PROPERTY(NTabletServer::TTabletCellBundle*, TabletCellBundle);
@@ -64,6 +60,8 @@ public:
     virtual void Save(NCellMaster::TSaveContext& context) const override;
     virtual void Load(NCellMaster::TLoadContext& context) override;
 
+    typedef std::vector<NTabletServer::TTablet*> TTabletList;
+    typedef TTabletList::iterator TTabletListIterator;
     std::pair<TTabletListIterator, TTabletListIterator> GetIntersectingTablets(
         const NTableClient::TOwningKey& minKey,
         const NTableClient::TOwningKey& maxKey);
@@ -79,9 +77,16 @@ public:
     NTransactionClient::TTimestamp GetCurrentRetainedTimestamp() const;
     NTransactionClient::TTimestamp GetCurrentUnflushedTimestamp() const;
 
+    // For dynamic trunk tables only.
+    const TTabletList& Tablets() const;
+    TTabletList& Tablets();
+
 private:
     NTransactionClient::TTimestamp CalculateRetainedTimestamp() const;
     NTransactionClient::TTimestamp CalculateUnflushedTimestamp() const;
+
+    TTabletList Tablets_;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
