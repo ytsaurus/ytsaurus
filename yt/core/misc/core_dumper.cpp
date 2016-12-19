@@ -4,7 +4,9 @@
 
 #include <yt/core/concurrency/action_queue.h>
 
-#include <yt/contrib/coredumper/coredumper.h>
+#ifdef _linux_
+    #include <yt/contrib/coredumper/coredumper.h>
+#endif
 
 #include <util/system/getpid.h>
 
@@ -30,6 +32,7 @@ TCoreDumper::TCoreDumper(const TCoreDumperConfigPtr& config)
 
 TCoreDump TCoreDumper::WriteCoreDump(const std::vector<Stroka>& notes)
 {
+#ifdef _linux_
     CoreDumpParameters parameters;
     ClearCoreDumpParameters(&parameters);
 
@@ -71,6 +74,9 @@ TCoreDump TCoreDumper::WriteCoreDump(const std::vector<Stroka>& notes)
         .Run();
 
     return {corePath, asyncResult};
+#else
+    THROW_ERROR_EXCEPTION("Unsupported platform");
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////
