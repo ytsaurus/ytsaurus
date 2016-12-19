@@ -20,6 +20,7 @@ namespace NTabletServer {
 using namespace NYTree;
 using namespace NYson;
 using namespace NObjectServer;
+using namespace NCypressServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,7 +39,14 @@ private:
     typedef TNonversionedObjectProxyBase<TTableReplica> TBase;
 
     virtual void ValidateRemoval() override
-    { }
+    {
+        auto* replica = GetThisImpl();
+        auto* table = replica->GetTable();
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        cypressManager->LockNode(table, nullptr, TLockRequest(ELockMode::Exclusive));
+
+        TBase::ValidateRemoval();
+    }
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* attributes) override
     {
