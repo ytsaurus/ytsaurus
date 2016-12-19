@@ -664,164 +664,145 @@ void TSupportsAttributes::ExistsAttribute(
     }));
 }
 
-TFuture<void> TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& newYson)
+void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& newYson)
 {
-    try {
-        TCachingPermissionValidator permissionValidator(this, EPermissionCheckScope::This);
+    TCachingPermissionValidator permissionValidator(this, EPermissionCheckScope::This);
 
-        auto* customAttributes = GetCustomAttributes();
-        auto* builtinAttributeProvider = GetBuiltinAttributeProvider();
+    auto* customAttributes = GetCustomAttributes();
+    auto* builtinAttributeProvider = GetBuiltinAttributeProvider();
 
-        std::vector<TFuture<void>> asyncResults;
+    NYPath::TTokenizer tokenizer(path);
+    switch (tokenizer.Advance()) {
+        case NYPath::ETokenType::EndOfStream: {
+            auto newAttributes = ConvertToAttributes(newYson);
 
-        NYPath::TTokenizer tokenizer(path);
-        switch (tokenizer.Advance()) {
-            case NYPath::ETokenType::EndOfStream: {
-                auto newAttributes = ConvertToAttributes(newYson);
-
-                std::map<Stroka, ISystemAttributeProvider::TAttributeDescriptor> descriptorMap;
-                if (builtinAttributeProvider) {
-                    builtinAttributeProvider->ListSystemAttributes(&descriptorMap);
-                }
-
-                // Set custom attributes.
-                if (customAttributes) {
-                    auto customAttributeKeys = customAttributes->List();
-                    std::sort(customAttributeKeys.begin(), customAttributeKeys.end());
-                    for (const auto& key : customAttributeKeys) {
-                        if (!newAttributes->Contains(key)) {
-                            permissionValidator.Validate(EPermission::Write);
-
-                            YCHECK(customAttributes->Remove(key));
-                        }
-                    }
-
-                    auto newAttributeKeys = newAttributes->List();
-                    std::sort(newAttributeKeys.begin(), newAttributeKeys.end());
-                    for (const auto& key : newAttributeKeys) {
-                        auto it = descriptorMap.find(key);
-                        if (it == descriptorMap.end() || it->second.Custom) {
-                            permissionValidator.Validate(EPermission::Write);
-
-                            customAttributes->SetYson(key, newAttributes->GetYson(key));
-
-                            YCHECK(newAttributes->Remove(key));
-                        }
-                    }
-                }
-
-                // Set builtin attributes.
-                if (builtinAttributeProvider) {
-                    for (const auto& pair : descriptorMap) {
-                        const auto& key = pair.first;
-                        const auto& descriptor = pair.second;
-                        if (descriptor.Custom)
-                            continue;
-
-                        auto newAttributeYson = newAttributes->FindYson(key);
-                        if (newAttributeYson) {
-                            permissionValidator.Validate(descriptor.WritePermission);
-
-                            auto asyncResult = GuardedSetBuiltinAttribute(key, *newAttributeYson);
-                            if (!asyncResult) {
-                                ThrowCannotSetBuiltinAttribute(key);
-                            }
-
-                            asyncResults.emplace_back(std::move(asyncResult));
-                            YCHECK(newAttributes->Remove(key));
-                        } else if (descriptor.Removable) {
-                            permissionValidator.Validate(descriptor.WritePermission);
-
-                            auto asyncResult = GuardedRemoveBuiltinAttribute(key);
-                            if (!asyncResult) {
-                                ThrowCannotRemoveAttribute(key);
-                            }
-
-                            asyncResults.emplace_back(std::move(asyncResult));
-                        }
-                    }
-                }
-
-                auto remainingNewKeys = newAttributes->List();
-                if (!remainingNewKeys.empty()) {
-                    ThrowCannotSetBuiltinAttribute(remainingNewKeys[0]);
-                }
-
-                break;
+            std::map<Stroka, ISystemAttributeProvider::TAttributeDescriptor> descriptorMap;
+            if (builtinAttributeProvider) {
+                builtinAttributeProvider->ListSystemAttributes(&descriptorMap);
             }
 
-            case NYPath::ETokenType::Literal: {
-                auto key = tokenizer.GetLiteralValue();
+            // Set custom attributes.
+            if (customAttributes) {
+                auto customAttributeKeys = customAttributes->List();
+                std::sort(customAttributeKeys.begin(), customAttributeKeys.end());
+                for (const auto& key : customAttributeKeys) {
+                    if (!newAttributes->Contains(key)) {
+                        permissionValidator.Validate(EPermission::Write);
 
-                if (key.Empty()) {
-                    THROW_ERROR_EXCEPTION("Attribute key cannot be empty");
+                        YCHECK(customAttributes->Remove(key));
+                    }
                 }
 
-                TNullable<ISystemAttributeProvider::TAttributeDescriptor> descriptor;
-                if (builtinAttributeProvider) {
-                    descriptor = builtinAttributeProvider->FindBuiltinAttributeDescriptor(key);
+                auto newAttributeKeys = newAttributes->List();
+                std::sort(newAttributeKeys.begin(), newAttributeKeys.end());
+                for (const auto& key : newAttributeKeys) {
+                    auto it = descriptorMap.find(key);
+                    if (it == descriptorMap.end() || it->second.Custom) {
+                        permissionValidator.Validate(EPermission::Write);
+
+                        customAttributes->SetYson(key, newAttributes->GetYson(key));
+
+                        YCHECK(newAttributes->Remove(key));
+                    }
                 }
+            }
 
-                if (descriptor) {
-                    permissionValidator.Validate(descriptor->WritePermission);
+            // Set builtin attributes.
+            if (builtinAttributeProvider) {
+                for (const auto& pair : descriptorMap) {
+                    const auto& key = pair.first;
+                    const auto& descriptor = pair.second;
+                    if (descriptor.Custom)
+                        continue;
 
-                    if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
-                        auto asyncResult = GuardedSetBuiltinAttribute(key, newYson);
-                        if (!asyncResult) {
+                    auto newAttributeYson = newAttributes->FindYson(key);
+                    if (newAttributeYson) {
+                        permissionValidator.Validate(descriptor.WritePermission);
+
+                        if (!GuardedSetBuiltinAttribute(key, *newAttributeYson)) {
                             ThrowCannotSetBuiltinAttribute(key);
                         }
 
-                        asyncResults.emplace_back(std::move(asyncResult));
-                    } else {
-                        auto maybeOldWholeYson = builtinAttributeProvider->FindBuiltinAttribute(key);
-                        if (!maybeOldWholeYson) {
-                            ThrowNoSuchBuiltinAttribute(key);
+                        YCHECK(newAttributes->Remove(key));
+                    } else if (descriptor.Removable) {
+                        permissionValidator.Validate(descriptor.WritePermission);
+
+                        if (!GuardedRemoveBuiltinAttribute(key)) {
+                            ThrowCannotRemoveAttribute(key);
                         }
-
-                        auto oldWholeNode = ConvertToNode(*maybeOldWholeYson);
-                        SyncYPathSet(oldWholeNode, tokenizer.GetInput(), newYson);
-                        auto newWholeYson = ConvertToYsonStringStable(oldWholeNode);
-
-                        auto asyncResult = GuardedSetBuiltinAttribute(key, newWholeYson);
-                        if (!asyncResult) {
-                            ThrowCannotSetBuiltinAttribute(key);
-
-                        }
-                        asyncResults.emplace_back(std::move(asyncResult));
-                    }
-                } else {
-                    if (!customAttributes) {
-                        THROW_ERROR_EXCEPTION("Custom attributes are not supported");
-                    }
-
-                    permissionValidator.Validate(EPermission::Write);
-
-                    if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
-                        customAttributes->SetYson(key, newYson);
-                    } else {
-                        auto oldWholeYson = customAttributes->FindYson(key);
-                        if (!oldWholeYson) {
-                            ThrowNoSuchCustomAttribute(key);
-                        }
-
-                        auto wholeNode = ConvertToNode(oldWholeYson.Get());
-                        SyncYPathSet(wholeNode, tokenizer.GetInput(), newYson);
-                        auto newWholeYson = ConvertToYsonStringStable(wholeNode);
-
-                        customAttributes->SetYson(key, newWholeYson);
                     }
                 }
-
-                break;
             }
 
-            default:
-                tokenizer.ThrowUnexpected();
+            auto remainingNewKeys = newAttributes->List();
+            if (!remainingNewKeys.empty()) {
+                ThrowCannotSetBuiltinAttribute(remainingNewKeys[0]);
+            }
+
+            break;
         }
 
-        return Combine(asyncResults);
-    } catch (const std::exception& ex) {
-        return MakeFuture(TError(ex));
+        case NYPath::ETokenType::Literal: {
+            auto key = tokenizer.GetLiteralValue();
+
+            if (key.Empty()) {
+                THROW_ERROR_EXCEPTION("Attribute key cannot be empty");
+            }
+
+            TNullable<ISystemAttributeProvider::TAttributeDescriptor> descriptor;
+            if (builtinAttributeProvider) {
+                descriptor = builtinAttributeProvider->FindBuiltinAttributeDescriptor(key);
+            }
+
+            if (descriptor) {
+                permissionValidator.Validate(descriptor->WritePermission);
+
+                if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
+                    if (!GuardedSetBuiltinAttribute(key, newYson)) {
+                        ThrowCannotSetBuiltinAttribute(key);
+                    }
+                } else {
+                    auto maybeOldWholeYson = builtinAttributeProvider->FindBuiltinAttribute(key);
+                    if (!maybeOldWholeYson) {
+                        ThrowNoSuchBuiltinAttribute(key);
+                    }
+
+                    auto oldWholeNode = ConvertToNode(*maybeOldWholeYson);
+                    SyncYPathSet(oldWholeNode, tokenizer.GetInput(), newYson);
+                    auto newWholeYson = ConvertToYsonStringStable(oldWholeNode);
+
+                    if (!GuardedSetBuiltinAttribute(key, newWholeYson)) {
+                        ThrowCannotSetBuiltinAttribute(key);
+                    }
+                }
+            } else {
+                if (!customAttributes) {
+                    THROW_ERROR_EXCEPTION("Custom attributes are not supported");
+                }
+
+                permissionValidator.Validate(EPermission::Write);
+
+                if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
+                    customAttributes->SetYson(key, newYson);
+                } else {
+                    auto oldWholeYson = customAttributes->FindYson(key);
+                    if (!oldWholeYson) {
+                        ThrowNoSuchCustomAttribute(key);
+                    }
+
+                    auto wholeNode = ConvertToNode(oldWholeYson.Get());
+                    SyncYPathSet(wholeNode, tokenizer.GetInput(), newYson);
+                    auto newWholeYson = ConvertToYsonStringStable(wholeNode);
+
+                    customAttributes->SetYson(key, newWholeYson);
+                }
+            }
+
+            break;
+        }
+
+        default:
+            tokenizer.ThrowUnexpected();
     }
 }
 
@@ -840,132 +821,115 @@ void TSupportsAttributes::SetAttribute(
     const auto& safeValue = requestValue.capacity() <= requestValue.length() * 5 / 4
         ? requestValue
         : Stroka(TStringBuf(requestValue));
-    auto result = DoSetAttribute(path, TYsonString(safeValue));
-    context->ReplyFrom(result);
+    DoSetAttribute(path, TYsonString(safeValue));
+    context->Reply();
 }
 
-TFuture<void> TSupportsAttributes::DoRemoveAttribute(const TYPath& path, bool force)
+void TSupportsAttributes::DoRemoveAttribute(const TYPath& path, bool force)
 {
-    try {
-        TCachingPermissionValidator permissionValidator(this, EPermissionCheckScope::This);
+    TCachingPermissionValidator permissionValidator(this, EPermissionCheckScope::This);
 
-        auto* customAttributes = GetCustomAttributes();
-        auto* builtinAttributeProvider = GetBuiltinAttributeProvider();
+    auto* customAttributes = GetCustomAttributes();
+    auto* builtinAttributeProvider = GetBuiltinAttributeProvider();
 
-        std::vector<TFuture<void>> asyncResults;
+    NYPath::TTokenizer tokenizer(path);
+    switch (tokenizer.Advance()) {
+        case NYPath::ETokenType::Asterisk: {
+            if (customAttributes) {
+                auto customKeys = customAttributes->List();
+                std::sort(customKeys.begin(), customKeys.end());
+                for (const auto& key : customKeys) {
+                    permissionValidator.Validate(EPermission::Write);
 
-        NYPath::TTokenizer tokenizer(path);
-        switch (tokenizer.Advance()) {
-            case NYPath::ETokenType::Asterisk: {
-                if (customAttributes) {
-                    auto customKeys = customAttributes->List();
-                    std::sort(customKeys.begin(), customKeys.end());
-                    for (const auto& key : customKeys) {
-                        permissionValidator.Validate(EPermission::Write);
-
-                        YCHECK(customAttributes->Remove(key));
-                    }
+                    YCHECK(customAttributes->Remove(key));
                 }
-                break;
             }
-
-            case NYPath::ETokenType::Literal: {
-                auto key = tokenizer.GetLiteralValue();
-                auto customYson = customAttributes ? customAttributes->FindYson(key) : Null;
-                if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
-                    if (customYson) {
-                        permissionValidator.Validate(EPermission::Write);
-
-                        YCHECK(customAttributes->Remove(key));
-                    } else {
-                        if (!builtinAttributeProvider) {
-                            if (force) {
-                                return VoidFuture;
-                            }
-                            ThrowNoSuchCustomAttribute(key);
-                        }
-
-                        auto descriptor = builtinAttributeProvider->FindBuiltinAttributeDescriptor(key);
-                        if (!descriptor) {
-                            if (force) {
-                                return VoidFuture;
-                            }
-                            ThrowNoSuchAttribute(key);
-                        }
-                        if (!descriptor->Removable) {
-                            ThrowCannotRemoveAttribute(key);
-                        }
-
-                        permissionValidator.Validate(descriptor->WritePermission);
-
-                        // TODO(babenko): YT-4697
-                        auto asyncResult = GuardedRemoveBuiltinAttribute(key);
-                        if (!asyncResult) {
-                            ThrowNoSuchBuiltinAttribute(key);
-                        }
-
-                        asyncResults.emplace_back(std::move(asyncResult));
-                    }
-                } else {
-                    if (customYson) {
-                        permissionValidator.Validate(EPermission::Write);
-
-                        auto customNode = ConvertToNode(customYson);
-                        SyncYPathRemove(customNode, tokenizer.GetInput(), /*recursive*/ true, force);
-                        auto updatedCustomYson = ConvertToYsonStringStable(customNode);
-
-                        customAttributes->SetYson(key, updatedCustomYson);
-                    } else {
-                        if (!builtinAttributeProvider) {
-                            if (force) {
-                                return VoidFuture;
-                            }
-                            ThrowNoSuchAttribute(key);
-                        }
-
-                        auto descriptor = builtinAttributeProvider->FindBuiltinAttributeDescriptor(key);
-                        if (!descriptor) {
-                            if (force) {
-                                return VoidFuture;
-                            }
-                            ThrowNoSuchAttribute(key);
-                        }
-
-                        permissionValidator.Validate(descriptor->WritePermission);
-
-                        // TODO(babenko): async getter?
-                        auto maybeBuiltinYson = builtinAttributeProvider->FindBuiltinAttribute(key);
-                        if (!maybeBuiltinYson) {
-                            if (force) {
-                                return VoidFuture;
-                            }
-                            ThrowNoSuchAttribute(key);
-                        }
-
-                        auto builtinNode = ConvertToNode(*maybeBuiltinYson);
-                        SyncYPathRemove(builtinNode, tokenizer.GetInput());
-                        auto updatedSystemYson = ConvertToYsonStringStable(builtinNode);
-
-                        // TODO(babenko): YT-4697
-                        auto asyncResult = GuardedSetBuiltinAttribute(key, updatedSystemYson);
-                        if (!asyncResult) {
-                            ThrowCannotSetBuiltinAttribute(key);
-                        }
-
-                        asyncResults.emplace_back(std::move(asyncResult));
-                    }
-                }
-                break;
-            }
-
-            default:
-                tokenizer.ThrowUnexpected();
-                break;
+            break;
         }
 
-        return Combine(asyncResults);
-    } catch (const std::exception& ex) {
-        return MakeFuture(TError(ex));
+        case NYPath::ETokenType::Literal: {
+            auto key = tokenizer.GetLiteralValue();
+            auto customYson = customAttributes ? customAttributes->FindYson(key) : Null;
+            if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
+                if (customYson) {
+                    permissionValidator.Validate(EPermission::Write);
+
+                    YCHECK(customAttributes->Remove(key));
+                } else {
+                    if (!builtinAttributeProvider) {
+                        if (force) {
+                            return;
+                        }
+                        ThrowNoSuchCustomAttribute(key);
+                    }
+
+                    auto descriptor = builtinAttributeProvider->FindBuiltinAttributeDescriptor(key);
+                    if (!descriptor) {
+                        if (force) {
+                            return;
+                        }
+                        ThrowNoSuchAttribute(key);
+                    }
+                    if (!descriptor->Removable) {
+                        ThrowCannotRemoveAttribute(key);
+                    }
+
+                    permissionValidator.Validate(descriptor->WritePermission);
+
+                    if (!GuardedRemoveBuiltinAttribute(key)) {
+                        ThrowNoSuchBuiltinAttribute(key);
+                    }
+                }
+            } else {
+                if (customYson) {
+                    permissionValidator.Validate(EPermission::Write);
+
+                    auto customNode = ConvertToNode(customYson);
+                    SyncYPathRemove(customNode, tokenizer.GetInput(), /*recursive*/ true, force);
+                    auto updatedCustomYson = ConvertToYsonStringStable(customNode);
+
+                    customAttributes->SetYson(key, updatedCustomYson);
+                } else {
+                    if (!builtinAttributeProvider) {
+                        if (force) {
+                            return;
+                        }
+                        ThrowNoSuchAttribute(key);
+                    }
+
+                    auto descriptor = builtinAttributeProvider->FindBuiltinAttributeDescriptor(key);
+                    if (!descriptor) {
+                        if (force) {
+                            return;
+                        }
+                        ThrowNoSuchAttribute(key);
+                    }
+
+                    permissionValidator.Validate(descriptor->WritePermission);
+
+                    auto maybeBuiltinYson = builtinAttributeProvider->FindBuiltinAttribute(key);
+                    if (!maybeBuiltinYson) {
+                        if (force) {
+                            return;
+                        }
+                        ThrowNoSuchAttribute(key);
+                    }
+
+                    auto builtinNode = ConvertToNode(*maybeBuiltinYson);
+                    SyncYPathRemove(builtinNode, tokenizer.GetInput());
+                    auto updatedSystemYson = ConvertToYsonStringStable(builtinNode);
+
+                    if (!GuardedSetBuiltinAttribute(key, updatedSystemYson)) {
+                        ThrowCannotSetBuiltinAttribute(key);
+                    }
+                }
+            }
+            break;
+        }
+
+        default:
+            tokenizer.ThrowUnexpected();
+            break;
     }
 }
 
@@ -978,8 +942,8 @@ void TSupportsAttributes::RemoveAttribute(
     context->SetRequestInfo();
 
     bool force = request->force();
-    auto result = DoRemoveAttribute(path, force);
-    context->ReplyFrom(result);
+    DoRemoveAttribute(path, force);
+    context->Reply();
 }
 
 IAttributeDictionary* TSupportsAttributes::GetCombinedAttributes()
@@ -997,54 +961,30 @@ ISystemAttributeProvider* TSupportsAttributes::GetBuiltinAttributeProvider()
     return nullptr;
 }
 
-TFuture<void> TSupportsAttributes::GuardedSetBuiltinAttribute(const Stroka& key, const TYsonString& yson)
+bool TSupportsAttributes::GuardedSetBuiltinAttribute(const Stroka& key, const TYsonString& yson)
 {
     auto* provider = GetBuiltinAttributeProvider();
 
-    // Sync.
     try {
-        if (provider->SetBuiltinAttribute(key, yson)) {
-            return VoidFuture;
-        }
+        return provider->SetBuiltinAttribute(key, yson);
     } catch (const std::exception& ex) {
-        return MakeFuture(TError("Error setting builtin attribute %Qv",
+        THROW_ERROR_EXCEPTION("Error setting builtin attribute %Qv",
             ToYPathLiteral(key))
-            << ex);
+            << ex;
     }
-
-    // Async.
-    auto result = provider->SetBuiltinAttributeAsync(key, yson);
-    if (result) {
-        return result.Apply(BIND([=] (const TError& error) {
-            if (!error.IsOK()) {
-                THROW_ERROR_EXCEPTION("Error setting builtin attribute %Qv",
-                    ToYPathLiteral(key))
-                    << error;
-            }
-        }));
-    }
-
-    return Null;
 }
 
-TFuture<void> TSupportsAttributes::GuardedRemoveBuiltinAttribute(const Stroka& key)
+bool TSupportsAttributes::GuardedRemoveBuiltinAttribute(const Stroka& key)
 {
     auto* provider = GetBuiltinAttributeProvider();
 
-    // Sync
     try {
-        if (provider->RemoveBuiltinAttribute(key)) {
-            return VoidFuture;
-        }
+        return provider->RemoveBuiltinAttribute(key);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error removing builtin attribute %Qv",
             ToYPathLiteral(key))
             << ex;
     }
-
-    // NB: Async removal is not currently supported.
-
-    return Null;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

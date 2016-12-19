@@ -63,8 +63,12 @@ public:
     // discounted proportionally to this coefficient.
     double JobCountPreemptionTimeoutCoefficient;
 
-    //! Limit on number of concurrent calls to ScheduleJob of single controller.
+    //! Limit on the number of concurrent calls to ScheduleJob of single controller.
     int MaxConcurrentControllerScheduleJobCalls;
+
+    //! Limit on the number of concurrent core dumps that can be written because
+    //! of failed safe assertions inside controllers.
+    int MaxConcurrentSafeCoreDumps;
 
     //! Maximum allowed time for single job scheduling.
     TDuration ControllerScheduleJobTimeLimit;
@@ -76,6 +80,10 @@ public:
     //! to preemptable, aggressively preemptable and non-preemptable lists.
     double PreemptionSatisfactionThreshold;
     double AggressivePreemptionSatisfactionThreshold;
+
+    //! Enable option that allows to fail a controller by passing "fail_controller = %true"
+    //! in operation spec. Used only for testing purposes.
+    bool EnableFailControllerSpecOption;
 
     TFairShareStrategyConfig()
     {
@@ -144,6 +152,10 @@ public:
             .Default(10)
             .GreaterThan(0);
 
+        RegisterParameter("max_concurrent_safe_core_dumps", MaxConcurrentSafeCoreDumps)
+            .Default(1)
+            .GreaterThanOrEqual(0);
+
         RegisterParameter("schedule_job_time_limit", ControllerScheduleJobTimeLimit)
             .Default(TDuration::Seconds(60));
 
@@ -157,6 +169,9 @@ public:
         RegisterParameter("aggressive_preemption_satisfaction_threshold", AggressivePreemptionSatisfactionThreshold)
             .Default(0.5)
             .GreaterThan(0);
+
+        RegisterParameter("enable_fail_controller_spec_option", EnableFailControllerSpecOption)
+            .Default(false);
 
         RegisterValidator([&] () {
             if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
@@ -731,7 +746,7 @@ public:
         RegisterParameter("lock_transaction_timeout", LockTransactionTimeout)
             .Default(TDuration::Seconds(15));
         RegisterParameter("operation_initialization_timeout", OperationInitializationTimeout)
-            .Default(TDuration::Seconds(10));
+            .Default(TDuration::Seconds(60));
         RegisterParameter("operation_transaction_timeout", OperationTransactionTimeout)
             .Default(TDuration::Minutes(60));
         RegisterParameter("job_prober_rpc_timeout", JobProberRpcTimeout)

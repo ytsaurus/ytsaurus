@@ -12,6 +12,8 @@
 
 #include <yt/server/job_proxy/public.h>
 
+#include <yt/server/misc/public.h>
+
 #include <yt/server/tablet_node/public.h>
 
 #include <yt/server/hive/public.h>
@@ -143,6 +145,7 @@ private:
     NDataNode::TMasterConnectorPtr MasterConnector;
     NHiveClient::TClusterDirectoryPtr ClusterDirectory;
     NHiveClient::TClusterDirectorySynchronizerPtr ClusterDirectorySynchronizer;
+    TCoreDumperPtr CoreDumper;
 
     NConcurrency::IThroughputThrottlerPtr TotalInThrottler;
     NConcurrency::IThroughputThrottlerPtr TotalOutThrottler;
@@ -159,7 +162,6 @@ private:
 
     NQueryClient::TColumnEvaluatorCachePtr ColumnEvaluatorCache;
     NQueryClient::ISubexecutorPtr QueryExecutor;
-
 
     void DoRun();
     void PopulateAlerts(std::vector<TError>* alerts);

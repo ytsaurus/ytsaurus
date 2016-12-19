@@ -2,16 +2,18 @@
 
 #include <yt/core/actions/public.h>
 
-#include <yt/core/logging/public.h>
-
 #include <yt/core/rpc/public.h>
+
+#include <yt/ytlib/misc/public.h>
 
 namespace NYT {
 namespace NAdmin {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NRpc::IServicePtr CreateAdminService(const IInvokerPtr& invoker);
+NRpc::IServicePtr CreateAdminService(
+    IInvokerPtr invoker,
+    TCoreDumperPtr coreDumper);
 
 ////////////////////////////////////////////////////////////////////////////////
 

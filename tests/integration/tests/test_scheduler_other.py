@@ -1,7 +1,7 @@
 
 import pytest
 
-from yt_env_setup import YTEnvSetup, make_ace
+from yt_env_setup import YTEnvSetup, make_ace, unix_only
 from yt.environment.helpers import assert_almost_equal
 from yt_commands import *
 
@@ -2105,3 +2105,32 @@ class TestSecureVault(YTEnvSetup):
                 out="//tmp/t_out",
                 spec={"secure_vault": {"x" * (2**16 + 1): 42}},
                 command="cat")
+
+class TestSafeAssertionsMode(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "enable_fail_controller_spec_option": True,
+        },
+        "core_dumper": {
+            "component_name": "",
+            "path": "/dev/null",
+        },
+    }
+
+    @unix_only
+    def test_failed_assertion_inside_controller(self):
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", {"foo": "bar"})
+        create("table", "//tmp/t_out")
+        op = map(
+            dont_track=True,
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"fail_controller": True},
+            command="cat")
+        with pytest.raises(YtError):
+            op.track()
