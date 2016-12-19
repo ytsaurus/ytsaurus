@@ -88,7 +88,7 @@ private:
         return CreateTableReplicaProxy(Bootstrap_, &Metadata_, replica);
     }
 
-    virtual void DoDestroyObject(TTableReplica* replica) override
+    virtual void DoZombifyObject(TTableReplica* replica) override
     {
         TObjectTypeHandlerWithMapBase::DoDestroyObject(replica);
         const auto& tabletManager = Bootstrap_->GetTabletManager();
