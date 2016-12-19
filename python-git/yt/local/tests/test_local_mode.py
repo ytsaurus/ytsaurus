@@ -91,8 +91,9 @@ class YtLocalBinary(object):
             "YT_LOCAL_PORT_LOCKS_PATH": self.port_locks_path,
             "PYTHONPATH": os.environ["PYTHONPATH"],
             "PATH": os.environ["PATH"],
-            "YT_LOCAL_USE_PROXY_FROM_SOURCE": "1"
         }
+        if "NODE_PATH" in os.environ:
+            env["NODE_PATH"] = os.environ["NODE_PATH"]
         return command, env
 
     def __call__(self, *args, **kwargs):
@@ -107,10 +108,7 @@ class TestLocalMode(object):
     @classmethod
     def setup_class(cls):
         cls.old_yt_local_root_path = os.environ.get("YT_LOCAL_ROOT_PATH", None)
-        cls.old_yt_local_use_proxy_from_source = \
-                os.environ.get("YT_LOCAL_USE_PROXY_FROM_SOURCE", None)
         os.environ["YT_LOCAL_ROOT_PATH"] = LOCAL_MODE_TESTS_SANDBOX
-        os.environ["YT_LOCAL_USE_PROXY_FROM_SOURCE"] = '1'
         # Add ports_lock_path argument to YTEnvironment for parallel testing.
         os.environ["YT_LOCAL_PORT_LOCKS_PATH"] = os.path.join(TESTS_SANDBOX, "ports")
         cls.yt_local = YtLocalBinary(os.environ["YT_LOCAL_ROOT_PATH"],
@@ -120,9 +118,6 @@ class TestLocalMode(object):
     def teardown_class(cls):
         if cls.old_yt_local_root_path is not None:
             os.environ["YT_LOCAL_ROOT_PATH"] = cls.old_yt_local_root_path
-        if cls.old_yt_local_use_proxy_from_source is not None:
-            os.environ["YT_LOCAL_USE_PROXY_FROM_SOURCE"] = \
-                    cls.old_yt_local_use_proxy_from_source
         del os.environ["YT_LOCAL_PORT_LOCKS_PATH"]
 
     def test_logging(self):
@@ -372,6 +367,6 @@ class TestLocalMode(object):
                     break
 
                 if time.time() - start_time > WAIT_TIMEOUT:
-                    assert False, "Not all processes were killed"
+                    assert False, "Not all processes were killed after {0} seconds".format(WAIT_TIMEOUT)
 
                 time.sleep(1.0)

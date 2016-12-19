@@ -186,7 +186,7 @@ class YTInstance(object):
         makedirp(self.configs_path)
         makedirp(self.runtime_data_path)
 
-        self._stderrs_path = os.path.join(self.logs_path, "stderrs")
+        self._stderrs_path = os.path.join(self.path, "stderrs")
         makedirp(self._stderrs_path)
         self._stderr_paths = defaultdict(list)
 
@@ -347,7 +347,7 @@ class YTInstance(object):
         self._prepare_driver(cluster_configuration["driver"], cluster_configuration["master"])
         self._prepare_console_driver()
 
-    def start(self, use_proxy_from_package=False, start_secondary_master_cells=False, on_masters_started_func=None):
+    def start(self, use_proxy_from_package=True, start_secondary_master_cells=False, on_masters_started_func=None):
         self._process_to_kill.clear()
         self._all_processes.clear()
 
@@ -873,15 +873,15 @@ class YTInstance(object):
             if os.path.exists(proxy_binary_path):
                 break
         else:
-            raise YtError("Failed to find YT http proxy binary. "
-                          "Make sure you installed yandex-yt-http-proxy package")
+            raise YtError("Failed to find YT http proxy binary. Make sure you installed "
+                          "yandex-yt-http-proxy package or specify NODE_PATH manually")
 
         nodejs_binary_path = _find_nodejs()
 
-        proxy_version = _get_proxy_version(nodejs_binary_path, proxy_binary_path)[:2]  # major, minor
-        if proxy_version and proxy_version != self.abi_version:
+        proxy_version = _get_proxy_version(nodejs_binary_path, proxy_binary_path)
+        if proxy_version and proxy_version[:2] != self.abi_version:
             raise YtError("Proxy version (which is {0}.{1}) is incompatible with ytserver* ABI "
-                          "(which is {2}.{3})".format(*(proxy_version + self.abi_version)))
+                          "(which is {2}.{3})".format(*(proxy_version[:2] + self.abi_version)))
 
         self._run([nodejs_binary_path,
                    proxy_binary_path,
@@ -889,7 +889,7 @@ class YTInstance(object):
                    "-l", self.log_paths["proxy"]],
                    "proxy")
 
-    def start_proxy(self, use_proxy_from_package=False):
+    def start_proxy(self, use_proxy_from_package):
         logger.info("Starting proxy")
         if use_proxy_from_package:
             self._start_proxy_from_package()

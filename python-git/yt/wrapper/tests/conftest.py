@@ -124,7 +124,8 @@ class YtTestEnvironment(object):
                               has_proxy=has_proxy,
                               port_locks_path=os.path.join(TESTS_SANDBOX, "ports"),
                               fqdn="localhost",
-                              modify_configs_func=modify_configs)
+                              modify_configs_func=modify_configs,
+                              kill_child_processes=True)
         self.env.start()
 
         self.version = "{0}.{1}".format(*self.env.abi_version)
