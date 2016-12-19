@@ -2869,30 +2869,29 @@ private:
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = table->Tablets()[index];
+
+            if (tablet->GetState() == ETabletState::Unmounted) {
+                continue;
+            }
+
             auto* cell = tablet->GetCell();
+            YCHECK(cell);
 
-            auto state = tablet->GetState();
-            if (state == ETabletState::Mounted ||
-                state == ETabletState::Frozen)
-            {
-                LOG_INFO_UNLESS(IsRecovery(), "Unmounting tablet (TableId: %v, TabletId: %v, CellId: %v, Force: %v)",
-                    table->GetId(),
-                    tablet->GetId(),
-                    cell->GetId(),
-                    force);
+            LOG_INFO_UNLESS(IsRecovery(), "Unmounting tablet (TableId: %v, TabletId: %v, CellId: %v, Force: %v)",
+                table->GetId(),
+                tablet->GetId(),
+                cell->GetId(),
+                force);
 
-                tablet->SetState(ETabletState::Unmounting);
-            }
+            tablet->SetState(ETabletState::Unmounting);
 
-            if (cell) {
-                TReqUnmountTablet request;
-                ToProto(request.mutable_tablet_id(), tablet->GetId());
-                request.set_force(force);
-                auto* mailbox = hiveManager->GetMailbox(cell->GetId());
-                hiveManager->PostMessage(mailbox, request);
-            }
+            TReqUnmountTablet request;
+            ToProto(request.mutable_tablet_id(), tablet->GetId());
+            request.set_force(force);
+            auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+            hiveManager->PostMessage(mailbox, request);
 
-            if (force && tablet->GetState() != ETabletState::Unmounted) {
+            if (force) {
                 for (auto& pair : tablet->Replicas()) {
                     auto replica = pair.first;
                     auto& replicaInfo = pair.second;
