@@ -190,7 +190,7 @@ def _run_tests(options, python_version):
     env = {
         "PATH": "{0}/bin:{0}/yt/nodejs:{1}".format(options.yt_build_directory, os.environ["PATH"]),
         "PYTHONPATH": os.pathsep.join([options.checkout_directory, os.environ.get("PYTHONPATH", "")]),
-        "NODEPATH": os.path.join(options.yt_build_directory, "yt", "nodejs", "node_modules"),
+        "NODE_PATH": os.path.join(options.yt_build_directory, "yt", "nodejs", "node_modules"),
         "TESTS_SANDBOX": sandbox_directory,
         "YT_CAPTURE_STDERR_TO_FILE": "1",
         "YT_ENABLE_VERBOSE_LOGGING": "1",
