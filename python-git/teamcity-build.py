@@ -155,6 +155,11 @@ def run_prepare(options):
             rmtree("node_modules")
         run(["npm", "install"])
 
+    link_path = os.path.join(options.yt_build_directory, "yt",
+                             "nodejs", "node_modules", "yt")
+    run(["rm", "-f", link_path])
+    run(["ln", "-s", os.path.join(options.yt_source_directory, "yt", "nodejs"), link_path])
+
 @build_step
 def copy_modules_from_contrib(options):
     run(["cmake", "."], cwd=options.checkout_directory)
