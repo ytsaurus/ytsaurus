@@ -96,6 +96,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/misc/chunked_memory_allocator.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/chunked_memory_pool.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/chunked_output_stream.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/core_dumper.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/cpuid.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/crash_handler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/demangle.cpp
@@ -119,10 +120,12 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/misc/process.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/protobuf_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/protobuf_helpers.proto
+  ${CMAKE_CURRENT_LIST_DIR}/misc/public.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/random.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/ref.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/ref_counted.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/ref_counted_tracker.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/safe_assert.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/serialize.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/small_vector.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/source_location.cpp
@@ -292,6 +295,7 @@ target_link_libraries(yt-core
   deps-arcadia-library-streams-lz
   deps-arcadia-util
   deps-contrib-libs-brotli
+  deps-yt-contrib-coredumper
   deps-yt-contrib-farmhash
   deps-yt-contrib-quicklz
   deps-yt-contrib-zstd-legacy

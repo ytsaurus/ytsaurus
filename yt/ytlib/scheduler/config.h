@@ -149,6 +149,9 @@ public:
     //! to all user jobs via environment variables.
     NYTree::IMapNodePtr SecureVault;
 
+    //! Intentionally fails the operation controller. Used only for testing purposes.
+    bool FailController;
+
     TOperationSpecBase()
     {
         RegisterParameter("intermediate_data_account", IntermediateDataAccount)
@@ -222,6 +225,9 @@ public:
 
         RegisterParameter("secure_vault", SecureVault)
             .Default();
+
+        RegisterParameter("fail_controller", FailController)
+            .Default(false);
 
         RegisterValidator([&] () {
             if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&

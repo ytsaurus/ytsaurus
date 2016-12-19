@@ -12,6 +12,8 @@
 
 #include <yt/server/journal_server/public.h>
 
+#include <yt/server/misc/public.h>
+
 #include <yt/server/node_tracker_server/public.h>
 
 #include <yt/server/object_server/public.h>
@@ -126,6 +128,7 @@ private:
     NHive::TCellDirectoryPtr CellDirectory_;
     NHive::TCellDirectorySynchronizerPtr CellDirectorySynchronizer_;
     NConcurrency::TActionQueuePtr ControlQueue_;
+    TCoreDumperPtr CoreDumper_;
 
     NNodeTrackerClient::INodeChannelFactoryPtr LightNodeChannelFactory_;
     NNodeTrackerClient::INodeChannelFactoryPtr HeavyNodeChannelFactory_;

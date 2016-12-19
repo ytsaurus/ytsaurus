@@ -8,6 +8,11 @@ namespace NYT {
 
 void InstallCrashSignalHandler();
 
+void DumpCodicils();
+
+template <class TCallback>
+void DumpStackTrace(TCallback flushCallback);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // "Codicils" are short human- and machine-readable strings organized into a per-fiber stack.
@@ -44,3 +49,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+
+#define CRASH_HANDLER_INL_H_
+#include "crash_handler-inl.h"
+#undef CRASH_HANDLER_INL_H_
