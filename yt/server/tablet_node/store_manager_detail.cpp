@@ -43,11 +43,6 @@ TStoreManagerBase::TStoreManagerBase(
         TabletContext_->GetCellId());
 }
 
-TTablet* TStoreManagerBase::GetTablet() const
-{
-    return Tablet_;
-}
-
 bool TStoreManagerBase::HasActiveLocks() const
 {
     const auto* activeStore = GetActiveStore();
