@@ -407,6 +407,17 @@ class TestDynamicTables(YTEnvSetup):
         actual = select_rows("* from [//tmp/t]")
         assert_items_equal(actual, rows)
 
+    def test_tablet_ops_require_exclusive_lock(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        tx = start_transaction()
+        lock("//tmp/t", mode="exclusive", tx=tx)
+        with pytest.raises(YtError): mount_table("//tmp/t")
+        with pytest.raises(YtError): unmount_table("//tmp/t")
+        with pytest.raises(YtError): reshard_table("//tmp/t", [[], [1]])
+        with pytest.raises(YtError): freeze_table("//tmp/t")
+        with pytest.raises(YtError): unfreeze_table("//tmp/t")
+
 ##################################################################
 
 class TestDynamicTablesMulticell(TestDynamicTables):
