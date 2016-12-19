@@ -37,13 +37,14 @@ namespace NYT {
 namespace NTabletNode {
 namespace {
 
-using namespace NTabletClient;
-using namespace NTableClient;
+using namespace NHydra;
 using namespace NObjectClient;
-using namespace NTransactionClient;
 using namespace NQueryClient;
-using namespace NYson;
+using namespace NTableClient;
+using namespace NTabletClient;
+using namespace NTransactionClient;
 using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,6 +57,11 @@ protected:
     virtual TCellId GetCellId() override
     {
         return NullCellId;
+    }
+
+    virtual EPeerState GetAutomatonState() override
+    {
+        return EPeerState::Leading;
     }
 
     virtual TColumnEvaluatorCachePtr GetColumnEvaluatorCache() override
