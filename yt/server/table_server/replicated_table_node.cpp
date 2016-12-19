@@ -37,6 +37,17 @@ void TReplicatedTableNode::Load(TLoadContext& context)
     Load(context, Replicas_);
 }
 
+const TReplicatedTableNode::TReplicaSet& TReplicatedTableNode::Replicas() const
+{
+    return const_cast<TReplicatedTableNode*>(this)->Replicas();
+}
+
+TReplicatedTableNode::TReplicaSet& TReplicatedTableNode::Replicas()
+{
+    Y_ASSERT(IsTrunk());
+    return Replicas_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableServer
