@@ -858,7 +858,7 @@ class YTInstance(object):
                            "Try to install yandex-yt-web-interface or set YT_LOCAL_THOR_PATH.")
             return
 
-        ui_config_path = os.path.join(self.configs_path, "ui_config.js")
+        ui_config_path = os.path.join(proxy_dir, "ui", "config.js")
         if not self._load_existing_environment:
             shutil.copytree(web_interface_resources_path, os.path.join(proxy_dir, "ui"))
             write_config(ui_config, ui_config_path, format=None)
