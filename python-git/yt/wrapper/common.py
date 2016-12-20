@@ -14,6 +14,7 @@ import inspect
 import socket
 import getpass
 import argparse
+import platform
 import random
 import time
 from datetime import datetime
@@ -160,9 +161,20 @@ def get_version():
 def get_python_version():
     return sys.version_info[:3]
 
+def get_platform():
+    if sys.platform in ("linux", "linux2"):
+        return "{0} {1} ({2})".format(*platform.linux_distribution())
+    elif sys.platform == "darwin":
+        return "Mac OS " + platform.mac_ver()[0]
+    elif sys.platform == "win32":
+        return "Windows {0} {1}".format(*platform.win32_ver()[:2])
+    else:
+        return None
+
 def get_started_by():
     python_version = "{0}.{1}.{2}".format(*get_python_version())
-    return {
+
+    started_by = {
         "hostname": socket.getfqdn(),
         "pid": os.getpid(),
         "user": getpass.getuser(),
@@ -170,6 +182,12 @@ def get_started_by():
         "wrapper_version": get_version(),
         "python_version": python_version
     }
+
+    platform = get_platform()
+    if platform is not None:
+        started_by["platform"] = platform
+
+    return started_by
 
 def run_with_retries(action, retry_count=6, backoff=20.0, exceptions=(YtError,), except_action=None,
                      backoff_action=None):
