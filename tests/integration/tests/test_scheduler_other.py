@@ -1,7 +1,7 @@
 
 import pytest
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, unix_only
 from yt.environment.helpers import assert_almost_equal
 from yt_commands import *
 
@@ -2122,6 +2122,7 @@ class TestSafeAssertionsMode(YTEnvSetup):
         },
     }
 
+    @unix_only
     def test_failed_assertion_inside_controller(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})

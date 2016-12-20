@@ -4354,10 +4354,10 @@ bool TOperationControllerBase::HasEnoughChunkLists(bool intermediate, bool isWri
     for (const auto& pair : cellTagToRequiredChunkList) {
         const auto cellTag = pair.first;
         auto requiredChunkList = pair.second;
-        if (StderrTable && !isWritingStderrTable) {
+        if (StderrTable && !isWritingStderrTable && StderrTable->CellTag == cellTag) {
             --requiredChunkList;
         }
-        if (CoreTable && !isWritingCoreTable) {
+        if (CoreTable && !isWritingCoreTable && CoreTable->CellTag == cellTag) {
             --requiredChunkList;
         }
         if (requiredChunkList && !ChunkListPool->HasEnough(cellTag, requiredChunkList)) {

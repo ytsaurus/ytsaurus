@@ -31,8 +31,6 @@ protected:
         TDecoratedAutomatonPtr decoratedAutomaton,
         TEpochContext* epochContext);
 
-    ~TCommitterBase();
-
 
     const TDistributedHydraManagerConfigPtr Config_;
     const TDistributedHydraManagerOptions Options_;
@@ -68,8 +66,6 @@ public:
         TDecoratedAutomatonPtr decoratedAutomaton,
         IChangelogStorePtr changelogStore,
         TEpochContext* epochContext);
-
-    ~TLeaderCommitter();
 
     //! Initiates a new distributed commit.
     /*!
@@ -123,6 +119,8 @@ private:
 
     const IChangelogStorePtr ChangelogStore_;
 
+    const NConcurrency::TPeriodicExecutorPtr AutoCheckpointCheckExecutor_;
+
     struct TPendingMutation
     {
         TMutationRequest Request;
@@ -136,8 +134,6 @@ private:
     TBatchPtr CurrentBatch_;
     TFuture<void> PrevBatchQuorumFlushResult_ = VoidFuture;
     NConcurrency::TDelayedExecutorCookie BatchTimeoutCookie_;
-
-    NConcurrency::TPeriodicExecutorPtr AutoCheckpointCheckExecutor_;
 
 };
 
@@ -159,8 +155,6 @@ public:
         NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,
         TEpochContext* epochContext);
-
-    ~TFollowerCommitter();
 
     //! Logs a batch of mutations at the follower.
     TFuture<void> AcceptMutations(

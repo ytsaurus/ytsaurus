@@ -10,7 +10,7 @@ set(SRCS
 set_source_files_properties(
   ${SRCS}
   PROPERTIES
-  COMPILE_FLAGS "-Wno-extern-c-compat"
+  COMPILE_FLAGS "-Wno-extern-c-compat -fno-omit-frame-pointer"
 )
 
 add_library(${NAME} STATIC ${SRCS})
