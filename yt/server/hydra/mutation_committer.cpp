@@ -56,9 +56,6 @@ TCommitterBase::TCommitterBase(
     Logger.AddTag("CellId: %v", CellManager_->GetCellId());
 }
 
-TCommitterBase::~TCommitterBase()
-{ }
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLeaderCommitter::TBatch
@@ -296,19 +293,16 @@ TLeaderCommitter::TLeaderCommitter(
         decoratedAutomaton,
         epochContext)
     , ChangelogStore_(changelogStore)
+    , AutoCheckpointCheckExecutor_(New<TPeriodicExecutor>(
+        EpochContext_->EpochUserAutomatonInvoker,
+        BIND(&TLeaderCommitter::OnAutoCheckpointCheck, MakeWeak(this)),
+        AutoCheckpointCheckPeriod))
 {
     YCHECK(CellManager_);
     YCHECK(ChangelogStore_);
 
-    AutoCheckpointCheckExecutor_ = New<TPeriodicExecutor>(
-        EpochContext_->EpochUserAutomatonInvoker,
-        BIND(&TLeaderCommitter::OnAutoCheckpointCheck, MakeWeak(this)),
-        AutoCheckpointCheckPeriod);
     AutoCheckpointCheckExecutor_->Start();
 }
-
-TLeaderCommitter::~TLeaderCommitter()
-{ }
 
 TFuture<TMutationResponse> TLeaderCommitter::Commit(const TMutationRequest& request)
 {
@@ -535,9 +529,6 @@ TFollowerCommitter::TFollowerCommitter(
         cellManager,
         decoratedAutomaton,
         epochContext)
-{ }
-
-TFollowerCommitter::~TFollowerCommitter()
 { }
 
 TFuture<void> TFollowerCommitter::AcceptMutations(

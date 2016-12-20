@@ -44,6 +44,7 @@ struct TEpochContext
     TLeaderCommitterPtr LeaderCommitter;
     TFollowerCommitterPtr FollowerCommitter;
     TLeaseTrackerPtr LeaseTracker;
+    NConcurrency::TPeriodicExecutorPtr HeartbeatMutationCommitExecutor;
 
     std::atomic<bool> Restarting = {false};
 
