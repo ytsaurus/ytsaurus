@@ -309,8 +309,14 @@ def create_modules_archive_default(tempfiles_manager, custom_python_used, client
     if fresh_zip.size > 0:
         archives.append(fresh_zip)
 
+    mount_sandbox_in_tmpfs = get_config(client)["mount_sandbox_in_tmpfs"]
+    if isinstance(mount_sandbox_in_tmpfs, bool):  # COMPAT
+        enable_mount_sandbox_in_tmpfs = mount_sandbox_in_tmpfs
+    else:
+        enable_mount_sandbox_in_tmpfs = mount_sandbox_in_tmpfs["enable"]
+
     enable_tmpfs_archive = get_config(client)["pickling"]["enable_tmpfs_archive"] or \
-        get_config(client)["mount_sandbox_in_tmpfs"]
+        enable_mount_sandbox_in_tmpfs
 
     result = [{
             "filename": archive.filename,
