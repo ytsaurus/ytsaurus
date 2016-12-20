@@ -3,7 +3,7 @@ from __future__ import print_function
 from .configs_provider import init_logging, get_default_provision, create_configs_provider
 from .helpers import read_config, write_config, is_dead_or_zombie, get_open_port
 
-from yt.common import YtError, remove_file, makedirp, set_pdeathsig, which
+from yt.common import YtError, remove_file, makedirp, set_pdeathsig, which, to_native_str
 from yt.wrapper.common import generate_uuid
 from yt.wrapper.client import Yt
 from yt.wrapper.errors import YtResponseError
@@ -75,7 +75,7 @@ def _get_proxy_version(node_binary_path, proxy_binary_path):
     # Output example: "*** YT HTTP Proxy ***\nVersion 0.17.3\nDepends..."
     process = subprocess.Popen([node_binary_path, proxy_binary_path, "-v"], stderr=subprocess.PIPE)
     _, err = process.communicate()
-    version_str = err.split("\n")[1].split()[1]
+    version_str = to_native_str(err).split("\n")[1].split()[1]
 
     try:
         version = list(imap(int, version_str.split(".")))
