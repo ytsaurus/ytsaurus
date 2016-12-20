@@ -44,8 +44,6 @@ private:
         auto* table = replica->GetTable();
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->LockNode(table, nullptr, TLockRequest(ELockMode::Exclusive));
-
-        TBase::ValidateRemoval();
     }
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* attributes) override
