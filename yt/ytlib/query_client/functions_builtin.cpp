@@ -18,6 +18,7 @@
 #include "udf/sleep.h"
 #include "udf/sum.h"
 #include "udf/dates.h"
+#include "udf/ypath_get.h"
 
 namespace NYT {
 namespace NQueryClient {
@@ -495,6 +496,32 @@ void RegisterBuiltinFunctions(
                 dates_bc_len,
                 nullptr),
             ECallingConvention::Simple);
+    }
+
+    std::vector<std::pair<Stroka, EValueType>> ypathGetFunctions = {
+        {"try_get_int64", EValueType::Int64},
+        {"get_int64", EValueType::Int64},
+        {"try_get_uint64", EValueType::Uint64},
+        {"get_uint64", EValueType::Uint64},
+        {"try_get_double", EValueType::Double},
+        {"get_double", EValueType::Double},
+        {"try_get_boolean", EValueType::Boolean},
+        {"get_boolean", EValueType::Boolean},
+        {"try_get_string", EValueType::String},
+        {"get_string", EValueType::String}};
+
+    for (const auto& fns : ypathGetFunctions) {
+        auto&& name = fns.first;
+        auto&& type = fns.second;
+        builder.RegisterFunction(
+            name,
+            std::vector<TType>{EValueType::Any, EValueType::String},
+            type,
+            TSharedRef(
+                ypath_get_bc,
+                ypath_get_bc_len,
+                nullptr),
+            ECallingConvention::UnversionedValue);
     }
 }
 

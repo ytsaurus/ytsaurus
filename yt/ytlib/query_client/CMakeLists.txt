@@ -48,6 +48,22 @@ udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/sum.c YT_SOURCE_FILES )
 udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/avg.c YT_SOURCE_FILES )
 
 udf_bc(
+  ${CMAKE_CURRENT_LIST_DIR}/udf/ypath_get.c
+  YT_SOURCE_FILES
+  SYMBOLS
+    try_get_int64
+    get_int64
+    try_get_uint64
+    get_uint64
+    try_get_double
+    get_double
+    try_get_boolean
+    get_boolean
+    try_get_string
+    get_string
+)
+
+udf_bc(
   ${CMAKE_CURRENT_LIST_DIR}/udf/lower.cpp
   YT_SOURCE_FILES
   FILES
