@@ -6,7 +6,6 @@ from yt.wrapper import JsonFormat
 from yt.environment.helpers import assert_items_equal
 
 import pytest
-import random
 import time
 import __builtin__
 import os

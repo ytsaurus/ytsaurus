@@ -1,4 +1,3 @@
-
 import pytest
 
 from yt_env_setup import YTEnvSetup, unix_only
@@ -1340,13 +1339,17 @@ class TestSchedulerConfig(YTEnvSetup):
 
 class TestSchedulerPools(YTEnvSetup):
     NUM_MASTERS = 3
-    NUM_NODES = 1
+    NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "watchers_update_period": 100,
-            "default_parent_pool": "default_pool"
+            "default_parent_pool": "default_pool",
+            "event_log" : {
+                "flush_period" : 300,
+                "retry_backoff_time": 300
+            }
         }
     }
 
@@ -1359,7 +1362,7 @@ class TestSchedulerPools(YTEnvSetup):
         set("//tmp/t_out/@replication_factor", 1)
 
     def test_pools_reconfiguration(self):
-        self._prepare();
+        self._prepare()
 
         testing_options = {"scheduling_delay": 1000}
 
@@ -1381,7 +1384,7 @@ class TestSchedulerPools(YTEnvSetup):
         op.track()
 
     def test_default_parent_pool(self):
-        self._prepare();
+        self._prepare()
 
         create("map_node", "//sys/pools/default_pool")
         time.sleep(0.2)
@@ -1401,6 +1404,23 @@ class TestSchedulerPools(YTEnvSetup):
 
         op.resume_jobs()
         op.track()
+
+    def test_event_log(self):
+        self._prepare()
+
+        create("map_node", "//sys/pools/custom_pool")
+        op = map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"pool": "custom_pool"})
+
+        time.sleep(2.0)
+
+        events = []
+        for row in read_table("//sys/scheduler/event_log"):
+            event_type = row["event_type"]
+            if event_type.startswith("operation_") and event_type != "operation_prepared" and row["operation_id"] == op.id:
+                events.append(row["event_type"])
+                assert row["pool"]
+
+        assert events == ["operation_started", "operation_completed"]
 
 
 class TestSchedulerSnapshots(YTEnvSetup):
