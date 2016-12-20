@@ -90,6 +90,8 @@
 
 #include <yt/core/misc/collection_helpers.h>
 
+#include <util/string/join.h>
+
 namespace NYT {
 namespace NApi {
 
@@ -802,6 +804,10 @@ public:
         const TJobId& jobId,
         const TGetJobStderrOptions& options),
         (operationId, jobId, options))
+    IMPLEMENT_METHOD(std::vector<TJob>, ListJobs, (
+        const TOperationId& operationId,
+        const TListJobsOptions& options),
+        (operationId, options))
     IMPLEMENT_METHOD(TYsonString, StraceJob, (
         const TJobId& jobId,
         const TStraceJobOptions& options),
@@ -2661,6 +2667,249 @@ private:
         THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::NoSuchJob, "Job stderr is not found")
             << TErrorAttribute("operation_id", operationId)
             << TErrorAttribute("job_id", jobId);
+    }
+
+    template <class T>
+    bool LessNullable(const T& lhs, const T& rhs)
+    {
+        return lhs < rhs;
+    }
+
+    template <class T>
+    bool LessNullable(const TNullable<T>& lhs, const TNullable<T>& rhs)
+    {
+        return rhs && (!lhs || *lhs < *rhs);
+    }
+
+    std::vector<TJob> DoListJobs(
+        const TOperationId& operationId,
+        const TListJobsOptions& options)
+    {
+        std::vector<TJob> resultJobs;
+
+        bool hasArchivedJobs = false;
+        if (options.IncludeArchive) {
+            Stroka conditions = Format("(operation_id_hi, operation_id_lo) = (%vu, %vu)",
+                operationId.Parts64[0], operationId.Parts64[1]);
+
+            if (options.JobType) {
+                conditions = Format("%v and type = %Qv", conditions, *options.JobType);
+            }
+
+            if (options.JobState) {
+                conditions = Format("%v and state = %Qv", conditions, *options.JobState);
+            }
+
+            auto selectFields = JoinSeq(",", {
+                "operation_id_hi",
+                "operation_id_lo",
+                "job_id_hi",
+                "job_id_lo",
+                "type",
+                "state",
+                "start_time",
+                "finish_time",
+                "address",
+                "error",
+                "statistics",
+                "stderr_size"});
+
+            Stroka orderBy;
+            if (options.SortField != EJobSortField::None) {
+                switch (options.SortField) {
+                    case EJobSortField::JobType:
+                        orderBy = "type";
+                        break;
+                    case EJobSortField::JobState:
+                        orderBy = "state";
+                        break;
+                    case EJobSortField::StartTime:
+                        orderBy = "start_time";
+                        break;
+                    case EJobSortField::FinishTime:
+                        orderBy = "finish_time";
+                        break;
+                    case EJobSortField::Address:
+                        orderBy = "address";
+                        break;
+                    default:
+                        Y_UNREACHABLE();
+                }
+
+                orderBy = Format("order by %v %v", orderBy, options.SortOrder == EJobSortDirection::Descending ? "desc" : "asc");
+            }
+
+            auto query = Format("%v from [%v] where %v %v limit %v",
+                selectFields,
+                GetOperationsArchiveJobsPath(),
+                conditions,
+                orderBy,
+                options.Offset + options.Limit);
+
+            TSelectRowsOptions selectRowsOptions;
+            selectRowsOptions.Timestamp = AsyncLastCommittedTimestamp;
+            selectRowsOptions.Timeout = options.Timeout;
+
+            auto result = WaitFor(SelectRows(query, TSelectRowsOptions()))
+                .ValueOrThrow();
+
+            const auto& rows = result.Rowset->GetRows();
+
+            for (auto row : rows) {
+                TGuid jobId(row[2].Data.Uint64, row[3].Data.Uint64);
+
+                TJob job;
+                job.JobId = jobId;
+                job.JobType = ParseEnum<EJobType>(Stroka(row[4].Data.String, row[4].Length));
+                job.JobState = ParseEnum<EJobState>(Stroka(row[5].Data.String, row[5].Length));
+                job.StartTime = TInstant(row[6].Data.Int64);
+                job.FinishTime = TInstant(row[7].Data.Int64);
+                job.Address = TStringBuf(row[8].Data.String, row[8].Length);
+                job.Error = TYsonString(Stroka(row[9].Data.String, row[9].Length));
+                job.Statistics = TYsonString(Stroka(row[10].Data.String, row[10].Length));
+                job.StderrSize = row[11].Data.Int64;
+                resultJobs.push_back(job);
+
+                hasArchivedJobs = true;
+            }
+        }
+
+        if (options.IncludeCypress && !hasArchivedJobs) {
+            TObjectServiceProxy proxy(GetMasterChannelOrThrow(EMasterChannelKind::Follower));
+
+            auto path = GetJobsPath(operationId);
+            auto getReq = TYPathProxy::Get(path);
+            auto attributeFilter = std::vector<Stroka>{
+                "job_type",
+                "state",
+                "start_time",
+                "finish_time",
+                "address",
+                "error",
+                "statistics",
+                "size",
+                "uncompressed_data_size"};
+
+            ToProto(getReq->mutable_attributes()->mutable_keys(), attributeFilter);
+
+            auto getRsp = WaitFor(proxy.Execute(getReq))
+                .ValueOrThrow();
+
+            auto items = ConvertToNode(NYson::TYsonString(getRsp->value()))->AsMap();
+
+            for (const auto& item : items->GetChildren()) {
+                const auto& attributes = item.second->Attributes();
+
+                auto jobType = ParseEnum<NJobAgent::EJobType>(attributes.Get<Stroka>("job_type"));
+                auto jobState = ParseEnum<NJobAgent::EJobState>(attributes.Get<Stroka>("state"));
+
+                if (options.JobType && jobType != *options.JobType) {
+                    continue;
+                }
+
+                if (options.JobState && jobState != *options.JobState) {
+                    continue;
+                }
+
+                auto values = item.second->AsMap();
+
+                TGuid jobId = TGuid::FromString(item.first);
+
+                TJob job;
+                job.JobId = jobId;
+                job.JobType = jobType;
+                job.JobState = jobState;
+                job.StartTime = ConvertTo<TInstant>(attributes.Get<Stroka>("start_time"));
+                job.FinishTime = ConvertTo<TInstant>(attributes.Get<Stroka>("finish_time"));
+                job.Address = attributes.Get<Stroka>("address");
+                job.Error = attributes.FindYson("error");
+                job.Statistics = attributes.FindYson("statistics");
+                if (auto stderr = values->FindChild("stderr")) {
+                    job.StderrSize = stderr->Attributes().Get<i64>("uncompressed_data_size");
+                }
+
+                job.Progress = attributes.Find<double>("progress");
+                job.CoreInfos = attributes.Find<Stroka>("core_infos");
+                resultJobs.push_back(job);
+            }
+        }
+
+        if (options.IncludeRuntime && !hasArchivedJobs) {
+            TObjectServiceProxy proxy(GetMasterChannelOrThrow(EMasterChannelKind::Follower));
+
+            auto path = Format("//sys/scheduler/orchid/scheduler/operations/%v/running_jobs", operationId);
+            auto getReq = TYPathProxy::Get(path);
+            auto getRsp = WaitFor(proxy.Execute(getReq))
+                .ValueOrThrow();
+
+            auto items = ConvertToNode(NYson::TYsonString(getRsp->value()))->AsMap();
+
+            for (const auto& item : items->GetChildren()) {
+                auto values = item.second->AsMap();
+
+                auto jobType = ParseEnum<NJobAgent::EJobType>(values->GetChild("job_type")->AsString()->GetValue());
+                auto jobState = ParseEnum<NJobAgent::EJobState>(values->GetChild("state")->AsString()->GetValue());
+
+                if (options.JobType && jobType != *options.JobType) {
+                    continue;
+                }
+
+                if (options.JobState && jobState != *options.JobState) {
+                    continue;
+                }
+
+                TGuid jobId = TGuid::FromString(item.first);
+
+                TJob job;
+                job.JobId = jobId;
+                job.JobType = jobType;
+                job.JobState = jobState;
+                job.StartTime = ConvertTo<TInstant>(values->GetChild("start_time")->AsString()->GetValue());
+                job.Address = values->GetChild("address")->AsString()->GetValue();
+
+                if (auto error = values->FindChild("error")) {
+                    job.Error = TYsonString(error->AsString()->GetValue());
+                }
+
+                if (auto progress = values->FindChild("progress")) {
+                    job.Progress = progress->AsDouble()->GetValue();
+                }
+
+                resultJobs.push_back(job);
+            }
+        }
+
+        std::function<bool(const TJob&, const TJob&)> comparer;
+        switch (options.SortField) {
+#define XX(name, sortOrder) \
+            case EJobSortField::name: \
+                comparer = [&] (const TJob& lhs, const TJob& rhs) { \
+                    return sortOrder == EJobSortDirection::Descending \
+                        ? LessNullable(rhs.name, lhs.name) \
+                        : LessNullable(lhs.name, rhs.name); \
+                }; \
+                break;
+
+            XX(JobType, options.SortOrder);
+            XX(JobState, options.SortOrder);
+            XX(StartTime, options.SortOrder);
+            XX(FinishTime, options.SortOrder);
+            XX(Address, options.SortOrder);
+#undef XX
+
+            default:
+                Y_UNREACHABLE();
+        }
+
+        std::sort(resultJobs.begin(), resultJobs.end(), comparer);
+
+        auto startIt = resultJobs.begin() + std::min(options.Offset,
+            std::distance(resultJobs.begin(), resultJobs.end()));
+
+        auto endIt = startIt + std::min(options.Limit,
+            std::distance(startIt, resultJobs.end()));
+
+        return std::vector<TJob>(startIt, endIt);
     }
 
     TYsonString DoStraceJob(

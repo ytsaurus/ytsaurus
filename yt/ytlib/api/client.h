@@ -3,6 +3,8 @@
 #include "public.h"
 #include "connection.h"
 
+#include <yt/server/job_agent/public.h>
+
 #include <yt/ytlib/chunk_client/config.h>
 
 #include <yt/ytlib/cypress_client/public.h>
@@ -520,6 +522,37 @@ struct TGetJobStderrOptions
     : public TTimeoutOptions
 { };
 
+DEFINE_ENUM(EJobSortField,
+    ((None)       (0))
+    ((JobType)    (1))
+    ((JobState)   (2))
+    ((StartTime)  (3))
+    ((FinishTime) (4))
+    ((Address)    (5))
+);
+
+DEFINE_ENUM(EJobSortDirection,
+    ((Ascending)  (0))
+    ((Descending) (1))
+);
+
+struct TListJobsOptions
+    : public TTimeoutOptions
+{
+    TNullable<NJobAgent::EJobType> JobType;
+    TNullable<NJobAgent::EJobState> JobState;
+
+    EJobSortField SortField = EJobSortField::StartTime;
+    EJobSortDirection SortOrder = EJobSortDirection::Ascending;
+
+    i64 Limit = 1000;
+    i64 Offset = 0;
+
+    bool IncludeCypress = false;
+    bool IncludeRuntime = false;
+    bool IncludeArchive = true;
+};
+
 struct TStraceJobOptions
     : public TTimeoutOptions
 { };
@@ -560,6 +593,21 @@ struct TClusterMeta
 {
     std::shared_ptr<NNodeTrackerClient::NProto::TNodeDirectory> NodeDirectory;
     std::shared_ptr<NHiveClient::NProto::TClusterDirectory> ClusterDirectory;
+};
+
+struct TJob
+{
+    NJobAgent::TJobId JobId;
+    NJobAgent::EJobType JobType;
+    NJobAgent::EJobState JobState;
+    TInstant StartTime;
+    TNullable<TInstant> FinishTime;
+    Stroka Address;
+    NYson::TYsonString Error;
+    NYson::TYsonString Statistics;
+    TNullable<ui64> StderrSize;
+    TNullable<double> Progress;
+    TNullable<Stroka> CoreInfos;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -819,6 +867,10 @@ struct IClient
         const NJobTrackerClient::TOperationId& operationId,
         const NJobTrackerClient::TJobId& jobId,
         const TGetJobStderrOptions& options = TGetJobStderrOptions()) = 0;
+
+    virtual TFuture<std::vector<TJob>> ListJobs(
+        const NJobTrackerClient::TOperationId& operationId,
+        const TListJobsOptions& options = TListJobsOptions()) = 0;
 
     virtual TFuture<NYson::TYsonString> StraceJob(
         const NJobTrackerClient::TJobId& jobId,
