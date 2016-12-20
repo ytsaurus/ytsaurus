@@ -190,6 +190,10 @@ def get_job_stderr(operation_id, job_id, **kwargs):
     kwargs["job_id"] = job_id
     return execute_command("get_job_stderr", kwargs)
 
+def list_jobs(operation_id, **kwargs):
+    kwargs["operation_id"] = operation_id
+    return execute_command_with_output_format("list_jobs", kwargs)
+
 def strace_job(job_id, **kwargs):
     kwargs["job_id"] = job_id
     result = execute_command('strace_job', kwargs)

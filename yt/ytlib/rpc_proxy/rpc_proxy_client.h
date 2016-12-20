@@ -375,6 +375,13 @@ public:
         Y_UNIMPLEMENTED();
     }
 
+    virtual TFuture<std::vector<NApi::TJob>> ListJobs(
+        const NJobTrackerClient::TOperationId& operationId,
+        const NApi::TListJobsOptions& options) override
+    {
+        Y_UNIMPLEMENTED();
+    }
+
     virtual TFuture<NYson::TYsonString> StraceJob(
         const NJobTrackerClient::TJobId& jobId,
         const NApi::TStraceJobOptions& options) override
