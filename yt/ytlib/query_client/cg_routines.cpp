@@ -14,6 +14,10 @@
 #include <yt/ytlib/table_client/unversioned_row.h>
 #include <yt/ytlib/table_client/pipe.h>
 
+#include <yt/core/ytree/ypath_resolver.h>
+
+#include <yt/core/yson/parser.h>
+
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/misc/farm_hash.h>
@@ -711,7 +715,8 @@ ui8 RegexPartialMatch(google::re2::RE2* re2, TUnversionedValue* string)
         *re2);
 }
 
-void CopyString(TExpressionContext* context, TUnversionedValue* result, const std::string& str)
+template <typename StringType>
+void CopyString(TExpressionContext* context, TUnversionedValue* result, const StringType& str)
 {
     char* data = AllocateBytes(context, str.size());
     memcpy(data, str.c_str(), str.size());
@@ -790,6 +795,45 @@ void RegexEscape(
     CopyString(context, result, str);
 }
 
+#define DEFINE_YPATH_GET_IMPL2(PREFIX, TYPE, STATEMENT_OK, STATEMENT_FAIL) \
+    void PREFIX ## Get ## TYPE( \
+        TExpressionContext* context, \
+        TUnversionedValue* result, \
+        TUnversionedValue* anyValue, \
+        TUnversionedValue* ypath) \
+    { \
+        auto value = NYTree::TryGet ## TYPE( \
+            {anyValue->Data.String, anyValue->Length}, \
+            {ypath->Data.String, ypath->Length}); \
+        if (value) { \
+            STATEMENT_OK \
+        } else { \
+            STATEMENT_FAIL \
+        } \
+    }
+
+#define DEFINE_YPATH_GET_IMPL(TYPE, STATEMENT_OK) \
+    DEFINE_YPATH_GET_IMPL2(Try, TYPE, STATEMENT_OK, \
+        result->Type = EValueType::Null;) \
+    DEFINE_YPATH_GET_IMPL2(, TYPE, STATEMENT_OK, \
+        THROW_ERROR_EXCEPTION("Value of type %Qv is not found at ypath %Qv", \
+            #TYPE, TStringBuf{ypath->Data.String, ypath->Length});)
+
+#define DEFINE_YPATH_GET(TYPE) \
+    DEFINE_YPATH_GET_IMPL(TYPE, \
+        result->Type = EValueType::TYPE; \
+        result->Data.TYPE = *value;)
+
+#define DEFINE_YPATH_GET_STRING \
+    DEFINE_YPATH_GET_IMPL(String, \
+        CopyString(context, result, *value);)
+
+DEFINE_YPATH_GET(Int64)
+DEFINE_YPATH_GET(Uint64)
+DEFINE_YPATH_GET(Double)
+DEFINE_YPATH_GET(Boolean)
+DEFINE_YPATH_GET_STRING
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRoutines
@@ -802,6 +846,10 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
 {
 #define REGISTER_ROUTINE(routine) \
     registry->RegisterRoutine(#routine, NRoutines::routine)
+#define REGISTER_YPATH_GET_ROUTINE(TYPE) \
+    REGISTER_ROUTINE(TryGet ## TYPE); \
+    REGISTER_ROUTINE(Get ## TYPE)
+
     REGISTER_ROUTINE(WriteRow);
     REGISTER_ROUTINE(InsertGroupRow);
     REGISTER_ROUTINE(ScanOpHelper);
@@ -827,6 +875,12 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(RegexReplaceAll);
     REGISTER_ROUTINE(RegexExtract);
     REGISTER_ROUTINE(RegexEscape);
+    REGISTER_YPATH_GET_ROUTINE(Int64);
+    REGISTER_YPATH_GET_ROUTINE(Uint64);
+    REGISTER_YPATH_GET_ROUTINE(Double);
+    REGISTER_YPATH_GET_ROUTINE(Boolean);
+    REGISTER_YPATH_GET_ROUTINE(String);
+#undef REGISTER_TRY_GET_ROUTINE
 #undef REGISTER_ROUTINE
 
     registry->RegisterRoutine("memcmp", std::memcmp);

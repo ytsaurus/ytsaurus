@@ -220,6 +220,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/ytree/ypath.proto
   ${CMAKE_CURRENT_LIST_DIR}/ytree/ypath_client.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ytree/ypath_detail.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ytree/ypath_resolver.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ytree/ypath_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ytree/yson_serializable.cpp
 )

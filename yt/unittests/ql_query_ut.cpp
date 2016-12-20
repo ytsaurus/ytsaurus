@@ -2750,6 +2750,452 @@ TEST_F(TQueryEvaluateTest, TestUnversionedValueUdf)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, YPathTryGetInt64)
+{
+    auto split = MakeSplit({
+        {"yson", EValueType::Any},
+        {"ypath", EValueType::String},
+    });
+
+    std::vector<Stroka> source = {
+        "yson={b={c=4};d=[1;2]};ypath=\"/b/c\"",
+        "yson={b={c=4};d=[1;2]};ypath=\"/d/1\"",
+        "",
+        "yson={b={c=4};d=[1;2]};ypath=\"/b/d\"",
+        "yson={b={c=4};d=[1;2]}",
+        "ypath=\"/d/1\"",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"result", EValueType::Int64}
+    });
+
+    auto result = YsonToRows({
+        "result=4",
+        "result=2",
+        "",
+        "",
+        "",
+        "",
+    }, resultSplit);
+
+    Evaluate("try_get_int64(yson, ypath) as result FROM [//t]", split, source, ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, YPathGetInt64)
+{
+    auto split = MakeSplit({
+        {"yson", EValueType::Any},
+        {"ypath", EValueType::String},
+    });
+
+    std::vector<Stroka> source = {
+        "yson={b={c=4};d=[1;2]};ypath=\"/b/c\"",
+        "yson={b={c=4};d=[1;2]};ypath=\"/d/1\"",
+        "",
+        "yson={b={c=4};d=[1;2]}",
+        "ypath=\"/d/1\"",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"result", EValueType::Int64}
+    });
+
+    auto result = YsonToRows({
+        "result=4",
+        "result=2",
+        "",
+        "",
+        "",
+    }, resultSplit);
+
+    Evaluate("get_int64(yson, ypath) as result FROM [//t]", split, source, ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, YPathGetInt64Fail)
+{
+    auto split = MakeSplit({
+        {"yson", EValueType::Any},
+        {"ypath", EValueType::String},
+    });
+
+    std::vector<Stroka> source = {
+        "yson={b={c=4};d=[1;2]};ypath=\"/b/d\"",
+        "yson={b={c=4};d=[1;2]};ypath=\"/d/2\"",
+        "yson={b={c=4};d=[1;2u]};ypath=\"/d/1\"",
+        "yson={b={c=4}d=[1;2}};ypath=\"/d/1\"",
+        "yson={b={c=4};d=[1;2}};ypath=\"/d1\"",
+        "yson={b={c=4};d=[1;2}};ypath=\"//d/1\"",
+        "yson={b={c=4};d=[1;2}};ypath=\"/@d/1\"",
+    };
+
+    EvaluateExpectingError("try_get_int64(yson, ypath) as result FROM [//t]", split, source, EFailureLocation::Execution);
+    EvaluateExpectingError("get_int64(yson, ypath) as result FROM [//t]", split, source, EFailureLocation::Execution);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, YPathTryGetUint64)
+{
+    auto split = MakeSplit({
+        {"yson", EValueType::Any},
+        {"ypath", EValueType::String},
+    });
+
+    std::vector<Stroka> source = {
+        "yson={b={c=4u};d=[1;2]};ypath=\"/b/c\"",
+        "yson={b={c=4};d=[1;2u]};ypath=\"/d/1\"",
+        "",
+        "yson={b={c=4};d=[1;2]};ypath=\"/b/d\"",
+        "yson={b={c=4};d=[1;2]}",
+        "ypath=\"/d/1\"",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"result", EValueType::Uint64}
+    });
+
+    auto result = YsonToRows({
+        "result=4u",
+        "result=2u",
+        "",
+        "",
+        "",
+        "",
+    }, resultSplit);
+
+    Evaluate("try_get_uint64(yson, ypath) as result FROM [//t]", split, source, ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, YPathGetUint64)
+{
+    auto split = MakeSplit({
+        {"yson", EValueType::Any},
+        {"ypath", EValueType::String},
+    });
+
+    std::vector<Stroka> source = {
+        "yson={b={c=4u};d=[1;2]};ypath=\"/b/c\"",
+        "yson={b={c=4};d=[1;2u]};ypath=\"/d/1\"",
+        "",
+        "yson={b={c=4};d=[1;2]}",
+        "ypath=\"/d/1\"",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"result", EValueType::Uint64}
+    });
+
+    auto result = YsonToRows({
+        "result=4u",
+        "result=2u",
+        "",
+        "",
+        "",
+    }, resultSplit);
+
+    Evaluate("get_uint64(yson, ypath) as result FROM [//t]", split, source, ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, YPathGetUint64Fail)
+{
+    auto split = MakeSplit({
+        {"yson", EValueType::Any},
+        {"ypath", EValueType::String},
+    });
+
+    std::vector<Stroka> source = {
+        "yson={b={c=4u};d=[1u;2u]};ypath=\"/b/d\"",
+        "yson={b={c=4u};d=[1u;2u]};ypath=\"/d/2\"",
+        "yson={b={c=4u};d=[1u;2]};ypath=\"/d/1\"",
+        "yson={b={c=4u}d=[1u;2u}};ypath=\"/d/1\"",
+        "yson={b={c=4u};d=[1u;2u}};ypath=\"/d1\"",
+        "yson={b={c=4u};d=[1u;2u}};ypath=\"//d/1\"",
+        "yson={b={c=4u};d=[1u;2u}};ypath=\"/@d/1\"",
+    };
+
+    EvaluateExpectingError("try_get_uint64(yson, ypath) as result FROM [//t]", split, source, EFailureLocation::Execution);
+    EvaluateExpectingError("get_uint64(yson, ypath) as result FROM [//t]", split, source, EFailureLocation::Execution);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, YPathTryGetDouble)
+{
+    auto split = MakeSplit({
+        {"yson", EValueType::Any},
+        {"ypath", EValueType::String},
+    });
+
+    std::vector<Stroka> source = {
+        "yson={b={c=4.};d=[1;2]};ypath=\"/b/c\"",
+        "yson={b={c=4};d=[1;2.]};ypath=\"/d/1\"",
+        "",
+        "yson={b={c=4};d=[1;2]};ypath=\"/b/d\"",
+        "yson={b={c=4};d=[1;2]}",
+        "ypath=\"/d/1\"",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"result", EValueType::Double}
+    });
+
+    auto result = YsonToRows({
+        "result=4.",
+        "result=2.",
+        "",
+        "",
+        "",
+        "",
+    }, resultSplit);
+
+    Evaluate("try_get_double(yson, ypath) as result FROM [//t]", split, source, ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, YPathGetDouble)
+{
+    auto split = MakeSplit({
+        {"yson", EValueType::Any},
+        {"ypath", EValueType::String},
+    });
+
+    std::vector<Stroka> source = {
+        "yson={b={c=4.};d=[1;2]};ypath=\"/b/c\"",
+        "yson={b={c=4};d=[1;2.]};ypath=\"/d/1\"",
+        "",
+        "yson={b={c=4};d=[1;2]}",
+        "ypath=\"/d/1\"",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"result", EValueType::Double}
+    });
+
+    auto result = YsonToRows({
+        "result=4.",
+        "result=2.",
+        "",
+        "",
+        "",
+    }, resultSplit);
+
+    Evaluate("get_double(yson, ypath) as result FROM [//t]", split, source, ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, YPathGetDoubleFail)
+{
+    auto split = MakeSplit({
+        {"yson", EValueType::Any},
+        {"ypath", EValueType::String},
+    });
+
+    std::vector<Stroka> source = {
+        "yson={b={c=4};d=[1;2]};ypath=\"/b/d\"",
+        "yson={b={c=4};d=[1;2]};ypath=\"/d/2\"",
+        "yson={b={c=4};d=[1;2u]};ypath=\"/d/1\"",
+        "yson={b={c=4}d=[1;2}};ypath=\"/d/1\"",
+        "yson={b={c=4};d=[1;2}};ypath=\"/d1\"",
+        "yson={b={c=4};d=[1;2}};ypath=\"//d/1\"",
+        "yson={b={c=4};d=[1;2}};ypath=\"/@d/1\"",
+    };
+
+    EvaluateExpectingError("try_get_double(yson, ypath) as result FROM [//t]", split, source, EFailureLocation::Execution);
+    EvaluateExpectingError("get_double(yson, ypath) as result FROM [//t]", split, source, EFailureLocation::Execution);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, YPathTryGetBoolean)
+{
+    auto split = MakeSplit({
+        {"yson", EValueType::Any},
+        {"ypath", EValueType::String},
+    });
+
+    std::vector<Stroka> source = {
+        "yson={b={c=%true};d=[1;2]};ypath=\"/b/c\"",
+        "yson={b={c=4};d=[1;%false]};ypath=\"/d/1\"",
+        "",
+        "yson={b={c=4};d=[1;2]};ypath=\"/b/d\"",
+        "yson={b={c=4};d=[1;2]}",
+        "ypath=\"/d/1\"",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"result", EValueType::Boolean}
+    });
+
+    auto result = YsonToRows({
+        "result=%true",
+        "result=%false",
+        "",
+        "",
+        "",
+        "",
+    }, resultSplit);
+
+    Evaluate("try_get_boolean(yson, ypath) as result FROM [//t]", split, source, ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, YPathGetBoolean)
+{
+    auto split = MakeSplit({
+        {"yson", EValueType::Any},
+        {"ypath", EValueType::String},
+    });
+
+    std::vector<Stroka> source = {
+        "yson={b={c=%false};d=[1;2]};ypath=\"/b/c\"",
+        "yson={b={c=4};d=[1;%true]};ypath=\"/d/1\"",
+        "",
+        "yson={b={c=4};d=[1;2]}",
+        "ypath=\"/d/1\"",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"result", EValueType::Boolean}
+    });
+
+    auto result = YsonToRows({
+        "result=%false",
+        "result=%true",
+        "",
+        "",
+        "",
+    }, resultSplit);
+
+    Evaluate("get_boolean(yson, ypath) as result FROM [//t]", split, source, ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, YPathGetBooleanFail)
+{
+    auto split = MakeSplit({
+        {"yson", EValueType::Any},
+        {"ypath", EValueType::String},
+    });
+
+    std::vector<Stroka> source = {
+        "yson={b={c=4};d=[1;2]};ypath=\"/b/d\"",
+        "yson={b={c=4};d=[1;2]};ypath=\"/d/2\"",
+        "yson={b={c=4};d=[1;2u]};ypath=\"/d/1\"",
+        "yson={b={c=4}d=[1;2}};ypath=\"/d/1\"",
+        "yson={b={c=4};d=[1;2}};ypath=\"/d1\"",
+        "yson={b={c=4};d=[1;2}};ypath=\"//d/1\"",
+        "yson={b={c=4};d=[1;2}};ypath=\"/@d/1\"",
+    };
+
+    EvaluateExpectingError("try_get_boolean(yson, ypath) as result FROM [//t]", split, source, EFailureLocation::Execution);
+    EvaluateExpectingError("get_boolean(yson, ypath) as result FROM [//t]", split, source, EFailureLocation::Execution);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, YPathTryGetString)
+{
+    auto split = MakeSplit({
+        {"yson", EValueType::Any},
+        {"ypath", EValueType::String},
+    });
+
+    std::vector<Stroka> source = {
+        "yson={b={c=\"hello\"};d=[1;2]};ypath=\"/b/c\"",
+        "yson={b={c=4};d=[1;\"world\"]};ypath=\"/d/1\"",
+        "",
+        "yson={b={c=4};d=[1;2]};ypath=\"/b/d\"",
+        "yson={b={c=4};d=[1;2]}",
+        "ypath=\"/d/1\"",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"result", EValueType::String}
+    });
+
+    auto result = YsonToRows({
+        "result=\"hello\"",
+        "result=\"world\"",
+        "",
+        "",
+        "",
+        "",
+    }, resultSplit);
+
+    Evaluate("try_get_string(yson, ypath) as result FROM [//t]", split, source, ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, YPathGetString)
+{
+    auto split = MakeSplit({
+        {"yson", EValueType::Any},
+        {"ypath", EValueType::String},
+    });
+
+    std::vector<Stroka> source = {
+        "yson={b={c=\"here\"};d=[1;2]};ypath=\"/b/c\"",
+        "yson={b={c=4};d=[1;\"there\"]};ypath=\"/d/1\"",
+        "",
+        "yson={b={c=4};d=[1;2]}",
+        "ypath=\"/d/1\"",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"result", EValueType::String}
+    });
+
+    auto result = YsonToRows({
+        "result=\"here\"",
+        "result=\"there\"",
+        "",
+        "",
+        "",
+    }, resultSplit);
+
+    Evaluate("get_string(yson, ypath) as result FROM [//t]", split, source, ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, YPathGetStringFail)
+{
+    auto split = MakeSplit({
+        {"yson", EValueType::Any},
+        {"ypath", EValueType::String},
+    });
+
+    std::vector<Stroka> source = {
+        "",
+        "yson={b={c=4};d=[1;2]};ypath=\"/b/d\"",
+        "yson={b={c=4};d=[1;2]};ypath=\"/d/2\"",
+        "yson={b={c=4};d=[1;2u]};ypath=\"/d/1\"",
+        "yson={b={c=4}d=[1;2}};ypath=\"/d/1\"",
+        "yson={b={c=4};d=[1;2}};ypath=\"/d1\"",
+        "yson={b={c=4};d=[1;2}};ypath=\"//d/1\"",
+        "yson={b={c=4};d=[1;2}};ypath=\"/@d/1\"",
+    };
+
+    EvaluateExpectingError("try_get_string(yson, ypath) as result FROM [//t]", split, source, EFailureLocation::Execution);
+    EvaluateExpectingError("get_string(yson, ypath) as result FROM [//t]", split, source, EFailureLocation::Execution);
+
+    SUCCEED();
+}
+
 TEST_F(TQueryEvaluateTest, TestVarargUdf)
 {
     auto split = MakeSplit({
