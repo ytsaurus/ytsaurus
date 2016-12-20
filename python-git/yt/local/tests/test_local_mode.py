@@ -347,6 +347,7 @@ class TestLocalMode(object):
             assert len(tablet_cells) == 1
             assert client.get("//sys/tablet_cells/{0}/@health".format(tablet_cells[0])) == "good"
 
+    @pytest.mark.skipif(True, reason="st/YT-6227")
     def test_all_processes_are_killed(self):
         for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGKILL):
             env_id = generate_uuid()
