@@ -253,6 +253,7 @@ class YTEnvSetup(object):
             self._abort_transactions()
             yt_commands.set('//tmp', {})
             self._remove_operations()
+            self._wait_jobs_to_abort()
             yt_commands.gc_collect()
             yt_commands.clear_metadata_caches()
             self._reset_nodes()
@@ -384,6 +385,16 @@ class YTEnvSetup(object):
             pass
         for operation in yt_commands.ls("//sys/operations"):
             yt_commands.remove("//sys/operations/" + operation, recursive=True)
+
+    def _wait_jobs_to_abort(self):
+        def check_jobs_are_missing():
+            for node in yt_commands.ls("//sys/nodes"):
+                jobs = yt_commands.get("//sys/nodes/{0}/orchid/job_controller/active_job_count".format(node))
+                if any([value > 0 for value in jobs.values()]):
+                    return False
+            return True
+
+        wait(check_jobs_are_missing)
 
     def _reenable_chunk_replicator(self):
         if yt_commands.exists("//sys/@disable_chunk_replicator"):
