@@ -118,7 +118,7 @@ class TestDynamicTables(YTEnvSetup):
         reshard_and_preserve_cache("//tmp/t1", [[], [1], [2]])
         assert_items_equal(select_rows("* from [//tmp/t1]"), rows)
 
-    def test_no_copy(self):
+    def test_no_copy_mounted(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t1")
         self.sync_mount_table("//tmp/t1")
@@ -139,8 +139,8 @@ class TestDynamicTables(YTEnvSetup):
         self.sync_unmount_table("//tmp/t1")
 
         table_id1 = get("//tmp/t1/@id")
-        tablet_id = get("//tmp/t1/@tablets/0/tablet_id")
-        assert get("#" + tablet_id + "/@table_id") == table_id1
+        tablet_id1 = get("//tmp/t1/@tablets/0/tablet_id")
+        assert get("#" + tablet_id1 + "/@table_id") == table_id1
 
         move("//tmp/t1", "//tmp/t2")
 
@@ -149,8 +149,9 @@ class TestDynamicTables(YTEnvSetup):
         assert get("//tmp/t2/@tablets/0/state") == "mounted"
 
         table_id2 = get("//tmp/t2/@id")
-        assert get("#" + tablet_id + "/@table_id") == table_id2
-        assert get("//tmp/t2/@tablets/0/tablet_id") == tablet_id
+        tablet_id2 = get("//tmp/t2/@tablets/0/tablet_id")
+        assert get("#" + tablet_id2 + "/@table_id") == table_id2
+        assert get("//tmp/t2/@tablets/0/tablet_id") == tablet_id2
 
     def test_swap(self):
         self.test_move_unmounted()
@@ -192,6 +193,25 @@ class TestDynamicTables(YTEnvSetup):
         assert get("//tmp/x/b/@dynamic")
         assert_items_equal(get_tablet_ids("//tmp/x/a"), tablet_ids_a)
         assert_items_equal(get_tablet_ids("//tmp/x/b"), tablet_ids_b)
+
+    def test_move_in_tx_commit(self):
+        self._create_simple_table("//tmp/t1")
+        tx = start_transaction()
+        move("//tmp/t1", "//tmp/t2", tx=tx)
+        assert len(get("//tmp/t1/@tablets")) == 1
+        assert len(get("//tmp/t2/@tablets", tx=tx)) == 1
+        commit_transaction(tx)
+        assert len(get("//tmp/t2/@tablets")) == 1
+
+    def test_move_in_tx_abort(self):
+        self._create_simple_table("//tmp/t1")
+        tx = start_transaction()
+        move("//tmp/t1", "//tmp/t2", tx=tx)
+        assert len(get("//tmp/t1/@tablets")) == 1
+        assert len(get("//tmp/t2/@tablets", tx=tx)) == 1
+        abort_transaction(tx)
+        assert len(get("//tmp/t1/@tablets")) == 1
+
 
     def test_tablet_assignment(self):
         self.sync_create_cells(3)
