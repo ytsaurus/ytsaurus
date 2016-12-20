@@ -131,8 +131,10 @@ class TestLocalMode(object):
             pass
 
         assert os.path.exists(log_path)
-        for dir in ["master", "node", "scheduler", "proxy", "stderrs"]:
+        for dir in ["master", "node", "scheduler", "proxy"]:
             assert os.path.exists(os.path.join(log_path, dir))
+
+        assert os.path.exists(os.path.join(path, "test_logging", "stderrs"))
 
     def test_user_config_path(self):
         path = os.environ.get("YT_LOCAL_ROOT_PATH")
