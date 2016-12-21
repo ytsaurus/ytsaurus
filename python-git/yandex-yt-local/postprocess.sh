@@ -43,7 +43,9 @@ sandbox_request() {
 
 strip_debug_info() {
     local archive_path="$1" && shift
-    strip "$archive_path/bin/ytserver" --strip-debug
+    for binary in $(find "$archive_path/bin" -name "ytserver*"); do
+        strip "$binary" --strip-debug
+    done
     strip "$archive_path/node_modules/yt/lib/ytnode.node" --strip-debug
     strip "$archive_path/python/yt_driver_bindings/driver_lib.so" --strip-debug
     strip "$archive_path/python/yt_yson_bindings/yson_lib.so" --strip-debug

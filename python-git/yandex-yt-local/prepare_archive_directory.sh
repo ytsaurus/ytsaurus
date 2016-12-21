@@ -45,7 +45,10 @@ prepare_archive_directory() {
     mkdir -p "$archive_dir/yt-thor"
     mkdir -p "$archive_dir/node"
 
-    cp -r yandex-yt/usr/bin/ytserver "$archive_dir/bin"
+    for binary in $(find yandex-yt/usr/bin -name "ytserver*"); do
+        cp -r "$binary" "$archive_dir/bin"
+    done
+
     cp -r yandex-yt-http-proxy/usr/lib/node_modules "$archive_dir"
 
     cp -r yandex-yt-python/usr/share/pyshared/yt/* "$archive_dir/python/yt"
@@ -84,7 +87,6 @@ prepare_archive_directory() {
 
 if [ "$(find $(pwd)/.. -name 'yandex-yt-local_*.deb' | wc -l)" = "0" ]; then
     # Package missing, let's build it.
-    DEB=1 python setup.py sdist --dist-dir=../
     DEB_STRIP_EXCLUDE=".*" DEB=1 dpkg-buildpackage -i -I -rfakeroot
 fi
 
