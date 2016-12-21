@@ -1684,7 +1684,8 @@ private:
         PrepareRows(transaction, transaction->LockedSortedRows(), transaction->PrelockedSortedRows());
         PrepareRows(transaction, transaction->LockedOrderedRows(), transaction->PrelockedOrderedRows());
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows prepared (TransactionId: %v, "
+        LOG_DEBUG_UNLESS(IsRecovery() || (lockedSortedRowCount + lockedOrderedRowCount == 0),
+            "Locked rows prepared (TransactionId: %v, "
             "SortedLockedRows: %v, SortedPrelockedRows: %v, "
             "OrderedLockedRows: %v, OrderedPrelockedRows: %v)",
             transaction->GetId(),
@@ -1789,8 +1790,8 @@ private:
         ClearTransactionWriteLog(&transaction->ImmediateWriteLog());
         ClearTransactionWriteLog(&transaction->DelayedWriteLog());
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows aborted (TransactionId: %v, "
-            "SortedRows: %v, OrderedRows: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery() || (lockedSortedRowCount + lockedOrderedRowCount == 0),
+            "Locked rows aborted (TransactionId: %v, SortedRows: %v, OrderedRows: %v)",
             transaction->GetId(),
             lockedSortedRowCount,
             lockedOrderedRowCount);
