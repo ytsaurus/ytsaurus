@@ -29,6 +29,7 @@ public:
             TransactionServerLogger)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartTransaction));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterTransactionActions));
     }
 
 private:
@@ -46,6 +47,22 @@ private:
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager
             ->CreateStartTransactionMutation(context)
+            ->CommitAndReply(context);
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NTransactionClient::NProto, RegisterTransactionActions)
+    {
+        ValidatePeer(EPeerKind::Leader);
+
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+
+        context->SetRequestInfo("TransactionId: %v, ActionCount: %v",
+            transactionId,
+            request->actions_size());
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        transactionManager
+            ->CreateRegisterTransactionActionsMutation(context)
             ->CommitAndReply(context);
     }
 };

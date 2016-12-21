@@ -17,6 +17,9 @@ class TTransactionActionData;
 class TReqStartTransaction;
 class TRspStartTransaction;
 
+class TReqRegisterTransactionActions;
+class TRspRegisterTransactionActions;
+
 } // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////

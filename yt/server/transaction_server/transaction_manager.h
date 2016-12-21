@@ -115,6 +115,13 @@ public:
     NHydra::TMutationPtr CreateStartTransactionMutation(
         TCtxStartTransactionPtr context);
 
+    using TCtxRegisterTransactionActions = NRpc::TTypedServiceContext<
+        NTransactionClient::NProto::TReqRegisterTransactionActions,
+        NTransactionClient::NProto::TRspRegisterTransactionActions>;
+    using TCtxRegisterTransactionActionsPtr = TIntrusivePtr<TCtxRegisterTransactionActions>;
+    NHydra::TMutationPtr CreateRegisterTransactionActionsMutation(
+        TCtxRegisterTransactionActionsPtr context);
+
 private:
     class TImpl;
     class TTransactionTypeHandler;
