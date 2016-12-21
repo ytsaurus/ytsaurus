@@ -146,6 +146,7 @@ public:
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetTransactionTrackerInvoker(), TrackerThread);
 
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraStartTransaction, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraRegisterTransactionActions, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraPrepareTransactionCommit, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCommitTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraAbortTransaction, Unretained(this)));
@@ -486,6 +487,15 @@ public:
             this);
     }
 
+    TMutationPtr CreateRegisterTransactionActionsMutation(TCtxRegisterTransactionActionsPtr context)
+    {
+        return CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            std::move(context),
+            &TImpl::HydraRegisterTransactionActions,
+            this);
+    }
+
 
     // ITransactionManager implementation.
     void PrepareTransactionCommit(
@@ -651,6 +661,31 @@ private:
             context->SetResponseInfo("TransactionId: %v", id);
         }
     }
+
+    void HydraRegisterTransactionActions(
+        TCtxRegisterTransactionActionsPtr /*context*/,
+        TReqRegisterTransactionActions* request,
+        TRspRegisterTransactionActions* /*response*/)
+    {
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+
+        auto* transaction = GetTransaction(transactionId);
+
+        auto state = transaction->GetPersistentState();
+        if (state != ETransactionState::Active) {
+            transaction->ThrowInvalidState();
+        }
+
+        for (const auto& protoData : request->actions()) {
+            auto data = FromProto<TTransactionActionData>(protoData);
+            transaction->Actions().push_back(data);
+
+            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction action registered (TransactionId: %v, ActionType: %v)",
+                transactionId,
+                data.Type);
+        }
+    }
+
 
     // Primary-secondary replication only.
     void HydraPrepareTransactionCommit(NProto::TReqPrepareTransactionCommit* request)
@@ -953,6 +988,11 @@ void TTransactionManager::RegisterAbortActionHandler(const TTransactionAbortActi
 TMutationPtr TTransactionManager::CreateStartTransactionMutation(TCtxStartTransactionPtr context)
 {
     return Impl_->CreateStartTransactionMutation(std::move(context));
+}
+
+TMutationPtr TTransactionManager::CreateRegisterTransactionActionsMutation(TCtxRegisterTransactionActionsPtr context)
+{
+    return Impl_->CreateRegisterTransactionActionsMutation(std::move(context));
 }
 
 void TTransactionManager::PrepareTransactionCommit(

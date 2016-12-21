@@ -344,7 +344,8 @@ public:
 
     void RegisterParticipant(const TCellId& cellId)
     {
-        YCHECK(TypeFromId(cellId) == EObjectType::TabletCell);
+        YCHECK(TypeFromId(cellId) == EObjectType::TabletCell ||
+               TypeFromId(cellId) == EObjectType::ClusterCell);
 
 
         if (Atomicity_ != EAtomicity::Full) {

@@ -68,6 +68,7 @@
 #include <yt/ytlib/transaction_client/timestamp_provider.h>
 #include <yt/ytlib/transaction_client/transaction_manager.h>
 #include <yt/ytlib/transaction_client/action.h>
+#include <yt/ytlib/transaction_client/transaction_service_proxy.h>
 
 #include <yt/core/compression/helpers.h>
 
@@ -1590,7 +1591,7 @@ private:
         return std::make_unique<TProxy>(channel);
     }
 
-    IChannelPtr GetTabletChannelOrThrow(const TTabletCellId& cellId) const
+    IChannelPtr GetCellChannelOrThrow(const TTabletCellId& cellId) const
     {
         const auto& cellDirectory = Connection_->GetCellDirectory();
         auto channel = cellDirectory->GetChannelOrThrow(cellId);
@@ -2131,7 +2132,7 @@ private:
 
         const auto& tabletInfo = tableInfo->Tablets[tabletIndex];
 
-        auto channel = GetTabletChannelOrThrow(tabletInfo->CellId);
+        auto channel = GetCellChannelOrThrow(tabletInfo->CellId);
 
         TTabletServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(Connection_->GetConfig()->WriteTimeout);
@@ -3189,7 +3190,8 @@ public:
 
     virtual void AddAction(const TCellId& cellId, const TTransactionActionData& data) override
     {
-        YCHECK(TypeFromId(cellId) == EObjectType::TabletCell);
+        YCHECK(TypeFromId(cellId) == EObjectType::TabletCell ||
+               TypeFromId(cellId) == EObjectType::ClusterCell);
 
         ValidateActiveSync();
 
@@ -3873,7 +3875,7 @@ private:
             Actions_.push_back(data);
         }
 
-        TFuture<void> Invoke(IChannelPtr channel)
+        TFuture<void> Invoke(const IChannelPtr& channel)
         {
             if (Actions_.empty()) {
                 return VoidFuture;
@@ -3884,19 +3886,22 @@ private:
                 return VoidFuture;
             }
 
-            TTabletServiceProxy proxy(channel);
-            auto req = proxy.RegisterTransactionActions();
-            ToProto(req->mutable_transaction_id(), owner->GetId());
-            req->set_transaction_start_timestamp(owner->GetStartTimestamp());
-            req->set_transaction_timeout(ToProto(owner->GetTimeout()));
-            req->set_signature(AllocateRequestSignature());
-            ToProto(req->mutable_actions(), Actions_);
+            LOG_DEBUG("Sending transaction actions (ActionCount: %v)",
+                Actions_.size());
 
-            LOG_DEBUG("Sending transaction actions (ActionCount: %v, Signature: %x)",
-                Actions_.size(),
-                req->signature());
+            TFuture<void> asyncResult;
+            switch (TypeFromId(CellId_)) {
+                case EObjectType::TabletCell:
+                    asyncResult = SendTabletActions(owner, channel);
+                    break;
+                case EObjectType::ClusterCell:
+                    asyncResult = SendMasterActions(owner, channel);
+                    break;
+                default:
+                    Y_UNREACHABLE();
+            }
 
-            return req->Invoke().Apply(
+            return asyncResult.Apply(
                 BIND(&TCellCommitSession::OnResponse, MakeStrong(this))
                     .AsyncVia(owner->CommitInvoker_));
         }
@@ -3912,20 +3917,35 @@ private:
         NLogging::TLogger Logger;
 
 
-        void OnResponse(const TTabletServiceProxy::TErrorOrRspRegisterTransactionActionsPtr& rspOrError)
+        TFuture<void> SendTabletActions(const TNativeTransactionPtr& owner, const IChannelPtr& channel)
         {
-            if (!rspOrError.IsOK()) {
-                LOG_DEBUG(rspOrError, "Error sending transaction actions");
-                THROW_ERROR rspOrError;
-            }
+            TTabletServiceProxy proxy(channel);
+            auto req = proxy.RegisterTransactionActions();
+            ToProto(req->mutable_transaction_id(), owner->GetId());
+            req->set_transaction_start_timestamp(owner->GetStartTimestamp());
+            req->set_transaction_timeout(ToProto(owner->GetTimeout()));
+            req->set_signature(AllocateRequestSignature());
+            ToProto(req->mutable_actions(), Actions_);
+            return req->Invoke().As<void>();
+        }
 
-            auto owner = Owner_.Lock();
-            if (!owner) {
-                return;
+        TFuture<void> SendMasterActions(const TNativeTransactionPtr& owner, const IChannelPtr& channel)
+        {
+            TTransactionServiceProxy proxy(channel);
+            auto req = proxy.RegisterTransactionActions();
+            ToProto(req->mutable_transaction_id(), owner->GetId());
+            ToProto(req->mutable_actions(), Actions_);
+            return req->Invoke().As<void>();
+        }
+
+        void OnResponse(const TError& result)
+        {
+            if (!result.IsOK()) {
+                LOG_DEBUG(result, "Error sending transaction actions");
+                THROW_ERROR result;
             }
 
             LOG_DEBUG("Transaction actions sent successfully");
-            owner->Transaction_->ConfirmParticipant(CellId_);
         }
     };
 
@@ -3997,14 +4017,14 @@ private:
         for (const auto& pair : TabletIdToSession_) {
             const auto& session = pair.second;
             const auto& cellId = session->GetCellId();
-            auto channel = Client_->GetTabletChannelOrThrow(cellId);
+            auto channel = Client_->GetCellChannelOrThrow(cellId);
             asyncResults.push_back(session->Invoke(std::move(channel)));
         }
 
         for (auto& pair : CellIdToSession_) {
             const auto& cellId = pair.first;
             const auto& session = pair.second;
-            auto channel = Client_->GetTabletChannelOrThrow(cellId);
+            auto channel = Client_->GetCellChannelOrThrow(cellId);
             asyncResults.push_back(session->Invoke(std::move(channel)));
         }
 
