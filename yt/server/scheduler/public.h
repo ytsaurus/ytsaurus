@@ -27,6 +27,8 @@ DECLARE_REFCOUNTED_CLASS(TJob)
 
 DECLARE_REFCOUNTED_STRUCT(TScheduleJobResult)
 
+DECLARE_REFCOUNTED_STRUCT(TScheduleJobStatistics)
+
 struct TJobStartRequest;
 
 using TJobList = std::list<TJobPtr>;

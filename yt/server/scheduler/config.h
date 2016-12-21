@@ -74,6 +74,9 @@ public:
     //! Backoff time after controller schedule job failure.
     TDuration ControllerScheduleJobFailBackoffTime;
 
+    //! Backoff between schedule job statistics logging.
+    TDuration ScheduleJobStatisticsLogBackoff;
+
     //! Thresholds to partition jobs of operation
     //! to preemptable, aggressively preemptable and non-preemptable lists.
     double PreemptionSatisfactionThreshold;
@@ -159,6 +162,9 @@ public:
 
         RegisterParameter("schedule_job_fail_backoff_time", ControllerScheduleJobFailBackoffTime)
             .Default(TDuration::MilliSeconds(100));
+
+        RegisterParameter("schedule_job_statistics_log_backoff", ScheduleJobStatisticsLogBackoff)
+            .Default(TDuration::Seconds(1));
 
         RegisterParameter("preemption_satisfaction_threshold", PreemptionSatisfactionThreshold)
             .Default(1.0)
@@ -912,7 +918,7 @@ public:
         RegisterParameter("enable_map_job_size_adjustment", EnableMapJobSizeAdjustment)
             .Default(true);
 
-        //! By default we disable job size adjustment for partition maps, 
+        //! By default we disable job size adjustment for partition maps,
         //! since it may lead to partition data skew between nodes.
         RegisterParameter("enable_partition_map_job_size_adjustment", EnablePartitionMapJobSizeAdjustment)
             .Default(false);

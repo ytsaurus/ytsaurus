@@ -1083,6 +1083,12 @@ private:
     //! Aggregates job statistics.
     NJobTrackerClient::TStatistics JobStatistics;
 
+    //! Aggregated schedule job statistics.
+    TScheduleJobStatisticsPtr ScheduleJobStatistics;
+
+    //! Last time schedule job statistics was logged.
+    TInstant ScheduleJobStatisticsLogTime;
+
     //! One output table can have row count limit on operation.
     TNullable<int> RowCountLimitTableIndex;
     i64 RowCountLimit = std::numeric_limits<i64>::max();
