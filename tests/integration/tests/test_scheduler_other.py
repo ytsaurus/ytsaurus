@@ -1515,7 +1515,7 @@ class TestSchedulerSnapshots(YTEnvSetup):
             command="cat",
             in_="//tmp/in",
             out="//tmp/out2",
-            spec={"data_size_per_job": 1, "testing": {"scheduling_delay": 5000}})
+            spec={"data_size_per_job": 1, "testing": {"scheduling_delay": 10000}})
 
         time.sleep(4)
 
