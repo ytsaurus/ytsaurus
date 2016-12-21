@@ -78,7 +78,7 @@ def _get_proxy_version(node_binary_path, proxy_binary_path):
     version_str = to_native_str(err).split("\n")[1].split()[1]
 
     try:
-        version = list(imap(int, version_str.split(".")))
+        version = tuple(imap(int, version_str.split(".")))
     except ValueError:
         return None
 
