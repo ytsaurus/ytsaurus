@@ -305,6 +305,8 @@ void TScheduleJobStatistics::Persist(const TPersistenceContext& context)
     Persist(context, Count);
 }
 
+DECLARE_DYNAMIC_PHOENIX_TYPE(TScheduleJobStatistics, 0x1ba9c7e0);
+
 ////////////////////////////////////////////////////////////////////
 
 TJobId MakeJobId(NObjectClient::TCellTag tag, NNodeTrackerClient::TNodeId nodeId)
