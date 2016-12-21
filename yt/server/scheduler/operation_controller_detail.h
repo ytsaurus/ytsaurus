@@ -1084,7 +1084,7 @@ private:
     NJobTrackerClient::TStatistics JobStatistics;
 
     //! Aggregated schedule job statistics.
-    TScheduleJobStatisticsPtr ScheduleJobStatistics;
+    TScheduleJobStatisticsPtr ScheduleJobStatistics_;
 
     //! Last time schedule job statistics was logged.
     TInstant ScheduleJobStatisticsLogTime;

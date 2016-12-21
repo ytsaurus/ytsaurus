@@ -1038,6 +1038,7 @@ TOperationControllerBase::TOperationControllerBase(
     , Spec(spec)
     , Options(options)
     , CachedNeededResources(ZeroJobResources())
+    , ScheduleJobStatistics_(New<TScheduleJobStatistics>())
     , CheckTimeLimitExecutor(New<TPeriodicExecutor>(
         GetCancelableInvoker(),
         BIND(&TThis::CheckTimeLimit, MakeWeak(this)),
@@ -2477,12 +2478,12 @@ TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     }
     scheduleJobResult->Duration = timer.GetElapsed();
 
-    ScheduleJobStatistics->RecordJobResult(scheduleJobResult);
+    ScheduleJobStatistics_->RecordJobResult(scheduleJobResult);
     if (ScheduleJobStatisticsLogTime + Config->ScheduleJobStatisticsLogBackoff < TInstant::Now()) {
         LOG_DEBUG("Schedule job statistics (count: %v, total duration: %v, failure reasons: %v)",
-            ScheduleJobStatistics->Count,
-            ScheduleJobStatistics->Duration,
-            ScheduleJobStatistics->Failed);
+            ScheduleJobStatistics_->Count,
+            ScheduleJobStatistics_->Duration,
+            ScheduleJobStatistics_->Failed);
         ScheduleJobStatisticsLogTime = TInstant::Now();
     }
 
@@ -5008,7 +5009,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
 
     Persist(context, JobStatistics);
 
-    Persist(context, ScheduleJobStatistics);
+    Persist(context, ScheduleJobStatistics_);
 
     Persist(context, RowCountLimitTableIndex);
     Persist(context, RowCountLimit);
