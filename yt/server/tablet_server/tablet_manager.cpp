@@ -24,6 +24,7 @@
 #include <yt/server/cypress_server/cypress_manager.h>
 
 #include <yt/server/hive/hive_manager.h>
+#include <yt/server/hive/helpers.h>
 
 #include <yt/server/node_tracker_server/node.h>
 #include <yt/server/node_tracker_server/node_tracker.h>
@@ -82,6 +83,7 @@ using namespace NTabletClient;
 using namespace NTabletClient::NProto;
 using namespace NHydra;
 using namespace NHiveClient;
+using namespace NHiveServer;
 using namespace NTransactionServer;
 using namespace NTabletServer::NProto;
 using namespace NNodeTrackerServer;
@@ -101,6 +103,7 @@ using NTabletNode::EInMemoryMode;
 using NTabletNode::EStoreType;
 using NNodeTrackerServer::NProto::TReqIncrementalHeartbeat;
 using NNodeTrackerClient::TNodeDescriptor;
+using NTransactionServer::TTransaction;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -152,7 +155,6 @@ public:
         RegisterMethod(BIND(&TImpl::HydraOnTabletUnfrozen, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateTableReplicaStatistics, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTableReplicaDisabled, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraUpdateTabletStores, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateTabletTrimmedRowCount, Unretained(this)));
 
         if (Bootstrap_->IsPrimaryMaster()) {
@@ -174,6 +176,9 @@ public:
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->SubscribeTransactionCommitted(BIND(&TImpl::OnTransactionFinished, MakeWeak(this)));
         transactionManager->SubscribeTransactionAborted(BIND(&TImpl::OnTransactionFinished, MakeWeak(this)));
+        transactionManager->RegisterPrepareActionHandler(MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareUpdateTabletStores, MakeStrong(this))));
+        transactionManager->RegisterCommitActionHandler(MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitUpdateTabletStores, MakeStrong(this))));
+        transactionManager->RegisterAbortActionHandler(MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortUpdateTabletStores, MakeStrong(this))));
     }
 
     TTabletCellBundle* CreateTabletCellBundle(const Stroka& name, const TObjectId& hintId)
@@ -1383,6 +1388,19 @@ public:
     }
 
 
+    TTablet* GetTabletOrThrow(const TTabletId& id)
+    {
+        auto* tablet = FindTablet(id);
+        if (!IsObjectAlive(tablet)) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::ResolveError,
+                "No tablet %v",
+                id);
+        }
+        return tablet;
+    }
+
+
     TTabletCell* GetTabletCellOrThrow(const TTabletCellId& id)
     {
         auto* cell = FindTabletCell(id);
@@ -2229,7 +2247,6 @@ private:
         replica->SetState(ETableReplicaState::Disabled);
     }
 
-
     void DoTabletUnmounted(TTablet* tablet)
     {
         auto* table = tablet->GetTable();
@@ -2247,6 +2264,7 @@ private:
         tablet->SetInMemoryMode(EInMemoryMode::None);
         tablet->SetState(ETabletState::Unmounted);
         tablet->SetCell(nullptr);
+        tablet->SetStoresUpdatePrepared(false);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         YCHECK(cell->Tablets().erase(tablet) == 1);
@@ -2313,7 +2331,86 @@ private:
         }
     }
 
-    void HydraUpdateTabletStores(TReqUpdateTabletStores* request)
+    void HydraPrepareUpdateTabletStores(TTransaction* /*transaction*/, TReqUpdateTabletStores* request, bool persistent)
+    {
+        YCHECK(persistent);
+
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = GetTabletOrThrow(tabletId);
+
+        if (tablet->GetStoresUpdatePrepared()) {
+            THROW_ERROR_EXCEPTION("Stores update for tablet %v is already prepared",
+                tabletId);
+        }
+
+        auto mountRevision = request->mount_revision();
+        tablet->ValidateMountRevision(mountRevision);
+
+        auto state = tablet->GetState();
+        if (state != ETabletState::Mounted &&
+            state != ETabletState::Unmounting &&
+            state != ETabletState::Freezing)
+        {
+            THROW_ERROR_EXCEPTION("Cannot update stores while tablet %v is in %Qlv state",
+                tabletId,
+                state);
+        }
+
+        const auto* table = tablet->GetTable();
+        if (!table->IsPhysicallySorted()) {
+            auto* tabletChunkList = tablet->GetChunkList();
+
+            if (request->stores_to_add_size() > 0) {
+                if (request->stores_to_add_size() > 1) {
+                    THROW_ERROR_EXCEPTION("Cannot attach more than one store to an ordered tablet %v at once",
+                        tabletId);
+                }
+
+                const auto& descriptor = request->stores_to_add(0);
+                auto storeId = FromProto<TStoreId>(descriptor.store_id());
+                YCHECK(descriptor.has_starting_row_index());
+                if (tabletChunkList->Statistics().LogicalRowCount != descriptor.starting_row_index()) {
+                    THROW_ERROR_EXCEPTION("Invalid starting row index of store %v in tablet %v: expected %v, got %v",
+                        storeId,
+                        tabletId,
+                        tabletChunkList->Statistics().LogicalRowCount,
+                        descriptor.starting_row_index());
+                }
+            }
+
+            if (request->stores_to_remove_size() > 0) {
+                int childIndex = tabletChunkList->GetTrimmedChildCount();
+                const auto& children = tabletChunkList->Children();
+                for (const auto& descriptor : request->stores_to_remove()) {
+                    auto storeId = FromProto<TStoreId>(descriptor.store_id());
+                    if (TypeFromId(storeId) == EObjectType::OrderedDynamicTabletStore) {
+                        continue;
+                    }
+
+                    if (childIndex >= children.size()) {
+                        THROW_ERROR_EXCEPTION("Attempted to trim store %v which is not part of tablet %v",
+                            storeId,
+                            tabletId);
+                    }
+                    if (children[childIndex]->GetId() != storeId) {
+                        THROW_ERROR_EXCEPTION("Invalid store to trim in tablet %v: expected %v, got %v",
+                            tabletId,
+                            children[childIndex]->GetId(),
+                            storeId);
+                    }
+                    ++childIndex;
+                }
+            }
+        }
+
+        tablet->SetStoresUpdatePrepared(true);
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update prepared (TableId: %v, TabletId: %v)",
+            table->GetId(),
+            tabletId);
+    }
+
+    void HydraCommitUpdateTabletStores(TTransaction* /*transaction*/, TReqUpdateTabletStores* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
@@ -2322,8 +2419,14 @@ private:
         }
 
         auto mountRevision = request->mount_revision();
+        if (tablet->GetMountRevision() != mountRevision) {
+            return;
+        }
 
-        auto* cell = tablet->GetCell();
+        if (!tablet->GetStoresUpdatePrepared()) {
+            return;
+        }
+
         auto* table = tablet->GetTable();
         if (!IsObjectAlive(table)) {
             return;
@@ -2332,150 +2435,108 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->SetModified(table, nullptr);
 
-        TRspUpdateTabletStores response;
-        response.mutable_tablet_id()->MergeFrom(request->tablet_id());
-        // NB: Take mount revision from the request, not from the tablet.
-        response.set_mount_revision(mountRevision);
-        response.mutable_stores_to_add()->MergeFrom(request->stores_to_add());
-        response.mutable_stores_to_remove()->MergeFrom(request->stores_to_remove());
-
-        try {
-            tablet->ValidateMountRevision(mountRevision);
-
-            auto state = tablet->GetState();
-            if (state != ETabletState::Mounted &&
-                state != ETabletState::Unmounting &&
-                state != ETabletState::Freezing)
+        // Collect all changes first.
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        std::vector<TChunkTree*> chunksToAttach;
+        i64 attachedRowCount = 0;
+        auto lastCommitTimestamp = table->GetLastCommitTimestamp();
+        for (const auto& descriptor : request->stores_to_add()) {
+            auto storeId = FromProto<TStoreId>(descriptor.store_id());
+            if (TypeFromId(storeId) == EObjectType::Chunk ||
+                TypeFromId(storeId) == EObjectType::ErasureChunk)
             {
-                THROW_ERROR_EXCEPTION("Cannot update stores while tablet is in %Qlv state",
-                    state);
-            }
-
-            if (!table->IsPhysicallySorted()) {
-                auto* tabletChunkList = tablet->GetChunkList();
-
-                if (request->stores_to_add_size() > 0) {
-                    if (request->stores_to_add_size() > 1) {
-                        THROW_ERROR_EXCEPTION("Cannot attach more than one store to an ordered table at once");
-                    }
-
-                    const auto& descriptor = request->stores_to_add(0);
-                    auto storeId = FromProto<TStoreId>(descriptor.store_id());
-                    YCHECK(descriptor.has_starting_row_index());
-                    if (tabletChunkList->Statistics().LogicalRowCount != descriptor.starting_row_index()) {
-                        THROW_ERROR_EXCEPTION("Attempted to attach store %v with invalid starting row index: expected %v, got %v",
-                            storeId,
-                            tabletChunkList->Statistics().LogicalRowCount,
-                            descriptor.starting_row_index());
-                    }
+                auto* chunk = chunkManager->GetChunkOrThrow(storeId);
+                const auto& miscExt = chunk->MiscExt();
+                if (miscExt.has_max_timestamp()) {
+                    lastCommitTimestamp = std::max(lastCommitTimestamp, static_cast<TTimestamp>(miscExt.max_timestamp()));
                 }
-
-                if (request->stores_to_remove_size() > 0) {
-                    int childIndex = tabletChunkList->GetTrimmedChildCount();
-                    const auto& children = tabletChunkList->Children();
-                    for (const auto& descriptor : request->stores_to_remove()) {
-                        auto storeId = FromProto<TStoreId>(descriptor.store_id());
-                        if (TypeFromId(storeId) == EObjectType::OrderedDynamicTabletStore) {
-                            continue;
-                        }
-
-                        if (childIndex >= children.size()) {
-                            THROW_ERROR_EXCEPTION("Attempted to trim store %v which is not part of the tablet",
-                                storeId);
-                        }
-                        if (children[childIndex]->GetId() != storeId) {
-                            THROW_ERROR_EXCEPTION("Attempted to trim store %v while store %v is expected",
-                                storeId,
-                                children[childIndex]->GetId());
-                        }
-                        ++childIndex;
-                    }
-                }
+                attachedRowCount += miscExt.row_count();
+                chunksToAttach.push_back(chunk);
             }
-
-            // Collect all changes first.
-            const auto& chunkManager = Bootstrap_->GetChunkManager();
-            std::vector<TChunkTree*> chunksToAttach;
-            i64 attachedRowCount = 0;
-            auto lastCommitTimestamp = table->GetLastCommitTimestamp();
-            for (const auto& descriptor : request->stores_to_add()) {
-                auto storeId = FromProto<TStoreId>(descriptor.store_id());
-                if (TypeFromId(storeId) == EObjectType::Chunk ||
-                    TypeFromId(storeId) == EObjectType::ErasureChunk)
-                {
-                    auto* chunk = chunkManager->GetChunkOrThrow(storeId);
-                    const auto& miscExt = chunk->MiscExt();
-                    if (miscExt.has_max_timestamp()) {
-                        lastCommitTimestamp = std::max(lastCommitTimestamp, static_cast<TTimestamp>(miscExt.max_timestamp()));
-                    }
-                    attachedRowCount += miscExt.row_count();
-                    chunksToAttach.push_back(chunk);
-                }
-            }
-
-            std::vector<TChunkTree*> chunksToDetach;
-            i64 detachedRowCount = 0;
-            for (const auto& descriptor : request->stores_to_remove()) {
-                auto storeId = FromProto<TStoreId>(descriptor.store_id());
-                if (TypeFromId(storeId) == EObjectType::Chunk ||
-                    TypeFromId(storeId) == EObjectType::ErasureChunk)
-                {
-                    auto* chunk = chunkManager->GetChunkOrThrow(storeId);
-                    const auto& miscExt = chunk->MiscExt();
-                    detachedRowCount += miscExt.row_count();
-                    chunksToDetach.push_back(chunk);
-                }
-            }
-
-            // Update last commit timestamp.
-            table->SetLastCommitTimestamp(lastCommitTimestamp);
-
-            // Update retained timestamp.
-            auto retainedTimestamp = std::max(
-                tablet->GetRetainedTimestamp(),
-                static_cast<TTimestamp>(request->retained_timestamp()));
-            tablet->SetRetainedTimestamp(retainedTimestamp);
-            response.set_retained_timestamp(retainedTimestamp);
-
-            // Copy chunk tree if somebody holds a reference.
-            CopyChunkListIfShared(table, tablet->GetIndex(), tablet->GetIndex());
-
-            // Apply all requested changes.
-            cell->TotalStatistics() -= GetTabletStatistics(tablet);
-            auto* tabletChunkList = tablet->GetChunkList();
-            chunkManager->AttachToChunkList(tabletChunkList, chunksToAttach);
-            chunkManager->DetachFromChunkList(tabletChunkList, chunksToDetach);
-            cell->TotalStatistics() += GetTabletStatistics(tablet);
-            table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
-
-            // Unstage just attached chunks.
-            // Update table resource usage.
-            for (auto* chunk : chunksToAttach) {
-                chunkManager->UnstageChunk(chunk->AsChunk());
-            }
-
-            const auto& securityManager = Bootstrap_->GetSecurityManager();
-            securityManager->UpdateAccountNodeUsage(table);
-
-            LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores updated (TableId: %v, TabletId: %v, "
-                "AttachedChunkIds: %v, DetachedChunkIds: %v, "
-                "AttachedRowCount: %v, DetachedRowCount: %v)",
-                table->GetId(),
-                tabletId,
-                MakeFormattableRange(chunksToAttach, TObjectIdFormatter()),
-                MakeFormattableRange(chunksToDetach, TObjectIdFormatter()),
-                attachedRowCount,
-                detachedRowCount);
-        } catch (const std::exception& ex) {
-            auto error = TError(ex);
-            LOG_WARNING_UNLESS(IsRecovery(), error, "Error updating tablet stores (TabletId: %v)",
-                tabletId);
-            ToProto(response.mutable_error(), error.Sanitize());
         }
 
-        const auto& hiveManager = Bootstrap_->GetHiveManager();
-        auto* mailbox = hiveManager->GetMailbox(cell->GetId());
-        hiveManager->PostMessage(mailbox, response);
+        std::vector<TChunkTree*> chunksToDetach;
+        i64 detachedRowCount = 0;
+        for (const auto& descriptor : request->stores_to_remove()) {
+            auto storeId = FromProto<TStoreId>(descriptor.store_id());
+            if (TypeFromId(storeId) == EObjectType::Chunk ||
+                TypeFromId(storeId) == EObjectType::ErasureChunk)
+            {
+                auto* chunk = chunkManager->GetChunkOrThrow(storeId);
+                const auto& miscExt = chunk->MiscExt();
+                detachedRowCount += miscExt.row_count();
+                chunksToDetach.push_back(chunk);
+            }
+        }
+
+        // Update last commit timestamp.
+        table->SetLastCommitTimestamp(lastCommitTimestamp);
+
+        // Update retained timestamp.
+        auto retainedTimestamp = std::max(
+            tablet->GetRetainedTimestamp(),
+            static_cast<TTimestamp>(request->retained_timestamp()));
+        tablet->SetRetainedTimestamp(retainedTimestamp);
+
+        // Copy chunk tree if somebody holds a reference.
+        CopyChunkListIfShared(table, tablet->GetIndex(), tablet->GetIndex());
+
+        // Apply all requested changes.
+        auto* cell = tablet->GetCell();
+        cell->TotalStatistics() -= GetTabletStatistics(tablet);
+        auto* tabletChunkList = tablet->GetChunkList();
+        chunkManager->AttachToChunkList(tabletChunkList, chunksToAttach);
+        chunkManager->DetachFromChunkList(tabletChunkList, chunksToDetach);
+        cell->TotalStatistics() += GetTabletStatistics(tablet);
+        table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
+
+        // Unstage just attached chunks.
+        // Update table resource usage.
+        for (auto* chunk : chunksToAttach) {
+            chunkManager->UnstageChunk(chunk->AsChunk());
+        }
+
+        tablet->SetStoresUpdatePrepared(false);
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->UpdateAccountNodeUsage(table);
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update committed (TableId: %v, TabletId: %v, "
+            "AttachedChunkIds: %v, DetachedChunkIds: %v, "
+            "AttachedRowCount: %v, DetachedRowCount: %v, RetainedTimestamp: %v)",
+            table->GetId(),
+            tabletId,
+            MakeFormattableRange(chunksToAttach, TObjectIdFormatter()),
+            MakeFormattableRange(chunksToDetach, TObjectIdFormatter()),
+            attachedRowCount,
+            detachedRowCount,
+            retainedTimestamp);
+    }
+
+    void HydraAbortUpdateTabletStores(TTransaction* /*transaction*/, TReqUpdateTabletStores* request)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!IsObjectAlive(tablet)) {
+            return;
+        }
+
+        auto mountRevision = request->mount_revision();
+        if (tablet->GetMountRevision() != mountRevision) {
+            return;
+        }
+
+        if (!tablet->GetStoresUpdatePrepared()) {
+            return;
+        }
+
+        const auto* table = tablet->GetTable();
+
+        tablet->SetStoresUpdatePrepared(false);
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update aborted (TabletId: %v)",
+            table->GetId(),
+            tabletId);
     }
 
     void HydraUpdateTabletTrimmedRowCount(TReqUpdateTabletTrimmedRowCount* request)

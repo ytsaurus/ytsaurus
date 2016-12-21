@@ -1858,7 +1858,7 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
 
     // Cf. YT-4534
     if (StoreState_ == EStoreState::PassiveDynamic ||
-        StoreState_ == EStoreState::RemoveCommitting)
+        StoreState_ == EStoreState::RemovePrepared)
     {
         // NB: No more changes are possible after load.
         YCHECK(FlushRevision_ == InvalidRevision);

@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/core/misc/small_vector.h>
+
 #include <yt/core/logging/log.h>
 
 #include <yt/core/profiling/profiler.h>
@@ -16,6 +18,7 @@ static const ui32 InvalidRevision = std::numeric_limits<ui32>::max();
 static const ui32 MaxRevision = std::numeric_limits<ui32>::max() - 1;
 
 static const int TypicalStoreIdCount = 8;
+using TStoreIdList = SmallVector<TStoreId, TypicalStoreIdCount>;
 
 static const int InitialEditListCapacity = 2;
 static const int EditListCapacityMultiplier = 2;

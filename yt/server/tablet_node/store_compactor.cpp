@@ -14,11 +14,11 @@
 
 #include <yt/server/cell_node/bootstrap.h>
 
-#include <yt/server/hydra/hydra_manager.h>
-#include <yt/server/hydra/mutation.h>
+#include <yt/server/tablet_server/tablet_manager.pb.h>
 
 #include <yt/ytlib/api/native_client.h>
 #include <yt/ytlib/api/native_connection.h>
+#include <yt/ytlib/api/native_transaction.h>
 #include <yt/ytlib/api/transaction.h>
 
 #include <yt/ytlib/chunk_client/chunk_spec.h>
@@ -34,6 +34,7 @@
 
 #include <yt/ytlib/transaction_client/timestamp_provider.h>
 #include <yt/ytlib/transaction_client/helpers.h>
+#include <yt/ytlib/transaction_client/action.h>
 
 #include <yt/core/concurrency/thread_pool.h>
 #include <yt/core/concurrency/async_semaphore.h>
@@ -91,7 +92,7 @@ private:
     TAsyncSemaphorePtr CompactionSemaphore_;
     TAsyncSemaphorePtr PartitioningSemaphore_;
 
-    void ScanSlot(TTabletSlotPtr slot)
+    void ScanSlot(const TTabletSlotPtr& slot)
     {
         if (slot->GetAutomatonState() != EPeerState::Leading) {
             return;
@@ -104,7 +105,7 @@ private:
         }
     }
 
-    void ScanTablet(TTabletSlotPtr slot, TTablet* tablet)
+    void ScanTablet(const TTabletSlotPtr& slot, TTablet* tablet)
     {
         if (tablet->GetState() != ETabletState::Mounted) {
             return;
@@ -122,7 +123,7 @@ private:
         }
     }
 
-    void ScanEdenForPartitioning(TTabletSlotPtr slot, TPartition* eden)
+    void ScanEdenForPartitioning(const TTabletSlotPtr& slot, TPartition* eden)
     {
         if (eden->GetState() != EPartitionState::Normal) {
             return;
@@ -162,7 +163,7 @@ private:
             stores));
     }
 
-    void ScanPartitionForCompaction(TTabletSlotPtr slot, TPartition* partition)
+    void ScanPartitionForCompaction(const TTabletSlotPtr& slot, TPartition* partition)
     {
         if (partition->GetState() != EPartitionState::Normal) {
             return;
@@ -367,7 +368,7 @@ private:
 
     void PartitionEden(
         TAsyncSemaphoreGuard /*guard*/,
-        TTabletSlotPtr slot,
+        const TTabletSlotPtr& slot,
         TPartition* eden,
         const std::vector<TOwningKey>& pivotKeys,
         const std::vector<TSortedChunkStorePtr>& stores)
@@ -429,18 +430,18 @@ private:
 
             SwitchTo(poolInvoker);
 
-            ITransactionPtr transaction;
+            INativeTransactionPtr transaction;
             {
                 LOG_INFO("Creating Eden partitioning transaction");
 
                 TTransactionStartOptions options;
                 options.AutoAbort = false;
                 auto attributes = CreateEphemeralAttributes();
-                attributes->Set("title", Format("Eden partitioning, tablet %v",
+                attributes->Set("title", Format("Eden partitioning: tablet %v",
                     tabletId));
                 options.Attributes = std::move(attributes);
 
-                auto asyncTransaction = Bootstrap_->GetMasterClient()->StartTransaction(
+                auto asyncTransaction = Bootstrap_->GetMasterClient()->StartNativeTransaction(
                     NTransactionClient::ETransactionType::Master,
                     options);
                 transaction = WaitFor(asyncTransaction)
@@ -585,24 +586,23 @@ private:
 
             YCHECK(readRowCount == writeRowCount);
 
-            TReqCommitTabletStoresUpdate hydraRequest;
-            ToProto(hydraRequest.mutable_tablet_id(), tabletId);
-            hydraRequest.set_mount_revision(mountRevision);
-            ToProto(hydraRequest.mutable_transaction_id(), transaction->GetId());
+            NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
+            ToProto(actionRequest.mutable_tablet_id(), tabletId);
+            actionRequest.set_mount_revision(mountRevision);
 
-            SmallVector<TStoreId, TypicalStoreIdCount> storeIdsToRemove;
+            TStoreIdList storeIdsToRemove;
             for (const auto& store : stores) {
-                auto* descriptor = hydraRequest.add_stores_to_remove();
+                auto* descriptor = actionRequest.add_stores_to_remove();
                 auto storeId = store->GetId();
                 ToProto(descriptor->mutable_store_id(), storeId);
                 storeIdsToRemove.push_back(storeId);
             }
 
             // TODO(sandello): Move specs?
-            SmallVector<TStoreId, TypicalStoreIdCount> storeIdsToAdd;
+            TStoreIdList storeIdsToAdd;
             for (const auto& writer : writerPool.GetAllWriters()) {
                 for (const auto& chunkSpec : writer->GetWrittenChunksMasterMeta()) {
-                    auto* descriptor = hydraRequest.add_stores_to_add();
+                    auto* descriptor = actionRequest.add_stores_to_add();
                     descriptor->set_store_type(static_cast<int>(EStoreType::SortedChunk));
                     descriptor->mutable_store_id()->CopyFrom(chunkSpec.chunk_id());
                     descriptor->mutable_chunk_meta()->CopyFrom(chunkSpec.chunk_meta());
@@ -621,10 +621,14 @@ private:
                 storeManager->EndStoreCompaction(store);
             }
 
-            CreateMutation(slot->GetHydraManager(), hydraRequest)
-                ->CommitAndLog(Logger);
+            auto actionData = MakeTransactionActionData(actionRequest);
+            transaction->AddAction(Bootstrap_->GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellId(), actionData);
+            transaction->AddAction(slot->GetCellId(), actionData);
 
-            // Just abandon the transaction, hopefully it won't expire before the chunk is attached.
+            LOG_INFO("Committing partitioning transaction");
+            WaitFor(transaction->Commit())
+                .ThrowOnError();
+            LOG_INFO("Partitioning transaction committed");
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error partitioning Eden, backing off");
 
@@ -642,7 +646,7 @@ private:
 
     void CompactPartition(
         TAsyncSemaphoreGuard /*guard*/,
-        TTabletSlotPtr slot,
+        const TTabletSlotPtr& slot,
         TPartition* partition,
         const std::vector<TSortedChunkStorePtr>& stores,
         TTimestamp majorTimestamp)
@@ -708,18 +712,18 @@ private:
 
             SwitchTo(poolInvoker);
 
-            ITransactionPtr transaction;
+            INativeTransactionPtr transaction;
             {
                 LOG_INFO("Creating partition compaction transaction");
 
                 TTransactionStartOptions options;
                 options.AutoAbort = false;
                 auto attributes = CreateEphemeralAttributes();
-                attributes->Set("title", Format("Partition compaction, tablet %v",
+                attributes->Set("title", Format("Partition compaction: tablet %v",
                     tabletId));
                 options.Attributes = std::move(attributes);
 
-                auto asyncTransaction = Bootstrap_->GetMasterClient()->StartTransaction(
+                auto asyncTransaction = Bootstrap_->GetMasterClient()->StartNativeTransaction(
                     NTransactionClient::ETransactionType::Master,
                     options);
                 transaction = WaitFor(asyncTransaction)
@@ -779,24 +783,23 @@ private:
 
             YCHECK(readRowCount == writeRowCount);
 
-            TReqCommitTabletStoresUpdate hydraRequest;
-            ToProto(hydraRequest.mutable_tablet_id(), tabletId);
-            hydraRequest.set_mount_revision(mountRevision);
-            hydraRequest.set_retained_timestamp(retainedTimestamp);
-            ToProto(hydraRequest.mutable_transaction_id(), transaction->GetId());
+            NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
+            ToProto(actionRequest.mutable_tablet_id(), tabletId);
+            actionRequest.set_mount_revision(mountRevision);
+            actionRequest.set_retained_timestamp(retainedTimestamp);
 
-            SmallVector<TStoreId, TypicalStoreIdCount> storeIdsToRemove;
+            TStoreIdList storeIdsToRemove;
             for (const auto& store : stores) {
-                auto* descriptor = hydraRequest.add_stores_to_remove();
+                auto* descriptor = actionRequest.add_stores_to_remove();
                 auto storeId = store->GetId();
                 ToProto(descriptor->mutable_store_id(), storeId);
                 storeIdsToRemove.push_back(storeId);
             }
 
             // TODO(sandello): Move specs?
-            SmallVector<TStoreId, TypicalStoreIdCount> storeIdsToAdd;
+            TStoreIdList storeIdsToAdd;
             for (const auto& chunkSpec : writer->GetWrittenChunksMasterMeta()) {
-                auto* descriptor = hydraRequest.add_stores_to_add();
+                auto* descriptor = actionRequest.add_stores_to_add();
                 descriptor->set_store_type(static_cast<int>(EStoreType::SortedChunk));
                 descriptor->mutable_store_id()->CopyFrom(chunkSpec.chunk_id());
                 descriptor->mutable_chunk_meta()->CopyFrom(chunkSpec.chunk_meta());
@@ -814,10 +817,14 @@ private:
                 storeManager->EndStoreCompaction(store);
             }
 
-            CreateMutation(slot->GetHydraManager(), hydraRequest)
-                ->CommitAndLog(Logger);
+            auto actionData = MakeTransactionActionData(actionRequest);
+            transaction->AddAction(Bootstrap_->GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellId(), actionData);
+            transaction->AddAction(slot->GetCellId(), actionData);
 
-            // Just abandon the transaction, hopefully it won't expire before the chunk is attached.
+            LOG_INFO("Committing compaction transaction");
+            WaitFor(transaction->Commit())
+                .ThrowOnError();
+            LOG_INFO("Compaction transaction committed");
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error compacting partition, backing off");
 

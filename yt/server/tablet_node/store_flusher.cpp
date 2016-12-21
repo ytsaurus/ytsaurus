@@ -15,16 +15,16 @@
 
 #include <yt/server/hive/hive_manager.h>
 
-#include <yt/server/hydra/mutation.h>
-
 #include <yt/server/misc/memory_usage_tracker.h>
-
-#include <yt/server/tablet_node/tablet_manager.pb.h>
 
 #include <yt/server/tablet_server/tablet_manager.pb.h>
 
 #include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/native_connection.h>
+#include <yt/ytlib/api/native_transaction.h>
 #include <yt/ytlib/api/transaction.h>
+
+#include <yt/ytlib/transaction_client/action.h>
 
 #include <yt/ytlib/object_client/helpers.h>
 
@@ -40,6 +40,7 @@ using namespace NYTree;
 using namespace NApi;
 using namespace NNodeTrackerClient;
 using namespace NChunkClient;
+using namespace NTransactionClient;
 using namespace NHydra;
 using namespace NTabletServer::NProto;
 using namespace NTabletNode::NProto;
@@ -97,7 +98,7 @@ private:
         ForcedRotationCandidates_.clear();
     }
 
-    void OnScanSlot(TTabletSlotPtr slot)
+    void OnScanSlot(const TTabletSlotPtr& slot)
     {
         const auto& tabletManager = slot->GetTabletManager();
         for (const auto& pair : tabletManager->Tablets()) {
@@ -158,7 +159,7 @@ private:
         }
     }
 
-    void ScanTablet(TTabletSlotPtr slot, TTablet* tablet)
+    void ScanTablet(const TTabletSlotPtr& slot, TTablet* tablet)
     {
         const auto& tabletManager = slot->GetTabletManager();
         const auto& storeManager = tablet->GetStoreManager();
@@ -204,7 +205,7 @@ private:
         }
     }
 
-    void ScanStore(TTabletSlotPtr slot, TTablet* tablet, const IStorePtr& store)
+    void ScanStore(const TTabletSlotPtr& slot, TTablet* tablet, const IStorePtr& store)
     {
         if (!store->IsDynamic()) {
             return;
@@ -241,7 +242,7 @@ private:
 
     void FlushStore(
         TAsyncSemaphoreGuard /*guard*/,
-        TTabletSlotPtr slot,
+        const TTabletSlotPtr& slot,
         TTablet* tablet,
         IDynamicStorePtr store,
         TStoreFlushCallback flushCallback)
@@ -261,21 +262,19 @@ private:
         auto poolInvoker = ThreadPool_->GetInvoker();
 
         try {
-            LOG_INFO("Store flush started");
-
-            ITransactionPtr transaction;
+            INativeTransactionPtr transaction;
             {
                 LOG_INFO("Creating store flush transaction");
 
                 TTransactionStartOptions options;
                 options.AutoAbort = false;
                 auto attributes = CreateEphemeralAttributes();
-                attributes->Set("title", Format("Flushing store %v, tablet %v",
+                attributes->Set("title", Format("Store flush: store %v, tablet %v",
                     store->GetId(),
                     tabletId));
                 options.Attributes = std::move(attributes);
 
-                auto asyncTransaction = Bootstrap_->GetMasterClient()->StartTransaction(
+                auto asyncTransaction = Bootstrap_->GetMasterClient()->StartNativeTransaction(
                     NTransactionClient::ETransactionType::Master,
                     options);
                 transaction = WaitFor(asyncTransaction)
@@ -284,6 +283,8 @@ private:
                 LOG_INFO("Store flush transaction created (TransactionId: %v)",
                     transaction->GetId());
             }
+
+            LOG_INFO("Store flush started");
 
             auto asyncFlushResult = flushCallback
                 .AsyncVia(poolInvoker)
@@ -294,30 +295,30 @@ private:
 
             storeManager->EndStoreFlush(store);
 
-            // NB: No exceptions must be thrown beyond this point!
-
-            TReqCommitTabletStoresUpdate hydraRequest;
-            ToProto(hydraRequest.mutable_tablet_id(), tabletId);
-            hydraRequest.set_mount_revision(mountRevision);
-            ToProto(hydraRequest.mutable_transaction_id(), transaction->GetId());
-            ToProto(hydraRequest.mutable_stores_to_add(), flushResult);
-            ToProto(hydraRequest.add_stores_to_remove()->mutable_store_id(), store->GetId());
-
-            CreateMutation(slot->GetHydraManager(), hydraRequest)
-                ->CommitAndLog(Logger);
-
             LOG_INFO("Store flush completed (ChunkIds: %v)",
                 MakeFormattableRange(flushResult, [] (TStringBuilder* builder, const TAddStoreDescriptor& descriptor) {
                     FormatValue(builder, FromProto<TChunkId>(descriptor.store_id()), TStringBuf());
                 }));
 
-            // Just abandon the transaction, hopefully it won't expire before the chunk is attached.
+            NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
+            ToProto(actionRequest.mutable_tablet_id(), tabletId);
+            actionRequest.set_mount_revision(mountRevision);
+            ToProto(actionRequest.mutable_stores_to_add(), flushResult);
+            ToProto(actionRequest.add_stores_to_remove()->mutable_store_id(), store->GetId());
+
+            auto actionData = MakeTransactionActionData(actionRequest);
+            transaction->AddAction(Bootstrap_->GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellId(), actionData);
+            transaction->AddAction(slot->GetCellId(), actionData);
+
+            LOG_INFO("Committing flush transaction");
+            WaitFor(transaction->Commit())
+                .ThrowOnError();
+            LOG_INFO("Flush transaction committed");
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error flushing tablet store, backing off");
             storeManager->BackoffStoreFlush(store);
         }
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
