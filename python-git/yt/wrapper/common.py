@@ -241,11 +241,7 @@ def round_up_to(num, divider):
 
 def get_disk_size(filepath):
     stat = os.stat(filepath)
-    if hasattr(stat, "st_blocks") and hasattr(stat, "st_blksize"):
-        # NB: st_blocks count number of 512 blocks.
-        return stat.st_blocks * 512
-    else:
-        return round_up_to(stat.st_size, 4 * 1024)
+    return round_up_to(stat.st_size, 4 * 1024)
 
 def get_binary_std_stream(stream):
     if PY3:
