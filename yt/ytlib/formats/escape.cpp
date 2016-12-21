@@ -217,29 +217,6 @@ void EscapeAndWrite(
     }
 }
 
-ui32 CalculateEscapedLength(
-    const TStringBuf& string,
-    const TEscapeTable& escapeTable)
-{
-    if (escapeTable.EscapingSymbol) {
-        auto* begin = string.begin();
-        auto* end = string.end();
-        auto* next = begin;
-        int length = 0;
-        for (; begin != end; begin = next) {
-            next = escapeTable.FindNext(begin, end);
-            length += next - begin;
-            if (next != end) {
-                ++next;
-                length += 2;
-            }
-        }
-        return length;
-    } else {
-        return string.size();
-    }
-}
-
 Stroka Escape(
     const TStringBuf& string,
     const TEscapeTable& escapeTable)

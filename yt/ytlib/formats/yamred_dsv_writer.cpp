@@ -57,11 +57,15 @@ public:
 private:
     const TYamredDsvFormatConfigPtr Config_;
 
-    std::vector<TNullable<TStringBuf>> RowValues_;
+    std::vector<const TUnversionedValue*> RowValues_;
 
     std::vector<int> KeyColumnIds_;
     std::vector<int> SubkeyColumnIds_;
     std::vector<Stroka> EscapedColumnNames_;
+
+    // In lenval mode key, subkey and value are first written into
+    // this buffer in order to calculate their length.
+    TBlobOutput LenvalBuffer_;
 
     // We capture size of name table at the beginnig of #WriteRows
     // and refer to the captured value, since name table may change asynchronously.
@@ -81,11 +85,11 @@ private:
         UpdateEscapedColumnNames();
         RowValues_.resize(NameTableSize_);
         // Invariant: at the beginning of each loop iteration RowValues contains
-        // empty TNullable<TStringBuf> in each element.
+        // nullptr in each element.
         for (int i = 0; i < static_cast<int>(rows.size()); i++) {
             auto row = rows[i];
             if (CheckKeySwitch(row, i + 1 == rows.size() /* isLastRow */)) {
-                YCHECK (!Config_->Lenval);
+                YCHECK(!Config_->Lenval);
                 WritePod(*stream, static_cast<ui32>(-2));
             }
 
@@ -95,11 +99,9 @@ private:
                 if (IsSystemColumnId(item->Id) || item->Type == EValueType::Null) {
                     // Ignore null values and system columns.
                     continue;
-                } else if (item->Type != EValueType::String) {
-                    THROW_ERROR_EXCEPTION("YAMRed DSV doesn't support any value type except String and Null");
                 }
                 YCHECK(item->Id < NameTableSize_);
-                RowValues_[item->Id] = TStringBuf(item->Data.String, item->Length);
+                RowValues_[item->Id] = item;
             }
 
             WriteYamrKey(KeyColumnIds_);
@@ -110,7 +112,7 @@ private:
                 // columns are marked as subkey columns, we should explicitly remove them
                 // from the row (i. e. don't print as a rest of values in YAMR value column).
                 for (int id : SubkeyColumnIds_)
-                    RowValues_[id].Reset();
+                    RowValues_[id] = nullptr;
             }
             WriteYamrValue();
             TryFlushBuffer(false);
@@ -120,11 +122,7 @@ private:
 
     void WriteYamrKey(const std::vector<int>& columnIds)
     {
-        auto* stream = GetOutputStream();
-        if (Config_->Lenval) {
-            ui32 keyLength = CalculateTotalKeyLength(columnIds);
-            WritePod(*stream, keyLength);
-        }
+        auto* stream = Config_->Lenval ? &LenvalBuffer_ : GetOutputStream();
 
         bool firstColumn = true;
         for (int id : columnIds) {
@@ -137,43 +135,22 @@ private:
                 THROW_ERROR_EXCEPTION("Key column %Qv is missing",
                     NameTableReader_->GetName(id));
             }
-            EscapeAndWrite(*RowValues_[id], stream, ValueEscapeTable_);
-            RowValues_[id].Reset();
+            WriteUnversionedValue(*RowValues_[id], stream, ValueEscapeTable_);
+            RowValues_[id] = nullptr;
         }
 
-        if (!Config_->Lenval) {
-            stream->Write(Config_->FieldSeparator);
+        if (Config_->Lenval) {
+            WritePod(*GetOutputStream(), static_cast<ui32>(LenvalBuffer_.Size()));
+            GetOutputStream()->Write(LenvalBuffer_.Begin(), LenvalBuffer_.Size());
+            LenvalBuffer_.Clear();
+        } else {
+            GetOutputStream()->Write(Config_->FieldSeparator);
         }
-    }
-
-    ui32 CalculateTotalKeyLength(const std::vector<int>& columnIds)
-    {
-        ui32 sum = 0;
-        for (int id : columnIds) {
-            if (!RowValues_[id]) {
-                THROW_ERROR_EXCEPTION("Key column %Qv is missing",
-                    NameTableReader_->GetName(id));
-            }
-            // Word "value" below is not a mistake, it means the value part of YAMR format.
-            sum += CalculateEscapedLength(*RowValues_[id], ValueEscapeTable_);
-        }
-        if (!columnIds.empty()) {
-            sum += columnIds.size() - 1;
-        }
-        return sum;
     }
 
     void WriteYamrValue()
     {
-        auto* stream = GetOutputStream();
-
-        char keyValueSeparator =
-            static_cast<TYamredDsvFormatConfig*>(Config_.Get())->KeyValueSeparator;
-
-        if (Config_->Lenval) {
-            ui32 valueLength = CalculateTotalValueLength();
-            WritePod(*stream, valueLength);
-        }
+        auto* stream = Config_->Lenval ? &LenvalBuffer_ : GetOutputStream();
 
         bool firstColumn = true;
         for (int id = 0; id < NameTableSize_; ++id) {
@@ -184,34 +161,19 @@ private:
                     firstColumn = false;
                 }
                 stream->Write(EscapedColumnNames_[id]);
-                stream->Write(keyValueSeparator);
-                EscapeAndWrite(*RowValues_[id], stream, ValueEscapeTable_);
-                RowValues_[id].Reset();
+                stream->Write(Config_->KeyValueSeparator);
+                WriteUnversionedValue(*RowValues_[id], stream, ValueEscapeTable_);
+                RowValues_[id] = nullptr;
             }
         }
 
-        if (!Config_->Lenval) {
-            stream->Write(Config_->RecordSeparator);
+        if (Config_->Lenval) {
+            WritePod(*GetOutputStream(), static_cast<ui32>(LenvalBuffer_.Size()));
+            GetOutputStream()->Write(LenvalBuffer_.Begin(), LenvalBuffer_.Size());
+            LenvalBuffer_.Clear();
+        } else {
+            GetOutputStream()->Write(Config_->RecordSeparator);
         }
-    }
-
-    ui32 CalculateTotalValueLength()
-    {
-        ui32 sum = 0;
-        bool firstColumn = true;
-        for (int id = 0; id < NameTableSize_; ++id) {
-            if (RowValues_[id]) {
-                if (!firstColumn) {
-                    sum += 1; // The yamr_keys_separator.
-                } else {
-                    firstColumn = false;
-                }
-                sum += EscapedColumnNames_[id].length();
-                sum += 1; // The key_value_separator.
-                sum += CalculateEscapedLength(*RowValues_[id], ValueEscapeTable_);
-            }
-        }
-        return sum;
     }
 
     void UpdateEscapedColumnNames()
