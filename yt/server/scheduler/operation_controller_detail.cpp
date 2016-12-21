@@ -2476,6 +2476,16 @@ TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
         JobCounter.Start(1);
     }
     scheduleJobResult->Duration = timer.GetElapsed();
+
+    ScheduleJobStatistics->RecordJobResult(scheduleJobResult);
+    if (ScheduleJobStatisticsLogTime + Config->ScheduleJobStatisticsLogBackoff < TInstant::Now()) {
+        LOG_DEBUG("Schedule job statistics (count: %v, total duration: %v, failure reasons: %v)",
+            ScheduleJobStatistics->Count,
+            ScheduleJobStatistics->Duration,
+            ScheduleJobStatistics->Failed);
+        ScheduleJobStatisticsLogTime = TInstant::Now();
+    }
+
     return scheduleJobResult;
 }
 
@@ -4997,6 +5007,8 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, JobIndexGenerator);
 
     Persist(context, JobStatistics);
+
+    Persist(context, ScheduleJobStatistics);
 
     Persist(context, RowCountLimitTableIndex);
     Persist(context, RowCountLimit);
