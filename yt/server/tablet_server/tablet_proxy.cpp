@@ -58,6 +58,7 @@ private:
             .SetPresent(tablet->GetCell()));
         descriptors->push_back(TAttributeDescriptor("mount_revision")
             .SetPresent(tablet->GetCell()));
+        descriptors->push_back("stores_update_prepared");
         descriptors->push_back("index");
         descriptors->push_back("table_id");
         descriptors->push_back(TAttributeDescriptor("pivot_key")
@@ -120,6 +121,12 @@ private:
                     .Value(tablet->GetMountRevision());
                 return true;
             }
+        }
+
+        if (key == "stores_update_prepared") {
+            BuildYsonFluently(consumer)
+                .Value(tablet->GetStoresUpdatePrepared());
+            return true;
         }
 
         if (key == "index") {

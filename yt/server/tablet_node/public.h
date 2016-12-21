@@ -130,7 +130,7 @@ DEFINE_ENUM(EStoreState,
 
     ((Persistent)           (2)) // stored in a chunk
 
-    ((RemoveCommitting)     (7)) // UpdateTabletStores request sent to master
+    ((RemovePrepared)       (7)) // tablet stores update transaction has been prepared
 
     ((Orphaned)             (9)) // belongs to a forcefully removed tablet
     ((Removed)             (10)) // removed by rotation but still locked

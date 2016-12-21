@@ -1,7 +1,6 @@
 package NYT.NTabletNode.NProto;
 
 import "yt/core/misc/guid.proto";
-import "yt/core/misc/error.proto";
 import "yt/ytlib/table_client/chunk_meta.proto";
 import "yt/ytlib/chunk_client/chunk_meta.proto";
 import "yt/ytlib/tablet_client/heartbeat.proto";
@@ -106,26 +105,6 @@ message TReqRotateStore
 {
     required NYT.NProto.TGuid tablet_id = 1;
     required int64 mount_revision = 2;
-}
-
-message TReqCommitTabletStoresUpdate
-{
-    required NYT.NProto.TGuid tablet_id = 1;
-    required int64 mount_revision = 5;
-    repeated TAddStoreDescriptor stores_to_add = 2;
-    repeated TRemoveStoreDescriptor stores_to_remove = 3;
-    optional NYT.NProto.TGuid transaction_id = 4;
-    optional uint64 retained_timestamp = 6 [default = 0];
-}
-
-message TRspUpdateTabletStores
-{
-    required NYT.NProto.TGuid tablet_id = 1;
-    required int64 mount_revision = 5;
-    optional NYT.NProto.TError error = 2;
-    repeated TAddStoreDescriptor stores_to_add = 3;
-    repeated TRemoveStoreDescriptor stores_to_remove = 4;
-    required uint64 retained_timestamp = 6;
 }
 
 message TReqSplitPartition

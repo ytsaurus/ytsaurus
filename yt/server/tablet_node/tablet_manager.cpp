@@ -153,8 +153,6 @@ public:
         RegisterMethod(BIND(&TImpl::HydraFollowerWriteRows, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraTrimRows, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRotateStore, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraCommitTabletStoresUpdate, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraOnTabletStoresUpdated, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSplitPartition, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraMergePartitions, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdatePartitionSampleKeys, Unretained(this)));
@@ -173,10 +171,12 @@ public:
         transactionManager->SubscribeTransactionSerialized(BIND(&TImpl::OnTransactionSerialized, MakeStrong(this)));
         transactionManager->SubscribeTransactionAborted(BIND(&TImpl::OnTransactionAborted, MakeStrong(this)));
         transactionManager->SubscribeTransactionTransientReset(BIND(&TImpl::OnTransactionTransientReset, MakeStrong(this)));
-
         transactionManager->RegisterPrepareActionHandler(MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareReplicateRows, MakeStrong(this))));
         transactionManager->RegisterCommitActionHandler(MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitReplicateRows, MakeStrong(this))));
         transactionManager->RegisterAbortActionHandler(MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortReplicateRows, MakeStrong(this))));
+        transactionManager->RegisterPrepareActionHandler(MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareUpdateTabletStores, MakeStrong(this))));
+        transactionManager->RegisterCommitActionHandler(MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitUpdateTabletStores, MakeStrong(this))));
+        transactionManager->RegisterAbortActionHandler(MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortUpdateTabletStores, MakeStrong(this))));
 
         // Initialize periodic latest timestamp update.
         const auto& timestampProvider = Bootstrap_
@@ -1152,111 +1152,116 @@ private:
         UpdateTabletSnapshot(tablet);
     }
 
-    void HydraCommitTabletStoresUpdate(TReqCommitTabletStoresUpdate* commitRequest)
+    void HydraPrepareUpdateTabletStores(TTransaction* /*transaction*/, TReqUpdateTabletStores* request, bool persistent)
     {
-        auto tabletId = FromProto<TTabletId>(commitRequest->tablet_id());
-        auto* tablet = FindTablet(tabletId);
-        if (!tablet) {
-            return;
-        }
+        YCHECK(persistent);
 
-        auto mountRevision = commitRequest->mount_revision();
-        if (mountRevision != tablet->GetMountRevision()) {
-            return;
-        }
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = GetTabletOrThrow(tabletId);
 
-        SmallVector<TStoreId, TypicalStoreIdCount> storeIdsToAdd;
-        for (const auto& descriptor : commitRequest->stores_to_add()) {
+        auto mountRevision = request->mount_revision();
+        tablet->ValidateMountRevision(mountRevision);
+
+        TStoreIdList storeIdsToAdd;
+        for (const auto& descriptor : request->stores_to_add()) {
             auto storeId = FromProto<TStoreId>(descriptor.store_id());
             storeIdsToAdd.push_back(storeId);
         }
 
-        SmallVector<TStoreId, TypicalStoreIdCount> storeIdsToRemove;
-        for (const auto& descriptor : commitRequest->stores_to_remove()) {
+        TStoreIdList storeIdsToRemove;
+        for (const auto& descriptor : request->stores_to_remove()) {
             auto storeId = FromProto<TStoreId>(descriptor.store_id());
             storeIdsToRemove.push_back(storeId);
             auto store = tablet->GetStore(storeId);
-            YCHECK(store->GetStoreState() != EStoreState::ActiveDynamic);
-            store->SetStoreState(EStoreState::RemoveCommitting);
+            auto state = store->GetStoreState();
+            if (state != EStoreState::PassiveDynamic && state != EStoreState::Persistent) {
+                THROW_ERROR_EXCEPTION("Store %v has invalid state %Qlv",
+                    storeId,
+                    state);
+            }
+            store->SetStoreState(EStoreState::RemovePrepared);
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Committing tablet stores update "
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet stores update prepared "
             "(TabletId: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v)",
             tabletId,
             storeIdsToAdd,
             storeIdsToRemove);
-
-        const auto& hiveManager = Slot_->GetHiveManager();
-        auto* masterMailbox = Slot_->GetMasterMailbox();
-
-        {
-            TReqUpdateTabletStores masterRequest;
-            ToProto(masterRequest.mutable_tablet_id(), tabletId);
-            masterRequest.set_mount_revision(mountRevision);
-            masterRequest.set_retained_timestamp(commitRequest->retained_timestamp());
-            masterRequest.mutable_stores_to_add()->MergeFrom(commitRequest->stores_to_add());
-            masterRequest.mutable_stores_to_remove()->MergeFrom(commitRequest->stores_to_remove());
-            hiveManager->PostMessage(masterMailbox, masterRequest);
-        }
-
-        if (commitRequest->has_transaction_id()) {
-            auto transactionId = FromProto<TTransactionId>(commitRequest->transaction_id());
-
-            TReqCoordinatorAbortTransaction masterRequest;
-            ToProto(masterRequest.mutable_transaction_id(), transactionId);
-
-            hiveManager->PostMessage(masterMailbox, masterRequest);
-        }
     }
 
-    void HydraOnTabletStoresUpdated(TRspUpdateTabletStores* response)
+    void HydraAbortUpdateTabletStores(TTransaction* /*transaction*/, TReqUpdateTabletStores* request)
     {
-        auto tabletId = FromProto<TTabletId>(response->tablet_id());
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
         if (!tablet) {
             return;
         }
 
-        auto mountRevision = response->mount_revision();
+        auto mountRevision = request->mount_revision();
+        if (tablet->GetMountRevision() != mountRevision) {
+            return;
+        }
+
+        TStoreIdList storeIdsToAdd;
+        for (const auto& descriptor : request->stores_to_add()) {
+            auto storeId = FromProto<TStoreId>(descriptor.store_id());
+            storeIdsToAdd.push_back(storeId);
+        }
+
+        TStoreIdList storeIdsToRemove;
+        for (const auto& descriptor : request->stores_to_remove()) {
+            auto storeId = FromProto<TStoreId>(descriptor.store_id());
+            storeIdsToRemove.push_back(storeId);
+        }
+
+        const auto& storeManager = tablet->GetStoreManager();
+        for (const auto& storeId : storeIdsToRemove) {
+            auto store = tablet->GetStore(storeId);
+
+            YCHECK(store->GetStoreState() == EStoreState::RemovePrepared);
+            switch (store->GetType()) {
+                case EStoreType::SortedDynamic:
+                case EStoreType::OrderedDynamic:
+                    store->SetStoreState(EStoreState::PassiveDynamic);
+                    break;
+                case EStoreType::SortedChunk:
+                case EStoreType::OrderedChunk:
+                    store->SetStoreState(EStoreState::Persistent);
+                    break;
+                default:
+                    Y_UNREACHABLE();
+            }
+
+            if (IsLeader()) {
+                storeManager->BackoffStoreRemoval(store);
+            }
+        }
+
+        if (IsLeader()) {
+            CheckIfFullyFlushed(tablet);
+        }
+
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet stores update aborted "
+            "(TabletId: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v)",
+            tabletId,
+            storeIdsToAdd,
+            storeIdsToRemove);
+    }
+
+    void HydraCommitUpdateTabletStores(TTransaction* /*transaction*/, TReqUpdateTabletStores* request)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        auto mountRevision = request->mount_revision();
         if (mountRevision != tablet->GetMountRevision()) {
             return;
         }
 
         const auto& storeManager = tablet->GetStoreManager();
-
-        if (response->has_error()) {
-            auto error = FromProto<TError>(response->error());
-            LOG_WARNING_UNLESS(IsRecovery(), error, "Error updating tablet stores (TabletId: %v)",
-                tabletId);
-
-            for (const auto& descriptor : response->stores_to_remove()) {
-                auto storeId = FromProto<TStoreId>(descriptor.store_id());
-                auto store = tablet->GetStore(storeId);
-
-                YCHECK(store->GetStoreState() == EStoreState::RemoveCommitting);
-                switch (store->GetType()) {
-                    case EStoreType::SortedDynamic:
-                    case EStoreType::OrderedDynamic:
-                        store->SetStoreState(EStoreState::PassiveDynamic);
-                        break;
-                    case EStoreType::SortedChunk:
-                    case EStoreType::OrderedChunk:
-                        store->SetStoreState(EStoreState::Persistent);
-                        break;
-                    default:
-                        Y_UNREACHABLE();
-                }
-
-                if (IsLeader()) {
-                    storeManager->BackoffStoreRemoval(store);
-                }
-            }
-
-            if (IsLeader()) {
-                CheckIfFullyFlushed(tablet);
-            }
-            return;
-        }
 
         auto mountConfig = tablet->GetConfig();
         auto inMemoryManager = Bootstrap_->GetInMemoryManager();
@@ -1275,7 +1280,7 @@ private:
         };
 
         if (!IsRecovery()) {
-            for (const auto& descriptor : response->stores_to_add()) {
+            for (const auto& descriptor : request->stores_to_add()) {
                 if (descriptor.has_backing_store_id()) {
                     auto backingStoreId = FromProto<TStoreId>(descriptor.backing_store_id());
                     auto backingStore = tablet->GetStore(backingStoreId);
@@ -1285,7 +1290,7 @@ private:
         }
 
         std::vector<TStoreId> removedStoreIds;
-        for (const auto& descriptor : response->stores_to_remove()) {
+        for (const auto& descriptor : request->stores_to_remove()) {
             auto storeId = FromProto<TStoreId>(descriptor.store_id());
             removedStoreIds.push_back(storeId);
 
@@ -1298,7 +1303,7 @@ private:
         }
 
         std::vector<TStoreId> addedStoreIds;
-        for (const auto& descriptor : response->stores_to_add()) {
+        for (const auto& descriptor : request->stores_to_add()) {
             auto storeType = EStoreType(descriptor.store_type());
             auto storeId = FromProto<TChunkId>(descriptor.store_id());
             addedStoreIds.push_back(storeId);
@@ -1320,10 +1325,12 @@ private:
                 backingStoreId);
         }
 
-        auto retainedTimestamp = static_cast<TTimestamp>(response->retained_timestamp());
+        auto retainedTimestamp = std::max(
+            tablet->GetRetainedTimestamp(),
+            static_cast<TTimestamp>(request->retained_timestamp()));
         tablet->SetRetainedTimestamp(retainedTimestamp);
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet stores updated successfully "
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet stores update committed "
             "(TabletId: %v, AddedStoreIds: %v, RemovedStoreIds: %v, RetainedTimestamp: %v)",
             tabletId,
             addedStoreIds,
@@ -1331,6 +1338,7 @@ private:
             retainedTimestamp);
 
         UpdateTabletSnapshot(tablet);
+
         if (IsLeader()) {
             CheckIfFullyFlushed(tablet);
         }
