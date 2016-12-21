@@ -1,5 +1,8 @@
 #include "yamr_writer.h"
 
+#include "escape.h"
+#include "helpers.h"
+
 #include <yt/ytlib/table_client/name_table.h>
 
 #include <yt/core/misc/error.h>
@@ -28,33 +31,35 @@ public:
         int keyColumnCount,
         TYamrFormatConfigPtr config = New<TYamrFormatConfig>())
         : TSchemalessWriterForYamrBase(
-            nameTable, 
+            nameTable,
             std::move(output),
-            enableContextSaving, 
+            enableContextSaving,
             controlAttributesConfig,
             keyColumnCount,
             config)
-        , Table_(
-            config->FieldSeparator,
-            config->RecordSeparator,
-            config->EnableEscaping, // Enable key escaping
-            config->EnableEscaping, // Enable value escaping
-            config->EscapingSymbol,
-            true)
-    { 
+    {
+        ConfigureEscapeTables(
+            config,
+            config->EnableEscaping /* enableKeyEscaping */,
+            config->EnableEscaping /* enableValueEscaping */,
+            true /* escapingForWriter */,
+            &KeyEscapeTable_,
+            &ValueEscapeTable_);
+
         try {
             KeyId_ = nameTable->GetIdOrRegisterName(config->Key);
             SubkeyId_ = Config_->HasSubkey ? nameTable->GetIdOrRegisterName(config->Subkey) : -1;
             ValueId_ = nameTable->GetIdOrRegisterName(config->Value);
         } catch (const std::exception& ex) {
-            auto error = TError("Failed to add columns to name table for YAMR format") 
+            auto error = TError("Failed to add columns to name table for YAMR format")
                 << ex;
             RegisterError(error);
         }
     }
 
 private:
-    const TYamrTable Table_;
+    TEscapeTable KeyEscapeTable_;
+    TEscapeTable ValueEscapeTable_;
 
     int KeyId_;
     int SubkeyId_;
@@ -78,7 +83,7 @@ private:
             }
 
             WriteControlAttributes(row);
-            
+
             TNullable<TStringBuf> key;
             TNullable<TStringBuf> subkey;
             TNullable<TStringBuf> value;
@@ -102,7 +107,7 @@ private:
             }
 
             if (!key) {
-                THROW_ERROR_EXCEPTION("Missing key column %Qv in YAMR record", config->Key); 
+                THROW_ERROR_EXCEPTION("Missing key column %Qv in YAMR record", config->Key);
             }
 
             if (!subkey) {
@@ -114,13 +119,13 @@ private:
             }
 
             if (!config->Lenval) {
-                EscapeAndWrite(*key, Table_.KeyStops, Table_.Escapes);
+                EscapeAndWrite(*key, stream, KeyEscapeTable_);
                 stream->Write(config->FieldSeparator);
                 if (config->HasSubkey) {
-                    EscapeAndWrite(*subkey, Table_.KeyStops, Table_.Escapes);
+                    EscapeAndWrite(*subkey, stream, KeyEscapeTable_);
                     stream->Write(config->FieldSeparator);
                 }
-                EscapeAndWrite(*value, Table_.ValueStops, Table_.Escapes);
+                EscapeAndWrite(*value, stream, ValueEscapeTable_);
                 stream->Write(config->RecordSeparator);
             } else {
                 WriteInLenvalMode(*key);
@@ -163,11 +168,11 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForYamr(
     }
 
     return New<TSchemalessWriterForYamr>(
-        nameTable, 
-        output, 
-        enableContextSaving, 
+        nameTable,
+        output,
+        enableContextSaving,
         controlAttributesConfig,
-        keyColumnCount, 
+        keyColumnCount,
         config);
 }
 
@@ -183,10 +188,10 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForYamr(
     return CreateSchemalessWriterForYamr(
         config,
         nameTable,
-        output, 
-        enableContextSaving, 
+        output,
+        enableContextSaving,
         controlAttributesConfig,
-        keyColumnCount); 
+        keyColumnCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

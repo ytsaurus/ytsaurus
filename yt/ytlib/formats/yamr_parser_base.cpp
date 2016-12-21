@@ -1,4 +1,7 @@
-#include "yamr_base_parser.h"
+#include "yamr_parser_base.h"
+
+#include "format.h"
+#include "config.h"
 
 #include <yt/ytlib/table_client/public.h>
 
@@ -39,30 +42,25 @@ void TYamrConsumerBase::SwitchTable(i64 tableIndex)
 
 TYamrDelimitedBaseParser::TYamrDelimitedBaseParser(
     IYamrConsumerPtr consumer,
-    bool hasSubkey,
-    char fieldSeparator,
-    char recordSeparator,
+    const TYamrFormatConfigBasePtr& config,
     bool enableKeyEscaping,
-    bool enableValueEscaping,
-    char escapingSymbol)
+    bool enableValueEscaping)
     : Consumer(consumer)
+    , Config_(config)
     , State(EState::InsideKey)
-    , FieldSeparator(fieldSeparator)
-    , RecordSeparator(recordSeparator)
-    , EscapingSymbol(escapingSymbol)
     , ExpectingEscapedChar(false)
-    , HasSubkey(hasSubkey)
     , Offset(0)
     , Record(1)
     , BufferPosition(0)
-    , Table(
-        fieldSeparator,
-        recordSeparator,
+{
+    ConfigureEscapeTables(
+        config,
         enableKeyEscaping,
         enableValueEscaping,
-        escapingSymbol,
-        false)
-{ }
+        false /* escapingForWriter */,
+        &KeyEscapeTable_,
+        &ValueEscapeTable_);
+}
 
 void TYamrDelimitedBaseParser::Read(const TStringBuf& data)
 {
@@ -135,7 +133,7 @@ void TYamrDelimitedBaseParser::ProcessKey(const TStringBuf& key)
     Y_ASSERT(!ExpectingEscapedChar);
     Y_ASSERT(State == EState::InsideKey);
     Consumer->ConsumeKey(key);
-    State = HasSubkey ? EState::InsideSubkey : EState::InsideValue;
+    State = Config_->HasSubkey ? EState::InsideSubkey : EState::InsideValue;
 }
 
 void TYamrDelimitedBaseParser::ProcessSubkey(const TStringBuf& subkey)
@@ -181,9 +179,9 @@ const char* TYamrDelimitedBaseParser::ProcessToken(
     return next + 1;
 }
 
-const char* TYamrDelimitedBaseParser::FindNext(const char* begin, const char* end, const TLookupTable& lookupTable)
+const char* TYamrDelimitedBaseParser::FindNext(const char* begin, const char* end, const TEscapeTable& escapeTable)
 {
-    const char* next = lookupTable.FindNext(begin, end);
+    const char* next = escapeTable.FindNext(begin, end);
     OnRangeConsumed(begin, next);
     return next;
 }
@@ -192,7 +190,7 @@ const char* TYamrDelimitedBaseParser::Consume(const char* begin, const char* end
 {
     if (ExpectingEscapedChar) {
         // Read and unescape.
-        CurrentToken.append(Table.Escapes.Backward[static_cast<ui8>(*begin)]);
+        CurrentToken.append(EscapeBackward[static_cast<ui8>(*begin)]);
         ExpectingEscapedChar = false;
         OnRangeConsumed(begin, begin + 1);
         return begin + 1;
@@ -200,7 +198,7 @@ const char* TYamrDelimitedBaseParser::Consume(const char* begin, const char* end
 
     Y_ASSERT(!ExpectingEscapedChar);
 
-    const char* next = FindNext(begin, end, State == EState::InsideValue ? Table.ValueStops : Table.KeyStops);
+    const char* next = FindNext(begin, end, State == EState::InsideValue ? ValueEscapeTable_ : KeyEscapeTable_);
     if (next == end) {
         CurrentToken.append(begin, next);
         if (CurrentToken.length() > MaxRowWeightLimit) {
@@ -213,7 +211,7 @@ const char* TYamrDelimitedBaseParser::Consume(const char* begin, const char* end
         return end;
     }
 
-    if (*next == EscapingSymbol) {
+    if (*next == Config_->EscapingSymbol) {
         CurrentToken.append(begin, next);
         OnRangeConsumed(next, next + 1);
         ExpectingEscapedChar = true;
@@ -222,28 +220,28 @@ const char* TYamrDelimitedBaseParser::Consume(const char* begin, const char* end
 
     switch (State) {
         case EState::InsideKey:
-            if (*next == RecordSeparator) {
+            if (*next == Config_->RecordSeparator) {
                 return ProcessToken(&TYamrDelimitedBaseParser::ProcessTableSwitch, begin, next);
             }
 
-            if (*next == FieldSeparator) {
+            if (*next == Config_->FieldSeparator) {
                 return ProcessToken(&TYamrDelimitedBaseParser::ProcessKey, begin, next);
             }
             break;
 
         case EState::InsideSubkey:
-            if (*next == FieldSeparator) {
+            if (*next == Config_->FieldSeparator) {
                 return ProcessToken(&TYamrDelimitedBaseParser::ProcessSubkey, begin, next);
             }
 
-            if (*next == RecordSeparator) {
+            if (*next == Config_->RecordSeparator) {
                 // See yamr_parser_ut.cpp: IncompleteRows() for details.
                 return ProcessToken(&TYamrDelimitedBaseParser::ProcessSubkeyBadFormat, begin, next);
             }
             break;
 
         case EState::InsideValue:
-            if (*next == RecordSeparator) {
+            if (*next == Config_->RecordSeparator) {
                 return ProcessToken(&TYamrDelimitedBaseParser::ProcessValue, begin, next);
             }
             break;
@@ -258,8 +256,8 @@ const char* TYamrDelimitedBaseParser::Consume(const char* begin, const char* end
 void TYamrDelimitedBaseParser::ThrowIncorrectFormat() const
 {
     THROW_ERROR_EXCEPTION("Unexpected symbol in YAMR row: expected %Qv, found %Qv",
-        EscapeC(FieldSeparator),
-        EscapeC(RecordSeparator))
+        EscapeC(Config_->FieldSeparator),
+        EscapeC(Config_->RecordSeparator))
         << *GetDebugInfo();
 }
 

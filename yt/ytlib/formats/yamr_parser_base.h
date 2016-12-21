@@ -1,7 +1,8 @@
 #pragma once
 
 #include "parser.h"
-#include "yamr_table.h"
+
+#include "escape.h"
 
 #include <yt/core/ytree/attributes.h>
 
@@ -49,12 +50,9 @@ class TYamrDelimitedBaseParser
 public:
     TYamrDelimitedBaseParser(
         IYamrConsumerPtr consumer,
-        bool hasSubkey,
-        char fieldSeparator,
-        char recordSeparator,
+        const TYamrFormatConfigBasePtr& config,
         bool enableKeyEscaping,
-        bool enableValueEscaping,
-        char escapingSymbol);
+        bool enableValueEscaping);
 
     virtual void Read(const TStringBuf& data) override;
     virtual void Finish() override;
@@ -75,8 +73,7 @@ private:
         const char* begin,
         const char* next);
 
-    const char* FindNext(const char* begin, const char* end, const TLookupTable& lookupTable);
-
+    const char* FindNext(const char* begin, const char* end, const TEscapeTable& escapeTable);
 
     void ThrowIncorrectFormat() const;
 
@@ -86,8 +83,9 @@ private:
     Stroka GetContext() const;
     std::unique_ptr<NYTree::IAttributeDictionary> GetDebugInfo() const;
 
-
     IYamrConsumerPtr Consumer;
+
+    TYamrFormatConfigBasePtr Config_;
 
     EState State;
 
@@ -107,7 +105,8 @@ private:
     static const int ContextBufferSize = 64;
     char ContextBuffer[ContextBufferSize];
 
-    TYamrTable Table;
+    TEscapeTable KeyEscapeTable_;
+    TEscapeTable ValueEscapeTable_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

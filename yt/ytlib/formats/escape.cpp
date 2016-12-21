@@ -1,4 +1,4 @@
-#include "symbols.h"
+#include "escape.h"
 
 #ifdef YT_USE_SSE42
     #include <yt/core/misc/cpuid.h>
@@ -142,20 +142,20 @@ static inline const char* FindNextSymbol(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLookupTable::TLookupTable()
+TEscapeTable::TEscapeTable()
 { }
 
-void TLookupTable::Fill(const char* begin, const char* end)
+void TEscapeTable::FillStops(const std::vector<char>& stopSymbols)
 {
-    YCHECK(end - begin <= 16);
+    YCHECK(stopSymbols.size() <= 16);
 
 #ifdef YT_USE_SSE42
     if (CpuId.Sse42()) {
         char storage[16] = {0};
 
-        SymbolCount = end - begin;
+        SymbolCount = stopSymbols.size();
         for (int i = 0; i < SymbolCount; ++i) {
-            storage[i] = begin[i]; // :) C-style!
+            storage[i] = stopSymbols[i]; // :) C-style!
         }
 
         Symbols = _mm_setr_epi8(
@@ -163,30 +163,20 @@ void TLookupTable::Fill(const char* begin, const char* end)
             storage[4],  storage[5],  storage[6],  storage[7],
             storage[8],  storage[9],  storage[10], storage[11],
             storage[12], storage[13], storage[14], storage[15]);
-    } else 
+    } else
 #endif
     {
         for (int i = 0; i < 256; ++i) {
             Bitmap[i] = false;
         }
 
-        for (const char* current = begin; current != end; ++current) {
-            Bitmap[static_cast<ui8>(*current)] = true;
+        for (char stopSymbol : stopSymbols) {
+            Bitmap[static_cast<ui8>(stopSymbol)] = true;
         }
     }
 }
 
-void TLookupTable::Fill(const std::vector<char>& v)
-{
-    Fill(v.data(), v.data() + v.size());
-}
-
-void TLookupTable::Fill(const std::string& s)
-{
-    Fill(s.data(), s.data() + s.length());
-}
-
-const char* TLookupTable::FindNext(const char* begin, const char* end) const
+const char* TEscapeTable::FindNext(const char* begin, const char* end) const
 {
     if (begin == end) {
         return end;
@@ -201,91 +191,79 @@ const char* TLookupTable::FindNext(const char* begin, const char* end) const
     }
 }
 
-TEscapeTable::TEscapeTable()
-{
-    for (int i = 0; i < 256; ++i) {
-        Forward[i] = i;
-        Backward[i] = i;
-    }
-
-    Forward[static_cast<unsigned char>('\0')] = '0';
-    Forward[static_cast<unsigned char>('\n')] = 'n';
-    Forward[static_cast<unsigned char>('\t')] = 't';
-    Forward[static_cast<unsigned char>('\r')] = 'r';
-
-    Backward[static_cast<unsigned char>('0')] = '\0';
-    Backward[static_cast<unsigned char>('t')] = '\t';
-    Backward[static_cast<unsigned char>('n')] = '\n';
-    Backward[static_cast<unsigned char>('r')] = '\r';
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-void WriteEscaped(
-    TOutputStream* stream,
+void EscapeAndWrite(
     const TStringBuf& string,
-    const TLookupTable& lookupTable,
-    const TEscapeTable& escapeTable,
-    char escapingSymbol)
+    TOutputStream* stream,
+    const TEscapeTable& escapeTable)
 {
-    auto* begin = string.begin();
-    auto* end = string.end();
-    auto* next = begin;
-    for (; begin != end; begin = next) {
-        next = lookupTable.FindNext(begin, end);
+    if (escapeTable.EscapingSymbol) {
+        auto* begin = string.begin();
+        auto* end = string.end();
+        auto* next = begin;
+        for (; begin != end; begin = next) {
+            next = escapeTable.FindNext(begin, end);
 
-        stream->Write(begin, next - begin);
-        if (next != end) {
-            stream->Write(escapingSymbol);
-            stream->Write(escapeTable.Forward[static_cast<ui8>(*next)]);
-            ++next;
+            stream->Write(begin, next - begin);
+            if (next != end) {
+                stream->Write(escapeTable.EscapingSymbol);
+                stream->Write(EscapeForward[static_cast<ui8>(*next)]);
+                ++next;
+            }
         }
+    } else {
+        stream->Write(string);
     }
 }
 
 ui32 CalculateEscapedLength(
     const TStringBuf& string,
-    const TLookupTable& lookupTable,
-    const TEscapeTable& escapeTable,
-    char escapingSymbol)
+    const TEscapeTable& escapeTable)
 {
-    auto* begin = string.begin();
-    auto* end = string.end();
-    auto* next = begin;
-    int length = 0;
-    for (; begin != end; begin = next) {
-        next = lookupTable.FindNext(begin, end);
-        length += next - begin;
-        if (next != end) {
-            ++next;
-            length += 2;
+    if (escapeTable.EscapingSymbol) {
+        auto* begin = string.begin();
+        auto* end = string.end();
+        auto* next = begin;
+        int length = 0;
+        for (; begin != end; begin = next) {
+            next = escapeTable.FindNext(begin, end);
+            length += next - begin;
+            if (next != end) {
+                ++next;
+                length += 2;
+            }
         }
+        return length;
+    } else {
+        return string.size();
     }
-    return length;
 }
 
 Stroka Escape(
     const TStringBuf& string,
-    const TLookupTable& lookupTable,
-    const TEscapeTable& escapeTable,
-    char escapingSymbol)
+    const TEscapeTable& escapeTable)
 {
-    Stroka result;
-    // In worst case result length will be twice the original length.
-    result.reserve(2 * string.length());
-    auto* begin = string.begin();
-    auto* end = string.end();
-    auto* next = begin;
-    for (; begin != end; begin = next) {
-        next = lookupTable.FindNext(begin, end);
-        result.append(begin, next);
-        if (next != end) {
-            result.append(escapingSymbol);
-            result.append(escapeTable.Forward[static_cast<ui8>(*next)]);
-            ++next;
+    if (escapeTable.EscapingSymbol) {
+        Stroka result;
+        // In worst case result length will be twice the original length.
+        result.reserve(2 * string.length());
+        auto* begin = string.begin();
+        auto* end = string.end();
+        auto* next = begin;
+        for (; begin != end; begin = next) {
+            next = escapeTable.FindNext(begin, end);
+            result.append(begin, next);
+            if (next != end) {
+                result.append(escapeTable.EscapingSymbol);
+                result.append(EscapeForward[static_cast<ui8>(*next)]);
+                ++next;
+            }
         }
+        return result;
+    } else {
+        return Stroka(string);
     }
-    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

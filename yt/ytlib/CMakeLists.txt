@@ -106,7 +106,7 @@ SET(YT_SRCS
 
   ${CMAKE_CURRENT_LIST_DIR}/formats/dsv_parser.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/dsv_writer.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/formats/dsv_table.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/escape.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/format.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/json_callbacks.cpp
@@ -120,10 +120,9 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/formats/schemaful_dsv_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/schemaful_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/schemaless_writer_adapter.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/formats/symbols.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/utf8_decoder.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/formats/yamr_base_parser.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/yamr_parser.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/yamr_parser_base.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/yamr_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/yamr_writer_base.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/yamred_dsv_parser.cpp

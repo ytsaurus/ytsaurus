@@ -1,5 +1,5 @@
 #include "yamr_parser.h"
-#include "yamr_base_parser.h"
+#include "yamr_parser_base.h"
 
 #include <yt/core/misc/error.h>
 
@@ -67,12 +67,9 @@ std::unique_ptr<IParser> CreateParserForYamr(
         : std::unique_ptr<IParser>(
             new TYamrDelimitedBaseParser(
                 parserConsumer,
-                config->HasSubkey,
-                config->FieldSeparator,
-                config->RecordSeparator,
-                config->EnableEscaping, // Enable key escaping
-                config->EnableEscaping, // Enable value escaping
-                config->EscapingSymbol));
+                config,
+                config->EnableEscaping /* enableKeyEscaping */,
+                config->EnableEscaping /* enableValueEscaping */));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
