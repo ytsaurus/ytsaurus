@@ -181,10 +181,21 @@ def package(options):
 
 @build_step
 def run_prepare(options):
-    with cwd(options.working_directory, "yt/nodejs"):
+    nodejs_source = os.path.join(options.checkout_directory, "yt", "nodejs")
+    nodejs_build = os.path.join(options.working_directory, "yt", "nodejs")
+
+    yt_node_binary_path = os.path.join(nodejs_source, "lib", "ytnode.node")
+    run(["rm", "-f", yt_node_binary_path])
+    run(["ln", "-s", os.path.join(nodejs_build, "ytnode.node"), yt_node_binary_path])
+
+    with cwd(nodejs_build):
         if os.path.exists("node_modules"):
             rmtree("node_modules")
         run(["npm", "install"])
+
+    link_path = os.path.join(nodejs_build, "node_modules", "yt")
+    run(["rm", "-f", link_path])
+    run(["ln", "-s", nodejs_source, link_path])
 
 
 @build_step
