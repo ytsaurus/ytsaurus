@@ -86,10 +86,6 @@ void EscapeAndWrite(
     TOutputStream* stream,
     const TEscapeTable& escapeTable);
 
-ui32 CalculateEscapedLength(
-    const TStringBuf& string,
-    const TEscapeTable& escapeTable);
-
 Stroka Escape(
     const TStringBuf& string,
     const TEscapeTable& escapeTable);

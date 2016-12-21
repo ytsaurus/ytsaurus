@@ -9,6 +9,9 @@
 
 #include <util/string/vector.h>
 
+#include <cstdio>
+
+
 namespace NYT {
 namespace NFormats {
 namespace {
@@ -269,7 +272,6 @@ TEST_F(TSchemalessWriterForYamredDsvTest, Lenval)
         .Get()
         .ThrowOnError();
 
-    // ToDo(makhmedov): compare Yamr values ignoring the order of entries.
     Stroka expectedOutput = Stroka(
         "\xff\xff\xff\xff" "\x2a\x00\x00\x00" // Table index.
         "\xfd\xff\xff\xff" "\x17\x00\x00\x00" // Range index.
@@ -359,6 +361,35 @@ TEST_F(TSchemalessWriterForYamredDsvTest, SkippedSubkey)
     EXPECT_THROW(Writer_->Close()
         .Get()
         .ThrowOnError(), std::exception);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TSchemalessWriterForYamredDsvTest, NonStringValues)
+{
+    Config_->HasSubkey = true;
+    Config_->KeyColumnNames.emplace_back("key_a");
+    Config_->SubkeyColumnNames.emplace_back("key_c");
+    CreateStandardWriter();
+
+    TUnversionedRowBuilder row;
+    row.AddValue(MakeUnversionedInt64Value(-42, KeyAId_));
+    row.AddValue(MakeUnversionedUint64Value(18, KeyCId_));
+    row.AddValue(MakeUnversionedBooleanValue(true, KeyBId_));
+    row.AddValue(MakeUnversionedDoubleValue(3.14, ValueXId_));
+    row.AddValue(MakeUnversionedStringValue("yt", ValueYId_));
+
+    std::vector<TUnversionedRow> rows = { row.GetRow() };
+
+    EXPECT_EQ(true, Writer_->Write(rows));
+    Writer_->Close()
+        .Get()
+        .ThrowOnError();
+
+    Stroka expectedOutput = "-42\t18\tkey_b=true\tvalue_x=3.14\tvalue_y=yt\n";
+    Stroka output = OutputStream_.Str();
+
+    EXPECT_EQ(expectedOutput, output);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
