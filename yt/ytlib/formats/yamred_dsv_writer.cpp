@@ -1,5 +1,7 @@
 #include "yamred_dsv_writer.h"
 
+#include "escape.h"
+
 #include <yt/ytlib/table_client/name_table.h>
 
 namespace NYT {
@@ -25,15 +27,15 @@ public:
         int keyColumnCount,
         TYamredDsvFormatConfigPtr config = New<TYamredDsvFormatConfig>())
         : TSchemalessWriterForYamrBase(
-            nameTable, 
+            nameTable,
             std::move(output),
-            enableContextSaving, 
+            enableContextSaving,
             controlAttributesConfig,
             keyColumnCount,
             config)
         , Config_(config)
-        , Table_(config, true /* addCarriageReturn */) 
     {
+        ConfigureEscapeTables(config, true /* addCarriageReturn */, &KeyEscapeTable_, &ValueEscapeTable_);
         try {
             // We register column names in order to have correct size of NameTable_ in DoWrite method.
             for (const auto& columnName : config->KeyColumnNames) {
@@ -65,7 +67,8 @@ private:
     // and refer to the captured value, since name table may change asynchronously.
     int NameTableSize_ = 0;
 
-    const TDsvTable Table_;
+    TEscapeTable KeyEscapeTable_;
+    TEscapeTable ValueEscapeTable_;
 
 
     // ISchemalessFormatWriter implementation
@@ -74,7 +77,7 @@ private:
         TableIndexWasWritten_ = false;
 
         auto* stream = GetOutputStream();
-        
+
         UpdateEscapedColumnNames();
         RowValues_.resize(NameTableSize_);
         // Invariant: at the beginning of each loop iteration RowValues contains
@@ -134,13 +137,13 @@ private:
                 THROW_ERROR_EXCEPTION("Key column %Qv is missing",
                     NameTableReader_->GetName(id));
             }
-            EscapeAndWrite(*RowValues_[id], Table_.ValueStops, Table_.Escapes);
+            EscapeAndWrite(*RowValues_[id], stream, ValueEscapeTable_);
             RowValues_[id].Reset();
         }
-        
-        if (!Config_->Lenval) { 
+
+        if (!Config_->Lenval) {
             stream->Write(Config_->FieldSeparator);
-        }    
+        }
     }
 
     ui32 CalculateTotalKeyLength(const std::vector<int>& columnIds)
@@ -151,8 +154,8 @@ private:
                 THROW_ERROR_EXCEPTION("Key column %Qv is missing",
                     NameTableReader_->GetName(id));
             }
-                
-            sum += CalculateLength(*RowValues_[id], false /* inKey */);
+            // Word "value" below is not a mistake, it means the value part of YAMR format.
+            sum += CalculateEscapedLength(*RowValues_[id], ValueEscapeTable_);
         }
         if (!columnIds.empty()) {
             sum += columnIds.size() - 1;
@@ -160,11 +163,11 @@ private:
         return sum;
     }
 
-    void WriteYamrValue() 
+    void WriteYamrValue()
     {
         auto* stream = GetOutputStream();
 
-        char keyValueSeparator = 
+        char keyValueSeparator =
             static_cast<TYamredDsvFormatConfig*>(Config_.Get())->KeyValueSeparator;
 
         if (Config_->Lenval) {
@@ -182,7 +185,7 @@ private:
                 }
                 stream->Write(EscapedColumnNames_[id]);
                 stream->Write(keyValueSeparator);
-                EscapeAndWrite(*RowValues_[id], Table_.ValueStops, Table_.Escapes);
+                EscapeAndWrite(*RowValues_[id], stream, ValueEscapeTable_);
                 RowValues_[id].Reset();
             }
         }
@@ -205,21 +208,10 @@ private:
                 }
                 sum += EscapedColumnNames_[id].length();
                 sum += 1; // The key_value_separator.
-                sum += CalculateLength(*RowValues_[id], false /* inKey */);
+                sum += CalculateEscapedLength(*RowValues_[id], ValueEscapeTable_);
             }
         }
         return sum;
-    }
-
-    ui32 CalculateLength(const TStringBuf& string, bool inKey)
-    {
-        return Config_->EnableEscaping
-            ?  CalculateEscapedLength(
-                string,
-                inKey ? Table_.KeyStops : Table_.ValueStops,
-                Table_.Escapes,
-                Config_->EscapingSymbol)
-            : string.length();
     }
 
     void UpdateEscapedColumnNames()
@@ -228,11 +220,7 @@ private:
         NameTableSize_ = NameTableReader_->GetSize();
         EscapedColumnNames_.reserve(NameTableSize_);
         for (int columnIndex = EscapedColumnNames_.size(); columnIndex < NameTableSize_; ++columnIndex) {
-            EscapedColumnNames_.emplace_back(Escape(
-                NameTableReader_->GetName(columnIndex),
-                Table_.KeyStops,
-                Table_.Escapes,
-                Config_->EscapingSymbol));
+            EscapedColumnNames_.emplace_back(Escape(NameTableReader_->GetName(columnIndex), KeyEscapeTable_));
         }
     }
 };
@@ -256,11 +244,11 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForYamredDsv(
     }
 
     return New<TSchemalessWriterForYamredDsv>(
-        nameTable, 
-        output, 
-        enableContextSaving, 
-        controlAttributesConfig, 
-        keyColumnCount, 
+        nameTable,
+        output,
+        enableContextSaving,
+        controlAttributesConfig,
+        keyColumnCount,
         config);
 }
 
@@ -276,9 +264,9 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForYamredDsv(
     return CreateSchemalessWriterForYamredDsv(
         config,
         nameTable,
-        output, 
-        enableContextSaving, 
-        controlAttributesConfig, 
+        output,
+        enableContextSaving,
+        controlAttributesConfig,
         keyColumnCount);
 }
 

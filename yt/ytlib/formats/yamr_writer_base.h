@@ -3,7 +3,7 @@
 #include "public.h"
 #include "config.h"
 #include "helpers.h"
-#include "yamr_table.h"
+#include "escape.h"
 #include "schemaless_writer_adapter.h"
 
 #include <yt/ytlib/table_client/public.h>
@@ -34,8 +34,6 @@ protected:
     int CurrentTableIndex_ = 0;
 
     void WriteInLenvalMode(const TStringBuf& value);
-    
-    void EscapeAndWrite(const TStringBuf& value, TLookupTable stops, TEscapeTable escapes);
 
     virtual void WriteTableIndex(i64 tableIndex) override;
     virtual void WriteRangeIndex(i64 rangeIndex) override;

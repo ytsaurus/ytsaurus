@@ -3,7 +3,6 @@
 #include "public.h"
 #include "config.h"
 #include "helpers.h"
-#include "schemaful_dsv_table.h"
 #include "schemaless_writer_adapter.h"
 
 #include <yt/ytlib/table_client/schemaful_writer.h>
