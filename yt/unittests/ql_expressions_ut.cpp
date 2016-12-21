@@ -797,6 +797,10 @@ TEST_F(TPrepareExpressionTest, Negative1)
     EXPECT_THROW_THAT(
         [&] { PrepareExpression(Stroka("(1u - 2) / 3.0"), schema); },
         HasSubstr("to double: inaccurate conversion"));
+
+    EXPECT_THROW_THAT(
+        [&] { PrepareExpression(Stroka("k = 1 and ku"), schema); },
+        HasSubstr("Type mismatch in expression"));
 }
 
 INSTANTIATE_TEST_CASE_P(
