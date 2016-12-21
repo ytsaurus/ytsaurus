@@ -1859,6 +1859,9 @@ private:
         if (operation->GetState() != EOperationState::Running)
             return;
 
+        if (operation->GetLastLogProgressTime() + Config_->OperationLogProgressBackoff > TInstant::Now())
+            return;
+
         auto controller = operation->GetController();
         auto controllerLoggingProgress = WaitFor(
             BIND(&IOperationController::GetLoggingProgress, controller)
@@ -1874,6 +1877,8 @@ private:
             controllerLoggingProgress,
             Strategy_->GetOperationLoggingProgress(operation->GetId()),
             operation->GetId());
+
+        operation->SetLastLogProgressTime(TInstant::Now());
     }
 
     void SetOperationFinalState(TOperationPtr operation, EOperationState state, const TError& error)

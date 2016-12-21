@@ -529,6 +529,8 @@ public:
 
     TDuration OperationControllerSuspendTimeout;
 
+    TDuration OperationLogProgressBackoff;
+
     TDuration ClusterInfoLoggingPeriod;
 
     TDuration PendingEventLogRowsFlushPeriod;
@@ -750,6 +752,8 @@ public:
 
         RegisterParameter("operation_controller_suspend_timeout", OperationControllerSuspendTimeout)
             .Default(TDuration::Seconds(5));
+        RegisterParameter("operation_progress_log_backoff", OperationLogProgressBackoff)
+            .Default(TDuration::Seconds(1));
 
         RegisterParameter("task_update_period", TaskUpdatePeriod)
             .Default(TDuration::Seconds(3));
