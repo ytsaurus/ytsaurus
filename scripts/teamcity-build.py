@@ -367,11 +367,13 @@ def run_python_libraries_tests(options):
     if options.enable_parallel_testing:
         pytest_args.extend(["--process-count", "4"])
 
+    node_path = os.path.join(options.working_directory, "yt", "nodejs", "node_modules")
     run_pytest(options, "python_libraries", "{0}/python".format(options.checkout_directory),
                pytest_args=pytest_args,
                env={
                    "TESTS_JOB_CONTROL": "1",
-                   "YT_ENABLE_REQUEST_LOGGING": "1"
+                   "YT_ENABLE_REQUEST_LOGGING": "1",
+                   "NODE_PATH": node_path
                 })
 
 
