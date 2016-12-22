@@ -5,6 +5,9 @@ Package supports `YT API <https://wiki.yandex-team.ru/yt/pythonwrapper>`_.
 
 Be ready to catch :py:exc:`yt.wrapper.errors.YtError` after all commands!
 """
+
+from . import version_check
+
 from .client_api import *
 from .client import YtClient
 
