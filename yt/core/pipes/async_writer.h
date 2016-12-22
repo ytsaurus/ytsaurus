@@ -13,7 +13,7 @@ namespace NPipes {
 
 //! Implements IAsyncOutputStream interface on top of a file descriptor.
 class TAsyncWriter
-    : public NConcurrency::IAsyncClosableOutputStream
+    : public NConcurrency::IAsyncOutputStream
 {
 public:
     //! Takes ownership of #fd.

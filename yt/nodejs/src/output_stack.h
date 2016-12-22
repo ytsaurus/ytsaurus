@@ -26,7 +26,7 @@ public:
 
     virtual TFuture<void> Write(const TSharedRef& buffer) override;
 
-    TFuture<void> Close();
+    virtual TFuture<void> Close() override;
 
 private:
     TOutputStreamWrap* GetBaseStream();
