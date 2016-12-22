@@ -1503,21 +1503,31 @@ class TestSchedulerSnapshots(YTEnvSetup):
         create("table", "//tmp/out1")
         create("table", "//tmp/out2")
 
+        while True:
+            op2 = map(
+                dont_track=True,
+                command="cat",
+                in_="//tmp/in",
+                out="//tmp/out2",
+                spec={"data_size_per_job": 1, "testing": {"scheduling_delay": 15000}})
+
+            time.sleep(2)
+
+            snapshot_path2 = "//sys/operations/{0}/snapshot".format(op2.id)
+            if exists(snapshot_path2):
+                op2.abort()
+                continue
+            else:
+                break
+
         op1 = map(
             dont_track=True,
-            command="sleep 5; cat",
+            command="sleep 10; cat",
             in_="//tmp/in",
             out="//tmp/out1",
             spec={"data_size_per_job": 1})
 
-        op2 = map(
-            dont_track=True,
-            command="cat",
-            in_="//tmp/in",
-            out="//tmp/out2",
-            spec={"data_size_per_job": 1, "testing": {"scheduling_delay": 10000}})
-
-        time.sleep(4)
+        time.sleep(8)
 
         snapshot_path1 = "//sys/operations/{0}/snapshot".format(op1.id)
         snapshot_path2 = "//sys/operations/{0}/snapshot".format(op2.id)
