@@ -46,16 +46,21 @@ struct TPermissionCheckResult
  *  \see #TSecurityManager::ResetAuthenticatedUser
  */
 class TAuthenticatedUserGuard
-    : private TNonCopyable
 {
 public:
     TAuthenticatedUserGuard(TSecurityManagerPtr securityManager, TUser* user);
+    TAuthenticatedUserGuard(const TAuthenticatedUserGuard& other) = delete;
+    TAuthenticatedUserGuard(TAuthenticatedUserGuard&& other);
+
     ~TAuthenticatedUserGuard();
 
-private:
-    const TSecurityManagerPtr SecurityManager_;
-    const bool IsNull_;
+    TAuthenticatedUserGuard& operator=(const TAuthenticatedUserGuard& other) = delete;
+    TAuthenticatedUserGuard& operator=(TAuthenticatedUserGuard&& other);
 
+private:
+    TSecurityManagerPtr SecurityManager_;
+
+    void Release();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

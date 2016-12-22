@@ -64,18 +64,37 @@ static const auto& Profiler = SecurityServerProfiler;
 ////////////////////////////////////////////////////////////////////////////////
 
 TAuthenticatedUserGuard::TAuthenticatedUserGuard(TSecurityManagerPtr securityManager, TUser* user)
-    : SecurityManager_(std::move(securityManager))
-    , IsNull_(!user)
 {
-    if (!IsNull_) {
-        SecurityManager_->SetAuthenticatedUser(user);
+    if (user) {
+        securityManager->SetAuthenticatedUser(user);
+        SecurityManager_ = std::move(securityManager);
     }
+}
+
+TAuthenticatedUserGuard::TAuthenticatedUserGuard(TAuthenticatedUserGuard&& other)
+{
+    std::swap(SecurityManager_, other.SecurityManager_);
 }
 
 TAuthenticatedUserGuard::~TAuthenticatedUserGuard()
 {
-    if (!IsNull_) {
+    if (SecurityManager_) {
         SecurityManager_->ResetAuthenticatedUser();
+    }
+}
+
+TAuthenticatedUserGuard& TAuthenticatedUserGuard::operator=(TAuthenticatedUserGuard&& other)
+{
+    Release();
+    std::swap(SecurityManager_, other.SecurityManager_);
+    return *this;
+}
+
+void TAuthenticatedUserGuard::Release()
+{
+    if (SecurityManager_) {
+        SecurityManager_->ResetAuthenticatedUser();
+        SecurityManager_.Reset();
     }
 }
 

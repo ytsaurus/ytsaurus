@@ -478,11 +478,14 @@ public:
     }
 
 
-    TMutationPtr CreateStartTransactionMutation(TCtxStartTransactionPtr context)
+    TMutationPtr CreateStartTransactionMutation(
+        TCtxStartTransactionPtr context,
+        const NTransactionServer::NProto::TReqStartTransaction& request)
     {
         return CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             std::move(context),
+            request,
             &TImpl::HydraStartTransaction,
             this);
     }
@@ -607,12 +610,13 @@ private:
 
 
     void HydraStartTransaction(
-        TCtxStartTransactionPtr context,
-        TReqStartTransaction* request,
-        TRspStartTransaction* response)
+        const TCtxStartTransactionPtr& context,
+        NTransactionServer::NProto::TReqStartTransaction* request,
+        NTransactionServer::NProto::TRspStartTransaction* response)
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* user = securityManager->GetAuthenticatedUser();
+        auto* user = securityManager->GetUserByNameOrThrow(request->user_name());
+        TAuthenticatedUserGuard userGuard(securityManager, user);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* schema = objectManager->GetSchema(EObjectType::Transaction);
@@ -663,7 +667,7 @@ private:
     }
 
     void HydraRegisterTransactionActions(
-        TCtxRegisterTransactionActionsPtr /*context*/,
+        const TCtxRegisterTransactionActionsPtr& /*context*/,
         TReqRegisterTransactionActions* request,
         TRspRegisterTransactionActions* /*response*/)
     {
@@ -985,9 +989,11 @@ void TTransactionManager::RegisterAbortActionHandler(const TTransactionAbortActi
     Impl_->RegisterAbortActionHandler(descriptor);
 }
 
-TMutationPtr TTransactionManager::CreateStartTransactionMutation(TCtxStartTransactionPtr context)
+TMutationPtr TTransactionManager::CreateStartTransactionMutation(
+    TCtxStartTransactionPtr context,
+    const NTransactionServer::NProto::TReqStartTransaction& request)
 {
-    return Impl_->CreateStartTransactionMutation(std::move(context));
+    return Impl_->CreateStartTransactionMutation(std::move(context), request);
 }
 
 TMutationPtr TTransactionManager::CreateRegisterTransactionActionsMutation(TCtxRegisterTransactionActionsPtr context)

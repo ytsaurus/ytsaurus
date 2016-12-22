@@ -1409,7 +1409,7 @@ private:
         }
     }
 
-    void HydraExportChunks(TCtxExportChunksPtr /*context*/, TReqExportChunks* request, TRspExportChunks* response)
+    void HydraExportChunks(const TCtxExportChunksPtr& /*context*/, TReqExportChunks* request, TRspExportChunks* response)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
@@ -1452,7 +1452,7 @@ private:
             chunkIds);
     }
 
-    void HydraImportChunks(TCtxImportChunksPtr /*context*/, TReqImportChunks* request, TRspImportChunks* /*response*/)
+    void HydraImportChunks(const TCtxImportChunksPtr& /*context*/, TReqImportChunks* request, TRspImportChunks* /*response*/)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
@@ -1488,7 +1488,7 @@ private:
             chunkIds);
     }
 
-    void HydraExecuteBatch(TCtxExecuteBatchPtr /*context*/, TReqExecuteBatch* request, TRspExecuteBatch* response)
+    void HydraExecuteBatch(const TCtxExecuteBatchPtr& /*context*/, TReqExecuteBatch* request, TRspExecuteBatch* response)
     {
         auto executeSubrequests = [&] (
             auto* subrequests,

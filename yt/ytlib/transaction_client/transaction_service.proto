@@ -9,9 +9,8 @@ import "yt/ytlib/transaction_client/action.proto";
 message TReqStartTransaction
 {
     optional NYT.NYTree.NProto.TAttributes attributes = 1;
-    optional NYT.NProto.TGuid hint_id = 2;
-    optional NYT.NProto.TGuid parent_id = 3;
-    required int32 timeout = 4;
+    optional NYT.NProto.TGuid parent_id = 2;
+    required int32 timeout = 3;
 }
 
 message TRspStartTransaction

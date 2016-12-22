@@ -91,69 +91,48 @@ void TCompositeAutomatonPart::RegisterLoader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TRequest, class TResponse>
-struct TMutationHandlerTraits
-{
-    using THandler = TCallback<void(
-        TIntrusivePtr<NRpc::TTypedServiceContext<TRequest, TResponse>>,
-        TRequest*,
-        TResponse*)>;
-
-    static void Run(const THandler& handler, TMutationContext* context)
-    {
-        TRequest request;
-        DeserializeFromProtoWithEnvelope(&request, context->Request().Data);
-
-        auto& mutationResponse = context->Response();
-
-        try {
-            TResponse response;
-            handler.Run(nullptr, &request, &response);
-            mutationResponse.Data = NRpc::CreateResponseMessage(response);
-        } catch (const std::exception& ex) {
-            mutationResponse.Data = NRpc::CreateErrorResponseMessage(ex);
-        }
-    }
-};
-
-template <class TRequest>
-struct TMutationHandlerTraits<TRequest, void>
-{
-    using THandler = TCallback<void(TRequest*)>;
-
-    static void Run(const THandler& handler, TMutationContext* context)
-    {
-        TRequest request;
-        DeserializeFromProtoWithEnvelope(&request, context->Request().Data);
-
-        auto& mutationResponse = context->Response();
-
-        try {
-            handler.Run(&request);
-            static auto cachedResponseMessage = NRpc::CreateResponseMessage(NProto::TVoidMutationResponse());
-            mutationResponse.Data = cachedResponseMessage;
-        } catch (const std::exception& ex) {
-            mutationResponse.Data = NRpc::CreateErrorResponseMessage(ex);
-        }
-    }
-};
-
 template <class TRequest>
 void TCompositeAutomatonPart::RegisterMethod(
     TCallback<void(TRequest*)> callback)
 {
     RegisterMethod(
         TRequest::default_instance().GetTypeName(),
-        BIND(&TMutationHandlerTraits<TRequest, void>::Run, callback));
+        BIND([=] (TMutationContext* context) {
+            TRequest request;
+            DeserializeFromProtoWithEnvelope(&request, context->Request().Data);
+
+            auto& mutationResponse = context->Response();
+
+            try {
+                callback.Run(&request);
+                static auto cachedResponseMessage = NRpc::CreateResponseMessage(NProto::TVoidMutationResponse());
+                mutationResponse.Data = cachedResponseMessage;
+            } catch (const std::exception& ex) {
+                mutationResponse.Data = NRpc::CreateErrorResponseMessage(ex);
+            }
+        }));
 }
 
-template <class TRequest, class TResponse>
+template <class TRpcRequest, class TRpcResponse, class THandlerRequest, class THandlerResponse>
 void TCompositeAutomatonPart::RegisterMethod(
-    TCallback<void(TIntrusivePtr<NRpc::TTypedServiceContext<TRequest, TResponse>>, TRequest*, TResponse*)> callback)
+    TCallback<void(const TIntrusivePtr<NRpc::TTypedServiceContext<TRpcRequest, TRpcResponse>>&, THandlerRequest*, THandlerResponse*)> callback)
 {
     RegisterMethod(
-        TRequest::default_instance().GetTypeName(),
-        BIND(&TMutationHandlerTraits<TRequest, TResponse>::Run, callback));
+        THandlerRequest::default_instance().GetTypeName(),
+        BIND([=] (TMutationContext* context) {
+            THandlerRequest request;
+            DeserializeFromProtoWithEnvelope(&request, context->Request().Data);
+
+            auto& mutationResponse = context->Response();
+
+            try {
+                THandlerResponse response;
+                callback.Run(nullptr, &request, &response);
+                mutationResponse.Data = NRpc::CreateResponseMessage(response);
+            } catch (const std::exception& ex) {
+                mutationResponse.Data = NRpc::CreateErrorResponseMessage(ex);
+            }
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

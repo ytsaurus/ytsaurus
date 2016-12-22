@@ -5,6 +5,8 @@
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/master_hydra_service.h>
 
+#include <yt/server/transaction_server/transaction_manager.pb.h>
+
 #include <yt/ytlib/transaction_client/transaction_service_proxy.h>
 
 namespace NYT {
@@ -44,9 +46,15 @@ private:
             parentId,
             timeout);
 
+        NTransactionServer::NProto::TReqStartTransaction hydraRequest;
+        hydraRequest.mutable_attributes()->Swap(request->mutable_attributes());
+        hydraRequest.mutable_parent_id()->Swap(request->mutable_parent_id());
+        hydraRequest.set_timeout(request->timeout());
+        hydraRequest.set_user_name(context->GetUser());
+
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager
-            ->CreateStartTransactionMutation(context)
+            ->CreateStartTransactionMutation(context, hydraRequest)
             ->CommitAndReply(context);
     }
 

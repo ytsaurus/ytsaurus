@@ -819,7 +819,10 @@ private:
     }
 
 
-    void HydraRegisterNode(TCtxRegisterNodePtr context, TReqRegisterNode* request, TRspRegisterNode* response)
+    void HydraRegisterNode(
+        const TCtxRegisterNodePtr& context,
+        TReqRegisterNode* request,
+        TRspRegisterNode* response)
     {
         if (Bootstrap_->IsPrimaryMaster() && IsLeader()) {
             YCHECK(--PendingRegisterNodeMutationCount_ >= 0);
@@ -945,7 +948,10 @@ private:
         DisposeNode(node);
     }
 
-    void HydraFullHeartbeat(TCtxFullHeartbeatPtr /*context*/, TReqFullHeartbeat* request, TRspFullHeartbeat* /*response*/)
+    void HydraFullHeartbeat(
+        const TCtxFullHeartbeatPtr& /*context*/,
+        TReqFullHeartbeat* request,
+        TRspFullHeartbeat* /*response*/)
     {
         auto nodeId = request->node_id();
         const auto& statistics = request->statistics();
@@ -981,7 +987,10 @@ private:
         }
     }
 
-    void HydraIncrementalHeartbeat(TCtxIncrementalHeartbeatPtr context, TReqIncrementalHeartbeat* request, TRspIncrementalHeartbeat* response)
+    void HydraIncrementalHeartbeat(
+        const TCtxIncrementalHeartbeatPtr& context,
+        TReqIncrementalHeartbeat* request,
+        TRspIncrementalHeartbeat* response)
     {
         auto nodeId = request->node_id();
         const auto& statistics = request->statistics();
