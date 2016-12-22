@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 from yt.wrapper.client import Yt
-from yt.wrapper.common import get_backoff
 from yt.wrapper.http_helpers import get_retriable_errors
 from yt.common import YtError
 import yt.packages.requests as requests
@@ -62,7 +61,7 @@ def collect_accounts_data_for_cluster(cluster, request_retry_enable):
 
 def push_data_with_retries(url, data, headers):
     for attempt in xrange(PUSH_RETRIES_COUNT):
-        current_time = datetime.now()
+        request_start_time = datetime.now()
         try:
             r = requests.post(url, data=data, headers=headers, timeout=PUSH_REQUEST_TIMEOUT)
             r.raise_for_status()
@@ -72,7 +71,8 @@ def push_data_with_retries(url, data, headers):
                 raise
             logging.warning('HTTP POST request (url: %s) failed with error %s, message: "%s"',
                 url, str(type(error)), error.message)
-            backoff = get_backoff(PUSH_REQUEST_TIMEOUT, current_time)
+            now = datetime.now()
+            backoff = max(0.0, PUSH_REQUEST_TIMEOUT / 1000.0 - total_seconds(now - request_start_time))
             if backoff:
                 logging.warning("Sleep for %.2lf seconds before next retry", backoff)
                 time.sleep(backoff)
