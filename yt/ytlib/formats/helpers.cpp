@@ -77,7 +77,7 @@ void WriteUnversionedValue(const TUnversionedValue& value, TOutputStream* output
             break;
         default:
             THROW_ERROR_EXCEPTION("Values of type %v are not supported by the chosen format", value.Type)
-                << TErrorAttribute("value", value);
+                << TErrorAttribute("value", ToString(value));
             break;
     }
 }
