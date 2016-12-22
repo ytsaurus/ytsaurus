@@ -62,7 +62,15 @@ template <class TRequest, class TResponse, class TTarget>
 TMutationPtr CreateMutation(
     IHydraManagerPtr hydraManager,
     const TIntrusivePtr<NRpc::TTypedServiceContext<TRequest, TResponse>>& context,
-    void (TTarget::* handler)(TIntrusivePtr<NRpc::TTypedServiceContext<TRequest, TResponse>>, TRequest*, TResponse*),
+    void (TTarget::* handler)(const TIntrusivePtr<NRpc::TTypedServiceContext<TRequest, TResponse>>&, TRequest*, TResponse*),
+    TTarget* target);
+
+template <class TRpcRequest, class TResponse, class THandlerRequest, class TTarget>
+TMutationPtr CreateMutation(
+    IHydraManagerPtr hydraManager,
+    const TIntrusivePtr<NRpc::TTypedServiceContext<TRpcRequest, TResponse>>& context,
+    const THandlerRequest& request,
+    void (TTarget::* handler)(const TIntrusivePtr<NRpc::TTypedServiceContext<TRpcRequest, TResponse>>&, THandlerRequest*, TResponse*),
     TTarget* target);
 
 ////////////////////////////////////////////////////////////////////////////////

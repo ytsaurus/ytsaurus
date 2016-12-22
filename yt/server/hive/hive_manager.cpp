@@ -466,7 +466,7 @@ private:
     }
 
     void HydraSendMessages(
-        TCtxSendMessagesPtr /*context*/,
+        const TCtxSendMessagesPtr& /*context*/,
         NHiveClient::NProto::TReqSendMessages* request,
         NHiveClient::NProto::TRspSendMessages* /*response*/)
     {

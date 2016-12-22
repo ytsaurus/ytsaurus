@@ -16,6 +16,18 @@ namespace NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NProto {
+
+class TReqStartTransaction;
+using TRspStartTransaction = NTransactionClient::NProto::TRspStartTransaction;
+
+using TReqRegisterTransactionActions = NTransactionClient::NProto::TReqRegisterTransactionActions;
+using TRspRegisterTransactionActions = NTransactionClient::NProto::TRspRegisterTransactionActions;
+
+} // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
 using NObjectClient::TTransactionId;
 using NObjectClient::NullTransactionId;
 

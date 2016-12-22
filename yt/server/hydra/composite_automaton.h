@@ -146,9 +146,9 @@ protected:
     template <class TRequest>
     void RegisterMethod(
         TCallback<void(TRequest*)> callback);
-    template <class TRequest, class TResponse>
+    template <class TRpcRequest, class TRpcResponse, class THandlerRequest, class THandlerResponse>
     void RegisterMethod(
-        TCallback<void(TIntrusivePtr<NRpc::TTypedServiceContext<TRequest, TResponse>>, TRequest*, TResponse*)> callback);
+        TCallback<void(const TIntrusivePtr<NRpc::TTypedServiceContext<TRpcRequest, TRpcResponse>>&, THandlerRequest*, THandlerResponse*)> callback);
 
     bool IsLeader() const;
     bool IsFollower() const;
