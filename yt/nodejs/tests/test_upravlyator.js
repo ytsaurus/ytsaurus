@@ -358,22 +358,6 @@ describe("ApplicationUpravlyator", function() {
             }));
         });
 
-        it("should fail on unknown group", function(done) {
-            var mock = sinon.mock(YtRegistry.get("driver"));
-            mockGetUser(mock, "sandello");
-            mockGetGroup(mock, "unknown");
-            ask("POST", method, {}, function(rsp) {
-                rsp.should.be.http2xx;
-                mock.verify();
-                expect(rsp.json.code).to.not.eql(0);
-                expect(rsp.json.fatal).to.be.a("string");
-                expect(rsp.json.fatal).to.match(/no such group/i);
-            }, done).end(querystring.stringify({
-                login: "sandello",
-                role: JSON.stringify({ group: "unknown" })
-            }));
-        });
-
         it("should fail when metastate is not available", function(done) {
             var mock = sinon.mock(YtRegistry.get("driver"));
             mockMetaStateFailure(mock).twice();
@@ -388,6 +372,40 @@ describe("ApplicationUpravlyator", function() {
             }));
         });
     });
+    });
+
+    describe("/add-role", function() {
+        it("should fail on unknown group", function(done) {
+            var mock = sinon.mock(YtRegistry.get("driver"));
+            mockGetUser(mock, "sandello");
+            mockGetGroup(mock, "unknown");
+            ask("POST", "/add-role", {}, function(rsp) {
+                rsp.should.be.http2xx;
+                mock.verify();
+                expect(rsp.json.code).to.not.eql(0);
+                expect(rsp.json.fatal).to.be.a("string");
+                expect(rsp.json.fatal).to.match(/no such group/i);
+            }, done).end(querystring.stringify({
+                login: "sandello",
+                role: JSON.stringify({ group: "unknown" })
+            }));
+        });
+    });
+
+    describe("/remove-role", function() {
+        it("should pass on unknown group", function(done) {
+            var mock = sinon.mock(YtRegistry.get("driver"));
+            mockGetUser(mock, "sandello");
+            mockGetGroup(mock, "unknown");
+            ask("POST", "/remove-role", {}, function(rsp) {
+                rsp.should.be.http2xx;
+                mock.verify();
+                expect(rsp.json.code).to.eql(0);
+            }, done).end(querystring.stringify({
+                login: "sandello",
+                role: JSON.stringify({ group: "unknown" })
+            }));
+        });
     });
 
     describe("/get-user-roles", function() {

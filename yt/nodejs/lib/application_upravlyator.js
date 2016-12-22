@@ -318,8 +318,14 @@ YtApplicationUpravlyator.prototype._dispatchRemoveRole = function(req, rsp)
         return utils.dispatchJson(rsp, { code: 0 });
     })
     .catch(function(err) {
-        return Q.reject(YtError.ensureWrapped(
-            err, "Failed to remove Upravlyator role"));
+        var error = YtError.ensureWrapped(
+            err, "Failed to remove Upravlyator role");
+
+        if (error.getMessage().indexOf("No such group") != -1) {
+            return utils.dispatchJson(rsp, { code: 0 });
+        } else {
+            return Q.reject(error);
+        }
     });
 };
 
