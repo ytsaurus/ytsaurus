@@ -201,6 +201,7 @@ private:
         TFuture<void> PrepareTransaction(const TTransactionId& transactionId)
         {
             return EnqueueRequest(
+                false,
                 &ITransactionParticipant::PrepareTransaction,
                 transactionId);
         }
@@ -208,6 +209,7 @@ private:
         TFuture<void> CommitTransaction(const TTransactionId& transactionId, TTimestamp commitTimestamp)
         {
             return EnqueueRequest(
+                true,
                 &ITransactionParticipant::CommitTransaction,
                 transactionId,
                 commitTimestamp);
@@ -216,6 +218,7 @@ private:
         TFuture<void> AbortTransaction(const TTransactionId& transactionId)
         {
             return EnqueueRequest(
+                true,
                 &ITransactionParticipant::AbortTransaction,
                 transactionId);
         }
@@ -282,7 +285,7 @@ private:
         }
 
         template <class TMethod, class... TArgs>
-        TFuture<void> EnqueueRequest(TMethod method, TArgs... args)
+        TFuture<void> EnqueueRequest(bool succeedOnInvalid, TMethod method, TArgs... args)
         {
             auto promise = NewPromise<void>();
 
@@ -299,8 +302,16 @@ private:
             }
 
             auto sender = BIND([=, underlying = Underlying_] () mutable {
-                promise.SetFrom((underlying.Get()->*method)(args...));
+                if (underlying->IsValid()) {
+                    promise.SetFrom((underlying.Get()->*method)(args...));
+                } else if (succeedOnInvalid) {
+                    LOG_DEBUG("Transaction participant is no longer, assuming sucessful response");
+                    promise.Set(TError());
+                } else {
+                    promise.Set(TError("Participant cell %v is no longer valid", CellId_));
+                }
             });
+
             if (!TrySendRequestImmediately(sender, &guard)) {
                 PendingSenders_.emplace_back(std::move(sender));
             }
