@@ -1053,8 +1053,10 @@ TOperationControllerBase::TOperationControllerBase(
 void TOperationControllerBase::InitializeConnections()
 { }
 
-void TOperationControllerBase::SafeInitializeReviving(TControllerTransactionsPtr controllerTransactions)
+void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr controllerTransactions)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     LOG_INFO("Initializing operation for revive");
 
     InitializeConnections();
@@ -1405,8 +1407,10 @@ void TOperationControllerBase::SafeSaveSnapshot(TOutputStream* output)
     Save(context, this);
 }
 
-void TOperationControllerBase::SafeRevive()
+void TOperationControllerBase::Revive()
 {
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+
     if (!Snapshot) {
         Prepare();
         return;
