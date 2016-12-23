@@ -122,15 +122,11 @@ class TTransactionManager
     : public TRefCounted
 {
 public:
-    //! Initializes an instance.
-    /*!
-     * \param config A configuration.
-     * \param channel A channel used for communicating with masters.
-     */
     TTransactionManager(
         TTransactionManagerConfigPtr config,
-        const NHiveClient::TCellId& cellId,
+        const NHiveClient::TCellId& primaryCellId,
         NRpc::IChannelPtr masterChannel,
+        const Stroka& user,
         ITimestampProviderPtr timestampProvider,
         NHiveClient::TCellDirectoryPtr cellDirectory);
 

@@ -52,8 +52,9 @@ class TTransactionManager::TImpl
 public:
     TImpl(
         TTransactionManagerConfigPtr config,
-        const TCellId& cellId,
-        IChannelPtr channel,
+        const TCellId& primaryCellId,
+        IChannelPtr masterChannel,
+        const Stroka& user,
         ITimestampProviderPtr timestampProvider,
         TCellDirectoryPtr cellDirectory);
 
@@ -71,8 +72,9 @@ private:
     friend class TTransaction;
 
     const TTransactionManagerConfigPtr Config_;
+    const TCellId PrimaryCellId_;
     const IChannelPtr MasterChannel_;
-    const TCellId CellId_;
+    const Stroka User_;
     const ITimestampProviderPtr TimestampProvider_;
     const TCellDirectoryPtr CellDirectory_;
 
@@ -168,8 +170,8 @@ public:
         Ping_ = options.Ping;
         PingAncestors_ = options.PingAncestors;
         State_ = ETransactionState::Active;
-        YCHECK(RegisteredParticipantIds_.insert(Owner_->CellId_).second);
-        YCHECK(ConfirmedParticipantIds_.insert(Owner_->CellId_).second);
+        YCHECK(RegisteredParticipantIds_.insert(Owner_->PrimaryCellId_).second);
+        YCHECK(ConfirmedParticipantIds_.insert(Owner_->PrimaryCellId_).second);
 
         Register();
 
@@ -565,6 +567,7 @@ private:
     {
         TTransactionServiceProxy proxy(Owner_->MasterChannel_);
         auto req = proxy.StartTransaction();
+        req->SetUser(Owner_->User_);
         auto attributes = options.Attributes
             ? options.Attributes->Clone()
             : CreateEphemeralAttributes();
@@ -591,8 +594,8 @@ private:
         }
 
         State_ = ETransactionState::Active;
-        YCHECK(RegisteredParticipantIds_.insert(Owner_->CellId_).second);
-        YCHECK(ConfirmedParticipantIds_.insert(Owner_->CellId_).second);
+        YCHECK(RegisteredParticipantIds_.insert(Owner_->PrimaryCellId_).second);
+        YCHECK(ConfirmedParticipantIds_.insert(Owner_->PrimaryCellId_).second);
 
         const auto& rsp = rspOrError.Value();
         Id_ = FromProto<TTransactionId>(rsp->id());
@@ -618,7 +621,7 @@ private:
             ? options.Id
             : MakeTabletTransactionId(
                 Atomicity_,
-                CellTagFromId(Owner_->CellId_),
+                CellTagFromId(Owner_->PrimaryCellId_),
                 StartTimestamp_,
                 TabletTransactionHashCounter++);
 
@@ -645,7 +648,7 @@ private:
 
         Id_ = MakeTabletTransactionId(
             Atomicity_,
-            CellTagFromId(Owner_->CellId_),
+            CellTagFromId(Owner_->PrimaryCellId_),
             StartTimestamp_,
             TabletTransactionHashCounter++);
 
@@ -698,6 +701,7 @@ private:
             auto coordinatorChannel = Owner_->CellDirectory_->GetChannelOrThrow(coordinatorCellId);
             auto proxy = Owner_->MakeSupervisorProxy(std::move(coordinatorChannel), true);
             auto req = proxy.CommitTransaction();
+            req->SetUser(Owner_->User_);
             ToProto(req->mutable_transaction_id(), Id_);
             auto participantIds = GetRegisteredParticipantIds();
             for (const auto& cellId : participantIds) {
@@ -724,7 +728,7 @@ private:
     TCellId ChooseCoordinator(const TTransactionCommitOptions& options)
     {
         if (Type_ == ETransactionType::Master) {
-            return Owner_->CellId_;
+            return Owner_->PrimaryCellId_;
         }
 
         if (options.CoordinatorCellId) {
@@ -773,8 +777,9 @@ private:
 
             auto proxy = Owner_->MakeSupervisorProxy(std::move(channel), retry);
             auto req = proxy.PingTransaction();
+            req->SetUser(Owner_->User_);
             ToProto(req->mutable_transaction_id(), Id_);
-            if (cellId == Owner_->CellId_) {
+            if (cellId == Owner_->PrimaryCellId_) {
                 req->set_ping_ancestors(PingAncestors_);
             }
 
@@ -863,6 +868,7 @@ private:
 
             auto proxy = Owner_->MakeSupervisorProxy(std::move(channel), true);
             auto req = proxy.AbortTransaction();
+            req->SetUser(Owner_->User_);
             ToProto(req->mutable_transaction_id(), Id_);
             req->set_force(options.Force);
             SetMutationId(req, options.MutationId, options.Retry);
@@ -947,13 +953,15 @@ private:
 
 TTransactionManager::TImpl::TImpl(
     TTransactionManagerConfigPtr config,
-    const TCellId& cellId,
+    const TCellId& primaryCellId,
     IChannelPtr masterChannel,
+    const Stroka& user,
     ITimestampProviderPtr timestampProvider,
     TCellDirectoryPtr cellDirectory)
     : Config_(config)
+    , PrimaryCellId_(primaryCellId)
     , MasterChannel_(masterChannel)
-    , CellId_(cellId)
+    , User_(user)
     , TimestampProvider_(timestampProvider)
     , CellDirectory_(cellDirectory)
 {
@@ -1091,20 +1099,21 @@ DELEGATE_SIGNAL(TTransaction, void(), Aborted, *Impl_);
 
 TTransactionManager::TTransactionManager(
     TTransactionManagerConfigPtr config,
-    const TCellId& cellId,
+    const TCellId& primaryCellId,
     IChannelPtr masterChannel,
+    const Stroka& user,
     ITimestampProviderPtr timestampProvider,
     TCellDirectoryPtr cellDirectory)
     : Impl_(New<TImpl>(
         config,
-        cellId,
+        primaryCellId,
         masterChannel,
+        user,
         timestampProvider,
         cellDirectory))
 { }
 
-TTransactionManager::~TTransactionManager()
-{ }
+TTransactionManager::~TTransactionManager() = default;
 
 TFuture<TTransactionPtr> TTransactionManager::Start(
     ETransactionType type,

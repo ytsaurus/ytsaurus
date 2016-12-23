@@ -1013,7 +1013,8 @@ public:
         TransactionManager_ = New<TTransactionManager>(
             Connection_->GetConfig()->TransactionManager,
             Connection_->GetConfig()->PrimaryMaster->CellId,
-            GetMasterChannelOrThrow(EMasterChannelKind::Leader),
+            Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Leader),
+            Options_.User,
             Connection_->GetTimestampProvider(),
             Connection_->GetCellDirectory());
 
