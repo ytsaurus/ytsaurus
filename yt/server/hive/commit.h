@@ -55,8 +55,6 @@ public:
     TFuture<TSharedRefArray> GetAsyncResponseMessage();
     void SetResponseMessage(TSharedRefArray message);
 
-    bool IsDistributed() const;
-
     void Save(NHydra::TSaveContext& context) const;
     void Load(NHydra::TLoadContext& context);
 
