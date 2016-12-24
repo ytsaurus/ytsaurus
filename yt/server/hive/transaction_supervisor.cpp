@@ -1,5 +1,6 @@
 #include "transaction_supervisor.h"
 #include "commit.h"
+#include "abort.h"
 #include "config.h"
 #include "transaction_manager.h"
 #include "transaction_participant_provider.h"
@@ -164,6 +165,9 @@ private:
 
     TEntityMap<TCommit> TransientCommitMap_;
     TEntityMap<TCommit> PersistentCommitMap_;
+
+    yhash_map<TTransactionId, TAbort> TransientAbortMap_;
+
 
     class TWrappedParticipant
         : public TRefCounted
@@ -571,12 +575,11 @@ private:
             return commit->GetAsyncResponseMessage();
         }
 
-        auto commitHolder = std::make_unique<TCommit>(
+        commit = CreateTransientCommit(
             transactionId,
             mutationId,
             participantCellIds,
             force2PC || !participantCellIds.empty());
-        commit = TransientCommitMap_.Insert(transactionId, std::move(commitHolder));
 
         // Commit instance may die below.
         auto asyncResponseMessage = commit->GetAsyncResponseMessage();
@@ -635,6 +638,17 @@ private:
     {
         YCHECK(!HasMutationContext());
 
+        auto* abort = FindAbort(transactionId);
+        if (abort) {
+            // NB: Even Response Keeper cannot protect us from this.
+            return abort->GetAsyncResponseMessage();
+        }
+
+        abort = CreateAbort(transactionId, mutationId);
+
+        // Abort instance may die below.
+        auto asyncResponseMessage = abort->GetAsyncResponseMessage();
+
         try {
             // Any exception thrown here is caught below..
             TransactionManager_->PrepareTransactionAbort(transactionId, force);
@@ -642,26 +656,19 @@ private:
             LOG_DEBUG(ex, "Error preparing transaction abort (TransactionId: %v, Force: %v)",
                 transactionId,
                 force);
-            auto responseMessage = CreateErrorResponseMessage(ex);
-            if (mutationId) {
-                ResponseKeeper_->EndRequest(mutationId, responseMessage);
-            }
-            return MakeFuture(responseMessage);
+            SetAbortFailed(abort, ex);
+            RemoveAbort(abort);
+            return asyncResponseMessage;
         }
 
         NHiveServer::NProto::TReqCoordinatorAbortTransaction request;
         ToProto(request.mutable_transaction_id(), transactionId);
         ToProto(request.mutable_mutation_id(), mutationId);
         request.set_force(force);
-        return CreateMutation(HydraManager_, request)
-            ->Commit()
-            .Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& result) -> TSharedRefArray {
-                if (!result.IsOK()) {
-                    LOG_WARNING(result, "Error committing transaction abort mutation");
-                    return CreateErrorResponseMessage(result);
-                }
-                return result.Value().Data;
-            }));
+        CreateMutation(HydraManager_, request)
+            ->CommitAndLog(Logger);
+
+        return asyncResponseMessage;
     }
 
     static TFuture<void> MessageToError(TFuture<TSharedRefArray> asyncMessage)
@@ -709,12 +716,11 @@ private:
         if (!commit) {
             // Commit could be missing (e.g. at followers or during recovery).
             // Let's recreate it since it's needed below in SetCommitSucceeded.
-            auto commitHolder = std::make_unique<TCommit>(
+            commit = CreateTransientCommit(
                 transactionId,
                 mutationId,
                 std::vector<TCellId>(),
                 false);
-            commit = TransientCommitMap_.Insert(transactionId, std::move(commitHolder));
             commit->SetCommitTimestamp(commitTimestamp);
         }
 
@@ -874,22 +880,19 @@ private:
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto force = request->force();
 
+        auto* abort = FindAbort(transactionId);
+        if (!abort) {
+            abort = CreateAbort(transactionId, mutationId);
+        }
+
         try {
             // All exceptions thrown here are caught below.
             TransactionManager_->AbortTransaction(transactionId, force);
         } catch (const std::exception& ex) {
+            SetAbortFailed(abort, ex);
+            RemoveAbort(abort);
             LOG_DEBUG_UNLESS(IsRecovery(), ex, "Error aborting transaction; ignored (TransactionId: %v)",
                 transactionId);
-
-            auto responseMessage = CreateErrorResponseMessage(ex);
-
-            auto* mutationContext = GetCurrentMutationContext();
-            mutationContext->Response().Data = responseMessage;
-
-            if (mutationId) {
-                ResponseKeeper_->EndRequest(mutationId, responseMessage);
-            }
-
             return;
         }
 
@@ -906,17 +909,8 @@ private:
             }
         }
 
-        {
-            NHiveClient::NProto::NTransactionSupervisor::TRspAbortTransaction response;
-            auto responseMessage = CreateResponseMessage(response);
-
-            auto* mutationContext = GetCurrentMutationContext();
-            mutationContext->Response().Data = responseMessage;
-
-            if (mutationId) {
-                ResponseKeeper_->EndRequest(mutationId, responseMessage);
-            }
-        }
+        SetAbortSucceeded(abort);
+        RemoveAbort(abort);
     }
 
     void HydraCoordinatorFinishDistributedTransaction(NHiveServer::NProto::TReqCoordinatorFinishDistributedTransaction* request)
@@ -1016,6 +1010,20 @@ private:
         return nullptr;
     }
 
+    TCommit* CreateTransientCommit(
+        const TTransactionId& transactionId,
+        const TMutationId& mutationId,
+        const std::vector<TCellId>& participantCellIds,
+        bool distributed)
+    {
+        auto commitHolder = std::make_unique<TCommit>(
+            transactionId,
+            mutationId,
+            participantCellIds,
+            distributed);
+        return TransientCommitMap_.Insert(transactionId, std::move(commitHolder));
+    }
+
     TCommit* GetOrCreatePersistentCommit(
         const TTransactionId& transactionId,
         const TMutationId& mutationId,
@@ -1071,7 +1079,7 @@ private:
         response.set_commit_timestamp(commit->GetCommitTimestamp());
 
         auto responseMessage = CreateResponseMessage(response);
-        SetCommitResponse(commit, responseMessage);
+        SetCommitResponse(commit, std::move(responseMessage));
     }
 
     void SetCommitResponse(TCommit* commit, TSharedRefArray responseMessage)
@@ -1082,6 +1090,55 @@ private:
         }
 
         commit->SetResponseMessage(std::move(responseMessage));
+    }
+
+
+    TAbort* FindAbort(const TTransactionId& transactionId)
+    {
+        auto it = TransientAbortMap_.find(transactionId);
+        return it == TransientAbortMap_.end() ? nullptr : &it->second;
+    }
+
+    TAbort* CreateAbort(const TTransactionId& transactionId, const TMutationId& mutationId)
+    {
+        auto pair = TransientAbortMap_.emplace(transactionId, TAbort(transactionId, mutationId));
+        YCHECK(pair.second);
+        return &pair.first->second;
+    }
+
+    void SetAbortFailed(TAbort* abort, const TError& error)
+    {
+        LOG_DEBUG_UNLESS(IsRecovery(), error, "Transaction abort failed (TransactionId: %v)",
+            abort->GetTransactionId());
+
+        auto responseMessage = CreateErrorResponseMessage(error);
+        SetAbortResponse(abort, std::move(responseMessage));
+    }
+
+    void SetAbortSucceeded(TAbort* abort)
+    {
+        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction abort succeeded (TransactionId: %v)",
+            abort->GetTransactionId());
+
+        NHiveClient::NProto::NTransactionSupervisor::TRspAbortTransaction response;
+
+        auto responseMessage = CreateResponseMessage(response);
+        SetAbortResponse(abort, std::move(responseMessage));
+    }
+
+    void SetAbortResponse(TAbort* abort, TSharedRefArray responseMessage)
+    {
+        const auto& mutationId = abort->GetMutationId();
+        if (mutationId) {
+            ResponseKeeper_->EndRequest(mutationId, responseMessage);
+        }
+
+        abort->SetResponseMessage(std::move(responseMessage));
+    }
+
+    void RemoveAbort(TAbort* abort)
+    {
+        YCHECK(TransientAbortMap_.erase(abort->GetTransactionId()) == 1);
     }
 
 
@@ -1463,6 +1520,7 @@ private:
 
         PersistentCommitMap_.Clear();
         TransientCommitMap_.Clear();
+        TransientAbortMap_.clear();
     }
 
     void SaveKeys(TSaveContext& context) const

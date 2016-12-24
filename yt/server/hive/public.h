@@ -30,7 +30,6 @@ using NHiveClient::TMessageId;
 DECLARE_REFCOUNTED_CLASS(THiveManager)
 
 DECLARE_ENTITY_TYPE(TMailbox, TCellId, ::THash<TCellId>)
-DECLARE_ENTITY_TYPE(TCommit, TTransactionId, ::THash<TTransactionId>)
 
 template <class TTransaction>
 using TTransactionPrepareActionHandler = TCallback<void(TTransaction*, const Stroka&, bool persistent)>;
