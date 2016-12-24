@@ -15,9 +15,7 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////
 
-class TSnapshotJob;
-
-DECLARE_REFCOUNTED_TYPE(TSnapshotJob)
+DECLARE_REFCOUNTED_STRUCT(TSnapshotJob)
 
 DECLARE_REFCOUNTED_STRUCT(TChunkStripe)
 DECLARE_REFCOUNTED_STRUCT(TChunkStripeList)
