@@ -149,6 +149,11 @@ NODE_CONFIG_PATCHES = [
                 "slots": 1,
                 "tablet_dynamic_memory": 500 * MB,
                 "tablet_static_memory": 0
+            },
+            "hydra_manager": {
+                "leader_lease_check_period": 100,
+                "leader_lease_timeout": 500,
+                "leader_lease_grace_delay": 600,
             }
         },
         "exec_agent": {
