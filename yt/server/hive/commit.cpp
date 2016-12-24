@@ -42,11 +42,6 @@ void TCommit::SetResponseMessage(TSharedRefArray message)
     ResponseMessagePromise_.TrySet(std::move(message));
 }
 
-bool TCommit::IsDistributed() const
-{
-    return !ParticipantCellIds_.empty();
-}
-
 void TCommit::Save(TSaveContext& context) const
 {
     using NYT::Save;
