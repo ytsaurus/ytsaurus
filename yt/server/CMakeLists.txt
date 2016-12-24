@@ -127,6 +127,7 @@ SET(YT_SRCS
 
   ${CMAKE_CURRENT_LIST_DIR}/hive/transaction_participant_provider.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hive/commit.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hive/abort.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hive/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hive/hive_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hive/hive_manager.proto
