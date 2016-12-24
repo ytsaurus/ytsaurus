@@ -4,8 +4,7 @@
 #include "helpers.h"
 #include "service.h"
 
-#include <yt/core/actions/invoker_util.h>
-
+#include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/periodic_executor.h>
 
 #include <yt/core/profiling/profiler.h>
@@ -29,24 +28,27 @@ class TResponseKeeper::TImpl
 public:
     TImpl(
         TResponseKeeperConfigPtr config,
+        IInvokerPtr invoker,
         const NLogging::TLogger& logger,
         const NProfiling::TProfiler& profiler)
         : Config_(std::move(config))
+        , Invoker_(std::move(invoker))
         , Logger(logger)
         , Profiler(profiler)
         , CountCounter_("/kept_response_count")
         , SpaceCounter_("/kept_response_space")
     {
         YCHECK(Config_);
+        YCHECK(Invoker_);
 
         EvictionExecutor_ = New<TPeriodicExecutor>(
-            GetSyncInvoker(),
+            Invoker_,
             BIND(&TImpl::OnEvict, MakeWeak(this)),
             EvictionPeriod);
         EvictionExecutor_->Start();
 
         ProfilingExecutor_ = New<TPeriodicExecutor>(
-            GetSyncInvoker(),
+            Invoker_,
             BIND(&TImpl::OnProfiling, MakeWeak(this)),
             EvictionPeriod);
         ProfilingExecutor_->Start();
@@ -54,10 +56,11 @@ public:
 
     void Start()
     {
-        auto guard = Guard(SpinLock_);
+        VERIFY_THREAD_AFFINITY(HomeThread);
 
-        if (Started_)
+        if (Started_) {
             return;
+        }
 
         WarmupDeadline_ = Config_->EnableWarmup
             ? NProfiling::GetCpuInstant() + NProfiling::DurationToCpuDuration(Config_->WarmupTime)
@@ -71,10 +74,11 @@ public:
 
     void Stop()
     {
-        auto guard = Guard(SpinLock_);
+        VERIFY_THREAD_AFFINITY(HomeThread);
 
-        if (!Started_)
+        if (!Started_) {
             return;
+        }
 
         PendingResponses_.clear();
         FinishedResponses_.clear();
@@ -88,9 +92,8 @@ public:
 
     TFuture<TSharedRefArray> TryBeginRequest(const TMutationId& id, bool isRetry)
     {
+        VERIFY_THREAD_AFFINITY(HomeThread);
         Y_ASSERT(id);
-
-        auto guard = Guard(SpinLock_);
 
         if (!Started_) {
             THROW_ERROR_EXCEPTION("Response keeper is not active");
@@ -131,29 +134,29 @@ public:
 
     void EndRequest(const TMutationId& id, TSharedRefArray response)
     {
+        VERIFY_THREAD_AFFINITY(HomeThread);
         Y_ASSERT(id);
 
-        TPromise<TSharedRefArray> promise;
-        {
-            auto guard = Guard(SpinLock_);
-
-            if (!Started_)
-                return;
-
-            auto pendingIt = PendingResponses_.find(id);
-            if (pendingIt != PendingResponses_.end()) {
-                promise = pendingIt->second;
-                PendingResponses_.erase(pendingIt);
-            }
-
-            // NB: Allow duplicates.
-            if (!FinishedResponses_.insert(std::make_pair(id, response)).second)
-                return;
-
-            ResponseEvictionQueue_.push_back(TEvictionItem{id, NProfiling::GetCpuInstant()});
-
-            UpdateCounters(response, +1);
+        if (!Started_) {
+            return;
         }
+
+        auto pendingIt = PendingResponses_.find(id);
+
+        TPromise<TSharedRefArray> promise;
+        if (pendingIt != PendingResponses_.end()) {
+            promise = pendingIt->second;
+            PendingResponses_.erase(pendingIt);
+        }
+
+        // NB: Allow duplicates.
+        if (!FinishedResponses_.insert(std::make_pair(id, response)).second) {
+            return;
+        }
+
+        ResponseEvictionQueue_.push_back(TEvictionItem{id, NProfiling::GetCpuInstant()});
+
+        UpdateCounters(response, +1);
 
         if (promise) {
             promise.Set(response);
@@ -164,27 +167,28 @@ public:
 
     void CancelRequest(const TMutationId& id, const TError& error)
     {
+        VERIFY_THREAD_AFFINITY(HomeThread);
         Y_ASSERT(id);
 
-        {
-            auto guard = Guard(SpinLock_);
-
-            if (!Started_)
-                return;
-
-            auto it = PendingResponses_.find(id);
-            if (it == PendingResponses_.end())
-                return;
-
-            it->second.Set(error);
-            PendingResponses_.erase(it);
-
-            LOG_DEBUG(error, "Pending request canceled (MutationId: %v)", id);
+        if (!Started_) {
+            return;
         }
+
+        auto it = PendingResponses_.find(id);
+        if (it == PendingResponses_.end()) {
+            return;
+        }
+
+        it->second.Set(error);
+        PendingResponses_.erase(it);
+
+        LOG_DEBUG(error, "Pending request canceled (MutationId: %v)", id);
     }
 
     bool TryReplyFrom(IServiceContextPtr context)
     {
+        VERIFY_THREAD_AFFINITY(HomeThread);
+
         auto mutationId = GetMutationId(context);
         if (!mutationId) {
             return false;
@@ -202,13 +206,14 @@ public:
                 } else {
                     EndRequest(mutationId, context->GetResponseMessage());
                 }
-            }));
+            }).Via(Invoker_));
             return false;
         }
     }
 
 private:
     const TResponseKeeperConfigPtr Config_;
+    const IInvokerPtr Invoker_;
 
     TPeriodicExecutorPtr EvictionExecutor_;
     TPeriodicExecutorPtr ProfilingExecutor_;
@@ -236,7 +241,7 @@ private:
     NProfiling::TAggregateCounter CountCounter_;
     NProfiling::TAggregateCounter SpaceCounter_;
 
-    TSpinLock SpinLock_;
+    DECLARE_THREAD_AFFINITY_SLOT(HomeThread);
 
 
     void UpdateCounters(const TSharedRefArray& data, int delta)
@@ -249,10 +254,11 @@ private:
 
     void OnProfiling()
     {
-        auto guard = Guard(SpinLock_);
+        VERIFY_THREAD_AFFINITY(HomeThread);
 
-        if (!Started_)
+        if (!Started_) {
             return;
+        }
 
         Profiler.Update(CountCounter_, FinishedResponseCount_);
         Profiler.Update(SpaceCounter_, FinishedResponseSpace_);
@@ -260,10 +266,11 @@ private:
 
     void OnEvict()
     {
-        auto guard = Guard(SpinLock_);
+        VERIFY_THREAD_AFFINITY(HomeThread);
 
-        if (!Started_)
+        if (!Started_) {
             return;
+        }
 
         auto deadline = NProfiling::GetCpuInstant() - NProfiling::DurationToCpuDuration(Config_->ExpirationTime);
         while (!ResponseEvictionQueue_.empty()) {
@@ -285,9 +292,14 @@ private:
 
 TResponseKeeper::TResponseKeeper(
     TResponseKeeperConfigPtr config,
+    IInvokerPtr invoker,
     const NLogging::TLogger& logger,
     const NProfiling::TProfiler& profiler)
-    : Impl_(New<TImpl>(std::move(config), logger, profiler))
+    : Impl_(New<TImpl>(
+        std::move(config),
+        std::move(invoker),
+        logger,
+        profiler))
 { }
 
 TResponseKeeper::~TResponseKeeper() = default;
