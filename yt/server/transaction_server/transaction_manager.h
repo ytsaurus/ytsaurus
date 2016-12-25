@@ -47,8 +47,10 @@ public:
     TTransaction* StartTransaction(
         TTransaction* parent,
         const NObjectClient::TCellTagList& secondaryCellTags,
+        const NObjectClient::TCellTagList& replicateToCellTags,
         TNullable<TDuration> timeout,
         const TNullable<Stroka>& title,
+        const NYTree::IAttributeDictionary& attributes,
         const TTransactionId& hintId = NullTransactionId);
     void CommitTransaction(
         TTransaction* transaction,

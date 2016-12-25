@@ -511,9 +511,7 @@ private:
         TTransactionServiceProxy proxy(Bootstrap_->GetLocalRpcChannel());
         auto req = proxy.StartTransaction();
         req->set_timeout(ToProto(InitTransactionTimeout));
-        auto attributes = CreateEphemeralAttributes();
-        attributes->Set("title", "World initialization");
-        ToProto(req->mutable_attributes(), *attributes);
+        req->set_title( "World initialization");
 
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();

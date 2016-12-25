@@ -41,16 +41,21 @@ private:
 
         auto parentId = FromProto<TTransactionId>(request->parent_id());
         auto timeout = FromProto<TDuration>(request->timeout());
+        auto title = request->has_title() ? MakeNullable(request->title()) : Null;
 
-        context->SetRequestInfo("ParentId: %v, Timeout: %v",
+        context->SetRequestInfo("ParentId: %v, Timeout: %v, Title: %v",
             parentId,
-            timeout);
+            timeout,
+            title);
 
         NTransactionServer::NProto::TReqStartTransaction hydraRequest;
         hydraRequest.mutable_attributes()->Swap(request->mutable_attributes());
         hydraRequest.mutable_parent_id()->Swap(request->mutable_parent_id());
         hydraRequest.set_timeout(request->timeout());
         hydraRequest.set_user_name(context->GetUser());
+        if (title) {
+            hydraRequest.set_title(*title);
+        }
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager

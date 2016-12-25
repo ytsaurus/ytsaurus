@@ -1050,8 +1050,10 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
     auto* uploadTransaction = transactionManager->StartTransaction(
         Transaction,
         uploadTransactionSecondaryCellTags,
+        uploadTransactionReplicationCellTags,
         uploadTransactionTimeout,
         uploadTransactionTitle,
+        EmptyAttributes(),
         uploadTransactionIdHint);
 
     uploadTransaction->SetAccountingEnabled(node->GetAccountingEnabled());
@@ -1152,10 +1154,6 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
 
         multicellManager->PostToMaster(replicationRequest, externalCellTag);
     }
-
-    objectManager->ReplicateObjectCreationToSecondaryMasters(
-        uploadTransaction,
-        uploadTransactionReplicationCellTags);
 
     context->SetResponseInfo("UploadTransactionId: %v", uploadTransactionId);
     context->Reply();
