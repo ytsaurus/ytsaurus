@@ -112,5 +112,23 @@ std::unique_ptr<IParser> CreateParserForFormat(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ConfigureEscapeTable(const TSchemafulDsvFormatConfigPtr& config, TEscapeTable* escapeTable);
+
+void ConfigureEscapeTables(
+    const TDsvFormatConfigBasePtr& config,
+    bool addCarriageReturn,
+    TEscapeTable* keyEscapeTable,
+    TEscapeTable* valueEscapeTable);
+
+void ConfigureEscapeTables(
+    const TYamrFormatConfigBasePtr& config,
+    bool enableKeyEscaping,
+    bool enableValueEscaping,
+    bool escapingForWriter,
+    TEscapeTable* keyEscapeTable,
+    TEscapeTable* valueEscapeTable);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NFormats
 } // namespace NYT

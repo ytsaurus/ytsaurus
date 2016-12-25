@@ -1334,10 +1334,7 @@ private:
     void LogOperationFinished(TOperationPtr operation, ELogEventType logEventType, TError error)
     {
         LogEventFluently(logEventType)
-            .Item("operation_id").Value(operation->GetId())
-            .Item("operation_type").Value(operation->GetType())
-            .Item("spec").Value(operation->GetSpec())
-            .Item("authenticated_user").Value(operation->GetAuthenticatedUser())
+            .Do(BIND(&TImpl::BuildOperationInfoForEventLog, MakeStrong(this), operation))
             .Item("start_time").Value(operation->GetStartTime())
             .Item("finish_time").Value(operation->GetFinishTime())
             .Item("controller_time_statistics").Value(operation->ControllerTimeStatistics())
@@ -1632,9 +1629,7 @@ private:
         }
 
         LogEventFluently(ELogEventType::OperationStarted)
-            .Item("operation_id").Value(operation->GetId())
-            .Item("operation_type").Value(operation->GetType())
-            .Item("spec").Value(operation->GetSpec());
+            .Do(BIND(&TImpl::BuildOperationInfoForEventLog, MakeStrong(this), operation));
 
         // NB: Once we've registered the operation in Cypress we're free to complete
         // StartOperation request. Preparation will happen in a separate fiber in a non-blocking
@@ -1853,9 +1848,22 @@ private:
             operation->GetId());
     }
 
+    void BuildOperationInfoForEventLog(TOperationPtr operation, IYsonConsumer* consumer)
+    {
+        BuildYsonMapFluently(consumer)
+            .Item("operation_id").Value(operation->GetId())
+            .Item("operation_type").Value(operation->GetType())
+            .Item("spec").Value(operation->GetSpec())
+            .Item("authenticated_user").Value(operation->GetAuthenticatedUser());
+        Strategy_->BuildOperationInfoForEventLog(operation, consumer);
+    }
+
     void LogOperationProgress(TOperationPtr operation)
     {
         if (operation->GetState() != EOperationState::Running)
+            return;
+
+        if (operation->GetLastLogProgressTime() + Config_->OperationLogProgressBackoff > TInstant::Now())
             return;
 
         auto controller = operation->GetController();
@@ -1873,6 +1881,8 @@ private:
             controllerLoggingProgress,
             Strategy_->GetOperationLoggingProgress(operation->GetId()),
             operation->GetId());
+
+        operation->SetLastLogProgressTime(TInstant::Now());
     }
 
     void SetOperationFinalState(TOperationPtr operation, EOperationState state, const TError& error)
@@ -2127,9 +2137,9 @@ private:
                 return;
         }
 
-        FinishOperation(operation);
-
         LogOperationFinished(operation, logEventType, error);
+
+        FinishOperation(operation);
     }
 
     void AbortAbortingOperation(TOperationPtr operation, TControllerTransactionsPtr controllerTransactions)

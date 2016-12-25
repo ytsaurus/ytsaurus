@@ -116,6 +116,12 @@ struct ISchedulerStrategy
         const TOperationId& operationId,
         NYson::IYsonConsumer* consumer) = 0;
 
+    //! Builds a YSON map fragment with strategy specific information about operation
+    //! that used for event log.
+    virtual void BuildOperationInfoForEventLog(
+        const TOperationPtr& operation,
+        NYson::IYsonConsumer* consumer) = 0;
+
     //! Builds a YSON structure reflecting operation's progress.
     //! This progress is periodically pushed into Cypress and is also displayed via Orchid.
     virtual void BuildOperationProgress(

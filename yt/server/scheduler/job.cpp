@@ -288,6 +288,25 @@ void TScheduleJobResult::RecordFail(EScheduleJobFailReason reason)
     ++Failed[reason];
 }
 
+void TScheduleJobStatistics::RecordJobResult(const TScheduleJobResultPtr& scheduleJobResult)
+{
+    for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
+        Failed[reason] += scheduleJobResult->Failed[reason];
+    }
+    Duration += scheduleJobResult->Duration;
+    ++Count;
+}
+
+void TScheduleJobStatistics::Persist(const TPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, Failed);
+    Persist(context, Duration);
+    Persist(context, Count);
+}
+
+DECLARE_DYNAMIC_PHOENIX_TYPE(TScheduleJobStatistics, 0x1ba9c7e0);
+
 ////////////////////////////////////////////////////////////////////
 
 TJobId MakeJobId(NObjectClient::TCellTag tag, NNodeTrackerClient::TNodeId nodeId)

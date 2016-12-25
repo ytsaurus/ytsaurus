@@ -155,6 +155,7 @@ void TBootstrap::DoRun()
 
     ResponseKeeper_ = New<TResponseKeeper>(
         Config_->ResponseKeeper,
+        GetControlInvoker(),
         SchedulerLogger,
         SchedulerProfiler);
 

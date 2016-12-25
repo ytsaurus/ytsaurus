@@ -1302,13 +1302,13 @@ private:
             DecoratedAutomaton_->OnFollowerRecoveryComplete();
             FollowerRecoveryComplete_.Fire();
 
-            SwitchTo(epochContext->EpochControlInvoker);
-            VERIFY_THREAD_AFFINITY(ControlThread);
-
             FollowerRecovered_ = true;
             if (Options_.ResponseKeeper) {
                 Options_.ResponseKeeper->Start();
             }
+
+            SwitchTo(epochContext->EpochControlInvoker);
+            VERIFY_THREAD_AFFINITY(ControlThread);
 
             SystemLockGuard_.Release();
         } catch (const std::exception& ex) {

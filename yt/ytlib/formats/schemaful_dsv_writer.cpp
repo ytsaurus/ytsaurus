@@ -1,5 +1,7 @@
 #include "schemaful_dsv_writer.h"
 
+#include "escape.h"
+
 #include <yt/ytlib/table_client/name_table.h>
 
 #include <yt/core/misc/error.h>
@@ -25,28 +27,30 @@ class TSchemafulDsvWriterBase
 {
 protected:
     TBlobOutput* BlobOutput_;
-    
+
     TSchemafulDsvFormatConfigPtr Config_;
-    
+
     // This array indicates on which position should each
     // column stay in the resulting row.
     std::vector<int> IdToIndexInRow_;
-   
+
     // This array contains TUnversionedValue's reordered
     // according to the desired order.
     std::vector<const TUnversionedValue*> CurrentRowValues_;
-    
+
+    TEscapeTable EscapeTable_;
+
     TSchemafulDsvWriterBase(TSchemafulDsvFormatConfigPtr config, std::vector<int> idToIndexInRow)
         : Config_(config)
         , IdToIndexInRow_(idToIndexInRow)
-        , Table_(config)
-    {  
+    {
+        ConfigureEscapeTable(Config_, &EscapeTable_);
         if (!IdToIndexInRow_.empty()) {
             CurrentRowValues_.resize(
                 *std::max_element(IdToIndexInRow_.begin(), IdToIndexInRow_.end()) + 1);
         }
         YCHECK(Config_->Columns);
-    }    
+    }
 
     void WriteColumnNamesHeader()
     {
@@ -59,56 +63,6 @@ protected:
         }
     }
 
-    void WriteValue(const TUnversionedValue& value)
-    {
-        switch (value.Type) {
-            case EValueType::Null:
-                break;
-
-            case EValueType::Int64:
-                WriteInt(value.Data.Int64);
-                break;
-
-            case EValueType::Uint64:
-                WriteInt(value.Data.Uint64);
-                break;
-
-            case EValueType::Double:
-                WriteDouble(value.Data.Double);
-                break;
-
-            case EValueType::Boolean:
-                WriteRaw(FormatBool(value.Data.Boolean));
-                break;
-
-            case EValueType::String:
-                EscapeAndWrite(TStringBuf(value.Data.String, value.Length));
-                break;
-
-            default: {
-                WriteRaw('?');
-                break;
-            }
-        }
-    }
-
-    template <class T>
-    void WriteInt(T value) 
-    {
-        char buf[64];
-        char* end = buf + 64;
-        char* start = WriteIntToBufferBackwards(end, value);
-        BlobOutput_->Write(start, end - start);
-    }
-
-    void WriteDouble(double value)
-    {
-        char buf[64];
-        char* begin = buf;
-        auto length = FloatToString(value, buf, sizeof(buf));
-        BlobOutput_->Write(begin, length);
-    }
-    
     void WriteRaw(const TStringBuf& str)
     {
         BlobOutput_->Write(str.begin(), str.length());
@@ -119,21 +73,7 @@ protected:
         BlobOutput_->Write(ch);
     }
 
-    void EscapeAndWrite(const TStringBuf& string)
-    {
-        if (Config_->EnableEscaping) {
-            WriteEscaped(
-                BlobOutput_,
-                string,
-                Table_.Stops,
-                Table_.Escapes,
-                Config_->EscapingSymbol);
-        } else {
-            BlobOutput_->Write(string);
-        }
-    }
-
-    int FindMissingValueIndex() const 
+    int FindMissingValueIndex() const
     {
         for (int valueIndex = 0; valueIndex < static_cast<int>(CurrentRowValues_.size()); ++valueIndex) {
             const auto* value = CurrentRowValues_[valueIndex];
@@ -143,10 +83,6 @@ protected:
         }
         return -1;
     }
-
-private:
-    TSchemafulDsvTable Table_;
-    
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -195,16 +131,16 @@ private:
             }
 
             if (Config_->EnableTableIndex && ControlAttributesConfig_->EnableTableIndex &&
-                !CurrentRowValues_[IdToIndexInRow_[TableIndexColumnId_]]) 
+                !CurrentRowValues_[IdToIndexInRow_[TableIndexColumnId_]])
             {
                 THROW_ERROR_EXCEPTION("Table index column is missing");
             }
-            
+
             int missingValueIndex = FindMissingValueIndex();
             if (missingValueIndex != -1) {
                 if (Config_->MissingValueMode == EMissingSchemafulDsvValueMode::SkipRow) {
                     continue;
-                } else if (Config_->MissingValueMode == EMissingSchemafulDsvValueMode::Fail) { 
+                } else if (Config_->MissingValueMode == EMissingSchemafulDsvValueMode::Fail) {
                     THROW_ERROR_EXCEPTION("Column %Qv is in schema but missing", (*Config_->Columns)[missingValueIndex]);
                 }
             }
@@ -220,12 +156,12 @@ private:
                     // If we got here, MissingValueMode is PrintSentinel.
                     WriteRaw(Config_->MissingValueSentinel);
                 } else {
-                    WriteValue(*item);
+                    WriteUnversionedValue(*item, BlobOutput_, EscapeTable_);
                 }
             }
             WriteRaw(Config_->RecordSeparator);
             TryFlushBuffer(false);
-        }    
+        }
         TryFlushBuffer(true);
     }
 };
@@ -246,7 +182,7 @@ public:
             IdToIndexInRow)
         , Output_(CreateSyncAdapter(stream))
     {
-        BlobOutput_ = &UnderlyingBlobOutput_; 
+        BlobOutput_ = &UnderlyingBlobOutput_;
         WriteColumnNamesHeader();
     }
 
@@ -270,12 +206,12 @@ public:
                     CurrentRowValues_[IdToIndexInRow_[item->Id]] = item;
                 }
             }
-            
+
             int missingValueIndex = FindMissingValueIndex();
             if (missingValueIndex != -1) {
                 if (Config_->MissingValueMode == EMissingSchemafulDsvValueMode::SkipRow) {
                     continue;
-                } else if (Config_->MissingValueMode == EMissingSchemafulDsvValueMode::Fail) { 
+                } else if (Config_->MissingValueMode == EMissingSchemafulDsvValueMode::Fail) {
                     THROW_ERROR_EXCEPTION("Column %Qv is in schema but missing", (*Config_->Columns)[missingValueIndex]);
                 }
             }
@@ -291,14 +227,14 @@ public:
                     // If we got here, MissingValueMode is PrintSentinel.
                     WriteRaw(Config_->MissingValueSentinel);
                 } else {
-                    WriteValue(*item);
+                    WriteUnversionedValue(*item, BlobOutput_, EscapeTable_);
                 }
             }
             WriteRaw(Config_->RecordSeparator);
             TryFlushBuffer(false);
-        }    
+        }
         TryFlushBuffer(true);
-        
+
         return true;
     }
 
@@ -317,7 +253,7 @@ private:
             DoFlushBuffer();
         }
     }
-    
+
     void DoFlushBuffer()
     {
         if (UnderlyingBlobOutput_.Size() == 0) {
@@ -388,7 +324,7 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForSchemafulDsv(
             nameTable->GetIdOrRegisterName(columns[columnIndex]);
         }
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Failed to add columns to name table for schemaful DSV format") 
+        THROW_ERROR_EXCEPTION("Failed to add columns to name table for schemaful DSV format")
             << ex;
     }
 
@@ -398,10 +334,10 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForSchemafulDsv(
     }
 
     return New<TSchemalessWriterForSchemafulDsv>(
-        nameTable, 
-        output, 
+        nameTable,
+        output,
         enableContextSaving,
-        controlAttributesConfig, 
+        controlAttributesConfig,
         config,
         idToIndexInRow);
 }
@@ -444,7 +380,7 @@ ISchemafulWriterPtr CreateSchemafulWriterForSchemafulDsv(
     }
 
     return New<TSchemafulWriterForSchemafulDsv>(
-        stream, 
+        stream,
         config,
         idToIndexInRow);
 }
