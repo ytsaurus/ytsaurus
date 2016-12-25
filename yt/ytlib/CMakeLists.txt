@@ -332,6 +332,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/transaction_client/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/transaction_client/remote_timestamp_provider.cpp
   ${CMAKE_CURRENT_LIST_DIR}/transaction_client/timestamp_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/transaction_client/transaction_service.proto
   ${CMAKE_CURRENT_LIST_DIR}/transaction_client/transaction_listener.cpp
   ${CMAKE_CURRENT_LIST_DIR}/transaction_client/transaction_manager.cpp
 

@@ -391,6 +391,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/transaction_server/transaction_proxy.cpp
   ${CMAKE_CURRENT_LIST_DIR}/transaction_server/transaction_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/transaction_server/transaction_manager.proto
+  ${CMAKE_CURRENT_LIST_DIR}/transaction_server/transaction_service.cpp
 )
 
 ################################################################################

@@ -55,6 +55,7 @@
 #include <yt/server/transaction_server/cypress_integration.h>
 #include <yt/server/transaction_server/timestamp_manager.h>
 #include <yt/server/transaction_server/transaction_manager.h>
+#include <yt/server/transaction_server/transaction_service.h>
 
 #include <yt/server/election/election_manager.h>
 
@@ -579,6 +580,7 @@ void TBootstrap::DoInitialize()
     RpcServer_->RegisterService(CreateJobTrackerService(this)); // master hydra service
     RpcServer_->RegisterService(CreateChunkService(this)); // master hydra service
     RpcServer_->RegisterService(CreateAdminService(GetControlInvoker(), CoreDumper_));
+    RpcServer_->RegisterService(CreateTransactionService(this)); // master hydra service
 
     CypressManager_->RegisterHandler(CreateSysNodeTypeHandler(this));
     CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::ChunkMap));

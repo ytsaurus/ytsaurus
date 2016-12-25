@@ -10,8 +10,8 @@
 #include <yt/ytlib/hive/transaction_participant_service_proxy.h>
 
 #include <yt/ytlib/object_client/helpers.h>
-#include <yt/ytlib/object_client/master_ypath_proxy.h>
-#include <yt/ytlib/object_client/object_service_proxy.h>
+
+#include <yt/ytlib/transaction_client/transaction_service_proxy.h>
 
 #include <yt/ytlib/tablet_client/tablet_service_proxy.h>
 
@@ -562,24 +562,22 @@ private:
 
     TFuture<void> StartMasterTransaction(const TTransactionStartOptions& options)
     {
-        TObjectServiceProxy proxy(Owner_->MasterChannel_);
-        auto req = TMasterYPathProxy::CreateObject();
-        req->set_type(static_cast<int>(EObjectType::Transaction));
-
-        auto attributes = options.Attributes ? options.Attributes->Clone() : CreateEphemeralAttributes();
-        attributes->Set("timeout", GetTimeout());
-        if (options.ParentId) {
-            attributes->Set("parent_id", options.ParentId);
+        TTransactionServiceProxy proxy(Owner_->MasterChannel_);
+        auto req = proxy.StartTransaction();
+        if (options.Attributes) {
+            ToProto(req->mutable_attributes(), *options.Attributes);
         }
-        ToProto(req->mutable_object_attributes(), *attributes);
-
+        req->set_timeout(ToProto(GetTimeout()));
+        if (options.ParentId) {
+            ToProto(req->mutable_parent_id(), options.ParentId);
+        }
         SetOrGenerateMutationId(req, options.MutationId, options.Retry);
 
-        return proxy.Execute(req).Apply(
+        return req->Invoke().Apply(
             BIND(&TImpl::OnMasterTransactionStarted, MakeStrong(this)));
     }
 
-    void OnMasterTransactionStarted(const TMasterYPathProxy::TErrorOrRspCreateObjectPtr& rspOrError)
+    void OnMasterTransactionStarted(const TTransactionServiceProxy::TErrorOrRspStartTransactionPtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {
             State_ = ETransactionState::Aborted;
@@ -591,7 +589,7 @@ private:
         YCHECK(ConfirmedParticipantIds_.insert(Owner_->CellId_).second);
 
         const auto& rsp = rspOrError.Value();
-        Id_ = FromProto<TTransactionId>(rsp->object_id());
+        Id_ = FromProto<TTransactionId>(rsp->id());
 
         LOG_DEBUG("Master transaction started (TransactionId: %v, StartTimestamp: %v, AutoAbort: %v, Ping: %v, PingAncestors: %v)",
             Id_,
