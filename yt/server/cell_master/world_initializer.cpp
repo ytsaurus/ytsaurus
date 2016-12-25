@@ -10,6 +10,8 @@
 
 #include <yt/server/hive/transaction_supervisor.h>
 
+#include <yt/server/hydra/mutation.h>
+
 #include <yt/server/security_server/acl.h>
 #include <yt/server/security_server/group.h>
 #include <yt/server/security_server/security_manager.h>
@@ -22,7 +24,8 @@
 #include <yt/ytlib/election/cell_manager.h>
 
 #include <yt/ytlib/object_client/helpers.h>
-#include <yt/ytlib/object_client/master_ypath_proxy.h>
+
+#include <yt/ytlib/transaction_client/transaction_service_proxy.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
@@ -50,6 +53,7 @@ using namespace NHiveClient::NProto;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NSecurityServer;
+using namespace NHydra;
 
 using NYT::ToProto;
 
@@ -504,18 +508,16 @@ private:
 
     TTransactionId StartTransaction()
     {
-        auto service = Bootstrap_->GetObjectManager()->GetRootService();
-        auto req = TMasterYPathProxy::CreateObject();
-        req->set_type(static_cast<int>(EObjectType::Transaction));
-
+        TTransactionServiceProxy proxy(Bootstrap_->GetLocalRpcChannel());
+        auto req = proxy.StartTransaction();
+        req->set_timeout(ToProto(InitTransactionTimeout));
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("title", "World initialization");
-        attributes->Set("timeout", InitTransactionTimeout);
-        ToProto(req->mutable_object_attributes(), *attributes);
+        ToProto(req->mutable_attributes(), *attributes);
 
-        auto rsp = WaitFor(ExecuteVerb(service, req))
+        auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
-        return FromProto<TTransactionId>(rsp->object_id());
+        return FromProto<TTransactionId>(rsp->id());
     }
 
     void CommitTransaction(const TTransactionId& transactionId)

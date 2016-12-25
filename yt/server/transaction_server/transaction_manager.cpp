@@ -32,6 +32,8 @@
 
 #include <yt/ytlib/object_client/helpers.h>
 
+#include <yt/ytlib/transaction_client/transaction_service.pb.h>
+
 #include <yt/core/concurrency/thread_affinity.h>
 
 #include <yt/core/misc/id_generator.h>
@@ -57,6 +59,7 @@ using namespace NYson;
 using namespace NConcurrency;
 using namespace NCypressServer;
 using namespace NTransactionClient;
+using namespace NTransactionClient::NProto;
 using namespace NSecurityServer;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -142,6 +145,7 @@ public:
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(), AutomatonThread);
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetTransactionTrackerInvoker(), TrackerThread);
 
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraStartTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraPrepareTransactionCommit, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCommitTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraAbortTransaction, Unretained(this)));
@@ -161,6 +165,8 @@ public:
             ESyncSerializationPriority::Values,
             "TransactionManager.Values",
             BIND(&TImpl::SaveValues, Unretained(this)));
+
+        Logger = TransactionServerLogger;
     }
 
     void Initialize()
@@ -209,11 +215,14 @@ public:
         }
 
         transaction->SetState(ETransactionState::Active);
-
         transaction->SecondaryCellTags() = secondaryCellTags;
 
-        // NB: For transactions replicated from the primary cell the timeout is null.
-        if (CellTagFromId(transactionId) == Bootstrap_->GetCellTag() && timeout) {
+        bool foreign = (CellTagFromId(transactionId) != Bootstrap_->GetCellTag());
+        if (foreign) {
+            transaction->SetForeign();
+        }
+
+        if (!foreign && timeout) {
             transaction->SetTimeout(std::min(*timeout, Config_->MaxTransactionTimeout));
         }
 
@@ -228,7 +237,7 @@ public:
         transaction->SetStartTime(mutationContext->GetTimestamp());
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        transaction->Acd().SetOwner(securityManager->GetRootUser());
+        transaction->Acd().SetOwner(securityManager->GetAuthenticatedUser());
 
         TransactionStarted_.Fire(transaction);
 
@@ -468,6 +477,16 @@ public:
     }
 
 
+    TMutationPtr CreateStartTransactionMutation(TCtxStartTransactionPtr context)
+    {
+        return CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            std::move(context),
+            &TImpl::HydraStartTransaction,
+            this);
+    }
+
+
     // ITransactionManager implementation.
     void PrepareTransactionCommit(
         const TTransactionId& transactionId,
@@ -575,6 +594,63 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
     DECLARE_THREAD_AFFINITY_SLOT(TrackerThread);
+
+
+    void HydraStartTransaction(
+        TCtxStartTransactionPtr context,
+        TReqStartTransaction* request,
+        TRspStartTransaction* response)
+    {
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto* user = securityManager->GetAuthenticatedUser();
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto* schema = objectManager->GetSchema(EObjectType::Transaction);
+        securityManager->ValidatePermission(schema, user, EPermission::Create);
+
+        auto hintId = FromProto<TTransactionId>(request->hint_id());
+
+        auto parentId = FromProto<TTransactionId>(request->parent_id());
+        auto* parent = parentId ? GetTransactionOrThrow(parentId) : nullptr;
+
+        auto attributes = request->has_attributes()
+            ? FromProto(request->attributes())
+            : CreateEphemeralAttributes();
+
+        auto title = attributes->FindAndRemove<Stroka>("title");
+
+        auto timeout = FromProto<TDuration>(request->timeout());
+
+        TCellTagList secondaryCellTags;
+        if (Bootstrap_->IsPrimaryMaster()) {
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            secondaryCellTags = multicellManager->GetRegisteredMasterCellTags();
+        }
+
+        auto* transaction = StartTransaction(
+            parent,
+            secondaryCellTags,
+            timeout,
+            title,
+            hintId);
+        const auto& id = transaction->GetId();
+
+        objectManager->FillAttributes(transaction, *attributes);
+
+        if (!secondaryCellTags.empty()) {
+            ToProto(request->mutable_hint_id(), id);
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            multicellManager->PostToMasters(*request, secondaryCellTags);
+        }
+
+        if (response) {
+            ToProto(response->mutable_id(), id);
+        }
+
+        if (context) {
+            context->SetResponseInfo("TransactionId: %v", id);
+        }
+    }
 
     // Primary-secondary replication only.
     void HydraPrepareTransactionCommit(NProto::TReqPrepareTransactionCommit* request)
@@ -872,6 +948,11 @@ void TTransactionManager::RegisterCommitActionHandler(const TTransactionCommitAc
 void TTransactionManager::RegisterAbortActionHandler(const TTransactionAbortActionHandlerDescriptor<TTransaction>& descriptor)
 {
     Impl_->RegisterAbortActionHandler(descriptor);
+}
+
+TMutationPtr TTransactionManager::CreateStartTransactionMutation(TCtxStartTransactionPtr context)
+{
+    return Impl_->CreateStartTransactionMutation(std::move(context));
 }
 
 void TTransactionManager::PrepareTransactionCommit(

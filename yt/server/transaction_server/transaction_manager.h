@@ -108,6 +108,13 @@ public:
     void RegisterCommitActionHandler(const NHiveServer::TTransactionCommitActionHandlerDescriptor<TTransaction>& descriptor);
     void RegisterAbortActionHandler(const NHiveServer::TTransactionAbortActionHandlerDescriptor<TTransaction>& descriptor);
 
+    using TCtxStartTransaction = NRpc::TTypedServiceContext<
+        NTransactionClient::NProto::TReqStartTransaction,
+        NTransactionClient::NProto::TRspStartTransaction>;
+    using TCtxStartTransactionPtr = TIntrusivePtr<TCtxStartTransaction>;
+    NHydra::TMutationPtr CreateStartTransactionMutation(
+        TCtxStartTransactionPtr context);
+
 private:
     class TImpl;
     class TTransactionTypeHandler;
