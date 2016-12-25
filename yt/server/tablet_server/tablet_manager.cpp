@@ -2771,13 +2771,10 @@ private:
         auto* transaction = transactionManager->StartTransaction(
             nullptr,
             secondaryCellTags,
+            secondaryCellTags,
             Null,
-            Format("Prerequisite for cell %v", cell->GetId()));
-
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        for (auto cellTag : secondaryCellTags) {
-            objectManager->ReplicateObjectCreationToSecondaryMaster(transaction, cellTag);
-        }
+            Format("Prerequisite for cell %v", cell->GetId()),
+            EmptyAttributes());
 
         YCHECK(!cell->GetPrerequisiteTransaction());
         cell->SetPrerequisiteTransaction(transaction);

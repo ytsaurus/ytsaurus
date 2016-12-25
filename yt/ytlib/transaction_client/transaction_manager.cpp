@@ -565,9 +565,14 @@ private:
     {
         TTransactionServiceProxy proxy(Owner_->MasterChannel_);
         auto req = proxy.StartTransaction();
-        if (options.Attributes) {
-            ToProto(req->mutable_attributes(), *options.Attributes);
+        auto attributes = options.Attributes
+            ? options.Attributes->Clone()
+            : CreateEphemeralAttributes();
+        auto maybeTitle = attributes->FindAndRemove<Stroka>("title");
+        if (maybeTitle) {
+            req->set_title(*maybeTitle);
         }
+        ToProto(req->mutable_attributes(), *attributes);
         req->set_timeout(ToProto(GetTimeout()));
         if (options.ParentId) {
             ToProto(req->mutable_parent_id(), options.ParentId);

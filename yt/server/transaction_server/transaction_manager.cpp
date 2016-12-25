@@ -186,8 +186,10 @@ public:
     TTransaction* StartTransaction(
         TTransaction* parent,
         const TCellTagList& secondaryCellTags,
+        const TCellTagList& replicateToCellTags,
         TNullable<TDuration> timeout,
         const TNullable<Stroka>& title,
+        const IAttributeDictionary& attributes,
         const TTransactionId& hintId)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -238,9 +240,31 @@ public:
         transaction->SetStartTime(mutationContext->GetTimestamp());
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        transaction->Acd().SetOwner(securityManager->GetAuthenticatedUser());
+        auto* user = securityManager->GetAuthenticatedUser();
+        transaction->Acd().SetOwner(user);
+
+        objectManager->FillAttributes(transaction, attributes);
 
         TransactionStarted_.Fire(transaction);
+
+        if (!replicateToCellTags.empty()) {
+            NTransactionServer::NProto::TReqStartTransaction startRequest;
+            ToProto(startRequest.mutable_attributes(), attributes);
+            ToProto(startRequest.mutable_hint_id(), transactionId);
+            if (parent) {
+                ToProto(startRequest.mutable_parent_id(), parent->GetId());
+            }
+            if (timeout) {
+                startRequest.set_timeout(ToProto(*timeout));
+            }
+            startRequest.set_user_name(user->GetName());
+            if (title) {
+                startRequest.set_title(*title);
+            }
+
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            multicellManager->PostToMasters(startRequest, replicateToCellTags);
+        }
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, ParentId: %v, "
             "SecondaryCellTags: %v, Timeout: %v, Title: %v)",
@@ -631,7 +655,7 @@ private:
             ? FromProto(request->attributes())
             : CreateEphemeralAttributes();
 
-        auto title = attributes->FindAndRemove<Stroka>("title");
+        auto title = request->has_title() ? MakeNullable(request->title()) : Null;
 
         auto timeout = FromProto<TDuration>(request->timeout());
 
@@ -644,18 +668,12 @@ private:
         auto* transaction = StartTransaction(
             parent,
             secondaryCellTags,
+            secondaryCellTags,
             timeout,
             title,
+            *attributes,
             hintId);
         const auto& id = transaction->GetId();
-
-        objectManager->FillAttributes(transaction, *attributes);
-
-        if (!secondaryCellTags.empty()) {
-            ToProto(request->mutable_hint_id(), id);
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            multicellManager->PostToMasters(*request, secondaryCellTags);
-        }
 
         if (response) {
             ToProto(response->mutable_id(), id);
@@ -906,11 +924,20 @@ void TTransactionManager::Initialize()
 TTransaction* TTransactionManager::StartTransaction(
     TTransaction* parent,
     const TCellTagList& secondaryCellTags,
+    const TCellTagList& replicateToCellTags,
     TNullable<TDuration> timeout,
     const TNullable<Stroka>& title,
+    const IAttributeDictionary& attributes,
     const TTransactionId& hintId)
 {
-    return Impl_->StartTransaction(parent, secondaryCellTags, timeout, title, hintId);
+    return Impl_->StartTransaction(
+        parent,
+        secondaryCellTags,
+        replicateToCellTags,
+        timeout,
+        title,
+        attributes,
+        hintId);
 }
 
 void TTransactionManager::CommitTransaction(
