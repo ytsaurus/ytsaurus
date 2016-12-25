@@ -76,6 +76,9 @@ public:
     //! Backoff time after controller schedule job failure.
     TDuration ControllerScheduleJobFailBackoffTime;
 
+    //! Backoff between schedule job statistics logging.
+    TDuration ScheduleJobStatisticsLogBackoff;
+
     //! Thresholds to partition jobs of operation
     //! to preemptable, aggressively preemptable and non-preemptable lists.
     double PreemptionSatisfactionThreshold;
@@ -161,6 +164,9 @@ public:
 
         RegisterParameter("schedule_job_fail_backoff_time", ControllerScheduleJobFailBackoffTime)
             .Default(TDuration::MilliSeconds(100));
+
+        RegisterParameter("schedule_job_statistics_log_backoff", ScheduleJobStatisticsLogBackoff)
+            .Default(TDuration::Seconds(1));
 
         RegisterParameter("preemption_satisfaction_threshold", PreemptionSatisfactionThreshold)
             .Default(1.0)
@@ -529,6 +535,10 @@ public:
 
     TDuration JobProberRpcTimeout;
 
+    TDuration OperationControllerSuspendTimeout;
+
+    TDuration OperationLogProgressBackoff;
+
     TDuration ClusterInfoLoggingPeriod;
 
     TDuration PendingEventLogRowsFlushPeriod;
@@ -751,6 +761,11 @@ public:
             .Default(TDuration::Minutes(60));
         RegisterParameter("job_prober_rpc_timeout", JobProberRpcTimeout)
             .Default(TDuration::Seconds(300));
+
+        RegisterParameter("operation_controller_suspend_timeout", OperationControllerSuspendTimeout)
+            .Default(TDuration::Seconds(5));
+        RegisterParameter("operation_progress_log_backoff", OperationLogProgressBackoff)
+            .Default(TDuration::Seconds(1));
 
         RegisterParameter("task_update_period", TaskUpdatePeriod)
             .Default(TDuration::Seconds(3));

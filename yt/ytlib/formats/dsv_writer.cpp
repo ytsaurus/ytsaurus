@@ -19,23 +19,9 @@ using namespace NTableClient;
 TDsvWriterBase::TDsvWriterBase(
     TDsvFormatConfigPtr config)
     : Config_(config)
-    , Table_(config, true)
 {
     YCHECK(Config_);
-}
-
-void TDsvWriterBase::EscapeAndWrite(const TStringBuf& string, bool inKey, TOutputStream* stream)
-{
-    if (Config_->EnableEscaping) {
-        WriteEscaped(
-            stream,
-            string,
-            inKey ? Table_.KeyStops : Table_.ValueStops,
-            Table_.Escapes,
-            Config_->EscapingSymbol);
-    } else {
-        stream->Write(string);
-    }
+    ConfigureEscapeTables(config, true /* addCarriageReturn */, &KeyEscapeTable_, &ValueEscapeTable_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -52,10 +38,10 @@ public:
         IAsyncOutputStreamPtr output,
         TDsvFormatConfigPtr config = New<TDsvFormatConfig>())
         : TSchemalessFormatWriterBase(
-             nameTable, 
-             std::move(output), 
+             nameTable,
+             std::move(output),
              enableContextSaving,
-             controlAttributesConfig, 
+             controlAttributesConfig,
              0 /* keyColumnCount */)
         , TDsvWriterBase(config)
     { }
@@ -77,9 +63,9 @@ private:
                     continue;
                 }
 
-                if (IsRangeIndexColumnId(value->Id) || 
-                    IsRowIndexColumnId(value->Id) || 
-                    (IsTableIndexColumnId(value->Id) && !Config_->EnableTableIndex)) 
+                if (IsRangeIndexColumnId(value->Id) ||
+                    IsRowIndexColumnId(value->Id) ||
+                    (IsTableIndexColumnId(value->Id) && !Config_->EnableTableIndex))
                 {
                     continue;
                 }
@@ -105,48 +91,15 @@ private:
     void WriteValue(const TUnversionedValue& value)
     {
         auto* output = GetOutputStream();
-        EscapeAndWrite(NameTableReader_->GetName(value.Id), true, output);
+        EscapeAndWrite(NameTableReader_->GetName(value.Id), output, KeyEscapeTable_);
         output->Write(Config_->KeyValueSeparator);
-
-        switch (value.Type) {
-            case EValueType::Int64:
-                output->Write(::ToString(value.Data.Int64));
-                break;
-
-            case EValueType::Uint64:
-                output->Write(::ToString(value.Data.Uint64));
-                break;
-
-            case EValueType::Double: {
-                auto str = ::ToString(value.Data.Double);
-                output->Write(str);
-                if (str.find('.') == Stroka::npos && str.find('e') == Stroka::npos) {
-                    output->Write(".");
-                }
-
-                break;
-            }
-
-            case EValueType::Boolean:
-                output->Write(FormatBool(value.Data.Boolean));
-                break;
-
-            case EValueType::String:
-                EscapeAndWrite(TStringBuf(value.Data.String, value.Length), false, output);
-                break;
-
-            case EValueType::Any:
-                THROW_ERROR_EXCEPTION("Values of type \"any\" are not supported by dsv format (Value: %v)", value);
-
-            default:
-                Y_UNREACHABLE();
-        }
+        WriteUnversionedValue(value, output, ValueEscapeTable_);
     }
-    
+
     void WriteTableIndexValue(const TUnversionedValue& value)
     {
         auto* output = GetOutputStream();
-        EscapeAndWrite(Config_->TableIndexColumn, true, output);
+        EscapeAndWrite(Config_->TableIndexColumn, output, KeyEscapeTable_);
         output->Write(Config_->KeyValueSeparator);
         output->Write(::ToString(value.Data.Int64));
     }
@@ -163,7 +116,7 @@ TDsvNodeConsumer::TDsvNodeConsumer(
 
 void TDsvNodeConsumer::OnStringScalar(const TStringBuf& value)
 {
-    EscapeAndWrite(value, false, Stream_);
+    EscapeAndWrite(value, Stream_, ValueEscapeTable_);
 }
 
 void TDsvNodeConsumer::OnInt64Scalar(i64 value)
@@ -238,7 +191,7 @@ void TDsvNodeConsumer::OnKeyedItem(const TStringBuf& key)
         Stream_->Write(Config_->FieldSeparator);
     }
 
-    EscapeAndWrite(key, true, Stream_);
+    EscapeAndWrite(key, Stream_, KeyEscapeTable_);
     Stream_->Write(Config_->KeyValueSeparator);
 }
 
@@ -281,10 +234,10 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForDsv(
     }
 
     return New<TSchemalessWriterForDsv>(
-        nameTable, 
+        nameTable,
         enableContextSaving,
-        controlAttributesConfig, 
-        output, 
+        controlAttributesConfig,
+        output,
         config);
 }
 
@@ -299,11 +252,11 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForDsv(
     auto config = ConvertTo<TDsvFormatConfigPtr>(&attributes);
     return CreateSchemalessWriterForDsv(
         config,
-        nameTable, 
+        nameTable,
         output,
         enableContextSaving,
-        controlAttributesConfig, 
-        keyColumnCount); 
+        controlAttributesConfig,
+        keyColumnCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

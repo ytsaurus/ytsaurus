@@ -1,9 +1,9 @@
 #pragma once
 
-#include "public.h"
 #include "config.h"
-#include "dsv_table.h"
+#include "escape.h"
 #include "helpers.h"
+#include "public.h"
 #include "schemaless_writer_adapter.h"
 
 #include <yt/ytlib/table_client/public.h>
@@ -22,9 +22,8 @@ public:
 
 protected:
     const TDsvFormatConfigPtr Config_;
-    const TDsvTable Table_;
-
-    void EscapeAndWrite(const TStringBuf& string, bool inKey, TOutputStream* stream);
+    TEscapeTable KeyEscapeTable_;
+    TEscapeTable ValueEscapeTable_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

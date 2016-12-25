@@ -117,7 +117,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, TrickyDoubleRepresentations)
     Writer_->Close()
         .Get()
         .ThrowOnError();
-    Stroka expectedOutput = "1.234567890123456\t42\t1e+300\t-1e-300\n";
+    Stroka expectedOutput = "1.234567890123456\t42.\t1e+300\t-1e-300\n";
     EXPECT_EQ(expectedOutput, OutputStream_.Str());
 }
 

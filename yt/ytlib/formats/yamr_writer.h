@@ -3,7 +3,6 @@
 #include "public.h"
 #include "config.h"
 #include "helpers.h"
-#include "yamr_table.h"
 #include "yamr_writer_base.h"
 
 #include <yt/ytlib/table_client/public.h>
