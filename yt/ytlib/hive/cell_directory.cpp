@@ -1,6 +1,5 @@
 #include "cell_directory.h"
 #include "config.h"
-#include "hive_service_proxy.h"
 #include "private.h"
 
 #include <yt/ytlib/election/config.h>
@@ -188,19 +187,6 @@ public:
         return result;
     }
 
-    TFuture<void> Synchronize(IChannelPtr channel)
-    {
-        LOG_INFO("Synchronizing cell directory");
-
-        THiveServiceProxy proxy(channel);
-        proxy.SetDefaultTimeout(Config_->SyncRpcTimeout);
-
-        auto req = proxy.SyncCells();
-        ToProto(req->mutable_known_cells(), GetRegisteredCells());
-
-        return req->Invoke().Apply(BIND(&TImpl::OnSynchronized, MakeStrong(this)));
-    }
-
     bool IsCellUnregistered(const TCellId& cellId)
     {
         TReaderGuard guard(SpinLock_);
@@ -333,29 +319,6 @@ private:
             entry->Channels[kind] = CreatePeerChannel(peerConfig, ChannelFactory_, kind);
         }
     }
-
-    void OnSynchronized(const THiveServiceProxy::TErrorOrRspSyncCellsPtr& rspOrError)
-    {
-        if (!rspOrError.IsOK()) {
-            THROW_ERROR_EXCEPTION("Error synchronizing cell directory")
-                << rspOrError;
-        }
-
-        const auto& rsp = rspOrError.Value();
-
-        for (const auto& info : rsp->cells_to_unregister()) {
-            auto cellId = FromProto<TCellId>(info.cell_id());
-            UnregisterCell(cellId);
-        }
-
-        for (const auto& info : rsp->cells_to_reconfigure()) {
-            auto descriptor = FromProto<TCellDescriptor>(info.cell_descriptor());
-            ReconfigureCell(descriptor);
-        }
-
-        LOG_INFO("Cell directory synchronized");
-    }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -401,11 +364,6 @@ TCellDescriptor TCellDirectory::GetDescriptorOrThrow(const TCellId& cellId)
 std::vector<TCellInfo> TCellDirectory::GetRegisteredCells()
 {
     return Impl_->GetRegisteredCells();
-}
-
-TFuture<void> TCellDirectory::Synchronize(NRpc::IChannelPtr channel)
-{
-    return Impl_->Synchronize(channel);
 }
 
 bool TCellDirectory::IsCellUnregistered(const TCellId& cellId)

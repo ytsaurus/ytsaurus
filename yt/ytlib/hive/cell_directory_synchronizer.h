@@ -2,10 +2,10 @@
 
 #include "public.h"
 
-#include <yt/ytlib/hive/public.h>
+#include <yt/core/actions/future.h>
 
 namespace NYT {
-namespace NHiveServer {
+namespace NHiveClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,6 +22,9 @@ public:
     void Start();
     void Stop();
 
+    //! Forces an out-of-order synchronization.
+    TFuture<void> Sync();
+
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;
@@ -32,5 +35,5 @@ DEFINE_REFCOUNTED_TYPE(TCellDirectorySynchronizer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHiveServer
+} // namespace NHiveClient
 } // namespace NYT

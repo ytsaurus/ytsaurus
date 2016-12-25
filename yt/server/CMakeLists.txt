@@ -125,7 +125,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/file_server/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/file_server/public.cpp
 
-  ${CMAKE_CURRENT_LIST_DIR}/hive/cell_directory_synchronizer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hive/transaction_participant_provider.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hive/commit.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hive/helpers.cpp

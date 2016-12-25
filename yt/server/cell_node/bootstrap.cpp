@@ -53,8 +53,6 @@
 
 #include <yt/server/transaction_server/timestamp_proxy_service.h>
 
-#include <yt/server/hive/cell_directory_synchronizer.h>
-
 #include <yt/server/admin_server/admin_service.h>
 
 #include <yt/ytlib/api/native_client.h>
@@ -67,6 +65,7 @@
 
 #include <yt/ytlib/hive/cluster_directory.h>
 #include <yt/ytlib/hive/cluster_directory_synchronizer.h>
+#include <yt/ytlib/hive/cell_directory_synchronizer.h>
 
 #include <yt/ytlib/misc/workload.h>
 
