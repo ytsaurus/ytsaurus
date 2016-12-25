@@ -16,8 +16,6 @@
 
 #include <yt/server/tablet_node/public.h>
 
-#include <yt/server/hive/public.h>
-
 #include <yt/ytlib/api/public.h>
 
 #include <yt/ytlib/chunk_client/public.h>
@@ -30,6 +28,8 @@
 
 #include <yt/ytlib/query_client/public.h>
 
+#include <yt/ytlib/hive/public.h>
+
 #include <yt/core/bus/public.h>
 
 #include <yt/core/concurrency/action_queue.h>
@@ -40,7 +40,6 @@
 #include <yt/core/ytree/public.h>
 
 #include <yt/core/misc/public.h>
-#include <yt/ytlib/hive/config.h>
 
 namespace NYT {
 namespace NCellNode {
@@ -117,7 +116,7 @@ private:
     NBus::IBusServerPtr BusServer;
     NApi::INativeConnectionPtr MasterConnection;
     NApi::INativeClientPtr MasterClient;
-    NHiveServer::TCellDirectorySynchronizerPtr CellDirectorySynchronizer;
+    NHiveClient::TCellDirectorySynchronizerPtr CellDirectorySynchronizer;
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
     NNodeTrackerClient::TNodeDirectorySynchronizerPtr NodeDirectorySynchronizer;
     NRpc::IServerPtr RpcServer;

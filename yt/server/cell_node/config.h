@@ -12,9 +12,9 @@
 
 #include <yt/server/tablet_node/config.h>
 
-#include <yt/server/hive/config.h>
-
 #include <yt/server/data_node/config.h>
+
+#include <yt/ytlib/hive/config.h>
 
 #include <yt/ytlib/api/config.h>
 
@@ -80,7 +80,7 @@ public:
     NApi::TNativeConnectionConfigPtr ClusterConnection;
 
     //! Cell directory synchronization.
-    NHiveServer::TCellDirectorySynchronizerConfigPtr CellDirectorySynchronizer;
+    NHiveClient::TCellDirectorySynchronizerConfigPtr CellDirectorySynchronizer;
 
     //! Cluster directory synchronization.
     NHiveClient::TClusterDirectorySynchronizerConfigPtr ClusterDirectorySynchronizer;

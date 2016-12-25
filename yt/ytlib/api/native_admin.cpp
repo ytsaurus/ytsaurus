@@ -7,6 +7,7 @@
 #include <yt/ytlib/admin/admin_service_proxy.h>
 
 #include <yt/ytlib/hive/cell_directory.h>
+#include <yt/ytlib/hive/cell_directory_synchronizer.h>
 
 #include <yt/ytlib/hydra/hydra_service_proxy.h>
 
@@ -44,7 +45,6 @@ public:
         : Connection_(std::move(connection))
         , Options_(options)
         // NB: Cannot actually throw.
-        , LeaderChannel_(Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Leader))
     {
         Logger.AddTag("Admin: %p", this);
         Y_UNUSED(Options_);
@@ -106,8 +106,14 @@ private:
 
     int DoBuildSnapshot(const TBuildSnapshotOptions& options)
     {
-        auto cellDirectory = Connection_->GetCellDirectory();
-        WaitFor(cellDirectory->Synchronize(LeaderChannel_))
+        const auto& cellDirectory = Connection_->GetCellDirectory();
+
+        auto cellDirectorySynchronizer = New<TCellDirectorySynchronizer>(
+            New<TCellDirectorySynchronizerConfig>(),
+            cellDirectory,
+            Connection_->GetPrimaryMasterCellId());
+
+        WaitFor(cellDirectorySynchronizer->Sync())
             .ThrowOnError();
 
         auto cellId = options.CellId ? options.CellId : Connection_->GetPrimaryMasterCellId();
@@ -131,7 +137,7 @@ private:
 
         auto collectAtCell = [&] (TCellTag cellTag) {
             auto channel = Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
-            TObjectServiceProxy proxy(LeaderChannel_);
+            TObjectServiceProxy proxy(channel);
             proxy.SetDefaultTimeout(Null); // infinity
             auto req = proxy.GCCollect();
             auto asyncResult = req->Invoke().As<void>();

@@ -11,17 +11,7 @@ namespace NHiveClient {
 
 class TCellDirectoryConfig
     : public NRpc::TBalancingChannelConfigBase
-{
-public:
-    //! Timeout for RPC requests in TCellDirectory::Synchronize.
-    TDuration SyncRpcTimeout;
-
-    TCellDirectoryConfig()
-    {
-        RegisterParameter("sync_rpc_timeout", SyncRpcTimeout)
-            .Default(TDuration::Seconds(5));
-    }
-};
+{ };
 
 DEFINE_REFCOUNTED_TYPE(TCellDirectoryConfig)
 
@@ -42,6 +32,29 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TClusterDirectorySynchronizerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCellDirectorySynchronizerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Interval between consequent SyncCells requests to the primary Hive Manager.
+    TDuration SyncPeriod;
+
+    //! Timeout for SyncCells requests.
+    TDuration SyncRpcTimeout;
+
+    TCellDirectorySynchronizerConfig()
+    {
+        RegisterParameter("sync_period", SyncPeriod)
+            .Default(TDuration::Seconds(15));
+        RegisterParameter("sync_rpc_timeout", SyncRpcTimeout)
+            .Default(TDuration::Seconds(15));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TCellDirectorySynchronizerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

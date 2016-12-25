@@ -28,7 +28,6 @@ using NHiveClient::TMessageId;
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(THiveManager)
-DECLARE_REFCOUNTED_CLASS(TCellDirectorySynchronizer)
 
 DECLARE_ENTITY_TYPE(TMailbox, TCellId, ::THash<TCellId>)
 DECLARE_ENTITY_TYPE(TCommit, TTransactionId, ::THash<TTransactionId>)
@@ -56,7 +55,6 @@ DECLARE_REFCOUNTED_CLASS(TTransactionSupervisor)
 DECLARE_REFCOUNTED_CLASS(TTransactionLeaseTracker)
 
 DECLARE_REFCOUNTED_CLASS(THiveManagerConfig)
-DECLARE_REFCOUNTED_CLASS(TCellDirectorySynchronizerConfig)
 DECLARE_REFCOUNTED_CLASS(TTransactionSupervisorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
