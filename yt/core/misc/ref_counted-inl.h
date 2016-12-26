@@ -6,6 +6,13 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+Y_FORCE_INLINE void TRefCountedBase::operator delete(void* ptr) noexcept
+{
+    ::free(ptr);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace NDetail {
 
 Y_FORCE_INLINE int AtomicallyIncrementIfNonZero(std::atomic<int>& atomic)
@@ -236,13 +243,6 @@ Y_FORCE_INLINE TIntrusivePtr<T> TRefCountedImpl<EnableWeak>::DangerousGetPtr(T* 
     return object->RefCounter_.TryRef()
         ? TIntrusivePtr<T>(object, false)
         : TIntrusivePtr<T>();
-}
-
-template <bool EnableWeak>
-void TRefCountedImpl<EnableWeak>::operator delete(void* ptr) noexcept
-{
-    Y_ASSERT(!EnableWeak);
-    ::free(ptr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
