@@ -150,9 +150,11 @@ void InitializeRefCountedTracking(
 //! A technical base class for TRefCountedImpl and promise states.
 class TRefCountedBase
 {
-protected:
+public:
     TRefCountedBase() = default;
     virtual ~TRefCountedBase() noexcept;
+
+    void operator delete(void* ptr) noexcept;
 
 private:
     template <bool EnableWeak>
@@ -229,8 +231,6 @@ public:
      */
     template <class T>
     static TIntrusivePtr<T> DangerousGetPtr(T* object);
-
-    void operator delete(void* ptr) noexcept;
 
 private:
     mutable NDetail::TRefCounter<EnableWeak> RefCounter_;
