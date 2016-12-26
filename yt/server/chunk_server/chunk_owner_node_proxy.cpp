@@ -27,6 +27,8 @@
 
 #include <yt/core/erasure/codec.h>
 
+#include <yt/core/misc/numeric_helpers.h>
+
 #include <yt/core/ytree/helpers.h>
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/node.h>
@@ -325,6 +327,35 @@ private:
         }
 
         chunkSpec->set_range_index(CurrentRangeIndex_);
+
+        i64 lowerRowLimit = 0;
+        if (lowerLimit.HasRowIndex()) {
+            lowerRowLimit = lowerLimit.GetRowIndex();
+        }
+        i64 upperRowLimit = chunk->MiscExt().row_count();
+        if (upperLimit.HasRowIndex()) {
+            upperRowLimit = upperLimit.GetRowIndex();
+        }
+
+        // If one of row indexes is present, then fields row_count_override and
+        // uncompressed_data_size_override estimate the chunk range
+        // instead of the whole chunk.
+        // To ensure the correct usage of this rule, row indexes should be
+        // either both set or not.
+        if (lowerLimit.HasRowIndex() && !upperLimit.HasRowIndex()) {
+            chunkSpec->mutable_upper_limit()->set_row_index(upperRowLimit);
+        }
+        if (upperLimit.HasRowIndex() && !lowerLimit.HasRowIndex()) {
+            chunkSpec->mutable_lower_limit()->set_row_index(lowerRowLimit);
+        }
+
+        chunkSpec->set_row_count_override(upperRowLimit - lowerRowLimit);
+        if (chunkSpec->row_count_override() >= chunk->MiscExt().row_count()) {
+            chunkSpec->set_uncompressed_data_size_override(chunk->MiscExt().uncompressed_data_size());
+        } else {
+            chunkSpec->set_uncompressed_data_size_override(
+                DivCeil(chunk->MiscExt().uncompressed_data_size(), chunk->MiscExt().row_count()) * chunkSpec->row_count_override());
+        }
 
         return true;
     }
