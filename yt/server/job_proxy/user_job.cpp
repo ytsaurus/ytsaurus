@@ -55,6 +55,7 @@
 
 #include <yt/core/misc/finally.h>
 #include <yt/core/misc/fs.h>
+#include <yt/core/misc/numeric_helpers.h>
 #include <yt/core/misc/pattern_formatter.h>
 #include <yt/core/misc/proc.h>
 #include <yt/core/misc/process.h>
@@ -338,7 +339,7 @@ public:
             return 0.0;
         }
 
-        return std::min(current / static_cast<double>(total), 1.0);
+        return Clamp(current / static_cast<double>(total), 0.0, 1.0);
     }
 
     virtual std::vector<TChunkId> GetFailedChunkIds() const override
