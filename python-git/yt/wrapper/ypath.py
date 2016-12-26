@@ -211,6 +211,7 @@ class TablePath(YPathSupportingAppend):
                  end_index=None,
                  ranges=None,
                  schema=None,
+                 foreign=None,
                  simplify=True,
                  attributes=None,
                  client=None):
@@ -227,6 +228,7 @@ class TablePath(YPathSupportingAppend):
         :param end_index: (int) upper bound of rows
         :param ranges: (list) list of ranges of rows. It overwrites all other row limits.
         :param schema: (list) table schema description.
+        :param foreign: (bool) table is foreign for sorted reduce and joinreduce operations
         :param attributes: (dict) attributes, it updates attributes specified in name.
 
         `See usage example. <https://wiki.yandex-team.ru/yt/userdoc/ypath/#raspoznavaemyesistemojjatributy>`_
@@ -245,6 +247,8 @@ class TablePath(YPathSupportingAppend):
             attributes["columns"] = columns
         if schema is not None:
             attributes["schema"] = schema
+        if foreign is not None:
+            attributes["foreign"] = foreign
 
 
         if ranges is not None:
