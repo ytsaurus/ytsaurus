@@ -1,5 +1,7 @@
 #pragma once
 
+#include "node.h"
+
 #include <util/generic/guid.h>
 #include <util/generic/ptr.h>
 #include <util/generic/vector.h>
@@ -8,8 +10,7 @@
 #include <util/generic/type_name.h>
 
 #include <initializer_list>
-
-#include "node.h"
+#include <type_traits>
 
 namespace NYT {
 
@@ -63,6 +64,9 @@ using TLocalFilePath = Stroka;
 template <class T>
 struct TKeyBase
 {
+    TKeyBase()
+    { }
+
     TKeyBase(const TKeyBase& rhs)
     {
         Parts_ = rhs.Parts_;
@@ -91,21 +95,15 @@ struct TKeyBase
         Parts_.assign(il.begin(), il.end());
     }
 
-    template <class... TArgs>
-    TKeyBase(TArgs&&... args)
+    template <class U, class... TArgs, std::enable_if_t<std::is_convertible<U, T>::value, int> = 0>
+    TKeyBase(U&& arg, TArgs&&... args)
     {
-        Add(std::forward<TArgs>(args)...);
+        Add(arg, std::forward<TArgs>(args)...);
     }
 
-    TKeyBase(yvector<T>&& args)
-    {
-        Parts_ = std::move(args);
-    }
-
-    TKeyBase(const yvector<T>& args)
-    {
-        Parts_ = args;
-    }
+    TKeyBase(yvector<T> args)
+        : Parts_(std::move(args))
+    { }
 
     bool operator==(const TKeyBase& rhs) const {
         return Parts_ == rhs.Parts_;
