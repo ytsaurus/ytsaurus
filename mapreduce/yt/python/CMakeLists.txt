@@ -38,4 +38,5 @@ END()
 
 RECURSE(
     test
+    v19
 )
