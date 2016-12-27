@@ -30,10 +30,10 @@ public:
     void Initialize();
     void LoadSnapshot(NHydra::ISnapshotReaderPtr reader, bool dump);
 
-    TMasterAutomatonPtr GetAutomaton() const;
-    NElection::IElectionManagerPtr GetElectionManager() const;
-    NHydra::IHydraManagerPtr GetHydraManager() const;
-    NRpc::TResponseKeeperPtr GetResponseKeeper() const;
+    const TMasterAutomatonPtr& GetAutomaton() const;
+    const NElection::IElectionManagerPtr& GetElectionManager() const;
+    const NHydra::IHydraManagerPtr& GetHydraManager() const;
+    const NRpc::TResponseKeeperPtr& GetResponseKeeper() const;
 
     IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
     IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
