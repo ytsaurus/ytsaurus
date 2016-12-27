@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "private.h"
 
 #include <yt/server/cell_scheduler/public.h>
 
@@ -16,6 +17,19 @@
 
 namespace NYT {
 namespace NScheduler {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSnapshotJob
+    : public TIntrinsicRefCounted
+{
+    TOperationPtr Operation;
+    NPipes::TAsyncReaderPtr Reader;
+    std::unique_ptr<TFile> OutputFile;
+    bool Suspended = false;
+};
+
+DEFINE_REFCOUNTED_TYPE(TSnapshotJob)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,14 +49,7 @@ private:
     const TSchedulerPtr Scheduler_;
     const NApi::IClientPtr Client_;
 
-    struct TJob
-    {
-        TOperationPtr Operation;
-        NPipes::TAsyncReaderPtr Reader;
-        std::unique_ptr<TFile> OutputFile;
-    };
-
-    std::vector<TJob> Jobs_;
+    std::vector<TSnapshotJobPtr> Jobs_;
 
     NProfiling::TProfiler Profiler;
 
@@ -51,8 +58,9 @@ private:
     virtual void RunChild() override;
 
     TFuture<std::vector<TError>> UploadSnapshots();
-    void UploadSnapshot(const TJob& job);
+    void UploadSnapshot(const TSnapshotJobPtr& job);
 
+    bool ControllersSuspended_ = false;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSnapshotBuilder)

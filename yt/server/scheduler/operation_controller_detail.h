@@ -135,13 +135,6 @@ private: \
     IMPLEMENT_SAFE_VOID_METHOD(Prepare, (), (), INVOKER_AFFINITY(CancelableInvoker))
     IMPLEMENT_SAFE_VOID_METHOD(Materialize, (), (), INVOKER_AFFINITY(CancelableInvoker))
 
-    IMPLEMENT_SAFE_VOID_METHOD(
-        InitializeReviving,
-        (TControllerTransactionsPtr operationTransactions),
-        (operationTransactions),
-        THREAD_AFFINITY(ControlThread))
-    IMPLEMENT_SAFE_VOID_METHOD(Revive, (), (), INVOKER_AFFINITY(CancelableInvoker))
-
     IMPLEMENT_SAFE_VOID_METHOD(OnJobStarted, (const TJobId& jobId, TInstant startTime), (jobId, startTime), INVOKER_AFFINITY(CancelableInvoker))
     IMPLEMENT_SAFE_VOID_METHOD(OnJobCompleted, (std::unique_ptr<TCompletedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
     IMPLEMENT_SAFE_VOID_METHOD(OnJobFailed, (std::unique_ptr<TFailedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
@@ -168,6 +161,9 @@ public:
     // moving it to the section above.
 
     virtual void Initialize() override;
+
+    void InitializeReviving(TControllerTransactionsPtr operationTransactions);
+    void Revive();
 
     virtual std::vector<NApi::ITransactionPtr> GetTransactions() override;
 
@@ -1082,6 +1078,12 @@ private:
 
     //! Aggregates job statistics.
     NJobTrackerClient::TStatistics JobStatistics;
+
+    //! Aggregated schedule job statistics.
+    TScheduleJobStatisticsPtr ScheduleJobStatistics_;
+
+    //! Last time schedule job statistics was logged.
+    TInstant ScheduleJobStatisticsLogTime;
 
     //! One output table can have row count limit on operation.
     TNullable<int> RowCountLimitTableIndex;
