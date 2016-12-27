@@ -1093,6 +1093,9 @@ private:
     TNodeId RootNodeId_;
     TMapNode* RootNode_ = nullptr;
 
+    // COMPAT(babenko)
+    bool FixLinkPaths_ = false;
+
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
@@ -1123,6 +1126,9 @@ private:
 
         NodeMap_.LoadValues(context);
         LockMap_.LoadValues(context);
+
+        // COMPAT(babenko)
+        FixLinkPaths_ = context.GetVersion() < 403;
     }
 
 
@@ -1208,6 +1214,24 @@ private:
 
             if (node->IsTrunk() && node->GetExpirationTime()) {
                 ExpirationTracker_->OnNodeExpirationTimeUpdated(node);
+            }
+
+            // COMPAT(babenko)
+            if (FixLinkPaths_ && node->GetType() == EObjectType::Link) {
+                auto* linkNode = node->As<TLinkNode>();
+                const auto& targetPath = linkNode->GetTargetPath();
+                if (targetPath.has_prefix(ObjectIdPathPrefix)) {
+                    TObjectId objectId;
+                    TStringBuf objectIdString(targetPath.begin() + ObjectIdPathPrefix.length(), targetPath.end());
+                    if (TObjectId::FromString(objectIdString, &objectId)) {
+                        auto* targetNode = FindNode(TVersionedObjectId(objectId));
+                        if (IsObjectAlive(targetNode)) {
+                            auto fixedPath = GetNodePath(targetNode, nullptr);
+                            LOG_DEBUG("Fixed link target: %v -> %v", targetPath, fixedPath);
+                            linkNode->SetTargetPath(fixedPath);
+                        }
+                    }
+                }
             }
         }
         LOG_INFO("Finished initializing nodes");
