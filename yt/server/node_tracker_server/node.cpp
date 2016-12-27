@@ -134,14 +134,18 @@ ENodeState TNode::GetLocalState() const
 
 void TNode::SetLocalState(ENodeState state)
 {
-    *LocalStatePtr_ = state;
-    ComputeAggregatedState();
+    if (*LocalStatePtr_ != state) {
+        *LocalStatePtr_ = state;
+        ComputeAggregatedState();
+    }
 }
 
 void TNode::SetState(TCellTag cellTag, ENodeState state)
 {
-    MulticellStates_[cellTag] = state;
-    ComputeAggregatedState();
+    if (MulticellStates_[cellTag] != state) {
+        MulticellStates_[cellTag] = state;
+        ComputeAggregatedState();
+    }
 }
 
 ENodeState TNode::GetAggregatedState() const
