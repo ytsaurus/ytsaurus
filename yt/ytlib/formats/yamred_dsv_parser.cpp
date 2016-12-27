@@ -1,6 +1,6 @@
 #include "yamred_dsv_parser.h"
 #include "dsv_parser.h"
-#include "yamr_base_parser.h"
+#include "yamr_parser_base.h"
 
 namespace NYT {
 namespace NFormats {
@@ -98,12 +98,9 @@ std::unique_ptr<IParser> CreateParserForYamredDsv(
         : std::unique_ptr<IParser>(
             new TYamrDelimitedBaseParser(
                 parserConsumer,
-                config->HasSubkey,
-                config->FieldSeparator,
-                config->RecordSeparator,
-                config->EnableEscaping, // Enable key escaping
-                false, // Enable value escaping
-                config->EscapingSymbol));
+                config,
+                config->EnableEscaping /* enableKeyEscaping */,
+                false /* enableValueEscaping */));
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -473,38 +473,52 @@ describe("high-level interoperation", function() {
                 var reader = new binding.TInputStreamStub();
                 reader.Reset(readable);
 
-                var writable = new binding.TOutputStreamWrap(1000000);
-                writable.on_flowing = sinon.spy();
-
-                var writer = new binding.TOutputStreamStub();
-                writer.Reset(writable);
-
                 reader.AddCompression(codec_id);
-                writer.AddCompression(codec_id);
 
-                var p = new bluebird(function(resolve, reject) {
-                    writable.on_flowing = function() {
-                        var i = 1, n, chunk, result;
+                var p = bluebird.resolve();
 
-                        while (i > 0) {
-                            result = writable.Pull();
-                            for (i = 0, n = result.length; i < n; ++i) {
-                                chunk = result[i];
-                                if (!chunk) {
-                                    break;
-                                } else {
-                                    readable.Push(chunk, 0, chunk.length);
+                function writeChunk() {
+                    var writable = new binding.TOutputStreamWrap(1000000);
+                    writable.on_flowing = sinon.spy();
+
+                    var writer = new binding.TOutputStreamStub();
+                    writer.Reset(writable);
+
+                    writer.AddCompression(codec_id);
+
+                    p = p.then(function() {
+                        return new bluebird(function(resolve, reject) {
+                            writable.on_flowing = function() {
+                                var i = 1, n, chunk, result;
+
+                                while (i > 0) {
+                                    result = writable.Pull();
+                                    for (i = 0, n = result.length; i < n; ++i) {
+                                        chunk = result[i];
+                                        if (!chunk) {
+                                            break;
+                                        } else {
+                                            readable.Push(chunk, 0, chunk.length);
+                                        }
+                                    }
                                 }
-                            }
-                        }
 
-                        if (writable.Drain()) {
-                            resolve();
-                        }
-                    };
-                    writer.WriteSynchronously(case_data);
-                    writer.Close();
-                });
+                                if (writable.Drain()) {
+                                    resolve();
+                                }
+                            };
+                            writer.WriteSynchronously(case_data);
+                            writer.Close();
+                        });
+                    });
+                }
+
+                writeChunk();
+
+                var twoChunks = codec_name in ["gzip", "deflate", "lzop", "br"]
+                if (twoChunks) {
+                    writeChunk();
+                }
 
                 p.then(function() {
                     readable.End();
@@ -518,8 +532,10 @@ describe("high-level interoperation", function() {
                         received += part;
                     }
 
-                    received.length.should.eql(case_data.length);
-                    received.should.be.equal(case_data);
+                    var check_data = twoChunks ? case_data.concat(case_data) : case_data;
+
+                    received.length.should.eql(check_data.length);
+                    received.should.be.equal(check_data);
                 })
                 .then(done, done);
             });

@@ -26,7 +26,7 @@ namespace NRpc {
  *  The keeper is initially inactive.
  *
  *  \note
- *  Thread affinity: any
+ *  Thread affinity: single-threaded
  */
 class TResponseKeeper
     : public TRefCounted
@@ -34,6 +34,7 @@ class TResponseKeeper
 public:
     TResponseKeeper(
         TResponseKeeperConfigPtr config,
+        IInvokerPtr invoker,
         const NLogging::TLogger& logger,
         const NProfiling::TProfiler& profiler);
     ~TResponseKeeper();

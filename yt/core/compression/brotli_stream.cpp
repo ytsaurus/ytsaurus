@@ -88,13 +88,13 @@ class TBrotliDecompress::TImpl
 public:
     inline TImpl(TInputStream* slave)
         : Slave_(slave)
-    {
-        BrotliStateInit(&State_);
-    }
+    { }
 
     ~TImpl()
     {
-        BrotliStateCleanup(&State_);
+        if (Initialized_) {
+            BrotliStateCleanup(&State_);
+        }
     }
 
     size_t DoRead(void* buffer, size_t length)
@@ -102,7 +102,7 @@ public:
         YCHECK(length > 0);
 
         size_t availableOut = length;
-        while (length == availableOut) {
+        do {
             if (InputSize_ == 0 && !Exhausted_) {
                 InputBuffer_ = TmpBuf();
                 InputSize_ = Slave_->Read((void*)InputBuffer_, TmpBufLen());
@@ -112,24 +112,35 @@ public:
                 }
             }
 
-            size_t bytesRead = 0;
+            if (!Initialized_) {
+                BrotliStateInit(&State_);
+                Initialized_ = true;
+            }
+
+            size_t bytesWritten = 0;
             auto result = BrotliDecompressBufferStreaming(
                 &InputSize_,
                 &InputBuffer_,
                 0,
                 &availableOut,
                 (uint8_t**)&buffer,
-                &bytesRead,
+                &bytesWritten,
                 &State_);
 
             YCHECK(result != BROTLI_RESULT_ERROR);
-            if (result == BROTLI_RESULT_SUCCESS || result == BROTLI_RESULT_NEEDS_MORE_OUTPUT) {
+            if (result == BROTLI_RESULT_SUCCESS) {
+                BrotliStateCleanup(&State_);
+                Initialized_ = false;
+                break;
+            }
+
+            if (result == BROTLI_RESULT_NEEDS_MORE_OUTPUT) {
                 break;
             }
 
             YCHECK(result == BROTLI_RESULT_NEEDS_MORE_INPUT);
             YCHECK(InputSize_ == 0);
-        }
+        } while (length == availableOut && (InputSize_ != 0 || !Exhausted_));
 
         return length - availableOut;
     }
@@ -138,6 +149,7 @@ private:
     TInputStream* Slave_;
     BrotliState State_;
 
+    bool Initialized_ = false;
     bool Exhausted_ = false;
     const uint8_t* InputBuffer_ = nullptr;
     size_t InputSize_ = 0;

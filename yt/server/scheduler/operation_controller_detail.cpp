@@ -1038,6 +1038,7 @@ TOperationControllerBase::TOperationControllerBase(
     , Spec(spec)
     , Options(options)
     , CachedNeededResources(ZeroJobResources())
+    , ScheduleJobStatistics_(New<TScheduleJobStatistics>())
     , CheckTimeLimitExecutor(New<TPeriodicExecutor>(
         GetCancelableInvoker(),
         BIND(&TThis::CheckTimeLimit, MakeWeak(this)),
@@ -1052,8 +1053,10 @@ TOperationControllerBase::TOperationControllerBase(
 void TOperationControllerBase::InitializeConnections()
 { }
 
-void TOperationControllerBase::SafeInitializeReviving(TControllerTransactionsPtr controllerTransactions)
+void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr controllerTransactions)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     LOG_INFO("Initializing operation for revive");
 
     InitializeConnections();
@@ -1404,8 +1407,10 @@ void TOperationControllerBase::SafeSaveSnapshot(TOutputStream* output)
     Save(context, this);
 }
 
-void TOperationControllerBase::SafeRevive()
+void TOperationControllerBase::Revive()
 {
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+
     if (!Snapshot) {
         Prepare();
         return;
@@ -2476,6 +2481,16 @@ TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
         JobCounter.Start(1);
     }
     scheduleJobResult->Duration = timer.GetElapsed();
+
+    ScheduleJobStatistics_->RecordJobResult(scheduleJobResult);
+    if (ScheduleJobStatisticsLogTime + Config->ScheduleJobStatisticsLogBackoff < TInstant::Now()) {
+        LOG_DEBUG("Schedule job statistics (count: %v, total duration: %v, failure reasons: %v)",
+            ScheduleJobStatistics_->Count,
+            ScheduleJobStatistics_->Duration,
+            ScheduleJobStatistics_->Failed);
+        ScheduleJobStatisticsLogTime = TInstant::Now();
+    }
+
     return scheduleJobResult;
 }
 
@@ -4997,6 +5012,8 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, JobIndexGenerator);
 
     Persist(context, JobStatistics);
+
+    Persist(context, ScheduleJobStatistics_);
 
     Persist(context, RowCountLimitTableIndex);
     Persist(context, RowCountLimit);
