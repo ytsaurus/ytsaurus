@@ -452,9 +452,7 @@ def run_map(binary, source_table, destination_table,
 
     .. seealso::  :ref:`operation_parameters` and :py:func:`yt.wrapper.table_commands.run_map_reduce`.
     """
-    kwargs = locals()
-    kwargs["op_name"] = "map"
-    return _run_operation(**kwargs)
+    return _run_operation(op_name="map", **locals())
 
 
 def run_reduce(binary, source_table, destination_table,
@@ -466,7 +464,6 @@ def run_reduce(binary, source_table, destination_table,
                job_count=None,
                memory_limit=None,
                spec=None,
-               op_name=None,
                sort_by=None,
                reduce_by=None,
                join_by=None,
@@ -476,9 +473,7 @@ def run_reduce(binary, source_table, destination_table,
 
     .. seealso::  :ref:`operation_parameters` and :py:func:`yt.wrapper.table_commands.run_map_reduce`.
     """
-    kwargs = locals()
-    kwargs["op_name"] = "reduce"
-    return _run_operation(**kwargs)
+    return _run_operation(op_name="reduce", **locals())
 
 
 def run_join_reduce(binary, source_table, destination_table,
@@ -490,7 +485,6 @@ def run_join_reduce(binary, source_table, destination_table,
                     job_count=None,
                     memory_limit=None,
                     spec=None,
-                    op_name=None,
                     sort_by=None,
                     reduce_by=None,
                     join_by=None,
@@ -503,9 +497,7 @@ def run_join_reduce(binary, source_table, destination_table,
 
     .. seealso::  :ref:`operation_parameters` and :py:func:`yt.wrapper.table_commands.run_map_reduce`.
     """
-    kwargs = locals()
-    kwargs["op_name"] = "join_reduce"
-    return _run_operation(**kwargs)
+    return _run_operation(op_name="join_reduce", **locals())
 
 
 def run_remote_copy(source_table, destination_table,
