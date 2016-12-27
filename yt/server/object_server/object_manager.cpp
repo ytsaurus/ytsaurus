@@ -1121,7 +1121,7 @@ void TObjectManager::HydraExecuteLeader(
     auto mutationId = GetMutationId(context);
     if (mutationId) {
         const auto& hydraFacade = Bootstrap_->GetHydraFacade();
-        auto responseKeeper = hydraFacade->GetResponseKeeper();
+        const auto& responseKeeper = hydraFacade->GetResponseKeeper();
         // NB: Context must already be replied by now.
         responseKeeper->EndRequest(mutationId, context->GetResponseMessage());
     }
