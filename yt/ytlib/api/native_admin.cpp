@@ -81,8 +81,6 @@ private:
     const INativeConnectionPtr Connection_;
     const TAdminOptions Options_;
 
-    const IChannelPtr LeaderChannel_;
-
     NLogging::TLogger Logger = ApiLogger;
 
 
@@ -126,25 +124,20 @@ private:
         return rsp->snapshot_id();
     }
 
-    void DoGCCollect(const TGCCollectOptions& /*options*/)
+    void DoGCCollect(const TGCCollectOptions& options)
     {
         std::vector<TFuture<void>> asyncResults;
 
-        auto collectAtCell = [&] (TCellTag cellTag) {
-            auto channel = Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
-            TObjectServiceProxy proxy(channel);
-            proxy.SetDefaultTimeout(Null); // infinity
-            auto req = proxy.GCCollect();
-            auto asyncResult = req->Invoke().As<void>();
-            asyncResults.push_back(asyncResult);
-        };
+        auto cellId = options.CellId ? options.CellId : Connection_->GetPrimaryMasterCellId();
+        const auto& cellDirectory = Connection_->GetCellDirectory();
+        auto channel = cellDirectory->GetChannelOrThrow(cellId);
 
-        collectAtCell(Connection_->GetPrimaryMasterCellTag());
-        for (auto cellTag : Connection_->GetSecondaryMasterCellTags()) {
-            collectAtCell(cellTag);
-        }
+        TObjectServiceProxy proxy(channel);
+        proxy.SetDefaultTimeout(Null); // infinity
 
-        WaitFor(Combine(asyncResults))
+        auto req = proxy.GCCollect();
+
+        WaitFor(req->Invoke())
             .ThrowOnError();
     }
 
