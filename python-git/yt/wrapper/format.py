@@ -505,7 +505,9 @@ class YsonFormat(Format):
 
     def _check_bindings(self):
         if yson.TYPE != "BINARY":
-            raise YtFormatError("Yson bindings required")
+            raise YtFormatError('Yson bindings required. Bindings are shipped as additional package and '
+                                'can be installed as Debian package "yandex-yt-python-yson" or as pip '
+                                'package "yandex-yt-yson-bindings"')
 
     def load_row(self, stream, raw=None):
         """Not supported"""
