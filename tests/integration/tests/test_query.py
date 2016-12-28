@@ -686,3 +686,28 @@ class TestQuery(YTEnvSetup):
         expected = data[0:1]
         actual = select_rows("* from [//tmp/t] where a = null")
         assert actual == expected
+
+    def test_bad_limits(self):
+        self.sync_create_cells(1)
+
+        create("table", "//tmp/t",
+            attributes={
+                "dynamic": True,
+                "optimize_for" : "scan",
+                "schema": [
+                    {"name": "a", "type": "int64", "sort_order": "ascending"},
+                    {"name": "b", "type": "int64", "sort_order": "ascending"},
+                    {"name" : "c", "type" : "int64", "sort_order" : "ascending"},
+                    {"name" : "x", "type" : "string"}]
+            })
+
+        pivots = [[i*5] for i in xrange(0,20)]
+        pivots.insert(0, [])
+        reshard_table("//tmp/t", pivots)
+
+        self.sync_mount_table("//tmp/t")
+
+        data = [{"a" : i, "b" : i, "c" : i, "x" : str(i)} for i in xrange(0,100)]
+        insert_rows("//tmp/t", data)
+
+        select_rows("x from [//tmp/t] where (a = 18 and b = 10 and c >= 70) or (a = 18 and b >= 10) or (a >= 18)")
