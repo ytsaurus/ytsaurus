@@ -67,6 +67,12 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
 
                 if started:
                     path.append = True
+                    # NOTE: If previous chunk was successfully written then
+                    # no need in schema attribute here, it is already set and
+                    # new data will be validated according to it.
+                    if "schema" in path.attributes:
+                        del path.attributes["schema"]
+
                 started = True
 
                 logger.debug("Processing {0} chunk (length: {1}, transaction: {2})"
