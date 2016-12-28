@@ -34,12 +34,14 @@ def main():
     if sys.version_info[:2] <= (2, 6):
         requires.append("argparse")
 
-    scripts, data_files = prepare_files([
+    binaries = [
         "yt/wrapper/bin/mapreduce-yt",
         "yt/wrapper/bin/yt",
         "yt/wrapper/bin/yt-fuse",
         "yt/wrapper/bin/yt-admin",
-        "yt/wrapper/bin/yt-job-tool"], add_major_version_suffix=True)
+        "yt/wrapper/bin/yt-job-tool"]
+
+    scripts, data_files = prepare_files(binaries, add_major_version_suffix=True)
 
     if "DEB" in os.environ:
         if sys.version_info[0] < 3:
@@ -50,7 +52,7 @@ def main():
         # See https://setuptools.readthedocs.io/en/latest/formats.html#script-wrappers
 
         # We cannot create link in the egg, so we must put yt binary.
-        scripts.append("yt/wrapper/bin/yt")
+        scripts.extend(binaries)
 
     version = get_version()
     with open("yt/wrapper/version.py", "w") as version_output:
