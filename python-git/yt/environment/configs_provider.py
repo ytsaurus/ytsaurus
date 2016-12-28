@@ -100,9 +100,8 @@ def get_default_provision():
 
 @add_metaclass(abc.ABCMeta)
 class ConfigsProvider(object):
-    def build_configs(self, ports_generator, master_dirs, master_tmpfs_dirs=None, master_logs_dir=None,
-                      scheduler_dirs=None, scheduler_logs_dir=None, node_dirs=None, node_logs_dir=None,
-                      proxy_dir=None, proxy_logs_dir=None, provision=None):
+    def build_configs(self, ports_generator, master_dirs, master_tmpfs_dirs=None, scheduler_dirs=None,
+                      node_dirs=None, proxy_dir=None, logs_dir=None, provision=None):
         provision = get_value(provision, get_default_provision())
 
         # XXX(asaitgalin): All services depend on master so it is useful to make
@@ -112,15 +111,15 @@ class ConfigsProvider(object):
             master_dirs,
             master_tmpfs_dirs,
             ports_generator,
-            master_logs_dir)
+            logs_dir)
 
         driver_configs = self._build_driver_configs(provision, deepcopy(connection_configs))
         scheduler_configs = self._build_scheduler_configs(provision, scheduler_dirs, deepcopy(connection_configs),
-                                                          ports_generator, scheduler_logs_dir)
+                                                          ports_generator, logs_dir)
         node_configs = self._build_node_configs(provision, node_dirs, deepcopy(connection_configs), ports_generator,
-                                                node_logs_dir)
+                                                logs_dir)
         proxy_config = self._build_proxy_config(provision, proxy_dir, deepcopy(connection_configs), ports_generator,
-                                                proxy_logs_dir)
+                                                logs_dir)
         ui_config = self._build_ui_config(provision, deepcopy(connection_configs),
                                           "{0}:{1}".format(provision["fqdn"], proxy_config["port"]))
 
@@ -216,8 +215,8 @@ def _generate_common_proxy_config(proxy_dir, proxy_port, enable_debug_logging, f
 
     logging_config = get_at(proxy_config, "proxy/logging")
     set_at(proxy_config, "proxy/logging",
-           init_logging(logging_config, proxy_logs_dir, "http_proxy", enable_debug_logging))
-    set_at(proxy_config, "logging/filename", os.path.join(proxy_logs_dir, "http_application.log"))
+           init_logging(logging_config, proxy_logs_dir, "http-proxy", enable_debug_logging))
+    set_at(proxy_config, "logging/filename", os.path.join(proxy_logs_dir, "http-application.log"))
 
     _set_bind_retry_options(proxy_config)
 
@@ -330,7 +329,7 @@ class ConfigsProvider_18(ConfigsProvider):
                            os.path.join(master_tmpfs_dirs[cell_index][master_index], "changelogs"))
 
                 config["logging"] = init_logging(config.get("logging"), master_logs_dir,
-                                                 "master-" + str(master_index), provision["enable_debug_logging"])
+                                                 "master-{0}-{1}".format(cell_index, master_index), provision["enable_debug_logging"])
 
                 update(config, {
                     "tablet_manager": {

@@ -169,11 +169,6 @@ class YTInstance(object):
         self.config_paths = defaultdict(list)
         self.log_paths = defaultdict(list)
 
-        self.master_logs_dir = os.path.join(self.logs_path, "master")
-        self.scheduler_logs_dir = os.path.join(self.logs_path, "scheduler")
-        self.node_logs_dir = os.path.join(self.logs_path, "node")
-        self.proxy_logs_dir = os.path.join(self.logs_path, "proxy")
-
         self._load_existing_environment = False
         if os.path.exists(self.path):
             if not preserve_working_dir:
@@ -272,11 +267,6 @@ class YTInstance(object):
         proxy_dir = os.path.join(self.runtime_data_path, "proxy")
         makedirp(proxy_dir)
 
-        makedirp(self.master_logs_dir)
-        makedirp(self.scheduler_logs_dir)
-        makedirp(self.node_logs_dir)
-        makedirp(self.proxy_logs_dir)
-
         return master_dirs, master_tmpfs_dirs, scheduler_dirs, node_dirs, proxy_dir
 
     def _prepare_environment(self, jobs_memory_limit, jobs_cpu_limit, jobs_user_slot_count,
@@ -322,13 +312,10 @@ class YTInstance(object):
             self._get_ports_generator(port_range_start),
             master_dirs,
             master_tmpfs_dirs,
-            self.master_logs_dir,
             scheduler_dirs,
-            self.scheduler_logs_dir,
             node_dirs,
-            self.node_logs_dir,
             proxy_dir,
-            self.proxy_logs_dir,
+            self.logs_path,
             provision)
 
         if modify_configs_func:
@@ -345,6 +332,7 @@ class YTInstance(object):
         if self.has_proxy:
             self._prepare_proxy(cluster_configuration["proxy"], cluster_configuration["ui"], proxy_dir)
         self._prepare_driver(cluster_configuration["driver"], cluster_configuration["master"])
+        # COMPAT. Will be removed eventually.
         self._prepare_console_driver()
 
     def start(self, use_proxy_from_package=True, start_secondary_master_cells=False, on_masters_started_func=None):
@@ -615,7 +603,7 @@ class YTInstance(object):
                 cell_tag = master_configs["secondary_cell_tags"][cell_index - 1]
 
             for master_index in xrange(self.master_count):
-                master_config_name = "master-" + str(cell_index) + "-" + str(master_index) + "-config.yson"
+                master_config_name = "master-{0}-{1}.yson".format(cell_index, master_index)
                 config_path = os.path.join(self.configs_path, master_config_name)
                 if self._load_existing_environment:
                     if not os.path.isfile(config_path):
@@ -687,7 +675,7 @@ class YTInstance(object):
 
     def _prepare_nodes(self, node_configs, node_dirs):
         for node_index in xrange(self.node_count):
-            node_config_name = "node-" + str(node_index) + "-config.yson"
+            node_config_name = "node-" + str(node_index) + ".yson"
             config_path = os.path.join(self.configs_path, node_config_name)
             if self._load_existing_environment:
                 if not os.path.isfile(config_path):
@@ -715,7 +703,7 @@ class YTInstance(object):
 
     def _prepare_schedulers(self, scheduler_configs, scheduler_dirs):
         for scheduler_index in xrange(self.scheduler_count):
-            scheduler_config_name = "scheduler-" + str(scheduler_index) + "-config.yson"
+            scheduler_config_name = "scheduler-" + str(scheduler_index) + ".yson"
             config_path = os.path.join(self.configs_path, scheduler_config_name)
             if self._load_existing_environment:
                 if not os.path.isfile(config_path):
@@ -810,7 +798,8 @@ class YTInstance(object):
                 tag = master_configs["secondary_cell_tags"][cell_index - 1]
                 name = "driver_secondary_" + str(cell_index - 1)
 
-            config_path = os.path.join(self.configs_path, name + ".yson")
+            config_path = os.path.join(self.configs_path, "driver-{0}.yson".format(cell_index))
+
             if self._load_existing_environment:
                 if not os.path.isfile(config_path):
                     raise YtError("Driver config {0} not found".format(config_path))
@@ -818,6 +807,10 @@ class YTInstance(object):
             else:
                 config = driver_configs[tag]
                 write_config(config, config_path)
+
+            # COMPAT
+            if cell_index == 0:
+                os.symlink(config_path, os.path.join(self.path, "driver.yson"))
 
             self.configs[name] = config
             self.config_paths[name] = config_path
@@ -838,7 +831,7 @@ class YTInstance(object):
         self.log_paths["console_driver"].append(config["logging"]["writers"]["info"]["file_name"])
 
     def _prepare_proxy(self, proxy_config, ui_config, proxy_dir):
-        config_path = os.path.join(self.configs_path, "proxy_config.json")
+        config_path = os.path.join(self.configs_path, "proxy.json")
         if self._load_existing_environment:
             if not os.path.isfile(config_path):
                 raise YtError("Proxy config {0} not found".format(config_path))
