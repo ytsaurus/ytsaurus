@@ -810,7 +810,10 @@ class YTInstance(object):
 
             # COMPAT
             if cell_index == 0:
-                os.symlink(config_path, os.path.join(self.path, "driver.yson"))
+                link_path = os.path.join(self.path, "driver.yson")
+                if os.path.exists(link_path):
+                    os.remove(link_path)
+                os.symlink(config_path, link_path)
 
             self.configs[name] = config
             self.config_paths[name] = config_path

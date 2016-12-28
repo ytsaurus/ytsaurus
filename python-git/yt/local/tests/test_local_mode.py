@@ -11,10 +11,10 @@ import yt.subprocess_wrapper as subprocess
 from yt.packages.six.moves import map as imap, xrange
 from yt.packages.six import iteritems
 
-import yt.wrapper as yt
-
 import yt.yson as yson
 import yt.json as json
+
+import yt.wrapper as yt
 
 import os
 import sys
@@ -126,13 +126,28 @@ class TestLocalMode(object):
         if os.path.exists(os.path.join(path, "test_logging")):
             shutil.rmtree(os.path.join(path, "test_logging"), ignore_errors=True)
 
-        with local_yt(id="test_logging", master_count=3, node_count=2, scheduler_count=4,
-                      enable_debug_logging=True, start_proxy=True):
+        master_count = 3
+        node_count = 2
+        scheduler_count = 4
+
+        with local_yt(id="test_logging", master_count=master_count, node_count=node_count,
+                      scheduler_count=scheduler_count, enable_debug_logging=True, start_proxy=True):
             pass
 
-        assert os.path.exists(log_path)
-        for dir in ["master", "node", "scheduler", "proxy"]:
-            assert os.path.exists(os.path.join(log_path, dir))
+        for index in xrange(master_count):
+            name = "master-0-" + str(index) + ".log"
+            assert os.path.exists(os.path.join(log_path, name))
+
+        for index in xrange(node_count):
+            name = "node-" + str(index) + ".log"
+            assert os.path.exists(os.path.join(log_path, name))
+
+        for index in xrange(scheduler_count):
+            name = "scheduler-" + str(index) + ".log"
+            assert os.path.exists(os.path.join(log_path, name))
+
+        assert os.path.exists(os.path.join(log_path, "http-application.log"))
+        assert os.path.exists(os.path.join(log_path, "http-proxy.log"))
 
         assert os.path.exists(os.path.join(path, "test_logging", "stderrs"))
 
@@ -142,30 +157,30 @@ class TestLocalMode(object):
         if os.path.exists(os.path.join(path, "test_configs")):
             shutil.rmtree(os.path.join(path, "test_configs"), ignore_errors=True)
 
-        MASTER_COUNT = 3
-        NODE_COUNT = 2
-        SCHEDULER_COUNT = 4
-        with local_yt(id="test_configs", master_count=MASTER_COUNT,
-                      node_count=NODE_COUNT, scheduler_count=SCHEDULER_COUNT,
+        master_count = 3
+        node_count = 2
+        scheduler_count = 4
+        with local_yt(id="test_configs", master_count=master_count,
+                      node_count=node_count, scheduler_count=scheduler_count,
                       enable_debug_logging=True, start_proxy=True):
             pass
 
         assert os.path.exists(config_path)
-        assert os.path.exists(os.path.join(config_path, "driver.yson"))
+        assert os.path.exists(os.path.join(config_path, "driver-0.yson"))
 
-        for index in range(MASTER_COUNT):
-            path = "master-0-" + str(index) + "-config.yson"
-            assert os.path.exists(os.path.join(config_path, path))
+        for index in xrange(master_count):
+            name = "master-0-" + str(index) + ".yson"
+            assert os.path.exists(os.path.join(config_path, name))
 
-        for index in range(NODE_COUNT):
-            path = "node-" + str(index) + "-config.yson"
-            assert os.path.exists(os.path.join(config_path, path))
+        for index in xrange(node_count):
+            name = "node-" + str(index) + ".yson"
+            assert os.path.exists(os.path.join(config_path, name))
 
-        for index in range(SCHEDULER_COUNT):
-            path = "scheduler-" + str(index) + "-config.yson"
-            assert os.path.exists(os.path.join(config_path, path))
+        for index in xrange(scheduler_count):
+            name = "scheduler-" + str(index) + ".yson"
+            assert os.path.exists(os.path.join(config_path, name))
 
-        assert os.path.exists(os.path.join(config_path, "proxy_config.json"))
+        assert os.path.exists(os.path.join(config_path, "proxy.json"))
 
     def test_commands_sanity(self):
         with local_yt() as environment:
