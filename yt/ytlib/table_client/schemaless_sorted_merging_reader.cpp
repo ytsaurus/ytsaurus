@@ -526,6 +526,8 @@ bool TSchemalessJoiningReader::Read(std::vector<TUnversionedRow>* rows)
             rows->push_back(row);
             dataWeight += GetDataWeight(rows->back());
             ++RowIndex_;
+        } else {
+            --RowCount_;
         }
         ++session->CurrentRowIndex;
         ++TableRowIndex_;
