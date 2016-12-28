@@ -390,7 +390,7 @@ class YTEnvSetup(object):
         def check_jobs_are_missing():
             for node in yt_commands.ls("//sys/nodes"):
                 jobs = yt_commands.get("//sys/nodes/{0}/orchid/job_controller/active_job_count".format(node))
-                if any([value > 0 for value in jobs.values()]):
+                if jobs.get("scheduler", 0) > 0:
                     return False
             return True
 
