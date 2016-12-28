@@ -181,7 +181,7 @@ TKeyTriePtr UniteKeyTrie(const std::vector<TKeyTriePtr>& tries)
     while (it != end) {
         unique.clear();
         auto same = it;
-        for (; same != end && *same == *it; ++same) {
+        for (; same != end && same->first == it->first; ++same) {
             unique.push_back(same->second);
         }
         result->Next.emplace_back(it->first, UniteKeyTrie(unique));
