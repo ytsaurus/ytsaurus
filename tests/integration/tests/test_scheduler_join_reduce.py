@@ -791,20 +791,14 @@ echo {v = 2} >&7
     def test_join_reduce_interrupt_job(self):
         create("table", "//tmp/input1")
         write_table(
-            "<append=true>//tmp/input1",
-            [{"key": "(%08d)" % (i + 100), "value": "(t_1)"} for i in range(50000)],
+            "//tmp/input1",
+            [{"key": "(%08d)" % (i * 2 + 1), "value": "(t_1)", "data": "a" * (2 * 1024 * 1024)} for i in range(3)],
             sorted_by = ["key", "value"])
 
         create("table", "//tmp/input2")
         write_table(
-            "<append=true>//tmp/input2",
-            [{"key": "(%08d)" % (i + 200), "value": "(t_2)"} for i in range(50000)],
-            sorted_by = ["key", "value"])
-
-        create("table", "//tmp/input3")
-        write_table(
-            "<append=true>//tmp/input3",
-            [{"key": "(%08d)" % (i / 10), "value": "(t_3)"} for i in range(50000)],
+            "//tmp/input2",
+            [{"key": "(%08d)" % (i / 2), "value": "(t_2)"} for i in range(14)],
             sorted_by = ["key"])
 
         create("table", "//tmp/output")
@@ -813,10 +807,11 @@ echo {v = 2} >&7
             dont_track=True,
             waiting_jobs=True,
             label="interrupt_job",
-            in_=["<foreign=true>//tmp/input3", '<foreign=true>//tmp/input1["(00040000)":"(00050000)"]', '//tmp/input2'],
+            in_=["<foreign=true>//tmp/input2", "//tmp/input1"],
             out="<sorted_by=[key]>//tmp/output",
             precommand='read; echo "${REPLY/(???)/(job)}"; echo "$REPLY"',
-            command="cat",
+            command="true",
+            postcommand="cat",
             join_by=["key"],
             spec={
                 "reducer": {
@@ -824,7 +819,7 @@ echo {v = 2} >&7
                 },
                 "max_failed_job_count": 1,
                 "job_io" : {
-                    "buffer_row_count" : 10,
+                    "buffer_row_count" : 1,
                 },
             })
 
@@ -832,9 +827,10 @@ echo {v = 2} >&7
         op.resume_jobs()
         op.track()
 
-        row_count = get("//tmp/output/@row_count")
-        assert row_count >= 108002 and row_count <= 108012
         result = read_table("//tmp/output", verbose=False)
+        for row in result:
+            print "key:", row["key"], "value:", row["value"]
+        assert len(result) == 11
         row_index = 0
         job_indexes = []
         row_table_count = {}
@@ -844,9 +840,7 @@ echo {v = 2} >&7
             row_table_count[row["value"]] = row_table_count.get(row["value"], 0) + 1
             row_index += 1
         assert row_table_count["(job)"] == 2
-        assert row_table_count["(t_1)"] == 10000
-        assert row_table_count["(t_2)"] == 50000
-        assert row_table_count["(t_3)"] >= 48000
-        assert job_indexes[1] > 0 and job_indexes[1] < row_count-1
-        input_row_count = get("//sys/operations/{0}/@progress/job_statistics/data/input/row_count/$/completed/join_reduce/sum".format(op.id))
-        assert input_row_count == row_count - 2
+        assert row_table_count["(t_1)"] == 3
+        assert row_table_count["(t_2)"] == 6
+        assert job_indexes[1] == 4
+        assert get("//sys/operations/{0}/@progress/job_statistics/data/input/row_count/$/completed/join_reduce/sum".format(op.id)) == len(result) - 2
