@@ -1,14 +1,63 @@
 from .driver import make_request
 from .table_helpers import _prepare_format, _to_chunk_stream
 from .common import set_param, bool_to_string
-from .config import get_config
+from .config import get_config, get_option
 from .transaction_commands import _make_transactional_request
 from .ypath import TablePath
+from .http_helpers import get_retriable_errors
+from .transaction import null_transaction_id
+from .retries import Retrier
 
+try:
+    from cStringIO import StringIO as BytesIO
+except ImportError:  # Python 3
+    from io import BytesIO
+
+import yt.logger as logger
+
+from copy import deepcopy
+
+class DynamicTableRequestRetrier(Retrier):
+    def __init__(self, retry_config, command, params, data=None, client=None):
+        request_timeout = get_config(client)["proxy"]["heavy_request_timeout"]
+        chaos_monkey_enable = get_option("_ENABLE_HEAVY_REQUEST_CHAOS_MONKEY", client)
+        super(DynamicTableRequestRetrier, self).__init__(
+            retry_config=retry_config,
+            timeout=request_timeout,
+            exceptions=get_retriable_errors(),
+            chaos_monkey_enable=chaos_monkey_enable)
+
+        self.request_timeout = request_timeout
+        self.params = params
+        self.command = command
+        self.client = client
+        self.data = data
+
+    def action(self):
+        kwargs = {}
+        if self.data is not None:
+            kwargs["data"] = self.data
+
+        response = _make_transactional_request(
+            self.command,
+            self.params,
+            return_content=True,
+            use_heavy_proxy=True,
+            decode_content=False,
+            timeout=self.request_timeout,
+            client=self.client,
+            **kwargs)
+
+        if response is not None:
+            return BytesIO(response)
+
+    def except_action(self, error, attempt):
+        logger.warning('Request "%s" has failed with error %s, message: %s',
+                        self.command, str(type(error)), str(error))
 
 def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=None, range_expansion_limit=None,
-                fail_on_incomplete_result=None, verbose_logging=None, enable_code_cache=None, max_subqueries=None, workload_descriptor=None,
-                format=None, raw=None, client=None):
+                fail_on_incomplete_result=None, verbose_logging=None, enable_code_cache=None, max_subqueries=None,
+                workload_descriptor=None, format=None, raw=None, client=None):
     """Executes a SQL-like query on dynamic table.
 
     .. seealso:: `supported features <https://wiki.yandex-team.ru/yt/userdoc/queries>`_
@@ -36,18 +85,16 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
     set_param(params, "max_subqueries", max_subqueries)
     set_param(params, "workload_descriptor", workload_descriptor)
 
-    response = _make_transactional_request(
+    response = DynamicTableRequestRetrier(
+        get_config(client)["read_retries"],
         "select_rows",
         params,
-        return_content=False,
-        use_heavy_proxy=True,
-        client=client)
+        client=client).run()
 
     if raw:
         return response
     else:
         return format.load_rows(response)
-
 
 def insert_rows(table, input_stream, update=None, aggregate=None, atomicity=None, durability=None,
                 format=None, raw=None, client=None):
@@ -76,15 +123,19 @@ def insert_rows(table, input_stream, update=None, aggregate=None, atomicity=None
     set_param(params, "atomicity", atomicity)
     set_param(params, "durability", durability)
 
-    input_stream = _to_chunk_stream(input_stream, format, raw, split_rows=False, chunk_size=get_config(client)["write_retries"]["chunk_size"])
+    input_data = b"".join(_to_chunk_stream(input_stream, format, raw, split_rows=False,
+                                           chunk_size=get_config(client)["write_retries"]["chunk_size"]))
 
-    _make_transactional_request(
+    retry_config = deepcopy(get_config(client)["write_retries"])
+    retry_config["enable"] = retry_config["enable"] and \
+        not aggregate and get_option("TRANSACTION", client) == null_transaction_id
+
+    DynamicTableRequestRetrier(
+        retry_config,
         "insert_rows",
         params,
-        data=input_stream,
-        use_heavy_proxy=True,
-        client=client)
-
+        data=input_data,
+        client=client).run()
 
 def delete_rows(table, input_stream, atomicity=None, durability=None, format=None, raw=None, client=None):
     """Deletes rows with keys from input_stream from dynamic table.
@@ -110,15 +161,19 @@ def delete_rows(table, input_stream, atomicity=None, durability=None, format=Non
     set_param(params, "atomicity", atomicity)
     set_param(params, "durability", durability)
 
-    input_stream = _to_chunk_stream(input_stream, format, raw, split_rows=False, chunk_size=get_config(client)["write_retries"]["chunk_size"])
+    input_data = b"".join(_to_chunk_stream(input_stream, format, raw, split_rows=False,
+                                           chunk_size=get_config(client)["write_retries"]["chunk_size"]))
 
-    _make_transactional_request(
+    retry_config = deepcopy(get_config(client)["write_retries"])
+    retry_config["enable"] = retry_config["enable"] and \
+        get_option("TRANSACTION", client) == null_transaction_id
+
+    DynamicTableRequestRetrier(
+        retry_config,
         "delete_rows",
         params,
-        data=input_stream,
-        use_heavy_proxy=True,
-        client=client)
-
+        data=input_data,
+        client=client).run()
 
 def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_missing_rows=None,
                 format=None, raw=None, client=None):
@@ -144,15 +199,15 @@ def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_mis
     set_param(params, "column_names", column_names)
     set_param(params, "keep_missing_rows", keep_missing_rows, transform=bool_to_string)
 
-    input_stream = _to_chunk_stream(input_stream, format, raw, split_rows=False, chunk_size=get_config(client)["write_retries"]["chunk_size"])
+    input_data = b"".join(_to_chunk_stream(input_stream, format, raw, split_rows=False,
+                                           chunk_size=get_config(client)["write_retries"]["chunk_size"]))
 
-    response = _make_transactional_request(
+    response = DynamicTableRequestRetrier(
+        get_config(client)["read_retries"],
         "lookup_rows",
         params,
-        data=input_stream,
-        return_content=False,
-        use_heavy_proxy=True,
-        client=client)
+        data=input_data,
+        client=client).run()
 
     if raw:
         return response

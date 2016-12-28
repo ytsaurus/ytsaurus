@@ -1,4 +1,3 @@
-"""Some common useful misc"""
 from yt.common import require, flatten, update, which, YtError, update_from_env, \
                       unlist, get_value, filter_dict, date_string_to_timestamp, datetime_to_string
 import yt.yson as yson
@@ -172,7 +171,6 @@ def get_started_by():
         started_by["platform"] = platform
 
     return started_by
-
 
 def is_inside_job():
     """Returns `True` if the code is currently being run in the context of a YT job."""

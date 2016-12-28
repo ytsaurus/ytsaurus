@@ -1,7 +1,8 @@
 from __future__ import print_function
 
 from .helpers import TEST_DIR, TESTS_SANDBOX, TESTS_LOCATION, \
-                     get_environment_for_binary_test, check
+                     get_environment_for_binary_test, check, set_config_option, \
+                     set_config_options
 
 from yt.wrapper.exceptions_catcher import KeyboardInterruptsCatcher
 from yt.wrapper.response_stream import ResponseStream, EmptyResponseStream
@@ -354,6 +355,45 @@ class TestRetries(object):
             yt.config["proxy"]["request_retry_timeout"] = old_request_retry_timeout
             yt.config["write_retries"]["enable"] = old_enable_write_retries
             yt.config["write_retries"]["chunk_size"] = old_chunk_size
+
+    def test_dynamic_tables_requests_retries(self):
+        table = TEST_DIR + "/dyn_table"
+        yt.create("table", table, attributes={
+            "schema": [
+                {"name": "x", "type": "string", "sort_order": "ascending"},
+                {"name": "y", "type": "string"}
+             ],
+             "dynamic": True})
+
+        tablet_id = yt.create("tablet_cell", attributes={"size": 1})
+        while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != "good":
+            time.sleep(0.1)
+
+        yt.mount_table(table)
+        while yt.get("{0}/@tablets/0/state".format(table)) != "mounted":
+            time.sleep(0.1)
+
+        yt.config._ENABLE_HEAVY_REQUEST_CHAOS_MONKEY = True
+        override_options = {
+            "write_retries/enable": True,
+            "read_retries/enable": True,
+            "proxy/heavy_request_timeout": 1000
+        }
+
+        try:
+            with set_config_options(override_options):
+                yt.insert_rows(table, [{"x": "a", "y": "b"}], raw=False)
+                yt.insert_rows(table, [{"x": "c", "y": "d"}], raw=False)
+                yt.delete_rows(table, [{"x": "a"}], raw=False)
+                yt.lookup_rows(table, [{"x": "c"}], raw=False)
+                yt.select_rows("* from [{0}]".format(table), raw=False)
+                yt.insert_rows(table, [{"x": "a", "y": "b"}], raw=False)
+                yt.insert_rows(table, [{"x": "c", "y": "d"}], raw=False)
+                yt.delete_rows(table, [{"x": "a"}], raw=False)
+                yt.lookup_rows(table, [{"x": "c"}], raw=False)
+                yt.select_rows("* from [{0}]".format(table), raw=False)
+        finally:
+            yt.config._ENABLE_HEAVY_REQUEST_CHAOS_MONKEY = False
 
 def test_wrapped_streams():
     import yt.wrapper.py_runner_helpers as runner_helpers

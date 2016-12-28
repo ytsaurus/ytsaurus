@@ -1,4 +1,3 @@
-"""YT requests misc"""
 from . import http_driver
 from . import native_driver
 from .common import bool_to_string, YtError, update

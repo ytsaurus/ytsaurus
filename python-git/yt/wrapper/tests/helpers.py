@@ -37,6 +37,19 @@ def set_config_option(name, value, final_action=None):
             final_action()
         yt.config._set(name, old_value)
 
+@contextmanager
+def set_config_options(options_dict):
+    old_values = {}
+    for key in options_dict:
+        old_values[key] = yt.config._get(key)
+    try:
+        for key, value in iteritems(options_dict):
+            yt.config._set(key, value)
+        yield
+    finally:
+        for key, value in iteritems(old_values):
+            yt.config._set(key, value)
+
 # Check equality of records in dsv format
 def check(rowsA, rowsB, ordered=True):
     def prepare(rows):
