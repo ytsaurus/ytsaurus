@@ -42,6 +42,10 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyBase):
             modify_configs_func=cls.apply_config_patches)
         cls.remote_env.start(start_secondary_master_cells=cls.START_SECONDARY_MASTER_CELLS)
 
+    @classmethod
+    def teardown_class(cls):
+        cls.remote_env.stop()
+
     def setup(self):
         set("//sys/clusters/remote",
             {
@@ -341,6 +345,10 @@ class TestSchedulerRemoteCopyNetworks(TestSchedulerRemoteCopyBase):
             port_locks_path=cls.Env.port_locks_path,
             modify_configs_func=cls.apply_config_patches)
         cls.remote_env.start(start_secondary_master_cells=cls.START_SECONDARY_MASTER_CELLS)
+
+    @classmethod
+    def teardown_class(cls):
+        cls.remote_env.stop()
 
     def setup(self):
         set("//sys/clusters/remote",
