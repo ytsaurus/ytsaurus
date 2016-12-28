@@ -42,6 +42,11 @@ public:
 
         YCHECK(codegenArgs.size() == 3);
         auto condition = codegenArgs[0](builder, row);
+
+        if (condition.GetStaticType() == EValueType::Null) {
+            return TCGValue::CreateNull(builder, type);
+        }
+
         YCHECK(condition.GetStaticType() == EValueType::Boolean);
 
         return CodegenIf<TCGExprContext, TCGValue>(
@@ -57,10 +62,10 @@ public:
                         builder->CreateZExtOrBitCast(condition.GetData(), builder->getInt64Ty()),
                         builder->getInt64(0)),
                     [&] (TCGExprContext& builder) {
-                        return codegenArgs[1](builder, row);
+                        return codegenArgs[1](builder, row).Cast(builder, type);
                     },
                     [&] (TCGExprContext& builder) {
-                        return codegenArgs[2](builder, row);
+                        return codegenArgs[2](builder, row).Cast(builder, type);
                     });
             },
             nameTwine);

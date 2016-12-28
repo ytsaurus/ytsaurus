@@ -1025,6 +1025,22 @@ TEST_F(TExpressionTest, FunctionNullArgument)
     callback(variables.GetOpaqueData(), &result, row, buffer.Get());
 
     EXPECT_EQ(result, MakeNull());
+
+    expr = PrepareExpression("if(null, 1, 2)", schema);
+    EXPECT_EQ(expr->Type, EValueType::Int64);
+
+    callback = Profile(expr, schema, nullptr, &variables)();
+    callback(variables.GetOpaqueData(), &result, row, buffer.Get());
+
+    EXPECT_EQ(result, MakeNull());
+
+    expr = PrepareExpression("if(false, 1, null)", schema);
+    EXPECT_EQ(expr->Type, EValueType::Int64);
+
+    callback = Profile(expr, schema, nullptr, &variables)();
+    callback(variables.GetOpaqueData(), &result, row, buffer.Get());
+
+    EXPECT_EQ(result, MakeNull());
 }
 
 TEST_P(TExpressionTest, Evaluate)

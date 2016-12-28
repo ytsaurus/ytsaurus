@@ -425,10 +425,14 @@ public:
 
     TCGValue Cast(TCGIRBuilderPtr& builder, EValueType dest, bool bitcast = false)
     {
-        if (dest == StaticType_ || StaticType_ == EValueType::Null) {
+        if (dest == StaticType_) {
             auto result = *this;
             result.StaticType_ = dest;
             return result;
+        }
+
+        if (StaticType_ == EValueType::Null) {
+            return TCGValue::CreateNull(builder, dest);
         }
 
         auto value = GetData();
