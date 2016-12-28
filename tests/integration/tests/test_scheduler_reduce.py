@@ -1132,31 +1132,23 @@ echo {v = 2} >&7
     @pytest.mark.parametrize("with_foreign", [False, True])
     def test_reduce_interrupt_job(self, with_foreign):
         if with_foreign:
-            key_columns={"reduce_by": ["key", "value"], "join_by": ["key"]}
-            in_=["<foreign=true>//tmp/input3", '//tmp/input1["(00040000)":"(00050000)"]', '//tmp/input2'],
-            sorted_by=["key"]
+            in_=["<foreign=true>//tmp/input2", "//tmp/input1"],
+            kwargs={"join_by": ["key"]}
         else:
-            key_columns={"sort_by": ["key", "value"], "reduce_by": ["key"]}
-            in_=["//tmp/input3", '//tmp/input1["(00040000)":"(00050000)"]', '//tmp/input2'],
-            sorted_by=["key", "value"]
+            in_=["//tmp/input1"],
+            kwargs={}
 
         create("table", "//tmp/input1")
         write_table(
             "//tmp/input1",
-            [{"key": "(%08d)" % (i + 100), "value": "(t_1)"} for i in range(50000)],
+            [{"key": "(%08d)" % (i * 2 + 1), "value": "(t_1)", "data": "a" * (2 * 1024 * 1024)} for i in range(3)],
             sorted_by = ["key", "value"])
 
         create("table", "//tmp/input2")
         write_table(
             "//tmp/input2",
-            [{"key": "(%08d)" % (i + 200), "value": "(t_2)"} for i in range(50000)],
-            sorted_by = ["key", "value"])
-
-        create("table", "//tmp/input3")
-        write_table(
-            "//tmp/input3",
-            [{"key": "(%08d)" % (i / 10), "value": "(t_3)"} for i in range(50000)],
-            sorted_by = sorted_by)
+            [{"key": "(%08d)" % (i / 2), "value": "(t_2)"} for i in range(30)],
+            sorted_by = ["key"])
 
         create("table", "//tmp/output")
 
@@ -1167,28 +1159,32 @@ echo {v = 2} >&7
             in_=in_,
             out="<sorted_by=[key]>//tmp/output",
             precommand='read; echo "${REPLY/(???)/(job)}"; echo "$REPLY"',
-            command='cat',
+            command="true",
+            postcommand="cat",
+            reduce_by=["key", "value"],
             spec={
                 "reducer": {
-                    "format": "dsv"
+                    "format": "dsv",
                 },
-                "max_failed_job_count": 1,
+                "max_failed_job_count" : 1,
                 "job_io" : {
-                    "buffer_row_count" : 10,
+                    "buffer_row_count" : 1,
                 },
+                "data_size_per_job" : 256 * 1024 * 1024,
             },
-            **key_columns)
+            **kwargs)
 
-        interrupt_job(op.jobs[0])
+        interrupt_job(op.jobs[0], interrupt_timeout=2000000)
         op.resume_jobs()
         op.track()
 
-        row_count = get("//tmp/output/@row_count")
-        if with_foreign:
-            assert row_count >= 108002 and row_count <= 108012
-        else:
-            assert row_count == 110002
         result = read_table("//tmp/output", verbose=False)
+        for row in result:
+            print "key:", row["key"], "value:", row["value"]
+        if with_foreign:
+            assert len(result) == 11
+        else:
+            assert len(result) == 5
         row_index = 0
         job_indexes = []
         row_table_count = {}
@@ -1197,17 +1193,14 @@ echo {v = 2} >&7
                 job_indexes.append(row_index)
             row_table_count[row["value"]] = row_table_count.get(row["value"], 0) + 1
             row_index += 1
-        #print "row_table_count:", row_table_count
         assert row_table_count["(job)"] == 2
-        assert row_table_count["(t_1)"] == 10000
-        assert row_table_count["(t_2)"] == 50000
+        assert row_table_count["(t_1)"] == 3
         if with_foreign:
-            assert row_table_count["(t_3)"] >= 48000
+            assert row_table_count["(t_2)"] == 6
+            assert job_indexes[1] == 4
         else:
-            assert row_table_count["(t_3)"] == 50000
-        assert job_indexes[1] > 0 and job_indexes[1] < row_count-1
-        input_row_count = get("//sys/operations/{0}/@progress/job_statistics/data/input/row_count/$/completed/sorted_reduce/sum".format(op.id))
-        assert input_row_count == row_count - 2
+            assert job_indexes[1] == 3
+        assert get("//sys/operations/{0}/@progress/job_statistics/data/input/row_count/$/completed/sorted_reduce/sum".format(op.id)) == len(result) - 2
 
 ##################################################################
 

@@ -687,8 +687,13 @@ def start_op(op_type, **kwargs):
             "({1}\n"
             "touch {0}/started_$YT_JOB_ID 2>/dev/null\n"
             "{2}\n"
-            "while [ -f {0}/started_$YT_JOB_ID ]; do sleep 0.1; done\n)"
-            .format(operation._tmpdir, kwargs.get("precommand", ""), kwargs["command"]))
+            "while [ -f {0}/started_$YT_JOB_ID ]; do sleep 0.1; done\n"
+            "{3}\n)"
+            .format(
+                operation._tmpdir,
+                kwargs.get("precommand", ""),
+                kwargs["command"],
+                kwargs.get("postcommand", "")))
 
     change(kwargs, "table_path", ["spec", "table_path"])
     change(kwargs, "in_", ["spec", input_name])

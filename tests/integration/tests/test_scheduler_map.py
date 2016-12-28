@@ -2212,14 +2212,7 @@ print row + table_index
         create("table", "//tmp/in_1")
         write_table(
             "//tmp/in_1",
-            [{"key": "%08d" % i, "value": "(xyz)"} for i in range(50000)],
-            table_writer = {
-                "block_size": 1024,
-                "desired_chunk_size": 1024})
-        create("table", "//tmp/in_2")
-        write_table(
-            "//tmp/in_2",
-            [{"key": "%08d" % i, "value": "(xyz)"} for i in range(50000,100000)],
+            [{"key": "%08d" % i, "value": "(t_1)", "data": "a" * (2 * 1024 * 1024)} for i in range(3)],
             table_writer = {
                 "block_size": 1024,
                 "desired_chunk_size": 1024})
@@ -2236,17 +2229,18 @@ print row + table_index
             dont_track=True,
             waiting_jobs=True,
             label="interrupt_job",
-            in_=["//tmp/in_1", "//tmp/in_2"],
+            in_="//tmp/in_1",
             out=output,
             precommand='read; echo "${REPLY/(???)/(job)}"; echo "$REPLY"',
-            command="cat",
+            command="true",
+            postcommand="cat",
             spec={
                 "mapper": {
                     "format": "dsv"
                 },
                 "max_failed_job_count": 1,
                 "job_io" : {
-                    "buffer_row_count" : 10,
+                    "buffer_row_count" : 1,
                 },
             })
 
@@ -2254,9 +2248,10 @@ print row + table_index
         op.resume_jobs()
         op.track()
 
-        row_count = get("//tmp/output/@row_count")
-        assert row_count == 100002
         result = read_table("//tmp/output", verbose=False)
+        for row in result:
+            print "key:", row["key"], "value:", row["value"]
+        assert len(result) == 5
         if not ordered:
             result.sort()
         row_index = 0
@@ -2268,8 +2263,7 @@ print row + table_index
             else:
                 row_index += 1
         assert job_indexes[1] > 0 and job_indexes[1] < 99999
-        input_row_count = get("//sys/operations/{0}/@progress/job_statistics/data/input/row_count/$/completed/{1}/sum".format(op.id, job_type))
-        assert input_row_count == row_count - 2
+        assert get("//sys/operations/{0}/@progress/job_statistics/data/input/row_count/$/completed/{1}/sum".format(op.id, job_type)) == len(result) - 2
 
 
 class TestSchedulerControllerThrottling(YTEnvSetup):
