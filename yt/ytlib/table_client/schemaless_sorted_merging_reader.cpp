@@ -314,6 +314,9 @@ bool TSchemalessSortedMergingReader::Read(std::vector<TUnversionedRow>* rows)
     while (rows->size() < rows->capacity() && dataWeight < MaxDataSizePerRead) {
         const auto& row = session->Rows[session->CurrentRowIndex];
         if (interrupting && CompareRows(row, LastKey_, KeyColumnCount_) != 0) {
+            LOG_DEBUG("Sorted merging reader interrupted (LastKey: %v, NextKey: %v)",
+                LastKey_,
+                GetKeyPrefix(row, KeyColumnCount_));
             ReadyEvent_ = VoidFuture;
             SessionHeap_.clear();
             return !rows->empty();
