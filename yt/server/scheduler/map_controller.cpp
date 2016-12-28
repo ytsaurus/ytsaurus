@@ -253,7 +253,6 @@ protected:
                     RegisterOutput(chunk, currentPartitionIndex, 0);
                     ++currentPartitionIndex;
                 } else {
-
                     mergedChunks.push_back(chunk);
                     totalDataSize += chunk->GetUncompressedDataSize();
                     totalRowCount += chunk->GetRowCount();
