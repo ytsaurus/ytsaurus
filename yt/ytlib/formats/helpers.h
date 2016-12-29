@@ -5,6 +5,8 @@
 #include <yt/core/yson/consumer.h>
 #include <yt/core/yson/parser.h>
 
+#include <yt/ytlib/table_client/public.h>
+
 namespace NYT {
 namespace NFormats {
 
@@ -28,6 +30,10 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 bool IsSpecialJsonKey(const TStringBuf& str);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void WriteUnversionedValue(const NTableClient::TUnversionedValue& value, TOutputStream* output, const TEscapeTable& escapeTable);
 
 ////////////////////////////////////////////////////////////////////////////////
 

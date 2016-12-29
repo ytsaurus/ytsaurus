@@ -8,31 +8,31 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// XXX(babenko): this singleton never dies
 template <class T>
 TIntrusivePtr<T> RefCountedSingleton()
 {
-    static std::atomic<T*> holder;
-
-    auto* relaxedInstance = holder.load(std::memory_order_relaxed);
+    static std::atomic<T*> instance;
+    auto* relaxedInstance = instance.load(std::memory_order_relaxed);
 
     if (Y_LIKELY(relaxedInstance)) {
         return relaxedInstance;
     }
 
     static TSpinLock spinLock;
-    TGuard<TSpinLock> guard(spinLock);
+    static TIntrusivePtr<T> holder;
 
-    auto* orderedInstance = holder.load();
+    auto guard = Guard(spinLock);
+
+    auto* orderedInstance = instance.load();
     if (orderedInstance) {
         return orderedInstance;
     }
 
-    auto* newInstance = new T();
+    YCHECK(!holder);
+    holder = New<T>();
+    instance.store(holder.Get());
 
-    holder.store(newInstance);
-
-    return newInstance;
+    return holder;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

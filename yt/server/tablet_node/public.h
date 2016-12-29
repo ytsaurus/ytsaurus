@@ -58,6 +58,8 @@ using NTransactionClient::NullTransactionId;
 
 using NTransactionClient::TTimestamp;
 using NTransactionClient::NullTimestamp;
+using NTransactionClient::MinTimestamp;
+using NTransactionClient::MaxTimestamp;
 using NTransactionClient::SyncLastCommittedTimestamp;
 using NTransactionClient::AsyncLastCommittedTimestamp;
 using NTransactionClient::AllCommittedTimestamp;

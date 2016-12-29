@@ -391,6 +391,21 @@ public:
         }
     }
 
+    TTimestamp GetMinCommitTimestamp() const
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        if (SerializingTransactionHeap_.empty()) {
+            const auto& timestampProvider = Bootstrap_
+                ->GetMasterClient()
+                ->GetConnection()
+                ->GetTimestampProvider();
+            return timestampProvider->GetLatestTimestamp();
+        } else {
+            return (*SerializingTransactionHeap_.begin())->GetCommitTimestamp();
+        }
+    }
+
 private:
     const TTransactionManagerConfigPtr Config_;
     const TTransactionLeaseTrackerPtr LeaseTracker_;
@@ -891,6 +906,11 @@ void TTransactionManager::PingTransaction(const TTransactionId& transactionId, b
 TTimestamp TTransactionManager::GetMinPrepareTimestamp()
 {
     return Impl_->GetMinPrepareTimestamp();
+}
+
+TTimestamp TTransactionManager::GetMinCommitTimestamp()
+{
+    return Impl_->GetMinCommitTimestamp();
 }
 
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionStarted, *Impl_);

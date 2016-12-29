@@ -95,6 +95,9 @@ public:
     //! Stores statistics about operation preparation and schedule job timings.
     DEFINE_BYREF_RW_PROPERTY(NJobTrackerClient::TStatistics, ControllerTimeStatistics);
 
+    //! Last time the progress was logged.
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, LastLogProgressTime);
+
     //! Gets set when the operation is started.
     TFuture<TOperationPtr> GetStarted();
 

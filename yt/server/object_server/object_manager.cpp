@@ -640,9 +640,12 @@ void TObjectManager::LoadValues(NCellMaster::TLoadContext& context)
     SchemaMap_.LoadValues(context);
 
     // COMPAT(sandello): CellNodeMap (408) and CellNode (410) are now obsolete.
-    for (auto type : {408, 410}) {
-        auto id = MakeSchemaObjectId(EObjectType(type), Bootstrap_->GetPrimaryCellTag());
-        SchemaMap_.TryRemove(id);
+    // COMPAT(babenko): unfortunately, 408 and 410 are _in use_ again in 19.* :(
+    if (context.GetVersion() < 400) {
+        for (auto type : {408, 410}) {
+            auto id = MakeSchemaObjectId(EObjectType(type), Bootstrap_->GetPrimaryCellTag());
+            SchemaMap_.TryRemove(id);
+        }
     }
 
     InitSchemas();

@@ -16,6 +16,8 @@ public:
     DEFINE_RPC_PROXY(TAdminServiceProxy, RPC_PROXY_DESC(AdminService));
 
     DEFINE_RPC_PROXY_METHOD(NProto, Die);
+
+    DEFINE_RPC_PROXY_METHOD(NProto, WriteCoreDump);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

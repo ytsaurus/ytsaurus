@@ -1039,34 +1039,39 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
     const auto& request = context->Request();
     auto automatonVersion = GetAutomatonVersion();
 
-    LOG_DEBUG_UNLESS(IsRecovery(), "Applying mutation (Version: %v, MutationType: %v, MutationId: %v)",
-        automatonVersion,
-        request.Type,
-        request.MutationId);
-
-    TMutationContextGuard contextGuard(context);
-
-    auto* descriptor = GetTypeDescriptor(context->Request().Type);
-
-    NProfiling::TScopedTimer timer;
-
-    if (request.Handler) {
-        request.Handler.Run(context);
+    if (request.Type.empty()) {
+        LOG_DEBUG_UNLESS(IsRecovery(), "Skipping heartbeat mutation (Version: %v)",
+            automatonVersion);
     } else {
-        Automaton_->ApplyMutation(context);
-    }
+        LOG_DEBUG_UNLESS(IsRecovery(), "Applying mutation (Version: %v, MutationType: %v, MutationId: %v)",
+            automatonVersion,
+            request.Type,
+            request.MutationId);
 
-    Profiler.Increment(
-        descriptor->CumulativeTimeCounter,
-        NProfiling::DurationToValue(timer.GetElapsed()));
+        TMutationContextGuard contextGuard(context);
 
-    if (Options_.ResponseKeeper && request.MutationId) {
-        if (State_ == EPeerState::Leading) {
-            YCHECK(request.MutationId == PendingMutationIds_.front());
-            PendingMutationIds_.pop();
+        auto* descriptor = GetTypeDescriptor(request.Type);
+
+        NProfiling::TScopedTimer timer;
+
+        if (request.Handler) {
+            request.Handler.Run(context);
+        } else {
+            Automaton_->ApplyMutation(context);
         }
-        const auto& response = context->Response();
-        Options_.ResponseKeeper->EndRequest(request.MutationId, response.Data);
+
+        Profiler.Increment(
+            descriptor->CumulativeTimeCounter,
+            NProfiling::DurationToValue(timer.GetElapsed()));
+
+        if (Options_.ResponseKeeper && request.MutationId) {
+            if (State_ == EPeerState::Leading) {
+                YCHECK(request.MutationId == PendingMutationIds_.front());
+                PendingMutationIds_.pop();
+            }
+            const auto& response = context->Response();
+            Options_.ResponseKeeper->EndRequest(request.MutationId, response.Data);
+        }
     }
 
     AutomatonVersion_ = automatonVersion.Advance();

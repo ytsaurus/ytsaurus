@@ -466,6 +466,7 @@ public:
 
             ResponseKeeper_ = New<TResponseKeeper>(
                 Config_->HydraManager->ResponseKeeper,
+                GetAutomatonInvoker(),
                 Logger,
                 TabletNodeProfiler);
 

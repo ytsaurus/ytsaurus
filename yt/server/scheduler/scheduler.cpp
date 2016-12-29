@@ -42,6 +42,7 @@
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 
+#include <yt/core/concurrency/async_semaphore.h>
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/thread_pool.h>
@@ -121,6 +122,7 @@ public:
         , TotalCompletedJobTimeCounter_("/total_completed_job_time")
         , TotalFailedJobTimeCounter_("/total_failed_job_time")
         , TotalAbortedJobTimeCounter_("/total_aborted_job_time")
+        , CoreSemaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentSafeCoreDumps))
     {
         YCHECK(config);
         YCHECK(bootstrap);
@@ -413,6 +415,20 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         GetMasterConnector()->UnregisterAlert(alertType);
+    }
+
+    virtual const TCoreDumperPtr& GetCoreDumper() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return Bootstrap_->GetCoreDumper();
+    }
+
+    virtual const TAsyncSemaphorePtr& GetCoreSemaphore() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return CoreSemaphore_;
     }
 
     virtual TFuture<void> CheckPoolPermission(
@@ -986,6 +1002,8 @@ private:
     TPeriodicExecutorPtr UpdateExecNodeDescriptorsExecutor_;
     TPeriodicExecutorPtr UpdateNodeShardsExecutor_;
 
+    const TAsyncSemaphorePtr CoreSemaphore_;
+
     Stroka ServiceAddress_;
 
     std::vector<TNodeShardPtr> NodeShards_;
@@ -1316,10 +1334,7 @@ private:
     void LogOperationFinished(TOperationPtr operation, ELogEventType logEventType, TError error)
     {
         LogEventFluently(logEventType)
-            .Item("operation_id").Value(operation->GetId())
-            .Item("operation_type").Value(operation->GetType())
-            .Item("spec").Value(operation->GetSpec())
-            .Item("authenticated_user").Value(operation->GetAuthenticatedUser())
+            .Do(BIND(&TImpl::BuildOperationInfoForEventLog, MakeStrong(this), operation))
             .Item("start_time").Value(operation->GetStartTime())
             .Item("finish_time").Value(operation->GetFinishTime())
             .Item("controller_time_statistics").Value(operation->ControllerTimeStatistics())
@@ -1614,9 +1629,7 @@ private:
         }
 
         LogEventFluently(ELogEventType::OperationStarted)
-            .Item("operation_id").Value(operation->GetId())
-            .Item("operation_type").Value(operation->GetType())
-            .Item("spec").Value(operation->GetSpec());
+            .Do(BIND(&TImpl::BuildOperationInfoForEventLog, MakeStrong(this), operation));
 
         // NB: Once we've registered the operation in Cypress we're free to complete
         // StartOperation request. Preparation will happen in a separate fiber in a non-blocking
@@ -1835,9 +1848,22 @@ private:
             operation->GetId());
     }
 
+    void BuildOperationInfoForEventLog(TOperationPtr operation, IYsonConsumer* consumer)
+    {
+        BuildYsonMapFluently(consumer)
+            .Item("operation_id").Value(operation->GetId())
+            .Item("operation_type").Value(operation->GetType())
+            .Item("spec").Value(operation->GetSpec())
+            .Item("authenticated_user").Value(operation->GetAuthenticatedUser());
+        Strategy_->BuildOperationInfoForEventLog(operation, consumer);
+    }
+
     void LogOperationProgress(TOperationPtr operation)
     {
         if (operation->GetState() != EOperationState::Running)
+            return;
+
+        if (operation->GetLastLogProgressTime() + Config_->OperationLogProgressBackoff > TInstant::Now())
             return;
 
         auto controller = operation->GetController();
@@ -1855,6 +1881,8 @@ private:
             controllerLoggingProgress,
             Strategy_->GetOperationLoggingProgress(operation->GetId()),
             operation->GetId());
+
+        operation->SetLastLogProgressTime(TInstant::Now());
     }
 
     void SetOperationFinalState(TOperationPtr operation, EOperationState state, const TError& error)
@@ -2109,9 +2137,9 @@ private:
                 return;
         }
 
-        FinishOperation(operation);
-
         LogOperationFinished(operation, logEventType, error);
+
+        FinishOperation(operation);
     }
 
     void AbortAbortingOperation(TOperationPtr operation, TControllerTransactionsPtr controllerTransactions)

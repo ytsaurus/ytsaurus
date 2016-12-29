@@ -72,6 +72,10 @@ public:
         const Stroka& address,
         const TKillProcessOptions& options),
         (address, options))
+    IMPLEMENT_METHOD(Stroka, WriteCoreDump, (
+        const Stroka& address,
+        const TWriteCoreDumpOptions& options),
+        (address, options))
 
 private:
     const INativeConnectionPtr Connection_;
@@ -109,8 +113,8 @@ private:
         auto cellId = options.CellId ? options.CellId : Connection_->GetPrimaryMasterCellId();
         auto channel = cellDirectory->GetChannelOrThrow(cellId);
 
-            THydraServiceProxy proxy(channel);
-            proxy.SetDefaultTimeout(TDuration::Hours(1)); // effective infinity
+        THydraServiceProxy proxy(channel);
+        proxy.SetDefaultTimeout(TDuration::Hours(1)); // effective infinity
 
         auto req = proxy.ForceBuildSnapshot();
         req->set_set_read_only(options.SetReadOnly);
@@ -156,6 +160,17 @@ private:
         // This is an intended behavior.
         WaitFor(asyncResult)
             .ThrowOnError();
+    }
+
+    Stroka DoWriteCoreDump(const Stroka& address, const TWriteCoreDumpOptions& options)
+    {
+        auto channel = Connection_->GetLightChannelFactory()->CreateChannel(address);
+
+        TAdminServiceProxy proxy(channel);
+        auto req = proxy.WriteCoreDump();
+        auto rsp = WaitFor(req->Invoke())
+            .ValueOrThrow();
+        return rsp->path();
     }
 };
 

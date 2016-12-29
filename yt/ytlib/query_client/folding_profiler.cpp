@@ -242,10 +242,11 @@ TCodegenSource TQueryProfiler::Profile(TConstQueryPtr query)
 
         for (const auto& column : joinClause->SelfEquations) {
             TConstExpressionPtr expression;
-            bool isKey;
-            std::tie(expression, isKey) = column;
+            bool isEvaluated;
+            std::tie(expression, isEvaluated) = column;
 
-            selfKeys.emplace_back(TExpressionProfiler::Profile(expression, schema), isKey);
+            const auto& expressionSchema = isEvaluated ? joinClause->OriginalSchema : schema;
+            selfKeys.emplace_back(TExpressionProfiler::Profile(expression, expressionSchema), isEvaluated);
         }
 
         TConstExpressionPtr selfFilter;

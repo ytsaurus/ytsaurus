@@ -227,6 +227,15 @@ public:
      */
     i64 MaxChangelogDataSize;
 
+    //! Interval between automatic "heartbeat" mutations commit.
+    /*!
+     *  These mutations are no-ops. Committing them regularly helps to ensure
+     *  that the quorum is functioning properly and is also crucial to enable
+     *  snapshot rotation as no version rotation is possible at N:0 versions.
+     */
+    TDuration HeartbeatMutationPeriod;
+
+
     TDistributedHydraManagerConfig()
     {
         RegisterParameter("control_rpc_timeout", ControlRpcTimeout)
@@ -285,6 +294,9 @@ public:
         RegisterParameter("max_changelog_data_size", MaxChangelogDataSize)
             .Default((i64) 1024 * 1024 * 1024)
             .GreaterThan(0);
+
+        RegisterParameter("heartbeat_mutation_period", HeartbeatMutationPeriod)
+            .Default(TDuration::Seconds(60));
 
         RegisterValidator([&] () {
             if (!DisableLeaderLeaseGraceDelay && LeaderLeaseGraceDelay <= LeaderLeaseTimeout) {

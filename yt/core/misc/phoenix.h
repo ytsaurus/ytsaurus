@@ -20,8 +20,7 @@ const ui32 NullObjectId       = 0x00000000;
 
 struct TDynamicTag
 {
-    virtual ~TDynamicTag()
-    { }
+    virtual ~TDynamicTag() = default;
 };
 
 template <class TFactory>
@@ -41,7 +40,7 @@ template <class T, class = void>
 struct TPolymorphicTraits
 {
     static const bool Dynamic = false;
-    typedef T TBase;
+    using TBase = T;
 };
 
 template <class T>
@@ -53,7 +52,7 @@ struct TPolymorphicTraits<
 >
 {
     static const bool Dynamic = true;
-    typedef TDynamicTag TBase;
+    using TBase = TDynamicTag;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -63,16 +62,14 @@ struct TRefCountedFactory
     template <class T>
     static T* Instantiate()
     {
-        auto obj = New<T>();
-        obj->Ref();
-        return obj.Get();
+        return New<T>().Release();
     }
 };
 
 template <class T, class = void>
 struct TFactoryTraits
 {
-    typedef TRefCountedFactory TFactory;
+    using TFactory = TRefCountedFactory;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -97,7 +94,7 @@ struct TFactoryTraits<
     >::TType
 >
 {
-    typedef TSimpleFactory TFactory;
+    using TFactory = TSimpleFactory;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -119,7 +116,7 @@ struct TFactoryTraits<
     >::TType
 >
 {
-    typedef TNullFactory TFactory;
+    using TFactory = TNullFactory;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -139,17 +136,14 @@ public:
 
 private:
     struct TEntry
-        : public TIntrinsicRefCounted
     {
         const std::type_info* TypeInfo;
         ui32 Tag;
-        TCallback<void*()> Factory;
+        std::function<void*()> Factory;
     };
 
-    typedef TIntrusivePtr<TEntry> TEntryPtr;
-
-    yhash_map<const std::type_info*, TEntryPtr> TypeInfoToEntry;
-    yhash_map<ui32, TEntryPtr> TagToEntry;
+    yhash_map<const std::type_info*, TEntry*> TypeInfoToEntry_;
+    yhash_map<ui32, TEntry> TagToEntry_;
 
     TRegistry();
 
@@ -198,7 +192,7 @@ public:
     ui32 GenerateId(void* basePtr, const std::type_info* typeInfo);
 
 private:
-    mutable TIdGenerator IdGenerator;
+    mutable TIdGenerator IdGenerator_;
 
     struct TEntry
     {
@@ -206,7 +200,7 @@ private:
         const std::type_info* TypeInfo;
     };
 
-    mutable yhash_map<void*, TEntry> PtrToEntry;
+    mutable yhash_map<void*, TEntry> PtrToEntry_;
 
 };
 
@@ -229,13 +223,12 @@ public:
     void RegisterInstantiatedObject(T* rawPtr);
 
 private:
-    yhash_map<ui32, void*> IdToPtr;
+    yhash_map<ui32, void*> IdToPtr_;
 
     template <class T, class>
     friend struct TInstantiatedRegistrar;
 
-    std::vector<TIntrinsicRefCounted*> IntrinsicInstantiated;
-    std::vector<TExtrinsicRefCounted*> ExtrinsicInstantiated;
+    std::vector<std::function<void()>> Deletors_;
 
 };
 
@@ -249,8 +242,8 @@ struct ICustomPersistent
     virtual void Persist(const C& context) = 0;
 };
 
-typedef TCustomPersistenceContext<TSaveContext, TLoadContext> TPersistenceContext;
-typedef ICustomPersistent<TPersistenceContext> IPersistent;
+using TPersistenceContext = TCustomPersistenceContext<TSaveContext, TLoadContext>;
+using IPersistent = ICustomPersistent<TPersistenceContext>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

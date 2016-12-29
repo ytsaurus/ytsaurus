@@ -17,6 +17,7 @@ RECURSE(
   server/job_proxy_program
   server/exec_program
   server/core_forwarder
+  unittests
 )
 
 ################################################################################

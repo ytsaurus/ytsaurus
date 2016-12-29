@@ -1,5 +1,7 @@
 #include "dsv_parser.h"
-#include "dsv_table.h"
+
+#include "format.h"
+#include "escape.h"
 #include "parser.h"
 
 namespace NYT {
@@ -34,7 +36,8 @@ private:
     bool WrapWithMap; // This is actually used to represent "embedded" semantics.
     char LastCharacter; // This is used to verify record separator presence.
 
-    TDsvTable Table;
+    TEscapeTable KeyEscapeTable_;
+    TEscapeTable ValueEscapeTable_;
 
     bool NewRecordStarted;
     bool ExpectingEscapedChar;
@@ -67,13 +70,14 @@ TDsvParser::TDsvParser(
     , Config(config)
     , WrapWithMap(wrapWithMap)
     , LastCharacter(Config->RecordSeparator)
-    , Table(config, false)
     , NewRecordStarted(!wrapWithMap)
     , ExpectingEscapedChar(false)
     , RecordCount(1)
     , FieldCount(1)
     , State(GetStartState())
-{ }
+{
+    ConfigureEscapeTables(config, false /* addCarriageReturn */, &KeyEscapeTable_, &ValueEscapeTable_);
+}
 
 void TDsvParser::Read(const TStringBuf& data)
 {
@@ -115,15 +119,15 @@ const char* TDsvParser::Consume(const char* begin, const char* end)
         return begin + 1;
     }
     if (ExpectingEscapedChar) {
-        CurrentToken.append(Table.Escapes.Backward[static_cast<ui8>(*begin)]);
+        CurrentToken.append(EscapeBackward[static_cast<ui8>(*begin)]);
         ExpectingEscapedChar = false;
         return begin + 1;
     }
 
     // Read until first stop symbol.
     auto next = State == EState::InsideKey
-        ? Table.KeyStops.FindNext(begin, end)
-        : Table.ValueStops.FindNext(begin, end);
+        ? KeyEscapeTable_.FindNext(begin, end)
+        : ValueEscapeTable_.FindNext(begin, end);
     CurrentToken.append(begin, next);
     if (next == end || (Config->EnableEscaping && *next == Config->EscapingSymbol)) {
         return next;

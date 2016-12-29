@@ -31,12 +31,13 @@ TSlotManager::TSlotManager(
     TBootstrap* bootstrap)
     : Config_(config)
     , Bootstrap_(bootstrap)
-    , NodeTag_(Format("yt-node-%v", bootstrap->GetConfig()->RpcPort))
+    , SlotCount_(Bootstrap_->GetConfig()->ExecAgent->JobController->ResourceLimits->UserSlots)
+    , NodeTag_(Format("yt-node-%v", Bootstrap_->GetConfig()->RpcPort))
 { }
 
-void TSlotManager::Initialize(int slotCount)
+void TSlotManager::Initialize()
 {
-    SlotCount_ = slotCount;
+    LOG_INFO("Initializing %v exec slots", SlotCount_);
 
     for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
         FreeSlots_.insert(slotIndex);
@@ -61,16 +62,17 @@ void TSlotManager::Initialize(int slotCount)
         ++locationIndex;
     }
 
-    // Fisrt shutdown all possible processes.
+    // First shutdown all possible processes.
     try {
         for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
             JobEnvironment_->CleanProcesses(slotIndex);
         }
     } catch (const std::exception& ex) {
-        LOG_WARNING(ex, "Failed to clean up processes on slot manager initialization");
+        LOG_WARNING(ex, "Failed to clean up processes during initialization");
     }
 
     if (!JobEnvironment_->IsEnabled()) {
+        LOG_INFO("Job environment is disabled");
         return;
     }
 
@@ -82,7 +84,7 @@ void TSlotManager::Initialize(int slotCount)
                     .ThrowOnError();
             }
         } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Failed to clean up sandboxes on slot manager initialization");
+            LOG_WARNING(ex, "Failed to clean up sandboxes during initialization");
         }
     }
 
@@ -106,6 +108,8 @@ void TSlotManager::Initialize(int slotCount)
     }
 
     UpdateAliveLocations();
+
+    LOG_INFO("Exec slots initialized");
 }
 
 void TSlotManager::UpdateAliveLocations()

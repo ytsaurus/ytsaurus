@@ -174,29 +174,26 @@ public:
     //! Since strings are ref-counted, no data is copied.
     //! The memory is marked with a given tag.
     template <class TTag>
-    static TSharedRef FromString(const Stroka& str)
+    static TSharedRef FromString(Stroka str)
     {
-        return FromString(str, GetRefCountedTypeCookie<TTag>());
+        return FromString(std::move(str), GetRefCountedTypeCookie<TTag>());
     }
 
     //! Creates a TSharedRef from a string.
     //! Since strings are ref-counted, no data is copied.
     //! The memory is marked with TDefaultSharedBlobTag.
-    static TSharedRef FromString(const Stroka& str)
+    static TSharedRef FromString(Stroka str)
     {
-        return FromString<TDefaultSharedBlobTag>(str);
+        return FromString<TDefaultSharedBlobTag>(std::move(str));
     }
 
     //! Creates a TSharedRef reference from a string.
     //! Since strings are ref-counted, no data is copied.
     //! The memory is marked with a given tag.
-    static TSharedRef FromString(const Stroka& str, TRefCountedTypeCookie tagCookie)
+    static TSharedRef FromString(Stroka str, TRefCountedTypeCookie tagCookie)
     {
         auto ref = TRef::FromString(str);
-        auto holder = New<TStringHolder>(str);
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
-        holder->InitializeTracking(tagCookie);
-#endif
+        auto holder = New<TStringHolder>(std::move(str), tagCookie);
         return TSharedRef(ref, std::move(holder));
     }
 
@@ -259,26 +256,27 @@ public:
     }
 
 private:
-    struct TBlobHolder
+    class TBlobHolder
         : public TIntrinsicRefCounted
     {
+    public:
         explicit TBlobHolder(TBlob&& blob);
 
-        TBlob Blob;
+    private:
+        const TBlob Blob_;
     };
 
-    struct TStringHolder
+    class TStringHolder
         : public TIntrinsicRefCounted
     {
-        explicit TStringHolder(const Stroka& string);
+    public:
+        TStringHolder(Stroka&& string, TRefCountedTypeCookie cookie);
         ~TStringHolder();
 
-        Stroka Data;
-
+    private:
+        const Stroka String_;
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
-        TRefCountedTypeCookie Cookie;
-        void InitializeTracking(TRefCountedTypeCookie cookie);
-        void FinalizeTracking();
+        const TRefCountedTypeCookie Cookie_;
 #endif
     };
 };
@@ -350,8 +348,9 @@ public:
     //! The memory is marked with a given tag.
     static TSharedMutableRef Allocate(size_t size, bool initializeStorage, TRefCountedTypeCookie tagCookie)
     {
-        auto blob = TBlob(tagCookie, size, initializeStorage);
-        return FromBlob(std::move(blob));
+        auto holder = NewWithExtraSpace<TAllocationHolder>(size, size, initializeStorage, tagCookie);
+        auto ref = holder->GetRef();
+        return TSharedMutableRef(ref, std::move(holder));
     }
 
     //! Creates a TSharedMutableRef for the whole blob taking ownership of its content.
@@ -395,14 +394,32 @@ public:
     }
 
 private:
-    struct TBlobHolder
+    class TBlobHolder
         : public TIntrinsicRefCounted
     {
+    public:
         explicit TBlobHolder(TBlob&& blob);
 
-        TBlob Blob;
+    private:
+        const TBlob Blob_;
     };
 
+    class TAllocationHolder
+        : public TIntrinsicRefCounted
+        , public TWithExtraSpace<TAllocationHolder>
+    {
+    public:
+        TAllocationHolder(size_t size, bool initializeStorage, TRefCountedTypeCookie cookie);
+        ~TAllocationHolder();
+
+        TMutableRef GetRef();
+
+    private:
+        const size_t Size_;
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
+        const TRefCountedTypeCookie Cookie_;
+#endif
+    };
 };
 
 ////////////////////////////////////////////////////////////////////////////////

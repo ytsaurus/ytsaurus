@@ -240,6 +240,10 @@ EValueType InferBinaryExprType(
                 operandType = rhsType;
             }
 
+            if (lhsType != EValueType::Null && rhsType != EValueType::Null && lhsType != rhsType) {
+                ThrowTypeMismatchError(lhsType, rhsType, source, lhsSource, rhsSource);
+            }
+
             if (operandType != EValueType::Boolean && operandType != EValueType::Null) {
                 THROW_ERROR_EXCEPTION(
                     "Expression %Qv requires boolean operands",

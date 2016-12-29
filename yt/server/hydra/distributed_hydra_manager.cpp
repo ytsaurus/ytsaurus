@@ -481,6 +481,8 @@ private:
     TEpochContextPtr ControlEpochContext_;
     TEpochContextPtr AutomatonEpochContext_;
 
+    NConcurrency::TPeriodicExecutorPtr HeartbeatMutationCommitExecutor_;
+
 
     DECLARE_RPC_SERVICE_METHOD(NProto, LookupChangelog)
     {
@@ -1207,6 +1209,8 @@ private:
             }
             LeaderActive_.Fire();
 
+            epochContext->HeartbeatMutationCommitExecutor->Start();
+
             SwitchTo(epochContext->EpochControlInvoker);
             VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1298,13 +1302,13 @@ private:
             DecoratedAutomaton_->OnFollowerRecoveryComplete();
             FollowerRecoveryComplete_.Fire();
 
-            SwitchTo(epochContext->EpochControlInvoker);
-            VERIFY_THREAD_AFFINITY(ControlThread);
-
             FollowerRecovered_ = true;
             if (Options_.ResponseKeeper) {
                 Options_.ResponseKeeper->Start();
             }
+
+            SwitchTo(epochContext->EpochControlInvoker);
+            VERIFY_THREAD_AFFINITY(ControlThread);
 
             SystemLockGuard_.Release();
         } catch (const std::exception& ex) {
@@ -1396,6 +1400,10 @@ private:
         epochContext->EpochControlInvoker = epochContext->CancelableContext->CreateInvoker(CancelableControlInvoker_);
         epochContext->EpochSystemAutomatonInvoker = epochContext->CancelableContext->CreateInvoker(DecoratedAutomaton_->GetSystemInvoker());
         epochContext->EpochUserAutomatonInvoker = epochContext->CancelableContext->CreateInvoker(AutomatonInvoker_);
+        epochContext->HeartbeatMutationCommitExecutor = New<TPeriodicExecutor>(
+            epochContext->EpochUserAutomatonInvoker,
+            BIND(&TDistributedHydraManager::OnHeartbeatMutationCommit, MakeWeak(this)),
+            Config_->HeartbeatMutationPeriod);
 
         YCHECK(!ControlEpochContext_);
         ControlEpochContext_ = epochContext;
@@ -1598,6 +1606,17 @@ private:
 
         DecoratedAutomaton_->CommitMutations(committedVersion, true);
         CheckForPendingLeaderSync(std::move(epochContext));
+    }
+
+
+    void OnHeartbeatMutationCommit()
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        LOG_DEBUG("Committing heartbeat mutation");
+
+        // Fire-and-forget.
+        CommitMutation(TMutationRequest());
     }
 
 

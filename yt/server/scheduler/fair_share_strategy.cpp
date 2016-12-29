@@ -388,6 +388,16 @@ public:
             .Item("pool").Value(element->GetParent()->GetId());
     }
 
+    virtual void BuildOperationInfoForEventLog(
+        const TOperationPtr& operation,
+        NYson::IYsonConsumer* consumer) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        BuildYsonMapFluently(consumer)
+            .Item("pool").Value(GetOperationParentElement(operation)->GetId());
+    }
+
     virtual void BuildOperationProgress(const TOperationId& operationId, IYsonConsumer* consumer) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);

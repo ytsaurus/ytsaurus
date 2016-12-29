@@ -797,6 +797,10 @@ TEST_F(TPrepareExpressionTest, Negative1)
     EXPECT_THROW_THAT(
         [&] { PrepareExpression(Stroka("(1u - 2) / 3.0"), schema); },
         HasSubstr("to double: inaccurate conversion"));
+
+    EXPECT_THROW_THAT(
+        [&] { PrepareExpression(Stroka("k = 1 and ku"), schema); },
+        HasSubstr("Type mismatch in expression"));
 }
 
 INSTANTIATE_TEST_CASE_P(
@@ -1016,6 +1020,22 @@ TEST_F(TExpressionTest, FunctionNullArgument)
 
     expr = PrepareExpression("if(null, null, null)", schema);
     EXPECT_EQ(expr->Type, EValueType::Null);
+
+    callback = Profile(expr, schema, nullptr, &variables)();
+    callback(variables.GetOpaqueData(), &result, row, buffer.Get());
+
+    EXPECT_EQ(result, MakeNull());
+
+    expr = PrepareExpression("if(null, 1, 2)", schema);
+    EXPECT_EQ(expr->Type, EValueType::Int64);
+
+    callback = Profile(expr, schema, nullptr, &variables)();
+    callback(variables.GetOpaqueData(), &result, row, buffer.Get());
+
+    EXPECT_EQ(result, MakeNull());
+
+    expr = PrepareExpression("if(false, 1, null)", schema);
+    EXPECT_EQ(expr->Type, EValueType::Int64);
 
     callback = Profile(expr, schema, nullptr, &variables)();
     callback(variables.GetOpaqueData(), &result, row, buffer.Get());

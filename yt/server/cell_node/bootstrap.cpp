@@ -55,10 +55,10 @@
 
 #include <yt/server/hive/cell_directory_synchronizer.h>
 
+#include <yt/server/admin_server/admin_service.h>
+
 #include <yt/ytlib/api/native_client.h>
 #include <yt/ytlib/api/native_connection.h>
-
-#include <yt/ytlib/admin/admin_service.h>
 
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/client_block_cache.h>
@@ -93,6 +93,7 @@
 
 #include <yt/core/misc/address.h>
 #include <yt/core/misc/collection_helpers.h>
+#include <yt/core/misc/core_dumper.h>
 #include <yt/core/misc/ref_counted_tracker.h>
 #include <yt/core/misc/lfalloc_helpers.h>
 
@@ -284,6 +285,10 @@ void TBootstrap::DoRun()
         MasterConnection,
         ClusterDirectory);
     ClusterDirectorySynchronizer->Start();
+
+    if (Config->CoreDumper) {
+        CoreDumper = New<TCoreDumper>(Config->CoreDumper);
+    }
 
     ChunkStore = New<NDataNode::TChunkStore>(Config->DataNode, this);
 
@@ -507,7 +512,7 @@ void TBootstrap::DoRun()
         OrchidRoot,
         GetControlInvoker()));
 
-    RpcServer->RegisterService(CreateAdminService(GetControlInvoker()));
+    RpcServer->RegisterService(CreateAdminService(GetControlInvoker(), CoreDumper));
 
     LOG_INFO("Listening for HTTP requests on port %v", Config->MonitoringPort);
 
@@ -518,7 +523,7 @@ void TBootstrap::DoRun()
     TabletSlotManager->Initialize();
     ChunkStore->Initialize();
     ChunkCache->Initialize();
-    ExecSlotManager->Initialize(Config->ExecAgent->JobController->ResourceLimits->UserSlots);
+    ExecSlotManager->Initialize();
     MonitoringManager_->Start();
     PeerBlockUpdater->Start();
     MasterConnector->Start();

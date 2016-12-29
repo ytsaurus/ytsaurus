@@ -62,6 +62,7 @@ struct TRuntimeTabletData
     std::atomic<i64> TotalRowCount = {0};
     std::atomic<i64> TrimmedRowCount = {0};
     std::atomic<TTimestamp> LastCommitTimestamp = {NullTimestamp};
+    std::atomic<TTimestamp> UnflushedTimestamp = {MinTimestamp};
 };
 
 DEFINE_REFCOUNTED_TYPE(TRuntimeTabletData)
@@ -89,7 +90,6 @@ struct TTabletSnapshot
     int HashTableSize = 0;
     int OverlappingStoreCount = 0;
     NTransactionClient::TTimestamp RetainedTimestamp = NTransactionClient::MinTimestamp;
-    NTransactionClient::TTimestamp UnflushedTimestamp = NTransactionClient::MaxTimestamp;
 
     TPartitionSnapshotPtr Eden;
 
@@ -159,6 +159,7 @@ struct ITabletContext
     virtual ~ITabletContext() = default;
 
     virtual NObjectClient::TCellId GetCellId() = 0;
+    virtual NHydra::EPeerState GetAutomatonState() = 0;
     virtual NQueryClient::TColumnEvaluatorCachePtr GetColumnEvaluatorCache() = 0;
     virtual NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type) = 0;
     virtual IStorePtr CreateStore(
@@ -331,6 +332,8 @@ public:
     TTimestamp GetLastCommitTimestamp() const;
     void SetLastCommitTimestamp(TTimestamp value);
 
+    TTimestamp GetUnflushedTimestamp() const;
+
     void StartEpoch(TTabletSlotPtr slot);
     void StopEpoch();
     IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default);
@@ -340,6 +343,8 @@ public:
     const TSortedDynamicRowKeyComparer& GetRowKeyComparer() const;
 
     void ValidateMountRevision(i64 mountRevision);
+
+    void UpdateUnflushedTimestamp() const;
 
 private:
     const TRuntimeTabletDataPtr RuntimeData_ = New<TRuntimeTabletData>();
@@ -377,7 +382,6 @@ private:
     TPartition* GetContainingPartition(const ISortedStorePtr& store);
 
  	void UpdateOverlappingStoreCount();
-    TTimestamp GetUnflushedTimestamp() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

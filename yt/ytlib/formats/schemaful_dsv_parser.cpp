@@ -1,6 +1,8 @@
 #include "schemaful_dsv_parser.h"
+
 #include "parser.h"
-#include "schemaful_dsv_table.h"
+#include "escape.h"
+#include "format.h"
 
 #include <yt/ytlib/table_client/public.h>
 
@@ -28,7 +30,7 @@ private:
     TSchemafulDsvFormatConfigPtr Config_;
     const std::vector<Stroka>& Columns_;
 
-    TSchemafulDsvTable Table_;
+    TEscapeTable EscapeTable_;
 
     bool NewRecordStarted_ = false;
     bool ExpectingEscapedChar_ = false;
@@ -52,8 +54,9 @@ TSchemafulDsvParser::TSchemafulDsvParser(
     : Consumer_(consumer)
     , Config_(config)
     , Columns_(Config_->GetColumnsOrThrow())
-    , Table_(Config_)
-{ }
+{
+    ConfigureEscapeTable(Config_, &EscapeTable_);
+}
 
 void TSchemafulDsvParser::Read(const TStringBuf& data)
 {
@@ -71,13 +74,13 @@ const char* TSchemafulDsvParser::Consume(const char* begin, const char* end)
         return begin + 1;
     }
     if (ExpectingEscapedChar_) {
-        CurrentToken_.append(Table_.Escapes.Backward[static_cast<ui8>(*begin)]);
+        CurrentToken_.append(EscapeBackward[static_cast<ui8>(*begin)]);
         ExpectingEscapedChar_ = false;
         return begin + 1;
     }
 
     // Process common case.
-    auto next = Table_.Stops.FindNext(begin, end);
+    auto next = EscapeTable_.FindNext(begin, end);
     CurrentToken_.append(begin, next);
     if (next == end || *next == Config_->EscapingSymbol) {
         return next;

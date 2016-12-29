@@ -1,6 +1,8 @@
 #include "bootstrap.h"
 #include "config.h"
 
+#include <yt/server/admin_server/admin_service.h>
+
 #include <yt/server/job_proxy/config.h>
 
 #include <yt/server/misc/address_helpers.h>
@@ -15,8 +17,6 @@
 
 #include <yt/ytlib/api/native_client.h>
 #include <yt/ytlib/api/native_connection.h>
-
-#include <yt/ytlib/admin/admin_service.h>
 
 #include <yt/ytlib/hive/cell_directory.h>
 #include <yt/ytlib/hive/cluster_directory.h>
@@ -50,6 +50,7 @@
 #include <yt/core/concurrency/thread_pool.h>
 
 #include <yt/core/misc/address.h>
+#include <yt/core/misc/core_dumper.h>
 #include <yt/core/misc/ref_counted_tracker.h>
 #include <yt/core/misc/lfalloc_helpers.h>
 
@@ -154,8 +155,13 @@ void TBootstrap::DoRun()
 
     ResponseKeeper_ = New<TResponseKeeper>(
         Config_->ResponseKeeper,
+        GetControlInvoker(),
         SchedulerLogger,
         SchedulerProfiler);
+
+    if (Config_->CoreDumper) {
+        CoreDumper_ = New<TCoreDumper>(Config_->CoreDumper);
+    }
 
     MonitoringManager_ = New<TMonitoringManager>();
     MonitoringManager_->Register(
@@ -189,7 +195,7 @@ void TBootstrap::DoRun()
 
     SetBuildAttributes(orchidRoot, "scheduler");
 
-    RpcServer_->RegisterService(CreateAdminService(GetControlInvoker()));
+    RpcServer_->RegisterService(CreateAdminService(GetControlInvoker(), CoreDumper_));
 
     RpcServer_->RegisterService(CreateOrchidService(
         orchidRoot,
@@ -261,6 +267,11 @@ const TResponseKeeperPtr& TBootstrap::GetResponseKeeper() const
 const TThrottlerManagerPtr& TBootstrap::GetChunkLocationThrottlerManager() const
 {
     return ChunkLocationThrottlerManager_;
+}
+
+const TCoreDumperPtr& TBootstrap::GetCoreDumper() const
+{
+    return CoreDumper_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
