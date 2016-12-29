@@ -629,13 +629,12 @@ void TOperationControllerBase::TTask::OnJobCompleted(TJobletPtr joblet, const TC
         auto inputStatistics = GetTotalInputDataStatistics(statistics);
         auto outputStatistics = GetTotalOutputDataStatistics(statistics);
         if (Controller->IsRowCountPreserved()) {
-            if (inputStatistics.row_count() != outputStatistics.row_count()) {
-                Controller->OnOperationFailed(TError(
-                    "Input/output row count mismatch in completed job: %v != %v",
-                    inputStatistics.row_count(),
-                    outputStatistics.row_count())
-                    << TErrorAttribute("task", GetId()));
-            }
+            LOG_ERROR_IF(inputStatistics.row_count() != outputStatistics.row_count(),
+                "Input/output row count mismatch in completed job (Input: %v, Output: %v, Task: %v)",
+                inputStatistics.row_count(),
+                outputStatistics.row_count(),
+                GetId());
+            YCHECK(inputStatistics.row_count() == outputStatistics.row_count());
         }
     } else {
         auto& chunkListIds = joblet->ChunkListIds;
