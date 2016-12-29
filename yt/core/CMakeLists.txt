@@ -96,6 +96,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/misc/chunked_memory_allocator.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/chunked_memory_pool.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/chunked_output_stream.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/core_dumper.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/cpuid.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/crash_handler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/demangle.cpp
@@ -119,10 +120,12 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/misc/process.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/protobuf_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/protobuf_helpers.proto
+  ${CMAKE_CURRENT_LIST_DIR}/misc/public.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/random.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/ref.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/ref_counted.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/ref_counted_tracker.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/safe_assert.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/serialize.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/small_vector.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/source_location.cpp
@@ -303,6 +306,10 @@ target_link_libraries(yt-core
   ${REQUIRED_LLVM_LIBRARIES}
   deps-arcadia-contrib-libs-zlib # duplicate zlib dependency here, because LLVM depends on zlib
 )
+
+if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+  target_link_libraries(yt-core deps-yt-contrib-coredumper)
+endif()
 
 if(CMAKE_COMPILER_IS_CLANG AND NOT APPLE)
   target_link_libraries(yt-core -latomic -ldl)

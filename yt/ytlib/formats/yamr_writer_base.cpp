@@ -18,38 +18,20 @@ using namespace NTableClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchemalessWriterForYamrBase::TSchemalessWriterForYamrBase(
-    TNameTablePtr nameTable, 
+    TNameTablePtr nameTable,
     IAsyncOutputStreamPtr output,
     bool enableContextSaving,
     TControlAttributesConfigPtr controlAttributesConfig,
     int keyColumnCount,
     TYamrFormatConfigBasePtr config)
     : TSchemalessFormatWriterBase(
-        nameTable, 
+        nameTable,
         std::move(output),
-        enableContextSaving, 
+        enableContextSaving,
         controlAttributesConfig,
         keyColumnCount)
     , Config_(config)
 { }
-
-void TSchemalessWriterForYamrBase::EscapeAndWrite(
-    const TStringBuf& value, 
-    TLookupTable stops, 
-    TEscapeTable escapes)
-{
-    auto* stream = GetOutputStream();
-    if (Config_->EnableEscaping) {
-        WriteEscaped(
-            stream,
-            value,
-            stops,
-            escapes,
-            Config_->EscapingSymbol);
-    } else {
-        stream->Write(value);
-    }
-}
 
 void TSchemalessWriterForYamrBase::WriteInLenvalMode(const TStringBuf& value)
 {
@@ -64,7 +46,7 @@ void TSchemalessWriterForYamrBase::WriteTableIndex(i64 tableIndex)
     CurrentTableIndex_ = tableIndex;
 
     auto* stream = GetOutputStream();
-    
+
     if (!Config_->EnableTableIndex) {
         // Silently ignore table switches.
         return;

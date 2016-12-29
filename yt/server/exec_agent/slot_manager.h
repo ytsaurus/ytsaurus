@@ -22,7 +22,7 @@ public:
         NCellNode::TBootstrap* bootstrap);
 
     //! Initializes slots etc.
-    void Initialize(int slotCount);
+    void Initialize();
 
     //! Acquires a free slot, thows on error.
     ISlotPtr AcquireSlot();
@@ -36,6 +36,7 @@ public:
 private:
     const TSlotManagerConfigPtr Config_;
     const NCellNode::TBootstrap* Bootstrap_;
+    const int SlotCount_;
     const Stroka NodeTag_;
 
     std::vector<TSlotLocationPtr> Locations_;
@@ -45,7 +46,6 @@ private:
 
     TSpinLock SpinLock_;
     yhash_set<int> FreeSlots_;
-    int SlotCount_ = 0;
 
     bool JobProxySocketNameDirectoryCreated_ = false;
 

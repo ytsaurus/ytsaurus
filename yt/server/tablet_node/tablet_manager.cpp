@@ -395,6 +395,11 @@ private:
             return Owner_->Slot_->GetCellId();
         }
 
+        virtual EPeerState GetAutomatonState() override
+        {
+            return Owner_->Slot_->GetAutomatonState();
+        }
+
         virtual TColumnEvaluatorCachePtr GetColumnEvaluatorCache() override
         {
             return Owner_->Bootstrap_->GetColumnEvaluatorCache();
@@ -2128,7 +2133,10 @@ private:
     void StopTabletEpoch(TTablet* tablet)
     {
         const auto& storeManager = tablet->GetStoreManager();
-        storeManager->StopEpoch();
+        if (storeManager) {
+            // Store Manager could be null if snapshot loading is aborted.
+            storeManager->StopEpoch();
+        }
 
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->UnregisterTabletSnapshot(Slot_, tablet);

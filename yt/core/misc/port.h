@@ -7,10 +7,6 @@
 // various insightful information on memory usage and object creation patterns.
 #define YT_ENABLE_REF_COUNTED_TRACKING
 
-// This define causes printing enormous amount of debugging information to stderr.
-// Use when you really have to.
-#undef YT_ENABLE_REF_COUNTED_DEBUGGING
-
 #ifndef NDEBUG
     // This define enables thread affinity check -- a user-defined verification ensuring
     // that some functions are called from particular threads.

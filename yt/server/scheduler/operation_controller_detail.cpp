@@ -489,13 +489,10 @@ void TOperationControllerBase::TTask::ScheduleJob(
         }
 
         if (schedulerJobSpecExt->input_uncompressed_data_size() > controller->Spec->MaxDataSizePerJob) {
-            controller->GetCancelableInvoker()->Invoke(BIND(
-                &TOperationControllerBase::OnOperationFailed,
-                controller,
-                TError(
-                    "Maximum allowed data size per job violated: %v > %v",
-                    schedulerJobSpecExt->input_uncompressed_data_size(),
-                    controller->Spec->MaxDataSizePerJob)));
+            controller->OnOperationFailed(TError(
+                "Maximum allowed data size per job violated: %v > %v",
+                schedulerJobSpecExt->input_uncompressed_data_size(),
+                controller->Spec->MaxDataSizePerJob));
         }
     });
 
@@ -1083,6 +1080,7 @@ TOperationControllerBase::TOperationControllerBase(
     , Spec(spec)
     , Options(options)
     , CachedNeededResources(ZeroJobResources())
+    , ScheduleJobStatistics_(New<TScheduleJobStatistics>())
     , CheckTimeLimitExecutor(New<TPeriodicExecutor>(
         GetCancelableInvoker(),
         BIND(&TThis::CheckTimeLimit, MakeWeak(this)),
@@ -1100,8 +1098,6 @@ void TOperationControllerBase::InitializeConnections()
 void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr controllerTransactions)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-
-    auto codicilGuard = MakeCodicilGuard();
 
     LOG_INFO("Initializing operation for revive");
 
@@ -1131,8 +1127,7 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
     }
 
     // Downloading snapshot.
-    if (!cleanStart)
-    {
+    if (!cleanStart) {
         auto snapshotOrError = WaitFor(Host->GetMasterConnector()->DownloadSnapshot(OperationId));
         if (!snapshotOrError.IsOK()) {
             LOG_INFO(snapshotOrError, "Failed to download snapshot, will use clean start");
@@ -1200,8 +1195,6 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
 void TOperationControllerBase::Initialize()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-
-    auto codicilGuard = MakeCodicilGuard();
 
     LOG_INFO("Initializing operation (Title: %v)",
         Spec->Title);
@@ -1300,11 +1293,9 @@ void TOperationControllerBase::InitUpdatingTables()
 void TOperationControllerBase::DoInitialize()
 { }
 
-void TOperationControllerBase::Prepare()
+void TOperationControllerBase::SafePrepare()
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
-
-    auto codicilGuard = MakeCodicilGuard();
+    YCHECK(!(Config->EnableFailControllerSpecOption && Spec->FailController));
 
     // Process input tables.
     {
@@ -1372,12 +1363,8 @@ void TOperationControllerBase::Prepare()
     }
 }
 
-void TOperationControllerBase::Materialize()
+void TOperationControllerBase::SafeMaterialize()
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
-
-    auto codicilGuard = MakeCodicilGuard();
-
     if (State == EControllerState::Running) {
         // Operation is successfully revived, skipping materialization.
         return;
@@ -1439,14 +1426,7 @@ void TOperationControllerBase::Materialize()
     LOG_INFO("Materialization finished");
 }
 
-void TOperationControllerBase::SaveSnapshot(TOutputStream* output)
-{
-    auto codicilGuard = MakeCodicilGuard();
-
-    DoSaveSnapshot(output);
-}
-
-void TOperationControllerBase::DoSaveSnapshot(TOutputStream* output)
+void TOperationControllerBase::SafeSaveSnapshot(TOutputStream* output)
 {
     TSaveContext context;
     context.SetVersion(GetCurrentSnapshotVersion());
@@ -1458,8 +1438,6 @@ void TOperationControllerBase::DoSaveSnapshot(TOutputStream* output)
 void TOperationControllerBase::Revive()
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
-
-    auto codicilGuard = MakeCodicilGuard();
 
     if (!Snapshot) {
         Prepare();
@@ -1745,12 +1723,8 @@ void TOperationControllerBase::DoLoadSnapshot(const TSharedRef& snapshot)
     LOG_INFO("Finished loading snapshot");
 }
 
-void TOperationControllerBase::Commit()
+void TOperationControllerBase::SafeCommit()
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
-
-    auto codicilGuard = MakeCodicilGuard();
-
     // XXX(babenko): hotfix for YT-4636
     {
         const auto& client = Host->GetMasterClient();
@@ -1970,12 +1944,8 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
     THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error finishing upload to output tables");
 }
 
-void TOperationControllerBase::OnJobStarted(const TJobId& jobId, TInstant startTime)
+void TOperationControllerBase::SafeOnJobStarted(const TJobId& jobId, TInstant startTime)
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
-
-    auto codicilGuard = MakeCodicilGuard();
-
     auto joblet = GetJoblet(jobId);
     joblet->StartTime = startTime;
 
@@ -2054,12 +2024,8 @@ void TOperationControllerBase::UpdateActualHistogram(const TStatistics& statisti
     }
 }
 
-void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary)
+void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary)
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
-
-    auto codicilGuard = MakeCodicilGuard();
-
     const auto& jobId = jobSummary->Id;
     const auto& result = jobSummary->Result;
 
@@ -2139,12 +2105,8 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
     }
 }
 
-void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jobSummary)
+void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary> jobSummary)
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
-
-    auto codicilGuard = MakeCodicilGuard();
-
     jobSummary->ParseStatistics();
 
     const auto& jobId = jobSummary->Id;
@@ -2180,12 +2142,8 @@ void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jo
     }
 }
 
-void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary)
+void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary)
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
-
-    auto codicilGuard = MakeCodicilGuard();
-
     jobSummary->ParseStatistics();
 
     const auto& jobId = jobSummary->Id;
@@ -2471,12 +2429,8 @@ bool TOperationControllerBase::IsInputDataSizeHistogramSupported() const
     return false;
 }
 
-void TOperationControllerBase::Abort()
+void TOperationControllerBase::SafeAbort()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    auto codicilGuard = MakeCodicilGuard();
-
     LOG_INFO("Aborting operation");
 
     auto abortTransaction = [&] (ITransactionPtr transaction) {
@@ -2511,19 +2465,15 @@ void TOperationControllerBase::Abort()
     abortTransaction(SyncSchedulerTransaction);
     abortTransaction(AsyncSchedulerTransaction);
 
-    Aborted = true;
+    State = EControllerState::Finished;
 
     CancelableContext->Cancel();
 
     LOG_INFO("Operation aborted");
 }
 
-void TOperationControllerBase::Forget()
+void TOperationControllerBase::SafeForget()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    auto codicilGuard = MakeCodicilGuard();
-
     LOG_INFO("Forgetting operation");
 
     CancelableContext->Cancel();
@@ -2531,10 +2481,8 @@ void TOperationControllerBase::Forget()
     LOG_INFO("Operation forgotten");
 }
 
-void TOperationControllerBase::Complete()
+void TOperationControllerBase::SafeComplete()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
     BIND(&TOperationControllerBase::OnOperationCompleted, MakeStrong(this), true /* interrupted */)
         .Via(GetCancelableInvoker())
         .Run();
@@ -2557,14 +2505,10 @@ void TOperationControllerBase::CheckTimeLimit()
     }
 }
 
-TScheduleJobResultPtr TOperationControllerBase::ScheduleJob(
+TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     ISchedulingContextPtr context,
     const TJobResources& jobLimits)
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
-
-    auto codicilGuard = MakeCodicilGuard();
-
     // ScheduleJob must be a synchronous action, any context switches are prohibited.
     TContextSwitchedGuard contextSwitchGuard(BIND([] { Y_UNREACHABLE(); }));
 
@@ -2575,14 +2519,22 @@ TScheduleJobResultPtr TOperationControllerBase::ScheduleJob(
         JobCounter.Start(1);
     }
     scheduleJobResult->Duration = timer.GetElapsed();
+
+    ScheduleJobStatistics_->RecordJobResult(scheduleJobResult);
+    if (ScheduleJobStatisticsLogTime + Config->ScheduleJobStatisticsLogBackoff < TInstant::Now()) {
+        LOG_DEBUG("Schedule job statistics (count: %v, total duration: %v, failure reasons: %v)",
+            ScheduleJobStatistics_->Count,
+            ScheduleJobStatistics_->Duration,
+            ScheduleJobStatistics_->Failed);
+        ScheduleJobStatisticsLogTime = TInstant::Now();
+    }
+
     return scheduleJobResult;
 }
 
 void TOperationControllerBase::UpdateConfig(TSchedulerConfigPtr config)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
-
-    auto codicilGuard = MakeCodicilGuard();
 
     Config = config;
 }
@@ -3028,8 +2980,6 @@ TFuture<void> TOperationControllerBase::Suspend()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    auto codicilGuard = MakeCodicilGuard();
-
     return SuspendableInvoker->Suspend();
 }
 
@@ -3037,16 +2987,12 @@ void TOperationControllerBase::Resume()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    auto codicilGuard = MakeCodicilGuard();
-
     SuspendableInvoker->Resume();
 }
 
 int TOperationControllerBase::GetPendingJobCount() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
-
-    auto codicilGuard = MakeCodicilGuard();
 
     // Avoid accessing the state while not prepared.
     if (!IsPrepared()) {
@@ -3065,8 +3011,6 @@ int TOperationControllerBase::GetPendingJobCount() const
 int TOperationControllerBase::GetTotalJobCount() const
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
-
-    auto codicilGuard = MakeCodicilGuard();
 
     // Avoid accessing the state while not prepared.
     if (!IsPrepared()) {
@@ -3118,7 +3062,7 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
 
 void TOperationControllerBase::OnOperationFailed(const TError& error)
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+    VERIFY_THREAD_AFFINITY_ANY();
 
     // During operation failing job aborting can lead to another operation fail, we don't want to invoke it twice.
     if (IsFinished()) {
@@ -3130,6 +3074,15 @@ void TOperationControllerBase::OnOperationFailed(const TError& error)
     Host->OnOperationFailed(OperationId, error);
 }
 
+void TOperationControllerBase::FailOperation(const TAssertionFailedException& ex)
+{
+    OnOperationFailed(TError("Operation controller crashed; please file a ticket at YTADMINREQ and attach a link to this operation")
+        << TErrorAttribute("failed_condition", ex.GetExpression())
+        << TErrorAttribute("stack_trace", ex.GetStackTrace())
+        << TErrorAttribute("core_path", ex.GetCorePath())
+        << TErrorAttribute("operation_id", OperationId));
+}
+
 bool TOperationControllerBase::IsPrepared() const
 {
     return State != EControllerState::Preparing;
@@ -3137,12 +3090,12 @@ bool TOperationControllerBase::IsPrepared() const
 
 bool TOperationControllerBase::IsRunning() const
 {
-    return State == EControllerState::Running && !Aborted;
+    return State == EControllerState::Running;
 }
 
 bool TOperationControllerBase::IsFinished() const
 {
-    return State == EControllerState::Finished || Aborted;
+    return State == EControllerState::Finished;
 }
 
 void TOperationControllerBase::CreateLivePreviewTables()
@@ -3856,7 +3809,7 @@ void TOperationControllerBase::ValidateDynamicTableTimestamp(
         auto unflushed = attributes.Get<TTimestamp>("unflushed_timestamp");
         if (requested < retained || requested >= unflushed) {
             THROW_ERROR_EXCEPTION("Requested timestamp is out of range for table %v",
-                path)
+                path.GetPath())
                 << TErrorAttribute("requested_timestamp", requested)
                 << TErrorAttribute("retained_timestamp", retained)
                 << TErrorAttribute("unflushed_timestamp", unflushed);
@@ -4803,10 +4756,10 @@ bool TOperationControllerBase::HasEnoughChunkLists(bool intermediate, bool isWri
     for (const auto& pair : cellTagToRequiredChunkList) {
         const auto cellTag = pair.first;
         auto requiredChunkList = pair.second;
-        if (StderrTable && !isWritingStderrTable) {
+        if (StderrTable && !isWritingStderrTable && StderrTable->CellTag == cellTag) {
             --requiredChunkList;
         }
-        if (CoreTable && !isWritingCoreTable) {
+        if (CoreTable && !isWritingCoreTable && CoreTable->CellTag == cellTag) {
             --requiredChunkList;
         }
         if (requiredChunkList && !ChunkListPool->HasEnough(cellTag, requiredChunkList)) {
@@ -5451,6 +5404,8 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, JobIndexGenerator);
 
     Persist(context, JobStatistics);
+
+    Persist(context, ScheduleJobStatistics_);
 
     Persist(context, RowCountLimitTableIndex);
     Persist(context, RowCountLimit);

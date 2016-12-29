@@ -14,11 +14,14 @@
 
 #include <yt/core/misc/nullable.h>
 #include <yt/core/misc/property.h>
+#include <yt/core/misc/phoenix.h>
 
 #include <yt/core/yson/consumer.h>
 
 namespace NYT {
 namespace NScheduler {
+
+using namespace NPhoenix;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -242,6 +245,21 @@ struct TScheduleJobResult
 };
 
 DEFINE_REFCOUNTED_TYPE(TScheduleJobResult)
+
+struct TScheduleJobStatistics
+    : public TIntrinsicRefCounted
+    , public NPhoenix::IPersistent
+{
+    void RecordJobResult(const TScheduleJobResultPtr& scheduleJobResult);
+
+    TEnumIndexedVector<int, EScheduleJobFailReason> Failed;
+    TDuration Duration;
+    i64 Count = 0;
+
+    void Persist(const TPersistenceContext& context);
+};
+
+DEFINE_REFCOUNTED_TYPE(TScheduleJobStatistics)
 
 ////////////////////////////////////////////////////////////////////////////////
 

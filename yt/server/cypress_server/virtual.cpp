@@ -287,11 +287,6 @@ bool TVirtualMulticellMapBase::SetBuiltinAttribute(const Stroka& /*key*/, const 
     return false;
 }
 
-TFuture<void> TVirtualMulticellMapBase::SetBuiltinAttributeAsync(const Stroka& /*key*/, const TYsonString& /*value*/)
-{
-    return Null;
-}
-
 bool TVirtualMulticellMapBase::RemoveBuiltinAttribute(const Stroka& /*key*/)
 {
     return false;
@@ -649,21 +644,6 @@ private:
 
         return TBase::SetBuiltinAttribute(key, value);
     }
-
-    virtual TFuture<void> SetBuiltinAttributeAsync(const Stroka& key, const TYsonString& value) override
-    {
-        auto service = GetService();
-        auto* provider = GetTargetBuiltinAttributeProvider(service);
-        if (provider) {
-            auto result = provider->SetBuiltinAttributeAsync(key, value);
-            if (result) {
-                return result;
-            }
-        }
-
-        return TBase::SetBuiltinAttributeAsync(key, value);
-    }
-
 
     static ISystemAttributeProvider* GetTargetBuiltinAttributeProvider(IYPathServicePtr service)
     {

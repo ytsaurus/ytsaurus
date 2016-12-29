@@ -83,6 +83,7 @@ public:
     void RegisterAbortActionHandler(const NHiveServer::TTransactionAbortActionHandlerDescriptor<TTransaction>& descriptor);
 
     TTimestamp GetMinPrepareTimestamp();
+    TTimestamp GetMinCommitTimestamp();
 
     NYTree::IYPathServicePtr GetOrchidService();
 

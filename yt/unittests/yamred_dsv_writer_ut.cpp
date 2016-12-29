@@ -9,9 +9,14 @@
 
 #include <util/string/vector.h>
 
+#include <cstdio>
+
+
 namespace NYT {
 namespace NFormats {
 namespace {
+
+typedef yvector<Stroka> VectorStrok;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,7 +44,7 @@ protected:
     int RangeIndexId_;
     int RowIndexId_;
 
-    TSchemalessWriterForYamredDsvTest() 
+    TSchemalessWriterForYamredDsvTest()
     {
         NameTable_ = New<TNameTable>();
         KeyAId_ = NameTable_->RegisterName("key_a");
@@ -53,22 +58,22 @@ protected:
         Config_ = New<TYamredDsvFormatConfig>();
     }
 
-    void CreateStandardWriter(TControlAttributesConfigPtr controlAttributes = New<TControlAttributesConfig>()) 
+    void CreateStandardWriter(TControlAttributesConfigPtr controlAttributes = New<TControlAttributesConfig>())
     {
         Writer_ = CreateSchemalessWriterForYamredDsv(
             Config_,
             NameTable_,
             CreateAsyncAdapter(static_cast<TOutputStream*>(&OutputStream_)),
-            false, /* enableContextSaving */ 
+            false, /* enableContextSaving */
             controlAttributes,
             0 /* keyColumnCount */);
     }
 
     // Splits output into key and sorted vector of values that are entries of the last YAMR column.
     // Returns true if success (there are >= 2 values after splitting by field separator), otherwise false.
-    bool ExtractKeyValue(Stroka output, Stroka& key, VectorStrok& value, char fieldSeparator = '\t') 
+    bool ExtractKeyValue(Stroka output, Stroka& key, VectorStrok& value, char fieldSeparator = '\t')
     {
-        char delimiter[2] = {fieldSeparator, 0}; 
+        char delimiter[2] = {fieldSeparator, 0};
         // Splitting by field separator.
         value = splitStroku(output, delimiter, 0 /* maxFields */, KEEP_EMPTY_TOKENS);
         // We should at least have key and the rest of values.
@@ -83,17 +88,17 @@ protected:
     // The same function as previous, version with subkey.
     bool ExtractKeySubkeyValue(Stroka output, Stroka& key, Stroka& subkey, VectorStrok& value, char fieldSeparator = '\t')
     {
-        char delimiter[2] = {fieldSeparator, 0}; 
+        char delimiter[2] = {fieldSeparator, 0};
         // Splitting by field separator.
-        value = splitStroku(output, delimiter, 0 /* maxFields */, KEEP_EMPTY_TOKENS);         
+        value = splitStroku(output, delimiter, 0 /* maxFields */, KEEP_EMPTY_TOKENS);
         // We should at least have key, subkey and the rest of values.
-        if (value.size() < 3) 
+        if (value.size() < 3)
            return false;
         key = value[0];
         subkey = value[1];
         value.erase(value.begin(), value.end());
         std::sort(value.begin(), value.end());
-        return true; 
+        return true;
     }
 
     // Compares output and expected output ignoring the order of entries in YAMR value column.
@@ -108,7 +113,7 @@ protected:
         ASSERT_EQ(expectedRows.back(), "");
         outputRows.pop_back();
         expectedRows.pop_back();
-        
+
         Stroka outputKey;
         Stroka expectedKey;
         VectorStrok outputValue;
@@ -133,7 +138,7 @@ protected:
         ASSERT_EQ(expectedRows.back(), "");
         outputRows.pop_back();
         expectedRows.pop_back();
-        
+
         Stroka outputKey;
         Stroka expectedKey;
         Stroka outputSubkey;
@@ -152,7 +157,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TSchemalessWriterForYamredDsvTest, Simple) 
+TEST_F(TSchemalessWriterForYamredDsvTest, Simple)
 {
     Config_->KeyColumnNames.emplace_back("key_a");
     CreateStandardWriter();
@@ -171,9 +176,9 @@ TEST_F(TSchemalessWriterForYamredDsvTest, Simple)
     row2.AddValue(MakeUnversionedStringValue("a2", KeyAId_));
     row2.AddValue(MakeUnversionedStringValue("y", ValueYId_));
     row2.AddValue(MakeUnversionedStringValue("b", KeyBId_));
-    
+
     std::vector<TUnversionedRow> rows = {row1.GetRow(), row2.GetRow()};
-    
+
     EXPECT_EQ(true, Writer_->Write(rows));
     Writer_->Close()
         .Get()
@@ -182,10 +187,10 @@ TEST_F(TSchemalessWriterForYamredDsvTest, Simple)
     Stroka expectedOutput =
         "a1\tvalue_x=x\n"
         "a2\tvalue_y=y\tkey_b=b\n";
-   
-    Stroka output = OutputStream_.Str(); 
 
-    CompareKeyValue(expectedOutput, output); 
+    Stroka output = OutputStream_.Str();
+
+    CompareKeyValue(expectedOutput, output);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -207,9 +212,9 @@ TEST_F(TSchemalessWriterForYamredDsvTest, SimpleWithSubkey)
     row2.AddValue(MakeUnversionedStringValue("a", KeyAId_));
     row2.AddValue(MakeUnversionedStringValue("b2", KeyBId_));
     row2.AddValue(MakeUnversionedStringValue("c", KeyCId_));
-    
+
     std::vector<TUnversionedRow> rows = {row1.GetRow(), row2.GetRow()};
-   
+
     EXPECT_EQ(true, Writer_->Write(rows));
     Writer_->Close()
         .Get()
@@ -218,10 +223,10 @@ TEST_F(TSchemalessWriterForYamredDsvTest, SimpleWithSubkey)
     Stroka expectedOutput =
         "a b1\tc\t\n"
         "a b2\tc\t\n";
-   
-    Stroka output = OutputStream_.Str(); 
 
-    CompareKeySubkeyValue(expectedOutput, output); 
+    Stroka output = OutputStream_.Str();
+
+    CompareKeySubkeyValue(expectedOutput, output);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -267,7 +272,6 @@ TEST_F(TSchemalessWriterForYamredDsvTest, Lenval)
         .Get()
         .ThrowOnError();
 
-    // ToDo(makhmedov): compare Yamr values ignoring the order of entries.
     Stroka expectedOutput = Stroka(
         "\xff\xff\xff\xff" "\x2a\x00\x00\x00" // Table index.
         "\xfd\xff\xff\xff" "\x17\x00\x00\x00" // Range index.
@@ -284,10 +288,10 @@ TEST_F(TSchemalessWriterForYamredDsvTest, Lenval)
         13 * 4 + 4 + 1 + 9 + 4 + 1 + 0
     );
 
-    Stroka output = OutputStream_.Str(); 
-    EXPECT_EQ(expectedOutput, output) 
-        << "expected length: " << expectedOutput.length() 
-        << ", " 
+    Stroka output = OutputStream_.Str();
+    EXPECT_EQ(expectedOutput, output)
+        << "expected length: " << expectedOutput.length()
+        << ", "
         << "actual length: " << output.length();
 }
 
@@ -299,19 +303,19 @@ TEST_F(TSchemalessWriterForYamredDsvTest, Escaping)
     Config_->KeyColumnNames.emplace_back("key_b");
     int columnWithEscapedNameId = NameTable_->GetIdOrRegisterName("value\t_t");
     CreateStandardWriter();
-    
+
     TUnversionedRowBuilder row1;
     row1.AddValue(MakeUnversionedStringValue("a\n", KeyAId_));
     row1.AddValue(MakeUnversionedStringValue("\nb\t", KeyBId_));
     row1.AddValue(MakeUnversionedStringValue("\nva\\lue\t", columnWithEscapedNameId));
- 
+
     std::vector<TUnversionedRow> rows = {row1.GetRow()};
 
     EXPECT_EQ(true, Writer_->Write(rows));
     Writer_->Close()
         .Get()
         .ThrowOnError();
-    
+
     Stroka expectedOutput = "a\\n \\nb\\t\tvalue\\t_t=\\nva\\\\lue\\t\n";
     Stroka output = OutputStream_.Str();
 
@@ -361,26 +365,55 @@ TEST_F(TSchemalessWriterForYamredDsvTest, SkippedSubkey)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST_F(TSchemalessWriterForYamredDsvTest, NonStringValues)
+{
+    Config_->HasSubkey = true;
+    Config_->KeyColumnNames.emplace_back("key_a");
+    Config_->SubkeyColumnNames.emplace_back("key_c");
+    CreateStandardWriter();
+
+    TUnversionedRowBuilder row;
+    row.AddValue(MakeUnversionedInt64Value(-42, KeyAId_));
+    row.AddValue(MakeUnversionedUint64Value(18, KeyCId_));
+    row.AddValue(MakeUnversionedBooleanValue(true, KeyBId_));
+    row.AddValue(MakeUnversionedDoubleValue(3.14, ValueXId_));
+    row.AddValue(MakeUnversionedStringValue("yt", ValueYId_));
+
+    std::vector<TUnversionedRow> rows = { row.GetRow() };
+
+    EXPECT_EQ(true, Writer_->Write(rows));
+    Writer_->Close()
+        .Get()
+        .ThrowOnError();
+
+    Stroka expectedOutput = "-42\t18\tkey_b=true\tvalue_x=3.14\tvalue_y=yt\n";
+    Stroka output = OutputStream_.Str();
+
+    EXPECT_EQ(expectedOutput, output);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TEST_F(TSchemalessWriterForYamredDsvTest, ErasingSubkeyColumnsWhenHasSubkeyIsFalse)
 {
     Config_->KeyColumnNames.emplace_back("key_a");
     Config_->SubkeyColumnNames.emplace_back("key_b");
     // Config->HasSubkey = false by default.
     CreateStandardWriter();
-    
+
     TUnversionedRowBuilder row1;
     row1.AddValue(MakeUnversionedStringValue("a", KeyAId_));
     row1.AddValue(MakeUnversionedStringValue("b", KeyBId_));
     row1.AddValue(MakeUnversionedStringValue("c", KeyCId_));
     row1.AddValue(MakeUnversionedStringValue("x", ValueXId_));
- 
+
     std::vector<TUnversionedRow> rows = {row1.GetRow()};
 
     EXPECT_EQ(true, Writer_->Write(rows));
     Writer_->Close()
         .Get()
         .ThrowOnError();
-    
+
     Stroka expectedOutput = "a\tkey_c=c\tvalue_x=x\n";
     Stroka output = OutputStream_.Str();
 

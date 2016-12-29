@@ -6,7 +6,6 @@ from yt.wrapper import JsonFormat
 from yt.environment.helpers import assert_items_equal
 
 import pytest
-import random
 import time
 import __builtin__
 import os
@@ -508,6 +507,12 @@ class TestSchedulerMapCommands(YTEnvSetup):
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "watchers_update_period": 100
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "tablet_manager" : {
+            "error_backoff_time" : 0
         }
     }
 
@@ -2162,13 +2167,15 @@ print row + table_index
 
         with pytest.raises(YtError):
             map(
-                in_="<timestamp=%s>//tmp/t" % generate_timestamp(),
+                in_="<timestamp=%s>//tmp/t" % MinTimestamp,
                 out="//tmp/t_out",
                 command="cat")
 
+        insert_rows("//tmp/t", rows)
+
         with pytest.raises(YtError):
             map(
-                in_="<timestamp=%s>//tmp/t" % MinTimestamp,
+                in_="<timestamp=%s>//tmp/t" % generate_timestamp(),
                 out="//tmp/t_out",
                 command="cat")
 

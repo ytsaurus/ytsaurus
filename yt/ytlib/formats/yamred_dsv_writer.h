@@ -2,7 +2,6 @@
 
 #include "public.h"
 #include "config.h"
-#include "dsv_table.h"
 #include "helpers.h"
 #include "yamr_writer_base.h"
 

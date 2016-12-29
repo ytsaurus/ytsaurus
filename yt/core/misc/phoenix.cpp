@@ -20,15 +20,15 @@ ui32 TRegistry::GetTag(const std::type_info& typeInfo)
 
 const TRegistry::TEntry& TRegistry::GetEntry(ui32 tag)
 {
-    auto it = TagToEntry.find(tag);
-    YCHECK(it != TagToEntry.end());
-    return *it->second;
+    auto it = TagToEntry_.find(tag);
+    YCHECK(it != TagToEntry_.end());
+    return it->second;
 }
 
 const TRegistry::TEntry& TRegistry::GetEntry(const std::type_info& typeInfo)
 {
-    auto it = TypeInfoToEntry.find(&typeInfo);
-    YCHECK(it != TypeInfoToEntry.end());
+    auto it = TypeInfoToEntry_.find(&typeInfo);
+    YCHECK(it != TypeInfoToEntry_.end());
     return *it->second;
 }
 
@@ -37,13 +37,13 @@ const TRegistry::TEntry& TRegistry::GetEntry(const std::type_info& typeInfo)
 TSaveContext::TSaveContext()
 {
     // Zero id is reserved for nullptr.
-    IdGenerator.Next();
+    IdGenerator_.Next();
 }
 
 ui32 TSaveContext::FindId(void* basePtr, const std::type_info* typeInfo) const
 {
-    auto it = PtrToEntry.find(basePtr);
-    if (it == PtrToEntry.end()) {
+    auto it = PtrToEntry_.find(basePtr);
+    if (it == PtrToEntry_.end()) {
         return NullObjectId;
     } else {
         const auto& entry = it->second;
@@ -57,9 +57,9 @@ ui32 TSaveContext::FindId(void* basePtr, const std::type_info* typeInfo) const
 ui32 TSaveContext::GenerateId(void* basePtr, const std::type_info* typeInfo)
 {
     TEntry entry;
-    entry.Id = static_cast<ui32>(IdGenerator.Next());
+    entry.Id = static_cast<ui32>(IdGenerator_.Next());
     entry.TypeInfo = typeInfo;
-    YCHECK(PtrToEntry.insert(std::make_pair(basePtr, entry)).second);
+    YCHECK(PtrToEntry_.insert(std::make_pair(basePtr, entry)).second);
     return entry.Id;
 }
 
@@ -67,23 +67,20 @@ ui32 TSaveContext::GenerateId(void* basePtr, const std::type_info* typeInfo)
 
 TLoadContext::~TLoadContext()
 {
-    for (auto* rawPtr : IntrinsicInstantiated) {
-        rawPtr->Unref();
-    }
-    for (auto* rawPtr : ExtrinsicInstantiated) {
-        rawPtr->Unref();
+    for (const auto& deletor : Deletors_) {
+        deletor();
     }
 }
 
 void TLoadContext::RegisterObject(ui32 id, void* basePtr)
 {
-    YCHECK(IdToPtr.insert(std::make_pair(id, basePtr)).second);
+    YCHECK(IdToPtr_.insert(std::make_pair(id, basePtr)).second);
 }
 
 void* TLoadContext::GetObject(ui32 id) const
 {
-    auto it = IdToPtr.find(id);
-    YCHECK(it != IdToPtr.end());
+    auto it = IdToPtr_.find(id);
+    YCHECK(it != IdToPtr_.end());
     return it->second;
 }
 

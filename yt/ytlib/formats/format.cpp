@@ -469,5 +469,73 @@ std::unique_ptr<IParser> CreateParserForFormat(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ConfigureEscapeTable(const TSchemafulDsvFormatConfigPtr& config, TEscapeTable* escapeTable)
+{
+    std::vector<char> stopSymbols = {config->RecordSeparator, config->FieldSeparator};
+    if (config->EnableEscaping) {
+        stopSymbols.push_back(config->EscapingSymbol);
+        escapeTable->EscapingSymbol = config->EscapingSymbol;
+    }
+    escapeTable->FillStops(stopSymbols);
+}
+
+void ConfigureEscapeTables(
+    const TDsvFormatConfigBasePtr& config,
+    bool addCarriageReturn,
+    TEscapeTable* keyEscapeTable,
+    TEscapeTable* valueEscapeTable)
+{
+    std::vector<char> stopSymbols = {config->RecordSeparator, config->FieldSeparator, '\0'};
+
+    if (config->EnableEscaping) {
+        stopSymbols.push_back(config->EscapingSymbol);
+        keyEscapeTable->EscapingSymbol = valueEscapeTable->EscapingSymbol = config->EscapingSymbol;
+    }
+
+    if (addCarriageReturn) {
+        stopSymbols.push_back('\r');
+    }
+
+    valueEscapeTable->FillStops(stopSymbols);
+
+    stopSymbols.push_back(config->KeyValueSeparator);
+    keyEscapeTable->FillStops(stopSymbols);
+}
+
+void ConfigureEscapeTables(
+    const TYamrFormatConfigBasePtr& config,
+    bool enableKeyEscaping,
+    bool enableValueEscaping,
+    bool escapingForWriter,
+    TEscapeTable* keyEscapeTable,
+    TEscapeTable* valueEscapeTable)
+{
+    std::vector<char> valueStopSymbols = {config->RecordSeparator};
+    std::vector<char> keyStopSymbols = {config->RecordSeparator, config->FieldSeparator};
+
+    if (enableKeyEscaping) {
+        if (escapingForWriter) {
+            keyStopSymbols.push_back('\0');
+            keyStopSymbols.push_back('\r');
+        }
+        keyStopSymbols.push_back(config->EscapingSymbol);
+        keyEscapeTable->EscapingSymbol = config->EscapingSymbol;
+    }
+
+    if (enableValueEscaping) {
+        if (escapingForWriter) {
+            valueStopSymbols.push_back('\0');
+            valueStopSymbols.push_back('\r');
+        }
+        valueStopSymbols.push_back(config->EscapingSymbol);
+        valueEscapeTable->EscapingSymbol = config->EscapingSymbol;
+    }
+
+    keyEscapeTable->FillStops(keyStopSymbols);
+    valueEscapeTable->FillStops(valueStopSymbols);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NFormats
 } // namespace NYT

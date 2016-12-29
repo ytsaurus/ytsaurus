@@ -1,7 +1,6 @@
-
 import pytest
 
-from yt_env_setup import YTEnvSetup, make_ace
+from yt_env_setup import YTEnvSetup, make_ace, unix_only
 from yt.environment.helpers import assert_almost_equal
 from yt_commands import *
 
@@ -1339,13 +1338,17 @@ class TestSchedulerConfig(YTEnvSetup):
 
 class TestSchedulerPools(YTEnvSetup):
     NUM_MASTERS = 3
-    NUM_NODES = 1
+    NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "watchers_update_period": 100,
-            "default_parent_pool": "default_pool"
+            "default_parent_pool": "default_pool",
+            "event_log" : {
+                "flush_period" : 300,
+                "retry_backoff_time": 300
+            }
         }
     }
 
@@ -1358,7 +1361,7 @@ class TestSchedulerPools(YTEnvSetup):
         set("//tmp/t_out/@replication_factor", 1)
 
     def test_pools_reconfiguration(self):
-        self._prepare();
+        self._prepare()
 
         testing_options = {"scheduling_delay": 1000}
 
@@ -1380,7 +1383,7 @@ class TestSchedulerPools(YTEnvSetup):
         op.track()
 
     def test_default_parent_pool(self):
-        self._prepare();
+        self._prepare()
 
         create("map_node", "//sys/pools/default_pool")
         time.sleep(0.2)
@@ -1401,6 +1404,23 @@ class TestSchedulerPools(YTEnvSetup):
         op.resume_jobs()
         op.track()
 
+    def test_event_log(self):
+        self._prepare()
+
+        create("map_node", "//sys/pools/custom_pool")
+        op = map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"pool": "custom_pool"})
+
+        time.sleep(2.0)
+
+        events = []
+        for row in read_table("//sys/scheduler/event_log"):
+            event_type = row["event_type"]
+            if event_type.startswith("operation_") and event_type != "operation_prepared" and row["operation_id"] == op.id:
+                events.append(row["event_type"])
+                assert row["pool"]
+
+        assert events == ["operation_started", "operation_completed"]
+
 
 class TestSchedulerSnapshots(YTEnvSetup):
     NUM_MASTERS = 3
@@ -1409,7 +1429,9 @@ class TestSchedulerSnapshots(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "snapshot_period": 500
+            "snapshot_period": 500,
+            "operation_controller_suspend_timeout": 2000,
+            "max_concurrent_controller_schedule_job_calls": 1,
         }
     }
 
@@ -1472,6 +1494,48 @@ class TestSchedulerSnapshots(YTEnvSetup):
 
         for op in ops:
             op.track()
+
+    def test_suspend_time_limit(self):
+        create("table", "//tmp/in")
+        write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
+
+        create("table", "//tmp/out1")
+        create("table", "//tmp/out2")
+
+        while True:
+            op2 = map(
+                dont_track=True,
+                command="cat",
+                in_="//tmp/in",
+                out="//tmp/out2",
+                spec={"data_size_per_job": 1, "testing": {"scheduling_delay": 15000}})
+
+            time.sleep(2)
+
+            snapshot_path2 = "//sys/operations/{0}/snapshot".format(op2.id)
+            if exists(snapshot_path2):
+                op2.abort()
+                continue
+            else:
+                break
+
+        op1 = map(
+            dont_track=True,
+            command="sleep 10; cat",
+            in_="//tmp/in",
+            out="//tmp/out1",
+            spec={"data_size_per_job": 1})
+
+        time.sleep(8)
+
+        snapshot_path1 = "//sys/operations/{0}/snapshot".format(op1.id)
+        snapshot_path2 = "//sys/operations/{0}/snapshot".format(op2.id)
+
+        assert exists(snapshot_path1)
+        assert not exists(snapshot_path2)
+
+        op1.abort()
+        op2.abort()
 
 class TestSchedulerPreemption(YTEnvSetup):
     NUM_MASTERS = 1
@@ -2149,3 +2213,32 @@ class TestSecureVault(YTEnvSetup):
                 out="//tmp/t_out",
                 spec={"secure_vault": {"x" * (2**16 + 1): 42}},
                 command="cat")
+
+class TestSafeAssertionsMode(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "enable_fail_controller_spec_option": True,
+        },
+        "core_dumper": {
+            "component_name": "",
+            "path": "/dev/null",
+        },
+    }
+
+    @unix_only
+    def test_failed_assertion_inside_controller(self):
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", {"foo": "bar"})
+        create("table", "//tmp/t_out")
+        op = map(
+            dont_track=True,
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"fail_controller": True},
+            command="cat")
+        with pytest.raises(YtError):
+            op.track()

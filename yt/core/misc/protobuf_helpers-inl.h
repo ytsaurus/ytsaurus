@@ -210,12 +210,36 @@ TOriginal FromProto(const TSerialized& serialized, TArgs&&... args)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TProto>
+TRefCountedProto<TProto>::TRefCountedProto(const TRefCountedProto<TProto>& other)
+{
+    TProto::CopyFrom(other);
+}
+
+template <class TProto>
+TRefCountedProto<TProto>::TRefCountedProto(TRefCountedProto<TProto>&& other)
+{
+    TProto::Swap(&other);
+}
+
+template <class TProto>
+TRefCountedProto<TProto>::TRefCountedProto(const TProto& other)
+{
+    TProto::CopyFrom(other);
+}
+
+template <class TProto>
+TRefCountedProto<TProto>::TRefCountedProto(TProto&& other)
+{
+    TProto::Swap(&other);
+}
+
 //! Gives the extra allocated size for protobuf types.
 //! This function is used for ref counted tracking.
 template <class TProto>
-size_t SpaceUsed(const TIntrusivePtr<TRefCountedProto<TProto>>& p)
+size_t SpaceUsed(const TRefCountedProto<TProto>* instance)
 {
-    return sizeof(TRefCountedProto<TProto>) + p->TProto::SpaceUsed() - sizeof(TProto);
+    return sizeof(TRefCountedProto<TProto>) + instance->TProto::SpaceUsed() - sizeof(TProto);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

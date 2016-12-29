@@ -298,7 +298,7 @@ void FilterProtoExtensions(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Wrapper that makes proto message refcounted.
+//! Wrapper that makes proto message ref-counted.
 template <class TProto>
 class TRefCountedProto
     : public TIntrinsicRefCounted
@@ -306,29 +306,13 @@ class TRefCountedProto
 {
 public:
     TRefCountedProto() = default;
-
-    TRefCountedProto(const TRefCountedProto<TProto>& other)
-    {
-        TProto::CopyFrom(other);
-    }
-
-    TRefCountedProto(TRefCountedProto<TProto>&& other)
-    {
-        TProto::Swap(&other);
-    }
-
-    explicit TRefCountedProto(const TProto& other)
-    {
-        TProto::CopyFrom(other);
-    }
-
-    explicit TRefCountedProto(TProto&& other)
-    {
-        TProto::Swap(&other);
-    }
+    TRefCountedProto(const TRefCountedProto<TProto>& other);
+    TRefCountedProto(TRefCountedProto<TProto>&& other);
+    explicit TRefCountedProto(const TProto& other);
+    explicit TRefCountedProto(TProto&& other);
 
     template <class T>
-    friend size_t SpaceUsed(const TIntrusivePtr<TRefCountedProto<T>>& p);
+    friend size_t SpaceUsed(const TRefCountedProto<T>* instance);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

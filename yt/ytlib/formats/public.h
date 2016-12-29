@@ -26,6 +26,8 @@ DECLARE_REFCOUNTED_CLASS(TControlAttributesConfig)
 
 struct IParser;
 
+class TEscapeTable;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFormats

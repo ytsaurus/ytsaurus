@@ -833,6 +833,11 @@ void TTablet::SetLastCommitTimestamp(TTimestamp value)
     RuntimeData_->LastCommitTimestamp = value;
 }
 
+TTimestamp TTablet::GetUnflushedTimestamp() const
+{
+    return RuntimeData_->UnflushedTimestamp;
+}
+
 void TTablet::StartEpoch(TTabletSlotPtr slot)
 {
     CancelableContext_ = New<TCancelableContext>();
@@ -898,7 +903,6 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
     snapshot->HashTableSize = HashTableSize_;
     snapshot->OverlappingStoreCount = OverlappingStoreCount_;
     snapshot->RetainedTimestamp = RetainedTimestamp_;
-    snapshot->UnflushedTimestamp = GetUnflushedTimestamp();
 
     auto addPartitionStatistics = [&] (const TPartitionSnapshotPtr& partitionSnapshot) {
         snapshot->StoreCount += partitionSnapshot->Stores.size();
@@ -954,6 +958,8 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
     for (const auto& pair : Replicas_) {
         YCHECK(snapshot->Replicas.emplace(pair.first, pair.second.BuildSnapshot()).second);
     }
+
+    UpdateUnflushedTimestamp();
 
     return snapshot;
 }
@@ -1046,7 +1052,7 @@ void TTablet::UpdateOverlappingStoreCount()
     OverlappingStoreCount_ += Eden_->Stores().size();
 }
 
-TTimestamp TTablet::GetUnflushedTimestamp() const
+void TTablet::UpdateUnflushedTimestamp() const
 {
     auto unflushedTimestamp = MaxTimestamp;
 
@@ -1060,12 +1066,16 @@ TTimestamp TTablet::GetUnflushedTimestamp() const
     if (Context_) {
         auto transactionManager = Context_->GetTransactionManager();
         if (transactionManager) {
-            auto timestamp = transactionManager->GetMinPrepareTimestamp();
-            unflushedTimestamp = std::min(unflushedTimestamp, timestamp);
+            auto prepareTimestamp = transactionManager->GetMinPrepareTimestamp();
+            auto commitTimestamp = transactionManager->GetMinCommitTimestamp();
+            unflushedTimestamp = std::min({
+                unflushedTimestamp,
+                prepareTimestamp,
+                commitTimestamp});
         }
     }
 
-    return unflushedTimestamp;
+    RuntimeData_->UnflushedTimestamp = unflushedTimestamp;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

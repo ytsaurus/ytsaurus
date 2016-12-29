@@ -59,6 +59,14 @@ class TestStderrTable(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+    DELTA_SCHEDULER_CONFIG = {
+        # We want to disable premature chunk list allocataion to expose YT-6219.
+        "scheduler": {
+            "chunk_list_watermark_count": 0,
+        }
+    }
 
     @unix_only
     def test_map(self):
@@ -161,6 +169,24 @@ class TestStderrTable(YTEnvSetup):
         )
 
         expect_to_find_in_stderr_table("//tmp/t_stderr", ["FOO\n", "BAR\n"])
+        compare_stderr_table_and_files("//tmp/t_stderr", op.id)
+
+    @unix_only
+    def test_map_reduce_no_map(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        create("table", "//tmp/t_stderr")
+        write_table("//tmp/t_input", [{"key": i} for i in xrange(3)])
+
+        op = map_reduce(
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            reducer_command="echo BAR >&2 ; cat",
+            sort_by=["key"],
+            spec=get_stderr_spec("//tmp/t_stderr")
+        )
+
+        expect_to_find_in_stderr_table("//tmp/t_stderr", ["BAR\n"])
         compare_stderr_table_and_files("//tmp/t_stderr", op.id)
 
     @unix_only

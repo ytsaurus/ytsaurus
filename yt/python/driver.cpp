@@ -132,6 +132,7 @@ public:
         PYCXX_ADD_KEYWORDS_METHOD(get_command_descriptor, GetCommandDescriptor, "Describes the command");
         PYCXX_ADD_KEYWORDS_METHOD(get_command_descriptors, GetCommandDescriptors, "Describes all commands");
         PYCXX_ADD_KEYWORDS_METHOD(kill_process, KillProcess, "Force remote YT process (node, scheduler or master) to exit immediately");
+        PYCXX_ADD_KEYWORDS_METHOD(write_core_dump, WriteCoreDump, "Write core dump of a remote YT process (node, scheduler or master)");
         PYCXX_ADD_KEYWORDS_METHOD(build_snapshot, BuildSnapshot, "Force to build a snapshot");
         PYCXX_ADD_KEYWORDS_METHOD(gc_collect, GCCollect, "Run garbage collection");
         PYCXX_ADD_KEYWORDS_METHOD(clear_metadata_caches, ClearMetadataCaches, "Clear metadata caches");
@@ -274,6 +275,26 @@ public:
         } CATCH("Failed to kill process");
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, KillProcess)
+
+    Py::Object WriteCoreDump(Py::Tuple& args, Py::Dict& kwargs)
+    {
+        auto options = NApi::TWriteCoreDumpOptions();
+
+        if (!HasArgument(args, kwargs, "address")) {
+            throw CreateYtError("Missing argument 'address'");
+        }
+        auto address = ConvertStringObjectToStroka(ExtractArgument(args, kwargs, "address"));
+
+        ValidateArgumentsEmpty(args, kwargs);
+
+        try {
+            auto admin = DriverInstance_->GetConnection()->CreateAdmin();
+            auto path = WaitFor(admin->WriteCoreDump(address, options))
+                .ValueOrThrow();
+            return Py::String(path);
+        } CATCH("Failed to write core dump");
+    }
+    PYCXX_KEYWORDS_METHOD_DECL(TDriver, WriteCoreDump)
 
     Py::Object BuildSnapshot(Py::Tuple& args, Py::Dict& kwargs)
     {

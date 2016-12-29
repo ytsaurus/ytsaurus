@@ -1667,7 +1667,7 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
         }
 
         size_t keyPrefix = 0;
-        for (size_t keyPrefix = 0; keyPrefix < foreignKeyColumnsCount; ++keyPrefix) {
+        for (; keyPrefix < foreignKeyColumnsCount; ++keyPrefix) {
             if (keyForeignEquations[keyPrefix]) {
                 YCHECK(keySelfEquations[keyPrefix].first);
                 continue;

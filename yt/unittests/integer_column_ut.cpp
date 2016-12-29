@@ -5,7 +5,6 @@
 #include <yt/ytlib/table_chunk_format/integer_column_writer.h>
 #include <yt/ytlib/table_chunk_format/integer_column_reader.h>
 #include <yt/ytlib/table_chunk_format/private.h>
-
 #include <yt/ytlib/table_chunk_format/public.h>
 
 namespace NYT {

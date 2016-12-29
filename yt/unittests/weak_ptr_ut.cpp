@@ -37,7 +37,7 @@ void ResetShadowState()
 }
 
 class TIntricateObject
-    : public TExtrinsicRefCounted
+    : public TRefCounted
 {
 public:
     TIntricateObject()
@@ -79,6 +79,9 @@ class TDerivedIntricateObject
     : public TIntricateObject
 {
 private:
+    // To suppress warning about unused Payload.
+    friend void i_do_not_exist();
+
     // Payload.
     std::array<char, 32> Payload;
 };
@@ -98,7 +101,7 @@ MATCHER_P2(HasRefCounts, strongRefs, weakRefs,
 }
 
 class TSlowlyDyingObject
-    : public TExtrinsicRefCounted
+    : public TRefCounted
 {
 public:
     TSlowlyDyingObject()
