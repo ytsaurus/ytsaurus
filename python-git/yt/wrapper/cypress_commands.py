@@ -199,7 +199,9 @@ def list(path, max_size=None, format=None, absolute=None, attributes=None, sort=
     if format is None and not result.attributes.get("incomplete", False) and sort:
         result.sort()
     if absolute and format is None:
-        result = builtins.list(imap(join, result))
+        attributes = result.attributes
+        result = yson.YsonList(imap(join, result))
+        result.attributes = attributes
     return result
 
 def exists(path, read_from=None, client=None):
