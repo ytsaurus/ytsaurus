@@ -221,10 +221,10 @@ default_config = {
 
         # Enables setting schema on new tables.
         "create_schema_on_tables": False,
-    },
 
-    # Run sorted merge instead of sort if input tables are sorted by sort_by prefix.
-    "run_merge_instead_of_sort_if_input_tables_are_sorted": True,
+        # Run sorted merge instead of sort if input tables are sorted by sort_by prefix.
+        "run_merge_instead_of_sort_if_input_tables_are_sorted": False,
+    },
 
     "tabular_data_format": None,
 
