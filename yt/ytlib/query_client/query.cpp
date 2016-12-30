@@ -648,6 +648,8 @@ void ToProto(NProto::TQuery* serialized, const TConstQueryPtr& original)
     ToProto(serialized->mutable_id(), original->Id);
 
     serialized->set_limit(original->Limit);
+    serialized->set_group_by_unique_key(original->UseDisjointGroupBy);
+
 
     ToProto(serialized->mutable_original_schema(), original->OriginalSchema);
     ToProto(serialized->mutable_schema_mapping(), original->SchemaMapping);
@@ -683,6 +685,7 @@ void FromProto(TConstQueryPtr* original, const NProto::TQuery& serialized)
         FromProto<TGuid>(serialized.id()));
 
     result->Limit = serialized.limit();
+    result->UseDisjointGroupBy = serialized.group_by_unique_key();
 
     FromProto(&result->OriginalSchema, serialized.original_schema());
     FromProto(&result->SchemaMapping, serialized.schema_mapping());
