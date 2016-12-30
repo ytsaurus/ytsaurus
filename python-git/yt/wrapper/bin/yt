@@ -537,11 +537,11 @@ def add_alter_table_parser(add_parser):
 
 def add_enable_table_replica_parser(add_parser):
     parser = add_parser("enable-table-replica", yt.enable_table_replica)
-    parser.add_argument("--replica-id")
+    parser.add_argument("replica_id")
 
 def add_disable_table_replica_parser(add_parser):
     parser = add_parser("disable-table-replica", yt.disable_table_replica)
-    parser.add_argument("--replica-id")
+    parser.add_argument("replica_id")
 
 @copy_docstring_from(yt.select_rows)
 def select_rows(**args):
