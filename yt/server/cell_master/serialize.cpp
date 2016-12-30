@@ -19,7 +19,8 @@ bool ValidateSnapshotVersion(int version)
         version == 400 ||
         version == 401 ||
         version == 401 ||
-        version == 402}
+        version == 402;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
