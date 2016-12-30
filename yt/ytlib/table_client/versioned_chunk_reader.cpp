@@ -196,8 +196,8 @@ public:
         TCachedVersionedChunkMetaPtr chunkMeta,
         IChunkReaderPtr underlyingReader,
         IBlockCachePtr blockCache,
-        TReadLimit lowerLimit,
-        TReadLimit upperLimit,
+        TOwningKey lowerLimit,
+        TOwningKey upperLimit,
         const TColumnFilter& columnFilter,
         TChunkReaderPerformanceCountersPtr performanceCounters,
         TTimestamp timestamp)
@@ -238,12 +238,7 @@ public:
         }
 
         while (rows->size() < rows->capacity()) {
-            if (CheckRowLimit_ && CurrentRowIndex_ == UpperLimit_.GetRowIndex()) {
-                PerformanceCounters_->StaticChunkRowReadCount += rows->size();
-                return !rows->empty();
-            }
-
-            if (CheckKeyLimit_ && KeyComparer_(BlockReader_->GetKey(), UpperLimit_.GetKey()) >= 0) {
+            if (CheckKeyLimit_ && KeyComparer_(BlockReader_->GetKey(), UpperLimit_) >= 0) {
                 PerformanceCounters_->StaticChunkRowReadCount += rows->size();
                 return !rows->empty();
             }
@@ -274,20 +269,16 @@ public:
 private:
     int CurrentBlockIndex_ = 0;
     i64 CurrentRowIndex_ = 0;
-    TReadLimit LowerLimit_;
-    TReadLimit UpperLimit_;
+    TOwningKey LowerLimit_;
+    TOwningKey UpperLimit_;
 
     std::vector<TBlockFetcher::TBlockInfo> GetBlockSequence()
     {
         const auto& blockMetaExt = ChunkMeta_->BlockMeta();
         const auto& blockIndexKeys = ChunkMeta_->BlockLastKeys();
 
-        CurrentBlockIndex_ = std::max(
-            ApplyLowerRowLimit(blockMetaExt, LowerLimit_),
-            ApplyLowerKeyLimit(blockIndexKeys, LowerLimit_));
-        int endBlockIndex = std::min(
-            ApplyUpperRowLimit(blockMetaExt, UpperLimit_),
-            ApplyUpperKeyLimit(blockIndexKeys, UpperLimit_));
+        CurrentBlockIndex_ = ApplyLowerKeyLimit(blockIndexKeys, NChunkClient::TReadLimit(LowerLimit_));
+        int endBlockIndex = ApplyUpperKeyLimit(blockIndexKeys, NChunkClient::TReadLimit(UpperLimit_));
 
         std::vector<TBlockFetcher::TBlockInfo> blocks;
         if (CurrentBlockIndex_ >= blockMetaExt.blocks_size()) {
@@ -313,7 +304,7 @@ private:
     {
         CheckBlockUpperLimits(
             ChunkMeta_->BlockMeta().blocks(CurrentBlockIndex_),
-            UpperLimit_,
+            NChunkClient::TReadLimit(UpperLimit_),
             ChunkMeta_->GetKeyColumnCount());
 
         YCHECK(CurrentBlock_ && CurrentBlock_.IsSet());
@@ -327,16 +318,9 @@ private:
             KeyComparer_,
             Timestamp_));
 
-        if (LowerLimit_.HasRowIndex() && CurrentRowIndex_ < LowerLimit_.GetRowIndex()) {
-            YCHECK(BlockReader_->SkipToRowIndex(LowerLimit_.GetRowIndex() - CurrentRowIndex_));
-            CurrentRowIndex_ = LowerLimit_.GetRowIndex();
-        }
-
-        if (LowerLimit_.HasKey()) {
-            auto blockRowIndex = BlockReader_->GetRowIndex();
-            YCHECK(BlockReader_->SkipToKey(LowerLimit_.GetKey()));
-            CurrentRowIndex_ += BlockReader_->GetRowIndex() - blockRowIndex;
-        }
+        auto blockRowIndex = BlockReader_->GetRowIndex();
+        YCHECK(BlockReader_->SkipToKey(LowerLimit_));
+        CurrentRowIndex_ += BlockReader_->GetRowIndex() - blockRowIndex;
     }
 
     virtual void InitNextBlock() override
@@ -345,7 +329,7 @@ private:
 
         CheckBlockUpperLimits(
             ChunkMeta_->BlockMeta().blocks(CurrentBlockIndex_),
-            UpperLimit_,
+            NChunkClient::TReadLimit(UpperLimit_),
             ChunkMeta_->GetKeyColumnCount());
         YCHECK(CurrentBlock_ && CurrentBlock_.IsSet());
 
@@ -809,7 +793,7 @@ public:
         i64 rowLimit,
         i64 currentRowIndex,
         i64 /* safeUpperRowIndex */)
-    {   
+    {
         TimestampReader_->PrepareRows(rowLimit);
         i64 rangeBegin = rows->size();
 
@@ -836,16 +820,16 @@ public:
             row.SetValueCount(0);
 
             for (
-                ui32 timestampIndex = 0; 
-                timestampIndex < TimestampReader_->GetWriteTimestampCount(rowIndex); 
+                ui32 timestampIndex = 0;
+                timestampIndex < TimestampReader_->GetWriteTimestampCount(rowIndex);
                 ++timestampIndex)
             {
                 row.BeginWriteTimestamps()[timestampIndex] = TimestampReader_->GetValueTimestamp(rowIndex, timestampIndex);
             }
 
             for (
-                ui32 timestampIndex = 0; 
-                timestampIndex < TimestampReader_->GetDeleteTimestampCount(rowIndex); 
+                ui32 timestampIndex = 0;
+                timestampIndex < TimestampReader_->GetDeleteTimestampCount(rowIndex);
                 ++timestampIndex)
             {
                 row.BeginDeleteTimestamps()[timestampIndex] = TimestampReader_->GetDeleteTimestamp(rowIndex, timestampIndex);
@@ -906,8 +890,8 @@ public:
         TCachedVersionedChunkMetaPtr chunkMeta,
         IChunkReaderPtr underlyingReader,
         IBlockCachePtr blockCache,
-        TReadLimit lowerLimit,
-        TReadLimit upperLimit,
+        TOwningKey lowerLimit,
+        TOwningKey upperLimit,
         const TColumnFilter& columnFilter,
         TChunkReaderPerformanceCountersPtr performanceCounters,
         TTimestamp timestamp)
@@ -921,8 +905,8 @@ public:
             timestamp)
         , RowBuilder_(chunkMeta, ValueColumnReaders_, SchemaIdMapping_, timestamp)
     {
-        LowerLimit_ = std::move(lowerLimit);
-        UpperLimit_ = std::move(upperLimit);
+        LowerLimit_.SetKey(std::move(lowerLimit));
+        UpperLimit_.SetKey(std::move(upperLimit));
 
         int timestampReaderIndex = VersionedChunkMeta_->ColumnMeta().columns().size() - 1;
         Columns_.emplace_back(RowBuilder_.CreateTimestampReader(), timestampReaderIndex);
@@ -1201,8 +1185,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     IChunkReaderPtr chunkReader,
     IBlockCachePtr blockCache,
     TCachedVersionedChunkMetaPtr chunkMeta,
-    TReadLimit lowerLimit,
-    TReadLimit upperLimit,
+    TOwningKey lowerLimit,
+    TOwningKey upperLimit,
     const TColumnFilter& columnFilter,
     TChunkReaderPerformanceCountersPtr performanceCounters,
     TTimestamp timestamp)
@@ -1274,7 +1258,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     blockCache,
                     chunkMeta->Schema().GetKeyColumns(),
                     columnFilter,
-                    TReadRange(lowerLimit, upperLimit));
+                    TReadRange(TReadLimit(lowerLimit), TReadLimit(upperLimit)));
             };
             auto schemafulReaderFactory = [&] (const TTableSchema& schema) {
                 return CreateSchemafulReaderAdapter(schemalessReaderFactory, schema);

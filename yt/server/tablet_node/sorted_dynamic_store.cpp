@@ -1829,8 +1829,8 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
             chunkReader,
             GetNullBlockCache(),
             cachedMeta,
-            NChunkClient::TReadLimit(),
-            NChunkClient::TReadLimit(),
+            MinKey(),
+            MaxKey(),
             TColumnFilter(),
             New<TChunkReaderPerformanceCounters>(),
             AllCommittedTimestamp);

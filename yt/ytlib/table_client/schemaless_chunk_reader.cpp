@@ -2246,8 +2246,8 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             std::move(chunkReader),
             blockCache,
             std::move(chunkMeta),
-            lowerLimit,
-            upperLimit,
+            lowerLimit.GetKey(),
+            upperLimit.GetKey(),
             columnFilter,
             performanceCounters,
             timestamp);
