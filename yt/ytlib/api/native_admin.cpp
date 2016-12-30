@@ -106,17 +106,12 @@ private:
 
     int DoBuildSnapshot(const TBuildSnapshotOptions& options)
     {
-        const auto& cellDirectory = Connection_->GetCellDirectory();
-
-        auto cellDirectorySynchronizer = New<TCellDirectorySynchronizer>(
-            New<TCellDirectorySynchronizerConfig>(),
-            cellDirectory,
-            Connection_->GetPrimaryMasterCellId());
-
+        const auto& cellDirectorySynchronizer = Connection_->GetCellDirectorySynchronizer();
         WaitFor(cellDirectorySynchronizer->Sync())
             .ThrowOnError();
 
         auto cellId = options.CellId ? options.CellId : Connection_->GetPrimaryMasterCellId();
+        const auto& cellDirectory = Connection_->GetCellDirectory();
         auto channel = cellDirectory->GetChannelOrThrow(cellId);
 
         THydraServiceProxy proxy(channel);

@@ -79,9 +79,6 @@ public:
     //! Node-to-master connection.
     NApi::TNativeConnectionConfigPtr ClusterConnection;
 
-    //! Cell directory synchronization.
-    NHiveClient::TCellDirectorySynchronizerConfigPtr CellDirectorySynchronizer;
-
     //! Cluster directory synchronization.
     NHiveClient::TClusterDirectorySynchronizerConfigPtr ClusterDirectorySynchronizer;
 
@@ -124,8 +121,6 @@ public:
         RegisterParameter("orchid_cache_update_period", OrchidCacheUpdatePeriod)
             .Default(TDuration::Seconds(5));
         RegisterParameter("cluster_connection", ClusterConnection);
-        RegisterParameter("cell_directory_synchronizer", CellDirectorySynchronizer)
-            .DefaultNew();
         RegisterParameter("cluster_directory_synchronizer", ClusterDirectorySynchronizer)
             .DefaultNew();
         RegisterParameter("node_directory_synchronizer", NodeDirectorySynchronizer)

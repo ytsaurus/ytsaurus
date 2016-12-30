@@ -10,6 +10,7 @@
 #include <yt/ytlib/chunk_client/client_block_cache.h>
 
 #include <yt/ytlib/hive/cell_directory.h>
+#include <yt/ytlib/hive/cell_directory_synchronizer.h>
 
 #include <yt/ytlib/hydra/peer_channel.h>
 
@@ -135,6 +136,12 @@ public:
             CellDirectory_->ReconfigureCell(cellConfig);
         }
 
+        CellDirectorySynchronizer_ = New<TCellDirectorySynchronizer>(
+            Config_->CellDirectorySynchronizer,
+            CellDirectory_,
+            PrimaryMasterCellId_);
+        CellDirectorySynchronizer_->Start();
+
         BlockCache_ = CreateClientBlockCache(
             Config_->BlockCache,
             EBlockType::CompressedData|EBlockType::UncompressedData);
@@ -255,6 +262,11 @@ public:
         return CellDirectory_;
     }
 
+    virtual TCellDirectorySynchronizerPtr GetCellDirectorySynchronizer() override
+    {
+        return CellDirectorySynchronizer_;
+    }
+
     virtual TEvaluatorPtr GetQueryEvaluator() override
     {
         return QueryEvaluator_;
@@ -349,6 +361,7 @@ private:
     ITableMountCachePtr TableMountCache_;
     ITimestampProviderPtr TimestampProvider_;
     TCellDirectoryPtr CellDirectory_;
+    TCellDirectorySynchronizerPtr CellDirectorySynchronizer_;
     TEvaluatorPtr QueryEvaluator_;
     TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
     TThreadPoolPtr LightPool_;
