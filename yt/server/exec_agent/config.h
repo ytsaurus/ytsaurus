@@ -76,19 +76,10 @@ class TCGroupJobEnvironmentConfig
     , public NCGroup::TCGroupConfig
 {
 public:
-    //! CPU share in cpu cgroup dedicated for slots.
-    double CGroupCpuShare;
-
     TDuration BlockIOWatchdogPeriod;
 
     TCGroupJobEnvironmentConfig()
     {
-        // NB: Default value is minimum possible share in cgroup.
-        // http://git.kernel.org/cgit/linux/kernel/git/tip/tip.git/tree/kernel/sched/sched.h#n279
-        RegisterParameter("cgroup_cpu_share", CGroupCpuShare)
-            .GreaterThanOrEqual(0.0)
-            .Default(2.0 / 1024.0);
-
         RegisterParameter("block_io_watchdog_period", BlockIOWatchdogPeriod)
             .Default(TDuration::Seconds(60));
     }
