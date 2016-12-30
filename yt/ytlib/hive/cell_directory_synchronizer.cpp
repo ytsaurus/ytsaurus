@@ -104,7 +104,7 @@ private:
         try {
             DoSync();
         } catch (const std::exception& ex) {
-            LOG_ERROR(TError(ex));
+            LOG_DEBUG(TError(ex));
         }
     }
 };
