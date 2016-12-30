@@ -116,7 +116,6 @@ private:
     NBus::IBusServerPtr BusServer;
     NApi::INativeConnectionPtr MasterConnection;
     NApi::INativeClientPtr MasterClient;
-    NHiveClient::TCellDirectorySynchronizerPtr CellDirectorySynchronizer;
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
     NNodeTrackerClient::TNodeDirectorySynchronizerPtr NodeDirectorySynchronizer;
     NRpc::IServerPtr RpcServer;

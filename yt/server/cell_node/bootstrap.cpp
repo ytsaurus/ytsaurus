@@ -65,7 +65,6 @@
 
 #include <yt/ytlib/hive/cluster_directory.h>
 #include <yt/ytlib/hive/cluster_directory_synchronizer.h>
-#include <yt/ytlib/hive/cell_directory_synchronizer.h>
 
 #include <yt/ytlib/misc/workload.h>
 
@@ -205,11 +204,6 @@ void TBootstrap::DoRun()
         MasterConnection,
         NodeDirectory);
     NodeDirectorySynchronizer->Start();
-
-    CellDirectorySynchronizer = New<TCellDirectorySynchronizer>(
-        Config->CellDirectorySynchronizer,
-        MasterConnection->GetCellDirectory(),
-        Config->ClusterConnection->PrimaryMaster->CellId);
 
     QueryThreadPool = New<TThreadPool>(
         Config->QueryAgent->ThreadPoolSize,
@@ -465,8 +459,6 @@ void TBootstrap::DoRun()
             GetBusChannelFactory(),
             EPeerKind::Follower),
         GetCellId());
-
-    CellDirectorySynchronizer->Start();
 
     OrchidRoot = GetEphemeralNodeFactory(true)->CreateMap();
 
