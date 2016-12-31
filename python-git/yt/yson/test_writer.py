@@ -127,6 +127,11 @@ class YsonWriterTestBase(object):
         assert b'1;\n2;\n3;\n' == self.dumps([1, 2, 3], yson_type="list_fragment")
         assert b'1;\n2;\n3;\n' == self.dumps([1, 2, 3], yson_type="list_fragment", yson_format="pretty")
 
+    def test_frozen_dict(self):
+        from yt.wrapper.mappings import FrozenDict
+        d = FrozenDict({"a": "b"})
+        assert b'{"a"="b";}' == self.dumps(d)
+
 class TestWriterDefault(YsonWriterTestBase):
     @staticmethod
     def dumps(*args, **kws):
