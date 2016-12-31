@@ -73,11 +73,11 @@ b"""
     };
 
     cypress_manager = {
-        statistics_flush_period = 10;
+        statistics_flush_period = 50;
     };
 
     security_manager = {
-        user_statistics_flush_period = 10;
+        user_statistics_flush_period = 50;
         request_rate_smoothing_period = 60000;
     };
 
@@ -181,7 +181,7 @@ b"""
             flush_period = 10;
         };
 
-        incremental_heartbeat_period = 100;
+        incremental_heartbeat_period = 200;
         register_retry_period = 100;
 
         block_cache = {

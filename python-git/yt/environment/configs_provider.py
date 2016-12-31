@@ -307,9 +307,9 @@ class ConfigsProvider_18(ConfigsProvider):
 
                 config["hydra_manager"] = _get_hydra_manager_config()
 
-                set_at(config, "security_manager/user_statistics_gossip_period", 80)
-                set_at(config, "security_manager/account_statistics_gossip_period", 80)
-                set_at(config, "node_tracker/node_states_gossip_period", 80)
+                set_at(config, "security_manager/user_statistics_gossip_period", 150)
+                set_at(config, "security_manager/account_statistics_gossip_period", 150)
+                set_at(config, "node_tracker/node_states_gossip_period", 150)
 
                 config["rpc_port"], config["monitoring_port"] = ports[cell_index][master_index]
 
@@ -352,12 +352,11 @@ class ConfigsProvider_18(ConfigsProvider):
         return configs, connection_configs
 
     def _build_cluster_connection_config(self, master_connection_configs, enable_master_cache=False):
-        cluster_connection = {}
-
         primary_cell_tag = master_connection_configs["primary_cell_tag"]
         secondary_cell_tags = master_connection_configs["secondary_cell_tags"]
 
         cluster_connection = {
+            "cell_directory": {},
             "primary_master": master_connection_configs[primary_cell_tag],
             "transaction_manager": {
                 "default_ping_period": DEFAULT_TRANSACTION_PING_PERIOD
@@ -366,6 +365,9 @@ class ConfigsProvider_18(ConfigsProvider):
                 "addresses": master_connection_configs[primary_cell_tag]["addresses"]
             }
         }
+
+        update(cluster_connection["cell_directory"], _get_retrying_channel_config())
+
         update(cluster_connection["primary_master"], _get_retrying_channel_config())
         update(cluster_connection["primary_master"], _get_rpc_config())
 
