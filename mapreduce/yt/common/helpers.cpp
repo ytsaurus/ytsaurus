@@ -137,7 +137,7 @@ void MergeNodes(TNode& dst, const TNode& src)
 
 TYPath AddPathPrefix(const TYPath& path)
 {
-    if (path.has_prefix("//")) {
+    if (path.StartsWith("//")) {
         return path;
     }
     return TConfig::Get()->Prefix + path;

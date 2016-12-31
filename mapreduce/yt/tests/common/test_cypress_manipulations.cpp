@@ -30,7 +30,7 @@ Stroka MaybeStripPrefix(const Stroka& path)
 {
     // Right now GetTableList doesn't strip `//' prefix :(
     const Stroka prefix = "//";
-    if (path.has_prefix(prefix)) {
+    if (path.StartsWith(prefix)) {
         return path.substr(prefix.size());
     } else {
         return path;
@@ -67,7 +67,7 @@ class TCypressManipulations
 
         void CreatePath(const Stroka& path)
         {
-            Y_ENSURE(path.has_prefix("home/testing"),
+            Y_ENSURE(path.StartsWith("home/testing"),
                 "Bug in test code: all paths must be in home/testing directory. " << path);
 
             NMR::TClient client(GetServer());
@@ -77,7 +77,7 @@ class TCypressManipulations
 
         void CreateBrokenSymlink(const Stroka& path)
         {
-            Y_ENSURE(path.has_prefix("home/testing"),
+            Y_ENSURE(path.StartsWith("home/testing"),
                 "Bug in test code: all pathes must be in home/testing directory. " << path);
 
             if (!IsYt()) {
