@@ -356,7 +356,10 @@ class ConfigsProvider_18(ConfigsProvider):
         secondary_cell_tags = master_connection_configs["secondary_cell_tags"]
 
         cluster_connection = {
-            "cell_directory": {},
+            "cell_directory": _get_retrying_channel_config(),
+            "cell_directory_synchronizer": {
+                "sync_period": 500
+            },
             "primary_master": master_connection_configs[primary_cell_tag],
             "transaction_manager": {
                 "default_ping_period": DEFAULT_TRANSACTION_PING_PERIOD
@@ -365,8 +368,6 @@ class ConfigsProvider_18(ConfigsProvider):
                 "addresses": master_connection_configs[primary_cell_tag]["addresses"]
             }
         }
-
-        update(cluster_connection["cell_directory"], _get_retrying_channel_config())
 
         update(cluster_connection["primary_master"], _get_retrying_channel_config())
         update(cluster_connection["primary_master"], _get_rpc_config())
@@ -434,9 +435,6 @@ class ConfigsProvider_18(ConfigsProvider):
             config["rpc_port"] = next(ports_generator)
             config["monitoring_port"] = next(ports_generator)
 
-            config["cell_directory_synchronizer"] = {
-                "sync_period": 1000
-            }
             update(config["cluster_connection"],
                    self._build_cluster_connection_config(master_connection_configs, enable_master_cache=True))
 
