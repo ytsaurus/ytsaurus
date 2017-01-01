@@ -66,7 +66,8 @@ public:
         TResponseKeeperPtr responseKeeper,
         ITransactionManagerPtr transactionManager,
         const TCellId& selfCellId,
-        ITimestampProviderPtr timestampProvider)
+        ITimestampProviderPtr timestampProvider,
+        const std::vector<ITransactionParticipantProviderPtr>& participantProviders)
         : TCompositeAutomatonPart(
             hydraManager,
             automaton,
@@ -78,6 +79,7 @@ public:
         , TransactionManager_(transactionManager)
         , SelfCellId_(selfCellId)
         , TimestampProvider_(timestampProvider)
+        , ParticipantProviders_(participantProviders)
         , Logger(NLogging::TLogger(HiveServerLogger)
             .AddTag("CellId: %v", SelfCellId_))
         , TransactionSupervisorService_(New<TTransactionSupervisorService>(this))
@@ -124,11 +126,6 @@ public:
         };
     }
 
-    void RegisterParticipantProvider(ITransactionParticipantProviderPtr provider)
-    {
-        ParticipantProviders_.push_back(provider);
-    }
-
     TFuture<void> CommitTransaction(
         const TTransactionId& transactionId,
         const std::vector<TCellId>& participantCellIds)
@@ -160,6 +157,7 @@ private:
     const ITransactionManagerPtr TransactionManager_;
     const TCellId SelfCellId_;
     const ITimestampProviderPtr TimestampProvider_;
+    const std::vector<ITransactionParticipantProviderPtr> ParticipantProviders_;
 
     const NLogging::TLogger Logger;
 
@@ -354,7 +352,6 @@ private:
     using TWrappedParticipantPtr = TIntrusivePtr<TWrappedParticipant>;
     using TWrappedParticipantWeakPtr = TWeakPtr<TWrappedParticipant>;
 
-    std::vector<ITransactionParticipantProviderPtr> ParticipantProviders_;
     yhash_map<TCellId, TWrappedParticipantPtr> StrongParticipantMap_;
     yhash_map<TCellId, TWrappedParticipantWeakPtr> WeakParticipantMap_;
     TPeriodicExecutorPtr ParticipantCleanupExecutor_;
@@ -1555,7 +1552,8 @@ TTransactionSupervisor::TTransactionSupervisor(
     TResponseKeeperPtr responseKeeper,
     ITransactionManagerPtr transactionManager,
     const TCellId& selfCellId,
-    ITimestampProviderPtr timestampProvider)
+    ITimestampProviderPtr timestampProvider,
+    const std::vector<ITransactionParticipantProviderPtr>& participantProviders)
     : Impl_(New<TImpl>(
         config,
         automatonInvoker,
@@ -1565,7 +1563,8 @@ TTransactionSupervisor::TTransactionSupervisor(
         responseKeeper,
         transactionManager,
         selfCellId,
-        timestampProvider))
+        timestampProvider,
+        participantProviders))
 { }
 
 TTransactionSupervisor::~TTransactionSupervisor() = default;
@@ -1573,11 +1572,6 @@ TTransactionSupervisor::~TTransactionSupervisor() = default;
 std::vector<NRpc::IServicePtr> TTransactionSupervisor::GetRpcServices()
 {
     return Impl_->GetRpcServices();
-}
-
-void TTransactionSupervisor::RegisterParticipantProvider(ITransactionParticipantProviderPtr provider)
-{
-    return Impl_->RegisterParticipantProvider(std::move(provider));
 }
 
 TFuture<void> TTransactionSupervisor::CommitTransaction(

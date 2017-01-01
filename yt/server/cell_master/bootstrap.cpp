@@ -513,10 +513,10 @@ void TBootstrap::DoInitialize()
         HydraFacade_->GetResponseKeeper(),
         TransactionManager_,
         CellId_,
-        timestampProvider);
-    TransactionSupervisor_->RegisterParticipantProvider(CreateTransactionParticipantProvider(
-        PrimaryCellTag_,
-        CellDirectory_));
+        timestampProvider,
+        std::vector<ITransactionParticipantProviderPtr>{
+            CreateTransactionParticipantProvider(PrimaryCellTag_, CellDirectory_)
+        });
 
     fileSnapshotStore->Initialize();
     ObjectManager_->Initialize();
