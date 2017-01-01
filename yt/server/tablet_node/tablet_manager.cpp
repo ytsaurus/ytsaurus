@@ -2204,6 +2204,10 @@ private:
             Slot_,
             Bootstrap_->GetTabletSlotManager(),
             CreateSerializedInvoker(Bootstrap_->GetTableReplicatorPoolInvoker())));
+
+        if (replicaInfo->GetState() == ETableReplicaState::Enabled) {
+            replicaInfo->GetReplicator()->Enable();
+        }
     }
 
     void StopTableReplicaEpoch(TTableReplicaInfo* replicaInfo)
