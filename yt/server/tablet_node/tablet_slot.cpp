@@ -545,9 +545,11 @@ public:
                 GetResponseKeeper(),
                 TransactionManager_,
                 GetCellId(),
-                connection->GetTimestampProvider());
-            TransactionSupervisor_->RegisterParticipantProvider(
-                CreateTransactionParticipantProvider(connection));
+                connection->GetTimestampProvider(),
+                std::vector<ITransactionParticipantProviderPtr>{
+                    CreateTransactionParticipantProvider(connection),
+                    CreateTransactionParticipantProvider(Bootstrap_->GetClusterDirectory())
+                });
 
             TabletService_ = CreateTabletService(
                 Owner_,
