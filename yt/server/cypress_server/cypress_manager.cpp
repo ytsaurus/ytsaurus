@@ -1215,28 +1215,33 @@ private:
             if (node->IsTrunk() && node->GetExpirationTime()) {
                 ExpirationTracker_->OnNodeExpirationTimeUpdated(node);
             }
+        }
+        LOG_INFO("Finished initializing nodes");
 
-            // COMPAT(babenko)
-            if (FixLinkPaths_ && node->GetType() == EObjectType::Link) {
-                auto* linkNode = node->As<TLinkNode>();
-                const auto& targetPath = linkNode->GetTargetPath();
-                if (targetPath.has_prefix(ObjectIdPathPrefix)) {
-                    TObjectId objectId;
-                    TStringBuf objectIdString(targetPath.begin() + ObjectIdPathPrefix.length(), targetPath.end());
-                    if (TObjectId::FromString(objectIdString, &objectId)) {
-                        auto* targetNode = FindNode(TVersionedObjectId(objectId));
-                        if (IsObjectAlive(targetNode)) {
-                            auto fixedPath = GetNodePath(targetNode, nullptr);
-                            LOG_DEBUG("Fixed link target: %v -> %v", targetPath, fixedPath);
-                            linkNode->SetTargetPath(fixedPath);
+        InitBuiltins();
+
+        // COMPAT(babenko)
+        if (FixLinkPaths_) {
+            for (const auto& pair : NodeMap_) {
+                auto* node = pair.second;
+                if (node->GetType() == EObjectType::Link) {
+                    auto* linkNode = node->As<TLinkNode>();
+                    const auto& targetPath = linkNode->GetTargetPath();
+                    if (targetPath.has_prefix(ObjectIdPathPrefix)) {
+                        TObjectId objectId;
+                        TStringBuf objectIdString(targetPath.begin() + ObjectIdPathPrefix.length(), targetPath.end());
+                        if (TObjectId::FromString(objectIdString, &objectId)) {
+                            auto* targetNode = FindNode(TVersionedObjectId(objectId));
+                            if (IsObjectAlive(targetNode)) {
+                                auto fixedPath = GetNodePath(targetNode, nullptr);
+                                LOG_DEBUG("Fixed link target: %v -> %v", targetPath, fixedPath);
+                                linkNode->SetTargetPath(fixedPath);
+                            }
                         }
                     }
                 }
             }
         }
-        LOG_INFO("Finished initializing nodes");
-
-        InitBuiltins();
     }
 
 
