@@ -170,7 +170,7 @@ def run_sort(source_table, destination_table=None, sort_by=None,
         _remove_tables([destination_table], client=client)
         return
 
-    if get_config(client)["run_merge_instead_of_sort_if_input_tables_are_sorted"] \
+    if get_config(client)["yamr_mode"]["run_merge_instead_of_sort_if_input_tables_are_sorted"] \
             and all(sort_by == get_sorted_by(table, [], client=client) for table in source_table):
         return run_merge(source_table, destination_table, "sorted",
                          job_io=job_io, table_writer=table_writer, sync=sync, spec=spec, client=client)
