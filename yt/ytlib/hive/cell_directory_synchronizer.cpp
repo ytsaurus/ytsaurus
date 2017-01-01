@@ -21,10 +21,6 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = HiveClientLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TCellDirectorySynchronizer::TImpl
     : public TRefCounted
 {
@@ -36,6 +32,8 @@ public:
         : Config_(std::move(config))
         , CellDirectory_(std::move(cellDirectory))
         , PrimaryCellId_(primaryCellId)
+        , Logger(NLogging::TLogger(HiveClientLogger)
+            .AddTag("PrimaryCellId: %v", PrimaryCellId_))
         , SyncExecutor_(New<TPeriodicExecutor>(
             NRpc::TDispatcher::Get()->GetLightInvoker(),
             BIND(&TImpl::OnSync, MakeWeak(this)),
@@ -64,6 +62,7 @@ private:
     const TCellDirectoryPtr CellDirectory_;
     const TCellId PrimaryCellId_;
 
+    const NLogging::TLogger Logger;
     const TPeriodicExecutorPtr SyncExecutor_;
 
 
