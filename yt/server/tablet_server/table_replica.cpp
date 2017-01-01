@@ -26,6 +26,7 @@ void TTableReplica::Save(NCellMaster::TSaveContext& context) const
     Save(context, ReplicaPath_);
     Save(context, StartReplicationTimestamp_);
     Save(context, Table_);
+    Save(context, State_);
     Save(context, DisablingTablets_);
 }
 
@@ -38,6 +39,7 @@ void TTableReplica::Load(NCellMaster::TLoadContext& context)
     Load(context, ReplicaPath_);
     Load(context, StartReplicationTimestamp_);
     Load(context, Table_);
+    Load(context, State_);
     Load(context, DisablingTablets_);
 }
 
