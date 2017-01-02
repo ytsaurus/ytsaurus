@@ -39,6 +39,11 @@ void TTransactionWriteRecord::Load(TLoadContext& context)
     Load(context, Data);
 }
 
+i64 TTransactionWriteRecord::GetByteSize() const
+{
+    return Data.Size();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TTransaction::TTransaction(const TTransactionId& id)

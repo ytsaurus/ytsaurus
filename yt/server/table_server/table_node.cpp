@@ -184,6 +184,17 @@ TTimestamp TTableNode::GetCurrentRetainedTimestamp() const
         : CalculateRetainedTimestamp();
 }
 
+const TTableNode::TTabletList& TTableNode::Tablets() const
+{
+    return const_cast<TTableNode*>(this)->Tablets();
+}
+
+TTableNode::TTabletList& TTableNode::Tablets()
+{
+    Y_ASSERT(IsTrunk());
+    return Tablets_;
+}
+
 TTimestamp TTableNode::CalculateUnflushedTimestamp() const
 {
     auto trunkNode = GetTrunkNode();

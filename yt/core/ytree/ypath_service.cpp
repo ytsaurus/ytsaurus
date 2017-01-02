@@ -53,12 +53,12 @@ class TFromProducerYPathService
 {
 public:
     explicit TFromProducerYPathService(TYsonProducer producer)
-        : Producer_(producer)
+        : Producer_(std::move(producer))
     { }
 
     virtual TResolveResult Resolve(
         const TYPath& path,
-        IServiceContextPtr context) override
+        const IServiceContextPtr& context) override
     {
         // Try to handle root get requests without constructing ephemeral YTree.
         if (path.empty() && context->GetMethod() == "Get") {
@@ -73,13 +73,13 @@ private:
     const TYsonProducer Producer_;
 
 
-    virtual bool DoInvoke(IServiceContextPtr context) override
+    virtual bool DoInvoke(const IServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(Get);
         return TYPathServiceBase::DoInvoke(context);
     }
 
-    virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context) override
+    virtual void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override
     {
         if (request->has_attributes())  {
             // Execute fallback.
@@ -93,12 +93,12 @@ private:
         context->Reply();
     }
 
-    virtual void GetRecursive(const TYPath& /*path*/, TReqGet* /*request*/, TRspGet* /*response*/, TCtxGetPtr /*context*/) override
+    virtual void GetRecursive(const TYPath& /*path*/, TReqGet* /*request*/, TRspGet* /*response*/, const TCtxGetPtr& /*context*/) override
     {
         Y_UNREACHABLE();
     }
 
-    virtual void GetAttribute(const TYPath& /*path*/, TReqGet* /*request*/, TRspGet* /*response*/, TCtxGetPtr /*context*/) override
+    virtual void GetAttribute(const TYPath& /*path*/, TReqGet* /*request*/, TRspGet* /*response*/, const TCtxGetPtr& /*context*/) override
     {
         Y_UNREACHABLE();
     }
@@ -153,7 +153,7 @@ public:
 
     virtual TResolveResult Resolve(
         const TYPath& path,
-        IServiceContextPtr /*context*/) override
+        const IServiceContextPtr& /*context*/) override
     {
         return TResolveResult::Here(path);
     }
@@ -168,7 +168,7 @@ private:
     const IInvokerPtr Invoker_;
 
 
-    virtual bool DoInvoke(IServiceContextPtr context) override
+    virtual bool DoInvoke(const IServiceContextPtr& context) override
     {
         Invoker_->Invoke(BIND([=, this_ = MakeStrong(this)] () {
             ExecuteVerb(UnderlyingService_, context);
@@ -204,7 +204,7 @@ public:
         PeriodicExecutor_->Start();
     }
 
-    virtual TResolveResult Resolve(const TYPath& path, IServiceContextPtr /*context*/) override
+    virtual TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& /*context*/) override
     {
         return TResolveResult::Here(path);
     }
@@ -216,7 +216,7 @@ private:
     TSpinLock SpinLock_;
     TErrorOr<INodePtr> CachedTreeOrError_;
 
-    virtual bool DoInvoke(IServiceContextPtr context) override
+    virtual bool DoInvoke(const IServiceContextPtr& context) override
     {
         GetWorkerInvoker()->Invoke(BIND([=, this_ = MakeStrong(this)] () {
             try {

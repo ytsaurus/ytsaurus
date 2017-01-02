@@ -112,6 +112,11 @@ public:
         , ChangelogCodec_(GetCodec(Config_->ChangelogCodec))
         , TabletContext_(this)
         , TabletMap_(TTabletMapTraits(this))
+        , WriteLogsMemoryTrackerGuard_(TNodeMemoryTrackerGuard::Acquire(
+            Bootstrap_->GetMemoryUsageTracker(),
+            EMemoryCategory::TabletDynamic,
+            0,
+            MemoryUsageGranularity))
         , OrchidService_(TOrchidService::Create(MakeWeak(this), Slot_->GetGuardedAutomatonInvoker()))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
@@ -448,9 +453,11 @@ private:
 
     TTabletContext TabletContext_;
     TEntityMap<TTablet, TTabletMapTraits> TabletMap_;
-    yhash_set<TTablet*> UnmountingTablets_;
+    yhash_set<TTablet*> WaitingForLocksTablets_;
 
     yhash_set<IDynamicStorePtr> OrphanedStores_;
+
+    TNodeMemoryTrackerGuard WriteLogsMemoryTrackerGuard_;
 
     const IYPathServicePtr OrchidService_;
 
@@ -532,8 +539,10 @@ private:
             auto storeManager = CreateStoreManager(tablet);
             tablet->SetStoreManager(storeManager);
             auto state = tablet->GetState();
-            if (state >= ETabletState::UnmountFirst && state <= ETabletState::UnmountLast) {
-                YCHECK(UnmountingTablets_.insert(tablet).second);
+            if (state == ETabletState::UnmountWaitingForLocks ||
+                state == ETabletState::FreezeWaitingForLocks)
+            {
+                YCHECK(WaitingForLocksTablets_.insert(tablet).second);
             }
         }
 
@@ -542,7 +551,8 @@ private:
         for (auto* transaction : transactions) {
             YCHECK(!transaction->GetTransient());
 
-            auto applyWriteLog = [&] (const TTransactionWriteLog& writeLog) {
+            auto handleWriteLog = [&] (const TTransactionWriteLog& writeLog) {
+                WriteLogsMemoryTrackerGuard_.UpdateSize(GetTransactionWriteLogMemoryUsage(writeLog));
                 int rowCount = 0;
                 for (const auto& record : writeLog) {
                     auto* tablet = FindTablet(record.TabletId);
@@ -560,9 +570,8 @@ private:
                 }
                 return rowCount;
             };
-
-            int immediateRowCount = applyWriteLog(transaction->ImmediateWriteLog());
-            int delayedRowCount = applyWriteLog(transaction->DelayedWriteLog());
+            int immediateRowCount = handleWriteLog(transaction->ImmediateWriteLog());
+            int delayedRowCount = handleWriteLog(transaction->DelayedWriteLog());
 
             LOG_DEBUG_IF(immediateRowCount + delayedRowCount > 0, "Transaction write log applied (TransactionId: %v, "
                 "ImmediateRowCount: %v, DelayedRowCount: %v)",
@@ -583,8 +592,9 @@ private:
         TTabletAutomatonPart::Clear();
 
         TabletMap_.Clear();
-        UnmountingTablets_.clear();
+        WaitingForLocksTablets_.clear();
         OrphanedStores_.clear();
+        WriteLogsMemoryTrackerGuard_.SetSize(0);
     }
 
 
@@ -763,7 +773,8 @@ private:
             }
 
             TabletMap_.Remove(tabletId);
-            UnmountingTablets_.erase(tablet); // don't check the result
+            // NB: Don't check the result.
+            WaitingForLocksTablets_.erase(tablet);
             return;
         }
 
@@ -779,7 +790,8 @@ private:
             tabletId);
 
         tablet->SetState(ETabletState::UnmountWaitingForLocks);
-        YCHECK(UnmountingTablets_.insert(tablet).second);
+        // NB: Don't check the result.
+        WaitingForLocksTablets_.insert(tablet);
 
         LOG_INFO_IF(IsLeader(), "Waiting for all tablet locks to be released (TabletId: %v)",
             tabletId);
@@ -833,6 +845,8 @@ private:
             tabletId);
 
         tablet->SetState(ETabletState::FreezeWaitingForLocks);
+        // NB: Don't check the result.
+        WaitingForLocksTablets_.insert(tablet);
 
         LOG_INFO_IF(IsLeader(), "Waiting for all tablet locks to be released (TabletId: %v)",
             tabletId);
@@ -920,7 +934,8 @@ private:
                 }
 
                 TabletMap_.Remove(tabletId);
-                YCHECK(UnmountingTablets_.erase(tablet) == 1);
+                // NB: Don't check the result.
+                WaitingForLocksTablets_.erase(tablet);
 
                 TRspUnmountTablet response;
                 ToProto(response.mutable_tablet_id(), tabletId);
@@ -940,6 +955,9 @@ private:
                 LOG_INFO_UNLESS(IsRecovery(), "Tablet frozen (TabletId: %v)",
                     tabletId);
 
+                // NB: Don't check the result.
+                WaitingForLocksTablets_.erase(tablet);
+
                 TRspFreezeTablet response;
                 ToProto(response.mutable_tablet_id(), tabletId);
                 PostMasterMutation(response);
@@ -951,8 +969,9 @@ private:
         }
     }
 
+
     template <class TPrelockedRows>
-    void HandleRowsOnLeaderExecuteWriteAtomic(TTransaction* transaction, TPrelockedRows& rows, int rowCount)
+    void ConfirmRows(TTransaction* transaction, TPrelockedRows& rows, int rowCount)
     {
         for (int index = 0; index < rowCount; ++index) {
             Y_ASSERT(!rows.empty());
@@ -966,7 +985,6 @@ private:
 
     void HydraLeaderExecuteWriteAtomic(
         const TTransactionId& transactionId,
-        const TTabletId& tabletId,
         TTransactionSignature signature,
         int sortedRowCount,
         int orderedRowCount,
@@ -976,15 +994,13 @@ private:
         const auto& transactionManager = Slot_->GetTransactionManager();
         auto* transaction = transactionManager->MakeTransactionPersistent(transactionId);
 
-        auto* tablet = FindTablet(tabletId);
+        auto* tablet = FindTablet(writeRecord.TabletId);
+
+        ConfirmRows(transaction, transaction->PrelockedSortedRows(), sortedRowCount);
+        ConfirmRows(transaction, transaction->PrelockedOrderedRows(), orderedRowCount);
+
         bool immediate = !tablet || tablet->GetCommitOrdering() == ECommitOrdering::Weak;
-
-        HandleRowsOnLeaderExecuteWriteAtomic(transaction, transaction->PrelockedSortedRows(), sortedRowCount);
-        HandleRowsOnLeaderExecuteWriteAtomic(transaction, transaction->PrelockedOrderedRows(), orderedRowCount);
-
-        auto& writeLog = immediate ? transaction->ImmediateWriteLog() : transaction->DelayedWriteLog();
-        writeLog.Enqueue(writeRecord);
-        transaction->SetPersistentSignature(transaction->GetPersistentSignature() + signature);
+        EnqueueTransactionWriteRecord(transaction, writeRecord, signature, immediate);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Rows confirmed (TabletId: %v, TransactionId: %v, "
             "SortedRows: %v, OrderedRows: %v, WriteRecordSize: %v, Immediate: %v)",
@@ -992,7 +1008,7 @@ private:
             transactionId,
             sortedRowCount,
             orderedRowCount,
-            writeRecord.Data.Size(),
+            writeRecord.GetByteSize(),
             immediate);
     }
 
@@ -1051,6 +1067,7 @@ private:
         auto* codec = GetCodec(codecId);
         auto compressedRecordData = TSharedRef::FromString(request->compressed_data());
         auto recordData = codec->Decompress(compressedRecordData);
+        TTransactionWriteRecord writeRecord{tabletId, recordData};
 
         TWireProtocolReader reader(recordData);
         int rowCount = 0;
@@ -1071,11 +1088,8 @@ private:
                     ++rowCount;
                 }
 
-                auto& writeLog = tablet->GetCommitOrdering() == ECommitOrdering::Weak
-                    ? transaction->ImmediateWriteLog()
-                    : transaction->DelayedWriteLog();
-                writeLog.Enqueue(TTransactionWriteRecord{tabletId, recordData});
-                transaction->SetPersistentSignature(transaction->GetPersistentSignature() + signature);
+                bool immediate = tablet->GetCommitOrdering() == ECommitOrdering::Weak;
+                EnqueueTransactionWriteRecord(transaction, writeRecord, signature, immediate);
             }
 
             case EAtomicity::None: {
@@ -1095,7 +1109,7 @@ private:
             transactionId,
             tabletId,
             rowCount,
-            recordData.Size(),
+            writeRecord.GetByteSize(),
             signature);
     }
 
@@ -1670,7 +1684,8 @@ private:
         PrepareRows(transaction, transaction->LockedSortedRows(), transaction->PrelockedSortedRows());
         PrepareRows(transaction, transaction->LockedOrderedRows(), transaction->PrelockedOrderedRows());
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows prepared (TransactionId: %v, "
+        LOG_DEBUG_UNLESS(IsRecovery() || (lockedSortedRowCount + lockedOrderedRowCount == 0),
+            "Locked rows prepared (TransactionId: %v, "
             "SortedLockedRows: %v, SortedPrelockedRows: %v, "
             "OrderedLockedRows: %v, OrderedPrelockedRows: %v)",
             transaction->GetId(),
@@ -1719,7 +1734,7 @@ private:
 
         YCHECK(transaction->LockedSortedRows().empty());
 
-        transaction->ImmediateWriteLog().Clear();
+        ClearTransactionWriteLog(&transaction->ImmediateWriteLog());
 
         LOG_DEBUG_UNLESS(IsRecovery() || (sortedRowCount + orderedRowCount == 0),
             "Immediate locked rows committed (TransactionId: %v, SortedRows: %v, OrderedRows: %v)",
@@ -1741,7 +1756,7 @@ private:
         YCHECK(transaction->LockedSortedRows().empty());
         YCHECK(transaction->LockedOrderedRows().empty());
 
-        transaction->DelayedWriteLog().Clear();
+        ClearTransactionWriteLog(&transaction->DelayedWriteLog());
 
         LOG_DEBUG_UNLESS(IsRecovery() || orderedRowCount == 0,
             "Delayed locked rows committed (TransactionId: %v, OrderedRows: %v)",
@@ -1772,8 +1787,11 @@ private:
         AbortRows(transaction, transaction->LockedSortedRows(), transaction->PrelockedSortedRows());
         AbortRows(transaction, transaction->LockedOrderedRows(), transaction->PrelockedOrderedRows());
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows aborted (TransactionId: %v, "
-            "SortedRows: %v, OrderedRows: %v)",
+        ClearTransactionWriteLog(&transaction->ImmediateWriteLog());
+        ClearTransactionWriteLog(&transaction->DelayedWriteLog());
+
+        LOG_DEBUG_UNLESS(IsRecovery() || (lockedSortedRowCount + lockedOrderedRowCount == 0),
+            "Locked rows aborted (TransactionId: %v, SortedRows: %v, OrderedRows: %v)",
             transaction->GetId(),
             lockedSortedRowCount,
             lockedOrderedRowCount);
@@ -1802,10 +1820,38 @@ private:
     void OnTransactionFinished(TTransaction* /*transaction*/)
     {
         if (IsLeader()) {
-            for (auto* tablet : UnmountingTablets_) {
+            for (auto* tablet : WaitingForLocksTablets_) {
                 CheckIfFullyUnlocked(tablet);
             }
         }
+    }
+
+
+    static i64 GetTransactionWriteLogMemoryUsage(const TTransactionWriteLog& writeLog)
+    {
+        i64 result = 0;
+        for (const auto& record : writeLog) {
+            result += record.GetByteSize();
+        }
+        return result;
+    }
+
+    void EnqueueTransactionWriteRecord(
+        TTransaction* transaction,
+        const TTransactionWriteRecord& record,
+        TTransactionSignature signature,
+        bool immediate)
+    {
+        WriteLogsMemoryTrackerGuard_.UpdateSize(record.GetByteSize());
+        auto& writeLog = immediate ? transaction->ImmediateWriteLog() : transaction->DelayedWriteLog();
+        writeLog.Enqueue(record);
+        transaction->SetPersistentSignature(transaction->GetPersistentSignature() + signature);
+    }
+
+    void ClearTransactionWriteLog(TTransactionWriteLog* writeLog)
+    {
+        WriteLogsMemoryTrackerGuard_.UpdateSize(-GetTransactionWriteLogMemoryUsage(*writeLog));
+        writeLog->Clear();
     }
 
 
@@ -1969,7 +2015,6 @@ private:
                     &TImpl::HydraLeaderExecuteWriteAtomic,
                     MakeStrong(this),
                     transactionId,
-                    tabletId,
                     adjustedSignature,
                     prelockedSortedDelta,
                     prelockedOrderedDelta,
@@ -2159,6 +2204,10 @@ private:
             Slot_,
             Bootstrap_->GetTabletSlotManager(),
             CreateSerializedInvoker(Bootstrap_->GetTableReplicatorPoolInvoker())));
+
+        if (replicaInfo->GetState() == ETableReplicaState::Enabled) {
+            replicaInfo->GetReplicator()->Enable();
+        }
     }
 
     void StopTableReplicaEpoch(TTableReplicaInfo* replicaInfo)

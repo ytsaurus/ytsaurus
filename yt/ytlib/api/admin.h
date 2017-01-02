@@ -15,13 +15,17 @@ namespace NApi {
 struct TBuildSnapshotOptions
 {
     //! Refers either to masters or to tablet cells.
-    //! If null then the primary master is assumed.
+    //! If null then the primary one is assumed.
     NElection::TCellId CellId;
     bool SetReadOnly = false;
 };
 
 struct TGCCollectOptions
-{ };
+{
+    //! Refers to master cell.
+    //! If null then the primary one is assumed.
+    NElection::TCellId CellId;
+};
 
 struct TKillProcessOptions
 {

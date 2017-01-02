@@ -61,7 +61,7 @@ TVirtualMulticellMapBase::TVirtualMulticellMapBase(
     , OwningNode_(owningNode)
 { }
 
-bool TVirtualMulticellMapBase::DoInvoke(IServiceContextPtr context)
+bool TVirtualMulticellMapBase::DoInvoke(const IServiceContextPtr& context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(Get);
     DISPATCH_YPATH_SERVICE_METHOD(List);
@@ -72,7 +72,7 @@ bool TVirtualMulticellMapBase::DoInvoke(IServiceContextPtr context)
 
 IYPathService::TResolveResult TVirtualMulticellMapBase::ResolveRecursive(
     const TYPath& path,
-    IServiceContextPtr context)
+    const IServiceContextPtr& context)
 {
     NYPath::TTokenizer tokenizer(path);
     tokenizer.Advance();
@@ -109,7 +109,10 @@ IYPathService::TResolveResult TVirtualMulticellMapBase::ResolveRecursive(
     return TResolveResult::There(proxy, tokenizer.GetSuffix());
 }
 
-void TVirtualMulticellMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
+void TVirtualMulticellMapBase::GetSelf(
+    TReqGet* request,
+    TRspGet* response,
+    const TCtxGetPtr& context)
 {
     Y_ASSERT(!NYson::TTokenizer(GetRequestYPath(context->RequestHeader())).ParseNext());
 
@@ -179,7 +182,10 @@ void TVirtualMulticellMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtx
         }).Via(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
 }
 
-void TVirtualMulticellMapBase::ListSelf(TReqList* request, TRspList* response, TCtxListPtr context)
+void TVirtualMulticellMapBase::ListSelf(
+    TReqList* request,
+    TRspList* response,
+    const TCtxListPtr& context)
 {
     auto attributeKeys = request->has_attributes()
         ? MakeNullable(FromProto<std::vector<Stroka>>(request->attributes().keys()))
@@ -570,7 +576,7 @@ private:
     const TYPathServiceProducer Producer_;
 
 
-    virtual TResolveResult ResolveSelf(const TYPath& path, IServiceContextPtr context) override
+    virtual TResolveResult ResolveSelf(const TYPath& path, const IServiceContextPtr& context) override
     {
         auto service = GetService();
         const auto& method = context->GetMethod();
@@ -584,7 +590,7 @@ private:
         }
     }
 
-    virtual TResolveResult ResolveRecursive(const TYPath& path, IServiceContextPtr context) override
+    virtual TResolveResult ResolveRecursive(const TYPath& path, const IServiceContextPtr& context) override
     {
         auto service = GetService();
         NYPath::TTokenizer tokenizer(path);

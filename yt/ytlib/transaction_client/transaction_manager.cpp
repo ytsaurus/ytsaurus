@@ -89,13 +89,6 @@ private:
         proxy.SetDefaultTimeout(Config_->RpcTimeout);
         return proxy;
     }
-
-    TTransactionParticipantServiceProxy MakeParticipantProxy(IChannelPtr channel)
-    {
-        TTransactionParticipantServiceProxy proxy(std::move(channel));
-        proxy.SetDefaultTimeout(Config_->RpcTimeout);
-        return proxy;
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -27,7 +27,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TNodeBase::DoInvoke(IServiceContextPtr context)
+bool TNodeBase::DoInvoke(const IServiceContextPtr& context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(GetKey);
     DISPATCH_YPATH_SERVICE_METHOD(Get);
@@ -38,7 +38,10 @@ bool TNodeBase::DoInvoke(IServiceContextPtr context)
     return TYPathServiceBase::DoInvoke(context);
 }
 
-void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
+void TNodeBase::GetSelf(
+    TReqGet* request,
+    TRspGet* response,
+    const TCtxGetPtr& context)
 {
     auto attributeKeys = request->has_attributes()
         ? MakeNullable(FromProto<std::vector<Stroka>>(request->attributes().keys()))
@@ -71,7 +74,10 @@ void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
     }));
 }
 
-void TNodeBase::GetKeySelf(TReqGetKey* /*request*/, TRspGetKey* response, TCtxGetKeyPtr context)
+void TNodeBase::GetKeySelf(
+    TReqGetKey* /*request*/,
+    TRspGetKey* response,
+    const TCtxGetKeyPtr& context)
 {
     context->SetRequestInfo();
 
@@ -102,7 +108,10 @@ void TNodeBase::GetKeySelf(TReqGetKey* /*request*/, TRspGetKey* response, TCtxGe
     context->Reply();
 }
 
-void TNodeBase::RemoveSelf(TReqRemove* request, TRspRemove* /*response*/, TCtxRemovePtr context)
+void TNodeBase::RemoveSelf(
+    TReqRemove* request,
+    TRspRemove* /*response*/,
+    const TCtxRemovePtr& context)
 {
     context->SetRequestInfo();
 
@@ -130,7 +139,7 @@ void TNodeBase::RemoveSelf(TReqRemove* request, TRspRemove* /*response*/, TCtxRe
 
 IYPathService::TResolveResult TNodeBase::ResolveRecursive(
     const NYPath::TYPath& path,
-    IServiceContextPtr context)
+    const IServiceContextPtr& context)
 {
     if (context->GetMethod() == "Exists") {
         return TResolveResult::Here(path);
@@ -146,7 +155,7 @@ void TCompositeNodeMixin::SetRecursive(
     const TYPath& path,
     TReqSet* request,
     TRspSet* /*response*/,
-    TCtxSetPtr context)
+    const TCtxSetPtr& context)
 {
     context->SetRequestInfo();
 
@@ -164,7 +173,7 @@ void TCompositeNodeMixin::RemoveRecursive(
     const TYPath& path,
     TSupportsRemove::TReqRemove* request,
     TSupportsRemove::TRspRemove* /*response*/,
-    TSupportsRemove::TCtxRemovePtr context)
+    const TSupportsRemove::TCtxRemovePtr& context)
 {
     context->SetRequestInfo();
 
@@ -195,7 +204,7 @@ int TCompositeNodeMixin::GetMaxChildCount() const
 
 IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
     const TYPath& path,
-    IServiceContextPtr context)
+    const IServiceContextPtr& context)
 {
     const auto& method = context->GetMethod();
 
@@ -244,7 +253,10 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
     }
 }
 
-void TMapNodeMixin::ListSelf(TReqList* request, TRspList* response, TCtxListPtr context)
+void TMapNodeMixin::ListSelf(
+    TReqList* request,
+    TRspList* response,
+    const TCtxListPtr& context)
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
 
@@ -358,7 +370,7 @@ int TMapNodeMixin::GetMaxKeyLength() const
 
 IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
     const TYPath& path,
-    IServiceContextPtr context)
+    const IServiceContextPtr& context)
 {
     NYPath::TTokenizer tokenizer(path);
     switch (tokenizer.Advance()) {
@@ -468,7 +480,7 @@ IYPathServicePtr TNonexistingService::Get()
     return RefCountedSingleton<TNonexistingService>();
 }
 
-bool TNonexistingService::DoInvoke(IServiceContextPtr context)
+bool TNonexistingService::DoInvoke(const IServiceContextPtr& context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(Exists);
     return TYPathServiceBase::DoInvoke(context);
@@ -476,7 +488,7 @@ bool TNonexistingService::DoInvoke(IServiceContextPtr context)
 
 IYPathService::TResolveResult TNonexistingService::Resolve(
     const TYPath& path,
-    IServiceContextPtr /*context*/)
+    const IServiceContextPtr& /*context*/)
 {
     return TResolveResult::Here(path);
 }
@@ -484,7 +496,7 @@ IYPathService::TResolveResult TNonexistingService::Resolve(
 void TNonexistingService::ExistsSelf(
     TReqExists* /*request*/,
     TRspExists* /*response*/,
-    TCtxExistsPtr context)
+    const TCtxExistsPtr& context)
 {
     ExistsAny(context);
 }
@@ -493,7 +505,7 @@ void TNonexistingService::ExistsRecursive(
     const TYPath& /*path*/,
     TReqExists* /*request*/,
     TRspExists* /*response*/,
-    TCtxExistsPtr context)
+    const TCtxExistsPtr& context)
 {
     ExistsAny(context);
 }
@@ -502,12 +514,12 @@ void TNonexistingService::ExistsAttribute(
     const TYPath& /*path*/,
     TReqExists* /*request*/,
     TRspExists* /*response*/,
-    TCtxExistsPtr context)
+    const TCtxExistsPtr& context)
 {
     ExistsAny(context);
 }
 
-void TNonexistingService::ExistsAny(TCtxExistsPtr context)
+void TNonexistingService::ExistsAny(const TCtxExistsPtr& context)
 {
     context->SetRequestInfo();
     Reply(context, false);

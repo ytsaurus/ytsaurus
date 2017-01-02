@@ -25,8 +25,6 @@ public:
         TInMemoryManagerPtr inMemoryManager,
         NApi::INativeClientPtr client);
 
-    virtual TTablet* GetTablet() const override;
-
     virtual bool HasActiveLocks() const override;
     virtual bool HasUnflushedStores() const override;
 
@@ -82,7 +80,7 @@ public:
 
 protected:
     const TTabletManagerConfigPtr Config_;
-    TTablet* const Tablet_;
+    TTablet* Tablet_;
     ITabletContext* const TabletContext_;
     const NHydra::IHydraManagerPtr HydraManager_;
     const TInMemoryManagerPtr InMemoryManager_;

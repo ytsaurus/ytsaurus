@@ -333,6 +333,7 @@ public:
     TTablet* CreateTablet(TTableNode* table)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YCHECK(table->IsTrunk());
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::Tablet, NullObjectId);
@@ -342,7 +343,7 @@ public:
         auto* tablet = TabletMap_.Insert(id, std::move(tabletHolder));
         objectManager->RefObject(tablet);
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet created (TableId: %v, TabletId: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet created (TableId: %v, TabletId: %v)",
             table->GetId(),
             tablet->GetId());
 
@@ -379,7 +380,7 @@ public:
 
         YCHECK(table->Replicas().insert(replica).second);
 
-        LOG_INFO_UNLESS(IsRecovery(), "Table replica created (TableId: %v, ReplicaId: %v, StartReplicationTimestamp: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Table replica created (TableId: %v, ReplicaId: %v, StartReplicationTimestamp: %v)",
             table->GetId(),
             replica->GetId(),
             startReplicationTimestamp);
@@ -708,7 +709,7 @@ public:
                     startingRowIndex += chunk->MiscExt().row_count();
                 }
 
-                LOG_INFO_UNLESS(IsRecovery(), "Mounting tablet (TableId: %v, TabletId: %v, CellId: %v, ChunkCount: %v, "
+                LOG_DEBUG_UNLESS(IsRecovery(), "Mounting tablet (TableId: %v, TabletId: %v, CellId: %v, ChunkCount: %v, "
                     "Atomicity: %v, CommitOrdering: %v, Freeze: %v)",
                     table->GetId(),
                     tablet->GetId(),
@@ -813,7 +814,7 @@ public:
                 state == ETabletState::Frozen ||
                 state == ETabletState::Freezing)
             {
-                LOG_INFO_UNLESS(IsRecovery(), "Remounting tablet (TableId: %v, TabletId: %v, CellId: %v)",
+                LOG_DEBUG_UNLESS(IsRecovery(), "Remounting tablet (TableId: %v, TabletId: %v, CellId: %v)",
                     table->GetId(),
                     tablet->GetId(),
                     cell->GetId());
@@ -871,7 +872,7 @@ public:
             auto* cell = tablet->GetCell();
 
             if (tablet->GetState() == ETabletState::Mounted) {
-                LOG_INFO_UNLESS(IsRecovery(), "Freezing tablet (TableId: %v, TabletId: %v, CellId: %v)",
+                LOG_DEBUG_UNLESS(IsRecovery(), "Freezing tablet (TableId: %v, TabletId: %v, CellId: %v)",
                     table->GetId(),
                     tablet->GetId(),
                     cell->GetId());
@@ -921,7 +922,7 @@ public:
             auto* cell = tablet->GetCell();
 
             if (tablet->GetState() == ETabletState::Frozen) {
-                LOG_INFO_UNLESS(IsRecovery(), "Unfreezing tablet (TableId: %v, TabletId: %v, CellId: %v)",
+                LOG_DEBUG_UNLESS(IsRecovery(), "Unfreezing tablet (TableId: %v, TabletId: %v, CellId: %v)",
                     table->GetId(),
                     tablet->GetId(),
                     cell->GetId());
@@ -1184,26 +1185,28 @@ public:
         table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
     }
 
-    TCloneTableDataPtr BeginCloneTable(
+    void CloneTable(
         TTableNode* sourceTable,
         TTableNode* clonedTable,
+        TTransaction* transaction,
         ENodeCloneMode mode)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(!sourceTable->Tablets().empty());
-        YCHECK(clonedTable->Tablets().empty());
+
+        auto* trunkSourceTable = sourceTable->GetTrunkNode();
+        auto* trunkClonedTable = clonedTable; // sic!
+
+        YCHECK(!trunkSourceTable->Tablets().empty());
+        YCHECK(trunkClonedTable->Tablets().empty());
 
         try {
-            if (sourceTable->IsReplicated()) {
+            if (trunkSourceTable->IsReplicated()) {
                 THROW_ERROR_EXCEPTION("Cannot clone a replicated table");
             }
 
-            auto tabletState = sourceTable->GetTabletState();
+            auto tabletState = trunkSourceTable->GetTabletState();
             switch (mode) {
                 case ENodeCloneMode::Copy:
-                    if (!sourceTable->IsSorted()) {
-                        THROW_ERROR_EXCEPTION("Cannot copy dynamic ordered table");
-                    }
                     if (tabletState != ETabletState::Unmounted && tabletState != ETabletState::Frozen) {
                         THROW_ERROR_EXCEPTION("Cannot copy dynamic table since not all of its tablets are in %Qlv or %Qlv state",
                             ETabletState::Unmounted,
@@ -1223,105 +1226,42 @@ public:
             }
         } catch (const std::exception& ex) {
             const auto& cypressManager = Bootstrap_->GetCypressManager();
-            auto sourceTableProxy = cypressManager->GetNodeProxy(sourceTable->GetTrunkNode(), sourceTable->GetTransaction());
+            auto sourceTableProxy = cypressManager->GetNodeProxy(trunkSourceTable, transaction);
             THROW_ERROR_EXCEPTION("Error cloning table %v",
-                sourceTableProxy->GetPath());
+                sourceTableProxy->GetPath())
+                << ex;
         }
 
-        auto data = New<TCloneTableData>();
-        data->Mode = mode;
+        // Undo the harm done in TChunkOwnerTypeHandler::DoClone.
+        auto* fakeClonedRootChunkList = trunkClonedTable->GetChunkList();
+        fakeClonedRootChunkList->RemoveOwningNode(trunkClonedTable);
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        objectManager->UnrefObject(fakeClonedRootChunkList);
 
-        switch (data->Mode) {
-            case ENodeCloneMode::Move:
-                data->Tablets.swap(sourceTable->Tablets());
-                break;
+        const auto& sourceTablets = trunkSourceTable->Tablets();
+        YCHECK(!sourceTablets.empty());
+        auto& clonedTablets = trunkClonedTable->Tablets();
+        YCHECK(clonedTablets.empty());
 
-            case ENodeCloneMode::Copy:
-                break;
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        auto* clonedRootChunkList = chunkManager->CreateChunkList(false);
+        trunkClonedTable->SetChunkList(clonedRootChunkList);
+        objectManager->RefObject(clonedRootChunkList);
+        clonedRootChunkList->AddOwningNode(trunkClonedTable);
 
-            default:
-                Y_UNREACHABLE();
-        }
+        clonedTablets.reserve(sourceTablets.size());
+        auto* sourceRootChunkList = trunkSourceTable->GetChunkList();
+        YCHECK(sourceRootChunkList->Children().size() == sourceTablets.size());
+        for (int index = 0; index < static_cast<int>(sourceTablets.size()); ++index) {
+            const auto* sourceTablet = sourceTablets[index];
 
-        return data;
-    }
+            auto* clonedTablet = CreateTablet(trunkClonedTable);
+            clonedTablet->CopyFrom(*sourceTablet);
 
-    void CommitCloneTable(
-        TTableNode* sourceTable,
-        TTableNode* clonedTable,
-        TCloneTableDataPtr data)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(clonedTable->Tablets().empty());
+            auto* tabletChunkList = sourceRootChunkList->Children()[index];
+            chunkManager->AttachToChunkList(clonedRootChunkList, tabletChunkList);
 
-        switch (data->Mode) {
-            case ENodeCloneMode::Move:
-                YCHECK(sourceTable->Tablets().empty());
-                data->Tablets.swap(clonedTable->Tablets());
-                for (auto* tablet : clonedTable->Tablets()) {
-                    tablet->SetTable(clonedTable);
-                }
-                break;
-
-            case ENodeCloneMode::Copy: {
-                // Undo the harm done in TChunkOwnerTypeHandler::DoClone.
-                auto* fakeClonedRootChunkList = clonedTable->GetChunkList();
-                fakeClonedRootChunkList->RemoveOwningNode(clonedTable);
-                const auto& objectManager = Bootstrap_->GetObjectManager();
-                objectManager->UnrefObject(fakeClonedRootChunkList);
-
-                const auto& sourceTablets = sourceTable->Tablets();
-                YCHECK(!sourceTablets.empty());
-                auto& clonedTablets = clonedTable->Tablets();
-                YCHECK(clonedTablets.empty());
-
-                const auto& chunkManager = Bootstrap_->GetChunkManager();
-                auto* clonedRootChunkList = chunkManager->CreateChunkList(false);
-                clonedTable->SetChunkList(clonedRootChunkList);
-                objectManager->RefObject(clonedRootChunkList);
-                clonedRootChunkList->AddOwningNode(clonedTable);
-
-                clonedTablets.reserve(sourceTablets.size());
-                auto* sourceRootChunkList = sourceTable->GetChunkList();
-                YCHECK(sourceRootChunkList->Children().size() == sourceTablets.size());
-                for (int index = 0; index < static_cast<int>(sourceTablets.size()); ++index) {
-                    const auto* sourceTablet = sourceTablets[index];
-
-                    auto* clonedTablet = CreateTablet(clonedTable);
-                    clonedTablet->CopyFrom(*sourceTablet);
-
-                    auto* tabletChunkList = sourceRootChunkList->Children()[index];
-                    chunkManager->AttachToChunkList(clonedRootChunkList, tabletChunkList);
-
-                    clonedTablets.push_back(clonedTablet);
-                }
-                break;
-            }
-
-            default:
-                Y_UNREACHABLE();
-        }
-    }
-
-    void RollbackCloneTable(
-        TTableNode* sourceTable,
-        TTableNode* clonedTable,
-        TCloneTableDataPtr data)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(sourceTable->Tablets().empty());
-        YCHECK(clonedTable->Tablets().empty());
-
-        switch (data->Mode) {
-            case ENodeCloneMode::Move:
-                data->Tablets.swap(sourceTable->Tablets());
-                break;
-
-            case ENodeCloneMode::Copy:
-                break;
-
-            default:
-                Y_UNREACHABLE();
+            clonedTablets.push_back(clonedTablet);
         }
     }
 
@@ -1745,7 +1685,7 @@ private:
         for (const auto& slot : node->TabletSlots()) {
             auto* cell = slot.Cell;
             if (cell) {
-                LOG_INFO_UNLESS(IsRecovery(), "Tablet cell peer offline: node unregistered (Address: %v, CellId: %v, PeerId: %v)",
+                LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell peer offline: node unregistered (Address: %v, CellId: %v, PeerId: %v)",
                     node->GetDefaultAddress(),
                     cell->GetId(),
                     slot.PeerId);
@@ -1781,7 +1721,7 @@ private:
             const auto* cellBundle = cell->GetCellBundle();
             protoInfo->set_options(ConvertToYsonString(cellBundle->GetOptions()).Data());
 
-            LOG_INFO_UNLESS(IsRecovery(), "Tablet slot creation requested (Address: %v, CellId: %v, PeerId: %v)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Tablet slot creation requested (Address: %v, CellId: %v, PeerId: %v)",
                 node->GetDefaultAddress(),
                 cellId,
                 peerId);
@@ -1805,7 +1745,7 @@ private:
             ToProto(protoInfo->mutable_cell_descriptor(), cellDescriptor);
             ToProto(protoInfo->mutable_prerequisite_transaction_id(), prerequisiteTransactionId);
 
-            LOG_INFO_UNLESS(IsRecovery(), "Tablet slot configuration update requested "
+            LOG_DEBUG_UNLESS(IsRecovery(), "Tablet slot configuration update requested "
                 "(Address: %v, CellId: %v, Version: %v, PrerequisiteTransactionId: %v)",
                 node->GetDefaultAddress(),
                 cellId,
@@ -1820,7 +1760,7 @@ private:
             auto* protoInfo = response->add_tablet_slots_to_remove();
             ToProto(protoInfo->mutable_cell_id(), cellId);
 
-            LOG_INFO_UNLESS(IsRecovery(), "Tablet slot removal requested (Address: %v, CellId: %v)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Tablet slot removal requested (Address: %v, CellId: %v)",
                 node->GetDefaultAddress(),
                 cellId);
         };
@@ -1857,7 +1797,7 @@ private:
             const auto& cellId = cellInfo.CellId;
             auto* cell = FindTabletCell(cellId);
             if (!IsObjectAlive(cell)) {
-                LOG_INFO_UNLESS(IsRecovery(), "Unknown tablet slot is running (Address: %v, CellId: %v)",
+                LOG_DEBUG_UNLESS(IsRecovery(), "Unknown tablet slot is running (Address: %v, CellId: %v)",
                     address,
                     cellId);
                 requestRemoveSlot(cellId);
@@ -1866,7 +1806,7 @@ private:
 
             auto peerId = cell->FindPeerId(address);
             if (peerId == InvalidPeerId) {
-                LOG_INFO_UNLESS(IsRecovery(), "Unexpected tablet cell is running (Address: %v, CellId: %v)",
+                LOG_DEBUG_UNLESS(IsRecovery(), "Unexpected tablet cell is running (Address: %v, CellId: %v)",
                     address,
                     cellId);
                 requestRemoveSlot(cellId);
@@ -1874,7 +1814,7 @@ private:
             }
 
             if (slotInfo.peer_id() != InvalidPeerId && slotInfo.peer_id() != peerId)  {
-                LOG_INFO_UNLESS(IsRecovery(), "Invalid peer id for tablet cell: %v instead of %v (Address: %v, CellId: %v)",
+                LOG_DEBUG_UNLESS(IsRecovery(), "Invalid peer id for tablet cell: %v instead of %v (Address: %v, CellId: %v)",
                     slotInfo.peer_id(),
                     peerId,
                     address,
@@ -1886,7 +1826,7 @@ private:
             auto expectedIt = expectedCells.find(cell);
             if (expectedIt == expectedCells.end()) {
                 cell->AttachPeer(node, peerId);
-                LOG_INFO_UNLESS(IsRecovery(), "Tablet cell peer online (Address: %v, CellId: %v, PeerId: %v)",
+                LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell peer online (Address: %v, CellId: %v, PeerId: %v)",
                     address,
                     cellId,
                     peerId);
@@ -1915,7 +1855,7 @@ private:
         // Check for expected slots that are missing.
         for (auto* cell : expectedCells) {
             if (actualCells.find(cell) == actualCells.end()) {
-                LOG_INFO_UNLESS(IsRecovery(), "Tablet cell peer offline: slot is missing (CellId: %v, Address: %v)",
+                LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell peer offline: slot is missing (CellId: %v, Address: %v)",
                     cell->GetId(),
                     address);
                 cell->DetachPeer(node);
@@ -2038,7 +1978,7 @@ private:
             cell->AssignPeer(descriptor, peerId);
             cell->UpdatePeerSeenTime(peerId, mutationTimestamp);
 
-            LOG_INFO_UNLESS(IsRecovery(), "Tablet cell peer assigned (CellId: %v, Address: %v, PeerId: %v)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell peer assigned (CellId: %v, Address: %v, PeerId: %v)",
                 cellId,
                 descriptor.GetDefaultAddress(),
                 peerId);
@@ -2091,7 +2031,7 @@ private:
         cell->SetLeadingPeerId(peerId);
 
         const auto& descriptor = cell->Peers()[peerId].Descriptor;
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet cell leading peer updated (CellId: %v, Address: %v, PeerId: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell leading peer updated (CellId: %v, Address: %v, PeerId: %v)",
             cellId,
             descriptor.GetDefaultAddress(),
             peerId);
@@ -2110,7 +2050,7 @@ private:
 
         auto state = tablet->GetState();
         if (state != ETabletState::Mounting) {
-            LOG_INFO_UNLESS(IsRecovery(), "Mounted notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Mounted notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
                 state,
                 tabletId);
             return;
@@ -2120,7 +2060,7 @@ private:
         auto* table = tablet->GetTable();
         auto* cell = tablet->GetCell();
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TableId: %v, TabletId: %v, MountRevision: %v, CellId: %v, Frozen: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet mounted (TableId: %v, TabletId: %v, MountRevision: %v, CellId: %v, Frozen: %v)",
             table->GetId(),
             tablet->GetId(),
             tablet->GetMountRevision(),
@@ -2170,7 +2110,7 @@ private:
             return;
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet frozen (TableId: %v, TabletId: %v, CellId: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet frozen (TableId: %v, TabletId: %v, CellId: %v)",
             table->GetId(),
             tablet->GetId(),
             cell->GetId());
@@ -2197,7 +2137,7 @@ private:
             return;
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet unfrozen (TableId: %v, TabletId: %v, CellId: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet unfrozen (TableId: %v, TabletId: %v, CellId: %v)",
             table->GetId(),
             tablet->GetId(),
             cell->GetId());
@@ -2295,7 +2235,7 @@ private:
         auto* table = tablet->GetTable();
         auto* cell = tablet->GetCell();
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet unmounted (TableId: %v, TabletId: %v, CellId: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet unmounted (TableId: %v, TabletId: %v, CellId: %v)",
             table->GetId(),
             tablet->GetId(),
             cell->GetId());
@@ -2616,7 +2556,7 @@ private:
 
         UpdateCellDirectory(cell);
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet cell reconfigured (CellId: %v, Version: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell reconfigured (CellId: %v, Version: %v)",
             cell->GetId(),
             cell->GetConfigVersion());
     }
@@ -2782,7 +2722,7 @@ private:
         cell->SetPrerequisiteTransaction(transaction);
         YCHECK(TransactionToCellMap_.insert(std::make_pair(transaction, cell)).second);
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet cell prerequisite transaction started (CellId: %v, TransactionId: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite transaction started (CellId: %v, TransactionId: %v)",
             cell->GetId(),
             transaction->GetId());
     }
@@ -2813,7 +2753,7 @@ private:
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->AbortTransaction(transaction, true);
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet cell prerequisite aborted (CellId: %v, TransactionId: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite aborted (CellId: %v, TransactionId: %v)",
             cell->GetId(),
             transactionId);
     }
@@ -2829,7 +2769,7 @@ private:
         cell->SetPrerequisiteTransaction(nullptr);
         TransactionToCellMap_.erase(it);
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet cell prerequisite transaction aborted (CellId: %v, TransactionId: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite transaction aborted (CellId: %v, TransactionId: %v)",
             cell->GetId(),
             transaction->GetId());
 
@@ -2847,7 +2787,7 @@ private:
             return;
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet cell peer revoked (CellId: %v, Address: %v, PeerId: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell peer revoked (CellId: %v, Address: %v, PeerId: %v)",
             cell->GetId(),
             descriptor.GetDefaultAddress(),
             peerId);
@@ -2869,30 +2809,29 @@ private:
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = table->Tablets()[index];
+
+            if (tablet->GetState() == ETabletState::Unmounted) {
+                continue;
+            }
+
             auto* cell = tablet->GetCell();
+            YCHECK(cell);
 
-            auto state = tablet->GetState();
-            if (state == ETabletState::Mounted ||
-                state == ETabletState::Frozen)
-            {
-                LOG_INFO_UNLESS(IsRecovery(), "Unmounting tablet (TableId: %v, TabletId: %v, CellId: %v, Force: %v)",
-                    table->GetId(),
-                    tablet->GetId(),
-                    cell->GetId(),
-                    force);
+            LOG_DEBUG_UNLESS(IsRecovery(), "Unmounting tablet (TableId: %v, TabletId: %v, CellId: %v, Force: %v)",
+                table->GetId(),
+                tablet->GetId(),
+                cell->GetId(),
+                force);
 
-                tablet->SetState(ETabletState::Unmounting);
-            }
+            tablet->SetState(ETabletState::Unmounting);
 
-            if (cell) {
-                TReqUnmountTablet request;
-                ToProto(request.mutable_tablet_id(), tablet->GetId());
-                request.set_force(force);
-                auto* mailbox = hiveManager->GetMailbox(cell->GetId());
-                hiveManager->PostMessage(mailbox, request);
-            }
+            TReqUnmountTablet request;
+            ToProto(request.mutable_tablet_id(), tablet->GetId());
+            request.set_force(force);
+            auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+            hiveManager->PostMessage(mailbox, request);
 
-            if (force && tablet->GetState() != ETabletState::Unmounted) {
+            if (force) {
                 for (auto& pair : tablet->Replicas()) {
                     auto replica = pair.first;
                     auto& replicaInfo = pair.second;
@@ -3280,37 +3219,17 @@ void TTabletManager::ReshardTable(
         pivotKeys);
 }
 
-TTabletManager::TCloneTableDataPtr TTabletManager::BeginCloneTable(
+void TTabletManager::CloneTable(
     TTableNode* sourceTable,
     TTableNode* clonedTable,
+    TTransaction* transaction,
     ENodeCloneMode mode)
 {
-    return Impl_->BeginCloneTable(
+    return Impl_->CloneTable(
         sourceTable,
         clonedTable,
+        transaction,
         mode);
-}
-
-void TTabletManager::CommitCloneTable(
-    TTableNode* sourceTable,
-    TTableNode* clonedTable,
-    TCloneTableDataPtr data)
-{
-    Impl_->CommitCloneTable(
-        sourceTable,
-        clonedTable,
-        std::move(data));
-}
-
-void TTabletManager::RollbackCloneTable(
-    TTableNode* sourceTable,
-    TTableNode* clonedTable,
-    TCloneTableDataPtr data)
-{
-    Impl_->RollbackCloneTable(
-        sourceTable,
-        clonedTable,
-        std::move(data));
 }
 
 void TTabletManager::MakeTableDynamic(TTableNode* table)

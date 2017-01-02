@@ -44,11 +44,11 @@ protected:
     virtual bool IsValid(NObjectServer::TObjectBase* object) const = 0;
     virtual NYPath::TYPath GetWellKnownPath() const = 0;
 
-    virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
+    virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
 
-    virtual TResolveResult ResolveRecursive(const NYPath::TYPath& path, NRpc::IServiceContextPtr context) override;
-    virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context) override;
-    virtual void ListSelf(TReqList* request, TRspList* response, TCtxListPtr context) override;
+    virtual TResolveResult ResolveRecursive(const NYPath::TYPath& path, const NRpc::IServiceContextPtr& context) override;
+    virtual void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
+    virtual void ListSelf(TReqList* request, TRspList* response, const TCtxListPtr& context) override;
 
     // TSupportsAttributes overrides
     virtual NYTree::ISystemAttributeProvider* GetBuiltinAttributeProvider() override;

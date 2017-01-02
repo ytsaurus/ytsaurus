@@ -36,7 +36,7 @@ Stroka ToString(TChunkPtrWithIndexes value)
     int replicaIndex = value.GetReplicaIndex();
     int mediumIndex = value.GetMediumIndex();
     if (chunk->IsJournal()) {
-        return Format("%v/%v@v",
+        return Format("%v/%v@%v",
             id,
             EJournalReplicaType(replicaIndex),
             mediumIndex);

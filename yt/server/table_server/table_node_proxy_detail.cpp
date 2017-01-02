@@ -449,7 +449,7 @@ void TTableNodeProxy::ValidateFetchParameters(
 }
 
 
-bool TTableNodeProxy::DoInvoke(IServiceContextPtr context)
+bool TTableNodeProxy::DoInvoke(const IServiceContextPtr& context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(Mount);
     DISPATCH_YPATH_SERVICE_METHOD(Unmount);
@@ -655,14 +655,14 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
     ValidateNotExternal();
     ValidateNoTransaction();
 
-    auto* table = GetThisImpl();
+    auto* trunkTable = GetThisImpl();
 
-    ToProto(response->mutable_table_id(), table->GetId());
-    response->set_dynamic(table->IsDynamic());
-    ToProto(response->mutable_schema(), table->TableSchema());
+    ToProto(response->mutable_table_id(), trunkTable->GetId());
+    response->set_dynamic(trunkTable->IsDynamic());
+    ToProto(response->mutable_schema(), trunkTable->TableSchema());
 
     yhash_set<TTabletCell*> cells;
-    for (auto* tablet : table->Tablets()) {
+    for (auto* tablet : trunkTable->Tablets()) {
         auto* cell = tablet->GetCell();
         auto* protoTablet = response->add_tablets();
         ToProto(protoTablet->mutable_tablet_id(), tablet->GetId());

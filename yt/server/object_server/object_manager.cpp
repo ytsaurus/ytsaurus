@@ -84,7 +84,7 @@ public:
         , ObjectId_(objectId)
     { }
 
-    virtual TResolveResult Resolve(const TYPath& path, IServiceContextPtr context) override
+    virtual TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& context) override
     {
         const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
         if (ypathExt.mutating()) {
@@ -96,7 +96,7 @@ public:
         return TResolveResult::Here(path);
     }
 
-    virtual void Invoke(IServiceContextPtr context) override
+    virtual void Invoke(const IServiceContextPtr& context) override
     {
         auto requestMessage = context->GetRequestMessage();
         auto requestHeader = context->RequestHeader();
@@ -135,7 +135,7 @@ public:
         : Bootstrap_(bootstrap)
     { }
 
-    virtual TResolveResult Resolve(const TYPath& path, IServiceContextPtr context) override
+    virtual TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& context) override
     {
         const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
         if (ypathExt.mutating() && !HasMutationContext()) {
@@ -147,11 +147,11 @@ public:
         }
     }
 
-    virtual void Invoke(IServiceContextPtr context) override
+    virtual void Invoke(const IServiceContextPtr& context) override
     {
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         if (hydraManager->IsFollower()) {
-            ForwardToLeader(std::move(context));
+            ForwardToLeader(context);
             return;
         }
 
@@ -187,7 +187,7 @@ private:
         return TResolveResult::Here(path);
     }
 
-    TResolveResult DoResolveThere(const TYPath& path, IServiceContextPtr context)
+    TResolveResult DoResolveThere(const TYPath& path, const IServiceContextPtr& context)
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         if (context->GetService() == TMasterYPathProxy::GetDescriptor().ServiceName) {
@@ -257,7 +257,7 @@ private:
     }
 
 
-    void ForwardToLeader(IServiceContextPtr context)
+    void ForwardToLeader(const IServiceContextPtr& context)
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto asyncResponseMessage = objectManager->ForwardToLeader(
@@ -1121,7 +1121,7 @@ void TObjectManager::HydraExecuteLeader(
     auto mutationId = GetMutationId(context);
     if (mutationId) {
         const auto& hydraFacade = Bootstrap_->GetHydraFacade();
-        auto responseKeeper = hydraFacade->GetResponseKeeper();
+        const auto& responseKeeper = hydraFacade->GetResponseKeeper();
         // NB: Context must already be replied by now.
         responseKeeper->EndRequest(mutationId, context->GetResponseMessage());
     }
@@ -1140,7 +1140,6 @@ void TObjectManager::HydraExecuteFollower(NProto::TReqExecute* request)
 
     auto requestMessage = TSharedRefArray(std::move(parts));
     auto context = CreateYPathContext(std::move(requestMessage));
-
     HydraExecuteLeader(userName, std::move(context), nullptr);
 }
 

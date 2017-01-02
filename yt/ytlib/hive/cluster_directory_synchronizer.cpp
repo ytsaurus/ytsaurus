@@ -95,7 +95,7 @@ private:
         try {
             DoSync();
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Cluster directory synchronization failed");
+            LOG_DEBUG(ex, "Cluster directory synchronization failed");
         }
     }
 };

@@ -40,7 +40,7 @@ protected:
 
     virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override;
 
-    virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
+    virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
 
     void ValidateInUpdate();
     virtual void ValidateBeginUpload();

@@ -314,7 +314,7 @@ void ExecuteVerb(
 
     auto invokeContext = New<TInvokeContext>(
         std::move(updatedRequestMessage),
-        std::move(context));
+        context);
 
     // This should never throw.
     suffixService->Invoke(std::move(invokeContext));

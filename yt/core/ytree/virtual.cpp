@@ -27,10 +27,10 @@ using NYT::FromProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 TVirtualMapBase::TVirtualMapBase(INodePtr owningNode)
-    : OwningNode_(owningNode)
+    : OwningNode_(std::move(owningNode))
 { }
 
-bool TVirtualMapBase::DoInvoke(IServiceContextPtr context)
+bool TVirtualMapBase::DoInvoke(const IServiceContextPtr& context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(Get);
     DISPATCH_YPATH_SERVICE_METHOD(List);
@@ -40,7 +40,7 @@ bool TVirtualMapBase::DoInvoke(IServiceContextPtr context)
 
 IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(
     const TYPath& path,
-    IServiceContextPtr context)
+    const IServiceContextPtr& context)
 {
     NYPath::TTokenizer tokenizer(path);
     tokenizer.Advance();
@@ -59,7 +59,10 @@ IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(
     return TResolveResult::There(service, tokenizer.GetSuffix());
 }
 
-void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
+void TVirtualMapBase::GetSelf(
+    TReqGet* request,
+    TRspGet* response,
+    const TCtxGetPtr& context)
 {
     Y_ASSERT(!NYson::TTokenizer(GetRequestYPath(context->RequestHeader())).ParseNext());
 
@@ -113,7 +116,10 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr co
     }));
 }
 
-void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxListPtr context)
+void TVirtualMapBase::ListSelf(
+    TReqList* request,
+    TRspList* response,
+    const TCtxListPtr& context)
 {
     auto attributeKeys = request->has_attributes()
         ? MakeNullable(FromProto<std::vector<Stroka>>(request->attributes().keys()))
@@ -352,7 +358,7 @@ public:
 
     virtual TResolveResult Resolve(
         const TYPath& path,
-        IServiceContextPtr /*context*/) override
+        const IServiceContextPtr& /*context*/) override
     {
         // TODO(babenko): handle ugly face
         return TResolveResult::There(UnderlyingService_, path);

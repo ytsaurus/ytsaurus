@@ -156,22 +156,22 @@ public:
     }
 
 
-    TMasterAutomatonPtr GetAutomaton() const
+    const TMasterAutomatonPtr& GetAutomaton() const
     {
         return Automaton_;
     }
     
-    IElectionManagerPtr GetElectionManager() const
+    const IElectionManagerPtr& GetElectionManager() const
     {
         return ElectionManager_;
     }
 
-    IHydraManagerPtr GetHydraManager() const
+    const IHydraManagerPtr& GetHydraManager() const
     {
         return HydraManager_;
     }
 
-    TResponseKeeperPtr GetResponseKeeper() const
+    const TResponseKeeperPtr& GetResponseKeeper() const
     {
         return ResponseKeeper_;
     }
@@ -344,8 +344,7 @@ THydraFacade::THydraFacade(
     : Impl_(New<TImpl>(config, bootstrap))
 { }
 
-THydraFacade::~THydraFacade()
-{ }
+THydraFacade::~THydraFacade() = default;
 
 void THydraFacade::Initialize()
 {
@@ -357,22 +356,22 @@ void THydraFacade::LoadSnapshot(ISnapshotReaderPtr reader, bool dump)
     Impl_->LoadSnapshot(reader, dump);
 }
 
-TMasterAutomatonPtr THydraFacade::GetAutomaton() const
+const TMasterAutomatonPtr& THydraFacade::GetAutomaton() const
 {
     return Impl_->GetAutomaton();
 }
 
-IElectionManagerPtr THydraFacade::GetElectionManager() const
+const IElectionManagerPtr& THydraFacade::GetElectionManager() const
 {
     return Impl_->GetElectionManager();
 }
 
-IHydraManagerPtr THydraFacade::GetHydraManager() const
+const IHydraManagerPtr& THydraFacade::GetHydraManager() const
 {
     return Impl_->GetHydraManager();
 }
 
-TResponseKeeperPtr THydraFacade::GetResponseKeeper() const
+const TResponseKeeperPtr& THydraFacade::GetResponseKeeper() const
 {
     return Impl_->GetResponseKeeper();
 }

@@ -59,21 +59,7 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(THiveManagerConfig)
 
-class TCellDirectorySynchronizerConfig
-    : public NYTree::TYsonSerializable
-{
-public:
-    //! Interval between consequent SyncCells requests to the primary Hive Manager.
-    TDuration SyncPeriod;
-
-    TCellDirectorySynchronizerConfig()
-    {
-        RegisterParameter("sync_period", SyncPeriod)
-            .Default(TDuration::Seconds(15));
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TCellDirectorySynchronizerConfig)
+////////////////////////////////////////////////////////////////////////////////
 
 class TTransactionSupervisorConfig
     : public NYTree::TYsonSerializable

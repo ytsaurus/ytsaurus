@@ -73,40 +73,40 @@ protected:
     virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override;
     virtual bool RemoveBuiltinAttribute(const Stroka& key) override;
 
-    virtual void BeforeInvoke(NRpc::IServiceContextPtr context) override;
-    virtual void AfterInvoke(NRpc::IServiceContextPtr context) override;
-    virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
+    virtual void BeforeInvoke(const NRpc::IServiceContextPtr& context) override;
+    virtual void AfterInvoke(const NRpc::IServiceContextPtr& context) override;
+    virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
 
     virtual void RemoveSelf(
         TReqRemove* request,
         TRspRemove* response,
-        TCtxRemovePtr context) override;
+        const TCtxRemovePtr& context) override;
 
     // Suppress access handling in the cases below.
     virtual void GetAttribute(
         const NYTree::TYPath& path,
         TReqGet* request,
         TRspGet* response,
-        TCtxGetPtr context) override;
+        const TCtxGetPtr& context) override;
     virtual void ListAttribute(
         const NYTree::TYPath& path,
         TReqList* request,
         TRspList* response,
-        TCtxListPtr context) override;
+        const TCtxListPtr& context) override;
     virtual void ExistsSelf(
         TReqExists* request,
         TRspExists* response,
-        TCtxExistsPtr context) override;
+        const TCtxExistsPtr& context) override;
     virtual void ExistsRecursive(
         const NYTree::TYPath& path,
         TReqExists* request,
         TRspExists* response,
-        TCtxExistsPtr context) override;
+        const TCtxExistsPtr& context) override;
     virtual void ExistsAttribute(
         const NYTree::TYPath& path,
         TReqExists* request,
         TRspExists* response,
-        TCtxExistsPtr context) override;
+        const TCtxExistsPtr& context) override;
 
     TCypressNodeBase* GetImpl(TCypressNodeBase* trunkNode) const;
 
@@ -390,7 +390,7 @@ public:
 private:
     typedef TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IMapNode, TMapNode> TBase;
 
-    virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
+    virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
 
     virtual void SetChildNode(
         NYTree::INodeFactory* factory,
@@ -401,9 +401,14 @@ private:
     virtual int GetMaxChildCount() const override;
     virtual int GetMaxKeyLength() const override;
 
-    virtual TResolveResult ResolveRecursive(const NYPath::TYPath& path, NRpc::IServiceContextPtr context) override;
+    virtual TResolveResult ResolveRecursive(
+        const NYPath::TYPath& path,
+        const NRpc::IServiceContextPtr& context) override;
 
-    void DoRemoveChild(TMapNode* impl, const Stroka& key, TCypressNodeBase* childImpl);
+    void DoRemoveChild(
+        TMapNode* impl,
+        const Stroka& key,
+        TCypressNodeBase* childImpl);
 
 };
 
@@ -445,7 +450,7 @@ private:
 
     virtual TResolveResult ResolveRecursive(
         const NYPath::TYPath& path,
-        NRpc::IServiceContextPtr context) override;
+        const NRpc::IServiceContextPtr& context) override;
 
 };
 
@@ -465,7 +470,7 @@ public:
 
     virtual TResolveResult Resolve(
         const NYPath::TYPath& path,
-        NRpc::IServiceContextPtr context) override;
+        const NRpc::IServiceContextPtr& context) override;
 
 private:
     typedef TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, NYTree::IEntityNode, TLinkNode> TBase;
@@ -497,20 +502,20 @@ public:
 private:
     typedef TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, NYTree::IEntityNode, TDocumentNode> TBase;
 
-    virtual TResolveResult ResolveRecursive(const NYPath::TYPath& path, NRpc::IServiceContextPtr context) override;
+    virtual TResolveResult ResolveRecursive(const NYPath::TYPath& path, const NRpc::IServiceContextPtr& context) override;
 
-    virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context) override;
-    virtual void GetRecursive(const NYPath::TYPath& path, TReqGet* request, TRspGet* response, TCtxGetPtr context) override;
+    virtual void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
+    virtual void GetRecursive(const NYPath::TYPath& path, TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
 
-    virtual void SetSelf(TReqSet* request, TRspSet* response, TCtxSetPtr context) override;
-    virtual void SetRecursive(const NYPath::TYPath& path, TReqSet* request, TRspSet* response, TCtxSetPtr context) override;
+    virtual void SetSelf(TReqSet* request, TRspSet* response, const TCtxSetPtr& context) override;
+    virtual void SetRecursive(const NYPath::TYPath& path, TReqSet* request, TRspSet* response, const TCtxSetPtr& context) override;
 
-    virtual void ListSelf(TReqList* request, TRspList* response, TCtxListPtr context) override;
-    virtual void ListRecursive(const NYPath::TYPath& path, TReqList* request, TRspList* response, TCtxListPtr context) override;
+    virtual void ListSelf(TReqList* request, TRspList* response, const TCtxListPtr& context) override;
+    virtual void ListRecursive(const NYPath::TYPath& path, TReqList* request, TRspList* response, const TCtxListPtr& context) override;
 
-    virtual void RemoveRecursive(const NYPath::TYPath& path, TReqRemove* request, TRspRemove* response, TCtxRemovePtr context) override;
+    virtual void RemoveRecursive(const NYPath::TYPath& path, TReqRemove* request, TRspRemove* response, const TCtxRemovePtr& context) override;
 
-    virtual void ExistsRecursive(const NYPath::TYPath& path, TReqExists* request, TRspExists* response, TCtxExistsPtr context) override;
+    virtual void ExistsRecursive(const NYPath::TYPath& path, TReqExists* request, TRspExists* response, const TCtxExistsPtr& context) override;
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;

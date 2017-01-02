@@ -38,7 +38,7 @@ TServiceCombiner::TServiceCombiner(std::vector<IYPathServicePtr> services, TNull
     }
 }
 
-bool TServiceCombiner::DoInvoke(IServiceContextPtr context)
+bool TServiceCombiner::DoInvoke(const IServiceContextPtr& context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(Get);
     DISPATCH_YPATH_SERVICE_METHOD(List);
@@ -49,7 +49,7 @@ bool TServiceCombiner::DoInvoke(IServiceContextPtr context)
 void TServiceCombiner::SetKeyMapping(TKeyMappingOrError keyMapping)
 {
     TGuard<TSpinLock> guard(KeyMappingSpinLock_);
-    KeyMapping_ = keyMapping;
+    KeyMapping_ = std::move(keyMapping);
 }
 
 void TServiceCombiner::UpdateKeys()
@@ -85,7 +85,9 @@ void TServiceCombiner::UpdateKeys()
     SetKeyMapping(std::move(newKeyMappingOrError));
 }
 
-IYPathService::TResolveResult TServiceCombiner::ResolveRecursive(const TYPath& path, IServiceContextPtr context)
+IYPathService::TResolveResult TServiceCombiner::ResolveRecursive(
+    const TYPath& path,
+    const IServiceContextPtr& context)
 {
     TGuard<TSpinLock> guard(KeyMappingSpinLock_);
     const auto& keyMapping = KeyMapping_.ValueOrThrow();
@@ -111,7 +113,10 @@ void TServiceCombiner::ValidateKeyMapping()
     KeyMapping_.ThrowOnError();
 }
 
-void TServiceCombiner::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
+void TServiceCombiner::GetSelf(
+    TReqGet* request,
+    TRspGet* response,
+    const TCtxGetPtr& context)
 {
     ValidateKeyMapping();
 
@@ -178,7 +183,10 @@ void TServiceCombiner::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr c
     context->Reply();
 }
 
-void TServiceCombiner::ListSelf(TReqList* request, TRspList* response, TCtxListPtr context)
+void TServiceCombiner::ListSelf(
+    TReqList* request,
+    TRspList* response,
+    const TCtxListPtr& context)
 {
     ValidateKeyMapping();
 
@@ -255,6 +263,6 @@ void TServiceCombiner::ListSelf(TReqList* request, TRspList* response, TCtxListP
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
 } // namespace NYTree
+} // namespace NYT
 

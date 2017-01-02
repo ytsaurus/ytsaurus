@@ -27,6 +27,7 @@
 #include <yt/ytlib/tablet_client/tablet_service.pb.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/periodic_executor.h>
 
 #include <yt/core/logging/log.h>
 
@@ -411,6 +412,8 @@ private:
     const TTransactionLeaseTrackerPtr LeaseTracker_;
 
     TEntityMap<TTransaction> TransientTransactionMap_;
+
+    NConcurrency::TPeriodicExecutorPtr BarrierCheckExecutor_;
     std::vector<TTransaction*> SerializingTransactionHeap_;
     TTimestamp LastSerializedCommitTimestamp_ = MinTimestamp;
     TTimestamp TransientBarrierTimestamp_ = MinTimestamp;
@@ -563,7 +566,12 @@ private:
         }
 
         TransientBarrierTimestamp_ = MinTimestamp;
-        MaybeCommitBarrier();
+
+        BarrierCheckExecutor_ = New<TPeriodicExecutor>(
+            Slot_->GetEpochAutomatonInvoker(),
+            BIND(&TImpl::CheckBarrier, MakeWeak(this)),
+            Config_->BarrierCheckPeriod);
+        BarrierCheckExecutor_->Start();
 
         LeaseTracker_->Start();
     }
@@ -575,6 +583,11 @@ private:
         TTabletAutomatonPart::OnStopLeading();
 
         LeaseTracker_->Stop();
+
+        if (BarrierCheckExecutor_) {
+            BarrierCheckExecutor_->Stop();
+            BarrierCheckExecutor_.Reset();
+        }
 
         // Drop all transient transactions.
         for (const auto& pair : TransientTransactionMap_) {
@@ -744,7 +757,7 @@ private:
     }
 
 
-    void MaybeCommitBarrier()
+    void CheckBarrier()
     {
         if (!IsLeader()) {
             return;
@@ -789,7 +802,7 @@ private:
         } else {
             YCHECK(transaction->GetPrepareTimestamp() == NullTimestamp);
         }
-        MaybeCommitBarrier();
+        CheckBarrier();
     }
 
     static bool SerializingTransactionHeapComparer(

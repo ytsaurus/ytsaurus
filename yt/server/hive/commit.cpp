@@ -42,11 +42,6 @@ void TCommit::SetResponseMessage(TSharedRefArray message)
     ResponseMessagePromise_.TrySet(std::move(message));
 }
 
-bool TCommit::IsDistributed() const
-{
-    return !ParticipantCellIds_.empty();
-}
-
 void TCommit::Save(TSaveContext& context) const
 {
     using NYT::Save;
@@ -65,7 +60,7 @@ void TCommit::Load(TLoadContext& context)
     using NYT::Load;
 
     // COMPAT(savrus)
-    YCHECK(context.GetVersion() == 2);
+    YCHECK(context.GetVersion() >= 2);
 
     Persistent_ = true;
     Load(context, TransactionId_);

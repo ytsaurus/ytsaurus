@@ -301,7 +301,7 @@ public:
         const ::NYT::NRpc::IServiceContextPtr& context, \
         const ::NYT::NRpc::THandlerInvocationOptions& options) \
     { \
-        auto typedContext = ::NYT::New<TCtx##method>(std::move(context), options); \
+        auto typedContext = ::NYT::New<TCtx##method>(context, options); \
         if (!typedContext->DeserializeRequest()) \
             return; \
         auto* request = &typedContext->Request(); \
@@ -312,7 +312,7 @@ public:
         const ::NYT::NRpc::IServiceContextPtr& context, \
         const ::NYT::NRpc::THandlerInvocationOptions& options) \
     { \
-        auto typedContext = ::NYT::New<TCtx##method>(std::move(context), options); \
+        auto typedContext = ::NYT::New<TCtx##method>(context, options); \
         if (!typedContext->DeserializeRequest()) { \
             return ::NYT::NRpc::TServiceBase::TLiteHandler(); \
         } \

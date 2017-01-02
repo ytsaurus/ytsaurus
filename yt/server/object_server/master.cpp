@@ -56,7 +56,7 @@ public:
 private:
     typedef TNonversionedObjectProxyBase<TMasterObject> TBase;
 
-    virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
+    virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(CreateObject);
         DISPATCH_YPATH_SERVICE_METHOD(GetClusterMeta);

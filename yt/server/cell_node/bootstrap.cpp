@@ -53,8 +53,6 @@
 
 #include <yt/server/transaction_server/timestamp_proxy_service.h>
 
-#include <yt/server/hive/cell_directory_synchronizer.h>
-
 #include <yt/server/admin_server/admin_service.h>
 
 #include <yt/ytlib/api/native_client.h>
@@ -206,11 +204,6 @@ void TBootstrap::DoRun()
         MasterConnection,
         NodeDirectory);
     NodeDirectorySynchronizer->Start();
-
-    CellDirectorySynchronizer = New<TCellDirectorySynchronizer>(
-        Config->CellDirectorySynchronizer,
-        MasterConnection->GetCellDirectory(),
-        Config->ClusterConnection->PrimaryMaster->CellId);
 
     QueryThreadPool = New<TThreadPool>(
         Config->QueryAgent->ThreadPoolSize,
@@ -466,8 +459,6 @@ void TBootstrap::DoRun()
             GetBusChannelFactory(),
             EPeerKind::Follower),
         GetCellId());
-
-    CellDirectorySynchronizer->Start();
 
     OrchidRoot = GetEphemeralNodeFactory(true)->CreateMap();
 
