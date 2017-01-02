@@ -277,6 +277,24 @@ class TestMasterTransactions(YTEnvSetup):
         remove("//tmp/file")
         commit_transaction(tx)
 
+    def test_title(self):
+        tx = start_transaction(attributes={"title": "My title"})
+        assert get("#{0}/@title".format(tx)) == "My title"
+
+    def test_custom_attr(self):
+        tx = start_transaction(attributes={"myattr": "myvalue"})
+        assert get("#{0}/@myattr".format(tx)) == "myvalue"
+
+    def test_update_attr(self):
+        tx = start_transaction()
+        set("#{0}/@myattr".format(tx), "myvalue")
+        assert get("#{0}/@myattr".format(tx)) == "myvalue"
+
+    def test_owner(self):
+        create_user("u")
+        tx = start_transaction(authenticated_user = "u")
+        assert get("#{0}/@owner".format(tx)) == "u"
+
 ##################################################################
 
 class TestMasterTransactionsMulticell(TestMasterTransactions):

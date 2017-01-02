@@ -68,14 +68,24 @@ class TMemoryUsageTrackerGuard
     : private TNonCopyable
 {
 public:
-    TMemoryUsageTrackerGuard();
+    TMemoryUsageTrackerGuard() = default;
+    TMemoryUsageTrackerGuard(const TMemoryUsageTrackerGuard& other) = delete;
     TMemoryUsageTrackerGuard(TMemoryUsageTrackerGuard&& other);
     ~TMemoryUsageTrackerGuard();
 
+    TMemoryUsageTrackerGuard& operator=(const TMemoryUsageTrackerGuard& other) = delete;
     TMemoryUsageTrackerGuard& operator=(TMemoryUsageTrackerGuard&& other);
 
-    static TMemoryUsageTrackerGuard Acquire(TMemoryUsageTracker<ECategory>* tracker, ECategory category, i64 size);
-    static TErrorOr<TMemoryUsageTrackerGuard> TryAcquire(TMemoryUsageTracker<ECategory>* tracker, ECategory category, i64 size);
+    static TMemoryUsageTrackerGuard Acquire(
+        TMemoryUsageTracker<ECategory>* tracker,
+        ECategory category,
+        i64 size,
+        i64 granularity = 1);
+    static TErrorOr<TMemoryUsageTrackerGuard> TryAcquire(
+        TMemoryUsageTracker<ECategory>* tracker,
+        ECategory category,
+        i64 size,
+        i64 granularity = 1);
 
     template <class T>
     friend void swap(TMemoryUsageTrackerGuard<T>& lhs, TMemoryUsageTrackerGuard<T>& rhs);
@@ -85,11 +95,15 @@ public:
     explicit operator bool() const;
 
     i64 GetSize() const;
+    void SetSize(i64 size);
+    void UpdateSize(i64 sizeDelta);
 
 private:
-    TMemoryUsageTracker<ECategory>* Tracker_;
+    TMemoryUsageTracker<ECategory>* Tracker_ = nullptr;
     ECategory Category_;
-    i64 Size_;
+    i64 Size_ = 0;
+    i64 AcquiredSize_ = 0;
+    i64 Granularity_ = 0;
 
     void MoveFrom(TMemoryUsageTrackerGuard&& other);
 };

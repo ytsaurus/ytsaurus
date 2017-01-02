@@ -79,21 +79,21 @@ class TYPathServiceBase
     : public virtual IYPathService
 {
 public:
-    virtual void Invoke(NRpc::IServiceContextPtr context) override;
-    virtual TResolveResult Resolve(const TYPath& path, NRpc::IServiceContextPtr context) override;
+    virtual void Invoke(const NRpc::IServiceContextPtr& context) override;
+    virtual TResolveResult Resolve(const TYPath& path, const NRpc::IServiceContextPtr& context) override;
     virtual void WriteAttributesFragment(
         NYson::IAsyncYsonConsumer* consumer,
         const TNullable<std::vector<Stroka>>& attributeKeys,
         bool sortKeys) override;
 
 protected:
-    virtual void BeforeInvoke(NRpc::IServiceContextPtr context);
-    virtual bool DoInvoke(NRpc::IServiceContextPtr context);
-    virtual void AfterInvoke(NRpc::IServiceContextPtr context);
+    virtual void BeforeInvoke(const NRpc::IServiceContextPtr& context);
+    virtual bool DoInvoke(const NRpc::IServiceContextPtr& context);
+    virtual void AfterInvoke(const NRpc::IServiceContextPtr& context);
 
-    virtual TResolveResult ResolveSelf(const TYPath& path, NRpc::IServiceContextPtr context);
-    virtual TResolveResult ResolveAttributes(const TYPath& path, NRpc::IServiceContextPtr context);
-    virtual TResolveResult ResolveRecursive(const TYPath& path, NRpc::IServiceContextPtr context);
+    virtual TResolveResult ResolveSelf(const TYPath& path, const NRpc::IServiceContextPtr& context);
+    virtual TResolveResult ResolveAttributes(const TYPath& path, const NRpc::IServiceContextPtr& context);
+    virtual TResolveResult ResolveRecursive(const TYPath& path, const NRpc::IServiceContextPtr& context);
 
 };
 
@@ -105,9 +105,9 @@ protected:
     { \
     protected: \
         DECLARE_YPATH_SERVICE_METHOD(NProto, method); \
-        virtual void method##Self(TReq##method* request, TRsp##method* response, TCtx##method##Ptr context); \
-        virtual void method##Recursive(const TYPath& path, TReq##method* request, TRsp##method* response, TCtx##method##Ptr context); \
-        virtual void method##Attribute(const TYPath& path, TReq##method* request, TRsp##method* response, TCtx##method##Ptr context); \
+        virtual void method##Self(TReq##method* request, TRsp##method* response, const TCtx##method##Ptr& context); \
+        virtual void method##Recursive(const TYPath& path, TReq##method* request, TRsp##method* response, const TCtx##method##Ptr& context); \
+        virtual void method##Attribute(const TYPath& path, TReq##method* request, TRsp##method* response, const TCtx##method##Ptr& context); \
     }
 
 class TSupportsExistsBase
@@ -117,7 +117,7 @@ protected:
     typedef NRpc::TTypedServiceContext<NProto::TReqExists, NProto::TRspExists> TCtxExists;
     typedef TIntrusivePtr<TCtxExists> TCtxExistsPtr;
 
-    void Reply(TCtxExistsPtr context, bool value);
+    void Reply(const TCtxExistsPtr& context, bool value);
 
 };
 
@@ -135,7 +135,7 @@ DECLARE_SUPPORTS_METHOD(Exists, TSupportsExistsBase);
 class TSupportsPermissions
 {
 protected:
-    virtual ~TSupportsPermissions();
+    virtual ~TSupportsPermissions() = default;
 
     virtual void ValidatePermission(
         EPermissionCheckScope scope,
@@ -184,37 +184,37 @@ protected:
 
     virtual TResolveResult ResolveAttributes(
         const NYPath::TYPath& path,
-        NRpc::IServiceContextPtr context) override;
+        const NRpc::IServiceContextPtr& context) override;
 
     virtual void GetAttribute(
         const TYPath& path,
         TReqGet* request,
         TRspGet* response,
-        TCtxGetPtr context) override;
+        const TCtxGetPtr& context) override;
 
     virtual void ListAttribute(
         const TYPath& path,
         TReqList* request,
         TRspList* response,
-        TCtxListPtr context) override;
+        const TCtxListPtr& context) override;
 
     virtual void ExistsAttribute(
         const TYPath& path,
         TReqExists* request,
         TRspExists* response,
-        TCtxExistsPtr context) override;
+        const TCtxExistsPtr& context) override;
 
     virtual void SetAttribute(
         const TYPath& path,
         TReqSet* request,
         TRspSet* response,
-        TCtxSetPtr context) override;
+        const TCtxSetPtr& context) override;
 
     virtual void RemoveAttribute(
         const TYPath& path,
         TReqRemove* request,
         TRspRemove* response,
-        TCtxRemovePtr context) override;
+        const TCtxRemovePtr& context) override;
 
 private:
     class TCombinedAttributeDictionary

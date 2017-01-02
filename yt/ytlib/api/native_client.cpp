@@ -3898,7 +3898,7 @@ private:
 
             return req->Invoke().Apply(
                 BIND(&TCellCommitSession::OnResponse, MakeStrong(this))
-                    .Via(owner->CommitInvoker_));
+                    .AsyncVia(owner->CommitInvoker_));
         }
 
     private:

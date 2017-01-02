@@ -571,7 +571,7 @@ ENodeType TChunkOwnerNodeProxy::GetType() const
     return ENodeType::Entity;
 }
 
-bool TChunkOwnerNodeProxy::DoInvoke(NRpc::IServiceContextPtr context)
+bool TChunkOwnerNodeProxy::DoInvoke(const NRpc::IServiceContextPtr& context)
 {
     DISPATCH_YPATH_HEAVY_SERVICE_METHOD(Fetch);
     DISPATCH_YPATH_SERVICE_METHOD(BeginUpload);

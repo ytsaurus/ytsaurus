@@ -161,12 +161,6 @@ void TMemoryUsageTracker<ECategory>::Release(ECategory category, i64 size)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class ECategory>
-TMemoryUsageTrackerGuard<ECategory>::TMemoryUsageTrackerGuard()
-    : Tracker_(nullptr)
-    , Size_(0)
-{ }
-
-template <class ECategory>
 TMemoryUsageTrackerGuard<ECategory>::TMemoryUsageTrackerGuard(TMemoryUsageTrackerGuard&& other)
 {
     MoveFrom(std::move(other));
@@ -194,9 +188,13 @@ void TMemoryUsageTrackerGuard<ECategory>::MoveFrom(TMemoryUsageTrackerGuard&& ot
     Tracker_ = other.Tracker_;
     Category_ = other.Category_;
     Size_ = other.Size_;
+    AcquiredSize_ = other.AcquiredSize_;
+    Granularity_ = other.Granularity_;
 
     other.Tracker_ = nullptr;
     other.Size_ = 0;
+    other.AcquiredSize_ = 0;
+    other.Granularity_ = 0;
 }
 
 template <class ECategory>
@@ -209,13 +207,18 @@ template <class ECategory>
 TMemoryUsageTrackerGuard<ECategory> TMemoryUsageTrackerGuard<ECategory>::Acquire(
     TMemoryUsageTracker<ECategory>* tracker,
     ECategory category,
-    i64 size)
+    i64 size,
+    i64 granularity)
 {
     TMemoryUsageTrackerGuard guard;
-    tracker->Acquire(category, size);
     guard.Tracker_ = tracker;
     guard.Category_ = category;
     guard.Size_ = size;
+    guard.Granularity_ = granularity;
+    if (size >= granularity) {
+        guard.AcquiredSize_ = size;
+        tracker->Acquire(category, size);
+    }
     return guard;
 }
 
@@ -223,7 +226,8 @@ template <class ECategory>
 TErrorOr<TMemoryUsageTrackerGuard<ECategory>> TMemoryUsageTrackerGuard<ECategory>::TryAcquire(
     TMemoryUsageTracker<ECategory>* tracker,
     ECategory category,
-    i64 size)
+    i64 size,
+    i64 granularity)
 {
     auto error = tracker->TryAcquire(category, size);
     if (!error.IsOK()) {
@@ -233,6 +237,8 @@ TErrorOr<TMemoryUsageTrackerGuard<ECategory>> TMemoryUsageTrackerGuard<ECategory
     guard.Tracker_ = tracker;
     guard.Category_ = category;
     guard.Size_ = size;
+    guard.AcquiredSize_ = size;
+    guard.Granularity_ = granularity;
     return std::move(guard);
 }
 
@@ -240,9 +246,11 @@ template <class ECategory>
 void TMemoryUsageTrackerGuard<ECategory>::Release()
 {
     if (Tracker_) {
-        Tracker_->Release(Category_, Size_);
+        Tracker_->Release(Category_, AcquiredSize_);
         Tracker_ = nullptr;
         Size_ = 0;
+        AcquiredSize_ = 0;
+        Granularity_ = 0;
     }
 }
 
@@ -256,6 +264,30 @@ template <class ECategory>
 i64 TMemoryUsageTrackerGuard<ECategory>::GetSize() const
 {
     return Size_;
+}
+
+template <class ECategory>
+void TMemoryUsageTrackerGuard<ECategory>::SetSize(i64 size)
+{
+    Y_ASSERT(Tracker_);
+    Y_ASSERT(Size_ >= 0);
+    Y_ASSERT(size >= 0);
+    Size_ = size;
+    if (std::abs(Size_ - AcquiredSize_) >= Granularity_) {
+        if (Size_ > AcquiredSize_) {
+            Tracker_->Acquire(Category_, Size_ - AcquiredSize_);
+        } else {
+            Tracker_->Release(Category_, AcquiredSize_ - Size_);
+        }
+        AcquiredSize_ = Size_;
+    }
+}
+
+template <class ECategory>
+void TMemoryUsageTrackerGuard<ECategory>::UpdateSize(i64 sizeDelta)
+{
+    Y_ASSERT(Tracker_);
+    SetSize(Size_ + sizeDelta);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

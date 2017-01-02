@@ -7,6 +7,7 @@
 #include <yt/ytlib/admin/admin_service_proxy.h>
 
 #include <yt/ytlib/hive/cell_directory.h>
+#include <yt/ytlib/hive/cell_directory_synchronizer.h>
 
 #include <yt/ytlib/hydra/hydra_service_proxy.h>
 
@@ -44,7 +45,6 @@ public:
         : Connection_(std::move(connection))
         , Options_(options)
         // NB: Cannot actually throw.
-        , LeaderChannel_(Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Leader))
     {
         Logger.AddTag("Admin: %p", this);
         Y_UNUSED(Options_);
@@ -81,8 +81,6 @@ private:
     const INativeConnectionPtr Connection_;
     const TAdminOptions Options_;
 
-    const IChannelPtr LeaderChannel_;
-
     NLogging::TLogger Logger = ApiLogger;
 
 
@@ -106,11 +104,12 @@ private:
 
     int DoBuildSnapshot(const TBuildSnapshotOptions& options)
     {
-        auto cellDirectory = Connection_->GetCellDirectory();
-        WaitFor(cellDirectory->Synchronize(LeaderChannel_))
+        const auto& cellDirectorySynchronizer = Connection_->GetCellDirectorySynchronizer();
+        WaitFor(cellDirectorySynchronizer->Sync())
             .ThrowOnError();
 
         auto cellId = options.CellId ? options.CellId : Connection_->GetPrimaryMasterCellId();
+        const auto& cellDirectory = Connection_->GetCellDirectory();
         auto channel = cellDirectory->GetChannelOrThrow(cellId);
 
         THydraServiceProxy proxy(channel);
@@ -125,25 +124,20 @@ private:
         return rsp->snapshot_id();
     }
 
-    void DoGCCollect(const TGCCollectOptions& /*options*/)
+    void DoGCCollect(const TGCCollectOptions& options)
     {
         std::vector<TFuture<void>> asyncResults;
 
-        auto collectAtCell = [&] (TCellTag cellTag) {
-            auto channel = Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
-            TObjectServiceProxy proxy(LeaderChannel_);
-            proxy.SetDefaultTimeout(Null); // infinity
-            auto req = proxy.GCCollect();
-            auto asyncResult = req->Invoke().As<void>();
-            asyncResults.push_back(asyncResult);
-        };
+        auto cellId = options.CellId ? options.CellId : Connection_->GetPrimaryMasterCellId();
+        const auto& cellDirectory = Connection_->GetCellDirectory();
+        auto channel = cellDirectory->GetChannelOrThrow(cellId);
 
-        collectAtCell(Connection_->GetPrimaryMasterCellTag());
-        for (auto cellTag : Connection_->GetSecondaryMasterCellTags()) {
-            collectAtCell(cellTag);
-        }
+        TObjectServiceProxy proxy(channel);
+        proxy.SetDefaultTimeout(Null); // infinity
 
-        WaitFor(Combine(asyncResults))
+        auto req = proxy.GCCollect();
+
+        WaitFor(req->Invoke())
             .ThrowOnError();
     }
 

@@ -30,11 +30,14 @@ struct TCellDescriptor;
 struct TCellInfo;
 
 DECLARE_REFCOUNTED_CLASS(TCellDirectory)
+DECLARE_REFCOUNTED_CLASS(TCellDirectorySynchronizer)
+
 DECLARE_REFCOUNTED_CLASS(TClusterDirectory)
 DECLARE_REFCOUNTED_CLASS(TClusterDirectorySynchronizer)
 
 DECLARE_REFCOUNTED_CLASS(TCellDirectoryConfig)
 DECLARE_REFCOUNTED_CLASS(TClusterDirectorySynchronizerConfig)
+DECLARE_REFCOUNTED_CLASS(TCellDirectorySynchronizerConfig)
 
 DECLARE_REFCOUNTED_STRUCT(ITransactionParticipant)
 

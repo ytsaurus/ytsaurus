@@ -308,6 +308,20 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         sleep(1.0)
         assert get("#{0}/@replication_lag_time".format(replica_id)) == 0
 
+    def test_replica_ops_require_exclusive_lock(self):
+        self.sync_create_cells(1)
+        self._create_replicated_table("//tmp/t")
+        
+        tx1 = start_transaction()
+        lock("//tmp/t", mode="exclusive", tx=tx1)
+        with pytest.raises(YtError): create_table_replica("//tmp/t", "r1", "//tmp/r")
+        abort_transaction(tx1)
+
+        replica_id = create_table_replica("//tmp/t", "r1", "//tmp/r")
+        tx2 = start_transaction()
+        lock("//tmp/t", mode="exclusive", tx=tx2)
+        with pytest.raises(YtError): remove_table_replica(replica_id)
+
 ##################################################################
 
 class TestReplicatedDynamicTablesMulticell(TestReplicatedDynamicTables):

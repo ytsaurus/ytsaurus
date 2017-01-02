@@ -241,7 +241,7 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, CheckPermission)
     context->Reply();
 }
 
-void TObjectProxyBase::Invoke(IServiceContextPtr context)
+void TObjectProxyBase::Invoke(const IServiceContextPtr& context)
 {
     const auto& requestHeader = context->RequestHeader();
 
@@ -273,7 +273,7 @@ void TObjectProxyBase::Invoke(IServiceContextPtr context)
     const auto& Profiler = objectManager->GetProfiler();
     static const auto profilingPath = TYPath("/verb_execute_time");
     PROFILE_TIMING (profilingPath, tagIds) {
-        TSupportsAttributes::Invoke(std::move(context));
+        TSupportsAttributes::Invoke(context);
     }
 }
 
@@ -361,7 +361,7 @@ bool TObjectProxyBase::ShouldHideAttributes()
     return true;
 }
 
-bool TObjectProxyBase::DoInvoke(IServiceContextPtr context)
+bool TObjectProxyBase::DoInvoke(const IServiceContextPtr& context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(GetBasicAttributes);
     DISPATCH_YPATH_SERVICE_METHOD(Get);
@@ -377,7 +377,7 @@ void TObjectProxyBase::SetAttribute(
     const NYTree::TYPath& path,
     TReqSet* request,
     TRspSet* response,
-    TCtxSetPtr context)
+    const TCtxSetPtr& context)
 {
     TSupportsAttributes::SetAttribute(path, request, response, context);
     ReplicateAttributeUpdate(context);
@@ -387,7 +387,7 @@ void TObjectProxyBase::RemoveAttribute(
     const NYTree::TYPath& path,
     TReqRemove* request,
     TRspRemove* response,
-    TCtxRemovePtr context)
+    const TCtxRemovePtr& context)
 {
     TSupportsAttributes::RemoveAttribute(path, request, response, context);
     ReplicateAttributeUpdate(context);
@@ -406,7 +406,7 @@ void TObjectProxyBase::ReplicateAttributeUpdate(IServiceContextPtr context)
         return;
 
     auto replicationCellTags = handler->GetReplicationCellTags(Object_);
-    PostToMasters(context, replicationCellTags);
+    PostToMasters(std::move(context), replicationCellTags);
 }
 
 IAttributeDictionary* TObjectProxyBase::GetCustomAttributes()
@@ -738,13 +738,16 @@ TNontemplateNonversionedObjectProxyBase::TNontemplateNonversionedObjectProxyBase
     : TObjectProxyBase(bootstrap, metadata, object)
 { }
 
-bool TNontemplateNonversionedObjectProxyBase::DoInvoke(IServiceContextPtr context)
+bool TNontemplateNonversionedObjectProxyBase::DoInvoke(const IServiceContextPtr& context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(Remove);
     return TObjectProxyBase::DoInvoke(context);
 }
 
-void TNontemplateNonversionedObjectProxyBase::GetSelf(TReqGet* /*request*/, TRspGet* response, TCtxGetPtr context)
+void TNontemplateNonversionedObjectProxyBase::GetSelf(
+    TReqGet* /*request*/,
+    TRspGet* response,
+    const TCtxGetPtr& context)
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
     context->SetRequestInfo();
@@ -758,7 +761,10 @@ void TNontemplateNonversionedObjectProxyBase::ValidateRemoval()
     THROW_ERROR_EXCEPTION("Object cannot be removed explicitly");
 }
 
-void TNontemplateNonversionedObjectProxyBase::RemoveSelf(TReqRemove* /*request*/, TRspRemove* /*response*/, TCtxRemovePtr context)
+void TNontemplateNonversionedObjectProxyBase::RemoveSelf(
+    TReqRemove* /*request*/,
+    TRspRemove* /*response*/,
+    const TCtxRemovePtr& context)
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Remove);
     ValidateRemoval();

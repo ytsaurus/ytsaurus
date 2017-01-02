@@ -11,19 +11,19 @@ namespace NCypressClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Extracts transaction id associated with the given request.
-TTransactionId GetTransactionId(NRpc::IServiceContextPtr context);
+TTransactionId GetTransactionId(const NRpc::IServiceContextPtr& context);
 
 //! Extracts transaction id associated with the given request.
 TTransactionId GetTransactionId(const NRpc::NProto::TRequestHeader& header);
 
 //! Attaches transaction id to the request.
-void SetTransactionId(NRpc::IClientRequestPtr request, const TTransactionId& transactionId);
+void SetTransactionId(const NRpc::IClientRequestPtr& request, const TTransactionId& transactionId);
 
 //! Attaches transaction id to the request.
 void SetTransactionId(NRpc::NProto::TRequestHeader* header, const TTransactionId& transactionId);
 
 //! Sets access tracking suppression flag.
-void SetSuppressAccessTracking(NRpc::IClientRequestPtr request, bool value);
+void SetSuppressAccessTracking(const NRpc::IClientRequestPtr& request, bool value);
 
 //! Sets access tracking suppression flag.
 void SetSuppressAccessTracking(NRpc::NProto::TRequestHeader* header, bool value);
@@ -32,7 +32,7 @@ void SetSuppressAccessTracking(NRpc::NProto::TRequestHeader* header, bool value)
 bool GetSuppressAccessTracking(const NRpc::NProto::TRequestHeader& header);
 
 //! Sets modification tracking suppression flag.
-void SetSuppressModificationTracking(NRpc::IClientRequestPtr request, bool value);
+void SetSuppressModificationTracking(const NRpc::IClientRequestPtr& request, bool value);
 
 //! Sets modification tracking suppression flag.
 void SetSuppressModificationTracking(NRpc::NProto::TRequestHeader* header, bool value);

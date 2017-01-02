@@ -36,7 +36,7 @@ static const auto NoneYsonFuture = MakeFuture(TYsonString());
 
 IYPathService::TResolveResult TYPathServiceBase::Resolve(
     const TYPath& path,
-    IServiceContextPtr context)
+    const IServiceContextPtr& context)
 {
     NYPath::TTokenizer tokenizer(path);
     if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
@@ -55,26 +55,26 @@ IYPathService::TResolveResult TYPathServiceBase::Resolve(
 
 IYPathService::TResolveResult TYPathServiceBase::ResolveSelf(
     const TYPath& path,
-    IServiceContextPtr /*context*/)
+    const IServiceContextPtr& /*context*/)
 {
     return TResolveResult::Here(path);
 }
 
 IYPathService::TResolveResult TYPathServiceBase::ResolveAttributes(
     const TYPath& /*path*/,
-    IServiceContextPtr /*context*/)
+    const IServiceContextPtr& /*context*/)
 {
     THROW_ERROR_EXCEPTION("Object cannot have attributes");
 }
 
 IYPathService::TResolveResult TYPathServiceBase::ResolveRecursive(
     const TYPath& /*path*/,
-    IServiceContextPtr /*context*/)
+    const IServiceContextPtr& /*context*/)
 {
     THROW_ERROR_EXCEPTION("Object cannot have children");
 }
 
-void TYPathServiceBase::Invoke(IServiceContextPtr context)
+void TYPathServiceBase::Invoke(const IServiceContextPtr& context)
 {
     TError error;
     try {
@@ -93,15 +93,15 @@ void TYPathServiceBase::Invoke(IServiceContextPtr context)
     }
 }
 
-void TYPathServiceBase::BeforeInvoke(IServiceContextPtr /*context*/)
+void TYPathServiceBase::BeforeInvoke(const IServiceContextPtr& /*context*/)
 { }
 
-bool TYPathServiceBase::DoInvoke(IServiceContextPtr /*context*/)
+bool TYPathServiceBase::DoInvoke(const IServiceContextPtr& /*context*/)
 {
     return false;
 }
 
-void TYPathServiceBase::AfterInvoke(IServiceContextPtr /*context*/)
+void TYPathServiceBase::AfterInvoke(const IServiceContextPtr& /*context*/)
 { }
 
 void TYPathServiceBase::WriteAttributesFragment(
@@ -141,7 +141,7 @@ void TYPathServiceBase::WriteAttributesFragment(
         } \
     ) \
     \
-    void TSupports##method::method##Attribute(const TYPath& path, TReq##method* request, TRsp##method* response, TCtx##method##Ptr context) \
+    void TSupports##method::method##Attribute(const TYPath& path, TReq##method* request, TRsp##method* response, const TCtx##method##Ptr& context) \
     { \
         Y_UNUSED(path); \
         Y_UNUSED(request); \
@@ -149,14 +149,14 @@ void TYPathServiceBase::WriteAttributesFragment(
         ThrowMethodNotSupported(context->GetMethod(), Stroka("attribute")); \
     } \
     \
-    void TSupports##method::method##Self(TReq##method* request, TRsp##method* response, TCtx##method##Ptr context) \
+    void TSupports##method::method##Self(TReq##method* request, TRsp##method* response, const TCtx##method##Ptr& context) \
     { \
         Y_UNUSED(request); \
         Y_UNUSED(response); \
         ThrowMethodNotSupported(context->GetMethod(), Stroka("self")); \
     } \
     \
-    void TSupports##method::method##Recursive(const TYPath& path, TReq##method* request, TRsp##method* response, TCtx##method##Ptr context) \
+    void TSupports##method::method##Recursive(const TYPath& path, TReq##method* request, TRsp##method* response, const TCtx##method##Ptr& context) \
     { \
         Y_UNUSED(path); \
         Y_UNUSED(request); \
@@ -179,7 +179,7 @@ IMPLEMENT_SUPPORTS_VERB_RESOLVE(
 #undef IMPLEMENT_SUPPORTS_VERB
 #undef IMPLEMENT_SUPPORTS_VERB_RESOLVE
 
-void TSupportsExistsBase::Reply(TCtxExistsPtr context, bool value)
+void TSupportsExistsBase::Reply(const TCtxExistsPtr& context, bool value)
 {
     context->Response().set_value(value);
     context->SetResponseInfo("Result: %v", value);
@@ -190,7 +190,7 @@ void TSupportsExists::ExistsAttribute(
     const TYPath& /*path*/,
     TReqExists* /*request*/,
     TRspExists* /*response*/,
-    TCtxExistsPtr context)
+    const TCtxExistsPtr& context)
 {
     context->SetRequestInfo();
 
@@ -200,7 +200,7 @@ void TSupportsExists::ExistsAttribute(
 void TSupportsExists::ExistsSelf(
     TReqExists* /*request*/,
     TRspExists* /*response*/,
-    TCtxExistsPtr context)
+    const TCtxExistsPtr& context)
 {
     context->SetRequestInfo();
 
@@ -211,7 +211,7 @@ void TSupportsExists::ExistsRecursive(
     const TYPath& /*path*/,
     TReqExists* /*request*/,
     TRspExists* /*response*/,
-    TCtxExistsPtr context)
+    const TCtxExistsPtr& context)
 {
     context->SetRequestInfo();
 
@@ -219,9 +219,6 @@ void TSupportsExists::ExistsRecursive(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TSupportsPermissions::~TSupportsPermissions()
-{ }
 
 void TSupportsPermissions::ValidatePermission(
     EPermissionCheckScope /*scope*/,
@@ -337,7 +334,7 @@ TSupportsAttributes::TSupportsAttributes()
 
 IYPathService::TResolveResult TSupportsAttributes::ResolveAttributes(
     const TYPath& path,
-    IServiceContextPtr context)
+    const IServiceContextPtr& context)
 {
     const auto& method = context->GetMethod();
     if (method != "Get" &&
@@ -468,7 +465,7 @@ void TSupportsAttributes::GetAttribute(
     const TYPath& path,
     TReqGet* request,
     TRspGet* response,
-    TCtxGetPtr context)
+    const TCtxGetPtr& context)
 {
     context->SetRequestInfo();
 
@@ -569,7 +566,7 @@ void TSupportsAttributes::ListAttribute(
     const TYPath& path,
     TReqList* /*request*/,
     TRspList* response,
-    TCtxListPtr context)
+    const TCtxListPtr& context)
 {
     context->SetRequestInfo();
 
@@ -648,7 +645,7 @@ void TSupportsAttributes::ExistsAttribute(
     const TYPath& path,
     TReqExists* /*request*/,
     TRspExists* response,
-    TCtxExistsPtr context)
+    const TCtxExistsPtr& context)
 {
     context->SetRequestInfo();
 
@@ -810,7 +807,7 @@ void TSupportsAttributes::SetAttribute(
     const TYPath& path,
     TReqSet* request,
     TRspSet* /*response*/,
-    TCtxSetPtr context)
+    const TCtxSetPtr& context)
 {
     context->SetRequestInfo();
 
@@ -937,7 +934,7 @@ void TSupportsAttributes::RemoveAttribute(
     const TYPath& path,
     TReqRemove* request,
     TRspRemove* /*response*/,
-    TCtxRemovePtr context)
+    const TCtxRemovePtr& context)
 {
     context->SetRequestInfo();
 
@@ -1253,14 +1250,14 @@ public:
         : UnderlyingService_(underlyingService)
     { }
 
-    virtual void Invoke(IServiceContextPtr /*context*/) override
+    virtual void Invoke(const IServiceContextPtr& /*context*/) override
     {
         Y_UNREACHABLE();
     }
 
-    virtual TResolveResult Resolve(const
-        TYPath& path,
-        IServiceContextPtr /*context*/) override
+    virtual TResolveResult Resolve(
+        const TYPath& path,
+        const IServiceContextPtr& /*context*/) override
     {
         NYPath::TTokenizer tokenizer(path);
         if (tokenizer.Advance() != NYPath::ETokenType::Slash) {

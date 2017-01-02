@@ -30,9 +30,6 @@ using TStoreFlushCallback = TCallback<TStoreFlushResult(NApi::ITransactionPtr tr
 struct IStoreManager
     : public virtual TRefCounted
 {
-    //! Returns the tablet this instance is bound to.
-    virtual TTablet* GetTablet() const = 0;
-
     //! Returns |true| if there are outstanding locks to any of dynamic memory stores.
     //! Used to determine when it is safe to unmount the tablet.
     virtual bool HasActiveLocks() const = 0;

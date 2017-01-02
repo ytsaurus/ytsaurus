@@ -83,16 +83,16 @@ private:
     {
     public:
         explicit TYPathService(TIntrusivePtr<TImpl> owner)
-            : Owner_(owner)
+            : Owner_(std::move(owner))
         { }
 
-        virtual TResolveResult Resolve(const TYPath& path, IServiceContextPtr context) override
+        virtual TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& context) override
         {
             return TResolveResult::There(Owner_->GetRoot(), path);
         }
 
     private:
-        TIntrusivePtr<TImpl> Owner_;
+        const TIntrusivePtr<TImpl> Owner_;
 
     };
 

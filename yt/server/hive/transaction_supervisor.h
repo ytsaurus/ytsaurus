@@ -26,13 +26,12 @@ public:
         NRpc::TResponseKeeperPtr responseKeeper,
         ITransactionManagerPtr transactionManager,
         const TCellId& selfCellId,
-        NTransactionClient::ITimestampProviderPtr timestampProvider);
+        NTransactionClient::ITimestampProviderPtr timestampProvider,
+        const std::vector<ITransactionParticipantProviderPtr>& participantProviders);
 
     ~TTransactionSupervisor();
 
     std::vector<NRpc::IServicePtr> GetRpcServices();
-
-    void RegisterParticipantProvider(ITransactionParticipantProviderPtr provider);
 
     TFuture<void> CommitTransaction(
         const TTransactionId& transactionId,

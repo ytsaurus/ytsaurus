@@ -48,7 +48,7 @@ protected:
         const std::vector<NChunkClient::TReadRange>& ranges) override;
 
 
-    virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
+    virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
 
     virtual void ValidateBeginUpload() override;
 

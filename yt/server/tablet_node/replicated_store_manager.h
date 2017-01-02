@@ -29,8 +29,6 @@ public:
         NApi::INativeClientPtr client = nullptr);
 
     // IStoreManager overrides.
-    virtual TTablet* GetTablet() const override;
-
     virtual bool HasActiveLocks() const override;
 
     virtual bool HasUnflushedStores() const override;
