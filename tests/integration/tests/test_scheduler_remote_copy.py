@@ -45,6 +45,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyBase):
     @classmethod
     def teardown_class(cls):
         cls.remote_env.stop()
+        super(TestSchedulerRemoteCopyCommands, cls).teardown_class()
 
     def setup(self):
         set("//sys/clusters/remote",

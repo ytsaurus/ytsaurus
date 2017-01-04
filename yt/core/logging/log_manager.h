@@ -23,6 +23,7 @@ public:
     static void StaticShutdown();
 
     void Configure(TLogConfigPtr config);
+    void ConfigureFromEnv();
 
     virtual void Shutdown() override;
 
@@ -37,15 +38,6 @@ private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-void SimpleConfigureLogging(
-    const char* logLevelStr,
-    const char* logExcludeCategoriesStr,
-    const char* logIncludeCategoriesStr);
-
-void SimpleConfigureLoggingFromEnv();
 
 ////////////////////////////////////////////////////////////////////////////////
 

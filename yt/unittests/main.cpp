@@ -12,7 +12,7 @@ class TYTEnvironment
 public:
     virtual void SetUp() override
     {
-        NYT::NLogging::SimpleConfigureLoggingFromEnv();
+        NYT::NLogging::TLogManager::Get()->ConfigureFromEnv();
     }
 
     virtual void TearDown() override
