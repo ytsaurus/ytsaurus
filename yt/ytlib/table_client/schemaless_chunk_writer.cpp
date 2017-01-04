@@ -87,7 +87,8 @@ public:
         IBlockCachePtr blockCache,
         const TTableSchema& schema,
         const TChunkTimestamps& chunkTimestamps)
-        : Logger(TableClientLogger)
+        : Logger(NLogging::TLogger(TableClientLogger)
+            .AddTag("ChunkWriterId: %v", TGuid::Create()))
         , Schema_(schema)
         , ChunkTimestamps_(chunkTimestamps)
         , ChunkNameTable_(TNameTable::FromSchema(schema))
@@ -182,7 +183,8 @@ public:
     }
 
 protected:
-    NLogging::TLogger Logger;
+    const NLogging::TLogger Logger;
+
     const TTableSchema Schema_;
     const TChunkTimestamps ChunkTimestamps_;
 
@@ -380,7 +382,6 @@ public:
             schema,
             chunkTimestamps)
     {
-        Logger.AddTag("HorizontalUnversionedChunkWriter: %p", this);
         BlockWriter_.reset(new THorizontalSchemalessBlockWriter);
     }
 
@@ -459,8 +460,6 @@ public:
             chunkTimestamps)
         , DataToBlockFlush_(Config_->BlockSize)
     {
-        Logger.AddTag("ColumnUnversionedChunkWriter: %p", this);
-
         // Only scan-optimized version for now.
         yhash_map<Stroka, TDataBlockWriter*> groupBlockWriters;
         for (const auto& column : Schema_.Columns()) {
@@ -672,8 +671,6 @@ public:
             TChunkTimestamps())
         , Partitioner_(partitioner)
     {
-        Logger.AddTag("PartitionChunkWriter: %p", this);
-
         int partitionCount = Partitioner_->GetPartitionCount();
         BlockWriters_.reserve(partitionCount);
 

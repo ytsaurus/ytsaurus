@@ -629,9 +629,8 @@ void TServiceBase::OnReplyBusTerminated(IBusPtr bus, const TError& error)
     }
 
     for (auto context : contexts) {
-        LOG_DEBUG(error, "Reply bus terminated, canceling request (RequestId: %v, ReplyBus: %p)",
-            context->GetRequestId(),
-            bus.Get());
+        LOG_DEBUG(error, "Reply bus terminated, canceling request (RequestId: %v)",
+            context->GetRequestId());
         context->Cancel();
     }
 }
@@ -724,12 +723,6 @@ void TServiceBase::RegisterCancelableRequest(TServiceContext* context)
     if (subscribe) {
         replyBus->SubscribeTerminated(BIND(&TServiceBase::OnReplyBusTerminated, MakeWeak(this), replyBus));
     }
-
-    LOG_TRACE("Cancelable request registered (RequestId: %v, ReplyBus: %p, Subscribe: %v, RequestsPerBus: %v)",
-        requestId,
-        replyBus.Get(),
-        subscribe,
-        requestsPerBus);
 }
 
 void TServiceBase::UnregisterCancelableRequest(TServiceContext* context)
@@ -752,11 +745,6 @@ void TServiceBase::UnregisterCancelableRequest(TServiceContext* context)
             requestsPerBus = contexts.size();
         }
     }
-
-    LOG_TRACE("Cancelable request unregistered (RequestId: %v, ReplyBus: %p, RequestsPerBus: %v)",
-        requestId,
-        replyBus.Get(),
-        requestsPerBus);
 }
 
 TServiceBase::TServiceContextPtr TServiceBase::FindCancelableRequest(const TRequestId& requestId)

@@ -384,6 +384,8 @@ protected:
     //! List of the networks to use from descriptor.
     const TNetworkPreferenceList Networks_;
 
+    NLogging::TLogger Logger;
+
     //! Zero based retry index (less than |Reader->Config->RetryCount|).
     int RetryIndex_ = 0;
 
@@ -404,8 +406,6 @@ protected:
     //! Catalogue of peers, seen on current pass.
     yhash_map<Stroka, TPeer> Peers_;
 
-    NLogging::TLogger Logger = ChunkClientLogger;
-
 
     TSessionBase(
         TReplicationReader* reader,
@@ -415,11 +415,11 @@ protected:
         , WorkloadDescriptor_(Config_->EnableWorkloadFifoScheduling ? workloadDescriptor.SetCurrentInstant() : workloadDescriptor)
         , NodeDirectory_(reader->NodeDirectory_)
         , Networks_(reader->Networks_)
+        , Logger(NLogging::TLogger(ChunkClientLogger)
+            .AddTag("SessionId: %v, ChunkId: %v",
+                TGuid::Create(),
+                reader->ChunkId_))
     {
-        Logger.AddTag("Session: %p, ChunkId: %v",
-            this,
-            reader->ChunkId_);
-
         ResetPeerQueue();
     }
 
