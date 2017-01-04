@@ -343,6 +343,10 @@ public:
     {
         LightPool_.Reset();
         HeavyPool_.Reset();
+        if (CellDirectorySynchronizer_) {
+            CellDirectorySynchronizer_->Stop();
+            CellDirectorySynchronizer_.Reset();
+        }
     }
 
 private:
