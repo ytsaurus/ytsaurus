@@ -45,16 +45,15 @@ public:
     , CellTag_(cellTag)
     , ChunkIds_(std::move(chunkIds))
     , OnChunkLocated_(onChunkLocated)
-    , Logger(logger)
+    , Logger(NLogging::TLogger(logger)
+        .AddTag("ScraperTaskId: %v", TGuid::Create())
+        .AddTag("CellTag: %v", CellTag_))
     , Proxy_(masterChannel)
     , PeriodicExecutor_(New<TPeriodicExecutor>(
         invoker,
         BIND(&TScraperTask::LocateChunks, MakeWeak(this)),
         TDuration::Zero()))
-    {
-        Logger.AddTag("ScraperTask: %p", this);
-        Logger.AddTag("CellTag: %v", CellTag_);
-    }
+    { }
 
     //! Starts periodic polling.
     void Start()
@@ -93,7 +92,8 @@ private:
     const std::vector<TChunkId> ChunkIds_;
     const TChunkLocatedHandler OnChunkLocated_;
 
-    NLogging::TLogger Logger;
+    const NLogging::TLogger Logger;
+
     TChunkServiceProxy Proxy_;
 
     bool Started_ = false;

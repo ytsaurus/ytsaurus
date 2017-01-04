@@ -80,7 +80,7 @@ TFileChunkWriter::TFileChunkWriter(
     IChunkWriterPtr chunkWriter,
     IBlockCachePtr blockCache)
     : Logger(NLogging::TLogger(FileClientLogger)
-        .AddTag("FileChunkWriter: %p", this))
+        .AddTag("ChunkWriterId: %v", TGuid::Create()))
     , Config_(config)
     , EncodingChunkWriter_(New<TEncodingChunkWriter>(
         config,

@@ -771,10 +771,9 @@ void TReplicationWriter::FlushCurrentGroup()
         return;
     }
 
-    LOG_DEBUG("Block group added (Blocks: %v-%v, Group: %p)",
+    LOG_DEBUG("Block group added (Blocks: %v-%v)",
         CurrentGroup_->GetStartBlockIndex(),
-        CurrentGroup_->GetEndBlockIndex(),
-        CurrentGroup_.Get());
+        CurrentGroup_->GetEndBlockIndex());
 
     Window_.push_back(CurrentGroup_);
     CurrentGroup_->ScheduleProcess();
