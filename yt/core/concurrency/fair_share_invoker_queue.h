@@ -27,7 +27,7 @@ public:
 
     void SetThreadId(TThreadId threadId);
 
-    IInvokerPtr GetInvoker(int index);
+    const IInvokerPtr& GetInvoker(int index);
 
     virtual void Shutdown() override;
 
@@ -42,6 +42,7 @@ private:
     struct TBucket
     {
         TInvokerQueuePtr Queue;
+        IInvokerPtr Invoker;
         NProfiling::TCpuDuration ExcessTime = 0;
     };
 

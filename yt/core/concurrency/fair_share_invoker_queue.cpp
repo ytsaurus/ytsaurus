@@ -23,6 +23,7 @@ TFairShareInvokerQueue::TFairShareInvokerQueue(
             bucketsTagIds[index],
             enableLogging,
             enableProfiling);
+        Buckets_[index].Invoker = Buckets_[index].Queue;
     }
 }
 
@@ -36,10 +37,10 @@ void TFairShareInvokerQueue::SetThreadId(TThreadId threadId)
     }
 }
 
-IInvokerPtr TFairShareInvokerQueue::GetInvoker(int index)
+const IInvokerPtr& TFairShareInvokerQueue::GetInvoker(int index)
 {
     Y_ASSERT(0 <= index && index < static_cast<int>(Buckets_.size()));
-    return Buckets_[index].Queue;
+    return Buckets_[index].Invoker;
 }
 
 void TFairShareInvokerQueue::Shutdown()
