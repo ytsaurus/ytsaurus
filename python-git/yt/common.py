@@ -192,7 +192,7 @@ def _pretty_format(error, attribute_length_limit=None):
                 date = date.strftime("%y-%m-%dT%H:%M:%S.%fZ")
             value = "{0} in {1}".format(attributes["host"], date)
             if all(key in attributes for key in origin_cpp_keys):
-                value += "(pid %d, tid %x, fid %x)" % (attributes["pid"],attributes["tid"], attributes["fid"])
+                value += " (pid %d, tid %x, fid %x)" % (attributes["pid"],attributes["tid"], attributes["fid"])
             lines.append(format_attribute("origin", value))
 
         location_keys = ["file", "line"]
