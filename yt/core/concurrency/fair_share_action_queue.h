@@ -27,7 +27,7 @@ public:
 
     virtual void Shutdown() override;
 
-    IInvokerPtr GetInvoker(int index);
+    const IInvokerPtr& GetInvoker(int index);
 
 private:
     class TImpl;

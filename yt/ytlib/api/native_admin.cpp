@@ -46,7 +46,7 @@ public:
         , Options_(options)
         // NB: Cannot actually throw.
     {
-        Logger.AddTag("Admin: %p", this);
+        Logger.AddTag("AdminId: %v", TGuid::Create());
         Y_UNUSED(Options_);
     }
 

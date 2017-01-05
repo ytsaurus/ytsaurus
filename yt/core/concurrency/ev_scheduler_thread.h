@@ -17,7 +17,7 @@ public:
         const Stroka& threadName,
         bool enableLogging);
 
-    IInvokerPtr GetInvoker();
+    const IInvokerPtr& GetInvoker();
 
 protected:
     class TInvoker
@@ -34,14 +34,14 @@ protected:
 #endif
 
     private:
-        TEVSchedulerThread* Owner;
+        TEVSchedulerThread* const Owner_;
     };
 
-    ev::dynamic_loop EventLoop;
-    ev::async CallbackWatcher;
+    ev::dynamic_loop EventLoop_;
+    ev::async CallbackWatcher_;
 
-    TIntrusivePtr<TInvoker> Invoker;
-    TLockFreeQueue<TClosure> Queue;
+    const IInvokerPtr Invoker_;
+    TLockFreeQueue<TClosure> Queue_;
 
     virtual void BeforeShutdown() override;
     virtual void AfterShutdown() override;

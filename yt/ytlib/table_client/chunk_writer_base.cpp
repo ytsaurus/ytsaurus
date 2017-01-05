@@ -29,7 +29,8 @@ TChunkWriterBase::TChunkWriterBase(
     // We pass key columns here in order to use TChunkWriterBase and
     // TSortedChunkWriterBase as template base interchangably.
     const TKeyColumns& keyColumns)
-    : Logger(TableClientLogger)
+    : Logger(NLogging::TLogger(TableClientLogger)
+        .AddTag("ChunkWriterId: %v", TGuid::Create()))
     , Config_(config)
     , Options_(options)
     , EncodingChunkWriter_(New<TEncodingChunkWriter>(
@@ -38,9 +39,7 @@ TChunkWriterBase::TChunkWriterBase(
         chunkWriter,
         blockCache,
         Logger))
-{
-    Logger.AddTag("TableChunkWriter: %p", this);
-}
+{ }
 
 TFuture<void> TChunkWriterBase::Open()
 {

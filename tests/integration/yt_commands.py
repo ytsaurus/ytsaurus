@@ -35,7 +35,7 @@ def get_driver(index=0):
     else:
         return secondary_drivers[index - 1]
 
-def init_driver(config, secondary_driver_configs):
+def init_drivers(config, secondary_driver_configs):
     global driver
     global secondary_drivers
 
@@ -43,6 +43,18 @@ def init_driver(config, secondary_driver_configs):
     secondary_drivers = []
     for secondary_driver_config in secondary_driver_configs:
         secondary_drivers.append(Driver(config=secondary_driver_config))
+
+def terminate_drivers():
+    global driver
+    global secondary_drivers
+
+    if driver is not None:
+        driver.terminate()
+    driver = None
+
+    for secondary_driver in secondary_drivers:
+        secondary_driver.terminate()
+    secondary_drivers = []
 
 def set_branch(dict, path, value):
     root = dict

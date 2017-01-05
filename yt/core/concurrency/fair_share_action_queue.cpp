@@ -86,7 +86,7 @@ public:
         return Thread_->IsStarted();
     }
 
-    IInvokerPtr GetInvoker(int index)
+    const IInvokerPtr& GetInvoker(int index)
     {
         if (Y_UNLIKELY(!StartFlag_.load(std::memory_order_relaxed))) {
             Start();
@@ -119,7 +119,7 @@ TFairShareActionQueue::TFairShareActionQueue(
 
 TFairShareActionQueue::~TFairShareActionQueue() = default;
 
-IInvokerPtr TFairShareActionQueue::GetInvoker(int index)
+const IInvokerPtr& TFairShareActionQueue::GetInvoker(int index)
 {
     return Impl_->GetInvoker(index);
 }

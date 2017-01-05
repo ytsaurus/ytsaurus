@@ -1030,7 +1030,7 @@ public:
             MakeWeak(this),
             Connection_->GetLightInvoker());
 
-        Logger.AddTag("Client: %p", this);
+        Logger.AddTag("ClientId: %v", TGuid::Create());
     }
 
 

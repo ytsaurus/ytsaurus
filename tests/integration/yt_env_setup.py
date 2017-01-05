@@ -179,7 +179,7 @@ class YTEnvSetup(object):
         if cls.Env.configs["driver"]:
             secondary_driver_configs = [cls.Env.configs["driver_secondary_{0}".format(i)]
                                         for i in xrange(cls.NUM_SECONDARY_MASTER_CELLS)]
-            yt_commands.init_driver(cls.Env.configs["driver"], secondary_driver_configs)
+            yt_commands.init_drivers(cls.Env.configs["driver"], secondary_driver_configs)
             yt_commands.is_multicell = (cls.NUM_SECONDARY_MASTER_CELLS > 0)
             yt_driver_bindings.configure_logging(cls.Env.driver_logging_config)
 
@@ -215,7 +215,7 @@ class YTEnvSetup(object):
 
         cls.Env.stop()
         cls.Env.kill_cgroups()
-        yt_commands.driver = None
+        yt_commands.terminate_drivers()
         gc.collect()
 
         if not os.path.exists(cls.path_to_run):
@@ -232,7 +232,7 @@ class YTEnvSetup(object):
                 print >>sys.stderr, stderr
                 raise subprocess.CalledProcessError(p.returncode, " ".join(chown_command))
 
-            # XXX(dcherednik): Detete named pipes
+            # XXX(dcherednik): Delete named pipes
             subprocess.check_call(["find", cls.path_to_run, "-type", "p", "-delete"])
 
             destination_path = os.path.join(SANDBOX_STORAGE_ROOTDIR, cls.test_name, cls.run_id)
