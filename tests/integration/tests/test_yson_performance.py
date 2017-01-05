@@ -104,8 +104,8 @@ class TestYsonPerformance(object):
                 t.set_extra_info("{0}: dumped {1} bytes".format(dataset, len(dumped)))
             dumps_results.append(t.finish_wall_clock - t.start_wall_clock)
 
-        mean_loads_time = sum(loads_results) / len(loads_results)
-        mean_dumps_time = sum(dumps_results) / len(dumps_results)
+        min_loads_time = min(loads_results)
+        min_dumps_time = min(dumps_results)
 
-        assert mean_loads_time <= (1.0 + self.ACCEPTABLE_TIME_GROW_RATIO) * expected_loads_time
-        assert mean_dumps_time <= (1.0 + self.ACCEPTABLE_TIME_GROW_RATIO) * expected_dumps_time
+        assert min_loads_time <= (1.0 + self.ACCEPTABLE_TIME_GROW_RATIO) * expected_loads_time
+        assert min_dumps_time <= (1.0 + self.ACCEPTABLE_TIME_GROW_RATIO) * expected_dumps_time
