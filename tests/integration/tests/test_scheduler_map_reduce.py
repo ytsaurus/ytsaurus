@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, make_schema, make_ace, unix_only
+from yt_env_setup import YTEnvSetup, unix_only
 from yt.environment.helpers import assert_items_equal
 from yt_commands import *
 
