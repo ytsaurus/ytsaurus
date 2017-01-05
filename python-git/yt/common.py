@@ -58,7 +58,7 @@ class YtError(Exception):
 class YtResponseError(YtError):
     """Represents an error in YT response"""
     def __init__(self, error):
-        super(YtResponseError, self).__init__(repr(error))
+        super(YtResponseError, self).__init__()
         self.error = error
         self.inner_errors = [self.error]
 
