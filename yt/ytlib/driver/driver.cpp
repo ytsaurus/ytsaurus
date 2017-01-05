@@ -250,8 +250,10 @@ public:
         // But there is some reference loop and it does not work.
 
         // Release the connection with entire thread pools.
-        Connection_->Terminate();
-        Connection_.Reset();
+        if (Connection_) {
+            Connection_->Terminate();
+            Connection_.Reset();
+        }
     }
 
 private:
