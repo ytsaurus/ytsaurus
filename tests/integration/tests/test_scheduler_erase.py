@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, make_schema
+from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
 

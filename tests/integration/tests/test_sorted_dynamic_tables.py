@@ -1,7 +1,7 @@
 import pytest
 import __builtin__
 
-from yt_env_setup import YTEnvSetup, make_schema, make_ace, wait
+from yt_env_setup import YTEnvSetup, wait
 from yt_commands import *
 from yt.yson import YsonEntity, YsonList, loads
 

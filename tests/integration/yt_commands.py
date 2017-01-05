@@ -95,7 +95,7 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
         verbose = parameters["verbose"]
         del parameters["verbose"]
     verbose = verbose is None or verbose
-    
+
     if "verbose_error" in parameters:
         verbose = parameters["verbose_error"]
         del parameters["verbose_error"]
@@ -988,6 +988,25 @@ def get_last_profiling_values(orchid_path, metrics):
     for metric in metrics:
         values[metric] = get(orchid_path + "/" + metric, verbose=False)[-1]["value"]
     return values
+
+def make_schema(columns, **attributes):
+    schema = yson.YsonList(columns)
+    for attr, value in attributes.items():
+        schema.attributes[attr] = value
+    return schema
+
+def make_ace(action, subjects, permissions, inheritance_mode="object_and_descendants"):
+    def _to_list(x):
+        if isinstance(x, str):
+            return [x]
+        else:
+            return x
+    return {
+        "action": action,
+        "subjects": _to_list(subjects),
+        "permissions": _to_list(permissions),
+        "inheritance_mode": inheritance_mode
+    }
 
 #########################################
 

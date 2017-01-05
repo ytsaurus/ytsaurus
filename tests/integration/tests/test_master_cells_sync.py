@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, make_ace
+from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
 ##################################################################
