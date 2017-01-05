@@ -26,7 +26,7 @@ TEncodingWriter::TEncodingWriter(
     TEncodingWriterOptionsPtr options,
     IChunkWriterPtr chunkWriter,
     IBlockCachePtr blockCache,
-    NLogging::TLogger& logger)
+    const NLogging::TLogger& logger)
     : Config_(config)
     , Options_(options)
     , ChunkWriter_(chunkWriter)

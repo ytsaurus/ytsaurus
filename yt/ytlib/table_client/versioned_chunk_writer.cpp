@@ -54,24 +54,26 @@ public:
         const TTableSchema& schema,
         IChunkWriterPtr chunkWriter,
         IBlockCachePtr blockCache)
-        : Config_(config)
+        : Logger(NLogging::TLogger(TableClientLogger)
+            .AddTag("ChunkWriterId: %v", TGuid::Create()))
+        , Config_(config)
         , Schema_(schema)
         , EncodingChunkWriter_(New<TEncodingChunkWriter>(
-           std::move(config),
-           std::move(options),
-           std::move(chunkWriter),
-           std::move(blockCache),
-           Logger))
-    , LastKey_(static_cast<TUnversionedValue*>(nullptr), static_cast<TUnversionedValue*>(nullptr))
-    , MinTimestamp_(MaxTimestamp)
-    , MaxTimestamp_(MinTimestamp)
-    , RandomGenerator_(RandomNumber<ui64>())
-    , SamplingThreshold_(static_cast<ui64>(std::numeric_limits<ui64>::max() * Config_->SampleRate))
-    , SamplingRowMerger_(New<TSamplingRowMerger>(
-        New<TRowBuffer>(TVersionedChunkWriterBaseTag()),
-        schema))
+            std::move(config),
+            std::move(options),
+            std::move(chunkWriter),
+            std::move(blockCache),
+            Logger))
+        , LastKey_(static_cast<TUnversionedValue*>(nullptr), static_cast<TUnversionedValue*>(nullptr))
+        , MinTimestamp_(MaxTimestamp)
+        , MaxTimestamp_(MinTimestamp)
+        , RandomGenerator_(RandomNumber<ui64>())
+        , SamplingThreshold_(static_cast<ui64>(std::numeric_limits<ui64>::max() * Config_->SampleRate))
+        , SamplingRowMerger_(New<TSamplingRowMerger>(
+            New<TRowBuffer>(TVersionedChunkWriterBaseTag()),
+            schema))
 #if 0
-    , KeyFilter_(Config_->MaxKeyFilterSize, Config_->KeyFilterFalsePositiveRate)
+        , KeyFilter_(Config_->MaxKeyFilterSize, Config_->KeyFilterFalsePositiveRate)
 #endif
     { }
 
@@ -146,10 +148,10 @@ public:
     }
 
 protected:
-    NLogging::TLogger Logger = TableClientLogger;
+    const NLogging::TLogger Logger;
 
-    TChunkWriterConfigPtr Config_;
-    TTableSchema Schema_;
+    const TChunkWriterConfigPtr Config_;
+    const TTableSchema Schema_;
 
     TEncodingChunkWriterPtr EncodingChunkWriter_;
 
@@ -229,9 +231,7 @@ public:
             std::move(chunkWriter),
             std::move(blockCache))
         , BlockWriter_(new TSimpleVersionedBlockWriter(Schema_))
-    {
-        Logger.AddTag("SimpleVersionedChunkWriter: %p", this);
-    }
+    { }
 
     virtual i64 GetDataSize() const override
     {
@@ -368,8 +368,6 @@ public:
             std::move(blockCache))
         , DataToBlockFlush_(Config_->BlockSize)
     {
-        Logger.AddTag("ColumnVersionedChunkWriter: %p", this);
-
         // Only scan-optimized version for now.
         yhash_map<Stroka, TDataBlockWriter*> groupBlockWriters;
         for (const auto& column : Schema_.Columns()) {

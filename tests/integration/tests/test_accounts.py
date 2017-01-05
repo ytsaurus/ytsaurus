@@ -693,6 +693,7 @@ class TestAccounts(YTEnvSetup):
 
 
     def test_change_account_with_snapshot_lock(self):
+        multicell_sleep()
         tmp_nc = get("//sys/accounts/tmp/@resource_usage/node_count")
         tmp_rc = get("//sys/accounts/tmp/@ref_counter")
         create("table", "//tmp/t")

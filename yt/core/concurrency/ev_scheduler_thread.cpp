@@ -6,19 +6,19 @@ namespace NConcurrency {
 ///////////////////////////////////////////////////////////////////////////////
 
 TEVSchedulerThread::TInvoker::TInvoker(TEVSchedulerThread* owner)
-    : Owner(owner)
+    : Owner_(owner)
 { }
 
 void TEVSchedulerThread::TInvoker::Invoke(const TClosure& callback)
 {
     Y_ASSERT(callback);
-    Owner->EnqueueCallback(callback);
+    Owner_->EnqueueCallback(callback);
 }
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
 TThreadId TEVSchedulerThread::TInvoker::GetThreadId() const
 {
-    return Owner->ThreadId;
+    return Owner_->ThreadId;
 }
 
 bool TEVSchedulerThread::TInvoker::CheckAffinity(IInvokerPtr invoker) const
@@ -38,32 +38,32 @@ TEVSchedulerThread::TEVSchedulerThread(
         NProfiling::EmptyTagIds,
         enableLogging,
         false)
-    , CallbackWatcher(EventLoop)
-    , Invoker(New<TInvoker>(this))
+    , CallbackWatcher_(EventLoop_)
+    , Invoker_(New<TInvoker>(this))
 {
-    CallbackWatcher.set<TEVSchedulerThread, &TEVSchedulerThread::OnCallback>(this);
-    CallbackWatcher.start();
+    CallbackWatcher_.set<TEVSchedulerThread, &TEVSchedulerThread::OnCallback>(this);
+    CallbackWatcher_.start();
 }
 
-IInvokerPtr TEVSchedulerThread::GetInvoker()
+const IInvokerPtr& TEVSchedulerThread::GetInvoker()
 {
-    return Invoker;
+    return Invoker_;
 }
 
 void TEVSchedulerThread::BeforeShutdown()
 {
-    CallbackWatcher.send();
+    CallbackWatcher_.send();
 }
 
 void TEVSchedulerThread::AfterShutdown()
 {
     // Drain queue.
     TClosure callback;
-    while (Queue.Dequeue(&callback)) {
+    while (Queue_.Dequeue(&callback)) {
         callback.Reset();
     }
 
-    YCHECK(Queue.IsEmpty()); // As a side effect, this releases free lists.
+    YCHECK(Queue_.IsEmpty()); // As a side effect, this releases free lists.
 }
 
 EBeginExecuteResult TEVSchedulerThread::BeginExecute()
@@ -75,7 +75,7 @@ EBeginExecuteResult TEVSchedulerThread::BeginExecute()
         }
     }
 
-    EventLoop.run(0);
+    EventLoop_.run(0);
 
     {
         auto result = BeginExecuteCallbacks();
@@ -91,7 +91,7 @@ EBeginExecuteResult TEVSchedulerThread::BeginExecute()
 EBeginExecuteResult TEVSchedulerThread::BeginExecuteCallbacks()
 {
     TClosure callback;
-    if (!Queue.Dequeue(&callback)) {
+    if (!Queue_.Dequeue(&callback)) {
         return EBeginExecuteResult::QueueEmpty;
     }
 
@@ -102,7 +102,7 @@ EBeginExecuteResult TEVSchedulerThread::BeginExecuteCallbacks()
     }
 
     try {
-        TCurrentInvokerGuard guard(Invoker);
+        TCurrentInvokerGuard guard(Invoker_);
         callback.Run();
         return EBeginExecuteResult::Success;
     } catch (const TFiberCanceledException&) {
@@ -115,7 +115,7 @@ void TEVSchedulerThread::EndExecute()
 
 void TEVSchedulerThread::OnCallback(ev::async&, int)
 {
-    EventLoop.break_loop();
+    EventLoop_.break_loop();
 }
 
 void TEVSchedulerThread::EnqueueCallback(const TClosure& callback)
@@ -124,8 +124,8 @@ void TEVSchedulerThread::EnqueueCallback(const TClosure& callback)
         return;
     }
 
-    Queue.Enqueue(callback);
-    CallbackWatcher.send();
+    Queue_.Enqueue(callback);
+    CallbackWatcher_.send();
 }
 
 ///////////////////////////////////////////////////////////////////////////////

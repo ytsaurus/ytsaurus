@@ -504,6 +504,7 @@ TEST_F(TRpcTest, StopWithActiveRequests)
     auto stopResult = Service_->Stop();
     EXPECT_FALSE(stopResult.IsSet());
     EXPECT_TRUE(reqResult.Get().IsOK());
+    Sleep(TDuration::Seconds(0.5));
     EXPECT_TRUE(stopResult.IsSet());
 }
 

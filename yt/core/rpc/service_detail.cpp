@@ -629,9 +629,8 @@ void TServiceBase::OnReplyBusTerminated(IBusPtr bus, const TError& error)
     }
 
     for (auto context : contexts) {
-        LOG_DEBUG(error, "Reply bus terminated, canceling request (RequestId: %v, ReplyBus: %p)",
-            context->GetRequestId(),
-            bus.Get());
+        LOG_DEBUG(error, "Reply bus terminated, canceling request (RequestId: %v)",
+            context->GetRequestId());
         context->Cancel();
     }
 }
@@ -704,7 +703,6 @@ void TServiceBase::RegisterCancelableRequest(TServiceContext* context)
     const auto& replyBus = context->GetReplyBus();
 
     bool subscribe = false;
-    int requestsPerBus;
     {
         TGuard<TSpinLock> guard(CancelableRequestLock_);
         // NB: We're OK with duplicate request ids.
@@ -718,18 +716,11 @@ void TServiceBase::RegisterCancelableRequest(TServiceContext* context)
         }
         auto& contexts = it->second;
         contexts.insert(context);
-        requestsPerBus = contexts.size();
     }
 
     if (subscribe) {
         replyBus->SubscribeTerminated(BIND(&TServiceBase::OnReplyBusTerminated, MakeWeak(this), replyBus));
     }
-
-    LOG_TRACE("Cancelable request registered (RequestId: %v, ReplyBus: %p, Subscribe: %v, RequestsPerBus: %v)",
-        requestId,
-        replyBus.Get(),
-        subscribe,
-        requestsPerBus);
 }
 
 void TServiceBase::UnregisterCancelableRequest(TServiceContext* context)
@@ -737,26 +728,17 @@ void TServiceBase::UnregisterCancelableRequest(TServiceContext* context)
     const auto& requestId = context->GetRequestId();
     const auto& replyBus = context->GetReplyBus();
 
-    int requestsPerBus;
     {
         TGuard<TSpinLock> guard(CancelableRequestLock_);
         // NB: We're OK with duplicate request ids.
         IdToContext_.erase(requestId);
         auto it = ReplyBusToContexts_.find(replyBus);
-        if (it == ReplyBusToContexts_.end()) {
-            // This is OK as well; see OnReplyBusTerminated.
-            requestsPerBus = 0;
-        } else {
+        // Missing replyBus in ReplyBusToContexts_ is OK; see OnReplyBusTerminated.
+        if (it != ReplyBusToContexts_.end()) {
             auto& contexts = it->second;
             contexts.erase(context);
-            requestsPerBus = contexts.size();
         }
     }
-
-    LOG_TRACE("Cancelable request unregistered (RequestId: %v, ReplyBus: %p, RequestsPerBus: %v)",
-        requestId,
-        replyBus.Get(),
-        requestsPerBus);
 }
 
 TServiceBase::TServiceContextPtr TServiceBase::FindCancelableRequest(const TRequestId& requestId)

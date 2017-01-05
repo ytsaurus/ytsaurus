@@ -13,7 +13,7 @@ TIODispatcher::TImpl::TImpl()
 
 const ev::loop_ref& TIODispatcher::TImpl::GetEventLoop() const
 {
-    return EventLoop;
+    return EventLoop_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

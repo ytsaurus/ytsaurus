@@ -78,7 +78,7 @@ TTcpDispatcherThread::TTcpDispatcherThread(const Stroka& threadName)
 
 const ev::loop_ref& TTcpDispatcherThread::GetEventLoop() const
 {
-    return EventLoop;
+    return EventLoop_;
 }
 
 TFuture<void> TTcpDispatcherThread::AsyncRegister(IEventLoopObjectPtr object)

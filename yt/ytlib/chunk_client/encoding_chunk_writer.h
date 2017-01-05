@@ -27,7 +27,7 @@ public:
         TEncodingWriterOptionsPtr options,
         IChunkWriterPtr chunkWriter,
         IBlockCachePtr blockCache,
-        NLogging::TLogger& logger);
+        const NLogging::TLogger& logger);
 
     void WriteBlock(std::vector<TSharedRef> vectorizedBlock);
     void WriteBlock(TSharedRef block);

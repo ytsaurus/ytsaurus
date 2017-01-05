@@ -1,10 +1,9 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, wait
 from yt.environment.helpers import assert_items_equal
 from yt_commands import *
 
-import time
 import __builtin__
 
 ##################################################################
@@ -18,16 +17,13 @@ class TestRacks(YTEnvSetup):
 
 
     def _get_replica_nodes(self, chunk_id):
-        return list(str(x) for x in get("#" + chunk_id + "/@stored_replicas"))
+        return list(str(x) for x in get("#{0}/@stored_replicas".format(chunk_id)))
 
-    def _wait_for_safely_placed(self, chunk_id, replica_count):
-        ok = False
-        for i in xrange(60):
-            if not get("#" + chunk_id + "/@replication_status/default/unsafely_placed") and len(self._get_replica_nodes(chunk_id)) == replica_count:
-                ok = True
-                break
-            time.sleep(1.0)
-        assert ok
+    def _wait_for_safely_placed(self, chunk_id):
+        def check():
+            stat = get("#{0}/@replication_status/default".format(chunk_id))
+            return not stat["unsafely_placed"] and not stat["overreplicated"]
+        wait(lambda: check())
 
     def _set_rack(self, node, rack):
         set("//sys/nodes/" + node + "/@rack", rack)
@@ -187,7 +183,7 @@ class TestRacks(YTEnvSetup):
                 map[node] = "r2"
         self._set_rack_map(map)
 
-        self._wait_for_safely_placed(chunk_id, 3)
+        self._wait_for_safely_placed(chunk_id)
 
         assert self._get_max_replicas_per_rack(map, chunk_id) <= 2
 
@@ -235,7 +231,7 @@ class TestRacks(YTEnvSetup):
         }
         self._set_rack_map(map)
 
-        self._wait_for_safely_placed(chunk_id, 16)
+        self._wait_for_safely_placed(chunk_id)
 
         assert self._get_max_replicas_per_rack(map, chunk_id) <= 3
 
@@ -260,7 +256,7 @@ class TestRacks(YTEnvSetup):
             map[node] = "r0"
         self._set_rack_map(map)
 
-        self._wait_for_safely_placed(chunk_id, 3)
+        self._wait_for_safely_placed(chunk_id)
 
         assert self._get_max_replicas_per_rack(map, chunk_id) <= 1
 

@@ -49,12 +49,12 @@ public:
     virtual bool IsUniqueKeys() const = 0;
 
 protected:
-    NLogging::TLogger Logger;
+    const NLogging::TLogger Logger;
 
     const TChunkWriterConfigPtr Config_;
     const TChunkWriterOptionsPtr Options_;
-    i64 RowCount_ = 0;
 
+    i64 RowCount_ = 0;
     i64 DataWeight_ = 0;
 
     const NChunkClient::TEncodingChunkWriterPtr EncodingChunkWriter_;

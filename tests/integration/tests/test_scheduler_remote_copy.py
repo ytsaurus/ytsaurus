@@ -60,6 +60,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyBase):
 
     def teardown(self):
         set("//tmp", {}, driver=self.remote_driver)
+        self.remote_driver.terminate()
 
 
     def test_empty_table(self):
@@ -364,6 +365,7 @@ class TestSchedulerRemoteCopyNetworks(TestSchedulerRemoteCopyBase):
 
     def teardown(self):
         set("//tmp", {}, driver=self.remote_driver)
+        self.remote_driver.terminate()
 
     def test_default_network(self):
         create("table", "//tmp/t1", driver=self.remote_driver)
