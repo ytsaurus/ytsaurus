@@ -703,7 +703,6 @@ void TServiceBase::RegisterCancelableRequest(TServiceContext* context)
     const auto& replyBus = context->GetReplyBus();
 
     bool subscribe = false;
-    int requestsPerBus;
     {
         TGuard<TSpinLock> guard(CancelableRequestLock_);
         // NB: We're OK with duplicate request ids.
@@ -717,7 +716,6 @@ void TServiceBase::RegisterCancelableRequest(TServiceContext* context)
         }
         auto& contexts = it->second;
         contexts.insert(context);
-        requestsPerBus = contexts.size();
     }
 
     if (subscribe) {
@@ -730,19 +728,15 @@ void TServiceBase::UnregisterCancelableRequest(TServiceContext* context)
     const auto& requestId = context->GetRequestId();
     const auto& replyBus = context->GetReplyBus();
 
-    int requestsPerBus;
     {
         TGuard<TSpinLock> guard(CancelableRequestLock_);
         // NB: We're OK with duplicate request ids.
         IdToContext_.erase(requestId);
         auto it = ReplyBusToContexts_.find(replyBus);
-        if (it == ReplyBusToContexts_.end()) {
-            // This is OK as well; see OnReplyBusTerminated.
-            requestsPerBus = 0;
-        } else {
+        // Missing replyBus in ReplyBusToContexts_ is OK; see OnReplyBusTerminated.
+        if (it != ReplyBusToContexts_.end()) {
             auto& contexts = it->second;
             contexts.erase(context);
-            requestsPerBus = contexts.size();
         }
     }
 }
