@@ -1,7 +1,7 @@
 import pytest
 
 from random import shuffle
-from yt_env_setup import YTEnvSetup, make_schema, make_ace
+from yt_env_setup import YTEnvSetup
 from yt.environment.helpers import assert_items_equal
 from yt_commands import *
 

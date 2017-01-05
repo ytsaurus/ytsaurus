@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, wait, make_ace
+from yt_env_setup import YTEnvSetup, wait
 from yt_commands import *
 from yt.yson import YsonEntity, YsonList
 

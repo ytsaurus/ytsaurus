@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, make_schema, unix_only, wait, require_enabled_core_dump, require_ytserver_root_privileges
+from yt_env_setup import YTEnvSetup, unix_only, wait, require_enabled_core_dump, require_ytserver_root_privileges
 from yt_commands import *
 
 import binascii
@@ -6,7 +6,6 @@ import itertools
 import pytest
 import os
 import psutil
-import signal
 import subprocess
 import sys
 import time
