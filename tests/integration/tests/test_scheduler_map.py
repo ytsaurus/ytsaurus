@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, make_schema, make_ace, unix_only
+from yt_env_setup import YTEnvSetup, unix_only
 from yt_commands import *
 
 from yt.yson import *

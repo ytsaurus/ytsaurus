@@ -4,8 +4,6 @@ from yt.environment import YTInstance
 from yt.common import makedirp, update, YtError
 import yt_driver_bindings
 
-import yt.yson as yson
-
 import pytest
 
 import gc
@@ -22,9 +20,8 @@ from distutils.spawn import find_executable
 from time import sleep, time
 from threading import Thread
 
-SANDBOX_ROOTDIR = os.environ.get("TESTS_SANDBOX", os.path.abspath('tests.sandbox'))
+SANDBOX_ROOTDIR = os.environ.get("TESTS_SANDBOX", os.path.abspath("tests.sandbox"))
 SANDBOX_STORAGE_ROOTDIR = os.environ.get("TESTS_SANDBOX_STORAGE")
-TOOLS_ROOTDIR = os.path.abspath('tools')
 
 linux_only = pytest.mark.skipif('not sys.platform.startswith("linux")')
 unix_only = pytest.mark.skipif('not sys.platform.startswith("linux") and not sys.platform.startswith("darwin")')
@@ -41,9 +38,9 @@ def require_ytserver_root_privileges(func):
         ytserver_node_path = find_executable("ytserver-node")
         ytserver_node_stat = os.stat(ytserver_node_path)
         if (ytserver_node_stat.st_mode & stat.S_ISUID) == 0:
-            pytest.fail("This test requires a suid bit set for \"ytserver-node\"")
+            pytest.fail('This test requires a suid bit set for "ytserver-node"')
         if ytserver_node_stat.st_uid != 0:
-            pytest.fail("This test requires \"ytserver-node\" being owned by root")
+            pytest.fail('This test requires "ytserver-node" being owned by root')
         func(self, *args, **kwargs)
     return wrapped_func
 
@@ -51,13 +48,13 @@ def require_enabled_core_dump(func):
     def wrapped_func(self, *args, **kwargs):
         rlimit_core = resource.getrlimit(resource.RLIMIT_CORE)
         if rlimit_core[0] == 0:
-            pytest.skip("This test requires enabled core dump (how about 'ulimit -c unlimited'?)")
+            pytest.skip('This test requires enabled core dump (how about "ulimit -c unlimited"?)')
         func(self, *args, **kwargs)
     return wrapped_func
 
 def resolve_test_paths(name):
     path_to_sandbox = os.path.join(SANDBOX_ROOTDIR, name)
-    path_to_environment = os.path.join(path_to_sandbox, 'run')
+    path_to_environment = os.path.join(path_to_sandbox, "run")
     return path_to_sandbox, path_to_environment
 
 def wait(predicate):
@@ -66,25 +63,6 @@ def wait(predicate):
             return
         sleep(1.0)
     pytest.fail("wait failed")
-
-def make_schema(columns, **attributes):
-    schema = yson.YsonList(columns)
-    for attr, value in attributes.items():
-        schema.attributes[attr] = value
-    return schema
-
-def make_ace(action, subjects, permissions, inheritance_mode="object_and_descendants"):
-    def _to_list(x):
-        if isinstance(x, str):
-            return [x]
-        else:
-            return x
-    return {
-        "action": action,
-        "subjects": _to_list(subjects),
-        "permissions": _to_list(permissions),
-        "inheritance_mode": inheritance_mode
-    }
 
 def _pytest_finalize_func(environment, process_call_args):
     print >>sys.stderr, 'Process run by command "{0}" is dead!'.format(" ".join(process_call_args))
@@ -129,6 +107,8 @@ class YTEnvSetup(object):
     DELTA_NODE_CONFIG = {}
     DELTA_SCHEDULER_CONFIG = {}
 
+    NUM_REMOTE_CLUSTERS = 0
+
     # To be redefined in successors
     @classmethod
     def modify_master_config(cls, config):
@@ -155,7 +135,7 @@ class YTEnvSetup(object):
         cls.test_name = test_name
         path_to_test = os.path.join(SANDBOX_ROOTDIR, test_name)
 
-        # Should create before env start for correct behaviour of teardown.
+        # Should be set before env start for correct behaviour of teardown
         cls.liveness_checker = None
 
         cls.path_to_test = path_to_test

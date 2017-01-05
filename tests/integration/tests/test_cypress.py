@@ -1,9 +1,8 @@
 import pytest
 import time
 import datetime
-import pytz
 
-from yt_env_setup import YTEnvSetup, make_ace
+from yt_env_setup import YTEnvSetup
 from yt_commands import *
 from yt.yson import to_yson_type, YsonEntity
 from datetime import timedelta

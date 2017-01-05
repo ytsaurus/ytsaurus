@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, make_schema, unix_only, skip_if_multicell
+from yt_env_setup import YTEnvSetup, unix_only, skip_if_multicell
 from yt_commands import *
 
 from yt.yson import to_yson_type, loads
