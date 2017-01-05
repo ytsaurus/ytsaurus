@@ -54,7 +54,8 @@ using namespace NTabletClient;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-const NLogging::TLogger Logger("PythonDriver");
+static const NLogging::TLogger Logger("PythonDriver");
+static yhash_set<IDriverPtr> ActiveDrivers;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -113,13 +114,11 @@ public:
             throw Py::RuntimeError(Stroka("Error loading driver configuration\n") + ex.what());
         }
 
-        DriverInstance_ = CreateDriver(config);
-
-        RegisteredDriverInstances.push_back(DriverInstance_);
+        UnderlyingDriver_ = CreateDriver(config);
+        YCHECK(ActiveDrivers.insert(UnderlyingDriver_).second);
     }
 
-    virtual ~TDriver()
-    { }
+    virtual ~TDriver() = default;
 
     static void InitType()
     {
@@ -131,11 +130,12 @@ public:
         PYCXX_ADD_KEYWORDS_METHOD(execute, Execute, "Executes the request");
         PYCXX_ADD_KEYWORDS_METHOD(get_command_descriptor, GetCommandDescriptor, "Describes the command");
         PYCXX_ADD_KEYWORDS_METHOD(get_command_descriptors, GetCommandDescriptors, "Describes all commands");
-        PYCXX_ADD_KEYWORDS_METHOD(kill_process, KillProcess, "Force remote YT process (node, scheduler or master) to exit immediately");
-        PYCXX_ADD_KEYWORDS_METHOD(write_core_dump, WriteCoreDump, "Write core dump of a remote YT process (node, scheduler or master)");
-        PYCXX_ADD_KEYWORDS_METHOD(build_snapshot, BuildSnapshot, "Force to build a snapshot");
-        PYCXX_ADD_KEYWORDS_METHOD(gc_collect, GCCollect, "Run garbage collection");
-        PYCXX_ADD_KEYWORDS_METHOD(clear_metadata_caches, ClearMetadataCaches, "Clear metadata caches");
+        PYCXX_ADD_KEYWORDS_METHOD(kill_process, KillProcess, "Forces a remote YT process (node, scheduler or master) to exit immediately");
+        PYCXX_ADD_KEYWORDS_METHOD(write_core_dump, WriteCoreDump, "Writes a core dump of a remote YT process (node, scheduler or master)");
+        PYCXX_ADD_KEYWORDS_METHOD(build_snapshot, BuildSnapshot, "Forces to build a snapshot");
+        PYCXX_ADD_KEYWORDS_METHOD(gc_collect, GCCollect, "Runs garbage collection");
+        PYCXX_ADD_KEYWORDS_METHOD(clear_metadata_caches, ClearMetadataCaches, "Clears metadata caches");
+        PYCXX_ADD_KEYWORDS_METHOD(terminate, Terminate, "Terminates the instance");
 
         behaviors().readyType();
     }
@@ -190,7 +190,7 @@ public:
         }
 
         try {
-            auto driverResponse = DriverInstance_->Execute(request);
+            auto driverResponse = UnderlyingDriver_->Execute(request);
             response->SetResponse(driverResponse);
             if (bufferedOutputStream) {
                 auto outputStream = bufferedOutputStream->GetStream();
@@ -217,7 +217,7 @@ public:
         Py::Callable class_type(TCommandDescriptor::type());
         Py::PythonClassObject<TCommandDescriptor> descriptor(class_type.apply(Py::Tuple(), Py::Dict()));
         try {
-            descriptor.getCxxObject()->SetDescriptor(DriverInstance_->GetCommandDescriptor(commandName));
+            descriptor.getCxxObject()->SetDescriptor(UnderlyingDriver_->GetCommandDescriptor(commandName));
         } CATCH("Failed to get command descriptor");
 
         return descriptor;
@@ -230,7 +230,7 @@ public:
 
         try {
             auto descriptors = Py::Dict();
-            for (const auto& nativeDescriptor : DriverInstance_->GetCommandDescriptors()) {
+            for (const auto& nativeDescriptor : UnderlyingDriver_->GetCommandDescriptors()) {
                 Py::Callable class_type(TCommandDescriptor::type());
                 Py::PythonClassObject<TCommandDescriptor> descriptor(class_type.apply(Py::Tuple(), Py::Dict()));
                 descriptor.getCxxObject()->SetDescriptor(nativeDescriptor);
@@ -244,7 +244,7 @@ public:
     Py::Object GCCollect(Py::Tuple& args, Py::Dict& kwargs)
     {
         try {
-            auto admin = DriverInstance_->GetConnection()->CreateAdmin();
+            auto admin = UnderlyingDriver_->GetConnection()->CreateAdmin();
             WaitFor(admin->GCCollect())
                 .ThrowOnError();
             return Py::None();
@@ -268,7 +268,7 @@ public:
         ValidateArgumentsEmpty(args, kwargs);
 
         try {
-            auto admin = DriverInstance_->GetConnection()->CreateAdmin();
+            auto admin = UnderlyingDriver_->GetConnection()->CreateAdmin();
             WaitFor(admin->KillProcess(address, options))
                 .ThrowOnError();
             return Py::None();
@@ -288,7 +288,7 @@ public:
         ValidateArgumentsEmpty(args, kwargs);
 
         try {
-            auto admin = DriverInstance_->GetConnection()->CreateAdmin();
+            auto admin = UnderlyingDriver_->GetConnection()->CreateAdmin();
             auto path = WaitFor(admin->WriteCoreDump(address, options))
                 .ValueOrThrow();
             return Py::String(path);
@@ -316,7 +316,7 @@ public:
         ValidateArgumentsEmpty(args, kwargs);
 
         try {
-            auto admin = DriverInstance_->GetConnection()->CreateAdmin();
+            auto admin = UnderlyingDriver_->GetConnection()->CreateAdmin();
             int snapshotId = WaitFor(admin->BuildSnapshot(options))
                 .ValueOrThrow();
             return Py::Long(snapshotId);
@@ -329,18 +329,28 @@ public:
         ValidateArgumentsEmpty(args, kwargs);
 
         try {
-            DriverInstance_->GetConnection()->ClearMetadataCaches();
+            UnderlyingDriver_->GetConnection()->ClearMetadataCaches();
             return Py::None();
         } CATCH("Failed to clear metadata caches");
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, ClearMetadataCaches)
 
-    static std::vector<IDriverPtr> RegisteredDriverInstances;
-private:
-    IDriverPtr DriverInstance_;
-};
+    Py::Object Terminate(Py::Tuple& args, Py::Dict& kwargs)
+    {
+        ValidateArgumentsEmpty(args, kwargs);
 
-std::vector<IDriverPtr> TDriver::RegisteredDriverInstances = {};
+        try {
+            ActiveDrivers.erase(UnderlyingDriver_);
+            UnderlyingDriver_->Terminate();
+            return Py::None();
+        } CATCH("Failed to terminate the driver");
+    }
+    PYCXX_KEYWORDS_METHOD_DECL(TDriver, Terminate)
+
+private:
+    IDriverPtr UnderlyingDriver_;
+
+};
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -355,10 +365,12 @@ public:
         PyEval_InitThreads();
 
         RegisterShutdown(BIND([=] () {
-            for (auto driver : TDriver::RegisteredDriverInstances) {
+            for (const auto& driver : ActiveDrivers) {
                 driver->Terminate();
             }
+            ActiveDrivers.clear();
         }));
+
         //InstallCrashSignalHandler(std::set<int>({SIGSEGV}));
 
         TDriver::InitType();
@@ -376,6 +388,8 @@ public:
         moduleDict["BufferedStream"] = TBufferedStreamWrap::type();
         moduleDict["Response"] = TDriverResponse::type();
     }
+
+    virtual ~TDriverModule() = default;
 
     Py::Object ConfigureLogging(const Py::Tuple& args_, const Py::Dict& kwargs_)
     {
@@ -404,9 +418,6 @@ public:
 
         return Py::None();
     }
-
-    virtual ~TDriverModule()
-    { }
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -424,8 +435,8 @@ public:
 
 static PyObject* init_module()
 {
-    static NYT::NPython::TDriverModule* driver = new NYT::NPython::TDriverModule;
-    return driver->module().ptr();
+    static auto* driverModule = new NYT::NPython::TDriverModule;
+    return driverModule->module().ptr();
 }
 
 #if PY_MAJOR_VERSION < 3
