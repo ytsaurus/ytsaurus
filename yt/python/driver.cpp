@@ -55,7 +55,7 @@ using namespace NTabletClient;
 ///////////////////////////////////////////////////////////////////////////////
 
 static const NLogging::TLogger Logger("PythonDriver");
-static yhash_set<IDriverPtr> ActiveDrivers;
+static yhash_map<TGuid, TWeakPtr<IDriver>> ActiveDrivers;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -102,7 +102,12 @@ class TDriver
 public:
     TDriver(Py::PythonClassInstance *self, Py::Tuple& args, Py::Dict& kwargs)
         : Py::PythonClass<TDriver>::PythonClass(self, args, kwargs)
+        , Id_(TGuid::Create())
+        , Logger(NLogging::TLogger(NYT::NPython::Logger)
+            .AddTag("DriverId: %v", Id_))
     {
+        LOG_INFO("Driver created");
+
         auto configDict = ExtractArgument(args, kwargs, "config");
         ValidateArgumentsEmpty(args, kwargs);
 
@@ -115,10 +120,14 @@ public:
         }
 
         UnderlyingDriver_ = CreateDriver(config);
-        YCHECK(ActiveDrivers.insert(UnderlyingDriver_).second);
+        YCHECK(ActiveDrivers.emplace(Id_, UnderlyingDriver_).second);
     }
 
-    virtual ~TDriver() = default;
+    virtual ~TDriver()
+    {
+        UnderlyingDriver_->Terminate();
+        LOG_INFO("Driver destroyed");
+    }
 
     static void InitType()
     {
@@ -340,14 +349,18 @@ public:
         ValidateArgumentsEmpty(args, kwargs);
 
         try {
-            ActiveDrivers.erase(UnderlyingDriver_);
+            ActiveDrivers.erase(Id_);
             UnderlyingDriver_->Terminate();
+            LOG_INFO("Driver terminated");
             return Py::None();
         } CATCH("Failed to terminate the driver");
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, Terminate)
 
 private:
+    const TGuid Id_;
+    const NLogging::TLogger Logger;
+
     IDriverPtr UnderlyingDriver_;
 
 };
@@ -365,10 +378,17 @@ public:
         PyEval_InitThreads();
 
         RegisterShutdown(BIND([=] () {
-            for (const auto& driver : ActiveDrivers) {
+            LOG_INFO("Module shutdown started");
+            for (const auto& pair : ActiveDrivers) {
+                auto driver = pair.second.Lock();
+                if (!driver) {
+                    continue;
+                }
+                LOG_INFO("Terminating leaked driver (DriverId: %v)", pair.first);
                 driver->Terminate();
             }
             ActiveDrivers.clear();
+            LOG_INFO("Module shutdown finished");
         }));
 
         //InstallCrashSignalHandler(std::set<int>({SIGSEGV}));
