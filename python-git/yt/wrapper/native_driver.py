@@ -106,7 +106,9 @@ def make_request(command_name, params,
     if return_content:
         response.wait()
         if not response.is_ok():
-            raise YtResponseError(response.error())
+            error = YtResponseError(response.error())
+            error.message = "Received driver response with error"
+            raise error
         if output_stream is not None:
             value = output_stream.getvalue()
             if decode_content and PY3:
