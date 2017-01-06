@@ -1,5 +1,6 @@
 import yt.yson as yson
 from yt_driver_bindings import Driver, Request
+import yt_driver_bindings
 from yt.common import YtError, YtResponseError, flatten, update
 
 import __builtin__
@@ -15,8 +16,7 @@ from cStringIO import StringIO
 
 ###########################################################################
 
-driver = None
-secondary_drivers = None
+clusters_drivers = {}
 is_multicell = None
 path_to_run_tests = None
 
@@ -29,32 +29,38 @@ def is_debug():
     from build_type import BUILD_TYPE
     return BUILD_TYPE == "Debug"
 
-def get_driver(index=0):
-    if index == 0:
-        return driver
+def get_driver(cell_index=0, cluster="primary"):
+    if cluster not in clusters_drivers:
+        return None
+
+    return clusters_drivers[cluster][cell_index]
+
+def _get_driver(driver):
+    if driver is None:
+        return get_driver()
     else:
-        return secondary_drivers[index - 1]
+        return driver
 
-def init_drivers(config, secondary_driver_configs):
-    global driver
-    global secondary_drivers
+def init_drivers(clusters):
+    for instance in clusters:
+        if instance.master_count > 0:
+            secondary_driver_configs = [instance.configs["driver_secondary_" + str(i)]
+                                        for i in xrange(instance.secondary_master_cell_count)]
+            driver = Driver(config=instance.configs["driver"])
+            secondary_drivers = []
+            for secondary_driver_config in secondary_driver_configs:
+                secondary_drivers.append(Driver(config=secondary_driver_config))
 
-    driver = Driver(config=config)
-    secondary_drivers = []
-    for secondary_driver_config in secondary_driver_configs:
-        secondary_drivers.append(Driver(config=secondary_driver_config))
+            clusters_drivers[instance._cluster_name] = [driver] + secondary_drivers
+
+            if instance._cluster_name == "primary":
+                yt_driver_bindings.configure_logging(instance.driver_logging_config)
 
 def terminate_drivers():
-    global driver
-    global secondary_drivers
+    for drivers in clusters_drivers.itervalues():
+        __builtin__.map(lambda d: d.terminate(), drivers)
 
-    if driver is not None:
-        driver.terminate()
-    driver = None
-
-    for secondary_driver in secondary_drivers:
-        secondary_driver.terminate()
-    secondary_drivers = []
+    clusters_drivers.clear()
 
 def set_branch(dict, path, value):
     root = dict
@@ -106,11 +112,7 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
         del parameters["ignore_result"]
     ignore_result = ignore_result is None or ignore_result
 
-    if "driver" in parameters:
-        driver = parameters["driver"]
-        del parameters["driver"]
-    else:
-        driver = get_driver()
+    driver = _get_driver(parameters.pop("driver", None))
 
     authenticated_user = None
     if "authenticated_user" in parameters:
@@ -341,12 +343,12 @@ def generate_timestamp(**kwargs):
     return yson.loads(execute_command("generate_timestamp", kwargs))
 
 def mount_table(path, **kwargs):
-    clear_metadata_caches()
+    clear_metadata_caches(kwargs.get("driver"))
     kwargs["path"] = path
     return execute_command("mount_table", kwargs)
 
 def unmount_table(path, **kwargs):
-    clear_metadata_caches()
+    clear_metadata_caches(kwargs.get("driver"))
     kwargs["path"] = path
     return execute_command("unmount_table", kwargs)
 
@@ -355,17 +357,17 @@ def remount_table(path, **kwargs):
     return execute_command("remount_table", kwargs)
 
 def freeze_table(path, **kwargs):
-    clear_metadata_caches()
+    clear_metadata_caches(kwargs.get("driver"))
     kwargs["path"] = path
     return execute_command("freeze_table", kwargs)
 
 def unfreeze_table(path, **kwargs):
-    clear_metadata_caches()
+    clear_metadata_caches(kwargs.get("driver"))
     kwargs["path"] = path
     return execute_command("unfreeze_table", kwargs)
 
 def reshard_table(path, arg, **kwargs):
-    clear_metadata_caches()
+    clear_metadata_caches(kwargs.get("driver"))
     kwargs["path"] = path
     if isinstance(arg, int):
         kwargs["tablet_count"] = arg
@@ -787,11 +789,11 @@ def build_snapshot(*args, **kwargs):
 def get_version():
     return yson.loads(execute_command("get_version", {}))
 
-def gc_collect():
-    get_driver().gc_collect()
+def gc_collect(driver=None):
+    _get_driver(driver=driver).gc_collect()
 
-def clear_metadata_caches():
-    get_driver().clear_metadata_caches()
+def clear_metadata_caches(driver=None):
+    _get_driver(driver=driver).clear_metadata_caches()
 
 def create_account(name, **kwargs):
     kwargs["type"] = "account"
@@ -802,7 +804,7 @@ def create_account(name, **kwargs):
 
 def remove_account(name, **kwargs):
     remove("//sys/accounts/" + name, **kwargs)
-    gc_collect()
+    gc_collect(kwargs.get("driver"))
 
 def create_user(name, **kwargs):
     kwargs["type"] = "user"
@@ -813,7 +815,7 @@ def create_user(name, **kwargs):
 
 def remove_user(name, **kwargs):
     remove("//sys/users/" + name, **kwargs)
-    gc_collect()
+    gc_collect(kwargs.get("driver"))
 
 def create_group(name, **kwargs):
     kwargs["type"] = "group"
@@ -824,7 +826,7 @@ def create_group(name, **kwargs):
 
 def remove_group(name, **kwargs):
     remove("//sys/groups/" + name, **kwargs)
-    gc_collect()
+    gc_collect(kwargs.get("driver"))
 
 def add_member(member, group, **kwargs):
     kwargs["member"] = member
@@ -849,13 +851,13 @@ def create_tablet_cell_bundle(name, **kwargs):
     kwargs["attributes"]["name"] = name
     execute_command("create", kwargs)
 
-def remove_tablet_cell_bundle(name):
-    remove("//sys/tablet_cell_bundles/" + name)
-    gc_collect()
+def remove_tablet_cell_bundle(name, driver=None):
+    remove("//sys/tablet_cell_bundles/" + name, driver=driver)
+    gc_collect(driver=driver)
 
-def remove_tablet_cell(id):
-    remove("//sys/tablet_cells/" + id)
-    gc_collect()
+def remove_tablet_cell(id, driver=None):
+    remove("//sys/tablet_cells/" + id, driver=driver)
+    gc_collect(driver=driver)
 
 def create_table_replica(table_path, cluster_name, replica_path, **kwargs):
     kwargs["type"] = "table_replica"
@@ -886,7 +888,7 @@ def create_data_center(name, **kwargs):
 
 def remove_data_center(name, **kwargs):
     remove("//sys/data_centers/" + name, **kwargs)
-    gc_collect()
+    gc_collect(kwargs.get("driver"))
 
 def create_rack(name, **kwargs):
     kwargs["type"] = "rack"
@@ -897,7 +899,7 @@ def create_rack(name, **kwargs):
 
 def remove_rack(name, **kwargs):
     remove("//sys/racks/" + name, **kwargs)
-    gc_collect()
+    gc_collect(kwargs.get("driver"))
 
 def create_medium(name, **kwargs):
     kwargs["type"] = "medium"
@@ -909,48 +911,48 @@ def create_medium(name, **kwargs):
 #########################################
 # Helpers:
 
-def get_transactions():
-    gc_collect()
-    return ls("//sys/transactions")
+def get_transactions(driver=None):
+    gc_collect(driver=driver)
+    return ls("//sys/transactions", driver=driver)
 
-def get_topmost_transactions():
-    gc_collect()
-    return ls("//sys/topmost_transactions")
+def get_topmost_transactions(driver=None):
+    gc_collect(driver=driver)
+    return ls("//sys/topmost_transactions", driver=driver)
 
-def get_chunks():
-    gc_collect()
-    return ls("//sys/chunks")
+def get_chunks(driver=None):
+    gc_collect(driver=driver)
+    return ls("//sys/chunks", driver=driver)
 
-def get_accounts():
-    gc_collect()
-    return ls("//sys/accounts")
+def get_accounts(driver=None):
+    gc_collect(driver=driver)
+    return ls("//sys/accounts", driver=driver)
 
-def get_users():
-    gc_collect()
-    return ls("//sys/users")
+def get_users(driver=None):
+    gc_collect(driver=driver)
+    return ls("//sys/users", driver=driver)
 
-def get_groups():
-    gc_collect()
-    return ls("//sys/groups")
+def get_groups(driver=None):
+    gc_collect(driver=driver)
+    return ls("//sys/groups", driver=driver)
 
-def get_tablet_cells():
-    gc_collect()
-    return ls("//sys/tablet_cells")
+def get_tablet_cells(driver=None):
+    gc_collect(driver=driver)
+    return ls("//sys/tablet_cells", driver=driver)
 
-def get_data_centers():
-    gc_collect()
-    return ls("//sys/data_centers")
+def get_data_centers(driver=None):
+    gc_collect(driver=driver)
+    return ls("//sys/data_centers", driver=driver)
 
-def get_racks():
-    gc_collect()
-    return ls("//sys/racks")
+def get_racks(driver=None):
+    gc_collect(driver=driver)
+    return ls("//sys/racks", driver=driver)
 
-def get_nodes():
-    return ls("//sys/nodes")
+def get_nodes(driver=None):
+    return ls("//sys/nodes", driver=driver)
 
-def get_media():
-    gc_collect()
-    return ls("//sys/media")
+def get_media(driver=None):
+    gc_collect(driver=driver)
+    return ls("//sys/media", driver=driver)
 
 def get_chunk_owner_disk_space(path, *args, **kwargs):
     disk_space = get("{0}/@resource_usage/disk_space_per_medium".format(path), *args, **kwargs)

@@ -2,7 +2,6 @@ import yt_commands
 
 from yt.environment import YTInstance
 from yt.common import makedirp, update, YtError
-import yt_driver_bindings
 
 import pytest
 
@@ -12,6 +11,7 @@ import sys
 import logging
 import resource
 import shutil
+import functools
 import stat
 import subprocess
 import uuid
@@ -127,6 +127,53 @@ class YTEnvSetup(object):
         pass
 
     @classmethod
+    def get_param(cls, name, cluster_index):
+        value = getattr(cls, name)
+        if cluster_index == 0:
+            return value
+
+        param_name = "{0}_REMOTE_{1}".format(name, cluster_index - 1)
+        if hasattr(cls, param_name):
+            return getattr(cls, param_name)
+
+        return value
+
+    @classmethod
+    def create_yt_cluster_instance(cls, index, clusters_root_path):
+        if index != 0:
+            path = os.path.join(clusters_root_path, "_remote_" + str(index - 1))
+        else:
+            path = clusters_root_path
+
+        modify_configs_func = functools.partial(
+            cls.apply_config_patches,
+            cluster_index=index)
+
+        instance = YTInstance(
+            path,
+            master_count=cls.get_param("NUM_MASTERS", index),
+            nonvoting_master_count=cls.get_param("NUM_NONVOTING_MASTERS", index),
+            secondary_master_cell_count=cls.get_param("NUM_SECONDARY_MASTER_CELLS", index),
+            node_count=cls.get_param("NUM_NODES", index),
+            scheduler_count=cls.get_param("NUM_SCHEDULERS", index),
+            kill_child_processes=True,
+            port_locks_path=os.path.join(SANDBOX_ROOTDIR, "ports"),
+            fqdn="localhost",
+            modify_configs_func=modify_configs_func,
+            cell_tag=index * 10)
+
+        instance._cluster_name = cls.get_cluster_name(index)
+
+        return instance
+
+    @staticmethod
+    def get_cluster_name(cluster_index):
+        if cluster_index == 0:
+            return "primary"
+        else:
+            return "remote_" + str(cluster_index - 1)
+
+    @classmethod
     def setup_class(cls, test_name=None):
         logging.basicConfig(level=logging.INFO)
 
@@ -136,65 +183,78 @@ class YTEnvSetup(object):
         path_to_test = os.path.join(SANDBOX_ROOTDIR, test_name)
 
         # Should be set before env start for correct behaviour of teardown
-        cls.liveness_checker = None
+        cls.liveness_checkers = []
 
         cls.path_to_test = path_to_test
         # For running in parallel
         cls.run_id = "run_" + uuid.uuid4().hex[:8]
         cls.path_to_run = os.path.join(path_to_test, cls.run_id)
 
-        cls.Env = YTInstance(
-            cls.path_to_run,
-            master_count=cls.NUM_MASTERS,
-            nonvoting_master_count=cls.NUM_NONVOTING_MASTERS,
-            secondary_master_cell_count=cls.NUM_SECONDARY_MASTER_CELLS,
-            node_count=cls.NUM_NODES,
-            scheduler_count=cls.NUM_SCHEDULERS,
-            kill_child_processes=True,
-            port_locks_path=os.path.join(SANDBOX_ROOTDIR, "ports"),
-            fqdn="localhost",
-            modify_configs_func=cls.apply_config_patches)
+        cls.Env = cls.create_yt_cluster_instance(0, cls.path_to_run)
+        cls.remote_envs = []  # TODO: Rename env
+        for cluster_index in xrange(1, cls.NUM_REMOTE_CLUSTERS + 1):
+            cls.remote_envs.append(cls.create_yt_cluster_instance(cluster_index, cls.path_to_run))
 
-        # Init driver before starting the cluster. Some hooks use the driver during starting up (e.g. on_masters_started()).
-        if cls.Env.configs["driver"]:
-            secondary_driver_configs = [cls.Env.configs["driver_secondary_{0}".format(i)]
-                                        for i in xrange(cls.NUM_SECONDARY_MASTER_CELLS)]
-            yt_commands.init_drivers(cls.Env.configs["driver"], secondary_driver_configs)
-            yt_commands.is_multicell = (cls.NUM_SECONDARY_MASTER_CELLS > 0)
-            yt_driver_bindings.configure_logging(cls.Env.driver_logging_config)
+        yt_commands.is_multicell = cls.NUM_SECONDARY_MASTER_CELLS > 0
+        yt_commands.path_to_run_tests = cls.path_to_run
+        yt_commands.init_drivers([cls.Env] + cls.remote_envs)
 
         cls.Env.start(start_secondary_master_cells=cls.START_SECONDARY_MASTER_CELLS, on_masters_started_func=cls.on_masters_started)
+        for index, env in enumerate(cls.remote_envs):
+            env.start(start_secondary_master_cells=cls.get_param("START_SECONDARY_MASTER_CELLS", index))
 
-        yt_commands.path_to_run_tests = cls.path_to_run
+        for env in [cls.Env] + cls.remote_envs:
+            # To avoid strange hangups.
+            if env.master_count > 0:
+                liveness_checker = Checker(lambda: env.check_liveness(callback_func=_pytest_finalize_func))
+                liveness_checker.daemon = True
+                liveness_checker.start()
+                cls.liveness_checkers.append(liveness_checker)
 
-        # To avoid strange hangups.
-        if cls.NUM_MASTERS > 0:
-            cls.liveness_checker = Checker(lambda: cls.Env.check_liveness(callback_func=_pytest_finalize_func))
-            cls.liveness_checker.daemon = True
-            cls.liveness_checker.start()
+        if cls.remote_envs:
+            clusters = {}
+            for instance in [cls.Env] + cls.remote_envs:
+                connection_config = {
+                    "primary_master": instance.configs["master"][0]["primary_master"],
+                    "secondary_masters": instance.configs["master"][0]["secondary_masters"],
+                    "timestamp_provider": instance.configs["master"][0]["timestamp_provider"],
+                    "transaction_manager": instance.configs["master"][0]["transaction_manager"]
+                }
+                clusters[instance._cluster_name] = connection_config
+
+            for cluster_index in xrange(cls.NUM_REMOTE_CLUSTERS + 1):
+                driver = yt_commands.get_driver(cluster=cls.get_cluster_name(cluster_index))
+                if driver is None:
+                    continue
+                yt_commands.set("//sys/clusters", clusters, driver=driver)
+                yt_commands.remove("//sys/clusters/" + cls.get_cluster_name(cluster_index), driver=driver)
+
+            sleep(1.0)
 
     @classmethod
-    def apply_config_patches(cls, configs, ytserver_version):
+    def apply_config_patches(cls, configs, ytserver_version, cluster_index):
         for tag in [configs["master"]["primary_cell_tag"]] + configs["master"]["secondary_cell_tags"]:
             for config in configs["master"][tag]:
-                update(config, cls.DELTA_MASTER_CONFIG)
+                update(config, cls.get_param("DELTA_MASTER_CONFIG", cluster_index))
                 cls.modify_master_config(config)
         for config in configs["scheduler"]:
-            update(config, cls.DELTA_SCHEDULER_CONFIG)
+            update(config, cls.get_param("DELTA_SCHEDULER_CONFIG", cluster_index))
             cls.modify_scheduler_config(config)
         for config in configs["node"]:
-            update(config, cls.DELTA_NODE_CONFIG)
+            update(config, cls.get_param("DELTA_NODE_CONFIG", cluster_index))
             cls.modify_node_config(config)
         for config in configs["driver"].values():
-            update(config, cls.DELTA_DRIVER_CONFIG)
+            update(config, cls.get_param("DELTA_DRIVER_CONFIG", cluster_index))
 
     @classmethod
     def teardown_class(cls):
-        if cls.liveness_checker is not None:
-            cls.liveness_checker.stop()
+        if cls.liveness_checkers:
+            map(lambda c: c.stop(), cls.liveness_checkers)
 
-        cls.Env.stop()
-        cls.Env.kill_cgroups()
+        for env in [cls.Env] + cls.remote_envs:
+            env.stop()
+            env.kill_cgroups()
+
         yt_commands.terminate_drivers()
         gc.collect()
 
@@ -222,70 +282,87 @@ class YTEnvSetup(object):
             shutil.move(cls.path_to_run, destination_path)
 
     def setup_method(self, method):
-        if self.NUM_MASTERS > 0:
-            self.transactions_at_start = set(yt_commands.get_transactions())
-            self.wait_for_nodes()
-            self.wait_for_chunk_replicator()
+        self.transactions_at_start = []
+        for cluster_index in xrange(self.NUM_REMOTE_CLUSTERS + 1):
+            driver = yt_commands.get_driver(cluster=self.get_cluster_name(cluster_index))
+            if driver is None:
+                self.transactions_at_start.append(set())
+                continue
+
+            self.transactions_at_start.append(set(yt_commands.get_transactions(driver=driver)))
+            self.wait_for_nodes(driver=driver)
+            self.wait_for_chunk_replicator(driver=driver)
 
     def teardown_method(self, method):
-        self.Env.check_liveness(callback_func=_pytest_finalize_func)
-        if self.NUM_MASTERS > 0:
-            self._abort_transactions()
-            yt_commands.set('//tmp', {})
-            self._remove_operations()
-            self._wait_jobs_to_abort()
-            yt_commands.gc_collect()
-            yt_commands.clear_metadata_caches()
-            self._reset_nodes()
-            self._reenable_chunk_replicator()
-            self._remove_accounts()
-            self._remove_users()
-            self._remove_groups()
-            self._remove_tablet_cells()
-            self._remove_tablet_cell_bundles()
-            self._remove_racks()
-            self._remove_data_centers()
-            self._remove_pools()
+        for env in [self.Env] + self.remote_envs:
+            env.check_liveness(callback_func=_pytest_finalize_func)
 
-            yt_commands.gc_collect()
+        for cluster_index in xrange(self.NUM_REMOTE_CLUSTERS + 1):
+            driver = yt_commands.get_driver(cluster=self.get_cluster_name(cluster_index))
+            if driver is None:
+                continue
 
-    def set_node_banned(self, address, flag):
-        yt_commands.set("//sys/nodes/%s/@banned" % address, flag)
+            self._abort_transactions(driver=driver)
+            yt_commands.set('//tmp', {}, driver=driver)
+            self._remove_operations(driver=driver)
+            self._wait_jobs_to_abort(driver=driver)
+            yt_commands.gc_collect(driver=driver)
+            yt_commands.clear_metadata_caches(driver=driver)
+            self._reset_nodes(driver=driver)
+            self._reenable_chunk_replicator(driver=driver)
+            self._remove_accounts(driver=driver)
+            self._remove_users(driver=driver)
+            self._remove_groups(driver=driver)
+            self._remove_tablet_cells(driver=driver)
+            self._remove_tablet_cell_bundles(driver=driver)
+            self._remove_racks(driver=driver)
+            self._remove_data_centers(driver=driver)
+            self._remove_pools(driver=driver)
+
+            yt_commands.gc_collect(driver=driver)
+
+    def set_node_banned(self, address, flag, driver=None):
+        yt_commands.set("//sys/nodes/%s/@banned" % address, flag, driver=driver)
         ban, state = ("banned", "offline") if flag else ("unbanned", "online")
         print "Waiting for node %s to become %s..." % (address, ban)
-        wait(lambda: yt_commands.get("//sys/nodes/%s/@state" % address) == state)
+        wait(lambda: yt_commands.get("//sys/nodes/%s/@state" % address, driver=driver) == state)
 
-    def wait_for_nodes(self):
+    def wait_for_nodes(self, driver=None):
         print "Waiting for nodes to become online..."
-        wait(lambda: all(n.attributes["state"] == "online" for n in yt_commands.ls("//sys/nodes", attributes=["state"])))
+        wait(lambda: all(n.attributes["state"] == "online"
+                         for n in yt_commands.ls("//sys/nodes", attributes=["state"], driver=driver)))
 
-    def wait_for_chunk_replicator(self):
+    def wait_for_chunk_replicator(self, driver=None):
         print "Waiting for chunk replicator to become enabled..."
-        wait(lambda: yt_commands.get("//sys/@chunk_replicator_enabled"))
+        wait(lambda: yt_commands.get("//sys/@chunk_replicator_enabled", driver=driver))
 
-    def wait_for_cells(self):
+    def wait_for_cells(self, driver=None):
         print "Waiting for tablet cells to become healthy..."
-        wait(lambda: all(c.attributes["health"] == "good" for c in yt_commands.ls("//sys/tablet_cells", attributes=["health"])))
+        wait(lambda: all(c.attributes["health"] == "good"
+                         for c in yt_commands.ls("//sys/tablet_cells", attributes=["health"], driver=driver)))
 
-    def sync_create_cells(self, cell_count, tablet_cell_bundle="default"):
+    def sync_create_cells(self, cell_count, tablet_cell_bundle="default", driver=None):
         for _ in xrange(cell_count):
             yt_commands.create_tablet_cell(attributes={
                 "tablet_cell_bundle": tablet_cell_bundle
-            })
-        self.wait_for_cells()
+            }, driver=driver)
+        self.wait_for_cells(driver=driver)
 
-    def wait_for_tablet_state(self, path, states):
+    def wait_for_tablet_state(self, path, states, driver=None):
         print "Waiting for tablets to become %s..." % ", ".join(str(state) for state in states)
-        wait(lambda: all(any(x["state"] == state for state in states) for x in yt_commands.get(path + "/@tablets")))
+        wait(lambda: all(any(x["state"] == state for state in states)
+                        for x in yt_commands.get(path + "/@tablets", driver=driver)))
 
-    def wait_until_sealed(self, path):
-        wait(lambda: yt_commands.get(path + "/@sealed"))
+    def wait_until_sealed(self, path, driver=None):
+        wait(lambda: yt_commands.get(path + "/@sealed", driver=driver))
 
     def _wait_for_tablets(self, path, state, **kwargs):
-        tablet_count = yt_commands.get(path + '/@tablet_count')
+        driver = kwargs.pop("driver", None)
+        tablet_count = yt_commands.get(path + '/@tablet_count', driver=driver)
         first_tablet_index = kwargs.get("first_tablet_index", 0)
         last_tablet_index = kwargs.get("last_tablet_index", tablet_count - 1)
-        wait(lambda: all(x["state"] == state for x in yt_commands.get(path + "/@tablets")[first_tablet_index:last_tablet_index + 1]))
+        wait(lambda: all(x["state"] == state for x in
+             yt_commands.get(path + "/@tablets", driver=driver)[first_tablet_index:last_tablet_index + 1]))
 
     def sync_mount_table(self, path, freeze=False, **kwargs):
         yt_commands.mount_table(path, freeze=freeze, **kwargs)
@@ -311,21 +388,23 @@ class YTEnvSetup(object):
         print "Waiting for tablets to become mounted..."
         self._wait_for_tablets(path, "mounted", **kwargs)
 
-    def sync_flush_table(self, path):
-        self.sync_freeze_table(path)
-        self.sync_unfreeze_table(path)
+    def sync_flush_table(self, path, driver=None):
+        self.sync_freeze_table(path, driver=driver)
+        self.sync_unfreeze_table(path, driver=driver)
 
-    def sync_compact_table(self, path):
-        chunk_ids = __builtin__.set(yt_commands.get(path + "/@chunk_ids"))
-        yt_commands.set(path + "/@forced_compaction_revision", yt_commands.get(path + "/@revision"))
-        yt_commands.set(path + "/@forced_compaction_revision", yt_commands.get(path + "/@revision"))
-        yt_commands.remount_table(path)
+    def sync_compact_table(self, path, driver=None):
+        chunk_ids = __builtin__.set(yt_commands.get(path + "/@chunk_ids", driver=driver))
+        yt_commands.set(path + "/@forced_compaction_revision",
+                        yt_commands.get(path + "/@revision", driver=driver), driver=driver)
+        yt_commands.set(path + "/@forced_compaction_revision",
+                        yt_commands.get(path + "/@revision", driver=driver), driver=driver)
+        yt_commands.remount_table(path, driver=driver)
 
         print "Waiting for tablets to become compacted..."
-        wait(lambda: len(chunk_ids.intersection(__builtin__.set(yt_commands.get(path + "/@chunk_ids")))) == 0)
+        wait(lambda: len(chunk_ids.intersection(__builtin__.set(yt_commands.get(path + "/@chunk_ids", driver=driver)))) == 0)
 
-    def _abort_transactions(self):
-         for tx in yt_commands.ls("//sys/transactions", attributes=["title"]):
+    def _abort_transactions(self, driver=None):
+         for tx in yt_commands.ls("//sys/transactions", attributes=["title"], driver=driver):
             title = tx.attributes.get("title", "")
             id = str(tx)
             if "Scheduler lock" in title:
@@ -333,95 +412,97 @@ class YTEnvSetup(object):
             if "Lease for node" in title:
                 continue
             try:
-                yt_commands.abort_transaction(id)
+                yt_commands.abort_transaction(id, driver=driver)
             except:
                 pass
 
-    def sync_disable_table_replica(self, replica_id):
-        yt_commands.disable_table_replica(replica_id)
+    def sync_disable_table_replica(self, replica_id, driver=None):
+        yt_commands.disable_table_replica(replica_id, driver=driver)
 
         print "Waiting for replica to become disabled..."
-        wait(lambda: yt_commands.get("#{0}/@state".format(replica_id)) == "disabled")
+        wait(lambda: yt_commands.get("#{0}/@state".format(replica_id), driver=driver) == "disabled")
 
-    def _reset_nodes(self):
-        nodes = yt_commands.ls("//sys/nodes", attributes=["banned", "resource_limits_overrides", "user_tags"])
+    def _reset_nodes(self, driver=None):
+        nodes = yt_commands.ls("//sys/nodes", attributes=["banned", "resource_limits_overrides", "user_tags"],
+                               driver=driver)
         for node in nodes:
             node_name = str(node)
             if node.attributes["banned"]:
-                yt_commands.set("//sys/nodes/%s/@banned" % node_name, False)
+                yt_commands.set("//sys/nodes/%s/@banned" % node_name, False, driver=driver)
             if node.attributes["resource_limits_overrides"] != {}:
-                yt_commands.set("//sys/nodes/%s/@resource_limits_overrides" % node_name, {})
+                yt_commands.set("//sys/nodes/%s/@resource_limits_overrides" % node_name, {}, driver=driver)
             if node.attributes["user_tags"] != []:
-                yt_commands.set("//sys/nodes/%s/@user_tags" % node_name, [])
+                yt_commands.set("//sys/nodes/%s/@user_tags" % node_name, [], driver=driver)
 
-    def _remove_operations(self):
-        if self.NUM_SCHEDULERS == 0:
+    def _remove_operations(self, driver=None):
+        if yt_commands.get("//sys/scheduler/instances/@count", driver=driver) == 0:
             return
 
         try:
-            for operation_id in yt_commands.ls("//sys/scheduler/orchid/scheduler/operations"):
-                yt_commands.abort_op(operation_id)
+            for operation_id in yt_commands.ls("//sys/scheduler/orchid/scheduler/operations", driver=driver):
+                yt_commands.abort_op(operation_id, driver=driver)
         except YtError:
             pass
-        for operation in yt_commands.ls("//sys/operations"):
-            yt_commands.remove("//sys/operations/" + operation, recursive=True)
 
-    def _wait_jobs_to_abort(self):
+        for operation in yt_commands.ls("//sys/operations", driver=driver):
+            yt_commands.remove("//sys/operations/" + operation, recursive=True, driver=driver)
+
+    def _wait_jobs_to_abort(self, driver=None):
         def check_jobs_are_missing():
-            for node in yt_commands.ls("//sys/nodes"):
-                jobs = yt_commands.get("//sys/nodes/{0}/orchid/job_controller/active_job_count".format(node))
+            for node in yt_commands.ls("//sys/nodes", driver=driver):
+                jobs = yt_commands.get("//sys/nodes/{0}/orchid/job_controller/active_job_count".format(node), driver=driver)
                 if jobs.get("scheduler", 0) > 0:
                     return False
             return True
 
         wait(check_jobs_are_missing)
 
-    def _reenable_chunk_replicator(self):
-        if yt_commands.exists("//sys/@disable_chunk_replicator"):
-            yt_commands.remove("//sys/@disable_chunk_replicator")
+    def _reenable_chunk_replicator(self, driver=None):
+        if yt_commands.exists("//sys/@disable_chunk_replicator", driver=driver):
+            yt_commands.remove("//sys/@disable_chunk_replicator", driver=driver)
 
-    def _remove_accounts(self):
-        accounts = yt_commands.ls("//sys/accounts", attributes=["builtin", "resource_usage"])
+    def _remove_accounts(self, driver=None):
+        accounts = yt_commands.ls("//sys/accounts", attributes=["builtin", "resource_usage"], driver=driver)
         for account in accounts:
             if not account.attributes["builtin"]:
                 print >>sys.stderr, account.attributes["resource_usage"]
-                yt_commands.remove_account(str(account))
+                yt_commands.remove_account(str(account), driver=driver)
 
-    def _remove_users(self):
-        users = yt_commands.ls("//sys/users", attributes=["builtin"])
+    def _remove_users(self, driver=None):
+        users = yt_commands.ls("//sys/users", attributes=["builtin"], driver=driver)
         for user in users:
             if not user.attributes["builtin"]:
-                yt_commands.remove_user(str(user))
+                yt_commands.remove_user(str(user), driver=driver)
 
-    def _remove_groups(self):
-        groups = yt_commands.ls("//sys/groups", attributes=["builtin"])
+    def _remove_groups(self, driver=None):
+        groups = yt_commands.ls("//sys/groups", attributes=["builtin"], driver=driver)
         for group in groups:
             if not group.attributes["builtin"]:
-                yt_commands.remove_group(str(group))
+                yt_commands.remove_group(str(group), driver=driver)
 
-    def _remove_tablet_cells(self):
-        cells = yt_commands.get_tablet_cells()
+    def _remove_tablet_cells(self, driver=None):
+        cells = yt_commands.get_tablet_cells(driver=driver)
         for id in cells:
-            yt_commands.remove_tablet_cell(id)
+            yt_commands.remove_tablet_cell(id, driver=driver)
 
-    def _remove_tablet_cell_bundles(self):
-        bundles = yt_commands.ls("//sys/tablet_cell_bundles", attributes=["builtin"])
+    def _remove_tablet_cell_bundles(self, driver=None):
+        bundles = yt_commands.ls("//sys/tablet_cell_bundles", attributes=["builtin"], driver=driver)
         for bundle in bundles:
             if not bundle.attributes["builtin"]:
-                yt_commands.remove_tablet_cell_bundle(str(bundle))
+                yt_commands.remove_tablet_cell_bundle(str(bundle), driver=driver)
 
-    def _remove_racks(self):
-        racks = yt_commands.get_racks()
+    def _remove_racks(self, driver=None):
+        racks = yt_commands.get_racks(driver=driver)
         for rack in racks:
-            yt_commands.remove_rack(rack)
+            yt_commands.remove_rack(rack, driver=driver)
 
-    def _remove_data_centers(self):
-        data_centers = yt_commands.get_data_centers()
+    def _remove_data_centers(self, driver=None):
+        data_centers = yt_commands.get_data_centers(driver=driver)
         for dc in data_centers:
-            yt_commands.remove_data_center(dc)
+            yt_commands.remove_data_center(dc, driver=driver)
 
-    def _remove_pools(self):
-        yt_commands.remove("//sys/pools/*")
+    def _remove_pools(self, driver=None):
+        yt_commands.remove("//sys/pools/*", driver=driver)
 
     def _find_ut_file(self, file_name):
         unittester_path = find_executable("unittester")
