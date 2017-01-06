@@ -166,8 +166,6 @@ public:
             ESyncSerializationPriority::Values,
             "TransactionManager.Values",
             BIND(&TImpl::SaveValues, Unretained(this)));
-
-        Logger = TransactionServerLogger;
     }
 
     void Initialize()
