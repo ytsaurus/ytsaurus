@@ -26,42 +26,19 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyBase):
     NUM_NODES = 9
     NUM_SCHEDULERS = 1
 
+    NUM_REMOTE_CLUSTERS = 1
+
+    NUM_MASTERS_REMOTE_0 = 1
+    NUM_SCHEDULERS_REMOTE_0 = 0
+
     @classmethod
-    def setup_class(cls, secondary_master_cell_count=0):
+    def setup_class(cls):
         super(TestSchedulerRemoteCopyCommands, cls).setup_class()
-        cls.remote_env = YTInstance(
-            os.path.join(cls.Env.path, "_remote"),
-            master_count=1,
-            nonvoting_master_count=0,
-            node_count=9,
-            secondary_master_cell_count=secondary_master_cell_count,
-            scheduler_count=0,
-            has_proxy=False,
-            cell_tag=10,
-            port_locks_path=cls.Env.port_locks_path,
-            modify_configs_func=cls.apply_config_patches)
-        cls.remote_env.start(start_secondary_master_cells=cls.START_SECONDARY_MASTER_CELLS)
-
-    @classmethod
-    def teardown_class(cls):
-        cls.remote_env.stop()
-        super(TestSchedulerRemoteCopyCommands, cls).teardown_class()
-
-    def setup(self):
-        set("//sys/clusters/remote",
-            {
-                "primary_master": self.remote_env.configs["master"][0]["primary_master"],
-                "secondary_masters": self.remote_env.configs["master"][0]["secondary_masters"],
-                "timestamp_provider": self.remote_env.configs["master"][0]["timestamp_provider"],
-                "transaction_manager": self.remote_env.configs["master"][0]["transaction_manager"],
-            })
-        self.remote_driver = Driver(config=self.remote_env.configs["driver"])
+        cls.remote_driver = get_driver(cluster="remote_0")
+        clusters = get("//sys/clusters")
+        clusters["remote"] = clusters.pop("remote_0")
+        set("//sys/clusters", clusters)
         time.sleep(1.0)
-
-    def teardown(self):
-        set("//tmp", {}, driver=self.remote_driver)
-        self.remote_driver.terminate()
-
 
     def test_empty_table(self):
         create("table", "//tmp/t1", driver=self.remote_driver)
@@ -86,10 +63,10 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyBase):
     def test_schema_inference(self):
         schema = yson.loads("<strict=%true; unique_keys=%false>[{name=a; type=string}]")
 
-        create("table", 
-            "//tmp/t1", 
-            attributes={"schema" : schema}, 
-            driver=self.remote_driver)
+        create("table",
+               "//tmp/t1",
+               attributes={"schema" : schema},
+               driver=self.remote_driver)
 
         write_table("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
 
@@ -100,9 +77,9 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyBase):
         assert get("//tmp/t2/@schema") == schema
         assert get("//tmp/t2/@schema_mode") == "strong"
 
-        create("table", 
-            "//tmp/t3",
-            attributes={"schema" : [{"name" : "b", "type" : "string"}]})
+        create("table",
+               "//tmp/t3",
+               attributes={"schema" : [{"name" : "b", "type" : "string"}]})
 
         with pytest.raises(YtError):
             # To do remote copy into table with "stong" schema mode schemas must be identical.
@@ -112,8 +89,8 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyBase):
             # To do remote copy into table with "stong" schema mode schemas must be identical.
             # Even if we force scheduler to infer schema from output.
             remote_copy(
-                in_="//tmp/t1", 
-                out="//tmp/t3", 
+                in_="//tmp/t1",
+                out="//tmp/t3",
                 spec={"cluster_name": "remote", "schema_inference_mode" : "from_output"})
 
     def test_cluster_connection_config(self):
@@ -328,44 +305,23 @@ class TestSchedulerRemoteCopyNetworks(TestSchedulerRemoteCopyBase):
     NUM_NODES = 9
     NUM_SCHEDULERS = 1
 
-    @classmethod
-    def modify_node_config(self, config):
-        config["addresses"].append(["custom_network", dict(config["addresses"])["default"]])
+    NUM_REMOTE_CLUSTERS = 1
+
+    NUM_MASTERS_REMOTE_0 = 1
+    NUM_SCHEDULERS_REMOTE_0 = 0
 
     @classmethod
-    def setup_class(cls, secondary_master_cell_count=0):
+    def setup_class(cls):
         super(TestSchedulerRemoteCopyNetworks, cls).setup_class()
-        cls.remote_env = YTInstance(
-            os.path.join(cls.Env.path, "_remote"),
-            master_count=1,
-            nonvoting_master_count=0,
-            node_count=9,
-            secondary_master_cell_count=secondary_master_cell_count,
-            scheduler_count=0,
-            has_proxy=False,
-            cell_tag=10,
-            port_locks_path=cls.Env.port_locks_path,
-            modify_configs_func=cls.apply_config_patches)
-        cls.remote_env.start(start_secondary_master_cells=cls.START_SECONDARY_MASTER_CELLS)
-
-    @classmethod
-    def teardown_class(cls):
-        cls.remote_env.stop()
-
-    def setup(self):
-        set("//sys/clusters/remote",
-            {
-                "primary_master": self.remote_env.configs["master"][0]["primary_master"],
-                "secondary_masters": self.remote_env.configs["master"][0]["secondary_masters"],
-                "timestamp_provider": self.remote_env.configs["master"][0]["timestamp_provider"],
-                "transaction_manager": self.remote_env.configs["master"][0]["transaction_manager"]
-            })
-        self.remote_driver = Driver(config=self.remote_env.configs["driver"])
+        cls.remote_driver = get_driver(cluster="remote_0")
+        clusters = get("//sys/clusters")
+        clusters["remote"] = clusters.pop("remote_0")
+        set("//sys/clusters", clusters)
         time.sleep(1.0)
 
-    def teardown(self):
-        set("//tmp", {}, driver=self.remote_driver)
-        self.remote_driver.terminate()
+    @classmethod
+    def modify_node_config(cls, config):
+        config["addresses"].append(["custom_network", dict(config["addresses"])["default"]])
 
     def test_default_network(self):
         create("table", "//tmp/t1", driver=self.remote_driver)
@@ -391,8 +347,3 @@ class TestSchedulerRemoteCopyNetworks(TestSchedulerRemoteCopyBase):
 
 class TestSchedulerRemoteCopyCommandsMulticell(TestSchedulerRemoteCopyCommands):
     NUM_SECONDARY_MASTER_CELLS = 2
-
-    @classmethod
-    def setup_class(cls):
-        super(TestSchedulerRemoteCopyCommandsMulticell, cls).setup_class(2)
-
