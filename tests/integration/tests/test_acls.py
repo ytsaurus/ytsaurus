@@ -624,6 +624,11 @@ class TestAcls(YTEnvSetup):
         assert check_permission("guest", "remove", "//tmp/m/s")["action"] == "allow"
         assert check_permission("guest", "remove", "//tmp/m")["action"] == "deny"
 
+    def test_banned_user_permission(self):
+        create_user("u")
+        set("//sys/users/u/@banned", True)
+        assert check_permission("u", "read", "//tmp")["action"] == "deny"
+
 ##################################################################
 
 class TestAclsMulticell(TestAcls):

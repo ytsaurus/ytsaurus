@@ -786,6 +786,12 @@ public:
             return result;
         }
 
+        // Fast lane: banned users are denied any permission.
+        if (user->GetBanned()) {
+            result.Action = ESecurityAction::Deny;
+            return result;
+        }
+
         // Slow lane: check ACLs through the object hierarchy.
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* currentObject = object;
