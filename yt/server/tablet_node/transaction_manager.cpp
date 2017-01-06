@@ -75,10 +75,6 @@ public:
         , TTabletAutomatonPart(
             slot,
             bootstrap)
-        , TTransactionManagerBase(
-            slot->GetHydraManager(),
-            slot->GetAutomaton(),
-            slot->GetAutomatonInvoker())
         , Config_(config)
         , LeaseTracker_(New<TTransactionLeaseTracker>(
             Slot_->GetAutomatonInvoker(),
@@ -121,6 +117,27 @@ public:
         TCtxRegisterTransactionActionsPtr context)
     {
         return CreateMutation(HydraManager_, std::move(context));
+    }
+
+    TTransaction* FindPersistentTransaction(const TTransactionId& transactionId)
+    {
+        return PersistentTransactionMap_.Find(transactionId);
+    }
+
+    TTransaction* GetPersistentTransaction(const TTransactionId& transactionId)
+    {
+        return PersistentTransactionMap_.Get(transactionId);
+    }
+
+    TTransaction* GetPersistentTransactionOrThrow(const TTransactionId& transactionId)
+    {
+        if (auto* transaction = PersistentTransactionMap_.Find(transactionId)) {
+            return transaction;
+        }
+        THROW_ERROR_EXCEPTION(
+            NTransactionClient::EErrorCode::NoSuchTransaction,
+            "No such transaction %v",
+            transactionId);
     }
 
     TTransaction* GetTransactionOrThrow(const TTransactionId& transactionId)
@@ -411,6 +428,7 @@ private:
     const TTransactionManagerConfigPtr Config_;
     const TTransactionLeaseTrackerPtr LeaseTracker_;
 
+    TEntityMap<TTransaction> PersistentTransactionMap_;
     TEntityMap<TTransaction> TransientTransactionMap_;
 
     NConcurrency::TPeriodicExecutorPtr BarrierCheckExecutor_;

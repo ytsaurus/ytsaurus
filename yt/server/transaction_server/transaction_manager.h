@@ -104,10 +104,13 @@ public:
         TTransaction* transaction,
         NObjectServer::TObjectBase* object);
 
+    void RegisterPrepareActionHandler(const NHiveServer::TTransactionPrepareActionHandlerDescriptor<TTransaction>& descriptor);
+    void RegisterCommitActionHandler(const NHiveServer::TTransactionCommitActionHandlerDescriptor<TTransaction>& descriptor);
+    void RegisterAbortActionHandler(const NHiveServer::TTransactionAbortActionHandlerDescriptor<TTransaction>& descriptor);
+
 private:
     class TImpl;
     class TTransactionTypeHandler;
-    class TTransactionProxy;
 
     const TIntrusivePtr<TImpl> Impl_;
 

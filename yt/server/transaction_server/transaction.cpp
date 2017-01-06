@@ -39,8 +39,8 @@ TTransaction::TTransaction(const TTransactionId& id)
 
 void TTransaction::Save(NCellMaster::TSaveContext& context) const
 {
-    // TODO(babenko): call TTransactionBase::Save
     TNonversionedObjectBase::Save(context);
+    TTransactionBase::Save(context);
 
     using NYT::Save;
     Save(context, GetPersistentState());
@@ -64,8 +64,11 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
 
 void TTransaction::Load(NCellMaster::TLoadContext& context)
 {
-    // TODO(babenko): call TTransactionBase::Load
     TNonversionedObjectBase::Load(context);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 500) {
+        TTransactionBase::Load(context);
+    }
 
     using NYT::Load;
     Load(context, State_);

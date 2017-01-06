@@ -179,13 +179,9 @@ private:
     typedef TCompositeAutomatonPart TThis;
     friend class TCompositeAutomaton;
 
-    template <class TRequest, class TResponse>
-    struct TThunkTraits;
-
     void RegisterMethod(
         const Stroka& name,
         TCallback<void(TMutationContext*)> callback);
-
 
     void StartEpoch();
     void StopEpoch();

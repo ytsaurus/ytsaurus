@@ -2,6 +2,7 @@
 #include "private.h"
 #include "config.h"
 #include "transaction.h"
+#include "transaction_proxy.h"
 
 #include <yt/server/cell_master/automaton.h>
 #include <yt/server/cell_master/bootstrap.h>
@@ -14,6 +15,7 @@
 
 #include <yt/server/hive/transaction_supervisor.h>
 #include <yt/server/hive/transaction_lease_tracker.h>
+#include <yt/server/hive/transaction_manager_detail.h>
 
 #include <yt/server/hydra/composite_automaton.h>
 #include <yt/server/hydra/mutation.h>
@@ -28,7 +30,6 @@
 
 #include <yt/server/transaction_server/transaction_manager.pb.h>
 
-#include <yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
@@ -64,318 +65,6 @@ static const auto& Logger = TransactionServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTransactionManager::TTransactionProxy
-    : public TNonversionedObjectProxyBase<TTransaction>
-{
-public:
-    TTransactionProxy(
-        NCellMaster::TBootstrap* bootstrap,
-        TObjectTypeMetadata* metadata,
-        TTransaction* transaction)
-        : TBase(bootstrap, metadata, transaction)
-    { }
-
-private:
-    typedef TNonversionedObjectProxyBase<TTransaction> TBase;
-
-    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
-    {
-        TBase::ListSystemAttributes(descriptors);
-
-        const auto* transaction = GetThisImpl();
-
-        descriptors->push_back("state");
-        descriptors->push_back("secondary_cell_tags");
-        descriptors->push_back(TAttributeDescriptor("timeout")
-            .SetPresent(transaction->GetTimeout().HasValue())
-            .SetReplicated(true));
-        descriptors->push_back(TAttributeDescriptor("last_ping_time")
-            .SetPresent(transaction->GetTimeout().HasValue()));
-        descriptors->push_back(TAttributeDescriptor("title")
-            .SetPresent(transaction->GetTitle().HasValue()));
-        descriptors->push_back("accounting_enabled");
-        descriptors->push_back(TAttributeDescriptor("parent_id")
-            .SetReplicated(true));
-        descriptors->push_back("start_time");
-        descriptors->push_back("nested_transaction_ids");
-        descriptors->push_back("staged_object_ids");
-        descriptors->push_back("exported_objects");
-        descriptors->push_back("exported_object_count");
-        descriptors->push_back("imported_object_ids");
-        descriptors->push_back("imported_object_count");
-        descriptors->push_back("staged_node_ids");
-        descriptors->push_back("branched_node_ids");
-        descriptors->push_back("locked_node_ids");
-        descriptors->push_back("lock_ids");
-        descriptors->push_back("resource_usage");
-        descriptors->push_back("multicell_resource_usage");
-    }
-
-    virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
-    {
-        const auto* transaction = GetThisImpl();
-
-        if (key == "state") {
-            BuildYsonFluently(consumer)
-                .Value(transaction->GetState());
-            return true;
-        }
-
-        if (key == "secondary_cell_tags") {
-            BuildYsonFluently(consumer)
-                .Value(transaction->SecondaryCellTags());
-            return true;
-        }
-
-        if (key == "timeout" && transaction->GetTimeout()) {
-            BuildYsonFluently(consumer)
-                .Value(*transaction->GetTimeout());
-            return true;
-        }
-
-        if (key == "title" && transaction->GetTitle()) {
-            BuildYsonFluently(consumer)
-                .Value(*transaction->GetTitle());
-            return true;
-        }
-
-        if (key == "accounting_enabled") {
-            BuildYsonFluently(consumer)
-                .Value(transaction->GetAccountingEnabled());
-            return true;
-        }
-
-        if (key == "parent_id") {
-            BuildYsonFluently(consumer)
-                .Value(GetObjectId(transaction->GetParent()));
-            return true;
-        }
-
-        if (key == "start_time") {
-            BuildYsonFluently(consumer)
-                .Value(transaction->GetStartTime());
-            return true;
-        }
-
-        if (key == "nested_transaction_ids") {
-            BuildYsonFluently(consumer)
-                .DoListFor(transaction->NestedTransactions(), [=] (TFluentList fluent, TTransaction* nestedTransaction) {
-                    fluent.Item().Value(nestedTransaction->GetId());
-                });
-            return true;
-        }
-
-        if (key == "staged_object_ids") {
-            BuildYsonFluently(consumer)
-                .DoListFor(transaction->StagedObjects(), [=] (TFluentList fluent, const TObjectBase* object) {
-                    fluent.Item().Value(object->GetId());
-                });
-            return true;
-        }
-
-        if (key == "exported_objects") {
-            BuildYsonFluently(consumer)
-                .DoListFor(transaction->ExportedObjects(), [=] (TFluentList fluent, const TTransaction::TExportEntry& entry) {
-                    fluent
-                        .Item().BeginMap()
-                            .Item("id").Value(entry.Object->GetId())
-                            .Item("destination_cell_tag").Value(entry.DestinationCellTag)
-                        .EndMap();
-                });
-            return true;
-        }
-
-        if (key == "exported_object_count") {
-            BuildYsonFluently(consumer)
-                .Value(transaction->ExportedObjects().size());
-            return true;
-        }
-
-        if (key == "imported_object_ids") {
-            BuildYsonFluently(consumer)
-                .DoListFor(transaction->ImportedObjects(), [=] (TFluentList fluent, const TObjectBase* object) {
-                    fluent.Item().Value(object->GetId());
-                });
-            return true;
-        }
-
-        if (key == "imported_object_count") {
-            BuildYsonFluently(consumer)
-                .Value(transaction->ImportedObjects().size());
-            return true;
-        }
-
-        if (key == "staged_node_ids") {
-            BuildYsonFluently(consumer)
-                .DoListFor(transaction->StagedNodes(), [=] (TFluentList fluent, const TCypressNodeBase* node) {
-                    fluent.Item().Value(node->GetId());
-                });
-            return true;
-        }
-
-        if (key == "branched_node_ids") {
-            BuildYsonFluently(consumer)
-                .DoListFor(transaction->BranchedNodes(), [=] (TFluentList fluent, const TCypressNodeBase* node) {
-                    fluent.Item().Value(node->GetId());
-            });
-            return true;
-        }
-
-        if (key == "locked_node_ids") {
-            BuildYsonFluently(consumer)
-                .DoListFor(transaction->LockedNodes(), [=] (TFluentList fluent, const TCypressNodeBase* node) {
-                    fluent.Item().Value(node->GetId());
-                });
-            return true;
-        }
-
-        if (key == "lock_ids") {
-            BuildYsonFluently(consumer)
-                .DoListFor(transaction->Locks(), [=] (TFluentList fluent, const TLock* lock) {
-                    fluent.Item().Value(lock->GetId());
-            });
-            return true;
-        }
-
-        return TBase::GetBuiltinAttribute(key, consumer);
-    }
-
-    virtual TFuture<TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override
-    {
-        const auto* transaction = GetThisImpl();
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-
-        if (key == "last_ping_time") {
-            RequireLeader();
-            return Bootstrap_
-                ->GetTransactionManager()
-                ->GetLastPingTime(transaction)
-                 .Apply(BIND([] (TInstant value) {
-                     return ConvertToYsonString(value);
-                 }));
-        }
-
-        if (key == "resource_usage") {
-            return GetAggregatedResourceUsageMap().Apply(BIND([=] (const TAccountResourcesMap& usageMap) {
-                return BuildYsonStringFluently()
-                    .DoMapFor(usageMap, [=] (TFluentMap fluent, const TAccountResourcesMap::value_type& nameAndUsage) {
-                        fluent
-                            .Item(nameAndUsage.first)
-                            .Value(New<TSerializableClusterResources>(chunkManager, nameAndUsage.second));
-                    });
-            }).AsyncVia(GetCurrentInvoker()));
-        }
-
-        if (key == "multicell_resource_usage") {
-            return GetMulticellResourceUsageMap().Apply(BIND([=] (const TMulticellAccountResourcesMap& multicellUsageMap) {
-                return BuildYsonStringFluently()
-                    .DoMapFor(multicellUsageMap, [=] (TFluentMap fluent, const TMulticellAccountResourcesMap::value_type& cellTagAndUsageMap) {
-                        fluent
-                            .Item(ToString(cellTagAndUsageMap.first))
-                            .DoMapFor(cellTagAndUsageMap.second, [=] (TFluentMap fluent, const TAccountResourcesMap::value_type& nameAndUsage) {
-                                fluent
-                                    .Item(nameAndUsage.first)
-                                    .Value(New<TSerializableClusterResources>(chunkManager, nameAndUsage.second));
-                            });
-                    });
-            }).AsyncVia(GetCurrentInvoker()));
-        }
-
-        return Null;
-    }
-
-    // account name -> cluster resources
-    using TAccountResourcesMap = yhash<Stroka, NSecurityServer::TClusterResources>;
-    // cell tag -> account name -> cluster resources
-    using TMulticellAccountResourcesMap = yhash_map<TCellTag, TAccountResourcesMap>;
-
-    TFuture<TMulticellAccountResourcesMap> GetMulticellResourceUsageMap()
-    {
-        std::vector<TFuture<std::pair<TCellTag, TAccountResourcesMap>>> asyncResults;
-        asyncResults.push_back(GetLocalResourcesMap(Bootstrap_->GetCellTag()));
-        if (Bootstrap_->IsPrimaryMaster()) {
-            for (auto cellTag : Bootstrap_->GetSecondaryCellTags()) {
-                asyncResults.push_back(GetRemoteResourcesMap(cellTag));
-            }
-        }
-
-        return Combine(asyncResults).Apply(BIND([] (const std::vector<std::pair<TCellTag, TAccountResourcesMap>>& results) {
-            TMulticellAccountResourcesMap multicellMap;
-            for (const auto& pair : results) {
-                YCHECK(multicellMap.insert(pair).second);
-            }
-            return multicellMap;
-        }));
-    }
-
-    TFuture<TAccountResourcesMap> GetAggregatedResourceUsageMap()
-    {
-        return GetMulticellResourceUsageMap().Apply(BIND([] (const TMulticellAccountResourcesMap& multicellMap) {
-            TAccountResourcesMap aggregatedMap;
-            for (const auto& cellTagAndUsageMap : multicellMap) {
-                for (const auto& nameAndUsage : cellTagAndUsageMap.second) {
-                    aggregatedMap[nameAndUsage.first] += nameAndUsage.second;
-                }
-            }
-            return aggregatedMap;
-        }));
-    }
-
-    TFuture<std::pair<TCellTag, TAccountResourcesMap>> GetLocalResourcesMap(TCellTag cellTag)
-    {
-        const auto* transaction = GetThisImpl();
-        TAccountResourcesMap result;
-        for (const auto& pair : transaction->AccountResourceUsage()) {
-            YCHECK(result.insert(std::make_pair(pair.first->GetName(), pair.second)).second);
-        }
-        return MakeFuture(std::make_pair(cellTag, result));
-    }
-
-    TFuture<std::pair<TCellTag, TAccountResourcesMap>> GetRemoteResourcesMap(TCellTag cellTag)
-    {
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        auto channel = multicellManager->GetMasterChannelOrThrow(
-            cellTag,
-            EPeerKind::LeaderOrFollower);
-
-        auto id = GetId();
-        auto req = TYPathProxy::Get(FromObjectId(id) + "/@resource_usage");
-
-        TObjectServiceProxy proxy(channel);
-        return proxy.Execute(req).Apply(BIND([=] (const TYPathProxy::TErrorOrRspGetPtr& rspOrError) {
-            if (rspOrError.GetCode() == NTransactionClient::EErrorCode::NoSuchTransaction) {
-                // Transaction is missing.
-                return std::make_pair(cellTag, TAccountResourcesMap());
-            }
-            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching resource usage of transaction %v from cell %v",
-                id,
-                cellTag);
-            const auto& rsp = rspOrError.Value();
-
-            return std::make_pair(
-                cellTag,
-                DeserializeAccountResourcesMap(TYsonString(rsp->value()), chunkManager));
-        }).AsyncVia(GetCurrentInvoker()));
-    }
-
-    static TAccountResourcesMap DeserializeAccountResourcesMap(const TYsonString& value, const NChunkServer::TChunkManagerPtr& chunkManager)
-    {
-        using TSerializableAccountResourcesMap = yhash<Stroka, TSerializableClusterResourcesPtr>;
-
-        auto serializableAccountResources = ConvertTo<TSerializableAccountResourcesMap>(value);
-
-        TAccountResourcesMap result;
-        for (const auto& pair : serializableAccountResources) {
-            result.insert(std::make_pair(pair.first, pair.second->ToClusterResources(chunkManager)));
-        }
-
-        return result;
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TTransactionManager::TTransactionTypeHandler
     : public TObjectTypeHandlerWithMapBase<TTransaction>
 {
@@ -386,20 +75,13 @@ public:
 
     virtual ETypeFlags GetFlags() const override
     {
-        return
-            ETypeFlags::ReplicateCreate |
-            ETypeFlags::ReplicateAttributes |
-            ETypeFlags::Creatable;
+        return ETypeFlags::ReplicateAttributes;
     }
 
     virtual EObjectType GetType() const override
     {
         return ObjectType_;
     }
-
-    virtual TNonversionedObjectBase* CreateObject(
-        const TObjectId& hintId,
-        IAttributeDictionary* attributes) override;
 
 private:
     TImpl* const Owner_;
@@ -418,7 +100,7 @@ private:
 
     virtual IObjectProxyPtr DoGetProxy(TTransaction* transaction, TTransaction* /*dummyTransaction*/) override
     {
-        return New<TTransactionProxy>(Bootstrap_, &Metadata_, transaction);
+        return CreateTransactionProxy(Bootstrap_, &Metadata_, transaction);
     }
 
     virtual TAccessControlDescriptor* DoFindAcd(TTransaction* transaction) override
@@ -431,6 +113,7 @@ private:
 
 class TTransactionManager::TImpl
     : public TMasterAutomatonPart
+    , public TTransactionManagerBase<TTransaction>
 {
 public:
     //! Raised when a new transaction is started.
@@ -590,7 +273,9 @@ public:
             multicellManager->PostToMasters(request, transaction->SecondaryCellTags());
         }
 
-        SmallVector<TTransaction*, 16> nestedTransactions(transaction->NestedTransactions().begin(), transaction->NestedTransactions().end());
+        SmallVector<TTransaction*, 16> nestedTransactions(
+            transaction->NestedTransactions().begin(),
+            transaction->NestedTransactions().end());
         std::sort(nestedTransactions.begin(), nestedTransactions.end(), TObjectRefComparer::Compare);
         for (auto* nestedTransaction : nestedTransactions) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Aborting nested transaction on parent commit (TransactionId: %v, ParentId: %v)",
@@ -607,6 +292,7 @@ public:
         transaction->SetState(ETransactionState::Committed);
 
         TransactionCommitted_.Fire(transaction);
+        RunCommitTransactionActions(transaction);
 
         auto* parent = transaction->GetParent();
         if (parent) {
@@ -665,7 +351,9 @@ public:
             multicellManager->PostToMasters(request, transaction->SecondaryCellTags());
         }
 
-        SmallVector<TTransaction*, 16> nestedTransactions(transaction->NestedTransactions().begin(), transaction->NestedTransactions().end());
+        SmallVector<TTransaction*, 16> nestedTransactions(
+            transaction->NestedTransactions().begin(),
+            transaction->NestedTransactions().end());
         std::sort(nestedTransactions.begin(), nestedTransactions.end(), TObjectRefComparer::Compare);
         for (auto* nestedTransaction : nestedTransactions) {
             AbortTransaction(nestedTransaction, force);
@@ -679,6 +367,7 @@ public:
         transaction->SetState(ETransactionState::Aborted);
 
         TransactionAborted_.Fire(transaction);
+        RunAbortTransactionActions(transaction);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         for (const auto& entry : transaction->ExportedObjects()) {
@@ -806,12 +495,13 @@ public:
         securityManager->ValidatePermission(transaction, EPermission::Write);
 
         auto oldState = persistent ? transaction->GetPersistentState() : transaction->GetState();
-
-        transaction->SetState(persistent
-            ? ETransactionState::PersistentCommitPrepared
-            : ETransactionState::TransientCommitPrepared);
-
         if (oldState == ETransactionState::Active) {
+            transaction->SetState(persistent
+                ? ETransactionState::PersistentCommitPrepared
+                : ETransactionState::TransientCommitPrepared);
+
+            RunPrepareTransactionActions(transaction, persistent);
+
             LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %v, Persistent: %v, PrepareTimestamp: %)",
                 transactionId,
                 persistent,
@@ -1085,31 +775,6 @@ TTransactionManager::TTransactionTypeHandler::TTransactionTypeHandler(
     , ObjectType_(objectType)
 { }
 
-TNonversionedObjectBase* TTransactionManager::TTransactionTypeHandler::CreateObject(
-    const TObjectId& hintId,
-    IAttributeDictionary* attributes)
-{
-    TCellTagList secondaryCellTags;
-    if (Bootstrap_->IsPrimaryMaster()) {
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        secondaryCellTags = multicellManager->GetRegisteredMasterCellTags();
-    }
-
-    auto parentId = attributes->GetAndRemove<TTransactionId>("parent_id", NullTransactionId);
-    auto* parent = parentId ? Owner_->GetTransactionOrThrow(parentId) : nullptr;
-
-    auto title = attributes->FindAndRemove<Stroka>("title");
-
-    auto timeout = attributes->FindAndRemove<TDuration>("timeout");
-
-    return Owner_->StartTransaction(
-        parent,
-        secondaryCellTags,
-        timeout,
-        title,
-        hintId);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TTransactionManager::TTransactionManager(
@@ -1192,6 +857,21 @@ void TTransactionManager::ImportObject(
     TObjectBase* object)
 {
     Impl_->ImportObject(transaction, object);
+}
+
+void TTransactionManager::RegisterPrepareActionHandler(const TTransactionPrepareActionHandlerDescriptor<TTransaction>& descriptor)
+{
+    Impl_->RegisterPrepareActionHandler(descriptor);
+}
+
+void TTransactionManager::RegisterCommitActionHandler(const TTransactionCommitActionHandlerDescriptor<TTransaction>& descriptor)
+{
+    Impl_->RegisterCommitActionHandler(descriptor);
+}
+
+void TTransactionManager::RegisterAbortActionHandler(const TTransactionAbortActionHandlerDescriptor<TTransaction>& descriptor)
+{
+    Impl_->RegisterAbortActionHandler(descriptor);
 }
 
 void TTransactionManager::PrepareTransactionCommit(
