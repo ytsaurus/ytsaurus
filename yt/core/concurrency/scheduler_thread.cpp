@@ -347,8 +347,10 @@ void TSchedulerThread::Reschedule(TFiberPtr fiber, TFuture<void> future, IInvoke
 
 void TSchedulerThread::OnContextSwitch()
 {
-    ContextSwitchCallbacks.Fire();
-    ContextSwitchCallbacks.Clear();
+    for (auto it = ContextSwitchCallbacks.rbegin(); it != ContextSwitchCallbacks.rend(); ++it) {
+        (*it)();
+    }
+    ContextSwitchCallbacks.clear();
 }
 
 TThreadId TSchedulerThread::GetId() const
@@ -388,18 +390,18 @@ void TSchedulerThread::Return()
     Y_UNREACHABLE();
 }
 
-void TSchedulerThread::SubscribeContextSwitched(TClosure callback)
+void TSchedulerThread::PushContextSwitchHandler(std::function<void()> callback)
 {
     VERIFY_THREAD_AFFINITY(HomeThread);
 
-    ContextSwitchCallbacks.Subscribe(std::move(callback));
+    ContextSwitchCallbacks.emplace_back(std::move(callback));
 }
 
-void TSchedulerThread::UnsubscribeContextSwitched(TClosure callback)
+void TSchedulerThread::PopContextSwitchHandler()
 {
     VERIFY_THREAD_AFFINITY(HomeThread);
 
-    ContextSwitchCallbacks.Unsubscribe(std::move(callback));
+    ContextSwitchCallbacks.pop_back();
 }
 
 void TSchedulerThread::YieldTo(TFiberPtr&& other)
