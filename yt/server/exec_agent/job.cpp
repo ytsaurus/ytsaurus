@@ -698,7 +698,7 @@ private:
         }
 
         try {
-            TContextSwitchedGuard contextSwitchGuard(BIND([] { Y_UNREACHABLE(); }));
+            TContextSwitchGuard contextSwitchGuard([] { Y_UNREACHABLE(); });
             action();
         } catch (const std::exception& ex) {
             DoSetResult(ex);

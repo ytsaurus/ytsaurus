@@ -198,21 +198,15 @@ private:
         invocationGuard.Activate();
 
         TCurrentInvokerGuard currentInvokerGuard(this);
-        TContextSwitchedGuard contextSwitchGuard(BIND(
-            &TSerializedInvoker::OnContextSwitched,
-            MakeStrong(this),
-            &invocationGuard));
+        TContextSwitchGuard contextSwitchGuard([&] {
+            invocationGuard.Reset();
+            OnFinished(true);
+        });
 
         TClosure callback;
         if (Queue_.Dequeue(&callback)) {
             callback.Run();
         }
-    }
-
-    void OnContextSwitched(TInvocationGuard* invocationGuard)
-    {
-        invocationGuard->Reset();
-        OnFinished(true);
     }
 
     void OnFinished(bool scheduleMore)
@@ -561,19 +555,12 @@ private:
 
     void RunCallback(TClosure callback, TInvocationGuard invocationGuard)
     {
-        TCurrentInvokerGuard guard(this);
-        TContextSwitchedGuard contextSwitchGuard(BIND(
-            &TSuspendableInvoker::OnContextSwitched,
-            MakeStrong(this),
-            &invocationGuard));
-
+        TCurrentInvokerGuard currentInvokerGuard(this);
+        TContextSwitchGuard contextSwitchGuard([&] {
+            invocationGuard.Reset();
+            OnFinished();
+        });
         callback.Run();
-    }
-
-    void OnContextSwitched(TInvocationGuard* invocationGuard)
-    {
-        invocationGuard->Reset();
-        OnFinished();
     }
 
     void OnFinished()

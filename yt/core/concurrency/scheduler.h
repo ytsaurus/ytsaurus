@@ -32,18 +32,18 @@ struct IScheduler
     //! fiber via the specified invoker.
     virtual void SwitchTo(IInvokerPtr invoker) = 0;
 
-    //! Subscribes to a one-time context switch notification.
+    //! Installs a new context switch handler.
     /*!
-     *  The provided #callback will be invoked in the scheduler's context
+     *  The provided #handler will be invoked in the scheduler's context
      *  when the current control context is switched. This happens on
      *  #Yield or #SwitchTo calls, when the fiber is canceled, terminates,
      *  or crashes due to an unhandled exception. Once invoked, the callback
      *  is discarded.
      */
-    virtual void SubscribeContextSwitched(TClosure callback) = 0;
+    virtual void PushContextSwitchHandler(std::function<void()> callback) = 0;
 
-    //! Removes an earlier-added handler.
-    virtual void UnsubscribeContextSwitched(TClosure callback) = 0;
+    //! Removes the top switch handler.
+    virtual void PopContextSwitchHandler() = 0;
 
     //! Transfers control back to the scheduler and puts currently executing fiber
     //! into sleep until occurrence of an external event.
@@ -80,18 +80,15 @@ void SwitchTo(IInvokerPtr invoker);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SubscribeContextSwitched(TClosure callback);
-void UnsubscribeContextSwitched(TClosure callback);
-
-class TContextSwitchedGuard
+class TContextSwitchGuard
 {
 public:
-    TContextSwitchedGuard(TClosure callback);
-    TContextSwitchedGuard(TContextSwitchedGuard&& other) = default;
-    ~TContextSwitchedGuard();
+    TContextSwitchGuard(std::function<void()> handler);
+    TContextSwitchGuard(const TContextSwitchGuard& other) = delete;
+    ~TContextSwitchGuard();
 
 private:
-    TClosure Callback_;
+    bool Active_;
 
 };
 
