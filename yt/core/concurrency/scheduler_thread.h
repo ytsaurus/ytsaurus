@@ -44,8 +44,8 @@ public:
     virtual void Return() override;
     virtual void YieldTo(TFiberPtr&& other) override;
     virtual void SwitchTo(IInvokerPtr invoker) override;
-    virtual void SubscribeContextSwitched(TClosure callback) override;
-    virtual void UnsubscribeContextSwitched(TClosure callback) override;
+    virtual void PushContextSwitchHandler(std::function<void()> callback) override;
+    virtual void PopContextSwitchHandler() override;
     virtual void WaitFor(TFuture<void> future, IInvokerPtr invoker) override;
 
 protected:
@@ -110,7 +110,7 @@ protected:
     TFuture<void> WaitForFuture;
     IInvokerPtr SwitchToInvoker;
 
-    TCallbackList<void()> ContextSwitchCallbacks;
+    std::vector<std::function<void()>> ContextSwitchCallbacks;
 
     DECLARE_THREAD_AFFINITY_SLOT(HomeThread);
 };

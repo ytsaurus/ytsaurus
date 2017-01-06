@@ -707,11 +707,8 @@ TFuture<void> TDecoratedAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    TContextSwitchedGuard guard(BIND([] () {
-        // Context switches are not allowed during sync phase.
-        Y_UNREACHABLE();
-    }));
-
+    // Context switches are not allowed during sync phase.
+    TContextSwitchGuard contextSwitchGuard([] { Y_UNREACHABLE(); });
     return Automaton_->SaveSnapshot(writer);
 }
 

@@ -2509,8 +2509,8 @@ TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     ISchedulingContextPtr context,
     const TJobResources& jobLimits)
 {
-    // ScheduleJob must be a synchronous action, any context switches are prohibited.
-    TContextSwitchedGuard contextSwitchGuard(BIND([] { Y_UNREACHABLE(); }));
+    // SafeScheduleJob must be synchronous; context switches are prohibited.
+    TContextSwitchGuard contextSwitchGuard([] { Y_UNREACHABLE(); });
 
     NProfiling::TScopedTimer timer;
     auto scheduleJobResult = New<TScheduleJobResult>();

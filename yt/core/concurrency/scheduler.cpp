@@ -57,30 +57,22 @@ void SwitchTo(IInvokerPtr invoker)
     GetCurrentScheduler()->SwitchTo(std::move(invoker));
 }
 
-void SubscribeContextSwitched(TClosure callback)
-{
-    GetCurrentScheduler()->SubscribeContextSwitched(std::move(callback));
-}
-
-void UnsubscribeContextSwitched(TClosure callback)
-{
-    GetCurrentScheduler()->UnsubscribeContextSwitched(std::move(callback));
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-TContextSwitchedGuard::TContextSwitchedGuard(TClosure callback)
-    : Callback_(std::move(callback))
+TContextSwitchGuard::TContextSwitchGuard(std::function<void()> handler)
+    : Active_(true)
 {
-    if (Callback_) {
-        SubscribeContextSwitched(Callback_);
-    }
+    GetCurrentScheduler()->PushContextSwitchHandler([this, handler = std::move(handler)] () noexcept {
+        Y_ASSERT(Active_);
+        handler();
+        Active_ = false;
+    });
 }
 
-TContextSwitchedGuard::~TContextSwitchedGuard()
+TContextSwitchGuard::~TContextSwitchGuard()
 {
-    if (Callback_) {
-        UnsubscribeContextSwitched(Callback_);
+    if (Active_) {
+        GetCurrentScheduler()->PopContextSwitchHandler();
     }
 }
 
