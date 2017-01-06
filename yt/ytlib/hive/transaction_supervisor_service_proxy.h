@@ -15,8 +15,8 @@ class TTransactionSupervisorServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    DEFINE_RPC_PROXY(TTransactionSupervisorServiceProxy, RPC_PROXY_DESC(JobTrackerService)
-        .SetProtocolVersion(1));
+    DEFINE_RPC_PROXY(TTransactionSupervisorServiceProxy, RPC_PROXY_DESC(TransactionSupervisorService)
+        .SetProtocolVersion(2));
 
     DEFINE_RPC_PROXY_METHOD(NProto::NTransactionSupervisor, CommitTransaction);
     DEFINE_RPC_PROXY_METHOD(NProto::NTransactionSupervisor, AbortTransaction);
