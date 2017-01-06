@@ -388,6 +388,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/transaction_server/timestamp_manager.proto
   ${CMAKE_CURRENT_LIST_DIR}/transaction_server/timestamp_proxy_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/transaction_server/transaction.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/transaction_server/transaction_proxy.cpp
   ${CMAKE_CURRENT_LIST_DIR}/transaction_server/transaction_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/transaction_server/transaction_manager.proto
 )

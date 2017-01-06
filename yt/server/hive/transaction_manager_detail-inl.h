@@ -8,39 +8,6 @@ namespace NHiveServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TTransaction>
-TTransaction*TTransactionManagerBase<TTransaction>:: FindPersistentTransaction(const TTransactionId& transactionId)
-{
-    return PersistentTransactionMap_.Find(transactionId);
-}
-
-template <class TTransaction>
-TTransaction* TTransactionManagerBase<TTransaction>::GetPersistentTransaction(const TTransactionId& transactionId)
-{
-    return PersistentTransactionMap_.Get(transactionId);
-}
-
-template <class TTransaction>
-TTransaction* TTransactionManagerBase<TTransaction>::GetPersistentTransactionOrThrow(const TTransactionId& transactionId)
-{
-    if (auto* transaction = PersistentTransactionMap_.Find(transactionId)) {
-        return transaction;
-    }
-    THROW_ERROR_EXCEPTION(
-        NTransactionClient::EErrorCode::NoSuchTransaction,
-        "No such transaction %v",
-        transactionId);
-}
-
-template <class TTransaction>
-void TTransactionManagerBase<TTransaction>::RegisterAction(
-    const TTransactionId& transactionId,
-    TTimestamp transactionStartTimestamp,
-    TDuration transactionTimeout,
-    const TTransactionActionData& data)
-{
-}
-
-template <class TTransaction>
 void TTransactionManagerBase<TTransaction>::RegisterPrepareActionHandler(
     const TTransactionPrepareActionHandlerDescriptor<TTransaction>& descriptor)
 {
@@ -62,17 +29,6 @@ void TTransactionManagerBase<TTransaction>::RegisterAbortActionHandler(
 }
 
 template <class TTransaction>
-TTransactionManagerBase<TTransaction>::TTransactionManagerBase(
-    NHydra::IHydraManagerPtr hydraManager,
-    NHydra::TCompositeAutomatonPtr automaton,
-    IInvokerPtr automatonInvoker)
-    : TCompositeAutomatonPart(
-        std::move(hydraManager),
-        std::move(automaton),
-        std::move(automatonInvoker))
-{ }
-
-template <class TTransaction>
 void TTransactionManagerBase<TTransaction>::RunPrepareTransactionActions(
     TTransaction* transaction,
     bool persistent)
@@ -82,10 +38,6 @@ void TTransactionManagerBase<TTransaction>::RunPrepareTransactionActions(
         if (it == PrepareActionHandlerMap_.end()) {
             continue;
         }
-        LOG_DEBUG_UNLESS(IsRecovery(), "Running prepare action handler (TransactionId: %v, ActionType: %v, Persistent: %v)",
-            transaction->GetId(),
-            action.Type,
-            persistent);
         it->second.Run(transaction, action.Value, persistent);
     }
 }
@@ -98,9 +50,6 @@ void TTransactionManagerBase<TTransaction>::RunCommitTransactionActions(TTransac
         if (it == CommitActionHandlerMap_.end()) {
             continue;
         }
-        LOG_DEBUG_UNLESS(IsRecovery(), "Running commit action handler (TransactionId: %v, ActionType: %v)",
-            transaction->GetId(),
-            action.Type);
         it->second.Run(transaction, action.Value);
     }
 }
@@ -113,9 +62,6 @@ void TTransactionManagerBase<TTransaction>::RunAbortTransactionActions(TTransact
         if (it == AbortActionHandlerMap_.end()) {
             continue;
         }
-        LOG_DEBUG_UNLESS(IsRecovery(), "Running abort action handler (TransactionId: %v, ActionType: %v)",
-            transaction->GetId(),
-            action.Type);
         it->second.Run(transaction, action.Value);
     }
 }
