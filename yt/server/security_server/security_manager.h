@@ -30,11 +30,11 @@ struct TPermissionCheckResult
     ESecurityAction Action = ESecurityAction::Undefined;
 
     //! The object whose ACL contains the matching ACE.
-    //! May be |nullptr| if check fails due to missing ACE or succeeds because the user is "root".
+    //! Can be |nullptr|.
     NObjectServer::TObjectBase* Object = nullptr;
 
     //! Subject to which the decision applies.
-    //! Can be |nullptr| if check fails due to missing ACE or succeeds because the user is "root".
+    //! Can be |nullptr|.
     TSubject* Subject = nullptr;
 };
 
