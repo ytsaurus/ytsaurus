@@ -171,7 +171,7 @@ class TestMasterTransactions(YTEnvSetup):
         assert exists("//sys/transactions/" + tx_outer)
         ping_transaction(tx_inner, ping_ancestor_txs=True)
 
-        sleep(1.5)
+        sleep(1)
         # check that all tx are still alive
         assert exists("//sys/transactions/" + tx_inner)
         assert exists("//sys/transactions/" + tx_outer)
