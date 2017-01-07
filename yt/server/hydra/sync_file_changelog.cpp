@@ -593,7 +593,6 @@ private:
     };
 
 
-
     //! Flocks the data file, retrying if needed.
     void LockDataFile()
     {
@@ -914,8 +913,7 @@ TSyncFileChangelog::TSyncFileChangelog(
         config))
 { }
 
-TSyncFileChangelog::~TSyncFileChangelog()
-{ }
+TSyncFileChangelog::~TSyncFileChangelog() = default;
 
 TFileChangelogConfigPtr TSyncFileChangelog::GetConfig()
 {

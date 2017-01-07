@@ -699,8 +699,7 @@ TFileChangelogDispatcher::TFileChangelogDispatcher(
         profiler))
 { }
 
-TFileChangelogDispatcher::~TFileChangelogDispatcher()
-{ }
+TFileChangelogDispatcher::~TFileChangelogDispatcher() = default;
 
 IInvokerPtr TFileChangelogDispatcher::GetInvoker()
 {
