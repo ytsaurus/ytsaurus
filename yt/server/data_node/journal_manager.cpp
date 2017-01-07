@@ -1160,8 +1160,7 @@ TJournalManager::TJournalManager(
     : Impl_(New<TImpl>(config, location, bootstrap))
 { }
 
-TJournalManager::~TJournalManager()
-{ }
+TJournalManager::~TJournalManager() = default;
 
 void TJournalManager::Initialize()
 {

@@ -318,8 +318,7 @@ TJournalDispatcher::TJournalDispatcher(TDataNodeConfigPtr config)
     : Impl_(New<TImpl>(config))
 { }
 
-TJournalDispatcher::~TJournalDispatcher()
-{ }
+TJournalDispatcher::~TJournalDispatcher() = default;
 
 TFuture<IChangelogPtr> TJournalDispatcher::OpenChangelog(
     TStoreLocationPtr location,
