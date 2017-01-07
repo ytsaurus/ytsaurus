@@ -330,33 +330,14 @@ private:
         for (auto it = row.Begin(); it != row.End(); ++it) {
             sampleValues.push_back(*it);
             auto& value = sampleValues.back();
+            weight += GetDataWeight(value);
 
-            switch (value.Type) {
-                case EValueType::Any:
-                    weight += value.Length;
-                    // Composite types are non-comparable, so we don't store it inside samples.
-                    value.Length = 0;
-                    break;
-
-                case EValueType::String:
-                    weight += value.Length;
-                    value.Length = std::min(static_cast<int>(value.Length), MaxSampleSize);
-                    break;
-
-                case EValueType::Int64:
-                case EValueType::Uint64:
-                case EValueType::Double:
-                    weight += 8;
-                    break;
-
-                case EValueType::Boolean:
-                case EValueType::Null:
-                    weight += 1;
-                    break;
-
-                default:
-                    YUNREACHABLE();
-            };
+            if (value.Type == EValueType::Any) {
+                // Composite types are non-comparable, so we don't store it inside samples.
+                value.Length = 0;
+            } else if (value.Type == EValueType::String) {
+                value.Length = std::min(static_cast<int>(value.Length), MaxSampleSize);
+            }
         }
 
         auto entry = SerializeToString(sampleValues.begin(), sampleValues.end());
