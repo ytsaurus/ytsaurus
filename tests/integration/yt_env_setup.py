@@ -139,12 +139,7 @@ class YTEnvSetup(object):
         return value
 
     @classmethod
-    def create_yt_cluster_instance(cls, index, clusters_root_path):
-        if index != 0:
-            path = os.path.join(clusters_root_path, "_remote_" + str(index - 1))
-        else:
-            path = clusters_root_path
-
+    def create_yt_cluster_instance(cls, index, path):
         modify_configs_func = functools.partial(
             cls.apply_config_patches,
             cluster_index=index)
@@ -190,10 +185,15 @@ class YTEnvSetup(object):
         cls.run_id = "run_" + uuid.uuid4().hex[:8]
         cls.path_to_run = os.path.join(path_to_test, cls.run_id)
 
-        cls.Env = cls.create_yt_cluster_instance(0, cls.path_to_run)
+        primary_cluster_path = cls.path_to_run
+        if cls.NUM_REMOTE_CLUSTERS > 0:
+            primary_cluster_path = os.path.join(cls.path_to_run, "primary")
+
+        cls.Env = cls.create_yt_cluster_instance(0, primary_cluster_path)
         cls.remote_envs = []  # TODO: Rename env
         for cluster_index in xrange(1, cls.NUM_REMOTE_CLUSTERS + 1):
-            cls.remote_envs.append(cls.create_yt_cluster_instance(cluster_index, cls.path_to_run))
+            cluster_path = os.path.join(cls.path_to_run, cls.get_cluster_name(cluster_index))
+            cls.remote_envs.append(cls.create_yt_cluster_instance(cluster_index, cluster_path))
 
         yt_commands.is_multicell = cls.NUM_SECONDARY_MASTER_CELLS > 0
         yt_commands.path_to_run_tests = cls.path_to_run
