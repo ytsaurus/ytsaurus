@@ -923,17 +923,19 @@ private:
         }
 
         auto samplesExt = GetProtoExtension<TSamplesExt>(chunkMeta.extensions());
-        std::vector<TProtoStringType> samples;
-        samples.reserve(sampleRequest->sample_count());
 
-        RandomSampleN(
-            samplesExt.entries().begin(),
-            samplesExt.entries().end(),
-            std::back_inserter(samples),
-            sampleRequest->sample_count());
+        // Old chunks do not store samples weights.
+        bool hasWeights = samplesExt.weights_size() > 0;
+        for (int index = 0;
+            index < samplesExt.entries_size() && chunkSamples->samples_size() < sampleRequest->sample_count();
+            ++index)
+        {
+            int remaining = samplesExt.entries_size() - index;
+            if (std::rand() % remaining >= sampleRequest->sample_count() - chunkSamples->samples_size()) {
+                continue;
+            }
 
-        for (const auto& protoSample : samples) {
-            TUnversionedOwningRow row = FromProto<TUnversionedOwningRow>(protoSample);
+            TUnversionedOwningRow row = FromProto<TUnversionedOwningRow>(samplesExt.entries(index));
             std::vector<TUnversionedValue> values(
                 keyColumns.size(),
                 MakeUnversionedSentinelValue(EValueType::Null));
@@ -947,7 +949,11 @@ private:
                 values[keyIndex] = value;
             }
 
-            SerializeSample(chunkSamples->add_samples(), std::move(values), maxSampleSize, protoSample.length());
+            SerializeSample(
+                chunkSamples->add_samples(),
+                std::move(values),
+                maxSampleSize,
+                hasWeights ? samplesExt.weights(index) : samplesExt.entries(index).length());
         }
     }
 

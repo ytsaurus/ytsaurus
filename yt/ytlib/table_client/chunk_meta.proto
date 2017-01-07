@@ -72,6 +72,7 @@ message TBoundaryKeysExt
 message TSamplesExt
 {
     repeated bytes entries = 1;
+    repeated int32 weights = 2;
 }
 
 message TPartitionsExt
