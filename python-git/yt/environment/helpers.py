@@ -2,7 +2,7 @@ from yt.common import to_native_str
 import yt.json as json
 import yt.yson as yson
 
-from yt.packages.six import iteritems, PY3, text_type
+from yt.packages.six import iteritems, PY3, text_type, Iterator
 from yt.packages.six.moves import xrange, map as imap
 
 import socket
@@ -10,9 +10,87 @@ import os
 import fcntl
 import random
 import codecs
+import logging
 
-GEN_PORT_ATTEMPTS = 10
-START_PORT = 10000
+logger = logging.getLogger("Yt.local")
+
+class OpenPortIterator(Iterator):
+    GEN_PORT_ATTEMPTS = 10
+    START_PORT = 10000
+
+    def __init__(self, port_locks_path=None):
+        self.busy_ports = set()
+
+        self.port_locks_path = port_locks_path
+        self.lock_fds = set()
+
+        self.local_port_range = None
+        if os.path.exists("/proc/sys/net/ipv4/ip_local_port_range"):
+            with open("/proc/sys/net/ipv4/ip_local_port_range") as f:
+                self.local_port_range = list(imap(int, f.read().split()))
+
+    def release_locks(self):
+        for lock_fd in self.lock_fds:
+            try:
+                os.close(lock_fd)
+            except OSError as err:
+                logger.warning("Failed to close file descriptor %d: %s",
+                               lock_fd, os.strerror(err.errno))
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        for _ in xrange(self.GEN_PORT_ATTEMPTS):
+            port = None
+            if self.local_port_range is not None and \
+                    self.local_port_range[0] - self.START_PORT > 1000:
+                # Generate random port manually and check that it is free.
+                port_value = random.randint(self.START_PORT, self.local_port_range[0] - 1)
+                try:
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    sock.bind(("", port_value))
+                    sock.listen(1)
+                    port = port_value
+                except Exception:
+                    pass
+                finally:
+                    sock.close()
+            else:
+                # Generate random local port by bind to 0 port.
+                try:
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    sock.bind(("", 0))
+                    sock.listen(1)
+                    port = sock.getsockname()[1]
+                finally:
+                    sock.close()
+
+            if port is None:
+                continue
+
+            if port in self.busy_ports:
+                continue
+
+            if self.port_locks_path is not None:
+                try:
+                    lock_fd = os.open(os.path.join(self.port_locks_path, str(port)),
+                                      os.O_CREAT | os.O_RDWR)
+                    fcntl.lockf(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except IOError:
+                    if lock_fd != -1:
+                        os.close(lock_fd)
+                    self.busy_ports.add(port)
+                    continue
+
+                self.lock_fds.add(lock_fd)
+
+            self.busy_ports.add(port)
+
+            return port
+        else:
+            raise RuntimeError("Failed to generate open port after {0} attempts"
+                               .format(self.GEN_PORT_ATTEMPTS))
 
 try:
     from unittest.util import unorderable_list_difference
@@ -84,59 +162,6 @@ def assert_items_equal(actual_seq, expected_seq):
 def assert_almost_equal(actual, expected, decimal_places=4):
     eps = 10**(-decimal_places)
     return abs(actual - expected) < eps
-
-def get_open_port(port_locks_path=None):
-    local_port_range = None
-    if os.path.exists("/proc/sys/net/ipv4/ip_local_port_range"):
-        local_port_range = list(imap(int, open("/proc/sys/net/ipv4/ip_local_port_range").read().split()))
-
-    for _ in xrange(GEN_PORT_ATTEMPTS):
-        port = None
-        if local_port_range is not None and local_port_range[0] - START_PORT > 1000:
-            # Generate random port manually and check that it is free.
-            port_value = random.randint(START_PORT, local_port_range[0] - 1)
-            try:
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.bind(("", port_value))
-                sock.listen(1)
-                port = port_value
-            except Exception:
-                pass
-            finally:
-                sock.close()
-        else:
-            # Generate random local port by bind to 0 port.
-            try:
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.bind(("", 0))
-                sock.listen(1)
-                port = sock.getsockname()[1]
-            finally:
-                sock.close()
-
-        if port is None:
-            continue
-
-        if port in get_open_port.busy_ports:
-            continue
-
-        if port_locks_path is not None:
-            try:
-                lock_fd = os.open(os.path.join(port_locks_path, str(port)), os.O_CREAT | os.O_RDWR)
-                fcntl.lockf(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except IOError:
-                if lock_fd != -1:
-                    os.close(lock_fd)
-                get_open_port.busy_ports.add(port)
-                continue
-
-            get_open_port.lock_fds.add(lock_fd)
-
-        get_open_port.busy_ports.add(port)
-
-        return port
-
-    raise RuntimeError("Failed to generate random port")
 
 def versions_cmp(version1, version2):
     def normalize(v):

@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 from .configs_provider import init_logging, get_default_provision, create_configs_provider
-from .helpers import read_config, write_config, is_dead_or_zombie, get_open_port
+from .helpers import read_config, write_config, is_dead_or_zombie, OpenPortIterator
 
 from yt.common import YtError, remove_file, makedirp, set_pdeathsig, which, to_native_str
 from yt.wrapper.common import generate_uuid
@@ -192,6 +192,7 @@ class YTInstance(object):
         self.port_locks_path = port_locks_path
         if self.port_locks_path is not None:
             makedirp(self.port_locks_path)
+        self._open_port_iterator = None
 
         if fqdn is None:
             self._hostname = socket.getfqdn()
@@ -219,17 +220,11 @@ class YTInstance(object):
                                   node_memory_limit_addition, port_range_start, proxy_port, modify_configs_func)
 
     def _get_ports_generator(self, port_range_start):
-        def random_port_generator():
-            while True:
-                yield get_open_port(self.port_locks_path)
-
-        get_open_port.busy_ports = set()
-        get_open_port.lock_fds = set()
-
         if port_range_start and isinstance(port_range_start, int):
             return count(port_range_start)
         else:
-            return random_port_generator()
+            self._open_port_iterator = OpenPortIterator(self.port_locks_path)
+            return self._open_port_iterator
 
     def _get_cgroup_path(self, cgroup_type, *args):
         return _get_cgroup_path(cgroup_type, "yt", self._uuid, *args)
@@ -384,12 +379,8 @@ class YTInstance(object):
 
         remove_file(self.pids_filename, force=True)
 
-        for lock_fd in get_open_port.lock_fds:
-            try:
-                os.close(lock_fd)
-            except OSError as err:
-                logger.warning("Failed to close file descriptor %d: %s",
-                               lock_fd, os.strerror(err.errno))
+        if self._open_port_iterator is not None:
+            self._open_port_iterator.release_locks()
 
     def get_proxy_address(self):
         if not self.has_proxy:
