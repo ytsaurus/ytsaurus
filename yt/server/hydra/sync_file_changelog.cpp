@@ -245,8 +245,7 @@ public:
         std::lock_guard<std::mutex> guard(Mutex_);
 
         Error_.ThrowOnError();
-
-        YCHECK(!Open_);
+        ValidateNotOpen();
 
         try {
             // Read and check changelog header.
@@ -297,8 +296,9 @@ public:
 
         Error_.ThrowOnError();
 
-        if (!Open_)
+        if (!Open_) {
             return;
+        }
 
         try {
             NFS::ExpectIOErrors([&] () {
@@ -326,8 +326,7 @@ public:
         std::lock_guard<std::mutex> guard(Mutex_);
 
         Error_.ThrowOnError();
-
-        YCHECK(!Open_);
+        ValidateNotOpen();
 
         try {
             Meta_ = meta;
@@ -393,8 +392,8 @@ public:
         std::lock_guard<std::mutex> guard(Mutex_);
 
         Error_.ThrowOnError();
+        ValidateOpen();
 
-        YCHECK(Open_);
         YCHECK(!TruncatedRecordCount_);
         YCHECK(firstRecordId == RecordCount_);
 
@@ -447,8 +446,7 @@ public:
         std::lock_guard<std::mutex> guard(Mutex_);
 
         Error_.ThrowOnError();
-
-        YCHECK(Open_);
+        ValidateOpen();
 
         LOG_DEBUG("Started flushing changelog");
 
@@ -479,9 +477,11 @@ public:
 
         std::lock_guard<std::mutex> guard(Mutex_);
 
+        Error_.ThrowOnError();
+        ValidateOpen();
+
         YCHECK(firstRecordId >= 0);
         YCHECK(maxRecords >= 0);
-        YCHECK(Open_);
 
         LOG_DEBUG("Started reading changelog (FirstRecordId: %v, MaxRecords: %v, MaxBytes: %v)",
             firstRecordId,
@@ -543,8 +543,8 @@ public:
         std::lock_guard<std::mutex> guard(Mutex_);
 
         Error_.ThrowOnError();
+        ValidateOpen();
 
-        YCHECK(Open_);
         YCHECK(recordCount >= 0);
         YCHECK(!TruncatedRecordCount_ || recordCount <= *TruncatedRecordCount_);
 
@@ -592,6 +592,22 @@ private:
         TSharedMutableRef Blob;
     };
 
+
+    //! Checks that the changelog is open. Throws if not.
+    void ValidateOpen()
+    {
+        if (!Open_) {
+            THROW_ERROR_EXCEPTION("Changelog is not open");
+        }
+    }
+
+    //! Checks that the changelog is not open. Throws if it is.
+    void ValidateNotOpen()
+    {
+        if (Open_) {
+            THROW_ERROR_EXCEPTION("Changelog is already open");
+        }
+    }
 
     //! Flocks the data file, retrying if needed.
     void LockDataFile()
