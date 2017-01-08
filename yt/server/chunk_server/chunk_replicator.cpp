@@ -1661,14 +1661,13 @@ void TChunkReplicator::OnRefresh()
 
 bool TChunkReplicator::IsEnabled()
 {
-    return Enabled_;
+    return Enabled_.Get(false);
 }
 
 void TChunkReplicator::OnCheckEnabled()
 {
     auto worldInitializer = Bootstrap_->GetWorldInitializer();
     if (!worldInitializer->IsInitialized()) {
-        Enabled_ = false;
         return;
     }
 
@@ -1679,7 +1678,7 @@ void TChunkReplicator::OnCheckEnabled()
             OnCheckEnabledSecondary();
         }
     } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Error updating replicator state, disabling until the next attempt");
+        LOG_ERROR(ex, "Error updating chunk ```replicator state, disabling until the next attempt");
         Enabled_ = false;
     }
 }
@@ -1690,7 +1689,7 @@ void TChunkReplicator::OnCheckEnabledPrimary()
     auto resolver = cypressManager->CreateResolver();
     auto sysNode = resolver->ResolvePath("//sys");
     if (sysNode->Attributes().Get<bool>("disable_chunk_replicator", false)) {
-        if (Enabled_) {
+        if (!Enabled_ || *Enabled_) {
             LOG_INFO("Chunk replicator is disabled by //sys/@disable_chunk_replicator setting");
         }
         Enabled_ = false;
@@ -1701,7 +1700,7 @@ void TChunkReplicator::OnCheckEnabledPrimary()
     int needOnline = Config_->SafeOnlineNodeCount;
     int gotOnline = nodeTracker->GetOnlineNodeCount();
     if (gotOnline < needOnline) {
-        if (Enabled_) {
+        if (!Enabled_ || *Enabled_) {
             LOG_INFO("Chunk replicator disabled: too few online nodes, needed >= %v but got %v",
                 needOnline,
                 gotOnline);
@@ -1719,7 +1718,7 @@ void TChunkReplicator::OnCheckEnabledPrimary()
         double needFraction = Config_->SafeLostChunkFraction;
         double gotFraction = (double) gotLostChunkCount / gotChunkCount;
         if (gotFraction > needFraction) {
-            if (Enabled_) {
+            if (!Enabled_ || *Enabled_) {
                 LOG_INFO("Chunk replicator disabled: too many lost chunks, fraction needed <= %v but got %v",
                     needFraction,
                     gotFraction);
@@ -1730,7 +1729,7 @@ void TChunkReplicator::OnCheckEnabledPrimary()
     }
 
     if (gotLostChunkCount > needLostChunkCount) {
-        if (Enabled_) {
+        if (!Enabled_ || *Enabled_) {
             LOG_INFO("Chunk replicator disabled: too many lost chunks, needed <= %v but got %v",
                 needLostChunkCount,
                 gotLostChunkCount);
@@ -1739,7 +1738,7 @@ void TChunkReplicator::OnCheckEnabledPrimary()
         return;
     }
 
-    if (!Enabled_) {
+    if (!Enabled_ || !*Enabled_) {
         LOG_INFO("Chunk replicator enabled");
     }
     Enabled_ = true;
@@ -1756,7 +1755,7 @@ void TChunkReplicator::OnCheckEnabledSecondary()
         .ValueOrThrow();
 
     auto value = ConvertTo<bool>(TYsonString(rsp->value()));
-    if (value != Enabled_) {
+    if (!Enabled_ || value != *Enabled_) {
         if (value) {
             LOG_INFO("Chunk replicator enabled at primary master");
         } else {
