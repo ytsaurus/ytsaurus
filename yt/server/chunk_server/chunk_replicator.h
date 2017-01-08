@@ -164,7 +164,7 @@ private:
 
     const NConcurrency::IThroughputThrottlerPtr JobThrottler_;
 
-    bool Enabled_ = false;
+    TNullable<bool> Enabled_;
 
 
     void ProcessExistingJobs(
