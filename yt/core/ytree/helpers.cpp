@@ -64,7 +64,7 @@ class TEphemeralAttributeDictionary
     virtual void SetYson(const Stroka& key, const TYsonString& value) override
     {
         Y_ASSERT(value.GetType() == EYsonType::Node);
-        Map[key] = value.Data();
+        Map[key] = value.GetData();
     }
 
     virtual bool Remove(const Stroka& key) override
@@ -134,7 +134,7 @@ void ToProto(NProto::TAttributes* protoAttributes, const IAttributeDictionary& a
         auto value = attributes.GetYson(key);
         auto protoAttribute = protoAttributes->add_attributes();
         protoAttribute->set_key(key);
-        protoAttribute->set_value(value.Data());
+        protoAttribute->set_value(value.GetData());
     }
 }
 

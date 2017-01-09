@@ -561,7 +561,7 @@ Stroka ToString(const TRichYPath& path)
 
     return
         Stroka('<') +
-        ConvertToYsonString(path.Attributes()).Data() +
+        ConvertToYsonString(path.Attributes()).GetData() +
         Stroka('>') +
         path.GetPath();
 }

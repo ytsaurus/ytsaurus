@@ -24,7 +24,7 @@ TYsonString SpawnTool(const Stroka& toolName, const TYsonString& serializedArgum
         "--tool-name",
         toolName,
         "--tool-spec",
-        serializedArgument.Data()
+        serializedArgument.GetData()
     });
 
     auto result = process.Execute();
@@ -55,7 +55,7 @@ TYsonString DoRunToolInProcess(const Stroka& toolName, const TYsonString& serial
     auto serializedResultOrError = ExecuteTool(toolName, serializedArgument);
 
     // Treat empty string as OK
-    if (serializedResultOrError.Data().Empty()) {
+    if (serializedResultOrError.GetData().empty()) {
         return ConvertToYsonString(TError(), NYson::EYsonFormat::Text);
     }
 

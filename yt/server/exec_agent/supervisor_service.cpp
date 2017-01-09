@@ -99,7 +99,7 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, OnJobProgress)
     context->SetRequestInfo("JobId: %v, Progress: %lf, Statistics: %v",
         jobId,
         progress,
-        NYTree::ConvertToYsonString(statistics, EYsonFormat::Text).Data());
+        NYTree::ConvertToYsonString(statistics, EYsonFormat::Text).GetData());
 
     auto jobController = Bootstrap->GetJobController();
     auto job = jobController->GetJobOrThrow(jobId);

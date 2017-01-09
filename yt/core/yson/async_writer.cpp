@@ -91,7 +91,7 @@ void TAsyncYsonWriter::OnRaw(TFuture<TYsonString> asyncStr)
     FlushCurrentSegment();
     AsyncSegments_.push_back(asyncStr.Apply(
         BIND([topLevel = SyncWriter_.GetDepth() == 0, type = Type_] (const TYsonString& ysonStr) {
-            auto str = ysonStr.Data();
+            auto str = ysonStr.GetData();
             if (ysonStr.GetType() == EYsonType::Node) {
                 if (!topLevel || type != EYsonType::Node) {
                     str += NDetail::ItemSeparatorSymbol;

@@ -131,7 +131,7 @@ bool TChunkTreeStatistics::operator != (const TChunkTreeStatistics& other) const
 
 Stroka ToString(const TChunkTreeStatistics& statistics)
 {
-    return ConvertToYsonString(statistics, EYsonFormat::Text).Data();
+    return ConvertToYsonString(statistics, EYsonFormat::Text).GetData();
 }
 
 void Serialize(const TChunkTreeStatistics& statistics, NYson::IYsonConsumer* consumer, const TChunkManagerPtr& chunkManager)

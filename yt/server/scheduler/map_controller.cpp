@@ -386,7 +386,7 @@ protected:
 
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
-        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
+        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).GetData());
     }
 };
 

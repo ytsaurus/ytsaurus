@@ -166,7 +166,7 @@ public:
                 THROW_ERROR_EXCEPTION("Command %Qv requires input",
                     Descriptor_.CommandName);
             }
-            Input_ = ConvertToYsonString(Request_->Input).Data();
+            Input_ = ConvertToYsonString(Request_->Input).GetData();
             parameters->Set("input_format", TFormat(EFormatType::Yson));
             driverRequest.InputStream = AsyncInput_;
         }

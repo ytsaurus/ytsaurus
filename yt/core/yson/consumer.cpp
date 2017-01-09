@@ -9,7 +9,7 @@ namespace NYson {
 
 void IYsonConsumer::OnRaw(const TYsonString& yson)
 {
-    OnRaw(yson.Data(), yson.GetType());
+    OnRaw(yson.GetData(), yson.GetType());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

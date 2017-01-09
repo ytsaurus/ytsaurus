@@ -142,7 +142,7 @@ public:
                     .EndAttributes()
                     .BeginMap().EndMap()
                 .EndMap()
-                .Data());
+                .GetData());
             GenerateMutationId(req);
             batchReq->AddRequest(req);
         }
@@ -196,7 +196,7 @@ public:
 
         for (const auto& key : attributes->List()) {
             auto req = TYPathProxy::Set(GetOperationPath(operationId) + "/@" + ToYPathLiteral(key));
-            req->set_value(attributes->GetYson(key).Data());
+            req->set_value(attributes->GetYson(key).GetData());
             GenerateMutationId(req);
             batchReq->AddRequest(req);
         }
@@ -564,13 +564,13 @@ private:
             auto addresses = Owner->Bootstrap->GetLocalAddresses();
             {
                 auto req = TYPathProxy::Set("//sys/scheduler/@addresses");
-                req->set_value(ConvertToYsonString(addresses).Data());
+                req->set_value(ConvertToYsonString(addresses).GetData());
                 GenerateMutationId(req);
                 batchReq->AddRequest(req);
             }
             {
                 auto req = TYPathProxy::Set("//sys/scheduler/orchid/@remote_addresses");
-                req->set_value(ConvertToYsonString(addresses).Data());
+                req->set_value(ConvertToYsonString(addresses).GetData());
                 GenerateMutationId(req);
                 batchReq->AddRequest(req);
             }
@@ -1183,14 +1183,14 @@ private:
         // Set suspended flag.
         {
             auto req = TYPathProxy::Set(operationPath + "/@suspended");
-            req->set_value(ConvertToYsonString(operation->GetSuspended()).Data());
+            req->set_value(ConvertToYsonString(operation->GetSuspended()).GetData());
             batchReq->AddRequest(req, "update_op_node");
         }
 
         // Set events.
         {
             auto req = TYPathProxy::Set(operationPath + "/@events");
-            req->set_value(ConvertToYsonString(operation->GetEvents()).Data());
+            req->set_value(ConvertToYsonString(operation->GetEvents()).GetData());
             batchReq->AddRequest(req, "update_op_node");
         }
 
@@ -1207,7 +1207,7 @@ private:
                                     .AsyncVia(controller->GetInvoker())
                                     .Run(consumer));
                         })
-                    .EndMap().Data());
+                    .EndMap().GetData());
                 batchReq->AddRequest(req, "update_op_node");
 
             }
@@ -1222,7 +1222,7 @@ private:
                                     .AsyncVia(controller->GetInvoker())
                                     .Run(consumer));
                         })
-                    .EndMap().Data());
+                    .EndMap().GetData());
                 batchReq->AddRequest(req, "update_op_node");
             }
         }
@@ -1235,21 +1235,21 @@ private:
                 .BeginMap()
                     .Item("error").Value(error)
                 .EndMap();
-            req->set_value(errorString.Data());
+            req->set_value(errorString.GetData());
             batchReq->AddRequest(req, "update_op_node");
         }
 
         // Set end time, if given.
         if (operation->GetFinishTime()) {
             auto req = TYPathProxy::Set(operationPath + "/@finish_time");
-            req->set_value(ConvertToYsonString(operation->GetFinishTime().Get()).Data());
+            req->set_value(ConvertToYsonString(*operation->GetFinishTime()).GetData());
             batchReq->AddRequest(req, "update_op_node");
         }
 
         // Set state.
         {
             auto req = TYPathProxy::Set(operationPath + "/@state");
-            req->set_value(ConvertToYsonString(operation->GetState()).Data());
+            req->set_value(ConvertToYsonString(operation->GetState()).GetData());
             batchReq->AddRequest(req, "update_op_node");
         }
 
@@ -1337,14 +1337,14 @@ private:
                     .Do([=] (IYsonConsumer* consumer) {
                         consumer->OnRaw(request.Attributes);
                     })
-                    .DoIf(inputPaths.GetType() != EYsonType::None, [=] (TFluentAttributes fluent) {
+                    .DoIf(inputPaths.operator bool(), [=] (TFluentAttributes fluent) {
                         fluent
                             .Item("input_paths").Value(inputPaths);
                     })
                 .EndAttributes()
                 .BeginMap()
                 .EndMap()
-                .Data());
+                .GetData());
             batchReq->AddRequest(req, "create");
         }
 
@@ -1942,7 +1942,7 @@ private:
             ->GetMasterClient()
             ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTag));
         auto req = TYPathProxy::Set("//sys/scheduler/@alerts");
-        req->set_value(ConvertToYsonString(alerts).Data());
+        req->set_value(ConvertToYsonString(alerts).GetData());
 
         auto rspOrError = WaitFor(proxy.Execute(req));
         if (!rspOrError.IsOK()) {

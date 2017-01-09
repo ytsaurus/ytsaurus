@@ -52,7 +52,7 @@ TEST(TYsonTest, ConvertToNode)
     EXPECT_EQ("key", node->AsMap()->GetKeys().front());
 
     EXPECT_EQ("{\"key\"=\"value\";\"other_key\"=10;}",
-              ConvertToYsonString(node, EYsonFormat::Text).Data());
+              ConvertToYsonString(node, EYsonFormat::Text).GetData());
 
     NYT::NYTree::INodePtr child;
 
@@ -78,7 +78,7 @@ TEST(TYsonTest, ListFragment)
     node = NYT::NYTree::ConvertToNode(TYsonString(yson, EYsonType::ListFragment));
     ASSERT_NO_THROW(node->AsList());
     EXPECT_EQ("[{\"a\"=\"b\";};{\"c\"=\"d\";};]",
-              ConvertToYsonString(node, EYsonFormat::Text).Data());
+              ConvertToYsonString(node, EYsonFormat::Text).GetData());
 }
 
 TEST(TYsonTest, ConvertFromStream)
@@ -89,7 +89,7 @@ TEST(TYsonTest, ConvertFromStream)
     auto node = ConvertToNode(&ysonStream);
     ASSERT_NO_THROW(node->AsMap());
     EXPECT_EQ("{\"key\"=\"value\";}",
-              ConvertToYsonString(node, EYsonFormat::Text).Data());
+              ConvertToYsonString(node, EYsonFormat::Text).GetData());
 }
 
 TEST(TYsonTest, ConvertToProducerNode)
@@ -112,13 +112,13 @@ TEST(TYsonTest, ConvertToProducerListFragment)
     {
         auto producer = ConvertToProducer(TYsonString("{a=b}; {c=d}", EYsonType::ListFragment));
         EXPECT_EQ("{\"a\"=\"b\";};\n{\"c\"=\"d\";};\n",
-            ConvertToYsonString(producer, EYsonFormat::Text).Data());
+            ConvertToYsonString(producer, EYsonFormat::Text).GetData());
     }
 
     {
         auto producer = ConvertToProducer(TYsonString("{key=value}"));
         EXPECT_EQ("{\"key\"=\"value\";}",
-            ConvertToYsonString(producer, EYsonFormat::Text).Data());
+            ConvertToYsonString(producer, EYsonFormat::Text).GetData());
     }
 }
 
@@ -130,7 +130,7 @@ TEST(TYsonTest, ConvertToForPodTypes)
         EXPECT_EQ(42, ConvertTo<i64>(node));
 
         auto ysonStr = ConvertToYsonString(node, EYsonFormat::Text);
-        EXPECT_EQ("42", ysonStr.Data());
+        EXPECT_EQ("42", ysonStr.GetData());
         EXPECT_EQ(42, ConvertTo<i32>(ysonStr));
         EXPECT_EQ(42, ConvertTo<i64>(ysonStr));
         EXPECT_EQ(42.0, ConvertTo<double>(ysonStr));
@@ -141,7 +141,7 @@ TEST(TYsonTest, ConvertToForPodTypes)
         EXPECT_EQ(0.1, ConvertTo<double>(node));
 
         auto ysonStr = ConvertToYsonString(node, EYsonFormat::Text);
-        EXPECT_EQ("0.1", ysonStr.Data());
+        EXPECT_EQ("0.1", ysonStr.GetData());
         EXPECT_EQ(0.1, ConvertTo<double>(ysonStr));
     }
 
@@ -154,7 +154,7 @@ TEST(TYsonTest, ConvertToForPodTypes)
         EXPECT_EQ(numbers, converted);
         auto yson = ConvertToYsonString(node, EYsonFormat::Text);
         EXPECT_EQ(EYsonType::Node, yson.GetType());
-        EXPECT_EQ("[1;2;]", yson.Data());
+        EXPECT_EQ("[1;2;]", yson.GetData());
     }
 
     {
@@ -164,7 +164,7 @@ TEST(TYsonTest, ConvertToForPodTypes)
         EXPECT_EQ(boolean, converted);
         auto yson = ConvertToYsonString(node, EYsonFormat::Text);
         EXPECT_EQ(EYsonType::Node, yson.GetType());
-        EXPECT_EQ("%true", yson.Data());
+        EXPECT_EQ("%true", yson.GetData());
     }
 
     EXPECT_EQ(ConvertTo<bool>("false"), false);
@@ -254,19 +254,19 @@ TEST(TYsonTest, UpdateNodes)
 
     EXPECT_EQ(
         "100",
-        ConvertToYsonString(res->AsMap()->FindChild("key_a"), EYsonFormat::Text).Data());
+        ConvertToYsonString(res->AsMap()->FindChild("key_a"), EYsonFormat::Text).GetData());
     EXPECT_EQ(
         "<\"attr\"=\"some_attr\";>0.",
-        ConvertToYsonString(res->AsMap()->FindChild("key_b"), EYsonFormat::Text).Data());
+        ConvertToYsonString(res->AsMap()->FindChild("key_b"), EYsonFormat::Text).GetData());
     EXPECT_EQ(
         "70.",
-        ConvertToYsonString(res->AsMap()->FindChild("key_c")->AsMap()->FindChild("ignat"), EYsonFormat::Text).Data());
+        ConvertToYsonString(res->AsMap()->FindChild("key_c")->AsMap()->FindChild("ignat"), EYsonFormat::Text).GetData());
     EXPECT_EQ(
         "75.",
-        ConvertToYsonString(res->AsMap()->FindChild("key_c")->AsMap()->FindChild("max"), EYsonFormat::Text).Data());
+        ConvertToYsonString(res->AsMap()->FindChild("key_c")->AsMap()->FindChild("max"), EYsonFormat::Text).GetData());
     EXPECT_EQ(
         "{\"x\"=\"y\";}",
-        ConvertToYsonString(res->AsMap()->FindChild("key_d"), EYsonFormat::Text).Data());
+        ConvertToYsonString(res->AsMap()->FindChild("key_d"), EYsonFormat::Text).GetData());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

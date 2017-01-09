@@ -122,7 +122,7 @@ private:
             for (const auto& pair : mapNode->GetChildren()) {
                 auto* protoItem = protoClusterDirectory->add_items();
                 protoItem->set_name(pair.first);
-                protoItem->set_config(ConvertToYsonString(pair.second).Data());
+                protoItem->set_config(ConvertToYsonString(pair.second).GetData());
             }
         }
 

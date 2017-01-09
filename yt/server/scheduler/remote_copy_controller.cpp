@@ -401,7 +401,7 @@ private:
             auto batchReq = proxy.ExecuteBatch();
             for (const auto& key : attributeKeys) {
                 auto req = TYPathProxy::Set(path + "/@" + key);
-                req->set_value(InputTableAttributes_->GetYson(key).Data());
+                req->set_value(InputTableAttributes_->GetYson(key).GetData());
                 SetTransactionId(req, OutputTransaction->GetId());
                 batchReq->AddRequest(req);
             }
@@ -490,7 +490,7 @@ private:
 
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
-        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).Data());
+        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).GetData());
 
         const auto& clusterDirectory = Host->GetClusterDirectory();
         TNativeConnectionConfigPtr connectionConfig;
@@ -505,7 +505,7 @@ private:
         }
 
         auto* remoteCopyJobSpecExt = JobSpecTemplate_.MutableExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext);
-        remoteCopyJobSpecExt->set_connection_config(ConvertToYsonString(connectionConfig).Data());
+        remoteCopyJobSpecExt->set_connection_config(ConvertToYsonString(connectionConfig).GetData());
     }
 
 };

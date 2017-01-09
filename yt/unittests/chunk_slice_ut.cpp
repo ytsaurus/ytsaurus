@@ -46,7 +46,7 @@ MATCHER_P(HasRowCount, rowCount, "has row count " + std::string(negation ? "not 
 MATCHER_P(HasLowerLimit, lowerLimit, "has lower limit " + std::string(negation ? "not " : "") + lowerLimit)
 {
     auto actualLimitAsNode = ConvertToNode(arg.LowerLimit());
-    auto actualLimitAsText = ConvertToYsonString(actualLimitAsNode, EYsonFormat::Text).Data();
+    auto actualLimitAsText = ConvertToYsonString(actualLimitAsNode, EYsonFormat::Text).GetData();
 
     auto expectedLimitAsNode = ConvertToNode(TYsonString(lowerLimit));
 
@@ -58,7 +58,7 @@ MATCHER_P(HasLowerLimit, lowerLimit, "has lower limit " + std::string(negation ?
 MATCHER_P(HasUpperLimit, upperLimit, "has upper limit " + std::string(negation ? "not " : "") + upperLimit)
 {
     auto actualLimitAsNode = ConvertToNode(arg.UpperLimit());
-    auto actualLimitAsText = ConvertToYsonString(actualLimitAsNode, EYsonFormat::Text).Data();
+    auto actualLimitAsText = ConvertToYsonString(actualLimitAsNode, EYsonFormat::Text).GetData();
 
     auto expectedLimitAsNode = ConvertToNode(TYsonString(upperLimit));
 

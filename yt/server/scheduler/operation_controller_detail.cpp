@@ -810,7 +810,7 @@ void TOperationControllerBase::TTask::AddSequentialInputSpec(
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
     auto directoryBuilder = MakeNodeDirectoryBuilder(schedulerJobSpecExt);
     auto* inputSpec = schedulerJobSpecExt->add_input_table_specs();
-    inputSpec->set_table_reader_options(ConvertToYsonString(GetTableReaderOptions()).Data());
+    inputSpec->set_table_reader_options(ConvertToYsonString(GetTableReaderOptions()).GetData());
     const auto& list = joblet->InputStripeList;
     for (const auto& stripe : list->Stripes) {
         AddChunksToInputSpec(directoryBuilder.get(), inputSpec, stripe);
@@ -829,7 +829,7 @@ void TOperationControllerBase::TTask::AddParallelInputSpec(
         auto* inputSpec = stripe->Foreign
             ? schedulerJobSpecExt->add_foreign_input_table_specs()
             : schedulerJobSpecExt->add_input_table_specs();
-        inputSpec->set_table_reader_options(ConvertToYsonString(GetTableReaderOptions()).Data());
+        inputSpec->set_table_reader_options(ConvertToYsonString(GetTableReaderOptions()).GetData());
         AddChunksToInputSpec(directoryBuilder.get(), inputSpec, stripe);
     }
     UpdateInputSpecTotals(jobSpec, joblet);
@@ -900,9 +900,9 @@ void TOperationControllerBase::TTask::AddFinalOutputSpecs(
     for (int index = 0; index < Controller->OutputTables.size(); ++index) {
         const auto& table = Controller->OutputTables[index];
         auto* outputSpec = schedulerJobSpecExt->add_output_table_specs();
-        outputSpec->set_table_writer_options(ConvertToYsonString(table.Options).Data());
+        outputSpec->set_table_writer_options(ConvertToYsonString(table.Options).GetData());
         if (table.WriterConfig) {
-            outputSpec->set_table_writer_config(table.WriterConfig->Data());
+            outputSpec->set_table_writer_config(table.WriterConfig->GetData());
         }
         ToProto(outputSpec->mutable_table_schema(), table.TableUploadOptions.TableSchema);
         ToProto(outputSpec->mutable_chunk_list_id(), joblet->ChunkListIds[index]);
@@ -927,7 +927,7 @@ void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
     // Distribute intermediate chunks uniformly across storage locations.
     options->PlacementId = Controller->OperationId;
 
-    outputSpec->set_table_writer_options(ConvertToYsonString(options).Data());
+    outputSpec->set_table_writer_options(ConvertToYsonString(options).GetData());
 
     ToProto(outputSpec->mutable_table_schema(), TTableSchema::FromKeyColumns(keyColumns));
     ToProto(outputSpec->mutable_chunk_list_id(), joblet->ChunkListIds[0]);
@@ -1746,7 +1746,7 @@ void TOperationControllerBase::SafeCommit()
 
         {
             auto req = TYPathProxy::Set(path);
-            req->set_value(ConvertToYsonString(true).Data());
+            req->set_value(ConvertToYsonString(true).GetData());
             WaitFor(proxy.Execute(req))
                 .ThrowOnError();
         }
@@ -3672,7 +3672,7 @@ void TOperationControllerBase::BeginUploadOutputTables()
             }
             LOG_INFO("Output table locked (Path: %v, Options: %v, UploadTransactionId: %v)",
                 path,
-                ConvertToYsonString(table->Options, EYsonFormat::Text).Data(),
+                ConvertToYsonString(table->Options, EYsonFormat::Text).GetData(),
                 table->UploadTransactionId);
         }
     }
@@ -3981,11 +3981,10 @@ void TOperationControllerBase::GetUserFilesAttributes()
                         file.Format = file.Path.GetFormat().Get(file.Format);
                         // Validate that format is correct.
                         try {
-                            if (file.Format.GetType() == EYsonType::None) {
+                            if (!file.Format) {
                                 THROW_ERROR_EXCEPTION("Format is missing");
-                            } else {
-                                ConvertTo<TFormat>(file.Format);
                             }
+                            ConvertTo<TFormat>(file.Format);
                         } catch (const std::exception& ex) {
                             THROW_ERROR_EXCEPTION("Failed to parse format of table file %v",
                                 file.Path) << ex;
@@ -4970,8 +4969,8 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
             outputFormat = *config->OutputFormat;
         }
 
-        jobSpec->set_input_format(ConvertToYsonString(inputFormat).Data());
-        jobSpec->set_output_format(ConvertToYsonString(outputFormat).Data());
+        jobSpec->set_input_format(ConvertToYsonString(inputFormat).GetData());
+        jobSpec->set_output_format(ConvertToYsonString(outputFormat).GetData());
     }
 
     auto fillEnvironment = [&] (yhash_map<Stroka, Stroka>& env) {
@@ -5013,7 +5012,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
                 descriptor->set_executable(file.Executable);
                 break;
             case EObjectType::Table:
-                descriptor->set_format(file.Format.Data());
+                descriptor->set_format(file.Format.GetData());
                 break;
             default:
                 Y_UNREACHABLE();
@@ -5085,13 +5084,13 @@ void TOperationControllerBase::AddStderrOutputSpecs(
 {
     auto* stderrTableSpec = jobSpec->mutable_stderr_table_spec();
     auto* outputSpec = stderrTableSpec->mutable_output_table_spec();
-    outputSpec->set_table_writer_options(ConvertToYsonString(StderrTable->Options).Data());
+    outputSpec->set_table_writer_options(ConvertToYsonString(StderrTable->Options).GetData());
     ToProto(outputSpec->mutable_table_schema(), StderrTable->TableUploadOptions.TableSchema);
     ToProto(outputSpec->mutable_chunk_list_id(), joblet->StderrTableChunkListId);
 
     auto writerConfig = GetStderrTableWriterConfig();
     YCHECK(writerConfig);
-    stderrTableSpec->set_blob_table_writer_config(ConvertToYsonString(writerConfig).Data());
+    stderrTableSpec->set_blob_table_writer_config(ConvertToYsonString(writerConfig).GetData());
 }
 
 void TOperationControllerBase::AddCoreOutputSpecs(
@@ -5100,13 +5099,13 @@ void TOperationControllerBase::AddCoreOutputSpecs(
 {
     auto* coreTableSpec = jobSpec->mutable_core_table_spec();
     auto* outputSpec = coreTableSpec->mutable_output_table_spec();
-    outputSpec->set_table_writer_options(ConvertToYsonString(CoreTable->Options).Data());
+    outputSpec->set_table_writer_options(ConvertToYsonString(CoreTable->Options).GetData());
     ToProto(outputSpec->mutable_table_schema(), CoreTable->TableUploadOptions.TableSchema);
     ToProto(outputSpec->mutable_chunk_list_id(), joblet->CoreTableChunkListId);
 
     auto writerConfig = GetCoreTableWriterConfig();
     YCHECK(writerConfig);
-    coreTableSpec->set_blob_table_writer_config(ConvertToYsonString(writerConfig).Data());
+    coreTableSpec->set_blob_table_writer_config(ConvertToYsonString(writerConfig).GetData());
 }
 
 

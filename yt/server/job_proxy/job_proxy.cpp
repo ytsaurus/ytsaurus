@@ -153,7 +153,7 @@ void TJobProxy::SendHeartbeat()
     auto req = SupervisorProxy_->OnJobProgress();
     ToProto(req->mutable_job_id(), JobId_);
     req->set_progress(Job_->GetProgress());
-    req->set_statistics(ConvertToYsonString(GetStatistics()).Data());
+    req->set_statistics(ConvertToYsonString(GetStatistics()).GetData());
 
     req->Invoke().Subscribe(BIND(&TJobProxy::OnHeartbeatResponse, MakeWeak(this)));
 
@@ -432,7 +432,7 @@ void TJobProxy::ReportResult(
     auto req = SupervisorProxy_->OnJobFinished();
     ToProto(req->mutable_job_id(), JobId_);
     *req->mutable_result() = result;
-    req->set_statistics(statistics.Data());
+    req->set_statistics(statistics.GetData());
     req->set_start_time(ToProto(startTime));
     req->set_finish_time(ToProto(finishTime));
 

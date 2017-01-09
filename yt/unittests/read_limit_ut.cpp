@@ -16,7 +16,7 @@ using namespace NYson;
 template <typename T>
 Stroka DumpToYson(T obj)
 {
-    return ConvertToYsonString(obj, NYson::EYsonFormat::Text).Data();
+    return ConvertToYsonString(obj, NYson::EYsonFormat::Text).GetData();
 }
 
 TEST(TReadLimitTest, Simple)

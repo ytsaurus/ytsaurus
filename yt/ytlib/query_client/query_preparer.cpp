@@ -1747,8 +1747,8 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
     auto queryFingerprint = InferName(query, true);
     LOG_DEBUG("Prepared query (Fingerprint: %v, InputSchema: %v, ResultSchema: %v)",
         queryFingerprint,
-        NYTree::ConvertToYsonString(query->OriginalSchema, NYson::EYsonFormat::Text).Data(),
-        NYTree::ConvertToYsonString(query->GetTableSchema(), NYson::EYsonFormat::Text).Data());
+        NYTree::ConvertToYsonString(query->OriginalSchema, NYson::EYsonFormat::Text).GetData(),
+        NYTree::ConvertToYsonString(query->GetTableSchema(), NYson::EYsonFormat::Text).GetData());
 
     auto range = GetBothBoundsFromDataSplit(selfDataSplit);
 

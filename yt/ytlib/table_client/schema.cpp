@@ -485,7 +485,7 @@ void TTableSchema::Load(TStreamLoadContext& context)
 
 Stroka ToString(const TTableSchema& schema)
 {
-    return ConvertToYsonString(schema, EYsonFormat::Text).Data();
+    return ConvertToYsonString(schema, EYsonFormat::Text).GetData();
 }
 
 void Serialize(const TTableSchema& schema, IYsonConsumer* consumer)

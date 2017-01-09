@@ -70,10 +70,10 @@ protected:
 
     bool EqualValues(const TStringBuf& lhs, const TStringBuf& rhs) const
     {
-        if (lhs.Data() == nullptr && rhs.Data() == nullptr) {
+        if (!lhs.Data() && !rhs.Data()) {
             // Both are null.
             return true;
-        } else if (lhs.Data() == nullptr || rhs.Data() == nullptr) {
+        } else if (!lhs.Data() || !rhs.Data()) {
             // One is null, and the other is not.
             return false;
         } else {
@@ -150,7 +150,7 @@ protected:
         int dictionarySize = 0;
         ui32 dictionaryOffset = 0;
         for (const auto& value : Values_) {
-            if (value.Data() == nullptr) {
+            if (!value.Data()) {
                 ids.push_back(0);
             } else {
                 auto it = Dictionary_.find(value);
@@ -460,7 +460,7 @@ private:
         ui32 dictionarySize = 0;
         for (auto rowIndex : RleRowIndexes_) {
             const auto& value = Values_[rowIndex];
-            if (value.Data() == nullptr) {
+            if (!value.Data()) {
                 ids.push_back(0);
             } else {
                 auto it = Dictionary_.find(Values_[rowIndex]);

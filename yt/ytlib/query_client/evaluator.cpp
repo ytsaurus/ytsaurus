@@ -74,8 +74,8 @@ public:
 
             LOG_DEBUG("Executing query (Fingerprint: %v, InputSchema: %v, ResultSchema: %v)",
                 queryFingerprint,
-                NYTree::ConvertToYsonString(query->OriginalSchema, NYson::EYsonFormat::Text).Data(),
-                NYTree::ConvertToYsonString(query->GetTableSchema(), NYson::EYsonFormat::Text).Data());
+                NYTree::ConvertToYsonString(query->OriginalSchema, NYson::EYsonFormat::Text).GetData(),
+                NYTree::ConvertToYsonString(query->GetTableSchema(), NYson::EYsonFormat::Text).GetData());
 
             TQueryStatistics statistics;
             TDuration wallTime;

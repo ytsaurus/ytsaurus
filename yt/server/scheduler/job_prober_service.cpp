@@ -97,9 +97,9 @@ private:
         auto trace = WaitFor(scheduler->Strace(jobId, context->GetUser()))
             .ValueOrThrow();
 
-        context->SetResponseInfo("Trace: %v", trace.Data());
+        context->SetResponseInfo("Trace: %v", trace.GetData());
 
-        ToProto(response->mutable_trace(), trace.Data());
+        ToProto(response->mutable_trace(), trace.GetData());
         context->Reply();
     }
 
@@ -152,7 +152,7 @@ private:
         auto result = WaitFor(scheduler->PollJobShell(jobId, parameters, context->GetUser()))
             .ValueOrThrow();
 
-        ToProto(response->mutable_result(), result.Data());
+        ToProto(response->mutable_result(), result.GetData());
         context->Reply();
     }
 

@@ -685,10 +685,10 @@ public:
                 } else {
                     req.set_trimmed_row_count(tablet->GetTrimmedRowCount());
                 }
-                req.set_mount_config(serializedMountConfig.Data());
-                req.set_reader_config(serializedReaderConfig.Data());
-                req.set_writer_config(serializedWriterConfig.Data());
-                req.set_writer_options(serializedWriterOptions.Data());
+                req.set_mount_config(serializedMountConfig.GetData());
+                req.set_reader_config(serializedReaderConfig.GetData());
+                req.set_writer_config(serializedWriterConfig.GetData());
+                req.set_writer_options(serializedWriterOptions.GetData());
                 req.set_atomicity(static_cast<int>(table->GetAtomicity()));
                 req.set_commit_ordering(static_cast<int>(table->GetCommitOrdering()));
                 req.set_freeze(freeze);
@@ -831,10 +831,10 @@ public:
                 const auto& hiveManager = Bootstrap_->GetHiveManager();
 
                 TReqRemountTablet request;
-                request.set_mount_config(serializedMountConfig.Data());
-                request.set_reader_config(serializedReaderConfig.Data());
-                request.set_writer_config(serializedWriterConfig.Data());
-                request.set_writer_options(serializedWriterOptions.Data());
+                request.set_mount_config(serializedMountConfig.GetData());
+                request.set_reader_config(serializedReaderConfig.GetData());
+                request.set_writer_config(serializedWriterConfig.GetData());
+                request.set_writer_options(serializedWriterOptions.GetData());
                 ToProto(request.mutable_tablet_id(), tablet->GetId());
 
                 auto* mailbox = hiveManager->GetMailbox(cell->GetId());
@@ -1737,7 +1737,7 @@ private:
             protoInfo->set_peer_id(peerId);
 
             const auto* cellBundle = cell->GetCellBundle();
-            protoInfo->set_options(ConvertToYsonString(cellBundle->GetOptions()).Data());
+            protoInfo->set_options(ConvertToYsonString(cellBundle->GetOptions()).GetData());
 
             LOG_DEBUG_UNLESS(IsRecovery(), "Tablet slot creation requested (Address: %v, CellId: %v, PeerId: %v)",
                 node->GetDefaultAddress(),

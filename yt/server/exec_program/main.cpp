@@ -208,7 +208,7 @@ protected:
 
         // We are ready to execute user code, send signal to JobProxy.
         if (!ControlPipePath_.empty()) {
-            auto ysonData = ConvertToYsonString(executorError, EYsonFormat::Text).Data();
+            auto ysonData = ConvertToYsonString(executorError, EYsonFormat::Text).GetData();
             int fd = HandleEintr(::open, ControlPipePath_.c_str(), O_WRONLY | O_CLOEXEC);
             if (fd == -1) {
                 // Logging is explicitly disabled, try to dump as much diagnostics as possible.

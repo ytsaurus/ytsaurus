@@ -786,7 +786,7 @@ private:
 
         for (auto jobDescriptor : jobDescriptors) {
             TNamedPipeConfig pipeId(pipe->GetPath(), jobDescriptor, true);
-            Process_->AddArguments({"--pipe", ConvertToYsonString(pipeId, EYsonFormat::Text).Data()});
+            Process_->AddArguments({"--pipe", ConvertToYsonString(pipeId, EYsonFormat::Text).GetData()});
         }
 
         auto asyncInput = pipe->CreateAsyncReader();
@@ -925,7 +925,7 @@ private:
         InputPipePath_= CreateNamedPipePath();
         auto pipe = TNamedPipe::Create(InputPipePath_);
         TNamedPipeConfig pipeId(pipe->GetPath(), jobDescriptor, false);
-        Process_->AddArguments({"--pipe", ConvertToYsonString(pipeId, EYsonFormat::Text).Data()});
+        Process_->AddArguments({"--pipe", ConvertToYsonString(pipeId, EYsonFormat::Text).GetData()});
         auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.input_format()));
 
         auto reader = pipe->CreateAsyncReader();

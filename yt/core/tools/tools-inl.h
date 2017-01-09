@@ -64,7 +64,7 @@ TResult RunTool(
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Failed to parse result of %v tool",
             name)
-            << TErrorAttribute("result", serializedResultOrError.Data())
+            << TErrorAttribute("result", serializedResultOrError.GetData())
             << ex;
     }
 

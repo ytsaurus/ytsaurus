@@ -785,7 +785,7 @@ private:
 
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
-        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
+        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).GetData());
 
         InitUserJobSpecTemplate(
             schedulerJobSpecExt->mutable_user_job_spec(),
@@ -927,7 +927,7 @@ private:
 
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
-        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
+        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).GetData());
     }
 
     virtual EJobType GetJobType() const override
@@ -1067,7 +1067,7 @@ private:
 
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
-        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
+        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).GetData());
 
         auto* jobSpecExt = JobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
         // If the input is sorted then the output must also be sorted.
@@ -1741,7 +1741,7 @@ private:
 
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
-        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
+        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).GetData());
 
         ToProto(mergeJobSpecExt->mutable_key_columns(), SortKeyColumns);
 
@@ -2014,7 +2014,7 @@ protected:
 
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
-        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
+        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).GetData());
 
         InitUserJobSpecTemplate(
             schedulerJobSpecExt->mutable_user_job_spec(),

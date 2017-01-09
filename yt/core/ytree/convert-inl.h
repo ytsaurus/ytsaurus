@@ -177,7 +177,7 @@ const NYson::TToken& SkipAttributes(NYson::TTokenizer* tokenizer);
     template <> \
     inline type ConvertTo(const NYson::TYsonString& str) \
     { \
-        NYson::TTokenizer tokenizer(str.Data()); \
+        NYson::TTokenizer tokenizer(str.GetData()); \
         const auto& token = SkipAttributes(&tokenizer); \
         switch (token.GetType()) { \
             case NYson::ETokenType::Int64: \
@@ -187,7 +187,7 @@ const NYson::TToken& SkipAttributes(NYson::TTokenizer* tokenizer);
             default: \
                 THROW_ERROR_EXCEPTION("Cannot parse \"" #type "\" from %Qlv value", \
                     token.GetType()) \
-                    << TErrorAttribute("data", str.Data()); \
+                    << TErrorAttribute("data", str.GetData()); \
         } \
     }
 
@@ -205,7 +205,7 @@ IMPLEMENT_CHECKED_INTEGRAL_CONVERT_TO(ui8)
 template <>
 inline double ConvertTo(const NYson::TYsonString& str)
 {
-    NYson::TTokenizer tokenizer(str.Data());
+    NYson::TTokenizer tokenizer(str.GetData());
     const auto& token = SkipAttributes(&tokenizer);
     switch (token.GetType()) {
         case NYson::ETokenType::Int64:
@@ -217,14 +217,14 @@ inline double ConvertTo(const NYson::TYsonString& str)
         default:
             THROW_ERROR_EXCEPTION("Cannot parse \"number\" from %Qlv value",
                 token.GetType())
-                << TErrorAttribute("data", str.Data());
+                << TErrorAttribute("data", str.GetData());
     }
 }
 
 template <>
 inline Stroka ConvertTo(const NYson::TYsonString& str)
 {
-    NYson::TTokenizer tokenizer(str.Data());
+    NYson::TTokenizer tokenizer(str.GetData());
     const auto& token = SkipAttributes(&tokenizer);
     switch (token.GetType()) {
         case NYson::ETokenType::String:
@@ -232,7 +232,7 @@ inline Stroka ConvertTo(const NYson::TYsonString& str)
         default:
             THROW_ERROR_EXCEPTION("Cannot parse \"string\" from %Qlv value",
                 token.GetType())
-                << TErrorAttribute("data", str.Data());
+                << TErrorAttribute("data", str.GetData());
     }
 }
 

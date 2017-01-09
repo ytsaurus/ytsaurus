@@ -35,7 +35,7 @@ TEST(TYTreeSerializationTest, All)
     );
     auto root = ConvertToNode(canonicalYson);
     auto deserializedYson = ConvertToYsonString(root, NYson::EYsonFormat::Text);
-    EXPECT_EQ(RemoveSpaces(canonicalYson.Data()), deserializedYson.Data());
+    EXPECT_EQ(RemoveSpaces(canonicalYson.GetData()), deserializedYson.GetData());
 }
 
 TEST(TCustomTypeSerializationTest, TInstant)
@@ -56,7 +56,7 @@ TEST(TCustomTypeSerializationTest, TNullable)
     {
         TNullable<int> value = Null;
         auto yson = ConvertToYsonString(value);
-        EXPECT_EQ(Stroka("#"), yson.Data());
+        EXPECT_EQ(Stroka("#"), yson.GetData());
         EXPECT_EQ(value, ConvertTo<TNullable<int>>(yson));
     }
 }

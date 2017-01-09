@@ -161,7 +161,7 @@ void TVirtualMulticellMapBase::GetSelf(
             writer.OnBeginMap();
             for (const auto& item : session->Items) {
                 writer.OnKeyedItem(item.Key);
-                if (!item.Attributes.Data().empty()) {
+                if (!item.Attributes.GetData().empty()) {
                     writer.OnBeginAttributes();
                     writer.OnRaw(item.Attributes);
                     writer.OnEndAttributes();
@@ -221,7 +221,7 @@ void TVirtualMulticellMapBase::ListSelf(
             writer.OnBeginList();
             for (const auto& item : session->Items) {
                 writer.OnListItem();
-                if (!item.Attributes.Data().empty()) {
+                if (item.Attributes) {
                     writer.OnBeginAttributes();
                     writer.OnRaw(item.Attributes);
                     writer.OnEndAttributes();
@@ -514,8 +514,8 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualMulticellMapBase, Enumerate)
             YCHECK(response->items_size() == values.size());
             for (int index = 0; index < response->items_size(); ++index) {
                 const auto& value = values[index];
-                if (!value.Data().empty()) {
-                    response->mutable_items(index)->set_attributes(value.Data());
+                if (!value.GetData().empty()) {
+                    response->mutable_items(index)->set_attributes(value.GetData());
                 }
             }
 

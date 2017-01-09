@@ -178,7 +178,7 @@ void TCachedVersionedChunkMeta::ValidateSchema(const TTableSchema& readerSchema)
                 THROW_ERROR_EXCEPTION(
                     "Incompatible reader key columns: %Qv is a non-key column in chunk schema %v",
                     column.Name,
-                    ConvertToYsonString(ChunkSchema_, EYsonFormat::Text).Data());
+                    ConvertToYsonString(ChunkSchema_, EYsonFormat::Text).GetData());
             }
         }
     }
@@ -196,7 +196,7 @@ void TCachedVersionedChunkMeta::ValidateSchema(const TTableSchema& readerSchema)
                 "Incompatible type %Qlv for column %Qv in chunk schema %v",
                 column.Type,
                 column.Name,
-                ConvertToYsonString(ChunkSchema_, EYsonFormat::Text).Data());
+                ConvertToYsonString(ChunkSchema_, EYsonFormat::Text).GetData());
         }
 
         TColumnIdMapping mapping;

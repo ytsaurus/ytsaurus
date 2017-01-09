@@ -933,8 +933,8 @@ private:
             LOG_DEBUG("Sending subquery (Fingerprint: %v, InputSchema: %v, ResultSchema: %v, SerializationTime: "
                           "%v, RequestSize: %v)",
                 queryFingerprint,
-                NYTree::ConvertToYsonString(query->OriginalSchema, NYson::EYsonFormat::Text).Data(),
-                NYTree::ConvertToYsonString(query->GetTableSchema(), NYson::EYsonFormat::Text).Data(),
+                NYTree::ConvertToYsonString(query->OriginalSchema, NYson::EYsonFormat::Text).GetData(),
+                NYTree::ConvertToYsonString(query->GetTableSchema(), NYson::EYsonFormat::Text).GetData(),
                 serializationTime,
                 req->ByteSize());
 
@@ -2210,7 +2210,7 @@ private:
         TStringStream stream;
         TBufferedBinaryYsonWriter writer(&stream, EYsonType::Node, false);
         YCHECK(value.GetType() == EYsonType::Node);
-        writer.OnRaw(value.Data(), EYsonType::Node);
+        writer.OnRaw(value.GetData(), EYsonType::Node);
         writer.Flush();
         req->set_value(stream.Str());
 
@@ -2742,7 +2742,7 @@ private:
         SetTransactionId(req, options, true);
         SetMutationId(req, options);
         req->set_type(static_cast<int>(type));
-        req->set_spec(spec.Data());
+        req->set_spec(spec.GetData());
 
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
@@ -2999,7 +2999,7 @@ private:
     {
         auto req = JobProberProxy_->PollJobShell();
         ToProto(req->mutable_job_id(), jobId);
-        ToProto(req->mutable_parameters(), parameters.Data());
+        ToProto(req->mutable_parameters(), parameters.GetData());
 
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();

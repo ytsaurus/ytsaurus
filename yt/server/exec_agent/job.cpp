@@ -413,7 +413,7 @@ public:
         auto req = proxy.PollJobShell();
 
         ToProto(req->mutable_job_id(), Id_);
-        ToProto(req->mutable_parameters(), parameters.Data());
+        ToProto(req->mutable_parameters(), parameters.GetData());
         auto rspOrError = WaitFor(req->Invoke());
         // The following code changes error code for more user-friendly
         // diagnostics in interactive shell.

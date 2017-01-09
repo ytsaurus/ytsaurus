@@ -541,7 +541,7 @@ TYsonString TNodeShard::PollJobShell(const TJobId& jobId, const TYsonString& par
     auto proxy = CreateJobProberProxy(job);
     auto req = proxy.PollJobShell();
     ToProto(req->mutable_job_id(), jobId);
-    ToProto(req->mutable_parameters(), parameters.Data());
+    ToProto(req->mutable_parameters(), parameters.GetData());
 
     auto rspOrError = WaitFor(req->Invoke());
     if (!rspOrError.IsOK()) {
