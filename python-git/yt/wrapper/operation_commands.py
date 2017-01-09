@@ -111,10 +111,11 @@ def get_operation_attributes(operation, client=None):
     return get(operation_path + "/@", client=client)
 
 def get_operation_state(operation, client=None):
-    """Return current state of operation.
+    """Returns current state of operation.
 
     :param operation: (string) operation id.
-    Raise `YtError` if operation doesn't exists
+
+    Raises `YtError` if operation does not exists.
     """
     config = get_config(client)
     retry_count = config["proxy"]["request_retry_count"]

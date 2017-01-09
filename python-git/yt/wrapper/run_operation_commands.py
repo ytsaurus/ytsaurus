@@ -13,7 +13,7 @@ Python wrapper has some improvements over bare YT operations:
 .. _operation_parameters:
 
 Common operations parameters
------------------------
+----------------------------
 
 
 * **spec** : (dict) universal method to set operation parameters

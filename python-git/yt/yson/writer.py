@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-'''``yson`` exposes an API familiar to users of the standard library
+"""``yson`` exposes an API familiar to users of the standard library
 :mod:`marshal` and :mod:`pickle` modules.
 
 Serializable types (rules applied top to bottom):
@@ -10,32 +10,33 @@ unicode -> yson string (using specified encoding)
 any Mapping -> yson dict
 any Iterable -> yson list
 
-Simple examples:
->>> import yson
->>> b = [4, 5, 6]
->>> print yson.dumps({'a' : b, 'b' : b}, indent='  ')
-{
-  "a" : [
-    4;
-    5;
-    6;
-  ];
-  "b" : [
-    4;
-    5;
-    6;
-  ];
-}
->>> print yson.dumps(('a', 'a'), indent='  ')
-[
-  "a";
-  "a";
-]
->>> print yson.dumps(123456)
-123456
->>> print yson.dumps(u'"Hello world!" -- "Превед, медвед!"')
-"\"Hello world!\" -- \"\xd0\x9f\xd1\x80\xd0\xb5\xd0\xb2\xd0\xb5\xd0\xb4, \xd0\xbc\xd0\xb5\xd0\xb4\xd0\xb2\xd0\xb5\xd0\xb4!\""
-'''
+Simple examples::
+
+    >>> import yson
+    >>> b = [4, 5, 6]
+    >>> print yson.dumps({'a' : b, 'b' : b}, indent='  ')
+    {
+      "a" : [
+        4;
+        5;
+        6;
+      ];
+      "b" : [
+        4;
+        5;
+        6;
+      ];
+    }
+    >>> print yson.dumps(('a', 'a'), indent='  ')
+    [
+      "a";
+      "a";
+    ]
+    >>> print yson.dumps(123456)
+    123456
+    >>> print yson.dumps(u'"Hello world!" -- "Превед, медвед!"')
+    "\"Hello world!\" -- \"\xd0\x9f\xd1\x80\xd0\xb5\xd0\xb2\xd0\xb5\xd0\xb4, \xd0\xbc\xd0\xb5\xd0\xb4\xd0\xb2\xd0\xb5\xd0\xb4!\""
+"""
 
 from .common import YsonError
 from . import yson_types

@@ -62,9 +62,8 @@ class Transaction(object):
     >>>    with Transaction():
     >>>        ...
     >>>        yt.run_map(...)
-    >>>
 
-    Caution: if you use this class then do not use directly methods *_transaction.
+    Caution: if you use this class then do not use directly methods \*_transaction.
 
     .. seealso:: `transactions on wiki <https://wiki.yandex-team.ru/yt/userdoc/transactions>`_
     """

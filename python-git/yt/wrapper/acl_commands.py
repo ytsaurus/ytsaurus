@@ -5,11 +5,12 @@ from .driver import make_request
 from .transaction_commands import _make_formatted_transactional_request
 
 def check_permission(user, permission, path, format=None, read_from=None, client=None):
-    """Check permission for Cypress node
+    """Checks permission for Cypress node.
 
     :param user: (string) user login
     :param permission: (string) ["read", "write", "administer", "create", "use"]
     :return: permission in specified format (YSON by default)
+
     .. seealso:: `permissions on wiki <https://wiki.yandex-team.ru/yt/userdoc/accesscontrol#polzovateligruppyisubekty>`_
     """
     params ={
@@ -25,10 +26,11 @@ def check_permission(user, permission, path, format=None, read_from=None, client
         client=client)
 
 def add_member(member, group, client=None):
-    """Add member to Cypress node group
+    """Adds member to Cypress node group.
 
     :param member: (string)
     :param group: (string)
+
     .. seealso:: `permissions on wiki <https://wiki.yandex-team.ru/yt/userdoc/accesscontrol#polzovateligruppyisubekty>`_
     """
     return make_request(
@@ -40,10 +42,11 @@ def add_member(member, group, client=None):
         client=client)
 
 def remove_member(member, group, client=None):
-    """Remove member from Cypress node group
+    """Removes member from Cypress node group.
 
     :param member: (string)
     :param group: (string)
+
     .. seealso:: `permissions on wiki <https://wiki.yandex-team.ru/yt/userdoc/accesscontrol#polzovateligruppyisubekty>`_
     """
     return make_request(

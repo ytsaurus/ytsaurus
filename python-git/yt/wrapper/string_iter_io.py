@@ -7,9 +7,7 @@ except ImportError:  # Python 3
     from io import BytesIO
 
 class StringIterIO(Iterator):
-    """
-    Read-only IO stream wraps strings iterator.
-    """
+    """Read-only IO stream wraps strings iterator."""
 
     def __init__(self, strings_iter, add_eoln=False):
         self._strings_iter = strings_iter
@@ -20,8 +18,7 @@ class StringIterIO(Iterator):
         self._extract_next()
 
     def read(self, size=None):
-        """
-        Get string of 'size' length from stream.
+        """Get string of "size" length from stream.
 
         :param size: (int) number bytes to read
         """
@@ -50,9 +47,7 @@ class StringIterIO(Iterator):
             return string_output.getvalue()
 
     def readline(self):
-        """
-        Get from string line (string ended by '\n').
-        """
+        """Get from string line (string ended by "\\\\n")."""
         if not self._active:
             return b""
 
