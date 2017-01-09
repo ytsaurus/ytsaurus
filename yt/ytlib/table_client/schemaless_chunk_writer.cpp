@@ -366,7 +366,7 @@ public:
             blockCache,
             schema)
     {
-        Logger.AddTag("HorizontalUnversionedChunkWriter: %p", this);
+        Logger.AddTag("HorizontalUnversionedChunkWriter: %v", TGuid::Create());
         BlockWriter_.reset(new THorizontalSchemalessBlockWriter);
     }
 
@@ -443,7 +443,7 @@ public:
             schema)
         , DataToBlockFlush_(Config_->BlockSize)
     {
-        Logger.AddTag("ColumnUnversionedChunkWriter: %p", this);
+        Logger.AddTag("ColumnUnversionedChunkWriter: %v", TGuid::Create());
 
         // Only scan-optimized version for now.
         yhash_map<Stroka, TDataBlockWriter*> groupBlockWriters;
