@@ -381,6 +381,7 @@ class YTInstance(object):
 
         if self._open_port_iterator is not None:
             self._open_port_iterator.release_locks()
+            self._open_port_iterator = None
 
     def get_proxy_address(self):
         if not self.has_proxy:
