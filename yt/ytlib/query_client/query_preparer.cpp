@@ -1747,13 +1747,13 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
     auto queryFingerprint = InferName(query, true);
     LOG_DEBUG("Prepared query (Fingerprint: %v, InputSchema: %v, ResultSchema: %v)",
         queryFingerprint,
-        NYTree::ConvertToYsonString(query->OriginalSchema, NYson::EYsonFormat::Text).GetData(),
-        NYTree::ConvertToYsonString(query->GetTableSchema(), NYson::EYsonFormat::Text).GetData());
+        query->OriginalSchema,
+        query->GetTableSchema());
 
     auto range = GetBothBoundsFromDataSplit(selfDataSplit);
 
     SmallVector<TRowRange, 1> rowRanges;
-    TRowBufferPtr buffer = New<TRowBuffer>(TQueryPreparerBufferTag());
+    auto buffer = New<TRowBuffer>(TQueryPreparerBufferTag());
     rowRanges.push_back({
         buffer->Capture(range.first.Get()),
         buffer->Capture(range.second.Get())});
@@ -1792,9 +1792,10 @@ TQueryPtr PrepareJobQuery(
 
     auto query = New<TQuery>(unlimited, unlimited, TGuid::Create());
     query->OriginalSchema = tableSchema;
+
     TSchemaProxyPtr schemaProxy = New<TScanSchemaProxy>(
         tableSchema,
-        "",
+        Stroka(),
         &query->SchemaMapping);
 
     auto functionNames = ExtractFunctionNames(parsedQueryInfo);

@@ -930,11 +930,11 @@ private:
             }
 
             auto queryFingerprint = InferName(query, true);
-            LOG_DEBUG("Sending subquery (Fingerprint: %v, InputSchema: %v, ResultSchema: %v, SerializationTime: "
-                          "%v, RequestSize: %v)",
+            LOG_DEBUG("Sending subquery (Fingerprint: %v, InputSchema: %v, ResultSchema: %v, "
+                "SerializationTime: %v, RequestSize: %v)",
                 queryFingerprint,
-                NYTree::ConvertToYsonString(query->OriginalSchema, NYson::EYsonFormat::Text).GetData(),
-                NYTree::ConvertToYsonString(query->GetTableSchema(), NYson::EYsonFormat::Text).GetData(),
+                query->OriginalSchema,
+                query->GetTableSchema(),
                 serializationTime,
                 req->ByteSize());
 

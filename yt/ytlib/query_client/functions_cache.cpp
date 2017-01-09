@@ -193,7 +193,7 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
         auto objectId = NYT::FromProto<NObjectClient::TObjectId>(basicAttrsRsp->object_id());
         auto cellTag = basicAttrsRsp->cell_tag();
 
-        LOG_DEBUG("Found implementation of function %Qv in Cypress (Descriptor: %v)",
+        LOG_DEBUG("Found UDF implementation in Cypress (Name: %v, Descriptor: %v)",
             functionName,
             ConvertToYsonString(item, NYson::EYsonFormat::Text).GetData());
 
