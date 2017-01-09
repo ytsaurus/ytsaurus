@@ -36,9 +36,10 @@ def get(path, attributes=None, format=None, ignore_opaque=False, read_from=None,
     :param format: (string or descendant of `yt.wrapper.format.Format`) output format \
         (by default python dict automatically parsed from YSON).
     :param ignore_opaque: (bool)
+    :return: node tree content in `format`
+
     Be careful: attributes have specific representation in JSON format.
 
-    :return: node tree content in `format`
     .. seealso:: `get on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#get>`_
     """
     params = {
@@ -57,9 +58,10 @@ def set(path, value, format=None, client=None):
 
     :param path: (string or `yt.wrapper.YPath`)
     :param value: json-able object.
+    :param format: format of the value. If format is None than value should be \
+    object that can be dumped to JSON of YSON. Otherwise it should be string.
+
     .. seealso:: `set on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#set>`_
-    :param format: format of the value. If format is None than value should be object that can be dumped to JSON of YSON.
-    Otherwise it should be string.
     """
     if format is None:
         value = yson.dumps(value)
@@ -85,6 +87,7 @@ def copy(source_path, destination_path, recursive=None, preserve_account=None, f
     :param recursive: (bool) `config["yamr_mode"]["create_recursive"]` by default
     :param preserve_account: (bool)
     :param force: (bool)
+
     .. seealso:: `copy on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#copy>`_
     """
     params = {"source_path": YPath(source_path, client=client),
@@ -104,6 +107,7 @@ def move(source_path, destination_path, recursive=None, preserve_account=None, f
     :param recursive: (bool) `config["yamr_mode"]["create_recursive"]` by default
     :param preserve_account: (bool)
     :param force: (bool)
+
     .. seealso:: `move on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#move>`_
     """
     params = {"source_path": YPath(source_path, client=client),
@@ -140,6 +144,7 @@ def link(target_path, link_path, recursive=False, ignore_existing=False, force=F
     :param link_path: (string or `yt.wrapper.YPath`)
     :param recursive: (bool)
     :param ignore_existing: (bool)
+
     .. seealso:: `link on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#link>`_
     """
     params = {
@@ -165,10 +170,11 @@ def list(path, max_size=None, format=None, absolute=None, attributes=None, sort=
     :param attributes: (list) desired node attributes in the response.
     :param format: (descendant of `Format`) command response format, by default - None.
     :param absolute: (bool) convert relative paths to absolute. Works only if format isn't specified.
-    :param sort: (bool) if set to True output will be sorted;
-        NOTE output is never sorted if format is specified or result is incomplete,
-        i.e. path children count exceeds max_size.
+    :param sort: (bool) if set to True output will be sorted.
+    .. note:: Output is never sorted if format is specified or result is incomplete, \
+    i.e. path children count exceeds max_size.
     :return: raw YSON (string) by default, parsed YSON or JSON if format is not specified (=None).
+
     .. seealso:: `list on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#list>`_
     """
     if format is not None and absolute is not None:
@@ -200,6 +206,7 @@ def exists(path, read_from=None, client=None):
     """Check Cypress node exists.
 
     :param path: (string or `YPath`)
+
     .. seealso:: `exists on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#exists>`_
     """
     params = {"path": YPath(path, client=client)}
@@ -217,6 +224,7 @@ def remove(path, recursive=False, force=False, client=None):
     :param path: (string or `YPath`)
     :param recursive: (bool)
     :param force: (bool)
+
     .. seealso:: `remove on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#remove>`_
     """
     _make_transactional_request(
@@ -235,6 +243,7 @@ def create(type, path=None, recursive=False, ignore_existing=False, attributes=N
     :param path: (string or `YPath`)
     :param recursive: (bool) `config["yamr_mode"]["create_recursive"]` by default
     :param attributes: (dict)
+
     .. seealso:: `create on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#create>`_
     """
     recursive = get_value(recursive, get_config(client)["yamr_mode"]["create_recursive"])
@@ -262,7 +271,8 @@ def get_attribute(path, attribute, default=_KWARG_SENTINEL, client=None):
 
     :param path: (string)
     :param attribute: (string)
-    :param default: (any) return it if node hasn't attribute `attribute`."""
+    :param default: (any) return it if node hasn't attribute `attribute`.
+    """
     if default is not _KWARG_SENTINEL and attribute not in list_attributes(path, client=client):
         return default
     return get("%s/@%s" % (path, attribute), client=client)

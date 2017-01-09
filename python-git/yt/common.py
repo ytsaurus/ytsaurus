@@ -337,20 +337,20 @@ def to_native_str(string, encoding="utf-8"):
     return string
 
 def copy_docstring_from(documented_function):
-    """
-    Decorator that copies docstring from one function to another
+    """Decorator that copies docstring from one function to another.
 
-    :param documented_function: function that provides docstring
+    :param documented_function: function that provides docstring.
 
-    Usage:
-    def foo(...):
-        "USEFUL DOCUMENTATION"
-        ...
+    Usage::
 
-    @copy_docstring_from(foo)
-    def bar(...)
-        # docstring will be copied from `foo' function
-        ...
+        def foo(...):
+            "USEFUL DOCUMENTATION"
+            ...
+
+        @copy_docstring_from(foo)
+        def bar(...)
+            # docstring will be copied from `foo' function
+            ...
     """
     return functools.wraps(documented_function, assigned=("__doc__",), updated=())
 

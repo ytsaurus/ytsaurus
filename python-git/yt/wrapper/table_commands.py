@@ -410,7 +410,8 @@ def copy_table(source_table, destination_table, replace=True, client=None):
     :param replace: (bool) override `destination_table`
 
     .. note:: param `replace` is overridden by set \
-              `yt.wrapper.config["yamr_mode"]["replace_tables_on_copy_and_move"]`
+    `yt.wrapper.config["yamr_mode"]["replace_tables_on_copy_and_move"]`
+
     If `source_table` is a list of tables, tables would be merged.
     """
     from .run_operation_commands import run_merge

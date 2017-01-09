@@ -573,8 +573,8 @@ class YamrFormat(Format):
 
     Supported two mutually exclusive modes: text mode with delimiter and \
     binary mode ('lenval') with length before each field.
-    .. note:: In delimiter mode implemented just standard delimiter `\t` and terminator `\n`.
 
+    .. note:: In delimiter mode implemented just standard delimiter "\\\\t" and terminator "\\\\n".
     .. seealso:: `YAMR on wiki <https://wiki.yandex-team.ru/yt/userdoc/formats#yamr>`_
     """
 

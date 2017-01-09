@@ -20,7 +20,7 @@ def _make_formatted_transactional_request(command_name, params, format, **kwargs
     return make_formatted_request(command_name, _add_transaction_params(params, kwargs.get("client", None)), format, **kwargs)
 
 def start_transaction(parent_transaction=None, timeout=None, attributes=None, type="master", sticky=False, client=None):
-    """Start transaction.
+    """Starts transaction.
 
     :param parent_transaction: (string) parent transaction id
     :param timeout: transaction lifetime singe last ping in milliseconds
@@ -28,6 +28,7 @@ def start_transaction(parent_transaction=None, timeout=None, attributes=None, ty
     :param sticky: EXPERIMENTAL, do not use it, unless you have been told to do so
     :param attributes: (dict)
     :return: (string) new transaction id
+
     .. seealso:: `start_tx on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#starttx>`_
     """
     params = transaction_params(parent_transaction, client=client)
@@ -40,9 +41,10 @@ def start_transaction(parent_transaction=None, timeout=None, attributes=None, ty
     return make_formatted_request("start_tx", params, None, client=client)
 
 def abort_transaction(transaction, sticky=False, client=None):
-    """Abort transaction. All changes will be lost.
+    """Aborts transaction. All changes will be lost.
 
     :param transaction: (string) transaction id
+
     .. seealso:: `abort_tx on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#aborttx>`_
     """
     params = transaction_params(transaction, client=client)
@@ -50,9 +52,10 @@ def abort_transaction(transaction, sticky=False, client=None):
     make_request("abort_tx", params, client=client)
 
 def commit_transaction(transaction, sticky=False, client=None):
-    """Save all transaction changes.
+    """Saves all transaction changes.
 
     :param transaction: (string) transaction id
+
     .. seealso:: `commit_tx on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#committx>`_
     """
     params = transaction_params(transaction, client=client)
@@ -60,9 +63,10 @@ def commit_transaction(transaction, sticky=False, client=None):
     make_request("commit_tx", params, client=client)
 
 def ping_transaction(transaction, sticky=False, client=None):
-    """Prolong transaction lifetime.
+    """Prolongs transaction lifetime.
 
     :param transaction: (string) transaction id
+
     .. seealso:: `ping_tx on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#pingtx>`_
     """
     params = transaction_params(transaction, client=client)
