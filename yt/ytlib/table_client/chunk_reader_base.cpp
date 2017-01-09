@@ -123,6 +123,22 @@ int TChunkReaderBase::GetBlockIndexByKey(
     return beginBlockIndex + ((it != rend) ? std::distance(it, rend) : 0);
 }
 
+void TChunkReaderBase::CheckBlockUpperKeyLimit(
+    const TBlockMeta& blockMeta,
+    TKey upperLimit,
+    TNullable<int> keyColumnCount)
+{
+    auto key = FromProto<TOwningKey>(blockMeta.last_key());
+    auto wideKey = WidenKey(key, keyColumnCount ? keyColumnCount.Get() : key.GetCount());
+
+    auto upperKey = upperLimit;
+    CheckKeyLimit_ = CompareRows(
+        upperKey.Begin(),
+        upperKey.End(),
+        wideKey.data(),
+        wideKey.data() + wideKey.size()) <= 0;
+}
+
 void TChunkReaderBase::CheckBlockUpperLimits(
     const TBlockMeta& blockMeta,
     const TReadLimit& upperLimit,
@@ -133,15 +149,7 @@ void TChunkReaderBase::CheckBlockUpperLimits(
     }
 
     if (upperLimit.HasKey()) {
-        auto key = FromProto<TOwningKey>(blockMeta.last_key());
-        auto wideKey = WidenKey(key, keyColumnCount ? keyColumnCount.Get() : key.GetCount());
-
-        auto upperKey = upperLimit.GetKey();
-        CheckKeyLimit_ = CompareRows(
-            upperKey.Begin(),
-            upperKey.End(),
-            wideKey.data(),
-            wideKey.data() + wideKey.size()) <= 0;
+        CheckBlockUpperKeyLimit(blockMeta, upperLimit.GetKey(), keyColumnCount);
     }
 }
 
@@ -165,7 +173,7 @@ int TChunkReaderBase::ApplyLowerRowLimit(const TBlockMetaExt& blockMeta, const T
     typedef decltype(blockMetaEntries.end()) TIter;
     auto rbegin = std::reverse_iterator<TIter>(blockMetaEntries.end() - 1);
     auto rend = std::reverse_iterator<TIter>(blockMetaEntries.begin());
-    
+
     auto it = std::upper_bound(
         rbegin,
         rend,

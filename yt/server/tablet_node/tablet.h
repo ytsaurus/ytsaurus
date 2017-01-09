@@ -118,8 +118,8 @@ struct TTabletSnapshot
 
     //! Returns a range of partitions intersecting with the range |[lowerBound, upperBound)|.
     std::pair<TPartitionListIterator, TPartitionListIterator> GetIntersectingPartitions(
-        const TOwningKey& lowerBound,
-        const TOwningKey& upperBound);
+        const TKey& lowerBound,
+        const TKey& upperBound);
 
     //! Returns a partition possibly containing a given #key or
     //! |nullptr| is there's none.

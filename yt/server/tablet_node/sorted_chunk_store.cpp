@@ -281,22 +281,16 @@ TOwningKey TSortedChunkStore::GetMaxKey() const
 
 IVersionedReaderPtr TSortedChunkStore::CreateReader(
     const TTabletSnapshotPtr& tabletSnapshot,
-    TOwningKey lowerKey,
-    TOwningKey upperKey,
+    TSharedRange<TRowRange> ranges,
     TTimestamp timestamp,
     const TColumnFilter& columnFilter,
     const TWorkloadDescriptor& workloadDescriptor)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    if (upperKey <= MinKey_ || lowerKey > MaxKey_) {
-        return nullptr;
-    }
-
     // Fast lane: check for in-memory reads.
     auto reader = CreateCacheBasedReader(
-        lowerKey,
-        upperKey,
+        ranges,
         timestamp,
         columnFilter,
         tabletSnapshot->TableSchema);
@@ -309,8 +303,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     if (backingStore) {
         return backingStore->CreateReader(
             tabletSnapshot,
-            std::move(lowerKey),
-            std::move(upperKey),
+            ranges,
             timestamp,
             columnFilter,
             workloadDescriptor);
@@ -328,16 +321,14 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         std::move(chunkReader),
         std::move(blockCache),
         std::move(cachedVersionedChunkMeta),
-        std::move(lowerKey),
-        std::move(upperKey),
+        std::move(ranges),
         columnFilter,
         PerformanceCounters_,
         timestamp);
 }
 
 IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
-    TOwningKey lowerKey,
-    TOwningKey upperKey,
+    TSharedRange<TRowRange> ranges,
     TTimestamp timestamp,
     const TColumnFilter& columnFilter,
     const TTableSchema& schema)
@@ -355,8 +346,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
 
     return CreateCacheBasedVersionedChunkReader(
         ChunkState_,
-        std::move(lowerKey),
-        std::move(upperKey),
+        std::move(ranges),
         columnFilter,
         timestamp);
 }

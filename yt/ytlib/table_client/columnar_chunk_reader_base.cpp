@@ -1,5 +1,6 @@
 #include "columnar_chunk_reader_base.h"
 #include "columnar_chunk_meta.h"
+#include "private.h"
 
 #include "config.h"
 #include "unversioned_row.h"
@@ -20,6 +21,9 @@ using namespace NTableChunkFormat;
 using namespace NTableChunkFormat::NProto;
 
 using NChunkClient::TReadLimit;
+
+static const auto& Logger = TableClientLogger;
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -124,8 +128,8 @@ i64 TColumnarChunkReaderBase::GetLowerRowIndex(TKey key) const
     if (it == ChunkMeta_->BlockLastKeys().begin()) {
         return 0;
     }
-
     --it;
+
     int blockIndex = std::distance(ChunkMeta_->BlockLastKeys().begin(), it);
     const auto& blockMeta = ChunkMeta_->BlockMeta().blocks(blockIndex);
     return blockMeta.chunk_row_count();
@@ -163,12 +167,23 @@ void TColumnarRangeChunkReaderBase::InitUpperRowIndex()
         } else {
             int blockIndex = std::distance(ChunkMeta_->BlockLastKeys().begin(), it);
             const auto& blockMeta = ChunkMeta_->BlockMeta().blocks(blockIndex);
-            SafeUpperRowIndex_ = std::min(
-                SafeUpperRowIndex_,
-                blockMeta.chunk_row_count() - blockMeta.row_count() - 1);
+
             HardUpperRowIndex_ = std::min(
                 HardUpperRowIndex_,
                 blockMeta.chunk_row_count());
+
+            if (it == ChunkMeta_->BlockLastKeys().begin()) {
+                SafeUpperRowIndex_ = 0;
+            } else {
+                --it;
+
+                int prevBlockIndex = std::distance(ChunkMeta_->BlockLastKeys().begin(), it);
+                const auto& prevBlockMeta = ChunkMeta_->BlockMeta().blocks(prevBlockIndex);
+
+                SafeUpperRowIndex_ = std::min(
+                    SafeUpperRowIndex_,
+                    prevBlockMeta.chunk_row_count());
+            }
         }
     }
 }
@@ -255,8 +270,8 @@ TFuture<void> TColumnarRangeChunkReaderBase::RequestFirstBlocks()
             // E.g. NullColumnReader.
             PendingBlocks_.emplace_back();
         } else {
-            PendingBlocks_.push_back(BlockFetcher_->FetchBlock(column.BlockIndexSequence.front()));
             column.PendingBlockIndex_ = column.BlockIndexSequence.front();
+            PendingBlocks_.push_back(BlockFetcher_->FetchBlock(column.PendingBlockIndex_));
             blockFetchResult.push_back(PendingBlocks_.back().template As<void>());
         }
     }
