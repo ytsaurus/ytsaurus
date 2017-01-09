@@ -342,21 +342,23 @@ private:
     void EmitSample(TUnversionedRow row)
     {
         SmallVector<TUnversionedValue, TypicalColumnCount> sampleValues;
+        int weight = 0;
         for (auto it = row.Begin(); it != row.End(); ++it) {
             sampleValues.push_back(*it);
             auto& value = sampleValues.back();
+            weight += GetDataWeight(value);
+
             if (value.Type == EValueType::Any) {
                 // Composite types are non-comparable, so we don't store it inside samples.
                 value.Length = 0;
-            }
-
-            if (value.Type == EValueType::String) {
+            } else if (value.Type == EValueType::String) {
                 value.Length = std::min(static_cast<int>(value.Length), MaxSampleSize);
             }
         }
 
         auto entry = SerializeToString(sampleValues.begin(), sampleValues.end());
         SamplesExt_.add_entries(entry);
+        SamplesExt_.add_weights(weight);
         SamplesExtSize_ += entry.length();
     }
 };
@@ -490,7 +492,7 @@ public:
         if (!Schema_.GetStrict()) {
              auto blockWriter = std::make_unique<TDataBlockWriter>();
              ValueColumnWriters_.emplace_back(CreateSchemalessColumnWriter(
-                Schema_.Columns().size(), 
+                Schema_.Columns().size(),
                 blockWriter.get()));
              BlockWriters_.emplace_back(std::move(blockWriter));
         }

@@ -493,7 +493,17 @@ TFuture<void> TChunkStoreBase::GetPreloadFuture() const
 
 void TChunkStoreBase::SetPreloadFuture(TFuture<void> future)
 {
-    PreloadFuture_ = future;
+    PreloadFuture_ = std::move(future);
+}
+
+TFuture<void> TChunkStoreBase::GetPreloadBackoffFuture() const
+{
+    return PreloadBackoffFuture_;
+}
+
+void TChunkStoreBase::SetPreloadBackoffFuture(TFuture<void> future)
+{
+    PreloadBackoffFuture_ = std::move(future);
 }
 
 EStoreCompactionState TChunkStoreBase::GetCompactionState() const

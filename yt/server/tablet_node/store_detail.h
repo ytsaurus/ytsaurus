@@ -212,6 +212,9 @@ public:
     virtual TFuture<void> GetPreloadFuture() const override;
     virtual void SetPreloadFuture(TFuture<void> future) override;
 
+    virtual TFuture<void> GetPreloadBackoffFuture() const override;
+    virtual void SetPreloadBackoffFuture(TFuture<void> future) override;
+
     virtual EStoreCompactionState GetCompactionState() const override;
     virtual void SetCompactionState(EStoreCompactionState state) override;
 
@@ -233,6 +236,7 @@ protected:
     EStorePreloadState PreloadState_ = EStorePreloadState::Disabled;
     TInstant LastPreloadAttemptTimestamp_;
     TFuture<void> PreloadFuture_;
+    TFuture<void> PreloadBackoffFuture_;
     EStoreCompactionState CompactionState_ = EStoreCompactionState::None;
     TInstant LastCompactionAttemptTimestamp_;
 
