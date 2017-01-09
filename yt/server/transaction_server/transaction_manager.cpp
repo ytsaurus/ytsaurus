@@ -556,7 +556,7 @@ public:
 
             RunPrepareTransactionActions(transaction, persistent);
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %v, Persistent: %v, PrepareTimestamp: %)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %v, Persistent: %v, PrepareTimestamp: %v)",
                 transactionId,
                 persistent,
                 prepareTimestamp);
