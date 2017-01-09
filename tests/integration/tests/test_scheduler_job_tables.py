@@ -1,6 +1,8 @@
 from yt_env_setup import YTEnvSetup, unix_only, wait, require_enabled_core_dump, require_ytserver_root_privileges
 from yt_commands import *
 
+from flaky import flaky
+
 import binascii
 import itertools
 import pytest
@@ -420,6 +422,7 @@ def queue_iterator(queue):
             return
         yield chunk
 
+@flaky(max_runs=5)
 class TestCoreTable(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
