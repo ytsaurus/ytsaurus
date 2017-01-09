@@ -75,7 +75,7 @@ private:
         auto job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
         auto trace = job->Strace();
 
-        ToProto(response->mutable_trace(), trace.Data());
+        ToProto(response->mutable_trace(), trace.GetData());
         context->Reply();
     }
 
@@ -105,7 +105,7 @@ private:
         auto job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
         auto result = job->PollJobShell(TYsonString(parameters));
 
-        ToProto(response->mutable_result(), result.Data());
+        ToProto(response->mutable_result(), result.GetData());
         context->Reply();
     }
 

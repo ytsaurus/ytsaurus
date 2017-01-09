@@ -262,7 +262,7 @@ private:
                             })
                             .Item("metric_type").Value(FormatEnum(sample.MetricType))
                         .EndMap();
-                }).Data());
+                }).GetData());
 
             context->Reply();
         }

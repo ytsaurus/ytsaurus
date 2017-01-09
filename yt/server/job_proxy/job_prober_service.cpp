@@ -73,7 +73,7 @@ private:
 
         auto trace = JobProxy_->Strace(jobId);
 
-        ToProto(response->mutable_trace(), trace.Data());
+        ToProto(response->mutable_trace(), trace.GetData());
         context->Reply();
     }
 
@@ -104,7 +104,7 @@ private:
 
         auto result = JobProxy_->PollJobShell(jobId, parameters);
 
-        ToProto(response->mutable_result(), result.Data());
+        ToProto(response->mutable_result(), result.GetData());
         context->Reply();
     }
 

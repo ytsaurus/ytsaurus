@@ -397,7 +397,7 @@ TEST(TYsonSerializableTest, Save)
 
     EXPECT_TRUE(AreNodesEqual(
         ConvertToNode(TYsonString(expectedYson)),
-        ConvertToNode(TYsonString(output.Data()))));
+        ConvertToNode(TYsonString(output.GetData()))));
 }
 
 TEST(TYsonSerializableTest, TestConfigUpdate)
@@ -489,7 +489,7 @@ TEST(TYsonSerializableTest, SaveLite)
 
     EXPECT_TRUE(AreNodesEqual(
         ConvertToNode(TYsonString(expectedYson)),
-        ConvertToNode(TYsonString(output.Data()))));
+        ConvertToNode(TYsonString(output.GetData()))));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

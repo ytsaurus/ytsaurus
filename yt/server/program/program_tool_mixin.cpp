@@ -22,7 +22,7 @@ bool TProgramToolMixin::HandleToolOptions()
 {
     if (!ToolName_.empty()) {
         auto result = NTools::ExecuteTool(ToolName_, NYson::TYsonString(ToolSpec_));
-        Cout << result.Data();
+        Cout << result.GetData();
         Cout.Flush();
         return true;
     }

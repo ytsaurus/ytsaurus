@@ -2208,7 +2208,7 @@ private:
 
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
             ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
-            schedulerJobSpecExt->set_io_config(ConvertToYsonString(PartitionJobIOConfig).Data());
+            schedulerJobSpecExt->set_io_config(ConvertToYsonString(PartitionJobIOConfig).GetData());
 
             auto* partitionJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
             partitionJobSpecExt->set_partition_count(Partitions.size());
@@ -2230,14 +2230,14 @@ private:
             IntermediateSortJobSpecTemplate = sortJobSpecTemplate;
             IntermediateSortJobSpecTemplate.set_type(static_cast<int>(GetIntermediateSortJobType()));
             auto* schedulerJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-            schedulerJobSpecExt->set_io_config(ConvertToYsonString(IntermediateSortJobIOConfig).Data());
+            schedulerJobSpecExt->set_io_config(ConvertToYsonString(IntermediateSortJobIOConfig).GetData());
         }
 
         {
             FinalSortJobSpecTemplate = sortJobSpecTemplate;
             FinalSortJobSpecTemplate.set_type(static_cast<int>(GetFinalSortJobType()));
             auto* schedulerJobSpecExt = FinalSortJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-            schedulerJobSpecExt->set_io_config(ConvertToYsonString(FinalSortJobIOConfig).Data());
+            schedulerJobSpecExt->set_io_config(ConvertToYsonString(FinalSortJobIOConfig).GetData());
         }
 
         {
@@ -2247,7 +2247,7 @@ private:
 
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
             ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
-            schedulerJobSpecExt->set_io_config(ConvertToYsonString(SortedMergeJobIOConfig).Data());
+            schedulerJobSpecExt->set_io_config(ConvertToYsonString(SortedMergeJobIOConfig).GetData());
 
             ToProto(mergeJobSpecExt->mutable_key_columns(), Spec->SortBy);
         }
@@ -2259,7 +2259,7 @@ private:
 
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
             ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
-            schedulerJobSpecExt->set_io_config(ConvertToYsonString(UnorderedMergeJobIOConfig).Data());
+            schedulerJobSpecExt->set_io_config(ConvertToYsonString(UnorderedMergeJobIOConfig).GetData());
 
             ToProto(mergeJobSpecExt->mutable_key_columns(), Spec->SortBy);
         }
@@ -2735,7 +2735,7 @@ private:
 
             ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-            schedulerJobSpecExt->set_io_config(ConvertToYsonString(PartitionJobIOConfig).Data());
+            schedulerJobSpecExt->set_io_config(ConvertToYsonString(PartitionJobIOConfig).GetData());
 
             partitionJobSpecExt->set_partition_count(Partitions.size());
             partitionJobSpecExt->set_reduce_key_column_count(Spec->ReduceBy.size());
@@ -2754,7 +2754,7 @@ private:
             auto* schedulerJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
             ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
-            schedulerJobSpecExt->set_io_config(ConvertToYsonString(IntermediateSortJobIOConfig).Data());
+            schedulerJobSpecExt->set_io_config(ConvertToYsonString(IntermediateSortJobIOConfig).GetData());
 
             if (Spec->ReduceCombiner) {
                 IntermediateSortJobSpecTemplate.set_type(static_cast<int>(EJobType::ReduceCombiner));
@@ -2783,7 +2783,7 @@ private:
 
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
             ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
-            schedulerJobSpecExt->set_io_config(ConvertToYsonString(FinalSortJobIOConfig).Data());
+            schedulerJobSpecExt->set_io_config(ConvertToYsonString(FinalSortJobIOConfig).GetData());
 
             ToProto(reduceJobSpecExt->mutable_key_columns(), Spec->SortBy);
             reduceJobSpecExt->set_reduce_key_column_count(Spec->ReduceBy.size());
@@ -2803,7 +2803,7 @@ private:
 
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
             ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
-            schedulerJobSpecExt->set_io_config(ConvertToYsonString(SortedMergeJobIOConfig).Data());
+            schedulerJobSpecExt->set_io_config(ConvertToYsonString(SortedMergeJobIOConfig).GetData());
 
             ToProto(reduceJobSpecExt->mutable_key_columns(), Spec->SortBy);
             reduceJobSpecExt->set_reduce_key_column_count(Spec->ReduceBy.size());

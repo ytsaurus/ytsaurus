@@ -743,7 +743,7 @@ TSharedRange<TRow> MakeRows(const Stroka& yson)
                 break;
             default:
                 keyBuilder.AddValue(MakeAnyValue<TUnversionedValue>(
-                    ConvertToYsonString(keyPart).Data(),
+                    ConvertToYsonString(keyPart).GetData(),
                     id));
                 break;
         }

@@ -148,7 +148,7 @@ TYsonString StripAttributes(const TYsonString& yson)
     TStringStream outputStream;
     TYsonWriter writer(&outputStream);
     TYsonAtributesStripper stripper(&writer);
-    ParseYsonStringBuffer(yson.Data(), yson.GetType(), &stripper);
+    ParseYsonStringBuffer(yson.GetData(), yson.GetType(), &stripper);
     return TYsonString(outputStream.Str(), yson.GetType());
 }
 
@@ -196,7 +196,7 @@ void TJobStatistics::SetFinishTime(TInstant finishTime)
 void TJobStatistics::SetError(const TError& error)
 {
     if (!error.IsOK()) {
-        Error_ = ConvertToYsonString(error).Data();
+        Error_ = ConvertToYsonString(error).GetData();
     }
 }
 
@@ -215,12 +215,12 @@ void TJobStatistics::SetSpecVersion(i64 specVersion)
 
 void TJobStatistics::SetStatistics(const TYsonString& statistics)
 {
-    Statistics_ = StripAttributes(statistics).Data();
+    Statistics_ = StripAttributes(statistics).GetData();
 }
 
 void TJobStatistics::SetEvents(const TJobEvents& events)
 {
-    Events_ = ConvertToYsonString(events).Data();
+    Events_ = ConvertToYsonString(events).GetData();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

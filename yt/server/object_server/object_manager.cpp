@@ -1090,7 +1090,7 @@ void TObjectManager::ReplicateObjectAttributesToSecondaryMaster(
     TCellTag cellTag)
 {
     auto req = TYPathProxy::Set(FromObjectId(object->GetId()) + "/@");
-    req->set_value(ConvertToYsonString(GetReplicatedAttributes(object, false)->ToMap()).Data());
+    req->set_value(ConvertToYsonString(GetReplicatedAttributes(object, false)->ToMap()).GetData());
 
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     multicellManager->PostToMaster(req, cellTag);

@@ -629,7 +629,7 @@ void TObjectProxyBase::GuardedValidateCustomAttributeUpdate(
 
 void TObjectProxyBase::ValidateCustomAttributeLength(const NYson::TYsonString& value)
 {
-    auto size = value.Data().length();
+    auto size = value.GetData().length();
     auto limit = Bootstrap_->GetConfig()->CypressManager->MaxAttributeSize;
     if (size > limit) {
         THROW_ERROR_EXCEPTION(

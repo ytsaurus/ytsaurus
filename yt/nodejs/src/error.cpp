@@ -88,7 +88,7 @@ Handle<Value> ConvertErrorToV8(const TError& error)
             auto value = errorAttributes.GetYson(key);
 
             Stroka encodedValue;
-            encodedValue.reserve(value.Data().length() * 2);
+            encodedValue.reserve(value.GetData().length() * 2);
             TStringOutput valueStream(encodedValue);
             auto valueWriter = CreateJsonConsumer(&valueStream);
             Serialize(value, valueWriter.get());

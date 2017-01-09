@@ -108,7 +108,7 @@ void TVirtualMapBase::GetSelf(
 
     writer.Finish().Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
         if (resultOrError.IsOK()) {
-            response->set_value(resultOrError.Value().Data());
+            response->set_value(resultOrError.Value().GetData());
             context->Reply();
         } else {
             context->Reply(resultOrError);
@@ -156,7 +156,7 @@ void TVirtualMapBase::ListSelf(
 
     writer.Finish().Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
         if (resultOrError.IsOK()) {
-            response->set_value(resultOrError.Value().Data());
+            response->set_value(resultOrError.Value().GetData());
             context->Reply();
         } else {
             context->Reply(resultOrError);

@@ -381,7 +381,7 @@ TYsonString TSupportsAttributes::DoGetAttributeFragment(
     const TYPath& path,
     const TYsonString& wholeYson)
 {
-    if (wholeYson.GetType() == EYsonType::None) {
+    if (!wholeYson) {
         ThrowNoSuchAttribute(key);
     }
     auto node = ConvertToNode<TYsonString>(wholeYson);
@@ -478,7 +478,7 @@ void TSupportsAttributes::GetAttribute(
             context->Reply(ysonOrError);
             return;
         }
-        response->set_value(ysonOrError.Value().Data());
+        response->set_value(ysonOrError.Value().GetData());
         context->Reply();
     }));
 }
@@ -488,7 +488,7 @@ TYsonString TSupportsAttributes::DoListAttributeFragment(
     const TYPath& path,
     const TYsonString& wholeYson)
 {
-    if (wholeYson.GetType() == EYsonType::None) {
+    if (!wholeYson) {
         ThrowNoSuchAttribute(key);
     }
 
@@ -572,7 +572,7 @@ void TSupportsAttributes::ListAttribute(
 
     DoListAttribute(path).Subscribe(BIND([=] (const TErrorOr<TYsonString>& ysonOrError) {
         if (ysonOrError.IsOK()) {
-            response->set_value(ysonOrError.Value().Data());
+            response->set_value(ysonOrError.Value().GetData());
             context->Reply();
         } else {
             context->Reply(ysonOrError);
@@ -589,7 +589,7 @@ bool TSupportsAttributes::DoExistsAttributeFragment(
         return false;
     }
     const auto& wholeYson = wholeYsonOrError.Value();
-    if (wholeYson.GetType() == EYsonType::None) {
+    if (!wholeYson) {
         return false;
     }
     auto node = ConvertToNode<TYsonString>(wholeYson);

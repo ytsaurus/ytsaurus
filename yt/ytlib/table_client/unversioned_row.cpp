@@ -352,7 +352,7 @@ Stroka ToString(const TUnversionedValue& value)
         case EValueType::Any:
             builder.AppendString(ConvertToYsonString(
                 TYsonString(Stroka(value.Data.String, value.Length)),
-                EYsonFormat::Text).Data());
+                EYsonFormat::Text).GetData());
             break;
 
         default:

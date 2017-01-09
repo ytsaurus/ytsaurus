@@ -383,7 +383,7 @@ void SyncYPathSet(
     const TYsonString& value)
 {
     auto request = TYPathProxy::Set(path);
-    request->set_value(value.Data());
+    request->set_value(value.GetData());
     ExecuteVerb(service, request)
         .Get()
         .ThrowOnError();

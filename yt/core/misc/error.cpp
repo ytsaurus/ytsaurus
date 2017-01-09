@@ -327,7 +327,7 @@ void AppendError(TStringBuilder* builder, const TError& error, int indent)
             continue;
 
         auto value = error.Attributes().GetYson(key);
-        TTokenizer tokenizer(value.Data());
+        TTokenizer tokenizer(value.GetData());
         YCHECK(tokenizer.ParseNext());
         switch (tokenizer.GetCurrentType()) {
             case ETokenType::String:
@@ -346,7 +346,7 @@ void AppendError(TStringBuilder* builder, const TError& error, int indent)
                 AppendAttribute(builder, key, Stroka(FormatBool(tokenizer.CurrentToken().GetBooleanValue())), indent);
                 break;
             default:
-                AppendAttribute(builder, key, ConvertToYsonString(value, EYsonFormat::Text).Data(), indent);
+                AppendAttribute(builder, key, ConvertToYsonString(value, EYsonFormat::Text).GetData(), indent);
                 break;
         }
     }

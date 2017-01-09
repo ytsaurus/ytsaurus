@@ -11,14 +11,25 @@ namespace NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonString::TYsonString()
-    : Type_(EYsonType::None)
-{ }
-
 TYsonString::TYsonString(const Stroka& data, EYsonType type)
     : Data_(data)
     , Type_(type)
 { }
+
+TYsonString::operator bool() const
+{
+    return Type_ != EYsonType::None;
+}
+
+const Stroka& TYsonString::GetData() const
+{
+    return Data_;
+}
+
+EYsonType TYsonString::GetType() const
+{
+    return Type_;
+}
 
 void TYsonString::Validate() const
 {
@@ -30,19 +41,8 @@ void TYsonString::Validate() const
 
 void TYsonString::Save(TStreamSaveContext& context) const
 {
-    using NYT::Save;
-    switch (Type_) {
-        case EYsonType::None:
-            Save(context, Stroka());
-            break;
-
-        case EYsonType::Node:
-            Save(context, Data_);
-            break;
-
-        default:
-            Y_UNREACHABLE();
-    }
+    // XXX(babenko): what about empty fragments?
+    NYT::Save(context, Data_);
 }
 
 void TYsonString::Load(TStreamLoadContext& context)
@@ -60,7 +60,7 @@ void Serialize(const TYsonString& yson, IYsonConsumer* consumer)
 
 bool operator == (const TYsonString& lhs, const TYsonString& rhs)
 {
-    return lhs.Data() == rhs.Data() && lhs.GetType() == rhs.GetType();
+    return lhs.GetData() == rhs.GetData() && lhs.GetType() == rhs.GetType();
 }
 
 bool operator != (const TYsonString& lhs, const TYsonString& rhs)
@@ -70,7 +70,7 @@ bool operator != (const TYsonString& lhs, const TYsonString& rhs)
 
 Stroka ToString(const TYsonString& yson)
 {
-    return yson.Data();
+    return yson.GetData();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

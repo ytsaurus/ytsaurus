@@ -89,7 +89,7 @@ private:
         }
 
         auto yson = BuildStringFromProducer();
-        response->set_value(yson.Data());
+        response->set_value(yson.GetData());
         context->Reply();
     }
 

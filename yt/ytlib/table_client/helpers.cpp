@@ -431,7 +431,7 @@ TUnversionedOwningRow YsonToRow(
                     value->Attributes().Get<EValueType>("type", EValueType::Null), id));
                 break;
             default:
-                rowBuilder.AddValue(MakeUnversionedAnyValue(ConvertToYsonString(value).Data(), id));
+                rowBuilder.AddValue(MakeUnversionedAnyValue(ConvertToYsonString(value).GetData(), id));
                 break;
         }
     };
@@ -505,7 +505,7 @@ TUnversionedOwningRow YsonToKey(const Stroka& yson)
                 break;
             default:
                 keyBuilder.AddValue(MakeUnversionedAnyValue(
-                    ConvertToYsonString(keyPart).Data(),
+                    ConvertToYsonString(keyPart).GetData(),
                     id));
                 break;
         }
@@ -516,7 +516,7 @@ TUnversionedOwningRow YsonToKey(const Stroka& yson)
 
 Stroka KeyToYson(TUnversionedRow row)
 {
-    return ConvertToYsonString(row, EYsonFormat::Text).Data();
+    return ConvertToYsonString(row, EYsonFormat::Text).GetData();
 }
 
 //////////////////////////////////////////////////////////////////////////////////

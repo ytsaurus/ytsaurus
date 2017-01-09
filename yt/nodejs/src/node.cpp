@@ -469,7 +469,7 @@ Handle<Value> TNodeWrap::Print(const Arguments& args)
 
     if (args.Length() == 0) {
         auto string = ConvertToYsonString(node, EYsonFormat::Text);
-        handle = String::New(string.Data().c_str(), string.Data().length());
+        handle = String::New(string.GetData().c_str(), string.GetData().length());
     } else if (args.Length() == 2) {
         EXPECT_THAT_IS(args[0], Uint32);
         EXPECT_THAT_HAS_INSTANCE(args[1], TNodeWrap);

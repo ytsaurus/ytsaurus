@@ -126,7 +126,7 @@ protected:
                     builder.AddValue(MakeVersionedStringValue(value->GetValue<Stroka>(), timestamp, id, aggregate));
                     break;
                 default:
-                    builder.AddValue(MakeVersionedAnyValue(ConvertToYsonString(value).Data(), timestamp, id, aggregate));
+                    builder.AddValue(MakeVersionedAnyValue(ConvertToYsonString(value).GetData(), timestamp, id, aggregate));
                     break;
             }
         }
@@ -163,7 +163,7 @@ protected:
                     builder.AddValue(MakeUnversionedStringValue(value->GetValue<Stroka>(), id, aggregate));
                     break;
                 default:
-                    builder.AddValue(MakeUnversionedAnyValue(ConvertToYsonString(value).Data(), id, aggregate));
+                    builder.AddValue(MakeUnversionedAnyValue(ConvertToYsonString(value).GetData(), id, aggregate));
                     break;
             }
         }

@@ -1329,7 +1329,7 @@ private:
         try {
             // Update "orchid" child.
             auto req = TYPathProxy::Set(nodePath + "/orchid/@remote_addresses");
-            req->set_value(ConvertToYsonString(addresses).Data());
+            req->set_value(ConvertToYsonString(addresses).GetData());
             SyncExecuteVerb(rootService, req);
         } catch (const std::exception& ex) {
             LOG_ERROR_UNLESS(IsRecovery(), ex, "Error updating cluster node in Cypress");

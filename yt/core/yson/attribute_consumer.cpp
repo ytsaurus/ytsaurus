@@ -221,21 +221,16 @@ void TAttributeValueConsumer::OnRaw(TFuture<TYsonString> asyncStr)
     if (Empty_) {
         auto key = Key_;
         UnderlyingConsumer_->OnRaw(asyncStr.Apply(BIND([key] (const TYsonString& str) {
-            switch (str.GetType()) {
-                case EYsonType::None:
-                    return TYsonString(Stroka(), EYsonType::MapFragment);
-
-                case EYsonType::Node: {
-                    TStringStream stream;
-                    TBufferedBinaryYsonWriter writer(&stream, EYsonType::MapFragment);
-                    writer.OnKeyedItem(key);
-                    writer.OnRaw(str);
-                    writer.Flush();
-                    return TYsonString(stream.Str(), EYsonType::MapFragment);
-                }
-
-                default:
-                    Y_UNREACHABLE();
+            if (str) {
+                YCHECK(str.GetType() == EYsonType::Node);
+                TStringStream stream;
+                TBufferedBinaryYsonWriter writer(&stream, EYsonType::MapFragment);
+                writer.OnKeyedItem(key);
+                writer.OnRaw(str);
+                writer.Flush();
+                return TYsonString(stream.Str(), EYsonType::MapFragment);
+            } else {
+                return TYsonString(Stroka(), EYsonType::MapFragment);
             }
         })));
     } else {
