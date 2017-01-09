@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/ytlib/object_client/public.h>
+
 #include <yt/core/actions/future.h>
 
 #include <yt/core/misc/error.h>
@@ -18,6 +20,9 @@ namespace NTransactionClient {
 struct ITimestampProvider
     : public virtual TRefCounted
 {
+    //! Returns the cell tag of the cluster this provider belongs to.
+    virtual NObjectClient::TCellTag GetCellTag() const = 0;
+
     //! Generates a contiguous range of timestamps (of size #count)
     //! that are guaranteed to be larger than all timestamps previously obtained via this instance.
     //! Returns the first timestamp of that range.

@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/ytlib/transaction_client/public.h>
+
 namespace NYT {
 namespace NHiveClient {
 
@@ -11,6 +13,7 @@ struct ITransactionParticipant
     : public virtual TRefCounted
 {
     virtual const TCellId& GetCellId() const = 0;
+    virtual const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() const = 0;
     virtual bool IsValid() const = 0;
 
     virtual TFuture<void> PrepareTransaction(const TTransactionId& transactionId) = 0;

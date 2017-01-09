@@ -28,7 +28,7 @@
 
 #include <yt/ytlib/ypath/public.h>
 
-#include <yt/ytlib/hive/public.h>
+#include <yt/ytlib/hive/timestamp_map.h>
 
 #include <yt/core/actions/future.h>
 
@@ -58,6 +58,8 @@ struct TUserWorkloadDescriptor
 
 void Serialize(const TUserWorkloadDescriptor& workloadDescriptor, NYson::IYsonConsumer* consumer);
 void Deserialize(TUserWorkloadDescriptor& workloadDescriptor, NYTree::INodePtr node);
+
+///////////////////////////////////////////////////////////////////////////////
 
 struct TTimeoutOptions
 {
@@ -246,6 +248,14 @@ struct TTransactionCommitOptions
 
     //! If |true| then two-phase-commit procotol is executed regardless of the number of participants.
     bool Force2PC = false;
+};
+
+struct TTransactionCommitResult
+{
+    //! Empty for non-atomic transactions (timestamps are fake).
+    //! Empty for empty tablet transactions (since the commit is essentially no-op).
+    //! May contain multiple items for cross-cluster commit.
+    NHiveClient::TTimestampMap CommitTimestamps;
 };
 
 struct TTransactionAbortOptions

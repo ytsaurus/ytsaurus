@@ -1,5 +1,6 @@
 package NYT.NHiveClient.NProto.NTransactionSupervisor;
 
+import "yt/ytlib/hive/timestamp_map.proto";
 import "yt/core/misc/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -13,7 +14,7 @@ message TReqCommitTransaction
 
 message TRspCommitTransaction
 {
-    required uint64 commit_timestamp = 1;
+    required NYT.NHiveClient.NProto.TTimestampMap commit_timestamps = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

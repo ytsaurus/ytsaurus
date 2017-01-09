@@ -502,6 +502,7 @@ void TBootstrap::DoInitialize()
         HydraFacade_->GetAutomaton());
 
     auto timestampProvider = CreateRemoteTimestampProvider(
+        CellTagFromId(Config_->PrimaryMaster->CellId),
         Config_->TimestampProvider,
         GetBusChannelFactory());
 
@@ -516,7 +517,10 @@ void TBootstrap::DoInitialize()
         CellId_,
         timestampProvider,
         std::vector<ITransactionParticipantProviderPtr>{
-            CreateTransactionParticipantProvider(PrimaryCellTag_, CellDirectory_)
+            CreateTransactionParticipantProvider(
+                CellDirectory_,
+                timestampProvider,
+                CellTag_)
         });
 
     fileSnapshotStore->Initialize();

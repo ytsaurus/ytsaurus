@@ -61,12 +61,8 @@ struct ITransaction
     virtual NTransactionClient::EDurability GetDurability() const = 0;
     virtual TDuration GetTimeout() const = 0;
 
-    //! Only available for atomic transactions after successful commit.
-    //! Not available for empty tablet transactions (since the commit is essentially no-op).
-    virtual NTransactionClient::TTimestamp GetCommitTimestamp() const = 0;
-
     virtual TFuture<void> Ping() = 0;
-    virtual TFuture<void> Commit(const TTransactionCommitOptions& options = TTransactionCommitOptions()) = 0;
+    virtual TFuture<TTransactionCommitResult> Commit(const TTransactionCommitOptions& options = TTransactionCommitOptions()) = 0;
     virtual TFuture<void> Abort(const TTransactionAbortOptions& options = TTransactionAbortOptions()) = 0;
     virtual void Detach() = 0;
     virtual TFuture<TTransactionFlushResult> Flush() = 0;

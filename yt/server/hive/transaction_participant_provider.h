@@ -8,6 +8,8 @@
 
 #include <yt/ytlib/object_client/public.h>
 
+#include <yt/ytlib/transaction_client/public.h>
+
 namespace NYT {
 namespace NHiveServer {
 
@@ -26,8 +28,9 @@ DEFINE_REFCOUNTED_TYPE(ITransactionParticipantProvider)
 ////////////////////////////////////////////////////////////////////////////////
 
 ITransactionParticipantProviderPtr CreateTransactionParticipantProvider(
-    NObjectClient::TCellTag cellTag,
-    NHiveClient::TCellDirectoryPtr cellDirectory);
+    NHiveClient::TCellDirectoryPtr cellDirectory,
+    NTransactionClient::ITimestampProviderPtr timestampProvider,
+    NObjectClient::TCellTag cellTag);
 
 ITransactionParticipantProviderPtr CreateTransactionParticipantProvider(
     NApi::INativeConnectionPtr connection);

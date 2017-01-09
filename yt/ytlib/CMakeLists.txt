@@ -145,7 +145,9 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/hive/public.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hive/transaction_supervisor_service.proto
   ${CMAKE_CURRENT_LIST_DIR}/hive/transaction_participant_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/hive/timestamp_map.proto
   ${CMAKE_CURRENT_LIST_DIR}/hive/cell_directory_synchronizer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hive/timestamp_map.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/hydra/hydra_manager.proto
   ${CMAKE_CURRENT_LIST_DIR}/hydra/hydra_service.proto

@@ -115,6 +115,7 @@ public:
             timestampProviderConfig->RpcTimeout = Config_->PrimaryMaster->RpcTimeout;
         }
         TimestampProvider_ = CreateRemoteTimestampProvider(
+            PrimaryMasterCellTag_,
             timestampProviderConfig,
             GetBusChannelFactory());
 
@@ -288,6 +289,7 @@ public:
     {
         return NApi::CreateNativeTransactionParticipant(
             CellDirectory_,
+            TimestampProvider_,
             cellId,
             options);
     }

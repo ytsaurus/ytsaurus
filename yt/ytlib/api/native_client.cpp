@@ -3123,22 +3123,17 @@ public:
         return Transaction_->GetTimeout();
     }
 
-    virtual TTimestamp GetCommitTimestamp() const override
-    {
-        return Transaction_->GetCommitTimestamp();
-    }
-
 
     virtual TFuture<void> Ping() override
     {
         return Transaction_->Ping();
     }
 
-    virtual TFuture<void> Commit(const TTransactionCommitOptions& options) override
+    virtual TFuture<TTransactionCommitResult> Commit(const TTransactionCommitOptions& options) override
     {
     	auto guard = Guard(SpinLock_);
 
-        auto result = ValidateActiveAsync<void>();
+        auto result = ValidateActiveAsync<TTransactionCommitResult>();
         if (result) {
             return result;
         }
@@ -4032,7 +4027,7 @@ private:
         return Combine(asyncResults);
     }
 
-    void DoCommit(const TTransactionCommitOptions& options)
+    TTransactionCommitResult DoCommit(const TTransactionCommitOptions& options)
     {
         try {
             std::vector<TFuture<void>> asyncRequestResults{
@@ -4063,8 +4058,10 @@ private:
             throw;
         }
 
-        WaitFor(Transaction_->Commit(options))
-            .ThrowOnError();
+        auto commitResult = WaitFor(Transaction_->Commit(options))
+            .ValueOrThrow();
+
+        return commitResult;
     }
 
     TTransactionFlushResult DoFlush()

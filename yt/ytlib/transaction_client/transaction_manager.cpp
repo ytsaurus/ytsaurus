@@ -8,6 +8,7 @@
 #include <yt/ytlib/hive/cell_directory.h>
 #include <yt/ytlib/hive/transaction_supervisor_service_proxy.h>
 #include <yt/ytlib/hive/transaction_participant_service_proxy.h>
+#include <yt/ytlib/hive/timestamp_map.h>
 
 #include <yt/ytlib/object_client/helpers.h>
 
@@ -186,7 +187,7 @@ public:
         }
     }
 
-    TFuture<void> Commit(const TTransactionCommitOptions& options)
+    TFuture<TTransactionCommitResult> Commit(const TTransactionCommitOptions& options)
     {
         try {
             {
@@ -222,7 +223,7 @@ public:
                     Y_UNREACHABLE();
             }
         } catch (const std::exception& ex) {
-            return MakeFuture<void>(ex);
+            return MakeFuture<TTransactionCommitResult>(ex);
         }
     }
 
@@ -338,11 +339,6 @@ public:
         return Timeout_.Get(Owner_->Config_->DefaultTransactionTimeout);
     }
 
-    TTimestamp GetCommitTimestamp() const
-    {
-        return CommitTimestamp_;
-    }
-
 
     void RegisterParticipant(const TCellId& cellId)
     {
@@ -451,7 +447,6 @@ private:
     TError Error_;
 
     TTimestamp StartTimestamp_ = NullTimestamp;
-    TTimestamp CommitTimestamp_ = NullTimestamp;
     TTransactionId Id_;
 
 
@@ -666,7 +661,7 @@ private:
         Committed_.Fire();
     }
 
-    void SetTransactionCommitted(TTimestamp commitTimestamp)
+    void SetTransactionCommitted(const TTransactionCommitResult& result)
     {
         {
             auto guard = Guard(SpinLock_);
@@ -674,21 +669,21 @@ private:
                 THROW_ERROR Error_;
             }
             State_ = ETransactionState::Committed;
-            CommitTimestamp_ = commitTimestamp;
         }
 
         FireCommitted();
 
-        LOG_DEBUG("Transaction committed (TransactionId: %v, CommitTimestamp: %v)",
+        LOG_DEBUG("Transaction committed (TransactionId: %v, CommitTimestamps: %v)",
             Id_,
-            CommitTimestamp_);
+            result.CommitTimestamps);
     }
 
-    TFuture<void> DoCommitAtomic(const TTransactionCommitOptions& options)
+    TFuture<TTransactionCommitResult> DoCommitAtomic(const TTransactionCommitOptions& options)
     {
         if (RegisteredParticipantIds_.empty()) {
-            SetTransactionCommitted(NullTimestamp);
-            return VoidFuture;
+            TTransactionCommitResult result;
+            SetTransactionCommitted(result);
+            return MakeFuture(result);
         }
 
         try {
@@ -715,14 +710,15 @@ private:
             return req->Invoke().Apply(
                 BIND(&TImpl::OnAtomicTransactionCommitted, MakeStrong(this), coordinatorCellId));
         } catch (const std::exception& ex) {
-            return MakeFuture(TError(ex));
+            return MakeFuture<TTransactionCommitResult>(TError(ex));
         }
     }
 
-    TFuture<void> DoCommitNonAtomic()
+    TFuture<TTransactionCommitResult> DoCommitNonAtomic()
     {
-        SetTransactionCommitted(NullTimestamp);
-        return VoidFuture;
+        TTransactionCommitResult result;
+        SetTransactionCommitted(result);
+        return MakeFuture(result);
     }
 
     TCellId ChooseCoordinator(const TTransactionCommitOptions& options)
@@ -743,7 +739,7 @@ private:
         return participantIds[RandomNumber(participantIds.size())];
     }
 
-    void OnAtomicTransactionCommitted(
+    TTransactionCommitResult OnAtomicTransactionCommitted(
         const TCellId& cellId,
         const TTransactionSupervisorServiceProxy::TErrorOrRspCommitTransactionPtr& rspOrError)
     {
@@ -757,7 +753,10 @@ private:
         }
 
         const auto& rsp = rspOrError.Value();
-        SetTransactionCommitted(rsp->commit_timestamp());
+        TTransactionCommitResult result;
+        result.CommitTimestamps = FromProto<TTimestampMap>(rsp->commit_timestamps());
+        SetTransactionCommitted(result);
+        return result;
     }
 
 
@@ -1027,7 +1026,7 @@ TTransactionPtr TTransaction::Create(TIntrusivePtr<TImpl> impl)
 
 TTransaction::~TTransaction() = default;
 
-TFuture<void> TTransaction::Commit(const TTransactionCommitOptions& options)
+TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitOptions& options)
 {
     return Impl_->Commit(options);
 }
@@ -1075,11 +1074,6 @@ EDurability TTransaction::GetDurability() const
 TDuration TTransaction::GetTimeout() const
 {
     return Impl_->GetTimeout();
-}
-
-TTimestamp TTransaction::GetCommitTimestamp() const
-{
-    return Impl_->GetCommitTimestamp();
 }
 
 void TTransaction::RegisterParticipant(const TCellId& cellId)
