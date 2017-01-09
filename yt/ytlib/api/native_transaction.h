@@ -16,8 +16,8 @@ struct INativeTransaction
         const NElection::TCellId& cellId,
         const NTransactionClient::TTransactionActionData& data) = 0;
 
-    virtual TFuture<ITransactionPtr> StartSlaveTransaction(
-        IClientPtr client,
+    virtual TFuture<ITransactionPtr> StartForeignTransaction(
+        const IClientPtr& client,
         const TTransactionStartOptions& options = TTransactionStartOptions()) = 0;
 };
 

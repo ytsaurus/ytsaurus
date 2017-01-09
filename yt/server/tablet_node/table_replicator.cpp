@@ -167,8 +167,8 @@ private:
                 THROW_ERROR_EXCEPTION("No mount configuration is available");
             }
 
-            auto remoteConnection = ClusterDirectory_->FindConnection(ClusterName_);
-            if (!remoteConnection) {
+            auto foreignConnection = ClusterDirectory_->FindConnection(ClusterName_);
+            if (!foreignConnection) {
                 THROW_ERROR_EXCEPTION("Replica cluster %Qv is not known", ClusterName_)
                     << HardErrorAttribute;
             }
@@ -201,11 +201,11 @@ private:
             auto localTransaction = WaitFor(localClient->StartNativeTransaction(ETransactionType::Tablet))
                 .ValueOrThrow();
 
-            auto remoteClient = remoteConnection->CreateClient(TClientOptions(NSecurityClient::ReplicatorUserName));
-            auto remoteTransaction = WaitFor(localTransaction->StartSlaveTransaction(remoteClient))
+            auto foreignClient = foreignConnection->CreateClient(TClientOptions(NSecurityClient::ReplicatorUserName));
+            auto foreignTransaction = WaitFor(localTransaction->StartForeignTransaction(foreignClient))
                 .ValueOrThrow();
 
-            YCHECK(localTransaction->GetId() == remoteTransaction->GetId());
+            YCHECK(localTransaction->GetId() == foreignTransaction->GetId());
             LOG_DEBUG("Replication transactions started (TransactionId: %v)",
                 localTransaction->GetId());
 
@@ -236,7 +236,7 @@ private:
                 YCHECK(readReplicationBatch());
             }
 
-            remoteTransaction->ModifyRows(
+            foreignTransaction->ModifyRows(
                 ReplicaPath_,
                 TNameTable::FromSchema(TableSchema_),
                 MakeSharedRange(std::move(modifications), std::move(rowBuffer)));

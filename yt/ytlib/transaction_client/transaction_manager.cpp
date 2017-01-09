@@ -131,7 +131,6 @@ public:
 
         Type_ = type;
         AutoAbort_ = options.AutoAbort;
-        Sticky_ = options.Sticky;
         PingPeriod_ = options.PingPeriod;
         Ping_ = options.Ping;
         PingAncestors_ = options.PingAncestors;
@@ -258,15 +257,6 @@ public:
 
     void Detach()
     {
-        if (Type_ != ETransactionType::Master) {
-            THROW_ERROR_EXCEPTION("Cannot detach a %Qlv transaction",
-                Type_);
-        }
-
-        if (Sticky_) {
-            THROW_ERROR_EXCEPTION("Cannot detach a sticky transaction");
-        }
-
         YCHECK(Atomicity_ == EAtomicity::Full);
 
         {
@@ -426,7 +416,6 @@ private:
     const TIntrusivePtr<TTransactionManager::TImpl> Owner_;
     ETransactionType Type_;
     bool AutoAbort_ = false;
-    bool Sticky_ = false;
     TNullable<TDuration> PingPeriod_;
     bool Ping_ = false;
     bool PingAncestors_ = false;
