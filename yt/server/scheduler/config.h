@@ -442,7 +442,7 @@ public:
 
         RegisterParameter("min_partition_size", MinPartitionSize)
             .Default(256 * 1024 * 1024)
-            .GreaterThanOrEqual(1024);
+            .GreaterThanOrEqual(1);
 
         // Minimum is 1 for tests.
         RegisterParameter("min_uncompressed_block_size", MinUncompressedBlockSize)

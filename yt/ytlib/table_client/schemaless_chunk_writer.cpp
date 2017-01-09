@@ -63,12 +63,25 @@ using namespace NApi;
 using NYT::ToProto;
 using NYT::FromProto;
 
-static const i64 PartitionRowCountThreshold = (i64)100 * 1000;
+static const i64 PartitionRowCountThreshold = (i64)1000 * 1000;
 static const i64 PartitionRowCountLimit = std::numeric_limits<i32>::max() - PartitionRowCountThreshold;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 const i64 MinRowRangeDataWeight = (i64) 64 * 1024;
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ValidateRowWeight(i64 weight, const TChunkWriterConfigPtr& config, const TChunkWriterOptionsPtr& options)
+{
+    if (!options->ValidateRowWeight || weight < config->MaxRowWeight) {
+        return;
+    }
+
+    THROW_ERROR_EXCEPTION(EErrorCode::RowWeightLimitExceeded, "Row weight is too large")
+        << TErrorAttribute("row_weight", weight)
+        << TErrorAttribute("row_weight_limit", config->MaxRowWeight);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -270,17 +283,6 @@ protected:
         EncodingChunkWriter_->Close();
     }
 
-    void ValidateRowWeight(i64 weight)
-    {
-        if (!Options_->ValidateRowWeight || weight < Config_->MaxRowWeight) {
-            return;
-        }
-
-        THROW_ERROR_EXCEPTION(EErrorCode::RowWeightLimitExceeded, "Row weight is too large")
-            << TErrorAttribute("row_weight", weight)
-            << TErrorAttribute("row_weight_limit", Config_->MaxRowWeight);
-    }
-
 private:
     i64 BlockMetaExtSize_ = 0;
 
@@ -380,7 +382,7 @@ public:
     {
         for (auto row : rows) {
             i64 weight = GetDataWeight(row);
-            ValidateRowWeight(weight);
+            ValidateRowWeight(weight, Config_, Options_);
             DataWeight_ += weight;
 
             ++RowCount_;
@@ -493,7 +495,7 @@ public:
             int rowIndex = startRowIndex;
             for (; rowIndex < rows.size() && weight < DataToBlockFlush_; ++rowIndex) {
                 auto rowWeight = GetDataWeight(rows[rowIndex]);
-                ValidateRowWeight(rowWeight);
+                ValidateRowWeight(rowWeight, Config_, Options_);
                 DataWeight_ += rowWeight;
                 weight += rowWeight;
             }
@@ -643,43 +645,61 @@ public:
         IChunkWriterPtr chunkWriter,
         IBlockCachePtr blockCache,
         const TTableSchema& schema,
-        IPartitionerPtr partitioner)
+        int partitionCount)
         : TUnversionedChunkWriterBase(
-            config,
-            options,
-            chunkWriter,
-            blockCache,
+            std::move(config),
+            std::move(options),
+            std::move(chunkWriter),
+            std::move(blockCache),
             schema)
-        , Partitioner_(partitioner)
     {
-        Logger.AddTag("PartitionChunkWriter: %p", this);
-
-        int partitionCount = Partitioner_->GetPartitionCount();
-        BlockWriters_.reserve(partitionCount);
-
-        BlockReserveSize_ = Config_->MaxBufferSize / partitionCount;
-
-        for (int partitionIndex = 0; partitionIndex < partitionCount; ++partitionIndex) {
-            BlockWriters_.emplace_back(new THorizontalSchemalessBlockWriter(BlockReserveSize_));
-            CurrentBufferCapacity_ += BlockWriters_.back()->GetCapacity();
-        }
+        Logger.AddTag("PartitionChunkWriter: %v", TGuid::Create());
 
         PartitionsExt_.mutable_row_counts()->Resize(partitionCount, 0);
         PartitionsExt_.mutable_uncompressed_data_sizes()->Resize(partitionCount, 0);
     }
 
+    bool WriteBlock(TBlock block)
+    {
+        RowCount_ += block.Meta.row_count();
+        block.Meta.set_chunk_row_count(RowCount_);
+
+        // For partition chunks we may assume that data weight is equal to uncompressed data size.
+        DataWeight_ += block.Meta.uncompressed_size();
+
+        PartitionsExt_.set_row_counts(
+            block.Meta.partition_index(),
+            PartitionsExt_.row_counts(block.Meta.partition_index()) + block.Meta.row_count());
+
+        PartitionsExt_.set_uncompressed_data_sizes(
+            block.Meta.partition_index(),
+            PartitionsExt_.uncompressed_data_sizes(block.Meta.partition_index()) + block.Meta.uncompressed_size());
+
+        LargestPartitionRowCount_ = std::max(PartitionsExt_.row_counts(block.Meta.partition_index()), LargestPartitionRowCount_);
+
+        // Don't store last block keys in partition chunks.
+        RegisterBlock(block, TUnversionedRow());
+        return EncodingChunkWriter_->IsReady();
+    }
+
+    virtual bool SupportBoundaryKeys() const override
+    {
+        return false;
+    }
+
     virtual bool Write(const std::vector<TUnversionedRow>& rows) override
     {
-        for (auto row : rows) {
-            WriteRow(row);
-        }
-
-        return EncodingChunkWriter_->IsReady();
+        // This method is never called for partition chunks.
+        // Blocks are formed in the multi chunk writer.
+        YUNREACHABLE();
     }
 
     virtual i64 GetDataSize() const override
     {
-        return TUnversionedChunkWriterBase::GetDataSize() + CurrentBufferCapacity_;
+        // Retrun uncompressed data size to make smaller chunks and better balance partition data
+        // between HDDs. Also returning uncompressed data makes chunk switch deterministic,
+        // since compression is asynchronous.
+        return EncodingChunkWriter_->GetDataStatistics().uncompressed_data_size();
     }
 
     virtual TChunkMeta GetSchedulerMeta() const override
@@ -698,114 +718,16 @@ public:
     {
         return TUnversionedChunkWriterBase::GetMetaSize() +
             // PartitionsExt.
-            2 * sizeof(i64) * BlockWriters_.size();
+            2 * sizeof(i64) * PartitionsExt_.row_counts_size();
     }
 
 private:
-    const IPartitionerPtr Partitioner_;
-
     TPartitionsExt PartitionsExt_;
-
-    std::vector<std::unique_ptr<THorizontalSchemalessBlockWriter>> BlockWriters_;
-
-    i64 CurrentBufferCapacity_ = 0;
-
-    int LargestPartitionIndex_ = 0;
-    i64 LargestPartitionSize_ = 0;
-
     i64 LargestPartitionRowCount_ = 0;
-
-    i64 BlockReserveSize_;
-    i64 FlushedRowCount_ = 0;
-
 
     virtual ETableChunkFormat GetTableChunkFormat() const override
     {
         return ETableChunkFormat::SchemalessHorizontal;
-    }
-
-    virtual bool SupportBoundaryKeys() const
-    {
-        return false;
-    }
-
-    void WriteRow(TUnversionedRow row)
-    {
-        ++RowCount_;
-
-        i64 weight = GetDataWeight(row);
-        ValidateRowWeight(weight);
-        DataWeight_ += weight;
-
-        auto partitionIndex = Partitioner_->GetPartitionIndex(row);
-        auto& blockWriter = BlockWriters_[partitionIndex];
-
-        CurrentBufferCapacity_ -= blockWriter->GetCapacity();
-        i64 oldSize = blockWriter->GetBlockSize();
-
-        blockWriter->WriteRow(row);
-
-        CurrentBufferCapacity_ += blockWriter->GetCapacity();
-        i64 newSize = blockWriter->GetBlockSize();
-
-        auto newRowCount = PartitionsExt_.row_counts(partitionIndex) + 1;
-        auto newUncompressedDataSize = PartitionsExt_.uncompressed_data_sizes(partitionIndex) + newSize - oldSize;
-
-        PartitionsExt_.set_row_counts(partitionIndex, newRowCount);
-        PartitionsExt_.set_uncompressed_data_sizes(partitionIndex, newUncompressedDataSize);
-
-        LargestPartitionRowCount_ = std::max(newRowCount, LargestPartitionRowCount_);
-
-        if (newSize > LargestPartitionSize_) {
-            LargestPartitionIndex_ = partitionIndex;
-            LargestPartitionSize_ = newSize;
-        }
-
-        if (LargestPartitionSize_ >= Config_->BlockSize || CurrentBufferCapacity_ >= Config_->MaxBufferSize) {
-            CurrentBufferCapacity_ -= BlockWriters_[LargestPartitionIndex_]->GetCapacity();
-
-            FlushBlock(LargestPartitionIndex_);
-            BlockWriters_[LargestPartitionIndex_].reset(new THorizontalSchemalessBlockWriter(BlockReserveSize_));
-            CurrentBufferCapacity_ += BlockWriters_[LargestPartitionIndex_]->GetCapacity();
-
-            InitLargestPartition();
-        }
-    }
-
-    void InitLargestPartition()
-    {
-        LargestPartitionIndex_ = 0;
-        LargestPartitionSize_ = BlockWriters_.front()->GetBlockSize();
-        for (int partitionIndex = 1; partitionIndex < BlockWriters_.size(); ++partitionIndex) {
-            auto& blockWriter = BlockWriters_[partitionIndex];
-            if (blockWriter->GetBlockSize() > LargestPartitionSize_) {
-                LargestPartitionSize_ = blockWriter->GetBlockSize();
-                LargestPartitionIndex_ = partitionIndex;
-            }
-        }
-    }
-
-    void FlushBlock(int partitionIndex)
-    {
-        auto& blockWriter = BlockWriters_[partitionIndex];
-        auto block = blockWriter->FlushBlock();
-        block.Meta.set_partition_index(partitionIndex);
-        FlushedRowCount_ += block.Meta.row_count();
-        block.Meta.set_chunk_row_count(FlushedRowCount_);
-
-        // Don't store last block keys in partition chunks.
-        RegisterBlock(block, TUnversionedRow());
-    }
-
-    virtual void DoClose() override
-    {
-        for (int partitionIndex = 0; partitionIndex < BlockWriters_.size(); ++partitionIndex) {
-            if (BlockWriters_[partitionIndex]->GetRowCount() > 0) {
-                FlushBlock(partitionIndex);
-            }
-        }
-
-        TUnversionedChunkWriterBase::DoClose();
     }
 
     virtual void PrepareChunkMeta() override
@@ -820,40 +742,23 @@ private:
     }
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-ISchemalessChunkWriterPtr CreatePartitionChunkWriter(
-    TChunkWriterConfigPtr config,
-    TChunkWriterOptionsPtr options,
-    const TTableSchema& schema,
-    IChunkWriterPtr chunkWriter,
-    IPartitionerPtr partitioner,
-    IBlockCachePtr blockCache)
-{
-    return New<TPartitionChunkWriter>(
-        config,
-        options,
-        chunkWriter,
-        blockCache,
-        schema,
-        partitioner);
-}
+DECLARE_REFCOUNTED_CLASS(TPartitionChunkWriter)
+DEFINE_REFCOUNTED_TYPE(TPartitionChunkWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchemalessMultiChunkWriter
+class TSchemalessMultiChunkWriterBase
     : public TNontemplateMultiChunkWriterBase
     , public ISchemalessMultiChunkWriter
 {
 public:
-    TSchemalessMultiChunkWriter(
-        TMultiChunkWriterConfigPtr config,
+    TSchemalessMultiChunkWriterBase(
+        TTableWriterConfigPtr config,
         TTableWriterOptionsPtr options,
         IClientPtr client,
         TCellTag cellTag,
         const TTransactionId& transactionId,
         const TChunkListId& parentChunkListId,
-        std::function<ISchemalessChunkWriterPtr(IChunkWriterPtr)> createChunkWriter,
         TNameTablePtr nameTable,
         const TTableSchema& schema,
         TOwningKey lastKey,
@@ -868,32 +773,14 @@ public:
             parentChunkListId,
             throttler,
             blockCache)
-        , CreateChunkWriter_(createChunkWriter)
+        , Config_(config)
         , Options_(options)
         , NameTable_(nameTable)
         , Schema_(schema)
         , LastKey_(lastKey)
     { }
 
-    bool Write(const std::vector<TUnversionedRow>& rows) override
-    {
-        YCHECK(!SwitchingSession_);
-
-        try {
-            auto reorderedRows = ReorderAndValidateRows(rows);
-
-            // Return true if current writer is ready for more data and
-            // we didn't switch to the next chunk.
-            bool readyForMore = CurrentWriter_->Write(reorderedRows);
-            bool switched = TrySwitchSession();
-            return readyForMore && !switched;
-        } catch (const std::exception& ex) {
-            Error_ = TError(ex);
-            return false;
-        }
-    }
-
-    TFuture<void> GetReadyEvent() override
+    virtual TFuture<void> GetReadyEvent() override
     {
         if (Error_.IsOK()) {
             return TNontemplateMultiChunkWriterBase::GetReadyEvent();
@@ -912,33 +799,19 @@ public:
         return Schema_;
     }
 
-private:
-    const std::function<ISchemalessChunkWriterPtr(IChunkWriterPtr)> CreateChunkWriter_;
-
+protected:
+    const TTableWriterConfigPtr Config_;
     const TTableWriterOptionsPtr Options_;
     const TNameTablePtr NameTable_;
     const TTableSchema Schema_;
 
-    ISchemalessChunkWriterPtr CurrentWriter_;
-
-    TUnversionedOwningRowBuilder KeyBuilder_;
-    TOwningKey LastKey_;
     TError Error_;
 
-    TChunkedMemoryPool Pool_;
+    virtual TNameTablePtr GetChunkNameTable() = 0;
 
-    // Maps global name table indexes into chunk name table indexes.
-    std::vector<int> IdMapping_;
-
-    // For duplicate id validation.
-    SmallVector<i64, TypicalColumnCount> IdValidationMarks_;
-    i64 CurrentIdValidationMark_ = 1;
-
-    virtual IChunkWriterBasePtr CreateTemplateWriter(IChunkWriterPtr underlyingWriter) override
+    void ResetIdMapping()
     {
-        CurrentWriter_ = CreateChunkWriter_(underlyingWriter);
         IdMapping_.clear();
-        return CurrentWriter_;
     }
 
     std::vector<TUnversionedRow> ReorderAndValidateRows(const std::vector<TUnversionedRow>& rows)
@@ -966,7 +839,7 @@ private:
                 }
 
                 if (IdMapping_[valueIt->Id] == -1) {
-                    IdMapping_[valueIt->Id] = CurrentWriter_->GetNameTable()->GetIdOrRegisterName(NameTable_->GetName(valueIt->Id));
+                    IdMapping_[valueIt->Id] = GetChunkNameTable()->GetIdOrRegisterName(NameTable_->GetName(valueIt->Id));
                 }
 
                 int id = IdMapping_[valueIt->Id];
@@ -1012,6 +885,20 @@ private:
         ValidateSortAndUnique(result);
         return result;
     }
+
+private:
+    TUnversionedOwningRowBuilder KeyBuilder_;
+    TOwningKey LastKey_;
+
+    TChunkedMemoryPool Pool_;
+
+    // Maps global name table indexes into chunk name table indexes.
+    std::vector<int> IdMapping_;
+
+    // For duplicate id validation.
+    SmallVector<i64, TypicalColumnCount> IdValidationMarks_;
+    i64 CurrentIdValidationMark_ = 1;
+
 
     void ValidateColumnCount(int columnCount)
     {
@@ -1104,6 +991,303 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TPartitionMultiChunkWriter
+    : public TSchemalessMultiChunkWriterBase
+{
+public:
+    TPartitionMultiChunkWriter(
+        TTableWriterConfigPtr config,
+        TTableWriterOptionsPtr options,
+        IClientPtr client,
+        TCellTag cellTag,
+        const TTransactionId& transactionId,
+        const TChunkListId& parentChunkListId,
+        TNameTablePtr nameTable,
+        const TTableSchema& schema,
+        IPartitionerPtr partitioner,
+        IThroughputThrottlerPtr throttler,
+        IBlockCachePtr blockCache)
+        : TSchemalessMultiChunkWriterBase(
+            config,
+            options,
+            client,
+            cellTag,
+            transactionId,
+            parentChunkListId,
+            nameTable,
+            schema,
+            TOwningKey(),
+            throttler,
+            blockCache)
+        , Partitioner_(partitioner)
+        , BlockReserveSize_(std::max(config->MaxBufferSize / partitioner->GetPartitionCount() / 2, i64(1)))
+    {
+        Logger.AddTag("PartitionMultiChunkWriter: %s", TGuid::Create());
+
+        int partitionCount = Partitioner_->GetPartitionCount();
+        BlockWriters_.reserve(partitionCount);
+
+        for (int partitionIndex = 0; partitionIndex < partitionCount; ++partitionIndex) {
+            BlockWriters_.emplace_back(new THorizontalSchemalessBlockWriter(BlockReserveSize_));
+            CurrentBufferCapacity_ += BlockWriters_.back()->GetCapacity();
+        }
+
+        ChunkWriterFactory_ = [=] (IChunkWriterPtr underlyingWriter) {
+            return New<TPartitionChunkWriter>(
+                config,
+                options,
+                std::move(underlyingWriter),
+                blockCache,
+                Schema_,
+                partitionCount);
+        };
+    }
+
+    virtual bool Write(const std::vector<TUnversionedRow>& rows) override
+    {
+        YCHECK(!SwitchingSession_);
+
+        try {
+            auto reorderedRows = ReorderAndValidateRows(rows);
+
+            for (auto row : reorderedRows) {
+                WriteRow(row);
+            }
+
+            // Return true if current writer is ready for more data and
+            // we didn't switch to the next chunk.
+            bool readyForMore = DumpLargeBlocks();
+            bool switched = TrySwitchSession();
+            return readyForMore && !switched;
+        } catch (const std::exception& ex) {
+            Error_ = TError(ex);
+            return false;
+        }
+    }
+
+    virtual TFuture<void> Close() override
+    {
+        return BIND(&TPartitionMultiChunkWriter::DoClose, MakeStrong(this))
+            .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
+            .Run();
+    }
+
+private:
+    const IPartitionerPtr Partitioner_;
+    const i64 BlockReserveSize_;
+
+    std::function<TPartitionChunkWriterPtr(IChunkWriterPtr)> ChunkWriterFactory_;
+
+    yhash_set<int> LargePartitons_;
+    std::vector<std::unique_ptr<THorizontalSchemalessBlockWriter>> BlockWriters_;
+
+    i64 CurrentBufferCapacity_ = 0;
+
+    TPartitionChunkWriterPtr CurrentWriter_;
+
+    TError Error_;
+
+    virtual IChunkWriterBasePtr CreateTemplateWriter(IChunkWriterPtr underlyingWriter) override
+    {
+        CurrentWriter_ = ChunkWriterFactory_(std::move(underlyingWriter));
+        ResetIdMapping();
+        return CurrentWriter_;
+    }
+
+    virtual TNameTablePtr GetChunkNameTable() override
+    {
+        return CurrentWriter_->GetNameTable();
+    }
+
+    void DoClose()
+    {
+        for (int partitionIndex = 0; partitionIndex < Partitioner_->GetPartitionCount(); ++partitionIndex) {
+            auto& blockWriter = BlockWriters_[partitionIndex];
+            if (blockWriter->GetRowCount() > 0) {
+                bool readyForMore = FlushBlock(partitionIndex);
+                bool switched = TrySwitchSession();
+
+                if (!readyForMore || switched) {
+                    WaitFor(GetReadyEvent())
+                        .ThrowOnError();
+                }
+            }
+        }
+
+        WaitFor(TNontemplateMultiChunkWriterBase::Close())
+            .ThrowOnError();
+    }
+
+    void WriteRow(TUnversionedRow row)
+    {
+        i64 weight = GetDataWeight(row);
+        ValidateRowWeight(weight, Config_, Options_);
+
+        auto partitionIndex = Partitioner_->GetPartitionIndex(row);
+
+
+        LOG_INFO("XXX Writing row %v, partition index %v", ToString(row), partitionIndex);
+        auto& blockWriter = BlockWriters_[partitionIndex];
+
+        CurrentBufferCapacity_ -= blockWriter->GetCapacity();
+
+        blockWriter->WriteRow(row);
+
+        CurrentBufferCapacity_ += blockWriter->GetCapacity();
+
+        if (blockWriter->GetRowCount() >= PartitionRowCountThreshold ||
+            blockWriter->GetBlockSize() > Config_->BlockSize)
+        {
+            LargePartitons_.insert(partitionIndex);
+        }
+    }
+
+    bool DumpLargeBlocks()
+    {
+        bool readyForMore = true;
+        for (auto partitionIndex : LargePartitons_) {
+            readyForMore = FlushBlock(partitionIndex);
+        }
+        LargePartitons_.clear();
+
+        while (CurrentBufferCapacity_ > Config_->MaxBufferSize) {
+            i64 largestPartitonSize = -1;
+            int largestPartitionIndex = -1;
+            for (int partitionIndex = 0; partitionIndex < BlockWriters_.size(); ++partitionIndex) {
+                auto& blockWriter = BlockWriters_[partitionIndex];
+                if (blockWriter->GetBlockSize() > largestPartitonSize) {
+                    largestPartitonSize = blockWriter->GetBlockSize();
+                    largestPartitionIndex = partitionIndex;
+                }
+            }
+
+            readyForMore = FlushBlock(largestPartitionIndex);
+        }
+
+        return readyForMore;
+    }
+
+    bool FlushBlock(int partitionIndex)
+    {
+        auto& blockWriter = BlockWriters_[partitionIndex];
+        CurrentBufferCapacity_ -= blockWriter->GetCapacity();
+
+        auto block = blockWriter->FlushBlock();
+        block.Meta.set_partition_index(partitionIndex);
+        blockWriter.reset(new THorizontalSchemalessBlockWriter(BlockReserveSize_));
+        CurrentBufferCapacity_ += blockWriter->GetCapacity();
+
+        LOG_DEBUG("Flushing partition block (PartitonIndex: %v, BlockSize: %v, BlockRowCount: %v, CurrentBufferCapacity: %v)",
+                partitionIndex,
+                block.Meta.uncompressed_size(),
+                block.Meta.row_count(),
+                CurrentBufferCapacity_);
+
+        return CurrentWriter_->WriteBlock(std::move(block));
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
+    TTableWriterConfigPtr config,
+    TTableWriterOptionsPtr options,
+    TNameTablePtr nameTable,
+    const TTableSchema& schema,
+    IClientPtr client,
+    TCellTag cellTag,
+    const TTransactionId& transactionId,
+    const TChunkListId& parentChunkListId,
+    IPartitionerPtr partitioner,
+    IThroughputThrottlerPtr throttler,
+    IBlockCachePtr blockCache)
+{
+    return New<TPartitionMultiChunkWriter>(
+        std::move(config),
+        std::move(options),
+        std::move(client),
+        cellTag,
+        transactionId,
+        parentChunkListId,
+        std::move(nameTable),
+        schema,
+        std::move(partitioner),
+        std::move(throttler),
+        std::move(blockCache));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSchemalessMultiChunkWriter
+    : public TSchemalessMultiChunkWriterBase
+{
+public:
+    TSchemalessMultiChunkWriter(
+        TTableWriterConfigPtr config,
+        TTableWriterOptionsPtr options,
+        IClientPtr client,
+        TCellTag cellTag,
+        const TTransactionId& transactionId,
+        const TChunkListId& parentChunkListId,
+        std::function<ISchemalessChunkWriterPtr(IChunkWriterPtr)> createChunkWriter,
+        TNameTablePtr nameTable,
+        const TTableSchema& schema,
+        TOwningKey lastKey,
+        IThroughputThrottlerPtr throttler,
+        IBlockCachePtr blockCache)
+        : TSchemalessMultiChunkWriterBase(
+            config,
+            options,
+            client,
+            cellTag,
+            transactionId,
+            parentChunkListId,
+            nameTable,
+            schema,
+            lastKey,
+            throttler,
+            blockCache)
+        , CreateChunkWriter_(createChunkWriter)
+    { }
+
+    virtual bool Write(const std::vector<TUnversionedRow>& rows) override
+    {
+        YCHECK(!SwitchingSession_);
+
+        try {
+            auto reorderedRows = ReorderAndValidateRows(rows);
+
+            // Return true if current writer is ready for more data and
+            // we didn't switch to the next chunk.
+            bool readyForMore = CurrentWriter_->Write(reorderedRows);
+            bool switched = TrySwitchSession();
+            return readyForMore && !switched;
+        } catch (const std::exception& ex) {
+            Error_ = TError(ex);
+            return false;
+        }
+    }
+
+private:
+    const std::function<ISchemalessChunkWriterPtr(IChunkWriterPtr)> CreateChunkWriter_;
+
+    ISchemalessChunkWriterPtr CurrentWriter_;
+
+    virtual TNameTablePtr GetChunkNameTable() override
+    {
+        return CurrentWriter_->GetNameTable();
+    }
+
+    virtual IChunkWriterBasePtr CreateTemplateWriter(IChunkWriterPtr underlyingWriter) override
+    {
+        CurrentWriter_ = CreateChunkWriter_(underlyingWriter);
+        ResetIdMapping();
+        return CurrentWriter_;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
@@ -1137,46 +1321,6 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
         nameTable,
         schema,
         lastKey,
-        throttler,
-        blockCache);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
-    TTableWriterConfigPtr config,
-    TTableWriterOptionsPtr options,
-    TNameTablePtr nameTable,
-    const TTableSchema& schema,
-    IClientPtr client,
-    TCellTag cellTag,
-    const TTransactionId& transactionId,
-    const TChunkListId& parentChunkListId,
-    IPartitionerPtr partitioner,
-    IThroughputThrottlerPtr throttler,
-    IBlockCachePtr blockCache)
-{
-    auto createChunkWriter = [=] (IChunkWriterPtr underlyingWriter) {
-        return CreatePartitionChunkWriter(
-            config,
-            options,
-            schema,
-            underlyingWriter,
-            partitioner,
-            blockCache);
-    };
-
-    return New<TSchemalessMultiChunkWriter>(
-        config,
-        options,
-        client,
-        cellTag,
-        transactionId,
-        parentChunkListId,
-        createChunkWriter,
-        nameTable,
-        schema,
-        TOwningKey(),
         throttler,
         blockCache);
 }
