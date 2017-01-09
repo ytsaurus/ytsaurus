@@ -27,7 +27,6 @@ TCommit::TCommit(
     , ParticipantCellIds_(participantCellIds)
     , Distributed_(distributed)
     , Persistent_(false)
-    , CommitTimestamp_(NTransactionClient::NullTimestamp)
     , TransientState_(ECommitState::Start)
     , PersistentState_(ECommitState::Start)
 { }
@@ -51,7 +50,7 @@ void TCommit::Save(TSaveContext& context) const
     Save(context, MutationId_);
     Save(context, ParticipantCellIds_);
     Save(context, Distributed_);
-    Save(context, CommitTimestamp_);
+    Save(context, CommitTimestamps_);
     Save(context, PersistentState_);
 }
 
@@ -59,15 +58,15 @@ void TCommit::Load(TLoadContext& context)
 {
     using NYT::Load;
 
-    // COMPAT(savrus)
-    YCHECK(context.GetVersion() >= 2);
+    // COMPAT(babenko)
+    YCHECK(context.GetVersion() >= 3);
 
     Persistent_ = true;
     Load(context, TransactionId_);
     Load(context, MutationId_);
     Load(context, ParticipantCellIds_);
     Load(context, Distributed_);
-    Load(context, CommitTimestamp_);
+    Load(context, CommitTimestamps_);
     Load(context, PersistentState_);
 }
 

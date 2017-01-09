@@ -19,6 +19,7 @@ namespace NTransactionClient {
 using namespace NRpc;
 using namespace NConcurrency;
 using namespace NYTree;
+using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,9 +32,11 @@ class TRemoteTimestampProvider
 {
 public:
     TRemoteTimestampProvider(
+        TCellTag cellTag,
         TRemoteTimestampProviderConfigPtr config,
         IChannelFactoryPtr channelFactory)
-        : Config_(config)
+        : CellTag_(cellTag)
+        , Config_(std::move(config))
     {
         auto endpointDescription = Stroka("TimestampProvider@");
         auto endpointAttributes = ConvertToAttributes(BuildYsonStringFluently()
@@ -41,16 +44,21 @@ public:
                 .Item("timestamp_provider").Value(true)
             .EndMap());
         auto channel = CreateBalancingChannel(
-            config,
+            Config_,
             channelFactory,
             endpointDescription,
             *endpointAttributes);
         channel = CreateRetryingChannel(
-            config,
+            Config_,
             channel);
 
         Proxy_ = std::make_unique<TTimestampServiceProxy>(channel);
         Proxy_->SetDefaultTimeout(Config_->RpcTimeout);
+    }
+
+    virtual TCellTag GetCellTag() const override
+    {
+        return CellTag_;
     }
 
     virtual TFuture<TTimestamp> GenerateTimestamps(int count) override
@@ -96,6 +104,7 @@ public:
     }
 
 private:
+    const TCellTag CellTag_;
     const TRemoteTimestampProviderConfigPtr Config_;
 
     std::unique_ptr<TTimestampServiceProxy> Proxy_;
@@ -213,12 +222,14 @@ private:
 };
 
 ITimestampProviderPtr CreateRemoteTimestampProvider(
+    TCellTag cellTag,
     TRemoteTimestampProviderConfigPtr config,
     IChannelFactoryPtr channelFactory)
 {
     return New<TRemoteTimestampProvider>(
-        config,
-        channelFactory);
+        cellTag,
+        std::move(config),
+        std::move(channelFactory));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

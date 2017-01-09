@@ -6,6 +6,8 @@
 
 #include <yt/ytlib/transaction_client/public.h>
 
+#include <yt/ytlib/hive/timestamp_map.h>
+
 #include <yt/core/actions/future.h>
 
 #include <yt/core/misc/property.h>
@@ -19,13 +21,13 @@ namespace NHiveServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ECommitState,
-    ((Start)                    (0))
-    ((Prepare)                  (1))
-    ((GeneratingCommitTimestamp)(2)) // transient only
-    ((Commit)                   (3))
-    ((Aborting)                 (4)) // transient only
-    ((Abort)                    (5))
-    ((Finishing)                (6)) // transient only
+    ((Start)                     (0))
+    ((Prepare)                   (1))
+    ((GeneratingCommitTimestamps)(2)) // transient only
+    ((Commit)                    (3))
+    ((Aborting)                  (4)) // transient only
+    ((Abort)                     (5))
+    ((Finishing)                 (6)) // transient only
 );
 
 class TCommit
@@ -39,7 +41,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(bool, Distributed);
 
     DEFINE_BYVAL_RW_PROPERTY(bool, Persistent);
-    DEFINE_BYVAL_RW_PROPERTY(TTimestamp, CommitTimestamp);
+    DEFINE_BYREF_RW_PROPERTY(NHiveClient::TTimestampMap, CommitTimestamps);
     DEFINE_BYVAL_RW_PROPERTY(ECommitState, TransientState);
     DEFINE_BYVAL_RW_PROPERTY(ECommitState, PersistentState);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TCellId>, RespondedCellIds);

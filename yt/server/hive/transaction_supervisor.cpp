@@ -43,6 +43,7 @@ using namespace NRpc::NProto;
 using namespace NHydra;
 using namespace NHiveClient;
 using namespace NTransactionClient;
+using namespace NObjectClient;
 using namespace NApi;
 using namespace NYTree;
 using namespace NConcurrency;
@@ -194,35 +195,55 @@ private:
             return CellId_;
         }
 
-        bool IsValid() const
+        bool IsValid()
         {
             auto guard = Guard(SpinLock_);
-            return !Underlying_ || Underlying_->IsValid();
+            auto underlying = GetUnderlying();
+            return !underlying || underlying->IsValid();
         }
 
-        TFuture<void> PrepareTransaction(const TTransactionId& transactionId)
+        ITimestampProviderPtr GetTimestampProviderOrThrow()
+        {
+            auto guard = Guard(SpinLock_);
+
+            auto underlying = GetUnderlying();
+            if (!underlying) {
+                THROW_ERROR MakeUnavailbleError();
+            }
+
+            return underlying->GetTimestampProvider();
+        }
+
+        TFuture<void> PrepareTransaction(TCommit* commit)
         {
             return EnqueueRequest(
                 false,
-                &ITransactionParticipant::PrepareTransaction,
-                transactionId);
+                [transactionId = commit->GetTransactionId()]
+                (const ITransactionParticipantPtr& participant) {
+                    return participant->PrepareTransaction(transactionId);
+                });
         }
 
-        TFuture<void> CommitTransaction(const TTransactionId& transactionId, TTimestamp commitTimestamp)
+        TFuture<void> CommitTransaction(TCommit* commit)
         {
             return EnqueueRequest(
                 true,
-                &ITransactionParticipant::CommitTransaction,
-                transactionId,
-                commitTimestamp);
+                [transactionId = commit->GetTransactionId(), commitTimestamps = commit->CommitTimestamps()]
+                (const ITransactionParticipantPtr& participant) {
+                    auto cellTag = participant->GetTimestampProvider()->GetCellTag();
+                    auto commitTimestamp = commitTimestamps.GetTimestamp(cellTag);
+                    return participant->CommitTransaction(transactionId, commitTimestamp);
+                });
         }
 
-        TFuture<void> AbortTransaction(const TTransactionId& transactionId)
+        TFuture<void> AbortTransaction(TCommit* commit)
         {
             return EnqueueRequest(
                 true,
-                &ITransactionParticipant::AbortTransaction,
-                transactionId);
+                [transactionId = commit->GetTransactionId()]
+                (const ITransactionParticipantPtr& participant) {
+                    return participant->AbortTransaction(transactionId);
+                });
         }
 
         void SetUp()
@@ -272,6 +293,14 @@ private:
         bool Up_ = true;
 
 
+        ITransactionParticipantPtr GetUnderlying()
+        {
+            if (!Underlying_) {
+                Underlying_ = TryCreateUnderlying();
+            }
+            return Underlying_;
+        }
+
         ITransactionParticipantPtr TryCreateUnderlying()
         {
             TTransactionParticipantOptions options;
@@ -286,26 +315,22 @@ private:
             return nullptr;
         }
 
-        template <class TMethod, class... TArgs>
-        TFuture<void> EnqueueRequest(bool succeedOnInvalid, TMethod method, TArgs... args)
+        template <class F>
+        TFuture<void> EnqueueRequest(bool succeedOnInvalid, F func)
         {
             auto promise = NewPromise<void>();
 
             auto guard = Guard(SpinLock_);
 
-            if (!Underlying_) {
-                Underlying_ = TryCreateUnderlying();
-                if (!Underlying_) {
-                    return MakeFuture(TError(
-                        NRpc::EErrorCode::Unavailable,
-                        "No connection info is available for participant cell %v",
-                        CellId_));
-                }
+            auto underlying = GetUnderlying();
+
+            if (!underlying) {
+                return MakeFuture<void>(MakeUnavailbleError());
             }
 
-            auto sender = BIND([=, underlying = Underlying_] () mutable {
+            auto sender = BIND([=, underlying = std::move(underlying)] () mutable {
                 if (underlying->IsValid()) {
-                    promise.SetFrom((underlying.Get()->*method)(args...));
+                    promise.SetFrom(func(underlying));
                 } else if (succeedOnInvalid) {
                     LOG_DEBUG("Transaction participant is no longer, assuming sucessful response");
                     promise.Set(TError());
@@ -346,6 +371,14 @@ private:
             guard.Release();
 
             sender.Run();
+        }
+
+        TError MakeUnavailbleError() const
+        {
+            return TError(
+                NRpc::EErrorCode::Unavailable,
+                "Participant cell %v is currently unavailable",
+                CellId_);
         }
     };
 
@@ -610,7 +643,7 @@ private:
             return;
         }
 
-        GenerateCommitTimestamp(commit);
+        GenerateCommitTimestamps(commit);
     }
 
     void CommitDistributedTransaction(TCommit* commit)
@@ -686,7 +719,7 @@ private:
     {
         auto mutationId = FromProto<TMutationId>(request->mutation_id());
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto commitTimestamp = TTimestamp(request->commit_timestamp());
+        auto commitTimestamps = FromProto<TTimestampMap>(request->commit_timestamps());
 
         auto* commit = FindCommit(transactionId);
 
@@ -697,8 +730,13 @@ private:
             return;
         }
 
+        if (commit) {
+            commit->CommitTimestamps() = commitTimestamps;
+        }
+
         try {
             // Any exception thrown here is caught below.
+            auto commitTimestamp = commitTimestamps.GetTimestamp(TimestampProvider_->GetCellTag());
             TransactionManager_->CommitTransaction(transactionId, commitTimestamp);
         } catch (const std::exception& ex) {
             if (commit) {
@@ -718,7 +756,7 @@ private:
                 mutationId,
                 std::vector<TCellId>(),
                 false);
-            commit->SetCommitTimestamp(commitTimestamp);
+            commit->CommitTimestamps() = commitTimestamps;
         }
 
         SetCommitSucceeded(commit);
@@ -781,7 +819,7 @@ private:
     void HydraCoordinatorCommitDistributedTransactionPhaseTwo(NHiveServer::NProto::TReqCoordinatorCommitDistributedTransactionPhaseTwo* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto commitTimestamp = request->commit_timestamp();
+        auto commitTimestamps = FromProto<TTimestampMap>(request->commit_timestamps());
 
         auto* commit = FindPersistentCommit(transactionId);
         if (!commit) {
@@ -792,10 +830,10 @@ private:
 
         LOG_DEBUG_UNLESS(IsRecovery(),
             "Distributed commit phase two started "
-            "(TransactionId: %v, ParticipantCellIds: %v, CommitTimestamp: %v)",
+            "(TransactionId: %v, ParticipantCellIds: %v, CommitTimestamps: %v)",
             transactionId,
             commit->ParticipantCellIds(),
-            commitTimestamp);
+            commitTimestamps);
 
         YCHECK(commit->GetDistributed());
         YCHECK(commit->GetPersistent());
@@ -808,7 +846,7 @@ private:
             return;
         }
 
-        commit->SetCommitTimestamp(commitTimestamp);
+        commit->CommitTimestamps() = commitTimestamps;
         ChangeCommitPersistentState(commit, ECommitState::Commit);
         ChangeCommitTransientState(commit, ECommitState::Commit);
 
@@ -816,6 +854,7 @@ private:
 
         try {
             // Any exception thrown here is caught below.
+            auto commitTimestamp = commitTimestamps.GetTimestamp(TimestampProvider_->GetCellTag());
             TransactionManager_->CommitTransaction(transactionId, commitTimestamp);
         } catch (const std::exception& ex) {
             LOG_ERROR_UNLESS(IsRecovery(), ex, "Unexpected error: coordinator failure; ignored (TransactionId: %v, State: %v)",
@@ -1068,12 +1107,12 @@ private:
 
     void SetCommitSucceeded(TCommit* commit)
     {
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit succeeded (TransactionId: %v, CommitTimestamp: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit succeeded (TransactionId: %v, CommitTimestamps: %v)",
             commit->GetTransactionId(),
-            commit->GetCommitTimestamp());
+            commit->CommitTimestamps());
 
         NHiveClient::NProto::NTransactionSupervisor::TRspCommitTransaction response;
-        response.set_commit_timestamp(commit->GetCommitTimestamp());
+        ToProto(response.mutable_commit_timestamps(), commit->CommitTimestamps());
 
         auto responseMessage = CreateResponseMessage(response);
         SetCommitResponse(commit, std::move(responseMessage));
@@ -1139,17 +1178,48 @@ private:
     }
 
 
-    void GenerateCommitTimestamp(TCommit* commit)
+    void GenerateCommitTimestamps(TCommit* commit)
     {
-        LOG_DEBUG("Generating commit timestamp (TransactionId: %v)",
-            commit->GetTransactionId());
+        const auto& transactionId = commit->GetTransactionId();
 
-        TimestampProvider_->GenerateTimestamps()
-            .Subscribe(BIND(&TImpl::OnCommitTimestampGenerated, MakeStrong(this), commit->GetTransactionId())
+        std::vector<TFuture<std::pair<TCellTag, TTimestamp>>> asyncTimestamps;
+        yhash_set<TCellTag> timestampProviderCellTags;
+
+        auto generateAtCell = [&] (const TCellId& cellId) {
+            try {
+                auto participant = GetParticipant(cellId);
+                auto timestampProvider = participant->GetTimestampProviderOrThrow();
+                auto cellTag = timestampProvider->GetCellTag();
+                if (!timestampProviderCellTags.insert(cellTag).second) {
+                    return;
+                }
+
+                LOG_DEBUG("Generating commit timestamp (TransactionId: %v, TimestampProviderCellTag: %v)",
+                    transactionId,
+                    cellTag);
+
+                auto asyncTimestamp = timestampProvider->GenerateTimestamps(1);
+                asyncTimestamps.push_back(asyncTimestamp.Apply(BIND([=] (TTimestamp timestamp) {
+                    return std::make_pair(cellTag, timestamp);
+                })));
+            } catch (const std::exception& ex) {
+                asyncTimestamps.push_back(MakeFuture<std::pair<TCellTag, TTimestamp>>(ex));
+            }
+        };
+
+        generateAtCell(SelfCellId_);
+        for (const auto& cellId : commit->ParticipantCellIds()) {
+            generateAtCell(cellId);
+        }
+
+        Combine(asyncTimestamps)
+            .Subscribe(BIND(&TImpl::OnCommitTimestampsGenerated, MakeStrong(this), transactionId)
                 .Via(EpochAutomatonInvoker_));
     }
 
-    void OnCommitTimestampGenerated(const TTransactionId& transactionId, TErrorOr<TTimestamp> timestampOrError)
+    void OnCommitTimestampsGenerated(
+        const TTransactionId& transactionId,
+        const TErrorOr<std::vector<std::pair<TCellTag, TTimestamp>>>& timestampsOrError)
     {
         auto* commit = FindCommit(transactionId);
         if (!commit) {
@@ -1158,31 +1228,35 @@ private:
             return;
         }
 
-        if (!timestampOrError.IsOK()) {
+        if (!timestampsOrError.IsOK()) {
             // If this is a distributed transaction then it's already prepared at coordinator and
             // at all participants. We _must_ forcefully abort it.
-            LOG_DEBUG(timestampOrError, "Error generating commit timestamp (TransactionId: %v)",
+            LOG_DEBUG(timestampsOrError, "Error generating commit timestamps (TransactionId: %v)",
                 transactionId);
             AbortTransaction(transactionId, true);
             return;
         }
 
-        auto timestamp = timestampOrError.Value();
-        LOG_DEBUG("Transaction commit timestamp generated (TransactionId: %v, CommitTimestamp: %v)",
+        const auto& result = timestampsOrError.Value();
+
+        TTimestampMap commitTimestamps;
+        commitTimestamps.Timestamps.insert(commitTimestamps.Timestamps.end(), result.begin(), result.end());
+
+        LOG_DEBUG("Commit timestamps generated (TransactionId: %v, CommitTimestamps: %v)",
             transactionId,
-            timestamp);
+            commitTimestamps);
 
         if (commit->GetDistributed()) {
             NHiveServer::NProto::TReqCoordinatorCommitDistributedTransactionPhaseTwo request;
             ToProto(request.mutable_transaction_id(), transactionId);
-            request.set_commit_timestamp(timestamp);
+            ToProto(request.mutable_commit_timestamps(), commitTimestamps);
             CreateMutation(HydraManager_, request)
                 ->CommitAndLog(Logger);
         } else {
             NHiveServer::NProto::TReqCoordinatorCommitSimpleTransaction request;
             ToProto(request.mutable_transaction_id(), transactionId);
             ToProto(request.mutable_mutation_id(), commit->GetMutationId());
-            request.set_commit_timestamp(timestamp);
+            ToProto(request.mutable_commit_timestamps(), commitTimestamps);
             CreateMutation(HydraManager_, request)
                 ->CommitAndLog(Logger);
         }
@@ -1249,8 +1323,8 @@ private:
         commit->RespondedCellIds().clear();
 
         switch (state) {
-            case ECommitState::GeneratingCommitTimestamp:
-                GenerateCommitTimestamp(commit);
+            case ECommitState::GeneratingCommitTimestamps:
+                GenerateCommitTimestamps(commit);
                 break;
 
             case ECommitState::Prepare:
@@ -1307,15 +1381,15 @@ private:
         auto state = commit->GetTransientState();
         switch (state) {
             case ECommitState::Prepare:
-                response = participant->PrepareTransaction(commit->GetTransactionId());
+                response = participant->PrepareTransaction(commit);
                 break;
 
             case ECommitState::Commit:
-                response = participant->CommitTransaction(commit->GetTransactionId(), commit->GetCommitTimestamp());
+                response = participant->CommitTransaction(commit);
                 break;
 
             case ECommitState::Abort:
-                response = participant->AbortTransaction(commit->GetTransactionId());
+                response = participant->AbortTransaction(commit);
                 break;
 
             default:
@@ -1452,9 +1526,9 @@ private:
     {
         switch (state) {
             case ECommitState::Prepare:
-                return ECommitState::GeneratingCommitTimestamp;
+                return ECommitState::GeneratingCommitTimestamps;
 
-            case ECommitState::GeneratingCommitTimestamp:
+            case ECommitState::GeneratingCommitTimestamps:
                 return ECommitState::Commit;
 
             case ECommitState::Commit:
@@ -1469,13 +1543,15 @@ private:
 
     virtual bool ValidateSnapshotVersion(int version) override
     {
-        return version == 1 ||
-               version == 2;
+        return
+            version == 1 ||
+            version == 2 ||
+            version == 3;
     }
 
     virtual int GetCurrentSnapshotVersion() override
     {
-        return 2;
+        return 3;
     }
 
 

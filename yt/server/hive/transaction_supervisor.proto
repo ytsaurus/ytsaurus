@@ -1,5 +1,6 @@
 package NYT.NHiveServer.NProto;
 
+import "yt/ytlib/hive/timestamp_map.proto";
 import "yt/core/misc/guid.proto";
 import "yt/core/misc/error.proto";
 
@@ -9,7 +10,7 @@ message TReqCoordinatorCommitSimpleTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
     optional NYT.NProto.TGuid mutation_id = 2;
-    required uint64 commit_timestamp = 3;
+    required NYT.NHiveClient.NProto.TTimestampMap commit_timestamps = 3;
 }
 
 message TReqCoordinatorCommitDistributedTransactionPhaseOne
@@ -23,7 +24,7 @@ message TReqCoordinatorCommitDistributedTransactionPhaseOne
 message TReqCoordinatorCommitDistributedTransactionPhaseTwo
 {
     required NYT.NProto.TGuid transaction_id = 1;
-    required uint64 commit_timestamp = 2;
+    required NYT.NHiveClient.NProto.TTimestampMap commit_timestamps = 2;
 }
 
 message TReqCoordinatorAbortDistributedTransactionPhaseTwo

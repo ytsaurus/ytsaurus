@@ -4,10 +4,13 @@
 #include <yt/ytlib/hive/transaction_participant.h>
 #include <yt/ytlib/hive/transaction_participant_service_proxy.h>
 
+#include <yt/ytlib/api/connection.h>
+
 namespace NYT {
 namespace NApi {
 
 using namespace NHiveClient;
+using namespace NTransactionClient;
 using namespace NElection;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -18,9 +21,11 @@ class TNativeTransactionParticipant
 public:
     TNativeTransactionParticipant(
         TCellDirectoryPtr cellDirectory,
+        ITimestampProviderPtr timestampProvider,
         const TCellId& cellId,
         const TTransactionParticipantOptions& options)
         : CellDirectory_(std::move(cellDirectory))
+        , TimestampProvider_(std::move(timestampProvider))
         , CellId_(cellId)
         , Options_(options)
     { }
@@ -28,6 +33,11 @@ public:
     virtual const TCellId& GetCellId() const override
     {
         return CellId_;
+    }
+
+    virtual const ITimestampProviderPtr& GetTimestampProvider() const override
+    {
+        return TimestampProvider_;
     }
 
     virtual bool IsValid() const override
@@ -71,6 +81,7 @@ public:
 
 private:
     const TCellDirectoryPtr CellDirectory_;
+    const ITimestampProviderPtr TimestampProvider_;
     const TCellId CellId_;
     const TTransactionParticipantOptions Options_;
 
@@ -109,11 +120,13 @@ private:
 
 ITransactionParticipantPtr CreateNativeTransactionParticipant(
     TCellDirectoryPtr cellDirectory,
+    ITimestampProviderPtr timestampProvider,
     const TCellId& cellId,
     const TTransactionParticipantOptions& options)
 {
     return New<TNativeTransactionParticipant>(
         std::move(cellDirectory),
+        std::move(timestampProvider),
         cellId,
         options);
 }

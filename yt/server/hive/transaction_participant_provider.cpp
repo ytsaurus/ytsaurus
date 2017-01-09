@@ -15,6 +15,7 @@ namespace NHiveServer {
 using namespace NApi;
 using namespace NHiveClient;
 using namespace NObjectClient;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,11 +23,13 @@ class TCellDirectoryTransactionParticipantProvider
     : public ITransactionParticipantProvider
 {
 public:
-    explicit TCellDirectoryTransactionParticipantProvider(
-        TCellTag cellTag,
-        TCellDirectoryPtr cellDirectory)
-        : CellTag_(cellTag)
-        , CellDirectory_(std::move(cellDirectory))
+    TCellDirectoryTransactionParticipantProvider(
+        TCellDirectoryPtr cellDirectory,
+        ITimestampProviderPtr timestampProvider,
+        TCellTag cellTag)
+        : CellDirectory_(std::move(cellDirectory))
+        , TimestampProvider_(std::move(timestampProvider))
+        , CellTag_(cellTag)
     { }
 
     virtual ITransactionParticipantPtr TryCreate(
@@ -36,30 +39,38 @@ public:
         if (CellTagFromId(cellId) != CellTag_) {
             return nullptr;
         }
-        return CreateNativeTransactionParticipant(CellDirectory_, cellId, options);
+        return CreateNativeTransactionParticipant(
+            CellDirectory_,
+            TimestampProvider_,
+            cellId,
+            options);
     }
 
 private:
-    const TCellTag CellTag_;
     const TCellDirectoryPtr CellDirectory_;
+    const ITimestampProviderPtr TimestampProvider_;
+    const TCellTag CellTag_;
 
 };
 
 ITransactionParticipantProviderPtr CreateTransactionParticipantProvider(
-    TCellTag cellTag,
-    TCellDirectoryPtr cellDirectory)
+    TCellDirectoryPtr cellDirectory,
+    ITimestampProviderPtr timestampProvider,
+    TCellTag cellTag)
 {
     return New<TCellDirectoryTransactionParticipantProvider>(
-        cellTag,
-        std::move(cellDirectory));
+        std::move(cellDirectory),
+        std::move(timestampProvider),
+        cellTag);
 }
 
 ITransactionParticipantProviderPtr CreateTransactionParticipantProvider(
     INativeConnectionPtr connection)
 {
     return CreateTransactionParticipantProvider(
-        connection->GetCellTag(),
-        connection->GetCellDirectory());
+        connection->GetCellDirectory(),
+        connection->GetTimestampProvider(),
+        connection->GetCellTag());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -91,7 +102,8 @@ private:
 ITransactionParticipantProviderPtr CreateTransactionParticipantProvider(
     TClusterDirectoryPtr clusterDirectory)
 {
-    return New<TClusterDirectoryTransactionParticipantProvider>(std::move(clusterDirectory));
+    return New<TClusterDirectoryTransactionParticipantProvider>(
+        std::move(clusterDirectory));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

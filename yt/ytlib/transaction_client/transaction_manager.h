@@ -21,6 +21,7 @@ namespace NTransactionClient {
 using TTransactionStartOptions = NApi::TTransactionStartOptions;
 using TTransactionAttachOptions = NApi::TTransactionAttachOptions;
 using TTransactionCommitOptions = NApi::TTransactionCommitOptions;
+using TTransactionCommitResult = NApi::TTransactionCommitResult;
 using TTransactionAbortOptions = NApi::TTransactionAbortOptions;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -39,7 +40,7 @@ public:
     /*!
      *  Should not be called more than once.
      */
-    TFuture<void> Commit(const TTransactionCommitOptions& options = TTransactionCommitOptions());
+    TFuture<TTransactionCommitResult> Commit(const TTransactionCommitOptions& options = TTransactionCommitOptions());
 
     //! Aborts the transaction asynchronously.
     TFuture<void> Abort(const TTransactionAbortOptions& options = TTransactionAbortOptions());
@@ -75,8 +76,6 @@ public:
 
     //! Returns the transaction timeout.
     TDuration GetTimeout() const;
-
-    TTimestamp GetCommitTimestamp() const;
 
 
     //! Once a participant is registered, it will be pinged.

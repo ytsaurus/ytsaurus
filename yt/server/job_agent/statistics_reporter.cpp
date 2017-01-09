@@ -292,10 +292,10 @@ private:
         transaction->WriteRows(
             GetOperationsArchiveJobsPath(),
             Table_.NameTable,
-            MakeSharedRange(std::move(rows))
-        );
-        auto asyncResult = WaitFor(transaction->Commit());
-        asyncResult.ThrowOnError();
+            MakeSharedRange(std::move(rows)));
+
+        WaitFor(transaction->Commit())
+            .ThrowOnError();
 
         TryDecNonnegativeCounter(NormalPriorityCounter_.InProgressCount, counters[EReportPriority::Normal]);
         TryDecNonnegativeCounter(LowPriorityCounter_.InProgressCount, counters[EReportPriority::Low]);

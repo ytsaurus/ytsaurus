@@ -18,6 +18,7 @@ class TCellDescriptor;
 class TCellInfo;
 class TEncapsulatedMessage;
 class TClusterDirectory;
+class TTimestampMap;
 
 } // namespace NProto
 
@@ -28,6 +29,8 @@ using TMessageId = i64;
 class TCellPeerDescriptor;
 struct TCellDescriptor;
 struct TCellInfo;
+
+struct TTimestampMap;
 
 DECLARE_REFCOUNTED_CLASS(TCellDirectory)
 DECLARE_REFCOUNTED_CLASS(TCellDirectorySynchronizer)
