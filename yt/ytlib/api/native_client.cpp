@@ -3206,8 +3206,8 @@ public:
     }
 
 
-    virtual TFuture<ITransactionPtr> StartSlaveTransaction(
-        IClientPtr client,
+    virtual TFuture<ITransactionPtr> StartForeignTransaction(
+        const IClientPtr& client,
         const TTransactionStartOptions& options_) override
     {
         if (client->GetConnection()->GetCellTag() == GetConnection()->GetCellTag()) {
@@ -3219,7 +3219,7 @@ public:
 
         return client->StartTransaction(GetType(), options)
             .Apply(BIND([this, this_ = MakeStrong(this)] (const ITransactionPtr& transaction) {
-                RegisterSlaveTransaction(transaction);
+                RegisterForeignTransaction(transaction);
                 return transaction;
             }));
     }
@@ -3476,8 +3476,8 @@ private:
     ETransactionState State_ = ETransactionState::Active;
     TFuture<void> AbortResult_;
 
-    TSpinLock SlaveTransactionsLock_;
-    std::vector<ITransactionPtr> SlaveTransactions_;
+    TSpinLock ForeignTransactionsLock_;
+    std::vector<ITransactionPtr> ForeignTransactions_;
 
 
     class TModificationRequest
@@ -4035,7 +4035,7 @@ private:
             };
 
             std::vector<TFuture<TTransactionFlushResult>> asyncFlushResults;
-            for (const auto& slave : GetSlaveTransactions()) {
+            for (const auto& slave : GetForeignTransactions()) {
                 asyncFlushResults.push_back(slave->Flush());
             }
 
@@ -4066,8 +4066,17 @@ private:
 
     TTransactionFlushResult DoFlush()
     {
+        auto asyncResult = SendRequests();
+        asyncResult.Subscribe(BIND([transaction = Transaction_] (const TError& error) {
+            if (error.IsOK()) {
+                transaction->Detach();
+            } else {
+                transaction->Abort();
+            }
+        }));
+
         TTransactionFlushResult result;
-        result.AsyncResult = SendRequests();
+        result.AsyncResult = asyncResult;
         result.ParticipantCellIds = GetKeys(CellIdToSession_);
         return result;
     }
@@ -4129,16 +4138,16 @@ private:
     }
 
 
-    void RegisterSlaveTransaction(ITransactionPtr transaction)
+    void RegisterForeignTransaction(ITransactionPtr transaction)
     {
-        auto guard = Guard(SlaveTransactionsLock_);
-        SlaveTransactions_.emplace_back(std::move(transaction));
+        auto guard = Guard(ForeignTransactionsLock_);
+        ForeignTransactions_.emplace_back(std::move(transaction));
     }
 
-    std::vector<ITransactionPtr> GetSlaveTransactions()
+    std::vector<ITransactionPtr> GetForeignTransactions()
     {
-        auto guard = Guard(SlaveTransactionsLock_);
-        return SlaveTransactions_;
+        auto guard = Guard(ForeignTransactionsLock_);
+        return ForeignTransactions_;
     }
 };
 
@@ -4149,12 +4158,12 @@ TFuture<INativeTransactionPtr> TNativeClient::StartNativeTransaction(
     const TTransactionStartOptions& options)
 {
     return TransactionManager_->Start(type, options).Apply(
-        BIND([=, this_ = MakeStrong(this)] (const NTransactionClient::TTransactionPtr& nativeTranasction) -> INativeTransactionPtr {
-            auto transaction = New<TNativeTransaction>(this_, nativeTranasction);
+        BIND([=, this_ = MakeStrong(this)] (const NTransactionClient::TTransactionPtr& transaction) -> INativeTransactionPtr {
+            auto wrappedTransaction = New<TNativeTransaction>(this_, transaction);
             if (options.Sticky) {
-                Connection_->RegisterStickyTransaction(transaction);
+                Connection_->RegisterStickyTransaction(wrappedTransaction);
             }
-            return transaction;
+            return wrappedTransaction;
         }));
 }
 
