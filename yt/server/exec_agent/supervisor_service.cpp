@@ -94,7 +94,7 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, OnJobProgress)
 {
     auto jobId = FromProto<TJobId>(request->job_id());
     double progress = request->progress();
-    const auto& statistics = TYsonString(request->statistics());
+    auto statistics = TYsonString(request->statistics());
 
     context->SetRequestInfo("JobId: %v, Progress: %lf, Statistics: %v",
         jobId,

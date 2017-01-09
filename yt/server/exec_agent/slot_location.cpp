@@ -285,7 +285,8 @@ TFuture<Stroka> TSlotLocation::MakeSandboxTmpfs(
             // If we mount the whole sandbox, we use current process uid instead of slot one.
             config->UserId = isSandbox ? ::geteuid() : userId;
 
-            LOG_DEBUG("Mounting tmpfs %v", ConvertToYsonString(config, EYsonFormat::Text));
+            LOG_DEBUG("Mounting tmpfs (Config: %v)",
+                ConvertToYsonString(config, EYsonFormat::Text));
 
             TMounter::Get()->Mount(config);
             if (isSandbox) {
