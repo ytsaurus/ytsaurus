@@ -16,7 +16,7 @@ bool AreUnversionedValuesEqual(const TUnversionedValue& expected, const TUnversi
     if (expected.Id != actual.Id) {
         return false;
     }
-     
+
     if (expected.Type != EValueType::Any) {
         return expected == actual;
     } else if (expected.Length != actual.Length) {
@@ -82,6 +82,7 @@ void ExpectSchemafulRowsEqual(TVersionedRow expected, TVersionedRow actual)
 {
     if (!expected) {
         EXPECT_FALSE(actual);
+        YCHECK(!actual);
         return;
     }
 
@@ -100,15 +101,24 @@ void ExpectSchemafulRowsEqual(TVersionedRow expected, TVersionedRow actual)
     EXPECT_EQ(expected.GetValueCount(), actual.GetValueCount());
     for (int i = 0; i < expected.GetValueCount(); ++i) {
         EXPECT_TRUE(AreUnversionedValuesEqual(
-            expected.BeginValues()[i], 
+            expected.BeginValues()[i],
             actual.BeginValues()[i]));
         EXPECT_EQ(expected.BeginValues()[i].Timestamp, actual.BeginValues()[i].Timestamp);
     }
 }
 
-void CheckResult(const std::vector<TVersionedRow>& expected, IVersionedReaderPtr reader)
+void CheckResult(std::vector<TVersionedRow>* expected, IVersionedReaderPtr reader)
 {
-    auto it = expected.begin();
+    expected->erase(
+        std::remove_if(
+            expected->begin(),
+            expected->end(),
+            [] (TVersionedRow row) {
+                return !row;
+            }),
+        expected->end());
+
+    auto it = expected->begin();
     std::vector<TVersionedRow> actual;
     actual.reserve(1000);
 
@@ -118,13 +128,22 @@ void CheckResult(const std::vector<TVersionedRow>& expected, IVersionedReaderPtr
             continue;
         }
 
+        actual.erase(
+            std::remove_if(
+                actual.begin(),
+                actual.end(),
+                [] (TVersionedRow row) {
+                    return !row;
+                }),
+            actual.end());
+
         std::vector<TVersionedRow> ex(it, it + actual.size());
 
         CheckSchemafulResult(ex, actual);
         it += actual.size();
     }
 
-    EXPECT_TRUE(it == expected.end());
+    EXPECT_TRUE(it == expected->end());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

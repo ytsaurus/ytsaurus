@@ -158,6 +158,7 @@ class TVersionedOwningRow;
 typedef TUnversionedRow TKey;
 typedef TMutableUnversionedRow TMutableKey;
 typedef TUnversionedOwningRow TOwningKey;
+typedef std::pair<TUnversionedRow, TUnversionedRow> TRowRange;
 
 class TUnversionedRowBuilder;
 class TUnversionedOwningRowBuilder;

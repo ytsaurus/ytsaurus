@@ -48,17 +48,17 @@ struct TStoreRangeFormatter
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
 ISchemafulReaderPtr CreateSchemafulSortedTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
     const TColumnFilter& columnFilter,
-    TOwningKey lowerBound,
-    TOwningKey upperBound,
+    const TSharedRange<TRowRange>& bounds,
     TTimestamp timestamp,
     const TWorkloadDescriptor& workloadDescriptor)
 {
     ValidateTabletRetainedTimestamp(tabletSnapshot, timestamp);
+    YCHECK(bounds.Size() > 0);
+    auto lowerBound = bounds[0].first;
+    auto upperBound = bounds[bounds.Size() - 1].second;
 
     std::vector<ISortedStorePtr> stores;
 
@@ -79,7 +79,7 @@ ISchemafulReaderPtr CreateSchemafulSortedTabletReader(
     }
 
     LOG_DEBUG("Creating schemaful sorted tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, "
-        "LowerBound: %v, UpperBound: %v, WorkloadDescriptor: %v, StoreIds: %v, StoreRanges: %v)",
+        "LowerBound: %v, UpperBound: %v, WorkloadDescriptor: %v, StoreIds: %v, StoreRanges: %v, BoundCount: %v)",
         tabletSnapshot->TabletId,
         tabletSnapshot->CellId,
         timestamp,
@@ -87,7 +87,8 @@ ISchemafulReaderPtr CreateSchemafulSortedTabletReader(
         upperBound,
         workloadDescriptor,
         MakeFormattableRange(stores, TStoreIdFormatter()),
-        MakeFormattableRange(stores, TStoreRangeFormatter()));
+        MakeFormattableRange(stores, TStoreRangeFormatter()),
+        bounds.Size());
 
     if (stores.size() > tabletSnapshot->Config->MaxReadFanIn) {
         THROW_ERROR_EXCEPTION("Read fan-in limit exceeded; please wait until your data is merged")
@@ -114,10 +115,29 @@ ISchemafulReaderPtr CreateSchemafulSortedTabletReader(
         std::move(rowMerger),
         [=, stores = std::move(stores)] (int index) {
             Y_ASSERT(index < stores.size());
+
+            auto begin = std::lower_bound(
+                bounds.begin(),
+                bounds.end(),
+                stores[index]->GetMinKey().Get(),
+                [] (const TRowRange& lhs, TUnversionedRow rhs) {
+                    return lhs.second < rhs;
+                });
+
+            auto end = std::upper_bound(
+                bounds.begin(),
+                bounds.end(),
+                stores[index]->GetMaxKey().Get(),
+                [] (TUnversionedRow lhs, const TRowRange& rhs) {
+                    return lhs < rhs.first;
+                });
+
+            auto offsetBegin = std::distance(bounds.begin(), begin);
+            auto offsetEnd = std::distance(bounds.begin(), end);
+
             return stores[index]->CreateReader(
                 tabletSnapshot,
-                lowerBound,
-                upperBound,
+                bounds.Slice(offsetBegin, offsetEnd),
                 timestamp,
                 columnFilter,
                 workloadDescriptor);
@@ -229,8 +249,6 @@ ISchemafulReaderPtr CreateSchemafulOrderedTabletReader(
     return CreateSchemafulConcatencatingReader(readers);
 }
 
-} // namespace
-
 ISchemafulReaderPtr CreateSchemafulTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
     const TColumnFilter& columnFilter,
@@ -243,8 +261,7 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
         return CreateSchemafulSortedTabletReader(
             std::move(tabletSnapshot),
             columnFilter,
-            std::move(lowerBound),
-            std::move(upperBound),
+            MakeSingletonRowRange(lowerBound, upperBound),
             timestamp,
             workloadDescriptor);
     } else {
@@ -437,10 +454,10 @@ IVersionedReaderPtr CreateVersionedTabletReader(
         std::move(rowMerger),
         [=, stores = std::move(stores)] (int index) {
             Y_ASSERT(index < stores.size());
+
             return stores[index]->CreateReader(
                 tabletSnapshot,
-                lowerBound,
-                upperBound,
+                MakeSingletonRowRange(lowerBound, upperBound),
                 AllCommittedTimestamp,
                 TColumnFilter(),
                 workloadDescriptor);

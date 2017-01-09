@@ -39,7 +39,7 @@ protected:
     NChunkClient::TSequentialBlockFetcherPtr SequentialBlockFetcher_;
     NConcurrency::TAsyncSemaphorePtr AsyncSemaphore_;
     TFuture<void> ReadyEvent_ = VoidFuture;
-    TFuture<TSharedRef> CurrentBlock_; 
+    TFuture<TSharedRef> CurrentBlock_;
 
     bool BlockEnded_ = false;
     bool InitFirstBlockNeeded_ = false;
@@ -64,6 +64,11 @@ protected:
         TKey key,
         const TSharedRange<TKey>& blockIndexKeys,
         int beginBlockIndex = 0);
+
+    void CheckBlockUpperKeyLimit(
+        const NProto::TBlockMeta& blockMeta,
+        TKey upperLimit,
+        TNullable<int> keyColumnCount = Null);
 
     void CheckBlockUpperLimits(
         const NProto::TBlockMeta& blockMeta,

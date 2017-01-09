@@ -10,6 +10,7 @@
 #include <yt/core/misc/hash.h>
 #include <yt/core/misc/string.h>
 #include <yt/core/misc/varint.h>
+#include <yt/core/misc/range.h>
 
 #include <yt/core/yson/consumer.h>
 
@@ -203,7 +204,7 @@ size_t ReadValue(const char* input, TUnversionedValue* value)
             TStringBuf data(current, current + length);
             current += length;
 
-            *value = type == EValueType::String 
+            *value = type == EValueType::String
                 ? MakeUnversionedStringValue(data, id)
                 : MakeUnversionedAnyValue(data, id);
             break;
@@ -1762,6 +1763,16 @@ TKey WidenKeyPrefix(TKey key, int prefixLength, int keyColumnCount, const TRowBu
     return wideKey;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+TSharedRange<TRowRange> MakeSingletonRowRange(TKey lowerBound, TKey upperBound)
+{
+    auto rowBuffer = New<TRowBuffer>();
+    SmallVector<TRowRange, 1> ranges(1, TRowRange(
+        rowBuffer->Capture(lowerBound),
+        rowBuffer->Capture(upperBound)));
+    return MakeSharedRange(std::move(ranges), std::move(rowBuffer));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

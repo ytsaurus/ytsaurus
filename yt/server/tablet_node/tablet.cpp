@@ -70,14 +70,14 @@ void TRuntimeTableReplicaData::MergeFrom(const TTableReplicaStatistics& statisti
 
 std::pair<TTabletSnapshot::TPartitionListIterator, TTabletSnapshot::TPartitionListIterator>
 TTabletSnapshot::GetIntersectingPartitions(
-    const TOwningKey& lowerBound,
-    const TOwningKey& upperBound)
+    const TKey& lowerBound,
+    const TKey& upperBound)
 {
     auto beginIt = std::upper_bound(
         PartitionList.begin(),
         PartitionList.end(),
         lowerBound,
-        [] (const TOwningKey& key, const TPartitionSnapshotPtr& partition) {
+        [] (const TKey& key, const TPartitionSnapshotPtr& partition) {
             return key < partition->PivotKey;
         });
 

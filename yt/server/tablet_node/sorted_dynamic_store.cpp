@@ -530,8 +530,7 @@ public:
     TRangeReader(
         TSortedDynamicStorePtr store,
         TTabletSnapshotPtr tabletSnapshot,
-        TOwningKey lowerKey,
-        TOwningKey upperKey,
+        TSharedRange<TRowRange> ranges,
         TTimestamp timestamp,
         ui32 revision,
         const TColumnFilter& columnFilter)
@@ -541,31 +540,34 @@ public:
             timestamp,
             revision,
             columnFilter)
-        , LowerKey_(std::move(lowerKey))
-        , UpperKey_(std::move(upperKey))
+        , Ranges_(std::move(ranges))
     { }
 
     virtual TFuture<void> Open() override
     {
-        Iterator_ = Store_->Rows_->FindGreaterThanOrEqualTo(TKeyWrapper{LowerKey_});
+        UpdateLimits();
         return VoidFuture;
     }
 
     virtual bool Read(std::vector<TVersionedRow>* rows) override
     {
-        if (Finished_) {
-            return false;
-        }
-
         Y_ASSERT(rows->capacity() > 0);
         rows->clear();
         Pool_.Clear();
 
+        if (!Iterator_.IsValid()) {
+            return false;
+        }
+
         const auto& keyComparer = Store_->GetRowKeyComparer();
 
         while (Iterator_.IsValid() && rows->size() < rows->capacity()) {
-            if (keyComparer(Iterator_.GetCurrent(), TKeyWrapper{UpperKey_}) >= 0)
-                break;
+            if (keyComparer(Iterator_.GetCurrent(), TKeyWrapper{UpperBound_}) >= 0) {
+                UpdateLimits();
+                if (!Iterator_.IsValid()) {
+                    break;
+                }
+            }
 
             auto row = ProduceRow();
             if (row) {
@@ -573,11 +575,6 @@ public:
             }
 
             Iterator_.MoveNext();
-        }
-
-        if (rows->empty()) {
-            Finished_ = true;
-            return false;
         }
 
         Store_->PerformanceCounters_->DynamicRowReadCount += rows->size();
@@ -606,13 +603,43 @@ public:
     }
 
 private:
-    const TOwningKey LowerKey_;
-    const TOwningKey UpperKey_;
+    TKey LowerBound_;
+    TKey UpperBound_;
+    TSharedRange<TRowRange> Ranges_;
+    size_t RangeIndex_ = 0;
 
-    TSkipList<TSortedDynamicRow, TSortedDynamicRowKeyComparer>::TIterator Iterator_;
+    typedef TSkipList<TSortedDynamicRow, TSortedDynamicRowKeyComparer>::TIterator TIterator;
+    TIterator Iterator_;
 
-    bool Finished_ = false;
+    void UpdateLimits()
+    {
+        const auto& keyComparer = Store_->GetRowKeyComparer();
 
+        while (RangeIndex_ < Ranges_.Size()) {
+            LowerBound_ = Ranges_[RangeIndex_].first;
+            UpperBound_ = Ranges_[RangeIndex_].second;
+
+            Iterator_ = Store_->Rows_->FindGreaterThanOrEqualTo(TKeyWrapper{LowerBound_});
+
+            if (Iterator_.IsValid() && keyComparer(Iterator_.GetCurrent(), TKeyWrapper{UpperBound_}) >= 0) {
+                auto newBoundIt = std::upper_bound(
+                    Ranges_.begin() + RangeIndex_,
+                    Ranges_.end(),
+                    Iterator_.GetCurrent(),
+                    [&] (const TSortedDynamicRow& lhs, const TRowRange& rhs) {
+                        return keyComparer(lhs, TKeyWrapper{rhs.second}) < 0;
+                    });
+
+                RangeIndex_ = std::distance(Ranges_.begin(), newBoundIt);
+                continue;
+            }
+
+            ++RangeIndex_;
+            return;
+        }
+        Iterator_ = TIterator();
+        return;
+    }
 
     TVersionedRow ProduceRow()
     {
@@ -760,8 +787,7 @@ IVersionedReaderPtr TSortedDynamicStore::CreateFlushReader()
     return New<TRangeReader>(
         this,
         nullptr,
-        MinKey(),
-        MaxKey(),
+        MakeSingletonRowRange(MinKey(), MaxKey()),
         AllCommittedTimestamp,
         FlushRevision_,
         TColumnFilter());
@@ -772,8 +798,7 @@ IVersionedReaderPtr TSortedDynamicStore::CreateSnapshotReader()
     return New<TRangeReader>(
         this,
         nullptr,
-        MinKey(),
-        MaxKey(),
+        MakeSingletonRowRange(MinKey(), MaxKey()),
         AllCommittedTimestamp,
         GetLatestRevision(),
         TColumnFilter());
@@ -1595,8 +1620,7 @@ TOwningKey TSortedDynamicStore::GetMaxKey() const
 
 IVersionedReaderPtr TSortedDynamicStore::CreateReader(
     const TTabletSnapshotPtr& tabletSnapshot,
-    TOwningKey lowerKey,
-    TOwningKey upperKey,
+    TSharedRange<TRowRange> ranges,
     TTimestamp timestamp,
     const TColumnFilter& columnFilter,
     const TWorkloadDescriptor& /*workloadDescriptor*/)
@@ -1605,8 +1629,7 @@ IVersionedReaderPtr TSortedDynamicStore::CreateReader(
     return New<TRangeReader>(
         this,
         tabletSnapshot,
-        std::move(lowerKey),
-        std::move(upperKey),
+        std::move(ranges),
         timestamp,
         MaxRevision,
         columnFilter);
