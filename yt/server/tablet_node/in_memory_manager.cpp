@@ -252,10 +252,11 @@ private:
         try {
             auto finalizer = Finally(
                 [&] () {
-                LOG_WARNING("Backing off tablet store preload");
-                    BIND(&IStoreManager::BackoffStorePreload, storeManager, store)
-                        .Via(invoker)
-                        .Run();
+                    LOG_WARNING("Backing off tablet store preload");
+                    store->SetPreloadBackoffFuture(
+                        BIND(&IStoreManager::BackoffStorePreload, storeManager, store)
+                            .AsyncVia(invoker)
+                            .Run());
                 });
             if (!IsMemoryLimitExceeded()) {
                 auto tabletSnapshot = Bootstrap_->GetTabletSlotManager()->FindTabletSnapshot(tablet->GetId());

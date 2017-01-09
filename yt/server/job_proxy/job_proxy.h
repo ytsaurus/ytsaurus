@@ -72,7 +72,7 @@ private:
 
     std::atomic<i32> NetworkUsage_ = {0};
 
-    int CpuLimit_;
+    int CpuLimit_ = 0;
 
     const NConcurrency::TActionQueuePtr JobThread_;
     const NConcurrency::TActionQueuePtr ControlThread_;
