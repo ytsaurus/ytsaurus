@@ -176,7 +176,7 @@ class Transaction(object):
             if action == "abort":
                 # NB: logger may be socket logger. In this case we should convert error to string to avoid
                 # bug with unpickling Exception that has non-trivial __init__.
-                logger.warning(
+                logger.debug(
                     "Error: (type=%s, value=%s), aborting transaction %s ...",
                     type,
                     str(value).replace("\n", "\\n"),
