@@ -744,7 +744,12 @@ void BuildCommonOperationPart(const TOperationOptions& options, TFluentMap fluen
 
 Stroka MergeSpec(TNode& dst, const TOperationOptions& options)
 {
+    Cout << NodeToYsonString(TConfig::Get()->Spec) << Endl;
+
     MergeNodes(dst["spec"], TConfig::Get()->Spec);
+
+    Cout << NodeToYsonString(dst["spec"]) << Endl;
+
     if (options.Spec_) {
         MergeNodes(dst["spec"], *options.Spec_);
     }
