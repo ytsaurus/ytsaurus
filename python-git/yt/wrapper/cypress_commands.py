@@ -29,13 +29,14 @@ class _KwargSentinelClass(object):
 _KWARG_SENTINEL = _KwargSentinelClass()
 
 def get(path, attributes=None, format=None, ignore_opaque=False, read_from=None, client=None):
-    """Get Cypress node content (attribute tree).
+    """Gets Cypress node content (attribute tree).
 
-    :param path: (string or `yt.wrapper.YPath`) path to tree, it must exist!
-    :param attributes: (list) desired node attributes in the response.
-    :param format: (string or descendant of `yt.wrapper.format.Format`) output format \
-        (by default python dict automatically parsed from YSON).
-    :param ignore_opaque: (bool)
+    :param path: path to tree, it must exist!
+    :type path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
+    :param list attributes: desired node attributes in the response.
+    :param format: output format (by default python dict automatically parsed from YSON).
+    :type format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
+    :param bool ignore_opaque: ignore opaque.
     :return: node tree content in `format`
 
     Be careful: attributes have specific representation in JSON format.
@@ -54,9 +55,10 @@ def get(path, attributes=None, format=None, ignore_opaque=False, read_from=None,
         client=client)
 
 def set(path, value, format=None, client=None):
-    """Set new value to Cypress node.
+    """Sets new value to Cypress node.
 
-    :param path: (string or `yt.wrapper.YPath`)
+    :param path: path.
+    :type path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
     :param value: json-able object.
     :param format: format of the value. If format is None than value should be \
     object that can be dumped to JSON of YSON. Otherwise it should be string.
@@ -80,13 +82,15 @@ def set(path, value, format=None, client=None):
         client=client)
 
 def copy(source_path, destination_path, recursive=None, preserve_account=None, force=None, client=None):
-    """Copy Cypress node.
+    """Copies Cypress node.
 
-    :param source_path: (string or `yt.wrapper.YPath`)
-    :param destination_path: (string or `yt.wrapper.YPath`)
-    :param recursive: (bool) `config["yamr_mode"]["create_recursive"]` by default
-    :param preserve_account: (bool)
-    :param force: (bool)
+    :param source_path: source path.
+    :type source_path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
+    :param destination_path: destination path.
+    :type destination_path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
+    :param bool recursive: ``yt.wrapper.config["yamr_mode"]["create_recursive"]`` by default.
+    :param bool preserve_account: preserve account.
+    :param bool force: force.
 
     .. seealso:: `copy on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#copy>`_
     """
@@ -100,13 +104,15 @@ def copy(source_path, destination_path, recursive=None, preserve_account=None, f
     return _make_formatted_transactional_request("copy", params, format=None, client=client)
 
 def move(source_path, destination_path, recursive=None, preserve_account=None, force=None, client=None):
-    """Move (rename) Cypress node.
+    """Moves (renames) Cypress node.
 
-    :param source_path: (string or `yt.wrapper.YPath`)
-    :param destination_path: (string or `yt.wrapper.YPath`)
-    :param recursive: (bool) `config["yamr_mode"]["create_recursive"]` by default
-    :param preserve_account: (bool)
-    :param force: (bool)
+    :param source_path: source path.
+    :type source_path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
+    :param destination_path: destination path.
+    :type destination_path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
+    :param bool recursive: ``yt.wrapper.config["yamr_mode"]["create_recursive"]`` by default.
+    :param bool preserve_account: preserve account.
+    :param bool force: force.
 
     .. seealso:: `move on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#move>`_
     """
@@ -120,10 +126,12 @@ def move(source_path, destination_path, recursive=None, preserve_account=None, f
     return _make_formatted_transactional_request("move", params, format=None, client=client)
 
 def concatenate(source_paths, destination_path, client=None):
-    """Concatenate cypress nodes. This command applicable only to files and tables.
+    """Concatenates cypress nodes. This command applicable only to files and tables.
 
-    :param source_path: (string or `yt.wrapper.YPath`)
-    :param destination_path: (string or `yt.wrapper.YPath`)
+    :param source_paths: source paths.
+    :type source_paths: list[str or :class:`YPath <yt.wrapper.ypath.YPath>`]
+    :param destination_path: destination path.
+    :type destination_path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
     """
     source_paths = builtins.list(imap(lambda path: YPath(path, client=client), source_paths))
     destination_path = YPath(destination_path, client=client)
@@ -138,12 +146,14 @@ def concatenate(source_paths, destination_path, client=None):
     _make_transactional_request("concatenate", params, client=client)
 
 def link(target_path, link_path, recursive=False, ignore_existing=False, force=False, attributes=None, client=None):
-    """Make link to Cypress node.
+    """Makes link to Cypress node.
 
-    :param target_path: (string or `yt.wrapper.YPath`)
-    :param link_path: (string or `yt.wrapper.YPath`)
-    :param recursive: (bool)
-    :param ignore_existing: (bool)
+    :param target_path: target path.
+    :type target_path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
+    :param link_path: link path.
+    :type link_path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
+    :param bool recursive: recursive.
+    :param bool ignore_existing: ignore existing.
 
     .. seealso:: `link on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#link>`_
     """
@@ -162,18 +172,21 @@ def link(target_path, link_path, recursive=False, ignore_existing=False, force=F
 
 
 def list(path, max_size=None, format=None, absolute=None, attributes=None, sort=True, read_from=None, client=None):
-    """List directory (map_node) content.
+    """Lists directory (map_node) content. Node type must be "map_node".
 
-    Node type must be 'map_node'.
-    :param path: (string or `YPath`)
-    :param max_size: (int)
-    :param attributes: (list) desired node attributes in the response.
-    :param format: (descendant of `Format`) command response format, by default - None.
-    :param absolute: (bool) convert relative paths to absolute. Works only if format isn't specified.
-    :param sort: (bool) if set to True output will be sorted.
+    :param path: path.
+    :type path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
+    :param int max_size: max output size.
+    :param list attributes: desired node attributes in the response.
+    :param format: command response format, by default - `None`.
+    :type format: descendant of :class:`Format <yt.wrapper.format.Format>`
+    :param bool absolute: convert relative paths to absolute. Works only if format isn't specified.
+    :param bool sort: if set to `True` output will be sorted.
+
     .. note:: Output is never sorted if format is specified or result is incomplete, \
     i.e. path children count exceeds max_size.
-    :return: raw YSON (string) by default, parsed YSON or JSON if format is not specified (=None).
+
+    :return: raw YSON (string) by default, parsed YSON or JSON if format is not specified (= `None`).
 
     .. seealso:: `list on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#list>`_
     """
@@ -205,9 +218,10 @@ def list(path, max_size=None, format=None, absolute=None, attributes=None, sort=
     return result
 
 def exists(path, read_from=None, client=None):
-    """Check Cypress node exists.
+    """Checks if Cypress node exists.
 
-    :param path: (string or `YPath`)
+    :param path: path.
+    :type path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
 
     .. seealso:: `exists on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#exists>`_
     """
@@ -221,11 +235,12 @@ def exists(path, read_from=None, client=None):
             client=client))
 
 def remove(path, recursive=False, force=False, client=None):
-    """Remove Cypress node.
+    """Removes Cypress node.
 
-    :param path: (string or `YPath`)
-    :param recursive: (bool)
-    :param force: (bool)
+    :param path: path.
+    :type path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
+    :param bool recursive: recursive.
+    :param bool force: force.
 
     .. seealso:: `remove on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#remove>`_
     """
@@ -239,12 +254,13 @@ def remove(path, recursive=False, force=False, client=None):
         client=client)
 
 def create(type, path=None, recursive=False, ignore_existing=False, attributes=None, client=None):
-    """Create Cypress node.
+    """Creates Cypress node.
 
-    :param type: (one of "table", "file", "map_node", "list_node"...)
-    :param path: (string or `YPath`)
-    :param recursive: (bool) `config["yamr_mode"]["create_recursive"]` by default
-    :param attributes: (dict)
+    :param str type: one of ["table", "file", "map_node", "list_node", ...].
+    :param path: path.
+    :type path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
+    :param bool recursive: ``yt.wrapper.config["yamr_mode"]["create_recursive"]`` by default.
+    :param dict attributes: attributes.
 
     .. seealso:: `create on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#create>`_
     """
@@ -260,62 +276,64 @@ def create(type, path=None, recursive=False, ignore_existing=False, attributes=N
     return _make_formatted_transactional_request("create", params, format=None, client=client)
 
 def mkdir(path, recursive=None, client=None):
-    """Make directory (Cypress node of map_node type).
-    :param path: (string or `YPath`)
-    :param recursive: (bool) `config["yamr_mode"]["create_recursive"]` by default
+    """Makes directory (Cypress node of map_node type).
+
+    :param path: path.
+    :type path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
+    :param bool recursive: ``yt.wrapper.config["yamr_mode"]["create_recursive"]`` by default.
     """
     recursive = get_value(recursive, get_config(client)["yamr_mode"]["create_recursive"])
     return create("map_node", path, recursive=recursive, ignore_existing=recursive, client=client)
 
 # TODO: maybe remove this methods
 def get_attribute(path, attribute, default=_KWARG_SENTINEL, client=None):
-    """Get attribute of Cypress node.
+    """Gets attribute of Cypress node.
 
-    :param path: (string)
-    :param attribute: (string)
-    :param default: (any) return it if node hasn't attribute `attribute`.
+    :param str path: path.
+    :param str attribute: attribute.
+    :param default: if node hasn't attribute `attribute` this value will be returned.
     """
     if default is not _KWARG_SENTINEL and attribute not in list_attributes(path, client=client):
         return default
     return get("%s/@%s" % (path, attribute), client=client)
 
 def has_attribute(path, attribute, client=None):
-    """Check Cypress node has attribute.
+    """Checks if Cypress node has attribute.
 
-    :param path: (string)
-    :param attribute: (string)
+    :param str path: path.
+    :param str attribute: attribute.
     """
     return exists("%s/@%s" % (path, attribute), client=client)
 
 def set_attribute(path, attribute, value, client=None):
-    """Set Cypress node `attribute` to `value`.
+    """Sets Cypress node `attribute` to `value`.
 
-    :param path: (string)
-    :param attribute: (string)
-    :param value: (any)
+    :param str path: path.
+    :param str attribute: attribute.
+    :param value: value.
     """
     return set("%s/@%s" % (path, attribute), value, client=client)
 
 def list_attributes(path, attribute_path="", client=None):
-    """List all attributes of Cypress node.
+    """Lists all attributes of Cypress node.
 
-    :param path: (string)
-    :param attribute_path: (string)
+    :param str path: path.
+    :param str attribute_path: attribute path.
     """
     return list("%s/@%s" % (path, attribute_path), client=client)
 
 def get_type(path, client=None):
-    """Get Cypress node attribute type.
+    """Gets Cypress node attribute type.
 
-    :param path: (string)
+    :param str path: path.
     """
     return get_attribute(path, "type", client=client)
 
 def find_free_subpath(path, client=None):
-    """Generate some free random subpath.
+    """Generates some free random subpath.
 
-    :param path: (string)
-    :return: (string)
+    :param str path: path.
+    :rtype: str
     """
     LENGTH = 10
     char_set = string.ascii_letters + string.digits
@@ -330,21 +348,25 @@ def search(root="", node_type=None,
            list_node_order=None,
            attributes=None, exclude=None, depth_bound=None,
            follow_links=False, read_from=None, client=None):
-    """Search for some nodes in Cypress subtree.
+    """Searches for some nodes in Cypress subtree.
 
-    :param root: (string or `YPath`) path to search
-    :param node_type: (list of string)
-    :param object_filter: (predicate)
+    :param root: path to search.
+    :type root: str or :class:`YPath <yt.wrapper.ypath.YPath>`
+    :param node_type: node types.
+    :type node_type: list[str]
+    :param object_filter: filtering predicate.
     :param map_node_order: function that specifies order of traversing map_node children;
         that function should take two arguments (path, object)
         and should return iterable over object children;
         default map_node_order sorts children lexicographically;
-        set it to None in order to switch off sorting
-    :param attributes: (list of string) these attributes will be added to result objects
-    :param exclude: (list of string) excluded paths
-    :param depth_bound: (int) recursion depth
-    :param follow_links: (bool) follow links
-    :return: (iterable over YsonString) result paths
+        set it to None in order to switch off sorting.
+    :param attributes: these attributes will be added to result objects.
+    :type attributes: list[str]
+    :param exclude: excluded paths.
+    :type exclude: list[str]
+    :param int depth_bound: recursion depth.
+    :param bool follow_links: follow links.
+    :return: result paths as iterable over :class:`YsonString <yt.yson.yson_types.YsonString>`.
     """
     # Deprecated. Default value "/" should be removed.
     if not root and not get_config(client)["prefix"]:
@@ -426,10 +448,11 @@ def search(root="", node_type=None,
     return walk(root, safe_get(root, ignore_resolve_error=ignore_root_path_resolve_error), 0, True)
 
 def remove_with_empty_dirs(path, force=True, client=None):
-    """Remove path and all empty dirs that appear after deletion.
+    """Removes path and all empty dirs that appear after deletion.
 
-    :param path: (string or `YPath`)
-    :param force: (bool)
+    :param path: path.
+    :type path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
+    :param bool force: force.
     """
     path = YPath(path, client=client)
     while True:

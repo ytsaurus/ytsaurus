@@ -5,7 +5,7 @@ from yt.packages.six import text_type, binary_type, integer_types, iteritems, PY
 from yt.packages.six.moves import map as imap
 
 def to_yson_type(value, attributes=None, always_create_attributes=True):
-    """ Wrap value with YSON type """
+    """Wraps value with YSON type."""
     if not always_create_attributes and attributes is None:
         if isinstance(value, text_type) and not PY3:
             return value.encode("utf-8")
@@ -42,7 +42,7 @@ def to_yson_type(value, attributes=None, always_create_attributes=True):
     return result
 
 def json_to_yson(json_tree, encode_key=False):
-    """ Converts json representation to YSON representation """
+    """Converts json representation to YSON representation."""
     if encode_key:
         if json_tree.startswith("$"):
             if not json_tree.startswith("$$"):

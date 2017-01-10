@@ -1,13 +1,12 @@
 """
 Commands for table working and Map-Reduce operations.
+
 .. seealso:: `operations on wiki <https://wiki.yandex-team.ru/yt/userdoc/operations>`_
 
 Python wrapper has some improvements over bare YT operations:
 
 * upload files automatically
-
 * create or erase output table
-
 * delete files after
 
 .. _operation_parameters:
@@ -15,25 +14,24 @@ Python wrapper has some improvements over bare YT operations:
 Common operations parameters
 ----------------------------
 
+* **spec** : (dict) universal method to set operation parameters.
 
-* **spec** : (dict) universal method to set operation parameters
+* **job_io** : (dict) spec for job io of all stages of operation, see  \
+`IO settings doc <https://wiki.yandex-team.ru/yt/userdoc/table_io>`_.
 
-* **job_io** : (dict) spec for job io of all stages of operation \
-<https://wiki.yandex-team.ru/yt/userdoc/api#write>`_.
-
-* **table_writer** : (dict) spec of `"write_table" operation \
+* **table_writer** : (dict) spec of `"write_table" command \
 <https://wiki.yandex-team.ru/yt/userdoc/api#writetable>`_.
 
-* **table_reader** : (dict) spec of `"read_table" operation \
+* **table_reader** : (dict) spec of `"read_table" command \
 <https://wiki.yandex-team.ru/yt/userdoc/api#readtable>`_.
 
-* **format** : (string or descendant of `yt.wrapper.format.Format`) format of input and output \
-data of operation
+* **format** : (str or descendant of :class:`Format <yt.wrapper.format.Format>`) format of input and output \
+data of operation.
 
-* **memory_limit** : (integer) memory limit in Mb in *scheduler* for every *job* (512Mb by default)
+* **memory_limit** : (int) memory limit in Mb in *scheduler* for every *job* (512Mb by default).
 
 
-Operation run under self-pinged transaction, if `yt.wrapper.get_config(client)["detached"]` is `False`.
+Operation run under self-pinged transaction, if ``yt.wrapper.config["detached"]`` is `False`.
 """
 
 from . import py_wrapper
@@ -67,13 +65,14 @@ from copy import deepcopy
 
 @forbidden_inside_job
 def run_erase(table, spec=None, sync=True, client=None):
-    """Erase table or part of it.
+    """Erases table or part of it.
 
     Erase differs from remove command.
     It only removes content of table (range of records or all table) and doesn't remove Cypress node.
 
-    :param table: (string or `TablePath`)
-    :param spec: (dict)
+    :param table: table.
+    :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param dict spec: operation spec.
 
     .. seealso::  :ref:`operation_parameters`.
     """
@@ -93,18 +92,20 @@ def run_erase(table, spec=None, sync=True, client=None):
 def run_merge(source_table, destination_table, mode=None,
               sync=True, job_io=None, table_writer=None,
               job_count=None, spec=None, client=None):
-    """Merge source tables to destination table.
+    """Merges source tables to destination table.
 
-    :param source_table: list of string or `TablePath`, list tables names to merge
-    :param destination_table: string or `TablePath`, path to result table
-    :param mode: ['auto' (default), 'unordered', 'ordered', or 'sorted']. Mode `sorted` keeps sortedness \
-                 of output tables, mode `ordered` is about chunk magic, not for ordinary users.
-                 In 'auto' mode system chooses proper mode depending on the table sortedness.
-    :param job_count:  (integer) recommendation how many jobs should run.
-    :param job_io: job io specification
-    :param table_writer: standard operation parameter
-    :param spec: (dict) standard operation parameter.
-
+    :param source_table: tables to merge.
+    :type source_table: list[str or :class:`TablePath <yt.wrapper.ypath.TablePath>`]
+    :param destination_table: path to result table.
+    :type destination_table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param str mode: one of ["auto", "unordered", "ordered", "sorted"]. "auto" by default. \
+    Mode `sorted` keeps sortedness of output tables. \
+    Mode `ordered` is about chunk magic, not for ordinary users. \
+    In `auto` mode system chooses proper mode depending on the table sortedness.
+    :param int job_count: recommendation how many jobs should run.
+    :param dict job_io: job io specification.
+    :param dict table_writer: standard operation parameter.
+    :param dict spec: standard operation parameter.
 
     .. seealso::  :ref:`operation_parameters`.
     """
@@ -145,7 +146,7 @@ def run_merge(source_table, destination_table, mode=None,
 def run_sort(source_table, destination_table=None, sort_by=None,
              sync=True, job_io=None, table_writer=None,
              spec=None, client=None):
-    """Sort source tables to destination table.
+    """Sorts source tables to destination table.
 
     If destination table is not specified, than it equals to source table.
 
@@ -204,44 +205,56 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
                    reduce_combiner_memory_limit=None,
                    stderr_table=None,
                    client=None):
-    """Run map (optionally), sort, reduce and reduce-combine (optionally) operations.
+    """Runs map (optionally), sort, reduce and reduce-combine (optionally) operations.
 
-    :param mapper: (python generator, callable object-generator or string (with bash commands)).
-    :param reducer: (python generator, callable object-generator or string (with bash commands)).
-    :param source_table: (string, `TablePath` or list of them) input tables
-    :param destination_table: (string, `TablePath` or list of them) output tables
-    :param stderr_table: (string, `TablePath`) stderr table
-    :param format: (string or descendant of `yt.wrapper.format.Format`) common format of input, \
-                    intermediate and output data. More specific formats will override it.
-    :param map_input_format: (string or descendant of `yt.wrapper.format.Format`)
-    :param map_output_format: (string or descendant of `yt.wrapper.format.Format`)
-    :param reduce_input_format: (string or descendant of `yt.wrapper.format.Format`)
-    :param reduce_output_format: (string or descendant of `yt.wrapper.format.Format`)
-    :param job_io: job io specification
-    :param table_writer: (dict) standard operation parameter
-    :param spec: (dict) standard operation parameter
+    :param mapper: python generator, callable object-generator or string (with bash commands).
+    :param reducer: python generator, callable object-generator or string (with bash commands).
+    :param source_table: input tables or list of tables.
+    :type source_table: list[str or :class:`TablePath <yt.wrapper.ypath.TablePath>`]
+    :param destination_table: output table or list of tables.
+    :type destination_table: list[str or :class:`TablePath <yt.wrapper.ypath.TablePath>`]
+    :param stderr_table: stderrs table.
+    :type stderr_table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param format: common format of input, intermediate and output data. More specific formats will override it.
+    :type format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
+    :param map_input_format: input format for map operation.
+    :type map_input_format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
+    :param map_output_format: output format for map operation.
+    :type map_output_format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
+    :param reduce_input_format: input format for reduce operation.
+    :type reduce_input_format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
+    :param reduce_output_format: output format for reduce operation.
+    :type reduce_output_format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
+    :param dict job_io: job io specification.
+    :param dict table_writer: standard operation parameter.
+    :param dict spec: standard operation parameter.
     :param map_files: Deprecated!
-    :param map_local_files: (string or list  of string) paths to map scripts on local machine.
-    :param map_yt_files: (string or list  of string) paths to map scripts in Cypress.
+    :param map_local_files: paths to map scripts on local machine.
+    :type map_local_files: str or list[str]
+    :param map_yt_files: paths to map scripts in Cypress.
+    :type map_yt_files: str or list[str]
     :param reduce_files: Deprecated!
-    :param reduce_local_files: (string or list  of string) paths to reduce scripts on local machine.
-    :param reduce_yt_files: (string or list of string) paths to reduce scripts in Cypress.
-    :param mapper_memory_limit: (integer) in bytes, map **job** memory limit.
-    :param reducer_memory_limit: (integer) in bytes, reduce **job** memory limit.
-    :param sort_by: (list of strings, string) list of columns for sorting by, \
-                    equals to `reduce_by` by default
-    :param reduce_by: (list of strings, string) list of columns for grouping by
-    :param reduce_combiner: (python generator, callable object-generator or string \
-                            (with bash commands)).
-    :param reduce_combiner_input_format: (string or descendant of `yt.wrapper.format.Format`)
-    :param reduce_combiner_output_format: (string or descendant of `yt.wrapper.format.Format`)
+    :param reduce_local_files: paths to reduce scripts on local machine.
+    :type reduce_combiner_local_files: str or list[str]
+    :param reduce_yt_files: paths to reduce scripts in Cypress.
+    :type reduce_yt_files: str or list[str]
+    :param int mapper_memory_limit: in bytes, map **job** memory limit.
+    :param int reducer_memory_limit: in bytes, reduce **job** memory limit.
+    :param sort_by: list of columns for sorting by, equals to `reduce_by` by default.
+    :type sort_by: str or list[str]
+    :param reduce_by: list of columns for grouping by.
+    :type reduce_by: str or list[str]
+    :param reduce_combiner: python generator, callable object-generator or string (with bash commands).
+    :param reduce_combiner_input_format: input format for reduce combiner.
+    :type reduce_combiner_input_format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
+    :param reduce_combiner_output_format: output format for reduce combiner.
+    :type reduce_combiner_output_format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
     :param reduce_combiner_files: Deprecated!
-    :param reduce_combiner_local_files: (string or list  of string) \
-                                        paths to reduce combiner scripts on local machine.
-    :param reduce_combiner_yt_files: (string or list  of string) \
-                                     paths to reduce combiner scripts in Cypress.
-    :param reduce_combiner_memory_limit: (integer) in bytes
-
+    :param reduce_combiner_local_files: paths to reduce combiner scripts on local machine.
+    :type reduce_combiner_local_files: str or list[str]
+    :param reduce_combiner_yt_files: paths to reduce combiner scripts in Cypress.
+    :type reduce_combiner_yt_files: str or list[str]
+    :param int reduce_combiner_memory_limit: memory limit in bytes.
 
     .. seealso::  :ref:`operation_parameters`.
     """
@@ -308,16 +321,18 @@ def _run_operation(binary, source_table, destination_table,
                    ordered=None,
                    stderr_table=None,
                    client=None):
-    """Run script operation.
+    """Runs script operation.
 
-    :param binary: (python generator, callable object-generator or string (with bash commands))
+    :param binary: python generator, callable object-generator or string (with bash commands).
     :param files: Deprecated!
-    :param local_files: (string or list  of string) paths to scripts on local machine.
-    :param yt_files: (string or list  of string) paths to scripts in Cypress.
-    :param op_name: (one of "map" (default), "reduce", ...)
-    :param job_count:  (integer) recommendation how many jobs should run.
+    :param local_files: paths to scripts on local machine.
+    :type local_files: str or list[str]
+    :param yt_files: paths to scripts in Cypress.
+    :type yt_files: str or list[str]
+    :param str op_name: one of ["map", "reduce", ...], "map" by default.
+    :param int job_count: recommendation how many jobs should run.
 
-    .. seealso::  :ref:`operation_parameters` and :py:func:`yt.wrapper.table_commands.run_map_reduce`.
+    .. seealso::  :ref:`operation_parameters` and :func:`run_map_reduce <.run_map_reduce>`.
     """
 
     local_files_to_remove = []
@@ -446,11 +461,11 @@ def run_map(binary, source_table, destination_table,
             ordered=None,
             stderr_table=None,
             client=None):
-    """Run map operation.
+    """Runs map operation.
 
-    :param ordered: (bool) force ordered input for mapper
+    :param bool ordered: force ordered input for mapper.
 
-    .. seealso::  :ref:`operation_parameters` and :py:func:`yt.wrapper.table_commands.run_map_reduce`.
+    .. seealso::  :ref:`operation_parameters` and :func:`run_map_reduce <.run_map_reduce>`.
     """
     return _run_operation(op_name="map", **locals())
 
@@ -469,9 +484,9 @@ def run_reduce(binary, source_table, destination_table,
                join_by=None,
                stderr_table=None,
                client=None):
-    """Run reduce operation.
+    """Runs reduce operation.
 
-    .. seealso::  :ref:`operation_parameters` and :py:func:`yt.wrapper.table_commands.run_map_reduce`.
+    .. seealso::  :ref:`operation_parameters` and :func:`run_map_reduce <.run_map_reduce>`.
     """
     return _run_operation(op_name="reduce", **locals())
 
@@ -490,12 +505,12 @@ def run_join_reduce(binary, source_table, destination_table,
                     join_by=None,
                     stderr_table=None,
                     client=None):
-    """Run join-reduce operation.
+    """Runs join-reduce operation.
 
     .. note:: You should specity at least two input table and all except one \
     should have set foreign attibute. You should also specify join_by columns.
 
-    .. seealso::  :ref:`operation_parameters` and :py:func:`yt.wrapper.table_commands.run_map_reduce`.
+    .. seealso::  :ref:`operation_parameters` and :func:`run_map_reduce <.run_map_reduce>`.
     """
     return _run_operation(op_name="join_reduce", **locals())
 
@@ -503,14 +518,16 @@ def run_join_reduce(binary, source_table, destination_table,
 def run_remote_copy(source_table, destination_table,
                     cluster_name=None, network_name=None, cluster_connection=None, copy_attributes=None,
                     spec=None, sync=True, client=None):
-    """Copy source table from remote cluster to destination table on current cluster.
+    """Copies source table from remote cluster to destination table on current cluster.
 
-    :param source_table: (list of string or `TablePath`)
-    :param destination_table: (string, `TablePath`)
-    :param cluster_name: (string)
-    :param network_name: (string)
-    :param spec: (dict)
-    :param copy_attributes: (bool) copy attributes source_table to destination_table
+    :param source_table: source table to copy (or list of tables).
+    :type source_table: list[str or :class:`TablePath <yt.wrapper.ypath.TablePath>`]
+    :param destination_table: destination table.
+    :type destination_table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param str cluster_name: cluster name.
+    :param str network_name: network name.
+    :param dict spec: operation spec.
+    :param bool copy_attributes: copy attributes source_table to destination_table.
 
     .. note:: For atomicity you should specify just one item in `source_table` \
     in case attributes copying.

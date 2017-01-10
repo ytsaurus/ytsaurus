@@ -1,5 +1,3 @@
-"""downloading and uploading data to YT commands"""
-
 import yt.logger as logger
 from .config import get_config, get_option
 from .common import require, chunk_iter_stream, chunk_iter_string, bool_to_string, parse_bool, set_param
@@ -39,14 +37,14 @@ def md5sum(filename):
     return h.hexdigest()
 
 def read_file(path, file_reader=None, offset=None, length=None, client=None):
-    """Download file from path in Cypress to local machine.
+    """Downloads file from path in Cypress to local machine.
 
-    :param path: (string of `FilePath`) path to file in Cypress
-    :param response_type: (string) Deprecated! It means the output format. By default it is line generator.
-    :param file_reader: (dict) spec of download command
-    :param offset: (int) offset in input file in bytes, 0 by default
-    :param length: (int) length in bytes of desired part of input file, all file without offset by default
-    :return: some stream over downloaded file, string generator by default
+    :param path: path to file in Cypress.
+    :type path: str or :class:`FilePath <yt.wrapper.ypath.FilePath>`
+    :param dict file_reader: spec of download command.
+    :param int offset: offset in input file in bytes, 0 by default.
+    :param int length: length in bytes of desired part of input file, all file without offset by default.
+    :return: some stream over downloaded file, string generator by default.
     """
     path = FilePath(path, client=client)
     params = {"path": path}
@@ -88,15 +86,16 @@ def read_file(path, file_reader=None, offset=None, length=None, client=None):
         client=client)
 
 def write_file(destination, stream, file_writer=None, is_stream_compressed=False, force_create=None, client=None):
-    """Upload file to destination path from stream on local machine.
+    """Uploads file to destination path from stream on local machine.
 
-    :param destination: (string or `FilePath`) destination path in Cypress
-    :param stream: some stream, string generator or 'yt.wrapper.string_iter_io.StringIterIO' for example
-    :param file_writer: (dict) spec of upload operation
-    :param is_stream_compressed: (bool) expect stream to contain compressed data. \
+    :param destination: destination path in Cypress.
+    :type destination: str or :class:`FilePath <yt.wrapper.ypath.FilePath>`
+    :param stream: stream or bytes generator.
+    :param dict file_writer: spec of upload operation.
+    :param bool is_stream_compressed: expect stream to contain compressed data. \
     This data can be passed directly to proxy without recompression. Be careful! this option \
     disables write retries.
-    :param force_create: (bool) unconditionally create file and ignores exsting file.
+    :param bool force_create: unconditionally create file and ignores exsting file.
     """
 
     if force_create is None:
@@ -221,27 +220,28 @@ def upload_file_to_cache(filename, hash=None, client=None):
 
 def smart_upload_file(filename, destination=None, yt_filename=None, placement_strategy=None,
                       ignore_set_attributes_error=True, hash=None, client=None):
-    """
-    Upload file to destination path with custom placement strategy.
+    """Uploads file to destination path with custom placement strategy.
 
-    :param filename: (string) path to file on local machine
-    :param destination: (string) desired file path in Cypress,
-    :param yt_filename: (string) 'file_name' attribute of file in Cypress (visible in operation name of file), \
+    :param str filename: path to file on local machine.
+    :param str destination: desired file path in Cypress.
+    :param str yt_filename: "file_name" attribute of file in Cypress (visible in operation name of file), \
     by default basename of `destination` (or `filename` if `destination` is not set)
-    :param placement_strategy: (one of "replace", "ignore", "random", "hash"), \
-    "hash" by default.
-    :param ignore_set_attributes_error: (bool) ignore `YtResponseError` during attributes setting
+    :param str placement_strategy: one of ["replace", "ignore", "random", "hash"], "hash" by default.
+    :param bool ignore_set_attributes_error: ignore :class:`YtResponseError <yt.wrapper.errors.YtResponseError>` \
+    during attributes setting.
     :return: YSON structure with result destination path
 
-    'placement_strategy':
+    `placement_strategy` can be set to:
 
-    * "replace" or "ignore" -> destination path will be 'destination' \
-    or 'config["remote_temp_files_directory"]/<basename>' if destination is not specified
+    * "replace" or "ignore" -> destination path will be `destination` \
+    or ``yt.wrapper.config["remote_temp_files_directory"]/<basename>`` if destination is not specified.
 
-    * "random" (only for None `destination` param) -> destination path will be 'config["remote_temp_files_directory"]/<basename><random_suffix>'\
+    * "random" (only if `destination` parameter is `None`) -> destination path will be \
+    ``yt.wrapper.config["remote_temp_files_directory"]/<basename><random_suffix>``.
 
-    * "hash" (only for None `destination` param) -> destination path will be 'config["remote_temp_files_directory"]/hash/<md5sum_of_file>' \
-    or this path will be link to some random Cypress path
+    * "hash" (only if `destination` parameter is `None`) -> destination path will be \
+    ``yt.wrapper.config["remote_temp_files_directory"]/hash/<md5sum_of_file>`` or this path will be link \
+    to some random Cypress path.
     """
 
     def upload_with_check(path):

@@ -3,7 +3,7 @@ from . import common
 from yt.packages.six import Iterator
 
 class ResponseStream(Iterator):
-    """Iterator over response"""
+    """Iterator over response."""
     def __init__(self, get_response, iter_content, close, process_error, get_response_parameters):
         self._buffer = b""
         self._buffer_length = 0

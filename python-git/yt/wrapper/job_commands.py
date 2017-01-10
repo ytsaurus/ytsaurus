@@ -1,19 +1,19 @@
 from .driver import make_request
 
 def run_job_shell(job_id, timeout=None, client=None):
-    """ Run interactive shell in the job sandbox
+    """Runs interactive shell in the job sandbox.
 
-    :param job_id: (string) job id
+    :param str job_id: job id.
     """
     from .job_shell import JobShell
 
     JobShell(job_id, interactive=True, timeout=timeout, client=client).run()
 
 def get_job_stderr(operation_id, job_id, client=None):
-    """ Get stderr of the specified job
+    """Gets stderr of the specified job.
 
-    :param operation_id: (string) operation id
-    :param job_id: (string) job_id
+    :param str operation_id: operation id.
+    :param str job_id: job id.
     """
     return make_request(
         "get_job_stderr",
@@ -22,10 +22,10 @@ def get_job_stderr(operation_id, job_id, client=None):
         client=client)
 
 def abort_job(job_id, interrupt_timeout, client=None):
-    """ Interrupt running job with preserved result
+    """Interrupts running job with preserved result.
 
-    :param job_id: (string) job_id
-    :param interrupt_timeout: (milliseconds) wait for interrupt before abort
+    :param str job_id: job id.
+    :param int interrupt_timeout: wait for interrupt before abort (in ms).
     """
     make_request(
         "abort_job",

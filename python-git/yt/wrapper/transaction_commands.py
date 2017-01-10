@@ -22,12 +22,13 @@ def _make_formatted_transactional_request(command_name, params, format, **kwargs
 def start_transaction(parent_transaction=None, timeout=None, attributes=None, type="master", sticky=False, client=None):
     """Starts transaction.
 
-    :param parent_transaction: (string) parent transaction id
-    :param timeout: transaction lifetime singe last ping in milliseconds
-    :param type: could be either "master" or "tablet"
-    :param sticky: EXPERIMENTAL, do not use it, unless you have been told to do so
-    :param attributes: (dict)
-    :return: (string) new transaction id
+    :param str parent_transaction: parent transaction id.
+    :param int timeout: transaction lifetime singe last ping in milliseconds.
+    :param str type: could be either "master" or "tablet"
+    :param bool sticky: EXPERIMENTAL, do not use it, unless you have been told to do so.
+    :param dict attributes: attributes
+    :return: new transaction id.
+    :rtype: str
 
     .. seealso:: `start_tx on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#starttx>`_
     """
@@ -43,7 +44,7 @@ def start_transaction(parent_transaction=None, timeout=None, attributes=None, ty
 def abort_transaction(transaction, sticky=False, client=None):
     """Aborts transaction. All changes will be lost.
 
-    :param transaction: (string) transaction id
+    :param str transaction: transaction id.
 
     .. seealso:: `abort_tx on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#aborttx>`_
     """
@@ -54,7 +55,7 @@ def abort_transaction(transaction, sticky=False, client=None):
 def commit_transaction(transaction, sticky=False, client=None):
     """Saves all transaction changes.
 
-    :param transaction: (string) transaction id
+    :param str transaction: transaction id.
 
     .. seealso:: `commit_tx on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#committx>`_
     """
@@ -65,7 +66,7 @@ def commit_transaction(transaction, sticky=False, client=None):
 def ping_transaction(transaction, sticky=False, client=None):
     """Prolongs transaction lifetime.
 
-    :param transaction: (string) transaction id
+    :param str transaction: transaction id.
 
     .. seealso:: `ping_tx on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#pingtx>`_
     """

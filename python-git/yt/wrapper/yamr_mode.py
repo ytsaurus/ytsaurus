@@ -5,7 +5,7 @@ from .format import YamrFormat
 import os
 
 def set_yamr_mode(client=None):
-    """Configure global config to be yamr compatible"""
+    """Configures global config to be yamr compatible."""
     config = get_config(client)
     for option in config["yamr_mode"]:
         if option in ["abort_transactions_with_remove", "use_yamr_style_prefix",

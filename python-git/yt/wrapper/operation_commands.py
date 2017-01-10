@@ -59,9 +59,9 @@ class TimeWatcher(object):
         """
         Initialize time watcher.
 
-        :param min_interval: minimal sleeping interval
-        :param max_interval: maximal sleeping interval
-        :param slowdown_coef: growth coefficient of sleeping interval
+        :param min_interval: minimal sleeping interval.
+        :param max_interval: maximal sleeping interval.
+        :param slowdown_coef: growth coefficient of sleeping interval.
         """
         self.min_interval = min_interval
         self.max_interval = max_interval
@@ -104,8 +104,9 @@ class OperationProgressFormatter(logging.Formatter):
 def get_operation_attributes(operation, client=None):
     """Returns dict with operation attributes.
 
-    :param operation: (string) operation id.
-    :return: (dict) operation description
+    :param str operation: operation id.
+    :return: operation description.
+    :rtype: dict
     """
     operation_path = ypath_join(OPERATIONS_PATH, operation)
     return get(operation_path + "/@", client=client)
@@ -113,9 +114,9 @@ def get_operation_attributes(operation, client=None):
 def get_operation_state(operation, client=None):
     """Returns current state of operation.
 
-    :param operation: (string) operation id.
+    :param str operation: operation id.
 
-    Raises `YtError` if operation does not exists.
+    Raises :class:`YtError <yt.common.YtError>` if operation does not exists.
     """
     config = get_config(client)
     retry_count = config["proxy"]["request_retry_count"]
@@ -151,7 +152,7 @@ def order_progress(progress):
     return result
 
 class PrintOperationInfo(object):
-    """Cache operation state and print info by update"""
+    """Caches operation state and prints info by update."""
     def __init__(self, operation, client=None):
         self.operation = operation
         self.state = None
@@ -186,38 +187,38 @@ class PrintOperationInfo(object):
             logger.set_formatter(logger.BASIC_FORMATTER)
 
 def abort_operation(operation, client=None):
-    """Abort operation.
+    """Aborts operation.
 
     Do nothing if operation is in final state.
 
-    :param operation: (string) operation id.
+    :param str operation: operation id.
     """
     if get_operation_state(operation, client=client).is_finished():
         return
     make_request("abort_op", {"operation_id": operation}, client=client)
 
 def suspend_operation(operation, client=None):
-    """Suspend operation.
+    """Suspends operation.
 
-    :param operation: (string) operation id.
+    :param str operation: operation id.
     """
     make_request("suspend_op", {"operation_id": operation}, client=client)
 
 def resume_operation(operation, client=None):
-    """Continue operation after suspending.
+    """Continues operation after suspending.
 
-    :param operation: (string) operation id.
+    :param str operation: operation id.
     """
     make_request("resume_op", {"operation_id": operation}, client=client)
 
 def complete_operation(operation, client=None):
-    """Complete operation.
+    """Completes operation.
 
-    Abort all running and pending jobs.
-    Preserve results of finished jobs.
-    Do nothing if operation is in final state.
+    Aborts all running and pending jobs.
+    Preserves results of finished jobs.
+    Does nothing if operation is in final state.
 
-    :param operation: (string) operation id.
+    :param str operation: operation id.
     """
     if get_operation_state(operation, client=client).is_finished():
         return
@@ -225,9 +226,7 @@ def complete_operation(operation, client=None):
 
 def get_operation_state_monitor(operation, time_watcher, action=lambda: None, client=None):
     """
-    Yield state and sleep. Wait for final state of operation.
-
-    If timeout occurred, abort operation and wait for final state anyway.
+    Yields state and sleeps. Waits for final state of operation.
 
     :return: iterator over operation states.
     """
@@ -276,9 +275,7 @@ def get_stderrs(operation, only_failed_jobs, client=None):
     return result
 
 def format_operation_stderrs(jobs_with_stderr):
-    """
-    Format operation jobs with stderr to string
-    """
+    """Formats operation jobs with stderr to string."""
 
     output = StringIO()
 
@@ -346,31 +343,31 @@ class Operation(object):
             self.url = None
 
     def suspend(self):
-        """Suspend operation. """
+        """Suspends operation."""
         suspend_operation(self.id, client=self.client)
 
     def resume(self):
-        """Resume operation. """
+        """Resumes operation."""
         resume_operation(self.id, client=self.client)
 
     def abort(self):
-        """Abort operation. """
+        """Aborts operation."""
         abort_operation(self.id, client=self.client)
 
     def complete(self):
-        """Complete operation. """
+        """Completes operation."""
         complete_operation(self.id, client=self.client)
 
     def get_state_monitor(self, time_watcher, action=lambda: None):
-        """Returns iterator over operation progress states. """
+        """Returns iterator over operation progress states."""
         return get_operation_state_monitor(self.id, time_watcher, action, client=self.client)
 
     def get_attributes(self):
-        """Returns all operation attributes. """
+        """Returns all operation attributes."""
         return get_operation_attributes(self.id, client=self.client)
 
     def get_job_statistics(self):
-        """Returns job statistics of operation. """
+        """Returns job statistics of operation."""
         try:
             return get("{0}/{1}/@progress/job_statistics".format(OPERATIONS_PATH, self.id), client=self.client)
         except YtResponseError as error:
@@ -379,23 +376,23 @@ class Operation(object):
             raise
 
     def get_progress(self):
-        """Returns dictionary that represents number of different types of jobs. """
+        """Returns dictionary that represents number of different types of jobs."""
         return get_operation_progress(self.id, client=self.client)
 
     def get_state(self):
-        """Returns object that represents state of operation. """
+        """Returns object that represents state of operation."""
         return get_operation_state(self.id, client=self.client)
 
     def get_stderrs(self, only_failed_jobs=False):
         """Returns list of objects thar represents jobs with stderrs.
         Each object is dict with keys "stderr", "error" (if applyable), "host".
 
-        :param only_failed_jobs: (bool) consider only failed jobs.
+        :param bool only_failed_jobs: consider only failed jobs.
         """
         return get_stderrs(self.id, only_failed_jobs=only_failed_jobs, client=self.client)
 
     def exists(self):
-        """Check if operation attributes can be fetched from Cypress."""
+        """Checks if operation attributes can be fetched from Cypress."""
         try:
             self.get_attributes()
         except YtResponseError as err:
@@ -406,14 +403,14 @@ class Operation(object):
         return True
 
     def wait(self, check_result=True, print_progress=True, timeout=None):
-        """Synchronously track operation, print current progress and finalize at the completion.
+        """Synchronously tracks operation, prints current progress and finalize at the completion.
 
-        If operation failed, raise `YtOperationFailedError`.
-        If `KeyboardInterrupt` occurred, abort operation, finalize and reraise `KeyboardInterrupt`.
+        If operation failed, raises :class:`YtOperationFailedError <yt.wrapper.errors.YtOperationFailedError>`.
+        If `KeyboardInterrupt` occurred, aborts operation, finalizes and reraises `KeyboardInterrupt`.
 
-        :param check_result: (bool) get stderr if operation failed
-        :param print_progress: (bool)
-        :param timeout: (double) timeout of operation in sec. ``None`` means operation is endlessly waited for.
+        :param bool check_result: get stderr if operation failed
+        :param bool print_progress: print progress
+        :param float timeout: timeout of operation in sec. `None` means operation is endlessly waited for.
         """
 
         finalize = self.finalize if self.finalize else lambda state: None
@@ -458,7 +455,8 @@ class OperationsTracker(object):
 
     def add(self, operation):
         """Adds Operation object to tracker.
-        :param operation: (Operation) operation to track
+
+        :param Operation operation: operation to track.
         """
         if operation is None:
             return
@@ -473,7 +471,8 @@ class OperationsTracker(object):
 
     def add_by_id(self, operation_id, client=None):
         """Adds operation to tracker (by operation id)
-        :param operation_id: (str) operation id
+
+        :param str operation_id: operation id.
         """
         try:
             attributes = get_operation_attributes(operation_id, client=client)
@@ -487,12 +486,16 @@ class OperationsTracker(object):
     def wait_all(self, check_result=True, print_progress=True, abort_exceptions=(KeyboardInterrupt,),
                  keep_finished=False):
         """Waits all added operations and prints progress.
-        :param check_result: (bool) if True then `YtError` will be raised if any operation failed.
-        For each failed operation `YtOperationFailedError` object with details will be added to raised error.
-        :param print_progress: (bool)
-        :param abort_exceptions: (tuple) if any exception from this tuple is caught all operations \
+
+        :param bool check_result: if `True` then :class:`YtError <yt.common.YtError>` will be raised if \
+        any operation failed. For each failed operation \
+        :class:`YtOperationFailedError <yt.wrapper.errors.YtOperationFailedError>` \
+        object with details will be added to raised error.
+
+        :param bool print_progress: print progress.
+        :param tuple abort_exceptions: if any exception from this tuple is caught all operations \
         will be aborted.
-        :param keep_finished: (bool) do not remove finished operations from tracker, just wait for them to finish.
+        :param bool keep_finished: do not remove finished operations from tracker, just wait for them to finish.
         """
         logger.info("Waiting for %d operations to complete...", len(self.operations))
 

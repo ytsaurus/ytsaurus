@@ -9,15 +9,16 @@ from .ypath import TablePath
 def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=None, range_expansion_limit=None,
                 fail_on_incomplete_result=None, verbose_logging=None, enable_code_cache=None, max_subqueries=None, workload_descriptor=None,
                 format=None, raw=None, client=None):
-    """Execute a SQL-like query on dynamic table.
+    """Executes a SQL-like query on dynamic table.
 
     .. seealso:: `supported features <https://wiki.yandex-team.ru/yt/userdoc/queries>`_
 
-    :param query: (string) for example \"<columns> [as <alias>], ... from \[<table>\] \
-                  [where <predicate> [group by <columns> [as <alias>], ...]]\"
-    :param timestamp: (int)
-    :param format: (string or descendant of `Format`) output format
-    :param raw: (bool) don't parse response to rows
+    :param str query: for example \"<columns> [as <alias>], ... from \[<table>\] \
+                  [where <predicate> [group by <columns> [as <alias>], ...]]\".
+    :param int timestamp: timestamp.
+    :param format: output format.
+    :type format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
+    :param bool raw: don't parse response to rows.
     """
     if raw is None:
         raw = get_config(client)["default_value_of_raw_option"]
@@ -50,17 +51,16 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
 
 def insert_rows(table, input_stream, update=None, aggregate=None, atomicity=None, durability=None,
                 format=None, raw=None, client=None):
-    """Insert rows from input_stream to dynamic table.
+    """Inserts rows from input_stream to dynamic table.
 
-    :param table: (string or :py:class:`yt.wrapper.TablePath`) output table. Specify \
-                `TablePath` attributes for append mode or something like this. Table can not exist.
-    :param input_stream: python file-like object, string, list of strings, `StringIterIO`.
-    :param format: (string or subclass of `Format`) format of input data, \
-                    `yt.wrapper.config["tabular_data_format"]` by default.
-    :param raw: (bool) if `raw` is specified stream with unparsed records (strings) \
-                       in specified `format` is expected. Otherwise dicts or \
-                       :class:`yt.wrapper.yamr_record.Record` are expected.
-
+    :param table: output table path.
+    :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param input_stream: python file-like object, string, list of strings.
+    :param format: format of input data, ``yt.wrapper.config["tabular_data_format"]`` by default.
+    :type format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
+    :param bool raw: if `raw` is specified stream with unparsed records (strings) \
+    in specified `format` is expected. Otherwise dicts or :class:`Record <yt.wrapper.yamr_record.Record>` \
+    are expected.
     """
     if raw is None:
         raw = get_config(client)["default_value_of_raw_option"]
@@ -87,16 +87,16 @@ def insert_rows(table, input_stream, update=None, aggregate=None, atomicity=None
 
 
 def delete_rows(table, input_stream, atomicity=None, durability=None, format=None, raw=None, client=None):
-    """Delete rows with keys from input_stream from dynamic table.
+    """Deletes rows with keys from input_stream from dynamic table.
 
-    :param table: (string or :py:class:`yt.wrapper.TablePath`) table to remove rows from.
-    :param input_stream: python file-like object, string, list of strings, `StringIterIO`.
-    :param format: (string or subclass of `Format`) format of input data, \
-                    `yt.wrapper.config["tabular_data_format"]` by default.
-    :param raw: (bool) if `raw` is specified stream with unparsed records (strings) \
-                       in specified `format` is expected. Otherwise dicts or \
-                       :class:`yt.wrapper.yamr_record.Record` are expected.
-
+    :param table: table to remove rows from.
+    :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param input_stream: python file-like object, string, list of strings.
+    :param format: format of input data, ``yt.wrapper.config["tabular_data_format"]`` by default.
+    :type format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
+    :param bool raw: if `raw` is specified stream with unparsed records (strings) \
+    in specified `format` is expected. Otherwise dicts or :class:`Record <yt.wrapper.yamr_record.Record>` \
+    are expected.
     """
     if raw is None:
         raw = get_config(client)["default_value_of_raw_option"]
@@ -122,12 +122,13 @@ def delete_rows(table, input_stream, atomicity=None, durability=None, format=Non
 
 def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_missing_rows=None,
                 format=None, raw=None, client=None):
-    """Lookup rows in dynamic table.
+    """Lookups rows in dynamic table.
 
     .. seealso:: `supported features <https://wiki.yandex-team.ru/yt/userdoc/queries>`_
 
-    :param format: (string or descendant of `Format`) output format
-    :param raw: (bool) don't parse response to rows
+    :param format: output format.
+    :type format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
+    :param bool raw: don't parse response to rows.
     """
     if raw is None:
         raw = get_config(client)["default_value_of_raw_option"]
@@ -162,9 +163,10 @@ def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_mis
 def alter_table(path, schema=None, dynamic=None, client=None):
     """Sets schema of the dynamic table.
 
-    :param table: string or `TablePath`
-    :param schema: json-able object
-    :param dynamic: (bool)
+    :param path: path to table.
+    :type path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param schema: json-able object.
+    :param bool dynamic: dynamic.
     """
 
     params = {"path": TablePath(path, client=client)}
@@ -176,7 +178,7 @@ def alter_table(path, schema=None, dynamic=None, client=None):
 
 def mount_table(path, first_tablet_index=None, last_tablet_index=None, cell_id=None,
                 freeze=False, client=None):
-    """Mount table.
+    """Mounts table.
 
     TODO
     """
@@ -190,7 +192,7 @@ def mount_table(path, first_tablet_index=None, last_tablet_index=None, cell_id=N
 
 
 def unmount_table(path, first_tablet_index=None, last_tablet_index=None, force=None, client=None):
-    """Unmount table.
+    """Unmounts table.
 
     TODO
     """
@@ -203,7 +205,7 @@ def unmount_table(path, first_tablet_index=None, last_tablet_index=None, force=N
 
 
 def remount_table(path, first_tablet_index=None, last_tablet_index=None, client=None):
-    """Remount table.
+    """Remounts table.
 
     TODO
     """
@@ -215,7 +217,7 @@ def remount_table(path, first_tablet_index=None, last_tablet_index=None, client=
 
 
 def freeze_table(path, first_tablet_index=None, last_tablet_index=None, client=None):
-    """Freeze table.
+    """Freezes table.
 
     TODO
     """
@@ -227,7 +229,7 @@ def freeze_table(path, first_tablet_index=None, last_tablet_index=None, client=N
 
 
 def unfreeze_table(path, first_tablet_index=None, last_tablet_index=None, client=None):
-    """Unfreeze table.
+    """Unfreezes table.
 
     TODO
     """
@@ -239,7 +241,7 @@ def unfreeze_table(path, first_tablet_index=None, last_tablet_index=None, client
 
 
 def reshard_table(path, pivot_keys=None, tablet_count=None, first_tablet_index=None, last_tablet_index=None, client=None):
-    """Change pivot keys separating tablets of a given table.
+    """Changes pivot keys separating tablets of a given table.
 
     TODO
     """

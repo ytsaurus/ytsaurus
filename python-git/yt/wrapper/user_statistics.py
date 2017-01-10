@@ -4,11 +4,10 @@ import os
 import sys
 
 def write_statistics(dict):
-    """
-    Write user statistics to proper file descriptor.
+    """Writes user statistics to proper file descriptor.
     This function must be called from job.
 
-    :param dict: python dictionary with statistics.
+    :param dict dict: python dictionary with statistics.
     """
     try:
         # File descriptor 5 is reserved for user statistics
@@ -26,7 +25,7 @@ def _get_value(path):
     return int(open(path, "rb").read())
 
 def get_blkio_cgroup_statistics():
-    """ Return map with blkio statistics from cgroups """
+    """Returns map with blkio statistics from cgroup."""
     blkio_cgroup_path = os.environ.get("YT_CGROUP_BLKIO")
     if not blkio_cgroup_path:
         return {}
@@ -37,7 +36,7 @@ def get_blkio_cgroup_statistics():
         "total_time": _get_field(os.path.join(blkio_cgroup_path, "blkio.io_service_time_recursive"), "Total")}
 
 def get_memory_cgroup_statistics():
-    """ Return map with memory statistics from cgroups """
+    """Returns map with memory statistics from cgroups."""
     memory_cgroup_path = os.environ.get("YT_CGROUP_MEMORY")
     if not memory_cgroup_path:
         return {}
