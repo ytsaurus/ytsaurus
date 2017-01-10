@@ -11,8 +11,8 @@ struct TAsyncStreamPipeTag
 ///////////////////////////////////////////////////////////////////////////////
 
 TAsyncStreamPipe::TItem::TItem(TSharedRef sharedRef, TPromise<void> writeComplete)
-    : SharedRef_(std::move(sharedRef))
-    , WriteComplete_(std::move(writeComplete))
+    : Data(std::move(sharedRef))
+    , WriteComplete(std::move(writeComplete))
 { }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -33,8 +33,8 @@ TFuture<TSharedRef> TAsyncStreamPipe::Read()
 {
     auto result = Queue_.Dequeue();
     return result.Apply(BIND([] (TItem item) {
-        item.WriteComplete_.Set();
-        return item.SharedRef_;
+        item.WriteComplete.Set();
+        return item.Data;
     }));
 }
 
