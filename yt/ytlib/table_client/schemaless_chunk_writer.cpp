@@ -1081,6 +1081,8 @@ private:
     yhash_set<int> LargePartitons_;
     std::vector<std::unique_ptr<THorizontalSchemalessBlockWriter>> BlockWriters_;
 
+    TNameTablePtr ChunkNameTable_;
+
     i64 CurrentBufferCapacity_ = 0;
 
     TPartitionChunkWriterPtr CurrentWriter_;
@@ -1090,13 +1092,19 @@ private:
     virtual IChunkWriterBasePtr CreateTemplateWriter(IChunkWriterPtr underlyingWriter) override
     {
         CurrentWriter_ = ChunkWriterFactory_(std::move(underlyingWriter));
-        ResetIdMapping();
+        // Since we form blocks outside chunk writer, we must synchronize name tables between different chunks.
+        if (ChunkNameTable_) {
+            for (int id = 0; id < ChunkNameTable_->GetSize(); ++id) {
+                YCHECK(CurrentWriter_->GetNameTable()->GetIdOrRegisterName(ChunkNameTable_->GetName(id)) == id);
+            }
+        }
+        ChunkNameTable_ = CurrentWriter_->GetNameTable();
         return CurrentWriter_;
     }
 
     virtual TNameTablePtr GetChunkNameTable() override
     {
-        return CurrentWriter_->GetNameTable();
+        return ChunkNameTable_;
     }
 
     void DoClose()
