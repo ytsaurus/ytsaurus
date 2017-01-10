@@ -11,7 +11,7 @@ Version: |version|.
 `YT <https://wiki.yandex-team.ru/yt/>`_ is a next generation distributed computation platform
 based on Map-Reduce computation paradigm. This page is dedicated to Python library and command-line
 tools for the system. Besides API documentation this page also has basic usage example, changelog
-and covers deprecations and configuration.
+and covers configuration.
 
 This documentation does not pretend to be full. Full documentation is available on
 `wiki <https://wiki.yandex-team.ru/yt/userdoc/pythonwrapper/>`_ page.
@@ -100,5 +100,4 @@ Library is actively developed on GitHub, code is available `here <https://github
 
    yt
    changelog
-   deprecations
    configuration
