@@ -122,15 +122,13 @@ void MergeNodes(TNode& dst, const TNode& src)
             }
         }
     } else {
-        if (dst.GetType() != src.GetType()) {
+        if (dst.GetType() == src.GetType() && src.HasAttributes()) {
+            auto attributes = dst.GetAttributes();
+            MergeNodes(attributes, src.GetAttributes());
             dst = src;
+            dst.Attributes() = attributes;
         } else {
-            if (src.HasAttributes()) {
-                auto attributes = dst.GetAttributes();
-                MergeNodes(attributes, src.GetAttributes());
-                dst = src;
-                dst.Attributes() = attributes;
-            }
+            dst = src;
         }
     }
 }
