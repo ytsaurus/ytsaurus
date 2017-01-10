@@ -359,7 +359,7 @@ public:
         }
     }
 
-    TNode& operator[](const Stroka& key)
+    TNode& operator[](const TStringBuf key)
     {
         AssureMap();
         return (*Map_)[key];
