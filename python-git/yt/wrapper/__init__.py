@@ -12,7 +12,7 @@ from .client_api import *
 from .client import YtClient
 
 from .errors import YtError, YtOperationFailedError, YtResponseError, YtHttpResponseError, \
-                    YtProxyUnavailable, YtTokenError, YtTimeoutError, YtTransactionPingError
+                    YtProxyUnavailable, YtTokenError, YtTransactionPingError
 from .yamr_record import Record
 from .format import DsvFormat, YamrFormat, YsonFormat, JsonFormat, SchemafulDsvFormat,\
                     YamredDsvFormat, Format, create_format, dumps_row, loads_row, YtFormatError, create_table_switch
