@@ -31,23 +31,8 @@ void TSampleKeyList::Save(TSaveContext& context) const
 void TSampleKeyList::Load(TLoadContext& context)
 {
     using NYT::Load;
-    // COMPAT(babenko)
-    if (context.GetVersion() < 16) {
-        NTableClient::TLoadContext tableContext;
-        tableContext.SetInput(context.GetInput());
-        auto rowBuffer = New<TRowBuffer>(TSampleKeyListTag());
-        tableContext.SetRowBuffer(rowBuffer);
-        auto size = TSizeSerializer::Load(context);
-        std::vector<TKey> keys;
-        keys.reserve(size);
-        for (size_t index = 0; index < size; ++index) {
-            keys.push_back(Load<TKey>(tableContext));
-        }
-        Keys = MakeSharedRange(std::move(keys), std::move(rowBuffer));
-    } else {
-        TWireProtocolReader reader(Load<TSharedRef>(context));
-        Keys = CaptureRows<TSampleKeyListTag>(reader.ReadUnversionedRowset());
-    }
+    TWireProtocolReader reader(Load<TSharedRef>(context));
+    Keys = CaptureRows<TSampleKeyListTag>(reader.ReadUnversionedRowset());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
