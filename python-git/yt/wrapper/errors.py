@@ -26,11 +26,15 @@ class YtOperationFailedError(YtError):
         if error is not None:
             inner_errors.append(error)
 
-        super(YtOperationFailedError, self).__init__(message, attributes=attributes, inner_errors=inner_errors)
+        # TODO(ignat): Add all stderr as suberrors?
+        if stderrs:
+            failed_job = stderrs[0]
+            failed_job_error = failed_job["error"]
+            if "stderr" in failed_job:
+                failed_job_error["attributes"]["stderr"] = failed_job["stderr"]
+            inner_errors.append(failed_job_error)
 
-class YtTimeoutError(YtError):
-    """Operation waiting timeout expired."""
-    pass
+        super(YtOperationFailedError, self).__init__(message, attributes=attributes, inner_errors=inner_errors)
 
 class YtResponseError(yt.common.YtResponseError):
     """Another incarnation of YtResponseError."""

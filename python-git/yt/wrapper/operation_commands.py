@@ -1,5 +1,5 @@
 from .config import get_config
-from .errors import YtError, YtOperationFailedError, YtTimeoutError, YtResponseError
+from .errors import YtError, YtOperationFailedError, YtResponseError
 from .driver import make_request
 from .http_helpers import get_proxy_url, get_retriable_errors
 from .exceptions_catcher import ExceptionCatcher
@@ -298,7 +298,7 @@ def format_operation_stderrs(jobs_with_stderr):
 
     return output.getvalue()
 
-# TODO(ignat): is it convinient and generic way to get stderrs? Move to tests?
+# TODO(ignat): is it convinient and generic way to get stderrs? Move to tests? Or remove it completely?
 def add_failed_operation_stderrs_to_error_message(func):
     def _add_failed_operation_stderrs_to_error_message(func, *args, **kwargs):
         try:
@@ -408,7 +408,6 @@ class Operation(object):
     def wait(self, check_result=True, print_progress=True, timeout=None):
         """Synchronously track operation, print current progress and finalize at the completion.
 
-        If timeout occurred, raise `YtTimeoutError`.
         If operation failed, raise `YtOperationFailedError`.
         If `KeyboardInterrupt` occurred, abort operation, finalize and reraise `KeyboardInterrupt`.
 
