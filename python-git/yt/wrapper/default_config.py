@@ -6,6 +6,7 @@ from yt.yson import YsonEntity
 from copy import deepcopy
 
 default_config = {
+    # pydoc :: default_config :: begin
     # "http" | "native" | None
     # If backend equals "http", then all requests will be done through http proxy and http_config will be used.
     # If backend equals "native", then all requests will be done through c++ bindings and driver_config will be used.
@@ -364,6 +365,7 @@ default_config = {
         # Additional tmpfs size (in bytes) to reserve for user data.
         "additional_tmpfs_size": 0
     }
+    # pydoc :: default_config :: end
 }
 
 def transform_value(value, original_value):

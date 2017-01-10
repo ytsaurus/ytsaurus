@@ -1,7 +1,7 @@
 #!/bin/bash -eux
 
 clean() {
-    rm -rf docs/ yt/wrapper/tests.sandbox/* .pybuild *.egg-info docs
+    rm -rf yt/wrapper/tests.sandbox/* .pybuild *.egg-info
     python setup.py clean
     sudo make -f debian/rules clean
 }
