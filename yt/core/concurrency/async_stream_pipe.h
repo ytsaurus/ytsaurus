@@ -24,9 +24,9 @@ public:
 private:
     struct TItem
     {
-        // If SharedRef_ is empty it means close was requested.
-        TSharedRef SharedRef_;
-        TPromise<void> WriteComplete_;
+        // If Data is empty it means close was requested.
+        TSharedRef Data;
+        TPromise<void> WriteComplete;
 
         TItem(TSharedRef sharedRef, TPromise<void> writeComplete);
     };
