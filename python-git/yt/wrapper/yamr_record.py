@@ -8,9 +8,8 @@ except ImportError:  # Python 3
     ifilter = filter
 
 class SimpleRecord:
-    """Mapreduce-like record represents (key, value) pair, without subkey"""
+    """Mapreduce-like record represents (key, value) pair, without subkey."""
     def __init__(self, key, value, tableIndex=0, recordIndex=None):
-        """:param tableIndex: """
         self.key = key
         self.value = value
         self.tableIndex = tableIndex
@@ -50,7 +49,7 @@ class SimpleRecord:
         return self.recordIndex
 
 class SubkeyedRecord(SimpleRecord):
-    """Mapreduce-like record with key, subkey and value"""
+    """Mapreduce-like record with key, subkey and value."""
     def __init__(self, key, subkey, value, tableIndex=0, recordIndex=None):
         SimpleRecord.__init__(self, key, value, tableIndex, recordIndex)
         self.subkey = subkey
@@ -77,7 +76,7 @@ class SubkeyedRecord(SimpleRecord):
         return hash(frozenset([self.key, self.subkey, self.value]))
 
 def Record(*args, **kws):
-    """Return mapreduce-like record with key, subkey, value."""
+    """Returns mapreduce-like record with key, subkey, value."""
     assert len(args) >= 2, "incorrect arguments count [ARGS: %s]" % repr(args)
     if len(args) < 3:
         return SimpleRecord(*args, **kws)

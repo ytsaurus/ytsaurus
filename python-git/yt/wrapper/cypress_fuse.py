@@ -78,12 +78,12 @@ class Timer(object):
 
 
 def log_calls(logger, message_format, statistics):
-    """Create a decorator for logging each wrapped function call.
+    """Creates a decorator for logging each wrapped function call.
 
-    message_format:
-      An old-style format string.
-      Items with names corresponding to function's arguments are allowed.
-      A special key "__name__" corresponds to the wrapped function's name.
+    :param str message_format: an old-style format string.
+
+    Items with names corresponding to function's arguments are allowed.
+    A special key "__name__" corresponds to the wrapped function's name.
     """
     def get_logged_version(function):
         positional_names = function.__code__.co_varnames
@@ -105,7 +105,7 @@ def log_calls(logger, message_format, statistics):
 
 
 def handle_yt_errors(logger):
-    """Modify the function so it raises FuseOSError instead of YtError."""
+    """Modifies the function so it raises FuseOSError instead of :class:`YtError <yt.common.YtError>`."""
     def get_logged_version(function):
 
         @functools.wraps(function)
@@ -126,7 +126,7 @@ def handle_yt_errors(logger):
 
 
 class CachedYtClient(yt.wrapper.client.Yt):
-    """An YT client which caches nodes and their attributes for some time."""
+    """YT client which caches nodes and their attributes for some time."""
 
     _logger = logging.getLogger(LOGGER_NAME + ".CachedYtClient")
     _logger.setLevel(level=logging.DEBUG)
@@ -144,11 +144,9 @@ class CachedYtClient(yt.wrapper.client.Yt):
     def __init__(self, max_cache_size=16384, max_age_seconds=2, **kwargs):
         """Initialize the client.
 
-        max_cache_size:
-          Maximum number of cached nodes; the default is 16384.
-        max_age_seconds:
-          After this period the node is removed from cache;
-          the default value is 2 seconds.
+        :param int max_cache_size: maximum number of cached nodes.
+        :param int max_age_seconds: after this period the node is removed from cache.
+
         The rest of the arguments are passed to the parent constructor.
         """
         super(CachedYtClient, self).__init__(**kwargs)
@@ -236,7 +234,7 @@ class CachedYtClient(yt.wrapper.client.Yt):
 
     @log_calls(_logger, "%(__name__)s(%(path)r)", _statistics)
     def list(self, path, attributes=None):
-        """Get children of a node specified by a ypath."""
+        """Gets children of a node specified by a ypath."""
         cache_entry = self._cache.get(path, CachedYtClient.CacheEntry(exists=True))
         if not cache_entry.exists:
             raise cache_entry.error
@@ -302,10 +300,9 @@ class OpenedFile(object):
     _logger.setLevel(level=logging.DEBUG)
 
     def __init__(self, client, ypath, attributes, minimum_read_size):
-        """Set up cache.
+        """Sets up cache.
 
-        minimum_read_size:
-          The minimum number of bytes to read from the cluster at once.
+        :param int minimum_read_size: the minimum number of bytes to read from the cluster at once.
         """
         self.ypath = ypath
         self.attributes = attributes
@@ -391,8 +388,8 @@ class OpenedTable(object):
     def __init__(self, client, ypath, attributes, format, minimum_read_row_count):
         """Set up cache.
 
-        minimum_table_read_row_count:
-          The minimum number of rows to read from the cluster at once.
+        :param int minimum_table_read_row_count: the minimum number of rows to read \
+        from the cluster at once.
         """
         self.ypath = ypath
         self.attributes = attributes
@@ -492,7 +489,7 @@ class Cypress(fuse.Operations):
 
     @staticmethod
     def _to_ypath(path):
-        """Convert an absolute file path to YPath."""
+        """Converts an absolute file path to :class:`YPath <yt.wrapper.ypath.YPath>`."""
         if path == u"/":
             return u"/"
         return u"/" + path
@@ -503,13 +500,13 @@ class Cypress(fuse.Operations):
 
     @staticmethod
     def _to_timestamp(timestring):
-        """Convert a time string in YT format to UNIX timestamp."""
+        """Converts a time string in YT format to UNIX timestamp."""
         parsed_time = time.strptime(timestring, "%Y-%m-%dT%H:%M:%S.%fZ")
         return time.mktime(parsed_time)
 
     @staticmethod
     def _get_st_mode(attributes):
-        """Get st_mode for a node based on its attributes."""
+        """Gets st_mode for a node based on its attributes."""
         node_type = attributes["type"]
         if node_type == "file":
             mask = stat.S_IFREG | 0o666
@@ -524,7 +521,7 @@ class Cypress(fuse.Operations):
 
     @staticmethod
     def _get_st_size(attributes):
-        """Get st_size for a node based on its attributes."""
+        """Gets st_size for a node based on its attributes."""
         node_type = attributes["type"]
         if node_type == "file":
             return attributes["uncompressed_data_size"]
@@ -537,7 +534,7 @@ class Cypress(fuse.Operations):
         return 0
 
     def _get_stat(self, attributes):
-        """Get stat sturcture for a node based on its attributes."""
+        """Gets stat sturcture for a node based on its attributes."""
         return {
             "st_dev": 0,
             "st_ino": 0,
@@ -552,11 +549,11 @@ class Cypress(fuse.Operations):
         }
 
     def _get_xattr(self, attribute):
-        """Convert Cypress attribute name to Linux attribute name."""
+        """Converts Cypress attribute name to Linux attribute name."""
         return "user." + attribute
 
     def _get_attribute(self, xattr):
-        """Convert Linux attribute name to Cypress attribute name."""
+        """Converts Linux attribute name to Cypress attribute name."""
         if not xattr.startswith("user."):
             raise fuse.FuseOSError(errno.ENODATA)
         return ".".join(xattr.split(".")[1:])

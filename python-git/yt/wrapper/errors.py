@@ -72,28 +72,29 @@ class YtHttpResponseError(YtResponseError):
         return (YtHttpResponseError, (self.error, self.url, self.headers, self.params))
 
 class YtRequestRateLimitExceeded(YtHttpResponseError):
-    """ Request rate limit exceeded error. """
-    """ It is used in retries. """
+    """Request rate limit exceeded error.
+       It is used in retries."""
     pass
 
 class YtRequestQueueSizeLimitExceeded(YtHttpResponseError):
-    """ Request queue size limit exceeded error. """
-    """ It is used in retries. """
+    """Request queue size limit exceeded error.
+       It is used in retries.
+    """
     pass
 
 class YtConcurrentOperationsLimitExceeded(YtHttpResponseError):
-    """ Concurrent operations limit exceeded. """
-    """ It is used in retries. """
+    """Concurrent operations limit exceeded.
+       It is used in retries."""
     pass
 
 class YtRequestTimedOut(YtHttpResponseError):
-    """ Request timed out. """
-    """ It is used in retries. """
+    """Request timed out.
+       It is used in retries."""
     pass
 
 class YtNoSuchTransaction(YtHttpResponseError):
-    """ No such transaction error """
-    """ It is used in retries. """
+    """No such transaction.
+       It is used in retries."""
     pass
 
 class YtProxyUnavailable(YtError):
@@ -126,7 +127,7 @@ class YtTokenError(YtError):
     pass
 
 class YtRetriableError(Exception):
-    """Just simple retriable error for test purposes. """
+    """Just simple retriable error for test purposes."""
     pass
 
 class YtTransactionPingError(BaseException):

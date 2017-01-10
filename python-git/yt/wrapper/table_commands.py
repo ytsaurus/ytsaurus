@@ -28,7 +28,8 @@ except ImportError:  # Python 3
 # Auxiliary methods
 
 def _get_format_from_tables(tables, ignore_unexisting_tables):
-    """Try to get format from tables, raise YtError if tables have different _format attribute"""
+    """Tries to get format from tables, raises :class:`YtError <yt.common.YtError>` if tables \
+       have different _format attribute."""
     not_none_tables = list(ifilter(None, flatten(tables)))
 
     if ignore_unexisting_tables:
@@ -62,18 +63,17 @@ def _get_format_from_tables(tables, ignore_unexisting_tables):
 
     return formats[0]
 
-""" Common table methods """
-
 def create_table(path, recursive=None, ignore_existing=False,
                  attributes=None, client=None):
-    """Create empty table.
+    """Creates empty table. Shortcut for `create("table", ...)`.
 
-    Shortcut for `create("table", ...)`.
-    :param path: (string or :py:class:`yt.wrapper.TablePath`) path to table
-    :param recursive: (bool) create the path automatically, `config["yamr_mode"]["create_recursive"]` by default
-    :param ignore_existing: (bool) if it sets to `False` and table exists, \
-                            Python Wrapper raises `YtResponseError`.
-    :param attributes: (dict)
+    :param path: path to table.
+    :type path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param bool recursive: create the path automatically, \
+    ``yt.wrapper.config["yamr_mode"]["create_recursive"]`` by default.
+    :param bool ignore_existing: if it sets to `False` and table exists, \
+    then :class:`YtResponseError <yt.wrapper.errors.YtResponseError>` will be raised.
+    :param dict attributes: attributes.
     """
     table = TablePath(path, client=client)
     attributes = get_value(attributes, {})
@@ -85,12 +85,13 @@ def create_table(path, recursive=None, ignore_existing=False,
            attributes=attributes, client=client)
 
 def create_temp_table(path=None, prefix=None, attributes=None, client=None):
-    """Create temporary table by given path with given prefix and return name.
+    """Creates temporary table by given path with given prefix and return name.
 
-    :param path: (string or :py:class:`yt.wrapper.TablePath`) existing path, \
-                 by default `config["remote_temp_tables_directory"]`
-    :param prefix: (string) prefix of table name
-    :return: (string) name of result table
+    :param path: existing path, by default ``yt.wrapper.config["remote_temp_tables_directory"]``.
+    :type path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
+    :param str prefix: prefix of table name.
+    :return: name of result table.
+    :rtype: str
     """
     if path is None:
         path = get_config(client)["remote_temp_tables_directory"]
@@ -114,22 +115,23 @@ def create_temp_table(path=None, prefix=None, attributes=None, client=None):
 def write_table(table, input_stream, format=None, table_writer=None,
                 is_stream_compressed=False, force_create=None, raw=None,
                 client=None):
-    """Write rows from input_stream to table.
+    """Writes rows from input_stream to table.
 
-    :param table: (string or :py:class:`yt.wrapper.TablePath`) output table. Specify \
-                `TablePath` attributes for append mode or something like this. Table can not exist.
-    :param input_stream: python file-like object, string, list of strings, `StringIterIO`.
-    :param format: (string or subclass of `Format`) format of input data, \
-                    `yt.wrapper.config["tabular_data_format"]` by default.
-    :param table_writer: (dict) spec of "write" operation
-    :param is_stream_compressed: (bool) expect stream to contain compressed table data. \
+    :param table: output table. Specify `TablePath` attributes for append mode or something like this. \
+    Table can not exist.
+    :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param input_stream: python file-like object, string, list of strings.
+    :param format: format of input data, ``yt.wrapper.config["tabular_data_format"]`` by default.
+    :type format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
+    :param dict table_writer: spec of "write" operation.
+    :param bool is_stream_compressed: expect stream to contain compressed table data. \
     This data can be passed directly to proxy without recompression. Be careful! this option \
     disables write retries.
-    :param force_create: (bool) unconditionally creates table and ignores existing table.
+    :param bool force_create: unconditionally creates table and ignores existing table.
 
-    Python Wrapper try to split input stream to portions of fixed size and write its with retries.
+    The function tries to split input stream to portions of fixed size and write its with retries.
     If splitting fails, stream is written as is through HTTP.
-    Set `yt.wrapper.config["write_retries"]["enable"]` to ``False`` for writing \
+    Set ``yt.wrapper.config["write_retries"]["enable"]`` to False for writing \
     without splitting and retries.
 
     Writing is executed under self-pinged transaction.
@@ -185,15 +187,16 @@ def write_table(table, input_stream, format=None, table_writer=None,
 
 def read_table(table, format=None, table_reader=None, control_attributes=None, unordered=None,
                raw=None, response_parameters=None, read_transaction=None, client=None):
-    """Read rows from table and parse (optionally).
+    """Reads rows from table and parse (optionally).
 
-    :param table: string or :py:class:`yt.wrapper.TablePath`
-    :param table_reader: (dict) spec of "read" operation
-    :param raw: (bool) don't parse response to rows
-    :return: if `raw` is specified -- string or :class:`yt.wrapper.driver.ResponseStream`,\
-             else -- rows generator (python dict or :class:`yt.wrapper.yamr_record.Record`)
+    :param table: table to read.
+    :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param dict table_reader: spec of "read" operation.
+    :param bool raw: don't parse response to rows.
+    :rtype: if `raw` is specified -- :class:`ResponseStream <yt.wrapper.response_stream.ResponseStream>`, \
+    rows iterator over dicts or :class:`Record <yt.wrapper.yamr_record.Record>` otherwise.
 
-    If :py:data:`yt.wrapper.config["read_retries"]["enable"]` is specified,
+    If ``yt.wrapper.config["read_retries"]["enable"]`` is specified,
     command is executed under self-pinged transaction with retries and snapshot lock on the table.
     This transaction is alive until your finish reading your table, or call `close` method of ResponseStream.
     """
@@ -403,14 +406,16 @@ def _are_valid_nodes(source_tables, destination_table):
            destination_table != source_tables[0]
 
 def copy_table(source_table, destination_table, replace=True, client=None):
-    """Copy table(s).
+    """Copies table(s).
 
-    :param source_table: string, `TablePath` or list of them
-    :param destination_table: string or `TablePath`
-    :param replace: (bool) override `destination_table`
+    :param source_table: source table or list of tables.
+    :type source_table: list[str or :class:`TablePath <yt.wrapper.ypath.TablePath>`]
+    :param destination_table: destination table.
+    :type destination_table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param bool replace: override `destination_table`.
 
-    .. note:: param `replace` is overridden by set \
-    `yt.wrapper.config["yamr_mode"]["replace_tables_on_copy_and_move"]`
+    .. note:: param `replace` is overridden by \
+    ``yt.wrapper.config["yamr_mode"]["replace_tables_on_copy_and_move"]``
 
     If `source_table` is a list of tables, tables would be merged.
     """
@@ -437,11 +442,13 @@ def copy_table(source_table, destination_table, replace=True, client=None):
         run_merge(source_tables, destination_table, mode, client=client)
 
 def move_table(source_table, destination_table, replace=True, client=None):
-    """Move table.
+    """Moves table.
 
-    :param source_table: string, `TablePath` or list of them
-    :param destination_table: string or `TablePath`
-    :param replace: (bool) override `destination_table`
+    :param source_table: source table or list of tables.
+    :type source_table: list[str or :class:`TablePath <yt.wrapper.ypath.TablePath>`]
+    :param destination_table: destination table.
+    :type destination_table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param bool replace: override `destination_table`.
 
     .. note:: param `replace` is overridden by `yt.wrapper.config["yamr_mode"]["replace_tables_on_copy_and_move"]`
 
@@ -473,20 +480,15 @@ def move_table(source_table, destination_table, replace=True, client=None):
 
 
 def records_count(table, client=None):
-    """ Deprecated!
-
-    Return number of records in the table.
-
-    :param table: string or `TablePath`
-    :return: integer
-    """
+    """Deprecated!"""
     return row_count(table, client)
 
 def row_count(table, client=None):
-    """Return number of rows in the table.
+    """Returns number of rows in the table.
 
-    :param table: string or `TablePath`
-    :return: integer
+    :param table: table.
+    :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :rtype: int
     """
     table = TablePath(table, client=client)
     if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and not exists(table, client=client):
@@ -496,17 +498,19 @@ def row_count(table, client=None):
 def is_empty(table, client=None):
     """Is table empty?
 
-    :param table: (string or `TablePath`)
-    :return: (bool)
+    :param table: table.
+    :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :rtype: bool
     """
     return row_count(TablePath(table, client=client), client=client) == 0
 
 def get_sorted_by(table, default=None, client=None):
-    """Get 'sorted_by' table attribute or `default` if attribute doesn't exist.
+    """Returns "sorted_by" table attribute or `default` if attribute doesn't exist.
 
-    :param table: string or `TablePath`
-    :param default: whatever
-    :return: string or list of string
+    :param table: table.
+    :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param default: whatever.
+    :rtype: str or list[str]
     """
     if default is None:
         default = [] if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] else None
@@ -515,8 +519,9 @@ def get_sorted_by(table, default=None, client=None):
 def is_sorted(table, client=None):
     """Is table sorted?
 
-    :param table: string or `TablePath`
-    :return: bool
+    :param table: table.
+    :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :rtype: bool
     """
     if get_config(client)["yamr_mode"]["use_yamr_sort_reduce_columns"]:
         return get_sorted_by(table, [], client=client) == ["key", "subkey"]
@@ -528,9 +533,9 @@ def is_sorted(table, client=None):
                           client=client))
 
 def enable_table_replica(replica_id, client=None):
-    """ TODO """
+    """TODO"""
     return make_request("enable_table_replica", params={"replica_id": replica_id}, client=client)
 
 def disable_table_replica(replica_id, client=None):
-    """ TODO """
+    """TODO"""
     return make_request("disable_table_replica", params={"replica_id": replica_id}, client=client)

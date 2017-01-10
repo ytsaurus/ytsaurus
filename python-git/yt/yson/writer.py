@@ -68,13 +68,13 @@ def _escape_bytes(obj):
 
 def dump(object, stream, yson_format=None, indent=None, check_circular=True, encoding="utf-8", yson_type=None,
          boolean_as_string=False):
-    """Serialize `object` as a YSON formatted stream to `stream`.
+    """Serializes `object` as a YSON formatted stream to `stream`.
 
-    :param yson_format: (string) format of YSON ("binary", "text" or "pretty").
-    :param yson_type: (string) type of YSON ("node", "list_fragment" or "map_fragment").
-    :param indent: (int) number of identation spaces in pretty format.
-    :param encoding: (string) encoding that uses to encode unicode strings.
-    :param boolean_as_string: (bool) whether dump boolean values as YSON strings (needed for backward compatibility).
+    :param str yson_format: format of YSON, one of ["binary", "text", "pretty"].
+    :param str yson_type: type of YSON, one of ["node", "list_fragment", "map_fragment"].
+    :param int indent: number of identation spaces in pretty format.
+    :param str encoding: encoding that uses to encode unicode strings.
+    :param bool boolean_as_string: whether dump boolean values as YSON strings (needed for backward compatibility).
     """
 
     stream.write(dumps(object, yson_format=yson_format, check_circular=check_circular, encoding=encoding,
@@ -83,8 +83,7 @@ def dump(object, stream, yson_format=None, indent=None, check_circular=True, enc
 
 def dumps(object, yson_format=None, indent=None, check_circular=True, encoding="utf-8", yson_type=None,
           boolean_as_string=False):
-    """Serialize `object` as a YSON formatted stream to string and returns it. See `dump`
-    """
+    """Serializes `object` as a YSON formatted stream to string and returns it. See :func:`dump <.dump>`."""
     if indent is None:
         indent = 4
     if isinstance(indent, int):

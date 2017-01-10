@@ -3,14 +3,15 @@ YSON library.
 
 Package supports `YT YSON format <https://wiki.yandex-team.ru/yt/userdoc/yson>`_.
 
-Package provides special classes for all yson types, see `yt.yson.types`.
+Package provides special classes for all yson types, see :mod:`yson_types <yt.yson.yson_types>` module.
 Also it provides methods for serialization and deserialization yson data:
-`yt.yson.parser.load`, `yt.yson.parser.loads`, `yt.yson.writer.dump`, `yt.yson.writer.dumps`.
-And finally it provides method `yt.yson.convert.to_yson_type` for convertion python objects to special yson types.
+:func:`load <yt.yson.parser.load>`, :func:`loads <yt.yson.parser.loads>`,
+:func:`dump <yt.yson.writer.dump>`, :func:`dumps <yt.yson.writer.dumps>`.
+And finally it provides method :func:`to_yson_type <yt.yson.convert.to_yson_type>` for convertion
+python objects to special yson types.
 
 In special variable `TYPE` you can find implementation type of the library.
 In equals "BINARY" if c++ bindings found and "PYTHON" otherwise.
-
 
 Examples:
 

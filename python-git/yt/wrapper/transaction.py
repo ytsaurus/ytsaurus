@@ -114,13 +114,13 @@ class Transaction(object):
             self._ping_thread.start()
 
     def abort(self):
-        """
-        Abort transaction.
+        """Aborts transaction.
 
         NOTE: abort() must not be called explicitly when transaction is used with with_statement::
+
         >>> with Transaction() as t:
         >>>     ...
-        >>>     t.abort() # Wrong!
+        >>>     t.abort()  # Wrong!
         """
         if self._used_with_statement:
             raise RuntimeError("Transaction is used with with_statement; explicit abort() is not allowed")
@@ -131,13 +131,13 @@ class Transaction(object):
         self._finished = True
 
     def commit(self):
-        """
-        Commit transaction.
+        """Commits transaction.
 
         NOTE: commit() must not be called explicitly when transaction is used with with_statement::
+
         >>> with Transaction() as t:
         >>>     ...
-        >>>     t.commit() # Wrong!
+        >>>     t.commit()  # Wrong!
         """
         if self._used_with_statement:
             raise RuntimeError("Transaction is used with with_statement; explicit commit() is not allowed")
@@ -150,7 +150,7 @@ class Transaction(object):
         self._finished = True
 
     def is_pinger_alive(self):
-        """Check pinger is alive."""
+        """Checks if pinger is alive."""
         if self._ping:
             return not self._ping_thread.failed
         return True
@@ -210,14 +210,13 @@ class Transaction(object):
 
 
 class PingTransaction(Thread):
-    """
-    Pinger for transaction.
+    """Pinger for transaction.
 
-    Ping transaction in background thread.
+    Pings transaction in background thread.
     """
     def __init__(self, transaction, delay, sticky=False, interrupt_on_failed=True, client=None):
         """
-        :param delay: delay in seconds
+        :param int delay: delay in seconds.
         """
         super(PingTransaction, self).__init__()
         self.transaction = transaction

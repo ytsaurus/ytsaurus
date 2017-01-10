@@ -7,12 +7,14 @@ import time
 from datetime import timedelta, datetime
 
 def lock(path, mode=None, waitable=False, wait_for=None, child_key=None, attribute_key=None, client=None):
-    """Try to lock the path.
+    """Tries to lock the path.
 
-    :param mode: (optional) blocking type ["snapshot", "shared" or "exclusive" (default)]
-    :param waitable: (bool) wait for lock if node is under blocking
-    :param wait_for: (int) wait interval in milliseconds. If timeout occurred, `YtError` raised
-    :return: taken lock id (YSON string) or throws YtHttpResponseError with 40* code if lock conflict detected.
+    :param str mode: blocking type, one of ["snapshot", "shared" or "exclusive"], "exclusive" by default.
+    :param bool waitable: wait for lock if node is under blocking.
+    :param int wait_for: wait interval in milliseconds. If timeout occurred, \
+    :class:`YtError <yt.common.YtError>` is raised.
+    :return: taken lock id (as :class:`YsonString <yt.yson.yson_types.YsonString>`) or throws \
+    :class:`YtHttpResponseError <yt.wrapper.errors.YtHttpResponseError>` with 40* code if lock conflict detected.
 
     .. seealso:: `lock on wiki <https://wiki.yandex-team.ru/yt/userdoc/transactions#versionirovanieiloki>`_
     """

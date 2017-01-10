@@ -22,7 +22,7 @@ import types
 YT_DATETIME_FORMAT_STRING = "%Y-%m-%dT%H:%M:%S.%fZ"
 
 class YtError(Exception):
-    """Base of all YT errors"""
+    """Base class for all YT errors."""
     def __init__(self, message="", code=1, inner_errors=None, attributes=None):
         self.message = message
         self.code = code
@@ -34,7 +34,7 @@ class YtError(Exception):
             self.attributes["datetime"] = datetime_to_string(datetime.utcnow())
 
     def simplify(self):
-        """ Transform error (with inner errors) to standard python dict """
+        """Transforms error (with inner errors) to standard python dict."""
         result = {"message": self.message, "code": self.code}
         if self.attributes:
             result["attributes"] = self.attributes
@@ -56,7 +56,7 @@ class YtError(Exception):
         return YtError._cached_fqdn
 
 class YtResponseError(YtError):
-    """Represents an error in YT response"""
+    """Represents an error in YT response."""
     def __init__(self, error):
         super(YtResponseError, self).__init__()
         self.error = error
@@ -87,19 +87,19 @@ class YtResponseError(YtError):
         return self.contains_code(716) or self.contains_text(" is unavailable")
 
     def is_request_timed_out(self):
-        """Request timed out"""
+        """Request timed out."""
         return self.contains_code(3)
 
     def is_concurrent_operations_limit_reached(self):
-        """Too many concurrent operations"""
+        """Too many concurrent operations."""
         return self.contains_code(202) or self.contains_text("Limit for the number of concurrent operations")
 
     def is_no_such_transaction(self):
-        """No such transaction"""
+        """No such transaction."""
         return self.contains_code(11000)
 
     def is_shell_exited(self):
-        """Shell exited"""
+        """Shell exited."""
         return self.contains_code(1800)
 
     def contains_code(self, code):
@@ -218,7 +218,7 @@ def format_error(error, attribute_length_limit=300):
     return _pretty_format(error, attribute_length_limit)
 
 def which(name, flags=os.X_OK):
-    """ Return list of files in system paths with given name. """
+    """Return list of files in system paths with given name."""
     # TODO: check behavior when dealing with symlinks
     result = []
     for dir in os.environ.get("PATH", "").split(os.pathsep):
@@ -255,13 +255,13 @@ def update(object, patch):
     return object
 
 def flatten(obj, list_types=(list, tuple, set, frozenset, types.GeneratorType)):
-    """ Create flat list from all elements. """
+    """Create flat list from all elements."""
     if isinstance(obj, list_types):
         return list(chain(*imap(flatten, obj)))
     return [obj]
 
 def update_from_env(variables):
-    """ Update variables dict from environment. """
+    """Update variables dict from environment."""
     for key, value in iteritems(os.environ):
         prefix = "YT_"
         if not key.startswith(prefix):

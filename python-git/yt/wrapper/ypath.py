@@ -11,7 +11,7 @@ from copy import deepcopy
 import string
 
 def ypath_join(*paths):
-    """ Join parts of cypress paths. """
+    """Joins parts of cypress paths."""
     def ends_with_slash(part):
         if part.endswith("/"):
             if part.endswith("\\/"):
@@ -41,7 +41,7 @@ def ypath_join(*paths):
     return "".join(result)
 
 def escape_ypath_literal(literal):
-    """ Escapes string to use it as key in ypath. """
+    """Escapes string to use it as key in ypath."""
     def escape_char(ch):
         if ch in ["\\", "/", "@", "&", "[", "{"]:
             return "\\" + ch
@@ -56,16 +56,7 @@ def escape_ypath_literal(literal):
 
 # XXX(ignat): Inherit from YsonString?
 class YPath(object):
-    """
-    Represents YPath with attributes.
-
-    Options:
-
-    * path -- string representing cypress path, possible with YPath-encoded attributes
-
-    * attributes -- additinal attributes
-
-    * simplify -- perform parsing of given path
+    """Represents path with attributes (YPath).
 
     .. seealso:: `YPath on wiki <https://wiki.yandex-team.ru/yt/userdoc/ypath>`_
     """
@@ -74,6 +65,11 @@ class YPath(object):
                  simplify=True,
                  attributes=None,
                  client=None):
+        """
+        :param path: string representing cypress path, possible with YPath-encoded attributes.
+        :param dict attributes: additinal attributes.
+        :param bool simplify: perform parsing of given path.
+        """
 
         if isinstance(path, YPath):
             self._path_object = deepcopy(path._path_object)
@@ -108,11 +104,11 @@ class YPath(object):
         return self._path_object.attributes
 
     def to_yson_type(self):
-        """Return YSON representation of path."""
+        """Returns YSON representation of path."""
         return self._path_object
 
     def to_yson_string(self):
-        """Return yson path with attributes as string."""
+        """Returns YSON path with attributes as string."""
         if self.attributes:
             attributes_str = yson._dumps_to_native_str(self.attributes, yson_type="map_fragment", yson_format="text")
             # NB: in text format \n can appear only as separator.
@@ -121,7 +117,7 @@ class YPath(object):
             return str(self._path_object)
 
     def join(self, other):
-        """Join ypath with other path."""
+        """Joins ypath with other path."""
         return YPath(ypath_join(str(self), other), simplify=False)
 
     def __eq__(self, other):
@@ -178,22 +174,17 @@ def to_ypath(object, client=None):
         return YPath(object, client=client)
 
 class TablePath(YPathSupportingAppend):
-    """
-    Table ypath.
+    """YPath descendant to be used in table commands.
 
     Supported attributes:
 
-    * append -- append to table or overwrite
-
+    * append -- append to table or overwrite.
     * columns -- list of string (column) or string pairs (column range).
-
-    * exact_key, lower_key, upper_key -- tuple of strings to identify range of rows
-
-    * exact_index, start_index, end_index -- tuple of indexes to identify range of rows
-
-    * ranges -- list of dicts, allows to specify arbitrary ranges on the table, see more details on wiki
-
-    * schema -- dict with schema, see `static schema doc <https://wiki.yandex-team.ru/yt/userdoc/staticschema/#kakzadat/izmenitsxemustaticheskojjtablicy>`
+    * exact_key, lower_key, upper_key -- tuple of strings to identify range of rows.
+    * exact_index, start_index, end_index -- tuple of indexes to identify range of rows.
+    * ranges -- list of dicts, allows to specify arbitrary ranges on the table, see more details on wiki.
+    * schema -- dict with schema, see \
+    `static schema doc <https://wiki.yandex-team.ru/yt/userdoc/staticschema/#kakzadat/izmenitsxemustaticheskojjtablicy>`_
 
     .. seealso:: `YPath on wiki <https://wiki.yandex-team.ru/yt/userdoc/ypath>`_
     """
@@ -216,23 +207,27 @@ class TablePath(YPathSupportingAppend):
                  attributes=None,
                  client=None):
         """
-        :param name: (Yson string) path with attribute
-        :param append: (bool) append to table or overwrite
-        :param sorted_by: (list of string) list of sort keys
-        :param columns: list of string (column) or string pairs (column range)
-        :param exact_key: (string or string tuple) exact key of row
-        :param lower_key: (string or string tuple) lower key bound of rows
-        :param upper_key: (string or string tuple) upper bound of rows
-        :param exact_index: (int) exact index of row
-        :param start_index: (int) lower bound of rows
-        :param end_index: (int) upper bound of rows
-        :param ranges: (list) list of ranges of rows. It overwrites all other row limits.
-        :param schema: (list) table schema description.
-        :param foreign: (bool) table is foreign for sorted reduce and joinreduce operations
-        :param attributes: (dict) attributes, it updates attributes specified in name.
+        :param str name: path with attributes.
+        :param bool append: append to table or overwrite.
+        :param sorted_by: list of sort keys.
+        :type sorted_by: list[str]
+        :param columns: list of string (column) or string pairs (column range).
+        :param exact_key: exact key of row.
+        :type exact_key: str or tuple[str]
+        :param lower_key: lower key bound of rows.
+        :type lower_key: str or tuple[str]
+        :param upper_key: upper bound of rows.
+        :type upper_key: str or tuple[str]
+        :param int exact_index: exact index of row.
+        :param int start_index: lower bound of rows.
+        :param int end_index: upper bound of rows.
+        :param list ranges: list of ranges of rows. It overwrites all other row limits.
+        :param list schema: table schema description.
+        :param bool foreign: table is foreign for sorted reduce and joinreduce operations.
+        :param dict attributes: attributes, it updates attributes specified in name.
 
-        `See usage example. <https://wiki.yandex-team.ru/yt/userdoc/ypath/#raspoznavaemyesistemojjatributy>`_
-        .. note:: don't specify lower_key (upper_key) and start_index (end_index) simultaneously
+        .. seealso:: `usage example <https://wiki.yandex-team.ru/yt/userdoc/ypath/#raspoznavaemyesistemojjatributy>`_
+        .. note:: don't specify lower_key (upper_key) and start_index (end_index) simultaneously.
         """
 
         super(TablePath, self).__init__(name, simplify=simplify, attributes=attributes, append=append, client=client)
@@ -299,19 +294,11 @@ class TablePath(YPathSupportingAppend):
                 attributes["ranges"] = [range]
 
     def has_delimiters(self):
-        """Check attributes for delimiters (channel, lower or upper limits)."""
+        """Checks attributes for delimiters (channel, lower or upper limits)."""
         return any(key in self.attributes for key in ["columns", "lower_limit", "upper_limit", "ranges"])
 
 class FilePath(YPathSupportingAppend):
-    """
-    File ypath.
-
-    Supported attributes:
-
-    * file_ -- append to table or overwrite
-
-    * columns -- list of string (column) or string pairs (column range).
-    """
+    """YPath descendant to be used in file commands."""
     def __init__(self, path, append=None, executable=None, file_name=None, simplify=None, attributes=None, client=None):
         super(FilePath, self).__init__(path, attributes=attributes, simplify=simplify, append=append, client=client)
         if executable is not None:

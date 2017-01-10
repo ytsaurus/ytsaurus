@@ -32,10 +32,10 @@ def compose(*args):
     return reduce(compose_two, args)
 
 def parse_bool(word):
-    """convert 'true' and 'false' and something like this to Python bool
+    """Converts "true" and "false" and something like this to Python bool
 
-    Raise `YtError` if input word is incorrect."""
-
+    Raises :class:`YtError <yt.common.YtError>` if input word is incorrect.
+    """
     # Compatibility with api/v3
     if word is False or word is True or isinstance(word, yson.YsonBoolean):
         return word
@@ -49,9 +49,9 @@ def parse_bool(word):
         raise YtError("Cannot parse boolean from %s" % word)
 
 def bool_to_string(bool_value):
-    """convert Python bool value to 'true' or 'false' string
+    """Convert Python bool value to "true" or "false" string
 
-    Raise `YtError` if value is incorrect.
+    Raises :class:`YtError <yt.common.YtError>` if value is incorrect.
     """
     if bool_value in ["false", "true"]:
         return bool_value
@@ -213,7 +213,7 @@ def run_with_retries(action, retry_count=6, backoff=20.0, exceptions=(YtError,),
             time.sleep(sleep_backoff)
 
 def is_inside_job():
-    """Returns True if the code is currently being run in the context of a YT job."""
+    """Returns `True` if the code is currently being run in the context of a YT job."""
     return bool(int(os.environ.get("YT_WRAPPER_IS_INSIDE_JOB", "0")))
 
 

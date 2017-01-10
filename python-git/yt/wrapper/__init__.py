@@ -3,7 +3,7 @@ Python wrapper for HTTP-interface of YT system.
 
 Package supports `YT API <https://wiki.yandex-team.ru/yt/pythonwrapper>`_.
 
-Be ready to catch :py:exc:`yt.wrapper.errors.YtError` after all commands!
+Be ready to catch :class:`YtError <yt.common.YtError>` after all commands!
 """
 
 from . import version_check

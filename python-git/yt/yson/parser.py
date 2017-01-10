@@ -465,9 +465,9 @@ class StreamWrap(object):
 
 
 def load(stream, yson_type=None, encoding=_ENCODING_SENTINEL, always_create_attributes=True):
-    """Deserialize `object` from YSON formatted stream `stream`.
+    """Deserializes object from YSON formatted stream `stream`.
 
-    :param yson_type: (string) type of YSON ("node", "list_fragment" or "map_fragment").
+    :param str yson_type: type of YSON, one of ["node", "list_fragment", "map_fragment"].
     """
     if not PY3 and encoding is not _ENCODING_SENTINEL and encoding is not None:
         raise YsonError("Encoding parameter is not supported for Python 2")
@@ -487,7 +487,6 @@ def load(stream, yson_type=None, encoding=_ENCODING_SENTINEL, always_create_attr
     return parser.parse()
 
 def loads(string, yson_type=None, encoding=_ENCODING_SENTINEL, always_create_attributes=True):
-    """Deserialize `object` from YSON formatted string `string`. See `load`.
-    """
+    """Deserializes object from YSON formatted string `string`. See :func:`load <.load>`."""
     return load(BytesIO(string), yson_type, encoding=encoding,
                 always_create_attributes=always_create_attributes)

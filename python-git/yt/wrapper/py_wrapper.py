@@ -532,7 +532,7 @@ def wrap(client, **kwargs):
 
 
 def enable_python_job_processing_for_standalone_binary():
-    """ Enables alternative method to run python functions as jobs in YT operations.
+    """Enables alternative method to run python functions as jobs in YT operations.
     This method sends into the job only pickled function and various program settings
     and do not send modules that used by the program. Therefore this method works
     correctly only if your script is a standalone binary and executed as binary.
@@ -550,8 +550,7 @@ def enable_python_job_processing_for_standalone_binary():
         SINGLE_INDEPENDENT_BINARY_CASE = True
 
 def initialize_python_job_processing():
-    """
-    Check that program is build as standalone binary or arcadia python used.
+    """Checks if program is build as standalone binary or arcadia python used.
     And call enable_python_job_processing_for_standalone_binary if it is the case.
 
     You should call this function in the beggining of the program.
@@ -576,23 +575,24 @@ def _set_attribute(func, key, value):
     return func
 
 def aggregator(func):
-    """Decorate function to consume *iterator of rows* instead of single row."""
+    """Decorates function to consume *iterator of rows* instead of single row."""
     return _set_attribute(func, "is_aggregator", True)
 
 def reduce_aggregator(func):
-    """Decorate function to consume *iterator of pairs* where each pair consists of key and records with this key."""
+    """Decorates function to consume *iterator of pairs* where each pair consists \
+       of key and records with this key."""
     return _set_attribute(func, "is_reduce_aggregator", True)
 
 def raw(func):
-    """Decorate function to consume *raw data stream* instead of single row."""
+    """Decorates function to consume *raw data stream* instead of single row."""
     return _set_attribute(func, "is_raw", True)
 
 def raw_io(func):
-    """Decorate function to run as is. No arguments are passed. Function handles IO."""
+    """Decorates function to run as is. No arguments are passed. Function handles IO."""
     return _set_attribute(func, "is_raw_io", True)
 
 def with_context(func):
-    """Decorate function to run with control attributes argument."""
+    """Decorates function to run with control attributes argument."""
     callable = _get_callable_func(func)
     if "context" not in inspect.getargspec(callable)[0]:
         raise TypeError('Decorator "with_context" applied to function {0} that has no argument "context"'.format(func.__name__))

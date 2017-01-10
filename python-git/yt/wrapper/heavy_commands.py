@@ -40,9 +40,6 @@ class FakeTransaction(object):
 
 def make_write_request(command_name, stream, path, params, create_object, use_retries,
                        is_stream_compressed=False, client=None):
-    """
-    param stream: list or iterator over string blobs.
-    """
     path = YPathSupportingAppend(path, client=client)
     request_timeout = get_total_request_timeout(client)
 

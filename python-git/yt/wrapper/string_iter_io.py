@@ -20,7 +20,7 @@ class StringIterIO(Iterator):
     def read(self, size=None):
         """Get string of "size" length from stream.
 
-        :param size: (int) number bytes to read
+        :param int size: number bytes to read.
         """
         if not self._active:
             return b""

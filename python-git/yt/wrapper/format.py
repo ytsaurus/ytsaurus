@@ -1,6 +1,6 @@
-"""YT data formats
+"""YT data formats.
 
-.. note:: In `Format` descendants constructors default parameters are overridden by `attributes` \
+.. note:: In `Format <.Format>` descendants constructors default parameters are overridden by `attributes` \
 parameters, and then by kwargs options.
 """
 
@@ -50,25 +50,25 @@ class _AttributeDict(dict):
         return _AttributeDict(**self.__dict__)
 
 class YtFormatError(YtError):
-    """Wrong format"""
+    """Wrong format."""
     pass
 
 class YtFormatReadError(YtFormatError):
-    """Problem with parsing that can be caused by network problems"""
+    """Problem with parsing that can be caused by network problems."""
     pass
 
 @add_metaclass(ABCMeta)
 class Format(object):
-    """ YT data representations.
+    """YT data representations.
 
-        Abstract base class for different formats.
+       Abstract base class for different formats.
     """
     _COLUMN_KEY_DEFAULT_ENCODING = "utf-8"
 
     def __init__(self, name, attributes=None, raw=None, encoding=_ENCODING_SENTINEL):
         """
-        :param name: (string) format name
-        :param attributes: (dict) format parameters
+        :param str name: format name.
+        :param dict attributes: format parameters.
         """
         require(isinstance(name, str), lambda: YtFormatError("Incorrect format %r" % name))
         self._name = yson.to_yson_type(name)
@@ -77,13 +77,11 @@ class Format(object):
         self._encoding = self._get_encoding(encoding)
 
     def to_yson_type(self):
-        """Return YSON representation of format"""
+        """Returns YSON representation of format."""
         return self._name
 
     def name(self):
-        """
-        Return string name of format.
-        """
+        """Returns string name of format."""
         return str(self._name)
 
     def _get_attributes(self):
@@ -163,21 +161,21 @@ class Format(object):
 
     @abstractmethod
     def load_row(self, stream, raw=None):
-        """Read from the binary stream, parse (optionally) and return one row.
+        """Reads bytes from the binary stream, parses (optionally) and returns one row.
 
-        :return: parsed row (dict or Record), (bytes) if unparsed, None if stream is empty
+        :return: parsed row.
+        :rtype: dict or :class:`Record <yt.wrapper.yamr_record.Record>`. \
+        If stream is empty - `None`. If `raw` is `True` - bytes.
         """
         pass
 
     @abstractmethod
     def load_rows(self, stream, raw=None):
-        """Read from the stream, parse, process input table switcher and yield all rows.
-        """
+        """Reads bytes from the stream, parses, processes input table switcher and yields all rows."""
         pass
 
     def load_rows_with_finalization(self, stream, raw=None, on_close=None):
-        """ Do the same thing as load_rows, but call on_close() if iterator closed.
-        """
+        """Does the same thing as load_rows, but call on_close() if iterator was closed."""
         try:
             for row in self.load_rows(stream, raw):
                 yield row
@@ -186,16 +184,14 @@ class Format(object):
                 on_close()
 
     def dump_row(self, row, stream, raw=None):
-        """Serialize row and write to the stream.
-        """
+        """Serializes row and writes to the stream."""
         if self._is_raw(raw):
             stream.write(row)
             return
         self._dump_row(row, stream)
 
     def dump_rows(self, rows, stream, raw=None):
-        """Serialize rows, create output table switchers and write to the stream.
-        """
+        """Serializes rows, creates output table switchers and writes to the stream."""
         if self._is_raw(raw):
             for row in rows:
                 stream.write(row)
@@ -203,13 +199,13 @@ class Format(object):
         self._dump_rows(rows, stream)
 
     def dumps_row(self, row):
-        """Convert parsed row to string"""
+        """Converts parsed row to string."""
         stream = BytesIO()
         self.dump_row(row, stream)
         return stream.getvalue()
 
     def loads_row(self, string):
-        """Convert string to parsed row"""
+        """Converts string to parsed row."""
         stream = BytesIO(string)
         return self.load_row(stream)
 
@@ -227,14 +223,14 @@ class Format(object):
         return merge_dicts(defaults, attributes, not_none_options)
 
     def is_raw_load_supported(self):
-        """Returns true if format supports loading raw YSON rows"""
+        """Returns true if format supports loading raw YSON rows."""
         return self.name() in ("dsv", "yamr", "yamred_dsv", "json", "yson", "schemaful_dsv")
 
     @staticmethod
     def _copy_docs():
         """Magic for copying docs in subclasses.
-
-        Call once after creating all subclasses."""
+           Call once after all subclasses are created.
+        """
         for cl in Format.__subclasses__():
             cl_dict = cl.__dict__
             for name in ("load_row", "load_rows", "dump_row", "dump_rows", "loads_row", "dumps_row"):
@@ -319,8 +315,7 @@ class Format(object):
             return rows
 
 class DsvFormat(Format):
-    """
-    Tabular format is widely used in Statistics.
+    """Tabular format widely used in Statistics.
 
     .. seealso:: `DSV on wiki <https://wiki.yandex-team.ru/yt/userdoc/formats/#dsv>`_
     """
@@ -328,11 +323,11 @@ class DsvFormat(Format):
     def __init__(self, enable_escaping=None, enable_table_index=None, table_index_column=None,
                  attributes=None, raw=None, encoding=_ENCODING_SENTINEL):
         """
-        :param enable_escaping: (bool) process escaped symbols, True by default
-        :param enable_table_index: (bool) process input table indexes in load_rows. \
+        :param bool enable_escaping: process escaped symbols, `True` by default.
+        :param bool enable_table_index: process input table indexes in load_rows. \
         NB! specify it only for operations!
-        :param table_index_column: (string) name for special row field (exists only inside \
-        operation binary!), "@table_index" by default
+        :param str table_index_column: name for special row field (exists only inside \
+        operation binary!), "@table_index" by default.
         """
         defaults = {"enable_escaping": True, "enable_table_index": False,
                     "table_index_column": "@table_index"}
@@ -462,8 +457,7 @@ class DsvFormat(Format):
         return dict(imap(unescape_dsv_field, ifilter(None, string.strip(b"\n").split(b"\t"))))
 
 class YsonFormat(Format):
-    """
-    Main and default YT data format.
+    """Main and default YT data format.
 
     .. seealso:: `YSON on wiki <https://wiki.yandex-team.ru/yt/userdoc/formats#yson>`_
     """
@@ -472,14 +466,13 @@ class YsonFormat(Format):
                  ignore_inner_attributes=None, boolean_as_string=None, table_index_column="@table_index",
                  attributes=None, raw=None, always_create_attributes=None, encoding=_ENCODING_SENTINEL):
         """
-        :param format: (one of "text" (default), "pretty", "binary") output format \
-        (actual only for output).
-        :param process_table_index: DEPRECATED! (bool) process input and output table switchers in `dump_rows`\
+        :param str format: output format (must be one of ["text", "pretty", "binary"], "text" be default).
+        :param bool process_table_index: DEPRECATED! process input and output table switchers in `dump_rows`\
          and `load_rows`. `See also <https://wiki.yandex-team.ru/yt/userdoc/tableswitch#yson>`_
-        :param control_attributes_mode: (str) mode of processing rows with control attributes, must be "row_fields" or "iterator" or "none".
-        In "row_fields" mode attributes are put in the regular rows with as "@row_index", "@range_index" and "@table_index".
-        Also "@table_index" key is parsed from output rows.
-        In "iterator" mode attributes rows object is iterator and control attributes are available as fields of the iterator.
+        :param str control_attributes_mode: mode of processing rows with control attributes, must be one of \
+        ["row_fields", "iterator", "none"]. In "row_fields" mode attributes are put in the regular rows with \
+        as "@row_index", "@range_index" and "@table_index". Also "@table_index" key is parsed from output rows. \
+        In "iterator" mode attributes rows object is iterator and control attributes are available as fields of the iterator. \
         In "none" mode rows are unmodified.
         """
         defaults = {"boolean_as_string": False,
@@ -510,7 +503,7 @@ class YsonFormat(Format):
                                 'package "yandex-yt-yson-bindings"')
 
     def load_row(self, stream, raw=None):
-        """Not supported"""
+        """Not supported."""
         raise YtFormatError("load_row is not supported in Yson")
 
     def load_rows(self, stream, raw=None):
@@ -568,8 +561,7 @@ class YsonFormat(Format):
                   **kwargs)
 
 class YamrFormat(Format):
-    """
-    YAMR legacy data format.
+    """YAMR legacy data format.
 
     Supported two mutually exclusive modes: text mode with delimiter and \
     binary mode ('lenval') with length before each field.
@@ -582,11 +574,11 @@ class YamrFormat(Format):
                  field_separator=None, record_separator=None,
                  enable_table_index=None, attributes=None, raw=None, encoding=_ENCODING_SENTINEL):
         """
-        :param has_subkey: (bool) False by default
-        :param lenval: (bool) False by default
-        :param field_separator: (string) "\t" by default
-        :param record_separator: (string) is not implemented yet! '\n' by default
-        :param enable_table_index: (bool) specify it for table switching in load_rows
+        :param bool has_subkey: `False` by default.
+        :param bool lenval: `False` by default.
+        :param str field_separator: "\\\\t" by default.
+        :param str record_separator: is not implemented yet! "\\\\n" by default.
+        :param bool enable_table_index: specify it for table switching in load_rows.
         """
         defaults = {"has_subkey": False, "lenval": False, "fs": '\t', "rs": '\n',
                     "enable_table_index": False}
@@ -762,8 +754,7 @@ class YamrFormat(Format):
             self.dump_row(row, stream)
 
 class JsonFormat(Format):
-    """
-    Open standard text data format for attribute-value data.
+    """Open standard text data format for attribute-value data.
 
     .. seealso:: `JSON on wiki <https://wiki.yandex-team.ru/yt/userdoc/formats#json>`_
     """
@@ -871,8 +862,7 @@ class JsonFormat(Format):
         return self._loads(string, raw=False)
 
 class YamredDsvFormat(YamrFormat):
-    """
-    Hybrid of Yamr and DSV formats. It is used to support yamr representations of tabular data.
+    """Hybrid of Yamr and DSV formats. It is used to support yamr representations of tabular data.
 
     .. seealso:: `Yamred DSV on wiki <https://wiki.yandex-team.ru/yt/userdoc/formats#yamreddsv>`_
     """
@@ -880,10 +870,12 @@ class YamredDsvFormat(YamrFormat):
     def __init__(self, key_column_names=None, subkey_column_names=None,
                  has_subkey=None, lenval=None, attributes=None, raw=None, encoding=_ENCODING_SENTINEL):
         """
-        :param key_column_names: (list of strings)
-        :param subkey_column_names: (list of strings)
-        :param has_subkey: (bool)
-        :param lenval: (bool)
+        :param key_column_names: key column names.
+        :type key_column_names: list[str]
+        :param subkey_column_names: subkey column names.
+        :type subkey_column_names: list[str]
+        :param bool has_subkey: has subkey.
+        :param bool lenval: lenval.
         """
         defaults = {"has_subkey": False, "lenval": False,
                     "key_column_names": [], "subkey_column_names": []}
@@ -901,8 +893,7 @@ class YamredDsvFormat(YamrFormat):
     subkey_column_names = Format._create_property("subkey_column_names")
 
 class SchemafulDsvFormat(Format):
-    """
-    Schemaful dsv format. It accepts column names and outputs values of these columns.
+    """Schemaful dsv format. It accepts column names and outputs values of these columns.
 
     .. seealso:: `SchemafulDsvFormat on wiki \
     <https://wiki.yandex-team.ru//yt/userdoc/formats#schemafuldsv>`_
@@ -912,12 +903,13 @@ class SchemafulDsvFormat(Format):
                  enable_table_index=None, table_index_column=None,
                  attributes=None, raw=None, encoding=_ENCODING_SENTINEL):
         """
-        :param columns: (list of strings) mandatory parameter!
-        :param enable_escaping: (bool) process escaped symbols, True by default
-        :param process_table_index: (bool) process input table indexes in load_rows and \
-        output table indexes in dump_rows, False by default
-        :param table_index_column: (string) name for special row field (exists only inside\
-         operation binary!), "@table_index" by default
+        :param columns: mandatory parameter!
+        :type columns: list[str]
+        :param bool enable_escaping: process escaped symbols, `True` by default.
+        :param bool process_table_index: process input table indexes in load_rows and \
+        output table indexes in dump_rows, `False` by default.
+        :param str table_index_column: name for special row field (exists only inside \
+         operation binary!), "@table_index" by default.
         """
         defaults = {"enable_escaping": True, "enable_table_index": False,
                     "table_index_column": "@table_index"}
@@ -1013,9 +1005,9 @@ class SchemafulDsvFormat(Format):
 Format._copy_docs()
 
 def create_format(yson_name, attributes=None, **kwargs):
-    """Create format by YSON string.
+    """Creates format by YSON string.
 
-    :param yson_name: YSON string like ``'<lenval=false;has_subkey=false>yamr'``
+    :param yson_name: YSON string like ``'<lenval=false;has_subkey=false>yamr'``.
     :param attributes: Deprecated! Don't use it! It will be removed!
     """
     if attributes is not None:
@@ -1043,12 +1035,12 @@ def create_format(yson_name, attributes=None, **kwargs):
         raise YtFormatError("Incorrect format " + name)
 
 def loads_row(string, format=None, client=None):
-    """Convert string to parsed row"""
+    """Converts string to parsed row."""
     format = get_value(format, get_config(client)["tabular_data_format"])
     return format.loads_row(string)
 
 def dumps_row(row, format=None, client=None):
-    """Convert parsed row to string"""
+    """Converts parsed row to string."""
     format = get_value(format, get_config(client)["tabular_data_format"])
     return format.dumps_row(row)
 
@@ -1059,7 +1051,7 @@ def extract_key(rec, fields):
         return FrozenDict((key, rec[key]) for key in fields if key in rec)
 
 def create_table_switch(table_index):
-    """ Returns YSON that represents table switch row """
+    """Returns YSON that represents table switch row."""
     table_switch = yson.YsonEntity()
     table_switch.attributes["table_index"] = table_index
     return table_switch

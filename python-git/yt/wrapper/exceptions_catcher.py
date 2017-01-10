@@ -2,9 +2,7 @@ from contextlib import contextmanager
 
 @contextmanager
 def ExceptionCatcher(exception_types, exception_action, enable=True, limit=10):
-    """
-    If caught KeyboardInterrupt(s), do keyboard_interrupt_action.
-    """
+    """If KeyboardInterrupt(s) are caught, does keyboard_interrupt_action."""
     if enable:
         try:
             yield

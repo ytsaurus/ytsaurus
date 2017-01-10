@@ -144,9 +144,7 @@ def make_request(command_name,
                  client=None,
                  allow_retries=None,
                  decode_content=True):
-    """
-    Makes request to yt proxy. Command name is the name of command in YT API.
-    """
+    """Makes request to yt proxy. Command name is the name of command in YT API."""
     commands = get_api_commands(client)
     api_path = "api/" + get_api_version(client)
 
