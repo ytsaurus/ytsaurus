@@ -87,6 +87,34 @@ class TestStderrTable(YTEnvSetup):
         compare_stderr_table_and_files("//tmp/t_stderr", op.id)
 
     @unix_only
+    def test_aborted_operation(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        create("table", "//tmp/t_stderr")
+        write_table("//tmp/t_input", [{"key": i} for i in xrange(2)])
+
+        op = map(
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            command="""echo GG >&2 ; cat ; if [ "$YT_JOB_INDEX" == "0" ] ; then sleep 1000 ; fi""",
+            waiting_jobs=True,
+            dont_track=True,
+            spec={
+                "stderr_table_path": "//tmp/t_stderr",
+                "job_count": 2,
+                "data_size_per_sort_job": 10,
+            }
+        )
+        assert len(op.jobs) == 2
+        op.resume_jobs()
+        wait(lambda: op.get_job_count("running") == 1);
+
+        op.abort()
+
+        expect_to_find_in_stderr_table("//tmp/t_stderr", ["GG\n"])
+        compare_stderr_table_and_files("//tmp/t_stderr", op.id)
+
+    @unix_only
     def test_ordered_map(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
