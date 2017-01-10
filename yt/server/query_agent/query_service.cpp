@@ -118,9 +118,7 @@ private:
                     options))
                     .ValueOrThrow();
 
-                auto responseCodec = request->has_response_codec()
-                    ? ECodec(request->response_codec())
-                    : ECodec::None;
+                auto responseCodec = ECodec(request->response_codec());
                 response->Attachments() = CompressWithEnvelope(protocolWriter.Flush(), responseCodec);
                 ToProto(response->mutable_query_statistics(), result);
                 context->Reply();
@@ -170,9 +168,7 @@ private:
                     &writer);
 
                 auto responseData = writer.Flush();
-                auto responseCodec = request->has_response_codec()
-                    ? ECodec(request->response_codec())
-                    : ECodec(ECodec::None);
+                auto responseCodec = ECodec(request->response_codec());
                 response->Attachments() = CompressWithEnvelope(responseData,  responseCodec);
                 context->Reply();
             });

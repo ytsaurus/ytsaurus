@@ -15,7 +15,7 @@ message TReqExecute
     required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 6;
     required TQueryOptions options = 2;
     repeated TDataRanges data_sources = 3;
-    optional int32 response_codec = 4;
+    required int32 response_codec = 4;
 }
 
 message TRspExecute
@@ -31,7 +31,7 @@ message TReqRead
     required NYT.NProto.TGuid tablet_id = 1;
     required int64 mount_revision = 2;
     required int64 timestamp = 3;
-    optional int32 response_codec = 4;
+    required int32 response_codec = 4;
 }
 
 message TRspRead
