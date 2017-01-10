@@ -68,8 +68,6 @@
 #include <yt/core/ytree/virtual.h>
 #include <yt/core/ytree/helpers.h>
 
-#include <iostream>
-
 namespace NYT {
 namespace NTabletNode {
 
@@ -553,34 +551,24 @@ public:
                     CreateTransactionParticipantProvider(Bootstrap_->GetClusterDirectory())
                 });
 
-            LOG_ERROR("AAAAAAAAAAAAAA");
-
             TabletService_ = CreateTabletService(
                 Owner_,
                 Bootstrap_);
 
-            LOG_ERROR("BBBBBBBBBBBBBB");
-
             TabletManager_->Initialize();
 
             HydraManager_->Initialize();
-            
-            LOG_ERROR("CCCCCCCCCCCCCC");
 
             for (const auto& service : TransactionSupervisor_->GetRpcServices()) {
                 rpcServer->RegisterService(service);
             }
             rpcServer->RegisterService(HiveManager_->GetRpcService());
             rpcServer->RegisterService(TabletService_);
-            
-            LOG_ERROR("DDDDDDDDDDDDDD");
 
             OrchidService_ = CreateOrchidService();
 
             LOG_INFO("Slot configured (ConfigVersion: %v)",
                 CellDescriptor_.ConfigVersion);
-            
-            LOG_ERROR("EEEEEEEEEEEEE CONFIGURED");
         }
     }
 
