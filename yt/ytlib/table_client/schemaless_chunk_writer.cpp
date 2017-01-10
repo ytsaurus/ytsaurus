@@ -1124,9 +1124,6 @@ private:
         ValidateRowWeight(weight, Config_, Options_);
 
         auto partitionIndex = Partitioner_->GetPartitionIndex(row);
-
-
-        LOG_INFO("XXX Writing row %v, partition index %v", ToString(row), partitionIndex);
         auto& blockWriter = BlockWriters_[partitionIndex];
 
         CurrentBufferCapacity_ -= blockWriter->GetCapacity();
