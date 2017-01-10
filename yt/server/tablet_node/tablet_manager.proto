@@ -128,9 +128,7 @@ message TReqUpdatePartitionSampleKeys
     required NYT.NProto.TGuid tablet_id = 1;
     required int64 mount_revision = 5;
     required NYT.NProto.TGuid partition_id = 4;
-    // COMPAT(babenko)
-    repeated bytes legacy_sample_keys = 3;
-    optional bytes sample_keys = 6; // wire-format encoded
+    required bytes sample_keys = 6; // wire-format encoded
 }
 
 message TReqAddTableReplica

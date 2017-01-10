@@ -1462,19 +1462,8 @@ private:
             return;
         }
 
-        // COMPAT(babenko)
-        TSharedRange<TKey> sampleKeys;
-        if (request->legacy_sample_keys_size() > 0) {
-            auto rowBuffer = New<TRowBuffer>();
-            std::vector<TKey> keys;
-            for (const auto& protoKey : request->legacy_sample_keys()) {
-                keys.push_back(FromProto<TKey>(protoKey, rowBuffer));
-            }
-            sampleKeys = MakeSharedRange(std::move(keys), std::move(rowBuffer));
-        } else {
-            TWireProtocolReader reader(TSharedRef::FromString(request->sample_keys()));
-            sampleKeys = CaptureRows<TSampleKeyListTag>(reader.ReadUnversionedRowset());
-        }
+        TWireProtocolReader reader(TSharedRef::FromString(request->sample_keys()));
+        auto sampleKeys = CaptureRows<TSampleKeyListTag>(reader.ReadUnversionedRowset());
 
         auto storeManager = tablet->GetStoreManager()->AsSorted();
         storeManager->UpdatePartitionSampleKeys(partition, sampleKeys);
