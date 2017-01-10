@@ -213,6 +213,8 @@ void TBootstrap::DoRun()
         Config->TabletNode->TabletManager->ReplicatorThreadPoolSize,
         "Replicator");
 
+    TransactionTrackerQueue = New<TActionQueue>("TxTracker");
+
     BusServer = CreateTcpBusServer(Config->BusServer);
 
     RpcServer = CreateBusServer(BusServer);
@@ -546,6 +548,11 @@ const IInvokerPtr& TBootstrap::GetQueryPoolInvoker() const
 const IInvokerPtr& TBootstrap::GetTableReplicatorPoolInvoker() const
 {
     return TableReplicatorThreadPool->GetInvoker();
+}
+
+const IInvokerPtr& TBootstrap::GetTransactionTrackerInvoker() const
+{
+    return TransactionTrackerQueue->GetInvoker();
 }
 
 const INativeClientPtr& TBootstrap::GetMasterClient() const

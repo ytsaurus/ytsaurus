@@ -56,6 +56,7 @@ public:
     const IInvokerPtr& GetControlInvoker() const;
     const IInvokerPtr& GetQueryPoolInvoker() const;
     const IInvokerPtr& GetTableReplicatorPoolInvoker() const;
+    const IInvokerPtr& GetTransactionTrackerInvoker() const;
     const NApi::INativeClientPtr& GetMasterClient() const;
     const NRpc::IServerPtr& GetRpcServer() const;
     const NRpc::IChannelFactoryPtr& GetTabletChannelFactory() const;
@@ -106,10 +107,9 @@ private:
     const NYTree::INodePtr ConfigNode;
 
     NConcurrency::TActionQueuePtr ControlQueue;
-
     NConcurrency::TThreadPoolPtr QueryThreadPool;
-
     NConcurrency::TThreadPoolPtr TableReplicatorThreadPool;
+    NConcurrency::TActionQueuePtr TransactionTrackerQueue;
 
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     std::unique_ptr<NLFAlloc::TLFAllocProfiler> LFAllocProfiler_;
