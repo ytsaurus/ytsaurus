@@ -281,7 +281,7 @@ private:
 
     void DoUnregisterJob(const TJobPtr& job);
 
-    void PreemptJob(const TJobPtr& job, const TInstant& interruptDeadline);
+    void PreemptJob(const TJobPtr& job, const TNullable<TInstant>& interruptDeadline);
 
     TExecNodePtr GetNodeByJob(const TJobId& jobId);
 
