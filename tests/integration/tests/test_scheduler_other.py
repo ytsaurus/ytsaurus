@@ -1238,19 +1238,17 @@ class TestSchedulingTags(YTEnvSetup):
 
     def test_global_pool_acl(self):
         self._test_pool_acl_prologue()
-        # TODO(babenko): use make_ace after merging into 18.5
         create("map_node", "//sys/pools/p", attributes={
             "inherit_acl": False,
-            "acl": [{"action": "allow", "subjects": ["u"], "permissions": ["use"]}]
+            "acl": [make_ace("allow", ["u"], ["use"])]
         })
         self._test_pool_acl_core("p", "/p")
 
     def test_inner_pool_acl(self):
         self._test_pool_acl_prologue()
-        # TODO(babenko): use make_ace after merging into 18.5
         create("map_node", "//sys/pools/p1", attributes={
             "inherit_acl": False,
-            "acl": [{"action": "allow", "subjects": ["u"], "permissions": ["use"]}]
+            "acl": [make_ace("allow", ["u"], ["use"])]
         })
         create("map_node", "//sys/pools/p1/p2")
         self._test_pool_acl_core("p2", "/p1")
