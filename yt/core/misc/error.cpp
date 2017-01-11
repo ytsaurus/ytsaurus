@@ -459,12 +459,27 @@ TError operator << (TError error, const TError& innerError)
     return error;
 }
 
+TError operator << (TError error, TError&& innerError)
+{
+    error.InnerErrors().push_back(std::move(innerError));
+    return error;
+}
+
 TError operator << (TError error, const std::vector<TError>& innerErrors)
 {
     error.InnerErrors().insert(
         error.InnerErrors().end(),
         innerErrors.begin(),
         innerErrors.end());
+    return error;
+}
+
+TError operator << (TError error, std::vector<TError>&& innerErrors)
+{
+    error.InnerErrors().insert(
+        error.InnerErrors().end(),
+        std::make_move_iterator(innerErrors.begin()),
+        std::make_move_iterator(innerErrors.end()));
     return error;
 }
 

@@ -141,7 +141,7 @@ if(_is_gcc)
 
   # Use libc++ on Mac OS X.
   if(APPLE)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++ -fvisibility-inlines-hidden")
   endif()
 
   if(YT_USE_LTO)

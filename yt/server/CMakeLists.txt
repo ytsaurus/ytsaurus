@@ -8,7 +8,13 @@ SET(PROTO_NAMESPACE yt/${YT_ABI})
 SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/admin_server/admin_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/admin_server/private.cpp
-  
+
+  ${CMAKE_CURRENT_LIST_DIR}/blackbox/cookie_authenticator.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/blackbox/default_blackbox_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/blackbox/token_authenticator.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/blackbox/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/blackbox/private.cpp
+
   ${CMAKE_CURRENT_LIST_DIR}/cell_master/automaton.cpp
   ${CMAKE_CURRENT_LIST_DIR}/cell_master/bootstrap.cpp
   ${CMAKE_CURRENT_LIST_DIR}/cell_master/config.cpp
@@ -442,7 +448,10 @@ resolve_srcs(YT_SRCS YT_SRCS_RESOLVED)
 
 add_library(yt-library-server ${YT_SRCS_RESOLVED})
 
-target_link_libraries(yt-library-server yt-library-client)
+target_link_libraries(yt-library-server
+  yt-library-client
+  deps-arcadia-library-http
+)
 
 ### master
 
