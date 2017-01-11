@@ -468,7 +468,7 @@ class YsonFormat(Format):
         """
         :param str format: output format (must be one of ["text", "pretty", "binary"], "text" be default).
         :param bool process_table_index: DEPRECATED! process input and output table switchers in `dump_rows`\
-         and `load_rows`. `See also <https://wiki.yandex-team.ru/yt/userdoc/tableswitch#yson>`_
+         and `load_rows`. See `wiki <https://wiki.yandex-team.ru/yt/userdoc/tableswitch#yson>`_.
         :param str control_attributes_mode: mode of processing rows with control attributes, must be one of \
         ["row_fields", "iterator", "none"]. In "row_fields" mode attributes are put in the regular rows with \
         as "@row_index", "@range_index" and "@table_index". Also "@table_index" key is parsed from output rows. \
