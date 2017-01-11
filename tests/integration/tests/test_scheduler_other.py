@@ -1253,6 +1253,25 @@ class TestSchedulingTags(YTEnvSetup):
         create("map_node", "//sys/pools/p1/p2")
         self._test_pool_acl_core("p2", "/p1")
 
+    def test_forbid_immediate_operations(self):
+        self._test_pool_acl_prologue()
+
+        create("map_node", "//sys/pools/p1", attributes={"forbid_immediate_operations": True})
+        create("map_node", "//sys/pools/p1/p2")
+
+        with pytest.raises(YtError):
+            map(command="cat",
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                user="u",
+                spec={"pool": "p1"})
+
+        map(command="cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            user="u",
+            spec={"pool": "p2"})
+
 ##################################################################
 
 class TestSchedulerConfig(YTEnvSetup):
