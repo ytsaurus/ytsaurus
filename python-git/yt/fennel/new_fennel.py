@@ -340,7 +340,6 @@ class PushMapper(object):
         self.logbroker = logbroker
 
     def __call__(self, row):
-        del row["@table_index"]
         logger.handlers = [logging.StreamHandler()]
         logger.setLevel(logging.INFO)
         pipe_from_yt_to_logbroker(self.yt_client, self.logbroker, **row)
