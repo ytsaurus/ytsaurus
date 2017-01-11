@@ -72,10 +72,12 @@ def merge(table):
                                }})
 
             if yt.exists(table):
-                with yt.Transaction():
-                    yt.lock(table)
-                    if yt.get_attribute(table, "revision") == revision:
-                        yt.run_merge(temp_table, table, mode=mode)
+                client = yt.YtClient(config=yt.config.config)
+                client.config["start_operation_retries"]["retry_count"] = 1
+                with client.Transaction():
+                    client.lock(table)
+                    if client.get_attribute(table, "revision") == revision:
+                        client.run_merge(temp_table, table, mode=mode)
                     else:
                         logger.info("Table %s has changed while merge", table)
         except yt.YtOperationFailedError as error:
