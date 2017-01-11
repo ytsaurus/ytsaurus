@@ -4386,6 +4386,11 @@ void TOperationControllerBase::OnJobInterrupted(const TCompletedJobSummary& jobS
     JobCounter.Interrupted(1);
 
     const auto& inputDataSlices = ExtractInputDataSlices(jobSummary);
+
+    LOG_DEBUG("Job interrupted (JobId: %v, UnreadDataSliceCount: %v)",
+        jobSummary.Id,
+        inputDataSlices.size());
+
     ReinstallUnreadInputDataSlices(inputDataSlices);
 }
 

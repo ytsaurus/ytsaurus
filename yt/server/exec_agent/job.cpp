@@ -110,7 +110,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
         if (JobPhase_ != EJobPhase::Created) {
-            LOG_DEBUG("Cannot start job (JobState: %v, JobPhase: %v)",
+            LOG_DEBUG("Cannot start job, unexpected job phase (JobState: %v, JobPhase: %v)",
                 JobState_,
                 JobPhase_);
             return;
@@ -119,6 +119,8 @@ public:
         GuardedAction([&] () {
             SetJobState(EJobState::Running);
             PrepareTime_ = TInstant::Now();
+
+            LOG_INFO("Starting job");
 
             InitializeArtifacts();
 
@@ -172,6 +174,8 @@ public:
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
         GuardedAction([&] {
+            LOG_INFO("Job prepared");
+
             ValidateJobPhase(EJobPhase::PreparingProxy);
             SetJobPhase(EJobPhase::Running);
         });
@@ -596,6 +600,8 @@ private:
                 NExecAgent::EErrorCode::NodeDirectoryPreparationFailed,
                 "Failed to prepare job node directory");
 
+            LOG_INFO("Node directory prepared");
+
             SetJobPhase(EJobPhase::DownloadingArtifacts);
             auto artifactsFuture = DownloadArtifacts();
             artifactsFuture.Subscribe(
@@ -612,6 +618,9 @@ private:
         GuardedAction([&] {
             ValidateJobPhase(EJobPhase::DownloadingArtifacts);
             THROW_ERROR_EXCEPTION_IF_FAILED(errorOrArtifacts, "Failed to download artifacts");
+
+            LOG_INFO("Artifacts downloaded");
+
             const auto& chunks = errorOrArtifacts.Value();
 
             for (size_t index = 0; index < Artifacts_.size(); ++index) {
@@ -639,6 +648,8 @@ private:
             ValidateJobPhase(EJobPhase::PreparingSandboxDirectories);
             THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to prepare sandbox directories");
 
+            LOG_INFO("Slot directories prepared");
+
             SetJobPhase(EJobPhase::PreparingArtifacts);
             BIND(&TJob::PrepareArtifacts, MakeWeak(this))
                 .AsyncVia(Invoker_)
@@ -657,6 +668,8 @@ private:
         GuardedAction([&] {
             ValidateJobPhase(EJobPhase::PreparingArtifacts);
             THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to prepare artifacts");
+
+            LOG_INFO("Artifacts prepared");
 
             ExecTime_ = TInstant::Now();
             SetJobPhase(EJobPhase::PreparingProxy);
@@ -684,6 +697,8 @@ private:
             return;
         }
 
+        LOG_INFO("Job proxy finished");
+
         if (!error.IsOK()) {
             DoSetResult(TError("Job proxy failed") << error);
         }
@@ -698,9 +713,14 @@ private:
         }
 
         try {
-            TContextSwitchGuard contextSwitchGuard([] { Y_UNREACHABLE(); });
+            TContextSwitchGuard contextSwitchGuard([] {
+                Y_UNREACHABLE();
+            });
+
             action();
         } catch (const std::exception& ex) {
+            LOG_WARNING(ex, "Error preparing scheduler job");
+
             DoSetResult(ex);
             Cleanup();
         }
@@ -714,6 +734,8 @@ private:
         if (JobPhase_ == EJobPhase::Cleanup || JobPhase_ == EJobPhase::Finished) {
             return;
         }
+
+        LOG_INFO("Cleaning up after scheduler job");
 
         FinishTime_ = TInstant::Now();
         SetJobPhase(EJobPhase::Cleanup);
@@ -749,25 +771,24 @@ private:
 
         if (error.IsOK()) {
             SetJobState(EJobState::Completed);
-            return;
-        }
-
-        if (IsFatalError(error)) {
+        } else if (IsFatalError(error)) {
             error.Attributes().Set("fatal", IsFatalError(error));
             ToProto(JobResult_->mutable_error(), error);
             SetJobState(EJobState::Failed);
-            return;
+        } else {
+            auto abortReason = GetAbortReason(*JobResult_);
+            if (abortReason) {
+                error.Attributes().Set("abort_reason", abortReason);
+                ToProto(JobResult_->mutable_error(), error);
+                SetJobState(EJobState::Aborted);
+            } else {
+                SetJobState(EJobState::Failed);
+            }
         }
 
-        auto abortReason = GetAbortReason(*JobResult_);
-        if (abortReason) {
-            error.Attributes().Set("abort_reason", abortReason);
-            ToProto(JobResult_->mutable_error(), error);
-            SetJobState(EJobState::Aborted);
-            return;
-        }
-
-        SetJobState(EJobState::Failed);
+        LOG_INFO("Job finalized (Error: %v, JobState: %v)",
+            error,
+            GetState());
     }
 
     // Preparation.
