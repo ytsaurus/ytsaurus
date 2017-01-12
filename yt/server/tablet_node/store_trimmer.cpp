@@ -81,6 +81,11 @@ private:
             return;
         }
 
+        const auto& storeManager = tablet->GetStoreManager();
+        for (const auto& store : stores) {
+            storeManager->BeginStoreCompaction(store);
+        }
+
         tablet->GetEpochAutomatonInvoker()->Invoke(BIND(
             &TStoreTrimmer::TrimStores,
             MakeStrong(this),
@@ -130,7 +135,6 @@ private:
             for (const auto& store : stores) {
                 auto* descriptor = actionRequest.add_stores_to_remove();
                 ToProto(descriptor->mutable_store_id(), store->GetId());
-                storeManager->BeginStoreCompaction(store);
             }
 
             auto actionData = MakeTransactionActionData(actionRequest);
