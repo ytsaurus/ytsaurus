@@ -52,6 +52,10 @@ char* TChunkedMemoryPool::AllocateSlowCore(i64 size)
 
     if (CurrentChunkIndex_ + 1 >= Chunks_.size()) {
         auto chunk = TSharedMutableRef::Allocate(ChunkSize_, false, TagCookie_);
+        if (Chunks_.empty()) {
+            FirstChunkBegin_ = chunk.Begin();
+            FirstChunkEnd_ = chunk.End();
+        }
         Chunks_.push_back(chunk);
         Capacity_ += ChunkSize_;
         CurrentChunkIndex_ = static_cast<int>(Chunks_.size()) - 1;
@@ -64,7 +68,7 @@ char* TChunkedMemoryPool::AllocateSlowCore(i64 size)
     return nullptr;
 }
 
-void TChunkedMemoryPool::Clear()
+void TChunkedMemoryPool::ClearSlow()
 {
     CurrentChunkIndex_ = 0;
     Size_ = 0;

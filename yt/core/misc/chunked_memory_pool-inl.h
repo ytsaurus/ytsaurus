@@ -45,6 +45,20 @@ inline T* TChunkedMemoryPool::AllocateUninitialized(int n, int align)
     return reinterpret_cast<T*>(AllocateAligned(sizeof(T) * n, align));
 }
 
+inline void TChunkedMemoryPool::Clear()
+{
+    // Fast path.
+    if (CurrentChunkIndex_ == 0 && LargeBlocks_.empty()) {
+        FreeZoneBegin_ = FirstChunkBegin_;
+        FreeZoneEnd_ = FirstChunkEnd_;
+        Size_ = 0;
+        return;
+    }
+
+    // Slow path.
+    ClearSlow();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
