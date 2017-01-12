@@ -233,7 +233,7 @@ void Deserialize(TColumnSchema& columnSchema, const TNode& node)
 {
     const auto& nodeMap = node.AsMap();
     DESERIALIZE_ITEM("name", columnSchema.Name_);
-    DESERIALIZE_ITEM("type", columnSchema.Name_);
+    DESERIALIZE_ITEM("type", columnSchema.Type_);
     DESERIALIZE_ITEM("sort_order", columnSchema.SortOrder_);
     DESERIALIZE_ITEM("lock", columnSchema.Lock_);
     DESERIALIZE_ITEM("expression", columnSchema.Expression_);
