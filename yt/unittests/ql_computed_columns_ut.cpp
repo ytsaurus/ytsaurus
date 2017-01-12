@@ -9,6 +9,8 @@
 
 #include <yt/ytlib/table_client/helpers.h>
 
+#include <yt/ytlib/ypath/rich.h>
+
 #include <yt/core/yson/string.h>
 #include <yt/core/ytree/convert.h>
 

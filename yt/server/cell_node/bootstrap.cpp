@@ -445,7 +445,7 @@ void TBootstrap::DoRun()
 
     InMemoryManager = New<TInMemoryManager>(Config->TabletNode->InMemoryManager, this);
 
-    QueryExecutor = CreateQueryExecutor(Config->QueryAgent, this);
+    QueryExecutor = CreateQuerySubexecutor(Config->QueryAgent, this);
 
     RpcServer->RegisterService(CreateQueryService(Config->QueryAgent, this));
 
