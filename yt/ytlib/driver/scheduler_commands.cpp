@@ -44,9 +44,6 @@ void TGetJobInputCommand::DoExecute(ICommandContextPtr context)
     auto jobInputReader = WaitFor(context->GetClient()->GetJobInput(OperationId, JobId, Options))
         .ValueOrThrow();
 
-    WaitFor(jobInputReader->Open())
-        .ThrowOnError();
-
     auto output = context->Request().OutputStream;
 
     while (true) {

@@ -32,6 +32,8 @@
 
 #include <yt/core/actions/future.h>
 
+#include <yt/core/concurrency/public.h>
+
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/nullable.h>
 
@@ -647,7 +649,7 @@ struct IClientBase
 
 
     // Files
-    virtual IFileReaderPtr CreateFileReader(
+    virtual TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> CreateFileReader(
         const NYPath::TYPath& path,
         const TFileReaderOptions& options = TFileReaderOptions()) = 0;
 
@@ -795,7 +797,7 @@ struct IClient
         const NYPath::TYPath& path,
         const TDumpJobContextOptions& options = TDumpJobContextOptions()) = 0;
 
-    virtual TFuture<IFileReaderPtr> GetJobInput(
+    virtual TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> GetJobInput(
         const NJobTrackerClient::TOperationId& operationId,
         const NJobTrackerClient::TJobId& jobId,
         const TGetJobInputOptions& options = TGetJobInputOptions()) = 0;
