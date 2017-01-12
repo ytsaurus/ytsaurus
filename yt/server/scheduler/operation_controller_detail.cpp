@@ -3279,8 +3279,17 @@ void TOperationControllerBase::FetchInputTables()
         auto objectIdPath = FromObjectId(table.ObjectId);
         const auto& path = table.Path.GetPath();
         const auto& ranges = table.Path.GetRanges();
-        if (ranges.empty())
+        if (ranges.empty()) {
             continue;
+        }
+
+        if (ranges.size() > Config->MaxRangesOnTable) {
+            THROW_ERROR_EXCEPTION(
+                "Too many ranges on table: maximum allowed %v, actual %v",
+                Config->MaxRangesOnTable,
+                ranges.size())
+                << TErrorAttribute("table_path", table.Path.GetPath());
+        }
 
         LOG_INFO("Fetching input table (Path: %v, RangeCount: %v)",
             path,

@@ -1176,7 +1176,6 @@ private:
     {
         auto batchReq = StartObjectBatchRequest();
         auto operationPath = GetOperationPath(operation->GetId());
-        auto controller = operation->GetController();
 
         GenerateMutationId(batchReq);
 
@@ -1196,6 +1195,8 @@ private:
 
         if (operation->HasControllerProgress())
         {
+            auto controller = operation->GetController();
+
             // Set progress.
             {
                 auto req = TYPathProxy::Set(operationPath + "/@progress");
