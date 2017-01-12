@@ -52,7 +52,7 @@ def run_main(main_func):
 
         print(str(error), file=sys.stderr)
         if stderrs is not None:
-            print("\nStderrs of failed jobs:", file=sys.stderr)
+            print("\nFailed jobs:", file=sys.stderr)
             print(format_operation_stderrs(stderrs), file=sys.stderr)
         die()
     except YtError as error:
