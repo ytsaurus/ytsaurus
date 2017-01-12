@@ -263,7 +263,8 @@ public:
     TOperationOptions()
     {
         RegisterParameter("spec_template", SpecTemplate)
-            .Default();
+            .Default()
+            .MergeBy(NYTree::EMergeStrategy::Combine);
 
         RegisterParameter("slice_data_size_multiplier", SliceDataSizeMultiplier)
             .Default(0.51)
@@ -866,7 +867,9 @@ public:
             .Default(10000);
 
         RegisterParameter("operation_options", OperationOptions)
-            .Default();
+            .Default()
+            .MergeBy(NYTree::EMergeStrategy::Combine);
+
         RegisterParameter("map_operation_options", MapOperationOptions)
             .DefaultNew();
         RegisterParameter("reduce_operation_options", ReduceOperationOptions)
