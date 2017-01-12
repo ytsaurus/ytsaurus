@@ -633,8 +633,8 @@ class YTInstance(object):
                 client.config["proxy"]["request_retry_enable"] = False
                 client.get("/")
                 return True
-            except (requests.RequestException, YtError):
-                return False
+            except (requests.RequestException, YtError) as err:
+                return False, err
             finally:
                 logger.setLevel(old_level)
 
@@ -646,8 +646,9 @@ class YTInstance(object):
                 self._cluster_configuration["master"]["secondary_cell_tags"][cell_index - 1])
 
             def quorum_ready_and_cell_registered():
-                if not quorum_ready():
-                    return False
+                result = quorum_ready()
+                if isinstance(result, tuple) and not result[0]:
+                    return result
 
                 return cell_tag in primary_cell_client.get("//sys/@registered_master_cell_tags")
 
@@ -730,7 +731,7 @@ class YTInstance(object):
                         active_scheduler_orchid_path = path
 
                 if active_scheduler_orchid_path is None:
-                    return False
+                    return False, "No active scheduler found"
 
                 nodes = list(itervalues(client.get(active_scheduler_orchid_path + "/nodes")))
                 return len(nodes) == self.node_count and all(node["state"] == "online" for node in nodes)
@@ -738,7 +739,7 @@ class YTInstance(object):
                 # Orchid connection refused
                 if not err.contains_code(105) and not err.contains_code(100):
                     raise
-                return False
+                return False, err
 
         self._wait_for(schedulers_ready, "scheduler")
 
@@ -903,15 +904,29 @@ class YTInstance(object):
         self._wait_for(proxy_ready, "proxy", max_wait_time=20)
 
     def _wait_for(self, condition, name, max_wait_time=40, sleep_quantum=0.1):
+        condition_error = None
         current_wait_time = 0
         logger.info("Waiting for %s...", name)
         while current_wait_time < max_wait_time:
-            if condition():
+            result = condition()
+            if isinstance(result, tuple):
+                ok, condition_error = result
+            else:
+                ok = result
+
+            if ok:
                 logger.info("%s ready", name.capitalize())
                 return
             time.sleep(sleep_quantum)
             current_wait_time += sleep_quantum
 
         self._print_stderrs(name)
-        raise YtError("{0} still not ready after {1} seconds. See logs in working dir for details."
-                      .format(name.capitalize(), max_wait_time))
+
+        error = YtError("{0} still not ready after {1} seconds. See logs in working dir for details."
+                        .format(name.capitalize(), max_wait_time))
+        if condition_error is not None:
+            if isinstance(condition_error, str):
+                condition_error = YtError(condition_error)
+            error.inner_errors = [condition_error]
+
+        raise error
