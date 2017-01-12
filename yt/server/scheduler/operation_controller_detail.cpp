@@ -1325,35 +1325,28 @@ void TOperationControllerBase::SafePrepare()
             Logger,
             EPermission::Write);
 
-    GetUserObjectBasicAttributes<TOutputTable>(
-        AuthenticatedMasterClient,
-        CoreTable,
-        DebugOutputTransaction->GetId(),
-        Logger,
-        EPermission::Write);
+        GetUserObjectBasicAttributes<TOutputTable>(
+            AuthenticatedMasterClient,
+            CoreTable,
+            DebugOutputTransaction->GetId(),
+            Logger,
+            EPermission::Write);
 
-    GetUserObjectBasicAttributes<TOutputTable>(
-        AuthenticatedMasterClient,
-        CoreTable,
-        DebugOutputTransaction->GetId(),
-        Logger,
-        EPermission::Write);
-
-    yhash_set<TObjectId> updatingTableIds;
-    for (const auto* table : UpdatingTables) {
-        const auto& path = table->Path.GetPath();
-        if (table->Type != EObjectType::Table) {
-            THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
-                path,
-                EObjectType::Table,
-                table->Type);
+        yhash_set<TObjectId> updatingTableIds;
+        for (const auto* table : UpdatingTables) {
+            const auto& path = table->Path.GetPath();
+            if (table->Type != EObjectType::Table) {
+                THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
+                    path,
+                    EObjectType::Table,
+                    table->Type);
+            }
+            const bool insertedNew = updatingTableIds.insert(table->ObjectId).second;
+            if (!insertedNew) {
+                THROW_ERROR_EXCEPTION("Output table %v is specified multiple times",
+                    path);
+            }
         }
-        const bool insertedNew = updatingTableIds.insert(table->ObjectId).second;
-        if (!insertedNew) {
-            THROW_ERROR_EXCEPTION("Output table %v is specified multiple times",
-                path);
-        }
-    }
 
         GetOutputTablesSchema();
         PrepareOutputTables();
