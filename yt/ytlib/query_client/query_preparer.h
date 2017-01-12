@@ -1,6 +1,5 @@
 #pragma once
 
-#include "ast.h"
 #include "query.h"
 
 namespace NYT {

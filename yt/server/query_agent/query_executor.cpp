@@ -44,6 +44,7 @@
 #include <yt/ytlib/query_client/query_helpers.h>
 #include <yt/ytlib/query_client/private.h>
 #include <yt/ytlib/query_client/query_statistics.h>
+#include <yt/ytlib/query_client/executor.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/config.h>
@@ -112,7 +113,7 @@ struct TDataSourceFormatter
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TQueryExecutorBufferTag
+struct TQuerySubexecutorBufferTag
 { };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -241,7 +242,10 @@ private:
             ->GetNativeConnection()
             ->CreateNativeClient(clientOptions);
 
-        auto remoteExecutor = client->GetQueryExecutor();
+        auto remoteExecutor = CreateQueryExecutor(
+            client->GetNativeConnection(),
+            client->GetHeavyChannelFactory(),
+            FunctionImplCache_);
 
         auto functionGenerators = New<TFunctionProfilerMap>();
         auto aggregateGenerators = New<TAggregateProfilerMap>();
@@ -530,7 +534,7 @@ private:
     // TODO(lukyan): Use mutable shared range
     TSharedMutableRange<TDataRange> Split(std::vector<TDataRanges> rangesByTablePart)
     {
-        auto rowBuffer = New<TRowBuffer>(TQueryExecutorBufferTag());
+        auto rowBuffer = New<TRowBuffer>(TQuerySubexecutorBufferTag());
         std::vector<TDataRange> allSplits;
 
         for (auto& tablePartIdRange : rangesByTablePart) {
@@ -840,11 +844,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueryExecutor
+class TQuerySubexecutor
     : public ISubexecutor
 {
 public:
-    TQueryExecutor(
+    TQuerySubexecutor(
         TQueryAgentConfigPtr config,
         TBootstrap* bootstrap)
         : Config_(config)
@@ -891,11 +895,11 @@ private:
     const TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
 };
 
-ISubexecutorPtr CreateQueryExecutor(
+ISubexecutorPtr CreateQuerySubexecutor(
     TQueryAgentConfigPtr config,
     TBootstrap* bootstrap)
 {
-    return New<TQueryExecutor>(config, bootstrap);
+    return New<TQuerySubexecutor>(config, bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

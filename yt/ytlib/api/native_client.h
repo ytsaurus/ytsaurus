@@ -29,7 +29,6 @@ struct INativeClient
     virtual NRpc::IChannelPtr GetSchedulerChannel() = 0;
     virtual NNodeTrackerClient::INodeChannelFactoryPtr GetLightChannelFactory() = 0;
     virtual NNodeTrackerClient::INodeChannelFactoryPtr GetHeavyChannelFactory() = 0;
-    virtual NQueryClient::IExecutorPtr GetQueryExecutor() = 0;
 
     virtual INativeTransactionPtr AttachNativeTransaction(
         const NTransactionClient::TTransactionId& transactionId,

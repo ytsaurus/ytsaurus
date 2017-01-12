@@ -22,6 +22,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/api/public.cpp
   ${CMAKE_CURRENT_LIST_DIR}/api/rowset.cpp
   ${CMAKE_CURRENT_LIST_DIR}/api/table_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/api/tablet_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/api/transaction.cpp
   ${CMAKE_CURRENT_LIST_DIR}/api/persistent_queue.cpp
 
@@ -82,7 +83,7 @@ SET(YT_SRCS
 
   ${CMAKE_CURRENT_LIST_DIR}/core_dump/core_info.proto
   ${CMAKE_CURRENT_LIST_DIR}/core_dump/helpers.cpp
-  
+
   ${CMAKE_CURRENT_LIST_DIR}/cypress_client/cypress_ypath.proto
   ${CMAKE_CURRENT_LIST_DIR}/cypress_client/public.cpp
   ${CMAKE_CURRENT_LIST_DIR}/cypress_client/rpc.proto
@@ -213,6 +214,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/query_client/coordinator.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/evaluation_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/evaluator.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/executor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/folding_profiler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/functions.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/functions_cache.cpp
