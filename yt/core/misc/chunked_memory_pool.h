@@ -72,6 +72,9 @@ private:
     char* FreeZoneBegin_;
     char* FreeZoneEnd_;
 
+    char* FirstChunkBegin_ = nullptr;
+    char* FirstChunkEnd_ = nullptr;
+
     std::vector<TSharedMutableRef> Chunks_;
     std::vector<TSharedMutableRef> LargeBlocks_;
 
@@ -80,6 +83,8 @@ private:
     char* AllocateSlowCore(i64 size);
 
     void SetupFreeZone();
+
+    void ClearSlow();
 
 };
 
