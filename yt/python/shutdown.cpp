@@ -14,6 +14,7 @@ static TCallback<void()> AdditionalShutdownCallback;
 void Shutdown()
 {
     AdditionalShutdownCallback.Run();
+    AdditionalShutdownCallback.Reset();
     NYT::Shutdown();
 }
 
