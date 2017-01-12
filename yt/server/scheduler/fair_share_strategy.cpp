@@ -738,8 +738,6 @@ private:
                     }
                     schedulingContext->ResourceUsageDiscount() += job->ResourceUsage();
                     preemptableJobs.push_back(job);
-                    LOG_DEBUG("Job is preemptable (JobId: %v)",
-                        job->GetId());
                 }
             }
         }
