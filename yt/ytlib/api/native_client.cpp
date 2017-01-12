@@ -75,6 +75,7 @@
 #include <yt/core/compression/codec.h>
 
 #include <yt/core/concurrency/async_semaphore.h>
+#include <yt/core/concurrency/async_stream.h>
 #include <yt/core/concurrency/async_stream_pipe.h>
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/scheduler.h>
@@ -308,7 +309,7 @@ TError TCheckPermissionResult::ToError(const Stroka& user, EPermission permissio
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobInputReader
-    : public IFileReader
+    : public NConcurrency::IAsyncZeroCopyInputStream
 {
 public:
     TJobInputReader(NJobProxy::TUserJobReadControllerPtr userJobReadController, IInvokerPtr invoker)
@@ -322,13 +323,12 @@ public:
         TransferResultFuture_.Cancel();
     }
 
-    virtual TFuture<void> Open() override
+    void Open()
     {
         auto transferClosure = UserJobReadController_->PrepareJobInputTransfer(AsyncStreamPipe_);
         TransferResultFuture_ = transferClosure
             .AsyncVia(Invoker_)
             .Run();
-        return VoidFuture;
     }
 
     virtual TFuture<TSharedRef> Read() override
@@ -340,9 +340,8 @@ private:
     const IInvokerPtr Invoker_;
     const NJobProxy::TUserJobReadControllerPtr UserJobReadController_;
     const NConcurrency::TAsyncStreamPipePtr AsyncStreamPipe_;
-    
-    TFuture<void> TransferResultFuture_;
 
+    TFuture<void> TransferResultFuture_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobInputReader);
@@ -699,7 +698,7 @@ public:
         (type, options))
 
 
-    virtual IFileReaderPtr CreateFileReader(
+    virtual TFuture<IAsyncZeroCopyInputStreamPtr> CreateFileReader(
         const TYPath& path,
         const TFileReaderOptions& options) override
     {
@@ -779,7 +778,7 @@ public:
         const TYPath& path,
         const TDumpJobContextOptions& options),
         (jobId, path, options))
-    IMPLEMENT_METHOD(IFileReaderPtr, GetJobInput, (
+    IMPLEMENT_METHOD(IAsyncZeroCopyInputStreamPtr, GetJobInput, (
         const TOperationId& operationId,
         const TJobId& jobId,
         const TGetJobInputOptions& options),
@@ -2265,7 +2264,7 @@ private:
             .ThrowOnError();
     }
 
-    IFileReaderPtr DoGetJobInput(
+    IAsyncZeroCopyInputStreamPtr DoGetJobInput(
         const TOperationId& operationId,
         const TJobId& jobId,
         const TGetJobInputOptions& /*options*/)
@@ -2377,7 +2376,7 @@ private:
             Null);
 
         auto jobInputReader = New<TJobInputReader>(userJobReader, GetConnection()->GetHeavyInvoker());
-
+        jobInputReader->Open();
         return jobInputReader;
     }
 
@@ -2419,9 +2418,8 @@ private:
             auto path = NScheduler::GetStderrPath(operationId, jobId);
 
             std::vector<TSharedRef> blocks;
-            auto fileReader = static_cast<IClientBase*>(this)->CreateFileReader(path);
-            WaitFor(fileReader->Open())
-                .ThrowOnError();
+            auto fileReader = WaitFor(static_cast<IClientBase*>(this)->CreateFileReader(path))
+                .ValueOrThrow();
 
             while (true) {
                 auto block = WaitFor(fileReader->Read())
@@ -3002,7 +3000,7 @@ public:
         (type, options))
 
 
-    DELEGATE_TRANSACTIONAL_METHOD(IFileReaderPtr, CreateFileReader, (
+    DELEGATE_TRANSACTIONAL_METHOD(TFuture<IAsyncZeroCopyInputStreamPtr>, CreateFileReader, (
         const TYPath& path,
         const TFileReaderOptions& options),
         (path, options))
