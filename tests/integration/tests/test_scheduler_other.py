@@ -1259,6 +1259,8 @@ class TestSchedulingTags(YTEnvSetup):
         create("map_node", "//sys/pools/p1", attributes={"forbid_immediate_operations": True})
         create("map_node", "//sys/pools/p1/p2")
 
+        time.sleep(0.5)
+
         with pytest.raises(YtError):
             map(command="cat",
                 in_="//tmp/t_in",
