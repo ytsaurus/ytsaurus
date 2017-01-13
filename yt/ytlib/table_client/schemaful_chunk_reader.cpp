@@ -4,7 +4,6 @@
 #include "config.h"
 #include "name_table.h"
 #include "schema.h"
-#include "schemaful_block_reader.h"
 #include "schemaful_reader.h"
 #include "schemaful_reader_adapter.h"
 #include "schemaless_chunk_reader.h"
