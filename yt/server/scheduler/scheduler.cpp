@@ -431,23 +431,24 @@ public:
         return CoreSemaphore_;
     }
 
-    virtual TFuture<void> CheckPoolPermission(
+    virtual void ValidatePoolPermission(
         const TYPath& path,
         const Stroka& user,
-        EPermission permission) override
+        EPermission permission) const override
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         const auto& client = GetMasterClient();
-        return client->CheckPermission(user, GetPoolsPath() + path, permission)
-            .Apply(BIND([=] (const TCheckPermissionResult& result) {
-                if (result.Action == ESecurityAction::Deny) {
-                    THROW_ERROR_EXCEPTION(
-                        NSecurityClient::EErrorCode::AuthorizationError,
-                        "User %Qv has been denied access to pool %v",
-                        user,
-                        path)
-                        << result.ToError(user, permission);
-                }
-            }));
+        auto result = WaitFor(client->CheckPermission(user, GetPoolsPath() + path, permission))
+            .ValueOrThrow();
+        if (result.Action == ESecurityAction::Deny) {
+            THROW_ERROR_EXCEPTION(
+                NSecurityClient::EErrorCode::AuthorizationError,
+                "User %Qv has been denied access to pool %v",
+                user,
+                path)
+                << result.ToError(user, permission);
+        }
     }
 
 
@@ -831,7 +832,7 @@ public:
 
 
     // IOperationHost implementation
-    virtual const NApi::INativeClientPtr& GetMasterClient() override
+    virtual const NApi::INativeClientPtr& GetMasterClient() const override
     {
         return Bootstrap_->GetMasterClient();
     }
