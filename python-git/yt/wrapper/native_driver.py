@@ -10,30 +10,38 @@ import yt.yson as yson
 from yt.packages.six import binary_type, PY3
 
 try:
-    import yt_driver_bindings
-    from yt_driver_bindings import Request, Driver, BufferedStream
-except ImportError:
-    Driver = None
-
-try:
     from cStringIO import StringIO as BytesIO
 except ImportError:  # Python 3
     from io import BytesIO
 
+driver_bindings = None
+def lazy_import_driver_bindings():
+    global driver_bindings
+    if driver_bindings is None:
+        try:
+            import yt_driver_bindings
+            driver_bindings = yt_driver_bindings
+        except ImportError:
+            pass
+
 def read_config(path):
+    lazy_import_driver_bindings()
+
     driver_config = yson.load(open(path, "rb"))
     if not hasattr(read_config, "logging_and_tracing_initialized"):
         if "logging" in driver_config:
-            yt_driver_bindings.configure_logging(driver_config["logging"])
+            driver_bindings.configure_logging(driver_config["logging"])
         if "tracing" in driver_config:
-            yt_driver_bindings.configure_tracing(driver_config["tracing"])
+            driver_bindings.configure_tracing(driver_config["tracing"])
         setattr(read_config, "logging_and_tracing_initialized", True)
     return driver_config["driver"]
 
 def get_driver_instance(client):
+    lazy_import_driver_bindings()
+
     driver = get_option("_driver", client=client)
     if driver is None:
-        if Driver is None:
+        if driver_bindings is None:
             raise YtError("Driver class not found, install yt driver bindings.")
 
         config = get_config(client)
@@ -44,7 +52,7 @@ def get_driver_instance(client):
         else:
             raise YtError("Driver config is not specified")
 
-        set_option("_driver", Driver(driver_config), client=client)
+        set_option("_driver", driver_bindings.Driver(driver_config), client=client)
         driver = get_option("_driver", client=client)
     return driver
 
@@ -81,7 +89,7 @@ def make_request(command_name, params,
         if return_content:
             output_stream = BytesIO()
         else:
-            output_stream = BufferedStream(size=get_config(client)["read_buffer_size"])
+            output_stream = driver_bindings.BufferedStream(size=get_config(client)["read_buffer_size"])
 
     request_id = generate_int64(get_option("_random_generator", client))
 
@@ -91,7 +99,7 @@ def make_request(command_name, params,
     if driver_user_name is not None:
         driver_user_name = str(driver_user_name)
 
-    request = Request(
+    request = driver_bindings.Request(
         command_name=command_name,
         parameters=params,
         input_stream=input_stream,
@@ -124,7 +132,7 @@ def make_request(command_name, params,
 
         return ResponseStream(
             lambda: response,
-            yt_driver_bindings.chunk_iter(output_stream, response, get_config(client)["read_buffer_size"]),
+            driver_bindings.chunk_iter(output_stream, response, get_config(client)["read_buffer_size"]),
             lambda: None,
             process_error,
             lambda: response.response_parameters())
