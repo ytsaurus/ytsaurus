@@ -1199,6 +1199,8 @@ public:
 
     bool EnableAggressiveStarvation;
 
+    bool ForbidImmediateOperations;
+
     TPoolConfig()
     {
         RegisterParameter("mode", Mode)
@@ -1218,6 +1220,9 @@ public:
 
         RegisterParameter("enable_aggressive_starvation", EnableAggressiveStarvation)
             .Alias("aggressive_starvation_enabled")
+            .Default(false);
+
+        RegisterParameter("forbid_immediate_operations", ForbidImmediateOperations)
             .Default(false);
     }
 };
