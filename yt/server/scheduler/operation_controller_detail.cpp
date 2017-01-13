@@ -2515,7 +2515,7 @@ TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
 
     ScheduleJobStatistics_->RecordJobResult(scheduleJobResult);
     if (ScheduleJobStatisticsLogTime + Config->ScheduleJobStatisticsLogBackoff < TInstant::Now()) {
-        LOG_DEBUG("Schedule job statistics (count: %v, total duration: %v, failure reasons: %v)",
+        LOG_DEBUG("Schedule job statistics (Count: %v, TotalDuration: %v, FailureReasons: %v)",
             ScheduleJobStatistics_->Count,
             ScheduleJobStatistics_->Duration,
             ScheduleJobStatistics_->Failed);
