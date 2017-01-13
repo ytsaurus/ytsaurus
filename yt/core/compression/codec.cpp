@@ -88,7 +88,7 @@ public:
 
     virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) override
     {
-        return MergeRefs(blocks);
+        return MergeRefsToRef<TCompressedBlockTag<TNoneCodec>>(blocks);
     }
 
     virtual TSharedRef Decompress(const TSharedRef& block) override
@@ -98,7 +98,7 @@ public:
 
     virtual TSharedRef Decompress(const std::vector<TSharedRef>& blocks) override
     {
-        return MergeRefs(blocks);
+        return MergeRefsToRef<TDecompressedBlockTag<TNoneCodec>>(blocks);
     }
 
     virtual ECodec GetId() const override

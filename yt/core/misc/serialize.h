@@ -173,18 +173,29 @@ void UnpackRefs(const TSharedRef& packedRef, T* parts)
     }
 }
 
-template <class T>
-TSharedRef MergeRefs(const std::vector<T>& parts)
+template <class TTag, class TParts>
+TSharedRef MergeRefsToRef(const TParts& parts)
 {
     size_t size = GetByteSize(parts);
-    struct TMergedBlockTag { };
-    auto result = TSharedMutableRef::Allocate<TMergedBlockTag>(size, false);
+    auto packedRef = TSharedMutableRef::Allocate<TTag>(size, false);
     size_t pos = 0;
     for (const auto& part : parts) {
-        std::copy(part.Begin(), part.End(), result.Begin() + pos);
+        std::copy(part.Begin(), part.End(), packedRef.Begin() + pos);
         pos += part.Size();
     }
-    return result;
+    return packedRef;
+}
+
+template <class TParts>
+Stroka MergeRefsToString(const TParts& parts)
+{
+    size_t size = GetByteSize(parts);
+    Stroka packedString;
+    packedString.reserve(size);
+    for (const auto& part : parts) {
+        packedString.append(part.Begin(), part.End());
+    }
+    return packedString;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

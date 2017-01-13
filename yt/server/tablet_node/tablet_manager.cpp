@@ -1463,7 +1463,7 @@ private:
         }
 
         TWireProtocolReader reader(TSharedRef::FromString(request->sample_keys()));
-        auto sampleKeys = CaptureRows<TSampleKeyListTag>(reader.ReadUnversionedRowset());
+        auto sampleKeys = reader.ReadUnversionedRowset(true);
 
         auto storeManager = tablet->GetStoreManager()->AsSorted();
         storeManager->UpdatePartitionSampleKeys(partition, sampleKeys);

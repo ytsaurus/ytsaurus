@@ -157,6 +157,9 @@ struct TBinaryOpExpression
     TConstExpressionPtr Rhs;
 };
 
+struct TInOpExpressionValuesTag
+{ };
+
 struct TInOpExpression
     : public TExpression
 {

@@ -14,7 +14,8 @@ message TReqWrite
     required int64 mount_revision = 5;
     required int32 durability = 6; // EDurability
     optional uint32 signature = 7;
-    // Wire-encoded request is passed via attachments.
+    required int32 request_codec = 8; // ECodec
+    // Attachement contains wire-encoded data.
 }
 
 message TRspWrite

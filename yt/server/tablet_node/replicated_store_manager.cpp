@@ -73,7 +73,7 @@ void TReplicatedStoreManager::ExecuteAtomicWrite(
     auto command = reader->ReadCommand();
     switch (command) {
         case EWireProtocolCommand::WriteRow: {
-            auto row = reader->ReadUnversionedRow();
+            auto row = reader->ReadUnversionedRow(false);
             WriteRow(
                 transaction,
                 row,
@@ -82,7 +82,7 @@ void TReplicatedStoreManager::ExecuteAtomicWrite(
         }
 
         case EWireProtocolCommand::DeleteRow: {
-            auto key = reader->ReadUnversionedRow();
+            auto key = reader->ReadUnversionedRow(false);
             DeleteRow(
                 transaction,
                 key,

@@ -328,13 +328,12 @@ private:
 
             TWireProtocolWriter writer;
             writer.WriteUnversionedRowset(samples);
-            auto serializedSampleKeys = MergeRefs(writer.Flush());
 
             TReqUpdatePartitionSampleKeys request;
             ToProto(request.mutable_tablet_id(), tablet->GetId());
             request.set_mount_revision(tablet->GetMountRevision());
             ToProto(request.mutable_partition_id(), partition->GetId());
-            request.set_sample_keys(ToString(serializedSampleKeys));
+            request.set_sample_keys(MergeRefsToString(writer.Finish()));
 
             CreateMutation(hydraManager, request)
                 ->CommitAndLog(Logger);

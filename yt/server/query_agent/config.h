@@ -20,6 +20,7 @@ public:
     int MaxSubqueries;
     int MaxQueryRetries;
     int MaxBottomReaderConcurrency;
+    size_t DesiredUncompressedResponseBlockSize;
 
     TSlruCacheConfigPtr FunctionImplCache;
 
@@ -40,6 +41,9 @@ public:
         RegisterParameter("max_bottom_reader_concurrency", MaxBottomReaderConcurrency)
             .GreaterThanOrEqual(1)
             .Default(5);
+        RegisterParameter("desired_uncompressed_response_block_size", DesiredUncompressedResponseBlockSize)
+            .GreaterThan(0)
+            .Default(16ULL * 1024 * 1024);
 
         RegisterParameter("function_impl_cache", FunctionImplCache)
             .DefaultNew();

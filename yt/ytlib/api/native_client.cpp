@@ -70,7 +70,7 @@
 #include <yt/ytlib/transaction_client/action.h>
 #include <yt/ytlib/transaction_client/transaction_service_proxy.h>
 
-#include <yt/core/compression/helpers.h>
+#include <yt/core/compression/codec.h>
 
 #include <yt/core/concurrency/scheduler.h>
 #include <yt/core/concurrency/async_semaphore.h>
@@ -436,14 +436,15 @@ public:
     TQueryResponseReader(
         TFuture<TQueryServiceProxy::TRspExecutePtr> asyncResponse,
         const TTableSchema& schema,
+        NCompression::ECodec codecId,
         const NLogging::TLogger& logger)
         : Schema_(schema)
+        , CodecId_(codecId)
         , Logger(logger)
-    {
-        QueryResult_ = asyncResponse.Apply(BIND(
+        , QueryResult_(asyncResponse.Apply(BIND(
             &TQueryResponseReader::OnResponse,
-            MakeStrong(this)));
-    }
+            MakeStrong(this))))
+    { }
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
     {
@@ -452,11 +453,9 @@ public:
 
     virtual TFuture<void> GetReadyEvent() override
     {
-        if (!RowsetReader_) {
-            return QueryResult_.As<void>();
-        } else {
-            return RowsetReader_->GetReadyEvent();
-        }
+        return RowsetReader_
+            ? RowsetReader_->GetReadyEvent()
+            : QueryResult_.As<void>();
     }
 
     TFuture<TQueryStatistics> GetQueryResult() const
@@ -465,31 +464,22 @@ public:
     }
 
 private:
-
-    TTableSchema Schema_;
-    ISchemafulReaderPtr RowsetReader_;
+    const TTableSchema Schema_;
+    const NCompression::ECodec CodecId_;
+    const NLogging::TLogger Logger;
 
     TFuture<TQueryStatistics> QueryResult_;
+    ISchemafulReaderPtr RowsetReader_;
 
-    NLogging::TLogger Logger;
 
     TQueryStatistics OnResponse(const TQueryServiceProxy::TRspExecutePtr& response)
     {
-        TSharedRef data;
-
-        TDuration deserializationTime;
-        {
-            NProfiling::TAggregatingTimingGuard timingGuard(&deserializationTime);
-            data = NCompression::DecompressWithEnvelope(response->Attachments());
-        }
-
-        LOG_DEBUG("Received subquery result (DeserializationTime: %v, DataSize: %v)",
-            deserializationTime,
-            data.Size());
-
         YCHECK(!RowsetReader_);
-        RowsetReader_ = TWireProtocolReader(data).CreateSchemafulRowsetReader(Schema_);
-
+        RowsetReader_ = CreateWireProtocolRowsetReader(
+            response->Attachments(),
+            CodecId_,
+            Schema_,
+            Logger);
         return FromProto(response->query_statistics());
     }
 };
@@ -925,7 +915,6 @@ private:
                 externalCGInfo->NodeDirectory->DumpTo(req->mutable_node_directory());
                 ToProto(req->mutable_options(), options);
                 ToProto(req->mutable_data_sources(), dataSources);
-
                 req->set_response_codec(static_cast<int>(config->QueryResponseCodec));
             }
 
@@ -944,6 +933,7 @@ private:
             auto resultReader = New<TQueryResponseReader>(
                 req->Invoke(),
                 query->GetTableSchema(),
+                config->QueryResponseCodec,
                 Logger);
             return std::make_pair(resultReader, resultReader->GetQueryResult());
         }
@@ -955,7 +945,10 @@ DEFINE_REFCOUNTED_TYPE(TQueryHelper)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TLookupRowsBufferTag
+struct TLookupRowsInputBufferTag
+{ };
+
+struct TLookupRowsOutputBufferTag
 { };
 
 struct TWriteRowsBufferTag
@@ -1633,6 +1626,8 @@ private:
 
         TFuture<void> Invoke(IChannelFactoryPtr channelFactory, TCellDirectoryPtr cellDirectory)
         {
+            auto* codec = NCompression::GetCodec(Config_->LookupRequestCodec);
+
             // Do all the heavy lifting here.
             for (auto& batch : Batches_) {
                 TReqLookupRows req;
@@ -1645,11 +1640,7 @@ private:
                 writer.WriteMessage(req);
                 writer.WriteSchemafulRowset(batch->Keys, nullptr);
 
-                auto chunkedData = writer.Flush();
-
-                batch->RequestData = NCompression::CompressWithEnvelope(
-                    chunkedData,
-                    Config_->LookupRequestCodec);
+                batch->RequestData = codec->Compress(writer.Finish());
             }
 
             const auto& cellDescriptor = cellDirectory->GetDescriptorOrThrow(CellId_);
@@ -1668,18 +1659,17 @@ private:
         }
 
         void ParseResponse(
-            std::vector<TUnversionedRow>* resultRows,
-            std::vector<std::unique_ptr<TWireProtocolReader>>* readers)
+            const TRowBufferPtr& rowBuffer,
+            std::vector<TUnversionedRow>* resultRows)
         {
             auto schemaData = TWireProtocolReader::GetSchemaData(TableInfo_->Schemas[ETableSchemaKind::Primary], Options_.ColumnFilter);
+            auto* responseCodec = NCompression::GetCodec(Config_->LookupResponseCodec);
             for (const auto& batch : Batches_) {
-                auto data = NCompression::DecompressWithEnvelope(batch->Response->Attachments());
-                auto reader = std::make_unique<TWireProtocolReader>(data);
+                auto responseData = responseCodec->Decompress(batch->Response->Attachments()[0]);
+                TWireProtocolReader reader(responseData, rowBuffer);
                 for (int index = 0; index < batch->Keys.size(); ++index) {
-                    auto row = reader->ReadSchemafulRow(schemaData);
-                    (*resultRows)[batch->Indexes[index]] = row;
+                    (*resultRows)[batch->Indexes[index]] = reader.ReadSchemafulRow(schemaData, true);
                 }
-                readers->push_back(std::move(reader));
             }
         }
 
@@ -1700,7 +1690,7 @@ private:
             TTabletInfoPtr TabletInfo;
             std::vector<int> Indexes;
             std::vector<NTableClient::TKey> Keys;
-            std::vector<TSharedRef> RequestData;
+            TSharedRef RequestData;
             TQueryServiceProxy::TRspReadPtr Response;
         };
 
@@ -1723,8 +1713,9 @@ private:
             ToProto(req->mutable_tablet_id(), batch->TabletInfo->TabletId);
             req->set_mount_revision(batch->TabletInfo->MountRevision);
             req->set_timestamp(Options_.Timestamp);
+            req->set_request_codec(static_cast<int>(Config_->LookupRequestCodec));
             req->set_response_codec(static_cast<int>(Config_->LookupResponseCodec));
-            req->Attachments() = std::move(batch->RequestData);
+            req->Attachments().push_back(batch->RequestData);
 
             req->Invoke().Subscribe(
                 BIND(&TTabletCellLookupSession::OnResponse, MakeStrong(this)));
@@ -1790,16 +1781,16 @@ private:
         std::vector<std::pair<NTableClient::TKey, int>> sortedKeys;
         sortedKeys.reserve(keys.Size());
 
-        auto rowBuffer = New<TRowBuffer>(TLookupRowsBufferTag());
+        auto inputRowBuffer = New<TRowBuffer>(TLookupRowsInputBufferTag());
         auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
         auto evaluator = tableInfo->NeedKeyEvaluation ? evaluatorCache->Find(schema) : nullptr;
 
         for (int index = 0; index < keys.Size(); ++index) {
             ValidateClientKey(keys[index], schema, idMapping, nameTable);
-            auto capturedKey = rowBuffer->CaptureAndPermuteRow(keys[index], schema, idMapping);
+            auto capturedKey = inputRowBuffer->CaptureAndPermuteRow(keys[index], schema, idMapping);
 
             if (evaluator) {
-                evaluator->EvaluateKeys(capturedKey, rowBuffer);
+                evaluator->EvaluateKeys(capturedKey, inputRowBuffer);
             }
 
             sortedKeys.push_back(std::make_pair(capturedKey, index));
@@ -1849,11 +1840,11 @@ private:
         std::vector<TUnversionedRow> uniqueResultRows;
         uniqueResultRows.resize(currentResultIndex + 1);
 
-        std::vector<std::unique_ptr<TWireProtocolReader>> readers;
+        auto outputRowBuffer = New<TRowBuffer>(TLookupRowsOutputBufferTag());
 
         for (const auto& pair : cellIdToSession) {
             const auto& session = pair.second;
-            session->ParseResponse(&uniqueResultRows, &readers);
+            session->ParseResponse(outputRowBuffer, &uniqueResultRows);
         }
 
         std::vector<TUnversionedRow> resultRows;
@@ -1875,9 +1866,8 @@ private:
         }
 
         return CreateRowset(
-            std::move(readers),
             resultSchema,
-            std::move(resultRows));
+            MakeSharedRange(std::move(resultRows), outputRowBuffer));
     }
 
     TSelectRowsResult DoSelectRows(
@@ -2929,9 +2919,8 @@ private:
                 lookupOptions))
                 .ValueOrThrow();
 
-            const auto& rows = rowset->Rows();
-
-            YCHECK(!rows.empty());
+            auto rows = rowset->GetRows();
+            YCHECK(!rows.Empty());
 
             if (rows[0]) {
                 auto value = rows[0][0];
@@ -3632,11 +3621,10 @@ private:
         TFuture<void> Invoke(IChannelPtr channel)
         {
             // Do all the heavy lifting here.
+            auto* codec = NCompression::GetCodec(Config_->WriteRequestCodec);
             YCHECK(!Batches_.empty());
-            for (auto& batch : Batches_) {
-                batch->RequestData = NCompression::CompressWithEnvelope(
-                    batch->Writer.Flush(),
-                    Config_->WriteRequestCodec);;
+            for (const auto& batch : Batches_) {
+                batch->RequestData = codec->Compress(batch->Writer.Finish());
             }
 
             InvokeChannel_ = channel;
@@ -3668,7 +3656,7 @@ private:
         struct TBatch
         {
             TWireProtocolWriter Writer;
-            std::vector<TSharedRef> RequestData;
+            TSharedRef RequestData;
             int RowCount = 0;
         };
 
@@ -3798,7 +3786,8 @@ private:
             req->set_mount_revision(TabletInfo_->MountRevision);
             req->set_durability(static_cast<int>(owner->GetDurability()));
             req->set_signature(cellSession->AllocateRequestSignature());
-            req->Attachments() = std::move(batch->RequestData);
+            req->set_request_codec(static_cast<int>(Config_->WriteRequestCodec));
+            req->Attachments().push_back(batch->RequestData);
 
             LOG_DEBUG("Sending transaction rows (BatchIndex: %v/%v, RowCount: %v, Signature: %x)",
                 InvokeBatchIndex_,

@@ -122,7 +122,8 @@ protected:
             writer.WriteMessage(req);
             writer.WriteSchemafulRowset(keys);
 
-            request = MergeRefs(writer.Flush());
+            struct TMergedTag { };
+            request = MergeRefsToRef<TMergedTag>(writer.Finish());
         }
 
         TSharedRef response;
@@ -135,13 +136,14 @@ protected:
                 TWorkloadDescriptor(),
                 &reader,
                 &writer);
-            response = MergeRefs(writer.Flush());
+            struct TMergedTag { };
+            response = MergeRefsToRef<TMergedTag>(writer.Finish());
         }
 
         {
             TWireProtocolReader reader(response);
             auto schemaData = TWireProtocolReader::GetSchemaData(Tablet_->PhysicalSchema(), TColumnFilter());
-            auto row = reader.ReadSchemafulRow(schemaData);
+            auto row = reader.ReadSchemafulRow(schemaData, false);
             return TUnversionedOwningRow(row);
         }
     }

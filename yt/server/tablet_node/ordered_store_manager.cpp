@@ -86,7 +86,7 @@ void TOrderedStoreManager::ExecuteAtomicWrite(
     auto command = reader->ReadCommand();
     switch (command) {
         case EWireProtocolCommand::WriteRow: {
-            auto row = reader->ReadUnversionedRow();
+            auto row = reader->ReadUnversionedRow(false);
             WriteRow(
                 transaction,
                 row,

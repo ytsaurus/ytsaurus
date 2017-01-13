@@ -25,14 +25,16 @@ void TSampleKeyList::Save(TSaveContext& context) const
     using NYT::Save;
     TWireProtocolWriter writer;
     writer.WriteUnversionedRowset(Keys);
-    Save(context, MergeRefs(writer.Flush()));
+    Save(context, MergeRefsToRef<TSampleKeyListTag>(writer.Finish()));
 }
 
 void TSampleKeyList::Load(TLoadContext& context)
 {
     using NYT::Load;
-    TWireProtocolReader reader(Load<TSharedRef>(context));
-    Keys = CaptureRows<TSampleKeyListTag>(reader.ReadUnversionedRowset());
+    TWireProtocolReader reader(
+        Load<TSharedRef>(context),
+        New<TRowBuffer>(TSampleKeyListTag()));
+    Keys = reader.ReadUnversionedRowset(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

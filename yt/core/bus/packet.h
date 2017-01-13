@@ -23,13 +23,13 @@ DEFINE_BIT_ENUM_WITH_UNDERLYING_TYPE(EPacketFlags, ui16,
 
 #pragma pack(push, 4)
 
-const ui32 PacketSignature = 0x78616d4f;
-const int MaxPacketPartCount = 1 << 28;
-const int MaxPacketPartSize = DefaultEnvelopePartSize;
-const ui32 NullPacketPartSize = 0xffffffff;
-const int TypicalPacketPartCount = 64;
-const int TypicalVariableHeaderSize = TypicalPacketPartCount * (sizeof (ui32) + sizeof (ui64));
-const TChecksum NullChecksum = 0;
+constexpr ui32 PacketSignature = 0x78616d4f;
+constexpr int MaxPacketPartCount = 1 << 28;
+constexpr ui32 MaxPacketPartSize = 256ULL * 1024 * 1024;
+constexpr ui32 NullPacketPartSize = 0xffffffff;
+constexpr int TypicalPacketPartCount = 64;
+constexpr int TypicalVariableHeaderSize = TypicalPacketPartCount * (sizeof (ui32) + sizeof (ui64));
+constexpr TChecksum NullChecksum = 0;
 
 struct TPacketHeader
 {

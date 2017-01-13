@@ -23,7 +23,7 @@
 
 #include <yt/ytlib/transaction_client/helpers.h>
 
-#include <yt/core/compression/helpers.h>
+#include <yt/core/compression/codec.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -77,6 +77,7 @@ private:
         auto transactionStartTimestamp = request->transaction_start_timestamp();
         auto transactionTimeout = FromProto<TDuration>(request->transaction_timeout());
         auto signature = request->signature();
+        auto requestCodecId = NCompression::ECodec(request->request_codec());
 
         ValidateTabletTransactionId(transactionId);
 
@@ -84,14 +85,15 @@ private:
         auto durability = EDurability(request->durability());
 
         context->SetRequestInfo("TabletId: %v, TransactionId: %v, TransactionStartTimestamp: %v, "
-            "TransactionTimeout: %v, Atomicity: %v, Durability: %v, Signature: %x",
+            "TransactionTimeout: %v, Atomicity: %v, Durability: %v, Signature: %x, RequestCodec: %v",
             tabletId,
             transactionId,
             transactionStartTimestamp,
             transactionTimeout,
             atomicity,
             durability,
-            signature);
+            signature,
+            requestCodecId);
 
         // NB: Must serve the whole request within a single epoch.
         TCurrentInvokerGuard invokerGuard(Slot_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write));
@@ -108,8 +110,10 @@ private:
                 tabletSnapshot->Atomicity);
         }
 
-        auto requestData = NCompression::DecompressWithEnvelope(request->Attachments());
-        TWireProtocolReader reader(requestData);
+        auto* requestCodec = NCompression::GetCodec(requestCodecId);
+        auto requestData = requestCodec->Decompress(request->Attachments()[0]);
+        struct TWriteBufferTag { };
+        TWireProtocolReader reader(requestData, New<TRowBuffer>(TWriteBufferTag()));
 
         const auto& tabletManager = Slot_->GetTabletManager();
 

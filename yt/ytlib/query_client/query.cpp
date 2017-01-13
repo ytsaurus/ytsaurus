@@ -365,7 +365,7 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
 
         NTabletClient::TWireProtocolWriter writer;
         writer.WriteUnversionedRowset(inOpExpr->Values);
-        ToProto(proto->mutable_values(), ToString(MergeRefs(writer.Flush())));
+        ToProto(proto->mutable_values(), MergeRefsToString(writer.Finish()));
     }
 }
 
@@ -462,10 +462,10 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
             auto result = New<TInOpExpression>(type);
             const auto& ext = serialized.GetExtension(NProto::TInOpExpression::in_op_expression);
             FromProto(&result->Arguments, ext.arguments());
-
-            NTabletClient::TWireProtocolReader reader(TSharedRef::FromString(ext.values()));
-            result->Values = reader.ReadUnversionedRowset();
-
+            NTabletClient::TWireProtocolReader reader(
+                TSharedRef::FromString(ext.values()),
+                New<TRowBuffer>(TInOpExpressionValuesTag()));
+            result->Values = reader.ReadUnversionedRowset(true);
             *original = result;
             return;
         }
@@ -746,7 +746,7 @@ void ToProto(NProto::TDataRanges* serialized, const TDataRanges& original)
         writer.WriteUnversionedRow(range.first);
         writer.WriteUnversionedRow(range.second);
     }
-    ToProto(serialized->mutable_ranges(), ToString(MergeRefs(writer.Flush())));
+    ToProto(serialized->mutable_ranges(), MergeRefsToString(writer.Finish()));
 
     serialized->set_lookup_supported(original.LookupSupported);
 }
@@ -759,13 +759,14 @@ void FromProto(TDataRanges* original, const NProto::TDataRanges& serialized)
     struct TDataRangesBufferTag
     { };
 
-    auto rowBuffer = New<TRowBuffer>(TDataRangesBufferTag());
-
     TRowRanges ranges;
-    NTabletClient::TWireProtocolReader reader(TSharedRef::FromString<TDataRangesBufferTag>(serialized.ranges()));
+    auto rowBuffer = New<TRowBuffer>(TDataRangesBufferTag());
+    NTabletClient::TWireProtocolReader reader(
+        TSharedRef::FromString<TDataRangesBufferTag>(serialized.ranges()),
+        rowBuffer);
     while (!reader.IsFinished()) {
-        auto lowerBound = rowBuffer->Capture(reader.ReadUnversionedRow());
-        auto upperBound = rowBuffer->Capture(reader.ReadUnversionedRow());
+        auto lowerBound = reader.ReadUnversionedRow(true);
+        auto upperBound = reader.ReadUnversionedRow(true);
         ranges.emplace_back(lowerBound, upperBound);
     }
     original->Ranges = MakeSharedRange(std::move(ranges), rowBuffer);

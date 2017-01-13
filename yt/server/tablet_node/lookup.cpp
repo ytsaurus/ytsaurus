@@ -72,7 +72,7 @@ public:
         ColumnFilter_ = std::move(columnFilter);
 
         auto schemaData = TWireProtocolReader::GetSchemaData(TabletSnapshot_->PhysicalSchema);
-        LookupKeys_ = Reader_->ReadSchemafulRowset(schemaData);
+        LookupKeys_ = Reader_->ReadSchemafulRowset(schemaData, false);
 
         LOG_DEBUG("Tablet lookup started (TabletId: %v, CellId: %v, KeyCount: %v)",
             TabletSnapshot_->TabletId,
