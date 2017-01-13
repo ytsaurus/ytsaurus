@@ -45,8 +45,6 @@ class Task(object):
         self.kwworm_options = kwworm_options
         self.copy_spec = copy_spec
         self.postprocess_spec = postprocess_spec
-        # NB: supported only for yamr_to_yt_pull
-        self.job_timeout = job_timeout
         self.intermediate_format = intermediate_format
         self.force_copy_with_operation = force_copy_with_operation
         self.additional_attributes = additional_attributes
@@ -81,8 +79,6 @@ class Task(object):
         client = deepcopy(clusters[self.source_cluster])
         if client._type == "yt":
             client.config["token"] = self.source_cluster_token
-        if client._type == "yamr" and self.mr_user is not None:
-            client.mr_user = self.mr_user
         return client
 
     def get_destination_client(self, clusters):
@@ -91,8 +87,6 @@ class Task(object):
         client = deepcopy(clusters[self.destination_cluster])
         if client._type == "yt":
             client.config["token"] = self.destination_cluster_token
-        if client._type == "yamr" and self.mr_user is not None:
-            client.mr_user = self.mr_user
         return client
 
     def dict(self, hide_token=False, fields=None):
@@ -116,11 +110,7 @@ class Task(object):
         source_client = self.get_source_client(clusters_configuration.clusters)
         destination_client = self.get_destination_client(clusters_configuration.clusters)
 
-        if destination_client._type == "yamr":
-            if source_client._type == "yt" and self.copy_method == "push":
-                return source_client, destination_client
-            return destination_client, source_client
-        elif destination_client._type == "yt":
+        if destination_client._type == "yt":
             return destination_client, source_client
         elif destination_client._type == "kiwi":
             return clusters_configuration.kiwi_transmitter, source_client

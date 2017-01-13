@@ -141,7 +141,7 @@ test_copy_empty_file() {
 
 test_copy_from_freud_to_banach() {
     echo "Importing from Freud to Banach"
-    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "freud", "destination_table": "//tmp/test_table", "destination_cluster": "banach", "mr_user": "imgdev"}')
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "freud", "destination_table": "//tmp/test_table", "destination_cluster": "banach"}')
     wait_task $id
 }
 
@@ -404,7 +404,7 @@ test_clusters_configuration_reloading() {
     echo $config | jq ".availability_graph.freud = []" > $TM_CONFIG
     echo "Sleeping for $sleeping_time seconds to ensure that config is reloaded" && sleep $sleeping_time
 
-    local task_descr='{"source_table": "tmp/yt/test_table", "source_cluster": "freud", "destination_table": "//tmp/test_table", "destination_cluster": "banach", "mr_user": "userdata", "pool": "ignat"}'
+    local task_descr='{"source_table": "tmp/yt/test_table", "source_cluster": "freud", "destination_table": "//tmp/test_table", "destination_cluster": "banach", "pool": "ignat"}'
     local content=$(request "POST" "tasks/" -d "$task_descr")
     check_result=$(echo $content | jq ".inner_errors[0].message" | grep "not available")
     check "$?" "0"

@@ -628,12 +628,8 @@ class Application(object):
     def _set_defaults(self, task, clusters_configuration):
         source_client = task.get_source_client(clusters_configuration.clusters)
         destination_client = task.get_destination_client(clusters_configuration.clusters)
-        if task.mr_user is None and (source_client._type == "yamr" or destination_client._type == "yamr"):
-            task.mr_user = self._config.get("default_mr_user")
         if task.kiwi_user is None and destination_client._type == "kiwi":
             task.kiwi_user = self._config.get("default_kiwi_user")
-        if task.copy_method is None and source_client._type == "yt" and destination_client._type == "yamr":
-            task.copy_method = "pull"
         if source_client._type == "yt" and destination_client._type == "yt":
             if task.copy_method is None:
                 task.copy_method = "proxy" if get_cluster_version(source_client) != get_cluster_version(destination_client) else "native"
@@ -650,16 +646,6 @@ class Application(object):
             if task.pool is None:
                 raise SchedulingError("Task has no pool")
             return True
-
-        if client._type == "yamr":
-            def is_transfer_manager_copy_operation(op):
-                return "read_from_yt" in op.get("additionalInfo", {}).get("application", "") \
-                    and op.get("systemUser") == pwd.getpwuid(os.getuid())[0]
-            transfer_manager_operations = filter(is_transfer_manager_copy_operation, client.get_operations())
-            job_count = sum(op.get("jobsInfo", {}).get("States", {}).get("Jobs", {}).get("inProgress", 0)
-                            for op in transfer_manager_operations)
-            if job_count > self._config["running_jobs_limit_per_direction"]:
-                return False
 
         return True
 
@@ -999,23 +985,15 @@ class Application(object):
         self._set_defaults(task, clusters_configuration)
         if make_precheck:
             try:
-                perform_precheck(task, clusters_configuration,
-                                 ignore_timeout=True, yamr_timeout=5.0, custom_logger=task_logger)
+                perform_precheck(task, clusters_configuration, custom_logger=task_logger)
             except yt.YtError as error:
                 raise RequestFailed("Precheck of task {} failed".format(task.id), inner_errors=[error]), None, sys.exc_info()[2]
 
         if task.skip_if_destination_exists:
             destination_client = task.get_destination_client(clusters_configuration.clusters)
-            if destination_client._type == "yamr":
-                destination_client._light_command_timeout = 5.0
-            try:
-                if (destination_client._type == "yamr" and not destination_client.is_empty(task.destination_table)) or \
-                        (destination_client._type == "yt" and destination_client.exists(task.destination_table)):
-                    task.state = "skipped"
-                    task.finish_time = now_str()
-            except TimeoutExpired:
-                raise RequestFailed("Cannot check if destination table exists: request to YAMR cluster timed out",
-                                    http_code=500)
+            if destination_client._type == "yt" and destination_client.exists(task.destination_table):
+                task.state = "skipped"
+                task.finish_time = now_str()
 
         if not dry_run:
             self._initialize_pool(task, clusters_configuration)
