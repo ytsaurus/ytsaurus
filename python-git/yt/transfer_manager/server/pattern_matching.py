@@ -52,8 +52,6 @@ def _get_prefix(tokens, cluster_type):
 def _is_directory(client, path):
     if client._type == "yt":
         return client.get_type(path) == "map_node"
-    elif client._type == "yamr":
-        return client.is_directory(path)
     else:
         raise yt.YtError("Failed to check if {} is a directory, unsupported client: {}".format(path, client._type))
 
@@ -85,10 +83,6 @@ def match_copy_pattern(client, source_pattern, destination_pattern, include_file
             node_type.append("file")
         for node in client.search(prefix, node_type=node_type):
             _match(node, source_tokens, destination_tokens, result)
-
-    elif client._type == "yamr":
-        for table_info in client.list(prefix):
-            _match(table_info["name"], source_tokens, destination_tokens, result)
     else:
         raise yt.YtError("Listing tables for client {} is not supported".format(client._type))
 

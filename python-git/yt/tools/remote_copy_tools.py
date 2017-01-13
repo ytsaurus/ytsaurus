@@ -1,14 +1,12 @@
-from .yamr import _check_output
-
-from yt.wrapper.common import generate_uuid, bool_to_string, MB, GB, update, \
-                              round_up_to
+from yt.wrapper.common import round_up_to, bool_to_string, MB, GB, update
 from yt.wrapper.ypath import ypath_join
 from yt.tools.conversion_tools import transform
-from yt.common import get_value
+from yt.common import get_value, set_pdeathsig
 
 import yt.yson as yson
 import yt.json as json
 import yt.logger as logger
+import yt.subprocess_wrapper as subprocess
 
 from yt.packages.six.moves import xrange, map as imap
 
@@ -64,6 +62,11 @@ class Kiwi(object):
         command = "./kwworm " + " ".join(imap(self._option_to_str, self._join_options(self.kwworm_options, kwworm_options)))
         return command.format(kiwi_url=self.url, kiwi_user=kiwi_user)
 
+def _check_output(command, silent=False, **kwargs):
+    logger.info("Executing command '{}'".format(command))
+    result = subprocess.check_output(command, preexec_fn=set_pdeathsig, **kwargs)
+    logger.info("Command '{}' successfully executed".format(command))
+    return result
 
 def _which(file):
     for path in os.environ["PATH"].split(":"):
@@ -154,18 +157,6 @@ def _estimate_split_size(total_size):
         scale_factor = 1.01 * ranges_count / DEFAULT_MAXIMUM_YT_JOB_COUNT
         return int(scale_factor * split_size)
     return split_size
-
-def _slice_yamr_table_evenly(client, table, split_size, record_count=None, size=None):
-    """ Return list with row ranges. """
-    if _which("mr_slicetable") is None:
-        if record_count is None:
-            record_count = client.records_count(table, allow_cache=True)
-        if size is None:
-            size = client.data_size(table)
-        return _split(record_count, split_size, size)
-    else:
-        data = _check_output(["mr_slicetable", "--server", client.server, "--table", table, "--desired-size", str(split_size)])
-        return [list(imap(int, line.split())) for line in data.split("\n") if line.strip()]
 
 def _slice_yt_table_evenly(client, table, split_size=None):
     """ Return list with correct YT ranges. """
@@ -640,217 +631,6 @@ def copy_file_yt_to_yt(source_client, destination_client, src, dst, fastbone, to
 
     finally:
         shutil.rmtree(tmp_dir)
-
-
-def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, copy_spec_template=None,
-                         postprocess_spec_template=None, compression_codec=None, erasure_codec=None,
-                         force_sort=None, job_timeout=None, small_table_size_threshold=None,
-                         force_copy_with_operation=False):
-    proxies = yamr_client.proxies
-    if not proxies:
-        proxies = [yamr_client.server]
-
-    if job_timeout is None:
-        job_timeout = 1800
-
-    transaction_id = None
-    if yamr_client.supports_read_snapshots:
-        transaction_id = yamr_client.make_read_snapshot(src)
-    else:
-        temp_yamr_table = "tmp/yt/" + generate_uuid()
-        yamr_client.copy(src, temp_yamr_table)
-        src = temp_yamr_table
-
-    # NB: Yamr does not support -list under transaction.
-    # It means that record count may be inconsistent with locked version of table.
-    record_count = yamr_client.records_count(src, allow_cache=True)
-    is_sorted = yamr_client.is_sorted(src, allow_cache=True)
-    if compression_codec is None:
-        yamr_codec_to_yt_codec = {"zlib": "zlib6", "quicklz": "quick_lz", "lzma": "zlib9"}
-        codec = yamr_client.get_compression_codec(src, allow_cache=True)
-        compression_codec = yamr_codec_to_yt_codec.get(codec)
-
-    logger.info("Importing table '%s' (row count: %d, sorted: %d)", src, record_count, is_sorted)
-
-    data_size = yamr_client.data_size(src)
-
-    # We need to create it outside of transaction to avoid races.
-    yt_client.create("map_node", os.path.dirname(dst), recursive=True, ignore_existing=True)
-
-    yt_client.config["table_writer"] = {
-        "max_row_weight": 128 * MB,
-        "desired_chunk_size": 2 * GB
-    }
-
-    try:
-        with yt_client.Transaction(attributes={"title": "copy_yamr_to_yt"}):
-            set_codec(yt_client, dst, compression_codec, "compression")
-
-            if is_sorted:
-                dst_path = yt.TablePath(dst, client=yt_client)
-                dst_path.attributes["sorted_by"] = ["key", "subkey"]
-            else:
-                dst_path = dst
-
-            if small_table_size_threshold is not None and data_size < small_table_size_threshold \
-                    and not force_copy_with_operation:
-                logger.info("Source table '%s' is small, copying without operation on destination cluster",
-                            src)
-                read_iterator = yamr_client.get_read_iterator(
-                    src,
-                    transaction_id=transaction_id,
-                    timeout=job_timeout)
-                try:
-                    set_codec(yt_client, dst, erasure_codec, "erasure")
-                    yt_client.write_table(dst_path, read_iterator,
-                                          format=yt.YamrFormat(has_subkey=True, lenval=True), raw=True)
-                finally:
-                    read_iterator.close()
-            else:
-                ranges = _slice_yamr_table_evenly(yamr_client, src, _estimate_split_size(data_size), record_count, data_size)
-                read_commands = yamr_client.create_read_range_commands(ranges, src, fastbone=fastbone,
-                                                                       transaction_id=transaction_id, enable_logging=True,
-                                                                       timeout=job_timeout)
-
-                temp_table = yt_client.create_temp_table(prefix=os.path.basename(src))
-                yt_client.write_table(temp_table, read_commands, format=yt.SchemafulDsvFormat(columns=["command"]), raw=True)
-
-                spec = deepcopy(get_value(copy_spec_template, {}))
-                spec["data_size_per_job"] = 1
-
-                command = """\
-set -ux
-while true; do
-    IFS="\t" read -r command;
-    if [ "$?" != "0" ]; then
-        break;
-    fi
-    set -e;
-    bash -c "${command}";
-    set +e;
-done"""
-
-                logger.info("Pull import: run map '%s' with spec '%s'", command, repr(spec))
-
-                _set_tmpfs_settings(yt_client, spec, [yamr_client.binary])
-                yt_client.run_map(
-                    command,
-                    temp_table,
-                    dst_path,
-                    input_format=yt.SchemafulDsvFormat(columns=["command"]),
-                    output_format=yt.YamrFormat(lenval=True, has_subkey=True),
-                    files=yamr_client.binary,
-                    memory_limit=2500 * MB + spec["mapper"]["tmpfs_size"],
-                    spec=spec)
-
-            result_record_count = yt_client.row_count(dst)
-            if result_record_count != record_count:
-                error = "Incorrect record count (expected: %d, actual: %d)" % (record_count, result_record_count)
-                logger.error(error)
-                raise IncorrectRowCount(error)
-
-            postprocess_spec = deepcopy(get_value(postprocess_spec_template, {}))
-            if force_sort and not is_sorted:
-                yt_client.run_sort(dst, sort_by=["key", "subkey"], spec=postprocess_spec)
-
-            transform(str(dst), erasure_codec=erasure_codec, yt_client=yt_client, spec=postprocess_spec, check_codecs=True)
-
-    finally:
-        if not yamr_client.supports_read_snapshots:
-            yamr_client.drop(temp_yamr_table)
-
-def copy_yt_to_yamr_pull(yt_client, yamr_client, src, dst, parallel_job_count=None, force_sort=None,
-                         fastbone=True, default_tmp_dir=None, small_table_size_threshold=None,
-                         force_copy_with_operation=False):
-    tmp_dir = tempfile.mkdtemp(dir=default_tmp_dir)
-
-    try:
-        with yt_client.Transaction(attributes={"title": "copy_yt_to_yamr"}):
-            # NB: for reliable access to table under snapshot lock we should use id.
-            src_name = src
-            src = yt.TablePath(src, client=yt_client)
-            src = yt.TablePath("#" + yt_client.get(src + "/@id"), simplify=False, attributes=src.attributes, client=yt_client)
-            yt_client.lock(src, mode="snapshot")
-
-            is_sorted = yt_client.exists(src + "/@sorted_by")
-            row_count = yt_client.get(src + "/@row_count")
-
-            if small_table_size_threshold is not None and \
-                    yt_client.get(src + "/@uncompressed_data_size") < small_table_size_threshold and \
-                    not force_copy_with_operation:
-                logger.info("Source table '%s' is small, copying without operation on destination cluster",
-                            str(src_name))
-                stream = _raw_read_table_from_yt(yt_client, src, "<has_subkey=true;lenval=true>yamr")
-                try:
-                    yamr_client.write_from_chunked_stream(dst, stream)
-                finally:
-                    stream.close()
-            else:
-                ranges = _slice_yt_table_evenly(yt_client, src, 1024 * yt.common.MB)
-
-                temp_yamr_table = "tmp/yt/" + generate_uuid()
-                yamr_client.write_rows_as_values(temp_yamr_table, ranges)
-
-                token_file = _pack_token(yt_client.config["token"], tmp_dir)
-                command, files = _prepare_read_table_from_yt_command(
-                    yt_client,
-                    src.to_yson_string(),
-                    "<has_subkey=true;lenval=true>yamr",
-                    tmp_dir,
-                    fastbone,
-                    pack=True,
-                    input_type="lenval",
-                    token_file=os.path.basename(token_file))
-                files.append(token_file)
-
-                if parallel_job_count is None:
-                    parallel_job_count = 200
-                job_count = len(ranges)
-
-                yamr_client.run_map(command, temp_yamr_table, dst, files=files,
-                                    opts="-subkey -lenval -jobcount {0} -opt jobcount.throttle={1} -opt cpu.intensive.mode=1"\
-                                         .format(job_count, parallel_job_count))
-
-            result_row_count = yamr_client.records_count(dst)
-            if not src.has_delimiters() and row_count != result_row_count:
-                yamr_client.drop(dst)
-                error = "Incorrect record count (expected: %d, actual: %d)" % (row_count, result_row_count)
-                logger.error(error)
-                raise IncorrectRowCount(error)
-
-            if (is_sorted and force_sort is None) or force_sort:
-                yamr_client.run_sort(dst, dst)
-
-    finally:
-        shutil.rmtree(tmp_dir)
-
-def copy_yt_to_yamr_push(yt_client, yamr_client, src, dst, fastbone, copy_spec_template=None):
-    if not yamr_client.is_empty(dst):
-        yamr_client.drop(dst)
-
-    record_count = yt_client.row_count(src)
-
-    spec = deepcopy(get_value(copy_spec_template, {}))
-    spec["data_size_per_job"] = 2 * GB
-
-    write_command = yamr_client.get_write_command(dst, fastbone=fastbone)
-    logger.info("Running map '%s'", write_command)
-
-    yt_client.run_map(
-        write_command,
-        src,
-        yt_client.create_temp_table(),
-        files=yamr_client.binary,
-        format=yt.YamrFormat(has_subkey=True, lenval=True),
-        memory_limit=2000 * yt.common.MB,
-        spec=spec)
-
-    result_record_count = yamr_client.records_count(dst)
-    if record_count != result_record_count:
-        yamr_client.drop(dst)
-        error = "Incorrect record count (expected: %d, actual: %d)" % (record_count, result_record_count)
-        logger.error(error)
-        raise IncorrectRowCount(error)
 
 def _copy_to_kiwi(kiwi_client, kiwi_transmittor, src, read_command, ranges, kiwi_user, files=None,
                   yt_files=None, copy_spec_template=None, write_to_table=False, protobin=True,

@@ -1,7 +1,6 @@
 from yt.transfer_manager.server.helpers import filter_out_keys
 from yt.transfer_manager.server.yt_client import YtClientWithNotifications
 
-from yt.tools.yamr import Yamr
 from yt.tools.hadoop import Airflow, Hdfs, Hive, HBase
 from yt.tools.remote_copy_tools import Kiwi
 
@@ -36,8 +35,6 @@ def get_clusters_configuration_from_config(config):
             clusters[name]._pools = cluster_description.get("pools", {})
             if "version" in cluster_description:
                 clusters[name]._version = cluster_description["version"]
-        elif type == "yamr":
-            clusters[name] = Yamr(**options)
         elif type == "kiwi":
             clusters[name] = Kiwi(**options)
         elif type == "hive":

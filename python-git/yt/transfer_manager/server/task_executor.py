@@ -6,11 +6,7 @@ from yt.transfer_manager.server.message_queue import MessageWriter
 from yt.transfer_manager.server.precheck import perform_precheck
 from yt.transfer_manager.server.clusters_configuration import get_clusters_configuration_from_config
 
-from yt.tools.yamr import YamrError
 from yt.tools.remote_copy_tools import \
-    copy_yamr_to_yt_pull, \
-    copy_yt_to_yamr_pull, \
-    copy_yt_to_yamr_push, \
     copy_yt_to_kiwi, \
     copy_yt_to_yt, \
     copy_yt_to_yt_through_proxy, \
@@ -38,8 +34,6 @@ def _truncate_stderrs_attributes(error, limit):
     if hasattr(error, "attributes") and "stderrs" in error.attributes:
         if isinstance(error, yt.YtOperationFailedError):
             error.attributes["details"] = yt.format_operation_stderrs(error.attributes["stderrs"])[:limit]
-        elif isinstance(error, YamrError):
-            error.attributes["details"] = error.attributes["stderrs"][:limit]
         del error.attributes["stderrs"]
     if hasattr(error, "inner_errors"):
         for inner_error in error.inner_errors:
@@ -137,49 +131,6 @@ def execute_task(task, message_queue, config):
                     erasure_codec=task.destination_erasure_codec,
                     additional_attributes=task.additional_attributes,
                     schema_inference_mode=task.schema_inference_mode)
-        elif source_client._type == "yt" and destination_client._type == "yamr":
-            logger.info("Running YT -> YAMR remote copy")
-            if task.copy_method == "push":
-                copy_yt_to_yamr_push(
-                    source_client,
-                    destination_client,
-                    task.source_table,
-                    task.destination_table,
-                    fastbone=fastbone,
-                    copy_spec_template=copy_spec)
-            else:
-                copy_yt_to_yamr_pull(
-                    source_client,
-                    destination_client,
-                    task.source_table,
-                    task.destination_table,
-                    fastbone=fastbone,
-                    force_sort=task.destination_force_sort,
-                    default_tmp_dir=config.get("default_tmp_dir"),
-                    small_table_size_threshold=config.get("small_table_size_threshold"),
-                    force_copy_with_operation=force_copy_with_operation)
-        elif source_client._type == "yamr" and destination_client._type == "yt":
-            logger.info("Running YAMR -> YT remote copy")
-            copy_yamr_to_yt_pull(
-                source_client,
-                destination_client,
-                task.source_table,
-                task.destination_table,
-                fastbone=fastbone,
-                compression_codec=task.destination_compression_codec,
-                erasure_codec=task.destination_erasure_codec,
-                force_sort=task.destination_force_sort,
-                copy_spec_template=copy_spec,
-                postprocess_spec_template=postprocess_spec,
-                job_timeout=task.job_timeout,
-                small_table_size_threshold=config.get("small_table_size_threshold"),
-                force_copy_with_operation=force_copy_with_operation)
-        elif source_client._type == "yamr" and destination_client._type == "yamr":
-            destination_client.remote_copy(
-                source_client.server,
-                task.source_table,
-                task.destination_table,
-                fastbone=fastbone)
         elif source_client._type == "yt" and destination_client._type == "kiwi":
             dc_name = source_client._parameters.get("dc_name")
             if dc_name is not None:
@@ -258,7 +209,7 @@ def run_executor(config_path):
     if executor_path.endswith(".pyc"):
         executor_path = executor_path[:-1]
 
-    return subprocess.Popen(["/usr/bin/env", "python", executor_path, "--config-path", config_path],
+    return subprocess.Popen([sys.executable, executor_path, "--config-path", config_path],
                             stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=sys.stderr,
                             preexec_fn=lambda: prctl.set_pdeathsig(signal.SIGINT), close_fds=True)
 
