@@ -54,14 +54,12 @@ import logging.handlers
 import tempfile
 import argparse
 import traceback
-import pwd
 from copy import deepcopy
 from datetime import datetime
 from collections import defaultdict, deque
 from threading import RLock
 from multiprocessing import Process
 from itertools import chain
-from subprocess32 import TimeoutExpired
 
 OS_PAGE_SIZE = os.sysconf("SC_PAGE_SIZE")
 
