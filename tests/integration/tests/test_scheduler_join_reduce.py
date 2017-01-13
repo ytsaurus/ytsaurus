@@ -103,6 +103,50 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
 
         assert get("//tmp/out/@sorted")
 
+
+    @unix_only
+    def test_join_reduce_split_further(self):
+        create("table", "//tmp/primary")
+        write_table(
+            "//tmp/primary",
+            [
+                {"key": 0, "value": 0},
+                {"key": 9, "value": 0}
+            ],
+            sorted_by = "key")
+
+        create("table", "//tmp/foreign")
+        write_table(
+            "//tmp/foreign",
+            [
+                {"key": 0, "value": 1},
+                {"key": 4, "value": 1}
+            ],
+            sorted_by = "key")
+
+        write_table(
+            "<append=true; sorted_by=[key]>//tmp/foreign",
+            [
+                {"key": 5, "value": 1},
+                {"key": 9, "value": 1}
+            ])
+
+        create("table", "//tmp/out")
+
+        join_reduce(
+            in_ = ["<foreign=true>//tmp/foreign", "//tmp/primary"],
+            out = "<sorted_by=[key]>//tmp/out",
+            join_by="key",
+            command = "cat",
+            spec = {
+                "data_size_per_job" : 1,
+                "reducer": {
+                    "format": "dsv"}})
+
+        # Must be splitted into two jobs, despite that only one primary slice is available.
+        assert get("//tmp/out/@chunk_count") == 2
+        assert get("//tmp/out/@sorted")
+
     @unix_only
     def test_join_reduce_primary_attribute_compatibility(self):
         create("table", "//tmp/in1")
@@ -192,7 +236,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_join_reduce_cat_two_output(self, optimize_for):
         schema = [
-            {"name" : "key", "type" : "int64", "sort_order" : "ascending"}, 
+            {"name" : "key", "type" : "int64", "sort_order" : "ascending"},
             {"name" : "value", "type" : "int64", "sort_order" : "ascending"}
         ]
 
@@ -344,7 +388,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_join_reduce_short_limits(self, optimize_for):
         schema = [
-            {"name" : "key", "type" : "string", "sort_order" : "ascending"}, 
+            {"name" : "key", "type" : "string", "sort_order" : "ascending"},
             {"name" : "subkey", "type" : "string", "sort_order" : "ascending"}
         ]
         create("table", "//tmp/in1", attributes={"schema" : schema, "optimize_for" : optimize_for})
