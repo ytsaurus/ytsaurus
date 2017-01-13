@@ -663,34 +663,43 @@ set(SRCS
   ${BASE}/crypto/evp/m_md2.c
 )
 
+if(APPLE)
+  set(ASMS_NS /asm/darwin)
+endif()
+
 set(ASMS
-  ${BASE}/crypto/aes/aesni-mb-x86_64.s
-  ${BASE}/crypto/aes/aesni-sha1-x86_64.s
-  ${BASE}/crypto/aes/aesni-sha256-x86_64.s
-  ${BASE}/crypto/aes/aesni-x86_64.s
-  ${BASE}/crypto/aes/aes-x86_64.s
-  ${BASE}/crypto/aes/bsaes-x86_64.s
-  ${BASE}/crypto/aes/vpaes-x86_64.s
-  ${BASE}/crypto/bn/rsaz-avx2.s
-  ${BASE}/crypto/bn/rsaz-x86_64.s
-  ${BASE}/crypto/bn/x86_64-gf2m.s
-  ${BASE}/crypto/bn/x86_64-mont5.s
-  ${BASE}/crypto/bn/x86_64-mont.s
-  ${BASE}/crypto/camellia/cmll-x86_64.s
-  ${BASE}/crypto/ec/ecp_nistz256-x86_64.s
-  ${BASE}/crypto/md5/md5-x86_64.s
-  ${BASE}/crypto/modes/aesni-gcm-x86_64.s
-  ${BASE}/crypto/modes/ghash-x86_64.s
-  ${BASE}/crypto/rc4/rc4-md5-x86_64.s
-  ${BASE}/crypto/rc4/rc4-x86_64.s
-  ${BASE}/crypto/sha/sha1-mb-x86_64.s
-  ${BASE}/crypto/sha/sha1-x86_64.s
-  ${BASE}/crypto/sha/sha256-mb-x86_64.s
-  ${BASE}/crypto/sha/sha256-x86_64.s
-  ${BASE}/crypto/sha/sha512-x86_64.s
-  ${BASE}/crypto/whrlpool/wp-x86_64.s
-  ${BASE}/crypto/x86_64cpuid.s
+  ${BASE}${ASMS_NS}/crypto/aes/aesni-mb-x86_64.s
+  ${BASE}${ASMS_NS}/crypto/aes/aesni-sha1-x86_64.s
+  ${BASE}${ASMS_NS}/crypto/aes/aesni-sha256-x86_64.s
+  ${BASE}${ASMS_NS}/crypto/aes/aesni-x86_64.s
+  ${BASE}${ASMS_NS}/crypto/aes/aes-x86_64.s
+  ${BASE}${ASMS_NS}/crypto/aes/bsaes-x86_64.s
+  ${BASE}${ASMS_NS}/crypto/aes/vpaes-x86_64.s
+  ${BASE}${ASMS_NS}/crypto/bn/rsaz-avx2.s
+  ${BASE}${ASMS_NS}/crypto/bn/rsaz-x86_64.s
+  ${BASE}${ASMS_NS}/crypto/bn/x86_64-gf2m.s
+  ${BASE}${ASMS_NS}/crypto/bn/x86_64-mont5.s
+  ${BASE}${ASMS_NS}/crypto/bn/x86_64-mont.s
+  ${BASE}${ASMS_NS}/crypto/camellia/cmll-x86_64.s
+  ${BASE}${ASMS_NS}/crypto/ec/ecp_nistz256-x86_64.s
+  ${BASE}${ASMS_NS}/crypto/md5/md5-x86_64.s
+  ${BASE}${ASMS_NS}/crypto/modes/aesni-gcm-x86_64.s
+  ${BASE}${ASMS_NS}/crypto/modes/ghash-x86_64.s
+  ${BASE}${ASMS_NS}/crypto/sha/sha1-mb-x86_64.s
+  ${BASE}${ASMS_NS}/crypto/sha/sha1-x86_64.s
+  ${BASE}${ASMS_NS}/crypto/sha/sha256-mb-x86_64.s
+  ${BASE}${ASMS_NS}/crypto/sha/sha256-x86_64.s
+  ${BASE}${ASMS_NS}/crypto/sha/sha512-x86_64.s
+  ${BASE}${ASMS_NS}/crypto/whrlpool/wp-x86_64.s
+  ${BASE}${ASMS_NS}/crypto/x86_64cpuid.s
 )
+
+if(UNIX AND NOT APPLE)
+  set(ASMS ${ASMS}
+    ${BASE}/crypto/rc4/rc4-md5-x86_64.s
+    ${BASE}/crypto/rc4/rc4-x86_64.s
+  )
+endif()
 
 set_source_files_properties(${SRCS} PROPERTIES LANGUAGE C)
 
@@ -737,8 +746,11 @@ add_definitions(
   -DOPENSSL_IA32_SSE2
   -DVPAES_ASM
   -DWHIRLPOOL_ASM
-  -DRC4_ASM
 )
+
+if(UNIX AND NOT APPLE)
+  add_definitions(-DRC4_ASM)
+endif()
 
 include_directories(
   ${BASE}
