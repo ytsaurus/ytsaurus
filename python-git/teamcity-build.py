@@ -43,18 +43,18 @@ def prepare(options):
     options.repositories = ["yt-" + codename, "yandex-" + codename]
 
     if options.codename == "lucid":
-        python_versions = ["2.6"]
+        available_python_versions = ["2.6"]
     else:
-        python_versions = ["2.7", "3.4", "pypy"]
+        available_python_versions = ["2.7", "3.4", "pypy"]
 
     options.enabled_python_versions = set()
 
     bindings_build_flags = {}
 
-    for version in python_versions:
-        env_key = "BUILD_ENABLE_PYTHON_" + version.replace(".", "_").upper()
+    for version in available_python_versions:
+        env_key = "ENABLE_PYTHON_" + version.replace(".", "_").upper() + "_TESTS"
         teamcity_message("Considering {0} with value {1}".format(env_key, os.environ.get(env_key)))
-        enabled = parse_yes_no_bool(os.environ.get(env_key, "YES"))
+        enabled = parse_yes_no_bool(os.environ.get(env_key, "NO"))
 
         if enabled:
             options.enabled_python_versions.add(version)
@@ -288,6 +288,25 @@ def run_python_3_4_tests(options):
 def run_python_pypy_tests(options):
     _run_tests_for_python_version(options, "pypy")
 
+@build_step
+def build_packages(options):
+    if not options.package:
+        return
+
+    packages = ["yandex-yt-python", "yandex-yt-python-tools",
+                "yandex-yt-transfer-manager", "yandex-yt-transfer-manager-client",
+                "yandex-yt-fennel", "yandex-yt-local"]
+
+    for package in packages:
+        if package in ("yandex-yt-fennel", "yandex-yt-local") and options.codename == "lucid":
+            continue
+        with cwd(options.checkout_directory, package):
+            package_version = run_captured(
+                "dpkg-parsechangelog | grep Version | awk '{print $2}'", shell=True).strip()
+            run(["dch", "-r", package_version, "'Resigned by teamcity'"])
+        run(["./deploy.sh", package], cwd=options.checkout_directory)
+
+
 ################################################################################
 # This is an entry-point. Just boiler-plate.
 
@@ -296,7 +315,7 @@ def main():
         try:
             return parse_yes_no_bool(s)
         except:
-            raise argparse.ArgumentTypeError("Expected YES or NO")
+            raise argparse.ArgumentTypeError('Expected "YES" or "NO" value')
 
     parser = argparse.ArgumentParser(description="YT Build Script")
 
@@ -314,6 +333,9 @@ def main():
         action="store", required=True)
     parser.add_argument(
         "--clean-working-directory",
+        type=parse_bool, action="store", default=False)
+    parser.add_argument(
+        "--package",
         type=parse_bool, action="store", default=False)
 
     parser.add_argument(
