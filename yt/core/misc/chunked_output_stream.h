@@ -37,7 +37,7 @@ public:
     template <typename U> TChunkedOutputStream(ui32, U size = 0) = delete;
     template <typename U> TChunkedOutputStream(ui64, U size = 0) = delete;
 
-    ~TChunkedOutputStream() throw();
+    ~TChunkedOutputStream() throw() = default;
 
     //! Returns a sequence of written chunks.
     //! The stream is no longer usable after this call.
@@ -57,9 +57,6 @@ public:
     //! Marks #size bytes (which were previously preallocated) as used.
     void Advance(size_t size);
 
-    // TODO(babenko): consider moving to private and calling Write
-    virtual void DoWrite(const void* buf, size_t len) override;
-
 private:
     size_t MaxReserveSize_;
     size_t CurrentReserveSize_;
@@ -68,6 +65,9 @@ private:
 
     TBlob CurrentChunk_;
     std::vector<TSharedRef> FinishedChunks_;
+
+    virtual void DoWrite(const void* buf, size_t len) override;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

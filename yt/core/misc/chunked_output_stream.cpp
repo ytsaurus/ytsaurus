@@ -26,9 +26,6 @@ TChunkedOutputStream::TChunkedOutputStream()
     : TChunkedOutputStream(TDefaultChunkedOutputStreamTag())
 { }
 
-TChunkedOutputStream::~TChunkedOutputStream() throw()
-{ }
-
 std::vector<TSharedRef> TChunkedOutputStream::Flush()
 {
     FinishedChunks_.push_back(TSharedRef::FromBlob(std::move(CurrentChunk_)));
