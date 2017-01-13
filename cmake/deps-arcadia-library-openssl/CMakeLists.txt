@@ -5,7 +5,10 @@ set(SRCS
   ${BASE}/init/init.cpp
 )
 
-include_directories(${CMAKE_SOURCE_DIR})
+include_directories(
+  ${CMAKE_SOURCE_DIR}
+  ${CMAKE_SOURCE_DIR}/contrib/libs/openssl/include
+)
 
 add_library(${NAME} STATIC ${SRCS})
 
