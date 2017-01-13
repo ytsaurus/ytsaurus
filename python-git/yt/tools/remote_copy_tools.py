@@ -1,4 +1,4 @@
-from yt.wrapper.common import round_up_to, bool_to_string, MB, GB, update
+from yt.wrapper.common import round_up_to, bool_to_string, MB, GB, update, get_disk_size
 from yt.wrapper.ypath import ypath_join
 from yt.tools.conversion_tools import transform
 from yt.common import get_value, set_pdeathsig
@@ -194,20 +194,14 @@ def _set_tmpfs_settings(client, spec, files, yt_files=None, reserved_size=0):
 
     files_size = 0
     for file_ in files:
-        file_stat = os.stat(file_)
-
-        # TODO(asaitgalin): Update yandex-yt-python and use get_disk_size() here.
-        if hasattr(file_stat, "st_blocks") and hasattr(file_stat, "st_blksize"):
-            size = file_stat.st_blocks * 512
-        else:
-            size = round_up_to(file_stat.st_size, 4 * 1024)
+        file_size = get_disk_size(file_)
 
         # NOTE: Assuming here that files compressed by tar without compression and
         # multiplying by two because space for uncompressed files should be added too.
         if os.path.basename(file_).endswith(".tar"):
-            files_size += size * 2
+            files_size += file_size * 2
         else:
-            files_size += size
+            files_size += file_size
 
     total_size = reserved_size + files_size + \
         sum(round_up_to(client.get_attribute(path, "uncompressed_data_size"), 4 * 1024) for path in yt_files)
