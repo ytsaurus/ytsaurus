@@ -29,7 +29,7 @@ def get(path, trimmed_nodes=None):
     def walk(path, object):
         object.attributes["path"] = path
         if is_map_node(object):
-            for key, value in object.iteritems():
+            for key, value in object.items():
                 new_path = yt.ypath_join(path, key)
                 if new_path in trimmed_nodes:
                     object[key] = yson.to_yson_type({}, object[key].attributes)
