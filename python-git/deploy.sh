@@ -1,5 +1,7 @@
 #!/bin/bash -eux
 
+CODENAME="$(lsb_release --short --codename)"
+
 clean() {
     rm -rf yt/wrapper/tests.sandbox/* .pybuild *.egg-info
     python setup.py clean
@@ -77,7 +79,7 @@ case $PACKAGE in
         REPOS="yt-common"
         ;;
     yandex-yt-python-yson)
-        REPOS="yandex-$(lsb_release --short --codename) yt-$(lsb_release --short --codename)"
+        REPOS="yandex-$CODENAME yt-$CODENAME"
         ;;
 esac
 
@@ -109,7 +111,15 @@ fi
 
 # Upload python wheel
 if [ -z "$SKIP_WHEEL" ]; then
-    python setup.py bdist_wheel --universal upload -r yandex
+    # Wheels are tagged only with interpreter type and platform (e.g. win32, macosx, etc.)
+    # and not linux distribution aware. To preserve binary compatibility with as many
+    # Ubuntu distributions as possible wheel should be built only on the oldest
+    # distribution (since all new distributions have backward compatibility).
+    # See PEP-425, PEP-513 and https://github.com/pypa/manylinux for more details.
+    # This is why oldest distributions are chosen - precise and lucid.
+    if [ "$CODENAME" = "precise" ] || [ "$CODENAME" = "lucid" ]; then
+        python setup.py bdist_wheel --universal upload -r yandex
+    fi
 fi
 
 # Some postprocess steps
