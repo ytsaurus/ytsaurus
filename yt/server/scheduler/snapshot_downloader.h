@@ -27,7 +27,7 @@ private:
     NCellScheduler::TBootstrap* const Bootstrap_;
     const TOperationId OperationId_;
 
-    NLogging::TLogger Logger;
+    const NLogging::TLogger Logger;
 
 };
 

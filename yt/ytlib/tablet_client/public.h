@@ -108,6 +108,9 @@ DECLARE_REFCOUNTED_CLASS(TTableMountCacheConfig)
 class TWireProtocolReader;
 class TWireProtocolWriter;
 
+DECLARE_REFCOUNTED_STRUCT(IWireProtocolRowsetReader)
+DECLARE_REFCOUNTED_STRUCT(IWireProtocolRowsetWriter)
+
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTabletClient

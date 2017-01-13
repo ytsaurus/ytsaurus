@@ -16,7 +16,7 @@ class TTabletServiceProxy
 {
 public:
     DEFINE_RPC_PROXY(TTabletServiceProxy, RPC_PROXY_DESC(TabletService)
-        .SetProtocolVersion(9));
+        .SetProtocolVersion(10));
 
     DEFINE_RPC_PROXY_METHOD(NProto, Write);
     DEFINE_RPC_PROXY_METHOD(NProto, RegisterTransactionActions);

@@ -172,8 +172,8 @@ private:
             , State_(std::move(state))
             , Batch_(std::move(batch))
             , Rows_(
-                Batch_.Rowset->Rows().begin() + Batch_.BeginRowIndex - Batch_.RowsetStartRowIndex,
-                Batch_.Rowset->Rows().begin() + Batch_.EndRowIndex - Batch_.RowsetStartRowIndex)
+                Batch_.Rowset->GetRows().Begin() + Batch_.BeginRowIndex - Batch_.RowsetStartRowIndex,
+                Batch_.Rowset->GetRows().Begin() + Batch_.EndRowIndex - Batch_.RowsetStartRowIndex)
         { }
 
         ~TPolledRowset()
@@ -188,7 +188,7 @@ private:
             return Batch_.Rowset->Schema();
         }
 
-        virtual const std::vector<TUnversionedRow>& Rows() const override
+        virtual TRange<TUnversionedRow> GetRows() const override
         {
             return Rows_;
         }
@@ -261,7 +261,7 @@ private:
 
         std::vector<TStateTableRow> rows;
 
-        for (auto row : rowset->Rows()) {
+        for (auto row : rowset->GetRows()) {
             TStateTableRow stateRow;
 
             Y_ASSERT(row[tabletIndexColumnId].Type == EValueType::Int64);
@@ -399,14 +399,14 @@ private:
         auto result = WaitFor(Client_->SelectRows(query))
             .ValueOrThrow();
         const auto& rowset = result.Rowset;
-        const auto& rows = rowset->Rows();
         const auto& schema = rowset->Schema();
+        auto rows = rowset->GetRows();
 
         LOG_DEBUG("Finished fetching data (TabletIndex: %v, RowCount: %v)",
             tabletIndex,
-            rows.size());
+            rows.Size());
 
-        if (rows.empty()) {
+        if (rows.Empty()) {
             return;
         }
 
@@ -487,7 +487,7 @@ private:
                 state->BatchesDataWeight += batch.DataWeight;
             }
 
-            tablet.FetchRowIndex += rows.size();
+            tablet.FetchRowIndex += rows.Size();
             if (tablet.FetchRowIndex > tablet.MaxConsumedRowIndex) {
                 // No need to keep them anymore.
                 tablet.ConsumedRowIndexes.clear();
@@ -591,9 +591,9 @@ private:
                 auto result = WaitFor(transaction->SelectRows(query))
                     .ValueOrThrow();
                 const auto& rowset = result.Rowset;
-                const auto& rows = rowset->Rows();
                 const auto& schema = rowset->Schema();
-                if (!rows.empty()) {
+                auto rows = rowset->GetRows();
+                if (!rows.Empty()) {
                     std::vector<i64> rowIndexes;
                     auto rowIndexColumnId = schema.GetColumnIndexOrThrow(TStateTable::RowIndexColumnName);
                     for (auto row : rows) {
@@ -621,10 +621,10 @@ private:
                 auto result = WaitFor(transaction->SelectRows(query))
                     .ValueOrThrow();
                 const auto& rowset = result.Rowset;
-                const auto& rows = rowset->Rows();
                 const auto& schema = rowset->Schema();
-                if (!rows.empty()) {
-                    YCHECK(rowset->Rows().size() == 1);
+                auto rows = rowset->GetRows();
+                if (!rows.Empty()) {
+                    YCHECK(rows.Size() == 1);
                     auto row = rows[0];
 
                     auto rowIndexColumnId = schema.GetColumnIndexOrThrow(TStateTable::RowIndexColumnName);

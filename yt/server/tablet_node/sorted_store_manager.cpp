@@ -95,7 +95,7 @@ void TSortedStoreManager::ExecuteAtomicWrite(
     auto command = reader->ReadCommand();
     switch (command) {
         case EWireProtocolCommand::WriteRow: {
-            auto row = reader->ReadUnversionedRow();
+            auto row = reader->ReadUnversionedRow(false);
             WriteRowAtomic(
                 transaction,
                 row,
@@ -104,7 +104,7 @@ void TSortedStoreManager::ExecuteAtomicWrite(
         }
 
         case EWireProtocolCommand::DeleteRow: {
-            auto key = reader->ReadUnversionedRow();
+            auto key = reader->ReadUnversionedRow(false);
             DeleteRowAtomic(
                 transaction,
                 key,
@@ -126,13 +126,13 @@ void TSortedStoreManager::ExecuteNonAtomicWrite(
     auto command = reader->ReadCommand();
     switch (command) {
         case EWireProtocolCommand::WriteRow: {
-            auto row = reader->ReadUnversionedRow();
+            auto row = reader->ReadUnversionedRow(false);
             WriteRowNonAtomic(commitTimestamp, row);
             break;
         }
 
         case EWireProtocolCommand::DeleteRow: {
-            auto key = reader->ReadUnversionedRow();
+            auto key = reader->ReadUnversionedRow(false);
             DeleteRowNonAtomic(commitTimestamp, key);
             break;
         }

@@ -18,69 +18,59 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRowsetBase
+class TRowset
     : public IRowset
 {
 public:
-    // IRowset implementation.
+    TRowset(
+        const TTableSchema& schema,
+        TSharedRange<TUnversionedRow> rows)
+        : Schema_(schema)
+        , Rows_(std::move(rows))
+    { }
+
     virtual const TTableSchema& Schema() const override
     {
         return Schema_;
     }
 
-    virtual const std::vector<TUnversionedRow>& Rows() const override
+    virtual TRange<TUnversionedRow> GetRows() const override
     {
         return Rows_;
     }
 
-protected:
-    TTableSchema Schema_;
-    std::vector<TUnversionedRow> Rows_;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TRowset
-    : public TRowsetBase
-{
-public:
-    TRowset(
-        std::vector<std::unique_ptr<TWireProtocolReader>> readers,
-        const TTableSchema& schema,
-        std::vector<TUnversionedRow> rows)
-        : Readers_(std::move(readers))
-    {
-        Schema_ = schema;
-        Rows_ = std::move(rows);
-    }
-
 private:
-    std::vector<std::unique_ptr<TWireProtocolReader>> Readers_;
+    const TTableSchema Schema_;
+    const TSharedRange<TUnversionedRow> Rows_;
 
 };
 
 IRowsetPtr CreateRowset(
-    std::vector<std::unique_ptr<NTabletClient::TWireProtocolReader>> readers,
     const TTableSchema& schema,
-    std::vector<TUnversionedRow> rows)
+    TSharedRange<TUnversionedRow> rows)
 {   
-    return New<TRowset>(
-        std::move(readers),
-        schema,
-        std::move(rows));
+    return New<TRowset>(schema, std::move(rows));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemafulRowsetWriter
-    : public TRowsetBase
+    : public IRowset
     , public ISchemafulWriter
 {
 public:
-    TSchemafulRowsetWriter(const TTableSchema& schema)
+    explicit TSchemafulRowsetWriter(const TTableSchema& schema)
+        : Schema_(schema)
+    { }
+
+    virtual const TTableSchema& Schema() const override
     {
-        Schema_ = schema;
+        return Schema_;
+    }
+
+    virtual TRange<TUnversionedRow> GetRows() const override
+    {
+        return MakeRange(Rows_);
     }
 
     TFuture<IRowsetPtr> GetResult() const
@@ -109,12 +99,15 @@ public:
     }
 
 private:
+    const TTableSchema Schema_;
+
     TPromise<IRowsetPtr> Result_ = NewPromise<IRowsetPtr>();
 
     struct TSchemafulRowsetWriterBufferTag
     { };
 
     const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TSchemafulRowsetWriterBufferTag());
+    std::vector<TUnversionedRow> Rows_;
 
 };
 

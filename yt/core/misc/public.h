@@ -97,8 +97,6 @@ class SmallVector;
 template <class TProto>
 class TRefCountedProto;
 
-const i64 DefaultEnvelopePartSize = 1LL << 28;
-
 DECLARE_REFCOUNTED_CLASS(TProcess)
 
 const ui32 YTCoreNoteType = 0x5f59545f; // = hex("_YT_") ;)

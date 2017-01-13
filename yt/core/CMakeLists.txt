@@ -30,8 +30,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/compression/bzip2.cpp
   ${CMAKE_CURRENT_LIST_DIR}/compression/codec.cpp
   ${CMAKE_CURRENT_LIST_DIR}/compression/details.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/compression/helpers.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/compression/helpers.proto
   ${CMAKE_CURRENT_LIST_DIR}/compression/lz.cpp
   ${CMAKE_CURRENT_LIST_DIR}/compression/lzma.cpp
   ${CMAKE_CURRENT_LIST_DIR}/compression/public.cpp

@@ -24,11 +24,10 @@ TSnapshotDownloader::TSnapshotDownloader(
     : Config_(config)
     , Bootstrap_(bootstrap)
     , OperationId_(operationId)
-    , Logger(SchedulerLogger)
+    , Logger(NLogging::TLogger(SchedulerLogger)
+        .AddTag("OperationId: %v", operationId))
 {
     YCHECK(bootstrap);
-
-    Logger.AddTag("OperationId: %v", operationId);
 }
 
 TSharedRef TSnapshotDownloader::Run()
@@ -62,7 +61,8 @@ TSharedRef TSnapshotDownloader::Run()
 
     LOG_INFO("Snapshot downloaded successfully");
 
-    return MergeRefs(blocks);
+    struct TSnapshotDataTag { };
+    return MergeRefsToRef<TSnapshotDataTag>(blocks);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

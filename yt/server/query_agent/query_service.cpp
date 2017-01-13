@@ -24,8 +24,7 @@
 
 #include <yt/ytlib/tablet_client/wire_protocol.h>
 
-#include <yt/core/compression/helpers.h>
-#include <yt/core/compression/public.h>
+#include <yt/core/compression/codec.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
@@ -105,21 +104,24 @@ private:
             Config_->MaxQueryRetries,
             Logger,
             [&] () {
-                TWireProtocolWriter protocolWriter;
-                auto rowsetWriter = protocolWriter.CreateSchemafulRowsetWriter(query->GetTableSchema());
+                auto codecId = ECodec(request->response_codec());
+                auto writer = CreateWireProtocolRowsetWriter(
+                    codecId,
+                    Config_->DesiredUncompressedResponseBlockSize,
+                    query->GetTableSchema(),
+                    Logger);
 
-                auto executor = Bootstrap_->GetQueryExecutor();
-
-                auto result = WaitFor(executor->Execute(
+                const auto& executor = Bootstrap_->GetQueryExecutor();
+                auto asyncResult = executor->Execute(
                     query,
                     externalCGInfo,
                     dataSources,
-                    rowsetWriter,
-                    options))
+                    writer,
+                    options);
+                auto result = WaitFor(asyncResult)
                     .ValueOrThrow();
 
-                auto responseCodec = ECodec(request->response_codec());
-                response->Attachments() = CompressWithEnvelope(protocolWriter.Flush(), responseCodec);
+                response->Attachments() = writer->GetCompressedBlocks();
                 ToProto(response->mutable_query_statistics(), result);
                 context->Reply();
             });
@@ -132,13 +134,19 @@ private:
         auto timestamp = TTimestamp(request->timestamp());
         // TODO(sandello): Extract this out of RPC request.
         auto workloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserRealtime);
-        auto requestData = DecompressWithEnvelope(request->Attachments());
+        auto requestCodecId = NCompression::ECodec(request->request_codec());
+        auto responseCodecId = NCompression::ECodec(request->response_codec());
 
-        context->SetRequestInfo("TabletId: %v, Timestamp: %v",
+        context->SetRequestInfo("TabletId: %v, Timestamp: %v, RequestCodec: %v, ResponseCodec: %v",
             tabletId,
-            timestamp);
+            timestamp,
+            requestCodecId,
+            responseCodecId);
 
-        auto slotManager = Bootstrap_->GetTabletSlotManager();
+        auto* requestCodec = NCompression::GetCodec(requestCodecId);
+        auto* responseCodec = NCompression::GetCodec(responseCodecId);
+
+        auto requestData = requestCodec->Decompress(request->Attachments()[0]);
 
         const auto& user = context->GetUser();
         const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -148,6 +156,7 @@ private:
             Config_->MaxQueryRetries,
             Logger,
             [&] () {
+                const auto& slotManager = Bootstrap_->GetTabletSlotManager();
                 auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
                 slotManager->ValidateTabletAccess(
                     tabletSnapshot,
@@ -156,7 +165,9 @@ private:
 
                 tabletSnapshot->ValidateMountRevision(mountRevision);
 
-                TWireProtocolReader reader(requestData);
+                struct TLookupRowBufferTag { };
+                TWireProtocolReader reader(requestData, New<TRowBuffer>(TLookupRowBufferTag()));
+
                 TWireProtocolWriter writer;
 
                 const auto& tabletManager = tabletSnapshot->TabletManager;
@@ -167,9 +178,7 @@ private:
                     &reader,
                     &writer);
 
-                auto responseData = writer.Flush();
-                auto responseCodec = ECodec(request->response_codec());
-                response->Attachments() = CompressWithEnvelope(responseData,  responseCodec);
+                response->Attachments().push_back(responseCodec->Compress(writer.Finish()));
                 context->Reply();
             });
     }

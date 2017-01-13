@@ -15,13 +15,13 @@ message TReqExecute
     required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 6;
     required TQueryOptions options = 2;
     repeated TDataRanges data_sources = 3;
-    required int32 response_codec = 4;
+    required int32 response_codec = 4; // ECodec
 }
 
 message TRspExecute
 {
-    // Wire-encoded response is passed via attachments.
     required TQueryStatistics query_statistics = 1;
+    // Attachements contains wire-encoded data.
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,12 +31,14 @@ message TReqRead
     required NYT.NProto.TGuid tablet_id = 1;
     required int64 mount_revision = 2;
     required int64 timestamp = 3;
-    required int32 response_codec = 4;
+    required int32 request_codec = 4; // ECodec
+    required int32 response_codec = 5; // ECodec
+    // Attachement contains wire-encoded data.
 }
 
 message TRspRead
 {
-    // Wire-encoded response is passed via attachments.
+    // Attachement contains wire-encoded data.
 }
 
 ////////////////////////////////////////////////////////////////////////////////

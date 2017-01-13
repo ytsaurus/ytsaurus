@@ -377,9 +377,9 @@ void JoinOpHelper(
                     .ValueOrThrow();
             }
 
-            const auto& foreignRows = rowset->Rows();
+            auto foreignRows = rowset->GetRows();
 
-            LOG_DEBUG("Got %v foreign rows", foreignRows.size());
+            LOG_DEBUG("Got %v foreign rows", foreignRows.Size());
 
             TJoinLookupRows foreignLookup(
                 InitialGroupOpHashtableCapacity,

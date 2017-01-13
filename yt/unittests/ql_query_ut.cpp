@@ -410,14 +410,15 @@ TQueryStatistics DoExecuteQuery(
         true);
 }
 
-void OrderRowsBy(std::vector<TRow>* rows, const std::vector<Stroka>& columns, const TTableSchema& tableSchema)
+std::vector<TRow> OrderRowsBy(TRange<TRow> rows, const std::vector<Stroka>& columns, const TTableSchema& tableSchema)
 {
     std::vector<int> indexes;
     for (const auto& column : columns) {
         indexes.push_back(tableSchema.GetColumnIndexOrThrow(column));
     }
 
-    std::sort(rows->begin(), rows->end(), [&] (TRow lhs, TRow rhs) {
+    std::vector<TRow> result(rows.begin(), rows.end());
+    std::sort(result.begin(), result.end(), [&] (TRow lhs, TRow rhs) {
         for (auto index : indexes) {
             if (lhs[index] == rhs[index]) {
                 continue;
@@ -427,14 +428,15 @@ void OrderRowsBy(std::vector<TRow>* rows, const std::vector<Stroka>& columns, co
         }
         return false;
     });
+    return result;
 }
 
-typedef std::function<void(std::vector<TRow>, const TTableSchema&)> TResultMatcher;
+typedef std::function<void(TRange<TRow>, const TTableSchema&)> TResultMatcher;
 
 TResultMatcher ResultMatcher(std::vector<TOwningRow> expectedResult)
 {
-    return [MOVE(expectedResult)] (std::vector<TRow> result, const TTableSchema& tableSchema) {
-        EXPECT_EQ(expectedResult.size(), result.size());
+    return [MOVE(expectedResult)] (TRange<TRow> result, const TTableSchema& tableSchema) {
+        EXPECT_EQ(expectedResult.size(), result.Size());
 
         for (int i = 0; i < expectedResult.size(); ++i) {
             EXPECT_EQ(expectedResult[i], result[i]);
@@ -446,13 +448,13 @@ TResultMatcher OrderedResultMatcher(
     std::vector<TOwningRow> expectedResult,
     std::vector<Stroka> columns)
 {
-    return [MOVE(expectedResult), MOVE(columns)] (std::vector<TRow> result, const TTableSchema& tableSchema) {
-        EXPECT_EQ(expectedResult.size(), result.size());
+    return [MOVE(expectedResult), MOVE(columns)] (TRange<TRow> result, const TTableSchema& tableSchema) {
+        EXPECT_EQ(expectedResult.size(), result.Size());
 
-        OrderRowsBy(&result, columns, tableSchema);
+        auto sortedResult = OrderRowsBy(result, columns, tableSchema);
 
         for (int i = 0; i < expectedResult.size(); ++i) {
-            EXPECT_EQ(result[i], expectedResult[i]);
+            EXPECT_EQ(sortedResult[i], expectedResult[i]);
         }
     };
 }
@@ -630,7 +632,7 @@ protected:
                 query,
                 dataSplits,
                 owningSources,
-                [] (std::vector<TRow>, const TTableSchema&) { },
+                [] (TRange<TRow>, const TTableSchema&) { },
                 inputRowLimit,
                 outputRowLimit,
                 failureLocation)
@@ -695,7 +697,7 @@ protected:
 
             auto resultRowset = WaitFor(asyncResultRowset).ValueOrThrow();
 
-            resultMatcher(resultRowset->Rows(), TTableSchema(primaryQuery->GetTableSchema()));
+            resultMatcher(resultRowset->GetRows(), TTableSchema(primaryQuery->GetTableSchema()));
         };
 
         if (failureLocation != EFailureLocation::Nowhere) {
@@ -1180,7 +1182,7 @@ TEST_F(TQueryEvaluateTest, GroupWithTotalsNulls)
     EXPECT_THROW_THAT(
         [&] {
             Evaluate("x, sum(b) as t FROM [//t] group by a % 2 as x with totals", split,
-                source, [] (std::vector<TRow> result, const TTableSchema& tableSchema) { });
+                source, [] (TRange<TRow> result, const TTableSchema& tableSchema) { });
         },
         HasSubstr("Null values in group key"));
 

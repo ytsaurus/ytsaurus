@@ -135,10 +135,11 @@ void TEncodingWriter::DoCompressVector(const std::vector<TSharedRef>& uncompress
     }
 
     if (Any(BlockCache_->GetSupportedBlockTypes() & EBlockType::UncompressedData)) {
+        struct TMergedTag { };
         // Handle none codec separately to avoid merging block parts twice.
         auto uncompressedBlock = Options_->CompressionCodec == NCompression::ECodec::None
             ? compressedBlock
-            : MergeRefs(uncompressedVectorizedBlock);
+            : MergeRefsToRef<TMergedTag>(uncompressedVectorizedBlock);
         OpenFuture_.Apply(BIND(
             &TEncodingWriter::CacheUncompressedBlock, 
             MakeWeak(this), 
