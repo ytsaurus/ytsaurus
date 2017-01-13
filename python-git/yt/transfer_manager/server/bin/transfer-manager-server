@@ -632,7 +632,10 @@ class Application(object):
             if task.copy_method is None:
                 task.copy_method = "proxy" if get_cluster_version(source_client) != get_cluster_version(destination_client) else "native"
             if task.intermediate_format is None and task.copy_method == "proxy":
-                task.intermediate_format = "<annotate_with_types=%true>json"
+                if task.destination_cluster == "marx":
+                    task.intermediate_format = "<annotate_with_types=%true>json"
+                else:
+                    task.intermediate_format = "yson"
 
     def _can_run(self, task):
         direction_running_task_count = len(self._running_tasks_per_direction[task.get_direction_id()])

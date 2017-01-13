@@ -405,7 +405,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
     schema_inference_mode = get_value(schema_inference_mode, "auto")
     tmp_dir = tempfile.mkdtemp(dir=default_tmp_dir)
 
-    intermediate_format = yt.create_format(get_value(intermediate_format, "json"))
+    intermediate_format = yt.create_format(get_value(intermediate_format, "yson"))
 
     attributes = {"title": "copy_yt_to_yt_through_proxy"}
 
