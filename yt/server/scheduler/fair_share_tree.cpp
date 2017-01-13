@@ -219,6 +219,11 @@ void TSchedulerElement::SetParent(TCompositeSchedulerElement* parent)
     Parent_ = parent;
 }
 
+TInstant TSchedulerElement::GetStartTime() const
+{
+    return StartTime_;
+}
+
 int TSchedulerElement::GetPendingJobCount() const
 {
     return PendingJobCount_;
@@ -545,8 +550,6 @@ void TCompositeSchedulerElement::UpdateDynamicAttributes(TDynamicAttributesList&
 
     // Compute local satisfaction ratio.
     attributes.SatisfactionRatio = ComputeLocalSatisfactionRatio();
-    // Start times bubble up from leaf nodes with operations.
-    attributes.MinSubtreeStartTime = TInstant::Max();
     // Adjust satisfaction ratio using children.
     // Declare the element passive if all children are passive.
     attributes.Active = false;
@@ -562,12 +565,6 @@ void TCompositeSchedulerElement::UpdateDynamicAttributes(TDynamicAttributesList&
             }
             childBestLeafDescendant = bestChildAttributes.BestLeafDescendant;
         }
-
-        // We need to evaluate both MinSubtreeStartTime and SatisfactionRatio
-        // because parent can use different scheduling mode.
-        attributes.MinSubtreeStartTime = std::min(
-            attributes.MinSubtreeStartTime,
-            bestChildAttributes.MinSubtreeStartTime);
 
         attributes.SatisfactionRatio = std::min(
             attributes.SatisfactionRatio,
@@ -693,6 +690,16 @@ bool TCompositeSchedulerElement::IsEmpty() const
     return EnabledChildren_.empty() && DisabledChildren_.empty();
 }
 
+ESchedulingMode TCompositeSchedulerElement::GetMode() const
+{
+    return Mode_;
+}
+
+void TCompositeSchedulerElement::SetMode(ESchedulingMode mode)
+{
+    Mode_ = mode;
+}
+
 NProfiling::TTagId TCompositeSchedulerElement::GetProfilingTag() const
 {
     return ProfilingTag_;
@@ -749,21 +756,16 @@ void TCompositeSchedulerElement::UpdateFifo(TDynamicAttributesList& dynamicAttri
 {
     YCHECK(!Cloned_);
 
-    // TODO(acid): This code shouldn't use active children.
-    const auto& bestChild = GetBestActiveChildFifo(dynamicAttributesList);
-    for (const auto& child : EnabledChildren_) {
+    auto children = EnabledChildren_;
+    std::sort(children.begin(), children.end(), BIND(&TCompositeSchedulerElement::HasHigherPriorityInFifoMode, MakeStrong(this)));
+
+    int index = 0;
+    for (const auto& child : children) {
         auto& childAttributes = child->Attributes();
-        if (child == bestChild) {
-            childAttributes.AdjustedMinShareRatio = std::min(
-                childAttributes.DemandRatio,
-                Attributes_.AdjustedMinShareRatio);
-            childAttributes.FairShareRatio = std::min(
-                childAttributes.DemandRatio,
-                Attributes_.FairShareRatio);
-        } else {
-            childAttributes.AdjustedMinShareRatio = 0.0;
-            childAttributes.FairShareRatio = 0.0;
-        }
+        childAttributes.AdjustedMinShareRatio = 0.0;
+        childAttributes.FairShareRatio = 0.0;
+        childAttributes.FifoIndex = index;
+        ++index;
     }
 }
 
@@ -893,42 +895,12 @@ TSchedulerElementPtr TCompositeSchedulerElement::GetBestActiveChild(const TDynam
 
 TSchedulerElementPtr TCompositeSchedulerElement::GetBestActiveChildFifo(const TDynamicAttributesList& dynamicAttributesList) const
 {
-    auto isBetter = [this, &dynamicAttributesList] (const TSchedulerElementPtr& lhs, const TSchedulerElementPtr& rhs) -> bool {
-        for (auto parameter : FifoSortParameters_) {
-            switch (parameter) {
-                case EFifoSortParameter::Weight:
-                    if (lhs->GetWeight() != rhs->GetWeight()) {
-                        return lhs->GetWeight() > rhs->GetWeight();
-                    }
-                    break;
-                case EFifoSortParameter::StartTime: {
-                    const auto& lhsStartTime = dynamicAttributesList[lhs->GetTreeIndex()].MinSubtreeStartTime;
-                    const auto& rhsStartTime = dynamicAttributesList[rhs->GetTreeIndex()].MinSubtreeStartTime;
-                    if (lhsStartTime != rhsStartTime) {
-                        return lhsStartTime < rhsStartTime;
-                    }
-                    break;
-                }
-                case EFifoSortParameter::PendingJobCount: {
-                    int lhsPendingJobCount = lhs->GetPendingJobCount();
-                    int rhsPendingJobCount = rhs->GetPendingJobCount();
-                    if (lhsPendingJobCount != rhsPendingJobCount) {
-                        return lhsPendingJobCount < rhsPendingJobCount;
-                    }
-                    break;
-                }
-                default:
-                    Y_UNREACHABLE();
-            }
-        }
-        return false;
-    };
-
     TSchedulerElement* bestChild = nullptr;
     for (const auto& child : EnabledChildren_) {
         if (child->IsActive(dynamicAttributesList)) {
-            if (bestChild && isBetter(bestChild, child))
+            if (bestChild && HasHigherPriorityInFifoMode(bestChild, child)) {
                 continue;
+            }
 
             bestChild = child.Get();
         }
@@ -985,6 +957,38 @@ bool TCompositeSchedulerElement::ContainsChild(
     const TSchedulerElementPtr& child)
 {
     return map.find(child) != map.end();
+}
+
+bool TCompositeSchedulerElement::HasHigherPriorityInFifoMode(const TSchedulerElementPtr& lhs, const TSchedulerElementPtr& rhs) const
+{
+    for (auto parameter : FifoSortParameters_) {
+        switch (parameter) {
+            case EFifoSortParameter::Weight:
+                if (lhs->GetWeight() != rhs->GetWeight()) {
+                    return lhs->GetWeight() > rhs->GetWeight();
+                }
+                break;
+            case EFifoSortParameter::StartTime: {
+                const auto& lhsStartTime = lhs->GetStartTime();
+                const auto& rhsStartTime = rhs->GetStartTime();
+                if (lhsStartTime != rhsStartTime) {
+                    return lhsStartTime < rhsStartTime;
+                }
+                break;
+            }
+            case EFifoSortParameter::PendingJobCount: {
+                int lhsPendingJobCount = lhs->GetPendingJobCount();
+                int rhsPendingJobCount = rhs->GetPendingJobCount();
+                if (lhsPendingJobCount != rhsPendingJobCount) {
+                    return lhsPendingJobCount < rhsPendingJobCount;
+                }
+                break;
+            }
+            default:
+                Y_UNREACHABLE();
+        }
+    }
+    return false;
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -1188,7 +1192,6 @@ TJobResources TPool::ComputeResourceLimits() const
 TOperationElementFixedState::TOperationElementFixedState(TOperationPtr operation)
     : Controller_(operation->GetController())
     , OperationId_(operation->GetId())
-    , StartTime_(operation->GetStartTime())
     , Schedulable_(operation->IsSchedulable())
     , Operation_(operation.Get())
 { }
@@ -1489,6 +1492,7 @@ void TOperationElement::UpdateBottomUp(TDynamicAttributesList& dynamicAttributes
     ResourceLimits_ = ComputeResourceLimits();
     MaxPossibleResourceUsage_ = ComputeMaxPossibleResourceUsage();
     PendingJobCount_ = ComputePendingJobCount();
+    StartTime_ = Operation_->GetStartTime();
 
     auto allocationLimits = GetAdjustedResourceLimits(
         ResourceDemand_,
@@ -1531,7 +1535,6 @@ void TOperationElement::UpdateDynamicAttributes(TDynamicAttributesList& dynamicA
     auto& attributes = dynamicAttributesList[GetTreeIndex()];
     attributes.Active = true;
     attributes.BestLeafDescendant = this;
-    attributes.MinSubtreeStartTime = StartTime_;
 
     TSchedulerElement::UpdateDynamicAttributes(dynamicAttributesList);
 }
