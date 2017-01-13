@@ -195,10 +195,12 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             assert cur < next
 
     def test_fifo_by_pending_job_count(self):
-        for i in xrange(1, 4):
+        op_count = 3
+
+        for i in xrange(1, op_count + 1):
             self._create_table("//tmp/in" + str(i))
             self._create_table("//tmp/out" + str(i))
-            write_table("//tmp/in" + str(i), [{"foo": j} for j in xrange(3 * (4 - i))])
+            write_table("//tmp/in" + str(i), [{"foo": j} for j in xrange(op_count * (op_count + 1 - i))])
 
         create("map_node", "//sys/pools/fifo_pool", ignore_existing=True)
         set("//sys/pools/fifo_pool/@mode", "fifo")
@@ -208,13 +210,17 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         time.sleep(0.6)
 
         ops = []
-        for i in xrange(1, 4):
+        for i in xrange(1, op_count + 1):
             ops.append(
                 map(dont_track=True,
-                    command="sleep 0.5; cat >/dev/null",
+                    command="sleep 2.0; cat >/dev/null",
                     in_=["//tmp/in" + str(i)],
                     out="//tmp/out" + str(i),
                     spec={"pool": "fifo_pool", "data_size_per_job": 1}))
+
+        time.sleep(1.0)
+        for index, op in enumerate(ops):
+            assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/fifo_index".format(op.id)) == 2 - index
 
         for op in ops:
             op.track()
@@ -222,6 +228,17 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         finish_times = [get("//sys/operations/{0}/@finish_time".format(op.id)) for op in ops]
         for cur, next in zip(finish_times, finish_times[1:]):
             assert cur > next
+
+    def test_fifo_subpools(self):
+        assert not get("//sys/scheduler/@alerts")
+
+        create("map_node", "//sys/pools/fifo_pool", attributes={"mode": "fifo"})
+        create("map_node", "//sys/pools/fifo_pool/fifo_subpool", attributes={"mode": "fifo"})
+
+        time.sleep(1.5)
+
+        assert get("//sys/scheduler/@alerts")
+        assert get("//sys/scheduler/@alerts")[0]
 
     def test_preparing_operation_transactions(self):
         self._prepare_tables()
