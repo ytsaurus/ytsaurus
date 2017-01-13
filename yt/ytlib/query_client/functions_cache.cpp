@@ -590,36 +590,31 @@ TSharedRef GetImplFingerprint(const std::vector<NChunkClient::NProto::TChunkSpec
     return fingerprint;
 }
 
-void DoFetchImplementations(
+void AppendFunctionImplementation(
     const TFunctionProfilerMapPtr& functionProfilers,
     const TAggregateProfilerMapPtr& aggregateProfilers,
-    const TConstExternalCGInfoPtr& externalCGInfo,
-    std::function<TSharedRef(const TExternalFunctionImpl&)> doFetch)
+    const TExternalFunctionImpl& function,
+    const TSharedRef& impl)
 {
-    for (const auto& function : externalCGInfo->Functions) {
-        const auto& name = function.Name;
+    YCHECK(!impl.Empty());
 
-        LOG_DEBUG("Fetching UDF implementation (Name: %v)", name);
+    const auto& name = function.Name;
 
-        auto impl = doFetch(function);
-        YCHECK(!impl.Empty());
-
-        if (function.IsAggregate) {
-            aggregateProfilers->emplace(name, New<TExternalAggregateCodegen>(
-                name,
-                impl,
-                function.CallingConvention,
-                GetImplFingerprint(function.ChunkSpecs)));
-        } else {
-            functionProfilers->emplace(name, New<TExternalFunctionCodegen>(
-                name,
-                function.SymbolName,
-                impl,
-                function.CallingConvention,
-                function.RepeatedArgType,
-                function.RepeatedArgIndex,
-                GetImplFingerprint(function.ChunkSpecs)));
-        }
+    if (function.IsAggregate) {
+        aggregateProfilers->emplace(name, New<TExternalAggregateCodegen>(
+            name,
+            impl,
+            function.CallingConvention,
+            GetImplFingerprint(function.ChunkSpecs)));
+    } else {
+        functionProfilers->emplace(name, New<TExternalFunctionCodegen>(
+            name,
+            function.SymbolName,
+            impl,
+            function.CallingConvention,
+            function.RepeatedArgType,
+            function.RepeatedArgIndex,
+            GetImplFingerprint(function.ChunkSpecs)));
     }
 }
 
@@ -631,16 +626,30 @@ void FetchImplementations(
     const TConstExternalCGInfoPtr& externalCGInfo,
     TFunctionImplCachePtr cache)
 {
-    DoFetchImplementations(
-        functionProfilers,
-        aggregateProfilers,
-        externalCGInfo,
-        [&] (const TExternalFunctionImpl& info) {
-            TFunctionImplKey key;
-            key.ChunkSpecs = info.ChunkSpecs;
-            return WaitFor(cache->FetchImplementation(key, externalCGInfo->NodeDirectory))
-                .ValueOrThrow()->File;
-        });
+    std::vector<TFuture<TFunctionImplCacheEntryPtr>> asyncResults;
+
+    for (const auto& function : externalCGInfo->Functions) {
+        const auto& name = function.Name;
+
+        LOG_DEBUG("Fetching UDF implementation (Name: %v)", name);
+
+        TFunctionImplKey key;
+        key.ChunkSpecs = function.ChunkSpecs;
+
+        auto cacheEntry = BIND(&TFunctionImplCache::FetchImplementation, cache)
+            .AsyncVia(GetCurrentInvoker())
+            .Run(key, externalCGInfo->NodeDirectory);
+
+        asyncResults.push_back(cacheEntry);
+    }
+
+    auto results = WaitFor(Combine(asyncResults))
+        .ValueOrThrow();
+
+    for (size_t index = 0; index < externalCGInfo->Functions.size(); ++index) {
+        const auto& function = externalCGInfo->Functions[index];
+        AppendFunctionImplementation(functionProfilers, aggregateProfilers, function, results[index]->File);
+    }
 }
 
 void FetchJobImplementations(
@@ -649,18 +658,18 @@ void FetchJobImplementations(
     const TConstExternalCGInfoPtr& externalCGInfo,
     Stroka implementationPath)
 {
-    DoFetchImplementations(
-        functionProfilers,
-        aggregateProfilers,
-        externalCGInfo,
-        [&] (const TExternalFunctionImpl& info) {
-            auto path = implementationPath + "/" + info.Name;
+     for (const auto& function : externalCGInfo->Functions) {
+        const auto& name = function.Name;
+
+        LOG_DEBUG("Fetching UDF implementation (Name: %v)", name);
+
+        auto path = implementationPath + "/" + function.Name;
             TFileInput file(path);
-            return TSharedRef::FromString(file.ReadAll());
-        });
+        auto impl =  TSharedRef::FromString(file.ReadAll());
+
+        AppendFunctionImplementation(functionProfilers, aggregateProfilers, function, impl);
+    }
 }
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
