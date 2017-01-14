@@ -389,7 +389,7 @@ public:
 
     void PingTransaction(const TTransactionId& transactionId, bool pingAncestors)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
         LeaseTracker_->PingTransaction(transactionId, pingAncestors);
     }
