@@ -2229,6 +2229,7 @@ private:
                 .Item("progress").BeginMap()
                     .DoIf(hasControllerProgress, BIND([=] (IYsonConsumer* consumer) {
                         WaitFor(
+                            // TODO(ignat): maybe use cached version here?
                             BIND(&IOperationController::BuildProgress, controller)
                                 .AsyncVia(controller->GetInvoker())
                                 .Run(consumer));

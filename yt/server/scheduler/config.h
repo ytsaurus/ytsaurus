@@ -545,6 +545,8 @@ public:
 
     TDuration OperationTimeLimitCheckPeriod;
 
+    TDuration OperationBuildProgressPeriod;
+
     TDuration TaskUpdatePeriod;
 
     //! Jobs running on node are logged periodically or when they change their state.
@@ -779,6 +781,9 @@ public:
 
         RegisterParameter("operation_time_limit_check_period", OperationTimeLimitCheckPeriod)
             .Default(TDuration::Seconds(1));
+
+        RegisterParameter("operation_build_progress_period", OperationBuildProgressPeriod)
+            .Default(TDuration::Seconds(3));
 
         RegisterParameter("jobs_logging_period", JobsLoggingPeriod)
             .Default(TDuration::Seconds(30));
