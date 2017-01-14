@@ -1045,6 +1045,10 @@ TOperationControllerBase::TOperationControllerBase(
     , EventLogValueConsumer_(Host->CreateLogConsumer())
     , EventLogTableConsumer_(new TTableConsumer(EventLogValueConsumer_.get()))
     , CodicilData_(MakeOperationCodicilString(OperationId))
+    , ProgressBuildExecutor_(New<TPeriodicExecutor>(
+        GetCancelableInvoker(),
+        BIND(&TThis::BuildAndSaveProgress, MakeWeak(this)),
+        Config->OperationBuildProgressPeriod))
 {
     Logger.AddTag("OperationId: %v", OperationId);
 }
@@ -1386,6 +1390,7 @@ void TOperationControllerBase::SafeMaterialize()
         InitIntermediateChunkScraper();
 
         CheckTimeLimitExecutor->Start();
+        ProgressBuildExecutor_->Start();
 
         State = EControllerState::Running;
     } catch (const std::exception& ex) {
@@ -1435,6 +1440,7 @@ void TOperationControllerBase::Revive()
     ReinstallLivePreview();
 
     CheckTimeLimitExecutor->Start();
+    ProgressBuildExecutor_->Start();
 
     State = EControllerState::Running;
 }
@@ -3017,6 +3023,8 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
 
     State = EControllerState::Finished;
 
+    BuildAndSaveProgress();
+
     Host->OnOperationCompleted(OperationId);
 }
 
@@ -3030,6 +3038,8 @@ void TOperationControllerBase::OnOperationFailed(const TError& error)
     }
 
     State = EControllerState::Finished;
+
+    BuildAndSaveProgress();
 
     Host->OnOperationFailed(OperationId, error);
 }
@@ -4426,7 +4436,9 @@ void TOperationControllerBase::RemoveJoblet(const TJobId& jobId)
 
 bool TOperationControllerBase::HasProgress() const
 {
-    return IsPrepared();
+    return IsPrepared() &&
+        ProgressString_.GetType() != EYsonType::None &&
+        BriefProgressString_.GetType() != EYsonType::None;
 }
 
 void TOperationControllerBase::BuildOperationAttributes(IYsonConsumer* consumer) const
@@ -4443,9 +4455,8 @@ void TOperationControllerBase::BuildOperationAttributes(IYsonConsumer* consumer)
 
 void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
 {
-    VERIFY_INVOKER_AFFINITY(Invoker);
-
     BuildYsonMapFluently(consumer)
+        .Item("build_time").Value(TInstant::Now())
         .Item("jobs").Value(JobCounter)
         .Item("ready_job_count").Value(GetPendingJobCount())
         .Item("job_statistics").Value(JobStatistics)
@@ -4475,10 +4486,49 @@ void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
 
 void TOperationControllerBase::BuildBriefProgress(IYsonConsumer* consumer) const
 {
-    VERIFY_INVOKER_AFFINITY(Invoker);
-
     BuildYsonMapFluently(consumer)
         .Item("jobs").Value(JobCounter);
+}
+
+void TOperationControllerBase::BuildAndSaveProgress()
+{
+    auto progressString = BuildYsonStringFluently()
+        .BeginMap()
+            .Do(BIND([=] (IYsonConsumer* consumer) {
+                WaitFor(
+                    BIND(&IOperationController::BuildProgress, MakeStrong(this))
+                        .AsyncVia(GetInvoker())
+                        .Run(consumer));
+            }))
+        .EndMap();
+
+    auto briefProgressString = BuildYsonStringFluently()
+        .BeginMap()
+            .Do(BIND([=] (IYsonConsumer* consumer) {
+                WaitFor(
+                    BIND(&IOperationController::BuildBriefProgress, MakeStrong(this))
+                        .AsyncVia(GetInvoker())
+                        .Run(consumer));
+            }))
+        .EndMap();
+
+    {
+        TGuard<TSpinLock> guard(ProgressLock_);
+        ProgressString_ = progressString;
+        BriefProgressString_ = briefProgressString;
+    }
+}
+
+TYsonString TOperationControllerBase::GetProgress() const
+{
+    TGuard<TSpinLock> guard(ProgressLock_);
+    return ProgressString_;
+}
+
+TYsonString TOperationControllerBase::GetBriefProgress() const
+{
+    TGuard<TSpinLock> guard(ProgressLock_);
+    return BriefProgressString_;
 }
 
 void TOperationControllerBase::UpdateJobStatistics(const TJobSummary& jobSummary)
@@ -5268,6 +5318,16 @@ public:
     virtual TYsonString BuildInputPathYson(const TJobId& jobId) const override
     {
         return Underlying_->BuildInputPathYson(jobId);
+    }
+
+    virtual TYsonString GetProgress() const override
+    {
+        return Underlying_->GetProgress();
+    }
+
+    virtual TYsonString GetBriefProgress() const override
+    {
+        return Underlying_->GetBriefProgress();
     }
 
 private:

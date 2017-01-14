@@ -189,6 +189,9 @@ public:
     virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildMemoryDigestStatistics(NYson::IYsonConsumer* consumer) const override;
 
+    virtual NYson::TYsonString GetProgress() const override;
+    virtual NYson::TYsonString GetBriefProgress() const override;
+
     NYson::TYsonString BuildInputPathYson(const TJobId& jobId) const override;
 
     virtual void Persist(const TPersistenceContext& context) override;
@@ -1113,6 +1116,14 @@ private:
 
     std::unique_ptr<IHistogram> EstimatedInputDataSizeHistogram_;
     std::unique_ptr<IHistogram> InputDataSizeHistogram_;
+
+    NYson::TYsonString ProgressString_;
+    NYson::TYsonString BriefProgressString_;
+
+    TSpinLock ProgressLock_;
+    NConcurrency::TPeriodicExecutorPtr ProgressBuildExecutor_;
+
+    void BuildAndSaveProgress();
 
     void UpdateMemoryDigests(TJobletPtr joblet, const NJobTrackerClient::TStatistics& statistics);
 
