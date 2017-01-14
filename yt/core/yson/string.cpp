@@ -11,29 +11,36 @@ namespace NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TYsonString::TYsonString()
+    : Null_(true)
+{ }
+
 TYsonString::TYsonString(const Stroka& data, EYsonType type)
-    : Data_(data)
+    : Null_(false)
+    , Data_(data)
     , Type_(type)
 { }
 
 TYsonString::operator bool() const
 {
-    return Type_ != EYsonType::None;
+    return !Null_;
 }
 
 const Stroka& TYsonString::GetData() const
 {
+    YCHECK(!Null_);
     return Data_;
 }
 
 EYsonType TYsonString::GetType() const
 {
+    YCHECK(!Null_);
     return Type_;
 }
 
 void TYsonString::Validate() const
 {
-    if (Type_ != EYsonType::None) {
+    if (!Null_) {
         TStringInput input(Data_);
         ParseYson(TYsonInput(&input, Type_), GetNullYsonConsumer());
     }
@@ -48,7 +55,12 @@ void TYsonString::Save(TStreamSaveContext& context) const
 void TYsonString::Load(TStreamLoadContext& context)
 {
     NYT::Load(context, Data_);
-    Type_ = Data_.empty() ? EYsonType::None : EYsonType::Node;
+    if (Data_.empty()) {
+        Null_ = true;
+    } else {
+        Null_ = false;
+        Type_ = EYsonType::Node;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

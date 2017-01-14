@@ -43,34 +43,37 @@ bool operator != (const IAttributeDictionary& lhs, const IAttributeDictionary& r
 class TEphemeralAttributeDictionary
     : public IAttributeDictionary
 {
-    typedef yhash_map<Stroka, TYPath> TAttributeMap;
-    TAttributeMap Map;
-
+public:
     virtual std::vector<Stroka> List() const override
     {
         std::vector<Stroka> keys;
-        for (const auto& pair : Map) {
+        keys.reserve(Map_.size());
+        for (const auto& pair : Map_) {
             keys.push_back(pair.first);
         }
         return keys;
     }
 
-    virtual TNullable<TYsonString> FindYson(const Stroka& key) const override
+    virtual TYsonString FindYson(const Stroka& key) const override
     {
-        auto it = Map.find(key);
-        return it == Map.end() ? Null : MakeNullable(TYsonString(it->second));
+        auto it = Map_.find(key);
+        return it == Map_.end() ? TYsonString() : TYsonString(it->second);
     }
 
     virtual void SetYson(const Stroka& key, const TYsonString& value) override
     {
         Y_ASSERT(value.GetType() == EYsonType::Node);
-        Map[key] = value.GetData();
+        Map_[key] = value.GetData();
     }
 
     virtual bool Remove(const Stroka& key) override
     {
-        return Map.erase(key) > 0;
+        return Map_.erase(key) > 0;
     }
+
+public:
+    yhash_map<Stroka, Stroka> Map_;
+
 };
 
 std::unique_ptr<IAttributeDictionary> CreateEphemeralAttributes()
@@ -89,9 +92,9 @@ public:
         return std::vector<Stroka>();
     }
 
-    virtual TNullable<TYsonString> FindYson(const Stroka& key) const override
+    virtual TYsonString FindYson(const Stroka& key) const override
     {
-        return Null;
+        return TYsonString();
     }
 
     virtual void SetYson(const Stroka& key, const TYsonString& value) override

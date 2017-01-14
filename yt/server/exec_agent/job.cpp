@@ -313,7 +313,7 @@ public:
         }
     }
 
-    virtual TNullable<TYsonString> GetStatistics() const override
+    virtual TYsonString GetStatistics() const override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 

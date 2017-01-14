@@ -12,11 +12,11 @@ using namespace NYson;
 
 TYsonString IAttributeDictionary::GetYson(const Stroka& key) const
 {
-    const auto& result = FindYson(key);
+    auto result = FindYson(key);
     if (!result) {
         ThrowNoSuchAttribute(key);
     }
-    return *result;
+    return result;
 }
 
 void IAttributeDictionary::MergeFrom(const IMapNodePtr other)
@@ -53,7 +53,7 @@ void IAttributeDictionary::Clear()
 
 bool IAttributeDictionary::Contains(const Stroka& key) const
 {
-    return FindYson(key).HasValue();
+    return FindYson(key).operator bool();
 }
 
 std::unique_ptr<IAttributeDictionary> IAttributeDictionary::FromMap(IMapNodePtr node)

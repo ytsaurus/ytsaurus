@@ -1547,7 +1547,7 @@ private:
 
             auto writerConfig = attributes.FindYson("chunk_writer");
             if (writerConfig) {
-                ReconfigureYsonSerializable(Config_, *writerConfig);
+                ReconfigureYsonSerializable(Config_, writerConfig);
             }
 
             LOG_INFO("Extended attributes received (Account: %v, CompressionCodec: %v, ErasureCodec: %v)",

@@ -902,7 +902,7 @@ void TOperationControllerBase::TTask::AddFinalOutputSpecs(
         auto* outputSpec = schedulerJobSpecExt->add_output_table_specs();
         outputSpec->set_table_writer_options(ConvertToYsonString(table.Options).GetData());
         if (table.WriterConfig) {
-            outputSpec->set_table_writer_config(table.WriterConfig->GetData());
+            outputSpec->set_table_writer_config(table.WriterConfig.GetData());
         }
         ToProto(outputSpec->mutable_table_schema(), table.TableUploadOptions.TableSchema);
         ToProto(outputSpec->mutable_chunk_list_id(), joblet->ChunkListIds[index]);
@@ -3979,8 +3979,10 @@ void TOperationControllerBase::GetUserFilesAttributes()
                     case EObjectType::Table:
                         file.IsDynamic = attributes.Get<bool>("dynamic");
                         file.Schema = attributes.Get<TTableSchema>("schema");
-                        file.Format = attributes.FindYson("format").Get(TYsonString());
-                        file.Format = file.Path.GetFormat().Get(file.Format);
+                        file.Format = attributes.FindYson("format");
+                        if (!file.Format) {
+                            file.Format = file.Path.GetFormat();
+                        }
                         // Validate that format is correct.
                         try {
                             if (!file.Format) {

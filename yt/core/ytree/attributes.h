@@ -18,8 +18,8 @@ struct IAttributeDictionary
     // Returns the list of all attribute names.
     virtual std::vector<Stroka> List() const = 0;
 
-    //! Returns the value of the attribute (NULL indicates that the attribute is not found).
-    virtual TNullable<NYson::TYsonString> FindYson(const Stroka& key) const = 0;
+    //! Returns the value of the attribute (null indicates that the attribute is not found).
+    virtual NYson::TYsonString FindYson(const Stroka& key) const = 0;
 
     //! Sets the value of the attribute.
     virtual void SetYson(const Stroka& key, const NYson::TYsonString& value) = 0;

@@ -2363,10 +2363,10 @@ private:
             auto jobYPathService = IYPathService::FromProducer(jobYsonCallback)
                 ->Via(nodeShard->GetInvoker());
 
+            static const auto EmptyMapYson = TYsonString("{}");
             auto statisticsYsonCallback = BIND([=] (IYsonConsumer* consumer) {
                 auto statistics = nodeShard->GetJobStatistics(jobId);
-                auto statisticsYson = statistics ? std::move(*statistics) : TYsonString("{}");
-                consumer->OnRaw(statisticsYson);
+                consumer->OnRaw(statistics ? statistics : EmptyMapYson);
             });
 
             auto statisticsYPathService = New<TCompositeMapService>()

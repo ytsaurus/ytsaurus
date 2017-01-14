@@ -154,7 +154,7 @@ TIntrusivePtr<T> UpdateYsonSerializable(
 template <class T>
 TIntrusivePtr<T> UpdateYsonSerializable(
     TIntrusivePtr<T> obj,
-    const TNullable<NYson::TYsonString>& patch);
+    const NYson::TYsonString& patch);
 
 template <class T>
 bool ReconfigureYsonSerializable(

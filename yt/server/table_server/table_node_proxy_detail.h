@@ -41,8 +41,8 @@ protected:
     virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override;
     virtual void ValidateCustomAttributeUpdate(
         const Stroka& key,
-        const TNullable<NYson::TYsonString>& oldValue,
-        const TNullable<NYson::TYsonString>& newValue) override;
+        const NYson::TYsonString& oldValue,
+        const NYson::TYsonString& newValue) override;
     virtual void ValidateFetchParameters(
         const NChunkClient::TChannel& channel,
         const std::vector<NChunkClient::TReadRange>& ranges) override;

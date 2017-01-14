@@ -59,7 +59,7 @@ typename TNullableTraits<T>::TNullableType IAttributeDictionary::Find(const Stro
         return typename TNullableTraits<T>::TNullableType();
     }
     try {
-        return ConvertTo<T>(*yson);
+        return ConvertTo<T>(yson);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error parsing attribute %Qv",
             key)

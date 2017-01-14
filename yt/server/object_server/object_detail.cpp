@@ -95,22 +95,22 @@ public:
         return keys;
     }
 
-    virtual TNullable<TYsonString> FindYson(const Stroka& key) const override
+    virtual TYsonString FindYson(const Stroka& key) const override
     {
         const auto* object = Proxy_->Object_;
         const auto* attributes = object->GetAttributes();
         if (!attributes) {
-            return Null;
+            return TYsonString();
         }
 
         auto it = attributes->Attributes().find(key);
         if (it == attributes->Attributes().end()) {
-            return Null;
+            return TYsonString();
         }
 
         // Attribute cannot be empty (i.e. deleted) in null transaction.
         Y_ASSERT(it->second);
-        return it->second;
+        return *it->second;
     }
 
     virtual void SetYson(const Stroka& key, const TYsonString& value) override
@@ -126,7 +126,7 @@ public:
     virtual bool Remove(const Stroka& key) override
     {
         auto oldValue = FindYson(key);
-        Proxy_->GuardedValidateCustomAttributeUpdate(key, oldValue, Null);
+        Proxy_->GuardedValidateCustomAttributeUpdate(key, oldValue, TYsonString());
 
         auto* object = Proxy_->Object_;
         auto* attributes = object->GetMutableAttributes();
@@ -296,7 +296,7 @@ void TObjectProxyBase::WriteAttributesFragment(
 
             auto value = customAttributes.FindYson(key);
             if (value) {
-                attributeValueConsumer.OnRaw(*value);
+                attributeValueConsumer.OnRaw(value);
                 continue;
             }
 
@@ -600,34 +600,34 @@ bool TObjectProxyBase::RemoveBuiltinAttribute(const Stroka& /*key*/)
 
 void TObjectProxyBase::ValidateCustomAttributeUpdate(
     const Stroka& /*key*/,
-    const TNullable<TYsonString>& /*oldValue*/,
-    const TNullable<TYsonString>& /*newValue*/)
+    const TYsonString& /*oldValue*/,
+    const TYsonString& /*newValue*/)
 { }
 
 void TObjectProxyBase::GuardedValidateCustomAttributeUpdate(
     const Stroka& key,
-    const TNullable<TYsonString>& oldValue,
-    const TNullable<TYsonString>& newValue)
+    const TYsonString& oldValue,
+    const TYsonString& newValue)
 {
     try {
         if (newValue) {
-            ValidateCustomAttributeLength(*newValue);
+            ValidateCustomAttributeLength(newValue);
         }
         ValidateCustomAttributeUpdate(key, oldValue, newValue);
     } catch (const std::exception& ex) {
         if (newValue) {
             THROW_ERROR_EXCEPTION("Error setting custom attribute %Qv",
                 ToYPathLiteral(key))
-                    << ex;
+                << ex;
         } else {
             THROW_ERROR_EXCEPTION("Error removing custom attribute %Qv",
                 ToYPathLiteral(key))
-                    << ex;
+                << ex;
         }
     }
 }
 
-void TObjectProxyBase::ValidateCustomAttributeLength(const NYson::TYsonString& value)
+void TObjectProxyBase::ValidateCustomAttributeLength(const TYsonString& value)
 {
     auto size = value.GetData().length();
     auto limit = Bootstrap_->GetConfig()->CypressManager->MaxAttributeSize;

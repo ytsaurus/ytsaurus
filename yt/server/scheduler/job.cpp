@@ -227,7 +227,7 @@ TJobSummary::TJobSummary(const TJobId& id)
 void TJobSummary::ParseStatistics()
 {
     if (StatisticsYson) {
-        Statistics = ConvertTo<NJobTrackerClient::TStatistics>(*StatisticsYson);
+        Statistics = ConvertTo<NJobTrackerClient::TStatistics>(StatisticsYson);
         // NB: we should remove timestamp from the statistics as it becomes a YSON-attribute
         // when writing it to the event log, but top-level attributes are disallowed in table rows.
         Statistics.SetTimestamp(Null);

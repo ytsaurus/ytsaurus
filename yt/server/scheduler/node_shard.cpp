@@ -396,12 +396,11 @@ TYsonString TNodeShard::StraceJob(const TJobId& jobId, const Stroka& user)
     return TYsonString(rsp->trace());
 }
 
-TNullable<TYsonString> TNodeShard::GetJobStatistics(const TJobId& jobId)
+TYsonString TNodeShard::GetJobStatistics(const TJobId& jobId)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
     auto job = GetJobOrThrow(jobId);
-
     return job->StatisticsYson();
 }
 

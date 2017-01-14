@@ -137,7 +137,7 @@ struct ISystemAttributeProvider
 
     //! Wraps #GetBuiltinAttribute and returns the YSON string instead
     //! of writing it into a consumer.
-    TNullable<NYson::TYsonString> FindBuiltinAttribute(const Stroka& key);
+    NYson::TYsonString FindBuiltinAttribute(const Stroka& key);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -380,7 +380,7 @@ TNullable<T> FindAttribute(const TRichYPath& path, const Stroka& key)
     });
 }
 
-TNullable<TYsonString> FindAttributeYson(const TRichYPath& path, const Stroka& key)
+TYsonString FindAttributeYson(const TRichYPath& path, const Stroka& key)
 {
     return RunAttributeAccessor(path, key, [&] () {
         return path.Attributes().FindYson(key);
@@ -510,7 +510,7 @@ TNullable<bool> TRichYPath::GetExecutable() const
     return FindAttribute<bool>(*this, "executable");
 }
 
-TNullable<TYsonString> TRichYPath::GetFormat() const
+TYsonString TRichYPath::GetFormat() const
 {
     return FindAttributeYson(*this, "format");
 }
