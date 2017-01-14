@@ -119,9 +119,9 @@ public:
             return 1;
         }
 
-        i64 sliceDataSize = Clamp(
-            static_cast<i64>(Options_->SliceDataSizeMultiplier * InputDataSize_ / JobCount_),
-            (i64)1,
+        i64 sliceDataSize = Clamp<i64>(
+            Options_->SliceDataSizeMultiplier * InputDataSize_ / JobCount_,
+            1,
             Options_->MaxSliceDataSize);
 
         if (sliceDataSize < Options_->MinSliceDataSize) {
@@ -227,9 +227,9 @@ public:
             return 1;
         }
 
-        i64 sliceDataSize = Clamp(
-            static_cast<i64>(Options_->SliceDataSizeMultiplier * InputDataSize_ / JobCount_),
-            (i64) 1,
+        i64 sliceDataSize = Clamp<i64>(
+            Options_->SliceDataSizeMultiplier * InputDataSize_ / JobCount_,
+            1,
             Options_->MaxSliceDataSize);
 
         if (sliceDataSize < Options_->MinSliceDataSize) {
@@ -355,9 +355,9 @@ public:
             return 1;
         }
 
-        i64 sliceDataSize = Clamp(
-            static_cast<i64>(Options_->SliceDataSizeMultiplier * InputDataSize_ / JobCount_),
-            (i64) 1,
+        i64 sliceDataSize = Clamp<i64>(
+            Options_->SliceDataSizeMultiplier * InputDataSize_ / JobCount_,
+            1,
             Options_->MaxSliceDataSize);
 
         if (sliceDataSize < Options_->MinSliceDataSize) {
