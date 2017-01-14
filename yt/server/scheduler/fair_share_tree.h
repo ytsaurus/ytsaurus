@@ -283,6 +283,8 @@ public:
     virtual int GetMaxOperationCount() const = 0;
     virtual int GetMaxRunningOperationCount() const = 0;
 
+    virtual bool AreImmediateOperationsFobidden() const = 0;
+
     virtual void BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap) override;
 
 protected:
@@ -375,6 +377,8 @@ public:
 
     virtual int GetMaxRunningOperationCount() const override;
     virtual int GetMaxOperationCount() const override;
+
+    virtual bool AreImmediateOperationsFobidden() const override;
 
     virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
 
@@ -710,6 +714,8 @@ public:
 
     virtual int GetMaxRunningOperationCount() const override;
     virtual int GetMaxOperationCount() const override;
+
+    virtual bool AreImmediateOperationsFobidden() const override;
 
     virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
     TRootElementPtr Clone();
