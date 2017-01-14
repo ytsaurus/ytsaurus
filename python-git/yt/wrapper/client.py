@@ -1,6 +1,6 @@
 from .common import update
 from .default_config import get_default_config
-from .config import get_config, get_option, set_option
+from .config import get_config, set_option
 from .client_state import ClientState
 from . import client_api
 

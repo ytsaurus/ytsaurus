@@ -237,7 +237,7 @@ class TestOperations(object):
 
         stderr_table = TEST_DIR + "/stderr_table"
         try:
-            with yt.Transaction() as t:
+            with yt.Transaction():
                 yt.run_map("echo map >&2 ; cat", table, other_table, stderr_table=stderr_table)
                 raise RuntimeError
         except RuntimeError:
