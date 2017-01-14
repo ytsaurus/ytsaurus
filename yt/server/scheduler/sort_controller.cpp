@@ -1437,7 +1437,7 @@ protected:
 
         ++CompletedPartitionCount;
 
-        LOG_INFO("Partition completed (Partition: %v)", partition->Index);
+        LOG_DEBUG("Partition completed (Partition: %v)", partition->Index);
     }
 
     bool IsSortedMergeNeeded(TPartitionPtr partition) const
