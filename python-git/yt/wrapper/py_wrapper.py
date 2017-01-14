@@ -86,6 +86,7 @@ def is_running_interactively():
 def is_arcadia_python():
     try:
         import __res
+        assert __res
         return True
     except ImportError:
         pass
