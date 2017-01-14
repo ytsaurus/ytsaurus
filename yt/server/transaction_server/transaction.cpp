@@ -102,7 +102,7 @@ TYsonString TTransaction::GetErrorDescription() const
         if (it == attributeMap.end()) {
             return;
         }
-        customAttributes->SetYson(it->first, *it->second);
+        customAttributes->SetYson(it->first, it->second);
     };
     copyCustomAttribute("operation_id");
     copyCustomAttribute("operation_title");

@@ -110,7 +110,7 @@ public:
 
         // Attribute cannot be empty (i.e. deleted) in null transaction.
         Y_ASSERT(it->second);
-        return *it->second;
+        return it->second;
     }
 
     virtual void SetYson(const Stroka& key, const TYsonString& value) override

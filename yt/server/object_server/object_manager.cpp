@@ -1184,11 +1184,11 @@ void TObjectManager::HydraDestroyObjects(NProto::TReqDestroyObjects* request)
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     for (const auto& pair : crossCellRequestMap) {
         auto cellTag = pair.first;
-        const auto& request = pair.second;
-        multicellManager->PostToMaster(request, cellTag);
+        const auto& perCellRequest = pair.second;
+        multicellManager->PostToMaster(perCellRequest, cellTag);
         LOG_DEBUG_UNLESS(IsRecovery(), "Requesting to unreference imported objects (CellTag: %v, Count: %v)",
             cellTag,
-            request.entries_size());
+            perCellRequest.entries_size());
     }
 
     GarbageCollector_->CheckEmpty();
@@ -1326,7 +1326,7 @@ std::unique_ptr<NYTree::IAttributeDictionary> TObjectManager::GetReplicatedAttri
     const auto* customAttributes = object->GetAttributes();
     if (customAttributes) {
         for (const auto& pair : object->GetAttributes()->Attributes()) {
-            replicateKey(pair.first, *pair.second);
+            replicateKey(pair.first, pair.second);
         }
     }
     return attributes;

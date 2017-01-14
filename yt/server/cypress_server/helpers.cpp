@@ -128,7 +128,7 @@ yhash_map<Stroka, NYson::TYsonString> GetNodeAttributes(
         if (userAttributes) {
             for (const auto& pair : userAttributes->Attributes()) {
                 if (pair.second) {
-                    result[pair.first] = pair.second.Get();
+                    result[pair.first] = pair.second;
                 } else {
                     YCHECK(result.erase(pair.first) == 1);
                 }

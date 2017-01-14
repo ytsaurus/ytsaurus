@@ -18,7 +18,17 @@ void TAttributeSet::Save(NCellMaster::TSaveContext& context) const
 void TAttributeSet::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
-    Load(context, Attributes_);
+    // COMPAT(babenko)
+    if (context.GetVersion() < 501) {
+        yhash_map<Stroka, TNullable<NYson::TYsonString>> attributes;
+        Load(context, attributes);
+        Attributes_.clear();
+        for (const auto& pair : attributes) {
+            YCHECK(Attributes_.emplace(pair.first, pair.second ? *pair.second : NYson::TYsonString()).second);
+        }
+    } else {
+        Load(context, Attributes_);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
