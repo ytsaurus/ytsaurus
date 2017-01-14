@@ -55,13 +55,13 @@ class Transaction(object):
     """
     It is designed to be used by with_statement::
 
-      with Transaction():
-         ...
-         lock("//home/my_node")
-         ...
-         with Transaction():
-             ...
-             yt.run_map(...)
+    >>> with Transaction():
+    >>>    ...
+    >>>    lock("//home/my_node")
+    >>>    ...
+    >>>    with Transaction():
+    >>>        ...
+    >>>        yt.run_map(...)
 
     Caution: if you use this class then do not use directly methods \*_transaction.
 
@@ -118,9 +118,9 @@ class Transaction(object):
 
         NOTE: abort() must not be called explicitly when transaction is used with with_statement::
 
-          with Transaction() as t:
-              ...
-              t.abort() # Wrong!
+        >>> with Transaction() as t:
+        >>>     ...
+        >>>     t.abort()  # Wrong!
         """
         if self._used_with_statement:
             raise RuntimeError("Transaction is used with with_statement; explicit abort() is not allowed")
@@ -135,9 +135,9 @@ class Transaction(object):
 
         NOTE: commit() must not be called explicitly when transaction is used with with_statement::
 
-          with Transaction() as t:
-              ...
-              t.commit() # Wrong!
+        >>> with Transaction() as t:
+        >>>     ...
+        >>>     t.commit()  # Wrong!
         """
         if self._used_with_statement:
             raise RuntimeError("Transaction is used with with_statement; explicit commit() is not allowed")
