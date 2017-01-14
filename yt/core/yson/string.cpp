@@ -48,18 +48,36 @@ void TYsonString::Validate() const
 
 void TYsonString::Save(TStreamSaveContext& context) const
 {
-    // XXX(babenko): what about empty fragments?
-    NYT::Save(context, Data_);
+    using NYT::Save;
+    if (Null_) {
+        Save(context, static_cast<i32>(-1));
+    } else {
+        Save(context, static_cast<i32>(Type_));
+        Save(context, Data_);
+    }
 }
 
 void TYsonString::Load(TStreamLoadContext& context)
 {
-    NYT::Load(context, Data_);
-    if (Data_.empty()) {
-        Null_ = true;
+    using NYT::Load;
+    // COMPAT(babenko)
+    if (context.GetVersion() < 501) {
+        Load(context, Data_);
+        if (Data_.empty()) {
+            Null_ = true;
+        } else {
+            Null_ = false;
+            Type_ = EYsonType::Node;
+        }
     } else {
-        Null_ = false;
-        Type_ = EYsonType::Node;
+        Type_ = static_cast<EYsonType>(Load<i32>(context));
+        if (static_cast<i32>(Type_) == -1) {
+            Null_ = true;
+            Data_.clear();
+        } else {
+            Null_ = false;
+            Load(context, Data_);
+        }
     }
 }
 
