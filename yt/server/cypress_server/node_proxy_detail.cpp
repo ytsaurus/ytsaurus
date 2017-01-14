@@ -71,9 +71,7 @@ public:
             if (userAttributes) {
                 auto it = userAttributes->Attributes().find(name);
                 if (it != userAttributes->Attributes().end()) {
-                    // TODO(babenko): simplify
-                    const auto& result = it->second;
-                    return result ? *result : TYsonString();
+                    return it->second;
                 }
             }
         }
@@ -115,7 +113,7 @@ public:
             if (userAttributes) {
                 auto it = userAttributes->Attributes().find(key);
                 if (it != userAttributes->Attributes().end()) {
-                    contains = it->second.HasValue();
+                    contains = it->second.operator bool();
                     if (contains) {
                         containingTransaction = node->GetTransaction();
                     }
@@ -138,7 +136,7 @@ public:
             YCHECK(userAttributes->Attributes().erase(key) == 1);
         } else {
             YCHECK(!containingTransaction);
-            userAttributes->Attributes()[key] = Null;
+            userAttributes->Attributes()[key] = TYsonString();
         }
 
         cypressManager->SetModified(Proxy_->TrunkNode, Proxy_->Transaction);
@@ -204,7 +202,6 @@ private:
         auto usage = New<TSerializableClusterResources>(Bootstrap_->GetChunkManager(), ResourceUsage_);
         Promise_.Set(ConvertToYsonString(usage));
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
