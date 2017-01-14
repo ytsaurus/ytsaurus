@@ -55,16 +55,16 @@ private:
 
     virtual void ValidateCustomAttributeUpdate(
         const Stroka& key,
-        const TNullable<TYsonString>& oldValue,
-        const TNullable<TYsonString>& newValue) override
+        const TYsonString& oldValue,
+        const TYsonString& newValue) override
     {
         if (key == "executable" && newValue) {
-            ConvertTo<bool>(*newValue);
+            ConvertTo<bool>(newValue);
             return;
         }
 
         if (key == "file_name" && newValue) {
-            ConvertTo<Stroka>(*newValue);
+            ConvertTo<Stroka>(newValue);
             return;
         }
 

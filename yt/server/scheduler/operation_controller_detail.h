@@ -361,7 +361,7 @@ protected:
 
         NYson::TYsonString EffectiveAcl;
 
-        TNullable<NYson::TYsonString> WriterConfig;
+        NYson::TYsonString WriterConfig;
 
         bool IsBeginUploadCompleted() const;
         void Persist(const TPersistenceContext& context);

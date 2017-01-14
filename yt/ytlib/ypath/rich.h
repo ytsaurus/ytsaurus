@@ -70,7 +70,7 @@ public:
     TNullable<bool> GetExecutable() const;
 
     // "format"
-    TNullable<NYson::TYsonString> GetFormat() const;
+    NYson::TYsonString GetFormat() const;
 
     // "schema"
     TNullable<NTableClient::TTableSchema> GetSchema() const;

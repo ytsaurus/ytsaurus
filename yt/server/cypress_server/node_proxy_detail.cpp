@@ -62,7 +62,7 @@ public:
         return std::vector<Stroka>(keys.begin(), keys.end());
     }
 
-    virtual TNullable<TYsonString> FindYson(const Stroka& name) const override
+    virtual TYsonString FindYson(const Stroka& name) const override
     {
         const auto& cypressManager = Proxy_->Bootstrap_->GetCypressManager();
         auto originators = cypressManager->GetNodeOriginators(Proxy_->GetTransaction(), Proxy_->GetTrunkNode());
@@ -71,16 +71,20 @@ public:
             if (userAttributes) {
                 auto it = userAttributes->Attributes().find(name);
                 if (it != userAttributes->Attributes().end()) {
-                    return it->second;
+                    // TODO(babenko): simplify
+                    const auto& result = it->second;
+                    return result ? *result : TYsonString();
                 }
             }
         }
 
-        return Null;
+        return TYsonString();
     }
 
     virtual void SetYson(const Stroka& key, const TYsonString& value) override
     {
+        Y_ASSERT(value);
+
         auto oldValue = FindYson(key);
         Proxy_->GuardedValidateCustomAttributeUpdate(key, oldValue, value);
 
@@ -102,7 +106,7 @@ public:
         auto originators = cypressManager->GetNodeReverseOriginators(Proxy_->GetTransaction(), Proxy_->GetTrunkNode());
 
         auto oldValue = FindYson(key);
-        Proxy_->GuardedValidateCustomAttributeUpdate(key, oldValue, Null);
+        Proxy_->GuardedValidateCustomAttributeUpdate(key, oldValue, TYsonString());
 
         const TTransaction* containingTransaction = nullptr;
         bool contains = false;

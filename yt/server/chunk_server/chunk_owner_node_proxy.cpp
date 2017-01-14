@@ -746,14 +746,14 @@ TFuture<TYsonString> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(const Stroka
 
 void TChunkOwnerNodeProxy::ValidateCustomAttributeUpdate(
     const Stroka& key,
-    const TNullable<TYsonString>& /*oldValue*/,
-    const TNullable<TYsonString>& newValue)
+    const TYsonString& /*oldValue*/,
+    const TYsonString& newValue)
 {
     if (key == "compression_codec") {
         if (!newValue) {
             ThrowCannotRemoveAttribute(key);
         }
-        ConvertTo<NCompression::ECodec>(*newValue);
+        ConvertTo<NCompression::ECodec>(newValue);
         return;
     }
 
@@ -761,7 +761,7 @@ void TChunkOwnerNodeProxy::ValidateCustomAttributeUpdate(
         if (!newValue) {
             ThrowCannotRemoveAttribute(key);
         }
-        ConvertTo<NErasure::ECodec>(*newValue);
+        ConvertTo<NErasure::ECodec>(newValue);
         return;
     }
 }

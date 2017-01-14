@@ -143,8 +143,8 @@ private:
                 .DoListFor(transaction->ExportedObjects(), [=] (TFluentList fluent, const TTransaction::TExportEntry& entry) {
                     fluent
                         .Item().BeginMap()
-                        .Item("id").Value(entry.Object->GetId())
-                        .Item("destination_cell_tag").Value(entry.DestinationCellTag)
+                            .Item("id").Value(entry.Object->GetId())
+                            .Item("destination_cell_tag").Value(entry.DestinationCellTag)
                         .EndMap();
                 });
             return true;

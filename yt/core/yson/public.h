@@ -26,7 +26,6 @@ DEFINE_ENUM(EYsonFormat,
 );
 
 DEFINE_ENUM(EYsonType,
-    (None)
     (Node)
     (ListFragment)
     (MapFragment)

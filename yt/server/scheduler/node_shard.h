@@ -121,7 +121,7 @@ public:
 
     NYson::TYsonString StraceJob(const TJobId& jobId, const Stroka& user);
 
-    TNullable<NYson::TYsonString> GetJobStatistics(const TJobId& jobId);
+    NYson::TYsonString GetJobStatistics(const TJobId& jobId);
 
     void DumpJobInputContext(const TJobId& jobId, const NYTree::TYPath& path, const Stroka& user);
 

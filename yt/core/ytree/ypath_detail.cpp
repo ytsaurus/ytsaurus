@@ -272,7 +272,7 @@ std::vector<Stroka> TSupportsAttributes::TCombinedAttributeDictionary::List() co
     return keys;
 }
 
-TNullable<TYsonString> TSupportsAttributes::TCombinedAttributeDictionary::FindYson(const Stroka& key) const
+TYsonString TSupportsAttributes::TCombinedAttributeDictionary::FindYson(const Stroka& key) const
 {
     auto* provider = Owner_->GetBuiltinAttributeProvider();
     if (provider) {
@@ -284,7 +284,7 @@ TNullable<TYsonString> TSupportsAttributes::TCombinedAttributeDictionary::FindYs
 
     auto* customAttributes = Owner_->GetCustomAttributes();
     if (!customAttributes) {
-        return Null;
+        return TYsonString();
     }
     return customAttributes->FindYson(key);
 }
@@ -357,14 +357,14 @@ TFuture<TYsonString> TSupportsAttributes::DoFindAttribute(const Stroka& key)
     if (customAttributes) {
         auto attribute = customAttributes->FindYson(key);
         if (attribute) {
-            return MakeFuture(*attribute);
+            return MakeFuture(attribute);
         }
     }
 
     if (builtinAttributeProvider) {
-        auto maybeBuiltinYson = builtinAttributeProvider->FindBuiltinAttribute(key);
-        if (maybeBuiltinYson) {
-            return MakeFuture(*maybeBuiltinYson);
+        auto builtinYson = builtinAttributeProvider->FindBuiltinAttribute(key);
+        if (builtinYson) {
+            return MakeFuture(builtinYson);
         }
 
         auto asyncResult = builtinAttributeProvider->GetBuiltinAttributeAsync(key);
@@ -716,7 +716,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
                     if (newAttributeYson) {
                         permissionValidator.Validate(descriptor.WritePermission);
 
-                        if (!GuardedSetBuiltinAttribute(key, *newAttributeYson)) {
+                        if (!GuardedSetBuiltinAttribute(key, newAttributeYson)) {
                             ThrowCannotSetBuiltinAttribute(key);
                         }
 
@@ -759,12 +759,12 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
                         ThrowCannotSetBuiltinAttribute(key);
                     }
                 } else {
-                    auto maybeOldWholeYson = builtinAttributeProvider->FindBuiltinAttribute(key);
-                    if (!maybeOldWholeYson) {
+                    auto oldWholeYson = builtinAttributeProvider->FindBuiltinAttribute(key);
+                    if (!oldWholeYson) {
                         ThrowNoSuchBuiltinAttribute(key);
                     }
 
-                    auto oldWholeNode = ConvertToNode(*maybeOldWholeYson);
+                    auto oldWholeNode = ConvertToNode(oldWholeYson);
                     SyncYPathSet(oldWholeNode, tokenizer.GetInput(), newYson);
                     auto newWholeYson = ConvertToYsonStringStable(oldWholeNode);
 
@@ -787,7 +787,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
                         ThrowNoSuchCustomAttribute(key);
                     }
 
-                    auto wholeNode = ConvertToNode(oldWholeYson.Get());
+                    auto wholeNode = ConvertToNode(oldWholeYson);
                     SyncYPathSet(wholeNode, tokenizer.GetInput(), newYson);
                     auto newWholeYson = ConvertToYsonStringStable(wholeNode);
 
@@ -846,7 +846,7 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path, bool force)
 
         case NYPath::ETokenType::Literal: {
             auto key = tokenizer.GetLiteralValue();
-            auto customYson = customAttributes ? customAttributes->FindYson(key) : Null;
+            auto customYson = customAttributes ? customAttributes->FindYson(key) : TYsonString();
             if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
                 if (customYson) {
                     permissionValidator.Validate(EPermission::Write);
@@ -904,15 +904,15 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path, bool force)
 
                     permissionValidator.Validate(descriptor->WritePermission);
 
-                    auto maybeBuiltinYson = builtinAttributeProvider->FindBuiltinAttribute(key);
-                    if (!maybeBuiltinYson) {
+                    auto builtinYson = builtinAttributeProvider->FindBuiltinAttribute(key);
+                    if (!builtinYson) {
                         if (force) {
                             return;
                         }
                         ThrowNoSuchAttribute(key);
                     }
 
-                    auto builtinNode = ConvertToNode(*maybeBuiltinYson);
+                    auto builtinNode = ConvertToNode(builtinYson);
                     SyncYPathRemove(builtinNode, tokenizer.GetInput());
                     auto updatedSystemYson = ConvertToYsonStringStable(builtinNode);
 

@@ -173,9 +173,9 @@ public:
         Progress_ = value;
     }
 
-    virtual TNullable<NYson::TYsonString> GetStatistics() const override
+    virtual TYsonString GetStatistics() const override
     {
-        return Null;
+        return TYsonString();
     }
 
     virtual void SetStatistics(const TYsonString& /*statistics*/) override

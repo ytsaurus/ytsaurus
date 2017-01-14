@@ -404,18 +404,18 @@ bool TTableNodeProxy::SetBuiltinAttribute(const Stroka& key, const TYsonString& 
 
 void TTableNodeProxy::ValidateCustomAttributeUpdate(
     const Stroka& key,
-    const TNullable<TYsonString>& oldValue,
-    const TNullable<TYsonString>& newValue)
+    const TYsonString& oldValue,
+    const TYsonString& newValue)
 {
     if (key == "optimize_for") {
         if (!newValue) {
             ThrowCannotRemoveAttribute(key);
         }
-        ConvertTo<EOptimizeFor>(*newValue);
+        ConvertTo<EOptimizeFor>(newValue);
         return;
     }
 
-    if (key == "chunk_writer") {
+    if (key == "chunk_writer" && newValue) {
         ConvertTo<TTableWriterConfigPtr>(newValue);
         return;
     }

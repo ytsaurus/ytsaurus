@@ -103,16 +103,16 @@ protected:
     //! Called before attribute #key is updated (added, removed or changed).
     virtual void ValidateCustomAttributeUpdate(
         const Stroka& key,
-        const TNullable<NYson::TYsonString>& oldValue,
-        const TNullable<NYson::TYsonString>& newValue);
+        const NYson::TYsonString& oldValue,
+        const NYson::TYsonString& newValue);
 
     void ValidateCustomAttributeLength(const NYson::TYsonString& value);
 
     //! Same as #ValidateCustomAttributeUpdate but wraps the exceptions.
     void GuardedValidateCustomAttributeUpdate(
         const Stroka& key,
-        const TNullable<NYson::TYsonString>& oldValue,
-        const TNullable<NYson::TYsonString>& newValue);
+        const NYson::TYsonString& oldValue,
+        const NYson::TYsonString& newValue);
 
     void DeclareMutating();
     void DeclareNonMutating();

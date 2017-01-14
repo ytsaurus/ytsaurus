@@ -44,12 +44,12 @@ TNullable<ISystemAttributeProvider::TAttributeDescriptor> ISystemAttributeProvid
     return it == builtinAttributes.end() ? Null : MakeNullable(*it);
 }
 
-TNullable<TYsonString> ISystemAttributeProvider::FindBuiltinAttribute(const Stroka& key)
+TYsonString ISystemAttributeProvider::FindBuiltinAttribute(const Stroka& key)
 {
     TStringStream stream;
     TBufferedBinaryYsonWriter writer(&stream);
     if (!GetBuiltinAttribute(key, &writer)) {
-        return Null;
+        return TYsonString();
     }
     writer.Flush();
     return TYsonString(stream.Str());

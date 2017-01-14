@@ -74,7 +74,7 @@ class TJob
     DEFINE_BYREF_RO_PROPERTY(TJobStatus, Status);
 
     //! Yson containing statistics produced by the job.
-    DEFINE_BYREF_RO_PROPERTY(TNullable<NYson::TYsonString>, StatisticsYson);
+    DEFINE_BYREF_RO_PROPERTY(NYson::TYsonString, StatisticsYson);
 
     //! True if job was unregistered during heartbeat.
     DEFINE_BYVAL_RW_PROPERTY(bool, HasPendingUnregistration);
@@ -165,7 +165,7 @@ struct TJobSummary
 
     // NB: The Statistics field will be set inside the controller in ParseStatistics().
     NJobTrackerClient::TStatistics Statistics;
-    TNullable<NYson::TYsonString> StatisticsYson;
+    NYson::TYsonString StatisticsYson;
 
     bool ShouldLog;
 };

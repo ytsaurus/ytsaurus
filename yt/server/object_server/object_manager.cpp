@@ -1316,9 +1316,9 @@ std::unique_ptr<NYTree::IAttributeDictionary> TObjectManager::GetReplicatedAttri
         }
 
         auto key = Stroka(descriptor.Key);
-        auto maybeValue = proxy->FindBuiltinAttribute(key);
-        if (maybeValue) {
-            replicateKey(key, *maybeValue);
+        auto value = proxy->FindBuiltinAttribute(key);
+        if (value) {
+            replicateKey(key, value);
         }
     }
 

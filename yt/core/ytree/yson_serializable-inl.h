@@ -520,13 +520,13 @@ TIntrusivePtr<T> UpdateYsonSerializable(
 template <class T>
 TIntrusivePtr<T> UpdateYsonSerializable(
     TIntrusivePtr<T> obj,
-    const TNullable<NYson::TYsonString>& patch)
+    const NYson::TYsonString& patch)
 {
     if (!patch) {
         return obj;
     }
 
-    return UpdateYsonSerializable(obj, ConvertToNode(*patch));
+    return UpdateYsonSerializable(obj, ConvertToNode(patch));
 }
 
 template <class T>

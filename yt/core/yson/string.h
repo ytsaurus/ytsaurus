@@ -16,7 +16,7 @@ class TYsonString
 {
 public:
     //! Constructs a null instance.
-    TYsonString() = default;
+    TYsonString();
 
     //! Constructs an non-null instance with given type and content.
     explicit TYsonString(
@@ -26,7 +26,10 @@ public:
     //! Returns |true| if the instance is not null.
     explicit operator bool() const;
 
+    //! Returns the underlying YSON bytes. The instance must be non-null.
     const Stroka& GetData() const;
+
+    //! Returns type of YSON contained here. The instance must be non-null.
     EYsonType GetType() const;
 
     //! If the instance is not null, invokes the parser (which may throw).
@@ -36,8 +39,9 @@ public:
     void Load(TStreamLoadContext& context);
 
 private:
+    bool Null_;
     Stroka Data_;
-    EYsonType Type_ = EYsonType::None;
+    EYsonType Type_;
 
 };
 

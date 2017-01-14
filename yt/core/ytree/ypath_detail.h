@@ -224,7 +224,7 @@ private:
         explicit TCombinedAttributeDictionary(TSupportsAttributes* owner);
 
         virtual std::vector<Stroka> List() const override;
-        virtual TNullable<NYson::TYsonString> FindYson(const Stroka& key) const override;
+        virtual NYson::TYsonString FindYson(const Stroka& key) const override;
         virtual void SetYson(const Stroka& key, const NYson::TYsonString& value) override;
         virtual bool Remove(const Stroka& key) override;
 
