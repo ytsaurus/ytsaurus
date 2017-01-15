@@ -423,13 +423,15 @@ private:
         Profiler.Increment(ReadRequestCounter);
         NProfiling::TProfilingTimingGuard timingGuard(Profiler, &CumulativeReadRequestTimeCounter);
 
-        const auto& context = subrequest->Context;
-        auto asyncResponseMessage = context->GetAsyncResponseMessage();
+        TAuthenticatedUserGuard userGuard(SecurityManager_, user);
+
+        NTracing::TTraceContextGuard traceContextGuard(subrequest->TraceContext);
+
         NProfiling::TScopedTimer timer;
+
+        const auto& context = subrequest->Context;
         try {
             auto rootService = ObjectManager_->GetRootService();
-            TAuthenticatedUserGuard userGuard(SecurityManager_, user);
-            NTracing::TTraceContextGuard traceContextGuard(subrequest->TraceContext);
             ExecuteVerb(rootService, context);
         } catch (const TLeaderFallbackException&) {
             LOG_DEBUG("Performing leader fallback (RequestId: %v)",
