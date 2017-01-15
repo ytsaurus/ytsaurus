@@ -66,7 +66,7 @@ private:
     int ValueId_;
 
     // ISchemalessFormatWriter override.
-    virtual void DoWrite(const std::vector<TUnversionedRow>& rows) override
+    virtual void DoWrite(const TRange<TUnversionedRow>& rows) override
     {
         TableIndexWasWritten_ = false;
 
@@ -75,9 +75,10 @@ private:
         // without extra serializing/deserializing.
         TYamrFormatConfigPtr config(static_cast<TYamrFormatConfig*>(Config_.Get()));
 
-        for (int i = 0; i < static_cast<int>(rows.size()); i++) {
-            auto row = rows[i];
-            if (CheckKeySwitch(row, i + 1 == rows.size() /* isLastRow */)) {
+        int rowCount = static_cast<int>(rows.Size());
+        for (int index = 0; index < rowCount; index++) {
+            auto row = rows[index];
+            if (CheckKeySwitch(row, index + 1 == rowCount /* isLastRow */)) {
                 YCHECK(config->Lenval);
                 WritePod(*stream, static_cast<ui32>(-2));
             }

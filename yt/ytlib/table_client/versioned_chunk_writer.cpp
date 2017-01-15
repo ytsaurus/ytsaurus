@@ -38,6 +38,8 @@ using namespace NObjectClient;
 using namespace NApi;
 using namespace NTableClient::NProto;
 
+using NYT::TRange;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 const i64 MinRowRangeDataWeight = (i64) 64 * 1024;
@@ -92,22 +94,27 @@ public:
         return RowCount_;
     }
 
-    virtual bool Write(const std::vector<TVersionedRow>& rows) override
+    virtual bool Write(const TRange<TVersionedRow>& rows) override
     {
-        YCHECK(rows.size() > 0);
+        if (rows.Empty()) {
+            return EncodingChunkWriter_->IsReady();
+        }
 
         SamplingRowMerger_->Reset();
 
         if (RowCount_ == 0) {
+            auto firstRow = rows.Front();
             ToProto(
                 BoundaryKeysExt_.mutable_min(),
-                TOwningKey(rows.front().BeginKeys(), rows.front().EndKeys()));
-            EmitSample(rows.front());
+                TOwningKey(firstRow.BeginKeys(), firstRow.EndKeys()));
+            EmitSample(firstRow);
         }
 
         DoWriteRows(rows);
 
-        LastKey_ = TOwningKey(rows.back().BeginKeys(), rows.back().EndKeys());
+        auto lastRow = rows.Back();
+        LastKey_ = TOwningKey(lastRow.BeginKeys(), lastRow.EndKeys());
+
         return EncodingChunkWriter_->IsReady();
     }
 
@@ -183,7 +190,7 @@ protected:
 #endif
 
     virtual void DoClose() = 0;
-    virtual void DoWriteRows(const std::vector<TVersionedRow>& rows) = 0;
+    virtual void DoWriteRows(const TRange<TVersionedRow>& rows) = 0;
 
     void EmitSampleRandomly(TVersionedRow row)
     {
@@ -250,19 +257,25 @@ public:
 private:
     std::unique_ptr<TSimpleVersionedBlockWriter> BlockWriter_;
 
-    virtual void DoWriteRows(const std::vector<TVersionedRow>& rows) override
+    virtual void DoWriteRows(const TRange<TVersionedRow>& rows) override
     {
+        if (rows.Empty()) {
+            return;
+        }
+
         //FIXME: insert key into bloom filter.
         //KeyFilter_.Insert(GetFarmFingerprint(rows.front().BeginKeys(), rows.front().EndKeys()));
-        ValidateRow(rows.front(), LastKey_.Begin(), LastKey_.End());
-        WriteRow(rows.front(), LastKey_.Begin(), LastKey_.End());
-        FinishBlockIfLarge(rows.front());
+        auto firstRow = rows.Front();
+        ValidateRow(firstRow, LastKey_.Begin(), LastKey_.End());
+        WriteRow(firstRow, LastKey_.Begin(), LastKey_.End());
+        FinishBlockIfLarge(firstRow);
 
-        for (int i = 1; i < rows.size(); ++i) {
+        int rowCount = static_cast<int>(rows.Size());
+        for (int index = 1; index < rowCount; ++index) {
             //KeyFilter_.Insert(GetFarmFingerprint(rows[i].BeginKeys(), rows[i].EndKeys()));
-            ValidateRow(rows.front(), LastKey_.Begin(), LastKey_.End());
-            WriteRow(rows[i], rows[i - 1].BeginKeys(), rows[i - 1].EndKeys());
-            FinishBlockIfLarge(rows[i]);
+            ValidateRow(firstRow, LastKey_.Begin(), LastKey_.End());
+            WriteRow(rows[index], rows[index - 1].BeginKeys(), rows[index - 1].EndKeys());
+            FinishBlockIfLarge(rows[index]);
         }
     }
 
@@ -440,15 +453,13 @@ private:
 
     i64 DataToBlockFlush_;
 
-    virtual void DoWriteRows(const std::vector<TVersionedRow>& rows) override
+    virtual void DoWriteRows(const TRange<TVersionedRow>& rows) override
     {
-        auto* data = const_cast<TVersionedRow*>(rows.data());
-
         int startRowIndex = 0;
-        while (startRowIndex < rows.size()) {
+        while (startRowIndex < rows.Size()) {
             i64 weight = 0;
             int rowIndex = startRowIndex;
-            for (; rowIndex < rows.size() && weight < DataToBlockFlush_; ++rowIndex) {
+            for (; rowIndex < rows.Size() && weight < DataToBlockFlush_; ++rowIndex) {
                 if (rowIndex == 0) {
                     ValidateRow(rows[rowIndex], LastKey_.Begin(), LastKey_.End());
                 } else {
@@ -462,8 +473,8 @@ private:
                 weight += GetDataWeight(rows[rowIndex]);
             }
 
-            auto range = MakeRange(data + startRowIndex, data + rowIndex);
-            for (auto& columnWriter : ValueColumnWriters_) {
+            auto range = MakeRange(rows.Begin() + startRowIndex, rows.Begin() + rowIndex);
+            for (const auto& columnWriter : ValueColumnWriters_) {
                 columnWriter->WriteValues(range);
             }
             TimestampWriter_->WriteTimestamps(range);
@@ -618,7 +629,7 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
     typedef TMultiChunkWriterBase<
         IVersionedMultiChunkWriter,
         IVersionedChunkWriter,
-        const std::vector<TVersionedRow>&> TVersionedMultiChunkWriter;
+        const TRange<TVersionedRow>&> TVersionedMultiChunkWriter;
 
     auto createChunkWriter = [=] (IChunkWriterPtr underlyingWriter) {
         return CreateVersionedChunkWriter(

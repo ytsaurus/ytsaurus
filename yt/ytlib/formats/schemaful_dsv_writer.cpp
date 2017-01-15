@@ -120,7 +120,7 @@ private:
     const int TableIndexColumnId_;
 
     // ISchemalessFormatWriter overrides.
-    virtual void DoWrite(const std::vector<TUnversionedRow>& rows) override
+    virtual void DoWrite(const TRange<TUnversionedRow>& rows) override
     {
         for (const auto& row : rows) {
             CurrentRowValues_.assign(CurrentRowValues_.size(), nullptr);
@@ -192,7 +192,7 @@ public:
         return VoidFuture;
     }
 
-    virtual bool Write(const std::vector<TUnversionedRow>& rows) override
+    virtual bool Write(const TRange<TUnversionedRow>& rows) override
     {
         for (const auto& row : rows) {
             if (!row) {

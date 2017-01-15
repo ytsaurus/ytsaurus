@@ -18,8 +18,7 @@ namespace NTableClient {
 struct IUnversionedWriter
     : public virtual NChunkClient::IWriterBase
 {
-    virtual bool Write(const std::vector<TUnversionedRow>& rows) = 0;
-    //virtual bool WriteUnsafe(std::vector<TUnversionedRow>* rows) = 0;
+    virtual bool Write(const TRange<TUnversionedRow>& rows) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

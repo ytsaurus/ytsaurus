@@ -320,9 +320,7 @@ void TSelectRowsCommand::DoExecute(ICommandContextPtr context)
     auto output = context->Request().OutputStream;
     auto writer = CreateSchemafulWriterForFormat(format, rowset->Schema(), output);
 
-    // TODO(babenko): avoid copying
-    std::vector<TUnversionedRow> rows(rowset->GetRows().begin(), rowset->GetRows().end());
-    writer->Write(rows);
+    writer->Write(rowset->GetRows());
 
     WaitFor(writer->Close())
         .ThrowOnError();
@@ -494,9 +492,7 @@ void TLookupRowsCommand::DoExecute(ICommandContextPtr context)
     auto output = context->Request().OutputStream;
     auto writer = CreateSchemafulWriterForFormat(format, rowset->Schema(), output);
 
-    // TODO(babenko): avoid copying
-    std::vector<TUnversionedRow> rows(rowset->GetRows().begin(), rowset->GetRows().end());
-    writer->Write(rows);
+    writer->Write(rowset->GetRows());
 
     WaitFor(writer->Close())
         .ThrowOnError();

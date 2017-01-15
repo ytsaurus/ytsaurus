@@ -5,7 +5,9 @@
 
 #include <yt/ytlib/chunk_client/chunk_writer_base.h>
 
-#include <yt/core/misc/error.h>
+#include <yt/core/actions/future.h>
+
+#include <yt/core/misc/range.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -20,7 +22,7 @@ namespace NTableClient {
 struct ISchemalessWriter
     : public virtual NChunkClient::IWriterBase
 {
-    virtual bool Write(const std::vector<TUnversionedRow>& rows) = 0;
+    virtual bool Write(const TRange<TUnversionedRow>& rows) = 0;
 
     virtual TNameTablePtr GetNameTable() const = 0;
 

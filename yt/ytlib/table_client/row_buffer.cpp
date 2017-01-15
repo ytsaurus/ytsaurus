@@ -75,10 +75,11 @@ TMutableUnversionedRow TRowBuffer::Capture(const TUnversionedValue* begin, int c
     return capturedRow;
 }
 
-std::vector<TMutableUnversionedRow> TRowBuffer::Capture(const std::vector<TUnversionedRow>& rows, bool deep)
+std::vector<TMutableUnversionedRow> TRowBuffer::Capture(const TRange<TUnversionedRow>& rows, bool deep)
 {
-    std::vector<TMutableUnversionedRow> capturedRows(rows.size());
-    for (int index = 0; index < static_cast<int>(rows.size()); ++index) {
+    int rowCount = static_cast<int>(rows.Size());
+    std::vector<TMutableUnversionedRow> capturedRows(rowCount);
+    for (int index = 0; index < rowCount; ++index) {
         capturedRows[index] = Capture(rows[index], deep);
     }
     return capturedRows;

@@ -268,7 +268,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, TableIndex)
 
     // It's necessary to specify a column corresponding to the table index
     // when enable_table_index = true.
-    EXPECT_EQ(false, Writer_->Write({row0.GetRow()}));
+    EXPECT_EQ(false, Writer_->Write(std::vector<TUnversionedRow>{row0.GetRow()}));
 
     CreateStandardWriter();
 
@@ -287,7 +287,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, TableIndex)
     row2.AddValue(MakeUnversionedInt64Value(6LL, KeyCId_));
     row2.AddValue(MakeUnversionedInt64Value(7LL, KeyDId_));
 
-    EXPECT_EQ(true, Writer_->Write({row1.GetRow(), row2.GetRow()}));
+    EXPECT_EQ(true, Writer_->Write(std::vector<TUnversionedRow>{row1.GetRow(), row2.GetRow()}));
 
     TUnversionedRowBuilder row3;
     row3.AddValue(MakeUnversionedInt64Value(23LL, TableIndexId_));
@@ -296,7 +296,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, TableIndex)
     row3.AddValue(MakeUnversionedUint64Value(10LL, KeyCId_));
     row3.AddValue(MakeUnversionedUint64Value(11ULL, KeyDId_));
 
-    EXPECT_EQ(true, Writer_->Write({row3.GetRow()}));
+    EXPECT_EQ(true, Writer_->Write(std::vector<TUnversionedRow>{row3.GetRow()}));
 
     Writer_->Close()
         .Get()
