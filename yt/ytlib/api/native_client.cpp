@@ -2708,7 +2708,7 @@ public:
 
         State_ = ETransactionState::Commit;
         return BIND(&TNativeTransaction::DoCommit, MakeStrong(this))
-            .AsyncVia(Client_->GetConnection()->GetHeavyInvoker())
+            .AsyncVia(CommitInvoker_)
             .Run(options);
     }
 
