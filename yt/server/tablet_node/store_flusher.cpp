@@ -247,11 +247,8 @@ private:
         IDynamicStorePtr store,
         TStoreFlushCallback flushCallback)
     {
-        // Capture everything needed below.
-        // NB: Avoid accessing tablet from pool invoker.
-        auto storeManager = tablet->GetStoreManager();
-        auto tabletId = tablet->GetId();
-        auto mountRevision = tablet->GetMountRevision();
+        const auto& storeManager = tablet->GetStoreManager();
+        const auto& tabletId = tablet->GetId();
 
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v, StoreId: %v",
@@ -297,7 +294,7 @@ private:
 
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
             ToProto(actionRequest.mutable_tablet_id(), tabletId);
-            actionRequest.set_mount_revision(mountRevision);
+            actionRequest.set_mount_revision(tablet->GetMountRevision());
             ToProto(actionRequest.mutable_stores_to_add(), flushResult);
             ToProto(actionRequest.add_stores_to_remove()->mutable_store_id(), store->GetId());
 
