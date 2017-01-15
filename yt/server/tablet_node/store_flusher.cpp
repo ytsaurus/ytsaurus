@@ -258,9 +258,6 @@ private:
             tabletId,
             store->GetId());
 
-        auto automatonInvoker = tablet->GetEpochAutomatonInvoker();
-        auto poolInvoker = ThreadPool_->GetInvoker();
-
         try {
             INativeTransactionPtr transaction;
             {
@@ -287,13 +284,11 @@ private:
             LOG_INFO("Store flush started");
 
             auto asyncFlushResult = flushCallback
-                .AsyncVia(poolInvoker)
+                .AsyncVia(ThreadPool_->GetInvoker())
                 .Run(transaction);
 
             auto flushResult = WaitFor(asyncFlushResult)
                 .ValueOrThrow();
-
-            storeManager->EndStoreFlush(store);
 
             LOG_INFO("Store flush completed (ChunkIds: %v)",
                 MakeFormattableRange(flushResult, [] (TStringBuilder* builder, const TAddStoreDescriptor& descriptor) {
@@ -314,6 +309,8 @@ private:
             WaitFor(transaction->Commit())
                 .ThrowOnError();
             LOG_INFO("Flush transaction committed");
+
+            storeManager->EndStoreFlush(store);
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error flushing tablet store, backing off");
             storeManager->BackoffStoreFlush(store);

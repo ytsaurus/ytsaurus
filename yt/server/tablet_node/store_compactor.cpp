@@ -617,10 +617,6 @@ private:
                 storeIdsToAdd,
                 storeIdsToRemove);
 
-            for (const auto& store : stores) {
-                storeManager->EndStoreCompaction(store);
-            }
-
             auto actionData = MakeTransactionActionData(actionRequest);
             transaction->AddAction(Bootstrap_->GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellId(), actionData);
             transaction->AddAction(slot->GetCellId(), actionData);
@@ -629,6 +625,10 @@ private:
             WaitFor(transaction->Commit())
                 .ThrowOnError();
             LOG_INFO("Partitioning transaction committed");
+
+            for (const auto& store : stores) {
+                storeManager->EndStoreCompaction(store);
+            }
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error partitioning Eden, backing off");
 
@@ -813,10 +813,6 @@ private:
                 storeIdsToAdd,
                 storeIdsToRemove);
 
-            for (const auto& store : stores) {
-                storeManager->EndStoreCompaction(store);
-            }
-
             auto actionData = MakeTransactionActionData(actionRequest);
             transaction->AddAction(Bootstrap_->GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellId(), actionData);
             transaction->AddAction(slot->GetCellId(), actionData);
@@ -825,6 +821,10 @@ private:
             WaitFor(transaction->Commit())
                 .ThrowOnError();
             LOG_INFO("Compaction transaction committed");
+
+            for (const auto& store : stores) {
+                storeManager->EndStoreCompaction(store);
+            }
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error compacting partition, backing off");
 

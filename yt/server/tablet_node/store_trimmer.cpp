@@ -146,6 +146,8 @@ private:
             WaitFor(transaction->Commit())
                 .ThrowOnError();
             LOG_INFO("Tablet trim transaction committed");
+
+            // NB: There's no need to call EndStoreCompaction since these stores are gone.
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error trimming tablet stores");
 
