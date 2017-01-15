@@ -1284,25 +1284,25 @@ TFuture<void> TNodeShard::ProcessScheduledJobs(
                 job->GetOperationId());
             continue;
         }
-        if (job->GetInterruptible()) {
+
+        if (job->GetInterruptible() && Config_->JobInterruptTimeout != TDuration::Zero()) {
             if (job->GetPreempted()) {
                 if (now > job->GetInterruptDeadline()) {
+                    LOG_DEBUG("Preempted job interrupt deadline reached, aborting (InterruptDeadline: %v, JobId: %v, OperationId: %v)",
+                        job->GetInterruptDeadline(),
+                        job->GetId(),
+                        job->GetOperationId());
                     ToProto(response->add_jobs_to_abort(), job->GetId());
                 }
+                // Else do nothing: job was already interrupted, by deadline not reached yet.
             } else {
                 PreemptJob(job, interruptDeadline);
-                if (Config_->JobInterruptTimeout != TDuration::Zero()) {
-                    ToProto(response->add_jobs_to_interrupt(), job->GetId());
-                } else {
-                    ToProto(response->add_jobs_to_abort(), job->GetId());
-                }
+                ToProto(response->add_jobs_to_interrupt(), job->GetId());
             }
         } else {
+            PreemptJob(job, Null);
             ToProto(response->add_jobs_to_abort(), job->GetId());
         }
-    }
-    if (response->jobs_to_interrupt_size() != 0) {
-        response->set_job_interrupt_timeout(ToProto(Config_->JobInterruptTimeout));
     }
 
     return Combine(asyncResults);
@@ -1586,14 +1586,19 @@ void TNodeShard::DoUnregisterJob(const TJobPtr& job)
     }
 }
 
-void TNodeShard::PreemptJob(const TJobPtr& job, const TInstant& interruptDeadline)
+void TNodeShard::PreemptJob(const TJobPtr& job, const TNullable<TInstant>& interruptDeadline)
 {
-    LOG_DEBUG("Preempting job (JobId: %v, OperationId: %v)",
+    LOG_DEBUG("Preempting job (InterruptDeadline: %v, Interruptible: %v, JobId: %v, OperationId: %v)",
+        interruptDeadline,
+        job->GetInterruptible(),
         job->GetId(),
         job->GetOperationId());
 
     job->SetPreempted(true);
-    job->SetInterruptDeadline(interruptDeadline);
+
+    if (interruptDeadline) {
+        job->SetInterruptDeadline(*interruptDeadline);
+    }
 }
 
 TExecNodePtr TNodeShard::GetNodeByJob(const TJobId& jobId)

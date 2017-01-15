@@ -32,7 +32,11 @@ namespace NYTree {
 namespace NDetail {
 
 template <class T>
-void LoadFromNode(T& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
+void LoadFromNode(
+    T& parameter,
+    NYTree::INodePtr node,
+    const NYPath::TYPath& path,
+    EMergeStrategy mergeStrategy)
 {
     try {
         Deserialize(parameter, node);
@@ -42,58 +46,143 @@ void LoadFromNode(T& parameter, NYTree::INodePtr node, const NYPath::TYPath& pat
     }
 }
 
+// INodePtr
+template <>
+inline void LoadFromNode(
+    NYTree::INodePtr& parameter,
+    NYTree::INodePtr node,
+    const NYPath::TYPath& path,
+    EMergeStrategy mergeStrategy)
+{
+    switch (mergeStrategy) {
+        case EMergeStrategy::Default:
+        case EMergeStrategy::Overwrite: {
+            parameter = node;
+            break;
+        }
+
+        case EMergeStrategy::Combine: {
+            if (!parameter) {
+                parameter = node;
+            } else {
+                parameter = UpdateNode(parameter, node);
+            }
+            break;
+        }
+
+        default:
+            Y_UNIMPLEMENTED();
+    }
+}
+
 // TYsonSerializable
 template <class T, class E = typename std::enable_if<std::is_convertible<T&, TYsonSerializable&>::value>::type>
-void LoadFromNode(TIntrusivePtr<T>& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
+void LoadFromNode(
+    TIntrusivePtr<T>& parameter,
+    NYTree::INodePtr node,
+    const NYPath::TYPath& path,
+    EMergeStrategy mergeStrategy)
 {
-    if (!parameter) {
+    if (!parameter || mergeStrategy == EMergeStrategy::Overwrite) {
         parameter = New<T>();
     }
-    parameter->Load(node, false, false, path);
+
+    switch (mergeStrategy) {
+        case EMergeStrategy::Default:
+        case EMergeStrategy::Overwrite:
+        case EMergeStrategy::Combine: {
+            parameter->Load(node, false, false, path);
+            break;
+        }
+
+        default:
+            Y_UNIMPLEMENTED();
+    }
 }
 
 // TNullable
 template <class T>
-void LoadFromNode(TNullable<T>& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
+void LoadFromNode(
+    TNullable<T>& parameter,
+    NYTree::INodePtr node,
+    const NYPath::TYPath& path,
+    EMergeStrategy mergeStrategy)
 {
-    if (node->GetType() == NYTree::ENodeType::Entity) {
-        parameter = Null;
-    } else {
-        T value;
-        LoadFromNode(value, node, path);
-        parameter = value;
+    switch (mergeStrategy) {
+        case EMergeStrategy::Default:
+        case EMergeStrategy::Overwrite: {
+            if (node->GetType() == NYTree::ENodeType::Entity) {
+                parameter = Null;
+            } else {
+                T value;
+                LoadFromNode(value, node, path, EMergeStrategy::Overwrite);
+                parameter = value;
+            }
+            break;
+        }
+
+        default:
+            Y_UNIMPLEMENTED();
     }
 }
 
 // std::vector
 template <class... T>
-void LoadFromNode(std::vector<T...>& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
+void LoadFromNode(
+    std::vector<T...>& parameter,
+    NYTree::INodePtr node,
+    const NYPath::TYPath& path,
+    EMergeStrategy mergeStrategy)
 {
-    auto listNode = node->AsList();
-    auto size = listNode->GetChildCount();
-    parameter.resize(size);
-    for (int i = 0; i < size; ++i) {
-        LoadFromNode(
-            parameter[i],
-            listNode->GetChild(i),
-            path + "/" + NYPath::ToYPathLiteral(i));
+    switch (mergeStrategy) {
+        case EMergeStrategy::Default:
+        case EMergeStrategy::Overwrite: {
+            auto listNode = node->AsList();
+            auto size = listNode->GetChildCount();
+            parameter.resize(size);
+            for (int i = 0; i < size; ++i) {
+                LoadFromNode(
+                    parameter[i],
+                    listNode->GetChild(i),
+                    path + "/" + NYPath::ToYPathLiteral(i),
+                    EMergeStrategy::Overwrite);
+            }
+            break;
+        }
+
+        default:
+            Y_UNIMPLEMENTED();
     }
 }
 
 // For any map.
 template <template <typename...> class Map, class... T, class M = typename Map<T...>::mapped_type>
-void LoadFromNode(Map<T...>& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
+void LoadFromNode(
+    Map<T...>& parameter,
+    NYTree::INodePtr node,
+    const NYPath::TYPath& path,
+    EMergeStrategy mergeStrategy)
 {
-    auto mapNode = node->AsMap();
-    parameter.clear();
-    for (const auto& pair : mapNode->GetChildren()) {
-        const auto& key = pair.first;
-        M value;
-        LoadFromNode(
-            value,
-            pair.second,
-            path + "/" + NYPath::ToYPathLiteral(key));
-        parameter.emplace(FromString<typename Map<T...>::key_type>(key), std::move(value));
+    switch (mergeStrategy) {
+        case EMergeStrategy::Default:
+        case EMergeStrategy::Overwrite: {
+            auto mapNode = node->AsMap();
+            parameter.clear();
+            for (const auto& pair : mapNode->GetChildren()) {
+                const auto& key = pair.first;
+                M value;
+                LoadFromNode(
+                    value,
+                    pair.second,
+                    path + "/" + NYPath::ToYPathLiteral(key),
+                    EMergeStrategy::Overwrite);
+                parameter.emplace(FromString<typename Map<T...>::key_type>(key), std::move(value));
+            }
+            break;
+        }
+
+        default:
+            Y_UNIMPLEMENTED();
     }
 }
 
@@ -211,13 +300,14 @@ template <class T>
 TYsonSerializableLite::TParameter<T>::TParameter(T& parameter)
     : Parameter(parameter)
     , Description(nullptr)
+    , MergeStrategy(EMergeStrategy::Default)
 { }
 
 template <class T>
 void TYsonSerializableLite::TParameter<T>::Load(NYTree::INodePtr node, const NYPath::TYPath& path)
 {
     if (node) {
-        NDetail::LoadFromNode(Parameter, node, path);
+        NDetail::LoadFromNode(Parameter, node, path, MergeStrategy);
     } else if (!DefaultValue) {
         THROW_ERROR_EXCEPTION("Missing required parameter %v",
             path);
@@ -321,6 +411,13 @@ template <class T>
 TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::CheckThat(TValidator validator)
 {
     Validators.push_back(std::move(validator));
+    return *this;
+}
+
+template <class T>
+TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::MergeBy(EMergeStrategy strategy)
+{
+    MergeStrategy = strategy;
     return *this;
 }
 

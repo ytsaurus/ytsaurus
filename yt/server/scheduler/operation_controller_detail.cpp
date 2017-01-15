@@ -468,6 +468,7 @@ void TOperationControllerBase::TTask::ScheduleJob(
     auto controller = MakeStrong(Controller); // hold the controller
     auto jobSpecBuilder = BIND([=, this_ = MakeStrong(this)] (TJobSpec* jobSpec) {
         BuildJobSpec(joblet, jobSpec);
+        jobSpec->set_version(GetJobSpecVersion());
         controller->CustomizeJobSpec(joblet, jobSpec);
 
         auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
@@ -637,15 +638,14 @@ void TOperationControllerBase::TTask::OnJobCompleted(TJobletPtr joblet, const TC
 
         auto inputStatistics = GetTotalInputDataStatistics(statistics);
         auto outputStatistics = GetTotalOutputDataStatistics(statistics);
-        // It's impossible to check row count preserve on interrupted job.
+        // It's impossible to check row count preservation on interrupted job.
         if (Controller->IsRowCountPreserved() && !jobSummary.Interrupted) {
-            if (inputStatistics.row_count() != outputStatistics.row_count()) {
-                Controller->OnOperationFailed(TError(
-                    "Input/output row count mismatch in completed job: %v != %v",
-                    inputStatistics.row_count(),
-                    outputStatistics.row_count())
-                    << TErrorAttribute("task", GetId()));
-            }
+            LOG_ERROR_IF(inputStatistics.row_count() != outputStatistics.row_count(),
+                "Input/output row count mismatch in completed job (Input: %v, Output: %v, Task: %v)",
+                inputStatistics.row_count(),
+                outputStatistics.row_count(),
+                GetId());
+            YCHECK(inputStatistics.row_count() == outputStatistics.row_count());
         }
     } else {
         auto& chunkListIds = joblet->ChunkListIds;
@@ -3272,8 +3272,17 @@ void TOperationControllerBase::FetchInputTables()
         auto objectIdPath = FromObjectId(table.ObjectId);
         const auto& path = table.Path.GetPath();
         const auto& ranges = table.Path.GetRanges();
-        if (ranges.empty())
+        if (ranges.empty()) {
             continue;
+        }
+
+        if (ranges.size() > Config->MaxRangesOnTable) {
+            THROW_ERROR_EXCEPTION(
+                "Too many ranges on table: maximum allowed %v, actual %v",
+                Config->MaxRangesOnTable,
+                ranges.size())
+                << TErrorAttribute("table_path", table.Path.GetPath());
+        }
 
         LOG_INFO("Fetching input table (Path: %v, RangeCount: %v)",
             path,
@@ -4378,6 +4387,11 @@ void TOperationControllerBase::OnJobInterrupted(const TCompletedJobSummary& jobS
     JobCounter.Interrupted(1);
 
     const auto& inputDataSlices = ExtractInputDataSlices(jobSummary);
+
+    LOG_DEBUG("Job interrupted (JobId: %v, UnreadDataSliceCount: %v)",
+        jobSummary.Id,
+        inputDataSlices.size());
+
     ReinstallUnreadInputDataSlices(inputDataSlices);
 }
 

@@ -72,7 +72,7 @@ private:
 
     std::atomic<i32> NetworkUsage_ = {0};
 
-    int CpuLimit_;
+    int CpuLimit_ = 0;
 
     const NConcurrency::TActionQueuePtr JobThread_;
     const NConcurrency::TActionQueuePtr ControlThread_;
@@ -97,7 +97,7 @@ private:
 
     IJobPtr Job_;
 
-    NJobTrackerClient::NProto::TJobSpec JobSpec_;
+    IJobSpecHelperPtr JobSpecHelper_;
 
     void ValidateJobId(const NJobTrackerClient::TJobId& jobId);
 
@@ -125,7 +125,7 @@ private:
     virtual const NJobAgent::TOperationId& GetOperationId() const override;
     virtual const NJobAgent::TJobId& GetJobId() const override;
 
-    virtual const NJobTrackerClient::NProto::TJobSpec& GetJobSpec() const override;
+    virtual const IJobSpecHelperPtr& GetJobSpecHelper() const override;
 
     virtual void SetUserJobMemoryUsage(i64 memoryUsage) override;
     void OnResourcesUpdated(const TError& error);
@@ -149,7 +149,6 @@ private:
     void CheckResult(const NJobTrackerClient::NProto::TJobResult& jobResult);
 
     void Exit(EJobProxyExitCode exitCode);
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobProxy)

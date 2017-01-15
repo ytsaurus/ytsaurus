@@ -1,6 +1,5 @@
 #include "partition_sort_job.h"
 #include "private.h"
-#include "config.h"
 #include "job_detail.h"
 
 #include <yt/ytlib/table_client/name_table.h>
@@ -42,8 +41,6 @@ public:
 
     virtual void Initialize() override
     {
-        auto config = Host_->GetConfig();
-
         auto keyColumns = FromProto<TKeyColumns>(SortJobSpecExt_.key_columns());
         auto nameTable = TNameTable::FromKeyColumns(keyColumns);
 
@@ -54,7 +51,7 @@ public:
         auto dataSliceDescriptors = FromProto<std::vector<TDataSliceDescriptor>>(inputSpec.data_slice_descriptors());
 
         Reader_ = CreateSchemalessPartitionSortReader(
-            config->JobIO->TableReader,
+            Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader,
             Host_->GetClient(),
             Host_->GetBlockCache(),
             Host_->GetInputNodeDirectory(),

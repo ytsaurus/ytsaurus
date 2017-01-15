@@ -8,6 +8,8 @@
 #include <yt/core/erasure/codec.h>
 #include <yt/core/misc/numeric_helpers.h>
 
+#include <yt/core/misc/numeric_helpers.h>
+
 #include <cmath>
 
 namespace NYT {

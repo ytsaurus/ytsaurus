@@ -1,6 +1,5 @@
 #include "merge_job.h"
 #include "private.h"
-#include "config.h"
 #include "job_detail.h"
 
 #include <yt/ytlib/object_client/helpers.h>
@@ -69,8 +68,6 @@ public:
 
         NameTable_ = TNameTable::FromKeyColumns(keyColumns);
 
-        auto config = Host_->GetConfig();
-
         auto readerFactory = UseParallelReader_
             ? CreateSchemalessParallelMultiChunkReader
             : CreateSchemalessSequentialMultiChunkReader;
@@ -78,7 +75,7 @@ public:
         ReaderFactory_ = [=] (TNameTablePtr nameTable, TColumnFilter columnFilter) {
             YCHECK(!Reader_);
             Reader_ = readerFactory(
-                config->JobIO->TableReader,
+                Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader,
                 readerOptions,
                 Host_->GetClient(),
                 Host_->LocalDescriptor(),

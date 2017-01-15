@@ -58,7 +58,7 @@ struct IOperationHost
     /*!
      *  \note Thread affinity: any
      */
-    virtual const NApi::INativeClientPtr& GetMasterClient() = 0;
+    virtual const NApi::INativeClientPtr& GetMasterClient() const = 0;
 
     /*!
      *  \note Thread affinity: any

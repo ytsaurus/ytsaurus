@@ -1417,12 +1417,11 @@ protected:
                 for (auto partition : Partitions) {
                     totalInputRowCount += partition->ChunkPoolOutput->GetTotalRowCount();
                 }
-                if (totalInputRowCount != TotalOutputRowCount) {
-                    OnOperationFailed(TError(
-                        "Input/output row count mismatch in sort operation: %v != %v",
-                        totalInputRowCount,
-                        TotalOutputRowCount));
-                }
+                LOG_ERROR_IF(totalInputRowCount != TotalOutputRowCount,
+                    "Input/output row count mismatch in sort operation (TotalInputRowCount: %v, TotalOutputRowCount: %v)",
+                    totalInputRowCount,
+                    TotalOutputRowCount);
+                YCHECK(totalInputRowCount == TotalOutputRowCount);
             }
 
             YCHECK(CompletedPartitionCount == Partitions.size());
@@ -1438,7 +1437,7 @@ protected:
 
         ++CompletedPartitionCount;
 
-        LOG_INFO("Partition completed (Partition: %v)", partition->Index);
+        LOG_DEBUG("Partition completed (Partition: %v)", partition->Index);
     }
 
     bool IsSortedMergeNeeded(TPartitionPtr partition) const

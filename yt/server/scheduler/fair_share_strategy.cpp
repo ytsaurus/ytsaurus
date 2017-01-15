@@ -395,7 +395,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         BuildYsonMapFluently(consumer)
-            .Item("pool").Value(GetOperationParentElement(operation)->GetId());
+            .Item("pool").Value(GetOperationPoolName(operation));
     }
 
     virtual void BuildOperationProgress(const TOperationId& operationId, IYsonConsumer* consumer) override
@@ -738,8 +738,6 @@ private:
                     }
                     schedulingContext->ResourceUsageDiscount() += job->ResourceUsage();
                     preemptableJobs.push_back(job);
-                    LOG_DEBUG("Job is preemptable (JobId: %v)",
-                        job->GetId());
                 }
             }
         }
@@ -1198,30 +1196,32 @@ private:
         return path;
     }
 
-    TCompositeSchedulerElementPtr GetOperationParentElement(const TOperationPtr& operation)
+    Stroka GetOperationPoolName(const TOperationPtr& operation)
     {
         auto spec = ParseSpec(operation, operation->GetSpec());
-        auto poolName = spec->Pool ? *spec->Pool : operation->GetAuthenticatedUser();
-        auto pool = FindPool(poolName);
-        if (pool) {
-            return pool;
-        }
-
-        auto defaultPool = FindPool(Config->DefaultParentPool);
-        if (defaultPool) {
-            return defaultPool;
-        }
-
-        return RootElement;
+        return spec->Pool ? *spec->Pool : operation->GetAuthenticatedUser();
     }
 
     void DoValidateOperationStart(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto parentElement = GetOperationParentElement(operation);
+        auto parentElement = FindPool(GetOperationPoolName(operation));
 
-        auto poolWithViolatedLimit = FindPoolWithViolatedOperationCountLimit(parentElement);
+        TCompositeSchedulerElementPtr ansectorElement;
+        if (parentElement) {
+            ansectorElement = parentElement;
+        } else {
+            auto defaultPool = FindPool(Config->DefaultParentPool);
+            if (defaultPool) {
+                ansectorElement = defaultPool;
+            } else {
+                ansectorElement = RootElement;
+            }
+        }
+
+
+        auto poolWithViolatedLimit = FindPoolWithViolatedOperationCountLimit(ansectorElement);
         if (poolWithViolatedLimit) {
             THROW_ERROR_EXCEPTION(
                 EErrorCode::TooManyOperations,
@@ -1230,10 +1230,16 @@ private:
                 poolWithViolatedLimit->GetId());
         }
 
-        auto poolPath = GetPoolPath(parentElement);
+        if (parentElement && parentElement->AreImmediateOperationsFobidden()) {
+            THROW_ERROR_EXCEPTION(
+                "Starting operations immediately in pool %Qv is forbidden",
+                parentElement->GetId());
+        }
+
+        auto poolPath = GetPoolPath(ansectorElement);
         const auto& user = operation->GetAuthenticatedUser();
-        WaitFor(Host->CheckPoolPermission(poolPath, user, EPermission::Use))
-            .ThrowOnError();
+
+        Host->ValidatePoolPermission(poolPath, user, EPermission::Use);
     }
 
     void ProfileSchedulerElement(TCompositeSchedulerElementPtr element)

@@ -35,8 +35,6 @@ public:
 
     TNullable<Stroka> TmpfsPath;
 
-    NScheduler::TJobIOConfigPtr JobIO;
-
     // Job-independent parameters.
     NApi::TNativeConnectionConfigPtr ClusterConnection;
 
@@ -61,9 +59,6 @@ public:
 
         RegisterParameter("tmpfs_path", TmpfsPath)
             .Default();
-
-        RegisterParameter("job_io", JobIO)
-            .DefaultNew();
 
         RegisterParameter("cluster_connection", ClusterConnection);
 

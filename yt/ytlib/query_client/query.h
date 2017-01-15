@@ -3,8 +3,6 @@
 #include "public.h"
 #include "query_common.h"
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
-
 #include <yt/ytlib/table_client/row_buffer.h>
 #include <yt/ytlib/table_client/schema.h>
 

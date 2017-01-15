@@ -26,6 +26,8 @@
 #include <yt/ytlib/chunk_client/config.h>
 #include <yt/ytlib/chunk_client/data_statistics.h>
 
+#include <yt/ytlib/job_proxy/job_spec_helper.h>
+
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 #include <yt/ytlib/node_tracker_client/helpers.h>
 
@@ -75,6 +77,10 @@ using NJobTrackerClient::TStatistics;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto RpcServerShutdownTimeout = TDuration::Seconds(15);
+
+// Option cpu.share is limited to [2, 1024], see http://git.kernel.org/cgit/linux/kernel/git/tip/tip.git/tree/kernel/sched/sched.h#n279
+// To overcome this limitation we consider one cpu_limit unit as ten cpu.shares units.
+static const int CpuShareMultiplier = 10;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -188,7 +194,7 @@ void TJobProxy::RetrieveJobSpec()
     }
 
     const auto& rsp = rspOrError.Value();
-    JobSpec_ = rsp->job_spec();
+    JobSpecHelper_ = CreateJobSpecHelper(rsp->job_spec());
     const auto& resourceUsage = rsp->resource_usage();
 
     LOG_INFO("Job spec received (JobType: %v, ResourceLimits: {Cpu: %v, Memory: %v, Network: %v})\n%v",
@@ -208,13 +214,13 @@ void TJobProxy::RetrieveJobSpec()
     std::vector<Stroka> annotations{
         Format("OperationId: %v", OperationId_),
         Format("JobId: %v", JobId_),
-        Format("JobType: %v", EJobType(JobSpec_.type()))
+        Format("JobType: %v", GetJobSpecHelper()->GetJobType()),
     };
 
     for (auto* descriptor : {
-        &Config_->JobIO->TableReader->WorkloadDescriptor,
-        &Config_->JobIO->TableWriter->WorkloadDescriptor,
-        &Config_->JobIO->ErrorFileWriter->WorkloadDescriptor
+        &GetJobSpecHelper()->GetJobIOConfig()->TableReader->WorkloadDescriptor,
+        &GetJobSpecHelper()->GetJobIOConfig()->TableWriter->WorkloadDescriptor,
+        &GetJobSpecHelper()->GetJobIOConfig()->ErrorFileWriter->WorkloadDescriptor
     })
     {
         descriptor->Annotations.insert(
@@ -283,7 +289,7 @@ void TJobProxy::Run()
 
 std::unique_ptr<IUserJobIO> TJobProxy::CreateUserJobIO()
 {
-    auto jobType = NScheduler::EJobType(JobSpec_.type());
+    auto jobType = GetJobSpecHelper()->GetJobType();
 
     switch (jobType) {
         case NScheduler::EJobType::Map:
@@ -292,11 +298,9 @@ std::unique_ptr<IUserJobIO> TJobProxy::CreateUserJobIO()
         case NScheduler::EJobType::OrderedMap:
             return CreateOrderedMapJobIO(this);
 
+        case NScheduler::EJobType::JoinReduce:
         case NScheduler::EJobType::SortedReduce:
             return CreateSortedReduceJobIO(this);
-
-        case NScheduler::EJobType::JoinReduce:
-            return CreateJoinReduceJobIO(this);
 
         case NScheduler::EJobType::PartitionMap:
             return CreatePartitionMapJobIO(this);
@@ -313,7 +317,7 @@ std::unique_ptr<IUserJobIO> TJobProxy::CreateUserJobIO()
 
 IJobPtr TJobProxy::CreateBuiltinJob()
 {
-    auto jobType = NScheduler::EJobType(JobSpec_.type());
+    auto jobType = GetJobSpecHelper()->GetJobType();
     switch (jobType) {
         case NScheduler::EJobType::OrderedMerge:
             return CreateOrderedMergeJob(this);
@@ -367,7 +371,7 @@ TJobResult TJobProxy::DoRun()
 
     RetrieveJobSpec();
 
-    const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+    const auto& schedulerJobSpecExt = GetJobSpecHelper()->GetSchedulerJobSpecExt();
     NLFAlloc::SetBufferSize(schedulerJobSpecExt.lfalloc_buffer_size());
     JobProxyMemoryOvercommitLimit_ =
         schedulerJobSpecExt.has_job_proxy_memory_overcommit_limit() ?
@@ -378,7 +382,7 @@ TJobResult TJobProxy::DoRun()
 
     if (CGroupsConfig_ && CGroupsConfig_->IsCGroupSupported(TCpu::Name)) {
         auto cpuCGroup = GetCurrentCGroup<TCpu>();
-        cpuCGroup.SetShare(CpuLimit_);
+        cpuCGroup.SetShare(CpuLimit_ * CpuShareMultiplier);
     }
 
     InputNodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
@@ -492,9 +496,10 @@ const TJobId& TJobProxy::GetJobId() const
     return JobId_;
 }
 
-const TJobSpec& TJobProxy::GetJobSpec() const
+const IJobSpecHelperPtr& TJobProxy::GetJobSpecHelper() const
 {
-    return JobSpec_;
+    YCHECK(JobSpecHelper_);
+    return JobSpecHelper_;
 }
 
 void TJobProxy::UpdateResourceUsage()
@@ -611,7 +616,7 @@ void TJobProxy::CheckMemoryUsage()
 
 void TJobProxy::CheckResult(const TJobResult& jobResult)
 {
-    const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+    const auto& schedulerJobSpecExt = GetJobSpecHelper()->GetSchedulerJobSpecExt();
     const auto& schedulerJobResultExt = jobResult.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
     const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
 

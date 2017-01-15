@@ -24,6 +24,8 @@
 #include <yt/ytlib/table_client/schemaful_writer.h>
 #include <yt/ytlib/table_client/helpers.h>
 
+#include <yt/ytlib/ypath/rich.h>
+
 #include <yt/core/concurrency/action_queue.h>
 
 #include <yt/core/misc/collection_helpers.h>

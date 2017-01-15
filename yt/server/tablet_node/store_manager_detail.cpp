@@ -336,6 +336,7 @@ void TStoreManagerBase::BackoffStorePreload(IChunkStorePtr store)
     store->SetPreloadState(EStorePreloadState::None);
     store->UpdatePreloadAttemptTimestamp();
     store->SetPreloadFuture(TFuture<void>());
+    store->SetPreloadBackoffFuture(TFuture<void>());
     ScheduleStorePreload(store);
 }
 

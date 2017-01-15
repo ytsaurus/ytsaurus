@@ -110,7 +110,7 @@ public:
         TSchedulerConfigPtr config,
         TBootstrap* bootstrap)
         : Config_(config)
-        , InitialConfig_(ConvertToNode(Config_))
+        , InitialConfig_(Config_)
         , Bootstrap_(bootstrap)
         , SnapshotIOQueue_(New<TActionQueue>("SnapshotIO"))
         , ControllerThreadPool_(New<TThreadPool>(Config_->ControllerThreadCount, "Controller"))
@@ -431,23 +431,24 @@ public:
         return CoreSemaphore_;
     }
 
-    virtual TFuture<void> CheckPoolPermission(
+    virtual void ValidatePoolPermission(
         const TYPath& path,
         const Stroka& user,
-        EPermission permission) override
+        EPermission permission) const override
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         const auto& client = GetMasterClient();
-        return client->CheckPermission(user, GetPoolsPath() + path, permission)
-            .Apply(BIND([=] (const TCheckPermissionResult& result) {
-                if (result.Action == ESecurityAction::Deny) {
-                    THROW_ERROR_EXCEPTION(
-                        NSecurityClient::EErrorCode::AuthorizationError,
-                        "User %Qv has been denied access to pool %v",
-                        user,
-                        path)
-                        << result.ToError(user, permission);
-                }
-            }));
+        auto result = WaitFor(client->CheckPermission(user, GetPoolsPath() + path, permission))
+            .ValueOrThrow();
+        if (result.Action == ESecurityAction::Deny) {
+            THROW_ERROR_EXCEPTION(
+                NSecurityClient::EErrorCode::AuthorizationError,
+                "User %Qv has been denied access to pool %v",
+                user,
+                path)
+                << result.ToError(user, permission);
+        }
     }
 
 
@@ -831,7 +832,7 @@ public:
 
 
     // IOperationHost implementation
-    virtual const NApi::INativeClientPtr& GetMasterClient() override
+    virtual const NApi::INativeClientPtr& GetMasterClient() const override
     {
         return Bootstrap_->GetMasterClient();
     }
@@ -961,7 +962,7 @@ public:
 
 private:
     TSchedulerConfigPtr Config_;
-    const INodePtr InitialConfig_;
+    const TSchedulerConfigPtr InitialConfig_;
     TBootstrap* const Bootstrap_;
 
     TActionQueuePtr SnapshotIOQueue_;
@@ -1501,14 +1502,12 @@ private:
             return;
         }
 
-        TSchedulerConfigPtr newConfig = New<TSchedulerConfig>();
+        TSchedulerConfigPtr newConfig = CloneYsonSerializable(InitialConfig_);
         try {
             const auto& rsp = rspOrError.Value();
             auto configFromCypress = ConvertToNode(TYsonString(rsp->value()));
-            auto mergedConfig = UpdateNode(InitialConfig_, configFromCypress);
-
             try {
-                newConfig->Load(mergedConfig, /* validate */ true, /* setDefaults */ true);
+                newConfig->Load(configFromCypress, /* validate */ true, /* setDefaults */ false);
             } catch (const std::exception& ex) {
                 auto error = TError("Error updating cell scheduler configuration")
                     << ex;

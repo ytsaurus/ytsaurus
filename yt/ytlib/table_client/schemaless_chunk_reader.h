@@ -18,8 +18,6 @@
 namespace NYT {
 namespace NTableClient {
 
-using namespace NChunkClient;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ISchemalessChunkReader
@@ -31,7 +29,7 @@ struct ISchemalessChunkReader
     virtual i64 GetTableRowIndex() const = 0;
 
     //! Return unreadRows to reader and build data slice descriptors for unread data.
-    virtual std::vector<TDataSliceDescriptor> GetUnreadDataSliceDescriptors(
+    virtual std::vector<NChunkClient::TDataSliceDescriptor> GetUnreadDataSliceDescriptors(
         const NYT::TRange<NTableClient::TUnversionedRow>& unreadRows) const = 0;
 };
 
@@ -40,7 +38,7 @@ DEFINE_REFCOUNTED_TYPE(ISchemalessChunkReader)
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
-    const TDataSliceDescriptor& dataSliceDescriptor,
+    const NChunkClient::TDataSliceDescriptor& dataSliceDescriptor,
     TChunkReaderConfigPtr config,
     TChunkReaderOptionsPtr options,
     NChunkClient::IChunkReaderPtr underlyingReader,
@@ -52,7 +50,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     TNullable<int> partitionTag = Null);
 
 ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
-    const TDataSliceDescriptor& dataSliceDescriptor,
+    const NChunkClient::TDataSliceDescriptor& dataSliceDescriptor,
     TChunkReaderConfigPtr config,
     TChunkReaderOptionsPtr options,
     NChunkClient::IChunkReaderPtr underlyingReader,
@@ -124,7 +122,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessMergingMultiChunkReader(
     const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-    const TDataSliceDescriptor& dataSliceDescriptor,
+    const NChunkClient::TDataSliceDescriptor& dataSliceDescriptor,
     TNameTablePtr nameTable,
     TColumnFilter columnFilter,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());

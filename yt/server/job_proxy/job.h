@@ -9,6 +9,8 @@
 #include <yt/ytlib/chunk_client/public.h>
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 
+#include <yt/ytlib/job_proxy/job_spec_helper.h>
+
 #include <yt/ytlib/job_tracker_client/public.h>
 #include <yt/ytlib/job_tracker_client/statistics.h>
 
@@ -34,7 +36,7 @@ struct IJobHost
     virtual const NJobTrackerClient::TOperationId& GetOperationId() const = 0;
     virtual const NJobTrackerClient::TJobId& GetJobId() const = 0;
 
-    virtual const NJobTrackerClient::NProto::TJobSpec& GetJobSpec() const = 0;
+    virtual const IJobSpecHelperPtr& GetJobSpecHelper() const = 0;
 
     virtual void SetUserJobMemoryUsage(i64 memoryUsage) = 0;
 
