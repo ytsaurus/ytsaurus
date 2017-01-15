@@ -25,10 +25,11 @@ DEFINE_ENUM(EYsonFormat,
     (Pretty)
 );
 
+// NB: -1 is used for serializing null TYsonString.
 DEFINE_ENUM(EYsonType,
-    (Node)
-    (ListFragment)
-    (MapFragment)
+    ((Node)          (0))
+    ((ListFragment)  (1))
+    ((MapFragment)   (2))
 );
 
 enum class ETokenType;
