@@ -44,7 +44,7 @@ public:
 
     TMutableUnversionedRow Capture(TUnversionedRow row, bool deep = true);
     TMutableUnversionedRow Capture(const TUnversionedValue* begin, int count, bool deep = true);
-    std::vector<TMutableUnversionedRow> Capture(const std::vector<TUnversionedRow>& rows, bool deep = true);
+    std::vector<TMutableUnversionedRow> Capture(const TRange<TUnversionedRow>& rows, bool deep = true);
 
     //! Captures the row applying #idMapping to value ids and placing values to the proper positions.
     //! The returned row is schemaful.

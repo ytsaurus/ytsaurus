@@ -76,7 +76,7 @@ private:
 
 
     // ISchemalessFormatWriter implementation
-    virtual void DoWrite(const std::vector<TUnversionedRow>& rows) override
+    virtual void DoWrite(const TRange<TUnversionedRow>& rows) override
     {
         TableIndexWasWritten_ = false;
 
@@ -86,9 +86,10 @@ private:
         RowValues_.resize(NameTableSize_);
         // Invariant: at the beginning of each loop iteration RowValues contains
         // nullptr in each element.
-        for (int i = 0; i < static_cast<int>(rows.size()); i++) {
-            auto row = rows[i];
-            if (CheckKeySwitch(row, i + 1 == rows.size() /* isLastRow */)) {
+        int rowCount = static_cast<int>(rows.Size());
+        for (int index = 0; index < rowCount; index++) {
+            auto row = rows[index];
+            if (CheckKeySwitch(row, index + 1 == rowCount /* isLastRow */)) {
                 YCHECK(!Config_->Lenval);
                 WritePod(*stream, static_cast<ui32>(-2));
             }

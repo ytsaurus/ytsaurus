@@ -14,17 +14,15 @@ namespace NTableClient {
 
 DECLARE_REFCOUNTED_CLASS(TSchemafulWriterAdapter)
 
-struct TSchemafulWriterAdapterPoolTag { };
-
 class TSchemafulWriterAdapter
     : public ISchemafulWriter
 {
 public:
     explicit TSchemafulWriterAdapter(ISchemalessWriterPtr underlyingWriter)
-        : UnderlyingWriter_(underlyingWriter)
+        : UnderlyingWriter_(std::move(underlyingWriter))
     { }
 
-    virtual bool Write(const std::vector<TUnversionedRow>& rows) override
+    virtual bool Write(const TRange<TUnversionedRow>& rows) override
     {
         return UnderlyingWriter_->Write(rows);
     }
@@ -40,7 +38,8 @@ public:
     }
 
 private:
-    ISchemalessWriterPtr UnderlyingWriter_;
+    const ISchemalessWriterPtr UnderlyingWriter_;
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchemafulWriterAdapter)

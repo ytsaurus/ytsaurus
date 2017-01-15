@@ -48,7 +48,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(int, Index);
 
 public:
-    void Write(const std::vector<TUnversionedRow>& rows)
+    void Write(const TRange<TUnversionedRow>& rows)
     {
         auto capturedRows = RowBuffer_->Capture(rows);
         Rows_.insert(Rows_.end(), capturedRows.begin(), capturedRows.end());
@@ -120,14 +120,14 @@ public:
         Y_UNREACHABLE();
     }
 
-    virtual bool Write(const std::vector<TUnversionedRow>& rows) override
+    virtual bool Write(const TRange<TUnversionedRow>& rows) override
     {
         TGuard<TSpinLock> guard(SpinLock_);
 
         if (!CurrentBuffer_) {
             if (EmptyBuffers_.empty()) {
                 LOG_DEBUG("Buffer overflown; dropping rows");
-                DroppedRowCount_ += rows.size();
+                DroppedRowCount_ += rows.Size();
                 return true;
             }
 

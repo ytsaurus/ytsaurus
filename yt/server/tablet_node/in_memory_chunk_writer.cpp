@@ -16,6 +16,8 @@ using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NTableClient;
 
+using NYT::TRange;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVersionedChunkInMemoryWriter
@@ -33,7 +35,7 @@ public:
         , UnderlyingChunkWriter_(std::move(underlyingChunkWriter))
     { }
 
-    virtual bool Write(const std::vector<TVersionedRow>& rows) override
+    virtual bool Write(const TRange<TVersionedRow>& rows) override
     {
         return UnderlyingWriter_->Write(rows);
     }
@@ -127,7 +129,7 @@ public:
         , UnderlyingWriter_(std::move(underlyingWriter))
     { }
 
-    virtual bool Write(const std::vector<TVersionedRow>& rows) override
+    virtual bool Write(const TRange<TVersionedRow>& rows) override
     {
         return UnderlyingWriter_->Write(rows);
     }

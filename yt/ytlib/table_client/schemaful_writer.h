@@ -5,7 +5,7 @@
 
 #include <yt/core/actions/future.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/range.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -24,9 +24,9 @@ struct ISchemafulWriter
     /*!
      *  Every row must contain exactly one value for each column in schema, in the same order.
      */
-    virtual bool Write(const std::vector<TUnversionedRow>& rows) = 0;
-    virtual TFuture<void> GetReadyEvent() = 0;
+    virtual bool Write(const TRange<TUnversionedRow>& rows) = 0;
 
+    virtual TFuture<void> GetReadyEvent() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchemafulWriter)

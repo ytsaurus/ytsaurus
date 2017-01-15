@@ -823,7 +823,7 @@ public:
         return VoidFuture;
     }
 
-    virtual bool Write(const std::vector<TUnversionedRow>& rows) override
+    virtual bool Write(const TRange<TUnversionedRow>& rows) override
     {
         YCHECK(!Closed_);
         for (auto row : rows) {

@@ -65,6 +65,8 @@ using namespace NJournalClient;
 using namespace NNodeTrackerClient;
 using namespace NTransactionClient;
 
+using NYT::TRange;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJournalWriter
@@ -88,7 +90,7 @@ public:
         return Impl_->Open();
     }
 
-    virtual TFuture<void> Write(const std::vector<TSharedRef>& rows) override
+    virtual TFuture<void> Write(const TRange<TSharedRef>& rows) override
     {
         return Impl_->Write(rows);
     }
@@ -136,7 +138,7 @@ private:
             return OpenedPromise_;
         }
 
-        TFuture<void> Write(const std::vector<TSharedRef>& rows)
+        TFuture<void> Write(const TRange<TSharedRef>& rows)
         {
             TGuard<TSpinLock> guard(CurrentBatchSpinLock_);
 

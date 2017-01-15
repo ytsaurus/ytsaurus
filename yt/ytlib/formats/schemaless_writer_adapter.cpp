@@ -125,7 +125,7 @@ void TSchemalessFormatWriterBase::DoFlushBuffer()
     CurrentBuffer_.Reserve(ContextBufferCapacity);
 }
 
-bool TSchemalessFormatWriterBase::Write(const std::vector<TUnversionedRow> &rows)
+bool TSchemalessFormatWriterBase::Write(const TRange<TUnversionedRow> &rows)
 {
     if (!Error_.IsOK()) {
         return false;
@@ -273,10 +273,11 @@ void TSchemalessWriterAdapter::Init(const TFormat& format)
     Consumer_ = CreateConsumerForFormat(format, EDataType::Tabular, GetOutputStream());
 }
 
-void TSchemalessWriterAdapter::DoWrite(const std::vector<TUnversionedRow>& rows)
+void TSchemalessWriterAdapter::DoWrite(const TRange<TUnversionedRow>& rows)
 {
-    for (int index = 0; index < static_cast<int>(rows.size()); ++index) {
-        if (CheckKeySwitch(rows[index], index + 1 == rows.size() /* isLastRow */)) {
+    int count = static_cast<int>(rows.Size());
+    for (int index = 0; index < count; ++index) {
+        if (CheckKeySwitch(rows[index], index + 1 == count /* isLastRow */)) {
             WriteControlAttribute(EControlAttribute::KeySwitch, true);
         }
 
