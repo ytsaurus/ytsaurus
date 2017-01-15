@@ -1710,6 +1710,11 @@ void TOperationControllerBase::DoLoadSnapshot(const TSharedRef& snapshot)
     TLoadContext context;
     context.SetInput(&input);
     context.SetRowBuffer(RowBuffer);
+    // NB: Currently scheduler snapshots are not backward-compatible.
+    // The version is being checked when the snapshot is discovered.
+    // If the version does not match the expected one, the snapshot is discarded.
+    // We still need to provide the proper version for the loaders to work properly.
+    context.SetVersion(GetCurrentSnapshotVersion());
 
     NPhoenix::TSerializer::InplaceLoad(context, this);
 
