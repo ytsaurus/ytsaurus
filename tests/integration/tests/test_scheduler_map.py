@@ -5,6 +5,8 @@ from yt.yson import *
 from yt.wrapper import JsonFormat
 from yt.environment.helpers import assert_items_equal
 
+from flaky import flaky
+
 import pytest
 import time
 import __builtin__
@@ -237,6 +239,7 @@ class TestJobProber(YTEnvSetup):
         assert read_table("//tmp/t2") == [{"foo": "bar"}, {"got": "SIGUSR1"}, {"got": "SIGUSR2"}]
 
     @unix_only
+    @flaky(max_runs=5)
     def test_signal_job_with_job_restart(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
