@@ -373,16 +373,11 @@ private:
         const std::vector<TOwningKey>& pivotKeys,
         const std::vector<TSortedChunkStorePtr>& stores)
     {
-        // Capture everything needed below.
-        // NB: Avoid accessing tablet from pool invoker.
         auto* tablet = eden->GetTablet();
-        auto storeManager = tablet->GetStoreManager();
-        auto tabletId = tablet->GetId();
-        auto mountRevision = tablet->GetMountRevision();
-        auto tabletPivotKey = tablet->GetPivotKey();
-        auto nextTabletPivotKey = tablet->GetNextPivotKey();
-        auto schema = tablet->PhysicalSchema();
-        auto mountConfig = tablet->GetConfig();
+        const auto& storeManager = tablet->GetStoreManager();
+        const auto& tabletId = tablet->GetId();
+        const auto& tabletPivotKey = tablet->GetPivotKey();
+        const auto& nextTabletPivotKey = tablet->GetNextPivotKey();
 
         YCHECK(tabletPivotKey == pivotKeys[0]);
 
@@ -393,9 +388,6 @@ private:
 
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v", tabletId);
-
-        auto automatonInvoker = GetCurrentInvoker();
-        auto poolInvoker = ThreadPool_->GetInvoker();
 
         try {
             i64 dataSize = 0;
@@ -428,8 +420,6 @@ private:
                 MinTimestamp, // NB: No major compaction during Eden partitioning.
                 TWorkloadDescriptor(EWorkloadCategory::SystemTabletPartitioning));
 
-            SwitchTo(poolInvoker);
-
             INativeTransactionPtr transaction;
             {
                 LOG_INFO("Creating Eden partitioning transaction");
@@ -453,142 +443,27 @@ private:
                 Logger.AddTag("TransactionId: %v", transaction->GetId());
             }
 
-            int writerPoolSize = std::min(
-                static_cast<int>(pivotKeys.size()),
-                Config_->StoreCompactor->PartitioningWriterPoolSize);
-            TChunkWriterPool writerPool(
-                Bootstrap_->GetInMemoryManager(),
-                tabletSnapshot,
-                writerPoolSize,
-                tabletSnapshot->WriterConfig,
-                tabletSnapshot->WriterOptions,
-                Bootstrap_->GetMasterClient(),
-                transaction->GetId());
+            auto asyncResult =
+                BIND(
+                    &TStoreCompactor::DoPartitionEden,
+                    MakeStrong(this),
+                    reader,
+                    tabletSnapshot,
+                    transaction,
+                    pivotKeys,
+                    nextTabletPivotKey,
+                    Logger)
+                .AsyncVia(ThreadPool_->GetInvoker())
+                .Run();
 
-            std::vector<TVersionedRow> writeRows;
-            writeRows.reserve(MaxRowsPerWrite);
-
-            int currentPartitionIndex = 0;
-            TOwningKey currentPivotKey;
-            TOwningKey nextPivotKey;
-
-            int currentPartitionRowCount = 0;
-            int readRowCount = 0;
-            int writeRowCount = 0;
-            IVersionedMultiChunkWriterPtr currentWriter;
-
-            auto ensurePartitionStarted = [&] () {
-                if (currentWriter)
-                    return;
-
-                LOG_INFO("Started writing partition (PartitionIndex: %v, Keys: %v .. %v)",
-                    currentPartitionIndex,
-                    currentPivotKey,
-                    nextPivotKey);
-
-                currentWriter = writerPool.AllocateWriter();
-            };
-
-            auto flushOutputRows = [&] () {
-                if (writeRows.empty())
-                    return;
-
-                writeRowCount += writeRows.size();
-
-                ensurePartitionStarted();
-                if (!currentWriter->Write(writeRows)) {
-                    WaitFor(currentWriter->GetReadyEvent())
-                        .ThrowOnError();
-                }
-
-                writeRows.clear();
-            };
-
-            auto writeOutputRow = [&] (TVersionedRow row) {
-                if (writeRows.size() == writeRows.capacity()) {
-                    flushOutputRows();
-                }
-                writeRows.push_back(row);
-                ++currentPartitionRowCount;
-            };
-
-            auto flushPartition = [&] () {
-                flushOutputRows();
-
-                if (currentWriter) {
-                    LOG_INFO("Finished writing partition (PartitionIndex: %v, RowCount: %v)",
-                        currentPartitionIndex,
-                        currentPartitionRowCount);
-
-                    writerPool.ReleaseWriter(currentWriter);
-                    currentWriter.Reset();
-                }
-
-                currentPartitionRowCount = 0;
-                ++currentPartitionIndex;
-            };
-
-            std::vector<TVersionedRow> readRows;
-            readRows.reserve(MaxRowsPerRead);
-            int currentRowIndex = 0;
-
-            auto peekInputRow = [&] () -> TVersionedRow {
-                if (currentRowIndex == readRows.size()) {
-                    // readRows will be invalidated, must flush writeRows.
-                    flushOutputRows();
-                    currentRowIndex = 0;
-                    while (true) {
-                        if (!reader->Read(&readRows)) {
-                            return TVersionedRow();
-                        }
-                        readRowCount += readRows.size();
-                        if (!readRows.empty())
-                            break;
-                        WaitFor(reader->GetReadyEvent())
-                            .ThrowOnError();
-                    }
-                }
-                return readRows[currentRowIndex];
-            };
-
-            auto skipInputRow = [&] () {
-                ++currentRowIndex;
-            };
-
-            WaitFor(reader->Open())
-                .ThrowOnError();
-
-            for (auto it = pivotKeys.begin(); it != pivotKeys.end(); ++it) {
-                currentPivotKey = *it;
-                nextPivotKey = it == pivotKeys.end() - 1 ? nextTabletPivotKey : *(it + 1);
-
-                while (true) {
-                    auto row = peekInputRow();
-                    if (!row) {
-                        break;
-                    }
-
-                    // NB: pivot keys can be of arbitrary schema and length.
-                    YCHECK(CompareRows(currentPivotKey.Begin(), currentPivotKey.End(), row.BeginKeys(), row.EndKeys()) <= 0);
-
-                    if (CompareRows(nextPivotKey.Begin(), nextPivotKey.End(), row.BeginKeys(), row.EndKeys()) <= 0) {
-                        break;
-                    }
-
-                    skipInputRow();
-                    writeOutputRow(row);
-                }
-
-                flushPartition();
-            }
-
-            SwitchTo(automatonInvoker);
-
-            YCHECK(readRowCount == writeRowCount);
+            std::shared_ptr<TChunkWriterPool> writerPool;
+            int rowCount;
+            std::tie(writerPool, rowCount) = WaitFor(asyncResult)
+                .ValueOrThrow();
 
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
             ToProto(actionRequest.mutable_tablet_id(), tabletId);
-            actionRequest.set_mount_revision(mountRevision);
+            actionRequest.set_mount_revision(tablet->GetMountRevision());
 
             TStoreIdList storeIdsToRemove;
             for (const auto& store : stores) {
@@ -600,7 +475,7 @@ private:
 
             // TODO(sandello): Move specs?
             TStoreIdList storeIdsToAdd;
-            for (const auto& writer : writerPool.GetAllWriters()) {
+            for (const auto& writer : writerPool->GetAllWriters()) {
                 for (const auto& chunkSpec : writer->GetWrittenChunksMasterMeta()) {
                     auto* descriptor = actionRequest.add_stores_to_add();
                     descriptor->set_store_type(static_cast<int>(EStoreType::SortedChunk));
@@ -613,7 +488,7 @@ private:
             // NB: No exceptions must be thrown beyond this point!
 
             LOG_INFO("Eden partitioning completed (RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v)",
-                readRowCount,
+                rowCount,
                 storeIdsToAdd,
                 storeIdsToRemove);
 
@@ -632,16 +507,154 @@ private:
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error partitioning Eden, backing off");
 
-            SwitchTo(automatonInvoker);
-
             for (const auto& store : stores) {
                 storeManager->BackoffStoreCompaction(store);
             }
         }
 
-        SwitchTo(automatonInvoker);
-
         eden->CheckedSetState(EPartitionState::Partitioning, EPartitionState::Normal);
+    }
+
+    std::tuple<std::shared_ptr<TChunkWriterPool>, int> DoPartitionEden(
+        const IVersionedReaderPtr& reader,
+        const TTabletSnapshotPtr& tabletSnapshot,
+        const ITransactionPtr& transaction,
+        const std::vector<TOwningKey>& pivotKeys,
+        const TOwningKey& nextTabletPivotKey,
+        NLogging::TLogger Logger)
+    {
+        int writerPoolSize = std::min(
+            static_cast<int>(pivotKeys.size()),
+            Config_->StoreCompactor->PartitioningWriterPoolSize);
+        auto writerPool = std::make_shared<TChunkWriterPool>(
+            Bootstrap_->GetInMemoryManager(),
+            tabletSnapshot,
+            writerPoolSize,
+            tabletSnapshot->WriterConfig,
+            tabletSnapshot->WriterOptions,
+            Bootstrap_->GetMasterClient(),
+            transaction->GetId());
+
+        std::vector<TVersionedRow> writeRows;
+        writeRows.reserve(MaxRowsPerWrite);
+
+        int currentPartitionIndex = 0;
+        TOwningKey currentPivotKey;
+        TOwningKey nextPivotKey;
+
+        int currentPartitionRowCount = 0;
+        int readRowCount = 0;
+        int writeRowCount = 0;
+        IVersionedMultiChunkWriterPtr currentWriter;
+
+        auto ensurePartitionStarted = [&] () {
+            if (currentWriter)
+                return;
+
+            LOG_INFO("Started writing partition (PartitionIndex: %v, Keys: %v .. %v)",
+                currentPartitionIndex,
+                currentPivotKey,
+                nextPivotKey);
+
+            currentWriter = writerPool->AllocateWriter();
+        };
+
+        auto flushOutputRows = [&] () {
+            if (writeRows.empty())
+                return;
+
+            writeRowCount += writeRows.size();
+
+            ensurePartitionStarted();
+            if (!currentWriter->Write(writeRows)) {
+                WaitFor(currentWriter->GetReadyEvent())
+                    .ThrowOnError();
+            }
+
+            writeRows.clear();
+        };
+
+        auto writeOutputRow = [&] (TVersionedRow row) {
+            if (writeRows.size() == writeRows.capacity()) {
+                flushOutputRows();
+            }
+            writeRows.push_back(row);
+            ++currentPartitionRowCount;
+        };
+
+        auto flushPartition = [&] () {
+            flushOutputRows();
+
+            if (currentWriter) {
+                LOG_INFO("Finished writing partition (PartitionIndex: %v, RowCount: %v)",
+                    currentPartitionIndex,
+                    currentPartitionRowCount);
+
+                writerPool->ReleaseWriter(currentWriter);
+                currentWriter.Reset();
+            }
+
+            currentPartitionRowCount = 0;
+            ++currentPartitionIndex;
+        };
+
+        std::vector<TVersionedRow> readRows;
+        readRows.reserve(MaxRowsPerRead);
+        int currentRowIndex = 0;
+
+        auto peekInputRow = [&] () -> TVersionedRow {
+            if (currentRowIndex == readRows.size()) {
+                // readRows will be invalidated, must flush writeRows.
+                flushOutputRows();
+                currentRowIndex = 0;
+                while (true) {
+                    if (!reader->Read(&readRows)) {
+                        return TVersionedRow();
+                    }
+                    readRowCount += readRows.size();
+                    if (!readRows.empty())
+                        break;
+                    WaitFor(reader->GetReadyEvent())
+                        .ThrowOnError();
+                }
+            }
+            return readRows[currentRowIndex];
+        };
+
+        auto skipInputRow = [&] () {
+            ++currentRowIndex;
+        };
+
+        WaitFor(reader->Open())
+            .ThrowOnError();
+
+        for (auto it = pivotKeys.begin(); it != pivotKeys.end(); ++it) {
+            currentPivotKey = *it;
+            nextPivotKey = it == pivotKeys.end() - 1 ? nextTabletPivotKey : *(it + 1);
+
+            while (true) {
+                auto row = peekInputRow();
+                if (!row) {
+                    break;
+                }
+
+                // NB: pivot keys can be of arbitrary schema and length.
+                YCHECK(CompareRows(currentPivotKey.Begin(), currentPivotKey.End(), row.BeginKeys(), row.EndKeys()) <= 0);
+
+                if (CompareRows(nextPivotKey.Begin(), nextPivotKey.End(), row.BeginKeys(), row.EndKeys()) <= 0) {
+                    break;
+                }
+
+                skipInputRow();
+                writeOutputRow(row);
+            }
+
+            flushPartition();
+        }
+
+        YCHECK(readRowCount == writeRowCount);
+
+        return writerPool;
     }
 
     void CompactPartition(
@@ -671,9 +684,6 @@ private:
             partition->IsEden(),
             partition->GetPivotKey(),
             partition->GetNextPivotKey());
-
-        auto automatonInvoker = GetCurrentInvoker();
-        auto poolInvoker = ThreadPool_->GetInvoker();
 
         try {
             i64 dataSize = 0;
@@ -710,8 +720,6 @@ private:
                 majorTimestamp,
                 TWorkloadDescriptor(EWorkloadCategory::SystemTabletCompaction));
 
-            SwitchTo(poolInvoker);
-
             INativeTransactionPtr transaction;
             {
                 LOG_INFO("Creating partition compaction transaction");
@@ -720,7 +728,7 @@ private:
                 options.AutoAbort = false;
                 auto attributes = CreateEphemeralAttributes();
                 attributes->Set("title", Format("Partition compaction: tablet %v",
-                    tabletId));
+                    tabletSnapshot->TabletId));
                 options.Attributes = std::move(attributes);
 
                 auto asyncTransaction = Bootstrap_->GetMasterClient()->StartNativeTransaction(
@@ -735,53 +743,22 @@ private:
                 Logger.AddTag("TransactionId: %v", transaction->GetId());
             }
 
-            auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
-            writerOptions->ChunksEden = partition->IsEden();
+            auto asyncResult =
+                BIND(
+                    &TStoreCompactor::DoCompactPartition,
+                    MakeStrong(this),
+                    reader,
+                    tabletSnapshot,
+                    transaction,
+                    partition->IsEden(),
+                    Logger)
+                .AsyncVia(ThreadPool_->GetInvoker())
+                .Run();
 
-            TChunkWriterPool writerPool(
-                Bootstrap_->GetInMemoryManager(),
-                tabletSnapshot,
-                1,
-                tabletSnapshot->WriterConfig,
-                writerOptions,
-                Bootstrap_->GetMasterClient(),
-                transaction->GetId());
-            auto writer = writerPool.AllocateWriter();
-
-            WaitFor(reader->Open())
-                .ThrowOnError();
-
-            WaitFor(writer->Open())
-                .ThrowOnError();
-
-            std::vector<TVersionedRow> rows;
-            rows.reserve(MaxRowsPerRead);
-
-            int readRowCount = 0;
-            int writeRowCount = 0;
-
-            while (reader->Read(&rows)) {
-                readRowCount += rows.size();
-
-                if (rows.empty()) {
-                    WaitFor(reader->GetReadyEvent())
-                        .ThrowOnError();
-                    continue;
-                }
-
-                writeRowCount += rows.size();
-                if (!writer->Write(rows)) {
-                    WaitFor(writer->GetReadyEvent())
-                        .ThrowOnError();
-                }
-            }
-
-            WaitFor(writer->Close())
-                .ThrowOnError();
-
-            SwitchTo(automatonInvoker);
-
-            YCHECK(readRowCount == writeRowCount);
+            IVersionedMultiChunkWriterPtr writer;
+            int rowCount;
+            std::tie(writer, rowCount) = WaitFor(asyncResult)
+                .ValueOrThrow();
 
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
             ToProto(actionRequest.mutable_tablet_id(), tabletId);
@@ -806,10 +783,8 @@ private:
                 storeIdsToAdd.push_back(FromProto<TStoreId>(chunkSpec.chunk_id()));
             }
 
-            // NB: No exceptions must be thrown beyond this point!
-
             LOG_INFO("Partition compaction completed (RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v)",
-                readRowCount,
+                rowCount,
                 storeIdsToAdd,
                 storeIdsToRemove);
 
@@ -828,18 +803,69 @@ private:
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error compacting partition, backing off");
 
-            SwitchTo(automatonInvoker);
-
             for (const auto& store : stores) {
                 storeManager->BackoffStoreCompaction(store);
             }
         }
 
-        SwitchTo(automatonInvoker);
-
         partition->CheckedSetState(EPartitionState::Compacting, EPartitionState::Normal);
     }
 
+    std::tuple<IVersionedMultiChunkWriterPtr, int> DoCompactPartition(
+        const IVersionedReaderPtr& reader,
+        const TTabletSnapshotPtr& tabletSnapshot,
+        const ITransactionPtr& transaction,
+        bool isEden,
+        NLogging::TLogger Logger)
+    {
+        auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
+        writerOptions->ChunksEden = isEden;
+
+        TChunkWriterPool writerPool(
+            Bootstrap_->GetInMemoryManager(),
+            tabletSnapshot,
+            1,
+            tabletSnapshot->WriterConfig,
+            writerOptions,
+            Bootstrap_->GetMasterClient(),
+            transaction->GetId());
+        auto writer = writerPool.AllocateWriter();
+
+        WaitFor(reader->Open())
+            .ThrowOnError();
+
+        WaitFor(writer->Open())
+            .ThrowOnError();
+
+        std::vector<TVersionedRow> rows;
+        rows.reserve(MaxRowsPerRead);
+
+        int readRowCount = 0;
+        int writeRowCount = 0;
+
+        while (reader->Read(&rows)) {
+            readRowCount += rows.size();
+
+            if (rows.empty()) {
+                WaitFor(reader->GetReadyEvent())
+                    .ThrowOnError();
+                continue;
+            }
+
+            writeRowCount += rows.size();
+            if (!writer->Write(rows)) {
+                WaitFor(writer->GetReadyEvent())
+                    .ThrowOnError();
+            }
+        }
+
+        WaitFor(writer->Close())
+            .ThrowOnError();
+
+        YCHECK(readRowCount == writeRowCount);
+
+        return std::make_tuple(writer, readRowCount);
+    }
 
     static bool IsCompactionForced(TSortedChunkStorePtr store)
     {
@@ -869,7 +895,6 @@ private:
 
         return true;
     }
-
 };
 
 void StartStoreCompactor(
