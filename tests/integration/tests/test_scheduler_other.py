@@ -1895,13 +1895,13 @@ class TestSchedulerJobStatistics(YTEnvSetup):
         job_id = running_jobs.keys()[0]
         job_info = running_jobs.values()[0]
 
-        # Check that /job_by_id is accessible only with direct job id.
+        # Check that /jobs is accessible only with direct job id.
         with pytest.raises(YtError):
-            get("//sys/scheduler/orchid/scheduler/job_by_id")
+            get("//sys/scheduler/orchid/scheduler/jobs")
         with pytest.raises(YtError):
-            ls("//sys/scheduler/orchid/scheduler/job_by_id")
+            ls("//sys/scheduler/orchid/scheduler/jobs")
 
-        job_info2 = get("//sys/scheduler/orchid/scheduler/job_by_id/{0}".format(job_id))
+        job_info2 = get("//sys/scheduler/orchid/scheduler/jobs/{0}".format(job_id))
         # Check that job_info2 contains all the keys that are in job_info (do not check the same
         # for values because values could actually change between two get requests).
         for key in job_info:
@@ -1925,7 +1925,7 @@ class TestSchedulerJobStatistics(YTEnvSetup):
 
         statistics_appeared = False
         for iter in xrange(30):
-            statistics = get("//sys/scheduler/orchid/scheduler/job_by_id/{0}/statistics".format(job_id))
+            statistics = get("//sys/scheduler/orchid/scheduler/jobs/{0}/statistics".format(job_id))
             data = statistics.get("data", {})
             _input = data.get("input", {})
             row_count = _input.get("row_count", {})
@@ -2021,8 +2021,8 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
 
         time.sleep(1)
 
-        suspicious1 = get("//sys/scheduler/orchid/scheduler/job_by_id/{0}/suspicious".format(job1_id))
-        suspicious2 = get("//sys/scheduler/orchid/scheduler/job_by_id/{0}/suspicious".format(job2_id))
+        suspicious1 = get("//sys/scheduler/orchid/scheduler/jobs/{0}/suspicious".format(job1_id))
+        suspicious2 = get("//sys/scheduler/orchid/scheduler/jobs/{0}/suspicious".format(job2_id))
 
         assert not suspicious1
         assert not suspicious2
@@ -2078,12 +2078,12 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
         job_id = running_jobs.keys()[0]
 
         for i in xrange(20):
-            suspicious = get("//sys/scheduler/orchid/scheduler/job_by_id/{0}/suspicious".format(job_id))
+            suspicious = get("//sys/scheduler/orchid/scheduler/jobs/{0}/suspicious".format(job_id))
             if not suspicious:
                 time.sleep(1.0)
 
-            if exists("//sys/scheduler/orchid/scheduler/job_by_id/{0}/brief_statistics".format(job_id)):
-                print >>sys.stderr, get("//sys/scheduler/orchid/scheduler/job_by_id/{0}/brief_statistics".format(job_id))
+            if exists("//sys/scheduler/orchid/scheduler/jobs/{0}/brief_statistics".format(job_id)):
+                print >>sys.stderr, get("//sys/scheduler/orchid/scheduler/jobs/{0}/brief_statistics".format(job_id))
 
         assert suspicious
 

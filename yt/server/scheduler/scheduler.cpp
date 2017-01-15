@@ -58,6 +58,7 @@
 
 #include <yt/core/ytree/service_combiner.h>
 #include <yt/core/ytree/virtual.h>
+#include <yt/core/ytree/exception_helpers.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -2272,7 +2273,9 @@ private:
     {
         auto dynamicOrchidService = New<TCompositeMapService>();
         dynamicOrchidService->AddChild("operations", New<TOperationsService>(this));
-        dynamicOrchidService->AddChild("job_by_id", New<TJobByIdService>(this));
+        // COMPAT(babenko)
+        dynamicOrchidService->AddChild("job_by_id", New<TJobsService>(this));
+        dynamicOrchidService->AddChild("jobs", New<TJobsService>(this));
         return dynamicOrchidService;
     }
 
@@ -2319,11 +2322,11 @@ private:
         const TScheduler::TImpl* const Scheduler_;
     };
 
-    class TJobByIdService
+    class TJobsService
         : public TVirtualMapBase
     {
     public:
-        explicit TJobByIdService(const TScheduler::TImpl* scheduler)
+        explicit TJobsService(const TScheduler::TImpl* scheduler)
             : TVirtualMapBase(nullptr /* owningNode */)
             , Scheduler_(scheduler)
         { }
@@ -2333,7 +2336,7 @@ private:
             TRspGet* response,
             const TCtxGetPtr& context) override
         {
-            THROW_ERROR_EXCEPTION("Methods Get and List are not supported by this node, query `job_by_id/${job_id}` instead");
+            ThrowMethodNotSupported(context->GetMethod());
         }
 
         virtual void ListSelf(
@@ -2341,7 +2344,7 @@ private:
             TRspList* response,
             const TCtxListPtr& context) override
         {
-            THROW_ERROR_EXCEPTION("Methods Get and List are not supported by this node, query `job_by_id/${job_id}` instead");
+            ThrowMethodNotSupported(context->GetMethod());
         }
 
         virtual i64 GetSize() const override
