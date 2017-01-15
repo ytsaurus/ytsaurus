@@ -1,6 +1,5 @@
 #include "remote_copy_job.h"
 #include "private.h"
-#include "config.h"
 #include "job_detail.h"
 
 #include <yt/ytlib/api/client.h>
@@ -61,11 +60,10 @@ class TRemoteCopyJob
 public:
     explicit TRemoteCopyJob(IJobHostPtr host)
         : TJob(host)
-        , JobSpec_(host->GetJobSpec())
-        , SchedulerJobSpecExt_(JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext))
-        , RemoteCopyJobSpecExt_(JobSpec_.GetExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext))
-        , ReaderConfig_(Host_->GetConfig()->JobIO->TableReader)
-        , WriterConfig_(Host_->GetConfig()->JobIO->TableWriter)
+        , SchedulerJobSpecExt_(host->GetJobSpecHelper()->GetSchedulerJobSpecExt())
+        , RemoteCopyJobSpecExt_(host->GetJobSpecHelper()->GetJobSpec().GetExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext))
+        , ReaderConfig_(Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader)
+        , WriterConfig_(Host_->GetJobSpecHelper()->GetJobIOConfig()->TableWriter)
     {
         YCHECK(SchedulerJobSpecExt_.input_table_specs_size() == 1);
         YCHECK(SchedulerJobSpecExt_.output_table_specs_size() == 1);
@@ -85,8 +83,7 @@ public:
         OutputChunkListId_ = FromProto<TChunkListId>(
             SchedulerJobSpecExt_.output_table_specs(0).chunk_list_id());
 
-        const auto& remoteCopySpec = JobSpec_.GetExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext);
-        auto remoteConnectionConfig = ConvertTo<TNativeConnectionConfigPtr>(TYsonString(remoteCopySpec.connection_config()));
+        auto remoteConnectionConfig = ConvertTo<TNativeConnectionConfigPtr>(TYsonString(RemoteCopyJobSpecExt_.connection_config()));
         RemoteConnection_ = CreateNativeConnection(remoteConnectionConfig);
 
         RemoteClient_ = RemoteConnection_->CreateNativeClient(TClientOptions(NSecurityClient::JobUserName));
@@ -140,7 +137,6 @@ public:
     }
 
 private:
-    const TJobSpec& JobSpec_;
     const TSchedulerJobSpecExt& SchedulerJobSpecExt_;
     const TRemoteCopyJobSpecExt& RemoteCopyJobSpecExt_;
     const TTableReaderConfigPtr ReaderConfig_;

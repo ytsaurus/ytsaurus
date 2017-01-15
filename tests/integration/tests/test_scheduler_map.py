@@ -1548,6 +1548,23 @@ print row + table_index
         op.track()
         check_all_stderrs(op, '"range_index"=0;', 1, substring=True)
         check_all_stderrs(op, '"range_index"=1;', 1, substring=True)
+    
+    def test_range_count_limit(self):
+        create("table", "//tmp/in")
+        create("table", "//tmp/out")
+        write_table("//tmp/in", {"key": "a", "value": "value"})
+
+        def gen_table(range_count):
+            return "<ranges=[" + ("{exact={row_index=0}};" * range_count) + "]>//tmp/in"
+        
+        map(in_=[gen_table(20)],
+            out="//tmp/out",
+            command="cat")
+        
+        with pytest.raises(YtError):
+            map(in_=[gen_table(2000)],
+                out="//tmp/out",
+                command="cat")
 
     def test_insane_demand(self):
         create("table", "//tmp/t_in")

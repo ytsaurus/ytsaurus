@@ -73,6 +73,18 @@ TChunkReplicaList AllocateWriteTargets(
  */
 TError GetCumulativeError(const TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError);
 
+//! Locate all chunks passed in |chunkSpecList|.
+/*! Chunks from |chunkSpecList| are updated to store information about active replicas.
+ *  If nonnull |nodeDirectory| is provided it is also updated to store information
+ *  about these replicas.
+ */
+void LocateChunks(
+    NApi::INativeClientPtr client,
+    int maxChunksPerLocateRequest,
+    const std::vector<NProto::TChunkSpec*> chunkSpecList,
+    const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,
+    const NLogging::TLogger& logger);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 i64 GetChunkDataSize(const NProto::TChunkSpec& chunkSpec);

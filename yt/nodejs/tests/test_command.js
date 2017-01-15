@@ -334,6 +334,7 @@ describe("YtCommand - command descriptors", function() {
             'unfreeze_table',
             'generate_timestamp',
             'get',
+            'get_job_input',
             'get_job_stderr',
             'get_version',
             'insert_rows',

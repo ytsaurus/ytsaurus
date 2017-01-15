@@ -16,6 +16,14 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EMergeStrategy,
+    (Default)
+    (Overwrite)
+    (Combine)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TYsonSerializableLite
     : private TNonCopyable
 {
@@ -66,6 +74,7 @@ public:
         TParameter& InRange(TValueType lowerBound, TValueType upperBound);
         TParameter& NonEmpty();
         TParameter& Alias(const Stroka& name);
+        TParameter& MergeBy(EMergeStrategy strategy);
 
     private:
         T& Parameter;
@@ -73,6 +82,7 @@ public:
         TNullable<T> DefaultValue;
         std::vector<TValidator> Validators;
         std::vector<Stroka> Aliases;
+        EMergeStrategy MergeStrategy;
     };
 
     TYsonSerializableLite();

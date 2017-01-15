@@ -1,5 +1,4 @@
 #include "sorted_merge_job.h"
-#include "config.h"
 #include "job_detail.h"
 
 #include <yt/ytlib/object_client/helpers.h>
@@ -38,8 +37,6 @@ public:
 
     virtual void Initialize() override
     {
-        auto config = Host_->GetConfig();
-
         YCHECK(SchedulerJobSpecExt_.output_table_specs_size() == 1);
         const auto& outputSpec = SchedulerJobSpecExt_.output_table_specs(0);
 
@@ -55,7 +52,7 @@ public:
             TotalRowCount_ += GetCumulativeRowCount(dataSliceDescriptors);
 
             auto reader = CreateSchemalessSequentialMultiChunkReader(
-                config->JobIO->TableReader,
+                Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader,
                 readerOptions,
                 Host_->GetClient(),
                 Host_->LocalDescriptor(),

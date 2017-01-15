@@ -46,14 +46,6 @@ ISchemalessChunkWriterPtr CreateSchemalessChunkWriter(
     const TChunkTimestamps& chunkTimestamps = TChunkTimestamps(),
     NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
 
-ISchemalessChunkWriterPtr CreatePartitionChunkWriter(
-    TChunkWriterConfigPtr config,
-    TChunkWriterOptionsPtr options,
-    const TKeyColumns& keyColumns,
-    NChunkClient::IChunkWriterPtr chunkWriter,
-    IPartitionerPtr partitioner,
-    NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ISchemalessMultiChunkWriter

@@ -23,9 +23,12 @@ DECLARE_REFCOUNTED_STRUCT(IReconfigurableThroughputThrottler)
 
 DECLARE_REFCOUNTED_STRUCT(IAsyncInputStream)
 DECLARE_REFCOUNTED_STRUCT(IAsyncOutputStream)
+DECLARE_REFCOUNTED_STRUCT(IAsyncClosableOutputStream)
 
 DECLARE_REFCOUNTED_STRUCT(IAsyncZeroCopyInputStream)
 DECLARE_REFCOUNTED_STRUCT(IAsyncZeroCopyOutputStream)
+
+DECLARE_REFCOUNTED_CLASS(TAsyncStreamPipe)
 
 DEFINE_ENUM(ESyncStreamAdapterStrategy,
     (WaitFor)

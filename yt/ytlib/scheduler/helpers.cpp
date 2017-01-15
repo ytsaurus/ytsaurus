@@ -139,6 +139,11 @@ void ValidateEnvironmentVariableName(const TStringBuf& name)
     }
 }
 
+int GetJobSpecVersion()
+{
+    return 1;
+}
+
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler

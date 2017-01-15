@@ -76,7 +76,7 @@ void WriteUnversionedValue(const TUnversionedValue& value, TOutputStream* output
             EscapeAndWrite(TStringBuf(value.Data.String, value.Length), output, escapeTable);
             break;
         default:
-            THROW_ERROR_EXCEPTION("Values of type %v are not supported by the chosen format", value.Type)
+            THROW_ERROR_EXCEPTION("Values of type %Qlv are not supported by the chosen format", value.Type)
                 << TErrorAttribute("value", ToString(value));
             break;
     }

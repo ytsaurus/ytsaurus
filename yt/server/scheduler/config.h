@@ -66,10 +66,6 @@ public:
     //! Limit on the number of concurrent calls to ScheduleJob of single controller.
     int MaxConcurrentControllerScheduleJobCalls;
 
-    //! Limit on the number of concurrent core dumps that can be written because
-    //! of failed safe assertions inside controllers.
-    int MaxConcurrentSafeCoreDumps;
-
     //! Maximum allowed time for single job scheduling.
     TDuration ControllerScheduleJobTimeLimit;
 
@@ -154,10 +150,6 @@ public:
         RegisterParameter("max_concurrent_controller_schedule_job_calls", MaxConcurrentControllerScheduleJobCalls)
             .Default(10)
             .GreaterThan(0);
-
-        RegisterParameter("max_concurrent_safe_core_dumps", MaxConcurrentSafeCoreDumps)
-            .Default(1)
-            .GreaterThanOrEqual(0);
 
         RegisterParameter("schedule_job_time_limit", ControllerScheduleJobTimeLimit)
             .Default(TDuration::Seconds(60));
@@ -271,7 +263,8 @@ public:
     TOperationOptions()
     {
         RegisterParameter("spec_template", SpecTemplate)
-            .Default();
+            .Default()
+            .MergeBy(NYTree::EMergeStrategy::Combine);
 
         RegisterParameter("slice_data_size_multiplier", SliceDataSizeMultiplier)
             .Default(0.51)
@@ -444,7 +437,7 @@ public:
 
         RegisterParameter("min_partition_size", MinPartitionSize)
             .Default(256 * 1024 * 1024)
-            .GreaterThanOrEqual(1024);
+            .GreaterThanOrEqual(1);
 
         // Minimum is 1 for tests.
         RegisterParameter("min_uncompressed_block_size", MinUncompressedBlockSize)
@@ -603,6 +596,9 @@ public:
     //! Maximum number of input tables an operation can have.
     int MaxInputTableCount;
 
+    //! Maximum number of ranges on the input table.
+    int MaxRangesOnTable;
+
     //! Maximum number of files per user job.
     int MaxUserFileCount;
 
@@ -619,6 +615,10 @@ public:
 
     //! Maximum number of foreign chunks to locate per request.
     int MaxChunksPerLocateRequest;
+
+    //! Limit on the number of concurrent core dumps that can be written because
+    //! of failed safe assertions inside controllers.
+    int MaxConcurrentSafeCoreDumps;
 
     //! Patch for all operation options.
     NYT::NYTree::INodePtr OperationOptions;
@@ -835,6 +835,10 @@ public:
             .Default(1000)
             .GreaterThan(0);
 
+        RegisterParameter("max_ranges_on_table", MaxRangesOnTable)
+            .Default(1000)
+            .GreaterThan(0);
+
         RegisterParameter("max_user_file_count", MaxUserFileCount)
             .Default(1000)
             .GreaterThan(0);
@@ -846,6 +850,10 @@ public:
         RegisterParameter("max_started_jobs_per_heartbeat", MaxStartedJobsPerHeartbeat)
             .Default()
             .GreaterThan(0);
+
+        RegisterParameter("max_concurrent_safe_core_dumps", MaxConcurrentSafeCoreDumps)
+            .Default(1)
+            .GreaterThanOrEqual(0);
 
         RegisterParameter("safe_online_node_count", SafeOnlineNodeCount)
             .GreaterThanOrEqual(0)
@@ -859,7 +867,9 @@ public:
             .Default(10000);
 
         RegisterParameter("operation_options", OperationOptions)
-            .Default();
+            .Default()
+            .MergeBy(NYTree::EMergeStrategy::Combine);
+
         RegisterParameter("map_operation_options", MapOperationOptions)
             .DefaultNew();
         RegisterParameter("reduce_operation_options", ReduceOperationOptions)

@@ -26,22 +26,10 @@ struct IUserJobIO
     virtual void Init() = 0;
 
     virtual std::vector<NTableClient::ISchemalessMultiChunkWriterPtr> GetWriters() const = 0;
-    virtual NTableClient::ISchemalessMultiChunkReaderPtr GetReader() const = 0;
     virtual TOutputStream* GetStderrTableWriter() const = 0;
-
-    //! Used for key switch injection.
-    virtual int GetKeySwitchColumnCount() const = 0;
 
     virtual void PopulateResult(NScheduler::NProto::TSchedulerJobResultExt* schedulerJobResultExt) = 0;
     virtual void PopulateStderrResult(NScheduler::NProto::TSchedulerJobResultExt* schedulerJobResultExt) = 0;
-
-    virtual void CreateReader() = 0;
-
-    virtual NTableClient::TSchemalessReaderFactory GetReaderFactory() = 0;
-
-    virtual void InterruptReader() = 0;
-
-    virtual std::vector<NChunkClient::TDataSliceDescriptor> GetUnreadDataSliceDescriptors() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

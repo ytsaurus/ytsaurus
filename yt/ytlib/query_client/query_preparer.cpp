@@ -44,7 +44,7 @@ void ExtractFunctionNames(
     std::vector<Stroka>* functions)
 {
     if (auto functionExpr = expr->As<NAst::TFunctionExpression>()) {
-        functions->push_back(functionExpr->FunctionName);
+        functions->push_back(to_lower(functionExpr->FunctionName));
         ExtractFunctionNames(functionExpr->Arguments, functions);
     } else if (auto unaryExpr = expr->As<NAst::TUnaryOpExpression>()) {
         ExtractFunctionNames(unaryExpr->Operand, functions);
