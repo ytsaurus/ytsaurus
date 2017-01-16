@@ -153,10 +153,11 @@ public:
 
     virtual void Cancel() override
     {
-        LOG_DEBUG("Request canceled (RequestId: %v)",
-            RequestId_);
-        Profiler.Increment(PerformanceCounters_->CanceledRequestCounter);
-        Canceled_.Fire();
+        if (Canceled_.Fire()) {
+            LOG_DEBUG("Request canceled (RequestId: %v)",
+                RequestId_);
+            Profiler.Increment(PerformanceCounters_->CanceledRequestCounter);
+        }
     }
 
     virtual void SetComplete() override
