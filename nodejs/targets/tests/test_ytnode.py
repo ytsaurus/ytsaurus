@@ -3,7 +3,7 @@ import copy
 import os
 import tarfile
 
-YT_ABI = '19_0'
+YT_ABI = '19_1'
 
 
 class TestYtNode(object):

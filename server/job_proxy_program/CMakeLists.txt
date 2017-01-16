@@ -1,7 +1,7 @@
 IF(YMAKE)
 
 SET(CMAKE_CURRENT_LIST_DIR .)
-SET(YT_ABI 19_0)
+SET(YT_ABI 19_1)
 
 PROGRAM(ytserver-job-proxy)
 
