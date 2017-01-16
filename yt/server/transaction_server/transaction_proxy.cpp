@@ -62,16 +62,24 @@ private:
         descriptors->push_back(TAttributeDescriptor("parent_id")
             .SetReplicated(true));
         descriptors->push_back("start_time");
-        descriptors->push_back("nested_transaction_ids");
-        descriptors->push_back("staged_object_ids");
-        descriptors->push_back("exported_objects");
+        descriptors->push_back(TAttributeDescriptor("nested_transaction_ids")
+            .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor("staged_object_ids")
+            .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor("exported_objects")
+            .SetOpaque(true));
         descriptors->push_back("exported_object_count");
-        descriptors->push_back("imported_object_ids");
+        descriptors->push_back(TAttributeDescriptor("imported_object_ids")
+            .SetOpaque(true));
         descriptors->push_back("imported_object_count");
-        descriptors->push_back("staged_node_ids");
-        descriptors->push_back("branched_node_ids");
-        descriptors->push_back("locked_node_ids");
-        descriptors->push_back("lock_ids");
+        descriptors->push_back(TAttributeDescriptor("staged_node_ids")
+            .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor("branched_node_ids")
+            .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor("locked_node_ids")
+            .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor("lock_ids")
+            .SetOpaque(true));
         descriptors->push_back("resource_usage");
         descriptors->push_back("multicell_resource_usage");
     }
