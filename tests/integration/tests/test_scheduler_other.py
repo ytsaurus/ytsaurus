@@ -441,7 +441,7 @@ class TestSchedulerFunctionality2(YTEnvSetup, PrepareTables):
         stats = get("//sys/scheduler/orchid/scheduler")
         pool_resource_limits = stats["pools"]["test_pool"]["resource_limits"]
         for resource, limit in resource_limits.iteritems():
-            assert pool_resource_limits[resource] == limit
+            assert assert_almost_equal(pool_resource_limits[resource], limit)
 
         self._prepare_tables()
         data = [{"foo": i} for i in xrange(3)]
@@ -470,7 +470,7 @@ class TestSchedulerFunctionality2(YTEnvSetup, PrepareTables):
         time.sleep(3)
         op_limits = get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_limits".format(op.id))
         for resource, limit in resource_limits.iteritems():
-            assert op_limits[resource] == limit
+            assert assert_almost_equal(op_limits[resource], limit)
         assert len(get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))) == 1
         op.abort()
 
@@ -528,6 +528,27 @@ class TestSchedulerFunctionality2(YTEnvSetup, PrepareTables):
         op2.resume_jobs()
         op2.track()
         op3.track()
+
+
+    def test_fractional_cpu_usage(self):
+        self._create_table("//tmp/t_in")
+        self._create_table("//tmp/t_out")
+        data = [{"foo": i} for i in xrange(3)]
+        write_table("//tmp/t_in", data);
+
+        op = map(
+            waiting_jobs=True,
+            dont_track=True,
+            command="cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"job_count": 3, "mapper": {"cpu_limit": 0.87}})
+
+        resource_usage = get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_usage".format(op.id))
+        assert_almost_equal(resource_usage["cpu"], 3 * 0.87)
+
+        op.resume_jobs()
+        op.track()
 
 
 class TestSchedulerRevive(YTEnvSetup):

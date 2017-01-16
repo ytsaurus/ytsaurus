@@ -21,7 +21,7 @@ struct TSchedulableAttributes
     double MaxPossibleUsageRatio = 1.0;
     double BestAllocationRatio = 1.0;
     double GuaranteedResourcesRatio = 0.0;
-    i64 DominantLimit = 0;
+    double DominantLimit = 0;
     int FifoIndex = 0;
 
     double AdjustedFairShareStarvationTolerance = 1.0;

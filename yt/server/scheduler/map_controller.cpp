@@ -351,7 +351,7 @@ protected:
         return nullptr;
     }
 
-    virtual int GetCpuLimit() const
+    virtual TCpuResource GetCpuLimit() const
     {
         return 1;
     }
@@ -504,7 +504,7 @@ private:
     }
 
     // Unsorted helpers.
-    virtual int GetCpuLimit() const override
+    virtual TCpuResource GetCpuLimit() const override
     {
         return Spec->Mapper->CpuLimit;
     }

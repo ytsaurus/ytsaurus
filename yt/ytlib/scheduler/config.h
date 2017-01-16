@@ -273,7 +273,7 @@ public:
 
     yhash_map<Stroka, Stroka> Environment;
 
-    int CpuLimit;
+    double CpuLimit;
     TNullable<TDuration> JobTimeLimit;
     i64 MemoryLimit;
     double MemoryReserveFactor;
@@ -309,7 +309,8 @@ public:
         RegisterParameter("environment", Environment)
             .Default();
         RegisterParameter("cpu_limit", CpuLimit)
-            .Default(1);
+            .Default(1)
+            .GreaterThanOrEqual(0);
         RegisterParameter("job_time_limit", JobTimeLimit)
             .Default()
             .GreaterThanOrEqual(TDuration::Seconds(1));
