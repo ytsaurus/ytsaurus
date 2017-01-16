@@ -104,6 +104,10 @@ def get_scheduler_config():
     return yson.loads(
 b"""
 {
+    cluster_directory_synchronizer = {
+        sync_period = 500;
+    };
+
     cluster_connection = {
         enable_read_from_followers = %true;
 
@@ -151,6 +155,10 @@ def get_node_config(enable_debug_logging=True):
 b"""
 {
     orchid_cache_update_period = 0;
+
+    cluster_directory_synchronizer = {
+        sync_period = 500;
+    };
 
     cluster_connection = {
         enable_read_from_followers = %true;
