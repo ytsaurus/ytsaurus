@@ -104,10 +104,6 @@ def get_scheduler_config():
     return yson.loads(
 b"""
 {
-    cluster_directory_synchronizer = {
-        sync_period = 500;
-    };
-
     cluster_connection = {
         enable_read_from_followers = %true;
 
@@ -146,6 +142,10 @@ b"""
         enable_snapshot_loading = %true;
         enable_snapshot_cycle_after_materialization = %true;
         snapshot_timeout = 1000;
+
+        cluster_directory_synchronizer = {
+            sync_period = 500;
+        };
     };
 }
 """)
