@@ -43,7 +43,7 @@ class _AttributeDict(dict):
         super(_AttributeDict, self).__init__(*args, **kwargs)
         self.__dict__ = self
 
-    def __deepcopy__(self):
+    def __deepcopy__(self, memo=None):
         return _AttributeDict(**self.__dict__)
 
     def __copy__(self):
@@ -769,6 +769,18 @@ class JsonFormat(Format):
             "dumps": json_module.dumps,
         })
 
+    @staticmethod
+    def _get_json_module(enable_ujson):
+        module = json
+        if enable_ujson:
+            try:
+                import ujson
+                module = ujson
+            except ImportError:
+                pass
+
+        return JsonFormat._wrap_json_module(module)
+
     def __init__(self, process_table_index=None, control_attributes_mode="generator",
                  table_index_column="@table_index", attributes=None, raw=None, enable_ujson=True):
         attributes = get_value(attributes, {})
@@ -776,14 +788,9 @@ class JsonFormat(Format):
         self.process_table_index = process_table_index
         self.control_attributes_mode = control_attributes_mode
         self.table_index_column = table_index_column
-        self.json_module = JsonFormat._wrap_json_module(json)
 
-        if enable_ujson and not PY3:
-            try:
-                import ujson
-                self.json_module = JsonFormat._wrap_json_module(ujson)
-            except ImportError:
-                pass
+        self.enable_ujson = enable_ujson and not PY3
+        self.json_module = JsonFormat._get_json_module(enable_ujson=enable_ujson)
 
     def _loads(self, string, raw):
         if raw:
@@ -860,6 +867,15 @@ class JsonFormat(Format):
 
     def loads_row(self, string):
         return self._loads(string, raw=False)
+
+    def __getstate__(self):
+        attrs = self.__dict__.copy()
+        del attrs["json_module"]
+        return attrs
+
+    def __setstate__(self, d):
+        self.__dict__.update(d)
+        self.json_module = JsonFormat._get_json_module(self.enable_ujson)
 
 class YamredDsvFormat(YamrFormat):
     """Hybrid of Yamr and DSV formats. It is used to support yamr representations of tabular data.
