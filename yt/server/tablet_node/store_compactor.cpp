@@ -654,7 +654,7 @@ private:
 
         YCHECK(readRowCount == writeRowCount);
 
-        return writerPool;
+        return std::make_tuple(writerPool, readRowCount);
     }
 
     void CompactPartition(
