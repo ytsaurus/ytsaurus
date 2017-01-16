@@ -456,9 +456,9 @@ private:
                 .AsyncVia(ThreadPool_->GetInvoker())
                 .Run();
 
-            std::shared_ptr<TChunkWriterPool> writerPool;
+            std::vector<IVersionedMultiChunkWriterPtr> writers;
             int rowCount;
-            std::tie(writerPool, rowCount) = WaitFor(asyncResult)
+            std::tie(writers, rowCount) = WaitFor(asyncResult)
                 .ValueOrThrow();
 
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
@@ -475,7 +475,7 @@ private:
 
             // TODO(sandello): Move specs?
             TStoreIdList storeIdsToAdd;
-            for (const auto& writer : writerPool->GetAllWriters()) {
+            for (const auto& writer : writers) {
                 for (const auto& chunkSpec : writer->GetWrittenChunksMasterMeta()) {
                     auto* descriptor = actionRequest.add_stores_to_add();
                     descriptor->set_store_type(static_cast<int>(EStoreType::SortedChunk));
@@ -515,7 +515,7 @@ private:
         eden->CheckedSetState(EPartitionState::Partitioning, EPartitionState::Normal);
     }
 
-    std::tuple<std::shared_ptr<TChunkWriterPool>, int> DoPartitionEden(
+    std::tuple<std::vector<IVersionedMultiChunkWriterPtr>, int> DoPartitionEden(
         const IVersionedReaderPtr& reader,
         const TTabletSnapshotPtr& tabletSnapshot,
         const ITransactionPtr& transaction,
@@ -526,7 +526,7 @@ private:
         int writerPoolSize = std::min(
             static_cast<int>(pivotKeys.size()),
             Config_->StoreCompactor->PartitioningWriterPoolSize);
-        auto writerPool = std::make_shared<TChunkWriterPool>(
+        TChunkWriterPool writerPool(
             Bootstrap_->GetInMemoryManager(),
             tabletSnapshot,
             writerPoolSize,
@@ -556,7 +556,7 @@ private:
                 currentPivotKey,
                 nextPivotKey);
 
-            currentWriter = writerPool->AllocateWriter();
+            currentWriter = writerPool.AllocateWriter();
         };
 
         auto flushOutputRows = [&] () {
@@ -590,7 +590,7 @@ private:
                     currentPartitionIndex,
                     currentPartitionRowCount);
 
-                writerPool->ReleaseWriter(currentWriter);
+                writerPool.ReleaseWriter(currentWriter);
                 currentWriter.Reset();
             }
 
@@ -654,7 +654,7 @@ private:
 
         YCHECK(readRowCount == writeRowCount);
 
-        return std::make_tuple(writerPool, readRowCount);
+        return std::make_tuple(writerPool.GetAllWriters(), readRowCount);
     }
 
     void CompactPartition(
