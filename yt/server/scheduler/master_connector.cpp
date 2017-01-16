@@ -776,10 +776,13 @@ private:
         const IAttributeDictionary& attributes,
         IMapNodePtr secureVault)
     {
-        auto getTransaction = [&] (const TTransactionId& transactionId, bool ping, const Stroka& name = Stroka()) -> ITransactionPtr {
+        auto attachTransaction = [&] (const TTransactionId& transactionId, bool ping, const Stroka& name = Stroka()) -> ITransactionPtr {
             if (!transactionId) {
                 if (name) {
-                    LOG_INFO("%v %v of operation %v is missing", name, transactionId, operationId);
+                    LOG_INFO("Missing %v transaction (OperationId: %v, TransactionId: %v)",
+                        name,
+                        operationId,
+                        transactionId);
                 }
                 return nullptr;
             }
@@ -802,35 +805,35 @@ private:
         TOperationReport result;
 
         auto userTransactionId = attributes.Get<TTransactionId>("user_transaction_id");
-        auto userTransaction = getTransaction(
+        auto userTransaction = attachTransaction(
             attributes.Get<TTransactionId>("user_transaction_id"),
             false);
 
         result.ControllerTransactions = New<TControllerTransactions>();
-        result.ControllerTransactions->Sync = getTransaction(
+        result.ControllerTransactions->Sync = attachTransaction(
             attributes.Get<TTransactionId>("sync_scheduler_transaction_id"),
             true,
-            "SyncTransaction");
-        result.ControllerTransactions->Async = getTransaction(
+            "sync transaction");
+        result.ControllerTransactions->Async = attachTransaction(
             attributes.Get<TTransactionId>("async_scheduler_transaction_id"),
             true,
-            "AsyncTransaction");
-        result.ControllerTransactions->Input = getTransaction(
+            "async transaction");
+        result.ControllerTransactions->Input = attachTransaction(
             attributes.Get<TTransactionId>("input_transaction_id"),
             true,
-            "InputTransaction");
-        result.ControllerTransactions->Output = getTransaction(
+            "input transaction");
+        result.ControllerTransactions->Output = attachTransaction(
             attributes.Get<TTransactionId>("output_transaction_id"),
             true,
-            "OutputTransaction");
+            "output transaction");
 
-        // COMPAT. We use NullTransactionId as default value for the transition period.
+        // COMPAT(ermolovd). We use NullTransactionId as default value for the transition period.
         // Once all clusters are updated to version that creates debug_output transaction
         // this default value can be removed as in other transactions above.
-        result.ControllerTransactions->DebugOutput = getTransaction(
+        result.ControllerTransactions->DebugOutput = attachTransaction(
             attributes.Get<TTransactionId>("debug_output_transaction_id", NullTransactionId),
             true,
-            "DebugOutputTransaction");
+            "debug output transaction");
 
         auto spec = attributes.Get<INodePtr>("spec")->AsMap();
         TOperationSpecBasePtr operationSpec;
