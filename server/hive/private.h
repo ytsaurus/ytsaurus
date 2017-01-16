@@ -1,0 +1,24 @@
+#pragma once
+
+#include "public.h"
+
+#include <yt/server/hydra/public.h>
+
+#include <yt/core/logging/log.h>
+
+namespace NYT {
+namespace NHiveServer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_ENTITY_TYPE(TCommit, TTransactionId, ::THash<TTransactionId>)
+class TAbort;
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const NLogging::TLogger HiveServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NHiveServer
+} // namespace NYT

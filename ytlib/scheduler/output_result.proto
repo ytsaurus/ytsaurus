@@ -1,0 +1,21 @@
+package NYT.NScheduler.NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TOutputResult
+{
+    // Indicates that the result is empty.
+    required bool empty = 1;
+
+    // Indicates that the result contains s sorted rowset.
+    optional bool sorted = 2 [default = false];
+
+    // Indicates that the result contains a sorted rowset with unique keys.
+    optional bool unique_keys = 3 [default = false];
+
+    optional bytes min = 4;
+
+    optional bytes max = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////

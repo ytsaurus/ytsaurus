@@ -1,0 +1,61 @@
+{
+  "$attributes": {
+    "authenticated_user": "psushin",
+    "brief_progress": {
+      "jobs": {
+        "total": 10528,
+        "pending": 904,
+        "running": 6,
+        "completed": 9618,
+        "failed": 0,
+        "aborted": {
+          "total": 57,
+          "scheduler": 32,
+          "failed_chunks": 25,
+          "resource_overdraft": 0,
+          "other": 0,
+          "preemption": 0
+        },
+        "lost": 0
+      }
+    },
+    "brief_spec": {
+      "input_table_paths": {
+        "$attributes": {
+          "count": 1
+        },
+        "$value": [
+          {
+            "$attributes": {
+              "append": "false"
+            },
+            "$value": "//statbox/reqans-log/2016-02-09"
+          }
+        ]
+      },
+      "output_table_paths": {
+        "$attributes": {
+          "count": 1
+        },
+        "$value": [
+          {
+            "$attributes": {
+              "append": "true"
+            },
+            "$value": "//tmp/t"
+          }
+        ]
+      },
+      "mapper": {
+        "command": "cat > /dev/null"
+      },
+      "pool": "psushin"
+    },
+    "operation_type": "map",
+    "start_time": "2016-03-02T05:43:43.104532Z",
+    "state": "running",
+    "suspended": false,
+    "weight": 1
+  },
+  "$value": "1dee545-fe4c4006-cd95617-54f87a31"
+}
