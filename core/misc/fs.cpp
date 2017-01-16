@@ -180,7 +180,7 @@ void CleanTempFiles(const Stroka& path)
     // TODO(ignat): specify suffix in EnumerateFiles.
     auto entries = EnumerateFiles(path, std::numeric_limits<int>::max());
     for (const auto& entry : entries) {
-        if (entry.has_suffix(TempFileSuffix)) {
+        if (entry.EndsWith(TempFileSuffix)) {
             auto fileName = NFS::CombinePaths(path, entry);
             LOG_INFO("Removing file %v", fileName);
             NFS::Remove(fileName);

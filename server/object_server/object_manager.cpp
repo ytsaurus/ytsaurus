@@ -216,7 +216,7 @@ private:
 
             case NYPath::ETokenType::Literal: {
                 const auto& token = tokenizer.GetToken();
-                if (!token.has_prefix(ObjectIdPathPrefix)) {
+                if (!token.StartsWith(ObjectIdPathPrefix)) {
                     tokenizer.ThrowUnexpected();
                 }
 
@@ -297,7 +297,7 @@ public:
 
             case NYPath::ETokenType::Literal: {
                 const auto& token = tokenizer.GetToken();
-                if (!token.has_prefix(ObjectIdPathPrefix)) {
+                if (!token.StartsWith(ObjectIdPathPrefix)) {
                     tokenizer.ThrowUnexpected();
                 }
 
