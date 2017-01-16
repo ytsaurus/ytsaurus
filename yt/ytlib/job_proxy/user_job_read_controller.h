@@ -86,6 +86,7 @@ private:
     std::vector<NFormats::ISchemalessFormatWriterPtr> FormatWriters_;
     TNullable<Stroka> UdfDirectory_;
     std::atomic<bool> Initialized_ = {false};
+    std::atomic<bool> Interrupted_ = {false};
 
     NLogging::TLogger Logger;
 };

@@ -204,15 +204,16 @@ TNullable<TDataStatistics> TUserJobReadController::GetDataStatistics() const
 
 void TUserJobReadController::InterruptReader()
 {
-    if (JobSpecHelper_->IsReaderInterruptionSupported()) {
+    if (JobSpecHelper_->IsReaderInterruptionSupported() && !Interrupted_) {
         YCHECK(Reader_);
         Reader_->Interrupt();
+        Interrupted_ = true;
     }
 }
 
 std::vector<NChunkClient::TDataSliceDescriptor> TUserJobReadController::GetUnreadDataSliceDescriptors() const
 {
-    if (JobSpecHelper_->IsReaderInterruptionSupported()) {
+    if (Interrupted_) {
         YCHECK(Reader_);
         return Reader_->GetUnreadDataSliceDescriptors(NYT::TRange<TUnversionedRow>());
     } else {
