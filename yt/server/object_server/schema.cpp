@@ -1,6 +1,7 @@
 #include "schema.h"
 #include "private.h"
 #include "type_handler.h"
+#include "schema_proxy.h"
 
 #include <yt/server/cell_master/bootstrap.h>
 
@@ -42,43 +43,6 @@ void TSchemaObject::Load(NCellMaster::TLoadContext& context)
 
     using NYT::Load;
     Load(context, Acd_);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TSchemaProxy
-    : public TNonversionedObjectProxyBase<TSchemaObject>
-{
-public:
-    TSchemaProxy(
-        NCellMaster::TBootstrap* bootstrap,
-        TObjectTypeMetadata* metadata,
-        TSchemaObject* object)
-        : TBase(bootstrap, metadata, object)
-    { }
-
-private:
-    typedef TNonversionedObjectProxyBase<TSchemaObject> TBase;
-
-    virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
-    {
-        if (key == "type") {
-            auto type = TypeFromSchemaType(TypeFromId(GetId()));
-            BuildYsonFluently(consumer)
-                .Value(Format("schema:%v", FormatEnum(type)));
-            return true;
-        }
-
-        return TBase::GetBuiltinAttribute(key, consumer);
-    }
-};
-
-IObjectProxyPtr CreateSchemaProxy(
-    NCellMaster::TBootstrap* bootstrap,
-    TObjectTypeMetadata* metadata,
-    TSchemaObject* object)
-{
-    return New<TSchemaProxy>(bootstrap, metadata, object);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

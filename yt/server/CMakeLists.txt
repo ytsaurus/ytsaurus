@@ -246,6 +246,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/object_server/object_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/object_server/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/object_server/schema.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/object_server/schema_proxy.cpp
   ${CMAKE_CURRENT_LIST_DIR}/object_server/staged_object.cpp
   ${CMAKE_CURRENT_LIST_DIR}/object_server/sys_node_type_handler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/object_server/sys_node_proxy.cpp
