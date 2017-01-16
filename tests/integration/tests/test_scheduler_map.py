@@ -3,7 +3,7 @@ from yt_commands import *
 
 from yt.yson import *
 from yt.wrapper import JsonFormat
-from yt.environment.helpers import assert_items_equal
+from yt.environment.helpers import assert_items_equal, assert_almost_equal
 
 from flaky import flaky
 
@@ -2929,7 +2929,7 @@ class TestFilesInSandbox(YTEnvSetup):
 
         time.sleep(1)
         assert op.get_state() == "aborted"
-        assert get("//sys/scheduler/orchid/scheduler/cell/resource_usage/cpu") == 0
+        assert assert_almost_equal(get("//sys/scheduler/orchid/scheduler/cell/resource_usage/cpu"), 0)
 
 
 class TestJobSizeAdjuster(YTEnvSetup):

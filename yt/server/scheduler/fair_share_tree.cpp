@@ -186,8 +186,9 @@ void TSchedulerElement::UpdateAttributes()
 
     Attributes_.DominantLimit = GetResource(TotalResourceLimits_, Attributes_.DominantResource);;
 
-    i64 dominantDemand = GetResource(demand, Attributes_.DominantResource);
-    Attributes_.DemandRatio = ComputeDemandRatio(dominantDemand, Attributes_.DominantLimit);
+    auto dominantDemand = GetResource(demand, Attributes_.DominantResource);
+    Attributes_.DemandRatio =
+        Attributes_.DominantLimit == 0 ? 1.0 : dominantDemand / Attributes_.DominantLimit;
 
     auto possibleUsage = usage + ComputePossibleResourceUsage(maxPossibleResourceUsage - usage);
     double possibleUsageRatio = GetDominantResourceUsage(possibleUsage, TotalResourceLimits_);
@@ -1499,11 +1500,11 @@ void TOperationElement::UpdateBottomUp(TDynamicAttributesList& dynamicAttributes
         TotalResourceLimits_,
         GetHost()->GetExecNodeCount());
 
-    i64 dominantLimit = GetResource(TotalResourceLimits_, Attributes_.DominantResource);
-    i64 dominantAllocationLimit = GetResource(allocationLimits, Attributes_.DominantResource);
+    auto dominantLimit = GetResource(TotalResourceLimits_, Attributes_.DominantResource);
+    auto dominantAllocationLimit = GetResource(allocationLimits, Attributes_.DominantResource);
 
     Attributes_.BestAllocationRatio =
-        dominantLimit == 0 ? 1.0 : (double) dominantAllocationLimit / dominantLimit;
+        dominantLimit == 0 ? 1.0 : dominantAllocationLimit / dominantLimit;
 }
 
 void TOperationElement::UpdateTopDown(TDynamicAttributesList& dynamicAttributesList)
