@@ -234,7 +234,7 @@ void TTablet::Load(TLoadContext& context)
     Load(context, State_);
     Load(context, MountRevision_);
     // COMPAT(babenko)
-    if (context.GetVersion() >= 402) {
+    if (context.GetVersion() >= 500) {
         Load(context, StoresUpdatePrepared_);
     }
     Load(context, Table_);
