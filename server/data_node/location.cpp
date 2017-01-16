@@ -949,11 +949,11 @@ bool TStoreLocation::ShouldSkipFileName(const Stroka& fileName) const
     }
 
     // Skip trash directory.
-    if (fileName.has_prefix(TrashDirectory + LOCSLASH_S))
+    if (fileName.StartsWith(TrashDirectory + LOCSLASH_S))
         return true;
 
     // Skip multiplexed directory.
-    if (fileName.has_prefix(MultiplexedDirectory + LOCSLASH_S))
+    if (fileName.StartsWith(MultiplexedDirectory + LOCSLASH_S))
         return true;
 
     return false;
