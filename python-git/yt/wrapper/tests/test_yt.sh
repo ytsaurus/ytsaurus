@@ -388,6 +388,25 @@ test_transform()
     unset YT_TABULAR_DATA_FORMAT
 }
 
+test_create_temp_table()
+{
+    local table="$($YT create-temp-table)"
+    check "$($YT exists "$table")" "true"
+
+    local table="$($YT create-temp-table --attributes '{test_attribute=a}')"
+    check "$($YT get "$table/@test_attribute")" '"a"'
+
+    $YT create map_node //home/wrapper_test/temp_tables
+    local table="$($YT create-temp-table --path //home/wrapper_test/temp_tables --name-prefix check)"
+    if [[ ! $table =~ //home/wrapper_test/temp_tables/check* ]]; then
+        die "test_create_temp_table: table has invalid full path"
+    fi
+
+    local table="$($YT create-temp-table --expiration-timeout 1000)"
+    sleep 2
+    check "$($YT exists "$table")" "false"
+}
+
 tear_down
 run_test test_cypress_commands
 run_test test_list_long_format
@@ -405,3 +424,4 @@ run_test test_hybrid_arguments
 run_test test_async_operations
 run_test test_json_structured_format
 run_test test_transform
+run_test test_create_temp_table

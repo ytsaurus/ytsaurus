@@ -84,12 +84,13 @@ def create_table(path, recursive=None, ignore_existing=False,
     create("table", table, recursive=recursive, ignore_existing=ignore_existing,
            attributes=attributes, client=client)
 
-def create_temp_table(path=None, prefix=None, attributes=None, client=None):
+def create_temp_table(path=None, prefix=None, attributes=None, expiration_timeout=None, client=None):
     """Creates temporary table by given path with given prefix and return name.
 
     :param path: existing path, by default ``yt.wrapper.config["remote_temp_tables_directory"]``.
     :type path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
     :param str prefix: prefix of table name.
+    :param int expiration_timeout: expiration timeout for newly created table, in ms.
     :return: name of result table.
     :rtype: str
     """
@@ -105,7 +106,9 @@ def create_temp_table(path=None, prefix=None, attributes=None, client=None):
         if not path.endswith("/"):
             path = path + "/"
     name = find_free_subpath(path, client=client)
-    timeout = timedelta(milliseconds=get_config(client)["temp_expiration_timeout"])
+    expiration_timeout = get_value(expiration_timeout,
+                                   get_config(client)["temp_expiration_timeout"])
+    timeout = timedelta(milliseconds=expiration_timeout)
     attributes = update(
         {"expiration_time": datetime_to_string(datetime.utcnow() + timeout)},
         get_value(attributes, {}))

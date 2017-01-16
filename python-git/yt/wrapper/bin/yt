@@ -30,7 +30,7 @@ Cypress (metainformation tree) commands:
 File commands:
     write-file, read-file
 Table commands:
-    read, write, alter-table
+    read, write, alter-table, create-temp-table
 Tablet commands:
     mount-table, unmount-table, remount-table, reshard-table
 ACL commands:
@@ -386,6 +386,18 @@ def add_write_table_parser(add_parser):
         add_structured_argument(parser, "--table-writer")
         add_compressed_arg(parser)
         parser.set_defaults(func=yt.write_table, input_stream=get_binary_std_stream(sys.stdin))
+
+@copy_docstring_from(yt.create_temp_table)
+def create_temp_table(**args):
+    args["prefix"] = args.pop("name_prefix", None)
+    print(yt.create_temp_table(**args))
+
+def add_create_temp_table_parser(add_parser):
+    parser = add_parser("create-temp-table", create_temp_table)
+    add_ypath_argument(parser, "--path", help="path where temporary table will be created")
+    parser.add_argument("--name-prefix", help="prefix of table name")
+    parser.add_argument("--expiration-timeout", type=int, help="expiration timeout in ms")
+    add_structured_argument(parser, "--attributes")
 
 @copy_docstring_from(yt.create)
 def create(**args):
@@ -933,6 +945,7 @@ def main():
     add_create_parser(add_parser)
     add_read_table_parser(add_parser)
     add_write_table_parser(add_parser)
+    add_create_temp_table_parser(add_parser)
 
     add_read_file_parser(add_parser)
     add_write_file_parser(add_parser)
