@@ -14,9 +14,6 @@ class TestReplicatedDynamicTables(YTEnvSetup):
     NUM_REMOTE_CLUSTERS = 1
 
     DELTA_NODE_CONFIG = {
-        "cluster_directory_synchronizer": {
-            "sync_period": 500
-        },
         "cluster_connection": {
             # Disable cache
             "table_mount_cache": {
