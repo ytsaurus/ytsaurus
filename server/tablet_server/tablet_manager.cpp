@@ -677,7 +677,7 @@ public:
                 req.set_mount_revision(tablet->GetMountRevision());
                 ToProto(req.mutable_table_id(), table->GetId());
                 ToProto(req.mutable_schema(), table->TableSchema());
-                if (table->IsSorted()) {
+                if (table->IsPhysicallySorted()) {
                     ToProto(req.mutable_pivot_key(), tablet->GetPivotKey());
                     ToProto(req.mutable_next_pivot_key(), tablet->GetIndex() + 1 == allTablets.size()
                         ? MaxKey()
