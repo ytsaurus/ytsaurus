@@ -294,6 +294,16 @@ public:
                             config = New<TPoolConfig>();
                         }
 
+                        try {
+                            config->Validate();
+                        } catch (const std::exception& ex) {
+                            errors.emplace_back(
+                                TError(
+                                    "Misconfiguration of pool %Qv found",
+                                    childPath)
+                                << ex);
+                        }
+
                         auto pool = FindPool(childId);
                         if (pool) {
                             // Reconfigure existing pool.
