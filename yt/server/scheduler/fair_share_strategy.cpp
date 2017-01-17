@@ -848,7 +848,7 @@ private:
 
         LOG_DEBUG("Heartbeat info (StartedJobs: %v, PreemptedJobs: %v, "
             "JobsScheduledDuringPreemption: %v, PreemptableJobs: %v, PreemptableResources: %v, "
-            "NonPreemptiveScheduleJobCount: %v, PreemptiveScheduleJobCount: %v, HasAggressivelyStarvingNodes: %v)",
+            "NonPreemptiveScheduleJobCount: %v, PreemptiveScheduleJobCount: %v, HasAggressivelyStarvingNodes: %v, Address: %v)",
             schedulingContext->StartedJobs().size(),
             schedulingContext->PreemptedJobs().size(),
             scheduledDuringPreemption,
@@ -856,7 +856,8 @@ private:
             FormatResources(resourceDiscount),
             nonPreemptiveScheduleJobCount,
             preemptiveScheduleJobCount,
-            context.HasAggressivelyStarvingNodes);
+            context.HasAggressivelyStarvingNodes,
+            schedulingContext->GetNodeDescriptor().Address);
     }
 
     bool IsJobPreemptable(
