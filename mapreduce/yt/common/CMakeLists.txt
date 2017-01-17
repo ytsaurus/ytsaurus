@@ -18,7 +18,6 @@ PEERDIR(
     library/json
     library/svnversion
     library/yson
-    util
 )
 
 END()
