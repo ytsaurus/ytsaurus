@@ -348,7 +348,7 @@ class C(object):
     def __call__(self, rec):
         self.do()
         yield rec
-""", 'C()')
+""", "C()")
 
         metaclass_pickling_test = ("""\
 from yt.packages.six import add_metaclass
@@ -380,7 +380,24 @@ class MapperWithMetaclass(object):
         simple_pickling_test = ("""\
 def mapper(rec):
     yield rec
-""", 'mapper')
+""", "mapper")
+
+        methods_call_order_test = ("""\
+class Mapper(object):
+    def __init__(self):
+        self.x = 42
+
+    def start(self):
+        self.x = 666
+
+    def finish(self):
+        self.x = 100500
+
+    def __call__(self, rec):
+        rec["x"] = self.x
+        self.x += 1
+        yield rec
+""", "Mapper()")
 
         def _format_script(script, **kwargs):
             kwargs.update(dict(zip(("mapper_code", "mapper"), script)))
@@ -452,6 +469,12 @@ def mapper(rec):
             yt_env,
             _format_script(metaclass_pickling_test, source_table=table, destination_table=table))
         check(yt.read_table(table), [{"x": 2}, {"y": 2}], ordered=False)
+
+        yt.write_table(table, [{"x": 1}, {"x": 2}, {"x": 3}])
+        run_python_script_with_check(
+            yt_env,
+            _format_script(methods_call_order_test, source_table=table, destination_table=table))
+        assert list(yt.read_table(table)) == [{"x": 666}, {"x": 667}, {"x": 668}]
 
         yt.write_table(table, [{"x": 2}, {"x": 2, "y": 2}])
         yt.run_sort(table, sort_by=["x"])

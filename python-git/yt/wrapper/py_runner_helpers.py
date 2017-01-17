@@ -54,12 +54,12 @@ def convert_callable_to_generator(func):
     def generator(*args):
         result = func(*args)
         if isinstance(result, types.GeneratorType):
-            return result
-        elif result is not None:
-            raise YtError('Non-yielding operation function should return generator or None.'
-                          ' Did you mean "yield" instead of "return"?')
-        return EMPTY_GENERATOR
-
+            for item in result:
+                yield item
+        else:
+            if result is not None:
+                raise YtError('Non-yielding operation function should return generator or None.'
+                              ' Did you mean "yield" instead of "return"?')
     return generator
 
 def extract_operation_methods(operation, context):
