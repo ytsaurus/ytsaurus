@@ -242,6 +242,8 @@ protected:
 
     std::atomic<EControllerState> State = {EControllerState::Preparing};
 
+    bool LoadedFromSnapshot = false;
+
     // These totals are approximate.
     int TotalEstimatedInputChunkCount = 0;
     i64 TotalEstimatedInputDataSize = 0;
