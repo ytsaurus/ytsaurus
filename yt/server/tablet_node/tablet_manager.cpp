@@ -1218,7 +1218,6 @@ private:
         for (const auto& storeId : storeIdsToRemove) {
             auto store = tablet->GetStore(storeId);
 
-            YCHECK(store->GetStoreState() == EStoreState::RemovePrepared);
             switch (store->GetType()) {
                 case EStoreType::SortedDynamic:
                 case EStoreType::OrderedDynamic:
