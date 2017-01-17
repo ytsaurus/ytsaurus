@@ -19,6 +19,8 @@
 
 #include <yt/core/ytree/permission.h>
 
+#include <yt/core/misc/numeric_helpers.h>
+
 #include <cmath>
 
 namespace NYT {
@@ -1415,12 +1417,11 @@ protected:
                 for (auto partition : Partitions) {
                     totalInputRowCount += partition->ChunkPoolOutput->GetTotalRowCount();
                 }
-                if (totalInputRowCount != TotalOutputRowCount) {
-                    OnOperationFailed(TError(
-                        "Input/output row count mismatch in sort operation: %v != %v",
-                        totalInputRowCount,
-                        TotalOutputRowCount));
-                }
+                LOG_ERROR_IF(totalInputRowCount != TotalOutputRowCount,
+                    "Input/output row count mismatch in sort operation (TotalInputRowCount: %v, TotalOutputRowCount: %v)",
+                    totalInputRowCount,
+                    TotalOutputRowCount);
+                YCHECK(totalInputRowCount == TotalOutputRowCount);
             }
 
             YCHECK(CompletedPartitionCount == Partitions.size());
@@ -1633,7 +1634,7 @@ protected:
             result = std::min(static_cast<i64>(dataSizeAfterPartition / partitionDataSize), maxPartitionCount);
         }
         // Cast to int32 is safe since MaxPartitionCount is int32.
-        return static_cast<int>(Clamp(result, 1, Options->MaxPartitionCount));
+        return static_cast<int>(Clamp<i64>(result, 1, Options->MaxPartitionCount));
     }
 
     // Partition progress.

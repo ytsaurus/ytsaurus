@@ -12,6 +12,15 @@ class TestSchedulerSortCommands(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler" : {
+            "sort_operation_options" : {
+                "min_uncompressed_block_size" : 1,
+                "min_partition_size" : 1
+            }
+        }
+    }
+
     def test_simple(self):
         v1 = {"key" : "aaa"}
         v2 = {"key" : "bb"}
@@ -154,7 +163,9 @@ class TestSchedulerSortCommands(YTEnvSetup):
              sort_by="key",
              spec={"partition_count": 5,
                    "partition_job_count": 2,
-                   "data_size_per_sort_job": 1})
+                   "data_size_per_sort_job": 1,
+                   "partition_job_io" : {"table_writer" :
+                        {"desired_chunk_size" : 1, "block_size" : 1024}}})
 
         assert len(read_table("//tmp/t_out")) == 50
 
@@ -292,7 +303,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         assert get("//tmp/t/@sorted")
         assert read_table("//tmp/t") == [{"key" : "a"}, {"key" : "b"}]
-    
+
     def test_inplace_sort_with_schema(self):
         create("table", "//tmp/t", attributes={"schema": [{"name": "key", "type": "string"}]})
         write_table("//tmp/t", [{"key" : "b"}, {"key" : "a"}])
@@ -302,7 +313,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
              sort_by="key")
 
         assert get("//tmp/t/@sorted")
-        assert get("//tmp/t/@schema") == make_schema([{"name": "key", "type": "string", "sort_order": "ascending"}], strict = True, unique_keys = False) 
+        assert get("//tmp/t/@schema") == make_schema([{"name": "key", "type": "string", "sort_order": "ascending"}], strict = True, unique_keys = False)
         assert read_table("//tmp/t") == [{"key" : "a"}, {"key" : "b"}]
 
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
@@ -313,9 +324,9 @@ class TestSchedulerSortCommands(YTEnvSetup):
         create("table", "//tmp/input_loose", attributes={"schema" : loose_schema})
         create("table", "//tmp/input_weak")
         create("table", "//tmp/output_weak", attributes={"optimize_for" : optimize_for})
-        create("table", "//tmp/output_loose", 
+        create("table", "//tmp/output_loose",
             attributes={"optimize_for" : optimize_for, "schema" : loose_schema})
-        create("table", "//tmp/output_strict", 
+        create("table", "//tmp/output_strict",
             attributes={"optimize_for" : optimize_for, "schema" : strict_schema})
 
         write_table("<append=true>//tmp/input_loose", {"key": 1, "value": "foo"})

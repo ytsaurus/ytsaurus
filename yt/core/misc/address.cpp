@@ -276,7 +276,7 @@ bool operator == (const TNetworkAddress& lhs, const TNetworkAddress& rhs)
 
     switch (lhsAddr->sa_family) {
         case AF_INET:
-            return reinterpret_cast<const sockaddr_in*>(lhsAddr)->sin_addr.s_addr !=
+            return reinterpret_cast<const sockaddr_in*>(lhsAddr)->sin_addr.s_addr ==
                 reinterpret_cast<const sockaddr_in*>(rhsAddr)->sin_addr.s_addr;
         case AF_INET6: {
             const auto& lhsAddrIn6 = reinterpret_cast<const sockaddr_in6*>(lhsAddr)->sin6_addr;
@@ -486,7 +486,7 @@ TNetworkAddress TAddressResolver::TImpl::DoResolve(const Stroka& hostName)
             if (it != Cache_.end()) {
                 auto& entry = Cache_[hostName];
                 entry.Deadline = TInstant::Now() + Config_->AddressExpirationTime;
-                entry.Refreshing = false;                
+                entry.Refreshing = false;
             }
         }
         LOG_WARNING(TError(ex));

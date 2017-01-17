@@ -1157,6 +1157,11 @@ int TPool::GetMaxOperationCount() const
     return Config_->MaxOperationCount.Get(StrategyConfig_->MaxOperationCountPerPool);
 }
 
+bool TPool::AreImmediateOperationsFobidden() const
+{
+    return Config_->ForbidImmediateOperations;
+}
+
 TSchedulerElementPtr TPool::Clone(TCompositeSchedulerElement* clonedParent)
 {
     return New<TPool>(*this, clonedParent);
@@ -2011,6 +2016,11 @@ int TRootElement::GetMaxRunningOperationCount() const
 int TRootElement::GetMaxOperationCount() const
 {
     return StrategyConfig_->MaxOperationCount;
+}
+
+bool TRootElement::AreImmediateOperationsFobidden() const
+{
+    return true;
 }
 
 TSchedulerElementPtr TRootElement::Clone(TCompositeSchedulerElement* /*clonedParent*/)

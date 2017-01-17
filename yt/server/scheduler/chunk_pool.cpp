@@ -13,6 +13,8 @@
 
 #include <yt/ytlib/object_client/helpers.h>
 
+#include <yt/core/misc/numeric_helpers.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -342,6 +344,8 @@ public:
         YCHECK(!Finished);
         YCHECK(!ExtractedList);
 
+        HasPrimaryStripes = HasPrimaryStripes || !stripe->Foreign;
+
         auto cookie = static_cast<int>(Stripes.size());
 
         TSuspendableStripe suspendableStripe(stripe);
@@ -396,7 +400,7 @@ public:
 
     virtual int GetTotalJobCount() const override
     {
-        return Finished && DataSizeCounter.GetTotal() > 0 ? 1 : 0;
+        return Finished && HasPrimaryStripes && DataSizeCounter.GetTotal() > 0 ? 1 : 0;
     }
 
     virtual int GetPendingJobCount() const override
@@ -404,7 +408,8 @@ public:
         return
             Finished &&
             SuspendedStripeCount == 0 &&
-            DataSizeCounter.GetPending() > 0
+            DataSizeCounter.GetPending() > 0 &&
+            HasPrimaryStripes
             ? 1 : 0;
     }
 
@@ -522,6 +527,7 @@ public:
         Persist(context, NodeIdToLocality);
         Persist(context, ExtractedList);
         Persist(context, SuspendedStripeCount);
+        Persist(context, HasPrimaryStripes);
     }
 
 private:
@@ -531,6 +537,7 @@ private:
     yhash_map<TNodeId, i64> NodeIdToLocality;
     TChunkStripeListPtr ExtractedList;
     int SuspendedStripeCount = 0;
+    bool HasPrimaryStripes = false;
 
     void UpdateLocality(TChunkStripePtr stripe, int delta)
     {
@@ -988,7 +995,7 @@ private:
         YCHECK(freePendingJobCount > 0);
         return std::max(
             static_cast<i64>(1),
-            DivCeil(FreePendingDataSize + SuspendedDataSize, freePendingJobCount));
+            DivCeil<i64>(FreePendingDataSize + SuspendedDataSize, freePendingJobCount));
     }
 
     void UpdateJobCounter()

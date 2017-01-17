@@ -18,6 +18,8 @@
 
 #include <yt/ytlib/ypath/rich.h>
 
+#include <yt/core/misc/numeric_helpers.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -117,8 +119,8 @@ public:
             return 1;
         }
 
-        i64 sliceDataSize = Clamp(
-            static_cast<i64>(Options_->SliceDataSizeMultiplier * InputDataSize_ / JobCount_),
+        i64 sliceDataSize = Clamp<i64>(
+            Options_->SliceDataSizeMultiplier * InputDataSize_ / JobCount_,
             1,
             Options_->MaxSliceDataSize);
 
@@ -225,8 +227,8 @@ public:
             return 1;
         }
 
-        i64 sliceDataSize = Clamp(
-            static_cast<i64>(Options_->SliceDataSizeMultiplier * InputDataSize_ / JobCount_),
+        i64 sliceDataSize = Clamp<i64>(
+            Options_->SliceDataSizeMultiplier * InputDataSize_ / JobCount_,
             1,
             Options_->MaxSliceDataSize);
 
@@ -305,7 +307,7 @@ public:
             double partitionJobDataSize = sqrt(InputDataSize_) * sqrt(uncompressedBlockSize);
             partitionJobDataSize = std::min(partitionJobDataSize, static_cast<double>(Spec_->PartitionJobIO->TableWriter->MaxBufferSize));
 
-            JobCount_ = DivCeil(InputDataSize_, partitionJobDataSize);
+            JobCount_ = static_cast<int>(std::ceil(static_cast<double>(InputDataSize_) / partitionJobDataSize));
         }
 
         YCHECK(JobCount_ >= 0);
@@ -353,8 +355,8 @@ public:
             return 1;
         }
 
-        i64 sliceDataSize = Clamp(
-            static_cast<i64>(Options_->SliceDataSizeMultiplier * InputDataSize_ / JobCount_),
+        i64 sliceDataSize = Clamp<i64>(
+            Options_->SliceDataSizeMultiplier * InputDataSize_ / JobCount_,
             1,
             Options_->MaxSliceDataSize);
 
@@ -605,19 +607,6 @@ TYsonString BuildInputPaths(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-i64 Clamp(i64 value, i64 minValue, i64 maxValue)
-{
-    value = std::min(value, maxValue);
-    value = std::max(value, minValue);
-    return value;
-}
-
-i64 DivCeil(i64 numerator, i64 denominator)
-{
-    auto res = std::div(numerator, denominator);
-    return res.quot + (res.rem > 0 ? 1 : 0);
-}
 
 Stroka TrimCommandForBriefSpec(const Stroka& command)
 {
