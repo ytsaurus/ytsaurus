@@ -31,10 +31,10 @@ struct ISchedulerStrategyHost
     virtual int GetTotalNodeCount() const = 0;
     virtual std::vector<TExecNodeDescriptor> GetExecNodeDescriptors(const TNullable<Stroka>& tag) const = 0;
 
-    virtual TFuture<void> CheckPoolPermission(
+    virtual void ValidatePoolPermission(
         const NYPath::TYPath& path,
         const Stroka& user,
-        NYTree::EPermission permission) = 0;
+        NYTree::EPermission permission) const = 0;
 
     virtual void RegisterAlert(EAlertType alertType, const TError& alert) = 0;
     virtual void UnregisterAlert(EAlertType alertType) = 0;

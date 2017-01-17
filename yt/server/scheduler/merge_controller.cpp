@@ -61,7 +61,7 @@ public:
         , TotalChunkCount(0)
         , TotalDataSize(0)
         , CurrentTaskDataSize(0)
-        , CurrentChunkCount(0)
+        , CurrentTaskChunkCount(0)
         , CurrentPartitionIndex(0)
         , MaxDataSizePerJob(0)
         , ChunkSliceSize(0)
@@ -82,6 +82,7 @@ public:
         Persist(context, MaxDataSizePerJob);
         Persist(context, ChunkSliceSize);
         Persist(context, MergeTaskGroup);
+        Persist(context, ActiveTaskCount);
     }
 
 protected:
@@ -108,7 +109,7 @@ protected:
 
     //! The total number of chunks in #CurrentTaskStripes.
     //! Not serialized.
-    int CurrentChunkCount;
+    int CurrentTaskChunkCount;
 
     //! The number of output partitions generated so far.
     //! Not serialized.
@@ -134,6 +135,8 @@ protected:
 
     //! Indicates if input table chunks can be teleported to output table.
     std::vector<bool> IsInputTableTeleportable;
+
+    int ActiveTaskCount = 0;
 
     class TMergeTask
         : public TTask
@@ -294,30 +297,84 @@ protected:
     }
 
     //! Resizes #CurrentTaskStripes appropriately and sets all its entries to |NULL|.
-    void ClearCurrentTaskStripes()
+    void ResetCurrentTaskStripes()
     {
         CurrentTaskStripes.clear();
         CurrentTaskStripes.resize(InputTables.size());
+        CurrentTaskDataSize = 0;
+        CurrentTaskChunkCount = 0;
     }
 
-    void EndTask(TMergeTaskPtr task)
+    void EndTask(TMergeTaskPtr task, TKey breakpointKey = TKey())
     {
         YCHECK(HasActiveTask());
 
-        task->AddInput(CurrentTaskStripes);
+        std::vector<TChunkStripePtr> taskStripes;
+        i64 taskDataSize =  0;
+        int taskChunkCount = 0;
+
+        if (!breakpointKey) {
+            taskDataSize = CurrentTaskDataSize;
+            taskChunkCount = CurrentTaskChunkCount;
+            taskStripes = std::move(CurrentTaskStripes);
+            ResetCurrentTaskStripes();
+        } else {
+            auto pendingStripes = std::move(CurrentTaskStripes);
+            ResetCurrentTaskStripes();
+
+            taskStripes.resize(pendingStripes.size(), nullptr);
+
+            auto addSlice = [&] (const TInputSlicePtr& inputSlice) {
+                ++taskChunkCount;
+                taskDataSize += inputSlice->GetDataSize();
+                AddSliceToStripe(inputSlice, taskStripes);
+            };
+
+            for (const auto& stripe : pendingStripes) {
+                if (!stripe) {
+                    continue;
+                }
+
+                for (const auto& chunkSlice : stripe->ChunkSlices) {
+                    if (chunkSlice->UpperLimit().Key <= breakpointKey) {
+                        addSlice(chunkSlice);
+                    } else if (chunkSlice->LowerLimit().Key >= breakpointKey) {
+                        AddPendingChunkSlice(chunkSlice);
+                    } else {
+                        auto lowerSlice = CreateInputSlice(*chunkSlice, TKey(), breakpointKey);
+                        addSlice(lowerSlice);
+
+                        auto upperSlice = CreateInputSlice(*chunkSlice, breakpointKey, TKey());
+                        AddPendingChunkSlice(upperSlice);
+                    }
+                }
+            }
+        }
+
+        task->AddInput(taskStripes);
         task->FinishInput();
         RegisterTask(task);
 
         ++CurrentPartitionIndex;
 
-        LOG_DEBUG("Task finished (Id: %v, TaskDataSize: %v, TaskChunkCount: %v)",
+        LOG_DEBUG("Task finished (Id: %v, TaskDataSize: %v, TaskChunkCount: %v, BreakpointKey: %v)",
             task->GetId(),
-            CurrentTaskDataSize,
-            CurrentChunkCount);
+            taskDataSize,
+            taskChunkCount,
+            breakpointKey);
+    }
 
-        CurrentTaskDataSize = 0;
-        CurrentChunkCount = 0;
-        ClearCurrentTaskStripes();
+    void EndTaskAtKey(TKey breakpointKey)
+    {
+        YCHECK(HasActiveTask());
+
+        auto task = New<TMergeTask>(
+            this,
+            static_cast<int>(Tasks.size()),
+            CurrentPartitionIndex);
+        task->Initialize();
+
+        EndTask(task, breakpointKey);
     }
 
     //! Finishes the current task.
@@ -326,13 +383,7 @@ protected:
         if (!HasActiveTask())
             return;
 
-        auto task = New<TMergeTask>(
-            this,
-            static_cast<int>(Tasks.size()),
-            CurrentPartitionIndex);
-        task->Initialize();
-
-        EndTask(task);
+        EndTaskAtKey(TKey());
     }
 
     //! Finishes the current task if the size is large enough.
@@ -354,25 +405,31 @@ protected:
     bool HasLargeActiveTask()
     {
         YCHECK(MaxDataSizePerJob > 0);
-        return CurrentTaskDataSize >= MaxDataSizePerJob || CurrentChunkCount >= Options->MaxChunkStripesPerJob;
+        return CurrentTaskDataSize >= MaxDataSizePerJob || CurrentTaskChunkCount >= Options->MaxChunkStripesPerJob;
+    }
+
+    void AddSliceToStripe(const TInputSlicePtr& inputSlice, std::vector<TChunkStripePtr>& stripes)
+    {
+        auto tableIndex = inputSlice->GetInputChunk()->GetTableIndex();
+        auto stripe = stripes[tableIndex];
+        if (!stripe) {
+            stripe = stripes[tableIndex] = New<TChunkStripe>(InputTables[tableIndex].IsForeign());
+        }
+
+        stripe->ChunkSlices.push_back(inputSlice);
     }
 
     //! Add chunk to the current task's pool.
-    virtual void AddPendingChunkSlice(TInputSlicePtr chunkSlice)
+    virtual void AddPendingChunkSlice(const TInputSlicePtr& inputSlice)
     {
-        auto tableIndex = chunkSlice->GetInputChunk()->GetTableIndex();
-        auto stripe = CurrentTaskStripes[tableIndex];
-        if (!stripe) {
-            stripe = CurrentTaskStripes[tableIndex] = New<TChunkStripe>(InputTables[tableIndex].IsForeign());
-        }
+        AddSliceToStripe(inputSlice, CurrentTaskStripes);
 
-        i64 chunkDataSize = chunkSlice->GetDataSize();
-        TotalDataSize += chunkDataSize;
+        i64 sliceDataSize = inputSlice->GetDataSize();
+        TotalDataSize += sliceDataSize;
         ++TotalChunkCount;
 
-        CurrentTaskDataSize += chunkDataSize;
-        ++CurrentChunkCount;
-        stripe->ChunkSlices.push_back(chunkSlice);
+        CurrentTaskDataSize += sliceDataSize;
+        ++CurrentTaskChunkCount;
     }
 
     //! Add chunk directly to the output.
@@ -395,7 +452,7 @@ protected:
 
     virtual bool IsCompleted() const override
     {
-        return Tasks.size() == JobCounter.GetCompleted();
+        return ActiveTaskCount == JobCounter.GetCompleted();
     }
 
     virtual void DoInitialize() override
@@ -419,8 +476,8 @@ protected:
     void CalculateSizes()
     {
         auto jobSizeConstraints = CreateSimpleJobSizeConstraints(
-            Spec, 
-            Options, 
+            Spec,
+            Options,
             PrimaryInputDataSize);
 
         MaxDataSizePerJob = jobSizeConstraints->GetDataSizePerJob();
@@ -440,7 +497,7 @@ protected:
             TPeriodicYielder yielder(PrepareYieldPeriod);
 
             InitTeleportableInputTables();
-            ClearCurrentTaskStripes();
+            ResetCurrentTaskStripes();
             for (auto chunk : CollectPrimaryInputChunks()) {
                 ProcessInputChunk(chunk);
                 yielder.TryYield();
@@ -452,6 +509,12 @@ protected:
     {
         InitJobIOConfig();
         InitJobSpecTemplate();
+
+        for (const auto& task : Tasks) {
+            if (!task->IsCompleted()) {
+                ++ActiveTaskCount;
+            }
+        }
 
         LOG_INFO("Inputs processed (JobDataSize: %v, JobChunkCount: %v, JobCount: %v)",
             TotalDataSize,
@@ -1531,7 +1594,7 @@ private:
 
             auto hasLargeActiveTask = [&] () {
                 return HasLargeActiveTask() ||
-                    CurrentChunkCount + globalOpenedSlices.size() >= Options->MaxChunkStripesPerJob;
+                    CurrentTaskChunkCount + globalOpenedSlices.size() >= Options->MaxChunkStripesPerJob;
             };
 
             while (!hasLargeActiveTask() && !maniacs.empty()) {
@@ -1833,16 +1896,32 @@ protected:
                     ++firstUsed;
                     continue;
                 }
+
                 if (CompareRows(foreignMaxKey, minKey, ForeignKeyColumnCount) < 0) {
                     break;
                 }
-                AddPendingChunkSlice(CreateInputSlice(chunkSpec, foreignMinKey, foreignMaxKey));
+
+                auto lowerKey = GetKeyPrefix(minKey, ForeignKeyColumnCount, RowBuffer);
+                auto upperKey = GetKeyPrefixSuccessor(maxKey, ForeignKeyColumnCount, RowBuffer);
+
+                if (lowerKey < foreignMinKey) {
+                    lowerKey = foreignMinKey;
+                }
+
+                if (upperKey > foreignMaxKey) {
+                    upperKey = foreignMaxKey;
+                }
+
+                AddPendingChunkSlice(CreateInputSlice(
+                    chunkSpec,
+                    lowerKey,
+                    upperKey));
             }
             tableChunks.erase(tableChunks.cbegin(), firstUsed);
         }
     }
 
-    virtual void AddPendingChunkSlice(TInputSlicePtr chunkSlice) override
+    virtual void AddPendingChunkSlice(const TInputSlicePtr& chunkSlice) override
     {
         if (ForeignKeyColumnCount > 0) {
             if (!CurrentTaskMinForeignKey ||
@@ -1869,6 +1948,38 @@ protected:
             YCHECK(CurrentTaskMinForeignKey && CurrentTaskMaxForeignKey);
 
             AddForeignTablesToTask(CurrentTaskMinForeignKey, CurrentTaskMaxForeignKey);
+
+            if (CurrentTaskDataSize > 2 * MaxDataSizePerJob) {
+                // Task looks to large, let's try to split it further by foreign key.
+                std::vector<std::pair<TKey, i64>> sliceWeights;
+                for (const auto& stripe : CurrentTaskStripes) {
+                    if (!stripe) {
+                        continue;
+                    }
+
+                    for (const auto& chunkSlice : stripe->ChunkSlices) {
+                        sliceWeights.push_back(std::make_pair(chunkSlice->UpperLimit().Key, chunkSlice->GetDataSize()));
+                    }
+                }
+
+                std::sort(sliceWeights.begin(), sliceWeights.end());
+
+                i64 currentDataSize = 0;
+                TKey breakpointKey;
+                for (const auto& sliceWeight : sliceWeights) {
+                    if (CompareRows(breakpointKey, sliceWeight.first, ForeignKeyColumnCount) == 0) {
+                        continue;
+                    }
+
+                    currentDataSize += sliceWeight.second;
+
+                    if (currentDataSize > MaxDataSizePerJob) {
+                        breakpointKey = GetKeyPrefixSuccessor(sliceWeight.first, ForeignKeyColumnCount, RowBuffer);
+                        currentDataSize = 0;
+                        EndTaskAtKey(breakpointKey);
+                    }
+                }
+            }
         }
 
         CurrentTaskMinForeignKey = TKey();
@@ -2217,7 +2328,7 @@ private:
 
         auto hasLargeActiveTask = [&] () {
             return HasLargeActiveTask() ||
-                CurrentChunkCount + openedSlices.size() >= Options->MaxChunkStripesPerJob;
+                CurrentTaskChunkCount + openedSlices.size() >= Options->MaxChunkStripesPerJob;
         };
 
         int startIndex = 0;

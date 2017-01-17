@@ -123,7 +123,7 @@ TExternalCGInfo::TExternalCGInfo()
 
 Stroka GetUdfDescriptorPath(const TYPath& registryPath, const Stroka& functionName)
 {
-    return registryPath + "/" + ToYPathLiteral(to_lower(functionName));
+    return registryPath + "/" + ToYPathLiteral(functionName);
 }
 
 std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(

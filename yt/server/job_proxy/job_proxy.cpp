@@ -75,6 +75,10 @@ using NJobTrackerClient::TStatistics;
 
 static const auto RpcServerShutdownTimeout = TDuration::Seconds(15);
 
+// Option cpu.share is limited to [2, 1024], see http://git.kernel.org/cgit/linux/kernel/git/tip/tip.git/tree/kernel/sched/sched.h#n279
+// To overcome this limitation we consider one cpu_limit unit as ten cpu.shares units.
+static const int CpuShareMultiplier = 10;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobProxy::TJobProxy(
@@ -373,7 +377,7 @@ TJobResult TJobProxy::DoRun()
 
     if (CGroupsConfig_ && CGroupsConfig_->IsCGroupSupported(TCpu::Name)) {
         auto cpuCGroup = GetCurrentCGroup<TCpu>();
-        cpuCGroup.SetShare(CpuLimit_);
+        cpuCGroup.SetShare(CpuLimit_ * CpuShareMultiplier);
     }
 
     InputNodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
