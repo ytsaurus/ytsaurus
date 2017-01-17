@@ -1505,6 +1505,20 @@ private:
         }
         ParticipantCleanupExecutor_.Reset();
 
+        auto error = TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped");
+
+        for (const auto& pair : TransientCommitMap_) {
+            auto* commit = pair.second;
+            SetCommitFailed(commit, error);
+        }
+        TransientCommitMap_.Clear();
+
+        for (auto& pair : TransientAbortMap_) {
+            auto* abort = &pair.second;
+            SetAbortFailed(abort, error);
+        }
+        TransientAbortMap_.clear();
+
         TransientCommitMap_.Clear();
         StrongParticipantMap_.clear();
         WeakParticipantMap_.clear();
