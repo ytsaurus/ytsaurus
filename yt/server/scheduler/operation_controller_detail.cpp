@@ -1337,7 +1337,7 @@ void TOperationControllerBase::SafePrepare()
 
 void TOperationControllerBase::SafeMaterialize()
 {
-    if (State == EControllerState::Running) {
+    if (LoadedFromSnapshot) {
         // Operation is successfully revived, skipping materialization.
         return;
     }
@@ -1690,6 +1690,8 @@ void TOperationControllerBase::DoLoadSnapshot(const TSharedRef& snapshot)
     context.SetRowBuffer(RowBuffer);
 
     NPhoenix::TSerializer::InplaceLoad(context, this);
+
+    LoadedFromSnapshot = true;
 
     LOG_INFO("Finished loading snapshot");
 }
