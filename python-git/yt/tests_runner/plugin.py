@@ -119,17 +119,19 @@ class YtParallelTestsRunnerPlugin(object):
                       .format(process_index, crashed_test)
 
             stderrs_paths = self.processes[process_index].last_started_test_stderrs_paths
-            stderrs = []
-            for path in stderrs_paths:
-                if os.path.exists(path):
-                    for file_ in os.listdir(path):
-                        with open(os.path.join(path, file_)) as f:
-                            content = f.read()
-                            if content:
-                                stderrs.append("{0}:\n{1}\n".format(file_, content))
+            if stderrs_paths is not None:
+                stderrs = []
+                for path in stderrs_paths:
+                    if not os.path.exists(path):
+                        continue
 
-            if stderrs:
-                message += "\n" + "\n".join(stderrs)
+                    for file_ in os.listdir(path):
+                        content = open(os.path.join(path, file_)).read()
+                        if content:
+                            stderrs.append("{0}:\n{1}\n".format(file_, content))
+
+                if stderrs:
+                    message += "\n" + "\n".join(stderrs)
 
             self._log_to_terminal(message)
             report = runner.TestReport(
