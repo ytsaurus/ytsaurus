@@ -1337,7 +1337,7 @@ void TOperationControllerBase::SafePrepare()
 
 void TOperationControllerBase::SafeMaterialize()
 {
-    if (LoadedFromSnapshot) {
+    if (RevivedFromSnapshot) {
         // Operation is successfully revived, skipping materialization.
         return;
     }
@@ -1417,6 +1417,8 @@ void TOperationControllerBase::Revive()
 
     DoLoadSnapshot(Snapshot);
     Snapshot = TSharedRef();
+
+    RevivedFromSnapshot = true;
 
     InitChunkListPool();
 
@@ -1690,8 +1692,6 @@ void TOperationControllerBase::DoLoadSnapshot(const TSharedRef& snapshot)
     context.SetRowBuffer(RowBuffer);
 
     NPhoenix::TSerializer::InplaceLoad(context, this);
-
-    LoadedFromSnapshot = true;
 
     LOG_INFO("Finished loading snapshot");
 }
