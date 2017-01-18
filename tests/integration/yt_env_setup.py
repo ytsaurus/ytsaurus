@@ -275,6 +275,10 @@ class YTEnvSetup(object):
 
             # XXX(dcherednik): Delete named pipes
             subprocess.check_call(["find", cls.path_to_run, "-type", "p", "-delete"])
+            # XXX(asaitgalin): Unmount everything
+            subprocess.check_call(["find", cls.path_to_run, "-type", "d", "-exec",
+                                   "mountpoint", "-q", "{}", ";", "-exec", "sudo",
+                                   "umount", "{}", ";"])
 
             destination_path = os.path.join(SANDBOX_STORAGE_ROOTDIR, cls.test_name, cls.run_id)
             if os.path.exists(destination_path):
