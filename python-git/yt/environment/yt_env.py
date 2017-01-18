@@ -181,8 +181,8 @@ class YTInstance(object):
         makedirp(self.configs_path)
         makedirp(self.runtime_data_path)
 
-        self._stderrs_path = os.path.join(self.path, "stderrs")
-        makedirp(self._stderrs_path)
+        self.stderrs_path = os.path.join(self.path, "stderrs")
+        makedirp(self.stderrs_path)
         self._stderr_paths = defaultdict(list)
 
         self._tmpfs_path = tmpfs_path
@@ -511,7 +511,7 @@ class YTInstance(object):
             name_with_number = name
             if number:
                 name_with_number = "{0}-{1}".format(name, number)
-            stderr_path = os.path.join(self._stderrs_path, "stderr.{0}".format(name_with_number))
+            stderr_path = os.path.join(self.stderrs_path, "stderr.{0}".format(name_with_number))
             self._stderr_paths[name].append(stderr_path)
 
             for cgroup_path in cgroup_paths:
