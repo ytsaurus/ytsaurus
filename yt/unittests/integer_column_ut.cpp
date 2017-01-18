@@ -128,8 +128,8 @@ protected:
         std::vector<TVersionedRow> rows;
         for (int i = 0; i < 1000; ++i) {
             rows.push_back(CreateRow({
-                {Base + i, TimestampBase + i * 10},
-                {Null, TimestampBase + (i + 2) * 10}}));
+                {Base + i, TimestampBase + i * 10, false},
+                {Null, TimestampBase + (i + 2) * 10, false}}));
             for (int j = 0; j < 10; ++j) {
                 rows.push_back(CreateRowWithValues({}));
             }
