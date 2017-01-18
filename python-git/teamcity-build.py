@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "teamcity-build", "py
 from teamcity import build_step, teamcity_main, teamcity_message, teamcity_interact, \
                      StepFailedWithNonCriticalError
 
-from helpers import mkdirp, run, run_captured, cwd, \
+from helpers import mkdirp, run, run_captured, cwd, rm_content, \
                     rmtree, parse_yes_no_bool, ChildHasNonZeroExitCode, \
                     postprocess_junit_xml, sudo_rmtree, kill_by_name
 
@@ -196,6 +196,8 @@ def _run_tests(options, python_version):
     sandbox_directory = os.path.join(options.sandbox_directory, python_version)
     mkdirp(sandbox_directory)
 
+    rm_content(options.core_path)
+
     interpreter = "pypy" if python_version == "pypy" else "python" + python_version
 
     env = {
@@ -249,7 +251,8 @@ def _run_tests(options, python_version):
             options.yt_build_directory, os.path.join(options.archive_path, "artifacts"))
 
     archive_path = os.path.join(options.archive_path, python_version)
-    find_core_dumps_with_report(interpreter, [sandbox_directory], options.artifacts, archive_path)
+    find_core_dumps_with_report(interpreter, [sandbox_directory, options.core_path],
+                                options.artifacts, archive_path)
 
     try:
         if failed:
