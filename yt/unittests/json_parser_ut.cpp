@@ -242,6 +242,83 @@ TEST(TJsonParserTest, InvalidJson)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TJsonParserPlainTest, Simple)
+{
+    StrictMock<TMockYsonConsumer> Mock;
+    InSequence dummy;
+
+    EXPECT_CALL(Mock, OnBeginList());
+        EXPECT_CALL(Mock, OnListItem());
+        EXPECT_CALL(Mock, OnInt64Scalar(1));
+        EXPECT_CALL(Mock, OnListItem());
+        EXPECT_CALL(Mock, OnStringScalar("aaa"));
+        EXPECT_CALL(Mock, OnListItem());
+        EXPECT_CALL(Mock, OnDoubleScalar(::testing::DoubleEq(3.5)));
+        EXPECT_CALL(Mock, OnListItem());
+        EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("a"));
+        EXPECT_CALL(Mock, OnEntity());
+        EXPECT_CALL(Mock, OnEndMap());
+    EXPECT_CALL(Mock, OnEndList());
+
+    Stroka input = "[1,\"aaa\",3.5,{\"a\": null}]";
+
+    TStringInput stream(input);
+
+    auto config = New<TJsonFormatConfig>();
+    config->Plain = true;
+
+    ParseJson(&stream, &Mock, config);
+}
+
+TEST(TJsonParserPlainTest, Incorrect)
+{
+    StrictMock<TMockYsonConsumer> Mock;
+    EXPECT_CALL(Mock, OnBeginMap());
+
+    Stroka input =
+        "{"
+            "\"$attributes\":{\"foo\":\"bar\"}"
+            ","
+            "\"$value\":[1]"
+        "}";
+    TStringInput stream(input);
+
+    auto config = New<TJsonFormatConfig>();
+    config->Plain = true;
+
+    EXPECT_ANY_THROW(
+        ParseJson(&stream, &Mock, config)
+    );
+}
+
+TEST(TJsonParserPlainTest, ListFragment)
+{
+    StrictMock<TMockYsonConsumer> Mock;
+    InSequence dummy;
+
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("hello"));
+        EXPECT_CALL(Mock, OnStringScalar("world"));
+    EXPECT_CALL(Mock, OnEndMap());
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("foo"));
+        EXPECT_CALL(Mock, OnStringScalar("bar"));
+    EXPECT_CALL(Mock, OnEndMap());
+
+    Stroka input = "{\"hello\":\"world\"}\n{\"foo\":\"bar\"}\n";
+
+    auto config = New<TJsonFormatConfig>();
+    config->Plain = true;
+
+    TStringInput stream(input);
+    ParseJson(&stream, &Mock, config, EYsonType::ListFragment);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // Values with attributes:
 TEST(TJsonParserTest, ListWithAttributes)
 {
@@ -556,6 +633,10 @@ TEST(TJsonParserTest, Trash)
 TEST(TJsonParserTest, TrailingTrash)
 {
     StrictMock<TMockYsonConsumer> Mock;
+    EXPECT_CALL(Mock, OnBeginMap());
+    EXPECT_CALL(Mock, OnKeyedItem("a"));
+    EXPECT_CALL(Mock, OnStringScalar("b"));
+    EXPECT_CALL(Mock, OnEndMap());
 
     Stroka input = "{\"a\":\"b\"} fdslfsdhfkajsdhf";
 
@@ -568,6 +649,10 @@ TEST(TJsonParserTest, TrailingTrash)
 TEST(TJsonParserTest, MultipleValues)
 {
     StrictMock<TMockYsonConsumer> Mock;
+    EXPECT_CALL(Mock, OnBeginMap());
+    EXPECT_CALL(Mock, OnKeyedItem("a"));
+    EXPECT_CALL(Mock, OnStringScalar("b"));
+    EXPECT_CALL(Mock, OnEndMap());
 
     Stroka input = "{\"a\":\"b\"}{\"a\":\"b\"}";
 
