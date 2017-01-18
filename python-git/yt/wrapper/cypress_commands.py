@@ -476,7 +476,7 @@ def remove_with_empty_dirs(path, force=True, client=None):
                 raise
 
 def create_revision_parameter(path, transaction_id=None, revision=None, client=None):
-    """Create revision parameter of the path.
+    """Creates revision parameter of the path.
 
     :param str path: path.
     :rtype: dict.
