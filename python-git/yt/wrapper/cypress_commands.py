@@ -479,7 +479,7 @@ def create_revision_parameter(path, transaction_id=None, revision=None, client=N
     """Creates revision parameter of the path.
 
     :param str path: path.
-    :rtype: dict.
+    :rtype: dict
     """
     if revision is None:
         revision = get_attribute(path, "revision")
