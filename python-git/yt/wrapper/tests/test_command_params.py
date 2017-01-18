@@ -22,13 +22,13 @@ class TestPrerequisite(object):
             with yt.Transaction() as another_tx:
                 transaction_id = another_tx.transaction_id
                 client = yt.create_client_with_command_params(prerequisite_transaction_ids=[tx.transaction_id,
-                                                                                         another_tx.transaction_id])
+                                                                                            another_tx.transaction_id])
                 client.mkdir(TEST_DIR + "/prerequisite/test_many", recursive=True)
                 assert client.exists(TEST_DIR + "/prerequisite/test_many")
 
             with pytest.raises(yt.YtError):
                 client = yt.create_client_with_command_params(prerequisite_transaction_ids=[tx.transaction_id,
-                                                                                         another_tx.transaction_id])
+                                                                                            another_tx.transaction_id])
                 client.mkdir(TEST_DIR + "/prerequisite/test", recursive=True)
 
     def test_prerequisite_revision(self):
