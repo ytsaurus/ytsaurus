@@ -99,7 +99,7 @@ class YtClient(ClientState):
             self.config["token"] = token
 
 def create_client_with_command_params(client=None, **kwargs):
-    """ Create new client with command params """
+    """Create new client with command params"""
     new_client = YtClient(config=deepcopy(get_config(client)))
     set_option("COMMAND_PARAMS", kwargs, new_client)
     return new_client
