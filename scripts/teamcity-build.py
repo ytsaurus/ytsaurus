@@ -68,7 +68,7 @@ def prepare(options):
         options.build_enable_python = options.build_enable_python_2_7
 
     options.codename = codename
-    extra_repositories = filter(lambda x: x != "", map(str.strip, os.environ.get("EXTRA_REPOSITORIES").split(",")))
+    extra_repositories = filter(lambda x: x != "", map(str.strip, os.environ.get("EXTRA_REPOSITORIES", "").split(",")))
     options.repositories = ["yt-" + codename] + extra_repositories
 
     # Now determine the compiler.
