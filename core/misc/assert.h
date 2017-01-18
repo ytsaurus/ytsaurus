@@ -55,6 +55,9 @@ void AssertTrapImpl(
     } while (false)
 
 //! Unreachable code marker. Abnormally terminates the current process.
+#ifdef Y_UNREACHABLE
+#undef Y_UNREACHABLE
+#endif
 #ifdef YT_COMPILING_UDF
     #define Y_UNREACHABLE() __builtin_unreachable()
 #else
