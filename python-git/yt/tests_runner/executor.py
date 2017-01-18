@@ -60,6 +60,22 @@ class Executor(object):
 
         return True
 
+    def pytest_runtest_call(self, item):
+        logger.info("Sending next test stderrs paths to master")
+        if not hasattr(item, "cls"):
+            return
+
+        result = []
+        if hasattr(item.cls, "Env"):
+            result.append(item.cls.Env.stderrs_path)
+
+        if hasattr(item.cls, "test_name") and hasattr(item.cls, "run_id") and \
+                "TESTS_SANDBOX_STORAGE" in os.environ:
+            result.append(os.path.join(
+                os.environ["TESTS_SANDBOX_STORAGE"], item.cls.test_name, item.cls.run_id))
+
+        self._send_to_channel("next_test_stderrs_paths", result)
+
     def pytest_runtest_logreport(self, report):
         logger.info("Sending %s report to master", report.when)
 

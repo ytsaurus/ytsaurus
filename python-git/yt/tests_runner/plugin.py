@@ -38,6 +38,7 @@ class TestProcess(object):
         self.gateway = gateway
         self.channel = channel
         self.last_started_test_index = -1
+        self.last_started_test_stderrs_paths = None
 
 class YtParallelTestsRunnerPlugin(object):
     def __init__(self, config, process_count):
@@ -95,6 +96,8 @@ class YtParallelTestsRunnerPlugin(object):
             self.processes[process_index].last_started_test_index = event["data"]
         elif event["type"] == "endmarker":
             self._handle_endmarker(process_index)
+        elif event["type"] == "next_test_stderrs_paths":
+            self.processes[process_index].last_started_test_stderrs_paths = event["data"]
         else:
             raise RuntimeError("Incorrect event type")
 
@@ -114,6 +117,19 @@ class YtParallelTestsRunnerPlugin(object):
                       "if driver crashed or some service (master, scheduler, etc.) " \
                       "died during test session. See build log and core dumps for more details." \
                       .format(process_index, crashed_test)
+
+            stderrs_paths = self.processes[process_index].last_started_test_stderrs_paths
+            stderrs = []
+            for path in stderrs_paths:
+                if os.path.exists(path):
+                    for file_ in os.listdir(path):
+                        with open(os.path.join(path, file_)) as f:
+                            content = f.read()
+                            if content:
+                                stderrs.append("{0}:\n{1}\n".format(file_, content))
+
+            if stderrs:
+                message += "\n" + "\n".join(stderrs)
 
             self._log_to_terminal(message)
             report = runner.TestReport(
