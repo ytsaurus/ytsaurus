@@ -77,7 +77,7 @@ public:
             bootstrap)
         , Config_(config)
         , LeaseTracker_(New<TTransactionLeaseTracker>(
-            Slot_->GetAutomatonInvoker(),
+            Bootstrap_->GetTransactionTrackerInvoker(),
             Logger))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
