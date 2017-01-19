@@ -2460,9 +2460,8 @@ private:
             {
                 auto* chunk = chunkManager->GetChunkOrThrow(storeId);
                 if (!chunk->Parents().empty()) {
-                    THROW_ERROR_EXCEPTION("Chunk %v cannot be attached to tablet chunk list %v since the former already has a parent",
-                        chunk->GetId(),
-                        tabletChunkList->GetId());
+                    THROW_ERROR_EXCEPTION("Chunk %v cannot be attached since the former already has a parent",
+                        chunk->GetId());
                 }
                 const auto& miscExt = chunk->MiscExt();
                 if (miscExt.has_max_timestamp()) {
