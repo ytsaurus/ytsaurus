@@ -214,7 +214,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, Index_);
     Save(context, State_);
     Save(context, MountRevision_);
-    Save(context, StoresUpdatePrepared_);
+    Save(context, StoresUpdatePreparedTransaction_);
     Save(context, Table_);
     Save(context, Cell_);
     Save(context, PivotKey_);
@@ -235,7 +235,11 @@ void TTablet::Load(TLoadContext& context)
     Load(context, MountRevision_);
     // COMPAT(babenko)
     if (context.GetVersion() >= 500) {
-        Load(context, StoresUpdatePrepared_);
+        if (context.GetVersion() < 503) {
+            YCHECK(!Load<bool>(context));
+        } else {
+            Load(context, StoresUpdatePreparedTransaction_);
+        }
     }
     Load(context, Table_);
     Load(context, Cell_);
