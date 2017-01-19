@@ -348,28 +348,33 @@ IJobPtr TJobProxy::CreateBuiltinJob()
 
 TJobResult TJobProxy::DoRun()
 {
-    auto environmentConfig = ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment);
-    if (environmentConfig->Type == EJobEnvironmentType::Cgroups) {
-        CGroupsConfig_ = ConvertTo<TCGroupJobEnvironmentConfigPtr>(Config_->JobEnvironment);
+    try {
+        auto environmentConfig = ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment);
+        if (environmentConfig->Type == EJobEnvironmentType::Cgroups) {
+            CGroupsConfig_ = ConvertTo<TCGroupJobEnvironmentConfigPtr>(Config_->JobEnvironment);
+        }
+
+        LocalDescriptor_ = NNodeTrackerClient::TNodeDescriptor(Config_->Addresses, Config_->Rack, Config_->DataCenter);
+
+        RpcServer_ = CreateBusServer(CreateTcpBusServer(Config_->BusServer));
+        RpcServer_->RegisterService(CreateJobProberService(this));
+        RpcServer_->Start();
+
+        auto supervisorClient = CreateTcpBusClient(Config_->SupervisorConnection);
+        auto supervisorChannel = CreateBusChannel(supervisorClient);
+
+        SupervisorProxy_.reset(new TSupervisorServiceProxy(supervisorChannel));
+        SupervisorProxy_->SetDefaultTimeout(Config_->SupervisorRpcTimeout);
+
+        auto clusterConnection = CreateNativeConnection(Config_->ClusterConnection);
+
+        Client_ = clusterConnection->CreateNativeClient(TClientOptions(NSecurityClient::JobUserName));
+
+        RetrieveJobSpec();
+    } catch (const std::exception& ex) {
+        LOG_ERROR(ex, "Failed to prepare job proxy");
+        Exit(EJobProxyExitCode::JobProxyPrepareFailed);
     }
-
-    LocalDescriptor_ = NNodeTrackerClient::TNodeDescriptor(Config_->Addresses, Config_->Rack, Config_->DataCenter);
-
-    RpcServer_ = CreateBusServer(CreateTcpBusServer(Config_->BusServer));
-    RpcServer_->RegisterService(CreateJobProberService(this));
-    RpcServer_->Start();
-
-    auto supervisorClient = CreateTcpBusClient(Config_->SupervisorConnection);
-    auto supervisorChannel = CreateBusChannel(supervisorClient);
-
-    SupervisorProxy_.reset(new TSupervisorServiceProxy(supervisorChannel));
-    SupervisorProxy_->SetDefaultTimeout(Config_->SupervisorRpcTimeout);
-
-    auto clusterConnection = CreateNativeConnection(Config_->ClusterConnection);
-
-    Client_ = clusterConnection->CreateNativeClient(TClientOptions(NSecurityClient::JobUserName));
-
-    RetrieveJobSpec();
 
     const auto& schedulerJobSpecExt = GetJobSpecHelper()->GetSchedulerJobSpecExt();
     NLFAlloc::SetBufferSize(schedulerJobSpecExt.lfalloc_buffer_size());
