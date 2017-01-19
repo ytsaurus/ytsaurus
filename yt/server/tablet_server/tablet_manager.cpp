@@ -2448,6 +2448,8 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->SetModified(table, nullptr);
 
+        auto* tabletChunkList = tablet->GetChunkList();
+
         // Collect all changes first.
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         std::vector<TChunkTree*> chunksToAttach;
@@ -2459,6 +2461,11 @@ private:
                 TypeFromId(storeId) == EObjectType::ErasureChunk)
             {
                 auto* chunk = chunkManager->GetChunkOrThrow(storeId);
+                if (!chunk->Parents().empty()) {
+                    THROW_ERROR_EXCEPTION("Chunk %v cannot be attached to tablet chunk list %v since the former already has a parent",
+                        chunk->GetId(),
+                        tabletChunkList->GetId());
+                }
                 const auto& miscExt = chunk->MiscExt();
                 if (miscExt.has_max_timestamp()) {
                     lastCommitTimestamp = std::max(lastCommitTimestamp, static_cast<TTimestamp>(miscExt.max_timestamp()));
@@ -2476,6 +2483,11 @@ private:
                 TypeFromId(storeId) == EObjectType::ErasureChunk)
             {
                 auto* chunk = chunkManager->GetChunkOrThrow(storeId);
+                if (std::find(chunk->Parents().begin(), chunk->Parents().end(), tabletChunkList) == chunk->Parents().end()) {
+                    THROW_ERROR_EXCEPTION("Chunk %v does not belong to tablet chunk list %v",
+                        chunk->GetId(),
+                        tabletChunkList->GetId());
+                }
                 const auto& miscExt = chunk->MiscExt();
                 detachedRowCount += miscExt.row_count();
                 chunksToDetach.push_back(chunk);
@@ -2497,7 +2509,6 @@ private:
         // Apply all requested changes.
         auto* cell = tablet->GetCell();
         cell->TotalStatistics() -= GetTabletStatistics(tablet);
-        auto* tabletChunkList = tablet->GetChunkList();
         chunkManager->AttachToChunkList(tabletChunkList, chunksToAttach);
         chunkManager->DetachFromChunkList(tabletChunkList, chunksToDetach);
         cell->TotalStatistics() += GetTabletStatistics(tablet);
