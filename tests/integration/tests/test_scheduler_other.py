@@ -2202,7 +2202,7 @@ class TestSafeAssertionsMode(YTEnvSetup):
         "core_dumper": {
             "component_name": "",
             "path": "/dev/null",
-        },
+        }
     }
 
     @unix_only
@@ -2218,3 +2218,35 @@ class TestSafeAssertionsMode(YTEnvSetup):
             command="cat")
         with pytest.raises(YtError):
             op.track()
+
+
+class TestMaxTotalSliceCount(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "max_total_slice_count": 3,
+        }
+    }
+
+    @unix_only
+    def test_hit_limit(self):
+        create("table", "//tmp/t_primary")
+        write_table("//tmp/t_primary", [
+            {"key": 0},
+            {"key": 10}], sorted_by=['key'])
+
+        create("table", "//tmp/t_foreign")
+        write_table("<append=true; sorted_by=[key]>//tmp/t_foreign", [{"key": 0}, {"key": 1}, {"key": 2}])
+        write_table("<append=true; sorted_by=[key]>//tmp/t_foreign", [{"key": 3}, {"key": 4}, {"key": 5}])
+        write_table("<append=true; sorted_by=[key]>//tmp/t_foreign", [{"key": 6}, {"key": 7}, {"key": 8}])
+
+        create("table", "//tmp/t_out")
+        with pytest.raises(YtError):
+            join_reduce(
+                in_=["//tmp/t_primary", "<foreign=true>//tmp/t_foreign"],
+                out="//tmp/t_out",
+                join_by=["key"],
+                command="cat > /dev/null")

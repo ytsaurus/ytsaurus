@@ -708,6 +708,9 @@ public:
     // Enables statistics reporter to send job events/statistics/specs etc.
     bool EnableStatisticsReporter;
 
+    // Total number of data slices in operation, summed up over all jobs.
+    i64 MaxTotalSliceCount;
+
     TSchedulerConfig()
     {
         RegisterParameter("controller_thread_count", ControllerThreadCount)
@@ -961,6 +964,10 @@ public:
 
         RegisterParameter("enable_statistics_reporter", EnableStatisticsReporter)
             .Default(false);
+
+        RegisterParameter("max_total_slice_count", MaxTotalSliceCount)
+            .Default((i64) 10 * 1000 * 1000)
+            .GreaterThan(0);
 
         RegisterInitializer([&] () {
             ChunkLocationThrottler->Limit = 10000;
