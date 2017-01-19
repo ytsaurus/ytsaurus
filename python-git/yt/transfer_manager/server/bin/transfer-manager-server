@@ -25,15 +25,15 @@ import yt.logger as logger
 import yt.json as json
 
 from yt.packages.expiringdict import ExpiringDict
-from yt.packages.cherrypy import wsgiserver
 from yt.packages.six import iteritems, PY3
 from yt.packages.six.moves import queue, xrange, zip as izip
 
-import yt.packages.pympler.muppy as pympler_muppy
-import yt.packages.pympler.summary as pympler_summary
-from yt.packages.pympler.asizeof import asizeof
-
 import yt.wrapper as yt
+
+from cherrypy import wsgiserver
+import pympler.muppy as pympler_muppy
+import pympler.summary as pympler_summary
+from pympler.asizeof import asizeof
 
 from flask import Flask, request, jsonify, Response, make_response, send_file
 
