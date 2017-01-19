@@ -2331,7 +2331,7 @@ private:
         }
     }
 
-    void HydraPrepareUpdateTabletStores(TTransaction* /*transaction*/, TReqUpdateTabletStores* request, bool persistent)
+    void HydraPrepareUpdateTabletStores(TTransaction* transaction, TReqUpdateTabletStores* request, bool persistent)
     {
         YCHECK(persistent);
 
@@ -2405,12 +2405,13 @@ private:
 
         tablet->SetStoresUpdatePrepared(true);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update prepared (TableId: %v, TabletId: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update prepared (TransactionId: %v, TableId: %v, TabletId: %v)",
+            transaction->GetId(),
             table->GetId(),
             tabletId);
     }
 
-    void HydraCommitUpdateTabletStores(TTransaction* /*transaction*/, TReqUpdateTabletStores* request)
+    void HydraCommitUpdateTabletStores(TTransaction* transaction, TReqUpdateTabletStores* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
@@ -2420,10 +2421,20 @@ private:
 
         auto mountRevision = request->mount_revision();
         if (tablet->GetMountRevision() != mountRevision) {
+            LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: invalid mount revision on tablet stores update commit; ignored "
+                "(TabletId: %v, TransactionId: %v, ExpectedMountRevision: %v, ActualMountRevision: %v)",
+                tabletId,
+                transaction->GetId(),
+                mountRevision,
+                tablet->GetMountRevision());
             return;
         }
 
         if (!tablet->GetStoresUpdatePrepared()) {
+            LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: tablet stores update commit for an unprepared tablet; ignored "
+                "(TabletId: %v, TransactionId: %v)",
+                tabletId,
+                transaction->GetId());
             return;
         }
 
@@ -2501,9 +2512,10 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->UpdateAccountNodeUsage(table);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update committed (TableId: %v, TabletId: %v, "
+        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update committed (TransactionId: %v, TableId: %v, TabletId: %v, "
             "AttachedChunkIds: %v, DetachedChunkIds: %v, "
             "AttachedRowCount: %v, DetachedRowCount: %v, RetainedTimestamp: %v)",
+            transaction->GetId(),
             table->GetId(),
             tabletId,
             MakeFormattableRange(chunksToAttach, TObjectIdFormatter()),
@@ -2513,7 +2525,7 @@ private:
             retainedTimestamp);
     }
 
-    void HydraAbortUpdateTabletStores(TTransaction* /*transaction*/, TReqUpdateTabletStores* request)
+    void HydraAbortUpdateTabletStores(TTransaction* transaction, TReqUpdateTabletStores* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
@@ -2534,7 +2546,8 @@ private:
 
         tablet->SetStoresUpdatePrepared(false);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update aborted (TabletId: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update aborted (TransactionId: %v, TableId: %v, TabletId: %v)",
+            transaction->GetId(),
             table->GetId(),
             tabletId);
     }
