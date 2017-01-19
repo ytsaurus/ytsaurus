@@ -2448,8 +2448,6 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->SetModified(table, nullptr);
 
-        auto* tabletChunkList = tablet->GetChunkList();
-
         // Collect all changes first.
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         std::vector<TChunkTree*> chunksToAttach;
@@ -2483,11 +2481,6 @@ private:
                 TypeFromId(storeId) == EObjectType::ErasureChunk)
             {
                 auto* chunk = chunkManager->GetChunkOrThrow(storeId);
-                if (std::find(chunk->Parents().begin(), chunk->Parents().end(), tabletChunkList) == chunk->Parents().end()) {
-                    THROW_ERROR_EXCEPTION("Chunk %v does not belong to tablet chunk list %v",
-                        chunk->GetId(),
-                        tabletChunkList->GetId());
-                }
                 const auto& miscExt = chunk->MiscExt();
                 detachedRowCount += miscExt.row_count();
                 chunksToDetach.push_back(chunk);
@@ -2507,6 +2500,7 @@ private:
         CopyChunkListIfShared(table, tablet->GetIndex(), tablet->GetIndex());
 
         // Apply all requested changes.
+        auto* tabletChunkList = tablet->GetChunkList();
         auto* cell = tablet->GetCell();
         cell->TotalStatistics() -= GetTabletStatistics(tablet);
         chunkManager->AttachToChunkList(tabletChunkList, chunksToAttach);
