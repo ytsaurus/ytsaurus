@@ -1337,7 +1337,7 @@ void TOperationControllerBase::SafePrepare()
 
 void TOperationControllerBase::SafeMaterialize()
 {
-    if (State == EControllerState::Running) {
+    if (RevivedFromSnapshot) {
         // Operation is successfully revived, skipping materialization.
         return;
     }
@@ -1417,6 +1417,8 @@ void TOperationControllerBase::Revive()
 
     DoLoadSnapshot(Snapshot);
     Snapshot = TSharedRef();
+
+    RevivedFromSnapshot = true;
 
     InitChunkListPool();
 
@@ -1574,8 +1576,7 @@ void TOperationControllerBase::InitInputChunkScraper()
         InputNodeDirectory,
         std::move(chunkIds),
         BIND(&TThis::OnInputChunkLocated, MakeWeak(this)),
-        Logger
-    );
+        Logger);
 
     if (UnavailableInputChunkCount > 0) {
         LOG_INFO("Waiting for %v unavailable input chunks", UnavailableInputChunkCount);

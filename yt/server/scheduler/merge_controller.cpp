@@ -355,13 +355,23 @@ protected:
         task->FinishInput();
         RegisterTask(task);
 
-        ++CurrentPartitionIndex;
-
         LOG_DEBUG("Task finished (Id: %v, TaskDataSize: %v, TaskChunkCount: %v, BreakpointKey: %v)",
             task->GetId(),
             taskDataSize,
             taskChunkCount,
             breakpointKey);
+
+        TotalDataSize += taskDataSize;
+        TotalChunkCount += taskChunkCount;
+
+        if (TotalChunkCount > Config->MaxTotalSliceCount) {
+            THROW_ERROR_EXCEPTION("Total number of data slices in operation is too large. Consider reducing job count or reducing chunk count in input tables.")
+                << TErrorAttribute("actual_total_slice_count", TotalChunkCount)
+                << TErrorAttribute("max_total_slice_count", Config->MaxTotalSliceCount)
+                << TErrorAttribute("current_job_count", CurrentPartitionIndex);
+        }
+
+        ++CurrentPartitionIndex;
     }
 
     void EndTaskAtKey(TKey breakpointKey)
@@ -425,8 +435,6 @@ protected:
         AddSliceToStripe(inputSlice, CurrentTaskStripes);
 
         i64 sliceDataSize = inputSlice->GetDataSize();
-        TotalDataSize += sliceDataSize;
-        ++TotalChunkCount;
 
         CurrentTaskDataSize += sliceDataSize;
         ++CurrentTaskChunkCount;
