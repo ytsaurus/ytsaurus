@@ -1,6 +1,8 @@
 #include "tablet.h"
 #include "tablet_cell.h"
 #include "table_replica.h"
+// COMPAT(babenko)
+#include "private.h"
 
 #include <yt/server/cell_master/serialize.h>
 
@@ -234,9 +236,12 @@ void TTablet::Load(TLoadContext& context)
     Load(context, State_);
     Load(context, MountRevision_);
     // COMPAT(babenko)
+    bool brokenPrepare = false;
     if (context.GetVersion() >= 500) {
         if (context.GetVersion() < 503) {
-            YCHECK(!Load<bool>(context));
+            if (Load<bool>(context)) {
+                brokenPrepare = true;
+            }
         } else {
             Load(context, StoresUpdatePreparedTransaction_);
         }
@@ -251,6 +256,13 @@ void TTablet::Load(TLoadContext& context)
         Load(context, TrimmedRowCount_);
         Load(context, Replicas_);
         Load(context, RetainedTimestamp_);
+    }
+    // COMPAT(babenko)
+    if (brokenPrepare) {
+        const auto& Logger = TabletServerLogger;
+        LOG_ERROR("Broken prepared tablet found (TableId: %v, TabletId: %v)",
+            Id_,
+            Table_->GetId());
     }
 }
 
