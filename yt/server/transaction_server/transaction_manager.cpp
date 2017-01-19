@@ -324,6 +324,7 @@ public:
         transaction->SetState(ETransactionState::Committed);
 
         TransactionCommitted_.Fire(transaction);
+
         try {
             RunCommitTransactionActions(transaction);
         } catch (const std::exception& ex) {
@@ -403,7 +404,12 @@ public:
         transaction->SetState(ETransactionState::Aborted);
 
         TransactionAborted_.Fire(transaction);
-        RunAbortTransactionActions(transaction);
+
+        try {
+            RunAbortTransactionActions(transaction);
+        } catch (const std::exception& ex) {
+            LOG_ERROR_UNLESS(IsRecovery(), ex, "Unexpected error: failed to execute transaction abort actions");
+        }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         for (const auto& entry : transaction->ExportedObjects()) {
