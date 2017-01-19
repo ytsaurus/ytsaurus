@@ -324,7 +324,11 @@ public:
         transaction->SetState(ETransactionState::Committed);
 
         TransactionCommitted_.Fire(transaction);
-        RunCommitTransactionActions(transaction);
+        try {
+            RunCommitTransactionActions(transaction);
+        } catch (const std::exception& ex) {
+            LOG_ERROR_UNLESS(IsRecovery(), ex, "Unexpected error: failed to execute transaction commit actions");
+        }
 
         auto* parent = transaction->GetParent();
         if (parent) {
