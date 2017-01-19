@@ -294,6 +294,16 @@ public:
                             config = New<TPoolConfig>();
                         }
 
+                        try {
+                            config->Validate();
+                        } catch (const std::exception& ex) {
+                            errors.emplace_back(
+                                TError(
+                                    "Misconfiguration of pool %Qv found",
+                                    childPath)
+                                << ex);
+                        }
+
                         auto pool = FindPool(childId);
                         if (pool) {
                             // Reconfigure existing pool.
@@ -848,7 +858,7 @@ private:
 
         LOG_DEBUG("Heartbeat info (StartedJobs: %v, PreemptedJobs: %v, "
             "JobsScheduledDuringPreemption: %v, PreemptableJobs: %v, PreemptableResources: %v, "
-            "NonPreemptiveScheduleJobCount: %v, PreemptiveScheduleJobCount: %v, HasAggressivelyStarvingNodes: %v)",
+            "NonPreemptiveScheduleJobCount: %v, PreemptiveScheduleJobCount: %v, HasAggressivelyStarvingNodes: %v, Address: %v)",
             schedulingContext->StartedJobs().size(),
             schedulingContext->PreemptedJobs().size(),
             scheduledDuringPreemption,
@@ -856,7 +866,8 @@ private:
             FormatResources(resourceDiscount),
             nonPreemptiveScheduleJobCount,
             preemptiveScheduleJobCount,
-            context.HasAggressivelyStarvingNodes);
+            context.HasAggressivelyStarvingNodes,
+            schedulingContext->GetNodeDescriptor().Address);
     }
 
     bool IsJobPreemptable(
