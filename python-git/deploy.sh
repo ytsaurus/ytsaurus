@@ -63,6 +63,9 @@ cp -r $PACKAGE/debian $PACKAGE/setup.py .
 if [ -f "$PACKAGE/MANIFEST.in" ]; then
     cp $PACKAGE/MANIFEST.in .
 fi
+if [ -f "$PACKAGE/requirements.txt" ]; then
+    cp $PACKAGE/requirements.txt .
+fi
 
 # Initial cleanup
 clean
@@ -130,4 +133,4 @@ fi
 
 # Final cleanup
 clean
-rm -rf debian setup.py MANIFEST.in
+rm -rf debian setup.py MANIFEST.in requirements.txt
