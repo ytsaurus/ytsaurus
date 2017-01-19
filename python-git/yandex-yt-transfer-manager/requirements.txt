@@ -1,0 +1,9 @@
+yandex-yt>=0.8.2-0
+yandex-yt-tools>=0.2.110-0
+yandex-yt-yson-bindings>=0.3.4-0
+flask==0.10.1
+prctl==1.0.1
+python-zlib-fork-safe==0.0.2-0
+pympler==0.4.2
+cherrypy==5.1.0
+six==1.10.0

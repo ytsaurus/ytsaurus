@@ -1,20 +1,14 @@
-from helpers import get_version, prepare_files
+from helpers import get_version
 
 from setuptools import setup
 
 def main():
-    requires = ["yandex-yt", "yandex-yt-tools", "yandex-yt-yson-bindings", "flask", "python-prctl"]
-    scripts, data_files = prepare_files(["yt/transfer_manager/server/bin/transfer-manager-server"])
-
     setup(
         name = "yandex-yt-transfer-manager",
         version = get_version(),
         packages = ["yt.transfer_manager", "yt.transfer_manager.server"],
 
-        scripts = scripts,
-        data_files = data_files,
-
-        install_requires = requires,
+        scripts = ["yt/transfer_manager/server/bin/transfer-manager-server"],
 
         author = "Ignat Kolesnichenko",
         author_email = "ignat@yandex-team.ru",
