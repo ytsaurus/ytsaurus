@@ -1357,7 +1357,7 @@ private:
 
     void ChangeCommitPersistentState(TCommit* commit, ECommitState state)
     {
-        LOG_DEBUG("Commit persistent state changed (TransactionId: %v, State: %v -> %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Commit persistent state changed (TransactionId: %v, State: %v -> %v)",
             commit->GetTransactionId(),
             commit->GetPersistentState(),
             state);
