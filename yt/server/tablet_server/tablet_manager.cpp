@@ -2264,7 +2264,7 @@ private:
         tablet->SetInMemoryMode(EInMemoryMode::None);
         tablet->SetState(ETabletState::Unmounted);
         tablet->SetCell(nullptr);
-        tablet->SetStoresUpdatePrepared(false);
+        tablet->SetStoresUpdatePreparedTransaction(nullptr);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         YCHECK(cell->Tablets().erase(tablet) == 1);
@@ -2338,9 +2338,10 @@ private:
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = GetTabletOrThrow(tabletId);
 
-        if (tablet->GetStoresUpdatePrepared()) {
-            THROW_ERROR_EXCEPTION("Stores update for tablet %v is already prepared",
-                tabletId);
+        if (tablet->GetStoresUpdatePreparedTransaction()) {
+            THROW_ERROR_EXCEPTION("Stores update for tablet %v is already prepared by transaction %v",
+                tabletId,
+                tablet->GetStoresUpdatePreparedTransaction()->GetId());
         }
 
         auto mountRevision = request->mount_revision();
@@ -2403,7 +2404,7 @@ private:
             }
         }
 
-        tablet->SetStoresUpdatePrepared(true);
+        tablet->SetStoresUpdatePreparedTransaction(transaction);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update prepared (TransactionId: %v, TableId: %v, TabletId: %v)",
             transaction->GetId(),
@@ -2430,11 +2431,12 @@ private:
             return;
         }
 
-        if (!tablet->GetStoresUpdatePrepared()) {
-            LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: tablet stores update commit for an unprepared tablet; ignored "
-                "(TabletId: %v, TransactionId: %v)",
+        if (tablet->GetStoresUpdatePreparedTransaction() != transaction) {
+            LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: tablet stores update commit for an improperly unprepared tablet; ignored "
+                "(TabletId: %v, ExpectedTransactionId: %v, ActualTransactionId: %v)",
                 tabletId,
-                transaction->GetId());
+                transaction->GetId(),
+                GetObjectId(tablet->GetStoresUpdatePreparedTransaction()));
             return;
         }
 
@@ -2507,7 +2509,9 @@ private:
             chunkManager->UnstageChunk(chunk->AsChunk());
         }
 
-        tablet->SetStoresUpdatePrepared(false);
+        if (tablet->GetStoresUpdatePreparedTransaction() == transaction) {
+            tablet->SetStoresUpdatePreparedTransaction(nullptr);
+        }
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->UpdateAccountNodeUsage(table);
@@ -2538,13 +2542,13 @@ private:
             return;
         }
 
-        if (!tablet->GetStoresUpdatePrepared()) {
+        if (tablet->GetStoresUpdatePreparedTransaction() != transaction) {
             return;
         }
 
         const auto* table = tablet->GetTable();
 
-        tablet->SetStoresUpdatePrepared(false);
+        tablet->SetStoresUpdatePreparedTransaction(nullptr);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update aborted (TransactionId: %v, TableId: %v, TabletId: %v)",
             transaction->GetId(),
