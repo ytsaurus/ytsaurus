@@ -188,6 +188,7 @@ private:
 
                 TObjectServiceProxy proxy(Owner_->MasterChannel_);
                 auto req = proxy.Execute();
+                req->SetUser(key.User);
                 req->add_part_counts(requestMessage.Size());
                 req->Attachments().insert(
                     req->Attachments().end(),
