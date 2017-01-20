@@ -1216,7 +1216,10 @@ private:
 
         const auto& storeManager = tablet->GetStoreManager();
         for (const auto& storeId : storeIdsToRemove) {
-            auto store = tablet->GetStore(storeId);
+            auto store = tablet->FindStore(storeId);
+            if (!store) {
+                continue;
+            }
 
             switch (store->GetType()) {
                 case EStoreType::SortedDynamic:
