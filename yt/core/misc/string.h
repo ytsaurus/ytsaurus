@@ -117,26 +117,6 @@ struct TDefaultFormatter
 
 extern const TStringBuf DefaultJoinToStringDelimiter;
 
-// Implementation details for JoinToString().
-template <class TFormatter, class TFormatterReturnType, class TIterator>
-struct TFormatterCaller
-{
-    static bool Call(const TFormatter& formatter, TStringBuilder* builder, const TIterator& current)
-    {
-        formatter(builder, *current);
-        return true;
-    }
-};
-
-template <class TFormatter, class TIterator>
-struct TFormatterCaller<TFormatter, bool, TIterator>
-{
-    static bool Call(const TFormatter& formatter, TStringBuilder* builder, const TIterator& current)
-    {
-        return formatter(builder, *current);
-    }
-};
-
 //! Joins a range of items into a string intermixing them with the delimiter.
 /*!
  *  \param builder String builder where the output goes.
@@ -145,9 +125,6 @@ struct TFormatterCaller<TFormatter, bool, TIterator>
  *  \param formatter Formatter to apply to the items.
  *  \param delimiter A delimiter to be inserted between items: ", " by default.
  *  \return The resulting combined string.
- *
- *  Formatters returning bool are special: returning false suppresses outputting
- *  a delimiter after corresponding item.
  */
 template <class TIterator, class TFormatter>
 void JoinToString(
@@ -157,14 +134,11 @@ void JoinToString(
     const TFormatter& formatter,
     const TStringBuf& delimiter = DefaultJoinToStringDelimiter)
 {
-    using TFormatterReturnType = decltype(formatter(builder, *begin));
-
-    bool mustAppendDelimiter = false;
     for (auto current = begin; current != end; ++current) {
-        if (mustAppendDelimiter) {
+        if (current != begin) {
             builder->AppendString(delimiter);
         }
-        mustAppendDelimiter = TFormatterCaller<TFormatter, TFormatterReturnType, TIterator>::Call(formatter, builder, current);
+        formatter(builder, *current);
     }
 }
 
