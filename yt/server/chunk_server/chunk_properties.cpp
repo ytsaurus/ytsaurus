@@ -93,14 +93,21 @@ Stroka ToString(const TChunkProperties& properties)
     TStringBuilder builder;
     builder.AppendFormat("{Vital: %v, Media: {", properties.GetVital());
 
+    // We want to accompany medium properties with their indexes.
+    using TIndexPropertiesPair = std::pair<int, TMediumChunkProperties>;
+
+    SmallVector<TIndexPropertiesPair, MaxMediumCount> filteredProperties;
     int mediumIndex = 0;
-    JoinToString(&builder, properties.begin(), properties.end(),
-        [&] (TStringBuilder* builderPtr, const TMediumChunkProperties& mediumProps) {
-            if (mediumProps) {
-                builderPtr->AppendFormat("%v: %v", mediumIndex, mediumProps);
-            }
-            ++mediumIndex;
-            return (bool)mediumProps;
+    for (const auto& mediumProperties : properties) {
+        if (mediumProperties) {
+            filteredProperties.emplace_back(mediumIndex, mediumProperties);
+        }
+        ++mediumIndex;
+    }
+
+    JoinToString(&builder, filteredProperties.begin(), filteredProperties.end(),
+        [&] (TStringBuilder* builderPtr, const TIndexPropertiesPair& pair) {
+            builderPtr->AppendFormat("%v: %v", pair.first, pair.second);
         });
 
     builder.AppendString("}}");
