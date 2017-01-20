@@ -84,6 +84,19 @@ struct TYaMRRow
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using ::google::protobuf::Message;
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TYaMRReader = TTableReader<TYaMRRow>;
+using TYaMRWriter = TTableWriter<TYaMRRow>;
+using TNodeReader = TTableReader<TNode>;
+using TNodeWriter = TTableWriter<TNode>;
+using TMessageReader = TTableReader<Message>;
+using TMessageWriter = TTableWriter<Message>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TDerived>
 struct TIOOptions
 {
