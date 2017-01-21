@@ -699,7 +699,7 @@ private:
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
-        auto* transaction = GetTransaction(transactionId);
+        auto* transaction = GetTransactionOrThrow(transactionId);
 
         auto state = transaction->GetPersistentState();
         if (state != ETransactionState::Active) {
