@@ -3085,7 +3085,8 @@ void TOperationControllerBase::CreateLivePreviewTables()
         int replicationFactor,
         NCompression::ECodec compressionCodec,
         const Stroka& key,
-        const TYsonString& acl)
+        const TYsonString& acl,
+        TNullable<TTableSchema> schema)
     {
         auto req = TCypressYPathProxy::Create(path);
         req->set_type(static_cast<int>(EObjectType::Table));
@@ -3102,6 +3103,9 @@ void TOperationControllerBase::CreateLivePreviewTables()
         }
         attributes->Set("acl", acl);
         attributes->Set("inherit_acl", false);
+        if (schema) {
+            attributes->Set("schema", *schema);
+        }
         ToProto(req->mutable_node_attributes(), *attributes);
 
         batchReq->AddRequest(req, key);
@@ -3119,7 +3123,8 @@ void TOperationControllerBase::CreateLivePreviewTables()
                 table.Options->ReplicationFactor,
                 table.Options->CompressionCodec,
                 "create_output",
-                table.EffectiveAcl);
+                table.EffectiveAcl,
+                table.TableUploadOptions.TableSchema);
         }
     }
 
@@ -3132,7 +3137,8 @@ void TOperationControllerBase::CreateLivePreviewTables()
             StderrTable->Options->ReplicationFactor,
             StderrTable->Options->CompressionCodec,
             "create_stderr",
-            StderrTable->EffectiveAcl);
+            StderrTable->EffectiveAcl,
+            StderrTable->TableUploadOptions.TableSchema);
     }
 
     if (IsIntermediateLivePreviewSupported()) {
@@ -3145,7 +3151,8 @@ void TOperationControllerBase::CreateLivePreviewTables()
             1,
             Spec->IntermediateCompressionCodec,
             "create_intermediate",
-            ConvertToYsonString(Spec->IntermediateDataAcl));
+            ConvertToYsonString(Spec->IntermediateDataAcl),
+            Null);
     }
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());
