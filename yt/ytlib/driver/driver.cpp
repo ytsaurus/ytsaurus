@@ -282,6 +282,8 @@ private:
         entry.Descriptor = descriptor;
         entry.Execute = BIND([] (ICommandContextPtr context) {
             TCommand command;
+            command.GetLogger().AddTag("RequestId: %" PRIx64, context->Request().Id);
+            command.GetLogger().AddTag("User: %v", context->Request().AuthenticatedUser);
             auto parameters = context->Request().Parameters;
             Deserialize(command, parameters);
             command.Execute(context);
