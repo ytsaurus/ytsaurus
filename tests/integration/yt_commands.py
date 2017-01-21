@@ -57,9 +57,6 @@ def init_drivers(clusters):
                 yt_driver_bindings.configure_logging(instance.driver_logging_config)
 
 def terminate_drivers():
-    for drivers in clusters_drivers.itervalues():
-        __builtin__.map(lambda d: d.terminate(), drivers)
-
     clusters_drivers.clear()
 
 def set_branch(dict, path, value):
