@@ -10,6 +10,8 @@
 
 #include <yt/ytlib/security_client/public.h>
 
+#include <yt/core/logging/log.h>
+
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/mpl.h>
 
@@ -48,7 +50,15 @@ DEFINE_REFCOUNTED_TYPE(ICommandContext)
 class TCommandBase
     : public NYTree::TYsonSerializableLite
 {
+public:
+    NLogging::TLogger& GetLogger()
+    {
+        return Logger;
+    }
+
 protected:
+    NLogging::TLogger Logger = DriverLogger;
+
     TCommandBase()
     {
         SetKeepOptions(true);
