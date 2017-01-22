@@ -347,8 +347,10 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
         locationStatistics->set_enabled(location->IsEnabled());
 
         if (location->IsEnabled()) {
-            totalAvailableSpace += location->GetAvailableSpace();
-            totalLowWatermarkSpace += location->GetLowWatermarkSpace();
+            if (!location->IsJournalsOnly()) {
+                totalAvailableSpace += location->GetAvailableSpace();
+                totalLowWatermarkSpace += location->GetLowWatermarkSpace();
+            }
             full &= location->IsFull();
         }
 
