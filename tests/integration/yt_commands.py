@@ -280,6 +280,12 @@ def read_table(path, **kwargs):
     kwargs["path"] = path
     return execute_command_with_output_format("read_table", kwargs)
 
+def read_blob_table(path, **kwargs):
+    kwargs["path"] = path
+    output = StringIO()
+    execute_command("read_blob_table", kwargs, output_stream=output)
+    return output.getvalue()
+
 def write_table(path, value, is_raw=False, **kwargs):
     if not is_raw:
         if not isinstance(value, list):
