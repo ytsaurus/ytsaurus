@@ -13,8 +13,6 @@ from .format import YtFormatReadError
 
 import yt.logger as logger
 
-from yt.packages.six import Iterator as IteratorBase
-
 
 class FakeTransaction(object):
     def __enter__(self):
