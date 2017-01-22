@@ -405,8 +405,9 @@ class Application(object):
 
             self._lock_acquired = True
 
-            self._yt = yt.create_client_with_spec_options(prerequisite_transaction_ids=[tx.transaction_id],
-                                                          client=self._yt)
+            self._yt = yt.create_client_with_command_params(
+                prerequisite_transaction_ids=[tx.transaction_id],
+                client=self._yt)
 
             # Loading tasks from cypress
             self._load_tasks(os.path.join(self._path, "tasks"))
