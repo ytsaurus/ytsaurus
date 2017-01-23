@@ -75,10 +75,13 @@ NSecurityServer::TClusterResources TChunkOwnerTypeHandler<TChunkOwner>::GetChunk
 {
     NSecurityServer::TClusterResources result;
     for (int mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
-        // Replication factor should be 1 in case of erasure coding.
-        result.DiskSpace[mediumIndex] =
-            chunkOwner.Properties()[mediumIndex].GetReplicationFactor() *
-            (statistics.regular_disk_space() + statistics.erasure_disk_space());
+        int replicationFactor = chunkOwner.Properties()[mediumIndex].GetReplicationFactor();
+        // NB: replicationFactor == 0 for unused media.
+        if (replicationFactor > 0) {
+            result.DiskSpace[mediumIndex] =
+                statistics.regular_disk_space() * replicationFactor +
+                statistics.erasure_disk_space();
+        }
     }
     result.ChunkCount = statistics.chunk_count();
     return result;

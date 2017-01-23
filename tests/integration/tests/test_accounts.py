@@ -8,7 +8,7 @@ from yt_commands import *
 
 class TestAccounts(YTEnvSetup):
     NUM_MASTERS = 1
-    NUM_NODES = 3
+    NUM_NODES = 16
 
     def _get_disk_space_for_medium(self, disk_space_map, medium_name = "default"):
         return disk_space_map.get(medium_name, 0)
@@ -723,6 +723,24 @@ class TestAccounts(YTEnvSetup):
         assert get("//sys/accounts/tmp/@ref_counter") == tmp_rc
         assert get("//sys/accounts/a/@ref_counter") == 2
 
+
+    def test_regular_disk_usage(self):
+        create("table", "//tmp/t")
+        set("//tmp/t/@replication_factor", 5)
+        write_table("//tmp/t", {"a" : "b"})
+        chunk_list_id = get("//tmp/t/@chunk_list_id")
+        assert get("//tmp/t/@resource_usage/disk_space_per_medium/default") == \
+               get("#{0}/@statistics/regular_disk_space".format(chunk_list_id)) * 5
+
+    def test_erasure_disk_usage(self):
+        create("table", "//tmp/t")
+        set("//tmp/t/@erasure_codec", "lrc_12_2_2")
+        set("//tmp/t/@replication_factor", 5)
+        write_table("//tmp/t", {"a" : "b"})
+        chunk_list_id = get("//tmp/t/@chunk_list_id")
+        assert get("//tmp/t/@resource_usage/disk_space_per_medium/default") == \
+               get("#{0}/@statistics/erasure_disk_space".format(chunk_list_id))
+        
 ##################################################################
 
 class TestAccountsMulticell(TestAccounts):
