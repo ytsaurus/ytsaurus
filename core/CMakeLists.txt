@@ -257,10 +257,6 @@ ADDINCL(
 
 SRCS(${YT_SRCS})
 
-IF (SANITIZER_TYPE STREQUAL "address")
-    CXXFLAGS("-mllvm -asan-stack=0")
-ENDIF()
-
 PEERDIR(
   contrib/libs/llvm37/lib
   contrib/libs/snappy
@@ -325,4 +321,3 @@ endif()
 ################################################################################
 ENDIF()
 ################################################################################
-
