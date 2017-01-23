@@ -21,8 +21,19 @@ import tempfile
 import os.path
 import pprint
 import socket
+import functools
 import re
 
+def skip_step_if_tests_are_disabled(func):
+    @functools.wraps(func)
+    def wrapper(options):
+        if not options.enabled_python_versions:
+            teamcity_message('Skipping step "{0}" since tests are disabled'
+                             .format(func.__name__))
+            return
+
+        return func(options)
+    return wrapper
 
 @build_step
 def prepare(options):
@@ -97,6 +108,7 @@ def prepare(options):
     teamcity_message(pprint.pformat(options.__dict__))
 
 @build_step
+@skip_step_if_tests_are_disabled
 def checkout(options):
     run([
             "git",
@@ -110,6 +122,7 @@ def checkout(options):
         cwd=options.yt_build_directory)
 
 @build_step
+@skip_step_if_tests_are_disabled
 def configure(options):
     run([
             "cmake",
@@ -130,6 +143,7 @@ def configure(options):
         cwd=options.yt_build_directory)
 
 @build_step
+@skip_step_if_tests_are_disabled
 def fast_build(options):
     cpus = int(os.sysconf("SC_NPROCESSORS_ONLN"))
     try:
@@ -138,10 +152,12 @@ def fast_build(options):
         teamcity_message("(ignoring child failure to provide meaningful diagnostics in `slow_build`)")
 
 @build_step
+@skip_step_if_tests_are_disabled
 def slow_build(options):
     run(["make"], cwd=options.yt_build_directory)
 
 @build_step
+@skip_step_if_tests_are_disabled
 def set_ytserver_permissions(options):
     for binary in ["ytserver-node", "ytserver-exec", "ytserver-job-proxy"]:
         path = os.path.join(options.yt_build_directory, "bin", binary)
@@ -149,6 +165,7 @@ def set_ytserver_permissions(options):
         run(["sudo", "chmod", "4755", path])
 
 @build_step
+@skip_step_if_tests_are_disabled
 def run_prepare(options):
     nodejs_source = os.path.join(options.yt_source_directory, "yt", "nodejs")
     nodejs_build = os.path.join(options.yt_build_directory, "yt", "nodejs")
