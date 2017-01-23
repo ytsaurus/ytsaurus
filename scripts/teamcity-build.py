@@ -292,6 +292,7 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
                 "py.test",
                 "-r", "x",
                 "--verbose",
+                "--verbose",
                 "--capture=fd",
                 "--tb=native",
                 "--timeout=3000",
