@@ -22,6 +22,7 @@ namespace NScheduler {
 
 typedef TEnumIndexedVector<TEnumIndexedVector<i64, EJobType>, EJobState> TJobCounter;
 typedef TEnumIndexedVector<TJobCounter, EAbortReason> TAbortedJobCounter;
+typedef TEnumIndexedVector<TJobCounter, EInterruptReason> TCompletedJobCounter;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -137,7 +138,8 @@ public:
     NYson::TYsonString PollJobShell(const TJobId& jobId, const NYson::TYsonString& parameters, const Stroka& user);
 
     void AbortJob(const TJobId& jobId, const TNullable<TDuration>& interruptTimeout, const Stroka& user);
-    void OnInterruptTimeout(const TJobId& jobId, const Stroka& user);
+
+    void InterruptJob(const TJobId& jobId, EInterruptReason reason);
 
     void BuildNodesYson(NYson::IYsonConsumer* consumer);
     void BuildOperationJobsYson(const TOperationId& operationId, NYson::IYsonConsumer* consumer);
@@ -152,6 +154,7 @@ public:
 
     TJobCounter GetJobCounter();
     TAbortedJobCounter GetAbortedJobCounter();
+    TCompletedJobCounter GetCompletedJobCounter();
 
     TJobTimeStatisticsDelta GetJobTimeStatisticsDelta();
 
@@ -170,8 +173,6 @@ public:
     };
 
     void UpdateState(const TNodeShardPatch& patch);
-
-    void SetInterruptHint(const TJobId& jobId, bool hint);
 
 private:
     const int Id_;
@@ -201,6 +202,7 @@ private:
     NConcurrency::TReaderWriterSpinLock JobCounterLock_;
     TJobCounter JobCounter_;
     TAbortedJobCounter AbortedJobCounter_;
+    TCompletedJobCounter CompletedJobCounter_;
 
     std::vector<TUpdatedJob> UpdatedJobs_;
     std::vector<TCompletedJob> CompletedJobs_;
@@ -292,7 +294,13 @@ private:
 
     void DoUnregisterJob(const TJobPtr& job);
 
-    void PreemptJob(const TJobPtr& job, const TNullable<NProfiling::TCpuInstant>& interruptDeadline);
+    void PreemptJob(const TJobPtr& job, NProfiling::TCpuInstant interruptDeadline);
+
+    void DoInterruptJob(
+        const TJobPtr& job,
+        EInterruptReason reason,
+        NProfiling::TCpuDuration interruptTimeout = 0,
+        TNullable<Stroka> interruptUser = Null);
 
     TExecNodePtr GetNodeByJob(const TJobId& jobId);
 

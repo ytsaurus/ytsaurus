@@ -1658,7 +1658,7 @@ TEST_F(TSortedChunkPoolTest, TestJobInterruption)
         CreateInputDataSlice(stripeList->Stripes[1]->DataSlices.front(), BuildRow({14}))
     };
     TCompletedJobSummary jobSummary;
-    jobSummary.Interrupted = true;
+    jobSummary.InterruptReason = EInterruptReason::Preemption;
     jobSummary.UnreadInputDataSlices = unreadDataSlices;
     ChunkPool_->Completed(ExtractedCookies_.front(), jobSummary);
 

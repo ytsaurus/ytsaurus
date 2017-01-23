@@ -161,13 +161,16 @@ public:
         ServiceAddress_ = BuildServiceAddress(localHostName, port);
 
         for (auto state : TEnumTraits<EJobState>::GetDomainValues()) {
-            JobStateToTag_[state] = TProfileManager::Get()->RegisterTag("state", Format("%lv", state));
+            JobStateToTag_[state] = TProfileManager::Get()->RegisterTag("state", FormatEnum(state));
         }
         for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
-            JobTypeToTag_[type] = TProfileManager::Get()->RegisterTag("type", Format("%lv", type));
+            JobTypeToTag_[type] = TProfileManager::Get()->RegisterTag("type", FormatEnum(type));
         }
         for (auto reason : TEnumTraits<EAbortReason>::GetDomainValues()) {
-            JobAbortReasonToTag_[reason] = TProfileManager::Get()->RegisterTag("reason", Format("%lv", reason));
+            JobAbortReasonToTag_[reason] = TProfileManager::Get()->RegisterTag("abort_reason", FormatEnum(reason));
+        }
+        for (auto reason : TEnumTraits<EInterruptReason>::GetDomainValues()) {
+            JobInterruptReasonToTag_[reason] = TProfileManager::Get()->RegisterTag("interrupt_reason", FormatEnum(reason));
         }
     }
 
@@ -1048,6 +1051,7 @@ private:
     TEnumIndexedVector<TTagId, EJobState> JobStateToTag_;
     TEnumIndexedVector<TTagId, EJobType> JobTypeToTag_;
     TEnumIndexedVector<TTagId, EAbortReason> JobAbortReasonToTag_;
+    TEnumIndexedVector<TTagId, EInterruptReason> JobInterruptReasonToTag_;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
     TPeriodicExecutorPtr LoggingExecutor_;
@@ -1214,15 +1218,17 @@ private:
 
         std::vector<TJobCounter> shardJobCounter(NodeShards_.size());
         std::vector<TAbortedJobCounter> shardAbortedJobCounter(NodeShards_.size());
+        std::vector<TCompletedJobCounter> shardCompletedJobCounter(NodeShards_.size());
 
         for (int i = 0; i < NodeShards_.size(); ++i) {
             auto& nodeShard = NodeShards_[i];
             shardJobCounter[i] = nodeShard->GetJobCounter();
             shardAbortedJobCounter[i] = nodeShard->GetAbortedJobCounter();
+            shardCompletedJobCounter[i] = nodeShard->GetCompletedJobCounter();
         }
 
-        for (auto state : TEnumTraits<EJobState>::GetDomainValues()) {
-            for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
+        for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
+            for (auto state : TEnumTraits<EJobState>::GetDomainValues()) {
                 TTagIdList commonTags = {JobStateToTag_[state], JobTypeToTag_[type]};
                 if (state == EJobState::Aborted) {
                     for (auto reason : TEnumTraits<EAbortReason>::GetDomainValues()) {
@@ -1231,6 +1237,16 @@ private:
                         int counter = 0;
                         for (int i = 0; i < NodeShards_.size(); ++i) {
                             counter += shardAbortedJobCounter[i][reason][state][type];
+                        }
+                        Profiler.Enqueue("/job_count", counter, EMetricType::Counter, tags);
+                    }
+                } else if (state == EJobState::Completed) {
+                    for (auto reason : TEnumTraits<EInterruptReason>::GetDomainValues()) {
+                        auto tags = commonTags;
+                        tags.push_back(JobInterruptReasonToTag_[reason]);
+                        int counter = 0;
+                        for (int i = 0; i < NodeShards_.size(); ++i) {
+                            counter += shardCompletedJobCounter[i][reason][state][type];
                         }
                         Profiler.Enqueue("/job_count", counter, EMetricType::Counter, tags);
                     }

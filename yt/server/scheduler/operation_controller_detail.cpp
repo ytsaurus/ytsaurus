@@ -509,7 +509,7 @@ void TOperationControllerBase::TTask::ScheduleJob(
         jobType,
         neededResources,
         restarted,
-        controller->IsJobInterruptible(),
+        Controller->IsJobInterruptible(),
         jobSpecBuilder,
         Controller->Spec->JobNodeAccount);
 
@@ -568,6 +568,10 @@ void TOperationControllerBase::TTask::ScheduleJob(
     Controller->UpdateEstimatedHistogram(joblet);
 
     OnJobStarted(joblet);
+
+    if (Controller->JobSplitter_) {
+        Controller->JobSplitter_->OnJobStarted(joblet->JobId, joblet->InputStripeList);
+    }
 }
 
 bool TOperationControllerBase::TTask::IsPending() const
@@ -645,7 +649,7 @@ void TOperationControllerBase::TTask::OnJobCompleted(TJobletPtr joblet, const TC
         auto inputStatistics = GetTotalInputDataStatistics(statistics);
         auto outputStatistics = GetTotalOutputDataStatistics(statistics);
         // It's impossible to check row count preservation on interrupted job.
-        if (Controller->IsRowCountPreserved() && !jobSummary.Interrupted) {
+        if (Controller->IsRowCountPreserved() && jobSummary.InterruptReason == EInterruptReason::None) {
             LOG_ERROR_IF(inputStatistics.row_count() != outputStatistics.row_count(),
                 "Input/output row count mismatch in completed job (Input: %v, Output: %v, Task: %v)",
                 inputStatistics.row_count(),
@@ -1420,6 +1424,10 @@ void TOperationControllerBase::SafeMaterialize()
         CheckTimeLimitExecutor->Start();
         ProgressBuildExecutor_->Start();
         ExecNodesCheckExecutor->Start();
+        auto jobSplitterConfig = GetJobSplitterConfig();
+        if (jobSplitterConfig) {
+            JobSplitter_ = CreateJobSplitter(jobSplitterConfig, OperationId);
+        }
 
         State = EControllerState::Running;
     } catch (const std::exception& ex) {
@@ -2058,13 +2066,13 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
         }
     }
 
-    if (jobSummary->Interrupted) {
+    if (jobSummary->InterruptReason != EInterruptReason::None) {
         jobSummary->UnreadInputDataSlices = ExtractInputDataSlices(*jobSummary);
     }
 
     jobSummary->ParseStatistics();
 
-    JobCounter.Completed(1);
+    JobCounter.Completed(1, jobSummary->InterruptReason);
 
     auto joblet = GetJoblet(jobId);
 
@@ -2076,9 +2084,17 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
 
     UpdateJobStatistics(*jobSummary);
 
+    if (jobSummary->InterruptReason != EInterruptReason::None) {
+        jobSummary->SplitJobCount = EstimateSplitJobCount(*jobSummary);
+        LOG_DEBUG("Job interrupted (JobId: %v, InterruptReason: %v, UnreadDataSliceCount: %v, SplitJobCount: %v)",
+            jobSummary->Id,
+            jobSummary->InterruptReason,
+            jobSummary->UnreadInputDataSlices.size(),
+            jobSummary->SplitJobCount);
+    }
     joblet->Task->OnJobCompleted(joblet, *jobSummary);
-    if (jobSummary->Interrupted) {
-        OnJobInterrupted(*jobSummary);
+    if (JobSplitter_) {
+        JobSplitter_->OnJobCompleted(*jobSummary);
     }
 
     RemoveJoblet(jobId);
@@ -2130,6 +2146,9 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
     UpdateJobStatistics(*jobSummary);
 
     joblet->Task->OnJobFailed(joblet, *jobSummary);
+    if (JobSplitter_) {
+        JobSplitter_->OnJobFailed(*jobSummary);
+    }
 
     RemoveJoblet(jobId);
 
@@ -2178,6 +2197,9 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
     }
 
     joblet->Task->OnJobAborted(joblet, *jobSummary);
+    if (JobSplitter_) {
+        JobSplitter_->OnJobAborted(*jobSummary);
+    }
 
     RemoveJoblet(jobId);
 }
@@ -2185,9 +2207,16 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
 void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TJobSummary> jobSummary)
 {
     jobSummary->ParseStatistics();
-    if ((false)) {
-        auto jobHost = Host->GetJobHost(jobSummary->Id);
-        jobHost->SetInterruptHint(true);
+
+    if (JobSplitter_) {
+        const auto& jobId = jobSummary->Id;
+        auto joblet = GetJoblet(jobId);
+        JobSplitter_->OnJobRunning(*jobSummary);
+        if (GetPendingJobCount() == 0 && JobSplitter_->IsJobSplittable(jobId)) {
+            auto jobHost = Host->GetJobHost(jobId);
+            LOG_DEBUG("Job is ready to be split (JobId: %v)", jobId);
+            jobHost->InterruptJob(EInterruptReason::JobSplit);
+        }
     }
 }
 
@@ -4538,17 +4567,10 @@ bool TOperationControllerBase::IsJobInterruptible() const
     return false;
 }
 
-void TOperationControllerBase::OnJobInterrupted(const TCompletedJobSummary& jobSummary)
+void TOperationControllerBase::ReinstallUnreadInputDataSlices(
+    const std::vector<NChunkClient::TInputDataSlicePtr>& inputDataSlices)
 {
-    JobCounter.Interrupted(1);
-
-    const auto& inputDataSlices = ExtractInputDataSlices(jobSummary);
-
-    LOG_DEBUG("Job interrupted (JobId: %v, UnreadDataSliceCount: %v)",
-        jobSummary.Id,
-        inputDataSlices.size());
-
-    ReinstallUnreadInputDataSlices(inputDataSlices);
+    Y_UNREACHABLE();
 }
 
 std::vector<TInputDataSlicePtr> TOperationControllerBase::ExtractInputDataSlices(const TCompletedJobSummary& jobSummary) const
@@ -4600,9 +4622,16 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::ExtractInputDataSlices
     return dataSliceList;
 }
 
-void TOperationControllerBase::ReinstallUnreadInputDataSlices(const std::vector<TInputDataSlicePtr>& inputDataSlices)
+int TOperationControllerBase::EstimateSplitJobCount(const TCompletedJobSummary& jobSummary)
 {
-    Y_UNREACHABLE();
+    const auto& inputDataSlices = jobSummary.UnreadInputDataSlices;
+    int jobCount = 1;
+
+    if (JobSplitter_) {
+        i64 unreadRowCount = GetCumulativeRowCount(inputDataSlices);
+        jobCount = JobSplitter_->EstimateJobCount(jobSummary, unreadRowCount);
+    }
+    return jobCount;
 }
 
 TKeyColumns TOperationControllerBase::CheckInputTablesSorted(
@@ -5596,6 +5625,11 @@ void TOperationControllerBase::ValidateOutputSchemaOrdered() const
         THROW_ERROR_EXCEPTION("Cannot generate sorted output for ordered operation with multiple input tables")
             << TErrorAttribute("output_schema", OutputTables[0].TableUploadOptions.TableSchema);
     }
+}
+
+TJobSplitterConfigPtr TOperationControllerBase::GetJobSplitterConfig() const
+{
+    return nullptr;
 }
 
 IDigest* TOperationControllerBase::GetJobProxyMemoryDigest(EJobType jobType)
