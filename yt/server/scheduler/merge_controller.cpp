@@ -280,6 +280,10 @@ protected:
             TTask::OnJobCompleted(joblet, jobSummary);
 
             RegisterOutput(joblet, PartitionIndex, jobSummary);
+
+            if (jobSummary.InterruptReason != EInterruptReason::None) {
+                Controller->ReinstallUnreadInputDataSlices(jobSummary.UnreadInputDataSlices);
+            }
         }
 
         virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
@@ -465,7 +469,7 @@ protected:
     }
 
     //! Create new task from unread input data slices.
-    void AddTaskForUnreadInputDataSlices(std::vector<TInputDataSlicePtr> inputDataSlices)
+    void AddTaskForUnreadInputDataSlices(const std::vector<TInputDataSlicePtr>& inputDataSlices)
     {
         CurrentTaskDataSize = 0;
         CurrentTaskChunkCount = 0;
@@ -481,7 +485,7 @@ protected:
 
     virtual bool IsCompleted() const override
     {
-        return Tasks.size() == JobCounter.GetCompleted();
+        return Tasks.size() == JobCounter.GetCompletedTotal();
     }
 
     virtual void DoInitialize() override
@@ -574,11 +578,11 @@ protected:
             "UnavailableInputChunks: %v",
             JobCounter.GetTotal(),
             JobCounter.GetRunning(),
-            JobCounter.GetCompleted(),
+            JobCounter.GetCompletedTotal(),
             GetPendingJobCount(),
             JobCounter.GetFailed(),
             JobCounter.GetAbortedTotal(),
-            JobCounter.GetInterrupted(),
+            JobCounter.GetInterruptedTotal(),
             UnavailableInputChunkCount);
     }
 
@@ -710,6 +714,7 @@ public:
         TOperation* operation)
         : TOrderedMergeControllerBase(config, spec, options, host, operation)
         , Spec(spec)
+        , Options(options)
     {
         RegisterJobProxyMemoryDigest(EJobType::OrderedMap, spec->JobProxyMemoryDigest);
         RegisterUserJobMemoryDigest(EJobType::OrderedMap, spec->Mapper->MemoryReserveFactor);
@@ -737,6 +742,8 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TOrderedMapController, 0x1e5a7e32);
 
     TMapOperationSpecPtr Spec;
+    TMapOperationOptionsPtr Options;
+
 
     i64 StartRowIndex = 0;
 
@@ -814,7 +821,8 @@ private:
         return true;
     }
 
-    virtual void ReinstallUnreadInputDataSlices(const std::vector<TInputDataSlicePtr>& inputDataSlices) override
+    virtual void ReinstallUnreadInputDataSlices(
+        const std::vector<TInputDataSlicePtr>& inputDataSlices) override
     {
         AddTaskForUnreadInputDataSlices(inputDataSlices);
     }
@@ -840,6 +848,13 @@ private:
         if (Spec->InputQuery) {
             ParseInputQuery(*Spec->InputQuery, Spec->InputSchema);
         }
+    }
+
+    virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
+    {
+        return IsJobInterruptible() && Config->EnableJobSplitting && Spec->EnableJobSplitting
+            ? Options->JobSplitter
+            : nullptr;
     }
 
     virtual void InitJobSpecTemplate() override
@@ -1297,7 +1312,7 @@ protected:
 
     std::vector<TInputDataSlicePtr> VersionedDataSlices;
 
-    virtual bool ShouldSlicePrimaryTableByKeys()
+    virtual bool ShouldSlicePrimaryTableByKeys() const
     {
         return true;
     }
@@ -1911,6 +1926,7 @@ public:
         TOperation* operation)
         : TLegacySortedMergeControllerBase(config, spec, options, host, operation)
         , Spec(spec)
+        , Options(options)
     { }
 
     virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
@@ -1936,6 +1952,7 @@ public:
 
 protected:
     TReduceOperationSpecBasePtr Spec;
+    TReduceOperationOptionsPtr Options;
 
     i64 StartRowIndex = 0;
 
@@ -2135,7 +2152,8 @@ protected:
         return result;
     }
 
-    virtual void ReinstallUnreadInputDataSlices(const std::vector<TInputDataSlicePtr>& inputDataSlices) override
+    virtual void ReinstallUnreadInputDataSlices(
+        const std::vector<TInputDataSlicePtr>& inputDataSlices) override
     {
         AddTaskForUnreadInputDataSlices(inputDataSlices);
     }
@@ -2159,6 +2177,13 @@ protected:
     virtual i64 GetUserJobMemoryReserve() const override
     {
         return ComputeUserJobMemoryReserve(GetJobType(), Spec->Reducer);
+    }
+
+    virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
+    {
+        return IsJobInterruptible() && Config->EnableJobSplitting && Spec->EnableJobSplitting
+            ? Options->JobSplitter
+            : nullptr;
     }
 
     virtual void InitJobSpecTemplate() override
@@ -2674,7 +2699,7 @@ private:
         EndTaskIfActive();
     }
 
-    virtual bool ShouldSlicePrimaryTableByKeys() override
+    virtual bool ShouldSlicePrimaryTableByKeys() const override
     {
         // JoinReduce slices by row indexes.
         return false;

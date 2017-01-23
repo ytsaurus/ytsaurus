@@ -274,6 +274,9 @@ TOperationWithUserJobSpec::TOperationWithUserJobSpec()
         .Default();
     RegisterParameter("core_table_writer_config", CoreTableWriterConfig)
         .DefaultNew();
+
+    RegisterParameter("enable_job_splitting", EnableJobSplitting)
+        .Default(true);
 }
 
 void TOperationWithUserJobSpec::OnLoaded()

@@ -223,6 +223,8 @@ public:
     TNullable<NYPath::TRichYPath> CoreTablePath;
     NTableClient::TBlobTableWriterConfigPtr CoreTableWriterConfig;
 
+    bool EnableJobSplitting;
+
     TOperationWithUserJobSpec();
 
     virtual void OnLoaded() override;

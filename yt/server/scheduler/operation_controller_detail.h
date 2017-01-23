@@ -7,6 +7,7 @@
 #include "event_log.h"
 #include "job_memory.h"
 #include "job_resources.h"
+#include "job_splitter.h"
 #include "operation_controller.h"
 #include "serialize.h"
 #include "helpers.h"
@@ -863,7 +864,7 @@ protected:
     bool OnIntermediateChunkUnavailable(const NChunkClient::TChunkId& chunkId);
 
     virtual bool IsJobInterruptible() const;
-    void OnJobInterrupted(const TCompletedJobSummary& jobSummary);
+    int EstimateSplitJobCount(const TCompletedJobSummary& jobSummary);
     std::vector<NChunkClient::TInputDataSlicePtr> ExtractInputDataSlices(const TCompletedJobSummary& jobSummary) const;
     virtual void ReinstallUnreadInputDataSlices(const std::vector<NChunkClient::TInputDataSlicePtr>& inputDataSlices);
 
@@ -1079,6 +1080,8 @@ protected:
     void InferSchemaFromInputOrdered();
     void ValidateOutputSchemaOrdered() const;
 
+    virtual TJobSplitterConfigPtr GetJobSplitterConfig() const;
+
 private:
     typedef TOperationControllerBase TThis;
 
@@ -1181,6 +1184,8 @@ private:
     bool ShouldSkipSanityCheck();
 
     void UpdateJobStatistics(const TJobSummary& jobSummary);
+
+    std::unique_ptr<IJobSplitter> JobSplitter_;
 
     NApi::INativeClientPtr CreateClient();
     void UpdateAllTasksIfNeeded();

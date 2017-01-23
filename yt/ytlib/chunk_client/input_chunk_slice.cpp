@@ -282,6 +282,28 @@ std::vector<TInputChunkSlicePtr> TInputChunkSlice::SliceEvenly(i64 sliceDataSize
     return result;
 }
 
+std::pair<TInputChunkSlicePtr, TInputChunkSlicePtr> TInputChunkSlice::SplitByRowIndex(i64 splitRow) const
+{
+    i64 lowerRowIndex = LowerLimit_.RowIndex.Get(0);
+    i64 upperRowIndex = UpperLimit_.RowIndex.Get(InputChunk_->GetRowCount());
+
+    i64 rowCount = upperRowIndex - lowerRowIndex;
+
+    YCHECK(splitRow > 0 && splitRow < rowCount);
+
+    return std::make_pair(
+        New<TInputChunkSlice>(
+            *this,
+            lowerRowIndex,
+            lowerRowIndex + splitRow,
+            GetDataSize() / rowCount * splitRow),
+        New<TInputChunkSlice>(
+            *this,
+            lowerRowIndex + splitRow,
+            upperRowIndex,
+            GetDataSize() / rowCount * (rowCount - splitRow)));
+}
+
 i64 TInputChunkSlice::GetLocality(int replicaPartIndex) const
 {
     i64 result = GetDataSize();

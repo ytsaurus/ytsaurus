@@ -446,7 +446,7 @@ private:
 
     virtual bool IsCompleted() const override
     {
-        return Tasks.size() == JobCounter.GetCompleted();
+        return Tasks.size() == JobCounter.GetCompletedTotal();
     }
 
     // Progress reporting.
@@ -458,7 +458,7 @@ private:
             "UnavailableInputChunks: %v",
             JobCounter.GetTotal(),
             JobCounter.GetRunning(),
-            JobCounter.GetCompleted(),
+            JobCounter.GetCompletedTotal(),
             GetPendingJobCount(),
             JobCounter.GetFailed(),
             JobCounter.GetAbortedTotal(),

@@ -1523,7 +1523,7 @@ protected:
             if (!SimpleSort) {
                 if (!PartitionTask->IsCompleted())
                     return;
-                if (SortDataSizeCounter.GetCompleted() < SortDataSizeCounter.GetTotal() * Spec->MergeStartThreshold)
+                if (SortDataSizeCounter.GetCompletedTotal() < SortDataSizeCounter.GetTotal() * Spec->MergeStartThreshold)
                     return;
             }
 
@@ -2448,7 +2448,7 @@ private:
             // Jobs
             JobCounter.GetTotal(),
             JobCounter.GetRunning(),
-            JobCounter.GetCompleted(),
+            JobCounter.GetCompletedTotal(),
             GetPendingJobCount(),
             JobCounter.GetFailed(),
             JobCounter.GetAbortedTotal(),
@@ -3093,7 +3093,7 @@ private:
             // Jobs
             JobCounter.GetTotal(),
             JobCounter.GetRunning(),
-            JobCounter.GetCompleted(),
+            JobCounter.GetCompletedTotal(),
             GetPendingJobCount(),
             JobCounter.GetFailed(),
             JobCounter.GetAbortedTotal(),

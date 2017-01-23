@@ -78,6 +78,13 @@ DEFINE_ENUM(EAbortReason,
     (Unknown)
 );
 
+DEFINE_ENUM(EInterruptReason,
+    (None)
+    (Preemption)
+    (UserRequest)
+    (JobSplit)
+);
+
 DEFINE_ENUM(EJobFinalState,
     (Failed)
     (Aborted)
