@@ -83,7 +83,7 @@ def get_default_resource_limits(client):
 
 def initialize_world(client=None, idm=None):
     client = get_value(client, yt)
-    users = ["odin", "cron", "nightly_tester"]
+    users = ["odin", "cron", "nightly_tester", "application_operations"]
     groups = ["devs", "admins"]
     if idm:
         groups.append("yandex")
@@ -97,6 +97,7 @@ def initialize_world(client=None, idm=None):
     add_member("devs", "admins", client)
     if idm:
         add_member("users", "yandex", client)
+    add_member("application_operations", "superusers", client)
 
     for dir in ["//sys", "//tmp", "//sys/tokens"]:
         client.set(dir + "/@opaque", "true")
