@@ -147,6 +147,8 @@ b"""
         cluster_directory_synchronizer = {
             sync_period = 500;
         };
+
+        max_unpreemptable_running_job_count = 0;
     };
 }
 """)
