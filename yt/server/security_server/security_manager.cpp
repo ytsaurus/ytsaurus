@@ -1806,12 +1806,10 @@ private:
             };
 
             const auto& localStatistics = user->LocalStatistics();
-            Profiler.Enqueue("/user_read_time", localStatistics.ReadRequestTime.MicroSeconds(), EMetricType::Gauge, tagIds);
-            Profiler.Enqueue("/user_write_time", localStatistics.WriteRequestTime.MicroSeconds(), EMetricType::Gauge, tagIds);
-            Profiler.Enqueue("/user_request_count", localStatistics.RequestCount, EMetricType::Gauge, tagIds);
+            Profiler.Enqueue("/user_read_time", localStatistics.ReadRequestTime.MicroSeconds(), EMetricType::Counter, tagIds);
+            Profiler.Enqueue("/user_write_time", localStatistics.WriteRequestTime.MicroSeconds(), EMetricType::Counter, tagIds);
+            Profiler.Enqueue("/user_request_count", localStatistics.RequestCount, EMetricType::Counter, tagIds);
             Profiler.Enqueue("/user_request_queue_size", user->GetRequestQueueSize(), EMetricType::Gauge, tagIds);
-            // COMPAT(babenko)
-            Profiler.Enqueue("/user_request_counter", localStatistics.RequestCount, EMetricType::Gauge, tagIds);
         }
     }
 
