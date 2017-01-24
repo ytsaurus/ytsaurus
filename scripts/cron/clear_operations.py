@@ -3,7 +3,10 @@
 import yt.tools.operations_archive as operations_archive
 
 from yt.wrapper.http_helpers import get_token, get_proxy_url
-from yt.wrapper.common import run_with_retries
+try:
+    from yt.wrapper.retries import run_with_retries
+except ImportError:
+    from yt.wrapper.common import run_with_retries
 from yt.common import datetime_to_string
 
 import yt.logger as logger
