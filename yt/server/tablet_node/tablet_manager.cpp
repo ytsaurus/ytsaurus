@@ -2244,6 +2244,11 @@ private:
             .BeginMap()
                 .Item("table_id").Value(tablet->GetTableId())
                 .Item("state").Value(tablet->GetState())
+                .Item("config")
+                    .BeginAttributes()
+                        .Item("opaque").Value(true)
+                    .EndAttributes()
+                    .Value(tablet->GetConfig())
                 .DoIf(
                     tablet->IsPhysicallySorted(), [&] (TFluentMap fluent) {
                     fluent
