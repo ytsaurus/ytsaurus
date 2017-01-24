@@ -250,6 +250,8 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, RetainedTimestamp);
 
+    DEFINE_BYVAL_RO_PROPERTY(NConcurrency::TAsyncSemaphorePtr, StoresUpdateCommitSemaphore);
+
 public:
     TTablet(
         const TTabletId& tabletId,
