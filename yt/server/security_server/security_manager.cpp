@@ -1107,6 +1107,9 @@ private:
 
     TUser* AuthenticatedUser_ = nullptr;
 
+    // COMPAT(babenko)
+    bool RecomputeNodeResourceUsage_ = false;
+
 
     void UpdateNodeCachedResourceUsage(TCypressNodeBase* node)
     {
@@ -1354,6 +1357,8 @@ private:
         AccountMap_.LoadValues(context);
         UserMap_.LoadValues(context);
         GroupMap_.LoadValues(context);
+        // COMPAT(babenko)
+        RecomputeNodeResourceUsage_ = context.GetVersion() < 504;
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -1393,6 +1398,15 @@ private:
         }
 
         InitBuiltins();
+
+        // COMPAT(babenko)
+        if (RecomputeNodeResourceUsage_) {
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            for (const auto& pair : cypressManager->Nodes()) {
+                auto* node = pair.second;
+                UpdateAccountNodeUsage(node);
+            }
+        }
     }
 
     virtual void Clear() override
