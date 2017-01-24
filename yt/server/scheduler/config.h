@@ -86,6 +86,9 @@ public:
     //! in operation spec. Used only for testing purposes.
     bool EnableFailControllerSpecOption;
 
+    //! To investigate CPU load of node shard threads.
+    bool EnableSchedulingTags;
+
     TFairShareStrategyConfig()
     {
         RegisterParameter("min_share_preemption_timeout", MinSharePreemptionTimeout)
@@ -176,6 +179,9 @@ public:
 
         RegisterParameter("enable_fail_controller_spec_option", EnableFailControllerSpecOption)
             .Default(false);
+
+        RegisterParameter("enable_scheduling_tags", EnableSchedulingTags)
+            .Default(true);
 
         RegisterValidator([&] () {
             if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
