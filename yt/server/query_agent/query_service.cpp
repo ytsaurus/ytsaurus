@@ -54,7 +54,7 @@ public:
         TQueryAgentConfigPtr config,
         NCellNode::TBootstrap* bootstrap)
         : TServiceBase(
-            CreatePrioritizedInvoker(bootstrap->GetQueryPoolInvoker()),
+            bootstrap->GetQueryPoolInvoker(),
             TQueryServiceProxy::GetDescriptor(),
             QueryAgentLogger)
         , Config_(config)
@@ -62,7 +62,8 @@ public:
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
             .SetCancelable(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(Read));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Read)
+            .SetInvoker(bootstrap->GetLookupPoolInvoker()));
     }
 
 private:
