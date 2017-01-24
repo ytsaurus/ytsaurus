@@ -182,20 +182,7 @@ private:
 
             if (key == "statistics") {
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
-
                 const auto& statistics = node->Statistics();
-
-                yhash_map<Stroka, yhash_set<EObjectType>> acceptedChunkTypes;
-                for (const auto& mediumTypePair : statistics.accepted_chunk_types()) {
-                    auto mediumIndex = mediumTypePair.medium_index();
-                    auto chunkType = EObjectType(mediumTypePair.chunk_type());
-                    const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-                    if (!medium) {
-                        continue;
-                    }
-                    acceptedChunkTypes[medium->GetName()].insert(chunkType);
-                }
-
                 BuildYsonFluently(consumer)
                     .BeginMap()
                         .Item("total_available_space").Value(statistics.total_available_space())
@@ -204,7 +191,6 @@ private:
                         .Item("total_cached_chunk_count").Value(statistics.total_cached_chunk_count())
                         .Item("total_session_count").Value(node->GetTotalSessionCount())
                         .Item("full").Value(statistics.full())
-                        .Item("accepted_chunk_types").Value(acceptedChunkTypes)
                         .Item("locations").DoListFor(statistics.locations(), [&] (TFluentList fluent, const TLocationStatistics& locationStatistics) {
                             auto mediumIndex = locationStatistics.medium_index();
                             const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
@@ -223,20 +209,35 @@ private:
                                     .Item("enabled").Value(locationStatistics.enabled())
                                 .EndMap();
                         })
-                        .Item("memory").BeginMap()
-                        .Item("total").BeginMap()
-                        .Item("used").Value(statistics.memory().total_used())
-                        .Item("limit").Value(statistics.memory().total_limit())
-                        .EndMap()
-                        .DoFor(statistics.memory().categories(), [] (TFluentMap fluent, const TMemoryStatistics::TCategory& category) {
-                            fluent.Item(FormatEnum(EMemoryCategory(category.type())))
-                                .BeginMap()
-                                .DoIf(category.has_limit(), [&] (TFluentMap fluent) {
-                                    fluent.Item("limit").Value(category.limit());
-                                })
-                                .Item("used").Value(category.used())
+                        .Item("media").DoMapFor(statistics.media(), [&] (TFluentMap fluent, const TMediumStatistics& mediumStatistics) {
+                            auto mediumIndex = mediumStatistics.medium_index();
+                            const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+                            if (!medium) {
+                                return;
+                            }
+                            fluent
+                                .Item(medium->GetName()).BeginMap()
+                                    .Item("io_weight").Value(mediumStatistics.io_weight())
+                                    .Item("accepted_chunk_types").DoListFor(mediumStatistics.accepted_chunk_types(), [] (TFluentList fluent, int type) {
+                                        fluent
+                                            .Item().Value(EObjectType(type));
+                                    })
                                 .EndMap();
                         })
+                        .Item("memory").BeginMap()
+                            .Item("total").BeginMap()
+                                .Item("used").Value(statistics.memory().total_used())
+                                .Item("limit").Value(statistics.memory().total_limit())
+                            .EndMap()
+                            .DoFor(statistics.memory().categories(), [] (TFluentMap fluent, const TMemoryStatistics::TCategory& category) {
+                                fluent.Item(FormatEnum(EMemoryCategory(category.type())))
+                                    .BeginMap()
+                                        .DoIf(category.has_limit(), [&] (TFluentMap fluent) {
+                                            fluent.Item("limit").Value(category.limit());
+                                        })
+                                        .Item("used").Value(category.used())
+                                    .EndMap();
+                            })
                         .EndMap()
                     .EndMap();
                 return true;
@@ -273,16 +274,14 @@ private:
             if (key == "io_weights") {
                 RequireLeader();
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
-                const auto& allMedia = chunkManager->Media();
-
-                using TMediumMapIterator = ::NYT::NHydra::TReadOnlyEntityMap<NChunkServer::TMedium>::TIterator;
-
                 BuildYsonFluently(consumer)
-                    .DoMapFor(allMedia.begin(), allMedia.end(), [&node] (TFluentMap fluent, TMediumMapIterator mapIter) {
-                            auto* medium = (*mapIter).second;
-                        fluent
-                            .Item(medium->GetName())
-                            .Value(node->GetIOWeight(medium->GetIndex()));
+                    .DoMapFor(0, NChunkClient::MaxMediumCount, [&] (TFluentMap fluent, int mediumIndex) {
+                        auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+                        if (medium) {
+                            fluent
+                                .Item(medium->GetName())
+                                .Value(node->IOWeights()[mediumIndex]);
+                        }
                     });
 
                 return true;

@@ -134,25 +134,18 @@ void TChunkPlacement::OnNodeUpdated(TNode* node)
 {
     node->ClearSessionHints();
 
-    const auto& chunkManager = Bootstrap_->GetChunkManager();
-
-    // Recompute IO weight.
-    // Currently its just the number of non-full locations.
-    TPerMediumArray<double> ioWeights;
+    // Update IO weights from statistics.
+    auto& ioWeights = node->IOWeights();
     ioWeights.fill(0.0);
-    for (const auto& location : node->Statistics().locations()) {
-        if (location.full()) {
-            continue;
-        }
-
-        auto* medium = chunkManager->FindMediumByIndex(location.medium_index());
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+    for (const auto& statistics : node->Statistics().media()) {
+        int mediumIndex = statistics.medium_index();
+        auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
         if (!medium || medium->GetCache()) {
             continue;
         }
-
-        ioWeights[location.medium_index()] += 1.0;
+        ioWeights[mediumIndex] = statistics.io_weight();
     }
-    node->IOWeights() = ioWeights;
 
     OnNodeUnregistered(node);
     OnNodeRegistered(node);
@@ -590,11 +583,13 @@ std::vector<TChunkPtrWithIndexes> TChunkPlacement::GetBalancingChunks(
 
 bool TChunkPlacement::IsAcceptedChunkType(int mediumIndex, TNode* node, EObjectType type)
 {
-    for (auto acceptedType : node->Statistics().accepted_chunk_types()) {
-        if (acceptedType.medium_index() == mediumIndex &&
-            EObjectType(acceptedType.chunk_type()) == type)
-        {
-            return true;
+    for (const auto& statistics : node->Statistics().media()) {
+        if (statistics.medium_index() == mediumIndex) {
+            for (auto acceptedType : statistics.accepted_chunk_types()) {
+                if (EObjectType(acceptedType) == type) {
+                    return true;
+                }
+            }
         }
     }
     return false;
