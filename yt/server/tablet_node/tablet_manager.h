@@ -16,6 +16,8 @@
 
 #include <yt/ytlib/transaction_client/public.h>
 
+#include <yt/ytlib/api/public.h>
+
 #include <yt/core/misc/small_vector.h>
 
 #include <yt/core/ytree/public.h>
@@ -58,8 +60,11 @@ public:
         TTabletSnapshotPtr tabletSnapshot,
         i64 trimmedRowCount);
 
-
     void ScheduleStoreRotation(TTablet* tablet);
+
+    TFuture<void> CommitTabletStoresUpdateTransaction(
+        TTablet* tablet,
+        const NApi::ITransactionPtr& transaction);
 
     NYTree::IYPathServicePtr GetOrchidService();
 
