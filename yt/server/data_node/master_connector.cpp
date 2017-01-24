@@ -443,14 +443,20 @@ void TMasterConnector::ComputeTotalStatistics(TNodeStatistics* result)
 
 void TMasterConnector::ComputeLocationSpecificStatistics(TNodeStatistics* result)
 {
-    auto chunkStore = Bootstrap_->GetChunkStore();
+    const auto& chunkStore = Bootstrap_->GetChunkStore();
 
-    NChunkServer::TPerMediumArray<yhash_set<EObjectType>> acceptedChunkTypes;
-    for (auto location : chunkStore->Locations()) {
+    struct TMediumStatistics
+    {
+        double IOWeight = 0.0;
+        yhash_set<EObjectType> AcceptedChunkTypes;
+    };
+
+    yhash_map<int, TMediumStatistics> mediaStatistics;
+
+    for (const auto& location : chunkStore->Locations()) {
         auto* locationStatistics = result->add_locations();
 
         auto mediumIndex = GetLocationMediumIndexOrThrow(location);
-
         locationStatistics->set_medium_index(mediumIndex);
         locationStatistics->set_available_space(location->GetAvailableSpace());
         locationStatistics->set_used_space(location->GetUsedSpace());
@@ -460,19 +466,25 @@ void TMasterConnector::ComputeLocationSpecificStatistics(TNodeStatistics* result
         locationStatistics->set_enabled(location->IsEnabled());
         locationStatistics->set_full(location->IsFull());
 
-        for (auto type : {EObjectType::Chunk, EObjectType::ErasureChunk, EObjectType::JournalChunk}) {
-            if (location->IsChunkTypeAccepted(type)) {
-                acceptedChunkTypes[mediumIndex].insert(type);
+        auto& mediumStatistics = mediaStatistics[mediumIndex];
+        if (!location->IsFull()) {
+            ++mediumStatistics.IOWeight;
+            for (auto type : {EObjectType::Chunk, EObjectType::ErasureChunk, EObjectType::JournalChunk}) {
+                if (location->IsChunkTypeAccepted(type)) {
+                    mediumStatistics.AcceptedChunkTypes.insert(type);
+                }
             }
         }
     }
 
-    for (int mediumIndex = 0; mediumIndex < acceptedChunkTypes.size(); ++mediumIndex) {
-        const auto& mediumChunkTypes = acceptedChunkTypes[mediumIndex];
-        for (const auto& type : mediumChunkTypes) {
-            auto* acceptedChunkType = result->add_accepted_chunk_types();
-            acceptedChunkType->set_medium_index(mediumIndex);
-            acceptedChunkType->set_chunk_type(static_cast<int>(type));
+    for (const auto& pair : mediaStatistics) {
+        int mediumIndex = pair.first;
+        const auto& mediumStatisitcs = pair.second;
+        auto* protoStatistics = result->add_media();
+        protoStatistics->set_medium_index(mediumIndex);
+        protoStatistics->set_io_weight(mediumStatisitcs.IOWeight);
+        for (auto type : mediumStatisitcs.AcceptedChunkTypes) {
+            protoStatistics->add_accepted_chunk_types(static_cast<int>(type));
         }
     }
 }
