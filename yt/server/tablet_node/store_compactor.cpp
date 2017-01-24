@@ -418,7 +418,6 @@ private:
                 currentTimestamp);
 
             auto reader = CreateVersionedTabletReader(
-                Bootstrap_->GetQueryPoolInvoker(),
                 tabletSnapshot,
                 std::vector<ISortedStorePtr>(stores.begin(), stores.end()),
                 tabletPivotKey,
@@ -697,7 +696,6 @@ private:
                 retainedTimestamp);
 
             auto reader = CreateVersionedTabletReader(
-                Bootstrap_->GetQueryPoolInvoker(),
                 tabletSnapshot,
                 std::vector<ISortedStorePtr>(stores.begin(), stores.end()),
                 tabletPivotKey,
