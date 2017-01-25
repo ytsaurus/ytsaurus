@@ -2645,7 +2645,7 @@ private:
 
     void UpdateCellDirectory(TTabletCell* cell)
     {
-        auto cellDirectory = Bootstrap_->GetCellDirectory();
+        const auto& cellDirectory = Bootstrap_->GetCellDirectory();
         cellDirectory->ReconfigureCell(cell->GetDescriptor());
     }
 
