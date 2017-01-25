@@ -379,7 +379,7 @@ private:
             promise = NewPromise<void>();
             Queue_.push(TEntry{data, promise});
             needInvoke = (Queue_.size() == 1);
-            Closed_ = data.Empty();
+            Closed_ = !data;
         }
         if (needInvoke) {
             TFuture<void> invokeResult;
@@ -430,7 +430,7 @@ private:
                 Error_ = error;
             }
             Queue_.pop();
-            bool hasData = !Queue_.empty();
+            hasData = !Queue_.empty();
             if (hasData) {
                 *data = Queue_.front().Block;
             }
