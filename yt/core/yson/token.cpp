@@ -25,6 +25,7 @@ ETokenType CharToTokenType(char ch)
         case '+': return ETokenType::Plus;
         case ':': return ETokenType::Colon;
         case ',': return ETokenType::Comma;
+        case '/': return ETokenType::Slash;
         default:  return ETokenType::EndOfStream;
     }
 }
@@ -46,6 +47,7 @@ char TokenTypeToChar(ETokenType type)
         case ETokenType::Plus:              return '+';
         case ETokenType::Colon:             return ':';
         case ETokenType::Comma:             return ',';
+        case ETokenType::Slash:             return '/';
         default:                            Y_UNREACHABLE();
     }
 }
