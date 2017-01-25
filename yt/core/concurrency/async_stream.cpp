@@ -356,7 +356,7 @@ private:
 
     struct TEntry
     {
-        // If `Block' is empty it means close was requested.
+        // If `Block' is null it means close was requested.
         TSharedRef Block;
         TPromise<void> Promise;
     };
