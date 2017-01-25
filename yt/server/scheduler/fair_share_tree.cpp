@@ -123,11 +123,6 @@ int TSchedulerElement::EnumerateNodes(int startIndex)
     return startIndex;
 }
 
-int TSchedulerElement::GetTreeIndex() const
-{
-    return TreeIndex_;
-}
-
 void TSchedulerElement::UpdateStrategyConfig(const TFairShareStrategyConfigPtr& config)
 {
     StrategyConfig_ = config;
