@@ -10,6 +10,7 @@
 #include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/ytlib/chunk_client/session_id.h>
 #include <yt/ytlib/chunk_client/private.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
@@ -66,6 +67,8 @@ using namespace NNodeTrackerClient;
 using namespace NTransactionClient;
 
 using NYT::TRange;
+
+using NChunkClient::TSessionId; // Suppress ambiguity with NProto::TSessionId.
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -255,7 +258,7 @@ private:
         struct TChunkSession
             : public TRefCounted
         {
-            TChunkId ChunkId;
+            TSessionId Id;
             std::vector<TNodePtr> Nodes;
             i64 RowCount = 0;
             i64 DataSize = 0;
@@ -543,15 +546,18 @@ private:
                 const auto& batchRsp = batchRspOrError.Value();
                 const auto& rsp = batchRsp->create_chunk_subresponses(0);
 
-                session->ChunkId = FromProto<TChunkId>(rsp.chunk_id());
+                // TODO(shakurov): response should contain not just a chunk ID,
+                // but a complete session ID.
+                session->Id.ChunkId = FromProto<TChunkId>(rsp.chunk_id());
+                session->Id.MediumIndex = DefaultStoreMediumIndex;
             }
 
-            LOG_INFO("Chunk created (ChunkId: %v)",
-                session->ChunkId);
+            LOG_INFO("Chunk created (SessionId: %v)",
+                session->Id);
 
             auto replicas = AllocateWriteTargets(
                 Client_,
-                session->ChunkId,
+                session->Id.ChunkId,
                 ReplicationFactor_,
                 WriteQuorum_,
                 Null,
@@ -590,7 +596,7 @@ private:
                 std::vector<TFuture<void>> asyncResults;
                 for (const auto& node : session->Nodes) {
                     auto req = node->LightProxy.StartChunk();
-                    ToProto(req->mutable_chunk_id(), session->ChunkId);
+                    ToProto(req->mutable_session_id(), session->Id);
                     ToProto(req->mutable_workload_descriptor(), Config_->WorkloadDescriptor);
                     req->set_enable_multiplexing(Options_.EnableMultiplexing);
                     auto asyncRsp = req->Invoke().Apply(
@@ -614,7 +620,7 @@ private:
                 node->PingExecutor->Start();
             }
 
-            const auto& chunkId = session->ChunkId;
+            const auto& chunkId = session->Id.ChunkId;
 
             LOG_INFO("Confirming chunk");
             {
@@ -774,12 +780,12 @@ private:
             auto session = CurrentSession_;
             CurrentSession_.Reset();
 
-            const auto& chunkId = session->ChunkId;
+            const auto& sessionId = session->Id;
 
             LOG_INFO("Finishing chunk sessions");
             for (const auto& node : session->Nodes) {
                 auto req = node->LightProxy.FinishChunk();
-                ToProto(req->mutable_chunk_id(), chunkId);
+                ToProto(req->mutable_session_id(), sessionId);
                 req->Invoke().Subscribe(
                     BIND(&TImpl::OnChunkFinished, MakeStrong(this), node)
                         .Via(Invoker_));
@@ -790,8 +796,8 @@ private:
             }
 
             {
-                LOG_INFO("Sealing chunk (ChunkId: %v, RowCount: %v)",
-                    chunkId,
+                LOG_INFO("Sealing chunk (SessionId: %v, RowCount: %v)",
+                    sessionId,
                     session->FlushedRowCount);
 
                 TChunkServiceProxy proxy(UploadMasterChannel_);
@@ -801,7 +807,7 @@ private:
                 batchReq->set_suppress_upstream_sync(true);
 
                 auto* req = batchReq->add_seal_chunk_subrequests();
-                ToProto(req->mutable_chunk_id(), chunkId);
+                ToProto(req->mutable_chunk_id(), sessionId.ChunkId);
                 auto* miscExt = req->mutable_misc();
                 miscExt->set_sealed(true);
                 miscExt->set_row_count(session->FlushedRowCount);
@@ -812,7 +818,7 @@ private:
                 THROW_ERROR_EXCEPTION_IF_FAILED(
                     GetCumulativeError(batchRspOrError),
                     "Error sealing chunk %v",
-                    chunkId);
+                    sessionId);
 
                 LOG_INFO("Chunk sealed");
             }
@@ -945,12 +951,12 @@ private:
             if (!node)
                 return;
 
-            LOG_DEBUG("Sending ping (Address: %v, ChunkId: %v)",
+            LOG_DEBUG("Sending ping (Address: %v, SessionId: %v)",
                 node->Descriptor.GetDefaultAddress(),
-                session->ChunkId);
+                session->Id);
 
             auto req = node->LightProxy.PingSession();
-            ToProto(req->mutable_chunk_id(), session->ChunkId);
+            ToProto(req->mutable_session_id(), session->Id);
             req->Invoke().Subscribe(
                 BIND(&TImpl::OnPingSent, MakeWeak(this), session, node)
                     .Via(Invoker_));
@@ -966,9 +972,9 @@ private:
                 return;
             }
 
-            LOG_DEBUG("Ping succeeded (Address: %v, ChunkId: %v)",
+            LOG_DEBUG("Ping succeeded (Address: %v, SessionId: %v)",
                 node->Descriptor.GetDefaultAddress(),
-                session->ChunkId);
+                session->Id);
         }
 
 
@@ -1021,7 +1027,7 @@ private:
             i64 flushDataSize = 0;
 
             auto req = node->HeavyProxy.PutBlocks();
-            ToProto(req->mutable_chunk_id(), CurrentSession_->ChunkId);
+            ToProto(req->mutable_session_id(), CurrentSession_->Id);
             req->set_first_block_index(node->FirstPendingBlockIndex);
             req->set_flush_blocks(true);
 
@@ -1043,7 +1049,7 @@ private:
 
             LOG_DEBUG("Flushing journal replica (Address: %v, BlockIds: %v:%v-%v, Rows: %v-%v)",
                 node->Descriptor.GetDefaultAddress(),
-                CurrentSession_->ChunkId,
+                CurrentSession_->Id,
                 node->FirstPendingBlockIndex,
                 node->FirstPendingBlockIndex + flushRowCount - 1,
                 node->FirstPendingRowIndex,
@@ -1070,7 +1076,7 @@ private:
 
             LOG_DEBUG("Journal replica flushed (Address: %v, BlockIds: %v:%v-%v, Rows: %v-%v)",
                 node->Descriptor.GetDefaultAddress(),
-                session->ChunkId,
+                session->Id,
                 node->FirstPendingBlockIndex,
                 node->FirstPendingBlockIndex + flushRowCount - 1,
                 node->FirstPendingRowIndex,
@@ -1110,9 +1116,9 @@ private:
         void OnReplicaFailed(const TError& error, TNodePtr node, TChunkSessionPtr session)
         {
             const auto& address = node->Descriptor.GetDefaultAddress();
-            LOG_WARNING(error, "Journal replica failed (Address: %v, ChunkId: %v)",
+            LOG_WARNING(error, "Journal replica failed (Address: %v, SessionId: %v)",
                 address,
-                session->ChunkId);
+                session->Id);
 
             BanNode(address);
             EnqueueCommand(TSwitchChunkCommand{session});

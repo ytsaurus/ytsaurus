@@ -3,7 +3,7 @@ from yt_commands import *
 
 from yt.yson import *
 from yt.wrapper import JsonFormat
-from yt.environment.helpers import assert_items_equal
+from yt.environment.helpers import assert_items_equal, assert_almost_equal
 
 from flaky import flaky
 
@@ -2294,6 +2294,43 @@ print row + table_index
         assert job_indexes[1] > 0 and job_indexes[1] < 99999
         assert get("//sys/operations/{0}/@progress/job_statistics/data/input/row_count/$/completed/{1}/sum".format(op.id, job_type)) == len(result) - 2
 
+    # YT-6324: false job interrupt when it does not consume any input data.
+    @pytest.mark.parametrize("ordered", [False, True])
+    def test_map_no_consumption(self, ordered):
+        create("table", "//tmp/in_1")
+        write_table(
+            "//tmp/in_1",
+            [{"key": "%08d" % i, "value": "(t_1)", "data": "a" * (2 * 1024 * 1024)} for i in range(3)],
+            table_writer = {
+                "block_size": 1024,
+                "desired_chunk_size": 1024})
+
+        output = "//tmp/output"
+        if ordered:
+            output = "<sorted_by=[key]>" + output
+        create("table", output)
+
+        op = map(
+            ordered=ordered,
+            dont_track=True,
+            label="interrupt_job",
+            in_="//tmp/in_1",
+            out=output,
+            command="true",
+            spec={
+                "mapper": {
+                    "format": "dsv"
+                },
+                "max_failed_job_count": 1,
+                "job_io" : {
+                    "buffer_row_count" : 1,
+                },
+            })
+        op.track()
+
+        assert get("//sys/operations/{0}/@progress/jobs/interrupted".format(op.id)) == 0
+        assert get("//sys/operations/{0}/@progress/jobs/completed".format(op.id)) == 1
+
 
 class TestSchedulerControllerThrottling(YTEnvSetup):
     NUM_MASTERS = 3
@@ -2892,7 +2929,7 @@ class TestFilesInSandbox(YTEnvSetup):
 
         time.sleep(1)
         assert op.get_state() == "aborted"
-        assert get("//sys/scheduler/orchid/scheduler/cell/resource_usage/cpu") == 0
+        assert assert_almost_equal(get("//sys/scheduler/orchid/scheduler/cell/resource_usage/cpu"), 0)
 
 
 class TestJobSizeAdjuster(YTEnvSetup):

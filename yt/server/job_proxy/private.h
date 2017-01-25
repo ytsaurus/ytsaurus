@@ -10,8 +10,6 @@
 
 #include <util/generic/ptr.h>
 
-#include <util/stream/base.h>
-
 namespace NYT {
 namespace NJobProxy {
 

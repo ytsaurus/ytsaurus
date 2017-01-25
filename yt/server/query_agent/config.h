@@ -16,6 +16,7 @@ class TQueryAgentConfig
 {
 public:
     int ThreadPoolSize;
+    int LookupThreadPoolSize;
     int MaxSubsplitsPerTablet;
     int MaxSubqueries;
     int MaxQueryRetries;
@@ -27,6 +28,9 @@ public:
     TQueryAgentConfig()
     {
         RegisterParameter("thread_pool_size", ThreadPoolSize)
+            .GreaterThan(0)
+            .Default(4);
+        RegisterParameter("lookup_thread_pool_size", LookupThreadPoolSize)
             .GreaterThan(0)
             .Default(4);
         RegisterParameter("max_subsplits_per_tablet", MaxSubsplitsPerTablet)

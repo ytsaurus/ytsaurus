@@ -35,9 +35,6 @@ struct ISnapshotWriter
     //! Opens the writer.
     virtual TFuture<void> Open() = 0;
 
-    //! Closes and registers the snapshot.
-    virtual TFuture<void> Close() = 0;
-
     //! Returns the snapshot parameters.
     /*
      *  Can only be called after the writer is closed.

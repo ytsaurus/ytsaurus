@@ -74,6 +74,8 @@ using namespace NCellNode;
 
 using NNodeTrackerClient::TAddressMap;
 using NNodeTrackerClient::TNodeDescriptor;
+using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -217,6 +219,26 @@ TNodeDescriptor TMasterConnector::GetLocalDescriptor() const
     return LocalDescriptor_;
 }
 
+int TMasterConnector::MediumIndexFromNameOrThrow(const Stroka& mediumName) const
+{
+    auto it = MediumNameToIndex_.find(mediumName);
+    if (it == MediumNameToIndex_.end()) {
+        THROW_ERROR_EXCEPTION("Medium %Qv is not known at master", mediumName);
+    }
+
+    return it->second;
+}
+
+int TMasterConnector::MediumPriorityFromNameOrThrow(const Stroka& mediumName) const
+{
+    auto it = MediumNameToPriority_.find(mediumName);
+    if (it == MediumNameToPriority_.end()) {
+        THROW_ERROR_EXCEPTION("Medium %Qv and its priority are not known at master", mediumName);
+    }
+
+    return it->second;
+}
+
 void TMasterConnector::ScheduleNodeHeartbeat(TCellTag cellTag, bool immedately)
 {
     auto period = immedately
@@ -305,7 +327,7 @@ void TMasterConnector::RegisterAtMaster()
 
     // Location configs specify medium names only. They're converted into indexes
     // at node's registration, which are then used everywhere else in the protocol.
-    SetLocationIndexes(*rsp);
+    SetMediumNameAndIndexMapping(*rsp);
 
     for (auto cellTag : MasterCellTags_) {
         auto* delta = GetChunksDelta(cellTag);
@@ -323,18 +345,16 @@ void TMasterConnector::RegisterAtMaster()
     ScheduleJobHeartbeat(true);
 }
 
-void TMasterConnector::SetLocationIndexes(const NNodeTrackerClient::NProto::TRspRegisterNode& rsp)
+void TMasterConnector::SetMediumNameAndIndexMapping(const NNodeTrackerClient::NProto::TRspRegisterNode& rsp)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    yhash_map<Stroka, int> mediumNameToIndex;
+    MediumNameToIndex_.clear();
+
     for (const auto& pair : rsp.media()) {
-        mediumNameToIndex.insert(
+        MediumNameToIndex_.insert(
             std::make_pair(pair.medium_name(), pair.medium_index()));
     }
-
-    Bootstrap_->GetChunkStore()->SetMediumIndexes(mediumNameToIndex);
-    Bootstrap_->GetChunkCache()->SetMediumIndexes(mediumNameToIndex);
 }
 
 void TMasterConnector::OnLeaseTransactionAborted()
@@ -423,13 +443,21 @@ void TMasterConnector::ComputeTotalStatistics(TNodeStatistics* result)
 
 void TMasterConnector::ComputeLocationSpecificStatistics(TNodeStatistics* result)
 {
-    auto chunkStore = Bootstrap_->GetChunkStore();
+    const auto& chunkStore = Bootstrap_->GetChunkStore();
 
-    NChunkServer::TPerMediumArray<yhash_set<EObjectType>> acceptedChunkTypes;
-    for (auto location : chunkStore->Locations()) {
+    struct TMediumStatistics
+    {
+        double IOWeight = 0.0;
+        yhash_set<EObjectType> AcceptedChunkTypes;
+    };
+
+    yhash_map<int, TMediumStatistics> mediaStatistics;
+
+    for (const auto& location : chunkStore->Locations()) {
         auto* locationStatistics = result->add_locations();
 
-        locationStatistics->set_medium_index(location->GetMediumIndex());
+        auto mediumIndex = GetLocationMediumIndexOrThrow(location);
+        locationStatistics->set_medium_index(mediumIndex);
         locationStatistics->set_available_space(location->GetAvailableSpace());
         locationStatistics->set_used_space(location->GetUsedSpace());
         locationStatistics->set_low_watermark_space(location->GetLowWatermarkSpace());
@@ -438,19 +466,25 @@ void TMasterConnector::ComputeLocationSpecificStatistics(TNodeStatistics* result
         locationStatistics->set_enabled(location->IsEnabled());
         locationStatistics->set_full(location->IsFull());
 
-        for (auto type : {EObjectType::Chunk, EObjectType::ErasureChunk, EObjectType::JournalChunk}) {
-            if (location->IsChunkTypeAccepted(type)) {
-                acceptedChunkTypes[location->GetMediumIndex()].insert(type);
+        auto& mediumStatistics = mediaStatistics[mediumIndex];
+        if (!location->IsFull()) {
+            ++mediumStatistics.IOWeight;
+            for (auto type : {EObjectType::Chunk, EObjectType::ErasureChunk, EObjectType::JournalChunk}) {
+                if (location->IsChunkTypeAccepted(type)) {
+                    mediumStatistics.AcceptedChunkTypes.insert(type);
+                }
             }
         }
     }
 
-    for (int mediumIndex = 0; mediumIndex < acceptedChunkTypes.size(); ++mediumIndex) {
-        const auto& mediumChunkTypes = acceptedChunkTypes[mediumIndex];
-        for (const auto& type : mediumChunkTypes) {
-            auto* acceptedChunkType = result->add_accepted_chunk_types();
-            acceptedChunkType->set_medium_index(mediumIndex);
-            acceptedChunkType->set_chunk_type(static_cast<int>(type));
+    for (const auto& pair : mediaStatistics) {
+        int mediumIndex = pair.first;
+        const auto& mediumStatisitcs = pair.second;
+        auto* protoStatistics = result->add_media();
+        protoStatistics->set_medium_index(mediumIndex);
+        protoStatistics->set_io_weight(mediumStatisitcs.IOWeight);
+        for (auto type : mediumStatisitcs.AcceptedChunkTypes) {
+            protoStatistics->add_accepted_chunk_types(static_cast<int>(type));
         }
     }
 }
@@ -521,7 +555,7 @@ void TMasterConnector::ReportFullNodeHeartbeat(TCellTag cellTag)
         if (CellTagFromId(chunk->GetId()) == cellTag) {
             auto info = BuildAddChunkInfo(chunk);
             *request->add_chunks() = info;
-            auto mediumIndex = chunk->GetLocation()->GetMediumIndex();
+            auto mediumIndex = GetLocationMediumIndexOrThrow(chunk->GetLocation());
             ++chunkCounts[mediumIndex];
             ++storedChunkCount;
         }
@@ -589,6 +623,23 @@ void TMasterConnector::ReportFullNodeHeartbeat(TCellTag cellTag)
     YCHECK(delta->RemovedSinceLastSuccess.empty());
 
     ScheduleNodeHeartbeat(cellTag);
+}
+
+int TMasterConnector::GetChunkMediumIndexOrThrow(IChunkPtr chunk) const
+{
+    return GetLocationMediumIndexOrThrow(chunk->GetLocation());
+}
+
+int TMasterConnector::GetChunkMediumPriorityOrThrow(IChunkPtr chunk) const
+{
+    auto mediumName = chunk->GetLocation()->GetMediumName();
+    return MediumPriorityFromNameOrThrow(mediumName);
+}
+
+int TMasterConnector::GetLocationMediumIndexOrThrow(TLocationPtr location) const
+{
+    auto mediumName = location->GetMediumName();
+    return MediumIndexFromNameOrThrow(mediumName);
 }
 
 void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
@@ -731,6 +782,8 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
         auto dc = rsp->has_data_center() ? MakeNullable(rsp->data_center()) : Null;
         UpdateDataCenter(dc);
 
+        UpdateMediumPriorities(*rsp);
+
         auto jobController = Bootstrap_->GetJobController();
         jobController->SetResourceLimitsOverrides(rsp->resource_limits_overrides());
         jobController->SetDisableSchedulerJobs(rsp->disable_scheduler_jobs());
@@ -789,7 +842,7 @@ TChunkAddInfo TMasterConnector::BuildAddChunkInfo(IChunkPtr chunk)
 {
     TChunkAddInfo result;
     ToProto(result.mutable_chunk_id(), chunk->GetId());
-    result.set_medium_index(chunk->GetLocation()->GetMediumIndex());
+    result.set_medium_index(GetLocationMediumIndexOrThrow(chunk->GetLocation()));
     result.set_active(chunk->IsActive());
     result.set_sealed(chunk->GetInfo().sealed());
     return result;
@@ -799,8 +852,20 @@ TChunkRemoveInfo TMasterConnector::BuildRemoveChunkInfo(IChunkPtr chunk)
 {
     TChunkRemoveInfo result;
     ToProto(result.mutable_chunk_id(), chunk->GetId());
-    result.set_medium_index(chunk->GetLocation()->GetMediumIndex());
+    result.set_medium_index(GetLocationMediumIndexOrThrow(chunk->GetLocation()));
     return result;
+}
+
+void TMasterConnector::UpdateMediumPriorities(const NNodeTrackerClient::NProto::TRspIncrementalHeartbeat& rsp)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    MediumNameToPriority_.clear();
+
+    for (const auto& pair : rsp.media()) {
+        MediumNameToPriority_.insert(
+            std::make_pair(pair.medium_name(), pair.medium_priority()));
+    }
 }
 
 void TMasterConnector::ReportJobHeartbeat()

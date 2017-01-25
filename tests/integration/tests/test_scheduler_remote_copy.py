@@ -10,18 +10,7 @@ import time
 
 ##################################################################
 
-class TestSchedulerRemoteCopyBase(YTEnvSetup):
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
-            "cluster_directory_synchronizer": {
-                "sync_period": 500
-            }
-        }
-    }
-
-##################################################################
-
-class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyBase):
+class TestSchedulerRemoteCopyCommands(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 9
     NUM_SCHEDULERS = 1
@@ -311,7 +300,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyBase):
 
 ##################################################################
 
-class TestSchedulerRemoteCopyNetworks(TestSchedulerRemoteCopyBase):
+class TestSchedulerRemoteCopyNetworks(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 9
     NUM_SCHEDULERS = 1

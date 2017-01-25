@@ -1357,7 +1357,7 @@ private:
 
     void ChangeCommitPersistentState(TCommit* commit, ECommitState state)
     {
-        LOG_DEBUG("Commit persistent state changed (TransactionId: %v, State: %v -> %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Commit persistent state changed (TransactionId: %v, State: %v -> %v)",
             commit->GetTransactionId(),
             commit->GetPersistentState(),
             state);
@@ -1580,6 +1580,20 @@ private:
             ParticipantCleanupExecutor_->Stop();
         }
         ParticipantCleanupExecutor_.Reset();
+
+        auto error = TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped");
+
+        for (const auto& pair : TransientCommitMap_) {
+            auto* commit = pair.second;
+            SetCommitFailed(commit, error);
+        }
+        TransientCommitMap_.Clear();
+
+        for (auto& pair : TransientAbortMap_) {
+            auto* abort = &pair.second;
+            SetAbortFailed(abort, error);
+        }
+        TransientAbortMap_.clear();
 
         TransientCommitMap_.Clear();
         StrongParticipantMap_.clear();

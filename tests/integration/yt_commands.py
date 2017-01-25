@@ -57,9 +57,6 @@ def init_drivers(clusters):
                 yt_driver_bindings.configure_logging(instance.driver_logging_config)
 
 def terminate_drivers():
-    for drivers in clusters_drivers.itervalues():
-        __builtin__.map(lambda d: d.terminate(), drivers)
-
     clusters_drivers.clear()
 
 def set_branch(dict, path, value):
@@ -975,12 +972,12 @@ def get_account_committed_disk_space(account):
     disk_space = get("//sys/accounts/{0}/@committed_resource_usage/disk_space_per_medium".format(account))
     return disk_space.get("default", 0)
 
-def get_account_disk_space_limit(account):
+def get_account_disk_space_limit(account, medium="default"):
     disk_space = get("//sys/accounts/{0}/@resource_limits/disk_space_per_medium".format(account))
-    return disk_space.get("default", 0)
+    return disk_space.get(medium, 0)
 
-def set_account_disk_space_limit(account, limit):
-    set("//sys/accounts/{0}/@resource_limits/disk_space_per_medium/default".format(account), limit)
+def set_account_disk_space_limit(account, limit, medium="default"):
+    set("//sys/accounts/{0}/@resource_limits/disk_space_per_medium/{1}".format(account, medium), limit)
 
 def get_chunk_replication_factor(chunk_id):
     return get("#{0}/@media/default/replication_factor".format(chunk_id))

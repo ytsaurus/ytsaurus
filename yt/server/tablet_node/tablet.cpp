@@ -22,6 +22,7 @@
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/core/concurrency/delayed_executor.h>
+#include <yt/core/concurrency/async_semaphore.h>
 
 #include <yt/core/misc/collection_helpers.h>
 #include <yt/core/misc/protobuf_helpers.h>
@@ -1009,6 +1010,8 @@ void TTablet::Initialize()
     ColumnLockCount_ = groupToIndex.size() + 1;
 
     ColumnEvaluator_ = Context_->GetColumnEvaluatorCache()->Find(PhysicalSchema_);
+
+    StoresUpdateCommitSemaphore_ = New<NConcurrency::TAsyncSemaphore>(1);
 }
 
 TPartition* TTablet::GetContainingPartition(const ISortedStorePtr& store)

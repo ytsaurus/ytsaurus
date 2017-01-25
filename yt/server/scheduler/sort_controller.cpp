@@ -1556,9 +1556,9 @@ protected:
 
     // Resource management.
 
-    virtual int GetPartitionCpuLimit() const = 0;
-    virtual int GetSortCpuLimit() const = 0;
-    virtual int GetMergeCpuLimit() const = 0;
+    virtual TCpuResource GetPartitionCpuLimit() const = 0;
+    virtual TCpuResource GetSortCpuLimit() const = 0;
+    virtual TCpuResource GetMergeCpuLimit() const = 0;
 
     virtual TExtendedJobResources GetPartitionResources(
         const TChunkStripeStatisticsVector& statistics) const = 0;
@@ -2267,17 +2267,17 @@ private:
 
     // Resource management.
 
-    virtual int GetPartitionCpuLimit() const override
+    virtual TCpuResource GetPartitionCpuLimit() const override
     {
         return 1;
     }
 
-    virtual int GetSortCpuLimit() const override
+    virtual TCpuResource GetSortCpuLimit() const override
     {
         return 1;
     }
 
-    virtual int GetMergeCpuLimit() const override
+    virtual TCpuResource GetMergeCpuLimit() const override
     {
         return 1;
     }
@@ -2881,18 +2881,18 @@ private:
 
     // Resource management.
 
-    virtual int GetPartitionCpuLimit() const override
+    virtual TCpuResource GetPartitionCpuLimit() const override
     {
         return Spec->Mapper ? Spec->Mapper->CpuLimit : 1;
     }
 
-    virtual int GetSortCpuLimit() const override
+    virtual TCpuResource GetSortCpuLimit() const override
     {
         // At least one cpu, may be more in PartitionReduce job.
         return 1;
     }
 
-    virtual int GetMergeCpuLimit() const override
+    virtual TCpuResource GetMergeCpuLimit() const override
     {
         return Spec->Reducer->CpuLimit;
     }

@@ -128,7 +128,7 @@ private:
     {
         Y_UNUSED(response);
 
-        auto chunkId = FromProto<TChunkId>(request->chunk_id());
+        auto sessionId = FromProto<TSessionId>(request->session_id());
 
         TSessionOptions options;
         options.WorkloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
@@ -136,63 +136,67 @@ private:
         options.EnableMultiplexing = request->enable_multiplexing();
         options.PlacementId = FromProto<TPlacementId>(request->placement_id());
 
-        context->SetRequestInfo("ChunkId: %v, Workload: %v, SyncOnClose: %v, EnableMultiplexing: %v, "
+        context->SetRequestInfo("SessionId: %v, Workload: %v, SyncOnClose: %v, EnableMultiplexing: %v, "
             "PlacementId: %v",
-            chunkId,
+            sessionId,
             options.WorkloadDescriptor,
             options.SyncOnClose,
             options.EnableMultiplexing,
             options.PlacementId);
 
         ValidateConnected();
-        ValidateNoSession(chunkId);
-        ValidateNoChunk(chunkId);
+        ValidateNoSession(sessionId);
+        ValidateNoChunk(sessionId);
 
         auto sessionManager = Bootstrap_->GetSessionManager();
-        auto session = sessionManager->StartSession(chunkId, options);
+        auto session = sessionManager->StartSession(sessionId, options);
         auto result = session->Start();
         context->ReplyFrom(result);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, FinishChunk)
     {
-        auto chunkId = FromProto<TChunkId>(request->chunk_id());
+        auto sessionId = FromProto<TSessionId>(request->session_id());
         auto blockCount = request->has_block_count() ? MakeNullable(request->block_count()) : Null;
 
-        context->SetRequestInfo("ChunkId: %v, BlockCount: %v",
-            chunkId,
+        context->SetRequestInfo("SessionId: %v, BlockCount: %v",
+            sessionId,
             blockCount);
 
         ValidateConnected();
 
         auto sessionManager = Bootstrap_->GetSessionManager();
-        auto session = sessionManager->GetSession(chunkId);
+        auto sessions = sessionManager->GetSessions(sessionId);
 
         const TChunkMeta* meta = request->has_chunk_meta() ? &request->chunk_meta() : nullptr;
 
-        session->Finish(meta, blockCount)
-            .Subscribe(BIND([=] (const TErrorOr<IChunkPtr>& chunkOrError) {
-                if (chunkOrError.IsOK()) {
-                    auto chunk = chunkOrError.Value();
-                    const auto& chunkInfo = session->GetChunkInfo();
-                    *response->mutable_chunk_info() = chunkInfo;
-                    context->Reply();
-                } else {
-                    context->Reply(chunkOrError);
-                }
-            }));
+        for (const auto& session : sessions) {
+            session->Finish(meta, blockCount)
+                .Subscribe(BIND([=] (const TErrorOr<IChunkPtr>& chunkOrError) {
+                    if (chunkOrError.IsOK()) {
+                        auto chunk = chunkOrError.Value();
+                        const auto& chunkInfo = session->GetChunkInfo();
+                        *response->mutable_chunk_info() = chunkInfo;
+                        context->Reply();
+                    } else {
+                        context->Reply(chunkOrError);
+                    }
+                }));
+        }
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, CancelChunk)
     {
-        auto chunkId = FromProto<TChunkId>(request->chunk_id());
+        auto sessionId = FromProto<TSessionId>(request->session_id());
 
-        context->SetRequestInfo("ChunkId: %v",
-            chunkId);
+        context->SetRequestInfo("SessionId: %v",
+            sessionId);
 
         auto sessionManager = Bootstrap_->GetSessionManager();
-        auto session = sessionManager->GetSession(chunkId);
-        session->Cancel(TError("Canceled by client request"));
+        auto sessions = sessionManager->GetSessions(sessionId);
+        for (const auto& session : sessions) {
+            session->Cancel(TError("Canceled by client request"));
+        }
 
         context->Reply();
     }
@@ -201,12 +205,12 @@ private:
     {
         Y_UNUSED(response);
 
-        auto chunkId = FromProto<TChunkId>(request->chunk_id());
+        auto sessionId = FromProto<TSessionId>(request->session_id());
 
-        context->SetRequestInfo("ChunkId: %v", chunkId);
+        context->SetRequestInfo("SessionId: %v", sessionId);
 
         auto sessionManager = Bootstrap_->GetSessionManager();
-        auto session = sessionManager->GetSession(chunkId);
+        auto session = sessionManager->GetSession(sessionId);
         session->Ping();
 
         context->Reply();
@@ -217,7 +221,7 @@ private:
     {
         Y_UNUSED(response);
 
-        auto chunkId = FromProto<TChunkId>(request->chunk_id());
+        auto sessionId = FromProto<TSessionId>(request->session_id());
         int firstBlockIndex = request->first_block_index();
         int blockCount = static_cast<int>(request->Attachments().size());
         int lastBlockIndex = firstBlockIndex + blockCount - 1;
@@ -225,7 +229,7 @@ private:
         bool flushBlocks = request->flush_blocks();
 
         context->SetRequestInfo("BlockIds: %v:%v-%v, PopulateCache: %v, FlushBlocks: %v",
-            chunkId,
+            sessionId,
             firstBlockIndex,
             lastBlockIndex,
             populateCache,
@@ -234,7 +238,7 @@ private:
         ValidateConnected();
 
         auto sessionManager = Bootstrap_->GetSessionManager();
-        auto session = sessionManager->GetSession(chunkId);
+        auto session = sessionManager->GetSession(sessionId);
 
         auto location = session->GetStoreLocation();
         if (location->GetPendingIOSize(EIODirection::Write, session->GetWorkloadDescriptor()) > Config_->DiskWriteThrottlingLimit) {
@@ -261,14 +265,14 @@ private:
     {
         Y_UNUSED(response);
 
-        auto chunkId = FromProto<TChunkId>(request->chunk_id());
+        auto sessionId = FromProto<TSessionId>(request->session_id());
         int firstBlockIndex = request->first_block_index();
         int blockCount = request->block_count();
         int lastBlockIndex = firstBlockIndex + blockCount - 1;
         auto targetDescriptor = FromProto<TNodeDescriptor>(request->target_descriptor());
 
         context->SetRequestInfo("BlockIds: %v:%v-%v, Target: %v",
-            chunkId,
+            sessionId,
             firstBlockIndex,
             lastBlockIndex,
             targetDescriptor);
@@ -276,7 +280,7 @@ private:
         ValidateConnected();
 
         auto sessionManager = Bootstrap_->GetSessionManager();
-        auto session = sessionManager->GetSession(chunkId);
+        auto session = sessionManager->GetSession(sessionId);
         session->SendBlocks(firstBlockIndex, blockCount, targetDescriptor)
             .Subscribe(BIND([=] (const TError& error) {
                 if (error.IsOK()) {
@@ -295,17 +299,17 @@ private:
     {
         Y_UNUSED(response);
 
-        auto chunkId = FromProto<TChunkId>(request->chunk_id());
+        auto sessionId = FromProto<TSessionId>(request->session_id());
         int blockIndex = request->block_index();
 
         context->SetRequestInfo("BlockId: %v:%v",
-            chunkId,
+            sessionId,
             blockIndex);
 
         ValidateConnected();
 
         auto sessionManager = Bootstrap_->GetSessionManager();
-        auto session = sessionManager->GetSession(chunkId);
+        auto session = sessionManager->GetSession(sessionId);
         auto result = session->FlushBlocks(blockIndex);
         context->ReplyFrom(result);
     }
@@ -947,23 +951,23 @@ private:
         }
     }
 
-    void ValidateNoSession(const TChunkId& chunkId)
+    void ValidateNoSession(const TSessionId& sessionId)
     {
-        if (Bootstrap_->GetSessionManager()->FindSession(chunkId)) {
+        if (Bootstrap_->GetSessionManager()->FindSession(sessionId)) {
             THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::SessionAlreadyExists,
                 "Session %v already exists",
-                chunkId);
+                sessionId);
         }
     }
 
-    void ValidateNoChunk(const TChunkId& chunkId)
+    void ValidateNoChunk(const TSessionId& sessionId)
     {
-        if (Bootstrap_->GetChunkStore()->FindChunk(chunkId)) {
+        if (Bootstrap_->GetChunkStore()->FindChunk(sessionId.ChunkId, sessionId.MediumIndex)) {
             THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::ChunkAlreadyExists,
                 "Chunk %v already exists",
-                chunkId);
+                sessionId);
         }
     }
 

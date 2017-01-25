@@ -195,10 +195,12 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             assert cur < next
 
     def test_fifo_by_pending_job_count(self):
-        for i in xrange(1, 4):
+        op_count = 3
+
+        for i in xrange(1, op_count + 1):
             self._create_table("//tmp/in" + str(i))
             self._create_table("//tmp/out" + str(i))
-            write_table("//tmp/in" + str(i), [{"foo": j} for j in xrange(3 * (4 - i))])
+            write_table("//tmp/in" + str(i), [{"foo": j} for j in xrange(op_count * (op_count + 1 - i))])
 
         create("map_node", "//sys/pools/fifo_pool", ignore_existing=True)
         set("//sys/pools/fifo_pool/@mode", "fifo")
@@ -208,13 +210,17 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         time.sleep(0.6)
 
         ops = []
-        for i in xrange(1, 4):
+        for i in xrange(1, op_count + 1):
             ops.append(
                 map(dont_track=True,
-                    command="sleep 0.5; cat >/dev/null",
+                    command="sleep 2.0; cat >/dev/null",
                     in_=["//tmp/in" + str(i)],
                     out="//tmp/out" + str(i),
                     spec={"pool": "fifo_pool", "data_size_per_job": 1}))
+
+        time.sleep(1.0)
+        for index, op in enumerate(ops):
+            assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/fifo_index".format(op.id)) == 2 - index
 
         for op in ops:
             op.track()
@@ -222,6 +228,17 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         finish_times = [get("//sys/operations/{0}/@finish_time".format(op.id)) for op in ops]
         for cur, next in zip(finish_times, finish_times[1:]):
             assert cur > next
+
+    def test_fifo_subpools(self):
+        assert not get("//sys/scheduler/@alerts")
+
+        create("map_node", "//sys/pools/fifo_pool", attributes={"mode": "fifo"})
+        create("map_node", "//sys/pools/fifo_pool/fifo_subpool", attributes={"mode": "fifo"})
+
+        time.sleep(1.5)
+
+        assert get("//sys/scheduler/@alerts")
+        assert get("//sys/scheduler/@alerts")[0]
 
     def test_preparing_operation_transactions(self):
         self._prepare_tables()
@@ -424,7 +441,7 @@ class TestSchedulerFunctionality2(YTEnvSetup, PrepareTables):
         stats = get("//sys/scheduler/orchid/scheduler")
         pool_resource_limits = stats["pools"]["test_pool"]["resource_limits"]
         for resource, limit in resource_limits.iteritems():
-            assert pool_resource_limits[resource] == limit
+            assert assert_almost_equal(pool_resource_limits[resource], limit)
 
         self._prepare_tables()
         data = [{"foo": i} for i in xrange(3)]
@@ -453,7 +470,7 @@ class TestSchedulerFunctionality2(YTEnvSetup, PrepareTables):
         time.sleep(3)
         op_limits = get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_limits".format(op.id))
         for resource, limit in resource_limits.iteritems():
-            assert op_limits[resource] == limit
+            assert assert_almost_equal(op_limits[resource], limit)
         assert len(get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))) == 1
         op.abort()
 
@@ -511,6 +528,27 @@ class TestSchedulerFunctionality2(YTEnvSetup, PrepareTables):
         op2.resume_jobs()
         op2.track()
         op3.track()
+
+
+    def test_fractional_cpu_usage(self):
+        self._create_table("//tmp/t_in")
+        self._create_table("//tmp/t_out")
+        data = [{"foo": i} for i in xrange(3)]
+        write_table("//tmp/t_in", data);
+
+        op = map(
+            waiting_jobs=True,
+            dont_track=True,
+            command="cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"job_count": 3, "mapper": {"cpu_limit": 0.87}})
+
+        resource_usage = get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_usage".format(op.id))
+        assert_almost_equal(resource_usage["cpu"], 3 * 0.87)
+
+        op.resume_jobs()
+        op.track()
 
 
 class TestSchedulerRevive(YTEnvSetup):

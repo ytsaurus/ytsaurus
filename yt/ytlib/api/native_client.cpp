@@ -895,7 +895,7 @@ private:
             }
 
             auto config = Connection_->GetConfig();
-            if (++retryCount <= config->TableMountInfoUpdateRetryCount) {
+            if (++retryCount <= config->TableMountCache->OnErrorRetryCount) {
                 bool retry = false;
                 std::vector<NTabletClient::EErrorCode> retriableCodes = {
                     NTabletClient::EErrorCode::NoSuchTablet,
@@ -918,7 +918,7 @@ private:
                     if (tabletInfo) {
                         tableMountCache->InvalidateTablet(tabletInfo);
                         auto now = Now();
-                        auto retryTime = tabletInfo->UpdateTime + config->TableMountInfoUpdateRetryPeriod;
+                        auto retryTime = tabletInfo->UpdateTime + config->TableMountCache->OnErrorSlackPeriod;
                         if (retryTime > now) {
                             WaitFor(TDelayedExecutor::MakeDelayed(retryTime - now))
                                 .ThrowOnError();

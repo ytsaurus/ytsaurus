@@ -677,7 +677,7 @@ public:
                 req.set_mount_revision(tablet->GetMountRevision());
                 ToProto(req.mutable_table_id(), table->GetId());
                 ToProto(req.mutable_schema(), table->TableSchema());
-                if (table->IsSorted()) {
+                if (table->IsPhysicallySorted()) {
                     ToProto(req.mutable_pivot_key(), tablet->GetPivotKey());
                     ToProto(req.mutable_next_pivot_key(), tablet->GetIndex() + 1 == allTablets.size()
                         ? MaxKey()
@@ -2264,7 +2264,7 @@ private:
         tablet->SetInMemoryMode(EInMemoryMode::None);
         tablet->SetState(ETabletState::Unmounted);
         tablet->SetCell(nullptr);
-        tablet->SetStoresUpdatePrepared(false);
+        tablet->SetStoresUpdatePreparedTransaction(nullptr);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         YCHECK(cell->Tablets().erase(tablet) == 1);
@@ -2331,16 +2331,17 @@ private:
         }
     }
 
-    void HydraPrepareUpdateTabletStores(TTransaction* /*transaction*/, TReqUpdateTabletStores* request, bool persistent)
+    void HydraPrepareUpdateTabletStores(TTransaction* transaction, TReqUpdateTabletStores* request, bool persistent)
     {
         YCHECK(persistent);
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = GetTabletOrThrow(tabletId);
 
-        if (tablet->GetStoresUpdatePrepared()) {
-            THROW_ERROR_EXCEPTION("Stores update for tablet %v is already prepared",
-                tabletId);
+        if (tablet->GetStoresUpdatePreparedTransaction()) {
+            THROW_ERROR_EXCEPTION("Stores update for tablet %v is already prepared by transaction %v",
+                tabletId,
+                tablet->GetStoresUpdatePreparedTransaction()->GetId());
         }
 
         auto mountRevision = request->mount_revision();
@@ -2403,14 +2404,15 @@ private:
             }
         }
 
-        tablet->SetStoresUpdatePrepared(true);
+        tablet->SetStoresUpdatePreparedTransaction(transaction);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update prepared (TableId: %v, TabletId: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update prepared (TransactionId: %v, TableId: %v, TabletId: %v)",
+            transaction->GetId(),
             table->GetId(),
             tabletId);
     }
 
-    void HydraCommitUpdateTabletStores(TTransaction* /*transaction*/, TReqUpdateTabletStores* request)
+    void HydraCommitUpdateTabletStores(TTransaction* transaction, TReqUpdateTabletStores* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
@@ -2420,10 +2422,21 @@ private:
 
         auto mountRevision = request->mount_revision();
         if (tablet->GetMountRevision() != mountRevision) {
+            LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: invalid mount revision on tablet stores update commit; ignored "
+                "(TabletId: %v, TransactionId: %v, ExpectedMountRevision: %v, ActualMountRevision: %v)",
+                tabletId,
+                transaction->GetId(),
+                mountRevision,
+                tablet->GetMountRevision());
             return;
         }
 
-        if (!tablet->GetStoresUpdatePrepared()) {
+        if (tablet->GetStoresUpdatePreparedTransaction() != transaction) {
+            LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: tablet stores update commit for an improperly unprepared tablet; ignored "
+                "(TabletId: %v, ExpectedTransactionId: %v, ActualTransactionId: %v)",
+                tabletId,
+                transaction->GetId(),
+                GetObjectId(tablet->GetStoresUpdatePreparedTransaction()));
             return;
         }
 
@@ -2446,6 +2459,10 @@ private:
                 TypeFromId(storeId) == EObjectType::ErasureChunk)
             {
                 auto* chunk = chunkManager->GetChunkOrThrow(storeId);
+                if (!chunk->Parents().empty()) {
+                    THROW_ERROR_EXCEPTION("Chunk %v cannot be attached since it already has a parent",
+                        chunk->GetId());
+                }
                 const auto& miscExt = chunk->MiscExt();
                 if (miscExt.has_max_timestamp()) {
                     lastCommitTimestamp = std::max(lastCommitTimestamp, static_cast<TTimestamp>(miscExt.max_timestamp()));
@@ -2482,9 +2499,9 @@ private:
         CopyChunkListIfShared(table, tablet->GetIndex(), tablet->GetIndex());
 
         // Apply all requested changes.
+        auto* tabletChunkList = tablet->GetChunkList();
         auto* cell = tablet->GetCell();
         cell->TotalStatistics() -= GetTabletStatistics(tablet);
-        auto* tabletChunkList = tablet->GetChunkList();
         chunkManager->AttachToChunkList(tabletChunkList, chunksToAttach);
         chunkManager->DetachFromChunkList(tabletChunkList, chunksToDetach);
         cell->TotalStatistics() += GetTabletStatistics(tablet);
@@ -2496,14 +2513,17 @@ private:
             chunkManager->UnstageChunk(chunk->AsChunk());
         }
 
-        tablet->SetStoresUpdatePrepared(false);
+        if (tablet->GetStoresUpdatePreparedTransaction() == transaction) {
+            tablet->SetStoresUpdatePreparedTransaction(nullptr);
+        }
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->UpdateAccountNodeUsage(table);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update committed (TableId: %v, TabletId: %v, "
+        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update committed (TransactionId: %v, TableId: %v, TabletId: %v, "
             "AttachedChunkIds: %v, DetachedChunkIds: %v, "
             "AttachedRowCount: %v, DetachedRowCount: %v, RetainedTimestamp: %v)",
+            transaction->GetId(),
             table->GetId(),
             tabletId,
             MakeFormattableRange(chunksToAttach, TObjectIdFormatter()),
@@ -2513,7 +2533,7 @@ private:
             retainedTimestamp);
     }
 
-    void HydraAbortUpdateTabletStores(TTransaction* /*transaction*/, TReqUpdateTabletStores* request)
+    void HydraAbortUpdateTabletStores(TTransaction* transaction, TReqUpdateTabletStores* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
@@ -2526,15 +2546,16 @@ private:
             return;
         }
 
-        if (!tablet->GetStoresUpdatePrepared()) {
+        if (tablet->GetStoresUpdatePreparedTransaction() != transaction) {
             return;
         }
 
         const auto* table = tablet->GetTable();
 
-        tablet->SetStoresUpdatePrepared(false);
+        tablet->SetStoresUpdatePreparedTransaction(nullptr);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update aborted (TabletId: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update aborted (TransactionId: %v, TableId: %v, TabletId: %v)",
+            transaction->GetId(),
             table->GetId(),
             tabletId);
     }
@@ -2939,10 +2960,13 @@ private:
         }
 
         // Prepare tablet writer options.
-        // TODO(babenko): is this media-aware?
         const auto& chunkProperties = table->Properties();
+        auto primaryMediumIndex = table->GetPrimaryMediumIndex();
+        auto chunkManager = Bootstrap_->GetChunkManager();
+        auto* primaryMedium = chunkManager->GetMediumByIndex(primaryMediumIndex);
         *writerOptions = New<TTableWriterOptions>();
-        (*writerOptions)->ReplicationFactor = chunkProperties[table->GetPrimaryMediumIndex()].GetReplicationFactor();
+        (*writerOptions)->ReplicationFactor = chunkProperties[primaryMediumIndex].GetReplicationFactor();
+        (*writerOptions)->MediumName = primaryMedium->GetName();
         (*writerOptions)->Account = table->GetAccount()->GetName();
         (*writerOptions)->CompressionCodec = tableAttributes.Get<NCompression::ECodec>("compression_codec");
         (*writerOptions)->ErasureCodec = tableAttributes.Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);

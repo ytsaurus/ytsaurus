@@ -30,15 +30,17 @@ message TMemoryStatistics
     repeated TCategory categories = 3;
 }
 
+// Describes the current state of a storage medium.
+message TMediumStatistics
+{
+    required int32 medium_index = 1;
+    repeated int32 accepted_chunk_types = 2;
+    required double io_weight = 3;
+}
+
 // Describes the current state of the whole node.
 message TNodeStatistics
 {
-    message TAcceptedChunkType
-    {
-        required int32 medium_index = 1;
-        required int32 chunk_type = 2;
-    }
-
     required int64 total_available_space = 1;
     required int64 total_used_space = 2;
     required int32 total_stored_chunk_count = 3;
@@ -51,15 +53,15 @@ message TNodeStatistics
     repeated TLocationStatistics locations = 6;
     required int32 available_tablet_slots = 11;
     required int32 used_tablet_slots = 12;
-    repeated TAcceptedChunkType accepted_chunk_types = 13;
     required TMemoryStatistics memory = 15;
+    repeated TMediumStatistics media = 17;
 }
 
 // Measures limits and utilization of various resources.
 message TNodeResources
 {
     optional int32 user_slots = 1;
-    optional int32 cpu = 2;
+    optional double cpu = 2;
     optional int64 memory = 3;
     optional int32 network = 4;
     optional int32 replication_slots = 5;

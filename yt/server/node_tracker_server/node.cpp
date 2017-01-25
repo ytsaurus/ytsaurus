@@ -556,11 +556,6 @@ int TNode::GetTotalTabletSlots() const
         Statistics_.available_tablet_slots();
 }
 
-double TNode::GetIOWeight(int mediumIndex) const
-{
-    return IOWeights_[mediumIndex];
-}
-
 TNullable<double> TNode::GetFillFactor(int mediumIndex) const
 {
     i64 freeSpace = 0;

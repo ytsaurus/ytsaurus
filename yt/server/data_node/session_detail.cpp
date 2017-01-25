@@ -2,6 +2,7 @@
 #include "private.h"
 #include "config.h"
 #include "location.h"
+#include "master_connector.h"
 #include "session_manager.h"
 
 #include <yt/server/cell_node/bootstrap.h>
@@ -23,13 +24,13 @@ using namespace NConcurrency;
 TSessionBase::TSessionBase(
     TDataNodeConfigPtr config,
     TBootstrap* bootstrap,
-    const TChunkId& chunkId,
+    const TSessionId& sessionId,
     const TSessionOptions& options,
     TStoreLocationPtr location,
     TLease lease)
     : Config_(config)
     , Bootstrap_(bootstrap)
-    , ChunkId_(chunkId)
+    , SessionId_(sessionId)
     , Options_(options)
     , Location_(location)
     , Lease_(lease)
@@ -41,9 +42,9 @@ TSessionBase::TSessionBase(
     YCHECK(location);
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
 
-    Logger.AddTag("LocationId: %v, ChunkId: %v",
+    Logger.AddTag("LocationId: %v, SessionId: %v",
         Location_->GetId(),
-        ChunkId_);
+        SessionId_);
 
     Location_->UpdateSessionCount(+1);
 }
@@ -53,9 +54,14 @@ TSessionBase::~TSessionBase()
     Location_->UpdateSessionCount(-1);
 }
 
-const TChunkId& TSessionBase::GetChunkId() const
+const TChunkId& TSessionBase::GetChunkId() const&
 {
-    return ChunkId_;
+    return SessionId_.ChunkId;
+}
+
+const TSessionId& TSessionBase::GetId() const&
+{
+    return SessionId_;
 }
 
 ESessionType TSessionBase::GetType() const

@@ -105,6 +105,8 @@ public:
     //! Replication factor for intermediate data.
     int IntermediateDataReplicationFactor;
 
+    Stroka IntermediateDataMediumName;
+
     //! Acl used for intermediate tables and stderrs.
     NYTree::IListNodePtr IntermediateDataAcl;
 
@@ -160,6 +162,8 @@ public:
             .Default(NCompression::ECodec::Lz4);
         RegisterParameter("intermediate_data_replication_factor", IntermediateDataReplicationFactor)
             .Default(1);
+        RegisterParameter("intermediate_data_medium", IntermediateDataMediumName)
+            .Default(NChunkClient::DefaultStoreMediumName);
         RegisterParameter("intermediate_data_acl", IntermediateDataAcl)
             .Default(NYTree::BuildYsonNodeFluently()
                 .BeginList()
@@ -269,7 +273,7 @@ public:
 
     yhash_map<Stroka, Stroka> Environment;
 
-    int CpuLimit;
+    double CpuLimit;
     TNullable<TDuration> JobTimeLimit;
     i64 MemoryLimit;
     double MemoryReserveFactor;
@@ -305,7 +309,8 @@ public:
         RegisterParameter("environment", Environment)
             .Default();
         RegisterParameter("cpu_limit", CpuLimit)
-            .Default(1);
+            .Default(1)
+            .GreaterThanOrEqual(0);
         RegisterParameter("job_time_limit", JobTimeLimit)
             .Default()
             .GreaterThanOrEqual(TDuration::Seconds(1));

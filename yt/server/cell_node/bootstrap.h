@@ -55,6 +55,7 @@ public:
     const TCellNodeConfigPtr& GetConfig() const;
     const IInvokerPtr& GetControlInvoker() const;
     const IInvokerPtr& GetQueryPoolInvoker() const;
+    const IInvokerPtr& GetLookupPoolInvoker() const;
     const IInvokerPtr& GetTableReplicatorPoolInvoker() const;
     const IInvokerPtr& GetTransactionTrackerInvoker() const;
     const NApi::INativeClientPtr& GetMasterClient() const;
@@ -108,6 +109,7 @@ private:
 
     NConcurrency::TActionQueuePtr ControlQueue;
     NConcurrency::TThreadPoolPtr QueryThreadPool;
+    NConcurrency::TThreadPoolPtr LookupThreadPool;
     NConcurrency::TThreadPoolPtr TableReplicatorThreadPool;
     NConcurrency::TActionQueuePtr TransactionTrackerQueue;
 

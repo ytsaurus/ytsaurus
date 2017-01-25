@@ -58,6 +58,9 @@
 
 #include <yt/ytlib/api/native_connection.h>
 #include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/transaction.h>
+
+#include <yt/core/concurrency/async_semaphore.h>
 
 #include <yt/core/compression/codec.h>
 
@@ -90,6 +93,7 @@ using namespace NNodeTrackerClient;
 using namespace NHiveServer;
 using namespace NHiveServer::NProto;
 using namespace NQueryClient;
+using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -319,6 +323,23 @@ public:
         ToProto(request.mutable_tablet_id(), tablet->GetId());
         request.set_mount_revision(tablet->GetMountRevision());
         CommitTabletMutation(request);
+    }
+
+    TFuture<void> CommitTabletStoresUpdateTransaction(
+        TTablet* tablet,
+        const ITransactionPtr& transaction)
+    {
+        LOG_DEBUG("Acquiring tablet stores commit semaphore (TabletId: %v, TransactionId: %v)",
+            tablet->GetId(),
+            transaction->GetId());
+
+        auto promise = NewPromise<void>();
+        tablet
+            ->GetStoresUpdateCommitSemaphore()
+            ->AsyncAcquire(
+                BIND(&TImpl::OnStoresUpdateCommitSemaphoreAcquired, MakeWeak(this), tablet, transaction, promise),
+                tablet->GetEpochAutomatonInvoker());
+        return promise;
     }
 
     IYPathServicePtr GetOrchidService()
@@ -1216,9 +1237,11 @@ private:
 
         const auto& storeManager = tablet->GetStoreManager();
         for (const auto& storeId : storeIdsToRemove) {
-            auto store = tablet->GetStore(storeId);
+            auto store = tablet->FindStore(storeId);
+            if (!store) {
+                continue;
+            }
 
-            YCHECK(store->GetStoreState() == EStoreState::RemovePrepared);
             switch (store->GetType()) {
                 case EStoreType::SortedDynamic:
                 case EStoreType::OrderedDynamic:
@@ -2242,6 +2265,11 @@ private:
             .BeginMap()
                 .Item("table_id").Value(tablet->GetTableId())
                 .Item("state").Value(tablet->GetState())
+                .Item("config")
+                    .BeginAttributes()
+                        .Item("opaque").Value(true)
+                    .EndAttributes()
+                    .Value(tablet->GetConfig())
                 .DoIf(
                     tablet->IsPhysicallySorted(), [&] (TFluentMap fluent) {
                     fluent
@@ -2749,6 +2777,31 @@ private:
         YCHECK(tablet->GetTrimmedRowCount() <= trimmedRowCount);
         UpdateTrimmedRowCount(tablet, trimmedRowCount);
     }
+
+
+    void OnStoresUpdateCommitSemaphoreAcquired(
+        TTablet* tablet,
+        const ITransactionPtr& transaction,
+        TPromise<void> promise,
+        TAsyncSemaphoreGuard /*guard*/)
+    {
+        try {
+            LOG_DEBUG("Started committing tablet stores update transaction (TabletId: %v, TransactionId: %v)",
+                tablet->GetId(),
+                transaction->GetId());
+
+            WaitFor(transaction->Commit())
+                .ThrowOnError();
+
+            LOG_DEBUG("Tablet stores update transaction committed (TabletId: %v, TransactionId: %v)",
+                tablet->GetId(),
+                transaction->GetId());
+
+            promise.Set();
+        } catch (const std::exception& ex) {
+            promise.Set(TError(ex));
+        }
+    }
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, Tablet, TTablet, TabletMap_)
@@ -2823,6 +2876,13 @@ TFuture<void> TTabletManager::Trim(
 void TTabletManager::ScheduleStoreRotation(TTablet* tablet)
 {
     Impl_->ScheduleStoreRotation(tablet);
+}
+
+TFuture<void> TTabletManager::CommitTabletStoresUpdateTransaction(
+    TTablet* tablet,
+    const ITransactionPtr& transaction)
+{
+    return Impl_->CommitTabletStoresUpdateTransaction(tablet, transaction);
 }
 
 IYPathServicePtr TTabletManager::GetOrchidService()

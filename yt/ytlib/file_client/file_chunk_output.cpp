@@ -62,11 +62,12 @@ TFileChunkOutput::TFileChunkOutput(
         : secondaryCellTags[RandomNumber(secondaryCellTags.size())];
 
     LOG_INFO("File chunk output opened (TransactionId: %v, Account: %v, ReplicationFactor: %v, "
-        "UploadReplicationFactor: %v, CellTag: %v)",
+        "UploadReplicationFactor: %v, MediumName: %v, CellTag: %v)",
         TransactionId_,
         Options_->Account,
         Options_->ReplicationFactor,
         Config_->UploadReplicationFactor,
+        Options_->MediumName,
         cellTag);
 
     ConfirmingChunkWriter_ = CreateConfirmingWriter(

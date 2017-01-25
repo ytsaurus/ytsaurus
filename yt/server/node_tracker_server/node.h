@@ -60,7 +60,6 @@ public:
     // Transient properties.
     DEFINE_BYVAL_RW_PROPERTY(ui64, VisitMark);
     DEFINE_BYREF_RW_PROPERTY(NChunkServer::TPerMediumArray<double>, IOWeights);
-    double GetIOWeight(int mediumIndex) const;
 
     using TMulticellStates = yhash_map<NObjectClient::TCellTag, ENodeState>;
     DEFINE_BYREF_RO_PROPERTY(TMulticellStates, MulticellStates);

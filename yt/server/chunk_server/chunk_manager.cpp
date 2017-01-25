@@ -48,6 +48,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/schema.h>
+#include <yt/ytlib/chunk_client/session_id.h>
 #include <yt/ytlib/chunk_client/chunk_service.pb.h>
 
 #include <yt/ytlib/journal_client/helpers.h>
@@ -896,6 +897,7 @@ public:
         const Stroka& name,
         TNullable<bool> transient,
         TNullable<bool> cache,
+        TNullable<int> priority,
         const TObjectId& hintId)
     {
         ValidateMediumName(name);
@@ -920,7 +922,8 @@ public:
             mediumIndex,
             name,
             transient,
-            cache);
+            cache,
+            priority);
     }
 
     TMedium* DoCreateMedium(
@@ -928,7 +931,8 @@ public:
         int mediumIndex,
         const Stroka& name,
         TNullable<bool> transient,
-        TNullable<bool> cache)
+        TNullable<bool> cache,
+        TNullable<int> priority)
     {
         auto mediumHolder = std::make_unique<TMedium>(id);
         mediumHolder->SetName(name);
@@ -938,6 +942,10 @@ public:
         }
         if (cache) {
             mediumHolder->SetCache(*cache);
+        }
+        if (priority) {
+            ValidateMediumPriority(*priority);
+            mediumHolder->SetPriority(*priority);
         }
 
         auto* medium = MediumMap_.Insert(id, std::move(mediumHolder));
@@ -955,8 +963,7 @@ public:
             return;
         }
 
-        if (medium->IsBuiltin())
-        {
+        if (medium->IsBuiltin()) {
             THROW_ERROR_EXCEPTION("Builtin medium cannot be renamed");
         }
 
@@ -971,6 +978,17 @@ public:
         YCHECK(NameToMediumMap_.erase(medium->GetName()) == 1);
         YCHECK(NameToMediumMap_.emplace(newName, medium).second);
         medium->SetName(newName);
+    }
+
+    void SetMediumPriority(TMedium* medium, int priority)
+    {
+        if (medium->GetPriority() == priority) {
+            return;
+        }
+
+        ValidateMediumPriority(priority);
+
+        medium->SetPriority(priority);
     }
 
     int GetFreeMediumIndex()
@@ -1911,7 +1929,7 @@ private:
         if (medium) {
             return false;
         }
-        medium = DoCreateMedium(id, mediumIndex, name, false, cache);
+        medium = DoCreateMedium(id, mediumIndex, name, false, cache, Null);
         return true;
     }
 
@@ -2406,6 +2424,13 @@ private:
             THROW_ERROR_EXCEPTION("Medium name cannot be empty");
         }
     }
+
+    static void ValidateMediumPriority(int priority)
+    {
+        if (priority < 0 || priority > MaxMediumPriority) {
+            THROW_ERROR_EXCEPTION("Medium priority must be in range [0,%v]", MaxMediumPriority);
+        }
+    }
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager::TImpl, Chunk, TChunk, ChunkMap_)
@@ -2499,14 +2524,15 @@ TObjectBase* TChunkManager::TMediumTypeHandler::CreateObject(
     IAttributeDictionary* attributes)
 {
     auto name = attributes->GetAndRemove<Stroka>("name");
-    // These two are optional.
+    // These three are optional.
+    auto priority = attributes->FindAndRemove<int>("priority");
     auto transient = attributes->FindAndRemove<bool>("transient");
     auto cache = attributes->FindAndRemove<bool>("cache");
     if (cache) {
         THROW_ERROR_EXCEPTION("Cannot create a new cache medium");
     }
 
-    return Owner_->CreateMedium(name, transient, cache, hintId);
+    return Owner_->CreateMedium(name, transient, cache, priority, hintId);
 }
 
 void TChunkManager::TMediumTypeHandler::DoDestroyObject(TMedium* /*medium*/)
@@ -2740,6 +2766,11 @@ TMedium* TChunkManager::GetMediumByIndex(int index) const
 void TChunkManager::RenameMedium(TMedium* medium, const Stroka& newName)
 {
     Impl_->RenameMedium(medium, newName);
+}
+
+void TChunkManager::SetMediumPriority(TMedium* medium, int newPriority)
+{
+    Impl_->SetMediumPriority(medium, newPriority);
 }
 
 TMedium* TChunkManager::FindMediumByName(const Stroka& name) const

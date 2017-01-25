@@ -63,15 +63,7 @@ struct IAsyncOutputStream
      *  buffer between these calls.
      */
     virtual TFuture<void> Write(const TSharedRef& buffer) = 0;
-};
 
-DEFINE_REFCOUNTED_TYPE(IAsyncOutputStream)
-
-// TODO(ermolovd): actually IAsyncOutputStream should implement #Close method
-// as most of its implementations implement Close/Finish method in some way.
-struct IAsyncClosableOutputStream
-    : public IAsyncOutputStream
-{
     //! Finalizes stream.
     /*! Call #Close to complete writes.
      *  #Close shouldn't be called before previous #Write call is complete.
@@ -80,7 +72,7 @@ struct IAsyncClosableOutputStream
     virtual TFuture<void> Close() = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IAsyncClosableOutputStream);
+DEFINE_REFCOUNTED_TYPE(IAsyncOutputStream)
 
 //! Creates a synchronous adapter from a given asynchronous stream.
 std::unique_ptr<TOutputStream> CreateSyncAdapter(
@@ -136,10 +128,12 @@ struct IAsyncZeroCopyOutputStream
      *  Returns an error, if any.
      *  In contrast to IAsyncOutputStream, one may call #Write again before
      *  the previous call is complete.
-     * 
+     *
      *  NB: this shared ref should become unique ref.
      */
     virtual TFuture<void> Write(const TSharedRef& data) = 0;
+
+    virtual TFuture<void> Close() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IAsyncZeroCopyOutputStream)

@@ -13,7 +13,7 @@ namespace NConcurrency {
 
 class TAsyncStreamPipe
     : public IAsyncZeroCopyInputStream
-    , public IAsyncClosableOutputStream
+    , public IAsyncOutputStream
 {
 public:
     virtual TFuture<TSharedRef> Read() override;
