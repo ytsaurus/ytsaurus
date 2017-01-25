@@ -29,6 +29,18 @@ TMasterConnectionConfig::TMasterConnectionConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTableMountCacheConfig::TTableMountCacheConfig()
+{
+    RegisterParameter("on_error_retry_count", OnErrorRetryCount)
+        .GreaterThanOrEqual(0)
+        .Default(5);
+    RegisterParameter("on_error_retry_slack_period", OnErrorSlackPeriod)
+        .GreaterThan(TDuration::MicroSeconds(0))
+        .Default(TDuration::Seconds(1));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TNativeConnectionConfig::TNativeConnectionConfig()
 {
     RegisterParameter("networks", Networks)
@@ -100,13 +112,6 @@ TNativeConnectionConfig::TNativeConnectionConfig()
         .DefaultNew();
     RegisterParameter("function_impl_cache", FunctionImplCache)
         .DefaultNew();
-
-    RegisterParameter("table_mount_info_update_retry_count", TableMountInfoUpdateRetryCount)
-        .GreaterThanOrEqual(0)
-        .Default(5);
-    RegisterParameter("table_mount_info_update_retry_time", TableMountInfoUpdateRetryPeriod)
-        .GreaterThan(TDuration::MicroSeconds(0))
-        .Default(TDuration::Seconds(1));
 
     RegisterParameter("light_pool_size", LightPoolSize)
         .Describe("Number of threads handling light requests")
