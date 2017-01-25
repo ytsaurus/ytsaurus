@@ -291,7 +291,7 @@ YtCoordinator.prototype._initialize = function()
     .catch(function(err) {
         var error = YtError.ensureWrapped(err);
         self.logger.error(
-            "An error occured while initializing coordination",
+            "An error occurred while initializing coordination",
             // TODO(sandello): Embed.
             { error: error.toJson() });
 
@@ -389,7 +389,7 @@ YtCoordinator.prototype._refresh = function()
     .catch(function(err) {
         var error = YtError.ensureWrapped(err);
         self.logger.error(
-            "An error occured while updating coordination",
+            "An error occurred while updating coordination",
             // TODO(sandello): Embed.
             { error: error.toJson() });
 

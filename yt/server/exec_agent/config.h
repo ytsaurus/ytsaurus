@@ -115,7 +115,7 @@ public:
     //! Polymorphic job environment configuration.
     NYTree::INodePtr JobEnvironment;
 
-    //! Fail node if some error occured during slot cleanup.
+    //! Fail node if some error occurred during slot cleanup.
     bool SlotInitializationFailureIsFatal;
 
     //! Chunk size used for copying chunks if #copy_chunks is set to %true in operation spec.
