@@ -465,12 +465,14 @@ public:
             lowerBound,
             upperBound));
 
-        // Do actual traversing in proper queue.
-        Callbacks_
-            ->GetInvoker()
-            ->Invoke(BIND(&TChunkTreeTraverser::DoTraverse, MakeStrong(this)));
+        // Do actual traversing in the proper queue.
+        auto invoker = Callbacks_->GetInvoker();
+        if (invoker) {
+            invoker->Invoke(BIND(&TChunkTreeTraverser::DoTraverse, MakeStrong(this)));
+        } else {
+            DoTraverse();
+        }
     }
-
 };
 
 void TraverseChunkTree(
