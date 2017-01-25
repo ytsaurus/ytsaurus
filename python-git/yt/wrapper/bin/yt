@@ -1033,8 +1033,8 @@ def main():
     config_args, unparsed = config_parser.parse_known_args()
 
     if config_args.tx is not None:
-        yt.config.TRANSACTION = config_args.tx
-        yt.config.PING_ANCESTOR_TRANSACTIONS = config_args.ping_ancestor_txs
+        yt.config.COMMAND_PARAMS["transaction_id"] = config_args.tx
+        yt.config.COMMAND_PARAMS["ping_ancestor_transactions"]  = config_args.ping_ancestor_txs
     if config_args.proxy is not None:
         yt.config["backend"] = "http"
         yt.config["proxy"]["url"] = config_args.proxy

@@ -124,9 +124,9 @@ class TestClient(object):
             tx = client.start_transaction(timeout=5000)
             with client.PingTransaction(tx, delay=1):
                 assert client.exists("//sys/transactions/{0}".format(tx))
-                client.TRANSACTION = tx
+                client.COMMAND_PARAMS["transaction_id"] = tx
                 assert client.lock(table) != "0-0-0-0"
-                client.TRANSACTION = "0-0-0-0"
+                client.COMMAND_PARAMS["transaction_id"] = "0-0-0-0"
 
             client.ping_transaction(tx)
             client.abort_transaction(tx)

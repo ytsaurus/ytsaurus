@@ -415,21 +415,21 @@ class TestCypressCommands(object):
                 assert yt.lock(dir, waitable=True, wait_for=1000) == "0-0-0-0"
 
         tx = yt.start_transaction()
-        yt.config.TRANSACTION = tx
+        yt.config.COMMAND_PARAMS["transaction_id"] = tx
         try:
             yt.lock(dir, waitable=True)
             assert len(yt.get(dir + "/@locks")) == 1
 
-            yt.config.TRANSACTION = "0-0-0-0"
+            yt.config.COMMAND_PARAMS["transaction_id"] = "0-0-0-0"
             with pytest.raises(yt.YtError):
                 with yt.Transaction():
                     yt.lock(dir, waitable=True, wait_for=1000)
         finally:
-            yt.config.TRANSACTION = "0-0-0-0"
+            yt.config.COMMAND_PARAMS["transaction_id"] = "0-0-0-0"
             yt.abort_transaction(tx)
 
         tx = yt.start_transaction(timeout=2000)
-        yt.config.TRANSACTION = tx
+        yt.config.COMMAND_PARAMS["transaction_id"] = tx
         client = Yt(config=yt.config.config)
         try:
             assert yt.lock(dir) != "0-0-0-0"
@@ -438,7 +438,7 @@ class TestCypressCommands(object):
             with client.Transaction():
                 assert client.lock(dir, waitable=True, wait_for=4000) != "0-0-0-0"
         finally:
-            yt.config.TRANSACTION = "0-0-0-0"
+            yt.config.COMMAND_PARAMS["transaction_id"] = "0-0-0-0"
             yt.abort_transaction(tx)
 
     def test_copy_move_sorted_table(self):

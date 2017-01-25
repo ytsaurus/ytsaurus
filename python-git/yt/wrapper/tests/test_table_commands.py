@@ -423,21 +423,21 @@ class TestTableCommands(object):
         try:
             for _ in xrange(5):
                 tx = yt.start_transaction(timeout=10000)
-                yt.config.TRANSACTION = tx
+                yt.config.COMMAND_PARAMS["transaction_id"] = tx
                 yt.lock(table, mode="shared")
-            yt.config.TRANSACTION = "0-0-0-0"
+            yt.config.COMMAND_PARAMS["transaction_id"] = "0-0-0-0"
             assert len(yt.get_attribute(table, "locks")) == 5
             _remove_locks(table)
             assert yt.get_attribute(table, "locks") == []
 
             tx = yt.start_transaction(timeout=10000)
-            yt.config.TRANSACTION = tx
+            yt.config.COMMAND_PARAMS["transaction_id"] = tx
             yt.lock(table)
-            yt.config.TRANSACTION = "0-0-0-0"
+            yt.config.COMMAND_PARAMS["transaction_id"] = "0-0-0-0"
             _remove_locks(table)
             assert yt.get_attribute(table, "locks") == []
         finally:
-            yt.config.TRANSACTION = "0-0-0-0"
+            yt.config.COMMAND_PARAMS["transaction_id"] = "0-0-0-0"
 
     def _set_banned(self, value):
         # NB: we cannot unban proxy using proxy, so we must using client for that.

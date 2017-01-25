@@ -271,22 +271,22 @@ def _prepare_read_table_from_yt_command(yt_client, src, format, tmp_dir, fastbon
                                         token_file=None):
     if len(yt.TablePath(src, client=yt_client).attributes.get("ranges", [])) > 1:
         raise yt.YtError("Reading slices from table with multiple ranges is not supported")
-    assert yt_client.TRANSACTION is not None
+    assert yt_client.COMMAND_PARAMS["transaction_id"] is not None
     builder = _prepare_read_builder("python read_from_yt.py", tmp_dir, fastbone, pack, token_file)
     command, files = builder \
         .add_string_argument("--proxy", yt_client.config["proxy"]["url"]) \
         .add_string_argument("--format", shellquote(format)) \
         .add_string_argument("--table", shellquote(src)) \
         .add_string_argument("--input-type", input_type) \
-        .add_string_argument("--tx", yt_client.TRANSACTION) \
+        .add_string_argument("--tx", yt_client.COMMAND_PARAMS["transaction_id"]) \
         .add_file(os.path.abspath(os.path.join(os.path.dirname(__file__), "read_from_yt.py"))) \
         .build()
     return command, files
 
 def _prepare_read_file_from_yt_command(destination_client, source_client, src, temp_files_dir, tmp_dir, fastbone,
                                        pack=False, token_file=None, erasure_codec=None, compression_codec=None):
-    assert source_client.TRANSACTION is not None
-    assert destination_client.TRANSACTION is not None
+    assert source_client.COMMAND_PARAMS["transaction_id"] is not None
+    assert destination_client.COMMAND_PARAMS["transaction_id"] is not None
     builder = _prepare_read_builder("python read_file_from_yt.py", tmp_dir, fastbone, pack, token_file)
     command, files = builder \
         .add_string_argument("--source-proxy", source_client.config["proxy"]["url"]) \
@@ -295,8 +295,8 @@ def _prepare_read_file_from_yt_command(destination_client, source_client, src, t
         .add_string_argument("--tmp-dir", temp_files_dir) \
         .add_string_argument("--erasure-codec", erasure_codec) \
         .add_string_argument("--compression-codec", compression_codec) \
-        .add_string_argument("--src-tx", source_client.TRANSACTION) \
-        .add_string_argument("--dst-tx", destination_client.TRANSACTION) \
+        .add_string_argument("--src-tx", source_client.COMMAND_PARAMS["transaction_id"]) \
+        .add_string_argument("--dst-tx", destination_client.COMMAND_PARAMS["transaction_id"]) \
         .add_file(os.path.abspath(os.path.join(os.path.dirname(__file__), "read_file_from_yt.py"))) \
         .build()
     return command, files
@@ -536,7 +536,7 @@ def copy_file_yt_to_yt(source_client, destination_client, src, dst, fastbone, to
 
             if temp_files_dir is None:
                 temp_files_dir = ypath_join(destination_client.config["remote_temp_files_directory"],
-                                            destination_client.TRANSACTION)
+                                            destination_client.COMMAND_PARAMS["transaction_id"])
             if not destination_client.exists(temp_files_dir):
                 destination_client.mkdir(temp_files_dir, recursive=True)
 

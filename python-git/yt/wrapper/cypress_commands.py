@@ -1,5 +1,5 @@
 from . import yson
-from .config import get_config, get_option
+from .config import get_config, get_option, get_command_param
 from .common import parse_bool, flatten, get_value, bool_to_string, YtError, set_param
 from .errors import YtResponseError
 from .transaction_commands import _make_transactional_request, \
@@ -488,5 +488,5 @@ def create_revision_parameter(path, transaction_id=None, revision=None, client=N
     if revision is None:
         revision = get_attribute(path, "revision")
     if transaction_id is None:
-        transaction_id = get_option("TRANSACTION", client)
+        transaction_id = get_command_param("transaction_id", client)
     return {"path": path, "transaction_id": transaction_id, "revision": revision}
