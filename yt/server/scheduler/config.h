@@ -86,6 +86,9 @@ public:
     //! in operation spec. Used only for testing purposes.
     bool EnableFailControllerSpecOption;
 
+    //! To investigate CPU load of node shard threads.
+    bool EnableSchedulingTags;
+
     TFairShareStrategyConfig()
     {
         RegisterParameter("min_share_preemption_timeout", MinSharePreemptionTimeout)
@@ -176,6 +179,9 @@ public:
 
         RegisterParameter("enable_fail_controller_spec_option", EnableFailControllerSpecOption)
             .Default(false);
+
+        RegisterParameter("enable_scheduling_tags", EnableSchedulingTags)
+            .Default(true);
 
         RegisterValidator([&] () {
             if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
@@ -545,6 +551,8 @@ public:
 
     TDuration OperationTimeLimitCheckPeriod;
 
+    TDuration OperationBuildProgressPeriod;
+
     TDuration TaskUpdatePeriod;
 
     //! Jobs running on node are logged periodically or when they change their state.
@@ -779,6 +787,9 @@ public:
 
         RegisterParameter("operation_time_limit_check_period", OperationTimeLimitCheckPeriod)
             .Default(TDuration::Seconds(1));
+
+        RegisterParameter("operation_build_progress_period", OperationBuildProgressPeriod)
+            .Default(TDuration::Seconds(3));
 
         RegisterParameter("jobs_logging_period", JobsLoggingPeriod)
             .Default(TDuration::Seconds(30));

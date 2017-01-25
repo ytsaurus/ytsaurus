@@ -31,15 +31,23 @@ def get_depth_pygit2(path, sha1):
     cache = copy.copy(_seeds)
 
     def _impl(commit):
-        key = str(commit.id)
-        if key not in cache:
-            parents = commit.parents
-            if len(parents) == 0:
-                value = 0
+        stack = [(commit, None, False)]
+        while stack:
+            commit, child, calculated = stack.pop()
+            if commit.id in cache:
+                calculated = True
+            if calculated:
+                if child is not None:
+                    cache[child.id] = max(cache.get(child.id, 0), cache[commit.id] + 1)
             else:
-                value = max(_impl(parent) for parent in commit.parents)
-            cache[key] = 1 + value
-        return cache[key]
+                stack.append((commit, child, True))
+                parents = commit.parents
+                if not parents:
+                    cache[commit.id] = 0
+                else:
+                    for parent in parents:
+                        stack.append((parent, commit, False))
+        return cache[commit.id]
 
     repo = pygit2.Repository(pygit2.discover_repository(path))
     head = repo.get(sha1)
@@ -58,13 +66,22 @@ def get_depth_subprocess(path):
             graph[values[0]] = values[1:]
 
     def _impl(commit):
-        if commit not in cache:
-            parents = graph.get(commit, None)
-            if not parents:
-                depth = 0
+        stack = [(commit, None, False)]
+        while stack:
+            commit, child, calculated = stack.pop()
+            if commit in cache:
+                calculated = True
+            if calculated:
+                if child is not None:
+                    cache[child] = max(cache.get(child, 0), cache[commit] + 1)
             else:
-                depth = max(_impl(parent) for parent in parents)
-            cache[commit] = 1 + depth
+                stack.append((commit, child, True))
+                parents = graph.get(commit, None)
+                if not parents:
+                    cache[commit] = 0
+                else:
+                    for parent in parents:
+                        stack.append((parent, commit, False))
         return cache[commit]
 
     head = subprocess.check_output(["git", "rev-parse", "HEAD"]).strip()

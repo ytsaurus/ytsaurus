@@ -597,7 +597,7 @@ void TCompositeSchedulerElement::PrescheduleJob(TFairShareContext& context, bool
         return;
     }
 
-    if (!context.SchedulingContext->CanSchedule(GetNodeTag())) {
+    if (StrategyConfig_->EnableSchedulingTags && !context.SchedulingContext->CanSchedule(GetNodeTag())) {
         attributes.Active = false;
         return;
     }
@@ -1547,7 +1547,7 @@ void TOperationElement::PrescheduleJob(TFairShareContext& context, bool starving
         return;
     }
 
-    if (!context.SchedulingContext->CanSchedule(GetNodeTag())) {
+    if (StrategyConfig_->EnableSchedulingTags && !context.SchedulingContext->CanSchedule(GetNodeTag())) {
         attributes.Active = false;
         return;
     }

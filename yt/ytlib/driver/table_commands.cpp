@@ -19,6 +19,8 @@
 #include <yt/ytlib/formats/config.h>
 #include <yt/ytlib/formats/parser.h>
 
+#include <yt/core/misc/finally.h>
+
 namespace NYT {
 namespace NDriver {
 
@@ -36,12 +38,10 @@ using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = DriverLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TReadTableCommand::Execute(ICommandContextPtr context)
 {
+    LOG_DEBUG("Executing \"read_table\" command (Path: %v)", Path);
+
     Options.Ping = true;
 
     // COMPAT(babenko): remove Request_->TableReader
@@ -76,6 +76,16 @@ void TReadTableCommand::Execute(ICommandContextPtr context)
         false,
         ControlAttributes,
         0);
+
+    auto finally = Finally([=] () {
+        auto dataStatistics = reader->GetDataStatistics();
+
+        LOG_DEBUG("Command \"read_table\" statistics (RowCount: %v, WrittenSize: %v, ReadUncompressedDataSize: %v, ReadCompressedDataSize: %v)",
+            dataStatistics.row_count(),
+            writer->GetWrittenSize(),
+            dataStatistics.uncompressed_data_size(),
+            dataStatistics.compressed_data_size());
+    });
 
     PipeReaderToWriter(
         reader,

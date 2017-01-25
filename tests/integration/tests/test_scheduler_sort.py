@@ -372,6 +372,37 @@ class TestSchedulerSortCommands(YTEnvSetup):
                 out="//tmp/output_strict",
                 sort_by="key")
 
+    def test_unique_keys_inference(self):
+        schema_in = make_schema([
+                {"name": "key1", "type": "string", "sort_order": "ascending"},
+                {"name": "key2", "type": "string", "sort_order": "ascending"},
+                {"name": "key3", "type": "string"}],
+            strict = True,
+            unique_keys = True)
+
+        create("table", "//tmp/t_in", attributes={"schema": schema_in})
+        create("table", "//tmp/t_out")
+        row1 = {"key1" : "a", "key2": "b", "key3": "c"}
+        row2 = {"key1" : "b", "key2": "a", "key3": "d"}
+        write_table("//tmp/t_in", [row1, row2])
+
+        def _do(out_table, sort_by, unique_keys, result):
+            sort(in_="//tmp/t_in",
+                 out=out_table,
+                 sort_by=sort_by,
+                 spec={"schema_inference_mode": "from_input"})
+
+            assert get(out_table + "/@sorted_by") == sort_by
+            assert get(out_table + "/@schema/@strict")
+            assert get(out_table + "/@schema/@unique_keys") == unique_keys
+            assert read_table(out_table) == result
+
+        _do("//tmp/t_out", ["key2", "key1"], True, [row2, row1])
+        _do("//tmp/t_out", ["key2"], False, [row2, row1])
+        _do("//tmp/t_out", ["key3", "key2", "key1"], True, [row1, row2])
+        _do("//tmp/t_out", ["key3", "key1"], False, [row1, row2])
+        _do("//tmp/t_in", ["key2", "key1"], True, [row2, row1])
+
     def test_schema_validation(self):
         create("table", "//tmp/input")
         create("table", "//tmp/output", attributes={"schema":

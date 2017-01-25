@@ -192,17 +192,7 @@ void Serialize(const Py::Object& obj, IYsonConsumer* consumer, const TNullable<S
         consumer->OnBooleanScalar(Py::Boolean(obj));
     } else if (Py::IsInteger(obj)) {
         SerializePythonInteger(obj, consumer);
-    } else if (obj.isSequence()) {
-        const auto& objList = Py::Sequence(obj);
-        consumer->OnBeginList();
-        for (auto it = objList.begin(); it != objList.end(); ++it) {
-            consumer->OnListItem();
-            Serialize(*it, consumer, encoding, ignoreInnerAttributes, ysonType, depth + 1);
-        }
-        consumer->OnEndList();
-    // NOTE: This check should be after isSequence() because isMapping() in Python 3
-    // returns true for lists. See https://bugs.python.org/issue5945
-    } else if (obj.isMapping()) {
+    } else if (obj.isMapping() && obj.hasAttr("items")) {
         bool allowBeginEnd =  depth > 0 || ysonType != NYson::EYsonType::MapFragment;
         if (allowBeginEnd) {
             consumer->OnBeginMap();
@@ -211,6 +201,14 @@ void Serialize(const Py::Object& obj, IYsonConsumer* consumer, const TNullable<S
         if (allowBeginEnd) {
             consumer->OnEndMap();
         }
+    } else if (obj.isSequence()) {
+        const auto& objList = Py::Sequence(obj);
+        consumer->OnBeginList();
+        for (auto it = objList.begin(); it != objList.end(); ++it) {
+            consumer->OnListItem();
+            Serialize(*it, consumer, encoding, ignoreInnerAttributes, ysonType, depth + 1);
+        }
+        consumer->OnEndList();
     } else if (Py::IsFloat(obj)) {
         consumer->OnDoubleScalar(Py::Float(obj));
     } else if (obj.isNone() || IsInstance(obj, YsonEntityClass)) {

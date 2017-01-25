@@ -67,6 +67,8 @@ struct ISchemalessFormatWriter
     : public NTableClient::ISchemalessWriter
 {
     virtual TBlob GetContext() const = 0;
+
+    virtual i64 GetWrittenSize() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchemalessFormatWriter)
