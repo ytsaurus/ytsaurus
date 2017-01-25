@@ -167,6 +167,7 @@ public:
             Bootstrap_->GetCypressManager(),
             Bootstrap_->GetTransactionManager(),
             Bootstrap_->GetObjectManager(),
+            Bootstrap_->GetSecurityManager(),
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::CypressTraverser),
             RootNode_->GetTrunkNode(),
             RootNode_->GetTransaction(),
