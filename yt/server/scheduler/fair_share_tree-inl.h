@@ -20,6 +20,11 @@ inline void TSchedulerElementSharedState::SetAlive(bool alive)
 
 ////////////////////////////////////////////////////////////////////
 
+inline int TSchedulerElement::GetTreeIndex() const
+{
+    return TreeIndex_;
+}
+
 inline bool TSchedulerElement::IsAlive() const
 {
     return SharedState_->GetAlive();
