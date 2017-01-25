@@ -190,7 +190,7 @@ def list(path, max_size=None, format=None, absolute=None, attributes=None, sort=
 
     .. seealso:: `list on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#list>`_
     """
-    if format is not None and absolute is not None:
+    if format is not None and absolute:
         raise YtError("Option 'absolute' is supported only for non-specified format")
 
     def join(elem):
