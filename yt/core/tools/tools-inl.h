@@ -68,7 +68,7 @@ TResult RunTool(
             << ex;
     }
 
-    THROW_ERROR_EXCEPTION_IF_FAILED(resultOrError, "Error occured during tool run");
+    THROW_ERROR_EXCEPTION_IF_FAILED(resultOrError, "Error occurred during tool run");
 
     return NDetail::TExtractValueHelper<TResult>::Extract(resultOrError);
 }

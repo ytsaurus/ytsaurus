@@ -101,7 +101,7 @@ YtAuthentication.prototype.dispatch = function(req, rsp, next, prev)
     function(err) {
         var error = YtError.ensureWrapped(err);
         // XXX(sandello): Embed.
-        logger.info("An error occured during authentication", {
+        logger.info("An error occurred during authentication", {
             error: error.toJson()
         });
         utils.dispatchLater(rsp, 60, "Authentication is currently unavailable");
