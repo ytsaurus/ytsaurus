@@ -6,6 +6,8 @@
 
 #include <yt/server/object_server/public.h>
 
+#include <yt/server/security_server/public.h>
+
 #include <yt/server/cell_master/public.h>
 
 #include <yt/core/misc/error.h>
@@ -31,6 +33,7 @@ void TraverseCypress(
     TCypressManagerPtr cypressManager,
     NTransactionServer::TTransactionManagerPtr transactionManager,
     NObjectServer::TObjectManagerPtr objectManager,
+    NSecurityServer::TSecurityManagerPtr securityManager,
     IInvokerPtr invoker,
     TCypressNodeBase* trunkRootNode,
     NTransactionServer::TTransaction* transaction,

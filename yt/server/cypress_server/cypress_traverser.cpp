@@ -8,9 +8,14 @@
 
 #include <yt/server/object_server/object_manager.h>
 
+#include <yt/server/security_server/security_manager.h>
+#include <yt/server/security_server/user.h>
+
 #include <yt/core/ytree/public.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
+
+#include <yt/core/profiling/scoped_timer.h>
 
 namespace NYT {
 namespace NCypressServer {
@@ -18,6 +23,7 @@ namespace NCypressServer {
 using namespace NYTree;
 using namespace NTransactionServer;
 using namespace NObjectServer;
+using namespace NSecurityServer;
 using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,6 +40,7 @@ public:
         TCypressManagerPtr cypressManager,
         TTransactionManagerPtr transactionManager,
         TObjectManagerPtr objectManager,
+        TSecurityManagerPtr securityManager,
         IInvokerPtr invoker,
         ICypressNodeVisitorPtr visitor,
         TCypressNodeBase* trunkRootNode,
@@ -41,9 +48,11 @@ public:
         : CypressManager_(std::move(cypressManager))
         , TransactionManager_(std::move(transactionManager))
         , ObjectManager_(std::move(objectManager))
+        , SecurityManager_(std::move(securityManager))
         , Invoker_(std::move(invoker))
         , Visitor_(std::move(visitor))
         , Transaction_(transaction)
+        , UserName_(SecurityManager_->GetAuthenticatedUser()->GetName())
     {
         VERIFY_THREAD_AFFINITY(Automaton);
 
@@ -64,9 +73,13 @@ private:
     const TCypressManagerPtr CypressManager_;
     const TTransactionManagerPtr TransactionManager_;
     const TObjectManagerPtr ObjectManager_;
+    const TSecurityManagerPtr SecurityManager_;
     const IInvokerPtr Invoker_;
     const ICypressNodeVisitorPtr Visitor_;
     TTransaction* const Transaction_;
+    const Stroka UserName_;
+
+    TDuration TotalTime_;
 
     DECLARE_THREAD_AFFINITY_SLOT(Automaton);
 
@@ -131,24 +144,27 @@ private:
                     Transaction_->GetId());
             }
 
-            int currentNodeCount = 0;
-            while (currentNodeCount < MaxNodesPerIteration && !Stack_.empty()) {
-                auto& entry = Stack_.back();
-                auto childIndex = entry.ChildIndex++;
-                if (childIndex < 0) {
-                    if (IsObjectAlive(entry.TrunkNode)) {
-                        Visitor_->OnNode(entry.TrunkNode, Transaction_);
+            {
+                NProfiling::TAggregatingTimingGuard timingGuard(&TotalTime_);
+                int currentNodeCount = 0;
+                while (currentNodeCount < MaxNodesPerIteration && !Stack_.empty()) {
+                    auto& entry = Stack_.back();
+                    auto childIndex = entry.ChildIndex++;
+                    if (childIndex < 0) {
+                        if (IsObjectAlive(entry.TrunkNode)) {
+                            Visitor_->OnNode(entry.TrunkNode, Transaction_);
+                        }
+                        ++currentNodeCount;
+                    } else if (childIndex < entry.TrunkChildren.size()) {
+                        auto* child = entry.TrunkChildren[childIndex];
+                        if (IsObjectAlive(child)) {
+                            PushEntry(child);
+                        }
+                        ++currentNodeCount;
+                    } else {
+                        ReleaseEntry(entry);
+                        Stack_.pop_back();
                     }
-                    ++currentNodeCount;
-                } else if (childIndex < entry.TrunkChildren.size()) {
-                    auto* child = entry.TrunkChildren[childIndex];
-                    if (IsObjectAlive(child)) {
-                        PushEntry(child);
-                    }
-                    ++currentNodeCount;
-                } else {
-                    ReleaseEntry(entry);
-                    Stack_.pop_back();
                 }
             }
 
@@ -172,6 +188,12 @@ private:
         if (Transaction_) {
             ObjectManager_->WeakUnrefObject(Transaction_);
         }
+
+        auto* user = SecurityManager_->FindUserByName(UserName_);
+        if (IsObjectAlive(user)) {
+            SecurityManager_->ChargeUserRead(user, 1, TotalTime_);
+        }
+
         while (!Stack_.empty()) {
             ReleaseEntry(Stack_.back());
             Stack_.pop_back();
@@ -185,6 +207,7 @@ void TraverseCypress(
     TCypressManagerPtr cypressManager,
     TTransactionManagerPtr transactionManager,
     TObjectManagerPtr objectManager,
+    TSecurityManagerPtr securityManager,
     IInvokerPtr invoker,
     TCypressNodeBase* trunkRootNode,
     TTransaction* transaction,
@@ -196,6 +219,7 @@ void TraverseCypress(
         std::move(cypressManager),
         std::move(transactionManager),
         std::move(objectManager),
+        std::move(securityManager),
         std::move(invoker),
         std::move(visitor),
         trunkRootNode,
