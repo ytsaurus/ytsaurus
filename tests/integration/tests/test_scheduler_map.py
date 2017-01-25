@@ -797,7 +797,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
             spec={"max_failed_job_count": 1, "job_node_account": "test_account"})
         check_all_stderrs(op, "stderr\n", 1)
 
-
         multicell_sleep()
         resource_usage = get("//sys/accounts/test_account/@resource_usage")
         assert resource_usage["node_count"] >= 2
