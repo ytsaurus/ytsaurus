@@ -2,6 +2,7 @@ from __future__ import print_function
 
 from .configs_provider import init_logging, get_default_provision, create_configs_provider
 from .helpers import read_config, write_config, is_dead_or_zombie, OpenPortIterator
+from .porto_helpers import PortoSubprocess, porto_avaliable
 
 from yt.common import YtError, remove_file, makedirp, set_pdeathsig, which, to_native_str
 from yt.wrapper.common import generate_uuid
@@ -129,8 +130,11 @@ class YTInstance(object):
                  enable_debug_logging=True, preserve_working_dir=False, tmpfs_path=None,
                  port_locks_path=None, port_range_start=None, fqdn=None, jobs_memory_limit=None,
                  jobs_cpu_limit=None, jobs_user_slot_count=None, node_memory_limit_addition=None,
-                 modify_configs_func=None, kill_child_processes=False):
+                 modify_configs_func=None, kill_child_processes=False, use_porto_for_servers=False):
         _configure_logger()
+
+        self._subprocess_module = PortoSubprocess if use_porto_for_servers and porto_avaliable() else subprocess
+        self._use_porto_for_servers = use_porto_for_servers
 
         self._binaries = _which_yt_binaries()
         if "ytserver" in self._binaries:
@@ -230,7 +234,7 @@ class YTInstance(object):
         return _get_cgroup_path(cgroup_type, "yt", self._uuid, *args)
 
     def _prepare_cgroups(self):
-        if _has_cgroups():
+        if not self._use_porto_for_servers and _has_cgroups():
             for cgroup_type in CGROUP_TYPES:
                 cgroup_path = self._get_cgroup_path(cgroup_type)
                 makedirp(cgroup_path)
@@ -390,7 +394,7 @@ class YTInstance(object):
                                                                  self.config_paths["proxy"], "port"))
 
     def kill_cgroups(self):
-        if not _has_cgroups():
+        if self._use_porto_for_servers or not _has_cgroups():
             return
 
         with self._lock:
@@ -446,6 +450,8 @@ class YTInstance(object):
             logger.info("Killing %s", name)
             for p in self._process_to_kill[name]:
                 self._kill_process(p, name)
+                if isinstance(p, PortoSubprocess):
+                    p.destroy()
                 del self._all_processes[p.pid]
             del self._process_to_kill[name]
 
@@ -531,8 +537,8 @@ class YTInstance(object):
                         handle.write(str(os.getpid()))
                         handle.write("\n")
 
-            p = subprocess.Popen(args, shell=False, close_fds=True, preexec_fn=preexec, cwd=self.runtime_data_path,
-                                 stdout=stdout, stderr=stderr)
+            p = self._subprocess_module.Popen(args, shell=False, close_fds=True, preexec_fn=preexec, cwd=self.runtime_data_path,
+                                              stdout=stdout, stderr=stderr)
 
             time.sleep(timeout)
             if p.poll():
@@ -573,7 +579,7 @@ class YTInstance(object):
                 raise YtError("Unsupported YT ABI version {0}".format(self.abi_version))
             args.extend(["--config", self.config_paths[name][i]])
             cgroup_paths = None
-            if _has_cgroups():
+            if not self._use_porto_for_servers and _has_cgroups():
                 cgroup_paths = []
                 for cgroup_type in CGROUP_TYPES:
                     cgroup_path = self._get_cgroup_path(cgroup_type, "{0}-{1}".format(name, i))
