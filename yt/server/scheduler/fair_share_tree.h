@@ -110,6 +110,9 @@ private:
     TJobResources ResourceUsage_;
     NConcurrency::TReaderWriterSpinLock ResourceUsageLock_;
 
+    // NB: Avoid false sharing between ResourceUsageLock_ and others.
+    char Padding[64];
+
     std::atomic<bool> Alive_ = {true};
 
 };
