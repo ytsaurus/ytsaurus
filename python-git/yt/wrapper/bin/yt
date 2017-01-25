@@ -421,6 +421,11 @@ def get(**args):
 def add_get_parser(add_parser):
     parser = add_parser("get", get)
     add_ypath_argument(parser, "path", hybrid=True)
+    parser.add_argument("--max-size", type=int,
+                        help=("maximum size of entries returned by get; "
+                              "if actual directory size exceeds that value only subset "
+                              "of entries will be listed (it's not specified which subset); "
+                              "default value is enough to list any nonsystem directory."))
     parser.add_argument("--ignore-opaque", action="store_true")
     add_structured_format_argument(parser, default=output_format)
     parser.add_argument("--attribute", action="append", dest="attributes", help="desired node attributes in the response")

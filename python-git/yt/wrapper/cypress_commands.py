@@ -28,7 +28,7 @@ class _KwargSentinelClass(object):
         return cls.__instance
 _KWARG_SENTINEL = _KwargSentinelClass()
 
-def get(path, attributes=None, format=None, ignore_opaque=False, read_from=None, client=None):
+def get(path, max_size=None, attributes=None, format=None, ignore_opaque=False, read_from=None, client=None):
     """Gets Cypress node content (attribute tree).
 
     :param path: path to tree, it must exist!
@@ -43,9 +43,13 @@ def get(path, attributes=None, format=None, ignore_opaque=False, read_from=None,
 
     .. seealso:: `get on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#get>`_
     """
+    if max_size is None:
+        max_size = 65535
+
     params = {
         "path": YPath(path, client=client),
-        "ignore_opaque": bool_to_string(ignore_opaque)}
+        "ignore_opaque": bool_to_string(ignore_opaque),
+        "max_size": max_size}
     set_param(params, "attributes", attributes)
     set_param(params, "read_from", read_from)
     return _make_formatted_transactional_request(
