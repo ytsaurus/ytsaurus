@@ -53,7 +53,7 @@ public:
         TNullable<Stroka> udfDirectory);
 
     //! Returns closure that launches data transfer to given async output.
-    TCallback<TFuture<void>()> PrepareJobInputTransfer(const NConcurrency::IAsyncClosableOutputStreamPtr& asyncOutput);
+    TCallback<TFuture<void>()> PrepareJobInputTransfer(const NConcurrency::IAsyncOutputStreamPtr& asyncOutput);
 
     double GetProgress() const;
     TFuture<std::vector<TBlob>> GetInputContext() const;
@@ -65,12 +65,12 @@ public:
 private:
     TCallback<TFuture<void>()> PrepareInputActionsPassthrough(
         const NFormats::TFormat& format,
-        const NConcurrency::IAsyncClosableOutputStreamPtr& asyncOutput);
+        const NConcurrency::IAsyncOutputStreamPtr& asyncOutput);
 
     TCallback<TFuture<void>()> PrepareInputActionsQuery(
         const NScheduler::NProto::TQuerySpec& querySpec,
         const NFormats::TFormat& format,
-        const NConcurrency::IAsyncClosableOutputStreamPtr& asyncOutput);
+        const NConcurrency::IAsyncOutputStreamPtr& asyncOutput);
 
     void InitializeReader();
     void InitializeReader(NTableClient::TNameTablePtr nameTable, const NTableClient::TColumnFilter& columnFilter);

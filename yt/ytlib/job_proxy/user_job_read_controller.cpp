@@ -49,7 +49,7 @@ TUserJobReadController::TUserJobReadController(
     , UdfDirectory_(std::move(udfDirectory))
 { }
 
-TCallback<TFuture<void>()> TUserJobReadController::PrepareJobInputTransfer(const IAsyncClosableOutputStreamPtr& asyncOutput)
+TCallback<TFuture<void>()> TUserJobReadController::PrepareJobInputTransfer(const IAsyncOutputStreamPtr& asyncOutput)
 {
     auto finally = Finally([=] {
         Initialized_ = true;
@@ -68,7 +68,7 @@ TCallback<TFuture<void>()> TUserJobReadController::PrepareJobInputTransfer(const
 
 TCallback<TFuture<void>()> TUserJobReadController::PrepareInputActionsPassthrough(
     const NFormats::TFormat& format,
-    const IAsyncClosableOutputStreamPtr& asyncOutput)
+    const IAsyncOutputStreamPtr& asyncOutput)
 {
     InitializeReader();
 
@@ -97,7 +97,7 @@ TCallback<TFuture<void>()> TUserJobReadController::PrepareInputActionsPassthroug
 TCallback<TFuture<void>()> TUserJobReadController::PrepareInputActionsQuery(
     const NScheduler::NProto::TQuerySpec& querySpec,
     const NFormats::TFormat& format,
-    const IAsyncClosableOutputStreamPtr& asyncOutput)
+    const IAsyncOutputStreamPtr& asyncOutput)
 {
     if (JobSpecHelper_->GetJobIOConfig()->ControlAttributes->EnableKeySwitch) {
         THROW_ERROR_EXCEPTION("enable_key_switch is not supported when query is set");
