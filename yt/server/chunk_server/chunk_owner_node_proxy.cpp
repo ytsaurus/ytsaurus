@@ -3,7 +3,7 @@
 #include "chunk.h"
 #include "chunk_list.h"
 #include "chunk_manager.h"
-#include "chunk_tree_traversing.h"
+#include "chunk_tree_traverser.h"
 #include "config.h"
 #include "helpers.h"
 #include "medium.h"

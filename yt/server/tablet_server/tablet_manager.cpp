@@ -19,7 +19,7 @@
 
 #include <yt/server/chunk_server/chunk_list.h>
 #include <yt/server/chunk_server/chunk_manager.h>
-#include <yt/server/chunk_server/chunk_tree_traversing.h>
+#include <yt/server/chunk_server/chunk_tree_traverser.h>
 
 #include <yt/server/cypress_server/cypress_manager.h>
 
