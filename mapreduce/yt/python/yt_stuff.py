@@ -6,6 +6,7 @@ import sys
 import tempfile
 import time
 import uuid
+import signal
 
 import yt_version
 
@@ -264,6 +265,12 @@ class YtStuff(object):
                 self.yt_proxy_port = int(info["proxy"]["address"].split(":")[1])
         except Exception, e:
             self._log("Failed to start local YT:\n%s", str(e))
+            pids_file = os.path.join(self.yt_work_dir, self.yt_id, "pids.txt")
+            if os.path.exists(pids_file):
+                with open(pids_file) as f:
+                    for line in f.readlines():
+                        if line.strip():
+                            os.kill(int(line), signal.SIGKILL)
             return False
         self.yt_wrapper.config["proxy"]["url"] = self.get_server()
         self.yt_wrapper.config["proxy"]["enable_proxy_discovery"] = False
