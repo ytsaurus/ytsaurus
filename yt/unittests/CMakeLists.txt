@@ -10,6 +10,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/any_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/any_column_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/async_rw_lock_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/async_stream_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/async_stream_pipe_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/async_yson_writer_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/attributes_ut.cpp
