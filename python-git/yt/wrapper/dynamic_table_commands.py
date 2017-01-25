@@ -1,7 +1,7 @@
 from .driver import make_request
 from .table_helpers import _prepare_format, _to_chunk_stream
 from .common import set_param, bool_to_string
-from .config import get_config, get_option
+from .config import get_config, get_option, get_command_param
 from .transaction_commands import _make_transactional_request
 from .ypath import TablePath
 from .http_helpers import get_retriable_errors
@@ -128,7 +128,7 @@ def insert_rows(table, input_stream, update=None, aggregate=None, atomicity=None
 
     retry_config = deepcopy(get_config(client)["write_retries"])
     retry_config["enable"] = retry_config["enable"] and \
-        not aggregate and get_option("TRANSACTION", client) == null_transaction_id
+        not aggregate and get_command_param("transaction_id", client) == null_transaction_id
 
     DynamicTableRequestRetrier(
         retry_config,
@@ -166,7 +166,7 @@ def delete_rows(table, input_stream, atomicity=None, durability=None, format=Non
 
     retry_config = deepcopy(get_config(client)["write_retries"])
     retry_config["enable"] = retry_config["enable"] and \
-        get_option("TRANSACTION", client) == null_transaction_id
+        get_command_param("transaction_id", client) == null_transaction_id
 
     DynamicTableRequestRetrier(
         retry_config,

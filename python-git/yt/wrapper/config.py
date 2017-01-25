@@ -118,7 +118,6 @@ class Config(types.ModuleType, client_state.ClientState):
     def _init(self):
         self.client_state_module.ClientState.__init__(self)
         self.config = self.default_config_module.get_default_config()
-        self._env_configurable_options = ["TRACE", "TRANSACTION", "PING_ANCESTOR_TRANSACTIONS"]
 
     def _update_from_env(self):
         import os
@@ -216,9 +215,10 @@ class Config(types.ModuleType, client_state.ClientState):
                 self._set(name, apply_type(var_type, key, value))
             elif key == "TRACE":
                 self.COMMAND_PARAMS["trace"] = common.bool_to_string(bool(value))
-            elif key in self._env_configurable_options:
-                var_type = get_var_type(self.__dict__[key])
-                self.__dict__[key] = apply_type(var_type, key, value)
+            elif key == "TRANSACTION":
+                self.COMMAND_PARAMS["transaction_id"] = value
+            elif key == "PING_ANCESTOR_TRANSACTIONS":
+                self.COMMAND_PARAMS["ping_ancestor_transactions"] = bool(value)
             # Some shortcuts can't be backported one-to-one so they are processed manually
             elif key == "MERGE_INSTEAD_WARNING":
                 self._set("auto_merge_output/action", "merge" if int(value) else "log")
@@ -289,6 +289,15 @@ class Config(types.ModuleType, client_state.ClientState):
             client.__dict__[option] = value
         else:
             self.__dict__[option] = value
+
+    def get_command_param(self, param_name, client):
+        command_params = self.get_option("COMMAND_PARAMS", client)
+        return command_params.get(param_name)
+
+    def set_command_param(self, param_name, value, client):
+        command_params = self.get_option("COMMAND_PARAMS", client)
+        command_params[param_name] = value
+        self.set_option("COMMAND_PARAMS", command_params, client)
 
     def _reload(self, ignore_env):
         self._init()

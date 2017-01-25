@@ -1,23 +1,16 @@
-from .config import get_config, get_option
+from .config import get_config, get_command_param
 from .driver import make_request, make_formatted_request
 from .common import update, bool_to_string, get_value, get_started_by
 
-from copy import deepcopy
-
-def transaction_params(transaction=None, ping_ancestor_transactions=None, client=None):
-    transaction = get_value(transaction, get_option("TRANSACTION", client))
-    ping_ancestor_transactions = get_value(ping_ancestor_transactions, get_option("PING_ANCESTOR_TRANSACTIONS", client))
-    return {"ping_ancestor_transactions": bool_to_string(ping_ancestor_transactions),
-            "transaction_id": transaction}
-
-def _add_transaction_params(params, client=None):
-    return update(deepcopy(params), transaction_params(client=client))
+def transaction_params(transaction, client=None):
+    return {"ping_ancestor_transactions": get_command_param("ping_ancestor_transactions", client),
+            "transaction_id": get_value(transaction, get_command_param("transaction_id", client))}
 
 def _make_transactional_request(command_name, params, **kwargs):
-    return make_request(command_name, _add_transaction_params(params, kwargs.get("client", None)), **kwargs)
+    return make_request(command_name, params, **kwargs)
 
 def _make_formatted_transactional_request(command_name, params, format, **kwargs):
-    return make_formatted_request(command_name, _add_transaction_params(params, kwargs.get("client", None)), format, **kwargs)
+    return make_formatted_request(command_name, params, format, **kwargs)
 
 def start_transaction(parent_transaction=None, timeout=None, attributes=None, type="master", sticky=False, client=None):
     """Starts transaction.

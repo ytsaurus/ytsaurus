@@ -4,10 +4,11 @@ import random
 
 class ClientState(object):
     def __init__(self):
-        self.RETRY = None
-        self.TRANSACTION = "0-0-0-0"
-        self.COMMAND_PARAMS = {}
-        self.PING_ANCESTOR_TRANSACTIONS = False
+        self.COMMAND_PARAMS = {
+            "transaction_id": "0-0-0-0",
+            "ping_ancestor_transactions": False,
+            "retry": False
+        }
         self._ENABLE_READ_TABLE_CHAOS_MONKEY = False
         self._ENABLE_HTTP_CHAOS_MONKEY = False
         self._ENABLE_HEAVY_REQUEST_CHAOS_MONKEY = False
@@ -38,4 +39,3 @@ class ClientState(object):
         seed = random.SystemRandom().randint(0, 2**63)
         self._random_generator = random.random()
         self._random_generator.seed(seed)
-

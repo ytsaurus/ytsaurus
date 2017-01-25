@@ -1,4 +1,4 @@
-from .config import get_option, get_config, get_total_request_timeout, get_request_retry_count
+from .config import get_option, get_config, get_total_request_timeout, get_request_retry_count, get_command_param
 from .common import chunk_iter_blobs, YtError, update, remove_nones_from_dict, \
                     get_value
 from .retries import Retrier, IteratorRetrier, build_backoff_config
@@ -112,7 +112,7 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
             for chunk in chunk_iter_blobs(stream, chunk_size):
                 assert isinstance(chunk, list)
                 logger.debug("Processing {0} chunk (length: {1}, transaction: {2})"
-                    .format(command_name, len(chunk), get_option("TRANSACTION", client)))
+                    .format(command_name, len(chunk), get_command_param("transaction_id", client)))
 
                 runner.run_write_action(chunk, params)
                 params["path"].append = True

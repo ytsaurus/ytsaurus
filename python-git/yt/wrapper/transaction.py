@@ -1,4 +1,5 @@
-from .config import get_option, set_option, get_config, get_total_request_timeout, get_request_retry_count
+from .config import get_option, set_option, get_config, get_total_request_timeout, \
+                    get_request_retry_count, get_command_param, set_command_param
 import yt.logger as logger
 from .common import get_value
 from .errors import YtResponseError, YtError, YtTransactionPingError
@@ -87,8 +88,8 @@ class Transaction(object):
         if get_option("_transaction_stack", self._client) is None:
             set_option("_transaction_stack", TransactionStack(), self._client)
         self._stack = get_option("_transaction_stack", self._client)
-        self._stack.init(get_option("TRANSACTION", self._client), get_option("PING_ANCESTOR_TRANSACTIONS", self._client))
-
+        self._stack.init(get_command_param("transaction_id", self._client),
+                         get_command_param("ping_ancestor_transactions", self._client))
         if self.transaction_id is None:
             self.transaction_id = start_transaction(timeout=timeout,
                                                     attributes=attributes,
@@ -157,8 +158,8 @@ class Transaction(object):
 
     def __enter__(self):
         self._stack.append(self.transaction_id, self._ping_ancestor_transactions)
-        set_option("TRANSACTION", self.transaction_id, self._client)
-        set_option("PING_ANCESTOR_TRANSACTIONS", self._ping_ancestor_transactions, self._client)
+        set_command_param("transaction_id", self.transaction_id, self._client)
+        set_command_param("ping_ancestor_transactions", self._ping_ancestor_transactions, self._client)
         self._used_with_statement = True
         return self
 
@@ -201,8 +202,8 @@ class Transaction(object):
             if get_config(self._client)["transaction_use_signal_if_ping_failed"]:
                 signal.signal(signal.SIGUSR1, self._old_sigusr_handler)
             transaction_id, ping_ancestor_transactions = self._stack.get()
-            set_option("TRANSACTION", transaction_id, self._client)
-            set_option("PING_ANCESTOR_TRANSACTIONS", ping_ancestor_transactions, self._client)
+            set_command_param("transaction_id", transaction_id, self._client)
+            set_command_param("ping_ancestor_transactions", ping_ancestor_transactions, self._client)
 
     def _stop_pinger(self):
         if self._ping:

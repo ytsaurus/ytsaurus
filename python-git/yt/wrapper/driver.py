@@ -55,8 +55,6 @@ def make_request(command_name,
         params = update(command_params, params)
 
     params = process_params(params)
-    if get_option("RETRY", client) is not None:
-        params["retry"] = bool_to_string(get_option("RETRY", client))
 
     enable_request_logging = get_config(client)["enable_request_logging"]
 

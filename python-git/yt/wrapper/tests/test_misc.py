@@ -98,9 +98,9 @@ class TestMutations(object):
         if post_action is not None:
             post_action()
         for _ in xrange(5):
-            yt.config.RETRY = True
+            yt.config.COMMAND_PARAMS["retry"] = True
             assert result == run_command()
-            yt.config.RETRY = None
+            yt.config.COMMAND_PARAMS["retry"] = False
             if check_action is not None:
                 assert check_action()
 
