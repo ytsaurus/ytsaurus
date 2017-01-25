@@ -308,13 +308,16 @@ struct IOperationController
     //! Returns |true| when controller can build it's progress.
     virtual bool HasProgress() const = 0;
 
+    /*!
+     *  \note Invoker affinity: Controller invoker
+     */
     //! Called to construct a YSON representing the current progress.
     virtual void BuildProgress(NYson::IYsonConsumer* consumer) const = 0;
 
     /*!
      *  \note Invoker affinity: Controller invoker
      */
-    //! Similar to #BuildProgress but constructs a reduced version to used by UI.
+    //! Similar to #BuildProgress but constructs a reduced version to be used by UI.
     virtual void BuildBriefProgress(NYson::IYsonConsumer* consumer) const = 0;
 
     /*!
@@ -339,6 +342,12 @@ struct IOperationController
     //! Start building YSON representaion of all input paths with all ranges processed
     //! by the job with specified ID.
     virtual NYson::TYsonString BuildInputPathYson(const TJobId& jobId) const = 0;
+
+    //! Called to get a cached YSON string representing the current progress.
+    virtual NYson::TYsonString GetProgress() const = 0;
+
+    //! Called to get a cached YSON string representing the current brief progress.
+    virtual NYson::TYsonString GetBriefProgress() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)

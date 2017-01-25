@@ -343,12 +343,15 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
         locationStatistics->set_used_space(location->GetUsedSpace());
         locationStatistics->set_chunk_count(location->GetChunkCount());
         locationStatistics->set_session_count(location->GetSessionCount());
-        locationStatistics->set_full(location->IsFull());
+        // XXX(babenko): workaround for YT-6359
+        locationStatistics->set_full(location->IsFull() || location->IsJournalsOnly());
         locationStatistics->set_enabled(location->IsEnabled());
 
         if (location->IsEnabled()) {
-            totalAvailableSpace += location->GetAvailableSpace();
-            totalLowWatermarkSpace += location->GetLowWatermarkSpace();
+            if (!location->IsJournalsOnly()) {
+                totalAvailableSpace += location->GetAvailableSpace();
+                totalLowWatermarkSpace += location->GetLowWatermarkSpace();
+            }
             full &= location->IsFull();
         }
 

@@ -1045,6 +1045,10 @@ TOperationControllerBase::TOperationControllerBase(
     , EventLogValueConsumer_(Host->CreateLogConsumer())
     , EventLogTableConsumer_(new TTableConsumer(EventLogValueConsumer_.get()))
     , CodicilData_(MakeOperationCodicilString(OperationId))
+    , ProgressBuildExecutor_(New<TPeriodicExecutor>(
+        GetCancelableInvoker(),
+        BIND(&TThis::BuildAndSaveProgress, MakeWeak(this)),
+        Config->OperationBuildProgressPeriod))
 {
     Logger.AddTag("OperationId: %v", OperationId);
 }
@@ -1386,6 +1390,7 @@ void TOperationControllerBase::SafeMaterialize()
         InitIntermediateChunkScraper();
 
         CheckTimeLimitExecutor->Start();
+        ProgressBuildExecutor_->Start();
 
         State = EControllerState::Running;
     } catch (const std::exception& ex) {
@@ -1435,6 +1440,7 @@ void TOperationControllerBase::Revive()
     ReinstallLivePreview();
 
     CheckTimeLimitExecutor->Start();
+    ProgressBuildExecutor_->Start();
 
     State = EControllerState::Running;
 }
@@ -3017,6 +3023,8 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
 
     State = EControllerState::Finished;
 
+    BuildAndSaveProgress();
+
     Host->OnOperationCompleted(OperationId);
 }
 
@@ -3030,6 +3038,8 @@ void TOperationControllerBase::OnOperationFailed(const TError& error)
     }
 
     State = EControllerState::Finished;
+
+    BuildAndSaveProgress();
 
     Host->OnOperationFailed(OperationId, error);
 }
@@ -3075,7 +3085,8 @@ void TOperationControllerBase::CreateLivePreviewTables()
         int replicationFactor,
         NCompression::ECodec compressionCodec,
         const Stroka& key,
-        const TYsonString& acl)
+        const TYsonString& acl,
+        TNullable<TTableSchema> schema)
     {
         auto req = TCypressYPathProxy::Create(path);
         req->set_type(static_cast<int>(EObjectType::Table));
@@ -3092,6 +3103,9 @@ void TOperationControllerBase::CreateLivePreviewTables()
         }
         attributes->Set("acl", acl);
         attributes->Set("inherit_acl", false);
+        if (schema) {
+            attributes->Set("schema", *schema);
+        }
         ToProto(req->mutable_node_attributes(), *attributes);
 
         batchReq->AddRequest(req, key);
@@ -3109,7 +3123,8 @@ void TOperationControllerBase::CreateLivePreviewTables()
                 table.Options->ReplicationFactor,
                 table.Options->CompressionCodec,
                 "create_output",
-                table.EffectiveAcl);
+                table.EffectiveAcl,
+                table.TableUploadOptions.TableSchema);
         }
     }
 
@@ -3122,7 +3137,8 @@ void TOperationControllerBase::CreateLivePreviewTables()
             StderrTable->Options->ReplicationFactor,
             StderrTable->Options->CompressionCodec,
             "create_stderr",
-            StderrTable->EffectiveAcl);
+            StderrTable->EffectiveAcl,
+            StderrTable->TableUploadOptions.TableSchema);
     }
 
     if (IsIntermediateLivePreviewSupported()) {
@@ -3135,7 +3151,8 @@ void TOperationControllerBase::CreateLivePreviewTables()
             1,
             Spec->IntermediateCompressionCodec,
             "create_intermediate",
-            ConvertToYsonString(Spec->IntermediateDataAcl));
+            ConvertToYsonString(Spec->IntermediateDataAcl),
+            Null);
     }
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());
@@ -4426,7 +4443,9 @@ void TOperationControllerBase::RemoveJoblet(const TJobId& jobId)
 
 bool TOperationControllerBase::HasProgress() const
 {
-    return IsPrepared();
+    return IsPrepared() &&
+        ProgressString_.GetType() != EYsonType::None &&
+        BriefProgressString_.GetType() != EYsonType::None;
 }
 
 void TOperationControllerBase::BuildOperationAttributes(IYsonConsumer* consumer) const
@@ -4443,9 +4462,8 @@ void TOperationControllerBase::BuildOperationAttributes(IYsonConsumer* consumer)
 
 void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
 {
-    VERIFY_INVOKER_AFFINITY(Invoker);
-
     BuildYsonMapFluently(consumer)
+        .Item("build_time").Value(TInstant::Now())
         .Item("jobs").Value(JobCounter)
         .Item("ready_job_count").Value(GetPendingJobCount())
         .Item("job_statistics").Value(JobStatistics)
@@ -4475,10 +4493,49 @@ void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
 
 void TOperationControllerBase::BuildBriefProgress(IYsonConsumer* consumer) const
 {
-    VERIFY_INVOKER_AFFINITY(Invoker);
-
     BuildYsonMapFluently(consumer)
         .Item("jobs").Value(JobCounter);
+}
+
+void TOperationControllerBase::BuildAndSaveProgress()
+{
+    auto progressString = BuildYsonStringFluently()
+        .BeginMap()
+            .Do(BIND([=] (IYsonConsumer* consumer) {
+                WaitFor(
+                    BIND(&IOperationController::BuildProgress, MakeStrong(this))
+                        .AsyncVia(GetInvoker())
+                        .Run(consumer));
+            }))
+        .EndMap();
+
+    auto briefProgressString = BuildYsonStringFluently()
+        .BeginMap()
+            .Do(BIND([=] (IYsonConsumer* consumer) {
+                WaitFor(
+                    BIND(&IOperationController::BuildBriefProgress, MakeStrong(this))
+                        .AsyncVia(GetInvoker())
+                        .Run(consumer));
+            }))
+        .EndMap();
+
+    {
+        TGuard<TSpinLock> guard(ProgressLock_);
+        ProgressString_ = progressString;
+        BriefProgressString_ = briefProgressString;
+    }
+}
+
+TYsonString TOperationControllerBase::GetProgress() const
+{
+    TGuard<TSpinLock> guard(ProgressLock_);
+    return ProgressString_;
+}
+
+TYsonString TOperationControllerBase::GetBriefProgress() const
+{
+    TGuard<TSpinLock> guard(ProgressLock_);
+    return BriefProgressString_;
 }
 
 void TOperationControllerBase::UpdateJobStatistics(const TJobSummary& jobSummary)
@@ -4867,23 +4924,7 @@ void TOperationControllerBase::RegisterJobProxyMemoryDigest(EJobType jobType, co
     JobProxyMemoryDigests_[jobType] = CreateLogDigest(config);
 }
 
-void TOperationControllerBase::InferSchemaFromInputSorted(const TKeyColumns& keyColumns)
-{
-    // We infer schema only for operations with one output table.
-    YCHECK(OutputTables.size() == 1);
-    YCHECK(InputTables.size() >= 1);
-
-    InferSchemaFromInputUnordered();
-
-    if (OutputTables[0].TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
-        OutputTables[0].TableUploadOptions.TableSchema = TTableSchema::FromKeyColumns(keyColumns);
-    } else {
-        OutputTables[0].TableUploadOptions.TableSchema =
-            OutputTables[0].TableUploadOptions.TableSchema.ToSorted(keyColumns);
-    }
-}
-
-void TOperationControllerBase::InferSchemaFromInputUnordered()
+void TOperationControllerBase::InferSchemaFromInput(const TKeyColumns& keyColumns)
 {
     // We infer schema only for operations with one output table.
     YCHECK(OutputTables.size() == 1);
@@ -4897,7 +4938,7 @@ void TOperationControllerBase::InferSchemaFromInputUnordered()
     }
 
     if (OutputTables[0].TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
-        OutputTables[0].TableUploadOptions.TableSchema = TTableSchema();
+        OutputTables[0].TableUploadOptions.TableSchema = TTableSchema::FromKeyColumns(keyColumns);
     } else {
         auto schema = InputTables[0].Schema
             .ToStrippedColumnAttributes()
@@ -4909,7 +4950,10 @@ void TOperationControllerBase::InferSchemaFromInputUnordered()
             }
         }
 
-        OutputTables[0].TableUploadOptions.TableSchema = schema;
+        OutputTables[0].TableUploadOptions.TableSchema = InputTables[0].Schema
+            .ToSorted(keyColumns)
+            .ToSortedStrippedColumnAttributes()
+            .ToCanonical();
     }
 }
 
@@ -4928,7 +4972,7 @@ void TOperationControllerBase::InferSchemaFromInputOrdered()
         return;
     }
 
-    InferSchemaFromInputUnordered();
+    InferSchemaFromInput();
 }
 
 void TOperationControllerBase::ValidateOutputSchemaOrdered() const
@@ -5268,6 +5312,16 @@ public:
     virtual TYsonString BuildInputPathYson(const TJobId& jobId) const override
     {
         return Underlying_->BuildInputPathYson(jobId);
+    }
+
+    virtual TYsonString GetProgress() const override
+    {
+        return Underlying_->GetProgress();
+    }
+
+    virtual TYsonString GetBriefProgress() const override
+    {
+        return Underlying_->GetBriefProgress();
     }
 
 private:

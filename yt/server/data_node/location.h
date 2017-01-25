@@ -232,6 +232,9 @@ public:
     //! Checks whether the location is full.
     bool IsFull() const;
 
+    // XXX(babenko): workaround for YT-6318
+    bool IsJournalsOnly() const;
+
     //! Checks whether to location has enough space to contain file of size #size
     bool HasEnoughSpace(i64 size) const;
 

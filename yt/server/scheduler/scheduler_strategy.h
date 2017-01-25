@@ -128,7 +128,7 @@ struct ISchedulerStrategy
         const TOperationId& operationId,
         NYson::IYsonConsumer* consumer) = 0;
 
-    //! Similar to #BuildOperationProgress but constructs a reduced version to used by UI.
+    //! Similar to #BuildOperationProgress but constructs a reduced version to be used by UI.
     virtual void BuildBriefOperationProgress(
         const TOperationId& operationId,
         NYson::IYsonConsumer* consumer) = 0;

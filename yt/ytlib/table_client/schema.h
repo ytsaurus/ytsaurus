@@ -26,7 +26,8 @@ struct TColumnSchema
     TColumnSchema();
     TColumnSchema(
         const Stroka& name,
-        EValueType type);
+        EValueType type,
+        TNullable<ESortOrder> SortOrder = Null);
 
     TColumnSchema(const TColumnSchema&) = default;
     TColumnSchema(TColumnSchema&&) = default;
@@ -124,8 +125,11 @@ public:
     //! Returns the schema with UniqueKeys set to true.
     TTableSchema ToUniqueKeys() const;
 
-    //! Returns the schema with all column attributes unset (expect Name and Type).
+    //! Returns the schema with all column attributes unset expect Name and Type.
     TTableSchema ToStrippedColumnAttributes() const;
+
+    //! Returns the schema with all column attributes unset expect Name, Type and SortOrder.
+    TTableSchema ToSortedStrippedColumnAttributes() const;
 
     //! Returns (possibly reordered) schema sorted by column names.
     TTableSchema ToCanonical() const;

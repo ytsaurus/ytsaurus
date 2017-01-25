@@ -34,9 +34,11 @@ TColumnSchema::TColumnSchema()
 
 TColumnSchema::TColumnSchema(
     const Stroka& name,
-    EValueType type)
+    EValueType type,
+    TNullable<ESortOrder> SortOrder)
     : Name(name)
     , Type(type)
+    , SortOrder(SortOrder)
 { }
 
 TColumnSchema& TColumnSchema::SetSortOrder(const TNullable<ESortOrder>& value)
@@ -384,6 +386,15 @@ TTableSchema TTableSchema::ToStrippedColumnAttributes() const
     for (auto& column : Columns_) {
         strippedColumns.emplace_back(column.Name, column.Type);
     }
+    return TTableSchema(strippedColumns, Strict_, false);
+}
+
+TTableSchema TTableSchema::ToSortedStrippedColumnAttributes() const
+{
+    std::vector<TColumnSchema> strippedColumns;
+    for (auto& column : Columns_) {
+        strippedColumns.emplace_back(column.Name, column.Type, column.SortOrder);
+    }
     return TTableSchema(strippedColumns, Strict_, UniqueKeys_);
 }
 
@@ -401,6 +412,7 @@ TTableSchema TTableSchema::ToCanonical() const
 
 TTableSchema TTableSchema::ToSorted(const TKeyColumns& keyColumns) const
 {
+    int oldKeyColumnCount = 0;
     auto columns = Columns();
     for (int index = 0; index < keyColumns.size(); ++index) {
         auto it = std::find_if(
@@ -416,15 +428,21 @@ TTableSchema TTableSchema::ToSorted(const TKeyColumns& keyColumns) const
                 << TErrorAttribute("key_columns", keyColumns);
         }
 
+        if (it->SortOrder) {
+            ++oldKeyColumnCount;
+        }
+
         std::swap(columns[index], *it);
         columns[index].SetSortOrder(ESortOrder::Ascending);
     }
+
+    auto uniqueKeys = UniqueKeys_ && oldKeyColumnCount == GetKeyColumnCount();
 
     for (auto it = columns.begin() + keyColumns.size(); it != columns.end(); ++it) {
         it->SetSortOrder(Null);
     }
 
-    return TTableSchema(columns, Strict_, UniqueKeys_);
+    return TTableSchema(columns, Strict_, uniqueKeys);
 }
 
 void TTableSchema::Save(TStreamSaveContext& context) const

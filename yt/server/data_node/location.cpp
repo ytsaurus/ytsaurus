@@ -583,6 +583,11 @@ bool TStoreLocation::IsFull() const
     return GetAvailableSpace() < Config_->LowWatermark;
 }
 
+bool TStoreLocation::IsJournalsOnly() const
+{
+    return Config_->EnableJournals && !Config_->EnableBlobs; 
+}
+
 bool TStoreLocation::HasEnoughSpace(i64 size) const
 {
     return GetAvailableSpace() - size >= Config_->HighWatermark;

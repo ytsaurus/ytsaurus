@@ -598,6 +598,13 @@ class TestAcls(YTEnvSetup):
         assert check_permission("guest", "remove", "//tmp/m/s")["action"] == "allow"
         assert check_permission("guest", "remove", "//tmp/m")["action"] == "deny"
 
+    def test_read_from_cache(self):
+        create_user("u")
+        set("//tmp/a", "b")
+        set("//tmp/a/@acl/end", make_ace("deny", "u", "read"))
+        with pytest.raises(YtError): get("//tmp/a", user="u")
+        with pytest.raises(YtError): get("//tmp/a", user="u", read_from="cache")
+
 ##################################################################
 
 class TestAclsMulticell(TestAcls):
