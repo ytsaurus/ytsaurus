@@ -75,6 +75,20 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTableMountCacheConfig
+    : public NTabletClient::TTableMountCacheConfig
+{
+public:
+    int OnErrorRetryCount;
+    TDuration OnErrorSlackPeriod;
+
+    TTableMountCacheConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TTableMountCacheConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TNativeConnectionConfig
     : public TConnectionConfig
     , public NChunkClient::TChunkTeleporterConfig
@@ -91,7 +105,7 @@ public:
     NScheduler::TSchedulerConnectionConfigPtr Scheduler;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
     NChunkClient::TBlockCacheConfigPtr BlockCache;
-    NTabletClient::TTableMountCacheConfigPtr TableMountCache;
+    TTableMountCacheConfigPtr TableMountCache;
 
     NQueryClient::TExecutorConfigPtr QueryEvaluator;
     NQueryClient::TColumnEvaluatorCacheConfigPtr ColumnEvaluatorCache;
@@ -114,9 +128,6 @@ public:
     NYPath::TYPath UdfRegistryPath;
     TExpiringCacheConfigPtr FunctionRegistryCache;
     TSlruCacheConfigPtr FunctionImplCache;
-
-    int TableMountInfoUpdateRetryCount;
-    TDuration TableMountInfoUpdateRetryPeriod;
 
     int LightPoolSize;
     int HeavyPoolSize;

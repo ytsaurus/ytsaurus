@@ -164,6 +164,8 @@ public:
     //! Renames an existing medium. Throws on name conflict.
     void RenameMedium(TMedium* medium, const Stroka& newName);
 
+    //! Validates and changes medium priority.
+    void SetMediumPriority(TMedium* medium, int priority);
     //! Returns the medium with a given name (|nullptr| if none).
     TMedium* FindMediumByName(const Stroka& name) const;
 

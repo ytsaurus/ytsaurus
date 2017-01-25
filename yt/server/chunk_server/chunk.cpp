@@ -164,7 +164,7 @@ void TChunk::AddParent(TChunkList* parent)
 void TChunk::RemoveParent(TChunkList* parent)
 {
     auto it = std::find(Parents_.begin(), Parents_.end(), parent);
-    Y_ASSERT(it != Parents_.end());
+    YCHECK(it != Parents_.end());
     Parents_.erase(it);
 }
 
@@ -265,7 +265,7 @@ void TChunk::Confirm(
     ChunkMeta_.Swap(chunkMeta);
     MiscExt_ = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
 
-    Y_ASSERT(IsConfirmed());
+    YCHECK(IsConfirmed());
 }
 
 bool TChunk::IsConfirmed() const

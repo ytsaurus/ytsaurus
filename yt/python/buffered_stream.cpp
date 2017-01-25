@@ -71,6 +71,12 @@ void TBufferedStream::Finish()
     AllowRead_.store(true);
 }
 
+TFuture<void> TBufferedStream::Close()
+{
+    Finish();
+    return VoidFuture;
+}
+
 TFuture<void> TBufferedStream::Write(const TSharedRef& data)
 {
     TGuard<TMutex> guard(Mutex_);

@@ -458,7 +458,7 @@ public:
         }
     }
 
-    TFuture<void> Finish()
+    TFuture<void> Close() override
     {
         TGuard<TSpinLock> guard(SpinLock_);
         return LastForwardResult_;
@@ -579,7 +579,7 @@ private:
             SwitchableSnapshotWriter_->GetSyncSize(),
             SwitchableSnapshotWriter_->GetAsyncSize());
 
-        WaitFor(SwitchableSnapshotWriter_->Finish())
+        WaitFor(SwitchableSnapshotWriter_->Close())
             .ThrowOnError();
 
         WaitFor(SnapshotWriter_->Close())

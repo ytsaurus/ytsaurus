@@ -155,8 +155,14 @@ public:
 
     virtual TFuture<void> Write(const TSharedRef& buffer) override
     {
-        return
-            BIND(&TAsyncOutputStreamAdapter::DoWrite, MakeStrong(this), buffer)
+        return BIND(&TAsyncOutputStreamAdapter::DoWrite, MakeStrong(this), buffer)
+            .AsyncVia(Invoker_)
+            .Run();
+    }
+
+    virtual TFuture<void> Close() override
+    {
+        return BIND(&TAsyncOutputStreamAdapter::DoFinish, MakeStrong(this))
             .AsyncVia(Invoker_)
             .Run();
     }
@@ -165,6 +171,11 @@ private:
     void DoWrite(const TSharedRef& buffer) const
     {
         UnderlyingStream_->Write(buffer.Begin(), buffer.Size());
+    }
+
+    void DoFinish() const
+    {
+        UnderlyingStream_->Finish();
     }
 
 private:
@@ -332,22 +343,12 @@ public:
     virtual TFuture<void> Write(const TSharedRef& data) override
     {
         Y_ASSERT(data);
-        TPromise<void> promise;
-        bool invokeWrite;
-        {
-            TGuard<TSpinLock> guard(SpinLock_);
-            if (!Error_.IsOK()) {
-                return MakeFuture(Error_);
-            }
-            promise = NewPromise<void>();
-            Queue_.push(TEntry{data, promise});
-            invokeWrite = (Queue_.size() == 1);
-        }
-        if (invokeWrite) {
-            UnderlyingStream_->Write(data).Subscribe(
-                BIND(&TZeroCopyOutputStreamAdapter::OnWritten, MakeStrong(this)));
-        }
-        return promise;
+        return Push(data);
+    }
+
+    virtual TFuture<void> Close() override
+    {
+        return Push(TSharedRef());
     }
 
 private:
@@ -355,6 +356,7 @@ private:
 
     struct TEntry
     {
+        // If `Block' is empty it means close was requested.
         TSharedRef Block;
         TPromise<void> Promise;
     };
@@ -362,27 +364,64 @@ private:
     TSpinLock SpinLock_;
     std::queue<TEntry> Queue_;
     TError Error_;
+    bool Closed_ = false;
 
+    TFuture<void> Push(const TSharedRef& data)
+    {
+        TPromise<void> promise;
+        bool needInvoke;
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            YCHECK(!Closed_);
+            if (!Error_.IsOK()) {
+                return MakeFuture(Error_);
+            }
+            promise = NewPromise<void>();
+            Queue_.push(TEntry{data, promise});
+            needInvoke = (Queue_.size() == 1);
+            Closed_ = data.Empty();
+        }
+        if (needInvoke) {
+            TFuture<void> invokeResult;
+            if (data) {
+                invokeResult = UnderlyingStream_->Write(data);
+            } else {
+                invokeResult = UnderlyingStream_->Close();
+            }
+            invokeResult.Subscribe(
+                BIND(&TZeroCopyOutputStreamAdapter::OnWritten, MakeStrong(this)));
+        }
+        return promise;
+    }
 
     void OnWritten(const TError& error)
     {
-        auto pendingBlock = NotifyAndFetchNext(error);
-        while (pendingBlock) {
-            auto asyncWriteResult = UnderlyingStream_->Write(pendingBlock);
-            auto mayWriteResult = asyncWriteResult.TryGet();
+        TSharedRef data;
+        bool hasData = NotifyAndFetchNext(error, &data);
+        while (hasData) {
+            TFuture<void> result;
+            if (data) {
+                result = UnderlyingStream_->Write(data);
+            } else {
+                result = UnderlyingStream_->Close();
+            }
+            auto mayWriteResult = result.TryGet();
             if (!mayWriteResult || !mayWriteResult->IsOK()) {
-                asyncWriteResult.Subscribe(
+                result.Subscribe(
                     BIND(&TZeroCopyOutputStreamAdapter::OnWritten, MakeStrong(this)));
                 break;
             }
-            pendingBlock = NotifyAndFetchNext(TError());
+            hasData = NotifyAndFetchNext(TError(), &data);
         }
     }
 
-    TSharedRef NotifyAndFetchNext(const TError& error)
+    // Set current entry promise to error and tries to fetch next entry data.
+    // Return `false' if there no next entry.
+    // Otherwise return `true' and fill data with next entry Block.
+    bool NotifyAndFetchNext(const TError& error, TSharedRef* data)
     {
         TPromise<void> promise;
-        TSharedRef pendingBlock;
+        bool hasData = false;
         {
             TGuard<TSpinLock> guard(SpinLock_);
             auto& entry = Queue_.front();
@@ -391,14 +430,14 @@ private:
                 Error_ = error;
             }
             Queue_.pop();
-            if (!Queue_.empty()) {
-                pendingBlock = Queue_.front().Block;
+            bool hasData = !Queue_.empty();
+            if (hasData) {
+                *data = Queue_.front().Block;
             }
         }
         promise.Set(error);
-        return pendingBlock;
+        return hasData;
     }
-
 };
 
 IAsyncZeroCopyOutputStreamPtr CreateZeroCopyAdapter(IAsyncOutputStreamPtr underlyingStream)
@@ -426,9 +465,13 @@ public:
         return UnderlyingStream_->Write(block);
     }
 
+    virtual TFuture<void> Close() override
+    {
+        return UnderlyingStream_->Close();
+    }
+
 private:
     const IAsyncZeroCopyOutputStreamPtr UnderlyingStream_;
-
 };
 
 IAsyncOutputStreamPtr CreateCopyingAdapter(IAsyncZeroCopyOutputStreamPtr underlyingStream)

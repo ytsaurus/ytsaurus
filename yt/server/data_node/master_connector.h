@@ -96,6 +96,11 @@ public:
      */
     NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() const;
 
+    int GetChunkMediumIndexOrThrow(IChunkPtr chunk) const;
+    int GetChunkMediumPriorityOrThrow(IChunkPtr chunk) const;
+
+    int GetLocationMediumIndexOrThrow(TLocationPtr location) const;
+
 private:
     using EState = EMasterConnectorState;
 
@@ -104,6 +109,8 @@ private:
     const std::vector<Stroka> NodeTags_;
     const NCellNode::TBootstrap* Bootstrap_;
     const IInvokerPtr ControlInvoker_;
+    yhash_map<Stroka, int> MediumNameToIndex_;
+    yhash_map<Stroka, int> MediumNameToPriority_;
 
     bool Started_ = false;
 
@@ -180,7 +187,13 @@ private:
     void RegisterAtMaster();
 
     // A part of #RegisterAtMaster()'s implementation.
-    void SetLocationIndexes(const NNodeTrackerClient::NProto::TRspRegisterNode& rsp);
+    void SetMediumNameAndIndexMapping(const NNodeTrackerClient::NProto::TRspRegisterNode& rsp);
+
+    int MediumIndexFromNameOrThrow(const Stroka& mediumName) const;
+    int MediumPriorityFromNameOrThrow(const Stroka& mediumName) const;
+
+    // A part of #SendIncrementalNodeHeartbeat()'s implementation.
+    void UpdateMediumPriorities(const NNodeTrackerClient::NProto::TRspIncrementalHeartbeat& rsp);
 
     //! Handles lease transaction abort.
     void OnLeaseTransactionAborted();
@@ -220,7 +233,7 @@ private:
     NChunkClient::NProto::TChunkAddInfo BuildAddChunkInfo(IChunkPtr chunk);
 
     //! Constructs a protobuf info for a removed chunk.
-    static NChunkClient::NProto::TChunkRemoveInfo BuildRemoveChunkInfo(IChunkPtr chunk);
+    NChunkClient::NProto::TChunkRemoveInfo BuildRemoveChunkInfo(IChunkPtr chunk);
 
     //! Resets connection state.
     void Reset();

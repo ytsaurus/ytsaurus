@@ -1507,15 +1507,16 @@ private:
             SetTransactionId(req, Transaction_);
             std::vector<Stroka> attributeKeys{
                 "account",
+                "chunk_writer",
                 "compression_codec",
                 "erasure_codec",
-                "schema_mode",
+                "optimize_for",
+                "primary_medium",
                 "replication_factor",
                 "row_count",
                 "schema",
-                "vital",
-                "optimize_for",
-                "chunk_writer"
+                "schema_mode",
+                "vital"
             };
             ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
 
@@ -1536,6 +1537,7 @@ private:
                 attributes.Get<i64>("row_count"));
 
             Options_->ReplicationFactor = attributes.Get<int>("replication_factor");
+            Options_->MediumName = attributes.Get<Stroka>("primary_medium");
             Options_->CompressionCodec = attributes.Get<NCompression::ECodec>("compression_codec");
             Options_->ErasureCodec = attributes.Get<NErasure::ECodec>("erasure_codec");
             Options_->Account = attributes.Get<Stroka>("account");

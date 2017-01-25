@@ -41,7 +41,6 @@ struct TClusterResources
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
-
 };
 
 //! A helper for (de)serializing TClusterResources.
@@ -60,7 +59,9 @@ public:
     // For deserialization.
     TSerializableClusterResources();
     // For serialization.
-    TSerializableClusterResources(const NChunkServer::TChunkManagerPtr& chunkManager, const TClusterResources& clusterResources);
+    TSerializableClusterResources(
+        const NChunkServer::TChunkManagerPtr& chunkManager,
+        const TClusterResources& clusterResources);
 
     TClusterResources ToClusterResources(const NChunkServer::TChunkManagerPtr& chunkManager) const;
 

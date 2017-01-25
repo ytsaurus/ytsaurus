@@ -411,7 +411,6 @@ private:
                 currentTimestamp);
 
             auto reader = CreateVersionedTabletReader(
-                Bootstrap_->GetQueryPoolInvoker(),
                 tabletSnapshot,
                 std::vector<ISortedStorePtr>(stores.begin(), stores.end()),
                 tabletPivotKey,
@@ -496,10 +495,9 @@ private:
             transaction->AddAction(Bootstrap_->GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellId(), actionData);
             transaction->AddAction(slot->GetCellId(), actionData);
 
-            LOG_INFO("Committing partitioning transaction");
-            WaitFor(transaction->Commit())
+            const auto& tabletManager = slot->GetTabletManager();
+            WaitFor(tabletManager->CommitTabletStoresUpdateTransaction(tablet, transaction))
                 .ThrowOnError();
-            LOG_INFO("Partitioning transaction committed");
 
             for (const auto& store : stores) {
                 storeManager->EndStoreCompaction(store);
@@ -711,7 +709,6 @@ private:
                 retainedTimestamp);
 
             auto reader = CreateVersionedTabletReader(
-                Bootstrap_->GetQueryPoolInvoker(),
                 tabletSnapshot,
                 std::vector<ISortedStorePtr>(stores.begin(), stores.end()),
                 tabletPivotKey,
@@ -792,10 +789,9 @@ private:
             transaction->AddAction(Bootstrap_->GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellId(), actionData);
             transaction->AddAction(slot->GetCellId(), actionData);
 
-            LOG_INFO("Committing compaction transaction");
-            WaitFor(transaction->Commit())
+            const auto& tabletManager = slot->GetTabletManager();
+            WaitFor(tabletManager->CommitTabletStoresUpdateTransaction(tablet, transaction))
                 .ThrowOnError();
-            LOG_INFO("Compaction transaction committed");
 
             for (const auto& store : stores) {
                 storeManager->EndStoreCompaction(store);

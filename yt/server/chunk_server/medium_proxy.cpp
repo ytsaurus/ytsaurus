@@ -44,6 +44,8 @@ private:
             .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor("cache")
             .SetReplicated(true));
+        descriptors->push_back(TAttributeDescriptor("priority")
+            .SetReplicated(true));
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
@@ -74,6 +76,12 @@ private:
             return true;
         }
 
+        if (key == "priority") {
+            BuildYsonFluently(consumer)
+                .Value(medium->GetPriority());
+            return true;
+        }
+
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
@@ -85,6 +93,12 @@ private:
         if (key == "name") {
             auto newName = ConvertTo<Stroka>(value);
             chunkManager->RenameMedium(medium, newName);
+            return true;
+        }
+
+        if (key == "priority") {
+            auto newPriority = ConvertTo<int>(value);
+            chunkManager->SetMediumPriority(medium, newPriority);
             return true;
         }
 

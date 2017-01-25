@@ -399,6 +399,20 @@ class TestSchedulerSortCommands(YTEnvSetup):
             assert get(out_table + "/@schema") == schema_out
             assert read_table(out_table) == [{"key1" : "b", "key2": "a"}, {"key1" : "a", "key2": "b"}]
 
+        schema_out = make_schema([
+                {"name": "key2", "type": "string", "sort_order": "ascending"},
+                {"name": "key1", "type": "string"}],
+            strict = True,
+            unique_keys = False)
+
+        sort(in_="//tmp/t_in",
+             out="//tmp/t_out",
+             sort_by=["key2"])
+
+        assert get("//tmp/t_out/@sorted")
+        assert get("//tmp/t_out/@schema") == schema_out
+        assert read_table("//tmp/t_out") == [{"key1" : "b", "key2": "a"}, {"key1" : "a", "key2": "b"}]
+
     def test_schema_validation(self):
         create("table", "//tmp/input")
         create("table", "//tmp/output", attributes={"schema":

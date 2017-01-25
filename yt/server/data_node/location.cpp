@@ -72,7 +72,7 @@ TLocation::TLocation(
 
     HealthChecker_ = New<TDiskHealthChecker>(
         Bootstrap_->GetConfig()->DataNode->DiskHealthChecker,
-        GetPath(),  
+        GetPath(),
         GetWritePoolInvoker(),
         DataNodeLogger,
         Profiler_);
@@ -545,18 +545,6 @@ void TLocation::DoStart()
 const Stroka& TLocation::GetMediumName() const
 {
     return Config_->MediumName;
-}
-
-int TLocation::GetMediumIndex() const
-{
-    YCHECK(MediumIndex_ != InvalidMediumIndex);
-
-    return MediumIndex_;
-}
-
-void TLocation::SetMediumIndex(int mediumIndex)
-{
-    MediumIndex_ = mediumIndex;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

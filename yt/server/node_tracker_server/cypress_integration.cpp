@@ -167,13 +167,11 @@ private:
         descriptors->push_back("decommissioned_node_count");
         descriptors->push_back("with_alerts_node_count");
         descriptors->push_back("full_node_count");
-        descriptors->push_back("chunk_replicator_enabled");
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
 
         if (key == "offline" || key == "registered" || key == "online") {
             auto state =
@@ -243,13 +241,6 @@ private:
         if (key == "full_node_count") {
             BuildYsonFluently(consumer)
                 .Value(statistics.FullNodeCount);
-            return true;
-        }
-
-        if (key == "chunk_replicator_enabled") {
-            RequireLeader();
-            BuildYsonFluently(consumer)
-                .Value(chunkManager->IsReplicatorEnabled());
             return true;
         }
 

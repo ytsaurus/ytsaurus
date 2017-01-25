@@ -1,6 +1,6 @@
 IF(YMAKE)
   SET(CMAKE_CURRENT_LIST_DIR .)
-  SET(YT_ABI 18_5)
+  SET(YT_ABI 19_1)
 ENDIF()
 
 SET(PROTO_NAMESPACE yt/${YT_ABI})
@@ -97,6 +97,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/statistics_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/sorted_store_manager_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ordered_store_manager_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/schemaless_sorted_merging_reader_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/stracer_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/string_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/string_column_ut.cpp

@@ -4,6 +4,7 @@
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/ytlib/chunk_client/session_id.h>
 
 #include <yt/ytlib/node_tracker_client/channel.h>
 
@@ -18,6 +19,8 @@ using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
+
+using NChunkClient::TSessionId; // Suppress ambiguity with NProto::TSessionId.
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -57,12 +60,13 @@ class TAbortSessionsQuorumSession
 {
 public:
     TAbortSessionsQuorumSession(
-        const TChunkId& chunkId,
-        const std::vector<TNodeDescriptor>& replicas,
+        const TSessionId& sessionId,
+        const std::vector<TNodeDescriptor> replicas,
         TDuration timeout,
         int quorum,
         INodeChannelFactoryPtr channelFactory)
-        : TQuorumSessionBase(chunkId, replicas, timeout, quorum, std::move(channelFactory))
+        : TQuorumSessionBase(sessionId.ChunkId, replicas, timeout, quorum, channelFactory)
+        , MediumIndex_(sessionId.MediumIndex)
     { }
 
     TFuture<void> Run()
@@ -76,6 +80,8 @@ public:
 private:
     int SuccessCounter_ = 0;
     int ResponseCounter_ = 0;
+
+    int MediumIndex_ = DefaultStoreMediumIndex;
 
     std::vector<TError> InnerErrors_;
 
@@ -102,7 +108,7 @@ private:
             proxy.SetDefaultTimeout(Timeout_);
 
             auto req = proxy.FinishChunk();
-            ToProto(req->mutable_chunk_id(), ChunkId_);
+            ToProto(req->mutable_session_id(), TSessionId(ChunkId_, MediumIndex_));
             req->Invoke().Subscribe(BIND(&TAbortSessionsQuorumSession::OnResponse, MakeStrong(this), descriptor)
                 .Via(GetCurrentInvoker()));
         }
@@ -142,13 +148,13 @@ private:
 };
 
 TFuture<void> AbortSessionsQuorum(
-    const TChunkId& chunkId,
+    const TSessionId& sessionId,
     const std::vector<TNodeDescriptor>& replicas,
     TDuration timeout,
     int quorum,
     INodeChannelFactoryPtr channelFactory)
 {
-    return New<TAbortSessionsQuorumSession>(chunkId, replicas, timeout, quorum, std::move(channelFactory))
+    return New<TAbortSessionsQuorumSession>(sessionId, replicas, timeout, quorum, std::move(channelFactory))
         ->Run();
 }
 
@@ -158,14 +164,7 @@ class TComputeQuorumRowCountSession
     : public TQuorumSessionBase
 {
 public:
-    TComputeQuorumRowCountSession(
-        const TChunkId& chunkId,
-        const std::vector<TNodeDescriptor>& replicas,
-        TDuration timeout,
-        int quorum,
-        INodeChannelFactoryPtr channelFactory)
-        : TQuorumSessionBase(chunkId, replicas, timeout, quorum, std::move(channelFactory))
-    { }
+    using TQuorumSessionBase::TQuorumSessionBase;
 
     TFuture<TMiscExt> Run()
     {

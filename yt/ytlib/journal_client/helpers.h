@@ -17,7 +17,7 @@ namespace NJournalClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<void> AbortSessionsQuorum(
-    const NChunkClient::TChunkId& chunkId,
+    const NChunkClient::TSessionId& sessionId,
     const std::vector<NNodeTrackerClient::TNodeDescriptor>& replicas,
     TDuration timeout,
     int quorum,
