@@ -15,7 +15,6 @@ SRCS(
 )
 
 PEERDIR(
-    util
     contrib/libs/protobuf
     mapreduce/yt/interface/protos
 )
