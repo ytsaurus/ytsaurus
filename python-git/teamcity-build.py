@@ -247,7 +247,7 @@ def _run_tests(options, python_version):
                     "--verbose",
                     "--capture=fd",
                     "--tb=native",
-                    "--timeout=3000",
+                    "--timeout=600",
                     "--junitxml={0}".format(handle.name)] + additional_args,
                     cwd=options.checkout_directory,
                     env=env)
