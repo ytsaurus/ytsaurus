@@ -26,7 +26,8 @@ prepare_archive_directory() {
     local archive_dir="$(mktemp -d /tmp/yt_local_archive.XXXXXX)"
     trap "rm -rf \"$tmp_dir\" \"$archive_dir\"" EXIT
 
-    find "$(pwd)/.." -name 'yandex-yt-local_*.deb' -exec cp -r {} $tmp_dir \;
+    local yt_local_version=$(dpkg-parsechangelog | grep Version | awk '{print $2}')
+    find "$(pwd)/.." -name 'yandex-yt-local_'"${yt_local_version}"'_*.deb' -exec cp -r {} $tmp_dir \;
     cd "$tmp_dir"
 
     dpkg -x yandex-yt-local_*.deb "yandex-yt-local"
