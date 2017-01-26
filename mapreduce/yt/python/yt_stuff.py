@@ -270,7 +270,10 @@ class YtStuff(object):
                 with open(pids_file) as f:
                     for line in f.readlines():
                         if line.strip():
-                            os.kill(int(line), signal.SIGKILL)
+                            try:
+                                os.kill(int(line), signal.SIGKILL)
+                            except OSError:
+                                pass
             return False
         self.yt_wrapper.config["proxy"]["url"] = self.get_server()
         self.yt_wrapper.config["proxy"]["enable_proxy_discovery"] = False
