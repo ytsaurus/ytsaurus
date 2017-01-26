@@ -74,6 +74,7 @@ test_cypress_commands()
     check "" "$($YT list //home/wrapper_test/folder)"
     check "folder" "$($YT list //home/wrapper_test)"
     check "folder" "$($YT list //home/wrapper_test --read-from cache)"
+    check '["folder"]' "$($YT list //home/wrapper_test --format json)"
     check "{\"folder\"={}}" "$(fix_yson_repr $($YT get //home/wrapper_test --format "<format=text>yson"))"
     check "" "$($YT find //home/wrapper_test --name "xxx")"
     check "//home/wrapper_test/folder" "$($YT find //home/wrapper_test --name "folder")"
