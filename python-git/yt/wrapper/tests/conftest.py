@@ -140,6 +140,7 @@ class YtTestEnvironment(object):
         set_option("_is_testing_mode", True, client=None)
 
         self.config = update(get_default_config(), config)
+        self.config["enable_request_logging"] = True
         self.config["operation_tracker"]["poll_period"] = 100
         if has_proxy:
             self.config["proxy"]["url"] = "localhost:" + self.env.get_proxy_address().split(":", 1)[1]
