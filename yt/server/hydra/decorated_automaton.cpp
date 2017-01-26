@@ -460,7 +460,7 @@ public:
         }
     }
 
-    TFuture<void> Close() override
+    virtual TFuture<void> Close() override
     {
         TGuard<TSpinLock> guard(SpinLock_);
         return LastForwardResult_;
