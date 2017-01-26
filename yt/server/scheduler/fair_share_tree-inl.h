@@ -10,7 +10,7 @@ namespace NScheduler {
 
 inline bool TSchedulerElementSharedState::GetAlive() const
 {
-    return Alive_;
+    return Alive_.load(std::memory_order_relaxed);
 }
 
 inline void TSchedulerElementSharedState::SetAlive(bool alive)
@@ -19,6 +19,11 @@ inline void TSchedulerElementSharedState::SetAlive(bool alive)
 }
 
 ////////////////////////////////////////////////////////////////////
+
+inline int TSchedulerElement::GetTreeIndex() const
+{
+    return TreeIndex_;
+}
 
 inline bool TSchedulerElement::IsAlive() const
 {
