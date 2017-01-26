@@ -358,9 +358,6 @@ class ConfigsProvider_18(ConfigsProvider):
 
         cluster_connection = {
             "cell_directory": _get_retrying_channel_config(),
-            "cell_directory_synchronizer": {
-                "sync_period": 500
-            },
             "primary_master": master_connection_configs[primary_cell_tag],
             "transaction_manager": {
                 "default_ping_period": DEFAULT_TRANSACTION_PING_PERIOD
@@ -449,6 +446,10 @@ class ConfigsProvider_18(ConfigsProvider):
 
             addresses.append("{0}:{1}".format(provision["fqdn"], config["rpc_port"]))
 
+            config["cell_directory_synchronizer"] = {
+                "sync_period": 500
+            }
+            
             config["cluster_connection"] = \
                self._build_cluster_connection_config(
                     master_connection_configs,
