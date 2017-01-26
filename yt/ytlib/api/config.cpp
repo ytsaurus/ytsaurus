@@ -56,8 +56,6 @@ TNativeConnectionConfig::TNativeConnectionConfig()
         .Default();
     RegisterParameter("cell_directory", CellDirectory)
         .DefaultNew();
-    RegisterParameter("cell_directory_synchronizer", CellDirectorySynchronizer)
-        .DefaultNew();
     RegisterParameter("scheduler", Scheduler)
         .DefaultNew();
     RegisterParameter("transaction_manager", TransactionManager)
