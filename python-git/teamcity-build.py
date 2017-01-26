@@ -159,7 +159,7 @@ def slow_build(options):
 @build_step
 @skip_step_if_tests_are_disabled
 def set_ytserver_permissions(options):
-    for binary in ["ytserver-node", "ytserver-exec", "ytserver-job-proxy"]:
+    for binary in ["ytserver-node", "ytserver-exec", "ytserver-job-proxy", "ytserver-tools"]:
         path = os.path.join(options.yt_build_directory, "bin", binary)
         run(["sudo", "chown", "root", path])
         run(["sudo", "chmod", "4755", path])
