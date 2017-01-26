@@ -99,5 +99,5 @@ Library is actively developed on GitHub, code is available `here <https://github
    :hidden:
 
    yt
-   changelog
+   package_changelog
    configuration

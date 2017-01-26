@@ -60,7 +60,7 @@ def escape(line, line_no):
     return line[:first_star_pos+1] + ESCAPE.sub(replace, line[first_star_pos+1:])
 
 def main():
-    with open("debian/changelog") as changelog, open("docs/changelog.rst", "w") as changelog_rst:
+    with open("debian/changelog") as changelog, open("docs/package_changelog.rst", "w") as changelog_rst:
         changelog_rst.write(make_heading("Changelog") + "\n\n")
 
         version = None
