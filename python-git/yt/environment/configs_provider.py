@@ -113,14 +113,13 @@ class ConfigsProvider(object):
             ports_generator,
             logs_dir)
 
+        driver_configs = self._build_driver_configs(provision, deepcopy(connection_configs))
         scheduler_configs = self._build_scheduler_configs(provision, scheduler_dirs, deepcopy(connection_configs),
                                                           ports_generator, logs_dir)
-        node_configs, node_addresses = \
-            self._build_node_configs(provision, node_dirs, deepcopy(connection_configs), ports_generator, logs_dir)
+        node_configs = self._build_node_configs(provision, node_dirs, deepcopy(connection_configs), ports_generator,
+                                                logs_dir)
         proxy_config = self._build_proxy_config(provision, proxy_dir, deepcopy(connection_configs), ports_generator,
-                                                logs_dir, master_cache_nodes=node_addresses)
-        driver_configs = self._build_driver_configs(provision, deepcopy(connection_configs),
-                                                    master_cache_nodes=node_addresses)
+                                                logs_dir)
         ui_config = self._build_ui_config(provision, deepcopy(connection_configs),
                                           "{0}:{1}".format(provision["fqdn"], proxy_config["port"]))
 
@@ -149,11 +148,11 @@ class ConfigsProvider(object):
         pass
 
     @abc.abstractmethod
-    def _build_proxy_config(self, provision, proxy_dir, master_connection_configs, ports_generator, proxy_logs_dir, master_cache_nodes):
+    def _build_proxy_config(self, provision, proxy_dir, master_connection_configs, ports_generator, proxy_logs_dir):
         pass
 
     @abc.abstractmethod
-    def _build_driver_configs(self, provision, master_connection_configs, master_cache_nodes):
+    def _build_driver_configs(self, provision, master_connection_configs):
         pass
 
     @abc.abstractmethod
@@ -352,7 +351,7 @@ class ConfigsProvider_18(ConfigsProvider):
 
         return configs, connection_configs
 
-    def _build_cluster_connection_config(self, master_connection_configs, master_cache_nodes=None, config_template=None):
+    def _build_cluster_connection_config(self, master_connection_configs, enable_master_cache=False):
         primary_cell_tag = master_connection_configs["primary_cell_tag"]
         secondary_cell_tags = master_connection_configs["secondary_cell_tags"]
 
@@ -370,23 +369,15 @@ class ConfigsProvider_18(ConfigsProvider):
         update(cluster_connection["primary_master"], _get_retrying_channel_config())
         update(cluster_connection["primary_master"], _get_rpc_config())
 
+        if enable_master_cache:
+            cluster_connection["master_cache"] = master_connection_configs[primary_cell_tag]
+
         cluster_connection["secondary_masters"] = []
         for tag in secondary_cell_tags:
             config = master_connection_configs[tag]
             update(config, _get_retrying_channel_config())
             update(config, _get_rpc_config())
             cluster_connection["secondary_masters"].append(config)
-
-        if config_template is not None:
-            cluster_connection = update(config_template, cluster_connection)
-
-        if master_cache_nodes:
-            cluster_connection["master_cache"] = {
-                "addresses": master_cache_nodes,
-                "cell_id": master_connection_configs[primary_cell_tag]["cell_id"]}
-        else:
-            if "master_cache" in cluster_connection:
-                del cluster_connection["master_cache"]
 
         return cluster_connection
 
@@ -398,10 +389,8 @@ class ConfigsProvider_18(ConfigsProvider):
             config = default_configs.get_scheduler_config()
 
             set_at(config, "address_resolver/localhost_fqdn", provision["fqdn"])
-            config["cluster_connection"] = \
-                self._build_cluster_connection_config(
-                    master_connection_configs,
-                    config_template=config["cluster_connection"])
+            update(config["cluster_connection"],
+                   self._build_cluster_connection_config(master_connection_configs))
 
             config["rpc_port"] = next(ports_generator)
             config["monitoring_port"] = next(ports_generator)
@@ -416,9 +405,9 @@ class ConfigsProvider_18(ConfigsProvider):
 
         return configs
 
-    def _build_proxy_config(self, provision, proxy_dir, master_connection_configs, ports_generator, proxy_logs_dir, master_cache_nodes):
+    def _build_proxy_config(self, provision, proxy_dir, master_connection_configs, ports_generator, proxy_logs_dir):
         driver_config = default_configs.get_driver_config()
-        update(driver_config, self._build_cluster_connection_config(master_connection_configs, master_cache_nodes))
+        update(driver_config, self._build_cluster_connection_config(master_connection_configs))
 
         proxy_config = _generate_common_proxy_config(proxy_dir, provision["proxy"]["http_port"],
                                                      provision["enable_debug_logging"], provision["fqdn"],
@@ -429,7 +418,6 @@ class ConfigsProvider_18(ConfigsProvider):
 
     def _build_node_configs(self, provision, node_dirs, master_connection_configs, ports_generator, node_logs_dir):
         configs = []
-        addresses = []
 
         for index in xrange(provision["node"]["count"]):
             config = default_configs.get_node_config(provision["enable_debug_logging"])
@@ -444,16 +432,12 @@ class ConfigsProvider_18(ConfigsProvider):
             config["rpc_port"] = next(ports_generator)
             config["monitoring_port"] = next(ports_generator)
 
-            addresses.append("{0}:{1}".format(provision["fqdn"], config["rpc_port"]))
-
             config["cell_directory_synchronizer"] = {
                 "sync_period": 500
             }
-            
-            config["cluster_connection"] = \
-               self._build_cluster_connection_config(
-                    master_connection_configs,
-                    config_template=config["cluster_connection"])
+
+            update(config["cluster_connection"],
+                   self._build_cluster_connection_config(master_connection_configs, enable_master_cache=True))
 
             set_at(config, "data_node/read_thread_count", 2)
             set_at(config, "data_node/write_thread_count", 2)
@@ -494,9 +478,9 @@ class ConfigsProvider_18(ConfigsProvider):
 
             configs.append(config)
 
-        return configs, addresses
+        return configs
 
-    def _build_driver_configs(self, provision, master_connection_configs, master_cache_nodes):
+    def _build_driver_configs(self, provision, master_connection_configs):
         secondary_cell_tags = master_connection_configs["secondary_cell_tags"]
         primary_cell_tag = master_connection_configs["primary_cell_tag"]
 
@@ -505,7 +489,7 @@ class ConfigsProvider_18(ConfigsProvider):
             config = default_configs.get_driver_config()
             if cell_index == 0:
                 tag = primary_cell_tag
-                update(config, self._build_cluster_connection_config(master_connection_configs, master_cache_nodes))
+                update(config, self._build_cluster_connection_config(master_connection_configs))
             else:
                 tag = secondary_cell_tags[cell_index - 1]
                 cell_connection_config = {
@@ -548,7 +532,7 @@ class ConfigsProvider_18(ConfigsProvider):
 
 class ConfigsProvider_18_3_18_4(ConfigsProvider_18):
     def _build_node_configs(self, provision, node_dirs, master_connection_configs, ports_generator, node_logs_dir):
-        configs, addresses = super(ConfigsProvider_18_3_18_4, self)._build_node_configs(
+        configs = super(ConfigsProvider_18_3_18_4, self)._build_node_configs(
                 provision, node_dirs, master_connection_configs, ports_generator, node_logs_dir)
 
         current_user = 10000
@@ -562,7 +546,7 @@ class ConfigsProvider_18_3_18_4(ConfigsProvider_18):
 
             current_user += provision["node"]["jobs_resource_limits"]["user_slots"] + 1
 
-        return configs, addresses
+        return configs
 
 class ConfigsProvider_18_3(ConfigsProvider_18_3_18_4):
     pass
@@ -572,7 +556,7 @@ class ConfigsProvider_18_4(ConfigsProvider_18_3_18_4):
 
 class ConfigsProvider_18_5(ConfigsProvider_18):
     def _build_node_configs(self, provision, node_dirs, master_connection_configs, ports_generator, node_logs_dir):
-        configs, addresses = super(ConfigsProvider_18_5, self)._build_node_configs(
+        configs = super(ConfigsProvider_18_5, self)._build_node_configs(
                 provision, node_dirs, master_connection_configs, ports_generator, node_logs_dir)
 
         current_user = 10000
@@ -595,7 +579,7 @@ class ConfigsProvider_18_5(ConfigsProvider_18):
                 ("default", provision["fqdn"])
             ]
 
-        return configs, addresses
+        return configs
 
     def _build_scheduler_configs(self, provision, scheduler_dirs, master_connection_configs,
                                  ports_generator, log_path):
