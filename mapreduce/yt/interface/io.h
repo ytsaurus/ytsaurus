@@ -103,6 +103,7 @@ struct TIOOptions
     using TSelf = TDerived;
 
     FLUENT_FIELD_OPTION(TNode, Config);
+    FLUENT_FIELD_DEFAULT(size_t, SizeLimit, 4 << 20);
 };
 
 struct TFileReaderOptions

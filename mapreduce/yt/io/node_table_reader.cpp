@@ -17,7 +17,8 @@ class TStopException
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRowQueue::TRowQueue()
+TRowQueue::TRowQueue(size_t sizeLimit)
+    : SizeLimit_(sizeLimit)
 { }
 
 void TRowQueue::Enqueue(TRowElement&& row)
@@ -232,8 +233,9 @@ void TRowBuilder::Finalize()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeTableReader::TNodeTableReader(THolder<TProxyInput> input)
+TNodeTableReader::TNodeTableReader(THolder<TProxyInput> input, size_t sizeLimit)
     : Input_(std::move(input))
+    , RowQueue_(sizeLimit)
 {
     PrepareParsing();
 

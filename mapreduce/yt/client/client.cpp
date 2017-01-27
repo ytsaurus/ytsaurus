@@ -457,7 +457,7 @@ private:
         const TRichYPath& path, const TTableReaderOptions& options) override
     {
         return new TNodeTableReader(
-            CreateClientReader(path, DSF_YSON_BINARY, options));
+            CreateClientReader(path, DSF_YSON_BINARY, options), options.SizeLimit_);
     }
 
     TIntrusivePtr<IYaMRReaderImpl> CreateYaMRReader(

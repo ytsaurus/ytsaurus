@@ -40,7 +40,7 @@ struct TRowElement
 class TRowQueue
 {
 public:
-    TRowQueue();
+    TRowQueue(size_t sizeLimit = 4 << 20);
 
     void Enqueue(TRowElement&& row);
     TRowElement Dequeue();
@@ -55,11 +55,10 @@ private:
     yvector<TRowElement> DequeueBuffer_;
     size_t DequeueIndex_ = 0;
 
-    static constexpr size_t SizeLimit_ = 4 << 20;
-
     TAutoEvent EnqueueEvent_;
     TAutoEvent DequeueEvent_;
     std::atomic<bool> Stopped_{false};
+    size_t SizeLimit_ = 4 << 20;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -68,7 +67,7 @@ class TNodeTableReader
     : public INodeReaderImpl
 {
 public:
-    explicit TNodeTableReader(THolder<TProxyInput> input);
+    explicit TNodeTableReader(THolder<TProxyInput> input, size_t sizeLimit = 4 << 20);
     ~TNodeTableReader() override;
 
     const TNode& GetRow() const override;
