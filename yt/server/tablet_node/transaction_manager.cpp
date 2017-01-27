@@ -587,7 +587,7 @@ private:
 
         BarrierCheckExecutor_ = New<TPeriodicExecutor>(
             Slot_->GetEpochAutomatonInvoker(),
-            BIND(&TImpl::CheckBarrier, MakeWeak(this)),
+            BIND(&TImpl::OnPeriodicBarrierCheck, MakeWeak(this)),
             Config_->BarrierCheckPeriod);
         BarrierCheckExecutor_->Start();
 
@@ -612,6 +612,7 @@ private:
             auto* transaction = pair.second;
             transaction->ResetFinished();
             TransactionTransientReset_.Fire(transaction);
+            ErasePrepareTimestamp(transaction);
         }
         TransientTransactionMap_.Clear();
 
@@ -619,6 +620,9 @@ private:
         // Mark all transactions as finished to release pending readers.
         for (const auto& pair : PersistentTransactionMap_) {
             auto* transaction = pair.second;
+            if (transaction->GetState() == ETransactionState::TransientCommitPrepared) {
+                ErasePrepareTimestamp(transaction);
+            }
             transaction->SetState(transaction->GetPersistentState());
             transaction->SetTransientSignature(transaction->GetPersistentSignature());
             transaction->ResetFinished();
@@ -746,7 +750,7 @@ private:
     {
         auto barrierTimestamp = request->timestamp();
 
-        LOG_DEBUG("Handling transaction barrier (Timestamp: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Handling transaction barrier (Timestamp: %v)",
             barrierTimestamp);
 
         while (!SerializingTransactionHeap_.empty()) {
@@ -775,6 +779,15 @@ private:
     }
 
 
+    void OnPeriodicBarrierCheck()
+    {
+        LOG_DEBUG("Running periodic barrier check (BarrierTimestamp: %, MinPrepareTimestamp: %v)",
+            TransientBarrierTimestamp_,
+            GetMinPrepareTimestamp());
+
+        CheckBarrier();
+    }
+
     void CheckBarrier()
     {
         if (!IsLeader()) {
@@ -786,10 +799,11 @@ private:
             return;
         }
 
-        TransientBarrierTimestamp_ = minPrepareTimestamp;
+        LOG_DEBUG("Committing transaction barrier (Timestamp: %v->%v)",
+            TransientBarrierTimestamp_,
+            minPrepareTimestamp);
 
-        LOG_DEBUG("Committing transaction barrier (Timestamp: %v)",
-            TransientBarrierTimestamp_);
+        TransientBarrierTimestamp_ = minPrepareTimestamp;
 
         NTabletNode::NProto::TReqHandleTransactionBarrier request;
         request.set_timestamp(TransientBarrierTimestamp_);
