@@ -580,6 +580,24 @@ def verify_select(schema, data_table, table, dump_table, result_table, job_count
         format=yt.YsonFormat(boolean_as_string=False))
     verify_output(schema, data_table, dump_table, result_table)
 
+def wait_interruptable_op(op):
+    period = 10
+    while True:
+        sleep(period)
+        state = op.get_state()
+        if state.is_running():
+            print "running. will interrupt jobs"
+            jobs = yt.get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
+            for job, value in jobs.iteritems():
+                if random.random() >= 0.1 or len(jobs) < 10 or value["job_type"] not in ["map", "reduce"]:
+                    continue
+                try: yt.abort_job(job, interrupt_timeout=10000)
+                except: pass
+        else:
+            print "Operation is not in running state after {} seconds, wait without interrupts".format(period)
+            op.wait()
+            break
+
 def verify_merge(schema, data_table, table, dump_table, result_table, mode):
     print "Run %s merge" % (mode)
     yt.run_merge(table, dump_table, mode=mode)
@@ -589,7 +607,8 @@ def verify_map(schema, data_table, table, dump_table, result_table, ordered):
     print "Run %s map" % ("ordered" if ordered else "unordered")
     def mapper(record):
         yield record
-    yt.run_map(mapper, table, dump_table, ordered=ordered)
+    op = yt.run_map(mapper, table, dump_table, ordered=ordered, sync=False)
+    wait_interruptable_op(op)
     verify_output(schema, data_table, dump_table, result_table)
 
 def verify_sort(schema, data_table, table, dump_table, result_table, sort_by):
@@ -602,7 +621,8 @@ def verify_reduce(schema, data_table, table, dump_table, result_table, reduce_by
     def reducer(key, records):
         for r in records:
             yield r
-    yt.run_reduce(reducer, table, dump_table, reduce_by=reduce_by)
+    op = yt.run_reduce(reducer, table, dump_table, reduce_by=reduce_by, sync=False)
+    wait_interruptable_op(op)
     verify_output(schema, data_table, dump_table, result_table)
 
 def verify_map_reduce(schema, data_table, table, dump_table, result_table, reduce_by):
@@ -612,7 +632,8 @@ def verify_map_reduce(schema, data_table, table, dump_table, result_table, reduc
     def reducer(key, records):
         for r in records:
             yield r
-    yt.run_map_reduce(mapper, reducer, table, dump_table, reduce_by=reduce_by)
+    op = yt.run_map_reduce(mapper, reducer, table, dump_table, reduce_by=reduce_by, sync=False)
+    wait_interruptable_op(op)
     verify_output(schema, data_table, dump_table, result_table)
 
 def verify_mapreduce(schema, data_table, table, dump_table, result_table):
@@ -683,7 +704,7 @@ def do_single_execution(table, schema, attributes, args):
     job_count = args.job_count
     force = args.force
     keep = args.keep
-    mapreduce = args.mapreduce
+    mapreduce = not args.nomapreduce
 
     key_table = table + ".keys"
     data_table = table + ".data"
@@ -755,7 +776,7 @@ def main():
     parser.add_argument("--tablet_count", type=int, default=10, help="Nuber of tablets")
     parser.add_argument("--iterations", type=int, default=2, help="Nuber of iterations")
     parser.add_argument("--generations", type=int, default=100, help="Number of generations")
-    parser.add_argument("--mapreduce", action="store_true", default=False, help="Test map-reduce over dynamic tables")
+    parser.add_argument("--nomapreduce", action="store_true", default=False, help="Test map-reduce over dynamic tables")
     args = parser.parse_args()
 
     run_test(args)
