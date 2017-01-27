@@ -16,8 +16,7 @@ found_version() {
         for version in $(
             curl -s "http://dist.yandex.ru/$repo/$branch/all/Packages.gz" \
                 | zcat \
-                | grep "Package: $package\$" -A 1 \
-                | awk '{if ($1 == "Version:") print $2}'); do
+                | ./find_package.py $package); do
             if [ "$version" = "$target_version" ]; then
                 echo 1
                 return
