@@ -781,7 +781,7 @@ private:
 
     void OnPeriodicBarrierCheck()
     {
-        LOG_DEBUG("Running periodic barrier check (BarrierTimestamp: %, MinPrepareTimestamp: %v)",
+        LOG_DEBUG("Running periodic barrier check (BarrierTimestamp: %v, MinPrepareTimestamp: %v)",
             TransientBarrierTimestamp_,
             GetMinPrepareTimestamp());
 
