@@ -103,7 +103,6 @@ struct TIOOptions
     using TSelf = TDerived;
 
     FLUENT_FIELD_OPTION(TNode, Config);
-    FLUENT_FIELD_DEFAULT(size_t, SizeLimit, 4 << 20);
 };
 
 struct TFileReaderOptions
@@ -116,7 +115,9 @@ struct TFileWriterOptions
 
 struct TTableReaderOptions
     : public TIOOptions<TTableReaderOptions>
-{ };
+{
+    FLUENT_FIELD_DEFAULT(size_t, SizeLimit, 4 << 20);
+};
 
 struct TTableWriterOptions
     : public TIOOptions<TTableWriterOptions>
