@@ -4,7 +4,6 @@ from yt.tools.atomic import process_tasks_from_list, CANCEL
 from yt.tools.common import update_args
 from yt.tools.remote_copy_tools import copy_yt_to_yt_through_proxy
 from yt.wrapper.cli_helpers import die
-from yt.wrapper.client import Yt
 from yt.wrapper.http_helpers import get_token
 
 import yt.logger as logger
@@ -41,8 +40,8 @@ def export_table(object, args):
         logger.error("Source and destination proxies should be different")
         return CANCEL
 
-    source_client = Yt(yt.config["proxy"]["url"], get_token())
-    destination_client = Yt(params.yt_proxy, params.yt_token)
+    source_client = yt.YtClient(yt.config["proxy"]["url"], get_token())
+    destination_client = yt.YtClient(params.yt_proxy, params.yt_token)
     yt.config["proxy"]["url"] = None
   
     if not source_client.exists(src):

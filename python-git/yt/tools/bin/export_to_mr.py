@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-from yt.wrapper.client import Yt
 from yt.tools.atomic import process_tasks_from_list, CANCEL
 from yt.tools.common import update_args
 from yt.tools.yamr import Yamr
@@ -32,7 +31,7 @@ def export_table(object, args):
 
     logger.info("Exporting '%s' to '%s'", src, dst)
 
-    yt_client = Yt(params.yt_proxy, token=params.yt_token)
+    yt_client = yt.YtClient(params.yt_proxy, token=params.yt_token)
     yamr_client = Yamr(binary=params.mapreduce_binary,
                        server=params.mr_server,
                        server_port=params.mr_server_port,

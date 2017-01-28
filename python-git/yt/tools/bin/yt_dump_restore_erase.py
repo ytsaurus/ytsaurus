@@ -1,9 +1,6 @@
 #!/usr/bin/python
 
-import yt.wrapper as yt_module
 import yt.yson as yson
-from yt.wrapper.client import Yt
-from yt.wrapper.common import run_with_retries
 from yt.tools.dump_restore_client import DumpRestoreClient
 
 import os

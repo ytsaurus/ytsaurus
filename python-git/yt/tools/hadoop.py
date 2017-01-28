@@ -1,5 +1,10 @@
-from yt.wrapper.common import generate_uuid, run_with_retries
+from yt.wrapper.common import generate_uuid
 from yt.wrapper.http_helpers import get_retriable_errors
+try:
+    from yt.wrapper.common import run_with_retries
+except ImportError:
+    from yt.wrapper.retries import run_with_retries
+
 import yt.logger as logger
 from yt.json import loads_as_bytes
 
