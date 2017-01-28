@@ -129,7 +129,7 @@ protected:
 
             if (!chunkList->IsAlive() || chunkList->GetVersion() != entry.ChunkListVersion) {
                 THROW_ERROR_EXCEPTION(
-                    NRpc::EErrorCode::Unavailable,
+                    NChunkClient::EErrorCode::OptimisticLockFailure,
                     "Optimistic locking failed for chunk list %v",
                     chunkList->GetId());
             }
