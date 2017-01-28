@@ -1,5 +1,7 @@
 #pragma once
 
+#include "fwd.h"
+
 #include <util/generic/hash.h>
 #include <util/generic/vector.h>
 #include <util/generic/yexception.h>

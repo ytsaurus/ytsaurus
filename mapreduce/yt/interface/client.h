@@ -1,5 +1,6 @@
 #pragma once
 
+#include "fwd.h"
 #include "cypress.h"
 #include "io.h"
 #include "node.h"
@@ -12,7 +13,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-enum ELockMode
+enum ELockMode : int
 {
     LM_EXCLUSIVE,
     LM_SHARED,
@@ -105,9 +106,6 @@ struct TCreateClientOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class ITransaction;
-using ITransactionPtr = TIntrusivePtr<ITransaction>;
-
 class IClientBase
     : public TThrRefBase
     , public ICypressClient
@@ -188,9 +186,6 @@ public:
 
     virtual ui64 GenerateTimestamp() = 0;
 };
-
-using IClientPtr = TIntrusivePtr<IClient>;
-using IClientBasePtr = TIntrusivePtr<IClientBase>;
 
 IClientPtr CreateClient(
     const Stroka& serverName,

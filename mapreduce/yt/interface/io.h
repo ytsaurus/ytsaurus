@@ -1,5 +1,6 @@
 #pragma once
 
+#include "fwd.h"
 #include "common.h"
 #include "node.h"
 #include "mpl.h"
@@ -33,18 +34,14 @@ class IFileReader
     , public TInputStream
 { };
 
-using IFileReaderPtr = TIntrusivePtr<IFileReader>;
-
 class IFileWriter
     : public TThrRefBase
     , public TOutputStream
 { };
 
-using IFileWriterPtr = TIntrusivePtr<IFileWriter>;
-
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T, class = void>
+template <class T, class>
 class TTableReader
     : public TThrRefBase
 {
@@ -56,12 +53,9 @@ public:
     void Next();
 };
 
-template <class T>
-using TTableReaderPtr = TIntrusivePtr<TTableReader<T>>;
-
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T, class = void>
+template <class T, class>
 class TTableWriter
     : public TThrRefBase
 {
@@ -69,9 +63,6 @@ public:
     void AddRow(const T& row); // may be a template function
     void Finish();
 };
-
-template <class T>
-using TTableWriterPtr = TIntrusivePtr<TTableWriter<T>>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,19 +72,6 @@ struct TYaMRRow
     TStringBuf SubKey;
     TStringBuf Value;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-using ::google::protobuf::Message;
-
-////////////////////////////////////////////////////////////////////////////////
-
-using TYaMRReader = TTableReader<TYaMRRow>;
-using TYaMRWriter = TTableWriter<TYaMRRow>;
-using TNodeReader = TTableReader<TNode>;
-using TNodeWriter = TTableWriter<TNode>;
-using TMessageReader = TTableReader<Message>;
-using TMessageWriter = TTableWriter<Message>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

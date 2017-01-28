@@ -1,5 +1,6 @@
 #pragma once
 
+#include "fwd.h"
 #include "common.h"
 #include "node.h"
 
@@ -9,7 +10,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-enum ENodeType
+enum ENodeType : int
 {
     NT_STRING,
     NT_INT64,
