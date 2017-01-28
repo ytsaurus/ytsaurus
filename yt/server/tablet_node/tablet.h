@@ -179,6 +179,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(Stroka, ClusterName);
     DEFINE_BYVAL_RW_PROPERTY(NYPath::TYPath, ReplicaPath);
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, StartReplicationTimestamp, NullTimestamp);
+    DEFINE_BYVAL_RW_PROPERTY(TTransactionId, PreparedReplicationTransactionId);
 
     DEFINE_BYVAL_RW_PROPERTY(ETableReplicaState, State);
 

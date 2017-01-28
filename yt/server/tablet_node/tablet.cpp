@@ -154,6 +154,7 @@ void TTableReplicaInfo::Save(TSaveContext& context) const
     Save(context, ClusterName_);
     Save(context, ReplicaPath_);
     Save(context, StartReplicationTimestamp_);
+    Save(context, PreparedReplicationTransactionId_);
     Save(context, State_);
     Save(context, RuntimeData_->CurrentReplicationRowIndex);
     Save(context, RuntimeData_->CurrentReplicationTimestamp);
@@ -167,6 +168,10 @@ void TTableReplicaInfo::Load(TLoadContext& context)
     Load(context, ClusterName_);
     Load(context, ReplicaPath_);
     Load(context, StartReplicationTimestamp_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 100001) {
+        Load(context, PreparedReplicationTransactionId_);
+    }
     Load(context, State_);
     Load(context, RuntimeData_->CurrentReplicationRowIndex);
     Load(context, RuntimeData_->CurrentReplicationTimestamp);

@@ -1604,16 +1604,18 @@ private:
                 replicaId);
         }
 
-        if (replicaInfo->GetPreparedReplicationRowIndex() != -1) {
-            THROW_ERROR_EXCEPTION("Cannot prepare %v rows for replica %v of tablet %v since it already has %v rows prepared",
-                request->new_replication_row_index(),
+        if (replicaInfo->GetPreparedReplicationTransactionId()) {
+            THROW_ERROR_EXCEPTION("Cannot prepare rows for replica %v of tablet %v by transaction %v since these are already "
+                "prepared by transaction %v",
+                transaction->GetId(),
                 replicaId,
                 tabletId,
-                replicaInfo->GetPreparedReplicationRowIndex());
+                replicaInfo->GetPreparedReplicationTransactionId());
         }
 
-        YCHECK(replicaInfo->GetPreparedReplicationRowIndex() <= request->new_replication_row_index());
+        YCHECK(replicaInfo->GetPreparedReplicationRowIndex() == -1);
         replicaInfo->SetPreparedReplicationRowIndex(request->new_replication_row_index());
+        replicaInfo->SetPreparedReplicationTransactionId(transaction->GetId());
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Replicated rows prepared (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
             "CurrentReplicationRowIndex: %v->%v, CurrentReplicationTimestamp: %v->%v)",
@@ -1642,7 +1644,9 @@ private:
         }
 
         YCHECK(replicaInfo->GetPreparedReplicationRowIndex() == request->new_replication_row_index());
+        YCHECK(replicaInfo->GetPreparedReplicationTransactionId() == transaction->GetId());
         replicaInfo->SetPreparedReplicationRowIndex(-1);
+        replicaInfo->SetPreparedReplicationTransactionId(NullTransactionId);
 
         auto prevCurrentReplicationRowIndex = replicaInfo->GetCurrentReplicationRowIndex();
         auto prevCurrentReplicationTimestamp = replicaInfo->GetCurrentReplicationTimestamp();
@@ -1686,7 +1690,12 @@ private:
             return;
         }
 
+        if (transaction->GetId() != replicaInfo->GetPreparedReplicationTransactionId()) {
+            return;
+        }
+
         replicaInfo->SetPreparedReplicationRowIndex(-1);
+        replicaInfo->SetPreparedReplicationTransactionId(NullTransactionId);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Replicated rows aborted (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
             "CurrentReplicationRowIndex: %v->%v, CurrentReplicationTimestamp: %v->%v)",
