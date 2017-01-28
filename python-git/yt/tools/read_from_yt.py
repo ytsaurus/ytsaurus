@@ -57,11 +57,11 @@ def load(input_type):
 
 def read(proxy, token, config, transaction, format, table, input_type):
     # We should import yt here since it can be unpacked in from local archive.
-    from yt.wrapper.client import Yt
+    from yt.wrapper import YtClient
     from yt.wrapper.common import chunk_iter_stream
     import yt.wrapper as yt
 
-    client = Yt(proxy, token=token, config=config)
+    client = YtClient(proxy, token=token, config=config)
     with client.Transaction(ping=False, transaction_id=transaction):
         table_path = yt.TablePath(table, client=client)
         for limits in load(input_type):

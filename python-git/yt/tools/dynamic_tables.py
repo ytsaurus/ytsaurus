@@ -4,10 +4,14 @@
 import yt.wrapper as yt_module
 import yt.yson as yson
 from yt.common import YtError
-from yt.wrapper.common import run_with_retries, update
+from yt.wrapper.common import update
 from yt.wrapper.client import Yt
+try:
+    from yt.wrapper.common import run_with_retries
+except ImportError:
+    from yt.wrapper.retries import run_with_retries
 
-from yt.packages.six import itervalues, iteritems
+from yt.packages.six import iteritems
 from yt.packages.six.moves import map as imap, zip as izip
 
 import sys
