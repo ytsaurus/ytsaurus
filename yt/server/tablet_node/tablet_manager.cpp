@@ -2362,9 +2362,9 @@ private:
     }
 
 
-    TNodeMemoryTrackerGuard* GetMemoryTrackerGuardFromStore(IStore* store)
+    TNodeMemoryTrackerGuard* GetMemoryTrackerGuardFromStoreType(EStoreType type)
     {
-        switch (store->GetType()) {
+        switch (type) {
             case EStoreType::SortedDynamic:
             case EStoreType::OrderedDynamic:
                 return &DynamicStoresMemoryTrackerGuard_;
@@ -2376,9 +2376,9 @@ private:
         }
     }
 
-    void OnStoreMemoryUsageUpdated(IStore* store, i64 delta)
+    void OnStoreMemoryUsageUpdated(EStoreType type, i64 delta)
     {
-        auto* guard = GetMemoryTrackerGuardFromStore(store);
+        auto* guard = GetMemoryTrackerGuardFromStoreType(type);
         guard->UpdateSize(delta);
     }
 
@@ -2387,7 +2387,7 @@ private:
         store->SubscribeMemoryUsageUpdated(BIND(
             &TImpl::OnStoreMemoryUsageUpdated,
             MakeWeak(this),
-            Unretained(store.Get())));
+            store->GetType()));
     }
 
     void ValidateMemoryLimit()
