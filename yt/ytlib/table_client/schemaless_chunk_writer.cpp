@@ -1080,6 +1080,10 @@ public:
     {
         YCHECK(!SwitchingSession_);
 
+        if (!Error_.IsOK()) {
+            return false;
+        }
+
         try {
             auto reorderedRows = ReorderAndValidateRows(rows);
 
@@ -1094,6 +1098,7 @@ public:
             return readyForMore && !switched;
         } catch (const std::exception& ex) {
             Error_ = TError(ex);
+            LOG_WARNING(Error_, "Partition multi chunk writer failed");
             return false;
         }
     }
@@ -1142,6 +1147,10 @@ private:
 
     void DoClose()
     {
+        if (!Error_.IsOK()) {
+            THROW_ERROR Error_;
+        }
+
         for (int partitionIndex = 0; partitionIndex < Partitioner_->GetPartitionCount(); ++partitionIndex) {
             auto& blockWriter = BlockWriters_[partitionIndex];
             if (blockWriter->GetRowCount() > 0) {
@@ -1216,10 +1225,10 @@ private:
         CurrentBufferCapacity_ += blockWriter->GetCapacity();
 
         LOG_DEBUG("Flushing partition block (PartitonIndex: %v, BlockSize: %v, BlockRowCount: %v, CurrentBufferCapacity: %v)",
-                partitionIndex,
-                block.Meta.uncompressed_size(),
-                block.Meta.row_count(),
-                CurrentBufferCapacity_);
+            partitionIndex,
+            block.Meta.uncompressed_size(),
+            block.Meta.row_count(),
+            CurrentBufferCapacity_);
 
         return CurrentWriter_->WriteBlock(std::move(block));
     }

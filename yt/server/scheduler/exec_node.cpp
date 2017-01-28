@@ -28,9 +28,9 @@ const Stroka& TExecNode::GetDefaultAddress() const
     return NodeDescriptor_.GetDefaultAddress();
 }
 
-bool TExecNode::CanSchedule(const TNullable<Stroka>& tag) const
+bool TExecNode::CanSchedule(const TSchedulingTagFilter& filter) const
 {
-    return !tag || Tags_.find(*tag) != Tags_.end();
+    return filter.IsEmpty() || filter.CanSchedule(Tags_);
 }
 
 TExecNodeDescriptor TExecNode::BuildExecDescriptor() const
@@ -98,9 +98,9 @@ TExecNodeDescriptor::TExecNodeDescriptor(
     , Tags(tags)
 { }
 
-bool TExecNodeDescriptor::CanSchedule(const TNullable<Stroka>& tag) const
+bool TExecNodeDescriptor::CanSchedule(const TSchedulingTagFilter& filter) const
 {
-    return !tag || Tags.find(*tag) != Tags.end();
+    return filter.IsEmpty() || filter.CanSchedule(Tags);
 }
 
 void TExecNodeDescriptor::Persist(const TStreamPersistenceContext& context)

@@ -376,42 +376,34 @@ class TestSchedulerSortCommands(YTEnvSetup):
     def test_unique_keys_inference(self):
         schema_in = make_schema([
                 {"name": "key1", "type": "string", "sort_order": "ascending"},
-                {"name": "key2", "type": "string", "sort_order": "ascending"}],
-            strict = True,
-            unique_keys = True)
-
-        schema_out = make_schema([
                 {"name": "key2", "type": "string", "sort_order": "ascending"},
-                {"name": "key1", "type": "string", "sort_order": "ascending"}],
+                {"name": "key3", "type": "string"}],
             strict = True,
             unique_keys = True)
 
         create("table", "//tmp/t_in", attributes={"schema": schema_in})
         create("table", "//tmp/t_out")
-        write_table("//tmp/t_in", [{"key1" : "a", "key2": "b"}, {"key1" : "b", "key2": "a"}])
 
-        for out_table in ["//tmp/t_out", "//tmp/t_in"]:
+        row1 = {"key1" : "a", "key2": "b", "key3": "c"}
+        row2 = {"key1" : "b", "key2": "a", "key3": "d"}
+        write_table("//tmp/t_in", [row1, row2])
+
+        def _do(out_table, sort_by, unique_keys, result):
             sort(in_="//tmp/t_in",
                  out=out_table,
-                 sort_by=["key2", "key1"])
+                 sort_by=sort_by,
+                 spec={"schema_inference_mode": "from_input"})
 
-            assert get(out_table + "/@sorted")
-            assert get(out_table + "/@schema") == schema_out
-            assert read_table(out_table) == [{"key1" : "b", "key2": "a"}, {"key1" : "a", "key2": "b"}]
+            assert get(out_table + "/@sorted_by") == sort_by
+            assert get(out_table + "/@schema/@strict")
+            assert get(out_table + "/@schema/@unique_keys") == unique_keys
+            assert read_table(out_table) == result
 
-        schema_out = make_schema([
-                {"name": "key2", "type": "string", "sort_order": "ascending"},
-                {"name": "key1", "type": "string"}],
-            strict = True,
-            unique_keys = False)
-
-        sort(in_="//tmp/t_in",
-             out="//tmp/t_out",
-             sort_by=["key2"])
-
-        assert get("//tmp/t_out/@sorted")
-        assert get("//tmp/t_out/@schema") == schema_out
-        assert read_table("//tmp/t_out") == [{"key1" : "b", "key2": "a"}, {"key1" : "a", "key2": "b"}]
+        _do("//tmp/t_out", ["key2", "key1"], True, [row2, row1])
+        _do("//tmp/t_out", ["key2"], False, [row2, row1])
+        _do("//tmp/t_out", ["key3", "key2", "key1"], True, [row1, row2])
+        _do("//tmp/t_out", ["key3", "key1"], False, [row1, row2])
+        _do("//tmp/t_in", ["key2", "key1"], True, [row2, row1])
 
     def test_schema_validation(self):
         create("table", "//tmp/input")
