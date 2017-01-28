@@ -118,50 +118,47 @@ void ThrowUnexpectedToken(const TToken& token)
 
 Stroka ParseAttributes(const Stroka& str, IAttributeDictionary* attributes)
 {
-    if (!str.empty() && str[0] == TokenTypeToChar(NYson::ETokenType::LeftAngle)) {
-        NYson::TTokenizer tokenizer(str);
+    NYson::TTokenizer tokenizer(str);
+    if (!tokenizer.ParseNext()) {
+        return str;
+    }
+    if (tokenizer.CurrentToken().GetType() != NYson::ETokenType::LeftAngle) {
+        return str;
+    }
 
-        int depth = 0;
-        int attrStartPosition = -1;
-        int attrEndPosition = -1;
-        int pathStartPosition = -1;
-        while (true) {
-            int positionBefore = str.length() - tokenizer.GetCurrentSuffix().length();
-            if (!tokenizer.ParseNext()) {
-                THROW_ERROR_EXCEPTION("Unmatched '<' in YPath");
-            }
-            int positionAfter = str.length() - tokenizer.GetCurrentSuffix().length();
+    int depth = 0;
+    int attrStartPosition = tokenizer.GetPosition();
 
-            switch (tokenizer.CurrentToken().GetType()) {
-                case NYson::ETokenType::LeftAngle:
-                    ++depth;
-                    break;
-                case NYson::ETokenType::RightAngle:
-                    --depth;
-                    break;
-                default:
-                    break;
-            }
-
-            if (attrStartPosition < 0 && depth == 1) {
-                attrStartPosition = positionAfter;
-            }
-
-            if (attrEndPosition < 0 && depth == 0) {
-                attrEndPosition = positionBefore;
-                pathStartPosition = positionAfter;
+    while (true) {
+        switch (tokenizer.CurrentToken().GetType()) {
+            case NYson::ETokenType::LeftAngle:
+                ++depth;
                 break;
-            }
+            case NYson::ETokenType::RightAngle:
+                --depth;
+                break;
+            default:
+                break;
         }
 
-        TYsonString attrYson(
-            str.substr(attrStartPosition, attrEndPosition - attrStartPosition),
-            NYson::EYsonType::MapFragment);
-        attributes->MergeFrom(*ConvertToAttributes(attrYson));
+        if (depth == 0) {
+            break;
+        }
 
-        return TrimLeadingWhitespaces(str.substr(pathStartPosition));
+        if (!tokenizer.ParseNext()) {
+            THROW_ERROR_EXCEPTION("Unmatched '<' in YPath");
+        }
     }
-    return str;
+
+    int attrEndPosition = tokenizer.GetPosition() - 1;
+    int pathStartPosition = attrEndPosition + 1;
+
+    TYsonString attrYson(
+        str.substr(attrStartPosition, attrEndPosition - attrStartPosition),
+        NYson::EYsonType::MapFragment);
+    attributes->MergeFrom(*ConvertToAttributes(attrYson));
+
+    return TrimLeadingWhitespaces(str.substr(pathStartPosition));
 }
 
 void ParseChannel(NYson::TTokenizer& tokenizer, IAttributeDictionary* attributes)

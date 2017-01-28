@@ -57,33 +57,35 @@ public:
         ValidateEnabled();
 
         try {
-            auto jobProxy = New<TProcess>(JobProxyProgramName);
+            auto process = New<TProcess>(JobProxyProgramName);
 
-            jobProxy->AddArguments({
+            process->AddArguments({
                 "--config", ProxyConfigFileName,
                 "--operation-id", ToString(operationId),
                 "--job-id", ToString(jobId),
             });
 
-            jobProxy->SetWorkingDirectory(workingDirectory);
+            process->SetWorkingDirectory(workingDirectory);
 
-            AddArguments(jobProxy, slotIndex);
+            AddArguments(process, slotIndex);
 
-            LOG_INFO("Spawning a job proxy (SlotIndex: %v, JobId: %v, OperationId: %v, WorkingDirectory: %v)", 
-                slotIndex, 
+            LOG_INFO("Spawning a job proxy (SlotIndex: %v, JobId: %v, OperationId: %v, WorkingDirectory: %v)",
+                slotIndex,
                 jobId,
                 operationId,
                 workingDirectory);
 
-            // Make forks outside controller thread.
-            auto result = BIND([=] () {
-                    return jobProxy->Spawn();
+            TJobProxyProcess jobProxyProcess;
+            jobProxyProcess.Process = process;
+            jobProxyProcess.Result = BIND([=] () {
+                    // Make forks outside controller thread.
+                    return process->Spawn();
                 })
                 .AsyncVia(ActionQueue_->GetInvoker())
                 .Run();
 
-            JobProxyProcesses_[slotIndex] = jobProxy;
-            return result;
+            JobProxyProcesses_[slotIndex] = jobProxyProcess;
+            return jobProxyProcess.Result;
 
         } catch (const std::exception& ex) {
             auto error = TError("Failed to spawn job proxy") << ex;
@@ -99,10 +101,18 @@ public:
     }
 
 protected:
+    struct TJobProxyProcess
+    {
+        TProcessPtr Process;
+        TFuture<void> Result;
+    };
+
     const TJobEnvironmentConfigPtr BasicConfig_;
-    yhash_map<int, TProcessPtr> JobProxyProcesses_;
+    yhash_map<int, TJobProxyProcess> JobProxyProcesses_;
     const TBootstrap* const Bootstrap_;
     TActionQueuePtr ActionQueue_ = New<TActionQueue>("JobEnvironment");
+
+    TFuture<void> JobProxyResult_;
 
     bool Enabled_ = true;
 
@@ -110,9 +120,25 @@ protected:
     {
         if (!Enabled_) {
             THROW_ERROR_EXCEPTION(
-                EErrorCode::JobEnvironmentDisabled, 
-                "Job environment %Qlv is disabled", 
+                EErrorCode::JobEnvironmentDisabled,
+                "Job environment %Qlv is disabled",
                 BasicConfig_->Type);
+        }
+    }
+
+    void EnsureJobProxyFinished(int slotIndex, bool kill)
+    {
+        auto it = JobProxyProcesses_.find(slotIndex);
+        if (it != JobProxyProcesses_.end()) {
+            if (kill) {
+                it->second.Process->Kill(SIGKILL);
+            }
+
+            // Ensure that job proxy process finised.
+            auto error = WaitFor(it->second.Result);
+            LOG_INFO(error, "Job proxy process finished (SlotIndex: %v)", slotIndex);
+            // Drop reference to a process.
+            JobProxyProcesses_.erase(it);
         }
     }
 
@@ -173,6 +199,9 @@ public:
             THROW_ERROR wrapperError;
         }
 
+        // No need to kill, job proxy was already killed inside cgroup.
+        EnsureJobProxyFinished(slotIndex, false);
+
         // Remove all supported cgroups.
         error = WaitFor(BIND([=] () {
                 for (const auto& path : GetCGroupPaths(slotIndex)) {
@@ -189,9 +218,6 @@ public:
             Disable(wrapperError);
             THROW_ERROR wrapperError;
         }
-
-        // Drop reference to a process if there was any.
-        JobProxyProcesses_.erase(slotIndex);
     }
 
     virtual int GetUserId(int slotIndex) const override
@@ -249,13 +275,7 @@ public:
         ValidateEnabled();
 
         try {
-            auto jobProxy = JobProxyProcesses_[slotIndex];
-            if (jobProxy) {
-                jobProxy->Kill(SIGKILL);
-
-                // Drop reference to a process if there were any.
-                JobProxyProcesses_.erase(slotIndex);
-            }
+            EnsureJobProxyFinished(slotIndex, true);
 
             if (HasRootPermissions_) {
                 RunTool<TKillAllByUidTool>(GetUserId(slotIndex));

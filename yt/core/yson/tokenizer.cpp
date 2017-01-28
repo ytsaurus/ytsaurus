@@ -8,6 +8,7 @@ namespace NYson {
 TTokenizer::TTokenizer(const TStringBuf& input)
     : Input(input)
     , Parsed(0)
+    , Position(0)
 { }
 
 bool TTokenizer::ParseNext()
@@ -15,6 +16,7 @@ bool TTokenizer::ParseNext()
     Input = Input.Tail(Parsed);
     Token.Reset();
     Parsed = Lexer.GetToken(Input, &Token);
+    Position += Parsed;
     return !CurrentToken().IsEmpty();
 }
 
@@ -36,6 +38,11 @@ TStringBuf TTokenizer::GetCurrentSuffix() const
 const TStringBuf& TTokenizer::CurrentInput() const
 {
     return Input;
+}
+
+size_t TTokenizer::GetPosition() const
+{
+    return Position;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -64,7 +64,7 @@ public:
                 }
             }
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error occured while parsing YSON, context: %Qv",
+            THROW_ERROR_EXCEPTION("Error occurred while parsing YSON, context: %Qv",
                 EscapeC(TBase::GetContextFromCheckpoint()))
                 << ex;
         }

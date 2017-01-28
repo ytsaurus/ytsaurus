@@ -235,27 +235,28 @@ public:
     bool ReconfigureCell(const TCellDescriptor& descriptor)
     {
         TWriterGuard guard(SpinLock_);
-        bool result = false;
-        if (UnregisteredCellIds_.find(descriptor.CellId) == UnregisteredCellIds_.end()) {
-            auto it = RegisteredCellMap_.find(descriptor.CellId);
-            auto* entry = (it == RegisteredCellMap_.end()) ? nullptr : &it->second;
-            if (!entry) {
-                auto it = RegisteredCellMap_.insert(std::make_pair(descriptor.CellId, TEntry())).first;
-                entry = &it->second;
-                result = true;
-            }
-            if (entry->Descriptor.ConfigVersion < descriptor.ConfigVersion) {
-                entry->Descriptor = descriptor;
-                InitChannel(entry);
-                result = true;
-            }
+        if (UnregisteredCellIds_.find(descriptor.CellId) != UnregisteredCellIds_.end()) {
+            return false;
         }
-        if (result) {
+        auto it = RegisteredCellMap_.find(descriptor.CellId);
+        if (it == RegisteredCellMap_.end()) {
+            it = RegisteredCellMap_.insert(std::make_pair(descriptor.CellId, TEntry(descriptor))).first;
+            if (descriptor.ConfigVersion >= 0) {
+                InitChannel(&it->second);
+            }
+            LOG_DEBUG("Cell registered (CellId: %v, ConfigVersion: %v)",
+                descriptor.CellId,
+                descriptor.ConfigVersion);
+            return true;
+        } else if (it->second.Descriptor.ConfigVersion < descriptor.ConfigVersion) {
+            it->second.Descriptor = descriptor;
+            InitChannel(&it->second);
             LOG_DEBUG("Cell reconfigured (CellId: %v, ConfigVersion: %v)",
                 descriptor.CellId,
                 descriptor.ConfigVersion);
+            return true;
         }
-        return result;
+        return false;
     }
 
     void RegisterCell(const TCellId& cellId)
@@ -267,17 +268,14 @@ public:
 
     bool UnregisterCell(const TCellId& cellId)
     {
-        bool result;
-        {
-            TWriterGuard guard(SpinLock_);
-            UnregisteredCellIds_.insert(cellId);
-            result = RegisteredCellMap_.erase(cellId) == 1;
+        TWriterGuard guard(SpinLock_);
+        UnregisteredCellIds_.insert(cellId);
+        if (RegisteredCellMap_.erase(cellId) == 0) {
+            return false;
         }
-        if (result) {
-            LOG_INFO("Cell unregistered (CellId: %v)",
-                cellId);
-        }
-        return result;
+        LOG_INFO("Cell unregistered (CellId: %v)",
+            cellId);
+        return true;
     }
 
     void Clear()
@@ -293,6 +291,10 @@ private:
 
     struct TEntry
     {
+        explicit TEntry(const TCellDescriptor& descriptor)
+            : Descriptor(descriptor)
+        { }
+
         TCellDescriptor Descriptor;
         TEnumIndexedVector<IChannelPtr, EPeerKind> Channels;
     };
