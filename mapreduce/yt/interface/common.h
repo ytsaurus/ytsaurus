@@ -1,5 +1,6 @@
 #pragma once
 
+#include "fwd.h"
 #include "node.h"
 
 #include <util/generic/guid.h>
@@ -13,17 +14,6 @@
 #include <type_traits>
 
 namespace NYT {
-
-////////////////////////////////////////////////////////////////////////////////
-
-using TTransactionId = TGUID;
-using TNodeId = TGUID;
-using TLockId = TGUID;
-using TOperationId = TGUID;
-using TTabletCellId = TGUID;
-
-using TYPath = Stroka;
-using TLocalFilePath = Stroka;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -122,15 +112,9 @@ struct TKeyBase
     yvector<T> Parts_;
 };
 
-// key column values
-using TKey = TKeyBase<TNode>;
-
-// key column names
-using TKeyColumns = TKeyBase<Stroka>;
-
 ////////////////////////////////////////////////////////////////////////////////
 
-enum EValueType
+enum EValueType : int
 {
     VT_INT64,
     VT_UINT64,
@@ -140,7 +124,7 @@ enum EValueType
     VT_ANY
 };
 
-enum ESortOrder
+enum ESortOrder : int
 {
     SO_ASCENDING,
     SO_DESCENDING

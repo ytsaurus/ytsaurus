@@ -1,5 +1,6 @@
 #pragma once
 
+#include "fwd.h"
 #include "common.h"
 
 #include <util/generic/yexception.h>
