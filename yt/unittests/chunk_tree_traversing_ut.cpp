@@ -97,13 +97,10 @@ public:
         return true;
     }
 
-    virtual void OnError(const TError& error) override
+    virtual void OnFinish(const TError& error) override
     {
-        GTEST_FAIL();
+        ASSERT_TRUE(error.IsOK());
     }
-
-    virtual void OnFinish() override
-    { }
 
     const std::set<TChunkInfo>& GetChunkInfos() const
     {
