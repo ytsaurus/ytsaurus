@@ -178,7 +178,7 @@ private:
                     auto* chunk = chunkManager->FindChunk(chunkId);
                     if (!IsObjectAlive(chunk)) {
                         THROW_ERROR_EXCEPTION(
-                            NRpc::EErrorCode::Unavailable,
+                            NChunkClient::EErrorCode::OptimisticLockFailure,
                             "Optimistic locking failed for chunk %v",
                             chunkId);
                     }

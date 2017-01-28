@@ -145,6 +145,7 @@ DEFINE_ENUM(EErrorCode,
     ((ChunkUnavailable)         (716))
     ((WriteThrottlingActive)    (718))
     ((NoSuchMedium)             (719))
+    ((OptimisticLockFailure)    (720))
 );
 
 //! Values must be contiguous.
