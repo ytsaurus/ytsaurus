@@ -240,6 +240,35 @@ TEST(TJsonParserTest, InvalidJson)
     );
 }
 
+TEST(TJsonParserTest, Embedded)
+{
+    StrictMock<TMockYsonConsumer> Mock;
+    InSequence dummy;
+
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("a"));
+        EXPECT_CALL(Mock, OnBeginMap());
+            EXPECT_CALL(Mock, OnKeyedItem("foo"));
+            EXPECT_CALL(Mock, OnStringScalar("bar"));
+        EXPECT_CALL(Mock, OnEndMap());
+        EXPECT_CALL(Mock, OnKeyedItem("b"));
+        EXPECT_CALL(Mock, OnBeginList());
+            EXPECT_CALL(Mock, OnListItem());
+            EXPECT_CALL(Mock, OnInt64Scalar(1));
+        EXPECT_CALL(Mock, OnEndList());
+    EXPECT_CALL(Mock, OnEndMap());
+
+    Stroka input =
+        "{"
+            "\"a\":{\"foo\":\"bar\"}"
+            ","
+            "\"b\":[1]"
+        "}";
+    TStringInput stream(input);
+
+    ParseJson(&stream, &Mock);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TJsonParserPlainTest, Simple)
@@ -273,8 +302,21 @@ TEST(TJsonParserPlainTest, Simple)
 
 TEST(TJsonParserPlainTest, Incorrect)
 {
+    InSequence dummy;
+
     StrictMock<TMockYsonConsumer> Mock;
     EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("$attributes"));
+        EXPECT_CALL(Mock, OnBeginMap());
+            EXPECT_CALL(Mock, OnKeyedItem("foo"));
+            EXPECT_CALL(Mock, OnStringScalar("bar"));
+        EXPECT_CALL(Mock, OnEndMap());
+        EXPECT_CALL(Mock, OnKeyedItem("$value"));
+        EXPECT_CALL(Mock, OnBeginList());
+            EXPECT_CALL(Mock, OnListItem());
+            EXPECT_CALL(Mock, OnInt64Scalar(1));
+        EXPECT_CALL(Mock, OnEndList());
+    EXPECT_CALL(Mock, OnEndMap());
 
     Stroka input =
         "{"
@@ -287,9 +329,7 @@ TEST(TJsonParserPlainTest, Incorrect)
     auto config = New<TJsonFormatConfig>();
     config->Plain = true;
 
-    EXPECT_ANY_THROW(
-        ParseJson(&stream, &Mock, config)
-    );
+    ParseJson(&stream, &Mock, config);
 }
 
 TEST(TJsonParserPlainTest, ListFragment)
