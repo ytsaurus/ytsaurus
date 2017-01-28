@@ -4,7 +4,7 @@
 #include "chunk_list.h"
 #include "chunk_owner_base.h"
 #include "chunk_placement.h"
-#include "chunk_tree_traversing.h"
+#include "chunk_tree_traverser.h"
 #include "job.h"
 #include "chunk_scanner.h"
 #include "chunk_replica.h"

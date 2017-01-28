@@ -2353,6 +2353,7 @@ std::vector<TDataSliceDescriptor> TSchemalessMergingMultiChunkReader::GetUnreadD
         }
         firstUnreadKey = GetKeySuccessor(LastKey_);
     } else {
+        unreadDescriptors.emplace_back(DataSliceDescriptor_);
         firstUnreadKey = GetKeyPrefix(unreadRows[0], KeyColumnCount_);
     }
     for (auto& descriptor : unreadDescriptors) {

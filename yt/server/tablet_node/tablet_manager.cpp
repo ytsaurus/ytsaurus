@@ -1556,7 +1556,7 @@ private:
         DisableTableReplica(tablet, replicaInfo);
     }
 
-    void HydraPrepareReplicateRows(TTransaction* /*transaction*/, TReqReplicateRows* request, bool persistent)
+    void HydraPrepareReplicateRows(TTransaction* transaction, TReqReplicateRows* request, bool persistent)
     {
         YCHECK(persistent);
 
@@ -1588,10 +1588,11 @@ private:
         YCHECK(replicaInfo->GetPreparedReplicationRowIndex() <= request->new_replication_row_index());
         replicaInfo->SetPreparedReplicationRowIndex(request->new_replication_row_index());
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Replicated rows prepared (TabletId: %v, ReplicaId: %v, "
+        LOG_DEBUG_UNLESS(IsRecovery(), "Replicated rows prepared (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
             "CurrentReplicationRowIndex: %v->%v, CurrentReplicationTimestamp: %v->%v)",
             tabletId,
             replicaId,
+            transaction->GetId(),
             replicaInfo->GetCurrentReplicationRowIndex(),
             request->new_replication_row_index(),
             replicaInfo->GetCurrentReplicationTimestamp(),
@@ -1631,10 +1632,11 @@ private:
 
         AdvanceReplicatedTrimmedRowCount(transaction, tablet);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Replicated rows committed (TabletId: %v, ReplicaId: %v, "
+        LOG_DEBUG_UNLESS(IsRecovery(), "Replicated rows committed (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
             "CurrentReplicationRowIndex: %v->%v, CurrentReplicationTimestamp: %v->%v, TrimmedRowCount: %v->%v)",
             tabletId,
             replicaId,
+            transaction->GetId(),
             prevCurrentReplicationRowIndex,
             replicaInfo->GetCurrentReplicationRowIndex(),
             prevCurrentReplicationTimestamp,
@@ -1643,7 +1645,7 @@ private:
             tablet->GetTrimmedRowCount());
     }
 
-    void HydraAbortReplicateRows(TTransaction* /*transaction*/, TReqReplicateRows* request)
+    void HydraAbortReplicateRows(TTransaction* transaction, TReqReplicateRows* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
@@ -1659,10 +1661,11 @@ private:
 
         replicaInfo->SetPreparedReplicationRowIndex(-1);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Replicated rows aborted (TabletId: %v, ReplicaId: %v, "
+        LOG_DEBUG_UNLESS(IsRecovery(), "Replicated rows aborted (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
             "CurrentReplicationRowIndex: %v->%v, CurrentReplicationTimestamp: %v->%v)",
             tabletId,
             replicaId,
+            transaction->GetId(),
             replicaInfo->GetCurrentReplicationRowIndex(),
             request->new_replication_row_index(),
             replicaInfo->GetCurrentReplicationTimestamp(),

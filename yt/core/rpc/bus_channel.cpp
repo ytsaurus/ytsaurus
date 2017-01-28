@@ -363,7 +363,7 @@ private:
                 }
 
                 if (requestControl != it->second) {
-                    LOG_DEBUG("Timeout occured for a resent request, ignored (RequestId: %v)",
+                    LOG_DEBUG("Timeout occurred for a resent request, ignored (RequestId: %v)",
                         requestId);
                     return;
                 }

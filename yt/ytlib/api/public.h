@@ -23,7 +23,7 @@ DEFINE_ENUM(EUserWorkloadCategory,
 );
 
 DEFINE_ENUM(EErrorCode,
-    ((TooManyConcurrentRequests)                         (1800))
+    ((TooManyConcurrentRequests)                         (1900))
 );
 
 DEFINE_ENUM(ERowModificationType,
