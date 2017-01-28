@@ -9,6 +9,8 @@
 
 #include <yt/ytlib/security_client/public.h>
 
+#include <yt/core/logging/log.h>
+
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/mpl.h>
 
@@ -53,6 +55,8 @@ class TCommandBase
     , public ICommand
 {
 protected:
+    NLogging::TLogger Logger = DriverLogger;
+
     TCommandBase()
     {
         SetKeepOptions(true);
@@ -63,8 +67,11 @@ protected:
 public:
     virtual void Execute(ICommandContextPtr context) override
     {
-        const auto& parameters = context->Request().Parameters;
-        Deserialize(*this, parameters);
+        const auto& request = context->Request();
+        Logger.AddTag("RequestId: %" PRIx64 ", User: %v",
+            request.Id,
+            request.AuthenticatedUser);
+        Deserialize(*this, request.Parameters);
         DoExecute(context);
     }
 };

@@ -70,6 +70,7 @@ class TJsonFormatConfig
 public:
     EJsonFormat Format;
     EJsonAttributesMode AttributesMode;
+    bool Plain;
     bool EncodeUtf8;
     i64 MemoryLimit;
 
@@ -96,6 +97,8 @@ public:
             .Default(EJsonFormat::Text);
         RegisterParameter("attributes_mode", AttributesMode)
             .Default(EJsonAttributesMode::OnDemand);
+        RegisterParameter("plain", Plain)
+            .Default(false);
         RegisterParameter("encode_utf8", EncodeUtf8)
             .Default(true);
         RegisterParameter("string_length_limit", StringLengthLimit)

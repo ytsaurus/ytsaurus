@@ -63,7 +63,7 @@ public:
         , TotalChunkCount(0)
         , TotalDataSize(0)
         , CurrentTaskDataSize(0)
-        , CurrentChunkCount(0)
+        , CurrentTaskChunkCount(0)
         , CurrentPartitionIndex(0)
         , MaxDataSizePerJob(0)
         , ChunkSliceSize(0)
@@ -112,7 +112,7 @@ protected:
 
     //! The total number of chunks in #CurrentTaskStripes.
     //! Not serialized.
-    int CurrentChunkCount;
+    int CurrentTaskChunkCount;
 
     //! The number of output partitions generated so far.
     //! Not serialized.
@@ -301,30 +301,100 @@ protected:
     }
 
     //! Resizes #CurrentTaskStripes appropriately and sets all its entries to |NULL|.
-    void ClearCurrentTaskStripes()
+    void ResetCurrentTaskStripes()
     {
         CurrentTaskStripes.clear();
         CurrentTaskStripes.resize(InputTables.size());
+        CurrentTaskDataSize = 0;
+        CurrentTaskChunkCount = 0;
     }
 
-    void EndTask(TMergeTaskPtr task)
+    void EndTask(TMergeTaskPtr task, TKey breakpointKey = TKey())
     {
         YCHECK(HasActiveTask());
 
-        task->AddInput(CurrentTaskStripes);
+        std::vector<TChunkStripePtr> taskStripes;
+        i64 taskDataSize =  0;
+        int taskChunkCount = 0;
+
+        if (!breakpointKey) {
+            taskDataSize = CurrentTaskDataSize;
+            taskChunkCount = CurrentTaskChunkCount;
+            taskStripes = std::move(CurrentTaskStripes);
+            ResetCurrentTaskStripes();
+        } else {
+            auto pendingStripes = std::move(CurrentTaskStripes);
+            ResetCurrentTaskStripes();
+
+            taskStripes.resize(pendingStripes.size(), nullptr);
+
+            auto addSlice = [&] (const TInputDataSlicePtr& dataSlice) {
+                ++taskChunkCount;
+                taskDataSize += dataSlice->GetDataSize();
+                AddSliceToStripe(dataSlice, taskStripes);
+            };
+
+            for (const auto& stripe : pendingStripes) {
+                if (!stripe) {
+                    continue;
+                }
+
+                for (const auto& dataSlice : stripe->DataSlices) {
+                    if (dataSlice->UpperLimit().Key <= breakpointKey) {
+                        addSlice(dataSlice);
+                    } else if (dataSlice->LowerLimit().Key >= breakpointKey) {
+                        AddPendingDataSlice(dataSlice);
+                    } else {
+                        auto lowerSlice = CreateInputDataSlice(dataSlice, TKey(), breakpointKey);
+                        addSlice(lowerSlice);
+
+                        auto upperSlice = CreateInputDataSlice(dataSlice, breakpointKey, TKey());
+                        AddPendingDataSlice(upperSlice);
+                    }
+                }
+            }
+        }
+
+        task->AddInput(taskStripes);
         task->FinishInput();
+
+        if (task->IsCompleted()) {
+            // This task is useless, e.g. all input stripes are from foreign tables.
+            return;
+        }
+
         RegisterTask(task);
 
-        ++CurrentPartitionIndex;
-
-        LOG_DEBUG("Task finished (Id: %v, TaskDataSize: %v, TaskChunkCount: %v)",
+        LOG_DEBUG("Task finished (Id: %v, TaskDataSize: %v, TaskChunkCount: %v, BreakpointKey: %v)",
             task->GetId(),
-            CurrentTaskDataSize,
-            CurrentChunkCount);
+            taskDataSize,
+            taskChunkCount,
+            breakpointKey);
 
-        CurrentTaskDataSize = 0;
-        CurrentChunkCount = 0;
-        ClearCurrentTaskStripes();
+        TotalDataSize += taskDataSize;
+        TotalChunkCount += taskChunkCount;
+
+        if (TotalChunkCount > Config->MaxTotalSliceCount) {
+            THROW_ERROR_EXCEPTION("Total number of data slices in operation is too large. Consider reducing job count or reducing chunk count in input tables.")
+                << TErrorAttribute("actual_total_slice_count", TotalChunkCount)
+                << TErrorAttribute("max_total_slice_count", Config->MaxTotalSliceCount)
+                << TErrorAttribute("current_job_count", CurrentPartitionIndex);
+        }
+
+        ++CurrentPartitionIndex;
+    }
+
+    void EndTaskAtKey(TKey breakpointKey)
+    {
+        YCHECK(HasActiveTask());
+
+        auto task = New<TMergeTask>(
+            this,
+            static_cast<int>(Tasks.size()),
+            CurrentPartitionIndex);
+        task->Initialize();
+
+        EndTask(task, breakpointKey);
     }
 
     //! Finishes the current task.
@@ -333,13 +403,7 @@ protected:
         if (!HasActiveTask())
             return;
 
-        auto task = New<TMergeTask>(
-            this,
-            static_cast<int>(Tasks.size()),
-            CurrentPartitionIndex);
-        task->Initialize();
-
-        EndTask(task);
+        EndTaskAtKey(TKey());
     }
 
     //! Finishes the current task if the size is large enough.
@@ -361,30 +425,30 @@ protected:
     bool HasLargeActiveTask()
     {
         YCHECK(MaxDataSizePerJob > 0);
-        return CurrentTaskDataSize >= MaxDataSizePerJob || CurrentChunkCount >= Options->MaxChunkStripesPerJob;
+        return CurrentTaskDataSize >= MaxDataSizePerJob || CurrentTaskChunkCount >= Options->MaxChunkStripesPerJob;
     }
 
-    //! Add chunk to the current task's pool.
-    virtual void AddPendingDataSlice(TInputDataSlicePtr dataSlice)
+    void AddSliceToStripe(const TInputDataSlicePtr& dataSlice, std::vector<TChunkStripePtr>& stripes)
     {
         auto tableIndex = dataSlice->GetTableIndex();
-        auto stripe = CurrentTaskStripes[tableIndex];
+        auto stripe = stripes[tableIndex];
+
         if (!stripe) {
-            stripe = CurrentTaskStripes[tableIndex] = New<TChunkStripe>(InputTables[tableIndex].IsForeign());
+            stripe = stripes[tableIndex] = New<TChunkStripe>(InputTables[tableIndex].IsForeign());
         }
-
-        TotalDataSize += dataSlice->GetDataSize();
-        TotalChunkCount += dataSlice->GetChunkCount();
-
-        CurrentTaskDataSize += dataSlice->GetDataSize();
-        CurrentChunkCount += dataSlice->GetChunkCount();
 
         stripe->DataSlices.push_back(dataSlice);
     }
 
-    void AddPendingChunkSlice(TInputChunkSlicePtr chunkSlice)
+    //! Add chunk to the current task's pool.
+    virtual void AddPendingDataSlice(const TInputDataSlicePtr& dataSlice)
     {
-        AddPendingDataSlice(CreateUnversionedInputDataSlice(chunkSlice));
+        AddSliceToStripe(dataSlice, CurrentTaskStripes);
+
+        i64 sliceDataSize = dataSlice->GetDataSize();
+
+        CurrentTaskDataSize += sliceDataSize;
+        ++CurrentTaskChunkCount;
     }
 
     //! Add chunk directly to the output.
@@ -406,8 +470,8 @@ protected:
     void AddTaskForUnreadInputDataSlices(std::vector<TInputDataSlicePtr> inputDataSlices)
     {
         CurrentTaskDataSize = 0;
-        CurrentChunkCount = 0;
-        ClearCurrentTaskStripes();
+        CurrentTaskChunkCount = 0;
+        ResetCurrentTaskStripes();
 
         for (auto& inputDataSlice : inputDataSlices) {
             AddPendingDataSlice(inputDataSlice);
@@ -466,7 +530,8 @@ protected:
             TPeriodicYielder yielder(PrepareYieldPeriod);
 
             InitTeleportableInputTables();
-            ClearCurrentTaskStripes();
+
+            ResetCurrentTaskStripes();
 
             for (const auto& chunk : CollectPrimaryUnversionedChunks()) {
                 ProcessInputDataSlice(CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk)));
@@ -625,7 +690,7 @@ private:
 
             // NB: During ordered merge all chunks go to a single chunk stripe.
             for (const auto& chunkSlice : SliceChunkByRowIndexes(chunkSpec, ChunkSliceSize, std::numeric_limits<i64>::max())) {
-                AddPendingChunkSlice(chunkSlice);
+                AddPendingDataSlice(CreateUnversionedInputDataSlice(chunkSlice));
                 EndTaskIfLarge();
             }
         } else {
@@ -1602,7 +1667,7 @@ private:
 
             auto hasLargeActiveTask = [&] () {
                 return HasLargeActiveTask() ||
-                    CurrentChunkCount + globalOpenedSlices.size() >= Options->MaxChunkStripesPerJob;
+                    CurrentTaskChunkCount + globalOpenedSlices.size() >= Options->MaxChunkStripesPerJob;
             };
 
             while (!hasLargeActiveTask() && !maniacs.empty()) {
@@ -1892,15 +1957,31 @@ protected:
                 if (CompareRows(foreignMinKey, maxKey, ForeignKeyColumnCount) > 0) {
                     continue;
                 }
+
                 if (CompareRows(foreignMaxKey, minKey, ForeignKeyColumnCount) < 0) {
                     break;
                 }
-                AddPendingDataSlice(CreateInputDataSlice(dataSlice, foreignMinKey, foreignMaxKey));
+
+                auto lowerKey = GetKeyPrefix(minKey, ForeignKeyColumnCount, RowBuffer);
+                auto upperKey = GetKeyPrefixSuccessor(maxKey, ForeignKeyColumnCount, RowBuffer);
+
+                if (lowerKey < foreignMinKey) {
+                    lowerKey = foreignMinKey;
+                }
+
+                if (upperKey > foreignMaxKey) {
+                    upperKey = foreignMaxKey;
+                }
+
+                AddPendingDataSlice(CreateInputDataSlice(
+                    dataSlice,
+                    lowerKey,
+                    upperKey));
             }
         }
     }
 
-    virtual void AddPendingDataSlice(TInputDataSlicePtr dataSlice) override
+    virtual void AddPendingDataSlice(const TInputDataSlicePtr& dataSlice) override
     {
         if (ForeignKeyColumnCount > 0) {
             if (!CurrentTaskMinForeignKey ||
@@ -1927,6 +2008,38 @@ protected:
             YCHECK(CurrentTaskMinForeignKey && CurrentTaskMaxForeignKey);
 
             AddForeignTablesToTask(CurrentTaskMinForeignKey, CurrentTaskMaxForeignKey);
+
+            if (CurrentTaskDataSize > 2 * MaxDataSizePerJob) {
+                // Task looks to large, let's try to split it further by foreign key.
+                std::vector<std::pair<TKey, i64>> sliceWeights;
+                for (const auto& stripe : CurrentTaskStripes) {
+                    if (!stripe) {
+                        continue;
+                    }
+
+                    for (const auto& dataSlice : stripe->DataSlices) {
+                        sliceWeights.push_back(std::make_pair(dataSlice->UpperLimit().Key, dataSlice->GetDataSize()));
+                    }
+                }
+
+                std::sort(sliceWeights.begin(), sliceWeights.end());
+
+                i64 currentDataSize = 0;
+                TKey breakpointKey;
+                for (const auto& sliceWeight : sliceWeights) {
+                    if (CompareRows(breakpointKey, sliceWeight.first, ForeignKeyColumnCount) == 0) {
+                        continue;
+                    }
+
+                    currentDataSize += sliceWeight.second;
+
+                    if (currentDataSize > 2 * MaxDataSizePerJob && HasActiveTask()) {
+                        breakpointKey = GetKeyPrefixSuccessor(sliceWeight.first, ForeignKeyColumnCount, RowBuffer);
+                        currentDataSize = 0;
+                        EndTaskAtKey(breakpointKey);
+                    }
+                }
+            }
         }
 
         CurrentTaskMinForeignKey = TKey();
@@ -2296,7 +2409,7 @@ private:
 
         auto hasLargeActiveTask = [&] () {
             return HasLargeActiveTask() ||
-                CurrentChunkCount + openedSlices.size() >= Options->MaxChunkStripesPerJob;
+                CurrentTaskChunkCount + openedSlices.size() >= Options->MaxChunkStripesPerJob;
         };
 
         int startIndex = 0;

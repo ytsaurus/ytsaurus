@@ -241,6 +241,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/query_client/query_statistics.proto
   ${CMAKE_CURRENT_LIST_DIR}/query_client/range_inferrer.cpp
 
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/config.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/job.proto
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/job_prober_service.proto

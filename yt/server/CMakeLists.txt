@@ -293,6 +293,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/scheduler_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/scheduling_context.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/scheduling_context_detail.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/scheduling_tag.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/serialize.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/snapshot_builder.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/snapshot_downloader.cpp
