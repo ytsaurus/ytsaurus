@@ -116,6 +116,16 @@ public:
         , ChangelogCodec_(GetCodec(Config_->ChangelogCodec))
         , TabletContext_(this)
         , TabletMap_(TTabletMapTraits(this))
+        , DynamicStoresMemoryTrackerGuard_(TNodeMemoryTrackerGuard::Acquire(
+            Bootstrap_->GetMemoryUsageTracker(),
+            EMemoryCategory::TabletDynamic,
+            0,
+            MemoryUsageGranularity))
+        , StaticStoresMemoryTrackerGuard_(TNodeMemoryTrackerGuard::Acquire(
+            Bootstrap_->GetMemoryUsageTracker(),
+            EMemoryCategory::TabletStatic,
+            0,
+            MemoryUsageGranularity))
         , WriteLogsMemoryTrackerGuard_(TNodeMemoryTrackerGuard::Acquire(
             Bootstrap_->GetMemoryUsageTracker(),
             EMemoryCategory::TabletDynamic,
@@ -347,6 +357,21 @@ public:
         return OrchidService_;
     }
 
+    i64 GetDynamicStoresMemoryUsage() const
+    {
+        return DynamicStoresMemoryTrackerGuard_.GetSize();
+    }
+
+    i64 GetStaticStoresMemoryUsage() const
+    {
+        return StaticStoresMemoryTrackerGuard_.GetSize();
+    }
+
+    i64 GetWriteLogsMemoryUsage() const
+    {
+        return WriteLogsMemoryTrackerGuard_.GetSize();
+    }
+
 
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet);
 
@@ -478,6 +503,8 @@ private:
 
     yhash_set<IDynamicStorePtr> OrphanedStores_;
 
+    TNodeMemoryTrackerGuard DynamicStoresMemoryTrackerGuard_;
+    TNodeMemoryTrackerGuard StaticStoresMemoryTrackerGuard_;
     TNodeMemoryTrackerGuard WriteLogsMemoryTrackerGuard_;
 
     const IYPathServicePtr OrchidService_;
@@ -2335,36 +2362,32 @@ private:
     }
 
 
-    static EMemoryCategory GetMemoryCategoryFromStore(IStorePtr store)
+    TNodeMemoryTrackerGuard* GetMemoryTrackerGuardFromStore(IStore* store)
     {
         switch (store->GetType()) {
             case EStoreType::SortedDynamic:
             case EStoreType::OrderedDynamic:
-                return EMemoryCategory::TabletDynamic;
+                return &DynamicStoresMemoryTrackerGuard_;
             case EStoreType::SortedChunk:
             case EStoreType::OrderedChunk:
-                return EMemoryCategory::TabletStatic;
+                return &StaticStoresMemoryTrackerGuard_;
             default:
                 Y_UNREACHABLE();
         }
     }
 
-    static void OnStoreMemoryUsageUpdated(NCellNode::TBootstrap* bootstrap, EMemoryCategory category, i64 delta)
+    void OnStoreMemoryUsageUpdated(IStore* store, i64 delta)
     {
-        auto* tracker = bootstrap->GetMemoryUsageTracker();
-        if (delta >= 0) {
-            tracker->Acquire(category, delta);
-        } else {
-            tracker->Release(category, -delta);
-        }
+        auto* guard = GetMemoryTrackerGuardFromStore(store);
+        guard->UpdateSize(delta);
     }
 
     void StartMemoryUsageTracking(IStorePtr store)
     {
         store->SubscribeMemoryUsageUpdated(BIND(
             &TImpl::OnStoreMemoryUsageUpdated,
-            Bootstrap_,
-            GetMemoryCategoryFromStore(store)));
+            MakeWeak(this),
+            Unretained(store.Get())));
     }
 
     void ValidateMemoryLimit()
@@ -2891,6 +2914,21 @@ TFuture<void> TTabletManager::CommitTabletStoresUpdateTransaction(
 IYPathServicePtr TTabletManager::GetOrchidService()
 {
     return Impl_->GetOrchidService();
+}
+
+i64 TTabletManager::GetDynamicStoresMemoryUsage() const
+{
+    return Impl_->GetDynamicStoresMemoryUsage();
+}
+
+i64 TTabletManager::GetStaticStoresMemoryUsage() const
+{
+    return Impl_->GetStaticStoresMemoryUsage();
+}
+
+i64 TTabletManager::GetWriteLogsMemoryUsage() const
+{
+    return Impl_->GetWriteLogsMemoryUsage();
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTablet, *Impl_)
