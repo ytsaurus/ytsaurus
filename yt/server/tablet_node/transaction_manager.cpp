@@ -285,7 +285,9 @@ public:
         }
 
         if (state == ETransactionState::Active) {
-            UpdatePrepareTimestamp(transaction, prepareTimestamp);
+            YCHECK(transaction->GetPrepareTimestamp() == NullTimestamp);
+            transaction->SetPrepareTimestamp(prepareTimestamp);
+            RegisterPrepareTimestamp(transaction);
 
             transaction->SetState(persistent
                 ? ETransactionState::PersistentCommitPrepared
@@ -544,7 +546,7 @@ private:
 
     void FinishTransaction(TTransaction* transaction)
     {
-        ErasePrepareTimestamp(transaction);
+        UnregisterPrepareTimestamp(transaction);
     }
 
 
@@ -560,7 +562,9 @@ private:
             if (transaction->GetState() == ETransactionState::Committed) {
                 SerializingTransactionHeap_.push_back(transaction);
             }
-            InitPrepareTimestamp(transaction);
+            if (transaction->IsPrepared() && !transaction->IsCommitted()) {
+                RegisterPrepareTimestamp(transaction);
+            }
         }
         MakeHeap(SerializingTransactionHeap_.begin(), SerializingTransactionHeap_.end(), SerializingTransactionHeapComparer);
     }
@@ -612,7 +616,7 @@ private:
             auto* transaction = pair.second;
             transaction->ResetFinished();
             TransactionTransientReset_.Fire(transaction);
-            ErasePrepareTimestamp(transaction);
+            UnregisterPrepareTimestamp(transaction);
         }
         TransientTransactionMap_.Clear();
 
@@ -621,7 +625,8 @@ private:
         for (const auto& pair : PersistentTransactionMap_) {
             auto* transaction = pair.second;
             if (transaction->GetState() == ETransactionState::TransientCommitPrepared) {
-                ErasePrepareTimestamp(transaction);
+                UnregisterPrepareTimestamp(transaction);
+                transaction->SetPrepareTimestamp(NullTimestamp);
             }
             transaction->SetState(transaction->GetPersistentState());
             transaction->SetTransientSignature(transaction->GetPersistentSignature());
@@ -811,29 +816,23 @@ private:
             ->CommitAndLog(Logger);
     }
 
-    void InitPrepareTimestamp(TTransaction* transaction)
+    void RegisterPrepareTimestamp(TTransaction* transaction)
     {
-        if (transaction->IsPrepared() && !transaction->IsCommitted()) {
-            PreparedTransactions_.emplace(transaction->GetPrepareTimestamp(), transaction);
+        auto prepareTimestamp = transaction->GetPrepareTimestamp();
+        YCHECK(prepareTimestamp != NullTimestamp);
+        YCHECK(PreparedTransactions_.emplace(prepareTimestamp, transaction).second);
+    }
+
+    void UnregisterPrepareTimestamp(TTransaction* transaction)
+    {
+        auto prepareTimestamp = transaction->GetPrepareTimestamp();
+        if (prepareTimestamp == NullTimestamp) {
+            return;
         }
-    }
-
-    void UpdatePrepareTimestamp(TTransaction* transaction, TTimestamp prepareTimestamp)
-    {
-        ErasePrepareTimestamp(transaction);
-        transaction->SetPrepareTimestamp(prepareTimestamp);
-        PreparedTransactions_.emplace(transaction->GetPrepareTimestamp(), transaction);
-    }
-
-    void ErasePrepareTimestamp(TTransaction* transaction)
-    {
-        auto pair = std::make_pair(transaction->GetPrepareTimestamp(), transaction);
+        auto pair = std::make_pair(prepareTimestamp, transaction);
         auto it = PreparedTransactions_.find(pair);
-        if (it != PreparedTransactions_.end()) {
-            PreparedTransactions_.erase(it);
-        } else {
-            YCHECK(transaction->GetPrepareTimestamp() == NullTimestamp);
-        }
+        YCHECK(it != PreparedTransactions_.end());
+        PreparedTransactions_.erase(it);
         CheckBarrier();
     }
 
