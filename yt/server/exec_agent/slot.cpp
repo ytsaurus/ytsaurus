@@ -77,15 +77,15 @@ public:
     {
         JobProberClient_ = CreateJobProbe(GetRpcClientConfig(), jobId);
         return RunPrepareAction<void>([&] () {
-            auto error = WaitFor(Location_->MakeConfig(SlotIndex_, ConvertToNode(config)));
-            THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to create job proxy config")
+                auto error = WaitFor(Location_->MakeConfig(SlotIndex_, ConvertToNode(config)));
+                THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to create job proxy config")
 
-            return JobEnvironment_->RunJobProxy(
-                SlotIndex_,
-                Location_->GetSlotPath(SlotIndex_),
-                jobId,
-                operationId);
-        });
+                return JobEnvironment_->RunJobProxy(
+                    SlotIndex_,
+                    Location_->GetSlotPath(SlotIndex_),
+                    jobId,
+                    operationId);
+            });
     }
 
     virtual TFuture<void> MakeLink(
@@ -95,13 +95,13 @@ public:
         bool executable) override
     {
         return RunPrepareAction<void>([&] () {
-            return Location_->MakeSandboxLink(
-                SlotIndex_,
-                sandboxKind,
-                targetPath,
-                linkName,
-                executable);
-        });
+                return Location_->MakeSandboxLink(
+                    SlotIndex_,
+                    sandboxKind,
+                    targetPath,
+                    linkName,
+                    executable);
+            });
     }
 
     virtual TFuture<void> MakeCopy(
@@ -111,13 +111,13 @@ public:
         bool executable) override
     {
         return RunPrepareAction<void>([&] () {
-            return Location_->MakeSandboxCopy(
-                SlotIndex_,
-                sandboxKind,
-                sourcePath,
-                destinationName,
-                executable);
-        });
+                return Location_->MakeSandboxCopy(
+                    SlotIndex_,
+                    sandboxKind,
+                    sourcePath,
+                    destinationName,
+                    executable);
+            });
     }
 
     virtual TFuture<Stroka> PrepareTmpfs(
@@ -127,16 +127,16 @@ public:
         bool enable) override
     {
         return RunPrepareAction<Stroka>([&] () {
-            return Location_->MakeSandboxTmpfs(
-                SlotIndex_,
-                sandboxKind,
-                size,
-                JobEnvironment_->GetUserId(SlotIndex_),
-                path,
-                enable);
-        },
-        // Tmpfs mounting is uncancelable since it includes tool invokation in separate process.
-        true);
+                return Location_->MakeSandboxTmpfs(
+                    SlotIndex_,
+                    sandboxKind,
+                    size,
+                    JobEnvironment_->GetUserId(SlotIndex_),
+                    path,
+                    enable);
+            },
+            // Tmpfs mounting is uncancelable since it includes tool invocation in a separate process.
+            true);
     }
 
     virtual IJobProbePtr GetJobProberClient() override
@@ -159,8 +159,8 @@ public:
     virtual TFuture<void> CreateSandboxDirectories()
     {
         return RunPrepareAction<void>([&] () {
-            return Location_->CreateSandboxDirectories(SlotIndex_);
-        });
+                return Location_->CreateSandboxDirectories(SlotIndex_);
+            });
     }
 
 private:
