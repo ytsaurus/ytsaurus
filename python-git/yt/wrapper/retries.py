@@ -31,7 +31,7 @@ def run_with_retries(action, retry_count=6, backoff=20.0, exceptions=(YtError,),
             retry_config = {"enable": True,
                             "count": retry_count,
                             "backoff": {"policy": "rounded_up_to_request_timeout"}}
-            super(SimpleRetrier, self).__init__(retry_config, backoff, exceptions)
+            super(SimpleRetrier, self).__init__(retry_config, backoff * 1000.0, exceptions)
             self.exception = None
 
         def action(self):
