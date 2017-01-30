@@ -17,16 +17,11 @@
 #include <util/string/printf.h>
 #include <util/system/hostname.h>
 #include <util/system/user.h>
+#include <util/system/env.h>
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-Stroka TConfig::GetEnv(const char* var, const char* defaultValue)
-{
-    char* value = getenv(var);
-    return value ? value : defaultValue;
-}
 
 bool TConfig::GetBool(const char* var, bool defaultValue)
 {
