@@ -161,7 +161,9 @@ void TClientReader::CreateRequest(bool keepRanges, ui32 rangeIndex, ui64 rowInde
             LOG_ERROR("RSP %s - %s - attempt %d failed",
                 ~requestId, e.what(), attempt);
 
-            Request_->InvalidateConnection();
+            if (Request_) {
+                Request_->InvalidateConnection();
+            }
             if (attempt + 1 == retryCount) {
                 throw;
             }
