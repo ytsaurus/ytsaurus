@@ -19,14 +19,7 @@ message TReqRegisterNode
 
 message TRspRegisterNode
 {
-    message TMediumDescriptor
-    {
-        required string medium_name = 1;
-        required int32 medium_index = 2;
-    }
-
     required int32 node_id = 1;
-    repeated TMediumDescriptor media = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

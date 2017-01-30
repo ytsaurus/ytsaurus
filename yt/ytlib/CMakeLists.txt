@@ -81,7 +81,9 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/block_fetcher.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/throttler_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/heartbeat.proto
-  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/media_directory.proto
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/medium_directory.proto
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/medium_directory.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/medium_directory_synchronizer.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/core_dump/core_info.proto
   ${CMAKE_CURRENT_LIST_DIR}/core_dump/helpers.cpp

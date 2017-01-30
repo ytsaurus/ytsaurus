@@ -548,14 +548,14 @@ struct TGetClusterMetaOptions
 {
     bool PopulateNodeDirectory = false;
     bool PopulateClusterDirectory = false;
-    bool PopulateMediaDirectory = false;
+    bool PopulateMediumDirectory = false;
 };
 
 struct TClusterMeta
 {
     std::shared_ptr<NNodeTrackerClient::NProto::TNodeDirectory> NodeDirectory;
     std::shared_ptr<NHiveClient::NProto::TClusterDirectory> ClusterDirectory;
-    std::shared_ptr<NChunkClient::NProto::TMediaDirectory> MediaDirectory;
+    std::shared_ptr<NChunkClient::NProto::TMediumDirectory> MediumDirectory;
 };
 
 ///////////////////////////////////////////////////////////////////////////////

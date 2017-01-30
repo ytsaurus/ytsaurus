@@ -2,7 +2,7 @@ package NYT.NChunkClient.NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TMediaDirectory
+message TMediumDirectory
 {
     message TItem
     {

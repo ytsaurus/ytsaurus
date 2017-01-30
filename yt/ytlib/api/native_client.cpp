@@ -2594,7 +2594,7 @@ private:
         auto req = TMasterYPathProxy::GetClusterMeta();
         req->set_populate_node_directory(options.PopulateNodeDirectory);
         req->set_populate_cluster_directory(options.PopulateClusterDirectory);
-        req->set_populate_media_directory(options.PopulateMediaDirectory);
+        req->set_populate_medium_directory(options.PopulateMediumDirectory);
         SetCachingHeader(req, options);
 
         auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
@@ -2610,9 +2610,9 @@ private:
             meta.ClusterDirectory = std::make_shared<NHiveClient::NProto::TClusterDirectory>();
             meta.ClusterDirectory->Swap(rsp->mutable_cluster_directory());
         }
-        if (options.PopulateMediaDirectory) {
-            meta.MediaDirectory = std::make_shared<NChunkClient::NProto::TMediaDirectory>();
-            meta.MediaDirectory->Swap(rsp->mutable_media_directory());
+        if (options.PopulateMediumDirectory) {
+            meta.MediumDirectory = std::make_shared<NChunkClient::NProto::TMediumDirectory>();
+            meta.MediumDirectory->Swap(rsp->mutable_medium_directory());
         }
         return meta;
     }

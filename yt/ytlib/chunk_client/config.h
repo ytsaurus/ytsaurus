@@ -583,5 +583,23 @@ DEFINE_REFCOUNTED_TYPE(TChunkTeleporterConfig)
 
 ///////////////////////////////////////////////////////////////////////////////
 
+class TMediumDirectorySynchronizerConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    //! Internal between consequent syncs.
+    TDuration SyncPeriod;
+
+    TMediumDirectorySynchronizerConfig()
+    {
+        RegisterParameter("sync_period", SyncPeriod)
+            .Default(TDuration::Minutes(10));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TMediumDirectorySynchronizerConfig)
+
+///////////////////////////////////////////////////////////////////////////////
+
 } // namespace NChunkClient
 } // namespace NYT
