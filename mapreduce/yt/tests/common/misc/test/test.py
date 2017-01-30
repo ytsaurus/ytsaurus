@@ -6,7 +6,7 @@ import yatest.common
 from mapreduce.yt.python.yt_stuff import yt_stuff
 from mr_runner import mapreduce
 
-BINARY_PATH = yatest.common.binary_path("mapreduce/yt/tests/common/common")
+BINARY_PATH = yatest.common.binary_path("mapreduce/yt/tests/common/misc/test_misc")
 TESTS_LIST = sorted(subprocess.check_output([BINARY_PATH, "--list"]).split())
 
 @pytest.fixture(scope="module")

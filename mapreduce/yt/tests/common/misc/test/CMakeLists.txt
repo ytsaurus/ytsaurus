@@ -22,7 +22,7 @@ PEERDIR(
 
 DEPENDS(
     yt/packages
-    mapreduce/yt/tests/common
+    mapreduce/yt/tests/common/misc
     quality/mapreduce
 )
 
