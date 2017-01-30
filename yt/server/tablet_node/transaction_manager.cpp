@@ -185,7 +185,7 @@ public:
         auto& map = transient ? TransientTransactionMap_ : PersistentTransactionMap_;
         auto* transaction = map.Insert(transactionId, std::move(transactionHolder));
 
-        if (!transient && IsLeader()) {
+        if (IsLeader()) {
             CreateLeases(transaction);
         }
 
@@ -471,7 +471,9 @@ private:
 
     void CreateLeases(TTransaction* transaction)
     {
-        YCHECK(!transaction->GetTransient());
+        if (transaction->GetHasLeases()) {
+            return;
+        }
 
         auto invoker = Slot_->GetEpochAutomatonInvoker();
 
@@ -489,13 +491,21 @@ private:
             BIND(&TImpl::OnTransactionTimedOut, MakeStrong(this), transaction->GetId())
                 .Via(invoker),
             deadline);
+
+        transaction->SetHasLeases(true);
     }
 
     void CloseLeases(TTransaction* transaction)
     {
+        if (!transaction->GetHasLeases()) {
+            return;
+        }
+
         LeaseTracker_->UnregisterTransaction(transaction->GetId());
 
         TDelayedExecutor::CancelAndClear(transaction->TimeoutCookie());
+
+        transaction->SetHasLeases(false);
     }
 
 
@@ -604,8 +614,6 @@ private:
 
         TTabletAutomatonPart::OnStopLeading();
 
-        LeaseTracker_->Stop();
-
         if (BarrierCheckExecutor_) {
             BarrierCheckExecutor_->Stop();
             BarrierCheckExecutor_.Reset();
@@ -632,7 +640,10 @@ private:
             transaction->SetTransientSignature(transaction->GetPersistentSignature());
             transaction->ResetFinished();
             TransactionTransientReset_.Fire(transaction);
+            CloseLeases(transaction);
         }
+
+        LeaseTracker_->Stop();
     }
 
 
