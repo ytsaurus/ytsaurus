@@ -266,10 +266,8 @@ function(RESOLVE_SRCS srcs output)
   set(${output} ${${output}} ${_o_} PARENT_SCOPE)
 endfunction()
 
-function(ADD_GDB_INDEX target)
-  get_target_property(_location ${target} LOCATION_${CMAKE_BUILD_TYPE})
-  get_filename_component(_dirname ${_location} PATH)
-  get_filename_component(_name ${_location} NAME)
+function(ADD_GDB_INDEX)
+  cmake_parse_arguments(_parsed_args "" "" "TARGETS" ${ARGN})
 
   find_program(GDB_EXECUTABLE
     NAMES gdb
@@ -286,22 +284,27 @@ function(ADD_GDB_INDEX target)
     return()
   endif()
 
-  add_custom_command(
-    TARGET ${target}
-    POST_BUILD
-    COMMAND
-      ${GDB_EXECUTABLE} ${_location}
-        -batch -n
-        --ex "save gdb-index ${_dirname}"
-    COMMAND
-      ${CMAKE_OBJCOPY}
-        --add-section .gdb_index="${_location}.gdb-index"
-        --set-section-flags .gdb_index=readonly
-        ${_location}
-    COMMAND
-      ${CMAKE_COMMAND} -E remove "${_location}.gdb-index"
-    COMMENT
-        "Building gdb index for ${_name}..."
-  )
+  foreach(target ${_parsed_args_TARGETS})
+    get_target_property(_location ${target} LOCATION_${CMAKE_BUILD_TYPE})
+    get_filename_component(_dirname ${_location} PATH)
+    get_filename_component(_name ${_location} NAME)
 
+    add_custom_command(
+      TARGET ${target}
+      POST_BUILD
+      COMMAND
+        ${GDB_EXECUTABLE} ${_location}
+          -batch -n
+          --ex "save gdb-index ${_dirname}"
+      COMMAND
+        ${CMAKE_OBJCOPY}
+          --add-section .gdb_index="${_location}.gdb-index"
+          --set-section-flags .gdb_index=readonly
+          ${_location}
+      COMMAND
+        ${CMAKE_COMMAND} -E remove "${_location}.gdb-index"
+      COMMENT
+          "Building gdb index for ${_name}..."
+    )
+  endforeach()
 endfunction()

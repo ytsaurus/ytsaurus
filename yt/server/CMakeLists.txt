@@ -556,7 +556,10 @@ target_link_libraries(ytserver-core-forwarder
 ###
 
 if(YT_BUILD_ENABLE_GDB_INDEX AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-  add_gdb_index(ytserver)
+  add_gdb_index(TARGETS
+      ytserver-master ytserver-scheduler ytserver-node
+      ytserver-job-proxy ytserver-exec ytserver-core-forwarder ytserver-tools
+  )
 endif()
 
 install(
