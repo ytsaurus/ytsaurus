@@ -18,6 +18,7 @@ with PackagesImporter():
 
 from copy import deepcopy
 from binascii import hexlify
+from io import FileIO
 import sys
 import os
 import json
@@ -56,6 +57,7 @@ class JobShell(object):
         self.sync = HTTPClient()
         self.async = AsyncHTTPClient()
         self.terminal_mode = True
+        self.output = FileIO(sys.stdout.fileno(), mode='w')
 
         proxy_url = get_proxy_url(client=client)
         proxy = "http://{0}/api/{1}"\
@@ -177,8 +179,14 @@ class JobShell(object):
                 self._poll_shell()
             return
         rsp = yson.loads(rsp.body)
-        sys.stdout.write(rsp["output"])
-        sys.stdout.flush()
+        written = 0
+        while written < len(rsp["output"]):
+            chars = self.output.write(rsp["output"][written:])
+            if chars is not None:
+                written += chars
+            else:
+                # None means EAGAIN error on write.
+                time.sleep(0.05)
         self._poll_shell()
 
     def _spawn_shell(self, command=None):
@@ -264,4 +272,6 @@ class JobShell(object):
             self.ioloop.start()
         finally:
             self._restore_termios()
+            stdin = sys.stdin.fileno()
+            fcntl.fcntl(stdin, fcntl.F_SETFL, fcntl.fcntl(stdin, fcntl.F_GETFL) & ~os.O_NONBLOCK)
             self.ioloop.stop()
