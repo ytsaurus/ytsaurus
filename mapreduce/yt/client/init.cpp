@@ -9,6 +9,7 @@
 
 #include <util/string/cast.h>
 #include <util/folder/dirut.h>
+#include <util/system/env.h>
 
 namespace NYT {
 
@@ -26,7 +27,7 @@ static TNode SecureVaultContents; // safe
 void InitializeSecureVault()
 {
     SecureVaultContents = NodeFromYsonString(
-        TConfig::GetEnv("YT_SECURE_VAULT", "{}"));
+        GetEnv("YT_SECURE_VAULT", "{}"));
 }
 
 }

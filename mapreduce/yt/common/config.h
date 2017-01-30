@@ -70,7 +70,6 @@ struct TConfig
     bool DisableClientSubTransactions;
     bool CreateTablesUnderTransaction;
 
-    static Stroka GetEnv(const char* var, const char* defaultValue = "");
     static bool GetBool(const char* var, bool defaultValue = false);
     static int GetInt(const char* var, int defaultValue);
     static TDuration GetDuration(const char* var, TDuration defaultValue);
