@@ -15,7 +15,7 @@ class TCellDirectorySynchronizer
 public:
     TCellDirectorySynchronizer(
         TCellDirectorySynchronizerConfigPtr config,
-        NHiveClient::TCellDirectoryPtr cellDirectory,
+        TCellDirectoryPtr cellDirectory,
         const TCellId& primaryCellId);
     ~TCellDirectorySynchronizer();
 
