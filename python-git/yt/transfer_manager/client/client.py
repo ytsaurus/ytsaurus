@@ -1,9 +1,14 @@
 from yt.common import YtError, YtResponseError
-from yt.wrapper.common import get_value, require, update, run_with_retries, generate_uuid, bool_to_string
+from yt.wrapper.common import get_value, require, update, generate_uuid, bool_to_string
 from yt.wrapper.http_helpers import get_retriable_errors, get_token, configure_ip
 from yt.wrapper.errors import hide_token
-from yt.wrapper.client import YtClient
+from yt.wrapper import YtClient
 import yt.logger as logger
+
+try:
+    from yt.wrapper.common import run_with_retries
+except ImportError:
+    from yt.wrapper.retries import run_with_retries
 
 import yt.packages.requests as requests
 import yt.packages.simplejson as json
