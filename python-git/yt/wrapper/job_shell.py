@@ -21,15 +21,23 @@ from binascii import hexlify
 import sys
 import os
 import json
-import tty
-import termios
-import fcntl
 import struct
 import signal
 import time
 
+try:
+    # These modules are usually missing on Windows
+    import fcntl
+    import tty
+    import termios
+    job_shell_supported = True
+except ImportError:
+    job_shell_supported = False
+
 class JobShell(object):
     def __init__(self, job_id, interactive=True, timeout=None, client=None):
+        if not job_shell_supported:
+            raise YtError("Job shell is not supported on your platform")
         if get_backend_type(client) != "http" or get_api_version(client) != "v3":
             raise YtError("Command run-job-shell requires http v3 backend.")
 
