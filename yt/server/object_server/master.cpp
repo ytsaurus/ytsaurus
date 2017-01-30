@@ -14,6 +14,9 @@
 #include <yt/server/node_tracker_server/node.h>
 #include <yt/server/node_tracker_server/node_directory_builder.h>
 
+#include <yt/server/chunk_server/chunk_manager.h>
+#include <yt/server/chunk_server/medium.h>
+
 #include <yt/ytlib/object_client/master_ypath.pb.h>
 
 #include <yt/core/ytree/helpers.h>
@@ -98,14 +101,14 @@ private:
     {
         auto populateNodeDirectory = request->populate_node_directory();
         auto populateClusterDirectory = request->populate_cluster_directory();
-        auto populateMediaDirectory = request->populate_media_directory();
+        auto populateMediumDirectory = request->populate_medium_directory();
         context->SetRequestInfo(
             "PopulateNodeNodeDirectory: %v, "
             "PopulateClusterDirectory: %v, "
-            "PopulateMediaDirectory: %v",
+            "PopulateMediumDirectory: %v",
             populateNodeDirectory,
             populateClusterDirectory,
-            populateMediaDirectory);
+            populateMediumDirectory);
 
         if (populateNodeDirectory) {
             TNodeDirectoryBuilder builder(response->mutable_node_directory());
@@ -131,12 +134,12 @@ private:
             }
         }
 
-        if (populateMediaDirectory) {
+        if (populateMediumDirectory) {
             const auto& chunkManager = Bootstrap_->GetChunkManager();
-            auto* protoMediaDirectory = response->mutable_media_directory();
+            auto* protoMediumDirectory = response->mutable_medium_directory();
             for (const auto& pair : chunkManager->Media()) {
                 const auto* medium = pair.second;
-                auto* protoItem = protoMediaDirectory->add_items();
+                auto* protoItem = protoMediumDirectory->add_items();
                 protoItem->set_index(medium->GetIndex());
                 protoItem->set_name(medium->GetName());
             }

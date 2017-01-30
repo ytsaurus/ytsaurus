@@ -351,10 +351,11 @@ void TMasterConnector::SetMediumNameAndIndexMapping(const NNodeTrackerClient::NP
 
     MediumNameToIndex_.clear();
 
-    for (const auto& pair : rsp.media()) {
-        MediumNameToIndex_.insert(
-            std::make_pair(pair.medium_name(), pair.medium_index()));
-    }
+    // XXX
+    //for (const auto& pair : rsp.media()) {
+    //    MediumNameToIndex_.insert(
+    //        std::make_pair(pair.medium_name(), pair.medium_index()));
+    //}
 }
 
 void TMasterConnector::OnLeaseTransactionAborted()
