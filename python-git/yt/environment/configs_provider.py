@@ -92,7 +92,8 @@ _default_provision = {
         "http_port": None
     },
     "enable_debug_logging": True,
-    "fqdn": socket.getfqdn()
+    "fqdn": socket.getfqdn(),
+    "enable_master_cache": False
 }
 
 def get_default_provision():
@@ -352,7 +353,8 @@ class ConfigsProvider_18(ConfigsProvider):
 
         return configs, connection_configs
 
-    def _build_cluster_connection_config(self, master_connection_configs, master_cache_nodes=None, config_template=None):
+    def _build_cluster_connection_config(self, master_connection_configs, master_cache_nodes=None,
+                                         config_template=None, enable_master_cache=False):
         primary_cell_tag = master_connection_configs["primary_cell_tag"]
         secondary_cell_tags = master_connection_configs["secondary_cell_tags"]
 
@@ -380,7 +382,7 @@ class ConfigsProvider_18(ConfigsProvider):
         if config_template is not None:
             cluster_connection = update(config_template, cluster_connection)
 
-        if master_cache_nodes:
+        if enable_master_cache and master_cache_nodes:
             cluster_connection["master_cache"] = {
                 "addresses": master_cache_nodes,
                 "cell_id": master_connection_configs[primary_cell_tag]["cell_id"]}
@@ -418,7 +420,10 @@ class ConfigsProvider_18(ConfigsProvider):
 
     def _build_proxy_config(self, provision, proxy_dir, master_connection_configs, ports_generator, proxy_logs_dir, master_cache_nodes):
         driver_config = default_configs.get_driver_config()
-        update(driver_config, self._build_cluster_connection_config(master_connection_configs, master_cache_nodes))
+        update(driver_config, self._build_cluster_connection_config(
+            master_connection_configs,
+            master_cache_nodes=master_cache_nodes,
+            enable_master_cache=provision["enable_master_cache"]))
 
         proxy_config = _generate_common_proxy_config(proxy_dir, provision["proxy"]["http_port"],
                                                      provision["enable_debug_logging"], provision["fqdn"],
@@ -449,7 +454,7 @@ class ConfigsProvider_18(ConfigsProvider):
             config["cell_directory_synchronizer"] = {
                 "sync_period": 500
             }
-            
+
             config["cluster_connection"] = \
                self._build_cluster_connection_config(
                     master_connection_configs,
@@ -505,7 +510,10 @@ class ConfigsProvider_18(ConfigsProvider):
             config = default_configs.get_driver_config()
             if cell_index == 0:
                 tag = primary_cell_tag
-                update(config, self._build_cluster_connection_config(master_connection_configs, master_cache_nodes))
+                update(config, self._build_cluster_connection_config(
+                    master_connection_configs,
+                    master_cache_nodes=master_cache_nodes,
+                    enable_master_cache=provision["enable_master_cache"]))
             else:
                 tag = secondary_cell_tags[cell_index - 1]
                 cell_connection_config = {
