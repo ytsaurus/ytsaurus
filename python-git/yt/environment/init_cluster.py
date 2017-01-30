@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 
-import argparse
 import yt.wrapper as yt
 import yt.logger as logger
 from yt.common import get_value
 
-TB = 1024 ** 4
+import string
+import argparse
 
+TB = 1024 ** 4
 
 def create(type_, name, client):
     try:
@@ -17,7 +18,6 @@ def create(type_, name, client):
         else:
             raise
 
-
 def add_member(subject, group, client):
     try:
         client.add_member(subject, group)
@@ -26,7 +26,6 @@ def add_member(subject, group, client):
             logger.warning(err.message)
         else:
             raise
-
 
 def check_acl(acl, required_keys, optional_keys):
     for k in required_keys:
@@ -38,7 +37,6 @@ def check_acl(acl, required_keys, optional_keys):
             logger.warning("Found unknown key '%s' in ACL: %s", k, acl)
             return False
     return True
-
 
 def need_to_add_new_acl(new_acl, current_acls):
     required_keys = ["subjects", "permissions", "action"]
@@ -59,7 +57,6 @@ def need_to_add_new_acl(new_acl, current_acls):
 
     return True
 
-
 def add_acl(path, new_acl, client):
     current_acls = client.get(path + "/@acl")
 
@@ -70,7 +67,6 @@ def add_acl(path, new_acl, client):
 
         # Backwards compatibility.
 
-
 def get_default_resource_limits(client):
     result = {"node_count": 200000, "chunk_count": 1000000}
     if client.exists("//sys/media"):
@@ -80,8 +76,7 @@ def get_default_resource_limits(client):
 
     return result
 
-
-def initialize_world(client=None, idm=None):
+def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None):
     client = get_value(client, yt)
     users = ["odin", "cron", "nightly_tester", "application_operations"]
     groups = ["devs", "admins"]
@@ -175,6 +170,11 @@ def initialize_world(client=None, idm=None):
     else:
         logger.warning("Account 'tmp_files' already exists")
 
+    if proxy_address is not None:
+        client.set("//sys/@cluster_proxy_address", proxy_address)
+    if ui_address is not None:
+        client.set("//sys/@cluster_ui_address", ui_address)
+
 
 def main():
     parser = argparse.ArgumentParser(description="new YT cluster init script")
@@ -182,8 +182,18 @@ def main():
                         help="Use IDM system with this cluster")
     args = parser.parse_args()
 
-    initialize_world(idm=args.idm)
+    suffix = yt.config["proxy"]["default_suffix"]
+    proxy_short_address = yt.config["proxy"]["url"]
+    if proxy_short_address.endswith(suffix):
+        proxy_short_address = proxy_short_address[:-len(suffix)]
 
+    proxy_address = None
+    ui_address = None
+    if all(ch in string.ascii_letters + string.digits for ch in proxy_short_address):
+        proxy_address = proxy_short_address + suffix
+        ui_address = "https://yt.yandex-team.ru/{0}/".format(proxy_short_address)
+
+    initialize_world(idm=args.idm, proxy_address=proxy_address, ui_address=ui_address)
 
 if __name__ == "__main__":
     main()

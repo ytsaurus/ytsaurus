@@ -144,9 +144,13 @@ def _safe_kill(pid):
             # (EINVAL, EPERM, ESRCH)
             raise
 
-def _initialize_world(client, cluster_connection, wait_tablet_cell_initialization,
+def _initialize_world(client, environment, wait_tablet_cell_initialization,
                       configure_default_tablet_cell_bundle):
-    initialize_world(client)
+    cluster_connection = environment.configs["driver"]
+    proxy_address = environment.configs["proxy"]["fqdn"]
+    ui_address = "http://{0}/ui/".format(proxy_address)
+
+    initialize_world(client, proxy_address=proxy_address, ui_address=ui_address)
 
     tablet_cell_attributes = {
         "changelog_replication_factor": 1,
@@ -254,7 +258,7 @@ def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=
         if not environment._load_existing_environment:
             client = environment.create_client()
 
-            _initialize_world(client, environment.configs["driver"], wait_tablet_cell_initialization,
+            _initialize_world(client, environment, wait_tablet_cell_initialization,
                               (environment.abi_version[0] == 19))
             if local_cypress_dir is not None:
                 _synchronize_cypress_with_local_dir(local_cypress_dir, client)
