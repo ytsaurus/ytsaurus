@@ -665,7 +665,7 @@ def remove_existing(paths, force):
 def single_iteration(schema, table, key_table, data_table, dump_table, result_table, iterno, args):
     job_count = args.job_count
     force = args.force
-    mapreduce = args.mapreduce
+    mapreduce = not args.nomapreduce
 
     aggregate_probability = 0.9
     update_probability = 0.5
