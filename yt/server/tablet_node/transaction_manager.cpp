@@ -140,7 +140,7 @@ public:
             transactionId);
     }
 
-    TTransaction* GetTransactionOrThrow(const TTransactionId& transactionId)
+    TTransaction* FindTransaction(const TTransactionId& transactionId)
     {
         if (auto* transaction = TransientTransactionMap_.Find(transactionId)) {
             return transaction;
@@ -148,10 +148,19 @@ public:
         if (auto* transaction = PersistentTransactionMap_.Find(transactionId)) {
             return transaction;
         }
-        THROW_ERROR_EXCEPTION(
-            NTransactionClient::EErrorCode::NoSuchTransaction,
-            "No such transaction %v",
-            transactionId);
+        return nullptr;        
+    }
+
+    TTransaction* GetTransactionOrThrow(const TTransactionId& transactionId)
+    {
+        auto* transaction = FindTransaction(transactionId);
+        if (!transaction) {
+            THROW_ERROR_EXCEPTION(
+                NTransactionClient::EErrorCode::NoSuchTransaction,
+                "No such transaction %v",
+                transactionId);            
+        }
+        return transaction;
     }
 
     TTransaction* GetOrCreateTransaction(
@@ -513,7 +522,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto* transaction = FindPersistentTransaction(id);
+        auto* transaction = FindTransaction(id);
         if (!transaction) {
             return;
         }
@@ -533,7 +542,7 @@ private:
 
     void OnTransactionTimedOut(const TTransactionId& id)
     {
-        auto* transaction = FindPersistentTransaction(id);
+        auto* transaction = FindTransaction(id);
         if (!transaction) {
             return;
         }
