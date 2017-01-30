@@ -10,11 +10,16 @@ from dateutil.parser import parse
 from datetime import datetime, timedelta
 
 logger = logging.getLogger("Cron")
-logger.setLevel(level="INFO")
 
-formatter = logging.Formatter('%(asctime)-15s: %(message)s')
-logger.addHandler(logging.StreamHandler())
-logger.handlers[0].setFormatter(formatter)
+def configure_logger():
+    global logger
+
+    logger.setLevel(level="INFO")
+    formatter = logging.Formatter('%(asctime)-15s [%(yt_proxy)s]: %(message)s')
+    logger.addHandler(logging.StreamHandler())
+    logger.handlers[0].setFormatter(formatter)
+    logger = logging.LoggerAdapter(logger, extra={"yt_proxy": yt.config["proxy"]["url"]})
+
 
 def main():
     parser = ArgumentParser()
@@ -36,9 +41,14 @@ def main():
     if args.proxy is not None:
         yt.config.set_proxy(args.proxy)
 
+    configure_logger()
+
+    logger.info("Finding tables to merge")
+
     tables_to_merge = []
 
     number_of_chunks = 0
+    number_of_fresh_tables = 0
 
     if not yt.exists(args.root):
         return
@@ -59,18 +69,21 @@ def main():
             continue
 
         modification_time = parse(table.attributes["modification_time"]).replace(tzinfo=None)
-        if  datetime.utcnow() - modification_time < timedelta(hours=args.minimal_age):
-            continue
 
         compressed_data_size = float(table.attributes["compressed_data_size"])
         weight = compressed_data_size / float(chunk_count)
         if weight < args.maximum_chunk_size and chunk_count > args.minimum_number_of_chunks:
+            if  datetime.utcnow() - modification_time < timedelta(hours=args.minimal_age):
+                number_of_fresh_tables += 1
+                continue
             number_of_chunks += chunk_count
             profit = max(0.0, chunk_count - compressed_data_size / (2.0 * args.maximum_chunk_size))
             tables_to_merge.append((profit, str(table)))
             if args.print_only:
                 print str(table), chunk_count
 
+
+    logger.info("Found %d tables to merge (also %d tables need merge but too fresh)", len(tables_to_merge), number_of_fresh_tables)
 
     if not args.print_only:
         tables_to_merge = map(lambda x: x[1], sorted(tables_to_merge))
