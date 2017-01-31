@@ -24,6 +24,8 @@
 
 #include <yt/ytlib/tablet_client/public.h>
 
+#include <yt/ytlib/chunk_client/public.h>
+
 #include <yt/ytlib/transaction_client/public.h>
 
 #include <yt/ytlib/ypath/public.h>
@@ -546,12 +548,14 @@ struct TGetClusterMetaOptions
 {
     bool PopulateNodeDirectory = false;
     bool PopulateClusterDirectory = false;
+    bool PopulateMediaDirectory = false;
 };
 
 struct TClusterMeta
 {
     std::shared_ptr<NNodeTrackerClient::NProto::TNodeDirectory> NodeDirectory;
     std::shared_ptr<NHiveClient::NProto::TClusterDirectory> ClusterDirectory;
+    std::shared_ptr<NChunkClient::NProto::TMediaDirectory> MediaDirectory;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
