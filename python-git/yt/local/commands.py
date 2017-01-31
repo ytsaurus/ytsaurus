@@ -13,6 +13,7 @@ from yt.packages.six.moves import map as imap, filter as ifilter
 import yt.wrapper as yt
 
 import os
+import sys
 import signal
 import errno
 import logging
@@ -147,8 +148,12 @@ def _safe_kill(pid):
 def _initialize_world(client, environment, wait_tablet_cell_initialization,
                       configure_default_tablet_cell_bundle):
     cluster_connection = environment.configs["driver"]
-    proxy_address = environment.configs["proxy"]["fqdn"]
-    ui_address = "http://{0}/ui/".format(proxy_address)
+
+    proxy_address = None
+    ui_address = None
+    if "proxy" in environment.configs:
+        proxy_address = environment.configs["proxy"]["fqdn"]
+        ui_address = "http://{0}/ui/".format(proxy_address)
 
     initialize_world(client, proxy_address=proxy_address, ui_address=ui_address)
 
