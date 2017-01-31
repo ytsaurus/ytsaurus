@@ -69,6 +69,8 @@ public:
         , CodecId_(codecId)
         , Logger(logger)
     {
+        // NB: Don't move this assignment to initializer list as
+        // OnResponse will access "this", which is not fully constructed yet.
         QueryResult_ = asyncResponse.Apply(BIND(
             &TQueryResponseReader::OnResponse,
             MakeStrong(this)));
