@@ -116,9 +116,8 @@ private:
 
         for (const auto& subrequest : request->subrequests()) {
             auto chunkId = FromProto<TChunkId>(subrequest.chunk_id());
-            const auto& mediumName = subrequest.medium_name();
-            auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
-            auto mediumIndex = medium->GetIndex();
+            int mediumIndex = subrequest.medium_index();
+            auto* medium = chunkManager->GetMediumByIndexOrThrow(mediumIndex);
             int desiredTargetCount = subrequest.desired_target_count();
             int minTargetCount = subrequest.min_target_count();
             auto replicationFactorOverride = subrequest.has_replication_factor_override()
@@ -159,7 +158,7 @@ private:
 
             LOG_DEBUG("Write targets allocated "
                 "(ChunkId: %v, DesiredTargetCount: %v, MinTargetCount: %v, ReplicationFactorOverride: %v, "
-                "PreferredHostName: %v, ForbiddenAddresses: %v, Targets: %v, Medium: %v (%v))",
+                "PreferredHostName: %v, ForbiddenAddresses: %v, Targets: %v, Medium: %v)",
                 chunkId,
                 desiredTargetCount,
                 minTargetCount,
@@ -167,8 +166,7 @@ private:
                 preferredHostName,
                 forbiddenAddresses,
                 MakeFormattableRange(targets, TNodePtrAddressFormatter()),
-                mediumName,
-                mediumIndex);
+                medium->GetName());
         }
 
         context->Reply();

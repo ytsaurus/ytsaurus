@@ -5,13 +5,14 @@
 #include "erasure_reader.h"
 #include "replication_reader.h"
 
-#include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/native_connection.h>
 
 #include <yt/ytlib/chunk_client/chunk_replica.h>
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/ytlib/chunk_client/medium_directory.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -71,6 +72,13 @@ TChunkId CreateChunk(
         chunkListId,
         options->MediumName);
 
+    const auto& connection = client->GetNativeConnection();
+    WaitFor(connection->SynchronizeMediumDirectory())
+        .ThrowOnError();
+
+    const auto& mediumDirecotry = connection->GetMediumDirectory();
+    const auto* mediumDescriptor = mediumDirecotry->GetByNameOrThrow(options->MediumName);
+
     auto chunkType = options->ErasureCodec == ECodec::None
         ? EObjectType::Chunk
         : EObjectType::ErasureChunk;
@@ -90,7 +98,7 @@ TChunkId CreateChunk(
     req->set_movable(options->ChunksMovable);
     req->set_vital(options->ChunksVital);
     req->set_erasure_codec(static_cast<int>(options->ErasureCodec));
-    req->set_medium_name(options->MediumName);
+    req->set_medium_index(mediumDescriptor->Index);
     if (chunkListId) {
         ToProto(req->mutable_chunk_list_id(), chunkListId);
     }
@@ -163,6 +171,13 @@ TChunkReplicaList AllocateWriteTargets(
         preferLocalHost,
         forbiddenAddresses);
 
+    const auto& connection = client->GetNativeConnection();
+    WaitFor(connection->SynchronizeMediumDirectory())
+        .ThrowOnError();
+
+    const auto& mediumDirecotry = connection->GetMediumDirectory();
+    const auto* mediumDescriptor = mediumDirecotry->GetByNameOrThrow(mediumName);
+
     auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CellTagFromId(chunkId));
     TChunkServiceProxy proxy(channel);
 
@@ -178,7 +193,7 @@ TChunkReplicaList AllocateWriteTargets(
     }
     ToProto(req->mutable_forbidden_addresses(), forbiddenAddresses);
     ToProto(req->mutable_chunk_id(), chunkId);
-    req->set_medium_name(mediumName);
+    req->set_medium_index(mediumDescriptor->Index);
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());
     THROW_ERROR_EXCEPTION_IF_FAILED(

@@ -531,7 +531,7 @@ private:
                 req->set_account(Account_);
                 ToProto(req->mutable_transaction_id(), UploadTransaction_->GetId());
                 req->set_replication_factor(ReplicationFactor_);
-                req->set_medium_name(DefaultStoreMediumName);
+                req->set_medium_index(DefaultStoreMediumIndex);
                 req->set_read_quorum(ReadQuorum_);
                 req->set_write_quorum(WriteQuorum_);
                 req->set_movable(true);

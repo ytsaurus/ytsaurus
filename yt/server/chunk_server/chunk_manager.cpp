@@ -1026,6 +1026,18 @@ public:
             : nullptr;
     }
 
+    TMedium* GetMediumByIndexOrThrow(int index) const
+    {
+        auto* medium = FindMediumByIndex(index);
+        if (!medium) {
+            THROW_ERROR_EXCEPTION(
+                NChunkClient::EErrorCode::NoSuchMedium,
+                "No such medium %v",
+                index);
+        }
+        return medium;
+    }
+
     TMedium* GetMediumByIndex(int index) const
     {
         auto* medium = FindMediumByIndex(index);
@@ -1574,11 +1586,11 @@ private:
         bool isJournal = (chunkType == EObjectType::JournalChunk);
         auto erasureCodecId = isErasure ? NErasure::ECodec(subrequest->erasure_codec()) : NErasure::ECodec::None;
         int replicationFactor = isErasure ? 1 : subrequest->replication_factor();
-        const auto& mediumName = subrequest->medium_name();
-        auto* medium = GetMediumByNameOrThrow(mediumName);
-        auto mediumIndex = medium->GetIndex();
+        int mediumIndex = subrequest->medium_index();
         int readQuorum = isJournal ? subrequest->read_quorum() : 0;
         int writeQuorum = isJournal ? subrequest->write_quorum() : 0;
+
+        auto* medium = GetMediumByIndexOrThrow(mediumIndex);
 
         ValidateReplicationFactor(replicationFactor);
 
@@ -1625,14 +1637,13 @@ private:
         LOG_DEBUG_UNLESS(IsRecovery(),
             "Chunk created "
             "(ChunkId: %v, ChunkListId: %v, TransactionId: %v, Account: %v, "
-            "Medium: %v (%v), ReplicationFactor: %v, "
+            "Medium: %v, ReplicationFactor: %v, "
             "ReadQuorum: %v, WriteQuorum: %v, ErasureCodec: %v, Movable: %v, Vital: %v)",
             chunk->GetId(),
             GetObjectId(chunkList),
             transaction->GetId(),
             account->GetName(),
-            mediumName,
-            mediumIndex,
+            medium->GetName(),
             replicationFactor,
             readQuorum,
             writeQuorum,
@@ -2761,6 +2772,11 @@ TMedium* TChunkManager::FindMediumByIndex(int index) const
 TMedium* TChunkManager::GetMediumByIndex(int index) const
 {
     return Impl_->GetMediumByIndex(index);
+}
+
+TMedium* TChunkManager::GetMediumByIndexOrThrow(int index) const
+{
+    return Impl_->GetMediumByIndexOrThrow(index);
 }
 
 void TChunkManager::RenameMedium(TMedium* medium, const Stroka& newName)
