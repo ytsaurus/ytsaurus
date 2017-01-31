@@ -90,6 +90,10 @@ private:
             return;
         }
 
+        if (tablet->GetConfig()->DisableCompactionAndPartitioning) {
+            return;
+        }
+
         int currentMaxOverlappingStoreCount = tablet->GetEden()->Stores().size();
         for (const auto& partition : tablet->PartitionList()) {
             currentMaxOverlappingStoreCount = std::max(
