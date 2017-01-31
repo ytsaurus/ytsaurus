@@ -15,6 +15,7 @@
 #include <yt/core/actions/signal.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/periodic_executor.h>
 
 namespace NYT {
 namespace NDataNode {
@@ -96,11 +97,6 @@ public:
      */
     NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() const;
 
-    int GetChunkMediumIndexOrThrow(IChunkPtr chunk) const;
-    int GetChunkMediumPriorityOrThrow(IChunkPtr chunk) const;
-
-    int GetLocationMediumIndexOrThrow(TLocationPtr location) const;
-
 private:
     using EState = EMasterConnectorState;
 
@@ -109,8 +105,6 @@ private:
     const std::vector<Stroka> NodeTags_;
     const NCellNode::TBootstrap* Bootstrap_;
     const IInvokerPtr ControlInvoker_;
-    yhash_map<Stroka, int> MediumNameToIndex_;
-    yhash_map<Stroka, int> MediumNameToPriority_;
 
     bool Started_ = false;
 
@@ -161,6 +155,8 @@ private:
     TSpinLock LocalDescriptorLock_;
     NNodeTrackerClient::TNodeDescriptor LocalDescriptor_;
 
+    NConcurrency::TPeriodicExecutorPtr MediumUpdateExecutor_;
+
 
     //! Returns the list of all active alerts, including those induced
     //! by |PopulateAlerts| subscribers.
@@ -186,14 +182,9 @@ private:
     //! Sends out a registration request to master.
     void RegisterAtMaster();
 
-    // A part of #RegisterAtMaster()'s implementation.
-    void SetMediumNameAndIndexMapping(const NNodeTrackerClient::NProto::TRspRegisterNode& rsp);
-
-    int MediumIndexFromNameOrThrow(const Stroka& mediumName) const;
-    int MediumPriorityFromNameOrThrow(const Stroka& mediumName) const;
-
-    // A part of #SendIncrementalNodeHeartbeat()'s implementation.
-    void UpdateMediumPriorities(const NNodeTrackerClient::NProto::TRspIncrementalHeartbeat& rsp);
+    void InitMediumDescriptors();
+    void OnMediumDescriptorsUpdate();
+    void DoUpdateMediumDescriptors();
 
     //! Handles lease transaction abort.
     void OnLeaseTransactionAborted();

@@ -144,16 +144,17 @@ IChunkPtr TChunkStore::FindChunk(const TChunkId& chunkId, int mediumIndex) const
         auto resultIt = std::max_element(
             itRange.first,
             itRange.second,
-            [=] (const TChunkIdEntryPair& lhs, const TChunkIdEntryPair& rhs) {
-                return masterConnector->GetChunkMediumPriorityOrThrow(lhs.second.Chunk) <
-                       masterConnector->GetChunkMediumPriorityOrThrow(rhs.second.Chunk);
+            [&] (const TChunkIdEntryPair& lhs, const TChunkIdEntryPair& rhs) {
+                return
+                    lhs.second.Chunk->GetLocation()->GetMediumDescriptor().Priority <
+                    rhs.second.Chunk->GetLocation()->GetMediumDescriptor().Priority;
             });
 
         return resultIt->second.Chunk;
     }
 
     for (auto it = itRange.first; it != itRange.second; ++it) {
-        if (GetChunkMediumIndexOrThrow(it->second.Chunk) == mediumIndex) {
+        if (it->second.Chunk->GetLocation()->GetMediumDescriptor().Index == mediumIndex) {
             return it->second.Chunk;
         }
     }
@@ -164,7 +165,7 @@ IChunkPtr TChunkStore::FindChunk(const TChunkId& chunkId, int mediumIndex) const
 TChunkStore::TChunkEntry TChunkStore::DoUpdateChunk(IChunkPtr oldChunk, IChunkPtr newChunk)
 {
     Y_ASSERT(oldChunk->GetId() == newChunk->GetId());
-    Y_ASSERT(GetChunkMediumIndexOrThrow(oldChunk) == GetChunkMediumIndexOrThrow(newChunk));
+    Y_ASSERT(oldChunk->GetLocation()->GetMediumDescriptor().Index == newChunk->GetLocation()->GetMediumDescriptor().Index);
 
     auto itRange = ChunkMap_.equal_range(oldChunk->GetId());
     YCHECK(itRange.first != itRange.second);
@@ -204,18 +205,6 @@ TChunkStore::TChunkEntry TChunkStore::DoEraseChunk(IChunkPtr chunk)
     auto result = it->second;
     ChunkMap_.erase(it);
     return result;
-}
-
-int TChunkStore::GetChunkMediumIndexOrThrow(IChunkPtr chunk) const
-{
-    auto masterConnector = Bootstrap_->GetMasterConnector();
-    return masterConnector->GetChunkMediumIndexOrThrow(chunk);
-}
-
-int TChunkStore::GetLocationMediumIndexOrThrow(TLocationPtr location) const
-{
-    auto masterConnector = Bootstrap_->GetMasterConnector();
-    return masterConnector->GetLocationMediumIndexOrThrow(location);
 }
 
 void TChunkStore::RegisterExistingChunk(IChunkPtr chunk)
@@ -416,12 +405,12 @@ IChunkPtr TChunkStore::GetChunkOrThrow(const TChunkId& chunkId, int mediumIndex)
     return chunk;
 }
 
-TChunkStore::TChunks TChunkStore::GetChunks() const
+std::vector<IChunkPtr> TChunkStore::GetChunks() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     TReaderGuard guard(ChunkMapLock_);
-    TChunks result;
+    std::vector<IChunkPtr> result;
     result.reserve(ChunkMap_.size());
     for (const auto& pair : ChunkMap_) {
         result.push_back(pair.second.Chunk);
@@ -443,7 +432,7 @@ TFuture<void> TChunkStore::RemoveChunk(IChunkPtr chunk)
 
     auto sessionManager = Bootstrap_->GetSessionManager();
 
-    auto sessionId = TSessionId(chunk->GetId(), GetLocationMediumIndexOrThrow(chunk->GetLocation()));
+    auto sessionId = TSessionId(chunk->GetId(), chunk->GetLocation()->GetMediumDescriptor().Index);
     auto session = sessionManager->FindSession(sessionId);
     if (session) {
         // NB: Cannot remove the chunk while there's a corresponding session for it.
@@ -536,7 +525,7 @@ bool TChunkStore::CanStartNewSession(
         return false;
     }
 
-    if (GetLocationMediumIndexOrThrow(location) != mediumIndex) {
+    if (location->GetMediumDescriptor().Index != mediumIndex) {
         return false;
     }
 

@@ -9,21 +9,38 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TMediumDescriptor
+{
+    Stroka Name;
+    int Index = InvalidMediumIndex;
+    int Priority = -1;
+
+    bool operator == (const TMediumDescriptor& other) const;
+    bool operator != (const TMediumDescriptor& other) const;
+};
+
 class TMediumDirectory
     : public TRefCounted
 {
 public:
-    Stroka GetNameByIndex(int index) const;
-    int GetIndexByName(const Stroka& name) const;
+    const TMediumDescriptor* FindByIndex(int index) const;
+    const TMediumDescriptor* GetByIndexOrThrow(int index) const;
+
+    const TMediumDescriptor* FindByName(const Stroka& name) const;
+    const TMediumDescriptor* GetByNameOrThrow(const Stroka& name) const;
 
     void UpdateDirectory(const NProto::TMediumDirectory& protoDirectory);
 
 private:
     mutable NConcurrency::TReaderWriterSpinLock SpinLock_;
-    yhash_map<Stroka, int> NameToIndex_;
-    yhash_map<int, Stroka> IndexToName_;
+    yhash_map<Stroka, const TMediumDescriptor*> NameToDescriptor_;
+    yhash_map<int, const TMediumDescriptor*> IndexToDescriptor_;
+
+    std::vector<std::unique_ptr<TMediumDescriptor>> Descriptors_;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TMediumDirectory)
 
 ////////////////////////////////////////////////////////////////////////////////
 

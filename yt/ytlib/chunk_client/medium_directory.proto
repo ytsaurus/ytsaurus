@@ -8,6 +8,7 @@ message TMediumDirectory
     {
         required string name = 1;
         required int32 index = 2;
+        required int32 priority = 3;
     }
 
     repeated TItem items = 1;

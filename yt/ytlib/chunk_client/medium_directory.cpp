@@ -9,34 +9,77 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka TMediumDirectory::GetNameByIndex(int index) const
+bool TMediumDescriptor::operator==(const TMediumDescriptor& other) const
 {
-    NConcurrency::TReaderGuard guard(SpinLock_);
-    auto it = IndexToName_.find(index);
-    if (it == IndexToName_.end()) {
-        THROW_ERROR_EXCEPTION("No such medium %v", index);
-    }
-    return it->second;
+    return
+        Name == other.Name &&
+        Index == other.Index &&
+        Priority == other.Priority;
 }
 
-int TMediumDirectory::GetIndexByName(const Stroka& name) const
+bool TMediumDescriptor::operator!=(const TMediumDescriptor& other) const
+{
+    return !(*this == other);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TMediumDescriptor* TMediumDirectory::FindByIndex(int index) const
 {
     NConcurrency::TReaderGuard guard(SpinLock_);
-    auto it = NameToIndex_.find(name);
-    if (it == NameToIndex_.end()) {
+    auto it = IndexToDescriptor_.find(index);
+    return it == IndexToDescriptor_.end() ? nullptr : it->second;
+}
+
+const TMediumDescriptor* TMediumDirectory::GetByIndexOrThrow(int index) const
+{
+    const auto* result = FindByIndex(index);
+    if (!result) {
+        THROW_ERROR_EXCEPTION("No such medium %v", index);
+    }
+    return result;
+}
+
+const TMediumDescriptor* TMediumDirectory::FindByName(const Stroka& name) const
+{
+    NConcurrency::TReaderGuard guard(SpinLock_);
+    auto it = NameToDescriptor_.find(name);
+    return it == NameToDescriptor_.end() ? nullptr : it->second;
+}
+
+const TMediumDescriptor* TMediumDirectory::GetByNameOrThrow(const Stroka& name) const
+{
+    const auto* result = FindByName(name);
+    if (!result) {
         THROW_ERROR_EXCEPTION("No such medium %Qv", name);
     }
-    return it->second;
+    return result;
 }
 
 void TMediumDirectory::UpdateDirectory(const NProto::TMediumDirectory& protoDirectory)
 {
     NConcurrency::TWriterGuard guard(SpinLock_);
-    IndexToName_.clear();
-    NameToIndex_.clear();
+    auto oldIndexToDescriptor = std::move(IndexToDescriptor_);
+    IndexToDescriptor_.clear();
+    NameToDescriptor_.clear();
     for (const auto& protoItem : protoDirectory.items()) {
-        YCHECK(IndexToName_.emplace(protoItem.index(), protoItem.name()).second);
-        YCHECK(NameToIndex_.emplace(protoItem.name(), protoItem.index()).second);
+        TMediumDescriptor descriptor;
+        descriptor.Name = protoItem.name();
+        descriptor.Index = protoItem.index();
+        descriptor.Priority = protoItem.priority();
+
+        const TMediumDescriptor* descriptorPtr;
+        auto it = oldIndexToDescriptor.find(descriptor.Index);
+        if (it == oldIndexToDescriptor.end() || *it->second != descriptor) {
+            auto descriptorHolder = std::make_unique<TMediumDescriptor>(descriptor);
+            descriptorPtr = descriptorHolder.get();
+            Descriptors_.emplace_back(std::move(descriptorHolder));
+        } else {
+            descriptorPtr = it->second;
+        }
+
+        YCHECK(IndexToDescriptor_.emplace(descriptor.Index, descriptorPtr).second);
+        YCHECK(NameToDescriptor_.emplace(descriptor.Name, descriptorPtr).second);
     }
 }
 

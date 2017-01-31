@@ -142,6 +142,7 @@ private:
                 auto* protoItem = protoMediumDirectory->add_items();
                 protoItem->set_index(medium->GetIndex());
                 protoItem->set_name(medium->GetName());
+                protoItem->set_priority(medium->GetPriority());
             }
         }
 
