@@ -124,7 +124,8 @@ TFuture<void> TSlotLocation::CreateSandboxDirectories(int slotIndex)
                  NFS::ForcePath(sandboxPath, 0777);
              }
          } catch (const std::exception& ex) {
-             auto error = TError("Failed to create sandbox directories for slot %v", slotPath)
+            // Job will be aborted.
+             auto error = TError(EErrorCode::SlotLocationDisabled, "Failed to create sandbox directories for slot %v", slotPath)
                 << ex;
              Disable(error);
              THROW_ERROR error;
@@ -225,7 +226,8 @@ TFuture<void> TSlotLocation::MakeSandboxLink(
             NFS::SetExecutableMode(targetPath, executable);
             NFS::MakeSymbolicLink(targetPath, linkPath);
         } catch (const std::exception& ex) {
-            auto error = TError("Failed to make a symlink %Qv into sandbox %v", linkName, sandboxPath)
+            // Job will be aborted.
+            auto error = TError(EErrorCode::SlotLocationDisabled, "Failed to make a symlink %Qv into sandbox %v", linkName, sandboxPath)
                 << ex;
             Disable(error);
             THROW_ERROR error;
@@ -297,7 +299,8 @@ TFuture<Stroka> TSlotLocation::MakeSandboxTmpfs(
             TmpfsPaths_.insert(tmpfsPath);
             return tmpfsPath;
         } catch (const std::exception& ex) {
-            auto error = TError("Failed to mount tmpfs %v into sandbox %v", path, sandboxPath)
+            // Job will be aborted.
+            auto error = TError(EErrorCode::SlotLocationDisabled, "Failed to mount tmpfs %v into sandbox %v", path, sandboxPath)
                 << ex;
             Disable(error);
             THROW_ERROR error;
@@ -320,7 +323,8 @@ TFuture<void> TSlotLocation::MakeConfig(int slotIndex, INodePtr config)
             Serialize(config, &writer);
             writer.Flush();
         } catch (const std::exception& ex) {
-            auto error = TError("Failed to write job proxy config into %v", proxyConfigPath) << ex;
+            // Job will be aborted.
+            auto error = TError(EErrorCode::SlotLocationDisabled, "Failed to write job proxy config into %v", proxyConfigPath) << ex;
             Disable(error);
             THROW_ERROR error;
         }
@@ -468,8 +472,8 @@ void TSlotLocation::ValidateEnabled() const
 {
     if (!IsEnabled()) {
         THROW_ERROR_EXCEPTION(
-            EErrorCode::SlotLocationDisabled, 
-            "Slot location at %v is disabled", 
+            EErrorCode::SlotLocationDisabled,
+            "Slot location at %v is disabled",
             Config_->Path);
     }
 }
@@ -480,8 +484,8 @@ void TSlotLocation::Disable(const TError& error)
         return;
 
     auto alert = TError(
-        EErrorCode::SlotLocationDisabled, 
-        "Slot location at %v is disabled", 
+        EErrorCode::SlotLocationDisabled,
+        "Slot location at %v is disabled",
         Config_->Path) << error;
 
     LOG_ERROR(alert);

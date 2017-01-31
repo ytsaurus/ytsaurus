@@ -65,7 +65,11 @@ function YtDriverFacadeV3(logger, driver)
         return application_versions.get_versions();
     });
 
-    var application_operations = new YtApplicationOperations(logger, driver);
+    var application_operations = new YtApplicationOperations(logger, {
+        executeSimple: function(name, parameters, data) {
+            return driver.executeSimpleWithUser(name, "application_operations", parameters, data);
+        }
+    });
 
     defineCustomCommand("_list_operations", function(parameters) {
         return application_operations.list(parameters);

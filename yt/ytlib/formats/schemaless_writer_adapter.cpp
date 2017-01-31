@@ -43,8 +43,8 @@ TSchemalessFormatWriterBase::TSchemalessFormatWriterBase(
 {
     CurrentBuffer_.Reserve(ContextBufferCapacity);
 
-    EnableRowControlAttributes_ = ControlAttributesConfig_->EnableTableIndex || 
-        ControlAttributesConfig_->EnableRangeIndex || 
+    EnableRowControlAttributes_ = ControlAttributesConfig_->EnableTableIndex ||
+        ControlAttributesConfig_->EnableRangeIndex ||
         ControlAttributesConfig_->EnableRowIndex;
 
     try {
@@ -107,6 +107,11 @@ void TSchemalessFormatWriterBase::TryFlushBuffer(bool force)
     }
 }
 
+i64 TSchemalessFormatWriterBase::GetWrittenSize() const
+{
+    return WrittenSize_;
+}
+
 void TSchemalessFormatWriterBase::FlushWriter()
 { }
 
@@ -117,6 +122,8 @@ void TSchemalessFormatWriterBase::DoFlushBuffer()
     if (CurrentBuffer_.Size() == 0) {
         return;
     }
+
+    WrittenSize_ += CurrentBuffer_.Size();
 
     PreviousBuffer_ = CurrentBuffer_.Flush();
     WaitFor(Output_->Write(PreviousBuffer_))
@@ -141,7 +148,7 @@ bool TSchemalessFormatWriterBase::Write(const TRange<TUnversionedRow> &rows)
     return true;
 }
 
-bool TSchemalessFormatWriterBase::CheckKeySwitch(TUnversionedRow row, bool isLastRow) 
+bool TSchemalessFormatWriterBase::CheckKeySwitch(TUnversionedRow row, bool isLastRow)
 {
     if (!ControlAttributesConfig_->EnableKeySwitch) {
         return false;
@@ -167,8 +174,8 @@ bool TSchemalessFormatWriterBase::CheckKeySwitch(TUnversionedRow row, bool isLas
 
 bool TSchemalessFormatWriterBase::IsSystemColumnId(int id) const
 {
-    return IsTableIndexColumnId(id) || 
-        IsRangeIndexColumnId(id) || 
+    return IsTableIndexColumnId(id) ||
+        IsRangeIndexColumnId(id) ||
         IsRowIndexColumnId(id);
 }
 
@@ -256,10 +263,10 @@ TSchemalessWriterAdapter::TSchemalessWriterAdapter(
     TControlAttributesConfigPtr controlAttributesConfig,
     int keyColumnCount)
     : TSchemalessFormatWriterBase(
-        nameTable, 
-        std::move(output), 
-        enableContextSaving, 
-        controlAttributesConfig, 
+        nameTable,
+        std::move(output),
+        enableContextSaving,
+        controlAttributesConfig,
         keyColumnCount)
 { }
 

@@ -732,11 +732,11 @@ bool TOperationControllerBase::TTask::CanScheduleJob(
 void TOperationControllerBase::TTask::DoCheckResourceDemandSanity(
     const TJobResources& neededResources)
 {
-    const auto& nodeDescriptors = Controller->GetExecNodeDescriptors();
-    if (nodeDescriptors.size() < Controller->Config->SafeOnlineNodeCount) {
+    if (Controller->ShouldSkipSanityCheck()) {
         return;
     }
 
+    const auto& nodeDescriptors = Controller->GetExecNodeDescriptors();
     for (const auto& descriptor : nodeDescriptors) {
         if (Dominates(descriptor.ResourceLimits, neededResources)) {
             return;
@@ -756,8 +756,9 @@ void TOperationControllerBase::TTask::CheckResourceDemandSanity(
     // Run sanity check to see if any node can provide enough resources.
     // Don't run these checks too often to avoid jeopardizing performance.
     auto now = TInstant::Now();
-    if (now < LastDemandSanityCheckTime + Controller->Config->ResourceDemandSanityCheckPeriod)
+    if (now < LastDemandSanityCheckTime + Controller->Config->ResourceDemandSanityCheckPeriod) {
         return;
+    }
     LastDemandSanityCheckTime = now;
 
     // Schedule check in controller thread.
@@ -1086,9 +1087,17 @@ TOperationControllerBase::TOperationControllerBase(
         GetCancelableInvoker(),
         BIND(&TThis::CheckTimeLimit, MakeWeak(this)),
         Config->OperationTimeLimitCheckPeriod))
+    , ExecNodesCheckExecutor(New<TPeriodicExecutor>(
+        GetCancelableInvoker(),
+        BIND(&TThis::CheckAvailableExecNodes, MakeWeak(this)),
+        Config->AvailableExecNodesCheckPeriod))
     , EventLogValueConsumer_(Host->CreateLogConsumer())
     , EventLogTableConsumer_(new TTableConsumer(EventLogValueConsumer_.get()))
     , CodicilData_(MakeOperationCodicilString(OperationId))
+    , ProgressBuildExecutor_(New<TPeriodicExecutor>(
+        GetCancelableInvoker(),
+        BIND(&TThis::BuildAndSaveProgress, MakeWeak(this)),
+        Config->OperationBuildProgressPeriod))
 {
     Logger.AddTag("OperationId: %v", OperationId);
 }
@@ -1359,7 +1368,7 @@ void TOperationControllerBase::SafePrepare()
 
 void TOperationControllerBase::SafeMaterialize()
 {
-    if (State == EControllerState::Running) {
+    if (RevivedFromSnapshot) {
         // Operation is successfully revived, skipping materialization.
         return;
     }
@@ -1408,6 +1417,8 @@ void TOperationControllerBase::SafeMaterialize()
         InitIntermediateChunkScraper();
 
         CheckTimeLimitExecutor->Start();
+        ProgressBuildExecutor_->Start();
+        ExecNodesCheckExecutor->Start();
 
         State = EControllerState::Running;
     } catch (const std::exception& ex) {
@@ -1441,6 +1452,8 @@ void TOperationControllerBase::Revive()
     DoLoadSnapshot(Snapshot);
     Snapshot = TSharedRef();
 
+    RevivedFromSnapshot = true;
+
     InitChunkListPool();
 
     LockLivePreviewTables();
@@ -1455,7 +1468,12 @@ void TOperationControllerBase::Revive()
 
     ReinstallLivePreview();
 
+    // To prevent operation failure on startup if available nodes are missing.
+    AvaialableNodesLastSeenTime_ = TInstant::Now();
+
     CheckTimeLimitExecutor->Start();
+    ProgressBuildExecutor_->Start();
+    ExecNodesCheckExecutor->Start();
 
     State = EControllerState::Running;
 }
@@ -1597,8 +1615,7 @@ void TOperationControllerBase::InitInputChunkScraper()
         InputNodeDirectory,
         std::move(chunkIds),
         BIND(&TThis::OnInputChunkLocated, MakeWeak(this)),
-        Logger
-    );
+        Logger);
 
     if (UnavailableInputChunkCount > 0) {
         LOG_INFO("Waiting for %v unavailable input chunks", UnavailableInputChunkCount);
@@ -2504,6 +2521,25 @@ void TOperationControllerBase::CheckTimeLimit()
     }
 }
 
+void TOperationControllerBase::CheckAvailableExecNodes()
+{
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+
+    if (ShouldSkipSanityCheck()) {
+        return;
+    }
+
+    if (GetExecNodeDescriptors().empty()) {
+        if (AvaialableNodesLastSeenTime_ + Spec->AvailableNodesMissingTimeout < TInstant::Now()) {
+            OnOperationFailed(TError("No online nodes match operation scheduling tag filter")
+                << TErrorAttribute("operation_id", OperationId)
+                << TErrorAttribute("scheduling_tag_filter", Spec->SchedulingTagFilter));
+        }
+    } else {
+        AvaialableNodesLastSeenTime_ = TInstant::Now();
+    }
+}
+
 TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     ISchedulingContextPtr context,
     const TJobResources& jobLimits)
@@ -3056,6 +3092,8 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
 
     State = EControllerState::Finished;
 
+    BuildAndSaveProgress();
+
     Host->OnOperationCompleted(OperationId);
 }
 
@@ -3069,6 +3107,8 @@ void TOperationControllerBase::OnOperationFailed(const TError& error)
     }
 
     State = EControllerState::Finished;
+
+    BuildAndSaveProgress();
 
     Host->OnOperationFailed(OperationId, error);
 }
@@ -3114,7 +3154,8 @@ void TOperationControllerBase::CreateLivePreviewTables()
         int replicationFactor,
         NCompression::ECodec compressionCodec,
         const Stroka& key,
-        const TYsonString& acl)
+        const TYsonString& acl,
+        TNullable<TTableSchema> schema)
     {
         auto req = TCypressYPathProxy::Create(path);
         req->set_type(static_cast<int>(EObjectType::Table));
@@ -3132,6 +3173,9 @@ void TOperationControllerBase::CreateLivePreviewTables()
         }
         attributes->Set("acl", acl);
         attributes->Set("inherit_acl", false);
+        if (schema) {
+            attributes->Set("schema", *schema);
+        }
         ToProto(req->mutable_node_attributes(), *attributes);
 
         batchReq->AddRequest(req, key);
@@ -3149,7 +3193,8 @@ void TOperationControllerBase::CreateLivePreviewTables()
                 table.Options->ReplicationFactor,
                 table.Options->CompressionCodec,
                 "create_output",
-                table.EffectiveAcl);
+                table.EffectiveAcl,
+                table.TableUploadOptions.TableSchema);
         }
     }
 
@@ -3162,7 +3207,8 @@ void TOperationControllerBase::CreateLivePreviewTables()
             StderrTable->Options->ReplicationFactor,
             StderrTable->Options->CompressionCodec,
             "create_stderr",
-            StderrTable->EffectiveAcl);
+            StderrTable->EffectiveAcl,
+            StderrTable->TableUploadOptions.TableSchema);
     }
 
     if (IsIntermediateLivePreviewSupported()) {
@@ -3195,7 +3241,8 @@ void TOperationControllerBase::CreateLivePreviewTables()
                     .DoFor(Config->AdditionalIntermediateDataAcl->AsList()->GetChildren(), [] (TFluentList fluent, const INodePtr& node) {
                         fluent.Item().Value(node);
                     })
-                .EndList());
+                .EndList(),
+            Null);
     }
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());
@@ -4833,7 +4880,7 @@ void TOperationControllerBase::RemoveJoblet(const TJobId& jobId)
 
 bool TOperationControllerBase::HasProgress() const
 {
-    return IsPrepared();
+    return IsPrepared() && ProgressString_ && BriefProgressString_;
 }
 
 void TOperationControllerBase::BuildOperationAttributes(IYsonConsumer* consumer) const
@@ -4850,9 +4897,8 @@ void TOperationControllerBase::BuildOperationAttributes(IYsonConsumer* consumer)
 
 void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
 {
-    VERIFY_INVOKER_AFFINITY(Invoker);
-
     BuildYsonMapFluently(consumer)
+        .Item("build_time").Value(TInstant::Now())
         .Item("jobs").Value(JobCounter)
         .Item("ready_job_count").Value(GetPendingJobCount())
         .Item("job_statistics").Value(JobStatistics)
@@ -4882,10 +4928,49 @@ void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
 
 void TOperationControllerBase::BuildBriefProgress(IYsonConsumer* consumer) const
 {
-    VERIFY_INVOKER_AFFINITY(Invoker);
-
     BuildYsonMapFluently(consumer)
         .Item("jobs").Value(JobCounter);
+}
+
+void TOperationControllerBase::BuildAndSaveProgress()
+{
+    auto progressString = BuildYsonStringFluently()
+        .BeginMap()
+            .Do(BIND([=] (IYsonConsumer* consumer) {
+                WaitFor(
+                    BIND(&IOperationController::BuildProgress, MakeStrong(this))
+                        .AsyncVia(GetInvoker())
+                        .Run(consumer));
+            }))
+        .EndMap();
+
+    auto briefProgressString = BuildYsonStringFluently()
+        .BeginMap()
+            .Do(BIND([=] (IYsonConsumer* consumer) {
+                WaitFor(
+                    BIND(&IOperationController::BuildBriefProgress, MakeStrong(this))
+                        .AsyncVia(GetInvoker())
+                        .Run(consumer));
+            }))
+        .EndMap();
+
+    {
+        TGuard<TSpinLock> guard(ProgressLock_);
+        ProgressString_ = progressString;
+        BriefProgressString_ = briefProgressString;
+    }
+}
+
+TYsonString TOperationControllerBase::GetProgress() const
+{
+    TGuard<TSpinLock> guard(ProgressLock_);
+    return ProgressString_;
+}
+
+TYsonString TOperationControllerBase::GetBriefProgress() const
+{
+    TGuard<TSpinLock> guard(ProgressLock_);
+    return BriefProgressString_;
 }
 
 void TOperationControllerBase::UpdateJobStatistics(const TJobSummary& jobSummary)
@@ -5212,12 +5297,13 @@ void TOperationControllerBase::ValidateUserFileCount(TUserJobSpecPtr spec, const
 void TOperationControllerBase::GetExecNodesInformation()
 {
     auto now = TInstant::Now();
-    if (LastGetExecNodesInformationTime_ + Config->GetExecNodesInformationDelay > now) {
+    if (LastGetExecNodesInformationTime_ + Config->ControllerUpdateExecNodesInformationDelay > now) {
         return;
     }
 
     ExecNodeCount_ = Host->GetExecNodeCount();
-    ExecNodesDescriptors_ = Host->GetExecNodeDescriptors(Spec->SchedulingTag);
+
+    ExecNodesDescriptors_ = Host->GetExecNodeDescriptors(TSchedulingTagFilter(Spec->SchedulingTagFilter));
 
     LastGetExecNodesInformationTime_ = TInstant::Now();
 }
@@ -5232,6 +5318,20 @@ const std::vector<TExecNodeDescriptor>& TOperationControllerBase::GetExecNodeDes
 {
     GetExecNodesInformation();
     return ExecNodesDescriptors_;
+}
+
+bool TOperationControllerBase::ShouldSkipSanityCheck()
+{
+    auto nodeCount = GetExecNodeCount();
+    if (nodeCount < Config->SafeOnlineNodeCount) {
+        return true;
+    }
+
+    if (TInstant::Now() < Host->GetConnectionTime() + Config->SafeSchedulerOnlineTime) {
+        return true;
+    }
+
+    return false;
 }
 
 void TOperationControllerBase::BuildMemoryDigestStatistics(IYsonConsumer* consumer) const
@@ -5677,6 +5777,16 @@ public:
     virtual TYsonString BuildInputPathYson(const TJobId& jobId) const override
     {
         return Underlying_->BuildInputPathYson(jobId);
+    }
+
+    virtual TYsonString GetProgress() const override
+    {
+        return Underlying_->GetProgress();
+    }
+
+    virtual TYsonString GetBriefProgress() const override
+    {
+        return Underlying_->GetBriefProgress();
     }
 
 private:

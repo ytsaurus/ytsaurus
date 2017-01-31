@@ -31,7 +31,6 @@ public:
         : GetNextReader_(std::move(getNextReader))
         , Sessions_(std::move(sessions))
         , Exhausted_(exhausted)
-        , ReadyEvent_(MakePromise<void>(TError()))
     { }
 
     ~TUnorderedSchemafulReader()
@@ -88,27 +87,26 @@ public:
             return false;
         }
 
+        auto readyEvent = NewPromise<void>();
         {
             TWriterGuard guard(SpinLock_);
-            ReadyEvent_ = NewPromise<void>();
+            ReadyEvent_ = readyEvent;
         }
 
         for (auto& session : Sessions_) {
             if (session.ReadyEvent) {
-                ReadyEvent_.TrySetFrom(*session.ReadyEvent);
+                readyEvent.TrySetFrom(*session.ReadyEvent);
             }
         }
 
-        ReadyEvent_.OnCanceled(BIND(&TUnorderedSchemafulReader::OnCanceled, MakeWeak(this)));
+        readyEvent.OnCanceled(BIND(&TUnorderedSchemafulReader::OnCanceled, MakeWeak(this)));
 
         return true;
     }
 
     virtual TFuture<void> GetReadyEvent() override
     {
-        TReaderGuard guard(SpinLock_);
-        auto readyEvent = ReadyEvent_;
-        return readyEvent;
+        return DoGetReadyEvent();
     }
 
 private:
@@ -116,9 +114,15 @@ private:
     std::vector<TSession> Sessions_;
     bool Exhausted_;
 
-    TPromise<void> ReadyEvent_;
+    TPromise<void> ReadyEvent_ = MakePromise<void>(TError());
     const TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();
     TReaderWriterSpinLock SpinLock_;
+
+    TPromise<void> DoGetReadyEvent()
+    {
+        TReaderGuard guard(SpinLock_);
+        return ReadyEvent_;
+    }
 
     void UpdateSession(TSession& session)
     {
@@ -149,16 +153,14 @@ private:
 
     void OnReady(const TError& value)
     {
-        TWriterGuard guard(SpinLock_);
-        ReadyEvent_.TrySet(value);
+        DoGetReadyEvent().TrySet(value);
     }
 
     void OnCanceled()
     {
-        ReadyEvent_.TrySet(TError(NYT::EErrorCode::Canceled, "Table reader canceled"));
+        DoGetReadyEvent().TrySet(TError(NYT::EErrorCode::Canceled, "Table reader canceled"));
         CancelableContext_->Cancel();
     }
-
 };
 
 ISchemafulReaderPtr CreateUnorderedSchemafulReader(
@@ -177,7 +179,10 @@ ISchemafulReaderPtr CreateUnorderedSchemafulReader(
         sessions.back().Reader = std::move(reader);
     }
 
-    return New<TUnorderedSchemafulReader>(std::move(getNextReader), std::move(sessions), exhausted);
+    return New<TUnorderedSchemafulReader>(
+        std::move(getNextReader),
+        std::move(sessions),
+        exhausted);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "job_resources.h"
+#include "scheduling_tag.h"
 
 #include <yt/server/node_tracker_server/node.h>
 
@@ -79,7 +80,7 @@ public:
     const Stroka& GetDefaultAddress() const;
 
     //! Checks if the node can handle jobs demanding a certain #tag.
-    bool CanSchedule(const TNullable<Stroka>& tag) const;
+    bool CanSchedule(const TSchedulingTagFilter& filter) const;
 
     //! Constructs a descriptor containing the current snapshot of node's state.
     /*!
@@ -135,7 +136,7 @@ struct TExecNodeDescriptor
         const TJobResources& resourceLimits,
         const yhash_set<Stroka>& tags);
 
-    bool CanSchedule(const TNullable<Stroka>& tag) const;
+    bool CanSchedule(const TSchedulingTagFilter& filter) const;
 
     NNodeTrackerClient::TNodeId Id = NNodeTrackerClient::InvalidNodeId;
     Stroka Address;

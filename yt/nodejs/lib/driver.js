@@ -227,7 +227,7 @@ YtDriver.prototype.execute = function YtDriver$execute(
         });
 };
 
-YtDriver.prototype.executeSimple = function(name, parameters, data)
+YtDriver.prototype.executeSimpleWithUser = function(name, user, parameters, data)
 {
     this.__DBG("executeSimple");
 
@@ -246,7 +246,7 @@ YtDriver.prototype.executeSimple = function(name, parameters, data)
     parameters.input_format = parameters.input_format || "json";
     parameters.output_format = parameters.output_format || "json";
 
-    return this.execute(name, _SIMPLE_EXECUTE_USER,
+    return this.execute(name, user,
         input_stream, binding.ECompression_None,
         output_stream, binding.ECompression_None,
         binding.CreateV8Node(parameters), null, pause, function(){})
@@ -258,6 +258,11 @@ YtDriver.prototype.executeSimple = function(name, parameters, data)
             return JSON.parse(body);
         }
     });
+};
+
+YtDriver.prototype.executeSimple = function(name, parameters, data)
+{
+    return this.executeSimpleWithUser(name, _SIMPLE_EXECUTE_USER, parameters, data);
 };
 
 YtDriver.prototype.find_command_descriptor = function(name)

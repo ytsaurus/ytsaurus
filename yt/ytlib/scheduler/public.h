@@ -15,6 +15,8 @@ using NJobTrackerClient::TOperationId;
 using NJobTrackerClient::EJobType;
 using NJobTrackerClient::EJobState;
 
+static const int MaxSchedulingTagRuleCount = 10;
+
 DEFINE_ENUM(EOperationType,
     (Map)
     (Merge)
@@ -98,11 +100,14 @@ class TSchedulerServiceProxy;
 class TJobIOConfig;
 typedef TIntrusivePtr<TJobIOConfig> TJobIOConfigPtr;
 
-class TResourceLimitsConfig;
-typedef TIntrusivePtr<TResourceLimitsConfig> TResourceLimitsConfigPtr;
-
 class TTestingOperationOptions;
 typedef TIntrusivePtr<TTestingOperationOptions> TTestingOperationOptionsPtr;
+
+class TSchedulingTagRuleConfig;
+typedef TIntrusivePtr<TSchedulingTagRuleConfig> TSchedulingTagRuleConfigPtr;
+
+class TResourceLimitsConfig;
+typedef TIntrusivePtr<TResourceLimitsConfig> TResourceLimitsConfigPtr;
 
 class TOperationSpecBase;
 typedef TIntrusivePtr<TOperationSpecBase> TOperationSpecBasePtr;

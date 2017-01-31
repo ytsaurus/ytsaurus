@@ -95,6 +95,8 @@ public:
     i64 MaxDataWeightPerReplicationCommit;
     bool EnableReplicationLogging;
 
+    bool DisableCompactionAndPartitioning;
+
     TTableMountConfig()
     {
         RegisterParameter("max_dynamic_store_row_count", MaxDynamicStoreRowCount)
@@ -190,10 +192,13 @@ public:
         RegisterParameter("min_replication_log_ttl", MinReplicationLogTtl)
             .Default(TDuration::Minutes(5));
         RegisterParameter("max_rows_per_replication_commit", MaxRowsPerReplicationCommit)
-            .Default(100000);
+            .Default(90000);
         RegisterParameter("max_data_weight_per_replication_commit", MaxDataWeightPerReplicationCommit)
             .Default((i64) 128 * 1024 * 1024);
         RegisterParameter("enable_replication_logging", EnableReplicationLogging)
+            .Default(false);
+
+        RegisterParameter("disable_compaction_and_partitioning", DisableCompactionAndPartitioning)
             .Default(false);
 
         RegisterValidator([&] () {

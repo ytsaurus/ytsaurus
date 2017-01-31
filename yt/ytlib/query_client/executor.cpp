@@ -68,20 +68,25 @@ public:
         : Schema_(schema)
         , CodecId_(codecId)
         , Logger(logger)
-        , QueryResult_(asyncResponse.Apply(BIND(
+    {
+        // NB: Don't move this assignment to initializer list as
+        // OnResponse will access "this", which is not fully constructed yet.
+        QueryResult_ = asyncResponse.Apply(BIND(
             &TQueryResponseReader::OnResponse,
-            MakeStrong(this))))
-    { }
+            MakeStrong(this)));
+    }
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
     {
-        return !RowsetReader_ || RowsetReader_->Read(rows);
+        auto reader = GetRowsetReader();
+        return !reader || reader->Read(rows);
     }
 
     virtual TFuture<void> GetReadyEvent() override
     {
-        return RowsetReader_
-            ? RowsetReader_->GetReadyEvent()
+        auto reader = GetRowsetReader();
+        return reader
+            ? reader->GetReadyEvent()
             : QueryResult_.As<void>();
     }
 
@@ -97,10 +102,17 @@ private:
 
     TFuture<TQueryStatistics> QueryResult_;
     ISchemafulReaderPtr RowsetReader_;
+    TSpinLock SpinLock_;
 
+    ISchemafulReaderPtr GetRowsetReader()
+    {
+        TGuard<TSpinLock> guard(SpinLock_);
+        return RowsetReader_;
+    }
 
     TQueryStatistics OnResponse(const TQueryServiceProxy::TRspExecutePtr& response)
     {
+        TGuard<TSpinLock> guard(SpinLock_);
         YCHECK(!RowsetReader_);
         RowsetReader_ = CreateWireProtocolRowsetReader(
             response->Attachments(),

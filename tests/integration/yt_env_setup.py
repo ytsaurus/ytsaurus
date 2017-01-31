@@ -26,13 +26,6 @@ SANDBOX_STORAGE_ROOTDIR = os.environ.get("TESTS_SANDBOX_STORAGE")
 linux_only = pytest.mark.skipif('not sys.platform.startswith("linux")')
 unix_only = pytest.mark.skipif('not sys.platform.startswith("linux") and not sys.platform.startswith("darwin")')
 
-def skip_if_multicell(func):
-    def wrapped_func(self, *args, **kwargs):
-        if hasattr(self, "NUM_SECONDARY_MASTER_CELLS") and self.NUM_SECONDARY_MASTER_CELLS > 0:
-            pytest.skip("This test does not support multicell mode")
-        func(self, *args, **kwargs)
-    return wrapped_func
-
 def require_ytserver_root_privileges(func):
     def wrapped_func(self, *args, **kwargs):
         ytserver_node_path = find_executable("ytserver-node")

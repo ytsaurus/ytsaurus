@@ -548,7 +548,7 @@ class TestAcls(YTEnvSetup):
             "inherit_acl": False})
         assert len(get("//tmp/t/@acl")) == 1
 
-    
+
     def test_group_write_acl(self):
         create_user("u")
         create_group("g")
@@ -595,37 +595,17 @@ class TestAcls(YTEnvSetup):
         assert check_permission("guest", "remove", "//tmp/m/s")["action"] == "allow"
         assert check_permission("guest", "remove", "//tmp/m")["action"] == "deny"
 
-
-    def test_default_inheritance(self):
-        create("map_node", "//tmp/m", attributes={"acl": [make_ace("allow", "guest", "remove")]})
-        assert get("//tmp/m/@acl/0/inheritance_mode") == "object_and_descendants"
-
-    def test_descendants_only_inheritance(self):
-        create("map_node", "//tmp/m", attributes={"acl": [make_ace("allow", "guest", "remove", "descendants_only")]})
-        create("map_node", "//tmp/m/s")
-        create("map_node", "//tmp/m/s/r")
-        assert check_permission("guest", "remove", "//tmp/m/s/r")["action"] == "allow"
-        assert check_permission("guest", "remove", "//tmp/m/s")["action"] == "allow"
-        assert check_permission("guest", "remove", "//tmp/m")["action"] == "deny"
-
-    def test_object_only_inheritance(self):
-        create("map_node", "//tmp/m", attributes={"acl": [make_ace("allow", "guest", "remove", "object_only")]})
-        create("map_node", "//tmp/m/s")
-        assert check_permission("guest", "remove", "//tmp/m/s")["action"] == "deny"
-        assert check_permission("guest", "remove", "//tmp/m")["action"] == "allow"
-
-    def test_immediate_descendants_only_inheritance(self):
-        create("map_node", "//tmp/m", attributes={"acl": [make_ace("allow", "guest", "remove", "immediate_descendants_only")]})
-        create("map_node", "//tmp/m/s")
-        create("map_node", "//tmp/m/s/r")
-        assert check_permission("guest", "remove", "//tmp/m/s/r")["action"] == "deny"
-        assert check_permission("guest", "remove", "//tmp/m/s")["action"] == "allow"
-        assert check_permission("guest", "remove", "//tmp/m")["action"] == "deny"
-
     def test_banned_user_permission(self):
         create_user("u")
         set("//sys/users/u/@banned", True)
         assert check_permission("u", "read", "//tmp")["action"] == "deny"
+
+    def test_read_from_cache(self):
+        create_user("u")
+        set("//tmp/a", "b")
+        set("//tmp/a/@acl/end", make_ace("deny", "u", "read"))
+        with pytest.raises(YtError): get("//tmp/a", authenticated_user="u")
+        with pytest.raises(YtError): get("//tmp/a", authenticated_user="u", read_from="cache")
 
 ##################################################################
 
