@@ -123,7 +123,8 @@ private:
         int estimatedStoresDelta = partition->Stores().size();
 
         if (estimatedStoresDelta + estimatedMaxOverlappingStoreCount <= config->MaxOverlappingStoreCount &&
-            actualDataSize > config->MaxPartitionDataSize) {
+            actualDataSize > config->MaxPartitionDataSize)
+        {
             int splitFactor = std::min(std::min(
                 actualDataSize / config->DesiredPartitionDataSize + 1,
                 actualDataSize / config->MinPartitioningDataSize),
