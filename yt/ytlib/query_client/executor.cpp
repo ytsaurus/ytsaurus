@@ -78,13 +78,15 @@ public:
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
     {
-        return !RowsetReader_ || RowsetReader_->Read(rows);
+        auto reader = GetRowsetReader();
+        return !reader || reader->Read(rows);
     }
 
     virtual TFuture<void> GetReadyEvent() override
     {
-        return RowsetReader_
-            ? RowsetReader_->GetReadyEvent()
+        auto reader = GetRowsetReader();
+        return reader
+            ? reader->GetReadyEvent()
             : QueryResult_.As<void>();
     }
 
@@ -100,10 +102,17 @@ private:
 
     TFuture<TQueryStatistics> QueryResult_;
     ISchemafulReaderPtr RowsetReader_;
+    TSpinLock SpinLock_;
 
+    ISchemafulReaderPtr GetRowsetReader()
+    {
+        TGuard<TSpinLock> guard(SpinLock_);
+        return RowsetReader_;
+    }
 
     TQueryStatistics OnResponse(const TQueryServiceProxy::TRspExecutePtr& response)
     {
+        TGuard<TSpinLock> guard(SpinLock_);
         YCHECK(!RowsetReader_);
         RowsetReader_ = CreateWireProtocolRowsetReader(
             response->Attachments(),
