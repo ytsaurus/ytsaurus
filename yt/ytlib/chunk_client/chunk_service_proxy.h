@@ -16,7 +16,7 @@ class TChunkServiceProxy
 {
 public:
     DEFINE_RPC_PROXY(TChunkServiceProxy, RPC_PROXY_DESC(ChunkService)
-        .SetProtocolVersion(4));
+        .SetProtocolVersion(5));
 
     DEFINE_RPC_PROXY_METHOD(NProto, LocateChunks);
     DEFINE_RPC_PROXY_METHOD(NProto, AllocateWriteTargets);

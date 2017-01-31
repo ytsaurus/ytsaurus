@@ -37,7 +37,7 @@ message TReqAllocateWriteTargets
         required NYT.NProto.TGuid chunk_id = 1;
 
         // Desired medium to which writing will be performed.
-        required string medium_name = 7;
+        required int32 medium_index = 7;
 
         // Node addresses (with port number!) that are not allowed to be allocated for this chunk.
         // This does not prevent further balancing to move chunk there.
@@ -166,7 +166,7 @@ message TReqExecuteBatch
         optional NYT.NProto.TGuid chunk_list_id = 10;
 
         // Medium to be used to store chunk replicas on. Interpreted as primary medium.
-        required string medium_name = 11;
+        required int32 medium_index = 11;
     }
 
     repeated TCreateChunkSubrequest create_chunk_subrequests = 1;
