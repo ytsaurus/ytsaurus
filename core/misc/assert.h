@@ -54,6 +54,11 @@ void AssertTrapImpl(
         } \
     } while (false)
 
+//COMPAT(savrus)
+#ifdef Y_UNREACHABLE
+#undef Y_UNREACHABLE
+#endif
+
 //! Unreachable code marker. Abnormally terminates the current process.
 #ifdef YT_COMPILING_UDF
     #define Y_UNREACHABLE() __builtin_unreachable()
