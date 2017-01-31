@@ -4,13 +4,11 @@ from compression_testcases import TESTCASE_MAP
 
 from yt.wrapper.client import Yt
 from yt.packages.requests.exceptions import ConnectionError
-import yt.logger as logger
 
 import collections
 import hashlib
 import os
 import subprocess
-import sys
 
 def get_shasum(data):
     return hashlib.sha1(data).hexdigest()

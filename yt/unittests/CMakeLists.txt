@@ -31,6 +31,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/compressed_integer_vector_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/coroutines_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/digest_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/dnf_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/dsv_parser_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/double_column_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/delayed_executor_ut.cpp

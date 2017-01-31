@@ -420,7 +420,7 @@ TTableSchema TTableSchema::ToCanonical() const
 
 TTableSchema TTableSchema::ToSorted(const TKeyColumns& keyColumns) const
 {
-    auto uniqueKeys = UniqueKeys_ && keyColumns.size() == GetKeyColumnCount();
+    int oldKeyColumnCount = 0;
     auto columns = Columns();
     for (int index = 0; index < keyColumns.size(); ++index) {
         auto it = std::find_if(
@@ -436,13 +436,15 @@ TTableSchema TTableSchema::ToSorted(const TKeyColumns& keyColumns) const
                 << TErrorAttribute("key_columns", keyColumns);
         }
 
-        if (!it->SortOrder) {
-            uniqueKeys = false;
+        if (it->SortOrder) {
+            ++oldKeyColumnCount;
         }
 
         std::swap(columns[index], *it);
         columns[index].SetSortOrder(ESortOrder::Ascending);
     }
+
+    auto uniqueKeys = UniqueKeys_ && oldKeyColumnCount == GetKeyColumnCount();
 
     for (auto it = columns.begin() + keyColumns.size(); it != columns.end(); ++it) {
         it->SetSortOrder(Null);

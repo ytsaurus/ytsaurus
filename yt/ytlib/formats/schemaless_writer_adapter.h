@@ -1,4 +1,4 @@
-#pragma once 
+#pragma once
 
 #include "public.h"
 #include "format.h"
@@ -37,7 +37,9 @@ public:
 
     virtual const NTableClient::TTableSchema& GetSchema() const override;
 
-    virtual TBlob GetContext() const;
+    virtual TBlob GetContext() const override;
+
+    virtual i64 GetWrittenSize() const override;
 
 protected:
     const NTableClient::TNameTablePtr NameTable_;
@@ -96,6 +98,8 @@ private:
     bool EnableRowControlAttributes_;
 
     TError Error_;
+
+    i64 WrittenSize_ = 0;
 
     void DoFlushBuffer();
 };

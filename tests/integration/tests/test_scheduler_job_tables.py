@@ -9,7 +9,6 @@ import pytest
 import os
 import psutil
 import subprocess
-import sys
 import time
 import threading
 from multiprocessing import Queue

@@ -67,9 +67,10 @@ private:
                 << ex;
         }
 
-        context->SetRequestInfo("Type: %v, TransactionId: %v",
+        context->SetRequestInfo("Type: %v, TransactionId: %v, User: %v",
             type,
-            transactionId);
+            transactionId,
+            user);
 
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
