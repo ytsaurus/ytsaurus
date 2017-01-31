@@ -1018,13 +1018,6 @@ private:
 
                 *response->mutable_resource_limits_overrides() = node->ResourceLimitsOverrides();
                 response->set_disable_scheduler_jobs(node->GetDisableSchedulerJobs());
-
-                for (const auto& pair : Bootstrap_->GetChunkManager()->Media()) {
-                    auto* medium = pair.second;
-                    auto* mediumDescriptor = response->add_media();
-                    mediumDescriptor->set_medium_name(medium->GetName());
-                    mediumDescriptor->set_medium_priority(medium->GetPriority());
-                }
             }
 
             IncrementalHeartbeat_.Fire(node, request, response);

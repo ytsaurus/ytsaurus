@@ -67,6 +67,9 @@ public:
         const TArtifactKey& key,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory = nullptr);
 
+    //! Cache locations.
+    DECLARE_BYREF_RO_PROPERTY(std::vector<TCacheLocationPtr>, Locations);
+
     //! Raised when a chunk is added to the cache.
     DECLARE_SIGNAL(void(IChunkPtr), ChunkAdded);
 

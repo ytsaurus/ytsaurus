@@ -111,6 +111,9 @@ TNativeConnectionConfig::TNativeConnectionConfig()
     RegisterParameter("function_impl_cache", FunctionImplCache)
         .DefaultNew();
 
+    RegisterParameter("medium_directory_synchronizer", MediumDirectorySynchronizer)
+        .DefaultNew();
+
     RegisterParameter("light_pool_size", LightPoolSize)
         .Describe("Number of threads handling light requests")
         .Default(1);

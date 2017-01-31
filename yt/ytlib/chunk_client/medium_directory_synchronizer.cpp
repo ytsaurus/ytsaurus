@@ -3,6 +3,7 @@
 #include "config.h"
 #include "private.h"
 
+#include <yt/ytlib/api/native_connection.h>
 #include <yt/ytlib/api/native_client.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
@@ -28,16 +29,16 @@ public:
     TImpl(
         TMediumDirectorySynchronizerConfigPtr config,
         TMediumDirectoryPtr cellDirectory,
-        INativeClientPtr client)
+        INativeConnectionPtr connection)
         : Config_(std::move(config))
         , MediumDirectory_(std::move(cellDirectory))
-        , Client_(std::move(client))
-        , Logger(NLogging::TLogger(ChunkClientLogger)
-            .AddTag("CellTag: %v", Client_->GetConnection()->GetCellTag()))
+        , WeakConnection_(MakeWeak(connection))
         , SyncExecutor_(New<TPeriodicExecutor>(
             NRpc::TDispatcher::Get()->GetLightInvoker(),
             BIND(&TImpl::OnSync, MakeWeak(this)),
             Config_->SyncPeriod))
+        , Logger(NLogging::TLogger(ChunkClientLogger)
+            .AddTag("CellTag: %v", connection->GetCellTag()))
     { }
 
     TFuture<void> Sync()
@@ -53,24 +54,32 @@ public:
 private:
     const TMediumDirectorySynchronizerConfigPtr Config_;
     const TMediumDirectoryPtr MediumDirectory_;
-    const INativeClientPtr Client_;
+    const TWeakPtr<INativeConnection> WeakConnection_;
 
-    const NLogging::TLogger Logger;
     const TPeriodicExecutorPtr SyncExecutor_;
+    const NLogging::TLogger Logger;
 
     TSpinLock SpinLock_;
-    bool SyncStarted_;
+    bool SyncStarted_ = false;
     TPromise<void> SyncPromise_ = NewPromise<void>();
 
 
     void DoSync()
     {
         try {
+            auto connection = WeakConnection_.Lock();
+            if (!connection) {
+                THROW_ERROR_EXCEPTION("No connection is available");
+            }
+
             LOG_DEBUG("Started synchronizing medium directory");
 
+            auto client = connection->CreateNativeClient();
+
             TGetClusterMetaOptions options;
+            options.ReadFrom = Config_->ReadFrom;
             options.PopulateMediumDirectory = true;
-            auto result = WaitFor(Client_->GetClusterMeta(options))
+            auto result = WaitFor(client->GetClusterMeta(options))
                 .ValueOrThrow();
 
             MediumDirectory_->UpdateDirectory(*result.MediumDirectory);
@@ -112,11 +121,11 @@ private:
 TMediumDirectorySynchronizer::TMediumDirectorySynchronizer(
     TMediumDirectorySynchronizerConfigPtr config,
     TMediumDirectoryPtr mediumDirectory,
-    INativeClientPtr client)
+    INativeConnectionPtr connection)
     : Impl_(New<TImpl>(
         std::move(config),
         std::move(mediumDirectory),
-        std::move(client)))
+        std::move(connection)))
 { }
 
 TMediumDirectorySynchronizer::~TMediumDirectorySynchronizer() = default;

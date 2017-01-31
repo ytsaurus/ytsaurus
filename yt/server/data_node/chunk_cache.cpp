@@ -12,7 +12,6 @@
 
 #include <yt/ytlib/formats/config.h>
 
-#include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/config.h>
 
 #include <yt/ytlib/chunk_client/block_cache.h>
@@ -249,6 +248,9 @@ class TChunkCache::TImpl
     : public TAsyncSlruCacheBase<TArtifactKey, TCachedBlobChunk>
 {
 public:
+    DEFINE_BYREF_RO_PROPERTY(std::vector<TCacheLocationPtr>, Locations);
+
+public:
     TImpl(TDataNodeConfigPtr config, TBootstrap* bootstrap)
         : TAsyncSlruCacheBase(
             New<TSlruCacheConfig>(config->GetCacheCapacity()),
@@ -396,8 +398,6 @@ public:
 private:
     const TDataNodeConfigPtr Config_;
     TBootstrap* const Bootstrap_;
-
-    std::vector<TCacheLocationPtr> Locations_;
 
     DEFINE_SIGNAL(void(IChunkPtr), ChunkAdded);
     DEFINE_SIGNAL(void(IChunkPtr), ChunkRemoved);
@@ -969,6 +969,7 @@ TFuture<IChunkPtr> TChunkCache::PrepareArtifact(
     return Impl_->PrepareArtifact(key, nodeDirectory);
 }
 
+DELEGATE_BYREF_RO_PROPERTY(TChunkCache, std::vector<TCacheLocationPtr>, Locations, *Impl_);
 DELEGATE_SIGNAL(TChunkCache, void(IChunkPtr), ChunkAdded, *Impl_);
 DELEGATE_SIGNAL(TChunkCache, void(IChunkPtr), ChunkRemoved, *Impl_);
 

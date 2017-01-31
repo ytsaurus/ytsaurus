@@ -30,9 +30,6 @@ class TChunkStore
     : public TRefCounted
 {
 public:
-    typedef std::vector<IChunkPtr> TChunks;
-    typedef std::vector<TStoreLocationPtr> TLocations;
-
     TChunkStore(
         TDataNodeConfigPtr config,
         NCellNode::TBootstrap* bootstrap);
@@ -82,7 +79,7 @@ public:
      *  \note
      *  Thread affinity: any
      */
-    TChunks GetChunks() const;
+    std::vector<IChunkPtr> GetChunks() const;
 
     //! Returns the number of registered chunks. Chunks that are stored several
     //! times (on multiple media) counted several times.
@@ -117,7 +114,7 @@ public:
         const TSessionOptions& options);
 
     //! Storage locations.
-    DEFINE_BYREF_RO_PROPERTY(TLocations, Locations);
+    DEFINE_BYREF_RO_PROPERTY(std::vector<TStoreLocationPtr>, Locations);
 
     //! Raised when a chunk is added to the store.
     DEFINE_SIGNAL(void(IChunkPtr), ChunkAdded);
@@ -170,9 +167,6 @@ private:
     TChunkEntry DoUpdateChunk(IChunkPtr oldChunk, IChunkPtr newChunk);
 
     TChunkEntry DoEraseChunk(IChunkPtr chunk);
-
-    int GetChunkMediumIndexOrThrow(IChunkPtr chunk) const;
-    int GetLocationMediumIndexOrThrow(TLocationPtr chunk) const;
 
     static TChunkEntry BuildEntry(IChunkPtr chunk);
     IChunkPtr CreateFromDescriptor(const TStoreLocationPtr& location, const TChunkDescriptor& descriptor);

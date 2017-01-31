@@ -8,6 +8,8 @@
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
+#include <yt/ytlib/api/public.h>
+
 #include <yt/core/compression/public.h>
 
 #include <yt/core/erasure/public.h>
@@ -590,10 +592,15 @@ public:
     //! Internal between consequent syncs.
     TDuration SyncPeriod;
 
+    //! Metadata read settings.
+    NApi::EMasterChannelKind ReadFrom;
+
     TMediumDirectorySynchronizerConfig()
     {
         RegisterParameter("sync_period", SyncPeriod)
-            .Default(TDuration::Minutes(10));
+            .Default(TDuration::Minutes(5));
+        RegisterParameter("read_from", ReadFrom)
+            .Default(NApi::EMasterChannelKind::Cache);
     }
 };
 

@@ -41,6 +41,14 @@ struct INativeConnection
     virtual INativeTransactionPtr RegisterStickyTransaction(INativeTransactionPtr transaction) = 0;
     virtual INativeTransactionPtr GetStickyTransaction(const NTransactionClient::TTransactionId& transactionId) = 0;
 
+    virtual NChunkClient::TMediumDirectoryPtr GetMediumDirectory() = 0;
+    //! Synchronizes the medium directory with the cluster metadata.
+    /*!
+     *  The returned future is set once the sync is complete (either successfully or not).
+     *  Periodic syncs start upon the first call to #Sync.
+     */
+    virtual TFuture<void> SynchronizeMediumDirectory() = 0;
+
     virtual void Terminate() = 0;
 };
 

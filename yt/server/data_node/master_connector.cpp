@@ -39,6 +39,8 @@
 
 #include <yt/ytlib/api/client.h>
 
+#include <yt/ytlib/chunk_client/medium_directory.h>
+
 #include <yt/core/concurrency/delayed_executor.h>
 
 #include <yt/core/misc/serialize.h>
@@ -219,26 +221,6 @@ TNodeDescriptor TMasterConnector::GetLocalDescriptor() const
     return LocalDescriptor_;
 }
 
-int TMasterConnector::MediumIndexFromNameOrThrow(const Stroka& mediumName) const
-{
-    auto it = MediumNameToIndex_.find(mediumName);
-    if (it == MediumNameToIndex_.end()) {
-        THROW_ERROR_EXCEPTION("Medium %Qv is not known at master", mediumName);
-    }
-
-    return it->second;
-}
-
-int TMasterConnector::MediumPriorityFromNameOrThrow(const Stroka& mediumName) const
-{
-    auto it = MediumNameToPriority_.find(mediumName);
-    if (it == MediumNameToPriority_.end()) {
-        THROW_ERROR_EXCEPTION("Medium %Qv and its priority are not known at master", mediumName);
-    }
-
-    return it->second;
-}
-
 void TMasterConnector::ScheduleNodeHeartbeat(TCellTag cellTag, bool immedately)
 {
     auto period = immedately
@@ -322,17 +304,26 @@ void TMasterConnector::RegisterAtMaster()
     }
 
     const auto& rsp = rspOrError.Value();
-
     NodeId_ = rsp->node_id();
 
-    // Location configs specify medium names only. They're converted into indexes
-    // at node's registration, which are then used everywhere else in the protocol.
-    SetMediumNameAndIndexMapping(*rsp);
+    try {
+        InitMediumDescriptors();
+    } catch (const std::exception& ex) {
+        LOG_WARNING(TError(ex));
+        ResetAndScheduleRegisterAtMaster();
+        return;
+    }
 
     for (auto cellTag : MasterCellTags_) {
         auto* delta = GetChunksDelta(cellTag);
         delta->State = EState::Registered;
     }
+
+    MediumUpdateExecutor_ = New<TPeriodicExecutor>(
+        HeartbeatInvoker_,
+        BIND(&TMasterConnector::OnMediumDescriptorsUpdate, MakeWeak(this)),
+        Bootstrap_->GetMasterClient()->GetNativeConnection()->GetConfig()->MediumDirectorySynchronizer->SyncPeriod);
+    MediumUpdateExecutor_->Start();
 
     MasterConnected_.Fire();
 
@@ -345,17 +336,62 @@ void TMasterConnector::RegisterAtMaster()
     ScheduleJobHeartbeat(true);
 }
 
-void TMasterConnector::SetMediumNameAndIndexMapping(const NNodeTrackerClient::NProto::TRspRegisterNode& rsp)
+void TMasterConnector::InitMediumDescriptors()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    MediumNameToIndex_.clear();
+    LOG_INFO("Initializing medium descriptors");
 
-    // XXX
-    //for (const auto& pair : rsp.media()) {
-    //    MediumNameToIndex_.insert(
-    //        std::make_pair(pair.medium_name(), pair.medium_index()));
-    //}
+    const auto& client = Bootstrap_->GetMasterClient();
+    const auto& connection = client->GetNativeConnection();
+    WaitFor(connection->SynchronizeMediumDirectory())
+        .ThrowOnError();
+
+    DoUpdateMediumDescriptors();
+
+    LOG_INFO("Medium descriptors initialized");
+}
+
+void TMasterConnector::OnMediumDescriptorsUpdate()
+{
+    try {
+        DoUpdateMediumDescriptors();
+    } catch (const std::exception& ex) {
+        LOG_WARNING(ex, "Error updating medium descriptors");
+    }
+}
+
+void TMasterConnector::DoUpdateMediumDescriptors()
+{
+    const auto& client = Bootstrap_->GetMasterClient();
+    const auto& connection = client->GetNativeConnection();
+    const auto& mediumDirectory = connection->GetMediumDirectory();
+
+    auto updateLocation = [&] (const TLocationPtr& location) {
+        const auto& oldDescriptor = location->GetMediumDescriptor();
+        const auto* newDescriptor = mediumDirectory->FindByName(location->GetMediumName());
+        if (!newDescriptor) {
+            THROW_ERROR_EXCEPTION("Location %Qv refers to unknown medium %Qv",
+                location->GetId(),
+                location->GetMediumName());
+        }
+        if (oldDescriptor.Index != InvalidMediumIndex &&
+            oldDescriptor.Index != newDescriptor->Index)
+        {
+            THROW_ERROR_EXCEPTION("Medium %Qv has changed its index from %v to %v",
+                location->GetMediumName(),
+                oldDescriptor.Index,
+                newDescriptor->Index);
+        }
+        location->SetMediumDescriptor(*newDescriptor);
+    };
+
+    for (const auto& location : Bootstrap_->GetChunkStore()->Locations()) {
+        updateLocation(location);
+    }
+    for (const auto& location : Bootstrap_->GetChunkCache()->Locations()) {
+        updateLocation(location);
+    }
 }
 
 void TMasterConnector::OnLeaseTransactionAborted()
@@ -457,7 +493,7 @@ void TMasterConnector::ComputeLocationSpecificStatistics(TNodeStatistics* result
     for (const auto& location : chunkStore->Locations()) {
         auto* locationStatistics = result->add_locations();
 
-        auto mediumIndex = GetLocationMediumIndexOrThrow(location);
+        auto mediumIndex = location->GetMediumDescriptor().Index;
         locationStatistics->set_medium_index(mediumIndex);
         locationStatistics->set_available_space(location->GetAvailableSpace());
         locationStatistics->set_used_space(location->GetUsedSpace());
@@ -556,7 +592,7 @@ void TMasterConnector::ReportFullNodeHeartbeat(TCellTag cellTag)
         if (CellTagFromId(chunk->GetId()) == cellTag) {
             auto info = BuildAddChunkInfo(chunk);
             *request->add_chunks() = info;
-            auto mediumIndex = GetLocationMediumIndexOrThrow(chunk->GetLocation());
+            auto mediumIndex = chunk->GetLocation()->GetMediumDescriptor().Index;
             ++chunkCounts[mediumIndex];
             ++storedChunkCount;
         }
@@ -624,23 +660,6 @@ void TMasterConnector::ReportFullNodeHeartbeat(TCellTag cellTag)
     YCHECK(delta->RemovedSinceLastSuccess.empty());
 
     ScheduleNodeHeartbeat(cellTag);
-}
-
-int TMasterConnector::GetChunkMediumIndexOrThrow(IChunkPtr chunk) const
-{
-    return GetLocationMediumIndexOrThrow(chunk->GetLocation());
-}
-
-int TMasterConnector::GetChunkMediumPriorityOrThrow(IChunkPtr chunk) const
-{
-    auto mediumName = chunk->GetLocation()->GetMediumName();
-    return MediumPriorityFromNameOrThrow(mediumName);
-}
-
-int TMasterConnector::GetLocationMediumIndexOrThrow(TLocationPtr location) const
-{
-    auto mediumName = location->GetMediumName();
-    return MediumIndexFromNameOrThrow(mediumName);
 }
 
 void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
@@ -735,7 +754,6 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
         request->removed_chunks_size());
 
     auto rspOrError = WaitFor(request->Invoke());
-
     if (!rspOrError.IsOK()) {
         LOG_WARNING(rspOrError, "Error reporting incremental node heartbeat to master");
         if (NRpc::IsRetriableError(rspOrError)) {
@@ -782,8 +800,6 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
 
         auto dc = rsp->has_data_center() ? MakeNullable(rsp->data_center()) : Null;
         UpdateDataCenter(dc);
-
-        UpdateMediumPriorities(*rsp);
 
         auto jobController = Bootstrap_->GetJobController();
         jobController->SetResourceLimitsOverrides(rsp->resource_limits_overrides());
@@ -843,7 +859,7 @@ TChunkAddInfo TMasterConnector::BuildAddChunkInfo(IChunkPtr chunk)
 {
     TChunkAddInfo result;
     ToProto(result.mutable_chunk_id(), chunk->GetId());
-    result.set_medium_index(GetLocationMediumIndexOrThrow(chunk->GetLocation()));
+    result.set_medium_index(chunk->GetLocation()->GetMediumDescriptor().Index);
     result.set_active(chunk->IsActive());
     result.set_sealed(chunk->GetInfo().sealed());
     return result;
@@ -853,20 +869,8 @@ TChunkRemoveInfo TMasterConnector::BuildRemoveChunkInfo(IChunkPtr chunk)
 {
     TChunkRemoveInfo result;
     ToProto(result.mutable_chunk_id(), chunk->GetId());
-    result.set_medium_index(GetLocationMediumIndexOrThrow(chunk->GetLocation()));
+    result.set_medium_index(chunk->GetLocation()->GetMediumDescriptor().Index);
     return result;
-}
-
-void TMasterConnector::UpdateMediumPriorities(const NNodeTrackerClient::NProto::TRspIncrementalHeartbeat& rsp)
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    MediumNameToPriority_.clear();
-
-    for (const auto& pair : rsp.media()) {
-        MediumNameToPriority_.insert(
-            std::make_pair(pair.medium_name(), pair.medium_priority()));
-    }
 }
 
 void TMasterConnector::ReportJobHeartbeat()
@@ -941,6 +945,11 @@ void TMasterConnector::Reset()
         delta->ReportedRemoved.clear();
         delta->AddedSinceLastSuccess.clear();
         delta->RemovedSinceLastSuccess.clear();
+    }
+
+    if (MediumUpdateExecutor_) {
+        MediumUpdateExecutor_->Stop();
+        MediumUpdateExecutor_.Reset();
     }
 
     MasterDisconnected_.Fire();

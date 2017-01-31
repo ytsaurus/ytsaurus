@@ -8,6 +8,7 @@
 #include <yt/server/misc/disk_location.h>
 
 #include <yt/ytlib/chunk_client/chunk_info.pb.h>
+#include <yt/ytlib/chunk_client/medium_directory.h>
 
 #include <yt/core/actions/signal.h>
 
@@ -57,6 +58,15 @@ public:
 
     //! Returns string id.
     const Stroka& GetId() const;
+
+    //! Returns the medium name.
+    const Stroka& GetMediumName() const;
+
+    //! Returns the medium descriptor.
+    const NChunkClient::TMediumDescriptor& GetMediumDescriptor() const;
+
+    //! Initializes the medium index.
+    void SetMediumDescriptor(const NChunkClient::TMediumDescriptor& descriptor);
 
     //! Returns the profiler tagged with location id.
     const NProfiling::TProfiler& GetProfiler() const;
@@ -147,8 +157,6 @@ public:
     //! Removes a chunk permanently or moves it to the trash (if available).
     virtual void RemoveChunkFiles(const TChunkId& chunkId, bool force);
 
-    const Stroka& GetMediumName() const;
-
 protected:
     NCellNode::TBootstrap* const Bootstrap_;
 
@@ -167,6 +175,8 @@ private:
     const ELocationType Type_;
     const Stroka Id_;
     const TStoreLocationConfigBasePtr Config_;
+
+    NChunkClient::TMediumDescriptor MediumDescriptor_;
 
     mutable i64 AvailableSpace_ = 0;
     i64 UsedSpace_ = 0;

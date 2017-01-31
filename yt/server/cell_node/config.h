@@ -149,6 +149,12 @@ public:
         RegisterParameter("resource_limits", ResourceLimits)
             .DefaultNew();
     }
+
+    virtual void OnLoaded() override
+    {
+        TServerConfig::OnLoaded();
+        ClusterConnection->MediumDirectorySynchronizer->ReadFrom = NApi::EMasterChannelKind::Follower;
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TCellNodeConfig)

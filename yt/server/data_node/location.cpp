@@ -103,6 +103,21 @@ const Stroka& TLocation::GetId() const
     return Id_;
 }
 
+const Stroka& TLocation::GetMediumName() const
+{
+    return Config_->MediumName;
+}
+
+const TMediumDescriptor& TLocation::GetMediumDescriptor() const
+{
+    return MediumDescriptor_;
+}
+
+void TLocation::SetMediumDescriptor(const TMediumDescriptor& descriptor)
+{
+    MediumDescriptor_ = descriptor;
+}
+
 const NProfiling::TProfiler& TLocation::GetProfiler() const
 {
     return Profiler_;
@@ -540,11 +555,6 @@ void TLocation::DoStart()
 
     HealthChecker_->SubscribeFailed(BIND(&TLocation::OnHealthCheckFailed, Unretained(this)));
     HealthChecker_->Start();
-}
-
-const Stroka& TLocation::GetMediumName() const
-{
-    return Config_->MediumName;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
