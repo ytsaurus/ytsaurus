@@ -68,10 +68,11 @@ public:
         : Schema_(schema)
         , CodecId_(codecId)
         , Logger(logger)
-        , QueryResult_(asyncResponse.Apply(BIND(
+    {
+        QueryResult_ = asyncResponse.Apply(BIND(
             &TQueryResponseReader::OnResponse,
-            MakeStrong(this))))
-    { }
+            MakeStrong(this)));
+    }
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
     {
