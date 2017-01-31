@@ -705,9 +705,9 @@ public:
         const TTableSchema& schema,
         const NLogging::TLogger& logger)
         : CompressedBlocks_(compressedBlocks)
-          , Codec_(NCompression::GetCodec(codecId))
-          , Schema_(schema)
-          , Logger(
+        , Codec_(NCompression::GetCodec(codecId))
+        , Schema_(schema)
+        , Logger(
             NLogging::TLogger(logger)
                 .AddTag("ReaderId: %v", TGuid::Create()))
     {
