@@ -11,7 +11,7 @@
 
 #include <yt/core/yson/string.h>
 
-#include <util/stream/output.h>
+#include <util/stream/ios.h>
 
 namespace NYT {
 namespace NTableClient {

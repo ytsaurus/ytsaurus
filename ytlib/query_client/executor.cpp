@@ -68,10 +68,13 @@ public:
         : Schema_(schema)
         , CodecId_(codecId)
         , Logger(logger)
-        , QueryResult_(asyncResponse.Apply(BIND(
+    {
+        // NB: Don't move this assignment to initializer list as
+        // OnResponse will access "this", which is not fully constructed yet.
+        QueryResult_ = asyncResponse.Apply(BIND(
             &TQueryResponseReader::OnResponse,
-            MakeStrong(this))))
-    { }
+            MakeStrong(this)));
+    }
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
     {

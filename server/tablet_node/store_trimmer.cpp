@@ -106,6 +106,9 @@ private:
         Logger.AddTag("TabletId: %v", tablet->GetId());
 
         try {
+            LOG_INFO("Trimming tablet stores (StoreIds: %v)",
+                MakeFormattableRange(stores, TStoreIdFormatter()));
+
             INativeTransactionPtr transaction;
             {
                 LOG_INFO("Creating tablet trim transaction");
@@ -141,11 +144,9 @@ private:
             transaction->AddAction(Bootstrap_->GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellId(), actionData);
             transaction->AddAction(slot->GetCellId(), actionData);
 
-            LOG_INFO("Committing tablet trim transaction (StoreIds: %v)",
-                MakeFormattableRange(stores, TStoreIdFormatter()));
-            WaitFor(transaction->Commit())
+            const auto& tabletManager = slot->GetTabletManager();
+            WaitFor(tabletManager->CommitTabletStoresUpdateTransaction(tablet, transaction))
                 .ThrowOnError();
-            LOG_INFO("Tablet trim transaction committed");
 
             // NB: There's no need to call EndStoreCompaction since these stores are gone.
         } catch (const std::exception& ex) {

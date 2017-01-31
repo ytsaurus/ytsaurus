@@ -38,7 +38,14 @@ void TTransactionManagerBase<TTransaction>::RunPrepareTransactionActions(
         if (it == PrepareActionHandlerMap_.end()) {
             continue;
         }
-        it->second.Run(transaction, action.Value, persistent);
+        try {
+            it->second.Run(transaction, action.Value, persistent);
+        } catch (const std::exception& ex) {
+            LOG_DEBUG(ex, "Prepare action failed (TransactionId: %v, ActionType: %v)",
+                transaction->GetId(),
+                action.Type);
+            throw;
+        }
     }
 }
 
@@ -50,7 +57,13 @@ void TTransactionManagerBase<TTransaction>::RunCommitTransactionActions(TTransac
         if (it == CommitActionHandlerMap_.end()) {
             continue;
         }
-        it->second.Run(transaction, action.Value);
+        try {
+            it->second.Run(transaction, action.Value);
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Unexpected error: commit action failed (TransactionId: %v, ActionType: %v)",
+                transaction->GetId(),
+                action.Type);
+        }
     }
 }
 
@@ -62,7 +75,13 @@ void TTransactionManagerBase<TTransaction>::RunAbortTransactionActions(TTransact
         if (it == AbortActionHandlerMap_.end()) {
             continue;
         }
-        it->second.Run(transaction, action.Value);
+        try {
+            it->second.Run(transaction, action.Value);
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Unexpected error: abort action failed (TransactionId: %v, ActionType: %v)",
+                transaction->GetId(),
+                action.Type);
+        }
     }
 }
 

@@ -32,13 +32,7 @@ class TBlobSession
     : public TSessionBase
 {
 public:
-    TBlobSession(
-        TDataNodeConfigPtr config,
-        NCellNode::TBootstrap* bootstrap,
-        const TChunkId& chunkId,
-        const TSessionOptions& options,
-        TStoreLocationPtr location,
-        NConcurrency::TLease lease);
+    using TSessionBase::TSessionBase;
 
     NChunkClient::NProto::TChunkInfo GetChunkInfo() const override;
 

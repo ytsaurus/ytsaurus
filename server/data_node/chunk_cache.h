@@ -33,8 +33,6 @@ public:
 
     void Initialize();
 
-    void SetMediumIndexes(const yhash_map<Stroka, int>& mediumNameToIndex);
-
     bool IsEnabled() const;
 
     //! Finds chunk by id. Returns |nullptr| if no chunk exists.

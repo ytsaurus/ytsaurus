@@ -172,7 +172,6 @@ private:
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
 
         if (key == "offline" || key == "registered" || key == "online") {
             auto state =

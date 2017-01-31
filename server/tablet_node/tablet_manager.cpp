@@ -58,6 +58,9 @@
 
 #include <yt/ytlib/api/native_connection.h>
 #include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/transaction.h>
+
+#include <yt/core/concurrency/async_semaphore.h>
 
 #include <yt/core/compression/codec.h>
 
@@ -90,6 +93,7 @@ using namespace NNodeTrackerClient;
 using namespace NHiveServer;
 using namespace NHiveServer::NProto;
 using namespace NQueryClient;
+using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -112,6 +116,16 @@ public:
         , ChangelogCodec_(GetCodec(Config_->ChangelogCodec))
         , TabletContext_(this)
         , TabletMap_(TTabletMapTraits(this))
+        , DynamicStoresMemoryTrackerGuard_(TNodeMemoryTrackerGuard::Acquire(
+            Bootstrap_->GetMemoryUsageTracker(),
+            EMemoryCategory::TabletDynamic,
+            0,
+            MemoryUsageGranularity))
+        , StaticStoresMemoryTrackerGuard_(TNodeMemoryTrackerGuard::Acquire(
+            Bootstrap_->GetMemoryUsageTracker(),
+            EMemoryCategory::TabletStatic,
+            0,
+            MemoryUsageGranularity))
         , WriteLogsMemoryTrackerGuard_(TNodeMemoryTrackerGuard::Acquire(
             Bootstrap_->GetMemoryUsageTracker(),
             EMemoryCategory::TabletDynamic,
@@ -321,9 +335,41 @@ public:
         CommitTabletMutation(request);
     }
 
+    TFuture<void> CommitTabletStoresUpdateTransaction(
+        TTablet* tablet,
+        const ITransactionPtr& transaction)
+    {
+        LOG_DEBUG("Acquiring tablet stores commit semaphore (TabletId: %v, TransactionId: %v)",
+            tablet->GetId(),
+            transaction->GetId());
+
+        auto promise = NewPromise<void>();
+        tablet
+            ->GetStoresUpdateCommitSemaphore()
+            ->AsyncAcquire(
+                BIND(&TImpl::OnStoresUpdateCommitSemaphoreAcquired, MakeWeak(this), tablet, transaction, promise),
+                tablet->GetEpochAutomatonInvoker());
+        return promise;
+    }
+
     IYPathServicePtr GetOrchidService()
     {
         return OrchidService_;
+    }
+
+    i64 GetDynamicStoresMemoryUsage() const
+    {
+        return DynamicStoresMemoryTrackerGuard_.GetSize();
+    }
+
+    i64 GetStaticStoresMemoryUsage() const
+    {
+        return StaticStoresMemoryTrackerGuard_.GetSize();
+    }
+
+    i64 GetWriteLogsMemoryUsage() const
+    {
+        return WriteLogsMemoryTrackerGuard_.GetSize();
     }
 
 
@@ -457,6 +503,8 @@ private:
 
     yhash_set<IDynamicStorePtr> OrphanedStores_;
 
+    TNodeMemoryTrackerGuard DynamicStoresMemoryTrackerGuard_;
+    TNodeMemoryTrackerGuard StaticStoresMemoryTrackerGuard_;
     TNodeMemoryTrackerGuard WriteLogsMemoryTrackerGuard_;
 
     const IYPathServicePtr OrchidService_;
@@ -1216,9 +1264,11 @@ private:
 
         const auto& storeManager = tablet->GetStoreManager();
         for (const auto& storeId : storeIdsToRemove) {
-            auto store = tablet->GetStore(storeId);
+            auto store = tablet->FindStore(storeId);
+            if (!store) {
+                continue;
+            }
 
-            YCHECK(store->GetStoreState() == EStoreState::RemovePrepared);
             switch (store->GetType()) {
                 case EStoreType::SortedDynamic:
                 case EStoreType::OrderedDynamic:
@@ -1533,7 +1583,7 @@ private:
         DisableTableReplica(tablet, replicaInfo);
     }
 
-    void HydraPrepareReplicateRows(TTransaction* /*transaction*/, TReqReplicateRows* request, bool persistent)
+    void HydraPrepareReplicateRows(TTransaction* transaction, TReqReplicateRows* request, bool persistent)
     {
         YCHECK(persistent);
 
@@ -1554,21 +1604,24 @@ private:
                 replicaId);
         }
 
-        if (replicaInfo->GetPreparedReplicationRowIndex() != -1) {
-            THROW_ERROR_EXCEPTION("Cannot prepare %v rows for replica %v of tablet %v since it already has %v rows prepared",
-                request->new_replication_row_index(),
+        if (replicaInfo->GetPreparedReplicationTransactionId()) {
+            THROW_ERROR_EXCEPTION("Cannot prepare rows for replica %v of tablet %v by transaction %v since these are already "
+                "prepared by transaction %v",
+                transaction->GetId(),
                 replicaId,
                 tabletId,
-                replicaInfo->GetPreparedReplicationRowIndex());
+                replicaInfo->GetPreparedReplicationTransactionId());
         }
 
-        YCHECK(replicaInfo->GetPreparedReplicationRowIndex() <= request->new_replication_row_index());
+        YCHECK(replicaInfo->GetPreparedReplicationRowIndex() == -1);
         replicaInfo->SetPreparedReplicationRowIndex(request->new_replication_row_index());
+        replicaInfo->SetPreparedReplicationTransactionId(transaction->GetId());
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Replicated rows prepared (TabletId: %v, ReplicaId: %v, "
+        LOG_DEBUG_UNLESS(IsRecovery(), "Replicated rows prepared (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
             "CurrentReplicationRowIndex: %v->%v, CurrentReplicationTimestamp: %v->%v)",
             tabletId,
             replicaId,
+            transaction->GetId(),
             replicaInfo->GetCurrentReplicationRowIndex(),
             request->new_replication_row_index(),
             replicaInfo->GetCurrentReplicationTimestamp(),
@@ -1591,7 +1644,9 @@ private:
         }
 
         YCHECK(replicaInfo->GetPreparedReplicationRowIndex() == request->new_replication_row_index());
+        YCHECK(replicaInfo->GetPreparedReplicationTransactionId() == transaction->GetId());
         replicaInfo->SetPreparedReplicationRowIndex(-1);
+        replicaInfo->SetPreparedReplicationTransactionId(NullTransactionId);
 
         auto prevCurrentReplicationRowIndex = replicaInfo->GetCurrentReplicationRowIndex();
         auto prevCurrentReplicationTimestamp = replicaInfo->GetCurrentReplicationTimestamp();
@@ -1608,10 +1663,11 @@ private:
 
         AdvanceReplicatedTrimmedRowCount(transaction, tablet);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Replicated rows committed (TabletId: %v, ReplicaId: %v, "
+        LOG_DEBUG_UNLESS(IsRecovery(), "Replicated rows committed (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
             "CurrentReplicationRowIndex: %v->%v, CurrentReplicationTimestamp: %v->%v, TrimmedRowCount: %v->%v)",
             tabletId,
             replicaId,
+            transaction->GetId(),
             prevCurrentReplicationRowIndex,
             replicaInfo->GetCurrentReplicationRowIndex(),
             prevCurrentReplicationTimestamp,
@@ -1620,7 +1676,7 @@ private:
             tablet->GetTrimmedRowCount());
     }
 
-    void HydraAbortReplicateRows(TTransaction* /*transaction*/, TReqReplicateRows* request)
+    void HydraAbortReplicateRows(TTransaction* transaction, TReqReplicateRows* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
@@ -1634,12 +1690,18 @@ private:
             return;
         }
 
-        replicaInfo->SetPreparedReplicationRowIndex(-1);
+        if (transaction->GetId() != replicaInfo->GetPreparedReplicationTransactionId()) {
+            return;
+        }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Replicated rows aborted (TabletId: %v, ReplicaId: %v, "
+        replicaInfo->SetPreparedReplicationRowIndex(-1);
+        replicaInfo->SetPreparedReplicationTransactionId(NullTransactionId);
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Replicated rows aborted (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
             "CurrentReplicationRowIndex: %v->%v, CurrentReplicationTimestamp: %v->%v)",
             tabletId,
             replicaId,
+            transaction->GetId(),
             replicaInfo->GetCurrentReplicationRowIndex(),
             request->new_replication_row_index(),
             replicaInfo->GetCurrentReplicationTimestamp(),
@@ -2242,6 +2304,11 @@ private:
             .BeginMap()
                 .Item("table_id").Value(tablet->GetTableId())
                 .Item("state").Value(tablet->GetState())
+                .Item("config")
+                    .BeginAttributes()
+                        .Item("opaque").Value(true)
+                    .EndAttributes()
+                    .Value(tablet->GetConfig())
                 .DoIf(
                     tablet->IsPhysicallySorted(), [&] (TFluentMap fluent) {
                     fluent
@@ -2304,36 +2371,32 @@ private:
     }
 
 
-    static EMemoryCategory GetMemoryCategoryFromStore(IStorePtr store)
+    TNodeMemoryTrackerGuard* GetMemoryTrackerGuardFromStoreType(EStoreType type)
     {
-        switch (store->GetType()) {
+        switch (type) {
             case EStoreType::SortedDynamic:
             case EStoreType::OrderedDynamic:
-                return EMemoryCategory::TabletDynamic;
+                return &DynamicStoresMemoryTrackerGuard_;
             case EStoreType::SortedChunk:
             case EStoreType::OrderedChunk:
-                return EMemoryCategory::TabletStatic;
+                return &StaticStoresMemoryTrackerGuard_;
             default:
                 Y_UNREACHABLE();
         }
     }
 
-    static void OnStoreMemoryUsageUpdated(NCellNode::TBootstrap* bootstrap, EMemoryCategory category, i64 delta)
+    void OnStoreMemoryUsageUpdated(EStoreType type, i64 delta)
     {
-        auto* tracker = bootstrap->GetMemoryUsageTracker();
-        if (delta >= 0) {
-            tracker->Acquire(category, delta);
-        } else {
-            tracker->Release(category, -delta);
-        }
+        auto* guard = GetMemoryTrackerGuardFromStoreType(type);
+        guard->UpdateSize(delta);
     }
 
     void StartMemoryUsageTracking(IStorePtr store)
     {
         store->SubscribeMemoryUsageUpdated(BIND(
             &TImpl::OnStoreMemoryUsageUpdated,
-            Bootstrap_,
-            GetMemoryCategoryFromStore(store)));
+            MakeWeak(this),
+            store->GetType()));
     }
 
     void ValidateMemoryLimit()
@@ -2749,6 +2812,31 @@ private:
         YCHECK(tablet->GetTrimmedRowCount() <= trimmedRowCount);
         UpdateTrimmedRowCount(tablet, trimmedRowCount);
     }
+
+
+    void OnStoresUpdateCommitSemaphoreAcquired(
+        TTablet* tablet,
+        const ITransactionPtr& transaction,
+        TPromise<void> promise,
+        TAsyncSemaphoreGuard /*guard*/)
+    {
+        try {
+            LOG_DEBUG("Started committing tablet stores update transaction (TabletId: %v, TransactionId: %v)",
+                tablet->GetId(),
+                transaction->GetId());
+
+            WaitFor(transaction->Commit())
+                .ThrowOnError();
+
+            LOG_DEBUG("Tablet stores update transaction committed (TabletId: %v, TransactionId: %v)",
+                tablet->GetId(),
+                transaction->GetId());
+
+            promise.Set();
+        } catch (const std::exception& ex) {
+            promise.Set(TError(ex));
+        }
+    }
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, Tablet, TTablet, TabletMap_)
@@ -2825,9 +2913,31 @@ void TTabletManager::ScheduleStoreRotation(TTablet* tablet)
     Impl_->ScheduleStoreRotation(tablet);
 }
 
+TFuture<void> TTabletManager::CommitTabletStoresUpdateTransaction(
+    TTablet* tablet,
+    const ITransactionPtr& transaction)
+{
+    return Impl_->CommitTabletStoresUpdateTransaction(tablet, transaction);
+}
+
 IYPathServicePtr TTabletManager::GetOrchidService()
 {
     return Impl_->GetOrchidService();
+}
+
+i64 TTabletManager::GetDynamicStoresMemoryUsage() const
+{
+    return Impl_->GetDynamicStoresMemoryUsage();
+}
+
+i64 TTabletManager::GetStaticStoresMemoryUsage() const
+{
+    return Impl_->GetStaticStoresMemoryUsage();
+}
+
+i64 TTabletManager::GetWriteLogsMemoryUsage() const
+{
+    return Impl_->GetWriteLogsMemoryUsage();
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTablet, *Impl_)

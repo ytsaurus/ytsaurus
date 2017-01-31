@@ -283,25 +283,31 @@ public:
             Locations_.push_back(location);
         }
 
+        ValidateLocationMedia();
+
         LOG_INFO("Chunk cache initialized, %v chunks total",
             GetSize());
     }
 
-    void SetMediumIndexes(const yhash_map<Stroka, int>& mediumNameToIndex)
+    void ValidateLocationMedia()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        if (Locations_.empty()) {
+            return;
+        }
+
+        auto mediumName = Locations_.front()->GetMediumName();
 
         for (const auto& location : Locations_) {
-            auto mediumName = location->GetMediumName();
-            auto it = mediumNameToIndex.find(mediumName);
-            if (it == mediumNameToIndex.end()) {
+            if (location->GetMediumName() != mediumName) {
                 THROW_ERROR_EXCEPTION(
-                    "Location %v is configured with medium %Qv, but no such medium is known at master",
+                    "Locations %v and %v are configured with distinct media (%Qv != %Qv), "
+                    "but multiple cache media on one host are not supported yet",
+                    Locations_.front()->GetId(),
                     location->GetId(),
-                    mediumName);
-            }
+                    mediumName,
+                    location->GetMediumName());
 
-            location->SetMediumIndex(it->second);
+            }
         }
     }
 
@@ -924,13 +930,6 @@ TChunkCache::~TChunkCache() = default;
 void TChunkCache::Initialize()
 {
     Impl_->Initialize();
-}
-
-void TChunkCache::SetMediumIndexes(const yhash_map<Stroka, int>& mediumNameToIndex)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return Impl_->SetMediumIndexes(mediumNameToIndex);
 }
 
 bool TChunkCache::IsEnabled() const

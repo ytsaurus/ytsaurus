@@ -854,7 +854,7 @@ YtCommand.prototype._captureBody = function() {
         }
 
         function capture_body_on_error(err) {
-            reject_and_clear(new YtError("An error occured", err));
+            reject_and_clear(new YtError("An error occurred", err));
         }
 
         req.on("data", capture_body_on_data);

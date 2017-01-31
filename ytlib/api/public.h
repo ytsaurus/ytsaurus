@@ -23,7 +23,7 @@ DEFINE_ENUM(EUserWorkloadCategory,
 );
 
 DEFINE_ENUM(EErrorCode,
-    ((TooManyConcurrentRequests)                         (1800))
+    ((TooManyConcurrentRequests)                         (1900))
 );
 
 DEFINE_ENUM(ERowModificationType,
@@ -61,6 +61,7 @@ DECLARE_REFCOUNTED_CLASS(TPersistentQueuePoller)
 DECLARE_REFCOUNTED_CLASS(TConnectionConfig)
 DECLARE_REFCOUNTED_CLASS(TMasterConnectionConfig)
 DECLARE_REFCOUNTED_CLASS(TNativeConnectionConfig)
+DECLARE_REFCOUNTED_CLASS(TTableMountCacheConfig)
 DECLARE_REFCOUNTED_CLASS(TFileReaderConfig)
 DECLARE_REFCOUNTED_CLASS(TFileWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TJournalReaderConfig)

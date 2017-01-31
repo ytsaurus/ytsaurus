@@ -89,7 +89,11 @@ private:
 
     EState State;
 
+    char FieldSeparator;
+    char RecordSeparator;
+    char EscapingSymbol;
     bool ExpectingEscapedChar;
+    bool HasSubkey;
 
     Stroka CurrentToken;
 

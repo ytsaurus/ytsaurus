@@ -10,9 +10,15 @@ import "yt/ytlib/chunk_client/chunk_slice.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqStartChunk
+message TSessionId
 {
     required NYT.NProto.TGuid chunk_id = 1;
+    required int32 medium_index = 2;
+}
+
+message TReqStartChunk
+{
+    required TSessionId session_id = 7;
     required NYT.NProto.TWorkloadDescriptor workload_descriptor = 2;
     optional bool sync_on_close = 3 [default = true];
     optional bool enable_multiplexing = 4 [default = false];
@@ -26,7 +32,7 @@ message TRspStartChunk
 
 message TReqFinishChunk
 {
-    required NYT.NProto.TGuid chunk_id = 1;
+    required TSessionId session_id = 4;
     optional TChunkMeta chunk_meta = 2;
     optional int32 block_count = 3;
 }
@@ -40,7 +46,7 @@ message TRspFinishChunk
 
 message TReqCancelChunk
 {
-    required NYT.NProto.TGuid chunk_id = 1;
+    required TSessionId session_id = 2;
 }
 
 message TRspCancelChunk
@@ -50,7 +56,7 @@ message TRspCancelChunk
 
 message TReqPutBlocks
 {
-    required NYT.NProto.TGuid chunk_id = 1;
+    required TSessionId session_id = 7;
     required int32 first_block_index = 2;
     optional bool populate_cache = 5 [default = false];
     optional bool flush_blocks = 6 [default = false];
@@ -63,7 +69,7 @@ message TRspPutBlocks
 
 message TReqSendBlocks
 {
-    required NYT.NProto.TGuid chunk_id = 1;
+    required TSessionId session_id = 5;
     required NYT.NNodeTrackerClient.NProto.TNodeDescriptor target_descriptor = 2;
     required int32 first_block_index = 3;
     required int32 block_count = 4;
@@ -76,7 +82,7 @@ message TRspSendBlocks
 
 message TReqFlushBlocks
 {
-    required NYT.NProto.TGuid chunk_id = 1;
+    required TSessionId session_id = 3;
     required int32 block_index = 2;
 }
 
@@ -145,7 +151,7 @@ message TRspGetBlockRange
 
 message TReqPingSession
 {
-    required NYT.NProto.TGuid chunk_id = 1;
+    required TSessionId session_id = 2;
 }
 
 message TRspPingSession

@@ -73,7 +73,7 @@ TSubprocessResult TSubprocess::Execute()
         auto outputsOrError = WaitFor(Combine(futures));
         THROW_ERROR_EXCEPTION_IF_FAILED(
             outputsOrError, 
-            "IO error occured during subprocess call");
+            "IO error occurred during subprocess call");
 
         const auto& outputs = outputsOrError.Value();
         YCHECK(outputs.size() == 2);

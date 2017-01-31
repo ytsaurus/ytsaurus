@@ -3,7 +3,7 @@
 #include "chunk.h"
 #include "chunk_list.h"
 #include "chunk_manager.h"
-#include "chunk_tree_traversing.h"
+#include "chunk_tree_traverser.h"
 #include "config.h"
 #include "helpers.h"
 #include "medium.h"
@@ -178,7 +178,7 @@ private:
                     auto* chunk = chunkManager->FindChunk(chunkId);
                     if (!IsObjectAlive(chunk)) {
                         THROW_ERROR_EXCEPTION(
-                            NRpc::EErrorCode::Unavailable,
+                            NChunkClient::EErrorCode::OptimisticLockFailure,
                             "Optimistic locking failed for chunk %v",
                             chunkId);
                     }
@@ -358,16 +358,14 @@ private:
         return true;
     }
 
-    virtual void OnError(const TError& error) override
+    virtual void OnFinish(const TError& error) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        ReplyError(error);
-    }
-
-    virtual void OnFinish() override
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        if (!error.IsOK()) {
+            ReplyError(error);
+            return;
+        }
 
         if (Finished_) {
             return;
@@ -380,7 +378,6 @@ private:
             TraverseCurrentRange();
         }
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -419,12 +416,18 @@ protected:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
     }
 
-    virtual void OnError(const TError& error) override
+    virtual void OnFinish(const TError& error) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        Promise_.Set(TError("Error traversing chunk tree") << error);
+        if (error.IsOK()) {
+            OnSuccess();
+        } else {
+            Promise_.Set(TError("Error traversing chunk tree") << error);
+        }
     }
+
+    virtual void OnSuccess() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -460,7 +463,7 @@ private:
         return true;
     }
 
-    virtual void OnFinish() override
+    virtual void OnSuccess() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -504,7 +507,7 @@ private:
         return true;
     }
 
-    virtual void OnFinish() override
+    virtual void OnSuccess() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 

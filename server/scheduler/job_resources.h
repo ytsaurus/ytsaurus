@@ -5,10 +5,15 @@
 #include <yt/ytlib/node_tracker_client/helpers.h>
 #include <yt/ytlib/node_tracker_client/node.pb.h>
 
+#include <yt/core/misc/fixed_point_number.h>
+
 namespace NYT {
 namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+// Uses precision of 2 decimal digits.
+using TCpuResource = TFixedPointNumber<int, 2>;
 
 // Implementation detail.
 class TEmptyJobResourcesBase
@@ -18,7 +23,7 @@ class TExtendedJobResources
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(int, UserSlots);
-    DEFINE_BYVAL_RW_PROPERTY(int, Cpu);
+    DEFINE_BYVAL_RW_PROPERTY(TCpuResource, Cpu);
     DEFINE_BYVAL_RW_PROPERTY(i64, JobProxyMemory);
     DEFINE_BYVAL_RW_PROPERTY(i64, UserJobMemory);
     DEFINE_BYVAL_RW_PROPERTY(i64, FootprintMemory);
@@ -37,7 +42,7 @@ class TJobResources
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(int, UserSlots);
-    DEFINE_BYVAL_RW_PROPERTY(int, Cpu);
+    DEFINE_BYVAL_RW_PROPERTY(TCpuResource, Cpu);
     DEFINE_BYVAL_RW_PROPERTY(i64, Memory);
     DEFINE_BYVAL_RW_PROPERTY(int, Network);
 
@@ -66,10 +71,6 @@ void ProfileResources(
     const Stroka& prefix = Stroka(),
     const NProfiling::TTagIdList& tagIds = NProfiling::EmptyTagIds);
 
-double ComputeDemandRatio(i64 demand, i64 limit);
-
-double ComputeUsageRatio(i64 demand, i64 limit);
-
 NNodeTrackerClient::EResourceType GetDominantResource(
     const TJobResources& demand,
     const TJobResources& limits);
@@ -78,7 +79,7 @@ double GetDominantResourceUsage(
     const TJobResources& usage,
     const TJobResources& limits);
 
-i64 GetResource(
+double GetResource(
     const TJobResources& resources,
     NNodeTrackerClient::EResourceType type);
 

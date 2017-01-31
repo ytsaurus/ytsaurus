@@ -31,6 +31,8 @@ public:
     // Called from YT.
     virtual TFuture<void> Write(const TSharedRef& data) override;
 
+    virtual TFuture<void> Close() override;
+
 private:
     TSharedMutableRef Data_;
     char* Begin_;

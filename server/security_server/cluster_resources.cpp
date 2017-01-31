@@ -107,10 +107,10 @@ TSerializableClusterResources::TSerializableClusterResources(const NChunkServer:
     NodeCount_ = clusterResources.NodeCount;
     ChunkCount_ = clusterResources.ChunkCount;
     DiskSpace_ = clusterResources.DiskSpace[DefaultStoreMediumIndex];
-    for (int i = 0; i < NChunkClient::MaxMediumCount; ++i) {
-        i64 mediumDiskSpace = clusterResources.DiskSpace[i];
-        if (mediumDiskSpace) {
-            auto* medium = chunkManager->FindMediumByIndex(i);
+    for (int mediumIndex = 0; mediumIndex < NChunkClient::MaxMediumCount; ++mediumIndex) {
+        i64 mediumDiskSpace = clusterResources.DiskSpace[mediumIndex];
+        if (mediumDiskSpace > 0) {
+            auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
             DiskSpacePerMedium_.insert(std::make_pair(medium->GetName(), mediumDiskSpace));
         }
     }

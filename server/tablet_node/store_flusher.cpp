@@ -9,6 +9,7 @@
 #include "tablet.h"
 #include "tablet_manager.h"
 #include "tablet_slot.h"
+#include "tablet_manager.h"
 
 #include <yt/server/cell_node/bootstrap.h>
 #include <yt/server/cell_node/config.h>
@@ -302,10 +303,9 @@ private:
             transaction->AddAction(Bootstrap_->GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellId(), actionData);
             transaction->AddAction(slot->GetCellId(), actionData);
 
-            LOG_INFO("Committing flush transaction");
-            WaitFor(transaction->Commit())
+            const auto& tabletManager = slot->GetTabletManager();
+            WaitFor(tabletManager->CommitTabletStoresUpdateTransaction(tablet, transaction))
                 .ThrowOnError();
-            LOG_INFO("Flush transaction committed");
 
             storeManager->EndStoreFlush(store);
         } catch (const std::exception& ex) {

@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include <yt/ytlib/chunk_client/session_id.h>
 #include <yt/ytlib/chunk_client/chunk_meta.pb.h>
 
 #include <yt/ytlib/misc/workload.h>
@@ -33,7 +34,10 @@ struct ISession
     : public virtual TRefCounted
 {
     //! Returns the TChunkId being uploaded.
-    virtual const TChunkId& GetChunkId() const = 0;
+    virtual const TChunkId& GetChunkId() const& = 0;
+
+    //! Returns the session ID.
+    virtual const TSessionId& GetId() const& = 0;
 
     //! Returns the session type.
     virtual ESessionType GetType() const = 0;

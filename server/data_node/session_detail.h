@@ -23,14 +23,15 @@ public:
     TSessionBase(
         TDataNodeConfigPtr config,
         NCellNode::TBootstrap* bootstrap,
-        const TChunkId& chunkId,
+        const TSessionId& sessionId,
         const TSessionOptions& options,
         TStoreLocationPtr location,
         NConcurrency::TLease lease);
 
     ~TSessionBase();
 
-    virtual const TChunkId& GetChunkId() const override;
+    virtual const TChunkId& GetChunkId() const& override;
+    virtual const TSessionId& GetId() const& override;
     virtual ESessionType GetType() const override;
     virtual const TWorkloadDescriptor& GetWorkloadDescriptor() const override;
     TStoreLocationPtr GetStoreLocation() const override;
@@ -62,7 +63,7 @@ public:
 protected:
     const TDataNodeConfigPtr Config_;
     NCellNode::TBootstrap* const Bootstrap_;
-    const TChunkId ChunkId_;
+    const TSessionId SessionId_;
     const TSessionOptions Options_;
     const TStoreLocationPtr Location_;
     const NConcurrency::TLease Lease_;

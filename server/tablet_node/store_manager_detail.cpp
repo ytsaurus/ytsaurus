@@ -159,8 +159,7 @@ void TStoreManagerBase::BackoffStoreRemoval(IStorePtr store)
         case EStoreType::SortedDynamic:
         case EStoreType::OrderedDynamic: {
             auto dynamicStore = store->AsDynamic();
-            EStoreFlushState flushState = dynamicStore->GetFlushState();
-            YCHECK(flushState == EStoreFlushState::Complete || flushState == EStoreFlushState::None);
+            auto flushState = dynamicStore->GetFlushState();
             if (flushState == EStoreFlushState::Complete) {
                 dynamicStore->SetFlushState(EStoreFlushState::None);
                 dynamicStore->UpdateFlushAttemptTimestamp();
@@ -170,9 +169,7 @@ void TStoreManagerBase::BackoffStoreRemoval(IStorePtr store)
         case EStoreType::SortedChunk:
         case EStoreType::OrderedChunk: {
             auto chunkStore = store->AsChunk();
-            EStoreCompactionState compactionState = chunkStore->GetCompactionState();
-            YCHECK(compactionState == EStoreCompactionState::Complete ||
-                compactionState == EStoreCompactionState::None);
+            auto compactionState = chunkStore->GetCompactionState();
             if (compactionState == EStoreCompactionState::Complete) {
                 chunkStore->SetCompactionState(EStoreCompactionState::None);
                 chunkStore->UpdateCompactionAttemptTimestamp();

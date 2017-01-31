@@ -348,19 +348,6 @@ public:
         return TabletManager_;
     }
 
-    const TTransactionId& GetPrerequisiteTransactionId() const
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        return PrerequisiteTransactionId_;
-    }
-
-    const TTabletCellOptionsPtr& GetOptions() const
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        return Options_;
-    }
 
     TObjectId GenerateId(EObjectType type)
     {
@@ -669,11 +656,41 @@ private:
             ->AddChild("options", IYPathService::FromMethod(
                 &TImpl::GetOptions,
                 MakeWeak(this)))
+            ->AddChild("memory_usage", IYPathService::FromMethod(
+                &TImpl::GetMemoryUsage,
+                MakeWeak(this)))
             ->AddChild("transactions", TransactionManager_->GetOrchidService())
             ->AddChild("tablets", TabletManager_->GetOrchidService())
             ->AddChild("hive", HiveManager_->GetOrchidService())
             ->Via(Bootstrap_->GetControlInvoker());
     }
+
+    const TTransactionId& GetPrerequisiteTransactionId() const
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return PrerequisiteTransactionId_;
+    }
+
+    const TTabletCellOptionsPtr& GetOptions() const
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return Options_;
+    }
+
+    TYsonString GetMemoryUsage() const
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return BuildYsonStringFluently()
+            .BeginMap()
+                .Item("dynamic_stores").Value(TabletManager_->GetDynamicStoresMemoryUsage())
+                .Item("static_stores").Value(TabletManager_->GetStaticStoresMemoryUsage())
+                .Item("write_log").Value(TabletManager_->GetWriteLogsMemoryUsage())
+            .EndMap();
+    }
+
 
     void ResetEpochInvokers()
     {

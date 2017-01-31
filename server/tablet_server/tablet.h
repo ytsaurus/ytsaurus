@@ -8,6 +8,8 @@
 
 #include <yt/server/table_server/public.h>
 
+#include <yt/server/transaction_server/public.h>
+
 #include <yt/server/tablet_node/public.h>
 
 #include <yt/server/chunk_server/public.h>
@@ -120,7 +122,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(int, Index);
     DEFINE_BYVAL_RW_PROPERTY(ETabletState, State);
     DEFINE_BYVAL_RW_PROPERTY(i64, MountRevision);
-    DEFINE_BYVAL_RW_PROPERTY(bool, StoresUpdatePrepared);
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, StoresUpdatePreparedTransaction);
     DEFINE_BYVAL_RW_PROPERTY(NTableServer::TTableNode*, Table);
     DEFINE_BYVAL_RW_PROPERTY(TTabletCell*, Cell);
     DEFINE_BYVAL_RW_PROPERTY(NTableClient::TOwningKey, PivotKey);

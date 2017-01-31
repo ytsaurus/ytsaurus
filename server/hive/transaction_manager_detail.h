@@ -12,6 +12,7 @@ namespace NHiveServer {
 
 template <class TTransaction>
 class TTransactionManagerBase
+    : public virtual NLogging::TLoggerOwner
 {
 public:
     void RegisterPrepareActionHandler(const TTransactionPrepareActionHandlerDescriptor<TTransaction>& descriptor);

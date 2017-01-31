@@ -390,8 +390,8 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
                 tokenizer.Expect(NYPath::ETokenType::EndOfStream);
 
                 return IYPathService::TResolveResult::Here("/" + path);
-            } else if (token.StartsWith(ListBeforeToken) ||
-                       token.StartsWith(ListAfterToken))
+            } else if (token.has_prefix(ListBeforeToken) ||
+                       token.has_prefix(ListAfterToken))
             {
                 auto indexToken = ExtractListIndex(token);
                 int index = ParseListIndex(indexToken);
@@ -443,15 +443,15 @@ void TListNodeMixin::SetChild(
     tokenizer.Expect(NYPath::ETokenType::Literal);
 
     const auto& token = tokenizer.GetToken();
-    if (token.StartsWith(ListBeginToken)) {
+    if (token.has_prefix(ListBeginToken)) {
         beforeIndex = 0;
-    } else if (token.StartsWith(ListEndToken)) {
+    } else if (token.has_prefix(ListEndToken)) {
         beforeIndex = GetChildCount();
-    } else if (token.StartsWith(ListBeforeToken) || token.StartsWith(ListAfterToken)) {
+    } else if (token.has_prefix(ListBeforeToken) || token.has_prefix(ListAfterToken)) {
         auto indexToken = ExtractListIndex(token);
         int index = ParseListIndex(indexToken);
         beforeIndex = AdjustChildIndex(index);
-        if (token.StartsWith(ListAfterToken)) {
+        if (token.has_prefix(ListAfterToken)) {
             ++beforeIndex;
         }
     } else {

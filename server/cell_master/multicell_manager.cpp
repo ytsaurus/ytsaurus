@@ -221,7 +221,7 @@ public:
             return it->second;
         }
 
-        auto cellDirectory = Bootstrap_->GetCellDirectory();
+        const auto& cellDirectory = Bootstrap_->GetCellDirectory();
         auto cellId = Bootstrap_->GetCellId(cellTag);
         auto channel = cellDirectory->FindChannel(cellId, peerKind);
         if (!channel) {

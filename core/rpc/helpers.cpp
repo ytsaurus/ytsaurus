@@ -15,11 +15,11 @@ using namespace NTracing;
 
 bool IsRetriableError(const TError& error)
 {
+    if (IsChannelFailureError(error)) {
+        return true;
+    }
     auto code = error.GetCode();
-    return code == NRpc::EErrorCode::TransportError ||
-           code == NRpc::EErrorCode::Unavailable ||
-           code == NRpc::EErrorCode::RequestQueueSizeLimitExceeded ||
-           code == NYT::EErrorCode::Timeout;
+    return code == NRpc::EErrorCode::RequestQueueSizeLimitExceeded;
 }
 
 bool IsChannelFailureError(const TError& error)

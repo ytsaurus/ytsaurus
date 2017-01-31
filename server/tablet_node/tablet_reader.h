@@ -46,7 +46,6 @@ NTableClient::ISchemafulReaderPtr CreateSchemafulTabletReader(
  *  Can only handle sorted tables.
  */
 NTableClient::IVersionedReaderPtr CreateVersionedTabletReader(
-    IInvokerPtr poolInvoker,
     TTabletSnapshotPtr tabletSnapshot,
     std::vector<ISortedStorePtr> stores,
     TOwningKey lowerBound,

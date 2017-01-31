@@ -81,6 +81,15 @@ message TRspIncrementalHeartbeat
     optional string data_center = 9;
     optional TNodeResourceLimitsOverrides resource_limits_overrides = 7;
     optional bool disable_scheduler_jobs = 8;
+
+    message TMediumDescriptor
+    {
+        required string medium_name = 1;
+        required int32 medium_priority = 2;
+    }
+
+    repeated TMediumDescriptor media = 10;
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////

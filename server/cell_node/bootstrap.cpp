@@ -65,6 +65,7 @@
 
 #include <yt/ytlib/hive/cluster_directory.h>
 #include <yt/ytlib/hive/cluster_directory_synchronizer.h>
+#include <yt/ytlib/hive/cell_directory_synchronizer.h>
 
 #include <yt/ytlib/misc/workload.h>
 
@@ -205,9 +206,18 @@ void TBootstrap::DoRun()
         NodeDirectory);
     NodeDirectorySynchronizer->Start();
 
+    CellDirectorySynchronizer = New<TCellDirectorySynchronizer>(
+        Config->CellDirectorySynchronizer,
+        MasterConnection->GetCellDirectory(),
+        Config->ClusterConnection->PrimaryMaster->CellId);
+
     QueryThreadPool = New<TThreadPool>(
         Config->QueryAgent->ThreadPoolSize,
         "Query");
+
+    LookupThreadPool = New<TThreadPool>(
+        Config->QueryAgent->LookupThreadPoolSize,
+        "Lookup");
 
     TableReplicatorThreadPool = New<TThreadPool>(
         Config->TabletNode->TabletManager->ReplicatorThreadPoolSize,
@@ -462,6 +472,8 @@ void TBootstrap::DoRun()
             EPeerKind::Follower),
         GetCellId());
 
+    CellDirectorySynchronizer->Start();
+
     OrchidRoot = GetEphemeralNodeFactory(true)->CreateMap();
 
     SetNodeByYPath(
@@ -543,6 +555,11 @@ const IInvokerPtr& TBootstrap::GetControlInvoker() const
 const IInvokerPtr& TBootstrap::GetQueryPoolInvoker() const
 {
     return QueryThreadPool->GetInvoker();
+}
+
+const IInvokerPtr& TBootstrap::GetLookupPoolInvoker() const
+{
+    return LookupThreadPool->GetInvoker();
 }
 
 const IInvokerPtr& TBootstrap::GetTableReplicatorPoolInvoker() const

@@ -77,7 +77,7 @@ public:
             bootstrap)
         , Config_(config)
         , LeaseTracker_(New<TTransactionLeaseTracker>(
-            Slot_->GetAutomatonInvoker(),
+            Bootstrap_->GetTransactionTrackerInvoker(),
             Logger))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
@@ -140,7 +140,7 @@ public:
             transactionId);
     }
 
-    TTransaction* GetTransactionOrThrow(const TTransactionId& transactionId)
+    TTransaction* FindTransaction(const TTransactionId& transactionId)
     {
         if (auto* transaction = TransientTransactionMap_.Find(transactionId)) {
             return transaction;
@@ -148,10 +148,19 @@ public:
         if (auto* transaction = PersistentTransactionMap_.Find(transactionId)) {
             return transaction;
         }
-        THROW_ERROR_EXCEPTION(
-            NTransactionClient::EErrorCode::NoSuchTransaction,
-            "No such transaction %v",
-            transactionId);
+        return nullptr;        
+    }
+
+    TTransaction* GetTransactionOrThrow(const TTransactionId& transactionId)
+    {
+        auto* transaction = FindTransaction(transactionId);
+        if (!transaction) {
+            THROW_ERROR_EXCEPTION(
+                NTransactionClient::EErrorCode::NoSuchTransaction,
+                "No such transaction %v",
+                transactionId);            
+        }
+        return transaction;
     }
 
     TTransaction* GetOrCreateTransaction(
@@ -185,7 +194,7 @@ public:
         auto& map = transient ? TransientTransactionMap_ : PersistentTransactionMap_;
         auto* transaction = map.Insert(transactionId, std::move(transactionHolder));
 
-        if (!transient && IsLeader()) {
+        if (IsLeader()) {
             CreateLeases(transaction);
         }
 
@@ -285,7 +294,9 @@ public:
         }
 
         if (state == ETransactionState::Active) {
-            UpdatePrepareTimestamp(transaction, prepareTimestamp);
+            YCHECK(transaction->GetPrepareTimestamp() == NullTimestamp);
+            transaction->SetPrepareTimestamp(prepareTimestamp);
+            RegisterPrepareTimestamp(transaction);
 
             transaction->SetState(persistent
                 ? ETransactionState::PersistentCommitPrepared
@@ -469,7 +480,9 @@ private:
 
     void CreateLeases(TTransaction* transaction)
     {
-        YCHECK(!transaction->GetTransient());
+        if (transaction->GetHasLeases()) {
+            return;
+        }
 
         auto invoker = Slot_->GetEpochAutomatonInvoker();
 
@@ -487,13 +500,21 @@ private:
             BIND(&TImpl::OnTransactionTimedOut, MakeStrong(this), transaction->GetId())
                 .Via(invoker),
             deadline);
+
+        transaction->SetHasLeases(true);
     }
 
     void CloseLeases(TTransaction* transaction)
     {
+        if (!transaction->GetHasLeases()) {
+            return;
+        }
+
         LeaseTracker_->UnregisterTransaction(transaction->GetId());
 
         TDelayedExecutor::CancelAndClear(transaction->TimeoutCookie());
+
+        transaction->SetHasLeases(false);
     }
 
 
@@ -501,7 +522,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto* transaction = FindPersistentTransaction(id);
+        auto* transaction = FindTransaction(id);
         if (!transaction) {
             return;
         }
@@ -521,7 +542,7 @@ private:
 
     void OnTransactionTimedOut(const TTransactionId& id)
     {
-        auto* transaction = FindPersistentTransaction(id);
+        auto* transaction = FindTransaction(id);
         if (!transaction) {
             return;
         }
@@ -544,7 +565,7 @@ private:
 
     void FinishTransaction(TTransaction* transaction)
     {
-        ErasePrepareTimestamp(transaction);
+        UnregisterPrepareTimestamp(transaction);
     }
 
 
@@ -560,7 +581,9 @@ private:
             if (transaction->GetState() == ETransactionState::Committed) {
                 SerializingTransactionHeap_.push_back(transaction);
             }
-            InitPrepareTimestamp(transaction);
+            if (transaction->IsPrepared() && !transaction->IsCommitted()) {
+                RegisterPrepareTimestamp(transaction);
+            }
         }
         MakeHeap(SerializingTransactionHeap_.begin(), SerializingTransactionHeap_.end(), SerializingTransactionHeapComparer);
     }
@@ -587,7 +610,7 @@ private:
 
         BarrierCheckExecutor_ = New<TPeriodicExecutor>(
             Slot_->GetEpochAutomatonInvoker(),
-            BIND(&TImpl::CheckBarrier, MakeWeak(this)),
+            BIND(&TImpl::OnPeriodicBarrierCheck, MakeWeak(this)),
             Config_->BarrierCheckPeriod);
         BarrierCheckExecutor_->Start();
 
@@ -600,8 +623,6 @@ private:
 
         TTabletAutomatonPart::OnStopLeading();
 
-        LeaseTracker_->Stop();
-
         if (BarrierCheckExecutor_) {
             BarrierCheckExecutor_->Stop();
             BarrierCheckExecutor_.Reset();
@@ -612,6 +633,7 @@ private:
             auto* transaction = pair.second;
             transaction->ResetFinished();
             TransactionTransientReset_.Fire(transaction);
+            UnregisterPrepareTimestamp(transaction);
         }
         TransientTransactionMap_.Clear();
 
@@ -619,11 +641,18 @@ private:
         // Mark all transactions as finished to release pending readers.
         for (const auto& pair : PersistentTransactionMap_) {
             auto* transaction = pair.second;
+            if (transaction->GetState() == ETransactionState::TransientCommitPrepared) {
+                UnregisterPrepareTimestamp(transaction);
+                transaction->SetPrepareTimestamp(NullTimestamp);
+            }
             transaction->SetState(transaction->GetPersistentState());
             transaction->SetTransientSignature(transaction->GetPersistentSignature());
             transaction->ResetFinished();
             TransactionTransientReset_.Fire(transaction);
+            CloseLeases(transaction);
         }
+
+        LeaseTracker_->Stop();
     }
 
 
@@ -746,7 +775,7 @@ private:
     {
         auto barrierTimestamp = request->timestamp();
 
-        LOG_DEBUG("Handling transaction barrier (Timestamp: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Handling transaction barrier (Timestamp: %v)",
             barrierTimestamp);
 
         while (!SerializingTransactionHeap_.empty()) {
@@ -775,6 +804,15 @@ private:
     }
 
 
+    void OnPeriodicBarrierCheck()
+    {
+        LOG_DEBUG("Running periodic barrier check (BarrierTimestamp: %v, MinPrepareTimestamp: %v)",
+            TransientBarrierTimestamp_,
+            GetMinPrepareTimestamp());
+
+        CheckBarrier();
+    }
+
     void CheckBarrier()
     {
         if (!IsLeader()) {
@@ -786,10 +824,11 @@ private:
             return;
         }
 
-        TransientBarrierTimestamp_ = minPrepareTimestamp;
+        LOG_DEBUG("Committing transaction barrier (Timestamp: %v->%v)",
+            TransientBarrierTimestamp_,
+            minPrepareTimestamp);
 
-        LOG_DEBUG("Committing transaction barrier (Timestamp: %v)",
-            TransientBarrierTimestamp_);
+        TransientBarrierTimestamp_ = minPrepareTimestamp;
 
         NTabletNode::NProto::TReqHandleTransactionBarrier request;
         request.set_timestamp(TransientBarrierTimestamp_);
@@ -797,29 +836,23 @@ private:
             ->CommitAndLog(Logger);
     }
 
-    void InitPrepareTimestamp(TTransaction* transaction)
+    void RegisterPrepareTimestamp(TTransaction* transaction)
     {
-        if (transaction->IsPrepared() && !transaction->IsCommitted()) {
-            PreparedTransactions_.emplace(transaction->GetPrepareTimestamp(), transaction);
+        auto prepareTimestamp = transaction->GetPrepareTimestamp();
+        YCHECK(prepareTimestamp != NullTimestamp);
+        YCHECK(PreparedTransactions_.emplace(prepareTimestamp, transaction).second);
+    }
+
+    void UnregisterPrepareTimestamp(TTransaction* transaction)
+    {
+        auto prepareTimestamp = transaction->GetPrepareTimestamp();
+        if (prepareTimestamp == NullTimestamp) {
+            return;
         }
-    }
-
-    void UpdatePrepareTimestamp(TTransaction* transaction, TTimestamp prepareTimestamp)
-    {
-        ErasePrepareTimestamp(transaction);
-        transaction->SetPrepareTimestamp(prepareTimestamp);
-        PreparedTransactions_.emplace(transaction->GetPrepareTimestamp(), transaction);
-    }
-
-    void ErasePrepareTimestamp(TTransaction* transaction)
-    {
-        auto pair = std::make_pair(transaction->GetPrepareTimestamp(), transaction);
+        auto pair = std::make_pair(prepareTimestamp, transaction);
         auto it = PreparedTransactions_.find(pair);
-        if (it != PreparedTransactions_.end()) {
-            PreparedTransactions_.erase(it);
-        } else {
-            YCHECK(transaction->GetPrepareTimestamp() == NullTimestamp);
-        }
+        YCHECK(it != PreparedTransactions_.end());
+        PreparedTransactions_.erase(it);
         CheckBarrier();
     }
 
