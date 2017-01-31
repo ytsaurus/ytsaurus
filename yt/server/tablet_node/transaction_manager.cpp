@@ -213,7 +213,9 @@ public:
     {
         if (auto* transaction = TransientTransactionMap_.Find(transactionId)) {
             transaction->SetTransient(false);
-            CreateLeases(transaction);
+            if (IsLeader()) {
+                CreateLeases(transaction);
+            }
             auto transactionHolder = TransientTransactionMap_.Release(transactionId);
             PersistentTransactionMap_.Insert(transactionId, std::move(transactionHolder));
             LOG_DEBUG_UNLESS(IsRecovery(), "Transaction became persistent (TransactionId: %v)",
@@ -232,6 +234,10 @@ public:
     void DropTransaction(TTransaction* transaction)
     {
         YCHECK(transaction->GetTransient());
+
+        if (IsLeader()) {
+            CloseLeases(transaction);
+        }
 
         auto transactionId = transaction->GetId();
         TransientTransactionMap_.Remove(transactionId);
