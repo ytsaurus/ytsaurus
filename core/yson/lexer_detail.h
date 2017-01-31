@@ -95,7 +95,7 @@ private:
             TT(Comma), // ','
             DM, // '-'
             NN, // '.'
-            NN, // '/'
+            TT(Slash), // '/'
 
             // 48
             DM,DM,DM,DM,DM,DM,DM,DM,DM,DM, // '0' - '9'

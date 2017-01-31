@@ -20,6 +20,7 @@
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
+#include <yt/ytlib/chunk_client/session_id.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/core/concurrency/async_semaphore.h>
@@ -43,6 +44,8 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NObjectClient;
 using namespace NCellMaster;
+
+using NChunkClient::TSessionId; // Suppress ambiguity with NProto::TSessionId.
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -237,7 +240,7 @@ private:
 
         {
             auto asyncResult = AbortSessionsQuorum(
-                chunk->GetId(),
+                TSessionId(chunk->GetId(), AllMediaIndex),
                 replicas,
                 Config_->JournalRpcTimeout,
                 chunk->GetReadQuorum(),

@@ -1,11 +1,15 @@
-#include "chunk_tree_traversing.h"
+#include "chunk_tree_traverser.h"
 #include "chunk.h"
 #include "chunk_list.h"
-#include "chunk_manager.h"
 #include "helpers.h"
 
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/hydra_facade.h>
+
+#include <yt/server/security_server/security_manager.h>
+#include <yt/server/security_server/user.h>
+
+#include <yt/server/object_server/object.h>
 
 #include <yt/ytlib/object_client/public.h>
 
@@ -13,11 +17,14 @@
 
 #include <yt/core/misc/singleton.h>
 
+#include <yt/core/profiling/scoped_timer.h>
+
 namespace NYT {
 namespace NChunkServer {
 
 using namespace NCellMaster;
 using namespace NObjectClient;
+using namespace NObjectServer;
 using namespace NChunkClient;
 using namespace NTableClient;
 
@@ -100,17 +107,20 @@ protected:
             GuardedTraverse();
         } catch (const std::exception& ex) {
             Shutdown();
-            Visitor_->OnError(TError(ex));
+            Visitor_->OnFinish(TError(ex));
         }
     }
 
     void GuardedTraverse()
     {
+        NProfiling::TScopedTimer timer;
+        auto invoker = Callbacks_->GetInvoker();
         int visitedChunkCount = 0;
-        while (visitedChunkCount < MaxChunksPerStep || !Callbacks_->IsPreemptable()) {
+        while (visitedChunkCount < MaxChunksPerStep || !invoker) {
             if (IsStackEmpty()) {
                 Shutdown();
-                Visitor_->OnFinish();
+                Callbacks_->OnTimeSpent(timer.GetElapsed());
+                Visitor_->OnFinish(TError());
                 return;
             }
 
@@ -119,7 +129,7 @@ protected:
 
             if (!chunkList->IsAlive() || chunkList->GetVersion() != entry.ChunkListVersion) {
                 THROW_ERROR_EXCEPTION(
-                    NRpc::EErrorCode::Unavailable,
+                    NChunkClient::EErrorCode::OptimisticLockFailure,
                     "Optimistic locking failed for chunk list %v",
                     chunkList->GetId());
             }
@@ -259,9 +269,8 @@ protected:
         }
 
         // Schedule continuation.
-        Callbacks_
-            ->GetInvoker()
-            ->Invoke(BIND(&TChunkTreeTraverser::DoTraverse, MakeStrong(this)));
+        Callbacks_->OnTimeSpent(timer.GetElapsed());
+        invoker->Invoke(BIND(&TChunkTreeTraverser::DoTraverse, MakeStrong(this)));
     }
 
     static int GetStartChildIndex(
@@ -456,12 +465,14 @@ public:
             lowerBound,
             upperBound));
 
-        // Do actual traversing in proper queue.
-        Callbacks_
-            ->GetInvoker()
-            ->Invoke(BIND(&TChunkTreeTraverser::DoTraverse, MakeStrong(this)));
+        // Do actual traversing in the proper queue.
+        auto invoker = Callbacks_->GetInvoker();
+        if (invoker) {
+            invoker->Invoke(BIND(&TChunkTreeTraverser::DoTraverse, MakeStrong(this)));
+        } else {
+            DoTraverse();
+        }
     }
-
 };
 
 void TraverseChunkTree(
@@ -486,16 +497,17 @@ class TPreemptableChunkTraverserCallbacks
 public:
     explicit TPreemptableChunkTraverserCallbacks(NCellMaster::TBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
+        , UserName_(Bootstrap_
+            ->GetSecurityManager()
+            ->GetAuthenticatedUser()
+            ->GetName())
     { }
-
-    virtual bool IsPreemptable() const override
-    {
-        return true;
-    }
 
     virtual IInvokerPtr GetInvoker() const override
     {
-        return Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkTraverser);
+        return Bootstrap_
+            ->GetHydraFacade()
+            ->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkTraverser);
     }
 
     virtual void OnPop(TChunkTree* node) override
@@ -518,8 +530,18 @@ public:
         }
     }
 
+    virtual void OnTimeSpent(TDuration time) override
+    {
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto* user = securityManager->FindUserByName(UserName_);
+        if (IsObjectAlive(user)) {
+            securityManager->ChargeUserRead(user, 0, time);
+        }
+    }
+
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
+    const Stroka UserName_;
 
 };
 
@@ -535,14 +557,9 @@ class TNonpreemptableChunkTraverserCallbacks
     : public IChunkTraverserCallbacks
 {
 public:
-    virtual bool IsPreemptable() const override
-    {
-        return false;
-    }
-
     virtual IInvokerPtr GetInvoker() const override
     {
-        return GetSyncInvoker();
+        return nullptr;
     }
 
     virtual void OnPop(TChunkTree* /*node*/) override
@@ -554,6 +571,8 @@ public:
     virtual void OnShutdown(const std::vector<TChunkTree*>& /*nodes*/) override
     { }
 
+    virtual void OnTimeSpent(TDuration /*time*/) override
+    { }
 };
 
 IChunkTraverserCallbacksPtr GetNonpreemptableChunkTraverserCallbacks()
@@ -581,13 +600,10 @@ public:
         return true;
     }
 
-    virtual void OnError(const TError& /*error*/) override
+    virtual void OnFinish(const TError& error) override
     {
-        Y_UNREACHABLE();
+        YCHECK(error.IsOK());
     }
-
-    virtual void OnFinish() override
-    { }
 
 private:
     std::vector<TChunk*>* const Chunks_;

@@ -72,7 +72,7 @@ TLocation::TLocation(
 
     HealthChecker_ = New<TDiskHealthChecker>(
         Bootstrap_->GetConfig()->DataNode->DiskHealthChecker,
-        GetPath(),  
+        GetPath(),
         GetWritePoolInvoker(),
         DataNodeLogger,
         Profiler_);
@@ -547,18 +547,6 @@ const Stroka& TLocation::GetMediumName() const
     return Config_->MediumName;
 }
 
-int TLocation::GetMediumIndex() const
-{
-    YCHECK(MediumIndex_ != InvalidMediumIndex);
-
-    return MediumIndex_;
-}
-
-void TLocation::SetMediumIndex(int mediumIndex)
-{
-    MediumIndex_ = mediumIndex;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TStoreLocation::TStoreLocation(
@@ -949,11 +937,11 @@ bool TStoreLocation::ShouldSkipFileName(const Stroka& fileName) const
     }
 
     // Skip trash directory.
-    if (fileName.StartsWith(TrashDirectory + LOCSLASH_S))
+    if (fileName.has_prefix(TrashDirectory + LOCSLASH_S))
         return true;
 
     // Skip multiplexed directory.
-    if (fileName.StartsWith(MultiplexedDirectory + LOCSLASH_S))
+    if (fileName.has_prefix(MultiplexedDirectory + LOCSLASH_S))
         return true;
 
     return false;

@@ -170,7 +170,7 @@ void RemoveDirContentAsRoot(const Stroka& path)
         if (it->fts_info == FTS_DOT || it->fts_info == FTS_D) {
             return false;
         }
-        if (path.StartsWith(it->fts_path)) {
+        if (path.has_prefix(it->fts_path)) {
             return false;
         }
 

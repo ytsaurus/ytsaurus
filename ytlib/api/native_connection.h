@@ -25,7 +25,6 @@ struct INativeConnection
     virtual NQueryClient::TEvaluatorPtr GetQueryEvaluator() = 0;
     virtual NQueryClient::TColumnEvaluatorCachePtr GetColumnEvaluatorCache() = 0;
     virtual NHiveClient::TCellDirectoryPtr GetCellDirectory() = 0;
-    virtual NHiveClient::TCellDirectorySynchronizerPtr GetCellDirectorySynchronizer() = 0;
     virtual NChunkClient::IBlockCachePtr GetBlockCache() = 0;
 
     virtual NRpc::IChannelPtr GetMasterChannelOrThrow(

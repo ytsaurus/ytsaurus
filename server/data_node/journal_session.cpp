@@ -20,22 +20,6 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJournalSession::TJournalSession(
-    TDataNodeConfigPtr config,
-    NCellNode::TBootstrap* bootstrap,
-    const TChunkId& chunkId,
-    const TSessionOptions& options,
-    TStoreLocationPtr location,
-    TLease lease)
-    : TSessionBase(
-        config,
-        bootstrap,
-        chunkId,
-        options,
-        location,
-        lease)
-{ }
-
 TChunkInfo TJournalSession::GetChunkInfo() const
 {
     TChunkInfo info;
@@ -49,18 +33,18 @@ TFuture<void> TJournalSession::DoStart()
     Chunk_ = New<TJournalChunk>(
         Bootstrap_,
         Location_,
-        TChunkDescriptor(ChunkId_));
+        TChunkDescriptor(GetChunkId()));
     Chunk_->SetActive(true);
 
     auto chunkStore = Bootstrap_->GetChunkStore();
     chunkStore->RegisterNewChunk(Chunk_);
 
     auto dispatcher = Bootstrap_->GetJournalDispatcher();
-    auto asyncChangelog = dispatcher->CreateChangelog(Location_, ChunkId_, Options_.EnableMultiplexing);
+    auto asyncChangelog = dispatcher->CreateChangelog(Location_, GetChunkId(), Options_.EnableMultiplexing);
     return asyncChangelog.Apply(BIND([=, this_ = MakeStrong(this)] (const IChangelogPtr& changelog) {
         if (Chunk_->IsRemoveScheduled()) {
             THROW_ERROR_EXCEPTION("Chunk %v is scheduled for removal",
-                ChunkId_);
+                GetId());
         }
         Chunk_->AttachChangelog(changelog);
     }).AsyncVia(Bootstrap_->GetControlInvoker()));
@@ -87,7 +71,7 @@ TFuture<IChunkPtr> TJournalSession::DoFinish(
     if (blockCount) {
         if (*blockCount != changelog->GetRecordCount()) {
             THROW_ERROR_EXCEPTION("Block count mismatch in journal session %v: expected %v, got %v",
-                ChunkId_,
+                SessionId_,
                 changelog->GetRecordCount(),
                 *blockCount);
         }
@@ -112,14 +96,14 @@ TFuture<void> TJournalSession::DoPutBlocks(
     
     if (startBlockIndex > recordCount) {
         THROW_ERROR_EXCEPTION("Missing blocks %v:%v-%v",
-            ChunkId_,
+            GetId(),
             recordCount,
             startBlockIndex - 1);
     }
 
     if (startBlockIndex < recordCount) {
         LOG_DEBUG("Skipped duplicate blocks %v:%v-%v",
-            ChunkId_,
+            GetId(),
             startBlockIndex,
             recordCount - 1);
     }
@@ -154,7 +138,7 @@ TFuture<void> TJournalSession::DoFlushBlocks(int blockIndex)
     
     if (blockIndex > recordCount) {
         THROW_ERROR_EXCEPTION("Missing blocks %v:%v-%v",
-            ChunkId_,
+            GetId(),
             recordCount - 1,
             blockIndex);
     }

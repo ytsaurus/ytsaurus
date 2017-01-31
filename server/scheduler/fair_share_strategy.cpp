@@ -307,6 +307,15 @@ public:
                         }
                         SetPoolParent(pool, parent);
 
+                        if (parent->GetMode() == ESchedulingMode::Fifo) {
+                            parent->SetMode(ESchedulingMode::FairShare);
+                            errors.emplace_back(
+                                TError(
+                                    "Pool %Qv cannot have subpools since it is in %v mode",
+                                    parent->GetId(),
+                                    ESchedulingMode::Fifo));
+                        }
+
                         // Parse children.
                         parseConfig(childNode, pool.Get());
                     }
@@ -407,14 +416,13 @@ public:
             return;
         }
 
-        auto dynamicAttributes = GetGlobalDynamicAttributes(element);
-
         auto* parent = element->GetParent();
         BuildYsonMapFluently(consumer)
             .Item("pool").Value(parent->GetId())
-            .Item("start_time").Value(dynamicAttributes.MinSubtreeStartTime)
+            .Item("start_time").Value(element->GetStartTime())
             .Item("preemptable_job_count").Value(element->GetPreemptableJobCount())
             .Item("aggressively_preemptable_job_count").Value(element->GetAggressivelyPreemptableJobCount())
+            .Item("fifo_index").Value(element->Attributes().FifoIndex)
             .Do(BIND(&TFairShareStrategy::BuildElementYson, Unretained(this), element));
     }
 

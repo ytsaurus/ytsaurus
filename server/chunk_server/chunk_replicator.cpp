@@ -4,7 +4,7 @@
 #include "chunk_list.h"
 #include "chunk_owner_base.h"
 #include "chunk_placement.h"
-#include "chunk_tree_traversing.h"
+#include "chunk_tree_traverser.h"
 #include "job.h"
 #include "chunk_scanner.h"
 #include "chunk_replica.h"
@@ -1806,17 +1806,21 @@ void TChunkReplicator::SchedulePropertiesUpdate(TChunkList* chunkList)
             : Bootstrap_(bootstrap)
             , Owner_(std::move(owner))
             , Root_(root)
+            , RootId_(Root_->GetId())
         { }
 
         void Run()
         {
+            LOG_DEBUG("Chunk tree traversal update started (ChunkList: %v)",
+                RootId_);
             TraverseChunkTree(CreatePreemptableChunkTraverserCallbacks(Bootstrap_), this, Root_);
         }
 
     private:
         TBootstrap* const Bootstrap_;
         const TChunkReplicatorPtr Owner_;
-        TChunkList* const Root_;
+        TChunkList* Root_;
+        const TChunkListId RootId_;
 
         virtual bool OnChunk(
             TChunk* chunk,
@@ -1828,11 +1832,25 @@ void TChunkReplicator::SchedulePropertiesUpdate(TChunkList* chunkList)
             return true;
         }
 
-        virtual void OnError(const TError& /*error*/) override
-        { }
+        virtual void OnFinish(const TError& error) override
+        {
+            if (error.IsOK()) {
+                LOG_DEBUG("Chunk tree traversal completed (ChunkList: %v)",
+                    RootId_);
+            } else {
+                LOG_DEBUG(error, "Chunk tree traversal failed (ChunkList: %v)",
+                    RootId_);
 
-        virtual void OnFinish() override
-        { }
+                // Try restarting.
+                const auto& chunkManager = Bootstrap_->GetChunkManager();
+                Root_ = chunkManager->FindChunkList(RootId_);
+                if (!IsObjectAlive(Root_)) {
+                    return;
+                }
+
+                Run();
+            }
+        }
     };
 
     New<TVisitor>(Bootstrap_, this, chunkList)->Run();

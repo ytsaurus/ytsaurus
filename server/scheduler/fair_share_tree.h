@@ -21,7 +21,8 @@ struct TSchedulableAttributes
     double MaxPossibleUsageRatio = 1.0;
     double BestAllocationRatio = 1.0;
     double GuaranteedResourcesRatio = 0.0;
-    i64 DominantLimit = 0;
+    double DominantLimit = 0;
+    int FifoIndex = 0;
 
     double AdjustedFairShareStarvationTolerance = 1.0;
     TDuration AdjustedMinSharePreemptionTimeout;
@@ -33,7 +34,6 @@ struct TDynamicAttributes
     double SatisfactionRatio = 0.0;
     bool Active = false;
     TSchedulerElement* BestLeafDescendant = nullptr;
-    TInstant MinSubtreeStartTime;
     TJobResources ResourceUsageDiscount = ZeroJobResources();
 };
 
@@ -85,6 +85,7 @@ protected:
     TJobResources TotalResourceLimits_;
 
     int PendingJobCount_ = 0;
+    TInstant StartTime_ = TInstant();
 
     int TreeIndex_ = UnassignedTreeIndex;
 
@@ -166,6 +167,7 @@ public:
     TCompositeSchedulerElement* GetParent() const;
     void SetParent(TCompositeSchedulerElement* parent);
 
+    TInstant GetStartTime() const;
     int GetPendingJobCount() const;
 
     virtual ESchedulableStatus GetStatus() const;
@@ -278,6 +280,9 @@ public:
 
     bool IsEmpty() const;
 
+    ESchedulingMode GetMode() const;
+    void SetMode(ESchedulingMode);
+
     NProfiling::TTagId GetProfilingTag() const;
 
     virtual int GetMaxOperationCount() const = 0;
@@ -313,6 +318,8 @@ protected:
     static void RemoveChild(TChildMap* map, TChildList* list, const TSchedulerElementPtr& child);
     static bool ContainsChild(const TChildMap& map, const TSchedulerElementPtr& child);
 
+private:
+    bool HasHigherPriorityInFifoMode(const TSchedulerElementPtr& lhs, const TSchedulerElementPtr& rhs) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCompositeSchedulerElement)
@@ -404,7 +411,6 @@ protected:
     explicit TOperationElementFixedState(TOperationPtr operation);
 
     const TOperationId OperationId_;
-    TInstant StartTime_;
     bool Schedulable_;
     TOperation* const Operation_;
 };

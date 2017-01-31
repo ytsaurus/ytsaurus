@@ -64,10 +64,6 @@ using namespace NSecurityServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TransactionServerLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TTransactionManager::TTransactionTypeHandler
     : public TObjectTypeHandlerWithMapBase<TTransaction>
 {
@@ -144,6 +140,8 @@ public:
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(), AutomatonThread);
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetTransactionTrackerInvoker(), TrackerThread);
+
+        Logger = TransactionServerLogger;
 
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraStartTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraRegisterTransactionActions, Unretained(this)));
@@ -324,6 +322,7 @@ public:
         transaction->SetState(ETransactionState::Committed);
 
         TransactionCommitted_.Fire(transaction);
+
         RunCommitTransactionActions(transaction);
 
         auto* parent = transaction->GetParent();
@@ -399,6 +398,7 @@ public:
         transaction->SetState(ETransactionState::Aborted);
 
         TransactionAborted_.Fire(transaction);
+
         RunAbortTransactionActions(transaction);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -689,7 +689,7 @@ private:
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
-        auto* transaction = GetTransaction(transactionId);
+        auto* transaction = GetTransactionOrThrow(transactionId);
 
         auto state = transaction->GetPersistentState();
         if (state != ETransactionState::Active) {

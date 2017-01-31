@@ -38,8 +38,6 @@
 #include <contrib/libs/pycxx/Extensions.hxx>
 #include <contrib/libs/pycxx/Objects.hxx>
 
-#include <iostream>
-
 namespace NYT {
 namespace NPython {
 
@@ -106,8 +104,6 @@ public:
         , Logger(NLogging::TLogger(NYT::NPython::Logger)
             .AddTag("DriverId: %v", Id_))
     {
-        LOG_INFO("Driver created");
-
         auto configDict = ExtractArgument(args, kwargs, "config");
         ValidateArgumentsEmpty(args, kwargs);
 
@@ -123,10 +119,10 @@ public:
         YCHECK(ActiveDrivers.emplace(Id_, UnderlyingDriver_).second);
     }
 
-    virtual ~TDriver()
+    ~TDriver()
     {
         UnderlyingDriver_->Terminate();
-        LOG_INFO("Driver destroyed");
+        ActiveDrivers.erase(Id_);
     }
 
     static void InitType()
@@ -144,7 +140,6 @@ public:
         PYCXX_ADD_KEYWORDS_METHOD(build_snapshot, BuildSnapshot, "Forces to build a snapshot");
         PYCXX_ADD_KEYWORDS_METHOD(gc_collect, GCCollect, "Runs garbage collection");
         PYCXX_ADD_KEYWORDS_METHOD(clear_metadata_caches, ClearMetadataCaches, "Clears metadata caches");
-        PYCXX_ADD_KEYWORDS_METHOD(terminate, Terminate, "Terminates the instance");
 
         behaviors().readyType();
     }
@@ -343,19 +338,6 @@ public:
         } CATCH("Failed to clear metadata caches");
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, ClearMetadataCaches)
-
-    Py::Object Terminate(Py::Tuple& args, Py::Dict& kwargs)
-    {
-        ValidateArgumentsEmpty(args, kwargs);
-
-        try {
-            ActiveDrivers.erase(Id_);
-            UnderlyingDriver_->Terminate();
-            LOG_INFO("Driver terminated");
-            return Py::None();
-        } CATCH("Failed to terminate the driver");
-    }
-    PYCXX_KEYWORDS_METHOD_DECL(TDriver, Terminate)
 
 private:
     const TGuid Id_;

@@ -13,6 +13,8 @@ using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NProfiling;
 
+using std::round;
+
 ////////////////////////////////////////////////////////////////////
 
 //! Nodes having less free memory are considered fully occupied,
@@ -77,7 +79,7 @@ ITERATE_JOB_RESOURCES(XX)
 TNodeResources TJobResources::ToNodeResources() const
 {
     TNodeResources result;
-    #define XX(name, Name) result.set_##name(Name##_);
+    #define XX(name, Name) result.set_##name(static_cast<decltype(result.name())>(Name##_));
     ITERATE_JOB_RESOURCES(XX)
     #undef XX
     return result;
@@ -140,19 +142,9 @@ void ProfileResources(
     const Stroka& prefix,
     const TTagIdList& tagIds)
 {
-    #define XX(name, Name) profiler.Enqueue(prefix + "/" #name, resources.Get##Name(), EMetricType::Gauge, tagIds);
+    #define XX(name, Name) profiler.Enqueue(prefix + "/" #name, static_cast<i64>(resources.Get##Name()), EMetricType::Gauge, tagIds);
     ITERATE_JOB_RESOURCES(XX)
     #undef XX
-}
-
-double ComputeDemandRatio(i64 demand, i64 limit)
-{
-    return limit == 0 ? 1.0 : static_cast<double>(demand) / limit;
-}
-
-double ComputeUsageRatio(i64 usage, i64 limit)
-{
-    return limit == 0 ? 0.0 : static_cast<double>(usage) / limit;
 }
 
 EResourceType GetDominantResource(
@@ -161,9 +153,9 @@ EResourceType GetDominantResource(
 {
     auto maxType = EResourceType::Cpu;
     double maxRatio = 0.0;
-    auto update = [&] (i64 a, i64 b, EResourceType type) {
+    auto update = [&] (auto a, auto b, EResourceType type) {
         if (b > 0) {
-            double ratio = static_cast<double>(a) / b;
+            double ratio = static_cast<double>(a) / static_cast<double>(b);
             if (ratio > maxRatio) {
                 maxRatio = ratio;
                 maxType = type;
@@ -181,9 +173,9 @@ double GetDominantResourceUsage(
     const TJobResources& limits)
 {
     double maxRatio = 0.0;
-    auto update = [&] (i64 a, i64 b, EResourceType type) {
+    auto update = [&] (auto a, auto b, EResourceType type) {
         if (b > 0) {
-            double ratio = static_cast<double>(a) / b;
+            double ratio = static_cast<double>(a) / static_cast<double>(b);
             if (ratio > maxRatio) {
                 maxRatio = ratio;
             }
@@ -195,10 +187,12 @@ double GetDominantResourceUsage(
     return maxRatio;
 }
 
-i64 GetResource(const TJobResources& resources, EResourceType type)
+double GetResource(const TJobResources& resources, EResourceType type)
 {
     switch (type) {
-        #define XX(name, Name) case EResourceType::Name: return resources.Get##Name();
+        #define XX(name, Name) \
+            case EResourceType::Name: \
+                return static_cast<double>(resources.Get##Name());
         ITERATE_JOB_RESOURCES(XX)
         #undef XX
         default:
@@ -211,7 +205,7 @@ void SetResource(TJobResources& resources, EResourceType type, i64 value)
     switch (type) {
         #define XX(name, Name) \
             case EResourceType::Name: \
-            resources.Set##Name(static_cast<decltype(resources.Get##Name())>(value)); break;
+                resources.Set##Name(static_cast<decltype(resources.Get##Name())>(value)); break;
         ITERATE_JOB_RESOURCES(XX)
         #undef XX
         default:
@@ -224,9 +218,9 @@ double GetMinResourceRatio(
     const TJobResources& denominator)
 {
     double result = std::numeric_limits<double>::infinity();
-    auto update = [&] (i64 a, i64 b) {
+    auto update = [&] (auto a, auto b) {
         if (b > 0) {
-            result = std::min(result, static_cast<double>(a) / b);
+            result = std::min(result, static_cast<double>(a) / static_cast<double>(b));
         }
     };
     #define XX(name, Name) update(nominator.Get##Name(), denominator.Get##Name());
@@ -240,9 +234,9 @@ double GetMaxResourceRatio(
     const TJobResources& denominator)
 {
     double result = 0.0;
-    auto update = [&] (i64 a, i64 b) {
+    auto update = [&] (auto a, auto b) {
         if (b > 0) {
-            result = std::max(result, (double) a / b);
+            result = std::max(result, static_cast<double>(a) / static_cast<double>(b));
         }
     };
     #define XX(name, Name) update(nominator.Get##Name(), denominator.Get##Name());
@@ -339,7 +333,7 @@ TJobResources operator * (const TJobResources& lhs, i64 rhs)
 TJobResources operator * (const TJobResources& lhs, double rhs)
 {
     TJobResources result;
-    #define XX(name, Name) result.Set##Name(static_cast<decltype(lhs.Get##Name())>(lhs.Get##Name() * rhs + 0.5));
+    #define XX(name, Name) result.Set##Name(static_cast<decltype(lhs.Get##Name())>(round(lhs.Get##Name() * rhs)));
     ITERATE_JOB_RESOURCES(XX)
     #undef XX
     return result;
@@ -355,7 +349,7 @@ TJobResources& operator *= (TJobResources& lhs, i64 rhs)
 
 TJobResources& operator *= (TJobResources& lhs, double rhs)
 {
-    #define XX(name, Name) lhs.Set##Name(static_cast<decltype(lhs.Get##Name())>(lhs.Get##Name() * rhs + 0.5));
+    #define XX(name, Name) lhs.Set##Name(static_cast<decltype(lhs.Get##Name())>(round(lhs.Get##Name() * rhs)));
     ITERATE_JOB_RESOURCES(XX)
     #undef XX
     return lhs;

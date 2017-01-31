@@ -45,7 +45,7 @@ using namespace NApi;
 
 static const auto MountConfigUpdatePeriod = TDuration::Seconds(3);
 static const auto ReplicationTickPeriod = TDuration::MilliSeconds(100);
-static const int TabletRowsPerRead = 1024;
+static const int TabletRowsPerRead = 1000;
 static const auto HardErrorAttribute = TErrorAttribute("hard", true);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -444,7 +444,7 @@ private:
 
                 if (timestamp <= replicaSnapshot->StartReplicationTimestamp) {
                     YCHECK(row == readerRows[0]);
-                    LOG_INFO("Replication log row violates timestamp bound (StartReplicationTimstamp: %v, LogRecordTimestamp: %v)",
+                    LOG_INFO("Replication log row violates timestamp bound (StartReplicationTimestamp: %v, LogRecordTimestamp: %v)",
                         replicaSnapshot->StartReplicationTimestamp,
                         timestamp);
                     return false;

@@ -14,6 +14,8 @@
 #include <yt/ytlib/api/native_connection.h>
 #include <yt/ytlib/api/config.h>
 
+#include <yt/ytlib/chunk_client/session_id.h>
+
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 #include <yt/ytlib/node_tracker_client/channel.h>
 
@@ -35,12 +37,16 @@
 namespace NYT {
 namespace NChunkClient {
 
-using namespace NChunkClient::NProto;
 using namespace NConcurrency;
 using namespace NNodeTrackerClient;
 using namespace NRpc;
 using namespace NApi;
 using namespace NObjectClient;
+
+// Don't use NChunkClient::NProto as a whole: avoid ambiguity with NProto::TSessionId.
+using NProto::TChunkMeta;
+using NProto::TChunkInfo;
+using NProto::TDataStatistics;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -322,7 +328,8 @@ void TGroup::PutGroup(TReplicationWriterPtr writer)
     TDataNodeServiceProxy proxy(node->HeavyChannel);
     auto req = proxy.PutBlocks();
     req->SetTimeout(writer->Config_->NodeRpcTimeout);
-    ToProto(req->mutable_chunk_id(), writer->ChunkId_);
+    TSessionId sessionId(writer->ChunkId_, node->ChunkReplica.GetMediumIndex());
+    ToProto(req->mutable_session_id(), sessionId);
     req->set_first_block_index(FirstBlockIndex_);
     req->set_populate_cache(writer->Config_->PopulateCache);
     req->Attachments().insert(req->Attachments().begin(), Blocks_.begin(), Blocks_.end());
@@ -378,7 +385,8 @@ void TGroup::SendGroup(TReplicationWriterPtr writer, TNodePtr srcNode)
         auto req = proxy.SendBlocks();
         // Set double timeout for SendBlocks since executing it implies another (src->dst) RPC call.
         req->SetTimeout(writer->Config_->NodeRpcTimeout * 2);
-        ToProto(req->mutable_chunk_id(), writer->ChunkId_);
+        TSessionId sessionId(writer->ChunkId_, dstNode->ChunkReplica.GetMediumIndex());
+        ToProto(req->mutable_session_id(), sessionId);
         req->set_first_block_index(FirstBlockIndex_);
         req->set_block_count(Blocks_.size());
         ToProto(req->mutable_target_descriptor(), dstNode->Descriptor);
@@ -586,7 +594,8 @@ void TReplicationWriter::StartChunk(TChunkReplica target)
     TDataNodeServiceProxy proxy(lightChannel);
     auto req = proxy.StartChunk();
     req->SetTimeout(Config_->NodeRpcTimeout);
-    ToProto(req->mutable_chunk_id(), ChunkId_);
+    TSessionId sessionId(ChunkId_, target.GetMediumIndex());
+    ToProto(req->mutable_session_id(), sessionId);
     ToProto(req->mutable_workload_descriptor(), Config_->WorkloadDescriptor);
     req->set_sync_on_close(Config_->SyncOnClose);
     ToProto(req->mutable_placement_id(), Options_->PlacementId);
@@ -742,7 +751,8 @@ void TReplicationWriter::FlushBlocks(TNodePtr node, int blockIndex)
     TDataNodeServiceProxy proxy(node->LightChannel);
     auto req = proxy.FlushBlocks();
     req->SetTimeout(Config_->NodeRpcTimeout);
-    ToProto(req->mutable_chunk_id(), ChunkId_);
+    TSessionId sessionId(ChunkId_, node->ChunkReplica.GetMediumIndex());
+    ToProto(req->mutable_session_id(), sessionId);
     req->set_block_index(blockIndex);
 
     auto rspOrError = WaitFor(req->Invoke());
@@ -860,7 +870,8 @@ void TReplicationWriter::FinishChunk(TNodePtr node)
     TDataNodeServiceProxy proxy(node->LightChannel);
     auto req = proxy.FinishChunk();
     req->SetTimeout(Config_->NodeRpcTimeout);
-    ToProto(req->mutable_chunk_id(), ChunkId_);
+    TSessionId sessionId(ChunkId_, node->ChunkReplica.GetMediumIndex());
+    ToProto(req->mutable_session_id(), sessionId);
     *req->mutable_chunk_meta() = ChunkMeta_;
     req->set_block_count(BlockCount_);
 
@@ -894,7 +905,8 @@ void TReplicationWriter::SendPing(const TWeakPtr<TNode>& node_)
     TDataNodeServiceProxy proxy(node->LightChannel);
     auto req = proxy.PingSession();
     req->SetTimeout(Config_->NodeRpcTimeout);
-    ToProto(req->mutable_chunk_id(), ChunkId_);
+    TSessionId sessionId(ChunkId_, node->ChunkReplica.GetMediumIndex());
+    ToProto(req->mutable_session_id(), sessionId);
     req->Invoke();
 }
 
@@ -918,7 +930,8 @@ void TReplicationWriter::CancelNode(TNodePtr node, bool abort)
     if (abort) {
         TDataNodeServiceProxy proxy(node->LightChannel);
         auto req = proxy.CancelChunk();
-        ToProto(req->mutable_chunk_id(), ChunkId_);
+        TSessionId sessionId(ChunkId_, node->ChunkReplica.GetMediumIndex());
+        ToProto(req->mutable_session_id(), sessionId);
         req->Invoke();
     }
 }

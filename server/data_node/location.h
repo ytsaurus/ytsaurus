@@ -149,9 +149,6 @@ public:
 
     const Stroka& GetMediumName() const;
 
-    int GetMediumIndex() const;
-    void SetMediumIndex(int mediumIndex);
-
 protected:
     NCellNode::TBootstrap* const Bootstrap_;
 
@@ -190,8 +187,6 @@ private:
     NProfiling::TProfiler Profiler_;
     //! Indexed by |(ioDirection, ioCategory)|.
     std::vector<NProfiling::TSimpleCounter> PendingIOSizeCounters_;
-
-    int MediumIndex_ = NChunkClient::InvalidMediumIndex;
 
     static EIOCategory ToIOCategory(const TWorkloadDescriptor& workloadDescriptor);
     NProfiling::TSimpleCounter& GetPendingIOSizeCounter(

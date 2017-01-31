@@ -447,7 +447,7 @@ public:
                 NSecurityClient::EErrorCode::AuthorizationError,
                 "User %Qv has been denied access to pool %v",
                 user,
-                path)
+                path.empty() ? RootPoolName : path)
                 << result.ToError(user, permission);
         }
     }

@@ -58,7 +58,8 @@ private:
             .SetPresent(tablet->GetCell()));
         descriptors->push_back(TAttributeDescriptor("mount_revision")
             .SetPresent(tablet->GetCell()));
-        descriptors->push_back("stores_update_prepared");
+        descriptors->push_back(TAttributeDescriptor("stores_update_prepared")
+            .SetPresent(tablet->GetStoresUpdatePreparedTransaction() != nullptr));
         descriptors->push_back("index");
         descriptors->push_back("table_id");
         descriptors->push_back(TAttributeDescriptor("pivot_key")
@@ -123,9 +124,9 @@ private:
             }
         }
 
-        if (key == "stores_update_prepared") {
+        if (key == "stores_update_prepared_transaction_id" && tablet->GetStoresUpdatePreparedTransaction()) {
             BuildYsonFluently(consumer)
-                .Value(tablet->GetStoresUpdatePrepared());
+                .Value(tablet->GetStoresUpdatePreparedTransaction()->GetId());
             return true;
         }
 

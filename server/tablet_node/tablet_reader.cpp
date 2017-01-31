@@ -384,7 +384,6 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
 ////////////////////////////////////////////////////////////////////////////////
 
 IVersionedReaderPtr CreateVersionedTabletReader(
-    IInvokerPtr poolInvoker,
     TTabletSnapshotPtr tabletSnapshot,
     std::vector<ISortedStorePtr> stores,
     TOwningKey lowerBound,

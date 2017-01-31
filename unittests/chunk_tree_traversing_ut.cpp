@@ -2,7 +2,7 @@
 
 #include <yt/server/chunk_server/chunk.h>
 #include <yt/server/chunk_server/chunk_list.h>
-#include <yt/server/chunk_server/chunk_tree_traversing.h>
+#include <yt/server/chunk_server/chunk_tree_traverser.h>
 #include <yt/server/chunk_server/helpers.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta.pb.h>
@@ -97,13 +97,10 @@ public:
         return true;
     }
 
-    virtual void OnError(const TError& error) override
+    virtual void OnFinish(const TError& error) override
     {
-        GTEST_FAIL();
+        ASSERT_TRUE(error.IsOK());
     }
-
-    virtual void OnFinish() override
-    { }
 
     const std::set<TChunkInfo>& GetChunkInfos() const
     {

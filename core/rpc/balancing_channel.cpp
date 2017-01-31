@@ -55,7 +55,7 @@ public:
         AddPeers(Config_->Addresses);
 
         Logger = RpcClientLogger;
-        Logger.AddTag("This: %v, Endpoint: %v, Service: %v",
+        Logger.AddTag("ChannelId: %v, Endpoint: %v, Service: %v",
             TGuid::Create(),
             EndpointDescription_,
             ServiceName_);

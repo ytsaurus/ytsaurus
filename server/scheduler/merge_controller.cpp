@@ -521,7 +521,7 @@ protected:
 
 
     // Unsorted helpers.
-    virtual int GetCpuLimit() const
+    virtual TCpuResource GetCpuLimit() const
     {
         return 1;
     }
@@ -764,7 +764,7 @@ private:
         return !IsExplicitJobCount;
     }
 
-    virtual int GetCpuLimit() const override
+    virtual TCpuResource GetCpuLimit() const override
     {
         return Spec->Mapper->CpuLimit;
     }
@@ -1990,7 +1990,7 @@ protected:
         return !IsExplicitJobCount;
     }
 
-    virtual int GetCpuLimit() const override
+    virtual TCpuResource GetCpuLimit() const override
     {
         return Spec->Reducer->CpuLimit;
     }
