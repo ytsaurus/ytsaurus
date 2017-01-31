@@ -60,9 +60,12 @@ class Config(types.ModuleType, client_state.ClientState):
             "KEYBOARD_ABORT": "operation_tracker/abort_on_sigint",
 
             "FILE_STORAGE": "remote_temp_files_directory",
-            "TEMP_TABLES_STORAGE": "remote_temp_tables_directory",
             "LOCAL_TMP_DIR": "local_temp_directory",
-            "REMOVE_TEMP_FILES": "clear_local_temp_files",
+
+            # Deprecated
+            "TEMP_TABLES_STORAGE": "remote_temp_tables_directory",
+            # Non-deprecated version of TEMP_TABLES_STORAGE
+            "TEMP_DIR": "remote_temp_tables_directory",
 
             "PREFIX": "prefix",
 
