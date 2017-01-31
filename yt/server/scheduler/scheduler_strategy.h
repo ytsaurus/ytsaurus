@@ -23,13 +23,13 @@ struct ISchedulerStrategyHost
     virtual ~ISchedulerStrategyHost() = default;
 
     virtual TJobResources GetTotalResourceLimits() = 0;
-    virtual TJobResources GetResourceLimits(const TNullable<Stroka>& tag) = 0;
+    virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) = 0;
 
     virtual void ActivateOperation(const TOperationId& operationId) = 0;
 
     virtual int GetExecNodeCount() const = 0;
     virtual int GetTotalNodeCount() const = 0;
-    virtual std::vector<TExecNodeDescriptor> GetExecNodeDescriptors(const TNullable<Stroka>& tag) const = 0;
+    virtual std::vector<TExecNodeDescriptor> GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const = 0;
 
     virtual void ValidatePoolPermission(
         const NYPath::TYPath& path,
@@ -128,7 +128,7 @@ struct ISchedulerStrategy
         const TOperationId& operationId,
         NYson::IYsonConsumer* consumer) = 0;
 
-    //! Similar to #BuildOperationProgress but constructs a reduced version to used by UI.
+    //! Similar to #BuildOperationProgress but constructs a reduced version to be used by UI.
     virtual void BuildBriefOperationProgress(
         const TOperationId& operationId,
         NYson::IYsonConsumer* consumer) = 0;

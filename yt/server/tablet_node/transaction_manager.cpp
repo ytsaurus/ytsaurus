@@ -140,7 +140,7 @@ public:
             transactionId);
     }
 
-    TTransaction* GetTransactionOrThrow(const TTransactionId& transactionId)
+    TTransaction* FindTransaction(const TTransactionId& transactionId)
     {
         if (auto* transaction = TransientTransactionMap_.Find(transactionId)) {
             return transaction;
@@ -148,10 +148,19 @@ public:
         if (auto* transaction = PersistentTransactionMap_.Find(transactionId)) {
             return transaction;
         }
-        THROW_ERROR_EXCEPTION(
-            NTransactionClient::EErrorCode::NoSuchTransaction,
-            "No such transaction %v",
-            transactionId);
+        return nullptr;        
+    }
+
+    TTransaction* GetTransactionOrThrow(const TTransactionId& transactionId)
+    {
+        auto* transaction = FindTransaction(transactionId);
+        if (!transaction) {
+            THROW_ERROR_EXCEPTION(
+                NTransactionClient::EErrorCode::NoSuchTransaction,
+                "No such transaction %v",
+                transactionId);            
+        }
+        return transaction;
     }
 
     TTransaction* GetOrCreateTransaction(
@@ -185,7 +194,7 @@ public:
         auto& map = transient ? TransientTransactionMap_ : PersistentTransactionMap_;
         auto* transaction = map.Insert(transactionId, std::move(transactionHolder));
 
-        if (!transient && IsLeader()) {
+        if (IsLeader()) {
             CreateLeases(transaction);
         }
 
@@ -204,7 +213,9 @@ public:
     {
         if (auto* transaction = TransientTransactionMap_.Find(transactionId)) {
             transaction->SetTransient(false);
-            CreateLeases(transaction);
+            if (IsLeader()) {
+                CreateLeases(transaction);
+            }
             auto transactionHolder = TransientTransactionMap_.Release(transactionId);
             PersistentTransactionMap_.Insert(transactionId, std::move(transactionHolder));
             LOG_DEBUG_UNLESS(IsRecovery(), "Transaction became persistent (TransactionId: %v)",
@@ -223,6 +234,10 @@ public:
     void DropTransaction(TTransaction* transaction)
     {
         YCHECK(transaction->GetTransient());
+
+        if (IsLeader()) {
+            CloseLeases(transaction);
+        }
 
         auto transactionId = transaction->GetId();
         TransientTransactionMap_.Remove(transactionId);
@@ -471,7 +486,9 @@ private:
 
     void CreateLeases(TTransaction* transaction)
     {
-        YCHECK(!transaction->GetTransient());
+        if (transaction->GetHasLeases()) {
+            return;
+        }
 
         auto invoker = Slot_->GetEpochAutomatonInvoker();
 
@@ -489,13 +506,21 @@ private:
             BIND(&TImpl::OnTransactionTimedOut, MakeStrong(this), transaction->GetId())
                 .Via(invoker),
             deadline);
+
+        transaction->SetHasLeases(true);
     }
 
     void CloseLeases(TTransaction* transaction)
     {
+        if (!transaction->GetHasLeases()) {
+            return;
+        }
+
         LeaseTracker_->UnregisterTransaction(transaction->GetId());
 
         TDelayedExecutor::CancelAndClear(transaction->TimeoutCookie());
+
+        transaction->SetHasLeases(false);
     }
 
 
@@ -503,7 +528,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto* transaction = FindPersistentTransaction(id);
+        auto* transaction = FindTransaction(id);
         if (!transaction) {
             return;
         }
@@ -523,7 +548,7 @@ private:
 
     void OnTransactionTimedOut(const TTransactionId& id)
     {
-        auto* transaction = FindPersistentTransaction(id);
+        auto* transaction = FindTransaction(id);
         if (!transaction) {
             return;
         }
@@ -604,8 +629,6 @@ private:
 
         TTabletAutomatonPart::OnStopLeading();
 
-        LeaseTracker_->Stop();
-
         if (BarrierCheckExecutor_) {
             BarrierCheckExecutor_->Stop();
             BarrierCheckExecutor_.Reset();
@@ -632,7 +655,10 @@ private:
             transaction->SetTransientSignature(transaction->GetPersistentSignature());
             transaction->ResetFinished();
             TransactionTransientReset_.Fire(transaction);
+            CloseLeases(transaction);
         }
+
+        LeaseTracker_->Stop();
     }
 
 

@@ -115,6 +115,10 @@ private:
             return;
         }
 
+        if (tablet->GetConfig()->DisableCompactionAndPartitioning) {
+            return;
+        }
+
         ScanPartitionForCompaction(slot, tablet->GetEden());
         ScanEdenForPartitioning(slot, tablet->GetEden());
 

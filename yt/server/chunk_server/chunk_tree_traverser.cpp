@@ -107,7 +107,7 @@ protected:
             GuardedTraverse();
         } catch (const std::exception& ex) {
             Shutdown();
-            Visitor_->OnError(TError(ex));
+            Visitor_->OnFinish(TError(ex));
         }
     }
 
@@ -120,7 +120,7 @@ protected:
             if (IsStackEmpty()) {
                 Shutdown();
                 Callbacks_->OnTimeSpent(timer.GetElapsed());
-                Visitor_->OnFinish();
+                Visitor_->OnFinish(TError());
                 return;
             }
 
@@ -129,7 +129,7 @@ protected:
 
             if (!chunkList->IsAlive() || chunkList->GetVersion() != entry.ChunkListVersion) {
                 THROW_ERROR_EXCEPTION(
-                    NRpc::EErrorCode::Unavailable,
+                    NChunkClient::EErrorCode::OptimisticLockFailure,
                     "Optimistic locking failed for chunk list %v",
                     chunkList->GetId());
             }
@@ -600,13 +600,10 @@ public:
         return true;
     }
 
-    virtual void OnError(const TError& /*error*/) override
+    virtual void OnFinish(const TError& error) override
     {
-        Y_UNREACHABLE();
+        YCHECK(error.IsOK());
     }
-
-    virtual void OnFinish() override
-    { }
 
 private:
     std::vector<TChunk*>* const Chunks_;

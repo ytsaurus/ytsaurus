@@ -191,6 +191,9 @@ public:
     virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildMemoryDigestStatistics(NYson::IYsonConsumer* consumer) const override;
 
+    virtual NYson::TYsonString GetProgress() const override;
+    virtual NYson::TYsonString GetBriefProgress() const override;
+
     NYson::TYsonString BuildInputPathYson(const TJobId& jobId) const override;
 
     virtual void Persist(const TPersistenceContext& context) override;
@@ -243,6 +246,8 @@ protected:
     IInvokerPtr CancelableInvoker;
 
     std::atomic<EControllerState> State = {EControllerState::Preparing};
+
+    bool RevivedFromSnapshot = false;
 
     // These totals are approximate.
     int TotalEstimatedInputChunkCount = 0;
@@ -736,6 +741,8 @@ protected:
 
     void CheckTimeLimit();
 
+    void CheckAvailableExecNodes();
+
     void DoScheduleJob(
         ISchedulingContext* context,
         const TJobResources& jobLimits,
@@ -1131,11 +1138,16 @@ private:
     //! Runs periodic time limit checks that fail operation on timeout.
     NConcurrency::TPeriodicExecutorPtr CheckTimeLimitExecutor;
 
+    //! Runs periodic checks to verify that compatible nodes are present in the cluster.
+    NConcurrency::TPeriodicExecutorPtr ExecNodesCheckExecutor;
+
     //! Exec node count do not consider scheduling tag.
     //! But descriptors do.
     int ExecNodeCount_ = 0;
     std::vector<TExecNodeDescriptor> ExecNodesDescriptors_;
     TInstant LastGetExecNodesInformationTime_;
+
+    TInstant AvaialableNodesLastSeenTime_;
 
     const std::unique_ptr<NTableClient::IValueConsumer> EventLogValueConsumer_;
     const std::unique_ptr<NYson::IYsonConsumer> EventLogTableConsumer_;
@@ -1151,6 +1163,14 @@ private:
     std::unique_ptr<IHistogram> EstimatedInputDataSizeHistogram_;
     std::unique_ptr<IHistogram> InputDataSizeHistogram_;
 
+    NYson::TYsonString ProgressString_;
+    NYson::TYsonString BriefProgressString_;
+
+    TSpinLock ProgressLock_;
+    NConcurrency::TPeriodicExecutorPtr ProgressBuildExecutor_;
+
+    void BuildAndSaveProgress();
+
     void UpdateMemoryDigests(TJobletPtr joblet, const NJobTrackerClient::TStatistics& statistics);
 
     void InitializeHistograms();
@@ -1160,6 +1180,8 @@ private:
 
     void GetExecNodesInformation();
     int GetExecNodeCount();
+
+    bool ShouldSkipSanityCheck();
 
     void UpdateJobStatistics(const TJobSummary& jobSummary);
 

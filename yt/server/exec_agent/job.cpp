@@ -568,7 +568,7 @@ private:
         }
     }
 
-    void ValidateJobPhase(EJobPhase expectedPhase)
+    void ValidateJobPhase(EJobPhase expectedPhase) const
     {
         if (JobPhase_ != expectedPhase) {
             THROW_ERROR_EXCEPTION("Unexpected job phase")

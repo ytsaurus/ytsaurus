@@ -100,6 +100,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/misc/crash_handler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/demangle.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/digest.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/dnf.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/error.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/error.proto
   ${CMAKE_CURRENT_LIST_DIR}/misc/fs.cpp

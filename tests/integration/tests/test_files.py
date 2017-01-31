@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, skip_if_multicell
+from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
 ##################################################################
@@ -170,7 +170,6 @@ class TestFiles(YTEnvSetup):
 
         assert read_file("//tmp/f") == content
 
-    @skip_if_multicell
     def test_concatenate(self):
         create("file", "//tmp/fa")
         write_file("//tmp/fa", "a")
@@ -188,7 +187,6 @@ class TestFiles(YTEnvSetup):
         concatenate(["//tmp/fa", "//tmp/fb"], "<append=true>//tmp/f")
         assert read_file("//tmp/f") == "abab"
 
-    @skip_if_multicell
     def test_concatenate_incorrect_types(self):
         create("file", "//tmp/f1")
         create("file", "//tmp/f2")

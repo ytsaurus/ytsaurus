@@ -25,9 +25,7 @@ struct IChunkVisitor
         const NChunkClient::TReadLimit& startLimit,
         const NChunkClient::TReadLimit& endLimit) = 0;
 
-    virtual void OnError(const TError& error) = 0;
-
-    virtual void OnFinish() = 0;
+    virtual void OnFinish(const TError& error) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkVisitor)

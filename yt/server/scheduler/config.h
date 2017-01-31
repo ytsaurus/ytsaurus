@@ -84,6 +84,9 @@ public:
     //! in operation spec. Used only for testing purposes.
     bool EnableFailControllerSpecOption;
 
+    //! To investigate CPU load of node shard threads.
+    bool EnableSchedulingTags;
+
     TFairShareStrategyConfig()
     {
         RegisterParameter("min_share_preemption_timeout", MinSharePreemptionTimeout)
@@ -170,6 +173,9 @@ public:
 
         RegisterParameter("enable_fail_controller_spec_option", EnableFailControllerSpecOption)
             .Default(false);
+
+        RegisterParameter("enable_scheduling_tags", EnableSchedulingTags)
+            .Default(true);
 
         RegisterValidator([&] () {
             if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
@@ -540,6 +546,10 @@ public:
 
     TDuration OperationTimeLimitCheckPeriod;
 
+    TDuration AvailableExecNodesCheckPeriod;
+
+    TDuration OperationBuildProgressPeriod;
+
     TDuration TaskUpdatePeriod;
 
     //! Jobs running on node are logged periodically or when they change their state.
@@ -610,8 +620,19 @@ public:
     // TODO(ignat): rename to SafeExecNodeCount.
     int SafeOnlineNodeCount;
 
+    //! Don't check resource demand for sanity if scheduler is online
+    //! less than this timeout.
+    TDuration SafeSchedulerOnlineTime;
+
     //! Time between two consecutive calls in operation controller to get exec nodes information from scheduler.
-    TDuration GetExecNodesInformationDelay;
+    TDuration ControllerUpdateExecNodesInformationDelay;
+
+    //! Timeout to store cached value of exec nodes information
+    //! for scheduling tag filter without access.
+    TDuration SchedulingTagFilterExpireTimeout;
+
+    //! Time between two consecutive calls in node shard to calculate exec nodes list.
+    TDuration NodeShardUpdateExecNodesInformationDelay;
 
     //! Maximum number of foreign chunks to locate per request.
     int MaxChunksPerLocateRequest;
@@ -717,6 +738,9 @@ public:
     // Timeout to try interrupt job before abort it.
     TDuration JobInterruptTimeout;
 
+    // Total number of data slices in operation, summed up over all jobs.
+    i64 MaxTotalSliceCount;
+
     TSchedulerConfig()
     {
         RegisterParameter("controller_thread_count", ControllerThreadCount)
@@ -785,6 +809,12 @@ public:
 
         RegisterParameter("operation_time_limit_check_period", OperationTimeLimitCheckPeriod)
             .Default(TDuration::Seconds(1));
+
+        RegisterParameter("available_exec_nodes_check_period", AvailableExecNodesCheckPeriod)
+            .Default(TDuration::Seconds(5));
+
+        RegisterParameter("operation_build_progress_period", OperationBuildProgressPeriod)
+            .Default(TDuration::Seconds(3));
 
         RegisterParameter("jobs_logging_period", JobsLoggingPeriod)
             .Default(TDuration::Seconds(30));
@@ -859,8 +889,14 @@ public:
             .GreaterThanOrEqual(0)
             .Default(1);
 
-        RegisterParameter("get_exec_nodes_information_delay", GetExecNodesInformationDelay)
+        RegisterParameter("safe_scheduler_online_time", SafeSchedulerOnlineTime)
+            .Default(TDuration::Minutes(10));
+
+        RegisterParameter("controller_update_exec_nodes_information_delay", ControllerUpdateExecNodesInformationDelay)
             .Default(TDuration::Seconds(1));
+
+        RegisterParameter("scheduling_tag_filter_expire_timeout", SchedulingTagFilterExpireTimeout)
+            .Default(TDuration::Hours(1));
 
         RegisterParameter("max_chunks_per_locate_request", MaxChunksPerLocateRequest)
             .GreaterThan(0)
@@ -942,7 +978,7 @@ public:
                 .BeginList()
                 .EndList()->AsList());
 
-        //! By default we disable job size adjustment for partition maps, 
+        //! By default we disable job size adjustment for partition maps,
         //! since it may lead to partition data skew between nodes.
         RegisterParameter("enable_partition_map_job_size_adjustment", EnablePartitionMapJobSizeAdjustment)
             .Default(false);
@@ -988,6 +1024,10 @@ public:
 
         RegisterParameter("job_interrupt_timeout", JobInterruptTimeout)
             .Default(TDuration::Seconds(10));
+
+        RegisterParameter("max_total_slice_count", MaxTotalSliceCount)
+            .Default((i64) 10 * 1000 * 1000)
+            .GreaterThan(0);
 
         RegisterInitializer([&] () {
             ChunkLocationThrottler->Limit = 10000;

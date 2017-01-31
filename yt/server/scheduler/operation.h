@@ -83,9 +83,6 @@ public:
     //! Maximum number of stderrs to capture.
     DEFINE_BYVAL_RW_PROPERTY(int, MaxStderrCount);
 
-    //! Scheduling tag.
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<Stroka>, SchedulingTag);
-
     //! Controller that owns the operation.
     DEFINE_BYVAL_RW_PROPERTY(IOperationControllerPtr, Controller);
 

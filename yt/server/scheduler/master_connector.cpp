@@ -1202,31 +1202,20 @@ private:
 
             // Set progress.
             {
-                auto req = TYPathProxy::Set(operationPath + "/@progress");
-                req->set_value(BuildYsonStringFluently()
-                    .BeginMap()
-                        .Do([=] (IYsonConsumer* consumer) {
-                            WaitFor(
-                                BIND(&IOperationController::BuildProgress, controller)
-                                    .AsyncVia(controller->GetInvoker())
-                                    .Run(consumer));
-                        })
-                    .EndMap().GetData());
-                batchReq->AddRequest(req, "update_op_node");
+                auto progress = controller->GetProgress();
+                YCHECK(progress);
 
+                auto req = TYPathProxy::Set(operationPath + "/@progress");
+                req->set_value(progress.GetData());
+                batchReq->AddRequest(req, "update_op_node");
             }
             // Set brief progress.
             {
+                auto progress = controller->GetBriefProgress();
+                YCHECK(progress);
+
                 auto req = TYPathProxy::Set(operationPath + "/@brief_progress");
-                req->set_value(BuildYsonStringFluently()
-                    .BeginMap()
-                        .Do([=] (IYsonConsumer* consumer) {
-                            WaitFor(
-                                BIND(&IOperationController::BuildBriefProgress, controller)
-                                    .AsyncVia(controller->GetInvoker())
-                                    .Run(consumer));
-                        })
-                    .EndMap().GetData());
+                req->set_value(progress.GetData());
                 batchReq->AddRequest(req, "update_op_node");
             }
         }

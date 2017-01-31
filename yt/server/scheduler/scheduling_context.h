@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "scheduling_tag.h"
 
 #include <yt/ytlib/object_client/public.h>
 
@@ -32,7 +33,7 @@ struct ISchedulingContext
     //! Returns |true| if any more new jobs can be scheduled at this node.
     virtual bool CanStartMoreJobs() const = 0;
     //! Returns |true| if the node can handle jobs demanding a certain #tag.
-    virtual bool CanSchedule(const TNullable<Stroka>& tag) const = 0;
+    virtual bool CanSchedule(const TSchedulingTagFilter& filter) const = 0;
 
     virtual TJobPtr StartJob(const TOperationId& operationId, const TJobStartRequest& jobStartRequest) = 0;
 

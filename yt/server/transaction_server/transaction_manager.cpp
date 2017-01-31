@@ -64,10 +64,6 @@ using namespace NSecurityServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TransactionServerLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TTransactionManager::TTransactionTypeHandler
     : public TObjectTypeHandlerWithMapBase<TTransaction>
 {
@@ -144,6 +140,8 @@ public:
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(), AutomatonThread);
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetTransactionTrackerInvoker(), TrackerThread);
+
+        Logger = TransactionServerLogger;
 
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraStartTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraRegisterTransactionActions, Unretained(this)));
@@ -325,11 +323,7 @@ public:
 
         TransactionCommitted_.Fire(transaction);
 
-        try {
-            RunCommitTransactionActions(transaction);
-        } catch (const std::exception& ex) {
-            LOG_ERROR_UNLESS(IsRecovery(), ex, "Unexpected error: failed to execute transaction commit actions");
-        }
+        RunCommitTransactionActions(transaction);
 
         auto* parent = transaction->GetParent();
         if (parent) {
@@ -405,11 +399,7 @@ public:
 
         TransactionAborted_.Fire(transaction);
 
-        try {
-            RunAbortTransactionActions(transaction);
-        } catch (const std::exception& ex) {
-            LOG_ERROR_UNLESS(IsRecovery(), ex, "Unexpected error: failed to execute transaction abort actions");
-        }
+        RunAbortTransactionActions(transaction);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         for (const auto& entry : transaction->ExportedObjects()) {
