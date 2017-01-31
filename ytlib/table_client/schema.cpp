@@ -615,7 +615,7 @@ void ValidateColumnSchema(const TColumnSchema& columnSchema, bool isTableDynamic
             THROW_ERROR_EXCEPTION("Column name cannot be empty");
         }
 
-        if (columnSchema.Name.has_prefix(SystemColumnNamePrefix)) {
+        if (columnSchema.Name.StartsWith(SystemColumnNamePrefix)) {
             THROW_ERROR_EXCEPTION("Column name cannot start with prefix %Qv",
                 SystemColumnNamePrefix);
         }
