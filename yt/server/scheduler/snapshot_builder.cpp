@@ -72,8 +72,9 @@ TFuture<void> TSnapshotBuilder::Run()
 
     // Capture everything needed in Build.
     for (auto operation : Scheduler_->GetOperations()) {
-        if (operation->GetState() != EOperationState::Running)
+        if (operation->GetState() != EOperationState::Running) {
             continue;
+        }
 
         auto job = New<TSnapshotJob>();
         job->Operation = operation;
@@ -127,7 +128,9 @@ TFuture<void> TSnapshotBuilder::Run()
     LOG_INFO("Resuming controllers");
 
     for (const auto& job : Jobs_) {
-        job->Operation->GetController()->Resume();
+        if (job->Operation->GetController()) {
+            job->Operation->GetController()->Resume();
+        }
     }
 
     LOG_INFO("Controllers resumed");
@@ -187,7 +190,7 @@ void TSnapshotBuilder::RunChild()
         std::vector<TBuildSnapshotJob> jobs;
         for (int jobIndex = 0; jobIndex < Jobs_.size(); ++jobIndex) {
             auto& job = Jobs_[jobIndex];
-            if (!job->Suspended) {
+            if (!job->Suspended || job->Operation->GetState() != EOperationState::Running) {
                 continue;
             }
             TBuildSnapshotJob snapshotJob;
@@ -213,7 +216,7 @@ TFuture<std::vector<TError>> TSnapshotBuilder::UploadSnapshots()
 {
     std::vector<TFuture<void>> snapshotUploadFutures;
     for (auto& job : Jobs_) {
-        if (!job->Suspended) {
+        if (!job->Suspended || job->Operation->GetState() != EOperationState::Running) {
             continue;
         }
         auto controller = job->Operation->GetController();

@@ -137,6 +137,10 @@ public:
             params,
             Host,
             operation);
+
+        int index = RegisterSchedulingTagFilter(TSchedulingTagFilter(spec->SchedulingTagFilter));
+        operationElement->SetSchedulingTagFilterIndex(index);
+
         YCHECK(OperationIdToElement.insert(std::make_pair(operation->GetId(), operationElement)).second);
 
         auto poolName = spec->Pool ? *spec->Pool : operation->GetAuthenticatedUser();
@@ -168,6 +172,8 @@ public:
 
         auto operationElement = GetOperationElement(operation->GetId());
         auto* pool = static_cast<TPool*>(operationElement->GetParent());
+
+        UnregisterSchedulingTagFilter(operationElement->GetSchedulingTagFilterIndex());
 
         auto finalResourceUsage = operationElement->Finalize();
         YCHECK(OperationIdToElement.erase(operation->GetId()) == 1);
@@ -292,6 +298,16 @@ public:
                                     childPath)
                                 << ex);
                             config = New<TPoolConfig>();
+                        }
+
+                        try {
+                            config->Validate();
+                        } catch (const std::exception& ex) {
+                            errors.emplace_back(
+                                TError(
+                                    "Misconfiguration of pool %Qv found",
+                                    childPath)
+                                << ex);
                         }
 
                         auto pool = FindPool(childId);
@@ -582,6 +598,15 @@ private:
 
     std::list<TOperationPtr> OperationQueue;
 
+    std::vector<TSchedulingTagFilter> RegisteredSchedulingTagFilter;
+    std::vector<int> FreeSchedulingTagFilterIndexes;
+    struct TSchedulingTagFilterEntry
+    {
+        int Index;
+        int Count;
+    };
+    yhash_map<TSchedulingTagFilter, TSchedulingTagFilterEntry> SchedulingTagFilterToIndexAndCount;
+
     TRootElementPtr RootElement;
 
     struct TRootElementSnapshot
@@ -670,7 +695,7 @@ private:
     {
         auto& rootElement = rootElementSnapshot->RootElement;
         auto& config = rootElementSnapshot->Config;
-        auto context = TFairShareContext(schedulingContext, rootElement->GetTreeSize());
+        auto context = TFairShareContext(schedulingContext, rootElement->GetTreeSize(), RegisteredSchedulingTagFilter);
 
         auto profileTimings = [&] (
             TProfilingCounters& counters,
@@ -856,7 +881,7 @@ private:
 
         LOG_DEBUG("Heartbeat info (StartedJobs: %v, PreemptedJobs: %v, "
             "JobsScheduledDuringPreemption: %v, PreemptableJobs: %v, PreemptableResources: %v, "
-            "NonPreemptiveScheduleJobCount: %v, PreemptiveScheduleJobCount: %v, HasAggressivelyStarvingNodes: %v)",
+            "NonPreemptiveScheduleJobCount: %v, PreemptiveScheduleJobCount: %v, HasAggressivelyStarvingNodes: %v, Address: %v)",
             schedulingContext->StartedJobs().size(),
             schedulingContext->PreemptedJobs().size(),
             scheduledDuringPreemption,
@@ -864,7 +889,8 @@ private:
             FormatResources(resourceDiscount),
             nonPreemptiveScheduleJobCount,
             preemptiveScheduleJobCount,
-            context.HasAggressivelyStarvingNodes);
+            context.HasAggressivelyStarvingNodes,
+            schedulingContext->GetNodeDescriptor().Address);
     }
 
     bool IsJobPreemptable(
@@ -911,7 +937,7 @@ private:
         try {
             return ConvertTo<TStrategyOperationSpecPtr>(specNode);
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error parsing spec of pooled operation %v, defaults will be used",
+            LOG_ERROR(ex, "Error parsing strategy spec of operation %v, defaults will be used",
                 operation->GetId());
             return New<TStrategyOperationSpec>();
         }
@@ -985,6 +1011,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        int index = RegisterSchedulingTagFilter(TSchedulingTagFilter(pool->GetConfig()->SchedulingTagFilter));
+        pool->SetSchedulingTagFilterIndex(index);
         YCHECK(Pools.insert(std::make_pair(pool->GetId(), pool)).second);
         LOG_INFO("Pool registered (Pool: %v)", pool->GetId());
     }
@@ -1006,6 +1034,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        UnregisterSchedulingTagFilter(pool->GetSchedulingTagFilterIndex());
+
         YCHECK(Pools.erase(pool->GetId()) == 1);
         pool->SetAlive(false);
         auto parent = pool->GetParent();
@@ -1014,6 +1044,53 @@ private:
         LOG_INFO("Pool unregistered (Pool: %v, Parent: %v)",
             pool->GetId(),
             parent->GetId());
+    }
+
+    int RegisterSchedulingTagFilter(const TSchedulingTagFilter& filter)
+    {
+        if (filter.IsEmpty()) {
+            return EmptySchedulingTagFilterIndex;
+        }
+        auto it = SchedulingTagFilterToIndexAndCount.find(filter);
+        if (it == SchedulingTagFilterToIndexAndCount.end()) {
+            int index;
+            if (FreeSchedulingTagFilterIndexes.empty()) {
+                index = RegisteredSchedulingTagFilter.size();
+                RegisteredSchedulingTagFilter.push_back(filter);
+            } else {
+                index = FreeSchedulingTagFilterIndexes.back();
+                RegisteredSchedulingTagFilter[index] = filter;
+                FreeSchedulingTagFilterIndexes.pop_back();
+            }
+            SchedulingTagFilterToIndexAndCount.emplace(filter, TSchedulingTagFilterEntry({index, 1}));
+            return index;
+        } else {
+            ++it->second.Count;
+            return it->second.Index;
+        }
+    }
+
+    void UnregisterSchedulingTagFilter(int index)
+    {
+        if (index == EmptySchedulingTagFilterIndex) {
+            return;
+        }
+        UnregisterSchedulingTagFilter(RegisteredSchedulingTagFilter[index]);
+    }
+
+    void UnregisterSchedulingTagFilter(const TSchedulingTagFilter& filter)
+    {
+        if (filter.IsEmpty()) {
+            return;
+        }
+        auto it = SchedulingTagFilterToIndexAndCount.find(filter);
+        YCHECK(it != SchedulingTagFilterToIndexAndCount.end());
+        --it->second.Count;
+        if (it->second.Count == 0) {
+            RegisteredSchedulingTagFilter[it->second.Index] = EmptySchedulingTagFilter;
+            FreeSchedulingTagFilterIndexes.push_back(it->second.Index);
+            SchedulingTagFilterToIndexAndCount.erase(it);
+        }
     }
 
     void SetPoolParent(const TPoolPtr& pool, const TCompositeSchedulerElementPtr& parent)
@@ -1227,7 +1304,6 @@ private:
                 ansectorElement = RootElement;
             }
         }
-
 
         auto poolWithViolatedLimit = FindPoolWithViolatedOperationCountLimit(ansectorElement);
         if (poolWithViolatedLimit) {

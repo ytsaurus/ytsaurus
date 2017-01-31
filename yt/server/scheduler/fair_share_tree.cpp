@@ -47,10 +47,16 @@ TJobResources ToJobResources(const TResourceLimitsConfigPtr& config, TJobResourc
 
 TFairShareContext::TFairShareContext(
     const ISchedulingContextPtr& schedulingContext,
-    int treeSize)
+    int treeSize,
+    const std::vector<TSchedulingTagFilter>& registeredSchedulingTagFilters)
     : SchedulingContext(schedulingContext)
     , DynamicAttributesList(treeSize)
-{ }
+{
+    CanSchedule.reserve(registeredSchedulingTagFilters.size());
+    for (const auto& filter : registeredSchedulingTagFilters) {
+        CanSchedule.push_back(SchedulingContext->CanSchedule(filter));
+    }
+}
 
 TDynamicAttributes& TFairShareContext::DynamicAttributes(TSchedulerElement* element)
 {
@@ -113,19 +119,12 @@ double TSchedulerElementSharedState::GetResourceUsageRatio(
 
 ////////////////////////////////////////////////////////////////////
 
-const TNullable<Stroka> TSchedulerElement::NullNodeTag;
-
 int TSchedulerElement::EnumerateNodes(int startIndex)
 {
     YCHECK(!Cloned_);
 
     TreeIndex_ = startIndex++;
     return startIndex;
-}
-
-int TSchedulerElement::GetTreeIndex() const
-{
-    return TreeIndex_;
 }
 
 void TSchedulerElement::UpdateStrategyConfig(const TFairShareStrategyConfigPtr& config)
@@ -198,9 +197,9 @@ void TSchedulerElement::UpdateAttributes()
         GetMaxShareRatio());
 }
 
-const TNullable<Stroka>& TSchedulerElement::GetNodeTag() const
+const TSchedulingTagFilter& TSchedulerElement::GetSchedulingTagFilter() const
 {
-    return NullNodeTag;
+    return EmptySchedulingTagFilter;
 }
 
 bool TSchedulerElement::IsActive(const TDynamicAttributesList& dynamicAttributesList) const
@@ -595,7 +594,10 @@ void TCompositeSchedulerElement::PrescheduleJob(TFairShareContext& context, bool
         return;
     }
 
-    if (!context.SchedulingContext->CanSchedule(GetNodeTag())) {
+    if (StrategyConfig_->EnableSchedulingTags &&
+        SchedulingTagFilterIndex_ != EmptySchedulingTagFilterIndex &&
+        !context.CanSchedule[SchedulingTagFilterIndex_])
+    {
         attributes.Active = false;
         return;
     }
@@ -1032,6 +1034,7 @@ void TPool::SetConfig(TPoolConfigPtr config)
 
     DoSetConfig(config);
     DefaultConfigured_ = false;
+    SchedulingTagFilter_ = TSchedulingTagFilter(config->SchedulingTagFilter);
 }
 
 void TPool::SetDefaultConfig()
@@ -1040,6 +1043,7 @@ void TPool::SetDefaultConfig()
 
     DoSetConfig(New<TPoolConfig>());
     DefaultConfigured_ = true;
+    SchedulingTagFilter_ = EmptySchedulingTagFilter;
 }
 
 bool TPool::IsExplicit() const
@@ -1139,9 +1143,9 @@ void TPool::CheckForStarvation(TInstant now)
         now);
 }
 
-const TNullable<Stroka>& TPool::GetNodeTag() const
+const TSchedulingTagFilter& TPool::GetSchedulingTagFilter() const
 {
-    return Config_->SchedulingTag;
+    return SchedulingTagFilter_;
 }
 
 void TPool::UpdateBottomUp(TDynamicAttributesList& dynamicAttributesList)
@@ -1183,7 +1187,7 @@ void TPool::DoSetConfig(TPoolConfigPtr newConfig)
 
 TJobResources TPool::ComputeResourceLimits() const
 {
-    auto resourceLimits = GetHost()->GetResourceLimits(GetNodeTag()) * Config_->MaxShareRatio;
+    auto resourceLimits = GetHost()->GetResourceLimits(GetSchedulingTagFilter()) * Config_->MaxShareRatio;
     auto perTypeLimits = ToJobResources(Config_->ResourceLimits, InfiniteJobResources());
     return Min(resourceLimits, perTypeLimits);
 }
@@ -1454,6 +1458,7 @@ TOperationElement::TOperationElement(
     , TOperationElementFixedState(operation)
     , RuntimeParams_(runtimeParams)
     , Spec_(spec)
+    , SchedulingTagFilter_(spec->SchedulingTagFilter)
     , SharedState_(New<TOperationElementSharedState>())
 { }
 
@@ -1464,6 +1469,7 @@ TOperationElement::TOperationElement(
     , TOperationElementFixedState(other)
     , RuntimeParams_(other.RuntimeParams_)
     , Spec_(other.Spec_)
+    , SchedulingTagFilter_(other.SchedulingTagFilter_)
     , SharedState_(other.SharedState_)
 { }
 
@@ -1551,7 +1557,10 @@ void TOperationElement::PrescheduleJob(TFairShareContext& context, bool starving
         return;
     }
 
-    if (!context.SchedulingContext->CanSchedule(GetNodeTag())) {
+    if (StrategyConfig_->EnableSchedulingTags &&
+        SchedulingTagFilterIndex_ != EmptySchedulingTagFilterIndex &&
+        !context.CanSchedule[SchedulingTagFilterIndex_])
+    {
         attributes.Active = false;
         return;
     }
@@ -1665,9 +1674,9 @@ double TOperationElement::GetMaxShareRatio() const
     return Spec_->MaxShareRatio;
 }
 
-const TNullable<Stroka>& TOperationElement::GetNodeTag() const
+const TSchedulingTagFilter& TOperationElement::GetSchedulingTagFilter() const
 {
-    return Spec_->SchedulingTag;
+    return SchedulingTagFilter_;
 }
 
 ESchedulableStatus TOperationElement::GetStatus() const
@@ -1908,7 +1917,7 @@ TJobResources TOperationElement::ComputeResourceDemand() const
 
 TJobResources TOperationElement::ComputeResourceLimits() const
 {
-    auto maxShareLimits = GetHost()->GetResourceLimits(GetNodeTag()) * Spec_->MaxShareRatio;
+    auto maxShareLimits = GetHost()->GetResourceLimits(GetSchedulingTagFilter()) * Spec_->MaxShareRatio;
     auto perTypeLimits = ToJobResources(Spec_->ResourceLimits, InfiniteJobResources());
     return Min(maxShareLimits, perTypeLimits);
 }
@@ -1962,9 +1971,9 @@ bool TRootElement::IsRoot() const
     return true;
 }
 
-const TNullable<Stroka>& TRootElement::GetNodeTag() const
+const TSchedulingTagFilter& TRootElement::GetSchedulingTagFilter() const
 {
-    return NullNodeTag;
+    return EmptySchedulingTagFilter;
 }
 
 Stroka TRootElement::GetId() const

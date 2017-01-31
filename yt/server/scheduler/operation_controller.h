@@ -93,12 +93,15 @@ struct IOperationHost
     //! Returns the total number of online exec nodes.
     virtual int GetExecNodeCount() const = 0;
 
+    //! Returns last time the scheduler got connected to the cluster.
+    virtual TInstant GetConnectionTime() const = 0;
+
     //! Returns the descriptors of online exec nodes that can handle operations
     //! marked with a given #tag.
     /*!
      *  \note Thread affinity: any
      */
-    virtual std::vector<TExecNodeDescriptor> GetExecNodeDescriptors(const TNullable<Stroka>& tag) const = 0;
+    virtual std::vector<TExecNodeDescriptor> GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const = 0;
 
     //! Called by a controller to notify the host that the operation has
     //! finished successfully.
@@ -308,13 +311,16 @@ struct IOperationController
     //! Returns |true| when controller can build it's progress.
     virtual bool HasProgress() const = 0;
 
+    /*!
+     *  \note Invoker affinity: Controller invoker
+     */
     //! Called to construct a YSON representing the current progress.
     virtual void BuildProgress(NYson::IYsonConsumer* consumer) const = 0;
 
     /*!
      *  \note Invoker affinity: Controller invoker
      */
-    //! Similar to #BuildProgress but constructs a reduced version to used by UI.
+    //! Similar to #BuildProgress but constructs a reduced version to be used by UI.
     virtual void BuildBriefProgress(NYson::IYsonConsumer* consumer) const = 0;
 
     /*!
@@ -339,6 +345,12 @@ struct IOperationController
     //! Start building YSON representation of all input paths with all ranges processed
     //! by the job with the specified ID.
     virtual NYson::TYsonString BuildInputPathYson(const TJobId& jobId) const = 0;
+
+    //! Called to get a cached YSON string representing the current progress.
+    virtual NYson::TYsonString GetProgress() const = 0;
+
+    //! Called to get a cached YSON string representing the current brief progress.
+    virtual NYson::TYsonString GetBriefProgress() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)

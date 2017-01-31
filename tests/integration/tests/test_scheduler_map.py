@@ -1633,6 +1633,9 @@ print row + table_index
         set("//tmp/t2/@acl", [make_ace("allow", "u", "write")])
         effective_acl = get("//tmp/t2/@effective_acl")
 
+        schema = make_schema([{"name": "foo", "type": "int64"}], strict=True, unique_keys=False)
+        alter_table("//tmp/t2", schema=schema)
+
         op = map(
             waiting_jobs=True,
             dont_track=True,
@@ -1645,6 +1648,7 @@ print row + table_index
 
         assert exists(operation_path + "/output_0")
         assert effective_acl == get(operation_path + "/output_0/@acl")
+        assert schema == get(operation_path + "/output_0/@schema")
 
         op.resume_job(op.jobs[0])
         op.resume_job(op.jobs[1])
