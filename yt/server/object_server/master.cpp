@@ -98,9 +98,14 @@ private:
     {
         auto populateNodeDirectory = request->populate_node_directory();
         auto populateClusterDirectory = request->populate_cluster_directory();
-        context->SetRequestInfo("PopulateNodeNodeDirectory: %v, PopulateClusterDirectory: %v",
+        auto populateMediaDirectory = request->populate_media_directory();
+        context->SetRequestInfo(
+            "PopulateNodeNodeDirectory: %v, "
+            "PopulateClusterDirectory: %v, "
+            "PopulateMediaDirectory: %v",
             populateNodeDirectory,
-            populateClusterDirectory);
+            populateClusterDirectory,
+            populateMediaDirectory);
 
         if (populateNodeDirectory) {
             TNodeDirectoryBuilder builder(response->mutable_node_directory());
@@ -123,6 +128,17 @@ private:
                 auto* protoItem = protoClusterDirectory->add_items();
                 protoItem->set_name(pair.first);
                 protoItem->set_config(ConvertToYsonString(pair.second).GetData());
+            }
+        }
+
+        if (populateMediaDirectory) {
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            auto* protoMediaDirectory = response->mutable_media_directory();
+            for (const auto& pair : chunkManager->Media()) {
+                const auto* medium = pair.second;
+                auto* protoItem = protoMediaDirectory->add_items();
+                protoItem->set_index(medium->GetIndex());
+                protoItem->set_name(medium->GetName());
             }
         }
 

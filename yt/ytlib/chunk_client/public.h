@@ -36,6 +36,8 @@ class TRspImportChunks;
 class TReqExecuteBatch;
 class TRspExecuteBatch;
 
+class TMediaDirectory;
+
 } // namespace NProto
 
 ///////////////////////////////////////////////////////////////////////////////

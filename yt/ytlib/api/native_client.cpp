@@ -19,6 +19,7 @@
 #include <yt/ytlib/chunk_client/chunk_teleporter.h>
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/ytlib/chunk_client/medium_directory.pb.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
@@ -2593,6 +2594,7 @@ private:
         auto req = TMasterYPathProxy::GetClusterMeta();
         req->set_populate_node_directory(options.PopulateNodeDirectory);
         req->set_populate_cluster_directory(options.PopulateClusterDirectory);
+        req->set_populate_media_directory(options.PopulateMediaDirectory);
         SetCachingHeader(req, options);
 
         auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
@@ -2607,6 +2609,10 @@ private:
         if (options.PopulateClusterDirectory) {
             meta.ClusterDirectory = std::make_shared<NHiveClient::NProto::TClusterDirectory>();
             meta.ClusterDirectory->Swap(rsp->mutable_cluster_directory());
+        }
+        if (options.PopulateMediaDirectory) {
+            meta.MediaDirectory = std::make_shared<NChunkClient::NProto::TMediaDirectory>();
+            meta.MediaDirectory->Swap(rsp->mutable_media_directory());
         }
         return meta;
     }
