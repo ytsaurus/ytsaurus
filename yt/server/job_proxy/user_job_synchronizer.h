@@ -16,7 +16,7 @@ namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////
 
-// Represents "client side", where satellite can send notifications.
+//! Represents the "client side", where satellite can send notifications.
 struct IUserJobSynchronizerClient
     : public virtual TRefCounted
 {
@@ -29,7 +29,7 @@ DEFINE_REFCOUNTED_TYPE(IUserJobSynchronizerClient)
 
 ////////////////////////////////////////////////////////////////////
 
-// Represents "server side", where we can wait for client.
+//! Represents the "server side", where we can wait for client.
 struct IUserJobSynchronizer
     :  public virtual TRefCounted
 {

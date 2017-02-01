@@ -1,7 +1,8 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/core/bus/config.h>
-#include <yt/core/bus/public.h>
 
 #include <yt/core/concurrency/public.h>
 
@@ -16,9 +17,10 @@ namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TJobSatelliteConnectionConfig
+class TJobSatelliteConnectionConfig
     : public NYTree::TYsonSerializable
 {
+public:
     //JobProxy -> JobSatellite connection.
     NBus::TTcpBusServerConfigPtr SatelliteRpcServerConfig;
     //Job -> JobSatellite -> JobProxy synchronization.
@@ -43,16 +45,18 @@ public:
     TJobSatelliteConnection(
         const NJobTrackerClient::TJobId& jobId,
         NBus::TTcpBusServerConfigPtr jobProxyRpcServerConfig);
+
     Stroka GetConfigPath() const;
     NBus::TTcpBusClientConfigPtr GetRpcClientConfig() const;
     const NJobTrackerClient::TJobId& GetJobId() const;
+
     void MakeConfig();
 
 private:
     const NJobTrackerClient::TJobId JobId_;
-    Stroka ConfigFile_;
 
-    TIntrusivePtr<TJobSatelliteConnectionConfig> ConnectionConfigPtr_;
+    Stroka ConfigFile_;
+    TJobSatelliteConnectionConfigPtr ConnectionConfigPtr_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
