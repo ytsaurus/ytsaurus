@@ -64,15 +64,38 @@ def compress(task):
             logger.warning("Have no permission to write table %s", table)
             return
 
-        logger.info("Compressing table %s", table)
-        convert_to_erasure(table,
-                           erasure_codec=task["erasure_codec"],
-                           compression_codec=task["compression_codec"],
-                           spec={"pool": task["pool"]})
+        revision = yt.get_attribute(table, "revision")
+        spec = {"pool": task["pool"]}
 
-        if yt.exists(table + "/@force_nightly_compress"):
-            yt.remove(table + "/@force_nightly_compress")
-        yt.set_attribute(table, "nightly_compressed", True)
+        logger.info("Compressing table %s", table)
+
+        temp_table = yt.create_temp_table(prefix="compress")
+        try:
+            # To copy all attributes of node
+            yt.remove(temp_table)
+            yt.copy(table, temp_table, preserve_account=True)
+            yt.run_erase(temp_table)
+
+            convert_to_erasure(table,
+                               temp_table,
+                               erasure_codec=task["erasure_codec"],
+                               compression_codec=task["compression_codec"],
+                               spec=spec)
+
+            if yt.exists(table):
+                client = yt.YtClient(config=yt.config.config)
+                client.config["start_operation_retries"]["retry_count"] = 1
+                with client.Transaction():
+                    client.lock(table)
+                    if client.get_attribute(table, "revision") == revision:
+                        client.run_merge(temp_table, table, spec=spec)
+                        if client.has_attribute(table, "force_nightly_compress"):
+                            client.remove(table + "/@force_nightly_compress")
+                        client.set_attribute(table, "nightly_compressed", True)
+                    else:
+                        logger.info("Table %s has changed while compression", table)
+        finally:
+            yt.remove(temp_table, force=True)
     except yt.YtError:
         logger.exception("Failed to merge table %s", table)
 
