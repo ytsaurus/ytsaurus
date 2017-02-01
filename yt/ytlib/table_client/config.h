@@ -20,6 +20,8 @@ public:
 
     i64 MaxRowWeight;
 
+    i64 MaxKeyWeight;
+
     i64 MaxKeyFilterSize;
 
     double SampleRate;
@@ -41,6 +43,11 @@ public:
             .GreaterThanOrEqual((i64) 5 * 1024 * 1024)
             .LessThanOrEqual(MaxRowWeightLimit)
             .Default((i64) 16 * 1024 * 1024);
+
+        RegisterParameter("max_key_weight", MaxKeyWeight)
+            .GreaterThanOrEqual((i64) 1)
+            .LessThanOrEqual(MaxKeyWeightLimit)
+            .Default((i64) 16 * 1024);
 
         RegisterParameter("max_key_filter_size", MaxKeyFilterSize)
             .GreaterThan((i64) 0)
@@ -69,6 +76,7 @@ class TChunkWriterOptions
 public:
     bool ValidateSorted;
     bool ValidateRowWeight;
+    bool ValidateKeyWeight;
     bool ValidateDuplicateIds;
     bool ValidateUniqueKeys;
     bool ExplodeOnValidationError;
@@ -82,6 +90,8 @@ public:
         RegisterParameter("validate_sorted", ValidateSorted)
             .Default(true);
         RegisterParameter("validate_row_weight", ValidateRowWeight)
+            .Default(false);
+        RegisterParameter("validate_key_weight", ValidateKeyWeight)
             .Default(false);
         RegisterParameter("validate_duplicate_ids", ValidateDuplicateIds)
             .Default(false);
@@ -101,6 +111,14 @@ public:
                 THROW_ERROR_EXCEPTION("\"validate_unique_keys\" is allowed to be true only if \"validate_sorted\" is true");
             }
         });
+    }
+
+    void EnableValidationOptions()
+    {
+        ValidateDuplicateIds = true;
+        ValidateRowWeight = true;
+        ValidateKeyWeight = true;
+        ValidateColumnCount = true;
     }
 };
 
