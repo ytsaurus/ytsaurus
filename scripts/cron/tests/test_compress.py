@@ -10,7 +10,6 @@ SANDBOX_PATH = os.path.join(os.path.dirname(__file__), "sandbox")
 
 def test_compress_script():
     yt_env = yt_local.start(local_cypress_dir=COMPRESS_SCRIPT_DATA_PATH,
-                            use_proxy_from_yt_source=True,
                             path=SANDBOX_PATH)
     yt.config["proxy"]["url"] = yt_env.get_proxy_address()
     try:
