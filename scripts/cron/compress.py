@@ -183,9 +183,10 @@ def find(root):
     root_obj = safe_get(root, attributes=requested_attributes)
     walk(root, root_obj)
 
-    logger.info("Collected %d tables for compression", sum(len(queue) for queue in compression_queues))
+    total_table_count = sum(len(queue) for queue in compression_queues)
+    logger.info("Collected %d tables for compression", total_table_count)
 
-    return compression_queues
+    return compression_queues, total_table_count
 
 def main():
     parser = ArgumentParser(description="Find tables to compress and run compression")
@@ -196,7 +197,9 @@ def main():
     args = parser.parse_args()
 
     if args.action == "find":
-        yt.set(args.queues_root_path, find(args.path))
+        compression_queues, total_table_count = find(args.path)
+        yt.set(args.queues_root_path, compression_queues)
+        yt.set_attribute(args.queues_root_path, "total_table_count", total_table_count)
     elif args.action == "run":
         list_path = yt.ypath_join(args.queues_root_path, args.queue)
         process_tasks_from_list(list_path, compress)
