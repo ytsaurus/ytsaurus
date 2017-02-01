@@ -1247,6 +1247,11 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
         case ETableChunkFormat::UnversionedColumnar:
         case ETableChunkFormat::SchemalessHorizontal: {
+            auto chunkTimestamp = static_cast<TTimestamp>(chunkMeta->Misc().min_timestamp());
+            if (timestamp < chunkTimestamp) {
+                return CreateEmptyVersionedReader();
+            }
+
             auto schemalessReaderFactory = [&] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) {
                 TChunkSpec chunkSpec;
                 auto* protoMeta = chunkSpec.mutable_chunk_meta();
@@ -1276,7 +1281,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
             };
             return CreateVersionedReaderAdapter(
                 schemafulReaderFactory,
-                chunkMeta->Schema());
+                chunkMeta->Schema(),
+                chunkTimestamp);
         }
         default:
             Y_UNREACHABLE();
@@ -1326,6 +1332,11 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
         case ETableChunkFormat::UnversionedColumnar:
         case ETableChunkFormat::SchemalessHorizontal: {
+            auto chunkTimestamp = static_cast<TTimestamp>(chunkMeta->Misc().min_timestamp());
+            if (timestamp < chunkTimestamp) {
+                return CreateEmptyVersionedReader(keys.Size());
+            }
+
             auto schemalessReaderFactory = [&] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) {
                 TChunkSpec chunkSpec;
                 auto* protoMeta = chunkSpec.mutable_chunk_meta();
@@ -1355,7 +1366,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
             };
             return CreateVersionedReaderAdapter(
                 std::move(schemafulReaderFactory),
-                chunkMeta->Schema());
+                chunkMeta->Schema(),
+                chunkTimestamp);
         }
 
         default:

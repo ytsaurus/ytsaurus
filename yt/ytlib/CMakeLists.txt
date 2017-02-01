@@ -324,6 +324,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/table_client/versioned_block_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/versioned_chunk_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/versioned_chunk_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/versioned_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/versioned_reader_adapter.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/versioned_row.cpp
 
