@@ -97,6 +97,7 @@ public:
         auto schema = FromProto<TTableSchema>(outputSpec.table_schema());
 
         auto writerConfig = GetWriterConfig(outputSpec);
+        auto timestamp = static_cast<TTimestamp>(outputSpec.timestamp());
 
         WriterFactory_ = [=] (TNameTablePtr nameTable) {
             YCHECK(!Writer_);
@@ -109,7 +110,8 @@ public:
                 Host_->GetClient(),
                 CellTagFromId(chunkListId),
                 transactionId,
-                chunkListId);
+                chunkListId,
+                TChunkTimestamps{timestamp, timestamp});
             return Writer_;
         };
     }

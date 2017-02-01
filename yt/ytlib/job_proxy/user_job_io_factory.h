@@ -36,7 +36,8 @@ struct IUserJobIOFactory
         NTableClient::TTableWriterOptionsPtr options,
         const NChunkClient::TChunkListId& chunkListId,
         const NTransactionClient::TTransactionId& transactionId,
-        const NTableClient::TTableSchema& tableSchema) = 0;
+        const NTableClient::TTableSchema& tableSchema,
+        const NTableClient::TChunkTimestamps& chunkTimestamps) = 0;
 };
 DEFINE_REFCOUNTED_TYPE(IUserJobIOFactory);
 

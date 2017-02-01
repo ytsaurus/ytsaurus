@@ -905,6 +905,7 @@ void TOperationControllerBase::TTask::AddFinalOutputSpecs(
         if (table.WriterConfig) {
             outputSpec->set_table_writer_config(table.WriterConfig.GetData());
         }
+        outputSpec->set_timestamp(table.Timestamp);
         ToProto(outputSpec->mutable_table_schema(), table.TableUploadOptions.TableSchema);
         ToProto(outputSpec->mutable_chunk_list_id(), joblet->ChunkListIds[index]);
     }
@@ -3582,6 +3583,9 @@ void TOperationControllerBase::GetOutputTablesSchema()
                 attributes->Get<TTableSchema>("schema"),
                 attributes->Get<ETableSchemaMode>("schema_mode"),
                 0); // Here we assume zero row count, we will do additional check later.
+
+            //TODO(savrus) I would like to see commit ts here. But as for now, start ts suffices.
+            table->Timestamp = OutputTransaction->GetStartTimestamp();
 
             LOG_DEBUG("Received output table schema (Path: %v, Schema: %v, SchemaMode: %v, LockMode: %v)",
                 path,

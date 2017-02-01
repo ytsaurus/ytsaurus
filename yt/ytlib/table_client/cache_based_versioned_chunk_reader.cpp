@@ -568,13 +568,19 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
     TTimestamp timestamp)
 {
     switch (chunkState->ChunkMeta->GetChunkFormat()) {
-        case ETableChunkFormat::SchemalessHorizontal:
+        case ETableChunkFormat::SchemalessHorizontal: {
+            auto chunkTimestamp = static_cast<TTimestamp>(chunkState->ChunkMeta->Misc().min_timestamp());
+            if (timestamp < chunkTimestamp) {
+                return CreateEmptyVersionedReader(keys.Size());
+            }
+
             YCHECK(chunkState->ChunkMeta->Schema().GetUniqueKeys());
             return New<TCacheBasedSimpleVersionedLookupChunkReader<THorizontalSchemalessVersionedBlockReader>>(
                 chunkState,
                 keys,
                 columnFilter,
                 timestamp);
+        }
 
         case ETableChunkFormat::VersionedSimple:
             return New<TCacheBasedSimpleVersionedLookupChunkReader<TSimpleVersionedBlockReader>>(
@@ -697,13 +703,19 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
     TTimestamp timestamp)
 {
     switch (chunkState->ChunkMeta->GetChunkFormat()) {
-        case ETableChunkFormat::SchemalessHorizontal:
+        case ETableChunkFormat::SchemalessHorizontal: {
+            auto chunkTimestamp = static_cast<TTimestamp>(chunkState->ChunkMeta->Misc().min_timestamp());
+            if (timestamp < chunkTimestamp) {
+                return CreateEmptyVersionedReader();
+            }
+
             return New<TSimpleCacheBasedVersionedRangeChunkReader<THorizontalSchemalessVersionedBlockReader>>(
                 chunkState,
                 std::move(lowerBound),
                 std::move(upperBound),
                 columnFilter,
                 timestamp);
+        }
 
         case ETableChunkFormat::VersionedSimple:
             return New<TSimpleCacheBasedVersionedRangeChunkReader<TSimpleVersionedBlockReader>>(

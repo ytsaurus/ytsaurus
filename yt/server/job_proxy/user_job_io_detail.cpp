@@ -75,6 +75,7 @@ void TUserJobIOBase::Init()
                 ConvertTo<INodePtr>(TYsonString(outputSpec.table_writer_config())));
         }
 
+        auto timestamp = static_cast<TTimestamp>(outputSpec.timestamp());
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
 
         TTableSchema schema;
@@ -88,7 +89,8 @@ void TUserJobIOBase::Init()
             options,
             chunkListId,
             transactionId,
-            schema);
+            schema,
+            TChunkTimestamps{timestamp, timestamp});
 
         // ToDo(psushin): open writers in parallel.
         auto error = WaitFor(writer->Open());
