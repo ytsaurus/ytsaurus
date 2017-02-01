@@ -13,10 +13,10 @@ def test_compress_script():
                             path=SANDBOX_PATH)
     yt.config["proxy"]["url"] = yt_env.get_proxy_address()
     try:
-        p = subprocess.Popen(["python", COMPRESS_SCRIPT_PATH, "find", "--queue", "//tmp/table_queue"],
+        p = subprocess.Popen(["python", COMPRESS_SCRIPT_PATH, "find", "--queues-root-path", "//tmp/compression_queues"],
                              env={"YT_PROXY": yt_env.get_proxy_address()})
         assert p.wait() == 0
-        assert sorted([obj["table"] for obj in yt.get("//tmp/table_queue")]) == sorted([
+        assert sorted([obj["table"] for obj in yt.get("//tmp/compression_queues/default")]) == sorted([
             "//test/dir_with_force_compress/table",
             "//test/dir_with_no_force_compress/table",
             "//test/dir_with_opaque/table",
@@ -24,8 +24,11 @@ def test_compress_script():
             "//test/dir_with_recursive_compress_spec/other_subdir/table",
             "//test/dir_with_custom_codecs/table"])
 
-        zlib6_tables = [obj["table"] for obj in yt.get("//tmp/table_queue")
+        zlib6_tables = [obj["table"] for obj in yt.get("//tmp/compression_queues/default")
                         if obj["compression_codec"] == "zlib_6"]
         assert zlib6_tables == ["//test/dir_with_custom_codecs/table"]
+
+        test_queue_tables = [obj["table"] for obj in yt.get("//tmp/compression_queues/test")]
+        assert test_queue_tables == ["//test/dir_with_custom_queue/table"]
     finally:
         yt_local.stop(yt_env.id, remove_working_dir=True, path=SANDBOX_PATH)
