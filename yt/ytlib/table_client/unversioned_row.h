@@ -133,6 +133,11 @@ inline TUnversionedValue MakeUnversionedAnyValue(const TStringBuf& value, int id
     return MakeAnyValue<TUnversionedValue>(value, id, aggregate);
 }
 
+inline TUnversionedValue MakeUnversionedValueHeader(EValueType type, int id = 0, bool aggregate = false)
+{
+    return MakeSentinelValue<TUnversionedValue>(type, id, aggregate);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TUnversionedRowHeader

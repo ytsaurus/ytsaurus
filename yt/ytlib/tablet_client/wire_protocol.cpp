@@ -665,9 +665,7 @@ auto TWireProtocolReader::GetSchemaData(
 {
     TSchemaData schemaData;
     auto addColumn = [&](int id) {
-        TUnversionedValue value;
-        value.Id = id;
-        value.Type = schema.Columns()[id].Type;
+        auto value = MakeUnversionedValueHeader(schema.Columns()[id].Type, id);
         schemaData.push_back(*reinterpret_cast<ui32*>(&value));
     };
 
