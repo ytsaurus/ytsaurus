@@ -3,6 +3,8 @@
 from yt.tools.atomic import process_tasks_from_list
 from yt.tools.conversion_tools import convert_to_erasure
 
+from yt.common import date_string_to_timestamp
+
 from yt.wrapper.cli_helpers import die
 from yt.wrapper.common import parse_bool, get_value, filter_dict
 
@@ -12,6 +14,7 @@ import yt.yson as yson
 
 from copy import deepcopy
 from argparse import ArgumentParser
+import time
 
 DEFAULT_COMPRESSION_CODEC = "gzip_best_compression"
 DEFAULT_ERASURE_CODEC = "lrc_12_2_2"
@@ -100,10 +103,10 @@ def find(root):
 
     requested_attributes = ["type", "opaque", "force_nightly_compress", "uncompressed_data_size",
                             "nightly_compression_settings", "nightly_compressed", "compression_statistics",
-                            "erasure_statistics", "chunk_count"]
+                            "erasure_statistics", "chunk_count", "creation_time"]
 
-    compression_settings_allowed_keys = set(["min_table_size", "enabled", "compression_codec", "erasure_codec",
-                                             "force_recompress_to_specified_codecs"])
+    compression_settings_allowed_keys = set(["min_table_size", "min_table_age", "enabled", "compression_codec",
+                                             "erasure_codec", "force_recompress_to_specified_codecs"])
 
     def walk(path, object, compression_settings=None):
         if path in ignore_nodes:
@@ -119,6 +122,7 @@ def find(root):
 
             params = filter_dict(lambda k, v: k in compression_settings_allowed_keys, deepcopy(compression_settings))
             min_table_size = params.pop("min_table_size", 0)
+            min_table_age = params.pop("min_table_age", 0)
             enabled = parse_bool(params.pop("enabled", "false"))
             force_recompress_to_specified_codecs = \
                 parse_bool(params.pop("force_recompress_to_specified_codecs", "true"))
@@ -133,7 +137,9 @@ def find(root):
                 logger.info("Table %s already has proper compression and erasure codecs", path)
                 return
 
-            if enabled and object.attributes["uncompressed_data_size"] > min_table_size:
+            table_age = time.time() - date_string_to_timestamp(object.attributes["creation_time"])
+            table_size = object.attributes["uncompressed_data_size"]
+            if enabled and table_size > min_table_size and table_age > min_table_age:
                 tables.append(task)
         elif object.attributes["type"] == "map_node":
             if parse_bool(object.attributes.get("opaque", "false")):
