@@ -8,6 +8,7 @@
 
 #include <util/datetime/base.h>
 #include <util/generic/maybe.h>
+#include <util/system/compiler.h>
 
 namespace NYT {
 
@@ -113,7 +114,7 @@ class IClientBase
     , public IOperationClient
 {
 public:
-    virtual ITransactionPtr StartTransaction(
+    virtual Y_WARN_UNUSED_RESULT ITransactionPtr StartTransaction(
         const TStartTransactionOptions& options = TStartTransactionOptions()) = 0;
 
     virtual void AlterTable(
@@ -140,7 +141,7 @@ class IClient
     : virtual public IClientBase
 {
 public:
-    virtual ITransactionPtr AttachTransaction(
+    virtual Y_WARN_UNUSED_RESULT ITransactionPtr AttachTransaction(
         const TTransactionId& transactionId) = 0;
 
     virtual void MountTable(
