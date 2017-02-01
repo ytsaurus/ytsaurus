@@ -32,6 +32,9 @@ DEFINE_REFCOUNTED_TYPE(ISchemalessChunkWriter)
 
 struct TChunkTimestamps
 {
+    TChunkTimestamps();
+    TChunkTimestamps(TTimestamp minTimestamp, TTimestamp maxTimestamp);
+
     NTransactionClient::TTimestamp MinTimestamp = NTransactionClient::NullTimestamp;
     NTransactionClient::TTimestamp MaxTimestamp = NTransactionClient::NullTimestamp;
 };
