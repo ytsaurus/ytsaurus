@@ -30,6 +30,7 @@
 #include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/transaction_listener.h>
 #include <yt/ytlib/transaction_client/config.h>
+#include <yt/ytlib/transaction_client/timestamp_provider.h>
 
 #include <yt/ytlib/query_client/column_evaluator.h>
 
@@ -1345,6 +1346,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     TCellTag cellTag,
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
+    const TChunkTimestamps& chunkTimestamps,
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
 {
@@ -1354,7 +1356,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
             options,
             schema,
             underlyingWriter,
-            TChunkTimestamps(),
+            chunkTimestamps,
             blockCache);
     };
 
@@ -1641,6 +1643,9 @@ private:
                      static_cast<bool>(LastKey_));
         }
 
+        auto timestamp = WaitFor(Client_->GetNativeConnection()->GetTimestampProvider()->GenerateTimestamps())
+            .ValueOrThrow();
+
         UnderlyingWriter_ = CreateSchemalessMultiChunkWriter(
             Config_,
             Options_,
@@ -1651,6 +1656,7 @@ private:
             CellTag_,
             UploadTransaction_->GetId(),
             ChunkListId_,
+            TChunkTimestamps{timestamp, timestamp},
             Throttler_,
             BlockCache_);
 

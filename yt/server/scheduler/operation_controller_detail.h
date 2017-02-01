@@ -368,6 +368,8 @@ protected:
 
         NYson::TYsonString WriterConfig;
 
+        NTransactionClient::TTimestamp Timestamp;
+
         bool IsBeginUploadCompleted() const;
         void Persist(const TPersistenceContext& context);
     };
