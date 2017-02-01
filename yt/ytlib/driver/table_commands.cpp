@@ -112,9 +112,7 @@ void TWriteTableCommand::Execute(ICommandContextPtr context)
     nameTable->SetEnableColumnNameValidation();
 
     auto options = New<TTableWriterOptions>();
-    options->ValidateDuplicateIds = true;
-    options->ValidateRowWeight = true;
-    options->ValidateColumnCount = true;
+    options->EnableValidationOptions();
 
     auto writer = CreateSchemalessTableWriter(
         config,
