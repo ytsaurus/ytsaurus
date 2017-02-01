@@ -14,6 +14,7 @@ def main():
     parser.add_argument("--queues-root-path", required=True, help="compression queues root path")
     parser.add_argument("--max-process-count", required=True, help="maximum worker count")
     parser.add_argument("--compression-script-path", required=True)
+    parser.add_argument("--log-path", required=True)
 
     args = parser.parse_args()
 
@@ -30,7 +31,7 @@ def main():
                 "run",
                 "--queues-root-path", args.queues_root_path,
                 "--queue", str(queue)
-            ], preexec_fn=set_pdeathsig)
+            ], preexec_fn=set_pdeathsig, stderr=open(args.log_path, "a"))
 
             processes.append(p)
 
