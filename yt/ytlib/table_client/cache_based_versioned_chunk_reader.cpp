@@ -190,7 +190,8 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
                     blockMeta,
                     BuildSchemalessHorizontalSchemaIdMapping(TColumnFilter(), chunkMeta),
                     chunkMeta->GetChunkKeyColumnCount(),
-                    chunkMeta->GetKeyColumnCount());
+                    chunkMeta->GetKeyColumnCount(),
+                    chunkMeta->Misc().min_timestamp());
                 break;
 
             default:
@@ -428,7 +429,8 @@ TCacheBasedVersionedChunkReaderBase<THorizontalSchemalessVersionedBlockReader>::
         meta,
         SchemaIdMapping_,
         ChunkState_->ChunkMeta->GetChunkKeyColumnCount(),
-        ChunkState_->ChunkMeta->GetKeyColumnCount());
+        ChunkState_->ChunkMeta->GetKeyColumnCount(),
+        Timestamp_);
 }
 
 template <>
@@ -462,7 +464,8 @@ TCacheBasedVersionedChunkReaderBase<THorizontalSchemalessVersionedBlockReader>::
         meta,
         SchemaIdMapping_,
         ChunkState_->ChunkMeta->GetChunkKeyColumnCount(),
-        ChunkState_->ChunkMeta->GetKeyColumnCount());
+        ChunkState_->ChunkMeta->GetKeyColumnCount(),
+        Timestamp_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -579,7 +582,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
                 chunkState,
                 keys,
                 columnFilter,
-                timestamp);
+                chunkTimestamp);
         }
 
         case ETableChunkFormat::VersionedSimple:
@@ -714,7 +717,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
                 std::move(lowerBound),
                 std::move(upperBound),
                 columnFilter,
-                timestamp);
+                chunkTimestamp);
         }
 
         case ETableChunkFormat::VersionedSimple:

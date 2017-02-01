@@ -1490,17 +1490,19 @@ class TestSortedDynamicTables(YTEnvSetup):
         keys = [{"key": row["key"]} for row in rows] + [{"key": -1}, {"key": 1000}]
 
         start_ts = generate_timestamp()
-
         write_table("//tmp/t", rows)
         alter_table("//tmp/t", dynamic=True)
         set("//tmp/t/@in_memory_mode", in_memory_mode)
         set("//tmp/t/@enable_lookup_hash_table", enable_lookup_hash_table)
+        end_ts = generate_timestamp()
 
         self.sync_mount_table("//tmp/t")
         sleep(1.0)
 
         assert lookup_rows("//tmp/t", keys, timestamp=start_ts) == []
         actual = lookup_rows("//tmp/t", keys)
+        assert actual == rows
+        actual = lookup_rows("//tmp/t", keys, timestamp=end_ts)
         assert actual == rows
         actual = lookup_rows("//tmp/t", keys, keep_missing_rows=True)
         assert actual == rows + [None, None]
