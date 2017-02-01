@@ -18,7 +18,8 @@ prepare_archive_directory() {
     local yt_python_version="$1" && shift
     local yt_yson_bindings_version="$1" && shift
 
-    local nodejs_version="0.8.26"  # Fixed for now
+    local yt_web_interface_version="0.6.0-624" # Fixed for now
+    local nodejs_version="0.8.26" # Fixed for now
 
     local current_dir="$(pwd)"
 
@@ -36,7 +37,7 @@ prepare_archive_directory() {
     download_and_extract yandex-yt-python-driver $yt_version
     download_and_extract yandex-yt-python $yt_python_version
     download_and_extract yandex-yt-python-yson $yt_yson_bindings_version
-    download_and_extract yandex-yt-web-interface
+    download_and_extract yandex-yt-web-interface $yt_web_interface_version
     download_and_extract nodejs $nodejs_version
 
     mkdir -p "$archive_dir/bin"
