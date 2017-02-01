@@ -19,6 +19,13 @@ def main():
 
     args = parser.parse_args()
 
+    find_process = subprocess.Popen([
+        args.compression_script_path,
+        "find",
+        "--queues-root-path", args.queues_root_path,
+    ], preexec_fn=set_pdeathsig)
+    find_process.wait()
+
     processes = []
 
     total_table_count = yt.get_attribute(args.queues_root_path, "total_table_count")
