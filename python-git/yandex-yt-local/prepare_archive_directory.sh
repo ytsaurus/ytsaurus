@@ -64,6 +64,7 @@ prepare_archive_directory() {
 
     cp -r yandex-yt-local/usr/share/pyshared/yt/* "$archive_dir/python/yt"
     cp -r yandex-yt-local/usr/bin/yt_local "$archive_dir/bin"
+    cp -r yandex-yt-local/usr/bin/yt_env_watcher "$archive_dir/bin"
 
     # YSON bindings.
     cp -r yandex-yt-python-yson/usr/lib/python2.7/dist-packages/yt_yson_bindings/* "$archive_dir/python/yt_yson_bindings"

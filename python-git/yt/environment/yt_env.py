@@ -1,11 +1,12 @@
 from __future__ import print_function
 
 from .configs_provider import init_logging, get_default_provision, create_configs_provider
-from .helpers import read_config, write_config, is_dead_or_zombie, OpenPortIterator
+from .default_configs import get_watcher_config
+from .helpers import read_config, write_config, is_dead_or_zombie, OpenPortIterator, wait_for_removing_file_lock
 from .porto_helpers import PortoSubprocess, porto_avaliable
 
 from yt.common import YtError, remove_file, makedirp, set_pdeathsig, which, to_native_str
-from yt.wrapper.common import generate_uuid
+from yt.wrapper.common import generate_uuid, flatten
 from yt.wrapper.client import Yt
 from yt.wrapper.errors import YtResponseError
 import yt.yson as yson
@@ -130,7 +131,8 @@ class YTInstance(object):
                  enable_debug_logging=True, preserve_working_dir=False, tmpfs_path=None,
                  port_locks_path=None, port_range_start=None, fqdn=None, jobs_memory_limit=None,
                  jobs_cpu_limit=None, jobs_user_slot_count=None, node_memory_limit_addition=None,
-                 modify_configs_func=None, kill_child_processes=False, use_porto_for_servers=False):
+                 modify_configs_func=None, kill_child_processes=False, use_porto_for_servers=False,
+                 watcher_config=None):
         _configure_logger()
 
         self._subprocess_module = PortoSubprocess if use_porto_for_servers and porto_avaliable() else subprocess
@@ -219,6 +221,11 @@ class YTInstance(object):
         self._cell_tag = cell_tag
         self._kill_child_processes = kill_child_processes
         self._started = False
+
+        if watcher_config is None:
+            watcher_config = get_watcher_config()
+        self.watcher_config = watcher_config
+        self.log_paths["watcher"] = os.path.join(self.logs_path, "watcher.log")
 
         self._prepare_environment(jobs_memory_limit, jobs_cpu_limit, jobs_user_slot_count,
                                   node_memory_limit_addition, port_range_start, proxy_port, modify_configs_func)
@@ -353,6 +360,8 @@ class YTInstance(object):
                 self.start_nodes()
             if self.scheduler_count > 0:
                 self.start_schedulers()
+
+            self._start_watcher()
             self._started = True
 
             self._write_environment_info_to_file()
@@ -372,6 +381,9 @@ class YTInstance(object):
     def stop_impl(self):
         killed_services = set()
 
+        self.kill_service("watcher")
+        killed_services.add("watcher")
+
         for name in ["proxy", "node", "scheduler", "master"]:
             if name in self.configs:
                 self.kill_service(name)
@@ -386,6 +398,8 @@ class YTInstance(object):
         if self._open_port_iterator is not None:
             self._open_port_iterator.release_locks()
             self._open_port_iterator = None
+
+        wait_for_removing_file_lock(os.path.join(self.path, "locked_file"))
 
     def get_proxy_address(self):
         if not self.has_proxy:
@@ -936,3 +950,46 @@ class YTInstance(object):
             error.inner_errors = [condition_error]
 
         raise error
+
+    def _get_watcher_path(self):
+        watcher_path = which("yt_env_watcher")
+        if watcher_path:
+            return watcher_path[0]
+
+        watcher_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "bin", "yt_env_watcher"))
+        if os.path.exists(watcher_path):
+            return watcher_path
+
+        raise YtError("Failed to find yt_env_watcher binary")
+
+    def _start_watcher(self):
+        logrotate_options = [
+            "rotate {0}".format(self.watcher_config["logs_rotate_max_part_count"]),
+            "size {0}".format(self.watcher_config["logs_rotate_size"]),
+            "missingok",
+            "copytruncate",
+            "nodelaycompress",
+            "nomail",
+            "noolddir",
+            "compress",
+            "create"
+        ]
+        config_path = os.path.join(self.configs_path, "logs_rotator")
+        with open(config_path, "w") as config_file:
+            for log_paths in itervalues(self.log_paths):
+                for log_path in flatten(log_paths):
+                    config_file.write("{0}\n{{\n{1}\n}}\n\n".format(log_path, "\n".join(logrotate_options)))
+
+        logs_rotator_data_path = os.path.join(self.runtime_data_path, "logs_rotator")
+        makedirp(logs_rotator_data_path)
+        logrotate_state_file = os.path.join(logs_rotator_data_path, "state")
+
+        watcher_path = self._get_watcher_path()
+
+        self._run([watcher_path,
+                   "--locked-file-path", os.path.join(self.path, "locked_file"),
+                   "--logrotate-config-path", config_path,
+                   "--logrotate-state-file", logrotate_state_file,
+                   "--logrotate-interval", str(self.watcher_config["logs_rotate_interval"]),
+                   "--log-path", self.log_paths["watcher"]],
+                   "watcher")

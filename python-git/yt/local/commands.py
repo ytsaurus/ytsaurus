@@ -2,6 +2,7 @@ from .cluster_configuration import modify_cluster_configuration, NODE_MEMORY_LIM
 
 from yt.environment import YTInstance
 from yt.environment.init_cluster import initialize_world
+from yt.environment.helpers import wait_for_removing_file_lock
 from yt.wrapper.common import generate_uuid, GB
 from yt.common import YtError, require, get_value, is_process_alive
 
@@ -21,6 +22,7 @@ import shutil
 import socket
 import time
 import codecs
+import fcntl
 from functools import partial
 
 logger = logging.getLogger("Yt.local")
@@ -194,7 +196,7 @@ def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=
           proxy_port=None, id=None, local_cypress_dir=None, use_proxy_from_yt_source=False,
           enable_debug_logging=False, tmpfs_path=None, port_range_start=None, fqdn=None, path=None,
           prepare_only=False, jobs_memory_limit=None, jobs_cpu_limit=None, jobs_user_slot_count=None,
-          wait_tablet_cell_initialization=False, set_pdeath_sig=False):
+          wait_tablet_cell_initialization=False, set_pdeath_sig=False, watcher_config=None):
 
     options = {}
     for name in _START_DEFAULTS:
@@ -232,6 +234,7 @@ def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=
                              tmpfs_path=sandbox_tmpfs_path,
                              modify_configs_func=modify_configs_func,
                              kill_child_processes=set_pdeath_sig,
+                             watcher_config=watcher_config,
                              **options)
 
     environment.id = sandbox_id
@@ -239,18 +242,17 @@ def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=
     use_proxy_from_yt_source = use_proxy_from_yt_source or \
             _get_bool_from_env("YT_LOCAL_USE_PROXY_FROM_SOURCE")
 
+    require(_is_stopped(sandbox_id, path),
+            lambda: YtError("Instance with id {0} is already running".format(sandbox_id)))
+
     pids_filename = os.path.join(environment.path, "pids.txt")
-    # Consider instance running if "pids.txt" file exists
     if os.path.isfile(pids_filename):
         pids = _read_pids_file(pids_filename)
         alive_pids = list(ifilter(is_process_alive, pids))
-        if len(pids) == 0 or len(pids) > len(alive_pids):
-            for pid in alive_pids:
-                logger.warning("Killing alive process (pid: {0}) from previously run instance".format(pid))
-                _safe_kill(pid)
-            os.remove(pids_filename)
-        else:
-            raise YtError("Instance with id {0} is already running".format(sandbox_id))
+        for pid in alive_pids:
+            logger.warning("Killing alive process (pid: {0}) from previously run instance".format(pid))
+            _safe_kill(pid)
+        os.remove(pids_filename)
 
     is_started_file = os.path.join(sandbox_path, "started")
     if os.path.exists(is_started_file):
@@ -279,12 +281,17 @@ def _is_stopped(id, path=None):
     if not os.path.isdir(sandbox_path):
         return True
 
-    pids_file_path = os.path.join(sandbox_path, "pids.txt")
-    if os.path.isfile(pids_file_path):
-        alive_pids = list(ifilter(is_process_alive, _read_pids_file(pids_file_path)))
-        if not alive_pids:
-            os.remove(pids_file_path)
-        return not alive_pids
+    locked_file_path = os.path.join(sandbox_path, "locked_file")
+    locked_file_descriptor = open(locked_file_path, "w+")
+    try:
+        fcntl.lockf(locked_file_descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except IOError as error:
+        if error.errno == errno.EAGAIN or error.errno == errno.EACCES:
+            return False
+        raise
+    finally:
+        locked_file_descriptor.close()
+
     return True
 
 def _is_exists(id, path=None):
@@ -302,6 +309,8 @@ def stop(id, remove_working_dir=False, path=None):
         _safe_kill(pid)
     os.remove(pids_file_path)
 
+    wait_for_removing_file_lock(os.path.join(get_root_path(path), id, "locked_file"))
+
     if remove_working_dir:
         delete(id, force=True, path=path)
 
@@ -310,7 +319,6 @@ def delete(id, force=False, path=None):
             lambda: yt.YtError("Local YT with id {0} not found".format(id)))
     require(_is_stopped(id, path),
             lambda: yt.YtError("Local YT environment with id {0} is not stopped".format(id)))
-
     shutil.rmtree(os.path.join(get_root_path(path), id), ignore_errors=True)
 
 def get_proxy(id, path=None):
