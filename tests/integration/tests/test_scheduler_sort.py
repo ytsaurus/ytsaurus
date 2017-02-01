@@ -70,7 +70,8 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         sort(in_="//tmp/t_in",
              out="//tmp/t_out",
-             sort_by=["key", "subkey"])
+             sort_by=["key", "subkey"],
+             spec={"merge_job_io" : {"table_writer" : {"max_key_weight" : 250 * 1024}}})
 
         assert read_table("//tmp/t_out") == [v2, v1]
         assert get("//tmp/t_out/@sorted") ==  True
