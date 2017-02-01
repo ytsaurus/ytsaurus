@@ -32,6 +32,9 @@ static const NLogging::TLogger Logger("Process");
 
 static const pid_t InvalidProcessId = -1;
 
+static const int ExecveRetryCount = 5;
+static const auto ExecveRetryTimeout = TDuration::Seconds(1);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -285,7 +288,20 @@ void TProcess::DoSpawn()
     });
 
     SpawnActions_.push_back(TSpawnAction{
-        std::bind(TryExecve, Path_.c_str(), Args_.data(), Env_.data()),
+        [=] () {
+            for (int retryIndex = 0; retryIndex < ExecveRetryCount - 1; ++retryIndex) {
+                // Execve may fail, if called binary is being updated, e.g. during yandex-yt package update.
+                // So we'd better retry several times.
+                // For example see YT-6352.
+                TryExecve(Path_.c_str(), Args_.data(), Env_.data());
+                Sleep(ExecveRetryTimeout);
+            }
+
+            // Last chance :)
+            TryExecve(Path_.c_str(), Args_.data(), Env_.data());
+            // If we are  still here, return failure.
+            return false;
+        },
         "Error starting child process: execve failed"
     });
 
