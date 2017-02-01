@@ -26,6 +26,9 @@ def main():
     ], preexec_fn=set_pdeathsig)
     find_process.wait()
 
+    if find_process.returncode != 0:
+        raise yt.YtError("Find command exited with non-zero code")
+
     processes = []
 
     total_table_count = yt.get_attribute(args.queues_root_path, "total_table_count")
