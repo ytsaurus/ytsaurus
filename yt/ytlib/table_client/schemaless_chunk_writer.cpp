@@ -78,6 +78,16 @@ const i64 MinRowRangeDataWeight = (i64) 64 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TChunkTimestamps::TChunkTimestamps()
+{ }
+
+TChunkTimestamps::TChunkTimestamps(TTimestamp minTimestamp, TTimestamp maxTimestamp)
+    : MinTimestamp(minTimestamp)
+    , MaxTimestamp(maxTimestamp)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ValidateRowWeight(i64 weight, const TChunkWriterConfigPtr& config, const TChunkWriterOptionsPtr& options)
 {
     if (!options->ValidateRowWeight || weight < config->MaxRowWeight) {
