@@ -8,6 +8,7 @@ import yt.wrapper as yt
 
 import argparse
 import subprocess
+import sys
 
 def main():
     parser = argparse.ArgumentParser(description="Script runs compression on cluster")
@@ -34,6 +35,8 @@ def main():
             ], preexec_fn=set_pdeathsig, stderr=open(args.log_path, "a"))
 
             processes.append(p)
+
+        print >>sys.stderr, 'Started {0} workers for queue "{1}"'.format(worker_count, queue)
 
     has_alive_processes = False
     while True:
