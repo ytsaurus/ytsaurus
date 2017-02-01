@@ -251,6 +251,8 @@ using TPersistenceContext = TCustomPersistenceContext<TSaveContext, TLoadContext
 struct TBlobTableSchema;
 class TBlobTableWriter;
 
+struct TChunkTimestamps;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient

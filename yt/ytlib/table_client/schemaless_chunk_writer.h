@@ -67,6 +67,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     NObjectClient::TCellTag cellTag,
     const NTransactionClient::TTransactionId& transactionId,
     const NChunkClient::TChunkListId& parentChunkListId = NChunkClient::NullChunkListId,
+    const TChunkTimestamps& chunkTimestamps = TChunkTimestamps(),
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
     NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
 

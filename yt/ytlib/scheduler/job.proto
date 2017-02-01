@@ -118,6 +118,9 @@ message TTableOutputSpec
     // YSON-serialized writer config obtained from table attributes.
     optional string table_writer_config = 9;
 
+    // Timestamp for rows.
+    optional int64 timestamp = 10 [default = 0];
+
     required NTableClient.NProto.TTableSchemaExt table_schema = 8;
 }
 

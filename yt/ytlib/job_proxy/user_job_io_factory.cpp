@@ -53,7 +53,8 @@ ISchemalessMultiChunkWriterPtr CreateTableWriter(
     TTableWriterOptionsPtr options,
     const TChunkListId& chunkListId,
     const TTransactionId& transactionId,
-    const TTableSchema& tableSchema)
+    const TTableSchema& tableSchema,
+    const TChunkTimestamps& chunkTimestamps)
 {
     auto nameTable = New<TNameTable>();
     nameTable->SetEnableColumnNameValidation();
@@ -67,7 +68,8 @@ ISchemalessMultiChunkWriterPtr CreateTableWriter(
         std::move(client),
         CellTagFromId(chunkListId),
         transactionId,
-        chunkListId);
+        chunkListId,
+        chunkTimestamps);
 }
 
 ISchemalessMultiChunkReaderPtr CreateTableReader(
@@ -169,7 +171,8 @@ public:
         TTableWriterOptionsPtr options,
         const TChunkListId& chunkListId,
         const TTransactionId& transactionId,
-        const TTableSchema& tableSchema) override
+        const TTableSchema& tableSchema,
+        const TChunkTimestamps& chunkTimestamps) override
     {
         return CreateTableWriter(
             JobSpecHelper_,
@@ -178,7 +181,8 @@ public:
             std::move(options),
             chunkListId,
             transactionId,
-            tableSchema);
+            tableSchema,
+            chunkTimestamps);
     }
 
 private:
@@ -268,7 +272,8 @@ public:
         TTableWriterOptionsPtr options,
         const TChunkListId& chunkListId,
         const TTransactionId& transactionId,
-        const TTableSchema& tableSchema) override
+        const TTableSchema& tableSchema,
+        const TChunkTimestamps& chunkTimestamps) override
     {
         return CreateTableWriter(
             JobSpecHelper_,
@@ -277,7 +282,8 @@ public:
             std::move(options),
             chunkListId,
             transactionId,
-            tableSchema);
+            tableSchema,
+            chunkTimestamps);
     }
 
 private:
@@ -319,7 +325,8 @@ public:
         TTableWriterOptionsPtr options,
         const TChunkListId& chunkListId,
         const TTransactionId& transactionId,
-        const TTableSchema& tableSchema) override
+        const TTableSchema& tableSchema,
+        const TChunkTimestamps& /* chunkTimestamps */) override
     {
         const auto& jobSpec = JobSpecHelper_->GetJobSpec();
         const auto& jobSpecExt = jobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
@@ -402,7 +409,8 @@ public:
         TTableWriterOptionsPtr options,
         const TChunkListId& chunkListId,
         const TTransactionId& transactionId,
-        const TTableSchema& tableSchema) override
+        const TTableSchema& tableSchema,
+        const TChunkTimestamps& chunkTimestamps) override
     {
         return CreateTableWriter(
             JobSpecHelper_,
@@ -411,7 +419,8 @@ public:
             std::move(options),
             chunkListId,
             transactionId,
-            tableSchema);
+            tableSchema,
+            chunkTimestamps);
     }
 
 private:

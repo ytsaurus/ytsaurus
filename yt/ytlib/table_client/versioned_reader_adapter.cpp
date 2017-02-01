@@ -1,7 +1,6 @@
 #include "versioned_reader_adapter.h"
 #include "versioned_reader.h"
 #include "schemaful_reader.h"
-#include "private.h"
 
 #include <yt/core/misc/chunked_memory_pool.h>
 
