@@ -20,8 +20,8 @@ DECLARE_REFCOUNTED_CLASS(TJobProxy)
 
 DECLARE_REFCOUNTED_CLASS(TJobSatelliteConnectionConfig)
 
-DECLARE_REFCOUNTED_CLASS(IUserJobSynchronizer)
-DECLARE_REFCOUNTED_CLASS(IUserJobSynchronizerClient)
+DECLARE_REFCOUNTED_STRUCT(IUserJobSynchronizer)
+DECLARE_REFCOUNTED_STRUCT(IUserJobSynchronizerClient)
 
 DEFINE_ENUM(EJobProxyExitCode,
     ((HeartbeatFailed)        (20))
