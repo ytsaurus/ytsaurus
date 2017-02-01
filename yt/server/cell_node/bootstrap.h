@@ -166,7 +166,6 @@ private:
 
     void DoRun();
     void PopulateAlerts(std::vector<TError>* alerts);
-    NObjectClient::TCellId ToRedirectorCellId(const NObjectClient::TCellId& cellId);
 
     void OnMasterConnected();
     void OnMasterDisconnected();
