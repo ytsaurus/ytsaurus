@@ -1,4 +1,4 @@
-from yt.common import to_native_str
+from yt.common import to_native_str, YtError
 import yt.json as json
 import yt.yson as yson
 
@@ -11,6 +11,8 @@ import fcntl
 import random
 import codecs
 import logging
+import errno
+import time
 
 logger = logging.getLogger("Yt.local")
 
@@ -216,3 +218,21 @@ def is_dead_or_zombie(pid):
         pass
 
     return True
+
+def wait_for_removing_file_lock(locked_file_path, max_wait_time=10, sleep_quantum=0.1):
+    current_wait_time = 0
+    while current_wait_time < max_wait_time:
+        locked_file_descriptor = open(locked_file_path, "w+")
+        try:
+            fcntl.lockf(locked_file_descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return
+        except IOError as error:
+            if error.errno != errno.EAGAIN and error.errno != errno.EACCES:
+                raise
+        finally:
+            locked_file_descriptor.close()
+
+        time.sleep(sleep_quantum)
+        current_wait_time += sleep_quantum
+
+    raise YtError("File lock is not removed after {0} seconds".format(max_wait_time))

@@ -2,7 +2,7 @@ from __future__ import print_function
 
 from yt.local import start, stop, delete
 import yt.local as yt_local
-from yt.wrapper.client import Yt
+from yt.wrapper import YtClient
 from yt.common import remove_file, is_process_alive
 from yt.wrapper.common import generate_uuid
 from yt.environment.helpers import is_dead_or_zombie
@@ -182,10 +182,33 @@ class TestLocalMode(object):
 
         assert os.path.exists(os.path.join(config_path, "proxy.json"))
 
+    def test_watcher(self):
+        watcher_config = {
+            "logs_rotate_size": "1M",
+            "logs_rotate_interval": 1,
+            "logs_rotate_max_part_count": 5
+        }
+        with local_yt(id="test_watcher", watcher_config=watcher_config) as environment:
+            proxy_port = environment.get_proxy_address().rsplit(":", 1)[1]
+            client = YtClient(proxy="localhost:{0}".format(proxy_port))
+
+            for _ in xrange(300):
+                client.mkdir("//test")
+                client.set("//test/node", "abc")
+                client.get("//test/node")
+                client.remove("//test/node")
+                client.remove("//test")
+
+        path = os.environ.get("YT_LOCAL_ROOT_PATH")
+        log_path = os.path.join(path, "test_watcher", "logs")
+        for file_index in xrange(1, 6):
+            assert os.path.exists(os.path.join(log_path, "http-application.log.{0}.gz".format(file_index)))
+
+
     def test_commands_sanity(self):
         with local_yt() as environment:
             pids = _read_pids_file(environment.id)
-            assert len(pids) == 4
+            assert len(pids) == 5
             # Should not delete running instance
             with pytest.raises(yt.YtError):
                 delete(environment.id)
@@ -202,27 +225,27 @@ class TestLocalMode(object):
 
         with local_yt(master_count=3, node_count=0, scheduler_count=0,
                       enable_debug_logging=True) as environment:
-            assert len(_read_pids_file(environment.id)) == 4  # + proxy
+            assert len(_read_pids_file(environment.id)) == 5 # + proxy
             assert len(environment.configs["master"]) == 3
 
         with local_yt(node_count=5, scheduler_count=2, start_proxy=False) as environment:
             assert len(environment.configs["node"]) == 5
             assert len(environment.configs["scheduler"]) == 2
             assert len(environment.configs["master"]) == 1
-            assert len(_read_pids_file(environment.id)) == 8
+            assert len(_read_pids_file(environment.id)) == 9
             with pytest.raises(yt.YtError):
                 environment.get_proxy_address()
 
         with local_yt(node_count=1) as environment:
-            assert len(_read_pids_file(environment.id)) == 4  # + proxy
+            assert len(_read_pids_file(environment.id)) == 5  # + proxy
 
         with local_yt(node_count=0, scheduler_count=0, start_proxy=False) as environment:
-            assert len(_read_pids_file(environment.id)) == 1
+            assert len(_read_pids_file(environment.id)) == 2
 
     def test_use_local_yt(self):
         with local_yt() as environment:
             proxy_port = environment.get_proxy_address().rsplit(":", 1)[1]
-            client = Yt(proxy="localhost:{0}".format(proxy_port))
+            client = YtClient(proxy="localhost:{0}".format(proxy_port))
             client.config["tabular_data_format"] = yt.format.DsvFormat()
             client.mkdir("//test")
 
@@ -272,7 +295,7 @@ class TestLocalMode(object):
         local_cypress_path = os.path.join(TESTS_LOCATION, "local_cypress_tree")
         with local_yt(local_cypress_dir=local_cypress_path) as environment:
             proxy_port = environment.get_proxy_address().rsplit(":", 1)[1]
-            client = Yt(proxy="localhost:{0}".format(proxy_port))
+            client = YtClient(proxy="localhost:{0}".format(proxy_port))
             assert list(client.read_table("//table")) == [{"x": "1", "y": "1"}]
             assert client.get_type("//subdir") == "map_node"
             assert client.get_attribute("//table", "myattr") == 4
@@ -313,14 +336,14 @@ class TestLocalMode(object):
     def test_yt_local_binary(self):
         env_id = self.yt_local("start", fqdn="localhost")
         try:
-            client = Yt(proxy=self.yt_local("get_proxy", env_id))
+            client = YtClient(proxy=self.yt_local("get_proxy", env_id))
             assert "sys" in client.list("/")
         finally:
             self.yt_local("stop", env_id)
 
         env_id = self.yt_local("start", fqdn="localhost", master_count=3, node_count=5, scheduler_count=2)
         try:
-            client = Yt(proxy=self.yt_local("get_proxy", env_id))
+            client = YtClient(proxy=self.yt_local("get_proxy", env_id))
             assert len(client.list("//sys/nodes")) == 5
             assert len(client.list("//sys/scheduler/instances")) == 2
             assert len(client.list("//sys/primary_masters")) == 3
@@ -345,7 +368,7 @@ class TestLocalMode(object):
                 master_config=config.name)
 
             try:
-                client = Yt(proxy=self.yt_local("get_proxy", env_id))
+                client = YtClient(proxy=self.yt_local("get_proxy", env_id))
                 node_address = client.list("//sys/nodes")[0]
                 assert client.get("//sys/nodes/{0}/@resource_limits/user_slots".format(node_address)) == 100
                 for subpath in ["primary_masters", "scheduler/instances"]:
