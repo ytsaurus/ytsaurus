@@ -245,7 +245,7 @@ void TBootstrap::DoRun()
 
     auto createBatchingChunkService = [&] (TMasterConnectionConfigPtr config) {
         RpcServer->RegisterService(CreateBatchingChunkService(
-            ToRedirectorCellId(config->CellId),
+            config->CellId,
             Config->BatchingChunkService,
             config,
             MasterConnection->GetLightChannelFactory()));
@@ -349,7 +349,6 @@ void TBootstrap::DoRun()
     JobProxyConfig->ClusterConnection = CloneYsonSerializable(Config->ClusterConnection);
 
     auto patchMasterConnectionConfig = [&] (TMasterConnectionConfigPtr config) {
-        config->CellId = ToRedirectorCellId(config->CellId);
         config->Addresses = {localAddress};
         if (config->RetryTimeout && *config->RetryTimeout > config->RpcTimeout) {
             config->RpcTimeout = *config->RetryTimeout;
@@ -357,11 +356,11 @@ void TBootstrap::DoRun()
         config->RetryTimeout = Null;
         config->RetryAttempts = 1;
     };
-
     patchMasterConnectionConfig(JobProxyConfig->ClusterConnection->PrimaryMaster);
     for (const auto& config : JobProxyConfig->ClusterConnection->SecondaryMasters) {
         patchMasterConnectionConfig(config);
     }
+    JobProxyConfig->ClusterConnection->MediumDirectorySynchronizer->ReadFrom = EMasterChannelKind::Cache;
 
     JobProxyConfig->SupervisorConnection = New<NBus::TTcpBusClientConfig>();
     JobProxyConfig->SupervisorConnection->Address = localAddress;
@@ -816,13 +815,6 @@ void TBootstrap::PopulateAlerts(std::vector<TError>* alerts)
                 << TErrorAttribute("limit", limit));
         }
     }
-}
-
-TCellId TBootstrap::ToRedirectorCellId(const TCellId& cellId)
-{
-    return ReplaceCellTagInId(
-        TCellId(0xffffffffULL, 0xffffffffULL),
-        CellTagFromId(cellId));
 }
 
 void TBootstrap::OnMasterConnected()
