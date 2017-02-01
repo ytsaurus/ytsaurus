@@ -61,6 +61,7 @@ const i64 MaxAnyValueLength = (i64) 16 * 1024 * 1024;
 
 // Only for static tables.
 const i64 MaxRowWeightLimit = (i64) 128 * 1024 * 1024;
+const i64 MaxKeyWeightLimit = (i64) 256 * 1024;
 
 // NB(psushin): increasing this parameter requires rewriting all chunks,
 // so one probaly should never want to do it.
