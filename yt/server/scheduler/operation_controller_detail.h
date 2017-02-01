@@ -719,6 +719,8 @@ protected:
 
     void CheckTimeLimit();
 
+    void CheckAvailableExecNodes();
+
     void DoScheduleJob(
         ISchedulingContext* context,
         const TJobResources& jobLimits,
@@ -1096,11 +1098,16 @@ private:
     //! Runs periodic time limit checks that fail operation on timeout.
     NConcurrency::TPeriodicExecutorPtr CheckTimeLimitExecutor;
 
+    //! Runs periodic checks to verify that compatible nodes are present in the cluster.
+    NConcurrency::TPeriodicExecutorPtr ExecNodesCheckExecutor;
+
     //! Exec node count do not consider scheduling tag.
     //! But descriptors do.
     int ExecNodeCount_ = 0;
     std::vector<TExecNodeDescriptor> ExecNodesDescriptors_;
     TInstant LastGetExecNodesInformationTime_;
+
+    TInstant AvaialableNodesLastSeenTime_;
 
     const std::unique_ptr<NTableClient::IValueConsumer> EventLogValueConsumer_;
     const std::unique_ptr<NYson::IYsonConsumer> EventLogTableConsumer_;
@@ -1133,6 +1140,8 @@ private:
 
     void GetExecNodesInformation();
     int GetExecNodeCount();
+
+    bool ShouldSkipSanityCheck();
 
     void UpdateJobStatistics(const TJobSummary& jobSummary);
 

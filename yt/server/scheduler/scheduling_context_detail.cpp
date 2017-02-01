@@ -65,9 +65,9 @@ bool TSchedulingContextBase::CanStartMoreJobs() const
     return true;
 }
 
-bool TSchedulingContextBase::CanSchedule(const TNullable<Stroka>& tag) const
+bool TSchedulingContextBase::CanSchedule(const TSchedulingTagFilter& filter) const
 {
-    return !tag || NodeTags_.find(*tag) != NodeTags_.end();
+    return filter.IsEmpty() || filter.CanSchedule(NodeTags_);
 }
 
 TJobPtr TSchedulingContextBase::StartJob(const TOperationId& operationId, const TJobStartRequest& jobStartRequest)
