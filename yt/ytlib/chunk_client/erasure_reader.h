@@ -21,17 +21,8 @@ namespace NChunkClient {
 ///////////////////////////////////////////////////////////////////////////////
 
 IChunkReaderPtr CreateNonRepairingErasureReader(
-    const std::vector<IChunkReaderPtr>& dataBlocksReaders);
-
-typedef TCallback<void(double)> TRepairProgressHandler;
-
-TFuture<void> RepairErasedParts(
     NErasure::ICodec* codec,
-    const NErasure::TPartIndexList& erasedIndices,
-    const std::vector<IChunkReaderPtr>& readers,
-    const std::vector<IChunkWriterPtr>& writers,
-    const TWorkloadDescriptor& workloadDescriptor,
-    TRepairProgressHandler onProgress = TRepairProgressHandler());
+    const std::vector<IChunkReaderPtr>& dataBlocksReaders);
 
 std::vector<IChunkReaderPtr> CreateErasureDataPartsReaders(
     TReplicationReaderConfigPtr config,
