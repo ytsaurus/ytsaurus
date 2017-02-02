@@ -183,7 +183,7 @@ def find(root):
     root_obj = safe_get(root, attributes=requested_attributes)
     walk(root, root_obj)
 
-    total_table_count = sum(len(queue) for queue in compression_queues)
+    total_table_count = sum(len(compression_queues[queue]) for queue in compression_queues)
     logger.info("Collected %d tables for compression", total_table_count)
 
     return compression_queues, total_table_count

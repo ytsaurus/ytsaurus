@@ -13,7 +13,7 @@ import sys
 def main():
     parser = argparse.ArgumentParser(description="Script runs compression on cluster")
     parser.add_argument("--queues-root-path", required=True, help="compression queues root path")
-    parser.add_argument("--max-process-count", required=True, help="maximum worker count")
+    parser.add_argument("--max-process-count", required=True, type=int, help="maximum worker count")
     parser.add_argument("--compression-script-path", required=True)
     parser.add_argument("--log-path", required=True)
 
