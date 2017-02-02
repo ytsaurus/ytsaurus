@@ -339,7 +339,7 @@ IChunkReaderPtr CreateRemoteReader(
             readers.push_back(reader);
         }
 
-        return CreateNonRepairingErasureReader(readers);
+        return CreateNonRepairingErasureReader(erasureCodec, readers);
     } else {
         LOG_DEBUG("Creating regular remote reader (ChunkId: %v)",
             chunkId);

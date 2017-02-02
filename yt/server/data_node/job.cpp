@@ -22,6 +22,7 @@
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_writer.h>
 #include <yt/ytlib/chunk_client/erasure_reader.h>
+#include <yt/ytlib/chunk_client/erasure_repair.h>
 #include <yt/ytlib/chunk_client/job.pb.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/ytlib/chunk_client/replication_writer.h>
@@ -605,8 +606,7 @@ private:
                 erasedPartIndexes,
                 readers,
                 writers,
-                Config_->RepairReader->WorkloadDescriptor,
-                onProgress);
+                Config_->RepairReader->WorkloadDescriptor);
 
             auto repairError = WaitFor(result);
             THROW_ERROR_EXCEPTION_IF_FAILED(repairError, "Error repairing chunk %v",
