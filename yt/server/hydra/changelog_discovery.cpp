@@ -29,14 +29,13 @@ public:
         , CellManager_(std::move(cellManager))
         , ChangelogId_(changelogId)
         , MinRecordCount_(minRecordCount)
+        , Logger(NLogging::TLogger(HydraLogger)
+            .AddTag("ChangelogId: %v, CellId: %v",
+                ChangelogId_,
+                CellManager_->GetCellId()))
     {
         YCHECK(Config_);
         YCHECK(CellManager_);
-
-        Logger = HydraLogger;
-        Logger.AddTag("ChangelogId: %v, CellId: %v",
-            ChangelogId_,
-            CellManager_->GetCellId());
     }
 
     TFuture<TChangelogInfo> Run()
@@ -53,9 +52,9 @@ private:
     const int ChangelogId_;
     const int MinRecordCount_;
 
-    TPromise<TChangelogInfo> Promise_ = NewPromise<TChangelogInfo>();
+    const NLogging::TLogger Logger;
 
-    NLogging::TLogger Logger;
+    TPromise<TChangelogInfo> Promise_ = NewPromise<TChangelogInfo>();
 
     void DoRun()
     {
@@ -67,7 +66,7 @@ private:
             if (!channel)
                 continue;
 
-            LOG_INFO("Requesting changelog info (PeerId: %v)",
+            LOG_DEBUG("Requesting changelog info (PeerId: %v)",
                 peerId,
                 ChangelogId_);
 
@@ -153,14 +152,13 @@ public:
         : Config_(config)
         , CellManager_(cellManager)
         , ChangelogId_(changelogId)
+        , Logger(NLogging::TLogger(HydraLogger)
+            .AddTag("ChangelogId: %v, CellId: %v",
+                ChangelogId_,
+                CellManager_->GetCellId()))
     {
         YCHECK(Config_);
         YCHECK(CellManager_);
-
-        Logger = HydraLogger;
-        Logger.AddTag("ChangelogId: %v, CellId: %v",
-            ChangelogId_,
-            CellManager_->GetCellId());
     }
 
     TFuture<int> Run()
@@ -176,11 +174,11 @@ private:
     const NElection::TCellManagerPtr CellManager_;
     const int ChangelogId_;
 
+    const NLogging::TLogger Logger;
+
     std::vector<int> RecordCounts_;
     std::vector<TError> InnerErrors_;
     TPromise<int> Promise_ = NewPromise<int>();
-
-    NLogging::TLogger Logger;
 
 
     void DoRun()
@@ -190,10 +188,11 @@ private:
         std::vector<TFuture<void>> asyncResults;
         for (auto peerId = 0; peerId < CellManager_->GetTotalPeerCount(); ++peerId) {
             auto channel = CellManager_->GetPeerChannel(peerId);
-            if (!channel)
+            if (!channel) {
                 continue;
+            }
 
-            LOG_INFO("Requesting changelog info (PeerId: %v)",
+            LOG_DEBUG("Requesting changelog info (PeerId: %v)",
                 peerId);
 
             THydraServiceProxy proxy(channel);
@@ -218,7 +217,7 @@ private:
             int recordCount = rsp->record_count();
             RecordCounts_.push_back(recordCount);
 
-            LOG_INFO("Changelog info received (PeerId: %v, RecordCount: %v)",
+            LOG_DEBUG("Changelog info received (PeerId: %v, RecordCount: %v)",
                 peerId,
                 recordCount);
         } else {
