@@ -34,6 +34,7 @@
 #include <yt/core/ytree/fluent.h>
 
 #include <yt/core/misc/heap.h>
+#include <yt/core/misc/ring_queue.h>
 
 #include <set>
 
@@ -48,6 +49,43 @@ using namespace NHydra;
 using namespace NHiveServer;
 using namespace NCellNode;
 using namespace NTabletClient::NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Maintains a set of transaction ids of bounded capacity.
+//! Expires old ids in FIFO order.
+class TTransactionIdPool
+{
+public:
+    explicit TTransactionIdPool(int maxSize)
+        : MaxSize_(maxSize)
+    { }
+
+    void Register(const TTransactionId& id)
+    {
+        if (IdSet_.insert(id).second) {
+            IdQueue_.push(id);
+        }
+
+        if (IdQueue_.size() > MaxSize_) {
+            auto idToExpire = IdQueue_.front();
+            IdQueue_.pop();
+            YCHECK(IdSet_.erase(idToExpire) == 1);
+        }
+    }
+
+    bool IsRegistered(const TTransactionId& id) const
+    {
+        return IdSet_.find(id) != IdSet_.end();
+    }
+
+private:
+    const int MaxSize_;
+
+    yhash_set<TTransactionId> IdSet_;
+    TRingQueue<TTransactionId> IdQueue_;
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,6 +117,7 @@ public:
         , LeaseTracker_(New<TTransactionLeaseTracker>(
             Bootstrap_->GetTransactionTrackerInvoker(),
             Logger))
+        , AbortTransactionIdPool_(Config_->MaxAbortedTransactionPoolSize)
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
 
@@ -179,6 +218,11 @@ public:
         }
         if (auto* transaction = PersistentTransactionMap_.Find(transactionId)) {
             return transaction;
+        }
+
+        if (transient && AbortTransactionIdPool_.IsRegistered(transactionId)) {
+            THROW_ERROR_EXCEPTION("Abort was requested for transaction %v",
+                transactionId);
         }
 
         if (fresh) {
@@ -323,6 +367,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        AbortTransactionIdPool_.Register(transactionId);
+
         auto* transaction = GetTransactionOrThrow(transactionId);
 
         if (!transaction->IsActive() && !force) {
@@ -456,6 +502,8 @@ private:
     IYPathServicePtr OrchidService_;
 
     std::set<std::pair<TTimestamp, TTransaction*>> PreparedTransactions_;
+
+    TTransactionIdPool AbortTransactionIdPool_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
