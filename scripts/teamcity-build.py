@@ -378,28 +378,6 @@ def run_python_libraries_tests(options):
 
 
 @build_step
-def build_python_packages(options):
-    if not options.package:
-        return
-
-    packages = ["yandex-yt-python", "yandex-yt-python-tools",
-                "yandex-yt-transfer-manager", "yandex-yt-transfer-manager-client",
-                "yandex-yt-fennel", "yandex-yt-local"]
-
-    for package in packages:
-        if package == "yandex-yt-fennel" and options.codename == "lucid":
-            continue
-        if package == "yandex-yt-local" and options.codename == "lucid":
-            continue
-        with cwd(options.checkout_directory, "python", package):
-            package_version = run_captured(
-                "dpkg-parsechangelog | grep Version | awk '{print $2}'", shell=True).strip()
-            run(["dch", "-r", package_version, "'Resigned by teamcity'"])
-        with cwd(options.checkout_directory, "python"):
-            run(["./deploy.sh", package], cwd=os.path.join(options.checkout_directory, "python"))
-
-
-@build_step
 def run_perl_tests(options):
     if not options.build_enable_perl:
         return
