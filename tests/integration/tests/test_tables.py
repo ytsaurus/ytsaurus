@@ -138,6 +138,10 @@ class TestTables(YTEnvSetup):
         with pytest.raises(YtError):
             write_table("//tmp/table", {"a" : "long_string"}, table_writer = {"max_row_weight" : 2})
 
+        # check max_key_weight limit
+        with pytest.raises(YtError):
+            write_table("//tmp/table", {"a" : "long_string"}, sorted_by=["a"], table_writer = {"max_key_weight" : 2})
+
         # check duplicate ids
         with pytest.raises(YtError):
             write_table("//tmp/table", "{a=version1; a=version2}", is_raw=True)
