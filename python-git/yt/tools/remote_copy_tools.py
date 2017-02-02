@@ -798,12 +798,15 @@ def copy_yamr_to_kiwi():
     pass
 
 def copy_hive_to_yt(hive_client, yt_client, source_table, destination_table, copy_spec_template=None,
-                    postprocess_spec_template=None, compression_codec=None, erasure_codec=None):
+                    postprocess_spec_template=None, compression_codec=None, erasure_codec=None,
+                    json_format_attributes=None):
     source = source_table.split(".", 1)
     read_config, files = hive_client.get_table_config_and_files(*source)
     read_command = hive_client.get_read_command(read_config)
 
     yt_client.create("map_node", os.path.dirname(destination_table), recursive=True, ignore_existing=True)
+
+    json_format_attributes = get_value(json_format_attributes, {})
 
     with yt_client.Transaction(attributes={"title": "copy_hive_to_yt"}):
         set_codec(yt_client, destination_table, compression_codec, "compression")
@@ -817,12 +820,13 @@ def copy_hive_to_yt(hive_client, yt_client, source_table, destination_table, cop
         _set_tmpfs_settings(yt_client, spec, [hive_client.hive_importer_library], reserved_size=6 * GB)
         _set_mapper_settings_for_read_from_yt(spec)
 
+        output_format_attributes = update({"encode_utf8": "false"}, json_format_attributes)
         yt_client.run_map(
             read_command,
             temp_table,
             destination_table,
             input_format=yt.SchemafulDsvFormat(columns=["file"]),
-            output_format=yt.JsonFormat(attributes={"encode_utf8": "false"}),
+            output_format=yt.JsonFormat(attributes=output_format_attributes),
             files=hive_client.hive_importer_library,
             spec=spec)
 
