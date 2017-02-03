@@ -1,5 +1,9 @@
 PYTEST()
 
+SIZE(medium)
+
+TIMEOUT(180)
+
 OWNER(sandello)
 
 TEST_SRCS(
