@@ -222,6 +222,24 @@ class TestOrderedDynamicTables(YTEnvSetup):
         concatenate(["//tmp/t", "//tmp/t"], "//tmp/t")
         with pytest.raises(YtError): alter_table("//tmp/t", dynamic=True)
 
+    def test_chunk_list_kind(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t", dynamic=False)
+
+        write_table("//tmp/t", [{"a": 0}])
+        chunk_list = get("//tmp/t/@chunk_list_id")
+        assert get("#{0}/@kind".format(chunk_list)) == "static"
+
+        alter_table("//tmp/t", dynamic=True)
+        root_chunk_list = get("//tmp/t/@chunk_list_id")
+        tablet_chunk_list = get("#{0}/@child_ids/0".format(root_chunk_list))
+        assert get("#{0}/@kind".format(root_chunk_list)) == "ordered_dynamic_root"
+        assert get("#{0}/@kind".format(tablet_chunk_list)) == "ordered_dynamic_tablet"
+
+        alter_table("//tmp/t", dynamic=False)
+        chunk_list = get("//tmp/t/@chunk_list_id")
+        assert get("#{0}/@kind".format(chunk_list)) == "static"
+
     def test_trim_failure(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")

@@ -142,7 +142,7 @@ public:
 
     virtual TChunkList* CreateChunkList() override
     {
-        return Bootstrap_->GetChunkManager()->CreateChunkList();
+        return Bootstrap_->GetChunkManager()->CreateChunkList(EChunkListKind::Static);
     }
 
     virtual void ClearChunkList(TChunkList* chunkList) override
@@ -600,11 +600,12 @@ public:
         ScheduleChunkRefresh(chunk);
     }
 
-    TChunkList* CreateChunkList(bool ordered = true)
+    TChunkList* CreateChunkList(EChunkListKind kind)
     {
-        auto* chunkList = DoCreateChunkList(ordered);
-        LOG_DEBUG_UNLESS(IsRecovery(), "Chunk list created (Id: %v)",
-            chunkList->GetId());
+        auto* chunkList = DoCreateChunkList(kind);
+        LOG_DEBUG_UNLESS(IsRecovery(), "Chunk list created (Id: %v, Kind: %v)",
+            chunkList->GetId(),
+            chunkList->GetKind());
         return chunkList;
     }
 
@@ -1226,14 +1227,14 @@ private:
     }
 
 
-    TChunkList* DoCreateChunkList(bool ordered = true)
+    TChunkList* DoCreateChunkList(EChunkListKind kind)
     {
         ++ChunkListsCreated_;
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::ChunkList, NullObjectId);
         auto chunkListHolder = std::make_unique<TChunkList>(id);
         auto* chunkList = ChunkListMap_.Insert(id, std::move(chunkListHolder));
-        chunkList->SetOrdered(ordered);
+        chunkList->SetKind(kind);
         return chunkList;
     }
 
@@ -1711,7 +1712,7 @@ private:
         std::vector<TChunkListId> chunkListIds;
         chunkListIds.reserve(count);
         for (int index = 0; index < count; ++index) {
-            auto* chunkList = DoCreateChunkList();
+            auto* chunkList = DoCreateChunkList(EChunkListKind::Static);
             StageChunkTree(chunkList, transaction, nullptr);
             transactionManager->StageObject(transaction, chunkList);
             ToProto(subresponse->add_chunk_list_ids(), chunkList->GetId());
@@ -2645,9 +2646,9 @@ TMutationPtr TChunkManager::CreateExecuteBatchMutation(TCtxExecuteBatchPtr conte
     return Impl_->CreateExecuteBatchMutation(std::move(context));
 }
 
-TChunkList* TChunkManager::CreateChunkList(bool ordered)
+TChunkList* TChunkManager::CreateChunkList(EChunkListKind kind)
 {
-    return Impl_->CreateChunkList(ordered);
+    return Impl_->CreateChunkList(kind);
 }
 
 void TChunkManager::UnstageChunk(TChunk* chunk)

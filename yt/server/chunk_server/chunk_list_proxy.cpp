@@ -39,12 +39,16 @@ private:
     {
         TBase::ListSystemAttributes(descriptors);
 
+        const auto* chunkList = GetThisImpl();
+
         descriptors->push_back("child_ids");
         descriptors->push_back("child_count");
         descriptors->push_back("trimmed_child_count");
         descriptors->push_back("parent_ids");
         descriptors->push_back("statistics");
-        descriptors->push_back("ordered");
+        descriptors->push_back("kind");
+        descriptors->push_back(TAttributeDescriptor("pivot_key")
+            .SetPresent(chunkList->GetKind() == EChunkListKind::SortedDynamicTablet));
         descriptors->push_back(TAttributeDescriptor("tree")
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor("owning_nodes")
@@ -124,9 +128,15 @@ private:
             return true;
         }
 
-        if (key == "ordered") {
+        if (key == "kind") {
             BuildYsonFluently(consumer)
-                .Value(chunkList->GetOrdered());
+                .Value(chunkList->GetKind());
+            return true;
+        }
+
+        if (key == "pivot_key" && chunkList->GetKind() == EChunkListKind::SortedDynamicTablet) {
+            BuildYsonFluently(consumer)
+                .Value(chunkList->GetPivotKey());
             return true;
         }
 

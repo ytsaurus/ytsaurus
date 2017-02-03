@@ -127,6 +127,14 @@ DEFINE_BIT_ENUM(EChunkScanKind,
     ((Seal)             (0x0004))
 );
 
+DEFINE_ENUM(EChunkListKind,
+    ((Static)                (0))
+    ((SortedDynamicRoot)     (1))
+    ((SortedDynamicTablet)   (2))
+    ((OrderedDynamicRoot)    (3))
+    ((OrderedDynamicTablet)  (4))
+);
+
 typedef std::list<TChunkPtrWithIndexes> TChunkRepairQueue;
 typedef TChunkRepairQueue::iterator TChunkRepairQueueIterator;
 

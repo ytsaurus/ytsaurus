@@ -2184,15 +2184,21 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     std::vector<TOwningKey> boundaries;
     boundaries.reserve(chunkSpecs.size());
 
-    for (const auto& chunkSpec : chunkSpecs) {
-        TOwningKey minKey;
+    auto extractMinKey = [] (const TChunkSpec& chunkSpec) {
         if (chunkSpec.has_lower_limit()) {
-            auto limit = NYT::FromProto<TReadLimit>(chunkSpec.lower_limit());
-            minKey = limit.GetKey();
+            auto limit = FromProto<TReadLimit>(chunkSpec.lower_limit());
+            if (limit.HasKey()) {
+                return limit.GetKey();
+            }
         } else if (FindProtoExtension<NProto::TBoundaryKeysExt>(chunkSpec.chunk_meta().extensions())) {
             auto boundaryKeysExt = GetProtoExtension<NProto::TBoundaryKeysExt>(chunkSpec.chunk_meta().extensions());
-            minKey = NYT::FromProto<TOwningKey>(boundaryKeysExt.min());
+            return FromProto<TOwningKey>(boundaryKeysExt.min());
         }
+        return TOwningKey();
+    };
+
+    for (const auto& chunkSpec : chunkSpecs) {
+        TOwningKey minKey = extractMinKey(chunkSpec);
         boundaries.push_back(minKey);
     }
 
@@ -2242,8 +2248,8 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
 
         LOG_DEBUG("Create versioned chunk reader (ChunkId: %v, Range: <%v : %v>)",
             chunkId,
-            lowerLimit.GetKey(),
-            upperLimit.GetKey());
+            lowerLimit,
+            upperLimit);
 
         auto chunkReader = CreateReplicationReader(
             config,

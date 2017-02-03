@@ -24,7 +24,6 @@ void TChunkList::TCumulativeStatisticsEntry::Persist(NCellMaster::TPersistenceCo
 
 TChunkList::TChunkList(const TChunkListId& id)
     : TChunkTree(id)
-    , Ordered_(true)
 {
     ResetChunkListStatistics(this);
 }
@@ -58,7 +57,7 @@ void TChunkList::Save(NCellMaster::TSaveContext& context) const
     Save(context, BranchedOwningNodes_);
     Save(context, Statistics_);
     Save(context, CumulativeStatistics_);
-    Save(context, Ordered_);
+    Save(context, Kind_);
     Save(context, TrimmedChildCount_);
 }
 
@@ -103,13 +102,19 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
             });
         }
     }
+
     // COMPAT(babenko)
     if (context.GetVersion() >= 400) {
-        Load(context, Ordered_);
+        //COMPAT(savrus)
+        if (context.GetVersion() >= 510) {
+            Load(context, Kind_);
+        } else {
+            Load<bool>(context);
+        }
         Load(context, TrimmedChildCount_);
     }
 
-    if (!Ordered_) {
+    if (!IsOrdered()) {
         for (int index = 0; index < Children_.size(); ++index) {
             YCHECK(ChildToIndex_.emplace(Children_[index], index).second);
         }
@@ -170,14 +175,19 @@ int TChunkList::GetGCWeight() const
     return TObjectBase::GetGCWeight() + Children_.size();
 }
 
-void TChunkList::SetOrdered(bool value)
+void TChunkList::SetKind(EChunkListKind kind)
 {
-    if (Ordered_ == value) {
+    if (Kind_ == kind) {
         return;
     }
 
-    Ordered_ = value;
+    Kind_ = kind;
     RecomputeChunkListStatistics(this);
+}
+
+bool TChunkList::IsOrdered() const
+{
+    return Kind_ == EChunkListKind::Static || Kind_ == EChunkListKind::OrderedDynamicTablet;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
