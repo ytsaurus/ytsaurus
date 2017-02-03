@@ -1,8 +1,13 @@
 #include "framework.h"
 #include "ql_helpers.h"
 #include "udf/invalid_ir.h"
-#include "udf/malloc_udf.h"
-#include "udf/test_udfs.h"
+
+#ifndef YT_IN_ARCADIA
+#include "udf/malloc_udf.h" // Y_IGNORE
+#include "udf/test_udfs.h"  // Y_IGNORE
+#else
+#include <library/resource/resource.h>
+#endif
 
 #include <yt/ytlib/query_client/callbacks.h>
 #include <yt/ytlib/query_client/column_evaluator.h>
@@ -471,10 +476,14 @@ protected:
 
         ActionQueue_ = New<TActionQueue>("Test");
 
+#ifndef YT_IN_ARCADIA
         auto bcImplementations = TSharedRef(
             test_udfs_bc,
             test_udfs_bc_len,
             nullptr);
+#else
+        auto bcImplementations = TSharedRef::FromString(::NResource::Find("/llvm_bc/test_udfs"));
+#endif
 
         MergeFrom(TypeInferers_.Get(), *BuiltinTypeInferrersMap);
         MergeFrom(FunctionProfilers_.Get(), *BuiltinFunctionCG);

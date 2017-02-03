@@ -183,6 +183,7 @@ SRCS(
 PEERDIR(
   yt/${YT_ABI}/yt/ytlib
   yt/${YT_ABI}/yt/server
+  yt/${YT_ABI}/yt/unittests/udf
   contrib/libs/gtest
   contrib/libs/gmock
   contrib/libs/openssl
