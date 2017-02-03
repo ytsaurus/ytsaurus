@@ -319,20 +319,24 @@ private:
         const auto& tableId = dataSource.Id;
         auto ranges = dataSource.Ranges;
 
-        auto prunedRanges = GetPrunedRanges(
-            query,
-            tableId,
-            ranges,
-            rowBuffer,
-            Connection_->GetColumnEvaluatorCache(),
-            BuiltinRangeExtractorMap,
-            options);
+        if (query->InferRanges) {
+            auto prunedRanges = GetPrunedRanges(
+                query,
+                tableId,
+                ranges,
+                rowBuffer,
+                Connection_->GetColumnEvaluatorCache(),
+                BuiltinRangeExtractorMap,
+                options);
 
-        LOG_DEBUG("Splitting %v pruned splits", prunedRanges.size());
+            ranges = MakeSharedRange(std::move(prunedRanges), rowBuffer);
+        }
+
+        LOG_DEBUG("Splitting %v pruned splits", ranges.Size());
 
         return SplitTable(
             tableId,
-            MakeSharedRange(std::move(prunedRanges), rowBuffer),
+            std::move(ranges),
             std::move(rowBuffer),
             options,
             Logger);

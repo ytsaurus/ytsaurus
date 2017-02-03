@@ -44,6 +44,7 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     subqueryPattern->SchemaMapping = query->SchemaMapping;
     subqueryPattern->JoinClauses = query->JoinClauses;
     subqueryPattern->UseDisjointGroupBy = query->UseDisjointGroupBy;
+    subqueryPattern->InferRanges = query->InferRanges;
 
     auto topQuery = New<TQuery>(
         query->InputRowLimit,
