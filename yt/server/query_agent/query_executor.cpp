@@ -424,11 +424,15 @@ private:
                 keyRanges.push_back(dataRange.Range);
             }
 
-            refiners.push_back([MOVE(keyRanges)] (
+            refiners.push_back([MOVE(keyRanges), inferRanges = Query_->InferRanges] (
                 TConstExpressionPtr expr,
                 const TKeyColumns& keyColumns)
             {
-                return EliminatePredicate(keyRanges, expr, keyColumns);
+                if (inferRanges) {
+                    return EliminatePredicate(keyRanges, expr, keyColumns);
+                } else {
+                    return expr;
+                }
             });
             subreaderCreators.push_back([&, MOVE(groupedSplit)] () {
                 if (Options_.VerboseLogging) {
