@@ -2367,7 +2367,7 @@ private:
 
         auto jobSpecHelper = NJobProxy::CreateJobSpecHelper(jobSpec);
 
-        auto userJobReader = New<NJobProxy::TUserJobReadController>(
+        auto userJobReader = CreateUserJobReadController(
             jobSpecHelper,
             MakeStrong(this),
             GetConnection()->GetHeavyInvoker(),

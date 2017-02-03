@@ -166,7 +166,7 @@ public:
         auto jobEnvironmentConfig = ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment);
         MemoryWatchdogPeriod_ = jobEnvironmentConfig->MemoryWatchdogPeriod;
 
-        UserJobReadController_ = New<TUserJobReadController>(
+        UserJobReadController_ = CreateUserJobReadController(
             Host_->GetJobSpecHelper(),
             Host_->GetClient(),
             PipeIOPool_->GetInvoker(),
