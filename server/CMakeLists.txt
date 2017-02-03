@@ -434,6 +434,7 @@ SRCS(
 
 PEERDIR(
   contrib/libs/sparsehash
+  contrib/libs/openssl
   library/streams/lz
   library/http/server
   yt/${YT_ABI}/yt/ytlib
