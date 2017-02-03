@@ -61,11 +61,13 @@ public:
         const Stroka& workingDir,
         TNullable<int> userId,
         TNullable<Stroka> freezerFullPath,
-        TNullable<Stroka> messageOfTheDay)
+        TNullable<Stroka> messageOfTheDay,
+        std::vector<Stroka> environment)
         : WorkingDir_(workingDir)
         , UserId_(userId)
         , FreezerFullPath_(freezerFullPath)
         , MessageOfTheDay_(messageOfTheDay)
+        , Environment_(std::move(environment))
     { }
 
     virtual TYsonString PollJobShell(const TYsonString& serializedParameters) override
@@ -235,9 +237,10 @@ IShellManagerPtr CreateShellManager(
     const Stroka& workingDir,
     TNullable<int> userId,
     TNullable<Stroka> freezerFullPath,
-    TNullable<Stroka> messageOfTheDay)
+    TNullable<Stroka> messageOfTheDay,
+    std::vector<Stroka> environment)
 {
-    return New<TShellManager>(workingDir, userId, freezerFullPath, messageOfTheDay);
+    return New<TShellManager>(workingDir, userId, freezerFullPath, messageOfTheDay, std::move(environment));
 }
 
 #else
@@ -245,7 +248,9 @@ IShellManagerPtr CreateShellManager(
 IShellManagerPtr CreateShellManager(
     const Stroka& workingDir,
     TNullable<int> userId,
-    TNullable<Stroka> freezerFullPath)
+    TNullable<Stroka> freezerFullPath,
+    TNullable<Stroka> messageOfTheDay,
+    std::vector<Stroka> environment)
 {
     THROW_ERROR_EXCEPTION("Shell manager is supported only under Unix");
 }
