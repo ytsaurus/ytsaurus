@@ -241,6 +241,8 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/object_server/attribute_set.cpp
   ${CMAKE_CURRENT_LIST_DIR}/object_server/garbage_collector.cpp
   ${CMAKE_CURRENT_LIST_DIR}/object_server/master.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/object_server/master_proxy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/object_server/master_type_handler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/object_server/master_cache_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/object_server/object.cpp
   ${CMAKE_CURRENT_LIST_DIR}/object_server/object_detail.cpp
