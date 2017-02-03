@@ -408,6 +408,7 @@ protected:
         EOperationStage Stage = EOperationStage::None;
         Stroka FileName;
         std::vector<NChunkClient::NProto::TChunkSpec> ChunkSpecs;
+        i64 ChunkCount = -1;
         bool Executable = false;
         NYson::TYsonString Format;
         NTableClient::TTableSchema Schema;

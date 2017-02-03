@@ -254,7 +254,7 @@ Stroka ToString(const TReadLimit& limit)
     }
 
     if (limit.HasChunkIndex()) {
-        append("ChunkIndex", ToString(limit.GetOffset()));
+        append("ChunkIndex", ToString(limit.GetChunkIndex()));
     }
 
     builder.AppendChar('}');

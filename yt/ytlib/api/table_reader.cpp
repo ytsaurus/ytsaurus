@@ -172,6 +172,7 @@ void TSchemalessTableReader::DoOpen()
             userObject.Type);
     }
 
+    int chunkCount;
     bool dynamic;
     TTableSchema schema;
     auto timestamp = RichPath_.GetTimestamp();
@@ -186,6 +187,7 @@ void TSchemalessTableReader::DoOpen()
         SetTransactionId(req, Transaction_);
         SetSuppressAccessTracking(req, Config_->SuppressAccessTracking);
         std::vector<Stroka> attributeKeys{
+            "chunk_count",
             "dynamic",
             "schema"
         };
@@ -198,6 +200,7 @@ void TSchemalessTableReader::DoOpen()
         const auto& rsp = rspOrError.Value();
         auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
 
+        chunkCount = attributes->Get<int>("chunk_count");
         dynamic = attributes->Get<bool>("dynamic");
         schema = attributes->Get<TTableSchema>("schema");
 
@@ -214,28 +217,22 @@ void TSchemalessTableReader::DoOpen()
     {
         LOG_INFO("Fetching table chunks");
 
-        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, tableCellTag);
-        TObjectServiceProxy proxy(channel);
-
-        auto req = TTableYPathProxy::Fetch(objectIdPath);
-        InitializeFetchRequest(req.Get(), RichPath_);
-        req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-        req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
-        SetTransactionId(req, Transaction_);
-        SetSuppressAccessTracking(req, Config_->SuppressAccessTracking);
-
-        auto rspOrError = WaitFor(proxy.Execute(req));
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching chunks for table %v",
-            path);
-        const auto& rsp = rspOrError.Value();
-
-        ProcessFetchResponse(
+        FetchChunkSpecs(
             Client_,
-            rsp,
-            tableCellTag,
             nodeDirectory,
+            tableCellTag,
+            RichPath_,
+            objectId,
+            chunkCount,
+            Config_->MaxChunksPerFetch,
             Config_->MaxChunksPerLocateRequest,
-            Null,
+            [&] (TChunkOwnerYPathProxy::TReqFetchPtr req) {
+                req->set_fetch_all_meta_extensions(false);
+                req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+                req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
+                SetTransactionId(req, Transaction_);
+                SetSuppressAccessTracking(req, Config_->SuppressAccessTracking);
+            },
             Logger,
             &chunkSpecs);
 

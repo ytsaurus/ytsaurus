@@ -581,20 +581,6 @@ std::vector<TRichYPath> Normalize(const std::vector<TRichYPath>& paths)
     return result;
 }
 
-void InitializeFetchRequest(
-    NChunkClient::NProto::TReqFetch* request,
-    const TRichYPath& richPath)
-{
-    auto channel = richPath.GetChannel();
-    if (channel.IsUniversal()) {
-        request->clear_channel();
-    } else {
-        ToProto(request->mutable_channel(), channel);
-    }
-
-    ToProto(request->mutable_ranges(), richPath.GetRanges());
-}
-
 void Serialize(const TRichYPath& richPath, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)

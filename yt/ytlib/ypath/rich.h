@@ -98,10 +98,6 @@ Stroka ToString(const TRichYPath& path);
 
 std::vector<TRichYPath> Normalize(const std::vector<TRichYPath>& paths);
 
-void InitializeFetchRequest(
-    NChunkClient::NProto::TReqFetch* request,
-    const TRichYPath& richPath);
-
 void Serialize(const TRichYPath& richPath, NYson::IYsonConsumer* consumer);
 void Deserialize(TRichYPath& richPath, NYTree::INodePtr node);
 

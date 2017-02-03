@@ -179,6 +179,7 @@ void TOperationControllerBase::TUserFile::Persist(const TPersistenceContext& con
     Persist(context, Stage);
     Persist(context, FileName);
     Persist(context, ChunkSpecs);
+    Persist(context, ChunkCount);
     Persist(context, Type);
     Persist(context, Executable);
     Persist(context, Format);
@@ -3446,8 +3447,6 @@ void TOperationControllerBase::FetchInputTables()
 
     for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
         auto& table = InputTables[tableIndex];
-        auto objectIdPath = FromObjectId(table.ObjectId);
-        const auto& path = table.Path.GetPath();
         const auto& ranges = table.Path.GetRanges();
         if (ranges.empty()) {
             continue;
@@ -3462,99 +3461,43 @@ void TOperationControllerBase::FetchInputTables()
         }
 
         LOG_INFO("Fetching input table (Path: %v, RangeCount: %v)",
-            path,
+            table.Path,
             ranges.size());
 
-        auto channel = AuthenticatedInputMasterClient->GetMasterChannelOrThrow(
-            EMasterChannelKind::Follower,
-            table.CellTag);
-        TObjectServiceProxy proxy(channel);
-
-        auto batchReq = proxy.ExecuteBatch();
-        std::vector<int> rangeIndices;
-
-        if (!table.IsDynamic) {
-            for (int rangeIndex = 0; rangeIndex < static_cast<int>(ranges.size()); ++rangeIndex) {
-                for (i64 index = 0; index * Config->MaxChunksPerFetch < table.ChunkCount; ++index) {
-                    auto adjustedRange = ranges[rangeIndex];
-                    auto chunkCountLowerLimit = index * Config->MaxChunksPerFetch;
-                    if (adjustedRange.LowerLimit().HasChunkIndex()) {
-                        chunkCountLowerLimit = std::max(chunkCountLowerLimit, adjustedRange.LowerLimit().GetChunkIndex());
-                    }
-                    adjustedRange.LowerLimit().SetChunkIndex(chunkCountLowerLimit);
-
-                    auto chunkCountUpperLimit = (index + 1) * Config->MaxChunksPerFetch;
-                    if (adjustedRange.UpperLimit().HasChunkIndex()) {
-                        chunkCountUpperLimit = std::min(chunkCountUpperLimit, adjustedRange.UpperLimit().GetChunkIndex());
-                    }
-                    adjustedRange.UpperLimit().SetChunkIndex(chunkCountUpperLimit);
-
-                    auto req = TTableYPathProxy::Fetch(FromObjectId(table.ObjectId));
-                    InitializeFetchRequest(req.Get(), table.Path);
-                    ToProto(req->mutable_ranges(), std::vector<TReadRange>({adjustedRange}));
-                    req->set_fetch_all_meta_extensions(false);
-                    req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-                    if (IsBoundaryKeysFetchEnabled()) {
-                        req->add_extension_tags(TProtoExtensionTag<TBoundaryKeysExt>::Value);
-                    }
-                    req->set_fetch_parity_replicas(IsParityReplicasFetchEnabled());
-                    SetTransactionId(req, InputTransaction->GetId());
-                    batchReq->AddRequest(req, "fetch");
-                    rangeIndices.push_back(rangeIndex);
+        std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs;
+        FetchChunkSpecs(
+            AuthenticatedInputMasterClient,
+            InputNodeDirectory,
+            table.CellTag,
+            table.Path,
+            table.ObjectId,
+            table.ChunkCount,
+            Config->MaxChunksPerFetch,
+            Config->MaxChunksPerLocateRequest,
+            [&] (TChunkOwnerYPathProxy::TReqFetchPtr req) {
+                req->set_fetch_all_meta_extensions(false);
+                req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+                if (table.IsDynamic || IsBoundaryKeysFetchEnabled()) {
+                    req->add_extension_tags(TProtoExtensionTag<TBoundaryKeysExt>::Value);
                 }
-            }
-        } else {
-            if (ranges.size() != 1 || !ranges[0].LowerLimit().IsTrivial() || !ranges[0].UpperLimit().IsTrivial()) {
-                THROW_ERROR_EXCEPTION("Ranges are not supported for dynamic table inputs")
-                    << TErrorAttribute("table_path", table.Path.GetPath());
-            }
+                req->set_fetch_parity_replicas(IsParityReplicasFetchEnabled());
+                SetTransactionId(req, InputTransaction->GetId());
+            },
+            Logger,
+            &chunkSpecs);
 
-            rangeIndices.push_back(0);
-
-            auto req = TTableYPathProxy::Fetch(FromObjectId(table.ObjectId));
-            InitializeFetchRequest(req.Get(), table.Path);
-            // TODO: support ranges
-            //ToProto(req->mutable_ranges(), std::vector<TReadRange>(ranges[0]));
-            req->set_fetch_all_meta_extensions(false);
-            req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-            req->add_extension_tags(TProtoExtensionTag<TBoundaryKeysExt>::Value);
-            req->set_fetch_parity_replicas(IsParityReplicasFetchEnabled());
-            SetTransactionId(req, InputTransaction->GetId());
-            batchReq->AddRequest(req, "fetch");
-        }
-
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error fetching input table %v",
-            path);
-        const auto& batchRsp = batchRspOrError.Value();
-
-        auto rspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspFetch>("fetch");
-        for (int resultIndex = 0; resultIndex < static_cast<int>(rspsOrError.size()); ++resultIndex) {
-            const auto& rsp = rspsOrError[resultIndex].Value();
-            std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs;
-            ProcessFetchResponse(
-                AuthenticatedInputMasterClient,
-                rsp,
-                table.CellTag,
-                InputNodeDirectory,
-                Config->MaxChunksPerLocateRequest,
-                rangeIndices[resultIndex],
-                Logger,
-                &chunkSpecs);
-
-            for (const auto& chunkSpec : chunkSpecs) {
-                auto inputChunk = New<TInputChunk>(chunkSpec);
-                inputChunk->SetTableIndex(tableIndex);
-                table.Chunks.emplace_back(std::move(inputChunk));
-                ++totalChunkCount;
-                for (const auto& extension : chunkSpec.chunk_meta().extensions().extensions()) {
-                    totalExtensionSize += extension.data().size();
-                }
+        for (const auto& chunkSpec : chunkSpecs) {
+            auto inputChunk = New<TInputChunk>(chunkSpec);
+            inputChunk->SetTableIndex(tableIndex);
+            table.Chunks.emplace_back(std::move(inputChunk));
+            ++totalChunkCount;
+            for (const auto& extension : chunkSpec.chunk_meta().extensions().extensions()) {
+                totalExtensionSize += extension.data().size();
             }
         }
 
         LOG_INFO("Input table fetched (Path: %v, ChunkCount: %v)",
-            path,
+            table.Path,
             table.Chunks.size());
     }
 
@@ -3946,49 +3889,65 @@ void TOperationControllerBase::FetchUserFiles()
         LOG_INFO("Fetching user file (Path: %v)",
             path);
 
-        auto channel = AuthenticatedInputMasterClient->GetMasterChannelOrThrow(
-            EMasterChannelKind::Follower,
-            file.CellTag);
-        TObjectServiceProxy proxy(channel);
+        switch (file.Type) {
+            case EObjectType::Table:
+                FetchChunkSpecs(
+                    AuthenticatedInputMasterClient,
+                    InputNodeDirectory,
+                    file.CellTag,
+                    file.Path,
+                    file.ObjectId,
+                    file.ChunkCount,
+                    Config->MaxChunksPerFetch,
+                    Config->MaxChunksPerLocateRequest,
+                    [&] (TChunkOwnerYPathProxy::TReqFetchPtr req) {
+                        req->set_fetch_all_meta_extensions(false);
+                        req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+                        if (file.IsDynamic || IsBoundaryKeysFetchEnabled()) {
+                            req->add_extension_tags(TProtoExtensionTag<TBoundaryKeysExt>::Value);
+                        }
+                        req->set_fetch_parity_replicas(IsParityReplicasFetchEnabled());
+                        SetTransactionId(req, InputTransaction->GetId());
+                    },
+                    Logger,
+                    &file.ChunkSpecs);
+                break;
 
-        auto batchReq = proxy.ExecuteBatch();
+            case EObjectType::File: {
+                auto channel = AuthenticatedInputMasterClient->GetMasterChannelOrThrow(
+                    EMasterChannelKind::Follower,
+                    file.CellTag);
+                TObjectServiceProxy proxy(channel);
 
-        {
-            auto req = TChunkOwnerYPathProxy::Fetch(objectIdPath);
-            ToProto(req->mutable_ranges(), std::vector<TReadRange>({TReadRange()}));
-            switch (file.Type) {
-                case EObjectType::Table:
-                    req->set_fetch_all_meta_extensions(true);
-                    InitializeFetchRequest(req.Get(), file.Path);
-                    break;
+                auto batchReq = proxy.ExecuteBatch();
 
-                case EObjectType::File:
-                    req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-                    break;
+                auto req = TChunkOwnerYPathProxy::Fetch(objectIdPath);
+                ToProto(req->mutable_ranges(), std::vector<TReadRange>({TReadRange()}));
+                req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+                SetTransactionId(req, InputTransaction->GetId());
+                batchReq->AddRequest(req, "fetch");
 
-                default:
-                    Y_UNREACHABLE();
+                auto batchRspOrError = WaitFor(batchReq->Invoke());
+                THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error fetching user file %v",
+                     path);
+                const auto& batchRsp = batchRspOrError.Value();
+
+                auto rsp = batchRsp->GetResponse<TChunkOwnerYPathProxy::TRspFetch>("fetch").Value();
+                ProcessFetchResponse(
+                    AuthenticatedInputMasterClient,
+                    rsp,
+                    file.CellTag,
+                    nullptr,
+                    Config->MaxChunksPerLocateRequest,
+                    Null,
+                    Logger,
+                    &file.ChunkSpecs);
+
+                break;
             }
-            SetTransactionId(req, InputTransaction->GetId());
-            batchReq->AddRequest(req, "fetch");
-        }
 
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error fetching user file %v",
-             path);
-        const auto& batchRsp = batchRspOrError.Value();
-
-        {
-            auto rsp = batchRsp->GetResponse<TChunkOwnerYPathProxy::TRspFetch>("fetch").Value();
-            ProcessFetchResponse(
-                AuthenticatedInputMasterClient,
-                rsp,
-                file.CellTag,
-                nullptr,
-                Config->MaxChunksPerLocateRequest,
-                Null,
-                Logger,
-                &file.ChunkSpecs);
+            default:
+                Y_UNREACHABLE();
         }
 
         LOG_INFO("User file fetched (Path: %v, FileName: %v)",
@@ -4224,6 +4183,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
                         chunkCount,
                         Config->MaxChunksPerFetch);
                 }
+                file.ChunkCount = chunkCount;
 
                 LOG_INFO("User file locked (Path: %v, Stage: %v, FileName: %v)",
                     path,
