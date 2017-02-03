@@ -1788,7 +1788,7 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
 
         query->UseDisjointGroupBy = containsPrimaryKey;
 
-        LOG_DEBUG("Use UseDisjointGroupBy optimization");
+        LOG_DEBUG("Group key contains primary key, can omit top-level GROUP BY");
     }
 
 

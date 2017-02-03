@@ -167,7 +167,7 @@ message TQuery
     optional TOrderClause order_clause = 11;
     optional TProjectClause project_clause = 10;
 
-    optional bool group_by_unique_key = 13 [default = false];
+    optional bool use_disjoint_group_by = 13 [default = false];
 }
 
 message TQueryOptions
