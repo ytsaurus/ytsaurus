@@ -139,7 +139,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/ql_computed_columns_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ql_expressions_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ql_helpers.cpp
-  #  ${CMAKE_CURRENT_LIST_DIR}/ql_query_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ql_query_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ql_range_inference_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/value_consumer_ut.cpp
 )
@@ -171,6 +171,7 @@ ENDIF()
 
 ADDINCL(
   yt/${YT_ABI}/yt
+  yt/${YT_ABI}/yt/ytlib/query_client
   contrib/libs/gtest
   contrib/libs/gmock
 )
