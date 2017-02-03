@@ -176,6 +176,8 @@ PEERDIR(
   yt/${YT_ABI}/yt/server
   contrib/libs/gtest
   contrib/libs/gmock
+  contrib/libs/openssl
+  library/http/simple
 )
 
 END()
