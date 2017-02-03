@@ -134,6 +134,14 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/ytree_fluent_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/yverify_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/zigzag_ut.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/cgroup_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ql_computed_columns_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ql_expressions_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ql_helpers.cpp
+  #  ${CMAKE_CURRENT_LIST_DIR}/ql_query_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ql_range_inference_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/value_consumer_ut.cpp
 )
 
 ################################################################################
@@ -189,13 +197,7 @@ ELSE()
 set(YT_SOURCE_FILES)
 
 list(APPEND YT_SRCS
-  ${CMAKE_CURRENT_LIST_DIR}/cgroup_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/ql_computed_columns_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/ql_expressions_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/ql_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ql_query_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/ql_range_inference_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/value_consumer_ut.cpp
 )
 
 resolve_srcs(YT_SRCS YT_SRCS_RESOLVED)
