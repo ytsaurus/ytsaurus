@@ -1,3 +1,5 @@
+IF (NOT YMAKE)
+
 bison( ${CMAKE_CURRENT_LIST_DIR}/parser.yy YT_SOURCE_FILES )
 ragel( ${CMAKE_CURRENT_LIST_DIR}/lexer.rl YT_SOURCE_FILES )
 
@@ -81,3 +83,5 @@ udf_bc(
     timestamp_floor_month
     timestamp_floor_year
 )
+
+ENDIF()
