@@ -604,13 +604,21 @@ public:
             evaluator);
     }
 
+    TRetentionConfigPtr GetRetentionConfig()
+    {
+        auto config = New<TRetentionConfig>();
+        config->MinDataTtl = TDuration::Minutes(5);
+        config->MaxDataTtl = TDuration::Minutes(5);
+        return config;
+    }
+
 protected:
     const TRowBufferPtr MergedRowBuffer_ = New<TRowBuffer>();
 };
 
 TEST_F(TVersionedRowMergerTest, KeepAll1)
 {
-    auto config = New<TRetentionConfig>();
+    auto config = GetRetentionConfig();
     config->MinDataVersions = 10;
 
     auto merger = GetTypicalMerger(config, SecondsToTimestamp(1000000), 0);
@@ -624,7 +632,7 @@ TEST_F(TVersionedRowMergerTest, KeepAll1)
 
 TEST_F(TVersionedRowMergerTest, KeepAll2)
 {
-    auto config = New<TRetentionConfig>();
+    auto config = GetRetentionConfig();
     config->MinDataVersions = 10;
 
     auto merger = GetTypicalMerger(config, SecondsToTimestamp(1000000), 0);
@@ -642,7 +650,7 @@ TEST_F(TVersionedRowMergerTest, KeepAll2)
 
 TEST_F(TVersionedRowMergerTest, KeepAll3)
 {
-    auto config = New<TRetentionConfig>();
+    auto config = GetRetentionConfig();
     config->MinDataVersions = 10;
 
     auto merger = GetTypicalMerger(config, SecondsToTimestamp(1000000), 0);
@@ -661,7 +669,7 @@ TEST_F(TVersionedRowMergerTest, KeepAll3)
 
 TEST_F(TVersionedRowMergerTest, KeepAll4)
 {
-    auto config = New<TRetentionConfig>();
+    auto config = GetRetentionConfig();
     config->MinDataVersions = 10;
 
     auto merger = GetTypicalMerger(config, SecondsToTimestamp(1000000), 0);
@@ -681,7 +689,7 @@ TEST_F(TVersionedRowMergerTest, KeepAll4)
 
 TEST_F(TVersionedRowMergerTest, KeepAll5)
 {
-    auto config = New<TRetentionConfig>();
+    auto config = GetRetentionConfig();
     config->MinDataVersions = 10;
 
     auto merger = GetTypicalMerger(config, SecondsToTimestamp(1000000), 0);
@@ -699,7 +707,7 @@ TEST_F(TVersionedRowMergerTest, KeepAll5)
 
 TEST_F(TVersionedRowMergerTest, KeepLatest1)
 {
-    auto config = New<TRetentionConfig>();
+    auto config = GetRetentionConfig();
     config->MinDataVersions = 1;
     config->MaxDataVersions = 1;
 
@@ -718,7 +726,7 @@ TEST_F(TVersionedRowMergerTest, KeepLatest1)
 
 TEST_F(TVersionedRowMergerTest, KeepLatest2)
 {
-    auto config = New<TRetentionConfig>();
+    auto config = GetRetentionConfig();
     config->MinDataVersions = 1;
     config->MaxDataVersions = 1;
 
@@ -739,7 +747,7 @@ TEST_F(TVersionedRowMergerTest, KeepLatest2)
 
 TEST_F(TVersionedRowMergerTest, KeepLatest3)
 {
-    auto config = New<TRetentionConfig>();
+    auto config = GetRetentionConfig();
     config->MinDataVersions = 1;
     config->MaxDataVersions = 1;
 
@@ -758,7 +766,7 @@ TEST_F(TVersionedRowMergerTest, KeepLatest3)
 
 TEST_F(TVersionedRowMergerTest, KeepLatest4)
 {
-    auto config = New<TRetentionConfig>();
+    auto config = GetRetentionConfig();
     config->MinDataVersions = 1;
     config->MaxDataVersions = 1;
 
@@ -772,7 +780,7 @@ TEST_F(TVersionedRowMergerTest, KeepLatest4)
 
 TEST_F(TVersionedRowMergerTest, KeepLatest5)
 {
-    auto config = New<TRetentionConfig>();
+    auto config = GetRetentionConfig();
     config->MinDataVersions = 3;
     config->MaxDataVersions = 3;
 
@@ -793,7 +801,7 @@ TEST_F(TVersionedRowMergerTest, KeepLatest5)
 
 TEST_F(TVersionedRowMergerTest, KeepLatest6)
 {
-    auto config = New<TRetentionConfig>();
+    auto config = GetRetentionConfig();
     config->MinDataVersions = 2;
     config->MaxDataVersions = 2;
 
@@ -811,7 +819,7 @@ TEST_F(TVersionedRowMergerTest, KeepLatest6)
 
 TEST_F(TVersionedRowMergerTest, Expire1)
 {
-    auto config = New<TRetentionConfig>();
+    auto config = GetRetentionConfig();
     config->MinDataVersions = 0;
     config->MaxDataTtl = TDuration::Seconds(1000);
 
@@ -826,7 +834,7 @@ TEST_F(TVersionedRowMergerTest, Expire1)
 
 TEST_F(TVersionedRowMergerTest, Expire2)
 {
-    auto config = New<TRetentionConfig>();
+    auto config = GetRetentionConfig();
     config->MinDataVersions = 0;
     config->MaxDataTtl = TDuration::Seconds(1000);
 
@@ -839,7 +847,7 @@ TEST_F(TVersionedRowMergerTest, Expire2)
 
 TEST_F(TVersionedRowMergerTest, Expire3)
 {
-    auto config = New<TRetentionConfig>();
+    auto config = GetRetentionConfig();
     config->MinDataVersions = 1;
     config->MaxDataVersions = 3;
     config->MinDataTtl = TDuration::Seconds(0);
@@ -867,7 +875,7 @@ TEST_F(TVersionedRowMergerTest, Expire3)
 
 TEST_F(TVersionedRowMergerTest, DeleteOnly)
 {
-    auto config = New<TRetentionConfig>();
+    auto config = GetRetentionConfig();
     config->MinDataVersions = 10;
 
     auto merger = GetTypicalMerger(config, SecondsToTimestamp(1100), 0);
@@ -884,7 +892,7 @@ TEST_F(TVersionedRowMergerTest, DeleteOnly)
 
 TEST_F(TVersionedRowMergerTest, ManyDeletes)
 {
-    auto config = New<TRetentionConfig>();
+    auto config = GetRetentionConfig();
     config->MinDataVersions = 10;
 
     auto merger = GetTypicalMerger(config, SecondsToTimestamp(1100), 0);
@@ -903,7 +911,7 @@ TEST_F(TVersionedRowMergerTest, ManyDeletes)
 
 TEST_F(TVersionedRowMergerTest, Aggregate1)
 {
-    auto config = New<TRetentionConfig>();
+    auto config = GetRetentionConfig();
     config->MinDataVersions = 1;
 
     auto merger = GetTypicalMerger(
@@ -923,7 +931,7 @@ TEST_F(TVersionedRowMergerTest, Aggregate1)
 
 TEST_F(TVersionedRowMergerTest, Aggregate2)
 {
-    auto config = New<TRetentionConfig>();
+    auto config = GetRetentionConfig();
     config->MinDataVersions = 1;
 
     auto merger = GetTypicalMerger(
@@ -945,7 +953,7 @@ TEST_F(TVersionedRowMergerTest, Aggregate2)
 
 TEST_F(TVersionedRowMergerTest, Aggregate3)
 {
-    auto config = New<TRetentionConfig>();
+    auto config = GetRetentionConfig();
     config->MinDataVersions = 1;
 
     auto merger = GetTypicalMerger(
@@ -967,7 +975,7 @@ TEST_F(TVersionedRowMergerTest, Aggregate3)
 
 TEST_F(TVersionedRowMergerTest, Aggregate4)
 {
-    auto config = New<TRetentionConfig>();
+    auto config = GetRetentionConfig();
     config->MinDataVersions = 1;
 
     auto merger = GetTypicalMerger(
@@ -989,7 +997,7 @@ TEST_F(TVersionedRowMergerTest, Aggregate4)
 
 TEST_F(TVersionedRowMergerTest, Aggregate5)
 {
-    auto config = New<TRetentionConfig>();
+    auto config = GetRetentionConfig();
     config->MinDataVersions = 1;
 
     auto merger = GetTypicalMerger(
@@ -1011,7 +1019,7 @@ TEST_F(TVersionedRowMergerTest, Aggregate5)
 
 TEST_F(TVersionedRowMergerTest, DeletedAggregate1)
 {
-    auto config = New<TRetentionConfig>();
+    auto config = GetRetentionConfig();
     config->MinDataVersions = 1;
 
     auto merger = GetTypicalMerger(
@@ -1033,7 +1041,7 @@ TEST_F(TVersionedRowMergerTest, DeletedAggregate1)
 
 TEST_F(TVersionedRowMergerTest, DeletedAggregate2)
 {
-    auto config = New<TRetentionConfig>();
+    auto config = GetRetentionConfig();
     config->MinDataVersions = 1;
 
     auto merger = GetTypicalMerger(
@@ -1052,7 +1060,7 @@ TEST_F(TVersionedRowMergerTest, DeletedAggregate2)
 
 TEST_F(TVersionedRowMergerTest, DeletedAggregate3)
 {
-    auto config = New<TRetentionConfig>();
+    auto config = GetRetentionConfig();
     config->MinDataVersions = 1;
 
     auto merger = GetTypicalMerger(
@@ -1075,7 +1083,7 @@ TEST_F(TVersionedRowMergerTest, DeletedAggregate3)
 
 TEST_F(TVersionedRowMergerTest, DeletedAggregate4)
 {
-    auto config = New<TRetentionConfig>();
+    auto config = GetRetentionConfig();
     config->MinDataVersions = 1;
 
     auto merger = GetTypicalMerger(
@@ -1098,7 +1106,7 @@ TEST_F(TVersionedRowMergerTest, DeletedAggregate4)
 
 TEST_F(TVersionedRowMergerTest, DeletedAggregate5)
 {
-    auto config = New<TRetentionConfig>();
+    auto config = GetRetentionConfig();
     config->MinDataVersions = 1;
 
     auto merger = GetTypicalMerger(
@@ -1122,7 +1130,7 @@ TEST_F(TVersionedRowMergerTest, DeletedAggregate5)
 
 TEST_F(TVersionedRowMergerTest, DeletedAggregate6)
 {
-    auto config = New<TRetentionConfig>();
+    auto config = GetRetentionConfig();
     config->MinDataVersions = 1;
 
     auto merger = GetTypicalMerger(
@@ -1145,7 +1153,7 @@ TEST_F(TVersionedRowMergerTest, DeletedAggregate6)
 
 TEST_F(TVersionedRowMergerTest, ResettedAggregate1)
 {
-    auto config = New<TRetentionConfig>();
+    auto config = GetRetentionConfig();
     config->MinDataVersions = 1;
 
     auto merger = GetTypicalMerger(
@@ -1167,7 +1175,7 @@ TEST_F(TVersionedRowMergerTest, ResettedAggregate1)
 
 TEST_F(TVersionedRowMergerTest, ResettedAggregate2)
 {
-    auto config = New<TRetentionConfig>();
+    auto config = GetRetentionConfig();
     config->MinDataVersions = 1;
 
     auto merger = GetTypicalMerger(
@@ -1191,7 +1199,7 @@ TEST_F(TVersionedRowMergerTest, ResettedAggregate2)
 
 TEST_F(TVersionedRowMergerTest, ExpiredAggregate)
 {
-    auto config = New<TRetentionConfig>();
+    auto config = GetRetentionConfig();
     config->MinDataVersions = 0;
     config->MinDataTtl = TDuration(0);
     config->MaxDataTtl = TDuration(100);
@@ -1450,6 +1458,8 @@ TEST_F(TVersionedMergingReaderTest, Merge1)
 
     auto config = New<TRetentionConfig>();
     config->MinDataVersions = 2;
+    config->MinDataTtl = TDuration::Minutes(5);
+    config->MaxDataTtl = TDuration::Minutes(5);
 
     auto merger = GetTypicalMerger(config, SecondsToTimestamp(1000), 0);
 
