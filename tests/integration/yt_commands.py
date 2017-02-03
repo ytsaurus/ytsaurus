@@ -1031,3 +1031,13 @@ def make_ace(action, subjects, permissions, inheritance_mode="object_and_descend
 
 def total_seconds(td):
     return float(td.microseconds + (td.seconds + td.days * 24 * 3600) * 10 ** 6) / 10 ** 6
+
+def get_guid_from_parts(lo, hi):
+    assert 0 <= lo < 2 ** 64
+    assert 0 <= hi < 2 ** 64
+    ints = [0, 0, 0, 0]
+    ints[0] = hi & 0xFFFFFFFF
+    ints[1] = hi >> 32
+    ints[2] = lo & 0xFFFFFFFF
+    ints[3] = lo >> 32
+    return "{3:x}-{2:x}-{1:x}-{0:x}".format(*ints)
