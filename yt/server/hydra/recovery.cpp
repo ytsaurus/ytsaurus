@@ -250,8 +250,6 @@ void TRecoveryBase::ReplayChangelog(IChangelogPtr changelog, int changelogId, in
         auto result = WaitFor(asyncResult)
             .ValueOrThrow();
 
-        LOG_INFO("Quorum record count is %v", result);
-
         if (result >= targetRecordId) {
             LOG_INFO("Quorum record count check succeeded");
             break;
