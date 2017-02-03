@@ -458,15 +458,21 @@ private:
         }
 
         // Copy environment to process arguments
+        std::vector<Stroka> shellEnvironment;
+        shellEnvironment.reserve(Environment_.size());
         for (const auto& var : Environment_) {
             Process_->AddArguments({"--env", var});
+            if (var.has_prefix("YT_")) {
+                shellEnvironment.emplace_back(var);
+            }
         }
 
         ShellManager_ = CreateShellManager(
             NFS::CombinePaths(NFs::CurrentWorkingDirectory(), SandboxDirectoryNames[ESandboxKind::Home]),
             UserId_,
             TNullable<Stroka>(static_cast<bool>(CGroupsConfig_), CGroupBase),
-            Format("Job environment:\n%v\n", JoinToString(Environment_, STRINGBUF("\n"))));
+            Format("Job environment:\n%v\n", JoinToString(Environment_, STRINGBUF("\n"))),
+            std::move(shellEnvironment));
     }
 
     void WaitForActiveShellProcesses(const TError& error)
