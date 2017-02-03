@@ -513,10 +513,10 @@ private:
             }
 
             auto queryFingerprint = InferName(query, true);
-            LOG_DEBUG("Sending subquery (Fingerprint: %v, InputSchema: %v, ResultSchema: %v, SerializationTime: %v, "
+            LOG_DEBUG("Sending subquery (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v, SerializationTime: %v, "
                 "RequestSize: %v)",
                 queryFingerprint,
-                query->OriginalSchema,
+                query->GetReadSchema(),
                 query->GetTableSchema(),
                 serializationTime,
                 req->ByteSize());
