@@ -1799,9 +1799,9 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
     }
 
     auto queryFingerprint = InferName(query, true);
-    LOG_DEBUG("Prepared query (Fingerprint: %v, InputSchema: %v, ResultSchema: %v)",
+    LOG_DEBUG("Prepared query (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v)",
         queryFingerprint,
-        query->OriginalSchema,
+        query->GetReadSchema(),
         query->GetTableSchema());
 
     auto range = GetBothBoundsFromDataSplit(selfDataSplit);
