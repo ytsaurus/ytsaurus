@@ -3,8 +3,7 @@
 #include "config.h"
 #include "garbage_collector.h"
 #include "master.h"
-#include "object.h"
-#include "schema.h"
+#include "master_type_handler.h"
 
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/hydra_facade.h>
