@@ -400,7 +400,7 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
     if raw:
         return response
     else:
-        return format.load_rows_with_finalization(response, on_close=lambda: response.close())
+        return format.load_rows(response)
 
 def _are_valid_nodes(source_tables, destination_table):
     return len(source_tables) == 1 and \
