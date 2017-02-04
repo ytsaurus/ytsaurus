@@ -114,6 +114,7 @@ b"""
     };
 
     response_keeper = {
+        enable_warmup = %false;
         expiration_time = 25000;
         warmup_time = 30000;
     };
