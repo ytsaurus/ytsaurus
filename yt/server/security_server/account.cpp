@@ -109,6 +109,13 @@ bool TAccount::IsDiskSpaceLimitViolated() const
         std::less_equal<i64>());
 }
 
+bool TAccount::IsDiskSpaceLimitViolated(int mediumIndex) const
+{
+    const auto& usage = ClusterStatistics_.ResourceUsage.DiskSpace;
+    const auto& limits = ClusterResourceLimits_.DiskSpace;
+    return usage[mediumIndex] > limits[mediumIndex];
+}
+
 bool TAccount::IsNodeCountLimitViolated() const
 {
     return ClusterStatistics_.ResourceUsage.NodeCount > ClusterResourceLimits_.NodeCount;
