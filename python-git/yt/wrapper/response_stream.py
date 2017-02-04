@@ -120,6 +120,13 @@ class ResponseStream(Iterator):
     def close(self):
         self._close()
 
+class ResponseStreamWithDel(ResponseStream):
+    def __init__(self, *args, **kwargs):
+        super(ResponseStreamWithDel, self).__init__(*args, **kwargs)
+
+    def __del__(self):
+        self.close()
+
 class EmptyResponseStream(Iterator):
     def read(self, length=None):
         return b""

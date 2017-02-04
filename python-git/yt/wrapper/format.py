@@ -174,15 +174,6 @@ class Format(object):
         """Reads bytes from the stream, parses, processes input table switcher and yields all rows."""
         pass
 
-    def load_rows_with_finalization(self, stream, raw=None, on_close=None):
-        """Does the same thing as load_rows, but call on_close() if iterator was closed."""
-        try:
-            for row in self.load_rows(stream, raw):
-                yield row
-        finally:
-            if on_close is not None:
-                on_close()
-
     def dump_row(self, row, stream, raw=None):
         """Serializes row and writes to the stream."""
         if self._is_raw(raw):
