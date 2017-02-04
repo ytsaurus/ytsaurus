@@ -1789,6 +1789,7 @@ private:
         SetMutationId(req, options);
         req->set_source_path(srcPath);
         req->set_preserve_account(options.PreserveAccount);
+        req->set_preserve_expiration_time(options.PreserveExpirationTime);
         req->set_recursive(options.Recursive);
         req->set_force(options.Force);
         batchReq->AddRequest(req);
@@ -1814,6 +1815,7 @@ private:
         SetMutationId(req, options);
         req->set_source_path(srcPath);
         req->set_preserve_account(options.PreserveAccount);
+        req->set_preserve_expiration_time(options.PreserveExpirationTime);
         req->set_remove_source(true);
         req->set_recursive(options.Recursive);
         req->set_force(options.Force);

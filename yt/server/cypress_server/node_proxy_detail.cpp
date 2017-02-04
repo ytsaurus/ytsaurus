@@ -223,18 +223,18 @@ TNontemplateCypressNodeProxyBase::TNontemplateCypressNodeProxyBase(
 std::unique_ptr<ITransactionalNodeFactory> TNontemplateCypressNodeProxyBase::CreateFactory() const
 {
     auto* account = GetThisImpl()->GetAccount();
-    return CreateCypressFactory(account, false);
+    return CreateCypressFactory(account, TNodeFactoryOptions());
 }
 
 std::unique_ptr<ICypressNodeFactory> TNontemplateCypressNodeProxyBase::CreateCypressFactory(
     TAccount* account,
-    bool preserveAccount) const
+    const TNodeFactoryOptions& options) const
 {
     const auto& cypressManager = Bootstrap_->GetCypressManager();
     return cypressManager->CreateNodeFactory(
         Transaction,
         account,
-        preserveAccount);
+        options);
 }
 
 INodeResolverPtr TNontemplateCypressNodeProxyBase::GetResolver() const
@@ -960,7 +960,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     auto* account = node->GetAccount();
     ValidatePermission(account, EPermission::Use);
 
-    auto factory = CreateCypressFactory(account, false);
+    auto factory = CreateCypressFactory(account, TNodeFactoryOptions());
 
     auto attributes = request->has_node_attributes()
         ? FromProto(request->node_attributes())
@@ -1005,14 +1005,17 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
 
     auto sourcePath = request->source_path();
     bool preserveAccount = request->preserve_account();
+    bool preserveExpirationTime = request->preserve_expiration_time();
     bool removeSource = request->remove_source();
     auto recursive = request->recursive();
     auto force = request->force();
     auto targetPath = GetRequestYPath(context->RequestHeader());
 
-    context->SetRequestInfo("SourcePath: %v, PreserveAccount: %v, RemoveSource: %v, Recursive: %v, Force: %v",
+    context->SetRequestInfo("SourcePath: %v, PreserveAccount: %v, PreserveExpirationTime: %v, RemoveSource: %v, "
+        "Recursive: %v, Force: %v",
         sourcePath,
         preserveAccount,
+        preserveExpirationTime,
         removeSource,
         recursive,
         force);
@@ -1060,7 +1063,6 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
         if (!sourceParent) {
             ThrowCannotRemoveRoot();
         }
-
         ValidatePermission(sourceImpl, EPermissionCheckScope::This | EPermissionCheckScope::Descendants, EPermission::Remove);
         ValidatePermission(sourceImpl, EPermissionCheckScope::Parent, EPermission::Write);
     }
@@ -1068,7 +1070,11 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     auto* account = replace
         ? ICypressNodeProxy::FromNode(parent.Get())->GetTrunkNode()->GetAccount()
         : GetThisImpl()->GetAccount();
-    auto factory = CreateCypressFactory(account, preserveAccount);
+
+    TNodeFactoryOptions options;
+    options.PreserveAccount = preserveAccount;
+    options.PreserveExpirationTime = preserveExpirationTime;
+    auto factory = CreateCypressFactory(account, options);
 
     auto* clonedImpl = factory->CloneNode(
         sourceImpl,
