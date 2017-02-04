@@ -381,7 +381,6 @@ struct INodeFactory
 struct ITransactionalNodeFactory
     : public INodeFactory
 {
-
     //! Must be called before releasing the factory to indicate that all created nodes
     //! must persist.
     virtual void Commit() = 0;
