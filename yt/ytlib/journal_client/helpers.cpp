@@ -255,7 +255,7 @@ private:
             Infos_.begin(),
             Infos_.end(),
             [] (const TMiscExt& lhs, const TMiscExt& rhs) {
-                return lhs.row_count() < rhs.row_count();
+                return lhs.row_count() > rhs.row_count();
             });
 
         const auto& quorumInfo = Infos_[Quorum_ - 1];
