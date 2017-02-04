@@ -13,8 +13,8 @@ from pyspark.rdd import RDD
 from pyspark.storagelevel import StorageLevel
 
 ColumnOrName = Union[Column, str]
-Literal = Union[int, float, str]
-LiteralType = TypeVar("LiteralType", int, float, str)
+Literal = Union[bool, int, float, str]
+LiteralType = TypeVar("LiteralType", bool, int, float, str)
 
 class DataFrame:
     sql_ctx = ...  # type: SQLContext
