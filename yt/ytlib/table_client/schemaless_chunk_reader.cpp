@@ -460,7 +460,7 @@ THorizontalSchemalessRangeChunkReader::THorizontalSchemalessRangeChunkReader(
 {
     LOG_DEBUG("Reading range %v", ReadRange_);
 
-    // Ready event must be set only when all initialization is finished and 
+    // Ready event must be set only when all initialization is finished and
     // RowIndex_ is set into proper value.
     // Must be called after the object is constructed and vtable initialized.
     ReadyEvent_ = BIND(&THorizontalSchemalessRangeChunkReader::InitializeBlockSequence, MakeStrong(this))
@@ -730,7 +730,7 @@ THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
     , PerformanceCounters_(std::move(performanceCounters))
     , KeyFilterTest_(Keys_.Size(), true)
 {
-    // Ready event must be set only when all initialization is finished and 
+    // Ready event must be set only when all initialization is finished and
     // RowIndex_ is set into proper value.
     // Must be called after the object is constructed and vtable initialized.
     ReadyEvent_ = BIND(&THorizontalSchemalessLookupChunkReader::InitializeBlockSequence, MakeStrong(this))
@@ -1907,7 +1907,6 @@ bool TSchemalessMultiChunkReader<TBase>::Read(std::vector<TUnversionedRow>* rows
 {
     rows->clear();
     if (Interrupting_) {
-        CurrentReader_ = nullptr;
         return false;
     }
     if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
