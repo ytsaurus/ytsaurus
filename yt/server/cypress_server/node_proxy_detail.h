@@ -35,7 +35,7 @@ public:
     virtual std::unique_ptr<NYTree::ITransactionalNodeFactory> CreateFactory() const override;
     virtual std::unique_ptr<ICypressNodeFactory> CreateCypressFactory(
         NSecurityServer::TAccount* account,
-        bool preserveAccount) const override;
+        const TNodeFactoryOptions& options) const override;
 
     virtual NYTree::INodeResolverPtr GetResolver() const override;
 

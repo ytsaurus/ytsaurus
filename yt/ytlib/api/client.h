@@ -392,6 +392,7 @@ struct TCopyNodeOptions
     bool Recursive = false;
     bool Force = false;
     bool PreserveAccount = false;
+    bool PreserveExpirationTime = false;
 };
 
 struct TMoveNodeOptions
@@ -403,6 +404,7 @@ struct TMoveNodeOptions
     bool Recursive = false;
     bool Force = false;
     bool PreserveAccount = true;
+    bool PreserveExpirationTime = true;
 };
 
 struct TLinkNodeOptions

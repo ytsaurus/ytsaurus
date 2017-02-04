@@ -63,12 +63,12 @@ public:
         TCypressManagerConfigPtr config,
         TTransaction* transaction,
         TAccount* account,
-        bool preserveAccount)
+        const TNodeFactoryOptions& options)
         : Bootstrap_(bootstrap)
         , Config_(std::move(config))
         , Transaction_(transaction)
         , Account_(account)
-        , PreserveAccount_(preserveAccount)
+        , Options_(options)
     {
         YCHECK(Bootstrap_);
         YCHECK(Account_);
@@ -140,20 +140,24 @@ public:
         THROW_ERROR_EXCEPTION("Entity nodes cannot be created inside Cypress");
     }
 
-    virtual NTransactionServer::TTransaction* GetTransaction() override
+    virtual NTransactionServer::TTransaction* GetTransaction() const override
     {
         return Transaction_;
     }
 
-    virtual TAccount* GetNewNodeAccount() override
+    virtual bool ShouldPreserveExpirationTime() const override
+    {
+        return Options_.PreserveExpirationTime;
+    }
+
+    virtual TAccount* GetNewNodeAccount() const override
     {
         return Account_;
     }
 
-    virtual TAccount* GetClonedNodeAccount(
-        TCypressNodeBase* sourceNode) override
+    virtual TAccount* GetClonedNodeAccount(TCypressNodeBase* sourceNode) const override
     {
-        return PreserveAccount_ ? sourceNode->GetAccount() : Account_;
+        return Options_.PreserveAccount ? sourceNode->GetAccount() : Account_;
     }
 
     virtual ICypressNodeProxyPtr CreateNode(
@@ -322,7 +326,7 @@ private:
     const TCypressManagerConfigPtr Config_;
     TTransaction* const Transaction_;
     TAccount* const Account_;
-    const bool PreserveAccount_;
+    const TNodeFactoryOptions Options_;
 
     std::vector<TCypressNodeBase*> CreatedNodes_;
 
@@ -614,7 +618,7 @@ public:
     std::unique_ptr<ICypressNodeFactory> CreateNodeFactory(
         TTransaction* transaction,
         TAccount* account,
-        bool preserveAccount)
+        const TNodeFactoryOptions& options)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -623,7 +627,7 @@ public:
             Config_,
             transaction,
             account,
-            preserveAccount));
+            options));
     }
 
     TCypressNodeBase* CreateNode(
@@ -2099,7 +2103,7 @@ private:
 
         // Copy expiration time.
         auto expirationTime = sourceNode->GetTrunkNode()->GetExpirationTime(); 
-        if (expirationTime) {
+        if (factory->ShouldPreserveExpirationTime() && expirationTime) {
             SetExpirationTime(clonedNode, *expirationTime);
         }
 
@@ -2207,7 +2211,10 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* account = securityManager->GetAccount(accountId);
 
-        auto factory = CreateNodeFactory(clonedTransaction, account, false);
+        auto factory = CreateNodeFactory(
+            clonedTransaction,
+            account,
+            TNodeFactoryOptions());
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Cloning foreign node (SourceNodeId: %v, ClonedNodeId: %v, Account: %v)",
             TVersionedNodeId(sourceNodeId, sourceTransactionId),
@@ -2351,9 +2358,12 @@ const INodeTypeHandlerPtr& TCypressManager::GetHandler(const TCypressNodeBase* n
 std::unique_ptr<ICypressNodeFactory> TCypressManager::CreateNodeFactory(
     TTransaction* transaction,
     TAccount* account,
-    bool preserveAccount)
+    const TNodeFactoryOptions& options)
 {
-    return Impl_->CreateNodeFactory(transaction, account, preserveAccount);
+    return Impl_->CreateNodeFactory(
+        transaction,
+        account,
+        options);
 }
 
 TCypressNodeBase* TCypressManager::CreateNode(
