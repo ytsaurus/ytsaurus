@@ -218,9 +218,7 @@ protected: \
 
 DEFINE_ENUM(ENodeFactoryState,
     (Active)
-    (Committing)
     (Committed)
-    (RollingBack)
     (RolledBack)
 );
 
@@ -229,10 +227,9 @@ class TTransactionalNodeFactoryBase
 {
 public:
     virtual ~TTransactionalNodeFactoryBase();
+
     virtual void Commit() noexcept override;
     virtual void Rollback() noexcept override;
-    virtual void RegisterCommitHandler(const std::function<void()>& handler);
-    virtual void RegisterRollbackHandler(const std::function<void()>& handler);
 
 protected:
     void RollbackIfNeeded();
@@ -240,8 +237,6 @@ protected:
 private:
     using EState = ENodeFactoryState;
     EState State_ = EState::Active;
-    std::vector<std::function<void()>> CommitHandlers_;
-    std::vector<std::function<void()>> RollbackHandlers_;
 
 };
 
