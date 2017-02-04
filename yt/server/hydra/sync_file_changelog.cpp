@@ -374,6 +374,14 @@ public:
         return CurrentFilePosition_;
     }
 
+    bool IsOpen() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        std::lock_guard<std::mutex> guard(Mutex_);
+        return Open_;
+    }
+
     TInstant GetLastFlushed()
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -964,6 +972,11 @@ int TSyncFileChangelog::GetRecordCount() const
 i64 TSyncFileChangelog::GetDataSize() const
 {
     return Impl_->GetDataSize();
+}
+
+bool TSyncFileChangelog::IsOpen() const
+{
+    return Impl_->IsOpen();
 }
 
 const TChangelogMeta& TSyncFileChangelog::GetMeta() const
