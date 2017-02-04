@@ -230,6 +230,7 @@ def _get_hydra_manager_config():
         "leader_lease_timeout": 20000,
         "disable_leader_lease_grace_delay": True,
         "response_keeper": {
+            "enable_warmup": False,
             "expiration_time": 25000,
             "warmup_time": 30000,
         }
