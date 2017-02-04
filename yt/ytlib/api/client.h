@@ -403,7 +403,7 @@ struct TMoveNodeOptions
 {
     bool Recursive = false;
     bool Force = false;
-    bool PreserveAccount = true;
+    bool PreserveAccount = false;
     bool PreserveExpirationTime = true;
 };
 
