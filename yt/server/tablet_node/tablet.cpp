@@ -783,10 +783,28 @@ IStorePtr TTablet::GetStore(const TStoreId& id)
     return store;
 }
 
+IStorePtr TTablet::GetStoreOrThrow(const TStoreId& id)
+{
+    auto store = FindStore(id);
+    if (!store) {
+        THROW_ERROR_EXCEPTION("No such store %v", id);
+    }
+    return store;
+}
+
 TTableReplicaInfo* TTablet::FindReplicaInfo(const TTableReplicaId& id)
 {
     auto it = Replicas_.find(id);
     return it == Replicas_.end() ? nullptr : &it->second;
+}
+
+TTableReplicaInfo* TTablet::GetReplicaInfoOrThrow(const TTableReplicaId& id)
+{
+    auto* info = FindReplicaInfo(id);
+    if (!info) {
+        THROW_ERROR_EXCEPTION("No such replica %v", id);
+    }
+    return info;
 }
 
 bool TTablet::IsPhysicallySorted() const

@@ -1220,7 +1220,7 @@ private:
         for (const auto& descriptor : request->stores_to_remove()) {
             auto storeId = FromProto<TStoreId>(descriptor.store_id());
             storeIdsToRemove.push_back(storeId);
-            auto store = tablet->GetStore(storeId);
+            auto store = tablet->GetStoreOrThrow(storeId);
             auto state = store->GetStoreState();
             if (state != EStoreState::PassiveDynamic && state != EStoreState::Persistent) {
                 THROW_ERROR_EXCEPTION("Store %v has invalid state %Qlv",
@@ -1588,16 +1588,10 @@ private:
         YCHECK(persistent);
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
-        auto* tablet = FindTablet(tabletId);
-        if (!tablet) {
-            return;
-        }
+        auto* tablet = GetTabletOrThrow(tabletId);
 
         auto replicaId = FromProto<TTableReplicaId>(request->replica_id());
-        auto* replicaInfo = tablet->FindReplicaInfo(replicaId);
-        if (!replicaInfo) {
-            return;
-        }
+        auto* replicaInfo = tablet->GetReplicaInfoOrThrow(replicaId);
 
         if (replicaInfo->GetState() != ETableReplicaState::Enabled) {
             THROW_ERROR_EXCEPTION("Replica %v is not enabled",
