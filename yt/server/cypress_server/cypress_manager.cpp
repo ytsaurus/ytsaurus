@@ -72,14 +72,32 @@ public:
     {
         YCHECK(Bootstrap_);
         YCHECK(Account_);
-
-        RegisterCommitHandler([&] () { OnCommit(); });
-        RegisterRollbackHandler([&] () { OnRollback(); });
     }
 
     virtual ~TNodeFactory() override
     {
         RollbackIfNeeded();
+    }
+
+    virtual void Commit() noexcept override
+    {
+        TTransactionalNodeFactoryBase::Commit();
+
+        if (Transaction_) {
+            const auto& transactionManager = Bootstrap_->GetTransactionManager();
+            for (auto* node : CreatedNodes_) {
+                transactionManager->StageNode(Transaction_, node);
+            }
+        }
+
+        ReleaseCreatedNodes();
+    }
+
+    virtual void Rollback() noexcept override
+    {
+        TTransactionalNodeFactoryBase::Rollback();
+
+        ReleaseCreatedNodes();
     }
 
     virtual IStringNodePtr CreateString() override
@@ -308,22 +326,6 @@ private:
 
     std::vector<TCypressNodeBase*> CreatedNodes_;
 
-
-    void OnCommit()
-    {
-        if (Transaction_) {
-            const auto& transactionManager = Bootstrap_->GetTransactionManager();
-            for (auto* node : CreatedNodes_) {
-                transactionManager->StageNode(Transaction_, node);
-            }
-        }
-        ReleaseCreatedNodes();
-    }
-
-    void OnRollback()
-    {
-        ReleaseCreatedNodes();
-    }
 
     void ValidateCreatedNodeType(EObjectType type)
     {

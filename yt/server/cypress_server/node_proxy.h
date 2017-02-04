@@ -24,11 +24,8 @@ namespace NCypressServer {
 
 //! Extends NYTree::INodeFactory by adding Cypress-specific functionality.
 struct ICypressNodeFactory
-    : public virtual NYTree::ITransactionalNodeFactory
+    : public NYTree::ITransactionalNodeFactory
 {
-    typedef NRpc::TTypedServiceRequest<NCypressClient::NProto::TReqCreate> TReqCreate;
-    typedef NRpc::TTypedServiceResponse<NCypressClient::NProto::TRspCreate> TRspCreate;
-
     virtual NTransactionServer::TTransaction* GetTransaction() = 0;
 
     virtual NSecurityServer::TAccount* GetNewNodeAccount() = 0;
@@ -47,7 +44,6 @@ struct ICypressNodeFactory
     virtual TCypressNodeBase* CloneNode(
         TCypressNodeBase* sourceNode,
         ENodeCloneMode mode) = 0;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
