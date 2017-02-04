@@ -614,6 +614,8 @@ public:
         TAccount* account,
         bool preserveAccount)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         return std::unique_ptr<ICypressNodeFactory>(new TNodeFactory(
             Bootstrap_,
             Config_,
@@ -631,6 +633,7 @@ public:
         TTransaction* transaction,
         IAttributeDictionary* attributes)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(handler);
         YCHECK(account);
         YCHECK(attributes);
@@ -660,6 +663,8 @@ public:
         const TNodeId& id,
         TCellTag externalCellTag)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        
         auto type = TypeFromId(id);
         const auto& handler = GetHandler(type);
         auto nodeHolder = handler->Instantiate(TVersionedNodeId(id), externalCellTag);
@@ -671,6 +676,7 @@ public:
         ICypressNodeFactory* factory,
         ENodeCloneMode mode)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(sourceNode);
         YCHECK(factory);
 
@@ -689,7 +695,7 @@ public:
 
     TMapNode* GetRootNode() const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         return RootNode_;
     }
