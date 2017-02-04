@@ -1,4 +1,4 @@
-from .config import get_option, get_config, get_total_request_timeout, get_request_retry_count, get_command_param
+from .config import get_option, get_config, get_total_request_timeout, get_command_param
 from .common import chunk_iter_blobs, YtError, update, remove_nones_from_dict, \
                     get_value
 from .retries import Retrier, IteratorRetrier, build_backoff_config
