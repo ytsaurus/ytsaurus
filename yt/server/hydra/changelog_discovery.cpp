@@ -241,7 +241,7 @@ private:
             return;
         }
 
-        std::sort(RecordCounts_.begin(), RecordCounts_.end(), std::greater<int>());
+        std::sort(RecordCounts_.begin(), RecordCounts_.end());
         int result = RecordCounts_[quorum - 1];
 
         LOG_INFO("Changelog quorum record count computed successfully (RecordCount: %v)",
