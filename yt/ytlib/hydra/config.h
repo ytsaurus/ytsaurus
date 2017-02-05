@@ -73,6 +73,7 @@ public:
     int ChangelogReadQuorum;
     int ChangelogWriteQuorum;
     bool EnableChangelogMultiplexing;
+    Stroka ChangelogPrimaryMedium;
 
     TRemoteChangelogStoreOptions()
     {
@@ -90,6 +91,8 @@ public:
             .Default(2);
         RegisterParameter("enable_changelog_multiplexing", EnableChangelogMultiplexing)
             .Default(true);
+        RegisterParameter("changelog_primary_medium", ChangelogPrimaryMedium)
+            .Default(NChunkClient::DefaultStoreMediumName);
 
         RegisterValidator([&] () {
             if (ChangelogReadQuorum + ChangelogWriteQuorum < ChangelogReplicationFactor + 1) {
