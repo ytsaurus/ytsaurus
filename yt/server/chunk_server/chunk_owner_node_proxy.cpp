@@ -252,7 +252,7 @@ private:
         auto addJournalReplica = [&] (TNodePtrWithIndexes replica) {
             // For journal chunks, replica indexes are used to track states.
             // Hence we must replace index with #GenericChunkReplicaIndex.
-            replicas.push_back(TNodePtrWithIndexes(replica.GetPtr(), GenericChunkReplicaIndex, DefaultStoreMediumIndex));
+            replicas.push_back(TNodePtrWithIndexes(replica.GetPtr(), GenericChunkReplicaIndex, replica.GetMediumIndex()));
             return true;
         };
 
@@ -778,21 +778,21 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
     auto* node = GetThisImpl<TChunkOwnerBase>();
 
     if (key == "replication_factor") {
-        ValidateNoTransaction();
+        ValidateStorageSettingsUpdate();
         int replicationFactor = ConvertTo<int>(value);
         SetReplicationFactor(replicationFactor);
         return true;
     }
 
     if (key == "vital") {
-        ValidateNoTransaction();
+        ValidateStorageSettingsUpdate();
         bool vital = ConvertTo<bool>(value);
         SetVital(vital);
         return true;
     }
 
     if (key == "primary_medium") {
-        ValidateNoTransaction();
+        ValidateStorageSettingsUpdate();
         auto mediumName = ConvertTo<Stroka>(value);
         auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
         SetPrimaryMedium(medium);
@@ -800,6 +800,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
     }
 
     if (key == "media") {
+        ValidateStorageSettingsUpdate();
         auto serializableProperties = ConvertTo<TSerializableChunkProperties>(value);
         auto properties = node->Properties(); // Copying for modification.
         serializableProperties.ToChunkProperties(&properties, chunkManager);
@@ -961,6 +962,11 @@ void TChunkOwnerNodeProxy::ValidateBeginUpload()
 
 void TChunkOwnerNodeProxy::ValidateFetch()
 { }
+
+void TChunkOwnerNodeProxy::ValidateStorageSettingsUpdate()
+{
+    ValidateNoTransaction();
+}
 
 DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
 {

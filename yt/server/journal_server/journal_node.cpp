@@ -159,10 +159,10 @@ protected:
 
         // NB: Don't call TBase::InitializeAttributes; take care of all attributes here.
 
-        // TODO(shakurov): is this enough or should the "properties" attribute be passed here instead?
         int replicationFactor = attributes->GetAndRemove<int>("replication_factor", config->DefaultJournalReplicationFactor);
         int readQuorum = attributes->GetAndRemove<int>("read_quorum", config->DefaultJournalReadQuorum);
         int writeQuorum = attributes->GetAndRemove<int>("write_quorum", config->DefaultJournalWriteQuorum);
+        auto primaryMediumName = attributes->GetAndRemove<Stroka>("primary_medium", DefaultStoreMediumName);
 
         ValidateReplicationFactor(replicationFactor);
         if (readQuorum > replicationFactor) {
@@ -175,6 +175,9 @@ protected:
             THROW_ERROR_EXCEPTION("Read/write quorums are not safe: read_quorum + write_quorum < replication_factor + 1");
         }
 
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        auto* primaryMedium = chunkManager->GetMediumByNameOrThrow(primaryMediumName);
+
         auto nodeHolder = TBase::DoCreate(
             id,
             cellTag,
@@ -182,7 +185,8 @@ protected:
             attributes);
         auto* node = nodeHolder.get();
 
-        node->Properties()[DefaultStoreMediumIndex].SetReplicationFactor(replicationFactor);
+        node->SetPrimaryMediumIndex(primaryMedium->GetIndex());
+        node->Properties()[primaryMedium->GetIndex()].SetReplicationFactor(replicationFactor);
         node->SetReadQuorum(readQuorum);
         node->SetWriteQuorum(writeQuorum);
 

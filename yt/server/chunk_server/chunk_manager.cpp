@@ -540,9 +540,8 @@ public:
                 continue;
             }
 
-            auto chunkWithIndexes = chunk->IsJournal()
-                ? TChunkPtrWithIndexes(chunk, ActiveChunkReplicaIndex, DefaultStoreMediumIndex)
-                : TChunkPtrWithIndexes(chunk, replica.GetReplicaIndex(), replica.GetMediumIndex());
+            int replicaIndex = chunk->IsJournal() ? ActiveChunkReplicaIndex : replica.GetReplicaIndex();
+            auto chunkWithIndexes = TChunkPtrWithIndexes(chunk, replicaIndex, replica.GetMediumIndex());
 
             if (node->GetLocalState() != ENodeState::Online) {
                 LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk %v at %v which has invalid state %Qlv",
@@ -2224,17 +2223,20 @@ private:
         const TChunkAddInfo& chunkAddInfo,
         const TChunkIdWithIndexes& chunkIdWithIndexes)
     {
-        if (!chunk->IsJournal()) {
-            return {chunkIdWithIndexes.ReplicaIndex, chunkIdWithIndexes.MediumIndex};
-        }
-
-        if (chunkAddInfo.active()) {
-            return {ActiveChunkReplicaIndex, DefaultStoreMediumIndex};
-        } else if (chunkAddInfo.sealed()) {
-            return {SealedChunkReplicaIndex, DefaultStoreMediumIndex};
+        int mediumIndex = chunkIdWithIndexes.MediumIndex;
+        int replicaIndex;
+        if (chunk->IsJournal()) {
+            if (chunkAddInfo.active()) {
+                replicaIndex = ActiveChunkReplicaIndex;
+            } else if (chunkAddInfo.sealed()) {
+                replicaIndex = SealedChunkReplicaIndex;
+            } else {
+                replicaIndex = UnsealedChunkReplicaIndex;
+            }
         } else {
-            return {UnsealedChunkReplicaIndex, DefaultStoreMediumIndex};
+            replicaIndex = chunkIdWithIndexes.ReplicaIndex;
         }
+        return {replicaIndex, mediumIndex};
     }
 
     void ProcessAddedChunk(

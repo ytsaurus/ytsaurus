@@ -79,10 +79,10 @@ public:
     }
 
 private:
+    const int MediumIndex_;
+
     int SuccessCounter_ = 0;
     int ResponseCounter_ = 0;
-
-    int MediumIndex_ = DefaultStoreMediumIndex;
 
     std::vector<TError> InnerErrors_;
 

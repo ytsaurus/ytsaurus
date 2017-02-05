@@ -106,6 +106,12 @@ class TestJournals(YTEnvSetup):
         move('//tmp/j1', '//tmp/j2')
         assert read_journal("//tmp/j2") == self.DATA
 
+    def test_no_storage_change_after_creation(self):
+        create("journal", "//tmp/j", attributes={"replication_factor": 5, "read_quorum": 3, "write_quorum": 3})
+        with pytest.raises(YtError): set("//tmp/j/@replication_factor", 6)
+        with pytest.raises(YtError): set("//tmp/j/@vital", False)
+        with pytest.raises(YtError): set("//tmp/j/@primary_medium", "default")
+
 ##################################################################
 
 class TestJournalsMulticell(TestJournals):
