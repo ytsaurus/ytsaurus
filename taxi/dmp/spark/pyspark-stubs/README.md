@@ -96,7 +96,7 @@ Adding `third_party/3` to the `PYTHONPATH` seems to the trick.
 | pyspark.streaming.kinesis                   | ✘                 | ✘                |                  |
 | pyspark.sql.types                           | ✔                 | ✘                |                  |
 | pyspark.sql.functions                       | ✘                 | ✔                |                  |
-| pyspark.sql.catalog                         | ✘                 | ✘                |                  |
+| pyspark.sql.catalog                         | ✘                 | ✔                |                  |
 | pyspark.sql.tests                           | ✘                 | ✘                |                  |
 | pyspark.sql.streaming                       | ✔                 | ✘                |                  |
 | pyspark.sql.column                          | ✘                 | ✔                |                  |
