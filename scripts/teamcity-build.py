@@ -401,12 +401,16 @@ def clean_failed_tests(options, max_allowed_size=None):
     else:
         max_allowed_size = 50 * 1024 * 1024 * 1024
 
+    should_remove = False
     total_size = 0
     for path in ls(options.failed_tests_path,
                    select=os.path.isdir,
                    stop=sys.maxint):
         size = get_size(path, enable_cache=True)
         if total_size + size > max_allowed_size:
+            should_remove = True
+
+        if should_remove:
             teamcity_message("Removing {0}...".format(path), status="WARNING")
             if os.path.isdir(path):
                 rmtree(path)
