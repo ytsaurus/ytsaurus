@@ -168,6 +168,36 @@ test_copy_move_link()
 
     $YT remove //home/wrapper_test/table
     check_failed "$YT read //home/wrapper_test/other_table --format dsv"
+    $YT remove //home/wrapper_test/other_table
+
+    $YT create account --attributes '{name=test}'
+    $YT create table //home/wrapper_test/table --attributes '{account=test}'
+
+    $YT copy //home/wrapper_test/table //home/wrapper_test/other_table
+    check '"sys"' "$($YT get //home/wrapper_test/other_table/@account)"
+    $YT remove //home/wrapper_test/other_table
+
+    $YT copy //home/wrapper_test/table //home/wrapper_test/other_table --preserve-account
+    check '"test"' "$($YT get //home/wrapper_test/other_table/@account)"
+    $YT remove //home/wrapper_test/other_table
+
+    $YT move //home/wrapper_test/table //home/wrapper_test/other_table
+    check '"test"' "$($YT get //home/wrapper_test/other_table/@account)"
+    $YT remove //home/wrapper_test/other_table
+
+    $YT create table //home/wrapper_test/table --attributes '{account=test}'
+    $YT move //home/wrapper_test/table //home/wrapper_test/other_table --no-preserve-account
+    check '"sys"' "$($YT get //home/wrapper_test/other_table/@account)"
+    $YT remove //home/wrapper_test/other_table
+
+    $YT create table //home/wrapper_test/table --attributes '{expiration_time="2050-01-01T12:00:00.000000Z"}'
+    $YT move //home/wrapper_test/table //home/wrapper_test/other_table
+    check 'true' "$($YT exists //home/wrapper_test/other_table/@expiration_time)"
+    $YT remove //home/wrapper_test/other_table
+
+    $YT create table //home/wrapper_test/table --attributes '{expiration_time="2050-01-01T12:00:00.000000Z"}'
+    $YT copy //home/wrapper_test/table //home/wrapper_test/other_table
+    check 'false' "$($YT exists //home/wrapper_test/other_table/@expiration_time)"
 }
 
 test_merge_erase()
