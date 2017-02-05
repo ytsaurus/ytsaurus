@@ -48,6 +48,7 @@ class TRemoteSnapshotStoreOptions
 public:
     int SnapshotReplicationFactor;
     NCompression::ECodec SnapshotCompressionCodec;
+    Stroka SnapshotPrimaryMedium;
 
     TRemoteSnapshotStoreOptions()
     {
@@ -57,6 +58,8 @@ public:
             .Default(3);
         RegisterParameter("snapshot_compression_codec", SnapshotCompressionCodec)
             .Default(NCompression::ECodec::Lz4);
+        RegisterParameter("snapshot_primary_medium", SnapshotPrimaryMedium)
+            .Default(NChunkClient::DefaultStoreMediumName);
     }
 };
 
