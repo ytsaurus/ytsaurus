@@ -4,6 +4,7 @@ import yt.wrapper as yt
 
 from argparse import ArgumentParser
 
+import time
 import logging
 
 from dateutil.parser import parse
@@ -89,7 +90,12 @@ def main():
         tables_to_merge = map(lambda x: x[1], sorted(tables_to_merge))
         if args.append:
             tables_to_merge = yt.get(args.queue_path) + tables_to_merge
-        yt.set(args.queue_path, tables_to_merge)
+        for index in xrange(5):
+            try:
+                yt.set(args.queue_path, tables_to_merge)
+                break
+            except yt.YtResponseError:
+                time.sleep(5)
         logger.info("Number of small chunks: %d", number_of_chunks)
 
 if __name__ == "__main__":
