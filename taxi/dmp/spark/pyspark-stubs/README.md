@@ -108,7 +108,7 @@ Adding `third_party/3` to the `PYTHONPATH` seems to the trick.
 | pyspark.sql.readwriter                      | ✔                 | ✘                |                  |
 | pyspark.sql.dataframe                       | ✘                 | ✔                |                  |
 | pyspark.sql.context                         | ✘                 | ✔                |                  |
-| pyspark.sql.conf                            | ✘                 | ✘                |                  |
+| pyspark.sql.conf                            | ✔                 | ✘                |                  |
 
 
 
