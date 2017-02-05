@@ -85,7 +85,8 @@ def set(path, value, format=None, client=None):
         data=value,
         client=client)
 
-def copy(source_path, destination_path, recursive=None, preserve_account=None, force=None, client=None):
+def copy(source_path, destination_path,
+         recursive=None, preserve_account=None, preserve_expiration_time=None, force=None, client=None):
     """Copies Cypress node.
 
     :param source_path: source path.
@@ -105,9 +106,11 @@ def copy(source_path, destination_path, recursive=None, preserve_account=None, f
     set_param(params, "recursive", recursive, bool_to_string)
     set_param(params, "force", force, bool_to_string)
     set_param(params, "preserve_account", preserve_account, bool_to_string)
+    set_param(params, "preserve_expiration_time", preserve_expiration_time, bool_to_string)
     return _make_formatted_transactional_request("copy", params, format=None, client=client)
 
-def move(source_path, destination_path, recursive=None, preserve_account=None, force=None, client=None):
+def move(source_path, destination_path,
+         recursive=None, preserve_account=None, preserve_expiration_time=None, force=None, client=None):
     """Moves (renames) Cypress node.
 
     :param source_path: source path.
@@ -127,6 +130,7 @@ def move(source_path, destination_path, recursive=None, preserve_account=None, f
     set_param(params, "recursive", recursive, bool_to_string)
     set_param(params, "force", force, bool_to_string)
     set_param(params, "preserve_account", preserve_account, bool_to_string)
+    set_param(params, "preserve_expiration_time", preserve_expiration_time, bool_to_string)
     return _make_formatted_transactional_request("move", params, format=None, client=client)
 
 def concatenate(source_paths, destination_path, client=None):
