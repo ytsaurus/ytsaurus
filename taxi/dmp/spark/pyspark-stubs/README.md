@@ -25,7 +25,7 @@ Adding `third_party/3` to the `PYTHONPATH` seems to the trick.
 | pyspark.rddsampler                                 | ✔                 | ✘                |                  |
 | <s>pyspark.java\_gateway</s>                       | ✘                 | ✘                | Internal         |
 | <s>pyspark.tests</s>                               | ✘                 | ✘                | Tests            |
-| pyspark.join                                       | ✘                 | ✘                |                  |
+| pyspark.join                                       | ✔                 | ✘                |                  |
 | pyspark.statcounter                                | ✔                 | ✘                |                  |
 | pyspark.serializers                                | ✔                 | ✘                |                  |
 | <s>pyspark.heapq3</s>                              | ✘                 | ✘                | Internal         |
