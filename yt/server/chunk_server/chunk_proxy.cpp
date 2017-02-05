@@ -155,10 +155,7 @@ private:
             auto* medium = chunkManager->GetMediumByIndex(replica.GetMediumIndex());
             fluent.Item()
                 .BeginAttributes()
-                    .DoIf(!chunk->IsJournal(), [&] (TFluentAttributes fluent) {
-                            fluent
-                                .Item("medium").Value(medium->GetName());
-                        })
+                    .Item("medium").Value(medium->GetName())
                     .DoIf(chunk->IsErasure(), [&] (TFluentAttributes fluent) {
                             fluent
                                 .Item("index").Value(replica.GetReplicaIndex());
