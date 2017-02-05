@@ -129,6 +129,12 @@ private:
         }
     }
 
+    virtual void ValidateStorageSettingsUpdate() override
+    {
+        TBase::ValidateStorageSettingsUpdate();
+        THROW_ERROR_EXCEPTION("Changing storage settings for journal nodes is forbidden");
+    }
+
     virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(Seal);

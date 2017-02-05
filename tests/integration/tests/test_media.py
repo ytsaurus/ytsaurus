@@ -15,7 +15,6 @@ class TestMedia(YTEnvSetup):
     NUM_NODES = 10
 
     REPLICATOR_REACTION_TIME = 3.5
-
     NON_DEFAULT_MEDIUM = "hdd2"
 
     @classmethod
@@ -45,8 +44,6 @@ class TestMedia(YTEnvSetup):
     @classmethod
     def on_masters_started(cls):
         create_medium(cls.NON_DEFAULT_MEDIUM)
-
-    def _ensure_max_num_of_media_created(self):
         medium_count = len(get_media())
         while (medium_count < 7):
             create_medium("hdd" + str(medium_count))
@@ -84,19 +81,14 @@ class TestMedia(YTEnvSetup):
         assert get("//sys/media/cache/@index") == 1
 
     def test_create(self):
-        self._ensure_max_num_of_media_created()
-
         assert get("//sys/media/hdd3/@name") == "hdd3"
         assert get("//sys/media/hdd3/@index") > 0
 
     def test_create_too_many_fails(self):
-        self._ensure_max_num_of_media_created()
         with pytest.raises(YtError) :
             create_medium("excess_medium")
 
     def test_rename(self):
-        self._ensure_max_num_of_media_created()
-
         hdd3_index = get("//sys/media/hdd3/@index")
 
         set("//sys/media/hdd3/@name", "hdd33")
@@ -106,7 +98,6 @@ class TestMedia(YTEnvSetup):
         assert not exists("//sys/media/hdd3")
 
     def test_rename_duplicate_name_fails(self):
-        self._ensure_max_num_of_media_created()
         with pytest.raises(YtError): set("//sys/media/hdd4/@name", "hdd5")
 
     def test_rename_default_fails(self):
@@ -117,12 +108,9 @@ class TestMedia(YTEnvSetup):
         with pytest.raises(YtError): create_medium("")
 
     def test_create_duplicate_name_fails(self):
-        self._ensure_max_num_of_media_created()
         with pytest.raises(YtError): create_medium(TestMedia.NON_DEFAULT_MEDIUM)
 
     def test_new_table_attributes(self):
-        self._ensure_max_num_of_media_created()
-
         create("table", "//tmp/t1")
         write_table("//tmp/t1", {"a" : "b"})
 
@@ -137,8 +125,6 @@ class TestMedia(YTEnvSetup):
         assert not tbl_media["default"]["data_parts_only"]
 
     def test_assign_additional_medium(self):
-        self._ensure_max_num_of_media_created()
-
         create("table", "//tmp/t2")
         write_table("//tmp/t2", {"a" : "b"})
 
@@ -162,8 +148,6 @@ class TestMedia(YTEnvSetup):
         assert self._count_chunks_on_medium("t2", TestMedia.NON_DEFAULT_MEDIUM) == 7
 
     def test_move_between_media(self):
-        self._ensure_max_num_of_media_created()
-
         create("table", "//tmp/t3")
         write_table("//tmp/t3", {"a" : "b"})
 
@@ -189,8 +173,6 @@ class TestMedia(YTEnvSetup):
         self._assert_all_chunks_on_medium("t3", TestMedia.NON_DEFAULT_MEDIUM)
 
     def test_move_between_media_shortcut(self):
-        self._ensure_max_num_of_media_created()
-
         create("table", "//tmp/t4")
         write_table("//tmp/t4", {"a" : "b"})
 
@@ -227,8 +209,6 @@ class TestMedia(YTEnvSetup):
         self._assert_all_chunks_on_medium("t6", TestMedia.NON_DEFAULT_MEDIUM)
 
     def test_chunks_inherit_properties(self):
-        self._ensure_max_num_of_media_created()
-
         create("table", "//tmp/t7")
         write_table("//tmp/t7", {"a" : "b"})
 
@@ -268,8 +248,6 @@ class TestMedia(YTEnvSetup):
         with pytest.raises(YtError): create_medium("new_cache", attributes={"cache": True})
 
     def test_chunks_intersecting_by_nodes(self):
-        self._ensure_max_num_of_media_created()
-
         create("table", "//tmp/t8")
         write_table("//tmp/t8", {"a" : "b"})
 
@@ -285,7 +263,7 @@ class TestMedia(YTEnvSetup):
         assert get("//tmp/t8/@media/default/replication_factor") == TestMedia.NUM_NODES
         assert get("//tmp/t8/@media/{}/replication_factor".format(TestMedia.NON_DEFAULT_MEDIUM)) == TestMedia.NUM_NODES
 
-        sleep(60.0)
+        sleep(self.REPLICATOR_REACTION_TIME)
 
         assert self._count_chunks_on_medium("t8", "default") == TestMedia.NUM_NODES
         assert self._count_chunks_on_medium("t8", TestMedia.NON_DEFAULT_MEDIUM) == TestMedia.NUM_NODES
@@ -295,11 +273,9 @@ class TestMedia(YTEnvSetup):
         assert get("//sys/media/cache/@priority") == 0
 
     def test_new_medium_default_priority(self):
-        self._ensure_max_num_of_media_created()
         assert get("//sys/media/{}/@priority".format(TestMedia.NON_DEFAULT_MEDIUM)) == 0
 
     def test_set_medium_priority(self):
-        self._ensure_max_num_of_media_created()
         assert get("//sys/media/hdd4/@priority") == 0
         set("//sys/media/hdd4/@priority", 7)
         assert get("//sys/media/hdd4/@priority") == 7
@@ -309,11 +285,22 @@ class TestMedia(YTEnvSetup):
         assert get("//sys/media/hdd4/@priority") == 0
 
     def test_set_incorrect_medium_priority(self):
-        self._ensure_max_num_of_media_created()
         assert get("//sys/media/hdd5/@priority") == 0
         with pytest.raises(YtError): set("//sys/media/hdd5/@priority", 11)
         with pytest.raises(YtError): set("//sys/media/hdd5/@priority", -1)
 
+    def test_journal_medium(self):
+        create("journal", "//tmp/j", attributes={"primary_medium": self.NON_DEFAULT_MEDIUM})
+        assert exists("//tmp/j/@media/{0}".format(self.NON_DEFAULT_MEDIUM))
+        data = [{"data" : "payload" + str(i)} for i in xrange(0, 10)]
+        write_journal("//tmp/j", data)
+        self.wait_until_sealed("//tmp/j")
+        chunk_ids = get("//tmp/j/@chunk_ids")
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
+        for replica in get("#{0}/@stored_replicas".format(chunk_id)):
+            assert replica.attributes["medium"] == self.NON_DEFAULT_MEDIUM
+        
 ################################################################################
 
 class TestMediaMulticell(TestMedia):

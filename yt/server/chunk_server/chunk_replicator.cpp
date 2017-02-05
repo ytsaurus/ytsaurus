@@ -629,12 +629,21 @@ void TChunkReplicator::ComputeErasureChunkStatisticsCrossMedia(
 
 TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatistics(TChunk* chunk)
 {
-    TChunkStatistics results;
-    // Journal chunks never use non-default media.
-    auto& result = results.PerMediumStatistics[DefaultStoreMediumIndex];
+    // NB: Journal chunks always have a single configured medium.
+    auto properties = chunk->ComputeProperties();
+    int mediumIndex = -1;
+    for (int index = 0; index < MaxMediumCount; ++index) {
+        if (properties[index]) {
+            mediumIndex = index;
+            break;
+        }
+    }
+    YCHECK(mediumIndex >= 0);
 
-    auto replicationFactors = chunk->ComputeReplicationFactors();
-    int replicationFactor = replicationFactors[DefaultStoreMediumIndex];
+    TChunkStatistics results;
+    auto& result = results.PerMediumStatistics[mediumIndex];
+
+    int replicationFactor = chunk->ComputeReplicationFactor(mediumIndex);
     int readQuorum = chunk->GetReadQuorum();
 
     int replicaCount = 0;
@@ -646,8 +655,6 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
     bool hasUnsafelyPlacedReplicas = false;
 
     for (auto replica : chunk->StoredReplicas()) {
-        Y_ASSERT(replica.GetMediumIndex() == DefaultStoreMediumIndex);
-
         if (replica.GetReplicaIndex() == SealedChunkReplicaIndex) {
             ++sealedReplicaCount;
         } else {
@@ -662,7 +669,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
         const auto* rack = replica.GetPtr()->GetRack();
         if (rack) {
             int rackIndex = rack->GetIndex();
-            int maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(chunk, DefaultStoreMediumIndex, Null);
+            int maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(chunk, mediumIndex, Null);
             if (++perRackReplicaCounters[rackIndex] > maxReplicasPerRack) {
                 // A journal chunk is considered placed unsafely if some non-null rack
                 // contains more replicas than returned by TChunk::GetMaxReplicasPerRack.
