@@ -65,7 +65,7 @@ private:
             THROW_ERROR_EXCEPTION("Cannot register nodes at secondary master");
         }
 
-        auto worldInitializer = Bootstrap_->GetWorldInitializer();
+        const auto& worldInitializer = Bootstrap_->GetWorldInitializer();
         if (worldInitializer->HasProvisionLock()) {
             THROW_ERROR_EXCEPTION(
                 "Provision lock is found, which indicates a fresh instance of masters being run. "

@@ -32,6 +32,25 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TReadBlobTableCommand
+    : public TTypedCommand<NApi::TTableReaderOptions>
+{
+public:
+    TReadBlobTableCommand();
+
+private:
+    NYPath::TRichYPath Path;
+    NYTree::INodePtr TableReader;
+
+    TNullable<Stroka> PartIndexColumnName;
+    TNullable<Stroka> DataColumnName;
+
+    virtual void OnLoaded() override;
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TWriteTableCommand
     : public TTypedCommand<NApi::TTransactionalOptions>
 {

@@ -99,6 +99,17 @@ void ValidateRowWeight(i64 weight, const TChunkWriterConfigPtr& config, const TC
         << TErrorAttribute("row_weight_limit", config->MaxRowWeight);
 }
 
+void ValidateKeyWeight(i64 weight, const TChunkWriterConfigPtr& config, const TChunkWriterOptionsPtr& options)
+{
+    if (!options->ValidateKeyWeight || weight < config->MaxKeyWeight) {
+        return;
+    }
+
+    THROW_ERROR_EXCEPTION(EErrorCode::RowWeightLimitExceeded, "Key weight is too large")
+        << TErrorAttribute("key_weight", weight)
+        << TErrorAttribute("key_weight_limit", config->MaxKeyWeight);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUnversionedChunkWriterBase
@@ -311,6 +322,24 @@ protected:
         EncodingChunkWriter_->Close();
     }
 
+    i64 UpdateDataWeight(TUnversionedRow row)
+    {
+        i64 weight = 0;
+        int keyColumnCount = IsSorted() ? Schema_.GetKeyColumnCount() : 0;
+
+        for (int index = 0; index < keyColumnCount; ++index) {
+            weight += GetDataWeight(row[index]);
+        }
+        ValidateKeyWeight(weight, Config_, Options_);
+
+        for (int index = keyColumnCount; index < row.GetCount(); ++index) {
+            weight += GetDataWeight(row[index]);
+        }
+        ValidateRowWeight(weight, Config_, Options_);
+        DataWeight_ += weight;
+        return weight;
+    }
+
 private:
     i64 BlockMetaExtSize_ = 0;
 
@@ -320,7 +349,6 @@ private:
     const ui64 SamplingThreshold_;
     NProto::TSamplesExt SamplesExt_;
     i64 SamplesExtSize_ = 0;
-
 
     void FillCommonMeta(NChunkClient::NProto::TChunkMeta* meta) const
     {
@@ -412,10 +440,7 @@ public:
     virtual bool Write(const TRange<TUnversionedRow>& rows) override
     {
         for (auto row : rows) {
-            i64 weight = GetDataWeight(row);
-            ValidateRowWeight(weight, Config_, Options_);
-            DataWeight_ += weight;
-
+            UpdateDataWeight(row);
             ++RowCount_;
             BlockWriter_->WriteRow(row);
 
@@ -523,10 +548,7 @@ public:
             i64 weight = 0;
             int rowIndex = startRowIndex;
             for (; rowIndex < rows.Size() && weight < DataToBlockFlush_; ++rowIndex) {
-                auto rowWeight = GetDataWeight(rows[rowIndex]);
-                ValidateRowWeight(rowWeight, Config_, Options_);
-                DataWeight_ += rowWeight;
-                weight += rowWeight;
+                weight += UpdateDataWeight(rows[rowIndex]);
             }
 
             auto range = MakeRange(rows.Begin() + startRowIndex, rows.Begin() + rowIndex);
@@ -535,7 +557,6 @@ public:
             }
 
             RowCount_ += range.Size();
-            DataWeight_ += weight;
 
             startRowIndex = rowIndex;
 

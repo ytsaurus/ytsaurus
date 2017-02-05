@@ -136,6 +136,10 @@ class TestTables(YTEnvSetup):
         with pytest.raises(YtError):
             write_table("//tmp/table", {"a" : "long_string"}, table_writer = {"max_row_weight" : 2})
 
+        # check max_key_weight limit
+        with pytest.raises(YtError):
+            write_table("//tmp/table", {"a" : "long_string"}, sorted_by=["a"], table_writer = {"max_key_weight" : 2})
+
         # check duplicate ids
         with pytest.raises(YtError):
             write_table("//tmp/table", "{a=version1; a=version2}", is_raw=True)
@@ -989,6 +993,37 @@ class TestTables(YTEnvSetup):
         assert len(chunks) == 1
         assert get("#" + chunks[0] + "/@compressed_data_size") > 1024 * 10
         assert get("#" + chunks[0] + "/@max_block_size") < 1024 * 2
+
+    def test_read_blob_table(self):
+        create("table", "//tmp/ttt")
+        write_table("<sorted_by=[key]>//tmp/ttt", [
+            {"key": "x", "part_index": 0, "data": "hello "},
+            {"key": "x", "part_index": 1, "data": "world!"},
+            {"key": "y", "part_index": 0, "data": "AAA"},
+            {"key": "z", "part_index": 0}])
+
+        with pytest.raises(YtError):
+            read_blob_table("//tmp/ttt")
+
+        with pytest.raises(YtError):
+            read_blob_table("//tmp/ttt[#2:#4]")
+
+        with pytest.raises(YtError):
+            read_blob_table("//tmp/ttt[:#3]")
+
+        assert "hello " == read_blob_table("//tmp/ttt[:#1]")
+        assert "hello world!" == read_blob_table("//tmp/ttt[:#2]")
+        assert "AAA" == read_blob_table("//tmp/ttt[#2]")
+
+        assert "hello world!" == read_blob_table("//tmp/ttt[x]")
+        assert "AAA" == read_blob_table("//tmp/ttt[y]")
+        with pytest.raises(YtError):
+            assert "AAA" == read_blob_table("//tmp/ttt[(x:z)]")
+
+        write_table("//tmp/ttt", [
+            {"key": "x", "index": 0, "value": "hello "},
+            {"key": "x", "index": 1, "value": "world!"}])
+        assert "hello world!" == read_blob_table("//tmp/ttt", part_index_column_name="index", data_column_name="value")
 
 ##################################################################
 

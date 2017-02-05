@@ -309,8 +309,10 @@ public:
     void RemoveStore(IStorePtr store);
     IStorePtr FindStore(const TStoreId& id);
     IStorePtr GetStore(const TStoreId& id);
+    IStorePtr GetStoreOrThrow(const TStoreId& id);
 
     TTableReplicaInfo* FindReplicaInfo(const TTableReplicaId& id);
+    TTableReplicaInfo* GetReplicaInfoOrThrow(const TTableReplicaId& id);
 
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);

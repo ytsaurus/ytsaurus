@@ -4,6 +4,7 @@
 #include "config.h"
 #include "decorated_automaton.h"
 #include "snapshot.h"
+#include "changelog_discovery.h"
 
 #include <yt/ytlib/election/cell_manager.h>
 
@@ -240,6 +241,24 @@ void TRecoveryBase::ReplayChangelog(IChangelogPtr changelog, int changelogId, in
             changelogId,
             targetRecordId,
             changelog->GetRecordCount());
+    }
+
+    LOG_INFO("Waiting for quorum record count to become sufficiently high");
+
+    while (true) {
+        auto asyncResult = ComputeQuorumRecordCount(Config_, CellManager_, changelogId);
+        auto result = WaitFor(asyncResult)
+            .ValueOrThrow();
+
+        if (result >= targetRecordId) {
+            LOG_INFO("Quorum record count check succeeded");
+            break;
+        }
+
+        LOG_INFO("Quorum record count check failed; will retry");
+
+        WaitFor(TDelayedExecutor::MakeDelayed(Config_->ChangelogQuorumCheckRetryPeriod))
+            .ThrowOnError();
     }
 
     while (true) {

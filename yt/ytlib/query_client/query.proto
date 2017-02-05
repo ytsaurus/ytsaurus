@@ -166,6 +166,9 @@ message TQuery
     optional TExpression having_clause = 12;
     optional TOrderClause order_clause = 11;
     optional TProjectClause project_clause = 10;
+
+    optional bool use_disjoint_group_by = 13 [default = false];
+    optional bool infer_ranges = 14 [default = true];
 }
 
 message TQueryOptions

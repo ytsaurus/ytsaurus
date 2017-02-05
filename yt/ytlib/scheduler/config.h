@@ -51,6 +51,8 @@ public:
     TJobIOConfig();
 };
 
+DEFINE_REFCOUNTED_TYPE(TJobIOConfig)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTestingOperationOptions
@@ -62,7 +64,7 @@ public:
     TTestingOperationOptions();
 };
 
-DEFINE_REFCOUNTED_TYPE(TTestingOperationOptions);
+DEFINE_REFCOUNTED_TYPE(TTestingOperationOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,6 +79,8 @@ public:
 
     virtual void OnLoaded() override;
 };
+
+DEFINE_REFCOUNTED_TYPE(TSupportsSchedulingTagsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -146,6 +150,8 @@ public:
     TOperationSpecBase();
 };
 
+DEFINE_REFCOUNTED_TYPE(TOperationSpecBase)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUserJobSpec
@@ -188,6 +194,8 @@ public:
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig);
 };
 
+DEFINE_REFCOUNTED_TYPE(TUserJobSpec)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TInputlyQueryableSpec
@@ -199,6 +207,8 @@ public:
 
     TInputlyQueryableSpec();
 };
+
+DEFINE_REFCOUNTED_TYPE(TInputlyQueryableSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -216,6 +226,8 @@ public:
 
     virtual void OnLoaded() override;
 };
+
+DEFINE_REFCOUNTED_TYPE(TOperationWithUserJobSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -242,6 +254,8 @@ public:
     TSimpleOperationSpecBase();
 };
 
+DEFINE_REFCOUNTED_TYPE(TSimpleOperationSpecBase)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUnorderedOperationSpecBase
@@ -255,6 +269,8 @@ public:
 
     virtual void OnLoaded() override;
 };
+
+DEFINE_REFCOUNTED_TYPE(TUnorderedOperationSpecBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -272,6 +288,8 @@ public:
     virtual void OnLoaded() override;
 };
 
+DEFINE_REFCOUNTED_TYPE(TMapOperationSpec)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUnorderedMergeOperationSpec
@@ -287,6 +305,8 @@ public:
 
     virtual void OnLoaded() override;
 };
+
+DEFINE_REFCOUNTED_TYPE(TUnorderedMergeOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -314,14 +334,20 @@ public:
     virtual void OnLoaded() override;
 };
 
+DEFINE_REFCOUNTED_TYPE(TMergeOperationSpec)
+
 class TOrderedMergeOperationSpec
     : public TMergeOperationSpec
     , public TInputlyQueryableSpec
 { };
 
+DEFINE_REFCOUNTED_TYPE(TOrderedMergeOperationSpec)
+
 class TSortedMergeOperationSpec
     : public TMergeOperationSpec
 { };
+
+DEFINE_REFCOUNTED_TYPE(TSortedMergeOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -337,6 +363,8 @@ public:
 
     virtual void OnLoaded() override;
 };
+
+DEFINE_REFCOUNTED_TYPE(TEraseOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -355,6 +383,8 @@ public:
     virtual void OnLoaded() override;
 };
 
+DEFINE_REFCOUNTED_TYPE(TReduceOperationSpecBase)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TReduceOperationSpec
@@ -367,6 +397,8 @@ public:
     TReduceOperationSpec();
 };
 
+DEFINE_REFCOUNTED_TYPE(TReduceOperationSpec)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJoinReduceOperationSpec
@@ -377,6 +409,8 @@ public:
 
     virtual void OnLoaded() override;
 };
+
+DEFINE_REFCOUNTED_TYPE(TJoinReduceOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -443,6 +477,8 @@ public:
     virtual void OnLoaded() override;
 };
 
+DEFINE_REFCOUNTED_TYPE(TSortOperationSpecBase)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSortOperationSpec
@@ -463,6 +499,8 @@ public:
 
     virtual void OnLoaded() override;
 };
+
+DEFINE_REFCOUNTED_TYPE(TSortOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -492,6 +530,8 @@ public:
     virtual void OnLoaded() override;
 };
 
+DEFINE_REFCOUNTED_TYPE(TMapReduceOperationSpec)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRemoteCopyOperationSpec
@@ -513,6 +553,8 @@ public:
 
     virtual void OnLoaded() override;
 };
+
+DEFINE_REFCOUNTED_TYPE(TRemoteCopyOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -556,6 +598,8 @@ public:
     TSchedulableConfig();
 };
 
+DEFINE_REFCOUNTED_TYPE(TResourceLimitsConfig)
+
 class TPoolConfig
     : public TSchedulableConfig
 {
@@ -576,6 +620,8 @@ public:
     void Validate();
 };
 
+DEFINE_REFCOUNTED_TYPE(TPoolConfig)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TStrategyOperationSpec
@@ -587,6 +633,8 @@ public:
     TStrategyOperationSpec();
 };
 
+DEFINE_REFCOUNTED_TYPE(TStrategyOperationSpec)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOperationRuntimeParams
@@ -597,6 +645,8 @@ public:
 
     TOperationRuntimeParams();
 };
+
+DEFINE_REFCOUNTED_TYPE(TOperationRuntimeParams)
 
 ////////////////////////////////////////////////////////////////////////////////
 

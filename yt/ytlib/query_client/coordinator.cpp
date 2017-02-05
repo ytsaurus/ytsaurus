@@ -43,6 +43,8 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     subqueryPattern->OriginalSchema = query->OriginalSchema;
     subqueryPattern->SchemaMapping = query->SchemaMapping;
     subqueryPattern->JoinClauses = query->JoinClauses;
+    subqueryPattern->UseDisjointGroupBy = query->UseDisjointGroupBy;
+    subqueryPattern->InferRanges = query->InferRanges;
 
     auto topQuery = New<TQuery>(
         query->InputRowLimit,
@@ -51,51 +53,51 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     topQuery->OrderClause = query->OrderClause;
     topQuery->Limit = query->Limit;
 
-    if (query->GroupClause) {
-        if (refiners.size() > 1) {
-            auto subqueryGroupClause = New<TGroupClause>();
-            subqueryGroupClause->GroupItems = query->GroupClause->GroupItems;
-            subqueryGroupClause->AggregateItems = query->GroupClause->AggregateItems;
-            subqueryGroupClause->IsMerge = query->GroupClause->IsMerge;
-            subqueryGroupClause->IsFinal = false;
-            subqueryGroupClause->TotalsMode = ETotalsMode::None;
-            subqueryPattern->GroupClause = subqueryGroupClause;
+    auto groupClause = query->GroupClause;
 
-            auto topGroupClause = New<TGroupClause>();
+    if (groupClause && refiners.size() > 1 &&
+        !(query->UseDisjointGroupBy && groupClause->TotalsMode == ETotalsMode::None))
+    {
+        auto subqueryGroupClause = New<TGroupClause>();
+        subqueryGroupClause->GroupItems = groupClause->GroupItems;
+        subqueryGroupClause->AggregateItems = groupClause->AggregateItems;
+        subqueryGroupClause->IsMerge = groupClause->IsMerge;
+        subqueryGroupClause->IsFinal = false;
+        subqueryGroupClause->TotalsMode = ETotalsMode::None;
+        subqueryPattern->GroupClause = subqueryGroupClause;
 
-            auto& finalGroupItems = topGroupClause->GroupItems;
-            for (const auto& groupItem : query->GroupClause->GroupItems) {
-                auto referenceExpr = New<TReferenceExpression>(
-                    groupItem.Expression->Type,
-                    groupItem.Name);
-                finalGroupItems.emplace_back(std::move(referenceExpr), groupItem.Name);
-            }
+        auto topGroupClause = New<TGroupClause>();
 
-            auto& finalAggregateItems = topGroupClause->AggregateItems;
-            for (const auto& aggregateItem : query->GroupClause->AggregateItems) {
-                auto referenceExpr = New<TReferenceExpression>(
-                    aggregateItem.Expression->Type,
-                    aggregateItem.Name);
-                finalAggregateItems.emplace_back(
-                    std::move(referenceExpr),
-                    aggregateItem.AggregateFunction,
-                    aggregateItem.Name,
-                    aggregateItem.StateType,
-                    aggregateItem.ResultType);
-            }
-
-            topGroupClause->IsMerge = true;
-            topGroupClause->IsFinal = query->GroupClause->IsFinal;
-            topGroupClause->TotalsMode = query->GroupClause->TotalsMode;
-            topQuery->GroupClause = topGroupClause;
-            topQuery->HavingClause = query->HavingClause;
-        } else {
-            subqueryPattern->GroupClause = query->GroupClause;
-            subqueryPattern->HavingClause = query->HavingClause;
+        auto& finalGroupItems = topGroupClause->GroupItems;
+        for (const auto& groupItem : groupClause->GroupItems) {
+            auto referenceExpr = New<TReferenceExpression>(
+                groupItem.Expression->Type,
+                groupItem.Name);
+            finalGroupItems.emplace_back(std::move(referenceExpr), groupItem.Name);
         }
 
+        auto& finalAggregateItems = topGroupClause->AggregateItems;
+        for (const auto& aggregateItem : groupClause->AggregateItems) {
+            auto referenceExpr = New<TReferenceExpression>(
+                aggregateItem.Expression->Type,
+                aggregateItem.Name);
+            finalAggregateItems.emplace_back(
+                std::move(referenceExpr),
+                aggregateItem.AggregateFunction,
+                aggregateItem.Name,
+                aggregateItem.StateType,
+                aggregateItem.ResultType);
+        }
+
+        topGroupClause->IsMerge = true;
+        topGroupClause->IsFinal = groupClause->IsFinal;
+        topGroupClause->TotalsMode = groupClause->TotalsMode;
+        topQuery->GroupClause = topGroupClause;
+        topQuery->HavingClause = query->HavingClause;
         topQuery->ProjectClause = query->ProjectClause;
     } else {
+        subqueryPattern->GroupClause = groupClause;
+        subqueryPattern->HavingClause = query->HavingClause;
         subqueryPattern->Limit = query->Limit;
 
         if (query->OrderClause) {

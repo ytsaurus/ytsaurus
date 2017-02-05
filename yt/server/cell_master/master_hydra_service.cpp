@@ -37,7 +37,7 @@ IHydraManagerPtr TMasterHydraServiceBase::GetHydraManager()
 
 void TMasterHydraServiceBase::ValidateClusterInitialized()
 {
-    auto worldInitializer = Bootstrap_->GetWorldInitializer();
+    const auto& worldInitializer = Bootstrap_->GetWorldInitializer();
     worldInitializer->ValidateInitialized();
 }
 

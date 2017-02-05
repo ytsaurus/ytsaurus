@@ -577,7 +577,7 @@ private:
     {
         YCHECK(Bootstrap_->IsSecondaryMaster());
 
-        auto worldInitializer = Bootstrap_->GetWorldInitializer();
+        const auto& worldInitializer = Bootstrap_->GetWorldInitializer();
         if (!worldInitializer->IsInitialized()) {
             return;
         }

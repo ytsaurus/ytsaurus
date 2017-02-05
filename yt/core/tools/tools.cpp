@@ -68,31 +68,11 @@ TYsonString DoRunToolInProcess(const Stroka& toolName, const TYsonString& serial
     return serializedResultOrError;
 }
 
-void InitLogging()
-{
-    const char* const stderrWriterName = "stderr";
-
-    auto rule = New<NLogging::TRuleConfig>();
-    rule->Writers.push_back(stderrWriterName);
-    rule->MinLevel = NLogging::ELogLevel::Info;
-
-    auto config = New<NLogging::TLogConfig>();
-    config->Rules.push_back(std::move(rule));
-
-    config->MinDiskSpace = 0;
-
-    auto stderrWriter = New<NLogging::TWriterConfig>();
-    stderrWriter->Type = NLogging::EWriterType::Stderr;
-
-    config->WriterConfigs.insert(std::make_pair(stderrWriterName, std::move(stderrWriter)));
-
-    NLogging::TLogManager::Get()->Configure(std::move(config));
-}
-
 TYsonString ExecuteTool(const Stroka& toolName, const TYsonString& serializedArgument)
 {
     try {
-        InitLogging();
+        // No logging inside tools.
+        NLogging::TLogManager::StaticShutdown();
 
         const auto* registry = GetToolRegistry();
         YCHECK(registry != nullptr);

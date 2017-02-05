@@ -189,6 +189,31 @@ class TestGetJobInput(YTEnvSetup):
             assert actual_input
             assert get_job_input(op.id, job_id) == actual_input
 
+    def test_nonuser_job_type(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", [{"foo": i} for i in xrange(100)])
+        op = sort(
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            sort_by=["foo"]
+        )
+        wait_data_in_operation_table_archive()
+        rows = select_rows("* from [{0}]".format(OPERATION_JOB_ARCHIVE_TABLE))
+        assert len(rows) == 1
+
+        op_id = get_guid_from_parts(
+            lo=rows[0]["operation_id_lo"],
+            hi=rows[0]["operation_id_hi"])
+
+        assert op_id == op.id
+        job_id = get_guid_from_parts(
+            lo=rows[0]["job_id_lo"],
+            hi=rows[0]["job_id_hi"])
+
+        with pytest.raises(YtError):
+            get_job_input(op_id, job_id)
+
 
     def test_table_is_rewritten(self):
         create("table", "//tmp/t_input")

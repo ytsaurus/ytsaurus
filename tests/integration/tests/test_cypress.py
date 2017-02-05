@@ -427,18 +427,18 @@ class TestCypress(YTEnvSetup):
         copy("#" + tmp_id + "/a", "//tmp/b")
         assert get("//tmp/b") == 123
 
-    def test_copy_preserve_account1(self):
+    def test_copy_dont_preserve_account(self):
         create_account("max")
         create("table", "//tmp/t1")
         set("//tmp/t1/@account", "max")
-        copy("//tmp/t1", "//tmp/t2") # preserve is OFF
+        copy("//tmp/t1", "//tmp/t2")
         assert get("//tmp/t2/@account") == "tmp"
 
-    def test_copy_preserve_account2(self):
+    def test_copy_preserve_account(self):
         create_account("max")
         create("table", "//tmp/t1")
         set("//tmp/t1/@account", "max")
-        copy("//tmp/t1", "//tmp/t2", preserve_account=True) # preserve is ON
+        copy("//tmp/t1", "//tmp/t2", preserve_account=True)
         assert get("//tmp/t2/@account") == "max"
 
     def test_copy_force1(self):
@@ -518,19 +518,19 @@ class TestCypress(YTEnvSetup):
     def test_move_simple3(self):
         with pytest.raises(YtError): move("//tmp", "//tmp/a")
 
-    def test_move_preserve_account1(self):
+    def test_move_dont_preserve_account(self):
         create_account("max")
         create("table", "//tmp/t1")
         set("//tmp/t1/@account", "max")
-        move("//tmp/t1", "//tmp/t2", preserve_account=False) # preserve is OFF
-        assert get("//tmp/t2/@account") == "tmp"
-
-    def test_move_preserve_account2(self):
-        create_account("max")
-        create("table", "//tmp/t1")
-        set("//tmp/t1/@account", "max")
-        move("//tmp/t1", "//tmp/t2") # preserve is ON
+        move("//tmp/t1", "//tmp/t2", preserve_account=True)
         assert get("//tmp/t2/@account") == "max"
+
+    def test_move_preserve_account(self):
+        create_account("max")
+        create("table", "//tmp/t1")
+        set("//tmp/t1/@account", "max")
+        move("//tmp/t1", "//tmp/t2")
+        assert get("//tmp/t2/@account") == "tmp"
 
     def test_move_recursive_success(self):
         create("map_node", "//tmp/a")
@@ -1152,18 +1152,26 @@ class TestCypress(YTEnvSetup):
     def test_no_expiration_time_for_root(self):
         with pytest.raises(YtError): set("//@expiration_time", str(self._now()))
 
-    def test_copy_expiration_time(self):
+    def test_copy_preserve_expiration_time(self):
         create("table", "//tmp/t1", attributes={"expiration_time": str(self._now() + timedelta(seconds=1.0))})
-        copy("//tmp/t1", "//tmp/t2")
+        copy("//tmp/t1", "//tmp/t2", preserve_expiration_time=True)
         assert exists("//tmp/t2/@expiration_time")
         time.sleep(2.0)
         assert not exists("//tmp/t1")
         assert not exists("//tmp/t2")
 
-    def test_copy_expiration_time_in_tx(self):
+    def test_copy_dont_preserve_expiration_time(self):
+        create("table", "//tmp/t1", attributes={"expiration_time": str(self._now() + timedelta(seconds=1.0))})
+        copy("//tmp/t1", "//tmp/t2")
+        assert not exists("//tmp/t2/@expiration_time")
+        time.sleep(2.0)
+        assert not exists("//tmp/t1")
+        assert exists("//tmp/t2")
+
+    def test_copy_preserve_expiration_time_in_tx(self):
         create("table", "//tmp/t1", attributes={"expiration_time": str(self._now() + timedelta(seconds=1.0))})
         tx = start_transaction()
-        copy("//tmp/t1", "//tmp/t2", tx=tx)
+        copy("//tmp/t1", "//tmp/t2", preserve_expiration_time=True, tx=tx)
         assert exists("//tmp/t2/@expiration_time", tx=tx)
         time.sleep(2.0)
         assert not exists("//tmp/t1")

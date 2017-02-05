@@ -1790,6 +1790,7 @@ private:
         SetMutationId(req, options);
         req->set_source_path(srcPath);
         req->set_preserve_account(options.PreserveAccount);
+        req->set_preserve_expiration_time(options.PreserveExpirationTime);
         req->set_recursive(options.Recursive);
         req->set_force(options.Force);
         batchReq->AddRequest(req);
@@ -1815,6 +1816,7 @@ private:
         SetMutationId(req, options);
         req->set_source_path(srcPath);
         req->set_preserve_account(options.PreserveAccount);
+        req->set_preserve_expiration_time(options.PreserveExpirationTime);
         req->set_remove_source(true);
         req->set_recursive(options.Recursive);
         req->set_force(options.Force);
@@ -2077,6 +2079,7 @@ private:
 
                 auto req = TChunkOwnerYPathProxy::EndUpload(dstIdPath);
                 *req->mutable_statistics() = dataStatistics;
+                req->set_chunk_properties_update_needed(true);
                 NCypressClient::SetTransactionId(req, uploadTransactionId);
                 NRpc::GenerateMutationId(req);
 
@@ -2368,7 +2371,7 @@ private:
 
         auto jobSpecHelper = NJobProxy::CreateJobSpecHelper(jobSpec);
 
-        auto userJobReader = New<NJobProxy::TUserJobReadController>(
+        auto userJobReader = CreateUserJobReadController(
             jobSpecHelper,
             MakeStrong(this),
             GetConnection()->GetHeavyInvoker(),

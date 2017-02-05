@@ -30,6 +30,7 @@ DECLARE_REFCOUNTED_STRUCT(ICypressNodeVisitor)
 
 DECLARE_REFCOUNTED_CLASS(TCypressManager)
 
+struct TNodeFactoryOptions;
 struct ICypressNodeFactory;
 
 DECLARE_ENTITY_TYPE(TCypressNodeBase, TVersionedNodeId, NObjectClient::TDirectVersionedObjectIdHash)

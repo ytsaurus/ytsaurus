@@ -435,7 +435,8 @@ private:
 
 IUserJobIOFactoryPtr CreateUserJobIOFactory(const IJobSpecHelperPtr& jobSpecHelper)
 {
-    switch (jobSpecHelper->GetJobType()) {
+    const auto jobType = jobSpecHelper->GetJobType();
+    switch (jobType) {
         case EJobType::Map:
             return New<TMapJobIOFactory>(jobSpecHelper, true);
 
@@ -457,7 +458,7 @@ IUserJobIOFactoryPtr CreateUserJobIOFactory(const IJobSpecHelperPtr& jobSpecHelp
             return New<TPartitionReduceJobIOFactory>(jobSpecHelper);
 
         default:
-            Y_UNREACHABLE();
+            THROW_ERROR_EXCEPTION("Not a user job: %v", jobType);
     }
 }
 

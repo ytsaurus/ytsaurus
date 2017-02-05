@@ -72,9 +72,9 @@ public:
 
             auto Logger = MakeQueryLogger(query);
 
-            LOG_DEBUG("Executing query (Fingerprint: %v, InputSchema: %v, ResultSchema: %v)",
+            LOG_DEBUG("Executing query (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v)",
                 queryFingerprint,
-                query->OriginalSchema,
+                query->GetReadSchema(),
                 query->GetTableSchema());
 
             TQueryStatistics statistics;
