@@ -3,7 +3,7 @@
 
 from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, TypeVar, Union
 from typing import overload
-
+from pyspark.sql._typing import ColumnOrName, Literal, LiteralType
 from pyspark.sql.types import *
 from pyspark.sql.context import SQLContext
 from pyspark.sql.readwriter import DataFrameWriter
@@ -11,10 +11,6 @@ from pyspark.sql.streaming import DataStreamWriter
 from pyspark.sql.column import Column
 from pyspark.rdd import RDD
 from pyspark.storagelevel import StorageLevel
-
-ColumnOrName = Union[Column, str]
-Literal = Union[bool, int, float, str]
-LiteralType = TypeVar("LiteralType", bool, int, float, str)
 
 class DataFrame:
     sql_ctx = ...  # type: SQLContext

@@ -2,10 +2,10 @@
 
 from typing import overload
 from typing import Any, Optional, Union, Dict, Callable
-from pyspark.sql import Column, DataFrame
+from pyspark.sql._typing import ColumnOrName
+from pyspark.sql.column import Column
+from pyspark.sql.dataframe import DataFrame
 from pyspark.sql.types import DataType, StructField
-
-ColumnOrName = Union[Column, str]
 
 def approxCountDistinct(col: ColumnOrName, rsd: Optional[float] = ...) -> Column: ...
 def approx_count_distinct(col: Column, rsd: Optional[float] = ...) -> Column: ...
