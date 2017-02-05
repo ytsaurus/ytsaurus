@@ -44,7 +44,7 @@ Adding `third_party/3` to the `PYTHONPATH` seems to the trick.
 | <s>pyspark.cloudpickle</s>                         | ✘                 | ✘                | Internal         |
 | pyspark.accumulators                               | ✔                 | ✘                |                  |
 | pyspark.version                                    | ✘                 | ✔                |                  |
-| pyspark.resultiterable                             | ✘                 | ✘                |                  |
+| pyspark.resultiterable                             | ✔                 | ✘                |                  |
 | pyspark.conf                                       | ✔                 | ✘                |                  |
 | pyspark.rdd                                        | ✘                 | ✔                |                  |
 | pyspark.ml.tuning                                  | ✘                 | ✘                |                  |
