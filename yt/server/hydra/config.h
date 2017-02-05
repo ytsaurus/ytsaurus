@@ -235,6 +235,9 @@ public:
      */
     TDuration HeartbeatMutationPeriod;
 
+    //! Period for retrying while waiting for quorum record count to become
+    //! sufficiently high to proceed with applying mutations.
+    TDuration ChangelogQuorumCheckRetryPeriod;
 
     TDistributedHydraManagerConfig()
     {
@@ -297,6 +300,9 @@ public:
 
         RegisterParameter("heartbeat_mutation_period", HeartbeatMutationPeriod)
             .Default(TDuration::Seconds(60));
+
+        RegisterParameter("changelog_quorum_check_retry_period", ChangelogQuorumCheckRetryPeriod)
+            .Default(TDuration::Seconds(1));
 
         RegisterValidator([&] () {
             if (!DisableLeaderLeaseGraceDelay && LeaderLeaseGraceDelay <= LeaderLeaseTimeout) {

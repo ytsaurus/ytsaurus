@@ -187,8 +187,9 @@ void TTransactionLeaseTracker::ProcessRegisterRequest(const TRegisterRequest& re
     descriptor.Timeout = request.Timeout;
     RegisterDeadline(&descriptor);
 
-    LOG_DEBUG("Transaction lease registered (TransactionId: %v)",
-        request.TransactionId);
+    LOG_DEBUG("Transaction lease registered (TransactionId: %v, Timeout: %v)",
+        request.TransactionId,
+        request.Timeout);
 }
 
 void TTransactionLeaseTracker::ProcessUnregisterRequest(const TUnregisterRequest& request)

@@ -39,13 +39,14 @@ TUserJobReadController::TUserJobReadController(
     IInvokerPtr invoker,
     TNodeDescriptor nodeDescriptor,
     TClosure onNetworkRelease,
+    IUserJobIOFactoryPtr userJobIOFactory,
     TNullable<Stroka> udfDirectory)
     : JobSpecHelper_(std::move(jobSpecHelper))
     , Client_(std::move(client))
     , SerializedInvoker_(CreateSerializedInvoker(std::move(invoker)))
     , NodeDescriptor_(std::move(nodeDescriptor))
     , OnNetworkRelease_(onNetworkRelease)
-    , UserJobIOFactory_(CreateUserJobIOFactory(JobSpecHelper_))
+    , UserJobIOFactory_(userJobIOFactory)
     , UdfDirectory_(std::move(udfDirectory))
 { }
 
@@ -144,7 +145,7 @@ TCallback<TFuture<void>()> TUserJobReadController::PrepareInputActionsQuery(
 void TUserJobReadController::InitializeReader(TNameTablePtr nameTable, const TColumnFilter& columnFilter)
 {
     YCHECK(!Reader_);
-    Reader_ = UserJobIOFactory_->CreateReader(
+    Reader_ = CreateUserJobIOFactory(JobSpecHelper_)->CreateReader(
         Client_,
         NodeDescriptor_,
         OnNetworkRelease_,
@@ -219,6 +220,26 @@ std::vector<NChunkClient::TDataSliceDescriptor> TUserJobReadController::GetUnrea
     } else {
         return {};
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TUserJobReadControllerPtr CreateUserJobReadController(
+        IJobSpecHelperPtr jobSpecHelper,
+        NApi::INativeClientPtr client,
+        IInvokerPtr invoker,
+        NNodeTrackerClient::TNodeDescriptor nodeDescriptor,
+        TClosure onNetworkRelease,
+        TNullable<Stroka> udfDirectory)
+{
+    return New<TUserJobReadController>(
+        jobSpecHelper,
+        client,
+        invoker,
+        nodeDescriptor,
+        onNetworkRelease,
+        CreateUserJobIOFactory(jobSpecHelper),
+        udfDirectory);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

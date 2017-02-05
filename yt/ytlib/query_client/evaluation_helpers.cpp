@@ -272,6 +272,8 @@ TJoinParameters GetJoinEvaluator(
                 upperBound[keyPrefix] = MakeUnversionedSentinelValue(EValueType::Max);
                 ranges.emplace_back(lowerBound, upperBound);
             }
+            subquery->WhereClause = foreignPredicate;
+            subquery->InferRanges = false;
         } else {
             LOG_DEBUG("Using join via IN clause");
             ranges.emplace_back(

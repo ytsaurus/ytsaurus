@@ -3,7 +3,6 @@
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/data_node_service_proxy.h>
-#include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/session_id.h>
 
 #include <yt/ytlib/node_tracker_client/channel.h>
@@ -11,6 +10,8 @@
 #include <yt/ytlib/misc/workload.h>
 
 #include <yt/core/misc/string.h>
+
+#include <yt/core/rpc/dispatcher.h>
 
 namespace NYT {
 namespace NJournalClient {
@@ -72,7 +73,7 @@ public:
     TFuture<void> Run()
     {
         BIND(&TAbortSessionsQuorumSession::DoRun, MakeStrong(this))
-            .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
+            .AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker())
             .Run();
         return Promise_;
     }
@@ -144,7 +145,6 @@ private:
             Promise_.TrySet(combinedError);
         }
     }
-
 };
 
 TFuture<void> AbortSessionsQuorum(
@@ -160,7 +160,7 @@ TFuture<void> AbortSessionsQuorum(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TComputeQuorumRowCountSession
+class TComputeQuorumInfoSession
     : public TQuorumSessionBase
 {
 public:
@@ -168,14 +168,13 @@ public:
 
     TFuture<TMiscExt> Run()
     {
-        BIND(&TComputeQuorumRowCountSession::DoRun, MakeStrong(this))
-            .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
+        BIND(&TComputeQuorumInfoSession::DoRun, MakeStrong(this))
+            .AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker())
             .Run();
         return Promise_;
     }
 
 private:
-    TSpinLock SpinLock_;
     std::vector<TMiscExt> Infos_;
     std::vector<TError> InnerErrors_;
 
@@ -208,11 +207,13 @@ private:
             // TODO(babenko): make configurable
             ToProto(req->mutable_workload_descriptor(), TWorkloadDescriptor(EWorkloadCategory::SystemRealtime));
             asyncResults.push_back(req->Invoke().Apply(
-                BIND(&TComputeQuorumRowCountSession::OnResponse, MakeStrong(this), descriptor)));
+                BIND(&TComputeQuorumInfoSession::OnResponse, MakeStrong(this), descriptor)
+                    .AsyncVia(GetCurrentInvoker())));
         }
 
         Combine(asyncResults).Subscribe(
-            BIND(&TComputeQuorumRowCountSession::OnComplete, MakeStrong(this)));
+            BIND(&TComputeQuorumInfoSession::OnComplete, MakeStrong(this))
+                .Via(GetCurrentInvoker()));
     }
 
     void OnResponse(
@@ -223,10 +224,7 @@ private:
             const auto& rsp = rspOrError.Value();
             auto miscExt = GetProtoExtension<TMiscExt>(rsp->chunk_meta().extensions());
 
-            {
-                TGuard<TSpinLock> guard(SpinLock_);
-                Infos_.push_back(miscExt);
-            }
+            Infos_.push_back(miscExt);
 
             LOG_INFO("Received info for journal chunk (Address: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
                 descriptor.GetDefaultAddress(),
@@ -234,10 +232,7 @@ private:
                 miscExt.uncompressed_data_size(),
                 miscExt.compressed_data_size());
         } else {
-            {
-                TGuard<TSpinLock> guard(SpinLock_);
-                InnerErrors_.push_back(rspOrError);
-            }
+            InnerErrors_.push_back(rspOrError);
 
             LOG_WARNING(rspOrError, "Failed to get journal info (Address: %v)",
                 descriptor.GetDefaultAddress());
@@ -260,7 +255,7 @@ private:
             Infos_.begin(),
             Infos_.end(),
             [] (const TMiscExt& lhs, const TMiscExt& rhs) {
-                return lhs.row_count() < rhs.row_count();
+                return lhs.row_count() > rhs.row_count();
             });
 
         const auto& quorumInfo = Infos_[Quorum_ - 1];
@@ -272,7 +267,6 @@ private:
 
         Promise_.Set(quorumInfo);
     }
-
 };
 
 TFuture<TMiscExt> ComputeQuorumInfo(
@@ -282,8 +276,13 @@ TFuture<TMiscExt> ComputeQuorumInfo(
     int quorum,
     INodeChannelFactoryPtr channelFactory)
 {
-    return New<TComputeQuorumRowCountSession>(chunkId, replicas, timeout, quorum, std::move(channelFactory))
-        ->Run();
+    auto session = New<TComputeQuorumInfoSession>(
+        chunkId,
+        replicas,
+        timeout,
+        quorum,
+        std::move(channelFactory));
+    return session->Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

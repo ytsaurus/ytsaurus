@@ -6,6 +6,9 @@
 
 #include <yt/server/object_server/object_detail.h>
 
+#include <yt/server/chunk_server/chunk_manager.h>
+#include <yt/server/chunk_server/medium.h>
+
 #include <yt/ytlib/security_client/account_ypath.pb.h>
 
 #include <yt/core/ytree/fluent.h>
@@ -16,6 +19,7 @@ namespace NSecurityServer {
 using namespace NYTree;
 using namespace NRpc;
 using namespace NObjectServer;
+using namespace NChunkServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -95,9 +99,16 @@ private:
         }
 
         if (key == "violated_resource_limits") {
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
             BuildYsonFluently(consumer)
                 .BeginMap()
                     .Item("disk_space").Value(account->IsDiskSpaceLimitViolated())
+                    .Item("disk_space_per_medium").DoMapFor(chunkManager->Media(),
+                        [&] (TFluentMap fluent, const std::pair<const TMediumId&, TMedium*>& pair) {
+                            const auto* medium = pair.second;
+                            fluent
+                                .Item(medium->GetName()).Value(account->IsDiskSpaceLimitViolated(medium->GetIndex()));
+                        })
                     .Item("node_count").Value(account->IsNodeCountLimitViolated())
                     .Item("chunk_count").Value(account->IsChunkCountLimitViolated())
                 .EndMap();

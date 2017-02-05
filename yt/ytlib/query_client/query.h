@@ -412,6 +412,8 @@ struct TQuery
         , ProjectClause(other.ProjectClause)
         , OrderClause(other.OrderClause)
         , Limit(other.Limit)
+        , UseDisjointGroupBy(other.UseDisjointGroupBy)
+        , InferRanges(other.InferRanges)
     { }
 
     i64 InputRowLimit;
@@ -429,6 +431,9 @@ struct TQuery
     TConstOrderClausePtr OrderClause;
 
     i64 Limit = std::numeric_limits<i64>::max();
+
+    bool UseDisjointGroupBy = false;
+    bool InferRanges = true;
 
     bool IsOrdered() const
     {

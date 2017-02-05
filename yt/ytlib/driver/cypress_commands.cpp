@@ -234,6 +234,8 @@ TCopyCommand::TCopyCommand()
         .Optional();
     RegisterParameter("preserve_account", Options.PreserveAccount)
         .Optional();
+    RegisterParameter("preserve_expiration_time", Options.PreserveExpirationTime)
+        .Optional();
 }
 
 void TCopyCommand::DoExecute(ICommandContextPtr context)
@@ -260,6 +262,8 @@ TMoveCommand::TMoveCommand()
     RegisterParameter("force", Options.Force)
         .Optional();
     RegisterParameter("preserve_account", Options.PreserveAccount)
+        .Optional();
+    RegisterParameter("preserve_expiration_time", Options.PreserveExpirationTime)
         .Optional();
 }
 

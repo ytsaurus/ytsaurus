@@ -558,6 +558,12 @@ private:
             });
             records = queue->Read(firstRecordId, maxRecords, maxBytes);
         } else {
+            if (!changelog->IsOpen()) {
+                // NB: Reading from a changelog and closing it is inherently racy.
+                // It is safe to report no records at this point since the client will be retrying its
+                // requests anyway.
+                return std::vector<TSharedRef>();
+            }
             PROFILE_TIMING ("/changelog_read_io_time") {
                 records = changelog->Read(firstRecordId, maxRecords, maxBytes);
             }

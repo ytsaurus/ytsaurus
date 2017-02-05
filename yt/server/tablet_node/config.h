@@ -238,6 +238,7 @@ public:
     TDuration MaxTransactionTimeout;
     TDuration MaxTransactionDuration;
     TDuration BarrierCheckPeriod;
+    int MaxAbortedTransactionPoolSize;
 
     TTransactionManagerConfig()
     {
@@ -248,6 +249,8 @@ public:
             .Default(TDuration::Seconds(60));
         RegisterParameter("barrier_check_period", BarrierCheckPeriod)
             .Default(TDuration::MilliSeconds(100));
+        RegisterParameter("max_aborted_transaction_pool_size", MaxAbortedTransactionPoolSize)
+            .Default(1000);
     }
 };
 

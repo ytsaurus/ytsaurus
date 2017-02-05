@@ -64,9 +64,7 @@ void TUserJobIOBase::Init()
     auto transactionId = FromProto<TTransactionId>(schedulerJobSpecExt.output_transaction_id());
     for (const auto& outputSpec : schedulerJobSpecExt.output_table_specs()) {
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
-        options->ValidateDuplicateIds = true;
-        options->ValidateRowWeight = true;
-        options->ValidateColumnCount = true;
+        options->EnableValidationOptions();
 
         auto writerConfig = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableWriter;
         if (outputSpec.has_table_writer_config()) {
@@ -102,9 +100,7 @@ void TUserJobIOBase::Init()
         const auto& stderrTableSpec = schedulerJobSpecExt.user_job_spec().stderr_table_spec();
         const auto& outputTableSpec = stderrTableSpec.output_table_spec();
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(stderrTableSpec.output_table_spec().table_writer_options()));
-        options->ValidateDuplicateIds = true;
-        options->ValidateRowWeight = true;
-        options->ValidateColumnCount = true;
+        options->EnableValidationOptions();
 
         auto stderrTableWriterConfig = ConvertTo<TBlobTableWriterConfigPtr>(
             TYsonString(stderrTableSpec.blob_table_writer_config()));

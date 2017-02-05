@@ -185,7 +185,7 @@ public:
         auto jobEnvironmentConfig = ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment);
         MemoryWatchdogPeriod_ = jobEnvironmentConfig->MemoryWatchdogPeriod;
 
-        UserJobReadController_ = New<TUserJobReadController>(
+        UserJobReadController_ = CreateUserJobReadController(
             Host_->GetJobSpecHelper(),
             Host_->GetClient(),
             PipeIOPool_->GetInvoker(),
@@ -219,9 +219,7 @@ public:
 
             auto tableWriterOptions = ConvertTo<TTableWriterOptionsPtr>(
                 TYsonString(coreTableSpec.output_table_spec().table_writer_options()));
-            tableWriterOptions->ValidateDuplicateIds = true;
-            tableWriterOptions->ValidateRowWeight = true;
-            tableWriterOptions->ValidateColumnCount = true;
+            tableWriterOptions->EnableValidationOptions();
             auto chunkList = FromProto<TChunkListId>(coreTableSpec.output_table_spec().chunk_list_id());
             auto blobTableWriterConfig = ConvertTo<TBlobTableWriterConfigPtr>(TYsonString(coreTableSpec.blob_table_writer_config()));
             auto transactionId = FromProto<TTransactionId>(
@@ -721,9 +719,9 @@ private:
     }
 
     TAsyncReaderPtr PrepareOutputPipe(
-        const std::vector<int>& jobDescriptors, 
-        TOutputStream* output, 
-        std::vector<TCallback<void()>>* actions, 
+        const std::vector<int>& jobDescriptors,
+        TOutputStream* output,
+        std::vector<TCallback<void()>>* actions,
         const TError& wrappingError)
     {
         auto pipe = TNamedPipe::Create(CreateNamedPipePath());
@@ -740,7 +738,7 @@ private:
                 auto input = CreateSyncAdapter(asyncInput);
                 PipeInputToOutput(input.get(), output, BufferSize);
             } catch (const std::exception& ex) {
-                auto error = wrappingError 
+                auto error = wrappingError
                     << ex;
                 LOG_ERROR(error);
 

@@ -73,6 +73,7 @@ function YtDriverFacadeV2(logger, driver)
     delete descriptors.read_file;
     delete descriptors.read_journal;
     delete descriptors.read_table;
+    delete descriptors.read_blob_table;
 
     delete descriptors.write_file;
     delete descriptors.write_journal;

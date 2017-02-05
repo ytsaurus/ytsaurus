@@ -97,77 +97,53 @@ DEFINE_ENUM(EFifoSortParameter,
 
 class TSchedulerServiceProxy;
 
-class TJobIOConfig;
-typedef TIntrusivePtr<TJobIOConfig> TJobIOConfigPtr;
+DECLARE_REFCOUNTED_CLASS(TJobIOConfig);
 
-class TTestingOperationOptions;
-typedef TIntrusivePtr<TTestingOperationOptions> TTestingOperationOptionsPtr;
+DECLARE_REFCOUNTED_CLASS(TTestingOperationOptions);
 
-class TSchedulingTagRuleConfig;
-typedef TIntrusivePtr<TSchedulingTagRuleConfig> TSchedulingTagRuleConfigPtr;
+DECLARE_REFCOUNTED_CLASS(TSchedulingTagRuleConfig);
 
-class TResourceLimitsConfig;
-typedef TIntrusivePtr<TResourceLimitsConfig> TResourceLimitsConfigPtr;
+DECLARE_REFCOUNTED_CLASS(TResourceLimitsConfig);
 
-class TOperationSpecBase;
-typedef TIntrusivePtr<TOperationSpecBase> TOperationSpecBasePtr;
+DECLARE_REFCOUNTED_CLASS(TOperationSpecBase);
 
-class TUserJobSpec;
-typedef TIntrusivePtr<TUserJobSpec> TUserJobSpecPtr;
+DECLARE_REFCOUNTED_CLASS(TUserJobSpec);
 
-class TUnorderedOperationSpecBase;
-typedef TIntrusivePtr<TUnorderedOperationSpecBase> TUnorderedOperationSpecBasePtr;
+DECLARE_REFCOUNTED_CLASS(TUnorderedOperationSpecBase);
 
-class  TMapOperationSpec;
-typedef TIntrusivePtr<TMapOperationSpec> TMapOperationSpecPtr;
+DECLARE_REFCOUNTED_CLASS(TMapOperationSpec);
 
-class TUnorderedMergeOperationSpec;
-typedef TIntrusivePtr<TUnorderedMergeOperationSpec> TUnorderedMergeOperationSpecPtr;
+DECLARE_REFCOUNTED_CLASS(TUnorderedMergeOperationSpec);
 
-class TSimpleOperationSpecBase;
-typedef TIntrusivePtr<TSimpleOperationSpecBase> TSimpleOperationSpecBasePtr;
+DECLARE_REFCOUNTED_CLASS(TSimpleOperationSpecBase);
 
-class TMergeOperationSpec;
-typedef TIntrusivePtr<TMergeOperationSpec> TMergeOperationSpecPtr;
+DECLARE_REFCOUNTED_CLASS(TMergeOperationSpec);
 
-class TOrderedMergeOperationSpec;
-typedef TIntrusivePtr<TOrderedMergeOperationSpec> TOrderedMergeOperationSpecPtr;
+DECLARE_REFCOUNTED_CLASS(TOrderedMergeOperationSpec);
 
-class TSortedMergeOperationSpec;
-typedef TIntrusivePtr<TSortedMergeOperationSpec> TSortedMergeOperationSpecPtr;
+DECLARE_REFCOUNTED_CLASS(TSortedMergeOperationSpec);
 
-class TEraseOperationSpec;
-typedef TIntrusivePtr<TEraseOperationSpec> TEraseOperationSpecPtr;
+DECLARE_REFCOUNTED_CLASS(TEraseOperationSpec);
 
-class TReduceOperationSpecBase;
-typedef TIntrusivePtr<TReduceOperationSpecBase> TReduceOperationSpecBasePtr;
+DECLARE_REFCOUNTED_CLASS(TReduceOperationSpecBase);
 
-class TReduceOperationSpec;
-typedef TIntrusivePtr<TReduceOperationSpec> TReduceOperationSpecPtr;
+DECLARE_REFCOUNTED_CLASS(TReduceOperationSpec);
 
-class TJoinReduceOperationSpec;
-typedef TIntrusivePtr<TJoinReduceOperationSpec> TJoinReduceOperationSpecPtr;
+DECLARE_REFCOUNTED_CLASS(TJoinReduceOperationSpec);
 
-class TSortOperationSpecBase;
-typedef TIntrusivePtr<TSortOperationSpecBase> TSortOperationSpecBasePtr;
+DECLARE_REFCOUNTED_CLASS(TSortOperationSpecBase);
 
-class TSortOperationSpec;
-typedef TIntrusivePtr<TSortOperationSpec> TSortOperationSpecPtr;
+DECLARE_REFCOUNTED_CLASS(TSortOperationSpec);
 
-class TMapReduceOperationSpec;
-typedef TIntrusivePtr<TMapReduceOperationSpec> TMapReduceOperationSpecPtr;
+DECLARE_REFCOUNTED_CLASS(TMapReduceOperationSpec);
 
-class  TRemoteCopyOperationSpec;
-typedef TIntrusivePtr<TRemoteCopyOperationSpec> TRemoteCopyOperationSpecPtr;
+DECLARE_REFCOUNTED_CLASS(TRemoteCopyOperationSpec);
 
-class TPoolConfig;
-typedef TIntrusivePtr<TPoolConfig> TPoolConfigPtr;
+DECLARE_REFCOUNTED_CLASS(TPoolConfig);
 
-class TStrategyOperationSpec;
-typedef TIntrusivePtr<TStrategyOperationSpec> TStrategyOperationSpecPtr;
+DECLARE_REFCOUNTED_CLASS(TStrategyOperationSpec);
 
-class TOperationRuntimeParams;
-typedef TIntrusivePtr<TOperationRuntimeParams> TOperationRuntimeParamsPtr;
+DECLARE_REFCOUNTED_CLASS(TOperationRuntimeParams);
 
 DECLARE_REFCOUNTED_CLASS(TSchedulerConnectionConfig);
 

@@ -127,7 +127,7 @@ public:
         const std::vector<TColumnIdMapping>& idMapping,
         int chunkKeyColumnCount,
         int keyColumnCount,
-        TTimestamp timestamp = MinTimestamp);
+        TTimestamp timestamp);
 
     virtual bool NextRow() override;
 

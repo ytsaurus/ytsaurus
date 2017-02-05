@@ -332,7 +332,6 @@ DEFINE_REFCOUNTED_TYPE(IEntityNode)
  *  The factory also acts as a "transaction context" that holds all created nodes.
  *
  *  One must call #Commit at the end if the operation was a success.
- *  This also invokes all handlers installed via #RegisterCommitHandler.
  *
  *  Releasing the instance without calling #Commit or calling #Rollback abandons all changes
  *  and invokes all handlers installed via #RegisterRollbackHandler.
@@ -373,27 +372,17 @@ struct INodeFactory
  *  The factory also acts as a "transaction context" that holds all created nodes.
  *
  *  One must call #Commit at the end if the operation was a success.
- *  This also invokes all handlers installed via #RegisterCommitHandler.
- *
- *  Releasing the instance without calling #Commit or calling #Rollback abandons all changes
- *  and invokes all handlers installed via #RegisterRollbackHandler.
+ *  Releasing the instance without calling #Commit or calling #Rollback abandons all changes.
  */
 struct ITransactionalNodeFactory
     : public INodeFactory
 {
-
     //! Must be called before releasing the factory to indicate that all created nodes
     //! must persist.
     virtual void Commit() = 0;
 
     //! Invokes all rollback handlers.
     virtual void Rollback() = 0;
-
-    //! Adds a new #handler to be called upon commit.
-    virtual void RegisterCommitHandler(const std::function<void()>& handler) = 0;
-
-    //! Adds a new #handler to be called upon rollback.
-    virtual void RegisterRollbackHandler(const std::function<void()>& handler) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

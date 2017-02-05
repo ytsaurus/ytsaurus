@@ -52,6 +52,9 @@ public:
     //! Returns an approximate byte size of a changelog.
     i64 GetDataSize() const;
 
+    //! Returns |true| is the changelog is open.
+    bool IsOpen() const;
+
     //! Returns the meta blob.
     const NProto::TChangelogMeta& GetMeta() const;
 

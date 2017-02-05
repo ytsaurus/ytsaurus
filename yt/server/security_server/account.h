@@ -58,9 +58,13 @@ public:
     //! Dereferences the local statistics pointer.
     TAccountStatistics& LocalStatistics();
 
-    //! Returns |true| if disk space limit is exceeded,
+    //! Returns |true| if disk space limit is exceeded for at least one medium,
     //! i.e. no more disk space could be allocated.
     bool IsDiskSpaceLimitViolated() const;
+
+    //! Returns |true| if disk space limit is exceeded for a given medium,
+    //! i.e. no more disk space could be allocated.
+    bool IsDiskSpaceLimitViolated(int mediumIndex) const;
 
     //! Returns |true| is node count limit is exceeded,
     //! i.e. no more Cypress node could be created.
