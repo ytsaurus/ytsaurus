@@ -36,7 +36,7 @@ Adding `third_party/3` to the `PYTHONPATH` seems to the trick.
 | pyspark.broadcast                                  | ✔                 | ✔                | Mixed            |
 | <s>pyspark.worker</s>                              | ✘                 | ✘                | Internal         |
 | <s>pyspark.shuffle</s>                             | ✘                 | ✘                | Internal         |
-| pyspark.files                                      | ✘                 | ✘                |                  |
+| pyspark.files                                      | ✘                 | ✔                |                  |
 | <s>pyspark.find\_spark\_home</s>                   | ✘                 | ✘                | Internal         |
 | pyspark.status                                     | ✔                 | ✘                |                  |
 | <s>pyspark.daemon</s>                              | ✘                 | ✘                | Internal         |
