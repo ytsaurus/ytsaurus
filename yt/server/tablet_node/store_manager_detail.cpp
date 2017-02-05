@@ -250,7 +250,7 @@ void TStoreManagerBase::ScheduleStorePreload(IChunkStorePtr store)
     Tablet_->PreloadStoreIds().push_back(store->GetId());
     store->SetPreloadState(EStorePreloadState::Scheduled);
 
-    LOG_INFO("Scheduled preload of in-memory store (StoreId: %v, Mode: %v)",
+    LOG_INFO_UNLESS(IsRecovery(), "Scheduled preload of in-memory store (StoreId: %v, Mode: %v)",
         store->GetId(),
         Tablet_->GetConfig()->InMemoryMode);
 }
@@ -262,7 +262,7 @@ bool TStoreManagerBase::TryPreloadStoreFromInterceptedData(
     YCHECK(store);
 
     if (!chunkData) {
-        LOG_WARNING("Intercepted chunk data for in-memory store is missing (StoreId: %v)",
+        LOG_WARNING_UNLESS(IsRecovery(), "Intercepted chunk data for in-memory store is missing (StoreId: %v)",
             store->GetId());
         return false;
     }
@@ -274,7 +274,7 @@ bool TStoreManagerBase::TryPreloadStoreFromInterceptedData(
     YCHECK(mode != EInMemoryMode::None);
 
     if (mode != chunkData->InMemoryMode) {
-        LOG_WARNING("Intercepted chunk data for in-memory store has invalid mode (StoreId: %v, ExpectedMode: %v, ActualMode: %v)",
+        LOG_WARNING_UNLESS(IsRecovery(), "Intercepted chunk data for in-memory store has invalid mode (StoreId: %v, ExpectedMode: %v, ActualMode: %v)",
             store->GetId(),
             mode,
             chunkData->InMemoryMode);
@@ -284,7 +284,7 @@ bool TStoreManagerBase::TryPreloadStoreFromInterceptedData(
     store->Preload(chunkData);
     store->SetPreloadState(EStorePreloadState::Complete);
 
-    LOG_INFO("In-memory store preloaded from intercepted chunk data (StoreId: %v, Mode: %v)",
+    LOG_INFO_UNLESS(IsRecovery(), "In-memory store preloaded from intercepted chunk data (StoreId: %v, Mode: %v)",
         store->GetId(),
         mode);
 
