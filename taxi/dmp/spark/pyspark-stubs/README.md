@@ -11,6 +11,10 @@ According to [PEP 484](https://www.python.org/dev/peps/pep-0484/#storing-and-dis
 
 > Third-party stub packages can use any location for stub storage. Type checkers should search for them using PYTHONPATH. 
 
+Moreover:
+
+> Third-party stub packages can use any location for stub storage. Type checkers should search for them using PYTHONPATH. A default fallback directory that is always checked is shared/typehints/python3.5/ (or 3.6, etc.)
+
 Adding `third_party/3` to the `PYTHONPATH` seems to the trick.
 
 ## API Coverage
