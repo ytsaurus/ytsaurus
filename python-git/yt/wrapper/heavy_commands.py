@@ -7,7 +7,7 @@ from .ypath import YPathSupportingAppend
 from .transaction import Transaction
 from .transaction_commands import _make_transactional_request
 from .http_helpers import get_retriable_errors
-from .response_stream import ResponseStreamWithDel
+from .response_stream import ResponseStream
 from .lock_commands import lock
 from .format import YtFormatReadError
 
@@ -232,7 +232,7 @@ def make_read_request(command_name, path, params, process_response_action, retri
                 with Transaction(transaction_id=tx.transaction_id, attributes={"title": title}, client=client):
                     lock(path, mode="snapshot", client=client)
             iterator = ReadIterator(command_name, tx, process_response_action, retriable_state_class, client)
-            return ResponseStreamWithDel(
+            return ResponseStream(
                 get_response=lambda: iterator.last_response,
                 iter_content=iterator,
                 close=lambda: iterator.close(),
