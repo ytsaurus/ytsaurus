@@ -11,7 +11,7 @@
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/session_id.h>
-#include <yt/ytlib/chunk_client/private.h>
+#include <yt/ytlib/chunk_client/medium_directory.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
@@ -214,6 +214,7 @@ private:
         int ReadQuorum_ = -1;
         int WriteQuorum_ = -1;
         Stroka Account_;
+        Stroka PrimaryMedium_;
 
         TObjectId ObjectId_;
         TChunkListId ChunkListId_;
@@ -375,7 +376,8 @@ private:
                     "replication_factor",
                     "read_quorum",
                     "write_quorum",
-                    "account"
+                    "account",
+                    "primary_medium"
                 };
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
 
@@ -391,11 +393,14 @@ private:
                 ReadQuorum_ = attributes->Get<int>("read_quorum");
                 WriteQuorum_ = attributes->Get<int>("write_quorum");
                 Account_ = attributes->Get<Stroka>("account");
+                PrimaryMedium_ = attributes->Get<Stroka>("primary_medium");
 
-                LOG_INFO("Extended journal attributes received (ReplicationFactor: %v, WriteQuorum: %v, Account: %v)",
+                LOG_INFO("Extended journal attributes received (ReplicationFactor: %v, WriteQuorum: %v, Account: %v, "
+                    "PrimaryMedium: %v)",
                     ReplicationFactor_,
                     WriteQuorum_,
-                    Account_);
+                    Account_,
+                    PrimaryMedium_);
             }
 
             {
@@ -519,6 +524,16 @@ private:
 
             LOG_INFO("Creating chunk");
 
+            const TMediumDescriptor* mediumDescriptor;
+            {
+                const auto& connection = Client_->GetNativeConnection();
+                WaitFor(connection->SynchronizeMediumDirectory())
+                    .ThrowOnError();
+
+                const auto& mediumDirecotry = connection->GetMediumDirectory();
+                mediumDescriptor = mediumDirecotry->GetByNameOrThrow(PrimaryMedium_);
+            }
+
             {
                 TChunkServiceProxy proxy(UploadMasterChannel_);
 
@@ -531,7 +546,7 @@ private:
                 req->set_account(Account_);
                 ToProto(req->mutable_transaction_id(), UploadTransaction_->GetId());
                 req->set_replication_factor(ReplicationFactor_);
-                req->set_medium_index(DefaultStoreMediumIndex);
+                req->set_medium_index(mediumDescriptor->Index);
                 req->set_read_quorum(ReadQuorum_);
                 req->set_write_quorum(WriteQuorum_);
                 req->set_movable(true);
@@ -546,10 +561,8 @@ private:
                 const auto& batchRsp = batchRspOrError.Value();
                 const auto& rsp = batchRsp->create_chunk_subresponses(0);
 
-                // TODO(shakurov): response should contain not just a chunk ID,
-                // but a complete session ID.
                 session->Id.ChunkId = FromProto<TChunkId>(rsp.chunk_id());
-                session->Id.MediumIndex = DefaultStoreMediumIndex;
+                session->Id.MediumIndex = mediumDescriptor->Index;
             }
 
             LOG_INFO("Chunk created (SessionId: %v)",
@@ -561,7 +574,7 @@ private:
                 ReplicationFactor_,
                 WriteQuorum_,
                 Null,
-                DefaultStoreMediumName,
+                PrimaryMedium_,
                 Config_->PreferLocalHost,
                 GetBannedNodes(),
                 NodeDirectory_,
@@ -978,7 +991,10 @@ private:
         }
 
 
-        void OnChunkStarted(TChunkSessionPtr session, TNodePtr node, const TDataNodeServiceProxy::TErrorOrRspStartChunkPtr& rspOrError)
+        void OnChunkStarted(
+            TChunkSessionPtr session,
+            TNodePtr node,
+            const TDataNodeServiceProxy::TErrorOrRspStartChunkPtr& rspOrError)
         {
             if (rspOrError.IsOK()) {
                 LOG_DEBUG("Chunk session started (Address: %v)",
