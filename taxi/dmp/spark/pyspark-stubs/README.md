@@ -43,7 +43,7 @@ Adding `third_party/3` to the `PYTHONPATH` seems to the trick.
 | pyspark.context                                    | ✘                 | ✔                |                  |
 | <s>pyspark.cloudpickle</s>                         | ✘                 | ✘                | Internal         |
 | pyspark.accumulators                               | ✔                 | ✘                |                  |
-| pyspark.version                                    | ✘                 | ✘                |                  |
+| pyspark.version                                    | ✘                 | ✔                |                  |
 | pyspark.resultiterable                             | ✘                 | ✘                |                  |
 | pyspark.conf                                       | ✔                 | ✘                |                  |
 | pyspark.rdd                                        | ✘                 | ✔                |                  |
