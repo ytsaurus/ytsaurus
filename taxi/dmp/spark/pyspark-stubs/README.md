@@ -103,7 +103,7 @@ Adding `third_party/3` to the `PYTHONPATH` seems to the trick.
 | pyspark.sql                                 | ✔                 | ✘                |                  |
 | pyspark.sql.window                          | ✔                 | ✘                |                  |
 | pyspark.sql.session                         | ✔                 | ✘                |                  |
-| pyspark.sql.utils                           | ✘                 | ✘                |                  |
+| pyspark.sql.utils                           | ✔                 | ✘                |                  |
 | pyspark.sql.group                           | ✘                 | ✔                |                  |
 | pyspark.sql.readwriter                      | ✔                 | ✘                |                  |
 | pyspark.sql.dataframe                       | ✘                 | ✔                |                  |
