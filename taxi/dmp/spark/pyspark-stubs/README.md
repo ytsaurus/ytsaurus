@@ -85,15 +85,15 @@ Adding `third_party/3` to the `PYTHONPATH` seems to the trick.
 | pyspark.mllib.stat.distribution                    | ✔                 | ✘                |                  |
 | pyspark.mllib.stat.KernelDensity                   | ✔                 | ✘                |                  |
 | pyspark.mllib.stat                                 | ✔                 | ✘                |                  |
-| pyspark.streaming.kafka                            | ✘                 | ✘                |                  |
-| pyspark.streaming.flume                            | ✘                 | ✘                |                  |
+| pyspark.streaming.kafka                            | ✔                 | ✘                |                  |
+| pyspark.streaming.flume                            | ✔                 | ✘                |                  |
 | <s>pyspark.streaming.tests</s>                     | ✘                 | ✘                | Tests            |
-| pyspark.streaming                                  | ✘                 | ✘                |                  |
-| pyspark.streaming.listener                         | ✘                 | ✘                |                  |
-| pyspark.streaming.util                             | ✘                 | ✘                |                  |
-| pyspark.streaming.dstream                          | ✘                 | ✘                |                  |
-| pyspark.streaming.context                          | ✘                 | ✘                |                  |
-| pyspark.streaming.kinesis                          | ✘                 | ✘                |                  |
+| pyspark.streaming                                  | ✔                 | ✘                |                  |
+| pyspark.streaming.listener                         | ✔                 | ✘                |                  |
+| pyspark.streaming.util                             | ✔                 | ✘                |                  |
+| pyspark.streaming.dstream                          | ✔                 | ✘                |                  |
+| pyspark.streaming.context                          | ✔                 | ✘                |                  |
+| pyspark.streaming.kinesis                          | ✔                 | ✘                |                  |
 | pyspark.sql.types                                  | ✔                 | ✘                |                  |
 | pyspark.sql.functions                              | ✘                 | ✔                |                  |
 | pyspark.sql.catalog                                | ✘                 | ✔                |                  |
