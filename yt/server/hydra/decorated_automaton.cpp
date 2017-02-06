@@ -1107,7 +1107,14 @@ void TDecoratedAutomaton::SetChangelog(IChangelogPtr changelog)
     Changelog_ = changelog;
 }
 
-i64 TDecoratedAutomaton::GetLoggedDataSize() const
+int TDecoratedAutomaton::GetRecordCountSinceLastCheckpoint() const
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    return GetLoggedVersion().RecordId;
+}
+
+i64 TDecoratedAutomaton::GetDataSizeSinceLastCheckpoint() const
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
