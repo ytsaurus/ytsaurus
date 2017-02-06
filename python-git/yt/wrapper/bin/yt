@@ -870,6 +870,7 @@ def add_run_job_shell_parser(add_parser):
     parser.add_argument("job_id", help="job id, for example: 5c51-24e204-384-9f3f6437")
     parser.add_argument("--timeout", type=int, help="inactivity timeout in milliseconds after job has "
                                                     "finished, by default 60000 milliseconds")
+    add_hybrid_argument(parser, "command", group_required=False)
 
 def add_abort_job_parser(add_parser):
     parser = add_parser("abort-job", yt.abort_job)

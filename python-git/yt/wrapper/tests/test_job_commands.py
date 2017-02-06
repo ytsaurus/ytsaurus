@@ -71,10 +71,23 @@ class TestJobCommands(object):
         output = ""
         while len(output) < 4 or output[-4:] != ":~$ ":
             rsp = shell.make_request("poll")
-            if not rsp or "output" not in rsp: #rsp.error:
+            if not rsp or "output" not in rsp:
                 raise yt.YtError("Poll failed: " + output)
             output += rsp["output"]
         return output
+
+    def _poll_until_shell_exited(self, shell):
+        output = ""
+        try:
+            while True:
+                rsp = shell.make_request("poll")
+                if not rsp or "output" not in rsp:
+                    raise yt.YtError("Poll failed: " + output)
+                output += rsp["output"]
+        except yt.YtResponseError as e:
+            if e.is_shell_exited():
+                return output
+            raise
 
     def test_job_shell(self, yt_env):
         if yt.config["backend"] == "native":
@@ -115,6 +128,44 @@ class TestJobCommands(object):
         assert ids and int(ids.group(1)) == int(ids.group(2))
         if ENABLE_JOB_CONTROL:
             assert int(ids.group(1)) != os.getuid()
+
+        shell.make_request("terminate")
+        with pytest.raises(yt.YtError):
+            output = self._poll_until_prompt(shell)
+
+        self._resume_jobs()
+        op.wait()
+
+    def test_job_shell_command(self, yt_env):
+        if yt.config["backend"] == "native":
+            pytest.skip()
+
+        commands = get_api_commands()
+        if "poll_job_shell" not in commands:
+            pytest.skip()
+
+        table = TEST_DIR + "/table"
+        other_table = TEST_DIR + "/other_table"
+        yt.write_table(table, [{"x": 1}, {"x": 2}])
+
+        self._tmpdir = self._create_tmpdir("job_shell")
+        mapper = (
+            "(touch {0}/started_$YT_JOB_ID 2>/dev/null\n"
+            "cat\n"
+            "while [ -f {0}/started_$YT_JOB_ID ]; do sleep 0.1; done\n)"
+            .format(self._tmpdir))
+
+        op = yt.run_map(mapper, table, other_table, format=yt.DsvFormat(), sync=False)
+
+        self._ensure_jobs_running(op)
+        job_id = self.jobs[0]
+
+        shell = JobShell(job_id, interactive=False, timeout=0)
+        shell.make_request("spawn", command="echo $TERM; tput lines; tput cols; env | grep -c YT_OPERATION_ID")
+        output = self._poll_until_shell_exited(shell)
+
+        expected = "xterm\r\n24\r\n80\r\n1\r\n"
+        assert output == expected
 
         shell.make_request("terminate")
         with pytest.raises(yt.YtError):
