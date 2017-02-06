@@ -54,11 +54,9 @@ class TestCypress(YTEnvSetup):
         # change the type of root
         with pytest.raises(YtError): set("/", [])
 
-        # set the root to the empty map
-        # with pytest.raises(YtError): set("/", {}))
-
         # remove the root
         with pytest.raises(YtError): remove("/")
+
         # get non existent child
         with pytest.raises(YtError): get("//tmp/b")
 
