@@ -214,6 +214,9 @@ private:
     TEpochContextPtr EpochContext_;
     IChangelogPtr Changelog_;
 
+    int RecoveryRecordCount_ = 0;
+    i64 RecoveryDataSize_ = 0;
+
     std::atomic<EPeerState> State_ = {EPeerState::Stopped};
 
     // AutomatonVersion_ <= CommittedVersion_ <= LoggedVersion_
