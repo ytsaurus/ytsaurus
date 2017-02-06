@@ -90,7 +90,7 @@ Currently this project uses Spark 2.1.0 as a reference.
 | pyspark.sql.dataframe                              | ✘                 | ✔                |                  |
 | pyspark.sql.functions                              | ✘                 | ✔                |                  |
 | pyspark.sql.group                                  | ✘                 | ✔                |                  |
-| pyspark.sql.readwriter                             | ✔                 | ✘                |                  |
+| pyspark.sql.readwriter                             | ✘                 | ✔                |                  |
 | pyspark.sql.session                                | ✘                 | ✔                |                  |
 | pyspark.sql.streaming                              | ✔                 | ✘                |                  |
 | <s>pyspark.sql.tests</s>                           | ✘                 | ✘                | Tests            |
