@@ -17,6 +17,10 @@ Moreover:
 
 Adding `third_party/3` to the `PYTHONPATH` seems to the trick.
 
+## Version Compatibility
+
+Currently this project uses Spark 2.1.0 as a reference.
+
 ## API Coverage
 
 | Module                                             | Dynamically typed | Statically typed | Notes            |
@@ -86,8 +90,8 @@ Adding `third_party/3` to the `PYTHONPATH` seems to the trick.
 | pyspark.sql.dataframe                              | ✘                 | ✔                |                  |
 | pyspark.sql.functions                              | ✘                 | ✔                |                  |
 | pyspark.sql.group                                  | ✘                 | ✔                |                  |
-| pyspark.sql.readwriter                             | ✘                 | ✔                |                  |
-| pyspark.sql.session                                | ✔                 | ✘                |                  |
+| pyspark.sql.readwriter                             | ✔                 | ✘                |                  |
+| pyspark.sql.session                                | ✘                 | ✔                |                  |
 | pyspark.sql.streaming                              | ✔                 | ✘                |                  |
 | <s>pyspark.sql.tests</s>                           | ✘                 | ✘                | Tests            |
 | pyspark.sql.types                                  | ✔                 | ✘                |                  |
