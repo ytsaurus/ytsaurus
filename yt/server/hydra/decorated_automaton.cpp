@@ -755,6 +755,9 @@ void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordDa
     auto mutationVersion = TVersion(header.segment_id(), header.record_id());
     RotateAutomatonVersionIfNeeded(mutationVersion);
 
+    RecoveryRecordCount_ += 1;
+    RecoveryDataSize_ += recordData.Size();
+
     TMutationRequest request;
     request.Type = header.mutation_type();
     if (header.has_mutation_id()) {
@@ -927,6 +930,8 @@ void TDecoratedAutomaton::DoRotateChangelog()
     }
 
     LoggedVersion_ = rotatedVersion;
+    RecoveryRecordCount_ = 0;
+    RecoveryDataSize_ = 0;
 
     YCHECK(RotatingChangelog_);
     RotatingChangelog_ = false;
@@ -1111,14 +1116,14 @@ int TDecoratedAutomaton::GetRecordCountSinceLastCheckpoint() const
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    return GetLoggedVersion().RecordId;
+    return GetLoggedVersion().RecordId + RecoveryRecordCount_;
 }
 
 i64 TDecoratedAutomaton::GetDataSizeSinceLastCheckpoint() const
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    return Changelog_->GetDataSize();
+    return Changelog_->GetDataSize() + RecoveryDataSize_;
 }
 
 TInstant TDecoratedAutomaton::GetLastSnapshotTime() const
@@ -1241,6 +1246,8 @@ void TDecoratedAutomaton::StopEpoch()
         SnapshotParamsPromise_.ToFuture().Cancel();
         SnapshotParamsPromise_.Reset();
     }
+    RecoveryRecordCount_ = 0;
+    RecoveryDataSize_ = 0;
 }
 
 void TDecoratedAutomaton::MaybeStartSnapshotBuilder()
