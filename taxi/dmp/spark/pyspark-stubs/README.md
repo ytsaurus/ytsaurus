@@ -86,7 +86,7 @@ Adding `third_party/3` to the `PYTHONPATH` seems to the trick.
 | pyspark.sql.dataframe                              | ✘                 | ✔                |                  |
 | pyspark.sql.functions                              | ✘                 | ✔                |                  |
 | pyspark.sql.group                                  | ✘                 | ✔                |                  |
-| pyspark.sql.readwriter                             | ✔                 | ✘                |                  |
+| pyspark.sql.readwriter                             | ✘                 | ✔                |                  |
 | pyspark.sql.session                                | ✔                 | ✘                |                  |
 | pyspark.sql.streaming                              | ✔                 | ✘                |                  |
 | <s>pyspark.sql.tests</s>                           | ✘                 | ✘                | Tests            |
