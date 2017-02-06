@@ -29,7 +29,7 @@ Currently this project uses Spark 2.1.0 as a reference.
 | pyspark.accumulators                               | ✔                 | ✘                |                  |
 | pyspark.broadcast                                  | ✔                 | ✔                | Mixed            |
 | <s>pyspark.cloudpickle</s>                         | ✘                 | ✘                | Internal         |
-| pyspark.conf                                       | ✔                 | ✘                |                  |
+| pyspark.conf                                       | ✘                 | ✔                |                  |
 | pyspark.context                                    | ✘                 | ✔                |                  |
 | <s>pyspark.daemon</s>                              | ✘                 | ✘                | Internal         |
 | pyspark.files                                      | ✘                 | ✔                |                  |
