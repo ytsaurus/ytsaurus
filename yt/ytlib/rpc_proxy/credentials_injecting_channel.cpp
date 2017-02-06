@@ -22,11 +22,11 @@ public:
         IChannelPtr underlyingChannel,
         const Stroka& user,
         const Stroka& token,
-        const Stroka& userIp)
+        const Stroka& userIP)
         : TChannelWrapper(std::move(underlyingChannel))
         , User_(user)
         , Token_(token)
-        , UserIp_(userIp)
+        , UserIP_(userIP)
     { }
 
     virtual IClientRequestControlPtr Send(
@@ -38,7 +38,7 @@ public:
         request->SetUser(User_);
         auto* ext = request->Header().MutableExtension(NProto::TCredentialsExt::credentials_ext);
         ext->set_token(Token_);
-        ext->set_userip(UserIp_);
+        ext->set_userip(UserIP_);
         return UnderlyingChannel_->Send(
             std::move(request),
             std::move(responseHandler),
@@ -49,21 +49,21 @@ public:
 private:
     const Stroka User_;
     const Stroka Token_;
-    const Stroka UserIp_;
+    const Stroka UserIP_;
 };
 
 IChannelPtr CreateTokenInjectingChannel(
     IChannelPtr underlyingChannel,
     const Stroka& user,
     const Stroka& token,
-    const Stroka& userIp)
+    const Stroka& userIP)
 {
     YCHECK(underlyingChannel);
     return New<TTokenInjectingChannel>(
         std::move(underlyingChannel),
         user,
         token,
-        userIp);
+        userIP);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -78,13 +78,13 @@ public:
         const Stroka& domain,
         const Stroka& sessionId,
         const Stroka& sslSessionId,
-        const Stroka& userIp)
+        const Stroka& userIP)
         : TChannelWrapper(std::move(underlyingChannel))
         , User_(user)
         , Domain_(domain)
         , SessionId_(sessionId)
         , SslSessionId_(sslSessionId)
-        , UserIp_(userIp)
+        , UserIP_(userIP)
     { }
 
     virtual IClientRequestControlPtr Send(
@@ -98,7 +98,7 @@ public:
         ext->set_domain(Domain_);
         ext->set_sessionid(SessionId_);
         ext->set_sslsessionid(SslSessionId_);
-        ext->set_userip(UserIp_);
+        ext->set_userip(UserIP_);
         return UnderlyingChannel_->Send(
             std::move(request),
             std::move(responseHandler),
@@ -111,7 +111,7 @@ private:
     const Stroka Domain_;
     const Stroka SessionId_;
     const Stroka SslSessionId_;
-    const Stroka UserIp_;
+    const Stroka UserIP_;
 };
 
 IChannelPtr CreateCookieInjectingChannel(
@@ -120,7 +120,7 @@ IChannelPtr CreateCookieInjectingChannel(
     const Stroka& domain,
     const Stroka& sessionId,
     const Stroka& sslSessionId,
-    const Stroka& userIp)
+    const Stroka& userIP)
 {
     YCHECK(underlyingChannel);
     return New<TCookieInjectingChannel>(
@@ -129,7 +129,7 @@ IChannelPtr CreateCookieInjectingChannel(
         domain,
         sessionId,
         sslSessionId,
-        userIp);
+        userIP);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

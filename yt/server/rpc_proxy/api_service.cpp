@@ -60,7 +60,7 @@ private:
                 "Request is missing credentials"));
         };
 
-        auto replyWithMissingUserIp = [&] () {
+        auto replyWithMissingUserIP = [&] () {
             context->Reply(TError(
                 NSecurityClient::EErrorCode::AuthenticationError,
                 "Request is missing originating address in credentials"));
@@ -76,7 +76,7 @@ private:
         TAuthenticationResult authenticationResult;
         const auto& credentials = header.GetExtension(NProto::TCredentialsExt::credentials_ext);
         if (!credentials.has_userip()) {
-            replyWithMissingUserIp();
+            replyWithMissingUserIP();
             return nullptr;
         }
         if (credentials.has_sessionid() || credentials.has_sslsessionid()) {

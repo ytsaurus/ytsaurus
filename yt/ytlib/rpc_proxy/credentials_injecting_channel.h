@@ -11,7 +11,7 @@ NRpc::IChannelPtr CreateTokenInjectingChannel(
     NRpc::IChannelPtr underlyingChannel,
     const Stroka& user,
     const Stroka& token,
-    const Stroka& userIp);
+    const Stroka& userIP);
 
 NRpc::IChannelPtr CreateCookieInjectingChannel(
     NRpc::IChannelPtr underlyingChannel,
@@ -19,7 +19,7 @@ NRpc::IChannelPtr CreateCookieInjectingChannel(
     const Stroka& domain,
     const Stroka& sessionId,
     const Stroka& sslSessionId,
-    const Stroka& userIp);
+    const Stroka& userIP);
 
 ////////////////////////////////////////////////////////////////////////////////
 
