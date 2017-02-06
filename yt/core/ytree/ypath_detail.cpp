@@ -1045,12 +1045,11 @@ TNodeSetterBase::TNodeSetterBase(INode* node, ITreeBuilder* builder)
     Node_->MutableAttributes()->Clear();
 }
 
-TNodeSetterBase::~TNodeSetterBase()
-{ }
+TNodeSetterBase::~TNodeSetterBase() = default;
 
 void TNodeSetterBase::ThrowInvalidType(ENodeType actualType)
 {
-    THROW_ERROR_EXCEPTION("Invalid node type: expected %Qlv, actual %Qlv",
+    THROW_ERROR_EXCEPTION("Cannot update %Qlv node with %Qlv value; types must match",
         GetExpectedType(),
         actualType);
 }
