@@ -309,21 +309,20 @@ public:
     TNode& Add()
     {
         AssureList();
-        List_->emplace_back();
-        return List_->back();
+        return List_->emplace_back();
     }
 
     TNode& Add(const TNode& node)
     {
         AssureList();
-        List_->push_back(node);
+        List_->emplace_back(node);
         return *this;
     }
 
     TNode& Add(TNode&& node)
     {
         AssureList();
-        List_->push_back(std::move(node));
+        List_->emplace_back(std::move(node));
         return *this;
     }
 
