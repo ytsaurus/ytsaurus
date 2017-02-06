@@ -1,13 +1,13 @@
 from .driver import make_request
 
-def run_job_shell(job_id, timeout=None, client=None):
+def run_job_shell(job_id, timeout=None, command=None, client=None):
     """Runs interactive shell in the job sandbox.
 
     :param str job_id: job id.
     """
     from .job_shell import JobShell
 
-    JobShell(job_id, interactive=True, timeout=timeout, client=client).run()
+    JobShell(job_id, interactive=True, timeout=timeout, client=client).run(command=command)
 
 def get_job_stderr(operation_id, job_id, client=None):
     """Gets stderr of the specified job.

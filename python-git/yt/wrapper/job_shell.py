@@ -55,6 +55,7 @@ class JobShell(object):
         self.ioloop = IOLoop.current() if hasattr(IOLoop, "current") else IOLoop.instance()
         self.sync = HTTPClient()
         self.async = AsyncHTTPClient()
+        self.terminal_mode = True
 
         proxy_url = get_proxy_url(client=client)
         proxy = "http://{0}/api/{1}"\
@@ -80,7 +81,8 @@ class JobShell(object):
         if self.interactive:
             termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, self.saved_tc)
 
-    def _prepare_request(self, operation, keys=None, input_offset=None, term=None, height=None, width=None):
+    def _prepare_request(self, operation, keys=None, input_offset=None, term=None,
+                         height=None, width=None, command=None):
         req = deepcopy(self.req)
         if self.interactive and (not height or not width):
             width, height = self._terminal_size()
@@ -90,6 +92,8 @@ class JobShell(object):
         if operation == "spawn":
             if self.inactivity_timeout is not None:
                 parameters["inactivity_timeout"] = self.inactivity_timeout
+            if command:
+                parameters["command"] = command
             parameters["environment"] = self.environment
         if height is not None:
             parameters["height"] = height
@@ -103,16 +107,18 @@ class JobShell(object):
             parameters["term"] = term
         if self.shell_id:
             parameters["shell_id"] = self.shell_id
-        command = {
+        request = {
             "job_id": self.job_id,
             "parameters": parameters
         }
-        req.headers["X-YT-Parameters"] = yson.dumps(command, yson_format="text")
+        req.headers["X-YT-Parameters"] = yson.dumps(request, yson_format="text")
         req.headers["X-YT-Correlation-Id"] = generate_uuid()
         return req
 
-    def make_request(self, command, callback=None, keys=None, input_offset=None, term=None, height=None, width=None):
-        req = self._prepare_request(command, keys=keys, input_offset=input_offset, term=term, height=height, width=width)
+    def make_request(self, operation, callback=None, keys=None, input_offset=None, term=None,
+                     height=None, width=None, command=None):
+        req = self._prepare_request(operation, keys=keys, input_offset=input_offset, term=term,
+                                    height=height, width=width, command=command)
         if callback:
             self.async.fetch(req, callback=callback)
         else:
@@ -126,7 +132,8 @@ class JobShell(object):
         return None
 
     def _terminal_size(self):
-        height, width, pixelHeight, pixelWidth = struct.unpack("HHHH", fcntl.ioctl(0, termios.TIOCGWINSZ, struct.pack("HHHH", 0, 0, 0, 0)))
+        height, width, pixelHeight, pixelWidth = struct.unpack(
+            "HHHH", fcntl.ioctl(0, termios.TIOCGWINSZ, struct.pack("HHHH", 0, 0, 0, 0)))
         return width, height
 
     def _on_http_error(self, err):
@@ -135,12 +142,18 @@ class JobShell(object):
             if "X-Yt-Error" in err.response.headers:
                 error = json.loads(err.response.headers["X-Yt-Error"])
                 yt_error = YtResponseError(error)
-                if yt_error.is_shell_exited():
-                    print("Shell exited")
+                if self.interactive:
+                    if yt_error.is_shell_exited():
+                        if self.terminal_mode:
+                            print("Shell exited")
+                    else:
+                        print(yt_error)
                 else:
-                    print(yt_error)
-        else:
+                    raise yt_error
+        elif self.interactive:
             print("Error:", err)
+        else:
+            raise err
 
         if self.interactive:
             self.ioloop.stop()
@@ -168,8 +181,10 @@ class JobShell(object):
         sys.stdout.flush()
         self._poll_shell()
 
-    def _spawn_shell(self):
-        rsp = self.make_request("spawn", term=os.environ["TERM"])
+    def _spawn_shell(self, command=None):
+        if command:
+            self.terminal_mode = False
+        rsp = self.make_request("spawn", term=os.environ["TERM"], command=command)
         if rsp and "shell_id" in rsp:
             self.shell_id = rsp["shell_id"]
 
@@ -223,16 +238,17 @@ class JobShell(object):
             self.key_buffer += keys
             self._update_shell(self.key_buffer, self.input_offset)
 
-    def run(self):
+    def run(self, command=None):
         if not self.interactive:
             raise YtError("Run requires interactive shell")
 
-        self._spawn_shell()
+        self._spawn_shell(command=command)
         if not self.shell_id:
             return
 
-        print("Use ^F to terminate shell.")
-        sys.stdout.flush()
+        if self.terminal_mode:
+            print("Use ^F to terminate shell.")
+            sys.stdout.flush()
         try:
             tty.setraw(sys.stdin)
             stdin = sys.stdin.fileno()
