@@ -204,8 +204,7 @@ private:
             auto req = proxy.GetChunkMeta();
             ToProto(req->mutable_chunk_id(), ChunkId_);
             req->add_extension_tags(TProtoExtensionTag<TMiscExt>::Value);
-            // TODO(babenko): make configurable
-            ToProto(req->mutable_workload_descriptor(), TWorkloadDescriptor(EWorkloadCategory::SystemRealtime));
+            ToProto(req->mutable_workload_descriptor(), TWorkloadDescriptor(EWorkloadCategory::SystemTabletRecovery));
             asyncResults.push_back(req->Invoke().Apply(
                 BIND(&TComputeQuorumInfoSession::OnResponse, MakeStrong(this), descriptor)
                     .AsyncVia(GetCurrentInvoker())));

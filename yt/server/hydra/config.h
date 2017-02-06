@@ -127,8 +127,11 @@ public:
             .DefaultNew();
         RegisterParameter("writer", Writer)
             .DefaultNew();
-    }
 
+        RegisterInitializer([&] {
+            Reader->WorkloadDescriptor.Category = EWorkloadCategory::SystemTabletRecovery;
+        });
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TRemoteSnapshotStoreConfig)
@@ -146,6 +149,11 @@ public:
             .DefaultNew();
         RegisterParameter("writer", Writer)
             .DefaultNew();
+
+        RegisterInitializer([&] {
+            Reader->WorkloadDescriptor.Category = EWorkloadCategory::SystemTabletRecovery;
+            Writer->WorkloadDescriptor.Category = EWorkloadCategory::SystemTabletLogging;
+        });
     }
 };
 
@@ -159,7 +167,7 @@ public:
     TDuration ControlRpcTimeout;
 
     //! The maximum time interval mutations are allowed to occupy the automaton thread
-    //! before yielding control other callbacks.
+    //! before yielding control to other callbacks.
     TDuration MaxCommitBatchDuration;
 
     //! Interval between consequent lease lease checks.
