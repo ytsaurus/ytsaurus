@@ -409,11 +409,17 @@ void TBootstrap::DoInitialize()
             localPeerId);
     }
 
+    auto heavyChannelFactory = CreateCachingChannelFactory(GetBusChannelFactory());
+    auto lightChannelFactory = CreateCachingChannelFactory(GetBusChannelFactory());
+
     const auto& networks = Config_->Networks;
+
+    LightNodeChannelFactory_ = CreateNodeChannelFactory(lightChannelFactory, networks);
+    HeavyNodeChannelFactory_ = CreateNodeChannelFactory(heavyChannelFactory, networks);
 
     CellDirectory_ = New<TCellDirectory>(
         Config_->CellDirectory,
-        GetBusChannelFactory(),
+        lightChannelFactory,
         networks);
 
     YCHECK(CellDirectory_->ReconfigureCell(Config_->PrimaryMaster));
@@ -440,7 +446,7 @@ void TBootstrap::DoInitialize()
 
     CellManager_ = New<TCellManager>(
         localCellConfig,
-        GetBusChannelFactory(),
+        lightChannelFactory,
         localPeerId);
 
     ChangelogStoreFactory_ = CreateLocalChangelogStoreFactory(
@@ -504,7 +510,7 @@ void TBootstrap::DoInitialize()
     auto timestampProvider = CreateRemoteTimestampProvider(
         CellTagFromId(Config_->PrimaryMaster->CellId),
         Config_->TimestampProvider,
-        GetBusChannelFactory());
+        lightChannelFactory);
 
     TransactionSupervisor_ = New<TTransactionSupervisor>(
         Config_->TransactionSupervisor,
@@ -622,13 +628,6 @@ void TBootstrap::DoInitialize()
     CypressManager_->RegisterHandler(CreateTabletCellBundleMapTypeHandler(this));
 
     RpcServer_->Configure(Config_->RpcServer);
-
-    LightNodeChannelFactory_ = CreateNodeChannelFactory(
-        CreateCachingChannelFactory(GetBusChannelFactory()),
-        networks);
-    HeavyNodeChannelFactory_ = CreateNodeChannelFactory(
-        CreateCachingChannelFactory(GetBusChannelFactory()),
-        networks);
 }
 
 void TBootstrap::DoRun()
