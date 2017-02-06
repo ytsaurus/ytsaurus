@@ -92,6 +92,8 @@ def compress(task):
                         if client.has_attribute(table, "force_nightly_compress"):
                             client.remove(table + "/@force_nightly_compress")
                         client.set_attribute(table, "nightly_compressed", True)
+                        for codec in ("compression", "erasure"):
+                            client.set_attribute(table, codec + "_codec", task[codec + "_codec"])
                     else:
                         logger.info("Table %s has changed while compression", table)
         finally:
