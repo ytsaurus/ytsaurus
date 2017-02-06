@@ -19,6 +19,7 @@ DEFINE_ENUM(EMasterChannelKind,
 
 DEFINE_ENUM(EUserWorkloadCategory,
     (Batch)
+    (Interactive)
     (Realtime)
 );
 
