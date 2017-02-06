@@ -85,7 +85,7 @@ Currently this project uses Spark 2.1.0 as a reference.
 | pyspark.sql                                        | ✔                 | ✘                |                  |
 | pyspark.sql.catalog                                | ✘                 | ✔                |                  |
 | pyspark.sql.column                                 | ✘                 | ✔                |                  |
-| pyspark.sql.conf                                   | ✔                 | ✘                |                  |
+| pyspark.sql.conf                                   | ✘                 | ✔                |                  |
 | pyspark.sql.context                                | ✘                 | ✔                |                  |
 | pyspark.sql.dataframe                              | ✘                 | ✔                |                  |
 | pyspark.sql.functions                              | ✘                 | ✔                |                  |
