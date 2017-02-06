@@ -10,7 +10,6 @@ import "yt/core/misc/error.proto";
 message TRequestHeader
 {
     optional NYT.NProto.TGuid request_id = 1;
-
     required string service = 2;
     required string method = 3;
     optional NYT.NProto.TGuid realm_id = 8;

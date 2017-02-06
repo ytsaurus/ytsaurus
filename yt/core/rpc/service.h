@@ -25,6 +25,9 @@ namespace NRpc {
 struct IServiceContext
     : public virtual TIntrinsicRefCounted
 {
+    //! Returns raw header of the request being handled.
+    virtual const NProto::TRequestHeader& GetRequestHeader() const = 0;
+
     //! Returns the message that contains the request being handled.
     virtual TSharedRefArray GetRequestMessage() const = 0;
 

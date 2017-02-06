@@ -1,0 +1,34 @@
+package NYT.NRpcProxy.NProto;
+
+import "yt/core/rpc/rpc.proto";
+import "yt/core/misc/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TCredentialsExt
+{
+    extend NRpc.NProto.TRequestHeader
+    {
+        optional TCredentialsExt credentials_ext = 110;
+    }
+
+    optional string userip = 1;
+    optional string token = 2;
+    optional string domain = 3;
+    optional string sessionid = 4;
+    optional string sslsessionid = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetNode
+{
+    required string path = 1;
+}
+
+message TRspGetNode
+{
+    required bytes data = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

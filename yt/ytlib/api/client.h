@@ -637,7 +637,7 @@ struct IClientBase
     virtual TFuture<void> ConcatenateNodes(
         const std::vector<NYPath::TYPath>& srcPaths,
         const NYPath::TYPath& dstPath,
-        TConcatenateNodesOptions options = TConcatenateNodesOptions()) = 0;
+        const TConcatenateNodesOptions& options = TConcatenateNodesOptions()) = 0;
 
     virtual TFuture<bool> NodeExists(
         const NYPath::TYPath& path,
