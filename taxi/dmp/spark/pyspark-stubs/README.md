@@ -45,7 +45,7 @@ Currently this project uses Spark 2.1.0 as a reference.
 | pyspark.ml.evaluation                              | ✔                 | ✘                |                  |
 | pyspark.ml.feature                                 | ✔                 | ✘                |                  |
 | pyspark.ml.linalg                                  | ✘                 | ✔                |                  |
-| pyspark.ml.param                                   | ✔                 | ✘                |                  |
+| pyspark.ml.param                                   | ✘                 | ✔                |                  |
 | <s>pyspark.ml.param._shared_params\_code\_gen</s>  | ✘                 | ✘                | Internal         |
 | pyspark.ml.param.shared                            | ✘                 | ✔                |                  |
 | pyspark.ml.pipeline                                | ✔                 | ✘                |                  |
