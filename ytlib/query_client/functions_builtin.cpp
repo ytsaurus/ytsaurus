@@ -5,23 +5,23 @@
 #include "helpers.h"
 #include "functions_builder.h"
 
-#include "udf/is_prefix.h"
-#include "udf/avg.h"
-#include "udf/farm_hash.h"
-#include "udf/hyperloglog.h"
-#include "udf/is_substr.h"
-#include "udf/lower.h"
-#include "udf/concat.h"
-#include "udf/max.h"
-#include "udf/min.h"
-#include "udf/regex.h"
-#include "udf/sleep.h"
-#include "udf/sum.h"
-#include "udf/dates.h"
-#include "udf/ypath_get.h"
-
 #ifdef YT_IN_ARCADIA
 #include <library/resource/resource.h>
+#else
+#include "udf/is_prefix.h" // Y_IGNORE
+#include "udf/avg.h" // Y_IGNORE
+#include "udf/farm_hash.h" // Y_IGNORE
+#include "udf/hyperloglog.h" // Y_IGNORE
+#include "udf/is_substr.h" // Y_IGNORE
+#include "udf/lower.h" // Y_IGNORE
+#include "udf/concat.h" // Y_IGNORE
+#include "udf/max.h" // Y_IGNORE
+#include "udf/min.h" // Y_IGNORE
+#include "udf/regex.h" // Y_IGNORE
+#include "udf/sleep.h" // Y_IGNORE
+#include "udf/sum.h" // Y_IGNORE
+#include "udf/dates.h" // Y_IGNORE
+#include "udf/ypath_get.h" // Y_IGNORE
 #endif
 
 namespace NYT {
