@@ -99,7 +99,7 @@ Currently this project uses Spark 2.1.0 as a reference.
 | pyspark.sql.window                                 | ✘                 | ✔                |                  |
 | pyspark.statcounter                                | ✔                 | ✘                |                  |
 | pyspark.status                                     | ✔                 | ✘                |                  |
-| pyspark.storagelevel                               | ✔                 | ✘                |                  |
+| pyspark.storagelevel                               | ✘                 | ✔                |                  |
 | pyspark.streaming                                  | ✔                 | ✘                |                  |
 | pyspark.streaming.context                          | ✔                 | ✘                |                  |
 | pyspark.streaming.dstream                          | ✔                 | ✘                |                  |
