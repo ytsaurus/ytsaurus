@@ -147,7 +147,8 @@ public:
 
     void SetChangelog(IChangelogPtr changelog);
 
-    i64 GetLoggedDataSize() const;
+    int GetRecordCountSinceLastCheckpoint() const;
+    i64 GetDataSizeSinceLastCheckpoint() const;
     TInstant GetLastSnapshotTime() const;
 
     TVersion GetAutomatonVersion() const;
