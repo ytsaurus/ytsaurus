@@ -38,7 +38,7 @@ Currently this project uses Spark 2.1.0 as a reference.
 | <s>pyspark.java\_gateway</s>                       | ✘                 | ✘                | Internal         |
 | pyspark.join                                       | ✔                 | ✘                |                  |
 | pyspark.ml                                         | ✔                 | ✘                |                  |
-| pyspark.ml.base                                    | ✔                 | ✘                |                  |
+| pyspark.ml.base                                    | ✘                 | ✔                |                  |
 | pyspark.ml.classification                          | ✔                 | ✘                |                  |
 | pyspark.ml.clustering                              | ✔                 | ✘                |                  |
 | pyspark.ml.common                                  | ✔                 | ✘                |                  |
