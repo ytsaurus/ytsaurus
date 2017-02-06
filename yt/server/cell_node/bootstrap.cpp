@@ -234,8 +234,6 @@ void TBootstrap::DoRun()
         Config->BusServer->BindRetryCount,
         Config->BusServer->BindRetryBackoff));
 
-    TabletChannelFactory = CreateCachingChannelFactory(GetBusChannelFactory());
-
     MonitoringManager_ = New<TMonitoringManager>();
     MonitoringManager_->Register(
         "/ref_counted",
@@ -468,7 +466,7 @@ void TBootstrap::DoRun()
         Config->MasterCacheService,
         CreatePeerChannel(
             Config->ClusterConnection->PrimaryMaster,
-            GetBusChannelFactory(),
+            MasterConnection->GetLightChannelFactory(),
             EPeerKind::Follower),
         GetCellId());
 
@@ -580,11 +578,6 @@ const INativeClientPtr& TBootstrap::GetMasterClient() const
 const IServerPtr& TBootstrap::GetRpcServer() const
 {
     return RpcServer;
-}
-
-const IChannelFactoryPtr& TBootstrap::GetTabletChannelFactory() const
-{
-    return TabletChannelFactory;
 }
 
 const IMapNodePtr& TBootstrap::GetOrchidRoot() const

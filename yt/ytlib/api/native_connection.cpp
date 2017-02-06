@@ -116,16 +116,13 @@ public:
         TimestampProvider_ = CreateRemoteTimestampProvider(
             PrimaryMasterCellTag_,
             timestampProviderConfig,
-            GetBusChannelFactory());
+            LightChannelFactory_);
 
         SchedulerChannel_ = CreateSchedulerChannel(
             Config_->Scheduler,
-            GetBusChannelFactory(),
+            LightChannelFactory_,
             GetMasterChannelOrThrow(EMasterChannelKind::Leader),
             GetNetworks());
-
-        LightChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
-        HeavyChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
 
         CellDirectory_ = New<TCellDirectory>(
             Config_->CellDirectory,
@@ -339,14 +336,15 @@ private:
     const TNativeConnectionConfigPtr Config_;
     const TNativeConnectionOptions Options_;
 
+    const NRpc::IChannelFactoryPtr LightChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
+    const NRpc::IChannelFactoryPtr HeavyChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
+
     TCellId PrimaryMasterCellId_;
     TCellTag PrimaryMasterCellTag_;
     TCellTagList SecondaryMasterCellTags_;
 
     TEnumIndexedVector<yhash_map<TCellTag, IChannelPtr>, EMasterChannelKind> MasterChannels_;
     IChannelPtr SchedulerChannel_;
-    IChannelFactoryPtr LightChannelFactory_;
-    IChannelFactoryPtr HeavyChannelFactory_;
     IBlockCachePtr BlockCache_;
     ITableMountCachePtr TableMountCache_;
     ITimestampProviderPtr TimestampProvider_;
@@ -369,7 +367,7 @@ private:
     {
         auto channel = NHydra::CreatePeerChannel(
             config,
-            GetBusChannelFactory(),
+            LightChannelFactory_,
             kind);
 
         auto isRetryableError = BIND([options = Options_] (const TError& error) {

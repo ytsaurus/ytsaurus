@@ -8,6 +8,9 @@
 
 #include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 
+#include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/native_connection.h>
+
 #include <yt/core/concurrency/periodic_executor.h>
 
 namespace NYT {
@@ -26,46 +29,51 @@ static const auto& Logger = DataNodeLogger;
 TPeerBlockUpdater::TPeerBlockUpdater(
     TDataNodeConfigPtr config,
     TBootstrap* bootstrap)
-    : Config(config)
-    , Bootstrap(bootstrap)
-{
-    PeriodicExecutor = New<TPeriodicExecutor>(
+    : Config_(config)
+    , Bootstrap_(bootstrap)
+    , PeriodicExecutor_(New<TPeriodicExecutor>(
         bootstrap->GetControlInvoker(),
         BIND(&TPeerBlockUpdater::Update, MakeWeak(this)),
-        Config->PeerUpdatePeriod);
-}
+        Config_->PeerUpdatePeriod))
+{ }
 
 void TPeerBlockUpdater::Start()
 {
-    PeriodicExecutor->Start();
+    PeriodicExecutor_->Start();
 }
 
 void TPeerBlockUpdater::Stop()
 {
-    PeriodicExecutor->Stop();
+    PeriodicExecutor_->Stop();
 }
 
 void TPeerBlockUpdater::Update()
 {
     LOG_INFO("Updating peer blocks");
 
-    auto expirationTime = Config->PeerUpdateExpirationTime.ToDeadLine();
-    auto localDescriptor = Bootstrap->GetMasterConnector()->GetLocalDescriptor();
+    auto expirationTime = Config_->PeerUpdateExpirationTime.ToDeadLine();
+    auto localDescriptor = Bootstrap_
+        ->GetMasterConnector()
+        ->GetLocalDescriptor();
+    auto channelFactory = Bootstrap_
+        ->GetMasterClient()
+        ->GetNativeConnection()
+        ->GetHeavyChannelFactory();
 
     typedef TDataNodeServiceProxy TProxy;
-
     yhash_map<Stroka, TProxy::TReqUpdatePeerPtr> requests;
 
-    auto blocks = Bootstrap->GetChunkBlockManager()->GetAllBlocks();
-    for (auto block : blocks) {
+    auto blocks = Bootstrap_->GetChunkBlockManager()->GetAllBlocks();
+    for (const auto& block : blocks) {
         if (block->Source()) {
-            const auto& sourceAddress = block->Source()->GetAddress(Bootstrap->GetLocalNetworks());
+            const auto& sourceAddress = block->Source()->GetAddress(Bootstrap_->GetLocalNetworks());
             TProxy::TReqUpdatePeerPtr request;
             auto it = requests.find(sourceAddress);
             if (it != requests.end()) {
                 request = it->second;
             } else {
-                TProxy proxy(ChannelFactory->CreateChannel(sourceAddress));
+                auto channel = channelFactory->CreateChannel(sourceAddress);
+                TProxy proxy(channel);
                 request = proxy.UpdatePeer();
                 ToProto(request->mutable_peer_descriptor(), localDescriptor);
                 request->set_peer_expiration_time(expirationTime.GetValue());

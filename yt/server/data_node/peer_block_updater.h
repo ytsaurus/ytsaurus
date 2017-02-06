@@ -23,11 +23,11 @@ public:
     void Stop();
 
 private:
-    void Update();
+    const TDataNodeConfigPtr Config_;
+    NCellNode::TBootstrap* const Bootstrap_;
+    const NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
 
-    TDataNodeConfigPtr Config;
-    NCellNode::TBootstrap* Bootstrap;
-    NConcurrency::TPeriodicExecutorPtr PeriodicExecutor;
+    void Update();
 
 };
 
