@@ -21,6 +21,10 @@ using namespace NSecurityServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = CypressServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace NDetail {
 
 const EObjectType TCypressScalarTypeTraits<Stroka>::ObjectType = EObjectType::StringNode;
@@ -579,6 +583,10 @@ std::unique_ptr<TLinkNode> TLinkNodeTypeHandler::DoCreate(
         attributes);
 
     implHolder->SetTargetPath(targetPath);
+
+    LOG_DEBUG("Link created (LinkId: %v, TargetPath: %v)",
+        id,
+        targetPath);
 
     return implHolder;
 }
