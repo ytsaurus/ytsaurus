@@ -685,6 +685,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
 DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
 {
     DeclareMutating();
+
     auto newSchema = request->has_schema()
         ? MakeNullable(FromProto<TTableSchema>(request->schema()))
         : Null;

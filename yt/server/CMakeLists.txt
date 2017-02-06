@@ -33,6 +33,8 @@ SET(YT_SRCS
 
   ${CMAKE_CURRENT_LIST_DIR}/cell_scheduler/bootstrap.cpp
 
+  ${CMAKE_CURRENT_LIST_DIR}/cell_proxy/bootstrap.cpp
+
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_list.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_list_proxy.cpp
@@ -266,6 +268,9 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/query_agent/query_executor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_agent/query_service.cpp
 
+  ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/api_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/private.cpp
+
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/chunk_list_pool.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/chunk_pool.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/event_log.cpp
@@ -496,6 +501,20 @@ target_link_libraries(ytserver-scheduler
 )
 
 set_target_properties(ytserver-scheduler PROPERTIES LINK_FLAGS "-static-libstdc++")
+
+### proxy
+
+add_executable(ytserver-proxy
+  ${CMAKE_CURRENT_LIST_DIR}/cell_proxy_program/main.cpp
+)
+
+target_link_libraries(ytserver-proxy
+  yt-library-server
+  deps-arcadia-library-getopt
+  deps-arcadia-library-lfalloc
+)
+
+set_target_properties(ytserver-proxy PROPERTIES LINK_FLAGS "-static-libstdc++")
 
 ### job proxy
 
