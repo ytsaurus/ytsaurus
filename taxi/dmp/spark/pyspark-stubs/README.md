@@ -62,7 +62,7 @@ Currently this project uses Spark 2.1.0 as a reference.
 | pyspark.mllib.evaluation                           | ✔                 | ✘                |                  |
 | pyspark.mllib.feature                              | ✔                 | ✘                |                  |
 | pyspark.mllib.fpm                                  | ✔                 | ✘                |                  |
-| pyspark.mllib.linalg                               | ✔                 | ✘                |                  |
+| pyspark.mllib.linalg                               | ✘                 | ✔                |                  |
 | pyspark.mllib.linalg.distributed                   | ✔                 | ✘                |                  |
 | pyspark.mllib.random                               | ✔                 | ✘                |                  |
 | pyspark.mllib.recommendation                       | ✔                 | ✘                |                  |
