@@ -21,95 +21,94 @@ Adding `third_party/3` to the `PYTHONPATH` seems to the trick.
 
 | Module                                             | Dynamically typed | Statically typed | Notes            |
 |----------------------------------------------------|-------------------|------------------|------------------|
-| <s>pyspark.shell</s>                               | ✘                 | ✘                | Internal         |
-| pyspark.rddsampler                                 | ✔                 | ✘                |                  |
-| <s>pyspark.java\_gateway</s>                       | ✘                 | ✘                | Internal         |
-| <s>pyspark.tests</s>                               | ✘                 | ✘                | Tests            |
-| pyspark.join                                       | ✔                 | ✘                |                  |
-| pyspark.statcounter                                | ✔                 | ✘                |                  |
-| pyspark.serializers                                | ✔                 | ✘                |                  |
-| <s>pyspark.heapq3</s>                              | ✘                 | ✘                | Internal         |
 | pyspark                                            | ✔                 | ✘                |                  |
-| <s>pyspark.traceback\_utils</s>                    | ✘                 | ✘                | Internal         |
-| pyspark.profiler                                   | ✔                 | ✘                |                  |
-| pyspark.storagelevel                               | ✔                 | ✘                |                  |
+| pyspark.accumulators                               | ✔                 | ✘                |                  |
 | pyspark.broadcast                                  | ✔                 | ✔                | Mixed            |
-| <s>pyspark.worker</s>                              | ✘                 | ✘                | Internal         |
-| <s>pyspark.shuffle</s>                             | ✘                 | ✘                | Internal         |
+| <s>pyspark.cloudpickle</s>                         | ✘                 | ✘                | Internal         |
+| pyspark.conf                                       | ✔                 | ✘                |                  |
+| pyspark.context                                    | ✘                 | ✔                |                  |
+| <s>pyspark.daemon</s>                              | ✘                 | ✘                | Internal         |
 | pyspark.files                                      | ✘                 | ✔                |                  |
 | <s>pyspark.find\_spark\_home</s>                   | ✘                 | ✘                | Internal         |
-| pyspark.status                                     | ✔                 | ✘                |                  |
-| <s>pyspark.daemon</s>                              | ✘                 | ✘                | Internal         |
-| pyspark.context                                    | ✘                 | ✔                |                  |
-| <s>pyspark.cloudpickle</s>                         | ✘                 | ✘                | Internal         |
-| pyspark.accumulators                               | ✔                 | ✘                |                  |
-| pyspark.version                                    | ✘                 | ✔                |                  |
-| pyspark.resultiterable                             | ✔                 | ✘                |                  |
-| pyspark.conf                                       | ✔                 | ✘                |                  |
-| pyspark.rdd                                        | ✘                 | ✔                |                  |
-| pyspark.ml.tuning                                  | ✔                 | ✘                |                  |
-| pyspark.ml.clustering                              | ✔                 | ✘                |                  |
-| pyspark.ml.feature                                 | ✔                 | ✘                |                  |
-| pyspark.ml.tests                                   | ✘                 | ✘                |                  |
-| pyspark.ml.common                                  | ✔                 | ✘                |                  |
+| <s>pyspark.heapq3</s>                              | ✘                 | ✘                | Internal         |
+| <s>pyspark.java\_gateway</s>                       | ✘                 | ✘                | Internal         |
+| pyspark.join                                       | ✔                 | ✘                |                  |
 | pyspark.ml                                         | ✔                 | ✘                |                  |
-| pyspark.ml.wrapper                                 | ✔                 | ✘                |                  |
-| pyspark.ml.classification                          | ✔                 | ✘                |                  |
-| pyspark.ml.recommendation                          | ✔                 | ✘                |                  |
 | pyspark.ml.base                                    | ✔                 | ✘                |                  |
-| pyspark.ml.regression                              | ✔                 | ✘                |                  |
-| pyspark.ml.pipeline                                | ✔                 | ✘                |                  |
-| pyspark.ml.util                                    | ✔                 | ✘                |                  |
+| pyspark.ml.classification                          | ✔                 | ✘                |                  |
+| pyspark.ml.clustering                              | ✔                 | ✘                |                  |
+| pyspark.ml.common                                  | ✔                 | ✘                |                  |
 | pyspark.ml.evaluation                              | ✔                 | ✘                |                  |
-| <s>pyspark.ml.param._shared_params\_code\_gen</s>  | ✘                 | ✘                | Internal         |
-| pyspark.ml.param                                   | ✔                 | ✘                |                  |
-| pyspark.ml.param.shared                            | ✔                 | ✘                |                  |
+| pyspark.ml.feature                                 | ✔                 | ✘                |                  |
 | pyspark.ml.linalg                                  | ✔                 | ✘                |                  |
-| pyspark.mllib.clustering                           | ✔                 | ✘                |                  |
-| pyspark.mllib.feature                              | ✔                 | ✘                |                  |
-| <s>pyspark.mllib.tests</s>                         | ✘                 | ✘                | Tests            |
-| pyspark.mllib.common                               | ✘                 | ✘                |                  |
-| pyspark.mllib.tree                                 | ✔                 | ✘                |                  |
+| pyspark.ml.param                                   | ✔                 | ✘                |                  |
+| <s>pyspark.ml.param._shared_params\_code\_gen</s>  | ✘                 | ✘                | Internal         |
+| pyspark.ml.param.shared                            | ✔                 | ✘                |                  |
+| pyspark.ml.pipeline                                | ✔                 | ✘                |                  |
+| pyspark.ml.recommendation                          | ✔                 | ✘                |                  |
+| pyspark.ml.regression                              | ✔                 | ✘                |                  |
+| pyspark.ml.tests                                   | ✘                 | ✘                |                  |
+| pyspark.ml.tuning                                  | ✔                 | ✘                |                  |
+| pyspark.ml.util                                    | ✔                 | ✘                |                  |
+| pyspark.ml.wrapper                                 | ✔                 | ✘                |                  |
 | pyspark.mllib                                      | ✔                 | ✘                |                  |
 | pyspark.mllib.classification                       | ✔                 | ✘                |                  |
+| pyspark.mllib.clustering                           | ✔                 | ✘                |                  |
+| pyspark.mllib.common                               | ✘                 | ✘                |                  |
+| pyspark.mllib.evaluation                           | ✔                 | ✘                |                  |
+| pyspark.mllib.feature                              | ✔                 | ✘                |                  |
+| pyspark.mllib.fpm                                  | ✔                 | ✘                |                  |
+| pyspark.mllib.linalg                               | ✔                 | ✘                |                  |
+| pyspark.mllib.linalg.distributed                   | ✔                 | ✘                |                  |
+| pyspark.mllib.random                               | ✔                 | ✘                |                  |
 | pyspark.mllib.recommendation                       | ✔                 | ✘                |                  |
 | pyspark.mllib.regression                           | ✔                 | ✘                |                  |
-| pyspark.mllib.util                                 | ✔                 | ✘                |                  |
-| pyspark.mllib.evaluation                           | ✔                 | ✘                |                  |
-| pyspark.mllib.random                               | ✔                 | ✘                |                  |
-| pyspark.mllib.fpm                                  | ✔                 | ✘                |                  |
-| pyspark.mllib.linalg.distributed                   | ✔                 | ✘                |                  |
-| pyspark.mllib.linalg                               | ✔                 | ✘                |                  |
-| pyspark.mllib.stat._statistics                     | ✔                 | ✘                |                  |
-| pyspark.mllib.stat.test                            | ✔                 | ✘                |                  |
-| pyspark.mllib.stat.distribution                    | ✔                 | ✘                |                  |
-| pyspark.mllib.stat.KernelDensity                   | ✔                 | ✘                |                  |
 | pyspark.mllib.stat                                 | ✔                 | ✘                |                  |
-| pyspark.streaming.kafka                            | ✔                 | ✘                |                  |
-| pyspark.streaming.flume                            | ✔                 | ✘                |                  |
-| <s>pyspark.streaming.tests</s>                     | ✘                 | ✘                | Tests            |
-| pyspark.streaming                                  | ✔                 | ✘                |                  |
-| pyspark.streaming.listener                         | ✔                 | ✘                |                  |
-| pyspark.streaming.util                             | ✔                 | ✘                |                  |
-| pyspark.streaming.dstream                          | ✔                 | ✘                |                  |
-| pyspark.streaming.context                          | ✔                 | ✘                |                  |
-| pyspark.streaming.kinesis                          | ✔                 | ✘                |                  |
-| pyspark.sql.types                                  | ✔                 | ✘                |                  |
-| pyspark.sql.functions                              | ✘                 | ✔                |                  |
-| pyspark.sql.catalog                                | ✘                 | ✔                |                  |
-| <s>pyspark.sql.tests</s>                           | ✘                 | ✘                | Tests            |
-| pyspark.sql.streaming                              | ✔                 | ✘                |                  |
-| pyspark.sql.column                                 | ✘                 | ✔                |                  |
+| pyspark.mllib.stat.KernelDensity                   | ✔                 | ✘                |                  |
+| pyspark.mllib.stat._statistics                     | ✔                 | ✘                |                  |
+| pyspark.mllib.stat.distribution                    | ✔                 | ✘                |                  |
+| pyspark.mllib.stat.test                            | ✔                 | ✘                |                  |
+| <s>pyspark.mllib.tests</s>                         | ✘                 | ✘                | Tests            |
+| pyspark.mllib.tree                                 | ✔                 | ✘                |                  |
+| pyspark.mllib.util                                 | ✔                 | ✘                |                  |
+| pyspark.profiler                                   | ✔                 | ✘                |                  |
+| pyspark.rdd                                        | ✘                 | ✔                |                  |
+| pyspark.rddsampler                                 | ✔                 | ✘                |                  |
+| pyspark.resultiterable                             | ✔                 | ✘                |                  |
+| pyspark.serializers                                | ✔                 | ✘                |                  |
+| <s>pyspark.shell</s>                               | ✘                 | ✘                | Internal         |
+| <s>pyspark.shuffle</s>                             | ✘                 | ✘                | Internal         |
 | pyspark.sql                                        | ✔                 | ✘                |                  |
-| pyspark.sql.window                                 | ✔                 | ✘                |                  |
-| pyspark.sql.session                                | ✔                 | ✘                |                  |
-| pyspark.sql.utils                                  | ✔                 | ✘                |                  |
+| pyspark.sql.catalog                                | ✘                 | ✔                |                  |
+| pyspark.sql.column                                 | ✘                 | ✔                |                  |
+| pyspark.sql.conf                                   | ✔                 | ✘                |                  |
+| pyspark.sql.context                                | ✘                 | ✔                |                  |
+| pyspark.sql.dataframe                              | ✘                 | ✔                |                  |
+| pyspark.sql.functions                              | ✘                 | ✔                |                  |
 | pyspark.sql.group                                  | ✘                 | ✔                |                  |
 | pyspark.sql.readwriter                             | ✔                 | ✘                |                  |
-| pyspark.sql.dataframe                              | ✘                 | ✔                |                  |
-| pyspark.sql.context                                | ✘                 | ✔                |                  |
-| pyspark.sql.conf                                   | ✔                 | ✘                |                  |
-
+| pyspark.sql.session                                | ✔                 | ✘                |                  |
+| pyspark.sql.streaming                              | ✔                 | ✘                |                  |
+| <s>pyspark.sql.tests</s>                           | ✘                 | ✘                | Tests            |
+| pyspark.sql.types                                  | ✔                 | ✘                |                  |
+| pyspark.sql.utils                                  | ✔                 | ✘                |                  |
+| pyspark.sql.window                                 | ✔                 | ✘                |                  |
+| pyspark.statcounter                                | ✔                 | ✘                |                  |
+| pyspark.status                                     | ✔                 | ✘                |                  |
+| pyspark.storagelevel                               | ✔                 | ✘                |                  |
+| pyspark.streaming                                  | ✔                 | ✘                |                  |
+| pyspark.streaming.context                          | ✔                 | ✘                |                  |
+| pyspark.streaming.dstream                          | ✔                 | ✘                |                  |
+| pyspark.streaming.flume                            | ✔                 | ✘                |                  |
+| pyspark.streaming.kafka                            | ✔                 | ✘                |                  |
+| pyspark.streaming.kinesis                          | ✔                 | ✘                |                  |
+| pyspark.streaming.listener                         | ✔                 | ✘                |                  |
+| <s>pyspark.streaming.tests</s>                     | ✘                 | ✘                | Tests            |
+| pyspark.streaming.util                             | ✔                 | ✘                |                  |
+| <s>pyspark.tests</s>                               | ✘                 | ✘                | Tests            |
+| <s>pyspark.traceback\_utils</s>                    | ✘                 | ✘                | Internal         |
+| pyspark.version                                    | ✘                 | ✔                |                  |
+| <s>pyspark.worker</s>                              | ✘                 | ✘                | Internal         |
 
 ## Disclaimer
 
