@@ -50,7 +50,7 @@ Adding `third_party/3` to the `PYTHONPATH` seems to the trick.
 | pyspark.ml.tuning                                  | ✔                 | ✘                |                  |
 | pyspark.ml.clustering                              | ✔                 | ✘                |                  |
 | pyspark.ml.feature                                 | ✔                 | ✘                |                  |
-| <s>pyspark.ml.tests</s>                            | ✘                 | ✘                | Tests            |
+| pyspark.ml.tests                                   | ✘                 | ✘                |                  |
 | pyspark.ml.common                                  | ✔                 | ✘                |                  |
 | pyspark.ml                                         | ✔                 | ✘                |                  |
 | pyspark.ml.wrapper                                 | ✔                 | ✘                |                  |
@@ -67,7 +67,7 @@ Adding `third_party/3` to the `PYTHONPATH` seems to the trick.
 | pyspark.ml.linalg                                  | ✔                 | ✘                |                  |
 | pyspark.mllib.clustering                           | ✘                 | ✘                |                  |
 | pyspark.mllib.feature                              | ✘                 | ✘                |                  |
-| pyspark.mllib.tests                                | ✘                 | ✘                |                  |
+| <s>pyspark.mllib.tests</s>                         | ✘                 | ✘                | Tests            |
 | pyspark.mllib.common                               | ✘                 | ✘                |                  |
 | pyspark.mllib.tree                                 | ✘                 | ✘                |                  |
 | pyspark.mllib                                      | ✘                 | ✘                |                  |
@@ -81,7 +81,7 @@ Adding `third_party/3` to the `PYTHONPATH` seems to the trick.
 | pyspark.mllib.linalg.distributed                   | ✘                 | ✘                |                  |
 | pyspark.mllib.linalg                               | ✘                 | ✘                |                  |
 | pyspark.mllib.stat._statistics                     | ✘                 | ✘                |                  |
-| <s>pyspark.mllib.stat.test</s>                     | ✘                 | ✘                | Tests            |
+| pyspark.mllib.stat.test                            | ✘                 | ✘                |                  |
 | pyspark.mllib.stat.distribution                    | ✘                 | ✘                |                  |
 | pyspark.mllib.stat.KernelDensity                   | ✘                 | ✘                |                  |
 | pyspark.mllib.stat                                 | ✘                 | ✘                |                  |
