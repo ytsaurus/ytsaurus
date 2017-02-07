@@ -198,7 +198,7 @@ std::vector<TChunkId> TUserJobReadController::GetFailedChunkIds() const
 
 TNullable<TDataStatistics> TUserJobReadController::GetDataStatistics() const
 {
-    if (!Initialized_) {
+    if (!Reader_) {
         return Null;
     }
     return Reader_->GetDataStatistics();
