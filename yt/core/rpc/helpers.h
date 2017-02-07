@@ -64,12 +64,6 @@ void SetTraceContext(
 //! Generates a random mutation id.
 TMutationId GenerateMutationId();
 
-//! Returns the mutation id associated with the context.
-TMutationId GetMutationId(const IServiceContextPtr& context);
-
-//! Returns the mutation id associated with the request.
-TMutationId GetMutationId(const NProto::TRequestHeader& header);
-
 void GenerateMutationId(const IClientRequestPtr& request);
 void SetMutationId(NProto::TRequestHeader* header, const TMutationId& id, bool retry);
 void SetMutationId(const IClientRequestPtr& request, const TMutationId& id, bool retry);

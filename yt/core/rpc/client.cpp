@@ -132,6 +132,20 @@ void TClientRequest::SetRetry(bool value)
     Header_.set_retry(value);
 }
 
+TMutationId TClientRequest::GetMutationId() const
+{
+    return FromProto<TMutationId>(Header_.mutation_id());
+}
+
+void TClientRequest::SetMutationId(const TMutationId& id)
+{
+    if (id) {
+        ToProto(Header_.mutable_mutation_id(), id);
+    } else {
+        Header_.clear_mutation_id();
+    }
+}
+
 TClientContextPtr TClientRequest::CreateClientContext()
 {
     auto traceContext = NTracing::CreateChildTraceContext();

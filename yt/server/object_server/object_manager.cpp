@@ -1117,7 +1117,7 @@ void TObjectManager::HydraExecuteLeader(
         securityManager->ChargeUserWrite(user, 1, timer.GetElapsed());
     }
 
-    auto mutationId = GetMutationId(context);
+    auto mutationId = context->GetMutationId();
     if (mutationId) {
         const auto& hydraFacade = Bootstrap_->GetHydraFacade();
         const auto& responseKeeper = hydraFacade->GetResponseKeeper();

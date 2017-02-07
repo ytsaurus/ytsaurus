@@ -114,6 +114,16 @@ public:
         Y_UNREACHABLE();
     }
 
+    virtual TMutationId GetMutationId() const override
+    {
+        Y_UNREACHABLE();
+    }
+
+    virtual void SetMutationId(const TMutationId& /*id*/) override
+    {
+        Y_UNREACHABLE();
+    }
+
 private:
     const std::unique_ptr<TRequestHeader> Header_;
     const TSharedRefArray Message_;

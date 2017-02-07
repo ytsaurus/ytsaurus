@@ -53,7 +53,7 @@ TMutationPtr CreateMutation(
 {
     return New<TMutation>(std::move(hydraManager))
         ->SetRequestData(context->GetRequestBody(), context->Request().GetTypeName())
-        ->SetMutationId(NRpc::GetMutationId(context), context->IsRetry());
+        ->SetMutationId(context->GetMutationId(), context->IsRetry());
 }
 
 template <class TRequest, class TResponse, class TTarget>
@@ -87,7 +87,7 @@ TMutationPtr CreateMutation(
 {
     return New<TMutation>(std::move(hydraManager))
         ->SetRequestData(SerializeToProtoWithEnvelope(request), request.GetTypeName())
-        ->SetMutationId(NRpc::GetMutationId(context), context->IsRetry())
+        ->SetMutationId(context->GetMutationId(), context->IsRetry())
         ->SetHandler(
             BIND([=, request = request] (TMutationContext* mutationContext) mutable {
                 auto& mutationResponse = mutationContext->Response();

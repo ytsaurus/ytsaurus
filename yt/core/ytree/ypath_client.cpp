@@ -94,12 +94,22 @@ const Stroka& TYPathRequest::GetUser() const
 
 bool TYPathRequest::GetRetry() const
 {
-    return Header_.retry();
+    Y_UNREACHABLE();
 }
 
-void TYPathRequest::SetRetry(bool value)
+void TYPathRequest::SetRetry(bool /*value*/)
 {
-    Header_.set_retry(value);
+    Y_UNREACHABLE();
+}
+
+NRpc::TMutationId TYPathRequest::GetMutationId() const
+{
+    Y_UNREACHABLE();
+}
+
+void TYPathRequest::SetMutationId(const NRpc::TMutationId& /*id*/)
+{
+    Y_UNREACHABLE();
 }
 
 const NRpc::NProto::TRequestHeader& TYPathRequest::Header() const

@@ -35,10 +35,13 @@ public:
     virtual const Stroka& GetService() const override;
 
     virtual const Stroka& GetUser() const;
-    virtual void SetUser(const Stroka& /*user*/);
+    virtual void SetUser(const Stroka& user);
 
     virtual bool GetRetry() const override;
     virtual void SetRetry(bool value) override;
+
+    virtual NRpc::TMutationId GetMutationId() const override;
+    virtual void SetMutationId(const NRpc::TMutationId& id) override;
 
     virtual const NRpc::NProto::TRequestHeader& Header() const override;
     virtual NRpc::NProto::TRequestHeader& Header() override;

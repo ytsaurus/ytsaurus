@@ -51,6 +51,7 @@ protected:
     virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
 
     virtual void ValidateBeginUpload() override;
+    virtual void ValidateStorageSettingsUpdate() override;
 
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Mount);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Unmount);

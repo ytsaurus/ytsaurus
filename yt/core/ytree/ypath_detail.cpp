@@ -1162,7 +1162,7 @@ protected:
             AppendInfo(&builder, ExternalRequestInfo_);
         }
 
-        auto mutationId = GetMutationId(*RequestHeader_);
+        auto mutationId = GetMutationId();
         if (mutationId) {
             AppendInfo(&builder, "MutationId: %v", mutationId);
         }
