@@ -880,6 +880,11 @@ void TChunkOwnerNodeProxy::SetMediaProperties(const TChunkProperties& properties
     auto primaryMediumIndex = node->GetPrimaryMediumIndex();
     const auto* primaryMedium = chunkManager->GetMediumByIndex(primaryMediumIndex);
 
+    if (!properties[primaryMediumIndex]) {
+        THROW_ERROR_EXCEPTION("Cannot remove primary medium %Qv",
+            primaryMedium->GetName());
+    }
+
     ValidateChunkProperties(chunkManager, properties, primaryMediumIndex);
 
     node->Properties() = properties;
@@ -912,7 +917,7 @@ void TChunkOwnerNodeProxy::SetPrimaryMedium(TMedium* medium)
     ValidatePermission(medium, EPermission::Use);
 
     auto properties = node->Properties();
-    if (properties[mediumIndex].GetReplicationFactor() == 0) {
+    if (!properties[mediumIndex]) {
         // The user is trying to set a medium with zero replication count
         // as primary. This is regarded as a request to move from one medium to
         // another.
