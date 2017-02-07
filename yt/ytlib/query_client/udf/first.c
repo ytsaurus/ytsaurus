@@ -1,5 +1,4 @@
 #include <yt_udf.h>
-#include <string.h>
 
 void first_init(
     TExpressionContext* context,
