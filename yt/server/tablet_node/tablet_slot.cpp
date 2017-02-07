@@ -440,9 +440,13 @@ public:
             LOG_INFO("Slot reconfigured (ConfigVersion: %v)",
                 CellDescriptor_.ConfigVersion);
         } else {
+            auto channelFactory = Bootstrap_
+                ->GetMasterClient()
+                ->GetNativeConnection()
+                ->GetLightChannelFactory();
             CellManager_ = New<TCellManager>(
                 cellConfig,
-                Bootstrap_->GetTabletChannelFactory(),
+                channelFactory,
                 PeerId_);
 
             Automaton_ = New<TTabletAutomaton>(

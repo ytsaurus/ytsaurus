@@ -899,11 +899,12 @@ private:
         bool aggressivePreemptionEnabled,
         const TFairShareStrategyConfigPtr& config) const
     {
-        double usageRatio = element->GetResourceUsageRatio();
-        if (usageRatio < config->MinPreemptableRatio) {
+        int jobCount = element->GetRunningJobCount();
+        if (jobCount <= config->MaxUnpreemptableRunningJobCount) {
             return false;
         }
 
+        double usageRatio = element->GetResourceUsageRatio();
         const auto& attributes = element->Attributes();
         auto threshold = aggressivePreemptionEnabled
             ? config->AggressivePreemptionSatisfactionThreshold

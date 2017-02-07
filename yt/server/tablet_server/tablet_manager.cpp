@@ -1057,10 +1057,13 @@ public:
             }
         }
 
-        // Validate that all tablets are unmounted.
-        if (table->GetTabletState() != ETabletState::Unmounted) {
-            THROW_ERROR_EXCEPTION("Cannot reshard table since not all of its tablets are in %Qlv state",
-                ETabletState::Unmounted);
+        // Validate that all affected tablets are unmounted.
+        for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+            const auto* tablet = tablets[index];
+            if (tablet->GetState() != ETabletState::Unmounted) {
+                THROW_ERROR_EXCEPTION("Cannot reshard table since tablet %v is not unmounted",
+                    tablet->GetId());
+            }
         }
 
         // Calculate retained timestamp for removed tablets.

@@ -382,11 +382,11 @@ class TestJobProber(YTEnvSetup):
         shell_id = r["shell_id"]
         output = self._poll_until_prompt(job_id, shell_id)
 
-        command = "echo $TERM; tput lines; tput cols\r"
+        command = "echo $TERM; tput lines; tput cols; env | grep -c YT_OPERATION_ID\r"
         self._send_keys(job_id, shell_id, command, 0)
         output = self._poll_until_prompt(job_id, shell_id)
 
-        expected = "{0}\nscreen-256color\r\n50\r\n132\r\n".format(command)
+        expected = "{0}\nscreen-256color\r\n50\r\n132\r\n1".format(command)
         assert output.startswith(expected) == True
 
         r = poll_job_shell(job_id, operation="terminate", shell_id=shell_id)

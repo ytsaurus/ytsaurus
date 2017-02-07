@@ -237,6 +237,16 @@ class TestSortedDynamicTables(YTEnvSetup):
         with pytest.raises(YtError): reshard_table("//tmp/t", [[], [100, 200]])
         assert self._get_pivot_keys("//tmp/t") == [[], [100], [150], [200]]
 
+    def test_reshard_partly_unmounted(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        reshard_table("//tmp/t", [[], [100], [200], [300]])
+        self.sync_mount_table("//tmp/t")
+        with pytest.raises(YtError): reshard_table("//tmp/t", [[100], [250], [300]], first_tablet_index=1, last_tablet_index=3)
+        self.sync_unmount_table("//tmp/t", first_tablet_index=1, last_tablet_index=3)
+        reshard_table("//tmp/t", [[100], [250], [300]], first_tablet_index=1, last_tablet_index=3)
+        assert self._get_pivot_keys("//tmp/t") == [[], [100], [250], [300]]
+
     def test_force_unmount_on_remove(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")

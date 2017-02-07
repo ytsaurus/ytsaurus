@@ -14,6 +14,9 @@
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
+#include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/native_connection.h>
+
 #include <yt/core/misc/fs.h>
 
 #include <yt/core/profiling/scoped_timer.h>
@@ -201,7 +204,12 @@ TFuture<void> TBlobSession::DoSendBlocks(
     int blockCount,
     const TNodeDescriptor& targetDescriptor)
 {
-    TDataNodeServiceProxy proxy(ChannelFactory->CreateChannel(targetDescriptor.GetAddress(Bootstrap_->GetLocalNetworks())));
+    auto channelFactory = Bootstrap_
+        ->GetMasterClient()
+        ->GetNativeConnection()
+        ->GetHeavyChannelFactory();
+    auto channel = channelFactory->CreateChannel(targetDescriptor.GetAddress(Bootstrap_->GetLocalNetworks()));
+    TDataNodeServiceProxy proxy(channel);
     proxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
 
     auto req = proxy.PutBlocks();

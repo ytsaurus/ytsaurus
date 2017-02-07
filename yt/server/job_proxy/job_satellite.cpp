@@ -129,11 +129,22 @@ void TJobProbeCGroupTools::Init()
 
     auto currentWorkDir = NFs::CurrentWorkingDirectory();
     currentWorkDir = currentWorkDir.substr(0, currentWorkDir.find_last_of("/"));
+    
+    // Copy environment to process arguments
+    std::vector<Stroka> shellEnvironment;
+    shellEnvironment.reserve(Environment_.size());
+    for (const auto& var : Environment_) {
+        if (var.has_prefix("YT_")) {
+            shellEnvironment.emplace_back(var);
+        }
+    }
+
     ShellManager_ = CreateShellManager(
         NFS::CombinePaths(currentWorkDir, NExecAgent::SandboxDirectoryNames[NExecAgent::ESandboxKind::Home]),
         Uid_,
         TNullable<Stroka>(GetCGroupUserJobBase()),
-        Format("Job environment:\n%v\n", JoinToString(Environment_, STRINGBUF("\n"))));
+        Format("Job environment:\n%v\n", JoinToString(Environment_, STRINGBUF("\n"))),
+        std::move(shellEnvironment));
 }
 
 TJobProbeCGroupTools::~TJobProbeCGroupTools()

@@ -40,6 +40,7 @@ DEFINE_ENUM(EIODirection,
 DEFINE_ENUM(EIOCategory,
     (Repair)
     (Batch)
+    (Interactive)
     (Realtime)
 );
 
