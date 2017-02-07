@@ -9,7 +9,6 @@ from itertools import chain
 import calendar
 import ctypes
 import errno
-import fcntl
 import functools
 import os
 import signal
@@ -326,6 +325,8 @@ def datetime_to_string(date, is_local=False):
     return date.strftime(YT_DATETIME_FORMAT_STRING)
 
 def make_non_blocking(fd):
+    # Use local import to support Windows.
+    import fcntl
     flags = fcntl.fcntl(fd, fcntl.F_GETFL)
     fcntl.fcntl(fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
 
