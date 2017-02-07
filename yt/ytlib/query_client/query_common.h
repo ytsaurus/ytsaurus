@@ -96,6 +96,8 @@ struct TDataRanges
     //! Mount revision for a tablet.
     i64 MountRevision;
     TSharedRange<TRowRange> Ranges;
+
+    std::vector<EValueType> Schema;
     TSharedRange<TRow> Keys;
     //! If |true|, these ranges could be reclassified into a set of discrete lookup keys.
     bool LookupSupported = true;

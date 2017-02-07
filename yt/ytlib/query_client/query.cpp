@@ -752,12 +752,18 @@ void ToProto(NProto::TDataRanges* serialized, const TDataRanges& original)
     }
     ToProto(serialized->mutable_ranges(), MergeRefsToString(rangesWriter.Finish()));
 
-    NTabletClient::TWireProtocolWriter keysWriter;
-    for (const auto& key : original.Keys) {
-        keysWriter.WriteUnversionedRow(key);
-    }
-    ToProto(serialized->mutable_keys(), MergeRefsToString(keysWriter.Finish()));
+    if (original.Keys) {
+        std::vector<TColumnSchema> columns;
+        for (auto type : original.Schema) {
+            columns.emplace_back("", type);
+        }
 
+        TTableSchema schema(columns);
+        NTabletClient::TWireProtocolWriter keysWriter;
+        keysWriter.WriteTableSchema(schema);
+        keysWriter.WriteSchemafulRowset(original.Keys);
+        ToProto(serialized->mutable_keys(), MergeRefsToString(keysWriter.Finish()));
+    }
     serialized->set_lookup_supported(original.LookupSupported);
 }
 
@@ -781,17 +787,15 @@ void FromProto(TDataRanges* original, const NProto::TDataRanges& serialized)
     }
     original->Ranges = MakeSharedRange(std::move(ranges), rowBuffer);
 
-    std::vector<TRow> keys;
-    NTabletClient::TWireProtocolReader keysReader(
-        TSharedRef::FromString<TDataRangesBufferTag>(serialized.keys()),
-        rowBuffer);
-    while (!keysReader.IsFinished()) {
-        auto bound = keysReader.ReadUnversionedRow(true);
-        keys.push_back(bound);
+    if (serialized.has_keys()) {
+        NTabletClient::TWireProtocolReader keysReader(
+            TSharedRef::FromString<TDataRangesBufferTag>(serialized.keys()),
+            rowBuffer);
+
+        TTableSchema schema = keysReader.ReadTableSchema();
+        auto schemaData = keysReader.GetSchemaData(schema, NTableClient::TColumnFilter());
+        original->Keys = keysReader.ReadSchemafulRowset(schemaData, true);
     }
-
-    original->Keys = MakeSharedRange(std::move(keys), rowBuffer);
-
     original->LookupSupported = serialized.lookup_supported();
 }
 

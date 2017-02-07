@@ -312,6 +312,7 @@ private:
     std::vector<std::pair<TDataRanges, Stroka>> SplitTable(
         const TObjectId& tableId,
         const TSharedRange<TRow>& keys,
+        const std::vector<EValueType>& schema,
         const TRowBufferPtr& rowBuffer,
         const TQueryOptions& options,
         const NLogging::TLogger& Logger)
@@ -386,6 +387,7 @@ private:
                 TDataRanges dataSource;
                 dataSource.Id = tabletInfo->TabletId;
                 dataSource.MountRevision = tabletInfo->MountRevision;
+                dataSource.Schema = schema;
                 dataSource.Keys = MakeSharedRange(
                     MakeRange<TRow>(keysIt, keysItEnd),
                     rowBuffer,
@@ -480,14 +482,14 @@ private:
                 options,
                 Logger);
         } else {
-            auto keys = dataSource.Keys;
             YCHECK(!dataSource.Ranges);
 
-            LOG_DEBUG("Splitting %v pruned splits", keys.Size());
+            LOG_DEBUG("Splitting %v pruned splits", dataSource.Keys.Size());
 
             return SplitTable(
                 tableId,
-                std::move(keys),
+                dataSource.Keys,
+                dataSource.Schema,
                 std::move(rowBuffer),
                 options,
                 Logger);

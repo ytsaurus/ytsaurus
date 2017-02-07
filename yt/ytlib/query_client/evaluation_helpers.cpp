@@ -265,6 +265,9 @@ TJoinParameters GetJoinEvaluator(
             LOG_DEBUG("Using join via source ranges");
 
             dataSource.Keys = MakeSharedRange(std::move(keys), std::move(permanentBuffer));
+            for (const auto& item : joinKeyExprs) {
+                dataSource.Schema.push_back(item->Type);
+            }
 
             subquery->WhereClause = foreignPredicate;
             subquery->InferRanges = false;
