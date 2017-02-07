@@ -1334,6 +1334,11 @@ bool TOperationElementSharedState::IsJobPreemptable(const TJobId& jobId, bool ag
     }
 }
 
+int TOperationElementSharedState::GetRunningJobCount() const
+{
+    return RunningJobCount_;
+}
+
 int TOperationElementSharedState::GetPreemptableJobCount() const
 {
     TReaderGuard guard(JobPropertiesMapLock_);
@@ -1367,6 +1372,8 @@ TJobResources TOperationElementSharedState::AddJob(const TJobId& jobId, const TJ
             ZeroJobResources())));
     YCHECK(it.second);
 
+    ++RunningJobCount_;
+
     IncreaseJobResourceUsage(it.first->second, resourceUsage);
     return resourceUsage;
 }
@@ -1395,6 +1402,8 @@ TJobResources TOperationElementSharedState::RemoveJob(const TJobId& jobId)
     } else {
         NonpreemptableJobs_.erase(properties.JobIdListIterator);
     }
+
+    --RunningJobCount_;
 
     auto resourceUsage = properties.ResourceUsage;
     IncreaseJobResourceUsage(properties, -resourceUsage);
@@ -1765,6 +1774,11 @@ bool TOperationElement::IsJobExisting(const TJobId& jobId) const
 bool TOperationElement::IsJobPreemptable(const TJobId& jobId, bool aggressivePreemptionEnabled) const
 {
     return SharedState_->IsJobPreemptable(jobId, aggressivePreemptionEnabled);
+}
+
+int TOperationElement::GetRunningJobCount() const
+{
+    return SharedState_->GetRunningJobCount();
 }
 
 int TOperationElement::GetPreemptableJobCount() const

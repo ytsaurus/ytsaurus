@@ -14,8 +14,6 @@ namespace NDataNode {
 extern const NLogging::TLogger DataNodeLogger;
 extern const NProfiling::TProfiler DataNodeProfiler;
 
-extern const NRpc::IChannelFactoryPtr ChannelFactory;
-
 extern const Stroka CellIdFileName;
 extern const Stroka MultiplexedDirectory;
 extern const Stroka TrashDirectory;

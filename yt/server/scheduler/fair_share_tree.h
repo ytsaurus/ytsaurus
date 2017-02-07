@@ -444,6 +444,7 @@ public:
 
     bool IsJobPreemptable(const TJobId& jobId, bool aggressivePreemptionEnabled) const;
 
+    int GetRunningJobCount() const;
     int GetPreemptableJobCount() const;
     int GetAggressivelyPreemptableJobCount() const;
 
@@ -542,6 +543,7 @@ private:
     TJobIdList NonpreemptableJobs_;
     TJobIdList AggressivelyPreemptableJobs_;
     TJobIdList PreemptableJobs_;
+    std::atomic<int> RunningJobCount_ = {0};
 
     TJobResources NonpreemptableResourceUsage_;
     TJobResources AggressivelyPreemptableResourceUsage_;
@@ -656,6 +658,7 @@ public:
 
     bool IsJobPreemptable(const TJobId& jobId, bool aggressivePreemptionEnabled) const;
 
+    int GetRunningJobCount() const;
     int GetPreemptableJobCount() const;
     int GetAggressivelyPreemptableJobCount() const;
 

@@ -479,11 +479,6 @@ private:
         for (int i = 0; i < UserJobSpec_.environment_size(); ++i) {
             Environment_.emplace_back(formatter.Format(UserJobSpec_.environment(i)));
         }
-
-        // Copy environment to process arguments
-        for (const auto& var : Environment_) {
-            Process_->AddArguments({"--env", var});
-        }
     }
 
     void CleanupUserProcesses(const TError& error) const

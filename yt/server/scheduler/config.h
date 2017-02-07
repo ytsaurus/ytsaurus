@@ -42,8 +42,8 @@ public:
     TDuration FairShareProfilingPeriod;
     TDuration FairShareLogPeriod;
 
-    //! Any operation with usage less than this cannot be preempted.
-    double MinPreemptableRatio;
+    //! Any operation with less than this number of running jobs cannot be preempted.
+    int MaxUnpreemptableRunningJobCount;
 
     //! Limit on number of operations in cluster.
     int MaxRunningOperationCount;
@@ -117,9 +117,8 @@ public:
             .InRange(TDuration::MilliSeconds(10), TDuration::Seconds(60))
             .Default(TDuration::MilliSeconds(1000));
 
-        RegisterParameter("min_preemptable_ratio", MinPreemptableRatio)
-            .InRange(0.0, 1.0)
-            .Default(0.05);
+        RegisterParameter("max_unpreemptable_running_job_count", MaxUnpreemptableRunningJobCount)
+            .Default(10);
 
         RegisterParameter("max_running_operation_count", MaxRunningOperationCount)
             .Alias("max_running_operations")

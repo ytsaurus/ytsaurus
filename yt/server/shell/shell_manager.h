@@ -30,7 +30,8 @@ IShellManagerPtr CreateShellManager(
     const Stroka& workingDir,
     TNullable<int> userId,
     TNullable<Stroka> freezerFullPath,
-    TNullable<Stroka> messageOfTheDay);
+    TNullable<Stroka> messageOfTheDay,
+    std::vector<Stroka> environment);
 
 ////////////////////////////////////////////////////////////////////////////////
 

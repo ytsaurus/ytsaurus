@@ -130,20 +130,28 @@ DECLARE_REFCOUNTED_CLASS(TNativeTransaction)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+EWorkloadCategory FromUserWorkloadCategory(EUserWorkloadCategory category)
+{
+    switch (category) {
+        case EUserWorkloadCategory::Realtime:
+            return EWorkloadCategory::UserRealtime;
+        case EUserWorkloadCategory::Interactive:
+            return EWorkloadCategory::UserInteractive;
+        case EUserWorkloadCategory::Batch:
+            return EWorkloadCategory::UserBatch;
+        default:
+            Y_UNREACHABLE();
+    }
+}
+
+} // namespace
 
 TUserWorkloadDescriptor::operator TWorkloadDescriptor() const
 {
     TWorkloadDescriptor result;
-    switch (Category) {
-        case EUserWorkloadCategory::Realtime:
-            result.Category = EWorkloadCategory::UserRealtime;
-            break;
-        case EUserWorkloadCategory::Batch:
-            result.Category = EWorkloadCategory::UserBatch;
-            break;
-        default:
-            Y_UNREACHABLE();
-    }
+    result.Category = FromUserWorkloadCategory(Category);
     result.Band = Band;
     return result;
 }

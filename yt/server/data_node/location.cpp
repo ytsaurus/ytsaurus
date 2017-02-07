@@ -289,11 +289,15 @@ EIOCategory TLocation::ToIOCategory(const TWorkloadDescriptor& workloadDescripto
             return EIOCategory::Batch;
 
         case EWorkloadCategory::UserRealtime:
-        case EWorkloadCategory::SystemRealtime:
+        case EWorkloadCategory::SystemTabletLogging:
             return EIOCategory::Realtime;
 
         case EWorkloadCategory::SystemRepair:
             return EIOCategory::Repair;
+
+        case EWorkloadCategory::SystemTabletRecovery:
+        case EWorkloadCategory::UserInteractive:
+            return EIOCategory::Interactive;
 
         default:
             // Graceful fallback for possible future extensions of categories.
