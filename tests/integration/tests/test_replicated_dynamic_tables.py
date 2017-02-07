@@ -42,6 +42,12 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         {"name": "value2", "type": "int64", "aggregate": "sum"}
     ]
 
+    EXPRESSION_SCHEMA = [
+        {"name": "hash", "type": "int64", "sort_order": "ascending", "expression": "key % 10"},
+        {"name": "key", "type": "int64", "sort_order": "ascending"},
+        {"name": "value", "type": "int64"},
+    ]
+
     REPLICA_CLUSTER_NAME = "remote_0"
 
     
@@ -288,6 +294,28 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         enable_table_replica(replica_id)
         sleep(1.0)
         assert get("#{0}/@replication_lag_time".format(replica_id)) == 0
+
+    def test_expression_replication(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", schema=self.EXPRESSION_SCHEMA)
+        self._create_replica_table("//tmp/r", schema=self.EXPRESSION_SCHEMA)
+
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
+        enable_table_replica(replica_id)
+
+        insert_rows("//tmp/t", [{"key": 1, "value": 2}])
+        sleep(1.0)
+        assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"hash": 1, "key": 1, "value": 2}]
+
+        insert_rows("//tmp/t", [{"key": 12, "value": 12}])
+        sleep(1.0)
+        assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == [
+            {"hash": 1, "key": 1, "value": 2},
+            {"hash": 2, "key": 12, "value": 12}]
+
+        delete_rows("//tmp/t", [{"key": 1}])
+        sleep(1.0)
+        assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"hash": 2, "key": 12, "value": 12}]
 
     def test_replica_ops_require_exclusive_lock(self):
         self._create_cells()

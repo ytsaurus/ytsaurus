@@ -870,12 +870,6 @@ void ValidateClientRow(
                 column.Name);
         }
 
-        if (column.Expression) {
-            THROW_ERROR_EXCEPTION(
-                "Column %Qv is computed automatically and should not be provided by user",
-                column.Name);
-        }
-
         if (mappedId < schema.GetKeyColumnCount()) {
             if (keyColumnSeen[mappedId]) {
                 THROW_ERROR_EXCEPTION("Duplicate key column %Qv",
