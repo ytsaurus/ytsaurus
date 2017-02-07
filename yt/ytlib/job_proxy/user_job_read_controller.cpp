@@ -160,9 +160,10 @@ void TUserJobReadController::InitializeReader()
 
 double TUserJobReadController::GetProgress() const
 {
-    if (!Initialized_) {
+    if (!Reader_) {
         return 0;
     }
+
     i64 total = Reader_->GetTotalRowCount();
     i64 current = Reader_->GetSessionRowIndex();
 
