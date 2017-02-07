@@ -56,7 +56,7 @@ private:
     {
         auto type = EOperationType(request->type());
         auto transactionId = GetTransactionId(context);
-        auto mutationId = GetMutationId(context);
+        auto mutationId = context->GetMutationId();
         const auto& user = context->GetUser();
 
         IMapNodePtr spec;

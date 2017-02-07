@@ -472,6 +472,16 @@ void TTableNodeProxy::ValidateBeginUpload()
     }
 }
 
+void TTableNodeProxy::ValidateStorageSettingsUpdate()
+{
+    TBase::ValidateStorageSettingsUpdate();
+
+    const auto* table = GetThisImpl();
+    if (table->IsDynamic() && table->GetTabletState() != ETabletState::Unmounted) {
+        THROW_ERROR_EXCEPTION("Cannot change storage settings when not all tablets are unmounted");
+    }
+}
+
 DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Mount)
 {
     DeclareMutating();

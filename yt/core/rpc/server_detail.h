@@ -27,7 +27,8 @@ public:
     virtual TNullable<TInstant> GetStartTime() const override;
     virtual TNullable<TDuration> GetTimeout() const override;
     virtual bool IsRetry() const override;
-    
+    virtual TMutationId GetMutationId() const override;
+
     virtual const Stroka& GetService() const override;
     virtual const Stroka& GetMethod() const override;
     virtual const TRealmId& GetRealmId() const override;
@@ -149,6 +150,7 @@ public:
     virtual TNullable<TInstant> GetStartTime() const override;
     virtual TNullable<TDuration> GetTimeout() const override;
     virtual bool IsRetry() const override;
+    virtual TMutationId GetMutationId() const override;
 
     virtual const Stroka& GetService() const override;
     virtual const Stroka& GetMethod() const override;

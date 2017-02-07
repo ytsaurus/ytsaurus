@@ -247,6 +247,11 @@ bool TServiceContextBase::IsRetry() const
     return RequestHeader_->retry();
 }
 
+TMutationId TServiceContextBase::GetMutationId() const
+{
+    return FromProto<TMutationId>(RequestHeader_->mutation_id());
+}
+
 const Stroka& TServiceContextBase::GetService() const
 {
     return RequestHeader_->service();
@@ -332,6 +337,11 @@ TNullable<TDuration> TServiceContextWrapper::GetTimeout() const
 bool TServiceContextWrapper::IsRetry() const
 {
     return UnderlyingContext_->IsRetry();
+}
+
+TMutationId TServiceContextWrapper::GetMutationId() const
+{
+    return UnderlyingContext_->GetMutationId();
 }
 
 const Stroka& TServiceContextWrapper::GetService() const

@@ -189,7 +189,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(HomeThread);
 
-        auto mutationId = GetMutationId(context);
+        auto mutationId = context->GetMutationId();
         if (!mutationId) {
             return false;
         }

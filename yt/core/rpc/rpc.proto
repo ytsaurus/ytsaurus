@@ -20,6 +20,7 @@ message TRequestHeader
 
     optional int64 start_time = 7;
     optional bool retry = 11 [default = false];
+    optional NYT.NProto.TGuid mutation_id = 13;
 
     optional int64 timeout = 10;
 
@@ -38,16 +39,6 @@ message TTracingExt
     optional uint64 trace_id = 1;
     optional uint64 span_id = 2;
     optional uint64 parent_span_id = 3;
-}
-
-message TMutatingExt
-{
-    extend NRpc.NProto.TRequestHeader
-    {
-        optional TMutatingExt mutating_ext = 107;
-    }
-
-    required NYT.NProto.TGuid mutation_id = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

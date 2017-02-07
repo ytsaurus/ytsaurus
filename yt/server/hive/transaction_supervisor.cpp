@@ -466,7 +466,7 @@ private:
                 transactionId,
                 participantCellIds,
                 force2PC,
-                GetMutationId(context));
+                context->GetMutationId());
             context->ReplyFrom(asyncResponseMessage);
         }
 
@@ -489,7 +489,7 @@ private:
 
             auto asyncResponseMessage = owner->CoordinatorAbortTransaction(
                 transactionId,
-                GetMutationId(context),
+                context->GetMutationId(),
                 force);
             context->ReplyFrom(asyncResponseMessage);
         }

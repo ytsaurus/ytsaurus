@@ -46,6 +46,9 @@ struct IClientRequest
 
     virtual bool GetRetry() const = 0;
     virtual void SetRetry(bool value) = 0;
+
+    virtual TMutationId GetMutationId() const = 0;
+    virtual void SetMutationId(const TMutationId& id) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IClientRequest)
@@ -109,6 +112,9 @@ public:
 
     virtual bool GetRetry() const override;
     virtual void SetRetry(bool value) override;
+
+    virtual TMutationId GetMutationId() const override;
+    virtual void SetMutationId(const TMutationId& id) override;
 
 protected:
     const IChannelPtr Channel_;

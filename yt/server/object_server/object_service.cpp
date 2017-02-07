@@ -263,7 +263,7 @@ private:
             subrequest.TraceContext = NTracing::CreateChildTraceContext();
             if (mutating) {
                 subrequest.Mutation = ObjectManager_->CreateExecuteMutation(UserName_, subcontext)
-                    ->SetMutationId(GetMutationId(subcontext), subcontext->IsRetry());
+                    ->SetMutationId(subcontext->GetMutationId(), subcontext->IsRetry());
             }
         }
 

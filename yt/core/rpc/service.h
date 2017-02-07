@@ -46,6 +46,10 @@ struct IServiceContext
     //! Returns |true| if this is a duplicate copy of a previously sent (and possibly served) request.
     virtual bool IsRetry() const = 0;
 
+    //! Returns the mutation id for this request, i.e. a unique id used to distinguish copies of the
+    //! (semantically) same request. If no mutation id is assigned then returns null id.
+    virtual TMutationId GetMutationId() const = 0;
+
     //! Returns request service name.
     virtual const Stroka& GetService() const = 0;
 

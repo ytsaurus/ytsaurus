@@ -413,7 +413,7 @@ private:
             AppendInfo(&builder, "User: %v", User_);
         }
 
-        auto mutationId = GetMutationId(*RequestHeader_);
+        auto mutationId = GetMutationId();
         if (mutationId) {
             AppendInfo(&builder, "MutationId: %v", mutationId);
         }

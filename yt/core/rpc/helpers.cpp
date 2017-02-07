@@ -356,20 +356,6 @@ TMutationId GenerateMutationId()
     }
 }
 
-TMutationId GetMutationId(const TRequestHeader& header)
-{
-    if (!header.HasExtension(TMutatingExt::mutating_ext)) {
-        return NullMutationId;
-    }
-    const auto& ext = header.GetExtension(TMutatingExt::mutating_ext);
-    return FromProto<TMutationId>(ext.mutation_id());
-}
-
-TMutationId GetMutationId(const IServiceContextPtr& context)
-{
-    return GetMutationId(context->RequestHeader());
-}
-
 void GenerateMutationId(const IClientRequestPtr& request)
 {
     SetMutationId(request, GenerateMutationId(), false);
@@ -378,8 +364,7 @@ void GenerateMutationId(const IClientRequestPtr& request)
 void SetMutationId(TRequestHeader* header, const TMutationId& id, bool retry)
 {
     if (id) {
-        auto* ext = header->MutableExtension(TMutatingExt::mutating_ext);
-        ToProto(ext->mutable_mutation_id(), id);
+        ToProto(header->mutable_mutation_id(), id);
         if (retry) {
             header->set_retry(true);
         }
