@@ -85,7 +85,7 @@ TCallback<TFuture<void>()> TUserJobReadController::PrepareInputActionsPassthroug
 
     auto bufferRowCount = JobSpecHelper_->GetJobIOConfig()->BufferRowCount;
 
-    return BIND([=] () {
+    return BIND([=, this_ = MakeStrong(this)] () {
         PipeReaderToWriter(
             Reader_,
             writer,
@@ -122,7 +122,7 @@ TCallback<TFuture<void>()> TUserJobReadController::PrepareInputActionsQuery(
         return Reader_;
     };
 
-    return BIND([=] () {
+    return BIND([=, this_ = MakeStrong(this)] () {
         RunQuery(querySpec, readerFactory, [&] (TNameTablePtr nameTable) {
                 auto schemalessWriter = CreateSchemalessWriterForFormat(
                     format,
@@ -180,7 +180,7 @@ TFuture<std::vector<TBlob>> TUserJobReadController::GetInputContext() const
         return MakeFuture(std::vector<TBlob>());
     }
 
-    return BIND([=]() {
+    return BIND([=, this_ = MakeStrong(this)]() {
         std::vector<TBlob> result;
         for (const auto& input : FormatWriters_) {
             result.push_back(input->GetContext());
