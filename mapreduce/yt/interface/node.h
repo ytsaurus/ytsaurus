@@ -64,6 +64,15 @@ public:
         Int64_ = i;
     }
 
+    //this case made speccially for prevent mess cast of EType into TNode through TNode(int) constructor
+    //usual case of error SomeNode == TNode::UNDEFINED <-- SomeNode indeed will be compared with TNode(0) without this method
+    //correct way is SomeNode.GetType() == TNode::UNDEFINED
+    template<class T = EType>
+    Y_FORCE_INLINE TNode(EType)
+    {
+        static_assert(std::is_same<T, EType>::type, "looks like a mistake, may be you forget .GetType()");
+    }
+
     TNode(unsigned int ui)
         : Type_(UINT64)
     {
