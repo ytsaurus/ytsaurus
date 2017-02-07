@@ -13,6 +13,8 @@ TEST_SRCS(
 
 TIMEOUT(100)
 
+SIZE(MEDIUM)
+
 PEERDIR(
     mapreduce/yt/python
 )
