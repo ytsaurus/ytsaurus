@@ -3078,14 +3078,17 @@ private:
 
         void Run()
         {
+            auto schemaKind = Options_.PushToReplica ? ETableSchemaKind::Primary : ETableSchemaKind::Write;
             auto tableInfo = Transaction_->Client_->SyncGetTableInfo(Path_);
             const auto& primarySchema = tableInfo->Schemas[ETableSchemaKind::Primary];
             const auto& primaryIdMapping = Transaction_->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::Primary);
-            const auto& writeSchema = tableInfo->Schemas[ETableSchemaKind::Write];
-            const auto& writeIdMapping = Transaction_->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::Write);
+            const auto& writeSchema = tableInfo->Schemas[schemaKind];
+            const auto& writeIdMapping = Transaction_->GetColumnIdMapping(tableInfo, NameTable_, schemaKind);
             const auto& rowBuffer = Transaction_->RowBuffer_;
             auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
-            auto evaluator = tableInfo->NeedKeyEvaluation ? evaluatorCache->Find(primarySchema) : nullptr;
+            auto evaluator = (tableInfo->NeedKeyEvaluation && !Options_.PushToReplica)
+                ? evaluatorCache->Find(primarySchema)
+                : nullptr;
             auto randomTabletInfo = tableInfo->GetRandomMountedTablet();
 
             for (const auto& modification : Modifications_) {
