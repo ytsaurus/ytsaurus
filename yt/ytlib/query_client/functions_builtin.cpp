@@ -8,6 +8,7 @@
 #include "udf/is_prefix.h"
 #include "udf/avg.h"
 #include "udf/farm_hash.h"
+#include "udf/first.h"
 #include "udf/hyperloglog.h"
 #include "udf/is_substr.h"
 #include "udf/lower.h"
@@ -412,7 +413,26 @@ void RegisterBuiltinFunctions(
         EValueType::Int64,
         EValueType::Uint64,
         EValueType::Double};
+    auto anyConstraints = std::unordered_map<TTypeArgument, TUnionType>();
+    anyConstraints[typeArg] = std::vector<EValueType>{
+        EValueType::Int64,
+        EValueType::Uint64,
+        EValueType::Boolean,
+        EValueType::Double,
+        EValueType::String,
+        EValueType::Any};
 
+    builder.RegisterAggregate(
+        "first",
+        anyConstraints,
+        typeArg,
+        typeArg,
+        typeArg,
+        TSharedRef(
+            first_bc,
+            first_bc_len,
+            nullptr),
+        ECallingConvention::UnversionedValue);
     builder.RegisterAggregate(
         "sum",
         sumConstraints,
