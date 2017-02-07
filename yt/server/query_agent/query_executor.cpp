@@ -467,8 +467,15 @@ private:
             const auto& tablePartId = keySource.Id;
             auto& keys = keySource.Keys;
 
-            refiners.push_back([&] (TConstExpressionPtr expr, const TKeyColumns& keyColumns) {
-                return EliminatePredicate(keys, expr, keyColumns);
+            refiners.push_back([&, inferRanges = Query_->InferRanges] (
+                TConstExpressionPtr expr, const
+                TKeyColumns& keyColumns)
+            {
+                if (inferRanges) {
+                    return EliminatePredicate(keys, expr, keyColumns);
+                } else {
+                    return expr;
+                }
             });
             subreaderCreators.push_back([&, MOVE(keys)] () {
                 std::function<ISchemafulReaderPtr()> bottomSplitReaderGenerator;
@@ -520,8 +527,15 @@ private:
         std::vector<TSubreaderCreator> subreaderCreators;
 
         for (const auto& dataSplit : splits) {
-            refiners.push_back([&] (TConstExpressionPtr expr, const TKeyColumns& keyColumns) {
-                return EliminatePredicate(MakeRange(&dataSplit.Range, 1), expr, keyColumns);
+            refiners.push_back([&, inferRanges = Query_->InferRanges] (
+                TConstExpressionPtr expr,
+                const TKeyColumns& keyColumns)
+            {
+                if (inferRanges) {
+                    return EliminatePredicate(MakeRange(&dataSplit.Range, 1), expr, keyColumns);
+                } else {
+                    return expr;
+                }
             });
             subreaderCreators.push_back([&] () {
                 return GetReader(dataSplit.Id, dataSplit.Range);
