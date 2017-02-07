@@ -42,7 +42,7 @@ Currently this project uses Spark 2.1.0 as a reference.
 | pyspark.ml.classification                          | ✔                 | ✘                |                  |
 | pyspark.ml.clustering                              | ✔                 | ✘                |                  |
 | pyspark.ml.common                                  | ✔                 | ✘                |                  |
-| pyspark.ml.evaluation                              | ✔                 | ✘                |                  |
+| pyspark.ml.evaluation                              | ✘                 | ✔                |                  |
 | pyspark.ml.feature                                 | ✘                 | ✔                |                  |
 | pyspark.ml.linalg                                  | ✘                 | ✔                |                  |
 | pyspark.ml.param                                   | ✘                 | ✔                |                  |
