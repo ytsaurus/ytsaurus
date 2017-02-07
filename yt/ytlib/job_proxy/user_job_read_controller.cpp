@@ -52,10 +52,6 @@ TUserJobReadController::TUserJobReadController(
 
 TCallback<TFuture<void>()> TUserJobReadController::PrepareJobInputTransfer(const IAsyncOutputStreamPtr& asyncOutput)
 {
-    auto finally = Finally([=] {
-        Initialized_ = true;
-    });
-
     const auto& schedulerJobSpecExt = JobSpecHelper_->GetSchedulerJobSpecExt();
 
     const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
@@ -151,6 +147,7 @@ void TUserJobReadController::InitializeReader(TNameTablePtr nameTable, const TCo
         OnNetworkRelease_,
         std::move(nameTable),
         columnFilter);
+    Initialized_ = true;
 }
 
 void TUserJobReadController::InitializeReader()
@@ -160,7 +157,7 @@ void TUserJobReadController::InitializeReader()
 
 double TUserJobReadController::GetProgress() const
 {
-    if (!Reader_) {
+    if (!Initialized_) {
         return 0;
     }
 
@@ -198,7 +195,7 @@ std::vector<TChunkId> TUserJobReadController::GetFailedChunkIds() const
 
 TNullable<TDataStatistics> TUserJobReadController::GetDataStatistics() const
 {
-    if (!Reader_) {
+    if (!Initialized_) {
         return Null;
     }
     return Reader_->GetDataStatistics();
