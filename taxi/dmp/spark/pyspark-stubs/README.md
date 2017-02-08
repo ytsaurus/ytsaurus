@@ -53,7 +53,7 @@ Currently this project uses Spark 2.1.0 as a reference.
 | pyspark.ml.regression                              | ✔                 | ✘                |                  |
 | <s>pyspark.ml.tests</s>                            | ✘                 | ✘                | Tests            |
 | pyspark.ml.tuning                                  | ✘                 | ✔                |                  |
-| pyspark.ml.util                                    | ✔                 | ✘                |                  |
+| pyspark.ml.util                                    | ✘                 | ✔                |                  |
 | pyspark.ml.wrapper                                 | ✔                 | ✘                |                  |
 | pyspark.mllib                                      | ✔                 | ✘                |                  |
 | pyspark.mllib.classification                       | ✔                 | ✘                |                  |
