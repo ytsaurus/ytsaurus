@@ -77,7 +77,7 @@ public:
     TChunkTree* GetChunkTreeOrThrow(const TChunkTreeId& id);
 
     TNodeList AllocateWriteTargets(
-        int mediumIndex,
+        TMedium* medium,
         TChunk* chunk,
         int desiredCount,
         int minCount,

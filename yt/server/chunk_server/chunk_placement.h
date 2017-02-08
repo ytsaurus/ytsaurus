@@ -30,7 +30,7 @@ public:
     void OnNodeDisposed(TNode* node);
 
     TNodeList AllocateWriteTargets(
-        int mediumIndex,
+        TMedium* medium,
         TChunk* chunk,
         int desiredCount,
         int minCount,
@@ -40,7 +40,7 @@ public:
         NChunkClient::ESessionType sessionType);
 
     TNodeList AllocateWriteTargets(
-        int mediumIndex,
+        TMedium* medium,
         TChunk* chunk,
         int desiredCount,
         int minCount,
@@ -49,21 +49,21 @@ public:
 
     TNode* GetRemovalTarget(TChunkPtrWithIndexes chunkWithIndexes);
 
-    bool HasBalancingTargets(int mediumIndex, double maxFillFactor);
+    bool HasBalancingTargets(TMedium* medium, double maxFillFactor);
 
     std::vector<TChunkPtrWithIndexes> GetBalancingChunks(
-        int mediumIndex,
+        TMedium* medium,
         TNode* node,
         int replicaCount);
 
     TNode* AllocateBalancingTarget(
-        int mediumIndex,
+        TMedium* medium,
         TChunk* chunk,
         double maxFillFactor);
 
     int GetMaxReplicasPerRack(
-        TChunk* chunk,
         int mediumIndex,
+        TChunk* chunk,
         TNullable<int> replicationFactorOverride = Null);
 
 private:
@@ -87,7 +87,7 @@ private:
     void RemoveFromLoadFactorMaps(TNode* node);
 
     TNodeList GetWriteTargets(
-        int mediumIndex,
+        TMedium* medium,
         TChunk* chunk,
         int desiredCount,
         int minCount,
@@ -97,34 +97,27 @@ private:
         const TNullable<Stroka>& preferredHostName = Null);
 
     TNode* GetBalancingTarget(
-        int mediumIndex,
+        TMedium* medium,
         TChunk* chunk,
         double maxFillFactor);
 
-    static bool IsAcceptedChunkType(
-        int mediumIndex,
-        TNode* node,
-        NObjectClient::EObjectType type);
-
     bool IsValidWriteTarget(
-        int mediumIndex,
+        TMedium* medium,
         TNode* node);
     
     bool IsValidWriteTarget(
-        int mediumIndex,
+        TMedium* medium,
         TNode* node,
-        NObjectClient::EObjectType chunkType,
         TTargetCollector* collector,
         bool enableRackAwareness);
 
     bool IsValidBalancingTarget(
-        int mediumIndex,
+        TMedium* medium,
         TNode* node);
 
     bool IsValidBalancingTarget(
-        int mediumIndex,
+        TMedium* medium,
         TNode* node,
-        NObjectClient::EObjectType chunkType,
         TTargetCollector* collector,
         bool enableRackAwareness);
 

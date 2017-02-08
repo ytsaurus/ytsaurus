@@ -481,7 +481,7 @@ public:
     }
 
     TNodeList AllocateWriteTargets(
-        int mediumIndex,
+        TMedium* medium,
         TChunk* chunk,
         int desiredCount,
         int minCount,
@@ -490,7 +490,7 @@ public:
         const TNullable<Stroka>& preferredHostName)
     {
         return ChunkPlacement_->AllocateWriteTargets(
-            mediumIndex,
+            medium,
             chunk,
             desiredCount,
             minCount,
@@ -2594,7 +2594,7 @@ TChunkTree* TChunkManager::GetChunkTreeOrThrow(const TChunkTreeId& id)
 }
 
 TNodeList TChunkManager::AllocateWriteTargets(
-    int mediumIndex,
+    TMedium* medium,
     TChunk* chunk,
     int desiredCount,
     int minCount,
@@ -2603,7 +2603,7 @@ TNodeList TChunkManager::AllocateWriteTargets(
     const TNullable<Stroka>& preferredHostName)
 {
     return Impl_->AllocateWriteTargets(
-        mediumIndex,
+        medium,
         chunk,
         desiredCount,
         minCount,
@@ -2800,7 +2800,6 @@ TMedium* TChunkManager::GetMediumByNameOrThrow(const Stroka& name) const
 {
     return Impl_->GetMediumByNameOrThrow(name);
 }
-
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TChunkManager, Chunk, TChunk, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TChunkManager, ChunkList, TChunkList, *Impl_)

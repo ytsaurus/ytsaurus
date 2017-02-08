@@ -607,29 +607,6 @@ bool TStoreLocation::HasEnoughSpace(i64 size) const
     return GetAvailableSpace() - size >= Config_->HighWatermark;
 }
 
-bool TStoreLocation::IsChunkTypeAccepted(EObjectType chunkType)
-{
-    if (!IsEnabled()) {
-        return false;
-    }
-
-    if (IsFull()) {
-        return false;
-    }
-
-    switch (chunkType) {
-        case EObjectType::Chunk:
-        case EObjectType::ErasureChunk:
-            return Config_->EnableBlobs;
-
-        case EObjectType::JournalChunk:
-            return Config_->EnableJournals;
-
-        default:
-            Y_UNREACHABLE();
-    }
-}
-
 IThroughputThrottlerPtr TStoreLocation::GetInThrottler(const TWorkloadDescriptor& descriptor) const
 {
    switch (descriptor.Category) {

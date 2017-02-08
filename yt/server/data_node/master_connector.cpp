@@ -485,7 +485,6 @@ void TMasterConnector::ComputeLocationSpecificStatistics(TNodeStatistics* result
     struct TMediumStatistics
     {
         double IOWeight = 0.0;
-        yhash_set<EObjectType> AcceptedChunkTypes;
     };
 
     yhash_map<int, TMediumStatistics> mediaStatistics;
@@ -504,13 +503,8 @@ void TMasterConnector::ComputeLocationSpecificStatistics(TNodeStatistics* result
         locationStatistics->set_full(location->IsFull());
 
         auto& mediumStatistics = mediaStatistics[mediumIndex];
-        if (!location->IsFull()) {
+        if (location->IsEnabled() && !location->IsFull()) {
             ++mediumStatistics.IOWeight;
-            for (auto type : {EObjectType::Chunk, EObjectType::ErasureChunk, EObjectType::JournalChunk}) {
-                if (location->IsChunkTypeAccepted(type)) {
-                    mediumStatistics.AcceptedChunkTypes.insert(type);
-                }
-            }
         }
     }
 
@@ -520,9 +514,6 @@ void TMasterConnector::ComputeLocationSpecificStatistics(TNodeStatistics* result
         auto* protoStatistics = result->add_media();
         protoStatistics->set_medium_index(mediumIndex);
         protoStatistics->set_io_weight(mediumStatisitcs.IOWeight);
-        for (auto type : mediumStatisitcs.AcceptedChunkTypes) {
-            protoStatistics->add_accepted_chunk_types(static_cast<int>(type));
-        }
     }
 }
 

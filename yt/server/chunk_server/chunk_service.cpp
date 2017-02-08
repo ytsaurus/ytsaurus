@@ -140,7 +140,7 @@ private:
             std::sort(forbiddenNodes.begin(), forbiddenNodes.end());
 
             auto targets = chunkManager->AllocateWriteTargets(
-                mediumIndex,
+                medium,
                 chunk,
                 desiredTargetCount,
                 minTargetCount,

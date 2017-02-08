@@ -223,7 +223,8 @@ public:
     TNullable<double> GetFillFactor(int mediumIndex) const;
     //! Returns null if there's no storage of specified medium on this node.
     TNullable<double> GetLoadFactor(int mediumIndex) const;
-    bool IsFull(int mediumIndex) const;
+
+    bool IsWriteEnabled(int mediumIndex) const;
 
     TTabletSlot* FindTabletSlot(const NTabletServer::TTabletCell* cell);
     TTabletSlot* GetTabletSlot(const NTabletServer::TTabletCell* cell);

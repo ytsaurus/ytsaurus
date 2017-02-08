@@ -177,7 +177,7 @@ private:
     bool CreateReplicationJob(
         TNode* sourceNode,
         TChunkPtrWithIndexes chunkWithIndex,
-        int targetMediumIndex,
+        TMedium* targetMedium,
         TJobPtr* job);
     bool CreateBalancingJob(
         TNode* sourceNode,
