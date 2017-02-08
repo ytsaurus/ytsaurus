@@ -603,16 +603,9 @@ void TNode::SetLoadFactorIterator(int mediumIndex, TLoadFactorIterator iter)
     LoadFactorIterators_[mediumIndex] = iter;
 }
 
-bool TNode::IsFull(int mediumIndex) const
+bool TNode::IsWriteEnabled(int mediumIndex) const
 {
-    bool full = true;
-    for (const auto& location : Statistics_.locations()) {
-        if (location.medium_index() == mediumIndex && !location.full()) {
-            full = false;
-            break;
-        }
-    }
-    return full && !Statistics_.locations().empty();
+    return IOWeights_[mediumIndex] > 0;
 }
 
 bool TNode::DoAddReplica(TChunkPtrWithIndexes replica)

@@ -76,12 +76,6 @@ public:
     //! starting from the eldest ones.
     i64 TrashCleanupWatermark;
 
-    //! Controls if new blob chunks are accpeted by this location.
-    bool EnableBlobs;
-
-    //! Controls if new journal chunks are accepted by this location.
-    bool EnableJournals;
-
     //! Controls incoming location bandwidth used by repair jobs.
     NConcurrency::TThroughputThrottlerConfigPtr RepairInThrottler;
 
@@ -101,10 +95,6 @@ public:
         RegisterParameter("trash_cleanup_watermark", TrashCleanupWatermark)
             .GreaterThanOrEqual(0)
             .Default((i64) 40 * 1024 * 1024 * 1024); // 40 Gb
-        RegisterParameter("enable_blobs", EnableBlobs)
-            .Default(true);
-        RegisterParameter("enable_journals", EnableJournals)
-            .Default(true);
         RegisterParameter("repair_in_throttler", RepairInThrottler)
             .DefaultNew();
         RegisterParameter("replication_in_throttler", ReplicationInThrottler)

@@ -34,7 +34,6 @@ message TMemoryStatistics
 message TMediumStatistics
 {
     required int32 medium_index = 1;
-    repeated int32 accepted_chunk_types = 2;
     required double io_weight = 3;
 }
 

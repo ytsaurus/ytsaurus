@@ -517,7 +517,11 @@ bool TChunkStore::CanStartNewSession(
     int mediumIndex,
     const TWorkloadDescriptor& workloadDescriptor)
 {
-    if (!location->IsChunkTypeAccepted(chunkType)) {
+    if (!location->IsEnabled()) {
+        return false;
+    }
+
+    if (location->IsFull()) {
         return false;
     }
 

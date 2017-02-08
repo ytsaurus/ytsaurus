@@ -218,10 +218,6 @@ private:
                             fluent
                                 .Item(medium->GetName()).BeginMap()
                                     .Item("io_weight").Value(mediumStatistics.io_weight())
-                                    .Item("accepted_chunk_types").DoListFor(mediumStatistics.accepted_chunk_types(), [] (TFluentList fluent, int type) {
-                                        fluent
-                                            .Item().Value(EObjectType(type));
-                                    })
                                 .EndMap();
                         })
                         .Item("memory").BeginMap()

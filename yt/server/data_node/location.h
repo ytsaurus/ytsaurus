@@ -247,9 +247,6 @@ public:
     //! Checks whether to location has enough space to contain file of size #size
     bool HasEnoughSpace(i64 size) const;
 
-    //! Returns |true| if the location accepts new chunks of a given type.
-    bool IsChunkTypeAccepted(NObjectClient::EObjectType chunkType);
-
     NConcurrency::IThroughputThrottlerPtr GetInThrottler(const TWorkloadDescriptor& descriptor) const;
 
     //! Removes a chunk permanently or moves it to the trash.

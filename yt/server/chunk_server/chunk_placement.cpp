@@ -34,8 +34,8 @@ class TChunkPlacement::TTargetCollector
 {
 public:
     TTargetCollector(
+        const TMedium* medium,
         const TChunk* chunk,
-        int mediumIndex,
         int maxReplicasPerRack,
         const TNodeList* forbiddenNodes)
         : MaxReplicasPerRack_(maxReplicasPerRack)
@@ -44,6 +44,7 @@ public:
             ForbiddenNodes_ = *forbiddenNodes;
         }
 
+        int mediumIndex = medium->GetIndex();
         for (auto replica : chunk->StoredReplicas()) {
             if (replica.GetMediumIndex() == mediumIndex) {
                 auto* node = replica.GetPtr();
@@ -161,7 +162,7 @@ void TChunkPlacement::OnNodeDisposed(TNode* node)
 }
 
 TNodeList TChunkPlacement::AllocateWriteTargets(
-    int mediumIndex,
+    TMedium* medium,
     TChunk* chunk,
     int desiredCount,
     int minCount,
@@ -171,7 +172,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
     ESessionType sessionType)
 {
     auto targetNodes = GetWriteTargets(
-        mediumIndex,
+        medium,
         chunk,
         desiredCount,
         minCount,
@@ -192,9 +193,10 @@ void TChunkPlacement::InsertToFillFactorMaps(TNode* node)
     RemoveFromFillFactorMaps(node);
 
     for (const auto& pair : Bootstrap_->GetChunkManager()->Media()) {
-        auto mediumIndex = pair.second->GetIndex();
+        auto* medium = pair.second;
+        auto mediumIndex = medium->GetIndex();
  
-        if (!IsValidBalancingTarget(mediumIndex, node)) {
+        if (!IsValidBalancingTarget(medium, node)) {
             continue;
         }
 
@@ -211,7 +213,9 @@ void TChunkPlacement::InsertToFillFactorMaps(TNode* node)
 void TChunkPlacement::RemoveFromFillFactorMaps(TNode* node)
 {
     for (const auto& pair : Bootstrap_->GetChunkManager()->Media()) {
-        auto mediumIndex = pair.second->GetIndex();
+        const auto* medium = pair.second;
+        auto mediumIndex = medium->GetIndex();
+
         auto it = node->GetFillFactorIterator(mediumIndex);
         if (!it) {
             continue;
@@ -227,9 +231,10 @@ void TChunkPlacement::InsertToLoadFactorMaps(TNode* node)
     RemoveFromLoadFactorMaps(node);
 
     for (const auto& pair : Bootstrap_->GetChunkManager()->Media()) {
-        auto mediumIndex = pair.second->GetIndex();
+        auto* medium = pair.second;
+        auto mediumIndex = medium->GetIndex();
         
-        if (!IsValidWriteTarget(mediumIndex, node)) {
+        if (!IsValidWriteTarget(medium, node)) {
             continue;
         }
 
@@ -246,7 +251,9 @@ void TChunkPlacement::InsertToLoadFactorMaps(TNode* node)
 void TChunkPlacement::RemoveFromLoadFactorMaps(TNode* node)
 {
     for (const auto& pair : Bootstrap_->GetChunkManager()->Media()) {
-        auto mediumIndex = pair.second->GetIndex();
+        const auto* medium = pair.second;
+        auto mediumIndex = medium->GetIndex();
+
         auto it = node->GetLoadFactorIterator(mediumIndex);
         if (!it) {
             continue;
@@ -258,7 +265,7 @@ void TChunkPlacement::RemoveFromLoadFactorMaps(TNode* node)
 }
 
 TNodeList TChunkPlacement::GetWriteTargets(
-    int mediumIndex,
+    TMedium* medium,
     TChunk* chunk,
     int desiredCount,
     int minCount,
@@ -267,11 +274,12 @@ TNodeList TChunkPlacement::GetWriteTargets(
     const TNodeList* forbiddenNodes,
     const TNullable<Stroka>& preferredHostName)
 {
-    int maxReplicasPerRack = GetMaxReplicasPerRack(chunk, mediumIndex, replicationFactorOverride);
-    TTargetCollector collector(chunk, mediumIndex, maxReplicasPerRack, forbiddenNodes);
+    int mediumIndex = medium->GetIndex();
+    int maxReplicasPerRack = GetMaxReplicasPerRack(mediumIndex, chunk, replicationFactorOverride);
+    TTargetCollector collector(medium, chunk, maxReplicasPerRack, forbiddenNodes);
 
     auto tryAdd = [&] (TNode* node, bool enableRackAwareness) {
-        if (IsValidWriteTarget(mediumIndex, node, chunk->GetType(), &collector, enableRackAwareness)) {
+        if (IsValidWriteTarget(medium, node, &collector, enableRackAwareness)) {
             collector.AddNode(node);
         }
     };
@@ -303,7 +311,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
 }
 
 TNodeList TChunkPlacement::AllocateWriteTargets(
-    int mediumIndex,
+    TMedium* medium,
     TChunk* chunk,
     int desiredCount,
     int minCount,
@@ -311,7 +319,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
     ESessionType sessionType)
 {
     auto targetNodes = GetWriteTargets(
-        mediumIndex,
+        medium,
         chunk,
         desiredCount,
         minCount,
@@ -330,7 +338,7 @@ TNode* TChunkPlacement::GetRemovalTarget(TChunkPtrWithIndexes chunkWithIndexes)
     auto* chunk = chunkWithIndexes.GetPtr();
     auto replicaIndex = chunkWithIndexes.GetReplicaIndex();
     auto mediumIndex = chunkWithIndexes.GetMediumIndex();
-    int maxReplicasPerRack = GetMaxReplicasPerRack(chunk, mediumIndex, Null);
+    int maxReplicasPerRack = GetMaxReplicasPerRack(mediumIndex, chunk, Null);
 
     std::array<i8, MaxRackCount> perRackCounters{};
     for (auto replica : chunk->StoredReplicas()) {
@@ -377,12 +385,13 @@ TNode* TChunkPlacement::GetRemovalTarget(TChunkPtrWithIndexes chunkWithIndexes)
     return rackWinner ? rackWinner : fillFactorWinner;
 }
 
-bool TChunkPlacement::HasBalancingTargets(int mediumIndex, double maxFillFactor)
+bool TChunkPlacement::HasBalancingTargets(TMedium* medium, double maxFillFactor)
 {
     if (maxFillFactor < 0) {
         return false;
     }
 
+    int mediumIndex = medium->GetIndex();
     if (MediumToFillFactorToNode_[mediumIndex].empty()) {
         return false;
     }
@@ -394,11 +403,11 @@ bool TChunkPlacement::HasBalancingTargets(int mediumIndex, double maxFillFactor)
 }
 
 TNode* TChunkPlacement::AllocateBalancingTarget(
-    int mediumIndex,
+    TMedium* medium,
     TChunk* chunk,
     double maxFillFactor)
 {
-    auto* target = GetBalancingTarget(mediumIndex, chunk, maxFillFactor);
+    auto* target = GetBalancingTarget(medium, chunk, maxFillFactor);
 
     if (target) {
         AddSessionHint(target, ESessionType::Replication);
@@ -408,12 +417,13 @@ TNode* TChunkPlacement::AllocateBalancingTarget(
 }
 
 TNode* TChunkPlacement::GetBalancingTarget(
-    int mediumIndex,
+    TMedium* medium,
     TChunk* chunk,
     double maxFillFactor)
 {
-    int maxReplicasPerRack = GetMaxReplicasPerRack(chunk, mediumIndex, Null);
-    TTargetCollector collector(chunk, mediumIndex, maxReplicasPerRack, nullptr);
+    int mediumIndex = medium->GetIndex();
+    int maxReplicasPerRack = GetMaxReplicasPerRack(mediumIndex, chunk, Null);
+    TTargetCollector collector(medium, chunk, maxReplicasPerRack, nullptr);
 
     for (const auto& pair : MediumToFillFactorToNode_[mediumIndex]) {
         auto* node = pair.second;
@@ -422,7 +432,7 @@ TNode* TChunkPlacement::GetBalancingTarget(
         if (*nodeFillFactor > maxFillFactor) {
             break;
         }
-        if (IsValidBalancingTarget(mediumIndex, node, chunk->GetType(), &collector, true)) {
+        if (IsValidBalancingTarget(medium, node, &collector, true)) {
             return node;
         }
     }
@@ -431,7 +441,7 @@ TNode* TChunkPlacement::GetBalancingTarget(
 }
 
 bool TChunkPlacement::IsValidWriteTarget(
-    int mediumIndex,
+    TMedium* medium,
     TNode* node)
 {
     if (node->GetLocalState() != ENodeState::Online) {
@@ -439,8 +449,9 @@ bool TChunkPlacement::IsValidWriteTarget(
         return false;
     }
 
-    if (node->IsFull(mediumIndex)) {
-        // Do not write anything to full nodes.
+    int mediumIndex = medium->GetIndex();
+    if (!node->IsWriteEnabled(mediumIndex)) {
+        // Do not write anything to nodes not accepting writes.
         return false;
     }
     
@@ -459,25 +470,18 @@ bool TChunkPlacement::IsValidWriteTarget(
 }
 
 bool TChunkPlacement::IsValidWriteTarget(
-    int mediumIndex,
+    TMedium* medium,
     TNode* node,
-    EObjectType chunkType,
     TTargetCollector* collector,
     bool enableRackAwareness)
 {
     // Check node first.
-    if (!IsValidWriteTarget(mediumIndex, node)) {
+    if (!IsValidWriteTarget(medium, node)) {
         return false;
     }
 
-    if (!IsAcceptedChunkType(mediumIndex, node, chunkType)) {
-        // Do not write anything to nodes not accepting this type of chunks.
-        return false;
-    }
-
-    auto* medium = Bootstrap_->GetChunkManager()->FindMediumByIndex(mediumIndex);
-    if (!medium || medium->GetCache()) {
-        // Direct writing to cache locations is not allowed.
+    if (medium->GetCache()) {
+        // Direct writes to cache locations is not allowed.
         return false;
     }
 
@@ -491,11 +495,11 @@ bool TChunkPlacement::IsValidWriteTarget(
 }
 
 bool TChunkPlacement::IsValidBalancingTarget(
-    int mediumIndex,
+    TMedium* medium,
     TNode* node)
 {
     // Balancing implies write, after all.
-    if (!IsValidWriteTarget(mediumIndex, node)) {
+    if (!IsValidWriteTarget(medium, node)) {
         return false;
     }
 
@@ -509,19 +513,18 @@ bool TChunkPlacement::IsValidBalancingTarget(
 }
 
 bool TChunkPlacement::IsValidBalancingTarget(
-    int mediumIndex,
+    TMedium* medium,
     TNode* node,
-    NObjectClient::EObjectType chunkType,
     TTargetCollector* collector,
     bool enableRackAwareness)
 {
     // Check node first.
-    if (!IsValidBalancingTarget(mediumIndex, node)) {
+    if (!IsValidBalancingTarget(medium, node)) {
         return false;
     }
 
     // Balancing implies write, after all.
-    if (!IsValidWriteTarget(mediumIndex, node, chunkType, collector, enableRackAwareness)) {
+    if (!IsValidWriteTarget(medium, node, collector, enableRackAwareness)) {
         return false;
     }
 
@@ -540,7 +543,7 @@ bool TChunkPlacement::IsValidRemovalTarget(TNode* node)
 }
 
 std::vector<TChunkPtrWithIndexes> TChunkPlacement::GetBalancingChunks(
-    int mediumIndex,
+    TMedium* medium,
     TNode* node,
     int replicaCount)
 {
@@ -552,6 +555,7 @@ std::vector<TChunkPtrWithIndexes> TChunkPlacement::GetBalancingChunks(
 
     // Let's bound the number of iterations somehow.
     // Never consider more chunks than the node has to avoid going into a loop (cf. YT-4258).
+    int mediumIndex = medium->GetIndex();
     int iterationCount = std::min(replicaCount * 2, static_cast<int>(node->Replicas()[mediumIndex].size()));
     for (int index = 0; index < iterationCount; ++index) {
         auto replica = node->PickRandomReplica(mediumIndex);
@@ -581,20 +585,6 @@ std::vector<TChunkPtrWithIndexes> TChunkPlacement::GetBalancingChunks(
     return result;
 }
 
-bool TChunkPlacement::IsAcceptedChunkType(int mediumIndex, TNode* node, EObjectType type)
-{
-    for (const auto& statistics : node->Statistics().media()) {
-        if (statistics.medium_index() == mediumIndex) {
-            for (auto acceptedType : statistics.accepted_chunk_types()) {
-                if (EObjectType(acceptedType) == type) {
-                    return true;
-                }
-            }
-        }
-    }
-    return false;
-}
-
 void TChunkPlacement::AddSessionHint(TNode* node, ESessionType sessionType)
 {
     node->AddSessionHint(sessionType);
@@ -608,8 +598,8 @@ void TChunkPlacement::AddSessionHint(TNode* node, ESessionType sessionType)
 }
 
 int TChunkPlacement::GetMaxReplicasPerRack(
-    TChunk* chunk,
     int mediumIndex,
+    TChunk* chunk,
     TNullable<int> replicationFactorOverride)
 {
     int result = chunk->GetMaxReplicasPerRack(mediumIndex, replicationFactorOverride);

@@ -229,7 +229,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
 
         if (rack) {
             int rackIndex = rack->GetIndex();
-            int maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(chunk, mediumIndex, Null);
+            int maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(mediumIndex, chunk, Null);
             if (++perRackReplicaCounters[mediumIndex][rackIndex] > maxReplicasPerRack) {
                 hasUnsafelyPlacedReplicas[mediumIndex] = true;
             }
@@ -399,7 +399,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
         const auto* rack = node->GetRack();
         if (rack) {
             int rackIndex = rack->GetIndex();
-            int maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(chunk, mediumIndex);
+            int maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(mediumIndex, chunk);
             if (++perRackReplicaCounters[mediumIndex][rackIndex] > maxReplicasPerRack) {
                 // A erasure chunk is considered placed unsafely if some non-null rack
                 // contains more replicas than returned by TChunk::GetMaxReplicasPerRack.
@@ -669,7 +669,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
         const auto* rack = replica.GetPtr()->GetRack();
         if (rack) {
             int rackIndex = rack->GetIndex();
-            int maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(chunk, mediumIndex, Null);
+            int maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(mediumIndex, chunk, Null);
             if (++perRackReplicaCounters[rackIndex] > maxReplicasPerRack) {
                 // A journal chunk is considered placed unsafely if some non-null rack
                 // contains more replicas than returned by TChunk::GetMaxReplicasPerRack.
@@ -917,7 +917,7 @@ TJobId TChunkReplicator::GenerateJobId()
 bool TChunkReplicator::CreateReplicationJob(
     TNode* sourceNode,
     TChunkPtrWithIndexes chunkWithIndexes,
-    int targetMediumIndex,
+    TMedium* targetMedium,
     TJobPtr* job)
 {
     auto* chunk = chunkWithIndexes.GetPtr();
@@ -936,6 +936,7 @@ bool TChunkReplicator::CreateReplicationJob(
         return true;
     }
 
+    int targetMediumIndex = targetMedium->GetIndex();
     auto replicationFactor = chunk->ComputeReplicationFactor(targetMediumIndex);
     auto statistics = ComputeChunkStatistics(chunk);
     const auto& mediumStatistics = statistics.PerMediumStatistics[targetMediumIndex];
@@ -964,7 +965,7 @@ bool TChunkReplicator::CreateReplicationJob(
     }
 
     auto targetNodes = ChunkPlacement_->AllocateWriteTargets(
-        targetMediumIndex,
+        targetMedium,
         chunk,
         replicasNeeded,
         1,
@@ -1014,7 +1015,10 @@ bool TChunkReplicator::CreateBalancingJob(
     auto replicaIndex = chunkWithIndexes.GetReplicaIndex();
     auto mediumIndex = chunkWithIndexes.GetMediumIndex();
 
-    auto* targetNode = ChunkPlacement_->AllocateBalancingTarget(mediumIndex, chunk, maxFillFactor);
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+    auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
+
+    auto* targetNode = ChunkPlacement_->AllocateBalancingTarget(medium, chunk, maxFillFactor);
     if (!targetNode) {
         return false;
     }
@@ -1080,6 +1084,9 @@ bool TChunkReplicator::CreateRepairJob(
     auto* chunk = chunkWithIndexes.GetPtr();
     int mediumIndex = chunkWithIndexes.GetMediumIndex();
 
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+    auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
+
     YCHECK(chunk->IsErasure());
 
     if (!IsObjectAlive(chunk)) {
@@ -1117,7 +1124,7 @@ bool TChunkReplicator::CreateRepairJob(
     }
 
     auto targetNodes = ChunkPlacement_->AllocateWriteTargets(
-        mediumIndex,
+        medium,
         chunk,
         erasedPartCount,
         erasedPartCount,
@@ -1230,6 +1237,8 @@ void TChunkReplicator::ScheduleNewJobs(
     };
 
     if (IsEnabled()) {
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+
         // Schedule replication jobs.
         for (auto& queue : node->ChunkReplicationQueues()) {
             auto it = queue.begin();
@@ -1240,7 +1249,8 @@ void TChunkReplicator::ScheduleNewJobs(
                 for (int mediumIndex = 0; mediumIndex < mediumIndexSet.size(); ++mediumIndex) {
                     if (mediumIndexSet.test(mediumIndex)) {
                         TJobPtr job;
-                        if (CreateReplicationJob(node, chunkWithIndexes, mediumIndex, &job)) {
+                        auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
+                        if (CreateReplicationJob(node, chunkWithIndexes, medium, &job)) {
                             mediumIndexSet.reset(mediumIndex);
                         }
                         registerJob(std::move(job));
@@ -1316,11 +1326,10 @@ void TChunkReplicator::ScheduleNewJobs(
             double targetFillFactor = *sourceFillFactor - Config_->MinBalancingFillFactorDiff;
             if (hasSpareReplicationResources() &&
                 *sourceFillFactor > Config_->MinBalancingFillFactor &&
-                ChunkPlacement_->HasBalancingTargets(mediumIndex, targetFillFactor))
+                ChunkPlacement_->HasBalancingTargets(medium, targetFillFactor))
             {
                 int maxJobs = std::max(0, resourceLimits.replication_slots() - resourceUsage.replication_slots());
-                auto chunksToBalance =
-                    ChunkPlacement_->GetBalancingChunks(mediumIndex, node, maxJobs);
+                auto chunksToBalance = ChunkPlacement_->GetBalancingChunks(medium, node, maxJobs);
                 for (auto chunkWithIndexes : chunksToBalance) {
                     if (!hasSpareReplicationResources()) {
                         break;
