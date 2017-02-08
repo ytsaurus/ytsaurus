@@ -54,9 +54,11 @@ def main():
     dirs = []
     links = set()
     aux_objects = yt.search(args.directory,
-                            object_filter=lambda obj: obj.attributes["type"] in ["list", "map_node", "list_node"],
-                            attributes=["modification_time", "count", "type"])
+                            object_filter=lambda obj: obj.attributes["type"] in ["link", "map_node", "list_node"],
+                            attributes=["modification_time", "count", "type", "account"])
     for obj in aux_objects:
+        if args.do_not_remove_objects_with_other_account and obj.attributes.get("account") != args.account:
+            continue
         if obj.attributes["type"] == "link":
             links.add(str(obj))
         else: #dir case
@@ -136,7 +138,9 @@ def main():
                 raise
 
     # check broken links
-    for obj in yt.search(args.directory, node_type=["link"], attributes=["broken"]):
+    for obj in yt.search(args.directory, node_type=["link"], attributes=["broken", "account"]):
+        if args.do_not_remove_objects_with_other_account and obj.attributes.get("account") != args.account:
+            continue
         if str(obj.attributes["broken"]) == "true":
             logger.warning("Removing broken link %s", obj)
             yt.remove(obj, force=True)
