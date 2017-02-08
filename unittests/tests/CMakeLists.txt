@@ -1,6 +1,6 @@
 PYTEST()
 
-SIZE(medium)
+SIZE(MEDIUM)
 
 TIMEOUT(180)
 
