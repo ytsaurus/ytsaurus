@@ -80,6 +80,9 @@ void TColumnEvaluator::EvaluateKey(TMutableRow fullRow, const TRowBufferPtr& buf
     const auto& evaluator = column.Evaluator;
     YCHECK(evaluator);
 
+    // Zeroizing row to avoid garbage after evaluator.
+    fullRow[index] = MakeUnversionedSentinelValue(EValueType::Null);
+
     evaluator(
         column.Variables.GetOpaqueData(),
         &fullRow[index],

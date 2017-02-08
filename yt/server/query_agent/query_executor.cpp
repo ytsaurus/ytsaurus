@@ -355,6 +355,8 @@ private:
         std::vector<TDataRanges> rangesByTablePart;
         std::vector<TDataKeys> keysByTablePart;
 
+        auto rowBuffer = New<TRowBuffer>(TQuerySubexecutorBufferTag());
+
         auto keySize = Query_->OriginalSchema.GetKeyColumnCount();
         size_t rangesCount = 0;
         for (const auto& source : dataSources) {
@@ -377,6 +379,25 @@ private:
                 }
             }
 
+            for (const auto& key : source.Keys) {
+                auto rowSize = key.GetCount();
+                if (source.LookupSupported &&
+                    keySize == key.GetCount())
+                {
+                    keys.push_back(key);
+                } else {
+                    auto lowerBound = key;
+
+                    auto upperBound = rowBuffer->Allocate(rowSize + 1);
+                    for (int column = 0; column < rowSize; ++column) {
+                        upperBound[column] = lowerBound[column];
+                    }
+
+                    upperBound[rowSize] = MakeUnversionedSentinelValue(EValueType::Max);
+                    rowRanges.emplace_back(lowerBound, upperBound);
+                }
+            }
+
             if (!rowRanges.empty()) {
                 rangesCount += rowRanges.size();
                 TDataRanges item;
@@ -395,7 +416,7 @@ private:
 
         LOG_DEBUG("Splitting %v ranges", rangesCount);
 
-        auto splits = Split(std::move(rangesByTablePart));
+        auto splits = Split(std::move(rangesByTablePart), rowBuffer);
         int splitCount = splits.Size();
         int splitOffset = 0;
         std::vector<TSharedRange<TDataRange>> groupedSplits;
@@ -467,8 +488,15 @@ private:
             const auto& tablePartId = keySource.Id;
             auto& keys = keySource.Keys;
 
-            refiners.push_back([&] (TConstExpressionPtr expr, const TKeyColumns& keyColumns) {
-                return EliminatePredicate(keys, expr, keyColumns);
+            refiners.push_back([&, inferRanges = Query_->InferRanges] (
+                TConstExpressionPtr expr, const
+                TKeyColumns& keyColumns)
+            {
+                if (inferRanges) {
+                    return EliminatePredicate(keys, expr, keyColumns);
+                } else {
+                    return expr;
+                }
             });
             subreaderCreators.push_back([&, MOVE(keys)] () {
                 std::function<ISchemafulReaderPtr()> bottomSplitReaderGenerator;
@@ -500,7 +528,38 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager, maybeUser);
 
-        auto splits = Split(std::move(dataSources));
+        auto rowBuffer = New<TRowBuffer>(TQuerySubexecutorBufferTag());
+        std::vector<TDataRanges> rangesByTablePart;
+
+        for (const auto& source : dataSources) {
+            TRowRanges rowRanges;
+
+            for (const auto& range : source.Ranges) {
+                rowRanges.push_back(range);
+            }
+
+            for (const auto& key : source.Keys) {
+                auto rowSize = key.GetCount();
+                auto lowerBound = key;
+
+                auto upperBound = rowBuffer->Allocate(rowSize + 1);
+                for (int column = 0; column < rowSize; ++column) {
+                    upperBound[column] = lowerBound[column];
+                }
+
+                upperBound[rowSize] = MakeUnversionedSentinelValue(EValueType::Max);
+                rowRanges.emplace_back(lowerBound, upperBound);
+
+            }
+
+            TDataRanges item;
+            item.Id = source.Id;
+            item.Ranges = MakeSharedRange(std::move(rowRanges), source.Ranges.GetHolder());
+            item.LookupSupported = source.LookupSupported;
+            rangesByTablePart.emplace_back(std::move(item));
+        }
+
+        auto splits = Split(std::move(rangesByTablePart), rowBuffer);
 
         LOG_DEBUG("Sorting %v splits", splits.Size());
 
@@ -520,8 +579,15 @@ private:
         std::vector<TSubreaderCreator> subreaderCreators;
 
         for (const auto& dataSplit : splits) {
-            refiners.push_back([&] (TConstExpressionPtr expr, const TKeyColumns& keyColumns) {
-                return EliminatePredicate(MakeRange(&dataSplit.Range, 1), expr, keyColumns);
+            refiners.push_back([&, inferRanges = Query_->InferRanges] (
+                TConstExpressionPtr expr,
+                const TKeyColumns& keyColumns)
+            {
+                if (inferRanges) {
+                    return EliminatePredicate(MakeRange(&dataSplit.Range, 1), expr, keyColumns);
+                } else {
+                    return expr;
+                }
             });
             subreaderCreators.push_back([&] () {
                 return GetReader(dataSplit.Id, dataSplit.Range);
@@ -536,9 +602,8 @@ private:
     }
 
     // TODO(lukyan): Use mutable shared range
-    TSharedMutableRange<TDataRange> Split(std::vector<TDataRanges> rangesByTablePart)
+    TSharedMutableRange<TDataRange> Split(std::vector<TDataRanges> rangesByTablePart, TRowBufferPtr rowBuffer)
     {
-        auto rowBuffer = New<TRowBuffer>(TQuerySubexecutorBufferTag());
         std::vector<TDataRange> allSplits;
 
         for (auto& tablePartIdRange : rangesByTablePart) {

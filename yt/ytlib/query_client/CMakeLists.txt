@@ -38,14 +38,15 @@ udf_bc(
     regex_extract
     regex_escape
 )
-udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/is_substr.c YT_SOURCE_FILES )
-udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/is_prefix.c YT_SOURCE_FILES )
-udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/concat.c YT_SOURCE_FILES )
-udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/sleep.c YT_SOURCE_FILES )
-udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/min.c YT_SOURCE_FILES )
-udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/max.c YT_SOURCE_FILES )
-udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/sum.c YT_SOURCE_FILES )
 udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/avg.c YT_SOURCE_FILES )
+udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/concat.c YT_SOURCE_FILES )
+udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/first.c YT_SOURCE_FILES )
+udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/is_prefix.c YT_SOURCE_FILES )
+udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/is_substr.c YT_SOURCE_FILES )
+udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/max.c YT_SOURCE_FILES )
+udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/min.c YT_SOURCE_FILES )
+udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/sleep.c YT_SOURCE_FILES )
+udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/sum.c YT_SOURCE_FILES )
 
 udf_bc(
   ${CMAKE_CURRENT_LIST_DIR}/udf/ypath_get.c

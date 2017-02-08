@@ -388,13 +388,13 @@ TJobResult TJobProxy::DoRun()
     InputNodeDirectory_->MergeFrom(schedulerJobSpecExt.input_node_directory());
 
     HeartbeatExecutor_ = New<TPeriodicExecutor>(
-        GetSyncInvoker(),
+        JobThread_->GetInvoker(),
         BIND(&TJobProxy::SendHeartbeat, MakeWeak(this)),
         Config_->HeartbeatPeriod);
 
     auto jobEnvironmentConfig = ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment);
     MemoryWatchdogExecutor_ = New<TPeriodicExecutor>(
-        GetSyncInvoker(),
+        JobThread_->GetInvoker(),
         BIND(&TJobProxy::CheckMemoryUsage, MakeWeak(this)),
         jobEnvironmentConfig->MemoryWatchdogPeriod);
 
