@@ -118,7 +118,7 @@ class TestYamrMode(object):
         assert proc.returncode == 0
 
         env["ENABLE_SCHEMA"] = "1"
-        yt.remove("//home/wrapper_tests", recursive=True)
+        yt.remove("//home/wrapper_tests", recursive=True, force=True)
         proc = subprocess.Popen([test_binary], env=env, cwd=binaries_dir)
         proc.communicate()
         assert proc.returncode == 0

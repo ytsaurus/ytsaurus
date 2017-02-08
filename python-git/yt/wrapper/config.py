@@ -222,6 +222,9 @@ class Config(types.ModuleType, client_state.ClientState):
             # Some shortcuts can't be backported one-to-one so they are processed manually
             elif key == "MERGE_INSTEAD_WARNING":
                 self._set("auto_merge_output/action", "merge" if int(value) else "log")
+            elif key == "CREATE_TABLES_UNDER_TRANSACTION":
+                print(value, bool(int(value)), file=sys.stderr)
+                self._set("yamr_mode/create_tables_outside_of_transaction", not bool(int(value)))
 
 
     # NB: Method required for compatibility
