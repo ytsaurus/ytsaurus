@@ -1,7 +1,7 @@
 from . import yson_types
 from .yson_token import *
 
-from .common import YsonParseError
+from .common import raise_yson_error, YsonError
 
 from yt.packages.six.moves import xrange
 from yt.packages.six import int2byte, iterbytes
@@ -136,7 +136,7 @@ class YsonLexer(object):
         for i in xrange(char_count):
             ch = self._read_char(True)
             if not ch:
-                raise YsonParseError(
+                raise_yson_error(
                     "Premature end-of-stream while reading byte %d out of %d" % (i + 1, char_count),
                     self.get_position_info())
             result.append(ch)
@@ -145,11 +145,11 @@ class YsonLexer(object):
     def _expect_char(self, expected_ch):
         read_ch = self._read_char()
         if not read_ch:
-            raise YsonParseError(
+            raise_yson_error(
                 "Premature end-of-stream expecting '%s' in Yson" % expected_ch,
                 self.get_position_info())
         if read_ch != expected_ch:
-            raise YsonParseError(
+            raise_yson_error(
                 "Found '%s' while expecting '%s' in Yson" % (read_ch, expected_ch),
                 self.get_position_info())
 
@@ -160,7 +160,7 @@ class YsonLexer(object):
     def _read_string(self):
         ch = self._peek_char()
         if not ch:
-            raise YsonParseError(
+            raise_yson_error(
                 "Premature end-of-stream while expecting string literal in Yson",
                 self.get_position_info())
         if ch == STRING_MARKER:
@@ -168,7 +168,7 @@ class YsonLexer(object):
         if ch == b'"':
             return self._read_quoted_string()
         if not ch.isalpha() and not ch == b"_" and not ch == b"%":
-            raise YsonParseError(
+            raise_yson_error(
                 "Expecting string literal but found %s in Yson" % ch,
                 self.get_position_info())
         return self._read_unquoted_string()
@@ -185,13 +185,13 @@ class YsonLexer(object):
         while read_next:
             ch = self._read_char()
             if not ch:
-                raise YsonParseError(
+                raise_yson_error(
                     "Premature end-of-stream while reading varinteger in Yson",
                     self.get_position_info())
             byte = ord(ch)
             result |= (byte & 0x7F) << (7 * count)
             if result > 2 ** 64 - 1:
-                raise YsonParseError(
+                raise_yson_error(
                     "Varinteger is too large for Int64 in Yson",
                     self.get_position_info())
             count += 1
@@ -206,7 +206,7 @@ class YsonLexer(object):
         while True:
             ch = self._read_char()
             if not ch:
-                raise YsonParseError(
+                raise_yson_error(
                     "Premature end-of-stream while reading string literal in Yson",
                     self.get_position_info())
             if ch == b'"' and not pending_next_char:
@@ -247,7 +247,7 @@ class YsonLexer(object):
             self._read_char()
             result.append(ch)
         if not result:
-            raise YsonParseError(
+            raise_yson_error(
                 "Premature end-of-stream while parsing numeric literal in Yson",
                 self.get_position_info())
         return b"".join(result)
@@ -260,16 +260,16 @@ class YsonLexer(object):
         self._expect_char(b"%")
         ch = self._peek_char()
         if ch not in [b"f", b"t"]:
-            raise YsonParseError("Found '%s' while expecting 'f' or 't'" % ch)
+            raise YsonError("Found '%s' while expecting 'f' or 't'" % ch)
         if ch == b"f":
             str = self._read_binary_chars(5)
             if str != b"false":
-                raise YsonParseError("Incorrect boolean value '%s', expected 'false'" % str)
+                raise YsonError("Incorrect boolean value '%s', expected 'false'" % str)
             return False
         if ch == b"t":
             str = self._read_binary_chars(4)
             if str != b"true":
-                raise YsonParseError("Incorrect boolean value '%s', expected 'true'" % str)
+                raise YsonError("Incorrect boolean value '%s', expected 'true'" % str)
             return True
         return None
 
@@ -302,7 +302,7 @@ class YsonLexer(object):
                 if result > 2 ** 63 - 1 or result < -(2 ** 63):
                     raise ValueError()
             except ValueError:
-                raise YsonParseError(
+                raise_yson_error(
                     "Failed to parse Int64 literal %s in Yson" % string,
                     self.get_position_info())
         elif numeric_type == _SEEMS_UINT64:
@@ -315,14 +315,14 @@ class YsonLexer(object):
                 if result > 2 ** 64 - 1:
                     raise ValueError()
             except ValueError:
-                raise YsonParseError(
+                raise_yson_error(
                     "Failed to parse Uint64 literal %s in Yson" % string,
                     self.get_position_info())
         else:
             try:
                 result = float(string)
             except ValueError:
-                raise YsonParseError(
+                raise_yson_error(
                     "Failed to parse Double literal %s in Yson" % string,
                     self.get_position_info())
         return result

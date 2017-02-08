@@ -1,5 +1,5 @@
 from . import convert
-from .common import YsonParseError, StreamWrap
+from .common import raise_yson_error, StreamWrap
 
 from .tokenizer import YsonTokenizer
 from .yson_token import *
@@ -34,7 +34,7 @@ class YsonParser(object):
             self._tokenizer.get_current_token().expect_type(TOKEN_STRING)
             key = self._tokenizer.get_current_token().get_value()
             if not key:
-                raise YsonParseError(
+                raise_yson_error(
                     "Empty attribute name in Yson",
                     self._tokenizer.get_position_info())
             self._tokenizer.parse_next()
@@ -42,7 +42,7 @@ class YsonParser(object):
             self._tokenizer.parse_next()
             value = self._parse_any()
             if key in result:
-                raise YsonParseError(
+                raise_yson_error(
                     "Repeated attribute '%s' in Yson" % key,
                     self._tokenizer.get_position_info())
             result[key] = value
@@ -83,7 +83,7 @@ class YsonParser(object):
             self._tokenizer.parse_next()
             value = self._parse_any()
             if key in result:
-                raise YsonParseError(
+                raise_yson_error(
                     "Repeated map key '%s' in Yson" % key,
                     self._tokenizer.get_position_info())
             result[key] = value
@@ -103,7 +103,7 @@ class YsonParser(object):
             self._tokenizer.parse_next()
 
         if self._tokenizer.get_current_type() == TOKEN_END_OF_STREAM:
-            raise YsonParseError(
+            raise_yson_error(
                 "Premature end-of-stream in Yson",
                 self._tokenizer.get_position_info())
 
@@ -118,7 +118,7 @@ class YsonParser(object):
 
         else:
             self._tokenizer.get_current_token().expect_type((TOKEN_BOOLEAN, TOKEN_INT64, TOKEN_UINT64,
-                                                  TOKEN_STRING, TOKEN_DOUBLE))
+                                                             TOKEN_STRING, TOKEN_DOUBLE))
             result = self._tokenizer.get_current_token().get_value()
 
         return convert.to_yson_type(result, attributes, self._always_create_attributes)
@@ -153,5 +153,7 @@ def load(stream, yson_type=None, encoding=_ENCODING_SENTINEL, always_create_attr
 
 def loads(string, yson_type=None, encoding=_ENCODING_SENTINEL, always_create_attributes=True):
     """Deserializes object from YSON formatted string `string`. See :func:`load <.load>`."""
+    if type(string) is text_type and PY3:
+        raise YsonError("Only binary streams are supported by YSON parser")
     return load(BytesIO(string), yson_type, encoding=encoding,
                 always_create_attributes=always_create_attributes)

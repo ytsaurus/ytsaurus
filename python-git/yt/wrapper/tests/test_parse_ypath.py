@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 from yt.wrapper.etc_commands import make_parse_ypath_request
-from yt.yson.parser import YsonParseError
+from yt.yson.parser import YsonError
 from yt.wrapper import YtHttpResponseError, YtError, YtResponseError
 from yt.ypath import YPathError, parse_ypath
 
@@ -84,7 +84,7 @@ class TestParseYpath(object):
         for path in FAILED_TEST_PATHS:
             with pytest.raises((YtHttpResponseError, YtResponseError)):
                 make_parse_ypath_request(path)
-            with pytest.raises((YtError, TypeError, YsonParseError, YPathError)):
+            with pytest.raises((YtError, TypeError, YsonError, YPathError)):
                 parse_ypath(path)
 
     def test_speed(self):

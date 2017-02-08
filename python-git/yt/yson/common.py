@@ -8,14 +8,9 @@ class YsonError(YtError):
 def _format_message(message, line_index, position, offset):
     return "{0} (Line: {1}, Position: {2}, Offset: {3})".format(message, line_index, position, offset)
 
-class YsonParseError(ValueError):
-    def __init__(self, message="", position_info=(0, 0, 0)):
-        line_index, position, offset = position_info
-        ValueError.__init__(self, _format_message(message, line_index, position, offset))
-        self.message = message
-        self.line_index = line_index
-        self.position = position
-        self.offset = offset
+def raise_yson_error(message, position_info):
+    line_index, position, offset = position_info
+    raise YsonError(_format_message(message, line_index, position, offset))
 
 class StreamWrap(object):
     def __init__(self, stream, header, footer):
