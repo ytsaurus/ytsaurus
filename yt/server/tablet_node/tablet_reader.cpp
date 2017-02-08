@@ -160,14 +160,18 @@ ISchemafulReaderPtr CreateSchemafulOrderedTabletReader(
     i64 lowerRowIndex = 0;
     i64 upperRowIndex = std::numeric_limits<i64>::max();
     if (lowerBound < upperBound) {
-        YCHECK(lowerBound[0].Type == EValueType::Int64);
-        tabletIndex = static_cast<int>(lowerBound[0].Data.Int64);
+        if (lowerBound[0].Type == EValueType::Min) {
+            tabletIndex = 0;
+        } else {
+            YCHECK(lowerBound[0].Type == EValueType::Int64);
+            tabletIndex = static_cast<int>(lowerBound[0].Data.Int64);
+        }
 
         YCHECK(upperBound[0].Type == EValueType::Int64 ||
                upperBound[0].Type == EValueType::Max);
         YCHECK(upperBound[0].Type != EValueType::Int64 ||
-               lowerBound[0].Data.Int64 == upperBound[0].Data.Int64 ||
-               lowerBound[0].Data.Int64 + 1 == upperBound[0].Data.Int64);
+               tabletIndex == upperBound[0].Data.Int64 ||
+               tabletIndex + 1 == upperBound[0].Data.Int64);
 
         if (lowerBound.GetCount() >= 2) {
             lowerRowIndex = valueToInt(lowerBound[1]);
