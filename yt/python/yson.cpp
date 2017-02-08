@@ -27,7 +27,6 @@ Py::Exception CreateYsonError(const Stroka& message, const NYT::TError& error = 
     auto ysonErrorClass = Py::Callable(GetAttr(ysonModule, "YsonError"));
 
     std::vector<TError> innerErrors({error});
-
     Py::Dict options;
     options.setItem("message", ConvertTo<Py::Object>(message));
     options.setItem("code", ConvertTo<Py::Object>(1));
@@ -230,7 +229,7 @@ public:
         auto stringArgument = ExtractArgument(args, kwargs, "string");
 #if PY_MAJOR_VERSION >= 3
         if (PyUnicode_Check(stringArgument.ptr())) {
-            throw Py::TypeError("Only binary strings parsing is supported, got unicode");
+            throw CreateYsonError("Only binary strings parsing is supported, got unicode");
         }
 #endif
         auto string = ConvertStringObjectToStroka(stringArgument);
@@ -330,7 +329,7 @@ private:
             auto arg = ExtractArgument(args, kwargs, "encoding");
             if (!arg.isNone()) {
 #if PY_MAJOR_VERSION < 3
-                throw Py::RuntimeError("Encoding parameter is not supported for Python 2");
+                throw CreateYsonError("Encoding parameter is not supported for Python 2");
 #else
                 encoding = ConvertStringObjectToStroka(arg);
 #endif
@@ -438,7 +437,7 @@ private:
         if (HasArgument(args, kwargs, "indent")) {
             auto arg = Py::Int(ExtractArgument(args, kwargs, "indent"));
             if (arg > maxIndentValue) {
-                throw Py::ValueError(Format("Indent value exceeds indentation limit (%d)", maxIndentValue));
+                throw CreateYsonError(Format("Indent value exceeds indentation limit (%d)", maxIndentValue));
             }
             indent = static_cast<int>(Py::Long(arg).as_long());
         }
@@ -493,7 +492,7 @@ private:
             }
 
             default:
-                throw CreateYsonError(ToString(ysonType) + " is not supported");
+                throw CreateYsonError("YSON type " + ToString(ysonType) + " is not supported");
         }
 
         writer->Flush();
