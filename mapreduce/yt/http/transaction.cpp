@@ -17,7 +17,7 @@ TPingableTransaction::TPingableTransaction(
     bool pingAncestors,
     const TMaybe<TNode>& attributes)
     : Auth_(auth)
-    , Thread_(Pinger, (void*)this)
+    , Thread_(TThread::TParams{Pinger, (void*)this}.SetName("pingable_tx"))
 {
     TransactionId_ = StartTransaction(
         auth,

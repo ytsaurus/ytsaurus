@@ -40,7 +40,7 @@ public:
         , WriteTransaction_(auth, parentId)
         , Buffer_(BufferSize_ * 2)
         , BufferOutput_(Buffer_)
-        , Thread_(SendThread, this)
+        , Thread_(TThread::TParams{SendThread, this}.SetName("block_writer"))
     {
         Parameters_ = FormIORequestParameters(path, options);
 
