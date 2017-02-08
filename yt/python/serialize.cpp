@@ -9,6 +9,7 @@
 
 #include <numeric>
 
+
 namespace NYT {
 
 namespace {
@@ -38,7 +39,15 @@ Py::Callable GetYsonType(const std::string& name)
     return Py::Callable(GetAttr(ysonTypesModule, name));
 }
 
-
+Py::Exception CreateYsonError(const std::string& message)
+{
+    static Py::Callable ysonErrorClass;
+    if (ysonErrorClass.isNone()) {
+        auto ysonModule = Py::Module(PyImport_ImportModule("yt.yson.common"), true);
+        ysonErrorClass = Py::Callable(GetAttr(ysonModule, "YsonError"));
+    }
+    return Py::Exception(*ysonErrorClass, message);
+}
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace
@@ -53,7 +62,6 @@ Py::Object CreateYsonObject(const std::string& className, const Py::Object& obje
     result.setAttr("attributes", attributes);
     return result;
 }
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NPython
@@ -66,15 +74,15 @@ Py::Bytes EncodeStringObject(const Py::Object& obj, const TNullable<Stroka>& enc
 {
     if (PyUnicode_Check(obj.ptr())) {
         if (!encoding) {
-            throw Py::RuntimeError(Format("Cannot encode unicode object %s to bytes since 'encoding' parameter "
-                                          "is None", Py::Repr(obj)));
+            throw CreateYsonError(Format("Cannot encode unicode object %s to bytes since 'encoding' parameter "
+                                         "is None", Py::Repr(obj)));
         }
         return Py::Bytes(PyUnicode_AsEncodedString(obj.ptr(), ~encoding.Get(), "strict"), true);
     } else {
 #if PY_MAJOR_VERSION >= 3
         if (encoding) {
-            throw Py::RuntimeError(Format("Bytes object %s cannot be encoded to %s. Only unicode strings are "
-                                          "expected if 'encoding' parameter is not None", Py::Repr(obj), encoding));
+            throw CreateYsonError(Format("Bytes object %s cannot be encoded to %s. Only unicode strings are "
+                                         "expected if 'encoding' parameter is not None", Py::Repr(obj), encoding));
         }
 #endif
         return Py::Bytes(PyObject_Bytes(*obj), true);
@@ -98,7 +106,7 @@ void SerializeMapFragment(
         auto value = Py::Object(PyTuple_GET_ITEM(item, 1), false);
 
         if (!PyBytes_Check(key.ptr()) && !PyUnicode_Check(key.ptr())) {
-            throw Py::RuntimeError(Format("Map key should be string, found '%s'", Py::Repr(key)));
+            throw CreateYsonError(Format("Map key should be string, found '%s'", Py::Repr(key)));
         }
 
         consumer->OnKeyedItem(ConvertToStringBuf(EncodeStringObject(key, encoding)));
@@ -118,7 +126,7 @@ void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer)
     if (PyObject_RichCompareBool(UnsignedInt64Max.ptr(), obj.ptr(), Py_LT) == 1 ||
         PyObject_RichCompareBool(obj.ptr(), SignedInt64Min.ptr(), Py_LT) == 1)
     {
-        throw Py::RuntimeError(
+        throw CreateYsonError(
             "Integer " + Py::Repr(obj) +
             " cannot be serialized to YSON since it is out of range [-2^63, 2^64 - 1]");
     }
@@ -151,13 +159,13 @@ void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer)
     } else if (IsInstance(obj, YsonUint64Class)) {
         auto value = static_cast<ui64>(Py::LongLong(obj));
         if (PyErr_Occurred()) {
-            throw Py::RuntimeError("Can not dump negative integer as YSON uint64");
+            throw CreateYsonError("Can not dump negative integer as YSON uint64");
         }
         consumer->OnUint64Scalar(value);
     } else if (IsInstance(obj, YsonInt64Class)) {
         auto value = static_cast<i64>(Py::LongLong(obj));
         if (PyErr_Occurred()) {
-            throw Py::RuntimeError("Can not dump integer as YSON int64");
+            throw CreateYsonError("Can not dump integer as YSON int64");
         }
         consumer->OnInt64Scalar(value);
     } else {
@@ -179,7 +187,7 @@ void Serialize(
     if ((!ignoreInnerAttributes || depth == 0) && obj.hasAttr(attributesStr)) {
         auto attributeObject = obj.getAttr(attributesStr);
         if ((!attributeObject.isMapping() && !attributeObject.isNone()) || attributeObject.isSequence())  {
-            throw Py::RuntimeError("Invalid field 'attributes', it is neither mapping nor None");
+            throw CreateYsonError("Invalid field 'attributes', it is neither mapping nor None");
         }
         if (!attributeObject.isNone()) {
             auto attributes = Py::Mapping(attributeObject);
@@ -224,7 +232,7 @@ void Serialize(
     } else if (obj.isNone() || IsInstance(obj, YsonEntityClass)) {
         consumer->OnEntity();
     } else {
-        throw Py::RuntimeError(
+        throw CreateYsonError(
             "Value " + Py::Repr(obj) +
             " cannot be serialized to YSON since it has unsupported type");
     }
