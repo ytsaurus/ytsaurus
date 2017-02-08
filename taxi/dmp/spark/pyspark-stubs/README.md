@@ -49,7 +49,7 @@ Currently this project uses Spark 2.1.0 as a reference.
 | <s>pyspark.ml.param._shared_params\_code\_gen</s>  | ✘                 | ✘                | Internal         |
 | pyspark.ml.param.shared                            | ✘                 | ✔                |                  |
 | pyspark.ml.pipeline                                | ✘                 | ✔                |                  |
-| pyspark.ml.recommendation                          | ✔                 | ✘                |                  |
+| pyspark.ml.recommendation                          | ✘                 | ✔                |                  |
 | pyspark.ml.regression                              | ✔                 | ✘                |                  |
 | <s>pyspark.ml.tests</s>                            | ✘                 | ✘                | Tests            |
 | pyspark.ml.tuning                                  | ✘                 | ✔                |                  |
