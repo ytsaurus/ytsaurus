@@ -8,7 +8,7 @@ from pyspark.storagelevel import StorageLevel
 import pyspark.streaming.dstream as dstream
 from pyspark.streaming.listener import StreamingListener
 
-T = TypeVar("T")
+T = TypeVar('T')
 
 class StreamingContext:
     def __init__(self, sparkContext, batchDuration: Optional[Any] = ..., jssc: Optional[Any] = ...) -> None: ...

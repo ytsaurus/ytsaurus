@@ -6,7 +6,7 @@ from typing import Any, Callable, Dict, List, Optional, TypeVar
 from pyspark.ml.util import Identifiable
 from pyspark.ml.linalg import DenseVector
 
-T = TypeVar("T")
+T = TypeVar('T')
 ParamMap = Dict[Param, Any]
 
 class Param:

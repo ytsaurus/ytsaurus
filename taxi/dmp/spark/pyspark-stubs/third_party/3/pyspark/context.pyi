@@ -11,8 +11,8 @@ from pyspark.serializers import Serializer
 from pyspark.status import StatusTracker
 from py4j.java_gateway import JavaGateway, JavaObject  # type: ignore
 
-T = TypeVar("T")
-U = TypeVar("U")
+T = TypeVar('T')
+U = TypeVar('U')
 
 class SparkContext:
     PACKAGE_EXTENSIONS = ...  # type: Iterable[str]

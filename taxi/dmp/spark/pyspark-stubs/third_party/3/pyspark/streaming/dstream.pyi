@@ -8,11 +8,11 @@ from pyspark.rdd import RDD
 from pyspark.storagelevel import StorageLevel
 import pyspark.streaming.context
 
-S = TypeVar("S")
-T = TypeVar("T")
-U = TypeVar("U")
-K = TypeVar("K", bound=Hashable)
-V = TypeVar("V")
+S = TypeVar('S')
+T = TypeVar('T')
+U = TypeVar('U')
+K = TypeVar('K', bound=Hashable)
+V = TypeVar('V')
 
 class DStream(Generic[T]):
     is_cached = ...  # type: bool

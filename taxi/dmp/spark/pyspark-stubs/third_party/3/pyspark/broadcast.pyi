@@ -3,7 +3,7 @@
 
 from typing import Any, Generic, Optional, TypeVar
 
-T = TypeVar("T")
+T = TypeVar('T')
 
 class Broadcast(Generic[T]):
     def __init__(self, sc: Optional[Any] = ..., value: Optional[T] = ..., pickle_registry: Optional[Any] = ..., path: Optional[Any] = ...) -> None: ...

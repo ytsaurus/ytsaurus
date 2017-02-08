@@ -18,7 +18,7 @@ from pyspark.sql.streaming import DataStreamReader, StreamingQueryManager
 from pandas.core.frame import DataFrame as PandasDataFrame  # type: ignore
 from py4j.java_gateway import JavaObject  # type: ignore
 
-T = TypeVar("T")
+T = TypeVar('T')
 
 class SparkSession:
     class Builder:

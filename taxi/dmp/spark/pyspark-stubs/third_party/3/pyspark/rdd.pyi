@@ -10,14 +10,14 @@ from pyspark.statcounter import StatCounter
 from py4j.java_gateway import JavaObject  # type: ignore
 from numpy import int32, int64, float32, float64, ndarray  # type: ignore
 
-T = TypeVar("T")
-U = TypeVar("U")
-K = TypeVar("K", bound=Hashable)
-V = TypeVar("V")
-V1 = TypeVar("V1")
-V2 = TypeVar("V2")
-V3 = TypeVar("V3")
-NumberOrArray = TypeVar("NumberOrArray", float, int, complex, int32, int64, float32, float64, ndarray)
+T = TypeVar('T')
+U = TypeVar('U')
+K = TypeVar('K', bound=Hashable)
+V = TypeVar('V')
+V1 = TypeVar('V1')
+V2 = TypeVar('V2')
+V3 = TypeVar('V3')
+NumberOrArray = TypeVar('NumberOrArray', float, int, complex, int32, int64, float32, float64, ndarray)
 
 def portable_hash(x: Hashable) -> int: ...
 
