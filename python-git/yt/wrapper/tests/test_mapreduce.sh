@@ -2,6 +2,8 @@
 
 export YT_PREFIX="//home/wrapper_tests/"
 
+current_process_pid=$$
+
 set +u
 if [ -z "$ENABLE_SCHEMA" ]; then
     ENABLE_SCHEMA=""
@@ -50,10 +52,15 @@ prepare_table_files() {
 }
 
 cleanup() {
-    for pid in `jobs -p`; do
+    for pid in `pstree -p $$ | grep -o '([0-9]\+)' | grep -o '[0-9]\+'`; do
+        if [ "$pid" = "$current_process_pid" ]; then
+            continue
+        fi
         if ps ax | awk '{print $1}' | grep $pid; then
             # We use "|| true" to prevent failure in case when the process
             # terminates before we kill it.
+            kill -2 $pid || true
+            sleep 0.1
             kill $pid || true
         fi
     done
@@ -771,6 +778,34 @@ test_archive_and_transform()
     unset YT_CONFIG_PATH
 }
 
+test_create_tables_under_transaction_option()
+{
+    gen_data()
+    {
+        stdbuf -o 0 echo -e "a\tb"
+        sleep 4
+        echo -e "x\ty"
+    }
+
+    run()
+    {
+        table="${1}"
+        $MAPREDUCE_YT -drop "$table" -force
+        check "false" "`$MAPREDUCE_YT -exists "$table"`"
+        gen_data | $MAPREDUCE_YT -append -write "$table"
+    }
+
+    run "ignat/xxx_some_table" &
+    sleep 2
+    check "true" "`$MAPREDUCE_YT -exists "ignat/xxx_some_table"`"
+    sleep 4
+
+    YT_CREATE_TABLES_UNDER_TRANSACTION=1 run "ignat/xxx_some_table2" &
+    sleep 2
+    check "false" "`$MAPREDUCE_YT -exists "ignat/xxx_some_table2"`"
+    sleep 4
+}
+
 prepare_table_files
 test_base_functionality
 test_copy_move
@@ -804,6 +839,7 @@ test_table_record_index
 test_opts
 test_archive_and_transform
 test_defrag
+test_create_tables_under_transaction_option
 
 if [ -z "$ENABLE_SCHEMA" ]; then
     test_sortby_reduceby
