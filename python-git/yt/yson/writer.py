@@ -143,14 +143,14 @@ class Dumper(object):
                 result = b"%true"
         elif isinstance(obj, integer_types):
             if obj < -2 ** 63 or obj >= 2 ** 64:
-                raise TypeError("Integer {0} cannot be represented in YSON "
+                raise YsonError("Integer {0} cannot be represented in YSON "
                                 "since it is out of range [-2^63, 2^64 - 1])".format(obj))
 
             greater_than_max_int64 = obj >= 2 ** 63
             if isinstance(obj, yson_types.YsonUint64) and obj < 0:
-                raise TypeError("Can not dump negative integer as YSON uint64")
+                raise YsonError("Can not dump negative integer as YSON uint64")
             if isinstance(obj, yson_types.YsonInt64) and greater_than_max_int64:
-                raise TypeError("Can not dump integer greater than 2^63-1 as YSON int64")
+                raise YsonError("Can not dump integer greater than 2^63-1 as YSON int64")
 
             result = str(obj).encode("ascii")
             if not PY3:
@@ -168,7 +168,7 @@ class Dumper(object):
         elif isinstance(obj, yson_types.YsonEntity) or obj is None:
             result = b"#"
         else:
-            raise TypeError(repr(obj) + " is not Yson serializable.")
+            raise YsonError(repr(obj) + " is not Yson serializable.")
         self._level -= 1
         return attributes + result
 
@@ -199,7 +199,7 @@ class Dumper(object):
 
         for k, v in iteritems(obj):
             if not isinstance(k, (text_type, binary_type)):
-                raise TypeError("Only string can be Yson map key. Key: %s" % repr(k))
+                raise YsonError("Only string can be Yson map key. Key: %s" % repr(k))
 
             @self._circular_check(v)
             def process_item():
@@ -238,7 +238,7 @@ class Dumper(object):
         result = [b'<', self._format.nextline()]
         for k, v in obj.items():
             if not isinstance(k, (text_type, binary_type)):
-                raise TypeError("Only string can be Yson map key. Key: %s" % repr(obj))
+                raise YsonError("Only string can be Yson map key. Key: %s" % repr(obj))
 
             @self._circular_check(v)
             def process_item():
@@ -258,8 +258,7 @@ class Dumper(object):
                 if not self._seen_objects is None:
                     obj_id = id(obj)
                     if obj_id in self._seen_objects:
-                        raise ValueError("Circular reference detected. " \
-                            "Object: %s" % repr(obj))
+                        raise YsonError("Circular reference detected. Object: %s" % repr(obj))
                     else:
                         self._seen_objects[obj_id] = obj
 
