@@ -236,10 +236,13 @@ private:
                 YCHECK(readReplicationBatch());
             }
 
+            TModifyRowsOptions modifyOptions;
+            modifyOptions.PushToReplica = true;
             foreignTransaction->ModifyRows(
                 ReplicaPath_,
                 TNameTable::FromSchema(TableSchema_),
-                MakeSharedRange(std::move(modifications), std::move(rowBuffer)));
+                MakeSharedRange(std::move(modifications), std::move(rowBuffer)),
+                modifyOptions);
             
             {
                 NProto::TReqReplicateRows req;

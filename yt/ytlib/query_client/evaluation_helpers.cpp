@@ -257,24 +257,23 @@ TJoinParameters GetJoinEvaluator(
         TRowBufferPtr permanentBuffer)
     {
         // TODO: keys should be joined with allRows: [(key, sourceRow)]
-        TRowRanges ranges;
+
+        TDataRanges dataSource;
+        dataSource.Id = foreignDataId;
 
         if (canUseSourceRanges) {
             LOG_DEBUG("Using join via source ranges");
-            for (auto key : keys) {
-                auto lowerBound = key;
 
-                auto upperBound = permanentBuffer->Allocate(keyPrefix + 1);
-                for (int column = 0; column < keyPrefix; ++column) {
-                    upperBound[column] = lowerBound[column];
-                }
-
-                upperBound[keyPrefix] = MakeUnversionedSentinelValue(EValueType::Max);
-                ranges.emplace_back(lowerBound, upperBound);
+            dataSource.Keys = MakeSharedRange(std::move(keys), std::move(permanentBuffer));
+            for (const auto& item : joinKeyExprs) {
+                dataSource.Schema.push_back(item->Type);
             }
+
             subquery->WhereClause = foreignPredicate;
             subquery->InferRanges = false;
         } else {
+            TRowRanges ranges;
+
             LOG_DEBUG("Using join via IN clause");
             ranges.emplace_back(
                 permanentBuffer->Capture(NTableClient::MinKey().Get()),
@@ -282,16 +281,14 @@ TJoinParameters GetJoinEvaluator(
 
             auto inClause = New<TInOpExpression>(joinKeyExprs, MakeSharedRange(std::move(keys), permanentBuffer));
 
+            dataSource.Ranges = MakeSharedRange(std::move(ranges), std::move(permanentBuffer));
+
             subquery->WhereClause = foreignPredicate
                 ? MakeAndExpression(inClause, foreignPredicate)
                 : inClause;
         }
 
         LOG_DEBUG("Executing subquery");
-
-        TDataRanges dataSource;
-        dataSource.Id = foreignDataId;
-        dataSource.Ranges = MakeSharedRange(std::move(ranges), std::move(permanentBuffer));
 
         return std::make_pair(subquery, dataSource);
     };

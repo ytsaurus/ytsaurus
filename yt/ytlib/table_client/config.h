@@ -303,9 +303,9 @@ public:
             .GreaterThanOrEqual(0)
             .Default(1);
         RegisterParameter("min_data_ttl", MinDataTtl)
-            .Default(TDuration::Minutes(5));
+            .Default(TDuration::Minutes(30));
         RegisterParameter("max_data_ttl", MaxDataTtl)
-            .Default(TDuration::Minutes(5));
+            .Default(TDuration::Minutes(30));
     }
 };
 

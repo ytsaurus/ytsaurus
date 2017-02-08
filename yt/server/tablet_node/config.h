@@ -182,7 +182,7 @@ public:
             .Default(Null);
 
         RegisterParameter("dynamic_store_auto_flush_period", DynamicStoreAutoFlushPeriod)
-            .Default(TDuration::Hours(1));
+            .Default(TDuration::Minutes(15));
         RegisterParameter("auto_compaction_period", AutoCompactionPeriod)
             .Default(Null);
 

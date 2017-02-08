@@ -52,10 +52,6 @@ TUserJobReadController::TUserJobReadController(
 
 TCallback<TFuture<void>()> TUserJobReadController::PrepareJobInputTransfer(const IAsyncOutputStreamPtr& asyncOutput)
 {
-    auto finally = Finally([=] {
-        Initialized_ = true;
-    });
-
     const auto& schedulerJobSpecExt = JobSpecHelper_->GetSchedulerJobSpecExt();
 
     const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
@@ -85,7 +81,7 @@ TCallback<TFuture<void>()> TUserJobReadController::PrepareInputActionsPassthroug
 
     auto bufferRowCount = JobSpecHelper_->GetJobIOConfig()->BufferRowCount;
 
-    return BIND([=] () {
+    return BIND([=, this_ = MakeStrong(this)] () {
         PipeReaderToWriter(
             Reader_,
             writer,
@@ -122,7 +118,7 @@ TCallback<TFuture<void>()> TUserJobReadController::PrepareInputActionsQuery(
         return Reader_;
     };
 
-    return BIND([=] () {
+    return BIND([=, this_ = MakeStrong(this)] () {
         RunQuery(querySpec, readerFactory, [&] (TNameTablePtr nameTable) {
                 auto schemalessWriter = CreateSchemalessWriterForFormat(
                     format,
@@ -151,6 +147,7 @@ void TUserJobReadController::InitializeReader(TNameTablePtr nameTable, const TCo
         OnNetworkRelease_,
         std::move(nameTable),
         columnFilter);
+    Initialized_ = true;
 }
 
 void TUserJobReadController::InitializeReader()
@@ -163,6 +160,7 @@ double TUserJobReadController::GetProgress() const
     if (!Initialized_) {
         return 0;
     }
+
     i64 total = Reader_->GetTotalRowCount();
     i64 current = Reader_->GetSessionRowIndex();
 
@@ -179,7 +177,7 @@ TFuture<std::vector<TBlob>> TUserJobReadController::GetInputContext() const
         return MakeFuture(std::vector<TBlob>());
     }
 
-    return BIND([=]() {
+    return BIND([=, this_ = MakeStrong(this)]() {
         std::vector<TBlob> result;
         for (const auto& input : FormatWriters_) {
             result.push_back(input->GetContext());

@@ -269,8 +269,6 @@ TCodegenSource TQueryProfiler::Profile(TConstQueryPtr query)
             std::tie(foreignFilter, whereClause) = SplitPredicateByColumnSubset(
                 whereClause,
                 joinClause->GetRenamedSchema());
-        } else {
-            foreignFilter = ExtractPredicateForColumnSubset(whereClause, joinClause->GetRenamedSchema());
         }
 
         int index = Variables_->AddOpaque<TJoinParameters>(GetJoinEvaluator(
