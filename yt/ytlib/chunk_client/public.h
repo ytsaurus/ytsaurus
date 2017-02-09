@@ -141,7 +141,6 @@ DEFINE_ENUM(EErrorCode,
     ((NoSuchChunkTree)          (713))
     ((NoSuchChunkList)          (717))
     ((MasterNotConnected)       (714))
-    ((ChunkCreationFailed)      (715))
     ((ChunkUnavailable)         (716))
     ((WriteThrottlingActive)    (718))
     ((NoSuchMedium)             (719))
