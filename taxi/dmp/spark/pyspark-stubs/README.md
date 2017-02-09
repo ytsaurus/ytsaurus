@@ -94,7 +94,7 @@ Currently this project uses Spark 2.1.0 as a reference.
 | pyspark.sql.session                                | ✘                 | ✔                |                  |
 | pyspark.sql.streaming                              | ✘                 | ✔                |                  |
 | <s>pyspark.sql.tests</s>                           | ✘                 | ✘                | Tests            |
-| pyspark.sql.types                                  | ✔                 | ✘                |                  |
+| pyspark.sql.types                                  | ✘                 | ✔                |                  |
 | pyspark.sql.utils                                  | ✔                 | ✘                |                  |
 | pyspark.sql.window                                 | ✘                 | ✔                |                  |
 | pyspark.statcounter                                | ✔                 | ✘                |                  |
