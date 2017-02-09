@@ -568,7 +568,7 @@ endif()
 install(
   TARGETS
     ytserver-master ytserver-scheduler ytserver-node
-    ytserver-job-proxy ytserver-exec ytserver-core-forwarder
+    ytserver-job-proxy ytserver-exec ytserver-core-forwarder ytserver-tools
   RUNTIME DESTINATION bin
   PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE SETUID
 )
