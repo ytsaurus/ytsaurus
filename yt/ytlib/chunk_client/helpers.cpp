@@ -98,6 +98,7 @@ TChunkId CreateChunk(
     auto batchRspOrError = WaitFor(batchReq->Invoke());
     THROW_ERROR_EXCEPTION_IF_FAILED(
         GetCumulativeError(batchRspOrError),
+        NChunkClient::EErrorCode::MasterCommunicationFailed,
         "Error creating chunk");
 
     const auto& batchRsp = batchRspOrError.Value();
