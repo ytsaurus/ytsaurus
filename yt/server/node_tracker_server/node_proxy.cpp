@@ -248,13 +248,8 @@ private:
             }
 
             if (key == "full") {
-                const auto& statistics = node->Statistics();
-                bool full = false;
-                for (const auto& location : statistics.locations()) {
-                    full |= location.full();
-                }
                 BuildYsonFluently(consumer)
-                    .Value(full);
+                    .Value(node->Statistics().full());
                 return true;
             }
 
