@@ -422,7 +422,9 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     descriptors->push_back(TAttributeDescriptor("external_cell_tag")
         .SetPresent(isExternal));
     descriptors->push_back("accounting_enabled");
-    descriptors->push_back("locks");
+    descriptors->push_back(TAttributeDescriptor("locks")
+        .SetOpaque(true));
+    descriptors->push_back("lock_count");
     descriptors->push_back("lock_mode");
     descriptors->push_back(TAttributeDescriptor("path")
         .SetOpaque(true));
@@ -502,6 +504,12 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
                 .DoFor(trunkNode->LockingState().AcquiredLocks, printLock)
                 .DoFor(trunkNode->LockingState().PendingLocks, printLock)
             .EndList();
+        return true;
+    }
+
+    if (key == "lock_count") {
+        BuildYsonFluently(consumer)
+            .Value(trunkNode->LockingState().AcquiredLocks.size() + trunkNode->LockingState().PendingLocks.size());
         return true;
     }
 
