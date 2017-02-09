@@ -489,6 +489,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
                         files=files,
                         yt_files=[yt_token_file],
                         spec=spec,
+                        ordered=True,
                         input_format=yt.JsonFormat(),
                         output_format=intermediate_format)
                 finally:
@@ -599,6 +600,7 @@ def copy_file_yt_to_yt(source_client, destination_client, src, dst, fastbone, to
                             files=files,
                             yt_files=[yt_token_file],
                             spec=spec,
+                            ordered=True,
                             input_format=yt.JsonFormat(),
                             output_format=intermediate_format)
 
@@ -730,7 +732,8 @@ while True:
             yt_files=yt_files,
             input_format=yt.JsonFormat(),
             output_format=output_format,
-            spec=spec)
+            spec=spec,
+            ordered=True)
     finally:
         shutil.rmtree(tmp_dir)
 
@@ -828,7 +831,8 @@ def copy_hive_to_yt(hive_client, yt_client, source_table, destination_table, cop
             input_format=yt.SchemafulDsvFormat(columns=["file"]),
             output_format=yt.JsonFormat(attributes=output_format_attributes),
             files=hive_client.hive_importer_library,
-            spec=spec)
+            spec=spec,
+            ordered=True)
 
         postprocess_spec = deepcopy(get_value(postprocess_spec_template, {}))
         transform(destination_table, erasure_codec=erasure_codec, yt_client=yt_client,
