@@ -21,6 +21,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/bus_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/callback_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/checkpointable_stream_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/checksum_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_schema_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_slice_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_tree_balancer_ut.cpp
