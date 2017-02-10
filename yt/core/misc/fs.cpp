@@ -243,7 +243,7 @@ TDiskSpaceStatistics GetDiskSpaceStatistics(const Stroka& path)
     return result;
 }
 
-void ForcePath(const Stroka& path, int mode)
+void MakeDirRecursive(const Stroka& path, int mode)
 {
     MakePathIfNotExist(~path, mode);
 }
