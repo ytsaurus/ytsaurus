@@ -15,7 +15,11 @@ Moreover:
 
 > Third-party stub packages can use any location for stub storage. Type checkers should search for them using PYTHONPATH. A default fallback directory that is always checked is shared/typehints/python3.5/ (or 3.6, etc.)
 
-Adding `third_party/3` to the `PYTHONPATH` seems to the trick.
+You'll also need a type checker for example:
+
+- [Mypy](https://github.com/python/mypy)
+- [Pytype](https://github.com/google/pytype/)
+
 
 ## Version Compatibility
 
