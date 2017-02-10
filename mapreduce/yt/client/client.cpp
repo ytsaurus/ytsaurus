@@ -167,12 +167,14 @@ public:
     {
         THttpHeader header("GET", "list");
 
+        TYPath updatedPath = AddPathPrefix(path);
         // FIXME: ugly but quick empty path special case
-        if (path.empty() && TConfig::Get()->Prefix == "//") {
-            header.AddPath("/");
-        } else {
-            header.AddPath(AddPathPrefix(path));
+        // Translate "//" to "/"
+        // Translate "//some/constom/prefix/from/config/" to "//some/constom/prefix/from/config"
+        if (path.empty() && updatedPath.EndsWith('/')) {
+            updatedPath.pop_back();
         }
+        header.AddPath(updatedPath);
         header.AddTransactionId(TransactionId_);
 
         if (options.AttributeFilter_) {
