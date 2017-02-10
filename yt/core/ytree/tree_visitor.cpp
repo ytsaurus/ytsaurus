@@ -108,9 +108,8 @@ private:
         }
     }
 
-    void VisitEntity(const INodePtr& node)
+    void VisitEntity(const INodePtr& /*node*/)
     {
-        Y_UNUSED(node);
         Consumer->OnEntity();
     }
 
