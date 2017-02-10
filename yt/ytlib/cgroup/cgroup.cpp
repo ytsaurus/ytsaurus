@@ -234,7 +234,7 @@ void TNonOwningCGroup::EnsureExistance() const
     YCHECK(!IsNull());
 
 #ifdef _linux_
-    NFS::ForcePath(FullPath_, 0755);
+    NFS::MakeDirRecursive(FullPath_, 0755);
 #endif
 }
 

@@ -545,7 +545,7 @@ public:
 
     std::vector<TMultiplexedChangelogDescriptor> ListMultiplexedChangelogs()
     {
-        NFS::ForcePath(Path_);
+        NFS::MakeDirRecursive(Path_);
         auto fileNames = NFS::EnumerateFiles(Path_);
         std::vector<TMultiplexedChangelogDescriptor> result;
         for (const auto& originalFileName : fileNames) {
