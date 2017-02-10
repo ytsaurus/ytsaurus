@@ -54,7 +54,7 @@ Currently this project uses Spark 2.1.0 as a reference.
 | pyspark.ml.param.shared                            | ✘                 | ✔                |                  |
 | pyspark.ml.pipeline                                | ✘                 | ✔                |                  |
 | pyspark.ml.recommendation                          | ✘                 | ✔                |                  |
-| pyspark.ml.regression                              | ✔                 | ✘                |                  |
+| pyspark.ml.regression                              | ✘                 | ✔                |                  |
 | <s>pyspark.ml.tests</s>                            | ✘                 | ✘                | Tests            |
 | pyspark.ml.tuning                                  | ✘                 | ✔                |                  |
 | pyspark.ml.util                                    | ✘                 | ✔                |                  |
