@@ -10,7 +10,7 @@
 #include <util/string/printf.h>
 
 #include <util/memory/pool.h>
-
+#include <array>
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -502,22 +502,26 @@ private:
         }
     }
 
+    void Swap(TNode& r) {
+        using unsafe_ptr = std::array<size_t, sizeof(TNode)/sizeof(size_t)>*;
+        static_assert(sizeof(TNode) == sizeof(*(unsafe_ptr{})), "can't performunsafe swap");
+        unsafe_ptr me = (unsafe_ptr)(void*)this;
+        unsafe_ptr other = (unsafe_ptr)(void*)&r;
+        std::swap(*me, *other);
+    }
+
     void Move(TNode&& rhs)
     {
-        Clear();
-
-        memcpy(this, &rhs, sizeof(TNode));
-        rhs.Attributes_ = nullptr;
-        rhs.Type_ = UNDEFINED;
+        Swap(rhs);
     }
 
     void CheckType(EType type) const
     {
-        if (Type_ != type) {
-            ythrow TTypeError()
+        Y_ENSURE_EX(Type_ == type,
+            TTypeError()
                 << Sprintf("TNode type %s expected, actual type %s",
                     ~TypeToString(type), ~TypeToString(Type_));
-        }
+        );
     }
 
     void AssureMap()
