@@ -17,6 +17,20 @@ using NChunkServer::DefaultStoreMediumIndex;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+void ValidateDiskSpace(i64 diskSpace)
+{
+    if (diskSpace < 0) {
+        THROW_ERROR_EXCEPTION("Invalid disk space size: expected >= 0, found %v",
+            diskSpace);
+    }
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 TClusterResources::TClusterResources()
     : DiskSpace{}
     , NodeCount(0)
@@ -59,11 +73,11 @@ void ToProto(NProto::TClusterResources* protoResources, const TClusterResources&
     protoResources->set_chunk_count(resources.ChunkCount);
     protoResources->set_node_count(resources.NodeCount);
 
-    for (int i = 0; i < MaxMediumCount; ++i) {
-        i64 diskSpace = resources.DiskSpace[i];
+    for (int index = 0; index < MaxMediumCount; ++index) {
+        i64 diskSpace = resources.DiskSpace[index];
         if (diskSpace != 0) {
             auto* protoDiskSpace = protoResources->add_disk_space_per_medium();
-            protoDiskSpace->set_medium_index(i);
+            protoDiskSpace->set_medium_index(index);
             protoDiskSpace->set_disk_space(diskSpace);
         }
     }
@@ -94,26 +108,30 @@ TSerializableClusterResources::TSerializableClusterResources()
     RegisterParameter("disk_space", DiskSpace_)
         .Optional();
 
-    RegisterValidator([this] {
-            for (const auto& pair : DiskSpacePerMedium_) {
-                ValidateDiskSpaceOrThrow(pair.second);
-            }
-        });
+    RegisterValidator([&] {
+        for (const auto& pair : DiskSpacePerMedium_) {
+            ValidateDiskSpace(pair.second);
+        }
+    });
 }
 
-TSerializableClusterResources::TSerializableClusterResources(const NChunkServer::TChunkManagerPtr& chunkManager, const TClusterResources& clusterResources)
+TSerializableClusterResources::TSerializableClusterResources(
+    const NChunkServer::TChunkManagerPtr& chunkManager,
+    const TClusterResources& clusterResources)
     : TSerializableClusterResources()
 {
     NodeCount_ = clusterResources.NodeCount;
     ChunkCount_ = clusterResources.ChunkCount;
-    DiskSpace_ = clusterResources.DiskSpace[DefaultStoreMediumIndex];
-    for (int mediumIndex = 0; mediumIndex < NChunkClient::MaxMediumCount; ++mediumIndex) {
-        i64 mediumDiskSpace = clusterResources.DiskSpace[mediumIndex];
-        if (mediumDiskSpace > 0) {
-            auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
-            DiskSpacePerMedium_.insert(std::make_pair(medium->GetName(), mediumDiskSpace));
+    for (const auto& pair : chunkManager->Media()) {
+        const auto* medium = pair.second;
+        if (medium->GetCache()) {
+            continue;
         }
+        int mediumIndex = medium->GetIndex();
+        i64 mediumDiskSpace = clusterResources.DiskSpace[mediumIndex];
+        YCHECK(DiskSpacePerMedium_.insert(std::make_pair(medium->GetName(), mediumDiskSpace)).second);
     }
+    DiskSpace_ = clusterResources.DiskSpace[DefaultStoreMediumIndex];
 }
 
 TClusterResources TSerializableClusterResources::ToClusterResources(const NChunkServer::TChunkManagerPtr& chunkManager) const
@@ -123,18 +141,8 @@ TClusterResources TSerializableClusterResources::ToClusterResources(const NChunk
         auto* medium = chunkManager->GetMediumByNameOrThrow(pair.first);
         result.DiskSpace[medium->GetIndex()] = pair.second;
     }
-
     return result;
 }
-
-void TSerializableClusterResources::ValidateDiskSpaceOrThrow(i64 diskSpace) const
-{
-    if (diskSpace < 0) {
-        THROW_ERROR_EXCEPTION("Expected >= 0, found %v", diskSpace);
-    }
-}
-
-DEFINE_REFCOUNTED_TYPE(TSerializableClusterResources)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -184,7 +192,7 @@ TClusterResources& operator *= (TClusterResources& lhs, i64 rhs)
         std::begin(lhs.DiskSpace),
         std::end(lhs.DiskSpace),
         std::begin(lhs.DiskSpace),
-        [rhs] (i64 space) { return space * rhs; });
+        [&] (i64 space) { return space * rhs; });
     lhs.NodeCount *= rhs;
     lhs.ChunkCount *= rhs;
     return lhs;
