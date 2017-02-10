@@ -134,7 +134,7 @@ void TJobProbeCGroupTools::Init()
     std::vector<Stroka> shellEnvironment;
     shellEnvironment.reserve(Environment_.size());
     for (const auto& var : Environment_) {
-        if (var.has_prefix("YT_")) {
+        if (var.StartsWith("YT_")) {
             shellEnvironment.emplace_back(var);
         }
     }
