@@ -45,8 +45,9 @@ private:
     {
         node->WriteAttributes(Consumer, AttributeKeys, SortKeys);
 
+        static const Stroka opaqueAttributeName("opaque");
         if (!isRoot &&
-            node->Attributes().Get<bool>("opaque", false))
+            node->Attributes().Get<bool>(opaqueAttributeName, false))
         {
             // This node is opaque, i.e. replaced by entity during tree traversal.
             Consumer->OnEntity();
