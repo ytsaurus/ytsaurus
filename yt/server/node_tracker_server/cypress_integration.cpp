@@ -155,9 +155,16 @@ private:
     {
         TMapNodeProxy::ListSystemAttributes(descriptors);
 
-        descriptors->push_back("offline");
-        descriptors->push_back("registered");
-        descriptors->push_back("online");
+        descriptors->push_back(TAttributeDescriptor("offline")
+            .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor("registered")
+            .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor("online")
+            .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor("unregistered")
+            .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor("mixed")
+            .SetOpaque(true));
         descriptors->push_back("available_space");
         descriptors->push_back("used_space");
         descriptors->push_back("chunk_replica_count");
@@ -173,11 +180,13 @@ private:
     {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
 
-        if (key == "offline" || key == "registered" || key == "online") {
+        if (key == "offline" || key == "registered" || key == "online" || key == "unregistered" || key == "mixed") {
             auto state =
-                   key == "offline"    ? ENodeState::Offline :
-                   key == "registered" ? ENodeState::Registered :
-                /* key == "online" */    ENodeState::Online;
+                    key == "offline"      ? ENodeState::Offline :
+                    key == "registered"   ? ENodeState::Registered :
+                    key == "online"       ? ENodeState::Online :
+                    key == "unregistered" ? ENodeState::Unregistered :
+                    /* key == "mixed" */    ENodeState::Mixed;
             BuildYsonFluently(consumer)
                 .DoListFor(nodeTracker->Nodes(), [=] (TFluentList fluent, const std::pair<const TObjectId&, TNode*>& pair) {
                     auto* node = pair.second;
