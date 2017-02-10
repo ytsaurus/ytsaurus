@@ -5,7 +5,7 @@ set(CHARSET_SRCS
   ${CHARSET_BASE}/unicode_table.cpp
   ${CHARSET_BASE}/unidata.cpp
   ${CHARSET_BASE}/utf8.cpp
-  ${CHARSET_BASE}/wide.cpp
+  ${CHARSET_BASE}/sse41/wide.cpp
 )
 
 set(STRING_BASE ${CMAKE_SOURCE_DIR}/util/string)
@@ -149,7 +149,6 @@ set(MEMORY_SRCS
 set(STREAM_BASE ${CMAKE_SOURCE_DIR}/util/stream)
 set(STREAM_SRCS
   ${STREAM_BASE}/aligned.cpp
-  ${STREAM_BASE}/base.cpp
   ${STREAM_BASE}/buffer.cpp
   ${STREAM_BASE}/buffered.cpp
   ${STREAM_BASE}/debug.cpp
@@ -159,7 +158,6 @@ set(STREAM_SRCS
   ${STREAM_BASE}/hex.cpp
   ${STREAM_BASE}/holder.cpp
   ${STREAM_BASE}/input.cpp
-  ${STREAM_BASE}/ios.cpp
   ${STREAM_BASE}/labeled.cpp
   ${STREAM_BASE}/length.cpp
   ${STREAM_BASE}/mem.cpp
