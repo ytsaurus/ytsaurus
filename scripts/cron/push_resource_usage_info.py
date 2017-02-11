@@ -114,7 +114,7 @@ def push_cluster_data_to_solomon(cluster, accounts_data, headers):
     data["commonLabels"] = {
         "project": "yt",
         "cluster": cluster,
-        "service": "misc",
+        "service": "accounts",
         "host": "none"
     }
     data["sensors"] = convert_data_to_solomon_format(accounts_data)
